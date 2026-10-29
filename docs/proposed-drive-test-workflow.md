@@ -1,8 +1,8 @@
 # Proposed isolated GitHub Actions test executor
 
-Status: PROPOSAL ONLY; not installed or enabled. Owner approval is required before using an additional hosted runner/Actions minutes. The current session denies local sockets. This would rerun the unchanged pinned upstream suite on an ephemeral Linux runner, with no repository checkout, secrets, Google account or personal media, and a five-minute job timeout. Existing GitHub plan allowances/billing apply; no free-minute balance has been verified. It does not deploy a media host or begin Phase 4.
+Status: APPROVED by owner for the capped GitHub Actions test job. Workflow prepared for publication; execution result pending. The current session denies local sockets. This would rerun the unchanged pinned upstream suite on an ephemeral Linux runner, with no repository checkout, secrets, Google account or personal media, and a five-minute job timeout. Existing GitHub plan allowances/billing apply; no free-minute balance has been verified. It does not deploy a media host or begin Phase 4.
 
-If approved, install the following as `.github/workflows/drive-upstream.yml` on the existing PR branch only. Retain the original failed run. Inspect resulting check logs before claiming any upstream test passes. If workflow permissions or Actions access are unavailable, retain the blocker and report it without changing the default branch or merging.
+Owner approved installing the following as `.github/workflows/drive-upstream.yml` on the existing PR branch only. Retain the original failed run. Inspect resulting check logs before claiming any upstream test passes. If workflow permissions or Actions access are unavailable, retain the blocker and report it without changing the default branch or merging.
 
 ```yaml
 name: Pinned Drive upstream validation

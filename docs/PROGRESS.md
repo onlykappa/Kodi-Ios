@@ -9,7 +9,7 @@ Active blockers: local AF_INET sockets denied (EPERM); upstream suite 42 run / 3
 Pending decisions: architecture selected by owner (direct add-on/public OAuth relay); no new hosting/spending approved. Need an authorized test executor with loopback sockets, not account credentials.
 Latest implementation commit SHA reviewed: a6163a3c74c3ab9762ca403a8f7fab7bbe09e213 (published visual-roadmap expansion).
 Roadmap publication commit: resolve `git log -1 --format=%H -- ROADMAP.md`; this avoids a self-referential SHA. Verify against PR head before resuming.
-Last updated UTC: 2026-10-29T19:14:33.779349+00:00
+Last updated UTC: 2026-10-29T19:26:35.663824+00:00
 Last validation: project regressions 27 passed; pinned upstream suite FAILED with 8 environment errors (reports/drive-upstream-validation.json). All 97 upstream source identities verified privately after supported base64 acquisition. Phase 3 not ready.
 
 ## Resume instructions
@@ -24,4 +24,4 @@ Publication uses the GitHub connector because this shell has no authenticated Gi
 
 Deployment objective: unsigned Kodi iOS IPA based on trusted compatible upstream build, with only compatible sanitized customizations. Phase 2 investigates bundling/import feasibility; Phase 4 assembles, validates and signs/installs with owner sideloader. Account state, secrets and media remain external. Static structure checks cannot prove sideloader/device compatibility.
 
-Proposed alternate test executor: docs/proposed-drive-test-workflow.md. Not installed or enabled; owner choice pending because Actions minutes may be consumed. Do not publish an executable workflow before that approval.
+Proposed alternate test executor: docs/proposed-drive-test-workflow.md. Prepared for publication; owner approved capped Actions job; run result pending because Actions minutes may be consumed. Owner has now approved publishing the exact capped workflow. Do not claim test success until actual run logs are inspected.

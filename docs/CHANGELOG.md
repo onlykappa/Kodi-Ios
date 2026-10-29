@@ -29,3 +29,7 @@ Phase 2 static review passed. Added seven future tasks (39 total), preserving co
 ## Phase 3 research, owner choice and test-executor blocker
 
 Compared maintained direct add-on/public or private relay, rclone bridge and older alternative using primary sources. Owner selected direct add-on/public relay. Recorded read-only OAuth trust/lifecycle design, current endpoint and imminent legacy endpoint retirement, cost/quota caveats and source pins. Verified 74 upstream text files outside Git. Preflight ran 42 upstream tests: 34 pass, eight error on denied local sockets. Preserved failure evidence and blocked P3-004; no integration-ready claim or Phase 4 work. No Google account or media accessed.
+
+## Approved alternate test executor
+
+Owner approved the capped GitHub Actions job. Prepared the reviewed workflow with pinned public source, five-minute timeout, no checkout/secrets/token permissions. Added a single-path workflow exception to the publication allowlist; all other unexpected workflows remain rejected. Run results pending; original failed tests retained.

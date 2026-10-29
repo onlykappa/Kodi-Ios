@@ -40,6 +40,9 @@ class Checks(unittest.TestCase):
         (source/'settings.xml').write_text('<settings><setting id="refresh_token">'+value+'</setting></settings>')
         (self.root/'docs/probe.md').write_text(value)
         self.assertIn('matches-private-source-value',self.rules(source))
+    def test_unapproved_workflow(self):
+        p=self.root/".github/workflows/unapproved.yml";p.parent.mkdir(parents=True,exist_ok=True);p.write_text("name: unapproved\n")
+        self.assertIn("unexpected-top-level-file",self.rules())
     def test_symlink_directory(self):
         (self.root/'snapshot/userdata/linked').symlink_to(self.root/'docs',target_is_directory=True)
         self.assertIn('symlink-not-publishable',self.rules())

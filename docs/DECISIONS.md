@@ -43,3 +43,7 @@ Owner approved Phase 2 static work and authorized Phase 3 only. Added seven unst
 ## DEC-011 — Approved direct Drive integration
 
 Owner explicitly chose direct Kodi add-on with maintainer OAuth relay (no separate media host). Prefer pinned plugin.googledrive 1.6.8/common 1.5.11 and current HTTPS drive.signinserver.com relay, with read-only Drive scope. No self-hosting, paid service, cloud billing or source-Deck server is approved. Relay trust includes token exchange/refresh; exact deployed-service behavior and iOS runtime remain unverified. See docs/google-drive.md and docs/google-drive-oauth-design.md. Required stream tests are blocked by sandbox socket denial, so integration/Phase 3 completion is not authorized by this choice alone.
+
+## DEC-012 — Capped Actions executor approved
+
+Owner approved the proposed isolated GitHub Actions job to resolve the local socket-test blocker. Job timeout five minutes, pinned public upstream source only, no repository checkout, Google account, personal media or secrets; no token permissions. Does not authorize Phase 4 or media hosting. Publish the prepared workflow, inspect actual run/logs, and preserve the failed local preflight. Approval does not establish a passing test result.
