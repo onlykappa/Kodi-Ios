@@ -1,0 +1,9 @@
+{
+  "name": "Elementum - Watch + Download",
+  "plugin": "plugin.video.elementum",
+  "priority": 10,
+  "is_resolvable": "true",
+  "make_playlist": "false",
+  "play_movie": "plugin://plugin.video.elementum/movie/{tmdb}/forcelinks",
+  "play_episode": "plugin://plugin.video.elementum/show/{tmdb}/season/{season}/episode/{episode}/forcelinks"
+}

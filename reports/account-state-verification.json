@@ -1,0 +1,12 @@
+{
+  "archive_verified": true,
+  "source_unchanged": true,
+  "files": 3179,
+  "source_bytes": 620869762,
+  "archive_bytes": 341663663,
+  "sha256": "2d467a4013c866330f43d0d7477a40bb3fecc6ae0dc6c5c0fcb3c6e12f67c62e",
+  "preservation": "Unmodified raw add-on data including saved file-based keys, logins, tokens and account databases; active core settings included",
+  "publication_allowed": false,
+  "ios_restoration_tested": false,
+  "limitations": "Does not capture browser/OS keychain credentials, external media or server-side state. Device-bound or expired sessions may need reauthentication. Restore selected compatible add-on state after installation; do not overwrite the iOS profile wholesale."
+}

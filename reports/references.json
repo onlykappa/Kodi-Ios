@@ -1,0 +1,16 @@
+{
+  "plugin_reference_counts": {
+    "plugin.video.themoviedb.helper": 30,
+    "plugin.video.umbrella": 7,
+    "plugin.video.elementum": 7
+  },
+  "missing_from_valid_source_manifests": [
+    "plugin.video.umbrella"
+  ],
+  "known_excluded_ios_addons": [
+    "plugin.video.umbrella",
+    "repository.umbrella"
+  ],
+  "remaining_umbrella_references_are_baseline_only": true,
+  "placeholders_require_local_configuration": true
+}

@@ -1,0 +1,184 @@
+{
+  "purpose": "Sanitized source baseline for review; not an installable iOS package",
+  "files": [
+    {
+      "path": "snapshot/userdata/addon_data/plugin.video.themoviedb.helper/players/deck.elementum.json",
+      "sha256": "41995a7f43b52602a938050af4fb9ded6dc6782a44d6b98e7084b58f835ec75d",
+      "bytes": 341
+    },
+    {
+      "path": "snapshot/userdata/addon_data/plugin.video.themoviedb.helper/players/deck.umbrella.json",
+      "sha256": "72e586313895d26d137d139d7abcd4da8ff7d882acea126dd0aff5570b328916",
+      "bytes": 1963
+    },
+    {
+      "path": "snapshot/userdata/addon_data/plugin.video.themoviedb.helper/reconfigured_players/autogen.plugin.video.elementum.json",
+      "sha256": "e1d3046b7767f7a56760b699be6312ffeed458af54fc28113967b41c4ece2250",
+      "bytes": 1155
+    },
+    {
+      "path": "snapshot/userdata/addon_data/plugin.video.themoviedb.helper/reconfigured_players/autogen.plugin.video.umbrella.json",
+      "sha256": "4a00ce5ef3aa93690236fa194a6c95e53014dc378a447ad4dcdbb17bc3510cd5",
+      "bytes": 1186
+    },
+    {
+      "path": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "sha256": "a647a94757d4f9f0cd20d2108d4f2b35d4ea1262025d3f03d7966a6b52d761ad",
+      "bytes": 3344
+    },
+    {
+      "path": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "sha256": "02dde68fa60809af2946b1579a21db112ae4c6e9053a2fccae4ffc99db418cfe",
+      "bytes": 3497
+    },
+    {
+      "path": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1103widgets.json",
+      "sha256": "3cf5bc93d5efcd72973007a43e1a9457e4af4a7edc2b2635942c8f0cd8d85da0",
+      "bytes": 899
+    },
+    {
+      "path": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json",
+      "sha256": "85bcc8478ef4b7e475918ff3ca4d2dd43238f93f154cef5a69e5872ea8fce742",
+      "bytes": 1309
+    },
+    {
+      "path": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json",
+      "sha256": "8f0ea7d3f0cfa432c2046aa4775f7afcd17107aec871b79a2d93a4945bdbe150",
+      "bytes": 1112
+    },
+    {
+      "path": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
+      "sha256": "4c93330e21e8d63b241f00c0ae55b68fc762747bf88c3bf8865e64e0bb6057f6",
+      "bytes": 426
+    },
+    {
+      "path": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "sha256": "893e67bb6fedd4fcabe1056ec3183e689d18c73c53b88c06e54da2e9c3548efe",
+      "bytes": 3982
+    },
+    {
+      "path": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-powermenu.json",
+      "sha256": "121716ee9d77ca3d0da2a840a052a0326a6c4e0d5774a7e793c9b7c40a37a177",
+      "bytes": 598
+    },
+    {
+      "path": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json",
+      "sha256": "bc7f705fd4844a2f9477f2e897ccf51a8105a4d1ad2e670d1dbdc6a139f18cf8",
+      "bytes": 1065
+    },
+    {
+      "path": "snapshot/userdata/addon_data/script.skinvariables/skin.arctic.fuse.3-viewtypes.json",
+      "sha256": "1daa086f3f3c95cb2af9adae7e99c71931bb24b5446205b35e9e8907bf647aeb",
+      "bytes": 1871
+    },
+    {
+      "path": "snapshot/userdata/addon_data/skin.arctic.fuse.3/settings.xml",
+      "sha256": "69ef2d025286f9e7645d6ea8bf547c3d40104549c54421e6db1ab3c03bf9ce36",
+      "bytes": 22238
+    },
+    {
+      "path": "snapshot/userdata/addon_data/skin.arctic.zephyr.mod/settings.xml",
+      "sha256": "c1a7116cd3d2d0681bbb64c0aa5b696b72eba3800c0c9c487039067c5f6d9226",
+      "bytes": 20545
+    },
+    {
+      "path": "snapshot/userdata/guisettings.xml",
+      "sha256": "aee1a3b6c4783011795b9cef259e62bf22681884e8fe80f82472cd89af1c599b",
+      "bytes": 308
+    },
+    {
+      "path": "snapshot/userdata/keymaps/deck-navigation.xml",
+      "sha256": "e12b1a158b04f1b2a8f0c13ef55d9d4a7222c9c32e63c870a7e0b19c54c928e8",
+      "bytes": 397
+    },
+    {
+      "path": "snapshot/userdata/keymaps/zz_kannon_video_dpad.xml",
+      "sha256": "48bacd16016b77f84c71e76f46acfa5128e52c8cedf4a563ffdb23718cd99773",
+      "bytes": 400
+    },
+    {
+      "path": "snapshot/userdata/playlists/video/Downloaded Shows.xsp",
+      "sha256": "530ee99c5cedeb00644b9d88fbbc190f8f983f6a6408d05adfe7b2406dc8acb6",
+      "bytes": 246
+    },
+    {
+      "path": "snapshot/userdata/playlists/video/In Progress Movies.xsp",
+      "sha256": "1c0e8a3c90f57eadfe747dcef4e3f092475247e6e63b1a62beecc45679a32d87",
+      "bytes": 199
+    },
+    {
+      "path": "snapshot/userdata/playlists/video/offline_movies_action.xsp",
+      "sha256": "cce0b0a39ef69db18fc1a33eb84e1df07c3a384b9269989f821731f804d67e81",
+      "bytes": 335
+    },
+    {
+      "path": "snapshot/userdata/playlists/video/offline_movies_comedy.xsp",
+      "sha256": "337cfcba643972b912884bcc934d4259d0bf78e4be81be5d1454baace409623c",
+      "bytes": 335
+    },
+    {
+      "path": "snapshot/userdata/playlists/video/offline_movies_horror.xsp",
+      "sha256": "b439130fb5d944a9dc8e1faec09c44e3f1a7863289ae0f941b076b17114d12e7",
+      "bytes": 335
+    },
+    {
+      "path": "snapshot/userdata/playlists/video/offline_movies_inprogress.xsp",
+      "sha256": "277e91651b90d48b47378191c020e1d7b4494bf3ecf469ac61d245a17b7ffe77",
+      "bytes": 308
+    },
+    {
+      "path": "snapshot/userdata/playlists/video/offline_movies_recent.xsp",
+      "sha256": "268ec3747bb53a8c996fdca34eef857fe350a33560f4a1c93727a55300d11eac",
+      "bytes": 264
+    },
+    {
+      "path": "snapshot/userdata/playlists/video/offline_movies_scifi.xsp",
+      "sha256": "69c0c50f1189a1f58523e19448c7402b378d17687c40fd410f80598e75baaae8",
+      "bytes": 344
+    },
+    {
+      "path": "snapshot/userdata/playlists/video/offline_shows_action.xsp",
+      "sha256": "a3d703455080335bdff0ac014016dfbd329b8f5c7dc113f38a4ef340623da70d",
+      "bytes": 335
+    },
+    {
+      "path": "snapshot/userdata/playlists/video/offline_shows_comedy.xsp",
+      "sha256": "01310e181ed3c5f99a3702caa02aaeac52df6970dfa43a2147109d95afa74cb2",
+      "bytes": 335
+    },
+    {
+      "path": "snapshot/userdata/playlists/video/offline_shows_episodes_recent.xsp",
+      "sha256": "96ef5455244bae9cc563a4849e61d8a7cccfbb1efb993f1e9549f0086ae96d44",
+      "bytes": 266
+    },
+    {
+      "path": "snapshot/userdata/playlists/video/offline_shows_inprogress.xsp",
+      "sha256": "401be2630f5d3b323277685cba8fd363a835c99f74c9d9ac76dbf5e194609656",
+      "bytes": 309
+    },
+    {
+      "path": "snapshot/userdata/playlists/video/offline_shows_recent.xsp",
+      "sha256": "bfb6381ee8a6329e7d2dffb97167a5f266490d8b82f27dade0bb42d33a7dbb8d",
+      "bytes": 264
+    },
+    {
+      "path": "snapshot/userdata/playlists/video/offline_shows_scifi.xsp",
+      "sha256": "438fc4963d37d1f591c4ede433649de8d6594da76fb0b99dc39909f9acd565e2",
+      "bytes": 338
+    },
+    {
+      "path": "snapshot/userdata/sources.xml",
+      "sha256": "a3c3ba922c153a10606a5e33efea73d611681fc12823adde201e75fb37a7025b",
+      "bytes": 1263
+    }
+  ],
+  "transform_counts": {
+    "omitted_xml_elements": 4,
+    "LOCAL_MEDIA_ROOT": 22,
+    "opaque_value": 1,
+    "omitted_json_fields": 71,
+    "NETWORK_SOURCE": 3
+  },
+  "private_path_placeholder_count": 12,
+  "excluded": "All raw add-on settings except selected skin UI settings; all add-on code/binaries/packages, databases, credentials, caches, thumbnails, histories, personal media, favourites, profiles and backup archives"
+}
