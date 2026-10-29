@@ -1,7 +1,7 @@
 # Kodi-iOS master roadmap
 
-Status: IN PROGRESS. Current phase: Phase 3 — integration research. Phase 2 static review passed; Phase 3 authorized only.
-Progress: 15/39 task IDs COMPLETE (38.46%); 24 awaiting implementation.
+Status: BLOCKED. Current phase: Phase 3 — P3-004/P3-005 host validation constraint. Phase 2 static review passed; Phase 3 authorized only.
+Progress: 18/39 task IDs COMPLETE (46.15%); 21 awaiting implementation.
 
 ## Rules and session protocol
 
@@ -100,25 +100,25 @@ Phase status: COMPLETE — owner accepted static deliverables; runtime compatibi
 ## Phase 3 — Google Drive Media Integration
 
 Exit criteria: Selected integration is implemented and passes available tests; live playback pending until actual iPhone testing.
-Phase status: IN PROGRESS. All task acceptance criteria and dependency gates must pass before exit.
+Phase status: BLOCKED — eight required upstream streaming tests errored because local sockets are denied. All task acceptance criteria and dependency gates must pass before exit.
 
-- [ ] P3-001 — Research maintained integrations
-  - Status: IN PROGRESS. Dependencies: P2-009.
+- [x] P3-001 — Research maintained integrations
+  - Status: COMPLETE. Dependencies: P2-009.
   - 1. Deliverable and acceptance: Compare direct Kodi add-ons and privately hosted bridges using dated upstream maintenance and actual iOS support evidence.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
-- [ ] P3-002 — Select architecture with owner
-  - Status: NOT STARTED. Dependencies: P3-001.
+  - Evidence: docs/google-drive.md; reports/google-drive-research.json; migration/google-drive/source-lock.json.
+- [x] P3-002 — Select architecture with owner
+  - Status: COMPLETE. Dependencies: P3-001.
   - 1. Deliverable and acceptance: Record authentication, hosting, cost, privacy, quotas and iOS compatibility tradeoffs; obtain owner choice before external infrastructure.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
-- [ ] P3-003 — Design private OAuth lifecycle
-  - Status: NOT STARTED. Dependencies: P3-002.
+  - Evidence: docs/DECISIONS.md (DEC-011); reports/google-drive-research.json.
+- [x] P3-003 — Design private OAuth lifecycle
+  - Status: COMPLETE. Dependencies: P3-002.
   - 1. Deliverable and acceptance: Specify least privilege, local token storage, refresh, revocation and recovery; keep credentials, folder links and media out of Git.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
+  - Evidence: docs/google-drive-oauth-design.md; reports/drive-upstream-validation.json (mocked OAuth checks only).
 - [ ] P3-004 — Implement Drive integration
-  - Status: NOT STARTED. Dependencies: P3-003.
+  - Status: BLOCKED. Dependencies: P3-003.
   - 1. Deliverable and acceptance: Implement selected configuration and reproducible setup without media uploads or credentials in repository.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.

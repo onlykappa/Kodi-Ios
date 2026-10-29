@@ -25,3 +25,7 @@ Recorded confirmed non-jailbroken iPhone 16 Pro/iOS 27.0.1 target; owner waived 
 ## Phase 3 authorization and visual requirements
 
 Phase 2 static review passed. Added seven future tasks (39 total), preserving completed history and dynamic counts. Added real-code comparison, simulator investigation, actual-device screen captures, visual regression fixes/retests and mandatory final owner screenshot approval. Phase 4 work has not begun.
+
+## Phase 3 research, owner choice and test-executor blocker
+
+Compared maintained direct add-on/public or private relay, rclone bridge and older alternative using primary sources. Owner selected direct add-on/public relay. Recorded read-only OAuth trust/lifecycle design, current endpoint and imminent legacy endpoint retirement, cost/quota caveats and source pins. Verified 74 upstream text files outside Git. Preflight ran 42 upstream tests: 34 pass, eight error on denied local sockets. Preserved failure evidence and blocked P3-004; no integration-ready claim or Phase 4 work. No Google account or media accessed.

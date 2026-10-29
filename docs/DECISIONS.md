@@ -39,3 +39,7 @@ iPhone 16 Pro, iOS 27.0.1, non-jailbroken, Kodi absent. Final artifact unsigned 
 ## DEC-010 — Phase 2 accepted; Phase 3 and visual-roadmap expansion
 
 Owner approved Phase 2 static work and authorized Phase 3 only. Added seven unstarted tasks for real source/skin-code comparison, simulator feasibility, exhaustive screen roster/captures, side-by-side fixes/retests, final visual regressions and explicit owner screenshot-review gate. Real iPhone 16 Pro/iOS 27.0.1 evidence remains mandatory. Drive architecture requires owner selection before implementation or hosting/spending; no architecture selected.
+
+## DEC-011 — Approved direct Drive integration
+
+Owner explicitly chose direct Kodi add-on with maintainer OAuth relay (no separate media host). Prefer pinned plugin.googledrive 1.6.8/common 1.5.11 and current HTTPS drive.signinserver.com relay, with read-only Drive scope. No self-hosting, paid service, cloud billing or source-Deck server is approved. Relay trust includes token exchange/refresh; exact deployed-service behavior and iOS runtime remain unverified. See docs/google-drive.md and docs/google-drive-oauth-design.md. Required stream tests are blocked by sandbox socket denial, so integration/Phase 3 completion is not authorized by this choice alone.

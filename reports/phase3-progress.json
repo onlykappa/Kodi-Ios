@@ -1,0 +1,39 @@
+{
+  "updated_utc": "2026-10-29T19:21:55.083910+00:00",
+  "status": "BLOCKED",
+  "phase3_ready_for_review": false,
+  "completed_tasks": [
+    "P3-001",
+    "P3-002",
+    "P3-003"
+  ],
+  "blocked_task": "P3-004",
+  "incomplete_downstream_tasks": [
+    "P3-005",
+    "P3-006"
+  ],
+  "project_regressions": {
+    "roadmap": 7,
+    "ios_static": 6,
+    "scanner": 9,
+    "research_policy": 5,
+    "total": 27,
+    "passed": true
+  },
+  "upstream_preflight": {
+    "tests_run": 42,
+    "passed": 34,
+    "errors": 8,
+    "suite_passed": false,
+    "root_cause": "Local sockets denied with EPERM"
+  },
+  "source_acquisition": {
+    "files_verified": 97,
+    "outside_git": true,
+    "production_installed": false
+  },
+  "next_action": "Owner choice pending for capped GitHub Actions test executor or manual authorized terminal; architecture itself is already approved",
+  "private_google_account_accessed": false,
+  "phase4_started": false,
+  "merge_performed": false
+}

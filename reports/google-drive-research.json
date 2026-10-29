@@ -1,0 +1,51 @@
+{
+  "checked_utc": "2026-10-29T19:14:33.779349+00:00",
+  "task": "P3-001",
+  "architecture_selection": "direct-addon-maintainer-oauth-relay",
+  "owner_approved": true,
+  "implementation_complete": false,
+  "ios_runtime_verified": false,
+  "comparison_document": "docs/google-drive.md",
+  "oauth_design": "docs/google-drive-oauth-design.md",
+  "source_lock": "migration/google-drive/source-lock.json",
+  "maintenance_observations": {
+    "plugin.googledrive": {
+      "version": "1.6.8",
+      "upstream_release_note_date": "2026-10-24",
+      "commit": "f8229d0fbf2f6546536780c1e551caac6e7f8281"
+    },
+    "script.module.clouddrive.common": {
+      "version": "1.5.11",
+      "upstream_release_note_date": "2026-10-24",
+      "commit": "7d22102557bb95b89abcd2f055597db6f54da05c"
+    },
+    "signin-server": {
+      "commit": "5923ee409dec93f7c749ccb91b7a2fe5a22519b3"
+    },
+    "rclone": {
+      "observed_stable_version": "1.75.2",
+      "changelog_date": "2026-10-09"
+    },
+    "JDRIVO/plugin.video.gdrive": {
+      "version": "3.0.2",
+      "repository_last_pushed": "2025-08-12T08:11:48Z",
+      "commit": "62b0478b507c1eed293de3c81e29c384ea2d4e4b"
+    }
+  },
+  "sources": [
+    "https://github.com/cguZZman/plugin.googledrive",
+    "https://github.com/cguZZman/script.module.clouddrive.common",
+    "https://github.com/cguZZman/signin-server",
+    "https://github.com/JDRIVO/plugin.video.gdrive",
+    "https://rclone.org/drive/",
+    "https://rclone.org/commands/rclone_serve_webdav/",
+    "https://rclone.org/changelog/",
+    "https://developers.google.com/workspace/drive/api/guides/api-specific-auth",
+    "https://developers.google.com/workspace/drive/api/guides/limits",
+    "https://developers.google.com/identity/protocols/oauth2",
+    "https://developers.google.com/identity/protocols/oauth2/native-app",
+    "https://developers.google.com/workspace/drive/api/guides/manage-downloads"
+  ],
+  "blocker": "Host streaming tests cannot run due local socket permission restriction",
+  "phase3_ready": false
+}

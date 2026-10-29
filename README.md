@@ -42,3 +42,5 @@ These checks intentionally distinguish documented baseline issues from new missi
 Master plan: [ROADMAP.md](ROADMAP.md). Resume from [docs/PROGRESS.md](docs/PROGRESS.md); implementation awaits owner approval.
 
 Phase 2 static deliverable: [migration/ios](migration/ios) and [configuration review guide](docs/ios-configuration.md). Preferred official foundation is matching 21.3 ARM64; exact iOS 27.0.1 behavior and fully bundled configuration remain unverified. This is not a built IPA.
+
+Phase 3: [Drive comparison and approved architecture](docs/google-drive.md). Host streaming preflight is blocked by local socket permissions; the integration is not ready. [Visual validation plan](docs/visual-validation-plan.md) adds real source comparison, simulator feasibility, device screenshots and final owner screenshot review for future authorized phases.

@@ -1,15 +1,44 @@
-# Google Drive integration: requirements to investigate
+# Google Drive integration research and selected architecture
 
-The owner has an existing Google Drive account with 5 TB capacity and wants to stream personal videos to Kodi on iPhone. No Drive add-on was found in the source setup, and no Drive account was accessed during this baseline work.
+Checked 2026-10-29. Phase 3 is **BLOCKED**, not ready for its review gate. P3-001 research and P3-002 architecture selection are complete; P3-003 security design is documented. Integration implementation and required streaming validation are not complete. No Google account, personal file or live authentication was accessed.
 
-Current playback methods have not yet been researched or selected. The roadmap should compare an actively maintained Kodi Drive integration against a separately hosted streaming bridge if required. Verify support for the actual iOS Kodi build, authentication flow, seeking/range requests, token storage, account/API limits and long-term maintenance before choosing a method.
+The owner approved **direct Kodi add-on with maintainer-operated OAuth relay**, with no separate media host. This retains the unsigned ARM64 IPA objective; no signing keys or accounts are embedded. Source pins and file identities are in `migration/google-drive/source-lock.json`. Real iPhone/Kodi compatibility remains unverified; all device execution and visual work remains Phase 4.
 
-Acceptance criteria:
+## Maintained options compared
 
-- Authenticate interactively on the target device or trusted private service.
-- Keep OAuth client secrets, access/refresh tokens, account identifiers and private folder links out of GitHub.
-- Keep all media in Drive; the configuration repository stores neither videos nor generated private streaming links.
-- Test a small representative set for start-up, seeking, resume, subtitles and expired-token recovery.
-- Document the selected integration and current upstream instructions once verified.
+| Option | Evidence and iOS status | OAuth/security | Playback and hosting | Incremental cost considerations |
+| --- | --- | --- | --- | --- |
+| cguZZman Google Drive 1.6.8 + Cloud Drive Common 1.5.11, public relay — SELECTED by owner | Current pinned Python manifests require Kodi Python 3 and declare all platforms; upstream October 2026 updates. No exact iOS 27.0.1 test evidence. | Read-only Drive scope, token exchange/refresh through approved maintainer relay; local account database is private credential-bearing state. | Upstream implements browsing/search, stream proxy, subtitles, range forwarding and library export; no separate media host. Local Python services and lifecycle still need iPhone tests. | Upstream free/open-source software/service; no new hosting subscription selected. Existing Drive/mobile/ISP costs remain. No guarantee of perpetual public service availability or future pricing. |
+| Same direct add-on with an owner-operated sign-in relay | Same unverified iOS runtime; current signin-server successor is maintained. | Owner controls OAuth client/server secrets and relay. Same broad read-only scope; publication/testing/verification requirements matter. | Media still goes directly from Drive to Kodi; requires relay account, deployment, TLS, maintenance and monitoring. | Upstream describes a free-tier personal-use deployment, but provider limits/billing must be reviewed before enabling anything; no new accounts or spending authorized. |
+| Rclone Drive → private HTTPS WebDAV bridge | Current rclone 1.75.2 changelog; protocol path is plausible, not a tested Kodi iOS certification. | Google tokens remain on host; use read-only Drive scope and server read-only access plus authenticated TLS/private transport. | Kodi consumes a network source; requires a separate always-on reachable host, suitable bandwidth/cache policy and subtitle/resume tests. Never use the original Deck installation or SSD as an implicit host. | Software has no separate license fee; existing-host power/network or new server, egress, TLS/domain/VPN costs depend on actual deployment. No priced host selected. |
+| JDRIVO gDrive 3.0.2, user OAuth credentials | Python manifest exists; repository metadata last pushed August 2025. Recent maintenance and iOS OAuth suitability are lower-confidence than selected option. | Requires own client setup; mobile loopback restrictions must be investigated rather than treating desktop authorization as an iOS solution. | Candidate alternative, not installed or selected. No exact iPhone evidence. | No project-specific operating cost verified; own OAuth setup/support effort remains. |
 
-This file records the scope for the owner's roadmap. It is not a working Drive configuration or a claim of iOS compatibility.
+Primary sources: [selected add-on](https://github.com/cguZZman/plugin.googledrive), [common module](https://github.com/cguZZman/script.module.clouddrive.common), [relay successor](https://github.com/cguZZman/signin-server), [rclone Drive](https://rclone.org/drive/), [rclone WebDAV](https://rclone.org/commands/rclone_serve_webdav/), [rclone changelog](https://rclone.org/changelog/), [alternative](https://github.com/JDRIVO/plugin.video.gdrive).
+
+## Evidence freshness and scope
+
+The [Kodi Omega catalogue](https://kodi.tv/addons/omega/plugin.googledrive/) still lists 1.5.0 and a source-mode warning. The pinned upstream manifest is 1.6.8 and describes October 2026 fixes. Do not claim that the current official Kodi repository already distributes the pinned versions. Verify acquisition/version on the target; do not silently fall back to old catalogue code.
+
+Selected code: Google Drive `f8229d0fbf2f6546536780c1e551caac6e7f8281` (1.6.8); common `7d22102557bb95b89abcd2f055597db6f54da05c` (1.5.11). The common minimum in the add-on is 1.5.10; selected 1.5.11 satisfies it. Dependencies are Kodi Python 3, dateutil and pyqrcode. They require actual target acquisition/validation; no platform certification follows from `platform=all`.
+
+Relay source pin: `5923ee409dec93f7c749ccb91b7a2fe5a22519b3`. Current endpoint is `https://drive.signinserver.com`. Upstream README warns the old Heroku endpoint stops on **October 30, 2026**. Common code migrates the old default to the add-on's current default. Do not manually route new grants to the legacy service.
+
+Initial private acquisition verified 74 text files. A generic binary icon fetch failed its UTF-8-only check; the explicit base64 file-fetch capability then succeeded. All 97 upstream files, including public UI assets, now match pinned blob hashes and sizes in the private cache (reports/drive-source-acquisition.json). No complete distributable archive was built, and no upstream code/assets or archive was added to the working Kodi installation. The first test run used the text cache; added binary assets do not establish runtime behavior.
+
+## Functional evidence and blocker
+
+The pinned common-module upstream suite ran in a private copied source tree with fake Kodi modules, temporary profiles, synthetic payloads and no Google credentials. **42 tests ran: 34 passed; eight errored.** Errors were local socket creation denied by this session, before stream assertions could execute. These eight tests cover bounded/open-ended byte ranges, full-file/HEAD transfer, ignored range behavior, reused/stale connections and cross-host authorization headers. They are NOT passed, skipped or substituted with weaker tests.
+
+Passed tests cover mocked sign-in/cancellation, error handling, storage/migration, routing restrictions, redaction, revocation flows and source/export logic. dateutil and pyqrcode are mocked by upstream stubs when not installed; this does not validate those packages on iOS. Resource warnings and destructor diagnostic noise were observed in the failed suite; no runtime success is inferred from mocks.
+
+Evidence: `reports/drive-upstream-validation.json`. Required action: rerun the unchanged pinned suite in an authorized test executor that permits loopback sockets, preserve its complete results, diagnose any real assertion failure and add regression coverage before integration readiness. No sandbox bypass or source alteration is attempted. Actual startup, seeking, subtitles, resume and token refresh on iPhone remain Phase 4 tests even after host tests pass.
+
+## Costs and Google limits
+
+[Google's limits/pricing page](https://developers.google.com/workspace/drive/api/guides/limits) states standard Drive API use has no additional charge while describing forthcoming quota/billing changes. This is not unlimited streaming or a guarantee of zero future costs. Review the actual OAuth project's current quota, download availability and applicable billing policy before enabling billing or assuming a fixed throughput budget. Existing 5 TB capacity describes storage, not a playback bandwidth entitlement. No paid resource, hosting or Google billing account was provisioned.
+
+## Next steps after the blocker
+
+Resume at P3-004/P3-005: implement only the approved direct path, verify current acquisition and the pinned dependency closure, add a credential-free Google Drive menu entry/configuration and test it. Public configuration may identify the public relay and safe preferences (subtitles/resume), never account IDs, folder IDs, media links or tokens. Do not activate an optional LAN directory-listing service by accident; upstream services bind loopback by default and source-mode exposure must be reviewed on the actual device. Do not claim a fully preconfigured IPA: first-run profile import and signing are still Phase 4 work.
+
+Complete P3-006 operational instructions/recovery and update every tracker before requesting Phase 3 review. Neither Phase 4 nor merge/release is authorized.

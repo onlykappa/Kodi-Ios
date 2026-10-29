@@ -1,16 +1,16 @@
 # Persistent progress
 
-Status: IN PROGRESS
-Current phase: Phase 3 — P3-001 research (Phase 2 static review approved)
-Progress: 15/39 task IDs COMPLETE (38.46%); 24 awaiting implementation.
-Last completed task: P2-009 (provisional static import configuration; no IPA/device claims).
-Next actionable task: research maintained Drive integrations (P3-001), then request owner architecture selection (P3-002).
-Active blockers: architecture not selected; do not implement a Drive integration or external hosting until owner approves the comparison/choice. Phase 4 remains unauthorized.
-Pending decisions: see docs/DECISIONS.md.
-Latest implementation commit SHA reviewed: 7f89f75387380fdd982b4d8cee148c3154c2b5dc (remote Phase 2 publication).
+Status: BLOCKED
+Current phase: Phase 3 — P3-004 blocked by upstream host-test preflight
+Progress: 18/39 task IDs COMPLETE (46.15%); 21 awaiting implementation.
+Last completed task: P3-003 OAuth design; P3-001 research and P3-002 owner architecture choice recorded.
+Next actionable task: obtain results from an authorized test executor with loopback sockets, rerun the pinned upstream suite, then complete P3-004 through P3-006. Do not skip the eight failed tests.
+Active blockers: local AF_INET sockets denied (EPERM); upstream suite 42 run / 34 passed / 8 errors. No integration-ready or Phase 3-complete claim. Binary asset acquisition was resolved using explicit base64 retrieval; all 97 source files verified privately. No complete distributable archive claimed.
+Pending decisions: architecture selected by owner (direct add-on/public OAuth relay); no new hosting/spending approved. Need an authorized test executor with loopback sockets, not account credentials.
+Latest implementation commit SHA reviewed: a6163a3c74c3ab9762ca403a8f7fab7bbe09e213 (published visual-roadmap expansion).
 Roadmap publication commit: resolve `git log -1 --format=%H -- ROADMAP.md`; this avoids a self-referential SHA. Verify against PR head before resuming.
-Last updated UTC: 2026-10-29T18:59:31.277365+00:00
-Last validation: reports/ios-static-validation.json; six iOS regressions, four roadmap regressions, nine scanner regressions; final scans in reports/phase2-validation.json.
+Last updated UTC: 2026-10-29T19:14:33.779349+00:00
+Last validation: project regressions 27 passed; pinned upstream suite FAILED with 8 environment errors (reports/drive-upstream-validation.json). All 97 upstream source identities verified privately after supported base64 acquisition. Phase 3 not ready.
 
 ## Resume instructions
 
@@ -18,8 +18,10 @@ Read ROADMAP.md, this file, ISSUES.md and DECISIONS.md. Check branch/worktree an
 
 ## Stop gate
 
-Phase 3 authorized only. STOP for architecture approval when required, and stop again for independent review after Phase 3. No Phase 4, merge or release authorized.
+Phase 3 authorized only. Architecture approved; STOP on current test-executor blocker. After resolving it, stop again for independent review after completing Phase 3. No Phase 4, merge or release authorized.
 
 Publication uses the GitHub connector because this shell has no authenticated GitHub CLI/network path. Local and remote commit IDs can differ for identical trees; preserve both histories. Verify remote branch SHA and tree before publication; never force-push or reset history. Resolve latest published SHA from PR #1 and record it in the next session.
 
 Deployment objective: unsigned Kodi iOS IPA based on trusted compatible upstream build, with only compatible sanitized customizations. Phase 2 investigates bundling/import feasibility; Phase 4 assembles, validates and signs/installs with owner sideloader. Account state, secrets and media remain external. Static structure checks cannot prove sideloader/device compatibility.
+
+Proposed alternate test executor: docs/proposed-drive-test-workflow.md. Not installed or enabled; owner choice pending because Actions minutes may be consumed. Do not publish an executable workflow before that approval.
