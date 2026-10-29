@@ -30,9 +30,15 @@ def zip_tree(root,path):
    data=os.readlink(p).encode() if p.is_symlink() else p.read_bytes();z.writestr(i,data,compresslevel=9)
  with zipfile.ZipFile(path) as z:assert z.testzip() is None
  return hashlib.sha256(path.read_bytes()).hexdigest()
-def build(app,output,deb):
- assert output.resolve().is_relative_to(Path('/tmp')) or not output.resolve().is_relative_to(ROOT)
+def validate_staging(app,output):
+ app=app.resolve();output=output.resolve()
+ assert app.name=='Kodi.app' and app.is_dir(),'Isolated Kodi.app required'
+ assert not output.is_relative_to(ROOT.resolve()),'Artifacts must remain outside Git'
+ assert not output.is_relative_to(app) and not app.is_relative_to(output),'Separate source and output required'
  assert not output.exists(),'Fresh output directory required'
+
+def build(app,output,deb):
+ validate_staging(app,output)
  expected='c80e2e4eded0b3be9f9c8cd19a73e3f3ac7171575dd6f08cfddf14312ca81eb8'
  assert hashlib.sha256(deb.read_bytes()).hexdigest()==expected,'Foundation changed'
  output.mkdir(parents=True);stage=output/'stage';target=stage/'Payload/Kodi.app'

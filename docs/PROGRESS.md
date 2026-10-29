@@ -7,10 +7,10 @@ Last completed task: P3-006 (Phase 3 passed owner independent review). No Phase 
 Next actionable task: Owner chooses first-run import versus automatic bootstrap, then supplies actual signer/launch/profile-access evidence for diagnostic candidate. Resume P4-001 dependency order; no Phase 5.
 Active blockers: P4-001 actual signing/OS behavior unverified; P4-002 full migrated IPA/import and clean target recovery absent; ISSUE-020 generated skin parity; real screenshots and functional/rollback evidence absent. Local DNS unavailable; CI acquisition succeeded.
 Pending decisions: Separate first-run configuration/add-on import versus proven automatic IPA initialization (question sent); actual iPhone testing/screenshots supplied by owner when ready.
-Latest implementation commit SHA reviewed: Local 34a476f; published equivalent e7a657ba73fab2381112ce29004a3d55c2687262. Resolve latest tracker commit using git log -- docs/PROGRESS.md and inspect PR head; preserve both histories.
+Latest implementation commit SHA reviewed: local b00991a / published a563adb2f4ac57414ad5c0ed7ce7a10848e6b0dc (equal content tree). Resolve latest tracker commit using git log -- docs/PROGRESS.md and PR head.
 Roadmap publication commit: resolve `git log -1 --format=%H -- ROADMAP.md`; this avoids a self-referential SHA. Verify against PR head before resuming.
-Last updated UTC: 2026-10-29T23:03:10.907434+00:00
-Last validation: 11 static Mach-O/entitlement parser tests, five unsigned ZIP/signature tests and three source-comparison tests pass. Foundation CI 40951457120 and unsigned candidate CI 40952213893 passed. Project checks/secret scans must pass before each publication; final results in reports/phase4-validation.json.
+Last updated UTC: 2026-10-29T23:09:46.516504+00:00
+Last validation: two independent CI builds produced identical IPA SHA-256; latest run 40970445429 passed actual XML entitlement/orientation inspection and candidate ZIP/native validation. 68 local regressions pass; full results and source-integrity evidence are in reports/phase4-validation.json. Device/screenshot evidence remains absent.
 
 ## Resume instructions
 

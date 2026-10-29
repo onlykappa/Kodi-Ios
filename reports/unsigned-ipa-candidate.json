@@ -27,5 +27,8 @@
   "ci_job": 123722987703,
   "ci_commit": "e7a657ba73fab2381112ce29004a3d55c2687262",
   "artifact_url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/40952213893/artifacts/12930868991",
-  "retention_days": 7
+  "retention_days": 7,
+  "reproducibility_evidence": "reports/ipa-reproducibility.json",
+  "latest_verified_artifact": "https://github.com/onlykappa/Kodi-Ios/actions/runs/40970445429/artifacts/12940141859",
+  "original_entitlement_findings": "reports/ios-foundation-entitlements.json"
 }

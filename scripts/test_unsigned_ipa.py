@@ -1,6 +1,6 @@
 import struct,tempfile,unittest,zipfile,stat,os
 from pathlib import Path
-from build_unsigned_ipa import unsign,zip_tree
+from build_unsigned_ipa import unsign,zip_tree,validate_staging
 from inspect_ios_foundation import macho
 from test_ios_foundation import image
 class UnsignedTests(unittest.TestCase):
@@ -11,6 +11,14 @@ class UnsignedTests(unittest.TestCase):
   self.assertEqual(count,1);self.assertFalse(macho(result)['code_signature_commands'])
   self.assertEqual(result[48:56],b'PAYLOAD!');self.assertEqual(result[56:],b'\0'*4)
   self.assertEqual(len(result),len(original))
+ def test_source_descendant_output_rejected(self):
+  with tempfile.TemporaryDirectory() as d:
+   app=Path(d)/'Kodi.app';app.mkdir()
+   with self.assertRaises(AssertionError):validate_staging(app,app/'new-output')
+ def test_existing_output_rejected(self):
+  with tempfile.TemporaryDirectory() as d:
+   app=Path(d)/'Kodi.app';app.mkdir();out=Path(d)/'out';out.mkdir()
+   with self.assertRaises(AssertionError):validate_staging(app,out)
  def test_unsigned_unchanged(self):self.assertEqual(unsign(image()),(image(),0))
  def test_overlapping_signature_rejected(self):
   with self.assertRaises(AssertionError):unsign(image(struct.pack('<4I',0x1d,16,32,4),1))

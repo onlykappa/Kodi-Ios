@@ -52,3 +52,9 @@ python3 -B scripts/build_unsigned_ipa.py \
 ```
 
 The builder requires a fresh output directory, preserves modes/symlinks, uses fixed ZIP timestamps and rejects a changed foundation hash. It rejects unsupported native formats and unresolved required bundled dylib paths rather than silently shipping them. System library availability, actual entitlement support and the signer's rebuilding of signature/LINKEDIT data still require the actual phone. The artifact is retained for seven days; download it privately before expiry or reproduce it with the pinned script/source. No stable public release/download is created.
+
+## Actual original entitlement findings
+
+The successful follow-up inspection (reports/ios-foundation-entitlements.json) decoded the original main executable XML entitlement slot. It includes `platform-application`, `com.apple.private.security.no-container`, `com.apple.private.skip-library-validation`, Apple keychain groups and other private privileges. These are public foundation metadata, not owner credentials, and must **not** be copied into an ordinary non-jailbroken provisioning profile. The unsigned candidate removed all active embedded signatures and their original entitlement regions. Its signer must derive permitted entitlements from the actual provisioning method and sign every native image; this has not been tested. Original XML inspection does not audit every DER/provisioning capability or establish that Kodi needs those privileges when sandboxed. The source includes a sandboxed Documents path; actual target access must still be measured.
+
+Two independent hosted downloads/builds produced the identical IPA SHA-256 (reports/ipa-reproducibility.json). Latest retained artifact: https://github.com/onlykappa/Kodi-Ios/actions/runs/40970445429/artifacts/12940141859 . This confirms byte reproducibility in those runs, not signer/device compatibility.

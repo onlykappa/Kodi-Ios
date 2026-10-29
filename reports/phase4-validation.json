@@ -1,5 +1,5 @@
 {
-  "updated_utc": "2026-10-29T23:03:10.907434+00:00",
+  "updated_utc": "2026-10-29T23:08:41.174417+00:00",
   "status": "BLOCKED; HOST CANDIDATE AVAILABLE FOR REVIEW; PHASE 4 EXIT NOT MET",
   "completed_phase4_tasks": [],
   "task_count": {
@@ -33,37 +33,37 @@
     "awaiting_implementation": 18,
     "percent": 53.85
   },
-  "project_regression_tests": 63,
+  "project_regression_tests": 68,
   "project_results": [
     {
       "command": "python3 -B scripts/test_roadmap.py",
       "exit_code": 0,
-      "output": ".......\n----------------------------------------------------------------------\nRan 7 tests in 0.021s\n\nOK"
+      "output": ".......\n----------------------------------------------------------------------\nRan 7 tests in 0.020s\n\nOK"
     },
     {
       "command": "python3 -B scripts/test_ci_workflow.py",
       "exit_code": 0,
-      "output": "....\n----------------------------------------------------------------------\nRan 4 tests in 0.011s\n\nOK"
+      "output": "....\n----------------------------------------------------------------------\nRan 4 tests in 0.012s\n\nOK"
     },
     {
       "command": "python3 -B scripts/test_drive_research.py",
       "exit_code": 0,
-      "output": ".......\n----------------------------------------------------------------------\nRan 7 tests in 0.006s\n\nOK"
+      "output": ".......\n----------------------------------------------------------------------\nRan 7 tests in 0.007s\n\nOK"
     },
     {
       "command": "python3 -B scripts/test_ios.py",
       "exit_code": 0,
-      "output": "......\n----------------------------------------------------------------------\nRan 6 tests in 0.186s\n\nOK"
+      "output": "......\n----------------------------------------------------------------------\nRan 6 tests in 0.154s\n\nOK"
     },
     {
       "command": "python3 -B scripts/test_checks.py",
       "exit_code": 0,
-      "output": "...........\n----------------------------------------------------------------------\nRan 11 tests in 4.436s\n\nOK"
+      "output": "...........\n----------------------------------------------------------------------\nRan 11 tests in 3.514s\n\nOK"
     },
     {
       "command": "python3 -B scripts/test_drive_integration.py",
       "exit_code": 0,
-      "output": ".....\n----------------------------------------------------------------------\nRan 5 tests in 0.060s\n\nOK"
+      "output": ".....\n----------------------------------------------------------------------\nRan 5 tests in 0.063s\n\nOK"
     },
     {
       "command": "python3 -B scripts/test_drive_packages.py",
@@ -78,12 +78,17 @@
     {
       "command": "python3 -B scripts/test_unsigned_ipa.py",
       "exit_code": 0,
-      "output": ".....\n----------------------------------------------------------------------\nRan 5 tests in 0.003s\n\nOK"
+      "output": ".......\n----------------------------------------------------------------------\nRan 7 tests in 0.004s\n\nOK"
     },
     {
       "command": "python3 -B scripts/test_skin_comparison.py",
       "exit_code": 0,
       "output": "...\n----------------------------------------------------------------------\nRan 3 tests in 0.001s\n\nOK"
+    },
+    {
+      "command": "python3 -B scripts/test_visual_roster.py",
+      "exit_code": 0,
+      "output": "...\n----------------------------------------------------------------------\nRan 3 tests in 0.000s\n\nOK"
     },
     {
       "command": "python3 -B scripts/check_roadmap.py",
@@ -135,5 +140,33 @@
   "artifacts_retention_days": 7,
   "original_source_integrity": "reports/phase4-source-integrity.json",
   "original_source_files_unchanged": 22463,
-  "new_ci_validation_pending": "Actual original XML entitlement/orientation inspection and independent reproducibility rerun on next publication; historical successful candidate remains available."
+  "ipa_reproducibility": "reports/ipa-reproducibility.json",
+  "original_entitlements": "reports/ios-foundation-entitlements.json",
+  "latest_verified_ci_run": 40970445429,
+  "capture_history_regressions": 3,
+  "latest_builder_guard_validation": "Source/output overlap and existing-output cases rejected before writes; actual IPA bytes unaffected for validated isolated paths.",
+  "secret_history_check": {
+    "passed": true,
+    "files_scanned": 151,
+    "git_history_blobs_scanned": 236,
+    "source_value_comparison_performed": true,
+    "source_sensitive_candidates_checked": 12,
+    "scanner": "Python standard-library patterns, exact private-source value comparison, file allowlist and structural/reference checks",
+    "limitations": "No scanner can establish absence of every possible secret. No external secret-scanning engine was available. iOS runtime compatibility is not tested.",
+    "snapshot_files_checked": 34,
+    "missing_referenced_playlists": [],
+    "known_baseline_issues": {
+      "empty_manifests": [
+        "plugin.video.umbrella",
+        "script.module.jetextractors"
+      ],
+      "missing_plugin_manifests": [
+        "plugin.video.umbrella"
+      ],
+      "ios_status": "unvalidated baseline; placeholders and desktop-specific behavior remain"
+    },
+    "issues": []
+  },
+  "documentation_links_passed": true,
+  "roster_consistency_passed": true
 }
