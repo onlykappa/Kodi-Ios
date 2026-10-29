@@ -33,6 +33,21 @@ def macho(data):
   cursor+=length
  assert cursor==32+size,'Load command count/size mismatch'
  return {'cpu':'arm64','cpu_subtype':subtype,'filetype':filetype,'platforms':platforms,'dylib_loads':loads,'rpaths':rpaths,'code_signature_commands':signatures,'encrypted':encrypted(data,ncmds)}
+def signature_entitlements(data):
+ info=macho(data);result=[]
+ for entry in info['code_signature_commands']:
+  blob=data[entry['offset']:entry['offset']+entry['bytes']]
+  assert len(blob)>=12,'Truncated signature superblob'
+  magic,length,count=struct.unpack_from('>III',blob)
+  assert magic==0xfade0cc0 and 12+count*8<=length<=len(blob),'Invalid signature superblob'
+  for index in range(count):
+   slot,offset=struct.unpack_from('>II',blob,12+index*8)
+   assert offset+8<=length
+   kind,size=struct.unpack_from('>II',blob,offset);assert size>=8 and offset+size<=length
+   if kind==0xfade7171:
+    values=plistlib.loads(blob[offset+8:offset+size]);assert isinstance(values,dict)
+    result.append({'slot':slot,'values':values})
+ return result
 def encrypted(data,ncmds):
  cursor=32
  for _ in range(ncmds):
@@ -49,7 +64,7 @@ def inspect(app):
  assert Path(exe).name==exe,'Unsafe executable path'
  binary=app/exe;assert not binary.is_symlink()
  info=macho(binary.read_bytes());assert not info['encrypted'],'Encrypted foundation'
- return {'app_name':app.name,'bundle_identifier':plist.get('CFBundleIdentifier'),'version':plist.get('CFBundleShortVersionString'),'bundle_version':plist.get('CFBundleVersion'),'minimum_os_plist':plist.get('MinimumOSVersion'),'supported_platforms':plist.get('CFBundleSupportedPlatforms'),'device_families':plist.get('UIDeviceFamily'),'executable':exe,'executable_sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),'executable_mode':oct(binary.stat().st_mode&0o777),'mach_o':info,'embedded_profile':(app/'embedded.mobileprovision').exists(),'signature_directory':(app/'_CodeSignature').exists(),'app_files':sum(p.is_file() for p in app.rglob('*')),'static_only':True,'ios_27_0_1_runtime_verified':False,'unsigned_ipa_created':False,'limitations':['Main executable parsed; nested native dependency/signature audit not complete','No independent detached signature authentication established','No entitlement validity, signer acceptance or device execution established']}
+ return {'app_name':app.name,'bundle_identifier':plist.get('CFBundleIdentifier'),'version':plist.get('CFBundleShortVersionString'),'bundle_version':plist.get('CFBundleVersion'),'minimum_os_plist':plist.get('MinimumOSVersion'),'supported_platforms':plist.get('CFBundleSupportedPlatforms'),'supported_orientations':plist.get('UISupportedInterfaceOrientations'),'file_sharing_enabled':plist.get('UIFileSharingEnabled'),'device_families':plist.get('UIDeviceFamily'),'executable':exe,'executable_sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),'executable_mode':oct(binary.stat().st_mode&0o777),'mach_o':info,'original_entitlements':signature_entitlements(binary.read_bytes()),'embedded_profile':(app/'embedded.mobileprovision').exists(),'signature_directory':(app/'_CodeSignature').exists(),'app_files':sum(p.is_file() for p in app.rglob('*')),'static_only':True,'ios_27_0_1_runtime_verified':False,'unsigned_ipa_created':False,'limitations':['Main executable parsed; nested native dependency/signature audit not complete','No independent detached signature authentication established','No entitlement validity, signer acceptance or device execution established']}
 if __name__=='__main__':
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('app',type=Path);p.add_argument('--report',type=Path,required=True);p.add_argument('--deb',type=Path,required=True);a=p.parse_args()
  result=inspect(a.app);result['upstream_url']='https://mirrors.kodi.tv/releases/darwin/ios-arm64/org.xbmc.kodi-ios_21.3_iphoneos-arm64.deb';result['deb_sha256']=hashlib.sha256(a.deb.read_bytes()).hexdigest();result['deb_bytes']=a.deb.stat().st_size

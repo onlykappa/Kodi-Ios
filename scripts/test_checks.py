@@ -31,6 +31,9 @@ class Checks(unittest.TestCase):
     def test_archive_file(self):
         (self.root/'docs/probe.zip').write_text('test archive placeholder')
         self.assertIn('private-or-runtime-file',self.rules())
+    def test_ipa_artifact(self):
+        (self.root/'docs/probe.ipa').write_text('test unsigned artifact placeholder')
+        self.assertIn('private-or-runtime-file',self.rules())
     def test_device_path(self):
         (self.root/'snapshot/userdata/probe.xml').write_text('<path>/home/example/private</path>')
         self.assertIn('device-specific-absolute-path',self.rules())

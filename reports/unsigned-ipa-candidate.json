@@ -1,0 +1,31 @@
+{
+  "filename": "Kodi-21.3-arm64-unsigned-candidate.ipa",
+  "sha256": "8d20fcc260aebcd11dee8e5c7f2807ec7c0ef24f528fd58ab43e58ba7ea8f212",
+  "bytes": 207950917,
+  "foundation_sha256": "c80e2e4eded0b3be9f9c8cd19a73e3f3ac7171575dd6f08cfddf14312ca81eb8",
+  "native_images": 151,
+  "signature_commands_removed": 150,
+  "removed_profile_signature_files": [],
+  "unresolved_weak_loads": [],
+  "zip_integrity_passed": true,
+  "all_inspected_native_images_arm64": true,
+  "active_embedded_signatures": false,
+  "signing_required": true,
+  "configuration_bundled": false,
+  "addons_added": false,
+  "personal_data_added": false,
+  "device_tested": false,
+  "sideloader_acceptance_verified": false,
+  "status": "UNSIGNED_DIAGNOSTIC_CANDIDATE_NOT_MIGRATION_COMPLETE",
+  "limitations": [
+    "No active LC_CODE_SIGNATURE; original signature regions zeroed without truncation; signer must rebuild signatures/LINKEDIT as needed",
+    "System dyld shared-cache availability and entitlement requirements unverified",
+    "No migrated skin/add-on/configuration included in this diagnostic foundation",
+    "Full migrated IPA remains blocked on source parity/dependencies and device testing"
+  ],
+  "run_url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/40952213893",
+  "ci_job": 123722987703,
+  "ci_commit": "e7a657ba73fab2381112ce29004a3d55c2687262",
+  "artifact_url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/40952213893/artifacts/12930868991",
+  "retention_days": 7
+}

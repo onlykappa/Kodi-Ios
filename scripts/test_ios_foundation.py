@@ -1,5 +1,5 @@
-import struct,unittest
-from inspect_ios_foundation import macho
+import struct,unittest,plistlib
+from inspect_ios_foundation import macho,signature_entitlements
 
 def image(commands=b'',count=0,cpu=0x100000c):return struct.pack('<8I',0xfeedfacf,cpu,0,2,count,len(commands),0,0)+commands
 class FoundationTests(unittest.TestCase):
@@ -23,4 +23,15 @@ class FoundationTests(unittest.TestCase):
  def test_encryption_reported(self):
   command=struct.pack('<6I',0x2c,24,32,0,1,0)
   self.assertTrue(macho(image(command,1))['encrypted'])
+class EntitlementTests(unittest.TestCase):
+ def test_unsigned_has_no_entitlements(self):self.assertEqual(signature_entitlements(image()),[])
+ def test_xml_entitlements_parsed(self):
+  xml=plistlib.dumps({'get-task-allow':True})
+  member=struct.pack('>II',0xfade7171,len(xml)+8)+xml
+  blob=struct.pack('>III',0xfade0cc0,20+len(member),1)+struct.pack('>II',5,20)+member
+  data=image(struct.pack('<4I',0x1d,16,48,len(blob)),1)+blob
+  self.assertTrue(signature_entitlements(data)[0]['values']['get-task-allow'])
+ def test_corrupt_superblob_rejected(self):
+  data=image(struct.pack('<4I',0x1d,16,48,12),1)+b'bad-signatur'
+  with self.assertRaises(AssertionError):signature_entitlements(data)
 if __name__=='__main__':unittest.main()

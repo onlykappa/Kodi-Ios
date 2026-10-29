@@ -1,8 +1,8 @@
 # Future source, simulator and visual validation plan
 
-Status: NOT STARTED. This document plans Phase 4/5 requirements; no screenshots, source comparison, simulator execution or device tests are claimed.
+Status: Phase 4 host investigations/checklist prepared; device and screenshot execution BLOCKED awaiting owner evidence. Real file comparison and bounded simulator feasibility findings are in phase4-source-findings.md; no simulator/device execution or screenshots are claimed.
 
-Task ownership: P4-007 real Kodi/Arctic Fuse source comparison; P4-008 simulator feasibility; P4-009 exhaustive screen roster; P4-010 captures; P4-011 side-by-side comparison/fixes; P5-006 visual regression; P5-007 final owner screenshot review. All depend on explicit Phase 4 authorization after the Phase 3 review gate. Final owner screenshot approval precedes final release approval.
+Task ownership: P4-007 real Kodi/Arctic Fuse source comparison; P4-008 simulator feasibility; P4-009 exhaustive screen roster; P4-010 captures; P4-011 side-by-side comparison/fixes; P5-006 visual regression; P5-007 final owner screenshot review. Phase 3 review passed and Phase 4 is authorized. Dependencies and actual-device acceptance remain in force. Final owner screenshot approval precedes final release approval.
 
 ## Real code, not settings-only comparison
 
@@ -29,3 +29,5 @@ Raw screenshots and videos stay outside Git, alongside a private capture manifes
 Present every baseline/iPhone pair side by side using the same fixture. Normalize viewports only for the comparison copy; preserve untouched captures and record crop/scale parameters. Record intentional aspect-ratio, safe-area and OS font differences separately from lost menus/widgets, clipped labels, inaccessible controls and unwanted layout/color changes. Visual similarity does not establish functional/touch equivalence; exercise each relevant touch action.
 
 Log every regression with issue ID, severity, reproduction, root cause, expected/observed behavior, artifact hashes, fix revision and retest result. Do not remove failed captures. Apply minimal fixes to target copies only, recapture affected screens plus neighboring routes, then rerun the complete roster at P5-006. A final P5-007 owner review must explicitly accept all comparisons and justified differences. Missing screenshots or unresolved rejected changes block release, regardless of static test success.
+
+Prepared capture roster: [184 explicit original/target slot and application-route entries](../reports/device-capture-roster.json), with owner procedure in [phase4-device-testing.md](phase4-device-testing.md). Every applicable state/orientation needs real evidence; unsupported portrait behavior must be recorded. Matching fixture IDs should use FIX-EMPTY-01 (empty state), FIX-LIBRARY-01 (same synthetic metadata/owned test clip, staged privately), and FIX-ERROR-01 (safe offline/dependency failure). A checklist is not screenshot evidence.

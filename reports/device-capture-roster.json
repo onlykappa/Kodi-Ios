@@ -1,0 +1,3708 @@
+{
+  "status": "PREPARED CHECKLIST ONLY; NO APPLICATION SCREENSHOTS",
+  "records": [
+    {
+      "id": "MENU-5f65adb0a1da",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 0,
+      "label": "In Progress Episodes",
+      "route_sha256": "5a4329949dedf64090500c17e6f5ce450b72ed0d80843a642a434057dcf955da",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-412b75c12977",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 1,
+      "label": "Recommended Shows For You",
+      "route_sha256": "e7f2bfcf01d3241e86274bd80fd9d406e75fd5a7d1b72fb9ee7a23b0f41a7705",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-5db2b039b62c",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 2,
+      "label": "My TV Library",
+      "route_sha256": "29796aafce3cb2abe37022c56c2901e7e1ec558a29a0bea5d1ed3a10f4461cbc",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-4f79760689b1",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 3,
+      "label": "Popular TV Shows",
+      "route_sha256": "bc26742b83b2747fd3dbf9f9a94fba2068fc56b900cdf02d49c73014b1cf9793",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-4f85a166b4b1",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 4,
+      "label": "Top Rated TV Shows",
+      "route_sha256": "55a5c044625209519180679d600e4490ff9661685f047a7ab1d37909af924756",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-31b39cb4fcd8",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 5,
+      "label": "Comedy Shows",
+      "route_sha256": "0ae3e836f61a119158e3df728b8695ac87936cf7a4ab8daf43cb55f4a2d5bd6a",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-3075e9061a86",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 6,
+      "label": "Action and Adventure Shows",
+      "route_sha256": "e7104d6c1d78cb28febc2aff2c1c9be8d8a7139d24862857dc37c3b2077d9b9e",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-3d635f7f9e11",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 7,
+      "label": "Anime",
+      "route_sha256": "a47417b0f457d6a07e435b6e97be7a67de3e654620b0253b19df73df5dfb06b1",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-a7f0c2778df3",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 8,
+      "label": "Drama Shows",
+      "route_sha256": "d75695b77577d50a1fda3d0d2780fd82b27eea1134d9da61b64fb968debd6ce6",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-81cc7863cd8d",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 9,
+      "label": "Crime and Thriller Shows",
+      "route_sha256": "59763143c83022667be26c056be93a59de856ad5a16fe0b387a474e82329c8c9",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-57305c09b942",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 10,
+      "label": "Sci-Fi and Fantasy Shows",
+      "route_sha256": "f146ef76108c1f8edadaaca5fb119a373043450f0bb77e6091f909e49beee3a8",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-97ba2fb754a0",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 11,
+      "label": "Family Shows",
+      "route_sha256": "5ce980cc5315106af4e3ccf0e155e9d0c48a45b295c99be6582e3423a2687a7d",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-8a880099d0f0",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 12,
+      "label": "Recently Added Episodes",
+      "route_sha256": "2d08fd02fa9bcde0c340056866f2f90b02cb01253a6b61e15a950acc8e0e54d2",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-928893f64160",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 0,
+      "label": "In Progress Movies",
+      "route_sha256": "088273c16aec8decd0fc7b4cf0a8133787ea9e17ccc323cf9216171421f822ea",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-13a717d625aa",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 1,
+      "label": "Recommended Movies For You",
+      "route_sha256": "594a08e878ce400b988fcf0934aef8721bfd461d42eda501cce85988b3b7e9b0",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-27304a4c2a30",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 2,
+      "label": "My Movie Library",
+      "route_sha256": "a40ec013d7945432c9a0c0650ce208d9805603eef950ac957856ebba8684828c",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-47baa07010f7",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 3,
+      "label": "Popular Movies",
+      "route_sha256": "f7f2c2e2665cdde77ce3419c1733d940695512a74578f18ab9a817366ea712b7",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-f4a987f6b386",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 4,
+      "label": "Netflix Original Movies",
+      "route_sha256": "664a9e4965f6c3fb011ee95d2997f45f2f83af6e7e95cd65271a6b8246677eca",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-d9fa7df37aa1",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 5,
+      "label": "Action Movies",
+      "route_sha256": "fedb380e2fadc87e5367303473957995198fd9ed1ec9ac304eb003d04cee1ada",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-bfd70e38c6a2",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 6,
+      "label": "Comedy Movies",
+      "route_sha256": "63d6798f92f421f871b5c2cdaaabfad270c30ee25af14a2261e932e14f70a9df",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-a408196f35f3",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 7,
+      "label": "Drama Movies",
+      "route_sha256": "280c4fc367b0bcb12c993e4e80e1b9343e67621b1aef64a6bca75c4f0b8a917a",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-28cff6154edc",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 8,
+      "label": "Thriller Movies",
+      "route_sha256": "fdee82785868aac1f8d42b5aefd5e70e631b68bc870c20575b2c48693a0a181d",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-fadde7405a36",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 9,
+      "label": "Horror Movies",
+      "route_sha256": "1804fe6feba78addecdb59bbe52153290755a15b8ed5c12942222d735e7a63bf",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-35bc65dc52ee",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 10,
+      "label": "Sci-Fi Movies",
+      "route_sha256": "a94c0ce6a58efc33c15a1f9625bde2882fecdaaf604bd5f1c34bbd393b80852c",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-783d3e08879b",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 11,
+      "label": "Family Movies",
+      "route_sha256": "e849fde9ce3ff26c4fb1a16db64273397124616cd07f952fce9ee6bcb046a455",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-e6405ad4268f",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 12,
+      "label": "Anime Movies",
+      "route_sha256": "ab93f62b024bedc3063ebfe06ffe3413cc55758fd57de85f427752c0917e318f",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-d9b9928af462",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1103widgets.json",
+      "slot": 0,
+      "label": "Recently Added Shows",
+      "route_sha256": "07c5243dfe7e97cbbb4732eb8d8bedb5cf1cddbaa2d8625ee571003532571116",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-518c4f5ae655",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1103widgets.json",
+      "slot": 1,
+      "label": "Recent Episodes",
+      "route_sha256": "7dc11eacbf7f55f87e2c5b787ec68dede348a70949c66802efe0e01ad16c5e88",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-b593cfcf688c",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1103widgets.json",
+      "slot": 2,
+      "label": "Animation & Sci-Fi",
+      "route_sha256": "488892bd1b4ba08ba0c3472d22ead1020f72f814246c83e006fd1bcb644bc00f",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-68f44ceab49d",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1103widgets.json",
+      "slot": 3,
+      "label": "Comedy",
+      "route_sha256": "9d699b06f26b71a8731913018f3b20131525a1fcc8f8df504b839beaabfa1e55",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-43668c2d6e3e",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json",
+      "slot": 0,
+      "label": "Continue Watching",
+      "route_sha256": "07727a881a89033ab69eda2c6f88f5424710b192e391952e56f0298123143063",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-d31cb898fe34",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json",
+      "slot": 1,
+      "label": "Recently Added",
+      "route_sha256": "bc21e216f520c60d8681984c337e2ce1c8b03a31795e0797988c61a9263f5e85",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-4c1e404aaa94",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json",
+      "slot": 2,
+      "label": "Action",
+      "route_sha256": "d295f969b94a25ba3a3b93e185e7e19ee375c5675ed27fb5be82dc055763e2a3",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-9b4df85db664",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json",
+      "slot": 3,
+      "label": "Comedy",
+      "route_sha256": "62e4f721ce1b68409b635e69a76a827c8b3eed2a5173ca4d465623507be2e559",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-3b90298c59a1",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json",
+      "slot": 4,
+      "label": "Sci-Fi",
+      "route_sha256": "ac0b14cdcbeb67c902e2540251113579d2b11cd4a6012a9e822886b1295a3af2",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-0714e0a80ec0",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json",
+      "slot": 5,
+      "label": "Horror",
+      "route_sha256": "84952966c591e4ff1c0f993cc85276ecda86d41075b0f51a11110ffa5ede2d38",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-7c4ea827199f",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json",
+      "slot": 0,
+      "label": "Continue Watching",
+      "route_sha256": "4686b7473df0b52c1350d9247039c5ad011af6403c940ef892668535a0019e8d",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-d899e30bd48f",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json",
+      "slot": 1,
+      "label": "Recently Added",
+      "route_sha256": "07c5243dfe7e97cbbb4732eb8d8bedb5cf1cddbaa2d8625ee571003532571116",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-59093d9b16b1",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json",
+      "slot": 2,
+      "label": "Action & Adventure",
+      "route_sha256": "d0699d7f9c5f5181b9fb2eec47a3c70cd324d4735235ef52733afab68b32b18d",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-b02403360c93",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json",
+      "slot": 3,
+      "label": "Comedy",
+      "route_sha256": "9d699b06f26b71a8731913018f3b20131525a1fcc8f8df504b839beaabfa1e55",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-94b93b5a884f",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json",
+      "slot": 4,
+      "label": "Sci-Fi & Fantasy",
+      "route_sha256": "488892bd1b4ba08ba0c3472d22ead1020f72f814246c83e006fd1bcb644bc00f",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-fc1e461aaec5",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
+      "slot": 0,
+      "label": "YouTube",
+      "route_sha256": "60207a3b8c474560b1fa550a05c9f0549a8f5c70b1a541b959dfc69ad0d33114",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-c92752cdf0b9",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
+      "slot": 1,
+      "label": "Sports",
+      "route_sha256": "f770cec28f7127a76bcdb8955b1c55d69560c56f6c7da2994dda5b94386495ce",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-d1800e50d085",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
+      "slot": 2,
+      "label": "$LOCALIZE[3]",
+      "route_sha256": "f3542a7399041785463960f7e573eb452064fbe7f7b36c849a4cd8d144a37635",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-421b7e2fe7c0",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 0,
+      "label": "In Progress Movies",
+      "route_sha256": "088273c16aec8decd0fc7b4cf0a8133787ea9e17ccc323cf9216171421f822ea",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-25f1db041457",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 1,
+      "label": "In Progress Episodes",
+      "route_sha256": "5a4329949dedf64090500c17e6f5ce450b72ed0d80843a642a434057dcf955da",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-1384b9e5aea2",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 2,
+      "label": "Recommended Movies For You",
+      "route_sha256": "f86659696b62c561fafacb5e34e8730dd26ac3605fcb22f3c539cb3f1af109f3",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-db33b79865ff",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 3,
+      "label": "Recommended Shows For You",
+      "route_sha256": "a641749d790b05c76f1036ebaa136245fe44e83f23f710f2f274e13fb78b3156",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-8beaf966a084",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 4,
+      "label": "Recently Added Movies",
+      "route_sha256": "53c7a0fc4a2cdb05346449c43b2056d91936cd8225b48903445cb39a4fa8ff57",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-5d6fc6f868e2",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 5,
+      "label": "Recently added Tv",
+      "route_sha256": "2d08fd02fa9bcde0c340056866f2f90b02cb01253a6b61e15a950acc8e0e54d2",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-43808918d8bd",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 6,
+      "label": "Netflix Originals",
+      "route_sha256": "5f3ada54508a8a8c446b6989e0cd529f780292306730d5e575bea2cd38940851",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-f4feaeb37c70",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 7,
+      "label": "Netflix Original Movies",
+      "route_sha256": "664a9e4965f6c3fb011ee95d2997f45f2f83af6e7e95cd65271a6b8246677eca",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-6a1924655ec4",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 8,
+      "label": "Disney+ Originals",
+      "route_sha256": "819dd0474d72292e19ba90618bbd078b074eeb2e5245a09f5cf8dda53ca490c8",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-0cc46f07753f",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 9,
+      "label": "Prime Video Originals",
+      "route_sha256": "c7ed04b18c77bd755eeb49dcfd9e4c394e641e4a1d305417a8bfbb00c58b4389",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-3c86bd5993c2",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 10,
+      "label": "Apple TV+ Originals",
+      "route_sha256": "eb64ec669c370698fb2a76ff50dc4bda11d03f5cb6dcd6aa4db297be26fdc507",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-e04c29a4e279",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 11,
+      "label": "HBO Originals",
+      "route_sha256": "dea2cc16f863bba60e3958abb0a553bbe0157f661a697d51251b1bef472408ba",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-5af71cc59b57",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 12,
+      "label": "Max Originals",
+      "route_sha256": "c445f8f252f8745b0a1fd576207932a4ca77447e054f49496b63de07d4375552",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-f61e0a2731ad",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 13,
+      "label": "Live Sports",
+      "route_sha256": "f770cec28f7127a76bcdb8955b1c55d69560c56f6c7da2994dda5b94386495ce",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-2639422c49f4",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 14,
+      "label": "Umbrella",
+      "route_sha256": "9479264f90d72d412676a7a84cfe6c7e855f15bb55b24974b64255172852fe21",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-80321ac82439",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 15,
+      "label": "Elementum-SSD",
+      "route_sha256": "ea6c94f66d493fb7d7df2c10f9f317b5b4f118da7e2c2150aa864a73fa0d4181",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-9b2dd9b32280",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 16,
+      "label": "Video add-ons",
+      "route_sha256": "8e7d439bc20bd20e955a1af4629ff1b8187cf3c89280acb6c3bb242d29bc6fa0",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-1c178a7906df",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-powermenu.json",
+      "slot": 0,
+      "label": "$LOCALIZE[1036]",
+      "route_sha256": "14db1fb3445b09e258579b5db6611867de32d3fa7bcb653289e81a0295434d0a",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-128ed7736b98",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-powermenu.json",
+      "slot": 1,
+      "label": "$LOCALIZE[7]",
+      "route_sha256": "ef562a395ff9f0592cedb71f8b9fe85f9f23c61a8fb8a9b8dbd1ea03ebe1dac6",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-32c8fcac4c80",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-powermenu.json",
+      "slot": 2,
+      "label": "$LOCALIZE[31359]",
+      "route_sha256": "abed4dc489176f0ebf1eb9b7006ad5a939434d28bb26cee06f30899a3d07cc03",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-b341f5d3a98d",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-powermenu.json",
+      "slot": 3,
+      "label": "$LOCALIZE[13009]",
+      "route_sha256": "4e8ad9822827f1e819c728675076ce7be811fa21d41037b819de64d2a5bd80c7",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-5c737dcff02d",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json",
+      "slot": 0,
+      "label": "Movies",
+      "route_sha256": "7b569edbfe1a007fa4f18635325919fad0e415ca276b9d09e91d2bf8a9a86057",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-0ceecd0e3dd0",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json",
+      "slot": 1,
+      "label": "TV Shows",
+      "route_sha256": "440fd41dec9fe68332507ef640b06102bd13767a0b3e70b7e6b7438f10d56d22",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-05af4daf2c8e",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json",
+      "slot": 2,
+      "label": "Albums",
+      "route_sha256": "5b4f7ba3e2ee0c8f4c4448aba970375bbc9cf15e5855e80c050f9075eca4e7cd",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-457261b698f7",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json",
+      "slot": 3,
+      "label": "Artists",
+      "route_sha256": "f46837590b4f644423a6fa062cb86caf391b43628d1f0f52660784e0b5b50dd2",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-b3ec6490b1ad",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json",
+      "slot": 4,
+      "label": "Movies (TMDb)",
+      "route_sha256": "2cba434d7d0ad149487b6d9ef773700b9c318ac0ea181597ab481aff8bb426c5",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-8f9fe832b6b8",
+      "origin": "baseline",
+      "source": "snapshot/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json",
+      "slot": 5,
+      "label": "TV Shows (TMDb)",
+      "route_sha256": "fcc179088d104bb3a2b4f51270a03f977d32020626e5bde149d29f1c3cf23b7b",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING SAFE-COPY CAPTURE",
+      "evidence": null
+    },
+    {
+      "id": "MENU-b52623b46437",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 0,
+      "label": "In Progress Episodes",
+      "route_sha256": "5a4329949dedf64090500c17e6f5ce450b72ed0d80843a642a434057dcf955da",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-64343b1b43cf",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 1,
+      "label": "Recommended Shows For You",
+      "route_sha256": "e7f2bfcf01d3241e86274bd80fd9d406e75fd5a7d1b72fb9ee7a23b0f41a7705",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-2fb568b3908f",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 2,
+      "label": "My TV Library",
+      "route_sha256": "5d0ace188ec6a1ab3abc27ef29ab4124b7c1ce689856bc37ae2effc230ff9fdb",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-515bdb2e0e48",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 3,
+      "label": "Popular TV Shows",
+      "route_sha256": "bc26742b83b2747fd3dbf9f9a94fba2068fc56b900cdf02d49c73014b1cf9793",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-974ee6727974",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 4,
+      "label": "Top Rated TV Shows",
+      "route_sha256": "55a5c044625209519180679d600e4490ff9661685f047a7ab1d37909af924756",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-3bae706a1ab6",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 5,
+      "label": "Comedy Shows",
+      "route_sha256": "0ae3e836f61a119158e3df728b8695ac87936cf7a4ab8daf43cb55f4a2d5bd6a",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-ef3f606eb7e3",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 6,
+      "label": "Action and Adventure Shows",
+      "route_sha256": "e7104d6c1d78cb28febc2aff2c1c9be8d8a7139d24862857dc37c3b2077d9b9e",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-340b68ae67e3",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 7,
+      "label": "Anime",
+      "route_sha256": "a47417b0f457d6a07e435b6e97be7a67de3e654620b0253b19df73df5dfb06b1",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-0997994943aa",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 8,
+      "label": "Drama Shows",
+      "route_sha256": "d75695b77577d50a1fda3d0d2780fd82b27eea1134d9da61b64fb968debd6ce6",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-09911b166927",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 9,
+      "label": "Crime and Thriller Shows",
+      "route_sha256": "59763143c83022667be26c056be93a59de856ad5a16fe0b387a474e82329c8c9",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-ed0878cfa8c4",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 10,
+      "label": "Sci-Fi and Fantasy Shows",
+      "route_sha256": "f146ef76108c1f8edadaaca5fb119a373043450f0bb77e6091f909e49beee3a8",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-87a121fe3c56",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 11,
+      "label": "Family Shows",
+      "route_sha256": "5ce980cc5315106af4e3ccf0e155e9d0c48a45b295c99be6582e3423a2687a7d",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-4911357502cd",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "slot": 12,
+      "label": "Recently Added Episodes",
+      "route_sha256": "2d08fd02fa9bcde0c340056866f2f90b02cb01253a6b61e15a950acc8e0e54d2",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-509433495f21",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 0,
+      "label": "In Progress Movies",
+      "route_sha256": "088273c16aec8decd0fc7b4cf0a8133787ea9e17ccc323cf9216171421f822ea",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-22faf4a57cc9",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 1,
+      "label": "Recommended Movies For You",
+      "route_sha256": "594a08e878ce400b988fcf0934aef8721bfd461d42eda501cce85988b3b7e9b0",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-73260b0fe0bf",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 2,
+      "label": "My Movie Library",
+      "route_sha256": "a40ec013d7945432c9a0c0650ce208d9805603eef950ac957856ebba8684828c",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-1d2387698e57",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 3,
+      "label": "Popular Movies",
+      "route_sha256": "f7f2c2e2665cdde77ce3419c1733d940695512a74578f18ab9a817366ea712b7",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-ed1aa20a1cb7",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 4,
+      "label": "Netflix Original Movies",
+      "route_sha256": "664a9e4965f6c3fb011ee95d2997f45f2f83af6e7e95cd65271a6b8246677eca",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-6291d3bb0e73",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 5,
+      "label": "Action Movies",
+      "route_sha256": "fedb380e2fadc87e5367303473957995198fd9ed1ec9ac304eb003d04cee1ada",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-4f6510cce7db",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 6,
+      "label": "Comedy Movies",
+      "route_sha256": "63d6798f92f421f871b5c2cdaaabfad270c30ee25af14a2261e932e14f70a9df",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-8192b10d98a2",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 7,
+      "label": "Drama Movies",
+      "route_sha256": "280c4fc367b0bcb12c993e4e80e1b9343e67621b1aef64a6bca75c4f0b8a917a",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-96883411657e",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 8,
+      "label": "Thriller Movies",
+      "route_sha256": "fdee82785868aac1f8d42b5aefd5e70e631b68bc870c20575b2c48693a0a181d",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-232ea8be085b",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 9,
+      "label": "Horror Movies",
+      "route_sha256": "1804fe6feba78addecdb59bbe52153290755a15b8ed5c12942222d735e7a63bf",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-9d1a79a58dc8",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 10,
+      "label": "Sci-Fi Movies",
+      "route_sha256": "a94c0ce6a58efc33c15a1f9625bde2882fecdaaf604bd5f1c34bbd393b80852c",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-ec475b784061",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 11,
+      "label": "Family Movies",
+      "route_sha256": "e849fde9ce3ff26c4fb1a16db64273397124616cd07f952fce9ee6bcb046a455",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-9848f3d904c8",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "slot": 12,
+      "label": "Anime Movies",
+      "route_sha256": "ab93f62b024bedc3063ebfe06ffe3413cc55758fd57de85f427752c0917e318f",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-5e833cb7e766",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1103widgets.json",
+      "slot": 0,
+      "label": "Recently Added Shows",
+      "route_sha256": "07c5243dfe7e97cbbb4732eb8d8bedb5cf1cddbaa2d8625ee571003532571116",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-93d02164edb5",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1103widgets.json",
+      "slot": 1,
+      "label": "Recent Episodes",
+      "route_sha256": "7dc11eacbf7f55f87e2c5b787ec68dede348a70949c66802efe0e01ad16c5e88",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-3a46b05950be",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1103widgets.json",
+      "slot": 2,
+      "label": "Animation & Sci-Fi",
+      "route_sha256": "488892bd1b4ba08ba0c3472d22ead1020f72f814246c83e006fd1bcb644bc00f",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-a7b0d77497bd",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1103widgets.json",
+      "slot": 3,
+      "label": "Comedy",
+      "route_sha256": "9d699b06f26b71a8731913018f3b20131525a1fcc8f8df504b839beaabfa1e55",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-f47501292df1",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json",
+      "slot": 0,
+      "label": "Continue Watching",
+      "route_sha256": "07727a881a89033ab69eda2c6f88f5424710b192e391952e56f0298123143063",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-450646974ff7",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json",
+      "slot": 1,
+      "label": "Recently Added",
+      "route_sha256": "bc21e216f520c60d8681984c337e2ce1c8b03a31795e0797988c61a9263f5e85",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-9c15ea94a084",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json",
+      "slot": 2,
+      "label": "Action",
+      "route_sha256": "d295f969b94a25ba3a3b93e185e7e19ee375c5675ed27fb5be82dc055763e2a3",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-b53bedbc2244",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json",
+      "slot": 3,
+      "label": "Comedy",
+      "route_sha256": "62e4f721ce1b68409b635e69a76a827c8b3eed2a5173ca4d465623507be2e559",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-43a1147421d1",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json",
+      "slot": 4,
+      "label": "Sci-Fi",
+      "route_sha256": "ac0b14cdcbeb67c902e2540251113579d2b11cd4a6012a9e822886b1295a3af2",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-c1ccf5504b60",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json",
+      "slot": 5,
+      "label": "Horror",
+      "route_sha256": "84952966c591e4ff1c0f993cc85276ecda86d41075b0f51a11110ffa5ede2d38",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-45dfbbf8ade5",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json",
+      "slot": 0,
+      "label": "Continue Watching",
+      "route_sha256": "4686b7473df0b52c1350d9247039c5ad011af6403c940ef892668535a0019e8d",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-36ccf5caa643",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json",
+      "slot": 1,
+      "label": "Recently Added",
+      "route_sha256": "07c5243dfe7e97cbbb4732eb8d8bedb5cf1cddbaa2d8625ee571003532571116",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-f99408791f11",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json",
+      "slot": 2,
+      "label": "Action & Adventure",
+      "route_sha256": "d0699d7f9c5f5181b9fb2eec47a3c70cd324d4735235ef52733afab68b32b18d",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-974fb66d0aab",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json",
+      "slot": 3,
+      "label": "Comedy",
+      "route_sha256": "9d699b06f26b71a8731913018f3b20131525a1fcc8f8df504b839beaabfa1e55",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-9ca691305592",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json",
+      "slot": 4,
+      "label": "Sci-Fi & Fantasy",
+      "route_sha256": "488892bd1b4ba08ba0c3472d22ead1020f72f814246c83e006fd1bcb644bc00f",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-09e70515eed4",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
+      "slot": 0,
+      "label": "YouTube",
+      "route_sha256": "60207a3b8c474560b1fa550a05c9f0549a8f5c70b1a541b959dfc69ad0d33114",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-e11da522f828",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
+      "slot": 1,
+      "label": "Sports",
+      "route_sha256": "a40ec013d7945432c9a0c0650ce208d9805603eef950ac957856ebba8684828c",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-d53686516dab",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
+      "slot": 2,
+      "label": "$LOCALIZE[3]",
+      "route_sha256": "f3542a7399041785463960f7e573eb452064fbe7f7b36c849a4cd8d144a37635",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-44c3c90439f1",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
+      "slot": 3,
+      "label": "Google Drive",
+      "route_sha256": "1e72fd5a6e7c001c4d4a01dc1153ea7720d9c31fec0b524cf0dada1df9009dfb",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-a713c5bfb12a",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 0,
+      "label": "In Progress Movies",
+      "route_sha256": "088273c16aec8decd0fc7b4cf0a8133787ea9e17ccc323cf9216171421f822ea",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-0c2d978f2238",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 1,
+      "label": "In Progress Episodes",
+      "route_sha256": "5a4329949dedf64090500c17e6f5ce450b72ed0d80843a642a434057dcf955da",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-1aec1336343f",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 2,
+      "label": "Recommended Movies For You",
+      "route_sha256": "f86659696b62c561fafacb5e34e8730dd26ac3605fcb22f3c539cb3f1af109f3",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-a9de902e0878",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 3,
+      "label": "Recommended Shows For You",
+      "route_sha256": "a641749d790b05c76f1036ebaa136245fe44e83f23f710f2f274e13fb78b3156",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-a2f54289cca1",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 4,
+      "label": "Recently Added Movies",
+      "route_sha256": "53c7a0fc4a2cdb05346449c43b2056d91936cd8225b48903445cb39a4fa8ff57",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-9a76234d6bb0",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 5,
+      "label": "Recently added Tv",
+      "route_sha256": "2d08fd02fa9bcde0c340056866f2f90b02cb01253a6b61e15a950acc8e0e54d2",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-b86a243bfc30",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 6,
+      "label": "Netflix Originals",
+      "route_sha256": "5f3ada54508a8a8c446b6989e0cd529f780292306730d5e575bea2cd38940851",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-e13e6b34b131",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 7,
+      "label": "Netflix Original Movies",
+      "route_sha256": "664a9e4965f6c3fb011ee95d2997f45f2f83af6e7e95cd65271a6b8246677eca",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-9c51f27b121c",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 8,
+      "label": "Disney+ Originals",
+      "route_sha256": "819dd0474d72292e19ba90618bbd078b074eeb2e5245a09f5cf8dda53ca490c8",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-957087110ac5",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 9,
+      "label": "Prime Video Originals",
+      "route_sha256": "c7ed04b18c77bd755eeb49dcfd9e4c394e641e4a1d305417a8bfbb00c58b4389",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-24ba436a0bb5",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 10,
+      "label": "Apple TV+ Originals",
+      "route_sha256": "eb64ec669c370698fb2a76ff50dc4bda11d03f5cb6dcd6aa4db297be26fdc507",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-10d4d7ebe3bc",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 11,
+      "label": "HBO Originals",
+      "route_sha256": "dea2cc16f863bba60e3958abb0a553bbe0157f661a697d51251b1bef472408ba",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-a60c8d3bf783",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 12,
+      "label": "Max Originals",
+      "route_sha256": "c445f8f252f8745b0a1fd576207932a4ca77447e054f49496b63de07d4375552",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-bca3612fd654",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 13,
+      "label": "Live Sports",
+      "route_sha256": "a40ec013d7945432c9a0c0650ce208d9805603eef950ac957856ebba8684828c",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-9f9020925683",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 14,
+      "label": "Local library",
+      "route_sha256": "a40ec013d7945432c9a0c0650ce208d9805603eef950ac957856ebba8684828c",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-123335ea4be6",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 15,
+      "label": "Elementum-SSD",
+      "route_sha256": "a40ec013d7945432c9a0c0650ce208d9805603eef950ac957856ebba8684828c",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-44f15c9f668f",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "slot": 16,
+      "label": "Video add-ons",
+      "route_sha256": "8e7d439bc20bd20e955a1af4629ff1b8187cf3c89280acb6c3bb242d29bc6fa0",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-aee37dd348b7",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-powermenu.json",
+      "slot": 0,
+      "label": "$LOCALIZE[1036]",
+      "route_sha256": "14db1fb3445b09e258579b5db6611867de32d3fa7bcb653289e81a0295434d0a",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-36188a5df7ad",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-powermenu.json",
+      "slot": 1,
+      "label": "$LOCALIZE[7]",
+      "route_sha256": "ef562a395ff9f0592cedb71f8b9fe85f9f23c61a8fb8a9b8dbd1ea03ebe1dac6",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-57328e91b28c",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-powermenu.json",
+      "slot": 2,
+      "label": "$LOCALIZE[31359]",
+      "route_sha256": "abed4dc489176f0ebf1eb9b7006ad5a939434d28bb26cee06f30899a3d07cc03",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-f65b4fc8540f",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-powermenu.json",
+      "slot": 3,
+      "label": "$LOCALIZE[13009]",
+      "route_sha256": "5531f7bab06c86b31fd8591ed8f8851c3a14cbb4df53dc493c34cf488c045169",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-ad9ae0785848",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json",
+      "slot": 0,
+      "label": "Movies",
+      "route_sha256": "7b569edbfe1a007fa4f18635325919fad0e415ca276b9d09e91d2bf8a9a86057",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-a63567e00c5c",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json",
+      "slot": 1,
+      "label": "TV Shows",
+      "route_sha256": "440fd41dec9fe68332507ef640b06102bd13767a0b3e70b7e6b7438f10d56d22",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-abce20065042",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json",
+      "slot": 2,
+      "label": "Albums",
+      "route_sha256": "5b4f7ba3e2ee0c8f4c4448aba970375bbc9cf15e5855e80c050f9075eca4e7cd",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-d22618cdb7d0",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json",
+      "slot": 3,
+      "label": "Artists",
+      "route_sha256": "f46837590b4f644423a6fa062cb86caf391b43628d1f0f52660784e0b5b50dd2",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-ae11cf0eb40a",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json",
+      "slot": 4,
+      "label": "Movies (TMDb)",
+      "route_sha256": "2cba434d7d0ad149487b6d9ef773700b9c318ac0ea181597ab481aff8bb426c5",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "MENU-508206a7fa0e",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json",
+      "slot": 5,
+      "label": "TV Shows (TMDb)",
+      "route_sha256": "fcc179088d104bb3a2b4f51270a03f977d32020626e5bde149d29f1c3cf23b7b",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-cold-start",
+      "route": "cold-start",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-home-main",
+      "route": "home-main",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-home-spotlight",
+      "route": "home-spotlight",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-all-main-menu-navigation",
+      "route": "all-main-menu-navigation",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-media-list",
+      "route": "media-list",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-media-details-artwork",
+      "route": "media-details-artwork",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-global-search",
+      "route": "global-search",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-search-keyboard",
+      "route": "search-keyboard",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-addon-browser",
+      "route": "addon-browser",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-addon-install",
+      "route": "addon-install",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-addon-settings",
+      "route": "addon-settings",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-skin-layout-settings",
+      "route": "skin-layout-settings",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-skin-navigation-settings",
+      "route": "skin-navigation-settings",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-general-settings",
+      "route": "general-settings",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-system-settings",
+      "route": "system-settings",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-player-settings",
+      "route": "player-settings",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-interface-settings",
+      "route": "interface-settings",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-media-settings",
+      "route": "media-settings",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-services-settings",
+      "route": "services-settings",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-file-manager-profile-path",
+      "route": "file-manager-profile-path",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-selection-dialog",
+      "route": "selection-dialog",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-context-menu",
+      "route": "context-menu",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-confirmation-dialog",
+      "route": "confirmation-dialog",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-network-error",
+      "route": "network-error",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-dependency-error",
+      "route": "dependency-error",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-drive-consent-safe-entry",
+      "route": "drive-consent-safe-entry",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-drive-cancelled-auth",
+      "route": "drive-cancelled-auth",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-drive-auth-error",
+      "route": "drive-auth-error",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-drive-browse",
+      "route": "drive-browse",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-drive-play-start",
+      "route": "drive-play-start",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-video-osd",
+      "route": "video-osd",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-video-controls-touch",
+      "route": "video-controls-touch",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-video-pause",
+      "route": "video-pause",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-video-seek",
+      "route": "video-seek",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-video-subtitles",
+      "route": "video-subtitles",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-video-audio",
+      "route": "video-audio",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-video-resume-prompt",
+      "route": "video-resume-prompt",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-video-resume-cancel",
+      "route": "video-resume-cancel",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-background-foreground",
+      "route": "background-foreground",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-process-relaunch",
+      "route": "process-relaunch",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    },
+    {
+      "id": "SCREEN-clean-target-rollback",
+      "route": "clean-target-rollback",
+      "origin": "paired",
+      "required_states": [
+        "normal",
+        "empty-or-loading-if-applicable",
+        "safe-error-if-applicable"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null
+    }
+  ],
+  "count": 184,
+  "device": "owner-reported iPhone 16 Pro / iOS 27.0.1",
+  "requirements": "Every applicable state/orientation needs actual capture or issue/owner-accepted exclusion. No mockups. Raw images, account codes and private media stay outside Git."
+}

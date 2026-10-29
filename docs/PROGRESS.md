@@ -1,16 +1,16 @@
 # Persistent progress
 
-Status: IN PROGRESS
-Current phase: Phase 4 — P4-001 trusted foundation acquisition and target constraints
+Status: BLOCKED
+Current phase: Phase 4 — host candidate prepared; physical testing and deployment decision pending
 Progress: 21/39 task IDs COMPLETE (53.85%); 18 awaiting implementation.
-Last completed task: P3-006 operational recovery and device-test plan (P3-005 host/mock evidence passed).
-Next actionable task: inspect the capped foundation acquisition job and record actual results before advancing dependencies.
-Active blockers: local socket restriction persists, but approved CI resolved the required host tests (42/42). No Phase 3 host-test blocker remains. Actual iPhone/runtime/authorization tests remain Phase 4.
-Pending decisions: no new hosting/spending; owner provides physical iPhone tests/screenshots when ready. Actual signing behavior remains unknown.
-Latest implementation commit SHA reviewed: 4a3f04a7f2618152191c15bd1ff5f0c193b4a5f9 (local). Published equivalent: d6ba8c508a9f5981a2ef85bd19f56a045dc9aee2; tree d53e676a29e47ae1a24fa3c962106816f432befe. Latest tracker commit: resolve `git log -1 --format=%H -- docs/PROGRESS.md`.
+Last completed task: P3-006 (Phase 3 passed owner independent review). No Phase 4 task is marked complete without its acceptance evidence.
+Next actionable task: Owner chooses first-run import versus automatic bootstrap, then supplies actual signer/launch/profile-access evidence for diagnostic candidate. Resume P4-001 dependency order; no Phase 5.
+Active blockers: P4-001 actual signing/OS behavior unverified; P4-002 full migrated IPA/import and clean target recovery absent; ISSUE-020 generated skin parity; real screenshots and functional/rollback evidence absent. Local DNS unavailable; CI acquisition succeeded.
+Pending decisions: Separate first-run configuration/add-on import versus proven automatic IPA initialization (question sent); actual iPhone testing/screenshots supplied by owner when ready.
+Latest implementation commit SHA reviewed: Local 34a476f; published equivalent e7a657ba73fab2381112ce29004a3d55c2687262. Resolve latest tracker commit using git log -- docs/PROGRESS.md and inspect PR head; preserve both histories.
 Roadmap publication commit: resolve `git log -1 --format=%H -- ROADMAP.md`; this avoids a self-referential SHA. Verify against PR head before resuming.
-Last updated UTC: 2026-10-29T20:42:18.519179+00:00
-Last validation: 43 project regression tests; 42 common upstream CI tests; 12 provider tests; 9 pinned-source mocked refresh/resume tests passed. Static/integrity, source comparison (22,463 files unchanged), package reproducibility and secret/history checks passed. reports/phase3-validation.json records commands and scope.
+Last updated UTC: 2026-10-29T23:03:10.907434+00:00
+Last validation: 11 static Mach-O/entitlement parser tests, five unsigned ZIP/signature tests and three source-comparison tests pass. Foundation CI 40951457120 and unsigned candidate CI 40952213893 passed. Project checks/secret scans must pass before each publication; final results in reports/phase4-validation.json.
 
 ## Resume instructions
 
@@ -18,7 +18,7 @@ Read ROADMAP.md, this file, ISSUES.md and DECISIONS.md. Check branch/worktree an
 
 ## Stop gate
 
-Phase 4 authorized. Stop at its review gate or an unresolved prerequisite blocker; no Phase 5, merge or release authorized.
+Phase 4 BLOCKED: no device or full migration completion claimed. Available host candidate/evidence submitted for owner review. Wait for pending choice and actual-device evidence; no Phase 5, merge or release authorized.
 
 Publication uses the GitHub connector because this shell has no authenticated GitHub CLI/network path. Local and remote commit IDs can differ for identical trees; preserve both histories. Verify remote branch SHA and tree before publication; never force-push or reset history. Resolve latest published SHA from PR #1 and record it in the next session.
 

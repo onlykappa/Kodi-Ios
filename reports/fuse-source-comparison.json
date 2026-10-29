@@ -1,0 +1,28 @@
+{
+  "upstream_commit": "aa54dca0fbc01c4b5574fb2819007611a0db6040",
+  "upstream_version": "3.4.8",
+  "upstream_file_count": 3344,
+  "installed_file_count": 3338,
+  "matching_files": 3336,
+  "changed_upstream_files": [
+    {
+      "path": "1080i/script-skinviewtypes-includes.xml",
+      "upstream_git_blob": "683d2ce2cee47c6854425da10eb8a43e1aac3af6",
+      "private_sha256": "c432a33f640c21e71e2c3d349a893829a654caa98ecb197473e55f054f3131c2",
+      "bytes": 10098
+    }
+  ],
+  "absent_upstream_files": [
+    ".gitattributes",
+    ".github/DISCUSSION_TEMPLATE/feature-requests.yml",
+    ".github/FUNDING.yml",
+    ".github/ISSUE_TEMPLATE/bug_report.yml",
+    ".github/ISSUE_TEMPLATE/config.yml",
+    ".github/workflows/dispatch_to_repo.yml",
+    ".gitignore"
+  ],
+  "additional_installed_file_count": 1,
+  "comparison": "All upstream source/asset blobs against isolated private recovery; no target execution or original writes",
+  "source_experience_runtime_verified": false,
+  "upstream_tree_metadata_sha256": "07f32125061632bea53bd8130ca8b152e247c4fa57fd1c4d5158e2b27e5f3144"
+}

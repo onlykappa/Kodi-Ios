@@ -59,3 +59,12 @@ __pycache__/
 dist/
 build/
 .DS_Store
+
+# iOS artifacts and signing state stay outside Git
+*.ipa
+*.deb
+*.mobileprovision
+*.p12
+*.pfx
+*.xcarchive/
+*.dSYM/
