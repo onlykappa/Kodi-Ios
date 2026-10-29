@@ -1,6 +1,6 @@
 # Google Drive integration research and selected architecture
 
-Checked 2026-10-29. The approved capped CI job has resolved the host-test blocker. Credential-free integration and pinned add-on packages are implemented; final validation and operations documentation are being completed before the Phase 3 review gate. No Google account, personal file or live authentication was accessed.
+Checked 2026-10-29. The approved capped CI job has resolved the host-test blocker. Credential-free integration, pinned add-on packages, available host tests and operations documentation are complete. Phase 3 is READY FOR REVIEW; STOP before Phase 4. No Google account, personal file or live authentication was accessed.
 
 The owner approved **direct Kodi add-on with maintainer-operated OAuth relay**, with no separate media host. This retains the unsigned ARM64 IPA objective; no signing keys or accounts are embedded. Source pins and file identities are in `migration/google-drive/source-lock.json`. Real iPhone/Kodi compatibility remains unverified; all device execution and visual work remains Phase 4.
 
@@ -25,7 +25,7 @@ Relay source pin: `5923ee409dec93f7c749ccb91b7a2fe5a22519b3`. Current endpoint i
 
 Initial private acquisition verified 74 text files. A generic binary icon fetch failed its UTF-8-only check; the explicit base64 file-fetch capability then succeeded. All 97 upstream files, including public UI assets, now match pinned blob hashes and sizes in the private cache (reports/drive-source-acquisition.json). At that initial acquisition step no distributable archive was built. Subsequently, two upstream-only add-on ZIPs were built and verified outside Git; no upstream code/assets or archive was added to the working Kodi installation. The first test run used the text cache; added binary assets do not establish runtime behavior.
 
-## Functional evidence and blocker
+## Functional evidence and resolved host blocker
 
 The pinned common-module upstream suite ran in a private copied source tree with fake Kodi modules, temporary profiles, synthetic payloads and no Google credentials. **42 tests ran: 34 passed; eight errored.** Errors were local socket creation denied by this session, before stream assertions could execute. These eight tests cover bounded/open-ended byte ranges, full-file/HEAD transfer, ignored range behavior, reused/stale connections and cross-host authorization headers. They did not pass in that local attempt; none were skipped or substituted with weaker tests. The later successful CI rerun is recorded below.
 
@@ -37,8 +37,8 @@ Evidence: `reports/drive-upstream-validation.json`. Resolution: approved CI run 
 
 [Google's limits/pricing page](https://developers.google.com/workspace/drive/api/guides/limits) states standard Drive API use has no additional charge while describing forthcoming quota/billing changes. This is not unlimited streaming or a guarantee of zero future costs. Review the actual OAuth project's current quota, download availability and applicable billing policy before enabling billing or assuming a fixed throughput budget. Existing 5 TB capacity describes storage, not a playback bandwidth entitlement. No paid resource, hosting or Google billing account was provisioned.
 
-## Next steps after the blocker
+## Implemented integration and review gate
 
 P3-004 implements the approved direct path with a Google Drive menu entry, safe preferences, 51-entry candidate dependency closure, and two locally verified/reproducible add-on ZIPs. See docs/google-drive-setup.md for the final deployment/recovery procedure. Live installation/authentication is not performed here. Public configuration may identify the public relay and safe preferences (subtitles/resume), never account IDs, folder IDs, media links or tokens. Do not activate an optional LAN directory-listing service by accident; upstream services bind loopback by default and source-mode exposure must be reviewed on the actual device. Do not claim a fully preconfigured IPA: first-run profile import and signing are still Phase 4 work.
 
-Complete P3-006 operational instructions/recovery and update every tracker before requesting Phase 3 review. Neither Phase 4 nor merge/release is authorized.
+P3-001 through P3-006 are complete for available tests; [validation](../reports/phase3-validation.json) and [setup/recovery](google-drive-setup.md) record scope and device-test deferrals. STOP for Phase 3 independent review. Neither Phase 4 nor merge/release is authorized.

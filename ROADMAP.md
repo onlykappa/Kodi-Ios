@@ -1,7 +1,7 @@
 # Kodi-iOS master roadmap
 
-Status: IN PROGRESS. Current phase: Phase 3 — final validation and operations documentation. Phase 2 static review passed; Phase 3 authorized only.
-Progress: 19/39 task IDs COMPLETE (48.72%); 20 awaiting implementation.
+Status: READY FOR REVIEW. Current phase: Phase 3 complete for available host/static tests; STOP at REVIEW-GATE-3. Phase 4 requires separate authorization.
+Progress: 21/39 task IDs COMPLETE (53.85%); 18 awaiting implementation.
 
 ## Rules and session protocol
 
@@ -100,7 +100,7 @@ Phase status: COMPLETE — owner accepted static deliverables; runtime compatibi
 ## Phase 3 — Google Drive Media Integration
 
 Exit criteria: Selected integration is implemented and passes available tests; live playback pending until actual iPhone testing.
-Phase status: IN PROGRESS — approved CI passed all 42 upstream tests; original local failures preserved. All task acceptance criteria and dependency gates must pass before exit.
+Phase status: READY FOR REVIEW — available host/static tests pass; live playback explicitly pending Phase 4. STOP at REVIEW-GATE-3; owner review/authorization required before Phase 4.
 
 - [x] P3-001 — Research maintained integrations
   - Status: COMPLETE. Dependencies: P2-009.
@@ -122,16 +122,16 @@ Phase status: IN PROGRESS — approved CI passed all 42 upstream tests; original
   - 1. Deliverable and acceptance: Implement selected configuration and reproducible setup without media uploads or credentials in repository.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: migration/ios; reports/drive-addon-packages.json; reports/drive-integration-validation.json; reports/drive-ci-validation.json.
-- [ ] P3-005 — Test available integration behavior
-  - Status: IN PROGRESS. Dependencies: P3-004.
+- [x] P3-005 — Test available integration behavior
+  - Status: COMPLETE. Dependencies: P3-004.
   - 1. Deliverable and acceptance: Run feasible mocked/host tests for startup, range seeking, subtitles, resume, refresh and failure recovery; explicitly defer live iPhone claims.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
-- [ ] P3-006 — Document operational recovery
-  - Status: NOT STARTED. Dependencies: P3-005.
+  - Evidence: reports/phase3-validation.json; reports/drive-ci-validation.json; reports/drive-provider-validation.json; reports/drive-runtime-mock-validation.json; ISSUE-014/016.
+- [x] P3-006 — Document operational recovery
+  - Status: COMPLETE. Dependencies: P3-005.
   - 1. Deliverable and acceptance: Record test evidence, token renewal, quota errors, offline/network failures and live-device test plan.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
+  - Evidence: docs/google-drive-setup.md; docs/google-drive-oauth-design.md; reports/phase3-validation.json; docs/PROGRESS.md.
 
 ## Phase 4 — iPhone Deployment & Migration
 

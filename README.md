@@ -2,7 +2,7 @@
 
 Review baseline for moving a customized Kodi 21.3 Omega setup from Steam Deck to an iPhone, with personal Google Drive media kept separate.
 
-This first pull request preserves a sanitized configuration snapshot and an inventory so the owner can review the starting point and decide the roadmap. **It is not an installable iOS configuration.** No iPhone runtime testing has happened.
+This pull request preserves the sanitized baseline, provisional iOS configuration and validated Phase 3 Drive integration for review. **It is not a built IPA or a tested iOS installation.** No iPhone runtime testing has happened.
 
 ## What is here
 
@@ -16,7 +16,7 @@ The full backup stays offline from this repository. It includes private settings
 
 ## Decisions already made
 
-- Umbrella will not be used on iOS. Its references are preserved only as historical baseline evidence; cleaning them up belongs to a later migration change.
+- Umbrella will not be used on iOS. Its references remain in the historical baseline and are excluded from the active iOS target.
 - Do not install this baseline over either device's working configuration.
 - Do not copy Linux executables to iOS. Transfer compatible saved account state privately, after installing the corresponding add-ons; see [private account transfer](docs/private-account-transfer.md).
 - Google Drive media and authentication remain outside this repository.
@@ -39,8 +39,8 @@ python3 -B scripts/check_project.py \
 
 These checks intentionally distinguish documented baseline issues from new missing files or references. Passing them does not mean the snapshot works on iOS.
 
-Master plan: [ROADMAP.md](ROADMAP.md). Resume from [docs/PROGRESS.md](docs/PROGRESS.md); implementation awaits owner approval.
+Master plan: [ROADMAP.md](ROADMAP.md). Resume from [docs/PROGRESS.md](docs/PROGRESS.md); Phase 3 is ready for review; Phase 4 requires separate owner approval.
 
 Phase 2 static deliverable: [migration/ios](migration/ios) and [configuration review guide](docs/ios-configuration.md). Preferred official foundation is matching 21.3 ARM64; exact iOS 27.0.1 behavior and fully bundled configuration remain unverified. This is not a built IPA.
 
-Phase 3: [Drive comparison and approved architecture](docs/google-drive.md). Host streaming preflight is blocked by local socket permissions; the integration is not ready. [Visual validation plan](docs/visual-validation-plan.md) adds real source comparison, simulator feasibility, device screenshots and final owner screenshot review for future authorized phases.
+Phase 3: [Drive comparison and approved architecture](docs/google-drive.md). Approved CI resolved the local socket-test blocker (42 upstream tests passed). Credential-free configuration, two reproducible local add-on ZIPs and [setup/recovery instructions](docs/google-drive-setup.md) are ready for Phase 3 review; live authorization/playback and unsigned IPA assembly remain Phase 4. [Visual validation plan](docs/visual-validation-plan.md) adds real source comparison, simulator feasibility, device screenshots and final owner screenshot review for future authorized phases.

@@ -46,4 +46,8 @@ Owner explicitly chose direct Kodi add-on with maintainer OAuth relay (no separa
 
 ## DEC-012 — Capped Actions executor approved
 
-Owner approved the proposed isolated GitHub Actions job to resolve the local socket-test blocker. Job timeout five minutes, pinned public upstream source only, no repository checkout, Google account, personal media or secrets; no token permissions. Does not authorize Phase 4 or media hosting. Publish the prepared workflow, inspect actual run/logs, and preserve the failed local preflight. Approval does not establish a passing test result.
+Owner approved the proposed isolated GitHub Actions job to resolve the local socket-test blocker. Job timeout five minutes, pinned public upstream source only, no repository checkout, Google account, personal media or secrets; no requested token permissions (GitHub exposes implicit metadata read). Does not authorize Phase 4 or media hosting. Publish the prepared workflow, inspect actual run/logs, and preserve the failed local preflight. Approval does not establish a passing test result.
+
+## DEC-013 — Phase 3 evidence and mandatory stop
+
+The approved run 40940315803 passed all 42 unchanged pinned common-module tests, resolving ISSUE-014 for host validation. Keep the original local EPERM report and nonfatal cleanup warnings. Phase 3 packages/configuration, 12 provider tests, nine source-backed refresh/resume mocks and recovery instructions are complete. No personal Google account or media was accessed. Phase 3 completion is limited to available host/static evidence: real iPhone authorization, playback, library persistence, source/skin parity, entitlements and IPA signing remain Phase 4. STOP at REVIEW-GATE-3; no Phase 4 work, merge or release authorized.
