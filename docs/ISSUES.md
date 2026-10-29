@@ -145,3 +145,13 @@ Phase 3 closure update: ISSUE-008 is COMPLETE for portable static paths and cred
 ## ISSUE-017 — Publication transport truncation
 
 Severity: LOW. Component: local-to-connector content transport. Status: COMPLETE. Reproduction: reading the entire 178,684-character publication JSON through one shell result yielded truncated text and JSON parsing failed before a GitHub mutation. Root cause: shell tool output cap. Fix: transfer bounded 12,000-character chunks, reconstruct and parse the entire payload, then require remote-created tree equality with the local commit tree before updating the branch using an expected-SHA lease. Verification: published integration commit d6ba8c508a9f5981a2ef85bd19f56a045dc9aee2 has tree d53e676a29e47ae1a24fa3c962106816f432befe, equal to local 4a3f04a. Regression prevention: use bounded transport and exact tree comparison for subsequent publications; no force push or history rewrite.
+
+## ISSUE-018 — Local official binary acquisition unavailable
+
+Severity: HIGH. Component: Phase 4 foundation acquisition. Status: IN PROGRESS. Reproduction: HTTPS curl HEAD to the official 21.3 ARM64 DEB exits 6, could not resolve mirrors.kodi.tv. Root cause: local executor DNS/network unavailable. Fix attempted: capped GitHub Actions HTTPS acquisition and static inspection, no sandbox changes. Validation pending actual run. No binary download, checksum or IPA success claimed. Regression prevention: record run outcome and real bytes before completing acquisition.
+
+## ISSUE-019 — Phase 4 prerequisite includes future device behavior
+
+Severity: MEDIUM. Component: roadmap sequencing. Status: OPEN. P4-001 requires actual device behavior before P4-007/008/002 preparation can complete, while installation and runtime proof are explicitly P4-003/005. Owner now assigns device testing to themselves when ready. Preserve the runtime requirement; record host prerequisites separately and do not silently mark P4-001 complete. Dependency/scope reconciliation must be explicit before advancing beyond this prerequisite.
+
+Phase 4 source lookup attempts retained: skin tags collection was rejected by the GitHub connector; exact tag 3.4.8 returned 404. Kodi 21.3-Omega resolves to a3a448d26b8d560a65655dab2cd122994dc4e146. Neither a version label nor a failed tag lookup establishes installed skin/code parity.

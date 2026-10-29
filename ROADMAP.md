@@ -1,12 +1,12 @@
 # Kodi-iOS master roadmap
 
-Status: READY FOR REVIEW. Current phase: Phase 3 complete for available host/static tests; STOP at REVIEW-GATE-3. Phase 4 requires separate authorization.
+Status: IN PROGRESS. Current phase: Phase 4 — P4-001 trusted foundation acquisition and target constraints. Phase 3 passed owner review; Phase 4 authorized.
 Progress: 21/39 task IDs COMPLETE (53.85%); 18 awaiting implementation.
 
 ## Rules and session protocol
 
 Only task IDs count toward progress; numbered subtasks do not. States: NOT STARTED, IN PROGRESS, BLOCKED, READY FOR REVIEW, COMPLETE. A checked task requires deliverable, passing validation, recorded evidence, updated docs and no unmet acceptance blocker. Device tasks require actual iPhone evidence. Never erase failures.
-Owner approved Phases 1 and 2 following their review gates and now authorizes Phase 3 only. Mandatory phase review gates remain in force. All subsequent phases require separate explicit owner authorization. Then use Inspect → Plan → Implement → Test → Diagnose → Fix → Retest → Document → Commit → Update Roadmap. Log failures in docs/ISSUES.md with root cause, smallest fix, retest and regression protection. Mark unresolved tasks BLOCKED.
+Owner approved Phases 1, 2 and 3 following their review gates and now authorizes Phase 4 only. Mandatory phase review gates remain in force. All subsequent phases require separate explicit owner authorization. Then use Inspect → Plan → Implement → Test → Diagnose → Fix → Retest → Document → Commit → Update Roadmap. Log failures in docs/ISSUES.md with root cause, smallest fix, retest and regression protection. Mark unresolved tasks BLOCKED.
 Resume: read ROADMAP.md, docs/PROGRESS.md, docs/ISSUES.md and docs/DECISIONS.md; inspect branch/worktree, latest commits and PR #1; verify prerequisites and select the next unfinished unblocked task. At session end update tasks, evidence, blockers, next action, commit and push permitted files, and summarize. Do not infer completion from chat.
 Only feature/ios-migration; preserve history and baseline; never merge/release without explicit approval. Source installation and SSD are read-only; all experiments use isolated project/target staging. Private backup archives, keys, tokens and media stay outside GitHub.
 
@@ -136,10 +136,10 @@ Phase status: READY FOR REVIEW — available host/static tests pass; live playba
 ## Phase 4 — iPhone Deployment & Migration
 
 Exit criteria: Kodi launches on target iPhone, source/skin comparison and simulator feasibility are documented, supported configuration and real-device tests pass, every required screenshot/comparison exists, and visual regressions are fixed or explicitly accepted.
-Phase status: NOT STARTED. All task acceptance criteria and dependency gates must pass before exit.
+Phase status: IN PROGRESS. All task acceptance criteria and dependency gates must pass before exit.
 
 - [ ] P4-001 — Confirm device and install method
-  - Status: NOT STARTED. Dependencies: P2-002; P3-006 (target facts must already inform Phase 2).
+  - Status: IN PROGRESS. Dependencies: P2-002; P3-006 (target facts must already inform Phase 2).
   - 1. Deliverable and acceptance: Reconfirm iPhone 16 Pro / iOS 27.0.1 / non-jailbroken / Kodi initially absent / unsigned ARM64 IPA. Verify candidate Kodi 21.3 official foundation, owner-managed sideloader, provenance, signing entitlements, renewal/trust and actual device behavior using current evidence; none is certified by Phase 2 static tests.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.
