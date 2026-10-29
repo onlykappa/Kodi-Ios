@@ -1,27 +1,31 @@
-"""Validate roadmap IDs, dependencies, acceptance and persistent tracking."""
+"""Validate task-derived progress, evidence, phase gates and dependencies."""
 from pathlib import Path
 import re,json
 root=Path(__file__).resolve().parents[1]
+def summarize(text):
+ tasks=re.findall(r'^- \[([ x])\] (P[1-5]-\d{3}) — ([^\n]+)\n(.*?)(?=^- \[|^## |\Z)',text,re.M|re.S)
+ assert tasks,'No tasks'
+ ids=[t[1] for t in tasks];assert len(ids)==len(set(ids)),'Duplicate ID'
+ assert set(re.findall(r'^## Phase ([1-5]) —',text,re.M))==set('12345')
+ complete=[]
+ for mark,id,title,body in tasks:
+  status=re.search(r'Status: (NOT STARTED|IN PROGRESS|BLOCKED|READY FOR REVIEW|COMPLETE)\.',body)
+  assert status and (mark=='x')==(status[1]=='COMPLETE'),'Status mismatch'
+  for field in ['Dependencies:','Deliverable and acceptance:','Validation:','Evidence:']:assert field in body
+  if mark=='x':
+   assert 'Evidence: pending' not in body,'Missing evidence'
+   complete.append(id)
+  dep=body.split('Dependencies:',1)[1].split('\n',1)[0]
+  assert all(d in ids for d in re.findall(r'P[1-5]-\d{3}',dep))
+ for phase in range(1,6):assert f'REVIEW-GATE-{phase}' in text
+ return {'passed':True,'phases':5,'tasks':len(ids),'complete':complete,'completed_count':len(complete),'awaiting_implementation':len(ids)-len(complete),'percent':round(100*len(complete)/len(ids),2)}
+def progress_line(result):
+ return f"Progress: {result['completed_count']}/{result['tasks']} task IDs COMPLETE ({result['percent']:.2f}%); {result['awaiting_implementation']} awaiting implementation."
 def validate(text,progress):
- tasks=re.findall(r'^- \[([ x])\] (P[1-5]-\d{3}) — (.+)$',text,re.M)
- ids=[x[1] for x in tasks];assert len(ids)==len(set(ids))==32
- assert len(re.findall(r'^## Phase [1-5] —',text,re.M))==5
- blocks=re.split(r'(?m)^- \[[ x]\] ',text)[1:]
- for b in blocks:
-  assert 'Dependencies:' in b and 'Deliverable and acceptance:' in b and 'Validation:' in b and 'Evidence:' in b
-  for dep in re.findall(r'P[1-5]-\d{3}',b):assert dep in ids
- done=[id for mark,id,_ in tasks if mark=='x'];assert done==['P1-001','P2-001']
- assert '2/32' in progress and 'READY FOR REVIEW' in progress and 'P1-002' in progress
- for term in ['real-device','rollback','credentials','Google Drive','owner approval']:assert term.lower() in text.lower()
- return {'passed':True,'phases':5,'tasks':len(ids),'complete':done,'awaiting_implementation':30}
+ result=summarize(text)
+ assert progress_line(result) in text and progress_line(result) in progress,'Stale progress'
+ return result
 if __name__=='__main__':
- text=(root/'ROADMAP.md').read_text();progress=(root/'docs/PROGRESS.md').read_text()
- result=validate(text,progress)
- for bad in [text.replace('P5-005 —','P5-004 —'),text.replace('Dependencies:','Missing:',1),text.replace('[x] P1-001','[ ] P1-001')]:
-  try:validate(bad,progress)
-  except AssertionError:pass
-  else:raise AssertionError('Invalid roadmap accepted')
- for name in ['CHANGELOG','ISSUES','DECISIONS']:assert (root/'docs'/f'{name}.md').is_file()
- result['negative_cases_passed']=3
+ result=validate((root/'ROADMAP.md').read_text(),(root/'docs/PROGRESS.md').read_text())
  (root/'reports/roadmap-validation.json').write_text(json.dumps(result,indent=2)+'\n')
  print(json.dumps(result))

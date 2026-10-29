@@ -19,3 +19,7 @@ Compare maintained direct Kodi integration with a private streaming bridge for i
 ## DEC-005 — Planning and release gates
 
 Five sequential phases with early device fact gathering; static validation cannot certify runtime support. Alternative of implementing immediately rejected by explicit owner instruction. Status: READY FOR REVIEW. Separate independent review then explicit owner roadmap approval required; final merge/release approval remains separate.
+
+## DEC-006 — Phase 1 authorization and phase review gates
+
+Owner approved Phase 1 starting P1-002, conditional on dynamic progress and regression tests. Implemented mandatory STOP/review gates after every phase. Phase 2 is not authorized.

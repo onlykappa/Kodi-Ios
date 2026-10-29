@@ -1,0 +1,101 @@
+{
+  "P1-002": {
+    "passed": true,
+    "archives_checked": 2,
+    "scope_gaps": [
+      "Installed Flatpak executable/runtime recorded but not backed up",
+      "External SSD/media not backed up or read",
+      "OS/browser keychain not captured",
+      "No original passwords.xml or advancedsettings.xml existed"
+    ],
+    "coverage_reference": "reports/backup-verification.json; reports/account-state-verification.json"
+  },
+  "P1-003": {
+    "passed": true,
+    "files_scanned": 61,
+    "git_history_blobs_scanned": 62,
+    "source_value_comparison_performed": true,
+    "source_sensitive_candidates_checked": 12,
+    "scanner": "Python standard-library patterns, exact private-source value comparison, file allowlist and structural/reference checks",
+    "limitations": "No scanner can establish absence of every possible secret. No external secret-scanning engine was available. iOS runtime compatibility is not tested.",
+    "snapshot_files_checked": 34,
+    "missing_referenced_playlists": [],
+    "known_baseline_issues": {
+      "empty_manifests": [
+        "plugin.video.umbrella",
+        "script.module.jetextractors"
+      ],
+      "missing_plugin_manifests": [
+        "plugin.video.umbrella"
+      ],
+      "ios_status": "unvalidated baseline; placeholders and desktop-specific behavior remain"
+    },
+    "issues": [],
+    "private_archives_outside_repository": true
+  },
+  "P1-004": {
+    "passed": true,
+    "files_checked": 22463,
+    "metadata": [
+      "mode",
+      "mtime_ns",
+      "size"
+    ],
+    "source_changed": false,
+    "media_read_or_modified": false
+  },
+  "P1-005": {
+    "baseline": {
+      "passed": true,
+      "files_scanned": 61,
+      "git_history_blobs_scanned": 0,
+      "source_value_comparison_performed": false,
+      "source_sensitive_candidates_checked": 0,
+      "scanner": "Python standard-library patterns, exact private-source value comparison, file allowlist and structural/reference checks",
+      "limitations": "No scanner can establish absence of every possible secret. No external secret-scanning engine was available. iOS runtime compatibility is not tested.",
+      "snapshot_files_checked": 34,
+      "missing_referenced_playlists": [],
+      "known_baseline_issues": {
+        "empty_manifests": [
+          "plugin.video.umbrella",
+          "script.module.jetextractors"
+        ],
+        "missing_plugin_manifests": [
+          "plugin.video.umbrella"
+        ],
+        "ios_status": "unvalidated baseline; placeholders and desktop-specific behavior remain"
+      },
+      "issues": []
+    },
+    "scanner_regressions": {
+      "passed": true,
+      "summary": ".........\n----------------------------------------------------------------------\nRan 9 tests in 1.402s\n\nOK"
+    },
+    "roadmap_regressions": {
+      "passed": true,
+      "summary": "....\n----------------------------------------------------------------------\nRan 4 tests in 0.008s\n\nOK"
+    }
+  },
+  "P1-006": {
+    "passed": true,
+    "isolated_restored_files": 22463,
+    "coverage_matches_manifest": true,
+    "modes_and_second_precision_mtimes_match": true,
+    "nanosecond_mtime_differences": 0,
+    "limitations": "Tar stores whole-second mtimes; exact mtime recovery requires the companion private manifest. Linux metadata equivalence does not establish iOS compatibility.",
+    "original_overwritten": false,
+    "recovery_copy_retained_privately": true,
+    "nanosecond_mtimes_restored_from_private_manifest": true,
+    "extended_attributes_and_posix_acls_match_current_source": true,
+    "xattrs_compared": 0,
+    "ownership_matches_current_source": true
+  },
+  "updated_utc": "2026-10-29T18:34:35.394593+00:00",
+  "final_validation": {
+    "roadmap_regressions": 4,
+    "scanner_regressions": 9,
+    "passed": true,
+    "recovery_verifier_files": 22463,
+    "phase_gate": "STOP before Phase 2"
+  }
+}

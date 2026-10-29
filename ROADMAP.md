@@ -1,50 +1,50 @@
 # Kodi-iOS master roadmap
 
-Status: READY FOR REVIEW. Current phase: PRE-IMPLEMENTATION REVIEW GATE. Implementation phases have NOT STARTED.
-Progress: 2/32 task IDs COMPLETE (6.25%); 30 awaiting implementation. Historical evidence reviews only; no phase is complete.
+Status: READY FOR REVIEW. Current phase: Phase 1 review gate. Owner approved Phase 1 only; Phase 2 remains unauthorized.
+Progress: 7/32 task IDs COMPLETE (21.88%); 25 awaiting implementation.
 
 ## Rules and session protocol
 
 Only task IDs count toward progress; numbered subtasks do not. States: NOT STARTED, IN PROGRESS, BLOCKED, READY FOR REVIEW, COMPLETE. A checked task requires deliverable, passing validation, recorded evidence, updated docs and no unmet acceptance blocker. Device tasks require actual iPhone evidence. Never erase failures.
-All future tasks require owner approval of this roadmap first. Then use Inspect → Plan → Implement → Test → Diagnose → Fix → Retest → Document → Commit → Update Roadmap. Log failures in docs/ISSUES.md with root cause, smallest fix, retest and regression protection. Mark unresolved tasks BLOCKED.
+Owner approved Phase 1 subject to dynamic tracking and mandatory phase review gates. All subsequent phases require separate explicit owner authorization. Then use Inspect → Plan → Implement → Test → Diagnose → Fix → Retest → Document → Commit → Update Roadmap. Log failures in docs/ISSUES.md with root cause, smallest fix, retest and regression protection. Mark unresolved tasks BLOCKED.
 Resume: read ROADMAP.md, docs/PROGRESS.md, docs/ISSUES.md and docs/DECISIONS.md; inspect branch/worktree, latest commits and PR #1; verify prerequisites and select the next unfinished unblocked task. At session end update tasks, evidence, blockers, next action, commit and push permitted files, and summarize. Do not infer completion from chat.
 Only feature/ios-migration; preserve history and baseline; never merge/release without explicit approval. Source installation and SSD are read-only; all experiments use isolated project/target staging. Private backup archives, keys, tokens and media stay outside GitHub.
 
 ## Phase 1 — Security, Backup & Baseline Validation
 
 Exit criteria: All baseline checks pass; recovery procedures are tested/documented and sensitive data protected.
-Phase status: NOT STARTED. All task acceptance criteria and dependency gates must pass before exit.
+Phase status: READY FOR REVIEW. All task acceptance criteria and dependency gates must pass before exit.
 
 - [x] P1-001 — Review historical backup evidence
   - Status: COMPLETE. Dependencies: owner roadmap approval (historical evidence review exempt).
   - 1. Deliverable and acceptance: Review full and account-state verification reports and record scope and restore-test limitations.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: reports/backup-verification.json; reports/account-state-verification.json.
-- [ ] P1-002 — Verify current backup integrity and missing data
-  - Status: NOT STARTED. Dependencies: P1-001.
+- [x] P1-002 — Verify current backup integrity and missing data
+  - Status: COMPLETE. Dependencies: P1-001.
   - 1. Deliverable and acceptance: Recheck both archives and coverage read-only; identify external media, runtime, keychain and missing configuration boundaries.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
-- [ ] P1-003 — Audit publication and credentials
-  - Status: NOT STARTED. Dependencies: P1-002.
+  - Evidence: reports/phase1-validation.json (P1-002).
+- [x] P1-003 — Audit publication and credentials
+  - Status: COMPLETE. Dependencies: P1-002.
   - 1. Deliverable and acceptance: Scan all published files and reachable Git history, check private archives remain outside Git and record scanner limitations.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
-- [ ] P1-004 — Verify source immutability
-  - Status: NOT STARTED. Dependencies: P1-003.
+  - Evidence: reports/phase1-validation.json (P1-003).
+- [x] P1-004 — Verify source immutability
+  - Status: COMPLETE. Dependencies: P1-003.
   - 1. Deliverable and acceptance: Compare original source file hashes and metadata with private manifest; never modify source or SSD media.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
-- [ ] P1-005 — Validate baseline and regression checks
-  - Status: NOT STARTED. Dependencies: P1-004.
+  - Evidence: reports/phase1-validation.json (P1-004).
+- [x] P1-005 — Validate baseline and regression checks
+  - Status: COMPLETE. Dependencies: P1-004.
   - 1. Deliverable and acceptance: Verify snapshot hashes, references and negative security cases with recorded command results.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
-- [ ] P1-006 — Rehearse recovery and rollback
-  - Status: NOT STARTED. Dependencies: P1-005.
+  - Evidence: reports/phase1-validation.json (P1-005).
+- [x] P1-006 — Rehearse recovery and rollback
+  - Status: COMPLETE. Dependencies: P1-005.
   - 1. Deliverable and acceptance: Document and test extraction into isolated storage, verify restored contents and metadata; never restore over the working Deck.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
+  - Evidence: reports/phase1-validation.json (P1-006).
 
 ## Phase 2 — Kodi Configuration & iOS Compatibility
 
@@ -203,4 +203,17 @@ Phase status: NOT STARTED. All task acceptance criteria and dependency gates mus
 ## Roadmap quality audit
 
 Planning audit: five phases, 32 unique IDs, explicit acceptance, dependency chains, baseline issues, security, Drive lifecycle, real-device gates, regression and rollback are represented. P2-002 gathers device facts before design; P4-001 reconfirms them. Historical reviews do not certify present archive integrity or real-device compatibility.
-Independent review by the owner or a separate future reviewer is still required before implementation. See docs/PROGRESS.md for the mandatory stop gate.
+Independent structural review passed; owner authorized Phase 1 only. See docs/PROGRESS.md for the mandatory stop gate.
+
+## Mandatory phase review gates
+
+REVIEW-GATE-1: After Phase 1, update roadmap, PROGRESS, ISSUES, validation evidence and PR #1; commit and publish validated work, then STOP and request owner review. Do not begin the next phase without explicit authorization.
+
+REVIEW-GATE-2: After Phase 2, update roadmap, PROGRESS, ISSUES, validation evidence and PR #1; commit and publish validated work, then STOP and request owner review. Do not begin the next phase without explicit authorization.
+
+REVIEW-GATE-3: After Phase 3, update roadmap, PROGRESS, ISSUES, validation evidence and PR #1; commit and publish validated work, then STOP and request owner review. Do not begin the next phase without explicit authorization.
+
+REVIEW-GATE-4: After Phase 4, update roadmap, PROGRESS, ISSUES, validation evidence and PR #1; commit and publish validated work, then STOP and request owner review. Do not begin the next phase without explicit authorization.
+
+REVIEW-GATE-5: After Phase 5, update roadmap, PROGRESS, ISSUES, validation evidence and PR #1; commit and publish validated work, then STOP and request owner review. Do not merge or release without explicit owner authorization.
+
