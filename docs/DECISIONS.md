@@ -23,3 +23,11 @@ Five sequential phases with early device fact gathering; static validation canno
 ## DEC-006 — Phase 1 authorization and phase review gates
 
 Owner approved Phase 1 starting P1-002, conditional on dynamic progress and regression tests. Implemented mandatory STOP/review gates after every phase. Phase 2 is not authorized.
+
+## DEC-007 — Phase 1 approved; Phase 2 authorized
+
+Owner reviewed Phase 1 and authorized P2-002 through P2-009 in dependency order. Preserve Arctic Fuse 3, exclude Umbrella only from future target, retain private state outside Git. P2-002 requires owner target facts; requested without asking for secrets. No Phase 3/merge/release authorization.
+
+## DEC-008 — Unsigned IPA deployment
+
+Owner has an existing sideloader capable of signing/installing unsigned IPAs. Final artifact is an unsigned Kodi iOS IPA using a trusted compatible foundation. Investigate safe bundle integration versus post-install import; do not assume user-writable profile placement inside the application bundle. Preserve Arctic Fuse where compatible. Keep credentials/account state/media external. Phase 4 validates structure, architectures, deployment target, dependencies, entitlements/signature handling, checksums, owner sideloader signing and actual iPhone behavior. Tool name/version and device facts still required; no successful-runtime claim from static checks.

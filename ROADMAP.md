@@ -1,19 +1,19 @@
 # Kodi-iOS master roadmap
 
-Status: READY FOR REVIEW. Current phase: Phase 1 review gate. Owner approved Phase 1 only; Phase 2 remains unauthorized.
+Status: BLOCKED. Current phase: Phase 2, P2-002. Phase 1 passed owner review; Phase 2 authorized, awaiting required target facts.
 Progress: 7/32 task IDs COMPLETE (21.88%); 25 awaiting implementation.
 
 ## Rules and session protocol
 
 Only task IDs count toward progress; numbered subtasks do not. States: NOT STARTED, IN PROGRESS, BLOCKED, READY FOR REVIEW, COMPLETE. A checked task requires deliverable, passing validation, recorded evidence, updated docs and no unmet acceptance blocker. Device tasks require actual iPhone evidence. Never erase failures.
-Owner approved Phase 1 subject to dynamic tracking and mandatory phase review gates. All subsequent phases require separate explicit owner authorization. Then use Inspect → Plan → Implement → Test → Diagnose → Fix → Retest → Document → Commit → Update Roadmap. Log failures in docs/ISSUES.md with root cause, smallest fix, retest and regression protection. Mark unresolved tasks BLOCKED.
+Owner approved Phase 1 and subsequently approved Phase 2 following Phase 1 review. Mandatory phase review gates remain in force. All subsequent phases require separate explicit owner authorization. Then use Inspect → Plan → Implement → Test → Diagnose → Fix → Retest → Document → Commit → Update Roadmap. Log failures in docs/ISSUES.md with root cause, smallest fix, retest and regression protection. Mark unresolved tasks BLOCKED.
 Resume: read ROADMAP.md, docs/PROGRESS.md, docs/ISSUES.md and docs/DECISIONS.md; inspect branch/worktree, latest commits and PR #1; verify prerequisites and select the next unfinished unblocked task. At session end update tasks, evidence, blockers, next action, commit and push permitted files, and summarize. Do not infer completion from chat.
 Only feature/ios-migration; preserve history and baseline; never merge/release without explicit approval. Source installation and SSD are read-only; all experiments use isolated project/target staging. Private backup archives, keys, tokens and media stay outside GitHub.
 
 ## Phase 1 — Security, Backup & Baseline Validation
 
 Exit criteria: All baseline checks pass; recovery procedures are tested/documented and sensitive data protected.
-Phase status: READY FOR REVIEW. All task acceptance criteria and dependency gates must pass before exit.
+Phase status: COMPLETE — owner reviewed and approved. All task acceptance criteria and dependency gates must pass before exit.
 
 - [x] P1-001 — Review historical backup evidence
   - Status: COMPLETE. Dependencies: owner roadmap approval (historical evidence review exempt).
@@ -49,7 +49,7 @@ Phase status: READY FOR REVIEW. All task acceptance criteria and dependency gate
 ## Phase 2 — Kodi Configuration & iOS Compatibility
 
 Exit criteria: Target configuration passes static checks; all unresolved limitations documented; runtime remains unverified until device testing.
-Phase status: NOT STARTED. All task acceptance criteria and dependency gates must pass before exit.
+Phase status: BLOCKED at P2-002 — target constraints required. All task acceptance criteria and dependency gates must pass before exit.
 
 - [x] P2-001 — Review existing inventory evidence
   - Status: COMPLETE. Dependencies: historical evidence review only; subsequent implementation depends on P1-006.
@@ -57,8 +57,8 @@ Phase status: NOT STARTED. All task acceptance criteria and dependency gates mus
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: inventory/addons.json; docs/compatibility.md.
 - [ ] P2-002 — Establish target constraints early
-  - Status: NOT STARTED. Dependencies: P2-001.
-  - 1. Deliverable and acceptance: Obtain model, iOS, jailbreak status and signing access before platform-specific design; record owner-approved constraints.
+  - Status: BLOCKED. Dependencies: P2-001.
+  - 1. Deliverable and acceptance: Obtain model, exact iOS, jailbreak status, existing Kodi version and sideloader name/version and input constraints before platform-specific design. Owner already has an IPA signing/installing sideloader; prioritize an unsigned Kodi iOS IPA.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.
 - [ ] P2-003 — Classify dependency graph
@@ -93,7 +93,7 @@ Phase status: NOT STARTED. All task acceptance criteria and dependency gates mus
   - Evidence: pending.
 - [ ] P2-009 — Build sanitized target configuration
   - Status: NOT STARTED. Dependencies: P2-008.
-  - 1. Deliverable and acceptance: Produce reproducible target configuration with manifest, provenance and static missing-file/dependency/reference checks; runtime status remains unverified.
+  - 1. Deliverable and acceptance: Produce reproducible sanitized target configuration with manifest, provenance and static missing-file/dependency/reference checks; document IPA-bundling versus post-install import feasibility and constraints for Phase 4. Runtime status remains unverified; IPA assembly/deployment belongs to Phase 4.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.
 
@@ -145,12 +145,12 @@ Phase status: NOT STARTED. All task acceptance criteria and dependency gates mus
   - Evidence: pending.
 - [ ] P4-002 — Prepare safe deployment and rollback
   - Status: NOT STARTED. Dependencies: P4-001.
-  - 1. Deliverable and acceptance: Prepare reproducible package/checksums and clean target backup; document removal/reinstall/rollback without touching source Deck.
+  - 1. Deliverable and acceptance: Prepare a reproducible unsigned Kodi iOS IPA from a trusted compatible foundation, with provenance/checksums and clean target backup. Determine which sanitized Fuse configuration/add-ons can be bundled versus imported after install; exclude credentials, account state and media. Validate ZIP/Payload/application layout, Info.plist, executable architecture, minimum iOS, load dependencies, entitlements/signature state and integrity; document rollback without touching source Deck.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.
 - [ ] P4-003 — Install Kodi and dependencies
   - Status: NOT STARTED. Dependencies: P4-002.
-  - 1. Deliverable and acceptance: Install verified iOS application and compatible dependency versions on actual iPhone; record signing/renewal behavior.
+  - 1. Deliverable and acceptance: Sign the unsigned IPA using the owner's existing sideloader and install on the actual iPhone; verify required entitlements, signing/renewal limits and compatible add-on versions. No working-IPA claim before successful real-device tests.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.
 - [ ] P4-004 — Restore target and private account state
