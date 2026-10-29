@@ -1,7 +1,7 @@
 # Kodi-iOS master roadmap
 
-Status: BLOCKED. Current phase: Phase 2, P2-002. Phase 1 passed owner review; Phase 2 authorized, awaiting required target facts.
-Progress: 7/32 task IDs COMPLETE (21.88%); 25 awaiting implementation.
+Status: READY FOR REVIEW. Current phase: Phase 2 review gate. Phase 1 approved; target constraints recorded.
+Progress: 15/32 task IDs COMPLETE (46.88%); 17 awaiting implementation.
 
 ## Rules and session protocol
 
@@ -49,53 +49,53 @@ Phase status: COMPLETE — owner reviewed and approved. All task acceptance crit
 ## Phase 2 — Kodi Configuration & iOS Compatibility
 
 Exit criteria: Target configuration passes static checks; all unresolved limitations documented; runtime remains unverified until device testing.
-Phase status: BLOCKED at P2-002 — target constraints required. All task acceptance criteria and dependency gates must pass before exit.
+Phase status: READY FOR REVIEW — static deliverables only; runtime compatibility unverified. All task acceptance criteria and dependency gates must pass before exit.
 
 - [x] P2-001 — Review existing inventory evidence
   - Status: COMPLETE. Dependencies: historical evidence review only; subsequent implementation depends on P1-006.
   - 1. Deliverable and acceptance: Review all 79 user and 161 bundled manifest records and carry forward incomplete manifests without claiming compatibility.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: inventory/addons.json; docs/compatibility.md.
-- [ ] P2-002 — Establish target constraints early
-  - Status: BLOCKED. Dependencies: P2-001.
-  - 1. Deliverable and acceptance: Obtain model, exact iOS, jailbreak status, existing Kodi version and sideloader name/version and input constraints before platform-specific design. Owner already has an IPA signing/installing sideloader; prioritize an unsigned Kodi iOS IPA.
+- [x] P2-002 — Establish target constraints early
+  - Status: COMPLETE. Dependencies: P2-001.
+  - 1. Deliverable and acceptance: Record owner-confirmed target: iPhone 16 Pro, iOS 27.0.1, non-jailbroken, Kodi absent; unsigned ARM64 IPA. Existing sideloader is owner-managed; its identity is explicitly waived for unsigned preparation. Exact signing/runtime behavior is a Phase 4 validation requirement.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
-- [ ] P2-003 — Classify dependency graph
-  - Status: NOT STARTED. Dependencies: P2-002.
+  - Evidence: reports/ios-target.json; docs/ios-foundation.md.
+- [x] P2-003 — Classify dependency graph
+  - Status: COMPLETE. Dependencies: P2-002.
   - 1. Deliverable and acceptance: Classify every relevant component compatible, incompatible or unverified with current upstream evidence, versions and replacement decisions.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
-- [ ] P2-004 — Resolve broken components
-  - Status: NOT STARTED. Dependencies: P2-003.
+  - Evidence: reports/ios-compatibility.json; reports/ios-static-validation.json.
+- [x] P2-004 — Resolve broken components
+  - Status: COMPLETE. Dependencies: P2-003.
   - 1. Deliverable and acceptance: Resolve or omit JetExtractors/The Loop; remove Umbrella references only in a separate future target configuration.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
-- [ ] P2-005 — Preserve Arctic Fuse experience
-  - Status: NOT STARTED. Dependencies: P2-004.
+  - Evidence: migration/ios/adaptations.json; migration/ios/addon-plan.json; reports/ios-static-validation.json.
+- [x] P2-005 — Preserve Arctic Fuse experience
+  - Status: COMPLETE. Dependencies: P2-004.
   - 1. Deliverable and acceptance: Map every retained menu, widget, layout, resource and player to its target equivalent; record owner-approved omissions.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
-- [ ] P2-006 — Adapt paths and touch controls
-  - Status: NOT STARTED. Dependencies: P2-005.
+  - Evidence: migration/ios/adaptations.json; docs/ios-configuration.md; reports/ios-static-validation.json.
+- [x] P2-006 — Adapt paths and touch controls
+  - Status: COMPLETE. Dependencies: P2-005.
   - 1. Deliverable and acceptance: Replace placeholders and Linux actions in target files; produce touch navigation test cases without editing source.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
-- [ ] P2-007 — Replace native functionality
-  - Status: NOT STARTED. Dependencies: P2-006.
+  - Evidence: migration/ios/userdata/keymaps/ios-touch.xml; docs/ios-configuration.md; reports/ios-static-validation.json.
+- [x] P2-007 — Replace native functionality
+  - Status: COMPLETE. Dependencies: P2-006.
   - 1. Deliverable and acceptance: Investigate Elementum, Deck Keeper, delete actions, InputStream and DRM dependencies; document alternatives and unsupported features.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
-- [ ] P2-008 — Preserve private account state
-  - Status: NOT STARTED. Dependencies: P2-007.
+  - Evidence: docs/ios-foundation.md; docs/ios-configuration.md; reports/ios-compatibility.json.
+- [x] P2-008 — Preserve private account state
+  - Status: COMPLETE. Dependencies: P2-007.
   - 1. Deliverable and acceptance: Define per-add-on private restoration mappings and version compatibility; never publish account values; flag session expiry/device binding.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
-- [ ] P2-009 — Build sanitized target configuration
-  - Status: NOT STARTED. Dependencies: P2-008.
+  - Evidence: docs/ios-configuration.md (private account-state mapping); docs/private-account-transfer.md.
+- [x] P2-009 — Build sanitized target configuration
+  - Status: COMPLETE. Dependencies: P2-008.
   - 1. Deliverable and acceptance: Produce reproducible sanitized target configuration with manifest, provenance and static missing-file/dependency/reference checks; document IPA-bundling versus post-install import feasibility and constraints for Phase 4. Runtime status remains unverified; IPA assembly/deployment belongs to Phase 4.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
+  - Evidence: migration/ios/manifest.json; scripts/build_ios_config.py; reports/ios-static-validation.json.
 
 ## Phase 3 — Google Drive Media Integration
 
@@ -140,7 +140,7 @@ Phase status: NOT STARTED. All task acceptance criteria and dependency gates mus
 
 - [ ] P4-001 — Confirm device and install method
   - Status: NOT STARTED. Dependencies: P2-002; P3-006 (target facts must already inform Phase 2).
-  - 1. Deliverable and acceptance: Reconfirm model/iOS/jailbreak, supported Kodi build, IPA provenance, signing tools/access, renewal and trust requirements using current primary sources.
+  - 1. Deliverable and acceptance: Reconfirm iPhone 16 Pro / iOS 27.0.1 / non-jailbroken / Kodi initially absent / unsigned ARM64 IPA. Verify candidate Kodi 21.3 official foundation, owner-managed sideloader, provenance, signing entitlements, renewal/trust and actual device behavior using current evidence; none is certified by Phase 2 static tests.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.
 - [ ] P4-002 — Prepare safe deployment and rollback
@@ -217,3 +217,5 @@ REVIEW-GATE-4: After Phase 4, update roadmap, PROGRESS, ISSUES, validation evide
 
 REVIEW-GATE-5: After Phase 5, update roadmap, PROGRESS, ISSUES, validation evidence and PR #1; commit and publish validated work, then STOP and request owner review. Do not merge or release without explicit owner authorization.
 
+
+Phase 2 completion means static deliverables, not certified iPhone functionality. Exact skin-code parity, native binary availability, touch behavior and OS/runtime compatibility remain explicit Phase 4 validation risks. Separate import versus a fully preconfigured IPA is a deployment tradeoff for owner review; no bootstrap is claimed implemented.

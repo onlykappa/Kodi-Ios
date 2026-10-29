@@ -29,7 +29,7 @@ PATTERNS = {
     'assigned-secret': re.compile(r'''(?ix)(?:["']?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd)["']?)\s*[:=]\s*["']([A-Za-z0-9_+/.=-]{12,})["']'''),
 }
 FORBIDDEN_EXTENSIONS = {'.zip','.zst','.tgz','.tar','.db','.sqlite','.sqlite3','.log','.mp4','.mkv','.mov','.avi','.mp3','.flac','.jpg','.jpeg','.png','.webp','.pem','.key','.so','.dll','.dylib','.exe','.strm'}
-ALLOWED_TOP_LEVEL = {'README.md','ROADMAP.md','.gitignore','docs','scripts','inventory','snapshot','reports'}
+ALLOWED_TOP_LEVEL = {'README.md','ROADMAP.md','.gitignore','migration','docs','scripts','inventory','snapshot','reports'}
 ALLOWED_SUFFIXES = {'.md','.json','.py','.xml','.xsp'}
 
 def files():

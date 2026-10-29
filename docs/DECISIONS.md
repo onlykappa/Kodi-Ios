@@ -31,3 +31,7 @@ Owner reviewed Phase 1 and authorized P2-002 through P2-009 in dependency order.
 ## DEC-008 — Unsigned IPA deployment
 
 Owner has an existing sideloader capable of signing/installing unsigned IPAs. Final artifact is an unsigned Kodi iOS IPA using a trusted compatible foundation. Investigate safe bundle integration versus post-install import; do not assume user-writable profile placement inside the application bundle. Preserve Arctic Fuse where compatible. Keep credentials/account state/media external. Phase 4 validates structure, architectures, deployment target, dependencies, entitlements/signature handling, checksums, owner sideloader signing and actual iPhone behavior. Tool name/version and device facts still required; no successful-runtime claim from static checks.
+
+## DEC-009 — Confirmed target and owner decisions
+
+iPhone 16 Pro, iOS 27.0.1, non-jailbroken, Kodi absent. Final artifact unsigned ARM64 Kodi IPA. Owner manages signing with existing iPhone sideloader and waives its identity for unsigned preparation. Owner explicitly approves deferral of broken sports integration. Prefer matching stable official 21.3 DEB-to-IPA foundation; precise OS compatibility unverified. Separate sanitized import is the preferred initial engineering approach pending owner review of bundling tradeoff; investigate proven bootstrap during Phase 4. Evidence: reports/ios-target.json and docs/ios-foundation.md.

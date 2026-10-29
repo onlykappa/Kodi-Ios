@@ -9,9 +9,17 @@
     "P1-004",
     "P1-005",
     "P1-006",
-    "P2-001"
+    "P2-001",
+    "P2-002",
+    "P2-003",
+    "P2-004",
+    "P2-005",
+    "P2-006",
+    "P2-007",
+    "P2-008",
+    "P2-009"
   ],
-  "completed_count": 7,
-  "awaiting_implementation": 25,
-  "percent": 21.88
+  "completed_count": 15,
+  "awaiting_implementation": 17,
+  "percent": 46.88
 }

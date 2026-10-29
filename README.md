@@ -40,3 +40,5 @@ python3 -B scripts/check_project.py \
 These checks intentionally distinguish documented baseline issues from new missing files or references. Passing them does not mean the snapshot works on iOS.
 
 Master plan: [ROADMAP.md](ROADMAP.md). Resume from [docs/PROGRESS.md](docs/PROGRESS.md); implementation awaits owner approval.
+
+Phase 2 static deliverable: [migration/ios](migration/ios) and [configuration review guide](docs/ios-configuration.md). Preferred official foundation is matching 21.3 ARM64; exact iOS 27.0.1 behavior and fully bundled configuration remain unverified. This is not a built IPA.

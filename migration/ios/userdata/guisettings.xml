@@ -1,0 +1,6 @@
+<settings version="2">
+  <setting id="lookandfeel.skin">skin.arctic.fuse.3</setting>
+  <setting id="locale.language" default="true">resource.language.en_gb</setting>
+  <setting id="locale.country" default="true">USA (12h)</setting>
+  <setting id="input.enablemouse" default="true">true</setting>
+</settings>
