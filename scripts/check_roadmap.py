@@ -8,6 +8,7 @@ def summarize(text):
  ids=[t[1] for t in tasks];assert len(ids)==len(set(ids)),'Duplicate ID'
  assert set(re.findall(r'^## Phase ([1-5]) —',text,re.M))==set('12345')
  complete=[]
+ graph={}
  for mark,id,title,body in tasks:
   status=re.search(r'Status: (NOT STARTED|IN PROGRESS|BLOCKED|READY FOR REVIEW|COMPLETE)\.',body)
   assert status and (mark=='x')==(status[1]=='COMPLETE'),'Status mismatch'
@@ -16,7 +17,16 @@ def summarize(text):
    assert 'Evidence: pending' not in body,'Missing evidence'
    complete.append(id)
   dep=body.split('Dependencies:',1)[1].split('\n',1)[0]
-  assert all(d in ids for d in re.findall(r'P[1-5]-\d{3}',dep))
+  graph[id]=re.findall(r'P[1-5]-\d{3}',dep)
+  assert all(d in ids for d in graph[id]),'Unknown dependency'
+ visiting=set();visited=set()
+ def visit(id):
+  assert id not in visiting,'Dependency cycle'
+  if id in visited:return
+  visiting.add(id)
+  for dep in graph[id]:visit(dep)
+  visiting.remove(id);visited.add(id)
+ for id in ids:visit(id)
  for phase in range(1,6):assert f'REVIEW-GATE-{phase}' in text
  return {'passed':True,'phases':5,'tasks':len(ids),'complete':complete,'completed_count':len(complete),'awaiting_implementation':len(ids)-len(complete),'percent':round(100*len(complete)/len(ids),2)}
 def progress_line(result):

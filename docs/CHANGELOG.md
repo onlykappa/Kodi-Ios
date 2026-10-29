@@ -21,3 +21,7 @@ Deployment requirement update: prioritize an unsigned IPA and existing owner sid
 ## Phase 2 — static target and compatibility review
 
 Recorded confirmed non-jailbroken iPhone 16 Pro/iOS 27.0.1 target; owner waived sideloader identity and approved sports deferral. Researched official matching 21.3 ARM64 DEB foundation and conversion; exact OS support remains unverified. Classified all 240 baseline manifest records, produced a deterministic 32-file provisional import configuration with a 48-entry candidate dependency closure, portable paths, menu-slot adaptation mapping and upstream-syntax touch adapter. Removed active Umbrella/native/backend references from target only. Documented private account mappings and separate-import packaging tradeoff. Six new target regressions pass; source/baseline unchanged. No IPA assembled, no device success claimed, no Phase 3 started.
+
+## Phase 3 authorization and visual requirements
+
+Phase 2 static review passed. Added seven future tasks (39 total), preserving completed history and dynamic counts. Added real-code comparison, simulator investigation, actual-device screen captures, visual regression fixes/retests and mandatory final owner screenshot approval. Phase 4 work has not begun.

@@ -1,12 +1,12 @@
 # Kodi-iOS master roadmap
 
-Status: READY FOR REVIEW. Current phase: Phase 2 review gate. Phase 1 approved; target constraints recorded.
-Progress: 15/32 task IDs COMPLETE (46.88%); 17 awaiting implementation.
+Status: IN PROGRESS. Current phase: Phase 3 — integration research. Phase 2 static review passed; Phase 3 authorized only.
+Progress: 15/39 task IDs COMPLETE (38.46%); 24 awaiting implementation.
 
 ## Rules and session protocol
 
 Only task IDs count toward progress; numbered subtasks do not. States: NOT STARTED, IN PROGRESS, BLOCKED, READY FOR REVIEW, COMPLETE. A checked task requires deliverable, passing validation, recorded evidence, updated docs and no unmet acceptance blocker. Device tasks require actual iPhone evidence. Never erase failures.
-Owner approved Phase 1 and subsequently approved Phase 2 following Phase 1 review. Mandatory phase review gates remain in force. All subsequent phases require separate explicit owner authorization. Then use Inspect → Plan → Implement → Test → Diagnose → Fix → Retest → Document → Commit → Update Roadmap. Log failures in docs/ISSUES.md with root cause, smallest fix, retest and regression protection. Mark unresolved tasks BLOCKED.
+Owner approved Phases 1 and 2 following their review gates and now authorizes Phase 3 only. Mandatory phase review gates remain in force. All subsequent phases require separate explicit owner authorization. Then use Inspect → Plan → Implement → Test → Diagnose → Fix → Retest → Document → Commit → Update Roadmap. Log failures in docs/ISSUES.md with root cause, smallest fix, retest and regression protection. Mark unresolved tasks BLOCKED.
 Resume: read ROADMAP.md, docs/PROGRESS.md, docs/ISSUES.md and docs/DECISIONS.md; inspect branch/worktree, latest commits and PR #1; verify prerequisites and select the next unfinished unblocked task. At session end update tasks, evidence, blockers, next action, commit and push permitted files, and summarize. Do not infer completion from chat.
 Only feature/ios-migration; preserve history and baseline; never merge/release without explicit approval. Source installation and SSD are read-only; all experiments use isolated project/target staging. Private backup archives, keys, tokens and media stay outside GitHub.
 
@@ -49,7 +49,7 @@ Phase status: COMPLETE — owner reviewed and approved. All task acceptance crit
 ## Phase 2 — Kodi Configuration & iOS Compatibility
 
 Exit criteria: Target configuration passes static checks; all unresolved limitations documented; runtime remains unverified until device testing.
-Phase status: READY FOR REVIEW — static deliverables only; runtime compatibility unverified. All task acceptance criteria and dependency gates must pass before exit.
+Phase status: COMPLETE — owner accepted static deliverables; runtime compatibility remains unverified. All task acceptance criteria and dependency gates must pass before exit.
 
 - [x] P2-001 — Review existing inventory evidence
   - Status: COMPLETE. Dependencies: historical evidence review only; subsequent implementation depends on P1-006.
@@ -100,10 +100,10 @@ Phase status: READY FOR REVIEW — static deliverables only; runtime compatibili
 ## Phase 3 — Google Drive Media Integration
 
 Exit criteria: Selected integration is implemented and passes available tests; live playback pending until actual iPhone testing.
-Phase status: NOT STARTED. All task acceptance criteria and dependency gates must pass before exit.
+Phase status: IN PROGRESS. All task acceptance criteria and dependency gates must pass before exit.
 
 - [ ] P3-001 — Research maintained integrations
-  - Status: NOT STARTED. Dependencies: P2-009.
+  - Status: IN PROGRESS. Dependencies: P2-009.
   - 1. Deliverable and acceptance: Compare direct Kodi add-ons and privately hosted bridges using dated upstream maintenance and actual iOS support evidence.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.
@@ -135,7 +135,7 @@ Phase status: NOT STARTED. All task acceptance criteria and dependency gates mus
 
 ## Phase 4 — iPhone Deployment & Migration
 
-Exit criteria: Kodi launches on target iPhone, supported configuration works and required device tests pass.
+Exit criteria: Kodi launches on target iPhone, source/skin comparison and simulator feasibility are documented, supported configuration and real-device tests pass, every required screenshot/comparison exists, and visual regressions are fixed or explicitly accepted.
 Phase status: NOT STARTED. All task acceptance criteria and dependency gates must pass before exit.
 
 - [ ] P4-001 — Confirm device and install method
@@ -144,7 +144,7 @@ Phase status: NOT STARTED. All task acceptance criteria and dependency gates mus
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.
 - [ ] P4-002 — Prepare safe deployment and rollback
-  - Status: NOT STARTED. Dependencies: P4-001.
+  - Status: NOT STARTED. Dependencies: P4-008.
   - 1. Deliverable and acceptance: Prepare a reproducible unsigned Kodi iOS IPA from a trusted compatible foundation, with provenance/checksums and clean target backup. Determine which sanitized Fuse configuration/add-ons can be bundled versus imported after install; exclude credentials, account state and media. Validate ZIP/Payload/application layout, Info.plist, executable architecture, minimum iOS, load dependencies, entitlements/signature state and integrity; document rollback without touching source Deck.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.
@@ -159,19 +159,45 @@ Phase status: NOT STARTED. All task acceptance criteria and dependency gates mus
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.
 - [ ] P4-005 — Test real-device user experience
-  - Status: NOT STARTED. Dependencies: P4-004.
-  - 1. Deliverable and acceptance: On actual iPhone test launch, Arctic Fuse menus/widgets, touch, add-ons, codecs, subtitles, seeking, resume, foreground/background and Drive playback/refresh.
+  - Status: NOT STARTED. Dependencies: P4-004; P4-009.
+  - 1. Deliverable and acceptance: On the actual non-jailbroken iPhone 16 Pro running iOS 27.0.1, test launch, Arctic Fuse menus/widgets, touch, add-ons, codecs, subtitles, seeking, resume, foreground/background and Drive playback/refresh. Record actual OS/build/signing versions; simulator results never substitute for these real-device tests.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.
 - [ ] P4-006 — Resolve device failures and validate rollback
-  - Status: NOT STARTED. Dependencies: P4-005.
+  - Status: NOT STARTED. Dependencies: P4-011.
   - 1. Deliverable and acceptance: Log failures, root causes, fixes and retests; test safe target recovery and reproducible installation on device.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.
 
+- [ ] P4-007 — Compare real Kodi and Arctic Fuse source code
+  - Status: NOT STARTED. Dependencies: P4-001.
+  - 1. Deliverable and acceptance: Obtain trusted pinned Kodi 21.3 source/build provenance and matching Arctic Fuse 3 source. Compare real code/assets to verified private Steam Deck copies; record file hashes, local modifications, platform-specific startup/path/native-code differences, licenses and migration patches. Do not equate version strings or static settings mapping with code parity. Block on unavailable source/provenance; never alter original installation.
+  - 2. Validation: record exact versions, procedures, observed results, artifact hashes and review evidence; never mark complete with missing evidence.
+  - Evidence: pending.
+- [ ] P4-008 — Investigate iPhone 16 Pro simulator feasibility
+  - Status: NOT STARTED. Dependencies: P4-007.
+  - 1. Deliverable and acceptance: Determine available Mac/Xcode/runtime access and iPhone 16 Pro simulator profiles. Verify whether an appropriate Kodi simulator-target build exists or can be built from trusted source; an ARM64 iPhoneOS IPA is not proof of simulator compatibility. Record supported/unsupported/infeasible outcome and evidence. Do not purchase hosting or tools without owner approval. A documented infeasibility finding completes the investigation, not simulator/device testing.
+  - 2. Validation: record exact versions, procedures, observed results, artifact hashes and review evidence; never mark complete with missing evidence.
+  - Evidence: pending.
+- [ ] P4-009 — Inventory every major screen and visual fixture
+  - Status: NOT STARTED. Dependencies: P4-008.
+  - 1. Deliverable and acceptance: Create a route-by-route capture roster covering startup, every main menu/submenu, every retained widget category, media lists/details/search, add-ons, relevant settings pages, dialogs, authentication error states and playback/OSD/seek/subtitle/resume interfaces. Include portrait/landscape and loading/empty/error states where applicable. Use matching synthetic nonpersonal fixtures; define baseline/target pairing, tolerances and justified differences in docs/visual-validation-plan.md. Do not silently drop unrenderable screens.
+  - 2. Validation: record exact versions, procedures, observed results, artifact hashes and review evidence; never mark complete with missing evidence.
+  - Evidence: pending.
+- [ ] P4-010 — Capture baseline and real iPhone screenshots
+  - Status: NOT STARTED. Dependencies: P4-005; P4-009.
+  - 1. Deliverable and acceptance: Capture every roster entry on a safe isolated Steam Deck configuration copy and the actual iPhone 16 Pro/iOS 27.0.1. Original Kodi installation/SSD remain untouched, including avoiding source startup writes. Record app/skin/code hashes, route, fixture, orientation, resolution and timestamp. Keep raw captures private; sanitize account data/media before any sharing. Missing screenshots block completion; simulator captures must be labeled and cannot replace actual-device images.
+  - 2. Validation: record exact versions, procedures, observed results, artifact hashes and review evidence; never mark complete with missing evidence.
+  - Evidence: pending.
+- [ ] P4-011 — Compare screenshots side by side and fix visual regressions
+  - Status: NOT STARTED. Dependencies: P4-010.
+  - 1. Deliverable and acceptance: Produce paired baseline/iPhone screenshot comparisons for every roster entry. Track issue ID, severity, expected aspect-ratio differences, missing controls/widgets, clipped text, color/layout deviations and touch accessibility. Preserve failed captures/diffs, make minimal target-only fixes, recapture and retest affected routes plus regression neighbors; obtain owner decisions for intentional differences. Private images stay outside Git; publish only reviewed sanitized metadata.
+  - 2. Validation: record exact versions, procedures, observed results, artifact hashes and review evidence; never mark complete with missing evidence.
+  - Evidence: pending.
+
 ## Phase 5 — Final Validation, Regression & Release
 
-Exit criteria: Required tests pass, remaining limitations explicitly accepted and owner approves release.
+Exit criteria: Required functional and visual regression tests pass, all screenshot comparisons receive explicit final owner approval, remaining limitations are accepted and owner approves release.
 Phase status: NOT STARTED. All task acceptance criteria and dependency gates must pass before exit.
 
 - [ ] P5-001 — Run complete regression matrix
@@ -190,20 +216,31 @@ Phase status: NOT STARTED. All task acceptance criteria and dependency gates mus
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.
 - [ ] P5-004 — Finalize package and limitations
-  - Status: NOT STARTED. Dependencies: P5-003.
+  - Status: NOT STARTED. Dependencies: P5-003; P5-006.
   - 1. Deliverable and acceptance: Build final reproducible package/checksums and release checklist; document unsupported features and obtain explicit acceptance of remaining limitations.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.
 - [ ] P5-005 — Obtain final owner review
-  - Status: NOT STARTED. Dependencies: P5-004.
+  - Status: NOT STARTED. Dependencies: P5-007.
   - 1. Deliverable and acceptance: Present evidence and request explicit merge and release approval; neither is authorized by roadmap approval alone.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.
 
+- [ ] P5-006 — Run complete visual regression matrix
+  - Status: NOT STARTED. Dependencies: P5-001.
+  - 1. Deliverable and acceptance: Repeat the full approved screenshot roster and side-by-side comparisons against the accepted safe-copy baseline after final fixes. Record before/after artifacts and failing/passing tests; close each visual issue only with retest evidence. Recheck source immutability and private screenshot handling. No unrecorded omissions or simulator-only substitutions.
+  - 2. Validation: record exact versions, procedures, observed results, artifact hashes and review evidence; never mark complete with missing evidence.
+  - Evidence: pending.
+- [ ] P5-007 — Obtain final owner screenshot review
+  - Status: NOT STARTED. Dependencies: P5-004.
+  - 1. Deliverable and acceptance: Present every major screen/menu/widget/settings/playback comparison through a private or explicitly approved sanitized review channel. Record owner acceptance of screenshots and intentional differences, unresolved rejection items and re-review evidence. Explicit screenshot approval is mandatory before final release approval; absence of a response is not approval.
+  - 2. Validation: record exact versions, procedures, observed results, artifact hashes and review evidence; never mark complete with missing evidence.
+  - Evidence: pending.
+
 ## Roadmap quality audit
 
-Planning audit: five phases, 32 unique IDs, explicit acceptance, dependency chains, baseline issues, security, Drive lifecycle, real-device gates, regression and rollback are represented. P2-002 gathers device facts before design; P4-001 reconfirms them. Historical reviews do not certify present archive integrity or real-device compatibility.
-Independent structural review passed; owner authorized Phase 1 only. See docs/PROGRESS.md for the mandatory stop gate.
+Planning audit: five phases, dynamic unique task IDs, explicit acceptance, dependency chains, baseline issues, security, Drive lifecycle, real-device gates, regression and rollback are represented. P2-002 gathers device facts before design; P4-001 reconfirms them. Historical reviews do not certify present archive integrity or real-device compatibility.
+Independent reviews passed through Phase 2 static deliverables; owner authorized Phase 3 only. See docs/PROGRESS.md for the mandatory stop gate.
 
 ## Mandatory phase review gates
 

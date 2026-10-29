@@ -18,6 +18,17 @@ class RoadmapTests(unittest.TestCase):
   validate(re.sub(r'Progress: .*',progress_line(result),text,count=1),progress_line(result))
  def test_inconsistent_status(self):
   with self.assertRaises(AssertionError):summarize(self.text.replace('- [x]','- [ ]',1))
+ def test_unknown_dependency(self):
+  text=self.text.replace('Dependencies: P1-001.','Dependencies: P1-999.',1)
+  with self.assertRaises(AssertionError):summarize(text)
+ def test_dependency_cycle(self):
+  text=self.text.replace('Dependencies: P1-001.','Dependencies: P1-002.',1)
+  with self.assertRaises(AssertionError):summarize(text)
+ def test_visual_review_gates(self):
+  self.assertIn('P4-007 — Compare real Kodi and Arctic Fuse source code',self.text)
+  self.assertIn('P4-008 — Investigate iPhone 16 Pro simulator feasibility',self.text)
+  self.assertIn('Dependencies: P5-007.',self.text)
+  self.assertIn('P5-007 — Obtain final owner screenshot review',self.text)
  def test_stale_tracker(self):
   with self.assertRaises(AssertionError):validate(self.text,'Progress: invalid')
 if __name__=='__main__':unittest.main()

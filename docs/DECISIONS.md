@@ -35,3 +35,7 @@ Owner has an existing sideloader capable of signing/installing unsigned IPAs. Fi
 ## DEC-009 — Confirmed target and owner decisions
 
 iPhone 16 Pro, iOS 27.0.1, non-jailbroken, Kodi absent. Final artifact unsigned ARM64 Kodi IPA. Owner manages signing with existing iPhone sideloader and waives its identity for unsigned preparation. Owner explicitly approves deferral of broken sports integration. Prefer matching stable official 21.3 DEB-to-IPA foundation; precise OS compatibility unverified. Separate sanitized import is the preferred initial engineering approach pending owner review of bundling tradeoff; investigate proven bootstrap during Phase 4. Evidence: reports/ios-target.json and docs/ios-foundation.md.
+
+## DEC-010 — Phase 2 accepted; Phase 3 and visual-roadmap expansion
+
+Owner approved Phase 2 static work and authorized Phase 3 only. Added seven unstarted tasks for real source/skin-code comparison, simulator feasibility, exhaustive screen roster/captures, side-by-side fixes/retests, final visual regressions and explicit owner screenshot-review gate. Real iPhone 16 Pro/iOS 27.0.1 evidence remains mandatory. Drive architecture requires owner selection before implementation or hosting/spending; no architecture selected.

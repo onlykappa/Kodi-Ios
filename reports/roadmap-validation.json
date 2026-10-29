@@ -1,7 +1,7 @@
 {
   "passed": true,
   "phases": 5,
-  "tasks": 32,
+  "tasks": 39,
   "complete": [
     "P1-001",
     "P1-002",
@@ -20,6 +20,6 @@
     "P2-009"
   ],
   "completed_count": 15,
-  "awaiting_implementation": 17,
-  "percent": 46.88
+  "awaiting_implementation": 24,
+  "percent": 38.46
 }
