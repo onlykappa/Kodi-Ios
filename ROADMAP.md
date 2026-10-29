@@ -1,7 +1,7 @@
 # Kodi-iOS master roadmap
 
-Status: BLOCKED. Current phase: Phase 3 — P3-004/P3-005 host validation constraint. Phase 2 static review passed; Phase 3 authorized only.
-Progress: 18/39 task IDs COMPLETE (46.15%); 21 awaiting implementation.
+Status: IN PROGRESS. Current phase: Phase 3 — final validation and operations documentation. Phase 2 static review passed; Phase 3 authorized only.
+Progress: 19/39 task IDs COMPLETE (48.72%); 20 awaiting implementation.
 
 ## Rules and session protocol
 
@@ -100,7 +100,7 @@ Phase status: COMPLETE — owner accepted static deliverables; runtime compatibi
 ## Phase 3 — Google Drive Media Integration
 
 Exit criteria: Selected integration is implemented and passes available tests; live playback pending until actual iPhone testing.
-Phase status: BLOCKED — eight required upstream streaming tests errored because local sockets are denied. All task acceptance criteria and dependency gates must pass before exit.
+Phase status: IN PROGRESS — approved CI passed all 42 upstream tests; original local failures preserved. All task acceptance criteria and dependency gates must pass before exit.
 
 - [x] P3-001 — Research maintained integrations
   - Status: COMPLETE. Dependencies: P2-009.
@@ -117,13 +117,13 @@ Phase status: BLOCKED — eight required upstream streaming tests errored becaus
   - 1. Deliverable and acceptance: Specify least privilege, local token storage, refresh, revocation and recovery; keep credentials, folder links and media out of Git.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: docs/google-drive-oauth-design.md; reports/drive-upstream-validation.json (mocked OAuth checks only).
-- [ ] P3-004 — Implement Drive integration
-  - Status: BLOCKED. Dependencies: P3-003.
+- [x] P3-004 — Implement Drive integration
+  - Status: COMPLETE. Dependencies: P3-003.
   - 1. Deliverable and acceptance: Implement selected configuration and reproducible setup without media uploads or credentials in repository.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: pending.
+  - Evidence: migration/ios; reports/drive-addon-packages.json; reports/drive-integration-validation.json; reports/drive-ci-validation.json.
 - [ ] P3-005 — Test available integration behavior
-  - Status: NOT STARTED. Dependencies: P3-004.
+  - Status: IN PROGRESS. Dependencies: P3-004.
   - 1. Deliverable and acceptance: Run feasible mocked/host tests for startup, range seeking, subtitles, resume, refresh and failure recovery; explicitly defer live iPhone claims.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: pending.

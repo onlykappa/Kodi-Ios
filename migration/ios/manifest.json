@@ -6,11 +6,15 @@
   "files": [
     {
       "path": "adaptations.json",
-      "sha256": "bca6c0f3129eaf03963fef68cee3dc52499ef51b6f937a42087114c467ef3f66"
+      "sha256": "2039d1fab4e82700c51afb612090854c77abffd04a18629caee588133bccfce6"
     },
     {
       "path": "addon-plan.json",
-      "sha256": "d52d8da505ab61ef0375549fefc0161b64c8fdccce019ff7d293ccda12b6c293"
+      "sha256": "15070921cffd0e15064350830af450fc91afa85b8cad7003c08ce945fcc775ec"
+    },
+    {
+      "path": "userdata/addon_data/plugin.googledrive/settings.xml",
+      "sha256": "c9514e78f115f4f141d769209f353b2aa8fa8457cdc80a7f0ed94ef0fb73749f"
     },
     {
       "path": "userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
@@ -34,7 +38,7 @@
     },
     {
       "path": "userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
-      "sha256": "0ad41d8b35a902b75653be945b16862cf990fc5d5bcc7fa643df89bb63f1e8f3"
+      "sha256": "ed0888e871ef0fce6d7cf6b62764bbd0dc90d258170c878e97c022853f0b6d40"
     },
     {
       "path": "userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",

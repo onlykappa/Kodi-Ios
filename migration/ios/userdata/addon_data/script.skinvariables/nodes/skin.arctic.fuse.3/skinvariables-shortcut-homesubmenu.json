@@ -16,5 +16,11 @@
     "icon": "special://skin/extras/icons/video.png",
     "path": "ActivateWindow(videos)",
     "target": ""
+  },
+  {
+    "label": "Google Drive",
+    "path": "plugin://plugin.googledrive/",
+    "icon": "DefaultFolder.png",
+    "target": "videos"
   }
 ]

@@ -1,9 +1,10 @@
 {
   "passed": true,
   "static_only": true,
-  "target_files": 32,
-  "dependency_candidates": 48,
+  "target_files": 33,
+  "dependency_candidates": 51,
   "plugin_references": [
+    "plugin.googledrive",
     "plugin.video.themoviedb.helper"
   ],
   "referenced_playlists": 13,

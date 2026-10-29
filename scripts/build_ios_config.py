@@ -68,7 +68,13 @@ def build():
  records=json.loads((ROOT/'reports/ios-compatibility.json').read_text())['records']
  preferred={}
  for a in records:preferred[a['id']]=a
+ drive_contracts=ROOT/'reports/drive-addon-contracts.json'
+ if drive_contracts.exists():
+  contracts=json.loads(drive_contracts.read_text());assert contracts['owner_approved'] and contracts['architecture']=='direct-addon-maintainer-oauth-relay'
+  for a in contracts['addons']:
+   preferred[a['id']]={'id':a['id'],'version':a['version'],'manifest_valid':True,'compatibility_category':'approved_drive_candidate_runtime_unverified','requires':a['requires']}
  roots=['skin.arctic.fuse.3','skin.arctic.zephyr.mod','plugin.video.youtube','plugin.video.youtube.fusion','script.trakt']
+ if drive_contracts.exists():roots.append('plugin.googledrive')
  selection={}
  def add(id):
   if id in selection:return
@@ -76,7 +82,15 @@ def build():
   selection[id]={'id':id,'source_version_candidate':a['version'],'status':a['compatibility_category'],'runtime_verified':False,'requires':[x for x in a['requires'] if not x['optional']]}
   for dep in selection[id]['requires']:add(dep['id'])
  for id in roots:add(id)
- (DEST/'addon-plan.json').write_text(json.dumps({'policy':'Candidate install plan only; no add-on code distributed. Acquire matching iOS-compatible versions from reviewed official Kodi/Jurialmunkey repositories and verify licenses/dependencies before target activation. Source versions are candidate pins, not proof of availability.','roots':roots,'addons':list(selection.values()),'excluded_or_deferred':[a['id'] for a in records if a['compatibility_category'] in ['excluded_by_owner','deferred_by_owner','blocked_invalid_manifest','incompatible_native_payload','incompatible_existing_implementation']]},indent=2)+'\n')
+ if drive_contracts.exists():
+  settings=DEST/'userdata/addon_data/plugin.googledrive/settings.xml';settings.parent.mkdir(parents=True,exist_ok=True)
+  settings.write_text('<settings version="2">\n  <setting id="sign-in-server">https://drive.signinserver.com</setting>\n  <setting id="set_subtitle">true</setting>\n  <setting id="ask_resume">true</setting>\n  <setting id="allow_directory_listing">false</setting>\n  <setting id="clean_folder">false</setting>\n</settings>\n')
+  menu=DEST/'userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json'
+  items=json.loads(menu.read_text());items.append({'label':'Google Drive','path':'plugin://plugin.googledrive/','icon':'DefaultFolder.png','target':'videos'})
+  menu.write_text(json.dumps(items,indent=2)+'\n')
+  mapping.append({'location':'homesubmenu/Google Drive','target_label':'Google Drive','retained_menu_slot':False,'new_integration':True})
+  changes.append({'location':'addon_data/plugin.googledrive/settings.xml','reason':'Approved direct Drive relay and safe subtitles/resume preferences; account state absent; optional directory listing disabled'})
+ (DEST/'addon-plan.json').write_text(json.dumps({'policy':'Candidate install plan only; no add-on code distributed. Acquire matching iOS-compatible versions from reviewed official Kodi/Jurialmunkey repositories or the approved pinned Drive upstream source-lock and verify licenses/dependencies before target activation. Source versions are candidate pins, not proof of availability.','roots':roots,'addons':list(selection.values()),'excluded_or_deferred':[a['id'] for a in records if a['compatibility_category'] in ['excluded_by_owner','deferred_by_owner','blocked_invalid_manifest','incompatible_native_payload','incompatible_existing_implementation']]},indent=2)+'\n')
  (DEST/'adaptations.json').write_text(json.dumps({'changes':changes,'menu_mapping':mapping,'empty_media_directories_to_create':sorted(directories),'touch_runtime_verified':False,'fuse_layout_touch_compatibility':'Unverified; upstream touch issue remains. Gesture adapter does not fix individual skin control geometry.','media_library':'Empty until private sources/Drive added in later phase; browse replacements are not equivalent stream providers.'},indent=2)+'\n')
  hashes=[{'path':str(p.relative_to(DEST)),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(DEST.rglob('*')) if p.is_file()]
  (DEST/'manifest.json').write_text(json.dumps({'target':'iPhone 16 Pro / iOS 27.0.1 / non-jailbroken / arm64','configuration_status':'PROVISIONAL_STATIC_IMPORT_CONFIGURATION','ipa_created':False,'runtime_verified':False,'files':hashes},indent=2)+'\n')

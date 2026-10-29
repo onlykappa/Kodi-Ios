@@ -57,6 +57,10 @@
     {
       "location": "keymaps/zz_kannon_video_dpad.xml",
       "reason": "Desktop keymap or excluded player definition; retained in immutable baseline"
+    },
+    {
+      "location": "addon_data/plugin.googledrive/settings.xml",
+      "reason": "Approved direct Drive relay and safe subtitles/resume preferences; account state absent; optional directory listing disabled"
     }
   ],
   "menu_mapping": [
@@ -414,6 +418,12 @@
       "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json[5]",
       "target_label": "TV Shows (TMDb)",
       "retained_menu_slot": true
+    },
+    {
+      "location": "homesubmenu/Google Drive",
+      "target_label": "Google Drive",
+      "retained_menu_slot": false,
+      "new_integration": true
     }
   ],
   "empty_media_directories_to_create": [

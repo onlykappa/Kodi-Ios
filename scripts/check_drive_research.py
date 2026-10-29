@@ -2,7 +2,7 @@
 from pathlib import Path
 import json,re
 ROOT=Path(__file__).resolve().parents[1]
-def validate(lock,research,suite,roadmap):
+def validate(lock,research,suite,roadmap,ci=None):
  assert lock['owner_approved'] and research['owner_approved'],'Missing owner approval'
  assert lock['selected_architecture']==research['architecture_selection']=='direct-addon-maintainer-oauth-relay'
  assert lock['relay']['endpoint']=='https://drive.signinserver.com','Unexpected or legacy relay'
@@ -23,13 +23,21 @@ def validate(lock,research,suite,roadmap):
  assert suite['passed']+suite['failures']+suite['errors']==suite['tests_run'],'Wrong suite accounting'
  assert suite['suite_passed']==(suite['failures']==0 and suite['errors']==0),'False suite pass'
  assert len(suite['failed_tests'])==suite['errors']+suite['failures']
- if not suite['suite_passed']:
+ effective=suite
+ if ci is not None:
+  pin=next(x['commit'] for x in lock['repositories'] if x['addon_id']=='script.module.clouddrive.common')
+  assert ci['source_commit']==pin,'CI tested a different source revision'
+  assert ci['status']=='completed' and ci['conclusion']=='success' and ci['suite_passed'],'CI not successful'
+  assert ci['passed']==ci['tests_run'] and ci['errors']==ci['failures']==0
+  assert set(suite['failed_tests'])<=set(ci['previously_blocked_tests_now_passed'])
+  effective=ci
+ if not effective['suite_passed']:
   assert not research['phase3_ready'],'Cannot declare Phase 3 ready with failed required tests'
   assert re.search(r'P3-00[456] — [^\n]+\n  - Status: BLOCKED\.',roadmap),'Failure not reflected in roadmap'
  if research['phase3_ready']:
   assert research['implementation_complete']
   for n in range(1,7):assert f'- [x] P3-{n:03d}' in roadmap
- return {'research_consistent':True,'phase3_ready':research['phase3_ready'],'upstream_suite_passed':suite['suite_passed'],'source_file_identities':len(identities),'owner_approved_architecture':research['architecture_selection']}
+ return {'research_consistent':True,'phase3_ready':research['phase3_ready'],'upstream_suite_passed':effective['suite_passed'],'source_file_identities':len(identities),'owner_approved_architecture':research['architecture_selection']}
 if __name__=='__main__':
- result=validate(json.loads((ROOT/'migration/google-drive/source-lock.json').read_text()),json.loads((ROOT/'reports/google-drive-research.json').read_text()),json.loads((ROOT/'reports/drive-upstream-validation.json').read_text()),(ROOT/'ROADMAP.md').read_text())
+ result=validate(json.loads((ROOT/'migration/google-drive/source-lock.json').read_text()),json.loads((ROOT/'reports/google-drive-research.json').read_text()),json.loads((ROOT/'reports/drive-upstream-validation.json').read_text()),(ROOT/'ROADMAP.md').read_text(),json.loads((ROOT/'reports/drive-ci-validation.json').read_text()) if (ROOT/'reports/drive-ci-validation.json').exists() else None)
  print(json.dumps(result))

@@ -33,3 +33,7 @@ Compared maintained direct add-on/public or private relay, rclone bridge and old
 ## Approved alternate test executor
 
 Owner approved the capped GitHub Actions job. Prepared the reviewed workflow with pinned public source, five-minute timeout, no checkout/secrets/token permissions. Added a single-path workflow exception to the publication allowlist; all other unexpected workflows remain rejected. Run results pending; original failed tests retained.
+
+## Drive integration implementation and host-test recovery
+
+Owner-approved capped Actions run passed all 42 pinned upstream tests. Retained original EPERM failure and cleanup warnings. Added credential-free Drive menu/preferences, disabled optional directory listing and export-folder cleanup, extended candidate dependencies to 51, built two upstream-only reproducible add-on ZIPs outside Git, and verified package hashes/contents/secret boundaries. Provider tests (12) and actual pinned-source refresh/resume mocks (9) pass. No Google account or iPhone accessed; no IPA built.

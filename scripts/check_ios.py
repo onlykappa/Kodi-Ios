@@ -20,6 +20,8 @@ def check(root=ROOT):
    version=lambda s:tuple(map(int,re.match(r'[0-9.]+',s).group(0).rstrip('.').split('.')))
    if dep['minimum_version']:assert version(selected[dep['id']]['source_version_candidate'])>=version(dep['minimum_version']),'Candidate version below dependency requirement'
  valid={a['id'] for a in json.loads((root/'inventory/addons.json').read_text())['addons'] if a['manifest_valid']}
+ contracts=root/'reports/drive-addon-contracts.json'
+ if contracts.exists():valid.update(x['id'] for x in json.loads(contracts.read_text())['addons'])
  refs=set();playlists=set()
  for p in (dest/'userdata').rglob('*'):
   if not p.is_file():continue

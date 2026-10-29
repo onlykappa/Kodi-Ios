@@ -3,7 +3,7 @@
   "task": "P3-001",
   "architecture_selection": "direct-addon-maintainer-oauth-relay",
   "owner_approved": true,
-  "implementation_complete": false,
+  "implementation_complete": true,
   "ios_runtime_verified": false,
   "comparison_document": "docs/google-drive.md",
   "oauth_design": "docs/google-drive-oauth-design.md",
@@ -46,6 +46,8 @@
     "https://developers.google.com/identity/protocols/oauth2/native-app",
     "https://developers.google.com/workspace/drive/api/guides/manage-downloads"
   ],
-  "blocker": "Host streaming tests cannot run due local socket permission restriction",
-  "phase3_ready": false
+  "blocker": null,
+  "phase3_ready": false,
+  "implementation_scope": "Credential-free profile/menu, pinned installable Python add-on ZIPs outside Git, static checks and host/mocked tests; not installed on iPhone",
+  "superseding_ci_evidence": "reports/drive-ci-validation.json"
 }

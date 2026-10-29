@@ -1,11 +1,12 @@
 {
-  "policy": "Candidate install plan only; no add-on code distributed. Acquire matching iOS-compatible versions from reviewed official Kodi/Jurialmunkey repositories and verify licenses/dependencies before target activation. Source versions are candidate pins, not proof of availability.",
+  "policy": "Candidate install plan only; no add-on code distributed. Acquire matching iOS-compatible versions from reviewed official Kodi/Jurialmunkey repositories or the approved pinned Drive upstream source-lock and verify licenses/dependencies before target activation. Source versions are candidate pins, not proof of availability.",
   "roots": [
     "skin.arctic.fuse.3",
     "skin.arctic.zephyr.mod",
     "plugin.video.youtube",
     "plugin.video.youtube.fusion",
-    "script.trakt"
+    "script.trakt",
+    "plugin.googledrive"
   ],
   "addons": [
     {
@@ -887,6 +888,60 @@
         {
           "id": "script.module.dateutil",
           "minimum_version": "2.8.1",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "id": "plugin.googledrive",
+      "source_version_candidate": "1.6.8",
+      "status": "approved_drive_candidate_runtime_unverified",
+      "runtime_verified": false,
+      "requires": [
+        {
+          "id": "xbmc.python",
+          "minimum_version": "3.0.0",
+          "optional": false
+        },
+        {
+          "id": "script.module.clouddrive.common",
+          "minimum_version": "1.5.10",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "id": "script.module.clouddrive.common",
+      "source_version_candidate": "1.5.11",
+      "status": "approved_drive_candidate_runtime_unverified",
+      "runtime_verified": false,
+      "requires": [
+        {
+          "id": "xbmc.python",
+          "minimum_version": "3.0.0",
+          "optional": false
+        },
+        {
+          "id": "script.module.dateutil",
+          "minimum_version": null,
+          "optional": false
+        },
+        {
+          "id": "script.module.pyqrcode",
+          "minimum_version": null,
+          "optional": false
+        }
+      ]
+    },
+    {
+      "id": "script.module.pyqrcode",
+      "source_version_candidate": "1.2.1+matrix.4",
+      "status": "unverified_data_or_python_candidate",
+      "runtime_verified": false,
+      "requires": [
+        {
+          "id": "xbmc.python",
+          "minimum_version": "3.0.0",
           "optional": false
         }
       ]

@@ -133,3 +133,9 @@ Severity: MEDIUM. Component: upstream acquisition/package completeness. Status: 
 Research retrieval failures retained: guessed Kodi WebDAV wiki URLs were inaccessible. Bridge compatibility is reported as unverified; rclone protocol documentation is not treated as proof of exact iOS behavior. The selected add-on is not classified abandoned based on the stale Kodi catalogue; pinned upstream October 2026 updates are recorded separately.
 
 ISSUE-015 update: COMPLETE for acquisition capability. The generic fetch rejected binary data, but the dedicated file-fetch tool supports explicit base64. Used that supported capability to fetch the remaining 23 files; all 97 pinned upstream files match hashes and sizes. Evidence: reports/drive-source-acquisition.json. First failed attempt retained above. No distributable ZIP or installed/runtime-ready add-on is implied.
+
+ISSUE-014 update: RESOLVED for Phase 3 required host tests by the owner-approved capped Actions job. Run 40940315803 passed all 42 tests at the original source pin, including all eight previously blocked cases. The local socket restriction and failed report remain historical facts; no test was skipped or source changed. Evidence: reports/drive-ci-validation.json and linked job logs.
+
+## ISSUE-016 — Nonfatal upstream cleanup warnings
+
+Severity: MEDIUM (runtime impact unverified). Component: upstream test harness/lifecycle. Status: OPEN, non-blocking to the passing Phase 3 host suite. Evidence: successful CI logs include ResourceWarning for an unclosed stale-connection socket and ignored Source destructor AttributeError from a partially initialized mocked fixture. Tests exit successfully; warnings are retained, not called fixed. Proposed follow-up: inspect lifecycle/resource behavior during real-source comparison and repeated playback/seek/exit on iPhone in Phase 4; fix/retest minimal target or upstream code if reproduced. No upstream source patch or warning suppression was introduced.
