@@ -6,6 +6,8 @@ on:
       - '.github/workflows/ios-foundation.yml'
       - 'scripts/inspect_ios_foundation.py'
       - 'scripts/test_ios_foundation.py'
+      - 'scripts/build_unsigned_ipa.py'
+      - 'scripts/test_unsigned_ipa.py'
 permissions:
   contents: read
 concurrency:
@@ -20,7 +22,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Test static parser
-        run: python3 -B scripts/test_ios_foundation.py
+        run: |
+          python3 -B scripts/test_ios_foundation.py
+          python3 -B scripts/test_unsigned_ipa.py
       - name: Acquire official foundation without running package scripts
         run: |
           mkdir -p "$RUNNER_TEMP/kodi-foundation/out"
@@ -29,9 +33,15 @@ jobs:
           dpkg-deb --extract "$RUNNER_TEMP/kodi-foundation/foundation.deb" "$RUNNER_TEMP/kodi-foundation/unpacked"
           test -d "$RUNNER_TEMP/kodi-foundation/unpacked/Applications/Kodi.app"
           python3 -B scripts/inspect_ios_foundation.py "$RUNNER_TEMP/kodi-foundation/unpacked/Applications/Kodi.app" --deb "$RUNNER_TEMP/kodi-foundation/foundation.deb" --report "$RUNNER_TEMP/kodi-foundation/out/foundation.json"
+      - name: Create diagnostic unsigned foundation candidate
+        run: |
+          python3 -B scripts/build_unsigned_ipa.py "$RUNNER_TEMP/kodi-foundation/unpacked/Applications/Kodi.app" --deb "$RUNNER_TEMP/kodi-foundation/foundation.deb" --output "$RUNNER_TEMP/kodi-foundation/candidate"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: official-kodi-21.3-foundation-inspection
-          path: ${{ runner.temp }}/kodi-foundation/out/foundation.json
+          path: |
+            ${{ runner.temp }}/kodi-foundation/out/foundation.json
+            ${{ runner.temp }}/kodi-foundation/candidate/*.json
+            ${{ runner.temp }}/kodi-foundation/candidate/*.ipa
           if-no-files-found: error
           retention-days: 7
