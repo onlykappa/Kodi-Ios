@@ -8,6 +8,7 @@ on:
       - 'scripts/test_ios_foundation.py'
       - 'scripts/build_unsigned_ipa.py'
       - 'scripts/test_unsigned_ipa.py'
+      - 'scripts/audit_foundation_addons.py'
 permissions:
   contents: read
 concurrency:
@@ -29,19 +30,18 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/kodi-foundation/out"
           curl --fail --location --proto '=https' --proto-redir '=https' --max-time 120 --output "$RUNNER_TEMP/kodi-foundation/foundation.deb" https://mirrors.kodi.tv/releases/darwin/ios-arm64/org.xbmc.kodi-ios_21.3_iphoneos-arm64.deb
+          printf '%s  %s\n' c80e2e4eded0b3be9f9c8cd19a73e3f3ac7171575dd6f08cfddf14312ca81eb8 "$RUNNER_TEMP/kodi-foundation/foundation.deb" | sha256sum --check
           dpkg-deb --info "$RUNNER_TEMP/kodi-foundation/foundation.deb"
           dpkg-deb --extract "$RUNNER_TEMP/kodi-foundation/foundation.deb" "$RUNNER_TEMP/kodi-foundation/unpacked"
           test -d "$RUNNER_TEMP/kodi-foundation/unpacked/Applications/Kodi.app"
           python3 -B scripts/inspect_ios_foundation.py "$RUNNER_TEMP/kodi-foundation/unpacked/Applications/Kodi.app" --deb "$RUNNER_TEMP/kodi-foundation/foundation.deb" --report "$RUNNER_TEMP/kodi-foundation/out/foundation.json"
-      - name: Create diagnostic unsigned foundation candidate
+      - name: Audit provided add-on interfaces and native dependency files
         run: |
-          python3 -B scripts/build_unsigned_ipa.py "$RUNNER_TEMP/kodi-foundation/unpacked/Applications/Kodi.app" --deb "$RUNNER_TEMP/kodi-foundation/foundation.deb" --output "$RUNNER_TEMP/kodi-foundation/candidate"
+          python3 -B scripts/audit_foundation_addons.py "$RUNNER_TEMP/kodi-foundation/unpacked/Applications/Kodi.app" --report "$RUNNER_TEMP/kodi-foundation/out/foundation-addons.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: official-kodi-21.3-foundation-inspection
           path: |
-            ${{ runner.temp }}/kodi-foundation/out/foundation.json
-            ${{ runner.temp }}/kodi-foundation/candidate/*.json
-            ${{ runner.temp }}/kodi-foundation/candidate/*.ipa
+            ${{ runner.temp }}/kodi-foundation/out/*.json
           if-no-files-found: error
           retention-days: 7

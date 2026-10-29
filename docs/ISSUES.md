@@ -177,3 +177,17 @@ Severity: MEDIUM. Component: persistent visual tracking. Status: COMPLETE. Repro
 ## ISSUE-023 — Enforce isolated IPA staging before writes
 
 Severity: MEDIUM. Component: packaging safety. Status: COMPLETE. Static audit found the builder checked output freshness/outside-repository placement but did not explicitly reject an output nested inside its input app. Fix: validate distinct non-overlapping resolved input/output paths and reject existing output before any writes. Actual hosted paths were already isolated; no source mutation or damaged build occurred. Evidence: scripts/test_unsigned_ipa.py now has seven passing tests, including input-descendant and existing-output rejection. Regression prevention: both staging tests remain mandatory.
+
+## ISSUE-024 — Missing preserved Fuse view-layout input
+
+Severity: HIGH. Component: sanitized layout export. Status: IN PROGRESS. Existing export omitted script.skinvariables/skin.arctic.fuse.3-viewtypes.json even though a generated skin include reflected it. Recovered the input from the verified private backup and validated every content/view pair against real 3.4.8 skin rules; only known noncredential locations are allowed. Evidence: reports/fuse-layout-input-recovery.json. No original source altered. Target generator integration/regeneration and device parity still need tests; do not claim resolved prematurely.
+
+## ISSUE-025 — Phone-local Elementum engine has no upstream iOS artifact
+
+Severity: HIGH. Component: primary playback/native build. Status: BLOCKED. Current release assets/source target tables omit iOS. Stable source shared C entry points exist, but libtorrent/OpenSSL iOS builds, Kodi bridge, signing and lifecycle have not been proven. Local environment has no Go/C++/Xcode SDK tools. Evidence: docs/elementum-ios-port.md and migration/elementum-ios/source-lock.json. Proposed next step: approved capped Mac source compilation probe, then actual dependency/bridge work and owner-device tests. No remote alternative selected; no fake/stub engine created.
+
+## ISSUE-026 — Elementum stable remote-auth debug log exposes values
+
+Severity: HIGH. Component: optional remote client, not selected. Status: OPEN. Pinned v0.1.114 monitor.py logs remote_login/remote_password when configured. No owner values were supplied or used. Remote use would require a source-pinned redaction patch, safe transport/callback review and owner host approval. Native primary path remains separate. Regression prevention: assert no auth-value logging in any future enabled client package.
+
+Additional source lookup failures retained: repository.jurialmunkey root addon.xml returned 404; actual configured omega/zips directories were found through installed public repository metadata. A guessed skinvariables-click filename did not exist; navigation investigation moved to real helper listitem/player code. No behavior inferred from missing files.

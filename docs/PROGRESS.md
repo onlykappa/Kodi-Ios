@@ -1,16 +1,16 @@
 # Persistent progress
 
 Status: BLOCKED
-Current phase: Phase 4 — host candidate prepared; physical testing and deployment decision pending
-Progress: 21/39 task IDs COMPLETE (53.85%); 18 awaiting implementation.
-Last completed task: P3-006 (Phase 3 passed owner independent review). No Phase 4 task is marked complete without its acceptance evidence.
-Next actionable task: Owner chooses first-run import versus automatic bootstrap, then supplies actual signer/launch/profile-access evidence for diagnostic candidate. Resume P4-001 dependency order; no Phase 5.
-Active blockers: P4-001 actual signing/OS behavior unverified; P4-002 full migrated IPA/import and clean target recovery absent; ISSUE-020 generated skin parity; real screenshots and functional/rollback evidence absent. Local DNS unavailable; CI acquisition succeeded.
-Pending decisions: Separate first-run configuration/add-on import versus proven automatic IPA initialization (question sent); actual iPhone testing/screenshots supplied by owner when ready.
+Current phase: Phase 4 — owner-confirmed diagnostic launch; customized import and phone-local Elementum investigation in progress
+Progress: 22/39 task IDs COMPLETE (56.41%); 17 awaiting implementation.
+Last completed task: P4-001 — owner-reported diagnostic install/launch plus foundation provenance/entitlement inspection; no migrated-feature inference.
+Next actionable task: Execute exactly one approved eight-minute macOS probe; inspect actual failure/success and foundation dependencies. Continue safe import preparation independently.
+Active blockers: customized import not complete; missing layout input recovered and under validation; Elementum native iOS engine has no upstream release and requires port feasibility/build investigation. No remote host approved. Customized runtime, screenshots and rollback remain unverified.
+Pending decisions: Separate import explicitly approved. One capped Mac build probe approved. No remote engine host or further Mac retries approved.
 Latest implementation commit SHA reviewed: local b00991a / published a563adb2f4ac57414ad5c0ed7ce7a10848e6b0dc (equal content tree). Resolve latest tracker commit using git log -- docs/PROGRESS.md and PR head.
 Roadmap publication commit: resolve `git log -1 --format=%H -- ROADMAP.md`; this avoids a self-referential SHA. Verify against PR head before resuming.
-Last updated UTC: 2026-10-29T23:09:46.516504+00:00
-Last validation: two independent CI builds produced identical IPA SHA-256; latest run 40970445429 passed actual XML entitlement/orientation inspection and candidate ZIP/native validation. 68 local regressions pass; full results and source-integrity evidence are in reports/phase4-validation.json. Device/screenshot evidence remains absent.
+Last updated UTC: 2026-10-29T23:44:06.906798+00:00
+Last validation: Roadmap seven regressions, scanner eleven, foundation parser eleven, unsigned builder seven pass; full secret/history/private-source comparison passes. Native probe bash syntax passes and local missing-SDK guard correctly blocks with exit 2; no engine compiled.
 
 ## Resume instructions
 
@@ -18,7 +18,7 @@ Read ROADMAP.md, this file, ISSUES.md and DECISIONS.md. Check branch/worktree an
 
 ## Stop gate
 
-Phase 4 BLOCKED: no device or full migration completion claimed. Available host candidate/evidence submitted for owner review. Wait for pending choice and actual-device evidence; no Phase 5, merge or release authorized.
+Phase 4 BLOCKED: no device or full migration completion claimed. Available host candidate/evidence submitted for owner review. Continue authorized independent Phase 4 preparation; customized-device evidence remains required. No Phase 5, merge or release authorized.
 
 Publication uses the GitHub connector because this shell has no authenticated GitHub CLI/network path. Local and remote commit IDs can differ for identical trees; preserve both histories. Verify remote branch SHA and tree before publication; never force-push or reset history. Resolve latest published SHA from PR #1 and record it in the next session.
 

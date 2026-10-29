@@ -1,0 +1,23 @@
+{
+  "owner_primary": "plugin.video.elementum",
+  "owner_execution_target": "iPhone-local engine",
+  "remote_host_approved": false,
+  "native_ios_engine_built": false,
+  "native_ios_engine_functional": false,
+  "plugin_release": {
+    "version": "0.1.114",
+    "commit": "8ea802e705c28fef692aef7908e8a7cfce9a55f0",
+    "client_zip_sha256": "ab095bd39fbeacb1dcfeb38e61bda5b047e897feb5dafbb6cf906d3102801f93"
+  },
+  "engine_release": {
+    "commit": "cdab7e2ed69122e048be158e2ebea70dbda789ee",
+    "libtorrent_go_commit": "d8763f5e17831acd4ec0a2841074113ae571157f",
+    "go_mod": "go 1.21 / toolchain go1.21.1"
+  },
+  "master_reviewed_separately": {
+    "plugin": "20a381074530d38d699862b6260717a7bcc854d3",
+    "engine": "8ec9539599b8a66045ca994642d61a01c6320923"
+  },
+  "build_executor_approval": "OWNER APPROVED ONE macOS GitHub Actions probe, eight-minute cap; no retry or full engine functionality implied",
+  "recorded_utc": "2026-10-29T23:40:57.583541+00:00"
+}

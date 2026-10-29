@@ -59,3 +59,19 @@ Owner accepted independent Phase 3 review and authorized Phase 4 only. Owner sup
 ## DEC-015 — Diagnostic unsigned candidate and separate runtime proof
 
 Static acquisition found original native signatures. Deterministic candidate builder removes active LC_CODE_SIGNATURE commands, zeros corresponding original regions without changing file lengths, preserves executable modes/symlinks, and verifies all 151 recognized thin ARM64 images and bundled required dylib paths. This is a diagnostic foundation candidate only, not a fully migrated or certified signer-compatible IPA; 150 signatures removed. The owner must sign all native images and supply actual launch/OS evidence. No custom bootstrap/native executable is injected. Owner choice for separate first-run import versus automatic initialization is pending, so full migration packaging remains BLOCKED. Preserve original two generated Fuse files privately until target handling and visual retests are established. Simulator is locally infeasible and tagged Kodi build guide says unsupported; no screenshots are fabricated. P4-001 acceptance still includes actual behavior, so dependent tasks remain unchecked/blocked despite prepared host investigations. No requirement waived or phase gate passed.
+
+## DEC-016 — Owner-reported diagnostic install/launch and import approval
+
+Recorded 2026-10-29T23:31:52.469988+00:00. Owner explicitly confirms successful diagnostic Kodi 21.3 ARM64 installation/launch on iPhone 16 Pro/iOS 27.0.1 and approves separate sanitized first-run configuration/add-on import. Prior reviewer recommendation alone was not treated as approval. Evidence: reports/owner-device-evidence.json. Basic operation is an observation, not a complete runtime test suite. No migrated skin, dependencies, playback, screenshots or rollback success inferred.
+
+## DEC-017 — Elementum primary and navigation priorities
+
+Owner explicitly selects Elementum, without substitution. Native iOS engine and remote-client alternatives must be investigated. No external hosting or Deck always-on service approved. Single tap should expose available watch options, Elementum first when usable; long press opens ordinary Kodi context actions. Preserve metadata/artwork/episode navigation; Google Drive is separate, not automatic per-title mapping. Umbrella remains deferred with existing target exclusions. Remote host choice is pending and no engine is provisioned.
+
+## DEC-018 — Owner requires phone-local Elementum engine
+
+Owner answered the remote-host question by requesting the engine on the phone. This is not approval for a remote host, cloud service or Deck daemon. Investigate a real native iOS port, dependencies and in-process Kodi integration. The existing IPA has no Elementum engine. Native build tools/Apple SDK are unavailable locally; the concrete capped Mac compilation-probe proposal is docs/elementum-ios-port.md. No engine success or build-executor approval inferred. Continue independent safe import preparation while this prerequisite is blocked.
+
+## DEC-019 — One capped macOS engine build probe approved
+
+Owner explicitly approved one GitHub Actions macOS probe with an eight-minute maximum, consuming Actions allowance. Workflow is edited-event/temporary-marker gated, same-repository PR #1 only, contents-read token, SHA-pinned checkout, no secrets/media/signing keys. Remove marker immediately after triggering once. Actual source compilation failure is valid blocker evidence, not engine success; no automatic retry, build-server provisioning or playback hosting approved.

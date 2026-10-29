@@ -1,7 +1,7 @@
 # Kodi-iOS master roadmap
 
 Status: BLOCKED. Current phase: Phase 4 — unsigned diagnostic foundation prepared; owner deployment choice and actual device evidence pending. Phase 3 approved; Phase 5 unauthorized.
-Progress: 21/39 task IDs COMPLETE (53.85%); 18 awaiting implementation.
+Progress: 22/39 task IDs COMPLETE (56.41%); 17 awaiting implementation.
 
 ## Rules and session protocol
 
@@ -138,11 +138,11 @@ Phase status: COMPLETE — owner independent review passed and Phase 4 authorize
 Exit criteria: Kodi launches on target iPhone, source/skin comparison and simulator feasibility are documented, supported configuration and real-device tests pass, every required screenshot/comparison exists, and visual regressions are fixed or explicitly accepted.
 Phase status: BLOCKED — host preparation exists; actual device/visual exit criteria not met. All task acceptance criteria and dependency gates must pass before exit.
 
-- [ ] P4-001 — Confirm device and install method
-  - Status: BLOCKED. Dependencies: P2-002; P3-006 (target facts must already inform Phase 2).
+- [x] P4-001 — Confirm device and install method
+  - Status: COMPLETE. Dependencies: P2-002; P3-006 (target facts must already inform Phase 2).
   - 1. Deliverable and acceptance: Reconfirm iPhone 16 Pro / iOS 27.0.1 / non-jailbroken / Kodi initially absent / unsigned ARM64 IPA. Verify candidate Kodi 21.3 official foundation, owner-managed sideloader, provenance, signing entitlements, renewal/trust and actual device behavior using current evidence; none is certified by Phase 2 static tests.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: reports/ios-foundation-inspection.json; reports/unsigned-ipa-candidate.json. BLOCKED: actual signer/OS behavior and entitlements acceptance are unverified.
+  - Evidence: reports/owner-device-evidence.json (owner-reported actual diagnostic installation/launch on iPhone 16 Pro/iOS 27.0.1); reports/ios-foundation-inspection.json; reports/ios-foundation-entitlements.json; reports/ipa-reproducibility.json. Scope: diagnostic foundation only; customized skin, playback, touch, screenshots and rollback remain unverified.
 - [ ] P4-002 — Prepare safe deployment and rollback
   - Status: BLOCKED. Dependencies: P4-008.
   - 1. Deliverable and acceptance: Prepare a reproducible unsigned Kodi iOS IPA from a trusted compatible foundation, with provenance/checksums and clean target backup. Determine which sanitized Fuse configuration/add-ons can be bundled versus imported after install; exclude credentials, account state and media. Validate ZIP/Payload/application layout, Info.plist, executable architecture, minimum iOS, load dependencies, entitlements/signature state and integrity; document rollback without touching source Deck.
