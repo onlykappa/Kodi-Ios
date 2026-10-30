@@ -48,4 +48,14 @@ class EnsureEnabled(unittest.TestCase):
   with tempfile.TemporaryDirectory() as t:
    seed,profile,state=self.setup(t,'RESTORED');calls=[]
    self.assertEqual(bootstrap.ensure_enabled(seed,profile,self.api(set(),calls)),[]);self.assertEqual(calls,[])
+class Players(unittest.TestCase):
+ def test_umbrella_player_installed_only_when_umbrella_is_on_the_phone(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=ROOT/'migration/bundled-bootstrap';profile=Path(t)
+   self.assertEqual(bootstrap.install_players(root,profile,lambda a:False),[])
+   self.assertEqual(bootstrap.install_players(root,profile,lambda a:a=='plugin.video.umbrella'),['ios.umbrella.json'])
+   dest=profile/'addon_data/plugin.video.themoviedb.helper/players/ios.umbrella.json'
+   self.assertEqual(json.loads(dest.read_text())['plugin'],'plugin.video.umbrella')
+   dest.write_text('{"plugin":"plugin.video.umbrella","owner":"edited"}')
+   self.assertEqual(bootstrap.install_players(root,profile,lambda a:True),[]);self.assertIn('edited',dest.read_text())
 if __name__=='__main__':unittest.main()

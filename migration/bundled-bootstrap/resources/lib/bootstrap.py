@@ -60,6 +60,16 @@ def restore(profile,api):
  (state/'status.json').write_text(json.dumps({'status':'RESTORED','phone_verified':False}))
  return 'RESTORED'
 
+def install_players(root,profile,has_addon):
+ """TMDb Helper players for add-ons the owner installs on the phone themselves (Umbrella is not bundled).
+ Copied only once that add-on exists, and never over a player file the owner already has."""
+ installed=[]
+ for path in sorted((Path(root)/'resources/players').glob('*.json')):
+  dest=Path(profile)/'addon_data/plugin.video.themoviedb.helper/players'/path.name
+  if dest.exists() or not has_addon(json.loads(path.read_text())['plugin']):continue
+  dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(path.read_bytes());installed.append(path.name)
+ return installed
+
 def ensure_enabled(seed,profile,api):
  """After an app update: switch on bundled add-ons that are still off, such as dependencies a newer build added.
  Only for a completed setup, so a recovered (Estuary) profile stays as the owner left it."""

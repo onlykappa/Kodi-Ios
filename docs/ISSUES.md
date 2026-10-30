@@ -342,3 +342,7 @@ Status: IMPLEMENTED ON HOST (Touch-r7); awaiting iPhone retest.
 ## ISSUE-046 — Owner decision: Deck-style player choice
 
 Status: IMPLEMENTED ON HOST (Touch-r8). Owner wants tapping to behave like the Deck: a movie or episode asks "How would you like to watch?" listing players (Elementum, Umbrella once ported); a TV show opens its seasons. The chooser now lists Elementum (unavailable until a native engine exists), Umbrella (offered automatically when the add-on and a TMDb Helper Umbrella player are installed; otherwise "coming soon"), local files and Google Drive. TV shows no longer detour through a watch-options folder; old plugin:// links still work. Because the watch-options add-on is part of the import bundle, the IPA step now pins to the bundle SHA-256 reported by the same CI run (built from pinned, hash-checked sources) instead of a hardcoded value.
+
+## ISSUE-047 — Umbrella installed by the owner should appear in the player choice
+
+Status: IMPLEMENTED ON HOST (Touch-r9). Umbrella stays unbundled (inventory exclusion unchanged). The bootstrap now carries the Deck's TMDb Helper Umbrella player (template URLs only, no account data) and copies it into addon_data/plugin.video.themoviedb.helper/players/ at startup only when plugin.video.umbrella is installed, never over an existing owner file. The chooser then lists "Umbrella" as a working option.
