@@ -42,9 +42,9 @@ def prepare_export(source,destination):
  (destination/MARKER).write_text(json.dumps({'purpose':'Kodi iOS offline import staging','private_profile':True})+'\n')
  return destination
 
-def archive_files(data):
+def archive_files(data,allow_identical_duplicates=False):
  import io
- result={};casefold_names=set()
+ result={};casefold_names={}
  try:
   with zipfile.ZipFile(io.BytesIO(data)) as z:
    require(sum(i.file_size for i in z.infolist())<=MAX_BYTES,'Archive exceeds size limit')
@@ -52,9 +52,14 @@ def archive_files(data):
     name=info.filename.rstrip('/') if info.is_dir() else info.filename;relative(name)
     require(not stat.S_ISLNK(info.external_attr>>16),'Archive symlink rejected')
     if info.is_dir():continue
-    require(info.filename not in result and info.filename.casefold() not in casefold_names,'Duplicate/case-colliding archive member')
-    casefold_names.add(info.filename.casefold())
-    result[info.filename]=z.read(info)
+    previous=casefold_names.get(info.filename.casefold())
+    body=z.read(info)
+    if previous is not None:
+     require(allow_identical_duplicates and result[previous]==body,'Duplicate/case-colliding archive member: '+previous+' / '+info.filename)
+     continue
+    casefold_names[info.filename.casefold()]=info.filename
+    result[info.filename]=body
+ except ImportFailure:raise
  except (zipfile.BadZipFile,RuntimeError,OSError) as e:raise ImportFailure('Corrupt or unreadable ZIP') from e
  return result
 

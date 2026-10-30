@@ -25,4 +25,13 @@ class BuilderTests(unittest.TestCase):
  def test_unknown_sibling_archive_payload_rejected(self):
   p,files=self.fixture();files['unexpected/extra.py']=b'# extra'
   with self.assertRaises(AssertionError):clean_addon(deterministic_zip(files),{'id':'plugin.video.themoviedb.helper','version':'6.18.1','url':'https://example.invalid/public-addon.zip'})
+ def test_public_identical_case_alias_normalizes_but_import_stays_strict(self):
+  from import_runtime.safe_import import archive_files,ImportFailure
+  z=deterministic_zip({'addon/License':b'same license','addon/LICENSE':b'same license'})
+  self.assertEqual(len(archive_files(z,allow_identical_duplicates=True)),1)
+  with self.assertRaises(ImportFailure):archive_files(z)
+ def test_public_case_alias_with_different_bytes_still_fails(self):
+  from import_runtime.safe_import import archive_files,ImportFailure
+  z=deterministic_zip({'addon/A.py':b'one','addon/a.py':b'two'})
+  with self.assertRaises(ImportFailure):archive_files(z,allow_identical_duplicates=True)
 if __name__=='__main__':unittest.main()

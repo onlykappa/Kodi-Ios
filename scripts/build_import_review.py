@@ -46,7 +46,7 @@ def patch_helper(files,id):
  return files,changes
 
 def clean_addon(data,source):
- original=archive_files(data);id=source['id'];files={};dropped=[]
+ original=archive_files(data,allow_identical_duplicates=True);id=source['id'];files={};dropped=[]
  # Some publisher ZIPs have a versioned directory or macOS packaging metadata.
  roots=[]
  for name,b in original.items():
