@@ -72,8 +72,8 @@ def check(source_userdata=None, git_history=False):
     for p in allfiles:
         rel=p.relative_to(ROOT)
         if p.is_symlink():issue(p,'symlink-not-publishable');continue
-        if rel.parts[0] not in ALLOWED_TOP_LEVEL and rel.as_posix() not in {'.github/workflows/drive-upstream.yml','.github/workflows/ios-foundation.yml','.github/workflows/elementum-ios-probe.yml','.github/workflows/import-review.yml'}:issue(p,'unexpected-top-level-file')
-        if p.name!='.gitignore' and p.suffix.lower() not in ALLOWED_SUFFIXES and rel.as_posix()!='migration/elementum-ios/probe-build.sh' and rel.as_posix() not in {'.github/workflows/drive-upstream.yml','.github/workflows/ios-foundation.yml','.github/workflows/elementum-ios-probe.yml','.github/workflows/import-review.yml'}:issue(p,'unexpected-file-type')
+        if rel.parts[0] not in ALLOWED_TOP_LEVEL and rel.as_posix() not in {'.github/workflows/drive-upstream.yml','.github/workflows/ios-foundation.yml','.github/workflows/elementum-ios-probe.yml','.github/workflows/import-review.yml','.github/workflows/elementum-ios-engine.yml'}:issue(p,'unexpected-top-level-file')
+        if p.name!='.gitignore' and p.suffix.lower() not in ALLOWED_SUFFIXES and rel.as_posix() not in {'migration/elementum-ios/probe-build.sh','migration/elementum-ios/build-ios-engine.sh'} and rel.as_posix() not in {'.github/workflows/drive-upstream.yml','.github/workflows/ios-foundation.yml','.github/workflows/elementum-ios-probe.yml','.github/workflows/import-review.yml','.github/workflows/elementum-ios-engine.yml'}:issue(p,'unexpected-file-type')
         if p.suffix.lower() in FORBIDDEN_EXTENSIONS or '.private.' in p.name:issue(p,'private-or-runtime-file')
         if p.stat().st_size>1_000_000:issue(p,'oversized-file')
         try:s=p.read_text(encoding='utf-8')

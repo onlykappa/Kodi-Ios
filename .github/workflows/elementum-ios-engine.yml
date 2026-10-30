@@ -1,0 +1,31 @@
+name: Elementum engine for iPhoneOS
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/elementum-ios-engine.yml'
+      - 'migration/elementum-ios/build-ios-engine.sh'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: elementum-ios-engine
+  cancel-in-progress: true
+jobs:
+  engine:
+    runs-on: macos-14
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Build pinned Elementum engine as an iPhoneOS framework
+        run: bash migration/elementum-ios/build-ios-engine.sh "$RUNNER_TEMP/elementum-ios"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: elementum-ios-framework
+          path: |
+            ${{ runner.temp }}/elementum-ios/elementum.framework.zip
+            ${{ runner.temp }}/elementum-ios/elementum.framework.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
