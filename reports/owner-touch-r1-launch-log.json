@@ -1,0 +1,52 @@
+{
+  "recorded_utc": "2026-10-30T14:45:18.052405+00:00",
+  "evidence_type": "OWNER_PROVIDED_PHYSICAL_IPHONE_LOG",
+  "raw_log_sha256": "ab1914f3299f272078ecfca707c29f9db505e538e198b09831ce5a2718bef5da",
+  "raw_log_published": false,
+  "log_lines": 783,
+  "observed_events": [
+    {
+      "time": "07:41:47.307",
+      "event": "Fuse loads from writable Documents/Kodi/addons skin directory"
+    },
+    {
+      "time": "07:41:47.358",
+      "event": "Generated script-skinvariables-generator-includes-.xml cannot be opened"
+    },
+    {
+      "time": "07:41:47.421",
+      "event": "Home generated widget includes invalid/missing"
+    },
+    {
+      "time": "07:41:48.023",
+      "event": "Fuse reloads while startup still in progress"
+    },
+    {
+      "time": "07:41:48.185",
+      "event": "Skin changes to Estuary before the later bootstrap failure"
+    },
+    {
+      "time": "07:41:48.316",
+      "event": "skinvariables splash JSON load fails with JSONDecodeError at first character"
+    },
+    {
+      "time": "07:41:48.326",
+      "event": "skinvariables build-templates JSON load fails with JSONDecodeError at first character"
+    },
+    {
+      "time": "07:42:07.317",
+      "event": "Bootstrap logs RuntimeError without its message or traceback"
+    }
+  ],
+  "inference": "A skin-switch/reload/confirmation race is consistent with the timeline. Queued special://skin helper reads occur after Estuary becomes current, which could explain empty/missing JSON reads. Exact bootstrap RuntimeError cause is not logged; do not assert definitive attribution or malformed bundled JSON.",
+  "other_errors": [
+    "Fresh-profile guisettings.xml missing and defaults created",
+    "Bonjour publishing CFNetServiceRegister error -72008"
+  ],
+  "no_evidence_of": [
+    "Google Drive authentication failure",
+    "A demonstrated native touch coordinate defect",
+    "Successful skin initialization/recovery"
+  ],
+  "current_validation": "FAILED DEVICE STARTUP; host passes do not establish iPhone usability"
+}

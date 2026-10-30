@@ -1,16 +1,16 @@
 # Persistent progress
 
 Status: BLOCKED
-Current phase: Phase 4 — Touch-r1 IPA built/host-validated; owner retest of failed Fuse navigation pending
+Current phase: Phase 4 — Touch-r2 serialized startup repair; host validated, IPA build pending
 Progress: 25/39 task IDs COMPLETE (64.10%); 14 awaiting implementation.
 Last completed task: P4-009 capture requirement inventory (184 retained IDs, zero actual captures); P4-007/008 static source and simulator investigations completed.
-Next actionable task: owner signs/updates Kodi-iOS-Customized-Touch-r1.ipa from run 41068166024 and verifies visible/aligned Settings strip, Browse/Recovery, scroll/select/long-press, empty-state navigation and cold relaunch. Keep previous IPA for rollback.
-Active blockers: previous device failure is verified; Touch-r1 physical usability remains unverified. New independent controls, startup repair, helper rebuild and recovery require actual iPhone results. No simulator established. No Phase 5.
+Next actionable task: build/publish Touch-r2, inspect actual Actions results, then owner retests Keep Skin, Settings/Recovery and navigation. Preserve both older IPAs.
+Active blockers: owner Touch-r1 launch log verifies reversion/helper failure (ISSUE-040). New sequencing repair not yet phone-tested. Simulator unavailable; all 184 capture requirements retained. No Phase 5.
 Pending decisions: fully bundled IPA implementation/build explicitly approved. No additional Mac run authorized or required for resource-only packaging. Owner supplies physical device evidence after artifact is ready.
 Latest implementation commit SHA reviewed: local 8363797 / published 91ed4dd79d5637f57f2ae03fadc6cee4171fca06, successful Touch-r1 artifact source. Resolve later evidence-only commit from git log/PR head.
 Roadmap publication commit: resolve `git log -1 --format=%H -- ROADMAP.md`; this avoids a self-referential SHA. Verify against PR head before resuming.
-Last updated UTC: 2026-10-30T14:24:00.732908+00:00
-Last validation: 165 host tests/20 suites pass; CI 41068166024 succeeded with 32 patched major windows, 31 seed files, source/dependency/ZIP checks, 151 ARM64 images and no active signatures/unresolved required native loads. Device retest still pending. Receipt: reports/ios-touch-r1-artifact.json.
+Last updated UTC: 2026-10-30T15:11:28.675497+00:00
+Last validation: 174 host tests/21 suites PASS including nine new sequencing regressions; roadmap 25/39 unchanged. Reachable-history/private-source secret scan PASS. Touch-r2 CI build pending; Touch-r1 device failure remains open. Sanitized evidence: reports/owner-touch-r1-launch-log.json; no raw log uploaded.
 
 ## Resume instructions
 

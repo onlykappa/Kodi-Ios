@@ -1,7 +1,7 @@
 """Widget-independent native Kodi controls and idempotent, backed-up iOS upgrade."""
 import hashlib,json,os,re,xml.etree.ElementTree as ET
 from pathlib import Path
-REVISION='ios-touch-navigation-r1'
+REVISION='ios-touch-navigation-r2'
 GROUP=98100
 MARKER='Kodi-iOS permanent navigation '+REVISION
 MENU='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)'
@@ -32,9 +32,17 @@ def patch_window(data,filename):
  previous=controls.find("control[@id='98100']")
  if previous is not None:
   if previous.findtext('description')==MARKER:return data
-  raise ValueError('Navigation control ID collision')
+  if not (previous.findtext('description') or '').startswith('Kodi-iOS permanent navigation '):raise ValueError('Navigation control ID collision')
+  controls.remove(previous)
  controls.append(bar())
  if filename=='Home.xml' or 'Hub' in filename:
+  # Prevent onload helpers/reload alarms from racing Kodi's Keep Skin dialog.
+  lock='String.IsEmpty(Window(Home).Property(KodiIOS.Activating))'
+  for node in list(root):
+   if node.tag=='onload' and (node.text or '') in {'Skin.Reset(Hub.Home.DisableSubmenu)','Skin.SetBool(homeswitcher.disablefirstwidgetfocus)','SetFocus(98104)'} and node.get('condition')=='System.Platform.IOS':root.remove(node);continue
+   action=node.text or ''
+   if (node.tag=='onload' and ('runscript(' in action.lower() or 'reloadskin' in action.lower())) or (node.tag=='include' and action in {'Action_BuildViews','Action_BuildShortcuts_OnLoad'}):
+    if lock not in node.get('condition',''):node.set('condition','['+node.get('condition','true')+'] + '+lock)
   for old in list(root.findall('defaultcontrol')):root.remove(old)
   default=ET.Element('defaultcontrol',{'always':'true'});default.text='98104';root.insert(0,default)
   for action in ['Skin.Reset(Hub.Home.DisableSubmenu)','Skin.SetBool(homeswitcher.disablefirstwidgetfocus)','SetFocus(98104)']:

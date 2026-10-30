@@ -73,3 +73,7 @@ Recorded actual failure/screenshot privately; no skin success inferred. Reproduc
 ## Phase 4 — Touch-r1 IPA available for owner retest
 
 Resumed owner pause and verified successful run 41068166024/artifact 12983492116. Publish Kodi-iOS-Customized-Touch-r1.ipa (577522290 bytes; SHA-256 9c72b195494924fddfa67f24627546ea59f64efe0f04b373647d907e9034db84). Reproduced bootstrap defects fixed, permanent native Settings/Recovery and touch navigation host-tested, existing profiles upgraded with backups/history, all 165 tests pass. Actual phone usability remains pending and prior failure stays recorded. Preserve previous IPA, source Deck, credentials and 184 capture requirements. No Phase 5/merge.
+
+## Touch-r2 startup repair — 2026-10-30
+
+Owner log verifies failed Touch-r1 launch, not successful skin validation. Guard first activation against Home helper/reload races; run pinned view/shortcut generators sequentially without reload, validate fresh outputs, then reload once. Preserve native confirmation and Settings/Recovery strip. Add private sanitized stage/stack evidence and nine regressions; 174 host tests pass. Device confirmation pending, no task completion increased. Older artifacts retained.
