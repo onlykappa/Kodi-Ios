@@ -69,3 +69,7 @@ Successful CI 41058684326/artifact 12978745226 supplies Kodi-iOS-Customized.ipa 
 ## Phase 4 — owner-reported Fuse failure and Touch-r1 repair
 
 Recorded actual failure/screenshot privately; no skin success inferred. Reproduced iOS-hidden mouse-setting bootstrap rollback and permanent failed-marker behavior. Add revision-scoped retry/history, mandatory repair service, inline widget-independent navigation in 32 windows, native recovery/browse/settings menu, gestures and local helper diagnostics. Preserve widgets, original layout assets, original Steam Deck and prior IPA. Add targeted upgrade for already initialized phones and live skin preference synchronization/rebuild. Host tests/XML audit pass; new artifact and physical retest pending. No further feature development/Phase 5.
+
+## Phase 4 — Touch-r1 IPA available for owner retest
+
+Resumed owner pause and verified successful run 41068166024/artifact 12983492116. Publish Kodi-iOS-Customized-Touch-r1.ipa (577522290 bytes; SHA-256 9c72b195494924fddfa67f24627546ea59f64efe0f04b373647d907e9034db84). Reproduced bootstrap defects fixed, permanent native Settings/Recovery and touch navigation host-tested, existing profiles upgraded with backups/history, all 165 tests pass. Actual phone usability remains pending and prior failure stays recorded. Preserve previous IPA, source Deck, credentials and 184 capture requirements. No Phase 5/merge.
