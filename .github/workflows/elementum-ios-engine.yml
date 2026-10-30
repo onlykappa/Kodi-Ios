@@ -10,7 +10,8 @@ permissions:
   contents: read
 concurrency:
   group: elementum-ios-engine
-  cancel-in-progress: true
+  # The PR-wide path filter reruns this on every push; let a running engine build finish.
+  cancel-in-progress: false
 jobs:
   engine:
     runs-on: macos-15
