@@ -8,9 +8,9 @@ class BundleTests(unittest.TestCase):
  def tearDown(self):self.tmp.cleanup()
  def test_packaged_sources_manifest_seed_and_original_preserved(self):
   app,receipt=prepare(self.app,self.bundle,self.sha,self.root/'work');base=app/'AppData/AppHome';xml=ET.parse(base/'system/addon-manifest.xml').getroot()
-  self.assertEqual(xml.find("addon[.='fixture.addon']").get('optional'),'true');self.assertEqual(xml.find("addon[.='"+BOOT+"']").get('optional'),'true')
+  self.assertEqual(xml.find("addon[.='fixture.addon']").get('optional'),'true');self.assertIsNone(xml.find("addon[.='"+BOOT+"']").get('optional'))
   self.assertTrue((base/'addons'/BOOT/'service.py').is_file());self.assertTrue((base/'addons'/BOOT/'recover.py').is_file());self.assertTrue((base/'addons/fixture.addon/resources/settings.xml').is_file())
-  seed=json.loads((base/'addons'/BOOT/'seed/seed-manifest.json').read_text());self.assertEqual(seed['addons'],['fixture.addon']);self.assertEqual(len(seed['files']),2)
+  seed=json.loads((base/'addons'/BOOT/'seed/seed-manifest.json').read_text());self.assertEqual(seed['addons'],['fixture.addon']);self.assertEqual(len(seed['files']),3)
   self.assertFalse((self.app/'AppData/AppHome/addons/fixture.addon').exists());self.assertEqual(len(ET.parse(self.app/'AppData/AppHome/system/addon-manifest.xml').getroot()),1)
  def test_corrupt_input_rejected_before_any_copy(self):
   with self.assertRaises(Exception):prepare(self.app,self.bundle,'bad',self.root/'work')

@@ -70,4 +70,13 @@ class BootstrapTests(unittest.TestCase):
   def fail(paths):raise RuntimeError('Kodi path mismatch')
   with self.assertRaises(RuntimeError):m.initialize(seed,self.profile,self.api,home=self.base/'phone',refresh=fail)
   self.assertNotEqual(self.values['lookandfeel.skin'],'skin.arctic.fuse.3');s=json.loads((self.profile/'addon_data'/m.ID/'status.json').read_text());self.assertNotEqual(s['status'],'COMPLETE')
+ def test_ios_hidden_mouse_setting_does_not_abort_setup(self):
+  def ios_api(method,params):
+   if method=='Settings.GetSettingValue' and params['setting']=='input.enablemouse':return {'error':{'code':-32602}}
+   return self.api(method,params)
+  self.assertEqual(m.initialize(self.seed,self.profile,ios_api),'COMPLETE')
+ def test_new_seed_retries_prior_recovered_failure_once_and_preserves_history(self):
+  state=self.profile/'addon_data'/m.ID;state.mkdir(parents=True);(state/'status.json').write_text('{"status":"FAILED; RECOVERED TO ESTUARY"}')
+  manifest=json.loads((self.seed/'seed-manifest.json').read_text());manifest['version']='2-touch-r1';(self.seed/'seed-manifest.json').write_text(json.dumps(manifest))
+  self.assertEqual(m.initialize(self.seed,self.profile,self.api),'COMPLETE');self.assertTrue(list(state.parent.glob(m.ID+'.history-*')))
 if __name__=='__main__':unittest.main()

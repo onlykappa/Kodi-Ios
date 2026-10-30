@@ -1,16 +1,16 @@
 # Persistent progress
 
 Status: BLOCKED
-Current phase: Phase 4 — fully customized unsigned IPA built/host-validated; awaiting owner device tests
+Current phase: Phase 4 — verified owner-reported Fuse navigation failure; touch/recovery revision rebuilding
 Progress: 25/39 task IDs COMPLETE (64.10%); 14 awaiting implementation.
 Last completed task: P4-009 capture requirement inventory (184 retained IDs, zero actual captures); P4-007/008 static source and simulator investigations completed.
-Next actionable task: owner downloads/signs/installs Kodi-iOS-Customized.ipa from run 41058684326; test automatic setup, keep Fuse if Kodi asks, authorize Drive privately, and report real startup/playback/touch/restart/recovery results. No manual ZIP import or profile transfer.
-Active blockers: actual iPhone signing/bootstrap/UI/Google Drive/screenshots/rollback unverified. Host build complete (reports/customized-ipa-artifact.json). Existing writable skin version conflicts stop safely. Elementum explicitly deferred.
+Next actionable task: build the revised all-in-one Touch-r1 IPA, inspect actual CI contents/results, publish a separate artifact, then obtain owner Settings/menu/scroll/select/long-press and empty-state retest evidence.
+Active blockers: owner confirms prior Fuse navigation/setup failure. Hidden input.enablemouse API rejection and recovered-marker retry defects are reproduced/fixed on host; exact phone journal unavailable. Revised touch alignment, menus, generated includes, Drive and recovery require device retest.
 Pending decisions: fully bundled IPA implementation/build explicitly approved. No additional Mac run authorized or required for resource-only packaging. Owner supplies physical device evidence after artifact is ready.
 Latest implementation commit SHA reviewed: local a115193 / published 0b169c6622031d4ca4ccdbbff6f4ef8d3523223a, successful final IPA source; resolve this later evidence commit from git log/PR head.
 Roadmap publication commit: resolve `git log -1 --format=%H -- ROADMAP.md`; this avoids a self-referential SHA. Verify against PR head before resuming.
-Last updated UTC: 2026-10-30T12:59:34.782501+00:00
-Last validation: 149 tests/19 suites pass; CI 41058684326 succeeds with full customized IPA, 151 ARM64 images, zero active signatures/unresolved required loads, full addon byte checks and 30 seed hashes. Exact validated ZIP reused internally; complete synthetic import repeat/recovery tests pass. No iPhone/screenshot success claimed.
+Last updated UTC: 2026-10-30T13:48:25.519377+00:00
+Last validation: see reports/ios-navigation-tests.json; 76 actual verified-copy window XMLs patched idempotently, no application rendering claimed. Screenshot/owner statements recorded as failure. Previous IPA kept for rollback; no simulator support established.
 
 ## Resume instructions
 

@@ -65,3 +65,7 @@ Owner supersedes manual import (DEC-022). Implement optional packaged bootstrap 
 ## Phase 4 — downloadable fully customized unsigned IPA
 
 Successful CI 41058684326/artifact 12978745226 supplies Kodi-iOS-Customized.ipa (577498519 bytes, SHA-256 2eac079b95b0f666298717ad47e77bb476ac82c956c5b997982191ddc40593b2). Bundle includes approved 38 addon packages plus bootstrap, 30 configurations and automatic writable skin initialization/normal Kodi registration/activation/recovery. 149 host tests pass; archive/source/seed/native structure checks pass. Normal Keep Skin confirmation may require one tap; no consent auto-accepted. Diagnostic artifact preserved; no owner secrets/media or Elementum engine. Owner-device signing/startup, UI/touch, Drive, screenshots/restart/rollback still require evidence. No Phase 5, merge or release.
+
+## Phase 4 — owner-reported Fuse failure and Touch-r1 repair
+
+Recorded actual failure/screenshot privately; no skin success inferred. Reproduced iOS-hidden mouse-setting bootstrap rollback and permanent failed-marker behavior. Add revision-scoped retry/history, mandatory repair service, inline widget-independent navigation in 32 windows, native recovery/browse/settings menu, gestures and local helper diagnostics. Preserve widgets, original layout assets, original Steam Deck and prior IPA. Add targeted upgrade for already initialized phones and live skin preference synchronization/rebuild. Host tests/XML audit pass; new artifact and physical retest pending. No further feature development/Phase 5.

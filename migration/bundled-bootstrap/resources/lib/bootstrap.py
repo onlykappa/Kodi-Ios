@@ -64,7 +64,13 @@ def initialize(seed,profile,api,fail_after=None,verify_skin=None,home=None,refre
  seed=Path(seed);profile=Path(profile)
  if '/.var/app/tv.kodi.Kodi' in str(profile.resolve()) or profile.is_symlink():raise ValueError('Original Deck/symlink refused')
  manifest=json.loads((seed/'seed-manifest.json').read_text());state=profile/'addon_data'/ID;status=state/'status.json'
- if status.exists():return json.loads(status.read_text())['status']
+ if status.exists():
+  previous=json.loads(status.read_text())
+  if previous['status']=='FAILED; RECOVERED TO ESTUARY' and previous.get('seed')!=manifest['version']:
+   import uuid
+   # Retain old journals/backups/failure evidence before a revised, explicitly approved setup retry.
+   os.replace(state,state.with_name(ID+'.history-'+uuid.uuid4().hex))
+  else:return previous['status']
  # Validate every input and all API availability before the first profile write.
  bodies={}
  for entry in manifest['files']:
@@ -86,7 +92,7 @@ def initialize(seed,profile,api,fail_after=None,verify_skin=None,home=None,refre
    original=dest.read_bytes();backup=state/'backup'/name;backup.parent.mkdir(parents=True,exist_ok=True);backup.write_bytes(original);entry['backup_sha256']=sha(original)
   journal['files'].append(entry)
  def save():
-  (state/'journal.json').write_text(json.dumps(journal,indent=2));status.write_text(json.dumps({'status':'IN PROGRESS','phone_verified':False}))
+  (state/'journal.json').write_text(json.dumps(journal,indent=2));status.write_text(json.dumps({'status':'IN PROGRESS','seed':manifest['version'],'phone_verified':False}))
  save()
  try:
   stage_skins(seed,Path(home) if home is not None else profile.parent,manifest.get('mutable_skins',[]),refresh)
@@ -110,7 +116,7 @@ def initialize(seed,profile,api,fail_after=None,verify_skin=None,home=None,refre
   gui=ET.fromstring(bodies['guisettings.xml'])
   for setting in gui.findall('setting'):
    key=setting.get('id')
-   if key=='lookandfeel.skin':continue
+   if key in {'lookandfeel.skin','input.enablemouse'}:continue # Hidden on iOS; native touch uses the platform input path.
    current=api('Settings.GetSettingValue',{'setting':key})
    if 'error' in current:raise RuntimeError('Unknown GUI setting: '+key)
    old=current['result']['value'];journal['gui'][key]=old;save();raw=setting.text or '';value=(raw.lower()=='true') if isinstance(old,bool) else int(raw) if isinstance(old,int) else raw
@@ -120,4 +126,4 @@ def initialize(seed,profile,api,fail_after=None,verify_skin=None,home=None,refre
   status.write_text(json.dumps({'status':'COMPLETE','seed':manifest['version'],'phone_verified':False}))
   return 'COMPLETE'
  except BaseException:
-  restore(profile,api);status.write_text(json.dumps({'status':'FAILED; RECOVERED TO ESTUARY','phone_verified':False}));raise
+  restore(profile,api);status.write_text(json.dumps({'status':'FAILED; RECOVERED TO ESTUARY','seed':manifest['version'],'phone_verified':False}));raise
