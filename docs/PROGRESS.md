@@ -1,16 +1,16 @@
 # Persistent progress
 
 Status: BLOCKED
-Current phase: Phase 4 — verified owner-reported Fuse navigation failure; touch/recovery revision rebuilding
+Current phase: Phase 4 — Touch-r1 IPA built/host-validated; owner retest of failed Fuse navigation pending
 Progress: 25/39 task IDs COMPLETE (64.10%); 14 awaiting implementation.
 Last completed task: P4-009 capture requirement inventory (184 retained IDs, zero actual captures); P4-007/008 static source and simulator investigations completed.
-Next actionable task: build the revised all-in-one Touch-r1 IPA, inspect actual CI contents/results, publish a separate artifact, then obtain owner Settings/menu/scroll/select/long-press and empty-state retest evidence.
-Active blockers: owner confirms prior Fuse navigation/setup failure. Hidden input.enablemouse API rejection and recovered-marker retry defects are reproduced/fixed on host; exact phone journal unavailable. Revised touch alignment, menus, generated includes, Drive and recovery require device retest.
+Next actionable task: owner signs/updates Kodi-iOS-Customized-Touch-r1.ipa from run 41068166024 and verifies visible/aligned Settings strip, Browse/Recovery, scroll/select/long-press, empty-state navigation and cold relaunch. Keep previous IPA for rollback.
+Active blockers: previous device failure is verified; Touch-r1 physical usability remains unverified. New independent controls, startup repair, helper rebuild and recovery require actual iPhone results. No simulator established. No Phase 5.
 Pending decisions: fully bundled IPA implementation/build explicitly approved. No additional Mac run authorized or required for resource-only packaging. Owner supplies physical device evidence after artifact is ready.
-Latest implementation commit SHA reviewed: local a115193 / published 0b169c6622031d4ca4ccdbbff6f4ef8d3523223a, successful final IPA source; resolve this later evidence commit from git log/PR head.
+Latest implementation commit SHA reviewed: local 8363797 / published 91ed4dd79d5637f57f2ae03fadc6cee4171fca06, successful Touch-r1 artifact source. Resolve later evidence-only commit from git log/PR head.
 Roadmap publication commit: resolve `git log -1 --format=%H -- ROADMAP.md`; this avoids a self-referential SHA. Verify against PR head before resuming.
-Last updated UTC: 2026-10-30T13:48:25.519377+00:00
-Last validation: see reports/ios-navigation-tests.json; 76 actual verified-copy window XMLs patched idempotently, no application rendering claimed. Screenshot/owner statements recorded as failure. Previous IPA kept for rollback; no simulator support established.
+Last updated UTC: 2026-10-30T14:24:00.732908+00:00
+Last validation: 165 host tests/20 suites pass; CI 41068166024 succeeded with 32 patched major windows, 31 seed files, source/dependency/ZIP checks, 151 ARM64 images and no active signatures/unresolved required native loads. Device retest still pending. Receipt: reports/ios-touch-r1-artifact.json.
 
 ## Resume instructions
 
@@ -25,3 +25,11 @@ Publication uses the GitHub connector because this shell has no authenticated Gi
 Deployment objective: unsigned Kodi iOS IPA based on trusted compatible upstream build, with only compatible sanitized customizations. Phase 2 investigates bundling/import feasibility; Phase 4 assembles, validates and signs/installs with owner sideloader. Account state, secrets and media remain external. Static structure checks cannot prove sideloader/device compatibility.
 
 Proposed alternate test executor: docs/proposed-drive-test-workflow.md. Published and executed with owner approval; CI run 40940315803 passed. Owner has now approved publishing the exact capped workflow. Actual job logs have been inspected; no iPhone success is implied.
+
+## Owner-requested pause — 2026-10-30T14:02:35.605625+00:00
+
+PAUSED at owner explicit request. Stop implementation/publication until resumed. Latest repair code is pushed: local 8363797 / remote 91ed4dd79d5637f57f2ae03fadc6cee4171fca06. GitHub Actions run 41068166024 continues independently as explained to owner; final artifact/result/checksum NOT YET retrieved or claimed. https://github.com/onlykappa/Kodi-Ios/actions/runs/41068166024 . On resume inspect that run/jobs/logs/artifacts, diagnose failures if any, verify the revised Touch-r1 IPA, and record/publish final evidence and link. Host tests: 165/20 suites (new live-setting readback regression passed). Original IPA retained; prior device failure remains unresolved until owner retest. No further feature development, Phase 5 or merge. This pause note is local/uncommitted to avoid starting another build.
+
+## Resume after owner pause — 2026-10-30T14:24:00.732908+00:00
+
+Owner explicitly resumed. Inspected run 41068166024: SUCCESS; revised artifact 12983492116 uploaded and not expired. Actual IPA checksum recorded in reports/ios-touch-r1-artifact.json. Prior pause above is historical and no longer active. Stop at Phase 4 device-test boundary after publishing evidence; do not infer the prior navigation failure is fixed on the phone.
