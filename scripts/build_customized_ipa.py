@@ -11,14 +11,41 @@ _navspec=importlib.util.spec_from_file_location('ipa_navigation',Path(__file__).
 _nav=importlib.util.module_from_spec(_navspec);_navspec.loader.exec_module(_nav)
 ROOT=Path(__file__).resolve().parents[1]
 BOOT='service.kodi.ios.bootstrap'
-# Upstream urlopen has no timeout: a stalled sign-in connection leaves Drive on "Connecting with server" forever.
-DRIVE_TIMEOUT=('script.module.clouddrive.common/clouddrive/common/remote/request.py',b'response = urllib.request.urlopen(req)\n',b'response = urllib.request.urlopen(req, timeout=30)\n')
+# Drive sign-in on the phone: upstream urlopen has no timeout (stuck on "Connecting with server"), and Python's
+# default CA lookup fails the TLS handshake ("[SSL] unknown error") while TMDb Helper succeeds with certifi's bundle.
+TLS=b'''
+
+_tls_context = None
+
+
+def tls_context():
+    """Kodi iOS: verify with certifi's CA bundle when available, else the platform default."""
+    global _tls_context
+    if _tls_context is None:
+        import ssl
+        try:
+            import certifi
+            _tls_context = ssl.create_default_context(cafile=certifi.where())
+        except Exception:
+            _tls_context = ssl.create_default_context()
+    return _tls_context
+'''
+DRIVE_COMMON='script.module.clouddrive.common/'
+DRIVE_PATCHES=[('clouddrive/common/remote/request.py',b'response = urllib.request.urlopen(req)\n',b'response = urllib.request.urlopen(req, timeout=30, context=tls_context())\n'),
+ ('clouddrive/common/remote/request.py',b'import urllib\n',b'import urllib\n'+TLS),
+ ('clouddrive/common/remote/signin.py',b'from clouddrive.common.remote.request import Request\n',b'from clouddrive.common.remote.request import Request, tls_context\n'),
+ ('clouddrive/common/remote/signin.py',b'self.sock = self._context.wrap_socket(',b'self.sock = tls_context().wrap_socket('),
+ ('clouddrive/common/service/upstream.py',b'import urllib.parse\n',b'import urllib.parse\n\nfrom clouddrive.common.remote.request import tls_context\n'),
+ ('clouddrive/common/service/upstream.py',b'self._context = ssl.create_default_context()',b'self._context = tls_context()'),
+ ('addon.xml',b'<import addon="script.module.pyqrcode"/>',b'<import addon="script.module.pyqrcode"/>\n\t\t<import addon="script.module.certifi"/>')]
 
 def patch_drive(addonroot):
- name,old,new=DRIVE_TIMEOUT;path=addonroot/name;before=path.read_bytes()
- assert before.count(old)==1,'Unexpected Drive request source'
- after=before.replace(old,new);path.write_bytes(after)
- return [{'path':'addons/'+name,'before_sha256':digest(before),'after_sha256':digest(after)}]
+ files={}
+ for name,old,new in DRIVE_PATCHES:
+  path=addonroot/DRIVE_COMMON/name;before=files.setdefault(name,(path,path.read_bytes()))[1]
+  data=path.read_bytes();assert data.count(old)==1,'Unexpected Drive source: '+name
+  path.write_bytes(data.replace(old,new))
+ return [{'path':'addons/'+DRIVE_COMMON+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]
 
 def prepare(app,bundle,expected,work):
  validate_staging(app,work)
@@ -31,7 +58,7 @@ def prepare(app,bundle,expected,work):
   assert not dest.exists(),'Unexpected bundled addon collision: '+name
   dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data)
  navigation_files=_nav.patch_skin(addonroot/'skin.arctic.fuse.3') if (addonroot/'skin.arctic.fuse.3').is_dir() else []
- drive_files=patch_drive(addonroot) if (addonroot/DRIVE_TIMEOUT[0]).is_file() else []
+ drive_files=patch_drive(addonroot) if (addonroot/DRIVE_COMMON).is_dir() else []
  bootstrap=addonroot/BOOT;shutil.copytree(ROOT/'migration/bundled-bootstrap',bootstrap)
  seed=bootstrap/'seed';seed.mkdir();entries=[]
  for name,data in sorted(config.items()):
@@ -56,7 +83,7 @@ def prepare(app,bundle,expected,work):
   visiting.remove(id);order.append(id)
  for id in sorted(requires):visit(id)
  mutable=[{'id':id,'version':ET.parse(addonroot/id/'addon.xml').getroot().get('version'),'tree_sha256':tree_digest(addonroot/id)} for id in order if id.startswith('skin.')]
- (seed/'seed-manifest.json').write_text(json.dumps({'version':'3-touch-r3','files':entries,'addons':order,'mutable_skins':mutable,'navigation_revision':_nav.REVISION},indent=2)+'\n')
+ (seed/'seed-manifest.json').write_text(json.dumps({'version':'3-touch-r4','files':entries,'addons':order,'mutable_skins':mutable,'navigation_revision':_nav.REVISION},indent=2)+'\n')
  tree=ET.parse(system);root=tree.getroot();existing={a.text for a in root.findall('addon')}
  for id in order+[BOOT]:
   assert id not in existing,'System manifest collision';ET.SubElement(root,'addon',{} if id==BOOT else {'optional':'true'}).text=id
@@ -67,7 +94,7 @@ def build(app,bundle,expected,deb,output,work):
  staged,details=prepare(app,bundle,expected,work)
  # The shared native packer emits a diagnostic-only intermediate label; publish only the final verified customized report.
  with contextlib.redirect_stdout(io.StringIO()):report=unsigned(staged,output,deb)
- old=output/report['filename'];ipa=output/'Kodi-iOS-Customized-Touch-r3.ipa';old.rename(ipa)
+ old=output/report['filename'];ipa=output/'Kodi-iOS-Customized-Touch-r4.ipa';old.rename(ipa)
  with zipfile.ZipFile(ipa) as z:
   assert z.testzip() is None
   base='Payload/Kodi.app/'+details['system_manifest'].rsplit('/system/',1)[0]

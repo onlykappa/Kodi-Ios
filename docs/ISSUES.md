@@ -306,3 +306,12 @@ Root causes, verified against pinned Arctic Fuse 3.4.8 and Kodi 21.3 source:
 - `script.module.clouddrive.common` calls `urlopen` with no timeout, so a stalled sign-in connection stays on "Connecting with server" indefinitely.
 
 Fixes (navigation revision r3): transparent tap targets in each hub window mirroring the header geometry (tabs, search, right-side hub icons, gear); disabled spacers so they cannot take touches; bar and forced focus removed from existing installs; header kept visible on iOS only; Google Drive and the navigation/recovery menu added to the gear menu (and the mislabelled "Quit" entry that opened Settings relabelled); phone-loadable widgets ordered before library-only ones and untouched library spotlights pointed at TMDb, once per revision with backups; Drive request timeout patched at IPA build time. Library/Trakt widgets remain empty until media or Trakt sign-in exist. Safe-area borders come from Kodi core, not this project.
+
+## ISSUE-042 — Touch-r3 phone review: no Back, dimmed un-tappable Home, Drive TLS failure
+
+Severity: CRITICAL. Status: FIXED ON HOST (Touch-r4); awaiting iPhone retest.
+- No way out of Drive/Settings/library windows without a remote Back. Fix: visible Back and Home buttons (98300) in every major non-hub window on iOS.
+- Scrolling up on Home dimmed the screen and blocked taps: Fuse's Up/Left/Info actions open submenu 1181 or bumper 1180, modal dialogs that swallow input. Fix: those `ActivateWindow(1180/1181)` actions are disabled on iOS in Includes_Home/Hubs/Actions/Search.
+- Hero showed "No Results": empty Trakt rows sat first. Fix: rows needing a Trakt sign-in now follow open TMDb rows.
+- Drive sign-in failed with `[SSL] unknown error (_ssl.c:1006)` while TMDb Helper (certifi CA bundle) works. Fix: the packaged Cloud Drive Common module uses certifi's CA bundle for sign-in, API and streaming connections, and depends on script.module.certifi. Not yet verified on device; if it still fails, the next step is a Kodi debug log.
+- Remaining black/purple bars are Kodi's iPhone safe-area insets (XBMCController guiInsets); reduce them with Settings → System → Display → Video calibration.

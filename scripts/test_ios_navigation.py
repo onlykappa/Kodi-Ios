@@ -21,7 +21,16 @@ class NavigationTests(unittest.TestCase):
   r2=b'<window><defaultcontrol always="true">98104</defaultcontrol><onload condition="System.Platform.IOS">SetFocus(98104)</onload><controls>'+bar+b'</controls></window>'
   root=ET.fromstring(nav.patch_window(r2,'Home.xml'));self.assertIsNone(root.find('defaultcontrol'));self.assertNotIn('SetFocus(98104)',[x.text for x in root.findall('onload')])
   for name in ['Home.xml','Settings.xml','MyVideoNav.xml']:self.assertIsNone(ET.fromstring(nav.patch_window(b'<window><controls>'+bar+b'</controls></window>',name)).find("controls/control[@id='98100']"))
-  self.assertEqual(nav.patch_window(b'<window><controls/></window>','Settings.xml'),b'<window><controls/></window>')
+ def test_non_hub_windows_get_visible_back_and_home(self):
+  once=nav.patch_window(b'<window><controls/></window>','MyVideoNav.xml');self.assertEqual(nav.patch_window(once,'MyVideoNav.xml'),once)
+  group=ET.fromstring(once).find("controls/control[@id='98300']");self.assertEqual(group.findtext('visible'),'System.Platform.IOS')
+  self.assertEqual([b.findtext('onclick') for b in group.findall('control')],['Action(Back)','ActivateWindow(Home)'])
+  for b in group.findall('control'):self.assertGreaterEqual(int(b.findtext('height')),88)
+  for name in ['DialogSelect.xml','VideoOSD.xml']:self.assertEqual(nav.patch_window(b'<window><controls/></window>',name),b'<window><controls/></window>')
+ def test_submenu_and_bumper_dialogs_never_open_on_ios(self):
+  data=b'<a><onup condition="String.IsEmpty(Skin.String(X))">ActivateWindow(1181)</onup><oninfo>ActivateWindow(1181)</oninfo><ondown>ActivateWindow(1180)</ondown><onup>ActivateWindow(1170)</onup></a>'
+  once=nav.patch_includes(data);self.assertEqual(nav.patch_includes(once),once)
+  self.assertEqual([x.get('condition') for x in ET.fromstring(once)],['[String.IsEmpty(Skin.String(X))] + !System.Platform.IOS','!System.Platform.IOS','!System.Platform.IOS',None])
  def test_header_stays_visible_on_ios_only(self):
   data=b'<a><onfocus>ClearProperty(HomeSwitcher.IsVisible,Home)</onfocus><onfocus condition="![$PARAM[x]]">ClearProperty(HomeSwitcher.IsVisible,Home)</onfocus></a>'
   once=nav.patch_includes(data);self.assertEqual(nav.patch_includes(once),once)
@@ -30,11 +39,11 @@ class NavigationTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as t:
    p=Path(t);nodes=p/'addon_data/script.skinvariables/nodes/skin.arctic.fuse.3';nodes.mkdir(parents=True)
    (nodes/'skinvariables-shortcut-powermenu.json').write_text(json.dumps([{'label':'$LOCALIZE[1036]','path':'ActivateWindow(1160)'},{'label':'$LOCALIZE[13009]','path':'ActivateWindow(Settings)'}]))
-   (nodes/'skinvariables-shortcut-homewidgets.json').write_text(json.dumps([{'label':'In Progress','path':'special://profile/playlists/video/x.xsp'},{'label':'Popular','path':'plugin://plugin.video.themoviedb.helper/?info=discover'},{'label':'Local','path':'videodb://movies/titles/'}]))
+   (nodes/'skinvariables-shortcut-homewidgets.json').write_text(json.dumps([{'label':'In Progress','path':'special://profile/playlists/video/x.xsp'},{'label':'Trakt','path':'plugin://plugin.video.themoviedb.helper/?info=trakt_becauseyouwatched'},{'label':'Popular','path':'plugin://plugin.video.themoviedb.helper/?info=discover'},{'label':'Local','path':'videodb://movies/titles/'}]))
    self.assertEqual(len(nav.update_nodes(p)),2);self.assertEqual(nav.update_nodes(p),[])
    power=json.loads((nodes/'skinvariables-shortcut-powermenu.json').read_text())
    self.assertEqual([x['path'] for x in power],['ActivateWindow(1160)',nav.DRIVE,nav.MENU,'ActivateWindow(Settings)']);self.assertEqual(power[-1]['label'],'$LOCALIZE[5]')
-   self.assertEqual([x['label'] for x in json.loads((nodes/'skinvariables-shortcut-homewidgets.json').read_text())],['Popular','In Progress','Local'])
+   self.assertEqual([x['label'] for x in json.loads((nodes/'skinvariables-shortcut-homewidgets.json').read_text())],['Popular','Trakt','In Progress','Local'])
    self.assertTrue((p/'addon_data/service.kodi.ios.bootstrap/navigation-backup'/nav.REVISION/'nodes/skinvariables-shortcut-powermenu.json').exists())
  def test_spotlight_only_replaces_untouched_library_defaults(self):
   values={'HomeSwitcher.Home.Spotlight.Path':'special://skin/extras/playlists/RandomMovies.xsp','HomeSwitcher.1101.Spotlight.Path':'plugin://owner.choice/'};calls=[]

@@ -71,7 +71,7 @@ jobs:
           python3 -B scripts/build_customized_ipa.py --app "$RUNNER_TEMP/customized-foundation/unpacked/Applications/Kodi.app" --deb "$RUNNER_TEMP/customized-foundation/foundation.deb" --bundle "$RUNNER_TEMP/kodi-import-review/Kodi-iOS-Customized-Import.zip" --expected-sha256 cc5d7eb7efa62f1f389f67451b3b94ab8d6a0deda15b94d6e66b48f3ea06669e --work "$RUNNER_TEMP/customized-app" --output "$RUNNER_TEMP/customized-ipa"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: Kodi-iOS-Customized-Touch-r3-ARM64
+          name: Kodi-iOS-Customized-Touch-r4-ARM64
           path: |
             ${{ runner.temp }}/customized-ipa/*.ipa
             ${{ runner.temp }}/customized-ipa/*.json
