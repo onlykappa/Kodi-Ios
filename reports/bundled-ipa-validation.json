@@ -1,6 +1,6 @@
 {
-  "recorded_utc": "2026-10-30T01:08:35.993926+00:00",
-  "status": "MUTABLE-SKIN INITIALIZATION IMPLEMENTED; HOST TESTS PASS; FINAL IPA BUILD PENDING",
+  "recorded_utc": "2026-10-30T12:59:34.782501+00:00",
+  "status": "BUILT AND HOST VALIDATED; AWAITING OWNER IPHONE TEST",
   "host_suites": [
     {
       "suite": "test_activation.py",
@@ -115,5 +115,14 @@
     "outcome": "IPA built/validated/uploaded; SUPERSEDED by skin verification fix",
     "sha256": "4b70a39be8844411a361fc1edae09c2447df6afc11673974ae2abb67db9d89d9",
     "device_tested": false
-  }
+  },
+  "artifact_receipt": "reports/customized-ipa-artifact.json",
+  "ipa_sha256": "2eac079b95b0f666298717ad47e77bb476ac82c956c5b997982191ddc40593b2",
+  "ci_run": 41058684326,
+  "ci_conclusion": "success",
+  "native_images_validated": 151,
+  "original_working_build_preserved": true,
+  "all_bundled_addon_file_bytes_checked": true,
+  "bundled_configuration_files": 30,
+  "device_tested": false
 }

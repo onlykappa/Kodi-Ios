@@ -1,16 +1,16 @@
 # Persistent progress
 
 Status: BLOCKED
-Current phase: Phase 4 — building owner-authorized fully bundled IPA with automatic startup service; Elementum deferred
+Current phase: Phase 4 — fully customized unsigned IPA built/host-validated; awaiting owner device tests
 Progress: 25/39 task IDs COMPLETE (64.10%); 14 awaiting implementation.
 Last completed task: P4-009 capture requirement inventory (184 retained IDs, zero actual captures); P4-007/008 static source and simulator investigations completed.
-Next actionable task: run all regressions, publish validated bootstrap/builder changes, execute isolated Linux IPA workflow, inspect/fix real failures, record checksum/artifact; then stop for actual iPhone testing.
-Active blockers: customized IPA build pending; real iPhone signing/bootstrap/UI/Drive/screenshots/rollback unverified. Manual-import requirement superseded. No Elementum engine.
+Next actionable task: owner downloads/signs/installs Kodi-iOS-Customized.ipa from run 41058684326; test automatic setup, keep Fuse if Kodi asks, authorize Drive privately, and report real startup/playback/touch/restart/recovery results. No manual ZIP import or profile transfer.
+Active blockers: actual iPhone signing/bootstrap/UI/Google Drive/screenshots/rollback unverified. Host build complete (reports/customized-ipa-artifact.json). Existing writable skin version conflicts stop safely. Elementum explicitly deferred.
 Pending decisions: fully bundled IPA implementation/build explicitly approved. No additional Mac run authorized or required for resource-only packaging. Owner supplies physical device evidence after artifact is ready.
-Latest implementation commit SHA reviewed: local a143c53 / published a2ce3cb5ca7e5520d5a7da0e848ac86709db1737 (equal code tree); successful artifact source. Resolve this final evidence commit from Git/PR head.
+Latest implementation commit SHA reviewed: local a115193 / published 0b169c6622031d4ca4ccdbbff6f4ef8d3523223a, successful final IPA source; resolve this later evidence commit from git log/PR head.
 Roadmap publication commit: resolve `git log -1 --format=%H -- ROADMAP.md`; this avoids a self-referential SHA. Verify against PR head before resuming.
-Last updated UTC: 2026-10-30T01:06:45.279643+00:00
-Last validation: 133 tests in 17 host suites pass; run 40981957027 validates 38 add-ons/30 configs and full apply/repeat-zero-writes/clean-restore with 7324 source files identical. Source Deck: 22463 files hashed, zero changes/additions/missing. Secret/history/private-value scans pass. 184 capture requirements retained, zero captures. See reports/phase4-import-artifact.json.
+Last updated UTC: 2026-10-30T12:59:34.782501+00:00
+Last validation: 149 tests/19 suites pass; CI 41058684326 succeeds with full customized IPA, 151 ARM64 images, zero active signatures/unresolved required loads, full addon byte checks and 30 seed hashes. Exact validated ZIP reused internally; complete synthetic import repeat/recovery tests pass. No iPhone/screenshot success claimed.
 
 ## Resume instructions
 

@@ -1,6 +1,14 @@
 # Fully bundled Kodi iOS build
 
-Owner approves one unsigned Kodi-iOS-Customized.ipa; manual ZIP import is superseded. Build status/checksum/artifact will be recorded after actual CI.
+Owner approves one unsigned Kodi-iOS-Customized.ipa; manual ZIP import is superseded. **Built and host-validated.** [Download Kodi-iOS-Customized.ipa artifact](https://github.com/onlykappa/Kodi-Ios/actions/runs/41058684326/artifacts/12978745226) (expires November 6 UTC). Extract the outer GitHub ZIP and use its IPA, not the previous configuration ZIP.
+
+Inner IPA: 577498519 bytes. SHA-256:
+
+```text
+2eac079b95b0f666298717ad47e77bb476ac82c956c5b997982191ddc40593b2
+```
+
+The artifact contains the IPA plus ipa-report.json with full native inventory/seed provenance. The outer artifact ZIP has a different digest; both are recorded in reports/customized-ipa-artifact.json. 39 bundled addon directories (38 approved packages plus bootstrap), 30 configuration files, 151 ARM64 native images. All 149 host tests in 19 suites pass; full source/seed byte validation and archive integrity pass. Actual iPhone signing/startup/UI/playback/restart/recovery remain unverified.
 
 The validated import contents are reused internally as build inputs, not an owner import task. Sources and dependencies are placed in AppData/AppHome/addons beside the foundation addons. Kodi's system addon-manifest registers them as optional packaged addons, initially enabled on fresh profiles and still disableable. A packaged Python service automatically copies the skins into writable special://home/addons, verifies source/copy hashes, invokes Kodi UpdateLocalAddons, verifies the selected writable paths, and copies the sanitized profile seed once using actual special://profile. This lets real skinvariables helpers regenerate includes outside the signed app. Existing matching skin installations are preserved; version conflicts stop for review. Unknown private addon settings remain; replaced files and GUI preferences are journaled privately. Live guisettings.xml is never replaced: Kodi Settings APIs apply preferences and select Fuse after registration/configuration. Completed startup does not reapply on later launches, preserving owner edits. Existing disabled dependencies may need API activation, recorded for recovery. No native executable/engine injection or extra entitlement is added.
 

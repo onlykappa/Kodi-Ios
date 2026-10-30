@@ -1,3 +1,5 @@
+> Superseded deployment instructions: the owner now requires a fully bundled IPA. Use [customized-ipa.md](customized-ipa.md); no owner ZIP import is required. Historical import test evidence follows.
+
 # Phase 4 customized test package
 
 Status: READY FOR OWNER DEVICE TESTING. Phase 4 remains BLOCKED and is not complete.

@@ -1,3 +1,5 @@
+> Current deployment: download/sign/install the [fully bundled IPA](customized-ipa.md). The app initializes its own configuration and writable skins; manual export/import and Files access are no longer prerequisites. Keep all functional/visual/rollback tests below; earlier manual-import notes are historical.
+
 # Owner device testing — pending evidence
 
 Target facts remain owner-reported: iPhone 16 Pro, iOS 27.0.1, non-jailbroken; existing sideloader, initially no Kodi. No actual iPhone or simulator screenshot has been captured. No mock UI substitutes are provided. Phase 4 cannot pass its exit criteria until the real-device and visual evidence exists.
