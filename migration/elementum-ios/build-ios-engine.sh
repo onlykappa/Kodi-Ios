@@ -25,7 +25,7 @@ IOS_FLAGS="-arch arm64 -isysroot $SDK -miphoneos-version-min=$MIN_IOS"
 step(){ echo "::group::$*"; }
 end(){ echo "::endgroup::"; }
 # Keep logs short, but show the end of a failing tool's output.
-quiet(){ local log; log="$(mktemp)"; "$@" >"$log" 2>&1 || { echo "FAILED: $*"; tail -n 80 "$log"; return 1; }; }
+quiet(){ local log; log="$(mktemp)"; "$@" >"$log" 2>&1 || { echo "FAILED: $*"; grep -n -i -E -B3 -A12 'error[: ]|\.\.\.failed |fatal|undefined' "$log" | grep -v 'common.copy' | head -n 150; echo '--- last lines ---'; tail -n 25 "$log"; return 1; }; }
 fetch(){ # url sha256 dest
   curl --fail --location --retry 3 --proto '=https' -o "$3" "$1"
   echo "$2  $3" | shasum -a 256 -c -
