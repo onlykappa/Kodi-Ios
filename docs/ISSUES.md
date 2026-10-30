@@ -219,3 +219,9 @@ Severity: LOW. Component: validation invocation. Status: COMPLETE for invocation
 ISSUE-028 disposition: owner defers native engine work; missing-Go failure retained in reports/elementum-ios-probe.json. No retry and no compiled engine.
 
 ISSUE-031 test extension: the new non-iOS entrypoint guard regression initially raised NameError because its fixture lacked ROOT. Defined the test root and reran successfully; this was a fixture setup failure, not a Kodi/device test.
+
+## ISSUE-032 — Public source ZIP root assumption stops import build
+
+Severity: MEDIUM. Component: public-source packaging. Status: IN PROGRESS pending actual CI retest. Run 40980673919 passed its host tests/acquisition but failed clean_addon with Unexpected archive root; no complete import artifact produced. Exact offending source was not included in the first traceback, so its layout remains unconfirmed. Fix preparation: locate exactly one manifest matching the pinned ID/version, normalize its archive root, drop only recognized __MACOSX/.DS_Store packaging metadata, reject unknown sibling content, and record source-specific failure metadata. Added versioned-root/metadata and unexpected-sibling regressions. Do not claim the observed failure fixed before hosted retest.
+
+ISSUE-032 test setup note: the successful-normalization fixture initially omitted the required source URL receipt field; added that public fixture field and reran all six builder tests. No source validation was disabled.

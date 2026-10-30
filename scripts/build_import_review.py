@@ -47,8 +47,19 @@ def patch_helper(files,id):
 
 def clean_addon(data,source):
  original=archive_files(data);id=source['id'];files={};dropped=[]
+ # Some publisher ZIPs have a versioned directory or macOS packaging metadata.
+ roots=[]
  for name,b in original.items():
-  assert name.startswith(id+'/'),'Unexpected archive root'
+  if Path(name).name!='addon.xml' or len(Path(name).parts)>2:continue
+  try:manifest=ET.fromstring(b)
+  except ET.ParseError:continue
+  if manifest.get('id')==id and manifest.get('version')==source['version']:roots.append(name[:-len('addon.xml')])
+ assert len(roots)==1,'Expected one matching manifest root for '+id+': '+str(sorted({x.split('/')[0] for x in original}))
+ archive_root=roots[0]
+ for archive_name,b in original.items():
+  if archive_name.split('/')[0]=='__MACOSX' or Path(archive_name).name=='.DS_Store':dropped.append(archive_name);continue
+  assert archive_name.startswith(archive_root),'Unexpected archive sibling for '+id+': '+archive_name
+  name=id+'/'+archive_name[len(archive_root):]
   parts=Path(name).parts
   if any(x.startswith('.') or x in {'__pycache__','tests','test'} for x in parts[1:]) or Path(name).suffix in {'.pyc','.pyo'}:
    dropped.append(name);continue
@@ -102,7 +113,11 @@ def build(output,foundation_report):
  payload={};entries=[];provenance=[]
  def add(path,data,kind,**kw):payload[path]=data;entries.append({'path':path,'kind':kind,'bytes':len(data),'sha256':digest(data),**kw})
  for source,data in sorted(acquired,key=lambda x:x[0]['id']):
-  archive,ver,receipt=clean_addon(data,source);receipt['sanitized_archive_sha256']=digest(archive);provenance.append(receipt)
+  try:archive,ver,receipt=clean_addon(data,source)
+  except Exception as error:
+   failure={'id':source['id'],'error_type':type(error).__name__,'error':str(error),'source_url':source['url']}
+   (output/'source-layout-failure.json').write_text(json.dumps(failure,indent=2)+'\n');print(json.dumps(failure));raise
+  receipt['sanitized_archive_sha256']=digest(archive);provenance.append(receipt)
   add('addons/'+source['id']+'-'+ver+'.zip',archive,'addon',addon_id=source['id'],version=ver)
  for id,ver,data,receipt in drive_archives(output):
   provenance.append(receipt);add('addons/'+id+'-'+ver+'.zip',data,'addon',addon_id=id,version=ver)
