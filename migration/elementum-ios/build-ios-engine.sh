@@ -35,7 +35,9 @@ export PKG_CONFIG_PATH='' PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
 
 step "Toolchain"
 xcodebuild -version; xcrun --sdk iphoneos --show-sdk-version
-for tool in autoconf automake libtool pkg-config; do command -v "$tool" >/dev/null || brew install "$tool"; done
+# macOS ships an unrelated /usr/bin/libtool, so look for GNU libtool by its glibtoolize name.
+for tool in autoconf automake pkg-config; do command -v "$tool" >/dev/null || brew install "$tool"; done
+command -v glibtoolize >/dev/null || brew install libtool
 end
 
 step "Go $GO_VERSION"
