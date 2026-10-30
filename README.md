@@ -52,3 +52,7 @@ Historical manual-import procedure (superseded): [iPhone import, integrity and r
 ## Customized IPA ready for device testing
 
 [Download Kodi-iOS-Customized.ipa artifact](https://github.com/onlykappa/Kodi-Ios/actions/runs/41058684326/artifacts/12978745226) and follow [signing, automatic setup and recovery instructions](docs/customized-ipa.md). No manual Kodi ZIP import, file copying or profile transfer is required. This supersedes earlier separate-import instructions. 149 host tests and the actual Linux IPA build pass; no customized iPhone runtime result is claimed. Original diagnostic build remains fallback.
+
+## Current iPhone usability retest
+
+The owner reported Fuse navigation/settings failure in the earlier IPA. Use the revised [Touch-r1 download and retest instructions](docs/ios-touch-navigation.md). Host validation passes; actual iPhone usability has not yet been reverified. Prior IPA is retained for rollback.
