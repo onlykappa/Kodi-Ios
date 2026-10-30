@@ -1,7 +1,7 @@
 """Widget-independent native Kodi controls and idempotent, backed-up iOS upgrade."""
 import hashlib,json,os,re,xml.etree.ElementTree as ET
 from pathlib import Path
-REVISION='ios-touch-navigation-r5'
+REVISION='ios-touch-navigation-r6'
 GROUP=98100
 HEADER=98200
 BACK=98300
@@ -9,6 +9,8 @@ FRAME=98400
 LEGACY='Kodi-iOS permanent navigation '
 MARKER='Kodi-iOS touch header '+REVISION
 BACK_MARKER='Kodi-iOS back/home '+REVISION
+# Kodi keeps pixels square, so on a wide iPhone the 1080-high canvas is wider than 1920: anchor right-side items
+# with <right>, never a fixed <left>.
 FRAME_MARKER='Kodi-iOS safe-area frame '+REVISION
 MENU='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)'
 TOUCH='''<keymap><global><touch><tap>LeftClick</tap><longpress>RightClick</longpress><pan>PanGesture</pan><swipe direction="up">Down</swipe><swipe direction="down">Up</swipe><tap pointers="3">ActivateWindow(settings)</tap><swipe direction="left" pointers="2">Back</swipe><swipe direction="right" pointers="2">RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)</swipe><swipe direction="up" pointers="2">PageUp</swipe><swipe direction="down" pointers="2">PageDown</swipe></touch></global></keymap>'''
@@ -39,6 +41,8 @@ def touch_button(parent,id,action,fields):
  c=ET.SubElement(parent,'control',{'type':'button','id':str(id)})
  for name,value in fields:element(c,name,value)
  element(c,'texturefocus','');element(c,'texturenofocus','');element(c,'onclick',action)
+ # A tapped tab keeps focus; Down (a one-finger swipe up) must lead into the rows like Fuse's own hub menu.
+ element(c,'ondown','$VAR[Hub_Action_Down]')
  return c
 
 def header():
@@ -76,19 +80,21 @@ def header():
 def back_home():
  """Visible Back/Home for touch: these windows otherwise need a remote's Back button to leave."""
  group=ET.Element('control',{'type':'group','id':str(BACK)});element(group,'description',BACK_MARKER)
- for name,value in [('visible','System.Platform.IOS'),('left',1380),('top',36),('width',480),('height',96)]:element(group,name,value)
+ for name,value in [('visible','System.Platform.IOS'),('right',60),('bottom',24),('width',420),('height',90)]:element(group,name,value)
  for index,(label,action) in enumerate([('Back','Action(Back)'),('Home','ActivateWindow(Home)')]):
   c=ET.SubElement(group,'control',{'type':'button','id':str(BACK+1+index)})
-  for name,value in [('left',index*250),('width',230),('height',96),('label',label),('font','font_main_bold'),('align','center'),('aligny','center'),('textcolor','FFFFFFFF'),('focusedcolor','FF000000'),('onclick',action),('onleft',BACK+1),('onright',BACK+2)]:element(c,name,value)
+  # Bottom-right corner: free on Fuse's media and settings screens, clear of the header clock.
+  for name,value in [('left',index*220),('width',200),('height',90),('label',label),('font','font_main_bold'),('align','center'),('aligny','center'),('textcolor','FFFFFFFF'),('focusedcolor','FF000000'),('onclick',action),('onleft',BACK+1),('onright',BACK+2)]:element(c,name,value)
   element(c,'texturefocus','common/menu.png',border='40',colordiffuse='FFFFFFFF');element(c,'texturenofocus','common/menu.png',border='40',colordiffuse='40FFFFFF')
  return group
 
 def frame():
  """Black bars over the iPhone safe areas: Fuse's 200% blurred background and poster rows draw past the canvas."""
  group=ET.Element('control',{'type':'group','id':str(FRAME)});element(group,'description',FRAME_MARKER);element(group,'visible','System.Platform.IOS')
- for left,top,width,height in [(-1000,-1000,1000,3080),(1920,-1000,1000,3080),(0,-1000,1920,1000),(0,1080,1920,1000)]:
+ for edges in [[('left',-1000),('top',-1000),('width',1000),('bottom',-1000)],[('right',-1000),('top',-1000),('width',1000),('bottom',-1000)],
+               [('left',-1000),('right',-1000),('top',-1000),('height',1000)],[('left',-1000),('right',-1000),('bottom',-1000),('height',1000)]]:
   image=ET.SubElement(group,'control',{'type':'image'})
-  for name,value in [('left',left),('top',top),('width',width),('height',height)]:element(image,name,value)
+  for name,value in edges:element(image,name,value)
   element(image,'texture','common/white.png',colordiffuse='FF000000')
  return group
 

@@ -26,6 +26,7 @@ class NavigationTests(unittest.TestCase):
   group=ET.fromstring(once).find("controls/control[@id='98300']");self.assertEqual(group.findtext('visible'),'System.Platform.IOS')
   self.assertEqual([b.findtext('onclick') for b in group.findall('control')],['Action(Back)','ActivateWindow(Home)'])
   for b in group.findall('control'):self.assertGreaterEqual(int(b.findtext('height')),88)
+  self.assertIsNone(group.find('left'));self.assertEqual(group.findtext('right'),'60')
   for name in ['DialogSelect.xml','VideoOSD.xml']:self.assertEqual(nav.patch_window(b'<window><controls/></window>',name),b'<window><controls/></window>')
  def test_submenu_and_bumper_dialogs_never_open_on_ios(self):
   data=b'<a><onup condition="String.IsEmpty(Skin.String(X))">ActivateWindow(1181)</onup><oninfo>ActivateWindow(1181)</oninfo><ondown>ActivateWindow(1180)</ondown><onup>ActivateWindow(1170)</onup></a>'
@@ -36,8 +37,11 @@ class NavigationTests(unittest.TestCase):
  def test_black_frame_covers_safe_areas_and_stays_on_top(self):
   once=nav.patch_frame(b'<window type="dialog"><controls><control type="image"/></controls></window>','DialogSelect.xml');self.assertEqual(nav.patch_frame(once,'DialogSelect.xml'),once)
   last=list(ET.fromstring(once).find('controls'))[-1];self.assertEqual(last.get('id'),'98400');self.assertEqual(last.findtext('visible'),'System.Platform.IOS')
+  # Kodi widens the canvas on wide phones, so each piece is anchored outside an edge, never at a fixed 1920.
   for image in last.findall('control'):
-   l,t,w,h=(int(image.findtext(k)) for k in ['left','top','width','height']);self.assertTrue(l+w<=0 or l>=1920 or t+h<=0 or t>=1080)
+   edges={k:int(image.findtext(k)) for k in ['left','right','top','bottom','width','height'] if image.find(k) is not None}
+   self.assertTrue(edges.get('left')==-edges.get('width',0)==-1000 or edges.get('right')==-edges.get('width',0)==-1000 or edges.get('top')==-edges.get('height',0)==-1000 or edges.get('bottom')==-edges.get('height',0)==-1000,edges)
+   self.assertNotIn(1920,edges.values())
   moved=ET.fromstring(once);moved.find('controls').append(ET.Element('control'));again=nav.patch_frame(ET.tostring(moved),'DialogSelect.xml')
   self.assertEqual(list(ET.fromstring(again).find('controls'))[-1].get('id'),'98400')
   self.assertEqual(nav.patch_frame(b'<window><controls/></window>','Pointer.xml'),b'<window><controls/></window>')

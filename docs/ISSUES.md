@@ -323,3 +323,11 @@ Severity: HIGH. Status: FIXED ON HOST (Touch-r5); awaiting iPhone retest.
 - Vertical swipes did nothing over posters: every horizontal row returns PAN_HORIZONTAL to GESTURE_NOTIFY and grabs the whole gesture, so grouplist 602 never scrolls. Fix: one-finger swipe up/down maps to Down/Up (row-by-row, using Fuse's smooth grouplist scroll).
 - Header vanished and art zoomed when a poster was focused: rows generated on the device from shortcuts/generator/data/parts/*.xmltemplate clear HomeSwitcher.IsVisible, and Background_Main_Zoomer zooms fanart to 150%. Fix: templates patched like the includes; zoom disabled on iOS.
 - Drive still failed with `[SSL] unknown error` using certifi. Fix: requests step through certifi, TLS 1.2 only, then Kodi's own curl transport, keeping the first that works. Added "Google Drive network diagnostics" to the iPhone menu (versions, DNS families and per-transport results for the sign-in server, Google API and TMDb; no bodies or account data) to pin down the root cause if it persists.
+
+## ISSUE-044 — Touch-r5: black block over the right of every screen; Back/Home misplaced; no swipe after tapping a tab
+
+Severity: CRITICAL (Settings unreachable). Status: FIXED ON HOST (Touch-r6), verified by rendering the patched skin in desktop Kodi 20 under Xvfb at the iPhone's 2.17:1 aspect with iOS conditions forced on.
+- Root cause: Kodi keeps pixels square, so on a 2.17:1 screen the 1080-high skin canvas is ~2350 units wide, not 1920. The frame's right piece at a fixed left=1920 covered the right ~18% (clock, gear, menus). Reproduced in the rig, then confirmed fixed: every frame piece is now anchored outside an edge with left/right/top/bottom=-1000.
+- Back/Home used a fixed left=1380 and overlapped the clock; now anchored bottom-right (right 60, bottom 24), clicked in the rig and returns to the previous window.
+- After a tapped tab kept focus, Down (one-finger swipe up) did nothing; header tap targets now use Fuse's Hub_Action_Down. Verified in the rig that Down moves into the rows and the header stays.
+- Rig limits: no touch gestures, iOS safe areas, TMDb network or Drive; those still need the phone.
