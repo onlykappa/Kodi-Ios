@@ -1,15 +1,17 @@
 """Widget-independent native Kodi controls and idempotent, backed-up iOS upgrade."""
 import hashlib,json,os,re,xml.etree.ElementTree as ET
 from pathlib import Path
-REVISION='ios-touch-navigation-r4'
+REVISION='ios-touch-navigation-r5'
 GROUP=98100
 HEADER=98200
 BACK=98300
+FRAME=98400
 LEGACY='Kodi-iOS permanent navigation '
 MARKER='Kodi-iOS touch header '+REVISION
 BACK_MARKER='Kodi-iOS back/home '+REVISION
+FRAME_MARKER='Kodi-iOS safe-area frame '+REVISION
 MENU='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)'
-TOUCH='''<keymap><global><touch><tap>LeftClick</tap><longpress>RightClick</longpress><pan>PanGesture</pan><tap pointers="3">ActivateWindow(settings)</tap><swipe direction="left" pointers="2">Back</swipe><swipe direction="right" pointers="2">RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)</swipe><swipe direction="up" pointers="2">PageUp</swipe><swipe direction="down" pointers="2">PageDown</swipe></touch></global></keymap>'''
+TOUCH='''<keymap><global><touch><tap>LeftClick</tap><longpress>RightClick</longpress><pan>PanGesture</pan><swipe direction="up">Down</swipe><swipe direction="down">Up</swipe><tap pointers="3">ActivateWindow(settings)</tap><swipe direction="left" pointers="2">Back</swipe><swipe direction="right" pointers="2">RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)</swipe><swipe direction="up" pointers="2">PageUp</swipe><swipe direction="down" pointers="2">PageDown</swipe></touch></global></keymap>'''
 DRIVE='ActivateWindow(Videos,plugin://plugin.googledrive/,return)'
 HUBS=['home','1101','1102','1103','1104']
 RIGHT=['1106','1107','1108','1109']
@@ -81,6 +83,27 @@ def back_home():
   element(c,'texturefocus','common/menu.png',border='40',colordiffuse='FFFFFFFF');element(c,'texturenofocus','common/menu.png',border='40',colordiffuse='40FFFFFF')
  return group
 
+def frame():
+ """Black bars over the iPhone safe areas: Fuse's 200% blurred background and poster rows draw past the canvas."""
+ group=ET.Element('control',{'type':'group','id':str(FRAME)});element(group,'description',FRAME_MARKER);element(group,'visible','System.Platform.IOS')
+ for left,top,width,height in [(-1000,-1000,1000,3080),(1920,-1000,1000,3080),(0,-1000,1920,1000),(0,1080,1920,1000)]:
+  image=ET.SubElement(group,'control',{'type':'image'})
+  for name,value in [('left',left),('top',top),('width',width),('height',height)]:element(image,name,value)
+  element(image,'texture','common/white.png',colordiffuse='FF000000')
+ return group
+
+def patch_frame(data,filename):
+ if filename in {'Pointer.xml'}:return data
+ root=ET.fromstring(data)
+ controls=root.find('controls')
+ if root.tag!='window' or controls is None:return data
+ old=controls.find("control[@id='"+str(FRAME)+"']")
+ if not owned(old,'Kodi-iOS safe-area frame '):raise ValueError('Navigation control ID collision')
+ # Last child, so it is drawn over anything that spills into the bars.
+ if old is not None and old.findtext('description')==FRAME_MARKER and list(controls)[-1] is old:return data
+ if old is not None:controls.remove(old)
+ controls.append(frame());ET.indent(root);return ET.tostring(root,encoding='utf-8',xml_declaration=True)+b'\n'
+
 def owned(control,prefix):
  return control is None or (control.findtext('description') or '').startswith(prefix)
 
@@ -122,7 +145,11 @@ def patch_window(data,filename):
  controls.append(header())
  ET.indent(root);return ET.tostring(root,encoding='utf-8',xml_declaration=True)+b'\n'
 
-INCLUDES={'Includes_Home.xml','Includes_Hubs.xml','Includes_Actions.xml','Includes_Search.xml'}
+INCLUDES={'Includes_Home.xml','Includes_Hubs.xml','Includes_Actions.xml','Includes_Search.xml','Includes_Background.xml'}
+# Fuse also builds widget rows on the device from these templates; they clear the header flag on focus too.
+TEMPLATES='shortcuts/generator/data/parts'
+# The 150% fanart zoom on focus reads as a broken, zoomed-in screen inside the iPhone's safe area.
+ZOOM=(b'<animation type="Conditional" condition="$PARAM[condition]">\n            <effect type="zoom" start="100" end="flixart_zoom_p"',b'<animation type="Conditional" condition="[$PARAM[condition]] + !System.Platform.IOS">\n            <effect type="zoom" start="100" end="flixart_zoom_p"')
 # D-pad behaviour disabled on iOS only: Fuse hides the header whenever a widget gains focus, and an Up/Left/Info
 # opens submenu 1181 or bumper 1180, modal dialogs that dim the screen and swallow every tap.
 IOS_OFF=[rb'ClearProperty\(HomeSwitcher\.IsVisible,Home\)',rb'ActivateWindow\(118[01]\)']
@@ -132,13 +159,15 @@ def patch_includes(data):
   condition=b'!System.Platform.IOS' if match.group(2) is None else b'['+match.group(2)+b'] + !System.Platform.IOS'
   return b'<'+match.group(1)+b' condition="'+condition+b'">'+match.group(3)+b'</'+match.group(1)+b'>'
  for action in IOS_OFF:data=re.sub(rb'<(on\w+)(?: condition="((?:(?!System\.Platform\.IOS)[^"])*)")?>('+action+rb')</\1>',guard,data)
- return data
+ return data.replace(*ZOOM)
 
 def patch_skin(skin,backup=None):
  skin=Path(skin);changed=[]
- for path in sorted((skin/'1080i').glob('*.xml')):
+ for path in sorted((skin/'1080i').glob('*.xml'))+sorted((skin/TEMPLATES).glob('*.xmltemplate')):
   if path.is_symlink():raise ValueError('Skin XML symlink refused')
-  before=path.read_bytes();after=patch_includes(before) if path.name in INCLUDES else patch_window(before,path.name)
+  before=path.read_bytes()
+  if path.suffix=='.xmltemplate' or path.name in INCLUDES:after=patch_includes(before)
+  else:after=patch_frame(patch_window(before,path.name),path.name)
   if before==after:continue
   if backup is not None:
    dest=Path(backup)/path.name

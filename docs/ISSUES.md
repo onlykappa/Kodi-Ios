@@ -315,3 +315,11 @@ Severity: CRITICAL. Status: FIXED ON HOST (Touch-r4); awaiting iPhone retest.
 - Hero showed "No Results": empty Trakt rows sat first. Fix: rows needing a Trakt sign-in now follow open TMDb rows.
 - Drive sign-in failed with `[SSL] unknown error (_ssl.c:1006)` while TMDb Helper (certifi CA bundle) works. Fix: the packaged Cloud Drive Common module uses certifi's CA bundle for sign-in, API and streaming connections, and depends on script.module.certifi. Not yet verified on device; if it still fails, the next step is a Kodi debug log.
 - Remaining black/purple bars are Kodi's iPhone safe-area insets (XBMCController guiInsets); reduce them with Settings → System → Display → Video calibration.
+
+## ISSUE-043 — Touch-r4 phone review: purple bars, no vertical swipe, header lost on poster focus, Drive TLS
+
+Severity: HIGH. Status: FIXED ON HOST (Touch-r5); awaiting iPhone retest.
+- Purple/brown bars: Fuse's Background_Blur_Quadrants draws a 200% image anchored top-right, and rows spill past 1080; Kodi does not clip to the safe-area canvas. Fix: a black frame (98400) outside the 1920x1080 canvas, last in every window/dialog, iOS only. Window-level animations in Fuse are fades only, so the frame never sweeps over content.
+- Vertical swipes did nothing over posters: every horizontal row returns PAN_HORIZONTAL to GESTURE_NOTIFY and grabs the whole gesture, so grouplist 602 never scrolls. Fix: one-finger swipe up/down maps to Down/Up (row-by-row, using Fuse's smooth grouplist scroll).
+- Header vanished and art zoomed when a poster was focused: rows generated on the device from shortcuts/generator/data/parts/*.xmltemplate clear HomeSwitcher.IsVisible, and Background_Main_Zoomer zooms fanart to 150%. Fix: templates patched like the includes; zoom disabled on iOS.
+- Drive still failed with `[SSL] unknown error` using certifi. Fix: requests step through certifi, TLS 1.2 only, then Kodi's own curl transport, keeping the first that works. Added "Google Drive network diagnostics" to the iPhone menu (versions, DNS families and per-transport results for the sign-in server, Google API and TMDb; no bodies or account data) to pin down the root cause if it persists.

@@ -31,6 +31,23 @@ class NavigationTests(unittest.TestCase):
   data=b'<a><onup condition="String.IsEmpty(Skin.String(X))">ActivateWindow(1181)</onup><oninfo>ActivateWindow(1181)</oninfo><ondown>ActivateWindow(1180)</ondown><onup>ActivateWindow(1170)</onup></a>'
   once=nav.patch_includes(data);self.assertEqual(nav.patch_includes(once),once)
   self.assertEqual([x.get('condition') for x in ET.fromstring(once)],['[String.IsEmpty(Skin.String(X))] + !System.Platform.IOS','!System.Platform.IOS','!System.Platform.IOS',None])
+ def test_vertical_swipes_move_between_rows(self):
+  r=ET.fromstring(nav.TOUCH);self.assertEqual(r.findtext("global/touch/swipe[@direction='up']"),'Down');self.assertEqual(r.findtext("global/touch/swipe[@direction='down']"),'Up')
+ def test_black_frame_covers_safe_areas_and_stays_on_top(self):
+  once=nav.patch_frame(b'<window type="dialog"><controls><control type="image"/></controls></window>','DialogSelect.xml');self.assertEqual(nav.patch_frame(once,'DialogSelect.xml'),once)
+  last=list(ET.fromstring(once).find('controls'))[-1];self.assertEqual(last.get('id'),'98400');self.assertEqual(last.findtext('visible'),'System.Platform.IOS')
+  for image in last.findall('control'):
+   l,t,w,h=(int(image.findtext(k)) for k in ['left','top','width','height']);self.assertTrue(l+w<=0 or l>=1920 or t+h<=0 or t>=1080)
+  moved=ET.fromstring(once);moved.find('controls').append(ET.Element('control'));again=nav.patch_frame(ET.tostring(moved),'DialogSelect.xml')
+  self.assertEqual(list(ET.fromstring(again).find('controls'))[-1].get('id'),'98400')
+  self.assertEqual(nav.patch_frame(b'<window><controls/></window>','Pointer.xml'),b'<window><controls/></window>')
+ def test_generated_rows_and_zoom_are_patched(self):
+  with tempfile.TemporaryDirectory() as t:
+   skin=Path(t);(skin/'1080i').mkdir();parts=skin/nav.TEMPLATES;parts.mkdir(parents=True)
+   (parts/'widgets_row.xmltemplate').write_bytes(b'<control>{x}<onfocus>ClearProperty(HomeSwitcher.IsVisible,Home)</onfocus></control>')
+   (skin/'1080i/Includes_Background.xml').write_bytes(b'<includes>'+nav.ZOOM[0]+b' /></animation></includes>')
+   self.assertEqual(len(nav.patch_skin(skin)),2);self.assertEqual(nav.patch_skin(skin),[])
+   self.assertIn(b'condition="!System.Platform.IOS">ClearProperty',(parts/'widgets_row.xmltemplate').read_bytes());self.assertIn(nav.ZOOM[1],(skin/'1080i/Includes_Background.xml').read_bytes())
  def test_header_stays_visible_on_ios_only(self):
   data=b'<a><onfocus>ClearProperty(HomeSwitcher.IsVisible,Home)</onfocus><onfocus condition="![$PARAM[x]]">ClearProperty(HomeSwitcher.IsVisible,Home)</onfocus></a>'
   once=nav.patch_includes(data);self.assertEqual(nav.patch_includes(once),once)
