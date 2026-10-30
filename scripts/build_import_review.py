@@ -97,17 +97,23 @@ def clean_addon(data,source):
  version=ET.fromstring(files[id+'/addon.xml']).get('version')
  return deterministic_zip(files),version,{'id':id,'source_version':source['version'],'import_version':version,'source_url':source['url'],'source_sha256':digest(data),'sanitized_archive_sha256':None,'dropped_cache_test_files':len(dropped),'language_normalizations':normalizations,'patches':patches}
 
+def select_drive_source(content,repo):
+ prefix=next(iter(content)).split('/')[0]+'/'
+ selected={}
+ for f in repo['files']:
+  # GitHub archives honor upstream export-ignore for tests and repository metadata.
+  if f['path'].split('/')[0].startswith('.') or f['path'].startswith('tests/'):continue
+  b=content[prefix+f['path']]
+  assert len(b)==f['bytes'] and hashlib.sha1(b'blob '+str(len(b)).encode()+b'\0'+b).hexdigest()==f['git_blob_sha'],'Drive payload blob mismatch'
+  selected[repo['addon_id']+'/'+f['path']]=b
+ return selected
+
 def drive_archives(output):
  lock=json.loads((ROOT/'migration/google-drive/source-lock.json').read_text());results=[]
  for repo in lock['repositories']:
   raw=fetch('https://github.com/'+repo['repository']+'/archive/'+repo['commit']+'.zip')
-  content=archive_files(raw);prefix=next(iter(content)).split('/')[0]+'/'
-  selected={}
-  for f in repo['files']:
-   b=content[prefix+f['path']];assert len(b)==f['bytes'] and hashlib.sha1(b'blob '+str(len(b)).encode()+b'\0'+b).hexdigest()==f['git_blob_sha']
-   if f['path'].split('/')[0].startswith('.') or f['path'].startswith('tests/'):continue
-   selected[repo['addon_id']+'/'+f['path']]=b
-  results.append((repo['addon_id'],repo['version'],deterministic_zip(selected),{'id':repo['addon_id'],'source_commit':repo['commit'],'git_tree_files_verified':len(repo['files'])}))
+  content=archive_files(raw);selected=select_drive_source(content,repo)
+  results.append((repo['addon_id'],repo['version'],deterministic_zip(selected),{'id':repo['addon_id'],'source_commit':repo['commit'],'git_tree_payload_files_verified':len(selected),'repository_metadata_and_tests_excluded':True}))
  return results
 
 def build(output,foundation_report):

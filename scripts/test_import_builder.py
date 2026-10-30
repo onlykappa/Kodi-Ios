@@ -47,4 +47,13 @@ class BuilderTests(unittest.TestCase):
   from build_import_review import source_files
   from import_runtime.safe_import import ImportFailure
   with self.assertRaises(ImportFailure):source_files(deterministic_zip({'script.trakt/a.py':b'one','script.trakt/A.py':b'two'}),{'id':'script.trakt'})
+ def test_drive_export_ignored_metadata_absence_is_allowed(self):
+  import hashlib
+  from build_import_review import select_drive_source
+  body=b'public runtime';entry={'path':'default.py','bytes':len(body),'git_blob_sha':hashlib.sha1(b'blob '+str(len(body)).encode()+b'\0'+body).hexdigest()}
+  repo={'addon_id':'plugin.googledrive','files':[{'path':'.gitattributes'}, {'path':'tests/test.py'},entry]}
+  self.assertEqual(select_drive_source({'commit/default.py':body},repo),{'plugin.googledrive/default.py':body})
+ def test_drive_required_runtime_absence_still_blocks(self):
+  from build_import_review import select_drive_source
+  with self.assertRaises(KeyError):select_drive_source({'commit/other.py':b''},{'addon_id':'plugin.googledrive','files':[{'path':'default.py'}]})
 if __name__=='__main__':unittest.main()

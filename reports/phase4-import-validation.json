@@ -39,7 +39,7 @@
     {
       "suite": "test_import_builder.py",
       "passed": true,
-      "tests": 11
+      "tests": 13
     },
     {
       "suite": "test_import_profile.py",
@@ -87,7 +87,7 @@
       "tests": 9
     }
   ],
-  "test_count": 130,
+  "test_count": 132,
   "all_host_suites_passed": true,
   "device_tested": false,
   "engine_status": "DEFERRED BY OWNER; not built",
@@ -107,6 +107,10 @@
     {
       "run": 40981093445,
       "error": "Differing es_mx/es_MX translation aliases; normalize lowercase per Kodi layout, keep code collision checks strict"
+    },
+    {
+      "run": 40981317944,
+      "error": "Drive git-archive export-ignore omits repository metadata; adjust lookup order, keep runtime blob checks"
     }
   ]
 }
