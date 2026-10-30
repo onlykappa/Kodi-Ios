@@ -1,59 +1,119 @@
 """Widget-independent native Kodi controls and idempotent, backed-up iOS upgrade."""
 import hashlib,json,os,re,xml.etree.ElementTree as ET
 from pathlib import Path
-REVISION='ios-touch-navigation-r2'
+REVISION='ios-touch-navigation-r3'
 GROUP=98100
-MARKER='Kodi-iOS permanent navigation '+REVISION
+HEADER=98200
+LEGACY='Kodi-iOS permanent navigation '
+MARKER='Kodi-iOS touch header '+REVISION
 MENU='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)'
 TOUCH='''<keymap><global><touch><tap>LeftClick</tap><longpress>RightClick</longpress><pan>PanGesture</pan><tap pointers="3">ActivateWindow(settings)</tap><swipe direction="left" pointers="2">Back</swipe><swipe direction="right" pointers="2">RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)</swipe><swipe direction="up" pointers="2">PageUp</swipe><swipe direction="down" pointers="2">PageDown</swipe></touch></global></keymap>'''
-ACTIONS=[('Back','Action(Back)'),('Home','ActivateWindow(home)'),('Browse',MENU),('Settings','ActivateWindow(settings)'),('Drive','ActivateWindow(Videos,plugin://plugin.googledrive/,return)'),('Recovery',MENU)]
+DRIVE='ActivateWindow(Videos,plugin://plugin.googledrive/,return)'
+HUBS=['home','1101','1102','1103','1104']
+RIGHT=['1106','1107','1108','1109']
+ICONS='Skin.HasSetting(HomeSwitcher.EnableIcons)'
+# Onloads written by earlier revisions; r3 rewrites them so focus is never forced onto injected controls.
+OWN_ONLOADS={'SetFocus(98104)','Skin.Reset(Hub.Home.DisableSubmenu)','Skin.SetBool(homeswitcher.disablefirstwidgetfocus)','SetProperty(HomeSwitcher.IsVisible,True,Home)'}
+ONLOADS=['Skin.Reset(Hub.Home.DisableSubmenu)','Skin.SetBool(homeswitcher.disablefirstwidgetfocus)','SetProperty(HomeSwitcher.IsVisible,True,Home)']
+POWER=[{'icon':'special://skin/extras/icons/cloud.png','label':'Google Drive','path':DRIVE,'target':''},
+       {'icon':'special://skin/extras/icons/life-ring.png','label':'iPhone navigation / recovery','path':MENU,'target':''}]
+# Widgets that read the Deck's library or local files; empty on the phone until media is added.
+LOCAL=('videodb://','special://profile/playlists/','special://skin/extras/playlists/','special://profile/media/')
+SPOTLIGHT=[('Home','special://skin/extras/playlists/RandomMovies.xsp','plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=movie&sort_by=popularity.desc','Popular Movies'),
+           ('1102','special://skin/extras/playlists/RandomMovies.xsp','plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=movie&sort_by=popularity.desc','Popular Movies'),
+           ('1101','videodb://tvshows/titles/','plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&sort_by=popularity.desc','Popular TV Shows')]
 def sha(data):return hashlib.sha256(data).hexdigest()
 def element(parent,name,value,**attributes):
  node=ET.SubElement(parent,name,attributes);node.text=str(value);return node
 
-def bar():
- group=ET.Element('control',{'type':'group','id':str(GROUP)});element(group,'description',MARKER);element(group,'visible','System.Platform.IOS')
- # 1920x1080 skin coordinates: inset from edges/home indicator, large independent targets.
- element(group,'left','5%');element(group,'top',884);element(group,'width','90%');element(group,'height',136)
- for index,(label,action) in enumerate(ACTIONS):
-  c=ET.SubElement(group,'control',{'type':'button','id':str(GROUP+index+1)})
-  for name,value in [('left',str(round(index*100/6,3))+'%'),('top',0),('width','16%'),('height',136),('label',label),('font','font_main'),('textcolor','FFFFFFFF'),('focusedcolor','FFFFFFFF'),('align','center'),('aligny','center'),('onclick',action),('onleft',GROUP+(index-1)%6+1),('onright',GROUP+(index+1)%6+1),('onup','SetFocus(501)')]:element(c,name,value)
-  element(c,'texturefocus','common/white.png',colordiffuse='FF315C88');element(c,'texturenofocus','common/white.png',colordiffuse='ED181B26')
+def hub_visible(window):
+ return 'true' if window=='home' else '!String.IsEmpty(Skin.String(HomeSwitcher.'+window+'.Toggle)) + $EXP[Exp_Hub_'+window+'_Available]'
+
+def touch_button(parent,id,action,fields):
+ c=ET.SubElement(parent,'control',{'type':'button','id':str(id)})
+ for name,value in fields:element(c,name,value)
+ element(c,'texturefocus','');element(c,'texturenofocus','');element(c,'onclick',action)
+ return c
+
+def header():
+ """Tap targets over Fuse's header. The header is drawn by modeless dialog 1182, which Kodi never sends
+ touches to, and its own hub switcher is an off-screen button driven by left/right only."""
+ group=ET.Element('control',{'type':'group','id':str(HEADER)});element(group,'description',MARKER)
+ element(group,'visible','System.Platform.IOS + !Skin.HasSetting(HomeSwitcher.Vertical) + !String.IsEmpty(Window(Home).Property(HomeSwitcher.IsVisible))')
+ # Mirrors Home_Switcher_Horz geometry so each target lies exactly over its drawn tab or icon.
+ inner=ET.SubElement(group,'control',{'type':'group'});element(inner,'include','Home_Group_Definition');element(inner,'include','Home_Reposition')
+ touch_button(inner,HEADER+1,'ReplaceWindow(1105)',[('left',-20),('width',80),('height',80),('visible','!Skin.HasSetting(HomeSwitcher.DisableSearch)')])
+ tabs=ET.SubElement(inner,'control',{'type':'grouplist'});element(tabs,'top',-100)
+ icons=ET.SubElement(tabs,'include',{'content':'Object_Left','condition':ICONS});ET.SubElement(icons,'param',{'name':'left'}).text='-10'
+ for name,value in [('left',-20),('orientation','horizontal'),('height',1080)]:element(tabs,name,value)
+ for index,window in enumerate(HUBS):
+  visible=hub_visible(window);label='$INFO[Skin.String(HomeSwitcher.'+window+'.Name)]';action='ReplaceWindow(Home)' if window=='home' else 'ReplaceWindow('+window+')'
+  slot=ET.SubElement(tabs,'control',{'type':'group'})
+  for name,value in [('top',100),('width',560),('height',80),('visible',visible)]:element(slot,name,value)
+  hit=ET.SubElement(tabs,'control',{'type':'group'})
+  for name,value in [('left',-480),('width',480),('top',100),('height',80),('visible',visible)]:element(hit,name,value)
+  touch_button(hit,HEADER+10+index,action,[('font','font_main_bold'),('label',label),('width','auto'),('height',80),('textcolor','00ffffff'),('focusedcolor','00ffffff'),('visible','!'+ICONS)])
+  touch_button(hit,HEADER+20+index,action,[('left',10),('width',80),('height',80),('visible',ICONS)])
+  # Same advance as Home_Spacer, but disabled so it never takes a touch meant for the tab beside it.
+  spacer=ET.SubElement(tabs,'control',{'type':'button'})
+  for name,value in [('left',-560),('font','font_main_bold'),('textcolor','00ffffff'),('focusedcolor','00ffffff'),('disabledcolor','00ffffff'),('label',label),('height',80)]:element(spacer,name,value)
+  width=ET.SubElement(spacer,'include',{'content':'Object_Width','condition':ICONS});ET.SubElement(width,'param',{'name':'width'}).text='100'
+  for name,value in [('width','auto'),('centertop','50%'),('texturenofocus',''),('texturefocus',''),('enable','false'),('visible',visible)]:element(spacer,name,value)
+ right=ET.SubElement(inner,'control',{'type':'grouplist'});element(right,'include','Home_Right_Group_Definition');element(right,'height',80);element(right,'centertop','50%')
+ for index,(window,visible,action) in enumerate([(w,hub_visible(w),'ReplaceWindow('+w+')') for w in RIGHT]+[('1170','!$EXP[Exp_Hubs_Menu_Loopback]','ActivateWindow(1170)')]):
+  slot=ET.SubElement(right,'control',{'type':'group'})
+  for name,value in [('width',80),('height',80),('visible',visible)]:element(slot,name,value)
+  touch_button(slot,HEADER+30+index,action,[('width',80),('height',80)])
+ end=ET.SubElement(right,'control',{'type':'group'});element(end,'width',0)
  return group
+
+def owned(control,prefix):
+ return control is None or (control.findtext('description') or '').startswith(prefix)
 
 def patch_window(data,filename):
  root=ET.fromstring(data)
  # Kodi identifies many dialogs by filename without a type=dialog attribute.
- major=filename.startswith('My') or filename in {'Home.xml','Settings.xml','SettingsCategory.xml','SettingsProfile.xml','SettingsSystemInfo.xml','SkinSettings.xml','AddonBrowser.xml','FileManager.xml','EventLog.xml'} or re.fullmatch(r'Custom_110[1-9]_(Hub|Search)\.xml',filename)
+ hub=filename=='Home.xml' or re.fullmatch(r'Custom_110[1-9]_(Hub|Search)\.xml',filename)
+ major=hub or filename.startswith('My') or filename in {'Settings.xml','SettingsCategory.xml','SettingsProfile.xml','SettingsSystemInfo.xml','SkinSettings.xml','AddonBrowser.xml','FileManager.xml','EventLog.xml'}
  if not major:return data
  if root.tag!='window' or root.get('type')=='dialog' or filename in {'VideoFullScreen.xml','FullscreenVideo.xml','Startup.xml'}:return data
  controls=root.find('controls')
  if controls is None:return data
- previous=controls.find("control[@id='98100']")
- if previous is not None:
-  if previous.findtext('description')==MARKER:return data
-  if not (previous.findtext('description') or '').startswith('Kodi-iOS permanent navigation '):raise ValueError('Navigation control ID collision')
-  controls.remove(previous)
- controls.append(bar())
+ legacy=controls.find("control[@id='"+str(GROUP)+"']");previous=controls.find("control[@id='"+str(HEADER)+"']")
+ if not owned(legacy,LEGACY) or not owned(previous,'Kodi-iOS touch header '):raise ValueError('Navigation control ID collision')
+ if not hub:
+  # r2 placed a fixed bar over every major window; it covered content and is removed.
+  if legacy is None:return data
+  controls.remove(legacy);ET.indent(root);return ET.tostring(root,encoding='utf-8',xml_declaration=True)+b'\n'
+ if legacy is None and previous is not None and previous.findtext('description')==MARKER:return data
+ for old in (legacy,previous):
+  if old is not None:controls.remove(old)
+ for old in list(root.findall('defaultcontrol')):
+  if (old.text or '').strip()=='98104':root.remove(old)
  if filename=='Home.xml' or 'Hub' in filename:
   # Prevent onload helpers/reload alarms from racing Kodi's Keep Skin dialog.
   lock='String.IsEmpty(Window(Home).Property(KodiIOS.Activating))'
   for node in list(root):
-   if node.tag=='onload' and (node.text or '') in {'Skin.Reset(Hub.Home.DisableSubmenu)','Skin.SetBool(homeswitcher.disablefirstwidgetfocus)','SetFocus(98104)'} and node.get('condition')=='System.Platform.IOS':root.remove(node);continue
+   if node.tag=='onload' and (node.text or '') in OWN_ONLOADS and node.get('condition')=='System.Platform.IOS':root.remove(node);continue
    action=node.text or ''
    if (node.tag=='onload' and ('runscript(' in action.lower() or 'reloadskin' in action.lower())) or (node.tag=='include' and action in {'Action_BuildViews','Action_BuildShortcuts_OnLoad'}):
     if lock not in node.get('condition',''):node.set('condition','['+node.get('condition','true')+'] + '+lock)
-  for old in list(root.findall('defaultcontrol')):root.remove(old)
-  default=ET.Element('defaultcontrol',{'always':'true'});default.text='98104';root.insert(0,default)
-  for action in ['Skin.Reset(Hub.Home.DisableSubmenu)','Skin.SetBool(homeswitcher.disablefirstwidgetfocus)','SetFocus(98104)']:
-   node=ET.Element('onload',{'condition':'System.Platform.IOS'});node.text=action;root.insert(list(root).index(controls),node)
+ for action in ONLOADS:
+  node=ET.Element('onload',{'condition':'System.Platform.IOS'});node.text=action;root.insert(list(root).index(controls),node)
+ controls.append(header())
  ET.indent(root);return ET.tostring(root,encoding='utf-8',xml_declaration=True)+b'\n'
+
+def patch_includes(data):
+ """Keep the header shown on iOS: Fuse hides it whenever a widget gains focus, and only a d-pad Up brought it back."""
+ clear=rb'ClearProperty\(HomeSwitcher\.IsVisible,Home\)</onfocus>'
+ data=re.sub(rb'<onfocus condition="((?:(?!System\.Platform\.IOS)[^"])*)">'+clear,rb'<onfocus condition="[\1] + !System.Platform.IOS">ClearProperty(HomeSwitcher.IsVisible,Home)</onfocus>',data)
+ return data.replace(b'<onfocus>ClearProperty(HomeSwitcher.IsVisible,Home)</onfocus>',b'<onfocus condition="!System.Platform.IOS">ClearProperty(HomeSwitcher.IsVisible,Home)</onfocus>')
 
 def patch_skin(skin,backup=None):
  skin=Path(skin);changed=[]
  for path in sorted((skin/'1080i').glob('*.xml')):
   if path.is_symlink():raise ValueError('Skin XML symlink refused')
-  before=path.read_bytes();after=patch_window(before,path.name)
+  before=path.read_bytes();after=patch_includes(before) if path.name=='Includes_Hubs.xml' else patch_window(before,path.name)
   if before==after:continue
   if backup is not None:
    dest=Path(backup)/path.name
@@ -79,6 +139,48 @@ def upgrade(home,profile):
  state.mkdir(parents=True,exist_ok=True);receipt={'revision':REVISION,'status':'PATCHED','changed_files':len(changed),'keymap_changed':key_changed,'files':changed,'device_navigation_verified':False}
  if changed or key_changed or not (state/'navigation-upgrade.json').exists():(state/'navigation-upgrade.json').write_text(json.dumps(receipt,indent=2)+'\n')
  return receipt
+
+def update_nodes(profile):
+ """Phone menu contents: Drive and recovery in the gear menu, and widgets that can load on a phone first."""
+ profile=Path(profile);nodes=profile/'addon_data/script.skinvariables/nodes/skin.arctic.fuse.3'
+ backup=profile/'addon_data/service.kodi.ios.bootstrap/navigation-backup'/REVISION/'nodes';changed=[]
+ def edit(name,change):
+  path=nodes/name
+  if not path.is_file():return
+  if path.is_symlink():raise ValueError('Menu node symlink refused')
+  before=path.read_bytes();items=json.loads(before)
+  if not isinstance(items,list):raise ValueError('Unexpected menu node format')
+  items=change(items);after=json.dumps(items,indent=2,ensure_ascii=False).encode()+b'\n'
+  if items==json.loads(before):return
+  dest=backup/name
+  if not dest.exists():dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(before)
+  temp=path.with_name(name+'.ios-nav-tmp');temp.write_bytes(after);os.replace(temp,path);changed.append(name)
+ def power(items):
+  items=[dict(item) for item in items]
+  for item in items:
+   # The Deck's Quit entry was retargeted to Settings, but still showed the Quit label.
+   if (item.get('path') or '').lower()=='activatewindow(settings)' and item.get('label')=='$LOCALIZE[13009]':item['label']='$LOCALIZE[5]'
+  paths=[(item.get('path') or '').lower() for item in items]
+  at=paths.index('activatewindow(settings)') if 'activatewindow(settings)' in paths else len(items)
+  for extra in POWER:
+   if extra['path'].lower() not in paths:items.insert(at,dict(extra));at+=1
+  return items
+ def phone_first(items):
+  local=lambda item:(item.get('path') or '').lower().startswith(LOCAL)
+  return [i for i in items if not local(i)]+[i for i in items if local(i)]
+ edit('skinvariables-shortcut-powermenu.json',power)
+ for name in ['skinvariables-shortcut-homewidgets.json','skinvariables-shortcut-1101widgets.json','skinvariables-shortcut-1102widgets.json']:edit(name,phone_first)
+ return changed
+
+def phone_defaults(read_skin,builtin):
+ """Point untouched library spotlights at TMDb so the hero banner is not an empty library query."""
+ quote=lambda text:'"'+str(text).replace('\\','\\\\').replace('"','\\"')+'"'
+ changed=[]
+ for window,old,new,label in SPOTLIGHT:
+  key='HomeSwitcher.'+window+'.Spotlight.'
+  if read_skin(key+'Path')!=old:continue
+  builtin('Skin.SetString('+quote(key+'Path')+','+quote(new)+')');builtin('Skin.SetString('+quote(key+'Label')+','+quote(label)+')');changed.append(window)
+ return changed
 
 
 def sync_skin_preferences(seed,api,builtin,read_skin=None):

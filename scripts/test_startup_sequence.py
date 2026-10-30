@@ -47,8 +47,8 @@ class Startup(unittest.TestCase):
   first=patch_window(source,'Home.xml');self.assertEqual(first,patch_window(first,'Home.xml'))
   root=ET.fromstring(first)
   for n in list(root.findall('onload'))[:2]+root.findall('include'):self.assertIn('KodiIOS.Activating',n.get('condition',''))
-  old=first.replace(b'ios-touch-navigation-r2',b'ios-touch-navigation-r1');new=patch_window(old,'Home.xml')
-  self.assertEqual(1,len(ET.fromstring(new).findall("controls/control[@id='98100']")))
+  old=first.replace(b'ios-touch-navigation-r3',b'ios-touch-navigation-r2');new=patch_window(old,'Home.xml')
+  self.assertEqual(1,len(ET.fromstring(new).findall("controls/control[@id='98200']")));self.assertEqual(new,first)
  def test_error_evidence_does_not_leak_message(self):
   try:raise RuntimeError('https://private.invalid token=SECRET account@example.com')
   except RuntimeError as e:receipt=failure(e,'build_views')

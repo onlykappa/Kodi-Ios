@@ -293,3 +293,16 @@ ISSUE-040 repair candidate (Touch-r2): guard Fuse Home/hub helper onloads and re
 Validation invocation failure: the aggregate runner initially invoked test_drive_runtime.py without its required --source-cache argument. This was a test invocation error, not playback failure. Reran with the isolated pinned public Drive source cache: all 9 tests PASS. Future aggregate invocation supplies that argument. Raw owner log stays outside GitHub.
 
 ISSUE-040 Touch-r2 result: host regression suite 174/21 PASS; build run 41078491846/job 124140996253 SUCCESS; artifact 12987708727 uploaded, source ea4d224bb3e5b762379b27df66031a4202da13b5. Inner IPA SHA-256 d67b59e286206c5a1b7abaee07d11720de87e2967c28182754c4da3594b7006e. Archive/source/dependency/seed/native checks pass. Status: BLOCKED ON OWNER IPHONE RETEST, not resolved on-device. Prior failure and all 184 capture requirements retained.
+
+## ISSUE-041 — Touch-r2 phone review: inert tabs, forced focus, covering bar, Drive hang
+
+Severity: CRITICAL for iPhone usability. Status: FIXED ON HOST (Touch-r3); awaiting iPhone retest.
+
+Root causes, verified against pinned Arctic Fuse 3.4.8 and Kodi 21.3 source:
+- Header tabs/search/gear are drawn in modeless dialog 1182; Kodi's HandleAction only routes input to modal dialogs and the active window, so taps on them were never delivered. Fuse switches hubs through off-screen button 300 (left/right only).
+- r2 forced `defaultcontrol always=98104` and `SetFocus(98104)` on every hub, so the bar's Settings button stole focus from Fuse.
+- r2's fixed bar covered widget rows; Browse and Recovery opened the same menu.
+- Fuse clears `HomeSwitcher.IsVisible` when a widget gains focus, hiding the header with no touch way back.
+- `script.module.clouddrive.common` calls `urlopen` with no timeout, so a stalled sign-in connection stays on "Connecting with server" indefinitely.
+
+Fixes (navigation revision r3): transparent tap targets in each hub window mirroring the header geometry (tabs, search, right-side hub icons, gear); disabled spacers so they cannot take touches; bar and forced focus removed from existing installs; header kept visible on iOS only; Google Drive and the navigation/recovery menu added to the gear menu (and the mislabelled "Quit" entry that opened Settings relabelled); phone-loadable widgets ordered before library-only ones and untouched library spotlights pointed at TMDb, once per revision with backups; Drive request timeout patched at IPA build time. Library/Trakt widgets remain empty until media or Trakt sign-in exist. Safe-area borders come from Kodi core, not this project.

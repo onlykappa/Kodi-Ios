@@ -4,19 +4,41 @@ ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('ios_navigation_test',ROOT/'migration/bundled-bootstrap/resources/lib/navigation.py');nav=importlib.util.module_from_spec(spec);spec.loader.exec_module(nav)
 HOME=b'<window><onload>OriginalAction()</onload><controls><include>missing-generated-menu</include><control type="list" id="501"><content>videodb://movies/titles/</content></control></controls></window>'
 class NavigationTests(unittest.TestCase):
- def test_empty_widget_does_not_gate_settings_or_recovery(self):
-  root=ET.fromstring(nav.patch_window(HOME,'Home.xml'));group=root.find("controls/control[@id='98100']")
-  self.assertEqual(group.findtext('visible'),'System.Platform.IOS');self.assertEqual(len(group.findall('control')),6)
-  for id,action in [('98104','ActivateWindow(settings)'),('98106',nav.MENU)]:
-   button=group.find("control[@id='"+id+"']");self.assertEqual(button.findtext('onclick'),action);self.assertIsNone(button.find('visible'));self.assertIsNone(button.find('enable'))
- def test_no_helper_or_generated_include_required_for_bar(self):
-  root=ET.fromstring(nav.patch_window(HOME,'Home.xml'));group=root.find("controls/control[@id='98100']");self.assertEqual(group.findall('.//include'),[]);self.assertNotIn('Container(',ET.tostring(group).decode())
- def test_default_focus_and_submenu_independent_of_widget_results(self):
-  root=ET.fromstring(nav.patch_window(HOME,'Home.xml'));self.assertEqual(root.findtext('defaultcontrol'),'98104');actions=[x.text for x in root.findall('onload')];self.assertIn('OriginalAction()',actions);self.assertIn('Skin.Reset(Hub.Home.DisableSubmenu)',actions);self.assertEqual(actions[-1],'SetFocus(98104)')
- def test_bar_rectangles_and_focus_links(self):
-  g=nav.bar();self.assertEqual(g.findtext('width'),'90%');self.assertGreaterEqual(int(g.findtext('height')),128);ids={x.get('id') for x in g.findall('control')}
-  for b in g.findall('control'):
-   self.assertIn(b.findtext('onleft'),ids);self.assertIn(b.findtext('onright'),ids);self.assertGreaterEqual(int(b.findtext('height')),128);self.assertEqual(b.findtext('font'),'font_main')
+ def header(self,data=HOME,name='Home.xml'):return ET.fromstring(nav.patch_window(data,name)).find("controls/control[@id='98200']")
+ def test_every_hub_tab_has_a_touch_target(self):
+  group=self.header();self.assertTrue(group.findtext('visible').startswith('System.Platform.IOS'))
+  actions=[b.findtext('onclick') for b in group.iter('control') if b.get('type')=='button' and b.get('id')]
+  for action in ['ReplaceWindow(1105)','ReplaceWindow(Home)','ReplaceWindow(1101)','ReplaceWindow(1102)','ReplaceWindow(1103)','ReplaceWindow(1104)','ActivateWindow(1170)']:self.assertIn(action,actions)
+ def test_spacers_cannot_steal_tab_touches(self):
+  spacers=[b for b in self.header().iter('control') if b.get('type')=='button' and not b.get('id')]
+  self.assertEqual(len(spacers),5)
+  for b in spacers:self.assertEqual(b.findtext('enable'),'false');self.assertIsNone(b.find('onclick'))
+ def test_focus_is_not_forced_onto_injected_controls(self):
+  root=ET.fromstring(nav.patch_window(HOME,'Home.xml'));self.assertIsNone(root.find('defaultcontrol'));actions=[x.text for x in root.findall('onload')]
+  self.assertIn('OriginalAction()',actions);self.assertNotIn('SetFocus(98104)',actions);self.assertIn('SetProperty(HomeSwitcher.IsVisible,True,Home)',actions)
+ def test_r2_bar_is_removed_from_every_window(self):
+  bar=b'<control type="group" id="98100"><description>Kodi-iOS permanent navigation ios-touch-navigation-r2</description></control>'
+  r2=b'<window><defaultcontrol always="true">98104</defaultcontrol><onload condition="System.Platform.IOS">SetFocus(98104)</onload><controls>'+bar+b'</controls></window>'
+  root=ET.fromstring(nav.patch_window(r2,'Home.xml'));self.assertIsNone(root.find('defaultcontrol'));self.assertNotIn('SetFocus(98104)',[x.text for x in root.findall('onload')])
+  for name in ['Home.xml','Settings.xml','MyVideoNav.xml']:self.assertIsNone(ET.fromstring(nav.patch_window(b'<window><controls>'+bar+b'</controls></window>',name)).find("controls/control[@id='98100']"))
+  self.assertEqual(nav.patch_window(b'<window><controls/></window>','Settings.xml'),b'<window><controls/></window>')
+ def test_header_stays_visible_on_ios_only(self):
+  data=b'<a><onfocus>ClearProperty(HomeSwitcher.IsVisible,Home)</onfocus><onfocus condition="![$PARAM[x]]">ClearProperty(HomeSwitcher.IsVisible,Home)</onfocus></a>'
+  once=nav.patch_includes(data);self.assertEqual(nav.patch_includes(once),once)
+  self.assertEqual([x.get('condition') for x in ET.fromstring(once)],['!System.Platform.IOS','[![$PARAM[x]]] + !System.Platform.IOS'])
+ def test_gear_menu_gets_drive_and_recovery_and_widgets_put_phone_rows_first(self):
+  with tempfile.TemporaryDirectory() as t:
+   p=Path(t);nodes=p/'addon_data/script.skinvariables/nodes/skin.arctic.fuse.3';nodes.mkdir(parents=True)
+   (nodes/'skinvariables-shortcut-powermenu.json').write_text(json.dumps([{'label':'$LOCALIZE[1036]','path':'ActivateWindow(1160)'},{'label':'$LOCALIZE[13009]','path':'ActivateWindow(Settings)'}]))
+   (nodes/'skinvariables-shortcut-homewidgets.json').write_text(json.dumps([{'label':'In Progress','path':'special://profile/playlists/video/x.xsp'},{'label':'Popular','path':'plugin://plugin.video.themoviedb.helper/?info=discover'},{'label':'Local','path':'videodb://movies/titles/'}]))
+   self.assertEqual(len(nav.update_nodes(p)),2);self.assertEqual(nav.update_nodes(p),[])
+   power=json.loads((nodes/'skinvariables-shortcut-powermenu.json').read_text())
+   self.assertEqual([x['path'] for x in power],['ActivateWindow(1160)',nav.DRIVE,nav.MENU,'ActivateWindow(Settings)']);self.assertEqual(power[-1]['label'],'$LOCALIZE[5]')
+   self.assertEqual([x['label'] for x in json.loads((nodes/'skinvariables-shortcut-homewidgets.json').read_text())],['Popular','In Progress','Local'])
+   self.assertTrue((p/'addon_data/service.kodi.ios.bootstrap/navigation-backup'/nav.REVISION/'nodes/skinvariables-shortcut-powermenu.json').exists())
+ def test_spotlight_only_replaces_untouched_library_defaults(self):
+  values={'HomeSwitcher.Home.Spotlight.Path':'special://skin/extras/playlists/RandomMovies.xsp','HomeSwitcher.1101.Spotlight.Path':'plugin://owner.choice/'};calls=[]
+  self.assertEqual(nav.phone_defaults(lambda k:values.get(k,''),calls.append),['Home']);self.assertTrue(all('HomeSwitcher.Home.' in c for c in calls))
  def test_longpress_pan_settings_and_navigation_gestures(self):
   r=ET.fromstring(nav.TOUCH);self.assertEqual(r.findtext('global/touch/longpress'),'RightClick');self.assertEqual(r.findtext('global/touch/pan'),'PanGesture');self.assertEqual(r.findtext("global/touch/tap[@pointers='3']"),'ActivateWindow(settings)');self.assertEqual(r.findtext("global/touch/swipe[@direction='right']"),nav.MENU)
  def test_preserves_dialogs_and_playback(self):
@@ -24,7 +46,8 @@ class NavigationTests(unittest.TestCase):
  def test_patch_is_byte_idempotent(self):
   once=nav.patch_window(HOME,'Home.xml');self.assertEqual(nav.patch_window(once,'Home.xml'),once)
  def test_id_conflict_fails_instead_of_overwriting_owner_control(self):
-  with self.assertRaises(ValueError):nav.patch_window(b'<window><controls><control id="98100" type="button"/></controls></window>','Home.xml')
+  for id in ['98100','98200']:
+   with self.assertRaises(ValueError):nav.patch_window(b'<window><controls><control id="'+id.encode()+b'" type="button"/></controls></window>','Home.xml')
  def test_upgrade_applies_to_already_completed_profile_and_preserves_backup(self):
   with tempfile.TemporaryDirectory() as t:
    base=Path(t);skin=base/'addons/skin.arctic.fuse.3/1080i';skin.mkdir(parents=True);(skin/'Home.xml').write_bytes(HOME)

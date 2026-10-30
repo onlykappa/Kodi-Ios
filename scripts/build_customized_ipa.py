@@ -11,6 +11,14 @@ _navspec=importlib.util.spec_from_file_location('ipa_navigation',Path(__file__).
 _nav=importlib.util.module_from_spec(_navspec);_navspec.loader.exec_module(_nav)
 ROOT=Path(__file__).resolve().parents[1]
 BOOT='service.kodi.ios.bootstrap'
+# Upstream urlopen has no timeout: a stalled sign-in connection leaves Drive on "Connecting with server" forever.
+DRIVE_TIMEOUT=('script.module.clouddrive.common/clouddrive/common/remote/request.py',b'response = urllib.request.urlopen(req)\n',b'response = urllib.request.urlopen(req, timeout=30)\n')
+
+def patch_drive(addonroot):
+ name,old,new=DRIVE_TIMEOUT;path=addonroot/name;before=path.read_bytes()
+ assert before.count(old)==1,'Unexpected Drive request source'
+ after=before.replace(old,new);path.write_bytes(after)
+ return [{'path':'addons/'+name,'before_sha256':digest(before),'after_sha256':digest(after)}]
 
 def prepare(app,bundle,expected,work):
  validate_staging(app,work)
@@ -23,6 +31,7 @@ def prepare(app,bundle,expected,work):
   assert not dest.exists(),'Unexpected bundled addon collision: '+name
   dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data)
  navigation_files=_nav.patch_skin(addonroot/'skin.arctic.fuse.3') if (addonroot/'skin.arctic.fuse.3').is_dir() else []
+ drive_files=patch_drive(addonroot) if (addonroot/DRIVE_TIMEOUT[0]).is_file() else []
  bootstrap=addonroot/BOOT;shutil.copytree(ROOT/'migration/bundled-bootstrap',bootstrap)
  seed=bootstrap/'seed';seed.mkdir();entries=[]
  for name,data in sorted(config.items()):
@@ -47,23 +56,24 @@ def prepare(app,bundle,expected,work):
   visiting.remove(id);order.append(id)
  for id in sorted(requires):visit(id)
  mutable=[{'id':id,'version':ET.parse(addonroot/id/'addon.xml').getroot().get('version'),'tree_sha256':tree_digest(addonroot/id)} for id in order if id.startswith('skin.')]
- (seed/'seed-manifest.json').write_text(json.dumps({'version':'3-touch-r2','files':entries,'addons':order,'mutable_skins':mutable,'navigation_revision':_nav.REVISION},indent=2)+'\n')
+ (seed/'seed-manifest.json').write_text(json.dumps({'version':'3-touch-r3','files':entries,'addons':order,'mutable_skins':mutable,'navigation_revision':_nav.REVISION},indent=2)+'\n')
  tree=ET.parse(system);root=tree.getroot();existing={a.text for a in root.findall('addon')}
  for id in order+[BOOT]:
   assert id not in existing,'System manifest collision';ET.SubElement(root,'addon',{} if id==BOOT else {'optional':'true'}).text=id
  ET.indent(root);tree.write(system,encoding='utf-8',xml_declaration=True)
- return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files}}
+ return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files}}
 
 def build(app,bundle,expected,deb,output,work):
  staged,details=prepare(app,bundle,expected,work)
  # The shared native packer emits a diagnostic-only intermediate label; publish only the final verified customized report.
  with contextlib.redirect_stdout(io.StringIO()):report=unsigned(staged,output,deb)
- old=output/report['filename'];ipa=output/'Kodi-iOS-Customized-Touch-r2.ipa';old.rename(ipa)
+ old=output/report['filename'];ipa=output/'Kodi-iOS-Customized-Touch-r3.ipa';old.rename(ipa)
  with zipfile.ZipFile(ipa) as z:
   assert z.testzip() is None
   base='Payload/Kodi.app/'+details['system_manifest'].rsplit('/system/',1)[0]
   for id in details['addon_ids']+[BOOT]:assert base+'/addons/'+id+'/addon.xml' in z.namelist()
   patches={'addons/skin.arctic.fuse.3/'+e['path']:e for e in details['navigation_patch']['files']}
+  patches.update({e['path']:e for e in details['drive_patch']['files']})
   for name,body in validate_bundle(bundle,expected)[1].items():
    if name in patches:assert digest(body)==patches[name]['before_sha256'],'Navigation patch source mismatch'
    expected_hash=patches[name]['after_sha256'] if name in patches else digest(body)

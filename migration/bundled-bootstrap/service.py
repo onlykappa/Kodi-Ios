@@ -2,7 +2,7 @@ import json,os,sys,time
 from pathlib import Path
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
 from bootstrap import initialize,restore
-from navigation import upgrade,sync_skin_preferences,REVISION
+from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
 
 def run():
@@ -19,6 +19,8 @@ def run():
   nonlocal generated
   stage('skin_preferences')
   if sync:sync_skin_preferences(root/'seed',api,invoke,lambda id,is_bool:xbmc.getCondVisibility('Skin.HasSetting('+id+')') if is_bool else xbmc.getInfoLabel('Skin.String('+id+')'))
+  # Before generation, so the rebuilt menus include Drive/recovery in the gear menu.
+  stage('phone_menus');update_nodes(profile);phone_defaults(lambda id:xbmc.getInfoLabel('Skin.String('+id+')'),invoke)
   skin=Path(xbmcvfs.translatePath('special://skin/')).resolve()
   if skin.name!=FUSE or not skin.is_relative_to(home):raise RuntimeError('Writable Fuse path not selected')
   generate(skin,xbmc.getSkinDir,invoke,monitor.waitForAbort,xbmc.getInfoLabel('Skin.String(SkinVariables.SkinUser)'),stage)
