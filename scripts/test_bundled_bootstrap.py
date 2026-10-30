@@ -43,4 +43,7 @@ class BootstrapTests(unittest.TestCase):
  def test_symlink_target_refused(self):
   (self.profile/'playlists').symlink_to(self.base,target_is_directory=True)
   with self.assertRaises(ValueError):m.initialize(self.seed,self.profile,self.api)
+ def test_skin_rejection_does_not_leave_false_complete_marker(self):
+  with self.assertRaises(RuntimeError):m.initialize(self.seed,self.profile,self.api,verify_skin=lambda:False)
+  s=json.loads((self.profile/'addon_data'/m.ID/'status.json').read_text());self.assertNotEqual(s['status'],'COMPLETE');self.assertEqual(self.values['lookandfeel.skin'],'skin.estuary')
 if __name__=='__main__':unittest.main()

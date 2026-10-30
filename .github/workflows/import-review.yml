@@ -5,6 +5,10 @@ on:
     paths:
       - '.github/workflows/import-review.yml'
       - 'scripts/build_import_review.py'
+      - 'scripts/build_customized_ipa.py'
+      - 'scripts/test_customized_ipa.py'
+      - 'scripts/test_bundled_bootstrap.py'
+      - 'migration/bundled-bootstrap/**'
       - 'scripts/import_runtime/**'
       - 'scripts/import_profile.py'
       - 'scripts/smoke_import_bundle.py'

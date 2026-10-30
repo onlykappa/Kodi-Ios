@@ -28,7 +28,7 @@ def restore(profile,api):
  (state/'status.json').write_text(json.dumps({'status':'RESTORED','phone_verified':False}))
  return 'RESTORED'
 
-def initialize(seed,profile,api,fail_after=None):
+def initialize(seed,profile,api,fail_after=None,verify_skin=None):
  seed=Path(seed);profile=Path(profile)
  if '/.var/app/tv.kodi.Kodi' in str(profile.resolve()) or profile.is_symlink():raise ValueError('Original Deck/symlink refused')
  manifest=json.loads((seed/'seed-manifest.json').read_text());state=profile/'addon_data'/ID;status=state/'status.json'
@@ -83,6 +83,7 @@ def initialize(seed,profile,api,fail_after=None):
    old=current['result']['value'];journal['gui'][key]=old;save();raw=setting.text or '';value=(raw.lower()=='true') if isinstance(old,bool) else int(raw) if isinstance(old,int) else raw
    if api('Settings.SetSettingValue',{'setting':key,'value':value}).get('result') is not True:raise RuntimeError('GUI preference failed: '+key)
   if api('Settings.SetSettingValue',{'setting':'lookandfeel.skin','value':'skin.arctic.fuse.3'}).get('result') is not True:raise RuntimeError('Skin activation failed')
+  if verify_skin is not None and not verify_skin():raise RuntimeError('Fuse did not load or its confirmation was declined')
   status.write_text(json.dumps({'status':'COMPLETE','seed':manifest['version'],'phone_verified':False}))
   return 'COMPLETE'
  except BaseException:

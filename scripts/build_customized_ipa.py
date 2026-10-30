@@ -1,5 +1,5 @@
 """Bundle the validated configuration in an isolated official app; no native patching."""
-import argparse,hashlib,json,shutil,xml.etree.ElementTree as ET,zipfile
+import argparse,contextlib,hashlib,io,json,shutil,xml.etree.ElementTree as ET,zipfile
 from pathlib import Path
 from build_unsigned_ipa import build as unsigned,validate_staging
 from import_runtime.safe_import import validate_bundle,digest
@@ -41,7 +41,8 @@ def prepare(app,bundle,expected,work):
 
 def build(app,bundle,expected,deb,output,work):
  staged,details=prepare(app,bundle,expected,work)
- report=unsigned(staged,output,deb)
+ # The shared native packer emits a diagnostic-only intermediate label; publish only the final verified customized report.
+ with contextlib.redirect_stdout(io.StringIO()):report=unsigned(staged,output,deb)
  old=output/report['filename'];ipa=output/'Kodi-iOS-Customized.ipa';old.rename(ipa)
  with zipfile.ZipFile(ipa) as z:
   assert z.testzip() is None

@@ -1,4 +1,4 @@
-import json,os,sys
+import json,os,sys,time
 from pathlib import Path
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
 from bootstrap import initialize,restore
@@ -18,7 +18,13 @@ def run():
   if len(sys.argv)>1 and sys.argv[1]!='':
    if xbmcgui.Dialog().yesno('Kodi setup recovery','Restore pre-setup files and return to Estuary?'):restore(profile,api)
    return
-  result=initialize(root/'seed',profile,api)
+  def verify_skin():
+   start=time.monotonic()
+   while time.monotonic()-start<20:
+    if monitor.waitForAbort(0.25):return False
+    if time.monotonic()-start>3 and xbmc.getSkinDir()=='skin.arctic.fuse.3' and not xbmc.getCondVisibility('Window.IsActive(yesnodialog)'):return True
+   return False
+  result=initialize(root/'seed',profile,api,verify_skin=verify_skin)
   if result=='IN PROGRESS':
    restore(profile,api);xbmcgui.Dialog().ok('Setup interrupted','Original files restored. Estuary remains available. Record this failure before retrying.')
  except Exception as error:

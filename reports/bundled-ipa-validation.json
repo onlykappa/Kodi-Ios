@@ -1,6 +1,6 @@
 {
   "recorded_utc": "2026-10-30T01:08:35.993926+00:00",
-  "status": "IMPLEMENTED; HOST TESTS PASS; IPA CI BUILD PENDING",
+  "status": "FIRST IPA BUILT; REPLACEMENT WITH SKIN VERIFICATION PENDING",
   "host_suites": [
     {
       "suite": "test_activation.py",
@@ -10,7 +10,7 @@
     {
       "suite": "test_bundled_bootstrap.py",
       "passed": true,
-      "tests": 8
+      "tests": 9
     },
     {
       "suite": "test_checks.py",
@@ -98,7 +98,7 @@
       "tests": 9
     }
   ],
-  "host_test_count": 144,
+  "host_test_count": 145,
   "source_revision": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "source_evidence": {
     "registration": "xbmc/addons/AddonDatabase.cpp CAddonDatabase::SyncInstalled enables newly discovered system/optional addons; optional preserves later disabled state",
@@ -109,5 +109,11 @@
   "elementum_engine_included": false,
   "manual_profile_import_required": false,
   "original_deck_written": false,
-  "diagnostic_ipa_modified": false
+  "diagnostic_ipa_modified": false,
+  "first_build": {
+    "run": 40984108373,
+    "outcome": "IPA built/validated/uploaded; SUPERSEDED by skin verification fix",
+    "sha256": "4b70a39be8844411a361fc1edae09c2447df6afc11673974ae2abb67db9d89d9",
+    "device_tested": false
+  }
 }
