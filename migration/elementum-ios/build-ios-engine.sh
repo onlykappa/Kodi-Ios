@@ -24,6 +24,8 @@ CLANG="$(xcrun --sdk iphoneos --find clang)"; CLANGXX="$(xcrun --sdk iphoneos --
 IOS_FLAGS="-arch arm64 -isysroot $SDK -miphoneos-version-min=$MIN_IOS"
 step(){ echo "::group::$*"; }
 end(){ echo "::endgroup::"; }
+# Keep logs short, but show the end of a failing tool's output.
+quiet(){ local log; log="$(mktemp)"; "$@" >"$log" 2>&1 || { echo "FAILED: $*"; tail -n 80 "$log"; return 1; }; }
 fetch(){ # url sha256 dest
   curl --fail --location --retry 3 --proto '=https' -o "$3" "$1"
   echo "$2  $3" | shasum -a 256 -c -
@@ -51,38 +53,38 @@ step "SWIG (host tool, libtorrent-go's pinned commit)"
 # fetch the same pinned commit with git instead (the commit id pins the content).
 git init -q "$SRC/swig-$SWIG_COMMIT"; git -C "$SRC/swig-$SWIG_COMMIT" fetch -q --depth=1 https://github.com/swig/swig.git "$SWIG_COMMIT"
 git -C "$SRC/swig-$SWIG_COMMIT" checkout -q FETCH_HEAD; test "$(git -C "$SRC/swig-$SWIG_COMMIT" rev-parse HEAD)" = "$SWIG_COMMIT"
-(cd "$SRC/swig-$SWIG_COMMIT" && ./autogen.sh >/dev/null && ./configure --prefix="$HOST" --without-pcre >/dev/null && make -j"$JOBS" >/dev/null && make install >/dev/null)
+(cd "$SRC/swig-$SWIG_COMMIT" && quiet ./autogen.sh && quiet ./configure --prefix="$HOST" --without-pcre && quiet make -j"$JOBS" && quiet make install)
 swig -version | head -3
 end
 
 step "OpenSSL $OPENSSL_VERSION for iPhoneOS arm64"
 fetch "https://www.openssl.org/source/old/1.1.1/openssl-$OPENSSL_VERSION.tar.gz" "$OPENSSL_SHA256" "$SRC/openssl.tgz"
 tar -xzf "$SRC/openssl.tgz" -C "$SRC"
-(cd "$SRC/openssl-$OPENSSL_VERSION" && CFLAGS="-miphoneos-version-min=$MIN_IOS" ./Configure ios64-xcrun no-shared no-tests no-engine threads --prefix="$PREFIX" >/dev/null \
-  && make -j"$JOBS" build_libs >/dev/null && make install_dev >/dev/null)
+(cd "$SRC/openssl-$OPENSSL_VERSION" && CFLAGS="-miphoneos-version-min=$MIN_IOS" quiet ./Configure ios64-xcrun no-shared no-tests no-engine threads --prefix="$PREFIX" \
+  && quiet make -j"$JOBS" build_libs && quiet make install_dev)
 end
 
 step "Boost $BOOST_VERSION for iPhoneOS arm64"
 fetch "https://archives.boost.io/release/$BOOST_VERSION/source/boost_${BOOST_VERSION//./_}.tar.bz2" "$BOOST_SHA256" "$SRC/boost.tbz2"
 tar -xjf "$SRC/boost.tbz2" -C "$SRC"
-(cd "$SRC/boost_${BOOST_VERSION//./_}" && ./bootstrap.sh --with-toolset=clang >/dev/null \
+(cd "$SRC/boost_${BOOST_VERSION//./_}" && quiet ./bootstrap.sh --with-toolset=clang \
   && echo "using darwin : iphone : $CLANGXX : <compileflags>\"$IOS_FLAGS -std=c++11\" <linkflags>\"$IOS_FLAGS\" <striper> ;" > user-config.jam \
-  && ./b2 -q --user-config=user-config.jam toolset=darwin-iphone target-os=iphone architecture=arm address-model=64 binary-format=mach-o abi=aapcs \
+  && quiet ./b2 -q --user-config=user-config.jam toolset=darwin-iphone target-os=iphone architecture=arm address-model=64 binary-format=mach-o abi=aapcs \
        link=static variant=release threading=multi define=BOOST_SP_USE_PTHREADS \
-       --with-system --with-date_time --with-chrono --with-random --with-program_options --prefix="$PREFIX" -j"$JOBS" install >/dev/null)
+       --with-system --with-date_time --with-chrono --with-random --with-program_options --prefix="$PREFIX" -j"$JOBS" install)
 ls "$PREFIX/lib" | grep boost
 end
 
 step "libtorrent RC_1_1 ($LIBTORRENT_COMMIT) for iPhoneOS arm64"
 git init -q "$SRC/libtorrent"; git -C "$SRC/libtorrent" fetch -q --depth=1 https://github.com/arvidn/libtorrent.git "$LIBTORRENT_COMMIT"
 git -C "$SRC/libtorrent" checkout -q FETCH_HEAD
-(cd "$SRC/libtorrent" && ./autotool.sh >/dev/null \
+(cd "$SRC/libtorrent" && quiet ./autotool.sh \
   && sed -i '' 's/$PKG_CONFIG openssl --libs-only-/$PKG_CONFIG openssl --static --libs-only-/' ./configure \
   && CC="$CLANG $IOS_FLAGS" CXX="$CLANGXX $IOS_FLAGS" CFLAGS="-O2" CXXFLAGS="-O2 -std=c++11 -Wno-c++11-extensions -Wno-c++11-long-long -Wno-deprecated-declarations" \
-     ./configure --host=aarch64-apple-darwin --enable-static --disable-shared --disable-deprecated-functions \
-       --prefix="$PREFIX" --with-boost="$PREFIX" --with-boost-libdir="$PREFIX/lib" --with-openssl="$PREFIX" >/dev/null \
+     quiet ./configure --host=aarch64-apple-darwin --enable-static --disable-shared --disable-deprecated-functions \
+       --prefix="$PREFIX" --with-boost="$PREFIX" --with-boost-libdir="$PREFIX/lib" --with-openssl="$PREFIX" \
   || { cat config.log | tail -80; exit 1; })
-(cd "$SRC/libtorrent" && make -j"$JOBS" >/dev/null && make install >/dev/null)
+(cd "$SRC/libtorrent" && quiet make -j"$JOBS" && quiet make install)
 pkg-config --static --libs libtorrent-rasterbar openssl
 end
 
