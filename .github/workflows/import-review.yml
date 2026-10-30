@@ -72,7 +72,9 @@ jobs:
           dpkg-deb --extract "$RUNNER_TEMP/customized-foundation/foundation.deb" "$RUNNER_TEMP/customized-foundation/unpacked"
       - name: Build and validate full customized unsigned ARM64 IPA
         run: |
-          python3 -B scripts/build_customized_ipa.py --app "$RUNNER_TEMP/customized-foundation/unpacked/Applications/Kodi.app" --deb "$RUNNER_TEMP/customized-foundation/foundation.deb" --bundle "$RUNNER_TEMP/kodi-import-review/Kodi-iOS-Customized-Import.zip" --expected-sha256 cc5d7eb7efa62f1f389f67451b3b94ab8d6a0deda15b94d6e66b48f3ea06669e --work "$RUNNER_TEMP/customized-app" --output "$RUNNER_TEMP/customized-ipa"
+          # The bundle was just rebuilt from pinned, hash-checked sources; pin the IPA to that exact bundle.
+          bundle_sha=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['sha256'])" "$RUNNER_TEMP/kodi-import-review/import-review-report.json")
+          python3 -B scripts/build_customized_ipa.py --app "$RUNNER_TEMP/customized-foundation/unpacked/Applications/Kodi.app" --deb "$RUNNER_TEMP/customized-foundation/foundation.deb" --bundle "$RUNNER_TEMP/kodi-import-review/Kodi-iOS-Customized-Import.zip" --expected-sha256 "$bundle_sha" --work "$RUNNER_TEMP/customized-app" --output "$RUNNER_TEMP/customized-ipa"
       # The owner installs the raw .ipa: publish it as a prerelease asset instead of a zipped artifact.
       - name: Publish raw IPA as a prerelease download
         env:

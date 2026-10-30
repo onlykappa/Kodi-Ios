@@ -15,8 +15,13 @@ def media_request(params):
  return params
 
 def wrap_item(item,original):
+ # Like the Deck: a show opens its seasons; the player choice comes when an episode or movie is played,
+ # inside TMDb Helper's resolver (ios_watch_dialog.choose_player).
+ return original
+
+def wrap_item_r1(item,original):
+ """Earlier routing that sent shows through a watch-options folder; kept for old plugin:// links."""
  kind=getattr(item,'mediatype',None)
- # Movie/episode tap is intercepted in the existing resolver, preserving Kodi's normal media context.
  if kind!='tvshow' or urlsplit(original).netloc!=HELPER:return original
  args=getattr(item,'params',{})
  if args.get('info') not in {'play','seasons','flatseasons','episodes','flatepisodes','details'}:return original

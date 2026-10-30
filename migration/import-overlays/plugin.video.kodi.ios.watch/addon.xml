@@ -1,4 +1,4 @@
-<addon id="plugin.video.kodi.ios.watch" name="Kodi iOS Watch Options" version="1.0.0" provider-name="Kodi-iOS migration project">
+<addon id="plugin.video.kodi.ios.watch" name="Kodi iOS Watch Options" version="1.1.0" provider-name="Kodi-iOS migration project">
   <requires><import addon="xbmc.python" version="3.0.1" /></requires>
   <extension point="xbmc.python.pluginsource" library="default.py"><provides>video</provides></extension>
   <extension point="xbmc.python.module" library="resources/lib" />

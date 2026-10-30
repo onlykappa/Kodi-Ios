@@ -160,7 +160,7 @@ def prepare(app,bundle,expected,work):
   visiting.remove(id);order.append(id)
  for id in sorted(requires):visit(id)
  mutable=[{'id':id,'version':ET.parse(addonroot/id/'addon.xml').getroot().get('version'),'tree_sha256':tree_digest(addonroot/id)} for id in order if id.startswith('skin.')]
- (seed/'seed-manifest.json').write_text(json.dumps({'version':'3-touch-r7','files':entries,'addons':order,'mutable_skins':mutable,'navigation_revision':_nav.REVISION},indent=2)+'\n')
+ (seed/'seed-manifest.json').write_text(json.dumps({'version':'3-touch-r8','files':entries,'addons':order,'mutable_skins':mutable,'navigation_revision':_nav.REVISION},indent=2)+'\n')
  tree=ET.parse(system);root=tree.getroot();existing={a.text for a in root.findall('addon')}
  for id in order+[BOOT]:
   assert id not in existing,'System manifest collision';ET.SubElement(root,'addon',{} if id==BOOT else {'optional':'true'}).text=id
@@ -171,7 +171,7 @@ def build(app,bundle,expected,deb,output,work):
  staged,details=prepare(app,bundle,expected,work)
  # The shared native packer emits a diagnostic-only intermediate label; publish only the final verified customized report.
  with contextlib.redirect_stdout(io.StringIO()):report=unsigned(staged,output,deb)
- old=output/report['filename'];ipa=output/'Kodi-iOS-Customized-Touch-r7.ipa';old.rename(ipa)
+ old=output/report['filename'];ipa=output/'Kodi-iOS-Customized-Touch-r8.ipa';old.rename(ipa)
  with zipfile.ZipFile(ipa) as z:
   assert z.testzip() is None
   base='Payload/Kodi.app/'+details['system_manifest'].rsplit('/system/',1)[0]
