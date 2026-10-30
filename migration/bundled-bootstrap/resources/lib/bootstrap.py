@@ -60,6 +60,22 @@ def restore(profile,api):
  (state/'status.json').write_text(json.dumps({'status':'RESTORED','phone_verified':False}))
  return 'RESTORED'
 
+def ensure_enabled(seed,profile,api):
+ """After an app update: switch on bundled add-ons that are still off, such as dependencies a newer build added.
+ Only for a completed setup, so a recovered (Estuary) profile stays as the owner left it."""
+ state=Path(profile)/'addon_data'/ID;status=state/'status.json'
+ if not status.exists() or json.loads(status.read_text()).get('status')!='COMPLETE':return []
+ manifest=json.loads((Path(seed)/'seed-manifest.json').read_text());enabled=[]
+ for addon in manifest['addons']:
+  details=api('Addons.GetAddonDetails',{'addonid':addon,'properties':['enabled']})
+  if 'error' in details or details['result']['addon']['enabled']:continue
+  if api('Addons.SetAddonEnabled',{'addonid':addon,'enabled':True}).get('result')=='OK':enabled.append(addon)
+ journal=state/'journal.json'
+ if enabled and journal.exists():
+  # Recovery disables what setup enabled; include these so it stays a full undo.
+  record=json.loads(journal.read_text());record['enabled']=record.get('enabled',[])+[a for a in enabled if a not in record.get('enabled',[])];journal.write_text(json.dumps(record,indent=2))
+ return enabled
+
 def initialize(seed,profile,api,fail_after=None,verify_skin=None,home=None,refresh=None):
  seed=Path(seed);profile=Path(profile)
  if '/.var/app/tv.kodi.Kodi' in str(profile.resolve()) or profile.is_symlink():raise ValueError('Original Deck/symlink refused')

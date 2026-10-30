@@ -3,7 +3,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 def load(name):
  spec=importlib.util.spec_from_file_location(name,ROOT/'migration/bundled-bootstrap/resources/lib'/(name+'.py'));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
-updates=load('updates');calibration=load('calibration')
+updates=load('updates');calibration=load('calibration');bootstrap=load('bootstrap')
 RES='<settings><resolutions><resolution><description>2622x1206 @ 60.00Hz - Full Screen</description><overscan><left>{l}</left><top>0</top><right>{r}</right><bottom>1206</bottom></overscan></resolution></resolutions></settings>'
 class Updates(unittest.TestCase):
  def test_picks_newest_newer_build_with_an_ipa(self):
@@ -28,4 +28,24 @@ class Calibration(unittest.TestCase):
    self.assertEqual(calibration.reset_once(p,calls.append,active,lambda s:False),'OFFERED')
    self.assertEqual(calls,['ActivateWindow(screencalibration)','Action(resetcalibration)','Action(Back)'])
    self.assertEqual(calibration.reset_once(p,calls.append,active,lambda s:False),'DONE BEFORE');self.assertEqual(len(calls),3)
+class EnsureEnabled(unittest.TestCase):
+ def setup(self,t,status):
+  p=Path(t);seed=p/'seed';seed.mkdir();(seed/'seed-manifest.json').write_text(json.dumps({'addons':['a','b','c']}))
+  state=p/'profile/addon_data/service.kodi.ios.bootstrap';state.mkdir(parents=True);(state/'status.json').write_text(json.dumps({'status':status}));(state/'journal.json').write_text(json.dumps({'files':[],'enabled':['a']}))
+  return seed,p/'profile',state
+ def api(self,on,calls):
+  def call(method,params):
+   calls.append((method,params['addonid']))
+   if method=='Addons.GetAddonDetails':return {'error':{}} if params['addonid']=='c' else {'result':{'addon':{'enabled':params['addonid'] in on}}}
+   return {'result':'OK'}
+  return call
+ def test_turns_on_new_dependencies_and_records_them_for_recovery(self):
+  with tempfile.TemporaryDirectory() as t:
+   seed,profile,state=self.setup(t,'COMPLETE');calls=[]
+   self.assertEqual(bootstrap.ensure_enabled(seed,profile,self.api({'a'},calls)),['b'])
+   self.assertEqual(json.loads((state/'journal.json').read_text())['enabled'],['a','b'])
+ def test_leaves_a_recovered_profile_alone(self):
+  with tempfile.TemporaryDirectory() as t:
+   seed,profile,state=self.setup(t,'RESTORED');calls=[]
+   self.assertEqual(bootstrap.ensure_enabled(seed,profile,self.api(set(),calls)),[]);self.assertEqual(calls,[])
 if __name__=='__main__':unittest.main()

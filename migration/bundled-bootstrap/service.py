@@ -1,7 +1,7 @@
 import json,os,sys,time
 from pathlib import Path
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
-from bootstrap import initialize,restore
+from bootstrap import initialize,restore,ensure_enabled
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
 import calibration,updates
@@ -52,6 +52,8 @@ def run():
   stage('initialize')
   result=initialize(root/'seed',profile,api,verify_skin=verify_skin,home=home,refresh=refresh)
   upgrade(home,profile)
+  stage('enable_addons')
+  for addon in ensure_enabled(root/'seed',profile,api):xbmc.log('Kodi iOS setup enabled bundled add-on '+addon,xbmc.LOGINFO)
   if result=='IN PROGRESS':
    restore(profile,api);xbmcgui.Dialog().ok('Setup interrupted','Original files restored. Estuary remains available. Record this failure before retrying.')
   elif not generated and xbmc.getSkinDir()==FUSE:
