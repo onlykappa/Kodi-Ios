@@ -46,4 +46,28 @@ class BootstrapTests(unittest.TestCase):
  def test_skin_rejection_does_not_leave_false_complete_marker(self):
   with self.assertRaises(RuntimeError):m.initialize(self.seed,self.profile,self.api,verify_skin=lambda:False)
   s=json.loads((self.profile/'addon_data'/m.ID/'status.json').read_text());self.assertNotEqual(s['status'],'COMPLETE');self.assertEqual(self.values['lookandfeel.skin'],'skin.estuary')
+ def mutable_fixture(self):
+  import shutil
+  addonroot=self.base/'bundled/addons';seed=addonroot/m.ID/'seed';shutil.copytree(self.seed,seed)
+  skin=addonroot/'skin.fixture';(skin/'1080i').mkdir(parents=True);(skin/'addon.xml').write_text('<addon id="skin.fixture" version="1.0.0"/>');(skin/'1080i/generated.xml').write_bytes(b'original source')
+  manifest=json.loads((seed/'seed-manifest.json').read_text());manifest['mutable_skins']=[{'id':'skin.fixture','version':'1.0.0','tree_sha256':m.tree_digest(skin)}];(seed/'seed-manifest.json').write_text(json.dumps(manifest));return seed,skin
+ def test_writable_skin_copy_preserves_bundle_and_refreshes_before_activation(self):
+  seed,skin=self.mutable_fixture();paths=[];home=self.base/'phone'
+  self.assertEqual(m.initialize(seed,self.profile,self.api,home=home,refresh=lambda p:paths.extend(p)),'COMPLETE')
+  dest=home/'addons/skin.fixture';self.assertEqual(paths,[dest]);(dest/'1080i/generated.xml').write_bytes(b'phone generated')
+  self.assertEqual((skin/'1080i/generated.xml').read_bytes(),b'original source')
+  self.assertEqual(m.initialize(seed,self.profile,self.api,home=home,refresh=lambda p:None),'COMPLETE');self.assertEqual((dest/'1080i/generated.xml').read_bytes(),b'phone generated')
+ def test_existing_skin_version_conflict_preserved(self):
+  seed,skin=self.mutable_fixture();home=self.base/'phone';dest=home/'addons/skin.fixture';dest.mkdir(parents=True);xml=b'<addon id="skin.fixture" version="2.0.0"/>';(dest/'addon.xml').write_bytes(xml)
+  with self.assertRaises(ValueError):m.initialize(seed,self.profile,self.api,home=home,refresh=lambda p:None)
+  self.assertEqual((dest/'addon.xml').read_bytes(),xml)
+ def test_corrupt_skin_source_not_copied(self):
+  seed,skin=self.mutable_fixture();(skin/'1080i/generated.xml').write_bytes(b'changed')
+  with self.assertRaises(ValueError):m.initialize(seed,self.profile,self.api,home=self.base/'phone',refresh=lambda p:None)
+  self.assertFalse((self.base/'phone/addons/skin.fixture').exists())
+ def test_failed_rescan_does_not_activate_skin_or_mark_complete(self):
+  seed,skin=self.mutable_fixture()
+  def fail(paths):raise RuntimeError('Kodi path mismatch')
+  with self.assertRaises(RuntimeError):m.initialize(seed,self.profile,self.api,home=self.base/'phone',refresh=fail)
+  self.assertNotEqual(self.values['lookandfeel.skin'],'skin.arctic.fuse.3');s=json.loads((self.profile/'addon_data'/m.ID/'status.json').read_text());self.assertNotEqual(s['status'],'COMPLETE')
 if __name__=='__main__':unittest.main()

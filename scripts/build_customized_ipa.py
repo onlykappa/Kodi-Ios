@@ -3,6 +3,10 @@ import argparse,contextlib,hashlib,io,json,shutil,xml.etree.ElementTree as ET,zi
 from pathlib import Path
 from build_unsigned_ipa import build as unsigned,validate_staging
 from import_runtime.safe_import import validate_bundle,digest
+import importlib.util
+_spec=importlib.util.spec_from_file_location('ipa_bootstrap_helpers',Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib/bootstrap.py')
+_helpers=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(_helpers)
+tree_digest=_helpers.tree_digest
 ROOT=Path(__file__).resolve().parents[1]
 BOOT='service.kodi.ios.bootstrap'
 
@@ -32,12 +36,13 @@ def prepare(app,bundle,expected,work):
    if dep in requires:visit(dep)
   visiting.remove(id);order.append(id)
  for id in sorted(requires):visit(id)
- (seed/'seed-manifest.json').write_text(json.dumps({'version':'1','files':entries,'addons':order},indent=2)+'\n')
+ mutable=[{'id':id,'version':ET.parse(addonroot/id/'addon.xml').getroot().get('version'),'tree_sha256':tree_digest(addonroot/id)} for id in order if id.startswith('skin.')]
+ (seed/'seed-manifest.json').write_text(json.dumps({'version':'1','files':entries,'addons':order,'mutable_skins':mutable},indent=2)+'\n')
  tree=ET.parse(system);root=tree.getroot();existing={a.text for a in root.findall('addon')}
  for id in order+[BOOT]:
   assert id not in existing,'System manifest collision';ET.SubElement(root,'addon',{'optional':'true'}).text=id
  ET.indent(root);tree.write(system,encoding='utf-8',xml_declaration=True)
- return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected}
+ return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable}
 
 def build(app,bundle,expected,deb,output,work):
  staged,details=prepare(app,bundle,expected,work)
@@ -48,6 +53,7 @@ def build(app,bundle,expected,deb,output,work):
   assert z.testzip() is None
   base='Payload/Kodi.app/'+details['system_manifest'].rsplit('/system/',1)[0]
   for id in details['addon_ids']+[BOOT]:assert base+'/addons/'+id+'/addon.xml' in z.namelist()
+  for name,body in validate_bundle(bundle,expected)[1].items():assert digest(z.read(base+'/'+name))==digest(body),'Bundled addon bytes changed'
   for e in details['seed_files']:assert digest(z.read(base+'/addons/'+BOOT+'/seed/'+e['path']))==e['sha256']
  report.update(filename=ipa.name,sha256=digest(ipa.read_bytes()),configuration_bundled=True,addons_added=True,status='CUSTOMIZED_UNSIGNED_HOST_VALIDATED_DEVICE_TEST_PENDING',bootstrap=details,device_tested=False,manual_import_required=False,elementum_engine_included=False,limitations=['iPhone bootstrap execution, skin rendering, signing, Google Drive and rollback still require actual device evidence','Use foreground Kodi; no unverified native engine or remote service'])
  (output/'ipa-report.json').write_text(json.dumps(report,indent=2)+'\n')

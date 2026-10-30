@@ -1,6 +1,6 @@
 {
   "recorded_utc": "2026-10-30T01:08:35.993926+00:00",
-  "status": "FIRST IPA BUILT; REPLACEMENT WITH SKIN VERIFICATION PENDING",
+  "status": "MUTABLE-SKIN INITIALIZATION IMPLEMENTED; HOST TESTS PASS; FINAL IPA BUILD PENDING",
   "host_suites": [
     {
       "suite": "test_activation.py",
@@ -10,7 +10,7 @@
     {
       "suite": "test_bundled_bootstrap.py",
       "passed": true,
-      "tests": 9
+      "tests": 13
     },
     {
       "suite": "test_checks.py",
@@ -98,7 +98,7 @@
       "tests": 9
     }
   ],
-  "host_test_count": 145,
+  "host_test_count": 149,
   "source_revision": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "source_evidence": {
     "registration": "xbmc/addons/AddonDatabase.cpp CAddonDatabase::SyncInstalled enables newly discovered system/optional addons; optional preserves later disabled state",
