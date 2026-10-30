@@ -39,7 +39,7 @@
     {
       "suite": "test_import_builder.py",
       "passed": true,
-      "tests": 4
+      "tests": 11
     },
     {
       "suite": "test_import_profile.py",
@@ -87,11 +87,26 @@
       "tests": 9
     }
   ],
-  "test_count": 123,
+  "test_count": 130,
   "all_host_suites_passed": true,
   "device_tested": false,
   "engine_status": "DEFERRED BY OWNER; not built",
   "capture_requirements_retained": 184,
   "actual_screenshots": 0,
-  "limitations": "Host fixtures and API mocks do not establish actual iPhone import, Kodi activation, gestures, playback or rollback. Public-source bundle not yet acquired/built."
+  "limitations": "Host fixtures and API mocks do not establish actual iPhone import, Kodi activation, gestures, playback or rollback. Public-source bundle not yet acquired/built.",
+  "source_immutability": "reports/phase4-source-immutability.json: 22463 files, zero changes",
+  "source_build_failures": [
+    {
+      "run": 40980673919,
+      "error": "Unexpected upstream archive root; no complete artifact"
+    },
+    {
+      "run": 40980888449,
+      "error": "script.trakt duplicate/case-colliding ZIP members; no complete artifact"
+    },
+    {
+      "run": 40981093445,
+      "error": "Differing es_mx/es_MX translation aliases; normalize lowercase per Kodi layout, keep code collision checks strict"
+    }
+  ]
 }

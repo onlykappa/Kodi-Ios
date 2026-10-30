@@ -45,8 +45,30 @@ def patch_helper(files,id):
  files[item]=text.replace(old,'        from ios_watch_routes import wrap_item\n        return wrap_item(self, BuildURL(self.path, **self.params).url)').encode();changes.append('TV show routes open watch/episode options; original metadata/art/context entries remain')
  return files,changes
 
+def source_files(data,source):
+ # Trakt 3.9.0 ships es_mx and es_MX translations with different bytes.
+ # Follow Kodi's documented lowercase language layout; preserve the canonical translation.
+ normalizations=[]
+ if source['id']=='script.trakt':
+  import copy
+  output=io.BytesIO()
+  with zipfile.ZipFile(io.BytesIO(data)) as zin,zipfile.ZipFile(output,'w') as zout:
+   assert sum(i.file_size for i in zin.infolist())<=2_000_000_000,'Source archive exceeds limit'
+   names=set(zin.namelist())
+   for info in zin.infolist():
+    name=info.filename;body=zin.read(info)
+    match=re.fullmatch(r'(script\.trakt/resources/language/)(resource\.language\.[A-Za-z_]+)(/strings\.po)',name)
+    if match and match[2]!=match[2].lower():
+     canonical=match[1]+match[2].lower()+match[3]
+     normalizations.append({'source_path':name,'canonical_path':canonical,'source_sha256':digest(body),'policy':'Prefer existing lowercase translation; otherwise rename language folder to lowercase'})
+     if canonical in names:continue
+     info=copy.copy(info);info.filename=canonical
+    zout.writestr(info,body)
+  data=output.getvalue()
+ return archive_files(data,allow_identical_duplicates=True),normalizations
+
 def clean_addon(data,source):
- original=archive_files(data,allow_identical_duplicates=True);id=source['id'];files={};dropped=[]
+ original,normalizations=source_files(data,source);id=source['id'];files={};dropped=[]
  # Some publisher ZIPs have a versioned directory or macOS packaging metadata.
  roots=[]
  for name,b in original.items():
@@ -73,7 +95,7 @@ def clean_addon(data,source):
  for name,b in files.items():
   if name.endswith('.py'):ast.parse(b.decode('utf-8-sig'),feature_version=(3,11))
  version=ET.fromstring(files[id+'/addon.xml']).get('version')
- return deterministic_zip(files),version,{'id':id,'source_version':source['version'],'import_version':version,'source_url':source['url'],'source_sha256':digest(data),'sanitized_archive_sha256':None,'dropped_cache_test_files':len(dropped),'patches':patches}
+ return deterministic_zip(files),version,{'id':id,'source_version':source['version'],'import_version':version,'source_url':source['url'],'source_sha256':digest(data),'sanitized_archive_sha256':None,'dropped_cache_test_files':len(dropped),'language_normalizations':normalizations,'patches':patches}
 
 def drive_archives(output):
  lock=json.loads((ROOT/'migration/google-drive/source-lock.json').read_text());results=[]

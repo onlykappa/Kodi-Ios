@@ -34,4 +34,17 @@ class BuilderTests(unittest.TestCase):
   from import_runtime.safe_import import archive_files,ImportFailure
   z=deterministic_zip({'addon/A.py':b'one','addon/a.py':b'two'})
   with self.assertRaises(ImportFailure):archive_files(z,allow_identical_duplicates=True)
+ def test_trakt_canonical_language_wins_independent_of_order(self):
+  from build_import_review import source_files
+  a='script.trakt/resources/language/resource.language.es_MX/strings.po';b=a.replace('es_MX','es_mx')
+  for pairs in [{a:b'old variant',b:b'canonical'},{b:b'canonical',a:b'old variant'}]:
+   files,changes=source_files(deterministic_zip(pairs),{'id':'script.trakt'});self.assertEqual(files,{b:b'canonical'});self.assertEqual(len(changes),1)
+ def test_trakt_unique_language_case_is_renamed_without_content_change(self):
+  from build_import_review import source_files
+  a='script.trakt/resources/language/resource.language.pt_BR/strings.po'
+  files,_=source_files(deterministic_zip({a:b'translation'}),{'id':'script.trakt'});self.assertEqual(files,{a.replace('pt_BR','pt_br'):b'translation'})
+ def test_trakt_source_code_case_collision_remains_blocked(self):
+  from build_import_review import source_files
+  from import_runtime.safe_import import ImportFailure
+  with self.assertRaises(ImportFailure):source_files(deterministic_zip({'script.trakt/a.py':b'one','script.trakt/A.py':b'two'}),{'id':'script.trakt'})
 if __name__=='__main__':unittest.main()
