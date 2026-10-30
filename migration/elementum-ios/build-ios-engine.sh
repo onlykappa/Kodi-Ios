@@ -96,12 +96,12 @@ step "Elementum engine ($ENGINE_COMMIT) as a C archive"
 git init -q "$SRC/engine"; git -C "$SRC/engine" fetch -q --depth=1 https://github.com/elgatito/elementum.git "$ENGINE_COMMIT"
 git -C "$SRC/engine" checkout -q FETCH_HEAD
 test "$(git -C "$SRC/engine" rev-parse HEAD)" = "$ENGINE_COMMIT"
-# cgo for ios needs the SDK flags baked into CC/CXX.
+# cgo for ios needs the SDK flags baked into CC/CXX. Boost 1.72 trips current clang's enum-constexpr-conversion check.
 printf '#!/bin/sh\nexec "%s" %s "$@"\n' "$CLANG" "$IOS_FLAGS" > "$HOST/bin/ios-cc"
 printf '#!/bin/sh\nexec "%s" %s "$@"\n' "$CLANGXX" "$IOS_FLAGS" > "$HOST/bin/ios-cxx"
 chmod +x "$HOST/bin/ios-cc" "$HOST/bin/ios-cxx"
 (cd "$SRC/engine" && GOOS=ios GOARCH=arm64 CGO_ENABLED=1 CC=ios-cc CXX=ios-cxx \
-   CGO_CXXFLAGS="-std=c++11 -I$PREFIX/include -Wno-deprecated-declarations" CGO_CFLAGS="-I$PREFIX/include" \
+   CGO_CXXFLAGS="-std=c++11 -I$PREFIX/include -Wno-deprecated-declarations -Wno-deprecated-builtins -Wno-error=enum-constexpr-conversion -Wno-enum-constexpr-conversion" CGO_CFLAGS="-I$PREFIX/include" \
    go build -mod=readonly -trimpath -buildmode=c-archive -tags shared,go_json -ldflags "-s -w" -o "$WORK/libelementum.a" .)
 end
 
