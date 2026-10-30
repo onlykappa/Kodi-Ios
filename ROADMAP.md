@@ -1,6 +1,6 @@
 # Kodi-iOS master roadmap
 
-Status: BLOCKED. Current phase: Phase 4 — diagnostic launch owner-confirmed; separate import approved; customized device evidence pending. Phase 3 approved; Phase 5 unauthorized.
+Status: BLOCKED. Current phase: Phase 4 — diagnostic launch owner-confirmed; fully bundled IPA approved; Touch-r1 startup failure recorded; Touch-r2 device evidence pending. Phase 3 approved; Phase 5 unauthorized.
 Progress: 25/39 task IDs COMPLETE (64.10%); 14 awaiting implementation.
 
 ## Rules and session protocol

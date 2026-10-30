@@ -77,3 +77,5 @@ Resumed owner pause and verified successful run 41068166024/artifact 12983492116
 ## Touch-r2 startup repair — 2026-10-30
 
 Owner log verifies failed Touch-r1 launch, not successful skin validation. Guard first activation against Home helper/reload races; run pinned view/shortcut generators sequentially without reload, validate fresh outputs, then reload once. Preserve native confirmation and Settings/Recovery strip. Add private sanitized stage/stack evidence and nine regressions; 174 host tests pass. Device confirmation pending, no task completion increased. Older artifacts retained.
+
+Touch-r2 IPA built and uploaded successfully in run 41078491846; artifact/checksum/provenance recorded in reports/ios-touch-r2-artifact.json. Device tests remain pending. No Phase 5, merge or release.
