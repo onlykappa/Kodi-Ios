@@ -28,4 +28,16 @@ Verify cold launch, automatic Fuse selection, visible/aligned strip, tap Setting
 
 Simulator: local Apple tooling and a suitable remote simulator are unavailable/unestablished; Kodi 21.3's tagged iOS guide does not support simulator builds. No simulator was run. Physical iPhone testing remains necessary.
 
-Elementum stays deferred; no new playback architecture, Phase 5, merge or release. Artifact/checksum will be added after actual hosted build.
+Elementum stays deferred; no new playback architecture, Phase 5, merge or release. **Revised build is ready for owner retest:** [download Touch-r1 artifact](https://github.com/onlykappa/Kodi-Ios/actions/runs/41068166024/artifacts/12983492116), expires November 6 UTC. Extract the GitHub wrapper ZIP and sign/install `Kodi-iOS-Customized-Touch-r1.ipa` with the existing sideloader, retaining the app container where supported. No manual Kodi ZIP import. If Kodi asks Keep Skin, confirm within ten seconds.
+
+Inner IPA: 577522290 bytes. SHA-256:
+
+```text
+9c72b195494924fddfa67f24627546ea59f64efe0f04b373647d907e9034db84
+```
+
+165 host tests / 20 suites and the actual hosted build pass. 32 major-window patches, 31 seed files, 151 ARM64 native images, full ZIP/source/seed checks. Actual phone alignment/navigation/focus/scroll/context/settings/recovery remains unverified.
+
+First check: launch and wait for setup, then tap the visible Settings button while widgets are empty. Test Back/Home, Browse and Recovery next. If the strip is missing, use three-finger Settings or two-finger-right for the independent menu and report what happens. Preserve the old failure evidence and all 184 capture requirements.
+
+[Previous IPA for rollback](https://github.com/onlykappa/Kodi-Ios/actions/runs/41058684326/artifacts/12978745226) remains unchanged; it has a known navigation failure and is not the recommended usability build. [Build receipt](../reports/ios-touch-r1-artifact.json).
