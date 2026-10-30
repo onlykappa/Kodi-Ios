@@ -16,7 +16,7 @@ ENGINE_COMMIT=cdab7e2ed69122e048be158e2ebea70dbda789ee           # elgatito/elem
 LIBTORRENT_COMMIT=760f94862ef6b76a13bba0a68d55ca6507aef7c2       # arvidn/libtorrent RC_1_1, as libtorrent-go pins
 BOOST_VERSION=1.72.0; BOOST_SHA256=59c9b274bc451cf91a9ba1dd2c7fdcaf5d60b1b3aa83f2c9fa143417cc660722
 OPENSSL_VERSION=1.1.1f; OPENSSL_SHA256=186c6bfe6ecfba7a5b48c47f8a1673d0f3b0e5ba2e25602dd23b629975da3f35
-SWIG_COMMIT=77323a0f07562b7d90d36181697a72a909b9519a; SWIG_SHA256=26d7176c4a2ab66c5fc8cb48346c07f4d6e790ec375af1db74dfa60ce342e97d
+SWIG_COMMIT=77323a0f07562b7d90d36181697a72a909b9519a
 GO_VERSION=1.21.1
 
 SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
@@ -47,8 +47,11 @@ tar -xzf "$SRC/go.tgz" -C "$HOST"; export PATH="$HOST/go/bin:$HOST/bin:$PATH"; g
 end
 
 step "SWIG (host tool, libtorrent-go's pinned commit)"
-fetch "https://github.com/swig/swig/archive/$SWIG_COMMIT.tar.gz" "$SWIG_SHA256" "$SRC/swig.tgz"
-tar -xzf "$SRC/swig.tgz" -C "$SRC"; (cd "$SRC/swig-$SWIG_COMMIT" && ./autogen.sh >/dev/null && ./configure --prefix="$HOST" --without-pcre >/dev/null && make -j"$JOBS" >/dev/null && make install >/dev/null)
+# GitHub's generated archives are not byte-stable, so libtorrent-go's archive checksum no longer matches;
+# fetch the same pinned commit with git instead (the commit id pins the content).
+git init -q "$SRC/swig-$SWIG_COMMIT"; git -C "$SRC/swig-$SWIG_COMMIT" fetch -q --depth=1 https://github.com/swig/swig.git "$SWIG_COMMIT"
+git -C "$SRC/swig-$SWIG_COMMIT" checkout -q FETCH_HEAD; test "$(git -C "$SRC/swig-$SWIG_COMMIT" rev-parse HEAD)" = "$SWIG_COMMIT"
+(cd "$SRC/swig-$SWIG_COMMIT" && ./autogen.sh >/dev/null && ./configure --prefix="$HOST" --without-pcre >/dev/null && make -j"$JOBS" >/dev/null && make install >/dev/null)
 swig -version | head -3
 end
 
