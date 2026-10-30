@@ -73,7 +73,7 @@ def upgrade(home,profile):
  return receipt
 
 
-def sync_skin_preferences(seed,api,builtin):
+def sync_skin_preferences(seed,api,builtin,read_skin=None):
  """Synchronize loaded state; verify values rather than the setter's assigned-value result."""
  path=Path(seed)/'addon_data/skin.arctic.fuse.3/settings.xml'
  if not path.exists():return 0
@@ -82,12 +82,14 @@ def sync_skin_preferences(seed,api,builtin):
   if 'error' in response:
    # Kodi's API cannot create an unknown skin setting; the standard builtin can.
    quote=lambda text:'"'+str(text).replace('\\','\\\\').replace('"','\\"')+'"'
-   command='Skin.SetBool('+quote(id)+','+('true' if value else 'false')+')' if isinstance(value,bool) else 'Skin.SetString('+quote(id)+',__kodi_ios_seed__)'
+   command='Skin.SetBool('+quote(id)+','+('true' if value else 'false')+')' if isinstance(value,bool) else 'Skin.SetString('+quote(id)+','+quote(value or '__kodi_ios_seed__')+')'
    builtin(command)
-   if not isinstance(value,bool):
-    if 'error' in api('Settings.SetSkinSettingValue',{'setting':id,'value':value}):raise RuntimeError('Skin string registration failed')
+   if value=='':builtin('Skin.Reset('+quote(id)+')')
   result=api('Settings.GetSkinSettingValue',{'setting':id})
-  if 'error' in result or result.get('result',{}).get('value')!=value:raise RuntimeError('Skin preference readback failed')
+  if 'error' not in result:actual=result.get('result',{}).get('value')
+  elif read_skin is not None:actual=read_skin(id,isinstance(value,bool))
+  else:raise RuntimeError('Skin preference readback unavailable')
+  if actual!=value:raise RuntimeError('Skin preference readback failed')
  count=0
  for setting in ET.parse(path).getroot().findall('setting'):
   id=setting.get('id')

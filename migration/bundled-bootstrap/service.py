@@ -22,7 +22,7 @@ def run():
    while time.monotonic()-start<20:
     if monitor.waitForAbort(0.25):return False
     if time.monotonic()-start>3 and xbmc.getSkinDir()=='skin.arctic.fuse.3' and not xbmc.getCondVisibility('Window.IsVisible(yesnodialog)'):
-     sync_skin_preferences(root/'seed',api,lambda command:xbmc.executebuiltin(command,True));applied['seed']=True;return True
+     sync_skin_preferences(root/'seed',api,lambda command:xbmc.executebuiltin(command,True),lambda id,is_bool:xbmc.getCondVisibility('Skin.HasSetting('+id+')') if is_bool else xbmc.getInfoLabel('Skin.String('+id+')'));applied['seed']=True;return True
    return False
   def refresh(paths):
    xbmc.executebuiltin('UpdateLocalAddons',True)

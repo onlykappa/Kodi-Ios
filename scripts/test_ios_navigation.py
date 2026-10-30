@@ -50,4 +50,10 @@ class NavigationTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as t:
    p=Path(t)/'addon_data/skin.arctic.fuse.3/settings.xml';p.parent.mkdir(parents=True);p.write_text('<settings><setting id="flag" type="bool">true</setting></settings>')
    with self.assertRaises(RuntimeError):nav.sync_skin_preferences(Path(t),lambda method,params:{'result':{'value':False}},lambda command:None)
+ def test_new_skin_settings_use_builtin_and_dynamic_readback_not_stale_json_index(self):
+  with tempfile.TemporaryDirectory() as t:
+   p=Path(t)/'addon_data/skin.arctic.fuse.3/settings.xml';p.parent.mkdir(parents=True);p.write_text('<settings><setting id="label" type="string">a,b (test)</setting><setting id="flag" type="bool">false</setting></settings>')
+   values={'label':'a,b (test)','flag':False,'script-skinviewtypes-hash':'','Shortcuts.RebuildDateTime':nav.REVISION};commands=[]
+   result=nav.sync_skin_preferences(Path(t),lambda *a:{'error':{}},commands.append,lambda id,is_bool:values[id])
+   self.assertEqual(result,2);self.assertIn('Skin.SetString("label","a,b (test)")',commands);self.assertIn('Skin.SetBool("flag",false)',commands);self.assertIn('Skin.Reset("script-skinviewtypes-hash")',commands)
 if __name__=='__main__':unittest.main()

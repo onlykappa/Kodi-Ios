@@ -69,7 +69,7 @@
     {
       "suite": "test_ios_navigation.py",
       "passed": true,
-      "tests": 13
+      "tests": 14
     },
     {
       "suite": "test_roadmap.py",
@@ -103,6 +103,6 @@
     }
   ],
   "passed": true,
-  "tests": 164,
+  "tests": 165,
   "actual_iphone_fixed_or_touch_verified": false
 }
