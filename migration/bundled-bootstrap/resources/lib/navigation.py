@@ -1,7 +1,7 @@
 """Widget-independent native Kodi controls and idempotent, backed-up iOS upgrade."""
 import hashlib,json,os,re,xml.etree.ElementTree as ET
 from pathlib import Path
-REVISION='ios-touch-navigation-r8'
+REVISION='ios-touch-navigation-r9'
 GROUP=98100
 HEADER=98200
 BACK=98300
@@ -79,6 +79,11 @@ def header():
   for name,value in [('width',80),('height',80),('visible',visible)]:element(slot,name,value)
   touch_button(slot,HEADER+30+index,action,[('width',80),('height',80)])
  end=ET.SubElement(right,'control',{'type':'group'});element(end,'width',0)
+ # While the spotlight's Play/More Information row has focus, Fuse fills the screen with the hero info and pushes
+ # the rows to the bottom edge. A slow drag over that text reaches no list, so nothing scrolls; any touch there
+ # moves focus to the rows instead, where a drag scrolls natively.
+ hero=touch_button(group,HEADER+50,'$VAR[Hub_Action_Widgets]',[('left',0),('right',0),('top',230),('height',470),('visible','ControlGroup(310).HasFocus()'),('onfocus','$VAR[Hub_Action_Widgets]')])
+ hero.remove(hero.find('ondown'))
  return group
 
 def back_home():
