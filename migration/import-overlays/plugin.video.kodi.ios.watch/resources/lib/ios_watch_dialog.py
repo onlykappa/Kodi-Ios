@@ -19,16 +19,21 @@ def choose_player(player):
  else:rows.append(('Umbrella — coming soon','umbrella',None))
  for p in candidates:
   if p.is_local and p.kodi_file and xbmcvfs.exists(p.kodi_file):rows.append(('Local library file','play',p))
- rows.append(('Google Drive','drive',None))
+ title=str(info.get('tvshowtitle') or info.get('title') or '')
+ if title:rows.append(('Search Google Drive for "'+title+'"','drive_search',None))
+ rows.append(('Browse Google Drive','drive',None))
  items=[]
  for label,action,item in rows:
   li=xbmcgui.ListItem(label=label);li.setArt(art);items.append(li)
- title=str(info.get('title') or info.get('tvshowtitle') or '')
- selected=xbmcgui.Dialog().select('How would you like to watch'+(' '+title if title else '')+'?',items)
+ name=str(info.get('title') or info.get('tvshowtitle') or '')
+ selected=xbmcgui.Dialog().select('How would you like to watch'+(' '+name if name else '')+'?',items)
  if selected<0 or selected>=len(rows):return None
  _,action,item=rows[selected]
  if action in NOT_READY:
   xbmcgui.Dialog().ok(*NOT_READY[action]);return None
+ if action=='drive_search':
+  from urllib.parse import urlencode
+  xbmc.executebuiltin('ActivateWindow(Videos,plugin://plugin.googledrive/?'+urlencode({'action':'_search','content_type':'video','query':title})+',return)');return None
  if action=='drive':
   xbmc.executebuiltin('ActivateWindow(Videos,plugin://plugin.googledrive/,return)');return None
  return item

@@ -1,7 +1,7 @@
 """Widget-independent native Kodi controls and idempotent, backed-up iOS upgrade."""
 import hashlib,json,os,re,xml.etree.ElementTree as ET
 from pathlib import Path
-REVISION='ios-touch-navigation-r7'
+REVISION='ios-touch-navigation-r8'
 GROUP=98100
 HEADER=98200
 BACK=98300
@@ -13,7 +13,9 @@ BACK_MARKER='Kodi-iOS back/home '+REVISION
 # with <right>, never a fixed <left>.
 FRAME_MARKER='Kodi-iOS safe-area frame '+REVISION
 MENU='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)'
-TOUCH='''<keymap><global><touch><tap>LeftClick</tap><longpress>RightClick</longpress><pan>PanGesture</pan><swipe direction="up">Down</swipe><swipe direction="down">Up</swipe><tap pointers="3">ActivateWindow(settings)</tap><swipe direction="left" pointers="2">Back</swipe><swipe direction="right" pointers="2">RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)</swipe><swipe direction="up" pointers="2">PageUp</swipe><swipe direction="down" pointers="2">PageDown</swipe></touch></global></keymap>'''
+# Swipes move between rows only where Fuse stacks horizontal rows (hubs, search, info page). In ordinary lists
+# a flick already scrolls natively; an extra Up there pushed focus out of the list.
+TOUCH='''<keymap><global><touch><tap>LeftClick</tap><longpress>RightClick</longpress><pan>PanGesture</pan><tap pointers="3">ActivateWindow(settings)</tap><swipe direction="left" pointers="2">Back</swipe><swipe direction="right" pointers="2">RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)</swipe><swipe direction="up" pointers="2">PageUp</swipe><swipe direction="down" pointers="2">PageDown</swipe></touch></global><home><touch><swipe direction="up">Down</swipe><swipe direction="down">Up</swipe></touch></home><window11101><touch><swipe direction="up">Down</swipe><swipe direction="down">Up</swipe></touch></window11101><window11102><touch><swipe direction="up">Down</swipe><swipe direction="down">Up</swipe></touch></window11102><window11103><touch><swipe direction="up">Down</swipe><swipe direction="down">Up</swipe></touch></window11103><window11104><touch><swipe direction="up">Down</swipe><swipe direction="down">Up</swipe></touch></window11104><window11105><touch><swipe direction="up">Down</swipe><swipe direction="down">Up</swipe></touch></window11105><window11106><touch><swipe direction="up">Down</swipe><swipe direction="down">Up</swipe></touch></window11106><window11107><touch><swipe direction="up">Down</swipe><swipe direction="down">Up</swipe></touch></window11107><window11108><touch><swipe direction="up">Down</swipe><swipe direction="down">Up</swipe></touch></window11108><window11109><touch><swipe direction="up">Down</swipe><swipe direction="down">Up</swipe></touch></window11109><movieinformation><touch><swipe direction="up">Down</swipe><swipe direction="down">Up</swipe></touch></movieinformation></keymap>'''
 DRIVE='ActivateWindow(Videos,plugin://plugin.googledrive/,return)'
 UPDATES='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/check_updates.py)'
 HUBS=['home','1101','1102','1103','1104']

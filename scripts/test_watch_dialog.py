@@ -29,8 +29,11 @@ class DialogTests(unittest.TestCase):
   self.assertIs(module.choose_player(self.player),umbrella)
  def test_umbrella_placeholder_shows_status_only(self):
   self.dialog.select.return_value=1;self.assertIsNone(module.choose_player(self.player));self.dialog.ok.assert_called_once();self.xbmc.executebuiltin.assert_not_called()
+ def test_drive_search_uses_the_title(self):
+  self.dialog.select.return_value=2;self.assertIsNone(module.choose_player(self.player))
+  self.xbmc.executebuiltin.assert_called_once_with('ActivateWindow(Videos,plugin://plugin.googledrive/?action=_search&content_type=video&query=Fixture,return)')
  def test_private_drive_is_separate_browse_not_title_match(self):
-  self.dialog.select.return_value=2;self.assertIsNone(module.choose_player(self.player));self.xbmc.executebuiltin.assert_called_once_with('ActivateWindow(Videos,plugin://plugin.googledrive/,return)')
+  self.dialog.select.return_value=3;self.assertIsNone(module.choose_player(self.player));self.xbmc.executebuiltin.assert_called_once_with('ActivateWindow(Videos,plugin://plugin.googledrive/,return)')
  def test_other_backend_not_substituted(self):
   other=SimpleNamespace(file='some-other-player.json',is_local=False,kodi_file=None);self.player.player_items.items_play=[other];self.dialog.select.return_value=0
   self.assertIsNone(module.choose_player(self.player));self.dialog.ok.assert_called_once()

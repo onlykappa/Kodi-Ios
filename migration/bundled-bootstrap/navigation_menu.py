@@ -20,9 +20,13 @@ def run():
   try:certifi=os.path.join(xbmcvfs.translatePath(xbmcaddon.Addon('script.module.certifi').getAddonInfo('path')),'lib','certifi','cacert.pem')
   except Exception:certifi=None
   def kodi_fetch(url):
-   f=xbmcvfs.File(url)
-   try:return bytes(f.readBytes())
-   finally:f.close()
+   # Copy, not readBytes(): that returns nothing for responses without a Content-Length.
+   temp=Path(xbmcvfs.translatePath('special://temp/'))/'kodi-ios-netcheck.http'
+   try:
+    if not xbmcvfs.copy(url,str(temp)):raise RuntimeError('Kodi request failed')
+    return temp.read_bytes()
+   finally:
+    if temp.exists():temp.unlink()
   progress=xbmcgui.DialogProgress();progress.create('Google Drive network diagnostics','Testing connections (up to a minute)...')
   try:report=netcheck.run(certifi if certifi and os.path.isfile(certifi) else None,kodi_fetch)
   finally:progress.close()

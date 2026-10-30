@@ -39,9 +39,15 @@ def run(check_only=False):
  current=json.loads(build.read_text()).get('build') if build.exists() else None
  def fetch(url,binary=False,progress=None,dest=None):
   # Kodi's own curl: Python TLS has failed on this device for some hosts.
-  f=xbmcvfs.File(url+'|'+urllib.parse.urlencode(headers(token,binary)))
+  url=url+'|'+urllib.parse.urlencode(headers(token,binary))
+  if dest is None:
+   # readBytes() returns nothing without a Content-Length, which GitHub's API often omits; copy instead.
+   temp=Path(xbmcvfs.translatePath('special://temp/'))/'kodi-ios-releases.json'
+   try:return temp.read_bytes() if xbmcvfs.copy(url,str(temp)) else b''
+   finally:
+    if temp.exists():temp.unlink()
+  f=xbmcvfs.File(url)
   try:
-   if dest is None:return bytes(f.readBytes())
    size=f.size() or 0;done=0
    with open(dest,'wb') as out:
     while True:

@@ -10,7 +10,7 @@ class BundleTests(unittest.TestCase):
   base=self.root/'addons'/DRIVE_COMMON
   for name,before,_ in DRIVE_PATCHES:
    path=base/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes((path.read_bytes() if path.exists() else b'x\n')+before)
-  receipt=patch_drive(self.root/'addons');self.assertEqual(len(receipt),4)
+  receipt=patch_drive(self.root/'addons');self.assertEqual(len(receipt),len({n for n,_,_ in DRIVE_PATCHES}))
   for name,_,after in DRIVE_PATCHES:self.assertIn(after,(base/name).read_bytes())
   with self.assertRaises(AssertionError):patch_drive(self.root/'addons')
  def test_packaged_sources_manifest_seed_and_original_preserved(self):

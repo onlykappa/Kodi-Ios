@@ -68,10 +68,12 @@ class _KodiResponse(object):
 
 
 def _kodi_open(req):
-    # Kodi's curl handles TLS itself. A failed request reads as an empty body: callers already treat that as
-    # "no pin yet" or fail with their own message.
+    # Kodi's curl handles TLS itself. Copy to a temp file: xbmcvfs.File.readBytes() returns nothing when a
+    # response has no Content-Length (the sign-in server and GitHub's API send such responses).
     import base64
+    import os
     import urllib.parse
+    import uuid
     import xbmcvfs
     options = dict((name.lower(), value) for name, value in req.header_items())
     if req.data is not None:
@@ -79,11 +81,15 @@ def _kodi_open(req):
         options['postdata'] = base64.b64encode(data).decode('ascii')
         options.setdefault('content-type', 'application/x-www-form-urlencoded')
     url = req.full_url + ('|' + urllib.parse.urlencode(options) if options else '')
-    f = xbmcvfs.File(url)
+    temp = xbmcvfs.translatePath('special://temp/clouddrive-%s.http' % uuid.uuid4().hex)
     try:
-        body = bytes(f.readBytes())
+        if not xbmcvfs.copy(url, temp):
+            raise RuntimeError('Kodi network request failed: ' + urllib.parse.urlsplit(req.full_url).netloc)
+        with open(temp, 'rb') as f:
+            body = f.read()
     finally:
-        f.close()
+        if os.path.exists(temp):
+            os.remove(temp)
     return _KodiResponse(req.full_url, body)
 
 
@@ -105,6 +111,16 @@ def _open_url(req):
         return response
     raise first
 '''
+# The iOS watch menu searches Drive for a title: no drive id needed (first signed-in drive) and no typing.
+SEARCH=b'''    def _search(self, driveid=None, item_driveid=None, item_id=None, query=None):
+        if not driveid:
+            drives = [drive['id'] for account in self.get_accounts().values() for drive in account['drives']]
+            if not drives:
+                self._dialog.ok(self._addon_name, 'Sign in to Google Drive first: open Google Drive and choose "Add an account".')
+                return
+            driveid = drives[0]
+        self.get_provider().configure(self._account_manager, driveid)
+        query = query or self._dialog.input('''
 DRIVE_COMMON='script.module.clouddrive.common/'
 DRIVE_PATCHES=[('clouddrive/common/remote/request.py',b'response = urllib.request.urlopen(req)\n',b'response = _open_url(req)\n'),
  ('clouddrive/common/remote/request.py',b'import urllib\n',b'import urllib\n'+TLS),
@@ -112,6 +128,7 @@ DRIVE_PATCHES=[('clouddrive/common/remote/request.py',b'response = urllib.reques
  ('clouddrive/common/remote/signin.py',b'self.sock = self._context.wrap_socket(',b'self.sock = tls_context().wrap_socket('),
  ('clouddrive/common/service/upstream.py',b'import urllib.parse\n',b'import urllib.parse\n\nfrom clouddrive.common.remote.request import tls_context\n'),
  ('clouddrive/common/service/upstream.py',b'self._context = ssl.create_default_context()',b'self._context = tls_context()'),
+ ('clouddrive/common/ui/addon.py',b"    def _search(self, driveid, item_driveid=None, item_id=None):\n        self.get_provider().configure(self._account_manager, driveid)\n        query = self._dialog.input(",SEARCH),
  ('addon.xml',b'<import addon="script.module.pyqrcode"/>',b'<import addon="script.module.pyqrcode"/>\n\t\t<import addon="script.module.certifi"/>')]
 
 def patch_drive(addonroot):

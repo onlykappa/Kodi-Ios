@@ -346,3 +346,11 @@ Status: IMPLEMENTED ON HOST (Touch-r8). Owner wants tapping to behave like the D
 ## ISSUE-047 — Umbrella installed by the owner should appear in the player choice
 
 Status: IMPLEMENTED ON HOST (Touch-r9). Umbrella stays unbundled (inventory exclusion unchanged). The bootstrap now carries the Deck's TMDb Helper Umbrella player (template URLs only, no account data) and copies it into addon_data/plugin.video.themoviedb.helper/players/ at startup only when plugin.video.umbrella is installed, never over an existing owner file. The chooser then lists "Umbrella" as a working option.
+
+## ISSUE-048 — r9: scrolling in menus, Drive "unable to retrieve a pin", Drive title search
+
+Status: FIXED ON HOST (Touch-r9); rig-verified where noted.
+- Scrolling: the global one-finger swipe→Up/Down sent an extra focus move after a native flick; at a list's top this pushed focus out of the list, so later swipes went elsewhere. Row swipes now apply only to Home, the hub windows (11101–11109), Search and the video info page; every other list uses native drag scrolling.
+- Drive sign-in: root cause found in the Kodi 21.3 rig with a local stand-in for the sign-in server. Kodi sent the POST correctly and the server replied, but xbmcvfs.File.readBytes() returns nothing when a response has no Content-Length (Kodi clamps the read to GetLength()==0). The fallback now copies the response to a temp file (xbmcvfs.copy reads to EOF) and reports a real error when the request fails. Same fix in the updater's release check and the network diagnostic. Verified in the rig: PIN JSON, 202 polling, IP, unreachable-host error, and the updater reading this repository's releases.
+- Watch menu: "Search Google Drive for <title>" opens Drive's search on the first signed-in drive with the title filled in (packaged Drive module patched to accept a query and no drive id); "Browse Google Drive" remains.
+- Home stutter: not changed without measurements; TMDb hosts are blocked in the build environment.
