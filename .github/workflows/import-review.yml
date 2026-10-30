@@ -24,13 +24,15 @@ concurrency:
 jobs:
   review:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
       - name: Test staged import and navigation safety
         run: |
+          python3 -B scripts/test_bundled_bootstrap.py
+          python3 -B scripts/test_customized_ipa.py
           python3 -B scripts/test_import_builder.py
           python3 -B scripts/test_import_profile.py
           python3 -B scripts/test_watch_routes.py
@@ -48,5 +50,22 @@ jobs:
         with:
           name: kodi-ios-customized-import-review
           path: ${{ runner.temp }}/kodi-import-review/*
+          if-no-files-found: error
+          retention-days: 7
+      - name: Acquire isolated official foundation for customized IPA
+        run: |
+          mkdir -p "$RUNNER_TEMP/customized-foundation"
+          curl --fail --location --proto '=https' --proto-redir '=https' --max-time 120 --output "$RUNNER_TEMP/customized-foundation/foundation.deb" https://mirrors.kodi.tv/releases/darwin/ios-arm64/org.xbmc.kodi-ios_21.3_iphoneos-arm64.deb
+          printf '%s  %s\n' c80e2e4eded0b3be9f9c8cd19a73e3f3ac7171575dd6f08cfddf14312ca81eb8 "$RUNNER_TEMP/customized-foundation/foundation.deb" | sha256sum --check
+          dpkg-deb --extract "$RUNNER_TEMP/customized-foundation/foundation.deb" "$RUNNER_TEMP/customized-foundation/unpacked"
+      - name: Build and validate full customized unsigned ARM64 IPA
+        run: |
+          python3 -B scripts/build_customized_ipa.py --app "$RUNNER_TEMP/customized-foundation/unpacked/Applications/Kodi.app" --deb "$RUNNER_TEMP/customized-foundation/foundation.deb" --bundle "$RUNNER_TEMP/kodi-import-review/Kodi-iOS-Customized-Import.zip" --expected-sha256 cc5d7eb7efa62f1f389f67451b3b94ab8d6a0deda15b94d6e66b48f3ea06669e --work "$RUNNER_TEMP/customized-app" --output "$RUNNER_TEMP/customized-ipa"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Kodi-iOS-Customized-unsigned-ARM64
+          path: |
+            ${{ runner.temp }}/customized-ipa/*.ipa
+            ${{ runner.temp }}/customized-ipa/*.json
           if-no-files-found: error
           retention-days: 7

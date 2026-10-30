@@ -57,3 +57,7 @@ Owner confirms diagnostic installation/launch and approves separate import; no o
 ## Phase 4 — fixed import test kit ready for owner testing
 
 Published validated kit (run 40981957027/artifact 12945112472), 38 add-on packages and 30 configuration files; fixed importer preserves all 7324 source files. Complete-bundle repeat/rollback synthetic smoke passes and 133 host regressions pass. Retained failed packaging attempts and superseded artifact. Steam Deck immutability and secret checks pass. No new IPA/signing change; use owner-tested foundation. Actual phone export/import, Fuse UI/touch, Drive playback, screenshots/comparisons and rollback remain blocked. Native Elementum deferred. Phase 4 review package is partial; no Phase 5, merge or release.
+
+## Phase 4 — fully bundled automatic IPA implementation
+
+Owner supersedes manual import (DEC-022). Implement optional packaged bootstrap service, automatic profile initialization with hashes/private recovery journal, live settings/skin APIs, repeat-launch no-overwrite behavior and program recovery entrypoint. Bundle all validated source addon/configuration payloads, register through Kodi's system addon manifest and normal JSON-RPC; no SQLite edits/native injection. Add eight bootstrap and three packaging regressions; all 144 tests in 19 suites pass. Extend isolated Linux workflow to build/inspect/upload Kodi-iOS-Customized.ipa; actual run pending. Diagnostic artifact remains intact; no actual-device success or Elementum support claimed.

@@ -1,0 +1,113 @@
+{
+  "recorded_utc": "2026-10-30T01:08:35.993926+00:00",
+  "status": "IMPLEMENTED; HOST TESTS PASS; IPA CI BUILD PENDING",
+  "host_suites": [
+    {
+      "suite": "test_activation.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "test_bundled_bootstrap.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "suite": "test_checks.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "suite": "test_ci_workflow.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "test_customized_ipa.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "suite": "test_drive_integration.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "suite": "test_drive_packages.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "test_drive_research.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "test_drive_runtime.py",
+      "passed": true,
+      "tests": 9
+    },
+    {
+      "suite": "test_import_builder.py",
+      "passed": true,
+      "tests": 13
+    },
+    {
+      "suite": "test_import_profile.py",
+      "passed": true,
+      "tests": 19
+    },
+    {
+      "suite": "test_ios.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "suite": "test_ios_foundation.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "suite": "test_roadmap.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "test_skin_comparison.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "suite": "test_unsigned_ipa.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "test_visual_roster.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "test_watch_dialog.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "test_watch_routes.py",
+      "passed": true,
+      "tests": 9
+    }
+  ],
+  "host_test_count": 144,
+  "source_revision": "a3a448d26b8d560a65655dab2cd122994dc4e146",
+  "source_evidence": {
+    "registration": "xbmc/addons/AddonDatabase.cpp CAddonDatabase::SyncInstalled enables newly discovered system/optional addons; optional preserves later disabled state",
+    "service_start": "xbmc/addons/Service.cpp CServiceAddonManager::Start executes enabled Python service entrypoints",
+    "manifest": "system/addon-manifest.xml provides supported optional attribute"
+  },
+  "bootstrap_device_tested": false,
+  "elementum_engine_included": false,
+  "manual_profile_import_required": false,
+  "original_deck_written": false,
+  "diagnostic_ipa_modified": false
+}

@@ -1,15 +1,15 @@
 # Persistent progress
 
 Status: BLOCKED
-Current phase: Phase 4 — owner-confirmed diagnostic launch; customized import and phone-local Elementum investigation in progress
+Current phase: Phase 4 — building owner-authorized fully bundled IPA with automatic startup service; Elementum deferred
 Progress: 25/39 task IDs COMPLETE (64.10%); 14 awaiting implementation.
 Last completed task: P4-009 capture requirement inventory (184 retained IDs, zero actual captures); P4-007/008 static source and simulator investigations completed.
-Next actionable task: owner follows docs/iphone-import.md to verify actual Files/profile access, privately export a clean target profile, apply the fixed kit and supply actual import/activation/device evidence. Available host preparation is ready for review; do not start Phase 5.
-Active blockers: actual phone profile access/clean export, customized import/activation, visuals, Google Drive and rollback unverified. Fixed public-source artifact is ready (reports/phase4-import-artifact.json). Native Elementum explicitly DEFERRED BY OWNER; no replacement primary or remote host.
-Pending decisions: no architecture decision pending; separate import approved. Further Mac runs require new approval; native engine deferred. Owner supplies phone tests/screenshots privately when package is ready.
+Next actionable task: run all regressions, publish validated bootstrap/builder changes, execute isolated Linux IPA workflow, inspect/fix real failures, record checksum/artifact; then stop for actual iPhone testing.
+Active blockers: customized IPA build pending; real iPhone signing/bootstrap/UI/Drive/screenshots/rollback unverified. Manual-import requirement superseded. No Elementum engine.
+Pending decisions: fully bundled IPA implementation/build explicitly approved. No additional Mac run authorized or required for resource-only packaging. Owner supplies physical device evidence after artifact is ready.
 Latest implementation commit SHA reviewed: local a143c53 / published a2ce3cb5ca7e5520d5a7da0e848ac86709db1737 (equal code tree); successful artifact source. Resolve this final evidence commit from Git/PR head.
 Roadmap publication commit: resolve `git log -1 --format=%H -- ROADMAP.md`; this avoids a self-referential SHA. Verify against PR head before resuming.
-Last updated UTC: 2026-10-30T00:50:47.359510+00:00
+Last updated UTC: 2026-10-30T01:06:45.279643+00:00
 Last validation: 133 tests in 17 host suites pass; run 40981957027 validates 38 add-ons/30 configs and full apply/repeat-zero-writes/clean-restore with 7324 source files identical. Source Deck: 22463 files hashed, zero changes/additions/missing. Secret/history/private-value scans pass. 184 capture requirements retained, zero captures. See reports/phase4-import-artifact.json.
 
 ## Resume instructions
