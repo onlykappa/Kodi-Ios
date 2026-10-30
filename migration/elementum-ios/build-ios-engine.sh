@@ -67,6 +67,8 @@ end
 step "Boost $BOOST_VERSION for iPhoneOS arm64"
 fetch "https://archives.boost.io/release/$BOOST_VERSION/source/boost_${BOOST_VERSION//./_}.tar.bz2" "$BOOST_SHA256" "$SRC/boost.tbz2"
 tar -xjf "$SRC/boost.tbz2" -C "$SRC"
+# Boost 1.72's darwin toolset passes -fcoalesce-templates, which current Xcode clang rejects.
+sed -i '' 's/-fcoalesce-templates//g' "$SRC/boost_${BOOST_VERSION//./_}/tools/build/src/tools/darwin.jam"
 (cd "$SRC/boost_${BOOST_VERSION//./_}" && quiet ./bootstrap.sh --with-toolset=clang \
   && echo "using darwin : iphone : $CLANGXX : <compileflags>\"$IOS_FLAGS -std=c++11\" <linkflags>\"$IOS_FLAGS\" <striper> ;" > user-config.jam \
   && quiet ./b2 -q --user-config=user-config.jam toolset=darwin-iphone target-os=iphone architecture=arm address-model=64 binary-format=mach-o abi=aapcs \
