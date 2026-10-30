@@ -1,7 +1,7 @@
 {
   "passed": true,
-  "files_scanned": 185,
-  "git_history_blobs_scanned": 266,
+  "files_scanned": 190,
+  "git_history_blobs_scanned": 341,
   "source_value_comparison_performed": true,
   "source_sensitive_candidates_checked": 12,
   "scanner": "Python standard-library patterns, exact private-source value comparison, file allowlist and structural/reference checks",

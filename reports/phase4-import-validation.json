@@ -1,5 +1,5 @@
 {
-  "recorded_utc": "2026-10-30T00:35:08.772736+00:00",
+  "recorded_utc": "2026-10-30T00:50:47.359510+00:00",
   "host_tests": [
     {
       "suite": "test_activation.py",
@@ -93,7 +93,7 @@
   "engine_status": "DEFERRED BY OWNER; not built",
   "capture_requirements_retained": 184,
   "actual_screenshots": 0,
-  "limitations": "Host fixtures and API mocks do not establish actual iPhone import, Kodi activation, gestures, playback or rollback. Public-source bundle not yet acquired/built.",
+  "limitations": "Host/static and synthetic full-bundle tests pass. Actual phone access/import/activation, gestures, Google Drive playback, screenshots and rollback remain pending.",
   "source_immutability": "reports/phase4-source-immutability.json: 22463 files, zero changes",
   "source_build_failures": [
     {
@@ -119,5 +119,18 @@
       "reason": "Importer settings-definition bug; do not apply this kit",
       "owner_device_use_reported": false
     }
-  ]
+  ],
+  "full_import_smoke": {
+    "passed": true,
+    "bundle_sha256": "cc5d7eb7efa62f1f389f67451b3b94ab8d6a0deda15b94d6e66b48f3ea06669e",
+    "addon_source_files_verified": 7324,
+    "configuration_files": 30,
+    "apply": "PASS",
+    "repeat_zero_writes": "PASS",
+    "restore_all_clean_hashes": "PASS",
+    "fixture": "synthetic private exported-profile copy",
+    "actual_phone_tested": false,
+    "original_deck_read_or_written": false
+  },
+  "artifact_receipt": "reports/phase4-import-artifact.json"
 }

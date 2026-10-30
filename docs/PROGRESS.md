@@ -4,13 +4,13 @@ Status: BLOCKED
 Current phase: Phase 4 — owner-confirmed diagnostic launch; customized import and phone-local Elementum investigation in progress
 Progress: 25/39 task IDs COMPLETE (64.10%); 14 awaiting implementation.
 Last completed task: P4-009 capture requirement inventory (184 retained IDs, zero actual captures); P4-007/008 static source and simulator investigations completed.
-Next actionable task: Produce and inspect the customized public-source import artifact in the isolated Linux workflow. Then await owner phone export/import, functional, screenshot and rollback evidence.
-Active blockers: complete source-acquired import artifact pending; actual phone profile access/clean export, customized import/activation, visuals, Google Drive and rollback unverified. Native Elementum explicitly DEFERRED BY OWNER, no replacement primary or remote host.
+Next actionable task: owner follows docs/iphone-import.md to verify actual Files/profile access, privately export a clean target profile, apply the fixed kit and supply actual import/activation/device evidence. Available host preparation is ready for review; do not start Phase 5.
+Active blockers: actual phone profile access/clean export, customized import/activation, visuals, Google Drive and rollback unverified. Fixed public-source artifact is ready (reports/phase4-import-artifact.json). Native Elementum explicitly DEFERRED BY OWNER; no replacement primary or remote host.
 Pending decisions: no architecture decision pending; separate import approved. Further Mac runs require new approval; native engine deferred. Owner supplies phone tests/screenshots privately when package is ready.
-Latest implementation commit SHA reviewed: local 6d72cc8123ad387c1464cdf779300468a9079528 / published fb7d3474ef019f63268a8cf3c6cfd958001d9ad2 (equal tree). Resolve current tracker commit with git log and PR head after this checkpoint.
+Latest implementation commit SHA reviewed: local a143c53 / published a2ce3cb5ca7e5520d5a7da0e848ac86709db1737 (equal code tree); successful artifact source. Resolve this final evidence commit from Git/PR head.
 Roadmap publication commit: resolve `git log -1 --format=%H -- ROADMAP.md`; this avoids a self-referential SHA. Verify against PR head before resuming.
-Last updated UTC: 2026-10-30T00:35:01.582386+00:00
-Last validation: per-script regression suites pass; generic discovery failure retained in ISSUE-031. Static iOS target has 43 candidate dependencies, 32 payload files plus manifest. Foundation audit confirms supplied ARM64 PIL/API dependencies. Mac probe failed missing Go before compilation; no retry.
+Last updated UTC: 2026-10-30T00:50:47.359510+00:00
+Last validation: 133 tests in 17 host suites pass; run 40981957027 validates 38 add-ons/30 configs and full apply/repeat-zero-writes/clean-restore with 7324 source files identical. Source Deck: 22463 files hashed, zero changes/additions/missing. Secret/history/private-value scans pass. 184 capture requirements retained, zero captures. See reports/phase4-import-artifact.json.
 
 ## Resume instructions
 
