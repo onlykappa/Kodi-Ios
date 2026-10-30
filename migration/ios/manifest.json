@@ -6,11 +6,11 @@
   "files": [
     {
       "path": "adaptations.json",
-      "sha256": "2039d1fab4e82700c51afb612090854c77abffd04a18629caee588133bccfce6"
+      "sha256": "2509684935d3797ceba9b4414345c0baee3f10a5baafca968f63760020a1cfbb"
     },
     {
       "path": "addon-plan.json",
-      "sha256": "15070921cffd0e15064350830af450fc91afa85b8cad7003c08ce945fcc775ec"
+      "sha256": "e63e53029b3d31313e537c06c82ceab14422402147be47fd36d2e9e9c48e5b54"
     },
     {
       "path": "userdata/addon_data/plugin.googledrive/settings.xml",
@@ -38,7 +38,7 @@
     },
     {
       "path": "userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
-      "sha256": "ed0888e871ef0fce6d7cf6b62764bbd0dc90d258170c878e97c022853f0b6d40"
+      "sha256": "00710831264fe6f6daf1dc6b72d161f1d556b6d1baf5be5dd43813d9fd1d7349"
     },
     {
       "path": "userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
@@ -54,7 +54,7 @@
     },
     {
       "path": "userdata/addon_data/script.skinvariables/skin.arctic.fuse.3-viewtypes.json",
-      "sha256": "1daa086f3f3c95cb2af9adae7e99c71931bb24b5446205b35e9e8907bf647aeb"
+      "sha256": "daec2f280bd79037487efbe90f452403eeffea96f9147fcd0d637b5090371f3c"
     },
     {
       "path": "userdata/addon_data/skin.arctic.fuse.3/settings.xml",
@@ -70,7 +70,7 @@
     },
     {
       "path": "userdata/keymaps/ios-touch.xml",
-      "sha256": "2258e5b19790c54fb756c5acb322ebe08b3f6d4285b3c2e47f2e60ad06b36181"
+      "sha256": "6bb433034484ba927187feeb700c6af66c7514b0936806119e70b53dfdde04e1"
     },
     {
       "path": "userdata/playlists/video/Downloaded Shows.xsp",

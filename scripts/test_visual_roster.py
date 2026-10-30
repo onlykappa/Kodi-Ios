@@ -12,4 +12,10 @@ class RosterTests(unittest.TestCase):
  def test_removed_route_is_retained_for_owner_review(self):
   old={**self.row(),'status':'FAILED'}
   result=preserve_evidence([],[old]);self.assertTrue(result[0]['exclusion_review_required']);self.assertEqual(result[0]['status'],'FAILED')
+ def test_menu_slot_move_retains_original_id_and_failure(self):
+  old=[{**self.row('youtube'),'id':'slot0','origin':'target','source':'menu','slot':0,'label':'YouTube'}, {**self.row('drive'),'id':'slot1','origin':'target','source':'menu','slot':1,'status':'FAILED','evidence':'private-failure'}]
+  new=[{**self.row('drive'),'id':'slot0','origin':'target','source':'menu','slot':0}]
+  out=preserve_evidence(new,old);self.assertEqual(len(out),2)
+  drive=next(r for r in out if r['id']=='slot1');self.assertEqual(drive['status'],'FAILED');self.assertEqual(drive['slot'],0)
+  yt=next(r for r in out if r['id']=='slot0');self.assertIn('owner_approved_exclusion',yt);self.assertIsNone(yt['evidence'])
 if __name__=='__main__':unittest.main()

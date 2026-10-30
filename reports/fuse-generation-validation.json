@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "actual_helper_source_sha256": "5c91feeb2c72080c6482baf88fc7ed485dd5c9ff90d5593d365b20ebe948a19c",
+  "skin_metadata_sha256": "a34ff67470d510e0b85ab4d82635b461c916501615b9bf3e7983b6f0d551c241",
+  "input_sha256": "1daa086f3f3c95cb2af9adae7e99c71931bb24b5446205b35e9e8907bf647aeb",
+  "generated_expressions": 68,
+  "baseline_semantics_equal": true,
+  "view_choices": 76,
+  "source_written": false,
+  "kodi_or_phone_runtime_tested": false,
+  "shortcut_cache_resolution": "Do not import stale generated shortcut cache; retain sanitized nodes/settings and upstream pending-rebuild trigger. Actual first-run generation still needs phone validation."
+}

@@ -1,0 +1,48 @@
+name: Customized import review bundle
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/import-review.yml'
+      - 'scripts/build_import_review.py'
+      - 'scripts/import_runtime/**'
+      - 'scripts/import_profile.py'
+      - 'scripts/test_import_profile.py'
+      - 'scripts/test_watch_routes.py'
+      - 'scripts/test_watch_dialog.py'
+      - 'scripts/test_activation.py'
+      - 'migration/import-inputs/**'
+      - 'migration/import-overlays/**'
+      - 'migration/ios/**'
+      - 'docs/iphone-import.md'
+permissions:
+  contents: read
+concurrency:
+  group: kodi-customized-import-review
+  cancel-in-progress: true
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Test staged import and navigation safety
+        run: |
+          python3 -B scripts/test_import_builder.py
+          python3 -B scripts/test_import_profile.py
+          python3 -B scripts/test_watch_routes.py
+          python3 -B scripts/test_watch_dialog.py
+          python3 -B scripts/test_activation.py
+          python3 -B scripts/test_ios.py
+      - name: Acquire public pinned sources and build review ZIP
+        run: |
+          python3 -B scripts/build_import_review.py --foundation-report reports/ios-foundation-addon-audit.json --output "$RUNNER_TEMP/kodi-import-review"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: kodi-ios-customized-import-review
+          path: ${{ runner.temp }}/kodi-import-review/*
+          if-no-files-found: error
+          retention-days: 7

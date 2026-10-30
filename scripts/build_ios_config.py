@@ -3,9 +3,11 @@ No add-on code, credentials, media or IPA executable is copied.
 """
 from pathlib import Path
 import json,re,hashlib,shutil,xml.etree.ElementTree as ET
+from urllib.parse import unquote as urllib_decode
 ROOT=Path(__file__).resolve().parents[1]
 DEST=ROOT/'migration/ios'
 BAD=['umbrella','plugin.video.elementum','script.elementum','service.deck.keeper','context.kannon.delete','plugin.video.the-loop','plugin.video.loop','script.loop.sportshub','repository.loop','repository.gsports','script.module.jetextractors']
+YOUTUBE=('plugin.video.youtube','plugin.video.youtube.fusion')
 def build():
  assert not (ROOT/'migration').is_symlink() and not DEST.is_symlink()
  if DEST.exists():shutil.rmtree(DEST)
@@ -25,6 +27,10 @@ def build():
     if result is not None:out.append(result)
    return out
   if isinstance(v,dict):
+   if any(y in urllib_decode(str(v)).lower() for y in YOUTUBE):
+    if 'path' in v or 'label' in v:
+     changes.append({'location':location,'reason':'YouTube/Fusion fully removed from iOS target by explicit owner instruction'});return None
+   v={k:x for k,x in v.items() if k not in YOUTUBE}
    # Preserve the menu slot/label, but replace unsupported playback with local-library browsing.
    out={}
    for key,x in v.items():
@@ -52,7 +58,7 @@ def build():
    root=ET.parse(p).getroot()
    for parent in root.iter():
     for child in list(parent):
-     if child.tag=='setting' and (bad(ET.tostring(child,encoding='unicode')) or 'REDACTED_' in child.get('id','')):
+     if child.tag=='setting' and (any(y in ET.tostring(child,encoding='unicode').lower() for y in YOUTUBE) or bad(ET.tostring(child,encoding='unicode')) or 'REDACTED_' in child.get('id','')):
       parent.remove(child);changes.append({'location':loc+'/'+child.get('id',''),'reason':'Excluded backend preference removed from target only'})
     if parent.text:parent.text=remap(parent.text)
    if rel.name=='sources.xml':
@@ -64,7 +70,7 @@ def build():
   assert not bad(data),'Excluded reference remains in target'
   out.write_text(data)
  touch=DEST/'userdata/keymaps/ios-touch.xml';touch.parent.mkdir(parents=True,exist_ok=True)
- touch.write_text('<keymap>\n  <global><touch><tap>LeftClick</tap><longpress>RightClick</longpress><pan>PanGesture</pan><swipe direction="left" pointers="2">Back</swipe><swipe direction="right" pointers="2">Menu</swipe></touch></global>\n  <FullScreenVideo><touch><tap pointers="3">PlayPause</tap><swipe direction="left">StepBack</swipe><swipe direction="right">StepForward</swipe></touch></FullScreenVideo>\n</keymap>\n')
+ touch.write_text('<keymap>\n  <global><touch><tap>LeftClick</tap><longpress>ContextMenu</longpress><pan>PanGesture</pan><swipe direction="left" pointers="2">Back</swipe><swipe direction="right" pointers="2">Menu</swipe></touch></global>\n  <FullScreenVideo><touch><tap pointers="3">PlayPause</tap><swipe direction="left">StepBack</swipe><swipe direction="right">StepForward</swipe></touch></FullScreenVideo>\n</keymap>\n')
  records=json.loads((ROOT/'reports/ios-compatibility.json').read_text())['records']
  preferred={}
  for a in records:preferred[a['id']]=a
@@ -73,8 +79,14 @@ def build():
   contracts=json.loads(drive_contracts.read_text());assert contracts['owner_approved'] and contracts['architecture']=='direct-addon-maintainer-oauth-relay'
   for a in contracts['addons']:
    preferred[a['id']]={'id':a['id'],'version':a['version'],'manifest_valid':True,'compatibility_category':'approved_drive_candidate_runtime_unverified','requires':a['requires']}
- roots=['skin.arctic.fuse.3','skin.arctic.zephyr.mod','plugin.video.youtube','plugin.video.youtube.fusion','script.trakt']
+ import_contracts=ROOT/'reports/import-addon-contracts.json'
+ if import_contracts.exists():
+  ic=json.loads(import_contracts.read_text());assert ic['owner_approved_import']
+  for a in ic['addons']:preferred[a['id']]={'id':a['id'],'version':a['version'],'manifest_valid':True,'compatibility_category':'ios_watch_options_host_tested_runtime_unverified','requires':a['requires']}
+  helper=preferred['plugin.video.themoviedb.helper'];helper['version']=ic['helper_patch']['import_version'];helper['requires'].append({'id':'plugin.video.kodi.ios.watch','minimum_version':'1.0.0','optional':False})
+ roots=['skin.arctic.fuse.3','skin.arctic.zephyr.mod','script.trakt']
  if drive_contracts.exists():roots.append('plugin.googledrive')
+ if import_contracts.exists():roots.append('script.kodi.ios.first_run')
  selection={}
  def add(id):
   if id in selection:return
@@ -90,7 +102,7 @@ def build():
   menu.write_text(json.dumps(items,indent=2)+'\n')
   mapping.append({'location':'homesubmenu/Google Drive','target_label':'Google Drive','retained_menu_slot':False,'new_integration':True})
   changes.append({'location':'addon_data/plugin.googledrive/settings.xml','reason':'Approved direct Drive relay and safe subtitles/resume preferences; account state absent; optional directory listing disabled'})
- (DEST/'addon-plan.json').write_text(json.dumps({'policy':'Candidate install plan only; no add-on code distributed. Acquire matching iOS-compatible versions from reviewed official Kodi/Jurialmunkey repositories or the approved pinned Drive upstream source-lock and verify licenses/dependencies before target activation. Source versions are candidate pins, not proof of availability.','roots':roots,'addons':list(selection.values()),'excluded_or_deferred':[a['id'] for a in records if a['compatibility_category'] in ['excluded_by_owner','deferred_by_owner','blocked_invalid_manifest','incompatible_native_payload','incompatible_existing_implementation']]},indent=2)+'\n')
+ (DEST/'addon-plan.json').write_text(json.dumps({'policy':'Candidate install plan only; no add-on code distributed. Acquire matching iOS-compatible versions from reviewed official Kodi/Jurialmunkey repositories or the approved pinned Drive upstream source-lock and verify licenses/dependencies before target activation. Source versions are candidate pins, not proof of availability.','roots':roots,'addons':list(selection.values()),'excluded_or_deferred':[a['id'] for a in records if a['id'] in YOUTUBE or a['compatibility_category'] in ['excluded_by_owner','deferred_by_owner','blocked_invalid_manifest','incompatible_native_payload','incompatible_existing_implementation']]},indent=2)+'\n')
  (DEST/'adaptations.json').write_text(json.dumps({'changes':changes,'menu_mapping':mapping,'empty_media_directories_to_create':sorted(directories),'touch_runtime_verified':False,'fuse_layout_touch_compatibility':'Unverified; upstream touch issue remains. Gesture adapter does not fix individual skin control geometry.','media_library':'Empty until private sources/Drive added in later phase; browse replacements are not equivalent stream providers.'},indent=2)+'\n')
  hashes=[{'path':str(p.relative_to(DEST)),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(DEST.rglob('*')) if p.is_file()]
  (DEST/'manifest.json').write_text(json.dumps({'target':'iPhone 16 Pro / iOS 27.0.1 / non-jailbroken / arm64','configuration_status':'PROVISIONAL_STATIC_IMPORT_CONFIGURATION','ipa_created':False,'runtime_verified':False,'files':hashes},indent=2)+'\n')

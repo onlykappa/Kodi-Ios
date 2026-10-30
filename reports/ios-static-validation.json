@@ -2,7 +2,7 @@
   "passed": true,
   "static_only": true,
   "target_files": 33,
-  "dependency_candidates": 51,
+  "dependency_candidates": 43,
   "plugin_references": [
     "plugin.googledrive",
     "plugin.video.themoviedb.helper"

@@ -1,11 +1,5 @@
 [
   {
-    "label": "YouTube",
-    "path": "RunScript(plugin.video.youtube.fusion)",
-    "icon": "special://profile/media/local_media_root_05/",
-    "target": ""
-  },
-  {
     "label": "Sports",
     "path": "videodb://movies/titles/",
     "icon": "special://profile/media/local_media_root_06/",

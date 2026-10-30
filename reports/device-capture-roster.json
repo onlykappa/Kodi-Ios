@@ -2354,31 +2354,10 @@
       "evidence": null
     },
     {
-      "id": "MENU-09e70515eed4",
-      "origin": "target",
-      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
-      "slot": 0,
-      "label": "YouTube",
-      "route_sha256": "60207a3b8c474560b1fa550a05c9f0549a8f5c70b1a541b959dfc69ad0d33114",
-      "required_states": [
-        "populated",
-        "loading",
-        "empty",
-        "error"
-      ],
-      "orientations": [
-        "landscape-left",
-        "landscape-right",
-        "portrait-attempt-record-supported-or-rejected"
-      ],
-      "status": "AWAITING DEVICE TESTING",
-      "evidence": null
-    },
-    {
       "id": "MENU-e11da522f828",
       "origin": "target",
       "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
-      "slot": 1,
+      "slot": 0,
       "label": "Sports",
       "route_sha256": "a40ec013d7945432c9a0c0650ce208d9805603eef950ac957856ebba8684828c",
       "required_states": [
@@ -2399,7 +2378,7 @@
       "id": "MENU-d53686516dab",
       "origin": "target",
       "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
-      "slot": 2,
+      "slot": 1,
       "label": "$LOCALIZE[3]",
       "route_sha256": "f3542a7399041785463960f7e573eb452064fbe7f7b36c849a4cd8d144a37635",
       "required_states": [
@@ -2420,7 +2399,7 @@
       "id": "MENU-44c3c90439f1",
       "origin": "target",
       "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
-      "slot": 3,
+      "slot": 2,
       "label": "Google Drive",
       "route_sha256": "1e72fd5a6e7c001c4d4a01dc1153ea7720d9c31fec0b524cf0dada1df9009dfb",
       "required_states": [
@@ -3700,6 +3679,31 @@
       ],
       "status": "AWAITING DEVICE TESTING",
       "evidence": null
+    },
+    {
+      "id": "MENU-09e70515eed4",
+      "origin": "target",
+      "source": "migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
+      "slot": 0,
+      "label": "YouTube",
+      "route_sha256": "60207a3b8c474560b1fa550a05c9f0549a8f5c70b1a541b959dfc69ad0d33114",
+      "required_states": [
+        "populated",
+        "loading",
+        "empty",
+        "error"
+      ],
+      "orientations": [
+        "landscape-left",
+        "landscape-right",
+        "portrait-attempt-record-supported-or-rejected"
+      ],
+      "status": "AWAITING DEVICE TESTING",
+      "evidence": null,
+      "source_removed": true,
+      "exclusion_review_required": false,
+      "owner_approved_exclusion": "Owner explicitly removed YouTube/Fusion",
+      "expected_device_result": "YouTube shortcut absent; verify on iPhone; preserve baseline capture/history"
     }
   ],
   "count": 184,

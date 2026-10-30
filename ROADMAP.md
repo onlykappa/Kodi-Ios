@@ -1,7 +1,7 @@
 # Kodi-iOS master roadmap
 
-Status: BLOCKED. Current phase: Phase 4 — unsigned diagnostic foundation prepared; owner deployment choice and actual device evidence pending. Phase 3 approved; Phase 5 unauthorized.
-Progress: 22/39 task IDs COMPLETE (56.41%); 17 awaiting implementation.
+Status: BLOCKED. Current phase: Phase 4 — diagnostic launch owner-confirmed; separate import approved; customized device evidence pending. Phase 3 approved; Phase 5 unauthorized.
+Progress: 25/39 task IDs COMPLETE (64.10%); 14 awaiting implementation.
 
 ## Rules and session protocol
 
@@ -147,7 +147,7 @@ Phase status: BLOCKED — host preparation exists; actual device/visual exit cri
   - Status: BLOCKED. Dependencies: P4-008.
   - 1. Deliverable and acceptance: Prepare a reproducible unsigned Kodi iOS IPA from a trusted compatible foundation, with provenance/checksums and clean target backup. Determine which sanitized Fuse configuration/add-ons can be bundled versus imported after install; exclude credentials, account state and media. Validate ZIP/Payload/application layout, Info.plist, executable architecture, minimum iOS, load dependencies, entitlements/signature state and integrity; document rollback without touching source Deck.
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
-  - Evidence: scripts/build_unsigned_ipa.py; reports/unsigned-ipa-candidate.json. Diagnostic foundation only; full migration/import choice, required dependency evidence and clean target recovery copy absent.
+  - Evidence: scripts/build_unsigned_ipa.py; reports/unsigned-ipa-candidate.json. Separate import approved; foundation dependency audit, offline importer and safe host recovery tests prepared. Complete public-source artifact and actual clean phone export/transfer remain prerequisites. Native Elementum deferred by owner; no replacement primary.
 - [ ] P4-003 — Install Kodi and dependencies
   - Status: BLOCKED. Dependencies: P4-002.
   - 1. Deliverable and acceptance: Sign the unsigned IPA using the owner's existing sideloader and install on the actual iPhone; verify required entitlements, signing/renewal limits and compatible add-on versions. No working-IPA claim before successful real-device tests.
@@ -169,21 +169,21 @@ Phase status: BLOCKED — host preparation exists; actual device/visual exit cri
   - 2. Validation: record command/device procedure, expected and observed result, artifact/commit and date; diagnose any failure before completion.
   - Evidence: docs/phase4-device-testing.md; reports/device-capture-roster.json. AWAITING DEVICE TESTING: owner supplies actual-device results/screenshots; upstream dependencies not complete.
 
-- [ ] P4-007 — Compare real Kodi and Arctic Fuse source code
-  - Status: BLOCKED. Dependencies: P4-001.
+- [x] P4-007 — Compare real Kodi and Arctic Fuse source code
+  - Status: COMPLETE. Dependencies: P4-001.
   - 1. Deliverable and acceptance: Obtain trusted pinned Kodi 21.3 source/build provenance and matching Arctic Fuse 3 source. Compare real code/assets to verified private Steam Deck copies; record file hashes, local modifications, platform-specific startup/path/native-code differences, licenses and migration patches. Do not equate version strings or static settings mapping with code parity. Block on unavailable source/provenance; never alter original installation.
   - 2. Validation: record exact versions, procedures, observed results, artifact hashes and review evidence; never mark complete with missing evidence.
-  - Evidence: reports/fuse-source-comparison.json; reports/kodi-source-provenance.json; docs/phase4-source-findings.md. Prepared prerequisite investigation; P4-001 acceptance and generated-state target outcome unverified.
-- [ ] P4-008 — Investigate iPhone 16 Pro simulator feasibility
-  - Status: BLOCKED. Dependencies: P4-007.
+  - Evidence: reports/phase4-source-validation.json; reports/fuse-source-comparison.json; reports/fuse-generation-validation.json; reports/kodi-source-provenance.json; docs/phase4-source-findings.md. Source comparison complete; native port and phone rendering remain separate unfinished tasks.
+- [x] P4-008 — Investigate iPhone 16 Pro simulator feasibility
+  - Status: COMPLETE. Dependencies: P4-007.
   - 1. Deliverable and acceptance: Determine available Mac/Xcode/runtime access and iPhone 16 Pro simulator profiles. Verify whether an appropriate Kodi simulator-target build exists or can be built from trusted source; an ARM64 iPhoneOS IPA is not proof of simulator compatibility. Record supported/unsupported/infeasible outcome and evidence. Do not purchase hosting or tools without owner approval. A documented infeasibility finding completes the investigation, not simulator/device testing.
   - 2. Validation: record exact versions, procedures, observed results, artifact hashes and review evidence; never mark complete with missing evidence.
-  - Evidence: docs/phase4-source-findings.md. Local simulator infeasible and tagged build guide unsupported; prerequisite P4-007 not complete. No simulator run.
-- [ ] P4-009 — Inventory every major screen and visual fixture
-  - Status: BLOCKED. Dependencies: P4-008.
+  - Evidence: reports/phase4-source-validation.json; docs/phase4-source-findings.md; tagged official Kodi iOS build guide. Investigation concludes infeasible within current authorized resources; no simulator run or profile compatibility claimed.
+- [x] P4-009 — Inventory every major screen and visual fixture
+  - Status: COMPLETE. Dependencies: P4-008.
   - 1. Deliverable and acceptance: Create a route-by-route capture roster covering startup, every main menu/submenu, every retained widget category, media lists/details/search, add-ons, relevant settings pages, dialogs, authentication error states and playback/OSD/seek/subtitle/resume interfaces. Include portrait/landscape and loading/empty/error states where applicable. Use matching synthetic nonpersonal fixtures; define baseline/target pairing, tolerances and justified differences in docs/visual-validation-plan.md. Do not silently drop unrenderable screens.
   - 2. Validation: record exact versions, procedures, observed results, artifact hashes and review evidence; never mark complete with missing evidence.
-  - Evidence: reports/device-capture-roster.json (184 entries); docs/phase4-device-testing.md. Prepared checklist only; prerequisite P4-008 not complete.
+  - Evidence: reports/device-capture-roster.json (184 entries); docs/phase4-device-testing.md. 184 requirements preserved across the owner-approved YouTube exclusion and menu slot movement; four capture-ledger regressions pass. Checklist completion only: zero screenshots captured and all device evidence remains pending.
 - [ ] P4-010 — Capture baseline and real iPhone screenshots
   - Status: BLOCKED. Dependencies: P4-005; P4-009.
   - 1. Deliverable and acceptance: Capture every roster entry on a safe isolated Steam Deck configuration copy and the actual iPhone 16 Pro/iOS 27.0.1. Original Kodi installation/SSD remain untouched, including avoiding source startup writes. Record app/skin/code hashes, route, fixture, orientation, resolution and timestamp. Keep raw captures private; sanitize account data/media before any sharing. Missing screenshots block completion; simulator captures must be labeled and cannot replace actual-device images.

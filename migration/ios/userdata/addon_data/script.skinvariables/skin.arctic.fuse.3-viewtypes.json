@@ -76,9 +76,5 @@
     "none-providers": "521",
     "none-calendar": "500",
     "none": "500"
-  },
-  "plugin.video.youtube": {
-    "videos": "510",
-    "none": "510"
   }
 }

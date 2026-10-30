@@ -24,9 +24,12 @@
     "P3-004",
     "P3-005",
     "P3-006",
-    "P4-001"
+    "P4-001",
+    "P4-007",
+    "P4-008",
+    "P4-009"
   ],
-  "completed_count": 22,
-  "awaiting_implementation": 17,
-  "percent": 56.41
+  "completed_count": 25,
+  "awaiting_implementation": 14,
+  "percent": 64.1
 }

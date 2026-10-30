@@ -6,5 +6,8 @@
   "choices": 76,
   "schema_validation": "Every content/view pair validated against actual skin 3.4.8 rules; only library, plugins and known YouTube ID locations permitted",
   "credentials_or_paths_permitted": false,
-  "phone_visual_parity_verified": false
+  "phone_visual_parity_verified": false,
+  "correction": "Initial missing-input diagnosis RETRACTED: this JSON was already in the original sanitized snapshot. New copy was duplicate validation input, not recovered missing data.",
+  "snapshot_already_contained_input": true,
+  "snapshot_sha256": "1daa086f3f3c95cb2af9adae7e99c71931bb24b5446205b35e9e8907bf647aeb"
 }

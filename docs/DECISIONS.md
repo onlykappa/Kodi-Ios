@@ -75,3 +75,13 @@ Owner answered the remote-host question by requesting the engine on the phone. T
 ## DEC-019 — One capped macOS engine build probe approved
 
 Owner explicitly approved one GitHub Actions macOS probe with an eight-minute maximum, consuming Actions allowance. Workflow is edited-event/temporary-marker gated, same-repository PR #1 only, contents-read token, SHA-pinned checkout, no secrets/media/signing keys. Remove marker immediately after triggering once. Actual source compilation failure is valid blocker evidence, not engine success; no automatic retry, build-server provisioning or playback hosting approved.
+
+DEC-019 result: one actual Mac job executed (40975489124) and failed at missing Go before compilation; the two earlier event runs were skipped. Marker is removed. Another Mac attempt requires owner approval after explicit toolchain setup. Native functionality remains unverified.
+
+## DEC-020 — YouTube fully excluded from iOS target
+
+Owner explicitly authorizes removing YouTube and YouTube Fusion. Remove their target roots, shortcuts/widgets, saved view overrides and now-unneeded dependency closure; retain baseline, source Deck and private backups. Unpublished copied Fusion code/UI assets and their proposed PNG exception were discarded before publication; no image allowlist is introduced. Original 184 capture records remain, with owner-approved absence expectations for affected target routes. No Elementum replacement or Umbrella activation follows from this instruction.
+
+## DEC-021 — Defer the native Elementum engine during Phase 4 preparation
+
+Owner explicitly says to skip the engine for now and finish Phase 4. Keep the phone-local requirement open; no remote fallback, alternative primary or working-engine claim. Preserve the diagnostic IPA; prepare separate sanitized Fuse/Drive import for testing. Engine compilation/playback remain deferred and unverified. Phase 5 remains unauthorized.

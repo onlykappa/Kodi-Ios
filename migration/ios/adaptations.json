@@ -17,6 +17,10 @@
       "reason": "Desktop keymap or excluded player definition; retained in immutable baseline"
     },
     {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json[0]",
+      "reason": "YouTube/Fusion fully removed from iOS target by explicit owner instruction"
+    },
+    {
       "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json[1]/path",
       "reason": "Excluded or deferred backend",
       "replacement": "Local library browsing; playback backend not yet configured"
@@ -270,11 +274,6 @@
       "retained_menu_slot": true
     },
     {
-      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json[0]",
-      "target_label": "YouTube",
-      "retained_menu_slot": true
-    },
-    {
       "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json[1]",
       "target_label": "Sports",
       "retained_menu_slot": true
@@ -431,7 +430,6 @@
     "media/local_media_root_02/",
     "media/local_media_root_03/",
     "media/local_media_root_04/",
-    "media/local_media_root_05/",
     "media/local_media_root_06/",
     "media/local_media_root_07/",
     "media/local_media_root_08/",

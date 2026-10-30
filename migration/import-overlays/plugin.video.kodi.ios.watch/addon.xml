@@ -1,0 +1,6 @@
+<addon id="plugin.video.kodi.ios.watch" name="Kodi iOS Watch Options" version="1.0.0" provider-name="Kodi-iOS migration project">
+  <requires><import addon="xbmc.python" version="3.0.1" /></requires>
+  <extension point="xbmc.python.pluginsource" library="default.py"><provides>video</provides></extension>
+  <extension point="xbmc.python.module" library="resources/lib" />
+  <extension point="xbmc.addon.metadata"><summary lang="en_GB">Explicit watch options for the reviewed iOS migration</summary><description lang="en_GB">Elementum remains unavailable until a real iOS engine is integrated. Google Drive is separate browsing. No background engine, credentials or network setup.</description><platform>all</platform><license>MIT</license></extension>
+</addon>

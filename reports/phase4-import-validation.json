@@ -1,0 +1,97 @@
+{
+  "recorded_utc": "2026-10-30T00:35:08.772736+00:00",
+  "host_tests": [
+    {
+      "suite": "test_activation.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "test_checks.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "suite": "test_ci_workflow.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "test_drive_integration.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "suite": "test_drive_packages.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "test_drive_research.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "test_drive_runtime.py",
+      "passed": true,
+      "tests": 9
+    },
+    {
+      "suite": "test_import_builder.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "test_import_profile.py",
+      "passed": true,
+      "tests": 18
+    },
+    {
+      "suite": "test_ios.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "suite": "test_ios_foundation.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "suite": "test_roadmap.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "test_skin_comparison.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "suite": "test_unsigned_ipa.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "test_visual_roster.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "test_watch_dialog.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "test_watch_routes.py",
+      "passed": true,
+      "tests": 9
+    }
+  ],
+  "test_count": 123,
+  "all_host_suites_passed": true,
+  "device_tested": false,
+  "engine_status": "DEFERRED BY OWNER; not built",
+  "capture_requirements_retained": 184,
+  "actual_screenshots": 0,
+  "limitations": "Host fixtures and API mocks do not establish actual iPhone import, Kodi activation, gestures, playback or rollback. Public-source bundle not yet acquired/built."
+}

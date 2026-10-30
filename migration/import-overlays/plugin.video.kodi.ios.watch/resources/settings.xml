@@ -1,0 +1,1 @@
+<settings version="1"><section id="plugin.video.kodi.ios.watch"><category id="testing" label="Migration testing"><group id="1"><setting id="enable_elementum_native_test" type="boolean" label="Enable Elementum test route only after native engine integration"><default>false</default><control type="toggle" /></setting></group></category></section></settings>

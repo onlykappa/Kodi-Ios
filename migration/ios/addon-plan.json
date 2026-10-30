@@ -3,10 +3,9 @@
   "roots": [
     "skin.arctic.fuse.3",
     "skin.arctic.zephyr.mod",
-    "plugin.video.youtube",
-    "plugin.video.youtube.fusion",
     "script.trakt",
-    "plugin.googledrive"
+    "plugin.googledrive",
+    "script.kodi.ios.first_run"
   ],
   "addons": [
     {
@@ -277,7 +276,7 @@
     },
     {
       "id": "plugin.video.themoviedb.helper",
-      "source_version_candidate": "6.18.1",
+      "source_version_candidate": "6.18.1+ios.1",
       "status": "unverified_data_or_python_candidate",
       "runtime_verified": false,
       "requires": [
@@ -314,6 +313,11 @@
         {
           "id": "script.module.qrcode",
           "minimum_version": "6.1.0",
+          "optional": false
+        },
+        {
+          "id": "plugin.video.kodi.ios.watch",
+          "minimum_version": "1.0.0",
           "optional": false
         }
       ]
@@ -363,6 +367,19 @@
         {
           "id": "xbmc.python",
           "minimum_version": "3.0.0",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "id": "plugin.video.kodi.ios.watch",
+      "source_version_candidate": "1.0.0",
+      "status": "ios_watch_options_host_tested_runtime_unverified",
+      "runtime_verified": false,
+      "requires": [
+        {
+          "id": "xbmc.python",
+          "minimum_version": "3.0.1",
           "optional": false
         }
       ]
@@ -700,181 +717,6 @@
       ]
     },
     {
-      "id": "plugin.video.youtube",
-      "source_version_candidate": "7.4.4a",
-      "status": "unverified_data_or_python_candidate",
-      "runtime_verified": false,
-      "requires": [
-        {
-          "id": "xbmc.python",
-          "minimum_version": "3.0.0",
-          "optional": false
-        },
-        {
-          "id": "script.module.requests",
-          "minimum_version": "2.27.1",
-          "optional": false
-        },
-        {
-          "id": "inputstream.adaptive",
-          "minimum_version": "19.0.0",
-          "optional": false
-        }
-      ]
-    },
-    {
-      "id": "inputstream.adaptive",
-      "source_version_candidate": "21.5.22",
-      "status": "unverified_requires_ios_build",
-      "runtime_verified": false,
-      "requires": [
-        {
-          "id": "kodi.binary.global.main",
-          "minimum_version": "2.0.2",
-          "optional": false
-        },
-        {
-          "id": "kodi.binary.global.general",
-          "minimum_version": "1.0.5",
-          "optional": false
-        },
-        {
-          "id": "kodi.binary.global.gui",
-          "minimum_version": "5.15.0",
-          "optional": false
-        },
-        {
-          "id": "kodi.binary.global.filesystem",
-          "minimum_version": "1.1.9",
-          "optional": false
-        },
-        {
-          "id": "kodi.binary.global.tools",
-          "minimum_version": "1.0.4",
-          "optional": false
-        },
-        {
-          "id": "kodi.binary.instance.inputstream",
-          "minimum_version": "3.3.0",
-          "optional": false
-        },
-        {
-          "id": "kodi.binary.instance.videocodec",
-          "minimum_version": "2.1.0",
-          "optional": false
-        }
-      ]
-    },
-    {
-      "id": "kodi.binary.global.main",
-      "source_version_candidate": "2.0.2",
-      "status": "unverified_data_or_python_candidate",
-      "runtime_verified": false,
-      "requires": [
-        {
-          "id": "xbmc.core",
-          "minimum_version": "0.1.0",
-          "optional": false
-        }
-      ]
-    },
-    {
-      "id": "kodi.binary.global.general",
-      "source_version_candidate": "1.0.5",
-      "status": "unverified_data_or_python_candidate",
-      "runtime_verified": false,
-      "requires": [
-        {
-          "id": "xbmc.core",
-          "minimum_version": "0.1.0",
-          "optional": false
-        }
-      ]
-    },
-    {
-      "id": "kodi.binary.global.gui",
-      "source_version_candidate": "5.15.0",
-      "status": "unverified_data_or_python_candidate",
-      "runtime_verified": false,
-      "requires": [
-        {
-          "id": "xbmc.core",
-          "minimum_version": "0.1.0",
-          "optional": false
-        }
-      ]
-    },
-    {
-      "id": "kodi.binary.global.filesystem",
-      "source_version_candidate": "1.1.9",
-      "status": "unverified_data_or_python_candidate",
-      "runtime_verified": false,
-      "requires": [
-        {
-          "id": "xbmc.core",
-          "minimum_version": "0.1.0",
-          "optional": false
-        }
-      ]
-    },
-    {
-      "id": "kodi.binary.global.tools",
-      "source_version_candidate": "1.0.4",
-      "status": "unverified_data_or_python_candidate",
-      "runtime_verified": false,
-      "requires": [
-        {
-          "id": "xbmc.core",
-          "minimum_version": "0.1.0",
-          "optional": false
-        }
-      ]
-    },
-    {
-      "id": "kodi.binary.instance.inputstream",
-      "source_version_candidate": "3.3.0",
-      "status": "unverified_data_or_python_candidate",
-      "runtime_verified": false,
-      "requires": [
-        {
-          "id": "xbmc.core",
-          "minimum_version": "0.1.0",
-          "optional": false
-        }
-      ]
-    },
-    {
-      "id": "kodi.binary.instance.videocodec",
-      "source_version_candidate": "2.1.0",
-      "status": "unverified_data_or_python_candidate",
-      "runtime_verified": false,
-      "requires": [
-        {
-          "id": "xbmc.core",
-          "minimum_version": "0.1.0",
-          "optional": false
-        }
-      ]
-    },
-    {
-      "id": "plugin.video.youtube.fusion",
-      "source_version_candidate": "0.1.4",
-      "status": "unverified_data_or_python_candidate",
-      "runtime_verified": false,
-      "requires": [
-        {
-          "id": "xbmc.python",
-          "minimum_version": "3.0.0",
-          "optional": false
-        },
-        {
-          "id": "plugin.video.youtube",
-          "minimum_version": "7.4.4a",
-          "optional": false
-        }
-      ]
-    },
-    {
       "id": "script.trakt",
       "source_version_candidate": "3.9.0",
       "status": "unverified_data_or_python_candidate",
@@ -945,6 +787,19 @@
           "optional": false
         }
       ]
+    },
+    {
+      "id": "script.kodi.ios.first_run",
+      "source_version_candidate": "1.0.0",
+      "status": "ios_watch_options_host_tested_runtime_unverified",
+      "runtime_verified": false,
+      "requires": [
+        {
+          "id": "xbmc.python",
+          "minimum_version": "3.0.1",
+          "optional": false
+        }
+      ]
     }
   ],
   "excluded_or_deferred": [
@@ -954,6 +809,8 @@
     "plugin.video.looptv",
     "plugin.video.the-loop",
     "plugin.video.umbrella",
+    "plugin.video.youtube",
+    "plugin.video.youtube.fusion",
     "repository.elementumorg",
     "repository.gsports",
     "repository.loop",

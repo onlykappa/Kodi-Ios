@@ -191,3 +191,31 @@ Severity: HIGH. Component: primary playback/native build. Status: BLOCKED. Curre
 Severity: HIGH. Component: optional remote client, not selected. Status: OPEN. Pinned v0.1.114 monitor.py logs remote_login/remote_password when configured. No owner values were supplied or used. Remote use would require a source-pinned redaction patch, safe transport/callback review and owner host approval. Native primary path remains separate. Regression prevention: assert no auth-value logging in any future enabled client package.
 
 Additional source lookup failures retained: repository.jurialmunkey root addon.xml returned 404; actual configured omega/zips directories were found through installed public repository metadata. A guessed skinvariables-click filename did not exist; navigation investigation moved to real helper listitem/player code. No behavior inferred from missing files.
+
+ISSUE-024 correction: initial missing-input diagnosis was incorrect. The 76-choice viewtypes JSON already exists in the immutable sanitized snapshot and target. A direct semantic comparison proves the duplicate new validation input was identical; the duplicate is removed, without altering the snapshot. Real helper generation reproduces all 68 baseline expressions (reports/fuse-generation-validation.json). This resolves the data-preservation concern statically; first-run shortcut regeneration and visual equivalence still require device tests. Keep the original misdiagnosis above rather than erasing it.
+
+## ISSUE-027 — First two native workflow events skipped
+
+Severity: LOW. Component: one-shot trigger. Status: COMPLETE for activation. Initial marker add/remove edits produced skipped runs 40975216092/40975216341 and no Mac compilation. Cause: condition was not met; immediate marker removal may have raced evaluation (not proven from skip logs). Keeping the marker until the job was accepted produced exactly one actual Mac job, run 40975489124, then the marker was removed. No skipped event is called a compilation attempt or success. No marker remains armed.
+
+## ISSUE-028 — Approved Mac probe lacks Go
+
+Severity: HIGH. Component: native engine build executor. Status: BLOCKED. Run 40975489124/job 123802357346 reached the actual macOS runner, then exited 2 at the explicit missing-go guard before source checkout/engine compilation. Root cause: proposal assumed an existing Go installation; the runner does not supply one on PATH. Smallest proposed fix: SHA-pinned Go setup with an explicit version, then another capped probe only after owner approval. No native iOS engine was built, no test was suppressed and no automatic second Mac attempt is authorized.
+
+## ISSUE-029 — Reviewed GUI asset exception initially incomplete
+
+Severity: LOW. Component: repository scanner. Status: COMPLETE after retest. Initial clean-baseline regression failed because the exact-hash PNG exception ran after the generic extension check. Fix: exempt only manifest-listed source GUI paths from that extension gate, then enforce exact path/name/hash and private-value checks. Reachable-history scanning permits only those same reviewed image hashes; other binaries/images remain rejected. Evidence: scanner clean-baseline and GUI-tamper regressions; nine actual icon/mask/gradient/placeholder assets were visually reviewed, with no screenshots or personal media. No scan failure was bypassed or file pushed before the fix passed.
+
+ISSUE-029 disposition update: the reviewed-GUI exception passed its clean/tamper regressions, but owner subsequently removed YouTube/Fusion from target scope. The unpublished custom copies and scanner/image exceptions are discarded; the standard binary/image exclusions remain. No private or GUI image was pushed.
+
+## ISSUE-030 — Private staging guard rejected shared temp root
+
+Severity: MEDIUM. Component: offline importer. Status: COMPLETE after retest. Initial 16 fixture tests errored in setup because the guard rejected any ancestor Git metadata; this managed session has /tmp/.git. Fix: ignore only shared system temp/home workspace Git metadata while still rejecting nested project repositories and all known original Kodi/backup paths. Added a nested-project rejection regression; no original profile was mutated by failed tests. Evidence: scripts/test_import_profile.py.
+
+## ISSUE-031 — Generic unittest discovery cannot run two existing command-line suites
+
+Severity: LOW. Component: validation invocation. Status: COMPLETE for invocation fix. Running unittest discovery produced SystemExit errors because test_checks.py invokes unittest at import time and test_drive_runtime.py requires --source-cache. No product failure inferred. Fix: invoke each existing suite as its supported script and pass the verified private Drive source cache explicitly. All 16 suites then pass (117 tests before capture regression addition). Retain failed command in the session evidence. Regression prevention: documented per-script runner; do not use generic discovery for this repository without refactoring those entry points.
+
+ISSUE-028 disposition: owner defers native engine work; missing-Go failure retained in reports/elementum-ios-probe.json. No retry and no compiled engine.
+
+ISSUE-031 test extension: the new non-iOS entrypoint guard regression initially raised NameError because its fixture lacked ROOT. Defined the test root and reran successfully; this was a fixture setup failure, not a Kodi/device test.

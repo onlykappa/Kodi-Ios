@@ -22,11 +22,13 @@ def check(root=ROOT):
  valid={a['id'] for a in json.loads((root/'inventory/addons.json').read_text())['addons'] if a['manifest_valid']}
  contracts=root/'reports/drive-addon-contracts.json'
  if contracts.exists():valid.update(x['id'] for x in json.loads(contracts.read_text())['addons'])
+ imports=root/'reports/import-addon-contracts.json'
+ if imports.exists():valid.update(x['id'] for x in json.loads(imports.read_text())['addons'])
  refs=set();playlists=set()
  for p in (dest/'userdata').rglob('*'):
   if not p.is_file():continue
   s=p.read_text()
-  assert not re.search(r'umbrella|plugin.video.elementum|script.elementum|service.deck.keeper|script.loop.sportshub|plugin.video.the-loop|plugin.video.loop',s,re.I),'Excluded runtime reference'
+  assert not re.search(r'plugin.video.youtube|umbrella|plugin.video.elementum|script.elementum|service.deck.keeper|script.loop.sportshub|plugin.video.the-loop|plugin.video.loop',s,re.I),'Excluded runtime reference'
   assert not re.search(r'/home/|/run/media/|/app/|\$\{|REDACTED_',s),'Unresolved target path'
   refs.update(re.findall(r'plugin://([A-Za-z0-9_.-]+)',s))
   for rel in re.findall(r'''special://profile/(playlists/[^<"'?&)]+\.xsp)''',s):

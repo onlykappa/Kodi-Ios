@@ -3,6 +3,20 @@ import hashlib,json
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 def preserve_evidence(records,previous):
+ # Match moved menu routes before slot-derived IDs so removal cannot steal a neighbour's identity.
+ previous=[dict(r) for r in previous]
+ def route_key(r):return (r.get('origin'),r.get('source'),r.get('route_sha256'))
+ available={r['id']:r for r in previous};claimed=set();normalized=[]
+ for row in records:
+  row=dict(row)
+  if row.get('source'):
+   matches=[r for r in previous if r['id'] not in claimed and route_key(r)==route_key(row)]
+   prior=next((r for r in matches if r['id']==row['id']),matches[0] if matches else None)
+   if prior:row['id']=prior['id']
+   elif row['id'] in available and route_key(available[row['id']])!=route_key(row):
+    row['id']='MENU-'+hashlib.sha256((row['id']+row.get('route_sha256','')).encode()).hexdigest()[:12]
+  claimed.add(row['id']);normalized.append(row)
+ records=normalized
  old={r['id']:r for r in previous};merged=[]
  for row in records:
   prior=old.pop(row['id'],None)
@@ -13,7 +27,10 @@ def preserve_evidence(records,previous):
     history=prior.pop('previous_versions',[])
     row['previous_versions']=history+[prior]
   merged.append(row)
- for row in old.values():merged.append({**row,'source_removed':True,'exclusion_review_required':True})
+ for row in old.values():
+  if row.get('origin')=='target' and row.get('label','').lower()=='youtube':
+   merged.append({**row,'source_removed':True,'exclusion_review_required':False,'owner_approved_exclusion':'Owner explicitly removed YouTube/Fusion','expected_device_result':'YouTube shortcut absent; verify on iPhone; preserve baseline capture/history'})
+  else:merged.append({**row,'source_removed':True,'exclusion_review_required':True})
  return merged
 
 def build():

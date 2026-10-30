@@ -21,7 +21,7 @@ The [Go build-mode documentation](https://pkg.go.dev/cmd/go#hdr-Build_modes) des
 5. Bundle every native component into a new unsigned IPA before signing; audit all architectures/load commands/dependencies/entitlements. Existing diagnostic IPA remains unchanged and has **no Elementum engine**.
 6. Owner signs/tests the rebuilt app on iPhone 16 Pro/iOS 27.0.1 with authorized synthetic/owned fixtures: real transfer, buffering, seeking, subtitles, episode selection, cancellation, storage and foreground/lifecycle behavior. No broad background/always-on promise follows from the phone being powered on. No personal media upload or live provider authentication is performed here.
 
-## Owner-approved capped Mac probe — awaiting first execution
+## Owner-approved capped Mac probe — failed before compilation
 
 `migration/elementum-ios/probe-build.sh` performs a real source-pinned C-archive compile attempt. It creates only isolated temporary build output, requests no owner signing keys or accounts, and deliberately isolates pkg-config from host macOS libraries. With missing iOS native dependencies it must fail and preserve that blocker, not report an engine. Shell syntax and the missing-tool guard are host-testable; no iOS compiler/linker validation has happened.
 
@@ -32,3 +32,12 @@ Proposed executor: one GitHub Actions `macos-14` job, timeout **8 minutes**, per
 The released client ZIP SHA-256 is `ab095bd39fbeacb1dcfeb38e61bda5b047e897feb5dafbb6cf906d3102801f93` according to its GitHub release digest. Client configuration uses local_only_client, remote_host/remote_port (default HTTP port 65220) and a local callback port (65221); Kodi JSON-RPC connectivity is also involved. This is not an iOS certification. The pinned monitor source logs remote username/password in debug output; it would require redaction before any credential use. Its HTTP/basic-auth and callback/network lifecycle also require review. Do not expose it publicly or provision any remote service without a new owner decision. The owner's current preference remains phone-local engine creation.
 
 Failed retrievals retained: guessed Kodi iOS binary-addon directories were inaccessible; official Omega index lists other OS variants but no iOS InputStream Adaptive entry. No universal incompatibility is inferred solely from failed URLs. Apple security-page retrieval returned HTTP 429, so no Apple quotation or unsupported platform-policy conclusion is attributed to that failed fetch.
+
+
+## Recorded probe outcome and next build gate
+
+The sole approved Mac attempt [40975489124](https://github.com/onlykappa/Kodi-Ios/actions/runs/40975489124/job/123802357346) failed at `BLOCKED: missing go` (exit 2), **before** source checkout, SDK discovery or engine compilation. The proposal incorrectly assumed Go was on the runner PATH. This is an executor failure, not evidence that Elementum cannot compile for iOS. The trigger marker is absent. The one-attempt allowance is consumed; no new Mac run is authorized by this result.
+
+[Sanitized probe receipt](../reports/elementum-ios-probe.json) records the failure without publishing raw runner logs or private data. A corrected build needs an explicit Go installation plus genuine iPhoneOS libtorrent/OpenSSL/Boost dependencies; merely installing Go does not resolve the dependency blocker.
+
+Owner update: native engine work is explicitly deferred while available Phase 4 import preparation is finished. This is not cancellation or compatibility acceptance. No remote replacement or additional Mac run is approved.

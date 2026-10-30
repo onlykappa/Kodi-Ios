@@ -2,15 +2,15 @@
 
 Status: BLOCKED
 Current phase: Phase 4 — owner-confirmed diagnostic launch; customized import and phone-local Elementum investigation in progress
-Progress: 22/39 task IDs COMPLETE (56.41%); 17 awaiting implementation.
-Last completed task: P4-001 — owner-reported diagnostic install/launch plus foundation provenance/entitlement inspection; no migrated-feature inference.
-Next actionable task: Execute exactly one approved eight-minute macOS probe; inspect actual failure/success and foundation dependencies. Continue safe import preparation independently.
-Active blockers: customized import not complete; missing layout input recovered and under validation; Elementum native iOS engine has no upstream release and requires port feasibility/build investigation. No remote host approved. Customized runtime, screenshots and rollback remain unverified.
-Pending decisions: Separate import explicitly approved. One capped Mac build probe approved. No remote engine host or further Mac retries approved.
-Latest implementation commit SHA reviewed: local b00991a / published a563adb2f4ac57414ad5c0ed7ce7a10848e6b0dc (equal content tree). Resolve latest tracker commit using git log -- docs/PROGRESS.md and PR head.
+Progress: 25/39 task IDs COMPLETE (64.10%); 14 awaiting implementation.
+Last completed task: P4-009 capture requirement inventory (184 retained IDs, zero actual captures); P4-007/008 static source and simulator investigations completed.
+Next actionable task: Produce and inspect the customized public-source import artifact in the isolated Linux workflow. Then await owner phone export/import, functional, screenshot and rollback evidence.
+Active blockers: complete source-acquired import artifact pending; actual phone profile access/clean export, customized import/activation, visuals, Google Drive and rollback unverified. Native Elementum explicitly DEFERRED BY OWNER, no replacement primary or remote host.
+Pending decisions: no architecture decision pending; separate import approved. Further Mac runs require new approval; native engine deferred. Owner supplies phone tests/screenshots privately when package is ready.
+Latest implementation commit SHA reviewed: local 6d72cc8123ad387c1464cdf779300468a9079528 / published fb7d3474ef019f63268a8cf3c6cfd958001d9ad2 (equal tree). Resolve current tracker commit with git log and PR head after this checkpoint.
 Roadmap publication commit: resolve `git log -1 --format=%H -- ROADMAP.md`; this avoids a self-referential SHA. Verify against PR head before resuming.
-Last updated UTC: 2026-10-29T23:44:06.906798+00:00
-Last validation: Roadmap seven regressions, scanner eleven, foundation parser eleven, unsigned builder seven pass; full secret/history/private-source comparison passes. Native probe bash syntax passes and local missing-SDK guard correctly blocks with exit 2; no engine compiled.
+Last updated UTC: 2026-10-30T00:35:01.582386+00:00
+Last validation: per-script regression suites pass; generic discovery failure retained in ISSUE-031. Static iOS target has 43 candidate dependencies, 32 payload files plus manifest. Foundation audit confirms supplied ARM64 PIL/API dependencies. Mac probe failed missing Go before compilation; no retry.
 
 ## Resume instructions
 

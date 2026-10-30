@@ -18,6 +18,8 @@
     "plugin": "20a381074530d38d699862b6260717a7bcc854d3",
     "engine": "8ec9539599b8a66045ca994642d61a01c6320923"
   },
-  "build_executor_approval": "OWNER APPROVED ONE macOS GitHub Actions probe, eight-minute cap; no retry or full engine functionality implied",
-  "recorded_utc": "2026-10-29T23:40:57.583541+00:00"
+  "build_executor_approval": "One eight-minute attempt consumed; no retry approved",
+  "recorded_utc": "2026-10-29T23:40:57.583541+00:00",
+  "status": "DEFERRED BY OWNER",
+  "probe_outcome": "missing go; no compilation"
 }

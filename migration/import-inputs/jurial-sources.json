@@ -61,5 +61,23 @@
     "git_blob_sha": "d8557a883b420aa2e9cae95d35f77c6d463622b6",
     "bytes": 51599422,
     "origin": "jurialmunkey repository commit ba8ea7ef52b957db1e09d49fa16be1de0cd14232"
+  },
+  {
+    "id": "resource.images.arctic.splash",
+    "version": "1.0.7",
+    "kind": "zip",
+    "url": "https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/ba8ea7ef52b957db1e09d49fa16be1de0cd14232/repo/zips/resource.images.arctic.splash/resource.images.arctic.splash-1.0.7.zip",
+    "git_blob_sha": "0c8e0653611f9bbac5b5db30dbe539d652715106",
+    "bytes": 72337293,
+    "origin": "jurialmunkey repository commit ba8ea7ef52b957db1e09d49fa16be1de0cd14232"
+  },
+  {
+    "id": "resource.images.arctic.weather",
+    "version": "1.0.4",
+    "kind": "zip",
+    "url": "https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/ba8ea7ef52b957db1e09d49fa16be1de0cd14232/repo/zips/resource.images.arctic.weather/resource.images.arctic.weather-1.0.4.zip",
+    "git_blob_sha": "605c2e2156e09084794777ec132a7c737ba974d7",
+    "bytes": 58989405,
+    "origin": "jurialmunkey repository commit ba8ea7ef52b957db1e09d49fa16be1de0cd14232"
   }
 ]
