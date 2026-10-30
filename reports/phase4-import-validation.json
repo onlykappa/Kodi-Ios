@@ -44,7 +44,7 @@
     {
       "suite": "test_import_profile.py",
       "passed": true,
-      "tests": 18
+      "tests": 19
     },
     {
       "suite": "test_ios.py",
@@ -87,7 +87,7 @@
       "tests": 9
     }
   ],
-  "test_count": 132,
+  "test_count": 133,
   "all_host_suites_passed": true,
   "device_tested": false,
   "engine_status": "DEFERRED BY OWNER; not built",
@@ -111,6 +111,13 @@
     {
       "run": 40981317944,
       "error": "Drive git-archive export-ignore omits repository metadata; adjust lookup order, keep runtime blob checks"
+    }
+  ],
+  "superseded_artifacts": [
+    {
+      "run": 40981565041,
+      "reason": "Importer settings-definition bug; do not apply this kit",
+      "owner_device_use_reported": false
     }
   ]
 }

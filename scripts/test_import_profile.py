@@ -9,7 +9,7 @@ def zipbytes(files):
  return stream.getvalue()
 
 def make_bundle(path,missing=False,dependency='3.0.0',bad_member=None):
- addon={'fixture.addon/addon.xml':f'<addon id="fixture.addon" version="1.0.0"><requires><import addon="xbmc.python" version="{dependency}"/></requires></addon>'.encode(),'fixture.addon/main.py':b'# fixture source\n'}
+ addon={'fixture.addon/addon.xml':f'<addon id="fixture.addon" version="1.0.0"><requires><import addon="xbmc.python" version="{dependency}"/></requires></addon>'.encode(),'fixture.addon/main.py':b'# fixture source\n','fixture.addon/resources/settings.xml':b'<settings version="1"><category label="Fixture"><setting id="safe.flag" type="bool" default="true"/></category></settings>'}
  if bad_member:addon[bad_member]=b'fixture'
  files={'addons/fixture.addon.zip':zipbytes(addon),'configuration/userdata/guisettings.xml':b'<settings version="2"><setting id="lookandfeel.skin">skin.arctic.fuse.3</setting><setting id="safe.preference">true</setting></settings>','configuration/userdata/addon_data/fixture.addon/settings.xml':b'<settings><setting id="safe.option">true</setting></settings>'}
  entries=[]
@@ -35,6 +35,10 @@ class ImportTests(unittest.TestCase):
   self.assertIn('skin.estuary',(self.target/'userdata/guisettings.xml').read_text());self.assertIn('target-device',(self.target/'userdata/guisettings.xml').read_text())
   self.assertIn(self.private_value,(self.target/'userdata/addon_data/fixture.addon/settings.xml').read_text());self.assertEqual((self.target/'userdata/addon_data/fixture.addon/accounts.db').read_text(),self.private_value)
   self.assertEqual(snapshot_hashes(self.source),self.source_before)
+ def test_addon_settings_definitions_copied_byte_for_byte(self):
+  self.apply()
+  expected=b'<settings version="1"><category label="Fixture"><setting id="safe.flag" type="bool" default="true"/></category></settings>'
+  self.assertEqual((self.target/'addons/fixture.addon/resources/settings.xml').read_bytes(),expected)
  def test_missing_addon_rejected_before_changes(self):
   self.sha=make_bundle(self.bundle,missing=True)
   with self.assertRaises(ImportFailure):self.apply()

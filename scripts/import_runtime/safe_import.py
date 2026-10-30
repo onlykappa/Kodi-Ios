@@ -145,7 +145,7 @@ def apply_bundle(bundle,target,backup_dir,expected_sha256,fail_at=None):
  try:
   for name,data in {**addons,**config}.items():
    dest=stage/name;dest.parent.mkdir(parents=True,exist_ok=True)
-   if name.endswith('/settings.xml') or name=='userdata/guisettings.xml':data=merge_settings(dest.read_bytes() if dest.exists() else None,data,defer_skin=name=='userdata/guisettings.xml')
+   if (name.startswith('userdata/addon_data/') and name.endswith('/settings.xml')) or name=='userdata/guisettings.xml':data=merge_settings(dest.read_bytes() if dest.exists() else None,data,defer_skin=name=='userdata/guisettings.xml')
    dest.write_bytes(data);managed[name]=digest(data)
    if fail_at=='staging':raise ImportFailure('Injected staging failure')
   (stage/RECEIPT).write_text(json.dumps({'bundle_sha256':expected_sha256,'managed_files':managed,'pending_skin_activation':'skin.arctic.fuse.3','private_profile_do_not_publish':True},indent=2)+'\n')

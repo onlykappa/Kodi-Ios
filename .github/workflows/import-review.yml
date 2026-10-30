@@ -7,6 +7,7 @@ on:
       - 'scripts/build_import_review.py'
       - 'scripts/import_runtime/**'
       - 'scripts/import_profile.py'
+      - 'scripts/smoke_import_bundle.py'
       - 'scripts/test_import_profile.py'
       - 'scripts/test_watch_routes.py'
       - 'scripts/test_watch_dialog.py'
@@ -39,6 +40,9 @@ jobs:
       - name: Acquire public pinned sources and build review ZIP
         run: |
           python3 -B scripts/build_import_review.py --foundation-report reports/ios-foundation-addon-audit.json --output "$RUNNER_TEMP/kodi-import-review"
+      - name: Apply full bundle twice and restore clean synthetic profile
+        run: |
+          python3 -B scripts/smoke_import_bundle.py --bundle "$RUNNER_TEMP/kodi-import-review/Kodi-iOS-Customized-Import.zip" --report "$RUNNER_TEMP/kodi-import-review/full-import-smoke.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
