@@ -4,6 +4,7 @@ sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
 from bootstrap import initialize,restore
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
+import calibration,updates
 
 def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
@@ -72,4 +73,11 @@ def run():
   invoke('Action(reloadkeymaps)')
   # Exactly one reload after verified generation, never during Keep Skin confirmation.
   if generated and state['stage']=='complete' and xbmc.getSkinDir()==FUSE:invoke('ReloadSkin()')
+  # After any reload has settled: the one-time calibration reset, then a quiet check for a newer build.
+  if xbmc.getSkinDir()==FUSE and not monitor.waitForAbort(10):
+   try:calibration.reset_once(profile,lambda command:xbmc.executebuiltin(command),xbmc.getCondVisibility,monitor.waitForAbort)
+   except Exception as error:xbmc.log('Kodi iOS calibration reset skipped: '+type(error).__name__,xbmc.LOGWARNING)
+   try:
+    if xbmcaddon.Addon().getSettingBool('check_on_start'):updates.run(check_only=True)
+   except Exception as error:xbmc.log('Kodi iOS update check skipped: '+type(error).__name__,xbmc.LOGWARNING)
 if __name__=='__main__':run()

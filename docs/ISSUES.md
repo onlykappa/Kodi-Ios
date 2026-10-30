@@ -331,3 +331,10 @@ Severity: CRITICAL (Settings unreachable). Status: FIXED ON HOST (Touch-r6), ver
 - Back/Home used a fixed left=1380 and overlapped the clock; now anchored bottom-right (right 60, bottom 24), clicked in the rig and returns to the previous window.
 - After a tapped tab kept focus, Down (one-finger swipe up) did nothing; header tap targets now use Fuse's Hub_Action_Down. Verified in the rig that Down moves into the rows and the header stays.
 - Rig limits: no touch gestures, iOS safe areas, TMDb network or Drive; those still need the phone.
+
+## ISSUE-045 — Owner requests: calibration reset, in-app updates
+
+Status: IMPLEMENTED ON HOST (Touch-r7); awaiting iPhone retest.
+- Screen calibration: Kodi has no overscan API. On first start after the update, if guisettings.xml records a non-default overscan, the bootstrap opens Kodi's calibration window, triggers Kodi's own reset (its Yes/No confirmation) and leaves the window so Kodi saves it. Runs once; also available as "Reset screen calibration" in the iPhone menu. The default (reset) calibration is correct for iPhone: Kodi already keeps the GUI inside the safe areas.
+- Updates: each IPA records its CI run number (build.json). "Check for updates" (gear menu, iPhone menu, add-on settings) reads this repository's build-N prereleases through Kodi's curl, downloads the newer .ipa into Documents/Kodi Updates (visible in the Files app) for the sideloader to install, and a quiet check runs at startup (toggle in settings). While the repository is private, a read-only GitHub token must be entered in the bootstrap add-on settings.
+- Local rig limits: Kodi 20 from Ubuntu segfaults inside Python 3.12 (PyObject_GC_UnTrack) for Python add-ons, so these Python flows are unit-tested only; XML/layout checks in the rig remain valid.

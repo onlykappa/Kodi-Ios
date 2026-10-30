@@ -63,7 +63,7 @@ class NavigationTests(unittest.TestCase):
    (nodes/'skinvariables-shortcut-homewidgets.json').write_text(json.dumps([{'label':'In Progress','path':'special://profile/playlists/video/x.xsp'},{'label':'Trakt','path':'plugin://plugin.video.themoviedb.helper/?info=trakt_becauseyouwatched'},{'label':'Popular','path':'plugin://plugin.video.themoviedb.helper/?info=discover'},{'label':'Local','path':'videodb://movies/titles/'}]))
    self.assertEqual(len(nav.update_nodes(p)),2);self.assertEqual(nav.update_nodes(p),[])
    power=json.loads((nodes/'skinvariables-shortcut-powermenu.json').read_text())
-   self.assertEqual([x['path'] for x in power],['ActivateWindow(1160)',nav.DRIVE,nav.MENU,'ActivateWindow(Settings)']);self.assertEqual(power[-1]['label'],'$LOCALIZE[5]')
+   self.assertEqual([x['path'] for x in power],['ActivateWindow(1160)',nav.DRIVE,nav.UPDATES,nav.MENU,'ActivateWindow(Settings)']);self.assertEqual(power[-1]['label'],'$LOCALIZE[5]')
    self.assertEqual([x['label'] for x in json.loads((nodes/'skinvariables-shortcut-homewidgets.json').read_text())],['Popular','Trakt','In Progress','Local'])
    self.assertTrue((p/'addon_data/service.kodi.ios.bootstrap/navigation-backup'/nav.REVISION/'nodes/skinvariables-shortcut-powermenu.json').exists())
  def test_spotlight_only_replaces_untouched_library_defaults(self):

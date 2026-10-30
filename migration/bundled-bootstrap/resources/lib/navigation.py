@@ -1,7 +1,7 @@
 """Widget-independent native Kodi controls and idempotent, backed-up iOS upgrade."""
 import hashlib,json,os,re,xml.etree.ElementTree as ET
 from pathlib import Path
-REVISION='ios-touch-navigation-r6'
+REVISION='ios-touch-navigation-r7'
 GROUP=98100
 HEADER=98200
 BACK=98300
@@ -15,6 +15,7 @@ FRAME_MARKER='Kodi-iOS safe-area frame '+REVISION
 MENU='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)'
 TOUCH='''<keymap><global><touch><tap>LeftClick</tap><longpress>RightClick</longpress><pan>PanGesture</pan><swipe direction="up">Down</swipe><swipe direction="down">Up</swipe><tap pointers="3">ActivateWindow(settings)</tap><swipe direction="left" pointers="2">Back</swipe><swipe direction="right" pointers="2">RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)</swipe><swipe direction="up" pointers="2">PageUp</swipe><swipe direction="down" pointers="2">PageDown</swipe></touch></global></keymap>'''
 DRIVE='ActivateWindow(Videos,plugin://plugin.googledrive/,return)'
+UPDATES='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/check_updates.py)'
 HUBS=['home','1101','1102','1103','1104']
 RIGHT=['1106','1107','1108','1109']
 ICONS='Skin.HasSetting(HomeSwitcher.EnableIcons)'
@@ -22,6 +23,7 @@ ICONS='Skin.HasSetting(HomeSwitcher.EnableIcons)'
 OWN_ONLOADS={'SetFocus(98104)','Skin.Reset(Hub.Home.DisableSubmenu)','Skin.SetBool(homeswitcher.disablefirstwidgetfocus)','SetProperty(HomeSwitcher.IsVisible,True,Home)'}
 ONLOADS=['Skin.Reset(Hub.Home.DisableSubmenu)','Skin.SetBool(homeswitcher.disablefirstwidgetfocus)','SetProperty(HomeSwitcher.IsVisible,True,Home)']
 POWER=[{'icon':'special://skin/extras/icons/cloud.png','label':'Google Drive','path':DRIVE,'target':''},
+       {'icon':'special://skin/extras/icons/cloud-arrow-down.png','label':'Check for updates','path':UPDATES,'target':''},
        {'icon':'special://skin/extras/icons/life-ring.png','label':'iPhone navigation / recovery','path':MENU,'target':''}]
 # Rows that stay empty until a Trakt sign-in; an empty first row puts "No Results" in the hero title.
 ACCOUNT=('info=trakt_',)
