@@ -95,6 +95,7 @@ jobs:
           ipa=$(ls "$RUNNER_TEMP"/customized-ipa/*.ipa)
           name=$(basename "$ipa" .ipa)
           gh release create "build-$RUN" "$ipa" --repo "$REPO" --target "$SHA" --prerelease --title "$name (build $RUN)" --notes "Unsigned iPhone test build of $SHA. Install the .ipa with your sideloader as an update."
-          # Keep the three newest test builds.
-          gh release list --repo "$REPO" --limit 100 --json tagName,createdAt --jq '[.[] | select(.tagName | startswith("build-"))] | sort_by(.createdAt) | reverse | .[3:] | .[].tagName' |
+          # Keep the three newest test builds by publish time (a release's createdAt is its commit date, so a
+          # re-run or an older branch would lose to newer commits elsewhere).
+          gh release list --repo "$REPO" --limit 100 --json tagName,publishedAt --jq '[.[] | select(.tagName | startswith("build-"))] | sort_by(.publishedAt) | reverse | .[3:] | .[].tagName' |
             while read -r tag; do gh release delete "$tag" --repo "$REPO" --cleanup-tag --yes; done

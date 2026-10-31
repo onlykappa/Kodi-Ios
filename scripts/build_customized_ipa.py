@@ -125,6 +125,9 @@ SEARCH=b'''    def _search(self, driveid=None, item_driveid=None, item_id=None, 
 DRIVE_COMMON='script.module.clouddrive.common/'
 DRIVE_PATCHES=[('clouddrive/common/remote/request.py',b'response = urllib.request.urlopen(req)\n',b'response = _open_url(req)\n'),
  ('clouddrive/common/remote/request.py',b'import urllib\n',b'import urllib\n'+TLS),
+ # The sign-in screen first calls /ip with no headers, so Python sent its default "Python-urllib" user agent,
+ # which Cloudflare answers with error 1010 on a *.workers.dev sign-in server. Give every request a user agent.
+ ('clouddrive/common/remote/request.py',b'        if not self.headers:\n            self.headers = {}\n',b'        if not self.headers:\n            self.headers = {}\n        if not any(name.lower() == \'user-agent\' for name in self.headers):\n            self.headers[\'User-Agent\'] = \'Kodi clouddrive.common\'\n'),
  ('clouddrive/common/remote/signin.py',b'from clouddrive.common.remote.request import Request\n',b'from clouddrive.common.remote.request import Request, tls_context\n'),
  ('clouddrive/common/remote/signin.py',b'self.sock = self._context.wrap_socket(',b'self.sock = tls_context().wrap_socket('),
  # A self-hosted sign-in server on a free *.workers.dev address can't turn off Cloudflare's Browser Integrity Check,
