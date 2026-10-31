@@ -26,6 +26,21 @@ index be8e481..81b4eee 100644
  	cd $(PLATFORM); $(CONFIGURE)
  
  $(LIBDYLIB): $(PLATFORM)
+diff --git a/tools/depends/target/libffi/Makefile b/tools/depends/target/libffi/Makefile
+index ad0f910..8c6a2f7 100644
+--- a/tools/depends/target/libffi/Makefile
++++ b/tools/depends/target/libffi/Makefile
+@@ -18,7 +18,9 @@ $(PLATFORM): $(DEPS) | $(TARBALLS_LOCATION)/$(ARCHIVE).$(HASH_TYPE)
+ 	cd $(PLATFORM); $(CONFIGURE)
+ 
+ $(LIBDYLIB): $(PLATFORM)
+-	$(MAKE) -j 1 -C $(PLATFORM)
++	# Kodi-iOS: current clang rejects libffi 3.4.2's aarch64 CFI directives once they pass through
++	# gas-preprocessor.pl ("invalid CFI advance_loc expression"); clang assembles these .S files itself.
++	$(MAKE) -j 1 -C $(PLATFORM) CCAS="--tag CC $(CC)"
+ 	touch $@
+ 
+ .installed-$(PLATFORM): $(LIBDYLIB)
 diff --git a/tools/depends/target/libpng/Makefile b/tools/depends/target/libpng/Makefile
 index eae10a3..6e3c5e7 100644
 --- a/tools/depends/target/libpng/Makefile

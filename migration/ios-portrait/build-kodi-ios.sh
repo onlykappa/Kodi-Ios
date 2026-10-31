@@ -19,7 +19,7 @@ git -C "$SRC" apply "$HERE/kodi-21.3-portrait.patch"
 JOBS=$(getconf _NPROCESSORS_ONLN)
 cd "$SRC/tools/depends"
 [ -f "$DEPS/.depends-built" ] || ./bootstrap
-[ -f "$DEPS/.depends-built" ] || ./configure --host=aarch64-apple-darwin --with-platform=ios --prefix="$DEPS" > "$WORK/configure.log" 2>&1 || { tail -50 "$WORK/configure.log"; exit 1; }
+[ -f "$DEPS/.depends-built" ] || ./configure --host=aarch64-apple-darwin --with-platform=ios --disable-debug --prefix="$DEPS" > "$WORK/configure.log" 2>&1 || { tail -50 "$WORK/configure.log"; exit 1; }
 if [ ! -f "$DEPS/.depends-built" ]; then
   if ! make -j"$JOBS" > "$WORK/depends.log" 2>&1; then
     # Parallel output interleaves; rerun the failing part on one job so the real error is last.
