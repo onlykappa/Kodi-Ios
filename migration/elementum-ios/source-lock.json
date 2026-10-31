@@ -2,7 +2,7 @@
   "owner_primary": "plugin.video.elementum",
   "owner_execution_target": "iPhone-local engine",
   "remote_host_approved": false,
-  "native_ios_engine_built": false,
+  "native_ios_engine_built": true,
   "native_ios_engine_functional": false,
   "plugin_release": {
     "version": "0.1.114",
@@ -18,8 +18,11 @@
     "plugin": "20a381074530d38d699862b6260717a7bcc854d3",
     "engine": "8ec9539599b8a66045ca994642d61a01c6320923"
   },
-  "build_executor_approval": "One eight-minute attempt consumed; no retry approved",
   "recorded_utc": "2026-10-29T23:40:57.583541+00:00",
-  "status": "DEFERRED BY OWNER",
-  "probe_outcome": "missing go; no compilation"
+  "status": "ENGINE BUILT ON CI; DEVICE TEST PENDING",
+  "framework_release": {
+    "tag": "elementum-engine-cdab7e2-r1",
+    "asset": "elementum.framework.zip",
+    "sha256": null
+  }
 }
