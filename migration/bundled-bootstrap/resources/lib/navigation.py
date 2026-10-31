@@ -1,7 +1,7 @@
 """Widget-independent native Kodi controls and idempotent, backed-up iOS upgrade."""
 import hashlib,json,os,re,xml.etree.ElementTree as ET
 from pathlib import Path
-REVISION='ios-touch-navigation-r9'
+REVISION='ios-touch-navigation-r10'
 GROUP=98100
 HEADER=98200
 BACK=98300
@@ -56,8 +56,9 @@ def header():
  element(group,'visible','System.Platform.IOS + !Skin.HasSetting(HomeSwitcher.Vertical) + !String.IsEmpty(Window(Home).Property(HomeSwitcher.IsVisible))')
  # Mirrors Home_Switcher_Horz geometry so each target lies exactly over its drawn tab or icon.
  inner=ET.SubElement(group,'control',{'type':'group'});element(inner,'include','Home_Group_Definition');element(inner,'include','Home_Reposition')
- touch_button(inner,HEADER+1,'ReplaceWindow(1105)',[('left',-20),('width',80),('height',80),('visible','!Skin.HasSetting(HomeSwitcher.DisableSearch)')])
- tabs=ET.SubElement(inner,'control',{'type':'grouplist'});element(tabs,'top',-100)
+ # Search shows its text field where the tabs are; leave that row to the field so a tap opens the iPhone keyboard.
+ touch_button(inner,HEADER+1,'ReplaceWindow(1105)',[('left',-20),('width',80),('height',80),('visible','!Skin.HasSetting(HomeSwitcher.DisableSearch) + !Window.IsVisible(1105)')])
+ tabs=ET.SubElement(inner,'control',{'type':'grouplist'});element(tabs,'top',-100);element(tabs,'visible','!Window.IsVisible(1105)')
  icons=ET.SubElement(tabs,'include',{'content':'Object_Left','condition':ICONS});ET.SubElement(icons,'param',{'name':'left'}).text='-10'
  for name,value in [('left',-20),('orientation','horizontal'),('height',1080)]:element(tabs,name,value)
  for index,window in enumerate(HUBS):
@@ -144,6 +145,9 @@ def patch_window(data,filename):
  if legacy is None and previous is not None and previous.findtext('description')==MARKER:return data
  for old in (legacy,previous):
   if old is not None:controls.remove(old)
+ back=controls.find("control[@id='"+str(BACK)+"']")
+ if not owned(back,'Kodi-iOS back/home '):raise ValueError('Navigation control ID collision')
+ if back is not None:controls.remove(back)
  for old in list(root.findall('defaultcontrol')):
   if (old.text or '').strip()=='98104':root.remove(old)
  for node in list(root):
@@ -158,6 +162,8 @@ def patch_window(data,filename):
  for action in ONLOADS:
   node=ET.Element('onload',{'condition':'System.Platform.IOS'});node.text=action;root.insert(list(root).index(controls),node)
  controls.append(header())
+ # Without its tab row, Search needs the visible way out that other screens have.
+ if 'Search' in filename:controls.append(back_home())
  ET.indent(root);return ET.tostring(root,encoding='utf-8',xml_declaration=True)+b'\n'
 
 INCLUDES={'Includes_Home.xml','Includes_Hubs.xml','Includes_Actions.xml','Includes_Search.xml','Includes_Background.xml'}

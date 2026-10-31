@@ -365,3 +365,7 @@ Status: BUILT AND BUNDLED ON HOST; DEVICE TEST PENDING.
 - The IPA build adds the pinned Elementum 0.1.114 client, Elementum Burst 0.0.99 (the Deck's search providers; pure Python) and kodi-six/future (official repo-scripts, git-tree-verified), puts the framework in `Kodi.app/Frameworks`, and patches the add-on's existing library mode: on iOS it loads the framework in-process with ctypes, keeps its profile and log in Elementum's add-on data, and skips the ELF/PE platform probes (removed from the bundle).
 - First start sets Elementum's download folder to `Documents/Elementum Downloads` (visible in the Files app) unless one is already set. The watch menu offers Elementum through TMDb Helper's `ios.elementum.json` player, installed once Elementum is present.
 - Untested on a device: Go runtime start-up inside Kodi, Kodi's JSON-RPC on 9090, sideloader re-signing of the nested framework, and which Burst providers answer from the phone's network.
+
+## ISSUE-051 — Search field opened a hub instead of the keyboard
+Status: FIXED ON HOST (navigation r10); rig-verified.
+- On the Search screen Fuse draws its text field where the hub tabs are, and the touch header's invisible tab targets sat over it, so a tap on the field switched hubs (rig: it opened Movies). The tab and search targets now hide on Search; a tap reaches Fuse's edit control, which opens Kodi's text input (on iPhone, the native keyboard; with a hardware keyboard attached, Kodi's dialog accepts typing). Search also gets the Back/Home pair, since its tab row is no longer tappable.
