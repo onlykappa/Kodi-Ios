@@ -74,7 +74,7 @@ __attribute__((visibility("default"))) void kodi_airplay_open(void) {
 OBJC
 FW="$OUT/KodiAirPlay.framework"; rm -rf "$FW"; mkdir -p "$FW"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
-  -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation \
+  -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics \
   -o "$FW/KodiAirPlay" "$WORK/KodiAirPlay.m"
 cat > "$FW/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
