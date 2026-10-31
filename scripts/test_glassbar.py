@@ -39,9 +39,25 @@ class ControllerTests(unittest.TestCase):
   self.assertEqual(glassbar.ACTIONS,[t[3] for t in portrait.TABS])
 
 class IpaTests(unittest.TestCase):
+ def locks(self,tmp,bar_sha,exe_sha=''):
+  bar=Path(tmp)/'bar.json';exe=Path(tmp)/'exe.json'
+  bar.write_text(json.dumps({'framework_release':{'tag':'t','asset':'KodiGlassBar.framework.zip','sha256':bar_sha}}))
+  exe.write_text(json.dumps({'executable_release':{'tag':'e','asset':'x.zip','sha256':exe_sha}}))
+  old=(ios_portrait.GLASSBAR,ios_portrait.EXECUTABLE);ios_portrait.GLASSBAR,ios_portrait.EXECUTABLE=bar,exe
+  self.addCleanup(lambda:setattr(ios_portrait,'GLASSBAR',old[0]) or setattr(ios_portrait,'EXECUTABLE',old[1]))
  def test_unpinned_pieces_are_skipped(self):
   with tempfile.TemporaryDirectory() as tmp:
-   self.assertEqual(ios_portrait.fetch(tmp,get=lambda url:self.fail('no download expected')),[])
+   self.locks(tmp,'')
+   self.assertEqual(ios_portrait.fetch(Path(tmp)/'out',get=lambda url:self.fail('no download expected')),[])
+ def test_pinned_framework_is_verified(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   data=b'framework';self.locks(tmp,ios_portrait.sha(data))
+   self.assertEqual(ios_portrait.fetch(Path(tmp)/'out',get=lambda url:data),['KodiGlassBar'])
+   self.locks(tmp,'0'*64)
+   with self.assertRaises(AssertionError):ios_portrait.fetch(Path(tmp)/'out2',get=lambda url:data)
+ def test_repository_pins_the_published_framework(self):
+  lock=json.loads((ROOT/'migration/glassbar-ios/source-lock.json').read_text())['framework_release']
+  self.assertEqual(len(lock['sha256']),64)
  def test_framework_unpacked_into_frameworks(self):
   with tempfile.TemporaryDirectory() as tmp:
    buf=io.BytesIO()
