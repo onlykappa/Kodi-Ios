@@ -1,4 +1,4 @@
-"""r11 portrait layout for Arctic Fuse 3 on iPhone ("layout A": hero card, poster rows, bottom tab bar).
+"""r11 portrait layout for Arctic Fuse 3 on iPhone: Netflix rows with an Apple TV app look.
 
 Kodi picks the skin folder whose aspect is closest to the screen, so Fuse gets a `portrait` folder next to
 `1080i`. Home, the TV/Movies/Downloads hubs, the show page (MyVideoNav), the info page, the select dialog
@@ -6,16 +6,16 @@ Kodi picks the skin folder whose aspect is closest to the screen, so Fuse gets a
 window shrunk into the middle of the portrait screen, so nothing becomes unreachable.
 
 The same module builds the folder into the IPA (scripts/build_customized_ipa.py) and, on the phone,
-refreshes the poster rows from the owner's widget lists and reloads the skin when the phone rotates.
+refreshes the rows from the owner's widget lists and reloads the skin when the phone rotates.
 """
 import json,os,re,struct,zlib,xml.etree.ElementTree as ET
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-REVISION='ios-portrait-r1'
+REVISION='ios-portrait-r2'
 FOLDER='portrait'
 # iPhone 16 Pro portrait: 402x874 pt with 62/34 pt safe-area insets. Kodi stretches the skin canvas into
-# the safe area, so 1080 x 2090 keeps pixels square there. 9:16 covers phones with a home button.
+# the safe area, so 1080 x 2090 keeps pixels square there (1 pt = 2.687 units). 9:16 covers home-button phones.
 WIDTH,HEIGHT=1080,2090
 RES=[('9:19.5',WIDTH,HEIGHT),('9:16',WIDTH,1920)]
 MARKER='Kodi-iOS portrait '+REVISION
@@ -25,7 +25,9 @@ MEDIA='special://skin/extras/portrait/'
 DRIVE='ActivateWindow(Videos,plugin://plugin.googledrive/,return)'
 MENU='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)'
 UPDATES='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/check_updates.py)'
-BG='FF0B0B0F';GREY='FFB9B9BF';DIM='FF8C8C92';GREEN='FF46D369';CARD='FF1C1C22'
+# iOS dark palette: system background, grouped surfaces, secondary/tertiary labels.
+BG='FF000000';SURFACE='FF1C1C1E';SURFACE2='FF2C2C2E';WHITE='FFFFFFFF'
+GREY='99EBEBF5';DIM='4DEBEBF5';SEP='33EBEBF5';GREEN='FF30D158'
 # window file -> (title, widget lists, tab)
 HUBS={'Home.xml':('Home',['homewidgets'],'home'),
       'Custom_1101_Hub.xml':('TV Shows',['1101widgets'],'tv'),
@@ -33,19 +35,28 @@ HUBS={'Home.xml':('Home',['homewidgets'],'home'),
       'Custom_1103_Hub.xml':('Downloads',['1103widgets','1104widgets'],'downloads'),
       'Custom_1104_Hub.xml':('Downloads',['1104widgets','1103widgets'],'downloads')}
 SPOTLIGHT={'Home.xml':'home','Custom_1101_Hub.xml':'1101','Custom_1102_Hub.xml':'1102','Custom_1103_Hub.xml':'1103','Custom_1104_Hub.xml':'1104'}
-TABS=[('home','Home','house.png','ReplaceWindow(Home)'),('tv','TV','tv.png','ReplaceWindow(1101)'),
-      ('movies','Movies','film.png','ReplaceWindow(1102)'),('downloads','Downloads','download.png','ReplaceWindow(1103)'),
-      ('drive','Drive','cloud.png',DRIVE),('more','More','ellipsis.png','ActivateWindow(1170)')]
-MORE=[('Settings','gear.png','ActivateWindow(settings)'),('Google Drive','cloud.png',DRIVE),
-      ('Check for updates','cloud-arrow-down.png',UPDATES),('iPhone navigation / recovery','life-ring.png',MENU),
-      ('Favourites','favourites2.png','ActivateWindow(1160)'),('File manager','filebox.png','ActivateWindow(filemanager)')]
+TABS=[('home','Home','house.png','ReplaceWindow(Home)'),('tv','TV Shows','tv.png','ReplaceWindow(1101)'),
+      ('movies','Movies','film.png','ReplaceWindow(1102)'),('downloads','Downloads','download.png','ReplaceWindow(1103)')]
+SEARCH='ReplaceWindow(1105)'
+# More (the profile button): iOS Settings-style rows with coloured icon tiles.
+MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
+      ('Google Drive','cloud.png','FF0A84FF',DRIVE),
+      ('Check for updates','cloud-arrow-down.png','FF30D158',UPDATES),
+      ('Favourites','star.png','FFFF9F0A','ActivateWindow(1160)'),
+      ('File manager','clapperboard.png','FF5E5CE6','ActivateWindow(filemanager)'),
+      ('iPhone navigation / recovery','life-ring.png','FFFF453A',MENU)]
 HANDMADE=set(HUBS)|{'Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml'}
 # Never shrunk: playback stays landscape, and these are not windows.
 SKIP_WRAP={'VideoFullScreen.xml','VideoOSD.xml','MusicVisualisation.xml','SlideShow.xml','Pointer.xml'}
-FONTS=[('p_title','Inter-Bold.ttf',84),('p_head','Inter-Bold.ttf',60),('p_row','Inter-Bold.ttf',44),
-       ('p_btn','Inter-Bold.ttf',42),('p_body','Inter-Regular.ttf',36),('p_meta','Inter-Regular.ttf',34),
-       ('p_meta_bold','Inter-Bold.ttf',34),('p_label','Inter-Bold.ttf',30),('p_tab','Inter-Regular.ttf',26)]
-POSTER=(290,435);GAP=22;SIDE=40
+# iOS text styles at 2.687 units/pt (large title 34pt, title2 22pt, headline/body 17pt, subhead 15pt, footnote 13pt...).
+FONTS=[('p_large','Inter-Bold.ttf',92),('p_title','Inter-Bold.ttf',78),('p_h2','Inter-Bold.ttf',58),
+       ('p_h3','Inter-Bold.ttf',46),('p_body','Inter-Regular.ttf',44),('p_sub','Inter-Regular.ttf',40),
+       ('p_foot','Inter-Regular.ttf',35),('p_foot_b','Inter-Bold.ttf',35),('p_cap','Inter-Regular.ttf',30),
+       ('p_tab','Inter-Bold.ttf',27),('p_btn','Inter-Bold.ttf',46)]
+SIDE=54                      # 20 pt margins
+POSTER=(300,450);CARD=(640,360);GAP=26;RADIUS=26
+HERO=1420
+CAPSULES=(96,108,124,128,130,150)
 
 # --- tiny PNG writer (no PIL on the build host) -------------------------------------------------------
 def png(width,height,pixel):
@@ -53,63 +64,97 @@ def png(width,height,pixel):
  chunk=lambda tag,data:struct.pack('>I',len(data))+tag+data+struct.pack('>I',zlib.crc32(tag+data)&0xffffffff)
  return b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',width,height,8,6,0,0,0))+chunk(b'IDAT',zlib.compress(rows,9))+chunk(b'IEND',b'')
 
-def rounded(width,height,radius):
- def alpha(x,y):
-  cx=min(max(x+0.5,radius),width-radius);cy=min(max(y+0.5,radius),height-radius)
-  d=((x+0.5-cx)**2+(y+0.5-cy)**2)**0.5
-  return (255,255,255,int(255*min(1,max(0,radius-d+0.5))))
- return png(width,height,alpha)
+def coverage(x,y,width,height,radius,inset=0):
+ """Anti-aliased coverage of a rounded rectangle (inset shrinks it, for strokes)."""
+ r=max(radius-inset,0.01);cx=min(max(x+0.5,inset+r),width-inset-r);cy=min(max(y+0.5,inset+r),height-inset-r)
+ return min(1,max(0,r-((x+0.5-cx)**2+(y+0.5-cy)**2)**0.5+0.5))
 
-def textures():
- shade=lambda x,y:(0,0,0,int(255*min(1,max(0,(y/255-0.35)/0.55))**1.4))
- return {'round.png':rounded(96,96,32),'round_s.png':rounded(48,48,16),'pill.png':rounded(120,120,60),
-         'shade.png':png(4,256,shade),'top.png':png(4,256,lambda x,y:(11,11,15,int(255*(y/255)))),
-         'poster_mask.png':rounded(POSTER[0],POSTER[1],22),'hero_mask.png':rounded(500,575,22),
-         'thumb_mask.png':rounded(360,203,16),'white.png':png(4,4,lambda x,y:(255,255,255,255)),'play.png':triangle(64)}
+def rounded(width,height,radius):
+ return png(width,height,lambda x,y:(255,255,255,int(255*coverage(x,y,width,height,radius))))
+
+def glass(size,radius,fill,stroke):
+ """Frosted surface: translucent fill with a hairline light edge (iOS materials)."""
+ def pixel(x,y):
+  outer=coverage(x,y,size,size,radius);inner=coverage(x,y,size,size,radius,2.5)
+  edge=max(outer-inner,0);a=fill[3]*inner/255+stroke[3]*edge/255
+  if a<=0:return (0,0,0,0)
+  mix=lambda i:int((fill[i]*fill[3]*inner/255+stroke[i]*stroke[3]*edge/255)/a)
+  return (mix(0),mix(1),mix(2),int(255*min(a,1)))
+ return png(size,size,pixel)
+
+def fade(alpha):return png(64,256,lambda x,y:(0,0,0,int(255*alpha(y/255))))
 
 def triangle(size):
  def alpha(x,y):
-  # right-pointing triangle, anti-aliased by 4x4 supersampling
   inside=sum(1 for i in range(4) for j in range(4) if (lambda px,py:px>=8 and abs(py-size/2)<=(size-8-px)*0.58)(x+(i+.5)/4,y+(j+.5)/4))
   return (255,255,255,int(255*inside/16))
  return png(size,size,alpha)
 
+def textures():
+ return {'round.png':rounded(96,96,32),'round_s.png':rounded(64,64,26),'glass_card.png':glass(160,44,(44,44,46,245),(255,255,255,26)),
+         'fade_down.png':fade(lambda t:(1-t)**1.6*0.85),'fade_up.png':fade(lambda t:t**1.5),
+         'hero_fade.png':fade(lambda t:0 if t<0.3 else ((t-0.3)/0.7)**1.25),
+         'poster_mask.png':rounded(POSTER[0],POSTER[1],RADIUS),'card_mask.png':rounded(CARD[0],CARD[1],RADIUS),
+         'thumb_mask.png':rounded(400,225,20),'tile_mask.png':rounded(80,80,18),'dot.png':rounded(24,24,12),
+         'white.png':png(4,4,lambda x,y:(255,255,255,255)),'play.png':triangle(64),
+         # Capsules per height: 9-slice borders of h/2 keep the ends perfectly round at any width.
+         **{'pill_%d.png'%h:rounded(h,h,h/2) for h in CAPSULES},
+         **{'glass_%d.png'%h:glass(h,h/2,(30,30,34,232),(255,255,255,50)) for h in CAPSULES}}
+
 # --- XML helpers ---------------------------------------------------------------------------------------
 def e(text):return escape(str(text),{'"':'&quot;'})
-def tag(name,value,**attrs):
- a=''.join(' %s="%s"'%(k.rstrip('_'),e(v)) for k,v in attrs.items())
- return '<%s%s>%s</%s>'%(name,a,e(value),name)
-def box(x,y,w,h,color,texture='round.png',border=32,extra=''):
- return ('<control type="image"><left>%s</left><top>%s</top><width>%s</width><height>%s</height>'
-         '<texture border="%d" colordiffuse="%s">%s%s</texture>%s</control>')%(x,y,w,h,border,color,MEDIA,texture,extra)
-def label(x,y,w,h,text,font,color='FFFFFFFF',align='left',extra=''):
+def image(x,y,w,h,texture,color=WHITE,extra='',aspect='',diffuse='',border='',background=False):
+ return ('<control type="image"><left>%s</left><top>%s</top><width>%s</width><height>%s</height>%s'
+         '<texture%s%s%s colordiffuse="%s">%s</texture>%s</control>')%(
+  x,y,w,h,('<aspectratio%s</aspectratio>'%aspect) if aspect else '',
+  ' background="true"' if background else '',' diffuse="%s"'%diffuse if diffuse else '',' border="%s"'%border if border else '',color,texture,extra)
+def icon(x,y,size,name,color=WHITE,extra=''):return image(x,y,size,size,name if '://' in name else ICONS+name,color,extra,'>keep')
+def label(x,y,w,h,text,font,color=WHITE,align='left',extra=''):
  return ('<control type="label"><left>%s</left><top>%s</top><width>%s</width><height>%s</height><font>%s</font>'
          '<textcolor>%s</textcolor><align>%s</align><aligny>center</aligny><label>%s</label>%s</control>')%(x,y,w,h,font,color,align,e(text),extra)
-def button(id,x,y,w,h,text,action,fill,textcolor,icon='',font='p_btn',extra=''):
- iconxml=('<control type="image"><left>%d</left><top>%d</top><width>44</width><height>44</height>'
-          '<texture colordiffuse="%s">%s</texture></control>')%(w//2-100,(h-44)//2,textcolor,icon if '://' in icon else ICONS+icon) if icon else ''
- return ('<control type="group"><left>%s</left><top>%s</top><width>%s</width><height>%s</height>%s'
-         '<control type="button" id="%d"><width>%s</width><height>%s</height><font>%s</font><label>%s</label>'
-         '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
-         '<textoffsetx>%d</textoffsetx><texturefocus border="32" colordiffuse="%s">%sround.png</texturefocus>'
-         '<texturenofocus border="32" colordiffuse="%s">%sround.png</texturenofocus>%s<onclick>%s</onclick></control>%s</control>'
-         )%(x,y,w,h,'',id,w,h,font,e(text),textcolor,textcolor,30 if icon else 0,fill,MEDIA,fill,MEDIA,extra,e(action),iconxml)
+def surface(x,y,w,h,texture,color=WHITE,border=0,extra=''):return image(x,y,w,h,MEDIA+texture,color,extra,border=border)
 
+def pill_button(id,x,y,w,h,text,actions,style,glyph='',extra='',glyph_x=None):
+ """Apple-style capsule: 'primary' white with black text, 'glass' frosted. actions: [(condition, action)]."""
+ fill,tex,textcolor=(('FFFFFFFF','pill_%d.png'%h,'FF000000') if style=='primary' else ('FFFFFFFF','glass_%d.png'%h,'FFFFFFFF'))
+ clicks=''.join('<onclick%s>%s</onclick>'%(' condition="%s"'%e(c) if c else '',e(a)) for c,a in actions)
+ inner=('<control type="button" id="%d"><width>%d</width><height>%d</height><label>%s</label><font>p_btn</font>'
+        '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny><textoffsetx>%d</textoffsetx>'
+        '<texturefocus border="%d" colordiffuse="%s">%s%s</texturefocus><texturenofocus border="%d" colordiffuse="%s">%s%s</texturenofocus>'
+        '%s%s</control>')%(id,w,h,e(text),textcolor,textcolor,36 if glyph and text else 0,h//2,fill,MEDIA,tex,h//2,fill,MEDIA,tex,clicks,extra)
+ gx=glyph_x if glyph_x is not None else ((w//2-100) if text else (w-46)//2)
+ glyphxml=icon(gx,(h-46)//2,46,glyph,textcolor) if glyph else ''
+ return '<control type="group"><left>%s</left><top>%s</top><width>%s</width><height>%s</height>%s%s</control>'%(x,y,w,h,inner,glyphxml)
+
+def circle_button(id,x,y,size,glyph,action,extra=''):return pill_button(id,x,y,size,size,'',[('',action)],'glass',glyph,extra)
+
+def window(original,body,default,extra_root=''):
+ """Keep the landscape window's type/id and its onload helpers (Fuse init, the bootstrap's setup lock)."""
+ root=ET.fromstring(original) if original else ET.Element('window')
+ attrs=''.join(' %s="%s"'%(k,e(v)) for k,v in root.attrib.items())
+ keep=''.join(ET.tostring(node,encoding='unicode') for node in root if node.tag in ('onload','onunload','include','param','zorder','depth','menucontrol','views','animation') and not (node.tag=='include' and 'View_' in (node.text or '')))
+ return '<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window%s><defaultcontrol always="true">%s</defaultcontrol>%s%s%s</window>\n'%(MARKER,attrs,default,keep,extra_root,body)
+
+def backdrop():return image(0,0,WIDTH,HEIGHT,MEDIA+'white.png',BG)
+
+# --- hubs: hero, rows, tab bar --------------------------------------------------------------------------
 def tabbar(active):
- w=WIDTH//len(TABS);items=[]
- for i,(key,text,icon,action) in enumerate(TABS):
-  color='FFFFFFFF' if key==active else DIM
-  items.append(('<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>150</height>'
-   '<texturefocus colordiffuse="1AFFFFFF">%swhite.png</texturefocus><texturenofocus /><label></label>'
-   '<onclick>%s</onclick><onup>5000</onup><onleft>%d</onleft><onright>%d</onright></control>'
-   '<control type="image"><left>%d</left><top>22</top><width>56</width><height>56</height><texture colordiffuse="%s">%s</texture></control>'
-   )%(9201+i,i*w,w,MEDIA,e(action),9201+(i-1)%len(TABS),9201+(i+1)%len(TABS),i*w+(w-56)//2,color,ICONS+icon)+label(i*w,86,w,40,text,'p_tab',color,'center'))
- return ('<control type="group" id="9200"><description>%s tab bar</description><left>0</left><bottom>0</bottom><width>%d</width><height>150</height>'
-  '<control type="image"><width>%d</width><height>150</height><texture colordiffuse="F5121216">%swhite.png</texture></control>'
-  '<control type="image"><width>%d</width><height>2</height><texture colordiffuse="14FFFFFF">%swhite.png</texture></control>%s</control>'
-  )%(MARKER,WIDTH,WIDTH,MEDIA,WIDTH,MEDIA,''.join(items))
+ """Floating frosted capsule with the four sections, and a separate search circle (iOS 26 tab bar)."""
+ tab_w=196;pad=10;bar_w=pad*2+tab_w*len(TABS);h=150;items=[]
+ for i,(key,text,glyph,action) in enumerate(TABS):
+  on=key==active;color=WHITE if on else 'B3FFFFFF';x=pad+i*tab_w
+  items.append(('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
+   '<texturefocus border="65" colordiffuse="%s">%spill_130.png</texturefocus><texturenofocus border="65" colordiffuse="%s">%spill_130.png</texturenofocus>'
+   '<label></label><onclick>%s</onclick><onup>5000</onup><onleft>%d</onleft><onright>%d</onright></control>'
+   )%(9201+i,x,pad,tab_w,h-2*pad,'40FFFFFF' if on else '1AFFFFFF','%s',('2EFFFFFF' if on else '00FFFFFF'),'%s',e(action),9201+(i-1)%len(TABS),9201+(i+1)%(len(TABS)+1))%(MEDIA,MEDIA)
+   +icon(x+(tab_w-54)//2,26,54,glyph,color)+label(x,84,tab_w,40,text,'p_tab',color,'center'))
+ return ('<control type="image"><left>0</left><bottom>0</bottom><width>%d</width><height>330</height><texture>%sfade_up.png</texture></control>'
+  '<control type="group" id="9200"><description>%s tab bar</description><left>%d</left><bottom>24</bottom><width>%d</width><height>%d</height>'
+  '<control type="image"><width>%d</width><height>%d</height><texture border="75">%sglass_150.png</texture></control>%s</control>'
+  '<control type="group"><right>%d</right><bottom>24</bottom><width>%d</width><height>%d</height>%s</control>'
+  )%(WIDTH,MEDIA,MARKER,SIDE-14,bar_w,h,bar_w,h,MEDIA,''.join(items),SIDE-14,h,h,
+     circle_button(9205,0,0,h,'magnifying-glass.png',SEARCH,'<onleft>%d</onleft><onup>5000</onup>'%(9200+len(TABS))))
 
-# --- rows from the owner's widget lists ----------------------------------------------------------------
 def usable(widget):
  path=str(widget.get('path') or '')
  if not path or path.startswith(('RunScript(','ActivateWindow(','library://','$','${')):return False
@@ -126,131 +171,141 @@ def load_widgets(profile,lists):
   rows+=[w for w in data if isinstance(w,dict) and usable(w)]
  return rows
 
+def poster_item(focused):
+ w,h=POSTER
+ zoom='<animation effect="zoom" start="100" end="104" time="160" center="auto" tween="cubic" easing="out">Focus</animation>' if focused else ''
+ return ('<control type="group"><left>%d</left><top>14</top>%s'%(SIDE,zoom)+
+  image(0,0,w,h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
+  label(20,h-170,w-40,150,'$INFO[ListItem.Label]','p_foot_b',WHITE,'left','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(poster))</visible>')+
+  image(0,0,w,h,'$INFO[ListItem.Art(poster)]',WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+'</control>')
+
+def card_item(focused):
+ """16:9 'Up Next' card with title and genre underneath (Apple TV app)."""
+ w,h=CARD
+ zoom='<animation effect="zoom" start="100" end="103" time="160" center="auto" tween="cubic" easing="out">Focus</animation>' if focused else ''
+ return ('<control type="group"><left>%d</left><top>14</top>%s'%(SIDE,zoom)+
+  image(0,0,w,h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'card_mask.png')+
+  image(0,0,w,h,'$VAR[Portrait_Card_Art]',WHITE,'','>scale',MEDIA+'card_mask.png',background=True)+
+  label(0,h+14,w,50,'$INFO[ListItem.Label]','p_foot_b')+
+  label(0,h+62,w,44,'$INFO[ListItem.Genre]$INFO[ListItem.Year,  ·  ]','p_cap',GREY)+'</control>')
+
 def row(index,widget,last):
  id=5001+index;title=str(widget.get('label') or '')
+ poster=str(widget.get('widget_style') or '').lower()=='poster'
+ w,h=(POSTER[0],POSTER[1]+40) if poster else (CARD[0],CARD[1]+150)
  # Hidden while empty; allowhiddenfocus keeps Kodi loading the row's content while it is hidden.
  visible='Integer.IsGreater(Container(%d).NumItems,0) | Container(%d).IsUpdating'%(id,id)
- item=('<control type="image"><width>%d</width><height>%d</height><texture background="true" diffuse="%sposter_mask.png" fallback="DefaultVideo.png">$INFO[ListItem.Art(poster)]</texture><aspectratio>scale</aspectratio></control>'
-       '<control type="image"><width>%d</width><height>%d</height><texture colordiffuse="FF26262C" diffuse="%sposter_mask.png">%swhite.png</texture><visible>String.IsEmpty(ListItem.Art(poster))</visible></control>'
-       '<control type="label"><left>14</left><top>%d</top><width>%d</width><height>120</height><font>p_label</font><textcolor>FFFFFFFF</textcolor><aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><label>$INFO[ListItem.Label]</label><visible>String.IsEmpty(ListItem.Art(poster))</visible></control>'
-       )%(POSTER[0],POSTER[1],MEDIA,POSTER[0],POSTER[1],MEDIA,MEDIA,POSTER[1]-134,POSTER[0]-28)
- focus=item+('<control type="image"><width>%d</width><height>%d</height><texture border="16" colordiffuse="FFFFFFFF">%sround_s.png</texture><visible>Control.HasFocus(%d)</visible></control>'
-             '<control type="image"><left>6</left><top>6</top><width>%d</width><height>%d</height><texture background="true" diffuse="%sposter_mask.png" fallback="DefaultVideo.png">$INFO[ListItem.Art(poster)]</texture><aspectratio>scale</aspectratio><visible>Control.HasFocus(%d)</visible></control>'
-             )%(POSTER[0],POSTER[1],MEDIA,id,POSTER[0]-12,POSTER[1]-12,MEDIA,id)
- return ('<control type="label" id="%d"><width>%d</width><height>96</height><left>%d</left><font>p_row</font><textcolor>FFFFFFFF</textcolor>'
-  '<aligny>bottom</aligny><textoffsetx>%d</textoffsetx><label>%s</label><visible>%s</visible></control>'
-  '<control type="list" id="%d"><left>0</left><width>%d</width><height>%d</height><orientation>horizontal</orientation>'
-  '%s<scrolltime tween="quadratic">300</scrolltime><preloaditems>2</preloaditems>'
-  '<visible allowhiddenfocus="true">%s</visible>'
-  '<itemlayout width="%d" height="%d"><control type="group"><left>%d</left><top>18</top>%s</control></itemlayout>'
-  '<focusedlayout width="%d" height="%d"><control type="group"><left>%d</left><top>18</top>%s</control></focusedlayout>'
-  '<content target="%s">%s</content></control>'
-  )%(id+500,WIDTH,0,SIDE,e(title),visible,id,WIDTH,POSTER[1]+36,'<ondown>9201</ondown>' if last else '',visible,
-     POSTER[0]+GAP,POSTER[1]+36,SIDE,item,POSTER[0]+GAP,POSTER[1]+36,SIDE,focus,e(widget.get('target') or 'videos'),e(widget['path']))
+ item=poster_item if poster else card_item
+ return (label(SIDE,0,WIDTH-2*SIDE,128,'%s  [COLOR %s]›[/COLOR]'%(title,GREY),'p_h2',WHITE,'left','<aligny>bottom</aligny><visible>%s</visible>'%visible).replace('<control type="label">','<control type="label" id="%d">'%(id+500),1)+
+  ('<control type="list" id="%d"><left>0</left><width>%d</width><height>%d</height><orientation>horizontal</orientation>'
+   '%s<scrolltime tween="cubic" easing="out">320</scrolltime><preloaditems>2</preloaditems><visible allowhiddenfocus="true">%s</visible>'
+   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
+   '<content target="%s">%s</content></control>'
+   )%(id,WIDTH,h,'<ondown>9201</ondown>' if last else '',visible,w+GAP,h,item(False),w+GAP,h,item(True),
+      e(widget.get('target') or 'videos'),e(widget['path'])))
 
-def hero(spotlight):
- # The hub's spotlight list (TMDb on the phone): swipe sideways for the next title.
- w,h=WIDTH-2*SIDE,1150
- layout=lambda focused:('<control type="group"><left>%d</left>'
-  '<control type="image"><width>%d</width><height>%d</height><texture background="true" diffuse="%shero_mask.png" fallback="DefaultVideo.png">$VAR[Portrait_Hero_Art]</texture><aspectratio>scale</aspectratio></control>'
-  '<control type="image"><width>%d</width><height>%d</height><texture diffuse="%shero_mask.png">%sshade.png</texture></control>'
-  '</control>')%(SIDE,w,h,MEDIA,w,h,MEDIA,MEDIA)
+def hero(spotlight,title):
+ """Full-bleed hero: the hub's spotlight titles (swipe sideways), logo, genre line, Play and Info, page dots."""
  info='Container(4000).ListItem'
- meta=('[COLOR %s]$INFO[%s.Rating,,  TMDb][/COLOR]$INFO[%s.Year,   •   ]$INFO[%s.Genre,   •   ]')%(GREEN,info,info,info)
- # A show opens its page (seasons and episodes); a movie goes straight to "How would you like to watch?".
- play=('PlayMedia($ESCINFO[%s.FileNameAndPath])'%info)
- show=('ActivateWindow(Videos,$ESCINFO[%s.FolderPath],return)'%info)
+ art=image(0,0,WIDTH,HERO,'$VAR[Portrait_Hero_Art]',WHITE,'','>scale',background=True)
+ meta='$INFO[%s.Genre]$INFO[%s.Year,  ·  ]$INFO[%s.MPAA,  ·  ]'%(info,info,info)
  is_show='String.IsEqual(%s.DBType,tvshow)'%info
- return ('<control type="group" id="4100"><height>%d</height>'
-  '<control type="fixedlist" id="4000"><width>%d</width><height>%d</height><orientation>horizontal</orientation>'
-  '<movement>0</movement><focusposition>0</focusposition><scrolltime tween="cubic">400</scrolltime><ondown>4001</ondown>'
+ # A show opens its page (seasons and episodes); a movie goes straight to "How would you like to watch?".
+ play=[(is_show,'ActivateWindow(Videos,$ESCINFO[%s.FolderPath],return)'%info),('!'+is_show,'PlayMedia($ESCINFO[%s.FileNameAndPath])'%info)]
+ dots=''.join('<control type="group"><width>34</width><height>20</height><visible>Integer.IsGreaterOrEqual(Container(4000).NumItems,%d)</visible>%s%s</control>'
+  %(i,image(7,0,20,20,MEDIA+'dot.png','59FFFFFF'),image(7,0,20,20,MEDIA+'dot.png',WHITE,'<visible>Integer.IsEqual(Container(4000).CurrentItem,%d)</visible>'%i)) for i in range(1,9))
+ btn_w=440
+ return ('<control type="group" id="4100"><left>0</left><top>0</top><width>%d</width><height>%d</height>'
+  '<control type="list" id="4000"><left>0</left><top>0</top><width>%d</width><height>%d</height><orientation>horizontal</orientation>'
+  '<scrolltime tween="cubic" easing="out">450</scrolltime><ondown>4001</ondown>'
   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
-  '<content target="videos" limit="12">$INFO[Skin.String(HomeSwitcher.%s.Spotlight.Path)]</content></control>'
-  '<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>240</height><aspectratio aligny="bottom">keep</aspectratio><texture>$INFO[%s.Art(clearlogo)]</texture></control>'
-  '%s%s'
-  '<control type="group"><top>%d</top>%s%s</control>'
+  '<content target="videos" limit="8">$INFO[Skin.String(HomeSwitcher.%s.Spotlight.Path)]</content></control>'
+  '%s%s'                                        # fades
+  '%s%s'                                        # large title + profile
+  '<control type="image"><left>120</left><top>%d</top><width>%d</width><height>250</height><aspectratio aligny="bottom">keep</aspectratio><texture>$INFO[%s.Art(clearlogo)]</texture></control>'
+  '%s%s%s%s'
+  '<control type="grouplist"><left>0</left><top>%d</top><width>%d</width><height>20</height><orientation>horizontal</orientation><align>center</align><itemgap>0</itemgap>%s</control>'
   '</control>'
-  )%(h+30,WIDTH,h,WIDTH,h,layout(False),WIDTH,h,layout(True),spotlight,
-     SIDE+120,h-530,w-240,info,
-     label(SIDE+40,h-470,w-80,210,'$INFO[%s.Label]'%info,'p_title','FFFFFFFF','center','<wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(%s.Art(clearlogo))</visible>'%info),
-     label(SIDE+20,h-240,w-40,60,meta,'p_meta',GREY,'center'),
-     h-160,
-     button(4001,SIDE+60,0,420,110,'Play','','FFFFFFFF','FF000000',MEDIA+'play.png','p_btn','<onup>4000</onup><onright>4002</onright><ondown>5001</ondown>'
-            '<onclick condition="%s">%s</onclick><onclick condition="!%s">%s</onclick>'%(is_show,e(show),is_show,e(play))).replace('<onclick></onclick>',''),
-     button(4002,SIDE+w-480,0,420,110,'Info','SetFocus(4000)'+'\x00'+'Action(Info)','B36D6D6E','FFFFFFFF','circle-info.png','p_btn','<onup>4000</onup><onleft>4001</onleft><ondown>5001</ondown>'))
+  )%(WIDTH,HERO,WIDTH,HERO,WIDTH,HERO,art,WIDTH,HERO,art,spotlight,
+     image(0,0,WIDTH,HERO,MEDIA+'hero_fade.png'),image(0,0,WIDTH,420,MEDIA+'fade_down.png'),
+     label(SIDE,40,WIDTH-2*SIDE-140,120,title,'p_large'),
+     circle_button(9206,WIDTH-SIDE-108,46,108,'circle-user.png','ActivateWindow(1170)','<ondown>4000</ondown>'),
+     HERO-560,WIDTH-240,info,
+     label(SIDE,HERO-560,WIDTH-2*SIDE,250,'$INFO[%s.Label]'%info,'p_title',WHITE,'center','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(%s.Art(clearlogo))</visible>'%info),
+     label(SIDE,HERO-296,WIDTH-2*SIDE,56,meta,'p_foot',GREY,'center'),
+     pill_button(4001,WIDTH//2-btn_w-12,HERO-214,btn_w,124,'Play',play,'primary',MEDIA+'play.png','<onup>4000</onup><onright>4002</onright><ondown>5001</ondown>'),
+     pill_button(4002,WIDTH//2+12,HERO-214,btn_w,124,'Info',[('','SetFocus(4000)'),('','Action(Info)')],'glass','circle-info.png','<onup>4000</onup><onleft>4001</onleft><ondown>5001</ondown>'),
+     HERO-62,WIDTH,dots)
 
 def hub_window(original,title,widgets,tab,spotlight):
- rows=''.join(row(i,w,i==len(widgets)-1) for i,w in enumerate(widgets)) or label(SIDE,0,WIDTH-80,200,'Nothing here yet','p_body',GREY)
- header=(label(SIDE,0,700,120,title,'p_head')+
-  button(9101,WIDTH-SIDE-96,12,96,96,'','ReplaceWindow(1105)','1FFFFFFF','FFFFFFFF','',extra='')+
-  '<control type="image"><left>%d</left><top>38</top><width>44</width><height>44</height><texture>%smagnifying-glass.png</texture></control>'%(WIDTH-SIDE-70,ICONS))
- body=('<controls>'
-  '<control type="image"><width>%d</width><height>%d</height><texture colordiffuse="%s">%swhite.png</texture></control>'
-  '<control type="grouplist" id="5000"><top>130</top><width>%d</width><bottom>150</bottom><orientation>vertical</orientation>'
-  '<itemgap>0</itemgap><scrolltime tween="quadratic">350</scrolltime><usecontrolcoords>true</usecontrolcoords>%s%s'
-  '<control type="image"><height>60</height><texture /></control></control>'
-  '<control type="image"><width>%d</width><height>150</height><texture>%stop.png</texture><animation effect="rotate" end="180" center="auto" time="0" condition="true">Conditional</animation></control>'
-  '<control type="group"><top>6</top>%s</control>%s</controls>'
-  )%(WIDTH,HEIGHT,BG,MEDIA,WIDTH,hero(spotlight),rows,WIDTH,MEDIA,header,tabbar(tab))
+ rows=''.join(row(i,w,i==len(widgets)-1) for i,w in enumerate(widgets)) or label(SIDE,0,WIDTH-2*SIDE,200,'Nothing here yet','p_body',GREY)
+ body=('<controls>%s'
+  '<control type="grouplist" id="5000"><top>0</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
+  '<itemgap>0</itemgap><scrolltime tween="cubic" easing="out">380</scrolltime><usecontrolcoords>true</usecontrolcoords>%s%s'
+  '<control type="image"><height>360</height><texture /></control></control>'
+  '%s%s</controls>'
+  )%(backdrop(),WIDTH,HEIGHT,hero(spotlight,title),rows,image(0,0,WIDTH,90,MEDIA+'fade_down.png'),tabbar(tab))
  return window(original,body,'4000')
 
-def window(original,body,default,extra_root=''):
- """Keep the landscape window's type/id and its onload helpers (Fuse init, the bootstrap's setup lock)."""
- root=ET.fromstring(original) if original else ET.Element('window')
- attrs=''.join(' %s="%s"'%(k,e(v)) for k,v in root.attrib.items())
- keep=''.join(ET.tostring(node,encoding='unicode') for node in root if node.tag in ('onload','onunload','include','param','zorder','depth','menucontrol','views','animation') and not (node.tag=='include' and 'View_' in (node.text or '')))
- out='<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window%s><defaultcontrol always="true">%s</defaultcontrol>%s%s%s</window>\n'%(MARKER,attrs,default,keep,extra_root,body)
- return re.sub('\x00','</onclick><onclick>',out)
+VARIABLES=('<variable name="Portrait_Hero_Art"><value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value>'
+           '<value>$INFO[ListItem.Art(poster)]</value></variable>'
+           '<variable name="Portrait_Card_Art"><value condition="!String.IsEmpty(ListItem.Art(landscape))">$INFO[ListItem.Art(landscape)]</value>'
+           '<value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value><value>$INFO[ListItem.Art(thumb)]</value></variable>')
 
-VARIABLES=('<variable name="Portrait_Hero_Art"><value condition="!String.IsEmpty(ListItem.Art(poster))">$INFO[ListItem.Art(poster)]</value>'
-           '<value>$INFO[ListItem.Art(fanart)]</value></variable>')
+# --- show page (seasons as chips, episodes below), episode lists and plain folders ------------------------
+def show_header(ids_down):
+ """Art, logo/title, meta, 'Play' and plot for a show's seasons or episodes page."""
+ art_h=840
+ logo='$INFO[ListItem.Art(tvshow.clearlogo)]'
+ play=('PlayMedia($ESCINFO[Container(60).ListItemAbsolute(0).FileNameAndPath])')
+ return ('<control type="group"><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'+
+  image(0,0,WIDTH,art_h,'$VAR[Portrait_Show_Art]',WHITE,'','>scale',background=True)+
+  image(0,0,WIDTH,art_h,MEDIA+'hero_fade.png')+image(0,0,WIDTH,300,MEDIA+'fade_down.png')+
+  '<control type="image"><left>140</left><top>430</top><width>800</width><height>230</height><aspectratio aligny="bottom">keep</aspectratio><texture>%s</texture></control>'%logo+
+  label(SIDE,430,WIDTH-2*SIDE,230,'$VAR[Portrait_Show_Title]','p_title',WHITE,'center','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(tvshow.clearlogo))</visible>')+
+  label(SIDE,672,WIDTH-2*SIDE,52,'[COLOR %s]$INFO[ListItem.Rating,★ ]  [/COLOR]$INFO[ListItem.Year]$INFO[ListItem.Genre,  ·  ]'%GREEN,'p_foot',GREY,'center')+
+  pill_button(9002,SIDE,744,WIDTH-2*SIDE,124,'Play  $INFO[Container(50).ListItem.Label]',[('','%s'%play)],'primary',MEDIA+'play.png',
+              '<visible>Container.Content(seasons)</visible><onup>9001</onup><ondown>50</ondown>',glyph_x=(WIDTH-2*SIDE)//2-200)+
+  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label><autoscroll>false</autoscroll></control>'%(SIDE,886,WIDTH-2*SIDE,GREY)+
+  '</control>')
 
-# --- show page (seasons as chips, episodes below) and generic lists -------------------------------------
+def episode_item(focused):
+ thumb_w,thumb_h=400,225
+ bg=surface(SIDE-18,4,WIDTH-2*SIDE+36,thumb_h+176,'round_s.png','14FFFFFF',26) if focused else ''
+ return (bg+image(SIDE,18,thumb_w,thumb_h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'thumb_mask.png')+
+  image(SIDE,18,thumb_w,thumb_h,'$VAR[Portrait_Thumb]',WHITE,'','>scale',MEDIA+'thumb_mask.png',background=True)+
+  image(SIDE+thumb_w//2-48,18+thumb_h//2-48,96,96,MEDIA+'glass_96.png')+icon(SIDE+thumb_w//2-18,18+thumb_h//2-20,40,MEDIA+'play.png')+
+  label(SIDE+thumb_w+30,40,WIDTH-2*SIDE-thumb_w-30,110,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_h3',WHITE,'left','<wrapmultiline>true</wrapmultiline>')+
+  label(SIDE+thumb_w+30,154,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]','p_cap',GREY)+
+  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>96</height><font>p_cap</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label></control>'%(SIDE,thumb_h+40,WIDTH-2*SIDE,GREY))
+
 def video_nav(original):
- chips=('<control type="list" id="50"><left>%d</left><top>860</top><width>%d</width><height>110</height><orientation>horizontal</orientation>'
-  '<ondown>60</ondown><onup>9001</onup><scrolltime>250</scrolltime><visible>Container.Content(seasons)</visible>'
-  '<itemlayout width="250" height="110">%s</itemlayout><focusedlayout width="250" height="110">%s</focusedlayout></control>')
- chip=lambda on:(box(0,10,230,90,'FFFFFFFF' if on else '1AFFFFFF','pill.png',45)+
-  label(0,10,230,90,'$INFO[ListItem.Label]','p_meta_bold','FF000000' if on else 'FFFFFFFF','center'))
- ep_item=lambda focused:('<control type="image"><left>%d</left><top>20</top><width>360</width><height>203</height>'
-  '<texture background="true" diffuse="%sthumb_mask.png" fallback="DefaultVideo.png">$VAR[Portrait_Thumb]</texture><aspectratio>scale</aspectratio></control>'
-  '<control type="image"><left>%d</left><top>91</top><width>60</width><height>60</height><texture colordiffuse="DDFFFFFF">%splay.png</texture></control>'
-  '%s%s%s')%(SIDE,MEDIA,SIDE+150,ICONS,
-  label(SIDE+390,30,WIDTH-SIDE*2-390,60,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_meta_bold'),
-  label(SIDE+390,90,WIDTH-SIDE*2-390,50,'$INFO[ListItem.Duration(mins),, min]$INFO[ListItem.Premiered,   •   ]','p_meta',DIM),
-  box(SIDE-14,6,WIDTH-2*SIDE+28,231,'1FFFFFFF','round_s.png',16) if focused else '')
+ chip=lambda on:(surface(0,8,250,96,'pill_96.png' if on else 'glass_96.png',WHITE,48)+
+  label(0,8,250,96,'$INFO[ListItem.Label]','p_foot_b','FF000000' if on else WHITE,'center'))
+ chips=('<control type="list" id="50"><left>%d</left><top>1036</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
+  '<ondown>60</ondown><onup>9002</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'
+  '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout></control>')%(SIDE,WIDTH-SIDE,chip(False),chip(True))
  episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
-  '<onup>%s</onup><scrolltime tween="quadratic">300</scrolltime><visible>%s</visible>'
-  '<itemlayout height="243">%s</itemlayout><focusedlayout height="243">%s</focusedlayout>%s</control>')
- generic=('<control type="list" id="51"><left>0</left><top>170</top><width>%d</width><bottom>0</bottom><onup>9001</onup>'
-  '<scrolltime tween="quadratic">300</scrolltime><visible>!Container.Content(seasons) + !Container.Content(episodes)</visible>'
-  '<itemlayout height="190">%s</itemlayout><focusedlayout height="190">%s</focusedlayout></control>')
- gen_item=lambda focused:((box(SIDE-14,8,WIDTH-2*SIDE+28,174,'1FFFFFFF','round_s.png',16) if focused else '')+
-  '<control type="image"><left>%d</left><top>20</top><width>100</width><height>150</height><texture background="true" diffuse="%sposter_mask.png">$INFO[ListItem.Art(poster)]</texture><aspectratio>scale</aspectratio><visible>!String.IsEmpty(ListItem.Art(poster))</visible></control>'
-  '<control type="image"><left>%d</left><top>45</top><width>100</width><height>100</height><texture>$INFO[ListItem.Icon]</texture><aspectratio>keep</aspectratio><visible>String.IsEmpty(ListItem.Art(poster))</visible></control>'
-  %(SIDE,MEDIA,SIDE)+label(SIDE+130,25,WIDTH-2*SIDE-130,80,'$INFO[ListItem.Label]','p_meta_bold')+
-  label(SIDE+130,95,WIDTH-2*SIDE-130,60,'$INFO[ListItem.Label2]','p_meta',DIM))
- art='$INFO[ListItem.Art(tvshow.fanart)]'
- head=('<control type="group"><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'
-  '<control type="image"><width>%d</width><height>720</height><texture background="true">$VAR[Portrait_Show_Art]</texture><aspectratio>scale</aspectratio></control>'
-  '<control type="image"><width>%d</width><height>720</height><texture>%stop.png</texture></control>'
-  '%s%s%s</control>'
-  )%(WIDTH,WIDTH,MEDIA,
-     label(SIDE,520,WIDTH-2*SIDE,110,'$VAR[Portrait_Show_Title]','p_title','FFFFFFFF','left','<scroll>false</scroll>'),
-     label(SIDE,630,WIDTH-2*SIDE,56,'[COLOR %s]$INFO[ListItem.Rating,,  TMDb][/COLOR]$INFO[ListItem.Year,   •   ]$INFO[Container.NumItems,   •   , seasons]'%GREEN,'p_meta',GREY),
-     '<control type="textbox"><left>%d</left><top>692</top><width>%d</width><height>150</height><font>p_meta</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label></control>'%(SIDE,WIDTH-2*SIDE,GREY))
- back=button(9001,SIDE,20,96,96,'','Back','66000000','FFFFFFFF','',extra='<ondown>50</ondown>')+(
-  '<control type="image"><left>%d</left><top>46</top><width>44</width><height>44</height><texture>%schevron-left.png</texture></control>'%(SIDE+26,ICONS))
- plain_title=label(SIDE+120,20,WIDTH-2*SIDE-120,96,'$INFO[Container.FolderName]','p_head','FFFFFFFF','left','<visible>!Container.Content(seasons) + !Container.Content(episodes)</visible>')
- body=('<controls><control type="image"><width>%d</width><height>%d</height><texture colordiffuse="%s">%swhite.png</texture></control>%s'
-  %(WIDTH,HEIGHT,BG,MEDIA,head)+
-  chips%(SIDE,WIDTH-SIDE,chip(False),chip(True))+
+  '<onup>%s</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
+  '<itemlayout height="420">%s</itemlayout><focusedlayout height="420">%s</focusedlayout>%s</control>')
+ gen_item=lambda focused:((surface(SIDE-18,6,WIDTH-2*SIDE+36,198,'round_s.png','14FFFFFF',26) if focused else '')+
+  image(SIDE,18,116,174,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'tile_mask.png')+
+  image(SIDE,18,116,174,'$INFO[ListItem.Art(poster)]',WHITE,'<visible>!String.IsEmpty(ListItem.Art(poster))</visible>','>scale',MEDIA+'tile_mask.png',background=True)+
+  icon(SIDE+18,65,80,'$INFO[ListItem.Icon]',WHITE,'<visible>String.IsEmpty(ListItem.Art(poster))</visible>')+
+  label(SIDE+146,34,WIDTH-2*SIDE-210,80,'$INFO[ListItem.Label]','p_h3')+
+  label(SIDE+146,108,WIDTH-2*SIDE-210,60,'$INFO[ListItem.Label2]','p_foot',GREY)+
+  label(WIDTH-SIDE-40,18,40,174,'›','p_h2',DIM,'right'))
+ generic=('<control type="list" id="51"><left>0</left><top>190</top><width>%d</width><bottom>0</bottom><onup>9001</onup>'
+  '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>!Container.Content(seasons) + !Container.Content(episodes)</visible>'
+  '<itemlayout height="210">%s</itemlayout><focusedlayout height="210">%s</focusedlayout></control>')%(WIDTH,gen_item(False),gen_item(True))
+ back=circle_button(9001,SIDE,36,108,'chevron-left.png','Back','<ondown>9002</ondown>')
+ plain_title=label(SIDE+136,36,WIDTH-2*SIDE-136,108,'$INFO[Container.FolderName]','p_h2',WHITE,'left','<visible>!Container.Content(seasons) + !Container.Content(episodes)</visible>')
+ body=('<controls>'+backdrop()+show_header('50')+chips+
   # Seasons page: episodes of the season chip in focus. Episodes page: the folder's own list.
-  episodes%(60,990,WIDTH,'50','Container.Content(seasons)',ep_item(False),ep_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>')+
-  episodes%(52,880,WIDTH,'9001','Container.Content(episodes)',ep_item(False),ep_item(True),'')+
-  generic%(WIDTH,gen_item(False),gen_item(True))+back+plain_title+'</controls>')
- extra=('<views>50,51,52</views>')
- return window(original,body,'50',extra)
+  episodes%(60,1176,WIDTH,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>')+
+  episodes%(52,1036,WIDTH,'9001','Container.Content(episodes)',episode_item(False),episode_item(True),'')+
+  generic+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+back+plain_title+'</controls>')
+ return window(original,body,'50','<views>50,51,52</views>')
 
 SHOW_VARS=('<variable name="Portrait_Show_Art"><value condition="!String.IsEmpty(ListItem.Art(tvshow.fanart))">$INFO[ListItem.Art(tvshow.fanart)]</value>'
            '<value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value><value>$INFO[Container.Art(fanart)]</value></variable>'
@@ -259,81 +314,84 @@ SHOW_VARS=('<variable name="Portrait_Show_Art"><value condition="!String.IsEmpty
            '<variable name="Portrait_Thumb"><value condition="!String.IsEmpty(ListItem.Art(thumb))">$INFO[ListItem.Art(thumb)]</value><value>$INFO[ListItem.Art(fanart)]</value></variable>')
 
 def video_info(original):
- w=WIDTH-2*SIDE
- body=('<controls><control type="image"><width>%d</width><height>%d</height><texture colordiffuse="%s">%swhite.png</texture></control>'
-  '<control type="image"><width>%d</width><height>1100</height><texture background="true">$INFO[ListItem.Art(fanart)]</texture><aspectratio>scale</aspectratio></control>'
-  '<control type="image"><width>%d</width><height>1100</height><texture>%stop.png</texture></control>'
-  '<control type="image"><left>%d</left><top>560</top><width>%d</width><height>200</height><aspectratio align="left" aligny="bottom">keep</aspectratio><texture>$INFO[ListItem.Art(clearlogo)]</texture></control>'
-  '%s%s'
-  '<control type="grouplist"><left>%d</left><top>950</top><width>%d</width><height>110</height><orientation>horizontal</orientation><itemgap>30</itemgap>%s%s</control>'
-  '<control type="textbox" id="4"><left>%d</left><top>1100</top><width>%d</width><height>700</height><font>p_body</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label></control>'
-  '%s</controls>'
-  )%(WIDTH,HEIGHT,BG,MEDIA,WIDTH,WIDTH,MEDIA,SIDE,w,
-     label(SIDE,600,w,200,'$INFO[ListItem.Title]','p_title','FFFFFFFF','left','<wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(clearlogo))</visible>'),
-     label(SIDE,820,w,60,'[COLOR %s]$INFO[ListItem.Rating,,  TMDb][/COLOR]$INFO[ListItem.Year,   •   ]$INFO[ListItem.Genre,   •   ]$INFO[ListItem.Duration(mins),   •   , min]'%GREEN,'p_meta',GREY),
-     SIDE,w,
-     button(8,0,0,480,110,'Play','','FFFFFFFF','FF000000',MEDIA+'play.png',extra='<visible>!String.IsEqual(ListItem.DBType,tvshow)</visible>').replace('<onclick></onclick>',''),
-     button(9010,0,0,480,110,'Episodes','Close'+'\x00'+'ActivateWindow(Videos,$ESCINFO[ListItem.FolderPath],return)','B36D6D6E','FFFFFFFF','tv.png',extra='<visible>String.IsEqual(ListItem.DBType,tvshow)</visible>'),
-     SIDE,w,GREY,
-     button(9001,SIDE,20,96,96,'','Close','66000000','FFFFFFFF')+'<control type="image"><left>%d</left><top>46</top><width>44</width><height>44</height><texture>%sxmark.png</texture></control>'%(SIDE+26,ICONS))
+ art_h=1150;w=WIDTH-2*SIDE
+ body=('<controls>'+backdrop()+
+  image(0,0,WIDTH,art_h,'$INFO[ListItem.Art(fanart)]',WHITE,'','>scale',background=True)+
+  image(0,0,WIDTH,art_h,MEDIA+'hero_fade.png')+image(0,0,WIDTH,300,MEDIA+'fade_down.png')+
+  '<control type="image"><left>140</left><top>640</top><width>800</width><height>250</height><aspectratio aligny="bottom">keep</aspectratio><texture>$INFO[ListItem.Art(clearlogo)]</texture></control>'+
+  label(SIDE,640,w,250,'$INFO[ListItem.Title]','p_title',WHITE,'center','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(clearlogo))</visible>')+
+  label(SIDE,906,w,52,'[COLOR %s]$INFO[ListItem.Rating,★ ]  [/COLOR]$INFO[ListItem.Year]$INFO[ListItem.Genre,  ·  ]$INFO[ListItem.Duration(mins),  ·  ,m]$INFO[ListItem.MPAA,  ·  ]'%GREEN,'p_foot',GREY,'center')+
+  pill_button(8,SIDE,990,w,124,'Play',[],'primary',MEDIA+'play.png','<visible>!String.IsEqual(ListItem.DBType,tvshow)</visible>')+
+  pill_button(9010,SIDE,990,w,124,'Episodes',[('','Close'),('','ActivateWindow(Videos,$ESCINFO[ListItem.FolderPath],return)')],'primary','tv.png','<visible>String.IsEqual(ListItem.DBType,tvshow)</visible>')+
+  '<control type="textbox" id="4"><left>%d</left><top>1150</top><width>%d</width><height>620</height><font>p_sub</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label></control>'%(SIDE,w,GREY)+
+  label(SIDE,1790,w,48,'$INFO[ListItem.Director,Director: ]','p_cap',DIM)+
+  circle_button(9001,SIDE,36,108,'xmark.png','Close')+'</controls>')
  return window(original,body,'8')
 
-def centered_dialog(original,heading,items_xml,list_id,height,default,extra='',card='',group_extra=''):
- """A rounded card in the middle of the screen; tapping outside closes it."""
- w=WIDTH-2*70;top=(HEIGHT-height)//2
- body=('<controls>'
-  '<control type="button" id="9099"><width>%d</width><height>%d</height><texturefocus colordiffuse="B3000000">%swhite.png</texturefocus>'
-  '<texturenofocus colordiffuse="B3000000">%swhite.png</texturenofocus><onclick>Close</onclick><onfocus>SetFocus(%s)</onfocus></control>'
-  '<control type="group"><left>70</left><top>%d</top><width>%d</width><height>%d</height>%s'
-  '<animation effect="zoom" start="94" end="100" center="auto" time="180" tween="cubic" easing="out">WindowOpen</animation>'
-  '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>'
-  '<animation effect="fade" start="100" end="0" time="120">WindowClose</animation>'
-  '%s%s%s%s</control></controls>'
-  )%(WIDTH,HEIGHT,MEDIA,MEDIA,list_id,top,w,height,group_extra,card or box(0,0,w,height,CARD),heading,items_xml,extra)
- return window(original,body,default)
+def centered_dialog(original,body,default):
+ """Dimmed screen (tap outside to close) with a card in the middle."""
+ dim=('<control type="button" id="9099"><width>%d</width><height>%d</height><texturefocus colordiffuse="99000000">%swhite.png</texturefocus>'
+      '<texturenofocus colordiffuse="99000000">%swhite.png</texturenofocus><onclick>Close</onclick><onfocus>SetFocus(%s)</onfocus></control>')%(WIDTH,HEIGHT,MEDIA,MEDIA,default)
+ anims=('<animation effect="zoom" start="92" end="100" center="auto" time="220" tween="back" easing="out">WindowOpen</animation>'
+        '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>'
+        '<animation effect="fade" start="100" end="0" time="120">WindowClose</animation>')
+ return window(original,'<controls>%s<control type="group">%s%s</control></controls>'%(dim,anims,body),default)
 
-SELECT_ROWS=8
+SELECT_ROWS=7
 def select_dialog(original):
- """Kodi's select dialog (also "How would you like to watch?"): a card sized to its rows, centred."""
- w=WIDTH-2*70;full=200+SELECT_ROWS*140+170
+ """Kodi's select dialog, and so "How would you like to watch?": an iOS action sheet in the middle,
+ sized to its rows. With the title's art (the watch chooser) the art leads the card."""
+ x=96;w=WIDTH-2*x;row_h=132;cancel_h=128;gap=22
+ titled='[!String.IsEmpty(Container(3).ListItem.Art(poster)) | !String.IsEmpty(Container(6).ListItem.Art(poster))]'
  count=lambda n,op='IsEqual':'[Integer.%s(Container(3).NumItems,%d) | Integer.%s(Container(6).NumItems,%d)]'%(op,n,op,n)
- # The watch chooser gives every row the title's art: show it once, beside the question, instead of per row.
- titled='!String.IsEmpty(Container(3).ListItem.Art(poster)) | !String.IsEmpty(Container(6).ListItem.Art(poster))'
- art='$VAR[Portrait_Select_Art]'
- heading=(label(50,30,w-100,130,'$INFO[Control.GetLabel(1)]','p_row','FFFFFFFF','left','<wrapmultiline>true</wrapmultiline><visible>![%s]</visible>'%titled)+
-          '<control type="image"><left>50</left><top>30</top><width>220</width><height>124</height><texture diffuse="%sthumb_mask.png">%s</texture><aspectratio>scale</aspectratio><visible>%s</visible></control>'%(MEDIA,art,titled)+
-          label(300,30,w-350,130,'$INFO[Control.GetLabel(1)]','p_meta_bold','FFFFFFFF','left','<wrapmultiline>true</wrapmultiline><visible>%s</visible>'%titled)+
-          '<control type="label" id="1"><visible>false</visible></control>')
+ head_plain,head_art=170,170+300
+ # Card height for n rows (n<SELECT_ROWS; more rows scroll inside the full card).
+ def card_h(n,head):return head+n*row_h
+ full=card_h(SELECT_ROWS,head_art)+gap+cancel_h;top=(HEIGHT-full)//2
+ heading=('<control type="image"><left>%d</left><top>36</top><width>420</width><height>236</height><texture diffuse="%sthumb_mask.png">$VAR[Portrait_Select_Art]</texture><aspectratio>scale</aspectratio><visible>%s</visible></control>'%((w-420)//2,MEDIA,titled)+
+  '<control type="group"><visible>%s</visible>%s</control>'%(titled,label(40,290,w-80,150,'$INFO[Control.GetLabel(1)]','p_h3',WHITE,'center','<wrapmultiline>true</wrapmultiline>'))+
+  '<control type="group"><visible>!%s</visible>%s</control>'%(titled,label(40,24,w-80,130,'$INFO[Control.GetLabel(1)]','p_h3',WHITE,'center','<wrapmultiline>true</wrapmultiline>'))+
+  '<control type="label" id="1"><visible>false</visible></control>')
  icon_row='!String.IsEmpty(ListItem.Icon) + !String.StartsWith(ListItem.Icon,Default) + String.IsEmpty(ListItem.Art(poster))'
- row=lambda focused:((box(20,4,w-40,128,'1FFFFFFF','round_s.png',16) if focused else '')+
-  '<control type="image"><left>40</left><top>26</top><width>84</width><height>84</height><texture diffuse="%sthumb_mask.png">$INFO[ListItem.Icon]</texture><aspectratio>scale</aspectratio><visible>%s</visible></control>'%(MEDIA,icon_row)+
-  label(40,4,w-120,128,'$INFO[ListItem.Label]','p_body','FFFFFFFF','left','<visible>![%s]</visible>'%icon_row)+
-  label(150,4,w-200,128,'$INFO[ListItem.Label]','p_body','FFFFFFFF','left','<visible>%s</visible>'%icon_row)+
-  '<control type="image"><left>%d</left><top>48</top><width>40</width><height>40</height><texture colordiffuse="FF46D369">%scheck.png</texture><visible>ListItem.IsSelected</visible></control>'%(w-90,ICONS)+
-  '<control type="image"><left>40</left><top>134</top><width>%d</width><height>2</height><texture colordiffuse="0FFFFFFF">%swhite.png</texture></control>'%(w-80,MEDIA))
- lists=''.join(('<control type="list" id="%d"><left>0</left><top>170</top><width>%d</width><height>%d</height><onup>%d</onup><ondown>%d</ondown>'
-  '<scrolltime tween="quadratic">250</scrolltime><itemlayout height="140">%s</itemlayout><focusedlayout height="140">%s</focusedlayout></control>'
-  )%(id,w,SELECT_ROWS*140,id,9050,row(False),row(True)) for id in (3,6))
- # Fewer rows: a shorter card (one background per row count), moved down to stay centred, Cancel moved up.
- cards=''.join(box(0,0,w,200+n*140+170,CARD,extra='<visible>%s</visible>'%count(n)) for n in range(1,SELECT_ROWS))
- cards+=box(0,0,w,full,CARD,extra='<visible>%s</visible>'%count(SELECT_ROWS-1,'IsGreater'))
- slide=lambda dy,n:'<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(dy,count(n))
- cancel=('<control type="group"><top>%d</top>%s%s</control>'%(full-150,''.join(slide(-(SELECT_ROWS-n)*140,n) for n in range(1,SELECT_ROWS)),
-         button(9050,50,0,w-100,100,'Cancel','Close','1AFFFFFF','FFFFFFFF',font='p_meta_bold',extra='<onup>3</onup>')))
+ item=lambda focused:(image(0,0,w,2,MEDIA+'white.png',SEP)+(image(0,2,w,row_h-2,MEDIA+'white.png','14FFFFFF') if focused else '')+
+  icon(40,(row_h-72)//2,72,'$INFO[ListItem.Icon]',WHITE,'<visible>%s</visible>'%icon_row)+
+  label(40,0,w-80,row_h,'$INFO[ListItem.Label]','p_body',WHITE,'center','<visible>![%s]</visible>'%icon_row)+
+  label(140,0,w-200,row_h,'$INFO[ListItem.Label]','p_body',WHITE,'left','<visible>%s</visible>'%icon_row)+
+  icon(w-86,(row_h-40)//2,40,'check.png',GREEN,'<visible>ListItem.IsSelected</visible>'))
+ lists=''.join(('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><onup>%d</onup><ondown>9050</ondown>'
+  '<scrolltime tween="cubic">250</scrolltime><itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout>%s</control>'
+  )%(id,head_plain,w,SELECT_ROWS*row_h,id,row_h,item(False),row_h,item(True),
+     '<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(head_art-head_plain,titled)) for id in (3,6))
+ # One card background per (row count, with/without art); the whole sheet slides to stay centred.
+ cards=''
+ for n in range(1,SELECT_ROWS+1):
+  cond=count(n) if n<SELECT_ROWS else count(SELECT_ROWS-1,'IsGreater')
+  for head,art_cond in ((head_art,titled),(head_plain,'!'+titled)):
+   h=card_h(n,head)
+   cards+=(image(0,0,w,h,MEDIA+'glass_card.png',WHITE,'<visible>%s + %s</visible>'%(cond,art_cond),border=44)+
+     '<control type="group"><top>%d</top><visible>%s + %s</visible>%s</control>'%(h+gap,cond,art_cond,
+      pill_button(9050 if (n,head)==(1,head_art) else 0,0,0,w,cancel_h,'Cancel',[('','Close')],'glass','','<onup>3</onup>').replace('<control type="button" id="0">','<control type="button">')))
+ slides=''.join('<animation effect="slide" end="0,%d" time="0" condition="%s + %s">Conditional</animation>'%((full-(card_h(n,head)+gap+cancel_h))//2,count(n),c)
+               for n in range(1,SELECT_ROWS) for head,c in ((head_art,titled),(head_plain,'!'+titled)))
  hidden=''.join('<control type="button" id="%d"><visible>false</visible></control>'%i for i in (5,7,8))+'<control type="label" id="2"><visible>false</visible></control>'
- return centered_dialog(original,heading,lists+cancel+hidden,3,full,'3',card=cards,group_extra=''.join(slide((SELECT_ROWS-n)*70,n) for n in range(1,SELECT_ROWS)))
+ body='<left>%d</left><top>%d</top><width>%d</width><height>%d</height>%s%s%s%s%s'%(x,top,w,full,slides,cards,heading,lists,hidden)
+ return centered_dialog(original,body,'3')
 
 def more_menu(original):
- w=WIDTH-2*70;height=200+len(MORE)*140+40
- items=''.join('<item><label>%s</label><icon>%s</icon><onclick>Dialog.Close(1170)</onclick><onclick>%s</onclick></item>'%(e(t),ICONS+i,e(a)) for t,i,a in MORE)
- row=lambda focused:((box(20,4,w-40,128,'1FFFFFFF','round_s.png',16) if focused else '')+
-  '<control type="image"><left>50</left><top>42</top><width>52</width><height>52</height><texture>$INFO[ListItem.Icon]</texture></control>'+
-  label(140,4,w-180,128,'$INFO[ListItem.Label]','p_body'))
- lst=('<control type="list" id="3"><left>0</left><top>150</top><width>%d</width><height>%d</height><itemlayout height="140">%s</itemlayout>'
-      '<focusedlayout height="140">%s</focusedlayout><content>%s</content></control>')%(w,len(MORE)*140,row(False),row(True),items)
- return centered_dialog(original,label(50,40,w-100,80,'More','p_row'),lst,3,height,'3')
+ """iOS Settings-style grouped list: coloured icon tiles, labels, chevrons."""
+ x=70;w=WIDTH-2*x;row_h=140;h=170+len(MORE)*row_h+30;top=(HEIGHT-h)//2
+ items=''.join('<item><label>%s</label><icon>%s</icon><property name="tint">%s</property><onclick>Dialog.Close(1170)</onclick><onclick>%s</onclick></item>'%(e(t),ICONS+i,c,e(a)) for t,i,c,a in MORE)
+ item=lambda focused:((image(0,0,w,row_h,MEDIA+'white.png','14FFFFFF') if focused else '')+
+  image(44,(row_h-80)//2,80,80,MEDIA+'tile_mask.png','$INFO[ListItem.Property(tint)]')+
+  icon(44+18,(row_h-44)//2,44,'$INFO[ListItem.Icon]')+
+  label(160,0,w-260,row_h,'$INFO[ListItem.Label]','p_body')+label(w-90,0,50,row_h,'›','p_h2',DIM,'right')+
+  image(160,row_h-2,w-160,2,MEDIA+'white.png',SEP))
+ lst=('<control type="list" id="3"><left>0</left><top>170</top><width>%d</width><height>%d</height><itemlayout height="%d">%s</itemlayout>'
+      '<focusedlayout height="%d">%s</focusedlayout><content>%s</content></control>')%(w,len(MORE)*row_h,row_h,item(False),row_h,item(True),items)
+ body=('<left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(x,top,w,h)+
+  image(0,0,w,h,MEDIA+'glass_card.png',border=44)+label(44,40,w-88,100,'More','p_h2')+lst)
+ return centered_dialog(original,body,'3')
 
-# --- fallback: any other window is the landscape window, shrunk into the middle ------------------------
 def shrink(data,name=''):
  root=ET.fromstring(data)
  if root.tag!='window':return None

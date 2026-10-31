@@ -51,7 +51,7 @@ def prepare(addons,fuse,home):
  else:gui.write_text('<settings version="2">\n<setting id="lookandfeel.skin">%s</setting>\n'
   '<setting id="addons.unknownsources">true</setting>\n<setting id="services.webserver">true</setting>\n'
   '<setting id="services.webserverauthentication">false</setting>\n<setting id="services.webserverport">8089</setting>\n</settings>\n'%FUSE)
- (profile/'advancedsettings.xml').write_text('<advancedsettings><loglevel>1</loglevel></advancedsettings>\n')
+ (profile/'advancedsettings.xml').write_text('<advancedsettings><loglevel>1</loglevel><gui><algorithmdirtyregions>0</algorithmdirtyregions></gui></advancedsettings>\n')
  return kodi
 
 def launch(build,home,size,display=':5'):
