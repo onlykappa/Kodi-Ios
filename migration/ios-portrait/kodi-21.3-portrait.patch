@@ -66,19 +66,20 @@ index f60773d..c6d30c5 100644
                      ac_cv_func_realloc_0_nonnull=yes
  
 diff --git a/tools/depends/target/libffi/LIBFFI-VERSION b/tools/depends/target/libffi/LIBFFI-VERSION
-index 9d1e722..82533c0 100644
+index 9d1e722..1c4c61c 100644
 --- a/tools/depends/target/libffi/LIBFFI-VERSION
 +++ b/tools/depends/target/libffi/LIBFFI-VERSION
-@@ -1,4 +1,7 @@
+@@ -1,4 +1,8 @@
  LIBNAME=libffi
 -VERSION=3.4.2
-+# Kodi-iOS: 3.4.2's aarch64 assembly fails with current Apple clang ("invalid CFI advance_loc expression");
-+# 3.4.6 assembles cleanly. Fetched from the upstream release, checked against this SHA512.
-+VERSION=3.4.6
++# Kodi-iOS: libffi before 3.4.7 fails to assemble its aarch64 code with LLVM 19 / Xcode 16
++# ("invalid CFI advance_loc expression"; reproduced with clang 19, fixed upstream in 3.4.7).
++# Fetched from the upstream release, checked against this SHA512.
++VERSION=3.4.8
  ARCHIVE=$(LIBNAME)-$(VERSION).tar.gz
 -SHA512=31bad35251bf5c0adb998c88ff065085ca6105cf22071b9bd4b5d5d69db4fadf16cadeec9baca944c4bb97b619b035bb8279de8794b922531fddeb0779eb7fb1
 +FULL_URL=https://github.com/libffi/libffi/releases/download/v$(VERSION)/$(ARCHIVE)
-+SHA512=033d2600e879b83c6bce0eb80f69c5f32aa775bf2e962c9d39fbd21226fa19d1e79173d8eaa0d0157014d54509ea73315ad86842356fc3a303c0831c94c6ab39
++SHA512=05344c6c1a1a5b44704f6cf99277098d1ea3ac1dc11c2a691c501786a214f76184ec0637135588630db609ce79e49df3dbd00282dd61e7f21137afba70e24ffe
 diff --git a/tools/depends/target/libffi/Makefile b/tools/depends/target/libffi/Makefile
 index ad0f910..d9594dd 100644
 --- a/tools/depends/target/libffi/Makefile
