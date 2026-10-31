@@ -4,7 +4,7 @@ sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
 from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
-import airplay,calibration,updates
+import airplay,calibration,driveupload,updates,threading
 
 def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
@@ -111,10 +111,46 @@ def run():
    try:
     if xbmcaddon.Addon().getSettingBool('check_on_start'):updates.run(check_only=True)
    except Exception as error:xbmc.log('Kodi iOS update check skipped: '+type(error).__name__,xbmc.LOGWARNING)
+ # Kept Elementum videos go to Google Drive in the background, never during playback.
+ try:
+  if xbmcaddon.Addon().getSettingBool('drive_upload'):
+   threading.Thread(target=drive_uploads,args=(monitor,home,profile),daemon=True).start()
+ except Exception as error:xbmc.log('Kodi iOS Drive upload unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  # Stays running for the rest of the session: Apple's AirPlay button in the top-right corner during playback.
  try:
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
   if path and xbmcaddon.Addon().getSettingBool('airplay_button'):
    airplay.watch(airplay.load(path),lambda:xbmc.getCondVisibility(airplay.PLAYING),monitor.waitForAbort)
  except Exception as error:xbmc.log('Kodi iOS AirPlay button unavailable: '+type(error).__name__,xbmc.LOGWARNING)
+ while not monitor.waitForAbort(60):pass
+
+def drive_uploads(monitor,home,profile):
+ """Every two minutes while Kodi is idle: upload kept Elementum videos with the Google Drive add-on's sign-in."""
+ import urllib.parse,xbmc,xbmcaddon,xbmcgui,xbmcvfs
+ if not xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)'):return
+ common=xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
+ if common not in sys.path:sys.path.append(common)
+ from clouddrive.common.account import AccountManager
+ from clouddrive.common.remote.request import tls_context
+ drive_addon=xbmcaddon.Addon('plugin.googledrive')
+ accounts=AccountManager(xbmcvfs.translatePath(drive_addon.getAddonInfo('profile')))
+ send=driveupload.sender(tls_context())
+ def refresh(refresh_token):
+  server=(drive_addon.getSetting('sign-in-server') or 'https://drive.signinserver.com').strip().rstrip('/')
+  body=urllib.parse.urlencode({'provider':'googledrive','refresh_token':refresh_token}).encode()
+  status,_,answer=send('POST',server+'/refresh',body,{'Content-Type':'application/x-www-form-urlencoded'})
+  if status!=200:raise RuntimeError('Drive sign-in refresh: HTTP %s'%status)
+  return json.loads(answer)
+ drive=driveupload.Drive(driveupload.token_source(accounts.get_accounts,accounts.save_account,refresh),send)
+ root=str(updates.updates_folder(home).with_name('Kodi Downloads'))
+ state=str(profile/'addon_data/service.kodi.ios.bootstrap/drive-uploads.json')
+ idle=lambda:not monitor.abortRequested() and not xbmc.Player().isPlayingVideo()
+ log=lambda message:xbmc.log('Kodi iOS '+message,xbmc.LOGINFO)
+ while not monitor.waitForAbort(120):
+  if not idle() or not accounts.get_accounts() or not driveupload.pending(root):continue
+  try:
+   count=driveupload.run_once(root,drive,state,log,idle,xbmcaddon.Addon().getSettingBool('drive_upload_delete'))
+   if count:xbmcgui.Dialog().notification('Google Drive','Uploaded %d video%s to Kodi Downloads'%(count,'' if count==1 else 's'),xbmcgui.NOTIFICATION_INFO,6000)
+  except driveupload.Stop:pass
+  except Exception as error:xbmc.log('Kodi iOS Drive upload paused: %s %s'%(type(error).__name__,error),xbmc.LOGWARNING)
 if __name__=='__main__':run()
