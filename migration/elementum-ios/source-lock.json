@@ -26,15 +26,27 @@
     "asset": "elementum.framework.zip",
     "sha256": "dfb7b3cf02124ad1abe9c0da5e7bb3803d583509e4a51fa2249597c7649b5541"
   },
-  "modules": {
-    "repository": "xbmc/repo-scripts",
-    "branch": "matrix",
-    "commit": "6689984b17b7756396902199deb5b90626ae8f75",
-    "trees": {
-      "script.module.kodi-six": "2cbe46637d11af7183c58ec986d815d931c47af9",
-      "script.module.future": "1146a531d53140feb5d163de82a3e97fb1d88683"
+  "modules": [
+    {
+      "repository": "xbmc/repo-scripts",
+      "branch": "matrix",
+      "commit": "6689984b17b7756396902199deb5b90626ae8f75",
+      "trees": {
+        "script.module.kodi-six": "2cbe46637d11af7183c58ec986d815d931c47af9",
+        "script.module.future": "1146a531d53140feb5d163de82a3e97fb1d88683",
+        "script.module.autocompletion": "af1f8d5843c4bb964c288a27d755d8530946774a",
+        "script.module.inputstreamhelper": "5123929a65877bc0bf56e25c24624b9730d040d1"
+      }
+    },
+    {
+      "repository": "xbmc/repo-plugins",
+      "branch": "matrix",
+      "commit": "527461c9fb06e17621283ab35bd76e160e8669b5",
+      "trees": {
+        "plugin.program.autocompletion": "28cb73d9d46ce38801e3fc1b6d677a7e904881db"
+      }
     }
-  },
+  ],
   "burst": {
     "id": "script.elementum.burst",
     "version": "0.0.99",
@@ -56,6 +68,18 @@
       "install": "profile",
       "url": "https://raw.githubusercontent.com/not-coco-joe/repository.cocoscrapers/f1772775291a432cf2a7c6e45ea038c894ea8b70/zips/script.module.cocoscrapers/script.module.cocoscrapers-1.0.45.zip",
       "sha256": "45abbf2134b7c7f545cc9d9a1e378a64d51764aba5fe0a3e4cb1e58573b87521"
+    },
+    "repository.jurialmunkey": {
+      "version": "3.4",
+      "install": "app",
+      "url": "https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/09bef6c5af3df8789c74dd0fe49dc0416750662d/repo/zips/repository.jurialmunkey/repository.jurialmunkey-3.4.zip",
+      "sha256": "972ba8bda0dd16108a1601534e547a774522d73cd2c7919ce651a2d32af7a3fd"
+    },
+    "repository.cocoscrapers": {
+      "version": "1.0.0",
+      "install": "app",
+      "url": "https://raw.githubusercontent.com/not-coco-joe/repository.cocoscrapers/f1772775291a432cf2a7c6e45ea038c894ea8b70/zips/repository.cocoscrapers/repository.cocoscrapers-1.0.0.zip",
+      "sha256": "9f32a572818065af9fab6c2131513470dc004fe1bb23e7fc040cfef0239d6b22"
     }
   }
 }

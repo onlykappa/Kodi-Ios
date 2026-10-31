@@ -14,8 +14,11 @@ def fetch(url,tries=4):
    if attempt==tries-1:raise
    time.sleep(2**(attempt+1))
 
-def git_modules(spec,dest):
- """Sparse checkout of the pinned commit; each add-on directory must match its pinned git tree hash."""
+def git_modules(specs,dest):
+ """Sparse checkout of each pinned commit; each add-on directory must match its pinned git tree hash."""
+ for spec in specs if isinstance(specs,list) else [specs]:git_tree(spec,dest)
+
+def git_tree(spec,dest):
  with tempfile.TemporaryDirectory() as t:
   git=lambda *a:subprocess.run(['git','-C',t,*a],check=True,capture_output=True,text=True).stdout.strip()
   git('init','-q');git('sparse-checkout','set','--no-cone',*spec['trees'])
@@ -44,7 +47,7 @@ def run(out,lock=None,get=fetch,modules=git_modules):
  for id,data in extras.items():
   dest=out/('extras-'+lock['extras'][id]['install'])/(id+'.zip');dest.parent.mkdir(exist_ok=True);dest.write_bytes(data)
  (out/'client.zip').write_bytes(client);(out/'framework.zip').write_bytes(framework);(out/'burst.zip').write_bytes(burst)
- return {'elementum':True,'client_sha256':lock['plugin_release']['client_zip_sha256'],'framework_sha256':fw['sha256'],'burst_sha256':lock['burst']['sha256'],'modules':sorted(lock['modules']['trees']),'extras':sorted(extras)}
+ return {'elementum':True,'client_sha256':lock['plugin_release']['client_zip_sha256'],'framework_sha256':fw['sha256'],'burst_sha256':lock['burst']['sha256'],'modules':sorted(id for spec in (lock['modules'] if isinstance(lock['modules'],list) else [lock['modules']]) for id in spec['trees']),'extras':sorted(extras)}
 
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('--output',type=Path,required=True);a=p.parse_args();print(json.dumps(run(a.output)))
