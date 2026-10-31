@@ -88,6 +88,28 @@ def umbrella_defaults(get_setting,set_setting):
  set_setting('provider.external.enabled','true');set_setting('external_provider.name','cocoscrapers');set_setting('external_provider.module','script.module.cocoscrapers')
  return True
 
+def media_folders(root):
+ """Documents/Kodi Downloads/{Movies,TV Shows}, visible in the Files app; created on first use."""
+ root=Path(root);folders={'movies':root/'Movies','shows':root/'TV Shows'}
+ for folder in folders.values():folder.mkdir(parents=True,exist_ok=True)
+ return {name:str(folder)+'/' for name,folder in folders.items()}
+
+def elementum_library(folders,get_setting,set_setting):
+ """Elementum writes what plays to files and asks afterwards: after a finished video "delete the files?",
+ after a stopped one "keep downloading?" and "delete?". Kept videos are filed into Movies and TV Shows; deleted
+ ones leave nothing behind. Only when the owner has not chosen completed-download folders."""
+ if get_setting('completed_movies_path') or get_setting('completed_shows_path'):return False
+ set_setting('download_storage','0');set_setting('completed_move','true')
+ for name in ('keep_downloading','keep_files_playing','keep_files_finished'):set_setting(name,'1')
+ set_setting('completed_movies_path',folders['movies']);set_setting('completed_shows_path',folders['shows'])
+ return True
+
+def umbrella_streaming_only(folders,get_setting,set_setting):
+ """Umbrella only streams. Undo the download folders an earlier test build pointed it at; owner settings stay."""
+ if get_setting('movie.download.path')!=folders['movies'] or get_setting('tv.download.path')!=folders['shows']:return False
+ set_setting('downloads','false');set_setting('movie.download.path','');set_setting('tv.download.path','')
+ return True
+
 def elementum_defaults(downloads,get_setting,set_setting):
  """Elementum asks for a download folder before its first stream; use one the Files app can see. iOS can move the
  app's data folder on reinstall, so a folder set here earlier is followed to the current path; the owner's own choice stays."""

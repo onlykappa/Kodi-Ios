@@ -78,6 +78,72 @@ class PlayOnTV(unittest.TestCase):
    raise OSError('refused')
   self.assertEqual(cast.find_rokus('192.168.1.11',get,workers=8),[('192.168.1.20','Living Room'),('192.168.1.31','Roku Express')])
   self.assertEqual(cast.find_rokus(None,get),[])
+class DownloadFolders(unittest.TestCase):
+ def test_movies_and_shows_folders_for_elementum_and_umbrella_unless_owner_chose(self):
+  with tempfile.TemporaryDirectory() as t:
+   folders=bootstrap.media_folders(Path(t)/'Documents/Kodi Downloads')
+   self.assertTrue((Path(t)/'Documents/Kodi Downloads/Movies').is_dir());self.assertTrue(folders['shows'].endswith('/TV Shows/'))
+   e={};self.assertTrue(bootstrap.elementum_library(folders,lambda k:e.get(k,''),e.__setitem__))
+   self.assertEqual((e['download_storage'],e['completed_move'],e['completed_movies_path']),('0','true',folders['movies']))
+   self.assertEqual((e['keep_downloading'],e['keep_files_playing'],e['keep_files_finished']),('1','1','1'))
+   e2={'completed_shows_path':'/mine/'};self.assertFalse(bootstrap.elementum_library(folders,lambda k:e2.get(k,''),e2.__setitem__));self.assertEqual(e2,{'completed_shows_path':'/mine/'})
+   u={};self.assertFalse(bootstrap.umbrella_streaming_only(folders,lambda k:u.get(k,''),u.__setitem__));self.assertEqual(u,{})
+   u={'downloads':'true','movie.download.path':folders['movies'],'tv.download.path':folders['shows']}
+   self.assertTrue(bootstrap.umbrella_streaming_only(folders,lambda k:u.get(k,''),u.__setitem__))
+   self.assertEqual(u,{'downloads':'false','movie.download.path':'','tv.download.path':''})
+   u2={'downloads':'true','movie.download.path':'/mine/','tv.download.path':'/mine/'};self.assertFalse(bootstrap.umbrella_streaming_only(folders,lambda k:u2.get(k,''),u2.__setitem__))
+class UniversalPlayOnTV(unittest.TestCase):
+ DESC=b'''<root xmlns="urn:schemas-upnp-org:device-1-0"><device><friendlyName>[TV] Samsung</friendlyName><serviceList>
+  <service><serviceType>urn:schemas-upnp-org:service:RenderingControl:1</serviceType><controlURL>/rc</controlURL></service>
+  <service><serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType><controlURL>/upnp/control/AVTransport1</controlURL></service>
+  </serviceList></device></root>'''
+ def test_dlna_renderer_and_play_commands(self):
+  cast=load('cast')
+  self.assertEqual(cast.renderer('http://192.168.1.40:9197/dmr',lambda u,t:self.DESC),('[TV] Samsung','http://192.168.1.40:9197/upnp/control/AVTransport1'))
+  self.assertIsNone(cast.renderer('http://x/',lambda u,t:b'<root/>'))
+  calls=[];cast.dlna_play('http://tv/ctl','https://cdn/a b.mkv?x=1&y=2','Show & Co',lambda u,b,h:calls.append((h['SOAPAction'],b.decode())))
+  self.assertEqual([c[0].split('#')[1].strip('"') for c in calls],['Stop','SetAVTransportURI','Play'])
+  body=calls[1][1];self.assertIn('<CurrentURI>https://cdn/a b.mkv?x=1&amp;y=2</CurrentURI>',body);self.assertIn('video/x-matroska',body);self.assertIn('Show &amp;amp; Co',body)
+  import xml.etree.ElementTree as ET;ET.fromstring(body)
+ def test_unicast_ssdp_collects_locations(self):
+  cast=load('cast');sent=[]
+  class Sock:
+   replies=[(b'HTTP/1.1 200 OK\r\nLOCATION: http://192.168.1.40:9197/dmr\r\n\r\n',('192.168.1.40',1900))]
+   def settimeout(self,t):pass
+   def sendto(self,data,addr):sent.append(addr)
+   def recvfrom(self,n):
+    if self.replies:return self.replies.pop()
+    raise OSError
+   def close(self):pass
+  self.assertEqual(cast.ssdp_locations(['192.168.1.40','192.168.1.41'],wait=0.3,make_socket=Sock),{'192.168.1.40':'http://192.168.1.40:9197/dmr'})
+  self.assertEqual(sent,[('192.168.1.40',1900),('192.168.1.41',1900)])
+ def test_cast_messages_round_trip_and_chromecast_load(self):
+  cast=load('cast');import struct,json as j
+  frame=cast.cast_frame('sender-0','receiver-0','urn:x-cast:test',{'type':'PING'})
+  self.assertEqual(cast.cast_parse(frame[4:]),('urn:x-cast:test',{'type':'PING'}))
+  class Sock:
+   def __init__(s):s.out=[];s.inbox=b''
+   def sendall(s,data):
+    ns,payload=cast.cast_parse(data[4:]);s.out.append((ns,payload))
+    reply=None
+    if payload.get('type')=='LAUNCH':reply={'type':'RECEIVER_STATUS','status':{'applications':[{'appId':'CC1AD845','transportId':'web-7'}]}}
+    if payload.get('type')=='LOAD':reply={'type':'MEDIA_STATUS','status':[{}]}
+    if reply:s.inbox+=cast.cast_frame('receiver-0','sender-0','urn:x-cast:x',reply)
+   def recv(s,n):d,s.inbox=s.inbox[:n],s.inbox[n:];return d
+   def close(s):pass
+  sock=Sock();cast.chromecast_play('192.168.1.50','https://cdn/a.mkv','You',connect=lambda h:sock,timeout=5)
+  load_msg=[p for ns,p in sock.out if p.get('type')=='LOAD'][0]
+  self.assertEqual(load_msg['media']['contentId'],'https://cdn/a.mkv');self.assertEqual(load_msg['media']['contentType'],'video/mp4')
+  self.assertIn(('urn:x-cast:com.google.cast.tp.connection',{'type':'CONNECT'}),sock.out)
+ def test_finds_every_kind_of_tv(self):
+  cast=load('cast')
+  def get(url,timeout):
+   if url.startswith('http://192.168.1.20:8060/'):return b'<device-info><user-device-name>Living Room</user-device-name></device-info>'
+   if url.startswith('http://192.168.1.50:8008/'):return b'{"name":"Kitchen"}'
+   if url=='http://192.168.1.40:9197/dmr':return self.DESC
+   raise OSError
+  tvs=cast.find_tvs('192.168.1.11',get,workers=8,locations={'192.168.1.40':'http://192.168.1.40:9197/dmr','192.168.1.20':'http://192.168.1.20:8060/'})
+  self.assertEqual([(t['kind'],t['name']) for t in tvs],[('roku','Living Room'),('chromecast','Kitchen'),('dlna','[TV] Samsung')])
 class AirPlay(unittest.TestCase):
  def test_framework_found_inside_the_app_only(self):
   airplay=load('airplay')

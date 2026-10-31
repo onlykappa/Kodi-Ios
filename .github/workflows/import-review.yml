@@ -15,6 +15,7 @@ on:
       - 'scripts/test_bundled_bootstrap.py'
       - 'scripts/test_ios_navigation.py'
       - 'scripts/test_updates_calibration.py'
+      - 'scripts/test_drive_upload.py'
       - 'scripts/test_startup_sequence.py'
       - 'migration/bundled-bootstrap/**'
       - 'scripts/import_runtime/**'
@@ -48,6 +49,7 @@ jobs:
           python3 -B scripts/test_startup_sequence.py
           python3 -B scripts/test_ios_navigation.py
           python3 -B scripts/test_updates_calibration.py
+          python3 -B scripts/test_drive_upload.py
           python3 -B scripts/test_bundled_bootstrap.py
           python3 -B scripts/test_customized_ipa.py
           python3 -B scripts/test_import_builder.py

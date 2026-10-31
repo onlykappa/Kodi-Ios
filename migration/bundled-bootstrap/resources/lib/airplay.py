@@ -14,6 +14,7 @@ def load(path):
  import ctypes
  lib=ctypes.CDLL(path);lib.kodi_airplay_show.argtypes=[ctypes.c_int];lib.kodi_airplay_show.restype=None
  lib.kodi_airplay_open.argtypes=[];lib.kodi_airplay_open.restype=None
+ if hasattr(lib,'kodi_airplay_play'):lib.kodi_airplay_play.argtypes=[ctypes.c_char_p,ctypes.c_char_p];lib.kodi_airplay_play.restype=None
  return lib
 
 def watch(lib,playing,wait):
