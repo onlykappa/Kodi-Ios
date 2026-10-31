@@ -41,6 +41,7 @@ class BundleTests(unittest.TestCase):
   site=base/'addons'/ELEMENTUM/'resources/site-packages/elementum'
   for _,_,after in ELEMENTUM_PATCHES:self.assertIn(after,daemon+(site/'osarch.py').read_bytes()+(site/'service.py').read_bytes())
   self.assertFalse((base/'addons'/ELEMENTUM/'resources/site-packages/platform_detect/libraries').exists())
+  self.assertIn(b'ios_crash_guard()\n',daemon);self.assertIn(b'engine-starting',daemon)
   seed=json.loads((base/'addons'/BOOT/'seed/seed-manifest.json').read_text());order=seed['addons']
   self.assertLess(order.index('script.module.kodi-six'),order.index(ELEMENTUM));self.assertLess(order.index('script.module.future'),order.index(BURST))
   self.assertTrue((base/'addons'/BURST/'burst/providers/providers.json').is_file())

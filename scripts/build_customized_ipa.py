@@ -155,15 +155,49 @@ ELEMENTUM_IOS=b'''def ios_engine():
     if not os.path.isdir(custom_path):
         os.makedirs(custom_path)
     log_path = os.path.join(custom_path, "elementum.log")
+    if os.path.exists(os.path.join(custom_path, "engine-starting")):
+        # The last start took Kodi down with it: skip the engine so Kodi stays usable, and put what the engine
+        # wrote into kodi.log, where the log uploader finds it. "Retry Elementum engine" clears the marker.
+        for name in ("elementum.log", "elementum-stderr.log"):
+            try:
+                with open(os.path.join(custom_path, name), errors="replace") as f:
+                    log.error("Elementum engine stopped Kodi on its last start. %s (end):\\n%s" % (name, f.read()[-8000:]))
+            except Exception:
+                pass
+        xbmc.executebuiltin("Notification(Elementum,Engine stopped Kodi last time - not started,10000)")
+        return False, False
     if not os.path.isfile(os.path.join(framework, "elementum")):
         log.error("Elementum engine not found at %s" % framework)
         return False, False
     return framework, os.path.join(framework, "elementum")
 
+def ios_crash_guard():
+    # Marks the start until the engine has run a minute; a panic in Go aborts the whole app before Python can
+    # react, so the next start sees the marker. The engine's own crash output goes to stderr: keep it in a file.
+    marker = os.path.join(custom_path, "engine-starting")
+    open(marker, "w").close()
+    try:
+        err = os.path.join(custom_path, "elementum-stderr.log")
+        mode = "ab" if os.path.exists(err) and os.path.getsize(err) < 1000000 else "wb"
+        stream = open(err, mode)
+        stream.write(("\\n--- engine start %s ---\\n" % time.strftime("%Y-%m-%d %H:%M:%S")).encode())
+        stream.flush()
+        os.dup2(stream.fileno(), 2)
+    except Exception as e:
+        log.error("Could not keep Elementum's crash output: %s" % e)
+
+    def clear():
+        time.sleep(60)
+        try:
+            os.remove(marker)
+        except OSError:
+            pass
+    threading.Thread(target=clear).start()
+
 '''
 ELEMENTUM_PATCHES=[('resources/site-packages/elementum/daemon.py',b'def get_elementum_binary():\n',ELEMENTUM_IOS+b'def get_elementum_binary():\n'),
  ('resources/site-packages/elementum/daemon.py',b'    binary_platform = get_platform()\n\n    binary = "elementum"',b'    binary_platform = get_platform()\n    if xbmc.getCondVisibility("System.Platform.IOS"):\n        return ios_engine()\n\n    binary = "elementum"'),
- ('resources/site-packages/elementum/daemon.py',b'    proc = None\n    if force_library != u"true":',b'    if binary_platform.get("os") == "ios":\n        force_library = u"true"\n        elementum_library = "elementum"\n\n    proc = None\n    if force_library != u"true":'),
+ ('resources/site-packages/elementum/daemon.py',b'    proc = None\n    if force_library != u"true":',b'    if binary_platform.get("os") == "ios":\n        force_library = u"true"\n        elementum_library = "elementum"\n        ios_crash_guard()\n\n    proc = None\n    if force_library != u"true":'),
  ('resources/site-packages/elementum/daemon.py',b'proc = start_elementumd(monitor, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)',b'proc = start_elementumd(monitor, **({"stdout": subprocess.PIPE, "stderr": subprocess.STDOUT} if hasSubprocess else {}))'),
  # The engine thread only starts where Elementum can fork; on iOS it runs in-process (library mode) instead.
  ('resources/site-packages/elementum/service.py',b'    if not ONLY_CLIENT and PLATFORM["fork"]:',b'    if not ONLY_CLIENT and (PLATFORM["fork"] or PLATFORM.get("os") == "ios"):'),
