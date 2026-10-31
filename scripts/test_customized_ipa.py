@@ -28,6 +28,8 @@ class BundleTests(unittest.TestCase):
    z.writestr(ELEMENTUM+'/resources/site-packages/platform_detect/libraries/linux_x64/test.so','elf')
    for name,data in files.items():z.writestr(ELEMENTUM+'/'+name,data)
   with zipfile.ZipFile(inputs/'framework.zip','w') as z:z.writestr('elementum.framework/elementum',b'\xcf\xfa\xed\xfe'+b'\0'*60);z.writestr('elementum.framework/Info.plist','<plist/>')
+  (inputs/'frameworks').mkdir()
+  with zipfile.ZipFile(inputs/'frameworks/KodiAirPlay.framework.zip','w') as z:z.writestr('KodiAirPlay.framework/KodiAirPlay',b'\xcf\xfa\xed\xfe'+b'\0'*60);z.writestr('KodiAirPlay.framework/Info.plist','<plist/>')
   for id in ['script.module.kodi-six','script.module.future']:
    d=inputs/'modules'/id;d.mkdir(parents=True);(d/'addon.xml').write_text('<addon id="'+id+'" version="1"><requires><import addon="xbmc.python"/></requires></addon>')
   with zipfile.ZipFile(inputs/'burst.zip','w') as z:
@@ -39,7 +41,7 @@ class BundleTests(unittest.TestCase):
   return inputs
  def test_elementum_engine_bundled_in_frameworks_and_patched_for_ios(self):
   app,receipt=prepare(self.app,self.bundle,self.sha,self.root/'work',self.elementum_inputs());base=app/'AppData/AppHome'
-  self.assertTrue((app/'Frameworks/elementum.framework/elementum').is_file());self.assertEqual(len(receipt['elementum']['patches']),3)
+  self.assertTrue((app/'Frameworks/elementum.framework/elementum').is_file());self.assertTrue((app/'Frameworks/KodiAirPlay.framework/KodiAirPlay').is_file());self.assertEqual(receipt['elementum']['frameworks'],['Frameworks/KodiAirPlay.framework']);self.assertEqual(len(receipt['elementum']['patches']),3)
   daemon=(base/'addons'/ELEMENTUM/'resources/site-packages/elementum/daemon.py').read_bytes()
   site=base/'addons'/ELEMENTUM/'resources/site-packages/elementum'
   for _,_,after in ELEMENTUM_PATCHES:self.assertIn(after,daemon+(site/'osarch.py').read_bytes()+(site/'service.py').read_bytes())

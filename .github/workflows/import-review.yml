@@ -8,6 +8,7 @@ on:
       - 'scripts/build_customized_ipa.py'
       - 'scripts/fetch_elementum_inputs.py'
       - 'migration/elementum-ios/source-lock.json'
+      - 'migration/airplay-ios/source-lock.json'
       - 'scripts/test_customized_ipa.py'
       - 'scripts/test_bundled_bootstrap.py'
       - 'scripts/test_ios_navigation.py'

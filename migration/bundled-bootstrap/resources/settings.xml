@@ -8,5 +8,10 @@
     <setting id="check_now" type="action" label="Check for updates now"><level>0</level><data>RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/check_updates.py)</data><control type="button" format="action"/></setting>
    </group>
   </category>
+  <category id="playback" label="Playback">
+   <group id="1">
+    <setting id="airplay_button" type="boolean" label="Show the AirPlay button in the top-right corner during playback"><level>0</level><default>true</default><control type="toggle"/></setting>
+   </group>
+  </category>
  </section>
 </settings>

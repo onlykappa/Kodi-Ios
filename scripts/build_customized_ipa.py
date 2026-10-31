@@ -250,7 +250,15 @@ def add_elementum(inputs,target,addonroot):
   for n in z.namelist():assert n.startswith('elementum.framework/') and '..' not in n
   z.extractall(frameworks)
  binary=frameworks/'elementum.framework/elementum';assert binary.read_bytes()[:4]==b'\xcf\xfa\xed\xfe','Engine is not a 64-bit Mach-O'
- return {'addons':[ELEMENTUM,BURST]+[d.name for d in modules]+[a.stem for a in apps],'framework':'Frameworks/elementum.framework','framework_sha256':digest(binary.read_bytes()),
+ extra=[]
+ for archive in sorted((inputs/'frameworks').glob('*.framework.zip')) if (inputs/'frameworks').is_dir() else []:
+  name=archive.name[:-len('.zip')];assert not (frameworks/name).exists()
+  with zipfile.ZipFile(archive) as z:
+   for n in z.namelist():assert n.startswith(name+'/') and '..' not in n
+   z.extractall(frameworks)
+  executable=frameworks/name/name[:-len('.framework')];assert executable.read_bytes()[:4]==b'\xcf\xfa\xed\xfe',name+' is not a 64-bit Mach-O'
+  extra.append('Frameworks/'+name)
+ return {'addons':[ELEMENTUM,BURST]+[d.name for d in modules]+[a.stem for a in apps],'framework':'Frameworks/elementum.framework','frameworks':extra,'framework_sha256':digest(binary.read_bytes()),
          'patches':[{'path':'addons/'+ELEMENTUM+'/'+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]}
 
 def prepare(app,bundle,expected,work,elementum=None):

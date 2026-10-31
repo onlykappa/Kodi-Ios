@@ -4,7 +4,7 @@ sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
 from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
-import calibration,updates
+import airplay,calibration,updates
 
 def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
@@ -100,4 +100,10 @@ def run():
    try:
     if xbmcaddon.Addon().getSettingBool('check_on_start'):updates.run(check_only=True)
    except Exception as error:xbmc.log('Kodi iOS update check skipped: '+type(error).__name__,xbmc.LOGWARNING)
+ # Stays running for the rest of the session: Apple's AirPlay button in the top-right corner during playback.
+ try:
+  path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
+  if path and xbmcaddon.Addon().getSettingBool('airplay_button'):
+   airplay.watch(airplay.load(path),lambda:xbmc.getCondVisibility(airplay.PLAYING),monitor.waitForAbort)
+ except Exception as error:xbmc.log('Kodi iOS AirPlay button unavailable: '+type(error).__name__,xbmc.LOGWARNING)
 if __name__=='__main__':run()

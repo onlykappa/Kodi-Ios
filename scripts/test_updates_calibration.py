@@ -58,6 +58,21 @@ class Players(unittest.TestCase):
    self.assertEqual(json.loads(dest.read_text())['plugin'],'plugin.video.umbrella')
    dest.write_text('{"plugin":"plugin.video.umbrella","owner":"edited"}')
    self.assertEqual(bootstrap.install_players(root,profile,lambda a:True),['ios.elementum.json']);self.assertIn('edited',dest.read_text())
+class AirPlay(unittest.TestCase):
+ def test_framework_found_inside_the_app_only(self):
+  airplay=load('airplay')
+  with tempfile.TemporaryDirectory() as t:
+   home=Path(t)/'Kodi.app/AppData/AppHome';home.mkdir(parents=True)
+   self.assertIsNone(airplay.library_path(str(home)+'/'))
+   fw=Path(t)/'Kodi.app/Frameworks/KodiAirPlay.framework';fw.mkdir(parents=True);(fw/'KodiAirPlay').write_bytes(b'x')
+   self.assertEqual(airplay.library_path(str(home)+'/'),str(fw/'KodiAirPlay'))
+   self.assertIsNone(airplay.library_path(t))
+ def test_button_follows_playback_and_hides_on_exit(self):
+  airplay=load('airplay');calls=[];states=iter([False,True,True,False,True])
+  lib=type('L',(),{'kodi_airplay_show':staticmethod(calls.append)})()
+  ticks=iter([False,False,False,False,True])
+  airplay.watch(lib,lambda:next(states),lambda s:next(ticks))
+  self.assertEqual(calls,[0,1,0,1,0])
 class Scrapers(unittest.TestCase):
  def test_payload_copied_once_and_never_over_an_existing_copy(self):
   with tempfile.TemporaryDirectory() as t:
@@ -97,8 +112,10 @@ class Elementum(unittest.TestCase):
    pinned['extras']={'script.module.a':{'install':'app','url':'u-app','sha256':sha(b'app')},'script.module.b':{'install':'profile','url':'u-profile','sha256':sha(b'profile')}}
    def get(url):return client if url==lock['plugin_release']['client_zip_url'] else framework if url.endswith('/t/a.zip') else {'u-app':b'app','u-profile':b'profile'}.get(url,burst)
    def modules(spec,dest):(dest/'script.module.kodi-six').mkdir(parents=True)
-   out=Path(t)/'ok';self.assertTrue(f.run(out,pinned,get,modules)['elementum'])
+   out=Path(t)/'ok';self.assertTrue(f.run(out,pinned,get,modules,{'tag':'x','asset':'y','sha256':None})['elementum'])
+   self.assertFalse((out/'frameworks').exists())
+   air=Path(t)/'air';self.assertEqual(f.run(air,pinned,lambda url:b'fw' if url.endswith('/ap/A.zip') else get(url),modules,{'tag':'ap','asset':'A.zip','sha256':sha(b'fw')})['frameworks'],['KodiAirPlay'])
    self.assertEqual((out/'framework.zip').read_bytes(),framework);self.assertEqual((out/'burst.zip').read_bytes(),burst)
    self.assertEqual((out/'extras-app/script.module.a.zip').read_bytes(),b'app');self.assertEqual((out/'extras-profile/script.module.b.zip').read_bytes(),b'profile')
-   with self.assertRaises(AssertionError):f.run(Path(t)/'bad',pinned,lambda url:b'tampered',modules)
+   with self.assertRaises(AssertionError):f.run(Path(t)/'bad',pinned,lambda url:b'tampered',modules,{'tag':'x','asset':'y','sha256':None})
 if __name__=='__main__':unittest.main()
