@@ -1,0 +1,53 @@
+name: Kodi 21.3 iPhone executable with rotation (r11 portrait)
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/kodi-ios-portrait.yml'
+      - 'migration/ios-portrait/build-kodi-ios.sh'
+      - 'migration/ios-portrait/kodi-21.3-rotation.patch'
+      - 'migration/ios-portrait/source-lock.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: kodi-ios-portrait
+  cancel-in-progress: true
+jobs:
+  executable:
+    runs-on: macos-15
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      # Kodi's depends take most of the build time; keep them (and their build stamps) even when a later step fails.
+      - name: Restore built Kodi depends
+        id: depends
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: |
+            ${{ runner.temp }}/kodi-ios/depends
+            ${{ runner.temp }}/kodi-ios/xbmc
+          key: kodi-ios-depends-21.3-Omega-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Build patched Kodi executable for iPhoneOS
+        id: build
+        run: bash migration/ios-portrait/build-kodi-ios.sh "$RUNNER_TEMP/kodi-ios" "$RUNNER_TEMP/kodi-ios-out"
+      - name: Check whether depends finished
+        id: built
+        if: always()
+        run: test -f "$RUNNER_TEMP/kodi-ios/depends/.depends-built" && echo "ok=true" >> "$GITHUB_OUTPUT" || true
+      - name: Save built Kodi depends
+        if: always() && steps.depends.outputs.cache-hit != 'true' && steps.built.outputs.ok == 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: |
+            ${{ runner.temp }}/kodi-ios/depends
+            ${{ runner.temp }}/kodi-ios/xbmc
+          key: kodi-ios-depends-21.3-Omega-${{ runner.os }}-${{ runner.arch }}-v1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: kodi-ios-portrait-executable
+          path: ${{ runner.temp }}/kodi-ios-out/*
+          if-no-files-found: error
+          retention-days: 30
