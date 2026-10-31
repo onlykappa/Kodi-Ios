@@ -112,4 +112,12 @@ class NavigationTests(unittest.TestCase):
    values={'label':'a,b (test)','flag':False,'script-skinviewtypes-hash':'','Shortcuts.RebuildDateTime':nav.REVISION};commands=[]
    result=nav.sync_skin_preferences(Path(t),lambda *a:{'error':{}},commands.append,lambda id,is_bool:values[id])
    self.assertEqual(result,2);self.assertIn('Skin.SetString("label","a,b (test)")',commands);self.assertIn('Skin.SetBool("flag",false)',commands);self.assertIn('Skin.Reset("script-skinviewtypes-hash")',commands)
+class PlayOnTVButton(unittest.TestCase):
+ def test_video_controls_get_a_top_right_play_on_tv_button_once(self):
+  osd=b'<window><controls><control type="group" id="1"/></controls></window>'
+  once=nav.patch_osd(osd,'VideoOSD.xml');group=ET.fromstring(once).find("controls/control[@id='98500']")
+  self.assertEqual(group.findtext('right'),'48');self.assertEqual(group.findtext('description'),nav.CAST_MARKER)
+  self.assertEqual(group.find("control[@type='button']").findtext('onclick'),nav.CAST_SCRIPT)
+  self.assertEqual(nav.patch_osd(once,'VideoOSD.xml'),once);self.assertEqual(nav.patch_osd(osd,'Home.xml'),osd)
+  with self.assertRaises(ValueError):nav.patch_osd(b'<window><controls><control type="group" id="98500"/></controls></window>','VideoOSD.xml')
 if __name__=='__main__':unittest.main()

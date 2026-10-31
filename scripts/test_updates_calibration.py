@@ -58,6 +58,26 @@ class Players(unittest.TestCase):
    self.assertEqual(json.loads(dest.read_text())['plugin'],'plugin.video.umbrella')
    dest.write_text('{"plugin":"plugin.video.umbrella","owner":"edited"}')
    self.assertEqual(bootstrap.install_players(root,profile,lambda a:True),['ios.elementum.json']);self.assertIn('edited',dest.read_text())
+class PlayOnTV(unittest.TestCase):
+ def test_web_links_go_straight_to_the_tv_and_phone_links_use_its_wifi_address(self):
+  cast=load('cast')
+  self.assertEqual(cast.stream_url('https://cdn.example/v/a.mkv|User-Agent=Kodi','10.0.0.5'),('https://cdn.example/v/a.mkv',False))
+  self.assertEqual(cast.stream_url('http://127.0.0.1:65220/files/a.mkv','192.168.1.11'),('http://192.168.1.11:65220/files/a.mkv',True))
+  self.assertEqual(cast.stream_url('http://127.0.0.1:65220/files/a.mkv',None),(None,True))
+  self.assertEqual(cast.stream_url('plugin://plugin.video.x/?a=1','1.2.3.4'),(None,False))
+  self.assertEqual(cast.stream_url('/private/var/a.mkv','1.2.3.4'),(None,False))
+ def test_roku_launch_request(self):
+  cast=load('cast');url=cast.launch_url('192.168.1.20','https://cdn.example/v/My Show.mkv?x=1&y=2','You')
+  self.assertTrue(url.startswith('http://192.168.1.20:8060/input/15985?t=v&u=https%3A%2F%2Fcdn.example%2Fv%2FMy%20Show.mkv%3Fx%3D1%26y%3D2'))
+  self.assertIn('videoName=You',url);self.assertIn('videoFormat=mkv',url);self.assertIn('k=%28null%29',url)
+ def test_finds_rokus_on_the_phones_network(self):
+  cast=load('cast')
+  def get(url,timeout):
+   if url.startswith('http://192.168.1.20:'):return b'<device-info><user-device-name>Living Room</user-device-name></device-info>'
+   if url.startswith('http://192.168.1.31:'):return b'<device-info><model-name>Roku Express</model-name></device-info>'
+   raise OSError('refused')
+  self.assertEqual(cast.find_rokus('192.168.1.11',get,workers=8),[('192.168.1.20','Living Room'),('192.168.1.31','Roku Express')])
+  self.assertEqual(cast.find_rokus(None,get),[])
 class AirPlay(unittest.TestCase):
  def test_framework_found_inside_the_app_only(self):
   airplay=load('airplay')
