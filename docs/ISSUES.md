@@ -364,3 +364,11 @@ Status: IMPLEMENTED ON HOST; rig-verified layout; native build in CI; awaiting i
 - Rig bug fixed before shipping: a loop variable overwrote the window name, giving every shrunk dialog a full black background (black screens behind notifications).
 - Owner change: Google Drive rows removed from "How would you like to watch?" (Elementum will play Drive sources itself).
 - Limits: rig has no touch gestures, safe areas or rotation; rotation and the native build need the phone.
+- r3 (owner review, "Netflix and Apple Home had a baby"): Apple TV app look (large titles, full-bleed hero, frosted floating tab bar
+  Home · Movies · TV · Library · Search, no Drive tab), Library (Movies / TV Shows → poster grid), Search (field + category tiles),
+  iOS-style long-press menu (title card + icon rows), Continue Watching first on Home (movies and episodes mixed), TV (episodes)
+  and Movies (movies). Kodi's library rarely knows phone playback (TMDb Helper/Elementum), so the watch chooser records what it
+  starts and the bootstrap service saves progress; `plugin.video.kodi.ios.watch/?action=continue` lists it with library
+  in-progress items. Kodi does not pass Home's focused item to the context menu, so the service publishes it as Portrait.Item.*.
+  Rig findings fixed: page lists end above the tab bar (focused rows could hide under it), 4-px gradient textures stretched badly,
+  `String.IsEqual` cannot compare two infolabels, `colordiffuse="00000000"` means "untinted".

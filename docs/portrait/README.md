@@ -19,16 +19,26 @@ Status: implemented on host and checked in the Kodi 21.3 rig; native executable 
 3. **Skin** (`migration/bundled-bootstrap/resources/lib/portrait.py`): adds `<res aspect="9:19.5" width="1080" height="2090"
    folder="portrait">` (and 9:16) to Fuse and generates the folder. 1080x2090 is the 16 Pro's portrait safe area
    (402x778 pt) with square pixels; Kodi stretches the canvas into the safe area.
-   - Home / TV / Movies / Downloads: header with Search, hero card (hub spotlight list, swipe sideways), Play (movie → watch
-     chooser, show → show page) and Info, then the hub's Fuse widget rows as poster rows, and the bottom tab bar
-     Home · TV · Movies · Downloads · Drive · More.
+   - Look: Apple TV app (large titles, full-bleed hero with logo, frosted floating tab bar) with Netflix rows.
+   - Tab bar (one centred capsule): Home · Movies · TV · Library · Search. More (Settings, Drive, updates, recovery) is the
+     profile circle next to the large title.
+   - Home / Movies / TV: full-bleed hero (hub spotlight list, swipe sideways; Play: movie → watch chooser, show → show
+     page; Info), then Continue Watching (Home: movies and episodes mixed; TV: episodes; Movies: movies), then the hub's
+     Fuse widget rows (poster rows, or 16:9 cards for non-poster widgets).
+   - Library: Movies / TV Shows (Kodi's library, i.e. downloaded media) → three-column poster grid.
+   - Search: search field (TMDb search) and category tiles (TMDb TV genres) → poster grid.
+   - Long press: iOS context menu, the title as a card on top and Kodi's entries with icons.
    - Show page (`MyVideoNav`, seasons content): art, title, rating/year/seasons, plot, season chips, episode list of the
      selected chip. Episodes content and other folders get a plain list.
    - Info page, the select dialog as a centred card sized to its rows (this is "How would you like to watch?"), and More
      (Settings, Google Drive, Check for updates, iPhone navigation / recovery, Favourites, File manager).
    - Every other window: the landscape Fuse window shrunk into the middle (taps verified), so nothing is unreachable.
    - Fuse's landscape header overlay (1182) is empty in portrait.
-4. **On the phone** (bootstrap service, after setup): regenerate the portrait windows when widget lists or 1080i files
+4. **Continue Watching**: the watch chooser records each title it starts
+   (`plugin.video.kodi.ios.watch/resources/lib/ios_continue.py`); the bootstrap service saves the position every 10 s
+   while it plays and drops it once 92 % is watched; `plugin://plugin.video.kodi.ios.watch/?action=continue&type=all|movie|episode`
+   lists them newest first, merged with Kodi's library in-progress items.
+5. **On the phone** (bootstrap service, after setup): regenerate the portrait windows when widget lists or 1080i files
    change, once turn off ".." parent rows (so a show opens on Season 1), then reload the skin whenever the phone settles
    in the other orientation.
 

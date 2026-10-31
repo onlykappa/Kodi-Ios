@@ -29,4 +29,17 @@ def choose_player(player):
  _,action,item=rows[selected]
  if action in NOT_READY:
   xbmcgui.Dialog().ok(*NOT_READY[action]);return None
+ try:
+  # Continue Watching: remember what was started (the bootstrap service follows its progress).
+  from ios_continue import record
+  def read(path):
+   f=xbmcvfs.File(path)
+   try:return f.read()
+   finally:f.close()
+  def write(path,text):
+   xbmcvfs.mkdirs(path.rsplit('/',1)[0]);f=xbmcvfs.File(path,'w')
+   try:f.write(text)
+   finally:f.close()
+  record(player,read,write)
+ except Exception:pass
  return item

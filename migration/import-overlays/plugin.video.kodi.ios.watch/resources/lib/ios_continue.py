@@ -1,0 +1,103 @@
+"""Continue Watching for the iPhone: what the owner started, movies and episodes together, newest first.
+
+Playback on the phone goes through TMDb Helper and the "How would you like to watch?" chooser, so Kodi's
+library usually never learns about it. The chooser records each title it plays here (record); the bootstrap
+service updates the position while it plays and drops a title once it is finished (portrait.track_progress).
+plugin://plugin.video.kodi.ios.watch/?action=continue&type=all|movie|episode lists them, merged with Kodi's own
+in-progress library items (downloaded media), as a Kodi directory the skin shows as a row.
+"""
+import json,time
+STORE='special://profile/addon_data/plugin.video.kodi.ios.watch/continue.json'
+HELPER='plugin://plugin.video.themoviedb.helper/'
+LIMIT=40
+FINISHED=0.92
+
+def key(entry):return '%s:%s:%s:%s'%(entry['kind'],entry['tmdb_id'],entry.get('season') or '',entry.get('episode') or '')
+
+def load(read):
+ try:data=json.loads(read(STORE) or '{}')
+ except ValueError:data={}
+ data.setdefault('items',{});return data
+
+def save(data,write):
+ items=sorted(data['items'].items(),key=lambda kv:-kv[1].get('played',0))[:LIMIT]
+ data['items']=dict(items);write(STORE,json.dumps(data,indent=1))
+
+def record(player,read,write,now=time.time):
+ """Called by the chooser when it hands a title to a player."""
+ kind='movie' if getattr(player,'tmdb_type','')=='movie' else 'episode'
+ details=player.details;info=getattr(details,'infolabels',{}) or {};art=getattr(details,'art',{}) or {}
+ entry={'kind':kind,'tmdb_id':str(getattr(player,'tmdb_id','') or ''),'title':str(info.get('title') or ''),
+        'tvshowtitle':str(info.get('tvshowtitle') or ''),'year':str(info.get('year') or ''),
+        'art':{k:v for k,v in art.items() if k in ('poster','fanart','landscape','thumb','clearlogo','tvshow.poster','tvshow.fanart','tvshow.landscape','tvshow.clearlogo') and v}}
+ if kind=='episode':entry.update(season=str(getattr(player,'season','') or ''),episode=str(getattr(player,'episode','') or ''))
+ if not entry['tmdb_id']:return None
+ data=load(read);old=data['items'].get(key(entry),{})
+ entry.update(position=old.get('position',0),total=old.get('total',0),played=now())
+ data['items'][key(entry)]=entry;data['current']=key(entry);save(data,write)
+ return key(entry)
+
+def update(read,write,position,total,now=time.time):
+ """Progress of the title the chooser last started (bootstrap service, while video plays)."""
+ data=load(read);entry=data['items'].get(data.get('current'))
+ if not entry or total<=0:return None
+ entry.update(position=round(position),total=round(total),played=now());save(data,write)
+ return entry
+
+def stopped(read,write):
+ """Playback ended: a finished title leaves the row."""
+ data=load(read);current=data.pop('current',None);entry=data['items'].get(current)
+ if entry and entry.get('total') and entry['position']>=FINISHED*entry['total']:del data['items'][current]
+ save(data,write);return entry
+
+def play_url(entry):
+ if entry['kind']=='movie':return HELPER+'?info=play&tmdb_type=movie&tmdb_id='+entry['tmdb_id']
+ return HELPER+'?info=play&tmdb_type=tv&tmdb_id=%s&season=%s&episode=%s'%(entry['tmdb_id'],entry['season'],entry['episode'])
+
+def entries(data,kind='all',library=()):
+ """Started (position > 0) titles plus library in-progress items, newest first."""
+ rows=[dict(e,source='phone') for e in data['items'].values() if e.get('position',0)>0 and kind in ('all',e['kind'])]
+ rows+=[e for e in library if kind in ('all',e['kind'])]
+ return sorted(rows,key=lambda e:-e.get('played',0))
+
+def library_items(rpc):
+ """Kodi's own in-progress movies and episodes (downloaded media in the library)."""
+ out=[];inprogress={'field':'inprogress','operator':'true','value':''}
+ stamp=lambda text:time.mktime(time.strptime(text,'%Y-%m-%d %H:%M:%S')) if text else 0
+ movies=rpc('VideoLibrary.GetMovies',{'filter':inprogress,'properties':['title','art','resume','lastplayed','file','year']}).get('movies',[])
+ for m in movies:
+  out.append({'kind':'movie','title':m['title'],'year':str(m.get('year') or ''),'art':m.get('art',{}),'position':m['resume']['position'],
+              'total':m['resume']['total'],'played':stamp(m.get('lastplayed')),'file':m['file'],'source':'library'})
+ episodes=rpc('VideoLibrary.GetEpisodes',{'filter':inprogress,'properties':['title','showtitle','season','episode','art','resume','lastplayed','file']}).get('episodes',[])
+ for ep in episodes:
+  out.append({'kind':'episode','title':ep['title'],'tvshowtitle':ep['showtitle'],'season':str(ep['season']),'episode':str(ep['episode']),
+              'art':ep.get('art',{}),'position':ep['resume']['position'],'total':ep['resume']['total'],'played':stamp(ep.get('lastplayed')),
+              'file':ep['file'],'source':'library'})
+ return out
+
+def directory(handle,kind):
+ import xbmc,xbmcgui,xbmcplugin,xbmcvfs
+ def read(path):
+  f=xbmcvfs.File(path)
+  try:return f.read()
+  finally:f.close()
+ def rpc(method,params):
+  try:return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}))).get('result',{})
+  except ValueError:return {}
+ data=load(read) if xbmcvfs.exists(STORE) else {'items':{}}
+ for entry in entries(data,kind,library_items(rpc)):
+  episode=entry['kind']=='episode'
+  li=xbmcgui.ListItem(label=entry['tvshowtitle'] if episode else entry['title'],offscreen=True)
+  art=dict(entry.get('art',{}))
+  for name in ('fanart','landscape','poster','clearlogo'):
+   if episode and art.get('tvshow.'+name):art.setdefault(name,art['tvshow.'+name])
+  li.setArt(art)
+  tag=li.getVideoInfoTag();tag.setMediaType(entry['kind']);tag.setTitle(entry['title'])
+  if episode:
+   tag.setTvShowTitle(entry['tvshowtitle']);tag.setSeason(int(entry['season'] or 0));tag.setEpisode(int(entry['episode'] or 0))
+  elif entry.get('year','').isdigit():tag.setYear(int(entry['year']))
+  tag.setResumePoint(entry.get('position',0),entry.get('total',0))
+  li.setProperty('subtitle','S%s, E%s'%(entry['season'],entry['episode']) if episode else entry.get('year',''))
+  li.setProperty('IsPlayable','true')
+  xbmcplugin.addDirectoryItem(handle,entry.get('file') or play_url(entry),li,isFolder=False)
+ xbmcplugin.setContent(handle,'videos');xbmcplugin.setPluginCategory(handle,'Continue Watching');xbmcplugin.endOfDirectory(handle)

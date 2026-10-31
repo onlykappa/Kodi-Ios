@@ -83,6 +83,52 @@ class PortraitTests(unittest.TestCase):
  def test_textures_are_png(self):
   for name,data in portrait.textures().items():self.assertTrue(data.startswith(b'\x89PNG'),name)
 
+ def test_tab_bar_order_and_no_drive(self):
+  self.assertEqual([t[1] for t in portrait.TABS],['Home','Movies','TV','Library','Search'])
+  home=(self.skin/'portrait/Home.xml').read_text();self.assertNotIn('googledrive',home.split('tab bar')[1])
+ def test_continue_watching_leads_each_hub(self):
+  for name,kind in (('Home.xml','all'),('Custom_1101_Hub.xml','episode'),('Custom_1102_Hub.xml','movie')):
+   root=self.read('portrait/'+name);first=root.find(".//control[@id='5001']")
+   self.assertEqual(first.findtext('content'),portrait.CONTINUE+kind)
+ def test_old_in_progress_rows_are_replaced(self):
+  self.assertTrue(portrait.in_progress({'label':'In Progress Movies','path':'special://profile/playlists/video/In Progress Movies.xsp'}))
+  self.assertFalse(portrait.in_progress({'label':'Popular','path':'plugin://x/?info=popular'}))
+ def test_library_and_search_pages(self):
+  lib=(self.skin/'portrait/Custom_1103_Hub.xml').read_text()
+  self.assertIn('videodb://movies/titles/',lib);self.assertIn('videodb://tvshows/titles/',lib)
+  search=self.read('portrait/Custom_1105_Search.xml')
+  self.assertIsNone(search.find('onload[.="RunScript(script.skinvariables)"]'))
+  self.assertEqual(len(search.findall(".//control[@id='5100']/content/item")),len(portrait.CATEGORIES))
+  self.assertIn('ActivateWindow(Videos,plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_id=True&with_genres=18&sort_by=popularity.desc,return)',[o.text for o in search.iter('onclick')])
+ def test_context_menu_has_kodi_ids_and_fixed_layout(self):
+  root=self.read('portrait/DialogContextMenu.xml');ids={c.get('id') for c in root.iter('control')}
+  self.assertTrue({'996','999','1000'}<=ids)
+  bg=root.find(".//control[@id='999']");self.assertEqual(bg.findtext('height'),str(portrait.HEIGHT))
+  self.assertIn('Portrait_Ctx_Icon_0',(self.skin/'portrait/Includes.xml').read_text())
+ def test_movie_and_show_folders_use_the_grid(self):
+  self.assertIn('<views>50,51,52,53</views>',(self.skin/'portrait/MyVideoNav.xml').read_text())
+
+class ServiceTests(unittest.TestCase):
+ def test_focused_item_published_only_on_home_and_hubs(self):
+  labels={'Container.ListItem.Label':'Show','Container.ListItem.Art(landscape)':'art.jpg','Container.ListItem.Property(subtitle)':'S1, E2'}
+  state={'hub':True};seen={}
+  tick=portrait.focused_item_publisher(lambda k:labels.get(k,''),lambda c:state['hub'] if 'Window' in c else False,seen.__setitem__)
+  tick();self.assertEqual(seen,{'Title':'Show','Art':'art.jpg','Sub':'S1, E2'})
+  seen.clear();state['hub']=False;labels['Container.ListItem.Label']='Other';tick();self.assertEqual(seen,{})
+ def test_progress_saved_and_stop_reported(self):
+  calls=[];clock=iter(range(0,1000,11))
+  class Player:
+   playing=True
+   def isPlayingVideo(self):return self.playing
+   def getTime(self):return 600
+   def getTotalTime(self):return 1200
+  class Store:
+   def update(self,read,write,position,total):calls.append(('update',position,total))
+   def stopped(self,read,write):calls.append(('stopped',))
+  player=Player();tick=portrait.progress_tracker(player,Store(),None,None,lambda:next(clock))
+  tick();player.playing=False;tick()
+  self.assertEqual(calls,[('update',600,1200),('update',600,1200),('stopped',)])
+
 class WatchTests(unittest.TestCase):
  def run_watch(self,sizes,skin='skin.arctic.fuse.3'):
   sizes=iter(sizes);current={};calls=[]

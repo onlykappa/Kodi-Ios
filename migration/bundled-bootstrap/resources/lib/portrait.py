@@ -12,7 +12,7 @@ import json,os,re,struct,zlib,xml.etree.ElementTree as ET
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-REVISION='ios-portrait-r2'
+REVISION='ios-portrait-r3'
 FOLDER='portrait'
 # iPhone 16 Pro portrait: 402x874 pt with 62/34 pt safe-area insets. Kodi stretches the skin canvas into
 # the safe area, so 1080 x 2090 keeps pixels square there (1 pt = 2.687 units). 9:16 covers home-button phones.
@@ -29,15 +29,32 @@ UPDATES='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/check_update
 BG='FF000000';SURFACE='FF1C1C1E';SURFACE2='FF2C2C2E';WHITE='FFFFFFFF'
 GREY='99EBEBF5';DIM='4DEBEBF5';SEP='33EBEBF5';GREEN='FF30D158'
 # window file -> (title, widget lists, tab)
-HUBS={'Home.xml':('Home',['homewidgets'],'home'),
-      'Custom_1101_Hub.xml':('TV Shows',['1101widgets'],'tv'),
-      'Custom_1102_Hub.xml':('Movies',['1102widgets'],'movies'),
-      'Custom_1103_Hub.xml':('Downloads',['1103widgets','1104widgets'],'downloads'),
-      'Custom_1104_Hub.xml':('Downloads',['1104widgets','1103widgets'],'downloads')}
-SPOTLIGHT={'Home.xml':'home','Custom_1101_Hub.xml':'1101','Custom_1102_Hub.xml':'1102','Custom_1103_Hub.xml':'1103','Custom_1104_Hub.xml':'1104'}
-TABS=[('home','Home','house.png','ReplaceWindow(Home)'),('tv','TV Shows','tv.png','ReplaceWindow(1101)'),
-      ('movies','Movies','film.png','ReplaceWindow(1102)'),('downloads','Downloads','download.png','ReplaceWindow(1103)')]
-SEARCH='ReplaceWindow(1105)'
+# window file -> (title, widget lists, tab, Continue Watching type)
+HUBS={'Home.xml':('Home',['homewidgets'],'home','all'),
+      'Custom_1101_Hub.xml':('TV Shows',['1101widgets'],'tv','episode'),
+      'Custom_1102_Hub.xml':('Movies',['1102widgets'],'movies','movie')}
+SPOTLIGHT={'Home.xml':'home','Custom_1101_Hub.xml':'1101','Custom_1102_Hub.xml':'1102'}
+LIBRARY_FILES=('Custom_1103_Hub.xml','Custom_1104_Hub.xml')
+SEARCH_FILE='Custom_1105_Search.xml'
+CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type='
+# Floating tab bar (Apple TV app): Home, Movies, TV, Library (downloaded media), Search.
+TABS=[('home','Home','house.png','ReplaceWindow(Home)'),('movies','Movies','film.png','ReplaceWindow(1102)'),
+      ('tv','TV','tv.png','ReplaceWindow(1101)'),('library','Library','layer-group.png','ReplaceWindow(1103)'),
+      ('search','Search','magnifying-glass.png','ReplaceWindow(1105)')]
+ACCENT='FF4FA8FF'
+def titled_page(title,path):
+ # A TMDb Helper folder is named after the add-on; the page shows the tile's name instead (cleared on the hubs).
+ return 'SetProperty(Portrait.Title,%s,home)\x00ActivateWindow(Videos,%s,return)'%(title,path)
+LIBRARY=[('Movies','film.png',titled_page('Movies','videodb://movies/titles/')),
+         ('TV Shows','tv.png',titled_page('TV Shows','videodb://tvshows/titles/'))]
+TMDB='plugin://plugin.video.themoviedb.helper/'
+SEARCH_ACTION='ActivateWindow(Videos,%s?info=search&tmdb_type=multi,return)'%TMDB
+# Search page categories (TMDb TV genres) with their tile gradients.
+CATEGORIES=[('Drama',18,(52,92,190),(12,18,52)),('Comedy',35,(44,196,182),(22,86,150)),('Crime',80,(196,48,48),(58,10,22)),
+            ('Sci-Fi & Fantasy',10765,(122,72,232),(30,18,96)),('Action & Adventure',10759,(244,132,44),(150,32,24)),
+            ('Animation',16,(252,176,64),(222,72,128)),('Mystery',9648,(70,84,110),(14,18,30)),('Documentary',99,(46,150,90),(10,58,40)),
+            ('Reality',10764,(234,84,164),(112,28,122)),('Kids',10762,(84,176,252),(56,86,222)),('Family',10751,(250,204,84),(238,118,58)),
+            ('War & Politics',10768,(130,118,86),(40,34,24))]
 # More (the profile button): iOS Settings-style rows with coloured icon tiles.
 MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
       ('Google Drive','cloud.png','FF0A84FF',DRIVE),
@@ -45,18 +62,20 @@ MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
       ('Favourites','star.png','FFFF9F0A','ActivateWindow(1160)'),
       ('File manager','clapperboard.png','FF5E5CE6','ActivateWindow(filemanager)'),
       ('iPhone navigation / recovery','life-ring.png','FFFF453A',MENU)]
-HANDMADE=set(HUBS)|{'Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml'}
+HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{SEARCH_FILE,'DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml'}
 # Never shrunk: playback stays landscape, and these are not windows.
 SKIP_WRAP={'VideoFullScreen.xml','VideoOSD.xml','MusicVisualisation.xml','SlideShow.xml','Pointer.xml'}
 # iOS text styles at 2.687 units/pt (large title 34pt, title2 22pt, headline/body 17pt, subhead 15pt, footnote 13pt...).
 FONTS=[('p_large','Inter-Bold.ttf',92),('p_title','Inter-Bold.ttf',78),('p_h2','Inter-Bold.ttf',58),
        ('p_h3','Inter-Bold.ttf',46),('p_body','Inter-Regular.ttf',44),('p_sub','Inter-Regular.ttf',40),
        ('p_foot','Inter-Regular.ttf',35),('p_foot_b','Inter-Bold.ttf',35),('p_cap','Inter-Regular.ttf',30),
-       ('p_tab','Inter-Bold.ttf',27),('p_btn','Inter-Bold.ttf',46)]
+       ('p_tab','Inter-Bold.ttf',27),('p_tile','Inter-Bold.ttf',38),('p_btn','Inter-Bold.ttf',46)]
 SIDE=54                      # 20 pt margins
 POSTER=(300,450);CARD=(640,360);GAP=26;RADIUS=26
 HERO=1420
-CAPSULES=(96,108,124,128,130,150)
+# Pages scroll above the floating tab bar, so the row in focus is never hidden under it.
+PAGE_H=HEIGHT-196
+CAPSULES=(96,108,124,126,128,150)
 
 # --- tiny PNG writer (no PIL on the build host) -------------------------------------------------------
 def png(width,height,pixel):
@@ -99,7 +118,17 @@ def textures():
          'white.png':png(4,4,lambda x,y:(255,255,255,255)),'play.png':triangle(64),
          # Capsules per height: 9-slice borders of h/2 keep the ends perfectly round at any width.
          **{'pill_%d.png'%h:rounded(h,h,h/2) for h in CAPSULES},
-         **{'glass_%d.png'%h:glass(h,h/2,(30,30,34,232),(255,255,255,50)) for h in CAPSULES}}
+         **{'glass_%d.png'%h:glass(h,h/2,(30,30,34,232),(255,255,255,50)) for h in CAPSULES},
+         'cap_top.png':png(96,48,lambda x,y:(255,255,255,int(255*coverage(x,y,96,96,44)))),
+         'cap_bottom.png':png(96,48,lambda x,y:(255,255,255,int(255*coverage(x,y+48,96,96,44)))),
+         **{'tile_%d.png'%gid:gradient(120,180,top,bottom) for _,gid,top,bottom in CATEGORIES}}
+
+def gradient(width,height,top,bottom):
+ """Diagonal two-colour tile background (Apple TV category tiles)."""
+ def pixel(x,y):
+  t=min(1,max(0,(y/height)*0.8+(x/width)*0.2))
+  return tuple(int(a+(b-a)*t) for a,b in zip(top,bottom))+(255,)
+ return png(width,height,pixel)
 
 # --- XML helpers ---------------------------------------------------------------------------------------
 def e(text):return escape(str(text),{'"':'&quot;'})
@@ -108,7 +137,7 @@ def image(x,y,w,h,texture,color=WHITE,extra='',aspect='',diffuse='',border='',ba
          '<texture%s%s%s colordiffuse="%s">%s</texture>%s</control>')%(
   x,y,w,h,('<aspectratio%s</aspectratio>'%aspect) if aspect else '',
   ' background="true"' if background else '',' diffuse="%s"'%diffuse if diffuse else '',' border="%s"'%border if border else '',color,texture,extra)
-def icon(x,y,size,name,color=WHITE,extra=''):return image(x,y,size,size,name if '://' in name else ICONS+name,color,extra,'>keep')
+def icon(x,y,size,name,color=WHITE,extra=''):return image(x,y,size,size,name if ('://' in name or name.startswith('$')) else ICONS+name,color,extra,'>keep')
 def label(x,y,w,h,text,font,color=WHITE,align='left',extra=''):
  return ('<control type="label"><left>%s</left><top>%s</top><width>%s</width><height>%s</height><font>%s</font>'
          '<textcolor>%s</textcolor><align>%s</align><aligny>center</aligny><label>%s</label>%s</control>')%(x,y,w,h,font,color,align,e(text),extra)
@@ -129,6 +158,8 @@ def pill_button(id,x,y,w,h,text,actions,style,glyph='',extra='',glyph_x=None):
 def circle_button(id,x,y,size,glyph,action,extra=''):return pill_button(id,x,y,size,size,'',[('',action)],'glass',glyph,extra)
 
 def window(original,body,default,extra_root=''):
+ # Pages with the tab bar forget the title of the last category or library page.
+ extra_root+='<onload>ClearProperty(Portrait.Title,home)</onload>' if 'id="9200"' in body else ''
  """Keep the landscape window's type/id and its onload helpers (Fuse init, the bootstrap's setup lock)."""
  root=ET.fromstring(original) if original else ET.Element('window')
  attrs=''.join(' %s="%s"'%(k,e(v)) for k,v in root.attrib.items())
@@ -139,21 +170,21 @@ def backdrop():return image(0,0,WIDTH,HEIGHT,MEDIA+'white.png',BG)
 
 # --- hubs: hero, rows, tab bar --------------------------------------------------------------------------
 def tabbar(active):
- """Floating frosted capsule with the four sections, and a separate search circle (iOS 26 tab bar)."""
- tab_w=196;pad=10;bar_w=pad*2+tab_w*len(TABS);h=150;items=[]
+ """One floating frosted capsule, centred: Home, Movies, TV, Library, Search. The current tab sits in a
+ darker inner capsule with a blue icon and label (iOS 26 tab bar)."""
+ tab_w=188;pad=12;h=150;bar_w=pad*2+tab_w*len(TABS);left=(WIDTH-bar_w)//2;items=[]
  for i,(key,text,glyph,action) in enumerate(TABS):
-  on=key==active;color=WHITE if on else 'B3FFFFFF';x=pad+i*tab_w
+  on=key==active;color=ACCENT if on else WHITE;x=pad+i*tab_w
   items.append(('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
-   '<texturefocus border="65" colordiffuse="%s">%spill_130.png</texturefocus><texturenofocus border="65" colordiffuse="%s">%spill_130.png</texturenofocus>'
+   '<texturefocus border="63" colordiffuse="%s">%spill_126.png</texturefocus><texturenofocus border="63" colordiffuse="%s">%spill_126.png</texturenofocus>'
    '<label></label><onclick>%s</onclick><onup>5000</onup><onleft>%d</onleft><onright>%d</onright></control>'
-   )%(9201+i,x,pad,tab_w,h-2*pad,'40FFFFFF' if on else '1AFFFFFF','%s',('2EFFFFFF' if on else '00FFFFFF'),'%s',e(action),9201+(i-1)%len(TABS),9201+(i+1)%(len(TABS)+1))%(MEDIA,MEDIA)
-   +icon(x+(tab_w-54)//2,26,54,glyph,color)+label(x,84,tab_w,40,text,'p_tab',color,'center'))
+   )%(9201+i,x,pad,tab_w,h-2*pad,'26FFFFFF' if not on else 'CC000000',MEDIA,'B3000000' if on else '01000000',MEDIA,e(action),
+      9201+(i-1)%len(TABS),9201+(i+1)%len(TABS))
+   +icon(x+(tab_w-58)//2,24,58,glyph,color)+label(x,84,tab_w,40,text,'p_tab',color,'center'))
  return ('<control type="image"><left>0</left><bottom>0</bottom><width>%d</width><height>330</height><texture>%sfade_up.png</texture></control>'
   '<control type="group" id="9200"><description>%s tab bar</description><left>%d</left><bottom>24</bottom><width>%d</width><height>%d</height>'
   '<control type="image"><width>%d</width><height>%d</height><texture border="75">%sglass_150.png</texture></control>%s</control>'
-  '<control type="group"><right>%d</right><bottom>24</bottom><width>%d</width><height>%d</height>%s</control>'
-  )%(WIDTH,MEDIA,MARKER,SIDE-14,bar_w,h,bar_w,h,MEDIA,''.join(items),SIDE-14,h,h,
-     circle_button(9205,0,0,h,'magnifying-glass.png',SEARCH,'<onleft>%d</onleft><onup>5000</onup>'%(9200+len(TABS))))
+  )%(WIDTH,MEDIA,MARKER,left,bar_w,h,bar_w,h,MEDIA,''.join(items))
 
 def usable(widget):
  path=str(widget.get('path') or '')
@@ -179,23 +210,29 @@ def poster_item(focused):
   label(20,h-170,w-40,150,'$INFO[ListItem.Label]','p_foot_b',WHITE,'left','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(poster))</visible>')+
   image(0,0,w,h,'$INFO[ListItem.Art(poster)]',WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+'</control>')
 
-def card_item(focused):
- """16:9 'Up Next' card with title and genre underneath (Apple TV app)."""
- w,h=CARD
+def card_item(focused,progress=False):
+ """Apple TV app 'Up Next' card: 16:9 art in a rounded tile, then a small grey line and the title.
+ Continue Watching cards add the playback progress over the art."""
+ w,h=CARD;text_h=150
  zoom='<animation effect="zoom" start="100" end="103" time="160" center="auto" tween="cubic" easing="out">Focus</animation>' if focused else ''
+ bar=('<control type="progress"><left>26</left><top>%d</top><width>%d</width><height>10</height><info>ListItem.PercentPlayed</info>'
+      '<texturebg border="5" colordiffuse="59FFFFFF">%spill_96.png</texturebg><midtexture border="5" colordiffuse="FFFFFFFF">%spill_96.png</midtexture>'
+      '<lefttexture /><righttexture /><overlaytexture /></control>')%(h-34,w-52,MEDIA,MEDIA) if progress else ''
+ sub=('$INFO[ListItem.Property(subtitle)]' if progress else '$INFO[ListItem.Genre]$INFO[ListItem.Year,  ·  ]')
  return ('<control type="group"><left>%d</left><top>14</top>%s'%(SIDE,zoom)+
-  image(0,0,w,h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'card_mask.png')+
+  surface(0,0,w,h+text_h,'round_s.png',SURFACE,26)+
   image(0,0,w,h,'$VAR[Portrait_Card_Art]',WHITE,'','>scale',MEDIA+'card_mask.png',background=True)+
-  label(0,h+14,w,50,'$INFO[ListItem.Label]','p_foot_b')+
-  label(0,h+62,w,44,'$INFO[ListItem.Genre]$INFO[ListItem.Year,  ·  ]','p_cap',GREY)+'</control>')
+  (image(0,h-120,w,120,MEDIA+'fade_up.png','B3FFFFFF',diffuse=MEDIA+'card_mask.png') if progress else '')+bar+
+  label(26,h+18,w-52,44,sub,'p_cap',GREY,'left','<font>p_foot_b</font>')+
+  label(26,h+62,w-52,60,'$INFO[ListItem.Label]','p_h3')+'</control>')
 
 def row(index,widget,last):
  id=5001+index;title=str(widget.get('label') or '')
- poster=str(widget.get('widget_style') or '').lower()=='poster'
- w,h=(POSTER[0],POSTER[1]+40) if poster else (CARD[0],CARD[1]+150)
+ style=widget.get('style') or ('poster' if str(widget.get('widget_style') or '').lower()=='poster' else 'card')
+ w,h=(POSTER[0],POSTER[1]+40) if style=='poster' else (CARD[0],CARD[1]+180)
  # Hidden while empty; allowhiddenfocus keeps Kodi loading the row's content while it is hidden.
  visible='Integer.IsGreater(Container(%d).NumItems,0) | Container(%d).IsUpdating'%(id,id)
- item=poster_item if poster else card_item
+ item=poster_item if style=='poster' else (lambda f:card_item(f,style=='continue'))
  return (label(SIDE,0,WIDTH-2*SIDE,128,'%s  [COLOR %s]›[/COLOR]'%(title,GREY),'p_h2',WHITE,'left','<aligny>bottom</aligny><visible>%s</visible>'%visible).replace('<control type="label">','<control type="label" id="%d">'%(id+500),1)+
   ('<control type="list" id="%d"><left>0</left><width>%d</width><height>%d</height><orientation>horizontal</orientation>'
    '%s<scrolltime tween="cubic" easing="out">320</scrolltime><preloaditems>2</preloaditems><visible allowhiddenfocus="true">%s</visible>'
@@ -237,15 +274,65 @@ def hero(spotlight,title):
      pill_button(4002,WIDTH//2+12,HERO-214,btn_w,124,'Info',[('','SetFocus(4000)'),('','Action(Info)')],'glass','circle-info.png','<onup>4000</onup><onleft>4001</onleft><ondown>5001</ondown>'),
      HERO-62,WIDTH,dots)
 
-def hub_window(original,title,widgets,tab,spotlight):
- rows=''.join(row(i,w,i==len(widgets)-1) for i,w in enumerate(widgets)) or label(SIDE,0,WIDTH-2*SIDE,200,'Nothing here yet','p_body',GREY)
+def in_progress(widget):
+ text=(str(widget.get('path') or '')+' '+str(widget.get('label') or '')).lower()
+ return 'inprogress' in text or 'in progress' in text or 'continue watching' in text
+
+def hub_window(original,title,widgets,tab,spotlight,resume='all'):
+ # Continue Watching leads (movies and episodes the owner started); the old in-progress rows would repeat it.
+ widgets=[{'label':'Continue Watching','path':CONTINUE+resume,'target':'videos','style':'continue'}]+[w for w in widgets if not in_progress(w)]
+ rows=''.join(row(i,w,i==len(widgets)-1) for i,w in enumerate(widgets))
  body=('<controls>%s'
   '<control type="grouplist" id="5000"><top>0</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<itemgap>0</itemgap><scrolltime tween="cubic" easing="out">380</scrolltime><usecontrolcoords>true</usecontrolcoords>%s%s'
-  '<control type="image"><height>360</height><texture /></control></control>'
+  '<control type="image"><height>40</height><texture /></control></control>'
   '%s%s</controls>'
-  )%(backdrop(),WIDTH,HEIGHT,hero(spotlight,title),rows,image(0,0,WIDTH,90,MEDIA+'fade_down.png'),tabbar(tab))
+  )%(backdrop(),WIDTH,PAGE_H,hero(spotlight,title),rows,image(0,0,WIDTH,90,MEDIA+'fade_down.png'),tabbar(tab))
  return window(original,body,'4000')
+
+def page_header(title):
+ """Large title on black with the profile circle (More), as on the Apple TV app's Library and Search."""
+ return (label(SIDE,40,WIDTH-2*SIDE-140,120,title,'p_large')+
+         circle_button(9206,WIDTH-SIDE-108,46,108,'circle-user.png','ActivateWindow(1170)'))
+
+def clicks(actions):return ''.join('<onclick>%s</onclick>'%e(a) for a in actions.split('\x00'))
+
+def library_window(original):
+ """Library: Movies and TV Shows (downloaded media in Kodi's library), then a poster grid."""
+ row_h=150
+ items=''.join('<item><label>%s</label><icon>%s</icon>%s</item>'%(e(t),ICONS+i,clicks(a)) for t,i,a in LIBRARY)
+ item=lambda focused:((image(0,0,WIDTH,row_h,MEDIA+'white.png','14FFFFFF') if focused else '')+
+  icon(SIDE-14,(row_h-112)//2,112,'$INFO[ListItem.Icon]',ACCENT)+label(SIDE+120,0,WIDTH-2*SIDE-200,row_h,'$INFO[ListItem.Label]','p_h3','FFFFFFFF','left','<font>p_body</font>')+
+  label(WIDTH-SIDE-60,0,50,row_h,'›','p_h2',DIM,'right')+image(SIDE+120,row_h-2,WIDTH-SIDE-120,2,MEDIA+'white.png',SEP))
+ lst=('<control type="list" id="5000"><left>0</left><top>200</top><width>%d</width><height>%d</height><ondown>9204</ondown>'
+      '<itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout><content>%s</content></control>'
+      )%(WIDTH,row_h*len(LIBRARY),row_h,item(False),row_h,item(True),items)
+ body='<controls>%s%s%s%s</controls>'%(backdrop(),page_header('Library'),lst,tabbar('library'))
+ return window(original,body,'5000')
+
+def search_window(original):
+ """Search: a search field, then category tiles (Apple TV app)."""
+ tile_w,tile_h,gap=308,462,24;cols=3;left=(WIDTH-cols*tile_w-(cols-1)*gap)//2
+ field=('<control type="group"><left>%d</left><top>186</top><width>%d</width><height>124</height>'
+  '<control type="button" id="5101"><width>%d</width><height>124</height><label></label>'
+  '<texturefocus border="62" colordiffuse="FF3A3A3C">%spill_124.png</texturefocus><texturenofocus border="62" colordiffuse="%s">%spill_124.png</texturenofocus>'
+  '<onclick>%s</onclick><ondown>5100</ondown></control>%s%s</control>'
+  )%(SIDE,WIDTH-2*SIDE,WIDTH-2*SIDE,MEDIA,SURFACE,MEDIA,e(SEARCH_ACTION),icon(40,38,48,'magnifying-glass.png',GREY),label(110,0,WIDTH-2*SIDE-150,124,'Shows, Movies, and More','p_body',GREY))
+ items=''.join('<item><label>%s</label><property name="tile">%stile_%d.png</property>%s</item>'
+  %(e(name),MEDIA,gid,clicks(titled_page(name,'%s?info=discover&tmdb_type=tv&with_id=True&with_genres=%d&sort_by=popularity.desc'%(TMDB,gid)))) for name,gid,_,_ in CATEGORIES)
+ tile=lambda focused:('<control type="group"><left>0</left><top>0</top>%s'%('<animation effect="zoom" start="100" end="104" time="160" center="auto">Focus</animation>' if focused else '')+
+  image(0,0,tile_w,tile_h,'$INFO[ListItem.Property(tile)]',WHITE,diffuse=MEDIA+'poster_mask.png')+
+  image(0,tile_h-200,tile_w,200,MEDIA+'fade_up.png','80FFFFFF',diffuse=MEDIA+'poster_mask.png')+
+  '<control type="textbox"><left>26</left><top>%d</top><width>%d</width><height>120</height><font>p_tile</font><textcolor>FFFFFFFF</textcolor><label>$INFO[ListItem.Label]</label></control>'%(tile_h-150,tile_w-40)+'</control>')
+ panel=('<control type="panel" id="5100"><left>%d</left><top>350</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+  '<onup>5101</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
+  '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout><content>%s</content></control>'
+  )%(left,WIDTH-left,tile_w+gap,tile_h+gap,tile(False),tile_w+gap,tile_h+gap,tile(True),items)
+ # Fuse's own search window starts its keyboard and widgets on load; this page does not.
+ root=ET.fromstring(original) if original else ET.Element('window')
+ bare='<window%s />'%''.join(' %s="%s"'%(k,e(v)) for k,v in root.attrib.items())
+ body='<controls>%s%s%s%s<control type="image"><height>2</height><texture /></control>%s</controls>'%(backdrop(),panel,page_header('Search'),field,tabbar('search'))
+ return window(bare,body,'5100')
 
 VARIABLES=('<variable name="Portrait_Hero_Art"><value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value>'
            '<value>$INFO[ListItem.Art(poster)]</value></variable>'
@@ -277,7 +364,7 @@ def episode_item(focused):
   image(SIDE+thumb_w//2-48,18+thumb_h//2-48,96,96,MEDIA+'glass_96.png')+icon(SIDE+thumb_w//2-18,18+thumb_h//2-20,40,MEDIA+'play.png')+
   label(SIDE+thumb_w+30,40,WIDTH-2*SIDE-thumb_w-30,110,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_h3',WHITE,'left','<wrapmultiline>true</wrapmultiline>')+
   label(SIDE+thumb_w+30,154,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]','p_cap',GREY)+
-  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>96</height><font>p_cap</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label></control>'%(SIDE,thumb_h+40,WIDTH-2*SIDE,GREY))
+  label(SIDE,thumb_h+40,WIDTH-2*SIDE,56,'$INFO[ListItem.Plot]','p_cap',GREY,'left','<scroll>false</scroll>'))
 
 def video_nav(original):
  chip=lambda on:(surface(0,8,250,96,'pill_96.png' if on else 'glass_96.png',WHITE,48)+
@@ -296,21 +383,38 @@ def video_nav(original):
   label(SIDE+146,108,WIDTH-2*SIDE-210,60,'$INFO[ListItem.Label2]','p_foot',GREY)+
   label(WIDTH-SIDE-40,18,40,174,'›','p_h2',DIM,'right'))
  generic=('<control type="list" id="51"><left>0</left><top>190</top><width>%d</width><bottom>0</bottom><onup>9001</onup>'
-  '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>!Container.Content(seasons) + !Container.Content(episodes)</visible>'
+  '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>!Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>'
   '<itemlayout height="210">%s</itemlayout><focusedlayout height="210">%s</focusedlayout></control>')%(WIDTH,gen_item(False),gen_item(True))
  back=circle_button(9001,SIDE,36,108,'chevron-left.png','Back','<ondown>9002</ondown>')
- plain_title=label(SIDE+136,36,WIDTH-2*SIDE-136,108,'$INFO[Container.FolderName]','p_h2',WHITE,'left','<visible>!Container.Content(seasons) + !Container.Content(episodes)</visible>')
+ plain_title=label(SIDE+136,36,WIDTH-2*SIDE-136,108,'$INFO[Container.FolderName]','p_h2',WHITE,'left','<visible>!Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>')
  body=('<controls>'+backdrop()+show_header('50')+chips+
   # Seasons page: episodes of the season chip in focus. Episodes page: the folder's own list.
   episodes%(60,1176,WIDTH,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>')+
   episodes%(52,1036,WIDTH,'9001','Container.Content(episodes)',episode_item(False),episode_item(True),'')+
-  generic+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+back+plain_title+'</controls>')
- return window(original,body,'50','<views>50,51,52</views>')
+  generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+back+plain_title+'</controls>')
+ return window(original,body,'50','<views>50,51,52,53</views>')
+
+GRID='Container.Content(movies) | Container.Content(tvshows)'
+def grid():
+ """Movies and shows (Library, categories, search results): a three-column poster grid."""
+ cols=3;gap=24;w=(WIDTH-2*SIDE-(cols-1)*gap)//cols;h=w*3//2;left=(WIDTH-cols*w-(cols-1)*gap)//2
+ item=lambda focused:('<control type="group"><left>0</left><top>0</top>%s'%('<animation effect="zoom" start="100" end="104" time="160" center="auto">Focus</animation>' if focused else '')+
+  image(0,0,w,h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
+  label(20,h-170,w-40,150,'$INFO[ListItem.Label]','p_foot_b',WHITE,'left','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(poster))</visible>')+
+  image(0,0,w,h,'$INFO[ListItem.Art(poster)]',WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+
+  image(w-58,14,44,44,ICONS+'circle-check.png',GREEN,'<visible>ListItem.IsPlayed</visible>')+'</control>')
+ return (label(SIDE,180,WIDTH-2*SIDE,110,'$VAR[Portrait_Page_Title]','p_title',WHITE,'left','<visible>%s</visible>'%GRID)+
+  ('<control type="panel" id="53"><left>%d</left><top>320</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><onup>9001</onup>'
+   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
+   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout></control>'
+   )%(left,WIDTH-left,GRID,w+gap,h+gap,item(False),w+gap,h+gap,item(True)))
 
 SHOW_VARS=('<variable name="Portrait_Show_Art"><value condition="!String.IsEmpty(ListItem.Art(tvshow.fanart))">$INFO[ListItem.Art(tvshow.fanart)]</value>'
            '<value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value><value>$INFO[Container.Art(fanart)]</value></variable>'
            '<variable name="Portrait_Show_Title"><value condition="!String.IsEmpty(ListItem.TVShowTitle)">$INFO[ListItem.TVShowTitle]</value><value>$INFO[Container.FolderName]</value></variable>'
            '<variable name="Portrait_Select_Art">'+''.join('<value condition="!String.IsEmpty(Container(%d).ListItem.Art(%s))">$INFO[Container(%d).ListItem.Art(%s)]</value>'%(c,k,c,k) for k in ('thumb','fanart','poster') for c in (3,6))+'</variable>'
+           '<variable name="Portrait_Page_Title"><value condition="!String.IsEmpty(Window(Home).Property(Portrait.Title)) + String.IsEqual(Container.FolderName,TMDb Helper)">$INFO[Window(Home).Property(Portrait.Title)]</value>'
+           '<value>$INFO[Container.FolderName]</value></variable>'
            '<variable name="Portrait_Thumb"><value condition="!String.IsEmpty(ListItem.Art(thumb))">$INFO[ListItem.Art(thumb)]</value><value>$INFO[ListItem.Art(fanart)]</value></variable>')
 
 def video_info(original):
@@ -355,7 +459,7 @@ def select_dialog(original):
  icon_row='!String.IsEmpty(ListItem.Icon) + !String.StartsWith(ListItem.Icon,Default) + String.IsEmpty(ListItem.Art(poster))'
  item=lambda focused:(image(0,0,w,2,MEDIA+'white.png',SEP)+(image(0,2,w,row_h-2,MEDIA+'white.png','14FFFFFF') if focused else '')+
   icon(40,(row_h-72)//2,72,'$INFO[ListItem.Icon]',WHITE,'<visible>%s</visible>'%icon_row)+
-  label(40,0,w-80,row_h,'$INFO[ListItem.Label]','p_body',WHITE,'center','<visible>![%s]</visible>'%icon_row)+
+  label(40,0,w-80,row_h,'$INFO[ListItem.Label]','p_sub',WHITE,'center','<wrapmultiline>true</wrapmultiline><scroll>false</scroll><visible>![%s]</visible>'%icon_row)+
   label(140,0,w-200,row_h,'$INFO[ListItem.Label]','p_body',WHITE,'left','<visible>%s</visible>'%icon_row)+
   icon(w-86,(row_h-40)//2,40,'check.png',GREEN,'<visible>ListItem.IsSelected</visible>'))
  lists=''.join(('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><onup>%d</onup><ondown>9050</ondown>'
@@ -391,6 +495,52 @@ def more_menu(original):
  body=('<left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(x,top,w,h)+
   image(0,0,w,h,MEDIA+'glass_card.png',border=44)+label(44,40,w-88,100,'More','p_h2')+lst)
  return centered_dialog(original,body,'3')
+
+CTX_ROWS=10
+# Context menu entries -> icon (first match wins; Kodi's String.Contains ignores case).
+CTX_ICONS=[('Resume','clock-rotate-left.png'),('Trailer','film.png'),('next','forward.png'),('unwatched','eye-slash.png'),
+           ('watched','circle-check.png'),('Play','circle-play.png'),('Download','circle-down.png'),('Information','circle-info.png'),
+           ('Info','circle-info.png'),('Show','tv.png'),('Season','tv.png'),('Queue','list.png'),('favourite','star.png'),
+           ('Remove','circle-xmark.png'),('Delete','trash.png'),('Search','magnifying-glass.png'),('Share','share.png'),
+           ('Manage','gear.png'),('Settings','gear.png'),('Browse','folder.png'),('Add','square-plus.png')]
+ITEM='Window(Home).Property(Portrait.Item.%s)'
+def ctx_variables():
+ # Media windows give the dialog their ListItem; Home and the hubs do not, so the bootstrap service keeps a
+ # copy of the focused row item in Portrait.Item.* (focused_item_publisher).
+ own='!String.IsEmpty(ListItem.Label)'
+ pick=lambda name,mine,theirs:'<variable name="%s"><value condition="%s">%s</value><value>%s</value></variable>'%(name,own,mine,theirs)
+ return (pick('Portrait_Ctx_Title','$INFO[ListItem.Label]','$INFO[%s]'%(ITEM%'Title'))+
+  pick('Portrait_Ctx_Art','$VAR[Portrait_Card_Art]','$INFO[%s]'%(ITEM%'Art'))+
+  pick('Portrait_Ctx_Sub','$INFO[ListItem.Property(subtitle)]$INFO[ListItem.Year]$INFO[ListItem.Genre,  ·  ]','$INFO[%s]'%(ITEM%'Sub'))+''.join('<variable name="Portrait_Ctx_Icon_%d">%s<value>%sellipsis.png</value></variable>'%(i,''.join(
+  '<value condition="String.Contains(Control.GetLabel(%d),%s)">%s%s</value>'%(1001+i,word,ICONS,name) for word,name in CTX_ICONS),ICONS) for i in range(CTX_ROWS)))
+
+def context_menu(original):
+ """Long press: the title as a card on top, then a frosted menu with an icon per entry (iOS context menu)."""
+ x=60;card_w=WIDTH-2*x;pad=20;art_h=(card_w-2*pad)*9//16;card_h=pad+art_h+136;top=110;menu_w=780;row_h=120;cap=30
+ menu_top=top+card_h+30
+ no_art='String.IsEmpty(ListItem.Art(fanart)) + String.IsEmpty(ListItem.Art(landscape)) + String.IsEmpty(ListItem.Art(thumb)) + String.IsEmpty(Window(Home).Property(Portrait.Item.Art))'
+ card=('<control type="group"><left>%d</left><top>%d</top><visible>![%s]</visible>'%(x,top,no_art)+
+  '<animation effect="zoom" start="94" end="100" center="auto" time="240" tween="back" easing="out">WindowOpen</animation>'+
+  surface(0,0,card_w,card_h,'glass_card.png',WHITE,44)+
+  image(pad,pad,card_w-2*pad,art_h,'$VAR[Portrait_Ctx_Art]',WHITE,'','>scale',MEDIA+'card_mask.png',background=True)+
+  label(40,pad+art_h+16,card_w-80,46,'$VAR[Portrait_Ctx_Sub]','p_foot_b',GREY)+
+  label(40,pad+art_h+60,card_w-80,66,'$VAR[Portrait_Ctx_Title]','p_h3')+'</control>')
+ template=('<control type="button" id="1000"><width>%d</width><height>%d</height><font>p_body</font><textcolor>FFFFFFFF</textcolor>'
+  '<focusedcolor>FFFFFFFF</focusedcolor><textoffsetx>128</textoffsetx><align>left</align><aligny>center</aligny>'
+  '<texturefocus colordiffuse="FF3A3A3C">%swhite.png</texturefocus><texturenofocus colordiffuse="F22C2C2E">%swhite.png</texturenofocus></control>')%(menu_w,row_h,MEDIA,MEDIA)
+ caps=lambda name:'<control type="image"><width>%d</width><height>%d</height><texture border="44,0,44,0" colordiffuse="F22C2C2E">%s%s</texture></control>'%(menu_w,cap,MEDIA,name)
+ icons=''.join(icon(42,cap+i*row_h+(row_h-58)//2,58,'$VAR[Portrait_Ctx_Icon_%d]'%i,WHITE,'<visible>Control.IsVisible(%d)</visible>'%(1001+i)) for i in range(CTX_ROWS))
+ # No art (e.g. a menu button): the menu moves up to where the card would be.
+ menu=('<control type="group"><left>%d</left><top>%d</top>'%(x,menu_top)+
+  '<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(-(card_h+30),no_art)+
+  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>'+
+  '<control type="grouplist" id="996"><width>%d</width><height>%d</height><orientation>vertical</orientation><itemgap>0</itemgap>%s%s%s</control>'
+  %(menu_w,HEIGHT-menu_top-60,caps('cap_top.png'),template,caps('cap_bottom.png'))+icons+'</control>')
+ # Kodi sizes and centres the dialog on its background (999): a full-screen one keeps the layout fixed.
+ body=('<controls><control type="image" id="999"><width>%d</width><height>%d</height><texture colordiffuse="99000000">%swhite.png</texture></control>'
+  '<control type="button" id="9099"><width>%d</width><height>%d</height><texturefocus /><texturenofocus /><onclick>Close</onclick><onfocus>SetFocus(996)</onfocus></control>'
+  '%s%s</controls>')%(WIDTH,HEIGHT,MEDIA,WIDTH,HEIGHT,card,menu)
+ return window(original,body,'996')
 
 def shrink(data,name=''):
  root=ET.fromstring(data)
@@ -430,13 +580,15 @@ def with_variables(xml):return xml
 def includes():
  # Kodi reads variables only from includes; Fuse's own includes still come from 1080i.
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<includes><include file="../1080i/Includes.xml" />%s%s</includes>\n'
-         %(MARKER,VARIABLES,SHOW_VARS)).encode()
+         %(MARKER,VARIABLES,SHOW_VARS+ctx_variables())).encode()
 
 def hub_files(skin,profile):
  source=Path(skin)/'1080i';out={}
- for name,(title,lists,tab) in HUBS.items():
-  path=source/name;original=path.read_text() if path.exists() else ''
-  out[name]=with_variables(hub_window(original,title,load_widgets(profile,lists),tab,SPOTLIGHT[name])).encode()
+ read=lambda name:(source/name).read_text() if (source/name).exists() else ''
+ for name,(title,lists,tab,resume) in HUBS.items():
+  out[name]=hub_window(read(name),title,load_widgets(profile,lists),tab,SPOTLIGHT[name],resume).encode()
+ for name in LIBRARY_FILES:out[name]=library_window(read(name)).encode()
+ out[SEARCH_FILE]=search_window(read(SEARCH_FILE)).encode()
  return out
 
 def portrait_files(skin,profile):
@@ -453,6 +605,7 @@ def portrait_files(skin,profile):
  files[FOLDER+'/DialogVideoInfo.xml']=with_variables(video_info(read('DialogVideoInfo.xml'))).encode()
  files[FOLDER+'/DialogSelect.xml']=select_dialog(read('DialogSelect.xml')).encode()
  files[FOLDER+'/Custom_1170_Dialog_Options.xml']=more_menu(read('Custom_1170_Dialog_Options.xml')).encode()
+ files[FOLDER+'/DialogContextMenu.xml']=context_menu(read('DialogContextMenu.xml')).encode()
  # Fuse's landscape header (tabs/search/gear) is replaced by the portrait header and tab bar.
  files[FOLDER+'/Custom_1182_Dialog_Topmenu_Overlay.xml']=window(read('Custom_1182_Dialog_Topmenu_Overlay.xml'),'<controls />','9999').encode()
  files[FOLDER+'/Includes.xml']=includes()
@@ -491,10 +644,11 @@ def is_portrait(info):
  try:return int(info('System.ScreenHeight'))>int(info('System.ScreenWidth'))
  except ValueError:return None
 
-def watch(info,invoke,wait,current_skin,fuse='skin.arctic.fuse.3',interval=0.5,settle=2):
+def watch(info,invoke,wait,current_skin,fuse='skin.arctic.fuse.3',interval=0.5,settle=2,tick=None):
  """Reload the skin after the phone settles in a new orientation, so Kodi loads the matching folder."""
  last=is_portrait(info);pending=0
  while not wait(interval):
+  if tick:tick()
   now=is_portrait(info)
   if now is None or now==last:pending=0;continue
   pending+=1
@@ -502,8 +656,35 @@ def watch(info,invoke,wait,current_skin,fuse='skin.arctic.fuse.3',interval=0.5,s
   last=now;pending=0
   if current_skin()==fuse:invoke('ReloadSkin()')
 
+def focused_item_publisher(info,visible,set_property):
+ """Home and the hubs are not media windows, so Kodi's long-press menu cannot see their focused item:
+ publish it (title, art, one detail line) as Window(Home).Property(Portrait.Item.*)."""
+ last={}
+ def tick():
+  if visible('System.HasActiveModalDialog') or not visible('Window.IsActive(home) | Window.IsActive(1101) | Window.IsActive(1102)'):return
+  item='Container.ListItem'
+  art=next((v for v in (info(item+'.Art(landscape)'),info(item+'.Art(fanart)'),info(item+'.Art(thumb)')) if v),'')
+  sub=info(item+'.Property(subtitle)') or '  ·  '.join(v for v in (info(item+'.Year'),info(item+'.Genre')) if v)
+  for key,value in (('Title',info(item+'.Label')),('Art',art),('Sub',sub)):
+   if last.get(key)!=value:last[key]=value;set_property(key,value)
+ return tick
+
+def progress_tracker(player,continue_module,read,write,clock,every=10):
+ """Continue Watching: save the position of what the chooser started, and drop it once finished."""
+ state={'playing':False,'saved':float('-inf'),'position':0,'total':0}
+ def tick():
+  try:
+   if player.isPlayingVideo():
+    state.update(playing=True,position=player.getTime(),total=player.getTotalTime())
+    if clock()-state['saved']>=every:continue_module.update(read,write,state['position'],state['total']);state['saved']=clock()
+   elif state['playing']:
+    state['playing']=False;continue_module.update(read,write,state['position'],state['total']);continue_module.stopped(read,write)
+  except Exception:pass
+ return tick
+
 def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
- """Started by the bootstrap service after setup: keep the portrait folder current, then follow rotations."""
+ """Started by the bootstrap service after setup: keep the portrait folder current, follow rotations and
+ Continue Watching progress."""
  skin=Path(xbmcvfs.translatePath('special://skin/')).resolve()
  if skin.name==fuse:
   try:
@@ -515,4 +696,24 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
     marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(json.dumps({'revision':REVISION})+'\n')
    if changed and is_portrait(xbmc.getInfoLabel):invoke('ReloadSkin()')
   except Exception as error:xbmc.log('Kodi iOS portrait refresh skipped: '+type(error).__name__,xbmc.LOGWARNING)
- watch(xbmc.getInfoLabel,invoke,monitor.waitForAbort,xbmc.getSkinDir,fuse)
+ tick=None
+ try:
+  import importlib.util,time,xbmcaddon
+  lib=Path(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.kodi.ios.watch').getAddonInfo('path')))/'resources/lib/ios_continue.py'
+  spec=importlib.util.spec_from_file_location('ios_continue',lib);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+  def read(path):
+   f=xbmcvfs.File(path)
+   try:return f.read()
+   finally:f.close()
+  def write(path,text):
+   xbmcvfs.mkdirs(path.rsplit('/',1)[0]);f=xbmcvfs.File(path,'w')
+   try:f.write(text)
+   finally:f.close()
+  tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic)
+ except Exception as error:xbmc.log('Kodi iOS continue watching unavailable: '+type(error).__name__,xbmc.LOGWARNING)
+ import xbmcgui
+ home=xbmcgui.Window(10000)
+ publish=focused_item_publisher(xbmc.getInfoLabel,xbmc.getCondVisibility,lambda k,v:home.setProperty('Portrait.Item.'+k,v))
+ ticks=[t for t in (tick,publish) if t]
+ watch(xbmc.getInfoLabel,invoke,monitor.waitForAbort,xbmc.getSkinDir,fuse,tick=lambda:[t() for t in ticks])
+
