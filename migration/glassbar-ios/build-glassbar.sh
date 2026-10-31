@@ -156,40 +156,36 @@ static void makeCapsule(UIVisualEffectView *view, CGFloat height) {
 - (void)touched:(UILongPressGestureRecognizer *)gesture {
     CGFloat x = [gesture locationInView:self].x;
     NSInteger index = MIN(MAX((NSInteger)((x - 4) / [self tabWidth]), 0), kCount - 1);
-    switch (gesture.state) {
-        case UIGestureRecognizerStateBegan:
-            _dragging = YES;
-            [UIView animateWithDuration:0.25 delay:0 usingSpringWithDamping:0.7 initialSpringVelocity:0.5
-                                options:UIViewAnimationOptionBeginFromCurrentState animations:^{
-                [self placeLensAt:x];
-                self->_lens.transform = CGAffineTransformMakeScale(1.12, 1.18);
-                self->_lensTint.transform = self->_lens.transform;
-            } completion:nil];
-            break;
-        case UIGestureRecognizerStateChanged:
+    UIGestureRecognizerState state = gesture.state;
+    if (state == UIGestureRecognizerStateBegan) {
+        _dragging = YES;
+        [UIView animateWithDuration:0.25 delay:0 usingSpringWithDamping:0.7 initialSpringVelocity:0.5
+                            options:UIViewAnimationOptionBeginFromCurrentState animations:^{
             [self placeLensAt:x];
-            break;
-        case UIGestureRecognizerStateEnded: {
-            _dragging = NO;
-            [[UISelectionFeedbackGenerator new] selectionChanged];
-            _selected = index;
-            [self updateColors];
-            [UIView animateWithDuration:0.45 delay:0 usingSpringWithDamping:0.72 initialSpringVelocity:0.6
-                                options:UIViewAnimationOptionBeginFromCurrentState animations:^{
-                self->_lens.transform = CGAffineTransformIdentity;
-                self->_lensTint.transform = CGAffineTransformIdentity;
-                [self placeLensAt:4 + (index + 0.5) * [self tabWidth]];
-            } completion:nil];
-            atomic_store(&pendingTap, (int)index);
-            break;
-        }
-        default:
-            _dragging = NO;
-            [UIView animateWithDuration:0.3 animations:^{
-                self->_lens.transform = CGAffineTransformIdentity;
-                self->_lensTint.transform = CGAffineTransformIdentity;
-                [self placeLensAt:4 + (self->_selected + 0.5) * [self tabWidth]];
-            }];
+            self->_lens.transform = CGAffineTransformMakeScale(1.12, 1.18);
+            self->_lensTint.transform = self->_lens.transform;
+        } completion:nil];
+    } else if (state == UIGestureRecognizerStateChanged) {
+        [self placeLensAt:x];
+    } else if (state == UIGestureRecognizerStateEnded) {
+        _dragging = NO;
+        [[UISelectionFeedbackGenerator new] selectionChanged];
+        _selected = index;
+        [self updateColors];
+        [UIView animateWithDuration:0.45 delay:0 usingSpringWithDamping:0.72 initialSpringVelocity:0.6
+                            options:UIViewAnimationOptionBeginFromCurrentState animations:^{
+            self->_lens.transform = CGAffineTransformIdentity;
+            self->_lensTint.transform = CGAffineTransformIdentity;
+            [self placeLensAt:4 + (index + 0.5) * [self tabWidth]];
+        } completion:nil];
+        atomic_store(&pendingTap, (int)index);
+    } else if (state == UIGestureRecognizerStateCancelled || state == UIGestureRecognizerStateFailed) {
+        _dragging = NO;
+        [UIView animateWithDuration:0.3 animations:^{
+            self->_lens.transform = CGAffineTransformIdentity;
+            self->_lensTint.transform = CGAffineTransformIdentity;
+            [self placeLensAt:4 + (self->_selected + 0.5) * [self tabWidth]];
+        }];
     }
 }
 @end
