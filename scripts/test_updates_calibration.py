@@ -85,10 +85,13 @@ class DownloadFolders(unittest.TestCase):
    self.assertTrue((Path(t)/'Documents/Kodi Downloads/Movies').is_dir());self.assertTrue(folders['shows'].endswith('/TV Shows/'))
    e={};self.assertTrue(bootstrap.elementum_library(folders,lambda k:e.get(k,''),e.__setitem__))
    self.assertEqual((e['download_storage'],e['completed_move'],e['completed_movies_path']),('0','true',folders['movies']))
+   self.assertEqual((e['keep_downloading'],e['keep_files_playing'],e['keep_files_finished']),('1','1','1'))
    e2={'completed_shows_path':'/mine/'};self.assertFalse(bootstrap.elementum_library(folders,lambda k:e2.get(k,''),e2.__setitem__));self.assertEqual(e2,{'completed_shows_path':'/mine/'})
-   u={};self.assertTrue(bootstrap.umbrella_downloads(folders,lambda k:u.get(k,''),u.__setitem__))
-   self.assertEqual((u['downloads'],u['tv.download.path']),('true',folders['shows']))
-   u2={'movie.download.path':'/mine/'};self.assertFalse(bootstrap.umbrella_downloads(folders,lambda k:u2.get(k,''),u2.__setitem__))
+   u={};self.assertFalse(bootstrap.umbrella_streaming_only(folders,lambda k:u.get(k,''),u.__setitem__));self.assertEqual(u,{})
+   u={'downloads':'true','movie.download.path':folders['movies'],'tv.download.path':folders['shows']}
+   self.assertTrue(bootstrap.umbrella_streaming_only(folders,lambda k:u.get(k,''),u.__setitem__))
+   self.assertEqual(u,{'downloads':'false','movie.download.path':'','tv.download.path':''})
+   u2={'downloads':'true','movie.download.path':'/mine/','tv.download.path':'/mine/'};self.assertFalse(bootstrap.umbrella_streaming_only(folders,lambda k:u2.get(k,''),u2.__setitem__))
 class UniversalPlayOnTV(unittest.TestCase):
  DESC=b'''<root xmlns="urn:schemas-upnp-org:device-1-0"><device><friendlyName>[TV] Samsung</friendlyName><serviceList>
   <service><serviceType>urn:schemas-upnp-org:service:RenderingControl:1</serviceType><controlURL>/rc</controlURL></service>

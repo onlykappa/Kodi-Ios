@@ -1,7 +1,7 @@
 import json,os,sys,time
 from pathlib import Path
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
-from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_downloads
+from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
 import airplay,calibration,updates
@@ -72,7 +72,8 @@ def run():
     folder=elementum_defaults(updates.updates_folder(home).with_name('Elementum Downloads'),engine.getSetting,engine.setSetting)
     if folder:xbmc.log('Kodi iOS setup set Elementum downloads to '+folder,xbmc.LOGINFO)
    except Exception as error:xbmc.log('Kodi iOS Elementum defaults skipped: '+type(error).__name__,xbmc.LOGWARNING)
-  # Downloads land in Files › On My iPhone › Kodi › Kodi Downloads › Movies / TV Shows, from Elementum and Umbrella.
+  # Elementum videos you choose to keep land in Files › On My iPhone › Kodi › Kodi Downloads › Movies / TV Shows.
+  # Umbrella only streams.
   try:
    folders=media_folders(updates.updates_folder(home).with_name('Kodi Downloads'))
    if xbmc.getCondVisibility('System.HasAddon(plugin.video.elementum)'):
@@ -80,7 +81,7 @@ def run():
     if elementum_library(folders,engine.getSetting,engine.setSetting):xbmc.log('Kodi iOS setup filed Elementum downloads into Movies and TV Shows',xbmc.LOGINFO)
    if xbmc.getCondVisibility('System.HasAddon(plugin.video.umbrella)'):
     umbrella=xbmcaddon.Addon('plugin.video.umbrella')
-    if umbrella_downloads(folders,umbrella.getSetting,umbrella.setSetting):xbmc.log('Kodi iOS setup filed Umbrella downloads into Movies and TV Shows',xbmc.LOGINFO)
+    if umbrella_streaming_only(folders,umbrella.getSetting,umbrella.setSetting):xbmc.log('Kodi iOS setup set Umbrella back to streaming only',xbmc.LOGINFO)
   except Exception as error:xbmc.log('Kodi iOS download folders skipped: '+type(error).__name__,xbmc.LOGWARNING)
   if result=='IN PROGRESS':
    restore(profile,api);xbmcgui.Dialog().ok('Setup interrupted','Original files restored. Estuary remains available. Record this failure before retrying.')

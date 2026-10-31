@@ -95,17 +95,19 @@ def media_folders(root):
  return {name:str(folder)+'/' for name,folder in folders.items()}
 
 def elementum_library(folders,get_setting,set_setting):
- """Keep finished Elementum downloads (it streams into memory by default) and file them into Movies and TV Shows.
- Only when the owner has not chosen completed-download folders."""
+ """Elementum writes what plays to files and asks afterwards: after a finished video "delete the files?",
+ after a stopped one "keep downloading?" and "delete?". Kept videos are filed into Movies and TV Shows; deleted
+ ones leave nothing behind. Only when the owner has not chosen completed-download folders."""
  if get_setting('completed_movies_path') or get_setting('completed_shows_path'):return False
  set_setting('download_storage','0');set_setting('completed_move','true')
+ for name in ('keep_downloading','keep_files_playing','keep_files_finished'):set_setting(name,'1')
  set_setting('completed_movies_path',folders['movies']);set_setting('completed_shows_path',folders['shows'])
  return True
 
-def umbrella_downloads(folders,get_setting,set_setting):
- """Umbrella's own downloads go to the same Movies and TV Shows folders, unless the owner set download paths."""
- if get_setting('movie.download.path') or get_setting('tv.download.path'):return False
- set_setting('downloads','true');set_setting('movie.download.path',folders['movies']);set_setting('tv.download.path',folders['shows'])
+def umbrella_streaming_only(folders,get_setting,set_setting):
+ """Umbrella only streams. Undo the download folders an earlier test build pointed it at; owner settings stay."""
+ if get_setting('movie.download.path')!=folders['movies'] or get_setting('tv.download.path')!=folders['shows']:return False
+ set_setting('downloads','false');set_setting('movie.download.path','');set_setting('tv.download.path','')
  return True
 
 def elementum_defaults(downloads,get_setting,set_setting):
