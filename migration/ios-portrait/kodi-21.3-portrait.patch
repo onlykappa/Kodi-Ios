@@ -26,21 +26,35 @@ index be8e481..81b4eee 100644
  	cd $(PLATFORM); $(CONFIGURE)
  
  $(LIBDYLIB): $(PLATFORM)
+diff --git a/tools/depends/target/libffi/LIBFFI-VERSION b/tools/depends/target/libffi/LIBFFI-VERSION
+index 9d1e722..82533c0 100644
+--- a/tools/depends/target/libffi/LIBFFI-VERSION
++++ b/tools/depends/target/libffi/LIBFFI-VERSION
+@@ -1,4 +1,7 @@
+ LIBNAME=libffi
+-VERSION=3.4.2
++# Kodi-iOS: 3.4.2's aarch64 assembly fails with current Apple clang ("invalid CFI advance_loc expression");
++# 3.4.6 assembles cleanly. Fetched from the upstream release, checked against this SHA512.
++VERSION=3.4.6
+ ARCHIVE=$(LIBNAME)-$(VERSION).tar.gz
+-SHA512=31bad35251bf5c0adb998c88ff065085ca6105cf22071b9bd4b5d5d69db4fadf16cadeec9baca944c4bb97b619b035bb8279de8794b922531fddeb0779eb7fb1
++FULL_URL=https://github.com/libffi/libffi/releases/download/v$(VERSION)/$(ARCHIVE)
++SHA512=033d2600e879b83c6bce0eb80f69c5f32aa775bf2e962c9d39fbd21226fa19d1e79173d8eaa0d0157014d54509ea73315ad86842356fc3a303c0831c94c6ab39
 diff --git a/tools/depends/target/libffi/Makefile b/tools/depends/target/libffi/Makefile
-index ad0f910..8c6a2f7 100644
+index ad0f910..d9594dd 100644
 --- a/tools/depends/target/libffi/Makefile
 +++ b/tools/depends/target/libffi/Makefile
-@@ -18,7 +18,9 @@ $(PLATFORM): $(DEPS) | $(TARBALLS_LOCATION)/$(ARCHIVE).$(HASH_TYPE)
+@@ -16,6 +16,10 @@ $(PLATFORM): $(DEPS) | $(TARBALLS_LOCATION)/$(ARCHIVE).$(HASH_TYPE)
+ 	rm -rf $(PLATFORM); mkdir -p $(PLATFORM)
+ 	cd $(PLATFORM); $(ARCHIVE_TOOL) $(ARCHIVE_TOOL_FLAGS) $(TARBALLS_LOCATION)/$(ARCHIVE)
  	cd $(PLATFORM); $(CONFIGURE)
++	# Kodi-iOS: current clang rejects libffi 3.4.2's aarch64 CFI directives once they pass through
++	# gas-preprocessor.pl ("invalid CFI advance_loc expression"); clang assembles these .S files itself,
++	# so the generated Makefile's CCAS drops the preprocessor.
++	cd $(PLATFORM); sed -i.orig 's|[^ ]*/gas-preprocessor\.pl ||g' Makefile
  
  $(LIBDYLIB): $(PLATFORM)
--	$(MAKE) -j 1 -C $(PLATFORM)
-+	# Kodi-iOS: current clang rejects libffi 3.4.2's aarch64 CFI directives once they pass through
-+	# gas-preprocessor.pl ("invalid CFI advance_loc expression"); clang assembles these .S files itself.
-+	$(MAKE) -j 1 -C $(PLATFORM) CCAS="--tag CC $(CC)"
- 	touch $@
- 
- .installed-$(PLATFORM): $(LIBDYLIB)
+ 	$(MAKE) -j 1 -C $(PLATFORM)
 diff --git a/tools/depends/target/libpng/Makefile b/tools/depends/target/libpng/Makefile
 index eae10a3..6e3c5e7 100644
 --- a/tools/depends/target/libpng/Makefile
