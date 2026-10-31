@@ -13,7 +13,7 @@ if [ ! -d "$SRC/.git" ]; then
 fi
 test "$(git -C "$SRC" rev-parse HEAD)" = "$COMMIT" || { echo "Kodi tag $TAG moved"; exit 1; }
 # A restored cache holds a previously patched tree; start from the pinned tag each time.
-git -C "$SRC" checkout --quiet -- xbmc tools/depends/native/zlib
+git -C "$SRC" checkout --quiet -- xbmc tools/depends
 git -C "$SRC" apply --check "$HERE/kodi-21.3-portrait.patch"
 git -C "$SRC" apply "$HERE/kodi-21.3-portrait.patch"
 JOBS=$(getconf _NPROCESSORS_ONLN)

@@ -1,3 +1,17 @@
+diff --git a/tools/depends/native/libpng/Makefile b/tools/depends/native/libpng/Makefile
+index 6059b69..23b2766 100644
+--- a/tools/depends/native/libpng/Makefile
++++ b/tools/depends/native/libpng/Makefile
+@@ -23,6 +23,9 @@ all: .installed-$(PLATFORM)
+ $(PLATFORM): $(DEPS) | $(TARBALLS_LOCATION)/$(ARCHIVE).$(HASH_TYPE)
+ 	rm -rf $(PLATFORM)/*; mkdir -p $(PLATFORM)
+ 	cd $(PLATFORM); $(ARCHIVE_TOOL) $(ARCHIVE_TOOL_FLAGS) $(TARBALLS_LOCATION)/$(ARCHIVE)
++	# Kodi-iOS: libpng 1.6.37 includes the classic-Mac <fp.h> whenever TARGET_OS_MAC is defined, which current
++	# Apple SDKs always do (later libpng dropped that test); keep the classic-Mac compilers only.
++	cd $(PLATFORM); sed -i.orig 's/ || defined(__SC__) || defined(TARGET_OS_MAC)/ || defined(__SC__)/' pngpriv.h
+ 	cd $(PLATFORM); $(CONFIGURE)
+ 
+ $(LIBDYLIB): $(PLATFORM)
 diff --git a/tools/depends/native/zlib/Makefile b/tools/depends/native/zlib/Makefile
 index be8e481..81b4eee 100644
 --- a/tools/depends/native/zlib/Makefile
@@ -12,6 +26,20 @@ index be8e481..81b4eee 100644
  	cd $(PLATFORM); $(CONFIGURE)
  
  $(LIBDYLIB): $(PLATFORM)
+diff --git a/tools/depends/target/libpng/Makefile b/tools/depends/target/libpng/Makefile
+index eae10a3..6e3c5e7 100644
+--- a/tools/depends/target/libpng/Makefile
++++ b/tools/depends/target/libpng/Makefile
+@@ -30,6 +30,9 @@ all: .installed-$(PLATFORM)
+ $(PLATFORM): $(DEPS) | $(TARBALLS_LOCATION)/$(ARCHIVE).$(HASH_TYPE)
+ 	rm -rf $(PLATFORM); mkdir -p $(PLATFORM)/build
+ 	cd $(PLATFORM); $(ARCHIVE_TOOL) $(ARCHIVE_TOOL_FLAGS) $(TARBALLS_LOCATION)/$(ARCHIVE)
++	# Kodi-iOS: libpng 1.6.37 includes the classic-Mac <fp.h> whenever TARGET_OS_MAC is defined, which current
++	# Apple SDKs always do (later libpng dropped that test); keep the classic-Mac compilers only.
++	cd $(PLATFORM); sed -i.orig 's/ || defined(__SC__) || defined(TARGET_OS_MAC)/ || defined(__SC__)/' pngpriv.h
+ 	cd $(PLATFORM)/build; $(CMAKE) $(CMAKE_OPTIONS) ..
+ 
+ .installed-$(PLATFORM): $(PLATFORM)
 diff --git a/xbmc/guilib/GUIControlGroupList.cpp b/xbmc/guilib/GUIControlGroupList.cpp
 index b0940ef..0a435ee 100644
 --- a/xbmc/guilib/GUIControlGroupList.cpp
