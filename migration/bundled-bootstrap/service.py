@@ -4,7 +4,7 @@ sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
 from bootstrap import initialize,restore,ensure_enabled,install_players
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
-import calibration,updates
+import calibration,updates,portrait
 
 def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
@@ -84,4 +84,6 @@ def run():
    try:
     if xbmcaddon.Addon().getSettingBool('check_on_start'):updates.run(check_only=True)
    except Exception as error:xbmc.log('Kodi iOS update check skipped: '+type(error).__name__,xbmc.LOGWARNING)
+ # r11: portrait rows follow the owner's widgets; rotating the phone reloads the matching layout.
+ portrait.run_service(xbmc,xbmcvfs,monitor,profile,invoke)
 if __name__=='__main__':run()

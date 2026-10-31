@@ -1,3 +1,26 @@
+diff --git a/xbmc/guilib/GUIControlGroupList.cpp b/xbmc/guilib/GUIControlGroupList.cpp
+index b0940ef..0a435ee 100644
+--- a/xbmc/guilib/GUIControlGroupList.cpp
++++ b/xbmc/guilib/GUIControlGroupList.cpp
+@@ -404,12 +404,17 @@ EVENT_RESULT CGUIControlGroupList::SendMouseEvent(const CPoint& point,
+   {
+     float pos = 0;
+     float alignOffset = GetAlignOffset();
++    // Kodi-iOS: on a touch screen a row that is only partly scrolled into view must still take
++    // taps, as long as the tap lands inside this list's own (visible) area.
++    const bool insideList = CRect(m_posX, m_posY, m_posX + m_width, m_posY + m_height).PtInRect(childPoint);
++    const float scroll = m_scroller.GetValue();
+     for (ciControls i = m_children.begin(); i != m_children.end(); ++i)
+     {
+       CGUIControl *child = *i;
+       if (child->IsVisible())
+       {
+-        if (IsControlOnScreen(pos, child))
++        if (IsControlOnScreen(pos, child) ||
++            (insideList && pos + Size(child) > scroll && pos < scroll + Size()))
+         { // we're on screen
+           float offsetX = m_orientation == VERTICAL ? m_posX : m_posX + alignOffset + pos - m_scroller.GetValue();
+           float offsetY = m_orientation == VERTICAL ? m_posY + alignOffset + pos - m_scroller.GetValue() : m_posY;
 diff --git a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm b/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
 index 0d88d1d..6f281f6 100644
 --- a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm

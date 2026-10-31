@@ -2,6 +2,7 @@
 import argparse,contextlib,hashlib,io,json,os,shutil,xml.etree.ElementTree as ET,zipfile
 from pathlib import Path
 from build_unsigned_ipa import build as unsigned,validate_staging
+import ios_portrait
 from import_runtime.safe_import import validate_bundle,digest
 import importlib.util
 _spec=importlib.util.spec_from_file_location('ipa_bootstrap_helpers',Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib/bootstrap.py')
@@ -139,7 +140,7 @@ def patch_drive(addonroot):
   path.write_bytes(data.replace(old,new))
  return [{'path':'addons/'+DRIVE_COMMON+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]
 
-def prepare(app,bundle,expected,work):
+def prepare(app,bundle,expected,work,portrait_exe=None,portrait_sha=None):
  validate_staging(app,work)
  manifest,addons,config=validate_bundle(bundle,expected)
  target=work/'Kodi.app';shutil.copytree(app,target,symlinks=True)
@@ -163,6 +164,8 @@ def prepare(app,bundle,expected,work):
     if setting.get('id')=='input.enablemouse':gui.remove(setting)
    data=ET.tostring(gui,encoding='utf-8')+b'\n'
   dest=seed/relative;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data);entries.append({'path':relative,'sha256':digest(data)})
+ # r11 portrait: skin folder (rows from the seeded widget lists), Info.plist, optional rotation-aware executable.
+ portrait=ios_portrait.apply(target,addonroot/'skin.arctic.fuse.3',seed,portrait_exe,portrait_sha) if (addonroot/'skin.arctic.fuse.3').is_dir() else None
  keymap=seed/'keymaps/zz-kodi-ios-navigation.xml';keymap.parent.mkdir(parents=True,exist_ok=True);keymap.write_bytes(_nav.TOUCH.encode()+b'\n');entries.append({'path':'keymaps/zz-kodi-ios-navigation.xml','sha256':digest(keymap.read_bytes())})
  # Topological dependency order, excluding native/core providers already in the foundation.
  requires={}
@@ -182,10 +185,10 @@ def prepare(app,bundle,expected,work):
  for id in order+[BOOT]:
   assert id not in existing,'System manifest collision';ET.SubElement(root,'addon',{} if id==BOOT else {'optional':'true'}).text=id
  ET.indent(root);tree.write(system,encoding='utf-8',xml_declaration=True)
- return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files}}
+ return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'portrait':portrait}
 
-def build(app,bundle,expected,deb,output,work):
- staged,details=prepare(app,bundle,expected,work)
+def build(app,bundle,expected,deb,output,work,portrait_exe=None,portrait_sha=None):
+ staged,details=prepare(app,bundle,expected,work,portrait_exe,portrait_sha)
  # The shared native packer emits a diagnostic-only intermediate label; publish only the final verified customized report.
  with contextlib.redirect_stdout(io.StringIO()):report=unsigned(staged,output,deb)
  old=output/report['filename'];ipa=output/'Kodi-iOS-Customized-Touch-r9.ipa';old.rename(ipa)
@@ -195,6 +198,7 @@ def build(app,bundle,expected,deb,output,work):
   for id in details['addon_ids']+[BOOT]:assert base+'/addons/'+id+'/addon.xml' in z.namelist()
   patches={'addons/skin.arctic.fuse.3/'+e['path']:e for e in details['navigation_patch']['files']}
   patches.update({e['path']:e for e in details['drive_patch']['files']})
+  patches.update({e['path']:e for e in (details['portrait'] or {}).get('changed',[])})
   for name,body in validate_bundle(bundle,expected)[1].items():
    if name in patches:assert digest(body)==patches[name]['before_sha256'],'Navigation patch source mismatch'
    expected_hash=patches[name]['after_sha256'] if name in patches else digest(body)
@@ -204,4 +208,4 @@ def build(app,bundle,expected,deb,output,work):
  (output/'ipa-report.json').write_text(json.dumps(report,indent=2)+'\n')
  print(json.dumps({k:v for k,v in report.items() if k not in {'native_inventory','bootstrap'}}))
 if __name__=='__main__':
- p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--bundle',type=Path,required=True);p.add_argument('--expected-sha256',required=True);p.add_argument('--deb',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--work',type=Path,required=True);a=p.parse_args();build(a.app,a.bundle,a.expected_sha256,a.deb,a.output,a.work)
+ p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--bundle',type=Path,required=True);p.add_argument('--expected-sha256',required=True);p.add_argument('--deb',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--work',type=Path,required=True);p.add_argument('--portrait-executable',type=Path);p.add_argument('--portrait-executable-sha256');a=p.parse_args();build(a.app,a.bundle,a.expected_sha256,a.deb,a.output,a.work,a.portrait_executable,a.portrait_executable_sha256)

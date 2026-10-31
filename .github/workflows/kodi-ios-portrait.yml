@@ -5,7 +5,7 @@ on:
     paths:
       - '.github/workflows/kodi-ios-portrait.yml'
       - 'migration/ios-portrait/build-kodi-ios.sh'
-      - 'migration/ios-portrait/kodi-21.3-rotation.patch'
+      - 'migration/ios-portrait/kodi-21.3-portrait.patch'
       - 'migration/ios-portrait/source-lock.json'
   workflow_dispatch:
 permissions:

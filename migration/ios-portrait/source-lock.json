@@ -2,6 +2,6 @@
   "repository": "https://github.com/xbmc/xbmc",
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
-  "patch": "kodi-21.3-rotation.patch",
+  "patch": "kodi-21.3-portrait.patch",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package."
 }
