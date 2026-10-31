@@ -70,6 +70,24 @@ def install_players(root,profile,has_addon):
   dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(path.read_bytes());installed.append(path.name)
  return installed
 
+def install_payload(root,home):
+ """Copy add-ons shipped in payload/ into the writable add-ons folder: Umbrella loads its scraper module only from
+ special://home/addons. Never over a copy that is already there (the owner may have updated it from its repository)."""
+ payload=Path(root)/'payload';copied=[]
+ for source in sorted(payload.iterdir()) if payload.is_dir() else []:
+  dest=Path(home)/'addons'/source.name
+  if dest.exists() or not (source/'addon.xml').is_file():continue
+  temp=dest.with_name(dest.name+'.ios-seed-tmp')
+  if temp.exists():shutil.rmtree(temp)
+  shutil.copytree(source,temp);os.replace(temp,dest);copied.append(source.name)
+ return copied
+
+def umbrella_defaults(get_setting,set_setting):
+ """Point Umbrella at CocoScrapers, as on the Deck, unless the owner already chose an external provider module."""
+ if get_setting('external_provider.module'):return False
+ set_setting('provider.external.enabled','true');set_setting('external_provider.name','cocoscrapers');set_setting('external_provider.module','script.module.cocoscrapers')
+ return True
+
 def elementum_defaults(downloads,get_setting,set_setting):
  """Elementum asks for a download folder before its first stream; use one the Files app can see. iOS can move the
  app's data folder on reinstall, so a folder set here earlier is followed to the current path; the owner's own choice stays."""

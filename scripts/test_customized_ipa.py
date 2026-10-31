@@ -33,6 +33,9 @@ class BundleTests(unittest.TestCase):
   with zipfile.ZipFile(inputs/'burst.zip','w') as z:
    z.writestr(BURST+'/addon.xml','<addon id="'+BURST+'" version="0.0.99"><requires><import addon="plugin.video.elementum" optional="true"/><import addon="script.module.kodi-six"/><import addon="script.module.future"/></requires></addon>')
    z.writestr(BURST+'/burst/providers/providers.json','{}')
+  for mode,id in [('app','script.module.resolveurl'),('profile','script.module.cocoscrapers')]:
+   (inputs/('extras-'+mode)).mkdir()
+   with zipfile.ZipFile(inputs/('extras-'+mode)/(id+'.zip'),'w') as z:z.writestr(id+'/addon.xml','<addon id="'+id+'" version="1"><requires><import addon="xbmc.python"/></requires></addon>');z.writestr(id+'/lib/m.py','x=1')
   return inputs
  def test_elementum_engine_bundled_in_frameworks_and_patched_for_ios(self):
   app,receipt=prepare(self.app,self.bundle,self.sha,self.root/'work',self.elementum_inputs());base=app/'AppData/AppHome'
@@ -45,6 +48,9 @@ class BundleTests(unittest.TestCase):
   seed=json.loads((base/'addons'/BOOT/'seed/seed-manifest.json').read_text());order=seed['addons']
   self.assertLess(order.index('script.module.kodi-six'),order.index(ELEMENTUM));self.assertLess(order.index('script.module.future'),order.index(BURST))
   self.assertTrue((base/'addons'/BURST/'burst/providers/providers.json').is_file())
+  self.assertTrue((base/'addons/script.module.resolveurl/lib/m.py').is_file());self.assertIn('script.module.resolveurl',order)
+  self.assertTrue((base/'addons'/BOOT/'payload/script.module.cocoscrapers/lib/m.py').is_file());self.assertNotIn('script.module.cocoscrapers',order)
+  self.assertEqual(receipt['profile_addons'],['script.module.cocoscrapers'])
   xml=ET.parse(base/'system/addon-manifest.xml').getroot();self.assertEqual(xml.find("addon[.='"+ELEMENTUM+"']").get('optional'),'true')
  def test_corrupt_input_rejected_before_any_copy(self):
   with self.assertRaises(Exception):prepare(self.app,self.bundle,'bad',self.root/'work')

@@ -38,9 +38,13 @@ def run(out,lock=None,get=fetch,modules=git_modules):
  client=verified(get,lock['plugin_release']['client_zip_url'],lock['plugin_release']['client_zip_sha256'],'Elementum client')
  framework=verified(get,'https://github.com/onlykappa/Kodi-Ios/releases/download/'+fw['tag']+'/'+fw['asset'],fw['sha256'],'Elementum framework')
  burst=verified(get,lock['burst']['url'],lock['burst']['sha256'],'Elementum Burst')
+ extras={id:verified(get,x['url'],x['sha256'],id) for id,x in sorted(lock.get('extras',{}).items())}
  out.mkdir(parents=True,exist_ok=True);modules(lock['modules'],out/'modules')
+ # 'app' add-ons ship inside Kodi.app; 'profile' ones are copied into the writable add-ons folder at first start.
+ for id,data in extras.items():
+  dest=out/('extras-'+lock['extras'][id]['install'])/(id+'.zip');dest.parent.mkdir(exist_ok=True);dest.write_bytes(data)
  (out/'client.zip').write_bytes(client);(out/'framework.zip').write_bytes(framework);(out/'burst.zip').write_bytes(burst)
- return {'elementum':True,'client_sha256':lock['plugin_release']['client_zip_sha256'],'framework_sha256':fw['sha256'],'burst_sha256':lock['burst']['sha256'],'modules':sorted(lock['modules']['trees'])}
+ return {'elementum':True,'client_sha256':lock['plugin_release']['client_zip_sha256'],'framework_sha256':fw['sha256'],'burst_sha256':lock['burst']['sha256'],'modules':sorted(lock['modules']['trees']),'extras':sorted(extras)}
 
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('--output',type=Path,required=True);a=p.parse_args();print(json.dumps(run(a.output)))

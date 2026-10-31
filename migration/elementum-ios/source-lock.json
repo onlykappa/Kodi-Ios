@@ -43,5 +43,19 @@
   },
   "engine_patches": [
     "Skip the parent-process watch in shared-library mode (Kodi hosts the engine on iOS)"
-  ]
+  ],
+  "extras": {
+    "script.module.resolveurl": {
+      "version": "5.1.212",
+      "install": "app",
+      "url": "https://raw.githubusercontent.com/Gujal00/smrzips/535d4dcc42145e2bfeaa3e0c6d5ec3d91a449c94/zips/script.module.resolveurl/script.module.resolveurl-5.1.212.zip",
+      "sha256": "28fb6b2340eccfb1337ba4421b6429aa1c8f2978834853d1229b42b2a947bc59"
+    },
+    "script.module.cocoscrapers": {
+      "version": "1.0.45",
+      "install": "profile",
+      "url": "https://raw.githubusercontent.com/not-coco-joe/repository.cocoscrapers/f1772775291a432cf2a7c6e45ea038c894ea8b70/zips/script.module.cocoscrapers/script.module.cocoscrapers-1.0.45.zip",
+      "sha256": "45abbf2134b7c7f545cc9d9a1e378a64d51764aba5fe0a3e4cb1e58573b87521"
+    }
+  }
 }

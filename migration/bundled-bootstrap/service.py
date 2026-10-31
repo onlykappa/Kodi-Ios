@@ -1,7 +1,7 @@
 import json,os,sys,time
 from pathlib import Path
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
-from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults
+from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
 import calibration,updates
@@ -56,6 +56,16 @@ def run():
   for addon in ensure_enabled(root/'seed',profile,api):xbmc.log('Kodi iOS setup enabled bundled add-on '+addon,xbmc.LOGINFO)
   # e.g. Umbrella, once installed, appears in "How would you like to watch?" through its TMDb Helper player.
   for name in install_players(root,profile,lambda addon:xbmc.getCondVisibility('System.HasAddon('+addon+')')):xbmc.log('Kodi iOS setup added TMDb Helper player '+name,xbmc.LOGINFO)
+  # CocoScrapers goes into the writable add-ons folder, where Umbrella looks for its scraper module.
+  try:
+   copied=install_payload(root,home)
+   if copied:
+    invoke('UpdateLocalAddons');monitor.waitForAbort(2)
+    for addon in copied:api('Addons.SetAddonEnabled',{'addonid':addon,'enabled':True});xbmc.log('Kodi iOS setup installed '+addon,xbmc.LOGINFO)
+   if xbmc.getCondVisibility('System.HasAddon(plugin.video.umbrella)') and xbmc.getCondVisibility('System.HasAddon(script.module.cocoscrapers)'):
+    umbrella=xbmcaddon.Addon('plugin.video.umbrella')
+    if umbrella_defaults(umbrella.getSetting,umbrella.setSetting):xbmc.log('Kodi iOS setup set Umbrella to CocoScrapers',xbmc.LOGINFO)
+  except Exception as error:xbmc.log('Kodi iOS scraper setup skipped: '+type(error).__name__,xbmc.LOGWARNING)
   if xbmc.getCondVisibility('System.AddonIsEnabled(plugin.video.elementum)'):
    try:
     engine=xbmcaddon.Addon('plugin.video.elementum')

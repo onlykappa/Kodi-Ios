@@ -58,6 +58,22 @@ class Players(unittest.TestCase):
    self.assertEqual(json.loads(dest.read_text())['plugin'],'plugin.video.umbrella')
    dest.write_text('{"plugin":"plugin.video.umbrella","owner":"edited"}')
    self.assertEqual(bootstrap.install_players(root,profile,lambda a:True),['ios.elementum.json']);self.assertIn('edited',dest.read_text())
+class Scrapers(unittest.TestCase):
+ def test_payload_copied_once_and_never_over_an_existing_copy(self):
+  with tempfile.TemporaryDirectory() as t:
+   root,home=Path(t)/'boot',Path(t)/'home';mod=root/'payload/script.module.cocoscrapers';mod.mkdir(parents=True)
+   (mod/'addon.xml').write_text('<addon id="script.module.cocoscrapers" version="1.0.45"/>');(mod/'lib').mkdir();(mod/'lib/x.py').write_text('x=1')
+   self.assertEqual(bootstrap.install_payload(root,home),['script.module.cocoscrapers'])
+   dest=home/'addons/script.module.cocoscrapers';self.assertTrue((dest/'lib/x.py').is_file())
+   (dest/'addon.xml').write_text('<addon id="script.module.cocoscrapers" version="1.0.50"/>')
+   self.assertEqual(bootstrap.install_payload(root,home),[]);self.assertIn('1.0.50',(dest/'addon.xml').read_text())
+   self.assertEqual(bootstrap.install_payload(Path(t)/'none',home),[])
+ def test_umbrella_pointed_at_cocoscrapers_unless_owner_chose(self):
+  settings={}
+  self.assertTrue(bootstrap.umbrella_defaults(lambda k:settings.get(k,''),settings.__setitem__))
+  self.assertEqual(settings,{'provider.external.enabled':'true','external_provider.name':'cocoscrapers','external_provider.module':'script.module.cocoscrapers'})
+  settings['external_provider.module']='script.module.other'
+  self.assertFalse(bootstrap.umbrella_defaults(lambda k:settings.get(k,''),settings.__setitem__));self.assertEqual(settings['external_provider.module'],'script.module.other')
 class Elementum(unittest.TestCase):
  def test_download_folder_set_once_and_never_over_the_owners_choice(self):
   with tempfile.TemporaryDirectory() as t:
@@ -78,9 +94,11 @@ class Elementum(unittest.TestCase):
    client,framework,burst=b'client',b'framework',b'burst';sha=lambda b:hashlib.sha256(b).hexdigest()
    pinned=dict(lock,plugin_release=dict(lock['plugin_release'],client_zip_sha256=sha(client)),
                framework_release={'tag':'t','asset':'a.zip','sha256':sha(framework)},burst=dict(lock['burst'],sha256=sha(burst)))
-   def get(url):return client if url==lock['plugin_release']['client_zip_url'] else framework if url.endswith('/t/a.zip') else burst
+   pinned['extras']={'script.module.a':{'install':'app','url':'u-app','sha256':sha(b'app')},'script.module.b':{'install':'profile','url':'u-profile','sha256':sha(b'profile')}}
+   def get(url):return client if url==lock['plugin_release']['client_zip_url'] else framework if url.endswith('/t/a.zip') else {'u-app':b'app','u-profile':b'profile'}.get(url,burst)
    def modules(spec,dest):(dest/'script.module.kodi-six').mkdir(parents=True)
    out=Path(t)/'ok';self.assertTrue(f.run(out,pinned,get,modules)['elementum'])
    self.assertEqual((out/'framework.zip').read_bytes(),framework);self.assertEqual((out/'burst.zip').read_bytes(),burst)
+   self.assertEqual((out/'extras-app/script.module.a.zip').read_bytes(),b'app');self.assertEqual((out/'extras-profile/script.module.b.zip').read_bytes(),b'profile')
    with self.assertRaises(AssertionError):f.run(Path(t)/'bad',pinned,lambda url:b'tampered',modules)
 if __name__=='__main__':unittest.main()

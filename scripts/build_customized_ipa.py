@@ -126,6 +126,10 @@ DRIVE_PATCHES=[('clouddrive/common/remote/request.py',b'response = urllib.reques
  ('clouddrive/common/remote/request.py',b'import urllib\n',b'import urllib\n'+TLS),
  ('clouddrive/common/remote/signin.py',b'from clouddrive.common.remote.request import Request\n',b'from clouddrive.common.remote.request import Request, tls_context\n'),
  ('clouddrive/common/remote/signin.py',b'self.sock = self._context.wrap_socket(',b'self.sock = tls_context().wrap_socket('),
+ # A self-hosted sign-in server on a free *.workers.dev address can't turn off Cloudflare's Browser Integrity Check,
+ # which answers error 1010 to the add-on's non-browser user agent (and to the /ip probe, which sent none).
+ ('clouddrive/common/remote/signin.py',b"        return '%s/%s clouddrive.common/%s Kodi/%s Python/%s' % (",b"        return 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) %s/%s clouddrive.common/%s Kodi/%s Python/%s' % ("),
+ ('clouddrive/common/remote/signin.py',b"status, ip = self._request_over(family, '/ip')",b"status, ip = self._request_over(family, '/ip', self._headers())"),
  ('clouddrive/common/service/upstream.py',b'import urllib.parse\n',b'import urllib.parse\n\nfrom clouddrive.common.remote.request import tls_context\n'),
  ('clouddrive/common/service/upstream.py',b'self._context = ssl.create_default_context()',b'self._context = tls_context()'),
  ('clouddrive/common/ui/addon.py',b"    def _search(self, driveid, item_driveid=None, item_id=None):\n        self.get_provider().configure(self._account_manager, driveid)\n        query = self._dialog.input(",SEARCH),
@@ -203,6 +207,21 @@ ELEMENTUM_PATCHES=[('resources/site-packages/elementum/daemon.py',b'def get_elem
  ('resources/site-packages/elementum/service.py',b'    if not ONLY_CLIENT and PLATFORM["fork"]:',b'    if not ONLY_CLIENT and (PLATFORM["fork"] or PLATFORM.get("os") == "ios"):'),
  ('resources/site-packages/elementum/osarch.py',b'    if global_platform:\n',b'    if xbmc.getCondVisibility("System.Platform.IOS"):\n        ret.update(os="ios", arch="arm64", fork=False)\n        return ret\n\n    if global_platform:\n')]
 
+def unpack_addon(archive,id,dest):
+ """Extract one add-on zip (plain Python and data only) into dest/<id>."""
+ with zipfile.ZipFile(archive) as z:
+  names=[n for n in z.namelist() if not n.endswith('/')]
+  assert all(n.startswith(id+'/') and '..' not in n and not n.endswith(('.so','.dll','.dylib','.exe','.pyd')) for n in names),'Unexpected add-on layout: '+id
+  for n in names:
+   path=dest/n;assert not path.exists(),'Unexpected add-on collision: '+n;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(z.read(n))
+
+def add_profile_addons(inputs,bootstrap):
+ """Add-ons other add-ons load from special://home/addons (Umbrella imports its scraper module from there):
+ the setup add-on copies them into the writable add-ons folder at first start."""
+ found=sorted((inputs/'extras-profile').glob('*.zip')) if (inputs/'extras-profile').is_dir() else []
+ for archive in found:unpack_addon(archive,archive.stem,bootstrap/'payload')
+ return [a.stem for a in found]
+
 def add_elementum(inputs,target,addonroot):
  """Install the pinned Elementum client (patched for iOS), Burst, their Python modules and the engine framework."""
  with zipfile.ZipFile(inputs/'burst.zip') as z:
@@ -223,13 +242,15 @@ def add_elementum(inputs,target,addonroot):
   data=path.read_bytes();assert data.count(old)==1,'Unexpected Elementum source: '+name
   path.write_bytes(data.replace(old,new))
  modules=sorted((inputs/'modules').iterdir())
+ apps=sorted((inputs/'extras-app').glob('*.zip')) if (inputs/'extras-app').is_dir() else []
+ for archive in apps:unpack_addon(archive,archive.stem,addonroot)
  for d in modules:assert not (addonroot/d.name).exists(),'Unexpected module collision';shutil.copytree(d,addonroot/d.name)
  frameworks=target/'Frameworks';frameworks.mkdir(exist_ok=True);assert not (frameworks/'elementum.framework').exists()
  with zipfile.ZipFile(inputs/'framework.zip') as z:
   for n in z.namelist():assert n.startswith('elementum.framework/') and '..' not in n
   z.extractall(frameworks)
  binary=frameworks/'elementum.framework/elementum';assert binary.read_bytes()[:4]==b'\xcf\xfa\xed\xfe','Engine is not a 64-bit Mach-O'
- return {'addons':[ELEMENTUM,BURST]+[d.name for d in modules],'framework':'Frameworks/elementum.framework','framework_sha256':digest(binary.read_bytes()),
+ return {'addons':[ELEMENTUM,BURST]+[d.name for d in modules]+[a.stem for a in apps],'framework':'Frameworks/elementum.framework','framework_sha256':digest(binary.read_bytes()),
          'patches':[{'path':'addons/'+ELEMENTUM+'/'+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]}
 
 def prepare(app,bundle,expected,work,elementum=None):
@@ -246,6 +267,7 @@ def prepare(app,bundle,expected,work,elementum=None):
  drive_files=patch_drive(addonroot) if (addonroot/DRIVE_COMMON).is_dir() else []
  engine=add_elementum(elementum,target,addonroot) if elementum else None
  bootstrap=addonroot/BOOT;shutil.copytree(ROOT/'migration/bundled-bootstrap',bootstrap)
+ profile_addons=add_profile_addons(elementum,bootstrap) if elementum else []
  # The in-app updater compares this with the build-N release tags.
  (bootstrap/'build.json').write_text(json.dumps({'build':int(os.environ.get('GITHUB_RUN_NUMBER') or 0),'commit':os.environ.get('GITHUB_SHA','')[:12]})+'\n')
  seed=bootstrap/'seed';seed.mkdir();entries=[]
@@ -276,7 +298,7 @@ def prepare(app,bundle,expected,work,elementum=None):
  for id in order+[BOOT]:
   assert id not in existing,'System manifest collision';ET.SubElement(root,'addon',{} if id==BOOT else {'optional':'true'}).text=id
  ET.indent(root);tree.write(system,encoding='utf-8',xml_declaration=True)
- return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'elementum':engine}
+ return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'elementum':engine,'profile_addons':profile_addons}
 
 def build(app,bundle,expected,deb,output,work,elementum=None):
  staged,details=prepare(app,bundle,expected,work,elementum)
