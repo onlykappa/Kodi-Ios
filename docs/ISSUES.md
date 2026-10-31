@@ -394,3 +394,9 @@ Status: BUILT ON HOST; device test pending.
 ## ISSUE-057 — Drive sign-in still 403 (Cloudflare 1010) on the owner's workers.dev server
 Status: FIXED ON HOST; verified against the owner's server up to the Google step.
 - Tested from the build environment against the owner's sign-in server: only requests with Python's default "Python-urllib" user agent get 403 / error 1010; the add-on's own user agent passes. The sign-in screen's first request (`GET /ip`, in ui/signin.py and ui/addon.py) is sent with no headers, so it carried the default agent and failed before a code was ever requested. The packaged Drive module now gives every request a user agent when none is set. With it, the full sequence answers correctly from the owner's server: /ip 200, POST /pin 200 (code issued), /ip probe 200, code poll 202 (waiting for the browser).
+
+## ISSUE-058 — Play on TV for any TV on the Wi-Fi
+Status: BUILT ON HOST; device test pending.
+- The video controls' Play on TV button now finds Rokus (ECP, port 8060), Chromecast / Google TV (name from port 8008, Cast protocol on 8009 with the Default Media Receiver) and DLNA/UPnP smart TVs (unicast M-SEARCH to each address, AVTransport Stop / SetAVTransportURI / Play with DIDL-Lite metadata), all probed together, and lists them with Apple TV / AirPlay. Roku, smart TVs and Chromecast stream the link themselves (phone free; Elementum links use the phone's Wi-Fi address). AirPlay opens Apple's player with external playback and the AirPlay sheet (KodiAirPlay.framework r2, `kodi_airplay_play`): real AirPlay video with audio for MP4/MOV/HLS; MKV is flagged as likely to fail there.
+- Verified on host: protocol units (DLNA description and SOAP, SSDP parsing, Cast message encoding and a simulated Chromecast LOAD exchange) and a DLNA run over HTTP against a local stand-in renderer.
+- Downloads: Elementum (file storage, completed move) and Umbrella download into Documents/Kodi Downloads/Movies and TV Shows.

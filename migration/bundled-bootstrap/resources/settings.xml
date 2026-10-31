@@ -10,7 +10,7 @@
   </category>
   <category id="playback" label="Playback">
    <group id="1">
-    <setting id="roku_address" type="string" label="Roku address for Play on TV (found automatically when empty)"><level>0</level><default/><constraints><allowempty>true</allowempty></constraints><control type="edit" format="string"><heading>Roku address</heading></control></setting>
+    <setting id="last_tv" type="string" label="Last TV used by Play on TV"><level>0</level><default/><constraints><allowempty>true</allowempty></constraints><control type="edit" format="string"><heading>Last TV</heading></control></setting>
     <setting id="airplay_button" type="boolean" label="Also show Apple's AirPlay audio button during playback"><level>0</level><default>false</default><control type="toggle"/></setting>
    </group>
   </category>

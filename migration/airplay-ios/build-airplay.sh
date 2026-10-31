@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Builds KodiAirPlay.framework: Apple's AirPlay route button (AVRoutePickerView) placed over Kodi's top-right corner.
 # Kodi's skin cannot draw a native control, so the setup add-on loads this library with ctypes and calls
-# kodi_airplay_show(1/0) during playback, and kodi_airplay_open() from the iPhone menu. Needs macOS with Xcode.
+# kodi_airplay_show(1/0) during playback, kodi_airplay_open() from the iPhone menu, and kodi_airplay_play(url,
+# title) to hand a stream to Apple's player for real AirPlay video (MP4/HLS). Needs macOS with Xcode.
 # Usage: build-airplay.sh OUT_DIR
 set -euo pipefail
 [[ "$(uname -s)" == Darwin ]] || { echo 'BLOCKED: macOS with the iPhoneOS SDK is required.' >&2; exit 2; }
@@ -12,8 +13,10 @@ SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 cat > "$WORK/KodiAirPlay.m" <<'OBJC'
 #import <UIKit/UIKit.h>
 #import <AVKit/AVKit.h>
+#import <AVFoundation/AVFoundation.h>
 
 static AVRoutePickerView *picker;
+static AVPlayerViewController *airplayController;
 
 static UIWindow *kodiWindow(void) {
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
@@ -59,6 +62,46 @@ __attribute__((visibility("default"))) void kodi_airplay_show(int visible) {
     });
 }
 
+static void openSheet(AVRoutePickerView *view) {
+    for (UIView *subview in view.subviews) {
+        if ([subview isKindOfClass:UIButton.class]) {
+            [(UIButton *)subview sendActionsForControlEvents:UIControlEventTouchUpInside];
+            return;
+        }
+    }
+}
+
+// Real AirPlay video: Apple's player with external playback, then the device sheet. The TV keeps playing while
+// Kodi is in the background (playback audio session). Apple's player handles MP4/MOV/HLS, not MKV.
+__attribute__((visibility("default"))) void kodi_airplay_play(const char *url, const char *title) {
+    NSString *link = url ? [NSString stringWithUTF8String:url] : nil;
+    NSString *name = title ? [NSString stringWithUTF8String:title] : @"";
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSURL *address = link ? [NSURL URLWithString:link] : nil;
+        UIViewController *root = kodiWindow().rootViewController;
+        if (!address || !root) return;
+        [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback mode:AVAudioSessionModeMoviePlayback options:0 error:nil];
+        [[AVAudioSession sharedInstance] setActive:YES error:nil];
+        AVPlayer *player = [AVPlayer playerWithURL:address];
+        player.allowsExternalPlayback = YES;
+        player.usesExternalPlaybackWhileExternalScreenIsActive = YES;
+        if (airplayController) [airplayController dismissViewControllerAnimated:NO completion:nil];
+        airplayController = [[AVPlayerViewController alloc] init];
+        airplayController.player = player;
+        airplayController.title = name;
+        airplayController.allowsPictureInPicturePlayback = YES;
+        UIViewController *top = root;
+        while (top.presentedViewController) top = top.presentedViewController;
+        [top presentViewController:airplayController animated:YES completion:^{
+            [player play];
+            AVRoutePickerView *sheet = [[AVRoutePickerView alloc] initWithFrame:CGRectMake(0, 0, 1, 1)];
+            sheet.prioritizesVideoDevices = YES;
+            [airplayController.view addSubview:sheet];
+            openSheet(sheet);
+        }];
+    });
+}
+
 // Opens the "AirPlay & Bluetooth devices" sheet as if the button had been tapped.
 __attribute__((visibility("default"))) void kodi_airplay_open(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -90,6 +133,6 @@ cat > "$FW/Info.plist" <<PLIST
 <key>MinimumOSVersion</key><string>$MIN_IOS</string>
 </dict></plist>
 PLIST
-nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_airplay_(show|open)$'
+nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_airplay_(show|open|play)$'
 lipo -info "$FW/KodiAirPlay"
 (cd "$OUT" && zip -qry KodiAirPlay.framework.zip KodiAirPlay.framework && shasum -a 256 KodiAirPlay.framework.zip | tee KodiAirPlay.framework.zip.sha256)
