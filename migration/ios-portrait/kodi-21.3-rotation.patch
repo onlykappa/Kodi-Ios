@@ -1,0 +1,153 @@
+diff --git a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm b/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
+index 0d88d1d..6f281f6 100644
+--- a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
++++ b/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
+@@ -201,6 +201,9 @@ void AnnounceBridge(ANNOUNCEMENT::AnnouncementFlag flag,
+ 
+     dispatch_async(dispatch_get_main_queue(), ^{
+       [g_xbmcController.MPNPInfoManager onPlay:item];
++#if defined(TARGET_DARWIN_IOS)
++      [g_xbmcController updateVideoOrientationLock];
++#endif
+     });
+   }
+   else if (msg == "OnSpeedChanged" || msg == "OnPause")
+@@ -224,6 +227,9 @@ void AnnounceBridge(ANNOUNCEMENT::AnnouncementFlag flag,
+   {
+     dispatch_async(dispatch_get_main_queue(), ^{
+       [g_xbmcController.MPNPInfoManager onStop:dict[@"item"]];
++#if defined(TARGET_DARWIN_IOS)
++      [g_xbmcController updateVideoOrientationLock];
++#endif
+     });
+   }
+ }
+diff --git a/xbmc/platform/darwin/ios/Info.plist.in b/xbmc/platform/darwin/ios/Info.plist.in
+index e29411a..ffbd3b0 100644
+--- a/xbmc/platform/darwin/ios/Info.plist.in
++++ b/xbmc/platform/darwin/ios/Info.plist.in
+@@ -133,6 +133,7 @@
+ 	<true/>
+ 	<key>UISupportedInterfaceOrientations</key>
+ 	<array>
++		<string>UIInterfaceOrientationPortrait</string>
+ 		<string>UIInterfaceOrientationLandscapeLeft</string>
+ 		<string>UIInterfaceOrientationLandscapeRight</string>
+ 	</array>
+diff --git a/xbmc/platform/darwin/ios/XBMCController.h b/xbmc/platform/darwin/ios/XBMCController.h
+index b2a06d0..843018a 100644
+--- a/xbmc/platform/darwin/ios/XBMCController.h
++++ b/xbmc/platform/darwin/ios/XBMCController.h
+@@ -61,6 +61,7 @@
+ - (CGRect)fullscreenSubviewFrame;
+ - (void)onXbmcAlive;
+ - (void)setGUIInsetsFromMainThread:(BOOL)isMainThread;
++- (void)updateVideoOrientationLock;
+ - (void) setFramebuffer;
+ - (bool) presentFramebuffer;
+ - (CGSize) getScreenSize;
+diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
+index a450151..089b23d 100644
+--- a/xbmc/platform/darwin/ios/XBMCController.mm
++++ b/xbmc/platform/darwin/ios/XBMCController.mm
+@@ -36,6 +36,7 @@
+ #include "utils/URIUtils.h"
+ #include "utils/log.h"
+ #include "windowing/XBMC_events.h"
++#include "windowing/ios/WinSystemIOS.h"
+ #import "windowing/ios/WinSystemIOS.h"
+ 
+ #import "platform/darwin/NSLogDebugHelpers.h"
+@@ -203,9 +204,75 @@ public:
+ }
+ // END OF UIKeyInput protocol
+ 
++// Kodi-iOS r11: the GUI follows the phone into portrait (the skin ships a portrait layout);
++// fullscreen video stays landscape.
++static bool PlayingVideo()
++{
++  const auto appPlayer = CServiceBroker::GetAppComponents().GetComponent<CApplicationPlayer>();
++  return appPlayer && appPlayer->IsPlayingVideo();
++}
++
+ - (UIInterfaceOrientationMask)supportedInterfaceOrientations
+ {
+-  return UIInterfaceOrientationMaskLandscape;
++  if ([[IOSScreenManager sharedInstance] isExternalScreen] || PlayingVideo())
++    return UIInterfaceOrientationMaskLandscape;
++  return UIInterfaceOrientationMaskAllButUpsideDown;
++}
++
++static void ApplyRotatedScreen(void*)
++{
++  // Runs on Kodi's application thread: re-read the screen size, rebuild the desktop
++  // resolution and switch to it, which re-lays out every window (GUI_MSG_WINDOW_RESIZE).
++  auto winSystem = dynamic_cast<CWinSystemIOS*>(CServiceBroker::GetWinSystem());
++  if (!winSystem)
++    return;
++  winSystem->ResetInternalScreenSize();
++  winSystem->UpdateResolutions();
++  [g_xbmcController setGUIInsetsFromMainThread:NO];
++  winSystem->GetGfxContext().SetVideoResolution(RES_DESKTOP, true);
++  CLog::Log(LOGINFO, "Screen rotated: {} x {}", winSystem->GetGfxContext().GetWidth(),
++            winSystem->GetGfxContext().GetHeight());
++}
++
++- (void)viewWillTransitionToSize:(CGSize)size
++       withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator
++{
++  [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
++  [coordinator animateAlongsideTransition:nil
++                               completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
++                                 [self applyRotatedScreen];
++                               }];
++}
++
++- (void)applyRotatedScreen
++{
++  if ([[IOSScreenManager sharedInstance] isExternalScreen] || !m_glView)
++    return;
++  [m_glView setFrame:self.view.bounds];
++  [m_glView setScreen:m_glView.currentScreen withFrameBufferResize:YES];
++  if (CServiceBroker::GetAppMessenger())
++  {
++    static ThreadMessageCallback callback = {ApplyRotatedScreen, nullptr};
++    CServiceBroker::GetAppMessenger()->PostMsg(TMSG_CALLBACK, -1, -1, &callback);
++  }
++}
++
++- (void)updateVideoOrientationLock
++{
++  // Called on the main thread when playback starts or stops.
++  if (@available(iOS 16.0, *))
++  {
++    [self setNeedsUpdateOfSupportedInterfaceOrientations];
++    if (PlayingVideo() && m_window.windowScene)
++    {
++      auto prefs = [[UIWindowSceneGeometryPreferencesIOS alloc]
++          initWithInterfaceOrientations:UIInterfaceOrientationMaskLandscape];
++      [m_window.windowScene requestGeometryUpdateWithPreferences:prefs
++                                                    errorHandler:nil];
++    }
++  }
++  else
++    [UIViewController attemptRotationToDeviceOrientation];
+ }
+ //--------------------------------------------------------------
+ - (UIInterfaceOrientation) getOrientation
+diff --git a/xbmc/windowing/ios/WinSystemIOS.h b/xbmc/windowing/ios/WinSystemIOS.h
+index bf8a8ae..d927130 100644
+--- a/xbmc/windowing/ios/WinSystemIOS.h
++++ b/xbmc/windowing/ios/WinSystemIOS.h
+@@ -40,6 +40,11 @@ public:
+   bool ResizeWindow(int newWidth, int newHeight, int newLeft, int newTop) override;
+   bool SetFullScreen(bool fullScreen, RESOLUTION_INFO& res, bool blankOtherDisplays) override;
+   void UpdateResolutions() override;
++  void ResetInternalScreenSize()
++  {
++    m_internalTouchscreenResolutionWidth = -1;
++    m_internalTouchscreenResolutionHeight = -1;
++  }
+   bool CanDoWindowed() override { return false; }
+ 
+   void ShowOSMouse(bool show) override {}

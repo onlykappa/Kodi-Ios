@@ -17,11 +17,9 @@ def choose_player(player):
  umbrella=next((p for p in candidates if 'umbrella' in str(p.file).lower()),None)
  if umbrella and installed('plugin.video.umbrella'):rows.append(('Umbrella','play',umbrella))
  else:rows.append(('Umbrella — coming soon','umbrella',None))
+ # Google Drive is not offered here: Elementum plays Drive-backed sources itself.
  for p in candidates:
   if p.is_local and p.kodi_file and xbmcvfs.exists(p.kodi_file):rows.append(('Local library file','play',p))
- title=str(info.get('tvshowtitle') or info.get('title') or '')
- if title:rows.append(('Search Google Drive for "'+title+'"','drive_search',None))
- rows.append(('Browse Google Drive','drive',None))
  items=[]
  for label,action,item in rows:
   li=xbmcgui.ListItem(label=label);li.setArt(art);items.append(li)
@@ -31,9 +29,4 @@ def choose_player(player):
  _,action,item=rows[selected]
  if action in NOT_READY:
   xbmcgui.Dialog().ok(*NOT_READY[action]);return None
- if action=='drive_search':
-  from urllib.parse import urlencode
-  xbmc.executebuiltin('ActivateWindow(Videos,plugin://plugin.googledrive/?'+urlencode({'action':'_search','content_type':'video','query':title})+',return)');return None
- if action=='drive':
-  xbmc.executebuiltin('ActivateWindow(Videos,plugin://plugin.googledrive/,return)');return None
  return item
