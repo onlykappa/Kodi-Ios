@@ -1,0 +1,33 @@
+{
+  "packages": [
+    {
+      "filename": "plugin.googledrive-1.6.8.zip",
+      "addon_id": "plugin.googledrive",
+      "version": "1.6.8",
+      "source_commit": "f8229d0fbf2f6546536780c1e551caac6e7f8281",
+      "files": 19,
+      "bytes": 114678,
+      "sha256": "2ec3cf757e782dcfea86cb4c796a4ab889e44d71e07bbc2ff41a9c3f6011a727",
+      "archive_integrity_verified": true,
+      "credentials_included": false,
+      "personal_media_included": false,
+      "ios_runtime_verified": false
+    },
+    {
+      "filename": "script.module.clouddrive.common-1.5.11.zip",
+      "addon_id": "script.module.clouddrive.common",
+      "version": "1.5.11",
+      "source_commit": "7d22102557bb95b89abcd2f055597db6f54da05c",
+      "files": 53,
+      "bytes": 128870,
+      "sha256": "d54b274fab576d5337f542472a9f166a64fdf2001de0899c4809beadeeb0ab2e",
+      "archive_integrity_verified": true,
+      "credentials_included": false,
+      "personal_media_included": false,
+      "ios_runtime_verified": false
+    }
+  ],
+  "private_value_comparison_performed": true,
+  "scope": "Kodi add-on installation ZIPs only; not an IPA, not installed on the Steam Deck or iPhone",
+  "reproducible_rebuild_verified": true
+}

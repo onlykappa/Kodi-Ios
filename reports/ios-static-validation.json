@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "static_only": true,
+  "target_files": 33,
+  "dependency_candidates": 43,
+  "plugin_references": [
+    "plugin.googledrive",
+    "plugin.video.themoviedb.helper"
+  ],
+  "referenced_playlists": 13,
+  "classified_manifest_records": 240,
+  "ios_runtime_verified": false,
+  "limitations": "Candidate versions satisfy recorded numeric minimums; actual iOS availability, full source skin-code parity, touch operation and exact iOS 27.0.1 behavior not verified."
+}

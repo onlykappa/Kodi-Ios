@@ -1,0 +1,35 @@
+{
+  "owner_approved_import": true,
+  "native_elementum_available": false,
+  "addons": [
+    {
+      "id": "plugin.video.kodi.ios.watch",
+      "version": "1.0.0",
+      "requires": [
+        {
+          "id": "xbmc.python",
+          "minimum_version": "3.0.1",
+          "optional": false
+        }
+      ]
+    },
+    {
+      "id": "script.kodi.ios.first_run",
+      "version": "1.0.0",
+      "requires": [
+        {
+          "id": "xbmc.python",
+          "minimum_version": "3.0.1",
+          "optional": false
+        }
+      ]
+    }
+  ],
+  "helper_patch": {
+    "id": "plugin.video.themoviedb.helper",
+    "source_version": "6.18.1",
+    "import_version": "6.18.1+ios.1",
+    "additional_dependency": "plugin.video.kodi.ios.watch"
+  },
+  "reason": "Explicit movie/episode watch dialog and TV episode-option directory; preserve artwork and normal movie context; no backend substitution or native engine claim"
+}

@@ -1,0 +1,95 @@
+name: Customized import review bundle
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/import-review.yml'
+      - 'scripts/build_import_review.py'
+      - 'scripts/build_customized_ipa.py'
+      - 'scripts/fetch_elementum_inputs.py'
+      - 'migration/elementum-ios/source-lock.json'
+      - 'scripts/test_customized_ipa.py'
+      - 'scripts/test_bundled_bootstrap.py'
+      - 'scripts/test_ios_navigation.py'
+      - 'scripts/test_updates_calibration.py'
+      - 'scripts/test_startup_sequence.py'
+      - 'migration/bundled-bootstrap/**'
+      - 'scripts/import_runtime/**'
+      - 'scripts/import_profile.py'
+      - 'scripts/smoke_import_bundle.py'
+      - 'scripts/test_import_profile.py'
+      - 'scripts/test_watch_routes.py'
+      - 'scripts/test_watch_dialog.py'
+      - 'scripts/test_activation.py'
+      - 'migration/import-inputs/**'
+      - 'migration/import-overlays/**'
+      - 'migration/ios/**'
+      - 'docs/iphone-import.md'
+permissions:
+  contents: read
+concurrency:
+  group: kodi-customized-import-review
+  cancel-in-progress: true
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Test staged import and navigation safety
+        run: |
+          python3 -B scripts/test_startup_sequence.py
+          python3 -B scripts/test_ios_navigation.py
+          python3 -B scripts/test_updates_calibration.py
+          python3 -B scripts/test_bundled_bootstrap.py
+          python3 -B scripts/test_customized_ipa.py
+          python3 -B scripts/test_import_builder.py
+          python3 -B scripts/test_import_profile.py
+          python3 -B scripts/test_watch_routes.py
+          python3 -B scripts/test_watch_dialog.py
+          python3 -B scripts/test_activation.py
+          python3 -B scripts/test_ios.py
+      - name: Acquire public pinned sources and build review ZIP
+        run: |
+          python3 -B scripts/build_import_review.py --foundation-report reports/ios-foundation-addon-audit.json --output "$RUNNER_TEMP/kodi-import-review"
+      - name: Apply full bundle twice and restore clean synthetic profile
+        run: |
+          python3 -B scripts/smoke_import_bundle.py --bundle "$RUNNER_TEMP/kodi-import-review/Kodi-iOS-Customized-Import.zip" --report "$RUNNER_TEMP/kodi-import-review/full-import-smoke.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: kodi-ios-customized-import-review
+          path: ${{ runner.temp }}/kodi-import-review/*
+          if-no-files-found: error
+          retention-days: 7
+      - name: Acquire isolated official foundation for customized IPA
+        run: |
+          mkdir -p "$RUNNER_TEMP/customized-foundation"
+          curl --fail --location --proto '=https' --proto-redir '=https' --max-time 120 --output "$RUNNER_TEMP/customized-foundation/foundation.deb" https://mirrors.kodi.tv/releases/darwin/ios-arm64/org.xbmc.kodi-ios_21.3_iphoneos-arm64.deb
+          printf '%s  %s\n' c80e2e4eded0b3be9f9c8cd19a73e3f3ac7171575dd6f08cfddf14312ca81eb8 "$RUNNER_TEMP/customized-foundation/foundation.deb" | sha256sum --check
+          dpkg-deb --extract "$RUNNER_TEMP/customized-foundation/foundation.deb" "$RUNNER_TEMP/customized-foundation/unpacked"
+      - name: Acquire pinned Elementum client, iPhoneOS engine framework and kodi-six
+        run: python3 -B scripts/fetch_elementum_inputs.py --output "$RUNNER_TEMP/elementum-inputs"
+      - name: Build and validate full customized unsigned ARM64 IPA
+        run: |
+          # The bundle was just rebuilt from pinned, hash-checked sources; pin the IPA to that exact bundle.
+          bundle_sha=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['sha256'])" "$RUNNER_TEMP/kodi-import-review/import-review-report.json")
+          python3 -B scripts/build_customized_ipa.py --app "$RUNNER_TEMP/customized-foundation/unpacked/Applications/Kodi.app" --deb "$RUNNER_TEMP/customized-foundation/foundation.deb" --bundle "$RUNNER_TEMP/kodi-import-review/Kodi-iOS-Customized-Import.zip" --expected-sha256 "$bundle_sha" --work "$RUNNER_TEMP/customized-app" --output "$RUNNER_TEMP/customized-ipa" --elementum "$RUNNER_TEMP/elementum-inputs"
+      # The owner installs the raw .ipa: publish it as a prerelease asset instead of a zipped artifact.
+      - name: Publish raw IPA as a prerelease download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          RUN: ${{ github.run_number }}
+        run: |
+          ipa=$(ls "$RUNNER_TEMP"/customized-ipa/*.ipa)
+          name=$(basename "$ipa" .ipa)
+          gh release create "build-$RUN" "$ipa" --repo "$REPO" --target "$SHA" --prerelease --title "$name (build $RUN)" --notes "Unsigned iPhone test build of $SHA. Install the .ipa with your sideloader as an update."
+          # Keep the three newest test builds.
+          gh release list --repo "$REPO" --limit 100 --json tagName,createdAt --jq '[.[] | select(.tagName | startswith("build-"))] | sort_by(.createdAt) | reverse | .[3:] | .[].tagName' |
+            while read -r tag; do gh release delete "$tag" --repo "$REPO" --cleanup-tag --yes; done

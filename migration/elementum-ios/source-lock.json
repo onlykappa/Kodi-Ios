@@ -1,0 +1,85 @@
+{
+  "owner_primary": "plugin.video.elementum",
+  "owner_execution_target": "iPhone-local engine",
+  "remote_host_approved": false,
+  "native_ios_engine_built": true,
+  "native_ios_engine_functional": false,
+  "plugin_release": {
+    "version": "0.1.114",
+    "commit": "8ea802e705c28fef692aef7908e8a7cfce9a55f0",
+    "client_zip_sha256": "ab095bd39fbeacb1dcfeb38e61bda5b047e897feb5dafbb6cf906d3102801f93",
+    "client_zip_url": "https://github.com/elgatito/plugin.video.elementum/releases/download/v0.1.114/plugin.video.elementum-0.1.114.client.zip"
+  },
+  "engine_release": {
+    "commit": "cdab7e2ed69122e048be158e2ebea70dbda789ee",
+    "libtorrent_go_commit": "d8763f5e17831acd4ec0a2841074113ae571157f",
+    "go_mod": "go 1.21 / toolchain go1.21.1"
+  },
+  "master_reviewed_separately": {
+    "plugin": "20a381074530d38d699862b6260717a7bcc854d3",
+    "engine": "8ec9539599b8a66045ca994642d61a01c6320923"
+  },
+  "recorded_utc": "2026-10-29T23:40:57.583541+00:00",
+  "status": "ENGINE BUILT ON CI; DEVICE TEST PENDING",
+  "framework_release": {
+    "tag": "elementum-engine-cdab7e2-r2",
+    "asset": "elementum.framework.zip",
+    "sha256": "dfb7b3cf02124ad1abe9c0da5e7bb3803d583509e4a51fa2249597c7649b5541"
+  },
+  "modules": [
+    {
+      "repository": "xbmc/repo-scripts",
+      "branch": "matrix",
+      "commit": "6689984b17b7756396902199deb5b90626ae8f75",
+      "trees": {
+        "script.module.kodi-six": "2cbe46637d11af7183c58ec986d815d931c47af9",
+        "script.module.future": "1146a531d53140feb5d163de82a3e97fb1d88683",
+        "script.module.autocompletion": "af1f8d5843c4bb964c288a27d755d8530946774a",
+        "script.module.inputstreamhelper": "5123929a65877bc0bf56e25c24624b9730d040d1"
+      }
+    },
+    {
+      "repository": "xbmc/repo-plugins",
+      "branch": "matrix",
+      "commit": "527461c9fb06e17621283ab35bd76e160e8669b5",
+      "trees": {
+        "plugin.program.autocompletion": "28cb73d9d46ce38801e3fc1b6d677a7e904881db"
+      }
+    }
+  ],
+  "burst": {
+    "id": "script.elementum.burst",
+    "version": "0.0.99",
+    "url": "https://github.com/elgatito/script.elementum.burst/releases/download/v0.0.99/script.elementum.burst-0.0.99.zip",
+    "sha256": "e05873d2c897e0c793569891cd5c6955bd93b12032e18bdcfc5fed2d37eb938d"
+  },
+  "engine_patches": [
+    "Skip the parent-process watch in shared-library mode (Kodi hosts the engine on iOS)"
+  ],
+  "extras": {
+    "script.module.resolveurl": {
+      "version": "5.1.212",
+      "install": "app",
+      "url": "https://raw.githubusercontent.com/Gujal00/smrzips/535d4dcc42145e2bfeaa3e0c6d5ec3d91a449c94/zips/script.module.resolveurl/script.module.resolveurl-5.1.212.zip",
+      "sha256": "28fb6b2340eccfb1337ba4421b6429aa1c8f2978834853d1229b42b2a947bc59"
+    },
+    "script.module.cocoscrapers": {
+      "version": "1.0.45",
+      "install": "profile",
+      "url": "https://raw.githubusercontent.com/not-coco-joe/repository.cocoscrapers/f1772775291a432cf2a7c6e45ea038c894ea8b70/zips/script.module.cocoscrapers/script.module.cocoscrapers-1.0.45.zip",
+      "sha256": "45abbf2134b7c7f545cc9d9a1e378a64d51764aba5fe0a3e4cb1e58573b87521"
+    },
+    "repository.jurialmunkey": {
+      "version": "3.4",
+      "install": "app",
+      "url": "https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/09bef6c5af3df8789c74dd0fe49dc0416750662d/repo/zips/repository.jurialmunkey/repository.jurialmunkey-3.4.zip",
+      "sha256": "972ba8bda0dd16108a1601534e547a774522d73cd2c7919ce651a2d32af7a3fd"
+    },
+    "repository.cocoscrapers": {
+      "version": "1.0.0",
+      "install": "app",
+      "url": "https://raw.githubusercontent.com/not-coco-joe/repository.cocoscrapers/f1772775291a432cf2a7c6e45ea038c894ea8b70/zips/repository.cocoscrapers/repository.cocoscrapers-1.0.0.zip",
+      "sha256": "9f32a572818065af9fab6c2131513470dc004fe1bb23e7fc040cfef0239d6b22"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+<smartplaylist type="movies">
+  <name>Downloaded Movies - Action</name>
+  <match>all</match>
+  <rule field="path" operator="startswith">
+    <value>special://profile/media/local_media_root_02/</value>
+  </rule>
+  <rule field="genre" operator="contains">
+    <value>Action</value>
+  </rule>
+  <order direction="descending">dateadded</order>
+</smartplaylist>

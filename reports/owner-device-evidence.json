@@ -1,0 +1,28 @@
+{
+  "recorded_utc": "2026-10-29T23:31:52.469988+00:00",
+  "evidence_type": "OWNER_REPORTED",
+  "device": "iPhone 16 Pro",
+  "os": "iOS 27.0.1",
+  "artifact": "Kodi-21.3-arm64-unsigned-candidate.ipa",
+  "project_artifact_sha256": "8d20fcc260aebcd11dee8e5c7f2807ec7c0ef24f528fd58ab43e58ba7ea8f212",
+  "device_checksum_measured": false,
+  "successful_installation_reported": true,
+  "successful_launch_reported": true,
+  "observation": "Kodi opens and basic functionality appears to work correctly.",
+  "test_timestamp": "Not supplied by owner",
+  "signer_details": "Owner-managed; identity waived for preparation",
+  "not_verified": [
+    "Migrated Arctic Fuse configuration",
+    "Elementum",
+    "Google Drive playback/authentication",
+    "Touch gestures/source selection",
+    "Screenshots/visual parity",
+    "Rollback",
+    "Complete dependency compatibility"
+  ],
+  "deployment_architecture": "Unsigned IPA plus separate sanitized import",
+  "deployment_owner_approved": true,
+  "primary_playback_addon": "plugin.video.elementum",
+  "remote_engine_host_approved": false,
+  "physical_access_by_agent": false
+}

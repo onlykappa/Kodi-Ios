@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "sha256": "8d20fcc260aebcd11dee8e5c7f2807ec7c0ef24f528fd58ab43e58ba7ea8f212",
+  "bytes": 207950917,
+  "independent_runs": [
+    40952213893,
+    40970445429
+  ],
+  "current_artifact": "https://github.com/onlykappa/Kodi-Ios/actions/runs/40970445429/artifacts/12940141859",
+  "latest_ci_job": 123785571352,
+  "latest_ci_commit": "a563adb2f4ac57414ad5c0ed7ce7a10848e6b0dc",
+  "run_url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/40970445429",
+  "method": "Two separate hosted-runner downloads checked against identical pinned DEB SHA-256; deterministic signature removal and ZIP construction; full IPA hashes equal",
+  "actual_phone_tested": false
+}

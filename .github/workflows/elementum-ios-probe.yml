@@ -1,0 +1,21 @@
+name: Owner-approved Elementum iOS build probe
+on:
+  pull_request:
+    types: [edited]
+permissions:
+  contents: read
+concurrency:
+  group: elementum-ios-owner-approved-once
+  cancel-in-progress: false
+jobs:
+  compile-real-engine:
+    if: github.event.pull_request.number == 1 && github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.body, '<!-- elementum-ios-probe-approved-20261029-one -->')
+    runs-on: macos-14
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Compile pinned real engine for iPhoneOS or report the actual blocker
+        run: bash migration/elementum-ios/probe-build.sh

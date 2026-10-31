@@ -1,0 +1,136 @@
+{
+  "recorded_utc": "2026-10-30T00:50:47.359510+00:00",
+  "host_tests": [
+    {
+      "suite": "test_activation.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "test_checks.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "suite": "test_ci_workflow.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "test_drive_integration.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "suite": "test_drive_packages.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "test_drive_research.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "test_drive_runtime.py",
+      "passed": true,
+      "tests": 9
+    },
+    {
+      "suite": "test_import_builder.py",
+      "passed": true,
+      "tests": 13
+    },
+    {
+      "suite": "test_import_profile.py",
+      "passed": true,
+      "tests": 19
+    },
+    {
+      "suite": "test_ios.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "suite": "test_ios_foundation.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "suite": "test_roadmap.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "test_skin_comparison.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "suite": "test_unsigned_ipa.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "suite": "test_visual_roster.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "suite": "test_watch_dialog.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "suite": "test_watch_routes.py",
+      "passed": true,
+      "tests": 9
+    }
+  ],
+  "test_count": 133,
+  "all_host_suites_passed": true,
+  "device_tested": false,
+  "engine_status": "DEFERRED BY OWNER; not built",
+  "capture_requirements_retained": 184,
+  "actual_screenshots": 0,
+  "limitations": "Host/static and synthetic full-bundle tests pass. Actual phone access/import/activation, gestures, Google Drive playback, screenshots and rollback remain pending.",
+  "source_immutability": "reports/phase4-source-immutability.json: 22463 files, zero changes",
+  "source_build_failures": [
+    {
+      "run": 40980673919,
+      "error": "Unexpected upstream archive root; no complete artifact"
+    },
+    {
+      "run": 40980888449,
+      "error": "script.trakt duplicate/case-colliding ZIP members; no complete artifact"
+    },
+    {
+      "run": 40981093445,
+      "error": "Differing es_mx/es_MX translation aliases; normalize lowercase per Kodi layout, keep code collision checks strict"
+    },
+    {
+      "run": 40981317944,
+      "error": "Drive git-archive export-ignore omits repository metadata; adjust lookup order, keep runtime blob checks"
+    }
+  ],
+  "superseded_artifacts": [
+    {
+      "run": 40981565041,
+      "reason": "Importer settings-definition bug; do not apply this kit",
+      "owner_device_use_reported": false
+    }
+  ],
+  "full_import_smoke": {
+    "passed": true,
+    "bundle_sha256": "cc5d7eb7efa62f1f389f67451b3b94ab8d6a0deda15b94d6e66b48f3ea06669e",
+    "addon_source_files_verified": 7324,
+    "configuration_files": 30,
+    "apply": "PASS",
+    "repeat_zero_writes": "PASS",
+    "restore_all_clean_hashes": "PASS",
+    "fixture": "synthetic private exported-profile copy",
+    "actual_phone_tested": false,
+    "original_deck_read_or_written": false
+  },
+  "artifact_receipt": "reports/phase4-import-artifact.json"
+}

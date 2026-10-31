@@ -1,0 +1,16 @@
+{
+  "suite": "scripts/test_checks.py",
+  "tests": 9,
+  "passed": true,
+  "cases": [
+    "clean_baseline",
+    "google_api_key_rejected",
+    "encoded_credential_url_rejected",
+    "snapshot_tamper_rejected",
+    "missing_playlist_rejected",
+    "archive_file_rejected",
+    "device_path_rejected",
+    "private_source_value_rejected",
+    "symlink_directory_rejected"
+  ]
+}

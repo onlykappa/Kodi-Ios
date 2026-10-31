@@ -1,0 +1,20 @@
+[
+  {
+    "label": "Sports",
+    "path": "videodb://movies/titles/",
+    "icon": "special://profile/media/local_media_root_06/",
+    "target": ""
+  },
+  {
+    "label": "$LOCALIZE[3]",
+    "icon": "special://skin/extras/icons/video.png",
+    "path": "ActivateWindow(videos)",
+    "target": ""
+  },
+  {
+    "label": "Google Drive",
+    "path": "plugin://plugin.googledrive/",
+    "icon": "DefaultFolder.png",
+    "target": "videos"
+  }
+]

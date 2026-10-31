@@ -1,0 +1,136 @@
+{
+  "target": "iPhone 16 Pro / iOS 27.0.1 / non-jailbroken / arm64",
+  "configuration_status": "PROVISIONAL_STATIC_IMPORT_CONFIGURATION",
+  "ipa_created": false,
+  "runtime_verified": false,
+  "files": [
+    {
+      "path": "adaptations.json",
+      "sha256": "2509684935d3797ceba9b4414345c0baee3f10a5baafca968f63760020a1cfbb"
+    },
+    {
+      "path": "addon-plan.json",
+      "sha256": "e63e53029b3d31313e537c06c82ceab14422402147be47fd36d2e9e9c48e5b54"
+    },
+    {
+      "path": "userdata/addon_data/plugin.googledrive/settings.xml",
+      "sha256": "c9514e78f115f4f141d769209f353b2aa8fa8457cdc80a7f0ed94ef0fb73749f"
+    },
+    {
+      "path": "userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json",
+      "sha256": "57518bb7131f71837db1ae6e15f99e35228a3504d722b99abea97057b864b7cb"
+    },
+    {
+      "path": "userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json",
+      "sha256": "02dde68fa60809af2946b1579a21db112ae4c6e9053a2fccae4ffc99db418cfe"
+    },
+    {
+      "path": "userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1103widgets.json",
+      "sha256": "3cf5bc93d5efcd72973007a43e1a9457e4af4a7edc2b2635942c8f0cd8d85da0"
+    },
+    {
+      "path": "userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json",
+      "sha256": "85bcc8478ef4b7e475918ff3ca4d2dd43238f93f154cef5a69e5872ea8fce742"
+    },
+    {
+      "path": "userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json",
+      "sha256": "8f0ea7d3f0cfa432c2046aa4775f7afcd17107aec871b79a2d93a4945bdbe150"
+    },
+    {
+      "path": "userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json",
+      "sha256": "00710831264fe6f6daf1dc6b72d161f1d556b6d1baf5be5dd43813d9fd1d7349"
+    },
+    {
+      "path": "userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json",
+      "sha256": "1ffad57b09d3b30d5e26a9499d2af7ba46191bbf0382408b8d396b142bfcc069"
+    },
+    {
+      "path": "userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-powermenu.json",
+      "sha256": "8746be62cf94f11e81161ad5c5077ef81963e6718577e48a7483f833ab725fe8"
+    },
+    {
+      "path": "userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json",
+      "sha256": "bc7f705fd4844a2f9477f2e897ccf51a8105a4d1ad2e670d1dbdc6a139f18cf8"
+    },
+    {
+      "path": "userdata/addon_data/script.skinvariables/skin.arctic.fuse.3-viewtypes.json",
+      "sha256": "daec2f280bd79037487efbe90f452403eeffea96f9147fcd0d637b5090371f3c"
+    },
+    {
+      "path": "userdata/addon_data/skin.arctic.fuse.3/settings.xml",
+      "sha256": "cf89c4d767d6aa1f148e7236526959e70719962a03ce58fd6c29021e2c4d68d0"
+    },
+    {
+      "path": "userdata/addon_data/skin.arctic.zephyr.mod/settings.xml",
+      "sha256": "c1a7116cd3d2d0681bbb64c0aa5b696b72eba3800c0c9c487039067c5f6d9226"
+    },
+    {
+      "path": "userdata/guisettings.xml",
+      "sha256": "aee1a3b6c4783011795b9cef259e62bf22681884e8fe80f82472cd89af1c599b"
+    },
+    {
+      "path": "userdata/keymaps/ios-touch.xml",
+      "sha256": "6bb433034484ba927187feeb700c6af66c7514b0936806119e70b53dfdde04e1"
+    },
+    {
+      "path": "userdata/playlists/video/Downloaded Shows.xsp",
+      "sha256": "42ccdb460372d10d96c45bb0a254afe6a844fc02f2fe7f4b8f0c6b8280747c59"
+    },
+    {
+      "path": "userdata/playlists/video/In Progress Movies.xsp",
+      "sha256": "1c0e8a3c90f57eadfe747dcef4e3f092475247e6e63b1a62beecc45679a32d87"
+    },
+    {
+      "path": "userdata/playlists/video/offline_movies_action.xsp",
+      "sha256": "59ebfa365523ac9fafa95c7823445f43a4f51726ac3b8759c8ef3a98bee2dfc8"
+    },
+    {
+      "path": "userdata/playlists/video/offline_movies_comedy.xsp",
+      "sha256": "9a8e16c718b72f20d999ea31f9fbbe3f5a4183cdd292c9adcc89055823ffccdb"
+    },
+    {
+      "path": "userdata/playlists/video/offline_movies_horror.xsp",
+      "sha256": "a9c04099862285a7cbd8e53f5d1864c69fbcaa31da85246d681ec9343adc62c9"
+    },
+    {
+      "path": "userdata/playlists/video/offline_movies_inprogress.xsp",
+      "sha256": "e15be788bd8173a95fa191f0b8c05f163ffb97e6b2d295e7af968f31096f3b65"
+    },
+    {
+      "path": "userdata/playlists/video/offline_movies_recent.xsp",
+      "sha256": "bc0a310a70afd334b920e63c1075758e72ade71be6b25fb76530511138176605"
+    },
+    {
+      "path": "userdata/playlists/video/offline_movies_scifi.xsp",
+      "sha256": "d80a27c6bf7352a1a26ff4bc94f542f4d16c5893935d3a3eb9458f09a897c8b4"
+    },
+    {
+      "path": "userdata/playlists/video/offline_shows_action.xsp",
+      "sha256": "afa1f56b41e0ddeb6e342c29ba95f96fc8e8ace5d0ff04ccffe7bf3ee6b17956"
+    },
+    {
+      "path": "userdata/playlists/video/offline_shows_comedy.xsp",
+      "sha256": "70bef2c7d8050ab2144eb61e95a87caa0f1e0fc5e67d2a4b1c505448b43a591d"
+    },
+    {
+      "path": "userdata/playlists/video/offline_shows_episodes_recent.xsp",
+      "sha256": "c975850bcc7ad8daef26b1816c72e9c7cce5ca9c4d99be47f02484f59d61af3f"
+    },
+    {
+      "path": "userdata/playlists/video/offline_shows_inprogress.xsp",
+      "sha256": "55de84300590865766de412169c01e9ddd2fd9701207e4496ebf4fc55a369b41"
+    },
+    {
+      "path": "userdata/playlists/video/offline_shows_recent.xsp",
+      "sha256": "a7b0f51fc1a81ee15ee8cf4a494c23be402247b30f3b39ca8fbd2c16e4318d1e"
+    },
+    {
+      "path": "userdata/playlists/video/offline_shows_scifi.xsp",
+      "sha256": "942b8f3c8cd36078a9193eea45f291f8a68308c2892d9f9f9344489ac38b3401"
+    },
+    {
+      "path": "userdata/sources.xml",
+      "sha256": "6516437f35d037ebfd17652295fc38b73b2629856685a07592a7c45160f3d757"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "suite": "Pinned cguZZman/script.module.clouddrive.common upstream unittest discover -s tests -v",
+  "source_commit": "7d22102557bb95b89abcd2f055597db6f54da05c",
+  "executed_utc": "2026-10-29T19:14:33.779349+00:00",
+  "tests_run": 42,
+  "passed": 34,
+  "failures": 0,
+  "errors": 8,
+  "suite_passed": false,
+  "environment_blocked": true,
+  "root_cause": "PermissionError: [Errno 1] Operation not permitted when creating AF_INET loopback sockets; assertions in eight network-dependent streaming tests could not run",
+  "failed_tests": [
+    "test_a_connection_closed_by_the_server_is_replaced",
+    "test_a_bounded_range_is_one_request",
+    "test_a_provider_that_ignores_ranges_is_passed_on",
+    "test_head_requests_are_passed_on",
+    "test_open_ended_range_is_read_in_growing_chunks_over_one_connection",
+    "test_probes_that_hang_up_reuse_the_connection",
+    "test_the_authorization_header_only_goes_to_the_same_host",
+    "test_without_a_range_the_player_gets_the_whole_file"
+  ],
+  "validated_text_source_files": 74,
+  "complete_upstream_file_identities_recorded": 97,
+  "binary_assets_downloaded": false,
+  "personal_google_account_accessed": false,
+  "personal_media_used": false,
+  "original_kodi_modified": false,
+  "tests_use_fake_kodi_modules": true,
+  "missing_host_dependencies_mocked": [
+    "dateutil",
+    "pyqrcode"
+  ],
+  "ios_runtime_verified": false,
+  "required_action": "Rerun unchanged pinned upstream suite in an authorized executor permitting loopback sockets; diagnose any subsequent assertion failures and retain results. Do not bypass restrictions or skip tests."
+}

@@ -1,0 +1,4 @@
+<keymap>
+  <global><touch><tap>LeftClick</tap><longpress>ContextMenu</longpress><pan>PanGesture</pan><swipe direction="left" pointers="2">Back</swipe><swipe direction="right" pointers="2">Menu</swipe></touch></global>
+  <FullScreenVideo><touch><tap pointers="3">PlayPause</tap><swipe direction="left">StepBack</swipe><swipe direction="right">StepForward</swipe></touch></FullScreenVideo>
+</keymap>

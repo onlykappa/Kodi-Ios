@@ -1,0 +1,92 @@
+[
+  {
+    "label": "In Progress Movies",
+    "path": "special://profile/playlists/video/In Progress Movies.xsp",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos"
+  },
+  {
+    "label": "Recommended Movies For You",
+    "path": "plugin://plugin.video.themoviedb.helper?info=trakt_recommendations&type=movie",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "My Movie Library",
+    "path": "videodb://movies/titles/",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Popular Movies",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=movie&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Netflix Original Movies",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=movie&with_id=True&with_companies=178464&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Action Movies",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=movie&with_id=True&with_genres=28&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Comedy Movies",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=movie&with_id=True&with_genres=35&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Drama Movies",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=movie&with_id=True&with_genres=18&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Thriller Movies",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=movie&with_id=True&with_genres=53&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Horror Movies",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=movie&with_id=True&with_genres=27&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Sci-Fi Movies",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=movie&with_id=True&with_genres=878&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Family Movies",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=movie&with_id=True&with_genres=10751&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Anime Movies",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=movie&with_id=True&with_genres=16&with_original_language=ja&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  }
+]

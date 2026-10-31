@@ -1,0 +1,444 @@
+{
+  "changes": [
+    {
+      "location": "addon_data/plugin.video.themoviedb.helper/players/deck.elementum.json",
+      "reason": "Desktop keymap or excluded player definition; retained in immutable baseline"
+    },
+    {
+      "location": "addon_data/plugin.video.themoviedb.helper/players/deck.umbrella.json",
+      "reason": "Desktop keymap or excluded player definition; retained in immutable baseline"
+    },
+    {
+      "location": "addon_data/plugin.video.themoviedb.helper/reconfigured_players/autogen.plugin.video.elementum.json",
+      "reason": "Desktop keymap or excluded player definition; retained in immutable baseline"
+    },
+    {
+      "location": "addon_data/plugin.video.themoviedb.helper/reconfigured_players/autogen.plugin.video.umbrella.json",
+      "reason": "Desktop keymap or excluded player definition; retained in immutable baseline"
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json[0]",
+      "reason": "YouTube/Fusion fully removed from iOS target by explicit owner instruction"
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json[1]/path",
+      "reason": "Excluded or deferred backend",
+      "replacement": "Local library browsing; playback backend not yet configured"
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[13]/path",
+      "reason": "Excluded or deferred backend",
+      "replacement": "Local library browsing; playback backend not yet configured"
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[14]/label",
+      "reason": "Excluded or deferred backend",
+      "replacement": "Local library browsing; playback backend not yet configured"
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[14]/path",
+      "reason": "Excluded or deferred backend",
+      "replacement": "Local library browsing; playback backend not yet configured"
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[15]/path",
+      "reason": "Excluded or deferred backend",
+      "replacement": "Local library browsing; playback backend not yet configured"
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-powermenu.json[3]/path",
+      "reason": "Desktop application-exit action replaced with accessible settings route",
+      "replacement": "ActivateWindow(Settings)"
+    },
+    {
+      "location": "addon_data/skin.arctic.fuse.3/settings.xml/REDACTED_OPAQUE_VALUE",
+      "reason": "Excluded backend preference removed from target only"
+    },
+    {
+      "location": "keymaps/deck-navigation.xml",
+      "reason": "Desktop keymap or excluded player definition; retained in immutable baseline"
+    },
+    {
+      "location": "keymaps/zz_kannon_video_dpad.xml",
+      "reason": "Desktop keymap or excluded player definition; retained in immutable baseline"
+    },
+    {
+      "location": "addon_data/plugin.googledrive/settings.xml",
+      "reason": "Approved direct Drive relay and safe subtitles/resume preferences; account state absent; optional directory listing disabled"
+    }
+  ],
+  "menu_mapping": [
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json[0]",
+      "target_label": "In Progress Episodes",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json[1]",
+      "target_label": "Recommended Shows For You",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json[2]",
+      "target_label": "My TV Library",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json[3]",
+      "target_label": "Popular TV Shows",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json[4]",
+      "target_label": "Top Rated TV Shows",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json[5]",
+      "target_label": "Comedy Shows",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json[6]",
+      "target_label": "Action and Adventure Shows",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json[7]",
+      "target_label": "Anime",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json[8]",
+      "target_label": "Drama Shows",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json[9]",
+      "target_label": "Crime and Thriller Shows",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json[10]",
+      "target_label": "Sci-Fi and Fantasy Shows",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json[11]",
+      "target_label": "Family Shows",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1101widgets.json[12]",
+      "target_label": "Recently Added Episodes",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json[0]",
+      "target_label": "In Progress Movies",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json[1]",
+      "target_label": "Recommended Movies For You",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json[2]",
+      "target_label": "My Movie Library",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json[3]",
+      "target_label": "Popular Movies",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json[4]",
+      "target_label": "Netflix Original Movies",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json[5]",
+      "target_label": "Action Movies",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json[6]",
+      "target_label": "Comedy Movies",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json[7]",
+      "target_label": "Drama Movies",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json[8]",
+      "target_label": "Thriller Movies",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json[9]",
+      "target_label": "Horror Movies",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json[10]",
+      "target_label": "Sci-Fi Movies",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json[11]",
+      "target_label": "Family Movies",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1102widgets.json[12]",
+      "target_label": "Anime Movies",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1103widgets.json[0]",
+      "target_label": "Recently Added Shows",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1103widgets.json[1]",
+      "target_label": "Recent Episodes",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1103widgets.json[2]",
+      "target_label": "Animation & Sci-Fi",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1103widgets.json[3]",
+      "target_label": "Comedy",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json[0]",
+      "target_label": "Continue Watching",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json[1]",
+      "target_label": "Recently Added",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json[2]",
+      "target_label": "Action",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json[3]",
+      "target_label": "Comedy",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json[4]",
+      "target_label": "Sci-Fi",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1104widgets.json[5]",
+      "target_label": "Horror",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json[0]",
+      "target_label": "Continue Watching",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json[1]",
+      "target_label": "Recently Added",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json[2]",
+      "target_label": "Action & Adventure",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json[3]",
+      "target_label": "Comedy",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-1105widgets.json[4]",
+      "target_label": "Sci-Fi & Fantasy",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json[1]",
+      "target_label": "Sports",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json[2]",
+      "target_label": "$LOCALIZE[3]",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[0]",
+      "target_label": "In Progress Movies",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[1]",
+      "target_label": "In Progress Episodes",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[2]",
+      "target_label": "Recommended Movies For You",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[3]",
+      "target_label": "Recommended Shows For You",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[4]",
+      "target_label": "Recently Added Movies",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[5]",
+      "target_label": "Recently added Tv",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[6]",
+      "target_label": "Netflix Originals",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[7]",
+      "target_label": "Netflix Original Movies",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[8]",
+      "target_label": "Disney+ Originals",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[9]",
+      "target_label": "Prime Video Originals",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[10]",
+      "target_label": "Apple TV+ Originals",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[11]",
+      "target_label": "HBO Originals",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[12]",
+      "target_label": "Max Originals",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[13]",
+      "target_label": "Live Sports",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[14]",
+      "target_label": "Local library",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[15]",
+      "target_label": "Elementum-SSD",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json[16]",
+      "target_label": "Video add-ons",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-powermenu.json[0]",
+      "target_label": "$LOCALIZE[1036]",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-powermenu.json[1]",
+      "target_label": "$LOCALIZE[7]",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-powermenu.json[2]",
+      "target_label": "$LOCALIZE[31359]",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-powermenu.json[3]",
+      "target_label": "$LOCALIZE[13009]",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json[0]",
+      "target_label": "Movies",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json[1]",
+      "target_label": "TV Shows",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json[2]",
+      "target_label": "Albums",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json[3]",
+      "target_label": "Artists",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json[4]",
+      "target_label": "Movies (TMDb)",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-searchwidgets.json[5]",
+      "target_label": "TV Shows (TMDb)",
+      "retained_menu_slot": true
+    },
+    {
+      "location": "homesubmenu/Google Drive",
+      "target_label": "Google Drive",
+      "retained_menu_slot": false,
+      "new_integration": true
+    }
+  ],
+  "empty_media_directories_to_create": [
+    "media/local_media_root_01/",
+    "media/local_media_root_02/",
+    "media/local_media_root_03/",
+    "media/local_media_root_04/",
+    "media/local_media_root_06/",
+    "media/local_media_root_07/",
+    "media/local_media_root_08/",
+    "media/local_media_root_09/",
+    "media/network_source_10/",
+    "media/network_source_11/",
+    "media/network_source_12/"
+  ],
+  "touch_runtime_verified": false,
+  "fuse_layout_touch_compatibility": "Unverified; upstream touch issue remains. Gesture adapter does not fix individual skin control geometry.",
+  "media_library": "Empty until private sources/Drive added in later phase; browse replacements are not equivalent stream providers."
+}

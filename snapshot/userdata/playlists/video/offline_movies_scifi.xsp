@@ -1,0 +1,11 @@
+<smartplaylist type="movies">
+  <name>Downloaded Movies - Sci-Fi</name>
+  <match>all</match>
+  <rule field="path" operator="startswith">
+    <value>${LOCAL_MEDIA_ROOT_02}</value>
+  </rule>
+  <rule field="genre" operator="contains">
+    <value>Science Fiction</value>
+  </rule>
+  <order direction="descending">dateadded</order>
+</smartplaylist>

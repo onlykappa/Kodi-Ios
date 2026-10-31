@@ -1,0 +1,17 @@
+{
+  "evidence_type": "ACTUAL_CI_EXECUTOR_FAILURE",
+  "run_url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/40975489124",
+  "job_id": 123802357346,
+  "runner": "macos-14-arm64",
+  "conclusion": "failure",
+  "error": "BLOCKED: missing go",
+  "exit_code": 2,
+  "sdk_discovery_reached": false,
+  "engine_compilation_reached": false,
+  "engine_built": false,
+  "device_playback_tested": false,
+  "approved_mac_attempts_consumed": 1,
+  "retry_approved": false,
+  "owner_direction": "DEFER ENGINE; finish available Phase 4 migration preparation",
+  "raw_logs_published": false
+}

@@ -1,0 +1,90 @@
+[
+  {
+    "label": "In Progress Episodes",
+    "path": "special://skin/extras/playlists/InProgressEpisodes.xsp",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos"
+  },
+  {
+    "label": "Recommended Shows For You",
+    "path": "plugin://plugin.video.themoviedb.helper?info=trakt_recommendations&type=tv",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "My TV Library",
+    "path": "special://profile/media/local_media_root_04/",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos"
+  },
+  {
+    "label": "Popular TV Shows",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Top Rated TV Shows",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&sort_by=vote_average.desc&vote_count.gte=500",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Comedy Shows",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_id=True&with_genres=35&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Action and Adventure Shows",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_id=True&with_genres=10759&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Anime",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_id=True&with_genres=16&with_original_language=ja&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Drama Shows",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_id=True&with_genres=18&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Crime and Thriller Shows",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_id=True&with_genres=80&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Sci-Fi and Fantasy Shows",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_id=True&with_genres=10765&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Family Shows",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_id=True&with_genres=10751&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Recently Added Episodes",
+    "path": "special://skin/extras/playlists/NewShows.xsp",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos"
+  }
+]

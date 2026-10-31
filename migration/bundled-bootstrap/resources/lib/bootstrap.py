@@ -1,0 +1,180 @@
+"""Transactional profile seed; no addon database edits or native executable launches."""
+import hashlib,json,os,shutil,xml.etree.ElementTree as ET
+from pathlib import Path,PurePosixPath
+ID='service.kodi.ios.bootstrap'
+def sha(b):return hashlib.sha256(b).hexdigest()
+def checked_name(name):
+ p=PurePosixPath(name)
+ if p.is_absolute() or '..' in p.parts or '\\' in name or p.as_posix()!=name:raise ValueError('Unsafe seed path')
+ return name
+
+def tree_digest(root):
+ parts=[]
+ for path in sorted(root.rglob('*')):
+  if path.is_symlink():raise ValueError('Skin source symlink refused')
+  if path.is_file():parts.append(path.relative_to(root).as_posix()+' '+sha(path.read_bytes()))
+ return sha(('\n'.join(parts)).encode())
+
+def stage_skins(seed,home,descriptors,refresh):
+ import uuid
+ for item in descriptors:
+  id=item['id']
+  if not id.startswith('skin.') or '/' in id or '..' in id:raise ValueError('Invalid mutable skin ID')
+  source=seed.parent.parent/id
+  if tree_digest(source)!=item['tree_sha256']:raise ValueError('Packaged skin source hash mismatch')
+ for item in descriptors:
+  id=item['id'];source=seed.parent.parent/id;destination=home/'addons'/id
+  if destination.is_symlink() or any(x.is_symlink() for x in destination.parents):raise ValueError('Writable skin symlink refused')
+  if destination.exists():
+   xml=ET.parse(destination/'addon.xml').getroot()
+   if xml.get('id')!=id or xml.get('version')!=item['version']:raise ValueError('Existing writable skin version conflicts')
+   continue # Preserve owner edits/generated files; no overwrite of an existing skin.
+  destination.parent.mkdir(parents=True,exist_ok=True);temporary=destination.parent/('.ios-skin-'+uuid.uuid4().hex)
+  try:
+   shutil.copytree(source,temporary)
+   if tree_digest(temporary)!=item['tree_sha256']:raise ValueError('Writable skin copy mismatch')
+   os.replace(temporary,destination)
+  finally:
+   if temporary.exists():shutil.rmtree(temporary)
+ if descriptors:
+  if refresh is None:raise ValueError('Kodi rescan callback required for writable skins')
+  refresh([home/'addons'/item['id'] for item in descriptors])
+
+def restore(profile,api):
+ state=profile/'addon_data'/ID;record=json.loads((state/'journal.json').read_text())
+ for item in reversed(record['files']):
+  dest=profile/checked_name(item['path'])
+  if item['existed']:
+   data=(state/'backup'/item['path']).read_bytes()
+   if sha(data)!=item['backup_sha256']:raise ValueError('Recovery backup integrity mismatch')
+   dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data)
+  elif dest.exists():dest.unlink()
+ errors=[]
+ for key,value in record.get('gui',{}).items():
+  if api('Settings.SetSettingValue',{'setting':key,'value':value}).get('result') is not True:errors.append(key)
+ for item in reversed(record.get('enabled',[])):
+  if api('Addons.SetAddonEnabled',{'addonid':item,'enabled':False}).get('result')!='OK':errors.append(item)
+ if api('Settings.SetSettingValue',{'setting':'lookandfeel.skin','value':'skin.estuary'}).get('result') is not True:errors.append('skin.estuary')
+ if errors:
+  (state/'status.json').write_text(json.dumps({'status':'RECOVERY INCOMPLETE','failed_api_requests':errors,'phone_verified':False}));raise RuntimeError('Recovery API requests failed')
+ (state/'status.json').write_text(json.dumps({'status':'RESTORED','phone_verified':False}))
+ return 'RESTORED'
+
+def install_players(root,profile,has_addon):
+ """TMDb Helper players for add-ons the owner installs on the phone themselves (Umbrella is not bundled).
+ Copied only once that add-on exists, and never over a player file the owner already has."""
+ installed=[]
+ for path in sorted((Path(root)/'resources/players').glob('*.json')):
+  dest=Path(profile)/'addon_data/plugin.video.themoviedb.helper/players'/path.name
+  if dest.exists() or not has_addon(json.loads(path.read_text())['plugin']):continue
+  dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(path.read_bytes());installed.append(path.name)
+ return installed
+
+def install_payload(root,home):
+ """Copy add-ons shipped in payload/ into the writable add-ons folder: Umbrella loads its scraper module only from
+ special://home/addons. Never over a copy that is already there (the owner may have updated it from its repository)."""
+ payload=Path(root)/'payload';copied=[]
+ for source in sorted(payload.iterdir()) if payload.is_dir() else []:
+  dest=Path(home)/'addons'/source.name
+  if dest.exists() or not (source/'addon.xml').is_file():continue
+  temp=dest.with_name(dest.name+'.ios-seed-tmp')
+  if temp.exists():shutil.rmtree(temp)
+  shutil.copytree(source,temp);os.replace(temp,dest);copied.append(source.name)
+ return copied
+
+def umbrella_defaults(get_setting,set_setting):
+ """Point Umbrella at CocoScrapers, as on the Deck, unless the owner already chose an external provider module."""
+ if get_setting('external_provider.module'):return False
+ set_setting('provider.external.enabled','true');set_setting('external_provider.name','cocoscrapers');set_setting('external_provider.module','script.module.cocoscrapers')
+ return True
+
+def elementum_defaults(downloads,get_setting,set_setting):
+ """Elementum asks for a download folder before its first stream; use one the Files app can see. iOS can move the
+ app's data folder on reinstall, so a folder set here earlier is followed to the current path; the owner's own choice stays."""
+ current=get_setting('download_path').rstrip('/')
+ if current and (current==str(downloads).rstrip('/') or not current.endswith('/Documents/Elementum Downloads')):return None
+ Path(downloads).mkdir(parents=True,exist_ok=True);set_setting('download_path',str(downloads).rstrip('/')+'/');return str(downloads)
+
+def ensure_enabled(seed,profile,api):
+ """After an app update: switch on bundled add-ons that are still off, such as dependencies a newer build added.
+ Only for a completed setup, so a recovered (Estuary) profile stays as the owner left it."""
+ state=Path(profile)/'addon_data'/ID;status=state/'status.json'
+ if not status.exists() or json.loads(status.read_text()).get('status')!='COMPLETE':return []
+ manifest=json.loads((Path(seed)/'seed-manifest.json').read_text());enabled=[]
+ for addon in manifest['addons']:
+  details=api('Addons.GetAddonDetails',{'addonid':addon,'properties':['enabled']})
+  if 'error' in details or details['result']['addon']['enabled']:continue
+  if api('Addons.SetAddonEnabled',{'addonid':addon,'enabled':True}).get('result')=='OK':enabled.append(addon)
+ journal=state/'journal.json'
+ if enabled and journal.exists():
+  # Recovery disables what setup enabled; include these so it stays a full undo.
+  record=json.loads(journal.read_text());record['enabled']=record.get('enabled',[])+[a for a in enabled if a not in record.get('enabled',[])];journal.write_text(json.dumps(record,indent=2))
+ return enabled
+
+def initialize(seed,profile,api,fail_after=None,verify_skin=None,home=None,refresh=None):
+ seed=Path(seed);profile=Path(profile)
+ if '/.var/app/tv.kodi.Kodi' in str(profile.resolve()) or profile.is_symlink():raise ValueError('Original Deck/symlink refused')
+ manifest=json.loads((seed/'seed-manifest.json').read_text());state=profile/'addon_data'/ID;status=state/'status.json'
+ if status.exists():
+  previous=json.loads(status.read_text())
+  if previous['status']=='FAILED; RECOVERED TO ESTUARY' and previous.get('seed')!=manifest['version']:
+   import uuid
+   # Retain old journals/backups/failure evidence before a revised, explicitly approved setup retry.
+   os.replace(state,state.with_name(ID+'.history-'+uuid.uuid4().hex))
+  else:return previous['status']
+ # Validate every input and all API availability before the first profile write.
+ bodies={}
+ for entry in manifest['files']:
+  name=checked_name(entry['path']);data=(seed/name).read_bytes()
+  if sha(data)!=entry['sha256']:raise ValueError('Seed hash mismatch')
+  dest=profile/name
+  if dest.is_symlink() or any(p.is_symlink() for p in dest.parents):raise ValueError('Profile symlink refused')
+  bodies[name]=data
+ states={}
+ for addon in manifest['addons']:
+  r=api('Addons.GetAddonDetails',{'addonid':addon,'properties':['enabled','version']})
+  if 'error' in r:raise ValueError('Bundled add-on not registered: '+addon)
+  states[addon]=r['result']['addon']['enabled']
+ state.mkdir(parents=True,exist_ok=True);journal={'files':[],'enabled':[],'gui':{}}
+ for name,data in bodies.items():
+  if name=='guisettings.xml':continue
+  dest=profile/name;entry={'path':name,'existed':dest.exists()}
+  if dest.exists():
+   original=dest.read_bytes();backup=state/'backup'/name;backup.parent.mkdir(parents=True,exist_ok=True);backup.write_bytes(original);entry['backup_sha256']=sha(original)
+  journal['files'].append(entry)
+ def save():
+  (state/'journal.json').write_text(json.dumps(journal,indent=2));status.write_text(json.dumps({'status':'IN PROGRESS','seed':manifest['version'],'phone_verified':False}))
+ save()
+ try:
+  stage_skins(seed,Path(home) if home is not None else profile.parent,manifest.get('mutable_skins',[]),refresh)
+  for name,data in bodies.items():
+   if name=='guisettings.xml':continue
+   dest=profile/name
+   if name.startswith('addon_data/') and name.endswith('/settings.xml') and dest.exists():
+    old=ET.fromstring(dest.read_bytes());incoming=ET.fromstring(data);mapping={e.get('id'):e for e in old.findall('setting')}
+    for entry in incoming.findall('setting'):
+     if entry.get('id') in mapping:old.remove(mapping[entry.get('id')])
+     old.append(entry)
+    data=ET.tostring(old,encoding='utf-8')
+   dest.parent.mkdir(parents=True,exist_ok=True);temp=dest.with_name(dest.name+'.ios-seed-tmp');temp.write_bytes(data);os.replace(temp,dest)
+   if fail_after=='files':raise RuntimeError('Injected setup failure')
+  for addon,enabled in states.items():
+   if enabled:continue
+   # Persist intent before API mutation so recovery can undo an interrupted request.
+   journal['enabled'].append(addon);save()
+   if api('Addons.SetAddonEnabled',{'addonid':addon,'enabled':True}).get('result')!='OK':raise RuntimeError('Enable failed: '+addon)
+  # Load the selected GUI preferences using Kodi's live API; never overwrite live guisettings.xml.
+  gui=ET.fromstring(bodies['guisettings.xml'])
+  for setting in gui.findall('setting'):
+   key=setting.get('id')
+   if key in {'lookandfeel.skin','input.enablemouse'}:continue # Hidden on iOS; native touch uses the platform input path.
+   current=api('Settings.GetSettingValue',{'setting':key})
+   if 'error' in current:raise RuntimeError('Unknown GUI setting: '+key)
+   old=current['result']['value'];journal['gui'][key]=old;save();raw=setting.text or '';value=(raw.lower()=='true') if isinstance(old,bool) else int(raw) if isinstance(old,int) else raw
+   if api('Settings.SetSettingValue',{'setting':key,'value':value}).get('result') is not True:raise RuntimeError('GUI preference failed: '+key)
+  if api('Settings.SetSettingValue',{'setting':'lookandfeel.skin','value':'skin.arctic.fuse.3'}).get('result') is not True:raise RuntimeError('Skin activation failed')
+  if verify_skin is not None and not verify_skin():raise RuntimeError('Fuse did not load or its confirmation was declined')
+  status.write_text(json.dumps({'status':'COMPLETE','seed':manifest['version'],'phone_verified':False}))
+  return 'COMPLETE'
+ except BaseException:
+  restore(profile,api);status.write_text(json.dumps({'status':'FAILED; RECOVERED TO ESTUARY','seed':manifest['version'],'phone_verified':False}));raise

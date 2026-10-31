@@ -1,0 +1,63 @@
+{
+  "ipa": {
+    "filename": "Kodi-iOS-Customized-Touch-r2.ipa",
+    "sha256": "d67b59e286206c5a1b7abaee07d11720de87e2967c28182754c4da3594b7006e",
+    "bytes": 577524657,
+    "foundation_sha256": "c80e2e4eded0b3be9f9c8cd19a73e3f3ac7171575dd6f08cfddf14312ca81eb8",
+    "native_images": 151,
+    "signature_commands_removed": 150,
+    "removed_profile_signature_files": [],
+    "unresolved_weak_loads": [],
+    "zip_integrity_passed": true,
+    "all_inspected_native_images_arm64": true,
+    "active_embedded_signatures": false,
+    "signing_required": true,
+    "configuration_bundled": true,
+    "addons_added": true,
+    "personal_data_added": false,
+    "device_tested": false,
+    "sideloader_acceptance_verified": false,
+    "status": "CUSTOMIZED_UNSIGNED_HOST_VALIDATED_DEVICE_TEST_PENDING",
+    "limitations": [
+      "iPhone bootstrap execution, skin rendering, signing, Google Drive and rollback still require actual device evidence",
+      "Use foreground Kodi; no unverified native engine or remote service"
+    ],
+    "manual_import_required": false,
+    "elementum_engine_included": false,
+    "navigation_revision": "ios-touch-navigation-r2",
+    "patched_navigation_windows": 32,
+    "configuration_files": 31
+  },
+  "artifact": {
+    "id": 12987708727,
+    "name": "Kodi-iOS-Customized-Touch-r2-ARM64",
+    "size_in_bytes": 569824837,
+    "url": "https://api.github.com/repos/onlykappa/Kodi-Ios/actions/artifacts/12987708727",
+    "archive_download_url": "https://api.github.com/repos/onlykappa/Kodi-Ios/actions/artifacts/12987708727/zip",
+    "expired": false,
+    "created_at": "2026-10-30T15:15:29Z",
+    "expires_at": "2026-11-06T15:15:10Z",
+    "updated_at": "2026-10-30T15:15:29Z",
+    "digest": "sha256:3dc7a2a28c2ca386618a191849622b38ae4b82f72249ddadbbac0d55ce60d0a7",
+    "workflow_run": {
+      "id": 41078491846,
+      "repository_id": 1438791032,
+      "head_repository_id": 1438791032,
+      "head_branch": "feature/ios-migration",
+      "head_sha": "ea4d224bb3e5b762379b27df66031a4202da13b5"
+    }
+  },
+  "ci_run": 41078491846,
+  "ci_job": 124140996253,
+  "source_commit": "ea4d224bb3e5b762379b27df66031a4202da13b5",
+  "download": "https://github.com/onlykappa/Kodi-Ios/actions/runs/41078491846/artifacts/12987708727",
+  "host_test_count": 174,
+  "host_suite_count": 21,
+  "actual_phone_retest_passed": false,
+  "status": "TOUCH-R2 BUILT/HOST-VALIDATED; OWNER IPHONE RETEST REQUIRED",
+  "original_device_navigation_failure_resolved_on_phone": false,
+  "raw_owner_log_published": false,
+  "simulator_run_established": false,
+  "root_cause_scope": "Reload/confirmation race consistent with owner log; exact old RuntimeError not recorded. Controlled generation repair awaits phone verification.",
+  "recorded_utc": "2026-10-30T15:16:25.123697+00:00"
+}

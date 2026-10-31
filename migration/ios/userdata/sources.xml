@@ -1,0 +1,35 @@
+<sources>
+  <programs>
+    <default pathversion="1" />
+  </programs>
+  <video>
+    <default pathversion="1" />
+    <source>
+      <name>Source 1</name>
+      <path pathversion="1">special://profile/media/local_media_root_02/</path>
+      <allowsharing>true</allowsharing>
+    </source>
+    <source>
+      <name>Source 2</name>
+      <path pathversion="1">special://profile/media/local_media_root_04/</path>
+      <allowsharing>true</allowsharing>
+    </source>
+    <source>
+      <name>Source 3</name>
+      <path pathversion="1">special://profile/media/local_media_root_09/</path>
+      <allowsharing>true</allowsharing>
+    </source>
+  </video>
+  <music>
+    <default pathversion="1" />
+  </music>
+  <pictures>
+    <default pathversion="1" />
+  </pictures>
+  <files>
+    <default pathversion="1" />
+  </files>
+  <games>
+    <default pathversion="1" />
+  </games>
+</sources>

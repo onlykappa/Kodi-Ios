@@ -1,0 +1,6 @@
+<addon id="service.kodi.ios.bootstrap" name="Kodi iOS Automatic Setup and Recovery" version="1.0.0" provider-name="Kodi-iOS migration project">
+ <requires><import addon="xbmc.python" version="3.0.1"/></requires>
+ <extension point="xbmc.service" library="service.py"/>
+ <extension point="xbmc.python.script" library="recover.py"/>
+ <extension point="xbmc.addon.metadata"><summary lang="en_GB">Initialize bundled sanitized configuration once</summary><description lang="en_GB">Automatic iOS setup with private file backups and explicit recovery. No credentials or engine.</description><platform>all</platform><license>MIT</license></extension>
+</addon>
