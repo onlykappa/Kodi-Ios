@@ -1,3 +1,27 @@
+diff --git a/tools/depends/Makefile.include.in b/tools/depends/Makefile.include.in
+index 1903fec..b1a6b70 100644
+--- a/tools/depends/Makefile.include.in
++++ b/tools/depends/Makefile.include.in
+@@ -66,7 +66,9 @@ READELF=@READELF@
+ OBJDUMP=@OBJDUMP@
+ 
+ CMAKE=@prefix@/@tool_dir@/bin/cmake -DCMAKE_TOOLCHAIN_FILE=$(PREFIX)/share/Toolchain.cmake -DCMAKE_INSTALL_PREFIX=$(PREFIX)
+-CFLAGS=@platform_cflags@ @platform_includes@ -isystem @prefix@/@deps_dir@/include
++# Kodi-iOS: clang 15+ turned these old-C warnings into errors; the pinned libraries predate that.
++CLANG_COMPAT_CFLAGS=-Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-error=incompatible-function-pointer-types -Wno-error=int-conversion
++CFLAGS=@platform_cflags@ @platform_includes@ -isystem @prefix@/@deps_dir@/include $(CLANG_COMPAT_CFLAGS)
+ LDFLAGS=-L@prefix@/@deps_dir@/lib @platform_ldflags@
+ ASFLAGS=@platform_asflags@
+ CXXFLAGS=@platform_cxxflags@ @platform_includes@ -isystem @prefix@/@deps_dir@/include
+@@ -99,7 +101,7 @@ READELF_FOR_BUILD=@READELF_FOR_BUILD@
+ OBJDUMP_FOR_BUILD=@OBJDUMP_FOR_BUILD@
+ CMAKE_FOR_BUILD=@prefix@/@tool_dir@/bin/cmake -DCMAKE_TOOLCHAIN_FILE=$(NATIVEPREFIX)/share/Toolchain-Native.cmake -DCMAKE_INSTALL_PREFIX=$(NATIVEPREFIX)
+ 
+-NATIVE_CFLAGS=@host_includes@ -I@prefix@/@tool_dir@/include
++NATIVE_CFLAGS=@host_includes@ -I@prefix@/@tool_dir@/include $(CLANG_COMPAT_CFLAGS)
+ NATIVE_LDFLAGS=@host_includes@ -L@prefix@/@tool_dir@/lib
+ NATIVE_CPPFLAGS=@host_includes@ -I@prefix@/@tool_dir@/include
+ NATIVE_CXXFLAGS=@host_includes@ -I@prefix@/@tool_dir@/include
 diff --git a/tools/depends/native/libpng/Makefile b/tools/depends/native/libpng/Makefile
 index 6059b69..23b2766 100644
 --- a/tools/depends/native/libpng/Makefile
@@ -26,6 +50,21 @@ index be8e481..81b4eee 100644
  	cd $(PLATFORM); $(CONFIGURE)
  
  $(LIBDYLIB): $(PLATFORM)
+diff --git a/tools/depends/target/gnutls/Makefile b/tools/depends/target/gnutls/Makefile
+index f60773d..c6d30c5 100644
+--- a/tools/depends/target/gnutls/Makefile
++++ b/tools/depends/target/gnutls/Makefile
+@@ -16,6 +16,10 @@ DEPS = ../../Makefile.include Makefile ../../download-files.include \
+ #      __gnutls_fread_file in libgnutls.a(read-file.o)
+ #      _rpl_getdelim in libgnutls.a(getdelim.o)
+ #      ...
++ifeq ($(OS),darwin_embedded)
++  # Kodi-iOS: no hand-written aarch64 assembly (fails through gas-preprocessor.pl with current clang).
++  CONFIGURE_OPTIONS+= --disable-hardware-acceleration
++endif
+ CONFIGURE_OPTIONS+= ac_cv_func_malloc_0_nonnull=yes \
+                     ac_cv_func_realloc_0_nonnull=yes
+ 
 diff --git a/tools/depends/target/libffi/LIBFFI-VERSION b/tools/depends/target/libffi/LIBFFI-VERSION
 index 9d1e722..82533c0 100644
 --- a/tools/depends/target/libffi/LIBFFI-VERSION
@@ -55,6 +94,19 @@ index ad0f910..d9594dd 100644
  
  $(LIBDYLIB): $(PLATFORM)
  	$(MAKE) -j 1 -C $(PLATFORM)
+diff --git a/tools/depends/target/libgcrypt/Makefile b/tools/depends/target/libgcrypt/Makefile
+index bb5a005..264dc72 100644
+--- a/tools/depends/target/libgcrypt/Makefile
++++ b/tools/depends/target/libgcrypt/Makefile
+@@ -18,6 +18,8 @@ ifeq ($(findstring apple-darwin, $(HOST)), apple-darwin)
+     # explicitly disable getentropy for ios/tvos as AC_CHECK_FUNCS(getentropy) incorrectly
+     # succeeds as of libgcrypt 1.9.4
+     CONFIGURE_FLAGS+= ac_cv_func_getentropy=no
++    # Kodi-iOS: aarch64 assembly fails through gas-preprocessor.pl with current clang; use the C code.
++    CONFIGURE_FLAGS+= --disable-asm
+   endif
+ endif
+ 
 diff --git a/tools/depends/target/libpng/Makefile b/tools/depends/target/libpng/Makefile
 index eae10a3..6e3c5e7 100644
 --- a/tools/depends/target/libpng/Makefile
@@ -69,6 +121,21 @@ index eae10a3..6e3c5e7 100644
  	cd $(PLATFORM)/build; $(CMAKE) $(CMAKE_OPTIONS) ..
  
  .installed-$(PLATFORM): $(PLATFORM)
+diff --git a/tools/depends/target/nettle/Makefile b/tools/depends/target/nettle/Makefile
+index 84f28b0..4504250 100644
+--- a/tools/depends/target/nettle/Makefile
++++ b/tools/depends/target/nettle/Makefile
+@@ -14,6 +14,10 @@ ifeq ($(CPU),arm64)
+   CONFIGURE_FLAGS=-disable-assembler
+ endif
+ endif
++# Kodi-iOS: aarch64 assembly fails through gas-preprocessor.pl with current clang; use the C code.
++ifeq ($(OS),darwin_embedded)
++  CONFIGURE_FLAGS=--disable-assembler
++endif
+ 
+ # configuration settings
+ CONFIGURE=cp -f $(CONFIG_SUB) $(CONFIG_GUESS) .; \
 diff --git a/xbmc/guilib/GUIControlGroupList.cpp b/xbmc/guilib/GUIControlGroupList.cpp
 index b0940ef..0a435ee 100644
 --- a/xbmc/guilib/GUIControlGroupList.cpp
