@@ -10,9 +10,10 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+# A Kodi build takes hours: a new push waits for the running one instead of cancelling it.
 concurrency:
   group: kodi-ios-portrait
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   executable:
     runs-on: macos-15
