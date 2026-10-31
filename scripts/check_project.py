@@ -31,7 +31,8 @@ PATTERNS = {
 FORBIDDEN_EXTENSIONS = {'.ipa','.deb','.mobileprovision','.p12','.pfx','.zip','.zst','.tgz','.tar','.db','.sqlite','.sqlite3','.log','.mp4','.mkv','.mov','.avi','.mp3','.flac','.jpg','.jpeg','.png','.webp','.pem','.key','.so','.dll','.dylib','.exe','.strm'}
 ALLOWED_TOP_LEVEL = {'README.md','ROADMAP.md','.gitignore','migration','docs','scripts','inventory','snapshot','reports'}
 ALLOWED_SUFFIXES = {'.md','.json','.py','.xml','.xsp'}
-PORTRAIT_FILES = {'.github/workflows/kodi-ios-portrait.yml','migration/ios-portrait/build-kodi-ios.sh','migration/ios-portrait/kodi-21.3-portrait.patch'}
+PORTRAIT_FILES = {'.github/workflows/kodi-ios-portrait.yml','migration/ios-portrait/build-kodi-ios.sh','migration/ios-portrait/kodi-21.3-portrait.patch',
+                  '.github/workflows/glassbar-ios.yml','migration/glassbar-ios/build-glassbar.sh'}
 
 def files():
     return sorted(p for p in ROOT.rglob('*') if '.git' not in p.relative_to(ROOT).parts and (p.is_file() or p.is_symlink()))

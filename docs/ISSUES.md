@@ -408,3 +408,8 @@ Status: IMPLEMENTED ON HOST; rig-verified layout; native build in CI; awaiting i
   in-progress items. Kodi does not pass Home's focused item to the context menu, so the service publishes it as Portrait.Item.*.
   Rig findings fixed: page lists end above the tab bar (focused rows could hide under it), 4-px gradient textures stretched badly,
   `String.IsEqual` cannot compare two infolabels, `colordiffuse="00000000"` means "untinted".
+- r4 (owner request): real Liquid Glass tab bar. The web/SwiftUI "liquid glass" projects cannot run in Kodi's OpenGL skin,
+  which can neither blur nor refract what lies behind a control. `migration/glassbar-ios` builds KodiGlassBar.framework, a
+  native bar using Apple's UIGlassEffect (iOS 26; frosted material before), with a glass lens that follows the finger and
+  springs to the chosen tab. The bootstrap loads it like the AirPlay button, shows it on the five tab pages in portrait when no
+  dialog is open, marks the page and runs tapped tabs; the skin hides its own bar meanwhile. Not testable in the Linux rig.

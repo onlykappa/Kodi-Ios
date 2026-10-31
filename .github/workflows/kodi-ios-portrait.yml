@@ -9,7 +9,7 @@ on:
       - 'migration/ios-portrait/source-lock.json'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: kodi-ios-portrait
   cancel-in-progress: true
@@ -45,6 +45,20 @@ jobs:
             ${{ runner.temp }}/kodi-ios/depends
             ${{ runner.temp }}/kodi-ios/xbmc
           key: kodi-ios-depends-21.3-Omega-${{ runner.os }}-${{ runner.arch }}-v1
+      # The IPA build fetches the executable from this release and checks the sha256 pinned in
+      # migration/ios-portrait/source-lock.json; an existing tag is never replaced, so the pin stays valid.
+      - name: Publish the executable once per tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          tag="$(python3 -c "import json;print(json.load(open('migration/ios-portrait/source-lock.json'))['executable_release']['tag'])")"
+          if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then echo "$tag already published"; exit 0; fi
+          dir="$RUNNER_TEMP/kodi-ios-out"
+          (cd "$dir" && zip -q Kodi-portrait-executable.zip Kodi)
+          gh release create "$tag" "$dir/Kodi-portrait-executable.zip" --repo "$REPO" --target "$SHA" --prerelease \
+            --title "Kodi 21.3 iPhone executable with rotation ($tag)" --notes "$(cat "$dir/Kodi.sha256")"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: kodi-ios-portrait-executable

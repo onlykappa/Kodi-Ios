@@ -1,0 +1,8 @@
+{
+  "framework_release": {
+    "tag": "kodi-glassbar-r1",
+    "asset": "KodiGlassBar.framework.zip",
+    "sha256": ""
+  },
+  "note": "sha256 is filled in from the first published build; the IPA bundles the framework only once it is pinned."
+}

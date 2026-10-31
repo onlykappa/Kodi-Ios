@@ -3,5 +3,10 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
-  "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package."
+  "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
+  "executable_release": {
+    "tag": "kodi-ios-portrait-r1",
+    "asset": "Kodi-portrait-executable.zip",
+    "sha256": ""
+  }
 }

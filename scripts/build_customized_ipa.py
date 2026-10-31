@@ -262,7 +262,7 @@ def add_elementum(inputs,target,addonroot):
  return {'addons':[ELEMENTUM,BURST]+[d.name for d in modules]+[a.stem for a in apps],'framework':'Frameworks/elementum.framework','frameworks':extra,'framework_sha256':digest(binary.read_bytes()),
          'patches':[{'path':'addons/'+ELEMENTUM+'/'+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]}
 
-def prepare(app,bundle,expected,work,elementum=None,portrait_exe=None,portrait_sha=None):
+def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
  validate_staging(app,work)
  manifest,addons,config=validate_bundle(bundle,expected)
  target=work/'Kodi.app';shutil.copytree(app,target,symlinks=True)
@@ -289,7 +289,7 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_exe=None,portrait_s
    data=ET.tostring(gui,encoding='utf-8')+b'\n'
   dest=seed/relative;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data);entries.append({'path':relative,'sha256':digest(data)})
  # r11 portrait: skin folder (rows from the seeded widget lists), Info.plist, optional rotation-aware executable.
- portrait=ios_portrait.apply(target,addonroot/'skin.arctic.fuse.3',seed,portrait_exe,portrait_sha) if (addonroot/'skin.arctic.fuse.3').is_dir() else None
+ portrait=ios_portrait.apply(target,addonroot/'skin.arctic.fuse.3',seed,portrait_inputs) if (addonroot/'skin.arctic.fuse.3').is_dir() else None
  keymap=seed/'keymaps/zz-kodi-ios-navigation.xml';keymap.parent.mkdir(parents=True,exist_ok=True);keymap.write_bytes(_nav.TOUCH.encode()+b'\n');entries.append({'path':'keymaps/zz-kodi-ios-navigation.xml','sha256':digest(keymap.read_bytes())})
  # Topological dependency order, excluding native/core providers already in the foundation.
  requires={}
@@ -311,8 +311,8 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_exe=None,portrait_s
  ET.indent(root);tree.write(system,encoding='utf-8',xml_declaration=True)
  return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'elementum':engine,'profile_addons':profile_addons,'portrait':portrait}
 
-def build(app,bundle,expected,deb,output,work,elementum=None,portrait_exe=None,portrait_sha=None):
- staged,details=prepare(app,bundle,expected,work,elementum,portrait_exe,portrait_sha)
+def build(app,bundle,expected,deb,output,work,elementum=None,portrait_inputs=None):
+ staged,details=prepare(app,bundle,expected,work,elementum,portrait_inputs)
  # The shared native packer emits a diagnostic-only intermediate label; publish only the final verified customized report.
  with contextlib.redirect_stdout(io.StringIO()):report=unsigned(staged,output,deb)
  old=output/report['filename'];ipa=output/'Kodi-iOS-Customized-Touch-r10.ipa';old.rename(ipa)
@@ -335,4 +335,4 @@ def build(app,bundle,expected,deb,output,work,elementum=None,portrait_exe=None,p
  (output/'ipa-report.json').write_text(json.dumps(report,indent=2)+'\n')
  print(json.dumps({k:v for k,v in report.items() if k not in {'native_inventory','bootstrap'}}))
 if __name__=='__main__':
- p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--bundle',type=Path,required=True);p.add_argument('--expected-sha256',required=True);p.add_argument('--deb',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--work',type=Path,required=True);p.add_argument('--elementum',type=Path,help='inputs from fetch_elementum_inputs.py');p.add_argument('--portrait-executable',type=Path);p.add_argument('--portrait-executable-sha256');a=p.parse_args();build(a.app,a.bundle,a.expected_sha256,a.deb,a.output,a.work,a.elementum if a.elementum and (a.elementum/'framework.zip').is_file() else None,a.portrait_executable,a.portrait_executable_sha256)
+ p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--bundle',type=Path,required=True);p.add_argument('--expected-sha256',required=True);p.add_argument('--deb',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--work',type=Path,required=True);p.add_argument('--elementum',type=Path,help='inputs from fetch_elementum_inputs.py');p.add_argument('--portrait-inputs',type=Path,help='from ios_portrait.py --fetch');a=p.parse_args();build(a.app,a.bundle,a.expected_sha256,a.deb,a.output,a.work,a.elementum if a.elementum and (a.elementum/'framework.zip').is_file() else None,a.portrait_inputs)

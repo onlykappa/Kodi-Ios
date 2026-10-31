@@ -183,6 +183,7 @@ def tabbar(active):
    +icon(x+(tab_w-58)//2,24,58,glyph,color)+label(x,84,tab_w,40,text,'p_tab',color,'center'))
  return ('<control type="image"><left>0</left><bottom>0</bottom><width>%d</width><height>330</height><texture>%sfade_up.png</texture></control>'
   '<control type="group" id="9200"><description>%s tab bar</description><left>%d</left><bottom>24</bottom><width>%d</width><height>%d</height>'
+  '<visible>String.IsEmpty(Window(Home).Property(Portrait.GlassBar))</visible>'
   '<control type="image"><width>%d</width><height>%d</height><texture border="75">%sglass_150.png</texture></control>%s</control>'
   )%(WIDTH,MEDIA,MARKER,left,bar_w,h,bar_w,h,MEDIA,''.join(items))
 
@@ -715,5 +716,19 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
  home=xbmcgui.Window(10000)
  publish=focused_item_publisher(xbmc.getInfoLabel,xbmc.getCondVisibility,lambda k,v:home.setProperty('Portrait.Item.'+k,v))
  ticks=[t for t in (tick,publish) if t]
+ close=None
+ try:
+  # Native Liquid Glass tab bar (KodiGlassBar.framework), when the IPA carries it.
+  import threading,glassbar
+  path=glassbar.library_path(xbmcvfs.translatePath('special://xbmc/'))
+  if path:
+   bar,poll,close=glassbar.controller(glassbar.load(path),xbmc.getCondVisibility,lambda:bool(is_portrait(xbmc.getInfoLabel)),
+                                     home.setProperty,lambda action:xbmc.executebuiltin(action))
+   ticks.append(bar)
+   def taps():
+    while not monitor.waitForAbort(0.05):poll()
+   threading.Thread(target=taps,daemon=True).start()
+ except Exception as error:xbmc.log('Kodi iOS glass tab bar unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  watch(xbmc.getInfoLabel,invoke,monitor.waitForAbort,xbmc.getSkinDir,fuse,tick=lambda:[t() for t in ticks])
+ if close:close()
 

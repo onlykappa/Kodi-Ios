@@ -4,8 +4,10 @@
 - Fuse: add the generated `portrait` skin folder (migration/bundled-bootstrap/resources/lib/portrait.py).
 - Optionally swap in the Kodi executable built by .github/workflows/kodi-ios-portrait.yml from the same 21.3 tag
   with migration/ios-portrait/kodi-21.3-portrait.patch; without it the app keeps the official, landscape-only one.
+- Optionally add KodiGlassBar.framework (migration/glassbar-ios): the native Liquid Glass tab bar.
+All optional inputs come from one directory written by `ios_portrait.py --fetch DIR` (pinned releases only).
 """
-import hashlib,importlib.util,plistlib
+import argparse,hashlib,importlib.util,io,json,plistlib,shutil,sys,zipfile
 from pathlib import Path
 from inspect_ios_foundation import macho
 ROOT=Path(__file__).resolve().parents[1]
@@ -30,10 +32,50 @@ def swap_executable(app,executable,expected_sha256=None):
  target.write_bytes(new)
  return {'path':name,'official_sha256':sha(old),'portrait_sha256':sha(new)}
 
-def apply(app,skin,profile,executable=None,expected_sha256=None):
- """Returns {'orientations','skin_files','changed','executable'}; 'changed' lists existing skin files it edited."""
+GLASSBAR=ROOT/'migration/glassbar-ios/source-lock.json'
+EXECUTABLE=ROOT/'migration/ios-portrait/source-lock.json'
+RELEASES='https://github.com/onlykappa/Kodi-Ios/releases/download/'
+
+def add_glassbar(app,archive):
+ """Unpack KodiGlassBar.framework into Kodi.app/Frameworks (never over an existing one)."""
+ frameworks=Path(app)/'Frameworks';frameworks.mkdir(exist_ok=True)
+ assert not (frameworks/'KodiGlassBar.framework').exists(),'Glass bar framework collision'
+ with zipfile.ZipFile(archive) as z:
+  names=z.namelist();assert all(n.startswith('KodiGlassBar.framework/') for n in names),'Unexpected glass bar archive'
+  z.extractall(frameworks)
+ binary=frameworks/'KodiGlassBar.framework/KodiGlassBar'
+ return {'framework':'Frameworks/KodiGlassBar.framework','sha256':sha(binary.read_bytes())}
+
+def apply(app,skin,profile,inputs=None):
+ """Returns {'orientations','skin_files','changed','executable','glassbar'}; 'changed' lists existing skin files it
+ edited. inputs: directory from fetch() (optional Kodi + Kodi.sha256, KodiGlassBar.framework.zip)."""
  addon=Path(skin)/'addon.xml';before=addon.read_bytes()
  files=portrait.build(skin,profile)
  changed=[{'path':'addons/'+Path(skin).name+'/addon.xml','before_sha256':sha(before),'after_sha256':sha(addon.read_bytes())}]
+ inputs=Path(inputs) if inputs else None
+ exe=inputs/'Kodi' if inputs and (inputs/'Kodi').is_file() else None
+ bar=inputs/'KodiGlassBar.framework.zip' if inputs and (inputs/'KodiGlassBar.framework.zip').is_file() else None
  return {'revision':portrait.REVISION,'orientations':allow_portrait(app),'skin_files':len(files),'changed':changed,
-         'executable':swap_executable(app,executable,expected_sha256) if executable else None}
+         'executable':swap_executable(app,exe,(inputs/'Kodi.sha256').read_text().split()[0]) if exe else None,
+         'glassbar':add_glassbar(app,bar) if bar else None}
+
+def fetch(out,get=None):
+ """Download the pinned native pieces that are published; skip any not pinned yet (the IPA still builds)."""
+ if get is None:
+  sys.path.insert(0,str(ROOT/'scripts'));from fetch_elementum_inputs import fetch as get
+ out=Path(out);out.mkdir(parents=True,exist_ok=True);got=[]
+ bar=json.loads(GLASSBAR.read_text())['framework_release']
+ if bar.get('sha256'):
+  data=get(RELEASES+bar['tag']+'/'+bar['asset']);assert sha(data)==bar['sha256'],'Glass bar digest mismatch'
+  (out/'KodiGlassBar.framework.zip').write_bytes(data);got.append('KodiGlassBar')
+ exe=json.loads(EXECUTABLE.read_text()).get('executable_release',{})
+ if exe.get('sha256'):
+  data=get(RELEASES+exe['tag']+'/'+exe['asset'])
+  with zipfile.ZipFile(io.BytesIO(data)) as z:binary=z.read('Kodi')
+  assert sha(binary)==exe['sha256'],'Portrait executable digest mismatch'
+  (out/'Kodi').write_bytes(binary);(out/'Kodi.sha256').write_text(exe['sha256']+'  Kodi\n');got.append('Kodi')
+ return got
+
+if __name__=='__main__':
+ p=argparse.ArgumentParser(description='Fetch the pinned portrait inputs for the IPA build.')
+ p.add_argument('--fetch',type=Path,required=True);print(json.dumps({'fetched':fetch(p.parse_args().fetch)}))
