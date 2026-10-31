@@ -24,7 +24,7 @@
   "framework_release": {
     "tag": "elementum-engine-cdab7e2-r2",
     "asset": "elementum.framework.zip",
-    "sha256": null
+    "sha256": "dfb7b3cf02124ad1abe9c0da5e7bb3803d583509e4a51fa2249597c7649b5541"
   },
   "modules": {
     "repository": "xbmc/repo-scripts",
