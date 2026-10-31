@@ -88,6 +88,26 @@ def umbrella_defaults(get_setting,set_setting):
  set_setting('provider.external.enabled','true');set_setting('external_provider.name','cocoscrapers');set_setting('external_provider.module','script.module.cocoscrapers')
  return True
 
+def media_folders(root):
+ """Documents/Kodi Downloads/{Movies,TV Shows}, visible in the Files app; created on first use."""
+ root=Path(root);folders={'movies':root/'Movies','shows':root/'TV Shows'}
+ for folder in folders.values():folder.mkdir(parents=True,exist_ok=True)
+ return {name:str(folder)+'/' for name,folder in folders.items()}
+
+def elementum_library(folders,get_setting,set_setting):
+ """Keep finished Elementum downloads (it streams into memory by default) and file them into Movies and TV Shows.
+ Only when the owner has not chosen completed-download folders."""
+ if get_setting('completed_movies_path') or get_setting('completed_shows_path'):return False
+ set_setting('download_storage','0');set_setting('completed_move','true')
+ set_setting('completed_movies_path',folders['movies']);set_setting('completed_shows_path',folders['shows'])
+ return True
+
+def umbrella_downloads(folders,get_setting,set_setting):
+ """Umbrella's own downloads go to the same Movies and TV Shows folders, unless the owner set download paths."""
+ if get_setting('movie.download.path') or get_setting('tv.download.path'):return False
+ set_setting('downloads','true');set_setting('movie.download.path',folders['movies']);set_setting('tv.download.path',folders['shows'])
+ return True
+
 def elementum_defaults(downloads,get_setting,set_setting):
  """Elementum asks for a download folder before its first stream; use one the Files app can see. iOS can move the
  app's data folder on reinstall, so a folder set here earlier is followed to the current path; the owner's own choice stays."""

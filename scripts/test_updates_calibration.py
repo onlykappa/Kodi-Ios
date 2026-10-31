@@ -78,6 +78,17 @@ class PlayOnTV(unittest.TestCase):
    raise OSError('refused')
   self.assertEqual(cast.find_rokus('192.168.1.11',get,workers=8),[('192.168.1.20','Living Room'),('192.168.1.31','Roku Express')])
   self.assertEqual(cast.find_rokus(None,get),[])
+class DownloadFolders(unittest.TestCase):
+ def test_movies_and_shows_folders_for_elementum_and_umbrella_unless_owner_chose(self):
+  with tempfile.TemporaryDirectory() as t:
+   folders=bootstrap.media_folders(Path(t)/'Documents/Kodi Downloads')
+   self.assertTrue((Path(t)/'Documents/Kodi Downloads/Movies').is_dir());self.assertTrue(folders['shows'].endswith('/TV Shows/'))
+   e={};self.assertTrue(bootstrap.elementum_library(folders,lambda k:e.get(k,''),e.__setitem__))
+   self.assertEqual((e['download_storage'],e['completed_move'],e['completed_movies_path']),('0','true',folders['movies']))
+   e2={'completed_shows_path':'/mine/'};self.assertFalse(bootstrap.elementum_library(folders,lambda k:e2.get(k,''),e2.__setitem__));self.assertEqual(e2,{'completed_shows_path':'/mine/'})
+   u={};self.assertTrue(bootstrap.umbrella_downloads(folders,lambda k:u.get(k,''),u.__setitem__))
+   self.assertEqual((u['downloads'],u['tv.download.path']),('true',folders['shows']))
+   u2={'movie.download.path':'/mine/'};self.assertFalse(bootstrap.umbrella_downloads(folders,lambda k:u2.get(k,''),u2.__setitem__))
 class AirPlay(unittest.TestCase):
  def test_framework_found_inside_the_app_only(self):
   airplay=load('airplay')
