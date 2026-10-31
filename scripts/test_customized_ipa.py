@@ -36,9 +36,10 @@ class BundleTests(unittest.TestCase):
   return inputs
  def test_elementum_engine_bundled_in_frameworks_and_patched_for_ios(self):
   app,receipt=prepare(self.app,self.bundle,self.sha,self.root/'work',self.elementum_inputs());base=app/'AppData/AppHome'
-  self.assertTrue((app/'Frameworks/elementum.framework/elementum').is_file());self.assertEqual(len(receipt['elementum']['patches']),2)
+  self.assertTrue((app/'Frameworks/elementum.framework/elementum').is_file());self.assertEqual(len(receipt['elementum']['patches']),3)
   daemon=(base/'addons'/ELEMENTUM/'resources/site-packages/elementum/daemon.py').read_bytes()
-  for _,_,after in ELEMENTUM_PATCHES:self.assertIn(after,daemon+(base/'addons'/ELEMENTUM/'resources/site-packages/elementum/osarch.py').read_bytes())
+  site=base/'addons'/ELEMENTUM/'resources/site-packages/elementum'
+  for _,_,after in ELEMENTUM_PATCHES:self.assertIn(after,daemon+(site/'osarch.py').read_bytes()+(site/'service.py').read_bytes())
   self.assertFalse((base/'addons'/ELEMENTUM/'resources/site-packages/platform_detect/libraries').exists())
   seed=json.loads((base/'addons'/BOOT/'seed/seed-manifest.json').read_text());order=seed['addons']
   self.assertLess(order.index('script.module.kodi-six'),order.index(ELEMENTUM));self.assertLess(order.index('script.module.future'),order.index(BURST))

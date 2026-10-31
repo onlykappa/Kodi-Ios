@@ -369,3 +369,7 @@ Status: BUILT AND BUNDLED ON HOST; DEVICE TEST PENDING.
 ## ISSUE-051 — Search field opened a hub instead of the keyboard
 Status: FIXED ON HOST (navigation r10); rig-verified.
 - On the Search screen Fuse draws its text field where the hub tabs are, and the touch header's invisible tab targets sat over it, so a tap on the field switched hubs (rig: it opened Movies). The tab and search targets now hide on Search; a tap reaches Fuse's edit control, which opens Kodi's text input (on iPhone, the native keyboard; with a hardware keyboard attached, Kodi's dialog accepts typing). Search also gets the Back/Home pair, since its tab row is no longer tappable.
+
+## ISSUE-052 — Elementum engine thread never started on iPhone
+Status: FIXED ON HOST; device test pending.
+- Debug log from the phone (build-40): Elementum's service started its JSON-RPC thread, but its engine thread is created only when the platform can fork, and the iOS patch (correctly) reports that it cannot, so no engine ever ran and every Elementum request got no answer from 127.0.0.1:65220. The service now also starts the engine thread on iOS, where it loads the framework in-process.
