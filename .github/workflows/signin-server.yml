@@ -66,4 +66,5 @@ jobs:
           npm ci --no-audit --no-fund
           npm test
           npx wrangler deploy
-          curl -fsS -A 'Kodi signin deploy check' "${{ vars.SIGNIN_SITE_URL }}/ip" >/dev/null && echo "Sign-in server answers."
+          site="${{ vars.SIGNIN_SITE_URL }}"
+          curl -fsS -A 'Kodi signin deploy check' "${site%/}/ip" >/dev/null && echo "Sign-in server answers."
