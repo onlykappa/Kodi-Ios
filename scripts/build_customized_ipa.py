@@ -139,7 +139,64 @@ def patch_drive(addonroot):
   path.write_bytes(data.replace(old,new))
  return [{'path':'addons/'+DRIVE_COMMON+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]
 
-def prepare(app,bundle,expected,work):
+ELEMENTUM='plugin.video.elementum';BURST='script.elementum.burst'
+# The engine cannot run as a separate program on iOS, so the add-on's own library mode loads it in-process
+# from the app's Frameworks/elementum.framework (built by migration/elementum-ios/build-ios-engine.sh).
+ELEMENTUM_IOS=b'''def ios_engine():
+    # Kodi-iOS: the engine ships inside the app as Frameworks/elementum.framework and runs in Kodi's process.
+    global log_path
+    global custom_path
+    binary_platform.update(os="ios", arch="arm64", fork=False)
+    app = translatePath("special://xbmc/").rstrip("/")
+    while app and not app.endswith(".app") and os.path.dirname(app) != app:
+        app = os.path.dirname(app)
+    framework = os.path.join(app, "Frameworks", "elementum.framework")
+    custom_path = get_addon_profile_dir().rstrip("/")
+    if not os.path.isdir(custom_path):
+        os.makedirs(custom_path)
+    log_path = os.path.join(custom_path, "elementum.log")
+    if not os.path.isfile(os.path.join(framework, "elementum")):
+        log.error("Elementum engine not found at %s" % framework)
+        return False, False
+    return framework, os.path.join(framework, "elementum")
+
+'''
+ELEMENTUM_PATCHES=[('resources/site-packages/elementum/daemon.py',b'def get_elementum_binary():\n',ELEMENTUM_IOS+b'def get_elementum_binary():\n'),
+ ('resources/site-packages/elementum/daemon.py',b'    binary_platform = get_platform()\n\n    binary = "elementum"',b'    binary_platform = get_platform()\n    if xbmc.getCondVisibility("System.Platform.IOS"):\n        return ios_engine()\n\n    binary = "elementum"'),
+ ('resources/site-packages/elementum/daemon.py',b'    proc = None\n    if force_library != u"true":',b'    if binary_platform.get("os") == "ios":\n        force_library = u"true"\n        elementum_library = "elementum"\n\n    proc = None\n    if force_library != u"true":'),
+ ('resources/site-packages/elementum/daemon.py',b'proc = start_elementumd(monitor, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)',b'proc = start_elementumd(monitor, **({"stdout": subprocess.PIPE, "stderr": subprocess.STDOUT} if hasSubprocess else {}))'),
+ ('resources/site-packages/elementum/osarch.py',b'    if global_platform:\n',b'    if xbmc.getCondVisibility("System.Platform.IOS"):\n        ret.update(os="ios", arch="arm64", fork=False)\n        return ret\n\n    if global_platform:\n')]
+
+def add_elementum(inputs,target,addonroot):
+ """Install the pinned Elementum client (patched for iOS), Burst, their Python modules and the engine framework."""
+ with zipfile.ZipFile(inputs/'burst.zip') as z:
+  names=[n for n in z.namelist() if not n.endswith('/')]
+  # Search providers only: plain Python and data, nothing native that iOS would have to load.
+  assert all(n.startswith(BURST+'/') and '..' not in n and not n.endswith(('.so','.dll','.dylib','.exe')) for n in names)
+  for n in names:
+   dest=addonroot/n;assert not dest.exists(),'Unexpected Burst collision';dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(z.read(n))
+ with zipfile.ZipFile(inputs/'client.zip') as z:
+  names=[n for n in z.namelist() if not n.endswith('/')];assert all(n.startswith(ELEMENTUM+'/') and '..' not in n for n in names)
+  # platform_detect probes ELF/PE test libraries; iOS cannot load them and the patched osarch never asks.
+  for n in names:
+   if n.startswith(ELEMENTUM+'/resources/site-packages/platform_detect/libraries/'):continue
+   dest=addonroot/n;assert not dest.exists(),'Unexpected Elementum collision';dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(z.read(n))
+ files={}
+ for name,old,new in ELEMENTUM_PATCHES:
+  path=addonroot/ELEMENTUM/name;before=files.setdefault(name,(path,path.read_bytes()))[1]
+  data=path.read_bytes();assert data.count(old)==1,'Unexpected Elementum source: '+name
+  path.write_bytes(data.replace(old,new))
+ modules=sorted((inputs/'modules').iterdir())
+ for d in modules:assert not (addonroot/d.name).exists(),'Unexpected module collision';shutil.copytree(d,addonroot/d.name)
+ frameworks=target/'Frameworks';frameworks.mkdir(exist_ok=True);assert not (frameworks/'elementum.framework').exists()
+ with zipfile.ZipFile(inputs/'framework.zip') as z:
+  for n in z.namelist():assert n.startswith('elementum.framework/') and '..' not in n
+  z.extractall(frameworks)
+ binary=frameworks/'elementum.framework/elementum';assert binary.read_bytes()[:4]==b'\xcf\xfa\xed\xfe','Engine is not a 64-bit Mach-O'
+ return {'addons':[ELEMENTUM,BURST]+[d.name for d in modules],'framework':'Frameworks/elementum.framework','framework_sha256':digest(binary.read_bytes()),
+         'patches':[{'path':'addons/'+ELEMENTUM+'/'+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]}
+
+def prepare(app,bundle,expected,work,elementum=None):
  validate_staging(app,work)
  manifest,addons,config=validate_bundle(bundle,expected)
  target=work/'Kodi.app';shutil.copytree(app,target,symlinks=True)
@@ -151,6 +208,7 @@ def prepare(app,bundle,expected,work):
   dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data)
  navigation_files=_nav.patch_skin(addonroot/'skin.arctic.fuse.3') if (addonroot/'skin.arctic.fuse.3').is_dir() else []
  drive_files=patch_drive(addonroot) if (addonroot/DRIVE_COMMON).is_dir() else []
+ engine=add_elementum(elementum,target,addonroot) if elementum else None
  bootstrap=addonroot/BOOT;shutil.copytree(ROOT/'migration/bundled-bootstrap',bootstrap)
  # The in-app updater compares this with the build-N release tags.
  (bootstrap/'build.json').write_text(json.dumps({'build':int(os.environ.get('GITHUB_RUN_NUMBER') or 0),'commit':os.environ.get('GITHUB_SHA','')[:12]})+'\n')
@@ -166,7 +224,7 @@ def prepare(app,bundle,expected,work):
  keymap=seed/'keymaps/zz-kodi-ios-navigation.xml';keymap.parent.mkdir(parents=True,exist_ok=True);keymap.write_bytes(_nav.TOUCH.encode()+b'\n');entries.append({'path':'keymaps/zz-kodi-ios-navigation.xml','sha256':digest(keymap.read_bytes())})
  # Topological dependency order, excluding native/core providers already in the foundation.
  requires={}
- for id in manifest['addon_ids']:
+ for id in manifest['addon_ids']+(engine['addons'] if engine else []):
   xml=ET.parse(addonroot/id/'addon.xml').getroot();requires[id]=[d.get('addon') for d in xml.findall('requires/import') if d.get('optional')!='true']
  order=[];visiting=set()
  def visit(id):
@@ -177,18 +235,18 @@ def prepare(app,bundle,expected,work):
   visiting.remove(id);order.append(id)
  for id in sorted(requires):visit(id)
  mutable=[{'id':id,'version':ET.parse(addonroot/id/'addon.xml').getroot().get('version'),'tree_sha256':tree_digest(addonroot/id)} for id in order if id.startswith('skin.')]
- (seed/'seed-manifest.json').write_text(json.dumps({'version':'3-touch-r9','files':entries,'addons':order,'mutable_skins':mutable,'navigation_revision':_nav.REVISION},indent=2)+'\n')
+ (seed/'seed-manifest.json').write_text(json.dumps({'version':'3-touch-r10','files':entries,'addons':order,'mutable_skins':mutable,'navigation_revision':_nav.REVISION},indent=2)+'\n')
  tree=ET.parse(system);root=tree.getroot();existing={a.text for a in root.findall('addon')}
  for id in order+[BOOT]:
   assert id not in existing,'System manifest collision';ET.SubElement(root,'addon',{} if id==BOOT else {'optional':'true'}).text=id
  ET.indent(root);tree.write(system,encoding='utf-8',xml_declaration=True)
- return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files}}
+ return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'elementum':engine}
 
-def build(app,bundle,expected,deb,output,work):
- staged,details=prepare(app,bundle,expected,work)
+def build(app,bundle,expected,deb,output,work,elementum=None):
+ staged,details=prepare(app,bundle,expected,work,elementum)
  # The shared native packer emits a diagnostic-only intermediate label; publish only the final verified customized report.
  with contextlib.redirect_stdout(io.StringIO()):report=unsigned(staged,output,deb)
- old=output/report['filename'];ipa=output/'Kodi-iOS-Customized-Touch-r9.ipa';old.rename(ipa)
+ old=output/report['filename'];ipa=output/'Kodi-iOS-Customized-Touch-r10.ipa';old.rename(ipa)
  with zipfile.ZipFile(ipa) as z:
   assert z.testzip() is None
   base='Payload/Kodi.app/'+details['system_manifest'].rsplit('/system/',1)[0]
@@ -200,8 +258,11 @@ def build(app,bundle,expected,deb,output,work):
    expected_hash=patches[name]['after_sha256'] if name in patches else digest(body)
    assert digest(z.read(base+'/'+name))==expected_hash,'Bundled addon bytes changed unexpectedly'
   for e in details['seed_files']:assert digest(z.read(base+'/addons/'+BOOT+'/seed/'+e['path']))==e['sha256']
- report.update(filename=ipa.name,sha256=digest(ipa.read_bytes()),configuration_bundled=True,addons_added=True,status='CUSTOMIZED_UNSIGNED_HOST_VALIDATED_DEVICE_TEST_PENDING',bootstrap=details,device_tested=False,manual_import_required=False,elementum_engine_included=False,navigation_revision=_nav.REVISION,patched_navigation_windows=len(details['navigation_patch']['files']),configuration_files=len(details['seed_files']),limitations=['iPhone bootstrap execution, skin rendering, signing, Google Drive and rollback still require actual device evidence','Use foreground Kodi; no unverified native engine or remote service'])
+  if details['elementum']:
+   assert digest(z.read('Payload/Kodi.app/Frameworks/elementum.framework/elementum'))==details['elementum']['framework_sha256'],'Engine framework missing from IPA'
+   for e in details['elementum']['patches']:assert digest(z.read(base+'/'+e['path']))==e['after_sha256']
+ report.update(filename=ipa.name,sha256=digest(ipa.read_bytes()),configuration_bundled=True,addons_added=True,status='CUSTOMIZED_UNSIGNED_HOST_VALIDATED_DEVICE_TEST_PENDING',bootstrap=details,device_tested=False,manual_import_required=False,elementum_engine_included=bool(details['elementum']),navigation_revision=_nav.REVISION,patched_navigation_windows=len(details['navigation_patch']['files']),configuration_files=len(details['seed_files']),limitations=['iPhone bootstrap execution, skin rendering, signing, Google Drive and rollback still require actual device evidence','Use foreground Kodi; no unverified native engine or remote service'])
  (output/'ipa-report.json').write_text(json.dumps(report,indent=2)+'\n')
  print(json.dumps({k:v for k,v in report.items() if k not in {'native_inventory','bootstrap'}}))
 if __name__=='__main__':
- p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--bundle',type=Path,required=True);p.add_argument('--expected-sha256',required=True);p.add_argument('--deb',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--work',type=Path,required=True);a=p.parse_args();build(a.app,a.bundle,a.expected_sha256,a.deb,a.output,a.work)
+ p=argparse.ArgumentParser();p.add_argument('--app',type=Path,required=True);p.add_argument('--bundle',type=Path,required=True);p.add_argument('--expected-sha256',required=True);p.add_argument('--deb',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--work',type=Path,required=True);p.add_argument('--elementum',type=Path,help='inputs from fetch_elementum_inputs.py');a=p.parse_args();build(a.app,a.bundle,a.expected_sha256,a.deb,a.output,a.work,a.elementum if a.elementum and (a.elementum/'framework.zip').is_file() else None)

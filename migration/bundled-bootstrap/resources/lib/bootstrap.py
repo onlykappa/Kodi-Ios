@@ -70,6 +70,11 @@ def install_players(root,profile,has_addon):
   dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(path.read_bytes());installed.append(path.name)
  return installed
 
+def elementum_defaults(downloads,get_setting,set_setting):
+ """Elementum asks for a download folder before its first stream; use one the Files app can see, once."""
+ if get_setting('download_path'):return None
+ Path(downloads).mkdir(parents=True,exist_ok=True);set_setting('download_path',str(downloads).rstrip('/')+'/');return str(downloads)
+
 def ensure_enabled(seed,profile,api):
  """After an app update: switch on bundled add-ons that are still off, such as dependencies a newer build added.
  Only for a completed setup, so a recovered (Estuary) profile stays as the owner left it."""

@@ -57,5 +57,27 @@ class Players(unittest.TestCase):
    dest=profile/'addon_data/plugin.video.themoviedb.helper/players/ios.umbrella.json'
    self.assertEqual(json.loads(dest.read_text())['plugin'],'plugin.video.umbrella')
    dest.write_text('{"plugin":"plugin.video.umbrella","owner":"edited"}')
-   self.assertEqual(bootstrap.install_players(root,profile,lambda a:True),[]);self.assertIn('edited',dest.read_text())
+   self.assertEqual(bootstrap.install_players(root,profile,lambda a:True),['ios.elementum.json']);self.assertIn('edited',dest.read_text())
+class Elementum(unittest.TestCase):
+ def test_download_folder_set_once_and_never_over_the_owners_choice(self):
+  with tempfile.TemporaryDirectory() as t:
+   settings={};folder=Path(t)/'Documents/Elementum Downloads'
+   self.assertEqual(bootstrap.elementum_defaults(folder,lambda k:settings.get(k,''),settings.__setitem__),str(folder))
+   self.assertTrue(folder.is_dir());self.assertEqual(settings['download_path'],str(folder)+'/')
+   settings['download_path']='/owner/choice/'
+   self.assertIsNone(bootstrap.elementum_defaults(folder,lambda k:settings.get(k,''),settings.__setitem__));self.assertEqual(settings['download_path'],'/owner/choice/')
+ def test_inputs_are_verified_and_skipped_until_the_framework_is_pinned(self):
+  import hashlib,fetch_elementum_inputs as f
+  lock=json.loads(f.LOCK.read_text())
+  with tempfile.TemporaryDirectory() as t:
+   self.assertFalse(f.run(Path(t)/'none',dict(lock,framework_release={'tag':'x','asset':'y','sha256':None}))['elementum'])
+   self.assertFalse((Path(t)/'none').exists())
+   client,framework,burst=b'client',b'framework',b'burst';sha=lambda b:hashlib.sha256(b).hexdigest()
+   pinned=dict(lock,plugin_release=dict(lock['plugin_release'],client_zip_sha256=sha(client)),
+               framework_release={'tag':'t','asset':'a.zip','sha256':sha(framework)},burst=dict(lock['burst'],sha256=sha(burst)))
+   def get(url):return client if url==lock['plugin_release']['client_zip_url'] else framework if url.endswith('/t/a.zip') else burst
+   def modules(spec,dest):(dest/'script.module.kodi-six').mkdir(parents=True)
+   out=Path(t)/'ok';self.assertTrue(f.run(out,pinned,get,modules)['elementum'])
+   self.assertEqual((out/'framework.zip').read_bytes(),framework);self.assertEqual((out/'burst.zip').read_bytes(),burst)
+   with self.assertRaises(AssertionError):f.run(Path(t)/'bad',pinned,lambda url:b'tampered',modules)
 if __name__=='__main__':unittest.main()

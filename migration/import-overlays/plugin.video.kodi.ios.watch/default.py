@@ -8,11 +8,11 @@ def run(argv):
  import xbmc,xbmcaddon,xbmcgui,xbmcplugin
  handle=int(argv[1]);params={k:v[0] for k,v in parse_qs(argv[2].lstrip('?')).items()}
  if params.get('action')=='engine_status':
-  xbmcgui.Dialog().ok('Elementum not ready','A real signed iOS Elementum engine has not been integrated or tested. This package does not start another server or substitute another playback add-on.')
+  xbmcgui.Dialog().ok('Elementum not available','Elementum is not installed or is switched off in this build. Check Add-ons > Video add-ons > Elementum.')
   xbmcplugin.endOfDirectory(handle,succeeded=False);return
  try:
   enabled=xbmc.getCondVisibility('System.AddonIsEnabled(plugin.video.elementum)')
-  ready=enabled and xbmcaddon.Addon().getSettingBool('enable_elementum_native_test')
+  ready=enabled and xbmcaddon.Addon().getSettingBool('offer_elementum')
   entries=choices(params,ready)
  except (ValueError,RuntimeError):
   xbmcgui.Dialog().ok('Watch options','The media route is incomplete; use normal item information/episode navigation and record this failure.')

@@ -45,6 +45,6 @@ def choices(params,elementum_test_ready=False):
  elif elementum_test_ready:
   path=f'movie/{id}/forcelinks' if kind=='movie' else f"show/{id}/season/{params['season']}/episode/{params['episode']}/forcelinks"
   entries.append({'label':'Elementum — select source (native test)','url':'plugin://plugin.video.elementum/'+path,'folder':False,'action':'elementum'})
- else:entries.append({'label':'Elementum — iOS engine not integrated','url':'plugin://'+ID+'/?action=engine_status','folder':True,'action':'engine_status'})
+ else:entries.append({'label':'Elementum — not installed or switched off','url':'plugin://'+ID+'/?action=engine_status','folder':True,'action':'engine_status'})
  entries.append({'label':'Browse Google Drive separately','url':'plugin://plugin.googledrive/','folder':True,'action':'drive'})
  return entries

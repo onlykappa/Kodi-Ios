@@ -6,6 +6,8 @@ on:
       - '.github/workflows/import-review.yml'
       - 'scripts/build_import_review.py'
       - 'scripts/build_customized_ipa.py'
+      - 'scripts/fetch_elementum_inputs.py'
+      - 'migration/elementum-ios/source-lock.json'
       - 'scripts/test_customized_ipa.py'
       - 'scripts/test_bundled_bootstrap.py'
       - 'scripts/test_ios_navigation.py'
@@ -70,11 +72,13 @@ jobs:
           curl --fail --location --proto '=https' --proto-redir '=https' --max-time 120 --output "$RUNNER_TEMP/customized-foundation/foundation.deb" https://mirrors.kodi.tv/releases/darwin/ios-arm64/org.xbmc.kodi-ios_21.3_iphoneos-arm64.deb
           printf '%s  %s\n' c80e2e4eded0b3be9f9c8cd19a73e3f3ac7171575dd6f08cfddf14312ca81eb8 "$RUNNER_TEMP/customized-foundation/foundation.deb" | sha256sum --check
           dpkg-deb --extract "$RUNNER_TEMP/customized-foundation/foundation.deb" "$RUNNER_TEMP/customized-foundation/unpacked"
+      - name: Acquire pinned Elementum client, iPhoneOS engine framework and kodi-six
+        run: python3 -B scripts/fetch_elementum_inputs.py --output "$RUNNER_TEMP/elementum-inputs"
       - name: Build and validate full customized unsigned ARM64 IPA
         run: |
           # The bundle was just rebuilt from pinned, hash-checked sources; pin the IPA to that exact bundle.
           bundle_sha=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['sha256'])" "$RUNNER_TEMP/kodi-import-review/import-review-report.json")
-          python3 -B scripts/build_customized_ipa.py --app "$RUNNER_TEMP/customized-foundation/unpacked/Applications/Kodi.app" --deb "$RUNNER_TEMP/customized-foundation/foundation.deb" --bundle "$RUNNER_TEMP/kodi-import-review/Kodi-iOS-Customized-Import.zip" --expected-sha256 "$bundle_sha" --work "$RUNNER_TEMP/customized-app" --output "$RUNNER_TEMP/customized-ipa"
+          python3 -B scripts/build_customized_ipa.py --app "$RUNNER_TEMP/customized-foundation/unpacked/Applications/Kodi.app" --deb "$RUNNER_TEMP/customized-foundation/foundation.deb" --bundle "$RUNNER_TEMP/kodi-import-review/Kodi-iOS-Customized-Import.zip" --expected-sha256 "$bundle_sha" --work "$RUNNER_TEMP/customized-app" --output "$RUNNER_TEMP/customized-ipa" --elementum "$RUNNER_TEMP/elementum-inputs"
       # The owner installs the raw .ipa: publish it as a prerelease asset instead of a zipped artifact.
       - name: Publish raw IPA as a prerelease download
         env:

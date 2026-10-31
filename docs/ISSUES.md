@@ -358,3 +358,10 @@ Status: FIXED ON HOST (Touch-r9); rig-verified where noted.
 ## ISSUE-049 — Rows unreachable while the spotlight's big info is shown
 Status: FIXED ON HOST (navigation r9); rig-verified.
 - With the spotlight's Play / More Information row focused, Fuse fills the screen with the hero info and pushes the poster rows to the bottom edge. A slow drag over the info text reaches no list, so only a quick flick moved focus. Hub windows now carry a transparent touch area over the hero info, shown only while the spotlight has focus; any touch there moves focus to the rows (Fuse's own Hub_Action_Widgets), which slide back up and scroll natively. Verified in the Kodi 21.3 rig: focus moved from Play to the first row and nothing opened.
+
+## ISSUE-050 — Elementum on iPhone (r10)
+Status: BUILT AND BUNDLED ON HOST; DEVICE TEST PENDING.
+- iOS apps cannot start a second program, so the pinned Elementum engine (cdab7e2, libtorrent RC_1_1 760f948) is built on macOS CI as `elementum.framework` (arm64, iOS 14+, only system libraries) by `migration/elementum-ios/build-ios-engine.sh`, published once per engine tag and pinned by sha256 in `migration/elementum-ios/source-lock.json`.
+- The IPA build adds the pinned Elementum 0.1.114 client, Elementum Burst 0.0.99 (the Deck's search providers; pure Python) and kodi-six/future (official repo-scripts, git-tree-verified), puts the framework in `Kodi.app/Frameworks`, and patches the add-on's existing library mode: on iOS it loads the framework in-process with ctypes, keeps its profile and log in Elementum's add-on data, and skips the ELF/PE platform probes (removed from the bundle).
+- First start sets Elementum's download folder to `Documents/Elementum Downloads` (visible in the Files app) unless one is already set. The watch menu offers Elementum through TMDb Helper's `ios.elementum.json` player, installed once Elementum is present.
+- Untested on a device: Go runtime start-up inside Kodi, Kodi's JSON-RPC on 9090, sideloader re-signing of the nested framework, and which Burst providers answer from the phone's network.
