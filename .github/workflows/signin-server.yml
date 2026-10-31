@@ -51,6 +51,10 @@ jobs:
           old="scope: 'https://www.googleapis.com/auth/drive.readonly',"
           src=open('src/oauth.ts').read();assert src.count(old)==1
           open('src/oauth.ts','w').write(src.replace(old,"scope: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file',"))
+          # The server's own sign-in test checks the scope it requests.
+          test_old="['googledrive', 'https://www.googleapis.com/auth/drive.readonly', 'GET'],"
+          test=open('test/signin.test.ts').read();assert test.count(test_old)==1
+          open('test/signin.test.ts','w').write(test.replace(test_old,"['googledrive', 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file', 'GET'],"))
           PY
           grep -n "drive.file" src/oauth.ts
       - name: Test and deploy
