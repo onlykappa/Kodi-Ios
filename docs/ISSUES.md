@@ -355,7 +355,43 @@ Status: FIXED ON HOST (Touch-r9); rig-verified where noted.
 - Watch menu: "Search Google Drive for <title>" opens Drive's search on the first signed-in drive with the title filled in (packaged Drive module patched to accept a query and no drive id); "Browse Google Drive" remains.
 - Home stutter: not changed without measurements; TMDb hosts are blocked in the build environment.
 
-## ISSUE-049 — r11: portrait mode (owner design "layout A")
+## ISSUE-049 — Rows unreachable while the spotlight's big info is shown
+Status: FIXED ON HOST (navigation r9); rig-verified.
+- With the spotlight's Play / More Information row focused, Fuse fills the screen with the hero info and pushes the poster rows to the bottom edge. A slow drag over the info text reaches no list, so only a quick flick moved focus. Hub windows now carry a transparent touch area over the hero info, shown only while the spotlight has focus; any touch there moves focus to the rows (Fuse's own Hub_Action_Widgets), which slide back up and scroll natively. Verified in the Kodi 21.3 rig: focus moved from Play to the first row and nothing opened.
+
+## ISSUE-050 — Elementum on iPhone (r10)
+Status: BUILT AND BUNDLED ON HOST; DEVICE TEST PENDING.
+- iOS apps cannot start a second program, so the pinned Elementum engine (cdab7e2, libtorrent RC_1_1 760f948) is built on macOS CI as `elementum.framework` (arm64, iOS 14+, only system libraries) by `migration/elementum-ios/build-ios-engine.sh`, published once per engine tag and pinned by sha256 in `migration/elementum-ios/source-lock.json`.
+- The IPA build adds the pinned Elementum 0.1.114 client, Elementum Burst 0.0.99 (the Deck's search providers; pure Python) and kodi-six/future (official repo-scripts, git-tree-verified), puts the framework in `Kodi.app/Frameworks`, and patches the add-on's existing library mode: on iOS it loads the framework in-process with ctypes, keeps its profile and log in Elementum's add-on data, and skips the ELF/PE platform probes (removed from the bundle).
+- First start sets Elementum's download folder to `Documents/Elementum Downloads` (visible in the Files app) unless one is already set. The watch menu offers Elementum through TMDb Helper's `ios.elementum.json` player, installed once Elementum is present.
+- Untested on a device: Go runtime start-up inside Kodi, Kodi's JSON-RPC on 9090, sideloader re-signing of the nested framework, and which Burst providers answer from the phone's network.
+
+## ISSUE-051 — Search field opened a hub instead of the keyboard
+Status: FIXED ON HOST (navigation r10); rig-verified.
+- On the Search screen Fuse draws its text field where the hub tabs are, and the touch header's invisible tab targets sat over it, so a tap on the field switched hubs (rig: it opened Movies). The tab and search targets now hide on Search; a tap reaches Fuse's edit control, which opens Kodi's text input (on iPhone, the native keyboard; with a hardware keyboard attached, Kodi's dialog accepts typing). Search also gets the Back/Home pair, since its tab row is no longer tappable.
+
+## ISSUE-052 — Elementum engine thread never started on iPhone
+Status: FIXED ON HOST; device test pending.
+- Debug log from the phone (build-40): Elementum's service started its JSON-RPC thread, but its engine thread is created only when the platform can fork, and the iOS patch (correctly) reports that it cannot, so no engine ever ran and every Elementum request got no answer from 127.0.0.1:65220. The service now also starts the engine thread on iOS, where it loads the framework in-process.
+
+## ISSUE-054 — Engine stops itself inside Kodi ("Parent shut down")
+Status: FIXED IN ENGINE BUILD r2; device test pending.
+- build-42's safety net captured the engine log: the engine started (libtorrent session, HTTP server on 65220, TMDB key check), then logged "Parent shut down, shutting down too...". It watches for its parent process to become pid 1; inside Kodi on iOS the parent of the process is launchd (pid 1), so the watch fired immediately, and the shutdown inside the host process ended Kodi. The iOS engine build now skips the parent watch in shared-library mode (`migration/elementum-ios/build-ios-engine.sh`), published as framework tag `elementum-engine-cdab7e2-r2`.
+- The same log showed Elementum's download folder still pointing at a previous install's data container (iOS moves it on reinstall). The setup add-on now follows a folder it set earlier to the current path, leaving an owner-chosen folder alone.
+
+## ISSUE-055 — Umbrella "no providers"; Drive sign-in error 1010 on a workers.dev server
+Status: FIXED ON HOST (not yet released); device test pending.
+- Umbrella finds sources through an external scraper module. The Deck used CocoScrapers 1.0.45 (and had ResolveURL 5.1.212); neither was on the phone. Both are now pinned by sha256 to their publishers' repositories. ResolveURL ships inside the app. Umbrella imports its scraper module only from `special://home/addons`, so CocoScrapers ships in the setup add-on's payload and is copied into the writable add-ons folder at first start (never over an existing copy), enabled, and Umbrella is pointed at it unless the owner already chose a module. Debrid accounts still need signing in on the phone.
+- A self-hosted sign-in server on a free `*.workers.dev` address answered the add-on with Cloudflare error 1010: the Browser Integrity Check can't be turned off there, and it rejects the add-on's non-browser user agent (the /ip probe sent none). The sign-in requests now send a browser-style user agent that still names the add-on, Kodi and Python versions. If 1010 persists, the fallback is a custom domain on Cloudflare with the check turned off (the sign-in server's SETUP.md).
+- Also from the Deck, pinned to their publishers: repository.jurialmunkey 3.4 and repository.cocoscrapers 1.0.0 (updates), plugin.program.autocompletion 2.1.2 + script.module.autocompletion 2.1.1 (search suggestions) and script.module.inputstreamhelper 0.8.6, the last three from Kodi's official repo-plugins/repo-scripts trees (git-tree-verified). YouTube stays out at the owner's request.
+
+## ISSUE-056 — AirPlay button
+Status: BUILT ON HOST; device test pending.
+- Kodi's skin cannot draw Apple's AirPlay control, so `migration/airplay-ios/build-airplay.sh` builds KodiAirPlay.framework (an AVRoutePickerView, the same "AirPlay & Bluetooth devices" sheet as Control Center) on macOS CI, published once per tag and pinned in `migration/airplay-ios/source-lock.json`. The setup add-on loads it with ctypes and shows the button in the top-right corner while video or music plays full screen (setting: Playback › Show the AirPlay button); the iPhone recovery menu has "AirPlay & Bluetooth devices" to open the sheet any time.
+- The route picker sends audio to AirPlay speakers and TVs. Kodi draws video with OpenGL, not AVPlayer, so video on a TV goes through Screen Mirroring (Control Center), where Kodi shows full-screen on the TV.
+- Changed at the owner's request (audio + video, phone free, Roku as the main TV): the video controls get a top-right **Play on TV** button. It finds a Roku on the phone's Wi-Fi (asking each address of the /24 on port 8060, since iOS blocks multicast discovery for sideloaded apps), remembers it, and sends the playing link to Roku's built-in "Play on Roku" receiver through the External Control Protocol. The Roku then streams straight from the internet (MKV included), and Kodi on the phone stops. A link served by Elementum on the phone is rewritten to the phone's Wi-Fi address and needs Kodi kept open. Apple's AirPlay button stays available for audio (gear menu; optional button during playback, off by default).
+
+## ISSUE-057 — r11: portrait mode (owner design "layout A")
 
 Status: IMPLEMENTED ON HOST; rig-verified layout; native build in CI; awaiting iPhone test. Details: docs/portrait/README.md.
 - Kodi 21.3 iOS cannot rotate by configuration: `XBMCController` returns a landscape-only mask, `WinSystemIOS` caches the first screen size forever, and nothing resizes the GL framebuffer or safe-area insets. Patching only the mask would leave a clipped landscape picture with misplaced taps. Fix: `migration/ios-portrait/kodi-21.3-portrait.patch` (rotation handler that resizes the framebuffer, resets the cached size, rebuilds RES_DESKTOP and insets on Kodi's thread; fullscreen video stays landscape), built on macOS by `.github/workflows/kodi-ios-portrait.yml`. Only the main executable is swapped in, after checking it loads the same libraries as the official one.

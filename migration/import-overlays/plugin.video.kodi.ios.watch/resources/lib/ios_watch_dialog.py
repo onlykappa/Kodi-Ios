@@ -1,5 +1,5 @@
 """Deck-style "How would you like to watch?" chooser inside TMDb Helper's movie/episode resolver; no autoplay."""
-NOT_READY={'elementum':('Elementum not available yet','Elementum needs a native iOS engine, which this build does not include yet.'),
+NOT_READY={'elementum':('Elementum not available','Elementum is not installed or is switched off in this build. Check Add-ons > Video add-ons > Elementum.'),
            'umbrella':('Umbrella not available yet','Umbrella has not been ported to this iPhone build yet. It will appear here once it is.')}
 
 def choose_player(player):
@@ -11,7 +11,7 @@ def choose_player(player):
  def installed(addon):return xbmc.getCondVisibility('System.AddonIsEnabled('+addon+')')
  rows=[]
  engine=next((p for p in candidates if p.file=='ios.elementum.json'),None)
- if engine and installed('plugin.video.elementum') and settings.getSettingBool('enable_elementum_native_test'):rows.append(('Elementum','play',engine))
+ if engine and installed('plugin.video.elementum') and settings.getSettingBool('offer_elementum'):rows.append(('Elementum','play',engine))
  else:rows.append(('Elementum — not available on iPhone yet','elementum',None))
  # Any TMDb Helper player for Umbrella is offered once the add-on is installed, as on the Deck.
  umbrella=next((p for p in candidates if 'umbrella' in str(p.file).lower()),None)

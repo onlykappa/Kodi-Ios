@@ -1,17 +1,20 @@
 """Widget-independent native Kodi controls and idempotent, backed-up iOS upgrade."""
 import hashlib,json,os,re,xml.etree.ElementTree as ET
 from pathlib import Path
-REVISION='ios-touch-navigation-r8'
+REVISION='ios-touch-navigation-r11'
 GROUP=98100
 HEADER=98200
 BACK=98300
 FRAME=98400
+CAST=98500
 LEGACY='Kodi-iOS permanent navigation '
 MARKER='Kodi-iOS touch header '+REVISION
 BACK_MARKER='Kodi-iOS back/home '+REVISION
 # Kodi keeps pixels square, so on a wide iPhone the 1080-high canvas is wider than 1920: anchor right-side items
 # with <right>, never a fixed <left>.
 FRAME_MARKER='Kodi-iOS safe-area frame '+REVISION
+CAST_MARKER='Kodi-iOS play on TV '+REVISION
+CAST_SCRIPT='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/cast.py)'
 MENU='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)'
 # Swipes move between rows only where Fuse stacks horizontal rows (hubs, search, info page). In ordinary lists
 # a flick already scrolls natively; an extra Up there pushed focus out of the list.
@@ -56,8 +59,9 @@ def header():
  element(group,'visible','System.Platform.IOS + !Skin.HasSetting(HomeSwitcher.Vertical) + !String.IsEmpty(Window(Home).Property(HomeSwitcher.IsVisible))')
  # Mirrors Home_Switcher_Horz geometry so each target lies exactly over its drawn tab or icon.
  inner=ET.SubElement(group,'control',{'type':'group'});element(inner,'include','Home_Group_Definition');element(inner,'include','Home_Reposition')
- touch_button(inner,HEADER+1,'ReplaceWindow(1105)',[('left',-20),('width',80),('height',80),('visible','!Skin.HasSetting(HomeSwitcher.DisableSearch)')])
- tabs=ET.SubElement(inner,'control',{'type':'grouplist'});element(tabs,'top',-100)
+ # Search shows its text field where the tabs are; leave that row to the field so a tap opens the iPhone keyboard.
+ touch_button(inner,HEADER+1,'ReplaceWindow(1105)',[('left',-20),('width',80),('height',80),('visible','!Skin.HasSetting(HomeSwitcher.DisableSearch) + !Window.IsVisible(1105)')])
+ tabs=ET.SubElement(inner,'control',{'type':'grouplist'});element(tabs,'top',-100);element(tabs,'visible','!Window.IsVisible(1105)')
  icons=ET.SubElement(tabs,'include',{'content':'Object_Left','condition':ICONS});ET.SubElement(icons,'param',{'name':'left'}).text='-10'
  for name,value in [('left',-20),('orientation','horizontal'),('height',1080)]:element(tabs,name,value)
  for index,window in enumerate(HUBS):
@@ -79,6 +83,11 @@ def header():
   for name,value in [('width',80),('height',80),('visible',visible)]:element(slot,name,value)
   touch_button(slot,HEADER+30+index,action,[('width',80),('height',80)])
  end=ET.SubElement(right,'control',{'type':'group'});element(end,'width',0)
+ # While the spotlight's Play/More Information row has focus, Fuse fills the screen with the hero info and pushes
+ # the rows to the bottom edge. A slow drag over that text reaches no list, so nothing scrolls; any touch there
+ # moves focus to the rows instead, where a drag scrolls natively.
+ hero=touch_button(group,HEADER+50,'$VAR[Hub_Action_Widgets]',[('left',0),('right',0),('top',230),('height',470),('visible','ControlGroup(310).HasFocus()'),('onfocus','$VAR[Hub_Action_Widgets]')])
+ hero.remove(hero.find('ondown'))
  return group
 
 def back_home():
@@ -101,6 +110,28 @@ def frame():
   for name,value in edges:element(image,name,value)
   element(image,'texture','common/white.png',colordiffuse='FF000000')
  return group
+
+def cast_button():
+ """Top-right "Play on TV" in the video controls: hands the stream to a Roku on the same Wi-Fi (cast.py)."""
+ group=ET.Element('control',{'type':'group','id':str(CAST)});element(group,'description',CAST_MARKER)
+ for name,value in [('visible','System.Platform.IOS + Player.HasVideo'),('top',130),('right',48),('width',112),('height',112)]:element(group,name,value)
+ c=ET.SubElement(group,'control',{'type':'button','id':str(CAST+1)})
+ for name,value in [('width',112),('height',112),('onclick',CAST_SCRIPT)]:element(c,name,value)
+ element(c,'texturefocus','common/circle.png',colordiffuse='FFFFFFFF');element(c,'texturenofocus','common/circle.png',colordiffuse='66000000')
+ icon=ET.SubElement(group,'control',{'type':'image'})
+ for name,value in [('left',28),('top',28),('width',56),('height',56)]:element(icon,name,value)
+ element(icon,'texture','special://skin/extras/icons/display.png',colordiffuse='FFFFFFFF')
+ return group
+
+def patch_osd(data,filename):
+ if filename!='VideoOSD.xml':return data
+ root=ET.fromstring(data);controls=root.find('controls')
+ if controls is None:return data
+ old=controls.find("control[@id='"+str(CAST)+"']")
+ if not owned(old,'Kodi-iOS play on TV '):raise ValueError('Navigation control ID collision')
+ if old is not None and old.findtext('description')==CAST_MARKER:return data
+ if old is not None:controls.remove(old)
+ controls.append(cast_button());ET.indent(root);return ET.tostring(root,encoding='utf-8',xml_declaration=True)+b'\n'
 
 def patch_frame(data,filename):
  if filename in {'Pointer.xml'}:return data
@@ -139,6 +170,9 @@ def patch_window(data,filename):
  if legacy is None and previous is not None and previous.findtext('description')==MARKER:return data
  for old in (legacy,previous):
   if old is not None:controls.remove(old)
+ back=controls.find("control[@id='"+str(BACK)+"']")
+ if not owned(back,'Kodi-iOS back/home '):raise ValueError('Navigation control ID collision')
+ if back is not None:controls.remove(back)
  for old in list(root.findall('defaultcontrol')):
   if (old.text or '').strip()=='98104':root.remove(old)
  for node in list(root):
@@ -153,6 +187,8 @@ def patch_window(data,filename):
  for action in ONLOADS:
   node=ET.Element('onload',{'condition':'System.Platform.IOS'});node.text=action;root.insert(list(root).index(controls),node)
  controls.append(header())
+ # Without its tab row, Search needs the visible way out that other screens have.
+ if 'Search' in filename:controls.append(back_home())
  ET.indent(root);return ET.tostring(root,encoding='utf-8',xml_declaration=True)+b'\n'
 
 INCLUDES={'Includes_Home.xml','Includes_Hubs.xml','Includes_Actions.xml','Includes_Search.xml','Includes_Background.xml'}
@@ -177,7 +213,7 @@ def patch_skin(skin,backup=None):
   if path.is_symlink():raise ValueError('Skin XML symlink refused')
   before=path.read_bytes()
   if path.suffix=='.xmltemplate' or path.name in INCLUDES:after=patch_includes(before)
-  else:after=patch_frame(patch_window(before,path.name),path.name)
+  else:after=patch_frame(patch_osd(patch_window(before,path.name),path.name),path.name)
   if before==after:continue
   if backup is not None:
    dest=Path(backup)/path.name

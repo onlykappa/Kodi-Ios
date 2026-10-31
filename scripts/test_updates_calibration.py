@@ -57,5 +57,85 @@ class Players(unittest.TestCase):
    dest=profile/'addon_data/plugin.video.themoviedb.helper/players/ios.umbrella.json'
    self.assertEqual(json.loads(dest.read_text())['plugin'],'plugin.video.umbrella')
    dest.write_text('{"plugin":"plugin.video.umbrella","owner":"edited"}')
-   self.assertEqual(bootstrap.install_players(root,profile,lambda a:True),[]);self.assertIn('edited',dest.read_text())
+   self.assertEqual(bootstrap.install_players(root,profile,lambda a:True),['ios.elementum.json']);self.assertIn('edited',dest.read_text())
+class PlayOnTV(unittest.TestCase):
+ def test_web_links_go_straight_to_the_tv_and_phone_links_use_its_wifi_address(self):
+  cast=load('cast')
+  self.assertEqual(cast.stream_url('https://cdn.example/v/a.mkv|User-Agent=Kodi','10.0.0.5'),('https://cdn.example/v/a.mkv',False))
+  self.assertEqual(cast.stream_url('http://127.0.0.1:65220/files/a.mkv','192.168.1.11'),('http://192.168.1.11:65220/files/a.mkv',True))
+  self.assertEqual(cast.stream_url('http://127.0.0.1:65220/files/a.mkv',None),(None,True))
+  self.assertEqual(cast.stream_url('plugin://plugin.video.x/?a=1','1.2.3.4'),(None,False))
+  self.assertEqual(cast.stream_url('/private/var/a.mkv','1.2.3.4'),(None,False))
+ def test_roku_launch_request(self):
+  cast=load('cast');url=cast.launch_url('192.168.1.20','https://cdn.example/v/My Show.mkv?x=1&y=2','You')
+  self.assertTrue(url.startswith('http://192.168.1.20:8060/input/15985?t=v&u=https%3A%2F%2Fcdn.example%2Fv%2FMy%20Show.mkv%3Fx%3D1%26y%3D2'))
+  self.assertIn('videoName=You',url);self.assertIn('videoFormat=mkv',url);self.assertIn('k=%28null%29',url)
+ def test_finds_rokus_on_the_phones_network(self):
+  cast=load('cast')
+  def get(url,timeout):
+   if url.startswith('http://192.168.1.20:'):return b'<device-info><user-device-name>Living Room</user-device-name></device-info>'
+   if url.startswith('http://192.168.1.31:'):return b'<device-info><model-name>Roku Express</model-name></device-info>'
+   raise OSError('refused')
+  self.assertEqual(cast.find_rokus('192.168.1.11',get,workers=8),[('192.168.1.20','Living Room'),('192.168.1.31','Roku Express')])
+  self.assertEqual(cast.find_rokus(None,get),[])
+class AirPlay(unittest.TestCase):
+ def test_framework_found_inside_the_app_only(self):
+  airplay=load('airplay')
+  with tempfile.TemporaryDirectory() as t:
+   home=Path(t)/'Kodi.app/AppData/AppHome';home.mkdir(parents=True)
+   self.assertIsNone(airplay.library_path(str(home)+'/'))
+   fw=Path(t)/'Kodi.app/Frameworks/KodiAirPlay.framework';fw.mkdir(parents=True);(fw/'KodiAirPlay').write_bytes(b'x')
+   self.assertEqual(airplay.library_path(str(home)+'/'),str(fw/'KodiAirPlay'))
+   self.assertIsNone(airplay.library_path(t))
+ def test_button_follows_playback_and_hides_on_exit(self):
+  airplay=load('airplay');calls=[];states=iter([False,True,True,False,True])
+  lib=type('L',(),{'kodi_airplay_show':staticmethod(calls.append)})()
+  ticks=iter([False,False,False,False,True])
+  airplay.watch(lib,lambda:next(states),lambda s:next(ticks))
+  self.assertEqual(calls,[0,1,0,1,0])
+class Scrapers(unittest.TestCase):
+ def test_payload_copied_once_and_never_over_an_existing_copy(self):
+  with tempfile.TemporaryDirectory() as t:
+   root,home=Path(t)/'boot',Path(t)/'home';mod=root/'payload/script.module.cocoscrapers';mod.mkdir(parents=True)
+   (mod/'addon.xml').write_text('<addon id="script.module.cocoscrapers" version="1.0.45"/>');(mod/'lib').mkdir();(mod/'lib/x.py').write_text('x=1')
+   self.assertEqual(bootstrap.install_payload(root,home),['script.module.cocoscrapers'])
+   dest=home/'addons/script.module.cocoscrapers';self.assertTrue((dest/'lib/x.py').is_file())
+   (dest/'addon.xml').write_text('<addon id="script.module.cocoscrapers" version="1.0.50"/>')
+   self.assertEqual(bootstrap.install_payload(root,home),[]);self.assertIn('1.0.50',(dest/'addon.xml').read_text())
+   self.assertEqual(bootstrap.install_payload(Path(t)/'none',home),[])
+ def test_umbrella_pointed_at_cocoscrapers_unless_owner_chose(self):
+  settings={}
+  self.assertTrue(bootstrap.umbrella_defaults(lambda k:settings.get(k,''),settings.__setitem__))
+  self.assertEqual(settings,{'provider.external.enabled':'true','external_provider.name':'cocoscrapers','external_provider.module':'script.module.cocoscrapers'})
+  settings['external_provider.module']='script.module.other'
+  self.assertFalse(bootstrap.umbrella_defaults(lambda k:settings.get(k,''),settings.__setitem__));self.assertEqual(settings['external_provider.module'],'script.module.other')
+class Elementum(unittest.TestCase):
+ def test_download_folder_set_once_and_never_over_the_owners_choice(self):
+  with tempfile.TemporaryDirectory() as t:
+   settings={};folder=Path(t)/'Documents/Elementum Downloads'
+   self.assertEqual(bootstrap.elementum_defaults(folder,lambda k:settings.get(k,''),settings.__setitem__),str(folder))
+   self.assertTrue(folder.is_dir());self.assertEqual(settings['download_path'],str(folder)+'/')
+   settings['download_path']='/private/var/old-container/Documents/Elementum Downloads/'
+   self.assertEqual(bootstrap.elementum_defaults(folder,lambda k:settings.get(k,''),settings.__setitem__),str(folder));self.assertEqual(settings['download_path'],str(folder)+'/')
+   self.assertIsNone(bootstrap.elementum_defaults(folder,lambda k:settings.get(k,''),settings.__setitem__))
+   settings['download_path']='/owner/choice/'
+   self.assertIsNone(bootstrap.elementum_defaults(folder,lambda k:settings.get(k,''),settings.__setitem__));self.assertEqual(settings['download_path'],'/owner/choice/')
+ def test_inputs_are_verified_and_skipped_until_the_framework_is_pinned(self):
+  import hashlib,fetch_elementum_inputs as f
+  lock=json.loads(f.LOCK.read_text())
+  with tempfile.TemporaryDirectory() as t:
+   self.assertFalse(f.run(Path(t)/'none',dict(lock,framework_release={'tag':'x','asset':'y','sha256':None}))['elementum'])
+   self.assertFalse((Path(t)/'none').exists())
+   client,framework,burst=b'client',b'framework',b'burst';sha=lambda b:hashlib.sha256(b).hexdigest()
+   pinned=dict(lock,plugin_release=dict(lock['plugin_release'],client_zip_sha256=sha(client)),
+               framework_release={'tag':'t','asset':'a.zip','sha256':sha(framework)},burst=dict(lock['burst'],sha256=sha(burst)))
+   pinned['extras']={'script.module.a':{'install':'app','url':'u-app','sha256':sha(b'app')},'script.module.b':{'install':'profile','url':'u-profile','sha256':sha(b'profile')}}
+   def get(url):return client if url==lock['plugin_release']['client_zip_url'] else framework if url.endswith('/t/a.zip') else {'u-app':b'app','u-profile':b'profile'}.get(url,burst)
+   def modules(spec,dest):(dest/'script.module.kodi-six').mkdir(parents=True)
+   out=Path(t)/'ok';self.assertTrue(f.run(out,pinned,get,modules,{'tag':'x','asset':'y','sha256':None})['elementum'])
+   self.assertFalse((out/'frameworks').exists())
+   air=Path(t)/'air';self.assertEqual(f.run(air,pinned,lambda url:b'fw' if url.endswith('/ap/A.zip') else get(url),modules,{'tag':'ap','asset':'A.zip','sha256':sha(b'fw')})['frameworks'],['KodiAirPlay'])
+   self.assertEqual((out/'framework.zip').read_bytes(),framework);self.assertEqual((out/'burst.zip').read_bytes(),burst)
+   self.assertEqual((out/'extras-app/script.module.a.zip').read_bytes(),b'app');self.assertEqual((out/'extras-profile/script.module.b.zip').read_bytes(),b'profile')
+   with self.assertRaises(AssertionError):f.run(Path(t)/'bad',pinned,lambda url:b'tampered',modules,{'tag':'x','asset':'y','sha256':None})
 if __name__=='__main__':unittest.main()

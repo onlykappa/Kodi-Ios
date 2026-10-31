@@ -35,7 +35,9 @@ export PKG_CONFIG_PATH='' PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
 
 step "Toolchain"
 xcodebuild -version; xcrun --sdk iphoneos --show-sdk-version
-for tool in autoconf automake libtool pkg-config; do command -v "$tool" >/dev/null || brew install "$tool"; done
+# macOS ships an unrelated /usr/bin/libtool, so look for GNU libtool by its glibtoolize name.
+for tool in autoconf automake pkg-config; do command -v "$tool" >/dev/null || brew install "$tool"; done
+command -v glibtoolize >/dev/null || brew install libtool
 end
 
 step "Go $GO_VERSION"
@@ -94,12 +96,17 @@ step "Elementum engine ($ENGINE_COMMIT) as a C archive"
 git init -q "$SRC/engine"; git -C "$SRC/engine" fetch -q --depth=1 https://github.com/elgatito/elementum.git "$ENGINE_COMMIT"
 git -C "$SRC/engine" checkout -q FETCH_HEAD
 test "$(git -C "$SRC/engine" rev-parse HEAD)" = "$ENGINE_COMMIT"
-# cgo for ios needs the SDK flags baked into CC/CXX.
+# Loaded inside Kodi, the engine's parent is launchd (pid 1), so its "parent shut down" watch fires at once and the
+# shutdown ends Kodi. Kodi is the host process here: there is no separate parent to watch.
+test "$(grep -c '	if !config.Get().ServerMode {' "$SRC/engine/main.go")" = 1
+sed -i '' 's/	if !config.Get().ServerMode {/	if !config.Get().ServerMode \&\& !exit.IsShared {/' "$SRC/engine/main.go"
+grep -q 'ServerMode && !exit.IsShared' "$SRC/engine/main.go"
+# cgo for ios needs the SDK flags baked into CC/CXX. Boost 1.72 trips current clang's enum-constexpr-conversion check.
 printf '#!/bin/sh\nexec "%s" %s "$@"\n' "$CLANG" "$IOS_FLAGS" > "$HOST/bin/ios-cc"
 printf '#!/bin/sh\nexec "%s" %s "$@"\n' "$CLANGXX" "$IOS_FLAGS" > "$HOST/bin/ios-cxx"
 chmod +x "$HOST/bin/ios-cc" "$HOST/bin/ios-cxx"
 (cd "$SRC/engine" && GOOS=ios GOARCH=arm64 CGO_ENABLED=1 CC=ios-cc CXX=ios-cxx \
-   CGO_CXXFLAGS="-std=c++11 -I$PREFIX/include -Wno-deprecated-declarations" CGO_CFLAGS="-I$PREFIX/include" \
+   CGO_CXXFLAGS="-std=c++11 -I$PREFIX/include -Wno-deprecated-declarations -Wno-deprecated-builtins -Wno-error=enum-constexpr-conversion -Wno-enum-constexpr-conversion" CGO_CFLAGS="-I$PREFIX/include" \
    go build -mod=readonly -trimpath -buildmode=c-archive -tags shared,go_json -ldflags "-s -w" -o "$WORK/libelementum.a" .)
 end
 

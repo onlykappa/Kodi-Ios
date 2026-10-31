@@ -1,10 +1,10 @@
 import json,os,sys,time
 from pathlib import Path
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
-from bootstrap import initialize,restore,ensure_enabled,install_players
+from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
-import calibration,updates,portrait
+import airplay,calibration,updates,portrait
 
 def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
@@ -56,6 +56,22 @@ def run():
   for addon in ensure_enabled(root/'seed',profile,api):xbmc.log('Kodi iOS setup enabled bundled add-on '+addon,xbmc.LOGINFO)
   # e.g. Umbrella, once installed, appears in "How would you like to watch?" through its TMDb Helper player.
   for name in install_players(root,profile,lambda addon:xbmc.getCondVisibility('System.HasAddon('+addon+')')):xbmc.log('Kodi iOS setup added TMDb Helper player '+name,xbmc.LOGINFO)
+  # CocoScrapers goes into the writable add-ons folder, where Umbrella looks for its scraper module.
+  try:
+   copied=install_payload(root,home)
+   if copied:
+    invoke('UpdateLocalAddons');monitor.waitForAbort(2)
+    for addon in copied:api('Addons.SetAddonEnabled',{'addonid':addon,'enabled':True});xbmc.log('Kodi iOS setup installed '+addon,xbmc.LOGINFO)
+   if xbmc.getCondVisibility('System.HasAddon(plugin.video.umbrella)') and xbmc.getCondVisibility('System.HasAddon(script.module.cocoscrapers)'):
+    umbrella=xbmcaddon.Addon('plugin.video.umbrella')
+    if umbrella_defaults(umbrella.getSetting,umbrella.setSetting):xbmc.log('Kodi iOS setup set Umbrella to CocoScrapers',xbmc.LOGINFO)
+  except Exception as error:xbmc.log('Kodi iOS scraper setup skipped: '+type(error).__name__,xbmc.LOGWARNING)
+  if xbmc.getCondVisibility('System.AddonIsEnabled(plugin.video.elementum)'):
+   try:
+    engine=xbmcaddon.Addon('plugin.video.elementum')
+    folder=elementum_defaults(updates.updates_folder(home).with_name('Elementum Downloads'),engine.getSetting,engine.setSetting)
+    if folder:xbmc.log('Kodi iOS setup set Elementum downloads to '+folder,xbmc.LOGINFO)
+   except Exception as error:xbmc.log('Kodi iOS Elementum defaults skipped: '+type(error).__name__,xbmc.LOGWARNING)
   if result=='IN PROGRESS':
    restore(profile,api);xbmcgui.Dialog().ok('Setup interrupted','Original files restored. Estuary remains available. Record this failure before retrying.')
   elif not generated and xbmc.getSkinDir()==FUSE:
@@ -84,6 +100,15 @@ def run():
    try:
     if xbmcaddon.Addon().getSettingBool('check_on_start'):updates.run(check_only=True)
    except Exception as error:xbmc.log('Kodi iOS update check skipped: '+type(error).__name__,xbmc.LOGWARNING)
- # r11: portrait rows follow the owner's widgets; rotating the phone reloads the matching layout.
- portrait.run_service(xbmc,xbmcvfs,monitor,profile,invoke)
+ # r11: portrait rows follow the owner's widgets, rotating the phone reloads the matching layout, and Continue
+ # Watching follows playback. Its own thread, since the AirPlay watch below also runs for the whole session.
+ import threading
+ portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),daemon=True);portrait_thread.start()
+ # Stays running for the rest of the session: Apple's AirPlay button in the top-right corner during playback.
+ try:
+  path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
+  if path and xbmcaddon.Addon().getSettingBool('airplay_button'):
+   airplay.watch(airplay.load(path),lambda:xbmc.getCondVisibility(airplay.PLAYING),monitor.waitForAbort)
+ except Exception as error:xbmc.log('Kodi iOS AirPlay button unavailable: '+type(error).__name__,xbmc.LOGWARNING)
+ portrait_thread.join()
 if __name__=='__main__':run()
