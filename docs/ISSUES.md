@@ -373,3 +373,8 @@ Status: FIXED ON HOST (navigation r10); rig-verified.
 ## ISSUE-052 — Elementum engine thread never started on iPhone
 Status: FIXED ON HOST; device test pending.
 - Debug log from the phone (build-40): Elementum's service started its JSON-RPC thread, but its engine thread is created only when the platform can fork, and the iOS patch (correctly) reports that it cannot, so no engine ever ran and every Elementum request got no answer from 127.0.0.1:65220. The service now also starts the engine thread on iOS, where it loads the framework in-process.
+
+## ISSUE-054 — Engine stops itself inside Kodi ("Parent shut down")
+Status: FIXED IN ENGINE BUILD r2; device test pending.
+- build-42's safety net captured the engine log: the engine started (libtorrent session, HTTP server on 65220, TMDB key check), then logged "Parent shut down, shutting down too...". It watches for its parent process to become pid 1; inside Kodi on iOS the parent of the process is launchd (pid 1), so the watch fired immediately, and the shutdown inside the host process ended Kodi. The iOS engine build now skips the parent watch in shared-library mode (`migration/elementum-ios/build-ios-engine.sh`), published as framework tag `elementum-engine-cdab7e2-r2`.
+- The same log showed Elementum's download folder still pointing at a previous install's data container (iOS moves it on reinstall). The setup add-on now follows a folder it set earlier to the current path, leaving an owner-chosen folder alone.

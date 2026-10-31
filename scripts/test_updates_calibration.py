@@ -64,6 +64,9 @@ class Elementum(unittest.TestCase):
    settings={};folder=Path(t)/'Documents/Elementum Downloads'
    self.assertEqual(bootstrap.elementum_defaults(folder,lambda k:settings.get(k,''),settings.__setitem__),str(folder))
    self.assertTrue(folder.is_dir());self.assertEqual(settings['download_path'],str(folder)+'/')
+   settings['download_path']='/private/var/old-container/Documents/Elementum Downloads/'
+   self.assertEqual(bootstrap.elementum_defaults(folder,lambda k:settings.get(k,''),settings.__setitem__),str(folder));self.assertEqual(settings['download_path'],str(folder)+'/')
+   self.assertIsNone(bootstrap.elementum_defaults(folder,lambda k:settings.get(k,''),settings.__setitem__))
    settings['download_path']='/owner/choice/'
    self.assertIsNone(bootstrap.elementum_defaults(folder,lambda k:settings.get(k,''),settings.__setitem__));self.assertEqual(settings['download_path'],'/owner/choice/')
  def test_inputs_are_verified_and_skipped_until_the_framework_is_pinned(self):

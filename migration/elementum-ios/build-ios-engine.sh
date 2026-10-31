@@ -96,6 +96,11 @@ step "Elementum engine ($ENGINE_COMMIT) as a C archive"
 git init -q "$SRC/engine"; git -C "$SRC/engine" fetch -q --depth=1 https://github.com/elgatito/elementum.git "$ENGINE_COMMIT"
 git -C "$SRC/engine" checkout -q FETCH_HEAD
 test "$(git -C "$SRC/engine" rev-parse HEAD)" = "$ENGINE_COMMIT"
+# Loaded inside Kodi, the engine's parent is launchd (pid 1), so its "parent shut down" watch fires at once and the
+# shutdown ends Kodi. Kodi is the host process here: there is no separate parent to watch.
+test "$(grep -c '	if !config.Get().ServerMode {' "$SRC/engine/main.go")" = 1
+sed -i '' 's/	if !config.Get().ServerMode {/	if !config.Get().ServerMode \&\& !exit.IsShared {/' "$SRC/engine/main.go"
+grep -q 'ServerMode && !exit.IsShared' "$SRC/engine/main.go"
 # cgo for ios needs the SDK flags baked into CC/CXX. Boost 1.72 trips current clang's enum-constexpr-conversion check.
 printf '#!/bin/sh\nexec "%s" %s "$@"\n' "$CLANG" "$IOS_FLAGS" > "$HOST/bin/ios-cc"
 printf '#!/bin/sh\nexec "%s" %s "$@"\n' "$CLANGXX" "$IOS_FLAGS" > "$HOST/bin/ios-cxx"

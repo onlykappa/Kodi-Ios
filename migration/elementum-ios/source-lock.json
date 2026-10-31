@@ -22,9 +22,9 @@
   "recorded_utc": "2026-10-29T23:40:57.583541+00:00",
   "status": "ENGINE BUILT ON CI; DEVICE TEST PENDING",
   "framework_release": {
-    "tag": "elementum-engine-cdab7e2-r1",
+    "tag": "elementum-engine-cdab7e2-r2",
     "asset": "elementum.framework.zip",
-    "sha256": "e3ebf08c7acaf4c3327528b8d85b0913ac305794eb0c2384437ef943b5ab08b2"
+    "sha256": null
   },
   "modules": {
     "repository": "xbmc/repo-scripts",
@@ -40,5 +40,8 @@
     "version": "0.0.99",
     "url": "https://github.com/elgatito/script.elementum.burst/releases/download/v0.0.99/script.elementum.burst-0.0.99.zip",
     "sha256": "e05873d2c897e0c793569891cd5c6955bd93b12032e18bdcfc5fed2d37eb938d"
-  }
+  },
+  "engine_patches": [
+    "Skip the parent-process watch in shared-library mode (Kodi hosts the engine on iOS)"
+  ]
 }

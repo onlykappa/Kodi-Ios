@@ -71,8 +71,10 @@ def install_players(root,profile,has_addon):
  return installed
 
 def elementum_defaults(downloads,get_setting,set_setting):
- """Elementum asks for a download folder before its first stream; use one the Files app can see, once."""
- if get_setting('download_path'):return None
+ """Elementum asks for a download folder before its first stream; use one the Files app can see. iOS can move the
+ app's data folder on reinstall, so a folder set here earlier is followed to the current path; the owner's own choice stays."""
+ current=get_setting('download_path').rstrip('/')
+ if current and (current==str(downloads).rstrip('/') or not current.endswith('/Documents/Elementum Downloads')):return None
  Path(downloads).mkdir(parents=True,exist_ok=True);set_setting('download_path',str(downloads).rstrip('/')+'/');return str(downloads)
 
 def ensure_enabled(seed,profile,api):
