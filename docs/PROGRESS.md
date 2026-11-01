@@ -31,7 +31,7 @@ Open / next (exact next step first):
 1. DONE 21:12Z: build-104 published and sent to the owner. r9 executable compiled and published (Kodi ca8d9fa8…04df) — proves the GUIDialogKaiToast change builds; r9 is not pinned.
 2. Watch the executable runs: r9 (from 0005312) publishes first and is NOT to be pinned (it showed pop-ups on a first start); r10 (queued behind it, concurrency waits) is the one to pin. If either fails to compile, read the log and fix GUIDialogKaiToast.cpp in the patch. When r10 publishes, pin kodi-ios-portrait-r10 with the Kodi binary hash from the release body and send the next IPA.
 3. Owner retests build-102 (see list above) and later the r10 build (pop-ups appear in the bell, none on screen); evidence by screen recording or kodi.old.log via the log uploader.
-4. Settings pages rework (planned in draft PR #3, not coded). Roku: this TV has no Play on Roku receiver; AirPlay path only plays MP4/HLS.
+4. Settings pages rework: owner approved the mockups (docs/design/settings-mockups.html). Coded on branch design/settings-mockups (not built into an IPA yet, not device-verified): portrait Settings home + Customisation page (settings_page.py) and the Accounts page (accounts.py, accounts_page.py) with sign-in state for Elementum, Umbrella, Google Drive, Trakt and TMDb Helper. Next: SettingsCategory/DialogAddonSettings in the same style (Kodi's own leaf pages), then build and owner retest. Roku: this TV has no Play on Roku receiver; AirPlay path only plays MP4/HLS.
 
 Blockers: device verification needs the owner. Phase 5, merge and release are not authorized.
 

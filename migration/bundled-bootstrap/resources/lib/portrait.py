@@ -12,6 +12,8 @@ import json,os,re,struct,zlib,xml.etree.ElementTree as ET
 import importlib.util as _iu
 _spec=_iu.spec_from_file_location('player_osd',os.path.join(os.path.dirname(os.path.abspath(__file__)),'player_osd.py'))
 player_osd=_iu.module_from_spec(_spec);_spec.loader.exec_module(player_osd)
+_spec=_iu.spec_from_file_location('settings_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'settings_page.py'))
+settings_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(settings_page)
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -78,7 +80,7 @@ MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
       ('Favourites','star.png','FFFF9F0A','ActivateWindow(1160)'),
       ('File manager','clapperboard.png','FF5E5CE6','ActivateWindow(filemanager)'),
       ('iPhone navigation / recovery','life-ring.png','FFFF453A',MENU)]
-HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{SEARCH_FILE,'DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml'}
+HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{SEARCH_FILE,'DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml'}
 # Never shrunk: playback stays landscape, and these are not windows.
 SKIP_WRAP={'VideoFullScreen.xml','VideoOSD.xml','MusicVisualisation.xml','SlideShow.xml','Pointer.xml'}
 # Shown only over landscape playback: no portrait copy, so Kodi always loads them from 1080i with landscape
@@ -818,6 +820,9 @@ def portrait_files(skin,profile):
  for name,data in textures().items():files['extras/portrait/'+name]=data
  files[FOLDER+'/DeckSourceSelect.xml']=deck_page().encode()
  files[FOLDER+'/IOSNotifications.xml']=notices_page().encode()
+ # Settings home, Customisation and Accounts in the iOS Settings style (settings_page.py).
+ import types
+ files.update(settings_page.files(types.SimpleNamespace(**globals()),read))
  # Fullscreen video is landscape: the Apple TV-style controls go into the landscape folder.
  files['1080i/VideoOSD.xml']=player_osd.window().encode()
  seekbar=read('DialogSeekBar.xml')

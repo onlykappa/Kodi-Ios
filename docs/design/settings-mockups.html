@@ -177,6 +177,14 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
 
 .center-note{text-align:center;color:var(--label3);font-size:13px;padding:20px 0 0;font-weight:500}
 
+
+/* accounts */
+.ic.brand{width:40px;height:40px;border-radius:11px;box-shadow:none;color:#fff}
+.ic.brand svg{width:23px;height:23px}
+.st{font-size:14px;margin-top:3px;display:flex;align-items:center;gap:6px;color:var(--label2)}
+.st.ok{color:var(--green)}
+.st.ok::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green)}
+.signin{background:var(--blue);color:#fff;font-weight:700;font-size:15px;border-radius:15px;padding:6px 14px;white-space:nowrap}
 /* ---------- Before / specs ---------- */
 .before{display:flex;flex-direction:column;align-items:center;gap:16px;width:min(410px,100%)}
 .before img{width:min(410px,100%);height:864px;object-fit:cover;border-radius:64px;border:10px solid #222;opacity:.9}
@@ -244,6 +252,11 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
 <symbol id="battery" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2.5" y="7" width="17" height="10" rx="2.5"/><path d="M22 10.5v3"/></g><rect x="5" y="9.5" width="6" height="5" rx="1" fill="currentColor"/></symbol>
 <symbol id="airplay" viewBox="0 0 24 24"><path d="M6 17H4.5A2 2 0 0 1 2.5 15V5.5a2 2 0 0 1 2-2h15a2 2 0 0 1 2 2V15a2 2 0 0 1-2 2H18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 14l5.5 6.5h-11z" fill="currentColor"/></symbol>
 <symbol id="star" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.8-4.4 4.3 1 6.1L12 17l-5.4 2.8 1-6.1-4.4-4.3 6.1-.8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+<symbol id="magnet" viewBox="0 0 24 24"><path d="M5 3h4v8a3 3 0 0 0 6 0V3h4v8a7 7 0 0 1-14 0z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M5 7h4M15 7h4" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="umbrella" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12a9.5 9.5 0 0 1 19 0z"/><path d="M12 12v6.5a2 2 0 0 1-4 0M12 2.5v0"/></g></symbol>
+<symbol id="cloud" viewBox="0 0 24 24"><path d="M7 19a5 5 0 0 1-.7-9.95A6.5 6.5 0 0 1 18.8 9.6 4.7 4.7 0 0 1 18 19z" fill="currentColor"/></symbol>
+<symbol id="ccheck" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M7.5 12.5l3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="key" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="15" r="4.5"/><path d="M11.2 11.8 20 3M16.5 6.5l2.5 2.5M14 9l2 2"/></g></symbol>
 <symbol id="sig" viewBox="0 0 20 14"><rect x="0" y="9" width="3.4" height="5" rx="1" fill="#fff"/><rect x="5.2" y="6" width="3.4" height="8" rx="1" fill="#fff"/><rect x="10.4" y="3" width="3.4" height="11" rx="1" fill="#fff"/><rect x="15.6" y="0" width="3.4" height="14" rx="1" fill="#6d6d6d"/></symbol>
 <symbol id="wifis" viewBox="0 0 18 14"><path d="M9 13.5 6.3 10.6a3.8 3.8 0 0 1 5.4 0zM3.6 7.8a7.6 7.6 0 0 1 10.8 0l-1.8 1.9a5 5 0 0 0-7.2 0zM.9 5A11.5 11.5 0 0 1 17.1 5l-1.8 1.9a8.9 8.9 0 0 0-12.6 0z" fill="#fff"/></symbol>
 <symbol id="mute" viewBox="0 0 24 24"><g fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 16.5h11s-1.8-1.6-2-5M7 9a5 5 0 0 1 8-3.7M10.5 20h3"/><path d="M4 3l16 18"/></g></symbol>
@@ -257,6 +270,7 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
   <nav class="chips">
     <a href="#before">Current</a>
     <a href="#s-root">Settings Home</a>
+    <a href="#s-accounts">Accounts</a>
     <a href="#s-system">System</a>
     <a href="#s-display">Display</a>
     <a href="#s-custom">Customisation</a>
@@ -272,7 +286,10 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
 
 <!-- ======= 00 BEFORE ======= -->
 <figure id="before" class="before">
-  <img src="current-settings.png" alt="Current Kodi settings screen: the landscape arctic.fuse skin letterboxed in the middle of a portrait iPhone">
+  <div class="phone"><div class="screen" style="display:grid;place-items:center;padding:40px;text-align:center">
+    <div><div style="font-size:15px;color:#8e8e93;font-weight:600;letter-spacing:.06em">BEFORE</div>
+    <p style="margin-top:14px;color:#c7c7cc;font-size:17px;line-height:1.45">Fuse's landscape Settings window (Categories, Customisation, Statistics, Information, Add-ons) letterboxed into a thin strip in the middle of the portrait screen.</p></div>
+  </div></div>
   <figcaption>
     <div class="n">00 · CURRENT</div>
     <h2>What it looks like today</h2>
@@ -286,9 +303,9 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
   <div class="nav"><div class="title">Settings</div></div>
   <div class="scroll">
     <div class="group">
-      <a class="profile" href="#s-about">
+      <a class="profile" href="#s-accounts">
         <div class="av">MU</div>
-        <div class="nm"><b>Master user</b><span>Profile, Login Screen &amp; Lock</span></div>
+        <div class="nm"><b>Master user</b><span>Accounts: Trakt, Google Drive, Elementum &amp; Umbrella</span></div>
         <svg class="chev"><use href="#chev"/></svg>
       </a>
     </div>
@@ -339,6 +356,46 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
   <div class="n">01 · SETTINGS HOME</div>
   <h2>Main Settings page</h2>
   <p>Mirrors the iOS Settings root. Every Kodi category from the old grid (and the old sidebar: Customisation, Statistics, Information, Add-ons) becomes a row, grouped by purpose. The profile card sits on top like the Apple Account card, there's an update banner with a red badge, and a floating glass search bar searches every setting.</p>
+</figcaption>
+</figure>
+
+
+<!-- ======= 01b ACCOUNTS ======= -->
+<figure id="s-accounts">
+<div class="phone"><div class="screen">
+  <div class="nav"><a class="back" href="#s-root"><svg><use href="#back"/></svg></a><div class="title">Accounts</div></div>
+  <div class="scroll">
+    <div class="acct">
+      <div class="av" style="background:linear-gradient(160deg,#9aa9d8,#6b78b4)"><span style="font-size:52px;font-weight:800;color:#fff">MU</span></div>
+      <h3>Master user</h3>
+      <p>3 of 5 services signed in</p>
+    </div>
+    <div class="sh">Streaming &amp; Sources</div>
+    <div class="group">
+      <a class="row"><i class="ic brand" style="background:#1f6feb"><svg><use href="#magnet"/></svg></i><span class="ct"><span class="lb">Elementum<span class="st ok">Signed in · Trakt + Burst</span></span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic brand" style="background:#7d3cff"><svg><use href="#umbrella"/></svg></i><span class="ct"><span class="lb">Umbrella<span class="st ok">Signed in · AllDebrid</span></span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="foot">Tap a service to manage it or sign out. Debrid and scraper logins live inside each add-on.</div>
+    <div class="gap"></div>
+    <div class="sh">Cloud &amp; Tracking</div>
+    <div class="group">
+      <a class="row"><i class="ic brand" style="background:#1a9e5c"><svg><use href="#cloud"/></svg></i><span class="ct"><span class="lb">Google Drive<span class="st ok">you@gmail.com</span></span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic brand" style="background:#ed1c24"><svg><use href="#ccheck"/></svg></i><span class="ct"><span class="lb">Trakt<span class="st">Not signed in</span></span><span class="signin">Sign In</span></span></a>
+      <a class="row"><i class="ic brand" style="background:#01b4e4"><svg><use href="#film"/></svg></i><span class="ct"><span class="lb">TMDb Helper<span class="st">Home rows · Not signed in</span></span><span class="signin">Sign In</span></span></a>
+    </div>
+    <div class="foot">Signing in to Trakt fills "Because You Watched" and the recommendations rows on Home.</div>
+    <div class="gap"></div>
+    <div class="group">
+      <a class="row"><i class="ic" style="--c:var(--blue)"><svg><use href="#person"/></svg></i><span class="ct"><span class="lb">Profiles &amp; Login Screen</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#key"/></svg></i><span class="ct"><span class="lb">Sign-in Help</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="foot">Sign-ins stay on this iPhone. They are never uploaded to GitHub or included in builds.</div>
+  </div>
+</div></div>
+<figcaption>
+  <div class="n">01b · ACCOUNTS</div>
+  <h2>Accounts</h2>
+  <p>Opened from the profile card at the top of Settings, styled like the <i>Apple Account</i> page. Each provider shows whether it's signed in (a green dot plus the account) or has a blue <b>Sign In</b> button that goes straight to that add-on's login. Tapping a signed-in provider opens its settings to manage the account or sign out.</p>
 </figcaption>
 </figure>
 
