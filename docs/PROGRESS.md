@@ -4,7 +4,7 @@ Status: IN PROGRESS — owner device testing of iPhone builds
 Current phase: Phase 4 — portrait UI (r11), Elementum, Drive, Play on TV, video controls, notification center; owner tests each IPA on an iPhone 16 Pro
 Last updated UTC: 2026-11-01T23:30Z
 Latest installable IPA: build-111 (commit 03e22c6, Kodi executable r13: tap fix, seek bar, no splash, faster start, Continue Watching reuse, Settings rework, bell-only pop-ups), https://github.com/onlykappa/Kodi-Ios/releases/tag/build-111 — the owner's full review build. Earlier: build-106 (commit 0e89856, Kodi executable r10: pop-ups only in the bell), https://github.com/onlykappa/Kodi-Ios/releases/tag/build-106 . build-104 = r8. Builds 102/103 failed (wrong pin hash). build-101 must NOT be used (r8 Python on r7).
-Branches: feature/ios-migration (PR #1, all work), claude/ios-migration-continue-3jjuif (this session, same commits), hold/ios-next (older mirror at f42dc07), feature/settings-notifications (draft PR #3: plan only).
+Branches: main (= feature/ios-migration since DEC-024; PR #1 merged), feature/ios-migration, claude/ios-migration-continue-3jjuif (this session, same commits), hold/ios-next (older mirror at f42dc07), feature/settings-notifications (draft PR #3: plan only).
 
 ## Where things stand (2026-11-01, night)
 
@@ -34,7 +34,7 @@ This session (2026-11-01, 20:40–22:20Z):
 Open / next (exact next step first):
 1. DONE 22:11Z: build-107 (4be37f6: Kodi r10 + ISSUE-064/065/066 Python) published and sent to the owner.
 2. DONE 23:22Z: r13 published by run 41357516449 (from 22e4349; Kodi 8574ab39…af23 from the release body) and pinned; build_tag left at r13 so no duplicate executable is published. r12 was never published (its queued run was replaced). Next: confirm the IPA run on the pin commit publishes, send the owner the link (full review build), then merge to main as the owner approved (record the decision).
-2b. DONE 23:30Z: build-111 published and sent; merged to main as the owner approved (DEC-024), fast-forward through PR #1.
+2b. DONE 23:30Z: build-111 published and sent; merged to main as the owner approved (DEC-024): `git push origin e8a5bf4:main` (fast-forward from 644ce22, no force); GitHub marked PR #1 merged. IMPORTANT: every workflow triggers only on pull_request events (PR #1), so pushes no longer build anything until the workflows get push/workflow_dispatch triggers on main or a new PR is opened — first item of the cleanup.
 3. Owner reviews everything at once on that build: video start (no Fuse bar), tapping anywhere on the video, controls, startup (no splash, time to Home), Continue Watching resume (no questions) and long press › Choose source, the new Settings / Accounts pages. If taps still fail, send kodi.old.log (the "Tap at …" lines).
 4. Settings pages rework (owner-approved mockups, docs/design/settings-mockups.html), coded in another session on design/settings-mockups and MERGED here at the owner's request (22:35Z) for the next build: portrait Settings home + Customisation (settings_page.py), Accounts page (accounts.py, accounts_page.py) with sign-in state for Elementum, Umbrella, Google Drive, Trakt and TMDb Helper; Kodi's category pages (SettingsCategory) and add-on settings (DialogAddonSettings) in the same style. Rig-checked there in desktop Kodi 21.2 at 603x1167 (two rig bugs fixed); not device-verified. Roku: no Play on Roku receiver on this TV; AirPlay path only plays MP4/HLS.
 
