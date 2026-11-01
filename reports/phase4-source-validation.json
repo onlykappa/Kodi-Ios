@@ -1,0 +1,17 @@
+{
+  "recorded_utc": "2026-10-30T00:04:03.062256+00:00",
+  "source_comparison_passed": true,
+  "evidence": [
+    "reports/fuse-source-comparison.json",
+    "reports/fuse-generation-validation.json",
+    "reports/kodi-source-provenance.json",
+    "docs/phase4-source-findings.md",
+    "docs/elementum-ios-port.md"
+  ],
+  "generated_differences": "View expressions reproduced from preserved inputs; stale shortcut cache deliberately regenerated from sanitized nodes via upstream startup trigger. Actual phone generation/visual parity remains P4-005/P4-010/011.",
+  "simulator_investigation_complete": true,
+  "simulator_outcome": "Infeasible in current authorized environment; tagged Kodi guide says simulator builds unsupported. No simulator Kodi binary or execution established.",
+  "mac_access_scope": "Exactly one approved native compile probe ran; no simulator runtime/profile access approved or established",
+  "native_engine_port_complete": false,
+  "device_or_visual_success_claimed": false
+}

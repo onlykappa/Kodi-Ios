@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "files_scanned": 52,
+  "git_history_blobs_scanned": 53,
+  "source_value_comparison_performed": true,
+  "source_sensitive_candidates_checked": 12,
+  "scanner": "Python standard-library patterns, exact private-source value comparison, file allowlist and structural/reference checks",
+  "limitations": "No scanner can establish absence of every possible secret. No external secret-scanning engine was available. iOS runtime compatibility is not tested.",
+  "snapshot_files_checked": 34,
+  "missing_referenced_playlists": [],
+  "known_baseline_issues": {
+    "empty_manifests": [
+      "plugin.video.umbrella",
+      "script.module.jetextractors"
+    ],
+    "missing_plugin_manifests": [
+      "plugin.video.umbrella"
+    ],
+    "ios_status": "unvalidated baseline; placeholders and desktop-specific behavior remain"
+  },
+  "issues": []
+}

@@ -1,0 +1,615 @@
+{
+  "schema_version": 1,
+  "selected_architecture": "direct-addon-maintainer-oauth-relay",
+  "owner_approved": true,
+  "checked_date": "2026-10-29",
+  "relay": {
+    "repository": "cguZZman/signin-server",
+    "commit": "5923ee409dec93f7c749ccb91b7a2fe5a22519b3",
+    "endpoint": "https://drive.signinserver.com",
+    "scope": "https://www.googleapis.com/auth/drive.readonly",
+    "runtime_verified": false
+  },
+  "repositories": [
+    {
+      "repository": "cguZZman/plugin.googledrive",
+      "commit": "f8229d0fbf2f6546536780c1e551caac6e7f8281",
+      "version": "1.6.8",
+      "addon_id": "plugin.googledrive",
+      "license": "GPL-3.0-or-later",
+      "files": [
+        {
+          "path": ".gitattributes",
+          "git_blob_sha": "8d5315402ebeef6015eb9ccf9e5ad1dd5f015025",
+          "bytes": 437,
+          "mode": "100644"
+        },
+        {
+          "path": ".github/ISSUE_TEMPLATE/bug-report.md",
+          "git_blob_sha": "354a58e391ee7d06b603ea88f883e39e32d43bb6",
+          "bytes": 783,
+          "mode": "100644"
+        },
+        {
+          "path": ".github/ISSUE_TEMPLATE/feature_request.md",
+          "git_blob_sha": "066b2d920a28db73b4ba3a0b35e6905eeeef5772",
+          "bytes": 560,
+          "mode": "100644"
+        },
+        {
+          "path": ".github/workflows/tests.yml",
+          "git_blob_sha": "fe34fc7c424474e411dcf6b5841fbb42690ceedd",
+          "bytes": 1247,
+          "mode": "100644"
+        },
+        {
+          "path": ".gitignore",
+          "git_blob_sha": "cdc59715f1e8726e5db5cb994493594dd64e90db",
+          "bytes": 38,
+          "mode": "100644"
+        },
+        {
+          "path": ".project",
+          "git_blob_sha": "dfa8b2f09456937ef0b66c08bd46f7639269db4c",
+          "bytes": 538,
+          "mode": "100644"
+        },
+        {
+          "path": ".pydevproject",
+          "git_blob_sha": "ad74947d0ffba6485bdf6805758a2314c121b99b",
+          "bytes": 431,
+          "mode": "100644"
+        },
+        {
+          "path": "LICENSE.txt",
+          "git_blob_sha": "94a9ed024d3859793618152ea559a168bbcbb5e2",
+          "bytes": 35147,
+          "mode": "100644"
+        },
+        {
+          "path": "README.md",
+          "git_blob_sha": "03ca6fe2ea4e5c0779558d252bd030565e92ddc4",
+          "bytes": 3161,
+          "mode": "100644"
+        },
+        {
+          "path": "addon.xml",
+          "git_blob_sha": "d894c17c37f8d333905950a14becc65a8b24173c",
+          "bytes": 4437,
+          "mode": "100644"
+        },
+        {
+          "path": "entrypoint.py",
+          "git_blob_sha": "17c5c2b1cdafa19413bb7d6815fbfb0c3b33b5cc",
+          "bytes": 1032,
+          "mode": "100644"
+        },
+        {
+          "path": "fanart.jpg",
+          "git_blob_sha": "423cba771b79d9e1e285d7eccbd809775c8a9e55",
+          "bytes": 49063,
+          "mode": "100644"
+        },
+        {
+          "path": "icon.png",
+          "git_blob_sha": "a98b4781fa53d67b74d5803e6706377d20babda7",
+          "bytes": 44587,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/__init__.py",
+          "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+          "bytes": 0,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/language/resource.language.en_gb/strings.po",
+          "git_blob_sha": "cf7419dabea83de49e48c12946caa7700a500829",
+          "bytes": 2329,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/language/resource.language.es_es/strings.po",
+          "git_blob_sha": "48817b5ad5cba855b9c479f61d4d059e4ffeb42e",
+          "bytes": 1886,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/language/resource.language.he_il/strings.po",
+          "git_blob_sha": "b0a48cc0f7f82f105fb26953efc026caf24ef92e",
+          "bytes": 1888,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/language/resource.language.it_it/strings.po",
+          "git_blob_sha": "bb2e823ec60752c22f1b69a7f17747df5a01f697",
+          "bytes": 1828,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/language/resource.language.pt_br/strings.po",
+          "git_blob_sha": "3aa007d84307ea495d5112f442619c19d1f58820",
+          "bytes": 1875,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/language/resource.language.sv_se/strings.po",
+          "git_blob_sha": "9f89e94eef5cc209a223ad0e6482c076842ba597",
+          "bytes": 3180,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/lib/__init__.py",
+          "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+          "bytes": 0,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/lib/addon.py",
+          "git_blob_sha": "8ad843ee626ab65034448863048efe9ac408b704",
+          "bytes": 5259,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/lib/provider/__init__.py",
+          "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+          "bytes": 0,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/lib/provider/googledrive.py",
+          "git_blob_sha": "1b1254a4edd047c92651c0711171648aaa816d31",
+          "bytes": 18968,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/settings.xml",
+          "git_blob_sha": "ea33981227b2a25fc527dae8667cfecb2393d598",
+          "bytes": 1633,
+          "mode": "100644"
+        },
+        {
+          "path": "service.py",
+          "git_blob_sha": "ee7d45a571b32ceef03442665e83976cff567918",
+          "bytes": 1496,
+          "mode": "100644"
+        },
+        {
+          "path": "tests/stubs.py",
+          "git_blob_sha": "a699581924e6baf7941fce8c0e3d1d1b21ed1938",
+          "bytes": 644,
+          "mode": "100644"
+        },
+        {
+          "path": "tests/test_provider.py",
+          "git_blob_sha": "a8cdb4e1c1cd2e464639ddbdb4582eefcf8edbeb",
+          "bytes": 7647,
+          "mode": "100644"
+        }
+      ]
+    },
+    {
+      "repository": "cguZZman/script.module.clouddrive.common",
+      "commit": "7d22102557bb95b89abcd2f055597db6f54da05c",
+      "version": "1.5.11",
+      "addon_id": "script.module.clouddrive.common",
+      "license": "GPL-3.0-or-later",
+      "files": [
+        {
+          "path": ".gitattributes",
+          "git_blob_sha": "8d5315402ebeef6015eb9ccf9e5ad1dd5f015025",
+          "bytes": 437,
+          "mode": "100644"
+        },
+        {
+          "path": ".github/workflows/tests.yml",
+          "git_blob_sha": "41ad7d3668428946c7fe27faef7ee8bcce299449",
+          "bytes": 995,
+          "mode": "100644"
+        },
+        {
+          "path": ".gitignore",
+          "git_blob_sha": "9d610a1f507f7de06e41bc241d0f28cb94d00e0b",
+          "bytes": 20,
+          "mode": "100644"
+        },
+        {
+          "path": ".project",
+          "git_blob_sha": "2fba5fffe1e06e26a6491f7ce1cf8cbdf3f7fcf8",
+          "bytes": 498,
+          "mode": "100644"
+        },
+        {
+          "path": ".pydevproject",
+          "git_blob_sha": "ad74947d0ffba6485bdf6805758a2314c121b99b",
+          "bytes": 431,
+          "mode": "100644"
+        },
+        {
+          "path": ".settings/de.loskutov.FileSync.prefs",
+          "git_blob_sha": "dee5cf0d709a15a0aa568f22119676801c114354",
+          "bytes": 293,
+          "mode": "100644"
+        },
+        {
+          "path": ".settings/org.eclipse.core.resources.prefs",
+          "git_blob_sha": "de858b24f4b5679c3a5adeee610b85e208b28e3e",
+          "bytes": 190,
+          "mode": "100644"
+        },
+        {
+          "path": ".settings/org.eclipse.wst.xsl.core.prefs",
+          "git_blob_sha": "e28962cde52abdbe879ede2b3ba58e29df5ad593",
+          "bytes": 221,
+          "mode": "100644"
+        },
+        {
+          "path": "LICENSE.txt",
+          "git_blob_sha": "94a9ed024d3859793618152ea559a168bbcbb5e2",
+          "bytes": 35147,
+          "mode": "100644"
+        },
+        {
+          "path": "README.md",
+          "git_blob_sha": "9c8a1cb9e8d6deac17c70db3442e412bd7336ec5",
+          "bytes": 506,
+          "mode": "100644"
+        },
+        {
+          "path": "addon.xml",
+          "git_blob_sha": "17774ece54ac5218cee991ede0dcefc55f700147",
+          "bytes": 3257,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/__init__.py",
+          "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+          "bytes": 0,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/__init__.py",
+          "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+          "bytes": 0,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/account.py",
+          "git_blob_sha": "8f041e9073e6829059b20e3062f61c477b626af5",
+          "bytes": 4950,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/cache/LICENSE",
+          "git_blob_sha": "9c8f3ea0871e0bfe81da0fa6e7c1d7d156dc380e",
+          "bytes": 11356,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/cache/__init__.py",
+          "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+          "bytes": 0,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/cache/cache.py",
+          "git_blob_sha": "2dc9203c4a3b10d9cd70898938fdc7340b6b7af2",
+          "bytes": 4359,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/db.py",
+          "git_blob_sha": "d0f3fb0564fa41d44a8bd44ee490a407b3e01c6a",
+          "bytes": 5116,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/exception.py",
+          "git_blob_sha": "de449715d6a52da3dd863349ffc423c8eb188a93",
+          "bytes": 2615,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/export.py",
+          "git_blob_sha": "f8c62a9f23aa2ab7a0dd2db63014a6af1f392231",
+          "bytes": 6446,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/html.py",
+          "git_blob_sha": "0a84c3577b6f3d434ecdaaa47e8b6579a803eb6e",
+          "bytes": 8458,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/redaction.py",
+          "git_blob_sha": "111b67707d3c27acde5b15b0c4a3b6ac81fd9a3c",
+          "bytes": 2376,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/remote/__init__.py",
+          "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+          "bytes": 0,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/remote/errorreport.py",
+          "git_blob_sha": "5508e3db8e598c724246fb172fd50b493d14b865",
+          "bytes": 3003,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/remote/oauth2.py",
+          "git_blob_sha": "3d79b46ba8d9de07e5a89c781008c21858748239",
+          "bytes": 5029,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/remote/provider.py",
+          "git_blob_sha": "2a488c301e4e0852c4f697e2916109d6e3e35561",
+          "bytes": 10136,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/remote/request.py",
+          "git_blob_sha": "9548c8c39ad38d493eb8124217aaa5baf98805cf",
+          "bytes": 9325,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/remote/signin.py",
+          "git_blob_sha": "8d40be41b9593d5cb52647fc10000e201ad8432a",
+          "bytes": 7015,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/service/__init__.py",
+          "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+          "bytes": 0,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/service/base.py",
+          "git_blob_sha": "f1aa25f34cbaeb59fc2b0be0c8837c520e542d3b",
+          "bytes": 5400,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/service/download.py",
+          "git_blob_sha": "7c0629ce5e92e7809f2ed723172553c919b343f1",
+          "bytes": 10994,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/service/export.py",
+          "git_blob_sha": "af52cf97a74757630eea1e7b7f24cd27320508f8",
+          "bytes": 28204,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/service/player.py",
+          "git_blob_sha": "b1d28f44a2774c28fe97deda1cf2a76adefb9fd2",
+          "bytes": 4520,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/service/source.py",
+          "git_blob_sha": "1af91f59fe10578ff25012e64fd03be1b4975b4e",
+          "bytes": 19265,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/service/upstream.py",
+          "git_blob_sha": "8603bb920d31b5d0380be88e417a0d5464cafb04",
+          "bytes": 5248,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/service/utils.py",
+          "git_blob_sha": "d68d92ad69e707708986bfc644034a22ff619f97",
+          "bytes": 1598,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/ui/__init__.py",
+          "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+          "bytes": 0,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/ui/addon.py",
+          "git_blob_sha": "88836671ef208981f97f9b171de479a1637cc81d",
+          "bytes": 34636,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/ui/dialog.py",
+          "git_blob_sha": "ff5adefec724fb4c4283346f81fbd06bf0460caf",
+          "bytes": 18331,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/ui/errors.py",
+          "git_blob_sha": "ba46890e44120058dadb406b7cb4bfea458bdf9b",
+          "bytes": 4763,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/ui/logger.py",
+          "git_blob_sha": "d393c1a114aaa1c6ea8eefe85ec32f830881d578",
+          "bytes": 1589,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/ui/signin.py",
+          "git_blob_sha": "1f5bd11ca94f100498a85d760fece0823edb372f",
+          "bytes": 7126,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/ui/utils.py",
+          "git_blob_sha": "79a1695b50bba342e7ee6386951e2632939910fe",
+          "bytes": 13544,
+          "mode": "100644"
+        },
+        {
+          "path": "clouddrive/common/utils.py",
+          "git_blob_sha": "d77bc0a4df901b30bfd68bbe823d661c1b1bd82d",
+          "bytes": 5703,
+          "mode": "100644"
+        },
+        {
+          "path": "icon.png",
+          "git_blob_sha": "9b18a9b9109cf16ba8bd7e3220464e0589b930b4",
+          "bytes": 29372,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/__init__.py",
+          "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+          "bytes": 0,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/language/resource.language.en_gb/strings.po",
+          "git_blob_sha": "96e47efb31f5c00d5c3fc06faaa75740127a047b",
+          "bytes": 6911,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/language/resource.language.he_il/strings.po",
+          "git_blob_sha": "e7db587e39677930afc54990df8abd400c36e300",
+          "bytes": 7336,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/language/resource.language.pt_br/strings.po",
+          "git_blob_sha": "9186d73c6fd153cb62ff04f8cde2a2c2840340dc",
+          "bytes": 7931,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/settings.xml",
+          "git_blob_sha": "342397243cc3ce712f3b3564a557e5be5caa6eee",
+          "bytes": 272,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/skins/default/1080i/export-main-dialog.xml",
+          "git_blob_sha": "133c67fb0324c9eca43424278d80fea309b1bed6",
+          "bytes": 9276,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/skins/default/1080i/export-schedule-dialog.xml",
+          "git_blob_sha": "4da6be093255ee54ecfb274555f7d820562c39b0",
+          "bytes": 4079,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/skins/default/1080i/pin-dialog.xml",
+          "git_blob_sha": "50e00825d02926a8b05bbfee33c7901aceea23f4",
+          "bytes": 3065,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/skins/default/media/black.png",
+          "git_blob_sha": "2ff1770d5334378c2c7646c1c8b1e6fc95c0b1f4",
+          "bytes": 166,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/skins/default/media/dialog-bg.png",
+          "git_blob_sha": "e8c13ebd70be0fb9b4026fa4bac916a9ffbaefc5",
+          "bytes": 1891,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/skins/default/media/dialogbutton-fo.png",
+          "git_blob_sha": "a161d6ef1733221fea915dc47a4274bb7dba66ea",
+          "bytes": 1082,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/skins/default/media/dialogbutton-nofo.png",
+          "git_blob_sha": "5d242794fb443cf677027a6b6554f70c763b77ff",
+          "bytes": 1078,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/skins/default/media/radio-button-off.png",
+          "git_blob_sha": "956830ac4751482be45d4d48357a056c2764e9c9",
+          "bytes": 820,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/skins/default/media/radio-button-on.png",
+          "git_blob_sha": "450867d873f41674f7795a1df5e31dcde2b61988",
+          "bytes": 856,
+          "mode": "100644"
+        },
+        {
+          "path": "resources/skins/default/media/white.png",
+          "git_blob_sha": "528c66f6e8ed820dff50fb927f805aebd269327b",
+          "bytes": 167,
+          "mode": "100644"
+        },
+        {
+          "path": "service.py",
+          "git_blob_sha": "e1d28d7fc9a9987eb047a6a6d905fcadb1addecd",
+          "bytes": 1204,
+          "mode": "100644"
+        },
+        {
+          "path": "tests/kodistubs.py",
+          "git_blob_sha": "d0e7f4cd2c85b492c0b3b8339a30f83501b58662",
+          "bytes": 1807,
+          "mode": "100644"
+        },
+        {
+          "path": "tests/test_download_stream.py",
+          "git_blob_sha": "a88cbcf2459f3b30a5a85cc8ea60f83771698b1d",
+          "bytes": 8257,
+          "mode": "100644"
+        },
+        {
+          "path": "tests/test_errors.py",
+          "git_blob_sha": "d6d392d9bdc71e12087097d09d520bd24d59ba98",
+          "bytes": 2956,
+          "mode": "100644"
+        },
+        {
+          "path": "tests/test_export_listing.py",
+          "git_blob_sha": "5fe6b14e404dc025a4d7fbdbccdb3ec8f0ab1429",
+          "bytes": 3099,
+          "mode": "100644"
+        },
+        {
+          "path": "tests/test_misc.py",
+          "git_blob_sha": "7fff9aa5cb4aed35c5ffdfa53db1d538be4cb99b",
+          "bytes": 5173,
+          "mode": "100644"
+        },
+        {
+          "path": "tests/test_signin.py",
+          "git_blob_sha": "fb15abdb95bc62b81b63efaca404441e3ce18c3d",
+          "bytes": 4621,
+          "mode": "100644"
+        },
+        {
+          "path": "tests/test_source.py",
+          "git_blob_sha": "ca97d0ccc125554ef814e0a9b5ffffb46f1e2578",
+          "bytes": 1730,
+          "mode": "100644"
+        },
+        {
+          "path": "tests/test_storage.py",
+          "git_blob_sha": "a4821bde4b190060beb693b98198218ec5ef6df7",
+          "bytes": 4936,
+          "mode": "100644"
+        }
+      ]
+    }
+  ]
+}

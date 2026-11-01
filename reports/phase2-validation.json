@@ -1,0 +1,25 @@
+{
+  "status": "READY FOR REVIEW",
+  "scope": "Static Phase 2 deliverables only",
+  "ios_tests": 6,
+  "roadmap_tests": 4,
+  "scanner_tests": 9,
+  "upstream_evidence": "docs/ios-foundation.md",
+  "target_static_evidence": "reports/ios-static-validation.json",
+  "baseline_modified": false,
+  "original_kodi_modified": false,
+  "media_modified": false,
+  "ipa_created": false,
+  "ios_runtime_verified": false,
+  "phase3_started": false,
+  "owner_decisions": [
+    "Non-jailbroken; existing owner-managed sideloader identity waived",
+    "Broken sports integration may be deferred"
+  ],
+  "remaining_risks": [
+    "iOS 27.0.1/signing compatibility unverified",
+    "Fuse control-level touch and custom code parity unverified",
+    "Native iOS dependency binaries not acquired/validated",
+    "Separate import tradeoff requires review before fully preconfigured IPA claim"
+  ]
+}

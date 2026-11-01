@@ -1,0 +1,172 @@
+{
+  "updated_utc": "2026-10-29T23:08:41.174417+00:00",
+  "status": "BLOCKED; HOST CANDIDATE AVAILABLE FOR REVIEW; PHASE 4 EXIT NOT MET",
+  "completed_phase4_tasks": [],
+  "task_count": {
+    "passed": true,
+    "phases": 5,
+    "tasks": 39,
+    "complete": [
+      "P1-001",
+      "P1-002",
+      "P1-003",
+      "P1-004",
+      "P1-005",
+      "P1-006",
+      "P2-001",
+      "P2-002",
+      "P2-003",
+      "P2-004",
+      "P2-005",
+      "P2-006",
+      "P2-007",
+      "P2-008",
+      "P2-009",
+      "P3-001",
+      "P3-002",
+      "P3-003",
+      "P3-004",
+      "P3-005",
+      "P3-006"
+    ],
+    "completed_count": 21,
+    "awaiting_implementation": 18,
+    "percent": 53.85
+  },
+  "project_regression_tests": 68,
+  "project_results": [
+    {
+      "command": "python3 -B scripts/test_roadmap.py",
+      "exit_code": 0,
+      "output": ".......\n----------------------------------------------------------------------\nRan 7 tests in 0.020s\n\nOK"
+    },
+    {
+      "command": "python3 -B scripts/test_ci_workflow.py",
+      "exit_code": 0,
+      "output": "....\n----------------------------------------------------------------------\nRan 4 tests in 0.012s\n\nOK"
+    },
+    {
+      "command": "python3 -B scripts/test_drive_research.py",
+      "exit_code": 0,
+      "output": ".......\n----------------------------------------------------------------------\nRan 7 tests in 0.007s\n\nOK"
+    },
+    {
+      "command": "python3 -B scripts/test_ios.py",
+      "exit_code": 0,
+      "output": "......\n----------------------------------------------------------------------\nRan 6 tests in 0.154s\n\nOK"
+    },
+    {
+      "command": "python3 -B scripts/test_checks.py",
+      "exit_code": 0,
+      "output": "...........\n----------------------------------------------------------------------\nRan 11 tests in 3.514s\n\nOK"
+    },
+    {
+      "command": "python3 -B scripts/test_drive_integration.py",
+      "exit_code": 0,
+      "output": ".....\n----------------------------------------------------------------------\nRan 5 tests in 0.063s\n\nOK"
+    },
+    {
+      "command": "python3 -B scripts/test_drive_packages.py",
+      "exit_code": 0,
+      "output": "....\n----------------------------------------------------------------------\nRan 4 tests in 0.005s\n\nOK"
+    },
+    {
+      "command": "python3 -B scripts/test_ios_foundation.py",
+      "exit_code": 0,
+      "output": "...........\n----------------------------------------------------------------------\nRan 11 tests in 0.001s\n\nOK"
+    },
+    {
+      "command": "python3 -B scripts/test_unsigned_ipa.py",
+      "exit_code": 0,
+      "output": ".......\n----------------------------------------------------------------------\nRan 7 tests in 0.004s\n\nOK"
+    },
+    {
+      "command": "python3 -B scripts/test_skin_comparison.py",
+      "exit_code": 0,
+      "output": "...\n----------------------------------------------------------------------\nRan 3 tests in 0.001s\n\nOK"
+    },
+    {
+      "command": "python3 -B scripts/test_visual_roster.py",
+      "exit_code": 0,
+      "output": "...\n----------------------------------------------------------------------\nRan 3 tests in 0.000s\n\nOK"
+    },
+    {
+      "command": "python3 -B scripts/check_roadmap.py",
+      "exit_code": 0,
+      "output": "{\"passed\": true, \"phases\": 5, \"tasks\": 39, \"complete\": [\"P1-001\", \"P1-002\", \"P1-003\", \"P1-004\", \"P1-005\", \"P1-006\", \"P2-001\", \"P2-002\", \"P2-003\", \"P2-004\", \"P2-005\", \"P2-006\", \"P2-007\", \"P2-008\", \"P2-009\", \"P3-001\", \"P3-002\", \"P3-003\", \"P3-004\", \"P3-005\", \"P3-006\"], \"completed_count\": 21, \"awaiting_implementation\": 18, \"percent\": 53.85}"
+    },
+    {
+      "command": "python3 -B scripts/check_ios.py",
+      "exit_code": 0,
+      "output": "{\"passed\": true, \"static_only\": true, \"target_files\": 33, \"dependency_candidates\": 51, \"plugin_references\": [\"plugin.googledrive\", \"plugin.video.themoviedb.helper\"], \"referenced_playlists\": 13, \"classified_manifest_records\": 240, \"ios_runtime_verified\": false, \"limitations\": \"Candidate versions satisfy recorded numeric minimums; actual iOS availability, full source skin-code parity, touch operation and exact iOS 27.0.1 behavior not verified.\"}"
+    },
+    {
+      "command": "python3 -B scripts/check_drive_research.py",
+      "exit_code": 0,
+      "output": "{\"research_consistent\": true, \"phase3_ready\": true, \"upstream_suite_passed\": true, \"source_file_identities\": 97, \"owner_approved_architecture\": \"direct-addon-maintainer-oauth-relay\"}"
+    },
+    {
+      "command": "python3 -B scripts/check_drive_integration.py",
+      "exit_code": 0,
+      "output": "{\"passed\": true, \"credential_free_profile\": true, \"approved_relay\": \"https://drive.signinserver.com\", \"private_account_state_included\": false, \"subtitles_enabled\": true, \"resume_prompt_enabled\": true, \"directory_listing_enabled\": false, \"export_folder_cleanup_enabled\": false, \"dependency_candidates\": 51, \"ios_runtime_verified\": false}"
+    },
+    {
+      "command": "python3 -B scripts/check_ci_workflow.py",
+      "exit_code": 0,
+      "output": "{\"approved_template_match\": true, \"shell_syntax_valid\": true, \"timeout_minutes\": 5, \"upstream_commit\": \"7d22102557bb95b89abcd2f055597db6f54da05c\", \"execution_passed\": false}"
+    }
+  ],
+  "foundation_inspection": "reports/ios-foundation-inspection.json",
+  "unsigned_candidate": "reports/unsigned-ipa-candidate.json",
+  "source_skin_comparison": "reports/fuse-source-comparison.json",
+  "source_core_provenance": "reports/kodi-source-provenance.json",
+  "capture_roster_entries": 184,
+  "actual_screenshots": 0,
+  "iphone_runtime_verified": false,
+  "simulator_executed": false,
+  "full_migrated_ipa_created": false,
+  "owner_deployment_choice": "PENDING; separate import versus automatic bootstrap",
+  "phase5_started": false,
+  "merged": false,
+  "release_created": false,
+  "signing_assumptions": "Owner-managed tool must sign main app and nested native images with permitted provisioning entitlements. Tool identity waived; acceptance unverified.",
+  "known_issues": [
+    "ISSUE-019 acceptance sequencing/device prerequisite",
+    "ISSUE-020 generated Fuse source parity",
+    "ISSUE-021 full migration/import not established",
+    "ISSUE-012/013 touch/runtime/signing",
+    "ISSUE-016 upstream cleanup warnings"
+  ],
+  "artifacts_retention_days": 7,
+  "original_source_integrity": "reports/phase4-source-integrity.json",
+  "original_source_files_unchanged": 22463,
+  "ipa_reproducibility": "reports/ipa-reproducibility.json",
+  "original_entitlements": "reports/ios-foundation-entitlements.json",
+  "latest_verified_ci_run": 40970445429,
+  "capture_history_regressions": 3,
+  "latest_builder_guard_validation": "Source/output overlap and existing-output cases rejected before writes; actual IPA bytes unaffected for validated isolated paths.",
+  "secret_history_check": {
+    "passed": true,
+    "files_scanned": 151,
+    "git_history_blobs_scanned": 236,
+    "source_value_comparison_performed": true,
+    "source_sensitive_candidates_checked": 12,
+    "scanner": "Python standard-library patterns, exact private-source value comparison, file allowlist and structural/reference checks",
+    "limitations": "No scanner can establish absence of every possible secret. No external secret-scanning engine was available. iOS runtime compatibility is not tested.",
+    "snapshot_files_checked": 34,
+    "missing_referenced_playlists": [],
+    "known_baseline_issues": {
+      "empty_manifests": [
+        "plugin.video.umbrella",
+        "script.module.jetextractors"
+      ],
+      "missing_plugin_manifests": [
+        "plugin.video.umbrella"
+      ],
+      "ios_status": "unvalidated baseline; placeholders and desktop-specific behavior remain"
+    },
+    "issues": []
+  },
+  "documentation_links_passed": true,
+  "roster_consistency_passed": true
+}

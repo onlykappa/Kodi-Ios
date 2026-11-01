@@ -1,0 +1,17 @@
+{
+  "device": "iPhone 16 Pro",
+  "os": "iOS 27.0.1",
+  "architecture": "arm64",
+  "jailbroken": false,
+  "kodi_installed": false,
+  "artifact": "unsigned Kodi iOS IPA",
+  "signing": "Owner-managed existing iPhone sideloader; identity waived by owner for unsigned preparation",
+  "candidate_version": "21.3 Omega",
+  "candidate_url": "https://mirrors.kodi.tv/releases/darwin/ios-arm64/org.xbmc.kodi-ios_21.3_iphoneos-arm64.deb",
+  "candidate_format": "deb; convert application into Payload/Kodi.app in ZIP IPA",
+  "ios_27_0_1_compatibility": "UNVERIFIED; no explicit confirmation found in consulted Kodi upstream documentation",
+  "device_tests_performed": false,
+  "candidate_binary_downloaded_or_inspected": false,
+  "sports_integration": "Owner approved deferral of broken The Loop/JetExtractors sports integration",
+  "recorded_utc": "2026-10-29T18:44:41.971516+00:00"
+}

@@ -1,0 +1,9 @@
+<smartplaylist type="movies">
+  <name>Downloaded Movies - In Progress</name>
+  <match>all</match>
+  <rule field="path" operator="startswith">
+    <value>special://profile/media/local_media_root_02/</value>
+  </rule>
+  <rule field="inprogress" operator="true" />
+  <order direction="descending">lastplayed</order>
+</smartplaylist>

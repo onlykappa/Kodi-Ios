@@ -1,0 +1,11 @@
+<smartplaylist type="movies">
+  <name>Downloaded Movies - Comedy</name>
+  <match>all</match>
+  <rule field="path" operator="startswith">
+    <value>${LOCAL_MEDIA_ROOT_02}</value>
+  </rule>
+  <rule field="genre" operator="contains">
+    <value>Comedy</value>
+  </rule>
+  <order direction="descending">dateadded</order>
+</smartplaylist>

@@ -1,0 +1,70 @@
+name: Deploy sign-in server
+# Redeploys the owner's Google Drive sign-in service (cguZZman/signin-server, pinned) to Cloudflare Workers at
+# https://kodi-signin.<subdomain>.workers.dev, asking Google for drive.readonly (browse and play) plus drive.file
+# (Kodi may add the files it uploads, and touch nothing else). Runs when this file changes; re-run it from the
+# Actions tab (or ask for a re-run) after setting the secrets and variables below.
+# Repository secrets: CLOUDFLARE_API_TOKEN ("Edit Cloudflare Workers" template), CLOUDFLARE_ACCOUNT_ID.
+# Repository variables: SIGNIN_SITE_URL (the workers.dev address), GOOGLE_CLIENT_ID (Google Cloud › Clients).
+# The Google client secret stays where it is: a secret already stored on the Worker.
+on:
+  push:
+    branches: [feature/ios-migration]
+    paths: ['.github/workflows/signin-server.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af
+        with:
+          node-version: 22
+      - name: Fetch the pinned sign-in server
+        run: |
+          git init -q server && cd server
+          git fetch -q --depth=1 https://github.com/cguZZman/signin-server.git 5923ee409dec93f7c749ccb91b7a2fe5a22519b3
+          git checkout -q FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 5923ee409dec93f7c749ccb91b7a2fe5a22519b3
+      - name: Configure for the owner's Worker
+        env:
+          SITE_URL: ${{ vars.SIGNIN_SITE_URL }}
+          CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+        working-directory: server
+        run: |
+          test -n "$SITE_URL" && test -n "$CLIENT_ID"
+          python3 - <<'PY'
+          import json,os,re
+          site=os.environ['SITE_URL'].strip().rstrip('/')
+          assert re.fullmatch(r'https://kodi-signin\.[a-z0-9-]+\.workers\.dev',site),site
+          config={'$schema':'node_modules/wrangler/config-schema.json','name':'kodi-signin','main':'src/index.ts',
+                  'compatibility_date':'2026-09-25','workers_dev':True,'preview_urls':False,'assets':{'directory':'./public'},
+                  'durable_objects':{'bindings':[{'name':'STORE','class_name':'SigninStore'}]},
+                  'migrations':[{'tag':'v1','new_sqlite_classes':['SigninStore']}],
+                  'observability':{'enabled':True,'logs':{'enabled':True,'invocation_logs':False}},
+                  'vars':{'SITE_URL':site,'PROVIDER_GOOGLEDRIVE_CLIENT_ID':os.environ['CLIENT_ID'].strip(),
+                          'PROVIDER_GOOGLEDRIVE_URL_AUTHORIZE':'https://accounts.google.com/o/oauth2/v2/auth',
+                          'PROVIDER_GOOGLEDRIVE_URL_TOKEN':'https://oauth2.googleapis.com/token',
+                          'PROVIDER_ONEDRIVE_CLIENT_ID':'','PROVIDER_DROPBOX_CLIENT_ID':'','FUNDING_URL':''}}
+          open('wrangler.jsonc','w').write(json.dumps(config,indent=1)+'\n')
+          old="scope: 'https://www.googleapis.com/auth/drive.readonly',"
+          src=open('src/oauth.ts').read();assert src.count(old)==1
+          open('src/oauth.ts','w').write(src.replace(old,"scope: 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file',"))
+          # The server's own sign-in test checks the scope it requests.
+          test_old="['googledrive', 'https://www.googleapis.com/auth/drive.readonly', 'GET'],"
+          test=open('test/signin.test.ts').read();assert test.count(test_old)==1
+          open('test/signin.test.ts','w').write(test.replace(test_old,"['googledrive', 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file', 'GET'],"))
+          PY
+          grep -n "drive.file" src/oauth.ts
+      - name: Test and deploy
+        working-directory: server
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
+          npx wrangler deploy
+          site="${{ vars.SIGNIN_SITE_URL }}"
+          curl -fsS -A 'Kodi signin deploy check' "${site%/}/ip" >/dev/null && echo "Sign-in server answers."

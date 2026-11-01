@@ -1,0 +1,13 @@
+{
+  "source_commit": "f8229d0fbf2f6546536780c1e551caac6e7f8281",
+  "common_commit": "7d22102557bb95b89abcd2f055597db6f54da05c",
+  "command": "python3 -B -m unittest discover -s tests -v (plugin.googledrive private cache)",
+  "tests_run": 12,
+  "passed": 12,
+  "failures": 0,
+  "errors": 0,
+  "suite_passed": true,
+  "scope": "Provider mapping, pagination, subtitles in video folder, search escaping, subtree/shortcut/path listing using synthetic responses and mocked Kodi/dependencies",
+  "personal_account_accessed": false,
+  "ios_runtime_verified": false
+}

@@ -1,0 +1,230 @@
+{
+  "app_name": "Kodi.app",
+  "bundle_identifier": "org.xbmc.kodi-ios",
+  "version": "21.3",
+  "bundle_version": "20251031-a3a448d26b",
+  "minimum_os_plist": "11.0",
+  "supported_platforms": [
+    "iPhoneOS"
+  ],
+  "supported_orientations": [
+    "UIInterfaceOrientationLandscapeLeft",
+    "UIInterfaceOrientationLandscapeRight"
+  ],
+  "file_sharing_enabled": true,
+  "device_families": [
+    1,
+    2
+  ],
+  "executable": "Kodi",
+  "executable_sha256": "5c517640589aa0ceb26d3bed75e2d4b8739973d421718332558f16199aee24ee",
+  "executable_mode": "0o755",
+  "mach_o": {
+    "cpu": "arm64",
+    "cpu_subtype": 0,
+    "filetype": 2,
+    "platforms": [
+      {
+        "platform": "legacy-ios",
+        "minimum_os": "11.0.0",
+        "sdk": "16.2.0"
+      }
+    ],
+    "dylib_loads": [
+      {
+        "name": "/usr/lib/libiconv.2.dylib",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/CoreVideo.framework/CoreVideo",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/CoreAudio.framework/CoreAudio",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/QuartzCore.framework/QuartzCore",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/MediaPlayer.framework/MediaPlayer",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/CFNetwork.framework/CFNetwork",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/Foundation.framework/Foundation",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/UIKit.framework/UIKit",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/CoreMedia.framework/CoreMedia",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/AVFoundation.framework/AVFoundation",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/VideoToolbox.framework/VideoToolbox",
+        "weak": false
+      },
+      {
+        "name": "/usr/lib/libresolv.9.dylib",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/AVKit.framework/AVKit",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/GameController.framework/GameController",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/Speech.framework/Speech",
+        "weak": false
+      },
+      {
+        "name": "/usr/lib/libSystem.B.dylib",
+        "weak": false
+      },
+      {
+        "name": "/usr/lib/libz.1.dylib",
+        "weak": false
+      },
+      {
+        "name": "/usr/lib/libutil.dylib",
+        "weak": false
+      },
+      {
+        "name": "/usr/lib/libncurses.5.4.dylib",
+        "weak": false
+      },
+      {
+        "name": "/usr/lib/libedit.3.dylib",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/CoreText.framework/CoreText",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/Security.framework/Security",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/OpenGLES.framework/OpenGLES",
+        "weak": false
+      },
+      {
+        "name": "@executable_path/Frameworks/libshairplay.0.dylib",
+        "weak": false
+      },
+      {
+        "name": "/usr/lib/libobjc.A.dylib",
+        "weak": false
+      },
+      {
+        "name": "/usr/lib/libc++.1.dylib",
+        "weak": false
+      }
+    ],
+    "rpaths": [],
+    "code_signature_commands": [
+      {
+        "offset": 83949424,
+        "bytes": 1068512
+      }
+    ],
+    "encrypted": false
+  },
+  "original_entitlements": [
+    {
+      "slot": 5,
+      "values": {
+        "com.apple.springboard.opensensitiveurl": true,
+        "com.apple.coremedia.allow-protected-content-playback": true,
+        "com.apple.coreaudio.allow-amr-decode": true,
+        "com.apple.springboard.launchapplications": true,
+        "com.apple.managedconfiguration.profiled-access": true,
+        "platform-application": true,
+        "com.apple.private.security.no-container": true,
+        "com.apple.private.skip-library-validation": true,
+        "com.apple.CommCenter.fine-grained": [
+          "spi"
+        ],
+        "keychain-access-groups": [
+          "com.apple.cfnetwork",
+          "com.apple.identities",
+          "com.apple.mobilesafari"
+        ],
+        "com.apple.security.iokit-user-client-class": [
+          "AGXCommandQueue",
+          "AGXDevice",
+          "AGXDeviceUserClient",
+          "AGXGLContext",
+          "AGXSharedUserClient",
+          "AppleCredentialManagerUserClient",
+          "AppleHPMUserClient",
+          "AppleJPEGDriverUserClient",
+          "AppleUSBHostDeviceUserClient",
+          "H11ANEInDirectPathClient",
+          "IOAVControllerConcreteUserClient",
+          "IOAccelContext",
+          "IOAccelContext2",
+          "IOAccelDevice",
+          "IOAccelDevice2",
+          "IOAccelSharedUserClient",
+          "IOAccelSharedUserClient2",
+          "IOAccelSubmitter2",
+          "IOHDIXControllerUserClient",
+          "IOHIDEventServiceFastPathUserClient",
+          "IOHIDLibUserClient",
+          "IOMobileFramebufferUserClient",
+          "IOReportUserClient",
+          "IOSurfaceAcceleratorClient",
+          "IOSurfaceRootUserClient",
+          "RootDomainUserClient"
+        ]
+      }
+    }
+  ],
+  "embedded_profile": false,
+  "signature_directory": false,
+  "app_files": 12168,
+  "static_only": true,
+  "ios_27_0_1_runtime_verified": false,
+  "unsigned_ipa_created": false,
+  "limitations": [
+    "Main executable parsed; nested native dependency/signature audit not complete",
+    "No independent detached signature authentication established",
+    "No entitlement validity, signer acceptance or device execution established"
+  ],
+  "upstream_url": "https://mirrors.kodi.tv/releases/darwin/ios-arm64/org.xbmc.kodi-ios_21.3_iphoneos-arm64.deb",
+  "deb_sha256": "c80e2e4eded0b3be9f9c8cd19a73e3f3ac7171575dd6f08cfddf14312ca81eb8",
+  "deb_bytes": 166642728,
+  "ci_run": 40970445429,
+  "ci_job": 123785571352,
+  "ci_commit": "a563adb2f4ac57414ad5c0ed7ce7a10848e6b0dc",
+  "run_url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/40970445429",
+  "entitlement_scope": "Original main-executable XML signature entitlements only; public foundation metadata, not owner state; not a provisioning profile or runtime capability grant"
+}

@@ -1,0 +1,5 @@
+<addon id="script.kodi.ios.first_run" name="Kodi iOS First Run Review" version="1.0.0" provider-name="Kodi-iOS migration project">
+ <requires><import addon="xbmc.python" version="3.0.1" /></requires>
+ <extension point="xbmc.python.script" library="default.py" />
+ <extension point="xbmc.addon.metadata"><summary lang="en_GB">Review and enable the copied migration add-ons on iOS</summary><description lang="en_GB">Explicit iOS-only action after an offline profile import. No background service, account restoration, engine installation or SQLite edits. Device behavior remains unverified.</description><platform>all</platform><license>MIT</license></extension>
+</addon>

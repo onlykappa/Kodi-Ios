@@ -1,0 +1,12 @@
+{
+  "backup_complete": true,
+  "archive_verified": true,
+  "source_unchanged": true,
+  "sha256": "3954d9ca9cab4353c2f81dfae7de630d68bccc84a437763b4309f4a84d7fc7d9",
+  "archive_bytes": 2127468973,
+  "source_files": 22463,
+  "source_bytes": 2669419647,
+  "scope": "Entire Flatpak per-user state; installed Flatpak application/runtime is recorded, not copied",
+  "contains_sensitive_data": true,
+  "publication_allowed": false
+}

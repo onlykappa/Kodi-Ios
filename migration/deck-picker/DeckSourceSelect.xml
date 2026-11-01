@@ -1,0 +1,339 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- DECK-ELEMENTUM look v1 : clean "Choose a version" page for Elementum links. Used only by deck_picker.py. -->
+<window>
+	<defaultcontrol always="true">32503</defaultcontrol>
+	<controls>
+
+		<!-- ============ BACKGROUND ============ -->
+		<control type="image">
+			<left>0</left>
+			<top>0</top>
+			<width>1280</width>
+			<height>720</height>
+			<texture colordiffuse="fa000000">AddonWindow/white.png</texture>
+			<animation effect="fade" start="0" end="100" time="250" tween="sine">WindowOpen</animation>
+		</control>
+
+		<!-- DECK-POSTER v1: the title's background picture, dimmed so the text stays readable -->
+		<control type="image">
+			<left>0</left>
+			<top>0</top>
+			<width>1280</width>
+			<height>720</height>
+			<aspectratio>scale</aspectratio>
+			<texture background="true" colordiffuse="4dffffff">$INFO[Window().Property(deck.fanart)]</texture>
+			<visible>!String.IsEmpty(Window().Property(deck.fanart))</visible>
+			<animation effect="fade" start="0" end="100" time="350" tween="sine">WindowOpen</animation>
+		</control>
+		<control type="image">
+			<description>Darken from the left so text is easy to read</description>
+			<left>0</left>
+			<top>0</top>
+			<width>760</width>
+			<height>720</height>
+			<texture colordiffuse="b3000000">AddonWindow/white.png</texture>
+			<visible>!String.IsEmpty(Window().Property(deck.fanart))</visible>
+		</control>
+
+		<!-- ============ LEFT: WHAT YOU ARE CHOOSING FOR ============ -->
+		<control type="grouplist">
+			<left>73</left>
+			<top>40</top>
+			<width>520</width>
+			<height>640</height>
+			<itemgap>10</itemgap>
+			<orientation>vertical</orientation>
+			<animation effect="fade" start="0" end="100" time="300" delay="80" tween="sine">WindowOpen</animation>
+
+			<control type="image">
+				<description>Poster (only when it clearly belongs to this title)</description>
+				<width>160</width>
+				<height>240</height>
+				<aspectratio align="left" aligny="top">keep</aspectratio>
+				<texture background="true">$INFO[Window().Property(deck.poster)]</texture>
+				<visible>!String.IsEmpty(Window().Property(deck.poster))</visible>
+			</control>
+			<control type="textbox">
+				<description>DECK-POSTER v1: title (when known)</description>
+				<width>520</width>
+				<height>80</height>
+				<font>font_head_bold</font>
+				<textcolor>ffffffff</textcolor>
+				<align>left</align>
+				<aligny>top</aligny>
+				<autoscroll>false</autoscroll>
+				<label>[UPPERCASE]$INFO[Window().Property(deck.title)][/UPPERCASE]</label>
+				<visible>!String.IsEmpty(Window().Property(deck.title))</visible>
+			</control>
+			<control type="textbox">
+				<description>What the links are for</description>
+				<visible>String.IsEmpty(Window().Property(deck.title))</visible>
+				<width>520</width>
+				<height>90</height>
+				<font>font_main_bold</font>
+				<textcolor>ffffffff</textcolor>
+				<align>left</align>
+				<aligny>top</aligny>
+				<autoscroll>false</autoscroll>
+				<label>$INFO[Window().Property(deck.subject)]</label>
+			</control>
+			<control type="label">
+				<description>DECK-POSTER v1: year and runtime</description>
+				<width>520</width>
+				<height>26</height>
+				<font>font_mini</font>
+				<textcolor>d9ffffff</textcolor>
+				<align>left</align>
+				<aligny>center</aligny>
+				<label>$INFO[Window().Property(deck.meta)]</label>
+				<visible>!String.IsEmpty(Window().Property(deck.meta))</visible>
+			</control>
+			<control type="textbox">
+				<description>DECK-POSTER v1: plot</description>
+				<width>440</width>
+				<height>110</height>
+				<font>font_tiny</font>
+				<textcolor>b3ffffff</textcolor>
+				<align>left</align>
+				<aligny>top</aligny>
+				<autoscroll>false</autoscroll>
+				<label>$INFO[Window().Property(deck.plot)]</label>
+				<visible>!String.IsEmpty(Window().Property(deck.plot))</visible>
+			</control>
+			<control type="label">
+				<description>Quality that was picked</description>
+				<width>520</width>
+				<height>32</height>
+				<font>font_midi_bold</font>
+				<textcolor>ffffffff</textcolor>
+				<align>left</align>
+				<aligny>center</aligny>
+				<label>$INFO[Window().Property(deck.quality_label)]</label>
+			</control>
+			<control type="textbox">
+				<description>Hint</description>
+				<width>440</width>
+				<height>70</height>
+				<font>font_tiny</font>
+				<textcolor>80ffffff</textcolor>
+				<align>left</align>
+				<aligny>top</aligny>
+				<autoscroll>false</autoscroll>
+				<label>Only the best links in this quality are shown. Press Back to pick another quality.</label>
+			</control>
+		</control>
+
+		<!-- ============ RIGHT: CHOOSE A VERSION ============ -->
+		<control type="group">
+			<left>667</left>
+			<top>0</top>
+			<animation effect="fade" start="0" end="100" time="300" delay="120" tween="sine">WindowOpen</animation>
+			<animation effect="slide" start="40,0" end="0,0" time="300" delay="120" tween="sine" easing="out">WindowOpen</animation>
+
+			<control type="label" id="32501">
+				<description>Heading</description>
+				<left>0</left>
+				<top>50</top>
+				<width>547</width>
+				<height>37</height>
+				<font>font_head_bold</font>
+				<textcolor>ffffffff</textcolor>
+				<align>left</align>
+				<aligny>center</aligny>
+				<label>Choose a version</label>
+			</control>
+			<control type="label">
+				<description>How many versions</description>
+				<left>0</left>
+				<top>87</top>
+				<width>547</width>
+				<height>24</height>
+				<font>font_mini</font>
+				<textcolor>99ffffff</textcolor>
+				<align>left</align>
+				<aligny>center</aligny>
+				<label>$INFO[Window().Property(deck.count_label)]</label>
+			</control>
+
+			<control type="list" id="32503">
+				<description>Links</description>
+				<left>0</left>
+				<top>118</top>
+				<width>547</width>
+				<height>552</height>
+				<pagecontrol>32502</pagecontrol>
+				<viewtype>list</viewtype>
+				<onup>32500</onup>
+				<ondown>32503</ondown>
+				<onleft>32503</onleft>
+				<onright>32502</onright>
+				<scrolltime tween="sine">250</scrolltime>
+				<orientation>vertical</orientation>
+
+				<itemlayout height="92" width="547">
+					<control type="image">
+						<left>0</left>
+						<top>4</top>
+						<width>547</width>
+						<height>84</height>
+						<texture border="19" colordiffuse="26ffffff">deck/rounded_s.png</texture>
+					</control>
+					<control type="label">
+						<description>Quality and type</description>
+						<left>24</left>
+						<top>10</top>
+						<width>380</width>
+						<height>28</height>
+						<font>font_main_bold</font>
+						<textcolor>ffffffff</textcolor>
+						<align>left</align>
+						<aligny>center</aligny>
+						<label>$INFO[ListItem.Property(headline)]</label>
+					</control>
+					<control type="label">
+						<description>Picture and sound</description>
+						<left>24</left>
+						<top>39</top>
+						<width>499</width>
+						<height>22</height>
+						<font>font_mini</font>
+						<textcolor>d9ffffff</textcolor>
+						<align>left</align>
+						<aligny>center</aligny>
+						<label>$INFO[ListItem.Property(tags)]</label>
+					</control>
+					<control type="label">
+						<description>Size, seeds and providers</description>
+						<left>24</left>
+						<top>61</top>
+						<width>499</width>
+						<height>22</height>
+						<font>font_tiny</font>
+						<textcolor>99ffffff</textcolor>
+						<align>left</align>
+						<aligny>center</aligny>
+						<label>$INFO[ListItem.Property(meta)]</label>
+					</control>
+					<control type="image">
+						<left>405</left>
+						<top>12</top>
+						<width>124</width>
+						<height>26</height>
+						<texture border="12" colordiffuse="40ffffff">deck/rounded_xs.png</texture>
+						<visible>!String.IsEmpty(ListItem.Property(badge))</visible>
+					</control>
+					<control type="label">
+						<left>405</left>
+						<top>12</top>
+						<width>124</width>
+						<height>26</height>
+						<font>font_tiny_bold</font>
+						<textcolor>ffffffff</textcolor>
+						<align>center</align>
+						<aligny>center</aligny>
+						<label>$INFO[ListItem.Property(badge)]</label>
+						<visible>!String.IsEmpty(ListItem.Property(badge))</visible>
+					</control>
+				</itemlayout>
+
+				<focusedlayout height="92" width="547">
+					<control type="image">
+						<left>0</left>
+						<top>4</top>
+						<width>547</width>
+						<height>84</height>
+						<texture border="19" colordiffuse="fff5f5f7">deck/rounded_s.png</texture>
+					</control>
+					<control type="label">
+						<description>Quality and type</description>
+						<left>24</left>
+						<top>10</top>
+						<width>380</width>
+						<height>28</height>
+						<font>font_main_bold</font>
+						<textcolor>ff111111</textcolor>
+						<align>left</align>
+						<aligny>center</aligny>
+						<label>$INFO[ListItem.Property(headline)]</label>
+					</control>
+					<control type="label">
+						<description>Picture and sound</description>
+						<left>24</left>
+						<top>39</top>
+						<width>499</width>
+						<height>22</height>
+						<font>font_mini</font>
+						<textcolor>ff333333</textcolor>
+						<align>left</align>
+						<aligny>center</aligny>
+						<label>$INFO[ListItem.Property(tags)]</label>
+					</control>
+					<control type="label">
+						<description>Size, seeds and providers</description>
+						<left>24</left>
+						<top>61</top>
+						<width>499</width>
+						<height>22</height>
+						<font>font_tiny</font>
+						<textcolor>ff555555</textcolor>
+						<align>left</align>
+						<aligny>center</aligny>
+						<label>$INFO[ListItem.Property(meta)]</label>
+					</control>
+					<control type="image">
+						<left>405</left>
+						<top>12</top>
+						<width>124</width>
+						<height>26</height>
+						<texture border="12" colordiffuse="ff111111">deck/rounded_xs.png</texture>
+						<visible>!String.IsEmpty(ListItem.Property(badge))</visible>
+					</control>
+					<control type="label">
+						<left>405</left>
+						<top>12</top>
+						<width>124</width>
+						<height>26</height>
+						<font>font_tiny_bold</font>
+						<textcolor>ffffffff</textcolor>
+						<align>center</align>
+						<aligny>center</aligny>
+						<label>$INFO[ListItem.Property(badge)]</label>
+						<visible>!String.IsEmpty(ListItem.Property(badge))</visible>
+					</control>
+				</focusedlayout>
+			</control>
+
+			<control type="scrollbar" id="32502">
+				<left>557</left>
+				<top>118</top>
+				<width>6</width>
+				<height>552</height>
+				<onleft>32503</onleft>
+				<texturesliderbackground border="3" colordiffuse="22ffffff">deck/rounded_xs.png</texturesliderbackground>
+				<texturesliderbar border="3" colordiffuse="88ffffff">deck/rounded_xs.png</texturesliderbar>
+				<texturesliderbarfocus border="3" colordiffuse="ffffffff">deck/rounded_xs.png</texturesliderbarfocus>
+				<textureslidernib></textureslidernib>
+				<textureslidernibfocus></textureslidernibfocus>
+				<showonepage>false</showonepage>
+				<orientation>vertical</orientation>
+			</control>
+		</control>
+
+		<!-- ============ CLOSE ============ -->
+		<control type="button" id="32500">
+			<description>Close</description>
+			<left>1205</left>
+			<top>28</top>
+			<width>32</width>
+			<height>32</height>
+			<ondown>32503</ondown>
+			<onleft>32500</onleft>
+			<onright>32500</onright>
+			<onup>32500</onup>
+			<texturefocus colordiffuse="ffffffff">Button/close.png</texturefocus>
+			<texturenofocus colordiffuse="66ffffff">Button/close.png</texturenofocus>
+			<label></label>
+		</control>
+
+	</controls>
+</window>

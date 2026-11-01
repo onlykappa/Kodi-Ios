@@ -1,0 +1,13 @@
+{
+  "verified_utc": "2026-10-29T19:19:04.111103+00:00",
+  "upstream_files_verified": 97,
+  "initial_text_files_verified": 74,
+  "additional_files_verified": 23,
+  "source_cache_outside_git": true,
+  "production_addon_installed": false,
+  "distributable_archive_built": false,
+  "original_kodi_modified": false,
+  "initial_attempt": "GitHub generic fetch rejected binary icon as UTF-8-only",
+  "resolution": "Used GitHub fetch_file encoding=base64; verified every fetched byte against pinned Git blob SHA and expected size",
+  "personal_media_used": false
+}

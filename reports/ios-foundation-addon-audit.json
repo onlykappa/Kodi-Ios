@@ -1,0 +1,276 @@
+{
+  "source": "Actual hash-pinned official Kodi iOS 21.3 app, static inspection only",
+  "found": {
+    "xbmc.python": [
+      {
+        "version": "3.0.1",
+        "manifest": "AppData/AppHome/addons/xbmc.python/addon.xml",
+        "sha256": "8f461fbda037a4c50ed0688249e4835f69c45fd74bb5f768f854c365ed933fea",
+        "requires": [
+          {
+            "id": "xbmc.core",
+            "minimum_version": "0.1.0",
+            "optional": false
+          }
+        ]
+      }
+    ],
+    "inputstream.adaptive": [
+      {
+        "version": "21.5.18",
+        "manifest": "AppData/AppHome/addons/inputstream.adaptive/addon.xml",
+        "sha256": "25c624ce2949cdcfff6f5a3e63140da1c1ac70b72ac2db23b1f21d33d4d3fe50",
+        "requires": [
+          {
+            "id": "kodi.binary.global.main",
+            "minimum_version": "2.0.2",
+            "optional": false
+          },
+          {
+            "id": "kodi.binary.global.general",
+            "minimum_version": "1.0.5",
+            "optional": false
+          },
+          {
+            "id": "kodi.binary.global.gui",
+            "minimum_version": "5.15.0",
+            "optional": false
+          },
+          {
+            "id": "kodi.binary.global.filesystem",
+            "minimum_version": "1.1.9",
+            "optional": false
+          },
+          {
+            "id": "kodi.binary.global.tools",
+            "minimum_version": "1.0.4",
+            "optional": false
+          },
+          {
+            "id": "kodi.binary.instance.inputstream",
+            "minimum_version": "3.3.0",
+            "optional": false
+          },
+          {
+            "id": "kodi.binary.instance.videocodec",
+            "minimum_version": "2.1.0",
+            "optional": false
+          }
+        ]
+      }
+    ],
+    "kodi.binary.instance.inputstream": [
+      {
+        "version": "3.3.0",
+        "manifest": "AppData/AppHome/addons/kodi.binary.instance.inputstream/addon.xml",
+        "sha256": "6b19568b9b7761ebea99e4673c7140399c86076b35cc290efe76a6075ea15b2f",
+        "requires": [
+          {
+            "id": "xbmc.core",
+            "minimum_version": "0.1.0",
+            "optional": false
+          }
+        ]
+      }
+    ],
+    "kodi.binary.global.gui": [
+      {
+        "version": "5.15.0",
+        "manifest": "AppData/AppHome/addons/kodi.binary.global.gui/addon.xml",
+        "sha256": "fdaabd8db2742e2fb8c70366f7fc13ce7299ac51b1b3a17059943f6386cda3f7",
+        "requires": [
+          {
+            "id": "xbmc.core",
+            "minimum_version": "0.1.0",
+            "optional": false
+          }
+        ]
+      }
+    ],
+    "kodi.binary.instance.videocodec": [
+      {
+        "version": "2.1.0",
+        "manifest": "AppData/AppHome/addons/kodi.binary.instance.videocodec/addon.xml",
+        "sha256": "8744b52e8c0a18a2c5af4cf8ea5267e5c02d92f0075c2e2469e79580926bb9f5",
+        "requires": [
+          {
+            "id": "xbmc.core",
+            "minimum_version": "0.1.0",
+            "optional": false
+          }
+        ]
+      }
+    ],
+    "kodi.binary.global.general": [
+      {
+        "version": "1.0.5",
+        "manifest": "AppData/AppHome/addons/kodi.binary.global.general/addon.xml",
+        "sha256": "8455bb4d770a689bf807eb2361221cb4594fce5d9b14fb16c2b861b950d43e8f",
+        "requires": [
+          {
+            "id": "xbmc.core",
+            "minimum_version": "0.1.0",
+            "optional": false
+          }
+        ]
+      }
+    ],
+    "xbmc.core": [
+      {
+        "version": "0.1.0",
+        "manifest": "AppData/AppHome/addons/xbmc.core/addon.xml",
+        "sha256": "e38ace50afe6e15b918fa51038504fc11888038671bdacac2521af931b538a6f",
+        "requires": []
+      }
+    ],
+    "script.module.pil": [
+      {
+        "version": "5.1.0",
+        "manifest": "AppData/AppHome/addons/script.module.pil/addon.xml",
+        "sha256": "5ee3b731157f9aaff28cca5f9b093cad1584c1e579a2e5a991ffffc5160ebeb7",
+        "requires": [
+          {
+            "id": "xbmc.python",
+            "minimum_version": "3.0.0",
+            "optional": false
+          }
+        ]
+      }
+    ],
+    "kodi.binary.global.tools": [
+      {
+        "version": "1.0.4",
+        "manifest": "AppData/AppHome/addons/kodi.binary.global.tools/addon.xml",
+        "sha256": "c6c06b9b026e79dae5695137d846e763523d9b968020503d9f7fbee42afcf331",
+        "requires": [
+          {
+            "id": "xbmc.core",
+            "minimum_version": "0.1.0",
+            "optional": false
+          }
+        ]
+      }
+    ],
+    "xbmc.gui": [
+      {
+        "version": "5.17.0",
+        "manifest": "AppData/AppHome/addons/xbmc.gui/addon.xml",
+        "sha256": "7d8602ff6510bbb5ae8098d60c563c4e82c5f0b682220aad297982c9e116e6bb",
+        "requires": [
+          {
+            "id": "xbmc.core",
+            "minimum_version": "0.1.0",
+            "optional": false
+          }
+        ]
+      }
+    ],
+    "kodi.resource": [
+      {
+        "version": "1.0.0",
+        "manifest": "AppData/AppHome/addons/kodi.resource/addon.xml",
+        "sha256": "dd54ff32f0920d4fe68bff14c1a51311ac8f31e639fbbe7123a16905901b06f3",
+        "requires": [
+          {
+            "id": "xbmc.core",
+            "minimum_version": "0.1.0",
+            "optional": false
+          }
+        ]
+      }
+    ],
+    "kodi.binary.global.filesystem": [
+      {
+        "version": "1.1.9",
+        "manifest": "AppData/AppHome/addons/kodi.binary.global.filesystem/addon.xml",
+        "sha256": "0fb6d7a3a0918b0323c3c3da8b4ab04be2518eaff150858b15a648150c5b4ded",
+        "requires": [
+          {
+            "id": "xbmc.core",
+            "minimum_version": "0.1.0",
+            "optional": false
+          }
+        ]
+      }
+    ],
+    "kodi.binary.global.main": [
+      {
+        "version": "2.0.2",
+        "manifest": "AppData/AppHome/addons/kodi.binary.global.main/addon.xml",
+        "sha256": "294a55b1568509695c9cb62b71a0f9b8c2f1f88a014d3a0a229f0ceec9dd9617",
+        "requires": [
+          {
+            "id": "xbmc.core",
+            "minimum_version": "0.1.0",
+            "optional": false
+          }
+        ]
+      }
+    ]
+  },
+  "not_bundled": [
+    "skin.arctic.fuse.3",
+    "script.skinvariables",
+    "script.module.jurialmunkey",
+    "script.module.requests",
+    "script.module.certifi",
+    "script.module.chardet",
+    "script.module.idna",
+    "script.module.urllib3",
+    "script.module.infotagger",
+    "script.texturemaker",
+    "plugin.video.themoviedb.helper",
+    "script.module.addon.signals",
+    "script.module.qrcode",
+    "script.module.six",
+    "resource.images.weathericons.white",
+    "resource.images.arctic.splash",
+    "resource.images.arctic.weather",
+    "resource.images.studios.coloured",
+    "resource.font.robotocjksc",
+    "skin.arctic.zephyr.mod",
+    "script.skinshortcuts",
+    "script.module.unidecode",
+    "script.module.simpleeval",
+    "script.globalsearch",
+    "script.image.resource.select",
+    "script.embuary.info",
+    "script.module.arrow",
+    "script.module.dateutil",
+    "script.module.typing_extensions",
+    "script.module.simplecache",
+    "script.module.routing",
+    "script.embuary.helper",
+    "plugin.video.youtube",
+    "plugin.video.youtube.fusion",
+    "script.trakt",
+    "plugin.googledrive",
+    "script.module.clouddrive.common",
+    "script.module.pyqrcode"
+  ],
+  "pillow_candidates": [
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/_imagingft.so",
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/_imaging.py",
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/_imagingmorph.py",
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/Image.py",
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/_imaging.so",
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/_imagingmorph.so",
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/_imagingmath.so",
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/_imagingtk.so",
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/_imagingmath.py",
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/_imagingtk.py",
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/_imagingft.py",
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/__pycache__/_imagingmorph.cpython-311.pyc",
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/__pycache__/_imagingft.cpython-311.pyc",
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/__pycache__/_imaging.cpython-311.pyc",
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/__pycache__/_imagingmath.cpython-311.pyc",
+    "AppData/AppHome/addons/script.module.pil/lib/PIL/__pycache__/_imagingtk.cpython-311.pyc"
+  ],
+  "python_layout_directories": [
+    "python3.11"
+  ],
+  "runtime_import_or_playback_tested": false,
+  "ci_run": 40975213730,
+  "ci_job": 123801457972,
+  "ci_head": "fb7d3474ef019f63268a8cf3c6cfd958001d9ad2"
+}

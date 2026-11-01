@@ -1,0 +1,58 @@
+{
+  "flatpak_commit": "9d26e51812802b2d687557c6bb28b9573936f3bfe6c2b181229341e53fa2c475",
+  "flatpak_manifest_sha256": "f76a4b7d932d8159b0c7766199e9298364ab6e7ac8ab39d2ca1631cedf312020",
+  "kodi_source": {
+    "url": "https://github.com/xbmc/xbmc.git",
+    "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
+    "x-checker-data": {
+      "type": "git",
+      "tag-pattern": "^([\\d.]+)-\\w+$"
+    },
+    "type": "git"
+  },
+  "configuration_options": [
+    "-DAPP_PACKAGE=tv.kodi.Kodi",
+    "-DADDONS_CONFIGURE_AT_STARTUP=OFF",
+    "-DVERBOSE=1",
+    "-DENABLE_TESTING=OFF",
+    "-DENABLE_AIRTUNES=ON",
+    "-DENABLE_ALSA=ON",
+    "-DENABLE_AVAHI=ON",
+    "-DENABLE_BLURAY=ON",
+    "-DENABLE_CEC=ON",
+    "-DENABLE_DBUS=ON",
+    "-DENABLE_DVDCSS=ON",
+    "-DENABLE_EGL=ON",
+    "-DENABLE_EVENTCLIENTS=ON",
+    "-DENABLE_MICROHTTPD=ON",
+    "-DENABLE_MARIADBCLIENT=ON",
+    "-DENABLE_NFS=ON",
+    "-DENABLE_OPTICAL=ON",
+    "-DENABLE_PULSEAUDIO=ON",
+    "-DENABLE_SMBCLIENT=ON",
+    "-DENABLE_UDEV=ON",
+    "-DENABLE_UPNP=ON",
+    "-DENABLE_VAAPI=ON",
+    "-DENABLE_VDPAU=ON",
+    "-DENABLE_XSLT=ON",
+    "-DENABLE_LIRCCLIENT=ON",
+    "-DAPP_RENDER_SYSTEM=gl",
+    "-DJava_JAVA_EXECUTABLE=/usr/lib/sdk/openjdk17/bin/java",
+    "-DCROSSGUID_URL=build/download/crossguid.tar.gz",
+    "-DLIBDVDCSS_URL=build/download/libdvdcss.tar.gz",
+    "-DLIBDVDREAD_URL=build/download/libdvdread.tar.gz",
+    "-DLIBDVDNAV_URL=build/download/libdvdnav.tar.gz",
+    "-DFETCHCONTENT_SOURCE_DIR_GROOVY=/app/groovy",
+    "-DFETCHCONTENT_SOURCE_DIR_APACHE-COMMONS-LANG=/app/commons-lang3",
+    "-DFETCHCONTENT_SOURCE_DIR_APACHE-COMMONS-TEXT=/app/commons-text"
+  ],
+  "flatpak_patch_paths": [
+    "patches/kodi.sh.in.patch",
+    "patches/kodi.metainfo.xml.in.patch"
+  ],
+  "foundation_build_revision": "a3a448d26b",
+  "source_commit_matches": true,
+  "binary_parity_claimed": false,
+  "platform_difference": "Linux X11/GL and OS services versus iOS UIKit/OpenGLES, sandbox Documents/Kodi and fully signed ARM64 native dependencies",
+  "unverified": "Independent full binary rebuild, complete upstream dependency/toolchain reproducibility and actual device behavior"
+}

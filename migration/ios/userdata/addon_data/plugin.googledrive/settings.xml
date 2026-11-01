@@ -1,0 +1,7 @@
+<settings version="2">
+  <setting id="sign-in-server">https://drive.signinserver.com</setting>
+  <setting id="set_subtitle">true</setting>
+  <setting id="ask_resume">true</setting>
+  <setting id="allow_directory_listing">false</setting>
+  <setting id="clean_folder">false</setting>
+</settings>

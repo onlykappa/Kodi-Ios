@@ -1,0 +1,45 @@
+name: Elementum engine for iPhoneOS
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/elementum-ios-engine.yml'
+      - 'migration/elementum-ios/build-ios-engine.sh'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: elementum-ios-engine
+  # The PR-wide path filter reruns this on every push; let a running engine build finish.
+  cancel-in-progress: false
+jobs:
+  engine:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Build pinned Elementum engine as an iPhoneOS framework
+        run: bash migration/elementum-ios/build-ios-engine.sh "$RUNNER_TEMP/elementum-ios"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: elementum-ios-framework
+          path: |
+            ${{ runner.temp }}/elementum-ios/elementum.framework.zip
+            ${{ runner.temp }}/elementum-ios/elementum.framework.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+      # The IPA build fetches the framework from this release and checks the sha256 pinned in
+      # migration/elementum-ios/source-lock.json; an existing tag is never replaced, so the pin stays valid.
+      - name: Publish the framework once per engine tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          tag="$(python3 -c "import json;print(json.load(open('migration/elementum-ios/source-lock.json'))['framework_release']['tag'])")"
+          if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then echo "$tag already published"; exit 0; fi
+          dir="$RUNNER_TEMP/elementum-ios"
+          gh release create "$tag" "$dir/elementum.framework.zip" --repo "$REPO" --target "$SHA" --prerelease \
+            --title "Elementum engine for iPhoneOS ($tag)" --notes "$(cat "$dir/elementum.framework.zip.sha256")"

@@ -1,0 +1,58 @@
+{
+  "owner_approved": true,
+  "architecture": "direct-addon-maintainer-oauth-relay",
+  "relay": "https://drive.signinserver.com",
+  "addons": [
+    {
+      "id": "plugin.googledrive",
+      "version": "1.6.8",
+      "repository": "cguZZman/plugin.googledrive",
+      "commit": "f8229d0fbf2f6546536780c1e551caac6e7f8281",
+      "manifest_git_blob": "d894c17c37f8d333905950a14becc65a8b24173c",
+      "requires": [
+        {
+          "id": "xbmc.python",
+          "minimum_version": "3.0.0",
+          "optional": false
+        },
+        {
+          "id": "script.module.clouddrive.common",
+          "minimum_version": "1.5.10",
+          "optional": false
+        }
+      ],
+      "platforms": [
+        "all"
+      ],
+      "runtime_verified": false
+    },
+    {
+      "id": "script.module.clouddrive.common",
+      "version": "1.5.11",
+      "repository": "cguZZman/script.module.clouddrive.common",
+      "commit": "7d22102557bb95b89abcd2f055597db6f54da05c",
+      "manifest_git_blob": "17774ece54ac5218cee991ede0dcefc55f700147",
+      "requires": [
+        {
+          "id": "xbmc.python",
+          "minimum_version": "3.0.0",
+          "optional": false
+        },
+        {
+          "id": "script.module.dateutil",
+          "minimum_version": null,
+          "optional": false
+        },
+        {
+          "id": "script.module.pyqrcode",
+          "minimum_version": null,
+          "optional": false
+        }
+      ],
+      "platforms": [
+        "all"
+      ],
+      "runtime_verified": false
+    }
+  ]
+}

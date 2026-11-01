@@ -1,0 +1,37 @@
+[
+  {
+    "label": "Continue Watching",
+    "path": "special://profile/playlists/video/offline_shows_inprogress.xsp",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Recently Added",
+    "path": "special://profile/playlists/video/offline_shows_recent.xsp",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Action & Adventure",
+    "path": "special://profile/playlists/video/offline_shows_action.xsp",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Comedy",
+    "path": "special://profile/playlists/video/offline_shows_comedy.xsp",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Sci-Fi & Fantasy",
+    "path": "special://profile/playlists/video/offline_shows_scifi.xsp",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  }
+]

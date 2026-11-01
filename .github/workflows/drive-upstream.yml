@@ -1,0 +1,30 @@
+name: Pinned Drive upstream validation
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/drive-upstream.yml'
+      - 'migration/google-drive/**'
+permissions: {}
+concurrency:
+  group: kodi-drive-upstream-tests
+  cancel-in-progress: true
+jobs:
+  upstream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fetch pinned public source without credentials
+        env:
+          GIT_TERMINAL_PROMPT: '0'
+        run: |
+          git init common
+          git -C common remote add origin https://github.com/cguZZman/script.module.clouddrive.common.git
+          git -C common fetch --depth=1 origin 7d22102557bb95b89abcd2f055597db6f54da05c
+          git -C common checkout --detach FETCH_HEAD
+          test "$(git -C common rev-parse HEAD)" = 7d22102557bb95b89abcd2f055597db6f54da05c
+      - name: Run all upstream tests, including loopback streaming cases
+        working-directory: common
+        run: |
+          python3 --version
+          python3 -B -m unittest discover -s tests -v

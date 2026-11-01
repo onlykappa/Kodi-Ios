@@ -1,0 +1,22 @@
+{
+  "recorded_utc": "2026-10-30T13:45:42.829763+00:00",
+  "evidence_type": "OWNER_REPORTED_PHYSICAL_IPHONE_FAILURE_WITH_OWNER_PROVIDED_SCREENSHOT",
+  "device": "iPhone 16 Pro",
+  "os": "iOS 27.0.1",
+  "prior_ipa_sha256": "2eac079b95b0f666298717ad47e77bb476ac82c956c5b997982191ddc40593b2",
+  "artifact_checksum_measured_on_phone": false,
+  "observations": [
+    "Customized app launches; Arctic Fuse renders",
+    "No Results placeholders and On Deck/In-Progress labels visible",
+    "No accessible Settings/menu in supplied view",
+    "Owner reports two-finger-right swipe opens no menu",
+    "Owner reports no Keep Skin prompt; had to select Fuse in Interface manually",
+    "Owner reports no other menu appears"
+  ],
+  "failure_status": "VERIFIED OWNER-REPORTED NAVIGATION/INITIALIZATION FAILURE; SKIN VALIDATION FAILED",
+  "screenshot_sha256": "b65b6f1961ab38587ca164c5ac76a630f03e47d84fd2c9e3fac9152bfd567c3a",
+  "screenshot_uploaded_to_github": false,
+  "physical_device_access_by_agent": false,
+  "phone_setup_journal_or_full_logs_available": false,
+  "root_cause_attribution": "Source-confirmed hidden-mouse API rejection causes old bootstrap rollback before activation; regression reproduces it. This fits manual selection/default layout but phone journal is unavailable, so it is not asserted as the exclusive observed cause. No Results alone does not prove auth/network failure."
+}

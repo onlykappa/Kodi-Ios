@@ -1,0 +1,20 @@
+<keymap>
+  <global>
+    <keyboard>
+      <escape>Back</escape>
+    </keyboard>
+    <joystick profile="game.controller.default">
+      <b>Back</b>
+      <back>Back</back>
+    </joystick>
+  </global>
+  <Videos>
+    <keyboard>
+      <escape>Back</escape>
+    </keyboard>
+    <joystick profile="game.controller.default">
+      <b>Back</b>
+      <back>Back</back>
+    </joystick>
+  </Videos>
+</keymap>

@@ -1,0 +1,729 @@
+diff --git a/tools/depends/Makefile.include.in b/tools/depends/Makefile.include.in
+index 1903fec..b1a6b70 100644
+--- a/tools/depends/Makefile.include.in
++++ b/tools/depends/Makefile.include.in
+@@ -66,7 +66,9 @@ READELF=@READELF@
+ OBJDUMP=@OBJDUMP@
+ 
+ CMAKE=@prefix@/@tool_dir@/bin/cmake -DCMAKE_TOOLCHAIN_FILE=$(PREFIX)/share/Toolchain.cmake -DCMAKE_INSTALL_PREFIX=$(PREFIX)
+-CFLAGS=@platform_cflags@ @platform_includes@ -isystem @prefix@/@deps_dir@/include
++# Kodi-iOS: clang 15+ turned these old-C warnings into errors; the pinned libraries predate that.
++CLANG_COMPAT_CFLAGS=-Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-error=incompatible-function-pointer-types -Wno-error=int-conversion
++CFLAGS=@platform_cflags@ @platform_includes@ -isystem @prefix@/@deps_dir@/include $(CLANG_COMPAT_CFLAGS)
+ LDFLAGS=-L@prefix@/@deps_dir@/lib @platform_ldflags@
+ ASFLAGS=@platform_asflags@
+ CXXFLAGS=@platform_cxxflags@ @platform_includes@ -isystem @prefix@/@deps_dir@/include
+@@ -99,7 +101,7 @@ READELF_FOR_BUILD=@READELF_FOR_BUILD@
+ OBJDUMP_FOR_BUILD=@OBJDUMP_FOR_BUILD@
+ CMAKE_FOR_BUILD=@prefix@/@tool_dir@/bin/cmake -DCMAKE_TOOLCHAIN_FILE=$(NATIVEPREFIX)/share/Toolchain-Native.cmake -DCMAKE_INSTALL_PREFIX=$(NATIVEPREFIX)
+ 
+-NATIVE_CFLAGS=@host_includes@ -I@prefix@/@tool_dir@/include
++NATIVE_CFLAGS=@host_includes@ -I@prefix@/@tool_dir@/include $(CLANG_COMPAT_CFLAGS)
+ NATIVE_LDFLAGS=@host_includes@ -L@prefix@/@tool_dir@/lib
+ NATIVE_CPPFLAGS=@host_includes@ -I@prefix@/@tool_dir@/include
+ NATIVE_CXXFLAGS=@host_includes@ -I@prefix@/@tool_dir@/include
+diff --git a/tools/depends/native/libpng/Makefile b/tools/depends/native/libpng/Makefile
+index 6059b69..23b2766 100644
+--- a/tools/depends/native/libpng/Makefile
++++ b/tools/depends/native/libpng/Makefile
+@@ -23,6 +23,9 @@ all: .installed-$(PLATFORM)
+ $(PLATFORM): $(DEPS) | $(TARBALLS_LOCATION)/$(ARCHIVE).$(HASH_TYPE)
+ 	rm -rf $(PLATFORM)/*; mkdir -p $(PLATFORM)
+ 	cd $(PLATFORM); $(ARCHIVE_TOOL) $(ARCHIVE_TOOL_FLAGS) $(TARBALLS_LOCATION)/$(ARCHIVE)
++	# Kodi-iOS: libpng 1.6.37 includes the classic-Mac <fp.h> whenever TARGET_OS_MAC is defined, which current
++	# Apple SDKs always do (later libpng dropped that test); keep the classic-Mac compilers only.
++	cd $(PLATFORM); sed -i.orig 's/ || defined(__SC__) || defined(TARGET_OS_MAC)/ || defined(__SC__)/' pngpriv.h
+ 	cd $(PLATFORM); $(CONFIGURE)
+ 
+ $(LIBDYLIB): $(PLATFORM)
+diff --git a/tools/depends/native/zlib/Makefile b/tools/depends/native/zlib/Makefile
+index be8e481..81b4eee 100644
+--- a/tools/depends/native/zlib/Makefile
++++ b/tools/depends/native/zlib/Makefile
+@@ -22,6 +22,9 @@ $(PLATFORM): $(DEPS) | $(TARBALLS_LOCATION)/$(ARCHIVE).$(HASH_TYPE)
+ 	rm -rf $(PLATFORM); mkdir -p $(PLATFORM)
+ 	cd $(PLATFORM); $(ARCHIVE_TOOL) $(ARCHIVE_TOOL_FLAGS) $(TARBALLS_LOCATION)/$(ARCHIVE)
+ 	cd $(PLATFORM); patch -p1 -i ../visibility.patch
++	# Kodi-iOS: zlib 1.2.13 turns fdopen into NULL whenever TARGET_OS_MAC is defined, which current macOS SDKs
++	# do in stdio.h (zlib 1.3 dropped that test); keep the classic-Mac-only branch.
++	cd $(PLATFORM); sed -i.orig 's/defined(MACOS) || defined(TARGET_OS_MAC)/defined(MACOS)/' zutil.h
+ 	cd $(PLATFORM); $(CONFIGURE)
+ 
+ $(LIBDYLIB): $(PLATFORM)
+diff --git a/tools/depends/target/gnutls/Makefile b/tools/depends/target/gnutls/Makefile
+index f60773d..c6d30c5 100644
+--- a/tools/depends/target/gnutls/Makefile
++++ b/tools/depends/target/gnutls/Makefile
+@@ -16,6 +16,10 @@ DEPS = ../../Makefile.include Makefile ../../download-files.include \
+ #      __gnutls_fread_file in libgnutls.a(read-file.o)
+ #      _rpl_getdelim in libgnutls.a(getdelim.o)
+ #      ...
++ifeq ($(OS),darwin_embedded)
++  # Kodi-iOS: no hand-written aarch64 assembly (fails through gas-preprocessor.pl with current clang).
++  CONFIGURE_OPTIONS+= --disable-hardware-acceleration
++endif
+ CONFIGURE_OPTIONS+= ac_cv_func_malloc_0_nonnull=yes \
+                     ac_cv_func_realloc_0_nonnull=yes
+ 
+diff --git a/tools/depends/target/libffi/LIBFFI-VERSION b/tools/depends/target/libffi/LIBFFI-VERSION
+index 9d1e722..1c4c61c 100644
+--- a/tools/depends/target/libffi/LIBFFI-VERSION
++++ b/tools/depends/target/libffi/LIBFFI-VERSION
+@@ -1,4 +1,8 @@
+ LIBNAME=libffi
+-VERSION=3.4.2
++# Kodi-iOS: libffi before 3.4.7 fails to assemble its aarch64 code with LLVM 19 / Xcode 16
++# ("invalid CFI advance_loc expression"; reproduced with clang 19, fixed upstream in 3.4.7).
++# Fetched from the upstream release, checked against this SHA512.
++VERSION=3.4.8
+ ARCHIVE=$(LIBNAME)-$(VERSION).tar.gz
+-SHA512=31bad35251bf5c0adb998c88ff065085ca6105cf22071b9bd4b5d5d69db4fadf16cadeec9baca944c4bb97b619b035bb8279de8794b922531fddeb0779eb7fb1
++FULL_URL=https://github.com/libffi/libffi/releases/download/v$(VERSION)/$(ARCHIVE)
++SHA512=05344c6c1a1a5b44704f6cf99277098d1ea3ac1dc11c2a691c501786a214f76184ec0637135588630db609ce79e49df3dbd00282dd61e7f21137afba70e24ffe
+diff --git a/tools/depends/target/libffi/Makefile b/tools/depends/target/libffi/Makefile
+index ad0f910..d9594dd 100644
+--- a/tools/depends/target/libffi/Makefile
++++ b/tools/depends/target/libffi/Makefile
+@@ -16,6 +16,10 @@ $(PLATFORM): $(DEPS) | $(TARBALLS_LOCATION)/$(ARCHIVE).$(HASH_TYPE)
+ 	rm -rf $(PLATFORM); mkdir -p $(PLATFORM)
+ 	cd $(PLATFORM); $(ARCHIVE_TOOL) $(ARCHIVE_TOOL_FLAGS) $(TARBALLS_LOCATION)/$(ARCHIVE)
+ 	cd $(PLATFORM); $(CONFIGURE)
++	# Kodi-iOS: current clang rejects libffi 3.4.2's aarch64 CFI directives once they pass through
++	# gas-preprocessor.pl ("invalid CFI advance_loc expression"); clang assembles these .S files itself,
++	# so the generated Makefile's CCAS drops the preprocessor.
++	cd $(PLATFORM); sed -i.orig 's|[^ ]*/gas-preprocessor\.pl ||g' Makefile
+ 
+ $(LIBDYLIB): $(PLATFORM)
+ 	$(MAKE) -j 1 -C $(PLATFORM)
+diff --git a/tools/depends/target/libgcrypt/Makefile b/tools/depends/target/libgcrypt/Makefile
+index bb5a005..264dc72 100644
+--- a/tools/depends/target/libgcrypt/Makefile
++++ b/tools/depends/target/libgcrypt/Makefile
+@@ -18,6 +18,8 @@ ifeq ($(findstring apple-darwin, $(HOST)), apple-darwin)
+     # explicitly disable getentropy for ios/tvos as AC_CHECK_FUNCS(getentropy) incorrectly
+     # succeeds as of libgcrypt 1.9.4
+     CONFIGURE_FLAGS+= ac_cv_func_getentropy=no
++    # Kodi-iOS: aarch64 assembly fails through gas-preprocessor.pl with current clang; use the C code.
++    CONFIGURE_FLAGS+= --disable-asm
+   endif
+ endif
+ 
+diff --git a/tools/depends/target/libpng/Makefile b/tools/depends/target/libpng/Makefile
+index eae10a3..6e3c5e7 100644
+--- a/tools/depends/target/libpng/Makefile
++++ b/tools/depends/target/libpng/Makefile
+@@ -30,6 +30,9 @@ all: .installed-$(PLATFORM)
+ $(PLATFORM): $(DEPS) | $(TARBALLS_LOCATION)/$(ARCHIVE).$(HASH_TYPE)
+ 	rm -rf $(PLATFORM); mkdir -p $(PLATFORM)/build
+ 	cd $(PLATFORM); $(ARCHIVE_TOOL) $(ARCHIVE_TOOL_FLAGS) $(TARBALLS_LOCATION)/$(ARCHIVE)
++	# Kodi-iOS: libpng 1.6.37 includes the classic-Mac <fp.h> whenever TARGET_OS_MAC is defined, which current
++	# Apple SDKs always do (later libpng dropped that test); keep the classic-Mac compilers only.
++	cd $(PLATFORM); sed -i.orig 's/ || defined(__SC__) || defined(TARGET_OS_MAC)/ || defined(__SC__)/' pngpriv.h
+ 	cd $(PLATFORM)/build; $(CMAKE) $(CMAKE_OPTIONS) ..
+ 
+ .installed-$(PLATFORM): $(PLATFORM)
+diff --git a/tools/depends/target/nettle/Makefile b/tools/depends/target/nettle/Makefile
+index 84f28b0..4504250 100644
+--- a/tools/depends/target/nettle/Makefile
++++ b/tools/depends/target/nettle/Makefile
+@@ -14,6 +14,10 @@ ifeq ($(CPU),arm64)
+   CONFIGURE_FLAGS=-disable-assembler
+ endif
+ endif
++# Kodi-iOS: aarch64 assembly fails through gas-preprocessor.pl with current clang; use the C code.
++ifeq ($(OS),darwin_embedded)
++  CONFIGURE_FLAGS=--disable-assembler
++endif
+ 
+ # configuration settings
+ CONFIGURE=cp -f $(CONFIG_SUB) $(CONFIG_GUESS) .; \
+diff --git a/xbmc/dialogs/GUIDialogKaiToast.cpp b/xbmc/dialogs/GUIDialogKaiToast.cpp
+index 2f8ca00..af8137b 100644
+--- a/xbmc/dialogs/GUIDialogKaiToast.cpp
++++ b/xbmc/dialogs/GUIDialogKaiToast.cpp
+@@ -9,17 +9,67 @@
+ #include "GUIDialogKaiToast.h"
+ 
+ #include "ServiceBroker.h"
++#include "filesystem/SpecialProtocol.h"
+ #include "guilib/GUIFadeLabelControl.h"
+ #include "guilib/GUIMessage.h"
+ #include "peripherals/Peripherals.h"
++#include "utils/JSONVariantWriter.h"
+ #include "utils/TimeUtils.h"
++#include "utils/Variant.h"
+ 
++#include <ctime>
++#include <fstream>
+ #include <mutex>
+ 
++#include <sys/stat.h>
++
+ #define POPUP_ICON                400
+ #define POPUP_CAPTION_TEXT        401
+ #define POPUP_NOTIFICATION_BUTTON 402
+ 
++namespace
++{
++// iOS portrait build: pop-ups are never shown. Each one is appended as a JSON line to toasts.jsonl in the
++// bootstrap service's data folder (created here on a first start, before the service runs), and the service
++// moves them into the app's notification center (the bell). Returns false only if the pop-up could not be
++// recorded, so a message is never lost silently.
++bool KeepForBell(CGUIDialogKaiToast::eMessageType type,
++                 const std::string& image,
++                 const std::string& caption,
++                 const std::string& description)
++{
++  const std::string data = CSpecialProtocol::TranslatePath("special://profile/addon_data/");
++  if (data.empty())
++    return false;
++  const std::string dir = data + "service.kodi.ios.bootstrap/";
++  mkdir(data.c_str(), 0755); // already there on every start but the first: EEXIST is fine
++  mkdir(dir.c_str(), 0755);
++  struct stat info;
++  if (stat(dir.c_str(), &info) != 0 || !S_ISDIR(info.st_mode))
++    return false;
++
++  CVariant entry(CVariant::VariantTypeObject);
++  entry["time"] = static_cast<int64_t>(std::time(nullptr));
++  entry["type"] = type == CGUIDialogKaiToast::Error     ? "error"
++                  : type == CGUIDialogKaiToast::Warning ? "warning"
++                  : type == CGUIDialogKaiToast::Info    ? "info"
++                                                        : "default";
++  entry["image"] = image;
++  entry["caption"] = caption;
++  entry["description"] = description;
++  std::string line;
++  if (!CJSONVariantWriter::Write(entry, line, true))
++    return false;
++
++  std::ofstream out(dir + "toasts.jsonl", std::ios::out | std::ios::app | std::ios::binary);
++  if (!out)
++    return false;
++  out << line << '\n';
++  out.flush();
++  return static_cast<bool>(out);
++}
++} // namespace
++
+ CGUIDialogKaiToast::TOASTQUEUE CGUIDialogKaiToast::m_notifications;
+ CCriticalSection CGUIDialogKaiToast::m_critical;
+ 
+@@ -81,6 +131,9 @@ void CGUIDialogKaiToast::AddToQueue(const std::string& aImageFile, const eMessag
+       return; // avoid duplicates in a row.
+   }
+ 
++  if (KeepForBell(eType, aImageFile, aCaption, aDescription))
++    return;
++
+   Notification toast;
+   toast.eType = eType;
+   toast.imagefile = aImageFile;
+diff --git a/xbmc/guilib/GUIBaseContainer.cpp b/xbmc/guilib/GUIBaseContainer.cpp
+index 8974597..b5d831d 100644
+--- a/xbmc/guilib/GUIBaseContainer.cpp
++++ b/xbmc/guilib/GUIBaseContainer.cpp
+@@ -8,6 +8,8 @@
+ 
+ #include "GUIBaseContainer.h"
+ 
++#include <cmath>
++
+ #include "FileItem.h"
+ #include "GUIInfoManager.h"
+ #include "GUIListItemLayout.h"
+@@ -811,12 +813,29 @@ EVENT_RESULT CGUIBaseContainer::OnMouseEvent(const CPoint& point, const MOUSE::C
+   else if (event.m_id == ACTION_GESTURE_BEGIN)
+   { // grab exclusive access
+     m_gestureActive = true;
++    m_gestureDecided = false;
+     CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, GetID(), GetParentID());
+     SendWindowMessage(msg);
+     return EVENT_RESULT_HANDLED;
+   }
+   else if (event.m_id == ACTION_GESTURE_PAN)
+-  { // do the drag and validate our offset (corrects for end of scroll)
++  {
++    // Kodi-iOS: a list inside a scrolling group list (a row of posters on a page) hands a drag that starts across
++    // its own direction to the page, which then takes the gesture (and its momentum) instead of the row.
++    if (!m_gestureDecided)
++    {
++      m_gestureDecided = true;
++      const bool across = (m_orientation == HORIZONTAL) ? std::abs(event.m_offsetY) > std::abs(event.m_offsetX)
++                                                        : std::abs(event.m_offsetX) > std::abs(event.m_offsetY);
++      CGUIControl* parent = GetParentControl();
++      if (across && !m_waitForScrollEnd && parent && parent->GetControlType() == GUICONTROL_GROUPLIST)
++      {
++        m_gestureActive = false;
++        parent->OnMouseEvent(point, KODI::MOUSE::CMouseEvent(ACTION_GESTURE_BEGIN));
++        return parent->OnMouseEvent(point, event);
++      }
++    }
++    // do the drag and validate our offset (corrects for end of scroll)
+     m_scroller.SetValue(m_scroller.GetValue() - ((m_orientation == HORIZONTAL) ? event.m_offsetX : event.m_offsetY));
+     float size = (m_layout) ? m_layout->Size(m_orientation) : 10.0f;
+     int offset = MathUtils::round_int(static_cast<double>(m_scroller.GetValue() / size));
+diff --git a/xbmc/guilib/GUIBaseContainer.h b/xbmc/guilib/GUIBaseContainer.h
+index 38e68cf..3f56e4e 100644
+--- a/xbmc/guilib/GUIBaseContainer.h
++++ b/xbmc/guilib/GUIBaseContainer.h
+@@ -234,6 +234,7 @@ private:
+   static const int letter_match_timeout = 1000;
+ 
+   bool m_gestureActive = false;
++  bool m_gestureDecided = false; // Kodi-iOS: whether this drag is ours or the page's
+ 
+   // early inertial scroll cancellation
+   bool m_waitForScrollEnd = false;
+diff --git a/xbmc/guilib/GUIControlGroupList.cpp b/xbmc/guilib/GUIControlGroupList.cpp
+index b0940ef..234be70 100644
+--- a/xbmc/guilib/GUIControlGroupList.cpp
++++ b/xbmc/guilib/GUIControlGroupList.cpp
+@@ -404,12 +404,17 @@ EVENT_RESULT CGUIControlGroupList::SendMouseEvent(const CPoint& point,
+   {
+     float pos = 0;
+     float alignOffset = GetAlignOffset();
++    // Kodi-iOS: on a touch screen a row that is only partly scrolled into view must still take
++    // taps, as long as the tap lands inside this list's own (visible) area.
++    const bool insideList = CRect(m_posX, m_posY, m_posX + m_width, m_posY + m_height).PtInRect(childPoint);
++    const float scroll = m_scroller.GetValue();
+     for (ciControls i = m_children.begin(); i != m_children.end(); ++i)
+     {
+       CGUIControl *child = *i;
+       if (child->IsVisible())
+       {
+-        if (IsControlOnScreen(pos, child))
++        if (IsControlOnScreen(pos, child) ||
++            (insideList && pos + Size(child) > scroll && pos < scroll + Size()))
+         { // we're on screen
+           float offsetX = m_orientation == VERTICAL ? m_posX : m_posX + alignOffset + pos - m_scroller.GetValue();
+           float offsetY = m_orientation == VERTICAL ? m_posY + alignOffset + pos - m_scroller.GetValue() : m_posY;
+@@ -568,6 +573,11 @@ EVENT_RESULT CGUIControlGroupList::OnMouseEvent(const CPoint& point,
+       offset = nextOffset;
+     }
+   }
++  else if (event.m_id == ACTION_GESTURE_NOTIFY)
++  { // Kodi-iOS: take inertial scrolling like lists do, so a flicked page keeps gliding after the finger lifts
++    // (without this answer Kodi skipped the momentum and a page stopped dead).
++    return (m_orientation == HORIZONTAL) ? EVENT_RESULT_PAN_HORIZONTAL : EVENT_RESULT_PAN_VERTICAL;
++  }
+   else if (event.m_id == ACTION_GESTURE_BEGIN)
+   { // grab exclusive access
+     CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, GetID(), GetParentID());
+diff --git a/xbmc/guilib/GUIFontManager.cpp b/xbmc/guilib/GUIFontManager.cpp
+index f5c0732..2d7257c 100644
+--- a/xbmc/guilib/GUIFontManager.cpp
++++ b/xbmc/guilib/GUIFontManager.cpp
+@@ -264,6 +264,21 @@ bool GUIFontManager::OnMessage(CGUIMessage& message)
+   { // we need to reload our fonts
+     if (m_canReload)
+     {
++      // Kodi-iOS r8: the phone turns between portrait and landscape without reloading the skin, and the windows
++      // on screen then come from the other layout folder. Scale the fonts from that folder's resolution too
++      // (fonts kept on the portrait one came out stretched and small over landscape video).
++      if (g_SkinInfo && !m_vecFontInfo.empty())
++      {
++        RESOLUTION_INFO folderRes;
++        g_SkinInfo->GetSkinPath("Font.xml", &folderRes);
++        if (folderRes.strMode != m_skinResolution.strMode)
++        {
++          CLog::Log(LOGINFO, "Fonts follow the {} layout", folderRes.strMode);
++          m_skinResolution = folderRes;
++          for (auto& info : m_vecFontInfo)
++            info.sourceRes = folderRes;
++        }
++      }
+       ReloadTTFFonts();
+       // no need to send a resize message, as this message will do the rounds
+       return true;
+diff --git a/xbmc/guilib/GUIWindow.cpp b/xbmc/guilib/GUIWindow.cpp
+index ebb133d..d9b8c47 100644
+--- a/xbmc/guilib/GUIWindow.cpp
++++ b/xbmc/guilib/GUIWindow.cpp
+@@ -499,9 +499,20 @@ EVENT_RESULT CGUIWindow::OnMouseAction(const CAction &action)
+   CPoint mousePoint(action.GetAmount(0), action.GetAmount(1));
+   CServiceBroker::GetWinSystem()->GetGfxContext().InvertFinalCoords(mousePoint.x, mousePoint.y);
+ 
++  // Kodi-iOS: a touch pan's distance arrives in screen pixels like its position; convert it the same way, or
++  // lists move further than the finger (25% on an iPhone in portrait, where the skin is smaller than the screen).
++  float offsetX = action.GetAmount(2);
++  float offsetY = action.GetAmount(3);
++  if (action.GetID() == ACTION_GESTURE_PAN)
++  {
++    CPoint moved(action.GetAmount(0) + offsetX, action.GetAmount(1) + offsetY);
++    CServiceBroker::GetWinSystem()->GetGfxContext().InvertFinalCoords(moved.x, moved.y);
++    offsetX = moved.x - mousePoint.x;
++    offsetY = moved.y - mousePoint.y;
++  }
++
+   // create the mouse event
+-  MOUSE::CMouseEvent event(action.GetID(), action.GetHoldTime(), action.GetAmount(2),
+-                           action.GetAmount(3));
++  MOUSE::CMouseEvent event(action.GetID(), action.GetHoldTime(), offsetX, offsetY);
+   if (m_exclusiveMouseControl)
+   {
+     CGUIControl *child = GetControl(m_exclusiveMouseControl);
+@@ -591,7 +602,26 @@ bool CGUIWindow::OnMessage(CGUIMessage& message)
+   case GUI_MSG_WINDOW_INIT:
+     {
+       CLog::Log(LOGDEBUG, "------ Window Init ({}) ------", GetProperty("xmlfile").asString());
+-      if (m_dynamicResourceAlloc || !m_bAllocated) AllocResources(false);
++      // Kodi-iOS r8: the phone turns between portrait (menus) and landscape (video), and Kodi picks a window's
++      // layout folder when it loads the window. A dialog loaded for the other orientation (a select list first
++      // opened from a menu, then from the player) is loaded again from the folder for this one, instead of the
++      // whole skin being reloaded at every turn.
++      bool otherOrientation = false;
++      if (IsDialog() && m_windowLoaded && g_SkinInfo)
++      {
++        const std::string xmlFile = GetProperty("xmlfile").asString();
++        if (!xmlFile.empty() && xmlFile.find('/') == std::string::npos &&
++            xmlFile.find('\\') == std::string::npos)
++        {
++          RESOLUTION_INFO wanted;
++          g_SkinInfo->GetSkinPath(xmlFile, &wanted);
++          otherOrientation = wanted.strMode != m_coordsRes.strMode;
++          if (otherOrientation)
++            CLog::Log(LOGINFO, "Reloading {} for the {} layout", xmlFile, wanted.strMode);
++        }
++      }
++      if (otherOrientation || m_dynamicResourceAlloc || !m_bAllocated)
++        AllocResources(otherOrientation);
+       OnInitWindow();
+       return true;
+     }
+diff --git a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm b/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
+index 0d88d1d..9c268d8 100644
+--- a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
++++ b/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
+@@ -13,6 +13,8 @@
+ #include "ServiceBroker.h"
+ #include "TextureCache.h"
+ #include "application/Application.h"
++#include "application/ApplicationComponents.h"
++#include "application/ApplicationPlayer.h"
+ #include "filesystem/SpecialProtocol.h"
+ #include "music/MusicDatabase.h"
+ #include "music/tags/MusicInfoTag.h"
+@@ -89,6 +91,21 @@ void AnnounceBridge(ANNOUNCEMENT::AnnouncementFlag flag,
+   CVariant nonConstData = data;
+   const std::string& msg(message);
+ 
++#if defined(TARGET_DARWIN_IOS)
++  // Kodi-iOS r11: fullscreen video is landscape, the menus portrait. The video stream is often not open yet
++  // at OnPlay (web streams), so OnAVStart decides; OnStop returns to portrait.
++  if (msg == "OnAVStart" || msg == "OnPlay" || msg == "OnResume")
++  {
++    const auto appPlayer = CServiceBroker::GetAppComponents().GetComponent<CApplicationPlayer>();
++    if (appPlayer && appPlayer->IsPlayingVideo())
++      [g_xbmcController setVideoLandscape:YES];
++    else if (msg == "OnAVStart")
++      [g_xbmcController setVideoLandscape:NO];
++  }
++  else if (msg == "OnStop")
++    [g_xbmcController setVideoLandscape:NO];
++#endif
++
+   // handle data which only has a database id and not the metadata inside
+   if (msg == "OnPlay" || msg == "OnResume")
+   {
+diff --git a/xbmc/platform/darwin/ios/IOSEAGLView.mm b/xbmc/platform/darwin/ios/IOSEAGLView.mm
+index 56ecaa5..1ba8da8 100644
+--- a/xbmc/platform/darwin/ios/IOSEAGLView.mm
++++ b/xbmc/platform/darwin/ios/IOSEAGLView.mm
+@@ -60,7 +60,9 @@
+ //--------------------------------------------------------------
+ - (void) resizeFrameBuffer
+ {
+-  auto frame = currentScreen.bounds;
++  // Kodi-iOS: the view's own size, not the screen's; during a rotation the two can differ for a moment and the
++  // framebuffer then kept the old orientation's size.
++  auto frame = self.bounds;
+   CAEAGLLayer *eaglLayer = (CAEAGLLayer *)[self layer];
+   //allow a maximum framebuffer size of 1080p
+   //needed for tvout on iPad3/4 and iphone4/5 and maybe AppleTV3
+@@ -244,15 +246,10 @@
+ 
+     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebuffer);
+ 
+-    if(framebufferHeight > framebufferWidth) {
+-      glViewport(0, 0, framebufferHeight, framebufferWidth);
+-      glScissor(0, 0, framebufferHeight, framebufferWidth);
+-    }
+-    else
+-    {
+-      glViewport(0, 0, framebufferWidth, framebufferHeight);
+-      glScissor(0, 0, framebufferWidth, framebufferHeight);
+-    }
++    // Kodi-iOS r11: the GUI runs in portrait, so a framebuffer taller than wide is real and must not be
++    // drawn as a sideways landscape viewport (upstream swapped the sides for its landscape-only app).
++    glViewport(0, 0, framebufferWidth, framebufferHeight);
++    glScissor(0, 0, framebufferWidth, framebufferHeight);
+   }
+ }
+ //--------------------------------------------------------------
+diff --git a/xbmc/platform/darwin/ios/Info.plist.in b/xbmc/platform/darwin/ios/Info.plist.in
+index e29411a..cf76d61 100644
+--- a/xbmc/platform/darwin/ios/Info.plist.in
++++ b/xbmc/platform/darwin/ios/Info.plist.in
+@@ -114,7 +114,7 @@
+ 	<key>LSSupportsOpeningDocumentsInPlace</key>
+ 	<true/>
+ 	<key>UIInterfaceOrientation</key>
+-	<string>UIInterfaceOrientationLandscapeLeft</string>
++	<string>UIInterfaceOrientationPortrait</string>
+ 	<key>UILaunchStoryboardName</key>
+ 	<string>LaunchScreen</string>
+ 	<key>UIPrerenderedIcon</key>
+@@ -133,6 +133,7 @@
+ 	<true/>
+ 	<key>UISupportedInterfaceOrientations</key>
+ 	<array>
++		<string>UIInterfaceOrientationPortrait</string>
+ 		<string>UIInterfaceOrientationLandscapeLeft</string>
+ 		<string>UIInterfaceOrientationLandscapeRight</string>
+ 	</array>
+diff --git a/xbmc/platform/darwin/ios/XBMCController.h b/xbmc/platform/darwin/ios/XBMCController.h
+index b2a06d0..0c74089 100644
+--- a/xbmc/platform/darwin/ios/XBMCController.h
++++ b/xbmc/platform/darwin/ios/XBMCController.h
+@@ -61,6 +61,9 @@
+ - (CGRect)fullscreenSubviewFrame;
+ - (void)onXbmcAlive;
+ - (void)setGUIInsetsFromMainThread:(BOOL)isMainThread;
++- (void)setVideoLandscape:(BOOL)landscape;
++- (void)applyVideoOrientation;
++- (void)healScreenSize;
+ - (void) setFramebuffer;
+ - (bool) presentFramebuffer;
+ - (CGSize) getScreenSize;
+diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
+index a450151..ae23844 100644
+--- a/xbmc/platform/darwin/ios/XBMCController.mm
++++ b/xbmc/platform/darwin/ios/XBMCController.mm
+@@ -36,6 +36,8 @@
+ #include "utils/URIUtils.h"
+ #include "utils/log.h"
+ #include "windowing/XBMC_events.h"
++#include "windowing/GraphicContext.h"
++#include "windowing/ios/WinSystemIOS.h"
+ #import "windowing/ios/WinSystemIOS.h"
+ 
+ #import "platform/darwin/NSLogDebugHelpers.h"
+@@ -48,6 +50,7 @@
+ #include "TextureCache.h"
+ #undef id
+ 
++#include <atomic>
+ #include <math.h>
+ #include <signal.h>
+ 
+@@ -203,10 +206,155 @@ public:
+ }
+ // END OF UIKeyInput protocol
+ 
++// Kodi-iOS r11: the menus are portrait only (the skin ships a portrait layout); fullscreen video turns the
++// picture to landscape. The announcement thread sets s_videoLandscape when a video stream starts or stops, and
++// the main thread turns the screen to match, retrying every half second until it does.
++static std::atomic<bool> s_videoLandscape{false};
++
++// Kodi-iOS r7: Kodi's window is created with a fixed frame and autoresizing off, so when iOS turns the scene the
++// window (and this controller's view) kept the portrait size: Kodi then read a portrait screen size in landscape and
++// drew the picture into the bottom-left corner. The scene's bounds are the size the window must have.
++static CGRect InterfaceBounds(UIWindow* window)
++{
++  if (window.windowScene)
++    return window.windowScene.coordinateSpace.bounds;
++  return UIScreen.mainScreen.bounds;
++}
++
+ - (UIInterfaceOrientationMask)supportedInterfaceOrientations
+ {
+-  return UIInterfaceOrientationMaskLandscape;
++  // Info.plist lists landscape too, or iOS could never turn the picture for playback.
++  if ([[IOSScreenManager sharedInstance] isExternalScreen] || s_videoLandscape)
++    return UIInterfaceOrientationMaskLandscape;
++  return UIInterfaceOrientationMaskPortrait;
++}
++
++- (void)setVideoLandscape:(BOOL)landscape
++{
++  // Any thread.
++  if (s_videoLandscape.exchange(landscape) != static_cast<bool>(landscape))
++    CLog::Log(LOGINFO, "Video orientation: {}", landscape ? "landscape" : "portrait");
++  dispatch_async(dispatch_get_main_queue(), ^{
++    [self applyVideoOrientation];
++  });
+ }
++
++- (void)healScreenSize
++{
++  // Main thread, every half second: the GL view, its framebuffer and Kodi's resolution must all match the
++  // screen. One left behind after a rotation showed as Kodi drawing only part of the screen (the rest frozen);
++  // when they disagree twice in a row (not mid-rotation), apply the rotation again.
++  static int mismatches = 0;
++  if (!m_glView || [[IOSScreenManager sharedInstance] isExternalScreen])
++    return;
++  const CGSize want = InterfaceBounds(m_window).size;
++  const int pixelsWide = static_cast<int>(lround(want.width * screenScale));
++  const int pixelsHigh = static_cast<int>(lround(want.height * screenScale));
++  auto winSystem = CServiceBroker::GetWinSystem();
++  const bool kodiBehind = winSystem && (winSystem->GetGfxContext().GetWidth() != pixelsWide ||
++                                        winSystem->GetGfxContext().GetHeight() != pixelsHigh);
++  if (!CGSizeEqualToSize(m_window.bounds.size, want) || !CGSizeEqualToSize(m_glView.frame.size, want) || kodiBehind)
++  {
++    if (++mismatches >= 2)
++    {
++      mismatches = 0;
++      CLog::Log(LOGWARNING, "Screen size out of step ({} x {} wanted), applying it again", pixelsWide, pixelsHigh);
++      [self applyRotatedScreen];
++    }
++  }
++  else
++    mismatches = 0;
++}
++
++- (void)applyVideoOrientation
++{
++  // Main thread: ask iOS for the orientation the player needs while the screen does not have it yet.
++  static int failures = 0;
++  const bool want = s_videoLandscape;
++  UIWindowScene* scene = m_window.windowScene;
++  if (!scene || [[IOSScreenManager sharedInstance] isExternalScreen])
++    return;
++  if (static_cast<bool>(UIInterfaceOrientationIsLandscape(scene.interfaceOrientation)) == want)
++  {
++    failures = 0;
++    return;
++  }
++  if (@available(iOS 16.0, *))
++  {
++    [self setNeedsUpdateOfSupportedInterfaceOrientations];
++    auto prefs = [[UIWindowSceneGeometryPreferencesIOS alloc]
++        initWithInterfaceOrientations:want ? UIInterfaceOrientationMaskLandscape
++                                           : UIInterfaceOrientationMaskPortrait];
++    [scene requestGeometryUpdateWithPreferences:prefs
++                                   errorHandler:^(NSError* error) {
++                                     if (failures++ < 3)
++                                       CLog::Log(LOGWARNING, "Video orientation request refused: {}",
++                                                 error.localizedDescription.UTF8String);
++                                   }];
++  }
++  else
++  {
++    [[UIDevice currentDevice]
++        setValue:@(want ? UIInterfaceOrientationLandscapeRight : UIInterfaceOrientationPortrait)
++          forKey:@"orientation"];
++    [UIViewController attemptRotationToDeviceOrientation];
++  }
++}
++
++static void ApplyRotatedScreen(void*)
++{
++  // Runs on Kodi's application thread: re-read the screen size, rebuild the desktop
++  // resolution and switch to it, which re-lays out every window (GUI_MSG_WINDOW_RESIZE).
++  auto winSystem = dynamic_cast<CWinSystemIOS*>(CServiceBroker::GetWinSystem());
++  if (!winSystem)
++    return;
++  winSystem->ResetInternalScreenSize();
++  winSystem->UpdateResolutions();
++  [g_xbmcController setGUIInsetsFromMainThread:NO];
++  winSystem->GetGfxContext().SetVideoResolution(RES_DESKTOP, true);
++  CLog::Log(LOGINFO, "Screen rotated: {} x {}", winSystem->GetGfxContext().GetWidth(),
++            winSystem->GetGfxContext().GetHeight());
++}
++
++- (void)viewWillTransitionToSize:(CGSize)size
++       withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator
++{
++  [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
++  [coordinator animateAlongsideTransition:nil
++                               completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
++                                 [self applyRotatedScreen];
++                               }];
++}
++
++- (void)viewDidLayoutSubviews
++{
++  [super viewDidLayoutSubviews];
++  // Kodi-iOS r11: the GL view is created at launch with the landscape frame Kodi starts with and does not
++  // autoresize. When iOS lays the app out in portrait (launched upright, or any size change that is not a
++  // rotation transition), follow the view's real size so Kodi's framebuffer and resolution match the screen.
++  if (m_glView && (!CGSizeEqualToSize(m_glView.frame.size, self.view.bounds.size) ||
++                   !CGSizeEqualToSize(m_window.bounds.size, InterfaceBounds(m_window).size)))
++    [self applyRotatedScreen];
++}
++
++- (void)applyRotatedScreen
++{
++  if ([[IOSScreenManager sharedInstance] isExternalScreen] || !m_glView)
++    return;
++  const CGRect bounds = InterfaceBounds(m_window);
++  if (!CGRectEqualToRect(m_window.frame, bounds))
++    [m_window setFrame:bounds];
++  if (!CGRectEqualToRect(self.view.frame, m_window.bounds))
++    [self.view setFrame:m_window.bounds];
++  [m_glView setFrame:self.view.bounds];
++  [m_glView setScreen:m_glView.currentScreen withFrameBufferResize:YES];
++  if (CServiceBroker::GetAppMessenger())
++  {
++    static KODI::MESSAGING::ThreadMessageCallback callback = {ApplyRotatedScreen, nullptr};
++    CServiceBroker::GetAppMessenger()->PostMsg(TMSG_CALLBACK, -1, -1, &callback);
++  }
++}
++
+ //--------------------------------------------------------------
+ - (UIInterfaceOrientation) getOrientation
+ {
+@@ -429,6 +577,11 @@ public:
+   if( m_glView && [m_glView isXBMCAlive] )//NO GESTURES BEFORE WE ARE UP AND RUNNING
+   {
+     CGPoint velocity = [sender velocityInView:m_glView];
++    // Kodi-iOS: positions below are in pixels (points x screenScale), and Kodi's inertial scrolling compares the
++    // speed with pixel thresholds; the speed came in points per second, a third of the real flick on a 3x phone,
++    // so most flicks stopped dead when the finger lifted. Same units as the positions.
++    velocity.x *= screenScale;
++    velocity.y *= screenScale;
+ 
+     if( [sender state] == UIGestureRecognizerStateBegan && sender.numberOfTouches )
+     {
+@@ -589,7 +742,7 @@ public:
+                  name: nil
+                object: nil];
+ 
+-  orientation = UIInterfaceOrientationLandscapeLeft;
++  orientation = UIInterfaceOrientationPortrait;
+ 
+   [m_window makeKeyAndVisible];
+   g_xbmcController = self;
+@@ -712,6 +865,15 @@ public:
+ {
+   m_debugLogSharingPresenter = std::make_unique<DebugLogSharingPresenter>();
+   [self setGUIInsetsFromMainThread:NO];
++  // Kodi-iOS r11: keep the screen's orientation following playback (a rotation can be refused mid-animation).
++  dispatch_async(dispatch_get_main_queue(), ^{
++    [NSTimer scheduledTimerWithTimeInterval:0.5
++                                    repeats:YES
++                                      block:^(NSTimer* timer) {
++                                        [self applyVideoOrientation];
++                                        [self healScreenSize];
++                                      }];
++  });
+ }
+ //--------------------------------------------------------------
+ - (void)setGUIInsetsFromMainThread:(BOOL)isMainThread
+diff --git a/xbmc/windowing/ios/WinSystemIOS.h b/xbmc/windowing/ios/WinSystemIOS.h
+index bf8a8ae..d927130 100644
+--- a/xbmc/windowing/ios/WinSystemIOS.h
++++ b/xbmc/windowing/ios/WinSystemIOS.h
+@@ -40,6 +40,11 @@ public:
+   bool ResizeWindow(int newWidth, int newHeight, int newLeft, int newTop) override;
+   bool SetFullScreen(bool fullScreen, RESOLUTION_INFO& res, bool blankOtherDisplays) override;
+   void UpdateResolutions() override;
++  void ResetInternalScreenSize()
++  {
++    m_internalTouchscreenResolutionWidth = -1;
++    m_internalTouchscreenResolutionHeight = -1;
++  }
+   bool CanDoWindowed() override { return false; }
+ 
+   void ShowOSMouse(bool show) override {}

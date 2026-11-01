@@ -1,0 +1,319 @@
+<settings>
+  <setting id="hub.1108.disablevideo" type="bool">false</setting>
+  <setting id="footer.disablenowplaying" type="bool">false</setting>
+  <setting id="homeswitcher.disablefirstwidgetfocus" type="bool">false</setting>
+  <setting id="navigation.disablealphabetjump" type="bool">false</setting>
+  <setting id="pvr.disablegenrecolours" type="bool">false</setting>
+  <setting id="indicator.disableprogress" type="bool">false</setting>
+  <setting id="tmdbhelper.enableblur" type="bool">true</setting>
+  <setting id="videoinfo.widgets.disablecollection" type="bool">false</setting>
+  <setting id="info.enablestylisedbackgrounds" type="bool">false</setting>
+  <setting id="osd.displayinfooncontrols" type="bool">false</setting>
+  <setting id="tmdbhelper.disablepvr" type="bool">false</setting>
+  <setting id="blurenabled" type="bool">false</setting>
+  <setting id="search.disablediscover-moviedecades" type="bool">false</setting>
+  <setting id="hub.1108.disablemusic" type="bool">false</setting>
+  <setting id="TMDbHelper.EnableCurrentWindowImages" type="bool">true</setting>
+  <setting id="disablelandscapeart" type="bool">false</setting>
+  <setting id="TMDbHelper.DirectCallAuto" type="bool">true</setting>
+  <setting id="homeswitcher.disablesearch" type="bool">false</setting>
+  <setting id="skinuserlogin.startuploginscreen" type="bool">false</setting>
+  <setting id="seasonaltheme.enable" type="bool">false</setting>
+  <setting id="seasonaltheme.disablesummer" type="bool">false</setting>
+  <setting id="indicator.disableepisodes" type="bool">false</setting>
+  <setting id="Options.DisableBottomTray" type="bool">true</setting>
+  <setting id="footer.disablestudio" type="bool">false</setting>
+  <setting id="homeswitcher.loopback" type="bool">false</setting>
+  <setting id="tmdbhelper.enablecrop" type="bool">true</setting>
+  <setting id="background.disablevideo" type="bool">false</setting>
+  <setting id="hub.1108.disableprogram" type="bool">false</setting>
+  <setting id="search.disablediscover-mdblists" type="bool">false</setting>
+  <setting id="revertselectedtext" type="bool">false</setting>
+  <setting id="widgets.enableshowmore" type="bool">false</setting>
+  <setting id="blurplayericon" type="bool">false</setting>
+  <setting id="osd.ondown.disable1141" type="bool">false</setting>
+  <setting id="videoinfo.widgets.disablewriter" type="bool">false</setting>
+  <setting id="hub.1108.disablepicture" type="bool">false</setting>
+  <setting id="background.visualisation.disabled" type="bool">false</setting>
+  <setting id="skinuserlogin.disabled" type="bool">false</setting>
+  <setting id="homeswitcher.disabledate" type="bool">false</setting>
+  <setting id="tmdbhelper.service" type="bool">true</setting>
+  <setting id="spotlight.enableslide" type="bool">false</setting>
+  <setting id="videoinfo.widgets.disabledirector" type="bool">false</setting>
+  <setting id="hub.1107.disablerecordings" type="bool">false</setting>
+  <setting id="seasonaltheme.disablehalloween" type="bool">false</setting>
+  <setting id="footer.enablecodecs" type="bool">false</setting>
+  <setting id="search.disablediscover-moviekeywords" type="bool">false</setting>
+  <setting id="videoinfo.widgets.disablestudio" type="bool">false</setting>
+  <setting id="seasonaltheme.disableoverlay" type="bool">false</setting>
+  <setting id="videoinfo.widgets.disableonlinegallery" type="bool">false</setting>
+  <setting id="info.enablestylisedtitlesbackgrounds" type="bool">false</setting>
+  <setting id="videoinfo.widgets.disableyear" type="bool">false</setting>
+  <setting id="homeswitcher.enableicons" type="bool">false</setting>
+  <setting id="view.usedetailedlistlabels" type="bool">false</setting>
+  <setting id="indicator.disablewatched" type="bool">false</setting>
+  <setting id="tmdbhelper.enablecolors" type="bool">false</setting>
+  <setting id="homeswitcher.disableheader" type="bool">false</setting>
+  <setting id="search.disablediscover" type="bool">false</setting>
+  <setting id="videoinfo.widgets.disablegallery" type="bool">false</setting>
+  <setting id="osd.ondown.disablepvrosdchannels" type="bool">false</setting>
+  <setting id="videoinfo.widgets.disablecomments" type="bool">false</setting>
+  <setting id="tmdbhelper.enabletranslationproperties" type="bool">false</setting>
+  <setting id="seasonaltheme.disableflyby" type="bool">false</setting>
+  <setting id="startup.disablewaitforload" type="bool">false</setting>
+  <setting id="videoinfo.widgets.disablestarring" type="bool">false</setting>
+  <setting id="Hub.Home.DisableSubmenu" type="bool">true</setting>
+  <setting id="hub.1107.disablechannels" type="bool">false</setting>
+  <setting id="infotags.enablehdr" type="bool">false</setting>
+  <setting id="hub.1107.disablegroups" type="bool">false</setting>
+  <setting id="videoinfo.widgets.enablelocalcollection" type="bool">false</setting>
+  <setting id="header.disableweather" type="bool">false</setting>
+  <setting id="videoinfo.widgets.disablecrew" type="bool">false</setting>
+  <setting id="osd.ondown.disable1140" type="bool">false</setting>
+  <setting id="textboxes.disableautoscroll" type="bool">false</setting>
+  <setting id="debuginfo" type="bool">false</setting>
+  <setting id="home.firstrun" type="bool">true</setting>
+  <setting id="osd.infooverlay.disablelandscapeoninfo" type="bool">false</setting>
+  <setting id="tmdbhelper.forcewidgetcontainer" type="bool">false</setting>
+  <setting id="TMDbHelper.UseLocalWidgetContainer" type="bool">true</setting>
+  <setting id="clearplaylist" type="bool">false</setting>
+  <setting id="indicator.enableunwatchedcount" type="bool">false</setting>
+  <setting id="homeswitcher.vertical" type="bool">false</setting>
+  <setting id="contextmenu.disableoptionstray" type="bool">false</setting>
+  <setting id="infotags.disablestarrating" type="bool">false</setting>
+  <setting id="indicator.disablelibrary" type="bool">false</setting>
+  <setting id="osd.disableplotratingsoninfo" type="bool">false</setting>
+  <setting id="infotags.enableaudiochannels" type="bool">false</setting>
+  <setting id="info.uselocalcast" type="bool">false</setting>
+  <setting id="labels.autoscroll" type="bool">false</setting>
+  <setting id="videoinfo.widgets.disablevideos" type="bool">false</setting>
+  <setting id="videoinfo.widgets.disablerecommendations" type="bool">false</setting>
+  <setting id="tmdbhelper.enabledata" type="bool">true</setting>
+  <setting id="osd.infooverlay.disableplotratingsoninfo" type="bool">false</setting>
+  <setting id="seasonaltheme.disableloop" type="bool">false</setting>
+  <setting id="videoinfo.widgets.disableepisodes" type="bool">false</setting>
+  <setting id="widgets.disablenoresultsitem" type="bool">false</setting>
+  <setting id="debuggrid" type="bool">false</setting>
+  <setting id="hub.1107.disablesearch" type="bool">false</setting>
+  <setting id="videoinfo.widgets.disablecreator" type="bool">false</setting>
+  <setting id="info.enablestylisedtitles" type="bool">false</setting>
+  <setting id="indicator.traktwatchlist" type="bool">false</setting>
+  <setting id="tmdbhelper.enabledesaturate" type="bool">false</setting>
+  <setting id="defaultconfig.initdone" type="bool">true</setting>
+  <setting id="tmdbhelper.disableartwork" type="bool">false</setting>
+  <setting id="autolibrarytags" type="bool">false</setting>
+  <setting id="contextmenu.disableartwork" type="bool">false</setting>
+  <setting id="osd.ondown.disablevideobookmarks" type="bool">false</setting>
+  <setting id="TMDbHelper.DisableExtendedProperties" type="bool">true</setting>
+  <setting id="tmdbhelper.disableratings" type="bool">false</setting>
+  <setting id="indicator.disablecollection" type="bool">false</setting>
+  <setting id="indicator.episodetypebanner" type="bool">false</setting>
+  <setting id="navigation.disablecategoriesselectdialog" type="bool">false</setting>
+  <setting id="indicator.movieversionbanner" type="bool">false</setting>
+  <setting id="startup.enablehubpreloading" type="bool">false</setting>
+  <setting id="videoinfo.widgets.disableseasons" type="bool">false</setting>
+  <setting id="indicator.traktfavourites" type="bool">false</setting>
+  <setting id="spotlight.usemenubutton" type="bool">false</setting>
+  <setting id="ratings.enablecolor" type="bool">false</setting>
+  <setting id="textboxes.disablefakebox" type="bool">false</setting>
+  <setting id="hub.1108.disablegame" type="bool">false</setting>
+  <setting id="background.extrafanart" type="bool">false</setting>
+  <setting id="SkinConstant.Numeric.00" type="string">$NUMBER[0]</setting>
+  <setting id="SkinConstant.Numeric.11" type="string">$NUMBER[11]</setting>
+  <setting id="homeswitcher.1102.mode" type="string">Standard</setting>
+  <setting id="SkinConstant.Numeric.04" type="string">$NUMBER[4]</setting>
+  <setting id="homeswitcher.1104.type" type="string" />
+  <setting id="homeswitcher.1108.upnextmode" type="string" />
+  <setting id="dialoginfo.movies.item01" type="string">Trailer</setting>
+  <setting id="homeswitcher.1103.shortcut.target" type="string" />
+  <setting id="optionstiles.01.target" type="string" />
+  <setting id="customrating.movies.item03" type="string" />
+  <setting id="ServiceInterval" type="string" />
+  <setting id="videoosd.personcredits.castcrew" type="string">cast</setting>
+  <setting id="background.image" type="string">special://skin/extras/backgrounds/blur/purple_blur.jpg</setting>
+  <setting id="homeswitcher.1103.spotlight.target" type="string">videos</setting>
+  <setting id="startup.imagefolder" type="string" />
+  <setting id="optionstiles.03.include" type="string">Weather</setting>
+  <setting id="homeswitcher.1101.spotlight.target" type="string">videos</setting>
+  <setting id="HomeSwitcher.1102.Spotlight.Label" type="string">Random Movies</setting>
+  <setting id="OptionsTiles.03.Label" type="string" />
+  <setting id="homeswitcher.1102.toggle" type="string">true</setting>
+  <setting id="BackgroundInterval" type="string" />
+  <setting id="OSD_Timeout" type="string" />
+  <setting id="TMDbHelper.Corner.Radius" type="string">20</setting>
+  <setting id="startup.videopath" type="string" />
+  <setting id="homeswitcher.1109.icon" type="string" />
+  <setting id="homeswitcher.1101.type" type="string" />
+  <setting id="homeswitcher.1106.icon" type="string" />
+  <setting id="optionstiles.04.include" type="string">SystemInfo</setting>
+  <setting id="homeswitcher.home.mode" type="string">Standard</setting>
+  <setting id="SkinConstant.Numeric.07" type="string">$NUMBER[7]</setting>
+  <setting id="customrating.tvshows.item02" type="string">Metacritic</setting>
+  <setting id="HomeSwitcher.1102.Spotlight.Path" type="string">special://skin/extras/playlists/RandomMovies.xsp</setting>
+  <setting id="script-skinviewtypes-hash" type="string">f1a46fea960fb3158bd1a690bca8e002</setting>
+  <setting id="TMDbHelper.UseLocalWindowIDs" type="string">10000|11101|11102|11103|11104|11105|11106|11107|11108|11109</setting>
+  <setting id="seasonaltheme.christmastheme" type="string" />
+  <setting id="homeswitcher.1104.toggle" type="string">true</setting>
+  <setting id="seekbar.timedisplay" type="string" />
+  <setting id="SkinConstant.Numeric.15" type="string">$NUMBER[15]</setting>
+  <setting id="homeswitcher.1106.mode" type="string">Standard</setting>
+  <setting id="homeswitcher.1107.type" type="string" />
+  <setting id="homeswitcher.1106.upnextmode" type="string" />
+  <setting id="homeswitcher.search.mode" type="string">Combined</setting>
+  <setting id="dialoginfo.movies.item03" type="string">Wikipedia</setting>
+  <setting id="homeswitcher.1103.spotlight.sortorder" type="string" />
+  <setting id="optionstiles.04.target" type="string" />
+  <setting id="HomeSwitcher.1103.Spotlight.Label" type="string" />
+  <setting id="homeswitcher.1105.icon" type="string">special://skin/extras/icons/tv.png</setting>
+  <setting id="osd.autoonpause.delay" type="string" />
+  <setting id="HomeSwitcher.1108.Name" type="string">Add-ons</setting>
+  <setting id="homeswitcher.1102.type" type="string" />
+  <setting id="customrating.movies.item01" type="string">Trakt</setting>
+  <setting id="HomeSwitcher.1101.Spotlight.Label" type="string">Random TV Shows</setting>
+  <setting id="TMDbHelper.Blur.Radius" type="string" />
+  <setting id="SkinConstant.Numeric.06" type="string">$NUMBER[6]</setting>
+  <setting id="autoscrolltime" type="string" />
+  <setting id="HomeSwitcher.1104.Shortcut.Path" type="string" />
+  <setting id="SkinConstant.Numeric.05" type="string">$NUMBER[5]</setting>
+  <setting id="SkinConstant.Numeric.17" type="string">$NUMBER[17]</setting>
+  <setting id="dialoginfo.others.item01" type="string">Trailer</setting>
+  <setting id="HomeSwitcher.1102.Spotlight.Limit" type="string" />
+  <setting id="homeswitcher.1109.spotlight.target" type="string" />
+  <setting id="homeswitcher.1105.toggle" type="string">true</setting>
+  <setting id="HomeSwitcher.1109.Name" type="string">Custom</setting>
+  <setting id="HomeSwitcher.1101.Spotlight.Limit" type="string">10</setting>
+  <setting id="mousepointercolor.name" type="string" />
+  <setting id="dialoginfo.movies.item02" type="string">Trakt</setting>
+  <setting id="HomeSwitcher.1106.Name" type="string">Next aired</setting>
+  <setting id="contextmenu.delete" type="string">true</setting>
+  <setting id="background.dialogimage" type="string">Adaptive</setting>
+  <setting id="HomeSwitcher.1104.Spotlight.Limit" type="string" />
+  <setting id="skin.settingslevel" type="string">1</setting>
+  <setting id="Shortcuts.RebuildDateTime" type="string">2026-10-08_09:27:36</setting>
+  <setting id="homeswitcher.1108.toggle" type="string" />
+  <setting id="homeswitcher.1101.mode" type="string">Standard</setting>
+  <setting id="optionstiles.02.target" type="string" />
+  <setting id="homeswitcher.home.upnextmode" type="string">library_nextaired</setting>
+  <setting id="SkinConstant.Numeric.13" type="string">$NUMBER[13]</setting>
+  <setting id="homeswitcher.1106.toggle" type="string" />
+  <setting id="HomeSwitcher.home.Name" type="string">Home</setting>
+  <setting id="homeswitcher.1107.upnextmode" type="string" />
+  <setting id="homeswitcher.onup" type="string" />
+  <setting id="homeswitcher.1102.spotlight.target" type="string">videos</setting>
+  <setting id="HomeSwitcher.Home.Spotlight.Target" type="string">videos</setting>
+  <setting id="HomeSwitcher.1104.Spotlight.Path" type="string" />
+  <setting id="HomeSwitcher.1102.Spotlight.SortOrder" type="string" />
+  <setting id="SkinConstant.Numeric.01" type="string">$NUMBER[1]</setting>
+  <setting id="skinvariables.skinuser.name" type="string" />
+  <setting id="homeswitcher.1108.spotlight.target" type="string" />
+  <setting id="OptionsTiles.01.Icon" type="string" />
+  <setting id="homeswitcher.1102.upnextmode" type="string">library_nextaired</setting>
+  <setting id="homeswitcher.1107.toggle" type="string">true</setting>
+  <setting id="optionstiles.03.path" type="string" />
+  <setting id="homeswitcher.1104.icon" type="string">special://skin/extras/icons/film.png</setting>
+  <setting id="SkinConstant.Numeric.12" type="string">$NUMBER[12]</setting>
+  <setting id="HomeSwitcher.1101.Spotlight.Path" type="string">videodb://tvshows/titles/</setting>
+  <setting id="HomeSwitcher.1102.Name" type="string">Movies</setting>
+  <setting id="HomeSwitcher.1103.Shortcut.Path" type="string" />
+  <setting id="homeswitcher.home.icon" type="string" />
+  <setting id="SkinConstant.Numeric.02" type="string">$NUMBER[2]</setting>
+  <setting id="optionstiles.04.path" type="string" />
+  <setting id="HomeSwitcher.home.Spotlight.Limit" type="string" />
+  <setting id="homeswitcher.1104.spotlight.target" type="string">videos</setting>
+  <setting id="customrating.tvshows.item03" type="string" />
+  <setting id="homeswitcher.home.shortcut.target" type="string" />
+  <setting id="HomeSwitcher.1103.Name" type="string">Downloaded Shows</setting>
+  <setting id="HomeSwitcher.Home.Spotlight.Label" type="string">Random Movies</setting>
+  <setting id="HomeSwitcher.home.Spotlight.SortMethod" type="string" />
+  <setting id="BlurRadius" type="string" />
+  <setting id="homeswitcher.1103.icon" type="string">special://skin/extras/icons/tv.png</setting>
+  <setting id="homeswitcher.1101.toggle" type="string">true</setting>
+  <setting id="OptionsTiles.01.Label" type="string" />
+  <setting id="homeswitcher.1106.spotlight.target" type="string" />
+  <setting id="HomeSwitcher.Home.Shortcut.Path" type="string">ActivateWindow(1181)</setting>
+  <setting id="homeswitcher.1105.spotlight.target" type="string">videos</setting>
+  <setting id="HomeSwitcher.1107.Name" type="string">Live TV / PVR</setting>
+  <setting id="homeswitcher.1104.shortcut.target" type="string" />
+  <setting id="plotline.tvshow" type="string" />
+  <setting id="home.label" type="string" />
+  <setting id="TMDbHelper.Date.Format" type="string" />
+  <setting id="focuscolor.name" type="string" />
+  <setting id="HomeSwitcher.1101.Spotlight.SortOrder" type="string" />
+  <setting id="homeswitcher.1107.mode" type="string">Wall</setting>
+  <setting id="OptionsTiles.03.Icon" type="string" />
+  <setting id="homeswitcher.1108.icon" type="string" />
+  <setting id="contextmenu.manage" type="string">true</setting>
+  <setting id="homeswitcher.1104.label" type="string">Downloaded Shows</setting>
+  <setting id="skin.contextmenu.custom" type="string">false</setting>
+  <setting id="homeswitcher.1102.icon" type="string">special://skin/extras/icons/film.png</setting>
+  <setting id="HomeSwitcher.1105.Name" type="string">Downloaded Shows</setting>
+  <setting id="homeswitcher.1104.upnextmode" type="string">library_nextaired</setting>
+  <setting id="HomeSwitcher.home.Spotlight.SortOrder" type="string" />
+  <setting id="HomeSwitcher.1103.Spotlight.Path" type="string" />
+  <setting id="homeswitcher.1101.icon" type="string">special://skin/extras/icons/tv.png</setting>
+  <setting id="dialoginfo.others.item02" type="string">Trakt</setting>
+  <setting id="homeswitcher.1109.mode" type="string">Standard</setting>
+  <setting id="HomeSwitcher.1101.Spotlight.SortMethod" type="string">random</setting>
+  <setting id="BlurContainer" type="string" />
+  <setting id="optionstiles.01.include" type="string">NowPlaying</setting>
+  <setting id="homeswitcher.1109.toggle" type="string" />
+  <setting id="TMDbHelper.Blur.Size" type="string" />
+  <setting id="homeswitcher.1103.type" type="string" />
+  <setting id="homeswitcher.1103.label" type="string">Downloaded Movies</setting>
+  <setting id="SkinConstant.Numeric.09" type="string">$NUMBER[9]</setting>
+  <setting id="SkinConstant.Numeric.14" type="string">$NUMBER[14]</setting>
+  <setting id="homeswitcher.1108.type" type="string" />
+  <setting id="homeswitcher.1106.type" type="string" />
+  <setting id="SkinConstant.Numeric.10" type="string">$NUMBER[10]</setting>
+  <setting id="homeswitcher.1104.mode" type="string">Standard</setting>
+  <setting id="homeswitcher.1108.mode" type="string">Wall</setting>
+  <setting id="optionstiles.layout" type="string">3</setting>
+  <setting id="skin.flixart.size" type="string" />
+  <setting id="HomeSwitcher.1104.Spotlight.SortMethod" type="string" />
+  <setting id="homeswitcher.1103.upnextmode" type="string">library_nextaired</setting>
+  <setting id="OptionsTiles.02.Icon" type="string" />
+  <setting id="SkinConstant.Numeric.16" type="string">$NUMBER[16]</setting>
+  <setting id="skinvariables.skinuser.icon" type="string" />
+  <setting id="customrating.tvshows.item01" type="string">Trakt</setting>
+  <setting id="dialoginfo.others.item03" type="string">Wikipedia</setting>
+  <setting id="skinvariables.skinuser" type="string" />
+  <setting id="homeswitcher.home.toggle" type="string" />
+  <setting id="homeswitcher.1101.upnextmode" type="string">library_nextaired</setting>
+  <setting id="HomeSwitcher.1101.Shortcut.Path" type="string" />
+  <setting id="SkinConstant.Numeric.08" type="string">$NUMBER[8]</setting>
+  <setting id="BlurSaturation" type="string" />
+  <setting id="optionstiles.01.path" type="string" />
+  <setting id="TMDbHelper.MonitorContainer" type="string" />
+  <setting id="HomeSwitcher.1104.Spotlight.Label" type="string" />
+  <setting id="HomeSwitcher.1102.Spotlight.SortMethod" type="string" />
+  <setting id="optionstiles.02.path" type="string" />
+  <setting id="mouse.pointersize" type="string" />
+  <setting id="homeswitcher.1109.upnextmode" type="string" />
+  <setting id="HomeSwitcher.Home.Spotlight.Path" type="string">special://skin/extras/playlists/RandomMovies.xsp</setting>
+  <setting id="HomeSwitcher.1104.Spotlight.SortOrder" type="string" />
+  <setting id="HomeSwitcher.1103.Spotlight.SortMethod" type="string" />
+  <setting id="OptionsTiles.04.Icon" type="string" />
+  <setting id="navigation.onback" type="string">Parent</setting>
+  <setting id="homeswitcher.1105.mode" type="string">Standard</setting>
+  <setting id="SkinConstant.Numeric.18" type="string">$NUMBER[18]</setting>
+  <setting id="HomeSwitcher.1104.Name" type="string">Downloaded Movies</setting>
+  <setting id="SkinConstant.Numeric.03" type="string">$NUMBER[3]</setting>
+  <setting id="HomeSwitcher.1101.Name" type="string">TV Shows</setting>
+  <setting id="homeswitcher.1109.type" type="string" />
+  <setting id="homeswitcher.1107.spotlight.target" type="string" />
+  <setting id="homeswitcher.1107.icon" type="string" />
+  <setting id="optionstiles.03.target" type="string" />
+  <setting id="plotline.movie" type="string" />
+  <setting id="customrating.movies.item02" type="string">Metacritic</setting>
+  <setting id="watchedprogresscolor.name" type="string" />
+  <setting id="seasonaltheme.propsdensity" type="string" />
+  <setting id="OptionsTiles.02.Label" type="string" />
+  <setting id="OptionsTiles.04.Label" type="string" />
+  <setting id="homeswitcher.1103.toggle" type="string">true</setting>
+  <setting id="osd.autoonpause" type="string" />
+  <setting id="homeswitcher.1105.upnextmode" type="string">library_nextaired</setting>
+  <setting id="homeswitcher.1103.mode" type="string">Standard</setting>
+  <setting id="optionstiles.02.include" type="string">Settings</setting>
+  <setting id="HomeSwitcher.1103.Spotlight.Limit" type="string" />
+  <setting id="SkinConstant.Numeric.19" type="string">$NUMBER[19]</setting>
+</settings>

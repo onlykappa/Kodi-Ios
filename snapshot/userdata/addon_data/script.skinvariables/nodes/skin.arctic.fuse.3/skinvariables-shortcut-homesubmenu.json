@@ -1,0 +1,20 @@
+[
+  {
+    "label": "YouTube",
+    "path": "RunScript(plugin.video.youtube.fusion)",
+    "icon": "${LOCAL_MEDIA_ROOT_05}",
+    "target": ""
+  },
+  {
+    "label": "Sports",
+    "path": "RunScript(script.loop.sportshub)",
+    "icon": "${LOCAL_MEDIA_ROOT_06}",
+    "target": ""
+  },
+  {
+    "label": "$LOCALIZE[3]",
+    "icon": "special://skin/extras/icons/video.png",
+    "path": "ActivateWindow(videos)",
+    "target": ""
+  }
+]

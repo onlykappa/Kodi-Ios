@@ -1,0 +1,9 @@
+{
+  "tests_run": 9,
+  "failures": 0,
+  "errors": 0,
+  "passed": true,
+  "scope": "Pinned source with mocked Kodi/library and synthetic tokens; no real account, network, codec or iPhone test",
+  "direct_unindexed_browse_resume_verified": false,
+  "ios_runtime_verified": false
+}

@@ -1,0 +1,30 @@
+[
+  {
+    "label": "Recently Added Shows",
+    "path": "special://profile/playlists/video/offline_shows_recent.xsp",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Recent Episodes",
+    "path": "special://profile/playlists/video/offline_shows_episodes_recent.xsp",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Episode"
+  },
+  {
+    "label": "Animation & Sci-Fi",
+    "path": "special://profile/playlists/video/offline_shows_scifi.xsp",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Comedy",
+    "path": "special://profile/playlists/video/offline_shows_comedy.xsp",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  }
+]

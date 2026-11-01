@@ -1,0 +1,114 @@
+[
+  {
+    "label": "In Progress Movies",
+    "path": "special://profile/playlists/video/In Progress Movies.xsp",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos"
+  },
+  {
+    "label": "In Progress Episodes",
+    "icon": "",
+    "path": "special://skin/extras/playlists/InProgressEpisodes.xsp",
+    "target": "videos"
+  },
+  {
+    "label": "Recommended Movies For You",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=trakt_becauseyouwatched&tmdb_type=movie",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Recommended Shows For You",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=trakt_becauseyouwatched&tmdb_type=tv",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Recently Added Movies",
+    "path": "videodb://recentlyaddedmovies/",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Recently added Tv",
+    "icon": "",
+    "path": "special://skin/extras/playlists/NewShows.xsp",
+    "target": "videos"
+  },
+  {
+    "label": "Netflix Originals",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_id=True&with_networks=213&first_air_date.gte=2013-01-01&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Netflix Original Movies",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=movie&with_id=True&with_companies=178464&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Disney+ Originals",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_id=True&with_networks=2739&first_air_date.gte=2019-01-01&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Prime Video Originals",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_id=True&with_networks=1024&first_air_date.gte=2013-01-01&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Apple TV+ Originals",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_id=True&with_networks=2552&first_air_date.gte=2019-01-01&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "HBO Originals",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_id=True&with_networks=49&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Max Originals",
+    "path": "plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_id=True&with_networks=3186&first_air_date.gte=2020-01-01&sort_by=popularity.desc",
+    "icon": "special://skin/extras/icons/folder.png",
+    "target": "videos",
+    "widget_style": "Poster"
+  },
+  {
+    "label": "Live Sports",
+    "path": "videodb://movies/titles/",
+    "icon": "special://profile/media/local_media_root_06/",
+    "target": ""
+  },
+  {
+    "label": "Local library",
+    "path": "videodb://movies/titles/",
+    "icon": "special://profile/media/local_media_root_07/",
+    "target": "videos"
+  },
+  {
+    "label": "Elementum-SSD",
+    "path": "videodb://movies/titles/",
+    "icon": "special://profile/media/local_media_root_08/",
+    "target": "videos"
+  },
+  {
+    "label": "Video add-ons",
+    "path": "library://video/addons.xml/",
+    "icon": "special://skin/extras/icons/video-addons.png",
+    "target": "videos"
+  }
+]

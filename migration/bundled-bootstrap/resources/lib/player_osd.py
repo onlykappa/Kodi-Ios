@@ -1,0 +1,157 @@
+"""Video controls (VideoOSD) in the Apple TV player's layout, for Arctic Fuse's landscape (1080i) folder.
+
+Fullscreen video is landscape on the phone, so the controls live in 1080i (2340 x 1080 on an iPhone 16 Pro).
+Top left: close and Play on TV (AirPlay icon). Centre: back 10 s, play/pause, forward 10 s. Bottom: the title,
+speed / audio / subtitles, the progress bar with time left, then Info and Continue Watching (the in-progress
+row). No volume control. Fuse's own seek bar hides while these controls are up, since they carry their own.
+"""
+from xml.sax.saxutils import escape
+
+MARKER='Kodi-iOS player controls r2'
+ICONS='special://skin/extras/icons/'
+MEDIA='special://skin/extras/portrait/'
+BOOT='special://xbmc/addons/service.kodi.ios.bootstrap/'
+CAST='RunScript(%scast.py)'%BOOT
+SPEED='RunScript(%sspeed.py)'%BOOT
+CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type=all'
+INFO='$VAR[Action_OSD_WikiInfo]'
+# The row's list is only fetched once Continue Watching is tapped (its path is empty until then), so opening the
+# controls during playback does not start the watch add-on every time.
+PANEL='Skin.HasSetting(ios_osd_continue)'
+SIDE=168            # 63 pt in from each edge, as the reference
+SIZES=(112,170,246) # glass circles drawn by portrait.textures()
+
+def e(text):return escape(str(text),{'"':'&quot;'})
+
+def image(x,y,w,h,texture,color='FFFFFFFF',extra='',border=''):
+ return ('<control type="image"><left>%s</left><top>%s</top><width>%s</width><height>%s</height>'
+         '<texture%s colordiffuse="%s">%s</texture>%s</control>')%(x,y,w,h,' border="%s"'%border if border else '',color,texture,extra)
+
+def label(x,y,w,h,text,font,color='FFFFFFFF',align='left',extra=''):
+ return ('<control type="label"><left>%s</left><top>%s</top><width>%s</width><height>%s</height><font>%s</font>'
+         '<textcolor>%s</textcolor><align>%s</align><aligny>center</aligny><label>%s</label>%s</control>')%(x,y,w,h,font,color,align,e(text),extra)
+
+def button(id,x,y,w,h,actions,text='',font='font_midi_bold',extra=''):
+ """A frosted capsule (circle when w == h); the light focus ring is how a tap shows."""
+ tex=MEDIA+'glass_%d.png'%h
+ clicks=''.join('<onclick>%s</onclick>'%e(a) for a in actions)
+ return ('<control type="button" id="%d"><left>%s</left><top>%s</top><width>%s</width><height>%s</height>'
+         '<label>%s</label><font>%s</font><textcolor>FFFFFFFF</textcolor><focusedcolor>FFFFFFFF</focusedcolor>'
+         '<align>center</align><aligny>center</aligny>'
+         '<texturefocus border="%d" colordiffuse="FFFFFFFF">%s</texturefocus><texturenofocus border="%d" colordiffuse="E6FFFFFF">%s</texturenofocus>'
+         '%s%s</control>')%(id,x,y,w,h,e(text),font,h//2,tex,h//2,tex,clicks,extra)
+
+def glyph(cx,cy,size,name,extra=''):
+ return image(cx-size//2,cy-size//2,size,size,name if '://' in name else ICONS+name,'FFFFFFFF','<aspectratio>keep</aspectratio>'+extra)
+
+def circle(id,x,y,size,name,action,glyph_size=None,extra='',over=''):
+ g=glyph_size or size*44//100
+ return button(id,x,y,size,size,[action],extra=extra)+glyph(x+size//2,y+size//2,g,name)+over
+
+def tap(id,cx,cy,size,name,action,nav='',glyph_size=None,extra=''):
+ """A plain white glyph with an invisible touch area around it (the Apple TV player has no button shapes);
+ the glyph dims slightly when the control has focus, so a tap still shows."""
+ g=glyph_size or size*6//10
+ return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
+         '<texturefocus /><texturenofocus /><onclick>%s</onclick>%s%s</control>')%(id,cx-size//2,cy-size//2,size,size,e(action),nav,extra)+\
+        glyph(cx,cy,g,name,'<animation effect="fade" start="100" end="70" time="0" condition="Control.HasFocus(%d)">Conditional</animation>'%id)
+
+def text_button(id,x,y,w,h,label_text,actions,nav=''):
+ clicks=''.join('<onclick>%s</onclick>'%e(a) for a in actions)
+ return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><label>%s</label>'
+         '<font>font_midi_bold</font><textcolor>D9FFFFFF</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>left</align><aligny>center</aligny>'
+         '<textoffsetx>0</textoffsetx><texturefocus /><texturenofocus />%s%s</control>')%(id,x,y,w,h,e(label_text),clicks,nav)
+
+def window():
+ """Layout from the owner's reference (Apple TV player, landscape): back top left; AirPlay / audio / subtitles /
+ speed top right; back 10, play-pause, forward 10 in the centre; the title, a thin bar with a white knob and the
+ time left at the bottom; Info and Continue Watching as text below. No button shapes, no volume."""
+ left=90;right=2340-90;top=110
+ head=(tap(7101,left+60,top,150,'chevron-left.png','PlayerControl(Stop)','<onright>7102</onright><ondown>7112</ondown>',104)+
+  ''.join(tap(id,right-60-i*180,top,150,icon,action,nav,74 if icon.endswith('airplay.png') else 96) for i,(id,icon,action,nav) in enumerate([
+   (7102,MEDIA+'airplay.png',CAST,'<onleft>7121</onleft><ondown>7112</ondown>'),
+   (7123,'closed-captioning.png','ActivateWindow(osdsubtitlesettings)','<onleft>7122</onleft><onright>7102</onright><ondown>7112</ondown>'),
+   (7122,'file-waveform.png','ActivateWindow(osdaudiosettings)','<onleft>7121</onleft><onright>7123</onright><ondown>7112</ondown>'),
+   (7121,'gauge-high.png',SPEED,'<onleft>7101</onleft><onright>7122</onright><ondown>7112</ondown>')])))
+ # Centre row; the "10" sits inside the arrows ($NUMBER: a bare 10 would be read as a Kodi string id).
+ cy=520;gap=420
+ ten=lambda cx:label(cx-70,cy-36,140,72,'$NUMBER[10]','font_main_bold','FFFFFFFF','center')
+ centre=('<control type="group"><visible>!%s</visible>'%PANEL+
+  tap(7111,1170-gap,cy,240,'rotate-left.png','Seek(-10)','<onright>7112</onright><onup>7101</onup><ondown>7131</ondown>',160)+ten(1170-gap)+
+  '<control type="button" id="7112"><left>%d</left><top>%d</top><width>260</width><height>260</height><texturefocus /><texturenofocus />'
+  '<onclick>PlayerControl(Play)</onclick><onleft>7111</onleft><onright>7113</onright><onup>7101</onup><ondown>7131</ondown></control>'%(1170-130,cy-130)+
+  glyph(1170+10,cy,150,'play.png','<visible>Player.Paused | Player.Forwarding | Player.Rewinding</visible>')+
+  glyph(1170,cy,140,'pause.png','<visible>!Player.Paused + !Player.Forwarding + !Player.Rewinding</visible>')+
+  tap(7113,1170+gap,cy,240,'rotate-right.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',160)+ten(1170+gap)+
+  '</control>')
+ # Title: the film, or the show and the episode.
+ title=label(left,770,1900,90,'$INFO[VideoPlayer.TVShowTitle,,  ·  ]$INFO[VideoPlayer.Title]','font_title_midi','FFFFFFFF','left','<visible>!%s</visible>'%PANEL)
+ # Thin bar with a white knob (drag to seek), time left under its right end.
+ bar=('<control type="group"><left>%d</left><width>%d</width><top>862</top><height>60</height>'%(left,right-left)+
+  # Track and fill in one control (same height and place), the knob from a slider whose bar is an invisible
+  # picture of the slider's height (Kodi sizes the knob from the bar picture).
+  '<control type="progress"><left>0</left><right>0</right><top>25</top><height>10</height><info>Player.Progress</info>'
+  '<texturebg border="4" colordiffuse="59FFFFFF">%sdot.png</texturebg><lefttexture />'
+  '<midtexture border="4" colordiffuse="FFFFFFFF">%sdot.png</midtexture><righttexture /></control>'%(MEDIA,MEDIA)+
+  '<control type="slider" id="7131"><left>0</left><right>0</right><top>6</top><height>48</height><action>seek</action><texturesliderbar>%sclear48.png</texturesliderbar>'%MEDIA+
+  '<textureslidernib colordiffuse="FFFFFFFF">%sknob.png</textureslidernib><textureslidernibfocus colordiffuse="FFFFFFFF">%sknob.png</textureslidernibfocus>'
+  '<onup>7112</onup><ondown>7141</ondown></control>'%(MEDIA,MEDIA)+
+  '</control>'+
+  '<control type="label"><left>%d</left><width>400</width><top>936</top><height>60</height><font>font_midi</font><textcolor>D9FFFFFF</textcolor>'
+  '<align>right</align><aligny>center</aligny><label>-$INFO[Player.TimeRemaining]</label></control>'%(right-400))
+ row=(text_button(7141,left,936,140,60,'Info',[INFO],'<onright>7142</onright><onup>7131</onup>')+
+      text_button(7142,left+200,936,460,60,'Continue Watching',['Skin.ToggleSetting(ios_osd_continue)','Skin.SetString(ios_osd_continue_path,%s)'%CONTINUE],'<onleft>7141</onleft><onup>7201</onup>'))
+ panel=('<control type="group"><visible>%s</visible>'%PANEL+
+  '<animation effect="fade" start="0" end="100" time="200">Visible</animation>'+
+  label(left,520,1200,60,'Continue Watching','font_head_bold')+
+  label(left,590,1400,60,'Nothing in progress yet','font_main','99FFFFFF','left','<visible>Integer.IsEqual(Container(7201).NumItems,0) + !Container(7201).IsUpdating</visible>')+
+  '<control type="list" id="7201"><left>%d</left><right>0</right><top>590</top><height>270</height><orientation>horizontal</orientation>'%left+
+  '<ondown>7131</ondown><onup>7101</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
+  '<itemlayout width="420" height="270">%s</itemlayout><focusedlayout width="420" height="270">%s</focusedlayout>'
+  '<content target="videos">$INFO[Skin.String(ios_osd_continue_path)]</content></control></control>')%(card(False),card(True))
+ shade=('<control type="image"><left>0</left><top>0</top><right>0</right><bottom>0</bottom><texture colordiffuse="59000000">%swhite.png</texture></control>'
+  '<control type="image"><left>0</left><top>0</top><right>0</right><height>360</height><texture colordiffuse="B3FFFFFF">%sfade_down.png</texture></control>'
+  '<control type="image"><left>0</left><bottom>0</bottom><right>0</right><height>520</height><texture colordiffuse="E6FFFFFF">%sfade_up.png</texture></control>')%(MEDIA,MEDIA,MEDIA)
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window>\n<defaultcontrol always="true">7112</defaultcontrol>'
+  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="200">WindowClose</animation>'
+  '<onunload>Skin.Reset(ios_osd_continue)</onunload><onunload>Skin.Reset(ios_osd_continue_path)</onunload><onunload>CancelAlarm(osd_timeout,true)</onunload>'
+  '<controls>%s%s%s%s%s%s%s</controls>\n</window>\n')%(MARKER,shade,head,centre,title,bar,row,panel)
+
+def card(focused):
+ art='$INFO[ListItem.Art(landscape)]'
+ return (image(0,0,396,223,MEDIA+'white.png','FF1C1C1E',border='')+
+  image(0,0,396,223,'$INFO[ListItem.Art(fanart)]','FFFFFFFF','<aspectratio>scale</aspectratio>')+
+  image(0,0,396,223,art,'FFFFFFFF','<aspectratio>scale</aspectratio><visible>!String.IsEmpty(ListItem.Art(landscape))</visible>')+
+  (image(-6,-6,408,235,MEDIA+'glass_112.png','FFFFFFFF','',border='40') if focused else '')+
+  label(0,228,396,40,'$INFO[ListItem.Label]','font_mini_bold','FFFFFFFF' if focused else 'B3FFFFFF'))
+
+def hide_seekbar(original):
+ """Fuse's seek bar window stays away while these controls (with their own bar) are up."""
+ cond='<visible>!Window.IsActive(videoosd)</visible>'
+ if cond in original:return original
+ head,sep,rest=original.partition('<window>')
+ if not sep:return original
+ return head+sep+'\n    '+cond+rest
+
+def airplay_png(png,size=96):
+ """AirPlay glyph: a screen outline open at the bottom, with a triangle rising into it. png: portrait.png."""
+ s=size/96.0
+ def inside_triangle(x,y):
+  # apex (48,54), base y=88 from x=22..74
+  ax,ay,by,bl,br=48*s,54*s,88*s,22*s,74*s
+  if y<ay or y>by:return False
+  half=(y-ay)/(by-ay)*(br-ax)
+  return ax-half<=x<=ax+half
+ def pixel(x,y):
+  px,py=x+0.5,y+0.5
+  # screen: rounded rectangle 6..90 x 10..70, stroke 7, gap 30..66 on the bottom edge
+  l,t,r,b,w,rad=6*s,10*s,90*s,70*s,7*s,10*s
+  def in_round(px,py,l,t,r,b,rad):
+   if px<l or px>r or py<t or py>b:return False
+   cx=min(max(px,l+rad),r-rad);cy=min(max(py,t+rad),b-rad)
+   return (px-cx)**2+(py-cy)**2<=rad*rad
+  ring=in_round(px,py,l,t,r,b,rad) and not in_round(px,py,l+w,t+w,r-w,b-w,max(rad-w,1))
+  if ring and py>b-w-1 and 30*s<px<66*s:ring=False
+  on=ring or inside_triangle(px,py)
+  return (255,255,255,255 if on else 0)
+ return png(size,size,pixel)

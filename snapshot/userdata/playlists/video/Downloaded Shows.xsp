@@ -1,0 +1,8 @@
+<smartplaylist type="tvshows">
+  <name>Downloaded Shows</name>
+  <match>all</match>
+  <rule field="path" operator="startswith">
+    <value>${LOCAL_MEDIA_ROOT_01}</value>
+  </rule>
+  <order direction="ascending">sorttitle</order>
+</smartplaylist>

@@ -1,0 +1,8 @@
+<smartplaylist type="tvshows">
+  <name>Downloaded Shows - Recently Added</name>
+  <match>all</match>
+  <rule field="path" operator="startswith">
+    <value>special://profile/media/local_media_root_03/</value>
+  </rule>
+  <order direction="descending">dateadded</order>
+</smartplaylist>

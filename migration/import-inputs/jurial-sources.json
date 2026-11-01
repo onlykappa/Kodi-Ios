@@ -1,0 +1,83 @@
+[
+  {
+    "id": "skin.arctic.fuse.3",
+    "version": "3.4.8",
+    "kind": "zip",
+    "url": "https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/ba8ea7ef52b957db1e09d49fa16be1de0cd14232/omega/zips/skin.arctic.fuse.3/skin.arctic.fuse.3-3.4.8.zip",
+    "git_blob_sha": "a6eb1be5ea9418d2f7572dfda07b5269e0b089a1",
+    "bytes": 59196810,
+    "origin": "jurialmunkey repository commit ba8ea7ef52b957db1e09d49fa16be1de0cd14232"
+  },
+  {
+    "id": "script.skinvariables",
+    "version": "2.2.10",
+    "kind": "zip",
+    "url": "https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/ba8ea7ef52b957db1e09d49fa16be1de0cd14232/omega/zips/script.skinvariables/script.skinvariables-2.2.10.zip",
+    "git_blob_sha": "8aa5bb7c338bf9fc59e685089ea125d267b615e9",
+    "bytes": 236733,
+    "origin": "jurialmunkey repository commit ba8ea7ef52b957db1e09d49fa16be1de0cd14232"
+  },
+  {
+    "id": "script.texturemaker",
+    "version": "0.2.11",
+    "kind": "zip",
+    "url": "https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/ba8ea7ef52b957db1e09d49fa16be1de0cd14232/omega/zips/script.texturemaker/script.texturemaker-0.2.11.zip",
+    "git_blob_sha": "b854eeaa2430362dca9e99fb8454d0023486e790",
+    "bytes": 171850,
+    "origin": "jurialmunkey repository commit ba8ea7ef52b957db1e09d49fa16be1de0cd14232"
+  },
+  {
+    "id": "plugin.video.themoviedb.helper",
+    "version": "6.18.1",
+    "kind": "zip",
+    "url": "https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/ba8ea7ef52b957db1e09d49fa16be1de0cd14232/omega/zips/plugin.video.themoviedb.helper/plugin.video.themoviedb.helper-6.18.1.zip",
+    "git_blob_sha": "c76fe192cca0ef5f5c6d8d081824dcff1e864650",
+    "bytes": 4309085,
+    "origin": "jurialmunkey repository commit ba8ea7ef52b957db1e09d49fa16be1de0cd14232"
+  },
+  {
+    "id": "script.module.infotagger",
+    "version": "0.1.0",
+    "kind": "zip",
+    "url": "https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/ba8ea7ef52b957db1e09d49fa16be1de0cd14232/omega/zips/script.module.infotagger/script.module.infotagger-0.1.0.zip",
+    "git_blob_sha": "66dab7e53a892b392c78d0c9cfc225110f1c68c1",
+    "bytes": 23169,
+    "origin": "jurialmunkey repository commit ba8ea7ef52b957db1e09d49fa16be1de0cd14232"
+  },
+  {
+    "id": "script.module.jurialmunkey",
+    "version": "0.2.35",
+    "kind": "zip",
+    "url": "https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/ba8ea7ef52b957db1e09d49fa16be1de0cd14232/omega/zips/script.module.jurialmunkey/script.module.jurialmunkey-0.2.35.zip",
+    "git_blob_sha": "98556ddadf9ea88db9809728663ddc08fe9a0990",
+    "bytes": 55792,
+    "origin": "jurialmunkey repository commit ba8ea7ef52b957db1e09d49fa16be1de0cd14232"
+  },
+  {
+    "id": "resource.font.robotocjksc",
+    "version": "0.0.3",
+    "kind": "zip",
+    "url": "https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/ba8ea7ef52b957db1e09d49fa16be1de0cd14232/omega/zips/resource.font.robotocjksc/resource.font.robotocjksc-0.0.3.zip",
+    "git_blob_sha": "d8557a883b420aa2e9cae95d35f77c6d463622b6",
+    "bytes": 51599422,
+    "origin": "jurialmunkey repository commit ba8ea7ef52b957db1e09d49fa16be1de0cd14232"
+  },
+  {
+    "id": "resource.images.arctic.splash",
+    "version": "1.0.7",
+    "kind": "zip",
+    "url": "https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/ba8ea7ef52b957db1e09d49fa16be1de0cd14232/repo/zips/resource.images.arctic.splash/resource.images.arctic.splash-1.0.7.zip",
+    "git_blob_sha": "0c8e0653611f9bbac5b5db30dbe539d652715106",
+    "bytes": 72337293,
+    "origin": "jurialmunkey repository commit ba8ea7ef52b957db1e09d49fa16be1de0cd14232"
+  },
+  {
+    "id": "resource.images.arctic.weather",
+    "version": "1.0.4",
+    "kind": "zip",
+    "url": "https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/ba8ea7ef52b957db1e09d49fa16be1de0cd14232/repo/zips/resource.images.arctic.weather/resource.images.arctic.weather-1.0.4.zip",
+    "git_blob_sha": "605c2e2156e09084794777ec132a7c737ba974d7",
+    "bytes": 58989405,
+    "origin": "jurialmunkey repository commit ba8ea7ef52b957db1e09d49fa16be1de0cd14232"
+  }
+]

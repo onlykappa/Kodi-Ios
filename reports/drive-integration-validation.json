@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "credential_free_profile": true,
+  "approved_relay": "https://drive.signinserver.com",
+  "private_account_state_included": false,
+  "subtitles_enabled": true,
+  "resume_prompt_enabled": true,
+  "directory_listing_enabled": false,
+  "export_folder_cleanup_enabled": false,
+  "dependency_candidates": 51,
+  "ios_runtime_verified": false
+}
