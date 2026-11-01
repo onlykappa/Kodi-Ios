@@ -256,3 +256,7 @@ REVIEW-GATE-5: After Phase 5, update roadmap, PROGRESS, ISSUES, validation evide
 
 
 Phase 2 completion means static deliverables, not certified iPhone functionality. Exact skin-code parity, native binary availability, touch behavior and OS/runtime compatibility remain explicit Phase 4 validation risks. That tradeoff was open during Phase 2. Owner now requires the fully bundled IPA (DEC-022); the automatic bootstrap and IPA are implemented and host-validated in Phase 4. Actual device startup/compatibility remains unverified.
+
+## Owner decision 2026-11-01 — version 1 on main
+
+The owner authorized merging the iOS work into `main` after the r13 review build (build-111) as version 1 (DEC-024). Task IDs and their states above are unchanged: device tasks still need the owner's evidence. The roadmap is to be reworked from version 1 at the owner's request.
