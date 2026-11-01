@@ -20,7 +20,7 @@ Built, awaiting owner retest (none of this is device-verified):
 - Hubs scroll past the floating tab bar; Home, Movies and TV are one preloaded window (d4bf39c).
 - Turning the phone no longer reloads the skin; dialogs reload from the matching folder, fonts rescaled (r8, f42dc07).
 - Notification center: bell, page, live downloads and Drive upload (47cf832).
-- Every pop-up goes to the bell instead of the screen, General / Problems filters (ISSUE-063): Python in build-102; the Kodi side needs executable r9.
+- Every pop-up goes to the bell instead of the screen, never shown, also at start (ISSUE-063): Python in build-102; the Kodi side needs executable r10.
 
 This session (2026-11-01, 20:40–21:10Z):
 - Found PROGRESS.md behind the git log (stopped at 18:35Z); confirmed no branch newer than feature/ios-migration f42dc07.
@@ -29,8 +29,8 @@ This session (2026-11-01, 20:40–21:10Z):
 
 Open / next (exact next step first):
 1. Confirm build-102 (import-review run on 27371e9) succeeded and send the owner the IPA link.
-2. Watch the r9 executable run (kodi-ios-portrait.yml on the r9 commit). If it fails to compile, read the log and fix GUIDialogKaiToast.cpp in the patch. If it publishes, pin kodi-ios-portrait-r9 with the release asset digest and send the next IPA.
-3. Owner retests build-102 (see list above) and later the r9 build (pop-ups appear in the bell, none on screen); evidence by screen recording or kodi.old.log via the log uploader.
+2. Watch the executable runs: r9 (from 0005312) publishes first and is NOT to be pinned (it showed pop-ups on a first start); r10 (queued behind it, concurrency waits) is the one to pin. If either fails to compile, read the log and fix GUIDialogKaiToast.cpp in the patch. When r10 publishes, pin kodi-ios-portrait-r10 with the release asset digest and send the next IPA.
+3. Owner retests build-102 (see list above) and later the r10 build (pop-ups appear in the bell, none on screen); evidence by screen recording or kodi.old.log via the log uploader.
 4. Settings pages rework (planned in draft PR #3, not coded). Roku: this TV has no Play on Roku receiver; AirPlay path only plays MP4/HLS.
 
 Blockers: device verification needs the owner. Phase 5, merge and release are not authorized.

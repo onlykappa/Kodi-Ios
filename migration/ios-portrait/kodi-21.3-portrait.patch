@@ -138,10 +138,10 @@ index 84f28b0..4504250 100644
  # configuration settings
  CONFIGURE=cp -f $(CONFIG_SUB) $(CONFIG_GUESS) .; \
 diff --git a/xbmc/dialogs/GUIDialogKaiToast.cpp b/xbmc/dialogs/GUIDialogKaiToast.cpp
-index 2f8ca00..a84a77b 100644
+index 2f8ca00..af8137b 100644
 --- a/xbmc/dialogs/GUIDialogKaiToast.cpp
 +++ b/xbmc/dialogs/GUIDialogKaiToast.cpp
-@@ -9,17 +9,66 @@
+@@ -9,17 +9,67 @@
  #include "GUIDialogKaiToast.h"
  
  #include "ServiceBroker.h"
@@ -165,20 +165,23 @@ index 2f8ca00..a84a77b 100644
  
 +namespace
 +{
-+// iOS portrait build: every pop-up is kept for the app's notification center (the bell) instead of being shown.
-+// Each one is appended as a JSON line to toasts.jsonl in the bootstrap service's data folder, which the service
-+// moves into its notices. Returns true when the pop-up should not be shown: it was recorded and the owner has not
-+// asked for pop-ups back (a file named toasts.popups in that folder). Without the folder, or if writing fails,
-+// the pop-up is shown as before.
++// iOS portrait build: pop-ups are never shown. Each one is appended as a JSON line to toasts.jsonl in the
++// bootstrap service's data folder (created here on a first start, before the service runs), and the service
++// moves them into the app's notification center (the bell). Returns false only if the pop-up could not be
++// recorded, so a message is never lost silently.
 +bool KeepForBell(CGUIDialogKaiToast::eMessageType type,
 +                 const std::string& image,
 +                 const std::string& caption,
 +                 const std::string& description)
 +{
-+  const std::string dir =
-+      CSpecialProtocol::TranslatePath("special://profile/addon_data/service.kodi.ios.bootstrap/");
++  const std::string data = CSpecialProtocol::TranslatePath("special://profile/addon_data/");
++  if (data.empty())
++    return false;
++  const std::string dir = data + "service.kodi.ios.bootstrap/";
++  mkdir(data.c_str(), 0755); // already there on every start but the first: EEXIST is fine
++  mkdir(dir.c_str(), 0755);
 +  struct stat info;
-+  if (dir.empty() || stat(dir.c_str(), &info) != 0 || !S_ISDIR(info.st_mode))
++  if (stat(dir.c_str(), &info) != 0 || !S_ISDIR(info.st_mode))
 +    return false;
 +
 +  CVariant entry(CVariant::VariantTypeObject);
@@ -199,16 +202,14 @@ index 2f8ca00..a84a77b 100644
 +    return false;
 +  out << line << '\n';
 +  out.flush();
-+  if (!out)
-+    return false;
-+  return stat((dir + "toasts.popups").c_str(), &info) != 0;
++  return static_cast<bool>(out);
 +}
 +} // namespace
 +
  CGUIDialogKaiToast::TOASTQUEUE CGUIDialogKaiToast::m_notifications;
  CCriticalSection CGUIDialogKaiToast::m_critical;
  
-@@ -81,6 +130,9 @@ void CGUIDialogKaiToast::AddToQueue(const std::string& aImageFile, const eMessag
+@@ -81,6 +131,9 @@ void CGUIDialogKaiToast::AddToQueue(const std::string& aImageFile, const eMessag
        return; // avoid duplicates in a row.
    }
  

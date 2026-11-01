@@ -5,9 +5,9 @@ addon_data/service.kodi.ios.bootstrap/notices.json, newest first, at most MAX. L
 its engine, the Drive upload in progress) is read when the page is open. The bootstrap service publishes the unread
 count and whether a download runs as Home window properties for the bell (Notices.Unread, Notices.Active).
 
-Every Kodi pop-up (any add-on's or Kodi's own toast) lands here too: the portrait Kodi app (r9) appends each one to
-toasts.jsonl in the same folder instead of showing it, and ingest() moves them into the store (General, or Problems for
-warnings and errors). A file named toasts.popups in that folder brings the pop-ups back (they are still recorded).
+Every Kodi pop-up (any add-on's or Kodi's own toast) lands here too and is never shown: the portrait Kodi app (r10)
+appends each one to toasts.jsonl in the same folder (creating it on a first start), and ingest() moves them into the
+store (General, or Problems for warnings and errors).
 """
 import json,os,time,urllib.request
 from pathlib import Path
