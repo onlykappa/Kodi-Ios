@@ -31,6 +31,39 @@ on:
       - 'migration/import-overlays/**'
       - 'migration/ios/**'
       - 'docs/iphone-import.md'
+  # Since the merge to main (DEC-024) builds run on pushes to main; pull requests still build too.
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/import-review.yml'
+      - 'scripts/build_import_review.py'
+      - 'scripts/build_customized_ipa.py'
+      - 'scripts/fetch_elementum_inputs.py'
+      - 'migration/elementum-ios/source-lock.json'
+      - 'migration/airplay-ios/source-lock.json'
+      - 'migration/glassbar-ios/source-lock.json'
+      - 'migration/ios-portrait/source-lock.json'
+      - 'scripts/test_customized_ipa.py'
+      - 'scripts/test_bundled_bootstrap.py'
+      - 'scripts/test_ios_navigation.py'
+      - 'scripts/test_updates_calibration.py'
+      - 'scripts/test_drive_upload.py'
+      - 'scripts/test_deck_picker.py'
+      - 'migration/deck-picker/**'
+      - 'scripts/test_startup_sequence.py'
+      - 'migration/bundled-bootstrap/**'
+      - 'scripts/import_runtime/**'
+      - 'scripts/import_profile.py'
+      - 'scripts/smoke_import_bundle.py'
+      - 'scripts/test_import_profile.py'
+      - 'scripts/test_watch_routes.py'
+      - 'scripts/test_watch_dialog.py'
+      - 'scripts/test_activation.py'
+      - 'migration/import-inputs/**'
+      - 'migration/import-overlays/**'
+      - 'migration/ios/**'
+      - 'docs/iphone-import.md'
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -94,7 +127,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          SHA: ${{ github.event.pull_request.head.sha }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           RUN: ${{ github.run_number }}
         run: |
           ipa=$(ls "$RUNNER_TEMP"/customized-ipa/*.ipa)

@@ -501,20 +501,10 @@ index b2a06d0..0c74089 100644
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..6d812f8 100644
+index a450151..e500a43 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
-@@ -16,7 +16,9 @@
- #include "application/ApplicationComponents.h"
- #include "application/ApplicationPlayer.h"
- #include "filesystem/SpecialProtocol.h"
-+#include "guilib/GUIComponent.h"
- #include "guilib/GUIControl.h"
-+#include "guilib/GUIWindowManager.h"
- #include "input/actions/Action.h"
- #include "input/actions/ActionIDs.h"
- #include "input/keyboard/XBMC_keysym.h"
-@@ -36,6 +38,8 @@
+@@ -36,6 +36,8 @@
  #include "utils/URIUtils.h"
  #include "utils/log.h"
  #include "windowing/XBMC_events.h"
@@ -523,7 +513,7 @@ index a450151..6d812f8 100644
  #import "windowing/ios/WinSystemIOS.h"
  
  #import "platform/darwin/NSLogDebugHelpers.h"
-@@ -48,6 +52,7 @@
+@@ -48,6 +50,7 @@
  #include "TextureCache.h"
  #undef id
  
@@ -531,7 +521,7 @@ index a450151..6d812f8 100644
  #include <math.h>
  #include <signal.h>
  
-@@ -135,6 +140,45 @@ public:
+@@ -135,6 +138,45 @@ public:
  -(void) terminateWithSuccess;
  @end
  
@@ -577,7 +567,7 @@ index a450151..6d812f8 100644
  @implementation XBMCController
  @synthesize animating;
  @synthesize lastGesturePoint;
-@@ -203,10 +247,156 @@ public:
+@@ -203,10 +245,156 @@ public:
  }
  // END OF UIKeyInput protocol
  
@@ -735,7 +725,7 @@ index a450151..6d812f8 100644
  //--------------------------------------------------------------
  - (UIInterfaceOrientation) getOrientation
  {
-@@ -429,6 +619,11 @@ public:
+@@ -429,6 +617,11 @@ public:
    if( m_glView && [m_glView isXBMCAlive] )//NO GESTURES BEFORE WE ARE UP AND RUNNING
    {
      CGPoint velocity = [sender velocityInView:m_glView];
@@ -747,13 +737,15 @@ index a450151..6d812f8 100644
  
      if( [sender state] == UIGestureRecognizerStateBegan && sender.numberOfTouches )
      {
-@@ -530,7 +725,31 @@ public:
+@@ -530,7 +723,32 @@ public:
      CGPoint point = [sender locationOfTouch:0 inView:m_glView];
      point.x *= screenScale;
      point.y *= screenScale;
 -    //NSLog(@"%s singleTap", __PRETTY_FUNCTION__);
 +    // Kodi-iOS r12: the owner saw taps work only on the left of the screen during landscape video. Log the first
 +    // taps after every change of screen shape with every size involved, so the phone's log shows where they go.
++    // r14: nothing here may take Kodi's GUI lock (this is UIKit's main thread; r13 asked the window manager for
++    // the active window, which locks the graphics context the render thread holds while it may wait for us).
 +    {
 +      static CGSize loggedFor = CGSizeZero;
 +      static int logged = 0;
@@ -768,19 +760,18 @@ index a450151..6d812f8 100644
 +        auto winSystem = CServiceBroker::GetWinSystem();
 +        CLog::Log(LOGINFO,
 +                  "Tap at {:.0f} x {:.0f} px; scene {:.0f} x {:.0f} pt, window {:.0f} x {:.0f}, view {:.0f} x {:.0f}, "
-+                  "GL view {:.0f},{:.0f} {:.0f} x {:.0f}, scale {:.1f}; Kodi {} x {}, window {}",
++                  "GL view {:.0f},{:.0f} {:.0f} x {:.0f}, scale {:.1f}; Kodi {} x {}",
 +                  point.x, point.y, screen.width, screen.height, m_window.bounds.size.width,
 +                  m_window.bounds.size.height, self.view.bounds.size.width, self.view.bounds.size.height,
 +                  m_glView.frame.origin.x, m_glView.frame.origin.y, m_glView.frame.size.width,
 +                  m_glView.frame.size.height, screenScale, winSystem ? winSystem->GetGfxContext().GetWidth() : 0,
-+                  winSystem ? winSystem->GetGfxContext().GetHeight() : 0,
-+                  CServiceBroker::GetGUI() ? CServiceBroker::GetGUI()->GetWindowManager().GetActiveWindowOrDialog() : 0);
++                  winSystem ? winSystem->GetGfxContext().GetHeight() : 0);
 +      }
 +    }
      CGenericTouchActionHandler::GetInstance().OnTap((float)point.x, (float)point.y, [sender numberOfTouches]);
    }
  }
-@@ -575,7 +794,7 @@ public:
+@@ -575,7 +793,7 @@ public:
    m_isPlayingBeforeInactive = NO;
    m_bgTask = UIBackgroundTaskInvalid;
  
@@ -789,7 +780,7 @@ index a450151..6d812f8 100644
    [m_window setRootViewController:self];
    m_window.screen = screen;
    /* Turn off autoresizing */
-@@ -589,7 +808,7 @@ public:
+@@ -589,7 +807,7 @@ public:
                   name: nil
                 object: nil];
  
@@ -798,7 +789,7 @@ index a450151..6d812f8 100644
  
    [m_window makeKeyAndVisible];
    g_xbmcController = self;
-@@ -600,7 +819,8 @@ public:
+@@ -600,7 +818,8 @@ public:
  //--------------------------------------------------------------
  - (void)loadView
  {
@@ -808,7 +799,7 @@ index a450151..6d812f8 100644
    self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
    self.view.autoresizesSubviews = YES;
  
-@@ -712,6 +932,15 @@ public:
+@@ -712,6 +931,15 @@ public:
  {
    m_debugLogSharingPresenter = std::make_unique<DebugLogSharingPresenter>();
    [self setGUIInsetsFromMainThread:NO];

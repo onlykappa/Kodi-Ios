@@ -7,6 +7,14 @@ on:
       - 'migration/ios-portrait/build-kodi-ios.sh'
       - 'migration/ios-portrait/kodi-21.3-portrait.patch'
       - 'migration/ios-portrait/source-lock.json'
+  # Since the merge to main (DEC-024) builds run on pushes to main; pull requests still build too.
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/kodi-ios-portrait.yml'
+      - 'migration/ios-portrait/build-kodi-ios.sh'
+      - 'migration/ios-portrait/kodi-21.3-portrait.patch'
+      - 'migration/ios-portrait/source-lock.json'
   workflow_dispatch:
 permissions:
   contents: write
