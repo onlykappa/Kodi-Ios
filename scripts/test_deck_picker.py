@@ -104,4 +104,25 @@ class UmbrellaPage(unittest.TestCase):
    other=Path(tmp)/'other.py';other.write_text('def run():pass\n');self.assertFalse(up.umbrella_hook(str(other)))
    self.assertFalse(up.umbrella_hook(str(Path(tmp)/'missing.py')))
 
+ def test_continue_watching_plays_the_same_version(self):
+  import json,time
+  home=mock.Mock();home.getProperty.return_value=json.dumps({'name':ITEMS and dp.parse_all(ITEMS)[3]['name'],'quality':'1080p','time':time.time()})
+  self.assertEqual(dp.find_same(dp.parse_all(ITEMS),dp.resume_wanted(home))['idx'],3);home.clearProperty.assert_called_with(dp.RESUME_PROPERTY)
+  stale=mock.Mock();stale.getProperty.return_value=json.dumps({'name':'x','time':time.time()-dp.RESUME_FRESH-5});self.assertIsNone(dp.resume_wanted(stale))
+  wanted={'name':dp.parse_all(ITEMS)[3]['name'],'quality':'1080p','time':time.time()}
+  with mock.patch.object(dp,'resume_wanted',lambda:wanted),mock.patch.object(dp,'choose_source',side_effect=AssertionError('asked')):
+   self.assertEqual(dp.run('Orange Is the New Black S01E01',ITEMS),3)
+  # Gone from the list: the normal page.
+  with mock.patch.object(dp,'resume_wanted',lambda:{'name':'Not.There','time':time.time()}),mock.patch.object(dp,'choose_quality',lambda labels:-1):
+   self.assertEqual(dp.run('Orange Is the New Black S01E01',ITEMS),-1)
+ def test_a_pick_is_remembered_for_the_title_just_started(self):
+  import json,tempfile,time,os
+  with tempfile.TemporaryDirectory() as tmp:
+   path=os.path.join(tmp,'continue.json')
+   json.dump({'current':'episode:1:1:1','items':{'episode:1:1:1':{'title':'I Wasn\'t Ready','tvshowtitle':'Orange Is the New Black','played':time.time()}}},open(path,'w'))
+   item=dp.parse_all(ITEMS)[2]
+   self.assertTrue(dp.remember(item,'Orange Is the New Black S01E01',path))
+   saved=json.load(open(path))['items']['episode:1:1:1']['version'];self.assertEqual((saved['name'],saved['quality']),(item['name'],'1080p'))
+   self.assertFalse(dp.remember(item,'Some Other Show S02E03',path))   # another title: left alone
+   self.assertFalse(dp.remember(item,'Orange Is the New Black S01E01',path,now=time.time()+3600))   # too long ago
 if __name__=='__main__':unittest.main()

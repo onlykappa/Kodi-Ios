@@ -25,6 +25,14 @@ def share_details(player,window=None):
    window.setProperty('Deck.Picker.'+key,str(value))
  except Exception:pass
 
+RESUME_PROPERTY='KodiIOS.Resume.Source'
+
+def continuing(argv=None):
+ """True when TMDb Helper was started from a Continue Watching link (ios_continue.CONTINUE_FLAG)."""
+ import sys
+ argv=sys.argv if argv is None else argv
+ return len(argv)>2 and 'ios_continue=1' in str(argv[2]).lstrip('?').split('&')
+
 def choose_player(player):
  import xbmc,xbmcgui,xbmcaddon,xbmcvfs
  player.allow_playlist=False
@@ -43,27 +51,42 @@ def choose_player(player):
  # Google Drive is not offered here: Elementum plays Drive-backed sources itself.
  for p in candidates:
   if p.is_local and p.kodi_file and xbmcvfs.exists(p.kodi_file):rows.append(('Local library file','play',p))
- items=[]
- for label,action,item in rows:
-  li=xbmcgui.ListItem(label=label);li.setArt(art);items.append(li)
- name=str(info.get('title') or info.get('tvshowtitle') or '')
- selected=xbmcgui.Dialog().select('How would you like to watch'+(' '+name if name else '')+'?',items)
+ def read(path):
+  f=xbmcvfs.File(path)
+  try:return f.read()
+  finally:f.close()
+ def write(path,text):
+  xbmcvfs.mkdirs(path.rsplit('/',1)[0]);f=xbmcvfs.File(path,'w')
+  try:f.write(text)
+  finally:f.close()
+ kind_of=lambda item:'elementum' if item is engine else 'umbrella' if item is umbrella else 'local'
+ home=xbmcgui.Window(10000);home.clearProperty(RESUME_PROPERTY)
+ # Continue Watching (its links carry the flag): the player and version picked last time, without asking.
+ saved={}
+ if continuing():
+  try:
+   from ios_continue import player_key,saved_choice
+   saved=saved_choice(read,player_key(player))
+  except Exception:saved={}
+ selected=next((n for n,(_,action,item) in enumerate(rows) if action=='play' and saved.get('player')==kind_of(item)),None)
+ if selected is None:
+  items=[]
+  for label,action,item in rows:
+   li=xbmcgui.ListItem(label=label);li.setArt(art);items.append(li)
+  name=str(info.get('title') or info.get('tvshowtitle') or '')
+  selected=xbmcgui.Dialog().select('How would you like to watch'+(' '+name if name else '')+'?',items)
  if selected<0 or selected>=len(rows):return None
  _,action,item=rows[selected]
  if action in NOT_READY:
   xbmcgui.Dialog().ok(*NOT_READY[action]);return None
+ if saved.get('version') and saved.get('player')==kind_of(item):
+  # deck_picker.py (Elementum's and Umbrella's version page) takes this once and plays the same version.
+  import json,time
+  home.setProperty(RESUME_PROPERTY,json.dumps(dict(saved['version'],time=time.time())))
  try:
   # Continue Watching: remember what was started (the bootstrap service follows its progress).
   from ios_continue import record
-  def read(path):
-   f=xbmcvfs.File(path)
-   try:return f.read()
-   finally:f.close()
-  def write(path,text):
-   xbmcvfs.mkdirs(path.rsplit('/',1)[0]);f=xbmcvfs.File(path,'w')
-   try:f.write(text)
-   finally:f.close()
-  record(player,read,write)
+  record(player,read,write,choice=kind_of(item))
  except Exception:pass
  if item is engine:share_details(player)
  return item

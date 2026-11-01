@@ -337,7 +337,7 @@ index f5c0732..2d7257c 100644
        // no need to send a resize message, as this message will do the rounds
        return true;
 diff --git a/xbmc/guilib/GUIWindow.cpp b/xbmc/guilib/GUIWindow.cpp
-index ebb133d..d9b8c47 100644
+index ebb133d..398f0d7 100644
 --- a/xbmc/guilib/GUIWindow.cpp
 +++ b/xbmc/guilib/GUIWindow.cpp
 @@ -499,9 +499,20 @@ EVENT_RESULT CGUIWindow::OnMouseAction(const CAction &action)
@@ -363,7 +363,7 @@ index ebb133d..d9b8c47 100644
    if (m_exclusiveMouseControl)
    {
      CGUIControl *child = GetControl(m_exclusiveMouseControl);
-@@ -591,7 +602,26 @@ bool CGUIWindow::OnMessage(CGUIMessage& message)
+@@ -591,7 +602,30 @@ bool CGUIWindow::OnMessage(CGUIMessage& message)
    case GUI_MSG_WINDOW_INIT:
      {
        CLog::Log(LOGDEBUG, "------ Window Init ({}) ------", GetProperty("xmlfile").asString());
@@ -381,9 +381,13 @@ index ebb133d..d9b8c47 100644
 +        {
 +          RESOLUTION_INFO wanted;
 +          g_SkinInfo->GetSkinPath(xmlFile, &wanted);
-+          otherOrientation = wanted.strMode != m_coordsRes.strMode;
++          // r12: the folder alone is not enough: 1080i has a 16:9 (1920) and a 19.5:9 (2340) layout, and a
++          // dialog first loaded upright (where 1080i falls back to its 16:9 default) kept 1920 in landscape.
++          otherOrientation = wanted.strMode != m_coordsRes.strMode || wanted.iWidth != m_coordsRes.iWidth ||
++                             wanted.iHeight != m_coordsRes.iHeight;
 +          if (otherOrientation)
-+            CLog::Log(LOGINFO, "Reloading {} for the {} layout", xmlFile, wanted.strMode);
++            CLog::Log(LOGINFO, "Reloading {} for the {} layout ({} x {})", xmlFile, wanted.strMode,
++                      wanted.iWidth, wanted.iHeight);
 +        }
 +      }
 +      if (otherOrientation || m_dynamicResourceAlloc || !m_bAllocated)
@@ -497,10 +501,20 @@ index b2a06d0..0c74089 100644
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..ae23844 100644
+index a450151..7b150ea 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
-@@ -36,6 +36,8 @@
+@@ -16,7 +16,9 @@
+ #include "application/ApplicationComponents.h"
+ #include "application/ApplicationPlayer.h"
+ #include "filesystem/SpecialProtocol.h"
++#include "guilib/GUIComponent.h"
+ #include "guilib/GUIControl.h"
++#include "guilib/GUIWindowManager.h"
+ #include "input/actions/Action.h"
+ #include "input/actions/ActionIDs.h"
+ #include "input/keyboard/XBMC_keysym.h"
+@@ -36,6 +38,8 @@
  #include "utils/URIUtils.h"
  #include "utils/log.h"
  #include "windowing/XBMC_events.h"
@@ -509,7 +523,7 @@ index a450151..ae23844 100644
  #import "windowing/ios/WinSystemIOS.h"
  
  #import "platform/darwin/NSLogDebugHelpers.h"
-@@ -48,6 +50,7 @@
+@@ -48,6 +52,7 @@
  #include "TextureCache.h"
  #undef id
  
@@ -517,7 +531,7 @@ index a450151..ae23844 100644
  #include <math.h>
  #include <signal.h>
  
-@@ -203,10 +206,155 @@ public:
+@@ -203,10 +208,155 @@ public:
  }
  // END OF UIKeyInput protocol
  
@@ -553,7 +567,7 @@ index a450151..ae23844 100644
 +  dispatch_async(dispatch_get_main_queue(), ^{
 +    [self applyVideoOrientation];
 +  });
- }
++}
 +
 +- (void)healScreenSize
 +{
@@ -580,7 +594,7 @@ index a450151..ae23844 100644
 +  }
 +  else
 +    mismatches = 0;
-+}
+ }
 +
 +- (void)applyVideoOrientation
 +{
@@ -674,7 +688,7 @@ index a450151..ae23844 100644
  //--------------------------------------------------------------
  - (UIInterfaceOrientation) getOrientation
  {
-@@ -429,6 +577,11 @@ public:
+@@ -429,6 +579,11 @@ public:
    if( m_glView && [m_glView isXBMCAlive] )//NO GESTURES BEFORE WE ARE UP AND RUNNING
    {
      CGPoint velocity = [sender velocityInView:m_glView];
@@ -686,7 +700,40 @@ index a450151..ae23844 100644
  
      if( [sender state] == UIGestureRecognizerStateBegan && sender.numberOfTouches )
      {
-@@ -589,7 +742,7 @@ public:
+@@ -530,7 +685,31 @@ public:
+     CGPoint point = [sender locationOfTouch:0 inView:m_glView];
+     point.x *= screenScale;
+     point.y *= screenScale;
+-    //NSLog(@"%s singleTap", __PRETTY_FUNCTION__);
++    // Kodi-iOS r12: the owner saw taps work only on the left of the screen during landscape video. Log the first
++    // taps after every change of screen shape with every size involved, so the phone's log shows where they go.
++    {
++      static CGSize loggedFor = CGSizeZero;
++      static int logged = 0;
++      const CGSize screen = InterfaceBounds(m_window).size;
++      if (!CGSizeEqualToSize(screen, loggedFor))
++      {
++        loggedFor = screen;
++        logged = 0;
++      }
++      if (logged++ < 12)
++      {
++        auto winSystem = CServiceBroker::GetWinSystem();
++        CLog::Log(LOGINFO,
++                  "Tap at {:.0f} x {:.0f} px; scene {:.0f} x {:.0f} pt, window {:.0f} x {:.0f}, view {:.0f} x {:.0f}, "
++                  "GL view {:.0f},{:.0f} {:.0f} x {:.0f}, scale {:.1f}; Kodi {} x {}, window {}",
++                  point.x, point.y, screen.width, screen.height, m_window.bounds.size.width,
++                  m_window.bounds.size.height, self.view.bounds.size.width, self.view.bounds.size.height,
++                  m_glView.frame.origin.x, m_glView.frame.origin.y, m_glView.frame.size.width,
++                  m_glView.frame.size.height, screenScale, winSystem ? winSystem->GetGfxContext().GetWidth() : 0,
++                  winSystem ? winSystem->GetGfxContext().GetHeight() : 0,
++                  CServiceBroker::GetGUI() ? CServiceBroker::GetGUI()->GetWindowManager().GetActiveWindowOrDialog() : 0);
++      }
++    }
+     CGenericTouchActionHandler::GetInstance().OnTap((float)point.x, (float)point.y, [sender numberOfTouches]);
+   }
+ }
+@@ -589,7 +768,7 @@ public:
                   name: nil
                 object: nil];
  
@@ -695,7 +742,7 @@ index a450151..ae23844 100644
  
    [m_window makeKeyAndVisible];
    g_xbmcController = self;
-@@ -712,6 +865,15 @@ public:
+@@ -712,6 +891,15 @@ public:
  {
    m_debugLogSharingPresenter = std::make_unique<DebugLogSharingPresenter>();
    [self setGUIInsetsFromMainThread:NO];

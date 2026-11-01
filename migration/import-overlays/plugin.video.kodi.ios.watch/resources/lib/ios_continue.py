@@ -23,8 +23,27 @@ def save(data,write):
  items=sorted(data['items'].items(),key=lambda kv:-kv[1].get('played',0))[:LIMIT]
  data['items']=dict(items);write(STORE,json.dumps(data,indent=1))
 
-def record(player,read,write,now=time.time):
- """Called by the chooser when it hands a title to a player."""
+def player_key(player):
+ """key() for the title TMDb Helper is about to play."""
+ kind='movie' if getattr(player,'tmdb_type','')=='movie' else 'episode'
+ entry={'kind':kind,'tmdb_id':str(getattr(player,'tmdb_id','') or '')}
+ if kind=='episode':entry.update(season=str(getattr(player,'season','') or ''),episode=str(getattr(player,'episode','') or ''))
+ return key(entry)
+
+def saved_choice(read,item_key):
+ """The player ('elementum', 'umbrella', 'local') and version picked last time for this title, or {}."""
+ entry=load(read)['items'].get(item_key) or {}
+ return {k:entry[k] for k in ('player','version') if entry.get(k)}
+
+def forget_choice(read,write,item_key):
+ """Long press › Choose source: ask again next time (and remember the new pick)."""
+ data=load(read);entry=data['items'].get(item_key)
+ if not entry:return False
+ entry.pop('player',None);entry.pop('version',None);save(data,write);return True
+
+def record(player,read,write,now=time.time,choice=None):
+ """Called by the chooser when it hands a title to a player (choice: 'elementum', 'umbrella' or 'local'). The
+ version picked last time is kept while the same player is used; the Choose a version page replaces it."""
  kind='movie' if getattr(player,'tmdb_type','')=='movie' else 'episode'
  details=player.details;info=getattr(details,'infolabels',{}) or {};art=getattr(details,'art',{}) or {}
  entry={'kind':kind,'tmdb_id':str(getattr(player,'tmdb_id','') or ''),'title':str(info.get('title') or ''),
@@ -34,6 +53,9 @@ def record(player,read,write,now=time.time):
  if not entry['tmdb_id']:return None
  data=load(read);old=data['items'].get(key(entry),{})
  entry.update(position=old.get('position',0),total=old.get('total',0),played=now())
+ entry['player']=choice or old.get('player')
+ if old.get('version') and entry['player']==old.get('player'):entry['version']=old['version']
+ if not entry['player']:del entry['player']
  data['items'][key(entry)]=entry;data['current']=key(entry);save(data,write)
  return key(entry)
 
@@ -50,9 +72,17 @@ def stopped(read,write):
  if entry and entry.get('total') and entry['position']>=FINISHED*entry['total']:del data['items'][current]
  save(data,write);return entry
 
+# TMDb Helper hands unknown parameters on untouched; the watch menu (running inside its resolver) sees this one in
+# sys.argv and plays the player and version picked last time instead of asking.
+CONTINUE_FLAG='ios_continue=1'
+
 def play_url(entry):
- if entry['kind']=='movie':return HELPER+'?info=play&tmdb_type=movie&tmdb_id='+entry['tmdb_id']
- return HELPER+'?info=play&tmdb_type=tv&tmdb_id=%s&season=%s&episode=%s'%(entry['tmdb_id'],entry['season'],entry['episode'])
+ if entry['kind']=='movie':return HELPER+'?info=play&tmdb_type=movie&tmdb_id='+entry['tmdb_id']+'&'+CONTINUE_FLAG
+ return HELPER+'?info=play&tmdb_type=tv&tmdb_id=%s&season=%s&episode=%s&%s'%(entry['tmdb_id'],entry['season'],entry['episode'],CONTINUE_FLAG)
+
+def choose_source_action(entry):
+ from urllib.parse import quote
+ return 'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=choose_source&key=%s)'%quote(key(entry),safe='')
 
 def entries(data,kind='all',library=()):
  """Started (position > 0) titles plus library in-progress items, newest first."""
@@ -99,5 +129,7 @@ def directory(handle,kind):
   tag.setResumePoint(entry.get('position',0),entry.get('total',0))
   li.setProperty('subtitle','S%s, E%s'%(entry['season'],entry['episode']) if episode else entry.get('year',''))
   li.setProperty('IsPlayable','true')
+  # Long press: pick the player and version again (a tap reuses last time's).
+  if entry.get('source')=='phone':li.addContextMenuItems([('Choose source',choose_source_action(entry))])
   xbmcplugin.addDirectoryItem(handle,entry.get('file') or play_url(entry),li,isFolder=False)
  xbmcplugin.setContent(handle,'videos');xbmcplugin.setPluginCategory(handle,'Continue Watching');xbmcplugin.endOfDirectory(handle)

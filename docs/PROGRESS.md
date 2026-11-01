@@ -2,40 +2,44 @@
 
 Status: IN PROGRESS — owner device testing of iPhone builds
 Current phase: Phase 4 — portrait UI (r11), Elementum, Drive, Play on TV, video controls, notification center; owner tests each IPA on an iPhone 16 Pro
-Last updated UTC: 2026-11-01T21:45Z
-Latest installable IPA: build-104 (commit 2a31ebd, Kodi executable r8 + bell ingest), https://github.com/onlykappa/Kodi-Ios/releases/tag/build-104 . Builds 102/103 failed (wrong pin hash); build-101 must not be used. build-101 (f42dc07) must NOT be used: its Python relies on r8 but it carries r7.
+Last updated UTC: 2026-11-01T22:20Z
+Latest installable IPA: build-106 (commit 0e89856, Kodi executable r10: pop-ups only in the bell), https://github.com/onlykappa/Kodi-Ios/releases/tag/build-106 . build-104 = r8. Builds 102/103 failed (wrong pin hash). build-101 must NOT be used (r8 Python on r7).
 Branches: feature/ios-migration (PR #1, all work), claude/ios-migration-continue-3jjuif (this session, same commits), hold/ios-next (older mirror at f42dc07), feature/settings-notifications (draft PR #3: plan only).
 
-## Where things stand (2026-11-01, evening)
+## Where things stand (2026-11-01, night)
 
 Working on the owner's phone (owner-confirmed):
 - Portrait-only menus (Apple TV-style mockup A), fullscreen video turns landscape and back.
 - Elementum in-process engine with Burst; Umbrella with CocoScrapers/AllDebrid; Google Drive sign-in (self-hosted worker, drive.file).
 - Download with Elementum (season page button, long press › Download); "Choose a version" (Deck picker) for Elementum and Umbrella.
 
+Owner-reported failures (build-104/106, 2026-11-01 night), see ISSUES:
+- ISSUE-064 video: Fuse seek bar flashes at video start; taps register only on the left of the screen; controls do not respond, laggy. Seek bar and layout fixed on host; tap cause unknown, r12 logs taps.
+- ISSUE-065 Arctic Fuse splash at start; slow start. Fixed on host.
+- ISSUE-066 request: Continue Watching reuses the player and version picked first; long press › Choose source. Built on host.
+
 Built, awaiting owner retest (none of this is device-verified):
 - Startup skin-reload loop fixed (build-94); setup crash fixed (build-88).
 - Touch scrolling momentum / drag routing (r5, r6); screen-size self-heal (r6).
-- Landscape video fills the screen: window follows the scene on rotation (r7, ISSUE in d4bf39c).
-- Hubs scroll past the floating tab bar; Home, Movies and TV are one preloaded window (d4bf39c).
-- Turning the phone no longer reloads the skin; dialogs reload from the matching folder, fonts rescaled (r8, f42dc07).
-- Notification center: bell, page, live downloads and Drive upload (47cf832).
-- Every pop-up goes to the bell instead of the screen, never shown, also at start (ISSUE-063): Python in build-102; the Kodi side needs executable r10.
+- Landscape video fills the screen (r7); hubs scroll past the tab bar, Home/Movies/TV one preloaded window (d4bf39c).
+- No skin reload on rotation; dialogs reload from the matching folder, fonts rescaled (r8).
+- Notification center (47cf832); every pop-up goes to the bell, never shown (ISSUE-063, r10, build-106).
 
-This session (2026-11-01, 20:40–21:10Z):
+This session (2026-11-01, 20:40–22:20Z):
 - Found PROGRESS.md behind the git log (stopped at 18:35Z); confirmed no branch newer than feature/ios-migration f42dc07.
-- r8 executable published by run 41347339284 (release kodi-ios-portrait-r8; Kodi binary sha256 388560c2…7580 from the release notes). First pinned in 27371e9 with the zip's digest by mistake: IPA runs 102/103 failed at 'Portrait executable digest mismatch' (scripts/ios_portrait.py hashes the Kodi binary inside the zip). Fixed by pinning the binary hash. Rule for the next pin: use the hash in the release body, not the asset digest.
-- Owner request (screenshots of cut-off pop-ups): all notifications in the bell under General; owner chose bell only. Implemented ISSUE-063 (Python + r9 patch). Host tests: 27 scripts pass (test_drive_runtime needs the CI source cache, not run here).
+- Pinned r8 (first with the zip digest by mistake: IPA runs 102/103 failed at 'Portrait executable digest mismatch'; scripts/ios_portrait.py hashes the Kodi binary inside the zip — use the hash in the release body). build-104 published.
+- ISSUE-063 (bell only): Python ingest + Kodi r9, then r10 (never shows, creates the folder on a first start). r10 pinned; build-106 published.
+- ISSUE-064/065/066 implemented on host; Kodi patch changed for r12 (tap logging, reload on layout width). Host tests: all 27 runnable scripts pass (test_drive_runtime needs the CI source cache).
 
 Open / next (exact next step first):
-1. DONE 21:12Z: build-104 published and sent to the owner. r9 executable compiled and published (Kodi ca8d9fa8…04df) — proves the GUIDialogKaiToast change builds; r9 is not pinned.
-2. DONE 21:45Z: r10 published (run on 2a31ebd, Kodi afc2da82…26db from the release body) and pinned; build_tag now r11 (nothing pending). Next: confirm the IPA run on this commit publishes and send the owner the link — the bell-only build.
-3. Owner retests build-104 (see list above) and the r10 build (pop-ups appear in the bell, none on screen); evidence by screen recording or kodi.old.log via the log uploader.
-4. Settings pages rework (planned in draft PR #3, not coded). Roku: this TV has no Play on Roku receiver; AirPlay path only plays MP4/HLS.
+1. Confirm the IPA run on this session's last commit publishes (Kodi r10 + ISSUE-064/065/066 Python) and send the owner the link.
+2. Watch kodi-ios-portrait r12 (queued behind r11, which is identical to r10 and must not be pinned). If it compiles, pin r12 with the Kodi hash from the release BODY and send that IPA; if not, read the log and fix XBMCController.mm / GUIWindow.cpp in the patch.
+3. Owner tests: video start (no Fuse bar), tapping anywhere on the video, controls, startup (no splash, time to Home), Continue Watching resume (no questions) and long press › Choose source. For the tap bug on r12: reproduce, then send kodi.old.log (the "Tap at …" lines).
+4. Settings pages rework (draft PR #3, not coded). Roku: no Play on Roku receiver on this TV; AirPlay path only plays MP4/HLS.
 
-Blockers: device verification needs the owner. Phase 5, merge and release are not authorized.
+Blockers: device verification needs the owner; the tap bug needs the r12 log. Phase 5, merge and release are not authorized.
 
-Verification method: unit tests (scripts/test_*.py), desktop Kodi 21.3 rig at the phone's portrait (603x1167) and landscape (19.5:9) shapes, IPA download checks (zip integrity, Kodi binary equal to the pinned executable apart from the code signature), owner device tests. Nothing is called device-verified without the owner's evidence.
+Verification method: unit tests (scripts/test_*.py), desktop Kodi 21.3 rig at the phone's portrait (603x1167) and landscape (19.5:9) shapes (not available in this session: the new layouts are not rig-rendered), IPA download checks (zip integrity, Kodi binary equal to the pinned executable apart from the code signature), owner device tests. Nothing is called device-verified without the owner's evidence.
 
 ## Resume instructions
 

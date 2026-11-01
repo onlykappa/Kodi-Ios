@@ -18,7 +18,7 @@ class ContinueTests(unittest.TestCase):
   rows=module.entries(self.data())
   self.assertEqual([r['kind'] for r in rows],['episode','movie'])
   self.assertEqual([r['kind'] for r in module.entries(self.data(),'movie')],['movie'])
-  self.assertEqual(module.play_url(rows[0]),'plugin://plugin.video.themoviedb.helper/?info=play&tmdb_type=tv&tmdb_id=2&season=1&episode=3')
+  self.assertEqual(module.play_url(rows[0]),'plugin://plugin.video.themoviedb.helper/?info=play&tmdb_type=tv&tmdb_id=2&season=1&episode=3&ios_continue=1')
   self.assertNotIn('clearart',rows[1]['art'])
  def test_not_started_is_hidden_and_finished_is_dropped(self):
   self.record('movie','1');self.assertEqual(module.entries(self.data()),[])
@@ -33,4 +33,17 @@ class ContinueTests(unittest.TestCase):
   self.assertEqual([r['title'] for r in module.entries(self.data(),'all',lib)],['Local','Pilot'])
  def test_title_without_tmdb_id_is_not_recorded(self):
   self.assertIsNone(self.record('movie',''))
+ def test_player_and_version_kept_for_continue_watching(self):
+  key=module.record(self.player('movie','1'),self.read,self.write,lambda:1,choice='umbrella')
+  data=self.data();data['items'][key]['version']={'name':'Film.1080p','quality':'1080p'};self.write(module.STORE,__import__('json').dumps(data))
+  self.assertEqual(module.player_key(self.player('movie','1')),key)
+  self.assertEqual(module.saved_choice(self.read,key),{'player':'umbrella','version':{'name':'Film.1080p','quality':'1080p'}})
+  # Same player again: the version stays; another player: it goes.
+  module.record(self.player('movie','1'),self.read,self.write,lambda:2,choice='umbrella');self.assertIn('version',module.saved_choice(self.read,key))
+  module.record(self.player('movie','1'),self.read,self.write,lambda:3,choice='elementum');self.assertEqual(module.saved_choice(self.read,key),{'player':'elementum'})
+  self.assertTrue(module.forget_choice(self.read,self.write,key));self.assertEqual(module.saved_choice(self.read,key),{})
+  self.assertFalse(module.forget_choice(self.read,self.write,'movie:9::'))
+ def test_long_press_offers_choose_source(self):
+  entry={'kind':'episode','tmdb_id':'2','season':'1','episode':'3'}
+  self.assertEqual(module.choose_source_action(entry),'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=choose_source&key=episode%3A2%3A1%3A3)')
 if __name__=='__main__':unittest.main()

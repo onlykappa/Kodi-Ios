@@ -129,11 +129,34 @@ class PortraitTests(unittest.TestCase):
                  'RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/speed.py)','ActivateWindow(osdaudiosettings)','ActivateWindow(osdsubtitlesettings)','$VAR[Action_OSD_WikiInfo]']:self.assertIn(action,clicks)
   self.assertNotIn('volume',files['1080i/VideoOSD.xml'].decode().lower())
   self.assertIn('$NUMBER[10]',files['1080i/VideoOSD.xml'].decode())  # a bare 10 is a Kodi string id
-  seek=files['1080i/DialogSeekBar.xml'].decode();self.assertIn('<visible>!Window.IsActive(videoosd)</visible>',seek)
-  self.assertEqual(portrait.player_osd.hide_seekbar(seek),seek)
+  # r3: Fuse's seek bar is replaced. Ours shows only while seeking (never for buffering or the resume jump at the
+  # start of a video, when Fuse's flashed up), keeps Kodi's progress control 401, and is pinned to the edges.
+  seek=ET.fromstring(files['1080i/DialogSeekBar.xml']);cond=seek.find('visible').text
+  self.assertIn('!Window.IsActive(videoosd)',cond);self.assertIn('Player.Seeking',cond)
+  for word in ('Caching','HasPerformedSeek','Paused'):self.assertNotIn(word,cond)
+  self.assertEqual([c.get('id') for c in seek.iter('control') if c.get('id')],['401'])
+  # Pinned to the left/centre/right, never a fixed x beyond Fuse's 16:9 width (Kodi loads the seek bar upright).
+  for root in (seek,osd):
+   for c in root.iter('control'):
+    x=c.find('left')
+    if x is not None and x.text.isdigit():self.assertLess(int(x.text)+int((c.find('width').text if c.find('width') is not None and c.find('width').text.isdigit() else 0)),1920,ET.tostring(c)[:200])
   self.assertTrue(files['extras/portrait/airplay.png'].startswith(b'\x89PNG'))
   nav=importlib.util.spec_from_file_location('nav',ROOT/'migration/bundled-bootstrap/resources/lib/navigation.py');n=importlib.util.module_from_spec(nav);nav.loader.exec_module(n)
   self.assertEqual(n.patch_osd(files['1080i/VideoOSD.xml'],'VideoOSD.xml'),files['1080i/VideoOSD.xml'])
+ def test_fuse_splash_never_shows(self):
+  files=portrait.portrait_files(self.skin,self.profile);splash=ET.fromstring(files['portrait/Custom_1198_Dialog_Startup.xml'])
+  self.assertEqual((splash.get('id'),splash.get('type'),splash.find('visible').text),('1198','dialog','false'))
+ def test_start_skips_an_unchanged_refresh(self):
+  first=portrait.refresh_if_needed(self.skin,self.profile)
+  self.assertEqual(portrait.refresh_if_needed(self.skin,self.profile),[])
+  calls=[];real=portrait.refresh
+  try:
+   portrait.refresh=lambda skin,profile:calls.append(1) or []
+   self.assertEqual(portrait.refresh_if_needed(self.skin,self.profile),[]);self.assertEqual(calls,[])
+   # Writing our own 1080i files is not a change; a Fuse file or the widget list is.
+   (self.skin/'1080i/VideoOSD.xml').write_text('<window />');portrait.refresh_if_needed(self.skin,self.profile);self.assertEqual(calls,[])
+   home=self.skin/'1080i/Home.xml';home.write_text(home.read_text()+' ');portrait.refresh_if_needed(self.skin,self.profile);self.assertEqual(calls,[1])
+  finally:portrait.refresh=real
  def test_textures_are_png(self):
   for name,data in portrait.textures().items():self.assertTrue(data.startswith(b'\x89PNG'),name)
 

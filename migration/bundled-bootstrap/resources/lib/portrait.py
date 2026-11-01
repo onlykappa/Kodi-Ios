@@ -8,7 +8,7 @@ window shrunk into the middle of the portrait screen, so nothing becomes unreach
 The same module builds the folder into the IPA (scripts/build_customized_ipa.py) and, on the phone,
 refreshes the rows from the owner's widget lists and reloads the skin when the phone rotates.
 """
-import json,os,re,struct,zlib,xml.etree.ElementTree as ET
+import hashlib,json,os,re,struct,zlib,xml.etree.ElementTree as ET
 import importlib.util as _iu
 _spec=_iu.spec_from_file_location('player_osd',os.path.join(os.path.dirname(os.path.abspath(__file__)),'player_osd.py'))
 player_osd=_iu.module_from_spec(_spec);_spec.loader.exec_module(player_osd)
@@ -78,7 +78,7 @@ MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
       ('Favourites','star.png','FFFF9F0A','ActivateWindow(1160)'),
       ('File manager','clapperboard.png','FF5E5CE6','ActivateWindow(filemanager)'),
       ('iPhone navigation / recovery','life-ring.png','FFFF453A',MENU)]
-HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{SEARCH_FILE,'DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml'}
+HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{SEARCH_FILE,'Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml'}
 # Never shrunk: playback stays landscape, and these are not windows.
 SKIP_WRAP={'VideoFullScreen.xml','VideoOSD.xml','MusicVisualisation.xml','SlideShow.xml','Pointer.xml'}
 # Shown only over landscape playback: no portrait copy, so Kodi always loads them from 1080i with landscape
@@ -818,11 +818,17 @@ def portrait_files(skin,profile):
  for name,data in textures().items():files['extras/portrait/'+name]=data
  files[FOLDER+'/DeckSourceSelect.xml']=deck_page().encode()
  files[FOLDER+'/IOSNotifications.xml']=notices_page().encode()
+ # Fuse's startup splash ("Arctic Fuse - Reticulating Splines") showed over Home, shrunk into portrait, for up to a
+ # minute at every start. The window stays (Fuse keeps its startup status in its properties) but never shows.
+ files[FOLDER+'/Custom_1198_Dialog_Startup.xml']=SPLASH
  # Fullscreen video is landscape: the Apple TV-style controls go into the landscape folder.
  files['1080i/VideoOSD.xml']=player_osd.window().encode()
- seekbar=read('DialogSeekBar.xml')
- if seekbar:files['1080i/DialogSeekBar.xml']=player_osd.hide_seekbar(seekbar).encode()
+ # Fuse's seek bar flashed up at every video start (buffering, the resume jump): ours shows only while seeking.
+ if (source/'DialogSeekBar.xml').exists():files['1080i/DialogSeekBar.xml']=player_osd.seekbar_window().encode()
  return files
+
+SPLASH=('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: Fuse startup splash, never shown -->\n'
+        '<window type="dialog" id="1198"><visible>false</visible><controls /></window>\n'%MARKER).encode()
 
 def write(skin,files):
  changed=[]
@@ -853,6 +859,36 @@ def refresh(skin,profile):
  """On the phone: follow the owner's widget lists and any later landscape (1080i) repair.
  Returns the changed paths; the caller reloads the skin if any changed."""
  return write(skin,portrait_files(skin,profile))
+
+# Written into 1080i by this module, so they are not inputs.
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml'}
+INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
+
+def fingerprint(skin,profile):
+ """What the portrait folder is made from: this code, Fuse's landscape files (except the two written here), its
+ addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
+ skin=Path(skin);h=hashlib.sha256(REVISION.encode())
+ for code in (Path(__file__),Path(player_osd.__file__)):h.update(code.read_bytes())
+ def stamp(path):
+  try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
+  except OSError:h.update(('%s:-;'%path.name).encode())
+ for path in sorted((skin/'1080i').glob('*.xml')):
+  if path.name not in OWN_1080I:stamp(path)
+ stamp(skin/'addon.xml')
+ for lists in sorted({name for _,lists,_,_ in HUBS.values() for name in lists}):stamp(Path(profile)/NODES.format(lists))
+ h.update(str(len(list((skin/FOLDER).glob('*.xml'))) if (skin/FOLDER).is_dir() else '-').encode())
+ return h.hexdigest()
+
+def refresh_if_needed(skin,profile):
+ """refresh() only when an input changed since the last start: rebuilding every portrait window (300 files parsed,
+ textures drawn in Python) took the phone's CPU while Home was loading at every start."""
+ marker=Path(profile)/INPUTS;now=fingerprint(skin,profile)
+ try:
+  if json.loads(marker.read_text())['inputs']==now:return []
+ except (OSError,ValueError,KeyError,TypeError):pass
+ changed=refresh(skin,profile)
+ marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(json.dumps({'inputs':fingerprint(skin,profile)})+'\n')
+ return changed
 
 def missing(skin):
  """True when the writable Fuse copy predates r11: setup never overwrites a copy that is already there,
@@ -907,7 +943,11 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
     # Add the portrait folder and resolution, then have Kodi re-read addon.xml so the folder can be chosen.
     changed=list(build(skin,profile));invoke('UpdateLocalAddons')
     xbmc.log('Kodi iOS portrait layout added to the writable skin copy (%d files)'%len(changed),xbmc.LOGINFO)
-   else:changed=refresh(skin,profile)
+   else:changed=refresh_if_needed(skin,profile)
+   # Fuse's start: no hub preloading (it opened each hub window in turn, the portrait hubs are one window) and no
+   # wait-for-widgets loop (its script ran again every half second for up to a minute while rows loaded).
+   for setting,on in (('Startup.EnableHubPreloading',False),('Startup.DisableWaitForLoad',True)):
+    if bool(xbmc.getCondVisibility('Skin.HasSetting(%s)'%setting))!=on:invoke(('Skin.SetBool(%s)' if on else 'Skin.Reset(%s)')%setting)
    xbmc.log('Kodi iOS portrait files checked in %s: %d updated%s'%(skin,len(changed),(' ('+', '.join(c for c in changed if not c.startswith('extras/'))[:300]+')') if changed else ''),xbmc.LOGINFO)
    marker=Path(profile)/'addon_data/service.kodi.ios.bootstrap/portrait.json'
    if not marker.exists():
@@ -938,7 +978,11 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
  import xbmcgui
  home=xbmcgui.Window(10000)
  publish=focused_item_publisher(xbmc.getInfoLabel,xbmc.getCondVisibility,lambda k,v:home.setProperty('Portrait.Item.'+k,v))
- ticks=[t for t in (tick,publish) if t]
+ # During fullscreen video the menu-only work stops: each getInfoLabel / getCondVisibility waits for Kodi's GUI
+ # lock, and the focused-item publisher asked up to ten of them every half second while the owner used the video
+ # controls. The tab bar's tick stays (two size checks in landscape) so it hides as the video starts.
+ video=lambda:xbmc.getCondVisibility('Window.IsActive(fullscreenvideo)')
+ always=[t for t in (tick,) if t];menu_ticks=[publish]
  close=None
  try:
   # Native Liquid Glass tab bar (KodiGlassBar.framework), when the IPA carries it.
@@ -947,11 +991,20 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
   if path:
    bar,poll,close=glassbar.controller(glassbar.load(path),xbmc.getCondVisibility,lambda:bool(is_portrait(xbmc.getInfoLabel)),
                                      home.setProperty,lambda action:xbmc.executebuiltin(action))
-   ticks.append(bar)
+   always.append(bar)
    def taps():
-    while not monitor.waitForAbort(0.05):poll()
+    # The tab bar is hidden during video: look for taps twenty times a second only in the menus.
+    playing=False;count=0
+    while not monitor.waitForAbort(0.5 if playing else 0.05):
+     count+=1
+     if playing or count%10==0:playing=bool(video())
+     if not playing:poll()
    threading.Thread(target=taps,daemon=True).start()
  except Exception as error:xbmc.log('Kodi iOS glass tab bar unavailable: '+type(error).__name__,xbmc.LOGWARNING)
- watch(xbmc.getInfoLabel,invoke,monitor.waitForAbort,xbmc.getSkinDir,fuse,tick=lambda:[t() for t in ticks])
+ def ticks():
+  for t in always:t()
+  if not video():
+   for t in menu_ticks:t()
+ watch(xbmc.getInfoLabel,invoke,monitor.waitForAbort,xbmc.getSkinDir,fuse,tick=ticks)
  if close:close()
 

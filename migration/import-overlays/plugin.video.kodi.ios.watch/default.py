@@ -9,6 +9,21 @@ def run(argv):
  handle=int(argv[1]);params={k:v[0] for k,v in parse_qs(argv[2].lstrip('?')).items()}
  if params.get('action')=='continue':
   from ios_continue import directory;directory(handle,params.get('type','all'));return
+ if params.get('action')=='choose_source':
+  # Long press › Choose source on Continue Watching: forget last time's pick, then play the item as a tap does
+  # (Kodi's resume question, then the watch menu and the version page, whose answers are remembered again).
+  import xbmcvfs
+  from ios_continue import forget_choice
+  def read(path):
+   f=xbmcvfs.File(path)
+   try:return f.read()
+   finally:f.close()
+  def write(path,text):
+   f=xbmcvfs.File(path,'w')
+   try:f.write(text)
+   finally:f.close()
+  forget_choice(read,write,params.get('key',''))
+  xbmc.sleep(300);xbmc.executebuiltin('Action(Select)');return
  if params.get('action')=='engine_status':
   xbmcgui.Dialog().ok('Elementum not available','Elementum is not installed or is switched off in this build. Check Add-ons > Video add-ons > Elementum.')
   xbmcplugin.endOfDirectory(handle,succeeded=False);return

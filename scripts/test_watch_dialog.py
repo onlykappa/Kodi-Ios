@@ -9,7 +9,8 @@ class DialogTests(unittest.TestCase):
   self.dialog=mock.Mock();self.dialog.select.return_value=-1
   self.xbmc=SimpleNamespace(getCondVisibility=mock.Mock(return_value=False),executebuiltin=mock.Mock())
   self.settings=mock.Mock();self.settings.getSettingBool.return_value=False
-  self.mods={'xbmc':self.xbmc,'xbmcgui':SimpleNamespace(Dialog=lambda:self.dialog,ListItem=mock.Mock()),'xbmcaddon':SimpleNamespace(Addon=lambda id:self.settings),'xbmcvfs':SimpleNamespace(exists=lambda path:True)}
+  self.home=mock.Mock()
+  self.mods={'xbmc':self.xbmc,'xbmcgui':SimpleNamespace(Dialog=lambda:self.dialog,ListItem=mock.Mock(),Window=lambda id:self.home),'xbmcaddon':SimpleNamespace(Addon=lambda id:self.settings),'xbmcvfs':SimpleNamespace(exists=lambda path:True)}
   self.patch=mock.patch.dict(sys.modules,self.mods);self.patch.start()
   self.engine=SimpleNamespace(file='ios.elementum.json',is_local=False,kodi_file=None)
   self.player=SimpleNamespace(allow_playlist=True,details=SimpleNamespace(art={'poster':'fixture'},infolabels={'title':'Fixture'}),player_items=SimpleNamespace(items_play=[self.engine]))
@@ -37,4 +38,28 @@ class DialogTests(unittest.TestCase):
   self.assertIsNone(module.choose_player(self.player));self.dialog.ok.assert_called_once()
  def test_artwork_is_passed_to_native_kodi_listitems(self):
   module.choose_player(self.player);self.mods['xbmcgui'].ListItem.return_value.setArt.assert_called_with({'poster':'fixture'})
+ def continue_setup(self,saved,argv):
+  umbrella=SimpleNamespace(file='ios.umbrella.json',is_local=False,kodi_file=None);self.player.player_items.items_play=[self.engine,umbrella]
+  self.player.tmdb_type='movie';self.player.tmdb_id='1'
+  self.xbmc.getCondVisibility.return_value=True;self.settings.getSettingBool.return_value=True
+  recorded=[]
+  fake=SimpleNamespace(player_key=lambda player:'movie:1::',saved_choice=lambda read,key:saved,record=lambda *a,**k:recorded.append(k.get('choice')))
+  self.patch_extra=mock.patch.dict(sys.modules,{'ios_continue':fake});self.patch_extra.start();self.addCleanup(self.patch_extra.stop)
+  self.argv=mock.patch.object(sys,'argv',argv);self.argv.start();self.addCleanup(self.argv.stop)
+  return umbrella,recorded
+ def test_continue_watching_reuses_player_and_version(self):
+  umbrella,recorded=self.continue_setup({'player':'umbrella','version':{'name':'Film.1080p','quality':'1080p'}},
+                                        ['plugin://x','1','?info=play&tmdb_type=movie&tmdb_id=1&ios_continue=1'])
+  self.assertIs(module.choose_player(self.player),umbrella);self.dialog.select.assert_not_called();self.assertEqual(recorded,['umbrella'])
+  name,value=self.home.setProperty.call_args[0];self.assertEqual(name,'KodiIOS.Resume.Source')
+  import json;self.assertEqual(json.loads(value)['name'],'Film.1080p')
+ def test_normal_play_still_asks(self):
+  umbrella,recorded=self.continue_setup({'player':'umbrella','version':{'name':'Film.1080p'}},['plugin://x','1','?info=play&tmdb_type=movie&tmdb_id=1'])
+  self.dialog.select.return_value=0
+  self.assertIs(module.choose_player(self.player),self.engine);self.dialog.select.assert_called_once();self.assertEqual(recorded,['elementum'])
+  self.assertNotIn('KodiIOS.Resume.Source',[c[0][0] for c in self.home.setProperty.call_args_list]);self.home.clearProperty.assert_called_with('KodiIOS.Resume.Source')
+ def test_continue_without_a_saved_pick_asks(self):
+  umbrella,recorded=self.continue_setup({},['plugin://x','1','?info=play&tmdb_type=movie&tmdb_id=1&ios_continue=1'])
+  self.dialog.select.return_value=1
+  self.assertIs(module.choose_player(self.player),umbrella);self.dialog.select.assert_called_once();self.home.setProperty.assert_not_called()
 if __name__=='__main__':unittest.main()

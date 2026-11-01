@@ -3,11 +3,11 @@
 Fullscreen video is landscape on the phone, so the controls live in 1080i (2340 x 1080 on an iPhone 16 Pro).
 Top left: close and Play on TV (AirPlay icon). Centre: back 10 s, play/pause, forward 10 s. Bottom: the title,
 speed / audio / subtitles, the progress bar with time left, then Info and Continue Watching (the in-progress
-row). No volume control. Fuse's own seek bar hides while these controls are up, since they carry their own.
+row). No volume control. Fuse's seek bar is replaced by seekbar_window(), shown only while the owner seeks.
 """
 from xml.sax.saxutils import escape
 
-MARKER='Kodi-iOS player controls r2'
+MARKER='Kodi-iOS player controls r3'
 ICONS='special://skin/extras/icons/'
 MEDIA='special://skin/extras/portrait/'
 BOOT='special://xbmc/addons/service.kodi.ios.bootstrap/'
@@ -62,32 +62,46 @@ def text_button(id,x,y,w,h,label_text,actions,nav=''):
          '<font>font_midi_bold</font><textcolor>D9FFFFFF</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>left</align><aligny>center</aligny>'
          '<textoffsetx>0</textoffsetx><texturefocus /><texturenofocus />%s%s</control>')%(id,x,y,w,h,e(label_text),clicks,nav)
 
+def group(anchor,width,body,extra=''):
+ """A group pinned to the screen's centre or right edge, so the layout holds whichever landscape width Kodi gives
+ the window (1080i has 16:9 = 1920 and 19.5:9 = 2340 layouts, and a window loaded upright gets the 16:9 one)."""
+ where={'centre':'<centerleft>50%%</centerleft><width>%d</width>'%width,'right':'<right>0</right><width>%d</width>'%width,
+        'left':'<left>0</left><width>%d</width>'%width}[anchor]
+ return '<control type="group">%s%s%s</control>'%(where,extra,body)
+
 def window():
  """Layout from the owner's reference (Apple TV player, landscape): back top left; AirPlay / audio / subtitles /
  speed top right; back 10, play-pause, forward 10 in the centre; the title, a thin bar with a white knob and the
- time left at the bottom; Info and Continue Watching as text below. No button shapes, no volume."""
- left=90;right=2340-90;top=110
- head=(tap(7101,left+60,top,150,'chevron-left.png','PlayerControl(Stop)','<onright>7102</onright><ondown>7112</ondown>',104)+
-  ''.join(tap(id,right-60-i*180,top,150,icon,action,nav,74 if icon.endswith('airplay.png') else 96) for i,(id,icon,action,nav) in enumerate([
-   (7102,MEDIA+'airplay.png',CAST,'<onleft>7121</onleft><ondown>7112</ondown>'),
+ time left at the bottom; Info and Continue Watching as text below. No button shapes, no volume. Everything is
+ pinned to the left edge, the centre or the right edge (r3): coordinates below are inside those groups."""
+ left=90;top=110
+ back=tap(7101,left+60,top,150,'chevron-left.png','PlayerControl(Stop)','<onright>7121</onright><ondown>7112</ondown>',104)
+ # Right group, 900 wide: speed, audio, subtitles, AirPlay from left to right, the last 90 in from the edge.
+ rw=900;rx=rw-90
+ icons=''.join(tap(id,rx-60-i*180,top,150,icon,action,nav,74 if icon.endswith('airplay.png') else 96) for i,(id,icon,action,nav) in enumerate([
+   (7102,MEDIA+'airplay.png',CAST,'<onleft>7123</onleft><ondown>7112</ondown>'),
    (7123,'closed-captioning.png','ActivateWindow(osdsubtitlesettings)','<onleft>7122</onleft><onright>7102</onright><ondown>7112</ondown>'),
    (7122,'file-waveform.png','ActivateWindow(osdaudiosettings)','<onleft>7121</onleft><onright>7123</onright><ondown>7112</ondown>'),
-   (7121,'gauge-high.png',SPEED,'<onleft>7101</onleft><onright>7122</onright><ondown>7112</ondown>')])))
- # Centre row; the "10" sits inside the arrows ($NUMBER: a bare 10 would be read as a Kodi string id).
- cy=520;gap=420
- ten=lambda cx:label(cx-70,cy-36,140,72,'$NUMBER[10]','font_main_bold','FFFFFFFF','center')
- centre=('<control type="group"><visible>!%s</visible>'%PANEL+
-  tap(7111,1170-gap,cy,240,'rotate-left.png','Seek(-10)','<onright>7112</onright><onup>7101</onup><ondown>7131</ondown>',160)+ten(1170-gap)+
+   (7121,'gauge-high.png',SPEED,'<onleft>7101</onleft><onright>7122</onright><ondown>7112</ondown>')]))
+ head=back+group('right',rw,icons)
+ # Centre row in a group 1200 wide centred on the screen; the "10" sits inside the arrows ($NUMBER: a bare 10
+ # would be read as a Kodi string id).
+ cw=1200;cx=cw//2;cy=520;gap=420
+ ten=lambda x:label(x-70,cy-36,140,72,'$NUMBER[10]','font_main_bold','FFFFFFFF','center')
+ centre=group('centre',cw,
+  tap(7111,cx-gap,cy,240,'rotate-left.png','Seek(-10)','<onright>7112</onright><onup>7101</onup><ondown>7131</ondown>',160)+ten(cx-gap)+
   '<control type="button" id="7112"><left>%d</left><top>%d</top><width>260</width><height>260</height><texturefocus /><texturenofocus />'
-  '<onclick>PlayerControl(Play)</onclick><onleft>7111</onleft><onright>7113</onright><onup>7101</onup><ondown>7131</ondown></control>'%(1170-130,cy-130)+
-  glyph(1170+10,cy,150,'play.png','<visible>Player.Paused | Player.Forwarding | Player.Rewinding</visible>')+
-  glyph(1170,cy,140,'pause.png','<visible>!Player.Paused + !Player.Forwarding + !Player.Rewinding</visible>')+
-  tap(7113,1170+gap,cy,240,'rotate-right.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',160)+ten(1170+gap)+
-  '</control>')
+  '<onclick>PlayerControl(Play)</onclick><onleft>7111</onleft><onright>7113</onright><onup>7101</onup><ondown>7131</ondown></control>'%(cx-130,cy-130)+
+  glyph(cx+10,cy,150,'play.png','<visible>Player.Paused | Player.Forwarding | Player.Rewinding</visible>')+
+  glyph(cx,cy,140,'pause.png','<visible>!Player.Paused + !Player.Forwarding + !Player.Rewinding</visible>')+
+  tap(7113,cx+gap,cy,240,'rotate-right.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',160)+ten(cx+gap),
+  '<visible>!%s</visible>'%PANEL)
  # Title: the film, or the show and the episode.
- title=label(left,770,1900,90,'$INFO[VideoPlayer.TVShowTitle,,  ·  ]$INFO[VideoPlayer.Title]','font_title_midi','FFFFFFFF','left','<visible>!%s</visible>'%PANEL)
+ title=('<control type="label"><left>%d</left><right>%d</right><top>770</top><height>90</height><font>font_title_midi</font>'
+  '<textcolor>FFFFFFFF</textcolor><align>left</align><aligny>center</aligny><label>%s</label><visible>!%s</visible></control>')%(
+  left,left,e('$INFO[VideoPlayer.TVShowTitle,,  ·  ]$INFO[VideoPlayer.Title]'),PANEL)
  # Thin bar with a white knob (drag to seek), time left under its right end.
- bar=('<control type="group"><left>%d</left><width>%d</width><top>862</top><height>60</height>'%(left,right-left)+
+ bar=('<control type="group"><left>%d</left><right>%d</right><top>862</top><height>60</height>'%(left,left)+
   # Track and fill in one control (same height and place), the knob from a slider whose bar is an invisible
   # picture of the slider's height (Kodi sizes the knob from the bar picture).
   '<control type="progress"><left>0</left><right>0</right><top>25</top><height>10</height><info>Player.Progress</info>'
@@ -97,8 +111,8 @@ def window():
   '<textureslidernib colordiffuse="FFFFFFFF">%sknob.png</textureslidernib><textureslidernibfocus colordiffuse="FFFFFFFF">%sknob.png</textureslidernibfocus>'
   '<onup>7112</onup><ondown>7141</ondown></control>'%(MEDIA,MEDIA)+
   '</control>'+
-  '<control type="label"><left>%d</left><width>400</width><top>936</top><height>60</height><font>font_midi</font><textcolor>D9FFFFFF</textcolor>'
-  '<align>right</align><aligny>center</aligny><label>-$INFO[Player.TimeRemaining]</label></control>'%(right-400))
+  '<control type="label"><right>%d</right><width>400</width><top>936</top><height>60</height><font>font_midi</font><textcolor>D9FFFFFF</textcolor>'
+  '<align>right</align><aligny>center</aligny><label>-$INFO[Player.TimeRemaining]</label></control>'%left)
  row=(text_button(7141,left,936,140,60,'Info',[INFO],'<onright>7142</onright><onup>7131</onup>')+
       text_button(7142,left+200,936,460,60,'Continue Watching',['Skin.ToggleSetting(ios_osd_continue)','Skin.SetString(ios_osd_continue_path,%s)'%CONTINUE],'<onleft>7141</onleft><onup>7201</onup>'))
  panel=('<control type="group"><visible>%s</visible>'%PANEL+
@@ -113,9 +127,31 @@ def window():
   '<control type="image"><left>0</left><top>0</top><right>0</right><height>360</height><texture colordiffuse="B3FFFFFF">%sfade_down.png</texture></control>'
   '<control type="image"><left>0</left><bottom>0</bottom><right>0</right><height>520</height><texture colordiffuse="E6FFFFFF">%sfade_up.png</texture></control>')%(MEDIA,MEDIA,MEDIA)
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window>\n<defaultcontrol always="true">7112</defaultcontrol>'
-  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="200">WindowClose</animation>'
+  '<animation effect="fade" start="0" end="100" time="150">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
   '<onunload>Skin.Reset(ios_osd_continue)</onunload><onunload>Skin.Reset(ios_osd_continue_path)</onunload><onunload>CancelAlarm(osd_timeout,true)</onunload>'
   '<controls>%s%s%s%s%s%s%s</controls>\n</window>\n')%(MARKER,shade,head,centre,title,bar,row,panel)
+
+# Shown on its own (controls closed) only while the owner seeks: never at the start of a video, while it buffers or
+# after the resume jump, which is when Fuse's seek bar used to flash up.
+SEEKING='Player.Seeking | Player.Forwarding | Player.Rewinding | !String.IsEmpty(Player.SeekNumeric)'
+
+def seekbar_window():
+ """Kodi's seek bar window (DialogSeekBar.xml) in the same look as the controls, replacing Fuse's. Kodi loads it
+ once at start (upright), so it is pinned to the edges like the controls. Control 401 is the progress Kodi moves."""
+ left=90
+ body=('<control type="image"><left>0</left><bottom>0</bottom><right>0</right><height>360</height><texture colordiffuse="CCFFFFFF">%sfade_up.png</texture></control>'%MEDIA+
+  '<control type="label"><left>%d</left><right>%d</right><top>790</top><height>60</height><font>font_midi_bold</font><textcolor>FFFFFFFF</textcolor>'
+  '<align>left</align><aligny>center</aligny><label>$INFO[Player.SeekOffset]$INFO[Player.SeekNumeric]</label></control>'%(left,left)+
+  '<control type="progress" id="401"><left>%d</left><right>%d</right><top>887</top><height>10</height>'%(left,left)+
+  '<texturebg border="4" colordiffuse="59FFFFFF">%sdot.png</texturebg><lefttexture /><midtexture border="4" colordiffuse="FFFFFFFF">%sdot.png</midtexture><righttexture /></control>'%(MEDIA,MEDIA)+
+  '<control type="label"><left>%d</left><width>400</width><top>936</top><height>60</height><font>font_midi</font><textcolor>D9FFFFFF</textcolor>'
+  '<align>left</align><aligny>center</aligny><label>$INFO[Player.Time]</label></control>'%left+
+  '<control type="label"><right>%d</right><width>400</width><top>936</top><height>60</height><font>font_midi</font><textcolor>D9FFFFFF</textcolor>'
+  '<align>right</align><aligny>center</aligny><label>-$INFO[Player.TimeRemaining]</label></control>'%left)
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s seek bar -->\n<window>\n<zorder>0</zorder>'
+  '<visible>Window.IsActive(fullscreenvideo) + !Window.IsActive(videoosd) + [%s]</visible>'
+  '<animation effect="fade" start="0" end="100" time="120">WindowOpen</animation><animation effect="fade" start="100" end="0" time="200">WindowClose</animation>'
+  '<controls>%s</controls>\n</window>\n')%(MARKER,SEEKING,body)
 
 def card(focused):
  art='$INFO[ListItem.Art(landscape)]'

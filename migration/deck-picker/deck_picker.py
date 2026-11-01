@@ -418,9 +418,82 @@ SHOW_ALL_ROW = {'headline': u'Show all links', 'tags': u"Elementum's full, unfil
                 'icon': u''}
 
 
+# ---------------------------------------------------------------------------------
+# Kodi-iOS: Continue Watching plays the version picked last time
+# ---------------------------------------------------------------------------------
+CONTINUE_STORE = 'special://profile/addon_data/plugin.video.kodi.ios.watch/continue.json'
+RESUME_PROPERTY = 'KodiIOS.Resume.Source'   # set by the watch menu (ios_watch_dialog.py) for a Continue Watching play
+RESUME_FRESH = 300
+
+
+def resume_wanted(home=None, now=None):
+    """The version the watch menu asked for, once, if it was asked for in the last few minutes."""
+    import json
+    import time
+    try:
+        if home is None:
+            from kodi_six import xbmcgui
+            home = xbmcgui.Window(10000)
+        raw = home.getProperty(RESUME_PROPERTY)
+        if not raw:
+            return None
+        home.clearProperty(RESUME_PROPERTY)
+        wanted = json.loads(raw)
+        if (now if now is not None else time.time()) - float(wanted.get('time', 0)) > RESUME_FRESH:
+            return None
+        return wanted
+    except Exception:
+        return None
+
+
+def find_same(parsed, wanted):
+    """The entry with the same release name (and quality, if several share the name), or None."""
+    name = _s((wanted or {}).get('name')).strip().lower()
+    if not name:
+        return None
+    same = [p for p in parsed if p['name'].strip().lower() == name]
+    if not same:
+        return None
+    return ([p for p in same if p['quality'] == wanted.get('quality')] or same)[0]
+
+
+def remember(item, title, path=None, now=None):
+    """Save the version picked for the title the watch menu has just started, for Continue Watching."""
+    import json
+    import os
+    import time
+    try:
+        if path is None:
+            import xbmcvfs
+            path = xbmcvfs.translatePath(CONTINUE_STORE)
+        with open(path, encoding='utf-8') as f:
+            data = json.load(f)
+        entry = data.get('items', {}).get(data.get('current'))
+        now = now if now is not None else time.time()
+        if not entry or now - float(entry.get('played', 0)) > 900:
+            return False
+        names = [_s(n).lower() for n in (entry.get('tvshowtitle'), entry.get('title')) if n]
+        if names and not any(n in _s(title).lower() for n in names):
+            return False
+        entry['version'] = {'name': item['name'], 'quality': item['quality'], 'size': round(item['size'], 2)}
+        temp = path + '.tmp'
+        with open(temp, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=1)
+        os.replace(temp, path)
+        return True
+    except Exception:
+        return False
+
+
 def run(title, items, top_n=TOP_N):
     parsed = parse_all(items)
-    if parsed is None or len(parsed) <= top_n:
+    if parsed is None:
+        return None
+    # Continue Watching: the same version as last time, without asking, when it is still in the list.
+    same = find_same(parsed, resume_wanted())
+    if same is not None:
+        return same['idx']
+    if len(parsed) <= top_n:
         return None
     keys, groups = group_by_quality(parsed)
     labels = quality_menu_labels(keys, groups, top_n)
@@ -444,4 +517,5 @@ def run(title, items, top_n=TOP_N):
             continue
         if sel >= len(shown):
             return None
+        remember(shown[sel], title)
         return shown[sel]['idx']
