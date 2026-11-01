@@ -264,7 +264,7 @@ def hero(spotlight,title):
   '%s%s'                                        # fades
   '%s%s'                                        # large title + profile
   '<control type="image"><left>120</left><top>%d</top><width>%d</width><height>250</height><aspectratio aligny="bottom">keep</aspectratio><texture>$INFO[%s.Art(clearlogo)]</texture></control>'
-  '%s%s%s%s'
+  '%s%s%s'
   '<control type="grouplist"><left>0</left><top>%d</top><width>%d</width><height>20</height><orientation>horizontal</orientation><align>center</align><itemgap>0</itemgap>%s</control>'
   '</control>'
   )%(WIDTH,HERO,WIDTH,HERO,WIDTH,HERO,art,WIDTH,HERO,art,spotlight,
@@ -274,8 +274,13 @@ def hero(spotlight,title):
      HERO-560,WIDTH-240,info,
      label(SIDE,HERO-560,WIDTH-2*SIDE,250,'$INFO[%s.Label]'%info,'p_title',WHITE,'center','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(%s.Art(clearlogo))</visible>'%info),
      label(SIDE,HERO-296,WIDTH-2*SIDE,56,meta,'p_foot',GREY,'center'),
-     pill_button(4001,WIDTH//2-btn_w-12,HERO-214,btn_w,124,'Play',play,'primary',MEDIA+'play.png','<onup>4000</onup><onright>4002</onright><ondown>5001</ondown>'),
-     pill_button(4002,WIDTH//2+12,HERO-214,btn_w,124,'Info',[('','SetFocus(4000)'),('','Action(Info)')],'glass','circle-info.png','<onup>4000</onup><onleft>4001</onleft><ondown>5001</ondown>'),
+     # Play and Info only once there is a title to play; until then a soft placeholder where the art will be.
+     '<control type="group"><visible>Integer.IsGreater(Container(4000).NumItems,0)</visible>'+
+     pill_button(4001,WIDTH//2-btn_w-12,HERO-214,btn_w,124,'Play',play,'primary',MEDIA+'play.png','<onup>4000</onup><onright>4002</onright><ondown>5001</ondown>')+
+     pill_button(4002,WIDTH//2+12,HERO-214,btn_w,124,'Info',[('','SetFocus(4000)'),('','Action(Info)')],'glass','circle-info.png','<onup>4000</onup><onleft>4001</onleft><ondown>5001</ondown>')+'</control>'+
+     '<control type="group"><visible>Integer.IsEqual(Container(4000).NumItems,0)</visible>'+
+     surface(SIDE,220,WIDTH-2*SIDE,HERO-420,'round.png',SURFACE,32,'<animation effect="fade" start="100" end="45" time="900" pulse="true" condition="Container(4000).IsUpdating">Conditional</animation>')+
+     label(SIDE,220,WIDTH-2*SIDE,HERO-420,'Loading…','p_sub',DIM,'center','<visible>Container(4000).IsUpdating</visible>')+'</control>',
      HERO-62,WIDTH,dots)
 
 def in_progress(widget):
