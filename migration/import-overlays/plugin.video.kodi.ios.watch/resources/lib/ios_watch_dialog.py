@@ -2,6 +2,29 @@
 NOT_READY={'elementum':('Elementum not available','Elementum is not installed or is switched off in this build. Check Add-ons > Video add-ons > Elementum.'),
            'umbrella':('Umbrella not available yet','Umbrella has not been ported to this iPhone build yet. It will appear here once it is.')}
 
+def share_details(player,window=None):
+ """Leave this title's poster, background, year/runtime and plot on the Home window for Elementum's "Choose a
+ version" page (deck_picker.py reads them back when the title matches and they are recent), as the Deck did."""
+ import time
+ try:
+  details=player.details;info=getattr(details,'infolabels',None) or {};art=getattr(details,'art',None) or {}
+  is_tv=getattr(player,'tmdb_type',None)=='tv'
+  title=(info.get('tvshowtitle') if is_tv else None) or info.get('title') or info.get('originaltitle') or ''
+  bits=[]
+  if is_tv and info.get('season') not in (None,'') and info.get('episode') not in (None,''):bits.append('S%02dE%02d'%(int(info.get('season')),int(info.get('episode'))))
+  if info.get('year'):bits.append(str(info.get('year')))
+  try:minutes=int(float(info.get('duration') or 0))//60
+  except (TypeError,ValueError):minutes=0
+  if minutes>0:bits.append('%d min'%minutes)
+  poster=(art.get('tvshow.poster') if is_tv else None) or art.get('poster') or ''
+  fanart=art.get('fanart') or art.get('tvshow.fanart') or art.get('landscape') or ''
+  if window is None:
+   import xbmcgui
+   window=xbmcgui.Window(10000)
+  for key,value in (('Title',title),('Poster',poster),('Fanart',fanart),('Meta','  |  '.join(bits)),('Plot',info.get('plot') or ''),('Time',str(time.time()))):
+   window.setProperty('Deck.Picker.'+key,str(value))
+ except Exception:pass
+
 def choose_player(player):
  import xbmc,xbmcgui,xbmcaddon,xbmcvfs
  player.allow_playlist=False
@@ -36,4 +59,5 @@ def choose_player(player):
   xbmc.executebuiltin('ActivateWindow(Videos,plugin://plugin.googledrive/?'+urlencode({'action':'_search','content_type':'video','query':title})+',return)');return None
  if action=='drive':
   xbmc.executebuiltin('ActivateWindow(Videos,plugin://plugin.googledrive/,return)');return None
+ if item is engine:share_details(player)
  return item

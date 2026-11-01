@@ -41,12 +41,15 @@ class BundleTests(unittest.TestCase):
   return inputs
  def test_elementum_engine_bundled_in_frameworks_and_patched_for_ios(self):
   app,receipt=prepare(self.app,self.bundle,self.sha,self.root/'work',self.elementum_inputs());base=app/'AppData/AppHome'
-  self.assertTrue((app/'Frameworks/elementum.framework/elementum').is_file());self.assertTrue((app/'Frameworks/KodiAirPlay.framework/KodiAirPlay').is_file());self.assertEqual(receipt['elementum']['frameworks'],['Frameworks/KodiAirPlay.framework']);self.assertEqual(len(receipt['elementum']['patches']),3)
+  self.assertTrue((app/'Frameworks/elementum.framework/elementum').is_file());self.assertTrue((app/'Frameworks/KodiAirPlay.framework/KodiAirPlay').is_file());self.assertEqual(receipt['elementum']['frameworks'],['Frameworks/KodiAirPlay.framework']);self.assertEqual(len(receipt['elementum']['patches']),4)
   daemon=(base/'addons'/ELEMENTUM/'resources/site-packages/elementum/daemon.py').read_bytes()
   site=base/'addons'/ELEMENTUM/'resources/site-packages/elementum'
-  for _,_,after in ELEMENTUM_PATCHES:self.assertIn(after,daemon+(site/'osarch.py').read_bytes()+(site/'service.py').read_bytes())
+  for _,_,after in ELEMENTUM_PATCHES:self.assertIn(after,daemon+(site/'osarch.py').read_bytes()+(site/'service.py').read_bytes()+(site/'rpc.py').read_bytes())
   self.assertFalse((base/'addons'/ELEMENTUM/'resources/site-packages/platform_detect/libraries').exists())
   self.assertIn(b'ios_crash_guard()\n',daemon);self.assertIn(b'engine-starting',daemon)
+  self.assertIn(b'deck_picker.run(title_encoded, items)',(site/'rpc.py').read_bytes())
+  page=(base/'addons'/ELEMENTUM/'resources/skins/Default/720p/DeckSourceSelect.xml').read_text();self.assertEqual(page.count('<right>0</right>'),2)
+  self.assertTrue((site/'deck_picker.py').is_file());self.assertTrue((base/'addons'/ELEMENTUM/'resources/skins/Default/media/deck/rounded_s.png').read_bytes().startswith(b'\x89PNG'))
   seed=json.loads((base/'addons'/BOOT/'seed/seed-manifest.json').read_text());order=seed['addons']
   self.assertLess(order.index('script.module.kodi-six'),order.index(ELEMENTUM));self.assertLess(order.index('script.module.future'),order.index(BURST))
   self.assertTrue((base/'addons'/BURST/'burst/providers/providers.json').is_file())

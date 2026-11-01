@@ -206,6 +206,9 @@ ELEMENTUM_PATCHES=[('resources/site-packages/elementum/daemon.py',b'def get_elem
  ('resources/site-packages/elementum/daemon.py',b'    binary_platform = get_platform()\n\n    binary = "elementum"',b'    binary_platform = get_platform()\n    if xbmc.getCondVisibility("System.Platform.IOS"):\n        return ios_engine()\n\n    binary = "elementum"'),
  ('resources/site-packages/elementum/daemon.py',b'    proc = None\n    if force_library != u"true":',b'    if binary_platform.get("os") == "ios":\n        force_library = u"true"\n        elementum_library = "elementum"\n        ios_crash_guard()\n\n    proc = None\n    if force_library != u"true":'),
  ('resources/site-packages/elementum/daemon.py',b'proc = start_elementumd(monitor, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)',b'proc = start_elementumd(monitor, **({"stdout": subprocess.PIPE, "stderr": subprocess.STDOUT} if hasSubprocess else {}))'),
+ # The Deck's "Choose a version" page (migration/deck-picker) sits in front of Elementum's link dialog, as on the Deck.
+ ('resources/site-packages/elementum/rpc.py',b'        title_encoded = "%s %s" % (getLocalizedLabel(title), toUtf8(subject))\n\n        # For Kodi <= 16\n',
+  b'        title_encoded = "%s %s" % (getLocalizedLabel(title), toUtf8(subject))\n        try:  # DECK-ELEMENTUM\n            from elementum import deck_picker\n            _deck_choice = deck_picker.run(title_encoded, items)\n            if _deck_choice is not None:\n                return _deck_choice\n        except Exception:\n            pass\n\n        # For Kodi <= 16\n'),
  # The engine thread only starts where Elementum can fork; on iOS it runs in-process (library mode) instead.
  ('resources/site-packages/elementum/service.py',b'    if not ONLY_CLIENT and PLATFORM["fork"]:',b'    if not ONLY_CLIENT and (PLATFORM["fork"] or PLATFORM.get("os") == "ios"):'),
  ('resources/site-packages/elementum/osarch.py',b'    if global_platform:\n',b'    if xbmc.getCondVisibility("System.Platform.IOS"):\n        ret.update(os="ios", arch="arm64", fork=False)\n        return ret\n\n    if global_platform:\n')]
@@ -224,6 +227,24 @@ def add_profile_addons(inputs,bootstrap):
  found=sorted((inputs/'extras-profile').glob('*.zip')) if (inputs/'extras-profile').is_dir() else []
  for archive in found:unpack_addon(archive,archive.stem,bootstrap/'payload')
  return [a.stem for a in found]
+
+DECK_PICKER=ROOT/'migration/deck-picker'
+
+def add_deck_picker(addonroot):
+ """The Deck's Elementum link page: quality first, then the five best links with the title's poster and details."""
+ import base64
+ elementum=addonroot/ELEMENTUM/'resources'
+ page=(DECK_PICKER/'DeckSourceSelect.xml').read_bytes()
+ # The phone's canvas is wider than 1280 at 720 high: let the full-screen background layers reach the right edge.
+ full=b'\t\t\t<left>0</left>\n\t\t\t<top>0</top>\n\t\t\t<width>1280</width>\n'
+ assert page.count(full)==2,'Unexpected DeckSourceSelect.xml'
+ page=page.replace(full,b'\t\t\t<left>0</left>\n\t\t\t<top>0</top>\n\t\t\t<right>0</right>\n')
+ files={'site-packages/elementum/deck_picker.py':(DECK_PICKER/'deck_picker.py').read_bytes(),'skins/Default/720p/DeckSourceSelect.xml':page}
+ for name,data in json.loads((DECK_PICKER/'media.json').read_text())['files'].items():files['skins/Default/media/deck/'+name]=base64.b64decode(data)
+ for rel,data in files.items():
+  dest=elementum/rel;assert not dest.exists(),'Unexpected deck picker collision: '+rel
+  dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data)
+ return sorted('addons/'+ELEMENTUM+'/resources/'+rel for rel in files)
 
 def add_elementum(inputs,target,addonroot):
  """Install the pinned Elementum client (patched for iOS), Burst, their Python modules and the engine framework."""
@@ -244,6 +265,7 @@ def add_elementum(inputs,target,addonroot):
   path=addonroot/ELEMENTUM/name;before=files.setdefault(name,(path,path.read_bytes()))[1]
   data=path.read_bytes();assert data.count(old)==1,'Unexpected Elementum source: '+name
   path.write_bytes(data.replace(old,new))
+ deck_picker=add_deck_picker(addonroot)
  modules=sorted((inputs/'modules').iterdir())
  apps=sorted((inputs/'extras-app').glob('*.zip')) if (inputs/'extras-app').is_dir() else []
  for archive in apps:unpack_addon(archive,archive.stem,addonroot)
@@ -261,7 +283,7 @@ def add_elementum(inputs,target,addonroot):
    z.extractall(frameworks)
   executable=frameworks/name/name[:-len('.framework')];assert executable.read_bytes()[:4]==b'\xcf\xfa\xed\xfe',name+' is not a 64-bit Mach-O'
   extra.append('Frameworks/'+name)
- return {'addons':[ELEMENTUM,BURST]+[d.name for d in modules]+[a.stem for a in apps],'framework':'Frameworks/elementum.framework','frameworks':extra,'framework_sha256':digest(binary.read_bytes()),
+ return {'addons':[ELEMENTUM,BURST]+[d.name for d in modules]+[a.stem for a in apps],'framework':'Frameworks/elementum.framework','frameworks':extra,'deck_picker':deck_picker,'framework_sha256':digest(binary.read_bytes()),
          'patches':[{'path':'addons/'+ELEMENTUM+'/'+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]}
 
 def prepare(app,bundle,expected,work,elementum=None):
