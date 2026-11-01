@@ -1,16 +1,37 @@
 # Persistent progress
 
-Status: BLOCKED
-Current phase: Phase 4 — Touch-r2 startup repair built/host-validated; owner iPhone retest required
-Progress: 25/39 task IDs COMPLETE (64.10%); 14 awaiting implementation.
-Last completed task: P4-009 capture requirement inventory (184 retained IDs, zero actual captures); P4-007/008 static source and simulator investigations completed.
-Next actionable task: owner signs/updates Kodi-iOS-Customized-Touch-r2.ipa from run 41078491846/artifact 12987708727. Confirm Keep Skin if prompted; verify Settings/Recovery, menus, gestures and cold relaunch. Preserve older IPAs/private container.
-Active blockers: owner Touch-r1 launch log verifies reversion/helper failure (ISSUE-040). New sequencing repair not yet phone-tested. Simulator unavailable; all 184 capture requirements retained. No Phase 5.
-Pending decisions: fully bundled IPA implementation/build explicitly approved. No additional Mac run authorized or required for resource-only packaging. Owner supplies physical device evidence after artifact is ready.
-Latest implementation commit SHA reviewed: local d20a23ee94d39a3435397c6c8d9520259330b211 / published ea4d224bb3e5b762379b27df66031a4202da13b5, successful Touch-r2 artifact source. Resolve later evidence-only commit from git log/PR head.
-Roadmap publication commit: resolve `git log -1 --format=%H -- ROADMAP.md`; this avoids a self-referential SHA. Verify against PR head before resuming.
-Last updated UTC: 2026-10-30T15:16:25.123697+00:00
-Last validation: 174 host tests/21 suites PASS including nine new sequencing regressions; roadmap 25/39 unchanged. Reachable-history/private-source secret scan PASS. Touch-r2 CI 41078491846 SUCCESS; 32 windows/31 seeds/151 ARM64 images validated, archive integrity passes. Touch-r1 device failure remains open pending retest. Receipt: reports/ios-touch-r2-artifact.json. Sanitized evidence: reports/owner-touch-r1-launch-log.json; no raw log uploaded.
+Status: IN PROGRESS — owner device testing of iPhone builds
+Current phase: Phase 4 — portrait UI (r11), Elementum, Drive, Play on TV, video controls; owner tests each IPA on an iPhone 16 Pro
+Last updated UTC: 2026-11-01T18:35Z
+Latest installable IPA: build-94 (commit 93ba2ef, Kodi executable r5). Next: build with Kodi executable r6 (pending CI, see below).
+Branches: feature/ios-migration (PR #1, all work), hold/ios-next (mirror), feature/settings-notifications (draft PR #3: plan only).
+
+## Where things stand (2026-11-01)
+
+Working on the owner's phone (owner-confirmed):
+- Portrait-only menus (Apple TV-style mockup A: large titles, spotlight, rows, floating tab bar); fullscreen video turns landscape and back.
+- Elementum in-process engine with Burst; Umbrella with CocoScrapers/AllDebrid; Google Drive sign-in (self-hosted worker, drive.file).
+- Download with Elementum: button under Play on a show's season page (Full season / Choose episodes), long press › Download on movies, episodes, seasons, shows.
+- "Choose a version" (Deck picker) for Elementum and Umbrella, portrait page; quality list shows only quality and version count.
+
+Fixed today, awaiting owner retest:
+- Setup crash (service.py reused `window`) that blocked every portrait refresh — fixed in build-88.
+- Startup skin-reload loop (navigation framed the new video controls, portrait refresh rewrote them; 5 reloads per start) — fixed in build-94; owner log now shows 1 load, 0 files updated.
+- Elementum: folders follow a reinstalled app's data folder; a start only counts as failed if the engine never answers; Retry starts it immediately.
+- Long-press/Resume menus pinned (no 999 background), centred when there is no card; icons hidden when the list scrolls.
+- Touch scrolling (Kodi patch): flick speed in pixels (r5), pan distance in skin units (r5), page group list takes momentum and receives vertical drags that start on a poster row (r6).
+- Screen-size self-heal every 0.5 s (r6) for the "left 46% drawn" state seen after landscape video.
+- Video controls redrawn from the owner's reference (plain white glyphs, thin bar with white knob, Info / Continue Watching as text); rig screenshot docs/player-controls-r2.png.
+- Play on TV: TV search cancellable; Roku without "Play on Roku" (404) explained, AirPlay suggested.
+- CI: IPA build retries mirrors.kodi.tv network errors; integrity check records portrait-written Fuse files.
+
+Open / next:
+1. Pin Kodi executable r6 when kodi-ios-portrait.yml publishes it, build and verify the IPA, send to owner.
+2. Owner to retest scrolling smoothness, the video controls and the half-drawn-screen case; logs via the log uploader's previous log (kodi.old.log) or a screen recording.
+3. Settings pages rework and notification center (planned in draft PR #3, not coded).
+4. Roku: this TV has no Play on Roku receiver; AirPlay path only plays MP4/HLS.
+
+Verification method: unit tests (scripts/test_*.py), desktop Kodi 21.3 rig at the phone's portrait (603x1167) and landscape (19.5:9) shapes, IPA download checks (zip integrity, Kodi binary equal to the pinned executable apart from the code signature), owner device tests. Nothing is called device-verified without the owner's evidence.
 
 ## Resume instructions
 

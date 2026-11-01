@@ -59,48 +59,48 @@ def tap(id,cx,cy,size,name,action,nav='',glyph_size=None,extra=''):
 def text_button(id,x,y,w,h,label_text,actions,nav=''):
  clicks=''.join('<onclick>%s</onclick>'%e(a) for a in actions)
  return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><label>%s</label>'
-         '<font>font_main_bold</font><textcolor>D9FFFFFF</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>left</align><aligny>center</aligny>'
+         '<font>font_midi_bold</font><textcolor>D9FFFFFF</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>left</align><aligny>center</aligny>'
          '<textoffsetx>0</textoffsetx><texturefocus /><texturenofocus />%s%s</control>')%(id,x,y,w,h,e(label_text),clicks,nav)
 
 def window():
  """Layout from the owner's reference (Apple TV player, landscape): back top left; AirPlay / audio / subtitles /
  speed top right; back 10, play-pause, forward 10 in the centre; the title, a thin bar with a white knob and the
  time left at the bottom; Info and Continue Watching as text below. No button shapes, no volume."""
- left=200;right=2340-200;top=130
- head=(tap(7101,left+40,top,130,'chevron-left.png','PlayerControl(Stop)','<onright>7102</onright><ondown>7112</ondown>',76)+
-  ''.join(tap(id,right-40-i*150,top,130,icon,action,nav,70) for i,(id,icon,action,nav) in enumerate([
+ left=90;right=2340-90;top=110
+ head=(tap(7101,left+60,top,150,'chevron-left.png','PlayerControl(Stop)','<onright>7102</onright><ondown>7112</ondown>',104)+
+  ''.join(tap(id,right-60-i*180,top,150,icon,action,nav,96) for i,(id,icon,action,nav) in enumerate([
    (7102,MEDIA+'airplay.png',CAST,'<onleft>7121</onleft><ondown>7112</ondown>'),
    (7123,'closed-captioning.png','ActivateWindow(osdsubtitlesettings)','<onleft>7122</onleft><onright>7102</onright><ondown>7112</ondown>'),
    (7122,'file-waveform.png','ActivateWindow(osdaudiosettings)','<onleft>7121</onleft><onright>7123</onright><ondown>7112</ondown>'),
    (7121,'gauge-high.png',SPEED,'<onleft>7101</onleft><onright>7122</onright><ondown>7112</ondown>')])))
  # Centre row; the "10" sits inside the arrows ($NUMBER: a bare 10 would be read as a Kodi string id).
- cy=540;gap=350
- ten=lambda cx:label(cx-60,cy-30,120,60,'$NUMBER[10]','font_tiny_bold','FFFFFFFF','center')
+ cy=520;gap=420
+ ten=lambda cx:label(cx-70,cy-36,140,72,'$NUMBER[10]','font_main_bold','FFFFFFFF','center')
  centre=('<control type="group"><visible>!%s</visible>'%PANEL+
-  tap(7111,1170-gap,cy,190,'rotate-left.png','Seek(-10)','<onright>7112</onright><onup>7101</onup><ondown>7131</ondown>',104)+ten(1170-gap)+
-  '<control type="button" id="7112"><left>%d</left><top>%d</top><width>230</width><height>230</height><texturefocus /><texturenofocus />'
-  '<onclick>PlayerControl(Play)</onclick><onleft>7111</onleft><onright>7113</onright><onup>7101</onup><ondown>7131</ondown></control>'%(1170-115,cy-115)+
-  glyph(1170+8,cy,110,'play.png','<visible>Player.Paused | Player.Forwarding | Player.Rewinding</visible>')+
-  glyph(1170,cy,104,'pause.png','<visible>!Player.Paused + !Player.Forwarding + !Player.Rewinding</visible>')+
-  tap(7113,1170+gap,cy,190,'rotate-right.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',104)+ten(1170+gap)+
+  tap(7111,1170-gap,cy,240,'rotate-left.png','Seek(-10)','<onright>7112</onright><onup>7101</onup><ondown>7131</ondown>',160)+ten(1170-gap)+
+  '<control type="button" id="7112"><left>%d</left><top>%d</top><width>260</width><height>260</height><texturefocus /><texturenofocus />'
+  '<onclick>PlayerControl(Play)</onclick><onleft>7111</onleft><onright>7113</onright><onup>7101</onup><ondown>7131</ondown></control>'%(1170-130,cy-130)+
+  glyph(1170+10,cy,150,'play.png','<visible>Player.Paused | Player.Forwarding | Player.Rewinding</visible>')+
+  glyph(1170,cy,140,'pause.png','<visible>!Player.Paused + !Player.Forwarding + !Player.Rewinding</visible>')+
+  tap(7113,1170+gap,cy,240,'rotate-right.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',160)+ten(1170+gap)+
   '</control>')
  # Title: the film, or the show and the episode.
- title=label(left,790,1600,70,'$INFO[VideoPlayer.TVShowTitle,,  ·  ]$INFO[VideoPlayer.Title]','font_huge_bold','FFFFFFFF','left','<visible>!%s</visible>'%PANEL)
+ title=label(left,770,1900,90,'$INFO[VideoPlayer.TVShowTitle,,  ·  ]$INFO[VideoPlayer.Title]','font_title_midi','FFFFFFFF','left','<visible>!%s</visible>'%PANEL)
  # Thin bar with a white knob (drag to seek), time left under its right end.
- bar=('<control type="group"><left>%d</left><width>%d</width><top>872</top><height>60</height>'%(left,right-left)+
+ bar=('<control type="group"><left>%d</left><width>%d</width><top>862</top><height>60</height>'%(left,right-left)+
   # Track and fill in one control (same height and place), the knob from a slider whose bar is an invisible
   # picture of the slider's height (Kodi sizes the knob from the bar picture).
-  '<control type="progress"><left>0</left><right>0</right><top>26</top><height>8</height><info>Player.Progress</info>'
+  '<control type="progress"><left>0</left><right>0</right><top>25</top><height>10</height><info>Player.Progress</info>'
   '<texturebg border="4" colordiffuse="59FFFFFF">%sdot.png</texturebg><lefttexture />'
   '<midtexture border="4" colordiffuse="FFFFFFFF">%sdot.png</midtexture><righttexture /></control>'%(MEDIA,MEDIA)+
   '<control type="slider" id="7131"><left>0</left><right>0</right><top>6</top><height>48</height><action>seek</action><texturesliderbar>%sclear48.png</texturesliderbar>'%MEDIA+
   '<textureslidernib colordiffuse="FFFFFFFF">%sknob.png</textureslidernib><textureslidernibfocus colordiffuse="FFFFFFFF">%sknob.png</textureslidernibfocus>'
   '<onup>7112</onup><ondown>7141</ondown></control>'%(MEDIA,MEDIA)+
   '</control>'+
-  '<control type="label"><left>%d</left><width>400</width><top>944</top><height>50</height><font>font_main</font><textcolor>D9FFFFFF</textcolor>'
+  '<control type="label"><left>%d</left><width>400</width><top>936</top><height>60</height><font>font_midi</font><textcolor>D9FFFFFF</textcolor>'
   '<align>right</align><aligny>center</aligny><label>-$INFO[Player.TimeRemaining]</label></control>'%(right-400))
- row=(text_button(7141,left,944,120,50,'Info',[INFO],'<onright>7142</onright><onup>7131</onup>')+
-      text_button(7142,left+170,944,420,50,'Continue Watching',['Skin.ToggleSetting(ios_osd_continue)','Skin.SetString(ios_osd_continue_path,%s)'%CONTINUE],'<onleft>7141</onleft><onup>7201</onup>'))
+ row=(text_button(7141,left,936,140,60,'Info',[INFO],'<onright>7142</onright><onup>7131</onup>')+
+      text_button(7142,left+200,936,460,60,'Continue Watching',['Skin.ToggleSetting(ios_osd_continue)','Skin.SetString(ios_osd_continue_path,%s)'%CONTINUE],'<onleft>7141</onleft><onup>7201</onup>'))
  panel=('<control type="group"><visible>%s</visible>'%PANEL+
   '<animation effect="fade" start="0" end="100" time="200">Visible</animation>'+
   label(left,520,1200,60,'Continue Watching','font_head_bold')+
