@@ -58,9 +58,12 @@ def add_glassbar(app,archive):
 def apply(app,skin,profile,inputs=None):
  """Returns {'orientations','skin_files','changed','executable','glassbar'}; 'changed' lists existing skin files it
  edited. inputs: directory from fetch() (optional Kodi + Kodi.sha256, KodiGlassBar.framework.zip)."""
- addon=Path(skin)/'addon.xml';before=addon.read_bytes()
+ skin=Path(skin);addon=skin/'addon.xml'
+ # Existing skin files the build overwrites (addon.xml, and in 1080i the video controls and seek bar).
+ before={str(p.relative_to(skin)):sha(p.read_bytes()) for p in skin.rglob('*') if p.is_file()}
  files=portrait.build(skin,profile)
- changed=[{'path':'addons/'+Path(skin).name+'/addon.xml','before_sha256':sha(before),'after_sha256':sha(addon.read_bytes())}]
+ changed=[{'path':'addons/'+skin.name+'/'+rel,'before_sha256':before[rel],'after_sha256':sha((skin/rel).read_bytes())}
+          for rel in sorted(set(files)|{'addon.xml'}) if rel in before and before[rel]!=sha((skin/rel).read_bytes())]
  inputs=Path(inputs) if inputs else None
  exe=inputs/'Kodi' if inputs and (inputs/'Kodi').is_file() else None
  bar=inputs/'KodiGlassBar.framework.zip' if inputs and (inputs/'KodiGlassBar.framework.zip').is_file() else None

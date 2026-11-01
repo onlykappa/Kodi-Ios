@@ -399,7 +399,9 @@ def build(app,bundle,expected,deb,output,work,elementum=None,portrait_inputs=Non
   for id in details['addon_ids']+[BOOT]:assert base+'/addons/'+id+'/addon.xml' in z.namelist()
   patches={'addons/skin.arctic.fuse.3/'+e['path']:e for e in details['navigation_patch']['files']}
   patches.update({e['path']:e for e in details['drive_patch']['files']})
-  patches.update({e['path']:e for e in (details['portrait'] or {}).get('changed',[])})
+  for e in (details['portrait'] or {}).get('changed',[]):
+   # A file the navigation patch already edited (VideoOSD.xml): its source is the bundle's, its result the portrait one.
+   patches[e['path']]=dict(e,before_sha256=patches[e['path']]['before_sha256']) if e['path'] in patches else e
   for name,body in validate_bundle(bundle,expected)[1].items():
    if name in patches:assert digest(body)==patches[name]['before_sha256'],'Navigation patch source mismatch'
    expected_hash=patches[name]['after_sha256'] if name in patches else digest(body)
