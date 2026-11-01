@@ -17,10 +17,20 @@ class ControllerTests(unittest.TestCase):
   self.lib=Lib();self.active='home';self.dialog=False;self.portrait=True;self.props={};self.ran=[]
   def visible(cond):
    if cond=='System.HasActiveModalDialog':return self.dialog
-   return any('Window.IsActive(%s)'%w in cond for w in [self.active])
+   tab=self.active.split(':')[1] if ':' in self.active else ''
+   window=self.active.split(':')[0]
+   for part in cond.split(' | '):
+    terms=part.split(' + ');ok=True
+    for t in terms:
+     if t.startswith('Window.IsActive('):ok&=t=='Window.IsActive(%s)'%window
+     elif t.startswith('String.IsEmpty('):ok&=tab==''
+     elif t.startswith('String.IsEqual('):ok&=t.endswith(','+tab+')') and tab!=''
+     elif t.startswith('!Window.IsActive('):ok&=t!='!Window.IsActive(%s)'%window
+    if ok:return True
+   return False
   self.tick,self.poll,self.close=glassbar.controller(self.lib,visible,lambda:self.portrait,self.props.__setitem__,self.ran.append)
  def test_shows_on_tab_pages_in_portrait_and_marks_the_page(self):
-  self.active='1101';self.tick()
+  self.active='home:tv';self.tick()
   self.assertEqual(self.lib.calls,[('select',2),('show',1)]);self.assertEqual(self.props,{'Portrait.GlassBar':'1'})
  def test_hidden_for_dialogs_landscape_and_other_windows(self):
   self.tick();self.dialog=True;self.tick()
@@ -36,7 +46,7 @@ class ControllerTests(unittest.TestCase):
  def test_same_order_as_the_skin_tab_bar(self):
   spec=importlib.util.spec_from_file_location('portrait',ROOT/'migration/bundled-bootstrap/resources/lib/portrait.py')
   portrait=importlib.util.module_from_spec(spec);spec.loader.exec_module(portrait)
-  self.assertEqual(glassbar.ACTIONS,[t[3] for t in portrait.TABS])
+  self.assertEqual(glassbar.ACTIONS,[portrait.tab_actions(t[0]) for t in portrait.TABS])
 
 class IpaTests(unittest.TestCase):
  def locks(self,tmp,bar_sha,exe_sha=''):

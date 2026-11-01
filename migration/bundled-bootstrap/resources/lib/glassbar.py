@@ -2,8 +2,15 @@
 (migration/glassbar-ios). Kodi's OpenGL skin cannot blur or refract what is behind it; this bar can.
 While it shows, the skin hides its own tab bar (Window(Home).Property(Portrait.GlassBar))."""
 import os
-PAGES=[('home','Home'),('1102','Movies'),('1101','TV'),('1103|1104','Library'),('1105','Search')]
-ACTIONS=['ReplaceWindow(Home)','ReplaceWindow(1102)','ReplaceWindow(1101)','ReplaceWindow(1103)','ReplaceWindow(1105)']
+# Home, Movies and TV are groups of the Home window, picked by Window(Home).Property(Portrait.Tab) (portrait.py).
+TAB='Window(Home).Property(Portrait.Tab)'
+PAGES=[('Window.IsActive(home) + String.IsEmpty(%s)'%TAB,'Home'),('Window.IsActive(home) + String.IsEqual(%s,movies)'%TAB,'Movies'),
+       ('Window.IsActive(home) + String.IsEqual(%s,tv)'%TAB,'TV'),('Window.IsActive(1103) | Window.IsActive(1104)','Library'),
+       ('Window.IsActive(1105)','Search')]
+def hub(key,focus):
+ first='ClearProperty(Portrait.Tab,home)' if key=='home' else 'SetProperty(Portrait.Tab,%s,home)'%key
+ return [('',first),('!Window.IsActive(home)','ReplaceWindow(Home)'),('','SetFocus(%d)'%focus)]
+ACTIONS=[hub('home',4000),hub('movies',14000),hub('tv',24000),[('','ReplaceWindow(1103)')],[('','ReplaceWindow(1105)')]]
 PROPERTY='Portrait.GlassBar'
 
 def library_path(xbmc_home):
@@ -24,8 +31,8 @@ def load(path):
 def page(visible):
  """Index of the tab page on screen, or None (another window, or a dialog over it)."""
  if visible('System.HasActiveModalDialog'):return None
- for index,(windows,_) in enumerate(PAGES):
-  if visible(' | '.join('Window.IsActive(%s)'%w for w in windows.split('|'))):return index
+ for index,(condition,_) in enumerate(PAGES):
+  if visible(condition):return index
  return None
 
 def controller(lib,visible,portrait,set_property,invoke):
@@ -40,7 +47,9 @@ def controller(lib,visible,portrait,set_property,invoke):
    state['shown']=show;set_property(PROPERTY,'1' if show else '');lib.kodi_glassbar_show(int(show))
  def poll():
   tapped=lib.kodi_glassbar_take_tap()
-  if 0<=tapped<len(ACTIONS) and tapped!=state['page']:invoke(ACTIONS[tapped])
+  if 0<=tapped<len(ACTIONS) and tapped!=state['page']:
+   for condition,action in ACTIONS[tapped]:
+    if not condition or visible(condition):invoke(action)
  def close():
   if state['shown']:lib.kodi_glassbar_show(0);set_property(PROPERTY,'')
  return tick,poll,close

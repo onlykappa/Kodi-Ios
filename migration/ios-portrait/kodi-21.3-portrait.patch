@@ -361,7 +361,7 @@ index b2a06d0..0c74089 100644
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..5314662 100644
+index a450151..ae23844 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
 @@ -36,6 +36,8 @@
@@ -381,7 +381,7 @@ index a450151..5314662 100644
  #include <math.h>
  #include <signal.h>
  
-@@ -203,10 +206,139 @@ public:
+@@ -203,10 +206,155 @@ public:
  }
  // END OF UIKeyInput protocol
  
@@ -389,6 +389,16 @@ index a450151..5314662 100644
 +// picture to landscape. The announcement thread sets s_videoLandscape when a video stream starts or stops, and
 +// the main thread turns the screen to match, retrying every half second until it does.
 +static std::atomic<bool> s_videoLandscape{false};
++
++// Kodi-iOS r7: Kodi's window is created with a fixed frame and autoresizing off, so when iOS turns the scene the
++// window (and this controller's view) kept the portrait size: Kodi then read a portrait screen size in landscape and
++// drew the picture into the bottom-left corner. The scene's bounds are the size the window must have.
++static CGRect InterfaceBounds(UIWindow* window)
++{
++  if (window.windowScene)
++    return window.windowScene.coordinateSpace.bounds;
++  return UIScreen.mainScreen.bounds;
++}
 +
  - (UIInterfaceOrientationMask)supportedInterfaceOrientations
  {
@@ -407,7 +417,7 @@ index a450151..5314662 100644
 +  dispatch_async(dispatch_get_main_queue(), ^{
 +    [self applyVideoOrientation];
 +  });
-+}
+ }
 +
 +- (void)healScreenSize
 +{
@@ -417,13 +427,13 @@ index a450151..5314662 100644
 +  static int mismatches = 0;
 +  if (!m_glView || [[IOSScreenManager sharedInstance] isExternalScreen])
 +    return;
-+  const CGSize want = self.view.bounds.size;
++  const CGSize want = InterfaceBounds(m_window).size;
 +  const int pixelsWide = static_cast<int>(lround(want.width * screenScale));
 +  const int pixelsHigh = static_cast<int>(lround(want.height * screenScale));
 +  auto winSystem = CServiceBroker::GetWinSystem();
 +  const bool kodiBehind = winSystem && (winSystem->GetGfxContext().GetWidth() != pixelsWide ||
 +                                        winSystem->GetGfxContext().GetHeight() != pixelsHigh);
-+  if (!CGSizeEqualToSize(m_glView.frame.size, want) || kodiBehind)
++  if (!CGSizeEqualToSize(m_window.bounds.size, want) || !CGSizeEqualToSize(m_glView.frame.size, want) || kodiBehind)
 +  {
 +    if (++mismatches >= 2)
 +    {
@@ -494,7 +504,7 @@ index a450151..5314662 100644
 +                               completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
 +                                 [self applyRotatedScreen];
 +                               }];
- }
++}
 +
 +- (void)viewDidLayoutSubviews
 +{
@@ -502,7 +512,8 @@ index a450151..5314662 100644
 +  // Kodi-iOS r11: the GL view is created at launch with the landscape frame Kodi starts with and does not
 +  // autoresize. When iOS lays the app out in portrait (launched upright, or any size change that is not a
 +  // rotation transition), follow the view's real size so Kodi's framebuffer and resolution match the screen.
-+  if (m_glView && !CGSizeEqualToSize(m_glView.frame.size, self.view.bounds.size))
++  if (m_glView && (!CGSizeEqualToSize(m_glView.frame.size, self.view.bounds.size) ||
++                   !CGSizeEqualToSize(m_window.bounds.size, InterfaceBounds(m_window).size)))
 +    [self applyRotatedScreen];
 +}
 +
@@ -510,6 +521,11 @@ index a450151..5314662 100644
 +{
 +  if ([[IOSScreenManager sharedInstance] isExternalScreen] || !m_glView)
 +    return;
++  const CGRect bounds = InterfaceBounds(m_window);
++  if (!CGRectEqualToRect(m_window.frame, bounds))
++    [m_window setFrame:bounds];
++  if (!CGRectEqualToRect(self.view.frame, m_window.bounds))
++    [self.view setFrame:m_window.bounds];
 +  [m_glView setFrame:self.view.bounds];
 +  [m_glView setScreen:m_glView.currentScreen withFrameBufferResize:YES];
 +  if (CServiceBroker::GetAppMessenger())
@@ -522,7 +538,7 @@ index a450151..5314662 100644
  //--------------------------------------------------------------
  - (UIInterfaceOrientation) getOrientation
  {
-@@ -429,6 +561,11 @@ public:
+@@ -429,6 +577,11 @@ public:
    if( m_glView && [m_glView isXBMCAlive] )//NO GESTURES BEFORE WE ARE UP AND RUNNING
    {
      CGPoint velocity = [sender velocityInView:m_glView];
@@ -534,7 +550,7 @@ index a450151..5314662 100644
  
      if( [sender state] == UIGestureRecognizerStateBegan && sender.numberOfTouches )
      {
-@@ -589,7 +726,7 @@ public:
+@@ -589,7 +742,7 @@ public:
                   name: nil
                 object: nil];
  
@@ -543,7 +559,7 @@ index a450151..5314662 100644
  
    [m_window makeKeyAndVisible];
    g_xbmcController = self;
-@@ -712,6 +849,15 @@ public:
+@@ -712,6 +865,15 @@ public:
  {
    m_debugLogSharingPresenter = std::make_unique<DebugLogSharingPresenter>();
    [self setGUIInsetsFromMainThread:NO];

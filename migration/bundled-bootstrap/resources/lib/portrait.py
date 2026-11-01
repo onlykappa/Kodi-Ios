@@ -41,9 +41,22 @@ LIBRARY_FILES=('Custom_1103_Hub.xml','Custom_1104_Hub.xml')
 SEARCH_FILE='Custom_1105_Search.xml'
 CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type='
 # Floating tab bar (Apple TV app): Home, Movies, TV, Library (downloaded media), Search.
-TABS=[('home','Home','house.png','ReplaceWindow(Home)'),('movies','Movies','film.png','ReplaceWindow(1102)'),
-      ('tv','TV','tv.png','ReplaceWindow(1101)'),('library','Library','layer-group.png','ReplaceWindow(1103)'),
-      ('search','Search','magnifying-glass.png','ReplaceWindow(1105)')]
+# Home, Movies and TV are one window (Home.xml) with a group per hub, so all three load their rows at start and
+# switching between them only changes Window(Home).Property(Portrait.Tab); Custom_1101/1102 forward to it.
+TAB_PROPERTY='Portrait.Tab'
+HUB_TABS=('home','movies','tv')
+HUB_OFFSET={'home':0,'movies':10000,'tv':20000}
+def tab_actions(key):
+ """[(condition, builtin)] for one tab: hubs set the property (and come back to Home), the others open their window."""
+ if key in HUB_TABS:
+  return [('','ClearProperty(%s,home)'%TAB_PROPERTY if key=='home' else 'SetProperty(%s,%s,home)'%(TAB_PROPERTY,key)),
+          ('!Window.IsActive(home)','ReplaceWindow(Home)'),('','SetFocus(%d)'%(4000+HUB_OFFSET[key]))]
+ return [('','ReplaceWindow(%s)'%{'library':1103,'search':1105}[key])]
+def tab_visible(key):
+ return 'String.IsEmpty(Window(Home).Property(%s))'%TAB_PROPERTY if key=='home' else 'String.IsEqual(Window(Home).Property(%s),%s)'%(TAB_PROPERTY,key)
+TABS=[('home','Home','house.png'),('movies','Movies','film.png'),('tv','TV','tv.png'),('library','Library','layer-group.png'),
+      ('search','Search','magnifying-glass.png')]
+TAB_CLEAR=320                # the last row scrolls fully above the floating tab bar (and the home indicator)
 ACCENT='FF4FA8FF'
 def titled_page(title,path):
  # A TMDb Helper folder is named after the add-on; the page shows the tile's name instead (cleared on the hubs).
@@ -77,7 +90,7 @@ SIDE=54                      # 20 pt margins
 POSTER=(300,450);CARD=(640,360);GAP=26;RADIUS=26
 HERO=1420
 # Pages scroll above the floating tab bar, so the row in focus is never hidden under it.
-PAGE_H=HEIGHT-196
+PAGE_H=HEIGHT
 CAPSULES=(56,72,96,108,112,124,126,128,150,170,246)
 
 # --- tiny PNG writer (no PIL on the build host) -------------------------------------------------------
@@ -198,12 +211,13 @@ def tabbar(active):
  """One floating frosted capsule, centred: Home, Movies, TV, Library, Search. The current tab sits in a
  darker inner capsule with a blue icon and label (iOS 26 tab bar)."""
  tab_w=188;pad=12;h=150;bar_w=pad*2+tab_w*len(TABS);left=(WIDTH-bar_w)//2;items=[]
- for i,(key,text,glyph,action) in enumerate(TABS):
+ for i,(key,text,glyph) in enumerate(TABS):
   on=key==active;color=ACCENT if on else WHITE;x=pad+i*tab_w
+  clicks=''.join('<onclick%s>%s</onclick>'%(' condition="%s"'%e(c) if c else '',e(a)) for c,a in tab_actions(key))
   items.append(('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
    '<texturefocus border="63" colordiffuse="%s">%spill_126.png</texturefocus><texturenofocus border="63" colordiffuse="%s">%spill_126.png</texturenofocus>'
-   '<label></label><onclick>%s</onclick><onup>5000</onup><onleft>%d</onleft><onright>%d</onright></control>'
-   )%(9201+i,x,pad,tab_w,h-2*pad,'26FFFFFF' if not on else 'CC000000',MEDIA,'B3000000' if on else '01000000',MEDIA,e(action),
+   '<label></label>%s<onup>5000</onup><onleft>%d</onleft><onright>%d</onright></control>'
+   )%(9201+i,x,pad,tab_w,h-2*pad,'26FFFFFF' if not on else 'CC000000',MEDIA,'B3000000' if on else '01000000',MEDIA,clicks,
       9201+(i-1)%len(TABS),9201+(i+1)%len(TABS))
    +icon(x+(tab_w-58)//2,24,58,glyph,color)+label(x,84,tab_w,40,text,'p_tab',color,'center'))
  return ('<control type="image"><left>0</left><bottom>0</bottom><width>%d</width><height>330</height><texture>%sfade_up.png</texture></control>'
@@ -310,17 +324,41 @@ def in_progress(widget):
  text=(str(widget.get('path') or '')+' '+str(widget.get('label') or '')).lower()
  return 'inprogress' in text or 'in progress' in text or 'continue watching' in text
 
-def hub_window(original,title,widgets,tab,spotlight,resume='all'):
+SHIFTED=re.compile(r'(?<=id=")(\d+)(?=")|(?<=>)(\d+)(?=<)|(?<=\()(\d+)(?=[,)])')
+def shift(xml,offset):
+ """Move one hub's control ids (4000s hero, 5000s rows, 9200s tab bar, 9206/9207 header) out of the others' way."""
+ def move(m):
+  n=int(m.group(0))
+  return str(n+offset) if offset and (4000<=n<4200 or 5000<=n<6000 or 9200<=n<9210) else m.group(0)
+ return SHIFTED.sub(move,xml)
+
+def hub_body(title,widgets,tab,spotlight,resume='all'):
  # Continue Watching leads (movies and episodes the owner started); the old in-progress rows would repeat it.
  widgets=[{'label':'Continue Watching','path':CONTINUE+resume,'target':'videos','style':'continue'}]+[w for w in widgets if not in_progress(w)]
  rows=''.join(row(i,w,i==len(widgets)-1) for i,w in enumerate(widgets))
- body=('<controls>%s'
-  '<control type="grouplist" id="5000"><top>0</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
+ body=('<control type="grouplist" id="5000"><top>0</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<itemgap>0</itemgap><scrolltime tween="cubic" easing="out">380</scrolltime><usecontrolcoords>true</usecontrolcoords>%s%s'
-  '<control type="image"><height>40</height><texture /></control></control>'
-  '%s%s</controls>'
-  )%(backdrop(),WIDTH,PAGE_H,hero(spotlight,title),rows,image(0,0,WIDTH,90,MEDIA+'fade_down.png'),tabbar(tab))
- return window(original,body,'4000')
+  '<control type="image"><height>%d</height><texture /></control></control>'
+  '%s%s'
+  )%(WIDTH,PAGE_H,hero(spotlight,title),rows,TAB_CLEAR,image(0,0,WIDTH,90,MEDIA+'fade_down.png'),tabbar(tab))
+ return shift(body,HUB_OFFSET[tab])
+
+def hub_window(original,title,widgets,tab,spotlight,resume='all'):
+ """One hub alone in its window (kept for tests and tools; the phone uses hubs_window)."""
+ return window(original,'<controls>%s%s</controls>'%(backdrop(),hub_body(title,widgets,tab,spotlight,resume)),'4000')
+
+def hubs_window(original,hubs):
+ """Home, Movies and TV in one window: a group per hub, shown by Portrait.Tab. Every row loads when Home opens and
+ keeps its titles while another hub shows, so switching tabs needs no reload."""
+ groups=''.join('<control type="group" id="%d"><visible>%s</visible>%s</control>'%(3900+HUB_OFFSET[tab],tab_visible(tab),hub_body(*args))
+                for tab,args in hubs)
+ focus=''.join('<onload condition="%s">SetFocus(%d)</onload>'%(e(tab_visible(tab)),4000+HUB_OFFSET[tab]) for tab,_ in hubs if HUB_OFFSET[tab])
+ return window(original,'<controls>%s%s</controls>'%(backdrop(),groups),'4000',focus)
+
+def forward_window(original,tab):
+ """Movies/TV windows (opened by Fuse menus or older shortcuts) show that hub in Home instead."""
+ return window(original,'<controls>%s</controls>'%backdrop(),'9999',
+               '<onload>SetProperty(%s,%s,home)</onload><onload>ReplaceWindow(Home)</onload>'%(TAB_PROPERTY,tab))
 
 def page_header(title):
  """Large title on black with the profile circle (More), as on the Apple TV app's Library and Search."""
@@ -356,7 +394,7 @@ def search_window(original):
   image(0,0,tile_w,tile_h,'$INFO[ListItem.Property(tile)]',WHITE,diffuse=MEDIA+'poster_mask.png')+
   image(0,tile_h-200,tile_w,200,MEDIA+'fade_up.png','80FFFFFF',diffuse=MEDIA+'poster_mask.png')+
   '<control type="textbox"><left>26</left><top>%d</top><width>%d</width><height>120</height><font>p_tile</font><textcolor>FFFFFFFF</textcolor><label>$INFO[ListItem.Label]</label></control>'%(tile_h-150,tile_w-40)+'</control>')
- panel=('<control type="panel" id="5100"><left>%d</left><top>350</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+ panel=('<control type="panel" id="5100"><left>%d</left><top>350</top><width>%d</width><bottom>280</bottom><orientation>vertical</orientation>'
   '<onup>5101</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout><content>%s</content></control>'
   )%(left,WIDTH-left,tile_w+gap,tile_h+gap,tile(False),tile_w+gap,tile_h+gap,tile(True),items)
@@ -738,8 +776,11 @@ def includes():
 def hub_files(skin,profile):
  source=Path(skin)/'1080i';out={}
  read=lambda name:(source/name).read_text(encoding='utf-8') if (source/name).exists() else ''
+ hubs=[(tab,(title,load_widgets(profile,lists),tab,SPOTLIGHT[name],resume)) for name,(title,lists,tab,resume) in HUBS.items()]
+ hubs.sort(key=lambda h:HUB_TABS.index(h[0]))
+ out['Home.xml']=hubs_window(read('Home.xml'),hubs).encode()
  for name,(title,lists,tab,resume) in HUBS.items():
-  out[name]=hub_window(read(name),title,load_widgets(profile,lists),tab,SPOTLIGHT[name],resume).encode()
+  if name!='Home.xml':out[name]=forward_window(read(name),tab).encode()
  for name in LIBRARY_FILES:out[name]=library_window(read(name)).encode()
  out[SEARCH_FILE]=search_window(read(SEARCH_FILE)).encode()
  return out

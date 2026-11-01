@@ -50,8 +50,25 @@ class PortraitTests(unittest.TestCase):
  def test_hub_keeps_fuse_onloads_window_id_and_has_tab_bar(self):
   home=self.read('portrait/Home.xml');self.assertEqual(home.findtext('onload'),'RunScript(script.skinvariables)')
   hub=self.read('portrait/Custom_1101_Hub.xml');self.assertEqual(hub.get('id'),'1101')
-  ids={c.get('id') for c in hub.iter('control')}
-  self.assertTrue({'4000','4001','4002','5000','9200','9201','9206'}<=ids)
+  # Movies and TV forward to their group in Home, so they keep their rows loaded between tab switches.
+  self.assertEqual([o.text for o in hub.findall('onload')][-2:],['SetProperty(Portrait.Tab,tv,home)','ReplaceWindow(Home)'])
+  ids=[c.get('id') for c in home.iter('control') if c.get('id')]
+  self.assertEqual(len(ids),len(set(ids)),'control ids repeat across hubs')
+  for offset in (0,10000,20000):
+   self.assertTrue({str(n+offset) for n in (4000,4001,4002,5000,9200,9201,9206,9207)}<=set(ids))
+ def test_hub_groups_switch_by_tab_property(self):
+  home=self.read('portrait/Home.xml')
+  for gid,tab in (('3900',''),('13900','movies'),('23900','tv')):
+   group=home.find(".//control[@id='%s']"%gid);cond=group.findtext('visible')
+   self.assertIn('Portrait.Tab',cond);self.assertTrue(cond.endswith(tab+')') if tab else cond.startswith('String.IsEmpty'))
+   # each hub's rows and tab bar live inside its own group
+   self.assertIsNotNone(group.find(".//control[@id='%d']"%(int(gid)+1101)))
+  movies_tab=home.find(".//control[@id='19202']")
+  self.assertEqual([o.text for o in movies_tab.findall('onclick')],['SetProperty(Portrait.Tab,movies,home)','ReplaceWindow(Home)','SetFocus(14000)'])
+ def test_last_row_clears_the_tab_bar(self):
+  home=self.read('portrait/Home.xml');page=home.find(".//control[@id='5000']")
+  self.assertEqual(page.findtext('height'),str(portrait.HEIGHT))
+  self.assertGreaterEqual(int(list(page)[-1].findtext('height')),300)
  def test_select_dialog_has_kodi_control_ids(self):
   ids={c.get('id') for c in self.read('portrait/DialogSelect.xml').iter('control')}
   self.assertTrue({'1','2','3','5','6','7','8'}<=ids)
@@ -124,8 +141,9 @@ class PortraitTests(unittest.TestCase):
   self.assertEqual([t[1] for t in portrait.TABS],['Home','Movies','TV','Library','Search'])
   home=(self.skin/'portrait/Home.xml').read_text();self.assertNotIn('googledrive',home.split('tab bar')[1])
  def test_continue_watching_leads_each_hub(self):
-  for name,kind in (('Home.xml','all'),('Custom_1101_Hub.xml','episode'),('Custom_1102_Hub.xml','movie')):
-   root=self.read('portrait/'+name);first=root.find(".//control[@id='5001']")
+  root=self.read('portrait/Home.xml')
+  for offset,kind in ((0,'all'),(20000,'episode'),(10000,'movie')):
+   first=root.find(".//control[@id='%d']"%(5001+offset))
    self.assertEqual(first.findtext('content'),portrait.CONTINUE+kind)
  def test_old_in_progress_rows_are_replaced(self):
   self.assertTrue(portrait.in_progress({'label':'In Progress Movies','path':'special://profile/playlists/video/In Progress Movies.xsp'}))
