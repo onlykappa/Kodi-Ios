@@ -611,6 +611,68 @@ def deck_page(original=''):
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">32503</defaultcontrol>'
          '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>%s</window>\n')%(MARKER,body)
 
+NOTICE_SLOTS=4;NOTICE_ROWS=15
+def notices_page():
+ """Notification center (owner-approved mockup): live downloads with progress bars, the Google Drive upload,
+ then earlier messages. notifications.py fills it through window properties and the progress controls."""
+ P=lambda name:'$INFO[Window().Property(%s)]'%name
+ has=lambda name:'!String.IsEmpty(Window().Property(%s))'%name
+ w=WIDTH-2*SIDE
+ def section(text,cond,extra=''):
+  return ('<control type="group"><width>%d</width><height>96</height><visible>%s</visible>'%(WIDTH,cond)+
+   label(SIDE,30,w,60,text,'p_foot_b',GREY)+(label(SIDE,30,w,60,extra,'p_foot',DIM,'right') if extra else '')+'</control>')
+ def card(n):
+  h=300;pre='dl.%d.'%n
+  return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(WIDTH,h+24,has(pre+'title'))+
+   surface(SIDE-6,0,w+12,h,'round.png',SURFACE,32)+
+   surface(SIDE+24,26,130,196,'round_s.png','FF3A3A3C',20)+icon(SIDE+59,94,60,'download.png',GREY)+
+   label(SIDE+184,22,w-210,64,P(pre+'title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
+   '<control type="progress" id="%d"><left>%d</left><top>110</top><width>%d</width><height>14</height>'
+   '<texturebg border="7" colordiffuse="52787880">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="FF0A84FF">%sdot.png</midtexture><righttexture /></control>'%(9400+n,SIDE+184,w-210,MEDIA,MEDIA)+
+   label(SIDE+184,136,w-210,48,P(pre+'line'),'p_cap',GREY)+
+   label(SIDE+184,136,w-210,48,P(pre+'speed'),'p_cap',GREY,'right')+
+   pill_button(9410+n,SIDE+184,206,170,72,P(pre+'pausetext'),[('','noop')],'glass')+
+   pill_button(9420+n,SIDE+184+190,206,170,72,'Cancel',[('','noop')],'glass')+'</control>')
+ upload=('<control type="group"><width>%d</width><height>244</height><visible>%s</visible>'%(WIDTH,has('up.title'))+
+   surface(SIDE-6,0,w+12,220,'round.png',SURFACE,32)+
+   surface(SIDE+24,26,130,168,'round_s.png','FF1F3D2B',20)+icon(SIDE+59,80,60,'cloud-arrow-up.png',GREEN)+
+   label(SIDE+184,20,w-210,60,P('up.title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
+   label(SIDE+184,76,w-210,46,P('up.folder'),'p_cap',GREY)+
+   '<control type="progress" id="9430"><left>%d</left><top>134</top><width>%d</width><height>14</height>'
+   '<texturebg border="7" colordiffuse="52787880">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="%s">%sdot.png</midtexture><righttexture /></control>'%(SIDE+184,w-210,MEDIA,GREEN,MEDIA)+
+   label(SIDE+184,158,w-210,46,P('up.line'),'p_cap',GREY)+label(SIDE+184,158,w-210,46,'then off the phone','p_cap',DIM,'right')+'</control>')
+ def row(n):
+  pre='msg.%d.'%n;h=170
+  return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(WIDTH,h,has(pre+'title'))+
+   surface(SIDE-6,0,w+12,h,'round_s.png',SURFACE,20)+
+   '<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><texturefocus colordiffuse="14FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>'%(9500+n,SIDE-6,w+12,h,MEDIA)+
+   image(SIDE+8,h//2-8,16,16,MEDIA+'dot.png','FF0A84FF','<visible>%s</visible>'%has(pre+'unread'))+
+   surface(SIDE+36,30,86,86,'round_s.png',P(pre+'tint'),20)+icon(SIDE+56,50,46,P(pre+'icon'),WHITE)+
+   label(SIDE+150,22,w-300,58,P(pre+'title'),'p_foot_b',WHITE,'left','<scroll>false</scroll>')+
+   label(SIDE+150,78,w-190,70,P(pre+'text'),'p_cap',GREY,'left','<wrapmultiline>true</wrapmultiline>')+
+   label(SIDE+150,22,w-170,58,P(pre+'ago'),'p_cap',DIM,'right')+
+   image(SIDE+150,h-2,w-150,2,MEDIA+'white.png',SEP)+'</control>')
+ filters=''.join('<control type="group"><left>%d</left><top>0</top>'%(i*w//3)+
+   image(4,4,w//3-8,80,MEDIA+'pill_96.png','FF636366','<visible>String.IsEqual(Window().Property(filter),%s)</visible>'%key,border=40)+
+   '<control type="button" id="%d"><width>%d</width><height>88</height><label>%s</label><font>p_foot_b</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
+   '<align>center</align><aligny>center</aligny><texturefocus /><texturenofocus /></control></control>'%(9101+i,w//3,text,GREY,WHITE)
+   for i,(key,text) in enumerate([('all','All'),('downloads','Downloads'),('problems','Problems')]))
+ body=('<controls>'+backdrop()+
+  circle_button(9001,SIDE,36,108,'chevron-left.png','Close','<ondown>9101</ondown>')+
+  '<control type="button" id="9002"><left>%d</left><top>36</top><width>260</width><height>108</height><label>Clear All</label><font>p_body</font>'
+  '<textcolor>FF0A84FF</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>right</align><aligny>center</aligny><texturefocus /><texturenofocus /></control>'%(WIDTH-SIDE-260)+
+  label(SIDE,160,w,110,'Notifications','p_large')+
+  '<control type="group"><left>%d</left><top>290</top>'%SIDE+surface(0,0,w,88,'pill_96.png',SURFACE,44)+filters+'</control>'+
+  '<control type="grouplist" id="9300"><left>0</left><top>400</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%WIDTH+
+  section('Downloading',has('has.dl'),P('dl.summary'))+''.join(card(n) for n in range(1,NOTICE_SLOTS+1))+
+  section('Uploading to Google Drive',has('has.up'))+upload+
+  section('Earlier',has('has.msg'))+''.join(row(n) for n in range(1,NOTICE_ROWS+1))+
+  '<control type="group"><width>%d</width><height>300</height><visible>%s</visible>'%(WIDTH,has('empty'))+
+  label(SIDE,80,w,80,"You're all caught up",'p_h3',GREY,'center')+'</control>'+
+  '<control type="image"><height>200</height><texture /></control></control></controls>')
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9101</defaultcontrol>'
+         '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(MARKER,body)
+
 def shrink(data,name=''):
  root=ET.fromstring(data)
  if root.tag!='window':return None
@@ -684,6 +746,7 @@ def portrait_files(skin,profile):
  for name,data in hub_files(skin,profile).items():files[FOLDER+'/'+name]=data
  for name,data in textures().items():files['extras/portrait/'+name]=data
  files[FOLDER+'/DeckSourceSelect.xml']=deck_page().encode()
+ files[FOLDER+'/IOSNotifications.xml']=notices_page().encode()
  # Fullscreen video is landscape: the Apple TV-style controls go into the landscape folder.
  files['1080i/VideoOSD.xml']=player_osd.window().encode()
  seekbar=read('DialogSeekBar.xml')

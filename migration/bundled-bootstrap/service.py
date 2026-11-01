@@ -4,7 +4,7 @@ sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
 from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,follow_container,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
-import airplay,calibration,driveupload,updates,threading,portrait
+import airplay,calibration,driveupload,notices,updates,threading,portrait
 
 def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
@@ -162,7 +162,9 @@ def drive_uploads(monitor,home,profile):
   if not idle() or not accounts.get_accounts() or not driveupload.pending(root):continue
   try:
    count=driveupload.run_once(root,drive,state,log,idle,xbmcaddon.Addon().getSettingBool('drive_upload_delete'))
-   if count:xbmcgui.Dialog().notification('Google Drive','Uploaded %d video%s to Kodi Downloads'%(count,'' if count==1 else 's'),xbmcgui.NOTIFICATION_INFO,6000)
+   if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))
   except driveupload.Stop:pass
-  except Exception as error:xbmc.log('Kodi iOS Drive upload paused: %s %s'%(type(error).__name__,error),xbmc.LOGWARNING)
+  except Exception as error:
+   xbmc.log('Kodi iOS Drive upload paused: %s %s'%(type(error).__name__,error),xbmc.LOGWARNING)
+   notices.add(profile,'problem','Google Drive upload paused',str(error)[:160])
 if __name__=='__main__':run()

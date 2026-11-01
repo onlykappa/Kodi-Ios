@@ -96,7 +96,12 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True)
  count=0
  for path,parts in pending(root):
   if not keep_going():break
-  meta=drive.upload(path,drive.folder(parts),sessions,save,keep_going)
+  # What is uploading now, for the notification center's Uploading card (notices.uploads).
+  def progress(done,total,name=os.path.basename(path),folder=' › '.join(['Drive']+list(parts))):
+   state['current']={'name':name,'folder':folder,'sent':done,'total':total};save()
+  try:meta=drive.upload(path,drive.folder(parts),sessions,save,keep_going,progress)
+  finally:
+   if state.pop('current',None) is not None:save()
   if int(meta.get('size',-1))!=os.path.getsize(path):
    log('Drive upload size differs for %s; the phone copy is kept'%os.path.basename(path));continue
   count+=1;log('Uploaded %s to Google Drive › %s'%(os.path.basename(path),' › '.join(parts)))
