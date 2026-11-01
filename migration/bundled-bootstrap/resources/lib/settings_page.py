@@ -22,13 +22,26 @@ UPDATES='!String.IsEmpty(System.AddonUpdateCount) + !String.IsEqual(System.Addon
 FUSE='skin.arctic.fuse.3'
 
 # iOS metrics at 2.687 units/pt: 52pt rows, 26pt group corners, 31pt icon tiles, 34pt between groups.
-ROW=140;ROW2=170;RADIUS=70;TILE=84;GLYPH=58;GAP=90;PAD=43;TEXT_X=PAD+TILE+38
+ROW=140;ROW2=170;RADIUS=70;TILE=84;GLYPH=66;GAP=90;PAD=43;TEXT_X=PAD+TILE+38
 TILE_BG='FF161618';RED='FFFF453A';BLUE='FF0A84FF';GREEN='FF30D158'
 PURPLE='FFBF5AF2';ORANGE='FFFF9F0A';TEAL='FF64D2FF';PINK='FFFF6AB0';SILVER='FFAEAEB2'
 
+def toggle(p,on):
+ """iOS 26 switch (63x28 pt): green or grey capsule with the elongated white knob."""
+ w,h=170,76;kw,kh=104,64;kx=w-kw-6 if on else 6;ky=6;track=(48,209,88) if on else (57,57,61)
+ def pixel(x,y):
+  a=p.coverage(x,y,w,h,h/2);k=p.coverage(x-kx,y-ky,kw,kh,kh/2) if kx<=x<kx+kw and ky<=y<ky+kh else 0
+  r,g,b=(int(t+(255-t)*k) for t in track);return (r,g,b,int(255*max(a,k)))
+ return p.png(w,h,pixel)
+
+def hl(p):
+ """Focus highlight: rounded rectangle inset 10 units from every edge of the row (9-slice border 44)."""
+ n=120;return p.png(n,n,lambda x,y:(255,255,255,int(255*p.coverage(x-10,y-10,n-20,n-20,34)) if 10<=x<n-10 and 10<=y<n-10 else 0))
+
 def textures(p):
  return {'group.png':p.rounded(160,160,RADIUS),'tile84.png':p.rounded(TILE,TILE,24),'tile100.png':p.rounded(100,100,28),
-         'avatar.png':p.rounded(300,300,150),'avatar_s.png':p.rounded(160,160,80)}
+         'avatar.png':p.rounded(300,300,150),'avatar_s.png':p.rounded(160,160,80),
+         'hl.png':hl(p),'toggle_on.png':toggle(p,True),'toggle_off.png':toggle(p,False)}
 
 # Rows: (id, label, actions joined by \x00, glyph, tint, value, badge condition)
 def R(id,text,actions,glyph='',tint=SILVER,value='',badge=''):return (id,text,actions,glyph,tint,value,badge)
@@ -76,7 +89,7 @@ def nav(ids):
   tags=[];hide=[]
   for target,cond in seq:
    if cond:
-    tags.append((' + '.join(hide+[cond]),target));hide.append('!(%s)'%cond)
+    tags.append((' + '.join(hide+[cond]),target));hide.append('![%s]'%cond)   # Kodi groups with [ ], not ( )
    else:
     tags.append((' + '.join(hide),target));break
   return tags
@@ -91,7 +104,8 @@ def nav_xml(p,moves):
  return xml
 
 def highlight(p,w,h):
- return ('<texturefocus border="20" colordiffuse="1AFFFFFF">%sround_s.png</texturefocus><texturenofocus />'%p.MEDIA)
+ # iOS 26 press state: a rounded inset highlight, so it never pokes out of the group's rounded corners.
+ return ('<texturefocus border="44" colordiffuse="1FFFFFFF">%shl.png</texturefocus><texturenofocus />'%p.MEDIA)
 
 def row_xml(p,r,y,first,moves,w,height=ROW):
  rid,text,actions,glyph,tint,value,badge=r;x=TEXT_X if glyph else PAD
@@ -106,7 +120,7 @@ def row_xml(p,r,y,first,moves,w,height=ROW):
  if badge:
   xml+=('<control type="group"><left>%d</left><top>%d</top><visible>%s</visible>'%(right-100,y+(height-60)//2,badge)+
         p.surface(0,0,80,60,'pill_56.png',RED,28)+p.label(0,0,80,60,'$INFO[System.AddonUpdateCount]','p_foot_b',p.WHITE,'center')+'</control>')
- xml+=p.icon(right,y+(height-34)//2,34,'chevron-right.png',p.DIM)
+ xml+=p.icon(right,y+(height-34)//2,34,'chevron-right.png',p.GREY)
  return xml
 
 def card(p,rows,moves,visible='',height=ROW):
@@ -130,16 +144,16 @@ def section(p,text):
 def profile_card(p,moves):
  """Apple Account-style card: profile picture (or a person glyph), profile name, the services on the Accounts page."""
  w=p.WIDTH-2*p.SIDE;h=220;a=160;ay=(h-a)//2
- thumb='!String.IsEmpty(System.ProfileThumb)'
+ thumb='!String.IsEmpty(System.ProfileThumb) + !String.Contains(System.ProfileThumb,DefaultUser)'
  return ('<control type="group"><width>%d</width><height>%d</height>'%(p.WIDTH,h)+p.surface(p.SIDE,0,w,h,'group.png',p.SURFACE,RADIUS)+
   '<control type="group"><left>%d</left>'%p.SIDE+
   '<control type="button" id="9101"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>%s%s%s</control>'
    %(w,h,highlight(p,w,h),clicks(p,ACCOUNTS),nav_xml(p,moves))+
-  p.surface(PAD,ay,a,a,'avatar_s.png','FF7B88C4')+p.icon(PAD+(a-80)//2,ay+(a-80)//2,80,'user.png',p.WHITE,'<visible>!%s</visible>'%thumb)+
-  p.image(PAD,ay,a,a,'$INFO[System.ProfileThumb]',p.WHITE,'<visible>%s</visible>'%thumb,'>scale',p.MEDIA+'avatar_s.png')+
+  p.surface(PAD,ay,a,a,'avatar_s.png','FF7B88C4')+p.icon(PAD+(a-80)//2,ay+(a-80)//2,80,'user.png',p.WHITE,'<visible>![%s]</visible>'%thumb)+
+  p.image(PAD,ay,a,a,'$INFO[System.ProfileThumb]',p.WHITE,'<visible>%s</visible>'%thumb,'',p.MEDIA+'avatar_s.png')+
   p.label(PAD+a+40,40,w-PAD-a-140,70,'$INFO[System.ProfileName]','p_h3')+
   p.label(PAD+a+40,108,w-PAD-a-140,60,'Trakt, Drive, Elementum & more','p_foot',p.GREY)+
-  p.icon(w-PAD-34,(h-34)//2,34,'chevron-right.png',p.DIM)+'</control></control>')
+  p.icon(w-PAD-34,(h-34)//2,34,'chevron-right.png',p.GREY)+'</control></control>')
 
 def updates_banner(p,moves):
  return card(p,[R(9102,'Add-on Updates Available','ActivateWindow(addonbrowser,addons://outdated/,return)',badge=UPDATES)],moves,UPDATES)
@@ -216,11 +230,12 @@ def accounts_page(p):
  order=[(9600+n,'') for n in range(1,len(services)+1)]+[(9611+i,'') for i in range(len(links))]
  moves=nav(order)
  thumb='!String.IsEmpty(Window().Property(thumb))';a=300;ax=(p.WIDTH-a)//2
- head=('<control type="group"><width>%d</width><height>560</height>'%p.WIDTH+
-  p.surface(ax,10,a,a,'avatar.png','FF7B88C4')+p.label(ax,10,a,a,P('initials'),'p_large',p.WHITE,'center','<visible>!%s</visible>'%thumb)+
-  p.image(ax,10,a,a,P('thumb'),p.WHITE,'<visible>%s</visible>'%thumb,'>scale',p.MEDIA+'avatar.png')+
-  p.label(p.SIDE,340,w,100,P('name'),'p_title',p.WHITE,'center')+
-  p.label(p.SIDE,440,w,60,P('summary'),'p_sub',p.GREY,'center')+'</control>')
+ ay=70   # clear of the header's fade
+ head=('<control type="group"><width>%d</width><height>%d</height>'%(p.WIDTH,ay+550)+
+  p.surface(ax,ay,a,a,'avatar.png','FF7B88C4')+p.label(ax,ay,a,a,P('initials'),'p_large',p.WHITE,'center','<visible>!%s</visible>'%thumb)+
+  p.image(ax,ay,a,a,P('thumb'),p.WHITE,'<visible>%s</visible>'%thumb,'',p.MEDIA+'avatar.png')+
+  p.label(p.SIDE,ay+330,w,100,P('name'),'p_title',p.WHITE,'center')+
+  p.label(p.SIDE,ay+430,w,60,P('summary'),'p_sub',p.GREY,'center')+'</control>')
  body=head
  notes=('Tap a service to manage it or sign out. Debrid and scraper logins are inside each add-on.',
         'Signing in to Trakt in TMDb Helper fills "Because You Watched" and the recommendation rows on Home.')
@@ -241,9 +256,99 @@ def accounts_page(p):
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9601</defaultcontrol>'
          '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
 
+# --- Kodi's own setting pages (categories and add-on settings) -------------------------------------------------
+# Kodi builds these pages itself from templates the skin provides (GUIDialogSettingsBase): category buttons from
+# id 10 into grouplist 3, settings from ids 7 (button), 8 (switch), 9 (spinner), 12 (edit), 13 (slider), 14 (group
+# title), 15 (colour) and 11 (separator) into grouplist 5; label 2 is the page title and 6 the focused setting's help.
+LIST_TOP=356;HELP_H=210
+def row_textures(p,focus=True):
+ return ('<texturefocus colordiffuse="%s">%swhite.png</texturefocus><texturenofocus colordiffuse="%s">%swhite.png</texturenofocus>'
+         %(p.SURFACE2 if focus else p.SURFACE,p.MEDIA,p.SURFACE,p.MEDIA))
+def text_style(p):
+ return ('<font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><disabledcolor>%s</disabledcolor>'
+         '<align>left</align><aligny>center</aligny><textoffsetx>%d</textoffsetx>')%(p.WHITE,p.WHITE,p.DIM,PAD)
+def setting_templates(p,category_type):
+ """The row templates Kodi copies for every setting: full-width iOS cells, 52 pt high, hairline gaps between them."""
+ w=p.WIDTH-2*p.SIDE;M=p.MEDIA;base='<width>%d</width><height>%d</height>'%(w,ROW)
+ pill=('<control type="%s" id="10"><width>300</width><height>96</height><label></label><font>p_foot_b</font><textcolor>%s</textcolor>'
+       '<focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
+       '<texturefocus border="48" colordiffuse="FF48484A">%spill_96.png</texturefocus><texturenofocus border="48" colordiffuse="%s">%spill_96.png</texturenofocus>'
+       %(category_type,p.GREY,p.WHITE,M,p.SURFACE,M))
+ if category_type=='togglebutton':
+  pill+=('<alttexturefocus border="48" colordiffuse="%s">%spill_96.png</alttexturefocus><alttexturenofocus border="48" colordiffuse="%s">%spill_96.png</alttexturenofocus>'
+         '<altlabel></altlabel>'%(BLUE,M,BLUE,M))
+ pill+='</control>'
+ chev=(p.ICONS+'chevron-left.png',p.ICONS+'chevron-right.png')
+ return (pill+
+  '<control type="button" id="7">%s%s%s<label2></label2></control>'%(base,row_textures(p),text_style(p))+
+  ('<control type="radiobutton" id="8">%s%s%s<radiowidth>130</radiowidth><radioheight>58</radioheight><radioposx>%d</radioposx>'
+   '<textureradioonfocus>%stoggle_on.png</textureradioonfocus><textureradioonnofocus>%stoggle_on.png</textureradioonnofocus>'
+   '<textureradioofffocus>%stoggle_off.png</textureradioofffocus><textureradiooffnofocus>%stoggle_off.png</textureradiooffnofocus>'
+   '<textureradioondisabled colordiffuse="66FFFFFF">%stoggle_on.png</textureradioondisabled><textureradiooffdisabled colordiffuse="66FFFFFF">%stoggle_off.png</textureradiooffdisabled>'
+   '</control>')%(base,row_textures(p),text_style(p),w-PAD-130,M,M,M,M,M,M)+
+  ('<control type="spincontrolex" id="9">%s%s%s<spinwidth>36</spinwidth><spinheight>36</spinheight><spinposx>%d</spinposx>'
+   '<textureup colordiffuse="%s">%s</textureup><textureupfocus colordiffuse="%s">%s</textureupfocus>'
+   '<texturedown colordiffuse="%s">%s</texturedown><texturedownfocus colordiffuse="%s">%s</texturedownfocus>'
+   '<textureupdisabled colordiffuse="%s">%s</textureupdisabled><texturedowndisabled colordiffuse="%s">%s</texturedowndisabled>'
+   '</control>')%(base,row_textures(p),text_style(p),PAD,p.DIM,chev[1],p.WHITE,chev[1],p.DIM,chev[0],p.WHITE,chev[0],p.SEP,chev[1],p.SEP,chev[0])+
+  '<control type="edit" id="12">%s%s%s<hinttext></hinttext></control>'%(base,row_textures(p),text_style(p))+
+  ('<control type="sliderex" id="13">%s%s%s<sliderwidth>300</sliderwidth><sliderheight>14</sliderheight>'
+   '<texturesliderbar border="7" colordiffuse="FF48484A">%sdot.png</texturesliderbar>'
+   '<textureslidernib colordiffuse="%s">%sknob.png</textureslidernib><textureslidernibfocus colordiffuse="%s">%sknob.png</textureslidernibfocus>'
+   '</control>')%(base,row_textures(p),text_style(p),M,p.WHITE,M,BLUE,M)+
+  ('<control type="label" id="14"><width>%d</width><height>116</height><font>p_h3</font><textcolor>%s</textcolor>'
+   '<align>left</align><aligny>bottom</aligny><textoffsetx>%d</textoffsetx></control>')%(w,p.GREY,PAD)+
+  ('<control type="colorbutton" id="15">%s%s%s<colorwidth>60</colorwidth><colorheight>60</colorheight><colorposx>%d</colorposx>'
+   '<texturecolormask>%sdot.png</texturecolormask><texturecolordisabledmask>%sdot.png</texturecolordisabledmask></control>')%(
+   base,row_textures(p),text_style(p),w-PAD-60,M,M)+
+  '<control type="image" id="11"><width>%d</width><height>34</height><texture /></control>'%w)
+
+def setting_body(p,title,header_buttons,extra=''):
+ """Header (title = label 2), category pills (grouplist 3), settings (grouplist 5), help text (label 6)."""
+ w=p.WIDTH-2*p.SIDE
+ bar=p.image(0,0,p.WIDTH,LIST_TOP-10,p.MEDIA+'white.png',p.BG)
+ heading=('<control type="label" id="2"><left>300</left><top>36</top><width>%d</width><height>108</height><font>p_h3</font>'
+          '<textcolor>%s</textcolor><align>center</align><aligny>center</aligny><scroll>true</scroll><label>%s</label></control>')%(p.WIDTH-600,p.WHITE,p.e(title))
+ cats=('<control type="grouplist" id="3"><left>%d</left><top>200</top><width>%d</width><height>96</height><orientation>horizontal</orientation>'
+       '<itemgap>16</itemgap><scrolltime tween="cubic" easing="out">250</scrolltime><ondown>5</ondown><onup>9001</onup></control>')%(p.SIDE,w)
+ lst=('<control type="grouplist" id="5"><left>%d</left><top>%d</top><width>%d</width><bottom>%d</bottom><orientation>vertical</orientation>'
+      '<itemgap>2</itemgap><usecontrolcoords>false</usecontrolcoords><onup>3</onup><scrolltime tween="cubic" easing="out">250</scrolltime></control>')%(
+      p.SIDE,LIST_TOP,w,HELP_H)
+ # Anchored to the bottom: the 9:16 resolution (home-button phones) has a shorter canvas than 9:19.5.
+ help_=('<control type="image"><left>0</left><bottom>0</bottom><width>%d</width><height>%d</height><texture colordiffuse="%s">%swhite.png</texture></control>'
+        %(p.WIDTH,HELP_H,p.BG,p.MEDIA)+
+        '<control type="label" id="6"><width>1</width><height>1</height><visible>false</visible></control>'+
+        '<control type="textbox"><left>%d</left><bottom>16</bottom><width>%d</width><height>%d</height><font>p_foot</font><textcolor>%s</textcolor>'
+        '<label>$INFO[Control.GetLabel(6)]</label><autoscroll>false</autoscroll></control>')%(p.SIDE+PAD,w-2*PAD,HELP_H-40,p.GREY)
+ return '<controls>'+p.backdrop()+lst+bar+heading+cats+help_+header_buttons+extra+'</controls>'
+
+def category_window(p,original):
+ """portrait/SettingsCategory.xml: System, Player, Media, Interface, Services, PVR and Games pages."""
+ back=p.pill_button(9001,p.SIDE,36,108,108,'',[('','Action(Back)')],'glass','chevron-left.png','<ondown>3</ondown>')
+ level=('<control type="button" id="20"><left>%d</left><top>36</top><width>290</width><height>108</height><font>p_foot_b</font>'
+        '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
+        '<texturefocus border="54" colordiffuse="FF48484A">%spill_108.png</texturefocus><texturenofocus border="54" colordiffuse="%s">%spill_108.png</texturenofocus>'
+        '<onclick>settingslevelchange</onclick><ondown>3</ondown><onleft>9001</onleft></control>')%(p.WIDTH-p.SIDE-290,BLUE,BLUE,p.MEDIA,p.SURFACE,p.MEDIA)
+ body=setting_body(p,'',back+level,setting_templates(p,'togglebutton'))
+ return p.window(original,body,'5','<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>')
+
+def addon_settings_window(p,original):
+ """portrait/DialogAddonSettings.xml: every add-on's settings (Elementum, Umbrella, Trakt...) as an iOS sheet with
+ Cancel and Done. 28/29 are Kodi's OK and Cancel; 20 and 30 stay hidden as in Fuse."""
+ text_button=lambda id,x,text,color,bold,align:(('<control type="button" id="%d"><left>%d</left><top>36</top><width>240</width><height>108</height><textoffsetx>0</textoffsetx>'
+   '<label>%s</label><font>%s</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>%s</align><aligny>center</aligny>'
+   '<texturefocus /><texturenofocus /><ondown>3</ondown></control>')%(id,x,text,'p_btn' if bold else 'p_body',color,'FF64D2FF',align))
+ hidden=''.join('<control type="button" id="%d"><width>1</width><height>1</height><visible>false</visible><texturefocus /><texturenofocus /></control>'%i for i in (20,30))
+ buttons=text_button(29,p.SIDE,'Cancel',BLUE,False,'left')+text_button(28,p.WIDTH-p.SIDE-240,'Done',BLUE,True,'right')+hidden
+ body=setting_body(p,'',buttons,setting_templates(p,'button'))
+ return p.window(original,body,'5','<animation effect="slide" start="0,300" end="0,0" time="260" tween="cubic" easing="out">WindowOpen</animation>'
+                 '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>')
+
 def files(p,read):
  """{relative path: bytes} for the portrait folder and its textures."""
  out={p.FOLDER+'/Settings.xml':settings_window(p,read('Settings.xml')).encode(),
-      p.FOLDER+'/IOSAccounts.xml':accounts_page(p).encode()}
+      p.FOLDER+'/IOSAccounts.xml':accounts_page(p).encode(),
+      p.FOLDER+'/SettingsCategory.xml':category_window(p,read('SettingsCategory.xml')).encode(),
+      p.FOLDER+'/DialogAddonSettings.xml':addon_settings_window(p,read('DialogAddonSettings.xml')).encode()}
  for name,data in textures(p).items():out['extras/portrait/'+name]=data
  return out

@@ -47,7 +47,8 @@ class SettingsPages(unittest.TestCase):
   cls.tmp=tempfile.TemporaryDirectory();skin=Path(cls.tmp.name)/'skin.arctic.fuse.3';(skin/'1080i').mkdir(parents=True)
   (skin/'addon.xml').write_text('<addon id="skin.arctic.fuse.3"><extension point="xbmc.gui.skin"><res aspect="16:9" default="true" folder="1080i" width="1920" height="1080" /></extension></addon>')
   for name,data in {'Font.xml':'<fonts><fontset id="Default" /></fonts>','Includes.xml':'<includes />',
-                    'Settings.xml':'<window id="10004"><onload>RunScript(script.skinvariables)</onload><controls /></window>'}.items():(skin/'1080i'/name).write_text(data)
+                    'Settings.xml':'<window id="10004"><onload>RunScript(script.skinvariables)</onload><controls /></window>',
+                    'SettingsCategory.xml':'<window><controls /></window>','DialogAddonSettings.xml':'<window><controls /></window>'}.items():(skin/'1080i'/name).write_text(data)
   profile=Path(cls.tmp.name)/'profile';profile.mkdir()
   cls.files=portrait.build(skin,profile);cls.skin=skin
  @classmethod
@@ -85,7 +86,7 @@ class SettingsPages(unittest.TestCase):
  def test_navigation_skips_the_hidden_updates_banner(self):
   root=self.read('Settings.xml');card=[c for c in root.iter('control') if c.get('id')=='9101'][0]
   downs=[(o.get('condition'),o.text) for o in card.findall('ondown')]
-  self.assertEqual([t for _,t in downs],['9102','9111']);self.assertTrue(downs[1][0].startswith('!('))
+  self.assertEqual([t for _,t in downs],['9102','9111']);self.assertTrue(downs[1][0].startswith('!['))
   ids=[c.get('id') for c in root.iter('control') if c.get('id')];self.assertEqual(len(ids),len(set(ids)))
  def test_accounts_page_matches_the_script(self):
   root=self.read('IOSAccounts.xml');ids={c.get('id') for c in root.iter('control')}
@@ -96,5 +97,24 @@ class SettingsPages(unittest.TestCase):
  def test_textures_are_written(self):
   for name in ('group.png','tile84.png','tile100.png','avatar.png','avatar_s.png'):
    self.assertTrue((self.skin/'extras/portrait'/name).read_bytes().startswith(b'\x89PNG'))
+
+ def test_kodi_setting_pages_have_every_template(self):
+  # GUIDialogSettingsBase copies these: categories 10 -> 3, settings 7/8/9/12/13/14/15/11 -> 5, title 2, help 6.
+  for name,kind in (('SettingsCategory.xml','togglebutton'),('DialogAddonSettings.xml','button')):
+   root=self.read(name);types={c.get('id'):c.get('type') for c in root.iter('control') if c.get('id')}
+   self.assertEqual({k:types.get(k) for k in ('2','3','5','6','7','8','9','10','11','12','13','14','15')},
+    {'2':'label','3':'grouplist','5':'grouplist','6':'label','7':'button','8':'radiobutton','9':'spincontrolex','10':kind,
+     '11':'image','12':'edit','13':'sliderex','14':'label','15':'colorbutton'},name)
+  sheet={c.get('id') for c in self.read('DialogAddonSettings.xml').iter('control')}
+  self.assertTrue({'28','29','20','30'}<=sheet)   # OK, Cancel, and the two Fuse keeps hidden
+  level=[c for c in self.read('SettingsCategory.xml').iter('control') if c.get('id')=='20'][0]
+  self.assertEqual(level.findtext('onclick'),'settingslevelchange')
+ def test_conditions_use_kodi_brackets(self):
+  # Kodi groups boolean expressions with [ ]; '!(' fails to parse (found in the desktop Kodi rig).
+  for name in ('Settings.xml','IOSAccounts.xml','SettingsCategory.xml','DialogAddonSettings.xml'):
+   xml=(self.skin/'portrait'/name).read_text();self.assertNotIn('!(',xml,name)
+  # Negating a compound condition needs the brackets, or '!' binds to the first term only (profile glyph bug).
+  self.assertIn('<visible>![!String.IsEmpty(System.ProfileThumb) + !String.Contains(System.ProfileThumb,DefaultUser)]</visible>',
+                (self.skin/'portrait/Settings.xml').read_text())
 
 if __name__=='__main__':unittest.main()

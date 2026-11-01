@@ -69,7 +69,9 @@ def summary(states):
 
 def properties(states,profile_name,thumb=''):
  """Window properties for portrait/IOSAccounts.xml: acct.<n>.* for service n (1-based, SERVICES order)."""
- props={'name':profile_name or 'Master user','initials':initials(profile_name or 'Master user'),'thumb':thumb or '',
+ # Kodi's stock profile picture (DefaultUser.png) is not a picture of anyone: show the initials instead.
+ thumb='' if not thumb or 'DefaultUser' in thumb else thumb
+ props={'name':profile_name or 'Master user','initials':initials(profile_name or 'Master user'),'thumb':thumb,
         'summary':summary(states)}
  for n,(service,state) in enumerate(zip(SERVICES,states),1):
   props.update({'acct.%d.name'%n:service['name'],'acct.%d.icon'%n:service['icon'],'acct.%d.tint'%n:service['tint'],
