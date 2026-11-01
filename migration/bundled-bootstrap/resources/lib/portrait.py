@@ -81,6 +81,13 @@ MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
 HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{SEARCH_FILE,'DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml'}
 # Never shrunk: playback stays landscape, and these are not windows.
 SKIP_WRAP={'VideoFullScreen.xml','VideoOSD.xml','MusicVisualisation.xml','SlideShow.xml','Pointer.xml'}
+# Shown only over landscape playback: no portrait copy, so Kodi always loads them from 1080i with landscape
+# coordinates (it picks a window's folder when it loads it, and these load while the phone is still upright).
+VIDEO_ONLY={'DialogSeekBar.xml','DialogFullScreenInfo.xml','DialogSubtitles.xml','VideoOSDBookmarks.xml','DialogPVRChannelsOSD.xml',
+            'GameOSD.xml','MusicOSD.xml','Custom_1140_OSD_Playlist.xml','Custom_1141_OSD_Cast.xml','Custom_1142_OSD_MusicTracks.xml',
+            'Custom_1143_OSD_NextOverlay.xml','Custom_1145_OSD_InfoPanel.xml','Custom_1146_OSD_AudioStreams.xml',
+            'Custom_1147_OSD_SubtitleStreams.xml','Custom_1148_OSD_VideoStreams.xml','Custom_1151_OSD_MusicInfoOverlay.xml',
+            'Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml','Custom_1193_VideoOSDInfo.xml'}
 # iOS text styles at 2.687 units/pt (large title 34pt, title2 22pt, headline/body 17pt, subhead 15pt, footnote 13pt...).
 FONTS=[('p_large','Inter-Bold.ttf',92),('p_title','Inter-Bold.ttf',78),('p_h2','Inter-Bold.ttf',58),
        ('p_h3','Inter-Bold.ttf',46),('p_body','Inter-Regular.ttf',44),('p_sub','Inter-Regular.ttf',40),
@@ -461,10 +468,10 @@ def video_nav(original):
   label(SIDE+146,108,WIDTH-2*SIDE-210,60,'$INFO[ListItem.Label2]','p_foot',GREY)+
   label(WIDTH-SIDE-40,18,40,174,'›','p_h2',DIM,'right'))
  generic=('<control type="list" id="51"><left>0</left><top>190</top><width>%d</width><bottom>0</bottom><onup>9001</onup>'
-  '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>!Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>'
+  '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>!Container.IsUpdating + !Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>'
   '<itemlayout height="210">%s</itemlayout><focusedlayout height="210">%s</focusedlayout></control>')%(WIDTH,gen_item(False),gen_item(True))
  back=circle_button(9001,SIDE,36,108,'chevron-left.png','Back','<ondown>9002</ondown>')
- plain_title=label(SIDE+136,36,WIDTH-2*SIDE-136,108,'$INFO[Container.FolderName]','p_h2',WHITE,'left','<visible>!Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>')
+ plain_title=label(SIDE+136,36,WIDTH-2*SIDE-136,108,'$INFO[Container.FolderName]','p_h2',WHITE,'left','<visible>!Container.IsUpdating + !Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>')
  body=('<controls>'+backdrop()+show_header('50')+chips+
   # Seasons page: episodes of the season chip in focus. Episodes page: the folder's own list.
   episodes%(60,1176+DL_SHIFT,WIDTH,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>')+
@@ -789,7 +796,7 @@ def portrait_files(skin,profile):
  """Every file of the portrait folder, derived from the current 1080i folder and widget lists."""
  skin=Path(skin);source=skin/'1080i';files={}
  for path in sorted(source.glob('*.xml')):
-  if path.name in HANDMADE or path.name in SKIP_WRAP:continue
+  if path.name in HANDMADE or path.name in SKIP_WRAP or path.name in VIDEO_ONLY:continue
   raw=path.read_bytes()
   # Shrunk from the landscape seek bar as this refresh leaves it, so the next start finds nothing to change.
   if path.name=='DialogSeekBar.xml':raw=player_osd.hide_seekbar(raw.decode('utf-8')).encode()
@@ -818,6 +825,10 @@ def portrait_files(skin,profile):
 
 def write(skin,files):
  changed=[]
+ # Portrait copies of playback windows from earlier builds would be picked over the landscape ones.
+ for name in sorted(VIDEO_ONLY|SKIP_WRAP):
+  stale=Path(skin)/FOLDER/name
+  if stale.is_file():stale.unlink();changed.append(FOLDER+'/'+name)
  for rel,data in files.items():
   dest=Path(skin)/rel
   if dest.exists() and dest.read_bytes()==data:continue
@@ -853,18 +864,11 @@ def is_portrait(info):
  except ValueError:return None
 
 def watch(info,invoke,wait,current_skin,fuse='skin.arctic.fuse.3',interval=0.5,settle=2,tick=None,busy=None):
- """Reload the skin after the screen settles in a new orientation, so Kodi loads the matching folder: menus are
- portrait only, so this is playback turning the picture to landscape (the video controls use 1080i) and back."""
- last=is_portrait(info);pending=0
+ """Run the per-session ticks. Turning the phone no longer reloads the skin (that rebuilt Home and every row at
+ each video start and stop): playback windows only exist in 1080i, menus are portrait, and Kodi r8 reloads a
+ dialog opened in the other orientation from the matching folder."""
  while not wait(interval):
   if tick:tick()
-  if busy and busy():pending=0;continue
-  now=is_portrait(info)
-  if now is None or now==last:pending=0;continue
-  pending+=1
-  if pending<settle:continue
-  last=now;pending=0
-  if current_skin()==fuse:invoke('ReloadSkin()')
 
 def focused_item_publisher(info,visible,set_property):
  """Home and the hubs are not media windows, so Kodi's long-press menu cannot see their focused item:

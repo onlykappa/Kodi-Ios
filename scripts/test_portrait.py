@@ -188,33 +188,22 @@ class ServiceTests(unittest.TestCase):
   self.assertEqual(calls,[('update',600,1200),('update',600,1200),('stopped',)])
 
 class WatchTests(unittest.TestCase):
- def run_watch(self,sizes,skin='skin.arctic.fuse.3'):
-  sizes=iter(sizes);current={};calls=[]
-  def info(label):
-   if label=='System.ScreenHeight':current['wh']=next(sizes,None)
-   wh=current['wh']
-   if wh is None:raise StopIteration
-   return str(wh[0] if label=='System.ScreenWidth' else wh[1])
-  try:portrait.watch(info,calls.append,lambda t:False,lambda:skin,settle=2)
-  except StopIteration:pass
-  return calls
- def test_reload_once_after_rotation_settles(self):
-  L,P=(2622,1206),(1206,2622)
-  self.assertEqual(self.run_watch([L,L,P,P,P,P]),['ReloadSkin()'])
- def test_brief_flip_is_ignored(self):
-  L,P=(2622,1206),(1206,2622)
-  self.assertEqual(self.run_watch([L,P,L,L]),[])
- def test_other_skin_never_reloaded(self):
-  L,P=(2622,1206),(1206,2622)
-  self.assertEqual(self.run_watch([L,P,P,P],skin='skin.estuary'),[])
- def test_no_reload_while_video_plays(self):
-  # Playback turns the picture to landscape; the skin must not reload under the video.
-  L,P=(2622,1206),(1206,2622);sizes={'wh':P};calls=[];ticks=iter(range(8))
+ def test_turning_the_phone_never_reloads_the_skin(self):
+  # Every turn used to reload the skin, rebuilding Home and all its rows at each video start and stop.
+  L,P=(2622,1206),(1206,2622);seq=iter([P,L,L,L,P,P,P,L,L]);calls=[];ticks=[]
+  sizes={'wh':P}
   def info(label):return str(sizes['wh'][0] if label=='System.ScreenWidth' else sizes['wh'][1])
   def wait(t):
-   sizes['wh']=L;return next(ticks,None) is None
-  portrait.watch(info,calls.append,wait,lambda:'skin.arctic.fuse.3',busy=lambda:True)
-  self.assertEqual(calls,[])
+   nxt=next(seq,None)
+   if nxt is None:return True
+   sizes['wh']=nxt;return False
+  portrait.watch(info,calls.append,wait,lambda:'skin.arctic.fuse.3',tick=lambda:ticks.append(1))
+  self.assertEqual(calls,[]);self.assertEqual(len(ticks),9)
+ def test_playback_windows_have_no_portrait_copy(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   skin=Path(tmp);(skin/'portrait').mkdir();(skin/'portrait/DialogSeekBar.xml').write_text('<window />')
+   changed=portrait.write(skin,{})
+   self.assertEqual(changed,['portrait/DialogSeekBar.xml']);self.assertFalse((skin/'portrait/DialogSeekBar.xml').exists())
 
 class IpaTests(unittest.TestCase):
  def test_info_plist_launches_portrait_and_keeps_landscape_for_video(self):

@@ -228,8 +228,34 @@ index b0940ef..234be70 100644
    else if (event.m_id == ACTION_GESTURE_BEGIN)
    { // grab exclusive access
      CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, GetID(), GetParentID());
+diff --git a/xbmc/guilib/GUIFontManager.cpp b/xbmc/guilib/GUIFontManager.cpp
+index f5c0732..2d7257c 100644
+--- a/xbmc/guilib/GUIFontManager.cpp
++++ b/xbmc/guilib/GUIFontManager.cpp
+@@ -264,6 +264,21 @@ bool GUIFontManager::OnMessage(CGUIMessage& message)
+   { // we need to reload our fonts
+     if (m_canReload)
+     {
++      // Kodi-iOS r8: the phone turns between portrait and landscape without reloading the skin, and the windows
++      // on screen then come from the other layout folder. Scale the fonts from that folder's resolution too
++      // (fonts kept on the portrait one came out stretched and small over landscape video).
++      if (g_SkinInfo && !m_vecFontInfo.empty())
++      {
++        RESOLUTION_INFO folderRes;
++        g_SkinInfo->GetSkinPath("Font.xml", &folderRes);
++        if (folderRes.strMode != m_skinResolution.strMode)
++        {
++          CLog::Log(LOGINFO, "Fonts follow the {} layout", folderRes.strMode);
++          m_skinResolution = folderRes;
++          for (auto& info : m_vecFontInfo)
++            info.sourceRes = folderRes;
++        }
++      }
+       ReloadTTFFonts();
+       // no need to send a resize message, as this message will do the rounds
+       return true;
 diff --git a/xbmc/guilib/GUIWindow.cpp b/xbmc/guilib/GUIWindow.cpp
-index ebb133d..f26ed20 100644
+index ebb133d..d9b8c47 100644
 --- a/xbmc/guilib/GUIWindow.cpp
 +++ b/xbmc/guilib/GUIWindow.cpp
 @@ -499,9 +499,20 @@ EVENT_RESULT CGUIWindow::OnMouseAction(const CAction &action)
@@ -255,6 +281,34 @@ index ebb133d..f26ed20 100644
    if (m_exclusiveMouseControl)
    {
      CGUIControl *child = GetControl(m_exclusiveMouseControl);
+@@ -591,7 +602,26 @@ bool CGUIWindow::OnMessage(CGUIMessage& message)
+   case GUI_MSG_WINDOW_INIT:
+     {
+       CLog::Log(LOGDEBUG, "------ Window Init ({}) ------", GetProperty("xmlfile").asString());
+-      if (m_dynamicResourceAlloc || !m_bAllocated) AllocResources(false);
++      // Kodi-iOS r8: the phone turns between portrait (menus) and landscape (video), and Kodi picks a window's
++      // layout folder when it loads the window. A dialog loaded for the other orientation (a select list first
++      // opened from a menu, then from the player) is loaded again from the folder for this one, instead of the
++      // whole skin being reloaded at every turn.
++      bool otherOrientation = false;
++      if (IsDialog() && m_windowLoaded && g_SkinInfo)
++      {
++        const std::string xmlFile = GetProperty("xmlfile").asString();
++        if (!xmlFile.empty() && xmlFile.find('/') == std::string::npos &&
++            xmlFile.find('\\') == std::string::npos)
++        {
++          RESOLUTION_INFO wanted;
++          g_SkinInfo->GetSkinPath(xmlFile, &wanted);
++          otherOrientation = wanted.strMode != m_coordsRes.strMode;
++          if (otherOrientation)
++            CLog::Log(LOGINFO, "Reloading {} for the {} layout", xmlFile, wanted.strMode);
++        }
++      }
++      if (otherOrientation || m_dynamicResourceAlloc || !m_bAllocated)
++        AllocResources(otherOrientation);
+       OnInitWindow();
+       return true;
+     }
 diff --git a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm b/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
 index 0d88d1d..9c268d8 100644
 --- a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm

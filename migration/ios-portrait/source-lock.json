@@ -9,6 +9,6 @@
     "asset": "Kodi-portrait-executable.zip",
     "sha256": "36f2b6f8089d05ee22133f5a006f92f9fbe018751ef1f24eec7eb0ab0c92f7ec"
   },
-  "build_tag": "kodi-ios-portrait-r7",
+  "build_tag": "kodi-ios-portrait-r8",
   "build_note": "The macOS workflow publishes a new executable under build_tag; the IPA keeps executable_release until that build is verified and pinned there."
 }
