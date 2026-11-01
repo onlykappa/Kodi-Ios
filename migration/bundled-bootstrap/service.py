@@ -65,9 +65,10 @@ def run():
    if xbmc.getCondVisibility('System.HasAddon(plugin.video.umbrella)'):
     # Umbrella's sources open on the Deck's "Choose a version" page (again after each Umbrella update).
     import umbrella_picker
-    window=Path(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.umbrella').getAddonInfo('path')))/'resources/lib/windows/source_results.py'
-    if umbrella_picker.umbrella_hook(str(window)):xbmc.log('Kodi iOS setup added the Deck source page to Umbrella',xbmc.LOGINFO)
-    elif window.is_file() and umbrella_picker.HOOK_MARK not in window.read_text(encoding='utf-8',errors='replace'):
+    # (Not "window": that name is the Home window, used again when setup finishes.)
+    source_window=Path(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.umbrella').getAddonInfo('path')))/'resources/lib/windows/source_results.py'
+    if umbrella_picker.umbrella_hook(str(source_window)):xbmc.log('Kodi iOS setup added the Deck source page to Umbrella',xbmc.LOGINFO)
+    elif source_window.is_file() and umbrella_picker.HOOK_MARK not in source_window.read_text(encoding='utf-8',errors='replace'):
      xbmc.log('Kodi iOS setup: this Umbrella version has a different source window; its own list stays',xbmc.LOGWARNING)
    if xbmc.getCondVisibility('System.HasAddon(plugin.video.umbrella)') and xbmc.getCondVisibility('System.HasAddon(script.module.cocoscrapers)'):
     umbrella=xbmcaddon.Addon('plugin.video.umbrella')

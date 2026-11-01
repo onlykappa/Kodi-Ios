@@ -97,6 +97,14 @@ class PlayOnTV(unittest.TestCase):
   self.assertEqual(settings['torrents_path'],'/somewhere/else/')
   self.assertEqual(bootstrap.follow_container(home,lambda k:settings.get(k,''),settings.__setitem__),[])
   self.assertEqual(bootstrap.follow_container('/home/user/.kodi',lambda k:settings.get(k,''),settings.__setitem__),[])
+ def test_setup_service_keeps_its_home_window(self):
+  # Build 86/87: the Umbrella hook reused "window" for a file path, so setup crashed at window.clearProperty and
+  # the portrait refresh (video controls, source page) never ran.
+  import ast
+  tree=ast.parse((ROOT/'migration/bundled-bootstrap/service.py').read_text())
+  run=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='run')
+  assigned=[t.id for n in ast.walk(run) if isinstance(n,(ast.Assign,ast.AnnAssign)) for t in (n.targets if isinstance(n,ast.Assign) else [n.target]) for t in ast.walk(t) if isinstance(t,ast.Name)]
+  self.assertEqual(assigned.count('window'),1)
  def test_download_ids_from_tmdb_helper_items(self):
   dl=load('elementum_download')
   self.assertEqual(dl.ids('movie','plugin://plugin.video.themoviedb.helper/?info=details&tmdb_id=155&tmdb_type=movie',{}),('155',None,None))
