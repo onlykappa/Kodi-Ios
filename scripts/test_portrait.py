@@ -209,7 +209,9 @@ class IpaTests(unittest.TestCase):
    self.assertEqual(info['UIInterfaceOrientation'],'UIInterfaceOrientationPortrait')
  def test_native_patch_targets_pinned_files(self):
   patch=(ROOT/'migration/ios-portrait/kodi-21.3-portrait.patch').read_text()
-  for name in ['XBMCController.mm','WinSystemIOS.h','IOSEAGLView.mm','GUIControlGroupList.cpp','Info.plist.in']:self.assertIn(name,patch)
+  for name in ['XBMCController.mm','WinSystemIOS.h','IOSEAGLView.mm','GUIControlGroupList.cpp','Info.plist.in','GUIWindow.cpp']:self.assertIn(name,patch)
+  # Touch scrolling: flick speed in pixels like the positions (momentum), pan distance in skin units like the point.
+  self.assertIn('velocity.x *= screenScale;',patch);self.assertIn('if (action.GetID() == ACTION_GESTURE_PAN)',patch)
   # Menus portrait only; landscape only while video plays (and turned to on play, back on stop).
   self.assertIn('return UIInterfaceOrientationMaskPortrait;',patch);self.assertIn('s_videoLandscape)\n+    return UIInterfaceOrientationMaskLandscape;',patch)
   # Video turns landscape once its stream is open (OnAVStart), back on stop, retried by a timer until it takes.

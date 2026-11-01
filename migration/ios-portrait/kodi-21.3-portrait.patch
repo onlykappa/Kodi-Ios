@@ -160,6 +160,33 @@ index b0940ef..0a435ee 100644
          { // we're on screen
            float offsetX = m_orientation == VERTICAL ? m_posX : m_posX + alignOffset + pos - m_scroller.GetValue();
            float offsetY = m_orientation == VERTICAL ? m_posY + alignOffset + pos - m_scroller.GetValue() : m_posY;
+diff --git a/xbmc/guilib/GUIWindow.cpp b/xbmc/guilib/GUIWindow.cpp
+index ebb133d..f26ed20 100644
+--- a/xbmc/guilib/GUIWindow.cpp
++++ b/xbmc/guilib/GUIWindow.cpp
+@@ -499,9 +499,20 @@ EVENT_RESULT CGUIWindow::OnMouseAction(const CAction &action)
+   CPoint mousePoint(action.GetAmount(0), action.GetAmount(1));
+   CServiceBroker::GetWinSystem()->GetGfxContext().InvertFinalCoords(mousePoint.x, mousePoint.y);
+ 
++  // Kodi-iOS: a touch pan's distance arrives in screen pixels like its position; convert it the same way, or
++  // lists move further than the finger (25% on an iPhone in portrait, where the skin is smaller than the screen).
++  float offsetX = action.GetAmount(2);
++  float offsetY = action.GetAmount(3);
++  if (action.GetID() == ACTION_GESTURE_PAN)
++  {
++    CPoint moved(action.GetAmount(0) + offsetX, action.GetAmount(1) + offsetY);
++    CServiceBroker::GetWinSystem()->GetGfxContext().InvertFinalCoords(moved.x, moved.y);
++    offsetX = moved.x - mousePoint.x;
++    offsetY = moved.y - mousePoint.y;
++  }
++
+   // create the mouse event
+-  MOUSE::CMouseEvent event(action.GetID(), action.GetHoldTime(), action.GetAmount(2),
+-                           action.GetAmount(3));
++  MOUSE::CMouseEvent event(action.GetID(), action.GetHoldTime(), offsetX, offsetY);
+   if (m_exclusiveMouseControl)
+   {
+     CGUIControl *child = GetControl(m_exclusiveMouseControl);
 diff --git a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm b/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
 index 0d88d1d..9c268d8 100644
 --- a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
@@ -254,7 +281,7 @@ index b2a06d0..2c26284 100644
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..cb5289b 100644
+index a450151..80c5d74 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
 @@ -36,6 +36,8 @@
@@ -388,7 +415,19 @@ index a450151..cb5289b 100644
  //--------------------------------------------------------------
  - (UIInterfaceOrientation) getOrientation
  {
-@@ -589,7 +694,7 @@ public:
+@@ -429,6 +534,11 @@ public:
+   if( m_glView && [m_glView isXBMCAlive] )//NO GESTURES BEFORE WE ARE UP AND RUNNING
+   {
+     CGPoint velocity = [sender velocityInView:m_glView];
++    // Kodi-iOS: positions below are in pixels (points x screenScale), and Kodi's inertial scrolling compares the
++    // speed with pixel thresholds; the speed came in points per second, a third of the real flick on a 3x phone,
++    // so most flicks stopped dead when the finger lifted. Same units as the positions.
++    velocity.x *= screenScale;
++    velocity.y *= screenScale;
+ 
+     if( [sender state] == UIGestureRecognizerStateBegan && sender.numberOfTouches )
+     {
+@@ -589,7 +699,7 @@ public:
                   name: nil
                 object: nil];
  
@@ -397,7 +436,7 @@ index a450151..cb5289b 100644
  
    [m_window makeKeyAndVisible];
    g_xbmcController = self;
-@@ -712,6 +817,14 @@ public:
+@@ -712,6 +822,14 @@ public:
  {
    m_debugLogSharingPresenter = std::make_unique<DebugLogSharingPresenter>();
    [self setGUIInsetsFromMainThread:NO];
