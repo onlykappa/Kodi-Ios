@@ -430,8 +430,20 @@ index 0d88d1d..9c268d8 100644
    // handle data which only has a database id and not the metadata inside
    if (msg == "OnPlay" || msg == "OnResume")
    {
+diff --git a/xbmc/platform/darwin/ios/IOSEAGLView.h b/xbmc/platform/darwin/ios/IOSEAGLView.h
+index 5a27416..43dfd46 100644
+--- a/xbmc/platform/darwin/ios/IOSEAGLView.h
++++ b/xbmc/platform/darwin/ios/IOSEAGLView.h
+@@ -53,5 +53,7 @@
+ - (void) setFramebuffer;
+ - (bool) presentFramebuffer;
+ - (void) setScreen:(UIScreen *)screen withFrameBufferResize:(BOOL)resize;
++// Kodi-iOS r15: rebuild the framebuffer for the view's current size on the calling thread (Kodi's render thread).
++- (void) recreateFramebuffer;
+ - (CGFloat) getScreenScale:(UIScreen *)screen;
+ @end
 diff --git a/xbmc/platform/darwin/ios/IOSEAGLView.mm b/xbmc/platform/darwin/ios/IOSEAGLView.mm
-index 56ecaa5..1ba8da8 100644
+index 56ecaa5..20a7014 100644
 --- a/xbmc/platform/darwin/ios/IOSEAGLView.mm
 +++ b/xbmc/platform/darwin/ios/IOSEAGLView.mm
 @@ -60,7 +60,9 @@
@@ -445,7 +457,25 @@ index 56ecaa5..1ba8da8 100644
    CAEAGLLayer *eaglLayer = (CAEAGLLayer *)[self layer];
    //allow a maximum framebuffer size of 1080p
    //needed for tvout on iPad3/4 and iphone4/5 and maybe AppleTV3
-@@ -244,15 +246,10 @@
+@@ -77,6 +79,17 @@
+   }
+ }
+ 
++// Kodi-iOS r15: the portrait build rebuilds the framebuffer after every rotation. Doing it in layoutSubviews
++// (UIKit's main thread) made the main thread take Kodi's EAGL context while Kodi's render thread was drawing
++// with it, and the GL driver crashed in the next draw (owner's crash reports: glDrawArrays from
++// CLinuxRendererGLES::DrawBlackBars). The rotation code now calls this on Kodi's render thread instead.
++- (void)recreateFramebuffer
++{
++  [self deleteFramebuffer];
++  [self createFramebuffer];
++  [self setFramebuffer];
++}
++
+ - (void)layoutSubviews
+ {
+   if(framebufferResizeRequested)
+@@ -244,15 +257,10 @@
  
      glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebuffer);
  
@@ -501,7 +531,7 @@ index b2a06d0..0c74089 100644
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..e500a43 100644
+index a450151..943d795 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
 @@ -36,6 +36,8 @@
@@ -567,7 +597,7 @@ index a450151..e500a43 100644
  @implementation XBMCController
  @synthesize animating;
  @synthesize lastGesturePoint;
-@@ -203,10 +245,156 @@ public:
+@@ -203,10 +245,165 @@ public:
  }
  // END OF UIKeyInput protocol
  
@@ -631,7 +661,7 @@ index a450151..e500a43 100644
 +  }
 +  else
 +    mismatches = 0;
-+}
+ }
 +
 +- (void)applyVideoOrientation
 +{
@@ -668,13 +698,21 @@ index a450151..e500a43 100644
 +  }
 +}
 +
++- (void)recreateFramebufferOnKodiThread
++{
++  // Kodi-iOS r15: Kodi's application thread, which is also its render thread (see ApplyRotatedScreen).
++  [m_glView recreateFramebuffer];
++}
++
 +static void ApplyRotatedScreen(void*)
 +{
-+  // Runs on Kodi's application thread: re-read the screen size, rebuild the desktop
-+  // resolution and switch to it, which re-lays out every window (GUI_MSG_WINDOW_RESIZE).
++  // Runs on Kodi's application thread (the one that renders): rebuild the framebuffer for the GL view's new size
++  // (r15: here, never on UIKit's main thread), re-read the screen size, rebuild the desktop resolution and switch
++  // to it, which re-lays out every window (GUI_MSG_WINDOW_RESIZE).
 +  auto winSystem = dynamic_cast<CWinSystemIOS*>(CServiceBroker::GetWinSystem());
 +  if (!winSystem)
 +    return;
++  [g_xbmcController recreateFramebufferOnKodiThread];
 +  winSystem->ResetInternalScreenSize();
 +  winSystem->UpdateResolutions();
 +  [g_xbmcController setGUIInsetsFromMainThread:NO];
@@ -691,7 +729,7 @@ index a450151..e500a43 100644
 +                               completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
 +                                 [self applyRotatedScreen];
 +                               }];
- }
++}
 +
 +- (void)viewDidLayoutSubviews
 +{
@@ -714,7 +752,8 @@ index a450151..e500a43 100644
 +  if (!CGRectEqualToRect(self.view.frame, m_window.bounds))
 +    [self.view setFrame:m_window.bounds];
 +  [m_glView setFrame:self.view.bounds];
-+  [m_glView setScreen:m_glView.currentScreen withFrameBufferResize:YES];
++  // r15: only the content scale here; the framebuffer is rebuilt on Kodi's render thread (ApplyRotatedScreen).
++  [m_glView setScreen:m_glView.currentScreen withFrameBufferResize:NO];
 +  if (CServiceBroker::GetAppMessenger())
 +  {
 +    static KODI::MESSAGING::ThreadMessageCallback callback = {ApplyRotatedScreen, nullptr};
@@ -725,7 +764,7 @@ index a450151..e500a43 100644
  //--------------------------------------------------------------
  - (UIInterfaceOrientation) getOrientation
  {
-@@ -429,6 +617,11 @@ public:
+@@ -429,6 +626,11 @@ public:
    if( m_glView && [m_glView isXBMCAlive] )//NO GESTURES BEFORE WE ARE UP AND RUNNING
    {
      CGPoint velocity = [sender velocityInView:m_glView];
@@ -737,7 +776,7 @@ index a450151..e500a43 100644
  
      if( [sender state] == UIGestureRecognizerStateBegan && sender.numberOfTouches )
      {
-@@ -530,7 +723,32 @@ public:
+@@ -530,7 +732,32 @@ public:
      CGPoint point = [sender locationOfTouch:0 inView:m_glView];
      point.x *= screenScale;
      point.y *= screenScale;
@@ -771,7 +810,7 @@ index a450151..e500a43 100644
      CGenericTouchActionHandler::GetInstance().OnTap((float)point.x, (float)point.y, [sender numberOfTouches]);
    }
  }
-@@ -575,7 +793,7 @@ public:
+@@ -575,7 +802,7 @@ public:
    m_isPlayingBeforeInactive = NO;
    m_bgTask = UIBackgroundTaskInvalid;
  
@@ -780,7 +819,7 @@ index a450151..e500a43 100644
    [m_window setRootViewController:self];
    m_window.screen = screen;
    /* Turn off autoresizing */
-@@ -589,7 +807,7 @@ public:
+@@ -589,7 +816,7 @@ public:
                   name: nil
                 object: nil];
  
@@ -789,7 +828,7 @@ index a450151..e500a43 100644
  
    [m_window makeKeyAndVisible];
    g_xbmcController = self;
-@@ -600,7 +818,8 @@ public:
+@@ -600,7 +827,8 @@ public:
  //--------------------------------------------------------------
  - (void)loadView
  {
@@ -799,7 +838,7 @@ index a450151..e500a43 100644
    self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
    self.view.autoresizesSubviews = YES;
  
-@@ -712,6 +931,15 @@ public:
+@@ -712,6 +940,15 @@ public:
  {
    m_debugLogSharingPresenter = std::make_unique<DebugLogSharingPresenter>();
    [self setGUIInsetsFromMainThread:NO];
