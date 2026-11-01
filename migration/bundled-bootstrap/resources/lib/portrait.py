@@ -651,8 +651,8 @@ def is_portrait(info):
  except ValueError:return None
 
 def watch(info,invoke,wait,current_skin,fuse='skin.arctic.fuse.3',interval=0.5,settle=2,tick=None,busy=None):
- """Reload the skin after the phone settles in a new orientation, so Kodi loads the matching folder.
- Not while video plays: playback turns the picture to landscape and the menus come back in portrait after it."""
+ """Reload the skin after the screen settles in a new orientation, so Kodi loads the matching folder: menus are
+ portrait only, so this is playback turning the picture to landscape (the video controls use 1080i) and back."""
  last=is_portrait(info);pending=0
  while not wait(interval):
   if tick:tick()
@@ -740,7 +740,6 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
     while not monitor.waitForAbort(0.05):poll()
    threading.Thread(target=taps,daemon=True).start()
  except Exception as error:xbmc.log('Kodi iOS glass tab bar unavailable: '+type(error).__name__,xbmc.LOGWARNING)
- watch(xbmc.getInfoLabel,invoke,monitor.waitForAbort,xbmc.getSkinDir,fuse,tick=lambda:[t() for t in ticks],
-       busy=lambda:xbmc.getCondVisibility('Player.HasVideo'))
+ watch(xbmc.getInfoLabel,invoke,monitor.waitForAbort,xbmc.getSkinDir,fuse,tick=lambda:[t() for t in ticks])
  if close:close()
 

@@ -165,19 +165,21 @@ class WatchTests(unittest.TestCase):
   self.assertEqual(calls,[])
 
 class IpaTests(unittest.TestCase):
- def test_info_plist_is_portrait_only(self):
+ def test_info_plist_launches_portrait_and_keeps_landscape_for_video(self):
   with tempfile.TemporaryDirectory() as tmp:
    app=Path(tmp);(app/'Info.plist').write_bytes(plistlib.dumps({'CFBundleExecutable':'Kodi','UISupportedInterfaceOrientations':['UIInterfaceOrientationLandscapeLeft','UIInterfaceOrientationLandscapeRight']}))
    ios_portrait.allow_portrait(app);ios_portrait.allow_portrait(app)
    info=plistlib.loads((app/'Info.plist').read_bytes())
-   self.assertEqual(info['UISupportedInterfaceOrientations'],['UIInterfaceOrientationPortrait'])
+   self.assertEqual(info['UISupportedInterfaceOrientations'],
+    ['UIInterfaceOrientationPortrait','UIInterfaceOrientationLandscapeLeft','UIInterfaceOrientationLandscapeRight'])
    self.assertEqual(info['UIInterfaceOrientation'],'UIInterfaceOrientationPortrait')
  def test_native_patch_targets_pinned_files(self):
   patch=(ROOT/'migration/ios-portrait/kodi-21.3-portrait.patch').read_text()
   for name in ['XBMCController.mm','WinSystemIOS.h','IOSEAGLView.mm','GUIControlGroupList.cpp','Info.plist.in']:self.assertIn(name,patch)
-  # Portrait only: no landscape mask added anywhere, and the plist's landscape entries are removed.
-  self.assertNotIn('+  return UIInterfaceOrientationMaskLandscape',patch);self.assertNotIn('updateVideoOrientationLock',patch)
-  self.assertIn('-\t\t<string>UIInterfaceOrientationLandscapeLeft</string>',patch)
+  # Menus portrait only; landscape only while video plays (and turned to on play, back on stop).
+  self.assertIn('return UIInterfaceOrientationMaskPortrait;',patch);self.assertIn('PlayingVideo())\n+    return UIInterfaceOrientationMaskLandscape;',patch)
+  self.assertEqual(patch.count('[g_xbmcController updateVideoOrientationLock];'),2)
+  self.assertIn('+\t<string>UIInterfaceOrientationPortrait</string>',patch)
   self.assertIn('return UIInterfaceOrientationMaskPortrait;',patch);self.assertIn('ResetInternalScreenSize',patch)
   # Upstream drew a taller-than-wide framebuffer as a sideways landscape viewport.
   self.assertIn('-    if(framebufferHeight > framebufferWidth) {',patch)

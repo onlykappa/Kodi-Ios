@@ -1,6 +1,6 @@
 """r11 portrait mode, applied to the staged Kodi.app by build_customized_ipa.py.
 
-- Info.plist: portrait only (no landscape, no upside down).
+- Info.plist: launch in portrait; landscape stays listed for fullscreen video only (no upside down).
 - Fuse: add the generated `portrait` skin folder (migration/bundled-bootstrap/resources/lib/portrait.py).
 - Optionally swap in the Kodi executable built by .github/workflows/kodi-ios-portrait.yml from the same 21.3 tag
   with migration/ios-portrait/kodi-21.3-portrait.patch; without it the app keeps the official, landscape-only one.
@@ -17,9 +17,11 @@ PORTRAIT='UIInterfaceOrientationPortrait'
 def sha(data):return hashlib.sha256(data).hexdigest()
 
 def allow_portrait(app):
- """The iPhone app is portrait only (the owner never uses landscape): menus and video alike."""
+ """Launch upright: the menus are portrait only. Landscape stays listed only so fullscreen video can turn;
+ the patched controller allows it only while video plays (no upside down)."""
  path=Path(app)/'Info.plist';info=plistlib.loads(path.read_bytes())
- info['UISupportedInterfaceOrientations']=[PORTRAIT];info['UIInterfaceOrientation']=PORTRAIT
+ info['UISupportedInterfaceOrientations']=[PORTRAIT,'UIInterfaceOrientationLandscapeLeft','UIInterfaceOrientationLandscapeRight']
+ info['UIInterfaceOrientation']=PORTRAIT
  path.write_bytes(plistlib.dumps(info,fmt=plistlib.FMT_BINARY))
  return info['UISupportedInterfaceOrientations']
 

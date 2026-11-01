@@ -160,6 +160,30 @@ index b0940ef..0a435ee 100644
          { // we're on screen
            float offsetX = m_orientation == VERTICAL ? m_posX : m_posX + alignOffset + pos - m_scroller.GetValue();
            float offsetY = m_orientation == VERTICAL ? m_posY + alignOffset + pos - m_scroller.GetValue() : m_posY;
+diff --git a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm b/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
+index 0d88d1d..6f281f6 100644
+--- a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
++++ b/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
+@@ -201,6 +201,9 @@ void AnnounceBridge(ANNOUNCEMENT::AnnouncementFlag flag,
+ 
+     dispatch_async(dispatch_get_main_queue(), ^{
+       [g_xbmcController.MPNPInfoManager onPlay:item];
++#if defined(TARGET_DARWIN_IOS)
++      [g_xbmcController updateVideoOrientationLock];
++#endif
+     });
+   }
+   else if (msg == "OnSpeedChanged" || msg == "OnPause")
+@@ -224,6 +227,9 @@ void AnnounceBridge(ANNOUNCEMENT::AnnouncementFlag flag,
+   {
+     dispatch_async(dispatch_get_main_queue(), ^{
+       [g_xbmcController.MPNPInfoManager onStop:dict[@"item"]];
++#if defined(TARGET_DARWIN_IOS)
++      [g_xbmcController updateVideoOrientationLock];
++#endif
+     });
+   }
+ }
 diff --git a/xbmc/platform/darwin/ios/IOSEAGLView.mm b/xbmc/platform/darwin/ios/IOSEAGLView.mm
 index 56ecaa5..63284b5 100644
 --- a/xbmc/platform/darwin/ios/IOSEAGLView.mm
@@ -185,7 +209,7 @@ index 56ecaa5..63284b5 100644
  }
  //--------------------------------------------------------------
 diff --git a/xbmc/platform/darwin/ios/Info.plist.in b/xbmc/platform/darwin/ios/Info.plist.in
-index e29411a..700096c 100644
+index e29411a..cf76d61 100644
 --- a/xbmc/platform/darwin/ios/Info.plist.in
 +++ b/xbmc/platform/darwin/ios/Info.plist.in
 @@ -114,7 +114,7 @@
@@ -197,18 +221,28 @@ index e29411a..700096c 100644
  	<key>UILaunchStoryboardName</key>
  	<string>LaunchScreen</string>
  	<key>UIPrerenderedIcon</key>
-@@ -133,8 +133,7 @@
+@@ -133,6 +133,7 @@
  	<true/>
  	<key>UISupportedInterfaceOrientations</key>
  	<array>
--		<string>UIInterfaceOrientationLandscapeLeft</string>
--		<string>UIInterfaceOrientationLandscapeRight</string>
 +		<string>UIInterfaceOrientationPortrait</string>
+ 		<string>UIInterfaceOrientationLandscapeLeft</string>
+ 		<string>UIInterfaceOrientationLandscapeRight</string>
  	</array>
- 	<key>UISupportedInterfaceOrientations~ipad</key>
- 	<array>
+diff --git a/xbmc/platform/darwin/ios/XBMCController.h b/xbmc/platform/darwin/ios/XBMCController.h
+index b2a06d0..843018a 100644
+--- a/xbmc/platform/darwin/ios/XBMCController.h
++++ b/xbmc/platform/darwin/ios/XBMCController.h
+@@ -61,6 +61,7 @@
+ - (CGRect)fullscreenSubviewFrame;
+ - (void)onXbmcAlive;
+ - (void)setGUIInsetsFromMainThread:(BOOL)isMainThread;
++- (void)updateVideoOrientationLock;
+ - (void) setFramebuffer;
+ - (bool) presentFramebuffer;
+ - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..f6494f5 100644
+index a450151..4179f13 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
 @@ -36,6 +36,8 @@
@@ -220,20 +254,26 @@ index a450151..f6494f5 100644
  #import "windowing/ios/WinSystemIOS.h"
  
  #import "platform/darwin/NSLogDebugHelpers.h"
-@@ -203,10 +205,65 @@ public:
+@@ -203,9 +205,89 @@ public:
  }
  // END OF UIKeyInput protocol
  
-+// Kodi-iOS r11: the phone is portrait only, menus and video alike (the skin ships a portrait layout).
++// Kodi-iOS r11: the GUI follows the phone into portrait (the skin ships a portrait layout);
++// fullscreen video stays landscape.
++static bool PlayingVideo()
++{
++  const auto appPlayer = CServiceBroker::GetAppComponents().GetComponent<CApplicationPlayer>();
++  return appPlayer && appPlayer->IsPlayingVideo();
++}
++
  - (UIInterfaceOrientationMask)supportedInterfaceOrientations
  {
 -  return UIInterfaceOrientationMaskLandscape;
++  // The menus are portrait only (the skin's portrait layout); fullscreen video and an external screen are
++  // landscape. Info.plist lists landscape too, or iOS could never turn the picture for playback.
++  if ([[IOSScreenManager sharedInstance] isExternalScreen] || PlayingVideo())
++    return UIInterfaceOrientationMaskLandscape;
 +  return UIInterfaceOrientationMaskPortrait;
- }
-+
-+- (UIInterfaceOrientation)preferredInterfaceOrientationForPresentation
-+{
-+  return UIInterfaceOrientationPortrait;
 +}
 +
 +static void ApplyRotatedScreen(void*)
@@ -264,9 +304,9 @@ index a450151..f6494f5 100644
 +- (void)viewDidLayoutSubviews
 +{
 +  [super viewDidLayoutSubviews];
-+  // Kodi-iOS r11: the GL view is created at launch with the frame Kodi starts with and does not autoresize.
-+  // When iOS lays the app out in portrait, follow the view's real size so Kodi's framebuffer and
-+  // resolution match the screen.
++  // Kodi-iOS r11: the GL view is created at launch with the landscape frame Kodi starts with and does not
++  // autoresize. When iOS lays the app out in portrait (launched upright, or any size change that is not a
++  // rotation transition), follow the view's real size so Kodi's framebuffer and resolution match the screen.
 +  if (m_glView && !CGSizeEqualToSize(m_glView.frame.size, self.view.bounds.size))
 +    [self applyRotatedScreen];
 +}
@@ -284,10 +324,28 @@ index a450151..f6494f5 100644
 +  }
 +}
 +
++- (void)updateVideoOrientationLock
++{
++  // Called on the main thread when playback starts or stops.
++  if (@available(iOS 16.0, *))
++  {
++    [self setNeedsUpdateOfSupportedInterfaceOrientations];
++    if (m_window.windowScene)
++    {
++      // Playback turns the phone's picture to landscape; stopping brings the portrait menus back.
++      auto prefs = [[UIWindowSceneGeometryPreferencesIOS alloc]
++          initWithInterfaceOrientations:PlayingVideo() ? UIInterfaceOrientationMaskLandscape
++                                                       : UIInterfaceOrientationMaskPortrait];
++      [m_window.windowScene requestGeometryUpdateWithPreferences:prefs
++                                                    errorHandler:nil];
++    }
++  }
++  else
++    [UIViewController attemptRotationToDeviceOrientation];
+ }
  //--------------------------------------------------------------
  - (UIInterfaceOrientation) getOrientation
- {
-@@ -589,7 +646,7 @@ public:
+@@ -589,7 +671,7 @@ public:
                   name: nil
                 object: nil];
  
