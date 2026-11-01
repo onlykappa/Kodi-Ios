@@ -177,8 +177,9 @@ class IpaTests(unittest.TestCase):
   patch=(ROOT/'migration/ios-portrait/kodi-21.3-portrait.patch').read_text()
   for name in ['XBMCController.mm','WinSystemIOS.h','IOSEAGLView.mm','GUIControlGroupList.cpp','Info.plist.in']:self.assertIn(name,patch)
   # Menus portrait only; landscape only while video plays (and turned to on play, back on stop).
-  self.assertIn('return UIInterfaceOrientationMaskPortrait;',patch);self.assertIn('PlayingVideo())\n+    return UIInterfaceOrientationMaskLandscape;',patch)
-  self.assertEqual(patch.count('[g_xbmcController updateVideoOrientationLock];'),2)
+  self.assertIn('return UIInterfaceOrientationMaskPortrait;',patch);self.assertIn('s_videoLandscape)\n+    return UIInterfaceOrientationMaskLandscape;',patch)
+  # Video turns landscape once its stream is open (OnAVStart), back on stop, retried by a timer until it takes.
+  for text in ['msg == "OnAVStart"','setVideoLandscape:NO','scheduledTimerWithTimeInterval:0.5','requestGeometryUpdateWithPreferences']:self.assertIn(text,patch)
   self.assertIn('+\t<string>UIInterfaceOrientationPortrait</string>',patch)
   self.assertIn('return UIInterfaceOrientationMaskPortrait;',patch);self.assertIn('ResetInternalScreenSize',patch)
   # Upstream drew a taller-than-wide framebuffer as a sideways landscape viewport.

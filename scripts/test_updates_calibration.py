@@ -70,6 +70,23 @@ class PlayOnTV(unittest.TestCase):
   cast=load('cast');url=cast.launch_url('192.168.1.20','https://cdn.example/v/My Show.mkv?x=1&y=2','You')
   self.assertTrue(url.startswith('http://192.168.1.20:8060/input/15985?t=v&u=https%3A%2F%2Fcdn.example%2Fv%2FMy%20Show.mkv%3Fx%3D1%26y%3D2'))
   self.assertIn('videoName=You',url);self.assertIn('videoFormat=mkv',url);self.assertIn('k=%28null%29',url)
+ def test_roku_tries_both_ways_in_and_explains_a_refusal(self):
+  import urllib.error
+  cast=load('cast');sent=[]
+  def refuse(code):
+   def post(url):sent.append(url.split('/')[3]);raise urllib.error.HTTPError(url,code,'no',{},None)
+   return post
+  with self.assertRaises(cast.TVRefused) as ctx:cast.roku_play('192.168.1.20','https://cdn.example/a.mp4','A',refuse(403))
+  self.assertEqual(sent,['input','launch']);self.assertIn('Permissive',str(ctx.exception))
+  with self.assertRaises(cast.TVRefused) as ctx:cast.roku_play('192.168.1.20','https://cdn.example/a.mp4','A',refuse(404))
+  self.assertIn('AirPlay',str(ctx.exception))
+  def flaky(url):
+   if '/input/' in url:raise urllib.error.HTTPError(url,404,'no',{},None)
+   return 200
+  self.assertEqual(cast.roku_play('192.168.1.20','https://cdn.example/a.mp4','A',flaky),'launch')
+  def down(url):raise TimeoutError()
+  with self.assertRaises(cast.TVRefused) as ctx:cast.roku_play('192.168.1.20','https://cdn.example/a.mp4','A',down)
+  self.assertIn('did not answer',str(ctx.exception))
  def test_finds_rokus_on_the_phones_network(self):
   cast=load('cast')
   def get(url,timeout):

@@ -161,29 +161,40 @@ index b0940ef..0a435ee 100644
            float offsetX = m_orientation == VERTICAL ? m_posX : m_posX + alignOffset + pos - m_scroller.GetValue();
            float offsetY = m_orientation == VERTICAL ? m_posY + alignOffset + pos - m_scroller.GetValue() : m_posY;
 diff --git a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm b/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
-index 0d88d1d..6f281f6 100644
+index 0d88d1d..9c268d8 100644
 --- a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
 +++ b/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
-@@ -201,6 +201,9 @@ void AnnounceBridge(ANNOUNCEMENT::AnnouncementFlag flag,
+@@ -13,6 +13,8 @@
+ #include "ServiceBroker.h"
+ #include "TextureCache.h"
+ #include "application/Application.h"
++#include "application/ApplicationComponents.h"
++#include "application/ApplicationPlayer.h"
+ #include "filesystem/SpecialProtocol.h"
+ #include "music/MusicDatabase.h"
+ #include "music/tags/MusicInfoTag.h"
+@@ -89,6 +91,21 @@ void AnnounceBridge(ANNOUNCEMENT::AnnouncementFlag flag,
+   CVariant nonConstData = data;
+   const std::string& msg(message);
  
-     dispatch_async(dispatch_get_main_queue(), ^{
-       [g_xbmcController.MPNPInfoManager onPlay:item];
 +#if defined(TARGET_DARWIN_IOS)
-+      [g_xbmcController updateVideoOrientationLock];
++  // Kodi-iOS r11: fullscreen video is landscape, the menus portrait. The video stream is often not open yet
++  // at OnPlay (web streams), so OnAVStart decides; OnStop returns to portrait.
++  if (msg == "OnAVStart" || msg == "OnPlay" || msg == "OnResume")
++  {
++    const auto appPlayer = CServiceBroker::GetAppComponents().GetComponent<CApplicationPlayer>();
++    if (appPlayer && appPlayer->IsPlayingVideo())
++      [g_xbmcController setVideoLandscape:YES];
++    else if (msg == "OnAVStart")
++      [g_xbmcController setVideoLandscape:NO];
++  }
++  else if (msg == "OnStop")
++    [g_xbmcController setVideoLandscape:NO];
 +#endif
-     });
-   }
-   else if (msg == "OnSpeedChanged" || msg == "OnPause")
-@@ -224,6 +227,9 @@ void AnnounceBridge(ANNOUNCEMENT::AnnouncementFlag flag,
++
+   // handle data which only has a database id and not the metadata inside
+   if (msg == "OnPlay" || msg == "OnResume")
    {
-     dispatch_async(dispatch_get_main_queue(), ^{
-       [g_xbmcController.MPNPInfoManager onStop:dict[@"item"]];
-+#if defined(TARGET_DARWIN_IOS)
-+      [g_xbmcController updateVideoOrientationLock];
-+#endif
-     });
-   }
- }
 diff --git a/xbmc/platform/darwin/ios/IOSEAGLView.mm b/xbmc/platform/darwin/ios/IOSEAGLView.mm
 index 56ecaa5..63284b5 100644
 --- a/xbmc/platform/darwin/ios/IOSEAGLView.mm
@@ -230,19 +241,20 @@ index e29411a..cf76d61 100644
  		<string>UIInterfaceOrientationLandscapeRight</string>
  	</array>
 diff --git a/xbmc/platform/darwin/ios/XBMCController.h b/xbmc/platform/darwin/ios/XBMCController.h
-index b2a06d0..843018a 100644
+index b2a06d0..2c26284 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.h
 +++ b/xbmc/platform/darwin/ios/XBMCController.h
-@@ -61,6 +61,7 @@
+@@ -61,6 +61,8 @@
  - (CGRect)fullscreenSubviewFrame;
  - (void)onXbmcAlive;
  - (void)setGUIInsetsFromMainThread:(BOOL)isMainThread;
-+- (void)updateVideoOrientationLock;
++- (void)setVideoLandscape:(BOOL)landscape;
++- (void)applyVideoOrientation;
  - (void) setFramebuffer;
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..4179f13 100644
+index a450151..cb5289b 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
 @@ -36,6 +36,8 @@
@@ -254,26 +266,75 @@ index a450151..4179f13 100644
  #import "windowing/ios/WinSystemIOS.h"
  
  #import "platform/darwin/NSLogDebugHelpers.h"
-@@ -203,9 +205,89 @@ public:
+@@ -48,6 +50,7 @@
+ #include "TextureCache.h"
+ #undef id
+ 
++#include <atomic>
+ #include <math.h>
+ #include <signal.h>
+ 
+@@ -203,10 +206,112 @@ public:
  }
  // END OF UIKeyInput protocol
  
-+// Kodi-iOS r11: the GUI follows the phone into portrait (the skin ships a portrait layout);
-+// fullscreen video stays landscape.
-+static bool PlayingVideo()
-+{
-+  const auto appPlayer = CServiceBroker::GetAppComponents().GetComponent<CApplicationPlayer>();
-+  return appPlayer && appPlayer->IsPlayingVideo();
-+}
++// Kodi-iOS r11: the menus are portrait only (the skin ships a portrait layout); fullscreen video turns the
++// picture to landscape. The announcement thread sets s_videoLandscape when a video stream starts or stops, and
++// the main thread turns the screen to match, retrying every half second until it does.
++static std::atomic<bool> s_videoLandscape{false};
 +
  - (UIInterfaceOrientationMask)supportedInterfaceOrientations
  {
 -  return UIInterfaceOrientationMaskLandscape;
-+  // The menus are portrait only (the skin's portrait layout); fullscreen video and an external screen are
-+  // landscape. Info.plist lists landscape too, or iOS could never turn the picture for playback.
-+  if ([[IOSScreenManager sharedInstance] isExternalScreen] || PlayingVideo())
++  // Info.plist lists landscape too, or iOS could never turn the picture for playback.
++  if ([[IOSScreenManager sharedInstance] isExternalScreen] || s_videoLandscape)
 +    return UIInterfaceOrientationMaskLandscape;
 +  return UIInterfaceOrientationMaskPortrait;
+ }
++
++- (void)setVideoLandscape:(BOOL)landscape
++{
++  // Any thread.
++  if (s_videoLandscape.exchange(landscape) != static_cast<bool>(landscape))
++    CLog::Log(LOGINFO, "Video orientation: {}", landscape ? "landscape" : "portrait");
++  dispatch_async(dispatch_get_main_queue(), ^{
++    [self applyVideoOrientation];
++  });
++}
++
++- (void)applyVideoOrientation
++{
++  // Main thread: ask iOS for the orientation the player needs while the screen does not have it yet.
++  static int failures = 0;
++  const bool want = s_videoLandscape;
++  UIWindowScene* scene = m_window.windowScene;
++  if (!scene || [[IOSScreenManager sharedInstance] isExternalScreen])
++    return;
++  if (static_cast<bool>(UIInterfaceOrientationIsLandscape(scene.interfaceOrientation)) == want)
++  {
++    failures = 0;
++    return;
++  }
++  if (@available(iOS 16.0, *))
++  {
++    [self setNeedsUpdateOfSupportedInterfaceOrientations];
++    auto prefs = [[UIWindowSceneGeometryPreferencesIOS alloc]
++        initWithInterfaceOrientations:want ? UIInterfaceOrientationMaskLandscape
++                                           : UIInterfaceOrientationMaskPortrait];
++    [scene requestGeometryUpdateWithPreferences:prefs
++                                   errorHandler:^(NSError* error) {
++                                     if (failures++ < 3)
++                                       CLog::Log(LOGWARNING, "Video orientation request refused: {}",
++                                                 error.localizedDescription.UTF8String);
++                                   }];
++  }
++  else
++  {
++    [[UIDevice currentDevice]
++        setValue:@(want ? UIInterfaceOrientationLandscapeRight : UIInterfaceOrientationPortrait)
++          forKey:@"orientation"];
++    [UIViewController attemptRotationToDeviceOrientation];
++  }
 +}
 +
 +static void ApplyRotatedScreen(void*)
@@ -324,28 +385,10 @@ index a450151..4179f13 100644
 +  }
 +}
 +
-+- (void)updateVideoOrientationLock
-+{
-+  // Called on the main thread when playback starts or stops.
-+  if (@available(iOS 16.0, *))
-+  {
-+    [self setNeedsUpdateOfSupportedInterfaceOrientations];
-+    if (m_window.windowScene)
-+    {
-+      // Playback turns the phone's picture to landscape; stopping brings the portrait menus back.
-+      auto prefs = [[UIWindowSceneGeometryPreferencesIOS alloc]
-+          initWithInterfaceOrientations:PlayingVideo() ? UIInterfaceOrientationMaskLandscape
-+                                                       : UIInterfaceOrientationMaskPortrait];
-+      [m_window.windowScene requestGeometryUpdateWithPreferences:prefs
-+                                                    errorHandler:nil];
-+    }
-+  }
-+  else
-+    [UIViewController attemptRotationToDeviceOrientation];
- }
  //--------------------------------------------------------------
  - (UIInterfaceOrientation) getOrientation
-@@ -589,7 +671,7 @@ public:
+ {
+@@ -589,7 +694,7 @@ public:
                   name: nil
                 object: nil];
  
@@ -354,6 +397,21 @@ index a450151..4179f13 100644
  
    [m_window makeKeyAndVisible];
    g_xbmcController = self;
+@@ -712,6 +817,14 @@ public:
+ {
+   m_debugLogSharingPresenter = std::make_unique<DebugLogSharingPresenter>();
+   [self setGUIInsetsFromMainThread:NO];
++  // Kodi-iOS r11: keep the screen's orientation following playback (a rotation can be refused mid-animation).
++  dispatch_async(dispatch_get_main_queue(), ^{
++    [NSTimer scheduledTimerWithTimeInterval:0.5
++                                    repeats:YES
++                                      block:^(NSTimer* timer) {
++                                        [self applyVideoOrientation];
++                                      }];
++  });
+ }
+ //--------------------------------------------------------------
+ - (void)setGUIInsetsFromMainThread:(BOOL)isMainThread
 diff --git a/xbmc/windowing/ios/WinSystemIOS.h b/xbmc/windowing/ios/WinSystemIOS.h
 index bf8a8ae..d927130 100644
 --- a/xbmc/windowing/ios/WinSystemIOS.h

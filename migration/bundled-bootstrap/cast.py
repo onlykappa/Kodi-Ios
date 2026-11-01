@@ -30,14 +30,17 @@ def run():
  if pick<0:return
  tv=tvs[pick];addon.setSettingString('last_tv',keys[pick])
  try:
-  if tv['kind']=='roku':cast.http_post(cast.launch_url(tv['host'],url,title))
+  if tv['kind']=='roku':xbmc.log('Kodi iOS Play on TV: Roku took the link via '+cast.roku_play(tv['host'],url,title,cast.http_post),xbmc.LOGINFO)
   elif tv['kind']=='dlna':cast.dlna_play(tv['control'],url,title,cast.http_post_body)
   elif tv['kind']=='chromecast':cast.chromecast_play(tv['host'],url,title)
   else:
    player.stop();xbmc.sleep(500)
    airplay.load(library).kodi_airplay_play(url.encode('utf-8'),(title or '').encode('utf-8'));return
+ except cast.TVRefused as error:
+  xbmc.log('Kodi iOS Play on TV refused (%s): %s'%(tv['kind'],error),xbmc.LOGWARNING)
+  dialog.ok('Play on TV',tv['name']+': '+str(error));return
  except Exception as error:
-  xbmc.log('Kodi iOS Play on TV failed (%s): %s'%(tv['kind'],type(error).__name__),xbmc.LOGWARNING)
+  xbmc.log('Kodi iOS Play on TV failed (%s): %s: %s'%(tv['kind'],type(error).__name__,error),xbmc.LOGWARNING)
   dialog.ok('Play on TV',tv['name']+' did not accept the video. Make sure the TV is on, then try again.');return
  player.stop()
  if needs_phone:dialog.ok('Play on TV','Playing on '+tv['name']+'. This stream comes from Elementum on the phone: keep Kodi open and on Wi-Fi.')

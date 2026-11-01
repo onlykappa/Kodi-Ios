@@ -3,7 +3,7 @@ smart TVs (AVTransport), and Chromecast / Google TV (Cast protocol, Default Medi
 link itself, so the phone can sleep or switch apps. A link served by the phone (Elementum's local engine) is
 rewritten to the phone's Wi-Fi address and only plays while Kodi keeps running. AirPlay goes through Apple's
 player in KodiAirPlay.framework (see airplay.py)."""
-import concurrent.futures,json,re,socket,ssl,struct,time,urllib.parse,urllib.request
+import concurrent.futures,json,re,socket,ssl,struct,time,urllib.error,urllib.parse,urllib.request
 from xml.sax.saxutils import escape
 PORT=8060
 LOCAL={'127.0.0.1','localhost','::1','0.0.0.0'}
@@ -19,12 +19,36 @@ def stream_url(playing,phone_ip):
   return urllib.parse.urlunsplit(parts._replace(netloc=netloc)),True
  return url,False
 
-def launch_url(roku,url,title=''):
- # Roku's built-in "Play on Roku" receiver (channel 15985) takes a direct media link.
+def launch_url(roku,url,title='',command='input'):
+ # Roku's built-in "Play on Roku" receiver (channel 15985) takes a direct media link: `input` hands it to the
+ # receiver, `launch` starts the receiver with it (some Roku OS versions only accept one of the two).
  ext=re.search(r'\.([a-z0-9]{2,4})$',urllib.parse.urlsplit(url).path.lower())
  query={'t':'v','u':url,'k':'(null)','videoName':title or 'Kodi'}
  if ext:query['videoFormat']=ext.group(1)
- return 'http://%s:%d/input/15985?%s'%(roku,PORT,urllib.parse.urlencode(query,quote_via=urllib.parse.quote))
+ return 'http://%s:%d/%s/15985?%s'%(roku,PORT,command,urllib.parse.urlencode(query,quote_via=urllib.parse.quote))
+
+class TVRefused(Exception):
+ """The TV answered but would not play; str() is what to tell the owner."""
+
+def roku_reason(errors):
+ codes=[e for e in errors if isinstance(e,int)]
+ if 403 in codes:
+  return ('The Roku refused the request (403). On the Roku: Settings › System › Advanced system settings › '
+          'Control by mobile apps › Network access: Permissive, then try again.')
+ if codes and all(c==404 for c in codes):
+  return ('This Roku has no "Play on Roku" receiver (404). If the TV has AirPlay (Settings › Apple AirPlay and '
+          'HomeKit), choose "Apple TV / AirPlay TV" instead.')
+ if not codes:return 'The Roku did not answer (%s). Make sure it is on and on this Wi-Fi.'%', '.join(sorted(set(map(str,errors))))
+ return 'The Roku answered %s.'%', '.join(map(str,errors))
+
+def roku_play(host,url,title,post):
+ """Hand the link to the Roku, trying both ways in. Returns the one it took; raises TVRefused with the reason."""
+ errors=[]
+ for command in ('input','launch'):
+  try:post(launch_url(host,url,title,command));return command
+  except urllib.error.HTTPError as error:errors.append(error.code)
+  except OSError as error:errors.append(type(error).__name__)
+ raise TVRefused(roku_reason(errors))
 
 def phone_address():
  """The phone's Wi-Fi address (no packet is sent: connecting a UDP socket only picks a route)."""
