@@ -553,7 +553,11 @@ def context_menu(original):
  icons=''.join(icon(42,cap+i*row_h+(row_h-58)//2,58,'$VAR[Portrait_Ctx_Icon_%d]'%i,WHITE,'<visible>Control.IsVisible(%d) + !%s</visible>'%(1001+i,scrolls)) for i in range(CTX_ROWS))
  # No art (e.g. a menu button) or a long menu: the menu moves up to where the card would be.
  menu=('<control type="group"><left>%d</left><top>%d</top>'%(x,menu_top)+
-  '<animation effect="slide" end="0,%d" time="0" condition="[%s] | %s">Conditional</animation>'%(-(card_h+30),no_art,long_menu)+
+  '<animation effect="slide" end="%d,%d" time="0" condition="[%s] | %s">Conditional</animation>'%((WIDTH-menu_w)//2-x,-(card_h+30),no_art,long_menu)+
+  # Without the card (e.g. Resume / Play from beginning) the menu sits in the middle of the screen, as an iOS
+  # alert does: one step per possible row count, since Kodi cannot measure the list.
+  ''.join('<animation effect="slide" end="0,%d" time="0" condition="[[%s] | %s] + Control.IsVisible(%d) + !Control.IsVisible(%d)">Conditional</animation>'
+          %((HEIGHT-(n*row_h+2*cap))//2-top,no_art,long_menu,1000+n,1001+n) for n in range(1,fit_screen+1) if (HEIGHT-(n*row_h+2*cap))//2>top)+
   '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>'+
   '<control type="grouplist" id="996"><width>%d</width><height>%d</height><orientation>vertical</orientation><itemgap>0</itemgap>%s%s%s</control>'
   %(menu_w,HEIGHT-top-60,caps('cap_top.png'),template,caps('cap_bottom.png'))+icons+'</control>')
