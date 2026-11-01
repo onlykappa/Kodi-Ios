@@ -2,7 +2,7 @@
 
 Status: IN PROGRESS — owner device testing of iPhone builds
 Current phase: Phase 4 — portrait UI (r11), Elementum, Drive, Play on TV, video controls, notification center; owner tests each IPA on an iPhone 16 Pro
-Last updated UTC: 2026-11-01T21:17Z
+Last updated UTC: 2026-11-01T21:45Z
 Latest installable IPA: build-104 (commit 2a31ebd, Kodi executable r8 + bell ingest), https://github.com/onlykappa/Kodi-Ios/releases/tag/build-104 . Builds 102/103 failed (wrong pin hash); build-101 must not be used. build-101 (f42dc07) must NOT be used: its Python relies on r8 but it carries r7.
 Branches: feature/ios-migration (PR #1, all work), claude/ios-migration-continue-3jjuif (this session, same commits), hold/ios-next (older mirror at f42dc07), feature/settings-notifications (draft PR #3: plan only).
 
@@ -29,8 +29,8 @@ This session (2026-11-01, 20:40–21:10Z):
 
 Open / next (exact next step first):
 1. DONE 21:12Z: build-104 published and sent to the owner. r9 executable compiled and published (Kodi ca8d9fa8…04df) — proves the GUIDialogKaiToast change builds; r9 is not pinned.
-2. Watch the executable runs: r9 (from 0005312) publishes first and is NOT to be pinned (it showed pop-ups on a first start); r10 (queued behind it, concurrency waits) is the one to pin. If either fails to compile, read the log and fix GUIDialogKaiToast.cpp in the patch. When r10 publishes, pin kodi-ios-portrait-r10 with the Kodi binary hash from the release body and send the next IPA.
-3. Owner retests build-102 (see list above) and later the r10 build (pop-ups appear in the bell, none on screen); evidence by screen recording or kodi.old.log via the log uploader.
+2. DONE 21:45Z: r10 published (run on 2a31ebd, Kodi afc2da82…26db from the release body) and pinned; build_tag now r11 (nothing pending). Next: confirm the IPA run on this commit publishes and send the owner the link — the bell-only build.
+3. Owner retests build-104 (see list above) and the r10 build (pop-ups appear in the bell, none on screen); evidence by screen recording or kodi.old.log via the log uploader.
 4. Settings pages rework (planned in draft PR #3, not coded). Roku: this TV has no Play on Roku receiver; AirPlay path only plays MP4/HLS.
 
 Blockers: device verification needs the owner. Phase 5, merge and release are not authorized.
