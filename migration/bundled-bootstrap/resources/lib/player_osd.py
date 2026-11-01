@@ -68,7 +68,7 @@ def window():
  time left at the bottom; Info and Continue Watching as text below. No button shapes, no volume."""
  left=90;right=2340-90;top=110
  head=(tap(7101,left+60,top,150,'chevron-left.png','PlayerControl(Stop)','<onright>7102</onright><ondown>7112</ondown>',104)+
-  ''.join(tap(id,right-60-i*180,top,150,icon,action,nav,96) for i,(id,icon,action,nav) in enumerate([
+  ''.join(tap(id,right-60-i*180,top,150,icon,action,nav,74 if icon.endswith('airplay.png') else 96) for i,(id,icon,action,nav) in enumerate([
    (7102,MEDIA+'airplay.png',CAST,'<onleft>7121</onleft><ondown>7112</ondown>'),
    (7123,'closed-captioning.png','ActivateWindow(osdsubtitlesettings)','<onleft>7122</onleft><onright>7102</onright><ondown>7112</ondown>'),
    (7122,'file-waveform.png','ActivateWindow(osdaudiosettings)','<onleft>7121</onleft><onright>7123</onright><ondown>7112</ondown>'),
