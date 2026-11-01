@@ -27,10 +27,17 @@ def swap_executable(app,executable,expected_sha256=None):
  app=Path(app);name=plistlib.loads((app/'Info.plist').read_bytes())['CFBundleExecutable'];target=app/name
  new=Path(executable).read_bytes();old=target.read_bytes()
  if expected_sha256:assert sha(new)==expected_sha256,'Portrait Kodi executable hash mismatch'
- # Same tag, same bundle: the rebuilt executable must load exactly the libraries the official one does.
- assert sorted(macho(new)['dylib_loads'])==sorted(macho(old)['dylib_loads']),'Portrait executable links different libraries'
+ # Same tag, same bundle. A different Xcode may link a slightly different set of system libraries, so require
+ # what can actually fail at launch: every load is an iOS system library or a framework this app ships.
+ names=lambda data:{d['name'] for d in macho(data)['dylib_loads']}
+ loads,official=names(new),names(old)
+ for lib in sorted(loads-official):
+  if lib.startswith(('/System/Library/','/usr/lib/')):continue
+  shipped=next((app/'Frameworks'/lib[len(p):] for p in ('@rpath/','@executable_path/Frameworks/') if lib.startswith(p)),None)
+  assert shipped and shipped.is_file(),'Portrait executable needs %s, which the app lacks'%lib
  target.write_bytes(new)
- return {'path':name,'official_sha256':sha(old),'portrait_sha256':sha(new)}
+ return {'path':name,'official_sha256':sha(old),'portrait_sha256':sha(new),
+         'dylibs_added':sorted(loads-official),'dylibs_dropped':sorted(official-loads)}
 
 GLASSBAR=ROOT/'migration/glassbar-ios/source-lock.json'
 EXECUTABLE=ROOT/'migration/ios-portrait/source-lock.json'

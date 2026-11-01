@@ -163,4 +163,24 @@ class IpaTests(unittest.TestCase):
   self.assertIn('UIInterfaceOrientationMaskAllButUpsideDown',patch);self.assertIn('ResetInternalScreenSize',patch)
   lock=json.loads((ROOT/'migration/ios-portrait/source-lock.json').read_text())
   self.assertEqual(lock['commit'],'a3a448d26b8d560a65655dab2cd122994dc4e146')
+ def test_swap_executable_checks_libraries(self):
+  loads={b'official':['/usr/lib/libz.1.dylib','@rpath/KodiAirPlay.framework/KodiAirPlay'],
+         b'system':['/usr/lib/libz.1.dylib','/System/Library/Frameworks/Metal.framework/Metal'],
+         b'shipped':['@rpath/KodiGlassBar.framework/KodiGlassBar','@executable_path/Frameworks/libshairplay.0.dylib'],b'missing':['@rpath/Nope.framework/Nope']}
+  real=ios_portrait.macho
+  ios_portrait.macho=lambda data:{'dylib_loads':[{'name':n,'weak':False} for n in loads[data]]}
+  try:
+   for build,ok in [(b'system',True),(b'shipped',True),(b'missing',False)]:
+    with tempfile.TemporaryDirectory() as tmp:
+     app=Path(tmp)/'Kodi.app';(app/'Frameworks/KodiGlassBar.framework').mkdir(parents=True)
+     (app/'Frameworks/KodiGlassBar.framework/KodiGlassBar').write_bytes(b'x');(app/'Frameworks/libshairplay.0.dylib').write_bytes(b'x')
+     (app/'Info.plist').write_bytes(plistlib.dumps({'CFBundleExecutable':'Kodi'}));(app/'Kodi').write_bytes(b'official')
+     exe=Path(tmp)/'new';exe.write_bytes(build)
+     if ok:
+      info=ios_portrait.swap_executable(app,exe);self.assertEqual((app/'Kodi').read_bytes(),build)
+      self.assertIn('/usr/lib/libz.1.dylib' if build==b'shipped' else '@rpath/KodiAirPlay.framework/KodiAirPlay',info['dylibs_dropped'])
+     else:
+      with self.assertRaises(AssertionError):ios_portrait.swap_executable(app,exe)
+      self.assertEqual((app/'Kodi').read_bytes(),b'official')
+  finally:ios_portrait.macho=real
 if __name__=='__main__':unittest.main()
