@@ -2,8 +2,8 @@
 
 Status: IN PROGRESS — owner device testing of iPhone builds
 Current phase: Phase 4 — portrait UI (r11), Elementum, Drive, Play on TV, video controls, notification center; owner tests each IPA on an iPhone 16 Pro
-Last updated UTC: 2026-11-01T21:10Z
-Latest installable IPA: the next import-review build after the pin fix (Kodi executable r8 + bell ingest); builds 102/103 failed (wrong pin hash). build-101 (f42dc07) must NOT be used: its Python relies on r8 but it carries r7.
+Last updated UTC: 2026-11-01T21:17Z
+Latest installable IPA: build-104 (commit 2a31ebd, Kodi executable r8 + bell ingest), https://github.com/onlykappa/Kodi-Ios/releases/tag/build-104 . Builds 102/103 failed (wrong pin hash); build-101 must not be used. build-101 (f42dc07) must NOT be used: its Python relies on r8 but it carries r7.
 Branches: feature/ios-migration (PR #1, all work), claude/ios-migration-continue-3jjuif (this session, same commits), hold/ios-next (older mirror at f42dc07), feature/settings-notifications (draft PR #3: plan only).
 
 ## Where things stand (2026-11-01, evening)
@@ -28,7 +28,7 @@ This session (2026-11-01, 20:40–21:10Z):
 - Owner request (screenshots of cut-off pop-ups): all notifications in the bell under General; owner chose bell only. Implemented ISSUE-063 (Python + r9 patch). Host tests: 27 scripts pass (test_drive_runtime needs the CI source cache, not run here).
 
 Open / next (exact next step first):
-1. Confirm the import-review run on the pin-fix commit succeeded and send the owner the IPA link.
+1. DONE 21:12Z: build-104 published and sent to the owner. r9 executable compiled and published (Kodi ca8d9fa8…04df) — proves the GUIDialogKaiToast change builds; r9 is not pinned.
 2. Watch the executable runs: r9 (from 0005312) publishes first and is NOT to be pinned (it showed pop-ups on a first start); r10 (queued behind it, concurrency waits) is the one to pin. If either fails to compile, read the log and fix GUIDialogKaiToast.cpp in the patch. When r10 publishes, pin kodi-ios-portrait-r10 with the Kodi binary hash from the release body and send the next IPA.
 3. Owner retests build-102 (see list above) and later the r10 build (pop-ups appear in the bell, none on screen); evidence by screen recording or kodi.old.log via the log uploader.
 4. Settings pages rework (planned in draft PR #3, not coded). Roku: this TV has no Play on Roku receiver; AirPlay path only plays MP4/HLS.
