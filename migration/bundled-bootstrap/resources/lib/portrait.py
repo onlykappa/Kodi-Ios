@@ -341,7 +341,7 @@ VARIABLES=('<variable name="Portrait_Hero_Art"><value condition="!String.IsEmpty
            '<value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value><value>$INFO[ListItem.Art(thumb)]</value></variable>')
 
 # --- show page (seasons as chips, episodes below), episode lists and plain folders ------------------------
-PLAY_W=600
+DL_GAP=20;DL_H=108;DL_SHIFT=DL_GAP+DL_H   # the Download button under Play pushes the seasons page down by this
 DOWNLOAD_SEASON=('RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/download.py,kind=season,'
  'path=$ESCINFO[Container(50).ListItem.FolderPath],season=$INFO[Container(50).ListItem.Season],'
  'tvshow.tmdb_id=$INFO[Container(50).ListItem.Property(tvshow.tmdb_id)])')
@@ -356,12 +356,13 @@ def show_header(ids_down):
   '<control type="image"><left>140</left><top>430</top><width>800</width><height>230</height><aspectratio aligny="bottom">keep</aspectratio><texture>%s</texture></control>'%logo+
   label(SIDE,430,WIDTH-2*SIDE,230,'$VAR[Portrait_Show_Title]','p_title',WHITE,'center','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(tvshow.clearlogo))</visible>')+
   label(SIDE,672,WIDTH-2*SIDE,52,'[COLOR %s]$INFO[ListItem.Rating,★ ]  [/COLOR]$INFO[ListItem.Year]$INFO[ListItem.Genre,  ·  ]'%GREEN,'p_foot',GREY,'center')+
-  pill_button(9002,SIDE,744,PLAY_W,124,'Play  $INFO[Container(50).ListItem.Label]',[('','%s'%play)],'primary',MEDIA+'play.png',
-              '<visible>Container.Content(seasons)</visible><onup>9001</onup><ondown>50</ondown><onright>9003</onright>',glyph_x=PLAY_W//2-200)+
-  # Download the season in focus (Elementum; a season pack, every episode).
-  pill_button(9003,SIDE+PLAY_W+24,744,WIDTH-2*SIDE-PLAY_W-24,124,'  Download',[('',DOWNLOAD_SEASON)],'glass',ICONS+'download.png',
-              '<visible>Container.Content(seasons) + System.HasAddon(plugin.video.elementum)</visible><onup>9001</onup><ondown>50</ondown><onleft>9002</onleft>',glyph_x=24)+
-  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label><autoscroll>false</autoscroll></control>'%(SIDE,886,WIDTH-2*SIDE,GREY)+
+  pill_button(9002,SIDE,744,WIDTH-2*SIDE,124,'Play  $INFO[Container(50).ListItem.Label]',[('','%s'%play)],'primary',MEDIA+'play.png',
+              '<visible>Container.Content(seasons)</visible><onup>9001</onup><ondown>9003</ondown>',glyph_x=(WIDTH-2*SIDE)//2-200)+
+  # Under Play: download the season in focus (Elementum), the whole season or chosen episodes.
+  pill_button(9003,SIDE,744+124+DL_GAP,WIDTH-2*SIDE,DL_H,'Download  $INFO[Container(50).ListItem.Label]',[('',DOWNLOAD_SEASON)],'glass',ICONS+'download.png',
+              '<visible>Container.Content(seasons) + System.HasAddon(plugin.video.elementum)</visible><onup>9002</onup><ondown>50</ondown>',glyph_x=(WIDTH-2*SIDE)//2-300)+
+  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label><autoscroll>false</autoscroll><visible>!Container.Content(seasons)</visible></control>'%(SIDE,886,WIDTH-2*SIDE,GREY)+
+  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label><autoscroll>false</autoscroll><visible>Container.Content(seasons)</visible></control>'%(SIDE,886+DL_SHIFT,WIDTH-2*SIDE,GREY)+
   '</control>')
 
 def episode_item(focused):
@@ -377,9 +378,9 @@ def episode_item(focused):
 def video_nav(original):
  chip=lambda on:(surface(0,8,250,96,'pill_96.png' if on else 'glass_96.png',WHITE,48)+
   label(0,8,250,96,'$INFO[ListItem.Label]','p_foot_b','FF000000' if on else WHITE,'center'))
- chips=('<control type="list" id="50"><left>%d</left><top>1036</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
-  '<ondown>60</ondown><onup>9002</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'
-  '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout></control>')%(SIDE,WIDTH-SIDE,chip(False),chip(True))
+ chips=('<control type="list" id="50"><left>%d</left><top>%d</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
+  '<ondown>60</ondown><onup>9003</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'
+  '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout></control>')%(SIDE,1036+DL_SHIFT,WIDTH-SIDE,chip(False),chip(True))
  episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
   '<onup>%s</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
   '<itemlayout height="420">%s</itemlayout><focusedlayout height="420">%s</focusedlayout>%s</control>')
@@ -397,7 +398,7 @@ def video_nav(original):
  plain_title=label(SIDE+136,36,WIDTH-2*SIDE-136,108,'$INFO[Container.FolderName]','p_h2',WHITE,'left','<visible>!Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>')
  body=('<controls>'+backdrop()+show_header('50')+chips+
   # Seasons page: episodes of the season chip in focus. Episodes page: the folder's own list.
-  episodes%(60,1176,WIDTH,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>')+
+  episodes%(60,1176+DL_SHIFT,WIDTH,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>')+
   episodes%(52,1036,WIDTH,'9001','Container.Content(episodes)',episode_item(False),episode_item(True),'')+
   generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+back+plain_title+'</controls>')
  return window(original,body,'50','<views>50,51,52,53</views>')

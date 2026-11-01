@@ -43,3 +43,30 @@ def download_all_when_added(before,wait,get=None,attempts=600):
    get(ENGINE+'/torrents/downloadall/'+tid);return tid
   if wait():return None
  return None
+
+def season_path(tmdb,season):
+ """TMDb Helper's episode list for a season (what the seasons page shows)."""
+ return 'plugin://plugin.video.themoviedb.helper/?info=episodes&tmdb_id=%s&season=%s&tmdb_type=tv'%(tmdb,season)
+
+def episode_choices(files):
+ """[(episode number, label)] from a Files.GetDirectory result, in episode order; folders and specials skipped."""
+ out=[]
+ for f in files or []:
+  number=f.get('episode')
+  if f.get('filetype')=='directory' or not isinstance(number,int) or number<1:continue
+  title=f.get('title') or f.get('label') or ''
+  label=title if title.startswith('%d.'%number) else '%d. %s'%(number,title)
+  out.append((number,label.strip()))
+ return sorted(set(out))
+
+def download_each(episodes,start,wait,get=None,per_episode=300):
+ """Start one episode download at a time: Elementum may ask which source to use, so the next one starts once
+ the previous torrent was added (or after per_episode seconds, if the owner cancelled that one).
+ start(n) begins episode n. Returns the episodes whose torrent appeared."""
+ added=[]
+ for n in episodes:
+  before=torrents(get);start(n)
+  for _ in range(per_episode):
+   if wait():return added
+   if torrents(get)-before:added.append(n);break
+ return added

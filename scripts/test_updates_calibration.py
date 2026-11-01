@@ -106,6 +106,19 @@ class PlayOnTV(unittest.TestCase):
   self.assertEqual(dl.download_all_when_added({'old'},lambda:False,get),'pack')
   self.assertEqual(calls[-1],'http://127.0.0.1:65220/torrents/downloadall/pack')
   self.assertIsNone(dl.download_all_when_added({'old'},lambda:True,lambda u:b'[]'))
+ def test_choose_episodes(self):
+  dl=load('elementum_download')
+  files=[{'filetype':'file','episode':2,'title':'Trust Fall'},{'filetype':'file','episode':1,'title':'Pilot'},
+         {'filetype':'directory','episode':0,'label':'..'},{'filetype':'file','episode':0,'title':'Special'}]
+  self.assertEqual(dl.episode_choices(files),[(1,'1. Pilot'),(2,'2. Trust Fall')])
+  self.assertEqual(dl.season_path('224372','1'),'plugin://plugin.video.themoviedb.helper/?info=episodes&tmdb_id=224372&season=1&tmdb_type=tv')
+  # One at a time: the next starts once the previous torrent shows up; a cancelled one times out.
+  state={'ids':[]};started=[]
+  def start(n):
+   started.append(n)
+   if n!=2:state['ids'].append('t%d'%n)
+  get=lambda url:json.dumps([{'id':i} for i in state['ids']]).encode()
+  self.assertEqual(dl.download_each([1,2,3],start,lambda:False,get,per_episode=3),[1,3]);self.assertEqual(started,[1,2,3])
  def test_retry_restarts_elementum_until_the_engine_answers(self):
   eng=load('elementum_engine');calls=[];answers=iter([False,False,True])
   self.assertTrue(eng.restart(lambda m,p:calls.append(p['enabled']),lambda:False,lambda:next(answers)))
