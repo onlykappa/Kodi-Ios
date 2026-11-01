@@ -680,6 +680,7 @@ def deck_page(original=''):
          '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>%s</window>\n')%(MARKER,body)
 
 NOTICE_SLOTS=4;NOTICE_ROWS=15
+NOTICE_FILTERS=(('all','All'),('general','General'),('downloads','Downloads'),('problems','Problems'))   # buttons 9101-9104, notifications.FILTER_KEYS
 def notices_page():
  """Notification center (owner-approved mockup): live downloads with progress bars, the Google Drive upload,
  then earlier messages. notifications.py fills it through window properties and the progress controls."""
@@ -719,11 +720,11 @@ def notices_page():
    label(SIDE+150,22,w-300,58,P(pre+'title'),'p_foot_b',WHITE,'left','<scroll>false</scroll>')+
    label(SIDE+150,78,w-190,70,P(pre+'text'),'p_cap',GREY,'left','<wrapmultiline>true</wrapmultiline>')+
    label(SIDE+150,22,w-170,58,P(pre+'ago'),'p_cap',DIM,'right')+'</control>')
- filters=''.join('<control type="group"><left>%d</left><top>0</top>'%(i*w//3)+
-   image(4,4,w//3-8,80,MEDIA+'pill_96.png','FF636366','<visible>String.IsEqual(Window().Property(filter),%s)</visible>'%key,border=40)+
+ filters=''.join('<control type="group"><left>%d</left><top>0</top>'%(i*w//len(NOTICE_FILTERS))+
+   image(4,4,w//len(NOTICE_FILTERS)-8,80,MEDIA+'pill_96.png','FF636366','<visible>String.IsEqual(Window().Property(filter),%s)</visible>'%key,border=40)+
    '<control type="button" id="%d"><width>%d</width><height>88</height><label>%s</label><font>p_foot_b</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
-   '<align>center</align><aligny>center</aligny><texturefocus /><texturenofocus /></control></control>'%(9101+i,w//3,text,GREY,WHITE)
-   for i,(key,text) in enumerate([('all','All'),('downloads','Downloads'),('problems','Problems')]))
+   '<align>center</align><aligny>center</aligny><texturefocus /><texturenofocus /></control></control>'%(9101+i,w//len(NOTICE_FILTERS),text,GREY,WHITE)
+   for i,(key,text) in enumerate(NOTICE_FILTERS))
  body=('<controls>'+backdrop()+
   circle_button(9001,SIDE,36,108,'chevron-left.png','Close','<ondown>9101</ondown>')+
   '<control type="button" id="9002"><left>%d</left><top>36</top><width>260</width><height>108</height><label>Clear All</label><font>p_body</font>'

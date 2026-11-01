@@ -5,7 +5,8 @@ sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resou
 import notices
 
 ICON={'download':('download.png','330A84FF'),'drive':('circle-check.png','3330D158'),'problem':('triangle-exclamation.png','33FF453A'),
-      'update':('circle-down.png','330A84FF'),'info':('circle-info.png','33FF9F0A')}
+      'update':('circle-down.png','330A84FF'),'info':('circle-info.png','33FF9F0A'),'general':('bell.png','338E8E93')}
+FILTER_KEYS=('all','general','downloads','problems')   # buttons 9101-9104
 SLOTS,ROWS=4,15
 BACK=(9,10,92,110)   # parent dir, previous menu, nav back, back
 
@@ -81,8 +82,8 @@ def run():
    if control==9001:self.finish()
    elif control==9002:
     notices.clear(profile);self.items=[];self.show_messages()
-   elif control in (9101,9102,9103):
-    self.filter=('all','downloads','problems')[control-9101];self.show_messages();self.refresh()
+   elif 9101<=control<9101+len(FILTER_KEYS):
+    self.filter=FILTER_KEYS[control-9101];self.show_messages();self.refresh()
    elif 9411<=control<=9410+SLOTS or 9421<=control<=9420+SLOTS:
     n=control%10
     if n>len(self.downloads):return

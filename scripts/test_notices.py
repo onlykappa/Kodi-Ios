@@ -40,6 +40,25 @@ class NoticeTests(unittest.TestCase):
   self.assertEqual(notices.uploads(self.profile)[0]['progress'],25.0)
   notices.add(self.profile,'info','x')
   self.assertEqual(notices.badge(self.profile,lambda url:'[]'),('1','true'))
+ def test_ingest_kodi_popups(self):
+  path=notices.toasts(self.profile);path.parent.mkdir(parents=True,exist_ok=True)
+  path.write_text('\n'.join([json.dumps({'time':10,'type':'info','caption':'TMDbHelper','description':'Trakt authorized in 1.665s'}),
+   'not json',json.dumps({'time':20,'type':'error','caption':'Umbrella','description':'Scraper failed'}),
+   json.dumps({'time':30,'type':'default','caption':'','description':''}),
+   json.dumps({'time':40,'type':'default','caption':'','description':'Only text'})])+'\n')
+  self.assertEqual(notices.ingest(self.profile),3);self.assertFalse(path.exists())
+  items=notices.load(self.profile)
+  self.assertEqual([(i['kind'],i['title'],i['text']) for i in items],
+   [('general','Kodi','Only text'),('problem','Umbrella','Scraper failed'),('general','TMDbHelper','Trakt authorized in 1.665s')])
+  self.assertEqual(items[2]['time'],10.0);self.assertEqual(notices.ingest(self.profile),0)
+  props,shown=page.message_properties(items,'general',now=50);self.assertEqual([i['title'] for i in shown],['Kodi','TMDbHelper'])
+  props,shown=page.message_properties(items,'problems',now=50);self.assertEqual([i['title'] for i in shown],['Umbrella'])
+ def test_ingest_resumes_an_interrupted_take(self):
+  path=notices.toasts(self.profile);path.parent.mkdir(parents=True,exist_ok=True)
+  path.with_suffix('.taking').write_text(json.dumps({'time':1,'type':'warning','caption':'A','description':'b'})+'\n')
+  path.write_text(json.dumps({'time':2,'type':'info','caption':'C','description':'d'})+'\n')
+  self.assertEqual(notices.ingest(self.profile),1);self.assertTrue(path.exists())
+  self.assertEqual(notices.ingest(self.profile),1);self.assertEqual([i['title'] for i in notices.load(self.profile)],['C','A'])
  def test_ago(self):
   self.assertEqual([notices.ago(0,n) for n in (5,120,7200,200000)],['now','2m','2h','2d'])
 

@@ -71,7 +71,7 @@ def run(check_only=False):
  if check_only:
   import notices
   notices.note('update',update['name']+' is available','Tap to update','RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/check_updates.py)')
-  xbmcgui.Dialog().notification('Update available',update['name']+' — gear menu › Check for updates',time=8000);return update
+  return update   # the bell shows it (no pop-up: owner choice)
  asset=update['asset'];size=int(asset.get('size') or 0)
  if not xbmcgui.Dialog().yesno('Update available','%s\n%.0f MB. Download it to the Files app now?'%(update['name'],size/1e6)):return None
  folder=updates_folder(xbmcvfs.translatePath('special://home/'));folder.mkdir(parents=True,exist_ok=True)

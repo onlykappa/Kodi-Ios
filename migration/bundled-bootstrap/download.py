@@ -41,7 +41,6 @@ def run():
    dialog.notification('Download','Starting %d episode%s'%(len(episodes),'' if len(episodes)==1 else 's'),xbmcgui.NOTIFICATION_INFO,4000)
    added=dl.download_each(episodes,lambda n:start('episode',n),wait)
    if added:notices.note('download','Downloading season %s'%season,'%d of %d episodes'%(len(added),len(episodes)))
-   if added:dialog.notification('Download','Downloading %d of %d episodes'%(len(added),len(episodes)),xbmcgui.NOTIFICATION_INFO,6000)
    return
  before=dl.torrents()
  start(kind,episode)
@@ -49,6 +48,5 @@ def run():
  # Elementum fetches one file of a season pack: switch the new pack to "download all" once it is added.
  tid=dl.download_all_when_added(before,wait)
  if tid:notices.note('download','Downloading all of season %s'%season)
- if tid:dialog.notification('Download','Downloading all of season %s'%season,xbmcgui.NOTIFICATION_INFO,6000)
 
 if __name__=='__main__':run()

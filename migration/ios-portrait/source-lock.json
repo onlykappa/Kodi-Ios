@@ -5,9 +5,9 @@
   "patch": "kodi-21.3-portrait.patch",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
-    "tag": "kodi-ios-portrait-r7",
+    "tag": "kodi-ios-portrait-r8",
     "asset": "Kodi-portrait-executable.zip",
-    "sha256": "36f2b6f8089d05ee22133f5a006f92f9fbe018751ef1f24eec7eb0ab0c92f7ec"
+    "sha256": "6754e729fed7292c1c6c986a2c56d653c2c208c44e5e181f29e042ec086b8ac3"
   },
   "build_tag": "kodi-ios-portrait-r8",
   "build_note": "The macOS workflow publishes a new executable under build_tag; the IPA keeps executable_release until that build is verified and pinned there."

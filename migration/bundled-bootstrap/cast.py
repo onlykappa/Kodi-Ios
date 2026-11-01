@@ -56,6 +56,5 @@ def run():
   dialog.ok('Play on TV',tv['name']+' did not accept the video. Make sure the TV is on, then try again.');return
  player.stop();notices.note('info','Playing on '+tv['name'],title or '')
  if needs_phone:dialog.ok('Play on TV','Playing on '+tv['name']+'. This stream comes from Elementum on the phone: keep Kodi open and on Wi-Fi.')
- else:dialog.notification('Play on TV','Playing on '+tv['name'],xbmcgui.NOTIFICATION_INFO,5000)
 
 if __name__=='__main__':run()
