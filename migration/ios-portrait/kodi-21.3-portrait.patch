@@ -209,18 +209,19 @@ index b2a06d0..843018a 100644
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..089b23d 100644
+index a450151..ee67741 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
-@@ -36,6 +36,7 @@
+@@ -36,6 +36,8 @@
  #include "utils/URIUtils.h"
  #include "utils/log.h"
  #include "windowing/XBMC_events.h"
++#include "windowing/GraphicContext.h"
 +#include "windowing/ios/WinSystemIOS.h"
  #import "windowing/ios/WinSystemIOS.h"
  
  #import "platform/darwin/NSLogDebugHelpers.h"
-@@ -203,9 +204,75 @@ public:
+@@ -203,9 +205,75 @@ public:
  }
  // END OF UIKeyInput protocol
  
@@ -273,7 +274,7 @@ index a450151..089b23d 100644
 +  [m_glView setScreen:m_glView.currentScreen withFrameBufferResize:YES];
 +  if (CServiceBroker::GetAppMessenger())
 +  {
-+    static ThreadMessageCallback callback = {ApplyRotatedScreen, nullptr};
++    static KODI::MESSAGING::ThreadMessageCallback callback = {ApplyRotatedScreen, nullptr};
 +    CServiceBroker::GetAppMessenger()->PostMsg(TMSG_CALLBACK, -1, -1, &callback);
 +  }
 +}
