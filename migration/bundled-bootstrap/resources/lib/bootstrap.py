@@ -1,5 +1,5 @@
 """Transactional profile seed; no addon database edits or native executable launches."""
-import hashlib,json,os,shutil,xml.etree.ElementTree as ET
+import hashlib,json,os,re,shutil,xml.etree.ElementTree as ET
 from pathlib import Path,PurePosixPath
 ID='service.kodi.ios.bootstrap'
 def sha(b):return hashlib.sha256(b).hexdigest()
@@ -110,11 +110,26 @@ def umbrella_streaming_only(folders,get_setting,set_setting):
  set_setting('downloads','false');set_setting('movie.download.path','');set_setting('tv.download.path','')
  return True
 
+CONTAINER=re.compile(r'/Data/Application/[0-9A-Fa-f-]{36}/')
+ELEMENTUM_FOLDERS=('download_path','completed_movies_path','completed_shows_path','library_path','torrents_path')
+
+def follow_container(home,get_setting,set_setting,keys=ELEMENTUM_FOLDERS):
+ """iOS gives the app a new data folder (…/Data/Application/<UUID>/) on reinstall: move folder settings saved
+ as full paths to the current one. Returns the keys changed."""
+ here=CONTAINER.search(str(home).rstrip('/')+'/')
+ if not here:return []
+ changed=[]
+ for key in keys:
+  value=get_setting(key);fixed=CONTAINER.sub(here.group(0),value)
+  if fixed!=value:set_setting(key,fixed);changed.append(key)
+ return changed
+
 def elementum_defaults(downloads,get_setting,set_setting):
  """Elementum asks for a download folder before its first stream; use one the Files app can see. iOS can move the
  app's data folder on reinstall, so a folder set here earlier is followed to the current path; the owner's own choice stays."""
  current=get_setting('download_path').rstrip('/')
- if current and (current==str(downloads).rstrip('/') or not current.endswith('/Documents/Elementum Downloads')):return None
+ if current==str(downloads).rstrip('/'):Path(downloads).mkdir(parents=True,exist_ok=True);return None  # a new data folder starts empty
+ if current and not current.endswith('/Documents/Elementum Downloads'):return None
  Path(downloads).mkdir(parents=True,exist_ok=True);set_setting('download_path',str(downloads).rstrip('/')+'/');return str(downloads)
 
 def ensure_enabled(seed,profile,api):

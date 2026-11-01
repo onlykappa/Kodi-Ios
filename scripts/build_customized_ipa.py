@@ -163,6 +163,7 @@ ELEMENTUM_IOS=b'''def ios_engine():
     if not os.path.isdir(custom_path):
         os.makedirs(custom_path)
     log_path = os.path.join(custom_path, "elementum.log")
+    ios_follow_container()
     if ios_failed_starts() >= 2:
         # Two starts in a row took Kodi down with them: skip the engine so Kodi stays usable, and put what the
         # engine wrote into kodi.log, where the log uploader finds it. "Retry Elementum engine" clears the marker.
@@ -178,6 +179,27 @@ ELEMENTUM_IOS=b'''def ios_engine():
         log.error("Elementum engine not found at %s" % framework)
         return False, False
     return framework, os.path.join(framework, "elementum")
+
+def ios_follow_container():
+    # iOS gives the app a new data folder (.../Data/Application/<UUID>/) when it is reinstalled, so folders saved
+    # as full paths point at the old one ("Cannot write to download location"). Before the engine reads its
+    # settings, move every Elementum folder setting to the current data folder and make sure the folder exists.
+    import re
+    pattern = r"/Data/Application/[0-9A-Fa-f-]{36}/"
+    here = re.search(pattern, translatePath("special://home/"))
+    if not here:
+        return
+    for key in ("download_path", "completed_movies_path", "completed_shows_path", "library_path", "torrents_path"):
+        value = ADDON.getSetting(key)
+        fixed = re.sub(pattern, here.group(0), value)
+        if fixed != value:
+            ADDON.setSetting(key, fixed)
+            log.info("Kodi-iOS: %s followed the app's data folder to %s" % (key, fixed))
+        if fixed and here.group(0) in fixed:
+            try:
+                os.makedirs(fixed, exist_ok=True)
+            except OSError as e:
+                log.error("Kodi-iOS: cannot create %s: %s" % (fixed, e))
 
 def ios_failed_starts():
     # How many starts in a row never got the engine answering (a Go panic aborts the whole app).

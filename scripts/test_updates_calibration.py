@@ -87,6 +87,16 @@ class PlayOnTV(unittest.TestCase):
   def down(url):raise TimeoutError()
   with self.assertRaises(cast.TVRefused) as ctx:cast.roku_play('192.168.1.20','https://cdn.example/a.mp4','A',down)
   self.assertIn('did not answer',str(ctx.exception))
+ def test_elementum_folders_follow_a_reinstalled_app(self):
+  old='/private/var/mobile/Containers/Data/Application/3C035651-951A-4CE8-826D-3F157EF3E5AC/Documents/'
+  home='/private/var/mobile/Containers/Data/Application/59AA78BE-C5DC-4512-9C33-1D2B3C4D5E6F/Documents/Kodi'
+  settings={'download_path':old+'Elementum Downloads/','completed_movies_path':old+'Kodi Downloads/Movies/','library_path':'','torrents_path':'/somewhere/else/'}
+  changed=bootstrap.follow_container(home,lambda k:settings.get(k,''),settings.__setitem__)
+  self.assertEqual(changed,['download_path','completed_movies_path'])
+  self.assertEqual(settings['download_path'],'/private/var/mobile/Containers/Data/Application/59AA78BE-C5DC-4512-9C33-1D2B3C4D5E6F/Documents/Elementum Downloads/')
+  self.assertEqual(settings['torrents_path'],'/somewhere/else/')
+  self.assertEqual(bootstrap.follow_container(home,lambda k:settings.get(k,''),settings.__setitem__),[])
+  self.assertEqual(bootstrap.follow_container('/home/user/.kodi',lambda k:settings.get(k,''),settings.__setitem__),[])
  def test_download_ids_from_tmdb_helper_items(self):
   dl=load('elementum_download')
   self.assertEqual(dl.ids('movie','plugin://plugin.video.themoviedb.helper/?info=details&tmdb_id=155&tmdb_type=movie',{}),('155',None,None))

@@ -1,7 +1,7 @@
 import json,os,sys,time
 from pathlib import Path
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
-from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only
+from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,follow_container,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
 import airplay,calibration,driveupload,updates,threading,portrait
@@ -69,6 +69,7 @@ def run():
   if xbmc.getCondVisibility('System.AddonIsEnabled(plugin.video.elementum)'):
    try:
     engine=xbmcaddon.Addon('plugin.video.elementum')
+    for key in follow_container(home,engine.getSetting,engine.setSetting):xbmc.log('Kodi iOS setup moved Elementum '+key+' to the current app folder',xbmc.LOGINFO)
     folder=elementum_defaults(updates.updates_folder(home).with_name('Elementum Downloads'),engine.getSetting,engine.setSetting)
     if folder:xbmc.log('Kodi iOS setup set Elementum downloads to '+folder,xbmc.LOGINFO)
    except Exception as error:xbmc.log('Kodi iOS Elementum defaults skipped: '+type(error).__name__,xbmc.LOGWARNING)
