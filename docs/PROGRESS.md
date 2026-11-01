@@ -3,7 +3,7 @@
 Status: IN PROGRESS — owner device testing of iPhone builds
 Current phase: Phase 4 — portrait UI (r11), Elementum, Drive, Play on TV, video controls, notification center; owner tests each IPA on an iPhone 16 Pro
 Last updated UTC: 2026-11-01T21:10Z
-Latest installable IPA: build-102 expected from commit 27371e9 (Kodi executable r8 + bell ingest). build-101 (f42dc07) must NOT be used: its Python relies on r8 but it carries r7.
+Latest installable IPA: the next import-review build after the pin fix (Kodi executable r8 + bell ingest); builds 102/103 failed (wrong pin hash). build-101 (f42dc07) must NOT be used: its Python relies on r8 but it carries r7.
 Branches: feature/ios-migration (PR #1, all work), claude/ios-migration-continue-3jjuif (this session, same commits), hold/ios-next (older mirror at f42dc07), feature/settings-notifications (draft PR #3: plan only).
 
 ## Where things stand (2026-11-01, evening)
@@ -24,12 +24,12 @@ Built, awaiting owner retest (none of this is device-verified):
 
 This session (2026-11-01, 20:40–21:10Z):
 - Found PROGRESS.md behind the git log (stopped at 18:35Z); confirmed no branch newer than feature/ios-migration f42dc07.
-- r8 executable published by run 41347339284 (release kodi-ios-portrait-r8, zip sha256 6754e729…8ac3 from the release digest; Kodi binary 388560c2…7580). Pinned in 27371e9; the IPA workflow checks that hash.
+- r8 executable published by run 41347339284 (release kodi-ios-portrait-r8; Kodi binary sha256 388560c2…7580 from the release notes). First pinned in 27371e9 with the zip's digest by mistake: IPA runs 102/103 failed at 'Portrait executable digest mismatch' (scripts/ios_portrait.py hashes the Kodi binary inside the zip). Fixed by pinning the binary hash. Rule for the next pin: use the hash in the release body, not the asset digest.
 - Owner request (screenshots of cut-off pop-ups): all notifications in the bell under General; owner chose bell only. Implemented ISSUE-063 (Python + r9 patch). Host tests: 27 scripts pass (test_drive_runtime needs the CI source cache, not run here).
 
 Open / next (exact next step first):
-1. Confirm build-102 (import-review run on 27371e9) succeeded and send the owner the IPA link.
-2. Watch the executable runs: r9 (from 0005312) publishes first and is NOT to be pinned (it showed pop-ups on a first start); r10 (queued behind it, concurrency waits) is the one to pin. If either fails to compile, read the log and fix GUIDialogKaiToast.cpp in the patch. When r10 publishes, pin kodi-ios-portrait-r10 with the release asset digest and send the next IPA.
+1. Confirm the import-review run on the pin-fix commit succeeded and send the owner the IPA link.
+2. Watch the executable runs: r9 (from 0005312) publishes first and is NOT to be pinned (it showed pop-ups on a first start); r10 (queued behind it, concurrency waits) is the one to pin. If either fails to compile, read the log and fix GUIDialogKaiToast.cpp in the patch. When r10 publishes, pin kodi-ios-portrait-r10 with the Kodi binary hash from the release body and send the next IPA.
 3. Owner retests build-102 (see list above) and later the r10 build (pop-ups appear in the bell, none on screen); evidence by screen recording or kodi.old.log via the log uploader.
 4. Settings pages rework (planned in draft PR #3, not coded). Roku: this TV has no Play on Roku receiver; AirPlay path only plays MP4/HLS.
 
