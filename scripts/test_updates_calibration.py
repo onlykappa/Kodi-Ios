@@ -87,6 +87,34 @@ class PlayOnTV(unittest.TestCase):
   def down(url):raise TimeoutError()
   with self.assertRaises(cast.TVRefused) as ctx:cast.roku_play('192.168.1.20','https://cdn.example/a.mp4','A',down)
   self.assertIn('did not answer',str(ctx.exception))
+ def test_download_ids_from_tmdb_helper_items(self):
+  dl=load('elementum_download')
+  self.assertEqual(dl.ids('movie','plugin://plugin.video.themoviedb.helper/?info=details&tmdb_id=155&tmdb_type=movie',{}),('155',None,None))
+  self.assertEqual(dl.ids('movie','',{'tmdb':'155'}),('155',None,None))
+  self.assertEqual(dl.ids('movie','plugin://x/?tmdb_id=99&tmdb_type=tv',{}),(None,None,None))
+  self.assertEqual(dl.ids('season','plugin://plugin.video.themoviedb.helper/?info=episodes&tmdb_id=224372&season=2&tmdb_type=tv',{}),('224372','2',None))
+  self.assertEqual(dl.ids('episode','',{'tvshow.tmdb_id':'1399','season':'1','episode':'3','tmdb':'63056'}),('1399','1','3'))
+  self.assertEqual(dl.ids('tvshow','',{'tmdb':'1399'}),('1399',None,None))
+  self.assertEqual(dl.plugin_url('movie','155'),'plugin://plugin.video.elementum/movie/155/download')
+  self.assertEqual(dl.plugin_url('season','1399','2'),'plugin://plugin.video.elementum/show/1399/season/2/download')
+  self.assertEqual(dl.plugin_url('episode','1399','2','5'),'plugin://plugin.video.elementum/show/1399/season/2/episode/5/download')
+ def test_season_pack_switches_to_download_all(self):
+  dl=load('elementum_download');calls=[];lists=iter([[{'id':'old'}],[{'id':'old'}],[{'id':'old'},{'id':'pack'}]])
+  def get(url):
+   calls.append(url)
+   return json.dumps(next(lists)).encode() if url.endswith('/torrents/list') else b''
+  self.assertEqual(dl.download_all_when_added({'old'},lambda:False,get),'pack')
+  self.assertEqual(calls[-1],'http://127.0.0.1:65220/torrents/downloadall/pack')
+  self.assertIsNone(dl.download_all_when_added({'old'},lambda:True,lambda u:b'[]'))
+ def test_retry_restarts_elementum_until_the_engine_answers(self):
+  eng=load('elementum_engine');calls=[];answers=iter([False,False,True])
+  self.assertTrue(eng.restart(lambda m,p:calls.append(p['enabled']),lambda:False,lambda:next(answers)))
+  self.assertEqual(calls,[False,True])
+  self.assertFalse(eng.restart(lambda m,p:None,lambda:True,lambda:False))
+  import urllib.error
+  def refused(url,timeout):raise urllib.error.URLError('refused')
+  def http404(url,timeout):raise urllib.error.HTTPError(url,404,'x',{},None)
+  self.assertFalse(eng.running(open_url=refused));self.assertTrue(eng.running(open_url=http404))
  def test_finds_rokus_on_the_phones_network(self):
   cast=load('cast')
   def get(url,timeout):

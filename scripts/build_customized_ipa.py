@@ -163,9 +163,9 @@ ELEMENTUM_IOS=b'''def ios_engine():
     if not os.path.isdir(custom_path):
         os.makedirs(custom_path)
     log_path = os.path.join(custom_path, "elementum.log")
-    if os.path.exists(os.path.join(custom_path, "engine-starting")):
-        # The last start took Kodi down with it: skip the engine so Kodi stays usable, and put what the engine
-        # wrote into kodi.log, where the log uploader finds it. "Retry Elementum engine" clears the marker.
+    if ios_failed_starts() >= 2:
+        # Two starts in a row took Kodi down with them: skip the engine so Kodi stays usable, and put what the
+        # engine wrote into kodi.log, where the log uploader finds it. "Retry Elementum engine" clears the marker.
         for name in ("elementum.log", "elementum-stderr.log"):
             try:
                 with open(os.path.join(custom_path, name), errors="replace") as f:
@@ -179,11 +179,21 @@ ELEMENTUM_IOS=b'''def ios_engine():
         return False, False
     return framework, os.path.join(framework, "elementum")
 
+def ios_failed_starts():
+    # How many starts in a row never got the engine answering (a Go panic aborts the whole app).
+    try:
+        with open(os.path.join(custom_path, "engine-starting")) as f:
+            return int(f.read().strip() or 1)
+    except (IOError, OSError, ValueError):
+        return 0
+
 def ios_crash_guard():
-    # Marks the start until the engine has run a minute; a panic in Go aborts the whole app before Python can
-    # react, so the next start sees the marker. The engine's own crash output goes to stderr: keep it in a file.
+    # Marks the start until the engine answers (or Kodi closes normally); a panic in Go aborts the whole app
+    # before Python can react, so the next start sees the marker. One such start is retried; the engine is only
+    # skipped after two in a row. The engine's own crash output goes to stderr: keep it in a file.
     marker = os.path.join(custom_path, "engine-starting")
-    open(marker, "w").close()
+    with open(marker, "w") as f:
+        f.write(str(ios_failed_starts() + 1))
     try:
         err = os.path.join(custom_path, "elementum-stderr.log")
         mode = "ab" if os.path.exists(err) and os.path.getsize(err) < 1000000 else "wb"
@@ -195,7 +205,18 @@ def ios_crash_guard():
         log.error("Could not keep Elementum's crash output: %s" % e)
 
     def clear():
-        time.sleep(60)
+        # Closing Kodi (or iOS ending it) soon after opening is not a failed start: only a start that never
+        # reached a running engine counts.
+        monitor = xbmc.Monitor()
+        for _ in range(60):
+            if monitor.waitForAbort(2):
+                break
+            try:
+                urllib_request.urlopen(ELEMENTUMD_HOST + "/", timeout=2).close()
+                break
+            except Exception as e:
+                if getattr(e, "code", None):
+                    break  # an HTTP answer: the engine is up
         try:
             os.remove(marker)
         except OSError:

@@ -341,6 +341,10 @@ VARIABLES=('<variable name="Portrait_Hero_Art"><value condition="!String.IsEmpty
            '<value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value><value>$INFO[ListItem.Art(thumb)]</value></variable>')
 
 # --- show page (seasons as chips, episodes below), episode lists and plain folders ------------------------
+PLAY_W=600
+DOWNLOAD_SEASON=('RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/download.py,kind=season,'
+ 'path=$ESCINFO[Container(50).ListItem.FolderPath],season=$INFO[Container(50).ListItem.Season],'
+ 'tvshow.tmdb_id=$INFO[Container(50).ListItem.Property(tvshow.tmdb_id)])')
 def show_header(ids_down):
  """Art, logo/title, meta, 'Play' and plot for a show's seasons or episodes page."""
  art_h=840
@@ -352,8 +356,11 @@ def show_header(ids_down):
   '<control type="image"><left>140</left><top>430</top><width>800</width><height>230</height><aspectratio aligny="bottom">keep</aspectratio><texture>%s</texture></control>'%logo+
   label(SIDE,430,WIDTH-2*SIDE,230,'$VAR[Portrait_Show_Title]','p_title',WHITE,'center','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(tvshow.clearlogo))</visible>')+
   label(SIDE,672,WIDTH-2*SIDE,52,'[COLOR %s]$INFO[ListItem.Rating,★ ]  [/COLOR]$INFO[ListItem.Year]$INFO[ListItem.Genre,  ·  ]'%GREEN,'p_foot',GREY,'center')+
-  pill_button(9002,SIDE,744,WIDTH-2*SIDE,124,'Play  $INFO[Container(50).ListItem.Label]',[('','%s'%play)],'primary',MEDIA+'play.png',
-              '<visible>Container.Content(seasons)</visible><onup>9001</onup><ondown>50</ondown>',glyph_x=(WIDTH-2*SIDE)//2-200)+
+  pill_button(9002,SIDE,744,PLAY_W,124,'Play  $INFO[Container(50).ListItem.Label]',[('','%s'%play)],'primary',MEDIA+'play.png',
+              '<visible>Container.Content(seasons)</visible><onup>9001</onup><ondown>50</ondown><onright>9003</onright>',glyph_x=PLAY_W//2-200)+
+  # Download the season in focus (Elementum; a season pack, every episode).
+  pill_button(9003,SIDE+PLAY_W+24,744,WIDTH-2*SIDE-PLAY_W-24,124,'  Download',[('',DOWNLOAD_SEASON)],'glass',ICONS+'download.png',
+              '<visible>Container.Content(seasons) + System.HasAddon(plugin.video.elementum)</visible><onup>9001</onup><ondown>50</ondown><onleft>9002</onleft>',glyph_x=24)+
   '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label><autoscroll>false</autoscroll></control>'%(SIDE,886,WIDTH-2*SIDE,GREY)+
   '</control>')
 
@@ -497,7 +504,7 @@ def more_menu(original):
   image(0,0,w,h,MEDIA+'glass_card.png',border=44)+label(44,40,w-88,100,'More','p_h2')+lst)
  return centered_dialog(original,body,'3')
 
-CTX_ROWS=10
+CTX_ROWS=15
 # Context menu entries -> icon (first match wins; Kodi's String.Contains ignores case).
 CTX_ICONS=[('Resume','clock-rotate-left.png'),('Trailer','film.png'),('next','forward.png'),('unwatched','eye-slash.png'),
            ('watched','circle-check.png'),('Play','circle-play.png'),('Download','circle-down.png'),('Information','circle-info.png'),
@@ -520,7 +527,7 @@ def context_menu(original):
  x=60;card_w=WIDTH-2*x;pad=20;art_h=(card_w-2*pad)*9//16;card_h=pad+art_h+136;top=110;menu_w=780;row_h=120;cap=30
  menu_top=top+card_h+30
  no_art='String.IsEmpty(ListItem.Art(fanart)) + String.IsEmpty(ListItem.Art(landscape)) + String.IsEmpty(ListItem.Art(thumb)) + String.IsEmpty(Window(Home).Property(Portrait.Item.Art))'
- card=('<control type="group"><left>%d</left><top>%d</top><visible>![%s]</visible>'%(x,top,no_art)+
+ card=('<control type="group"><left>%d</left><top>%d</top><visible>![%s] + !Control.IsVisible(%d)</visible>'%(x,top,no_art,1001+(HEIGHT-(top+card_h+30)-60-2*cap)//row_h)+
   '<animation effect="zoom" start="94" end="100" center="auto" time="240" tween="back" easing="out">WindowOpen</animation>'+
   surface(0,0,card_w,card_h,'glass_card.png',WHITE,44)+
   image(pad,pad,card_w-2*pad,art_h,'$VAR[Portrait_Ctx_Art]',WHITE,'','>scale',MEDIA+'card_mask.png',background=True)+
@@ -530,15 +537,20 @@ def context_menu(original):
   '<focusedcolor>FFFFFFFF</focusedcolor><textoffsetx>128</textoffsetx><align>left</align><aligny>center</aligny>'
   '<texturefocus colordiffuse="FF3A3A3C">%swhite.png</texturefocus><texturenofocus colordiffuse="F22C2C2E">%swhite.png</texturenofocus></control>')%(menu_w,row_h,MEDIA,MEDIA)
  caps=lambda name:'<control type="image"><width>%d</width><height>%d</height><texture border="44,0,44,0" colordiffuse="F22C2C2E">%s%s</texture></control>'%(menu_w,cap,MEDIA,name)
- icons=''.join(icon(42,cap+i*row_h+(row_h-58)//2,58,'$VAR[Portrait_Ctx_Icon_%d]'%i,WHITE,'<visible>Control.IsVisible(%d)</visible>'%(1001+i)) for i in range(CTX_ROWS))
- # No art (e.g. a menu button): the menu moves up to where the card would be.
+ # Rows that fit under the card, and on the whole screen. A longer menu hides the card; one longer than the
+ # screen scrolls, and its icons (a fixed layer beside the list) would no longer line up, so they hide.
+ fit_card=(HEIGHT-menu_top-60-2*cap)//row_h;fit_screen=(HEIGHT-top-60-2*cap)//row_h
+ long_menu='Control.IsVisible(%d)'%(1001+fit_card);scrolls='Control.IsVisible(%d)'%(1001+fit_screen)
+ icons=''.join(icon(42,cap+i*row_h+(row_h-58)//2,58,'$VAR[Portrait_Ctx_Icon_%d]'%i,WHITE,'<visible>Control.IsVisible(%d) + !%s</visible>'%(1001+i,scrolls)) for i in range(CTX_ROWS))
+ # No art (e.g. a menu button) or a long menu: the menu moves up to where the card would be.
  menu=('<control type="group"><left>%d</left><top>%d</top>'%(x,menu_top)+
-  '<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(-(card_h+30),no_art)+
+  '<animation effect="slide" end="0,%d" time="0" condition="[%s] | %s">Conditional</animation>'%(-(card_h+30),no_art,long_menu)+
   '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>'+
   '<control type="grouplist" id="996"><width>%d</width><height>%d</height><orientation>vertical</orientation><itemgap>0</itemgap>%s%s%s</control>'
-  %(menu_w,HEIGHT-menu_top-60,caps('cap_top.png'),template,caps('cap_bottom.png'))+icons+'</control>')
- # Kodi sizes and centres the dialog on its background (999): a full-screen one keeps the layout fixed.
- body=('<controls><control type="image" id="999"><width>%d</width><height>%d</height><texture colordiffuse="99000000">%swhite.png</texture></control>'
+  %(menu_w,HEIGHT-top-60,caps('cap_top.png'),template,caps('cap_bottom.png'))+icons+'</control>')
+ # No background control (999): Kodi would resize it to the menu and centre the dialog on the pressed item.
+ # Without one the dialog is the full screen, so the card and menu stay where this layout puts them.
+ body=('<controls><control type="image"><width>%d</width><height>%d</height><texture colordiffuse="99000000">%swhite.png</texture></control>'
   '<control type="button" id="9099"><width>%d</width><height>%d</height><texturefocus /><texturenofocus /><onclick>Close</onclick><onfocus>SetFocus(996)</onfocus></control>'
   '%s%s</controls>')%(WIDTH,HEIGHT,MEDIA,WIDTH,HEIGHT,card,menu)
  return window(original,body,'996')

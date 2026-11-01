@@ -2,5 +2,13 @@
  <requires><import addon="xbmc.python" version="3.0.1"/></requires>
  <extension point="xbmc.service" library="service.py"/>
  <extension point="xbmc.python.script" library="recover.py"/>
+ <extension point="kodi.context.item">
+  <menu id="kodi.core.main">
+   <item library="download.py">
+    <label>Download</label>
+    <visible>System.HasAddon(plugin.video.elementum) + [String.IsEqual(ListItem.DBType,movie) | String.IsEqual(ListItem.DBType,episode) | String.IsEqual(ListItem.DBType,season) | String.IsEqual(ListItem.DBType,tvshow)]</visible>
+   </item>
+  </menu>
+ </extension>
  <extension point="xbmc.addon.metadata"><summary lang="en_GB">Initialize bundled sanitized configuration once</summary><description lang="en_GB">Automatic iOS setup with private file backups and explicit recovery. No credentials or engine.</description><platform>all</platform><license>MIT</license></extension>
 </addon>

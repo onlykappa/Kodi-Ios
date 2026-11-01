@@ -25,7 +25,14 @@ def run():
   # Elementum skips its engine after a start that took Kodi down; this clears that so the next launch tries again.
   marker=Path(xbmcvfs.translatePath('special://profile/addon_data/plugin.video.elementum/engine-starting'))
   if marker.exists():marker.unlink()
-  xbmcgui.Dialog().ok('Elementum','The engine will start the next time Kodi opens. Close Kodi fully and reopen it.');return
+  import elementum_engine
+  api=lambda method,params:json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params})))
+  if elementum_engine.running():xbmcgui.Dialog().ok('Elementum','The engine is already running.');return
+  # Not loaded in this session: restarting Elementum's service starts the engine now, no need to reopen Kodi.
+  progress=xbmcgui.DialogProgress();progress.create('Elementum','Starting the engine...')
+  try:ok=elementum_engine.restart(api,lambda:xbmc.Monitor().waitForAbort(1) or progress.iscanceled())
+  finally:progress.close()
+  xbmcgui.Dialog().ok('Elementum','The engine is running.' if ok else 'The engine did not start. Send the log (gear menu) so it can be fixed.');return
  if action=='netcheck':
   import netcheck
   try:certifi=os.path.join(xbmcvfs.translatePath(xbmcaddon.Addon('script.module.certifi').getAddonInfo('path')),'lib','certifi','cacert.pem')

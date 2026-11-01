@@ -108,8 +108,11 @@ class PortraitTests(unittest.TestCase):
   self.assertIn('ActivateWindow(Videos,plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_id=True&with_genres=18&sort_by=popularity.desc,return)',[o.text for o in search.iter('onclick')])
  def test_context_menu_has_kodi_ids_and_fixed_layout(self):
   root=self.read('portrait/DialogContextMenu.xml');ids={c.get('id') for c in root.iter('control')}
-  self.assertTrue({'996','999','1000'}<=ids)
-  bg=root.find(".//control[@id='999']");self.assertEqual(bg.findtext('height'),str(portrait.HEIGHT))
+  self.assertTrue({'996','1000'}<=ids)
+  # No 999: Kodi would shrink it to the menu and move the dialog to the pressed item (off screen near the bottom).
+  self.assertNotIn('999',ids);self.assertEqual(root.find('controls/control').findtext('height'),str(portrait.HEIGHT))
+  # A long menu hides the card; icons hide once the menu would scroll (they are a fixed layer beside it).
+  xml=(self.skin/'portrait/DialogContextMenu.xml').read_text();self.assertIn('Control.IsVisible(1010)',xml);self.assertIn('!Control.IsVisible(1016)',xml)
   self.assertIn('Portrait_Ctx_Icon_0',(self.skin/'portrait/Includes.xml').read_text())
  def test_movie_and_show_folders_use_the_grid(self):
   self.assertIn('<views>50,51,52,53</views>',(self.skin/'portrait/MyVideoNav.xml').read_text())
