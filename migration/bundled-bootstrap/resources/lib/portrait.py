@@ -78,7 +78,7 @@ POSTER=(300,450);CARD=(640,360);GAP=26;RADIUS=26
 HERO=1420
 # Pages scroll above the floating tab bar, so the row in focus is never hidden under it.
 PAGE_H=HEIGHT-196
-CAPSULES=(56,96,108,112,124,126,128,150,170,246)
+CAPSULES=(56,72,96,108,112,124,126,128,150,170,246)
 
 # --- tiny PNG writer (no PIL on the build host) -------------------------------------------------------
 def png(width,height,pixel):
@@ -112,13 +112,22 @@ def triangle(size):
   return (255,255,255,int(255*inside/16))
  return png(size,size,alpha)
 
+def ring(size,stroke):
+ """Open ring (a quarter missing, like the activity spinner) around the bell while a download runs."""
+ import math
+ def pixel(x,y):
+  outer=coverage(x,y,size,size,size/2);inner=coverage(x,y,size,size,size/2,stroke)
+  angle=math.degrees(math.atan2(y+0.5-size/2,x+0.5-size/2))%360
+  return (255,255,255,int(255*max(outer-inner,0)*(0 if 230<angle<320 else 1)))
+ return png(size,size,pixel)
+
 def textures():
  return {'round.png':rounded(96,96,32),'round_s.png':rounded(64,64,26),'glass_card.png':glass(160,44,(44,44,46,245),(255,255,255,26)),
          'fade_down.png':fade(lambda t:(1-t)**1.6*0.85),'fade_up.png':fade(lambda t:t**1.5),
          'hero_fade.png':fade(lambda t:0 if t<0.3 else ((t-0.3)/0.7)**1.25),
          'poster_mask.png':rounded(POSTER[0],POSTER[1],RADIUS),'card_mask.png':rounded(CARD[0],CARD[1],RADIUS),
          'thumb_mask.png':rounded(400,225,20),'tile_mask.png':rounded(80,80,18),'dot.png':rounded(24,24,12),'knob.png':rounded(48,48,24),'clear48.png':png(4,48,lambda x,y:(0,0,0,0)),
-         'white.png':png(4,4,lambda x,y:(255,255,255,255)),'play.png':triangle(64),'airplay.png':player_osd.airplay_png(png),
+         'white.png':png(4,4,lambda x,y:(255,255,255,255)),'play.png':triangle(64),'airplay.png':player_osd.airplay_png(png),'ring.png':ring(132,7),
          # Capsules per height: 9-slice borders of h/2 keep the ends perfectly round at any width.
          **{'pill_%d.png'%h:rounded(h,h,h/2) for h in CAPSULES},
          **{'glass_%d.png'%h:glass(h,h/2,(30,30,34,232),(255,255,255,50)) for h in CAPSULES},
@@ -159,6 +168,19 @@ def pill_button(id,x,y,w,h,text,actions,style,glyph='',extra='',glyph_x=None):
  return '<control type="group"><left>%s</left><top>%s</top><width>%s</width><height>%s</height>%s%s</control>'%(x,y,w,h,inner,glyphxml)
 
 def circle_button(id,x,y,size,glyph,action,extra=''):return pill_button(id,x,y,size,size,'',[('',action)],'glass',glyph,extra)
+
+NOTICES='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/notifications.py)'
+def bell(x,y,extra=''):
+ """Bell beside the profile circle: red count of unread messages, blue ring while a download runs
+ (the bootstrap service keeps Notices.Unread and Notices.Active on the Home window)."""
+ unread='Window(Home).Property(Notices.Unread)'
+ return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+
+  image(-12,-12,132,132,MEDIA+'ring.png',ACCENT,'<visible>!String.IsEmpty(Window(Home).Property(Notices.Active))</visible>'
+   '<animation effect="rotate" end="-360" center="auto" time="1600" loop="true" reversible="false" condition="true">Conditional</animation>')+
+  circle_button(9207,0,0,108,'bell.png',NOTICES,extra)+
+  '<control type="group"><left>62</left><top>-10</top><visible>!String.IsEmpty(%s) + !String.IsEqual(%s,0)</visible>'%(unread,unread)+
+  image(0,0,60,60,MEDIA+'dot.png','FF000000')+image(5,5,50,50,MEDIA+'dot.png','FFFF453A')+
+  label(5,5,50,50,'$INFO[%s]'%unread,'p_foot_b',WHITE,'center','<aligny>center</aligny>')+'</control></control>')
 
 def window(original,body,default,extra_root=''):
  # Pages with the tab bar forget the title of the last category or library page.
@@ -269,8 +291,9 @@ def hero(spotlight,title):
   '</control>'
   )%(WIDTH,HERO,WIDTH,HERO,WIDTH,HERO,art,WIDTH,HERO,art,spotlight,
      image(0,0,WIDTH,HERO,MEDIA+'hero_fade.png'),image(0,0,WIDTH,420,MEDIA+'fade_down.png'),
-     label(SIDE,40,WIDTH-2*SIDE-140,120,title,'p_large'),
-     circle_button(9206,WIDTH-SIDE-108,46,108,'circle-user.png','ActivateWindow(1170)','<ondown>4000</ondown>'),
+     label(SIDE,40,WIDTH-2*SIDE-270,120,title,'p_large'),
+     bell(WIDTH-SIDE-240,46,'<ondown>4000</ondown><onright>9206</onright>')+
+     circle_button(9206,WIDTH-SIDE-108,46,108,'circle-user.png','ActivateWindow(1170)','<ondown>4000</ondown><onleft>9207</onleft>'),
      HERO-560,WIDTH-240,info,
      label(SIDE,HERO-560,WIDTH-2*SIDE,250,'$INFO[%s.Label]'%info,'p_title',WHITE,'center','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(%s.Art(clearlogo))</visible>'%info),
      label(SIDE,HERO-296,WIDTH-2*SIDE,56,meta,'p_foot',GREY,'center'),
@@ -301,7 +324,7 @@ def hub_window(original,title,widgets,tab,spotlight,resume='all'):
 
 def page_header(title):
  """Large title on black with the profile circle (More), as on the Apple TV app's Library and Search."""
- return (label(SIDE,40,WIDTH-2*SIDE-140,120,title,'p_large')+
+ return (label(SIDE,40,WIDTH-2*SIDE-270,120,title,'p_large')+bell(WIDTH-SIDE-240,46)+
          circle_button(9206,WIDTH-SIDE-108,46,108,'circle-user.png','ActivateWindow(1170)'))
 
 def clicks(actions):return ''.join('<onclick>%s</onclick>'%e(a) for a in actions.split('\x00'))
@@ -631,8 +654,8 @@ def notices_page():
    '<texturebg border="7" colordiffuse="52787880">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="FF0A84FF">%sdot.png</midtexture><righttexture /></control>'%(9400+n,SIDE+184,w-210,MEDIA,MEDIA)+
    label(SIDE+184,136,w-210,48,P(pre+'line'),'p_cap',GREY)+
    label(SIDE+184,136,w-210,48,P(pre+'speed'),'p_cap',GREY,'right')+
-   pill_button(9410+n,SIDE+184,206,170,72,P(pre+'pausetext'),[('','noop')],'glass')+
-   pill_button(9420+n,SIDE+184+190,206,170,72,'Cancel',[('','noop')],'glass')+'</control>')
+   pill_button(9410+n,SIDE+184,206,210,72,P(pre+'pausetext'),[('','noop')],'glass')+
+   pill_button(9420+n,SIDE+184+230,206,210,72,'[COLOR FFFF453A]Cancel[/COLOR]',[('','noop')],'glass')+'</control>')
  upload=('<control type="group"><width>%d</width><height>244</height><visible>%s</visible>'%(WIDTH,has('up.title'))+
    surface(SIDE-6,0,w+12,220,'round.png',SURFACE,32)+
    surface(SIDE+24,26,130,168,'round_s.png','FF1F3D2B',20)+icon(SIDE+59,80,60,'cloud-arrow-up.png',GREEN)+
@@ -643,15 +666,14 @@ def notices_page():
    label(SIDE+184,158,w-210,46,P('up.line'),'p_cap',GREY)+label(SIDE+184,158,w-210,46,'then off the phone','p_cap',DIM,'right')+'</control>')
  def row(n):
   pre='msg.%d.'%n;h=170
-  return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(WIDTH,h,has(pre+'title'))+
+  return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(WIDTH,h+14,has(pre+'title'))+
    surface(SIDE-6,0,w+12,h,'round_s.png',SURFACE,20)+
    '<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><texturefocus colordiffuse="14FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>'%(9500+n,SIDE-6,w+12,h,MEDIA)+
    image(SIDE+8,h//2-8,16,16,MEDIA+'dot.png','FF0A84FF','<visible>%s</visible>'%has(pre+'unread'))+
-   surface(SIDE+36,30,86,86,'round_s.png',P(pre+'tint'),20)+icon(SIDE+56,50,46,P(pre+'icon'),WHITE)+
+   surface(SIDE+36,30,86,86,'round_s.png',P(pre+'tint'),20)+icon(SIDE+56,50,46,ICONS+P(pre+'icon'),WHITE)+
    label(SIDE+150,22,w-300,58,P(pre+'title'),'p_foot_b',WHITE,'left','<scroll>false</scroll>')+
    label(SIDE+150,78,w-190,70,P(pre+'text'),'p_cap',GREY,'left','<wrapmultiline>true</wrapmultiline>')+
-   label(SIDE+150,22,w-170,58,P(pre+'ago'),'p_cap',DIM,'right')+
-   image(SIDE+150,h-2,w-150,2,MEDIA+'white.png',SEP)+'</control>')
+   label(SIDE+150,22,w-170,58,P(pre+'ago'),'p_cap',DIM,'right')+'</control>')
  filters=''.join('<control type="group"><left>%d</left><top>0</top>'%(i*w//3)+
    image(4,4,w//3-8,80,MEDIA+'pill_96.png','FF636366','<visible>String.IsEqual(Window().Property(filter),%s)</visible>'%key,border=40)+
    '<control type="button" id="%d"><width>%d</width><height>88</height><label>%s</label><font>p_foot_b</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'

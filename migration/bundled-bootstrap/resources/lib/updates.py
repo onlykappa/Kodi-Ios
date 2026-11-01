@@ -69,6 +69,8 @@ def run(check_only=False):
   if not check_only:xbmcgui.Dialog().ok('Check for updates','You have the newest build'+(' (build %d).'%current if current else '.'))
   return None
  if check_only:
+  import notices
+  notices.note('update',update['name']+' is available','Tap to update','RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/check_updates.py)')
   xbmcgui.Dialog().notification('Update available',update['name']+' — gear menu › Check for updates',time=8000);return update
  asset=update['asset'];size=int(asset.get('size') or 0)
  if not xbmcgui.Dialog().yesno('Update available','%s\n%.0f MB. Download it to the Files app now?'%(update['name'],size/1e6)):return None

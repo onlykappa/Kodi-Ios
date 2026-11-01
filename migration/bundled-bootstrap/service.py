@@ -123,6 +123,8 @@ def run():
  # r11: portrait rows follow the owner's widgets, rotating the phone reloads the matching layout, and Continue
  # Watching follows playback. Its own thread, since the AirPlay watch below also runs for the whole session.
  portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),daemon=True);portrait_thread.start()
+ # The bell in the hub headers: unread messages and whether a download or Drive upload runs.
+ threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),daemon=True).start()
  # Kept Elementum videos go to Google Drive in the background, never during playback.
  try:
   if xbmcaddon.Addon().getSettingBool('drive_upload'):

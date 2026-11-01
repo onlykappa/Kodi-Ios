@@ -90,3 +90,25 @@ def engine_action(command,torrent,get=None):
  if command=='cancel':path+='?files=true&torrent=true'
  try:get(ENGINE+path);return True
  except Exception:return False
+
+def note(kind,title,text='',action=''):
+ """add() from any Kodi script (cast, updates, menus): the profile comes from Kodi. Never raises."""
+ try:
+  import xbmcvfs
+  return add(xbmcvfs.translatePath('special://profile/'),kind,title,text,action)
+ except Exception:return None
+
+def badge(profile,get=None):
+ """What the bell shows: (unread count as text, '' when none; 'true' while a download runs, else '')."""
+ count=unread(profile);active=any(not d['paused'] for d in downloads(get)) or bool(uploads(profile))
+ return (str(min(count,99)) if count else '','true' if active else '')
+
+def publish(window,profile,wait,busy=lambda:False,every=3):
+ """Keep the bell's Home properties current for the session (not while a video plays: the bell is hidden)."""
+ last=None
+ while not wait(every):
+  if busy():continue
+  try:now=badge(profile)
+  except Exception:continue
+  if now!=last:
+   window.setProperty('Notices.Unread',now[0]);window.setProperty('Notices.Active',now[1]);last=now

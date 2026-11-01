@@ -2,7 +2,7 @@
 Apple TV / AirPlay TV)."""
 import json,os,sys
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
-import airplay,cast
+import airplay,cast,notices
 
 KINDS={'roku':'Roku','dlna':'Smart TV','chromecast':'Chromecast','airplay':'AirPlay'}
 
@@ -48,11 +48,13 @@ def run():
    airplay.load(library).kodi_airplay_play(url.encode('utf-8'),(title or '').encode('utf-8'));return
  except cast.TVRefused as error:
   xbmc.log('Kodi iOS Play on TV refused (%s): %s'%(tv['kind'],error),xbmc.LOGWARNING)
+  notices.note('problem',"Play on TV couldn't start",tv['name']+': '+str(error))
   dialog.ok('Play on TV',tv['name']+': '+str(error));return
  except Exception as error:
   xbmc.log('Kodi iOS Play on TV failed (%s): %s: %s'%(tv['kind'],type(error).__name__,error),xbmc.LOGWARNING)
+  notices.note('problem',"Play on TV couldn't start",tv['name']+' did not accept the video. Make sure the TV is on.')
   dialog.ok('Play on TV',tv['name']+' did not accept the video. Make sure the TV is on, then try again.');return
- player.stop()
+ player.stop();notices.note('info','Playing on '+tv['name'],title or '')
  if needs_phone:dialog.ok('Play on TV','Playing on '+tv['name']+'. This stream comes from Elementum on the phone: keep Kodi open and on Wi-Fi.')
  else:dialog.notification('Play on TV','Playing on '+tv['name'],xbmcgui.NOTIFICATION_INFO,5000)
 
