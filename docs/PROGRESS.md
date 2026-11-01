@@ -2,7 +2,7 @@
 
 Status: IN PROGRESS — owner device testing of iPhone builds
 Current phase: Phase 4 — portrait UI (r11), Elementum, Drive, Play on TV, video controls, notification center; owner tests each IPA on an iPhone 16 Pro
-Last updated UTC: 2026-11-01T22:30Z
+Last updated UTC: 2026-11-01T22:40Z
 Latest installable IPA: build-106 (commit 0e89856, Kodi executable r10: pop-ups only in the bell), https://github.com/onlykappa/Kodi-Ios/releases/tag/build-106 . build-104 = r8. Builds 102/103 failed (wrong pin hash). build-101 must NOT be used (r8 Python on r7).
 Branches: feature/ios-migration (PR #1, all work), claude/ios-migration-continue-3jjuif (this session, same commits), hold/ios-next (older mirror at f42dc07), feature/settings-notifications (draft PR #3: plan only).
 
@@ -32,10 +32,10 @@ This session (2026-11-01, 20:40–22:20Z):
 - ISSUE-064/065/066 implemented on host; Kodi patch changed for r12 (tap logging, reload on layout width). Host tests: all 27 runnable scripts pass (test_drive_runtime needs the CI source cache).
 
 Open / next (exact next step first):
-1. Confirm the IPA run on this session's last commit publishes (Kodi r10 + ISSUE-064/065/066 Python) and send the owner the link.
-2. Kodi executables: r11 = r10 (do not pin); r12 (run 41355566946, from 4be37f6) = tap logging + reload on layout width, no tap fix; r13 (queued, from this session's last commit) = r12 + KodiTouchWindow/KodiTouchRootView tap fix. Pin r13 with the Kodi hash from the release BODY and send that IPA (skip pinning r12 unless r13 fails to compile; then fix the patch).
-3. Owner tests: video start (no Fuse bar), tapping anywhere on the video, controls, startup (no splash, time to Home), Continue Watching resume (no questions) and long press › Choose source. For the tap bug on r13: if taps still fail, send kodi.old.log (the "Tap at …" lines).
-4. Settings pages rework (draft PR #3, not coded). Roku: no Play on Roku receiver on this TV; AirPlay path only plays MP4/HLS.
+1. DONE 22:11Z: build-107 (4be37f6: Kodi r10 + ISSUE-064/065/066 Python) published and sent to the owner.
+2. Kodi executables: r11 = r10 (do not pin); r12 (run 41355566946, from 4be37f6) = tap logging + reload on layout width, no tap fix (do not pin); r13 (queued, from 6836d93 onward) = r12 + KodiTouchWindow/KodiTouchRootView tap fix. Pin r13 with the Kodi hash from the release BODY, set build_tag r14, and send that IPA — the owner's next full review build: tap fix + Settings rework (item 4). If r13 fails to compile, read the log and fix the patch.
+3. Owner reviews everything at once on that build: video start (no Fuse bar), tapping anywhere on the video, controls, startup (no splash, time to Home), Continue Watching resume (no questions) and long press › Choose source, the new Settings / Accounts pages. If taps still fail, send kodi.old.log (the "Tap at …" lines).
+4. Settings pages rework (owner-approved mockups, docs/design/settings-mockups.html), coded in another session on design/settings-mockups and MERGED here at the owner's request (22:35Z) for the next build: portrait Settings home + Customisation (settings_page.py), Accounts page (accounts.py, accounts_page.py) with sign-in state for Elementum, Umbrella, Google Drive, Trakt and TMDb Helper; Kodi's category pages (SettingsCategory) and add-on settings (DialogAddonSettings) in the same style. Rig-checked there in desktop Kodi 21.2 at 603x1167 (two rig bugs fixed); not device-verified. Roku: no Play on Roku receiver on this TV; AirPlay path only plays MP4/HLS.
 
 Blockers: device verification needs the owner; the tap bug needs the r12 log. Phase 5, merge and release are not authorized.
 

@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kodi Settings Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* iOS 27 dark-mode tokens (matched to reference screenshots) */
+  --bg:#000;
+  --page:#0a0a0b;
+  --cell:#1c1c1e;
+  --cell-hi:#2c2c2e;
+  --sep:#38383a;
+  --label:#fff;
+  --label2:#8e8e93;
+  --label3:#636366;
+  --chev:#6e6e73;
+  --blue:#0a84ff;
+  --green:#30d158;
+  --red:#ff453a;
+  --orange:#ff9f0a;
+  --purple:#bf5af2;
+  --teal:#64d2ff;
+  --yellow:#ffd60a;
+  --toggle-off:#39393d;
+  --tile:#0f0f10;
+  --radius-group:26px;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",Inter,system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--page);color:var(--label);font-family:var(--font);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+svg{display:block}
+
+/* ---------- Page chrome ---------- */
+.intro{max-width:1200px;margin:0 auto;padding:48px 16px 24px}
+.intro .eyebrow{color:var(--label2);font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.intro h1{font-size:clamp(28px,5vw,44px);font-weight:800;letter-spacing:-.02em;margin:8px 0 12px}
+.intro p{color:#b4b4ba;font-size:16px;line-height:1.5;max-width:760px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.chips a{background:var(--cell);border:.5px solid #2f2f33;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:500;color:#d8d8dc}
+.chips a:hover{background:var(--cell-hi)}
+
+.grid{max-width:1400px;margin:0 auto;padding:24px 16px 64px;display:flex;flex-wrap:wrap;gap:56px 40px;justify-content:center}
+figure{display:flex;flex-direction:column;align-items:center;gap:16px;scroll-margin-top:24px;width:min(410px,100%)}
+figcaption{text-align:left;width:100%;max-width:390px}
+figcaption .n{color:var(--blue);font-size:13px;font-weight:700;letter-spacing:.06em}
+figcaption h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
+
+/* ---------- Phone ---------- */
+.phone{width:min(410px,100%);height:864px;border-radius:64px;padding:10px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.screen{position:relative;width:100%;height:100%;border-radius:54px;overflow:hidden;background:var(--bg)}
+.scroll{position:absolute;inset:0;overflow-y:auto;padding:122px 0 120px;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:124px;height:36px;background:#000;border-radius:20px;z-index:30}
+.status{position:absolute;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:6px 34px 0 46px;z-index:25;font-weight:600;font-size:17px;letter-spacing:-.01em}
+.status .r{display:flex;gap:6px;align-items:center}
+.status .batt{display:flex;align-items:center;gap:1px}
+.status .batt b{background:#fff;color:#000;font-size:11px;font-weight:700;border-radius:5px;padding:1px 4px;line-height:14px}
+.status .batt i{width:2px;height:5px;background:#777;border-radius:0 2px 2px 0}
+.home-ind{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:136px;height:5px;border-radius:3px;background:#fff;z-index:30}
+
+.nav{position:absolute;top:0;left:0;right:0;height:112px;z-index:20;background:linear-gradient(rgba(12,12,13,.94),rgba(12,12,13,.86));backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:.5px solid #1f1f22}
+.nav .title{position:absolute;left:80px;right:80px;top:68px;text-align:center;font-size:17px;font-weight:700;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.back{position:absolute;left:16px;top:58px;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:rgba(48,48,52,.75);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16),0 2px 10px rgba(0,0,0,.4)}
+.back svg{width:22px;height:22px;color:#fff}
+
+/* floating glass search */
+.search{position:absolute;left:22px;right:22px;bottom:30px;height:54px;border-radius:27px;z-index:20;display:flex;align-items:center;gap:10px;padding:0 18px;background:rgba(38,38,41,.78);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16),0 8px 30px rgba(0,0,0,.5)}
+.search svg{width:22px;height:22px}
+.search span{flex:1;color:var(--label2);font-size:19px;font-weight:500}
+
+/* ---------- Grouped lists ---------- */
+.group{background:var(--cell);border-radius:var(--radius-group);margin:0 16px;overflow:hidden}
+.gap{height:34px}
+.gap-s{height:20px}
+.foot{color:var(--label2);font-size:13.5px;line-height:1.35;padding:8px 32px 0;font-weight:500}
+.sh{color:var(--label2);font-size:17px;font-weight:700;padding:0 32px 10px;letter-spacing:-.01em}
+.row{display:flex;align-items:center;min-height:52px;padding-left:16px;position:relative;cursor:pointer}
+.row:active{background:var(--cell-hi)}
+.row .ct{flex:1;display:flex;align-items:center;gap:8px;min-height:52px;padding-right:16px;align-self:stretch}
+.row + .row .ct, .row + .divrow .ct{box-shadow:inset 0 .5px 0 var(--sep)}
+.row .ic + .ct{margin-left:14px}
+.lb{flex:1;font-size:17px;letter-spacing:-.015em;line-height:1.2;padding:12px 0}
+.lb small{display:block;color:var(--label2);font-size:14px;margin-top:2px;letter-spacing:0}
+.val{color:var(--label2);font-size:17px;letter-spacing:-.015em;white-space:nowrap}
+.chev{width:14px;height:14px;color:var(--chev);flex:none}
+.link{color:var(--blue)}
+.danger{color:var(--red)}
+.check{width:20px;height:20px;color:var(--blue)}
+.badge{background:var(--red);color:#fff;font-size:15px;font-weight:600;min-width:24px;height:24px;border-radius:12px;display:grid;place-items:center;padding:0 7px}
+
+/* icon tiles (iOS 26/27 dark style: black tile, coloured glyph) */
+.ic{width:31px;height:31px;border-radius:9px;background:var(--tile);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.12);display:grid;place-items:center;color:var(--c,#8e8e93);flex:none}
+.ic svg{width:19px;height:19px}
+.ic.fill{background:var(--c);color:#fff;box-shadow:none}
+
+/* toggle (iOS 26 elongated knob) */
+.tg{width:63px;height:28px;border-radius:14px;background:var(--toggle-off);position:relative;flex:none}
+.tg::after{content:"";position:absolute;top:2px;left:2px;width:38px;height:24px;border-radius:12px;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25);transition:left .2s}
+.tg.on{background:var(--green)}
+.tg.on::after{left:23px}
+
+/* hero cards */
+.hero{padding:20px 20px 22px}
+.hero .big{width:66px;height:66px;border-radius:17px;background:var(--tile);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.12);display:grid;place-items:center;color:var(--c,#8e8e93);margin-bottom:16px}
+.hero .big svg{width:40px;height:40px}
+.hero h3{font-size:30px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px}
+.hero p{color:var(--label2);font-size:17px;line-height:1.38;font-weight:500}
+
+.acct{text-align:center;padding:4px 16px 26px}
+.acct .av{width:118px;height:118px;border-radius:50%;margin:0 auto 14px;display:grid;place-items:center;background:linear-gradient(160deg,#ffb340,#ff7a00);box-shadow:inset 0 -10px 30px rgba(0,0,0,.18)}
+.acct .av svg{width:58px;height:58px;color:#fff}
+.acct h3{font-size:30px;font-weight:800;letter-spacing:-.02em}
+.acct p{color:var(--label2);font-size:17px;margin-top:4px;font-weight:500}
+
+.profile{display:flex;align-items:center;gap:14px;padding:14px 16px}
+.profile .av{width:60px;height:60px;border-radius:50%;background:linear-gradient(160deg,#9aa9d8,#6b78b4);display:grid;place-items:center;font-size:24px;font-weight:800;color:#fff;flex:none}
+.profile .nm{flex:1}
+.profile .nm b{display:block;font-size:20px;font-weight:600;letter-spacing:-.02em}
+.profile .nm span{color:var(--label2);font-size:14.5px}
+
+/* theme pickers (Appearance clone) */
+.themes{display:flex;justify-content:space-around;padding:22px 20px 20px}
+.th{display:flex;flex-direction:column;align-items:center;gap:10px}
+.pv{width:82px;height:164px;border-radius:16px;position:relative;overflow:hidden;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.2)}
+.pv .ttl{position:absolute;left:8px;right:8px;top:14px;height:5px;border-radius:3px;background:rgba(255,255,255,.75);width:40%}
+.pv .hero-b{position:absolute;left:8px;right:8px;top:26px;height:48px;border-radius:7px}
+.pv .tiles{position:absolute;left:8px;right:8px;top:82px;display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.pv .tiles i{height:22px;border-radius:4px;display:block}
+.pv .menu{position:absolute;left:8px;right:8px;bottom:10px;height:12px;border-radius:6px}
+.pv-a{background:linear-gradient(170deg,#2c2140,#141019 70%)}
+.pv-a .hero-b{background:linear-gradient(135deg,#5b3d8f,#a35bd1)}
+.pv-a .tiles i{background:rgba(255,255,255,.14)}
+.pv-a .menu{background:rgba(255,255,255,.18)}
+.pv-b{background:#000}
+.pv-b .hero-b{background:linear-gradient(135deg,#0a3d91,#16a0e8)}
+.pv-b .tiles i{background:#1c1c1e}
+.pv-b .menu{background:#1c1c1e}
+.th .tl{font-size:17px;font-weight:500}
+.radio{width:26px;height:26px;border-radius:50%;box-shadow:inset 0 0 0 2px #636366}
+.radio.on{background:var(--blue);box-shadow:none;display:grid;place-items:center}
+.radio.on svg{width:15px;height:15px;color:#fff}
+.hr{height:.5px;background:var(--sep);margin:0 16px}
+
+/* update card (Software Update clone) */
+.upd{padding:20px 20px 8px}
+.upd .top{display:flex;gap:16px;align-items:center}
+.upd .appic{width:70px;height:70px;border-radius:17px;background:linear-gradient(150deg,#e7e1d6,#8b7f75 55%,#433b39);display:grid;place-items:center;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.3)}
+.upd .appic svg{width:38px;height:38px;color:#fff;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+.upd .top b{font-size:20px;font-weight:700;display:block}
+.upd .top span{font-size:15px;color:#d1d1d6}
+.upd p{font-size:17px;line-height:1.38;margin:16px 0 18px;letter-spacing:-.01em}
+.upd .btns{margin:0 -20px;border-top:.5px solid var(--sep);padding:16px 20px 6px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.pill{width:100%;height:52px;border-radius:26px;background:#3d8ef7;color:#fff;font-size:18px;font-weight:700;display:grid;place-items:center}
+.tlink{color:var(--blue);font-size:18px;font-weight:600;padding:14px 0}
+.getbtn{background:#2c2c2e;color:var(--blue);font-weight:700;font-size:15px;border-radius:15px;padding:6px 16px}
+
+/* storage */
+.store{padding:16px}
+.store .hd{display:flex;justify-content:space-between;font-size:17px;margin-bottom:12px}
+.store .hd span{color:var(--label2)}
+.bar{display:flex;height:22px;border-radius:6px;overflow:hidden;background:#3a3a3c;gap:1.5px}
+.bar i{display:block}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px;font-size:13px;color:var(--label2)}
+.legend span::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--d);margin-right:5px;vertical-align:0}
+
+/* subtitle preview */
+.subprev{height:150px;margin:0 16px;border-radius:var(--radius-group);position:relative;overflow:hidden;background:radial-gradient(120% 90% at 30% 20%,#3d5a73,#16222e 60%,#0a0f14)}
+.subprev::before{content:"";position:absolute;left:58%;top:22%;width:90px;height:90px;border-radius:50%;background:radial-gradient(#f5c27a,#c46b2a 60%,transparent 70%);opacity:.6;filter:blur(2px)}
+.subprev p{position:absolute;bottom:18px;left:0;right:0;text-align:center;font-weight:700;font-size:17px;text-shadow:0 2px 3px #000,0 0 6px #000}
+.subprev span{position:absolute;top:12px;left:14px;font-size:11px;font-weight:700;letter-spacing:.06em;color:rgba(255,255,255,.7);text-transform:uppercase}
+
+.center-note{text-align:center;color:var(--label3);font-size:13px;padding:20px 0 0;font-weight:500}
+
+
+/* accounts */
+.ic.brand{width:40px;height:40px;border-radius:11px;box-shadow:none;color:#fff}
+.ic.brand svg{width:23px;height:23px}
+.st{font-size:14px;margin-top:3px;display:flex;align-items:center;gap:6px;color:var(--label2)}
+.st.ok{color:var(--green)}
+.st.ok::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green)}
+.signin{background:var(--blue);color:#fff;font-weight:700;font-size:15px;border-radius:15px;padding:6px 14px;white-space:nowrap}
+/* ---------- Before / specs ---------- */
+.before{display:flex;flex-direction:column;align-items:center;gap:16px;width:min(410px,100%)}
+.before img{width:min(410px,100%);height:864px;object-fit:cover;border-radius:64px;border:10px solid #222;opacity:.9}
+.specs{max-width:1100px;margin:0 auto;padding:16px 16px 80px}
+.specs h2{font-size:26px;font-weight:800;margin-bottom:16px}
+.spec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.spec{background:var(--cell);border-radius:20px;padding:18px}
+.spec h4{font-size:15px;margin-bottom:10px}
+.spec ul{list-style:none;font-size:14px;color:#c7c7cc;line-height:1.7}
+.spec code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--teal)}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.3)}
+</style>
+</head>
+<body>
+
+<!-- ======= Icon sprite ======= -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+ <g id="st" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></g>
+</defs>
+<symbol id="chev" viewBox="0 0 24 24"><path d="M9 4.5 16.5 12 9 19.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="back" viewBox="0 0 24 24"><path d="M15.5 4 7.5 12l8 8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="tick" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="gear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8.6" stroke-width="3" stroke-dasharray="2.3 2.2"/><circle cx="12" cy="12" r="6.6" stroke-width="1.8"/><circle cx="12" cy="12" r="1.6" stroke-width="1.6"/><path d="M12 10.4V5.6M10.6 12.8l-4.1 2.4M13.4 12.8l4.1 2.4" stroke-width="1.6" stroke-linecap="round"/></g></symbol>
+<symbol id="brush" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 3 21 4.5l-9 9L10.5 12z"/><path d="M9.5 13.5c-2.6-.3-4.6 1.5-4.6 4.1 0 1.4-.9 2.3-2.4 2.9 3.3 1.1 8.5.6 8.9-3.5"/></g></symbol>
+<symbol id="palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.4 0 2-1 2-2 0-1.2-1-1.6-1-2.6 0-.9.8-1.4 1.8-1.4H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="7.5" cy="11" r="1.4" fill="currentColor"/><circle cx="10" cy="7" r="1.4" fill="currentColor"/><circle cx="15" cy="7.5" r="1.4" fill="currentColor"/></symbol>
+<symbol id="sliders" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h9M19 6h1M4 12h3M13 12h7M4 18h11M21 18h-0"/><circle cx="16" cy="6" r="2.5"/><circle cx="10" cy="12" r="2.5"/><circle cx="18" cy="18" r="2.5"/></g></symbol>
+<symbol id="play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 8.2v7.6l6-3.8z" fill="currentColor"/></symbol>
+<symbol id="film" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M3 8l17-4 .6 2.5L3.6 10.4"/><path d="M8 7l2.5 2.5M13 5.8l2.5 2.5"/></g></symbol>
+<symbol id="tv" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="13" rx="2.5"/><path d="M8 2.5l4 4 4-4"/></g></symbol>
+<symbol id="pad" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10a5 5 0 0 1 5 5v2.5a3 3 0 0 1-5.4 1.8L15 14H9l-1.6 2.3A3 3 0 0 1 2 14.5V12a5 5 0 0 1 5-5z"/><path d="M7.5 10v4M5.5 12h4"/></g><circle cx="15.5" cy="11" r="1.1" fill="currentColor"/><circle cx="17.8" cy="13" r="1.1" fill="currentColor"/></symbol>
+<symbol id="net" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="5" rx="1.2"/><rect x="2.5" y="16.5" width="6" height="5" rx="1.2"/><rect x="15.5" y="16.5" width="6" height="5" rx="1.2"/><path d="M12 7.5V12M5.5 16.5V12h13v4.5"/></g></symbol>
+<symbol id="person" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c.5-4 3.8-6 8-6s7.5 2 8 6"/></g></symbol>
+<symbol id="folder" viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.7l2.2 2.2h7.1A2.5 2.5 0 0 1 21 9.7v7.8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+<symbol id="puzzle" viewBox="0 0 24 24"><path d="M9 6V5a3 3 0 0 1 6 0v1h3.5a.5.5 0 0 1 .5.5V10h1a3 3 0 0 1 0 6h-1v3.5a.5.5 0 0 1-.5.5H15v-1a3 3 0 0 0-6 0v1H5.5a.5.5 0 0 1-.5-.5V16h1a3 3 0 0 0 0-6H5V6.5a.5.5 0 0 1 .5-.5z" fill="currentColor"/></symbol>
+<symbol id="list" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10M3.5 6l1.3 1.3L7.5 4.6M3.5 12l1.3 1.3 2.7-2.7"/><circle cx="5.3" cy="18" r=".6" fill="currentColor"/></g></symbol>
+<symbol id="info" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/></g><circle cx="12" cy="7.6" r="1.3" fill="currentColor"/></symbol>
+<symbol id="chart" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 20v-7M10 20V5M15 20v-9M20 20v-4"/></g></symbol>
+<symbol id="display" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M8.5 21h7M12 17v4"/></g></symbol>
+<symbol id="speaker" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6.5 9H3.5v6h3l4.5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></g></symbol>
+<symbol id="keyboard" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M7.5 14h9"/></g></symbol>
+<symbol id="globe" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.6 5.6 3.6 9s-1.1 6.5-3.6 9c-2.5-2.5-3.6-5.6-3.6-9S9.5 5.5 12 3z"/></g></symbol>
+<symbol id="power" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.6 6.6a7.6 7.6 0 1 0 10.8 0"/></g></symbol>
+<symbol id="doc" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h8.5L19 7v14.5H6z"/><path d="M14 2.5V7.5h5M9 12.5h7M9 16.5h5"/></g></symbol>
+<symbol id="hdd" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 13.5 5.5 5h13l3 8.5"/><rect x="2.5" y="13.5" width="19" height="7" rx="2"/><path d="M6.5 17h.01M10 17h.01"/></g></symbol>
+<symbol id="cc" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M6.5 12.5h4M13 12.5h4.5M6.5 15.5h7M16 15.5h1.5"/></g></symbol>
+<symbol id="disc" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></g></symbol>
+<symbol id="music" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5.5l11-2v12.5"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></g></symbol>
+<symbol id="download" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v11M7 10l5 5 5-5M4.5 20h15"/></g></symbol>
+<symbol id="zip" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4.5" rx="1.2"/><path d="M5 8.5V20h14V8.5M10 12.5h4"/></g></symbol>
+<symbol id="search" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 20.5 20.5"/></g></symbol>
+<symbol id="mic" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5"/></g></symbol>
+<symbol id="refresh" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1L20.5 8.5"/><path d="M20.5 3.5v5h-5"/></g></symbol>
+<symbol id="shield" viewBox="0 0 24 24"><path d="M12 2.5l8 3v6c0 4.9-3.4 8.7-8 10.5-4.6-1.8-8-5.6-8-10.5v-6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+<symbol id="bell" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 1 1 12 0c0 6 2.5 8 2.5 8h-17S6 15 6 9z"/><path d="M10 20.5h4"/></g></symbol>
+<symbol id="box" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 7.5 12 3 3 7.5 12 12z"/><path d="M3 7.5v9L12 21l9-4.5v-9M12 12v9"/></g></symbol>
+<symbol id="layers" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 22 8l-10 5L2 8z"/><path d="M2 12.5l10 5 10-5M2 17l10 5 10-5"/></g></symbol>
+<symbol id="cpu" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx=".8"/><path d="M9.5 2.5V6M14.5 2.5V6M9.5 18v3.5M14.5 18v3.5M2.5 9.5H6M2.5 14.5H6M18 9.5h3.5M18 14.5h3.5"/></g></symbol>
+<symbol id="wifi" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.7 15.9a4.8 4.8 0 0 1 6.6 0"/></g><circle cx="12" cy="19.3" r="1.5" fill="currentColor"/></symbol>
+<symbol id="skip" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5v13l9-6.5zM13 5.5v13l7-6.5z"/></g></symbol>
+<symbol id="clock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></g></symbol>
+<symbol id="text" viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" font-family="-apple-system,Inter,sans-serif" font-weight="700" font-size="14" fill="currentColor">Aa</text></symbol>
+<symbol id="grid" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/></g></symbol>
+<symbol id="image" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M3 16l5-5 4.5 4.5 3-3L21 17"/></g><circle cx="16" cy="9" r="1.6" fill="currentColor"/></symbol>
+<symbol id="battery" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2.5" y="7" width="17" height="10" rx="2.5"/><path d="M22 10.5v3"/></g><rect x="5" y="9.5" width="6" height="5" rx="1" fill="currentColor"/></symbol>
+<symbol id="airplay" viewBox="0 0 24 24"><path d="M6 17H4.5A2 2 0 0 1 2.5 15V5.5a2 2 0 0 1 2-2h15a2 2 0 0 1 2 2V15a2 2 0 0 1-2 2H18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 14l5.5 6.5h-11z" fill="currentColor"/></symbol>
+<symbol id="star" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.8-4.4 4.3 1 6.1L12 17l-5.4 2.8 1-6.1-4.4-4.3 6.1-.8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+<symbol id="magnet" viewBox="0 0 24 24"><path d="M5 3h4v8a3 3 0 0 0 6 0V3h4v8a7 7 0 0 1-14 0z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M5 7h4M15 7h4" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="umbrella" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12a9.5 9.5 0 0 1 19 0z"/><path d="M12 12v6.5a2 2 0 0 1-4 0M12 2.5v0"/></g></symbol>
+<symbol id="cloud" viewBox="0 0 24 24"><path d="M7 19a5 5 0 0 1-.7-9.95A6.5 6.5 0 0 1 18.8 9.6 4.7 4.7 0 0 1 18 19z" fill="currentColor"/></symbol>
+<symbol id="ccheck" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M7.5 12.5l3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="key" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="15" r="4.5"/><path d="M11.2 11.8 20 3M16.5 6.5l2.5 2.5M14 9l2 2"/></g></symbol>
+<symbol id="sig" viewBox="0 0 20 14"><rect x="0" y="9" width="3.4" height="5" rx="1" fill="#fff"/><rect x="5.2" y="6" width="3.4" height="8" rx="1" fill="#fff"/><rect x="10.4" y="3" width="3.4" height="11" rx="1" fill="#fff"/><rect x="15.6" y="0" width="3.4" height="14" rx="1" fill="#6d6d6d"/></symbol>
+<symbol id="wifis" viewBox="0 0 18 14"><path d="M9 13.5 6.3 10.6a3.8 3.8 0 0 1 5.4 0zM3.6 7.8a7.6 7.6 0 0 1 10.8 0l-1.8 1.9a5 5 0 0 0-7.2 0zM.9 5A11.5 11.5 0 0 1 17.1 5l-1.8 1.9a8.9 8.9 0 0 0-12.6 0z" fill="#fff"/></symbol>
+<symbol id="mute" viewBox="0 0 24 24"><g fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 16.5h11s-1.8-1.6-2-5M7 9a5 5 0 0 1 8-3.7M10.5 20h3"/><path d="M4 3l16 18"/></g></symbol>
+</svg>
+
+<!-- ======= Intro ======= -->
+<header class="intro">
+  <div class="eyebrow">Kodi for iOS · Design mockups · v1</div>
+  <h1>Settings, rebuilt the iOS way</h1>
+  <p>The current settings screen is the landscape <b>arctic.fuse</b> skin squeezed into a portrait phone. These mockups replace it with a native iOS 27 grouped-list layout that matches the system Settings app: inset rounded groups, black icon tiles with coloured glyphs, a glass back button, the floating search bar, iOS 26 toggles and grey footer notes. Tap any row with a chevron to jump to its screen.</p>
+  <nav class="chips">
+    <a href="#before">Current</a>
+    <a href="#s-root">Settings Home</a>
+    <a href="#s-accounts">Accounts</a>
+    <a href="#s-system">System</a>
+    <a href="#s-display">Display</a>
+    <a href="#s-custom">Customisation</a>
+    <a href="#s-player">Player</a>
+    <a href="#s-addons">Add-ons</a>
+    <a href="#s-updates">Add-on Updates</a>
+    <a href="#s-about">Information</a>
+    <a href="#specs">Design specs</a>
+  </nav>
+</header>
+
+<main class="grid">
+
+<!-- ======= 00 BEFORE ======= -->
+<figure id="before" class="before">
+  <div class="phone"><div class="screen" style="display:grid;place-items:center;padding:40px;text-align:center">
+    <div><div style="font-size:15px;color:#8e8e93;font-weight:600;letter-spacing:.06em">BEFORE</div>
+    <p style="margin-top:14px;color:#c7c7cc;font-size:17px;line-height:1.45">Fuse's landscape Settings window (Categories, Customisation, Statistics, Information, Add-ons) letterboxed into a thin strip in the middle of the portrait screen.</p></div>
+  </div></div>
+  <figcaption>
+    <div class="n">00 · CURRENT</div>
+    <h2>What it looks like today</h2>
+    <p>The landscape skin is letterboxed, so most of the screen is empty and the text is tiny. Hard to tap, and it doesn't feel like an iPhone app.</p>
+  </figcaption>
+</figure>
+
+<!-- ======= 01 ROOT ======= -->
+<figure id="s-root">
+<div class="phone"><div class="screen">
+  <div class="nav"><div class="title">Settings</div></div>
+  <div class="scroll">
+    <div class="group">
+      <a class="profile" href="#s-accounts">
+        <div class="av">MU</div>
+        <div class="nm"><b>Master user</b><span>Accounts: Trakt, Google Drive, Elementum &amp; Umbrella</span></div>
+        <svg class="chev"><use href="#chev"/></svg>
+      </a>
+    </div>
+    <div class="gap-s"></div>
+    <div class="group">
+      <a class="row" href="#s-updates"><span class="ct"><span class="lb">Add-on Updates Available</span><span class="badge">3</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="gap"></div>
+
+    <div class="group">
+      <a class="row" href="#s-custom"><i class="ic" style="--c:var(--purple)"><svg><use href="#brush"/></svg></i><span class="ct"><span class="lb">Skin</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row" href="#s-custom"><i class="ic" style="--c:var(--blue)"><svg><use href="#palette"/></svg></i><span class="ct"><span class="lb">Interface</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row" href="#s-custom"><i class="ic" style="--c:#d1d1d6"><svg><use href="#sliders"/></svg></i><span class="ct"><span class="lb">Customisation</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row" href="#s-player"><i class="ic" style="--c:var(--green)"><svg><use href="#play"/></svg></i><span class="ct"><span class="lb">Player</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row" href="#s-root"><i class="ic" style="--c:var(--orange)"><svg><use href="#film"/></svg></i><span class="ct"><span class="lb">Media</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="gap"></div>
+
+    <div class="group">
+      <a class="row" href="#s-root"><i class="ic" style="--c:var(--red)"><svg><use href="#tv"/></svg></i><span class="ct"><span class="lb">PVR &amp; Live TV</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row" href="#s-root"><i class="ic" style="--c:#ff6ab0"><svg><use href="#pad"/></svg></i><span class="ct"><span class="lb">Games</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="gap"></div>
+
+    <div class="group">
+      <a class="row" href="#s-system"><i class="ic" style="--c:#aeaeb2"><svg><use href="#gear"/></svg></i><span class="ct"><span class="lb">System</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row" href="#s-root"><i class="ic" style="--c:var(--teal)"><svg><use href="#net"/></svg></i><span class="ct"><span class="lb">Services</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row" href="#s-root"><i class="ic" style="--c:var(--blue)"><svg><use href="#person"/></svg></i><span class="ct"><span class="lb">Profiles</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="gap"></div>
+
+    <div class="group">
+      <a class="row" href="#s-addons"><i class="ic" style="--c:var(--orange)"><svg><use href="#puzzle"/></svg></i><span class="ct"><span class="lb">Add-ons</span><span class="badge">3</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row" href="#s-root"><i class="ic" style="--c:var(--teal)"><svg><use href="#folder"/></svg></i><span class="ct"><span class="lb">File Manager</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row" href="#s-root"><i class="ic" style="--c:#aeaeb2"><svg><use href="#list"/></svg></i><span class="ct"><span class="lb">Event Log</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="gap"></div>
+
+    <div class="group">
+      <a class="row" href="#s-about"><i class="ic" style="--c:#aeaeb2"><svg><use href="#info"/></svg></i><span class="ct"><span class="lb">Information</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row" href="#s-about"><i class="ic" style="--c:var(--green)"><svg><use href="#chart"/></svg></i><span class="ct"><span class="lb">Statistics</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="center-note">Kodi 21.2 Omega · arctic.fuse v3.4.8</div>
+  </div>
+  <div class="search"><svg><use href="#search"/></svg><span>Search</span><svg><use href="#mic"/></svg></div>
+</div></div>
+<figcaption>
+  <div class="n">01 · SETTINGS HOME</div>
+  <h2>Main Settings page</h2>
+  <p>Mirrors the iOS Settings root. Every Kodi category from the old grid (and the old sidebar: Customisation, Statistics, Information, Add-ons) becomes a row, grouped by purpose. The profile card sits on top like the Apple Account card, there's an update banner with a red badge, and a floating glass search bar searches every setting.</p>
+</figcaption>
+</figure>
+
+
+<!-- ======= 01b ACCOUNTS ======= -->
+<figure id="s-accounts">
+<div class="phone"><div class="screen">
+  <div class="nav"><a class="back" href="#s-root"><svg><use href="#back"/></svg></a><div class="title">Accounts</div></div>
+  <div class="scroll">
+    <div class="acct">
+      <div class="av" style="background:linear-gradient(160deg,#9aa9d8,#6b78b4)"><span style="font-size:52px;font-weight:800;color:#fff">MU</span></div>
+      <h3>Master user</h3>
+      <p>3 of 5 services signed in</p>
+    </div>
+    <div class="sh">Streaming &amp; Sources</div>
+    <div class="group">
+      <a class="row"><i class="ic brand" style="background:#1f6feb"><svg><use href="#magnet"/></svg></i><span class="ct"><span class="lb">Elementum<span class="st ok">Signed in · Trakt + Burst</span></span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic brand" style="background:#7d3cff"><svg><use href="#umbrella"/></svg></i><span class="ct"><span class="lb">Umbrella<span class="st ok">Signed in · AllDebrid</span></span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="foot">Tap a service to manage it or sign out. Debrid and scraper logins live inside each add-on.</div>
+    <div class="gap"></div>
+    <div class="sh">Cloud &amp; Tracking</div>
+    <div class="group">
+      <a class="row"><i class="ic brand" style="background:#1a9e5c"><svg><use href="#cloud"/></svg></i><span class="ct"><span class="lb">Google Drive<span class="st ok">you@gmail.com</span></span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic brand" style="background:#ed1c24"><svg><use href="#ccheck"/></svg></i><span class="ct"><span class="lb">Trakt<span class="st">Not signed in</span></span><span class="signin">Sign In</span></span></a>
+      <a class="row"><i class="ic brand" style="background:#01b4e4"><svg><use href="#film"/></svg></i><span class="ct"><span class="lb">TMDb Helper<span class="st">Home rows · Not signed in</span></span><span class="signin">Sign In</span></span></a>
+    </div>
+    <div class="foot">Signing in to Trakt fills "Because You Watched" and the recommendations rows on Home.</div>
+    <div class="gap"></div>
+    <div class="group">
+      <a class="row"><i class="ic" style="--c:var(--blue)"><svg><use href="#person"/></svg></i><span class="ct"><span class="lb">Profiles &amp; Login Screen</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#key"/></svg></i><span class="ct"><span class="lb">Sign-in Help</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="foot">Sign-ins stay on this iPhone. They are never uploaded to GitHub or included in builds.</div>
+  </div>
+</div></div>
+<figcaption>
+  <div class="n">01b · ACCOUNTS</div>
+  <h2>Accounts</h2>
+  <p>Opened from the profile card at the top of Settings, styled like the <i>Apple Account</i> page. Each provider shows whether it's signed in (a green dot plus the account) or has a blue <b>Sign In</b> button that goes straight to that add-on's login. Tapping a signed-in provider opens its settings to manage the account or sign out.</p>
+</figcaption>
+</figure>
+
+<!-- ======= 02 SYSTEM ======= -->
+<figure id="s-system">
+<div class="phone"><div class="screen">
+  <div class="nav"><a class="back" href="#s-root"><svg><use href="#back"/></svg></a><div class="title"></div></div>
+  <div class="scroll">
+    <div class="group hero" style="--c:#aeaeb2">
+      <div class="big"><svg><use href="#gear"/></svg></div>
+      <h3>System</h3>
+      <p>Manage how Kodi runs on iPhone, such as display, audio, input, internet access, power saving and logging.</p>
+    </div>
+    <div class="gap"></div>
+    <div class="group">
+      <a class="row"><i class="ic" style="--c:var(--yellow)"><svg><use href="#star"/></svg></i><span class="ct"><span class="lb">Settings Level</span><span class="val">Advanced</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="foot">Choose how many options are shown. Expert shows every setting Kodi has.</div>
+    <div class="gap"></div>
+    <div class="group">
+      <a class="row" href="#s-display"><i class="ic" style="--c:var(--blue)"><svg><use href="#display"/></svg></i><span class="ct"><span class="lb">Display</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic" style="--c:var(--red)"><svg><use href="#speaker"/></svg></i><span class="ct"><span class="lb">Audio</span><span class="val">AirPods Pro</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic" style="--c:#d1d1d6"><svg><use href="#keyboard"/></svg></i><span class="ct"><span class="lb">Input</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="gap"></div>
+    <div class="group">
+      <a class="row"><i class="ic" style="--c:var(--blue)"><svg><use href="#globe"/></svg></i><span class="ct"><span class="lb">Internet Access</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic" style="--c:var(--green)"><svg><use href="#power"/></svg></i><span class="ct"><span class="lb">Power Saving</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="gap"></div>
+    <div class="group">
+      <a class="row" href="#s-addons"><i class="ic" style="--c:var(--orange)"><svg><use href="#puzzle"/></svg></i><span class="ct"><span class="lb">Add-on Behaviour</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#doc"/></svg></i><span class="ct"><span class="lb">Logging</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#hdd"/></svg></i><span class="ct"><span class="lb">Cache &amp; Storage</span><span class="val">1.2 GB</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="gap"></div>
+    <div class="group">
+      <a class="row"><span class="ct"><span class="lb">Reset System Settings</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+  </div>
+</div></div>
+<figcaption>
+  <div class="n">02 · CATEGORY PAGE</div>
+  <h2>System</h2>
+  <p>Built on the iOS <i>General</i> page: a hero card with a large icon, title and description, then grouped sub-sections. Kodi's <b>Settings Level</b> (Basic / Standard / Advanced / Expert) gets its own row at the top so it's easy to find.</p>
+</figcaption>
+</figure>
+
+<!-- ======= 03 DISPLAY ======= -->
+<figure id="s-display">
+<div class="phone"><div class="screen">
+  <div class="nav"><a class="back" href="#s-system"><svg><use href="#back"/></svg></a><div class="title">Display</div></div>
+  <div class="scroll">
+    <div class="group">
+      <a class="row"><span class="ct"><span class="lb">Display Mode</span><span class="val">Fullscreen</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">Resolution</span><span class="val">2622 × 1206</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">Video Calibration</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="gap"></div>
+    <div class="sh">Adjust Refresh Rate</div>
+    <div class="group">
+      <a class="row"><span class="ct"><span class="lb">Off</span></span></a>
+      <a class="row"><span class="ct"><span class="lb">On Start / Stop</span><svg class="check"><use href="#tick"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">Always</span></span></a>
+    </div>
+    <div class="foot">Matches the screen's refresh rate to the video being played. ProMotion iPhones support 24–120 Hz.</div>
+    <div class="gap"></div>
+    <div class="group">
+      <div class="row"><span class="ct"><span class="lb">Sync Playback to Display</span><span class="tg on"></span></span></div>
+      <div class="row"><span class="ct"><span class="lb">Limited Colour Range</span><span class="tg"></span></span></div>
+      <div class="row"><span class="ct"><span class="lb">HDR Passthrough</span><span class="tg on"></span></span></div>
+    </div>
+    <div class="gap"></div>
+    <div class="group">
+      <a class="row"><span class="ct"><span class="lb">Interface Zoom</span><span class="val">Default</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <div class="row"><span class="ct"><span class="lb">Respect Safe Area</span><span class="tg on"></span></span></div>
+    </div>
+    <div class="foot">Keeps menus clear of the Dynamic Island and the Home indicator. Turn off to fill the whole screen.</div>
+  </div>
+</div></div>
+<figcaption>
+  <div class="n">03 · DETAIL PAGE</div>
+  <h2>System › Display</h2>
+  <p>A leaf page showing the three kinds of control: value rows that open pickers, an <b>inline pick-one list</b> with a blue checkmark (replaces Kodi's pop-up spinners), and iOS 26 toggles. Section titles are grey and bold, explanations go in grey footers.</p>
+</figcaption>
+</figure>
+
+<!-- ======= 04 CUSTOMISATION ======= -->
+<figure id="s-custom">
+<div class="phone"><div class="screen">
+  <div class="nav"><a class="back" href="#s-root"><svg><use href="#back"/></svg></a><div class="title">Customisation</div></div>
+  <div class="scroll">
+    <div class="group">
+      <div class="themes">
+        <div class="th">
+          <div class="pv pv-a"><div class="ttl"></div><div class="hero-b"></div><div class="tiles"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="menu"></div></div>
+          <div class="tl">Fuse</div>
+          <span class="radio"></span>
+        </div>
+        <div class="th">
+          <div class="pv pv-b"><div class="ttl"></div><div class="hero-b"></div><div class="tiles"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="menu"></div></div>
+          <div class="tl">OLED Black</div>
+          <span class="radio on"><svg><use href="#tick"/></svg></span>
+        </div>
+      </div>
+      <div class="hr"></div>
+      <div class="row"><span class="ct" style="box-shadow:none"><span class="lb">Automatic</span><span class="tg"></span></span></div>
+    </div>
+    <div class="foot">Switches between colour themes at sunrise and sunset.</div>
+    <div class="gap"></div>
+    <div class="group">
+      <a class="row"><span class="ct"><span class="lb">Skin</span><span class="val">arctic.fuse</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="foot">The skin controls the whole look of Kodi outside of Settings.</div>
+    <div class="gap"></div>
+    <div class="group">
+      <a class="row"><span class="ct"><span class="lb">Accent Colour</span><span class="val">Blue</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">Font</span><span class="val">Inter</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="gap"></div>
+    <div class="group">
+      <a class="row"><span class="ct"><span class="lb">Text Size</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <div class="row"><span class="ct"><span class="lb">Bold Text</span><span class="tg on"></span></span></div>
+    </div>
+    <div class="gap"></div>
+    <div class="group">
+      <a class="row"><span class="ct"><span class="lb">Home Menu</span><span class="val">7 Items</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">Widgets</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="foot">Choose and reorder what shows on the Home screen.</div>
+    <div class="gap"></div>
+    <div class="sh">Motion &amp; Backgrounds</div>
+    <div class="group">
+      <div class="row"><span class="ct"><span class="lb">Reduce Animations</span><span class="tg"></span></span></div>
+      <div class="row"><span class="ct"><span class="lb">Fanart Backgrounds</span><span class="tg on"></span></span></div>
+      <div class="row"><span class="ct"><span class="lb">Blur Behind Menus</span><span class="tg on"></span></span></div>
+      <a class="row"><span class="ct"><span class="lb link">More in Skin Settings…</span></span></a>
+    </div>
+  </div>
+</div></div>
+<figcaption>
+  <div class="n">04 · CUSTOMISATION</div>
+  <h2>Customisation (Appearance style)</h2>
+  <p>Copies the iOS <i>Appearance</i> page: big preview tiles of the skin's colour themes with radio checks and an <b>Automatic</b> switch, then skin, accent, font, text size and Home-menu options. Ends with a blue "More in Skin Settings…" link into the skin's own options.</p>
+</figcaption>
+</figure>
+
+<!-- ======= 05 PLAYER ======= -->
+<figure id="s-player">
+<div class="phone"><div class="screen">
+  <div class="nav"><a class="back" href="#s-root"><svg><use href="#back"/></svg></a><div class="title">Player</div></div>
+  <div class="scroll">
+    <div class="sh">Videos</div>
+    <div class="group">
+      <a class="row"><i class="ic" style="--c:var(--blue)"><svg><use href="#skip"/></svg></i><span class="ct"><span class="lb">Skip Steps</span><span class="val">−10s, +30s</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic" style="--c:var(--orange)"><svg><use href="#clock"/></svg></i><span class="ct"><span class="lb">Resume Playback</span><span class="val">Ask</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <div class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#cpu"/></svg></i><span class="ct"><span class="lb">Hardware Decoding</span><span class="tg on"></span></span></div>
+      <div class="row"><i class="ic" style="--c:var(--teal)"><svg><use href="#airplay"/></svg></i><span class="ct"><span class="lb">Picture in Picture</span><span class="tg on"></span></span></div>
+    </div>
+    <div class="foot">Hardware decoding uses VideoToolbox for smoother playback and longer battery life.</div>
+    <div class="gap"></div>
+    <div class="sh">Subtitles</div>
+    <div class="subprev"><span>Preview</span><p>Hello there, Captain.</p></div>
+    <div class="gap-s"></div>
+    <div class="group">
+      <a class="row"><span class="ct"><span class="lb">Preferred Language</span><span class="val">English</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">Font</span><span class="val">Inter Bold</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">Size</span><span class="val">42</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">Background</span><span class="val">Shadow</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">Download Service</span><span class="val">OpenSubtitles</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="gap"></div>
+    <div class="sh">Music</div>
+    <div class="group">
+      <a class="row"><i class="ic" style="--c:var(--red)"><svg><use href="#music"/></svg></i><span class="ct"><span class="lb">Crossfade</span><span class="val">Off</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <div class="row"><i class="ic" style="--c:var(--purple)"><svg><use href="#speaker"/></svg></i><span class="ct"><span class="lb">Volume Levelling</span><span class="tg on"></span></span></div>
+    </div>
+    <div class="gap"></div>
+    <div class="sh">Discs</div>
+    <div class="group">
+      <div class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#disc"/></svg></i><span class="ct"><span class="lb">Auto-play Discs</span><span class="tg"></span></span></div>
+      <a class="row"><i class="ic" style="--c:var(--blue)"><svg><use href="#disc"/></svg></i><span class="ct"><span class="lb">Blu-ray Menus</span><span class="val">Simplified</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+  </div>
+</div></div>
+<figcaption>
+  <div class="n">05 · CATEGORY WITH SECTIONS</div>
+  <h2>Player</h2>
+  <p>For long categories, bold grey section titles (Videos / Subtitles / Music / Discs) keep everything on one scrolling page. Icon tiles are optional per row. A live <b>subtitle preview</b> card updates as you change font, size and background.</p>
+</figcaption>
+</figure>
+
+<!-- ======= 06 ADD-ONS ======= -->
+<figure id="s-addons">
+<div class="phone"><div class="screen">
+  <div class="nav"><a class="back" href="#s-root"><svg><use href="#back"/></svg></a><div class="title">Add-ons</div></div>
+  <div class="scroll">
+    <div class="acct">
+      <div class="av"><svg><use href="#puzzle"/></svg></div>
+      <h3>Add-ons</h3>
+      <p>42 installed · 3 updates</p>
+    </div>
+    <div class="group">
+      <a class="row"><i class="ic" style="--c:var(--orange)"><svg><use href="#grid"/></svg></i><span class="ct"><span class="lb">My Add-ons</span><span class="val">42</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic" style="--c:var(--blue)"><svg><use href="#download"/></svg></i><span class="ct"><span class="lb">Install from Repository</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#zip"/></svg></i><span class="ct"><span class="lb">Install from Zip File</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#search"/></svg></i><span class="ct"><span class="lb">Search Add-ons</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="gap"></div>
+    <div class="group">
+      <a class="row" href="#s-updates"><i class="ic" style="--c:var(--green)"><svg><use href="#refresh"/></svg></i><span class="ct"><span class="lb">Updates</span><span class="badge">3</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic" style="--c:var(--teal)"><svg><use href="#box"/></svg></i><span class="ct"><span class="lb">Repositories</span><span class="val">4</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic" style="--c:var(--purple)"><svg><use href="#layers"/></svg></i><span class="ct"><span class="lb">Dependencies</span><span class="val">58</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#cpu"/></svg></i><span class="ct"><span class="lb">Running Now</span><span class="val">2</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="gap"></div>
+    <div class="group">
+      <div class="row"><i class="ic" style="--c:var(--red)"><svg><use href="#bell"/></svg></i><span class="ct"><span class="lb">Update Notifications</span><span class="tg on"></span></span></div>
+    </div>
+    <div class="gap"></div>
+    <div class="sh">Security</div>
+    <div class="group">
+      <div class="row"><i class="ic" style="--c:var(--yellow)"><svg><use href="#shield"/></svg></i><span class="ct"><span class="lb">Unknown Sources</span><span class="tg"></span></span></div>
+      <a class="row"><span class="ct"><span class="lb">Update Official Add-ons From</span><span class="val">Official</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="foot">Allows installing add-ons from zip files and third-party repositories. Only turn this on for sources you trust.</div>
+  </div>
+</div></div>
+<figcaption>
+  <div class="n">06 · ADD-ONS HUB</div>
+  <h2>Add-ons</h2>
+  <p>Styled like the <i>Apple Account</i> page: a large round avatar with title and summary, then grouped actions (browse, install, search), management (updates with badge, repositories, dependencies, running), and a Security group for Unknown Sources with a warning footer.</p>
+</figcaption>
+</figure>
+
+<!-- ======= 07 UPDATES ======= -->
+<figure id="s-updates">
+<div class="phone"><div class="screen">
+  <div class="nav"><a class="back" href="#s-addons"><svg><use href="#back"/></svg></a><div class="title">Add-on Updates</div></div>
+  <div class="scroll">
+    <div class="group">
+      <a class="row"><span class="ct"><span class="lb">Automatic Updates</span><span class="val">Notify Only</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">Beta Versions</span><span class="val">Off</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="gap-s"></div>
+    <div class="group upd">
+      <div class="top">
+        <div class="appic"><svg><use href="#brush"/></svg></div>
+        <div><b>arctic.fuse 3.5.0</b><span>Skin · 12.4 MB</span></div>
+      </div>
+      <p>This update adds new Home widgets for Continue Watching and Up Next, smoother scrolling on 120 Hz displays, and a refreshed OLED Black theme. It also includes bug fixes and better performance.</p>
+      <div class="btns">
+        <div class="pill">Update Now</div>
+        <div class="tlink">Update All Tonight</div>
+        <div class="tlink">View Changelog</div>
+      </div>
+    </div>
+    <div class="foot">Updates are installed from the Kodi Add-on Repository.</div>
+    <div class="gap"></div>
+    <div class="sh">Also Available</div>
+    <div class="group">
+      <div class="row"><i class="ic fill" style="--c:#ff3b30"><svg><use href="#play"/></svg></i><span class="ct"><span class="lb">YouTube<small>7.1.1 · Video add-on · 2.1 MB</small></span><span class="getbtn">Update</span></span></div>
+      <div class="row"><i class="ic fill" style="--c:#0a84ff"><svg><use href="#globe"/></svg></i><span class="ct"><span class="lb">Weather Multi<small>1.4.2 · Weather · 640 KB</small></span><span class="getbtn">Update</span></span></div>
+    </div>
+    <div class="gap"></div>
+    <div class="sh">Recently Updated</div>
+    <div class="group">
+      <div class="row"><i class="ic fill" style="--c:#30b0c7"><svg><use href="#image"/></svg></i><span class="ct"><span class="lb">Artwork Dump<small>Updated yesterday</small></span><svg class="chev"><use href="#chev"/></svg></span></div>
+      <div class="row"><i class="ic fill" style="--c:#5e5ce6"><svg><use href="#cc"/></svg></i><span class="ct"><span class="lb">a4kSubtitles<small>Updated 3 days ago</small></span><svg class="chev"><use href="#chev"/></svg></span></div>
+    </div>
+  </div>
+</div></div>
+<figcaption>
+  <div class="n">07 · ADD-ONS › UPDATES</div>
+  <h2>Add-on Updates</h2>
+  <p>A direct copy of iOS <i>Software Update</i>: settings at the top, a featured card for the main update with release notes, a big blue <b>Update Now</b> button and text links, then App Store-style "Update" pills for the rest.</p>
+</figcaption>
+</figure>
+
+<!-- ======= 08 INFORMATION ======= -->
+<figure id="s-about">
+<div class="phone"><div class="screen">
+  <div class="nav"><a class="back" href="#s-root"><svg><use href="#back"/></svg></a><div class="title">Information</div></div>
+  <div class="scroll">
+    <div class="group">
+      <div class="row"><span class="ct"><span class="lb">Kodi Version</span><span class="val">21.2 (Omega)</span></span></div>
+      <div class="row"><span class="ct"><span class="lb">Build Date</span><span class="val">14 Oct 2026</span></span></div>
+      <div class="row"><span class="ct"><span class="lb">Skin</span><span class="val">arctic.fuse 3.4.8</span></span></div>
+      <div class="row"><span class="ct"><span class="lb">iOS Version</span><span class="val">27.1</span></span></div>
+      <div class="row"><span class="ct"><span class="lb">Device</span><span class="val">iPhone</span></span></div>
+    </div>
+    <div class="gap"></div>
+    <div class="group store">
+      <div class="hd"><b style="font-weight:500">Kodi Storage</b><span>4.7 GB used</span></div>
+      <div class="bar"><i style="flex:2.4;background:#ff9f0a"></i><i style="flex:1.2;background:#bf5af2"></i><i style="flex:.86;background:#0a84ff"></i><i style="flex:.21;background:#30d158"></i><i style="flex:3.2"></i></div>
+      <div class="legend"><span style="--d:#ff9f0a">Thumbnails</span><span style="--d:#bf5af2">Cache</span><span style="--d:#0a84ff">Add-ons</span><span style="--d:#30d158">Databases</span></div>
+    </div>
+    <div class="gap"></div>
+    <div class="sh">Network</div>
+    <div class="group">
+      <div class="row"><i class="ic" style="--c:var(--blue)"><svg><use href="#wifi"/></svg></i><span class="ct"><span class="lb">Wi-Fi</span><span class="val">Connected</span></span></div>
+      <div class="row"><span class="ct"><span class="lb">IP Address</span><span class="val">192.168.1.24</span></span></div>
+      <div class="row"><span class="ct"><span class="lb">DNS</span><span class="val">192.168.1.1</span></span></div>
+    </div>
+    <div class="gap"></div>
+    <div class="sh">Performance</div>
+    <div class="group">
+      <div class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#cpu"/></svg></i><span class="ct"><span class="lb">CPU Usage</span><span class="val">12%</span></span></div>
+      <div class="row"><i class="ic" style="--c:var(--purple)"><svg><use href="#layers"/></svg></i><span class="ct"><span class="lb">Memory</span><span class="val">1.1 GB</span></span></div>
+      <div class="row"><i class="ic" style="--c:var(--green)"><svg><use href="#battery"/></svg></i><span class="ct"><span class="lb">Battery</span><span class="val">34%</span></span></div>
+      <div class="row"><i class="ic" style="--c:var(--orange)"><svg><use href="#display"/></svg></i><span class="ct"><span class="lb">Frame Rate</span><span class="val">120 fps</span></span></div>
+    </div>
+    <div class="gap"></div>
+    <div class="group">
+      <a class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#list"/></svg></i><span class="ct"><span class="lb">Event Log</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><i class="ic" style="--c:var(--green)"><svg><use href="#chart"/></svg></i><span class="ct"><span class="lb">Library Statistics</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">Licences &amp; Credits</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+  </div>
+</div></div>
+<figcaption>
+  <div class="n">08 · INFORMATION</div>
+  <h2>Information</h2>
+  <p>Modelled on iOS <i>About</i> and <i>iPhone Storage</i>: read-only value rows with no chevrons, a colour-coded storage bar for thumbnails, cache, add-ons and databases, plus live network and performance stats. Replaces Kodi's old System Info screen.</p>
+</figcaption>
+</figure>
+
+</main>
+
+<!-- ======= Specs ======= -->
+<section class="specs" id="specs">
+  <h2>Design specs for implementation</h2>
+  <div class="spec-grid">
+    <div class="spec"><h4>Colours (dark)</h4><ul>
+      <li><span class="sw" style="background:#000"></span>Background <code>#000000</code></li>
+      <li><span class="sw" style="background:#1c1c1e"></span>Group cell <code>#1C1C1E</code></li>
+      <li><span class="sw" style="background:#38383a"></span>Separator <code>#38383A</code> · 0.5pt</li>
+      <li><span class="sw" style="background:#8e8e93"></span>Secondary text <code>#8E8E93</code></li>
+      <li><span class="sw" style="background:#0a84ff"></span>Tint / links <code>#0A84FF</code></li>
+      <li><span class="sw" style="background:#30d158"></span>Toggle on <code>#30D158</code></li>
+      <li><span class="sw" style="background:#ff453a"></span>Badge / destructive <code>#FF453A</code></li>
+    </ul></div>
+    <div class="spec"><h4>Layout</h4><ul>
+      <li>Group inset: <code>16pt</code> sides · radius <code>26pt</code></li>
+      <li>Row min height: <code>52pt</code> · padding <code>16pt</code></li>
+      <li>Space between groups: <code>34pt</code></li>
+      <li>Separator starts at text (after icon)</li>
+      <li>Icon tile: <code>31pt</code> · radius <code>9pt</code> · glyph <code>19pt</code></li>
+      <li>Back button: <code>46pt</code> glass circle</li>
+    </ul></div>
+    <div class="spec"><h4>Type (SF Pro)</h4><ul>
+      <li>Row label: <code>17pt Regular</code></li>
+      <li>Value: <code>17pt Regular</code> · secondary</li>
+      <li>Nav title: <code>17pt Bold</code></li>
+      <li>Section title: <code>17pt Bold</code> · secondary</li>
+      <li>Footer: <code>13pt</code> · secondary</li>
+      <li>Hero title: <code>30pt Heavy</code></li>
+    </ul></div>
+    <div class="spec"><h4>Building it natively</h4><ul>
+      <li>SwiftUI <code>List</code> + <code>.insetGrouped</code></li>
+      <li><code>NavigationStack</code> for push pages</li>
+      <li><code>.searchable</code> → bottom glass search bar</li>
+      <li>Values read/written via Kodi settings (JSON-RPC <code>Settings.*</code>)</li>
+      <li>Respects Settings Level &amp; Dynamic Type</li>
+    </ul></div>
+  </div>
+</section>
+
+<script>
+// Inject the shared status bar, Dynamic Island and home indicator into every phone screen.
+const status = `
+<div class="island"></div>
+<div class="status"><span style="display:flex;align-items:center;gap:5px">1:07<svg width="18" height="18"><use href="#mute"/></svg></span>
+<span class="r"><svg width="20" height="13"><use href="#sig"/></svg><svg width="18" height="13"><use href="#wifis"/></svg><span class="batt"><b>34</b><i></i></span></span></div>
+<div class="home-ind"></div>`;
+document.querySelectorAll('.screen').forEach(s => s.insertAdjacentHTML('afterbegin', status));
+</script>
+</body>
+</html>

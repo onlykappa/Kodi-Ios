@@ -20,7 +20,7 @@ class PortraitTests(unittest.TestCase):
   self.tmp=tempfile.TemporaryDirectory();base=Path(self.tmp.name)
   self.skin=base/'skin.arctic.fuse.3';(self.skin/'1080i').mkdir(parents=True)
   (self.skin/'addon.xml').write_text(ADDON)
-  for name,data in {'Font.xml':FONT,'Home.xml':HOME,'Custom_1101_Hub.xml':HUB,'DialogConfirm.xml':DIALOG,'Settings.xml':SETTINGS,'Includes.xml':'<includes />'}.items():
+  for name,data in {'Font.xml':FONT,'Home.xml':HOME,'Custom_1101_Hub.xml':HUB,'DialogConfirm.xml':DIALOG,'Settings.xml':SETTINGS,'SettingsSystemInfo.xml':SETTINGS,'Includes.xml':'<includes />'}.items():
    (self.skin/'1080i'/name).write_text(data)
   self.profile=base/'profile';nodes=self.profile/'addon_data/script.skinvariables/nodes/skin.arctic.fuse.3'
   nodes.mkdir(parents=True)
@@ -76,7 +76,7 @@ class PortraitTests(unittest.TestCase):
   ids={c.get('id') for c in self.read('portrait/DialogVideoInfo.xml').iter('control')}
   self.assertIn('8',ids);self.assertIn('4',ids)
  def test_landscape_windows_are_shrunk_without_the_safe_area_frame(self):
-  root=self.read('portrait/Settings.xml');ids=[c.get('id') for c in root.iter('control')]
+  root=self.read('portrait/SettingsSystemInfo.xml');ids=[c.get('id') for c in root.iter('control')]
   self.assertNotIn('98400',ids);self.assertIn('3',ids)
   zoom=root.find('controls/control/animation')
   self.assertEqual(zoom.get('effect'),'zoom');self.assertEqual(zoom.get('start'),'0,0,1920,1080')
