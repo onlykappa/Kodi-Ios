@@ -410,3 +410,29 @@ Status: BUILT ON HOST; needs the drive.file sign-in (deploy workflow) and a devi
 Status: PORTED ON HOST; rig-verified; held for the UI update (not pushed to the build branch).
 - On the Deck, Elementum's `rpc.py` `Dialog_Select_Large` hands the link list to `deck_picker.py`: a quality choice (only qualities present, or "Show all"), then the five best different links in that quality on `DeckSourceSelect.xml` with the title's poster, background, year/runtime and plot. Those files existed only on the Deck; the owner sent the Deck Keeper snapshot. They are now in `migration/deck-picker/` unchanged, installed into the bundled Elementum with the same `rpc.py` edit; the two full-screen background layers reach the right edge on the phone's wider canvas. The watch menu leaves the title's details on the Home window, as the Deck's Sources chooser did.
 - Verified: the picker parses the 9 streams the phone listed (owner's screenshot) and offers "1080p Full HD — 8 versions" / "720p HD"; its top-5 choice maps back to Elementum's original index; cancel and "Show all" fall back to Elementum's own dialog. Rendered in the Kodi 21.3 rig at the phone's proportions.
+## ISSUE-060 — r11: portrait mode (owner design "layout A")
+
+Status: IMPLEMENTED ON HOST; rig-verified layout; native build in CI; awaiting iPhone test. Details: docs/portrait/README.md.
+- Kodi 21.3 iOS cannot rotate by configuration: `XBMCController` returns a landscape-only mask, `WinSystemIOS` caches the first screen size forever, and nothing resizes the GL framebuffer or safe-area insets. Patching only the mask would leave a clipped landscape picture with misplaced taps. Fix: `migration/ios-portrait/kodi-21.3-portrait.patch` (rotation handler that resizes the framebuffer, resets the cached size, rebuilds RES_DESKTOP and insets on Kodi's thread; fullscreen video stays landscape), built on macOS by `.github/workflows/kodi-ios-portrait.yml`. Only the main executable is swapped in, after checking it loads the same libraries as the official one.
+- Found in the rig: a grouplist passes taps only to children that are fully on screen (`CGUIControlGroupList::IsControlOnScreen`), so a poster row partly under the tab bar ignored taps. The same patch lets partly visible rows take taps inside the list's own area.
+- Skin: Kodi picks the closest `<res>` folder, but loads includes/fonts once per skin load, so the bootstrap reloads the skin after a rotation settles. Fuse gets a generated `portrait` folder (1080x2090 = square pixels in the 16 Pro's portrait safe area): Home/TV/Movies/Downloads hubs (hero card, Fuse widget rows, bottom tab bar), show page (season chips + episodes), info page, centred select dialog (watch chooser) and More menu; every other window is the landscape window shrunk into the middle (taps verified).
+- Rig bug fixed before shipping: a loop variable overwrote the window name, giving every shrunk dialog a full black background (black screens behind notifications).
+- Owner change: Google Drive rows removed from "How would you like to watch?" (Elementum will play Drive sources itself).
+- Limits: rig has no touch gestures, safe areas or rotation; rotation and the native build need the phone.
+- r3 (owner review, "Netflix and Apple Home had a baby"): Apple TV app look (large titles, full-bleed hero, frosted floating tab bar
+  Home · Movies · TV · Library · Search, no Drive tab), Library (Movies / TV Shows → poster grid), Search (field + category tiles),
+  iOS-style long-press menu (title card + icon rows), Continue Watching first on Home (movies and episodes mixed), TV (episodes)
+  and Movies (movies). Kodi's library rarely knows phone playback (TMDb Helper/Elementum), so the watch chooser records what it
+  starts and the bootstrap service saves progress; `plugin.video.kodi.ios.watch/?action=continue` lists it with library
+  in-progress items. Kodi does not pass Home's focused item to the context menu, so the service publishes it as Portrait.Item.*.
+  Rig findings fixed: page lists end above the tab bar (focused rows could hide under it), 4-px gradient textures stretched badly,
+  `String.IsEqual` cannot compare two infolabels, `colordiffuse="00000000"` means "untinted".
+- r4 (owner request): real Liquid Glass tab bar. The web/SwiftUI "liquid glass" projects cannot run in Kodi's OpenGL skin,
+  which can neither blur nor refract what lies behind a control. `migration/glassbar-ios` builds KodiGlassBar.framework, a
+  native bar using Apple's UIGlassEffect (iOS 26; frosted material before), with a glass lens that follows the finger and
+  springs to the chosen tab. The bootstrap loads it like the AirPlay button, shows it on the five tab pages in portrait when no
+  dialog is open, marks the page and runs tapped tabs; the skin hides its own bar meanwhile. Not testable in the Linux rig.
+
+## ISSUE-061 — r11 portrait merged with the Deck picker
+Status: MERGED ON HOST; device test pending.
+- `feature/ios-portrait` (layout A: rotation-aware Kodi executable `kodi-ios-portrait-r1`, Liquid Glass tab bar `kodi-glassbar-r1`, portrait Fuse windows, Continue Watching) is merged with the Deck "Choose a version" page and the drive.file sign-in deploy. The watch chooser keeps both sides: Continue Watching records the title it starts, and an Elementum choice leaves the title's details for the Deck page. Both pinned portrait downloads were fetched and verified on host before the build.

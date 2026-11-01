@@ -7,6 +7,8 @@ from ios_watch_routes import choices
 def run(argv):
  import xbmc,xbmcaddon,xbmcgui,xbmcplugin
  handle=int(argv[1]);params={k:v[0] for k,v in parse_qs(argv[2].lstrip('?')).items()}
+ if params.get('action')=='continue':
+  from ios_continue import directory;directory(handle,params.get('type','all'));return
  if params.get('action')=='engine_status':
   xbmcgui.Dialog().ok('Elementum not available','Elementum is not installed or is switched off in this build. Check Add-ons > Video add-ons > Elementum.')
   xbmcplugin.endOfDirectory(handle,succeeded=False);return

@@ -1,0 +1,43 @@
+name: Liquid Glass tab bar for iPhoneOS (r11 portrait)
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/glassbar-ios.yml'
+      - 'migration/glassbar-ios/build-glassbar.sh'
+      - 'migration/glassbar-ios/source-lock.json'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: glassbar-ios
+  cancel-in-progress: false
+jobs:
+  glassbar:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Build KodiGlassBar.framework
+        run: bash migration/glassbar-ios/build-glassbar.sh "$RUNNER_TEMP/glassbar"
+      # The IPA build fetches the framework from this release and checks the sha256 pinned in
+      # migration/glassbar-ios/source-lock.json; an existing tag is never replaced, so the pin stays valid.
+      - name: Publish the framework once per tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          tag="$(python3 -c "import json;print(json.load(open('migration/glassbar-ios/source-lock.json'))['framework_release']['tag'])")"
+          if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then echo "$tag already published"; exit 0; fi
+          dir="$RUNNER_TEMP/glassbar"
+          gh release create "$tag" "$dir/KodiGlassBar.framework.zip" --repo "$REPO" --target "$SHA" --prerelease \
+            --title "Liquid Glass tab bar for iPhoneOS ($tag)" --notes "$(cat "$dir/KodiGlassBar.framework.zip.sha256")"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: kodi-glassbar-framework
+          path: ${{ runner.temp }}/glassbar/KodiGlassBar.framework.zip*
+          if-no-files-found: error
+          retention-days: 30
