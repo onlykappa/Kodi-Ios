@@ -137,8 +137,64 @@ index 84f28b0..4504250 100644
  
  # configuration settings
  CONFIGURE=cp -f $(CONFIG_SUB) $(CONFIG_GUESS) .; \
+diff --git a/xbmc/guilib/GUIBaseContainer.cpp b/xbmc/guilib/GUIBaseContainer.cpp
+index 8974597..b5d831d 100644
+--- a/xbmc/guilib/GUIBaseContainer.cpp
++++ b/xbmc/guilib/GUIBaseContainer.cpp
+@@ -8,6 +8,8 @@
+ 
+ #include "GUIBaseContainer.h"
+ 
++#include <cmath>
++
+ #include "FileItem.h"
+ #include "GUIInfoManager.h"
+ #include "GUIListItemLayout.h"
+@@ -811,12 +813,29 @@ EVENT_RESULT CGUIBaseContainer::OnMouseEvent(const CPoint& point, const MOUSE::C
+   else if (event.m_id == ACTION_GESTURE_BEGIN)
+   { // grab exclusive access
+     m_gestureActive = true;
++    m_gestureDecided = false;
+     CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, GetID(), GetParentID());
+     SendWindowMessage(msg);
+     return EVENT_RESULT_HANDLED;
+   }
+   else if (event.m_id == ACTION_GESTURE_PAN)
+-  { // do the drag and validate our offset (corrects for end of scroll)
++  {
++    // Kodi-iOS: a list inside a scrolling group list (a row of posters on a page) hands a drag that starts across
++    // its own direction to the page, which then takes the gesture (and its momentum) instead of the row.
++    if (!m_gestureDecided)
++    {
++      m_gestureDecided = true;
++      const bool across = (m_orientation == HORIZONTAL) ? std::abs(event.m_offsetY) > std::abs(event.m_offsetX)
++                                                        : std::abs(event.m_offsetX) > std::abs(event.m_offsetY);
++      CGUIControl* parent = GetParentControl();
++      if (across && !m_waitForScrollEnd && parent && parent->GetControlType() == GUICONTROL_GROUPLIST)
++      {
++        m_gestureActive = false;
++        parent->OnMouseEvent(point, KODI::MOUSE::CMouseEvent(ACTION_GESTURE_BEGIN));
++        return parent->OnMouseEvent(point, event);
++      }
++    }
++    // do the drag and validate our offset (corrects for end of scroll)
+     m_scroller.SetValue(m_scroller.GetValue() - ((m_orientation == HORIZONTAL) ? event.m_offsetX : event.m_offsetY));
+     float size = (m_layout) ? m_layout->Size(m_orientation) : 10.0f;
+     int offset = MathUtils::round_int(static_cast<double>(m_scroller.GetValue() / size));
+diff --git a/xbmc/guilib/GUIBaseContainer.h b/xbmc/guilib/GUIBaseContainer.h
+index 38e68cf..3f56e4e 100644
+--- a/xbmc/guilib/GUIBaseContainer.h
++++ b/xbmc/guilib/GUIBaseContainer.h
+@@ -234,6 +234,7 @@ private:
+   static const int letter_match_timeout = 1000;
+ 
+   bool m_gestureActive = false;
++  bool m_gestureDecided = false; // Kodi-iOS: whether this drag is ours or the page's
+ 
+   // early inertial scroll cancellation
+   bool m_waitForScrollEnd = false;
 diff --git a/xbmc/guilib/GUIControlGroupList.cpp b/xbmc/guilib/GUIControlGroupList.cpp
-index b0940ef..0a435ee 100644
+index b0940ef..234be70 100644
 --- a/xbmc/guilib/GUIControlGroupList.cpp
 +++ b/xbmc/guilib/GUIControlGroupList.cpp
 @@ -404,12 +404,17 @@ EVENT_RESULT CGUIControlGroupList::SendMouseEvent(const CPoint& point,
@@ -160,6 +216,18 @@ index b0940ef..0a435ee 100644
          { // we're on screen
            float offsetX = m_orientation == VERTICAL ? m_posX : m_posX + alignOffset + pos - m_scroller.GetValue();
            float offsetY = m_orientation == VERTICAL ? m_posY + alignOffset + pos - m_scroller.GetValue() : m_posY;
+@@ -568,6 +573,11 @@ EVENT_RESULT CGUIControlGroupList::OnMouseEvent(const CPoint& point,
+       offset = nextOffset;
+     }
+   }
++  else if (event.m_id == ACTION_GESTURE_NOTIFY)
++  { // Kodi-iOS: take inertial scrolling like lists do, so a flicked page keeps gliding after the finger lifts
++    // (without this answer Kodi skipped the momentum and a page stopped dead).
++    return (m_orientation == HORIZONTAL) ? EVENT_RESULT_PAN_HORIZONTAL : EVENT_RESULT_PAN_VERTICAL;
++  }
+   else if (event.m_id == ACTION_GESTURE_BEGIN)
+   { // grab exclusive access
+     CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, GetID(), GetParentID());
 diff --git a/xbmc/guilib/GUIWindow.cpp b/xbmc/guilib/GUIWindow.cpp
 index ebb133d..f26ed20 100644
 --- a/xbmc/guilib/GUIWindow.cpp
@@ -223,10 +291,21 @@ index 0d88d1d..9c268d8 100644
    if (msg == "OnPlay" || msg == "OnResume")
    {
 diff --git a/xbmc/platform/darwin/ios/IOSEAGLView.mm b/xbmc/platform/darwin/ios/IOSEAGLView.mm
-index 56ecaa5..63284b5 100644
+index 56ecaa5..1ba8da8 100644
 --- a/xbmc/platform/darwin/ios/IOSEAGLView.mm
 +++ b/xbmc/platform/darwin/ios/IOSEAGLView.mm
-@@ -244,15 +244,10 @@
+@@ -60,7 +60,9 @@
+ //--------------------------------------------------------------
+ - (void) resizeFrameBuffer
+ {
+-  auto frame = currentScreen.bounds;
++  // Kodi-iOS: the view's own size, not the screen's; during a rotation the two can differ for a moment and the
++  // framebuffer then kept the old orientation's size.
++  auto frame = self.bounds;
+   CAEAGLLayer *eaglLayer = (CAEAGLLayer *)[self layer];
+   //allow a maximum framebuffer size of 1080p
+   //needed for tvout on iPad3/4 and iphone4/5 and maybe AppleTV3
+@@ -244,15 +246,10 @@
  
      glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebuffer);
  
@@ -268,20 +347,21 @@ index e29411a..cf76d61 100644
  		<string>UIInterfaceOrientationLandscapeRight</string>
  	</array>
 diff --git a/xbmc/platform/darwin/ios/XBMCController.h b/xbmc/platform/darwin/ios/XBMCController.h
-index b2a06d0..2c26284 100644
+index b2a06d0..0c74089 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.h
 +++ b/xbmc/platform/darwin/ios/XBMCController.h
-@@ -61,6 +61,8 @@
+@@ -61,6 +61,9 @@
  - (CGRect)fullscreenSubviewFrame;
  - (void)onXbmcAlive;
  - (void)setGUIInsetsFromMainThread:(BOOL)isMainThread;
 +- (void)setVideoLandscape:(BOOL)landscape;
 +- (void)applyVideoOrientation;
++- (void)healScreenSize;
  - (void) setFramebuffer;
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..80c5d74 100644
+index a450151..5314662 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
 @@ -36,6 +36,8 @@
@@ -301,7 +381,7 @@ index a450151..80c5d74 100644
  #include <math.h>
  #include <signal.h>
  
-@@ -203,10 +206,112 @@ public:
+@@ -203,10 +206,139 @@ public:
  }
  // END OF UIKeyInput protocol
  
@@ -317,7 +397,7 @@ index a450151..80c5d74 100644
 +  if ([[IOSScreenManager sharedInstance] isExternalScreen] || s_videoLandscape)
 +    return UIInterfaceOrientationMaskLandscape;
 +  return UIInterfaceOrientationMaskPortrait;
- }
++}
 +
 +- (void)setVideoLandscape:(BOOL)landscape
 +{
@@ -327,6 +407,33 @@ index a450151..80c5d74 100644
 +  dispatch_async(dispatch_get_main_queue(), ^{
 +    [self applyVideoOrientation];
 +  });
++}
++
++- (void)healScreenSize
++{
++  // Main thread, every half second: the GL view, its framebuffer and Kodi's resolution must all match the
++  // screen. One left behind after a rotation showed as Kodi drawing only part of the screen (the rest frozen);
++  // when they disagree twice in a row (not mid-rotation), apply the rotation again.
++  static int mismatches = 0;
++  if (!m_glView || [[IOSScreenManager sharedInstance] isExternalScreen])
++    return;
++  const CGSize want = self.view.bounds.size;
++  const int pixelsWide = static_cast<int>(lround(want.width * screenScale));
++  const int pixelsHigh = static_cast<int>(lround(want.height * screenScale));
++  auto winSystem = CServiceBroker::GetWinSystem();
++  const bool kodiBehind = winSystem && (winSystem->GetGfxContext().GetWidth() != pixelsWide ||
++                                        winSystem->GetGfxContext().GetHeight() != pixelsHigh);
++  if (!CGSizeEqualToSize(m_glView.frame.size, want) || kodiBehind)
++  {
++    if (++mismatches >= 2)
++    {
++      mismatches = 0;
++      CLog::Log(LOGWARNING, "Screen size out of step ({} x {} wanted), applying it again", pixelsWide, pixelsHigh);
++      [self applyRotatedScreen];
++    }
++  }
++  else
++    mismatches = 0;
 +}
 +
 +- (void)applyVideoOrientation
@@ -387,7 +494,7 @@ index a450151..80c5d74 100644
 +                               completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
 +                                 [self applyRotatedScreen];
 +                               }];
-+}
+ }
 +
 +- (void)viewDidLayoutSubviews
 +{
@@ -415,7 +522,7 @@ index a450151..80c5d74 100644
  //--------------------------------------------------------------
  - (UIInterfaceOrientation) getOrientation
  {
-@@ -429,6 +534,11 @@ public:
+@@ -429,6 +561,11 @@ public:
    if( m_glView && [m_glView isXBMCAlive] )//NO GESTURES BEFORE WE ARE UP AND RUNNING
    {
      CGPoint velocity = [sender velocityInView:m_glView];
@@ -427,7 +534,7 @@ index a450151..80c5d74 100644
  
      if( [sender state] == UIGestureRecognizerStateBegan && sender.numberOfTouches )
      {
-@@ -589,7 +699,7 @@ public:
+@@ -589,7 +726,7 @@ public:
                   name: nil
                 object: nil];
  
@@ -436,7 +543,7 @@ index a450151..80c5d74 100644
  
    [m_window makeKeyAndVisible];
    g_xbmcController = self;
-@@ -712,6 +822,14 @@ public:
+@@ -712,6 +849,15 @@ public:
  {
    m_debugLogSharingPresenter = std::make_unique<DebugLogSharingPresenter>();
    [self setGUIInsetsFromMainThread:NO];
@@ -446,6 +553,7 @@ index a450151..80c5d74 100644
 +                                    repeats:YES
 +                                      block:^(NSTimer* timer) {
 +                                        [self applyVideoOrientation];
++                                        [self healScreenSize];
 +                                      }];
 +  });
  }

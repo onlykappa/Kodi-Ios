@@ -7,7 +7,7 @@ row). No volume control. Fuse's own seek bar hides while these controls are up, 
 """
 from xml.sax.saxutils import escape
 
-MARKER='Kodi-iOS player controls r1'
+MARKER='Kodi-iOS player controls r2'
 ICONS='special://skin/extras/icons/'
 MEDIA='special://skin/extras/portrait/'
 BOOT='special://xbmc/addons/service.kodi.ios.bootstrap/'
@@ -48,70 +48,74 @@ def circle(id,x,y,size,name,action,glyph_size=None,extra='',over=''):
  g=glyph_size or size*44//100
  return button(id,x,y,size,size,[action],extra=extra)+glyph(x+size//2,y+size//2,g,name)+over
 
+def tap(id,cx,cy,size,name,action,nav='',glyph_size=None,extra=''):
+ """A plain white glyph with an invisible touch area around it (the Apple TV player has no button shapes);
+ the glyph dims slightly when the control has focus, so a tap still shows."""
+ g=glyph_size or size*6//10
+ return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
+         '<texturefocus /><texturenofocus /><onclick>%s</onclick>%s%s</control>')%(id,cx-size//2,cy-size//2,size,size,e(action),nav,extra)+\
+        glyph(cx,cy,g,name,'<animation effect="fade" start="100" end="70" time="0" condition="Control.HasFocus(%d)">Conditional</animation>'%id)
+
+def text_button(id,x,y,w,h,label_text,actions,nav=''):
+ clicks=''.join('<onclick>%s</onclick>'%e(a) for a in actions)
+ return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><label>%s</label>'
+         '<font>font_main_bold</font><textcolor>D9FFFFFF</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>left</align><aligny>center</aligny>'
+         '<textoffsetx>0</textoffsetx><texturefocus /><texturenofocus />%s%s</control>')%(id,x,y,w,h,e(label_text),clicks,nav)
+
 def window():
- top=64
- # Top left: close (stop) and Play on TV.
- head=(circle(7101,SIDE,top,112,'xmark.png','PlayerControl(Stop)',60,'<onright>7102</onright><ondown>7111</ondown>')+
-       circle(7102,SIDE+136,top,112,MEDIA+'airplay.png',CAST,54,'<onleft>7101</onleft><ondown>7111</ondown>'))
- # Centre: back 10 s, play / pause, forward 10 s.
- ten=lambda x,y:label(x,y+4,170,170,'$NUMBER[10]','font_tiny_bold','FFFFFFFF','center')
- centre=('<control type="group"><centerleft>50%%</centerleft><centertop>50%%</centertop><width>760</width><height>246</height>'
-  '<visible>!%s</visible>'%PANEL+
-  circle(7111,0,38,170,'rotate-left.png','Seek(-10)',104,'<onright>7112</onright><onup>7101</onup><ondown>7121</ondown>')+
-  ten(0,38)+
-  button(7112,257,0,246,246,['PlayerControl(Play)'],extra='<onleft>7111</onleft><onright>7113</onright><onup>7101</onup><ondown>7121</ondown>')+
-  glyph(257+123+8,123,104,'play.png','<visible>Player.Paused | Player.Forwarding | Player.Rewinding</visible>')+
-  glyph(257+123,123,96,'pause.png','<visible>!Player.Paused + !Player.Forwarding + !Player.Rewinding</visible>')+
-  circle(7113,590,38,170,'rotate-right.png','Seek(10)',104,'<onleft>7112</onleft><onup>7102</onup><ondown>7121</ondown>')+
-  ten(590,38)+
+ """Layout from the owner's reference (Apple TV player, landscape): back top left; AirPlay / audio / subtitles /
+ speed top right; back 10, play-pause, forward 10 in the centre; the title, a thin bar with a white knob and the
+ time left at the bottom; Info and Continue Watching as text below. No button shapes, no volume."""
+ left=200;right=2340-200;top=130
+ head=(tap(7101,left+40,top,130,'chevron-left.png','PlayerControl(Stop)','<onright>7102</onright><ondown>7112</ondown>',76)+
+  ''.join(tap(id,right-40-i*150,top,130,icon,action,nav,70) for i,(id,icon,action,nav) in enumerate([
+   (7102,MEDIA+'airplay.png',CAST,'<onleft>7121</onleft><ondown>7112</ondown>'),
+   (7123,'closed-captioning.png','ActivateWindow(osdsubtitlesettings)','<onleft>7122</onleft><onright>7102</onright><ondown>7112</ondown>'),
+   (7122,'file-waveform.png','ActivateWindow(osdaudiosettings)','<onleft>7121</onleft><onright>7123</onright><ondown>7112</ondown>'),
+   (7121,'gauge-high.png',SPEED,'<onleft>7101</onleft><onright>7122</onright><ondown>7112</ondown>')])))
+ # Centre row; the "10" sits inside the arrows ($NUMBER: a bare 10 would be read as a Kodi string id).
+ cy=540;gap=350
+ ten=lambda cx:label(cx-60,cy-30,120,60,'$NUMBER[10]','font_tiny_bold','FFFFFFFF','center')
+ centre=('<control type="group"><visible>!%s</visible>'%PANEL+
+  tap(7111,1170-gap,cy,190,'rotate-left.png','Seek(-10)','<onright>7112</onright><onup>7101</onup><ondown>7131</ondown>',104)+ten(1170-gap)+
+  '<control type="button" id="7112"><left>%d</left><top>%d</top><width>230</width><height>230</height><texturefocus /><texturenofocus />'
+  '<onclick>PlayerControl(Play)</onclick><onleft>7111</onleft><onright>7113</onright><onup>7101</onup><ondown>7131</ondown></control>'%(1170-115,cy-115)+
+  glyph(1170+8,cy,110,'play.png','<visible>Player.Paused | Player.Forwarding | Player.Rewinding</visible>')+
+  glyph(1170,cy,104,'pause.png','<visible>!Player.Paused + !Player.Forwarding + !Player.Rewinding</visible>')+
+  tap(7113,1170+gap,cy,190,'rotate-right.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',104)+ten(1170+gap)+
   '</control>')
- # Bottom left: show and episode (or the film and its year), Apple TV style.
- episode='!String.IsEmpty(VideoPlayer.TVShowTitle)'
- title=('<control type="group"><visible>!%s</visible>'%PANEL+
-  label(SIDE,660,1300,56,'$INFO[VideoPlayer.Title]','font_midi_bold','FFFFFFFF','left','<visible>%s</visible>'%episode)+
-  label(SIDE,660,1300,56,'$INFO[VideoPlayer.Year]','font_midi_bold','B3FFFFFF','left','<visible>!%s</visible>'%episode)+
-  label(SIDE,712,1400,84,'$INFO[VideoPlayer.TVShowTitle]','font_title_main','FFFFFFFF','left','<visible>%s</visible>'%episode)+
-  label(SIDE,712,1400,84,'$INFO[VideoPlayer.Title]','font_title_main','FFFFFFFF','left','<visible>!%s</visible>'%episode)+
-  '</control>')
- # Bottom right: speed, audio, subtitles in one capsule.
- tools=('<control type="group"><right>%d</right><top>680</top><width>417</width><height>112</height><visible>!%s</visible>'%(SIDE,PANEL)+
-  image(0,0,417,112,MEDIA+'glass_112.png','E6FFFFFF',border=56)+
-  ''.join('<control type="button" id="%d"><left>%d</left><top>0</top><width>139</width><height>112</height><texturefocus colordiffuse="33FFFFFF" border="40">%sglass_112.png</texturefocus><texturenofocus /><onclick>%s</onclick>%s</control>'
-          %(7121+i,i*139,MEDIA,e(action),nav)+glyph(i*139+70,56,52,icon)
-          for i,(icon,action,nav) in enumerate([
-           ('gauge-high.png',SPEED,'<onright>7122</onright><onup>7113</onup><ondown>7141</ondown>'),
-           ('file-waveform.png','ActivateWindow(osdaudiosettings)','<onleft>7121</onleft><onright>7123</onright><onup>7113</onup><ondown>7141</ondown>'),
-           ('closed-captioning.png','ActivateWindow(osdsubtitlesettings)','<onleft>7122</onleft><onup>7113</onup><ondown>7141</ondown>')]))+
-  '</control>')
- # Progress: elapsed, the bar (drag to seek), time left.
- bar=('<control type="group"><left>%d</left><right>%d</right><top>820</top><height>60</height>'%(SIDE,SIDE)+
-  label(0,0,150,60,'$INFO[Player.Time]','font_main_bold','B3FFFFFF','left')+
-  '<control type="group"><left>170</left><right>170</right>'
-  '<control type="image"><left>0</left><right>0</right><top>22</top><height>16</height><texture border="8" colordiffuse="59FFFFFF">%sdot.png</texture></control>'%MEDIA+
-  '<control type="progress"><left>0</left><right>0</right><top>22</top><height>16</height><info>Player.Progress</info><texturebg /><lefttexture />'
-  '<midtexture border="8" colordiffuse="FFEBEBEB">%sdot.png</midtexture><righttexture /></control>'%MEDIA+
-  '<control type="slider" id="7131"><left>0</left><right>0</right><top>0</top><height>60</height><action>seek</action><texturesliderbar /><textureslidernib /><textureslidernibfocus />'
-  '<onup>7121</onup><ondown>7141</ondown></control>'
+ # Title: the film, or the show and the episode.
+ title=label(left,790,1600,70,'$INFO[VideoPlayer.TVShowTitle,,  ·  ]$INFO[VideoPlayer.Title]','font_huge_bold','FFFFFFFF','left','<visible>!%s</visible>'%PANEL)
+ # Thin bar with a white knob (drag to seek), time left under its right end.
+ bar=('<control type="group"><left>%d</left><width>%d</width><top>872</top><height>60</height>'%(left,right-left)+
+  # Track and fill in one control (same height and place), the knob from a slider whose bar is an invisible
+  # picture of the slider's height (Kodi sizes the knob from the bar picture).
+  '<control type="progress"><left>0</left><right>0</right><top>26</top><height>8</height><info>Player.Progress</info>'
+  '<texturebg border="4" colordiffuse="59FFFFFF">%sdot.png</texturebg><lefttexture />'
+  '<midtexture border="4" colordiffuse="FFFFFFFF">%sdot.png</midtexture><righttexture /></control>'%(MEDIA,MEDIA)+
+  '<control type="slider" id="7131"><left>0</left><right>0</right><top>6</top><height>48</height><action>seek</action><texturesliderbar>%sclear48.png</texturesliderbar>'%MEDIA+
+  '<textureslidernib colordiffuse="FFFFFFFF">%sknob.png</textureslidernib><textureslidernibfocus colordiffuse="FFFFFFFF">%sknob.png</textureslidernibfocus>'
+  '<onup>7112</onup><ondown>7141</ondown></control>'%(MEDIA,MEDIA)+
   '</control>'+
-  '<control type="label"><right>0</right><width>150</width><top>0</top><height>60</height><font>font_main_bold</font><textcolor>B3FFFFFF</textcolor>'
-  '<align>right</align><aligny>center</aligny><label>-$INFO[Player.TimeRemaining]</label></control>'
-  '</control>')
- # Bottom row: Info (Fuse's details page), Continue Watching (the in-progress row, shown above).
- row=(button(7141,SIDE,916,190,112,[INFO],'Info','font_midi_bold','<onright>7142</onright><onup>7131</onup>')+
-      button(7142,SIDE+214,916,470,112,['Skin.ToggleSetting(ios_osd_continue)','Skin.SetString(ios_osd_continue_path,%s)'%CONTINUE],'Continue Watching','font_midi_bold','<onleft>7141</onleft><onup>7201</onup>'))
+  '<control type="label"><left>%d</left><width>400</width><top>944</top><height>50</height><font>font_main</font><textcolor>D9FFFFFF</textcolor>'
+  '<align>right</align><aligny>center</aligny><label>-$INFO[Player.TimeRemaining]</label></control>'%(right-400))
+ row=(text_button(7141,left,944,120,50,'Info',[INFO],'<onright>7142</onright><onup>7131</onup>')+
+      text_button(7142,left+170,944,420,50,'Continue Watching',['Skin.ToggleSetting(ios_osd_continue)','Skin.SetString(ios_osd_continue_path,%s)'%CONTINUE],'<onleft>7141</onleft><onup>7201</onup>'))
  panel=('<control type="group"><visible>%s</visible>'%PANEL+
   '<animation effect="fade" start="0" end="100" time="200">Visible</animation>'+
-  label(SIDE,470,1200,60,'Continue Watching','font_head_bold')+
-  label(SIDE,540,1400,60,'Nothing in progress yet','font_main','99FFFFFF','left','<visible>Integer.IsEqual(Container(7201).NumItems,0) + !Container(7201).IsUpdating</visible>')+
-  '<control type="list" id="7201"><left>%d</left><right>0</right><top>540</top><height>270</height><orientation>horizontal</orientation>'%SIDE+
-  '<ondown>7142</ondown><onup>7101</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
+  label(left,520,1200,60,'Continue Watching','font_head_bold')+
+  label(left,590,1400,60,'Nothing in progress yet','font_main','99FFFFFF','left','<visible>Integer.IsEqual(Container(7201).NumItems,0) + !Container(7201).IsUpdating</visible>')+
+  '<control type="list" id="7201"><left>%d</left><right>0</right><top>590</top><height>270</height><orientation>horizontal</orientation>'%left+
+  '<ondown>7131</ondown><onup>7101</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
   '<itemlayout width="420" height="270">%s</itemlayout><focusedlayout width="420" height="270">%s</focusedlayout>'
   '<content target="videos">$INFO[Skin.String(ios_osd_continue_path)]</content></control></control>')%(card(False),card(True))
+ shade=('<control type="image"><left>0</left><top>0</top><right>0</right><bottom>0</bottom><texture colordiffuse="59000000">%swhite.png</texture></control>'
+  '<control type="image"><left>0</left><top>0</top><right>0</right><height>360</height><texture colordiffuse="B3FFFFFF">%sfade_down.png</texture></control>'
+  '<control type="image"><left>0</left><bottom>0</bottom><right>0</right><height>520</height><texture colordiffuse="E6FFFFFF">%sfade_up.png</texture></control>')%(MEDIA,MEDIA,MEDIA)
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window>\n<defaultcontrol always="true">7112</defaultcontrol>'
   '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="200">WindowClose</animation>'
   '<onunload>Skin.Reset(ios_osd_continue)</onunload><onunload>Skin.Reset(ios_osd_continue_path)</onunload><onunload>CancelAlarm(osd_timeout,true)</onunload>'
-  '<controls>%s%s%s%s%s%s%s%s</controls>\n</window>\n')%(
-   MARKER,'<control type="image"><left>0</left><top>0</top><right>0</right><bottom>0</bottom><texture colordiffuse="73000000">%swhite.png</texture></control>'%MEDIA,head,centre,title,tools,bar,row,panel)
+  '<controls>%s%s%s%s%s%s%s</controls>\n</window>\n')%(MARKER,shade,head,centre,title,bar,row,panel)
 
 def card(focused):
  art='$INFO[ListItem.Art(landscape)]'
