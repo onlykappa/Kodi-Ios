@@ -291,9 +291,12 @@ def add_deck_picker(addonroot):
  Umbrella gets the same page through the bootstrap add-on (umbrella_picker.py), which carries its own copy."""
  files={'site-packages/elementum/deck_picker.py':(DECK_PICKER/'deck_picker.py').read_bytes()}
  files.update({'skins/Default/'+rel:data for rel,data in deck_page_files().items()})
+ # The page's dark backdrop and close button are Elementum's own pictures: Umbrella's copy needs them too.
+ media=addonroot/ELEMENTUM/'resources/skins/Default/media'
+ shared={'skins/Default/media/'+rel:(media/rel).read_bytes() for rel in ('AddonWindow/white.png','Button/close.png') if (media/rel).is_file()}
  written=[]
  for root,extra in ((addonroot/ELEMENTUM/'resources',files),(addonroot/BOOT/'resources',
-   {'lib/deck_picker.py':files['site-packages/elementum/deck_picker.py'],**{'skins/Default/'+rel:data for rel,data in deck_page_files().items()}})):
+   {'lib/deck_picker.py':files['site-packages/elementum/deck_picker.py'],**{'skins/Default/'+rel:data for rel,data in deck_page_files().items()},**shared})):
   for rel,data in extra.items():
    dest=root/rel;assert not dest.exists(),'Unexpected deck picker collision: '+str(dest)
    dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data);written.append(str(dest.relative_to(addonroot.parent)))

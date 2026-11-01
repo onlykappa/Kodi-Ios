@@ -8,7 +8,7 @@ def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
  if not xbmc.getCondVisibility('System.Platform.IOS'):return
  # Touch-only: no d-pad focus entries. Back is a two-finger swipe left or a long press on empty space.
- entries=[('Home','ActivateWindow(home)'),('Google Drive',DRIVE),('Settings','ActivateWindow(settings)'),('Skin settings','ActivateWindow(skinsettings)'),('Movies / TV — TMDb Helper','ActivateWindow(Videos,plugin://plugin.video.themoviedb.helper/,return)'),('Local videos','ActivateWindow(Videos)'),('Add-ons','ActivateWindow(addonbrowser)'),('Rebuild saved views','RunScript(script.skinvariables,action=buildviews,force=true)'),('Rebuild saved menus','RunScript(script.skinvariables,"run_executebuiltin=special://skin/shortcuts/skinvariables-build-templates.json",use_rules)'),('Reload Arctic Fuse','ReloadSkin()'),('Setup / navigation diagnostics',None),('Google Drive network diagnostics','netcheck'),('Check for updates',UPDATES),('AirPlay & Bluetooth devices','airplay'),('Reset screen calibration','calibration'),('Retry Elementum engine','elementum_retry'),('Restore pre-setup configuration (confirmation required)','RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/recover.py)')]
+ entries=[('Home','ActivateWindow(home)'),('Google Drive',DRIVE),('Settings','ActivateWindow(settings)'),('Skin settings','ActivateWindow(skinsettings)'),('Movies / TV — TMDb Helper','ActivateWindow(Videos,plugin://plugin.video.themoviedb.helper/,return)'),('Local videos','ActivateWindow(Videos)'),('Add-ons','ActivateWindow(addonbrowser)'),('Rebuild saved views','RunScript(script.skinvariables,action=buildviews,force=true)'),('Rebuild saved menus','RunScript(script.skinvariables,"run_executebuiltin=special://skin/shortcuts/skinvariables-build-templates.json",use_rules)'),('Reload Arctic Fuse','ReloadSkin()'),('Rebuild phone layouts','portrait_refresh'),('Setup / navigation diagnostics',None),('Google Drive network diagnostics','netcheck'),('Check for updates',UPDATES),('AirPlay & Bluetooth devices','airplay'),('Reset screen calibration','calibration'),('Retry Elementum engine','elementum_retry'),('Restore pre-setup configuration (confirmation required)','RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/recover.py)')]
  choice=xbmcgui.Dialog().select('Arctic Fuse iOS — Navigation / Recovery',[e[0] for e in entries])
  if choice<0:return
  action=entries[choice][1]
@@ -33,6 +33,18 @@ def run():
   try:ok=elementum_engine.restart(api,lambda:xbmc.Monitor().waitForAbort(1) or progress.iscanceled())
   finally:progress.close()
   xbmcgui.Dialog().ok('Elementum','The engine is running.' if ok else 'The engine did not start. Send the log (gear menu) so it can be fixed.');return
+ if action=='portrait_refresh':
+  # Rewrites the portrait pages, the video controls and the source page into the skin Kodi is using.
+  import portrait,traceback
+  skin=Path(xbmcvfs.translatePath('special://skin/')).resolve();profile=Path(xbmcvfs.translatePath('special://profile/'))
+  try:
+   changed=list(portrait.build(skin,profile)) if portrait.missing(skin) else portrait.refresh(skin,profile)
+  except Exception as error:
+   xbmc.log('Kodi iOS portrait rebuild failed: %s\n%s'%(error,traceback.format_exc()),xbmc.LOGERROR)
+   xbmcgui.Dialog().ok('Rebuild phone layouts','It failed: %s. Send the log from this menu.'%error);return
+  xbmc.log('Kodi iOS portrait rebuild in %s: %d updated'%(skin,len(changed)),xbmc.LOGINFO)
+  xbmcgui.Dialog().ok('Rebuild phone layouts','%d files updated in %s.'%(len(changed),skin.name))
+  xbmc.executebuiltin('UpdateLocalAddons');xbmc.executebuiltin('ReloadSkin()');return
  if action=='netcheck':
   import netcheck
   try:certifi=os.path.join(xbmcvfs.translatePath(xbmcaddon.Addon('script.module.certifi').getAddonInfo('path')),'lib','certifi','cacert.pem')

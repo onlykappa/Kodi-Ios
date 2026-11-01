@@ -765,13 +765,18 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
     changed=list(build(skin,profile));invoke('UpdateLocalAddons')
     xbmc.log('Kodi iOS portrait layout added to the writable skin copy (%d files)'%len(changed),xbmc.LOGINFO)
    else:changed=refresh(skin,profile)
+   xbmc.log('Kodi iOS portrait files checked in %s: %d updated%s'%(skin,len(changed),(' ('+', '.join(c for c in changed if not c.startswith('extras/'))[:300]+')') if changed else ''),xbmc.LOGINFO)
    marker=Path(profile)/'addon_data/service.kodi.ios.bootstrap/portrait.json'
    if not marker.exists():
     # Once: no ".." rows, so a show page opens on its first season (the owner can turn it back on in Settings).
     xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Settings.SetSettingValue','params':{'setting':'filelists.showparentdiritems','value':False}}))
     marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(json.dumps({'revision':REVISION})+'\n')
    if changed and is_portrait(xbmc.getInfoLabel):invoke('ReloadSkin()')
-  except Exception as error:xbmc.log('Kodi iOS portrait refresh skipped: '+type(error).__name__,xbmc.LOGWARNING)
+  except Exception as error:
+   import traceback
+   xbmc.log('Kodi iOS portrait refresh failed: %s\n%s'%(error,traceback.format_exc()),xbmc.LOGERROR)
+   xbmc.executebuiltin('Notification(Kodi iOS,Phone layouts did not update - send the log from the gear menu,8000)')
+ else:xbmc.log('Kodi iOS portrait: the current skin is %s, not Arctic Fuse; layouts left alone'%skin,xbmc.LOGWARNING)
  tick=None
  try:
   import importlib.util,time,xbmcaddon
