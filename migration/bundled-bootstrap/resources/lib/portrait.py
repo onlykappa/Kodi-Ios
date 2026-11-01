@@ -656,7 +656,10 @@ def portrait_files(skin,profile):
  skin=Path(skin);source=skin/'1080i';files={}
  for path in sorted(source.glob('*.xml')):
   if path.name in HANDMADE or path.name in SKIP_WRAP:continue
-  try:data=shrink(path.read_bytes(),path.name)
+  raw=path.read_bytes()
+  # Shrunk from the landscape seek bar as this refresh leaves it, so the next start finds nothing to change.
+  if path.name=='DialogSeekBar.xml':raw=player_osd.hide_seekbar(raw.decode('utf-8')).encode()
+  try:data=shrink(raw,path.name)
   except ET.ParseError:continue
   if data:files[FOLDER+'/'+path.name]=data
  read=lambda name:(source/name).read_text(encoding='utf-8') if (source/name).exists() else ''

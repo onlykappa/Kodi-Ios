@@ -15,6 +15,8 @@ CAST='RunScript(%scast.py)'%BOOT
 SPEED='RunScript(%sspeed.py)'%BOOT
 CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type=all'
 INFO='$VAR[Action_OSD_WikiInfo]'
+# The row's list is only fetched once Continue Watching is tapped (its path is empty until then), so opening the
+# controls during playback does not start the watch add-on every time.
 PANEL='Skin.HasSetting(ios_osd_continue)'
 SIDE=168            # 63 pt in from each edge, as the reference
 SIZES=(112,170,246) # glass circles drawn by portrait.textures()
@@ -96,7 +98,7 @@ def window():
   '</control>')
  # Bottom row: Info (Fuse's details page), Continue Watching (the in-progress row, shown above).
  row=(button(7141,SIDE,916,190,112,[INFO],'Info','font_midi_bold','<onright>7142</onright><onup>7131</onup>')+
-      button(7142,SIDE+214,916,470,112,['Skin.ToggleSetting(ios_osd_continue)'],'Continue Watching','font_midi_bold','<onleft>7141</onleft><onup>7201</onup>'))
+      button(7142,SIDE+214,916,470,112,['Skin.ToggleSetting(ios_osd_continue)','Skin.SetString(ios_osd_continue_path,%s)'%CONTINUE],'Continue Watching','font_midi_bold','<onleft>7141</onleft><onup>7201</onup>'))
  panel=('<control type="group"><visible>%s</visible>'%PANEL+
   '<animation effect="fade" start="0" end="100" time="200">Visible</animation>'+
   label(SIDE,470,1200,60,'Continue Watching','font_head_bold')+
@@ -104,10 +106,10 @@ def window():
   '<control type="list" id="7201"><left>%d</left><right>0</right><top>540</top><height>270</height><orientation>horizontal</orientation>'%SIDE+
   '<ondown>7142</ondown><onup>7101</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
   '<itemlayout width="420" height="270">%s</itemlayout><focusedlayout width="420" height="270">%s</focusedlayout>'
-  '<content target="videos">%s</content></control></control>')%(card(False),card(True),e(CONTINUE))
+  '<content target="videos">$INFO[Skin.String(ios_osd_continue_path)]</content></control></control>')%(card(False),card(True))
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window>\n<defaultcontrol always="true">7112</defaultcontrol>'
   '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="200">WindowClose</animation>'
-  '<onunload>Skin.Reset(ios_osd_continue)</onunload><onunload>CancelAlarm(osd_timeout,true)</onunload>'
+  '<onunload>Skin.Reset(ios_osd_continue)</onunload><onunload>Skin.Reset(ios_osd_continue_path)</onunload><onunload>CancelAlarm(osd_timeout,true)</onunload>'
   '<controls>%s%s%s%s%s%s%s%s</controls>\n</window>\n')%(
    MARKER,'<control type="image"><left>0</left><top>0</top><right>0</right><bottom>0</bottom><texture colordiffuse="73000000">%swhite.png</texture></control>'%MEDIA,head,centre,title,tools,bar,row,panel)
 

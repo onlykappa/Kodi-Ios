@@ -86,6 +86,16 @@ class PortraitTests(unittest.TestCase):
   self.assertTrue(portrait.missing(self.skin))
   portrait.build(self.skin,self.profile)
   self.assertFalse(portrait.missing(self.skin));self.assertTrue((self.skin/'portrait/Home.xml').is_file())
+ def test_a_start_changes_nothing_after_the_build(self):
+  # Build 88: navigation framed the new video controls, the portrait refresh rewrote them, and each start
+  # reloaded the skin four times. Navigation then portrait, as the bootstrap runs them, must settle at once.
+  nav=importlib.util.spec_from_file_location('nav2',ROOT/'migration/bundled-bootstrap/resources/lib/navigation.py');n=importlib.util.module_from_spec(nav);nav.loader.exec_module(n)
+  skin=Path(self.tmp.name)/'fresh'/'skin.arctic.fuse.3';(skin/'1080i').mkdir(parents=True);(skin/'addon.xml').write_text(ADDON)
+  plain='<?xml version="1.0" encoding="UTF-8"?>\n<window>\n<controls>\n<control type="label" id="1"><label>x</label></control>\n</controls>\n</window>\n'
+  for name in ('Home.xml','VideoOSD.xml','DialogSeekBar.xml','Settings.xml','Includes.xml','Font.xml'):
+   (skin/'1080i'/name).write_text(FONT if name=='Font.xml' else '<includes />' if name=='Includes.xml' else plain)
+  n.patch_skin(skin);portrait.build(skin,self.profile)
+  for _ in range(2):self.assertEqual(n.patch_skin(skin),[]);self.assertEqual(portrait.refresh(skin,self.profile),[])
  def test_deck_page_for_portrait(self):
   page=self.read('portrait/DeckSourceSelect.xml');ids={c.get('id') for c in page.iter('control')}
   self.assertTrue({'32500','32501','32503'}<=ids)  # what deck_picker.py drives

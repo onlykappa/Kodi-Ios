@@ -214,6 +214,9 @@ def patch_skin(skin,backup=None):
  for path in sorted((skin/'1080i').glob('*.xml'))+sorted((skin/TEMPLATES).glob('*.xmltemplate')):
   if path.is_symlink():raise ValueError('Skin XML symlink refused')
   before=path.read_bytes()
+  # The Apple TV-style video controls (player_osd.py) are written whole by the portrait refresh: patching them
+  # here made each start rewrite them twice, and each rewrite reloaded the skin.
+  if b'Kodi-iOS player controls' in before:continue
   if path.suffix=='.xmltemplate' or path.name in INCLUDES:after=patch_includes(before)
   else:after=patch_frame(patch_osd(patch_window(before,path.name),path.name),path.name)
   if before==after:continue

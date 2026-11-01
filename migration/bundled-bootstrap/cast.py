@@ -16,8 +16,17 @@ def run():
  if not url:dialog.ok('Play on TV','This video is not a web stream, so a TV cannot open it by itself.');return
  title=xbmc.getInfoLabel('VideoPlayer.TVShowTitle') or xbmc.getInfoLabel('VideoPlayer.Title')
  progress=xbmcgui.DialogProgress();progress.create('Play on TV','Looking for TVs on this Wi-Fi...')
- try:tvs=cast.find_tvs(phone,cast.http_get)
+ # The search runs beside the dialog, so Cancel ends it at once (it used to wait for every address to answer).
+ import threading,time
+ found={}
+ search=threading.Thread(target=lambda:found.update(tvs=cast.find_tvs(phone,cast.http_get)),daemon=True);search.start()
+ start=time.monotonic()
+ try:
+  while search.is_alive():
+   if progress.iscanceled() or xbmc.Monitor().waitForAbort(0.2):return
+   progress.update(min(95,int((time.monotonic()-start)*12)))
  finally:progress.close()
+ tvs=found.get('tvs') or []
  library=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
  if library:
   note='' if cast.media_type(url)!='video/x-matroska' else '  — MKV may not play over AirPlay'
