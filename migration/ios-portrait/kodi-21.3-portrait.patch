@@ -137,6 +137,87 @@ index 84f28b0..4504250 100644
  
  # configuration settings
  CONFIGURE=cp -f $(CONFIG_SUB) $(CONFIG_GUESS) .; \
+diff --git a/xbmc/dialogs/GUIDialogKaiToast.cpp b/xbmc/dialogs/GUIDialogKaiToast.cpp
+index 2f8ca00..a84a77b 100644
+--- a/xbmc/dialogs/GUIDialogKaiToast.cpp
++++ b/xbmc/dialogs/GUIDialogKaiToast.cpp
+@@ -9,17 +9,66 @@
+ #include "GUIDialogKaiToast.h"
+ 
+ #include "ServiceBroker.h"
++#include "filesystem/SpecialProtocol.h"
+ #include "guilib/GUIFadeLabelControl.h"
+ #include "guilib/GUIMessage.h"
+ #include "peripherals/Peripherals.h"
++#include "utils/JSONVariantWriter.h"
+ #include "utils/TimeUtils.h"
++#include "utils/Variant.h"
+ 
++#include <ctime>
++#include <fstream>
+ #include <mutex>
+ 
++#include <sys/stat.h>
++
+ #define POPUP_ICON                400
+ #define POPUP_CAPTION_TEXT        401
+ #define POPUP_NOTIFICATION_BUTTON 402
+ 
++namespace
++{
++// iOS portrait build: every pop-up is kept for the app's notification center (the bell) instead of being shown.
++// Each one is appended as a JSON line to toasts.jsonl in the bootstrap service's data folder, which the service
++// moves into its notices. Returns true when the pop-up should not be shown: it was recorded and the owner has not
++// asked for pop-ups back (a file named toasts.popups in that folder). Without the folder, or if writing fails,
++// the pop-up is shown as before.
++bool KeepForBell(CGUIDialogKaiToast::eMessageType type,
++                 const std::string& image,
++                 const std::string& caption,
++                 const std::string& description)
++{
++  const std::string dir =
++      CSpecialProtocol::TranslatePath("special://profile/addon_data/service.kodi.ios.bootstrap/");
++  struct stat info;
++  if (dir.empty() || stat(dir.c_str(), &info) != 0 || !S_ISDIR(info.st_mode))
++    return false;
++
++  CVariant entry(CVariant::VariantTypeObject);
++  entry["time"] = static_cast<int64_t>(std::time(nullptr));
++  entry["type"] = type == CGUIDialogKaiToast::Error     ? "error"
++                  : type == CGUIDialogKaiToast::Warning ? "warning"
++                  : type == CGUIDialogKaiToast::Info    ? "info"
++                                                        : "default";
++  entry["image"] = image;
++  entry["caption"] = caption;
++  entry["description"] = description;
++  std::string line;
++  if (!CJSONVariantWriter::Write(entry, line, true))
++    return false;
++
++  std::ofstream out(dir + "toasts.jsonl", std::ios::out | std::ios::app | std::ios::binary);
++  if (!out)
++    return false;
++  out << line << '\n';
++  out.flush();
++  if (!out)
++    return false;
++  return stat((dir + "toasts.popups").c_str(), &info) != 0;
++}
++} // namespace
++
+ CGUIDialogKaiToast::TOASTQUEUE CGUIDialogKaiToast::m_notifications;
+ CCriticalSection CGUIDialogKaiToast::m_critical;
+ 
+@@ -81,6 +130,9 @@ void CGUIDialogKaiToast::AddToQueue(const std::string& aImageFile, const eMessag
+       return; // avoid duplicates in a row.
+   }
+ 
++  if (KeepForBell(eType, aImageFile, aCaption, aDescription))
++    return;
++
+   Notification toast;
+   toast.eType = eType;
+   toast.imagefile = aImageFile;
 diff --git a/xbmc/guilib/GUIBaseContainer.cpp b/xbmc/guilib/GUIBaseContainer.cpp
 index 8974597..b5d831d 100644
 --- a/xbmc/guilib/GUIBaseContainer.cpp
