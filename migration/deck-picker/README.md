@@ -1,6 +1,8 @@
 # Deck "Choose a version" page for Elementum
 
-Copied unchanged from the owner's Steam Deck (Deck Keeper snapshot, Elementum 0.1.114):
+Copied from the owner's Steam Deck (Deck Keeper snapshot, Elementum 0.1.114). One change on the phone: the quality
+list shows only the quality and how many versions it has (no "top pick" size or seeds).
+
 
 - `deck_picker.py` → `plugin.video.elementum/resources/site-packages/elementum/deck_picker.py`
 - `DeckSourceSelect.xml` → `plugin.video.elementum/resources/skins/Default/720p/DeckSourceSelect.xml`

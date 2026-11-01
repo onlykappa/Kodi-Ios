@@ -48,13 +48,6 @@ def load(path=os.path.join(HERE,'deck_picker.py'),addon_path=ROOT):
   sys.modules.update({'elementum':pkg,'elementum.dialog':dialog,'elementum.addon':addon})
  spec=importlib.util.spec_from_file_location('umbrella_deck_picker',path);deck=importlib.util.module_from_spec(spec);spec.loader.exec_module(deck)
  deck.meta_text=lambda it:deck.DOT.join([deck.size_text(it)]+([', '.join(it['providers'])] if it['providers'] else []))
- def menu(keys,groups,top_n=deck.TOP_N):
-  out=[]
-  for q in keys:
-   uniq=deck.dedupe(groups[q]);top=deck.pick(groups[q],top_n)[0]
-   out.append(u'[B]%s[/B]     %d version%s     (top pick: %s)'%(deck.quality_label(q),len(uniq),u'' if len(uniq)==1 else u's',deck.size_text(top)))
-  return out
- deck.quality_menu_labels=menu
  deck.SHOW_ALL_ROW=dict(deck.SHOW_ALL_ROW,tags=u"Umbrella's full list")
  return deck
 

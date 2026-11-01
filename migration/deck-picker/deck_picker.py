@@ -291,12 +291,11 @@ def build_rows(shown, total_label=u''):
 
 
 def quality_menu_labels(keys, groups, top_n=TOP_N):
+    """Kodi-iOS: just the quality and how many versions it has (e.g. "4K Ultra HD  -  6 versions")."""
     labels = []
     for q in keys:
         uniq = dedupe(groups[q])
-        top = pick(groups[q], top_n)[0]
-        labels.append(u'[B]%s[/B]     %d version%s     (top pick: %s, %d seeds)' % (
-            quality_label(q), len(uniq), u'' if len(uniq) == 1 else u's', size_text(top), top['seeds']))
+        labels.append(u'[B]%s[/B]   \u00b7   %d version%s' % (quality_label(q), len(uniq), u'' if len(uniq) == 1 else u's'))
     return labels
 
 
