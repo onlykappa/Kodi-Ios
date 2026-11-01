@@ -1,7 +1,7 @@
 """Build a credential-free review bundle from pinned public add-on archives.
 Runs in isolated CI with network access; never reads original Kodi/account state.
 """
-import argparse,ast,concurrent.futures,hashlib,io,json,re,shutil,sys,urllib.request,zipfile,xml.etree.ElementTree as ET
+import argparse,ast,concurrent.futures,hashlib,io,json,re,shutil,sys,time,urllib.error,urllib.request,zipfile,xml.etree.ElementTree as ET
 from pathlib import Path
 from import_runtime.safe_import import archive_files,validate_bundle,digest,ImportFailure
 ROOT=Path(__file__).resolve().parents[1]
@@ -14,11 +14,19 @@ def deterministic_zip(files):
    i=zipfile.ZipInfo(name,(1980,1,1,0,0,0));i.create_system=3;i.external_attr=0o100644<<16;i.compress_type=zipfile.ZIP_DEFLATED;z.writestr(i,body)
  return data.getvalue()
 
-def fetch(url):
- request=urllib.request.Request(url,headers={'User-Agent':'Kodi-iOS-reviewed-import/1'})
- with urllib.request.urlopen(request,timeout=90) as r:
-  if not r.geturl().startswith('https://'):raise RuntimeError('HTTPS redirect required')
-  return r.read()
+def fetch(url,attempts=4,wait=time.sleep):
+ """Download over HTTPS. Network errors (Kodi's mirror timing out or resetting the connection, a runner losing
+ its network for a moment) are retried with growing pauses; HTTP errors such as 404 are not."""
+ for attempt in range(attempts):
+  try:
+   request=urllib.request.Request(url,headers={'User-Agent':'Kodi-iOS-reviewed-import/1'})
+   with urllib.request.urlopen(request,timeout=90) as r:
+    if not r.geturl().startswith('https://'):raise RuntimeError('HTTPS redirect required')
+    return r.read()
+  except urllib.error.HTTPError:raise
+  except (urllib.error.URLError,OSError):
+   if attempt==attempts-1:raise
+   wait(5*2**attempt)
 
 def acquire(source):
  data=fetch(source['url'])
