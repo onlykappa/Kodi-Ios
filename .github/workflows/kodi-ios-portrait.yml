@@ -54,7 +54,7 @@ jobs:
           REPO: ${{ github.repository }}
           SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          tag="$(python3 -c "import json;print(json.load(open('migration/ios-portrait/source-lock.json'))['executable_release']['tag'])")"
+          tag="$(python3 -c "import json;d=json.load(open('migration/ios-portrait/source-lock.json'));print(d.get('build_tag') or d['executable_release']['tag'])")"
           if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then echo "$tag already published"; exit 0; fi
           dir="$RUNNER_TEMP/kodi-ios-out"
           (cd "$dir" && zip -q Kodi-portrait-executable.zip Kodi)

@@ -209,7 +209,7 @@ index b2a06d0..843018a 100644
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..ee67741 100644
+index a450151..2a089a1 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
 @@ -36,6 +36,8 @@
@@ -221,7 +221,7 @@ index a450151..ee67741 100644
  #import "windowing/ios/WinSystemIOS.h"
  
  #import "platform/darwin/NSLogDebugHelpers.h"
-@@ -203,9 +205,75 @@ public:
+@@ -203,9 +205,85 @@ public:
  }
  // END OF UIKeyInput protocol
  
@@ -264,6 +264,16 @@ index a450151..ee67741 100644
 +                               completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
 +                                 [self applyRotatedScreen];
 +                               }];
++}
++
++- (void)viewDidLayoutSubviews
++{
++  [super viewDidLayoutSubviews];
++  // Kodi-iOS r11: the GL view is created at launch with the landscape frame Kodi starts with and does not
++  // autoresize. When iOS lays the app out in portrait (launched upright, or any size change that is not a
++  // rotation transition), follow the view's real size so Kodi's framebuffer and resolution match the screen.
++  if (m_glView && !CGSizeEqualToSize(m_glView.frame.size, self.view.bounds.size))
++    [self applyRotatedScreen];
 +}
 +
 +- (void)applyRotatedScreen

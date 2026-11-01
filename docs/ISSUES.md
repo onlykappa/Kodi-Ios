@@ -436,3 +436,7 @@ Status: IMPLEMENTED ON HOST; rig-verified layout; native build in CI; awaiting i
 ## ISSUE-061 — r11 portrait merged with the Deck picker
 Status: MERGED ON HOST; device test pending.
 - `feature/ios-portrait` (layout A: rotation-aware Kodi executable `kodi-ios-portrait-r1`, Liquid Glass tab bar `kodi-glassbar-r1`, portrait Fuse windows, Continue Watching) is merged with the Deck "Choose a version" page and the drive.file sign-in deploy. The watch chooser keeps both sides: Continue Watching records the title it starts, and an Elementum choice leaves the title's details for the Deck page. Both pinned portrait downloads were fetched and verified on host before the build.
+
+## ISSUE-062 — Portrait: Kodi drew a squashed landscape picture when started upright (build-74)
+Status: FIXED IN PATCH; executable rebuild (kodi-ios-portrait-r2) pending, then pin.
+- Phone log: the screen mode was 1206x2622 but Kodi started at 2622x1206 and never logged a rotation. Kodi creates its GL view once in loadView from the landscape frame it starts with, and the view does not autoresize; the patch only re-read the size in viewWillTransitionToSize, which iOS does not call when the app simply launches in portrait. The patch now also handles viewDidLayoutSubviews: whenever the GL view's size differs from the controller view's, it resizes the view and framebuffer and rebuilds Kodi's desktop resolution (same path as a rotation). The IPA keeps the r1 executable until r2 is built and pinned.
