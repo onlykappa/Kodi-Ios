@@ -125,6 +125,8 @@ def cast_button():
 
 def patch_osd(data,filename):
  if filename!='VideoOSD.xml':return data
+ # The Apple TV-style controls (player_osd.py) replace Fuse's and carry their own Play on TV button.
+ if b'Kodi-iOS player controls' in data:return data
  root=ET.fromstring(data);controls=root.find('controls')
  if controls is None:return data
  old=controls.find("control[@id='"+str(CAST)+"']")

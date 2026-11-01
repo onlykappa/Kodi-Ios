@@ -1,3 +1,4 @@
+import json
 import importlib.util,sys,types,unittest
 from pathlib import Path
 from unittest import mock
@@ -45,4 +46,60 @@ class WatchMenuDetails(unittest.TestCase):
   watch.share_details(player,window)
   self.assertEqual(props['Deck.Picker.Title'],'Orange Is the New Black');self.assertEqual(props['Deck.Picker.Meta'],'S01E01  |  2013  |  59 min')
   self.assertEqual((props['Deck.Picker.Poster'],props['Deck.Picker.Fanart'],props['Deck.Picker.Plot']),('poster.jpg','fan.jpg','Piper goes to prison.'))
+
+UMB=ROOT/'migration/bundled-bootstrap/resources/lib'
+uspec=importlib.util.spec_from_file_location('umbrella_picker',UMB/'umbrella_picker.py')
+up=importlib.util.module_from_spec(uspec);uspec.loader.exec_module(up)
+def source(q,name,size,info,source='TORRENT UNCHECKED',debrid='AllDebrid'):
+ return {'quality':q,'name':name,'size':size,'info':info,'debrid':debrid,'provider':'torrentio','source':source,'seeders':0,'url':'u'}
+UMBRELLA=[source('4K','Scary.Movie.2026.2160p.UHD.Blu-ray.REMUX.DV.HDR.HEVC.TrueHD.Atmos.7.1',48.0,'DV | HDR | HEVC | REMUX | ATMOS | 48.0 GB'),
+ source('4K','Scary.Movie.2026.2160p.BluRay.x265.10bit.HDR.DDP5.1',47.0,'HDR | HEVC | 10BIT | 47.02 GB'),
+ source('4K','Scary.Movie.2026.2160p.UNCACHED',30.0,'30 GB','TORRENT UNCACHED'),
+ source('4K','Scary.Movie.2026.2160p.WEB-DL.DV.H.265',18.05,'DV | HEVC | WEB-DL | 18.05 GB'),
+ source('4K','Scary.Movie.2026.2160p.WEBRip.x265',9.4,'HEVC | WEBRIP | 9.4 GB'),
+ source('4K','Scary.Movie.2026.2160p.AMZN.WEB-DL.H.265',16.2,'HEVC | WEB-DL | 16.2 GB'),
+ source('1080p','Scary.Movie.2026.1080p.BluRay.x264',14.8,'AVC | BLURAY | 14.8 GB'),
+ source('CAM','Scary.Movie.2026.CAM.x264',1.0,'CAM | 1.0 GB')]
+
+class FakeItem:
+ def __init__(self):self.props={}
+ def setProperty(self,k,v):self.props[k]=v
+ def getProperty(self,k):return self.props.get(k,'')
+
+class UmbrellaPage(unittest.TestCase):
+ def deck(self):
+  with mock.patch.dict(sys.modules,{'xbmc':types.ModuleType('xbmc'),'xbmcgui':types.ModuleType('xbmcgui')}):
+   for name in ('kodi_six','elementum','elementum.dialog','elementum.addon'):sys.modules.pop(name,None)
+   return up.load(str(ROOT/'migration/deck-picker/deck_picker.py'),'/addon')
+ def test_umbrella_sources_read_as_deck_entries(self):
+  deck=self.deck();parsed=[deck.parse_item(up.label(i),n) for n,i in enumerate(UMBRELLA)]
+  self.assertTrue(all(parsed))
+  self.assertEqual([p['quality'] for p in parsed],['4k','4k','4k','4k','4k','4k','1080p','sd'])
+  self.assertEqual(deck.source_type(parsed[0]),'Blu-ray Remux');self.assertTrue(deck.is_bad(parsed[7]))
+  self.assertIn('AllDebrid',parsed[0]['providers']);self.assertAlmostEqual(parsed[1]['size'],47.0)
+  # No seed counts for debrid links: size and where it comes from.
+  self.assertEqual(deck.meta_text(parsed[0]),'48.00 GB  \u2022  AllDebrid, Torrentio, unchecked')
+  self.assertNotIn('seeds',deck.quality_menu_labels(*deck.group_by_quality(parsed))[0])
+  self.assertEqual(sys.modules.get('elementum'),None)  # stand-ins only lived inside load()
+ def test_run_returns_what_umbrellas_window_returns(self):
+  deck=types.SimpleNamespace(run=lambda title,labels:1)
+  with mock.patch.object(up,'share',lambda meta:None):
+   action,item=up.run(UMBRELLA,{'title':'Scary Movie'},deck,FakeItem)
+   self.assertEqual(action,'play_Item')
+   # The uncached torrent is left to Umbrella's own list, so the second playable entry is UMBRELLA[1].
+   self.assertEqual(json.loads(item.getProperty('umbrella.source_dict')),[UMBRELLA[1]])
+   self.assertEqual(up.run(UMBRELLA,{},types.SimpleNamespace(run=lambda t,l:-1),FakeItem),(None,''))
+   self.assertIsNone(up.run(UMBRELLA,{},types.SimpleNamespace(run=lambda t,l:None),FakeItem))
+   self.assertIsNone(up.run([UMBRELLA[2]],{},deck,FakeItem))
+ def test_hook_goes_into_umbrellas_window_once(self):
+  import tempfile
+  with tempfile.TemporaryDirectory() as tmp:
+   path=Path(tmp)/'source_results.py'
+   path.write_text('class SourceResultsXML:\n\tdef run(self):\n\t\tself.doModal()\n\t\tself.clearProperties()\n\t\treturn self.selected\n')
+   self.assertTrue(up.umbrella_hook(str(path)));self.assertFalse(up.umbrella_hook(str(path)))
+   text=path.read_text();compile(text,'source_results.py','exec')
+   self.assertEqual(text.count(up.HOOK_MARK),1);self.assertIn('_kpick.run(self.results, self.meta)',text)
+   other=Path(tmp)/'other.py';other.write_text('def run():pass\n');self.assertFalse(up.umbrella_hook(str(other)))
+   self.assertFalse(up.umbrella_hook(str(Path(tmp)/'missing.py')))
+
 if __name__=='__main__':unittest.main()

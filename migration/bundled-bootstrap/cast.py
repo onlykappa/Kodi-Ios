@@ -8,6 +8,7 @@ KINDS={'roku':'Roku','dlna':'Smart TV','chromecast':'Chromecast','airplay':'AirP
 
 def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
+ xbmc.log('Kodi iOS Play on TV: opened',xbmc.LOGINFO)
  dialog=xbmcgui.Dialog();addon=xbmcaddon.Addon('service.kodi.ios.bootstrap');player=xbmc.Player()
  if not player.isPlayingVideo():dialog.ok('Play on TV','Start a video first.');return
  phone=cast.phone_address()

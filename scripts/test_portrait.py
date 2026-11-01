@@ -86,6 +86,27 @@ class PortraitTests(unittest.TestCase):
   self.assertTrue(portrait.missing(self.skin))
   portrait.build(self.skin,self.profile)
   self.assertFalse(portrait.missing(self.skin));self.assertTrue((self.skin/'portrait/Home.xml').is_file())
+ def test_deck_page_for_portrait(self):
+  page=self.read('portrait/DeckSourceSelect.xml');ids={c.get('id') for c in page.iter('control')}
+  self.assertTrue({'32500','32501','32503'}<=ids)  # what deck_picker.py drives
+  xml=(self.skin/'portrait/DeckSourceSelect.xml').read_text()
+  for prop in ('deck.poster','deck.fanart','deck.title','deck.meta','deck.plot','deck.quality_label','deck.count_label','ListItem.Property(badge)'):self.assertIn(prop,xml)
+ def test_player_controls_replace_fuse_osd(self):
+  (self.skin/'1080i/DialogSeekBar.xml').write_text('<?xml version="1.0"?>\n<window>\n<controls/></window>')
+  files=portrait.portrait_files(self.skin,self.profile)
+  osd=ET.fromstring(files['1080i/VideoOSD.xml']);ids={c.get('id') for c in osd.iter('control')}
+  # close, Play on TV, back 10 / play-pause / forward 10, speed / audio / subtitles, seek, Info, Continue Watching
+  self.assertTrue({'7101','7102','7111','7112','7113','7121','7122','7123','7131','7141','7142','7201'}<=ids)
+  clicks=[o.text for o in osd.iter('onclick')]
+  for action in ['PlayerControl(Stop)','RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/cast.py)','Seek(-10)','PlayerControl(Play)','Seek(10)',
+                 'RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/speed.py)','ActivateWindow(osdaudiosettings)','ActivateWindow(osdsubtitlesettings)','$VAR[Action_OSD_WikiInfo]']:self.assertIn(action,clicks)
+  self.assertNotIn('volume',files['1080i/VideoOSD.xml'].decode().lower())
+  self.assertIn('$NUMBER[10]',files['1080i/VideoOSD.xml'].decode())  # a bare 10 is a Kodi string id
+  seek=files['1080i/DialogSeekBar.xml'].decode();self.assertIn('<visible>!Window.IsActive(videoosd)</visible>',seek)
+  self.assertEqual(portrait.player_osd.hide_seekbar(seek),seek)
+  self.assertTrue(files['extras/portrait/airplay.png'].startswith(b'\x89PNG'))
+  nav=importlib.util.spec_from_file_location('nav',ROOT/'migration/bundled-bootstrap/resources/lib/navigation.py');n=importlib.util.module_from_spec(nav);nav.loader.exec_module(n)
+  self.assertEqual(n.patch_osd(files['1080i/VideoOSD.xml'],'VideoOSD.xml'),files['1080i/VideoOSD.xml'])
  def test_textures_are_png(self):
   for name,data in portrait.textures().items():self.assertTrue(data.startswith(b'\x89PNG'),name)
 

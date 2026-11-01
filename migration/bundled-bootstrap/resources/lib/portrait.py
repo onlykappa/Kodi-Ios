@@ -9,6 +9,9 @@ The same module builds the folder into the IPA (scripts/build_customized_ipa.py)
 refreshes the rows from the owner's widget lists and reloads the skin when the phone rotates.
 """
 import json,os,re,struct,zlib,xml.etree.ElementTree as ET
+import importlib.util as _iu
+_spec=_iu.spec_from_file_location('player_osd',os.path.join(os.path.dirname(os.path.abspath(__file__)),'player_osd.py'))
+player_osd=_iu.module_from_spec(_spec);_spec.loader.exec_module(player_osd)
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -75,7 +78,7 @@ POSTER=(300,450);CARD=(640,360);GAP=26;RADIUS=26
 HERO=1420
 # Pages scroll above the floating tab bar, so the row in focus is never hidden under it.
 PAGE_H=HEIGHT-196
-CAPSULES=(96,108,124,126,128,150)
+CAPSULES=(56,96,108,112,124,126,128,150,170,246)
 
 # --- tiny PNG writer (no PIL on the build host) -------------------------------------------------------
 def png(width,height,pixel):
@@ -115,7 +118,7 @@ def textures():
          'hero_fade.png':fade(lambda t:0 if t<0.3 else ((t-0.3)/0.7)**1.25),
          'poster_mask.png':rounded(POSTER[0],POSTER[1],RADIUS),'card_mask.png':rounded(CARD[0],CARD[1],RADIUS),
          'thumb_mask.png':rounded(400,225,20),'tile_mask.png':rounded(80,80,18),'dot.png':rounded(24,24,12),
-         'white.png':png(4,4,lambda x,y:(255,255,255,255)),'play.png':triangle(64),
+         'white.png':png(4,4,lambda x,y:(255,255,255,255)),'play.png':triangle(64),'airplay.png':player_osd.airplay_png(png),
          # Capsules per height: 9-slice borders of h/2 keep the ends perfectly round at any width.
          **{'pill_%d.png'%h:rounded(h,h,h/2) for h in CAPSULES},
          **{'glass_%d.png'%h:glass(h,h/2,(30,30,34,232),(255,255,255,50)) for h in CAPSULES},
@@ -556,6 +559,49 @@ def context_menu(original):
   '%s%s</controls>')%(WIDTH,HEIGHT,MEDIA,WIDTH,HEIGHT,card,menu)
  return window(original,body,'996')
 
+def deck_row(focused):
+ """One version on the Deck page: headline, features, size and source; the best match carries a badge."""
+ w=WIDTH-2*SIDE;h=236;dark='FF000000';text=dark if focused else WHITE;sub='B3000000' if focused else GREY;dim='80000000' if focused else DIM
+ card=surface(0,0,w,h-24,'round.png','FFF5F5F7' if focused else 'F22C2C2E',32)
+ badge=('<control type="group"><right>28</right><top>26</top><width>250</width><height>56</height>'
+  '<visible>!String.IsEmpty(ListItem.Property(badge))</visible>'+
+  image(0,0,250,56,MEDIA+'pill_56.png',dark if focused else '40FFFFFF',border=28)+
+  label(0,0,250,56,'$INFO[ListItem.Property(badge)]','p_cap',WHITE,'center')+'</control>')
+ # Room for the badge; long headlines end in "..." instead of scrolling.
+ return (card+label(40,22,w-320,70,'$INFO[ListItem.Property(headline)]','p_h3',text,'left','<scroll>false</scroll>')+
+  label(40,92,w-80,56,'$INFO[ListItem.Property(tags)]','p_foot',sub)+
+  label(40,146,w-80,50,'$INFO[ListItem.Property(meta)]','p_foot',dim)+badge)
+
+def deck_page(original=''):
+ """The Deck's "Choose a version" page (Elementum and Umbrella, deck_picker.py) drawn for portrait. Kodi looks
+ for an add-on's window in the current skin folder first, so this one is used while the phone is upright; the
+ Deck's own landscape page stays in the add-ons. Same control ids and properties as the Deck page."""
+ prop=lambda name:'$INFO[Window().Property(deck.%s)]'%name
+ has=lambda name:'!String.IsEmpty(Window().Property(deck.%s))'%name
+ art_h=760;top=300;poster_w,poster_h=240,360
+ head=(image(0,0,WIDTH,art_h,prop('fanart'),'99FFFFFF','<visible>%s</visible>'%has('fanart'),'>scale',background=True)+
+  image(0,0,WIDTH,art_h,MEDIA+'hero_fade.png')+image(0,0,WIDTH,300,MEDIA+'fade_down.png')+
+  '<control type="group"><left>%d</left><top>%d</top><visible>%s</visible>'%(SIDE,top,has('poster'))+
+  image(0,0,poster_w,poster_h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
+  image(0,0,poster_w,poster_h,prop('poster'),WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+'</control>'+
+  '<control type="group"><left>%d</left><top>%d</top><width>%d</width>'%(SIDE+poster_w+36,top,WIDTH-2*SIDE-poster_w-36)+
+  '<visible>%s</visible>'%has('poster')+
+  label(0,0,WIDTH-2*SIDE-poster_w-36,130,prop('title'),'p_h2',WHITE,'left','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+
+  label(0,140,WIDTH-2*SIDE-poster_w-36,50,prop('meta'),'p_foot',GREY)+
+  '<control type="textbox"><top>200</top><width>%d</width><height>160</height><font>p_foot</font><textcolor>%s</textcolor><label>%s</label></control>'%(WIDTH-2*SIDE-poster_w-36,DIM,prop('plot'))+
+  '</control>'+
+  label(SIDE,top,WIDTH-2*SIDE,130,prop('subject'),'p_h2',WHITE,'left','<visible>!%s</visible><wrapmultiline>true</wrapmultiline>'%has('poster')))
+ heading=('<control type="label" id="32501"><left>%d</left><top>%d</top><width>%d</width><height>100</height><font>p_title</font>'
+  '<textcolor>FFFFFFFF</textcolor><label>Choose a version</label></control>')%(SIDE,top+poster_h+50,WIDTH-2*SIDE)
+ sub=label(SIDE,top+poster_h+150,WIDTH-2*SIDE,56,'%s  ·  %s'%(prop('quality_label'),prop('count_label')),'p_sub',GREY)
+ lst=('<control type="list" id="32503"><left>%d</left><top>%d</top><width>%d</width><bottom>40</bottom><orientation>vertical</orientation>'
+  '<onup>32500</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
+  '<itemlayout height="236">%s</itemlayout><focusedlayout height="236">%s</focusedlayout></control>')%(SIDE,top+poster_h+230,WIDTH-2*SIDE,deck_row(False),deck_row(True))
+ back=circle_button(32500,SIDE,36,108,'chevron-left.png','Close','<ondown>32503</ondown>')
+ body='<controls>%s%s%s%s%s%s</controls>'%(backdrop(),head,heading,sub,lst,back)
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">32503</defaultcontrol>'
+         '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>%s</window>\n')%(MARKER,body)
+
 def shrink(data,name=''):
  root=ET.fromstring(data)
  if root.tag!='window':return None
@@ -625,6 +671,11 @@ def portrait_files(skin,profile):
  files[FOLDER+'/Includes.xml']=includes()
  for name,data in hub_files(skin,profile).items():files[FOLDER+'/'+name]=data
  for name,data in textures().items():files['extras/portrait/'+name]=data
+ files[FOLDER+'/DeckSourceSelect.xml']=deck_page().encode()
+ # Fullscreen video is landscape: the Apple TV-style controls go into the landscape folder.
+ files['1080i/VideoOSD.xml']=player_osd.window().encode()
+ seekbar=read('DialogSeekBar.xml')
+ if seekbar:files['1080i/DialogSeekBar.xml']=player_osd.hide_seekbar(seekbar).encode()
  return files
 
 def write(skin,files):

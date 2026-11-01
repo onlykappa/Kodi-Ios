@@ -274,21 +274,30 @@ def add_profile_addons(inputs,bootstrap):
 
 DECK_PICKER=ROOT/'migration/deck-picker'
 
-def add_deck_picker(addonroot):
- """The Deck's Elementum link page: quality first, then the five best links with the title's poster and details."""
+def deck_page_files():
+ """The Deck's page and its pictures, {path under resources/skins/Default: bytes}."""
  import base64
- elementum=addonroot/ELEMENTUM/'resources'
  page=(DECK_PICKER/'DeckSourceSelect.xml').read_bytes()
  # The phone's canvas is wider than 1280 at 720 high: let the full-screen background layers reach the right edge.
  full=b'\t\t\t<left>0</left>\n\t\t\t<top>0</top>\n\t\t\t<width>1280</width>\n'
  assert page.count(full)==2,'Unexpected DeckSourceSelect.xml'
  page=page.replace(full,b'\t\t\t<left>0</left>\n\t\t\t<top>0</top>\n\t\t\t<right>0</right>\n')
- files={'site-packages/elementum/deck_picker.py':(DECK_PICKER/'deck_picker.py').read_bytes(),'skins/Default/720p/DeckSourceSelect.xml':page}
- for name,data in json.loads((DECK_PICKER/'media.json').read_text())['files'].items():files['skins/Default/media/deck/'+name]=base64.b64decode(data)
- for rel,data in files.items():
-  dest=elementum/rel;assert not dest.exists(),'Unexpected deck picker collision: '+rel
-  dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data)
- return sorted('addons/'+ELEMENTUM+'/resources/'+rel for rel in files)
+ files={'720p/DeckSourceSelect.xml':page}
+ for name,data in json.loads((DECK_PICKER/'media.json').read_text())['files'].items():files['media/deck/'+name]=base64.b64decode(data)
+ return files
+
+def add_deck_picker(addonroot):
+ """The Deck's Elementum link page: quality first, then the five best links with the title's poster and details.
+ Umbrella gets the same page through the bootstrap add-on (umbrella_picker.py), which carries its own copy."""
+ files={'site-packages/elementum/deck_picker.py':(DECK_PICKER/'deck_picker.py').read_bytes()}
+ files.update({'skins/Default/'+rel:data for rel,data in deck_page_files().items()})
+ written=[]
+ for root,extra in ((addonroot/ELEMENTUM/'resources',files),(addonroot/BOOT/'resources',
+   {'lib/deck_picker.py':files['site-packages/elementum/deck_picker.py'],**{'skins/Default/'+rel:data for rel,data in deck_page_files().items()}})):
+  for rel,data in extra.items():
+   dest=root/rel;assert not dest.exists(),'Unexpected deck picker collision: '+str(dest)
+   dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data);written.append(str(dest.relative_to(addonroot.parent)))
+ return sorted(written)
 
 def add_elementum(inputs,target,addonroot):
  """Install the pinned Elementum client (patched for iOS), Burst, their Python modules and the engine framework."""
@@ -343,7 +352,7 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
  navigation_files=_nav.patch_skin(addonroot/'skin.arctic.fuse.3') if (addonroot/'skin.arctic.fuse.3').is_dir() else []
  drive_files=patch_drive(addonroot) if (addonroot/DRIVE_COMMON).is_dir() else []
  engine=add_elementum(elementum,target,addonroot) if elementum else None
- bootstrap=addonroot/BOOT;shutil.copytree(ROOT/'migration/bundled-bootstrap',bootstrap)
+ bootstrap=addonroot/BOOT;shutil.copytree(ROOT/'migration/bundled-bootstrap',bootstrap,dirs_exist_ok=True)  # the Deck page (add_deck_picker) may already be in it
  profile_addons=add_profile_addons(elementum,bootstrap) if elementum else []
  # The in-app updater compares this with the build-N release tags.
  (bootstrap/'build.json').write_text(json.dumps({'build':int(os.environ.get('GITHUB_RUN_NUMBER') or 0),'commit':os.environ.get('GITHUB_SHA','')[:12]})+'\n')
