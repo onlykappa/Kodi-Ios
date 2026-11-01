@@ -198,7 +198,7 @@ def load_widgets(profile,lists):
  rows=[]
  for name in lists:
   path=Path(profile)/NODES.format(name)
-  try:data=json.loads(path.read_text())
+  try:data=json.loads(path.read_text(encoding='utf-8'))
   except (OSError,ValueError):continue
   rows+=[w for w in data if isinstance(w,dict) and usable(w)]
  return rows
@@ -585,7 +585,7 @@ def includes():
 
 def hub_files(skin,profile):
  source=Path(skin)/'1080i';out={}
- read=lambda name:(source/name).read_text() if (source/name).exists() else ''
+ read=lambda name:(source/name).read_text(encoding='utf-8') if (source/name).exists() else ''
  for name,(title,lists,tab,resume) in HUBS.items():
   out[name]=hub_window(read(name),title,load_widgets(profile,lists),tab,SPOTLIGHT[name],resume).encode()
  for name in LIBRARY_FILES:out[name]=library_window(read(name)).encode()
@@ -600,7 +600,7 @@ def portrait_files(skin,profile):
   try:data=shrink(path.read_bytes(),path.name)
   except ET.ParseError:continue
   if data:files[FOLDER+'/'+path.name]=data
- read=lambda name:(source/name).read_text() if (source/name).exists() else ''
+ read=lambda name:(source/name).read_text(encoding='utf-8') if (source/name).exists() else ''
  files[FOLDER+'/Font.xml']=fonts(read('Font.xml'))
  files[FOLDER+'/MyVideoNav.xml']=with_variables(video_nav(read('MyVideoNav.xml'))).encode()
  files[FOLDER+'/DialogVideoInfo.xml']=with_variables(video_info(read('DialogVideoInfo.xml'))).encode()
@@ -628,28 +628,35 @@ def build(skin,profile):
  return files
 
 def add_resolutions(addon):
- data=addon.read_text()
+ data=addon.read_text(encoding='utf-8')
  if 'folder="%s"'%FOLDER in data:return False
  res=''.join('<res aspect="%s" default="false" folder="%s" width="%d" height="%d" />\n        '%(a,FOLDER,w,h) for a,w,h in RES)
  anchor=re.search(r'<res [^>]*default="true"[^>]*/>',data);assert anchor,'Fuse resolution list not found'
- addon.write_text(data[:anchor.start()]+res+data[anchor.start():]);return True
+ addon.write_text(data[:anchor.start()]+res+data[anchor.start():],encoding='utf-8');return True
 
 # --- on the phone ----------------------------------------------------------------------------------
 def refresh(skin,profile):
  """On the phone: follow the owner's widget lists and any later landscape (1080i) repair.
  Returns the changed paths; the caller reloads the skin if any changed."""
- if not (Path(skin)/FOLDER).is_dir():return []
  return write(skin,portrait_files(skin,profile))
+
+def missing(skin):
+ """True when the writable Fuse copy predates r11: setup never overwrites a copy that is already there,
+ so a phone that ran an earlier build keeps a Fuse without the portrait folder or its resolution."""
+ skin=Path(skin);addon=skin/'addon.xml'
+ return not (skin/FOLDER).is_dir() or not addon.is_file() or 'folder="%s"'%FOLDER not in addon.read_text(encoding='utf-8')
 
 def is_portrait(info):
  try:return int(info('System.ScreenHeight'))>int(info('System.ScreenWidth'))
  except ValueError:return None
 
-def watch(info,invoke,wait,current_skin,fuse='skin.arctic.fuse.3',interval=0.5,settle=2,tick=None):
- """Reload the skin after the phone settles in a new orientation, so Kodi loads the matching folder."""
+def watch(info,invoke,wait,current_skin,fuse='skin.arctic.fuse.3',interval=0.5,settle=2,tick=None,busy=None):
+ """Reload the skin after the phone settles in a new orientation, so Kodi loads the matching folder.
+ Not while video plays: playback turns the picture to landscape and the menus come back in portrait after it."""
  last=is_portrait(info);pending=0
  while not wait(interval):
   if tick:tick()
+  if busy and busy():pending=0;continue
   now=is_portrait(info)
   if now is None or now==last:pending=0;continue
   pending+=1
@@ -689,7 +696,11 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
  skin=Path(xbmcvfs.translatePath('special://skin/')).resolve()
  if skin.name==fuse:
   try:
-   changed=refresh(skin,profile)
+   if missing(skin):
+    # Add the portrait folder and resolution, then have Kodi re-read addon.xml so the folder can be chosen.
+    changed=list(build(skin,profile));invoke('UpdateLocalAddons')
+    xbmc.log('Kodi iOS portrait layout added to the writable skin copy (%d files)'%len(changed),xbmc.LOGINFO)
+   else:changed=refresh(skin,profile)
    marker=Path(profile)/'addon_data/service.kodi.ios.bootstrap/portrait.json'
    if not marker.exists():
     # Once: no ".." rows, so a show page opens on its first season (the owner can turn it back on in Settings).
@@ -729,6 +740,7 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
     while not monitor.waitForAbort(0.05):poll()
    threading.Thread(target=taps,daemon=True).start()
  except Exception as error:xbmc.log('Kodi iOS glass tab bar unavailable: '+type(error).__name__,xbmc.LOGWARNING)
- watch(xbmc.getInfoLabel,invoke,monitor.waitForAbort,xbmc.getSkinDir,fuse,tick=lambda:[t() for t in ticks])
+ watch(xbmc.getInfoLabel,invoke,monitor.waitForAbort,xbmc.getSkinDir,fuse,tick=lambda:[t() for t in ticks],
+       busy=lambda:xbmc.getCondVisibility('Player.HasVideo'))
  if close:close()
 

@@ -80,6 +80,12 @@ class PortraitTests(unittest.TestCase):
   nodes=self.profile/'addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json'
   nodes.write_text(json.dumps([{'label':'New row','path':'plugin://x/?a=1','target':'videos'}]))
   self.assertEqual(portrait.refresh(self.skin,self.profile),['portrait/Home.xml'])
+ def test_old_writable_copy_gets_the_portrait_layout(self):
+  # A phone that ran an earlier build keeps a Fuse copy without the portrait folder or resolution.
+  import shutil;shutil.rmtree(self.skin/'portrait');(self.skin/'addon.xml').write_text(ADDON)
+  self.assertTrue(portrait.missing(self.skin))
+  portrait.build(self.skin,self.profile)
+  self.assertFalse(portrait.missing(self.skin));self.assertTrue((self.skin/'portrait/Home.xml').is_file())
  def test_textures_are_png(self):
   for name,data in portrait.textures().items():self.assertTrue(data.startswith(b'\x89PNG'),name)
 
@@ -149,6 +155,14 @@ class WatchTests(unittest.TestCase):
  def test_other_skin_never_reloaded(self):
   L,P=(2622,1206),(1206,2622)
   self.assertEqual(self.run_watch([L,P,P,P],skin='skin.estuary'),[])
+ def test_no_reload_while_video_plays(self):
+  # Playback turns the picture to landscape; the skin must not reload under the video.
+  L,P=(2622,1206),(1206,2622);sizes={'wh':P};calls=[];ticks=iter(range(8))
+  def info(label):return str(sizes['wh'][0] if label=='System.ScreenWidth' else sizes['wh'][1])
+  def wait(t):
+   sizes['wh']=L;return next(ticks,None) is None
+  portrait.watch(info,calls.append,wait,lambda:'skin.arctic.fuse.3',busy=lambda:True)
+  self.assertEqual(calls,[])
 
 class IpaTests(unittest.TestCase):
  def test_info_plist_allows_portrait_once(self):
@@ -160,7 +174,9 @@ class IpaTests(unittest.TestCase):
  def test_native_patch_targets_pinned_files(self):
   patch=(ROOT/'migration/ios-portrait/kodi-21.3-portrait.patch').read_text()
   for name in ['XBMCController.mm','WinSystemIOS.h','AnnounceReceiver.mm','GUIControlGroupList.cpp','Info.plist.in']:self.assertIn(name,patch)
-  self.assertIn('UIInterfaceOrientationMaskAllButUpsideDown',patch);self.assertIn('ResetInternalScreenSize',patch)
+  self.assertIn('return UIInterfaceOrientationMaskPortrait;',patch);self.assertIn('ResetInternalScreenSize',patch)
+  # Upstream drew a taller-than-wide framebuffer as a sideways landscape viewport.
+  self.assertIn('-    if(framebufferHeight > framebufferWidth) {',patch)
   lock=json.loads((ROOT/'migration/ios-portrait/source-lock.json').read_text())
   self.assertEqual(lock['commit'],'a3a448d26b8d560a65655dab2cd122994dc4e146')
  def test_swap_executable_checks_libraries(self):

@@ -184,6 +184,30 @@ index 0d88d1d..6f281f6 100644
      });
    }
  }
+diff --git a/xbmc/platform/darwin/ios/IOSEAGLView.mm b/xbmc/platform/darwin/ios/IOSEAGLView.mm
+index 56ecaa5..63284b5 100644
+--- a/xbmc/platform/darwin/ios/IOSEAGLView.mm
++++ b/xbmc/platform/darwin/ios/IOSEAGLView.mm
+@@ -244,15 +244,10 @@
+ 
+     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebuffer);
+ 
+-    if(framebufferHeight > framebufferWidth) {
+-      glViewport(0, 0, framebufferHeight, framebufferWidth);
+-      glScissor(0, 0, framebufferHeight, framebufferWidth);
+-    }
+-    else
+-    {
+-      glViewport(0, 0, framebufferWidth, framebufferHeight);
+-      glScissor(0, 0, framebufferWidth, framebufferHeight);
+-    }
++    // Kodi-iOS r11: the GUI runs in portrait, so a framebuffer taller than wide is real and must not be
++    // drawn as a sideways landscape viewport (upstream swapped the sides for its landscape-only app).
++    glViewport(0, 0, framebufferWidth, framebufferHeight);
++    glScissor(0, 0, framebufferWidth, framebufferHeight);
+   }
+ }
+ //--------------------------------------------------------------
 diff --git a/xbmc/platform/darwin/ios/Info.plist.in b/xbmc/platform/darwin/ios/Info.plist.in
 index e29411a..ffbd3b0 100644
 --- a/xbmc/platform/darwin/ios/Info.plist.in
@@ -209,7 +233,7 @@ index b2a06d0..843018a 100644
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..2a089a1 100644
+index a450151..cced79b 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
 @@ -36,6 +36,8 @@
@@ -221,7 +245,7 @@ index a450151..2a089a1 100644
  #import "windowing/ios/WinSystemIOS.h"
  
  #import "platform/darwin/NSLogDebugHelpers.h"
-@@ -203,9 +205,85 @@ public:
+@@ -203,9 +205,88 @@ public:
  }
  // END OF UIKeyInput protocol
  
@@ -236,9 +260,10 @@ index a450151..2a089a1 100644
  - (UIInterfaceOrientationMask)supportedInterfaceOrientations
  {
 -  return UIInterfaceOrientationMaskLandscape;
++  // The menus are portrait only (the skin's portrait layout); fullscreen video and an external screen are landscape.
 +  if ([[IOSScreenManager sharedInstance] isExternalScreen] || PlayingVideo())
 +    return UIInterfaceOrientationMaskLandscape;
-+  return UIInterfaceOrientationMaskAllButUpsideDown;
++  return UIInterfaceOrientationMaskPortrait;
 +}
 +
 +static void ApplyRotatedScreen(void*)
@@ -295,10 +320,12 @@ index a450151..2a089a1 100644
 +  if (@available(iOS 16.0, *))
 +  {
 +    [self setNeedsUpdateOfSupportedInterfaceOrientations];
-+    if (PlayingVideo() && m_window.windowScene)
++    if (m_window.windowScene)
 +    {
++      // Playback turns the phone's picture to landscape; stopping brings the portrait menus back.
 +      auto prefs = [[UIWindowSceneGeometryPreferencesIOS alloc]
-+          initWithInterfaceOrientations:UIInterfaceOrientationMaskLandscape];
++          initWithInterfaceOrientations:PlayingVideo() ? UIInterfaceOrientationMaskLandscape
++                                                       : UIInterfaceOrientationMaskPortrait];
 +      [m_window.windowScene requestGeometryUpdateWithPreferences:prefs
 +                                                    errorHandler:nil];
 +    }
@@ -308,6 +335,15 @@ index a450151..2a089a1 100644
  }
  //--------------------------------------------------------------
  - (UIInterfaceOrientation) getOrientation
+@@ -589,7 +670,7 @@ public:
+                  name: nil
+                object: nil];
+ 
+-  orientation = UIInterfaceOrientationLandscapeLeft;
++  orientation = UIInterfaceOrientationPortrait;
+ 
+   [m_window makeKeyAndVisible];
+   g_xbmcController = self;
 diff --git a/xbmc/windowing/ios/WinSystemIOS.h b/xbmc/windowing/ios/WinSystemIOS.h
 index bf8a8ae..d927130 100644
 --- a/xbmc/windowing/ios/WinSystemIOS.h
