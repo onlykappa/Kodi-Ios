@@ -501,7 +501,7 @@ index b2a06d0..0c74089 100644
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..7b150ea 100644
+index a450151..6d812f8 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
 @@ -16,7 +16,9 @@
@@ -531,7 +531,53 @@ index a450151..7b150ea 100644
  #include <math.h>
  #include <signal.h>
  
-@@ -203,10 +208,155 @@ public:
+@@ -135,6 +140,45 @@ public:
+ -(void) terminateWithSuccess;
+ @end
+ 
++// Kodi-iOS r12: in landscape video, taps reached Kodi only on the left of the screen (the portrait width). UIKit
++// hands a touch to a view only inside the bounds of every view above it; Kodi's window is made with a fixed frame
++// and autoresizing off, and a window or root view left at the portrait size lets the GL view draw everywhere but
++// receive touches only where the portrait frame was. The window and the root view accept every point of the screen
++// (and of their visible subviews) whatever their own size, so a touch always reaches the GL view.
++static BOOL KodiPointOnScreen(UIView* view, CGPoint point)
++{
++  UIWindow* window = [view isKindOfClass:UIWindow.class] ? (UIWindow*)view : view.window;
++  const CGSize screen = window.windowScene ? window.windowScene.coordinateSpace.bounds.size
++                                           : UIScreen.mainScreen.bounds.size;
++  CGRect area = CGRectUnion(view.bounds, CGRectMake(0, 0, screen.width, screen.height));
++  for (UIView* subview in view.subviews)
++  {
++    if (!subview.hidden)
++      area = CGRectUnion(area, subview.frame);
++  }
++  return CGRectContainsPoint(area, point);
++}
++
++@interface KodiTouchWindow : UIWindow
++@end
++
++@implementation KodiTouchWindow
++- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent*)event
++{
++  return [super pointInside:point withEvent:event] || KodiPointOnScreen(self, point);
++}
++@end
++
++@interface KodiTouchRootView : UIView
++@end
++
++@implementation KodiTouchRootView
++- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent*)event
++{
++  return [super pointInside:point withEvent:event] || KodiPointOnScreen(self, point);
++}
++@end
++
+ @implementation XBMCController
+ @synthesize animating;
+ @synthesize lastGesturePoint;
+@@ -203,10 +247,156 @@ public:
  }
  // END OF UIKeyInput protocol
  
@@ -583,7 +629,8 @@ index a450151..7b150ea 100644
 +  auto winSystem = CServiceBroker::GetWinSystem();
 +  const bool kodiBehind = winSystem && (winSystem->GetGfxContext().GetWidth() != pixelsWide ||
 +                                        winSystem->GetGfxContext().GetHeight() != pixelsHigh);
-+  if (!CGSizeEqualToSize(m_window.bounds.size, want) || !CGSizeEqualToSize(m_glView.frame.size, want) || kodiBehind)
++  if (!CGSizeEqualToSize(m_window.bounds.size, want) || !CGSizeEqualToSize(self.view.bounds.size, want) ||
++      !CGSizeEqualToSize(m_glView.frame.size, want) || kodiBehind)
 +  {
 +    if (++mismatches >= 2)
 +    {
@@ -594,7 +641,7 @@ index a450151..7b150ea 100644
 +  }
 +  else
 +    mismatches = 0;
- }
++}
 +
 +- (void)applyVideoOrientation
 +{
@@ -654,7 +701,7 @@ index a450151..7b150ea 100644
 +                               completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
 +                                 [self applyRotatedScreen];
 +                               }];
-+}
+ }
 +
 +- (void)viewDidLayoutSubviews
 +{
@@ -688,7 +735,7 @@ index a450151..7b150ea 100644
  //--------------------------------------------------------------
  - (UIInterfaceOrientation) getOrientation
  {
-@@ -429,6 +579,11 @@ public:
+@@ -429,6 +619,11 @@ public:
    if( m_glView && [m_glView isXBMCAlive] )//NO GESTURES BEFORE WE ARE UP AND RUNNING
    {
      CGPoint velocity = [sender velocityInView:m_glView];
@@ -700,7 +747,7 @@ index a450151..7b150ea 100644
  
      if( [sender state] == UIGestureRecognizerStateBegan && sender.numberOfTouches )
      {
-@@ -530,7 +685,31 @@ public:
+@@ -530,7 +725,31 @@ public:
      CGPoint point = [sender locationOfTouch:0 inView:m_glView];
      point.x *= screenScale;
      point.y *= screenScale;
@@ -733,7 +780,16 @@ index a450151..7b150ea 100644
      CGenericTouchActionHandler::GetInstance().OnTap((float)point.x, (float)point.y, [sender numberOfTouches]);
    }
  }
-@@ -589,7 +768,7 @@ public:
+@@ -575,7 +794,7 @@ public:
+   m_isPlayingBeforeInactive = NO;
+   m_bgTask = UIBackgroundTaskInvalid;
+ 
+-  m_window = [[UIWindow alloc] initWithFrame:frame];
++  m_window = [[KodiTouchWindow alloc] initWithFrame:frame];
+   [m_window setRootViewController:self];
+   m_window.screen = screen;
+   /* Turn off autoresizing */
+@@ -589,7 +808,7 @@ public:
                   name: nil
                 object: nil];
  
@@ -742,7 +798,17 @@ index a450151..7b150ea 100644
  
    [m_window makeKeyAndVisible];
    g_xbmcController = self;
-@@ -712,6 +891,15 @@ public:
+@@ -600,7 +819,8 @@ public:
+ //--------------------------------------------------------------
+ - (void)loadView
+ {
+-  [super loadView];
++  // Kodi-iOS r12: a root view that takes touches anywhere on the screen (see KodiTouchRootView).
++  self.view = [[KodiTouchRootView alloc] initWithFrame:UIScreen.mainScreen.bounds];
+   self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+   self.view.autoresizesSubviews = YES;
+ 
+@@ -712,6 +932,15 @@ public:
  {
    m_debugLogSharingPresenter = std::make_unique<DebugLogSharingPresenter>();
    [self setGUIInsetsFromMainThread:NO];

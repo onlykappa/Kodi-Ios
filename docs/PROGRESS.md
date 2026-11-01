@@ -2,7 +2,7 @@
 
 Status: IN PROGRESS — owner device testing of iPhone builds
 Current phase: Phase 4 — portrait UI (r11), Elementum, Drive, Play on TV, video controls, notification center; owner tests each IPA on an iPhone 16 Pro
-Last updated UTC: 2026-11-01T22:20Z
+Last updated UTC: 2026-11-01T22:30Z
 Latest installable IPA: build-106 (commit 0e89856, Kodi executable r10: pop-ups only in the bell), https://github.com/onlykappa/Kodi-Ios/releases/tag/build-106 . build-104 = r8. Builds 102/103 failed (wrong pin hash). build-101 must NOT be used (r8 Python on r7).
 Branches: feature/ios-migration (PR #1, all work), claude/ios-migration-continue-3jjuif (this session, same commits), hold/ios-next (older mirror at f42dc07), feature/settings-notifications (draft PR #3: plan only).
 
@@ -14,7 +14,7 @@ Working on the owner's phone (owner-confirmed):
 - Download with Elementum (season page button, long press › Download); "Choose a version" (Deck picker) for Elementum and Umbrella.
 
 Owner-reported failures (build-104/106, 2026-11-01 night), see ISSUES:
-- ISSUE-064 video: Fuse seek bar flashes at video start; taps register only on the left of the screen; controls do not respond, laggy. Seek bar and layout fixed on host; tap cause unknown, r12 logs taps.
+- ISSUE-064 video: Fuse seek bar flashes at video start; taps register only on the left of the screen; controls do not respond, laggy. Seek bar and layout fixed on host; taps: UIKit window/root view left at the portrait width drops touches right of 46% — fixed in Kodi app r13 (from code reading).
 - ISSUE-065 Arctic Fuse splash at start; slow start. Fixed on host.
 - ISSUE-066 request: Continue Watching reuses the player and version picked first; long press › Choose source. Built on host.
 
@@ -33,8 +33,8 @@ This session (2026-11-01, 20:40–22:20Z):
 
 Open / next (exact next step first):
 1. Confirm the IPA run on this session's last commit publishes (Kodi r10 + ISSUE-064/065/066 Python) and send the owner the link.
-2. Watch kodi-ios-portrait r12 (queued behind r11, which is identical to r10 and must not be pinned). If it compiles, pin r12 with the Kodi hash from the release BODY and send that IPA; if not, read the log and fix XBMCController.mm / GUIWindow.cpp in the patch.
-3. Owner tests: video start (no Fuse bar), tapping anywhere on the video, controls, startup (no splash, time to Home), Continue Watching resume (no questions) and long press › Choose source. For the tap bug on r12: reproduce, then send kodi.old.log (the "Tap at …" lines).
+2. Kodi executables: r11 = r10 (do not pin); r12 (run 41355566946, from 4be37f6) = tap logging + reload on layout width, no tap fix; r13 (queued, from this session's last commit) = r12 + KodiTouchWindow/KodiTouchRootView tap fix. Pin r13 with the Kodi hash from the release BODY and send that IPA (skip pinning r12 unless r13 fails to compile; then fix the patch).
+3. Owner tests: video start (no Fuse bar), tapping anywhere on the video, controls, startup (no splash, time to Home), Continue Watching resume (no questions) and long press › Choose source. For the tap bug on r13: if taps still fail, send kodi.old.log (the "Tap at …" lines).
 4. Settings pages rework (draft PR #3, not coded). Roku: no Play on Roku receiver on this TV; AirPlay path only plays MP4/HLS.
 
 Blockers: device verification needs the owner; the tap bug needs the r12 log. Phase 5, merge and release are not authorized.
