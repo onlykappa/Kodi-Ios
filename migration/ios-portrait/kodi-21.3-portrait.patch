@@ -591,7 +591,7 @@ index b2a06d0..0c74089 100644
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..3ba0a4b 100644
+index a450151..fb570c8 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
 @@ -36,6 +36,8 @@
@@ -603,15 +603,24 @@ index a450151..3ba0a4b 100644
  #import "windowing/ios/WinSystemIOS.h"
  
  #import "platform/darwin/NSLogDebugHelpers.h"
-@@ -48,6 +50,7 @@
+@@ -48,7 +50,9 @@
  #include "TextureCache.h"
  #undef id
  
 +#include <atomic>
  #include <math.h>
++#import <objc/runtime.h>
  #include <signal.h>
  
-@@ -135,6 +138,45 @@ public:
+ #import <AVFoundation/AVAudioSession.h>
+@@ -129,12 +133,109 @@ public:
+   std::unique_ptr<DebugLogSharingPresenter> m_debugLogSharingPresenter;
+ }
+ - (void)rescheduleNetworkAutoSuspend;
++- (void)rescueTouches:(UIEvent*)event;
+ @end
+ 
+ @interface UIApplication (extended)
  -(void) terminateWithSuccess;
  @end
  
@@ -637,10 +646,67 @@ index a450151..3ba0a4b 100644
 +@interface KodiTouchWindow : UIWindow
 +@end
 +
++// Kodi-iOS r19: the r12 bounds fix was not enough. Every tap the owner's logs show in landscape lies left of
++// 1206 px, the portrait width (the back button and back-10 worked; play/pause in the centre, forward 10 and the
++// top-right buttons never did, and those taps never reached Kodi at all). Something UIKit keeps at the portrait
++// size still refuses the point, even though the window, root view and GL view all report the landscape size. So
++// when nothing below the window claims a point on the screen (UIKit answers the window or the root view), the
++// touch goes to the GL view, which holds Kodi's gesture recognizers. A real view under the finger (the Liquid Glass
++// tab bar, the AirPlay button, a keyboard) still gets it first.
++static UIView* KodiGLView(UIWindow* window)
++{
++  for (UIView* subview in window.rootViewController.view.subviews)
++  {
++    if ([subview isKindOfClass:IOSEAGLView.class])
++      return subview;
++  }
++  return nil;
++}
++
++static BOOL KodiGLTakesTouches(UIView* gl)
++{
++  return gl && gl.window && gl.userInteractionEnabled && !gl.hidden;
++}
++
 +@implementation KodiTouchWindow
 +- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent*)event
 +{
 +  return [super pointInside:point withEvent:event] || KodiPointOnScreen(self, point);
++}
++
++- (UIView*)hitTest:(CGPoint)point withEvent:(UIEvent*)event
++{
++  UIView* hit = [super hitTest:point withEvent:event];
++  if (hit && hit != self && hit != self.rootViewController.view)
++    return hit;
++  UIView* gl = KodiGLView(self);
++  if (KodiGLTakesTouches(gl) && KodiPointOnScreen(self, point))
++    return gl;
++  return hit;
++}
++@end
++
++// Kodi-iOS r19: the last line of defence, below UIKit's hit testing. Every touch passes UIApplication.sendEvent:;
++// the controller logs where the first taps after each change of screen shape went, and a short single tap that
++// reached no view of Kodi's (no view, or only a window that nothing inside claimed) is handed to Kodi as a tap,
++// exactly as the tap recognizer would have done.
++@implementation UIApplication (KodiTouchRescue)
+++ (void)load
++{
++  static dispatch_once_t once;
++  dispatch_once(&once, ^{
++    Method original = class_getInstanceMethod(self, @selector(sendEvent:));
++    Method rescue = class_getInstanceMethod(self, @selector(kodi_sendEvent:));
++    if (original && rescue)
++      method_exchangeImplementations(original, rescue);
++  });
++}
++
++- (void)kodi_sendEvent:(UIEvent*)event
++{
++  if (event.type == UIEventTypeTouches && g_xbmcController)
++    [g_xbmcController rescueTouches:event];
++  [self kodi_sendEvent:event]; // the original sendEvent: (exchanged)
 +}
 +@end
 +
@@ -657,7 +723,7 @@ index a450151..3ba0a4b 100644
  @implementation XBMCController
  @synthesize animating;
  @synthesize lastGesturePoint;
-@@ -203,10 +245,165 @@ public:
+@@ -203,10 +304,165 @@ public:
  }
  // END OF UIKeyInput protocol
  
@@ -693,7 +759,7 @@ index a450151..3ba0a4b 100644
 +  dispatch_async(dispatch_get_main_queue(), ^{
 +    [self applyVideoOrientation];
 +  });
-+}
+ }
 +
 +- (void)healScreenSize
 +{
@@ -779,7 +845,7 @@ index a450151..3ba0a4b 100644
 +  winSystem->GetGfxContext().SetVideoResolution(RES_DESKTOP, true);
 +  CLog::Log(LOGINFO, "Screen rotated: {} x {}", winSystem->GetGfxContext().GetWidth(),
 +            winSystem->GetGfxContext().GetHeight());
- }
++}
 +
 +- (void)viewWillTransitionToSize:(CGSize)size
 +       withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator
@@ -824,7 +890,7 @@ index a450151..3ba0a4b 100644
  //--------------------------------------------------------------
  - (UIInterfaceOrientation) getOrientation
  {
-@@ -429,6 +626,11 @@ public:
+@@ -429,6 +685,11 @@ public:
    if( m_glView && [m_glView isXBMCAlive] )//NO GESTURES BEFORE WE ARE UP AND RUNNING
    {
      CGPoint velocity = [sender velocityInView:m_glView];
@@ -836,7 +902,7 @@ index a450151..3ba0a4b 100644
  
      if( [sender state] == UIGestureRecognizerStateBegan && sender.numberOfTouches )
      {
-@@ -530,7 +732,32 @@ public:
+@@ -530,7 +791,32 @@ public:
      CGPoint point = [sender locationOfTouch:0 inView:m_glView];
      point.x *= screenScale;
      point.y *= screenScale;
@@ -870,7 +936,7 @@ index a450151..3ba0a4b 100644
      CGenericTouchActionHandler::GetInstance().OnTap((float)point.x, (float)point.y, [sender numberOfTouches]);
    }
  }
-@@ -575,7 +802,7 @@ public:
+@@ -575,7 +861,7 @@ public:
    m_isPlayingBeforeInactive = NO;
    m_bgTask = UIBackgroundTaskInvalid;
  
@@ -879,7 +945,7 @@ index a450151..3ba0a4b 100644
    [m_window setRootViewController:self];
    m_window.screen = screen;
    /* Turn off autoresizing */
-@@ -589,7 +816,7 @@ public:
+@@ -589,7 +875,7 @@ public:
                   name: nil
                 object: nil];
  
@@ -888,7 +954,7 @@ index a450151..3ba0a4b 100644
  
    [m_window makeKeyAndVisible];
    g_xbmcController = self;
-@@ -600,7 +827,8 @@ public:
+@@ -600,7 +886,8 @@ public:
  //--------------------------------------------------------------
  - (void)loadView
  {
@@ -898,7 +964,7 @@ index a450151..3ba0a4b 100644
    self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
    self.view.autoresizesSubviews = YES;
  
-@@ -712,6 +940,15 @@ public:
+@@ -712,6 +999,15 @@ public:
  {
    m_debugLogSharingPresenter = std::make_unique<DebugLogSharingPresenter>();
    [self setGUIInsetsFromMainThread:NO];
@@ -914,7 +980,7 @@ index a450151..3ba0a4b 100644
  }
  //--------------------------------------------------------------
  - (void)setGUIInsetsFromMainThread:(BOOL)isMainThread
-@@ -738,8 +975,15 @@ public:
+@@ -738,8 +1034,15 @@ public:
    CLog::Log(LOGDEBUG, "insets: {}\nwindow: {}\nscreen: {}",
              NSStringFromUIEdgeInsets(insets).UTF8String, m_window.description.UTF8String,
              m_glView.currentScreen.description.UTF8String);
@@ -931,6 +997,71 @@ index a450151..3ba0a4b 100644
  
    auto scale = [m_glView getScreenScale:m_glView.currentScreen];
    guiInsets = EdgeInsets(insets.left * scale, insets.top * scale, insets.right * scale,
+@@ -1045,4 +1348,64 @@ public:
+   return [m_glView getCurrentEAGLContext];
+ }
+ 
++//--------------------------------------------------------------
++// Kodi-iOS r19: see UIApplication (KodiTouchRescue). Main thread only; takes no Kodi lock.
++- (void)rescueTouches:(UIEvent*)event
++{
++  static NSMapTable<UITouch*, NSArray*>* began = [NSMapTable weakToStrongObjectsMapTable];
++  static CGSize loggedFor = CGSizeZero;
++  static int logged = 0;
++  if (!m_glView || !m_window)
++    return;
++  NSSet<UITouch*>* touches = event.allTouches;
++  for (UITouch* touch in touches)
++  {
++    const CGPoint where = [touch locationInView:nil];
++    if (touch.phase == UITouchPhaseBegan)
++    {
++      [began setObject:@[ @(where.x), @(where.y), @(touch.timestamp) ] forKey:touch];
++      continue;
++    }
++    if (touch.phase != UITouchPhaseEnded && touch.phase != UITouchPhaseCancelled)
++      continue;
++    NSArray* start = [began objectForKey:touch];
++    [began removeObjectForKey:touch];
++    if (touch.phase != UITouchPhaseEnded || !start || touches.count != 1)
++      continue;
++    const BOOL tap = hypot(where.x - [start[0] doubleValue], where.y - [start[1] doubleValue]) < 12 &&
++                     touch.timestamp - [start[2] doubleValue] < 0.6;
++    UIView* view = touch.view;
++    const BOOL reachedKodi = view && [view isDescendantOfView:m_glView];
++    // Nothing claimed the point: no view, or a window (ours or another) that no subview took it for.
++    const BOOL lost = !view || [view isKindOfClass:UIWindow.class] || view == self.view;
++    const BOOL rescue = tap && lost && KodiGLTakesTouches(m_glView);
++    const CGSize screen = InterfaceBounds(m_window).size;
++    if (!CGSizeEqualToSize(screen, loggedFor))
++    {
++      loggedFor = screen;
++      logged = 0;
++    }
++    if (tap && logged++ < 12)
++    {
++      const CGRect frame = m_window.frame;
++      CLog::Log(LOGINFO,
++                "Touch at {:.0f} x {:.0f} pt went to {} ({:.0f} x {:.0f}) in {}; Kodi window {:.0f},{:.0f} {:.0f} x "
++                "{:.0f}{}; {}",
++                where.x, where.y, view ? NSStringFromClass(view.class).UTF8String : "no view",
++                view ? view.bounds.size.width : 0.0, view ? view.bounds.size.height : 0.0,
++                touch.window ? NSStringFromClass(touch.window.class).UTF8String : "no window", frame.origin.x,
++                frame.origin.y, frame.size.width, frame.size.height,
++                CGAffineTransformIsIdentity(m_window.transform) ? "" : " (transformed)",
++                reachedKodi ? "Kodi has it" : rescue ? "handed to Kodi" : "left to that view");
++    }
++    if (rescue)
++    {
++      CGPoint point = [touch locationInView:m_glView];
++      point.x *= screenScale;
++      point.y *= screenScale;
++      CGenericTouchActionHandler::GetInstance().OnTap((float)point.x, (float)point.y, 1);
++    }
++  }
++}
++
+ @end
 diff --git a/xbmc/windowing/ios/WinSystemIOS.h b/xbmc/windowing/ios/WinSystemIOS.h
 index bf8a8ae..d927130 100644
 --- a/xbmc/windowing/ios/WinSystemIOS.h

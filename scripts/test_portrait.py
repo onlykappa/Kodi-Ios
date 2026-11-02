@@ -262,6 +262,10 @@ class IpaTests(unittest.TestCase):
   self.assertIn('return UIInterfaceOrientationMaskPortrait;',patch);self.assertIn('ResetInternalScreenSize',patch)
   # Upstream drew a taller-than-wide framebuffer as a sideways landscape viewport.
   self.assertIn('-    if(framebufferHeight > framebufferWidth) {',patch)
+  # r19: taps right of the portrait width reached no view in landscape (play/pause, CC, AirPlay): the window sends
+  # unclaimed points to the GL view, and a tap that still reached no view is handed to Kodi from sendEvent:.
+  for text in ['- (UIView*)hitTest:(CGPoint)point withEvent:(UIEvent*)event','return gl;','@implementation UIApplication (KodiTouchRescue)',
+               'method_exchangeImplementations(original, rescue);','- (void)rescueTouches:(UIEvent*)event','"handed to Kodi"']:self.assertIn(text,patch)
   lock=json.loads((ROOT/'migration/ios-portrait/source-lock.json').read_text())
   self.assertEqual(lock['commit'],'a3a448d26b8d560a65655dab2cd122994dc4e146')
  def test_swap_executable_checks_libraries(self):
