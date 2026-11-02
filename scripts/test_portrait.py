@@ -200,6 +200,9 @@ class PortraitTests(unittest.TestCase):
   # Coming back to Home starts the lower rows' two-second timer once.
   onloads=[o.text for o in root.findall('onload')]
   self.assertIn('AlarmClock(portraitmorehome,SetProperty(Portrait.Load.home.more,1,home),00:02,silent)',onloads)
+  # Movies and TV fill in the background a few seconds after Home (hero and first rows), so their tabs open filled.
+  self.assertIn('AlarmClock(portraitprefetchmovies,SetProperty(Portrait.Load.movies,1,home),00:06,silent)',onloads)
+  self.assertIn('AlarmClock(portraitprefetchtv,SetProperty(Portrait.Load.tv,1,home),00:10,silent)',onloads)
  def test_fuse_home_onloads_no_longer_run_scripts(self):
   root=self.read('portrait/Home.xml')
   for o in root.findall('onload'):

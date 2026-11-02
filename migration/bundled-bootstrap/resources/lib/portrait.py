@@ -52,15 +52,23 @@ HUB_TABS=('home','movies','tv')
 HUB_OFFSET={'home':0,'movies':10000,'tv':20000}
 # Lazy hubs (performance pass): the three hubs share Home.xml, and every row used to load at each start (36 add-on
 # runs at once on the phone, the hero waiting behind them on "Loading..."). Now Home's hero and first rows load at
-# once and its lower rows two seconds later; Movies and TV load on their first visit and then stay loaded.
+# once and its lower rows two seconds later; Movies' and TV's hero and first rows follow in the background (PREFETCH)
+# and their lower rows on the first visit; everything then stays loaded.
 LOAD='Portrait.Load.'   # Window(Home).Property(Portrait.Load.<tab>[.more])
 EAGER_ROWS=3            # rows (after the hero) that load with their hub; the rest follow two seconds later
 def load_flag(tab,more=False):return 'Window(Home).Property(%s%s%s)'%(LOAD,tab,'.more' if more else '')
+PREFETCH={'movies':6,'tv':10}  # seconds after Home opens: Movies' and TV's hero and first rows load in the background
 def first_visit(key):
- """[(condition, builtin)] marking a hub loaded (its lower rows two seconds later); run on the hub's first visit."""
- more=('String.IsEmpty(%s)'%load_flag(key,True),'AlarmClock(portraitmore%s,SetProperty(%s%s.more,1,home),00:02,silent)'%(key,LOAD,key))
+ """[(condition, builtin)] marking a hub loaded (its lower rows two seconds later); run on each visit, effective once."""
+ more=('String.IsEmpty(%s) + !System.HasAlarm(portraitmore%s)'%(load_flag(key,True),key),
+       'AlarmClock(portraitmore%s,SetProperty(%s%s.more,1,home),00:02,silent)'%(key,LOAD,key))
  if key=='home':return [more]
  return [more,('','SetProperty(%s%s,1,home)'%(LOAD,key))]
+def prefetch(key):
+ """Home's onload: the hub's hero and first rows a few seconds after Home, so the tab opens filled; lower rows load
+ on the visit itself."""
+ return ('String.IsEmpty(%s) + !System.HasAlarm(portraitprefetch%s)'%(load_flag(key),key),
+         'AlarmClock(portraitprefetch%s,SetProperty(%s%s,1,home),00:%02d,silent)'%(key,LOAD,key,PREFETCH[key]))
 def tab_actions(key):
  """[(condition, builtin)] for one tab: hubs set the property (and come back to Home), the others open their window."""
  if key in HUB_TABS:
@@ -420,6 +428,7 @@ def hubs_window(original,hubs,variables=None):
  # The hub shown when Home opens (also when coming back from Library or Search) gets its first visit here.
  for tab,_ in hubs:
   focus+=''.join('<onload condition="%s">%s</onload>'%(e(' + '.join(c for c in (tab_visible(tab),cond) if c)),e(a)) for cond,a in first_visit(tab))
+  if tab in PREFETCH:focus+='<onload condition="%s">%s</onload>'%tuple(map(e,prefetch(tab)))
  return window(strip_fuse_onloads(original),'<controls>%s%s</controls>'%(backdrop(),groups),'4000',focus)
 
 def forward_window(original,tab):

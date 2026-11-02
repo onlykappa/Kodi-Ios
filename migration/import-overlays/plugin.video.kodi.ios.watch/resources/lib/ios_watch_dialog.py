@@ -75,10 +75,14 @@ def choose_player(player):
    li=xbmcgui.ListItem(label=label);li.setArt(art);items.append(li)
   name=str(info.get('title') or info.get('tvshowtitle') or '')
   selected=xbmcgui.Dialog().select('How would you like to watch'+(' '+name if name else '')+'?',items)
- if selected<0 or selected>=len(rows):return None
+ # Owner logs (build-124): TMDb Helper reported "lib.player - Failure!" right after a row was tapped, i.e. this
+ # returned nothing. Say what was offered and what came back, so the next log shows which way it went.
+ log=lambda text:xbmc.log('Kodi iOS watch: '+text,xbmc.LOGINFO)
+ log('offered %s; picked %s'%([label for label,_,_ in rows],selected))
+ if selected<0 or selected>=len(rows):log('nothing picked (the menu closed without a row)');return None
  _,action,item=rows[selected]
  if action in NOT_READY:
-  xbmcgui.Dialog().ok(*NOT_READY[action]);return None
+  log('%s is not available here'%action);xbmcgui.Dialog().ok(*NOT_READY[action]);return None
  if saved.get('version') and saved.get('player')==kind_of(item):
   # deck_picker.py (Elementum's and Umbrella's version page) takes this once and plays the same version.
   import json,time
@@ -89,4 +93,5 @@ def choose_player(player):
   record(player,read,write,choice=kind_of(item))
  except Exception:pass
  if item is engine:share_details(player)
+ log('playing with %s (%s)'%(kind_of(item),getattr(item,'file','')))
  return item
