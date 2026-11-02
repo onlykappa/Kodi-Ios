@@ -591,7 +591,7 @@ index b2a06d0..0c74089 100644
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..943d795 100644
+index a450151..3ba0a4b 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
 @@ -36,6 +36,8 @@
@@ -721,7 +721,7 @@ index a450151..943d795 100644
 +  }
 +  else
 +    mismatches = 0;
- }
++}
 +
 +- (void)applyVideoOrientation
 +{
@@ -779,7 +779,7 @@ index a450151..943d795 100644
 +  winSystem->GetGfxContext().SetVideoResolution(RES_DESKTOP, true);
 +  CLog::Log(LOGINFO, "Screen rotated: {} x {}", winSystem->GetGfxContext().GetWidth(),
 +            winSystem->GetGfxContext().GetHeight());
-+}
+ }
 +
 +- (void)viewWillTransitionToSize:(CGSize)size
 +       withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator
@@ -914,6 +914,23 @@ index a450151..943d795 100644
  }
  //--------------------------------------------------------------
  - (void)setGUIInsetsFromMainThread:(BOOL)isMainThread
+@@ -738,8 +975,15 @@ public:
+   CLog::Log(LOGDEBUG, "insets: {}\nwindow: {}\nscreen: {}",
+             NSStringFromUIEdgeInsets(insets).UTF8String, m_window.description.UTF8String,
+             m_glView.currentScreen.description.UTF8String);
+-  if (UIEdgeInsetsEqualToEdgeInsets(insets, UIEdgeInsetsZero))
++  // Kodi-iOS r18: during landscape video the GUI covers the whole screen like the picture under it. With the safe
++  // area (62 pt each side in landscape) Kodi drew the video controls into a narrower box than the video: the shade,
++  // seek bar and corner buttons stopped short of the edges and looked misplaced (owner's screenshots). The
++  // controls keep their own margins. Zero insets also clear the previous ones (upstream returned and kept them).
++  if (s_videoLandscape || UIEdgeInsetsEqualToEdgeInsets(insets, UIEdgeInsetsZero))
++  {
++    guiInsets = EdgeInsets{};
+     return;
++  }
+ 
+   auto scale = [m_glView getScreenScale:m_glView.currentScreen];
+   guiInsets = EdgeInsets(insets.left * scale, insets.top * scale, insets.right * scale,
 diff --git a/xbmc/windowing/ios/WinSystemIOS.h b/xbmc/windowing/ios/WinSystemIOS.h
 index bf8a8ae..d927130 100644
 --- a/xbmc/windowing/ios/WinSystemIOS.h

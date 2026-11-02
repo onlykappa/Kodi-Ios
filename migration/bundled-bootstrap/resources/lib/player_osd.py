@@ -7,7 +7,8 @@ row). No volume control. Fuse's seek bar is replaced by seekbar_window(), shown 
 """
 from xml.sax.saxutils import escape
 
-MARKER='Kodi-iOS player controls r3'
+MARKER='Kodi-iOS player controls r4'
+EDGE=150   # from the screen edges: rounded corners and the Dynamic Island (about 56 pt on an iPhone 16 Pro)
 ICONS='special://skin/extras/icons/'
 MEDIA='special://skin/extras/portrait/'
 BOOT='special://xbmc/addons/service.kodi.ios.bootstrap/'
@@ -73,11 +74,13 @@ def window():
  """Layout from the owner's reference (Apple TV player, landscape): back top left; AirPlay / audio / subtitles /
  speed top right; back 10, play-pause, forward 10 in the centre; the title, a thin bar with a white knob and the
  time left at the bottom; Info and Continue Watching as text below. No button shapes, no volume. Everything is
- pinned to the left edge, the centre or the right edge (r3): coordinates below are inside those groups."""
- left=90;top=110
+ pinned to the left edge, the centre or the right edge (r3): coordinates below are inside those groups. r4: the GUI
+ covers the whole screen during video (Kodi app r18, no safe-area box), so the margins keep the controls clear of the
+ rounded corners and the Dynamic Island."""
+ left=EDGE;top=110
  back=tap(7101,left+60,top,150,'chevron-left.png','PlayerControl(Stop)','<onright>7121</onright><ondown>7112</ondown>',104)
  # Right group, 900 wide: speed, audio, subtitles, AirPlay from left to right, the last 90 in from the edge.
- rw=900;rx=rw-90
+ rw=900;rx=rw-EDGE
  icons=''.join(tap(id,rx-60-i*180,top,150,icon,action,nav,74 if icon.endswith('airplay.png') else 96) for i,(id,icon,action,nav) in enumerate([
    (7102,MEDIA+'airplay.png',CAST,'<onleft>7123</onleft><ondown>7112</ondown>'),
    (7123,'closed-captioning.png','ActivateWindow(osdsubtitlesettings)','<onleft>7122</onleft><onright>7102</onright><ondown>7112</ondown>'),
@@ -131,27 +134,14 @@ def window():
   '<onunload>Skin.Reset(ios_osd_continue)</onunload><onunload>Skin.Reset(ios_osd_continue_path)</onunload><onunload>CancelAlarm(osd_timeout,true)</onunload>'
   '<controls>%s%s%s%s%s%s%s</controls>\n</window>\n')%(MARKER,shade,head,centre,title,bar,row,panel)
 
-# Shown on its own (controls closed) only while the owner seeks: never at the start of a video, while it buffers or
-# after the resume jump, which is when Fuse's seek bar used to flash up.
-SEEKING='Player.Seeking | Player.Forwarding | Player.Rewinding | !String.IsEmpty(Player.SeekNumeric)'
+# r4: never shown. The owner does not want a bar besides the controls' own ("the old one still appears"): the
+# window stays because Kodi opens it while seeking and moves its progress control (401).
+SEEKING='false'
 
 def seekbar_window():
- """Kodi's seek bar window (DialogSeekBar.xml) in the same look as the controls, replacing Fuse's. Kodi loads it
- once at start (upright), so it is pinned to the edges like the controls. Control 401 is the progress Kodi moves."""
- left=90
- body=('<control type="image"><left>0</left><bottom>0</bottom><right>0</right><height>360</height><texture colordiffuse="CCFFFFFF">%sfade_up.png</texture></control>'%MEDIA+
-  '<control type="label"><left>%d</left><right>%d</right><top>790</top><height>60</height><font>font_midi_bold</font><textcolor>FFFFFFFF</textcolor>'
-  '<align>left</align><aligny>center</aligny><label>$INFO[Player.SeekOffset]$INFO[Player.SeekNumeric]</label></control>'%(left,left)+
-  '<control type="progress" id="401"><left>%d</left><right>%d</right><top>887</top><height>10</height>'%(left,left)+
-  '<texturebg border="4" colordiffuse="59FFFFFF">%sdot.png</texturebg><lefttexture /><midtexture border="4" colordiffuse="FFFFFFFF">%sdot.png</midtexture><righttexture /></control>'%(MEDIA,MEDIA)+
-  '<control type="label"><left>%d</left><width>400</width><top>936</top><height>60</height><font>font_midi</font><textcolor>D9FFFFFF</textcolor>'
-  '<align>left</align><aligny>center</aligny><label>$INFO[Player.Time]</label></control>'%left+
-  '<control type="label"><right>%d</right><width>400</width><top>936</top><height>60</height><font>font_midi</font><textcolor>D9FFFFFF</textcolor>'
-  '<align>right</align><aligny>center</aligny><label>-$INFO[Player.TimeRemaining]</label></control>'%left)
- return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s seek bar -->\n<window>\n<zorder>0</zorder>'
-  '<visible>Window.IsActive(fullscreenvideo) + !Window.IsActive(videoosd) + [%s]</visible>'
-  '<animation effect="fade" start="0" end="100" time="120">WindowOpen</animation><animation effect="fade" start="100" end="0" time="200">WindowClose</animation>'
-  '<controls>%s</controls>\n</window>\n')%(MARKER,SEEKING,body)
+ """Kodi's seek bar window (DialogSeekBar.xml), replacing Fuse's: kept for Kodi, never visible."""
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s seek bar -->\n<window>\n<zorder>0</zorder><visible>false</visible>'
+  '<controls><control type="progress" id="401"><left>0</left><top>0</top><width>1</width><height>1</height><visible>false</visible></control></controls>\n</window>\n')%MARKER
 
 def card(focused):
  art='$INFO[ListItem.Art(landscape)]'

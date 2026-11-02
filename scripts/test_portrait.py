@@ -129,11 +129,9 @@ class PortraitTests(unittest.TestCase):
                  'RunScript(service.kodi.ios.bootstrap,speed)','ActivateWindow(osdaudiosettings)','ActivateWindow(osdsubtitlesettings)','$VAR[Action_OSD_WikiInfo]']:self.assertIn(action,clicks)
   self.assertNotIn('volume',files['1080i/VideoOSD.xml'].decode().lower())
   self.assertIn('$NUMBER[10]',files['1080i/VideoOSD.xml'].decode())  # a bare 10 is a Kodi string id
-  # r3: Fuse's seek bar is replaced. Ours shows only while seeking (never for buffering or the resume jump at the
-  # start of a video, when Fuse's flashed up), keeps Kodi's progress control 401, and is pinned to the edges.
-  seek=ET.fromstring(files['1080i/DialogSeekBar.xml']);cond=seek.find('visible').text
-  self.assertIn('!Window.IsActive(videoosd)',cond);self.assertIn('Player.Seeking',cond)
-  for word in ('Caching','HasPerformedSeek','Paused'):self.assertNotIn(word,cond)
+  # r4: Fuse's seek bar is replaced by a window that never shows (the owner wants only the controls' bar); Kodi's
+  # progress control 401 stays.
+  seek=ET.fromstring(files['1080i/DialogSeekBar.xml']);self.assertEqual(seek.find('visible').text,'false')
   self.assertEqual([c.get('id') for c in seek.iter('control') if c.get('id')],['401'])
   # Pinned to the left/centre/right, never a fixed x beyond Fuse's 16:9 width (Kodi loads the seek bar upright).
   for root in (seek,osd):
