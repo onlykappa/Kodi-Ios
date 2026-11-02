@@ -589,6 +589,7 @@ Status: FIXED IN SOURCE (KodiAirPlay r4 + Kodi app r20); device test pending.
 
 ## ISSUE-082 — Search: field at the top, results as you type (owner request with Apple TV app screenshot)
 Status: BUILT (KodiGlassBar r3 + Python + portrait layout); rig-rendered; native field compile-checked only, device test pending.
+- Held back for a while (37331e3) so it ships with the UI round 2; restored with that merge (KodiGlassBar r3 pinned again).
 - Before: the Search field opened TMDb Helper's search, which showed Kodi's keyboard page ("Enter Search Query" on black).
 - Now (Apple TV app style): a native iOS search field in a dark band at the top (magnifier, clear button, round X), typed with iOS's own keyboard. searchbar.py reads it twenty times a second and, once typing pauses for 0.45 s (at once on the Search key), points the page's poster grid (3 a row) at TMDb Helper's multi search; X clears it and lowers the keyboard; dragging the results lowers the keyboard. The category tiles show while the field is empty. A phone without the r3 framework keeps the old field.
 - Rig check (desktop Kodi 20.5, Fuse 3.4.8 at 603x1167, the phone's portrait safe area; native field not drawn there): old layout unchanged; native mode puts the categories under the band; "scary movie" lists 12 TMDb results in the grid ("No results"/"Searching…" states included); tapping a result runs TMDb Helper's play (the player chooser), as the Home rows do. Kodi 20.5 in the rig crashed once in Python teardown of Fuse's skinvariables script (rig-only, Python 3.12).
