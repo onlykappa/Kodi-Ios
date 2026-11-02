@@ -380,7 +380,7 @@ index f5c0732..2d7257c 100644
        // no need to send a resize message, as this message will do the rounds
        return true;
 diff --git a/xbmc/guilib/GUIWindow.cpp b/xbmc/guilib/GUIWindow.cpp
-index ebb133d..398f0d7 100644
+index ebb133d..9017863 100644
 --- a/xbmc/guilib/GUIWindow.cpp
 +++ b/xbmc/guilib/GUIWindow.cpp
 @@ -499,9 +499,20 @@ EVENT_RESULT CGUIWindow::OnMouseAction(const CAction &action)
@@ -406,7 +406,24 @@ index ebb133d..398f0d7 100644
    if (m_exclusiveMouseControl)
    {
      CGUIControl *child = GetControl(m_exclusiveMouseControl);
-@@ -591,7 +602,30 @@ bool CGUIWindow::OnMessage(CGUIMessage& message)
+@@ -514,7 +525,15 @@ EVENT_RESULT CGUIWindow::OnMouseAction(const CAction &action)
+ 
+   UnfocusFromPoint(mousePoint);
+ 
+-  return SendMouseEvent(mousePoint, event);
++  const EVENT_RESULT result = SendMouseEvent(mousePoint, event);
++  // Kodi-iOS r17: the owner reports the video controls' buttons "not working well". Log every tap (click) with the
++  // skin coordinates it became, the layout size this window was loaded with and the control that took it, so a
++  // log shows whether a tap on play/pause lands on play/pause.
++  if (action.GetID() == ACTION_MOUSE_LEFT_CLICK)
++    CLog::Log(LOGINFO, "Click at {:.0f} x {:.0f} in {} ({} x {} layout): control {} {}", mousePoint.x, mousePoint.y,
++              GetProperty("xmlfile").asString(), m_coordsRes.iWidth, m_coordsRes.iHeight, GetFocusedControlID(),
++              result == EVENT_RESULT_UNHANDLED ? "(not handled)" : "(handled)");
++  return result;
+ }
+ 
+ EVENT_RESULT CGUIWindow::OnMouseEvent(const CPoint& point, const MOUSE::CMouseEvent& event)
+@@ -591,7 +610,30 @@ bool CGUIWindow::OnMessage(CGUIMessage& message)
    case GUI_MSG_WINDOW_INIT:
      {
        CLog::Log(LOGDEBUG, "------ Window Init ({}) ------", GetProperty("xmlfile").asString());
