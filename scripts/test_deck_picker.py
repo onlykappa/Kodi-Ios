@@ -137,4 +137,13 @@ class UmbrellaPage(unittest.TestCase):
    saved=json.load(open(path))['items']['episode:1:1:1']['version'];self.assertEqual((saved['name'],saved['quality']),(item['name'],'1080p'))
    self.assertFalse(dp.remember(item,'Some Other Show S02E03',path))   # another title: left alone
    self.assertFalse(dp.remember(item,'Orange Is the New Black S01E01',path,now=time.time()+3600))   # too long ago
+ def test_disc_copies_and_huge_files_go_last_with_a_warning(self):
+  items=['2160p (40 / 0) [72.4 GB] Blu-Ray H.265 - Torrentio\nThe.Dark.Knight.2008.COMPLETE.UHD.BLURAY-GROUP\nicon.png',
+         '2160p (30 / 0) [55.0 GB] Remux H.265 - Torrentio\nThe.Dark.Knight.2008.2160p.UHD.BluRay.REMUX-GROUP\nicon.png',
+         '2160p (20 / 0) [18.2 GB] WebDL H.265 - Torrentio\nThe.Dark.Knight.2008.2160p.WEB-DL.x265-GROUP\nicon.png',
+         '2160p (10 / 0) [9.1 GB] Blu-Ray H.265 - Torrentio\nThe.Dark.Knight.2008.2160p.BluRay.x265-GROUP\nicon.png']
+  parsed=dp.parse_all(items)
+  self.assertEqual([dp.too_heavy(p) for p in parsed],[True,True,False,False])
+  shown=dp.pick(parsed,5);self.assertEqual([p['idx'] for p in shown][:2],[2,3])
+  rows=dp.build_rows(shown);self.assertEqual([r['badge'] for r in rows][2:],['MAY STUTTER','MAY STUTTER']);self.assertNotEqual(rows[0]['badge'],'MAY STUTTER')
 if __name__=='__main__':unittest.main()

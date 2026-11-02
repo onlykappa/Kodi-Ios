@@ -143,6 +143,21 @@ def is_bad(item):
     return False
 
 
+# Kodi-iOS: what a phone cannot stream well. The owner's tests played a 72 GB UHD Blu-ray disc file (00030.m2ts, HEVC
+# 10-bit at 63 Mbps): it stalled, froze the controls while Kodi waited on it, and could not seek (no index).
+HEAVY_GB = 40.0
+DISC_WORDS = (' M2TS ', ' BDMV ', ' ISO ', ' BD25 ', ' BD50 ', ' BD66 ', ' BD100 ', ' COMPLETE BLURAY ', ' COMPLETE UHD BLURAY ',
+              ' COMPLETE BLU RAY ', ' UHD BD ', ' DISC ')
+
+
+def too_heavy(item):
+    """A raw disc copy or a file bigger than HEAVY_GB: listed after the others and labelled on the version page."""
+    if item['size'] > HEAVY_GB:
+        return True
+    b = _blob(_all(item))
+    return any(w in b for w in DISC_WORDS)
+
+
 def tag_list(item):
     b = _blob(_all(item))
     raw = _s(_all(item)).upper()
@@ -232,6 +247,8 @@ def pick(items, top_n=TOP_N):
     """items: one quality, already in Elementum's order. Returns up to top_n varied links."""
     items = dedupe(items)
     good = [i for i in items if not is_bad(i) and i['seeds'] > 0]
+    # Kodi-iOS: disc copies and huge files after the versions a phone streams well (still offered).
+    good = [i for i in good if not too_heavy(i)] + [i for i in good if too_heavy(i)]
     good_ids = set(id(i) for i in good)
     rest = [i for i in items if id(i) not in good_ids]
     ranked = good + rest                                   # dead / bad copies only if nothing better
@@ -286,7 +303,7 @@ def build_rows(shown, total_label=u''):
         if st:
             head = head + DOT + st
         rows.append({'headline': head, 'tags': DOT.join(tag_list(it)), 'meta': meta_text(it),
-                     'badge': b.get(n, u''), 'icon': it['icon']})
+                     'badge': u'MAY STUTTER' if too_heavy(it) else b.get(n, u''), 'icon': it['icon']})
     return rows
 
 
