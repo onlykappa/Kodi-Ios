@@ -185,7 +185,7 @@ class PortraitTests(unittest.TestCase):
   self.assertFalse(portrait.in_progress({'label':'Popular','path':'plugin://x/?info=popular'}))
  def test_library_and_search_pages(self):
   lib=(self.skin/'portrait/Custom_1103_Hub.xml').read_text()
-  self.assertIn('videodb://movies/titles/',lib);self.assertIn('videodb://tvshows/titles/',lib)
+  self.assertIn('plugin://plugin.video.kodi.ios.watch/?action=library&amp;type=movie',lib);self.assertIn('plugin://plugin.video.kodi.ios.watch/?action=library&amp;type=tv',lib)  # Kodi's library + Google Drive downloads
   search=self.read('portrait/Custom_1105_Search.xml')
   self.assertIsNone(search.find('onload[.="RunScript(script.skinvariables)"]'))
   self.assertEqual(len(search.findall(".//control[@id='5100']/content/item")),len(portrait.CATEGORIES))

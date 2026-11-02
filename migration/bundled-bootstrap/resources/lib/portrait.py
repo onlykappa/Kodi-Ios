@@ -63,8 +63,11 @@ ACCENT='FF4FA8FF'
 def titled_page(title,path):
  # A TMDb Helper folder is named after the add-on; the page shows the tile's name instead (cleared on the hubs).
  return 'SetProperty(Portrait.Title,%s,home)\x00ActivateWindow(Videos,%s,return)'%(title,path)
-LIBRARY=[('Movies','film.png',titled_page('Movies','videodb://movies/titles/')),
-         ('TV Shows','tv.png',titled_page('TV Shows','videodb://tvshows/titles/'))]
+# Library: Kodi's own library together with the downloads kept in Google Drive › Kodi Downloads (owner, 2026-11-02:
+# "this needs to be linked to library, not gear to Drive"); the watch add-on lists both (ios_library.py).
+LIBRARY_PAGE='plugin://plugin.video.kodi.ios.watch/?action=library&type='
+LIBRARY=[('Movies','film.png',titled_page('Movies',LIBRARY_PAGE+'movie')),
+         ('TV Shows','tv.png',titled_page('TV Shows',LIBRARY_PAGE+'tv'))]
 TMDB='plugin://plugin.video.themoviedb.helper/'
 SEARCH_ACTION='ActivateWindow(Videos,%s?info=search&tmdb_type=multi,return)'%TMDB
 # Search page categories (TMDb TV genres) with their tile gradients.

@@ -171,6 +171,10 @@ def drive_uploads(monitor,home,profile):
   try:
    count=driveupload.run_once(root,drive,state,log,idle,xbmcaddon.Addon().getSettingBool('drive_upload_delete'))
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))
+   # Library › Movies / TV Shows lists Drive (cached a few minutes): show the new uploads at once.
+   if count:
+    try:os.remove(str(profile/'addon_data/service.kodi.ios.bootstrap/drive-library.json'))
+    except OSError:pass
   except driveupload.Stop:pass
   except Exception as error:
    xbmc.log('Kodi iOS Drive upload paused: %s %s'%(type(error).__name__,error),xbmc.LOGWARNING)

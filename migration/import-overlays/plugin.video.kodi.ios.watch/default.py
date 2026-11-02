@@ -7,6 +7,8 @@ from ios_watch_routes import choices
 def run(argv):
  import xbmc,xbmcaddon,xbmcgui,xbmcplugin
  handle=int(argv[1]);params={k:v[0] for k,v in parse_qs(argv[2].lstrip('?')).items()}
+ if params.get('action')=='library':
+  from ios_library import directory;directory(handle,params);return
  if params.get('action')=='continue':
   from ios_continue import directory;directory(handle,params.get('type','all'));return
  if params.get('action')=='choose_source':
