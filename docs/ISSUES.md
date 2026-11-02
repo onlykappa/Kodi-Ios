@@ -553,3 +553,25 @@ Status: FIXED IN PATCH (Kodi app r19, building 06:56Z, run 41403074559); device 
 - The r12/r13 fix (window and root view accept every point) was not enough: the logged sizes of window, root view and GL view are all landscape, so the view or UIKit path still at the portrait size is not identified.
 - r19 does not depend on finding it: KodiTouchWindow.hitTest returns the GL view (which has Kodi's gesture recognizers) whenever nothing below the window claims a point on the screen; and a UIApplication.sendEvent: hook hands a short single tap that reached no Kodi view (no view, a bare window or the root view) to Kodi as a tap, as the tap recognizer would. Real views under the finger (Liquid Glass tab bar, AirPlay button, keyboard) still get their touches. The first 12 taps after each screen-shape change are logged as "Touch at X x Y pt went to <view> … Kodi has it / handed to Kodi / left to that view", with the Kodi window's frame — the next log shows which path a tap took.
 - Desktop simulation (follow-up 3) had already shown the buttons themselves drive the player.
+
+## ISSUE-076 — Tapping the tab bar sometimes opened the Continue Watching item behind it (owner, build-122)
+Status: FIXED IN FRAMEWORK SOURCE (KodiGlassBar r2, building); device test pending.
+- The native glass bar took touches only on its 62 pt capsule. Kodi draws the hub rows behind and around it: 14 pt each side, the home-indicator area below (about 38 pt), and the Continue Watching posters just above. A tap that missed the capsule by a little went to Kodi and opened the item under it.
+- Fix: KodiGlassBar.pointInside claims the whole strip from 12 pt above the capsule to the bottom edge, edge to edge, like iOS's tab bar; the tab follows the finger's x (end tabs clamped). Not claimed while the bar is hidden or faded out (dialogs, landscape).
+
+## ISSUE-077 — Downloads and Drive uploads stopped whenever Kodi left the screen (owner request)
+Status: BUILT (Python + KodiAirPlay r3, building); device test pending.
+- iOS suspends an app seconds after it leaves the screen; Kodi only stays running while it plays sound (Info.plist already has the audio background mode). The Elementum engine and the Drive uploader run inside Kodi, so they stopped.
+- Fix: background.py tells KodiAirPlay.framework (kodi_background_keep) every 5 s whether an Elementum download is running, a Drive upload is in progress, or kept videos wait for Drive. While that holds and Kodi is in the background, the framework plays silence on a loop with MixWithOthers (other apps' sound carries on), restarts it after a call, and restores the audio session when Kodi returns or the work ends. Not used while Kodi plays music. Setting: Google Drive › "Keep downloading and uploading while Kodi is in the background" (on). Swiping Kodi away still ends everything (iOS rule).
+
+## ISSUE-078 — Vertical scrolling on Home/Movies/TV moved one row per swipe and jumped mid-flick (owner: "scrolling can be optimized")
+Status: FIXED IN PATCH (Kodi app r20, building) + keymap; device test pending.
+- The keymap from ISSUE-043 still mapped one-finger swipes up/down to Down/Up on Home, Library and Search. Since r5/r6 a vertical drag over a row already scrolls the page list, so every flick did both: the page glided, then jumped to the next focused row. A drag starting on the hero did not scroll at all (its list sits in a plain group; the handoff only looked at the direct parent).
+- The direction was decided from the first pan step (a few pixels, noisy).
+- Fix: r20 sends the finger's whole movement so far with the start of a drag (UIKit waits about 10 pt). A list (or a group list) leaves a drag across its own direction to the nearest group list above it that scrolls the other way, through plain groups. Row swipes removed on Home (all three hubs), Library and Search; kept on Fuse's other hubs and the info page.
+
+## ISSUE-079 — AirPlay connected but showed 0:00–0:00, no picture or sound (owner, build-122)
+Status: BUILT (Python + KodiAirPlay r3); device test pending.
+- Play on TV › AirPlay stopped Kodi and handed the stream to Apple's player (AVPlayer, external playback). Apple's player opens MP4/MOV/HLS only; Elementum streams are nearly always MKV, so it never loaded (0:00–0:00), and Kodi's playback was already gone. It also needs the phone's Wi-Fi address to answer (not verified for Elementum's engine).
+- Fix: an MKV (or any non-Apple) stream gets Screen Mirroring steps and Kodi keeps playing. iOS mirroring carries Kodi's picture and sound to the TV, whatever the format; apps cannot start mirroring themselves. For MP4/HLS, Kodi pauses and Apple's player tries for up to 25 s (r3 kodi_airplay_state): on success Kodi stops; on failure the player closes, Kodi resumes, and the mirroring steps are shown.
+- Possible later improvement: while mirroring, move Kodi's output to the TV at its own resolution (Kodi's external-screen mode; videoscreen.monitor) for a sharper picture.
