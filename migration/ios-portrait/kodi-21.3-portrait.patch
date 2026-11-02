@@ -683,7 +683,7 @@ index b2a06d0..0c74089 100644
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..786561c 100644
+index a450151..4e065e1 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
 @@ -36,6 +36,8 @@
@@ -815,7 +815,7 @@ index a450151..786561c 100644
  @implementation XBMCController
  @synthesize animating;
  @synthesize lastGesturePoint;
-@@ -203,10 +304,165 @@ public:
+@@ -203,10 +304,171 @@ public:
  }
  // END OF UIKeyInput protocol
  
@@ -851,7 +851,7 @@ index a450151..786561c 100644
 +  dispatch_async(dispatch_get_main_queue(), ^{
 +    [self applyVideoOrientation];
 +  });
- }
++}
 +
 +- (void)healScreenSize
 +{
@@ -960,6 +960,12 @@ index a450151..786561c 100644
 +    [self applyRotatedScreen];
 +}
 +
++// Kodi-iOS r20: a view controller presented full screen over Kodi (Apple's AirPlay player, a share sheet) takes Kodi's
++// view off the screen; if it turned the phone meanwhile, Kodi missed the turn back and drew only part of the screen
++// with no text (owner, after AirPlay). Coming back on screen, Kodi rebuilds its screen size, fonts and layout.
++// (viewWillDisappear: sets s_viewCovered; viewDidAppear: rebuilds.)
++static BOOL s_viewCovered = NO;
++
 +- (void)applyRotatedScreen
 +{
 +  if ([[IOSScreenManager sharedInstance] isExternalScreen] || !m_glView)
@@ -977,12 +983,12 @@ index a450151..786561c 100644
 +    static KODI::MESSAGING::ThreadMessageCallback callback = {ApplyRotatedScreen, nullptr};
 +    CServiceBroker::GetAppMessenger()->PostMsg(TMSG_CALLBACK, -1, -1, &callback);
 +  }
-+}
+ }
 +
  //--------------------------------------------------------------
  - (UIInterfaceOrientation) getOrientation
  {
-@@ -429,6 +685,11 @@ public:
+@@ -429,6 +691,11 @@ public:
    if( m_glView && [m_glView isXBMCAlive] )//NO GESTURES BEFORE WE ARE UP AND RUNNING
    {
      CGPoint velocity = [sender velocityInView:m_glView];
@@ -994,7 +1000,7 @@ index a450151..786561c 100644
  
      if( [sender state] == UIGestureRecognizerStateBegan && sender.numberOfTouches )
      {
-@@ -462,7 +723,11 @@ public:
+@@ -462,7 +729,11 @@ public:
        {
          if( !touchBeginSignaled )
          {
@@ -1007,7 +1013,7 @@ index a450151..786561c 100644
            touchBeginSignaled = true;
          }
  
-@@ -530,7 +795,32 @@ public:
+@@ -530,7 +801,32 @@ public:
      CGPoint point = [sender locationOfTouch:0 inView:m_glView];
      point.x *= screenScale;
      point.y *= screenScale;
@@ -1041,7 +1047,7 @@ index a450151..786561c 100644
      CGenericTouchActionHandler::GetInstance().OnTap((float)point.x, (float)point.y, [sender numberOfTouches]);
    }
  }
-@@ -575,7 +865,7 @@ public:
+@@ -575,7 +871,7 @@ public:
    m_isPlayingBeforeInactive = NO;
    m_bgTask = UIBackgroundTaskInvalid;
  
@@ -1050,7 +1056,7 @@ index a450151..786561c 100644
    [m_window setRootViewController:self];
    m_window.screen = screen;
    /* Turn off autoresizing */
-@@ -589,7 +879,7 @@ public:
+@@ -589,7 +885,7 @@ public:
                   name: nil
                 object: nil];
  
@@ -1059,7 +1065,7 @@ index a450151..786561c 100644
  
    [m_window makeKeyAndVisible];
    g_xbmcController = self;
-@@ -600,7 +890,8 @@ public:
+@@ -600,7 +896,8 @@ public:
  //--------------------------------------------------------------
  - (void)loadView
  {
@@ -1069,7 +1075,29 @@ index a450151..786561c 100644
    self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
    self.view.autoresizesSubviews = YES;
  
-@@ -712,6 +1003,15 @@ public:
+@@ -661,6 +958,13 @@ public:
+   if ([self respondsToSelector:@selector(setNeedsUpdateOfHomeIndicatorAutoHidden)]) {
+     [self performSelector:@selector(setNeedsUpdateOfHomeIndicatorAutoHidden)];
+   }
++  // Kodi-iOS r20: back on screen after a full-screen presentation (see s_viewCovered).
++  if (s_viewCovered && m_glView && [m_glView isXBMCAlive])
++  {
++    CLog::Log(LOGINFO, "Back on screen after a full-screen presentation: rebuilding the screen");
++    [self applyRotatedScreen];
++  }
++  s_viewCovered = NO;
+ }
+ //--------------------------------------------------------------
+ - (BOOL)prefersHomeIndicatorAutoHidden
+@@ -671,6 +975,7 @@ public:
+ - (void)viewWillDisappear:(BOOL)animated
+ {
+   PRINT_SIGNATURE();
++  s_viewCovered = YES; // Kodi-iOS r20
+ 
+   [self pauseAnimation];
+ 
+@@ -712,6 +1017,15 @@ public:
  {
    m_debugLogSharingPresenter = std::make_unique<DebugLogSharingPresenter>();
    [self setGUIInsetsFromMainThread:NO];
@@ -1085,7 +1113,7 @@ index a450151..786561c 100644
  }
  //--------------------------------------------------------------
  - (void)setGUIInsetsFromMainThread:(BOOL)isMainThread
-@@ -738,8 +1038,15 @@ public:
+@@ -738,8 +1052,15 @@ public:
    CLog::Log(LOGDEBUG, "insets: {}\nwindow: {}\nscreen: {}",
              NSStringFromUIEdgeInsets(insets).UTF8String, m_window.description.UTF8String,
              m_glView.currentScreen.description.UTF8String);
@@ -1102,7 +1130,7 @@ index a450151..786561c 100644
  
    auto scale = [m_glView getScreenScale:m_glView.currentScreen];
    guiInsets = EdgeInsets(insets.left * scale, insets.top * scale, insets.right * scale,
-@@ -1045,4 +1352,64 @@ public:
+@@ -1045,4 +1366,64 @@ public:
    return [m_glView getCurrentEAGLContext];
  }
  

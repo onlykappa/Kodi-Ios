@@ -26,6 +26,13 @@ def run():
   dialog.ok('Download','Elementum is not running. Gear menu › Retry Elementum engine, then try again.');return
  wait=lambda:xbmc.Monitor().waitForAbort(1)
  start=lambda k,e=None:xbmc.executebuiltin('RunPlugin(%s)'%dl.plugin_url(k,tmdb,season,e))
+ def watch(k,torrent=None,e=None):
+  if torrent is None:return
+  # Elementum shows a few seconds of buffering, then the video; the download carries on in the background.
+  xbmc.executebuiltin('PlayMedia(%s)'%dl.watch_url(k,tmdb,torrent,season,e))
+ def mode(labels):
+  pick=dialog.select('Download',labels)
+  return None if pick<0 else pick==1
  if kind=='season':
   pick=dialog.select('Download season %s'%season,['Full season','Choose episodes...'])
   if pick<0:return
@@ -38,15 +45,31 @@ def run():
    chosen=dialog.multiselect('Season %s: which episodes?'%season,[label for n,label in choices])
    if not chosen:return
    episodes=[choices[i][0] for i in chosen]
-   dialog.notification('Download','Starting %d episode%s'%(len(episodes),'' if len(episodes)==1 else 's'),xbmcgui.NOTIFICATION_INFO,4000)
-   added=dl.download_each(episodes,lambda n:start('episode',n),wait)
+   watching=mode(dl.mode_labels('season',episodes))
+   if watching is None:return
+   first=min(episodes)
+   # Every version is chosen first (one page per episode), then the first episode plays: a page for the next
+   # episode never opens over the video.
+   before=dl.torrents()
+   start('episode',first)
+   tid=dl.added(before,wait,attempts=300)
+   added=([first] if tid else [])+dl.download_each([n for n in episodes if n!=first],lambda n:start('episode',n),wait)
    if added:notices.note('download','Downloading season %s'%season,'%d of %d episodes'%(len(added),len(episodes)))
+   if watching:watch('episode',tid,first)
    return
+  watching=mode(dl.mode_labels('season'))
+  if watching is None:return
+  # Elementum fetches one file of a season pack: switch the new pack to "download all" once it is added.
+  before=dl.torrents()
+  start('season')
+  tid=dl.download_all_when_added(before,wait)
+  if tid:notices.note('download','Downloading all of season %s'%season)
+  if watching:watch('episode',tid,1)
+  return
+ watching=mode(dl.mode_labels(kind))
+ if watching is None:return
  before=dl.torrents()
  start(kind,episode)
- if kind!='season':return
- # Elementum fetches one file of a season pack: switch the new pack to "download all" once it is added.
- tid=dl.download_all_when_added(before,wait)
- if tid:notices.note('download','Downloading all of season %s'%season)
+ if watching:watch(kind,dl.added(before,wait,attempts=300),episode)
 
 if __name__=='__main__':run()

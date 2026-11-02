@@ -31,18 +31,38 @@ def torrents(get=None):
  try:return {t['id'] for t in json.loads(get(ENGINE+'/torrents/list')) if t.get('id')}
  except Exception:return set()
 
+def added(before,wait,get=None,attempts=600):
+ """The torrent Elementum adds after a download starts (the version the owner picked), or None if none appeared
+ (cancelled, or after `attempts` seconds). wait() sleeps ~1 s and returns True to give up."""
+ for _ in range(attempts):
+  new=torrents(get)-set(before)
+  if new:return sorted(new)[0]
+  if wait():return None
+ return None
+
 def download_all_when_added(before,wait,get=None,attempts=600):
  """After a season download starts: the new torrent (the pack the owner picked) gets every file. wait() sleeps
  ~1 s and returns True to give up. Returns the torrent id, or None if none appeared."""
  get=get or (lambda url:urllib.request.urlopen(url,timeout=10).read())
- for _ in range(attempts):
-  new=torrents(get)-set(before)
-  if new:
-   tid=sorted(new)[0]
-   if wait():return None
-   get(ENGINE+'/torrents/downloadall/'+tid);return tid
-  if wait():return None
- return None
+ tid=added(before,wait,get,attempts)
+ if tid is None or wait():return None
+ get(ENGINE+'/torrents/downloadall/'+tid);return tid
+
+# "Download only" or "Download and watch": both start Elementum's download, which shows the quality and Choose a version
+# pages; watching then plays from that same torrent once it is added, so it keeps downloading after the video stops.
+MODES=['Download only','Download and watch']
+
+def mode_labels(kind,episodes=None):
+ """The two choices; with several episodes the watched one is the first."""
+ if kind=='season' and episodes:return [MODES[0],'Download and watch episode %d'%min(episodes)]
+ if kind=='season':return [MODES[0],'Download and watch episode 1']
+ return list(MODES)
+
+def watch_url(kind,tmdb,torrent=None,season=None,episode=None):
+ """Play from the downloading torrent: a movie by its torrent id; an episode through Elementum's episode page with
+ silent=1, which plays the matching file of the torrent already on the phone (also a season pack) without asking."""
+ if kind=='movie':return '%s/play?%s'%(PLUGIN,urllib.parse.urlencode({'resume':torrent,'tmdb':tmdb,'type':'movie'}))
+ return '%s/show/%s/season/%s/episode/%s/play?silent=1'%(PLUGIN,tmdb,season,episode)
 
 def season_path(tmdb,season):
  """TMDb Helper's episode list for a season (what the seasons page shows)."""

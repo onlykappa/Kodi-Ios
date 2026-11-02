@@ -139,6 +139,7 @@ def phone_housekeeping(profile,elementum_setting=None,api=None):
  - TMDb Helper looks for players in addon_data/.../reconfigured_players: create it.
  - Elementum's UPnP / NAT-PMP / local service discovery fail on a phone ("no router found", "Can't assign requested
    address") and keep the radio busy: off.
+ - Elementum always shows its version list and waits for an answer (downloads asked nothing).
  - Kodi's Bonjour announcing is refused by iOS for this app (CFNetServiceRegister -72008): off.
  Done once (marker), so a setting the owner turns back on stays on. Returns what was done."""
  profile=Path(profile);marker=profile/'addon_data'/ID/'housekeeping.json'
@@ -160,6 +161,15 @@ def phone_housekeeping(profile,elementum_setting=None,api=None):
   for key in ('disable_upnp','disable_natpmp','disable_lsd'):
    if get(key)!='true':put(key,'true')
   now.append('elementum_network')
+ # Owner (build-122): Download › episodes closed without the quality page. Elementum skips its version list when it
+ # remembers an earlier pick for the title (use_cache_selection), when a torrent on the phone already holds the
+ # episode (smart_episode_choose), and answers its own "use that one?" question Yes after 5 s (autoyes). Now it
+ # always shows the Choose a version page and waits for an answer. Continue Watching keeps its own saved pick.
+ if 'elementum_always_ask' not in done and elementum_setting:
+  get,put=elementum_setting
+  for key in ('use_cache_selection','smart_episode_choose','autoyes_enabled','silent_stream_start'):
+   if get(key)!='false':put(key,'false')
+  now.append('elementum_always_ask')
  if 'zeroconf' not in done and api:
   if 'error' not in api('Settings.SetSettingValue',{'setting':'services.zeroconf','value':False}):now.append('zeroconf')
  if now:

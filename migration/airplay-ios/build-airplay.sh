@@ -6,6 +6,7 @@
 # r3: kodi_airplay_state() says whether Apple's player could open the stream (Python falls back to Screen Mirroring
 # and resumes Kodi when it could not), kodi_airplay_close() dismisses it, and kodi_background_keep(1/0) keeps Kodi
 # running after it leaves the screen while a download or upload has work (silence mixed with other apps' sound).
+# r4: Apple's player never turns the phone and Kodi rebuilds its screen when it closes (half-drawn Kodi after AirPlay).
 # Usage: build-airplay.sh OUT_DIR
 set -euo pipefail
 [[ "$(uname -s)" == Darwin ]] || { echo 'BLOCKED: macOS with the iPhoneOS SDK is required.' >&2; exit 2; }
@@ -19,6 +20,8 @@ cat > "$WORK/KodiAirPlay.m" <<'OBJC'
 #import <AVFoundation/AVFoundation.h>
 
 #import <stdatomic.h>
+
+#import <objc/message.h>
 
 static AVRoutePickerView *picker;
 static AVPlayerViewController *airplayController;
@@ -78,6 +81,56 @@ static void openSheet(AVRoutePickerView *view) {
     }
 }
 
+// r4: Apple's player presented full screen turned the phone (it allows landscape) while Kodi's own view was taken
+// off the screen; back in Kodi the turn was missed and Kodi drew only the left 46% of the screen with no text (owner
+// screenshots). The holder keeps the orientation Kodi has, is presented over Kodi (Kodi's view stays in place), and
+// when it closes asks Kodi to rebuild its screen (XBMCController applyRotatedScreen, from the portrait patch).
+static void healKodi(void) {
+    UIViewController *root = kodiWindow().rootViewController;
+    SEL heal = NSSelectorFromString(@"applyRotatedScreen");
+    if ([root respondsToSelector:heal]) ((void (*)(id, SEL))objc_msgSend)(root, heal);
+}
+
+@interface KodiAirPlayHolder : UIViewController
+@property (nonatomic) UIInterfaceOrientationMask mask;
+@property (nonatomic, weak) UIButton *closeButton;
+@end
+
+@implementation KodiAirPlayHolder
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations { return self.mask; }
+- (BOOL)shouldAutorotate { return NO; }
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = UIColor.blackColor;
+    UIButton *close = [UIButton buttonWithType:UIButtonTypeSystem];
+    [close setImage:[UIImage systemImageNamed:@"xmark.circle.fill"] forState:UIControlStateNormal];
+    close.tintColor = UIColor.whiteColor;
+    close.translatesAutoresizingMaskIntoConstraints = NO;
+    [close addTarget:self action:@selector(closeTapped) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:close];
+    [NSLayoutConstraint activateConstraints:@[
+        [close.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor constant:8],
+        [close.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor constant:12],
+        [close.widthAnchor constraintEqualToConstant:44], [close.heightAnchor constraintEqualToConstant:44],
+    ]];
+    self.closeButton = close;
+}
+- (void)closeTapped {
+    [airplayController.player pause];
+    [self dismissViewControllerAnimated:YES completion:nil];
+}
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
+    if (self.isBeingDismissed || self.presentingViewController == nil) {
+        // Twice: once now, once after any rotation iOS still runs has settled.
+        healKodi();
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ healKodi(); });
+    }
+}
+@end
+
+static KodiAirPlayHolder *airplayHolder;
+
 // Real AirPlay video: Apple's player with external playback, then the device sheet. The TV keeps playing while
 // Kodi is in the background (playback audio session). Apple's player handles MP4/MOV/HLS, not MKV.
 __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, const char *title) {
@@ -107,18 +160,32 @@ __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, c
         }];
         player.allowsExternalPlayback = YES;
         player.usesExternalPlaybackWhileExternalScreenIsActive = YES;
-        if (airplayController) [airplayController dismissViewControllerAnimated:NO completion:nil];
+        if (airplayHolder) [airplayHolder dismissViewControllerAnimated:NO completion:nil];
         airplayController = [[AVPlayerViewController alloc] init];
         airplayController.player = player;
         airplayController.title = name;
         airplayController.allowsPictureInPicturePlayback = YES;
+        airplayController.entersFullScreenWhenPlaybackBegins = NO;
+        // r4: inside a holder that keeps Kodi's orientation, over Kodi rather than in place of it.
+        KodiAirPlayHolder *holder = [[KodiAirPlayHolder alloc] init];
+        UIWindowScene *scene = kodiWindow().windowScene;
+        UIInterfaceOrientation now = scene ? scene.interfaceOrientation : UIInterfaceOrientationPortrait;
+        holder.mask = UIInterfaceOrientationIsLandscape(now) ? UIInterfaceOrientationMaskLandscape : UIInterfaceOrientationMaskPortrait;
+        holder.modalPresentationStyle = UIModalPresentationOverFullScreen;
+        [holder addChildViewController:airplayController];
+        airplayController.view.frame = holder.view.bounds;
+        airplayController.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        [holder.view insertSubview:airplayController.view atIndex:0];
+        [airplayController didMoveToParentViewController:holder];
+        if (holder.closeButton) [holder.view bringSubviewToFront:holder.closeButton];
+        airplayHolder = holder;
         UIViewController *top = root;
         while (top.presentedViewController) top = top.presentedViewController;
-        [top presentViewController:airplayController animated:YES completion:^{
+        [top presentViewController:holder animated:YES completion:^{
             [player play];
             AVRoutePickerView *sheet = [[AVRoutePickerView alloc] initWithFrame:CGRectMake(0, 0, 1, 1)];
             sheet.prioritizesVideoDevices = YES;
-            [airplayController.view addSubview:sheet];
+            [holder.view addSubview:sheet];
             openSheet(sheet);
         }];
     });
@@ -135,7 +202,8 @@ __attribute__((visibility("default"))) void kodi_airplay_close(void) {
         [airplayWatch invalidate];
         airplayWatch = nil;
         [airplayController.player pause];
-        [airplayController dismissViewControllerAnimated:YES completion:nil];
+        [airplayHolder dismissViewControllerAnimated:YES completion:nil];
+        airplayHolder = nil;
         airplayController = nil;
         atomic_store(&airplayState, 0);
     });

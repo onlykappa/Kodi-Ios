@@ -272,6 +272,8 @@ class IpaTests(unittest.TestCase):
                '[sender translationInView:m_glView]','CGUIControl* CGUIBaseContainer::CrossScroller() const',
                'if (m_gestureDecided && GestureAcross(event.m_offsetX, event.m_offsetY) && CrossScroller())\n+      return EVENT_RESULT_UNHANDLED;',
                'static_cast<CGUIControlGroupList*>(parent)->GetOrientation() != m_orientation']:self.assertIn(text,patch)
+  # r20: back on screen after a full-screen presentation (Apple's AirPlay player), Kodi rebuilds its screen.
+  for text in ['s_viewCovered = YES; // Kodi-iOS r20','if (s_viewCovered && m_glView && [m_glView isXBMCAlive])','rebuilding the screen");\n+    [self applyRotatedScreen];']:self.assertIn(text,patch)
   lock=json.loads((ROOT/'migration/ios-portrait/source-lock.json').read_text())
   self.assertEqual(lock['commit'],'a3a448d26b8d560a65655dab2cd122994dc4e146')
  def test_swap_executable_checks_libraries(self):

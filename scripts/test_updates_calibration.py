@@ -235,6 +235,22 @@ class AirPlay(unittest.TestCase):
   ticks=iter([False,False,False,False,True])
   airplay.watch(lib,lambda:next(states),lambda s:next(ticks))
   self.assertEqual(calls,[0,1,0,1,0])
+class DownloadModes(unittest.TestCase):
+ def test_download_only_or_download_and_watch(self):
+  dl=load('elementum_download')
+  self.assertEqual(dl.mode_labels('movie'),['Download only','Download and watch'])
+  self.assertEqual(dl.mode_labels('season',[5,3,4]),['Download only','Download and watch episode 3'])
+  self.assertEqual(dl.mode_labels('season'),['Download only','Download and watch episode 1'])
+ def test_watching_plays_from_the_downloading_torrent(self):
+  dl=load('elementum_download')
+  self.assertEqual(dl.watch_url('movie','155','abc123'),'plugin://plugin.video.elementum/play?resume=abc123&tmdb=155&type=movie')
+  # silent=1: Elementum plays the episode's file from the torrent already on the phone without asking.
+  self.assertEqual(dl.watch_url('episode','1399',None,'2','3'),'plugin://plugin.video.elementum/show/1399/season/2/episode/3/play?silent=1')
+ def test_added_finds_the_new_torrent_or_gives_up(self):
+  dl=load('elementum_download');lists=iter([b'[{"id":"old"}]',b'[{"id":"old"},{"id":"new"}]'])
+  self.assertEqual(dl.added({'old'},lambda:False,lambda u:next(lists)),'new')
+  self.assertIsNone(dl.added({'old'},lambda:False,lambda u:b'[{"id":"old"}]',attempts=3))
+  self.assertIsNone(dl.added({'old'},lambda:True,lambda u:b'[]'))
 class AirPlayFormats(unittest.TestCase):
  def test_only_apple_containers_go_to_apples_player(self):
   cast=load('cast')
@@ -331,7 +347,9 @@ class Elementum(unittest.TestCase):
    settings={'disable_upnp':'false'};calls=[]
    api=lambda method,params:calls.append((method,params)) or {'result':'OK'}
    done=bootstrap.phone_housekeeping(profile,(lambda k:settings.get(k,''),settings.__setitem__),api)
-   self.assertEqual(sorted(done),['elementum_network','media_folders','tmdbhelper_players','zeroconf'])
+   self.assertEqual(sorted(done),['elementum_always_ask','elementum_network','media_folders','tmdbhelper_players','zeroconf'])
+   # Downloads (and every play) show Elementum's version list and wait for an answer.
+   self.assertEqual([settings[k] for k in ('use_cache_selection','smart_episode_choose','autoyes_enabled','silent_stream_start')],['false']*4)
    self.assertTrue((profile/'media/local_media_root_04').is_dir());self.assertFalse((profile/'escape').exists())
    self.assertTrue((profile/'addon_data/plugin.video.themoviedb.helper/reconfigured_players').is_dir())
    self.assertEqual([settings[k] for k in ('disable_upnp','disable_natpmp','disable_lsd')],['true']*3)
