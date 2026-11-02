@@ -3,6 +3,9 @@
 # Kodi's skin cannot draw a native control, so the setup add-on loads this library with ctypes and calls
 # kodi_airplay_show(1/0) during playback, kodi_airplay_open() from the iPhone menu, and kodi_airplay_play(url,
 # title) to hand a stream to Apple's player for real AirPlay video (MP4/HLS). Needs macOS with Xcode.
+# r3: kodi_airplay_state() says whether Apple's player could open the stream (Python falls back to Screen Mirroring
+# and resumes Kodi when it could not), kodi_airplay_close() dismisses it, and kodi_background_keep(1/0) keeps Kodi
+# running after it leaves the screen while a download or upload has work (silence mixed with other apps' sound).
 # Usage: build-airplay.sh OUT_DIR
 set -euo pipefail
 [[ "$(uname -s)" == Darwin ]] || { echo 'BLOCKED: macOS with the iPhoneOS SDK is required.' >&2; exit 2; }
@@ -15,8 +18,12 @@ cat > "$WORK/KodiAirPlay.m" <<'OBJC'
 #import <AVKit/AVKit.h>
 #import <AVFoundation/AVFoundation.h>
 
+#import <stdatomic.h>
+
 static AVRoutePickerView *picker;
 static AVPlayerViewController *airplayController;
+static atomic_int airplayState = 0; // 0 idle or loading, 1 Apple's player has the stream, -1 it could not open it
+static NSTimer *airplayWatch;
 
 static UIWindow *kodiWindow(void) {
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
@@ -76,13 +83,28 @@ static void openSheet(AVRoutePickerView *view) {
 __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, const char *title) {
     NSString *link = url ? [NSString stringWithUTF8String:url] : nil;
     NSString *name = title ? [NSString stringWithUTF8String:title] : @"";
+    atomic_store(&airplayState, 0); // before returning, so a caller polling kodi_airplay_state() never sees the last result
     dispatch_async(dispatch_get_main_queue(), ^{
         NSURL *address = link ? [NSURL URLWithString:link] : nil;
+        if (!address) atomic_store(&airplayState, -1);
         UIViewController *root = kodiWindow().rootViewController;
         if (!address || !root) return;
         [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback mode:AVAudioSessionModeMoviePlayback options:0 error:nil];
         [[AVAudioSession sharedInstance] setActive:YES error:nil];
         AVPlayer *player = [AVPlayer playerWithURL:address];
+        [airplayWatch invalidate];
+        // r3: Apple's player opens MP4/MOV/HLS only (no MKV) and needs the link to answer on the Wi-Fi address.
+        airplayWatch = [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *timer) {
+            AVPlayerItem *item = player.currentItem;
+            if (item.status == AVPlayerItemStatusReadyToPlay) {
+                atomic_store(&airplayState, 1);
+                [timer invalidate];
+            } else if (item.status == AVPlayerItemStatusFailed || player.status == AVPlayerStatusFailed) {
+                NSLog(@"KodiAirPlay: Apple's player could not open the stream: %@", item.error ?: player.error);
+                atomic_store(&airplayState, -1);
+                [timer invalidate];
+            }
+        }];
         player.allowsExternalPlayback = YES;
         player.usesExternalPlaybackWhileExternalScreenIsActive = YES;
         if (airplayController) [airplayController dismissViewControllerAnimated:NO completion:nil];
@@ -99,6 +121,94 @@ __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, c
             [airplayController.view addSubview:sheet];
             openSheet(sheet);
         }];
+    });
+}
+
+// r3: 1 once Apple's player has the stream, -1 if it could not open it, 0 before either (or when idle).
+__attribute__((visibility("default"))) int kodi_airplay_state(void) {
+    return atomic_load(&airplayState);
+}
+
+// r3: closes Apple's player (after it failed, so Kodi can carry on).
+__attribute__((visibility("default"))) void kodi_airplay_close(void) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [airplayWatch invalidate];
+        airplayWatch = nil;
+        [airplayController.player pause];
+        [airplayController dismissViewControllerAnimated:YES completion:nil];
+        airplayController = nil;
+        atomic_store(&airplayState, 0);
+    });
+}
+
+// r3: background downloads. iOS suspends an app a few seconds after it leaves the screen unless it plays sound
+// (Kodi's Info.plist has the audio background mode). While Python says a download or upload has work and the app is
+// in the background, play one second of silence on a loop, mixed with other apps so their sound carries on.
+static AVAudioPlayer *keepPlayer;
+static BOOL keepWanted, keepInBackground, keepSaved;
+static AVAudioSessionCategory keepCategory;
+static AVAudioSessionMode keepMode;
+static AVAudioSessionCategoryOptions keepOptions;
+
+static NSData *silence(void) {
+    // 16-bit mono PCM WAV, 8 kHz, one second of zeros (little-endian, as on every iPhone).
+    const uint32_t rate = 8000, bytes = rate * 2, riff = 36 + bytes, fmtSize = 16, byteRate = rate * 2;
+    const uint16_t pcm = 1, mono = 1, align = 2, bits = 16;
+    NSMutableData *wav = [NSMutableData dataWithLength:44 + bytes];
+    uint8_t *b = wav.mutableBytes;
+    memcpy(b, "RIFF", 4); memcpy(b + 4, &riff, 4); memcpy(b + 8, "WAVEfmt ", 8); memcpy(b + 16, &fmtSize, 4);
+    memcpy(b + 20, &pcm, 2); memcpy(b + 22, &mono, 2); memcpy(b + 24, &rate, 4); memcpy(b + 28, &byteRate, 4);
+    memcpy(b + 32, &align, 2); memcpy(b + 34, &bits, 2); memcpy(b + 36, "data", 4); memcpy(b + 40, &bytes, 4);
+    return wav;
+}
+
+static void keepUpdate(void) {
+    // Main thread only.
+    AVAudioSession *session = AVAudioSession.sharedInstance;
+    const BOOL run = keepWanted && keepInBackground;
+    if (run && !keepPlayer.playing) {
+        if (!keepSaved) {
+            keepCategory = session.category; keepMode = session.mode; keepOptions = session.categoryOptions; keepSaved = YES;
+        }
+        NSError *error = nil;
+        [session setCategory:AVAudioSessionCategoryPlayback mode:AVAudioSessionModeDefault
+                     options:AVAudioSessionCategoryOptionMixWithOthers error:&error];
+        [session setActive:YES error:&error];
+        if (!keepPlayer) {
+            keepPlayer = [[AVAudioPlayer alloc] initWithData:silence() error:&error];
+            keepPlayer.numberOfLoops = -1;
+        }
+        BOOL playing = [keepPlayer prepareToPlay] && [keepPlayer play];
+        NSLog(@"KodiAirPlay: staying awake in the background for a download or upload: %@", playing ? @"yes" : error);
+    } else if (!run && keepPlayer.playing) {
+        [keepPlayer stop];
+        if (keepSaved) [session setCategory:keepCategory mode:keepMode options:keepOptions error:nil];
+        keepSaved = NO;
+        NSLog(@"KodiAirPlay: background keep-alive stopped");
+    }
+}
+
+__attribute__((visibility("default"))) void kodi_background_keep(int on) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        static dispatch_once_t once;
+        dispatch_once(&once, ^{
+            NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+            keepInBackground = UIApplication.sharedApplication.applicationState == UIApplicationStateBackground;
+            [center addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:NSOperationQueue.mainQueue
+                            usingBlock:^(NSNotification *note) { keepInBackground = YES; keepUpdate(); }];
+            [center addObserverForName:UIApplicationWillEnterForegroundNotification object:nil queue:NSOperationQueue.mainQueue
+                            usingBlock:^(NSNotification *note) { keepInBackground = NO; keepUpdate(); }];
+            // A phone call or another app's sound stops the silence; start it again when that ends.
+            [center addObserverForName:AVAudioSessionInterruptionNotification object:nil queue:NSOperationQueue.mainQueue
+                            usingBlock:^(NSNotification *note) {
+                if ([note.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue] == AVAudioSessionInterruptionTypeEnded) {
+                    [keepPlayer stop];
+                    keepUpdate();
+                }
+            }];
+        });
+        keepWanted = on != 0;
+        keepUpdate();
     });
 }
 
@@ -133,6 +243,6 @@ cat > "$FW/Info.plist" <<PLIST
 <key>MinimumOSVersion</key><string>$MIN_IOS</string>
 </dict></plist>
 PLIST
-nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_airplay_(show|open|play)$'
+nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close)|background_keep)$'
 lipo -info "$FW/KodiAirPlay"
 (cd "$OUT" && zip -qry KodiAirPlay.framework.zip KodiAirPlay.framework && shasum -a 256 KodiAirPlay.framework.zip | tee KodiAirPlay.framework.zip.sha256)

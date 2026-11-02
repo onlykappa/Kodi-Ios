@@ -34,7 +34,11 @@ class NavigationTests(unittest.TestCase):
   self.assertEqual([x.get('condition') for x in ET.fromstring(once)],['[String.IsEmpty(Skin.String(X))] + !System.Platform.IOS','!System.Platform.IOS','!System.Platform.IOS',None])
  def test_vertical_swipes_move_between_rows(self):
   r=ET.fromstring(nav.TOUCH)
-  for window in ['home','window11101','window11104','movieinformation']:self.assertEqual(r.findtext(window+"/touch/swipe[@direction='up']"),'Down');self.assertEqual(r.findtext(window+"/touch/swipe[@direction='down']"),'Up')
+  for window in ['window11106','window11109','movieinformation']:self.assertEqual(r.findtext(window+"/touch/swipe[@direction='up']"),'Down');self.assertEqual(r.findtext(window+"/touch/swipe[@direction='down']"),'Up')
+ def test_portrait_pages_scroll_with_the_finger_not_row_by_row(self):
+  # Home (Home/Movies/TV hubs), Library and Search: a row swipe on top of the drag made the page jump mid-flick.
+  r=ET.fromstring(nav.TOUCH)
+  for window in ['home','window11101','window11102','window11103','window11104','window11105']:self.assertIsNone(r.find(window))
  def test_ordinary_lists_keep_native_drag_scrolling(self):
   r=ET.fromstring(nav.TOUCH);self.assertFalse([x for x in r.findall('global/touch/swipe') if x.get('direction') in ('up','down') and not x.get('pointers')]);self.assertEqual(r.findtext('global/touch/pan'),'PanGesture')
  def test_black_frame_covers_safe_areas_and_stays_on_top(self):

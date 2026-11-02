@@ -80,4 +80,16 @@ class IpaTests(unittest.TestCase):
   src=(ROOT/'migration/glassbar-ios/build-glassbar.sh').read_text()
   for name in ('kodi_glassbar_show','kodi_glassbar_select','kodi_glassbar_take_tap'):self.assertIn('void '+name if name!='kodi_glassbar_take_tap' else 'int '+name,src)
   self.assertIn('NSClassFromString(@"UIGlassEffect")',src)
+ def test_glass_bar_owns_the_strip_around_and_below_it(self):
+  # r2: a tap that missed the capsule by a little (sides, home-indicator area, just above) opened the row behind.
+  src=(ROOT/'migration/glassbar-ios/build-glassbar.sh').read_text()
+  self.assertIn('- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {',src)
+  self.assertIn('CGRectGetMinY([self convertRect:self.bounds toView:window]) - 12',src)
+  self.assertIn('inWindow.y <= CGRectGetMaxY(window.bounds)',src)
+ def test_airplay_source_exports_the_functions_python_loads(self):
+  src=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  for name in ('void kodi_airplay_show(int','void kodi_airplay_open(void','void kodi_airplay_play(const char','int kodi_airplay_state(void',
+               'void kodi_airplay_close(void','void kodi_background_keep(int'):self.assertIn('__attribute__((visibility("default"))) '+name,src)
+  # Silence mixed with other apps, only in the background, restarted after a call.
+  for text in ('AVAudioSessionCategoryOptionMixWithOthers','UIApplicationDidEnterBackgroundNotification','AVAudioSessionInterruptionTypeEnded'):self.assertIn(text,src)
 if __name__=='__main__':unittest.main()

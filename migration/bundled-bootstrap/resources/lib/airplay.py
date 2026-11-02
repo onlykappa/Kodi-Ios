@@ -15,6 +15,11 @@ def load(path):
  lib=ctypes.CDLL(path);lib.kodi_airplay_show.argtypes=[ctypes.c_int];lib.kodi_airplay_show.restype=None
  lib.kodi_airplay_open.argtypes=[];lib.kodi_airplay_open.restype=None
  if hasattr(lib,'kodi_airplay_play'):lib.kodi_airplay_play.argtypes=[ctypes.c_char_p,ctypes.c_char_p];lib.kodi_airplay_play.restype=None
+ # r3: whether Apple's player could open the stream (0 idle/loading, 1 playing, -1 failed), closing it, and keeping
+ # Kodi awake in the background (background.py).
+ if hasattr(lib,'kodi_airplay_state'):lib.kodi_airplay_state.argtypes=[];lib.kodi_airplay_state.restype=ctypes.c_int
+ if hasattr(lib,'kodi_airplay_close'):lib.kodi_airplay_close.argtypes=[];lib.kodi_airplay_close.restype=None
+ if hasattr(lib,'kodi_background_keep'):lib.kodi_background_keep.argtypes=[ctypes.c_int];lib.kodi_background_keep.restype=None
  return lib
 
 def watch(lib,playing,wait):

@@ -4,7 +4,7 @@ sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
 from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,follow_container,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
-import airplay,calibration,driveupload,notices,updates,threading,portrait
+import airplay,background,calibration,driveupload,notices,updates,threading,portrait
 
 def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
@@ -136,6 +136,18 @@ def run():
   if xbmcaddon.Addon().getSettingBool('drive_upload'):
    threading.Thread(target=drive_uploads,args=(monitor,home,profile),daemon=True).start()
  except Exception as error:xbmc.log('Kodi iOS Drive upload unavailable: '+type(error).__name__,xbmc.LOGWARNING)
+ # Downloads and Drive uploads keep going when Kodi leaves the screen (KodiAirPlay r3 plays silence meanwhile).
+ try:
+  path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
+  lib=airplay.load(path) if path else None
+  if lib is not None and hasattr(lib,'kodi_background_keep') and xbmcaddon.Addon().getSettingBool('background_transfers'):
+   kept=str(updates.updates_folder(home).with_name('Kodi Downloads'))
+   def why():
+    if xbmc.Player().isPlayingAudio():return ''  # Kodi's own music keeps it running; the silence would make it mixable
+    uploading=xbmcaddon.Addon().getSettingBool('drive_upload') and xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)')
+    return background.reason(notices.downloads(),notices.uploads(profile),uploading and background.videos_waiting(kept))
+   threading.Thread(target=background.watch,args=(lib.kodi_background_keep,why,monitor.waitForAbort,lambda m:xbmc.log(m,xbmc.LOGINFO)),daemon=True).start()
+ except Exception as error:xbmc.log('Kodi iOS background transfers unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  # Stays running for the rest of the session: Apple's AirPlay button in the top-right corner during playback.
  try:
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))

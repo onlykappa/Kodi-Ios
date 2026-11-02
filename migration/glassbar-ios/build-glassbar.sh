@@ -102,6 +102,20 @@ static void makeCapsule(UIVisualEffectView *view, CGFloat height) {
     return self;
 }
 
+// r2: the bar owns the whole strip from just above the glass to the bottom edge of the screen, edge to edge, like
+// iOS's own tab bar. Kodi draws its rows behind and around the capsule (14 pt each side, the home indicator area
+// below), so a tap that missed the glass by a little opened the Continue Watching item under it. A touch in the
+// strip picks the tab under the finger's x (clamped to the end tabs) and never reaches Kodi.
+- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
+    if ([super pointInside:point withEvent:event]) return YES;
+    UIView *window = self.window;
+    if (!window || self.hidden || self.alpha < 0.01) return NO;
+    CGPoint inWindow = [self convertPoint:point toView:window];
+    CGFloat top = CGRectGetMinY([self convertRect:self.bounds toView:window]) - 12;
+    return inWindow.y >= top && inWindow.y <= CGRectGetMaxY(window.bounds) &&
+           inWindow.x >= CGRectGetMinX(window.bounds) && inWindow.x <= CGRectGetMaxX(window.bounds);
+}
+
 - (CGFloat)tabWidth { return (self.bounds.size.width - 8) / kCount; }
 
 - (CGRect)lensFrameAt:(CGFloat)centerX {

@@ -235,6 +235,49 @@ class AirPlay(unittest.TestCase):
   ticks=iter([False,False,False,False,True])
   airplay.watch(lib,lambda:next(states),lambda s:next(ticks))
   self.assertEqual(calls,[0,1,0,1,0])
+class AirPlayFormats(unittest.TestCase):
+ def test_only_apple_containers_go_to_apples_player(self):
+  cast=load('cast')
+  self.assertTrue(cast.apple_playable('http://192.168.1.4:65220/files/Movie.2000.mp4'))
+  self.assertTrue(cast.apple_playable('https://cdn.example/live/index.m3u8|User-Agent=Kodi'))
+  self.assertFalse(cast.apple_playable('http://192.168.1.4:65220/files/Scary.Movie.2000.1080p.mkv'))
+  # Elementum's link may carry no extension; Kodi's file name then decides.
+  self.assertTrue(cast.apple_playable('http://192.168.1.4:65220/play?resume=1','/x/Movie.m4v'))
+  self.assertFalse(cast.apple_playable('http://192.168.1.4:65220/play?resume=1',''))
+ def test_mirroring_message_names_the_format(self):
+  cast=load('cast')
+  self.assertEqual(cast.format_name('http://h/files/a.mkv'),'MKV');self.assertEqual(cast.format_name('http://h/play'),'this format')
+  self.assertIn('Screen Mirroring',cast.MIRRORING%'MKV');self.assertIn('(MKV)',cast.MIRRORING%'MKV')
+ def test_apples_player_outcome(self):
+  cast=load('cast')
+  states=iter([0,0,1]);self.assertEqual(cast.airplay_outcome(lambda:next(states),lambda s:False),'playing')
+  states=iter([0,-1]);self.assertEqual(cast.airplay_outcome(lambda:next(states),lambda s:False),'failed')
+  self.assertEqual(cast.airplay_outcome(lambda:0,lambda s:False,timeout=2),'failed')
+  self.assertEqual(cast.airplay_outcome(lambda:0,lambda s:True),'aborted')
+class Background(unittest.TestCase):
+ def test_awake_only_while_a_transfer_has_work(self):
+  bg=load('background')
+  self.assertEqual(bg.reason([{'paused':False},{'paused':True}],[],False),'1 Elementum download')
+  self.assertEqual(bg.reason([{'paused':True}],[],False),'')
+  self.assertEqual(bg.reason([],[{'title':'a'}],False),'Google Drive upload')
+  self.assertEqual(bg.reason([],[],True),'videos waiting for Google Drive')
+  self.assertEqual(bg.reason([],[],False),'')
+ def test_videos_waiting_for_drive(self):
+  bg=load('background')
+  with tempfile.TemporaryDirectory() as t:
+   self.assertFalse(bg.videos_waiting(t))
+   (Path(t)/'Movies').mkdir();(Path(t)/'Movies/.partial.mkv').write_bytes(b'');self.assertFalse(bg.videos_waiting(t))
+   (Path(t)/'TV Shows/Show/Season 1').mkdir(parents=True);(Path(t)/'TV Shows/Show/Season 1/e1.mkv').write_bytes(b'x')
+   self.assertTrue(bg.videos_waiting(t))
+ def test_framework_told_on_change_and_released_on_exit(self):
+  bg=load('background');calls=[];work=iter(['1 Elementum download','1 Elementum download','',RuntimeError,'x'])
+  def why():
+   w=next(work)
+   if w is RuntimeError:raise w('engine down')
+   return w
+  ticks=iter([False]*5+[True])
+  bg.watch(calls.append,why,lambda s:next(ticks))
+  self.assertEqual(calls,[1,1,0,1,0])
 class Scrapers(unittest.TestCase):
  def test_payload_copied_once_and_never_over_an_existing_copy(self):
   with tempfile.TemporaryDirectory() as t:

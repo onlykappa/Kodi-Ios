@@ -12,6 +12,7 @@
    <group id="1">
     <setting id="drive_upload" type="boolean" label="Upload the Elementum videos you keep to Google Drive › Kodi Downloads"><level>0</level><default>true</default><control type="toggle"/></setting>
     <setting id="drive_upload_delete" type="boolean" label="Remove the phone copy once Google Drive has it"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="background_transfers" type="boolean" label="Keep downloading and uploading while Kodi is in the background"><level>0</level><default>true</default><control type="toggle"/></setting>
    </group>
   </category>
   <category id="playback" label="Playback">

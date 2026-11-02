@@ -263,23 +263,57 @@ index 2f8ca00..af8137b 100644
    toast.eType = eType;
    toast.imagefile = aImageFile;
 diff --git a/xbmc/guilib/GUIBaseContainer.cpp b/xbmc/guilib/GUIBaseContainer.cpp
-index 8974597..b5d831d 100644
+index 8974597..cec71e8 100644
 --- a/xbmc/guilib/GUIBaseContainer.cpp
 +++ b/xbmc/guilib/GUIBaseContainer.cpp
-@@ -8,6 +8,8 @@
+@@ -8,7 +8,10 @@
  
  #include "GUIBaseContainer.h"
  
 +#include <cmath>
 +
  #include "FileItem.h"
++#include "GUIControlGroupList.h"
  #include "GUIInfoManager.h"
  #include "GUIListItemLayout.h"
-@@ -811,12 +813,29 @@ EVENT_RESULT CGUIBaseContainer::OnMouseEvent(const CPoint& point, const MOUSE::C
+ #include "GUIMessage.h"
+@@ -776,6 +779,25 @@ bool CGUIBaseContainer::OnMouseOver(const CPoint &point)
+   return CGUIControl::OnMouseOver(point);
+ }
+ 
++bool CGUIBaseContainer::GestureAcross(float offsetX, float offsetY) const
++{
++  // Kodi-iOS: whether a movement runs more across this list's direction than along it.
++  return (m_orientation == HORIZONTAL) ? std::abs(offsetY) > std::abs(offsetX)
++                                       : std::abs(offsetX) > std::abs(offsetY);
++}
++
++CGUIControl* CGUIBaseContainer::CrossScroller() const
++{
++  // Kodi-iOS: the nearest group list above this list that scrolls the other way, if any.
++  for (CGUIControl* parent = GetParentControl(); parent; parent = parent->GetParentControl())
++  {
++    if (parent->GetControlType() == GUICONTROL_GROUPLIST &&
++        static_cast<CGUIControlGroupList*>(parent)->GetOrientation() != m_orientation)
++      return parent;
++  }
++  return nullptr;
++}
++
+ EVENT_RESULT CGUIBaseContainer::OnMouseEvent(const CPoint& point, const MOUSE::CMouseEvent& event)
+ {
+   if (event.m_id == ACTION_MOUSE_LEFT_CLICK ||
+@@ -810,13 +832,33 @@ EVENT_RESULT CGUIBaseContainer::OnMouseEvent(const CPoint& point, const MOUSE::C
+   }
    else if (event.m_id == ACTION_GESTURE_BEGIN)
    { // grab exclusive access
++    // Kodi-iOS r20: the iPhone sends the finger's whole movement so far with the start of a drag. A drag across
++    // this list's direction (up or down over a row of posters) is left to the page list around it, found through
++    // any plain groups in between (the hero's list sits in one), so the page follows the finger.
++    m_gestureDecided = event.m_offsetX != 0.0f || event.m_offsetY != 0.0f;
++    if (m_gestureDecided && GestureAcross(event.m_offsetX, event.m_offsetY) && CrossScroller())
++      return EVENT_RESULT_UNHANDLED;
      m_gestureActive = true;
-+    m_gestureDecided = false;
      CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, GetID(), GetParentID());
      SendWindowMessage(msg);
      return EVENT_RESULT_HANDLED;
@@ -292,10 +326,8 @@ index 8974597..b5d831d 100644
 +    if (!m_gestureDecided)
 +    {
 +      m_gestureDecided = true;
-+      const bool across = (m_orientation == HORIZONTAL) ? std::abs(event.m_offsetY) > std::abs(event.m_offsetX)
-+                                                        : std::abs(event.m_offsetX) > std::abs(event.m_offsetY);
-+      CGUIControl* parent = GetParentControl();
-+      if (across && !m_waitForScrollEnd && parent && parent->GetControlType() == GUICONTROL_GROUPLIST)
++      CGUIControl* parent = CrossScroller();
++      if (GestureAcross(event.m_offsetX, event.m_offsetY) && !m_waitForScrollEnd && parent)
 +      {
 +        m_gestureActive = false;
 +        parent->OnMouseEvent(point, KODI::MOUSE::CMouseEvent(ACTION_GESTURE_BEGIN));
@@ -307,22 +339,33 @@ index 8974597..b5d831d 100644
      float size = (m_layout) ? m_layout->Size(m_orientation) : 10.0f;
      int offset = MathUtils::round_int(static_cast<double>(m_scroller.GetValue() / size));
 diff --git a/xbmc/guilib/GUIBaseContainer.h b/xbmc/guilib/GUIBaseContainer.h
-index 38e68cf..3f56e4e 100644
+index 38e68cf..dd53f32 100644
 --- a/xbmc/guilib/GUIBaseContainer.h
 +++ b/xbmc/guilib/GUIBaseContainer.h
-@@ -234,6 +234,7 @@ private:
+@@ -234,6 +234,9 @@ private:
    static const int letter_match_timeout = 1000;
  
    bool m_gestureActive = false;
 +  bool m_gestureDecided = false; // Kodi-iOS: whether this drag is ours or the page's
++  bool GestureAcross(float offsetX, float offsetY) const; // Kodi-iOS
++  CGUIControl* CrossScroller() const; // Kodi-iOS
  
    // early inertial scroll cancellation
    bool m_waitForScrollEnd = false;
 diff --git a/xbmc/guilib/GUIControlGroupList.cpp b/xbmc/guilib/GUIControlGroupList.cpp
-index b0940ef..234be70 100644
+index b0940ef..0230902 100644
 --- a/xbmc/guilib/GUIControlGroupList.cpp
 +++ b/xbmc/guilib/GUIControlGroupList.cpp
-@@ -404,12 +404,17 @@ EVENT_RESULT CGUIControlGroupList::SendMouseEvent(const CPoint& point,
+@@ -8,6 +8,8 @@
+ 
+ #include "GUIControlGroupList.h"
+ 
++#include <cmath>
++
+ #include "GUIAction.h"
+ #include "GUIControlProfiler.h"
+ #include "GUIFont.h" // for XBFONT_* definitions
+@@ -404,12 +406,17 @@ EVENT_RESULT CGUIControlGroupList::SendMouseEvent(const CPoint& point,
    {
      float pos = 0;
      float alignOffset = GetAlignOffset();
@@ -341,7 +384,7 @@ index b0940ef..234be70 100644
          { // we're on screen
            float offsetX = m_orientation == VERTICAL ? m_posX : m_posX + alignOffset + pos - m_scroller.GetValue();
            float offsetY = m_orientation == VERTICAL ? m_posY + alignOffset + pos - m_scroller.GetValue() : m_posY;
-@@ -568,6 +573,11 @@ EVENT_RESULT CGUIControlGroupList::OnMouseEvent(const CPoint& point,
+@@ -568,8 +575,26 @@ EVENT_RESULT CGUIControlGroupList::OnMouseEvent(const CPoint& point,
        offset = nextOffset;
      }
    }
@@ -352,7 +395,22 @@ index b0940ef..234be70 100644
 +  }
    else if (event.m_id == ACTION_GESTURE_BEGIN)
    { // grab exclusive access
++    // Kodi-iOS r20: like lists (GUIBaseContainer.cpp), a drag across this group list's direction is left to an
++    // enclosing group list that scrolls that way.
++    const bool across = (m_orientation == HORIZONTAL) ? std::abs(event.m_offsetY) > std::abs(event.m_offsetX)
++                                                      : std::abs(event.m_offsetX) > std::abs(event.m_offsetY);
++    if (across)
++    {
++      for (CGUIControl* parent = GetParentControl(); parent; parent = parent->GetParentControl())
++      {
++        if (parent->GetControlType() == GUICONTROL_GROUPLIST &&
++            static_cast<CGUIControlGroupList*>(parent)->GetOrientation() != m_orientation)
++          return EVENT_RESULT_UNHANDLED;
++      }
++    }
      CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, GetID(), GetParentID());
+     SendWindowMessage(msg);
+     return EVENT_RESULT_HANDLED;
 diff --git a/xbmc/guilib/GUIFontManager.cpp b/xbmc/guilib/GUIFontManager.cpp
 index f5c0732..2d7257c 100644
 --- a/xbmc/guilib/GUIFontManager.cpp
@@ -455,6 +513,40 @@ index ebb133d..9017863 100644
        OnInitWindow();
        return true;
      }
+diff --git a/xbmc/input/touch/generic/GenericTouchActionHandler.cpp b/xbmc/input/touch/generic/GenericTouchActionHandler.cpp
+index 265f2a1..cbd808a 100644
+--- a/xbmc/input/touch/generic/GenericTouchActionHandler.cpp
++++ b/xbmc/input/touch/generic/GenericTouchActionHandler.cpp
+@@ -85,6 +85,13 @@ bool CGenericTouchActionHandler::OnTouchGestureStart(float x, float y)
+   return true;
+ }
+ 
++bool CGenericTouchActionHandler::OnTouchGestureStart(float x, float y, float movedX, float movedY)
++{
++  sendEvent(ACTION_GESTURE_BEGIN, x, y, movedX, movedY);
++
++  return true;
++}
++
+ bool CGenericTouchActionHandler::OnTouchGesturePan(
+     float x, float y, float offsetX, float offsetY, float velocityX, float velocityY)
+ {
+diff --git a/xbmc/input/touch/generic/GenericTouchActionHandler.h b/xbmc/input/touch/generic/GenericTouchActionHandler.h
+index 5cdd404..6dd72ae 100644
+--- a/xbmc/input/touch/generic/GenericTouchActionHandler.h
++++ b/xbmc/input/touch/generic/GenericTouchActionHandler.h
+@@ -46,6 +46,11 @@ public:
+   bool OnMultiTouchUp(float x, float y, int32_t pointer) override;
+ 
+   bool OnTouchGestureStart(float x, float y) override;
++  /*!
++   * \brief Kodi-iOS: start of a drag with the finger's movement so far (offsets of ACTION_GESTURE_BEGIN), so
++   * lists can tell a drag along them from one across them before the first pan step.
++   */
++  bool OnTouchGestureStart(float x, float y, float movedX, float movedY);
+   bool OnTouchGesturePan(
+       float x, float y, float offsetX, float offsetY, float velocityX, float velocityY) override;
+   bool OnTouchGestureEnd(
 diff --git a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm b/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
 index 0d88d1d..9c268d8 100644
 --- a/xbmc/platform/darwin/ios-common/AnnounceReceiver.mm
@@ -591,7 +683,7 @@ index b2a06d0..0c74089 100644
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..fb570c8 100644
+index a450151..786561c 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
 @@ -36,6 +36,8 @@
@@ -902,7 +994,20 @@ index a450151..fb570c8 100644
  
      if( [sender state] == UIGestureRecognizerStateBegan && sender.numberOfTouches )
      {
-@@ -530,7 +791,32 @@ public:
+@@ -462,7 +723,11 @@ public:
+       {
+         if( !touchBeginSignaled )
+         {
+-          CGenericTouchActionHandler::GetInstance().OnTouchGestureStart((float)point.x, (float)point.y);
++          // Kodi-iOS r20: with the whole movement since the finger went down (UIKit waits for about 10 pt before
++          // a pan begins), so a list under the finger knows at once whether the drag runs along it or across.
++          const CGPoint moved = [sender translationInView:m_glView];
++          CGenericTouchActionHandler::GetInstance().OnTouchGestureStart(
++              (float)point.x, (float)point.y, (float)(moved.x * screenScale), (float)(moved.y * screenScale));
+           touchBeginSignaled = true;
+         }
+ 
+@@ -530,7 +795,32 @@ public:
      CGPoint point = [sender locationOfTouch:0 inView:m_glView];
      point.x *= screenScale;
      point.y *= screenScale;
@@ -936,7 +1041,7 @@ index a450151..fb570c8 100644
      CGenericTouchActionHandler::GetInstance().OnTap((float)point.x, (float)point.y, [sender numberOfTouches]);
    }
  }
-@@ -575,7 +861,7 @@ public:
+@@ -575,7 +865,7 @@ public:
    m_isPlayingBeforeInactive = NO;
    m_bgTask = UIBackgroundTaskInvalid;
  
@@ -945,7 +1050,7 @@ index a450151..fb570c8 100644
    [m_window setRootViewController:self];
    m_window.screen = screen;
    /* Turn off autoresizing */
-@@ -589,7 +875,7 @@ public:
+@@ -589,7 +879,7 @@ public:
                   name: nil
                 object: nil];
  
@@ -954,7 +1059,7 @@ index a450151..fb570c8 100644
  
    [m_window makeKeyAndVisible];
    g_xbmcController = self;
-@@ -600,7 +886,8 @@ public:
+@@ -600,7 +890,8 @@ public:
  //--------------------------------------------------------------
  - (void)loadView
  {
@@ -964,7 +1069,7 @@ index a450151..fb570c8 100644
    self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
    self.view.autoresizesSubviews = YES;
  
-@@ -712,6 +999,15 @@ public:
+@@ -712,6 +1003,15 @@ public:
  {
    m_debugLogSharingPresenter = std::make_unique<DebugLogSharingPresenter>();
    [self setGUIInsetsFromMainThread:NO];
@@ -980,7 +1085,7 @@ index a450151..fb570c8 100644
  }
  //--------------------------------------------------------------
  - (void)setGUIInsetsFromMainThread:(BOOL)isMainThread
-@@ -738,8 +1034,15 @@ public:
+@@ -738,8 +1038,15 @@ public:
    CLog::Log(LOGDEBUG, "insets: {}\nwindow: {}\nscreen: {}",
              NSStringFromUIEdgeInsets(insets).UTF8String, m_window.description.UTF8String,
              m_glView.currentScreen.description.UTF8String);
@@ -997,7 +1102,7 @@ index a450151..fb570c8 100644
  
    auto scale = [m_glView getScreenScale:m_glView.currentScreen];
    guiInsets = EdgeInsets(insets.left * scale, insets.top * scale, insets.right * scale,
-@@ -1045,4 +1348,64 @@ public:
+@@ -1045,4 +1352,64 @@ public:
    return [m_glView getCurrentEAGLContext];
  }
  

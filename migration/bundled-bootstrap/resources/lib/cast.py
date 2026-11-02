@@ -84,6 +84,41 @@ def http_post(url,timeout=5):
 
 # --- Shared --------------------------------------------------------------------------------------------------
 
+# Apple's AirPlay player (AVPlayer) opens these containers only; an Elementum stream is usually MKV.
+APPLE_FORMATS=('.mp4','.m4v','.mov','.m3u8')
+MIRRORING=('Apple\'s AirPlay player can\'t play this video (%s). Use Screen Mirroring instead: Kodi keeps playing and '
+           'your TV shows the picture with sound.\n'
+           '1. Swipe down from the top-right corner of the screen.\n'
+           '2. Tap Screen Mirroring and choose your TV.\n'
+           'Turn the phone sideways for a full-size picture. To stop, open Screen Mirroring again and tap Stop Mirroring.')
+
+def apple_playable(*names):
+ """Whether Apple's player can open the video: any of the names (stream link, Kodi's file name) ends in an Apple
+ container. Kodi appends request headers after '|'."""
+ for name in names:
+  path=urllib.parse.urlsplit((name or '').split('|',1)[0]).path.lower()
+  if path.endswith(APPLE_FORMATS):return True
+ return False
+
+def format_name(*names):
+ """MKV, AVI... for the Screen Mirroring message ('this format' when unknown)."""
+ for name in names:
+  m=re.search(r'\.([a-z0-9]{2,4})$',urllib.parse.urlsplit((name or '').split('|',1)[0]).path.lower())
+  if m:return m.group(1).upper()
+ return 'this format'
+
+def airplay_outcome(state,wait,timeout=25):
+ """Poll Apple's player (state(): 1 has the stream, -1 failed, 0 not yet) for up to `timeout` seconds; wait(s)
+ sleeps and returns True if Kodi is closing. Returns 'playing', 'failed' or 'aborted'."""
+ waited=0.0
+ while waited<timeout:
+  now=state()
+  if now==1:return 'playing'
+  if now<0:return 'failed'
+  if wait(0.5):return 'aborted'
+  waited+=0.5
+ return 'failed'
+
 def media_type(url):
  path=urllib.parse.urlsplit(url).path.lower()
  if path.endswith('.m3u8'):return 'application/x-mpegURL'

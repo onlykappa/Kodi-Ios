@@ -29,7 +29,9 @@ def run():
  tvs=found.get('tvs') or []
  library=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
  if library:
-  note='' if cast.media_type(url)!='video/x-matroska' else '  — MKV may not play over AirPlay'
+  # MKV and other formats Apple's player cannot open go to Screen Mirroring (Kodi keeps playing the video).
+  playing=player.getPlayingFile()
+  note='' if cast.apple_playable(url,playing) else '  (Screen Mirroring)'
   tvs.append({'kind':'airplay','host':'','name':'Apple TV / AirPlay TV'+note})
  if not tvs:
   dialog.ok('Play on TV','No TV answered on this Wi-Fi. Check the TV is on the same network. On a Roku: Settings › System › Advanced system settings › Control by mobile apps › Network access: Default.');return
@@ -44,8 +46,22 @@ def run():
   elif tv['kind']=='dlna':cast.dlna_play(tv['control'],url,title,cast.http_post_body)
   elif tv['kind']=='chromecast':cast.chromecast_play(tv['host'],url,title)
   else:
-   player.stop();xbmc.sleep(500)
-   airplay.load(library).kodi_airplay_play(url.encode('utf-8'),(title or '').encode('utf-8'));return
+   if not cast.apple_playable(url,playing):
+    xbmc.log('Kodi iOS Play on TV: %s cannot go through Apple\'s player; Screen Mirroring steps shown'%cast.format_name(url,playing),xbmc.LOGINFO)
+    dialog.ok('Play on TV',cast.MIRRORING%cast.format_name(url,playing));return
+   lib=airplay.load(library)
+   if not hasattr(lib,'kodi_airplay_state'):
+    player.stop();xbmc.sleep(500);lib.kodi_airplay_play(url.encode('utf-8'),(title or '').encode('utf-8'));return
+   # Kodi waits paused until Apple's player has the stream, and carries on if it could not open it.
+   if not xbmc.getCondVisibility('Player.Paused'):player.pause()
+   lib.kodi_airplay_play(url.encode('utf-8'),(title or '').encode('utf-8'))
+   outcome=cast.airplay_outcome(lib.kodi_airplay_state,xbmc.Monitor().waitForAbort)
+   xbmc.log('Kodi iOS Play on TV: Apple\'s player %s %s'%(outcome,url.split('?',1)[0]),xbmc.LOGINFO)
+   if outcome=='playing':player.stop();notices.note('info','Playing with AirPlay',title or '');return
+   lib.kodi_airplay_close()
+   if outcome=='aborted':return
+   if xbmc.getCondVisibility('Player.Paused'):player.pause()
+   dialog.ok('Play on TV',cast.MIRRORING%cast.format_name(url,playing));return
  except cast.TVRefused as error:
   xbmc.log('Kodi iOS Play on TV refused (%s): %s'%(tv['kind'],error),xbmc.LOGWARNING)
   notices.note('problem',"Play on TV couldn't start",tv['name']+': '+str(error))

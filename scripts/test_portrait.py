@@ -266,6 +266,12 @@ class IpaTests(unittest.TestCase):
   # unclaimed points to the GL view, and a tap that still reached no view is handed to Kodi from sendEvent:.
   for text in ['- (UIView*)hitTest:(CGPoint)point withEvent:(UIEvent*)event','return gl;','@implementation UIApplication (KodiTouchRescue)',
                'method_exchangeImplementations(original, rescue);','- (void)rescueTouches:(UIEvent*)event','"handed to Kodi"']:self.assertIn(text,patch)
+  # r20: a drag starts with the finger's movement so far; one across a row of posters (also the hero's list, inside a
+  # plain group) goes to the page list, which follows the finger and keeps its momentum.
+  for text in ['bool OnTouchGestureStart(float x, float y, float movedX, float movedY);','sendEvent(ACTION_GESTURE_BEGIN, x, y, movedX, movedY);',
+               '[sender translationInView:m_glView]','CGUIControl* CGUIBaseContainer::CrossScroller() const',
+               'if (m_gestureDecided && GestureAcross(event.m_offsetX, event.m_offsetY) && CrossScroller())\n+      return EVENT_RESULT_UNHANDLED;',
+               'static_cast<CGUIControlGroupList*>(parent)->GetOrientation() != m_orientation']:self.assertIn(text,patch)
   lock=json.loads((ROOT/'migration/ios-portrait/source-lock.json').read_text())
   self.assertEqual(lock['commit'],'a3a448d26b8d560a65655dab2cd122994dc4e146')
  def test_swap_executable_checks_libraries(self):
