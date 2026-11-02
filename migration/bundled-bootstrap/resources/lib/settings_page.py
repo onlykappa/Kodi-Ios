@@ -292,10 +292,10 @@ def setting_templates(p,category_type):
    '<textureupdisabled colordiffuse="%s">%s</textureupdisabled><texturedowndisabled colordiffuse="%s">%s</texturedowndisabled>'
    '</control>')%(base,row_textures(p),text_style(p),PAD,p.DIM,chev[1],p.WHITE,chev[1],p.DIM,chev[0],p.WHITE,chev[0],p.SEP,chev[1],p.SEP,chev[0])+
   '<control type="edit" id="12">%s%s%s<hinttext></hinttext></control>'%(base,row_textures(p),text_style(p))+
-  ('<control type="sliderex" id="13">%s%s%s<sliderwidth>300</sliderwidth><sliderheight>14</sliderheight>'
+  ('<control type="sliderex" id="13">%s%s%s<sliderwidth>260</sliderwidth><sliderheight>14</sliderheight><textwidth>%d</textwidth>'
    '<texturesliderbar border="7" colordiffuse="FF48484A">%sdot.png</texturesliderbar>'
    '<textureslidernib colordiffuse="%s">%sknob.png</textureslidernib><textureslidernibfocus colordiffuse="%s">%sknob.png</textureslidernibfocus>'
-   '</control>')%(base,row_textures(p),text_style(p),M,p.WHITE,M,BLUE,M)+
+   '</control>')%(base,row_textures(p),text_style(p),w-PAD-260-300,M,p.WHITE,M,BLUE,M)+
   ('<control type="label" id="14"><width>%d</width><height>116</height><font>p_h3</font><textcolor>%s</textcolor>'
    '<align>left</align><aligny>bottom</aligny><textoffsetx>%d</textoffsetx></control>')%(w,p.GREY,PAD)+
   ('<control type="colorbutton" id="15">%s%s%s<colorwidth>60</colorwidth><colorheight>60</colorheight><colorposx>%d</colorposx>'
@@ -303,17 +303,18 @@ def setting_templates(p,category_type):
    base,row_textures(p),text_style(p),w-PAD-60,M,M)+
   '<control type="image" id="11"><width>%d</width><height>34</height><texture /></control>'%w)
 
-def setting_body(p,title,header_buttons,extra=''):
+def setting_body(p,title,header_buttons,extra='',categories=True):
  """Header (title = label 2), category pills (grouplist 3), settings (grouplist 5), help text (label 6)."""
  w=p.WIDTH-2*p.SIDE
- bar=p.image(0,0,p.WIDTH,LIST_TOP-10,p.MEDIA+'white.png',p.BG)
+ bar=p.image(0,0,p.WIDTH,(LIST_TOP if categories else 200)-10,p.MEDIA+'white.png',p.BG)
  heading=('<control type="label" id="2"><left>300</left><top>36</top><width>%d</width><height>108</height><font>p_h3</font>'
           '<textcolor>%s</textcolor><align>center</align><aligny>center</aligny><scroll>true</scroll><label>%s</label></control>')%(p.WIDTH-600,p.WHITE,p.e(title))
  cats=('<control type="grouplist" id="3"><left>%d</left><top>200</top><width>%d</width><height>96</height><orientation>horizontal</orientation>'
-       '<itemgap>16</itemgap><scrolltime tween="cubic" easing="out">250</scrolltime><ondown>5</ondown><onup>9001</onup></control>')%(p.SIDE,w)
+       '<itemgap>16</itemgap><scrolltime tween="cubic" easing="out">250</scrolltime><ondown>5</ondown><onup>9001</onup>%s</control>')%(
+       p.SIDE,w,'' if categories else '<visible>false</visible>')
  lst=('<control type="grouplist" id="5"><left>%d</left><top>%d</top><width>%d</width><bottom>%d</bottom><orientation>vertical</orientation>'
       '<itemgap>2</itemgap><usecontrolcoords>false</usecontrolcoords><onup>3</onup><scrolltime tween="cubic" easing="out">250</scrolltime></control>')%(
-      p.SIDE,LIST_TOP,w,HELP_H)
+      p.SIDE,LIST_TOP if categories else 200,w,HELP_H)
  # Anchored to the bottom: the 9:16 resolution (home-button phones) has a shorter canvas than 9:19.5.
  help_=('<control type="image"><left>0</left><bottom>0</bottom><width>%d</width><height>%d</height><texture colordiffuse="%s">%swhite.png</texture></control>'
         %(p.WIDTH,HELP_H,p.BG,p.MEDIA)+
@@ -332,7 +333,7 @@ def category_window(p,original):
  body=setting_body(p,'',back+level,setting_templates(p,'togglebutton'))
  return p.window(original,body,'5','<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>')
 
-def addon_settings_window(p,original):
+def addon_settings_window(p,original,categories=True):
  """portrait/DialogAddonSettings.xml: every add-on's settings (Elementum, Umbrella, Trakt...) as an iOS sheet with
  Cancel and Done. 28/29 are Kodi's OK and Cancel; 20 and 30 stay hidden as in Fuse."""
  text_button=lambda id,x,text,color,bold,align:(('<control type="button" id="%d"><left>%d</left><top>36</top><width>240</width><height>108</height><textoffsetx>0</textoffsetx>'
@@ -340,7 +341,7 @@ def addon_settings_window(p,original):
    '<texturefocus /><texturenofocus /><ondown>3</ondown></control>')%(id,x,text,'p_btn' if bold else 'p_body',color,'FF64D2FF',align))
  hidden=''.join('<control type="button" id="%d"><width>1</width><height>1</height><visible>false</visible><texturefocus /><texturenofocus /></control>'%i for i in (20,30))
  buttons=text_button(29,p.SIDE,'Cancel',BLUE,False,'left')+text_button(28,p.WIDTH-p.SIDE-240,'Done',BLUE,True,'right')+hidden
- body=setting_body(p,'',buttons,setting_templates(p,'button'))
+ body=setting_body(p,'',buttons,setting_templates(p,'button'),categories)
  return p.window(original,body,'5','<animation effect="slide" start="0,300" end="0,0" time="260" tween="cubic" easing="out">WindowOpen</animation>'
                  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>')
 
