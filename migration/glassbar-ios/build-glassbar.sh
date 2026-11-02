@@ -346,8 +346,13 @@ static UIView *ensureSearch(void) {
         UIImageView *magnifier = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"magnifyingglass" withConfiguration:glyph]];
         magnifier.tintColor = UIColor.whiteColor;
         magnifier.contentMode = UIViewContentModeCenter;
-        magnifier.frame = CGRectMake(0, 0, 48, 46);
-        searchField.leftView = magnifier;
+        // r4: the glyph in its own 56 pt slot (16 pt in from the edge, 12 pt before the text); as a bare left view it
+        // sat on the field's edge and against the typed text (owner screenshot).
+        magnifier.frame = CGRectMake(16, 0, 28, 46);
+        UIView *slot = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 56, 46)];
+        slot.userInteractionEnabled = NO;
+        [slot addSubview:magnifier];
+        searchField.leftView = slot;
         searchField.leftViewMode = UITextFieldViewModeAlways;
 
         UIButton *close = [UIButton buttonWithType:UIButtonTypeSystem];

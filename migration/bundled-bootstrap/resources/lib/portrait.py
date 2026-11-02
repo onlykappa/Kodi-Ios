@@ -482,8 +482,8 @@ def search_window(original):
   image(0,tile_h-200,tile_w,200,MEDIA+'fade_up.png','80FFFFFF',diffuse=MEDIA+'poster_mask.png')+
   '<control type="textbox"><left>26</left><top>%d</top><width>%d</width><height>120</height><font>p_tile</font><textcolor>FFFFFFFF</textcolor><label>$INFO[ListItem.Label]</label></control>'%(tile_h-150,tile_w-40)+'</control>')
  # With the native field the page has no header: the categories move up under the band.
- up='<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(SEARCH_BAND+40-350,SEARCH_NATIVE)
- panel=('<control type="panel" id="5100"><left>%d</left><top>350</top><width>%d</width><bottom>280</bottom><orientation>vertical</orientation>'
+ up='<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(SEARCH_BAND+160-350,SEARCH_NATIVE)
+ panel=('<control type="panel" id="5100"><left>%d</left><top>350</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
   '<onup>5101</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>String.IsEmpty(%s)</visible>%s'
   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout><content>%s</content></control>'
   )%(left,WIDTH-left,SEARCH_PATH,up,tile_w+gap,tile_h+gap,tile(False),tile_w+gap,tile_h+gap,tile(True),items)
@@ -492,10 +492,25 @@ def search_window(original):
   image(0,0,tile_w,tile_h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
   '<control type="textbox"><left>24</left><top>24</top><width>%d</width><height>%d</height><font>p_body</font><textcolor>%s</textcolor><align>center</align><label>$INFO[ListItem.Label]</label></control>'%(tile_w-48,tile_h-48,GREY)+
   image(0,0,tile_w,tile_h,'$INFO[ListItem.Art(poster)]',WHITE,aspect='>scale',diffuse=MEDIA+'poster_mask.png',background=True)+'</control>')
+ # Filter (owner): All / Movies / Shows, as Window(Home).Property(Portrait.Search.Type) ('' / movie / tv) for searchbar.py.
+ kind='Window(Home).Property(Portrait.Search.Type)'
+ pills=''
+ for n,(text,value) in enumerate((('All',''),('Movies','movie'),('Shows','tv'))):
+  on=('String.IsEmpty(%s)'%kind) if not value else 'String.IsEqual(%s,%s)'%(kind,value)
+  act=('ClearProperty(Portrait.Search.Type,home)' if not value else 'SetProperty(Portrait.Search.Type,%s,home)'%value)
+  x=SIDE+n*230
+  pills+=('<control type="button" id="%d"><left>%d</left><top>0</top><width>210</width><height>96</height><label>%s</label>'
+   '<font>p_sub</font><align>center</align><aligny>center</aligny><textcolor>FFFFFFFF</textcolor><focusedcolor>FFFFFFFF</focusedcolor>'
+   '<texturefocus border="48" colordiffuse="FF3A3A3C">%spill_96.png</texturefocus><texturenofocus border="48" colordiffuse="FF1C1C1E">%spill_96.png</texturenofocus>'
+   '<onclick>%s</onclick></control>'
+   '<control type="image"><left>%d</left><top>0</top><width>210</width><height>96</height><texture border="48" colordiffuse="33FFFFFF">%spill_96.png</texture><visible>%s</visible></control>'
+   )%(5210+n,x,text,MEDIA,MEDIA,e(act),x,MEDIA,e(on))
  top=SEARCH_BAND+30
- results=('<control type="group"><visible>!String.IsEmpty(%s)</visible>'%SEARCH_PATH+
+ filters='<control type="group"><top>%d</top><visible>%s</visible>%s</control>'%(top,SEARCH_NATIVE,pills)
+ top+=120
+ results=(filters+'<control type="group"><visible>!String.IsEmpty(%s)</visible>'%SEARCH_PATH+
   label(SIDE,top,WIDTH-2*SIDE,70,'Results','p_h3',GREY)+
-  ('<control type="panel" id="5200"><left>%d</left><top>%d</top><width>%d</width><bottom>280</bottom><orientation>vertical</orientation>'
+  ('<control type="panel" id="5200"><left>%d</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
    '<scrolltime tween="cubic" easing="out">300</scrolltime><preloaditems>2</preloaditems>'
    '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
    '<content target="videos">$INFO[%s]</content></control>'
@@ -1122,7 +1137,7 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
    import searchbar,time
    if searchbar.bind(lib):
     find,typed,find_close=searchbar.controller(lib,searchbar.taker(lib),xbmc.getCondVisibility,lambda:bool(is_portrait(xbmc.getInfoLabel)),
-                                               home.setProperty,time.monotonic)
+                                               home.setProperty,time.monotonic,info=xbmc.getInfoLabel)
     home.setProperty('Portrait.SearchBar','1')
     always.append(find);polls.append(typed)
     previous_close=close
