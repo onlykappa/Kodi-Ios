@@ -364,7 +364,7 @@ def hero(spotlight,title,tab='home',variables=None):
  btn_w=440
  return ('<control type="group" id="4100"><left>0</left><top>0</top><width>%d</width><height>%d</height>'
   '<control type="list" id="4000"><left>0</left><top>0</top><width>%d</width><height>%d</height><orientation>horizontal</orientation>'
-  '<scrolltime tween="cubic" easing="out">450</scrolltime><ondown>4001</ondown>'
+  '<scrolltime tween="cubic" easing="out">450</scrolltime><ondown>4001</ondown><visible allowhiddenfocus="true">true</visible>'
   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
   '<content target="videos" limit="8">%s</content></control>'
   '%s%s'                                        # fades
