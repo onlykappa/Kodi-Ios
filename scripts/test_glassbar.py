@@ -48,54 +48,6 @@ class ControllerTests(unittest.TestCase):
   portrait=importlib.util.module_from_spec(spec);spec.loader.exec_module(portrait)
   self.assertEqual(glassbar.ACTIONS,[portrait.tab_actions(t[0]) for t in portrait.TABS])
 
-spec_s=importlib.util.spec_from_file_location('searchbar',ROOT/'migration/bundled-bootstrap/resources/lib/searchbar.py')
-searchbar=importlib.util.module_from_spec(spec_s);spec_s.loader.exec_module(searchbar)
-
-class SearchLib:
- def __init__(self):self.calls=[]
- def kodi_search_show(self,v):self.calls.append(('show',v))
-
-class SearchFieldTests(unittest.TestCase):
- def setUp(self):
-  self.lib=SearchLib();self.page=True;self.dialog=False;self.portrait=True;self.props={};self.now=0.0;self.queue=[]
-  visible=lambda c:self.dialog if c=='System.HasActiveModalDialog' else (self.page if c==searchbar.PAGE else False)
-  take=lambda:self.queue.pop(0) if self.queue else (0,'')
-  self.tick,self.poll,self.close=searchbar.controller(self.lib,take,visible,lambda:self.portrait,self.props.__setitem__,lambda:self.now)
- def test_field_shows_only_on_the_search_page_in_portrait_without_dialogs(self):
-  self.tick();self.tick();self.assertEqual(self.lib.calls,[('show',1)])
-  self.dialog=True;self.tick();self.dialog=False;self.tick();self.page=False;self.tick()
-  self.assertEqual(self.lib.calls,[('show',1),('show',0),('show',1),('show',0)])
-  self.close();self.assertEqual(self.lib.calls[-1],('show',0))
- def test_results_follow_typing_once_it_pauses(self):
-  self.queue=[(1,'scary')];self.poll();self.assertEqual(self.props,{})
-  self.now=0.2;self.queue=[(1,'scary movie')];self.poll();self.now=0.5;self.poll();self.assertEqual(self.props,{})
-  self.now=0.7;self.poll()
-  self.assertEqual(self.props,{'Portrait.Search.Query':'scary movie','Portrait.Search.Path':'plugin://plugin.video.themoviedb.helper/?info=search&tmdb_type=multi&query=scary%20movie'})
-  self.now=2;self.poll();self.assertEqual(len(self.props),2)
- def test_search_key_lists_at_once_and_x_clears(self):
-  self.queue=[(1|2,'alien & aliens')];self.poll()
-  self.assertEqual(self.props['Portrait.Search.Path'],searchbar.SEARCH+'alien%20%26%20aliens')
-  self.queue=[(1|4,'')];self.poll();self.assertEqual(self.props,{'Portrait.Search.Query':'','Portrait.Search.Path':''})
- def test_search_page_layout(self):
-  import xml.etree.ElementTree as ET
-  spec=importlib.util.spec_from_file_location('portrait',ROOT/'migration/bundled-bootstrap/resources/lib/portrait.py')
-  portrait=importlib.util.module_from_spec(spec);spec.loader.exec_module(portrait)
-  root=ET.fromstring(portrait.search_window('<window id="1105"/>'))
-  panels={c.get('id'):c for c in root.iter('control') if c.get('type')=='panel'}
-  # Results grid: three posters a row, filled from the typed search, under the native band.
-  results=panels['5200'];self.assertIn('Portrait.Search.Path',results.findtext('content'))
-  self.assertGreater(int(results.findtext('top')),portrait.SEARCH_BAND)
-  self.assertEqual(int(results.find('itemlayout').get('width'))*3,1080-2*int(results.findtext('left'))+24)
-  # Categories while the field is empty; the old Kodi field only on a phone without the native one.
-  self.assertIn('String.IsEmpty(Window(Home).Property(Portrait.Search.Path))',panels['5100'].findtext('visible'))
-  button=[c for c in root.iter('control') if c.get('id')=='5101'][0]
-  self.assertTrue(any(g.findtext('visible')=='!'+portrait.SEARCH_NATIVE for g in root.iter('control') if button in list(g.iter('control'))))
- def test_framework_source_has_the_search_field(self):
-  src=(ROOT/'migration/glassbar-ios/build-glassbar.sh').read_text()
-  for name in ('void kodi_search_show(int','void kodi_search_focus(int','void kodi_search_set(const char','int kodi_search_take(char *buffer, int size)'):
-   self.assertIn('__attribute__((visibility("default"))) '+name,src)
-  for text in ('UIReturnKeySearch','UITextFieldViewModeWhileEditing','systemImageNamed:@"xmark"','constraintEqualToAnchor:window.safeAreaLayoutGuide.topAnchor constant:60'):self.assertIn(text,src)
-
 class IpaTests(unittest.TestCase):
  def locks(self,tmp,bar_sha,exe_sha=''):
   bar=Path(tmp)/'bar.json';exe=Path(tmp)/'exe.json'
