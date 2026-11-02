@@ -17,3 +17,7 @@ Screens:
 
 Built so far: Settings Home, Customisation and Accounts. The other screens are still Kodi's own windows (shrunk).
 The design specs (colours, spacing, type) are at the bottom of `settings-mockups.html`.
+
+## Round 2: remaining Fuse pages (`fuse-pages-mockups.html`)
+
+Mockups only, for owner review: Play on TV over video (landscape AirPlay-style sheet), Umbrella's "getting ready to play" screen (its `source_progress.xml`, which the portrait skin folder can override), Add-ons and My Add-ons, File Manager, Event Log, System Information, Hubs & Widgets, Skin Settings, and the shared alert / progress / action-sheet dialogs. The page ends with the full list of the 89 windows that are still Fuse's shrunk landscape box, grouped as own page, shared template, or later.

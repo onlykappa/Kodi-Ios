@@ -1,0 +1,766 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kodi Pages Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+
+:root{
+  /* iOS 27 dark-mode tokens (matched to reference screenshots) */
+  --bg:#000;
+  --page:#0a0a0b;
+  --cell:#1c1c1e;
+  --cell-hi:#2c2c2e;
+  --sep:#38383a;
+  --label:#fff;
+  --label2:#8e8e93;
+  --label3:#636366;
+  --chev:#6e6e73;
+  --blue:#0a84ff;
+  --green:#30d158;
+  --red:#ff453a;
+  --orange:#ff9f0a;
+  --purple:#bf5af2;
+  --teal:#64d2ff;
+  --yellow:#ffd60a;
+  --toggle-off:#39393d;
+  --tile:#0f0f10;
+  --radius-group:26px;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",Inter,system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--page);color:var(--label);font-family:var(--font);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+svg{display:block}
+
+/* ---------- Page chrome ---------- */
+.intro{max-width:1200px;margin:0 auto;padding:48px 16px 24px}
+.intro .eyebrow{color:var(--label2);font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.intro h1{font-size:clamp(28px,5vw,44px);font-weight:800;letter-spacing:-.02em;margin:8px 0 12px}
+.intro p{color:#b4b4ba;font-size:16px;line-height:1.5;max-width:760px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.chips a{background:var(--cell);border:.5px solid #2f2f33;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:500;color:#d8d8dc}
+.chips a:hover{background:var(--cell-hi)}
+
+.grid{max-width:1400px;margin:0 auto;padding:24px 16px 64px;display:flex;flex-wrap:wrap;gap:56px 40px;justify-content:center}
+figure{display:flex;flex-direction:column;align-items:center;gap:16px;scroll-margin-top:24px;width:min(410px,100%)}
+figcaption{text-align:left;width:100%;max-width:390px}
+figcaption .n{color:var(--blue);font-size:13px;font-weight:700;letter-spacing:.06em}
+figcaption h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
+
+/* ---------- Phone ---------- */
+.phone{width:min(410px,100%);height:864px;border-radius:64px;padding:10px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.screen{position:relative;width:100%;height:100%;border-radius:54px;overflow:hidden;background:var(--bg)}
+.scroll{position:absolute;inset:0;overflow-y:auto;padding:122px 0 120px;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:124px;height:36px;background:#000;border-radius:20px;z-index:30}
+.status{position:absolute;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:6px 34px 0 46px;z-index:25;font-weight:600;font-size:17px;letter-spacing:-.01em}
+.status .r{display:flex;gap:6px;align-items:center}
+.status .batt{display:flex;align-items:center;gap:1px}
+.status .batt b{background:#fff;color:#000;font-size:11px;font-weight:700;border-radius:5px;padding:1px 4px;line-height:14px}
+.status .batt i{width:2px;height:5px;background:#777;border-radius:0 2px 2px 0}
+.home-ind{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:136px;height:5px;border-radius:3px;background:#fff;z-index:30}
+
+.nav{position:absolute;top:0;left:0;right:0;height:112px;z-index:20;background:linear-gradient(rgba(12,12,13,.94),rgba(12,12,13,.86));backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:.5px solid #1f1f22}
+.nav .title{position:absolute;left:80px;right:80px;top:68px;text-align:center;font-size:17px;font-weight:700;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.back{position:absolute;left:16px;top:58px;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:rgba(48,48,52,.75);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16),0 2px 10px rgba(0,0,0,.4)}
+.back svg{width:22px;height:22px;color:#fff}
+
+/* floating glass search */
+.search{position:absolute;left:22px;right:22px;bottom:30px;height:54px;border-radius:27px;z-index:20;display:flex;align-items:center;gap:10px;padding:0 18px;background:rgba(38,38,41,.78);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16),0 8px 30px rgba(0,0,0,.5)}
+.search svg{width:22px;height:22px}
+.search span{flex:1;color:var(--label2);font-size:19px;font-weight:500}
+
+/* ---------- Grouped lists ---------- */
+.group{background:var(--cell);border-radius:var(--radius-group);margin:0 16px;overflow:hidden}
+.gap{height:34px}
+.gap-s{height:20px}
+.foot{color:var(--label2);font-size:13.5px;line-height:1.35;padding:8px 32px 0;font-weight:500}
+.sh{color:var(--label2);font-size:17px;font-weight:700;padding:0 32px 10px;letter-spacing:-.01em}
+.row{display:flex;align-items:center;min-height:52px;padding-left:16px;position:relative;cursor:pointer}
+.row:active{background:var(--cell-hi)}
+.row .ct{flex:1;display:flex;align-items:center;gap:8px;min-height:52px;padding-right:16px;align-self:stretch}
+.row + .row .ct, .row + .divrow .ct{box-shadow:inset 0 .5px 0 var(--sep)}
+.row .ic + .ct{margin-left:14px}
+.lb{flex:1;font-size:17px;letter-spacing:-.015em;line-height:1.2;padding:12px 0}
+.lb small{display:block;color:var(--label2);font-size:14px;margin-top:2px;letter-spacing:0}
+.val{color:var(--label2);font-size:17px;letter-spacing:-.015em;white-space:nowrap}
+.chev{width:14px;height:14px;color:var(--chev);flex:none}
+.link{color:var(--blue)}
+.danger{color:var(--red)}
+.check{width:20px;height:20px;color:var(--blue)}
+.badge{background:var(--red);color:#fff;font-size:15px;font-weight:600;min-width:24px;height:24px;border-radius:12px;display:grid;place-items:center;padding:0 7px}
+
+/* icon tiles (iOS 26/27 dark style: black tile, coloured glyph) */
+.ic{width:31px;height:31px;border-radius:9px;background:var(--tile);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.12);display:grid;place-items:center;color:var(--c,#8e8e93);flex:none}
+.ic svg{width:19px;height:19px}
+.ic.fill{background:var(--c);color:#fff;box-shadow:none}
+
+/* toggle (iOS 26 elongated knob) */
+.tg{width:63px;height:28px;border-radius:14px;background:var(--toggle-off);position:relative;flex:none}
+.tg::after{content:"";position:absolute;top:2px;left:2px;width:38px;height:24px;border-radius:12px;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25);transition:left .2s}
+.tg.on{background:var(--green)}
+.tg.on::after{left:23px}
+
+/* hero cards */
+.hero{padding:20px 20px 22px}
+.hero .big{width:66px;height:66px;border-radius:17px;background:var(--tile);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.12);display:grid;place-items:center;color:var(--c,#8e8e93);margin-bottom:16px}
+.hero .big svg{width:40px;height:40px}
+.hero h3{font-size:30px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px}
+.hero p{color:var(--label2);font-size:17px;line-height:1.38;font-weight:500}
+
+.acct{text-align:center;padding:4px 16px 26px}
+.acct .av{width:118px;height:118px;border-radius:50%;margin:0 auto 14px;display:grid;place-items:center;background:linear-gradient(160deg,#ffb340,#ff7a00);box-shadow:inset 0 -10px 30px rgba(0,0,0,.18)}
+.acct .av svg{width:58px;height:58px;color:#fff}
+.acct h3{font-size:30px;font-weight:800;letter-spacing:-.02em}
+.acct p{color:var(--label2);font-size:17px;margin-top:4px;font-weight:500}
+
+.profile{display:flex;align-items:center;gap:14px;padding:14px 16px}
+.profile .av{width:60px;height:60px;border-radius:50%;background:linear-gradient(160deg,#9aa9d8,#6b78b4);display:grid;place-items:center;font-size:24px;font-weight:800;color:#fff;flex:none}
+.profile .nm{flex:1}
+.profile .nm b{display:block;font-size:20px;font-weight:600;letter-spacing:-.02em}
+.profile .nm span{color:var(--label2);font-size:14.5px}
+
+/* theme pickers (Appearance clone) */
+.themes{display:flex;justify-content:space-around;padding:22px 20px 20px}
+.th{display:flex;flex-direction:column;align-items:center;gap:10px}
+.pv{width:82px;height:164px;border-radius:16px;position:relative;overflow:hidden;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.2)}
+.pv .ttl{position:absolute;left:8px;right:8px;top:14px;height:5px;border-radius:3px;background:rgba(255,255,255,.75);width:40%}
+.pv .hero-b{position:absolute;left:8px;right:8px;top:26px;height:48px;border-radius:7px}
+.pv .tiles{position:absolute;left:8px;right:8px;top:82px;display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.pv .tiles i{height:22px;border-radius:4px;display:block}
+.pv .menu{position:absolute;left:8px;right:8px;bottom:10px;height:12px;border-radius:6px}
+.pv-a{background:linear-gradient(170deg,#2c2140,#141019 70%)}
+.pv-a .hero-b{background:linear-gradient(135deg,#5b3d8f,#a35bd1)}
+.pv-a .tiles i{background:rgba(255,255,255,.14)}
+.pv-a .menu{background:rgba(255,255,255,.18)}
+.pv-b{background:#000}
+.pv-b .hero-b{background:linear-gradient(135deg,#0a3d91,#16a0e8)}
+.pv-b .tiles i{background:#1c1c1e}
+.pv-b .menu{background:#1c1c1e}
+.th .tl{font-size:17px;font-weight:500}
+.radio{width:26px;height:26px;border-radius:50%;box-shadow:inset 0 0 0 2px #636366}
+.radio.on{background:var(--blue);box-shadow:none;display:grid;place-items:center}
+.radio.on svg{width:15px;height:15px;color:#fff}
+.hr{height:.5px;background:var(--sep);margin:0 16px}
+
+/* update card (Software Update clone) */
+.upd{padding:20px 20px 8px}
+.upd .top{display:flex;gap:16px;align-items:center}
+.upd .appic{width:70px;height:70px;border-radius:17px;background:linear-gradient(150deg,#e7e1d6,#8b7f75 55%,#433b39);display:grid;place-items:center;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.3)}
+.upd .appic svg{width:38px;height:38px;color:#fff;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+.upd .top b{font-size:20px;font-weight:700;display:block}
+.upd .top span{font-size:15px;color:#d1d1d6}
+.upd p{font-size:17px;line-height:1.38;margin:16px 0 18px;letter-spacing:-.01em}
+.upd .btns{margin:0 -20px;border-top:.5px solid var(--sep);padding:16px 20px 6px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.pill{width:100%;height:52px;border-radius:26px;background:#3d8ef7;color:#fff;font-size:18px;font-weight:700;display:grid;place-items:center}
+.tlink{color:var(--blue);font-size:18px;font-weight:600;padding:14px 0}
+.getbtn{background:#2c2c2e;color:var(--blue);font-weight:700;font-size:15px;border-radius:15px;padding:6px 16px}
+
+/* storage */
+.store{padding:16px}
+.store .hd{display:flex;justify-content:space-between;font-size:17px;margin-bottom:12px}
+.store .hd span{color:var(--label2)}
+.bar{display:flex;height:22px;border-radius:6px;overflow:hidden;background:#3a3a3c;gap:1.5px}
+.bar i{display:block}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px;font-size:13px;color:var(--label2)}
+.legend span::before{content:"";display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--d);margin-right:5px;vertical-align:0}
+
+/* subtitle preview */
+.subprev{height:150px;margin:0 16px;border-radius:var(--radius-group);position:relative;overflow:hidden;background:radial-gradient(120% 90% at 30% 20%,#3d5a73,#16222e 60%,#0a0f14)}
+.subprev::before{content:"";position:absolute;left:58%;top:22%;width:90px;height:90px;border-radius:50%;background:radial-gradient(#f5c27a,#c46b2a 60%,transparent 70%);opacity:.6;filter:blur(2px)}
+.subprev p{position:absolute;bottom:18px;left:0;right:0;text-align:center;font-weight:700;font-size:17px;text-shadow:0 2px 3px #000,0 0 6px #000}
+.subprev span{position:absolute;top:12px;left:14px;font-size:11px;font-weight:700;letter-spacing:.06em;color:rgba(255,255,255,.7);text-transform:uppercase}
+
+.center-note{text-align:center;color:var(--label3);font-size:13px;padding:20px 0 0;font-weight:500}
+
+
+/* accounts */
+.ic.brand{width:40px;height:40px;border-radius:11px;box-shadow:none;color:#fff}
+.ic.brand svg{width:23px;height:23px}
+.st{font-size:14px;margin-top:3px;display:flex;align-items:center;gap:6px;color:var(--label2)}
+.st.ok{color:var(--green)}
+.st.ok::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green)}
+.signin{background:var(--blue);color:#fff;font-weight:700;font-size:15px;border-radius:15px;padding:6px 14px;white-space:nowrap}
+/* ---------- Before / specs ---------- */
+.before{display:flex;flex-direction:column;align-items:center;gap:16px;width:min(410px,100%)}
+.before img{width:min(410px,100%);height:864px;object-fit:cover;border-radius:64px;border:10px solid #222;opacity:.9}
+.specs{max-width:1100px;margin:0 auto;padding:16px 16px 80px}
+.specs h2{font-size:26px;font-weight:800;margin-bottom:16px}
+.spec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.spec{background:var(--cell);border-radius:20px;padding:18px}
+.spec h4{font-size:15px;margin-bottom:10px}
+.spec ul{list-style:none;font-size:14px;color:#c7c7cc;line-height:1.7}
+.spec code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--teal)}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.3)}
+
+/* ---------- additions for round 2 ---------- */
+.seg{display:flex;background:#1c1c1e;border-radius:999px;padding:4px;margin:0 16px;gap:4px}
+.seg span{flex:1;text-align:center;padding:9px 0;border-radius:999px;font-size:15px;font-weight:600;color:var(--label2)}
+.seg span.on{background:#3a3a3c;color:#fff}
+.pills{display:flex;gap:8px;padding:0 16px;overflow:hidden}
+.pills span{white-space:nowrap;padding:8px 15px;border-radius:999px;background:#1c1c1e;font-size:15px;font-weight:600;color:var(--label2)}
+.pills span.on{background:var(--blue);color:#fff}
+.big-title{font-size:34px;font-weight:800;letter-spacing:-.02em;padding:0 20px 12px}
+.ev .lb{padding:10px 0}
+.lvl{font-size:12px;font-weight:700;border-radius:6px;padding:2px 7px;margin-right:6px}
+.lvl.e{background:rgba(255,69,58,.18);color:#ff6961}
+.lvl.w{background:rgba(255,159,10,.18);color:#ffb340}
+.lvl.i{background:rgba(10,132,255,.18);color:#64b5ff}
+.ts{color:var(--label3);font-size:13px;white-space:nowrap;align-self:flex-start;padding-top:13px}
+.grip{width:22px;height:22px;color:#636366;flex:none}
+.meter{height:8px;border-radius:4px;background:#3a3a3c;overflow:hidden;margin-top:8px}
+.meter i{display:block;height:100%;border-radius:4px}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--sep)}
+.kv div{background:var(--cell);padding:14px 16px}
+.kv b{display:block;font-size:22px;font-weight:700;margin-top:2px}
+.kv span{font-size:13px;color:var(--label2)}
+.trow{display:flex;align-items:center;gap:12px;padding:12px 16px}
+.trow + .trow{box-shadow:inset 0 .5px 0 var(--sep)}
+.aicon{width:52px;height:52px;border-radius:13px;flex:none;display:grid;place-items:center;color:#fff}
+.aicon svg{width:28px;height:28px}
+.trow .t{flex:1;min-width:0}
+.trow .t b{display:block;font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trow .t span{font-size:14px;color:var(--label2)}
+.status-on{color:var(--green);font-size:14px;font-weight:600}
+
+/* landscape phone (Play on TV over video) */
+.land-wrap{width:100%;max-width:880px}
+.land-scale{transform-origin:top left}
+.phone.land{width:880px;height:420px;border-radius:64px;padding:10px}
+.phone.land .screen{border-radius:54px}
+.video{position:absolute;inset:0;background:radial-gradient(110% 120% at 70% 30%,#3a2a4a,#120d18 55%,#05040a)}
+.video::after{content:"";position:absolute;inset:0;background:linear-gradient(transparent 55%,rgba(0,0,0,.75))}
+.vtitle{position:absolute;left:64px;bottom:78px;font-size:30px;font-weight:800;z-index:2;color:rgba(255,255,255,.55)}
+.vbar{position:absolute;left:64px;right:64px;bottom:58px;height:5px;border-radius:3px;background:rgba(255,255,255,.25);z-index:2}
+.vbar i{position:absolute;left:0;top:0;bottom:0;width:6%;background:#fff;border-radius:3px}
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.45);z-index:5}
+.sheet{position:absolute;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);width:400px;border-radius:30px;background:rgba(36,36,40,.86);backdrop-filter:blur(30px) saturate(1.5);-webkit-backdrop-filter:blur(30px) saturate(1.5);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.18),0 20px 60px rgba(0,0,0,.6);overflow:hidden}
+.sheet .hd{display:flex;align-items:center;gap:12px;padding:20px 20px 10px}
+.sheet .hd .glyph{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.12);display:grid;place-items:center}
+.sheet .hd .glyph svg{width:22px;height:22px}
+.sheet .hd b{font-size:19px;font-weight:700;display:block}
+.sheet .hd span{font-size:13px;color:var(--label2)}
+.sheet .x{margin-left:auto;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.12);display:grid;place-items:center;color:#c7c7cc;font-size:15px;font-weight:700}
+.dev{display:flex;align-items:center;gap:14px;padding:12px 20px}
+.dev + .dev{box-shadow:inset 0 .5px 0 rgba(255,255,255,.1)}
+.dev .di{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.1);display:grid;place-items:center}
+.dev .di svg{width:20px;height:20px}
+.dev .dn{flex:1}
+.dev .dn b{display:block;font-size:16px;font-weight:600}
+.dev .dn span{font-size:13px;color:var(--label2)}
+.dev.on .dn b{color:#fff}
+.spin{width:22px;height:22px;border-radius:50%;border:2.5px solid rgba(255,255,255,.18);border-top-color:#fff}
+.sheet .ft{padding:10px 20px 18px;font-size:12.5px;color:var(--label2);line-height:1.35}
+.searching{display:flex;align-items:center;gap:12px;padding:14px 20px;color:#d1d1d6;font-size:15px}
+.osdtop{position:absolute;top:26px;right:56px;display:flex;gap:14px;z-index:2}
+.osdtop i{width:42px;height:42px;border-radius:50%;background:rgba(40,40,44,.7);display:grid;place-items:center}
+.osdtop svg{width:21px;height:21px;color:#fff}
+.osdtop i.hot{background:#fff}.osdtop i.hot svg{color:#000}
+
+/* Umbrella "getting ready to play" */
+.ready{position:absolute;inset:0;background:#000}
+.ready .art{position:absolute;inset:0;background:radial-gradient(90% 60% at 50% 25%,#5a1b22,#1b0b10 60%,#000);filter:saturate(1.1)}
+.ready .art::after{content:"";position:absolute;inset:0;background:linear-gradient(rgba(0,0,0,.1),rgba(0,0,0,.35) 40%,#000 78%)}
+.ready .seats{position:absolute;left:0;right:0;top:120px;height:330px;background:repeating-linear-gradient(90deg,rgba(150,20,30,.35) 0 54px,transparent 54px 66px);mask:linear-gradient(transparent,#000 30%,#000 70%,transparent);-webkit-mask:linear-gradient(transparent,#000 30%,#000 70%,transparent);opacity:.55}
+.ready .content{position:absolute;left:0;right:0;bottom:0;padding:0 22px 110px;z-index:2}
+.logo{font-size:44px;font-weight:900;letter-spacing:-.02em;line-height:1;text-transform:uppercase;font-style:italic;text-shadow:0 4px 20px rgba(0,0,0,.6)}
+.logo small{display:block;font-size:15px;font-style:normal;letter-spacing:.3em;font-weight:700;color:#ff6b6b;margin-bottom:6px}
+.meta{color:#c7c7cc;font-size:14px;margin:10px 0 0}
+.plot{color:#aeaeb2;font-size:14.5px;line-height:1.4;margin:10px 0 18px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.srccard{background:rgba(44,44,48,.72);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-radius:24px;padding:16px;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.14)}
+.srccard .top{display:flex;align-items:center;gap:10px}
+.srccard .top .dot{width:34px;height:34px;border-radius:10px;background:#7d3cff;display:grid;place-items:center}
+.srccard .top .dot svg{width:20px;height:20px;color:#fff}
+.srccard .top b{font-size:16px}
+.srccard .top span{font-size:13px;color:var(--label2);display:block}
+.srccard .top .size{margin-left:auto;font-size:15px;font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 12px}
+.chips span{font-size:12px;font-weight:800;letter-spacing:.04em;padding:5px 9px;border-radius:7px;background:rgba(255,255,255,.12);color:#fff}
+.chips span.dv{background:linear-gradient(90deg,#2b2b2e,#3a3a3e);box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+.chips span.k4{background:#fff;color:#000}
+.file{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:#8e8e93;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prog{margin-top:14px;height:6px;border-radius:3px;background:rgba(255,255,255,.16);overflow:hidden}
+.prog i{display:block;height:100%;width:62%;background:#fff;border-radius:3px}
+.progtxt{display:flex;justify-content:space-between;font-size:13px;color:#c7c7cc;margin-top:8px}
+.cancel{position:absolute;left:22px;right:22px;bottom:34px;height:52px;border-radius:26px;z-index:3;display:grid;place-items:center;font-size:17px;font-weight:700;background:rgba(48,48,52,.78);backdrop-filter:blur(20px);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16)}
+
+/* iOS alert + action sheet (generic Fuse dialogs) */
+.alert{position:absolute;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);width:290px;border-radius:26px;background:rgba(44,44,48,.9);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16);text-align:center;overflow:hidden}
+.alert .tx{padding:22px 18px 16px}
+.alert b{font-size:17px;font-weight:700;display:block}
+.alert p{font-size:13.5px;color:#d1d1d6;margin-top:6px;line-height:1.35}
+.alert .bt{display:flex;gap:8px;padding:0 14px 14px}
+.alert .bt span{flex:1;height:44px;border-radius:22px;display:grid;place-items:center;font-size:16px;font-weight:600;background:rgba(255,255,255,.12)}
+.alert .bt span.pri{background:var(--blue);color:#fff}
+.alert .pb{height:6px;margin:4px 18px 18px;border-radius:3px;background:rgba(255,255,255,.16);overflow:hidden}
+.alert .pb i{display:block;height:100%;width:40%;background:var(--blue)}
+.bgpage{position:absolute;inset:0;padding-top:122px;opacity:.35;pointer-events:none}
+
+.inv{max-width:1100px;margin:0 auto;padding:0 16px 40px}
+.inv h2{font-size:26px;font-weight:800;margin:10px 0 6px}
+.inv > p{color:var(--label2);font-size:15px;line-height:1.5;margin-bottom:16px}
+.inv-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.inv .card{background:var(--cell);border-radius:20px;padding:18px}
+.inv .card h4{font-size:16px;margin-bottom:4px}
+.inv .card p{color:var(--label2);font-size:13.5px;line-height:1.45;margin-bottom:10px}
+.inv code{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#c7c7cc;background:#2c2c2e;border-radius:6px;padding:2px 6px;display:inline-block;margin:0 4px 6px 0}
+.tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.06em;padding:3px 8px;border-radius:6px;margin-bottom:8px}
+.tag.a{background:rgba(48,209,88,.16);color:#30d158}.tag.b{background:rgba(10,132,255,.16);color:#64b5ff}.tag.c{background:rgba(142,142,147,.2);color:#aeaeb2}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+ <g id="st" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></g>
+</defs>
+<symbol id="chev" viewBox="0 0 24 24"><path d="M9 4.5 16.5 12 9 19.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="back" viewBox="0 0 24 24"><path d="M15.5 4 7.5 12l8 8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="tick" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5 10-11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="gear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8.6" stroke-width="3" stroke-dasharray="2.3 2.2"/><circle cx="12" cy="12" r="6.6" stroke-width="1.8"/><circle cx="12" cy="12" r="1.6" stroke-width="1.6"/><path d="M12 10.4V5.6M10.6 12.8l-4.1 2.4M13.4 12.8l4.1 2.4" stroke-width="1.6" stroke-linecap="round"/></g></symbol>
+<symbol id="brush" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 3 21 4.5l-9 9L10.5 12z"/><path d="M9.5 13.5c-2.6-.3-4.6 1.5-4.6 4.1 0 1.4-.9 2.3-2.4 2.9 3.3 1.1 8.5.6 8.9-3.5"/></g></symbol>
+<symbol id="palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.4 0 2-1 2-2 0-1.2-1-1.6-1-2.6 0-.9.8-1.4 1.8-1.4H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="7.5" cy="11" r="1.4" fill="currentColor"/><circle cx="10" cy="7" r="1.4" fill="currentColor"/><circle cx="15" cy="7.5" r="1.4" fill="currentColor"/></symbol>
+<symbol id="sliders" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h9M19 6h1M4 12h3M13 12h7M4 18h11M21 18h-0"/><circle cx="16" cy="6" r="2.5"/><circle cx="10" cy="12" r="2.5"/><circle cx="18" cy="18" r="2.5"/></g></symbol>
+<symbol id="play" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 8.2v7.6l6-3.8z" fill="currentColor"/></symbol>
+<symbol id="film" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M3 8l17-4 .6 2.5L3.6 10.4"/><path d="M8 7l2.5 2.5M13 5.8l2.5 2.5"/></g></symbol>
+<symbol id="tv" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="13" rx="2.5"/><path d="M8 2.5l4 4 4-4"/></g></symbol>
+<symbol id="pad" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10a5 5 0 0 1 5 5v2.5a3 3 0 0 1-5.4 1.8L15 14H9l-1.6 2.3A3 3 0 0 1 2 14.5V12a5 5 0 0 1 5-5z"/><path d="M7.5 10v4M5.5 12h4"/></g><circle cx="15.5" cy="11" r="1.1" fill="currentColor"/><circle cx="17.8" cy="13" r="1.1" fill="currentColor"/></symbol>
+<symbol id="net" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="5" rx="1.2"/><rect x="2.5" y="16.5" width="6" height="5" rx="1.2"/><rect x="15.5" y="16.5" width="6" height="5" rx="1.2"/><path d="M12 7.5V12M5.5 16.5V12h13v4.5"/></g></symbol>
+<symbol id="person" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c.5-4 3.8-6 8-6s7.5 2 8 6"/></g></symbol>
+<symbol id="folder" viewBox="0 0 24 24"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.7l2.2 2.2h7.1A2.5 2.5 0 0 1 21 9.7v7.8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+<symbol id="puzzle" viewBox="0 0 24 24"><path d="M9 6V5a3 3 0 0 1 6 0v1h3.5a.5.5 0 0 1 .5.5V10h1a3 3 0 0 1 0 6h-1v3.5a.5.5 0 0 1-.5.5H15v-1a3 3 0 0 0-6 0v1H5.5a.5.5 0 0 1-.5-.5V16h1a3 3 0 0 0 0-6H5V6.5a.5.5 0 0 1 .5-.5z" fill="currentColor"/></symbol>
+<symbol id="list" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10M3.5 6l1.3 1.3L7.5 4.6M3.5 12l1.3 1.3 2.7-2.7"/><circle cx="5.3" cy="18" r=".6" fill="currentColor"/></g></symbol>
+<symbol id="info" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/></g><circle cx="12" cy="7.6" r="1.3" fill="currentColor"/></symbol>
+<symbol id="chart" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 20v-7M10 20V5M15 20v-9M20 20v-4"/></g></symbol>
+<symbol id="display" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="13" rx="2.5"/><path d="M8.5 21h7M12 17v4"/></g></symbol>
+<symbol id="speaker" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6.5 9H3.5v6h3l4.5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></g></symbol>
+<symbol id="keyboard" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M7.5 14h9"/></g></symbol>
+<symbol id="globe" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.5 3.6 5.6 3.6 9s-1.1 6.5-3.6 9c-2.5-2.5-3.6-5.6-3.6-9S9.5 5.5 12 3z"/></g></symbol>
+<symbol id="power" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.6 6.6a7.6 7.6 0 1 0 10.8 0"/></g></symbol>
+<symbol id="doc" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h8.5L19 7v14.5H6z"/><path d="M14 2.5V7.5h5M9 12.5h7M9 16.5h5"/></g></symbol>
+<symbol id="hdd" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 13.5 5.5 5h13l3 8.5"/><rect x="2.5" y="13.5" width="19" height="7" rx="2"/><path d="M6.5 17h.01M10 17h.01"/></g></symbol>
+<symbol id="cc" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M6.5 12.5h4M13 12.5h4.5M6.5 15.5h7M16 15.5h1.5"/></g></symbol>
+<symbol id="disc" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></g></symbol>
+<symbol id="music" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5.5l11-2v12.5"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></g></symbol>
+<symbol id="download" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v11M7 10l5 5 5-5M4.5 20h15"/></g></symbol>
+<symbol id="zip" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4.5" rx="1.2"/><path d="M5 8.5V20h14V8.5M10 12.5h4"/></g></symbol>
+<symbol id="search" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 20.5 20.5"/></g></symbol>
+<symbol id="mic" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5"/></g></symbol>
+<symbol id="refresh" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1L20.5 8.5"/><path d="M20.5 3.5v5h-5"/></g></symbol>
+<symbol id="shield" viewBox="0 0 24 24"><path d="M12 2.5l8 3v6c0 4.9-3.4 8.7-8 10.5-4.6-1.8-8-5.6-8-10.5v-6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+<symbol id="bell" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 1 1 12 0c0 6 2.5 8 2.5 8h-17S6 15 6 9z"/><path d="M10 20.5h4"/></g></symbol>
+<symbol id="box" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 7.5 12 3 3 7.5 12 12z"/><path d="M3 7.5v9L12 21l9-4.5v-9M12 12v9"/></g></symbol>
+<symbol id="layers" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 22 8l-10 5L2 8z"/><path d="M2 12.5l10 5 10-5M2 17l10 5 10-5"/></g></symbol>
+<symbol id="cpu" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx=".8"/><path d="M9.5 2.5V6M14.5 2.5V6M9.5 18v3.5M14.5 18v3.5M2.5 9.5H6M2.5 14.5H6M18 9.5h3.5M18 14.5h3.5"/></g></symbol>
+<symbol id="wifi" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.7 15.9a4.8 4.8 0 0 1 6.6 0"/></g><circle cx="12" cy="19.3" r="1.5" fill="currentColor"/></symbol>
+<symbol id="skip" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5v13l9-6.5zM13 5.5v13l7-6.5z"/></g></symbol>
+<symbol id="clock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></g></symbol>
+<symbol id="text" viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" font-family="-apple-system,Inter,sans-serif" font-weight="700" font-size="14" fill="currentColor">Aa</text></symbol>
+<symbol id="grid" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/></g></symbol>
+<symbol id="image" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M3 16l5-5 4.5 4.5 3-3L21 17"/></g><circle cx="16" cy="9" r="1.6" fill="currentColor"/></symbol>
+<symbol id="battery" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2.5" y="7" width="17" height="10" rx="2.5"/><path d="M22 10.5v3"/></g><rect x="5" y="9.5" width="6" height="5" rx="1" fill="currentColor"/></symbol>
+<symbol id="airplay" viewBox="0 0 24 24"><path d="M6 17H4.5A2 2 0 0 1 2.5 15V5.5a2 2 0 0 1 2-2h15a2 2 0 0 1 2 2V15a2 2 0 0 1-2 2H18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 14l5.5 6.5h-11z" fill="currentColor"/></symbol>
+<symbol id="star" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.8-4.4 4.3 1 6.1L12 17l-5.4 2.8 1-6.1-4.4-4.3 6.1-.8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+<symbol id="magnet" viewBox="0 0 24 24"><path d="M5 3h4v8a3 3 0 0 0 6 0V3h4v8a7 7 0 0 1-14 0z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M5 7h4M15 7h4" stroke="currentColor" stroke-width="2"/></symbol>
+<symbol id="umbrella" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12a9.5 9.5 0 0 1 19 0z"/><path d="M12 12v6.5a2 2 0 0 1-4 0M12 2.5v0"/></g></symbol>
+<symbol id="cloud" viewBox="0 0 24 24"><path d="M7 19a5 5 0 0 1-.7-9.95A6.5 6.5 0 0 1 18.8 9.6 4.7 4.7 0 0 1 18 19z" fill="currentColor"/></symbol>
+<symbol id="ccheck" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M7.5 12.5l3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="key" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="15" r="4.5"/><path d="M11.2 11.8 20 3M16.5 6.5l2.5 2.5M14 9l2 2"/></g></symbol>
+<symbol id="sig" viewBox="0 0 20 14"><rect x="0" y="9" width="3.4" height="5" rx="1" fill="#fff"/><rect x="5.2" y="6" width="3.4" height="8" rx="1" fill="#fff"/><rect x="10.4" y="3" width="3.4" height="11" rx="1" fill="#fff"/><rect x="15.6" y="0" width="3.4" height="14" rx="1" fill="#6d6d6d"/></symbol>
+<symbol id="wifis" viewBox="0 0 18 14"><path d="M9 13.5 6.3 10.6a3.8 3.8 0 0 1 5.4 0zM3.6 7.8a7.6 7.6 0 0 1 10.8 0l-1.8 1.9a5 5 0 0 0-7.2 0zM.9 5A11.5 11.5 0 0 1 17.1 5l-1.8 1.9a8.9 8.9 0 0 0-12.6 0z" fill="#fff"/></symbol>
+<symbol id="mute" viewBox="0 0 24 24"><g fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 16.5h11s-1.8-1.6-2-5M7 9a5 5 0 0 1 8-3.7M10.5 20h3"/><path d="M4 3l16 18"/></g></symbol>
+</svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="warn" viewBox="0 0 24 24"><path d="M12 3.5 22 20.5H2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.2" fill="currentColor"/></symbol>
+<symbol id="gripi" viewBox="0 0 24 24"><path d="M4 8h16M4 12h16M4 16h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+<symbol id="dots" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.8" fill="currentColor"/><circle cx="12" cy="12" r="1.8" fill="currentColor"/><circle cx="18.5" cy="12" r="1.8" fill="currentColor"/></symbol>
+<symbol id="house" viewBox="0 0 24 24"><path d="M3.5 11 12 4l8.5 7v9h-5.5v-6h-6v6H3.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+<symbol id="calendar" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></g></symbol>
+<symbol id="trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="sort" viewBox="0 0 24 24"><path d="M7 4v16M3.5 16.5 7 20l3.5-3.5M17 20V4M13.5 7.5 17 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="umbrella2" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12a9.5 9.5 0 0 1 19 0z"/><path d="M12 12v6.5a2 2 0 0 1-4 0"/></g></symbol>
+<symbol id="roku" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="3"/></g><circle cx="8" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="16" cy="12" r="1.5" fill="currentColor"/></symbol>
+<symbol id="phone" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10.5 18.5h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+</svg>
+
+<header class="intro">
+  <div class="eyebrow">Kodi for iOS · Design mockups · round 2</div>
+  <h1>Every leftover Fuse box, the Apple way</h1>
+  <p>Round 1 covered Settings, Accounts, Kodi's category pages and add-on settings. This round covers what is still Fuse's purple landscape box shrunk into the middle of the screen: the pages from your screenshots, the <b>Play on TV</b> picker over video, Umbrella's <b>getting ready to play</b> screen, and the generic Fuse dialogs (confirm, progress, pick-one) that most of the other boxes use. The full list of the 89 remaining windows is at the bottom.</p>
+  <nav class="chips">
+    <a href="#m-tv">Play on TV</a>
+    <a href="#m-ready">Umbrella: getting ready</a>
+    <a href="#m-addons">Add-ons</a>
+    <a href="#m-myaddons">My Add-ons</a>
+    <a href="#m-files">File Manager</a>
+    <a href="#m-log">Event Log</a>
+    <a href="#m-info">System Information</a>
+    <a href="#m-hubs">Hubs &amp; Widgets</a>
+    <a href="#m-skin">Skin Settings</a>
+    <a href="#m-dialogs">Dialogs</a>
+    <a href="#inventory">Full list</a>
+  </nav>
+</header>
+
+<main class="grid">
+
+<!-- ======= PLAY ON TV (landscape) ======= -->
+<figure id="m-tv" style="width:min(900px,100%)">
+ <div class="land-wrap" data-w="880" data-h="420"><div class="land-scale">
+  <div class="phone land"><div class="screen land-screen">
+   <div class="video"></div>
+   <div class="osdtop"><i><svg><use href="#cc"/></svg></i><i class="hot"><svg><use href="#airplay"/></svg></i></div>
+   <div class="vtitle">Scary Movie</div><div class="vbar"><i></i></div>
+   <div class="dim"></div>
+   <div class="sheet">
+    <div class="hd"><div class="glyph"><svg><use href="#airplay"/></svg></div><div><b>Play on TV</b><span>Scary Movie · 2160p</span></div><div class="x">✕</div></div>
+    <div class="dev on"><div class="di"><svg><use href="#phone"/></svg></div><div class="dn"><b>This iPhone</b><span>Playing here</span></div><svg class="check"><use href="#tick"/></svg></div>
+    <div class="dev"><div class="di"><svg><use href="#tv"/></svg></div><div class="dn"><b>Living Room</b><span>Apple TV · AirPlay</span></div></div>
+    <div class="dev"><div class="di"><svg><use href="#roku"/></svg></div><div class="dn"><b>Bedroom TV</b><span>Roku · Play on Roku</span></div></div>
+    <div class="searching"><span class="spin"></span>Looking for more TVs on this Wi-Fi…</div>
+    <div class="ft">Plays from where you are now (0:04:12). AirPlay sends MP4/HLS only; other files use the TV's own player.</div>
+   </div>
+  </div></div>
+ </div></div>
+ <figcaption style="max-width:880px">
+  <div class="n">01 · OVER VIDEO (LANDSCAPE)</div>
+  <h2>Play on TV</h2>
+  <p>Replaces the Fuse progress box ("Looking for TVs on this Wi-Fi…" with a Cancel pill on the side) and the separate "Play on which TV?" list with one iOS AirPlay-style glass sheet. The TVs appear in the list as they're found, with a spinner underneath while it keeps looking, so there's no waiting screen and no second dialog. This iPhone stays at the top with a check. Tap a TV to send the video; ✕ or a tap outside closes it.</p>
+ </figcaption>
+</figure>
+
+<!-- ======= UMBRELLA GETTING READY ======= -->
+<figure id="m-ready">
+<div class="phone"><div class="screen">
+ <div class="ready">
+  <div class="art"></div><div class="seats"></div>
+  <div class="content">
+   <div class="logo">SCARY<br>MOVIE</div>
+   <div class="meta">2026 · Comedy, Horror · 1h 35m</div>
+   <div class="plot">Twenty-six years after outrunning a suspiciously familiar masked killer, the Core Four are back in the killer's crosshairs and no horror movie IP is safe.</div>
+   <div class="srccard">
+    <div class="top"><div class="dot"><svg><use href="#umbrella2"/></svg></div><div><b>AllDebrid</b><span>via Torrentio · cached</span></div><div class="size">47.0 GB</div></div>
+    <div class="chips"><span class="k4">4K</span><span class="dv">DOLBY VISION</span><span>HDR</span><span>HEVC</span><span>REMUX</span><span>BLU-RAY</span><span>MULTI-LANG</span></div>
+    <div class="file">Scary.Movie.2026.2160p.Theatrical.REMUX.DV.HDR.HEVC-Group.mkv</div>
+    <div class="prog"><i></i></div>
+    <div class="progtxt"><span>Getting ready to play…</span><span>62%</span></div>
+   </div>
+  </div>
+ </div>
+ <div class="cancel">Cancel</div>
+</div></div>
+<figcaption>
+ <div class="n">02 · UMBRELLA</div>
+ <h2>Getting ready to play</h2>
+ <p>Replaces Umbrella's source window (dim fanart, centred cyan and yellow text, "PRESS BACK T…" cut off at the edge). Now the fanart fades into black and the title logo sits above the year, genre, runtime and three lines of plot. A glass card shows the chosen source: provider, size, quality badges (4K, Dolby Vision, HDR…), the file name, and a real progress bar. Cancel is a big button instead of "press back".</p>
+ <p style="margin-top:6px">Umbrella hands this window its details as one block of text. To turn them into badges, our script reads them out of that text; anything it can't read stays as plain grey text, so nothing is lost.</p>
+</figcaption>
+</figure>
+
+<!-- ======= ADD-ONS BROWSER ======= -->
+<figure id="m-addons">
+<div class="phone"><div class="screen">
+ <div class="nav"><a class="back"><svg><use href="#back"/></svg></a><div class="title"></div></div>
+ <div class="scroll">
+  <div class="big-title">Add-ons</div>
+  <div class="group">
+   <a class="row" href="#m-myaddons"><i class="ic" style="--c:var(--orange)"><svg><use href="#grid"/></svg></i><span class="ct"><span class="lb">My Add-ons</span><span class="val">79</span><svg class="chev"><use href="#chev"/></svg></span></a>
+   <a class="row"><i class="ic" style="--c:var(--green)"><svg><use href="#refresh"/></svg></i><span class="ct"><span class="lb">Recently Updated</span><svg class="chev"><use href="#chev"/></svg></span></a>
+   <a class="row"><i class="ic" style="--c:var(--red)"><svg><use href="#download"/></svg></i><span class="ct"><span class="lb">Updates</span><span class="badge">3</span><svg class="chev"><use href="#chev"/></svg></span></a>
+  </div>
+  <div class="gap"></div>
+  <div class="sh">Install</div>
+  <div class="group">
+   <a class="row"><i class="ic" style="--c:var(--blue)"><svg><use href="#box"/></svg></i><span class="ct"><span class="lb">From Repository</span><svg class="chev"><use href="#chev"/></svg></span></a>
+   <a class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#zip"/></svg></i><span class="ct"><span class="lb">From Zip File</span><svg class="chev"><use href="#chev"/></svg></span></a>
+   <a class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#search"/></svg></i><span class="ct"><span class="lb">Search</span><svg class="chev"><use href="#chev"/></svg></span></a>
+  </div>
+  <div class="gap"></div>
+  <div class="sh">Manage</div>
+  <div class="group">
+   <a class="row"><i class="ic" style="--c:var(--purple)"><svg><use href="#layers"/></svg></i><span class="ct"><span class="lb">Dependencies</span><span class="val">58</span><svg class="chev"><use href="#chev"/></svg></span></a>
+   <a class="row"><i class="ic" style="--c:var(--teal)"><svg><use href="#cpu"/></svg></i><span class="ct"><span class="lb">Running Now</span><span class="val">2</span><svg class="chev"><use href="#chev"/></svg></span></a>
+  </div>
+  <div class="foot">Sign-ins for Elementum, Umbrella, Trakt and Drive are in Settings › Accounts.</div>
+ </div>
+</div></div>
+<figcaption>
+ <div class="n">03 · ADD-ONS</div>
+ <h2>Add-ons (Kodi's add-on browser)</h2>
+ <p>Fuse's two-column box with a sidebar repeating the same items becomes one grouped list with counts and an update badge. Large title like the iOS Files and Music apps.</p>
+</figcaption>
+</figure>
+
+<figure id="m-myaddons">
+<div class="phone"><div class="screen">
+ <div class="nav"><a class="back" href="#m-addons"><svg><use href="#back"/></svg></a><div class="title">My Add-ons</div></div>
+ <div class="scroll">
+  <div class="pills"><span class="on">All</span><span>Video</span><span>Services</span><span>Scripts</span><span>Skins</span></div>
+  <div class="gap-s"></div>
+  <div class="group">
+   <div class="trow"><div class="aicon" style="background:#1f6feb"><svg><use href="#magnet"/></svg></div><div class="t"><b>Elementum</b><span>Video · 0.1.103</span></div><svg class="chev"><use href="#chev"/></svg></div>
+   <div class="trow"><div class="aicon" style="background:#7d3cff"><svg><use href="#umbrella2"/></svg></div><div class="t"><b>Umbrella</b><span>Video · 6.7.99 · <span style="color:var(--blue)">Update available</span></span></div><svg class="chev"><use href="#chev"/></svg></div>
+   <div class="trow"><div class="aicon" style="background:#1a9e5c"><svg><use href="#cloud"/></svg></div><div class="t"><b>Google Drive</b><span>Video · 1.x</span></div><svg class="chev"><use href="#chev"/></svg></div>
+   <div class="trow"><div class="aicon" style="background:#01b4e4"><svg><use href="#film"/></svg></div><div class="t"><b>TMDb Helper</b><span>Video · 6.18.1</span></div><svg class="chev"><use href="#chev"/></svg></div>
+   <div class="trow"><div class="aicon" style="background:#ed1c24"><svg><use href="#ccheck"/></svg></div><div class="t"><b>Trakt</b><span>Script · 3.9.0</span></div><svg class="chev"><use href="#chev"/></svg></div>
+   <div class="trow" style="opacity:.5"><div class="aicon" style="background:#3a3a3c"><svg><use href="#puzzle"/></svg></div><div class="t"><b>Up Next</b><span>Service · Disabled</span></div><svg class="chev"><use href="#chev"/></svg></div>
+  </div>
+ </div>
+</div></div>
+<figcaption>
+ <div class="n">04 · ADD-ONS › LIST</div>
+ <h2>My Add-ons</h2>
+ <p>Kodi's add-on lists as App Store-style rows: icon, name, type and version, "Update available" in blue, disabled add-ons faded. Pills switch type. Tapping opens the add-on's info page (also restyled: icon, Open / Configure / Update / Disable as capsule buttons).</p>
+</figcaption>
+</figure>
+
+<!-- ======= FILE MANAGER ======= -->
+<figure id="m-files">
+<div class="phone"><div class="screen">
+ <div class="nav"><a class="back"><svg><use href="#back"/></svg></a><div class="title"></div></div>
+ <div class="scroll">
+  <div class="big-title">Files</div>
+  <div class="seg"><span class="on">Locations</span><span>Sources</span></div>
+  <div class="gap-s"></div>
+  <div class="group">
+   <a class="row"><i class="ic" style="--c:var(--blue)"><svg><use href="#phone"/></svg></i><span class="ct"><span class="lb">On My iPhone<small>Inbox · Kodi Downloads</small></span><svg class="chev"><use href="#chev"/></svg></span></a>
+   <a class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#person"/></svg></i><span class="ct"><span class="lb">Profile Folder<small>special://profile</small></span><svg class="chev"><use href="#chev"/></svg></span></a>
+  </div>
+  <div class="gap"></div>
+  <div class="sh">Sources</div>
+  <div class="group">
+   <a class="row"><i class="ic" style="--c:var(--purple)"><svg><use href="#globe"/></svg></i><span class="ct"><span class="lb">Umbrella Repo<small>umbrellaplug.github.io</small></span><svg class="chev"><use href="#chev"/></svg></span></a>
+   <a class="row"><i class="ic" style="--c:var(--green)"><svg><use href="#cloud"/></svg></i><span class="ct"><span class="lb">Google Drive<small>Kodi Downloads</small></span><svg class="chev"><use href="#chev"/></svg></span></a>
+   <a class="row"><span class="ct"><span class="lb link" style="display:flex;align-items:center;gap:10px"><svg style="width:20px;height:20px"><use href="#plus"/></svg>Add Source…</span></span></a>
+  </div>
+  <div class="foot">Long-press a file or folder to copy, move, rename or delete it. Copy and Move ask for the destination instead of showing two panes.</div>
+ </div>
+</div></div>
+<figcaption>
+ <div class="n">05 · FILE MANAGER</div>
+ <h2>Files</h2>
+ <p>Like the iOS Files app. Kodi's two side-by-side panes don't fit a phone, so there's one list with a Locations / Sources switch. Copy and Move pick their destination from a second sheet, and "Add Source…" is a blue row.</p>
+</figcaption>
+</figure>
+
+<!-- ======= EVENT LOG ======= -->
+<figure id="m-log">
+<div class="phone"><div class="screen">
+ <div class="nav"><a class="back"><svg><use href="#back"/></svg></a><div class="title">Event Log</div></div>
+ <div class="scroll">
+  <div class="pills"><span class="on">All</span><span>Errors</span><span>Warnings</span><span>Info</span></div>
+  <div class="gap-s"></div>
+  <div class="sh">Today</div>
+  <div class="group ev">
+   <div class="row"><i class="ic" style="--c:var(--red)"><svg><use href="#warn"/></svg></i><span class="ct"><span class="lb"><span class="lvl e">ERROR</span>Umbrella<small>Scraper failed: 401 Unauthorised (Trakt token)</small></span><span class="ts">3:47 PM</span></span></div>
+   <div class="row"><i class="ic" style="--c:var(--orange)"><svg><use href="#warn"/></svg></i><span class="ct"><span class="lb"><span class="lvl w">WARNING</span>Play on TV<small>Bedroom TV refused: format not supported</small></span><span class="ts">3:12 PM</span></span></div>
+   <div class="row"><i class="ic" style="--c:var(--blue)"><svg><use href="#puzzle"/></svg></i><span class="ct"><span class="lb"><span class="lvl i">INFO</span>Add-on updated<small>TMDb Helper 6.18.1</small></span><span class="ts">9:02 AM</span></span></div>
+  </div>
+  <div class="gap"></div>
+  <div class="sh">Yesterday</div>
+  <div class="group ev">
+   <div class="row"><i class="ic" style="--c:var(--blue)"><svg><use href="#cloud"/></svg></i><span class="ct"><span class="lb"><span class="lvl i">INFO</span>Google Drive<small>Uploaded Scary Movie (2026) to Kodi Downloads</small></span><span class="ts">11:40 PM</span></span></div>
+  </div>
+  <div class="gap"></div>
+  <div class="group">
+   <a class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#sort"/></svg></i><span class="ct"><span class="lb">Order</span><span class="val">Newest First</span><svg class="chev"><use href="#chev"/></svg></span></a>
+   <a class="row"><span class="ct"><span class="lb danger">Clear Event Log</span></span></a>
+  </div>
+ </div>
+</div></div>
+<figcaption>
+ <div class="n">06 · EVENT LOG</div>
+ <h2>Event Log</h2>
+ <p>Fuse's "Level: Error / Order / Show higher levels / Clear" sidebar becomes filter pills, entries grouped by day with coloured level badges and times, and Order and a red Clear at the end, like iOS lists.</p>
+</figcaption>
+</figure>
+
+<!-- ======= SYSTEM INFO ======= -->
+<figure id="m-info">
+<div class="phone"><div class="screen">
+ <div class="nav"><a class="back"><svg><use href="#back"/></svg></a><div class="title">Information</div></div>
+ <div class="scroll">
+  <div class="pills"><span class="on">Summary</span><span>Storage</span><span>Network</span><span>Video</span><span>Hardware</span></div>
+  <div class="gap-s"></div>
+  <div class="group">
+   <div class="kv">
+    <div><span>Used memory</span><b>74%</b><div class="meter"><i style="width:74%;background:var(--purple)"></i></div></div>
+    <div><span>CPU</span><b>151%</b><div class="meter"><i style="width:60%;background:var(--orange)"></i></div></div>
+    <div><span>Free space</span><b>56.1 GB</b><div class="meter"><i style="width:35%;background:var(--blue)"></i></div></div>
+    <div><span>Screen</span><b>120 Hz</b><div class="meter"><i style="width:100%;background:var(--green)"></i></div></div>
+   </div>
+  </div>
+  <div class="gap"></div>
+  <div class="group">
+   <div class="row"><span class="ct"><span class="lb">Kodi</span><span class="val">21.3 (Omega)</span></span></div>
+   <div class="row"><span class="ct"><span class="lb">Skin</span><span class="val">Arctic Fuse 3 · 3.4.8</span></span></div>
+   <div class="row"><span class="ct"><span class="lb">iOS</span><span class="val">27.2</span></span></div>
+   <div class="row"><span class="ct"><span class="lb">IP Address</span><span class="val">192.168.1.24</span></span></div>
+   <div class="row"><span class="ct"><span class="lb">Uptime</span><span class="val">2 h 14 min</span></span></div>
+  </div>
+  <div class="gap"></div>
+  <div class="group">
+   <a class="row"><span class="ct"><span class="lb">Privacy Policy</span><svg class="chev"><use href="#chev"/></svg></span></a>
+  </div>
+ </div>
+</div></div>
+<figcaption>
+ <div class="n">07 · SYSTEM INFORMATION</div>
+ <h2>Information</h2>
+ <p>Kodi's System Info as pills (Summary, Storage, Network, Video, Hardware, Live TV) with a 2×2 tile of live meters on top and plain value rows below, like iOS About. The values are Kodi's own, so they're always live.</p>
+</figcaption>
+</figure>
+
+<!-- ======= HUBS ======= -->
+<figure id="m-hubs">
+<div class="phone"><div class="screen">
+ <div class="nav"><a class="back"><svg><use href="#back"/></svg></a><div class="title">Hubs &amp; Widgets</div><div style="position:absolute;right:22px;top:72px;color:var(--blue);font-weight:600;font-size:17px">Edit</div></div>
+ <div class="scroll">
+  <div class="sh">Tabs</div>
+  <div class="group">
+   <div class="row"><i class="ic" style="--c:var(--blue)"><svg><use href="#house"/></svg></i><span class="ct"><span class="lb">Home</span><span class="tg on"></span><svg class="grip"><use href="#gripi"/></svg></span></div>
+   <div class="row"><i class="ic" style="--c:#d1d1d6"><svg><use href="#film"/></svg></i><span class="ct"><span class="lb">Movies</span><span class="tg on"></span><svg class="grip"><use href="#gripi"/></svg></span></div>
+   <div class="row"><i class="ic" style="--c:#d1d1d6"><svg><use href="#tv"/></svg></i><span class="ct"><span class="lb">TV Shows</span><span class="tg on"></span><svg class="grip"><use href="#gripi"/></svg></span></div>
+   <div class="row"><i class="ic" style="--c:#d1d1d6"><svg><use href="#download"/></svg></i><span class="ct"><span class="lb">Downloaded</span><span class="tg on"></span><svg class="grip"><use href="#gripi"/></svg></span></div>
+   <div class="row"><i class="ic" style="--c:#d1d1d6"><svg><use href="#calendar"/></svg></i><span class="ct"><span class="lb">Next Aired</span><span class="tg"></span><svg class="grip"><use href="#gripi"/></svg></span></div>
+   <div class="row"><i class="ic" style="--c:#d1d1d6"><svg><use href="#search"/></svg></i><span class="ct"><span class="lb">Search</span><span class="tg on"></span><svg class="grip"><use href="#gripi"/></svg></span></div>
+  </div>
+  <div class="foot">Drag ☰ to reorder. Tap a tab's name to choose its rows.</div>
+  <div class="gap"></div>
+  <div class="sh">Search Page</div>
+  <div class="group">
+   <a class="row"><span class="ct"><span class="lb">Layout</span><span class="val">Combined Rows</span><svg class="chev"><use href="#chev"/></svg></span></a>
+   <a class="row"><span class="ct"><span class="lb">Rows</span><span class="val">5</span><svg class="chev"><use href="#chev"/></svg></span></a>
+   <div class="row"><span class="ct"><span class="lb">Discover</span><span class="tg on"></span></span></div>
+   <div class="row"><span class="ct"><span class="lb">Decades</span><span class="tg on"></span></span></div>
+   <div class="row"><span class="ct"><span class="lb">MDbList</span><span class="tg on"></span></span></div>
+  </div>
+ </div>
+</div></div>
+<figcaption>
+ <div class="n">08 · CUSTOMISATION › WIDGETS</div>
+ <h2>Hubs &amp; Widgets</h2>
+ <p>Fuse's "Hubs" box (sidebar of hubs with tick circles, options on the right) becomes the iOS "Edit Home Screen" pattern: switches show or hide each tab, ☰ drags to reorder, and tapping a tab opens its rows on its own page.</p>
+</figcaption>
+</figure>
+
+<!-- ======= SKIN SETTINGS ======= -->
+<figure id="m-skin">
+<div class="phone"><div class="screen">
+ <div class="nav"><a class="back"><svg><use href="#back"/></svg></a><div class="title">Skin</div></div>
+ <div class="scroll">
+  <div class="pills"><span class="on">Customisation</span><span>Appearance</span><span>Interface</span><span>Details</span><span>Layout</span></div>
+  <div class="gap-s"></div>
+  <div class="sh">Configure</div>
+  <div class="group">
+   <a class="row" href="#m-hubs"><span class="ct"><span class="lb">Shortcuts &amp; Widgets</span><svg class="chev"><use href="#chev"/></svg></span></a>
+   <div class="row"><span class="ct"><span class="lb">Focus Widgets on Start</span><span class="tg"></span></span></div>
+  </div>
+  <div class="gap"></div>
+  <div class="sh">Menu</div>
+  <div class="group">
+   <a class="row"><span class="ct"><span class="lb">Position</span><span class="val">Top</span><svg class="chev"><use href="#chev"/></svg></span></a>
+   <a class="row"><span class="ct"><span class="lb">Appearance</span><span class="val">Text</span><svg class="chev"><use href="#chev"/></svg></span></a>
+   <a class="row"><span class="ct"><span class="lb">Header</span><span class="val">Date</span><svg class="chev"><use href="#chev"/></svg></span></a>
+  </div>
+  <div class="gap"></div>
+  <div class="sh">Spotlight</div>
+  <div class="group">
+   <div class="row"><span class="ct"><span class="lb">Slide</span><span class="tg on"></span></span></div>
+   <div class="row"><span class="ct"><span class="lb">Trailers</span><span class="tg"></span></span></div>
+  </div>
+  <div class="foot">Behaviour, Other, Dependencies and Expert are in the pills further along.</div>
+ </div>
+</div></div>
+<figcaption>
+ <div class="n">09 · SKIN SETTINGS</div>
+ <h2>Skin Settings</h2>
+ <p>Same pattern as Kodi's own category pages from round 1: categories as pills, Fuse's tiny grey section labels become bold grey headers, tick circles become switches, and values sit on the right with chevrons.</p>
+</figcaption>
+</figure>
+
+<!-- ======= DIALOGS ======= -->
+<figure id="m-dialogs">
+<div class="phone"><div class="screen">
+ <div class="bgpage">
+  <div class="big-title">Settings</div>
+  <div class="group"><div class="row"><span class="ct"><span class="lb">Skin</span></span></div><div class="row"><span class="ct"><span class="lb">Interface</span></span></div><div class="row"><span class="ct"><span class="lb">Player</span></span></div></div>
+ </div>
+ <div class="dim" style="background:rgba(0,0,0,.5)"></div>
+ <div class="alert" style="top:36%">
+  <div class="tx"><b>Enable Elementum?</b><p>This add-on is installed but turned off. Turn it on to use it.</p></div>
+  <div class="bt"><span>Not Now</span><span class="pri">Enable</span></div>
+ </div>
+ <div class="alert" style="top:66%">
+  <div class="tx"><b>Installing Umbrella</b><p>Downloading 6.7.99 · 4.2 MB of 10.5 MB</p></div>
+  <div class="pb"><i></i></div>
+  <div class="bt"><span>Cancel</span></div>
+ </div>
+</div></div>
+<figcaption>
+ <div class="n">10 · GENERIC DIALOGS</div>
+ <h2>Alerts &amp; progress</h2>
+ <p>Kodi's yes/no box and progress box (the Fuse dialog with buttons in a side column) become iOS alerts: centred glass card, bold title, short text, capsule buttons side by side, with the main action in blue. The same two templates cover dozens of add-on prompts at once.</p>
+</figcaption>
+</figure>
+
+<figure>
+<div class="phone"><div class="screen">
+ <div class="bgpage">
+  <div class="big-title">Movies</div>
+ </div>
+ <div class="dim" style="background:rgba(0,0,0,.5)"></div>
+ <div style="position:absolute;left:12px;right:12px;bottom:28px;z-index:6">
+  <div class="alert" style="position:static;transform:none;width:auto;text-align:left">
+   <div class="tx" style="text-align:center;padding:16px 18px 10px"><b style="font-size:15px;color:#aeaeb2;font-weight:600">Choose subtitles</b></div>
+   <div class="dev on" style="box-shadow:inset 0 .5px 0 rgba(255,255,255,.1)"><div class="dn"><b>English</b><span>SubRip · OpenSubtitles</span></div><svg class="check"><use href="#tick"/></svg></div>
+   <div class="dev"><div class="dn"><b>English (SDH)</b><span>Embedded</span></div></div>
+   <div class="dev"><div class="dn"><b>Spanish</b><span>Embedded</span></div></div>
+   <div class="dev"><div class="dn"><b>Off</b></div></div>
+  </div>
+  <div class="alert" style="position:static;transform:none;width:auto;margin-top:8px"><div class="bt" style="padding:6px"><span style="background:transparent;font-weight:700;color:var(--blue)">Cancel</span></div></div>
+ </div>
+</div></div>
+<figcaption>
+ <div class="n">11 · PICK ONE</div>
+ <h2>Action sheet</h2>
+ <p>Kodi's pick-one list (used by add-ons for "choose quality", "choose subtitles", "Play on which TV?" and so on), outside the existing "Choose a version" page, becomes an iOS action sheet from the bottom with a check on the current choice and a separate Cancel.</p>
+</figcaption>
+</figure>
+
+</main>
+
+<section class="inv" id="inventory">
+ <h2>All 89 remaining Fuse windows</h2>
+ <p>Every window in the portrait folder that is still Fuse's landscape box shrunk into the middle of the screen, grouped by what happens to it. A: its own page (mockups above). B: covered by one of the shared templates above. C: rarely used on the phone; it stays as it is for now and can get a page later.</p>
+ <div class="inv-grid">
+  <div class="card"><span class="tag a">A · OWN PAGE</span><h4>Mocked up above</h4><p>Each gets a hand-made portrait page.</p>
+   <code>AddonBrowser</code><code>FileManager</code><code>FileBrowser</code><code>EventLog</code><code>SettingsSystemInfo</code><code>SkinSettings</code><code>Custom_1115_Window_Shortcuts</code><code>Custom_1116_Dialog_Shortcuts</code><code>Custom_1124_Dialog_Shortcut_Settings</code><code>DialogAddonInfo</code><code>SettingsProfile</code><code>Umbrella source_progress</code><code>Play on TV (landscape)</code></div>
+  <div class="card"><span class="tag b">B · SHARED TEMPLATES</span><h4>Alert, progress, action sheet, settings list</h4><p>One template restyles all of these.</p>
+   <code>DialogConfirm</code><code>DialogExtendedProgressBar</code><code>DialogBusy</code><code>DialogTextViewer</code><code>DialogNumeric</code><code>DialogKeyboard</code><code>DialogButtonMenu</code><code>DialogSettings</code><code>DialogMediaSource</code><code>DialogSlider</code><code>DialogNotification</code><code>DialogColorPicker</code><code>Custom_1111_Dialog_ColourPicker</code><code>Custom_1117_Dialog_IconSelector</code><code>Custom_1118_Dialog_Settings</code><code>Custom_1119_Dialog_Select</code><code>Custom_1120_Dialog_SelectCrew</code><code>Custom_1122_Dialog_SelectTrailer</code><code>Custom_1125_Dialog_WidgetMode</code><code>Custom_1126_Dialog_FileProperties</code><code>Custom_1128_Dialog_HubType</code><code>Custom_1160_Dialog_Favourites</code><code>Custom_1171_Dialog_Views</code><code>Custom_1172_Dialog_InfoOptions</code><code>Custom_1181_Dialog_Submenu</code><code>Custom_1113_Dialog_Plot</code><code>Custom_1114_Dialog_CustomPlot</code><code>Custom_1127_Dialog_EpisodeRatings</code><code>DialogVideoManager</code><code>DialogPlayerProcessInfo</code><code>SmartPlaylistEditor</code><code>SmartPlaylistRule</code><code>LoginScreen</code><code>Custom_1195_SkinUserLoginScreen</code></div>
+  <div class="card"><span class="tag c">C · LATER</span><h4>Rarely used on the phone</h4><p>Music, pictures, Live TV, games, weather and debug windows. They keep working as they are.</p>
+   <code>MyMusicNav</code><code>MyMusicPlaylistEditor</code><code>MyPlaylist</code><code>MyPics</code><code>MyPrograms</code><code>MyGames</code><code>MyFavourites</code><code>MyWeather</code><code>MyPVRChannels</code><code>MyPVRGuide</code><code>MyPVRRecordings</code><code>MyPVRSearch</code><code>MyPVRTimers</code><code>DialogPVR* (5)</code><code>DialogGameControllers</code><code>DialogMusicInfo</code><code>DialogPictureInfo</code><code>PlayerControls</code><code>Custom_1106–1109 Hubs</code><code>Custom_1161_Dialog_Weather</code><code>Custom_1196_WeatherCards</code><code>Custom_1190_TMDbHelper</code><code>Custom_1123_Dialog_Trailer</code><code>Custom_1180_Dialog_Bumper</code><code>Custom_1192_SeasonalTheme</code><code>Custom_1198_Dialog_Startup</code><code>Custom_1191_Test</code><code>Custom_1194_Debug_Grid</code><code>Custom_1199_Debug_Overlay</code><code>SettingsScreenCalibration</code><code>screensaver-arctic-mirage</code><code>script-* (5)</code></div>
+ </div>
+</section>
+
+<script>
+
+// Inject the shared status bar, Dynamic Island and home indicator into every phone screen.
+const status = `
+<div class="island"></div>
+<div class="status"><span style="display:flex;align-items:center;gap:5px">1:07<svg width="18" height="18"><use href="#mute"/></svg></span>
+<span class="r"><svg width="20" height="13"><use href="#sig"/></svg><svg width="18" height="13"><use href="#wifis"/></svg><span class="batt"><b>34</b><i></i></span></span></div>
+<div class="home-ind"></div>`;
+document.querySelectorAll('.screen:not(.land-screen)').forEach(s => s.insertAdjacentHTML('afterbegin', status));
+
+// Landscape frames are drawn at 880x420 and scaled down to fit narrow screens.
+function fitLandscape(){document.querySelectorAll('.land-wrap').forEach(w=>{const s=Math.min(1,w.clientWidth/880);const inner=w.firstElementChild;inner.style.transform='scale('+s+')';w.style.height=(420*s)+'px'});}
+addEventListener('resize',fitLandscape);fitLandscape();
+</script>
+</body>
+</html>

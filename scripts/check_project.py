@@ -33,7 +33,7 @@ ALLOWED_TOP_LEVEL = {'README.md','ROADMAP.md','.gitignore','migration','docs','s
 ALLOWED_SUFFIXES = {'.md','.json','.py','.xml','.xsp'}
 PORTRAIT_FILES = {'.github/workflows/kodi-ios-portrait.yml','migration/ios-portrait/build-kodi-ios.sh','migration/ios-portrait/kodi-21.3-portrait.patch',
                   '.github/workflows/glassbar-ios.yml','migration/glassbar-ios/build-glassbar.sh',
-                  'docs/design/settings-mockups.html'}   # owner-approved Settings mockups (self-contained page, no images)
+                  'docs/design/settings-mockups.html','docs/design/fuse-pages-mockups.html'}   # owner mockups (self-contained pages, no images)
 
 def files():
     return sorted(p for p in ROOT.rglob('*') if '.git' not in p.relative_to(ROOT).parts and (p.is_file() or p.is_symlink()))
