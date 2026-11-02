@@ -535,3 +535,14 @@ Status: OPEN; needs the build-120 log to confirm.
 - 2 s after the video started (right after the rotation to landscape) `CVideoPlayerAudio::Process - stream stalled`; no audio for 9 s until `audio stream stalled, triggering re-sync` (VideoPlayer flushed and re-seeked). Elementum also asked Kodi to seek to 0 three times at start (`OnPlay. Triggering Seek to 0`).
 - After the two back-10 seeks: `ActiveAE - large audio sync error: 8018` for 3 s, then `CDVDAudio::AddPacketsRenderer - timeout adding data to renderer` ×3; closing the video waited 2.2 s for the audio thread, so the next tap went through to Home and opened another title.
 - Torrent had 4 peer connections (`Con: 0/350 + 4/1200`); the audio sink was reopened from 44.1 kHz float to 48 kHz 16-bit only at the re-sync. Candidates: torrent pieces not arriving (starved demuxer), the audio sink not reconfiguring when playback starts during rotation. Next: compare with a debrid (Umbrella) mkv and a downloaded file from Library (Drive) on build-120.
+
+## ISSUE-064 follow-up 3 — desktop simulation of the controls (2026-11-02 04:10Z)
+- Owner (04:00Z): the stream is fine; pause, AirPlay, subtitles and Continue Watching do not work — "the buttons must not be linked to the player". ISSUE-075 (stream) is the owner's call against; kept only as log evidence.
+- Simulated in a real Kodi (Debian Kodi 20.5 — the phone runs 21.3 — under Xvfb at 2340 x 1080) with Arctic Fuse 3 (current main, dependencies stripped), our generated 1080i VideoOSD.xml / DialogSeekBar.xml, the ios-touch keymap, the bootstrap add-on (service off) and a 5-minute test mkv with an .srt, played from a file and over HTTP. Taps sent as left clicks (what a touch tap becomes through the keymap):
+  - tap on the video → Fullscreen OSD (12901);
+  - play/pause → Player speed 1 → 0 (paused), tap again → 1;
+  - CC → Subtitle OSD settings (10159), subtitle drawn;
+  - Continue Watching → Skin.HasSetting(ios_osd_continue) true, path set, row shown ("Nothing in progress yet": watch add-on not installed in the rig);
+  - AirPlay → "Kodi iOS Play on TV: opened", "Looking for TVs on this Wi-Fi..." progress dialog, then "No TV answered" (no network in the rig).
+- So the controls' XML drives the player in Kodi; what fails on the phone is in the iOS app or its input. The 03:45Z phone log has no tap on play/pause (two taps on back-10, which sought, then the back button). Next: build-120 log with the "Click at" lines for a pause tap, CC, AirPlay, Continue Watching.
+- AirPlay opens our network search first (several seconds), not Apple's AirPlay sheet; offer the owner the iPhone's own AirPlay picker instead.
