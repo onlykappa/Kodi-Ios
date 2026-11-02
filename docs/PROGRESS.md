@@ -2,8 +2,8 @@
 
 Status: IN PROGRESS — owner device testing of iPhone builds
 Current phase: Phase 4 — portrait UI (r11), Elementum, Drive, Play on TV, video controls, notification center; owner tests each IPA on an iPhone 16 Pro
-Last updated UTC: 2026-11-02T07:00Z
-Latest installable IPA: build-111 (commit 03e22c6, Kodi executable r13: tap fix, seek bar, no splash, faster start, Continue Watching reuse, Settings rework, bell-only pop-ups), https://github.com/onlykappa/Kodi-Ios/releases/tag/build-111 — the owner's full review build. Earlier: build-106 (commit 0e89856, Kodi executable r10: pop-ups only in the bell), https://github.com/onlykappa/Kodi-Ios/releases/tag/build-106 . build-104 = r8. Builds 102/103 failed (wrong pin hash). build-101 must NOT be used (r8 Python on r7).
+Last updated UTC: 2026-11-02T07:20Z
+Latest installable IPA: build-122 (commit a9cfd45, Kodi app r19: taps anywhere on the landscape video reach Kodi — play/pause, forward 10, CC, AirPlay), https://github.com/onlykappa/Kodi-Ios/releases/tag/build-122 — sent to the owner for the button test. Earlier: build-120 (r18).
 Branches: main (= feature/ios-migration since DEC-024; PR #1 merged), feature/ios-migration, claude/ios-migration-continue-3jjuif (this session, same commits), hold/ios-next (older mirror at f42dc07), feature/settings-notifications (draft PR #3: plan only).
 
 ## Where things stand (2026-11-01, night)
@@ -42,7 +42,7 @@ Owner review of build-111/112 (23:40Z): video plays; play/pause and ±10 s still
 
 Owner log 03:45Z (pasted in chat; uploader failed, log too big): made by a build before r16, not build-120. The controls did respond (two taps on the drawn back-10 each sought −10 s; the third top-left tap stopped the video). New ISSUE-075: on the Elementum stream audio stalls 9 s after start and for seconds after each seek (large audio sync error, renderer timeouts) — the likely "lag". Exact next step: owner installs build-120 (https://github.com/onlykappa/Kodi-Ios/releases/tag/build-120), turns debug logging off, repeats the button test with an Elementum title and with a debrid/Drive file, sends kodi.log as a file (Files › On My iPhone › Kodi).
 
-Root cause of the dead video buttons (07:00Z, ISSUE-064 follow-up 4): in landscape no tap right of the portrait width (1206 px) reaches Kodi — play/pause, forward 10, CC, AirPlay are all right of it; back and back-10 are left of it. Desktop Kodi simulation with Fuse + our controls: every button drives the player. Fix: Kodi app r19 (hit-test redirect + tap rescue from sendEvent:), published 07:12Z from 747ed40 and pinned (Kodi feb4a645…f7a4). Exact next step: when r19 is published, pin its Kodi hash from the release BODY in source-lock.json executable_release, push (fast-forward) to the three branches, send the owner the IPA built on the pin commit; owner: play/pause, CC, AirPlay, Continue Watching, then kodi.log as a file.
+Root cause of the dead video buttons (07:00Z, ISSUE-064 follow-up 4): in landscape no tap right of the portrait width (1206 px) reaches Kodi — play/pause, forward 10, CC, AirPlay are all right of it; back and back-10 are left of it. Desktop Kodi simulation with Fuse + our controls: every button drives the player. Fix: Kodi app r19 (hit-test redirect + tap rescue from sendEvent:), published 07:12Z from 747ed40 and pinned (Kodi feb4a645…f7a4). Exact next step: when r19 is published, pin its Kodi hash from the release BODY in source-lock.json executable_release, push (fast-forward) to the three branches, DONE 07:18Z: build-122 published from the pin commit a9cfd45 and sent; owner: play/pause, CC, AirPlay, Continue Watching, then kodi.log as a file.
 
 Blockers: device verification needs the owner (review of build-111). Merge to main authorized and done (DEC-024); release and Phase 5 still need the owner's go-ahead.
 
