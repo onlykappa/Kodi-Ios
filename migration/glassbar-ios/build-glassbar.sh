@@ -4,6 +4,8 @@
 # Liquid Glass (UIGlassEffect, iOS 26), with a glass lens that slides to the chosen tab, and the system frosted
 # material on older iOS. The setup add-on loads it with ctypes (resources/lib/glassbar.py): kodi_glassbar_show,
 # kodi_glassbar_select and kodi_glassbar_take_tap. UIGlassEffect is looked up at run time, so any Xcode builds it.
+# r3: the Search page's field as a native iOS search field at the top of the screen (kodi_search_show, _focus, _take,
+# _set): typing happens in iOS's own keyboard while Kodi lists the results under it as you type (searchbar.py).
 # Usage: build-glassbar.sh OUT_DIR
 set -euo pipefail
 [[ "$(uname -s)" == Darwin ]] || { echo 'BLOCKED: macOS with the iPhoneOS SDK is required.' >&2; exit 2; }
@@ -262,6 +264,176 @@ __attribute__((visibility("default"))) void kodi_glassbar_select(int index) {
 __attribute__((visibility("default"))) int kodi_glassbar_take_tap(void) {
     return atomic_exchange(&pendingTap, -1);
 }
+
+// ---- r3: Search page field ----------------------------------------------------------------------------------------
+// A dark band across the top of the screen with a rounded search field (magnifier, clear button) and a round X
+// button, as in the Apple TV app. Python reads what was typed with kodi_search_take() and lists the results below.
+enum { SearchChanged = 1, SearchSubmitted = 2, SearchClosed = 4 };
+static UIView *searchBand;
+static UITextField *searchField;
+static NSString *searchText = @"";
+static atomic_int searchEvents = 0;
+
+@interface KodiSearchHandler : NSObject <UITextFieldDelegate, UIGestureRecognizerDelegate>
+@end
+
+@implementation KodiSearchHandler
+- (void)store:(NSString *)text {
+    @synchronized (KodiSearchHandler.class) { searchText = [text copy] ?: @""; }
+    atomic_fetch_or(&searchEvents, SearchChanged);
+}
+- (void)changed:(UITextField *)field { [self store:field.text]; }
+- (BOOL)textFieldShouldReturn:(UITextField *)field {
+    [field resignFirstResponder];
+    atomic_fetch_or(&searchEvents, SearchSubmitted);
+    return YES;
+}
+- (BOOL)textFieldShouldClear:(UITextField *)field {
+    [self store:@""]; // the clear button sends no editing-changed event
+    return YES;
+}
+- (void)closeTapped {
+    searchField.text = @"";
+    [self store:@""];
+    [searchField resignFirstResponder];
+    atomic_fetch_or(&searchEvents, SearchClosed);
+}
+// Dragging the results lowers the keyboard, as in iOS's own search pages.
+- (void)dragged:(UIPanGestureRecognizer *)pan {
+    if (pan.state == UIGestureRecognizerStateBegan) [searchField resignFirstResponder];
+}
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gesture {
+    return searchField.isFirstResponder && !searchBand.hidden;
+}
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gesture shouldReceiveTouch:(UITouch *)touch {
+    return ![touch.view isDescendantOfView:searchBand];
+}
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gesture shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)other {
+    return YES;
+}
+@end
+
+static KodiSearchHandler *searchHandler;
+
+static UIView *ensureSearch(void) {
+    UIWindow *window = kodiWindow();
+    if (!window) return nil;
+    if (!searchBand) {
+        searchHandler = [KodiSearchHandler new];
+        searchBand = [[UIView alloc] initWithFrame:CGRectZero];
+        searchBand.translatesAutoresizingMaskIntoConstraints = NO;
+        searchBand.backgroundColor = [UIColor colorWithWhite:0.07 alpha:1];
+        searchBand.hidden = YES;
+
+        searchField = [[UITextField alloc] initWithFrame:CGRectZero];
+        searchField.translatesAutoresizingMaskIntoConstraints = NO;
+        searchField.backgroundColor = [UIColor colorWithWhite:0.2 alpha:1];
+        searchField.layer.cornerRadius = 23;
+        searchField.layer.cornerCurve = kCACornerCurveContinuous;
+        searchField.textColor = UIColor.whiteColor;
+        searchField.tintColor = UIColor.systemBlueColor;
+        searchField.font = [UIFont systemFontOfSize:19 weight:UIFontWeightMedium];
+        searchField.attributedPlaceholder = [[NSAttributedString alloc] initWithString:@"Shows, Movies, and More"
+            attributes:@{NSForegroundColorAttributeName: [UIColor colorWithWhite:0.55 alpha:1]}];
+        searchField.returnKeyType = UIReturnKeySearch;
+        searchField.keyboardAppearance = UIKeyboardAppearanceDark;
+        searchField.autocorrectionType = UITextAutocorrectionTypeNo;
+        searchField.autocapitalizationType = UITextAutocapitalizationTypeNone;
+        searchField.clearButtonMode = UITextFieldViewModeWhileEditing;
+        searchField.delegate = searchHandler;
+        [searchField addTarget:searchHandler action:@selector(changed:) forControlEvents:UIControlEventEditingChanged];
+        UIImageSymbolConfiguration *glyph = [UIImageSymbolConfiguration configurationWithPointSize:19 weight:UIImageSymbolWeightBold];
+        UIImageView *magnifier = [[UIImageView alloc] initWithImage:[UIImage systemImageNamed:@"magnifyingglass" withConfiguration:glyph]];
+        magnifier.tintColor = UIColor.whiteColor;
+        magnifier.contentMode = UIViewContentModeCenter;
+        magnifier.frame = CGRectMake(0, 0, 48, 46);
+        searchField.leftView = magnifier;
+        searchField.leftViewMode = UITextFieldViewModeAlways;
+
+        UIButton *close = [UIButton buttonWithType:UIButtonTypeSystem];
+        close.translatesAutoresizingMaskIntoConstraints = NO;
+        [close setImage:[UIImage systemImageNamed:@"xmark" withConfiguration:glyph] forState:UIControlStateNormal];
+        close.tintColor = UIColor.whiteColor;
+        close.backgroundColor = [UIColor colorWithWhite:0.2 alpha:1];
+        close.layer.cornerRadius = 23;
+        [close addTarget:searchHandler action:@selector(closeTapped) forControlEvents:UIControlEventTouchUpInside];
+
+        [searchBand addSubview:searchField];
+        [searchBand addSubview:close];
+        [NSLayoutConstraint activateConstraints:@[
+            [close.trailingAnchor constraintEqualToAnchor:searchBand.safeAreaLayoutGuide.trailingAnchor constant:-16],
+            [close.widthAnchor constraintEqualToConstant:46], [close.heightAnchor constraintEqualToConstant:46],
+            [close.centerYAnchor constraintEqualToAnchor:searchField.centerYAnchor],
+            [searchField.leadingAnchor constraintEqualToAnchor:searchBand.safeAreaLayoutGuide.leadingAnchor constant:16],
+            [searchField.trailingAnchor constraintEqualToAnchor:close.leadingAnchor constant:-10],
+            [searchField.heightAnchor constraintEqualToConstant:46],
+            [searchField.bottomAnchor constraintEqualToAnchor:searchBand.bottomAnchor constant:-10],
+        ]];
+    }
+    if (searchBand.superview != window) {
+        [searchBand removeFromSuperview];
+        [window addSubview:searchBand];
+        [NSLayoutConstraint activateConstraints:@[
+            [searchBand.topAnchor constraintEqualToAnchor:window.topAnchor],
+            [searchBand.leadingAnchor constraintEqualToAnchor:window.leadingAnchor],
+            [searchBand.trailingAnchor constraintEqualToAnchor:window.trailingAnchor],
+            // The band ends 60 pt below the top of the safe area: the Search page starts its results under it.
+            [searchBand.bottomAnchor constraintEqualToAnchor:window.safeAreaLayoutGuide.topAnchor constant:60],
+        ]];
+        UIPanGestureRecognizer *drag = [[UIPanGestureRecognizer alloc] initWithTarget:searchHandler action:@selector(dragged:)];
+        drag.cancelsTouchesInView = NO;
+        drag.delaysTouchesBegan = NO;
+        drag.delaysTouchesEnded = NO;
+        drag.delegate = searchHandler;
+        [window addGestureRecognizer:drag];
+    }
+    [window bringSubviewToFront:searchBand];
+    return searchBand;
+}
+
+// Shows (1) or hides (0) the Search page field; hiding also lowers the keyboard. Any thread.
+__attribute__((visibility("default"))) void kodi_search_show(int visible) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIView *band = ensureSearch();
+        if (!band) return;
+        if (!visible) [searchField resignFirstResponder];
+        band.hidden = !visible;
+        if (visible) [band.window bringSubviewToFront:band];
+    });
+}
+
+// Raises (1) or lowers (0) the keyboard for the field. Any thread.
+__attribute__((visibility("default"))) void kodi_search_focus(int on) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!ensureSearch()) return;
+        if (on && !searchBand.hidden) [searchField becomeFirstResponder];
+        else [searchField resignFirstResponder];
+    });
+}
+
+// Puts text in the field (a search to show again). Any thread.
+__attribute__((visibility("default"))) void kodi_search_set(const char *text) {
+    NSString *value = text ? [NSString stringWithUTF8String:text] : @"";
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (!ensureSearch()) return;
+        searchField.text = value;
+        @synchronized (KodiSearchHandler.class) { searchText = value ?: @""; }
+    });
+}
+
+// What happened since the last call (1 text changed, 2 Search key, 4 X tapped; or-ed) and the field's text as UTF-8
+// in buffer (cut to size - 1 bytes, always terminated). Any thread.
+__attribute__((visibility("default"))) int kodi_search_take(char *buffer, int size) {
+    int events = atomic_exchange(&searchEvents, 0);
+    if (buffer && size > 0) {
+        NSString *text;
+        @synchronized (KodiSearchHandler.class) { text = searchText; }
+        const char *utf8 = text.UTF8String ?: "";
+        strncpy(buffer, utf8, (size_t)size - 1);
+        buffer[size - 1] = 0;
+    }
+    return events;
+}
 OBJC
 FW="$OUT/KodiGlassBar.framework"; rm -rf "$FW"; mkdir -p "$FW"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
@@ -281,6 +453,6 @@ cat > "$FW/Info.plist" <<PLIST
 <key>MinimumOSVersion</key><string>$MIN_IOS</string>
 </dict></plist>
 PLIST
-nm -gU "$FW/KodiGlassBar" | grep -E ' _kodi_glassbar_(show|select|take_tap)$'
+nm -gU "$FW/KodiGlassBar" | grep -E ' _kodi_(glassbar_(show|select|take_tap)|search_(show|focus|set|take))$'
 lipo -info "$FW/KodiGlassBar"
 (cd "$OUT" && zip -qry KodiGlassBar.framework.zip KodiGlassBar.framework && shasum -a 256 KodiGlassBar.framework.zip | tee KodiGlassBar.framework.zip.sha256)

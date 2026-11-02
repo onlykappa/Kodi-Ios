@@ -395,28 +395,57 @@ def library_window(original):
  body='<controls>%s%s%s%s</controls>'%(backdrop(),page_header('Library'),lst,tabbar('library'))
  return window(original,body,'5000')
 
+# r3 glass bar framework: the field is a native iOS search field in a dark band at the top (searchbar.py), and the results
+# of what is typed show in a poster grid under it; Portrait.SearchBar marks a phone that has it.
+SEARCH_NATIVE='String.IsEqual(Window(Home).Property(Portrait.SearchBar),1)'
+SEARCH_PATH='Window(Home).Property(Portrait.Search.Path)'
+SEARCH_BAND=161  # the native band ends 60 pt below the top of the safe area: 60 x 2.687 px per pt
+
 def search_window(original):
- """Search: a search field, then category tiles (Apple TV app)."""
+ """Search: a search field at the top, the results of what is typed in a poster grid under it while typing, the
+ category tiles while the field is empty (Apple TV app)."""
  tile_w,tile_h,gap=308,462,24;cols=3;left=(WIDTH-cols*tile_w-(cols-1)*gap)//2
- field=('<control type="group"><left>%d</left><top>186</top><width>%d</width><height>124</height>'
+ old=('<control type="group"><visible>!%s</visible>'%SEARCH_NATIVE+page_header('Search')+
+  ('<control type="group"><left>%d</left><top>186</top><width>%d</width><height>124</height>'
   '<control type="button" id="5101"><width>%d</width><height>124</height><label></label>'
   '<texturefocus border="62" colordiffuse="FF3A3A3C">%spill_124.png</texturefocus><texturenofocus border="62" colordiffuse="%s">%spill_124.png</texturenofocus>'
   '<onclick>%s</onclick><ondown>5100</ondown></control>%s%s</control>'
-  )%(SIDE,WIDTH-2*SIDE,WIDTH-2*SIDE,MEDIA,SURFACE,MEDIA,e(SEARCH_ACTION),icon(40,38,48,'magnifying-glass.png',GREY),label(110,0,WIDTH-2*SIDE-150,124,'Shows, Movies, and More','p_body',GREY))
+  )%(SIDE,WIDTH-2*SIDE,WIDTH-2*SIDE,MEDIA,SURFACE,MEDIA,e(SEARCH_ACTION),icon(40,38,48,'magnifying-glass.png',GREY),label(110,0,WIDTH-2*SIDE-150,124,'Shows, Movies, and More','p_body',GREY))+
+  '</control>')
  items=''.join('<item><label>%s</label><property name="tile">%stile_%d.png</property>%s</item>'
   %(e(name),MEDIA,gid,clicks(titled_page(name,'%s?info=discover&tmdb_type=tv&with_id=True&with_genres=%d&sort_by=popularity.desc'%(TMDB,gid)))) for name,gid,_,_ in CATEGORIES)
- tile=lambda focused:('<control type="group"><left>0</left><top>0</top>%s'%('<animation effect="zoom" start="100" end="104" time="160" center="auto">Focus</animation>' if focused else '')+
+ zoom=lambda focused:'<animation effect="zoom" start="100" end="104" time="160" center="auto">Focus</animation>' if focused else ''
+ tile=lambda focused:('<control type="group"><left>0</left><top>0</top>%s'%zoom(focused)+
   image(0,0,tile_w,tile_h,'$INFO[ListItem.Property(tile)]',WHITE,diffuse=MEDIA+'poster_mask.png')+
   image(0,tile_h-200,tile_w,200,MEDIA+'fade_up.png','80FFFFFF',diffuse=MEDIA+'poster_mask.png')+
   '<control type="textbox"><left>26</left><top>%d</top><width>%d</width><height>120</height><font>p_tile</font><textcolor>FFFFFFFF</textcolor><label>$INFO[ListItem.Label]</label></control>'%(tile_h-150,tile_w-40)+'</control>')
+ # With the native field the page has no header: the categories move up under the band.
+ up='<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(SEARCH_BAND+40-350,SEARCH_NATIVE)
  panel=('<control type="panel" id="5100"><left>%d</left><top>350</top><width>%d</width><bottom>280</bottom><orientation>vertical</orientation>'
-  '<onup>5101</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
+  '<onup>5101</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>String.IsEmpty(%s)</visible>%s'
   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout><content>%s</content></control>'
-  )%(left,WIDTH-left,tile_w+gap,tile_h+gap,tile(False),tile_w+gap,tile_h+gap,tile(True),items)
+  )%(left,WIDTH-left,SEARCH_PATH,up,tile_w+gap,tile_h+gap,tile(False),tile_w+gap,tile_h+gap,tile(True),items)
+ # Results: posters only (the title shows on a dark card when a result has no poster: people, some new titles).
+ result=lambda focused:('<control type="group"><left>0</left><top>0</top>%s'%zoom(focused)+
+  image(0,0,tile_w,tile_h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
+  '<control type="textbox"><left>24</left><top>24</top><width>%d</width><height>%d</height><font>p_body</font><textcolor>%s</textcolor><align>center</align><label>$INFO[ListItem.Label]</label></control>'%(tile_w-48,tile_h-48,GREY)+
+  image(0,0,tile_w,tile_h,'$INFO[ListItem.Art(poster)]',WHITE,aspect='>scale',diffuse=MEDIA+'poster_mask.png',background=True)+'</control>')
+ top=SEARCH_BAND+30
+ results=('<control type="group"><visible>!String.IsEmpty(%s)</visible>'%SEARCH_PATH+
+  label(SIDE,top,WIDTH-2*SIDE,70,'Results','p_h3',GREY)+
+  ('<control type="panel" id="5200"><left>%d</left><top>%d</top><width>%d</width><bottom>280</bottom><orientation>vertical</orientation>'
+   '<scrolltime tween="cubic" easing="out">300</scrolltime><preloaditems>2</preloaditems>'
+   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
+   '<content target="videos">$INFO[%s]</content></control>'
+   )%(left,top+90,WIDTH-left,tile_w+gap,tile_h+gap,result(False),tile_w+gap,tile_h+gap,result(True),SEARCH_PATH)+
+  label(SIDE,top+90,WIDTH-2*SIDE,120,'No results','p_body',GREY,'center',
+        '<visible>Integer.IsEqual(Container(5200).NumItems,0) + !Container(5200).IsUpdating</visible>')+
+  label(SIDE,top+90,WIDTH-2*SIDE,120,'Searching…','p_body',GREY,'center','<visible>Container(5200).IsUpdating</visible>')+
+  '</control>')
  # Fuse's own search window starts its keyboard and widgets on load; this page does not.
  root=ET.fromstring(original) if original else ET.Element('window')
  bare='<window%s />'%''.join(' %s="%s"'%(k,e(v)) for k,v in root.attrib.items())
- body='<controls>%s%s%s%s<control type="image"><height>2</height><texture /></control>%s</controls>'%(backdrop(),panel,page_header('Search'),field,tabbar('search'))
+ body='<controls>%s%s%s%s<control type="image"><height>2</height><texture /></control>%s</controls>'%(backdrop(),panel,results,old,tabbar('search'))
  return window(bare,body,'5100')
 
 VARIABLES=('<variable name="Portrait_Hero_Art"><value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value>'
@@ -1002,16 +1031,29 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
   import threading,glassbar
   path=glassbar.library_path(xbmcvfs.translatePath('special://xbmc/'))
   if path:
-   bar,poll,close=glassbar.controller(glassbar.load(path),xbmc.getCondVisibility,lambda:bool(is_portrait(xbmc.getInfoLabel)),
+   lib=glassbar.load(path)
+   bar,poll,close=glassbar.controller(lib,xbmc.getCondVisibility,lambda:bool(is_portrait(xbmc.getInfoLabel)),
                                      home.setProperty,lambda action:xbmc.executebuiltin(action))
    always.append(bar)
+   polls=[poll]
+   # r3 framework: the Search page's native search field, results listed as you type (searchbar.py).
+   import searchbar,time
+   if searchbar.bind(lib):
+    find,typed,find_close=searchbar.controller(lib,searchbar.taker(lib),xbmc.getCondVisibility,lambda:bool(is_portrait(xbmc.getInfoLabel)),
+                                               home.setProperty,time.monotonic)
+    home.setProperty('Portrait.SearchBar','1')
+    always.append(find);polls.append(typed)
+    previous_close=close
+    def close():
+     find_close();previous_close()
    def taps():
-    # The tab bar is hidden during video: look for taps twenty times a second only in the menus.
+    # The tab bar and the search field are hidden during video: read them twenty times a second only in the menus.
     playing=False;count=0
     while not monitor.waitForAbort(0.5 if playing else 0.05):
      count+=1
      if playing or count%10==0:playing=bool(video())
-     if not playing:poll()
+     if not playing:
+      for p in polls:p()
    threading.Thread(target=taps,daemon=True).start()
  except Exception as error:xbmc.log('Kodi iOS glass tab bar unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  def ticks():
