@@ -2,7 +2,7 @@
   "framework_release": {
     "tag": "kodi-glassbar-r3",
     "asset": "KodiGlassBar.framework.zip",
-    "sha256": null
+    "sha256": "863dd6efaf28855d8d86c867f7ab0db482ee744e7ac96e9d43d283022472b420"
   },
   "previous": {
     "tag": "kodi-glassbar-r2",
