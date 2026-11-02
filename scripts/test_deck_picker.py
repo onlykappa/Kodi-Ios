@@ -102,6 +102,18 @@ class UmbrellaPage(unittest.TestCase):
    text=path.read_text();compile(text,'source_results.py','exec')
    self.assertEqual(text.count(up.HOOK_MARK),1);self.assertIn('_kpick.run(self.results, self.meta)',text)
    other=Path(tmp)/'other.py';other.write_text('def run():pass\n');self.assertFalse(up.umbrella_hook(str(other)))
+   # A phone with the r1 hook (Umbrella's own list opened after the Deck page) gets the r2 hook in its place.
+   old=Path(tmp)/'r1.py';old.write_text('class W:\n'+up.HOOK_R1+'\t\treturn self.selected\n')
+   self.assertTrue(up.umbrella_hook(str(old)));text=old.read_text()
+   self.assertIn(up.HOOK,text);self.assertNotIn('clearProperties',text);self.assertFalse(up.umbrella_hook(str(old)))
+   # The r2 hook returns the Deck choice without touching Umbrella's (never shown) window.
+   class Win:
+    results=[];meta={};shown=0
+    def doModal(self):Win.shown+=1
+   ns={};exec('import sys,types\nclass W:\n'+up.HOOK.replace('\t\t\timport sys as _ksys, xbmcvfs as _kvfs\n','\t\t\timport sys as _ksys\n').replace("\t\t\t_klib = _kvfs.translatePath('special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib')\n\t\t\tif _klib not in _ksys.path: _ksys.path.insert(0, _klib)\n",''),ns)
+   fake=types.ModuleType('umbrella_picker');fake.run=lambda results,meta:('play_Item','x')
+   with mock.patch.dict(sys.modules,{'umbrella_picker':fake}):
+    w=Win();self.assertEqual(ns['W'].run(w),('play_Item','x'));self.assertEqual(Win.shown,0)
    self.assertFalse(up.umbrella_hook(str(Path(tmp)/'missing.py')))
 
  def test_continue_watching_plays_the_same_version(self):

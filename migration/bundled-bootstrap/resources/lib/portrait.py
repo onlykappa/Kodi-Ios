@@ -28,8 +28,8 @@ NODES='addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-sh
 ICONS='special://skin/extras/icons/'
 MEDIA='special://skin/extras/portrait/'
 DRIVE='ActivateWindow(Videos,plugin://plugin.googledrive/,return)'
-MENU='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/navigation_menu.py)'
-UPDATES='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/check_updates.py)'
+MENU='RunScript(service.kodi.ios.bootstrap,navigation_menu)'
+UPDATES='RunScript(service.kodi.ios.bootstrap,check_updates)'
 # iOS dark palette: system background, grouped surfaces, secondary/tertiary labels.
 BG='FF000000';SURFACE='FF1C1C1E';SURFACE2='FF2C2C2E';WHITE='FFFFFFFF'
 GREY='99EBEBF5';DIM='4DEBEBF5';SEP='33EBEBF5';GREEN='FF30D158'
@@ -191,7 +191,7 @@ def pill_button(id,x,y,w,h,text,actions,style,glyph='',extra='',glyph_x=None):
 
 def circle_button(id,x,y,size,glyph,action,extra=''):return pill_button(id,x,y,size,size,'',[('',action)],'glass',glyph,extra)
 
-NOTICES='RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/notifications.py)'
+NOTICES='RunScript(service.kodi.ios.bootstrap,notifications)'
 def bell(x,y,extra=''):
  """Bell beside the profile circle: red count of unread messages, blue ring while a download runs
  (the bootstrap service keeps Notices.Unread and Notices.Active on the Home window)."""
@@ -420,7 +420,7 @@ VARIABLES=('<variable name="Portrait_Hero_Art"><value condition="!String.IsEmpty
 
 # --- show page (seasons as chips, episodes below), episode lists and plain folders ------------------------
 DL_GAP=20;DL_H=108;DL_SHIFT=DL_GAP+DL_H   # the Download button under Play pushes the seasons page down by this
-DOWNLOAD_SEASON=('RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/download.py,kind=season,'
+DOWNLOAD_SEASON=('RunScript(service.kodi.ios.bootstrap,download,kind=season,'
  'path=$ESCINFO[Container(50).ListItem.FolderPath],season=$INFO[Container(50).ListItem.Season],'
  'tvshow.tmdb_id=$INFO[Container(50).ListItem.Property(tvshow.tmdb_id)])')
 def show_header(ids_down):

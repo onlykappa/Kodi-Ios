@@ -125,8 +125,8 @@ class PortraitTests(unittest.TestCase):
   # close, Play on TV, back 10 / play-pause / forward 10, speed / audio / subtitles, seek, Info, Continue Watching
   self.assertTrue({'7101','7102','7111','7112','7113','7121','7122','7123','7131','7141','7142','7201'}<=ids)
   clicks=[o.text for o in osd.iter('onclick')]
-  for action in ['PlayerControl(Stop)','RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/cast.py)','Seek(-10)','PlayerControl(Play)','Seek(10)',
-                 'RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/speed.py)','ActivateWindow(osdaudiosettings)','ActivateWindow(osdsubtitlesettings)','$VAR[Action_OSD_WikiInfo]']:self.assertIn(action,clicks)
+  for action in ['PlayerControl(Stop)','RunScript(service.kodi.ios.bootstrap,cast)','Seek(-10)','PlayerControl(Play)','Seek(10)',
+                 'RunScript(service.kodi.ios.bootstrap,speed)','ActivateWindow(osdaudiosettings)','ActivateWindow(osdsubtitlesettings)','$VAR[Action_OSD_WikiInfo]']:self.assertIn(action,clicks)
   self.assertNotIn('volume',files['1080i/VideoOSD.xml'].decode().lower())
   self.assertIn('$NUMBER[10]',files['1080i/VideoOSD.xml'].decode())  # a bare 10 is a Kodi string id
   # r3: Fuse's seek bar is replaced. Ours shows only while seeking (never for buffering or the resume jump at the
@@ -143,6 +143,18 @@ class PortraitTests(unittest.TestCase):
   self.assertTrue(files['extras/portrait/airplay.png'].startswith(b'\x89PNG'))
   nav=importlib.util.spec_from_file_location('nav',ROOT/'migration/bundled-bootstrap/resources/lib/navigation.py');n=importlib.util.module_from_spec(nav);nav.loader.exec_module(n)
   self.assertEqual(n.patch_osd(files['1080i/VideoOSD.xml'],'VideoOSD.xml'),files['1080i/VideoOSD.xml'])
+ def test_buttons_run_pages_by_addon_id(self):
+  # "Script invoked without an addon" (ISSUE-071): every RunScript of the setup add-on in the generated files names
+  # the add-on and a page default.py knows, and that page exists.
+  import re
+  spec=importlib.util.spec_from_file_location('boot_default',ROOT/'migration/bundled-bootstrap/default.py');d=importlib.util.module_from_spec(spec);spec.loader.exec_module(d)
+  text=''.join(v.decode('utf-8','replace') for k,v in portrait.portrait_files(self.skin,self.profile).items() if k.endswith('.xml'))
+  pages=set(re.findall(r'RunScript\(service\.kodi\.ios\.bootstrap,([a-z_]+)',text));self.assertTrue({'notifications','cast','speed'}<=pages,pages)
+  for page in pages:
+   self.assertIn(page,d.PAGES);self.assertTrue((ROOT/'migration/bundled-bootstrap'/(page+'.py')).is_file(),page)
+  self.assertNotIn('RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/',text)
+  path,argv=d.target(['default.py','download','kind=season','season=2']);self.assertTrue(path.endswith('download.py'));self.assertEqual(argv[1:],['kind=season','season=2'])
+  path,argv=d.target(['default.py']);self.assertTrue(path.endswith('recover.py'))
  def test_fuse_splash_never_shows(self):
   files=portrait.portrait_files(self.skin,self.profile);splash=ET.fromstring(files['portrait/Custom_1198_Dialog_Startup.xml'])
   self.assertEqual((splash.get('id'),splash.get('type'),splash.find('visible').text),('1198','dialog','false'))

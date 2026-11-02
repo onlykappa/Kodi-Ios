@@ -132,6 +132,40 @@ def elementum_defaults(downloads,get_setting,set_setting):
  if current and not current.endswith('/Documents/Elementum Downloads'):return None
  Path(downloads).mkdir(parents=True,exist_ok=True);set_setting('download_path',str(downloads).rstrip('/')+'/');return str(downloads)
 
+def phone_housekeeping(profile,elementum_setting=None,api=None):
+ """Once per phone (owner's logs, ISSUE-070): errors Kodi logged at every start, each harmless but each costing time.
+ - sources.xml and a home row from the Deck point at special://profile/media/... folders that do not exist here:
+   create them (empty), so the row loads without "GetDirectory - Error getting ...".
+ - TMDb Helper looks for players in addon_data/.../reconfigured_players: create it.
+ - Elementum's UPnP / NAT-PMP / local service discovery fail on a phone ("no router found", "Can't assign requested
+   address") and keep the radio busy: off.
+ - Kodi's Bonjour announcing is refused by iOS for this app (CFNetServiceRegister -72008): off.
+ Done once (marker), so a setting the owner turns back on stays on. Returns what was done."""
+ profile=Path(profile);marker=profile/'addon_data'/ID/'housekeeping.json'
+ try:done=set(json.loads(marker.read_text()).get('done',[]))
+ except (OSError,ValueError,AttributeError):done=set()
+ now=[]
+ sources=profile/'sources.xml'
+ if 'media_folders' not in done:
+  try:
+   for path in re.findall(r'<path[^>]*>\s*special://profile/(media/[^<]+?)/?\s*</path>',sources.read_text(encoding='utf-8')):
+    folder=profile/path
+    if '..' not in Path(path).parts and not folder.exists():folder.mkdir(parents=True,exist_ok=True)
+  except OSError:pass
+  now.append('media_folders')
+ if 'tmdbhelper_players' not in done:
+  (profile/'addon_data/plugin.video.themoviedb.helper/reconfigured_players').mkdir(parents=True,exist_ok=True);now.append('tmdbhelper_players')
+ if 'elementum_network' not in done and elementum_setting:
+  get,put=elementum_setting
+  for key in ('disable_upnp','disable_natpmp','disable_lsd'):
+   if get(key)!='true':put(key,'true')
+  now.append('elementum_network')
+ if 'zeroconf' not in done and api:
+  if 'error' not in api('Settings.SetSettingValue',{'setting':'services.zeroconf','value':False}):now.append('zeroconf')
+ if now:
+  marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(json.dumps({'done':sorted(done|set(now))})+'\n')
+ return now
+
 def ensure_enabled(seed,profile,api):
  """After an app update: switch on bundled add-ons that are still off, such as dependencies a newer build added.
  Only for a completed setup, so a recovered (Estuary) profile stays as the owner left it."""

@@ -11,8 +11,8 @@ MARKER='Kodi-iOS player controls r3'
 ICONS='special://skin/extras/icons/'
 MEDIA='special://skin/extras/portrait/'
 BOOT='special://xbmc/addons/service.kodi.ios.bootstrap/'
-CAST='RunScript(%scast.py)'%BOOT
-SPEED='RunScript(%sspeed.py)'%BOOT
+CAST='RunScript(service.kodi.ios.bootstrap,cast)'
+SPEED='RunScript(service.kodi.ios.bootstrap,speed)'
 CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type=all'
 INFO='$VAR[Action_OSD_WikiInfo]'
 # The row's list is only fetched once Continue Watching is tapped (its path is empty until then), so opening the

@@ -253,6 +253,35 @@ ELEMENTUM_PATCHES=[('resources/site-packages/elementum/daemon.py',b'def get_elem
  # The Deck's "Choose a version" page (migration/deck-picker) sits in front of Elementum's link dialog, as on the Deck.
  ('resources/site-packages/elementum/rpc.py',b'        title_encoded = "%s %s" % (getLocalizedLabel(title), toUtf8(subject))\n\n        # For Kodi <= 16\n',
   b'        title_encoded = "%s %s" % (getLocalizedLabel(title), toUtf8(subject))\n        try:  # DECK-ELEMENTUM\n            from elementum import deck_picker\n            _deck_choice = deck_picker.run(title_encoded, items)\n            if _deck_choice is not None:\n                return _deck_choice\n        except Exception:\n            pass\n\n        # For Kodi <= 16\n'),
+ # iOS closes the app's listening sockets while it is in the background: Elementum's RPC server thread then died on
+ # "[Errno 9] Bad file descriptor" (owner's log, ISSUE-068) and Elementum could no longer show its dialogs until Kodi
+ # restarted. Serve again with a new server until Kodi exits (Kodi's own JSON-RPC server already does this).
+ ('resources/site-packages/elementum/rpc.py',b"""def server_thread():
+    try:
+        bjsonrpc.bjsonrpc_options['threaded'] = True
+        s = bjsonrpc.createserver(host="0.0.0.0", port=JSONRPC_EXT_PORT, handler_factory=ElementumRPCServer)
+        log.info("elementum: starting jsonrpc service")
+        s.serve()
+        log.info("elementum: exiting jsonrpc service")
+    except Exception:
+        import traceback
+        map(log.error, traceback.format_exc().split("\\n"))
+        raise
+""",b"""def server_thread():
+    # KODI-IOS: serve again after iOS closed the socket in the background (Errno 9), until Kodi exits.
+    monitor = xbmc.Monitor()
+    while not monitor.abortRequested():
+        try:
+            bjsonrpc.bjsonrpc_options['threaded'] = True
+            s = bjsonrpc.createserver(host="0.0.0.0", port=JSONRPC_EXT_PORT, handler_factory=ElementumRPCServer)
+            log.info("elementum: starting jsonrpc service")
+            s.serve()
+            log.info("elementum: exiting jsonrpc service")
+        except Exception as e:
+            log.info("elementum: jsonrpc service stopped (%s), starting it again" % e)
+        if monitor.waitForAbort(1):
+            break
+"""),
  # The engine thread only starts where Elementum can fork; on iOS it runs in-process (library mode) instead.
  ('resources/site-packages/elementum/service.py',b'    if not ONLY_CLIENT and PLATFORM["fork"]:',b'    if not ONLY_CLIENT and (PLATFORM["fork"] or PLATFORM.get("os") == "ios"):'),
  ('resources/site-packages/elementum/osarch.py',b'    if global_platform:\n',b'    if xbmc.getCondVisibility("System.Platform.IOS"):\n        ret.update(os="ios", arch="arm64", fork=False)\n        return ret\n\n    if global_platform:\n')]

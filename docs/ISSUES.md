@@ -483,3 +483,30 @@ Status: FIXED IN PATCH (Kodi app r15, building); device test pending.
 - Root cause (from the code): since r11 every rotation called `[m_glView setScreen:… withFrameBufferResize:YES]` on UIKit's main thread. `resizeFrameBuffer` compares the framebuffer size in pixels with the view size in points, so it always asks for a resize, and `layoutSubviews` then deleted and recreated the framebuffer on the main thread, making Kodi's EAGL context current there while the render thread was drawing with it. Two threads using one GL context: the next draw crashes in the driver. Video start is a rotation, hence "crashes when I play a video", not every time.
 - Fix (r15): `-[IOSEAGLView recreateFramebuffer]` rebuilds the framebuffer on the calling thread; `ApplyRotatedScreen`, which already runs on Kodi's application thread (the render thread), calls it first; the main thread only sets frames and the content scale (`withFrameBufferResize:NO`).
 - Not addressed yet: the slow exit (a Python service add-on not stopping when Kodi closes).
+
+## ISSUE-064 follow-up — owner debug log (2026-11-01 16:00 local, build-111/112, kept outside Git)
+- The OSD buttons work: the tap on back-10 (891 x 551 px) was followed at once by `demuxer seek to: -4382.77`. The seek failed because the stream was a raw Blu-ray `00030.m2ts` of about 72 GB from a debrid host: no index, so the file cache jumped to byte 4 and then to the end of the file ("seek failed or hit end of stream"), with "stream stalled" / caching meanwhile. Neither control tap was on play/pause (both at 891 px = back-10; play/pause is the centre, about 1311 px). Open: a screenshot of the controls to confirm the drawn positions match; raw .m2ts / BDMV sources are a poor fit for phone streaming (follow-up: rank them last on the version page).
+
+## ISSUE-068 — Elementum stopped answering after the app was in the background
+Status: FIXED IN BUILD SCRIPT; device test pending.
+- Log: `JSONRPC Server: Accept of new connection failed: 9` (Kodi, recovers by itself) and an Elementum traceback `server_thread … accept() … OSError: [Errno 9] Bad file descriptor` at the same moment: iOS closed the listening sockets while the app was suspended; Elementum's RPC thread died, so its dialogs (including Choose a version) could not open again until Kodi restarted.
+- Fix: scripts/build_customized_ipa.py patches elementum/rpc.py `server_thread` to make a new server and serve again until Kodi exits (checked against the pinned 0.1.114 client: all Elementum patches apply and compile).
+
+## ISSUE-069 — Umbrella showed its own source list after the Choose a version page
+Status: FIXED ON HOST; device test pending.
+- Debug log: after the Deck page closed, `EXCEPTION: Window id does not exist`, then Umbrella's own source window opened and the owner picked a second time. The r1 hook called `self.clearProperties()` on Umbrella's never-shown window; the exception fell through to `self.doModal()`.
+- Fix: hook r2 returns the Deck choice without touching Umbrella's window; phones with the r1 hook get it replaced in place at the next start. Test: test_deck_picker (r1 → r2 upgrade, Umbrella window never shown).
+
+## ISSUE-070 — Errors logged at every start (missing folders, network discovery)
+Status: FIXED ON HOST (once per phone); device test pending.
+- `GetDirectory - Error getting special://profile/media/local_media_root_04/` (a Deck source and home row pointing at a folder that does not exist here), TMDb Helper's missing `reconfigured_players`, Elementum `lsd_error_alert` / `portmap_error_alert: no router found` / NAT mapping time-outs, and Kodi `CZeroconfDarwin … -72008` (Bonjour publishing refused by iOS).
+- Fix: `bootstrap.phone_housekeeping`, once per phone (marker): creates the media folders named in sources.xml and TMDb Helper's players folder, turns Elementum's UPnP / NAT-PMP / LSD off and Kodi's zeroconf off. A setting the owner turns back on stays on. Test: test_updates_calibration.
+- Left as is (upstream, harmless): Fuse's AddonBrowser uses an undefined include `Settings_InfoText` ("unsupported control type 7"); `skinvariables-…-standard-onunload` includes missing for hubs without generated widget rows; "startup.xml taints init process"; "Could not parse type Setting.Details.SettingList"; Umbrella's player monitor asking the time after a stop.
+
+## ISSUE-071 — "Script invoked without an addon" when opening the bell, Accounts, Play on TV, speed
+Status: FIXED ON HOST; device test pending.
+- The phone's buttons ran their scripts by file path, so Kodi could not tell the add-on and put every installed add-on's modules on the Python path first (slower to open). The setup add-on's script entry is now default.py, a dispatcher: `RunScript(service.kodi.ios.bootstrap,<page>[,args])`; without a page it is still recovery. The generated skin files use it; menu entries already saved by navigation keep the old (working) form. Test: test_portrait (every RunScript names a page default.py knows, and the page exists).
+
+## ISSUE-072 — Custom windows parsed twice at every start
+Status: FIXED IN PATCH (Kodi app r16, building); device test pending.
+- ~40 × `No id specified or id already in use for custom window in Custom_*.xml`: LoadCustomWindows reads the portrait folder then 1080i and parsed every 1080i copy in full before refusing it. r16 skips a file name already loaded from an earlier folder before reading it (same windows result, no second parse).

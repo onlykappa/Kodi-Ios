@@ -1,7 +1,7 @@
 import json,os,sys,time
 from pathlib import Path
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
-from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,follow_container,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only
+from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,follow_container,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
 import airplay,calibration,driveupload,notices,updates,threading,portrait
@@ -81,6 +81,12 @@ def run():
     folder=elementum_defaults(updates.updates_folder(home).with_name('Elementum Downloads'),engine.getSetting,engine.setSetting)
     if folder:xbmc.log('Kodi iOS setup set Elementum downloads to '+folder,xbmc.LOGINFO)
    except Exception as error:xbmc.log('Kodi iOS Elementum defaults skipped: '+type(error).__name__,xbmc.LOGWARNING)
+  # Once per phone: folders the Deck config expects, phone-useless network discovery off (ISSUE-070).
+  try:
+   engine=xbmcaddon.Addon('plugin.video.elementum') if xbmc.getCondVisibility('System.HasAddon(plugin.video.elementum)') else None
+   done=phone_housekeeping(profile,(engine.getSetting,engine.setSetting) if engine else None,api)
+   if done:xbmc.log('Kodi iOS setup housekeeping: '+', '.join(done),xbmc.LOGINFO)
+  except Exception as error:xbmc.log('Kodi iOS housekeeping skipped: '+type(error).__name__,xbmc.LOGWARNING)
   # Elementum videos you choose to keep land in Files › On My iPhone › Kodi › Kodi Downloads › Movies / TV Shows.
   # Umbrella only streams.
   try:

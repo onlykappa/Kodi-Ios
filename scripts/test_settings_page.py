@@ -71,7 +71,7 @@ class SettingsPages(unittest.TestCase):
    self.assertEqual(self.clicks(root,id),[action])
  def test_profile_card_opens_accounts_script_that_exists(self):
   action=self.clicks(self.read('Settings.xml'),9101)[0]
-  self.assertEqual(action,'RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/accounts_page.py)')
+  self.assertEqual(action,'RunScript(service.kodi.ios.bootstrap,accounts_page)')
   self.assertTrue((BOOT/'accounts_page.py').is_file())
  def test_customisation_page_uses_fuse_actions(self):
   root=self.read('Settings.xml')

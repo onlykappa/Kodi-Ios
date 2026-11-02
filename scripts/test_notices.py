@@ -78,7 +78,7 @@ class PageTests(unittest.TestCase):
   props,shown=page.message_properties(items,'downloads',now=60);self.assertEqual(props['msg.1.title'],'D');self.assertEqual(props['msg.1.unread'],'')
  def test_bell_in_hub_and_page_headers(self):
   for xml in (portrait.page_header('Library'),):
-   self.assertIn('id="9207"',xml);self.assertIn('notifications.py',xml)
+   self.assertIn('id="9207"',xml);self.assertIn('RunScript(service.kodi.ios.bootstrap,notifications)',xml)
   self.assertIn('ring.png',portrait.textures())
  def test_service_starts_publisher(self):
   tree=ast.parse((BOOT/'service.py').read_text(encoding='utf-8'))

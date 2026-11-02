@@ -93,7 +93,10 @@ def run(results,meta,deck=None,make_item=None):
 # ---- the lines added to Umbrella ------------------------------------------------------------------------------
 HOOK_MARK='# KODI-IOS-DECK-PICKER'
 ANCHOR='\tdef run(self):\n\t\tself.doModal()\n'
-HOOK=('\tdef run(self):\n'
+# r1 (builds up to 111) called self.clearProperties() before returning: Umbrella's window had never been shown, so
+# that raised "Window id does not exist", the except fell through to self.doModal(), and Umbrella's own list
+# opened after the owner had already picked on the Deck page (owner's debug log, ISSUE-069).
+HOOK_R1=('\tdef run(self):\n'
       '\t\ttry:  '+HOOK_MARK+': the Deck\'s "Choose a version" page first (service.kodi.ios.bootstrap)\n'
       '\t\t\timport sys as _ksys, xbmcvfs as _kvfs\n'
       '\t\t\t_klib = _kvfs.translatePath(\'special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib\')\n'
@@ -106,11 +109,28 @@ HOOK=('\tdef run(self):\n'
       '\t\texcept Exception:\n'
       '\t\t\tpass\n'
       '\t\tself.doModal()\n')
+HOOK=('\tdef run(self):\n'
+      '\t\t_kdeck = None\n'
+      '\t\ttry:  '+HOOK_MARK+' r2: the Deck\'s "Choose a version" page first (service.kodi.ios.bootstrap)\n'
+      '\t\t\timport sys as _ksys, xbmcvfs as _kvfs\n'
+      '\t\t\t_klib = _kvfs.translatePath(\'special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib\')\n'
+      '\t\t\tif _klib not in _ksys.path: _ksys.path.insert(0, _klib)\n'
+      '\t\t\timport umbrella_picker as _kpick\n'
+      '\t\t\t_kdeck = _kpick.run(self.results, self.meta)\n'
+      '\t\texcept Exception:\n'
+      '\t\t\t_kdeck = None\n'
+      '\t\tif _kdeck is not None:\n'
+      '\t\t\treturn _kdeck\n'
+      '\t\tself.doModal()\n')
 
 def umbrella_hook(path):
- """Add the hook to Umbrella's source window (again after an Umbrella update). Returns True if the file changed."""
+ """Add the hook to Umbrella's source window (again after an Umbrella update), or replace the r1 hook. Returns True
+ if the file changed."""
  if not os.path.isfile(path):return False
  with open(path,encoding='utf-8') as f:text=f.read()
- if HOOK_MARK in text or text.count(ANCHOR)!=1:return False
- with open(path,'w',encoding='utf-8') as f:f.write(text.replace(ANCHOR,HOOK))
+ if HOOK in text:return False
+ if HOOK_R1 in text:new=text.replace(HOOK_R1,HOOK)
+ elif HOOK_MARK in text or text.count(ANCHOR)!=1:return False
+ else:new=text.replace(ANCHOR,HOOK)
+ with open(path,'w',encoding='utf-8') as f:f.write(new)
  return True

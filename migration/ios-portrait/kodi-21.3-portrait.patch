@@ -137,6 +137,49 @@ index 84f28b0..4504250 100644
  
  # configuration settings
  CONFIGURE=cp -f $(CONFIG_SUB) $(CONFIG_GUESS) .; \
+diff --git a/xbmc/application/ApplicationSkinHandling.cpp b/xbmc/application/ApplicationSkinHandling.cpp
+index bf73f14..4a017af 100644
+--- a/xbmc/application/ApplicationSkinHandling.cpp
++++ b/xbmc/application/ApplicationSkinHandling.cpp
+@@ -45,6 +45,8 @@
+ #include "utils/log.h"
+ #include "video/dialogs/GUIDialogFullScreenInfo.h"
+ 
++#include <set>
++
+ using namespace KODI::MESSAGING;
+ 
+ CApplicationSkinHandling::CApplicationSkinHandling(IMsgTargetCallback* msgCb,
+@@ -259,6 +261,10 @@ bool CApplicationSkinHandling::LoadCustomWindows()
+   // Start from wherever home.xml is
+   std::vector<std::string> vecSkinPath;
+   g_SkinInfo->GetSkinPaths(vecSkinPath);
++  // Kodi-iOS r15: the portrait folder comes first and holds a copy of most Custom_*.xml windows; the same file in
++  // 1080i was then parsed in full only to be refused ("id already in use", 40 errors and parses at every start).
++  // A file name already loaded from an earlier folder is skipped before it is read.
++  std::set<std::string> loadedFiles;
+ 
+   for (const auto& skinPath : vecSkinPath)
+   {
+@@ -275,6 +281,10 @@ bool CApplicationSkinHandling::LoadCustomWindows()
+         std::string skinFile = URIUtils::GetFileName(item->GetPath());
+         if (StringUtils::StartsWithNoCase(skinFile, "custom"))
+         {
++          std::string fileKey = skinFile;
++          StringUtils::ToLower(fileKey);
++          if (loadedFiles.count(fileKey))
++            continue;
+           CXBMCTinyXML xmlDoc;
+           if (!xmlDoc.LoadFile(item->GetPath()))
+           {
+@@ -323,6 +333,7 @@ bool CApplicationSkinHandling::LoadCustomWindows()
+                       skinFile);
+             continue;
+           }
++          loadedFiles.insert(fileKey);
+ 
+           CGUIWindow* pWindow = nullptr;
+           bool hasVisibleCondition = false;
 diff --git a/xbmc/dialogs/GUIDialogKaiToast.cpp b/xbmc/dialogs/GUIDialogKaiToast.cpp
 index 2f8ca00..af8137b 100644
 --- a/xbmc/dialogs/GUIDialogKaiToast.cpp

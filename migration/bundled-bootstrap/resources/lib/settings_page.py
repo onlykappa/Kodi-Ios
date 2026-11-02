@@ -13,7 +13,7 @@ _spec=_iu.spec_from_file_location('accounts',os.path.join(os.path.dirname(os.pat
 accounts=_iu.module_from_spec(_spec);_spec.loader.exec_module(accounts)
 
 BOOT='special://xbmc/addons/service.kodi.ios.bootstrap/'
-ACCOUNTS='RunScript(%saccounts_page.py)'%BOOT
+ACCOUNTS='RunScript(service.kodi.ios.bootstrap,accounts_page)'
 WINDOW='10004'
 PAGE='Window(%s).Property(Settings.Page)'%WINDOW
 ON_ROOT='String.IsEmpty(%s)'%PAGE

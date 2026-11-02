@@ -70,7 +70,7 @@ def run(check_only=False):
   return None
  if check_only:
   import notices
-  notices.note('update',update['name']+' is available','Tap to update','RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/check_updates.py)')
+  notices.note('update',update['name']+' is available','Tap to update','RunScript(service.kodi.ios.bootstrap,check_updates)')
   return update   # the bell shows it (no pop-up: owner choice)
  asset=update['asset'];size=int(asset.get('size') or 0)
  if not xbmcgui.Dialog().yesno('Update available','%s\n%.0f MB. Download it to the Files app now?'%(update['name'],size/1e6)):return None

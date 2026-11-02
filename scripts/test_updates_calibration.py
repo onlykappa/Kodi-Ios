@@ -280,4 +280,20 @@ class Elementum(unittest.TestCase):
    self.assertEqual((out/'framework.zip').read_bytes(),framework);self.assertEqual((out/'burst.zip').read_bytes(),burst)
    self.assertEqual((out/'extras-app/script.module.a.zip').read_bytes(),b'app');self.assertEqual((out/'extras-profile/script.module.b.zip').read_bytes(),b'profile')
    with self.assertRaises(AssertionError):f.run(Path(t)/'bad',pinned,lambda url:b'tampered',modules,{'tag':'x','asset':'y','sha256':None})
+ def test_phone_housekeeping_once(self):
+  import tempfile
+  with tempfile.TemporaryDirectory() as tmp:
+   profile=Path(tmp);(profile/'sources.xml').write_text('<sources><video><source><name>Local</name><path pathversion="1">special://profile/media/local_media_root_04/</path></source>'
+    '<source><name>Bad</name><path pathversion="1">special://profile/media/../escape/</path></source></video></sources>')
+   settings={'disable_upnp':'false'};calls=[]
+   api=lambda method,params:calls.append((method,params)) or {'result':'OK'}
+   done=bootstrap.phone_housekeeping(profile,(lambda k:settings.get(k,''),settings.__setitem__),api)
+   self.assertEqual(sorted(done),['elementum_network','media_folders','tmdbhelper_players','zeroconf'])
+   self.assertTrue((profile/'media/local_media_root_04').is_dir());self.assertFalse((profile/'escape').exists())
+   self.assertTrue((profile/'addon_data/plugin.video.themoviedb.helper/reconfigured_players').is_dir())
+   self.assertEqual([settings[k] for k in ('disable_upnp','disable_natpmp','disable_lsd')],['true']*3)
+   self.assertEqual(calls,[('Settings.SetSettingValue',{'setting':'services.zeroconf','value':False})])
+   # Once: the owner turning UPnP back on is left alone.
+   settings['disable_upnp']='false';self.assertEqual(bootstrap.phone_housekeeping(profile,(lambda k:settings.get(k,''),settings.__setitem__),api),[])
+   self.assertEqual(settings['disable_upnp'],'false');self.assertEqual(len(calls),1)
 if __name__=='__main__':unittest.main()
