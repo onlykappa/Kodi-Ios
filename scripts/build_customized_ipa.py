@@ -174,6 +174,13 @@ ELEMENTUM_IOS=b'''def ios_engine():
             except Exception:
                 pass
         xbmc.executebuiltin("Notification(Elementum,Engine stopped Kodi last time - not started,10000)")
+        # Performance pass: skip this one start only. The marker used to stay, so the engine stayed off at every
+        # later start until "Retry Elementum engine" (the owner's log: iOS ending the app twice while the engine was
+        # starting left Elementum off; playing and downloading with it then did nothing).
+        try:
+            os.remove(os.path.join(custom_path, "engine-starting"))
+        except OSError:
+            pass
         return False, False
     if not os.path.isfile(os.path.join(framework, "elementum")):
         log.error("Elementum engine not found at %s" % framework)

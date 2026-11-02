@@ -1,8 +1,53 @@
 import json,tempfile,unittest,xml.etree.ElementTree as ET
 from pathlib import Path
 import zipfile
-from build_customized_ipa import prepare,patch_drive,DRIVE_PATCHES,DRIVE_COMMON,BOOT,ELEMENTUM,BURST,ELEMENTUM_PATCHES
+from build_customized_ipa import prepare,patch_drive,DRIVE_PATCHES,DRIVE_COMMON,BOOT,ELEMENTUM,BURST,ELEMENTUM_PATCHES,ELEMENTUM_IOS
 from test_import_profile import make_bundle
+class EngineGuardTests(unittest.TestCase):
+ """The patched Elementum start (ELEMENTUM_IOS) run with stand-ins for Kodi."""
+ def env(self,tmp):
+  import os,types
+  notes=[]
+  ns={'os':os,'time':__import__('time'),'threading':__import__('threading'),'binary_platform':{},
+      'translatePath':lambda p:str(tmp/'Kodi.app/AppData/AppHome')+'/','get_addon_profile_dir':lambda:str(tmp/'profile'),
+      'ADDON':types.SimpleNamespace(getSetting=lambda k:'',setSetting=lambda k,v:None),
+      'log':types.SimpleNamespace(error=notes.append,info=notes.append),
+      'xbmc':types.SimpleNamespace(executebuiltin=notes.append)}
+  exec(ELEMENTUM_IOS.decode(),ns)
+  (tmp/'Kodi.app/Frameworks/elementum.framework').mkdir(parents=True);(tmp/'Kodi.app/Frameworks/elementum.framework/elementum').write_bytes(b'x')
+  (tmp/'profile').mkdir()
+  return ns,notes
+ def test_a_skipped_engine_starts_again_next_time(self):
+  # Owner log: after two starts that never reached the engine, Elementum stayed off at every later start.
+  with tempfile.TemporaryDirectory() as t:
+   tmp=Path(t);ns,notes=self.env(tmp);marker=tmp/'profile/engine-starting'
+   marker.write_text('2')
+   self.assertEqual(ns['ios_engine'](),(False,False))
+   self.assertFalse(marker.exists())
+   self.assertTrue(any('not started' in str(n) for n in notes))
+   framework,binary=ns['ios_engine']()
+   self.assertTrue(str(binary).endswith('elementum.framework/elementum'))
+ def test_elementum_folders_follow_a_reinstalled_app(self):
+  # (Moved from the bootstrap service, which did this a second time at every start.)
+  with tempfile.TemporaryDirectory() as t:
+   tmp=Path(t);ns,_=self.env(tmp)
+   old='/private/var/mobile/Containers/Data/Application/3C035651-951A-4CE8-826D-3F157EF3E5AC/Documents/'
+   new='/private/var/mobile/Containers/Data/Application/59AA78BE-C5DC-4512-9C33-1D2B3C4D5E6F/Documents/'
+   settings={'download_path':old+'Elementum Downloads/','completed_movies_path':old+'Kodi Downloads/Movies/','torrents_path':'/somewhere/else/'}
+   made=[]
+   ns['ADDON'].getSetting=lambda k:settings.get(k,'');ns['ADDON'].setSetting=settings.__setitem__
+   ns['translatePath']=lambda p:new+'Kodi/'
+   ns['os'].makedirs,real=(lambda path,exist_ok=False:made.append(path)),ns['os'].makedirs
+   try:ns['ios_follow_container']()
+   finally:ns['os'].makedirs=real
+   self.assertEqual(settings['download_path'],new+'Elementum Downloads/')
+   self.assertEqual(settings['completed_movies_path'],new+'Kodi Downloads/Movies/')
+   self.assertEqual(settings['torrents_path'],'/somewhere/else/')
+ def test_one_failed_start_is_retried(self):
+  with tempfile.TemporaryDirectory() as t:
+   tmp=Path(t);ns,_=self.env(tmp);(tmp/'profile/engine-starting').write_text('1')
+   self.assertTrue(str(ns['ios_engine']()[1]).endswith('elementum'))
+
 class BundleTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name);self.app=self.root/'original/Kodi.app';base=self.app/'AppData/AppHome';(base/'system').mkdir(parents=True);(base/'addons').mkdir();(base/'system/addon-manifest.xml').write_text('<addons><addon>xbmc.python</addon></addons>');self.bundle=self.root/'bundle.zip';self.sha=make_bundle(self.bundle)

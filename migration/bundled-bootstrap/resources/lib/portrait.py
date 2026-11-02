@@ -50,10 +50,21 @@ CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type='
 TAB_PROPERTY='Portrait.Tab'
 HUB_TABS=('home','movies','tv')
 HUB_OFFSET={'home':0,'movies':10000,'tv':20000}
+# Lazy hubs (performance pass): the three hubs share Home.xml, and every row used to load at each start (36 add-on
+# runs at once on the phone, the hero waiting behind them on "Loading..."). Now Home's hero and first rows load at
+# once and its lower rows two seconds later; Movies and TV load on their first visit and then stay loaded.
+LOAD='Portrait.Load.'   # Window(Home).Property(Portrait.Load.<tab>[.more])
+EAGER_ROWS=3            # rows (after the hero) that load with their hub; the rest follow two seconds later
+def load_flag(tab,more=False):return 'Window(Home).Property(%s%s%s)'%(LOAD,tab,'.more' if more else '')
+def first_visit(key):
+ """[(condition, builtin)] marking a hub loaded (its lower rows two seconds later); run on the hub's first visit."""
+ more=('String.IsEmpty(%s)'%load_flag(key,True),'AlarmClock(portraitmore%s,SetProperty(%s%s.more,1,home),00:02,silent)'%(key,LOAD,key))
+ if key=='home':return [more]
+ return [more,('','SetProperty(%s%s,1,home)'%(LOAD,key))]
 def tab_actions(key):
  """[(condition, builtin)] for one tab: hubs set the property (and come back to Home), the others open their window."""
  if key in HUB_TABS:
-  return [('','ClearProperty(%s,home)'%TAB_PROPERTY if key=='home' else 'SetProperty(%s,%s,home)'%(TAB_PROPERTY,key)),
+  return ([] if key=='home' else first_visit(key))+[('','ClearProperty(%s,home)'%TAB_PROPERTY if key=='home' else 'SetProperty(%s,%s,home)'%(TAB_PROPERTY,key)),
           ('!Window.IsActive(home)','ReplaceWindow(Home)'),('','SetFocus(%d)'%(4000+HUB_OFFSET[key]))]
  return [('','ReplaceWindow(%s)'%{'library':1103,'search':1105}[key])]
 def tab_visible(key):
@@ -85,7 +96,7 @@ MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
       ('Favourites','star.png','FFFF9F0A','ActivateWindow(1160)'),
       ('File manager','clapperboard.png','FF5E5CE6','ActivateWindow(filemanager)'),
       ('iPhone navigation / recovery','life-ring.png','FFFF453A',MENU)]
-HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{SEARCH_FILE,'Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml'}|pages.HANDMADE
+HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml'}|pages.HANDMADE
 # Never shrunk: playback stays landscape, and these are not windows.
 SKIP_WRAP={'VideoFullScreen.xml','VideoOSD.xml','MusicVisualisation.xml','SlideShow.xml','Pointer.xml'}
 # Shown only over landscape playback: no portrait copy, so Kodi always loads them from 1080i with landscape
@@ -219,9 +230,33 @@ def window(original,body,default,extra_root=''):
  keep=''.join(ET.tostring(node,encoding='unicode') for node in root if node.tag in ('onload','onunload','include','param','zorder','depth','menucontrol','views','animation') and not (node.tag=='include' and 'View_' in (node.text or '')))
  return '<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window%s><defaultcontrol always="true">%s</defaultcontrol>%s%s%s</window>\n'%(MARKER,attrs,default,keep,extra_root,body)
 
+# Onload actions of Fuse's Home that only served Fuse's own layout, run at every Home open (each switch back from
+# Library or Search too): its splash script (a Python run; Fuse's splash is never shown here, ISSUE-065), the
+# first-start focus helper and the ratings monitor.
+FUSE_HOME_DROP=('skinvariables-splash.json','Action_FirstStart_HomeFocus','Action_RatingsMonitor')
+
+def strip_fuse_onloads(original):
+ """Fuse's Home.xml without FUSE_HOME_DROP, and with its Skin.SetString/SetBool onloads skipped when the value is
+ already set (each one saved guisettings.xml to disk at every Home open)."""
+ if not original:return original
+ root=ET.fromstring(original)
+ for node in list(root):
+  if node.tag!='onload':continue
+  text=node.text or ''
+  if any(key in text for key in FUSE_HOME_DROP):root.remove(node);continue
+  m=re.fullmatch(r'Skin\.SetString\(([^,()]+),([^()]*)\)',text.strip()) or re.fullmatch(r'Skin\.SetBool\(([^,()]+)\)',text.strip())
+  # Only plain values: one like "10000|11101" would be read as a condition ("|" is OR).
+  if m and not node.get('condition') and re.fullmatch(r'[\w.\-]*',m.groups()[-1]):
+   node.set('condition','!String.IsEqual(Skin.String(%s),%s)'%(m.group(1),m.group(2)) if m.re.pattern.startswith('Skin\\.SetString') else '!Skin.HasSetting(%s)'%m.group(1))
+ return ET.tostring(root,encoding='unicode')
+
 def backdrop():return image(0,0,WIDTH,HEIGHT,MEDIA+'white.png',BG)
 
 # --- hubs: hero, rows, tab bar --------------------------------------------------------------------------
+# Overlap fix (performance pass): the skin's tab bar showed whenever the native glass bar was hidden (a dialog, a page
+# change), so the two swapped when switching quickly. The skin bar now exists only on a phone without the native bar
+# (a saved skin setting, set or reset at each start from the framework's presence).
+NATIVE_TAB_BAR='Portrait.NativeTabBar'
 def tabbar(active):
  """One floating frosted capsule, centred: Home, Movies, TV, Library, Search. The current tab sits in a
  darker inner capsule with a blue icon and label (iOS 26 tab bar)."""
@@ -237,9 +272,9 @@ def tabbar(active):
    +icon(x+(tab_w-58)//2,24,58,glyph,color)+label(x,84,tab_w,40,text,'p_tab',color,'center'))
  return ('<control type="image"><left>0</left><bottom>0</bottom><width>%d</width><height>330</height><texture>%sfade_up.png</texture></control>'
   '<control type="group" id="9200"><description>%s tab bar</description><left>%d</left><bottom>24</bottom><width>%d</width><height>%d</height>'
-  '<visible>String.IsEmpty(Window(Home).Property(Portrait.GlassBar))</visible>'
+  '<visible>!Skin.HasSetting(%s)</visible>'
   '<control type="image"><width>%d</width><height>%d</height><texture border="75">%sglass_150.png</texture></control>%s</control>'
-  )%(WIDTH,MEDIA,MARKER,left,bar_w,h,bar_w,h,MEDIA,''.join(items))
+  )%(WIDTH,MEDIA,MARKER,left,bar_w,h,NATIVE_TAB_BAR,bar_w,h,MEDIA,''.join(items))
 
 def usable(widget):
  path=str(widget.get('path') or '')
@@ -281,7 +316,19 @@ def card_item(focused,progress=False):
   label(26,h+18,w-52,44,sub,'p_cap',GREY,'left','<font>p_foot_b</font>')+
   label(26,h+62,w-52,60,'$INFO[ListItem.Label]','p_h3')+'</control>')
 
-def row(index,widget,last):
+def load_condition(tab,index):
+ """When a hub row may load ('' = at once): Movies/TV after their first visit, rows past EAGER_ROWS a little later."""
+ terms=[] if tab=='home' else ['!String.IsEmpty(%s)'%load_flag(tab)]
+ if index>=EAGER_ROWS:terms.append('!String.IsEmpty(%s)'%load_flag(tab,True))
+ return ' + '.join(terms)
+
+def gated(name,path,condition,variables):
+ """A container path that stays empty (nothing loads) until condition holds: a skin variable in Includes.xml."""
+ if not condition or variables is None:return e(path)
+ variables[name]='<variable name="%s"><value condition="%s">%s</value></variable>'%(name,e(condition),e(path))
+ return '$VAR[%s]'%name
+
+def row(index,widget,last,tab='home',variables=None):
  id=5001+index;title=str(widget.get('label') or '')
  style=widget.get('style') or ('poster' if str(widget.get('widget_style') or '').lower()=='poster' else 'card')
  w,h=(POSTER[0],POSTER[1]+40) if style=='poster' else (CARD[0],CARD[1]+180)
@@ -294,9 +341,9 @@ def row(index,widget,last):
    '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
    '<content target="%s">%s</content></control>'
    )%(id,WIDTH,h,'<ondown>9201</ondown>' if last else '',visible,w+GAP,h,item(False),w+GAP,h,item(True),
-      e(widget.get('target') or 'videos'),e(widget['path'])))
+      e(widget.get('target') or 'videos'),gated('Portrait_Row_%s_%d'%(tab,index),widget['path'],load_condition(tab,index),variables)))
 
-def hero(spotlight,title):
+def hero(spotlight,title,tab='home',variables=None):
  """Full-bleed hero: the hub's spotlight titles (swipe sideways), logo, genre line, Play and Info, page dots."""
  info='Container(4000).ListItem'
  art=image(0,0,WIDTH,HERO,'$VAR[Portrait_Hero_Art]',WHITE,'','>scale',background=True)
@@ -311,14 +358,15 @@ def hero(spotlight,title):
   '<control type="list" id="4000"><left>0</left><top>0</top><width>%d</width><height>%d</height><orientation>horizontal</orientation>'
   '<scrolltime tween="cubic" easing="out">450</scrolltime><ondown>4001</ondown>'
   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
-  '<content target="videos" limit="8">$INFO[Skin.String(HomeSwitcher.%s.Spotlight.Path)]</content></control>'
+  '<content target="videos" limit="8">%s</content></control>'
   '%s%s'                                        # fades
   '%s%s'                                        # large title + profile
   '<control type="image"><left>120</left><top>%d</top><width>%d</width><height>250</height><aspectratio aligny="bottom">keep</aspectratio><texture>$INFO[%s.Art(clearlogo)]</texture></control>'
   '%s%s%s'
   '<control type="grouplist"><left>0</left><top>%d</top><width>%d</width><height>20</height><orientation>horizontal</orientation><align>center</align><itemgap>0</itemgap>%s</control>'
   '</control>'
-  )%(WIDTH,HERO,WIDTH,HERO,WIDTH,HERO,art,WIDTH,HERO,art,spotlight,
+  )%(WIDTH,HERO,WIDTH,HERO,WIDTH,HERO,art,WIDTH,HERO,art,
+     gated('Portrait_Hero_%s'%tab,'$INFO[Skin.String(HomeSwitcher.%s.Spotlight.Path)]'%spotlight,load_condition(tab,0),variables),
      image(0,0,WIDTH,HERO,MEDIA+'hero_fade.png'),image(0,0,WIDTH,420,MEDIA+'fade_down.png'),
      label(SIDE,40,WIDTH-2*SIDE-270,120,title,'p_large'),
      bell(WIDTH-SIDE-240,46,'<ondown>4000</ondown><onright>9206</onright>')+
@@ -347,32 +395,37 @@ def shift(xml,offset):
   return str(n+offset) if offset and (4000<=n<4200 or 5000<=n<6000 or 9200<=n<9210) else m.group(0)
  return SHIFTED.sub(move,xml)
 
-def hub_body(title,widgets,tab,spotlight,resume='all'):
+def hub_body(title,widgets,tab,spotlight,resume='all',variables=None):
  # Continue Watching leads (movies and episodes the owner started); the old in-progress rows would repeat it.
  widgets=[{'label':'Continue Watching','path':CONTINUE+resume,'target':'videos','style':'continue'}]+[w for w in widgets if not in_progress(w)]
- rows=''.join(row(i,w,i==len(widgets)-1) for i,w in enumerate(widgets))
+ rows=''.join(row(i,w,i==len(widgets)-1,tab,variables) for i,w in enumerate(widgets))
  body=('<control type="grouplist" id="5000"><top>0</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<itemgap>0</itemgap><scrolltime tween="cubic" easing="out">380</scrolltime><usecontrolcoords>true</usecontrolcoords>%s%s'
   '<control type="image"><height>%d</height><texture /></control></control>'
   '%s%s'
-  )%(WIDTH,PAGE_H,hero(spotlight,title),rows,TAB_CLEAR,image(0,0,WIDTH,90,MEDIA+'fade_down.png'),tabbar(tab))
+  )%(WIDTH,PAGE_H,hero(spotlight,title,tab,variables),rows,TAB_CLEAR,image(0,0,WIDTH,90,MEDIA+'fade_down.png'),tabbar(tab))
  return shift(body,HUB_OFFSET[tab])
 
 def hub_window(original,title,widgets,tab,spotlight,resume='all'):
  """One hub alone in its window (kept for tests and tools; the phone uses hubs_window)."""
  return window(original,'<controls>%s%s</controls>'%(backdrop(),hub_body(title,widgets,tab,spotlight,resume)),'4000')
 
-def hubs_window(original,hubs):
- """Home, Movies and TV in one window: a group per hub, shown by Portrait.Tab. Every row loads when Home opens and
- keeps its titles while another hub shows, so switching tabs needs no reload."""
- groups=''.join('<control type="group" id="%d"><visible>%s</visible>%s</control>'%(3900+HUB_OFFSET[tab],tab_visible(tab),hub_body(*args))
+def hubs_window(original,hubs,variables=None):
+ """Home, Movies and TV in one window: a group per hub, shown by Portrait.Tab. Home's rows load when it opens (the
+ lower ones two seconds later), Movies and TV on their first visit (variables collects their gated paths for
+ Includes.xml); a hub keeps its titles while another one shows, so switching back needs no reload."""
+ groups=''.join('<control type="group" id="%d"><visible>%s</visible>%s</control>'%(3900+HUB_OFFSET[tab],tab_visible(tab),hub_body(*args,variables=variables))
                 for tab,args in hubs)
  focus=''.join('<onload condition="%s">SetFocus(%d)</onload>'%(e(tab_visible(tab)),4000+HUB_OFFSET[tab]) for tab,_ in hubs if HUB_OFFSET[tab])
- return window(original,'<controls>%s%s</controls>'%(backdrop(),groups),'4000',focus)
+ # The hub shown when Home opens (also when coming back from Library or Search) gets its first visit here.
+ for tab,_ in hubs:
+  focus+=''.join('<onload condition="%s">%s</onload>'%(e(' + '.join(c for c in (tab_visible(tab),cond) if c)),e(a)) for cond,a in first_visit(tab))
+ return window(strip_fuse_onloads(original),'<controls>%s%s</controls>'%(backdrop(),groups),'4000',focus)
 
 def forward_window(original,tab):
  """Movies/TV windows (opened by Fuse menus or older shortcuts) show that hub in Home instead."""
  return window(original,'<controls>%s</controls>'%backdrop(),'9999',
+               ''.join('<onload%s>%s</onload>'%(' condition="%s"'%e(c) if c else '',e(a)) for c,a in first_visit(tab))+
                '<onload>SetProperty(%s,%s,home)</onload><onload>ReplaceWindow(Home)</onload>'%(TAB_PROPERTY,tab))
 
 def page_header(title):
@@ -813,17 +866,18 @@ def fonts(original):
 
 def with_variables(xml):return xml
 
-def includes():
+def includes(row_variables=None):
  # Kodi reads variables only from includes; Fuse's own includes still come from 1080i.
- return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<includes><include file="../1080i/Includes.xml" />%s%s</includes>\n'
-         %(MARKER,VARIABLES,SHOW_VARS+ctx_variables())).encode()
+ rows=''.join(v for _,v in sorted((row_variables or {}).items()))
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<includes><include file="../1080i/Includes.xml" />%s%s%s</includes>\n'
+         %(MARKER,VARIABLES,SHOW_VARS+ctx_variables(),rows)).encode()
 
-def hub_files(skin,profile):
+def hub_files(skin,profile,variables=None):
  source=Path(skin)/'1080i';out={}
  read=lambda name:(source/name).read_text(encoding='utf-8') if (source/name).exists() else ''
  hubs=[(tab,(title,load_widgets(profile,lists),tab,SPOTLIGHT[name],resume)) for name,(title,lists,tab,resume) in HUBS.items()]
  hubs.sort(key=lambda h:HUB_TABS.index(h[0]))
- out['Home.xml']=hubs_window(read('Home.xml'),hubs).encode()
+ out['Home.xml']=hubs_window(read('Home.xml'),hubs,variables).encode()
  for name,(title,lists,tab,resume) in HUBS.items():
   if name!='Home.xml':out[name]=forward_window(read(name),tab).encode()
  for name in LIBRARY_FILES:out[name]=library_window(read(name)).encode()
@@ -850,14 +904,16 @@ def portrait_files(skin,profile):
  files[FOLDER+'/DialogContextMenu.xml']=context_menu(read('DialogContextMenu.xml')).encode()
  # Fuse's landscape header (tabs/search/gear) is replaced by the portrait header and tab bar.
  files[FOLDER+'/Custom_1182_Dialog_Topmenu_Overlay.xml']=window(read('Custom_1182_Dialog_Topmenu_Overlay.xml'),'<controls />','9999').encode()
- files[FOLDER+'/Includes.xml']=includes()
- for name,data in hub_files(skin,profile).items():files[FOLDER+'/'+name]=data
+ row_variables={}
+ for name,data in hub_files(skin,profile,row_variables).items():files[FOLDER+'/'+name]=data
+ files[FOLDER+'/Includes.xml']=includes(row_variables)
  for name,data in textures().items():files['extras/portrait/'+name]=data
  files[FOLDER+'/DeckSourceSelect.xml']=deck_page().encode()
  files[FOLDER+'/IOSNotifications.xml']=notices_page().encode()
  # Fuse's startup splash ("Arctic Fuse - Reticulating Splines") showed over Home, shrunk into portrait, for up to a
  # minute at every start. The window stays (Fuse keeps its startup status in its properties) but never shows.
  files[FOLDER+'/Custom_1198_Dialog_Startup.xml']=SPLASH
+ files[FOLDER+'/Startup.xml']=STARTUP
  # Settings home, Customisation and Accounts in the iOS Settings style (settings_page.py).
  import types
  files.update(settings_page.files(types.SimpleNamespace(**globals()),read))
@@ -871,6 +927,16 @@ def portrait_files(skin,profile):
 
 SPLASH=('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: Fuse startup splash, never shown -->\n'
         '<window type="dialog" id="1198"><visible>false</visible><controls /></window>\n'%MARKER).encode()
+
+# Fuse's startup window ran its startup script at every launch: ~60 skin settings written again, a blurred copy of
+# its background made with TMDb Helper (never shown in portrait) and a fixed one-second wait before Home. The script
+# still runs once (Fuse's defaults); after that the app goes straight to Home.
+STARTUP=('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: straight to Home after the first launch -->\n<window>'
+ '<onload condition="Skin.HasSetting(Portrait.FuseStartupDone)">SetProperty(ReloadDone,1,Home)</onload>'
+ '<onload condition="Skin.HasSetting(Portrait.FuseStartupDone)">ReplaceWindow(Home)</onload>'
+ '<onload condition="!Skin.HasSetting(Portrait.FuseStartupDone)">RunScript(script.skinvariables,run_executebuiltin=special://skin/shortcuts/skinvariables-startup.json,use_rules=True,var_image_simplebackground=$VAR[Image_SimpleBackground])</onload>'
+ '<onload condition="!Skin.HasSetting(Portrait.FuseStartupDone)">Skin.SetBool(Portrait.FuseStartupDone)</onload>'
+ '<controls /></window>\n'%MARKER).encode()
 
 def write(skin,files):
  changed=[]
@@ -956,6 +1022,11 @@ def focused_item_publisher(info,visible,set_property):
  def tick():
   if visible('System.HasActiveModalDialog') or not visible('Window.IsActive(home) | Window.IsActive(1101) | Window.IsActive(1102)'):return
   item='Container.ListItem'
+  # Performance pass: two cheap labels first; the six others only when the focused item changed (they were asked
+  # every half second while Home was on screen, each one waiting for Kodi's GUI lock).
+  key=(info('System.CurrentControlId'),info(item+'.Label'))
+  if key==last.get('_key'):return
+  last['_key']=key
   art=next((v for v in (info(item+'.Art(landscape)'),info(item+'.Art(fanart)'),info(item+'.Art(thumb)')) if v),'')
   sub=info(item+'.Property(subtitle)') or '  ·  '.join(v for v in (info(item+'.Year'),info(item+'.Genre')) if v)
   for key,value in (('Title',info(item+'.Label')),('Art',art),('Sub',sub)):
@@ -1030,10 +1101,12 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
   # Native Liquid Glass tab bar (KodiGlassBar.framework), when the IPA carries it.
   import threading,glassbar
   path=glassbar.library_path(xbmcvfs.translatePath('special://xbmc/'))
+  if bool(path)!=bool(xbmc.getCondVisibility('Skin.HasSetting(%s)'%NATIVE_TAB_BAR)):
+   xbmc.executebuiltin(('Skin.SetBool(%s)' if path else 'Skin.Reset(%s)')%NATIVE_TAB_BAR)
   if path:
    lib=glassbar.load(path)
    bar,poll,close=glassbar.controller(lib,xbmc.getCondVisibility,lambda:bool(is_portrait(xbmc.getInfoLabel)),
-                                     home.setProperty,lambda action:xbmc.executebuiltin(action))
+                                     lambda action:xbmc.executebuiltin(action),[tab_actions(t[0]) for t in TABS])
    always.append(bar)
    polls=[poll]
    # r3 framework: the Search page's native search field, results listed as you type (searchbar.py).

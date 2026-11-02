@@ -28,13 +28,18 @@ class ControllerTests(unittest.TestCase):
      elif t.startswith('!Window.IsActive('):ok&=t!='!Window.IsActive(%s)'%window
     if ok:return True
    return False
-  self.tick,self.poll,self.close=glassbar.controller(self.lib,visible,lambda:self.portrait,self.props.__setitem__,self.ran.append)
+  spec=importlib.util.spec_from_file_location('portrait',ROOT/'migration/bundled-bootstrap/resources/lib/portrait.py')
+  portrait=importlib.util.module_from_spec(spec);spec.loader.exec_module(portrait)
+  self.actions=[portrait.tab_actions(t[0]) for t in portrait.TABS]
+  self.tick,self.poll,self.close=glassbar.controller(self.lib,visible,lambda:self.portrait,self.ran.append,self.actions)
  def test_shows_on_tab_pages_in_portrait_and_marks_the_page(self):
   self.active='home:tv';self.tick()
-  self.assertEqual(self.lib.calls,[('select',2),('show',1)]);self.assertEqual(self.props,{'Portrait.GlassBar':'1'})
+  self.assertEqual(self.lib.calls,[('select',2),('show',1)])
+  # No window property: the skin's own bar depends on the framework being there, not on the native bar's state.
+  self.assertEqual(self.props,{})
  def test_hidden_for_dialogs_landscape_and_other_windows(self):
   self.tick();self.dialog=True;self.tick()
-  self.assertEqual(self.lib.calls[-1],('show',0));self.assertEqual(self.props['Portrait.GlassBar'],'')
+  self.assertEqual(self.lib.calls[-1],('show',0));self.assertEqual(self.props,{})
   self.dialog=False;self.portrait=False;self.lib.calls.clear();self.tick();self.assertEqual(self.lib.calls,[])
   self.portrait=True;self.active='videos';self.tick();self.assertEqual(self.lib.calls,[])
  def test_library_covers_both_download_hubs(self):
@@ -43,11 +48,6 @@ class ControllerTests(unittest.TestCase):
   self.tick();self.lib.tap=4;self.poll();self.poll()
   self.assertEqual(self.ran,['ReplaceWindow(1105)'])
   self.lib.tap=0;self.poll();self.assertEqual(self.ran,['ReplaceWindow(1105)'])
- def test_same_order_as_the_skin_tab_bar(self):
-  spec=importlib.util.spec_from_file_location('portrait',ROOT/'migration/bundled-bootstrap/resources/lib/portrait.py')
-  portrait=importlib.util.module_from_spec(spec);spec.loader.exec_module(portrait)
-  self.assertEqual(glassbar.ACTIONS,[portrait.tab_actions(t[0]) for t in portrait.TABS])
-
 spec_s=importlib.util.spec_from_file_location('searchbar',ROOT/'migration/bundled-bootstrap/resources/lib/searchbar.py')
 searchbar=importlib.util.module_from_spec(spec_s);spec_s.loader.exec_module(searchbar)
 
@@ -128,6 +128,12 @@ class IpaTests(unittest.TestCase):
   src=(ROOT/'migration/glassbar-ios/build-glassbar.sh').read_text()
   for name in ('kodi_glassbar_show','kodi_glassbar_select','kodi_glassbar_take_tap'):self.assertIn('void '+name if name!='kodi_glassbar_take_tap' else 'int '+name,src)
   self.assertIn('NSClassFromString(@"UIGlassEffect")',src)
+ def test_skin_tab_bar_only_without_the_native_one(self):
+  # Owner: two tab bars overlapped and swapped when switching quickly (the skin's showed whenever the native one hid).
+  spec=importlib.util.spec_from_file_location('portrait',ROOT/'migration/bundled-bootstrap/resources/lib/portrait.py')
+  portrait=importlib.util.module_from_spec(spec);spec.loader.exec_module(portrait)
+  self.assertIn('<visible>!Skin.HasSetting(Portrait.NativeTabBar)</visible>',portrait.tabbar('home'))
+  self.assertNotIn('Portrait.GlassBar',portrait.tabbar('home'))
  def test_glass_bar_owns_the_strip_around_and_below_it(self):
   # r2: a tap that missed the capsule by a little (sides, home-indicator area, just above) opened the row behind.
   src=(ROOT/'migration/glassbar-ios/build-glassbar.sh').read_text()

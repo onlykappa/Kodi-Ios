@@ -1,17 +1,13 @@
 """The portrait tab bar as a native Liquid Glass view, from Kodi.app/Frameworks/KodiGlassBar.framework
 (migration/glassbar-ios). Kodi's OpenGL skin cannot blur or refract what is behind it; this bar can.
-While it shows, the skin hides its own tab bar (Window(Home).Property(Portrait.GlassBar))."""
+The skin draws its own tab bar only on a phone without this framework (Skin.HasSetting(Portrait.NativeTabBar))."""
 import os
 # Home, Movies and TV are groups of the Home window, picked by Window(Home).Property(Portrait.Tab) (portrait.py).
 TAB='Window(Home).Property(Portrait.Tab)'
 PAGES=[('Window.IsActive(home) + String.IsEmpty(%s)'%TAB,'Home'),('Window.IsActive(home) + String.IsEqual(%s,movies)'%TAB,'Movies'),
        ('Window.IsActive(home) + String.IsEqual(%s,tv)'%TAB,'TV'),('Window.IsActive(1103) | Window.IsActive(1104)','Library'),
        ('Window.IsActive(1105)','Search')]
-def hub(key,focus):
- first='ClearProperty(Portrait.Tab,home)' if key=='home' else 'SetProperty(Portrait.Tab,%s,home)'%key
- return [('',first),('!Window.IsActive(home)','ReplaceWindow(Home)'),('','SetFocus(%d)'%focus)]
-ACTIONS=[hub('home',4000),hub('movies',14000),hub('tv',24000),[('','ReplaceWindow(1103)')],[('','ReplaceWindow(1105)')]]
-PROPERTY='Portrait.GlassBar'
+# The tab actions come from portrait.tab_actions (one definition for the skin tab bar and this one).
 
 def library_path(xbmc_home):
  """special://xbmc lies inside Kodi.app; the framework sits in Kodi.app/Frameworks."""
@@ -35,7 +31,7 @@ def page(visible):
   if visible(condition):return index
  return None
 
-def controller(lib,visible,portrait,set_property,invoke):
+def controller(lib,visible,portrait,invoke,actions):
  """tick(): show the bar on the tab pages in portrait and mark the page; poll(): run a tapped tab."""
  state={'shown':False,'page':None}
  def tick():
@@ -44,12 +40,12 @@ def controller(lib,visible,portrait,set_property,invoke):
   if index is not None and index!=state['page']:lib.kodi_glassbar_select(index)
   state['page']=index
   if show!=state['shown']:
-   state['shown']=show;set_property(PROPERTY,'1' if show else '');lib.kodi_glassbar_show(int(show))
+   state['shown']=show;lib.kodi_glassbar_show(int(show))
  def poll():
   tapped=lib.kodi_glassbar_take_tap()
-  if 0<=tapped<len(ACTIONS) and tapped!=state['page']:
-   for condition,action in ACTIONS[tapped]:
+  if 0<=tapped<len(actions) and tapped!=state['page']:
+   for condition,action in actions[tapped]:
     if not condition or visible(condition):invoke(action)
  def close():
-  if state['shown']:lib.kodi_glassbar_show(0);set_property(PROPERTY,'')
+  if state['shown']:lib.kodi_glassbar_show(0)
  return tick,poll,close

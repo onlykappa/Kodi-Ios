@@ -64,7 +64,9 @@ class PortraitTests(unittest.TestCase):
    # each hub's rows and tab bar live inside its own group
    self.assertIsNotNone(group.find(".//control[@id='%d']"%(int(gid)+1101)))
   movies_tab=home.find(".//control[@id='19202']")
-  self.assertEqual([o.text for o in movies_tab.findall('onclick')],['SetProperty(Portrait.Tab,movies,home)','ReplaceWindow(Home)','SetFocus(14000)'])
+  # First visit marks Movies loaded (its lower rows two seconds later), then shows it.
+  self.assertEqual([o.text for o in movies_tab.findall('onclick')],['AlarmClock(portraitmoremovies,SetProperty(Portrait.Load.movies.more,1,home),00:02,silent)',
+                   'SetProperty(Portrait.Load.movies,1,home)','SetProperty(Portrait.Tab,movies,home)','ReplaceWindow(Home)','SetFocus(14000)'])
  def test_last_row_clears_the_tab_bar(self):
   home=self.read('portrait/Home.xml');page=home.find(".//control[@id='5000']")
   self.assertEqual(page.findtext('height'),str(portrait.HEIGHT))
@@ -175,9 +177,35 @@ class PortraitTests(unittest.TestCase):
   home=(self.skin/'portrait/Home.xml').read_text();self.assertNotIn('googledrive',home.split('tab bar')[1])
  def test_continue_watching_leads_each_hub(self):
   root=self.read('portrait/Home.xml')
-  for offset,kind in ((0,'all'),(20000,'episode'),(10000,'movie')):
+  includes=(self.skin/'portrait/Includes.xml').read_text()
+  for offset,kind,tab in ((0,'all','home'),(20000,'episode','tv'),(10000,'movie','movies')):
    first=root.find(".//control[@id='%d']"%(5001+offset))
-   self.assertEqual(first.findtext('content'),portrait.CONTINUE+kind)
+   content=first.findtext('content')
+   if tab=='home':self.assertEqual(content,portrait.CONTINUE+kind)
+   else:
+    # Movies/TV rows load on that hub's first visit: the path sits in a variable gated by Portrait.Load.<tab>.
+    self.assertEqual(content,'$VAR[Portrait_Row_%s_0]'%tab)
+    self.assertIn('<variable name="Portrait_Row_%s_0"><value condition="!String.IsEmpty(Window(Home).Property(Portrait.Load.%s))">%s</value></variable>'%(tab,tab,(portrait.CONTINUE+kind).replace('&','&amp;')),includes)
+ def test_lazy_hubs_load_home_first_and_others_on_first_visit(self):
+  # Performance pass: 36 add-on runs at every start became Home's hero and first rows only.
+  root=self.read('portrait/Home.xml');includes=self.read('portrait/Includes.xml')
+  gated={v.get('name'):v.find('value').get('condition') for v in includes.iter('variable') if v.get('name','').startswith('Portrait_')and v.get('name','').startswith(('Portrait_Row_','Portrait_Hero_'))}
+  contents=[c.findtext('content') for c in root.iter('control') if c.get('type')=='list' and c.findtext('content')]
+  immediate=[c for c in contents if not c.startswith('$VAR[')]
+  # Home: the hero (spotlight) and its first EAGER_ROWS rows; nothing of Movies/TV loads at start.
+  self.assertLessEqual(len(immediate),1+portrait.EAGER_ROWS)
+  self.assertTrue(all('Portrait.Load.movies' in c for n,c in gated.items() if '_movies' in n))
+  self.assertTrue(all('Portrait.Load.tv' in c for n,c in gated.items() if '_tv' in n))
+  self.assertTrue(all('Portrait.Load.home.more' in c for n,c in gated.items() if '_home_' in n))
+  # Coming back to Home starts the lower rows' two-second timer once.
+  onloads=[o.text for o in root.findall('onload')]
+  self.assertIn('AlarmClock(portraitmorehome,SetProperty(Portrait.Load.home.more,1,home),00:02,silent)',onloads)
+ def test_fuse_home_onloads_no_longer_run_scripts(self):
+  root=self.read('portrait/Home.xml')
+  for o in root.findall('onload'):
+   self.assertNotIn('skinvariables-splash.json',o.text or '');self.assertNotIn('Action_RatingsMonitor',o.text or '')
+  startup=self.read('portrait/Startup.xml');texts=[(o.get('condition'),o.text) for o in startup.findall('onload')]
+  self.assertEqual(texts[1],('Skin.HasSetting(Portrait.FuseStartupDone)','ReplaceWindow(Home)'))
  def test_old_in_progress_rows_are_replaced(self):
   self.assertTrue(portrait.in_progress({'label':'In Progress Movies','path':'special://profile/playlists/video/In Progress Movies.xsp'}))
   self.assertFalse(portrait.in_progress({'label':'Popular','path':'plugin://x/?info=popular'}))
@@ -206,6 +234,14 @@ class ServiceTests(unittest.TestCase):
   tick=portrait.focused_item_publisher(lambda k:labels.get(k,''),lambda c:state['hub'] if 'Window' in c else False,seen.__setitem__)
   tick();self.assertEqual(seen,{'Title':'Show','Art':'art.jpg','Sub':'S1, E2'})
   seen.clear();state['hub']=False;labels['Container.ListItem.Label']='Other';tick();self.assertEqual(seen,{})
+ def test_focused_item_details_asked_only_when_focus_moves(self):
+  # Performance pass: the six detail labels were asked every half second on Home.
+  asked=[];labels={'System.CurrentControlId':'5002','Container.ListItem.Label':'Show'}
+  def info(k):asked.append(k);return labels.get(k,'')
+  tick=portrait.focused_item_publisher(info,lambda c:'Window' in c,lambda k,v:None)
+  tick();first=len(asked);tick();tick()
+  self.assertEqual(len(asked)-first,4)  # two cheap labels per idle tick
+  labels['Container.ListItem.Label']='Next';tick();self.assertGreater(len(asked)-first,6)
  def test_progress_saved_and_stop_reported(self):
   calls=[];clock=iter(range(0,1000,11))
   class Player:

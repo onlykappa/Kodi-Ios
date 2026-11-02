@@ -87,6 +87,11 @@ jobs:
           python3 -B scripts/test_drive_upload.py
           python3 -B scripts/test_deck_picker.py
           python3 -B scripts/test_bundled_bootstrap.py
+          python3 -B scripts/test_portrait.py
+          python3 -B scripts/test_glassbar.py
+          python3 -B scripts/test_notices.py
+          python3 -B scripts/test_pages.py
+          python3 -B scripts/test_performance_budget.py
           python3 -B scripts/test_customized_ipa.py
           python3 -B scripts/test_import_builder.py
           python3 -B scripts/test_import_profile.py

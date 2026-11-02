@@ -1,7 +1,7 @@
 import json,os,sys,time
 from pathlib import Path
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
-from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,follow_container,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
+from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
 import airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready
@@ -77,7 +77,6 @@ def run():
   if xbmc.getCondVisibility('System.AddonIsEnabled(plugin.video.elementum)'):
    try:
     engine=xbmcaddon.Addon('plugin.video.elementum')
-    for key in follow_container(home,engine.getSetting,engine.setSetting):xbmc.log('Kodi iOS setup moved Elementum '+key+' to the current app folder',xbmc.LOGINFO)
     folder=elementum_defaults(updates.updates_folder(home).with_name('Elementum Downloads'),engine.getSetting,engine.setSetting)
     if folder:xbmc.log('Kodi iOS setup set Elementum downloads to '+folder,xbmc.LOGINFO)
    except Exception as error:xbmc.log('Kodi iOS Elementum defaults skipped: '+type(error).__name__,xbmc.LOGWARNING)
@@ -119,13 +118,17 @@ def run():
   invoke('Action(reloadkeymaps)')
   # Exactly one reload after verified generation, never during Keep Skin confirmation.
   if generated and state['stage']=='complete' and xbmc.getSkinDir()==FUSE:invoke('ReloadSkin()')
-  # After any reload has settled: the one-time calibration reset, then a quiet check for a newer build.
-  if xbmc.getSkinDir()==FUSE and not monitor.waitForAbort(10):
+  # After any reload has settled: the one-time calibration reset, then a quiet check for a newer build. In the
+  # background (performance pass): the tab bar, Continue Watching and the rest below used to wait for these ten
+  # seconds too (the glass bar appeared ~19 s after launch in the owner's log).
+  def later():
+   if xbmc.getSkinDir()!=FUSE or monitor.waitForAbort(10):return
    try:calibration.reset_once(profile,lambda command:xbmc.executebuiltin(command),xbmc.getCondVisibility,monitor.waitForAbort)
    except Exception as error:xbmc.log('Kodi iOS calibration reset skipped: '+type(error).__name__,xbmc.LOGWARNING)
    try:
     if xbmcaddon.Addon().getSettingBool('check_on_start'):updates.run(check_only=True)
    except Exception as error:xbmc.log('Kodi iOS update check skipped: '+type(error).__name__,xbmc.LOGWARNING)
+  threading.Thread(target=later,daemon=True).start()
  # r11: portrait rows follow the owner's widgets, rotating the phone reloads the matching layout, and Continue
  # Watching follows playback. Its own thread, since the AirPlay watch below also runs for the whole session.
  portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),daemon=True);portrait_thread.start()

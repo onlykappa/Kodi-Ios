@@ -87,16 +87,6 @@ class PlayOnTV(unittest.TestCase):
   def down(url):raise TimeoutError()
   with self.assertRaises(cast.TVRefused) as ctx:cast.roku_play('192.168.1.20','https://cdn.example/a.mp4','A',down)
   self.assertIn('did not answer',str(ctx.exception))
- def test_elementum_folders_follow_a_reinstalled_app(self):
-  old='/private/var/mobile/Containers/Data/Application/3C035651-951A-4CE8-826D-3F157EF3E5AC/Documents/'
-  home='/private/var/mobile/Containers/Data/Application/59AA78BE-C5DC-4512-9C33-1D2B3C4D5E6F/Documents/Kodi'
-  settings={'download_path':old+'Elementum Downloads/','completed_movies_path':old+'Kodi Downloads/Movies/','library_path':'','torrents_path':'/somewhere/else/'}
-  changed=bootstrap.follow_container(home,lambda k:settings.get(k,''),settings.__setitem__)
-  self.assertEqual(changed,['download_path','completed_movies_path'])
-  self.assertEqual(settings['download_path'],'/private/var/mobile/Containers/Data/Application/59AA78BE-C5DC-4512-9C33-1D2B3C4D5E6F/Documents/Elementum Downloads/')
-  self.assertEqual(settings['torrents_path'],'/somewhere/else/')
-  self.assertEqual(bootstrap.follow_container(home,lambda k:settings.get(k,''),settings.__setitem__),[])
-  self.assertEqual(bootstrap.follow_container('/home/user/.kodi',lambda k:settings.get(k,''),settings.__setitem__),[])
  def test_setup_service_keeps_its_home_window(self):
   # Build 86/87: the Umbrella hook reused "window" for a file path, so setup crashed at window.clearProperty and
   # the portrait refresh (video controls, source page) never ran.
@@ -347,14 +337,14 @@ class Elementum(unittest.TestCase):
    settings={'disable_upnp':'false'};calls=[]
    api=lambda method,params:calls.append((method,params)) or {'result':'OK'}
    done=bootstrap.phone_housekeeping(profile,(lambda k:settings.get(k,''),settings.__setitem__),api)
-   self.assertEqual(sorted(done),['elementum_always_ask','elementum_network','media_folders','tmdbhelper_players','zeroconf'])
+   self.assertEqual(sorted(done),['elementum_always_ask','elementum_network','media_folders','tmdbhelper_players','versioncheck','zeroconf'])
    # Downloads (and every play) show Elementum's version list and wait for an answer.
    self.assertEqual([settings[k] for k in ('use_cache_selection','smart_episode_choose','autoyes_enabled','silent_stream_start')],['false']*4)
    self.assertTrue((profile/'media/local_media_root_04').is_dir());self.assertFalse((profile/'escape').exists())
    self.assertTrue((profile/'addon_data/plugin.video.themoviedb.helper/reconfigured_players').is_dir())
    self.assertEqual([settings[k] for k in ('disable_upnp','disable_natpmp','disable_lsd')],['true']*3)
-   self.assertEqual(calls,[('Settings.SetSettingValue',{'setting':'services.zeroconf','value':False})])
+   self.assertEqual(calls,[('Addons.SetAddonEnabled',{'addonid':'service.xbmc.versioncheck','enabled':False}),('Settings.SetSettingValue',{'setting':'services.zeroconf','value':False})])
    # Once: the owner turning UPnP back on is left alone.
    settings['disable_upnp']='false';self.assertEqual(bootstrap.phone_housekeeping(profile,(lambda k:settings.get(k,''),settings.__setitem__),api),[])
-   self.assertEqual(settings['disable_upnp'],'false');self.assertEqual(len(calls),1)
+   self.assertEqual(settings['disable_upnp'],'false');self.assertEqual(len(calls),2)
 if __name__=='__main__':unittest.main()
