@@ -27,7 +27,14 @@ def run():
  wait=lambda:xbmc.Monitor().waitForAbort(1)
  def start(k,e=None):
   url=dl.plugin_url(k,tmdb,season,e);xbmc.log('Kodi iOS download: asking Elementum '+url,xbmc.LOGINFO)
-  xbmc.executebuiltin('RunPlugin(%s)'%url)
+  if k=='movie':xbmc.executebuiltin('RunPlugin(%s)'%url);return
+  # Seasons and episodes: Elementum's redirects after the version page were lost with RunPlugin (owner build-133).
+  def run():
+   try:xbmc.log('Kodi iOS download: Elementum reached '+dl.follow(url),xbmc.LOGINFO)
+   except Exception as error:
+    xbmc.log('Kodi iOS download: Elementum request failed: %r'%error,xbmc.LOGWARNING)
+    xbmcgui.Dialog().ok('Download','Elementum did not start the download: %s'%error)
+  import threading;threading.Thread(target=run).start()   # not daemon: the script waits for it
  def watch(k,torrent=None,e=None):
   if torrent is None:return
   # Elementum shows a few seconds of buffering, then the video; the download carries on in the background.

@@ -41,6 +41,25 @@ class EpisodePicker(unittest.TestCase):
   self.assertIn('No episode was ticked',source)
   self.assertLess(source.index("dialog.select('Season %s: which episode?'"),source.index('dialog.multiselect('))
 
+class SeasonDownload(unittest.TestCase):
+ def test_follows_elementum_redirects_over_http(self):
+  import urllib.error,email.message
+  dl=load('elementum_download');seen=[]
+  hops={'/show/95350/season/1/download':'plugin://plugin.video.elementum/download?uri=x&type=episode',
+        '/download':'plugin://plugin.video.elementum/play?uri=x&type=episode&background=true'}
+  class Opener:
+   def open(self,url,timeout):
+    seen.append(url);path=url.split('65220',1)[1].split('?')[0]
+    if path in hops:
+     h=email.message.Message();h['Location']=hops[path];raise urllib.error.HTTPError(url,302,'Found',h,None)
+    class R:
+     def read(self):return b''
+    return R()
+  last=dl.follow('plugin://plugin.video.elementum/show/95350/season/1/download',opener=Opener())
+  self.assertEqual(seen[0],'http://127.0.0.1:65220/show/95350/season/1/download')
+  self.assertEqual(last,'http://127.0.0.1:65220/play?uri=x&type=episode&background=true')
+  self.assertIn("if k=='movie'",(ROOT/'migration/bundled-bootstrap/download.py').read_text())
+
 class Framework(unittest.TestCase):
  def test_message_only_from_r5(self):
   old=types.SimpleNamespace()
