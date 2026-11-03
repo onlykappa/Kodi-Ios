@@ -1161,6 +1161,21 @@ def needs_reload(changed,visible=lambda condition:False):
 
 REFRESH_AFTER=20    # seconds after the service starts before the first TMDb Helper run of the cache (past the start)
 REFRESH_EVERY=600   # then a look for copies past ios_cache.MAX_AGE every ten minutes
+FETCH_TIMEOUT=90    # seconds one Files.GetDirectory may take
+def bounded(fetch,timeout=FETCH_TIMEOUT):
+ """fetch(url) on its own thread, TimeoutError after timeout. Kodi's Files.GetDirectory never returns when the plugin
+ exits without endOfDirectory (desktop rig: a TMDb Helper Trakt list answered 401 and the call hung for good)."""
+ import threading
+ def call(url):
+  box={}
+  def run():
+   try:box['result']=fetch(url)
+   except Exception as error:box['error']=error
+  worker=threading.Thread(target=run,daemon=True);worker.start();worker.join(timeout)
+  if worker.is_alive():raise TimeoutError('no answer in %d s'%timeout)
+  if 'error' in box:raise box['error']
+  return box.get('result')
+ return call
 def cache_lists(profile,spotlight):
  """({spotlight id: path}, [row paths]) the three hubs show, Home first (as hub_files and hub_body build them)."""
  spots={};rows=[]
@@ -1266,7 +1281,7 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
   threading.Thread(target=listing_cache,daemon=True,kwargs=dict(
    cache=cache,store=cache.Store(xbmcvfs.translatePath(cache.FOLDER)),
    flags=cache.Flags(xbmc.getCondVisibility,xbmc.getInfoLabel,xbmc.executebuiltin),
-   lists=lambda:cache.targets(*cache_lists(profile,lambda s:xbmc.getInfoLabel(spotlight_path(s)))),fetch=fetch,
+   lists=lambda:cache.targets(*cache_lists(profile,lambda s:xbmc.getInfoLabel(spotlight_path(s)))),fetch=bounded(fetch),
    wait=monitor.waitForAbort,busy=lambda:xbmc.getSkinDir()!=fuse or xbmc.getCondVisibility('Player.HasVideo'),
    log=lambda text:xbmc.log('Kodi iOS listing cache: '+text,xbmc.LOGINFO))).start()
  except Exception as error:xbmc.log('Kodi iOS listing cache unavailable: %s'%error,xbmc.LOGWARNING)

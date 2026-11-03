@@ -207,6 +207,26 @@ class RefreshTests(Base):
   self.fetched=[]
   cache.refresh([(cache.row_key(TRENDING),TRENDING),(cache.row_key(POPULAR),POPULAR)],self.store,self.flags,self.fetch,lambda s:True,lambda:0)
   self.assertEqual(self.fetched,[TRENDING])
+ def test_a_hung_fetch_stops_the_session_and_that_list_is_skipped_for_a_day(self):
+  # Desktop rig: Files.GetDirectory never returned after a TMDb Helper Trakt list exited without endOfDirectory.
+  self.fetched=[];hung,other=(cache.row_key(TRENDING),TRENDING),(cache.row_key(POPULAR),POPULAR)
+  def fetch(url):
+   self.fetched.append(url)
+   if url==TRENDING:raise TimeoutError('no answer')
+   return ANSWER
+  with self.assertRaises(TimeoutError):cache.refresh([hung,other],self.store,self.flags,fetch,lambda s:False,lambda:1000)
+  self.assertEqual(self.fetched,[TRENDING])
+  done,_=cache.refresh([hung,other],self.store,self.flags,fetch,lambda s:False,lambda:2000)
+  self.assertEqual((done,self.fetched),([other[0]],[TRENDING,POPULAR]))
+  cache.refresh([hung],self.store,self.flags,self.fetch,lambda s:False,lambda:1001+cache.STUCK_SKIP)
+  self.assertEqual(self.fetched[-1],TRENDING)
+ def test_bounded_fetch_gives_up(self):
+  import threading
+  gate=threading.Event()
+  with self.assertRaises(TimeoutError):portrait.bounded(lambda url:gate.wait(5),timeout=0.2)('x')
+  gate.set()
+  self.assertEqual(portrait.bounded(lambda url:url+'!',timeout=2)('x'),'x!')
+  with self.assertRaises(KeyError):portrait.bounded(lambda url:{}['k'],timeout=2)('x')
  def test_prune_only_old_copies_no_hub_shows(self):
   key,old=cache.row_key(TRENDING),cache.row_key(POPULAR)
   for k,u in ((key,TRENDING),(old,POPULAR)):self.store.write(k,u,cache.from_rpc(ANSWER),0)

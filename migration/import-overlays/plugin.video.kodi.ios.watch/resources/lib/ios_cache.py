@@ -25,6 +25,7 @@ FORMAT=1
 MAX_AGE=3*3600          # the service refreshes copies older than this
 KEEP=3*86400            # the route stops serving a copy this old (the service has not refreshed it): live list again
 LIMIT=60
+STUCK_SKIP=86400        # a list whose fetch timed out is not tried again for a day
 # Files.GetDirectory fields (JSON-RPC v13, Kodi 21): what the rows, the hero, the info page and a long press read.
 PROPERTIES=['title','year','genre','rating','votes','plot','mpaa','art','uniqueid','showtitle','season','episode','runtime',
             'premiered','playcount','resume','director','tagline','originaltitle','studio','country','trailer','customproperties']
@@ -152,6 +153,16 @@ class Store:
   with open(tmp,'w',encoding='utf-8') as f:json.dump({'format':FORMAT,'key':key,'url':url,'time':now,'items':items},f,separators=(',',':'))
   os.replace(tmp,self.path(key))
   return self.load(key) is not None
+ # Lists whose Files.GetDirectory never returned: skipped for a day, so one bad list cannot stall every launch.
+ def stuck(self,now):
+  try:
+   with open(os.path.join(self.folder,'stuck.txt'),encoding='utf-8') as f:marks=json.load(f)
+  except (OSError,ValueError):return {}
+  return {k:t for k,t in marks.items() if isinstance(t,(int,float)) and now-t<STUCK_SKIP} if isinstance(marks,dict) else {}
+ def mark_stuck(self,key,now):
+  marks=self.stuck(now);marks[key]=now
+  os.makedirs(self.folder,exist_ok=True)
+  with open(os.path.join(self.folder,'stuck.txt'),'w',encoding='utf-8') as f:json.dump(marks,f)
  def remove(self,key):
   try:os.remove(self.path(key))
   except OSError:pass
@@ -203,9 +214,11 @@ def stale(entry,now):
 def refresh(lists,store,flags,fetch,wait,now=time.time,pause=1.0,log=lambda text:None):
  """Fill missing copies and refresh stale ones, one TMDb Helper run at a time; turn each row's flag on once its
  copy is on disk and reads back. A failed run keeps the old copy. wait(seconds) returns True when Kodi is exiting.
- Returns (refreshed keys, failures)."""
- done=[];failed=[]
+ Returns (refreshed keys, failures). A fetch that timed out (TimeoutError) is marked stuck and raised: the caller
+ stops for this session, since Kodi's call never returns and its thread stays blocked."""
+ done=[];failed=[];stuck=store.stuck(now())
  for key,url in lists:
+  if key in stuck:continue
   entry=store.load(key,now())
   if entry is not None and entry['url']==url and not stale(entry,now()):
    if not flags.on(key,url):flags.set(key,url)
@@ -214,6 +227,8 @@ def refresh(lists,store,flags,fetch,wait,now=time.time,pause=1.0,log=lambda text
    items=from_rpc(fetch(url))
    if not items:raise ValueError('empty list')
    if not store.write(key,url,items,now()):raise ValueError('copy did not read back')
+  except TimeoutError:
+   store.mark_stuck(key,now());raise
   except Exception as error:
    failed.append('%s: %s'%(key,str(error)[:120]))
   else:
