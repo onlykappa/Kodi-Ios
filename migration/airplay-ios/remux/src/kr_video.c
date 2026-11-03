@@ -48,6 +48,7 @@ struct kr_video {
     CVPixelBufferPoolRef pool;       // NV12 output buffers at ow x oh
     int gpu_off;                     // the GPU path failed once: CPU from then on
 #endif
+    int last_path;            // r11: 1 GPU transfer, 0 libswscale, -1 nothing converted yet
     kr_subs *subs;            // r10: subtitles burned into the picture, NULL when none (kept for the session)
     int sub_index;            // r10: their source stream, -1 for an external file
     double cov_from, cov_to;  // r10: the span of the timeline whose subtitle packets were fed (seconds)
@@ -161,7 +162,7 @@ static int open_decoder(kr_video *v, int hw, char *err, int errlen) {
 kr_video *kr_video_open(gm_source src, int index, char *err, int errlen) {
     kr_video *v = calloc(1, sizeof *v);
     if (!v) return NULL;
-    v->src = src; v->index = index; v->sws_fmt = -1; v->sub_index = -1; v->cov_from = v->cov_to = -1;
+    v->src = src; v->index = index; v->sws_fmt = -1; v->last_path = -1; v->sub_index = -1; v->cov_from = v->cov_to = -1;
     uint8_t *iob = av_malloc(1 << 16);
     AVIOContext *io = avio_alloc_context(iob, 1 << 16, 0, v, in_read, NULL, in_seek);
     v->in = avformat_alloc_context();
@@ -191,6 +192,9 @@ fail:
 int kr_video_width(const kr_video *v) { return v ? v->ow : 0; }
 int kr_video_height(const kr_video *v) { return v ? v->oh : 0; }
 int kr_video_hw_decode(const kr_video *v) { return v && v->hw ? 1 : 0; }
+const char *kr_video_path(const kr_video *v) {
+    return !v || v->last_path < 0 ? "none yet" : v->last_path ? "GPU transfer (VTPixelTransferSession)" : "CPU (libswscale)";
+}
 void kr_video_abort(kr_video *v) { if (v) atomic_store(&v->abort, 1); }
 void kr_video_cancel(kr_video *v) { if (v) atomic_store(&v->cancel, 1); }
 
@@ -211,6 +215,7 @@ int kr_video_burn(kr_video *v, int sub_index, const char *file, char *err, int e
 }
 int kr_video_burning(const kr_video *v) { return v && v->subs ? 1 : 0; }
 int kr_video_burn_events(const kr_video *v) { return v ? kr_subs_events(v->subs) : 0; }
+long kr_video_burn_drawn(const kr_video *v) { return v ? kr_subs_drawn(v->subs) : 0; }
 
 void kr_video_close(kr_video *v) {
     if (!v) return;
@@ -628,6 +633,11 @@ static int produce(kr_video *v, double start, double end, gm_buf *out, char *err
     av_write_trailer(j.oc);
     avio_flush(j.io);
     r = j.written > 0 ? 0 : -1;
+#ifdef KR_GPU
+    v->last_path = j.gpu ? 1 : 0;
+#else
+    v->last_path = 0;
+#endif
     if (r < 0) seterr(err, errlen, "no video in this segment", 0);
     // r10: the subtitle packets up to the end of this segment were fed: the next segment needs no lookback.
     if (r == 0 && v->subs && v->cov_from >= 0 && v->cov_from <= start && v->cov_to >= start - 1e-3)

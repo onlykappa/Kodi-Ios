@@ -37,6 +37,8 @@ void kr_subs_feed(kr_subs *s, struct AVPacket *pkt);
 // Duplicates (same start and body) are ignored.
 void kr_subs_add(kr_subs *s, const char *body, int64_t start_ms, int64_t dur_ms);
 int kr_subs_events(const kr_subs *s);
+// r11: frames kr_subs_blend has drawn something on so far.
+long kr_subs_drawn(const kr_subs *s);
 // Draws what shows at t_ms onto an 8-bit 4:2:0 frame: data[0] Y, then data[1] interleaved CbCr (nv12=1) or data[1]
 // Cb and data[2] Cr (nv12=0), limited range BT.709. Returns 1 when something was drawn, 0 when nothing shows.
 int kr_subs_blend(kr_subs *s, int64_t t_ms, uint8_t *const data[3], const int linesize[3], int w, int h, int nv12);

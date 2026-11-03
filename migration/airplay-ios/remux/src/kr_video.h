@@ -44,6 +44,8 @@ kr_video *kr_video_open(gm_source src, int index, char *err, int errlen);
 int kr_video_width(const kr_video *v);   // output size
 int kr_video_height(const kr_video *v);
 int kr_video_hw_decode(const kr_video *v);  // 1 when VideoToolbox decodes
+// r11: how the last segment's frames were scaled/converted (log): GPU transfer or CPU (libswscale).
+const char *kr_video_path(const kr_video *v);
 // fMP4 init (ftyp+moov) or media segment (moof+mdat) i of the planned grid of `s` (absolute tfdt).
 int kr_video_init(kr_video *v, gm_stream *s, gm_buf *out, char *err, int errlen);
 int kr_video_segment(kr_video *v, gm_stream *s, int i, gm_buf *out, char *err, int errlen);
@@ -62,4 +64,5 @@ void kr_video_close(kr_video *v);
 int kr_video_burn(kr_video *v, int sub_index, const char *file, char *err, int errlen);
 int kr_video_burning(const kr_video *v);
 int kr_video_burn_events(const kr_video *v);  // subtitle events loaded so far (tests, log)
+long kr_video_burn_drawn(const kr_video *v);  // r11: converted frames with a subtitle drawn on them so far
 #endif

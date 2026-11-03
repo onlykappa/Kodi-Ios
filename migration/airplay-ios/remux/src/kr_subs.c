@@ -17,6 +17,7 @@ struct kr_subs {
     AVCodecContext *dec;
     AVRational tb;
     int w, h;
+    long drawn_frames;       // r11: frames something was drawn on (log, tests)
     int order;               // our own ReadOrder: FFmpeg's restarts after a flush, libass would drop those as duplicates
     uint64_t *seen; int nseen, capseen;  // (start, body) hashes already added
 };
@@ -343,5 +344,8 @@ int kr_subs_blend(kr_subs *s, int64_t t_ms, uint8_t *const data[3], const int li
             }
         }
     }
+    if (drawn) s->drawn_frames++;
     return drawn;
 }
+
+long kr_subs_drawn(const kr_subs *s) { return s ? s->drawn_frames : 0; }

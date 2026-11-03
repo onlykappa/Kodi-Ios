@@ -37,8 +37,10 @@
 #define MAX_TRACKS 64
 // r8: renditions (cache keys and production lanes): the copied video, the converted video, audio by source index.
 enum { R_VCOPY = 0, R_VCOMPAT = 1, R_AUDIO = 2, NREND = R_AUDIO + MAX_TRACKS };
-#define PF_DEPTH 2      // segments made ahead after one is served
-#define PF_WORKERS 2    // background producers (a video and an audio lane at the same time)
+#define PF_DEPTH_VIDEO 3  // r11: video segments made ahead after one is served
+#define PF_DEPTH_AUDIO 6  // r11: audio is cheap (a copy or one AAC encode): kept well ahead so it never waits
+#define PF_DEPTH(rend) ((rend) >= R_AUDIO ? PF_DEPTH_AUDIO : PF_DEPTH_VIDEO)
+#define PF_WORKERS 3    // background producers (r11: video, audio and a spare, so audio never queues behind video)
 #define PF_QUEUE 32
 #define CACHE_SLOTS 24
 #define CACHE_BYTES (64u << 20)  // made and recently served media segments (inits are kept apart, a few KB each)
@@ -82,12 +84,19 @@ static struct {
     int compat_ok;             // a third-party receiver can be given the converted picture (source video not H.264)
     char *master_copy, *master_compat;  // fixed at start; master_compat points /cvideo/ at the converted picture
     atomic_int compat_clients, prefetched;
+    atomic_int vlogged;        // r11: converted segments logged this session
     // r10: subtitles burned into the converted picture, fixed at start (the session's R_VCOMPAT cache holds only
     // segments with them: another choice is a new session, so the cache key needs no burn field)
     int burn_index;            // source text subtitle stream, -1 none
+    // r11: the WebVTT demuxer: its own connection and lock (r10 shared the audio demuxer: a subtitle read of 5-13 s held
+    // the audio lane and the TV hung up on audio seg8 after 5.5 s). A request that finds it busy gets an empty cue file.
+    pthread_mutex_t sgm_lock;
+    kr_source *ssrc;
+    gm_stream *sgm;
+    int sgm_failed;
     char burn_file[1024];      // external subtitle file when burn_index < 0, "" none
 } S = { .lock = PTHREAD_MUTEX_INITIALIZER, .gm_lock = PTHREAD_MUTEX_INITIALIZER, .vlock = PTHREAD_MUTEX_INITIALIZER,
-        .agm_lock = PTHREAD_MUTEX_INITIALIZER, .listen_fd = -1, .vindex = -1, .burn_index = -1 };
+        .agm_lock = PTHREAD_MUTEX_INITIALIZER, .sgm_lock = PTHREAD_MUTEX_INITIALIZER, .listen_fd = -1, .vindex = -1, .burn_index = -1 };
 
 // r10: the subtitle choice for the next kr_remux_start (Kodi's selection, from Python).
 static struct { pthread_mutex_t lock; int ordinal; char file[1024]; char lang[16]; } SUBS = { PTHREAD_MUTEX_INITIALIZER, -2, "", "" };
@@ -276,8 +285,9 @@ static kr_video *session_video(char *err, int errlen) {
     if (S.burn_index >= 0 || S.burn_file[0]) {  // r10: a subtitle that cannot be read leaves the picture as it is
         char e[128] = "";
         if (kr_video_burn(v, S.burn_index, S.burn_file, e, sizeof e) < 0) log_line("error: subtitles not burned in: %s", e);
-        else log_line("compat: burning subtitles in (%s, %d events loaded)", S.burn_index >= 0 ? "source stream" : "external file",
-                      kr_video_burn_events(v));
+        else if (S.burn_index >= 0)  // r11: a source stream's events are read with the picture, segment by segment
+            log_line("compat: burning subtitles in (source stream %d: events load as each segment is converted)", S.burn_index);
+        else log_line("compat: burning subtitles in (external file, %d events loaded)", kr_video_burn_events(v));
     }
     pthread_mutex_lock(&src_lock);
     S.video = v;
@@ -305,6 +315,37 @@ static gm_stream *audio_demuxer(void) {
         if (!atomic_load(&S.stopping)) log_line("audio: no second connection (%s): audio waits for video", err);
     }
     return S.agm;
+}
+
+// r11: the subtitle demuxer (sgm_lock held): a third connection, never shared with audio or video. NULL when it cannot
+// open (the request then answers an empty cue file: subtitles never wait on, or hold, a media lane).
+static gm_stream *subs_demuxer(void) {
+    if (S.sgm || S.sgm_failed || atomic_load(&S.stopping)) return S.sgm;
+    char err[256] = "";
+    publish_source(&S.ssrc, kr_source_open(S.url, 8, err, sizeof err));
+    if (S.ssrc) S.sgm = gm_stream_open(kr_source_gm(S.ssrc), SEG_SECONDS, err, sizeof err);
+    if (S.sgm && gm_stream_adopt_plan(S.sgm, S.gm) != 0) { gm_stream_close(S.sgm); S.sgm = NULL; snprintf(err, sizeof err, "different streams"); }
+    if (S.sgm && atomic_load(&S.stopping)) { gm_stream_close(S.sgm); S.sgm = NULL; }
+    if (!S.sgm) {
+        kr_source *gone = S.ssrc;
+        publish_source(&S.ssrc, NULL);
+        kr_source_close(gone); S.sgm_failed = 1;
+        if (!atomic_load(&S.stopping)) log_line("subs: no subtitle connection (%s): empty cue files", err);
+    }
+    return S.sgm;
+}
+
+// r11: drops the SUBTITLES group from a master (the subtitles are burned into that client's picture: a TV asking for
+// WebVTT it ignores only adds load). In place.
+static void strip_subtitles(char *m) {
+    if (!m) return;
+    char *p;
+    while ((p = strstr(m, "#EXT-X-MEDIA:TYPE=SUBTITLES"))) {
+        char *e = strchr(p, '\n'); e = e ? e + 1 : p + strlen(p);
+        memmove(p, e, strlen(e) + 1);
+    }
+    static const char attr[] = ",SUBTITLES=\"subs\"";
+    while ((p = strstr(m, attr))) memmove(p, p + sizeof attr - 1, strlen(p + sizeof attr - 1) + 1);
 }
 
 // ── r8: production lanes ───────────────────────────────────────────────────────
@@ -336,8 +377,15 @@ static int produce_unit(int rend, int seg, gm_buf *out, char *err, int errlen) {
         kr_video *v = session_video(err, errlen);
         if (!v) return -1;
         atomic_store(&vc_seg, seg);
+        double t0 = now_ms();
         r = kr_video_unit(v, S.gm, seg, out, err, errlen);
         atomic_store(&vc_seg, -1);
+        if (r == 0) {  // r11: the conversion path and speed per segment (realtime = SEG_SECONDS per segment)
+            double ms = now_ms() - t0, pct = ms / (SEG_SECONDS * 10.0);
+            if (atomic_fetch_add(&S.vlogged, 1) < 3 || pct > 70)
+                log_line("compat: segment %d converted in %.0f ms (%.0f%% of realtime) via %s, %d subtitle events, %ld frames drawn", seg,
+                         ms, pct, kr_video_path(v), kr_video_burn_events(v), kr_video_burn_drawn(v));
+        }
         return r;
     }
     int idx = rend - R_AUDIO, route = track_route(idx);
@@ -496,7 +544,7 @@ static struct {
 } P = { .lock = PTHREAD_MUTEX_INITIALIZER, .cond = PTHREAD_COND_INITIALIZER };
 
 static atomic_int pf_on = 1;  // kr_remux_set_prefetch (tests)
-static int near(int seg, int at) { return seg >= at && seg <= at + PF_DEPTH; }
+static int near(int rend, int seg, int at) { return seg >= at && seg <= at + PF_DEPTH(rend); }
 
 // Queues (rend, seg) unless it is cached, queued or being made (P.lock held).
 static void push_locked(int rend, int seg) {
@@ -518,11 +566,11 @@ static void prefetch_push(int rend, int seg) {
 static void prefetch_focus(int rend, int seg) {
     pthread_mutex_lock(&P.lock);
     for (int i = 0; i < P.n;) {
-        if (P.q[i].rend == rend && !near(P.q[i].seg, seg)) { P.q[i] = P.q[--P.n]; continue; }
+        if (P.q[i].rend == rend && !near(rend, P.q[i].seg, seg)) { P.q[i] = P.q[--P.n]; continue; }
         i++;
     }
     for (int w = 0; w < PF_WORKERS; w++)
-        if (rend == R_VCOMPAT && P.busy_rend[w] == rend && !near(P.busy_seg[w], seg)) {
+        if (rend == R_VCOMPAT && P.busy_rend[w] == rend && !near(rend, P.busy_seg[w], seg)) {
             pthread_mutex_lock(&src_lock);
             if (S.video) kr_video_cancel(S.video);
             pthread_mutex_unlock(&src_lock);
@@ -530,11 +578,11 @@ static void prefetch_focus(int rend, int seg) {
     pthread_mutex_unlock(&P.lock);
 }
 
-// After serving segment seg of rend: the next PF_DEPTH segments.
+// After serving segment seg of rend: the next PF_DEPTH(rend) segments.
 static void prefetch_after(int rend, int seg) {
     pthread_mutex_lock(&P.lock);
     if (P.started && atomic_load(&pf_on)) {
-        for (int k = 1; k <= PF_DEPTH; k++) push_locked(rend, seg + k);
+        for (int k = 1; k <= PF_DEPTH(rend); k++) push_locked(rend, seg + k);
         pthread_cond_broadcast(&P.cond);
     }
     pthread_mutex_unlock(&P.lock);
@@ -610,7 +658,7 @@ static int get_part(int rend, int seg, gm_buf *out, char *err, int errlen) {
     // r9: a conversion far from this request (a request the TV gave up on after a seek, build-138: seg16 waited
     // 3-8 s) gives up now instead of finishing first.
     int busy = atomic_load(&vc_seg), at = seg < 0 ? 0 : seg;
-    if (rend == R_VCOMPAT && busy >= 0 && (busy < at - 1 || busy > at + PF_DEPTH)) {
+    if (rend == R_VCOMPAT && busy >= 0 && (busy < at - 1 || busy > at + PF_DEPTH_VIDEO)) {
         pthread_mutex_lock(&src_lock);
         if (S.video) kr_video_cancel(S.video);
         pthread_mutex_unlock(&src_lock);
@@ -678,24 +726,26 @@ static void serve(int fd, const char *method, const char *path, const char *rang
         rend = (S.compat || cvideo || third) ? R_VCOMPAT : R_VCOPY;
         r = get_part(rend, seg, &buf, err, sizeof err);
     } else if (sscanf(path, "/subs/%d/seg%d.vtt", &idx, &seg) == 2) {
-        // r9: on the session demuxer when it is free (a TV getting the converted picture leaves it idle): the audio
-        // lane stays free for audio (build-138: audio after a seek waited behind subtitle reads, 14-29 s).
-        if (pthread_mutex_trylock(&S.gm_lock) == 0) {
-            r = gm_stream_subtitle_segment(S.gm, idx, seg, &buf, err, sizeof err);
-            pthread_mutex_unlock(&S.gm_lock);
-            if (r == 0) { respond(fd, head, range, "text/vtt", buf.data, (size_t)buf.len); free(buf.data); return; }
-            buf.len = 0;
+        // r11: on the subtitle demuxer only (its own connection and lock); busy or unavailable: an empty cue file now
+        // (r10 held the audio lane for 5-13 s per cue file). A client whose picture has them burned in is not offered them.
+        static const char empty[] = "WEBVTT\n\n";
+        int burned = (S.burn_index >= 0 || S.burn_file[0]) && (S.compat || cvideo || third);
+        int got = 0;
+        if (!burned) for (int k = 0; k < 15 && !atomic_load(&S.stopping); k++) {  // up to ~1.5 s for a cue file in progress
+            if (pthread_mutex_trylock(&S.sgm_lock) == 0) { got = 1; break; }
+            usleep(100000);
         }
-        pthread_mutex_lock(&S.agm_lock);
-        gm_stream *g = audio_demuxer();
-        if (g) r = gm_stream_subtitle_segment(g, idx, seg, &buf, err, sizeof err);
-        else {
-            pthread_mutex_lock(&S.gm_lock);
-            r = gm_stream_subtitle_segment(S.gm, idx, seg, &buf, err, sizeof err);
-            pthread_mutex_unlock(&S.gm_lock);
+        r = -1;
+        if (got) {
+            gm_stream *g = subs_demuxer();
+            if (g) r = gm_stream_subtitle_segment(g, idx, seg, &buf, err, sizeof err);
+            pthread_mutex_unlock(&S.sgm_lock);
         }
-        pthread_mutex_unlock(&S.agm_lock);
         if (r == 0) { respond(fd, head, range, "text/vtt", buf.data, (size_t)buf.len); free(buf.data); return; }
+        free(buf.data);
+        if (got && !burned) log_line("subs: cue file %d of stream %d: %s (empty)", seg, idx, *err ? err : "unavailable");
+        respond(fd, head, range, "text/vtt", (const uint8_t *)empty, sizeof empty - 1);
+        return;
     } else if (sscanf(path, "/audio/%d/", &idx) == 1) {
         int init = strstr(path, "/init.mp4") != NULL;
         if (!init && sscanf(path, "/audio/%*d/seg%d.m4s", &seg) != 1) { fail(fd, 404, "Not Found"); return; }
@@ -828,6 +878,7 @@ static void teardown_locked(void) {
     atomic_store(&S.stopping, 1);
     if (S.src) kr_source_abort(S.src);
     if (S.asrc) kr_source_abort(S.asrc);
+    if (S.ssrc) kr_source_abort(S.ssrc);
     for (int i = 0; i < S.nbridges; i++) if (S.bridges[i].src) kr_source_abort(S.bridges[i].src);
     // r7: a conversion in progress stops at its next packet (no transcoding once the server stops).
     if (S.video) kr_video_abort(S.video);
@@ -846,6 +897,13 @@ static void teardown_locked(void) {
     kr_source_close(asrc);
     S.agm_failed = 0;
     pthread_mutex_unlock(&S.agm_lock);
+    pthread_mutex_lock(&S.sgm_lock);
+    gm_stream_close(S.sgm); S.sgm = NULL;
+    kr_source *ssrc = S.ssrc;
+    publish_source(&S.ssrc, NULL);
+    kr_source_close(ssrc);
+    S.sgm_failed = 0;
+    pthread_mutex_unlock(&S.sgm_lock);
     pthread_mutex_lock(&S.gm_lock);
     if (S.gm) { gm_stream_close(S.gm); S.gm = NULL; }
     if (S.src) { kr_source_close(S.src); S.src = NULL; }
@@ -869,6 +927,7 @@ static void teardown_locked(void) {
     kr_source_close(vsrc);
     pthread_mutex_unlock(&S.vlock);
     S.compat = 0; S.vindex = -1; S.compat_ok = 0;
+    atomic_store(&S.vlogged, 0);
     free(S.master_copy); S.master_copy = NULL;
     free(S.master_compat); S.master_compat = NULL;
     for (int i = 0; i < MAX_TRACKS; i++) S.routes[i] = KR_AUDIO_NONE;
@@ -988,6 +1047,10 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
     S.master_copy = kr_hls_master(S.gm, S.base, S.compat);
     if (S.compat_ok) S.master_compat = kr_hls_master_at(S.gm, S.base, 1, "cvideo");
     if (!S.master_copy || (S.compat_ok && !S.master_compat)) { set_message("AirPlay: out of memory."); goto done; }
+    if (S.burn_index >= 0 || S.burn_file[0]) {  // r11: burned in: no WebVTT rendition for the converted picture
+        strip_subtitles(S.master_compat);
+        if (S.compat) strip_subtitles(S.master_copy);
+    }
     {   // r6: the variant line the receiver judges the stream by (CODECS, RESOLUTION, VIDEO-RANGE), for the log
         char v[256];
         variant_line(S.master_copy, v, sizeof v);

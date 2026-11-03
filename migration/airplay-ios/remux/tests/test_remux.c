@@ -769,9 +769,12 @@ static void test_burn_video(const char *work) {
     CHECK(kr_video_burn(plain, -1, NULL, err, sizeof err) == 0 && !kr_video_burning(plain), "no subtitles: nothing burned");
     CHECK(kr_video_burn(burn, 1, NULL, err, sizeof err) < 0, "an audio stream is not a subtitle (%s)", err);
     CHECK(kr_video_burn(burn, 2, NULL, err, sizeof err) == 0 && kr_video_burning(burn), "SRT stream 2 burned (%s)", err);
+    // r11: a source stream's events load with the picture (the r10 "0 events loaded" log line was read before any).
+    CHECK(kr_video_burn_events(burn) == 0 && kr_video_burn_drawn(burn) == 0, "no events before the first segment is read");
     gm_buf a = {0}, b = {0}, a2 = {0};
     CHECK(kr_video_unit(plain, gm, 0, &a, err, sizeof err) == 0 && kr_video_unit(burn, gm, 0, &b, err, sizeof err) == 0, "units made (%s)", err);
     CHECK(kr_video_burn_events(burn) >= 1, "the cue was read from the stream (%d events)", kr_video_burn_events(burn));
+    CHECK(kr_video_burn_drawn(burn) > 30, "the cue was drawn on %ld frames", kr_video_burn_drawn(burn));
     int m = kr_first_moof(a.data, a.len);
     CHECK(m > 0 && m == kr_first_moof(b.data, b.len) && !memcmp(a.data, b.data, (size_t)m), "same init with subtitles burned in");
     // The no-subtitle path is deterministic: the same unit again is byte-identical.
@@ -831,6 +834,11 @@ static void test_burn_select(void) {
             reply seg = get_as(UA_TV, kr_remux_port(), "/cvideo/seg0.m4s");
             CHECK(seg.status == 200 && seg.len > 0, "case %zu: burned segment served (%d)", k, seg.status);
             free(seg.body);
+            // r11: burned in for the TV: no WebVTT rendition in its master, and a /subs request answers at once (empty)
+            CHECK(!strstr(tv.body, "TYPE=SUBTITLES") && !strstr(tv.body, "SUBTITLES=\"subs\""), "case %zu: no subtitles group for the TV", k);
+            reply vtt = get_as(UA_TV, kr_remux_port(), "/subs/2/seg0.vtt");
+            CHECK(vtt.status == 200 && vtt.body && !strncmp(vtt.body, "WEBVTT", 6) && !strstr(vtt.body, "Hello"), "case %zu: empty cue file for the TV", k);
+            free(vtt.body);
         }
         free(tv.body);
         kr_remux_stop();
