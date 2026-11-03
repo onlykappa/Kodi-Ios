@@ -56,10 +56,15 @@ def run():
  extra=[]
  note='Plays from where you are now. '
  if library:
-  # ISSUE-079: Apple's player opens MP4/MOV/HLS only; MKV and the rest go to Screen Mirroring (Kodi keeps playing).
-  apple=cast.apple_playable(url,playing)
+  # ISSUE-079: Apple's player opens MP4/MOV/HLS only; ISSUE-083: KodiAirPlay r5 converts MKV/AVI/WebM/TS on the
+  # phone; the rest go to Screen Mirroring (Kodi keeps playing).
+  try:converting=airplay.converts(airplay.load(library))
+  except OSError:converting=False
+  direct=cast.apple_playable(url,playing)
+  apple=direct or cast.apple_playable(url,playing,converts=converting)
   extra=[{'kind':'airplay','host':'','name':'Apple TV / AirPlay TV'+('' if apple else '  (Screen Mirroring)')}]
-  note+=('AirPlay sends MP4 and HLS; other TVs use their own player.' if apple
+  note+=('AirPlay sends MP4 and HLS; other TVs use their own player.' if direct
+         else 'AirPlay converts this %s video on the phone: keep Kodi open. Other TVs use their own player.'%cast.format_name(url,playing) if apple
          else 'AirPlay shows this %s video through Screen Mirroring; other TVs use their own player.'%cast.format_name(url,playing))
  last=addon.getSettingString('last_tv')
  found={};done=threading.Event()
@@ -132,7 +137,10 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
  if not hasattr(lib,'kodi_airplay_state'):
   player.stop();xbmc.sleep(500);lib.kodi_airplay_play(url.encode('utf-8'),(title or '').encode('utf-8'));return
  if not xbmc.getCondVisibility('Player.Paused'):player.pause()
- lib.kodi_airplay_play(url.encode('utf-8'),(title or '').encode('utf-8'))
+ # Converting reads the video on the phone itself, so it uses the link Kodi plays (Drive's and Elementum's helpers
+ # answer on 127.0.0.1 only: owner build-132 log, "Connection refused" on the Wi-Fi address).
+ source=cast.phone_source(playing,url) if converting and not cast.apple_playable(url,playing) else url
+ lib.kodi_airplay_play(source.encode('utf-8'),(title or '').encode('utf-8'))
  # Converting first reads the start of the file (over Elementum or Drive): allow longer than a direct link.
  outcome=cast.airplay_outcome(lib.kodi_airplay_state,xbmc.Monitor().waitForAbort,60 if converting else 25)
  why=airplay.message(lib)

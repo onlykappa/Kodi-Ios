@@ -19,6 +19,12 @@ def stream_url(playing,phone_ip):
   return urllib.parse.urlunsplit(parts._replace(netloc=netloc)),True
  return url,False
 
+def phone_source(playing,fallback):
+ """The link as Kodi plays it (headers after '|' dropped) when it is a web link, else `fallback`: what the phone itself
+ reads for AirPlay conversion."""
+ url=(playing or '').split('|',1)[0]
+ return url if urllib.parse.urlsplit(url).scheme in {'http','https'} else fallback
+
 def launch_url(roku,url,title='',command='input'):
  # Roku's built-in "Play on Roku" receiver (channel 15985) takes a direct media link: `input` hands it to the
  # receiver, `launch` starts the receiver with it (some Roku OS versions only accept one of the two).

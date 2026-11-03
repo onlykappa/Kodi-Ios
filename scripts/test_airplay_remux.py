@@ -24,6 +24,23 @@ class Routing(unittest.TestCase):
   self.assertFalse(cast.apple_playable('http://x/a.flv','',converts=True))
   self.assertFalse(cast.apple_playable('',None,converts=True))
 
+class PhoneSource(unittest.TestCase):
+ def test_conversion_reads_the_link_kodi_plays(self):
+  # Owner build-132: Drive's helper answers on 127.0.0.1 only; the Wi-Fi address was refused.
+  playing='http://127.0.0.1:60047/download/1/1/abc/Movie.mkv|User-Agent=Kodi'
+  self.assertEqual(cast.phone_source(playing,'http://192.168.1.11:60047/x'),'http://127.0.0.1:60047/download/1/1/abc/Movie.mkv')
+  self.assertEqual(cast.phone_source('/var/mobile/Movie.mkv','http://fallback/x'),'http://fallback/x')
+  source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
+  self.assertIn('cast.phone_source(playing,url)',source)
+  self.assertIn('AirPlay converts this %s video on the phone',source)
+
+class EpisodePicker(unittest.TestCase):
+ def test_one_tap_picks_an_episode_and_empty_ticks_explain(self):
+  source=(ROOT/'migration/bundled-bootstrap/download.py').read_text()
+  self.assertIn("labels+['Several episodes...']",source)
+  self.assertIn('No episode was ticked',source)
+  self.assertLess(source.index("dialog.select('Season %s: which episode?'"),source.index('dialog.multiselect('))
+
 class Framework(unittest.TestCase):
  def test_message_only_from_r5(self):
   old=types.SimpleNamespace()
