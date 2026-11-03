@@ -44,10 +44,20 @@ def run():
     'directory':dl.season_path(tmdb,season),'media':'video','properties':['episode','title']}})))
    choices=dl.episode_choices(answer.get('result',{}).get('files'))
    if not choices:dialog.ok('Download','Could not list the episodes of season %s.'%season);return
-   chosen=dialog.multiselect('Season %s: which episodes?'%season,[label for n,label in choices])
-   if not chosen:return
+   # Owner (build-132): ticking in Fuse's multi-select did not register, so OK came back empty and the page just
+   # closed. One tap now picks one episode; "Several episodes..." keeps the tick list and says when none was ticked.
+   labels=[label for n,label in choices]
+   pick=dialog.select('Season %s: which episode?'%season,labels+['Several episodes...'])
+   xbmc.log('Kodi iOS download: season %s episode list, picked %s'%(season,pick),xbmc.LOGINFO)
+   if pick<0:return
+   if pick<len(choices):chosen=[pick]
+   else:
+    chosen=dialog.multiselect('Season %s: tick the episodes'%season,labels) or []
+    xbmc.log('Kodi iOS download: ticked %s'%chosen,xbmc.LOGINFO)
+    if not chosen:dialog.ok('Download','No episode was ticked. Tap an episode to tick it, then OK.');return
    episodes=[choices[i][0] for i in chosen]
    watching=mode(dl.mode_labels('season',episodes))
+   xbmc.log('Kodi iOS download: episodes %s, watch %s'%(episodes,watching),xbmc.LOGINFO)
    if watching is None:return
    first=min(episodes)
    # Every version is chosen first (one page per episode), then the first episode plays: a page for the next
