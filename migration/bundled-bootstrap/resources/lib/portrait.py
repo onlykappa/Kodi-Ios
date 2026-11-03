@@ -518,15 +518,16 @@ def search_window(original):
   '<onclick>%s</onclick><ondown>5100</ondown></control>%s%s</control>'
   )%(SIDE,WIDTH-2*SIDE,WIDTH-2*SIDE,MEDIA,SURFACE,MEDIA,e(SEARCH_ACTION),icon(40,38,48,'magnifying-glass.png',GREY),label(110,0,WIDTH-2*SIDE-150,124,'Shows, Movies, and More','p_body',GREY))+
   '</control>')
- items=''.join('<item><label>%s</label><property name="tile">%stile_%d.png</property><property name="photo">$INFO[Window(Home).Property(%s%d)]</property>%s</item>'
-  %(e(name),MEDIA,gid,GENRE_PHOTO,gid,clicks(titled_page(name,'%s?info=discover&tmdb_type=tv&with_id=True&with_genres=%d&sort_by=popularity.desc'%(TMDB,gid)))) for name,gid,_,_ in CATEGORIES)
+ items=''.join('<item><label>%s</label><property name="tile">%stile_%d.png</property><property name="photo">$INFO[Window(Home).Property(%s%d)]</property><property name="tint">F2%02X%02X%02X</property>%s</item>'
+  %(e(name),MEDIA,gid,GENRE_PHOTO,gid,*bottom,clicks(titled_page(name,'%s?info=discover&tmdb_type=tv&with_id=True&with_genres=%d&sort_by=popularity.desc'%(TMDB,gid)))) for name,gid,_,bottom in CATEGORIES)
  zoom=lambda focused:'<animation effect="zoom" start="100" end="104" time="160" center="auto">Focus</animation>' if focused else ''
  tile=lambda focused:('<control type="group"><left>0</left><top>0</top>%s'%zoom(focused)+
   image(0,0,tile_w,tile_h,'$INFO[ListItem.Property(tile)]',WHITE,diffuse=MEDIA+'poster_mask.png')+
   # Owner (build-133): a photo per genre like the Apple TV app (genre_photos), the genre colour as a tint over it.
   image(0,0,tile_w,tile_h,'$INFO[ListItem.Property(photo)]',WHITE,aspect='>scale',diffuse=MEDIA+'poster_mask.png',background=True)+
-  image(0,0,tile_w,tile_h,'$INFO[ListItem.Property(tile)]','99FFFFFF',diffuse=MEDIA+'poster_mask.png')+
-  image(0,tile_h-200,tile_w,200,MEDIA+'fade_up.png','80FFFFFF',diffuse=MEDIA+'poster_mask.png')+
+  # Style C (owner): the photo as it is, fading into the genre colour behind the label.
+  image(0,tile_h-300,tile_w,300,MEDIA+'fade_up.png','$INFO[ListItem.Property(tint)]',diffuse=MEDIA+'poster_mask.png',extra='<visible>!String.IsEmpty(ListItem.Property(photo))</visible>')+
+  image(0,tile_h-200,tile_w,200,MEDIA+'fade_up.png','80FFFFFF',diffuse=MEDIA+'poster_mask.png',extra='<visible>String.IsEmpty(ListItem.Property(photo))</visible>')+
   '<control type="textbox"><left>26</left><top>%d</top><width>%d</width><height>120</height><font>p_tile</font><textcolor>FFFFFFFF</textcolor><label>$INFO[ListItem.Label]</label></control>'%(tile_h-150,tile_w-40)+'</control>')
  # With the native field the page has no header: the categories move up under the band.
  up='<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(SEARCH_BAND+160-350,SEARCH_NATIVE)

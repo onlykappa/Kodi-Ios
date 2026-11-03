@@ -29,7 +29,9 @@ class GenrePhotos(unittest.TestCase):
   xml=p.search_window('<window><controls></controls></window>')
   xml=xml.decode() if isinstance(xml,bytes) else xml
   self.assertIn('$INFO[Window(Home).Property(Portrait.GenrePhoto.18)]',xml)
-  self.assertLess(xml.index('ListItem.Property(photo)'),xml.index('colordiffuse="99FFFFFF">$INFO[ListItem.Property(tile)]'))
+  # Style C: the photo, then a fade in the genre colour (Drama's dark blue) behind the label.
+  self.assertLess(xml.index('ListItem.Property(photo)'),xml.index('colordiffuse="$INFO[ListItem.Property(tint)]"'))
+  self.assertIn('<property name="tint">F20C1234</property>',xml)
  def test_loaded_only_when_search_opens(self):
   started=[];visible={'v':False}
   tick=p.genre_photos_tick(lambda c:visible['v'],lambda:started.append(1))
