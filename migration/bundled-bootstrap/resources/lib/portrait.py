@@ -1176,7 +1176,7 @@ def listing_cache(cache,store,flags,lists,fetch,wait,busy,log,clock=None):
  import time
  clock=clock or time.time
  def pace(seconds):
-  if wait(seconds):return True
+  if seconds>0 and wait(seconds):return True   # Kodi's waitForAbort(0) waits for ever
   while busy():
    if wait(30):return True
   return False
