@@ -25,7 +25,9 @@ def run():
  if not elementum_engine.running():
   dialog.ok('Download','Elementum is not running. Gear menu › Retry Elementum engine, then try again.');return
  wait=lambda:xbmc.Monitor().waitForAbort(1)
- start=lambda k,e=None:xbmc.executebuiltin('RunPlugin(%s)'%dl.plugin_url(k,tmdb,season,e))
+ def start(k,e=None):
+  url=dl.plugin_url(k,tmdb,season,e);xbmc.log('Kodi iOS download: asking Elementum '+url,xbmc.LOGINFO)
+  xbmc.executebuiltin('RunPlugin(%s)'%url)
  def watch(k,torrent=None,e=None):
   if torrent is None:return
   # Elementum shows a few seconds of buffering, then the video; the download carries on in the background.
@@ -72,4 +74,13 @@ def run():
  start(kind,episode)
  if watching:watch(kind,dl.added(before,wait,attempts=300),episode)
 
-if __name__=='__main__':run()
+def main():
+ # Owner (build-127): after picking episodes nothing happened. Every step is logged and a failure is shown, never
+ # a silent stop.
+ import traceback,xbmc,xbmcgui
+ try:run()
+ except Exception as error:
+  xbmc.log('Kodi iOS download failed: %s\n%s'%(error,traceback.format_exc()),xbmc.LOGERROR)
+  xbmcgui.Dialog().ok('Download','Download could not start: %s'%error)
+
+if __name__=='__main__':main()
