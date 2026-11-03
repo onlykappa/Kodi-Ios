@@ -280,4 +280,28 @@ class SkinTests(unittest.TestCase):
   portrait.listing_cache(fake,None,None,lambda:[],None,lambda s:calls.append(s) or next(waits),lambda:next(busy,False),lambda t:None)
   self.assertEqual(calls,[portrait.REFRESH_AFTER,30,30,'refresh',portrait.REFRESH_EVERY])
 
+class ReusedInterpreterTests(unittest.TestCase):
+ """r9 startup: the cached rows run this plugin ~30 times at launch; Kodi keeps its interpreter between runs."""
+ def test_reuse_and_no_mutable_module_state(self):
+  import ast
+  base=ROOT/'migration/import-overlays/plugin.video.kodi.ios.watch'
+  root=ET.parse(base/'addon.xml').getroot()
+  self.assertEqual(root.findtext("extension[@point='xbmc.python.pluginsource']/reuselanguageinvoker"),'true')
+  for f in [base/'default.py',*sorted((base/'resources/lib').glob('*.py'))]:
+   tree=ast.parse(f.read_text())
+   tables={t.id for n in tree.body if isinstance(n,ast.Assign) and isinstance(n.value,(ast.List,ast.Dict,ast.Set,ast.ListComp,ast.DictComp))
+           for t in n.targets if isinstance(t,ast.Name)}
+   for node in ast.walk(tree):
+    self.assertNotIsInstance(node,ast.Global,f.name)  # nothing carried from one run to the next
+    # module-level tables are read only: a reused interpreter would keep what one run put in them
+    if isinstance(node,ast.Call) and isinstance(node.func,ast.Attribute) and isinstance(node.func.value,ast.Name):
+     self.assertFalse(node.func.value.id in tables and node.func.attr in ('append','extend','update','pop','clear','insert','add','setdefault','remove'),
+                      '%s:%d mutates %s'%(f.name,node.lineno,node.func.value.id))
+    if isinstance(node,(ast.Assign,ast.AugAssign)):
+     for t in (node.targets if isinstance(node,ast.Assign) else [node.target]):
+      self.assertFalse(isinstance(t,ast.Subscript) and isinstance(t.value,ast.Name) and t.value.id in tables,'%s:%d'%(f.name,node.lineno))
+  text=(base/'default.py').read_text()+(base/'resources/lib/ios_library.py').read_text()
+  self.assertNotIn('\nsys.path.insert',text)
+  self.assertEqual(text.count('not in sys.path:sys.path.insert'),2)
+
 if __name__=='__main__':unittest.main()

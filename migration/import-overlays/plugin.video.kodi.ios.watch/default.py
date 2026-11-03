@@ -1,7 +1,9 @@
 """Kodi renders this real directory UI; no mock screen or engine is generated."""
 import os,sys
 from urllib.parse import parse_qs
-sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
+# reuselanguageinvoker: this file runs again in the same interpreter for every listing; the path goes in once.
+LIB=os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib')
+if LIB not in sys.path:sys.path.insert(0,LIB)
 from ios_watch_routes import choices
 
 def run(argv):
