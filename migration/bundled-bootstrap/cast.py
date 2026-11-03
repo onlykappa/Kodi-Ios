@@ -148,7 +148,12 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
  # keeps relaying the rest while it plays (airplay.relay).
  for line in airplay.log_lines(lib):xbmc.log('Kodi iOS AirPlay: '+line,xbmc.LOGINFO)
  xbmc.log('Kodi iOS Play on TV: Apple\'s player %s %s%s'%(outcome,url.split('?',1)[0],(' ('+why+')') if why else ''),xbmc.LOGINFO)
- if outcome=='playing':player.stop();notices.note('info','Playing with AirPlay',title or '');return
+ if outcome=='playing':
+  # Owner build-136 log: stopping Kodi's video here (7 ms after "playing") turned the app back to portrait under
+  # Apple's player; the TV then hung up on the video and audio segments and AirPlay switched off 4 s later. Kodi's
+  # video stays paused in landscape while AirPlay plays; closing Apple's player returns to it.
+  if not xbmc.getCondVisibility('Player.Paused'):player.pause()
+  notices.note('info','Playing with AirPlay',title or '');return
  lib.kodi_airplay_close()
  if outcome=='aborted':return
  if xbmc.getCondVisibility('Player.Paused'):player.pause()

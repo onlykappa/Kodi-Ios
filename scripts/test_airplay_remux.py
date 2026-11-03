@@ -60,6 +60,14 @@ class SeasonDownload(unittest.TestCase):
   self.assertEqual(last,'http://127.0.0.1:65220/play?uri=x&type=episode&background=true')
   self.assertIn("if k=='movie'",(ROOT/'migration/bundled-bootstrap/download.py').read_text())
 
+class KodiStaysPaused(unittest.TestCase):
+ def test_airplay_playing_does_not_stop_kodi(self):
+  # Owner build-136 log: player.stop() right after "playing" rotated the app and the TV dropped the session.
+  source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
+  body=source[source.index('def send_airplay('):source.index('def send(xbmc')]
+  playing=body[body.index("if outcome=='playing':"):body.index("lib.kodi_airplay_close()")]
+  self.assertNotIn('player.stop()',playing);self.assertIn('player.pause()',playing)
+
 class Framework(unittest.TestCase):
  def test_message_only_from_r5(self):
   old=types.SimpleNamespace()
