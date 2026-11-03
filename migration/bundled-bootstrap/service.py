@@ -16,6 +16,13 @@ def run():
  def stage(value):state['stage']=value
  def api(method,params):return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params})))
  def invoke(command):xbmc.executebuiltin(command,True)
+ # r11: portrait rows follow the owner's widgets, Continue Watching follows playback, the glass tab bar. Started now:
+ # the tab bar and the rest no longer wait for setup (build-132: ~4 s of setup, then the ~3 s refresh, before the tab
+ # bar showed); only the portrait refresh waits for setup_done, set once setup and its reload are over.
+ setup_done=threading.Event()
+ # Not for the gear menu's Recover (recover.py runs this with --recover next to the running service).
+ if not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
+  portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),kwargs={'ready':setup_done},daemon=True);portrait_thread.start()
  def prepare_generated(sync=True):
   nonlocal generated
   stage('skin_preferences')
@@ -118,6 +125,7 @@ def run():
   invoke('Action(reloadkeymaps)')
   # Exactly one reload after verified generation, never during Keep Skin confirmation.
   if generated and state['stage']=='complete' and xbmc.getSkinDir()==FUSE:invoke('ReloadSkin()')
+  setup_done.set()
   # After any reload has settled: the one-time calibration reset, then a quiet check for a newer build. In the
   # background (performance pass): the tab bar, Continue Watching and the rest below used to wait for these ten
   # seconds too (the glass bar appeared ~19 s after launch in the owner's log).
@@ -129,9 +137,6 @@ def run():
     if xbmcaddon.Addon().getSettingBool('check_on_start'):updates.run(check_only=True)
    except Exception as error:xbmc.log('Kodi iOS update check skipped: '+type(error).__name__,xbmc.LOGWARNING)
   threading.Thread(target=later,daemon=True).start()
- # r11: portrait rows follow the owner's widgets, rotating the phone reloads the matching layout, and Continue
- # Watching follows playback. Its own thread, since the AirPlay watch below also runs for the whole session.
- portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),daemon=True);portrait_thread.start()
  # The bell in the hub headers: unread messages and whether a download or Drive upload runs.
  threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),daemon=True).start()
  # Umbrella's getting-ready-to-play screen: its source text, split into the badges the portrait page shows.

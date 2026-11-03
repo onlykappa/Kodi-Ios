@@ -47,6 +47,14 @@ class ServiceLoad(unittest.TestCase):
   self.assertLess(SERVICE.rindex('def later():',0,wait),wait)
   self.assertIn('threading.Thread(target=later,daemon=True).start()',SERVICE)
 
+ def test_tab_bar_starts_before_setup_and_refresh_waits_for_it(self):
+  # Build-132: the portrait service (tab bar, Continue Watching) started only after setup (~4 s) and then ran the
+  # refresh (~3 s) before the tab bar; now it starts first and only the refresh waits for setup_done.
+  start=SERVICE.index('target=portrait.run_service');self.assertLess(start,SERVICE.index('initialize(root/'))
+  self.assertIn("'ready':setup_done",SERVICE[start:start+200])
+  self.assertLess(SERVICE.index("invoke('ReloadSkin()')\n  setup_done.set()"),SERVICE.index('def later():'))
+  src=Path(portrait.__file__).read_text();run=src[src.index('def run_service('):]
+  self.assertLess(run.index('threading.Thread(target=keep_current'),run.index('glassbar.controller('))
  def test_elementum_folders_are_not_fixed_twice(self):
   self.assertNotIn('follow_container(',SERVICE)
 
