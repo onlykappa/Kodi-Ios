@@ -24,6 +24,14 @@
 # whose video AirPlay cannot carry at all (VP9, MPEG-2) convert from the start. Costs battery and warmth (a hardware
 # decode + encode while playing; nothing runs once the player closes). HDR is not tone mapped (looks washed out).
 # FFmpeg gains video decoders, libswscale and VideoToolbox (LGPL kept), linked with VideoToolbox, CoreMedia, CoreVideo.
+# r8: owner build-136, TCL Roku TV: the TV fetched the master itself, read the HEVC init, hung up on the segments and
+# AirPlay switched off within ~10 s, so r7's 30 s sound-only check never fired. The remuxer now tells receivers apart
+# by User-Agent: a third-party AirPlay TV ("MFi_AirPlay_Device") gets the picture converted to H.264 from its first
+# request while the phone and an Apple TV keep the copy (same segment grid). Fallback here: external playback ending
+# within 20 s with no video segment served to the TV restarts once in compat mode. Segments come faster: inits and
+# recent segments cached, the next two made ahead in the background, audio and video made at the same time (each on
+# its own connection). Apple's player holder follows the screen (any orientation but upside down, relaid out on every
+# size change) instead of the orientation Kodi had when it opened (controls laid out landscape on a portrait screen).
 # Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh)
 set -euo pipefail
 [[ "$(uname -s)" == Darwin ]] || { echo 'BLOCKED: macOS with the iPhoneOS SDK is required.' >&2; exit 2; }
@@ -39,6 +47,7 @@ cat > "$WORK/KodiAirPlay.m" <<'OBJC'
 #import <AVKit/AVKit.h>
 #import <AVFoundation/AVFoundation.h>
 
+#import <math.h>
 #import <stdatomic.h>
 
 #import <objc/message.h>
@@ -180,13 +189,41 @@ static void stopRemux(void) {
 }
 
 @interface KodiAirPlayHolder : UIViewController
-@property (nonatomic) UIInterfaceOrientationMask mask;
 @property (nonatomic, weak) UIButton *closeButton;
 @end
 
+// r8: the holder follows the screen. r4 pinned the orientation Kodi had when Apple's player opened; Kodi then stopped
+// and turned to portrait underneath, and Apple's controls stayed laid out landscape-wide on the portrait screen, cut
+// off (owner screenshot, build-136). Any orientation but upside down, and the player view is laid out again on every
+// size change. Kodi's screen is still rebuilt when the holder closes (healKodi, ISSUE-081).
 @implementation KodiAirPlayHolder
-- (UIInterfaceOrientationMask)supportedInterfaceOrientations { return self.mask; }
-- (BOOL)shouldAutorotate { return NO; }
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations { return UIInterfaceOrientationMaskAllButUpsideDown; }
+- (BOOL)shouldAutorotate { return YES; }
+- (UIInterfaceOrientation)preferredInterfaceOrientationForPresentation {
+    // Open in the orientation the screen has now (no turn when it appears).
+    UIWindowScene *scene = self.view.window.windowScene ?: kodiWindow().windowScene;
+    UIInterfaceOrientation now = scene ? scene.interfaceOrientation : UIInterfaceOrientationUnknown;
+    return now == UIInterfaceOrientationUnknown || now == UIInterfaceOrientationPortraitUpsideDown ? UIInterfaceOrientationPortrait : now;
+}
+- (void)layoutPlayer {
+    for (UIViewController *child in self.childViewControllers) child.view.frame = self.view.bounds;
+}
+- (void)viewWillLayoutSubviews {
+    [super viewWillLayoutSubviews];
+    [self layoutPlayer];
+}
+- (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
+    [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
+    [coordinator animateAlongsideTransition:^(id<UIViewControllerTransitionCoordinatorContext> context) { [self layoutPlayer]; }
+                                 completion:^(id<UIViewControllerTransitionCoordinatorContext> context) { [self layoutPlayer]; }];
+}
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    // The screen may have turned while the holder was being presented (Kodi stopping): take the current orientation.
+    if (@available(iOS 16.0, *)) [self setNeedsUpdateOfSupportedInterfaceOrientations];
+    else [UIViewController attemptRotationToDeviceOrientation];
+    [self layoutPlayer];
+}
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = UIColor.blackColor;
@@ -299,6 +336,46 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted) {
             __block NSUInteger errorsSeen = 0;
             __block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO;
             __block double resumeAt = -1;
+            // r7: once per stream: restart with the picture converted to H.264 at the same position. NO when it cannot
+            // (already tried, or no source to restart).
+            BOOL (^restartCompat)(BOOL) = ^BOOL(BOOL hevc) {
+                char *source = NULL;
+                os_unfair_lock_lock(&noteLock);
+                if (!compatTried && remuxSource) source = strdup(remuxSource);
+                os_unfair_lock_unlock(&noteLock);
+                if (!source) return NO;
+                compatTried = YES; restarting = YES;
+                double at = CMTimeGetSeconds(player.currentTime);
+                if (!isfinite(at) || at < 0) at = 0;
+                playerNote(@"restarting in compat mode (picture converted to H.264) at %.1f s", at);
+                setNote(@"Converting the picture for this TV\u2026");
+                showConverting(YES);
+                dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                    char playlist[512] = "";
+                    int r = kr_remux_start(source, 1, 1, playlist, sizeof playlist);
+                    free(source);
+                    NSString *link = r == KR_READY ? @(playlist) : nil;
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        restarting = NO;
+                        NSURL *address = link ? [NSURL URLWithString:link] : nil;
+                        if (!address) {
+                            const char *m = kr_remux_message();
+                            playerNote(@"compat restart failed: %s", m ? m : "");
+                            showConverting(NO);
+                            showNoPicture(hevc);
+                            return;
+                        }
+                        AVPlayerItem *next = [AVPlayerItem playerItemWithURL:address];
+                        watchFailures(next);
+                        [player replaceCurrentItemWithPlayerItem:next];
+                        [player play];
+                        resumeAt = at; errorsSeen = 0; waiting = 0; warned = NO;
+                        externalTicks = 0; video0 = kr_remux_served(1); audio0 = kr_remux_served(0);
+                        setNote(nil);
+                    });
+                });
+                return YES;
+            };
             stallWatch = [NSTimer scheduledTimerWithTimeInterval:1.0 repeats:YES block:^(NSTimer *timer) {
                 AVPlayerItem *item = player.currentItem;
                 ticks++;
@@ -318,9 +395,26 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted) {
                                errors[i].errorComment ?: @"", errors[i].URI.lastPathComponent ?: @"");
                 errorsSeen = errors.count;
                 if (player.externalPlaybackActive != external) {
+                    int wasOn = external, lasted = externalTicks;
                     external = player.externalPlaybackActive;
                     playerNote(@"external playback %@", external ? @"on (the TV fetches the stream)" : @"off");
                     externalTicks = 0; video0 = kr_remux_served(1); audio0 = kr_remux_served(0);
+                    // r8: the TV gave up within seconds without one video segment (owner build-136: a TCL Roku TV read
+                    // the HEVC master and init, hung up on the segments, AirPlay off ~10 s later): restart once with
+                    // the picture converted instead of waiting for r7's 30 s of sound only. Only when the TV never had
+                    // the converted picture (a receiver the remuxer did not recognise) and the video is not H.264.
+                    if (wasOn && !external && lasted <= 20 && !compatTried && kr_remux_served_external(1) == 0) {
+                        const char *codec = kr_remux_video_codec();
+                        BOOL hevc = codec && (!strncmp(codec, "hvc1", 4) || !strncmp(codec, "hev1", 4));
+                        if (kr_remux_compat_clients() > 0)
+                            playerNote(@"external playback ended after %d s with no video segment served to the TV; it already had the H.264 picture", lasted);
+                        else if (codec && !strncmp(codec, "avc1", 4))
+                            playerNote(@"external playback ended after %d s with no video segment served to the TV (already H.264)", lasted);
+                        else {
+                            playerNote(@"external playback ended after %d s with no video segment served to the TV (%s): converting the picture", lasted, codec ? codec : "");
+                            if (restartCompat(hevc)) return;
+                        }
+                    }
                 }
                 if (external) externalTicks++;
                 if (ticks == 5 || ticks == 15 || ticks % 60 == 0)
@@ -335,43 +429,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted) {
                     const char *codec = kr_remux_video_codec();
                     BOOL hevc = codec && (!strncmp(codec, "hvc1", 4) || !strncmp(codec, "hev1", 4));
                     playerNote(@"the TV takes audio segments but no video ones (%s): sound only", codec ? codec : "");
-                    char *source = NULL;
-                    os_unfair_lock_lock(&noteLock);
-                    if (!compatTried && remuxSource) source = strdup(remuxSource);
-                    os_unfair_lock_unlock(&noteLock);
-                    if (source) {
-                        // r7: once per stream: restart with the picture converted to H.264 at the same position.
-                        compatTried = YES; restarting = YES;
-                        double at = CMTimeGetSeconds(player.currentTime);
-                        playerNote(@"restarting in compat mode (picture converted to H.264) at %.1f s", at);
-                        setNote(@"Converting the picture for this TV\u2026");
-                        showConverting(YES);
-                        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-                            char playlist[512] = "";
-                            int r = kr_remux_start(source, 1, 1, playlist, sizeof playlist);
-                            free(source);
-                            NSString *link = r == KR_READY ? @(playlist) : nil;
-                            dispatch_async(dispatch_get_main_queue(), ^{
-                                restarting = NO;
-                                NSURL *address = link ? [NSURL URLWithString:link] : nil;
-                                if (!address) {
-                                    const char *m = kr_remux_message();
-                                    playerNote(@"compat restart failed: %s", m ? m : "");
-                                    showConverting(NO);
-                                    showNoPicture(hevc);
-                                    return;
-                                }
-                                AVPlayerItem *next = [AVPlayerItem playerItemWithURL:address];
-                                watchFailures(next);
-                                [player replaceCurrentItemWithPlayerItem:next];
-                                [player play];
-                                resumeAt = at; errorsSeen = 0; waiting = 0; warned = NO;
-                                externalTicks = 0; video0 = kr_remux_served(1); audio0 = kr_remux_served(0);
-                                setNote(nil);
-                            });
-                        });
-                        return;
-                    }
+                    if (restartCompat(hevc)) return;
                     showNoPicture(hevc);
                 }
                 if (item.status == AVPlayerItemStatusFailed) {
@@ -393,11 +451,8 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted) {
         airplayController.title = name;
         airplayController.allowsPictureInPicturePlayback = YES;
         airplayController.entersFullScreenWhenPlaybackBegins = NO;
-        // r4: inside a holder that keeps Kodi's orientation, over Kodi rather than in place of it.
+        // r4: inside a holder over Kodi rather than in place of it; r8: the holder follows the screen's orientation.
         KodiAirPlayHolder *holder = [[KodiAirPlayHolder alloc] init];
-        UIWindowScene *scene = kodiWindow().windowScene;
-        UIInterfaceOrientation now = scene ? scene.interfaceOrientation : UIInterfaceOrientationPortrait;
-        holder.mask = UIInterfaceOrientationIsLandscape(now) ? UIInterfaceOrientationMaskLandscape : UIInterfaceOrientationMaskPortrait;
         holder.modalPresentationStyle = UIModalPresentationOverFullScreen;
         [holder addChildViewController:airplayController];
         airplayController.view.frame = holder.view.bounds;
@@ -615,6 +670,8 @@ PLIST
 nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message|log)|background_keep)$'
 [[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log)|background_keep)$')" == 8 ]] || { echo 'missing exports' >&2; exit 1; }
 ! nm -gU "$FW/KodiAirPlay" | grep -E ' _(av|avformat|avcodec|swr|sws|kr|gm)_' || { echo 'FFmpeg symbols exported: they would clash with Kodi' >&2; exit 1; }
+# r8: the per-receiver picture and the TV's segment count are linked in (private to the framework, not exported).
+[[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _kr_remux_(third_party_receiver|served_external|compat_clients)$')" == 3 ]] || { echo 'r8 remuxer missing' >&2; exit 1; }
 # r7: the picture bridge needs Apple's hardware H.264 encoder in this FFmpeg.
 grep -q -- '--enable-encoder=h264_videotoolbox' "$FF/FFMPEG-CONFIG.txt" || { echo 'FFmpeg built without h264_videotoolbox' >&2; exit 1; }
 lipo -info "$FW/KodiAirPlay"

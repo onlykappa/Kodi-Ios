@@ -153,6 +153,8 @@ class IpaTests(unittest.TestCase):
                'void kodi_airplay_close(void','void kodi_background_keep(int'):self.assertIn('__attribute__((visibility("default"))) '+name,src)
   # Silence mixed with other apps, only in the background, restarted after a call.
   for text in ('AVAudioSessionCategoryOptionMixWithOthers','UIApplicationDidEnterBackgroundNotification','AVAudioSessionInterruptionTypeEnded'):self.assertIn(text,src)
-  # r4: Apple's player keeps Kodi's orientation, sits over Kodi, and asks Kodi to rebuild its screen when it closes.
-  for text in ('UIModalPresentationOverFullScreen','- (BOOL)shouldAutorotate { return NO; }','NSSelectorFromString(@"applyRotatedScreen")'):self.assertIn(text,src)
+  # r4: Apple's player sits over Kodi and asks Kodi to rebuild its screen when it closes. r8: it follows the screen
+  # (r4 pinned Kodi's orientation at open: landscape controls on a portrait screen once Kodi turned underneath).
+  for text in ('UIModalPresentationOverFullScreen','- (BOOL)shouldAutorotate { return YES; }','UIInterfaceOrientationMaskAllButUpsideDown',
+               'viewWillTransitionToSize:','NSSelectorFromString(@"applyRotatedScreen")'):self.assertIn(text,src)
 if __name__=='__main__':unittest.main()
