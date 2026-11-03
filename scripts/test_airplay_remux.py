@@ -81,4 +81,29 @@ class Framework(unittest.TestCase):
    self.assertIn(needle,build)
   self.assertGreaterEqual(build.count('stopRemux();'),3)  # new direct play, Apple's player dismissed, kodi_airplay_close
 
+class AirPlayLog(unittest.TestCase):
+ def test_old_framework_has_no_log(self):
+  old=types.SimpleNamespace()
+  self.assertEqual(airplay.log_lines(old),[])
+  written=[];airplay.relay(old,written.append,lambda s:True);self.assertEqual(written,[])
+ def test_lines_are_drained_and_relayed(self):
+  chunks=[b'master: BANDWIDTH=8000000,CODECS="hvc1.2.4.L120.90,mp4a.40.2"\nGET /video/seg0.m4s 200 1834 B 12 ms\n',b'']
+  def fill(buffer,size):
+   data=chunks.pop(0) if chunks else b'';buffer.value=data;return len(data)
+  lib=types.SimpleNamespace(kodi_airplay_log=fill)
+  self.assertEqual(airplay.log_lines(lib),['master: BANDWIDTH=8000000,CODECS="hvc1.2.4.L120.90,mp4a.40.2"','GET /video/seg0.m4s 200 1834 B 12 ms'])
+  chunks[:]=[b'player: closed at 12.0 s\n',b''];written=[]
+  airplay.relay(lib,written.append,lambda s:True)
+  self.assertEqual(written,['Kodi iOS AirPlay: player: closed at 12.0 s'])
+ def test_wired_into_cast_service_and_framework(self):
+  self.assertIn("airplay.log_lines(lib)",(ROOT/'migration/bundled-bootstrap/cast.py').read_text())
+  self.assertIn("target=airplay.relay",(ROOT/'migration/bundled-bootstrap/service.py').read_text())
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  for needle in ('_kodi_airplay_log','int kodi_airplay_log(char *buf, int len)','kr_remux_log(','showNoPicture(hevc)',
+                 "can't play HEVC",'kr_remux_served(1) == video0','presentationSize'):
+   self.assertIn(needle,build)
+  lock=__import__('json').loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())
+  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r6')
+  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r5')
+
 if __name__=='__main__':unittest.main()

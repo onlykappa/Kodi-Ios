@@ -12,6 +12,11 @@
 # Wi-Fi address that the Apple TV reads, video copied, DTS/TrueHD/FLAC/Opus/Vorbis re-encoded to AAC. MP4/MOV/HLS keep
 # the direct path. kodi_airplay_message() gives the reason when it cannot play, for the screen. Licences in
 # remux/THIRD-PARTY-NOTICES (also inside the framework).
+# r6: kodi_airplay_log(buf, len) hands Python what happened for kodi.log: the variant line (CODECS, RESOLUTION,
+# VIDEO-RANGE), the receiver's User-Agent, every request (path, status, bytes, ms), remux errors, and Apple's player
+# events (ready, failed, its error log, presentation size, external playback). HEVC CODECS carry the stream's real
+# constraint bytes (was a fixed B0). An AirPlay TV that takes the audio segments but never a video one (owner
+# build-133: TCL Roku TV, HEVC file, sound with a music note) gets "No picture on the TV" with the way out.
 # Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh)
 set -euo pipefail
 [[ "$(uname -s)" == Darwin ]] || { echo 'BLOCKED: macOS with the iPhoneOS SDK is required.' >&2; exit 2; }
@@ -114,6 +119,24 @@ static void setNote(NSString *text) {
     os_unfair_lock_unlock(&noteLock);
 }
 
+// r6: Apple's player events for kodi_airplay_log() (read with the remuxer's request log), latest 64 kept.
+static NSMutableArray<NSString *> *playerLines;
+
+static void playerNote(NSString *format, ...) NS_FORMAT_FUNCTION(1, 2);
+static void playerNote(NSString *format, ...) {
+    va_list ap; va_start(ap, format);
+    NSString *line = [[NSString alloc] initWithFormat:format arguments:ap];
+    va_end(ap);
+    NSLog(@"KodiAirPlay: %@", line);
+    os_unfair_lock_lock(&noteLock);
+    if (!playerLines) playerLines = [NSMutableArray array];
+    [playerLines addObject:[@"player: " stringByAppendingString:line]];
+    if (playerLines.count > 64) [playerLines removeObjectAtIndex:0];
+    os_unfair_lock_unlock(&noteLock);
+}
+
+static NSString *sizeText(CGSize size) { return [NSString stringWithFormat:@"%.0fx%.0f", size.width, size.height]; }
+
 static void stopRemux(void) {
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{ kr_remux_stop(); });
 }
@@ -150,6 +173,7 @@ static void stopRemux(void) {
     [super viewDidDisappear:animated];
     if (self.isBeingDismissed || self.presentingViewController == nil) {
         [stallWatch invalidate]; stallWatch = nil;
+        playerNote(@"closed at %.1f s", CMTimeGetSeconds(airplayController.player.currentTime));
         stopRemux();  // r5: playback stopped: the server, its sockets and the source connections go too
         // Twice: once now, once after any rotation iOS still runs has settled.
         healKodi();
@@ -165,9 +189,29 @@ static KodiAirPlayHolder *airplayHolder;
 // r5: never a silent hang: when the converted stream fails or stalls while the remuxer reports an error, say so.
 static void showProblem(NSString *text) {
     setNote(text);
+    playerNote(@"stopped: %@", text);
     if (!airplayHolder || airplayHolder.presentedViewController) return;
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"AirPlay stopped" message:text
                                                             preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Close" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+        [airplayController.player pause];
+        [airplayHolder dismissViewControllerAnimated:YES completion:nil];
+    }]];
+    [airplayHolder presentViewController:alert animated:YES completion:nil];
+}
+
+// r6: sound but no picture on an AirPlay TV. Closing or carrying on with the sound is the person's choice.
+static void showNoPicture(BOOL hevc) {
+    NSString *text = hevc
+        ? @"This TV's AirPlay can't play HEVC (H.265) video, so it plays only the sound. An Apple TV can. On this TV use "
+          @"Play on TV › its Roku / TV app, or Screen Mirroring."
+        : @"This TV's AirPlay is playing only the sound: it did not ask for the video. Try Play on TV › its Roku / TV "
+          @"app, or Screen Mirroring.";
+    setNote(text);
+    if (!airplayHolder || airplayHolder.presentedViewController) return;
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"No picture on the TV" message:text
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Keep the sound" style:UIAlertActionStyleCancel handler:nil]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Close" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
         [airplayController.player pause];
         [airplayHolder dismissViewControllerAnimated:YES completion:nil];
@@ -189,19 +233,51 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted) {
         airplayWatch = [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *timer) {
             AVPlayerItem *item = player.currentItem;
             if (item.status == AVPlayerItemStatusReadyToPlay) {
+                playerNote(@"ready, presentation %@, %lu tracks, external %d", sizeText(item.presentationSize),
+                           (unsigned long)item.tracks.count, player.externalPlaybackActive);
                 atomic_store(&airplayState, 1);
                 [timer invalidate];
             } else if (item.status == AVPlayerItemStatusFailed || player.status == AVPlayerStatusFailed) {
-                NSLog(@"KodiAirPlay: Apple's player could not open the stream: %@", item.error ?: player.error);
+                playerNote(@"could not open the stream: %@", item.error ?: player.error);
                 atomic_store(&airplayState, -1);
                 [timer invalidate];
             }
         }];
         [stallWatch invalidate]; stallWatch = nil;
         if (converted) {
-            __block int waiting = 0;
+            __block int waiting = 0, ticks = 0, externalTicks = 0, video0 = 0, audio0 = 0, external = 0;
+            __block NSUInteger errorsSeen = 0;
+            __block BOOL warned = NO;
             stallWatch = [NSTimer scheduledTimerWithTimeInterval:1.0 repeats:YES block:^(NSTimer *timer) {
-                if (player.currentItem.status == AVPlayerItemStatusFailed) {
+                AVPlayerItem *item = player.currentItem;
+                ticks++;
+                // r6: Apple's player error log (segment / decoder failures it recovered from or not), once each.
+                NSArray<AVPlayerItemErrorLogEvent *> *errors = item.errorLog.events;
+                for (NSUInteger i = errorsSeen; i < errors.count; i++)
+                    playerNote(@"error log: %ld %@ %@ (%@)", (long)errors[i].errorStatusCode, errors[i].errorDomain,
+                               errors[i].errorComment ?: @"", errors[i].URI.lastPathComponent ?: @"");
+                errorsSeen = errors.count;
+                if (player.externalPlaybackActive != external) {
+                    external = player.externalPlaybackActive;
+                    playerNote(@"external playback %@", external ? @"on (the TV fetches the stream)" : @"off");
+                    externalTicks = 0; video0 = kr_remux_served(1); audio0 = kr_remux_served(0);
+                }
+                if (external) externalTicks++;
+                if (ticks == 5 || ticks == 15 || ticks % 60 == 0)
+                    playerNote(@"%ds: at %.1f s, rate %.1f, presentation %@, external %d, segments served video %d audio %d",
+                               ticks, CMTimeGetSeconds(player.currentTime), player.rate, sizeText(item.presentationSize),
+                               external, kr_remux_served(1), kr_remux_served(0));
+                // r6: an AirPlay TV that cannot decode the video (many TVs' built-in AirPlay: no HEVC) takes the audio
+                // segments and never a video one, plays the sound with a music note, and Apple's player looks fine.
+                if (!warned && external && externalTicks >= 30 && player.timeControlStatus == AVPlayerTimeControlStatusPlaying &&
+                    kr_remux_served(0) > audio0 && kr_remux_served(1) == video0) {
+                    warned = YES;
+                    const char *codec = kr_remux_video_codec();
+                    BOOL hevc = codec && (!strncmp(codec, "hvc1", 4) || !strncmp(codec, "hev1", 4));
+                    playerNote(@"the TV takes audio segments but no video ones (%s): sound only", codec ? codec : "");
+                    showNoPicture(hevc);
+                }
+                if (item.status == AVPlayerItemStatusFailed) {
                     const char *m = kr_remux_message();
                     showProblem(m && *m ? @(m) : (player.currentItem.error.localizedDescription ?: @"The TV could not play the converted stream."));
                     [timer invalidate]; return;
@@ -283,6 +359,26 @@ __attribute__((visibility("default"))) int kodi_airplay_message(char *buf, int l
     snprintf(buf, (size_t)len, "%s", remuxNote);
     os_unfair_lock_unlock(&noteLock);
     return (int)strlen(buf);
+}
+
+// r6: what happened since the last call, for kodi.log: Apple's player events, then the remuxer's lines (variant
+// CODECS, receiver User-Agent, requests with status, bytes and ms, errors). Newline-separated; what does not fit
+// waits for the next call. Returns the length written.
+__attribute__((visibility("default"))) int kodi_airplay_log(char *buf, int len) {
+    if (!buf || len <= 0) return 0;
+    buf[0] = 0;
+    size_t used = 0;
+    os_unfair_lock_lock(&noteLock);
+    while (playerLines.count) {
+        const char *line = playerLines.firstObject.UTF8String ?: "";
+        size_t n = strlen(line);
+        if (used + n + 2 > (size_t)len) break;
+        memcpy(buf + used, line, n); used += n; buf[used++] = '\n'; buf[used] = 0;
+        [playerLines removeObjectAtIndex:0];
+    }
+    os_unfair_lock_unlock(&noteLock);
+    if ((int)used < len - 1) used += (size_t)kr_remux_log(buf + used, len - (int)used);
+    return (int)used;
 }
 
 // r3: 1 once Apple's player has the stream, -1 if it could not open it, 0 before either (or when idle).
@@ -397,7 +493,7 @@ for c in "$REMUX"/src/*.c "$REMUX"/gmplayer/*.c; do
   o="$WORK/$(basename "${c%.c}").o"; "${CC_IOS[@]}" -c "$c" -o "$o"; OBJS+=("$o")
 done
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
-printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_background_keep\n' > "$WORK/exports"
+printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_background_keep\n' > "$WORK/exports"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics \
   -I"$REMUX/src" -Wl,-exported_symbols_list,"$WORK/exports" \
@@ -419,7 +515,8 @@ cat > "$FW/Info.plist" <<PLIST
 <key>MinimumOSVersion</key><string>$MIN_IOS</string>
 </dict></plist>
 PLIST
-nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message)|background_keep)$'
+nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message|log)|background_keep)$'
+[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log)|background_keep)$')" == 8 ]] || { echo 'missing exports' >&2; exit 1; }
 ! nm -gU "$FW/KodiAirPlay" | grep -E ' _(av|avformat|avcodec|swr)_' || { echo 'FFmpeg symbols exported: they would clash with Kodi' >&2; exit 1; }
 lipo -info "$FW/KodiAirPlay"
 (cd "$OUT" && zip -qry KodiAirPlay.framework.zip KodiAirPlay.framework && shasum -a 256 KodiAirPlay.framework.zip | tee KodiAirPlay.framework.zip.sha256)

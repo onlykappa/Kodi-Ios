@@ -226,6 +226,7 @@ static void test_file(const char *url, const fixture *fx, const char *work) {
     free(missing.body); free(bad.body); free(master.body); free(video.body);
     CHECK(kr_remux_served(1) >= nseg && (fx->audio_tracks == 0 || kr_remux_served(0) > 0), "%s: segments counted (%d video, %d audio)",
           fx->file, kr_remux_served(1), kr_remux_served(0));
+    CHECK(!strncmp(kr_remux_video_codec(), fx->video, strlen(fx->video)), "%s: session codec %s", fx->file, kr_remux_video_codec());
     char small[48];
     int n1 = kr_remux_log(small, sizeof small);
     CHECK(n1 < (int)sizeof small && (n1 == 0 || small[n1 - 1] == '\n'), "a short buffer gets whole lines only (%d)", n1);

@@ -21,6 +21,8 @@ def load(path):
  if hasattr(lib,'kodi_airplay_close'):lib.kodi_airplay_close.argtypes=[];lib.kodi_airplay_close.restype=None
  # r5: MKV/AVI/WebM/TS converted on the phone for AirPlay; why it could not play, for the screen.
  if hasattr(lib,'kodi_airplay_message'):lib.kodi_airplay_message.argtypes=[ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_message.restype=ctypes.c_int
+ # r6: what the AirPlay stream did (requests, CODECS, Apple's player events), for kodi.log.
+ if hasattr(lib,'kodi_airplay_log'):lib.kodi_airplay_log.argtypes=[ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_log.restype=ctypes.c_int
  if hasattr(lib,'kodi_background_keep'):lib.kodi_background_keep.argtypes=[ctypes.c_int];lib.kodi_background_keep.restype=None
  return lib
 
@@ -35,6 +37,24 @@ def message(lib):
  buffer=ctypes.create_string_buffer(400)
  lib.kodi_airplay_message(buffer,400)
  return buffer.value.decode('utf-8','replace')
+
+def log_lines(lib,size=16384,rounds=8):
+ """The framework's AirPlay log lines since the last call (r6; [] with an older framework). Each call drains them."""
+ if not hasattr(lib,'kodi_airplay_log'):return []
+ import ctypes
+ lines=[]
+ for _ in range(rounds):
+  buffer=ctypes.create_string_buffer(size)
+  if lib.kodi_airplay_log(buffer,size)<=0:break
+  lines+=[line for line in buffer.value.decode('utf-8','replace').split('\n') if line]
+ return lines
+
+def relay(lib,write,wait,every=5):
+ """Writes the framework's AirPlay log into kodi.log every few seconds until wait(seconds) reports Kodi is closing."""
+ if not hasattr(lib,'kodi_airplay_log'):return
+ while True:
+  for line in log_lines(lib):write('Kodi iOS AirPlay: '+line)
+  if wait(every):break
 
 def watch(lib,playing,wait):
  """Shows the button while playing() is true, until wait(seconds) reports Kodi is closing."""

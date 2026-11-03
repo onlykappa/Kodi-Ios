@@ -31,6 +31,8 @@ int kr_remux_log(char *buf, int len);
 // r6: media segments sent this session, video (1) or audio (0). A receiver that takes audio segments but never a
 // video one is playing sound only (an AirPlay TV that cannot decode the video codec).
 int kr_remux_served(int video);
+// r6: the running session's video CODECS value ("avc1.640028", "hvc1.2.4.L120.90"), "" when none.
+const char *kr_remux_video_codec(void);
 // The port of the running server, 0 when none (tests).
 int kr_remux_port(void);
 #ifdef __cplusplus

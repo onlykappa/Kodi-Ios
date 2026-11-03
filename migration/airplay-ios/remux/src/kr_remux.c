@@ -52,7 +52,8 @@ static struct {
     atomic_int stopping, active;
     char base[128];
     char token[40];
-    atomic_int served_video, served_audio;  // r6: media segments answered this session (not init / playlists)
+    atomic_int served_video, served_audio;
+    char vcodec[64];  // r6: the variant's video CODECS value ("hvc1.2.4.L120.90")  // r6: media segments answered this session (not init / playlists)
 } S = { .lock = PTHREAD_MUTEX_INITIALIZER, .gm_lock = PTHREAD_MUTEX_INITIALIZER, .listen_fd = -1 };
 
 static void set_message(const char *m) { snprintf(S.message, sizeof S.message, "%s", m ? m : ""); }
@@ -136,6 +137,7 @@ int kr_remux_kind(const char *url) {
 
 int kr_remux_state(void) { return atomic_load(&S.state); }
 const char *kr_remux_message(void) { return S.message; }
+const char *kr_remux_video_codec(void) { return S.vcodec; }
 int kr_remux_served(int video) { return atomic_load(video ? &S.served_video : &S.served_audio); }
 int kr_remux_port(void) { return atomic_load(&S.state) == KR_READY ? S.port : 0; }
 
@@ -396,7 +398,7 @@ int kr_remux_start(const char *url, int lan, char *out, int outlen) {
     pthread_mutex_lock(&S.lock);
     teardown_locked();
     atomic_store(&S.stopping, 0);
-    atomic_store(&S.served_video, 0); atomic_store(&S.served_audio, 0);
+    atomic_store(&S.served_video, 0); atomic_store(&S.served_audio, 0); S.vcodec[0] = 0;
     atomic_store(&S.state, KR_STARTING);
     set_message("");
     if (out && outlen > 0) *out = 0;
@@ -456,6 +458,7 @@ int kr_remux_start(const char *url, int lan, char *out, int outlen) {
         char *m = kr_hls_master(S.gm, S.base), *v = m ? strstr(m, "#EXT-X-STREAM-INF:") : NULL;
         if (v) { char *e = strchr(v, '\n'); if (e) *e = 0; log_line("master: %.200s", v + 18); }
         free(m);
+        kr_hls_video_codec(S.gm, S.vcodec, sizeof S.vcodec);
     }
     result = KR_READY;
 done:

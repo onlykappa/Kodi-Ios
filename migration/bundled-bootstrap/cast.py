@@ -144,6 +144,9 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
  # Converting first reads the start of the file (over Elementum or Drive): allow longer than a direct link.
  outcome=cast.airplay_outcome(lib.kodi_airplay_state,xbmc.Monitor().waitForAbort,60 if converting else 25)
  why=airplay.message(lib)
+ # r6: the stream's variant line (CODECS), the receiver's requests and Apple's player events so far; the service
+ # keeps relaying the rest while it plays (airplay.relay).
+ for line in airplay.log_lines(lib):xbmc.log('Kodi iOS AirPlay: '+line,xbmc.LOGINFO)
  xbmc.log('Kodi iOS Play on TV: Apple\'s player %s %s%s'%(outcome,url.split('?',1)[0],(' ('+why+')') if why else ''),xbmc.LOGINFO)
  if outcome=='playing':player.stop();notices.note('info','Playing with AirPlay',title or '');return
  lib.kodi_airplay_close()
