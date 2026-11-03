@@ -41,4 +41,6 @@ X265=(-c:v libx265 -preset ultrafast -x265-params keyint=48:min-keyint=48:scenec
   -c:a:1 dca -strict -2 -c:s srt "$OUT/h264_ac3_dts_srt.mkv"
 "${F[@]}" "${V[@]}" "${A[@]}" -map 0 -map 1 "${X264[@]}" -c:a aac "$OUT/h264_aac.mp4"
 "${F[@]}" "${V[@]}" "${A[@]}" -map 0 -map 1 "${X264[@]}" -c:a ac3 -f mpegts "$OUT/h264_ac3.ts"
+# r7: MPEG-2 video (not an AirPlay codec: the remuxer converts the picture by itself).
+"${F[@]}" "${V[@]}" "${A[@]}" -map 0 -map 1 -c:v mpeg2video -g 48 -bf 0 -q:v 4 -c:a ac3 "$OUT/mpeg2_ac3.mkv"
 ls -l "$OUT"

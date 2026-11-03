@@ -16,7 +16,9 @@ const char *kr_language(const char *iso639);
 
 // Playlists as malloc'd strings (caller frees). `base` is like "http://127.0.0.1:49152".
 // video_codec is the variant's video CODECS value (kr_hls_video_codec).
-char *kr_hls_master(gm_stream *s, const char *base);
+// compat (r7): the video variant is the converted picture (kr_video): CODECS avc1.640028 (High 4.0; 64002A above
+// 30 fps), RESOLUTION capped at 1920x1080, VIDEO-RANGE=SDR, BANDWIDTH from the encoder's bit rate.
+char *kr_hls_master(gm_stream *s, const char *base, int compat);
 char *kr_hls_media(gm_stream *s, const char *prefix, const char *seg_ext, int with_map);
 // "avc1.640028" / "hvc1.2.4.L150.90" for the selected video (from the stream's profile and level).
 void kr_hls_video_codec(gm_stream *s, char *out, int len);

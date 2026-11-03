@@ -1,6 +1,7 @@
 // kr_hls: multivariant + media playlists. Ported from GMPlayer's GMStreamSession.swift masterPlaylist /
 // mediaPlaylist (MIT, (c) 2026 Gaston Morixe); the AAC bridge renditions are a Kodi iOS addition.
 #include "kr_hls.h"
+#include "kr_video.h"
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -110,7 +111,7 @@ static int name_taken(char names[][160], int count, const char *name) {
     return 0;
 }
 
-char *kr_hls_master(gm_stream *s, const char *base) {
+char *kr_hls_master(gm_stream *s, const char *base, int compat) {
     sb b = {0};
     sb_add(&b, "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n");
     int n = gm_stream_track_count(s), sel = gm_stream_selected_audio(s), nau = 0, nsub = 0, deflt = -1;
@@ -153,16 +154,27 @@ char *kr_hls_master(gm_stream *s, const char *base) {
     int64_t size = (f && f->pb) ? avio_size(f->pb) : -1;
     double avg = (size > 0 && dur > 0) ? (double)size * 8.0 / dur : 30e6;
     long bw = (long)fmax(8e6, avg * 2.5);  // over-declared: remux peaks run 1.5-2x the average
-    sb_add(&b, "#EXT-X-STREAM-INF:BANDWIDTH=%ld,CODECS=\"%s%s%s\"", bw, vcodec, *tokens ? "," : "", tokens);
-    int v = gm_stream_selected_video(s);
-    for (int i = 0; i < n; i++) {
-        if (gm_stream_track_info(s, i, &t) != 0 || t.src_index != v) continue;
-        if (t.width > 0 && t.height > 0) sb_add(&b, ",RESOLUTION=%dx%d", t.width, t.height);
-        if (t.fps_num > 0 && t.fps_den > 0) sb_add(&b, ",FRAME-RATE=%.3f", (double)t.fps_num / t.fps_den);
+    // r7 compat: the picture converted to H.264 High 8-bit SDR at most 1080p (kr_video).
+    int v = compat ? kr_video_pick_stream(s) : gm_stream_selected_video(s);
+    int w = 0, h = 0;
+    double fps = 0;
+    if (v >= 0 && f && v < (int)f->nb_streams) {
+        AVStream *st = f->streams[v];
+        w = st->codecpar->width; h = st->codecpar->height;
+        AVRational r = st->avg_frame_rate.num > 0 && st->avg_frame_rate.den > 0 ? st->avg_frame_rate : st->r_frame_rate;
+        if (r.num > 0 && r.den > 0) fps = av_q2d(r);
     }
+    if (compat) {
+        snprintf(vcodec, sizeof vcodec, "%s", kr_video_codecs(fps));
+        if (w > 0 && h > 0) kr_video_output_size(w, h, &w, &h);
+        bw = (long)(kr_video_bitrate(w > 0 ? w : 1920, h > 0 ? h : 1080) * 1.5) + 640000;  // VBR peaks + audio
+    }
+    sb_add(&b, "#EXT-X-STREAM-INF:BANDWIDTH=%ld,CODECS=\"%s%s%s\"", bw, vcodec, *tokens ? "," : "", tokens);
+    if (w > 0 && h > 0) sb_add(&b, ",RESOLUTION=%dx%d", w, h);
+    if (fps > 0) sb_add(&b, ",FRAME-RATE=%.3f", fps);
     gm_color_info c;
     const char *range = "SDR";
-    if (gm_stream_color_info(s, &c) == 0 && gm_stream_is_hdr(s)) range = c.transfer == 18 ? "HLG" : "PQ";
+    if (!compat && gm_stream_color_info(s, &c) == 0 && gm_stream_is_hdr(s)) range = c.transfer == 18 ? "HLG" : "PQ";
     sb_add(&b, ",VIDEO-RANGE=%s", range);
     if (nau) sb_add(&b, ",AUDIO=\"aud\"");
     if (nsub) sb_add(&b, ",SUBTITLES=\"subs\"");

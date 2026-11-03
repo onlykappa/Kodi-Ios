@@ -1,5 +1,5 @@
-// Kodi iOS AirPlay remuxer: plays MKV / AVI / WebM / MPEG-TS through AirPlay by remuxing on demand (no re-encoding of
-// video) into fragmented-MP4 HLS served from 127.0.0.1, which AVPlayer opens like any HLS stream.
+// Kodi iOS AirPlay remuxer: plays MKV / AVI / WebM / MPEG-TS through AirPlay by remuxing on demand (video copied;
+// r7: converted to H.264 in compat mode) into fragmented-MP4 HLS served from 127.0.0.1, which AVPlayer opens like any HLS stream.
 #ifndef KR_REMUX_H
 #define KR_REMUX_H
 #ifdef __cplusplus
@@ -18,7 +18,13 @@ enum { KR_IDLE = 0, KR_STARTING = 1, KR_READY = 2, KR_FAILED = -1, KR_NOT_NEEDED
 // segments itself, so the server listens on the phone's Wi-Fi address and every path carries a random token
 // ("http://192.168.1.20:PORT/3f9c.../master.m3u8"); requests without it get 404.
 // One session at a time: a running one is stopped first. Blocks while the source is probed (call off the main thread).
-int kr_remux_start(const char *url, int lan, char *out, int outlen);
+// r7: compat=1 converts the picture to H.264 High 8-bit SDR at most 1080p on the phone (kr_video: VideoToolbox decode and
+// encode) for receivers that cannot decode the source video (TVs' built-in AirPlay without HEVC). Audio and subtitles
+// are served as usual and the segment grid is the same, so a position carries over. A file whose video AirPlay cannot
+// carry at all (VP9, MPEG-2...) switches to compat by itself when the converter is available.
+int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen);
+// r7: 1 when the running session converts the picture (compat), 0 otherwise.
+int kr_remux_compat(void);
 int kr_remux_state(void);
 // A short sentence for the screen when state is KR_FAILED (or the latest serving error), "" otherwise.
 const char *kr_remux_message(void);

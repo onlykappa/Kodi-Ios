@@ -4,6 +4,7 @@
 #include "kr_audio.h"
 #include "kr_hls.h"
 #include "kr_source.h"
+#include "kr_video.h"
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
@@ -53,8 +54,14 @@ static struct {
     char base[128];
     char token[40];
     atomic_int served_video, served_audio;
-    char vcodec[64];  // r6: the variant's video CODECS value ("hvc1.2.4.L120.90")  // r6: media segments answered this session (not init / playlists)
-} S = { .lock = PTHREAD_MUTEX_INITIALIZER, .gm_lock = PTHREAD_MUTEX_INITIALIZER, .listen_fd = -1 };
+    char vcodec[64];  // r6: the variant's video CODECS value ("hvc1.2.4.L120.90")
+    int compat;       // r7: /video/ is the picture converted to H.264 (kr_video), not copied
+    int vindex;       // r7: the source video stream converted in compat mode
+    kr_source *vsrc;  // r7: the converter's own connection to the source, opened on first use
+    kr_video *video;
+    pthread_mutex_t vlock;  // one conversion at a time (one hardware encoder session; battery)
+} S = { .lock = PTHREAD_MUTEX_INITIALIZER, .gm_lock = PTHREAD_MUTEX_INITIALIZER, .vlock = PTHREAD_MUTEX_INITIALIZER,
+        .listen_fd = -1, .vindex = -1 };
 
 static void set_message(const char *m) { snprintf(S.message, sizeof S.message, "%s", m ? m : ""); }
 
@@ -139,6 +146,7 @@ int kr_remux_state(void) { return atomic_load(&S.state); }
 const char *kr_remux_message(void) { return S.message; }
 const char *kr_remux_video_codec(void) { return S.vcodec; }
 int kr_remux_served(int video) { return atomic_load(video ? &S.served_video : &S.served_audio); }
+int kr_remux_compat(void) { return atomic_load(&S.state) == KR_READY ? S.compat : 0; }
 int kr_remux_port(void) { return atomic_load(&S.state) == KR_READY ? S.port : 0; }
 
 // ── HTTP ───────────────────────────────────────────────────────────────────────
@@ -209,6 +217,19 @@ static kr_audio *bridge_audio(bridge *b, char *err, int errlen) {
     return b->audio;
 }
 
+// r7: the converter for the session's video, opened the first time the receiver asks for a video part (vlock held).
+static kr_video *session_video(char *err, int errlen) {
+    if (S.video) return S.video;
+    if (atomic_load(&S.stopping)) { snprintf(err, (size_t)errlen, "stopping"); return NULL; }
+    S.vsrc = kr_source_open(S.url, 30, err, errlen);
+    if (!S.vsrc) return NULL;
+    S.video = kr_video_open(kr_source_gm(S.vsrc), S.vindex, err, errlen);
+    if (!S.video) { kr_source_close(S.vsrc); S.vsrc = NULL; return NULL; }
+    log_line("compat: converting video stream %d to H.264 %dx%d with %s (%s decoding)", S.vindex, kr_video_width(S.video),
+             kr_video_height(S.video), kr_video_encoder(), kr_video_hw_decode(S.video) ? "VideoToolbox" : "software");
+    return S.video;
+}
+
 static void serve(int fd, const char *method, const char *path, const char *range) {
     int head = !strcmp(method, "HEAD");
     char err[256] = "";
@@ -217,7 +238,7 @@ static void serve(int fd, const char *method, const char *path, const char *rang
     char *text = NULL;
     const char *m3u8 = "application/vnd.apple.mpegurl";
     if (!strcmp(path, "/master.m3u8")) {
-        pthread_mutex_lock(&S.gm_lock); text = kr_hls_master(S.gm, S.base); pthread_mutex_unlock(&S.gm_lock);
+        pthread_mutex_lock(&S.gm_lock); text = kr_hls_master(S.gm, S.base, S.compat); pthread_mutex_unlock(&S.gm_lock);
     } else if (!strcmp(path, "/video/index.m3u8")) {
         char prefix[96]; snprintf(prefix, sizeof prefix, "%s/video", S.base);
         pthread_mutex_lock(&S.gm_lock); text = kr_hls_media(S.gm, prefix, "m4s", 1); pthread_mutex_unlock(&S.gm_lock);
@@ -228,7 +249,13 @@ static void serve(int fd, const char *method, const char *path, const char *rang
     }
     if (text) { respond(fd, head, NULL, m3u8, (uint8_t *)text, strlen(text)); free(text); return; }
 
-    if (!strcmp(path, "/video/init.mp4")) {
+    if (S.compat && (!strcmp(path, "/video/init.mp4") || sscanf(path, "/video/seg%d.m4s", &seg) == 1)) {
+        // r7: converted picture. The segment grid is fixed after open, so gm_lock is not needed here.
+        pthread_mutex_lock(&S.vlock);
+        kr_video *v = session_video(err, sizeof err);
+        if (v) r = seg >= 0 ? kr_video_segment(v, S.gm, seg, &buf, err, sizeof err) : kr_video_init(v, S.gm, &buf, err, sizeof err);
+        pthread_mutex_unlock(&S.vlock);
+    } else if (!strcmp(path, "/video/init.mp4")) {
         pthread_mutex_lock(&S.gm_lock); r = gm_stream_video_init(S.gm, &buf, err, sizeof err); pthread_mutex_unlock(&S.gm_lock);
     } else if (sscanf(path, "/video/seg%d.m4s", &seg) == 1) {
         pthread_mutex_lock(&S.gm_lock); r = gm_stream_video_segment(S.gm, seg, &buf, err, sizeof err); pthread_mutex_unlock(&S.gm_lock);
@@ -368,6 +395,9 @@ static void teardown_locked(void) {
     atomic_store(&S.stopping, 1);
     if (S.src) kr_source_abort(S.src);
     for (int i = 0; i < S.nbridges; i++) if (S.bridges[i].src) kr_source_abort(S.bridges[i].src);
+    // r7: a conversion in progress stops at its next packet (no transcoding once the server stops).
+    if (S.video) kr_video_abort(S.video);
+    if (S.vsrc) kr_source_abort(S.vsrc);
     if (S.listen_fd >= 0) {
         shutdown(S.listen_fd, SHUT_RDWR); close(S.listen_fd); S.listen_fd = -1;
         pthread_join(S.accept_thread, NULL);
@@ -380,6 +410,11 @@ static void teardown_locked(void) {
         pthread_mutex_destroy(&S.bridges[i].lock);
     }
     S.nbridges = 0; S.port = 0;
+    pthread_mutex_lock(&S.vlock);  // a request still converting has finished or given up (abort above)
+    kr_video_close(S.video); S.video = NULL;
+    kr_source_close(S.vsrc); S.vsrc = NULL;
+    pthread_mutex_unlock(&S.vlock);
+    S.compat = 0; S.vindex = -1;
 }
 
 void kr_remux_stop(void) {
@@ -394,7 +429,7 @@ static int is_direct_format(const char *name) {
     return name && (strstr(name, "mp4") || strstr(name, "mov") || !strcmp(name, "hls"));
 }
 
-int kr_remux_start(const char *url, int lan, char *out, int outlen) {
+int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) {
     pthread_mutex_lock(&S.lock);
     teardown_locked();
     atomic_store(&S.stopping, 0);
@@ -436,6 +471,18 @@ int kr_remux_start(const char *url, int lan, char *out, int outlen) {
             memset(b, 0, sizeof *b); b->index = t.src_index; pthread_mutex_init(&b->lock, NULL);
         }
     }
+    // r7: compat mode converts the picture. Asked for (the TV played sound only), or needed: the file's video is not
+    // one AirPlay carries (VP9, MPEG-2...) but FFmpeg decodes it.
+    S.vindex = kr_video_pick_stream(S.gm);
+    if (!compat && gm_stream_selected_video(S.gm) < 0 && S.vindex >= 0 && kr_video_available()) {
+        compat = 1;
+        log_line("compat: the video is not H.264/HEVC, converting it");
+    }
+    if (compat) {
+        if (S.vindex < 0) { set_message("AirPlay: this file has no video that can be converted."); goto done; }
+        if (!kr_video_available()) { set_message("AirPlay: this build cannot convert video (no H.264 encoder)."); goto done; }
+        S.compat = 1;
+    }
     if (audio_tracks && !playable_audio) {
         set_message("AirPlay: this file's audio format cannot be converted, so it would play silent. Use Play on TV instead.");
         goto done;
@@ -455,10 +502,13 @@ int kr_remux_start(const char *url, int lan, char *out, int outlen) {
     }
     if (out && outlen > 0) snprintf(out, (size_t)outlen, "%s/master.m3u8", S.base);
     {   // r6: the variant line the receiver judges the stream by (CODECS, RESOLUTION, VIDEO-RANGE), for the log
-        char *m = kr_hls_master(S.gm, S.base), *v = m ? strstr(m, "#EXT-X-STREAM-INF:") : NULL;
+        char *m = kr_hls_master(S.gm, S.base, S.compat), *v = m ? strstr(m, "#EXT-X-STREAM-INF:") : NULL;
         if (v) { char *e = strchr(v, '\n'); if (e) *e = 0; log_line("master: %.200s", v + 18); }
         free(m);
-        kr_hls_video_codec(S.gm, S.vcodec, sizeof S.vcodec);
+        if (S.compat) {  // the declared CODECS of the converted picture
+            char *c = v ? strstr(v, "CODECS=\"") : NULL;
+            snprintf(S.vcodec, sizeof S.vcodec, "%.*s", c ? (int)strcspn(c + 8, ",\"") : 0, c ? c + 8 : "");
+        } else kr_hls_video_codec(S.gm, S.vcodec, sizeof S.vcodec);
     }
     result = KR_READY;
 done:

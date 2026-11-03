@@ -5,6 +5,9 @@
 #include "../src/kr_hls.h"
 #include "../src/kr_audio.h"
 #include "../src/kr_source.h"
+#include "../src/kr_video.h"
+#include <pthread.h>
+#include <time.h>
 #include <arpa/inet.h>
 #include <math.h>
 #include <netinet/in.h>
@@ -15,6 +18,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
 
 static int failures, checks;
 #define CHECK(c, ...) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); } } while (0)
@@ -140,7 +144,7 @@ static void test_file(const char *url, const fixture *fx, const char *work) {
     char m3u8[256];
     static char log[1 << 16];
     while (kr_remux_log(log, sizeof log) > 0) {}  // earlier sessions' lines
-    int st = kr_remux_start(url, fx->lan, m3u8, sizeof m3u8);
+    int st = kr_remux_start(url, fx->lan, 0, m3u8, sizeof m3u8);
     kr_remux_log(log, sizeof log);
     CHECK(strstr(log, "start: ") && strstr(log, "master: BANDWIDTH=") && strstr(log, "CODECS=\"") && !strstr(log, "#EXT"),
           "%s: the log names the source and the variant line:\n%s", fx->file, log);
@@ -227,6 +231,7 @@ static void test_file(const char *url, const fixture *fx, const char *work) {
     CHECK(kr_remux_served(1) >= nseg && (fx->audio_tracks == 0 || kr_remux_served(0) > 0), "%s: segments counted (%d video, %d audio)",
           fx->file, kr_remux_served(1), kr_remux_served(0));
     CHECK(!strncmp(kr_remux_video_codec(), fx->video, strlen(fx->video)), "%s: session codec %s", fx->file, kr_remux_video_codec());
+    CHECK(kr_remux_compat() == 0, "%s: video copied by default", fx->file);
     char small[48];
     int n1 = kr_remux_log(small, sizeof small);
     CHECK(n1 < (int)sizeof small && (n1 == 0 || small[n1 - 1] == '\n'), "a short buffer gets whole lines only (%d)", n1);
@@ -269,10 +274,172 @@ static void test_range_source(const char *http_base) {
     kr_source_close(s);
     char m3u8[256];
     snprintf(url, sizeof url, "%s/h264_aac.mp4", http_base);
-    CHECK(kr_remux_start(url, 0, m3u8, sizeof m3u8) == KR_NOT_NEEDED, "MP4 bytes go direct (%s)", kr_remux_message());
+    CHECK(kr_remux_start(url, 0, 0, m3u8, sizeof m3u8) == KR_NOT_NEEDED, "MP4 bytes go direct (%s)", kr_remux_message());
     snprintf(url, sizeof url, "%s/missing.mkv", http_base);
-    CHECK(kr_remux_start(url, 0, m3u8, sizeof m3u8) == KR_FAILED && strstr(kr_remux_message(), "AirPlay"), "a missing file explains itself: %s", kr_remux_message());
+    CHECK(kr_remux_start(url, 0, 0, m3u8, sizeof m3u8) == KR_FAILED && strstr(kr_remux_message(), "AirPlay"), "a missing file explains itself: %s", kr_remux_message());
     kr_remux_stop();
+}
+
+
+// ── r7 compat (picture converted, kr_video) ───────────────────────────────────
+// Pure pieces: output size, bit rate, CODECS, window tiling.
+static void test_video_units(void) {
+    int w, h;
+    kr_video_output_size(3840, 2160, &w, &h); CHECK(w == 1920 && h == 1080, "4K -> 1080p (%dx%d)", w, h);
+    kr_video_output_size(3840, 1600, &w, &h); CHECK(w == 1920 && h == 800, "scope 4K -> 1920x800 (%dx%d)", w, h);
+    kr_video_output_size(4096, 1716, &w, &h); CHECK(w == 1920 && h == 804, "DCI scope, even (%dx%d)", w, h);
+    kr_video_output_size(1440, 1920, &w, &h); CHECK(w == 810 && h == 1080, "portrait capped by height (%dx%d)", w, h);
+    kr_video_output_size(720, 480, &w, &h); CHECK(w == 720 && h == 480, "SD never upscaled (%dx%d)", w, h);
+    kr_video_output_size(321, 181, &w, &h); CHECK(w == 320 && h == 180, "odd sizes made even (%dx%d)", w, h);
+    CHECK(kr_video_bitrate(1920, 1080) == 7000000, "1080p at 7 Mbit/s (%d)", kr_video_bitrate(1920, 1080));
+    CHECK(kr_video_bitrate(320, 180) == 1500000, "floor 1.5 Mbit/s");
+    CHECK(!strcmp(kr_video_codecs(23.976), "avc1.640028") && !strcmp(kr_video_codecs(30), "avc1.640028") &&
+          !strcmp(kr_video_codecs(59.94), "avc1.64002A") && !strcmp(KR_VIDEO_CODECS, "avc1.640028"), "H.264 High 4.0 / 4.2 CODECS");
+    // Every frame time falls in exactly one window of a grid (no gap, no overlap), boundaries included.
+    double grid[] = { 0, 6.006, 12.012, 18.018 };
+    int bad = 0;
+    for (int k = 0; k < 24 * 25; k++) {
+        double t = k / 24.0 * 1.001;
+        int hits = 0;
+        for (int i = 0; i < 4; i++) hits += kr_video_in_window(t, i ? grid[i] : -1e9, i < 3 ? grid[i + 1] : -1);
+        if (hits != 1) bad++;
+    }
+    CHECK(bad == 0, "windows tile the timeline (%d frames in 0 or 2 windows)", bad);
+    CHECK(kr_video_in_window(6.006, 0, 6.006) == 0 && kr_video_in_window(6.006, 6.006, 12.012) == 1, "a boundary frame opens the next segment");
+}
+
+// Decodes a joined init+segments file: frame count, timestamps continuous, first frame of each segment a keyframe.
+static int decode_count(const char *file, int *keyframes) {
+    AVFormatContext *in = NULL;
+    if (avformat_open_input(&in, file, NULL, NULL) < 0) return -1;
+    avformat_find_stream_info(in, NULL);
+    const AVCodec *dc = avcodec_find_decoder(in->streams[0]->codecpar->codec_id);
+    AVCodecContext *c = dc ? avcodec_alloc_context3(dc) : NULL;
+    if (!c) { avformat_close_input(&in); return -1; }
+    avcodec_parameters_to_context(c, in->streams[0]->codecpar);
+    if (avcodec_open2(c, dc, NULL) < 0) { avcodec_free_context(&c); avformat_close_input(&in); return -1; }
+    AVPacket *p = av_packet_alloc(); AVFrame *f = av_frame_alloc();
+    int frames = 0; *keyframes = 0;
+    while (av_read_frame(in, p) == 0) {
+        if (p->flags & AV_PKT_FLAG_KEY) (*keyframes)++;
+        avcodec_send_packet(c, p); av_packet_unref(p);
+        while (avcodec_receive_frame(c, f) == 0) { frames++; av_frame_unref(f); }
+    }
+    avcodec_send_packet(c, NULL);
+    while (avcodec_receive_frame(c, f) == 0) { frames++; av_frame_unref(f); }
+    av_frame_free(&f); av_packet_free(&p); avcodec_free_context(&c); avformat_close_input(&in);
+    return frames;
+}
+
+// First packet time and key flag of one segment, joined to the init.
+static double segment_first(const reply *init, const reply *seg, const char *tmp, int *key) {
+    FILE *f = fopen(tmp, "wb"); fwrite(init->body, 1, init->len, f); fwrite(seg->body, 1, seg->len, f); fclose(f);
+    AVFormatContext *in = NULL; *key = 0;
+    if (avformat_open_input(&in, tmp, NULL, NULL) < 0) return -1;
+    AVPacket *p = av_packet_alloc();
+    double t = -1;
+    if (av_read_frame(in, p) == 0) { t = p->pts * av_q2d(in->streams[0]->time_base); *key = (p->flags & AV_PKT_FLAG_KEY) != 0; }
+    av_packet_free(&p); avformat_close_input(&in);
+    return t;
+}
+
+// compat=1 asked for (HEVC 10-bit PQ, H.264 TS starting at 1.4 s), or chosen by itself (MPEG-2: not an AirPlay codec).
+static void test_compat(const char *url, const char *name, int ask, double offset, const char *audio_token, const char *work) {
+    char m3u8[256];
+    static char log[1 << 16];
+    while (kr_remux_log(log, sizeof log) > 0) {}
+    int st = kr_remux_start(url, 0, ask, m3u8, sizeof m3u8);
+    CHECK(st == KR_READY, "%s compat: start %d (%s)", name, st, kr_remux_message());
+    if (st != KR_READY) return;
+    snprintf(prefix_path, sizeof prefix_path, "%s", strchr(strstr(m3u8, "://") + 3, '/'));
+    char *cut = strstr(prefix_path, "/master.m3u8"); if (cut) *cut = 0;
+    int port = kr_remux_port();
+    CHECK(kr_remux_compat() == 1, "%s: compat session", name);
+    CHECK(!strcmp(kr_remux_video_codec(), "avc1.640028"), "%s: session codec %s", name, kr_remux_video_codec());
+    reply master = http_get(port, "/master.m3u8", NULL);
+    const char *pl = master.body ? master.body : "";
+    char want[64]; snprintf(want, sizeof want, "CODECS=\"avc1.640028,%s\"", audio_token);
+    CHECK(strstr(pl, want) && !strstr(pl, "hvc1") && strstr(pl, "VIDEO-RANGE=SDR") && strstr(pl, "RESOLUTION=320x180") &&
+          strstr(pl, "FRAME-RATE=24.000") && strstr(pl, "BANDWIDTH=2890000,"), "%s: compat variant (%s) in\n%s", name, want, pl);
+    reply video = http_get(port, "/video/index.m3u8", NULL);
+    double total, maxd; int target;
+    int nseg = playlist_segments(video.body ? video.body : "", &total, &maxd, &target);
+    CHECK(nseg >= 3 && fabs(total - 20.0) < 0.2, "%s: %d segments, %.3f s", name, nseg, total);
+    // Out of order first (a seek): segment 2, then 0.
+    reply init = http_get(port, "/video/init.mp4", NULL);
+    CHECK(init.status == 200 && init.len > 8 && !memcmp(init.body + 4, "ftyp", 4) && kr_first_moof((uint8_t *)init.body, (int)init.len) < 0,
+          "%s: converted init (status %d)", name, init.status);
+    double start = 0;  // the planned grid: segment i starts at the sum of the EXTINFs before it (the first at the first frame)
+    const char *p = video.body ? video.body : "";
+    char tmp[512]; snprintf(tmp, sizeof tmp, "%s/%s.compat.one.mp4", work, name);
+    for (int i = nseg >= 3 ? 2 : 0, pass = 0; pass < 2; pass++, i = 0) {
+        char path[64]; snprintf(path, sizeof path, "/video/seg%d.m4s", i);
+        reply seg = http_get(port, path, NULL);
+        CHECK(seg.status == 200 && kr_first_moof((uint8_t *)seg.body, (int)seg.len) == 0, "%s: %s converted (%d)", name, path, seg.status);
+        free(seg.body);
+    }
+    // Each segment opens with a keyframe exactly at its place on the grid (tfdt absolute, no rebasing).
+    int seg_ok = 0;
+    for (int i = 0; i < nseg; i++) {
+        p = strstr(p, "#EXTINF:");
+        double d = p ? atof(p + 8) : 0; if (p) p += 8;
+        char path[64]; snprintf(path, sizeof path, "/video/seg%d.m4s", i);
+        reply seg = http_get(port, path, NULL);
+        int key = 0;
+        double t = segment_first(&init, &seg, tmp, &key);
+        double grid = fmax(start, offset);
+        if (key && fabs(t - grid) < 1.0 / 24 + 0.002) seg_ok++;
+        else printf("  %s seg%d: first %.3f (grid %.3f) key %d\n", name, i, t, grid, key);
+        start += d;
+        free(seg.body);
+    }
+    CHECK(seg_ok == nseg, "%s: %d/%d segments start with a keyframe on the grid", name, seg_ok, nseg);
+    char out[512]; snprintf(out, sizeof out, "%s/%s.compat.video.mp4", work, name);
+    start_offset = offset;
+    check_rendition(port, "/video", nseg, 20.0 + offset, out, 0);
+    int keys = 0, frames = decode_count(out, &keys);
+    CHECK(frames == 480, "%s: every source frame converted once (%d of 480)", name, frames);
+    CHECK(keys == nseg, "%s: one keyframe per segment (%d, %d segments)", name, keys, nseg);
+    {   // the converted size and the 8-bit SDR format
+        AVFormatContext *in = NULL;
+        if (avformat_open_input(&in, out, NULL, NULL) == 0) {
+            avformat_find_stream_info(in, NULL);
+            AVCodecParameters *cp = in->streams[0]->codecpar;
+            CHECK(cp->width == 320 && cp->height == 180 && (cp->format == AV_PIX_FMT_YUV420P || cp->format == AV_PIX_FMT_NV12),
+                  "%s: 320x180 8-bit 4:2:0 (%dx%d fmt %d)", name, cp->width, cp->height, cp->format);
+            avformat_close_input(&in);
+        }
+    }
+    // Audio still there, on the same grid.
+    const char *a = strstr(pl, "/audio/");
+    if (a) {
+        char prefix[64]; snprintf(prefix, sizeof prefix, "/audio/%d", atoi(a + 7));
+        snprintf(out, sizeof out, "%s/%s.compat.audio.mp4", work, name);
+        check_rendition(port, prefix, nseg, 20.0 + offset, out, 1);
+    }
+    kr_remux_log(log, sizeof log);
+    CHECK(strstr(log, "compat: converting video stream") && strstr(log, "with mpeg4 (software decoding)"), "%s: conversion logged:\n%.2000s", name, log);
+    if (!ask) CHECK(strstr(log, "compat: the video is not H.264/HEVC") != NULL, "%s: switched by itself", name);
+    free(master.body); free(video.body); free(init.body);
+    kr_remux_stop();
+    CHECK(kr_remux_compat() == 0 && kr_remux_state() == KR_IDLE, "%s: compat cleared on stop", name);
+}
+
+// Stop while a segment is being converted: the request ends, stop returns promptly.
+static void *fetch_seg(void *arg) { int port = (int)(intptr_t)arg; reply r = http_get(port, "/video/seg1.m4s", NULL); free(r.body); return NULL; }
+static void test_compat_stop(const char *url) {
+    char m3u8[256];
+    if (kr_remux_start(url, 0, 1, m3u8, sizeof m3u8) != KR_READY) { CHECK(0, "compat stop: start (%s)", kr_remux_message()); return; }
+    snprintf(prefix_path, sizeof prefix_path, "%s", strchr(strstr(m3u8, "://") + 3, '/'));
+    char *cut = strstr(prefix_path, "/master.m3u8"); if (cut) *cut = 0;
+    pthread_t t; pthread_create(&t, NULL, fetch_seg, (void *)(intptr_t)kr_remux_port());
+    usleep(20000);
+    struct timespec a, b; clock_gettime(CLOCK_MONOTONIC, &a);
+    kr_remux_stop();
+    clock_gettime(CLOCK_MONOTONIC, &b);
+    pthread_join(t, NULL);
+    double s = (b.tv_sec - a.tv_sec) + (b.tv_nsec - a.tv_nsec) / 1e9;
+    CHECK(s < 4.5 && kr_remux_state() == KR_IDLE, "stop during a conversion returns (%.2f s)", s);
 }
 
 const char *fixture_dir;
@@ -297,11 +464,35 @@ int main(int argc, char **argv) {
         printf("-- %s\n", fx[i].file); fflush(stdout);
         test_file(url, &fx[i], work);
     }
+    // r7: FFmpeg has no LGPL H.264 encoder and the host has no VideoToolbox: the picture bridge is exercised with the
+    // MPEG-4 Part 2 encoder (same decode -> scale -> encode -> mux -> tfdt path; the bytes are not H.264 here).
+    printf("-- compat (picture converted; host encoder %s)\n", "mpeg4"); fflush(stdout);
+    test_video_units();
+    kr_video_set_encoder("mpeg4");
+    CHECK(kr_video_available(), "host FFmpeg has the test encoder");
+    {
+        char url[1024];
+        snprintf(url, sizeof url, "file:%s/hevc_ac3_ass.mkv", argv[1]); test_compat(url, "hevc_ac3_ass.mkv", 1, 0, "ac-3", work);
+        snprintf(url, sizeof url, "file:%s/h264_ac3.ts", argv[1]); test_compat(url, "h264_ac3.ts", 1, 1.4, "ac-3", work);
+        snprintf(url, sizeof url, "file:%s/mpeg2_ac3.mkv", argv[1]); test_compat(url, "mpeg2_ac3.mkv", 0, 0, "ac-3", work);
+        snprintf(url, sizeof url, "file:%s/hevc_ac3_ass.mkv", argv[1]); test_compat_stop(url);
+        kr_video_set_encoder("no_such_encoder");
+        char m3u8[256];
+        CHECK(kr_remux_start(url, 0, 1, m3u8, sizeof m3u8) == KR_FAILED && strstr(kr_remux_message(), "cannot convert video"),
+              "compat without an encoder explains itself: %s", kr_remux_message());
+        snprintf(url, sizeof url, "file:%s/mpeg2_ac3.mkv", argv[1]);
+        CHECK(kr_remux_start(url, 0, 0, m3u8, sizeof m3u8) == KR_READY && kr_remux_compat() == 0,
+              "no encoder: an MPEG-2 file stays as before (copy path, audio only)");
+        kr_remux_stop();
+        kr_video_set_encoder("mpeg4");
+    }
     if (argc > 2) {
         printf("-- over HTTP (%s)\n", argv[2]);
         test_range_source(argv[2]);
         char url[1024]; snprintf(url, sizeof url, "%s/h264_ac3_dts_srt.mkv", argv[2]);
         test_file(url, &fx[4], work);
+        snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
+        test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
     }
     printf("%d checks, %d failed\n", checks, failures);
     return failures ? 1 : 0;
