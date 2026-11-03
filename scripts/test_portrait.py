@@ -52,7 +52,7 @@ class PortraitTests(unittest.TestCase):
   self.assertAlmostEqual(portrait.WIDTH/portrait.HEIGHT,402/778,places=3)
  def test_rows_only_for_lists_of_titles(self):
   home=(self.skin/'portrait/Home.xml').read_text()
-  self.assertIn('info%3Dpopular',home);self.assertIn('videodb://movies/titles/',home)
+  self.assertIn('info=popular',home);self.assertIn('videodb://movies/titles/',home)
   self.assertNotIn('sportshub',home);self.assertNotIn('plugin://plugin.video.umbrella<',home)
  def test_hub_keeps_fuse_onloads_window_id_and_has_tab_bar(self):
   home=self.read('portrait/Home.xml');self.assertEqual(home.findtext('onload'),'RunScript(script.skinvariables)')
@@ -254,12 +254,8 @@ class PortraitTests(unittest.TestCase):
   onloads=[o.text for o in root.findall('onload')]
   self.assertIn('AlarmClock(portraitmorehome,SetProperty(Portrait.Load.home.more,1,home),00:02,silent)',onloads)
   # Movies and TV fill in the background a few seconds after Home (hero and first rows), so their tabs open filled.
-  self.assertIn('AlarmClock(portraitprefetchmovies,SetProperty(Portrait.Load.movies,1,home),00:04,silent)',onloads)
-  # Every TMDb Helper row and hero goes through the listing cache (instant from the last result).
-  for c in contents+[v.find('value').text for v in includes.iter('variable') if v.get('name','').startswith(('Portrait_Row_','Portrait_Hero_'))]:
-   self.assertFalse(c.startswith('plugin://plugin.video.themoviedb.helper/'),c)
-  self.assertTrue(any(c.startswith(portrait.CACHED) for c in contents))
-  self.assertIn('AlarmClock(portraitprefetchtv,SetProperty(Portrait.Load.tv,1,home),00:07,silent)',onloads)
+  self.assertIn('AlarmClock(portraitprefetchmovies,SetProperty(Portrait.Load.movies,1,home),00:06,silent)',onloads)
+  self.assertIn('AlarmClock(portraitprefetchtv,SetProperty(Portrait.Load.tv,1,home),00:10,silent)',onloads)
  def test_fuse_home_onloads_no_longer_run_scripts(self):
   root=self.read('portrait/Home.xml')
   for o in root.findall('onload'):

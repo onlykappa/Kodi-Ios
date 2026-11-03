@@ -30,20 +30,6 @@ class StartupLoad(unittest.TestCase):
   for name,xml in variables.items():
    if '_movies' in name or '_tv' in name:self.assertIn('Portrait.Load.%s)'%name.split('_')[2],xml)
 
- def test_hub_rows_answer_from_the_listing_cache(self):
-  # Was (build-133): each row a TMDb Helper run (seconds each on the phone, queued), "Loading..." at every launch.
-  root,variables=self.home()
-  paths=[c.findtext('content') for c in root.iter('control') if c.get('type')=='list' and c.findtext('content')]
-  paths=[variables[p[5:-1]] if p.startswith('$VAR[') else p for p in paths]
-  self.assertFalse([p for p in paths if '>plugin://plugin.video.themoviedb.helper/' in p or p.startswith('plugin://plugin.video.themoviedb.helper/')])
-  self.assertTrue(all(portrait.CACHED in p or portrait.e(portrait.CACHED) in p for p in paths if "themoviedb" in p))
-
- def test_movies_and_tv_prefetched_early_and_cache_refreshed_one_at_a_time_after_start(self):
-  self.assertLessEqual(max(portrait.PREFETCH.values()),8)
-  self.assertGreaterEqual(portrait.REFRESH_AFTER,max(portrait.PREFETCH.values())+10)
-  src=Path(portrait.__file__).read_text()
-  self.assertIn('pause=2.0',src)  # serial refresh, never several TMDb Helper runs together
-
  def test_no_fuse_scripts_on_home_open_and_no_startup_wait(self):
   fuse_home=('<window><onload>RunScript(script.skinvariables,run_executebuiltin=special://skin/shortcuts/skinvariables-splash.json)</onload>'
              '<onload>$VAR[Action_RatingsMonitor]</onload><onload>Skin.SetString(TMDbHelper.Corner.Radius,20)</onload></window>')

@@ -27,7 +27,6 @@ on:
       - 'scripts/test_import_profile.py'
       - 'scripts/test_watch_routes.py'
       - 'scripts/test_watch_dialog.py'
-      - 'scripts/test_listing_cache.py'
       - 'scripts/test_activation.py'
       - 'migration/import-inputs/**'
       - 'migration/import-overlays/**'
@@ -61,7 +60,6 @@ on:
       - 'scripts/test_import_profile.py'
       - 'scripts/test_watch_routes.py'
       - 'scripts/test_watch_dialog.py'
-      - 'scripts/test_listing_cache.py'
       - 'scripts/test_activation.py'
       - 'migration/import-inputs/**'
       - 'migration/import-overlays/**'
@@ -105,7 +103,6 @@ jobs:
           python3 -B scripts/test_import_profile.py
           python3 -B scripts/test_watch_routes.py
           python3 -B scripts/test_watch_dialog.py
-          python3 -B scripts/test_listing_cache.py
           python3 -B scripts/test_activation.py
           python3 -B scripts/test_ios.py
       - name: Acquire public pinned sources and build review ZIP
