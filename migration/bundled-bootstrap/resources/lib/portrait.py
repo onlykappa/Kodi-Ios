@@ -881,11 +881,32 @@ def shrink(data,name=''):
    for key,value in (('top',str(y)),('width',str(WIDTH)),('height',str(height)),('texture',MEDIA+'white.png'),('colordiffuse','FF000000')):ET.SubElement(bar,key).text=value
  return b'<?xml version="1.0" encoding="UTF-8"?>\n'+ET.tostring(root,encoding='utf-8')+b'\n'
 
-def fonts(original):
+# Owner: the text should be San Francisco, Apple's typeface. Apple's licence does not allow shipping it in the app, but
+# every iPhone has it: the portrait build copies the phone's own system font file into the writable skin's fonts
+# folder (it never leaves the phone) and uses it for every style, bold styles with Kodi's bold rendering. Without it
+# (another device, a new iOS path) Inter stays.
+SF_CANDIDATES=('/System/Library/Fonts/CoreUI/SFUI.ttf','/System/Library/Fonts/Core/SFUI.ttf','/System/Library/Fonts/CoreUI/SFUIText.ttf',
+               '/System/Library/Fonts/Core/SFUIText.ttf','/System/Library/Fonts/CoreUI/SFUI-Regular.otf')
+SF_FILE='SF-UI.ttf'
+def system_font(skin,candidates=SF_CANDIDATES):
+ """The phone's San Francisco copied to <skin>/fonts/SF-UI.ttf (once; again when iOS updates it), or None."""
+ import shutil
+ for path in candidates:
+  try:
+   if not os.path.isfile(path):continue
+   dest=Path(skin)/'fonts'/SF_FILE
+   if not dest.exists() or dest.stat().st_size!=os.path.getsize(path):
+    dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(path,dest)
+   return SF_FILE
+  except OSError:continue
+ return None
+
+def fonts(original,sf=None):
  root=ET.fromstring(original)
  for fontset in root.findall('fontset'):
   for name,filename,size in FONTS:
-   f=ET.SubElement(fontset,'font');ET.SubElement(f,'name').text=name;ET.SubElement(f,'filename').text=filename;ET.SubElement(f,'size').text=str(size)
+   f=ET.SubElement(fontset,'font');ET.SubElement(f,'name').text=name;ET.SubElement(f,'filename').text=sf or filename;ET.SubElement(f,'size').text=str(size)
+   if sf and 'Bold' in filename:ET.SubElement(f,'style').text='bold'
  return b'<?xml version="1.0" encoding="UTF-8"?>\n'+ET.tostring(root,encoding='utf-8')+b'\n'
 
 def with_variables(xml):return xml
@@ -920,7 +941,7 @@ def portrait_files(skin,profile):
   except ET.ParseError:continue
   if data:files[FOLDER+'/'+path.name]=data
  read=lambda name:(source/name).read_text(encoding='utf-8') if (source/name).exists() else ''
- files[FOLDER+'/Font.xml']=fonts(read('Font.xml'))
+ files[FOLDER+'/Font.xml']=fonts(read('Font.xml'),system_font(skin))
  files[FOLDER+'/MyVideoNav.xml']=with_variables(video_nav(read('MyVideoNav.xml'))).encode()
  files[FOLDER+'/DialogVideoInfo.xml']=with_variables(video_info(read('DialogVideoInfo.xml'))).encode()
  files[FOLDER+'/DialogSelect.xml']=select_dialog(read('DialogSelect.xml')).encode()

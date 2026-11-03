@@ -169,6 +169,17 @@ class PortraitTests(unittest.TestCase):
    (self.skin/'1080i/VideoOSD.xml').write_text('<window />');portrait.refresh_if_needed(self.skin,self.profile);self.assertEqual(calls,[])
    home=self.skin/'1080i/Home.xml';home.write_text(home.read_text()+' ');portrait.refresh_if_needed(self.skin,self.profile);self.assertEqual(calls,[1])
   finally:portrait.refresh=real
+ def test_san_francisco_from_the_phone_when_present(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   sys_font=Path(tmp)/'SFUI.ttf';sys_font.write_bytes(b'font');skin=Path(tmp)/'skin'
+   self.assertEqual(portrait.system_font(skin,(str(Path(tmp)/'missing.ttf'),str(sys_font))),'SF-UI.ttf')
+   self.assertEqual((skin/'fonts/SF-UI.ttf').read_bytes(),b'font')
+   self.assertIsNone(portrait.system_font(skin,(str(Path(tmp)/'missing.ttf'),)))
+  root=ET.fromstring(portrait.fonts('<fonts><fontset id="Default"/></fonts>','SF-UI.ttf'))
+  fonts={f.findtext('name'):(f.findtext('filename'),f.findtext('style')) for f in root.iter('font')}
+  self.assertEqual(fonts['p_large'],('SF-UI.ttf','bold'));self.assertEqual(fonts['p_body'],('SF-UI.ttf',None))
+  root=ET.fromstring(portrait.fonts('<fonts><fontset id="Default"/></fonts>'))
+  self.assertTrue(all(f.findtext('filename').startswith('Inter') for f in root.iter('font')))
  def test_textures_are_png(self):
   for name,data in portrait.textures().items():self.assertTrue(data.startswith(b'\x89PNG'),name)
 
