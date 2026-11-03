@@ -46,7 +46,7 @@ case "$TARGET" in
             --sysroot="$SDK" --extra-cflags="-arch arm64 -miphoneos-version-min=14.0"
             --extra-ldflags="-arch arm64 -miphoneos-version-min=14.0")
     ;;
-  host) ;;
+  host) FLAGS+=(--disable-x86asm) ;;  # no hand-written assembly needed for tests (and no nasm on CI)
   *) echo "unknown target $TARGET" >&2; exit 2;;
 esac
 BUILD="$WORK/build-$TARGET"; mkdir -p "$BUILD"; cd "$BUILD"
