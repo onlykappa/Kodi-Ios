@@ -17,18 +17,20 @@ class StartupLoad(unittest.TestCase):
   variables={};xml=portrait.hubs_window('<window id="0"/>',hubs,variables)
   return ET.fromstring(xml),variables
 
- def test_home_open_loads_at_most_the_hero_and_first_rows(self):
-  # Was: all three hubs' rows (36+ add-on runs) at every start; the hero waited behind them on "Loading...".
+ def test_preloader_every_hub_row_loads_when_home_opens(self):
+  # Owner (build-135): the preloader is back. Every hub's hero and rows load at once and stay loaded (no gate).
   root,variables=self.home()
   lists=[c for c in root.iter('control') if c.get('type')=='list' and (c.findtext('content') or '').strip()]
-  immediate=[c for c in lists if not c.findtext('content').startswith('$VAR[')]
-  self.assertLessEqual(len(immediate),1+portrait.EAGER_ROWS)
-  self.assertGreaterEqual(len(variables),len(lists)-len(immediate))
+  self.assertTrue(lists)
+  self.assertFalse([c for c in lists if c.findtext('content').startswith('$VAR[Portrait_Row_') or c.findtext('content').startswith('$VAR[Portrait_Hero_')])
+  self.assertEqual(variables,{})
+  self.assertNotIn('Portrait.Load.',ET.tostring(root,encoding='unicode'))
 
- def test_movies_and_tv_wait_for_their_first_visit(self):
-  _,variables=self.home()
-  for name,xml in variables.items():
-   if '_movies' in name or '_tv' in name:self.assertIn('Portrait.Load.%s)'%name.split('_')[2],xml)
+ def test_home_rows_are_queued_before_movies_and_tv(self):
+  root,_=self.home()
+  ids=[int(c.get('id')) for c in root.iter('control') if c.get('type')=='list' and c.get('id','').isdigit() and int(c.get('id'))%10000 in range(4000,6000)]
+  firsts={tab:ids.index(next(i for i in ids if i//10000==n)) for n,tab in enumerate(('home','movies','tv'))}
+  self.assertLess(firsts['home'],firsts['movies']);self.assertLess(firsts['movies'],firsts['tv'])
 
  def test_no_fuse_scripts_on_home_open_and_no_startup_wait(self):
   fuse_home=('<window><onload>RunScript(script.skinvariables,run_executebuiltin=special://skin/shortcuts/skinvariables-splash.json)</onload>'

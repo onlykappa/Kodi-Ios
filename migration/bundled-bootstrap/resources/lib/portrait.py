@@ -50,29 +50,15 @@ CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type='
 TAB_PROPERTY='Portrait.Tab'
 HUB_TABS=('home','movies','tv')
 HUB_OFFSET={'home':0,'movies':10000,'tv':20000}
-# Lazy hubs (performance pass): the three hubs share Home.xml, and every row used to load at each start (36 add-on
-# runs at once on the phone, the hero waiting behind them on "Loading..."). Now Home's hero and first rows load at
-# once and its lower rows two seconds later; Movies' and TV's hero and first rows follow in the background (PREFETCH)
-# and their lower rows on the first visit; everything then stays loaded.
-LOAD='Portrait.Load.'   # Window(Home).Property(Portrait.Load.<tab>[.more])
-EAGER_ROWS=3            # rows (after the hero) that load with their hub; the rest follow two seconds later
-def load_flag(tab,more=False):return 'Window(Home).Property(%s%s%s)'%(LOAD,tab,'.more' if more else '')
-PREFETCH={'movies':6,'tv':10}  # seconds after Home opens: Movies' and TV's hero and first rows load in the background
-def first_visit(key):
- """[(condition, builtin)] marking a hub loaded (its lower rows two seconds later); run on each visit, effective once."""
- more=('String.IsEmpty(%s) + !System.HasAlarm(portraitmore%s)'%(load_flag(key,True),key),
-       'AlarmClock(portraitmore%s,SetProperty(%s%s.more,1,home),00:02,silent)'%(key,LOAD,key))
- if key=='home':return [more]
- return [more,('','SetProperty(%s%s,1,home)'%(LOAD,key))]
-def prefetch(key):
- """Home's onload: the hub's hero and first rows a few seconds after Home, so the tab opens filled; lower rows load
- on the visit itself."""
- return ('String.IsEmpty(%s) + !System.HasAlarm(portraitprefetch%s)'%(load_flag(key),key),
-         'AlarmClock(portraitprefetch%s,SetProperty(%s%s,1,home),00:%02d,silent)'%(key,LOAD,key,PREFETCH[key]))
+# Preloader (owner, build-135: "bring back the preloader, it was game changing"). The three hubs share Home.xml and
+# every row of Home, Movies and TV loads as soon as Home opens, then keeps its titles: switching tabs finds them
+# filled. Home's hero and rows come first in the window, so Kodi queues them first. The performance pass had made
+# Movies/TV wait for their first visit (and Home's lower rows two seconds), which the owner felt as every menu
+# saying "Loading...". Fuse's startup scripts stay off and there is still one tab bar.
 def tab_actions(key):
  """[(condition, builtin)] for one tab: hubs set the property (and come back to Home), the others open their window."""
  if key in HUB_TABS:
-  return ([] if key=='home' else first_visit(key))+[('','ClearProperty(%s,home)'%TAB_PROPERTY if key=='home' else 'SetProperty(%s,%s,home)'%(TAB_PROPERTY,key)),
+  return [('','ClearProperty(%s,home)'%TAB_PROPERTY if key=='home' else 'SetProperty(%s,%s,home)'%(TAB_PROPERTY,key)),
           ('!Window.IsActive(home)','ReplaceWindow(Home)'),('','SetFocus(%d)'%(4000+HUB_OFFSET[key]))]
  return [('','ReplaceWindow(%s)'%{'library':1103,'search':1105}[key])]
 def tab_visible(key):
@@ -329,10 +315,8 @@ def card_item(focused,progress=False):
   label(26,h+62,w-52,60,'$INFO[ListItem.Label]','p_h3')+'</control>')
 
 def load_condition(tab,index):
- """When a hub row may load ('' = at once): Movies/TV after their first visit, rows past EAGER_ROWS a little later."""
- terms=[] if tab=='home' else ['!String.IsEmpty(%s)'%load_flag(tab)]
- if index>=EAGER_ROWS:terms.append('!String.IsEmpty(%s)'%load_flag(tab,True))
- return ' + '.join(terms)
+ """Every hub row loads at once (the preloader); kept as a hook so a row could be held back later."""
+ return ''
 
 def gated(name,path,condition,variables):
  """A container path that stays empty (nothing loads) until condition holds: a skin variable in Includes.xml."""
@@ -423,22 +407,16 @@ def hub_window(original,title,widgets,tab,spotlight,resume='all'):
  return window(original,'<controls>%s%s</controls>'%(backdrop(),hub_body(title,widgets,tab,spotlight,resume)),'4000')
 
 def hubs_window(original,hubs,variables=None):
- """Home, Movies and TV in one window: a group per hub, shown by Portrait.Tab. Home's rows load when it opens (the
- lower ones two seconds later), Movies and TV on their first visit (variables collects their gated paths for
- Includes.xml); a hub keeps its titles while another one shows, so switching back needs no reload."""
+ """Home, Movies and TV in one window: a group per hub, shown by Portrait.Tab. Every row of all three hubs
+ loads when Home opens (the preloader) and keeps its titles while another hub shows, so switching needs no reload."""
  groups=''.join('<control type="group" id="%d"><visible>%s</visible>%s</control>'%(3900+HUB_OFFSET[tab],tab_visible(tab),hub_body(*args,variables=variables))
                 for tab,args in hubs)
  focus=''.join('<onload condition="%s">SetFocus(%d)</onload>'%(e(tab_visible(tab)),4000+HUB_OFFSET[tab]) for tab,_ in hubs if HUB_OFFSET[tab])
- # The hub shown when Home opens (also when coming back from Library or Search) gets its first visit here.
- for tab,_ in hubs:
-  focus+=''.join('<onload condition="%s">%s</onload>'%(e(' + '.join(c for c in (tab_visible(tab),cond) if c)),e(a)) for cond,a in first_visit(tab))
-  if tab in PREFETCH:focus+='<onload condition="%s">%s</onload>'%tuple(map(e,prefetch(tab)))
  return window(strip_fuse_onloads(original),'<controls>%s%s</controls>'%(backdrop(),groups),'4000',focus)
 
 def forward_window(original,tab):
  """Movies/TV windows (opened by Fuse menus or older shortcuts) show that hub in Home instead."""
  return window(original,'<controls>%s</controls>'%backdrop(),'9999',
-               ''.join('<onload%s>%s</onload>'%(' condition="%s"'%e(c) if c else '',e(a)) for c,a in first_visit(tab))+
                '<onload>SetProperty(%s,%s,home)</onload><onload>ReplaceWindow(Home)</onload>'%(TAB_PROPERTY,tab))
 
 def page_header(title):

@@ -71,9 +71,8 @@ class PortraitTests(unittest.TestCase):
    # each hub's rows and tab bar live inside its own group
    self.assertIsNotNone(group.find(".//control[@id='%d']"%(int(gid)+1101)))
   movies_tab=home.find(".//control[@id='19202']")
-  # First visit marks Movies loaded (its lower rows two seconds later), then shows it.
-  self.assertEqual([o.text for o in movies_tab.findall('onclick')],['AlarmClock(portraitmoremovies,SetProperty(Portrait.Load.movies.more,1,home),00:02,silent)',
-                   'SetProperty(Portrait.Load.movies,1,home)','SetProperty(Portrait.Tab,movies,home)','ReplaceWindow(Home)','SetFocus(14000)'])
+  # Movies is already loaded (the preloader): its tab only shows it.
+  self.assertEqual([o.text for o in movies_tab.findall('onclick')],['SetProperty(Portrait.Tab,movies,home)','ReplaceWindow(Home)','SetFocus(14000)'])
  def test_last_row_clears_the_tab_bar(self):
   home=self.read('portrait/Home.xml');page=home.find(".//control[@id='5000']")
   self.assertEqual(page.findtext('height'),str(portrait.HEIGHT))
@@ -234,28 +233,16 @@ class PortraitTests(unittest.TestCase):
   for offset,kind,tab in ((0,'all','home'),(20000,'episode','tv'),(10000,'movie','movies')):
    first=root.find(".//control[@id='%d']"%(5001+offset))
    content=first.findtext('content')
-   if tab=='home':self.assertEqual(content,portrait.CONTINUE+kind)
-   else:
-    # Movies/TV rows load on that hub's first visit: the path sits in a variable gated by Portrait.Load.<tab>.
-    self.assertEqual(content,'$VAR[Portrait_Row_%s_0]'%tab)
-    self.assertIn('<variable name="Portrait_Row_%s_0"><value condition="!String.IsEmpty(Window(Home).Property(Portrait.Load.%s))">%s</value></variable>'%(tab,tab,(portrait.CONTINUE+kind).replace('&','&amp;')),includes)
- def test_lazy_hubs_load_home_first_and_others_on_first_visit(self):
-  # Performance pass: 36 add-on runs at every start became Home's hero and first rows only.
-  root=self.read('portrait/Home.xml');includes=self.read('portrait/Includes.xml')
-  gated={v.get('name'):v.find('value').get('condition') for v in includes.iter('variable') if v.get('name','').startswith('Portrait_')and v.get('name','').startswith(('Portrait_Row_','Portrait_Hero_'))}
-  contents=[c.findtext('content') for c in root.iter('control') if c.get('type')=='list' and c.findtext('content')]
-  immediate=[c for c in contents if not c.startswith('$VAR[')]
-  # Home: the hero (spotlight) and its first EAGER_ROWS rows; nothing of Movies/TV loads at start.
-  self.assertLessEqual(len(immediate),1+portrait.EAGER_ROWS)
-  self.assertTrue(all('Portrait.Load.movies' in c for n,c in gated.items() if '_movies' in n))
-  self.assertTrue(all('Portrait.Load.tv' in c for n,c in gated.items() if '_tv' in n))
-  self.assertTrue(all('Portrait.Load.home.more' in c for n,c in gated.items() if '_home_' in n))
-  # Coming back to Home starts the lower rows' two-second timer once.
-  onloads=[o.text for o in root.findall('onload')]
-  self.assertIn('AlarmClock(portraitmorehome,SetProperty(Portrait.Load.home.more,1,home),00:02,silent)',onloads)
-  # Movies and TV fill in the background a few seconds after Home (hero and first rows), so their tabs open filled.
-  self.assertIn('AlarmClock(portraitprefetchmovies,SetProperty(Portrait.Load.movies,1,home),00:06,silent)',onloads)
-  self.assertIn('AlarmClock(portraitprefetchtv,SetProperty(Portrait.Load.tv,1,home),00:10,silent)',onloads)
+   # The preloader: every hub's rows hold their real path and load when Home opens.
+   self.assertEqual(content,portrait.CONTINUE+kind)
+   self.assertNotIn('Portrait_Row_%s_0'%tab,includes)
+ def test_preloader_loads_every_hub_at_once(self):
+  # Owner (build-135): back to the preloader: no row or hero waits for a flag or a timer.
+  root=self.read('portrait/Home.xml');includes=(self.skin/'portrait/Includes.xml').read_text()
+  import re
+  self.assertNotIn('Portrait_Row_',includes);self.assertIsNone(re.search(r'Portrait_Hero_(home|movies|tv)"',includes))
+  self.assertNotIn('Portrait.Load.',ET.tostring(root,encoding='unicode'))
+  self.assertFalse([o.text for o in root.findall('onload') if 'AlarmClock(portrait' in (o.text or '')])
  def test_fuse_home_onloads_no_longer_run_scripts(self):
   root=self.read('portrait/Home.xml')
   for o in root.findall('onload'):
