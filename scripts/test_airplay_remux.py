@@ -119,7 +119,7 @@ class AirPlayLog(unittest.TestCase):
    self.assertIn(needle,build)
   lock=__import__('json').loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())
   self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r11')
-  self.assertEqual(lock['framework_release']['sha256'],'PENDING-set-after-publish')
+  self.assertEqual(lock['framework_release']['sha256'],'7cfbb57f12feadd4951991c4b5b4a978404cbd22db3ad1254b9b287346fa645e')
   self.assertEqual(lock['previous']['tag'],'kodi-airplay-r10')
   self.assertEqual(lock['previous']['sha256'],'2b451a12a88513fd0bb9d968f9803881b5be9e5b108eb46442453091bb6e57ca')
 
