@@ -6,6 +6,7 @@
 // A fresh encoder per segment: its first frame is an IDR, no B-frames, so every segment is a closed GOP.
 #include "kr_video.h"
 #include "kr_audio.h"  // kr_first_moof
+#include "kr_subs.h"   // r10: burned-in subtitles
 #include <math.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -47,6 +48,9 @@ struct kr_video {
     CVPixelBufferPoolRef pool;       // NV12 output buffers at ow x oh
     int gpu_off;                     // the GPU path failed once: CPU from then on
 #endif
+    kr_subs *subs;            // r10: subtitles burned into the picture, NULL when none (kept for the session)
+    int sub_index;            // r10: their source stream, -1 for an external file
+    double cov_from, cov_to;  // r10: the span of the timeline whose subtitle packets were fed (seconds)
     atomic_int abort;         // sticky: the server is stopping
     atomic_int cancel;        // r8: give up the conversion in progress only (the next one clears it)
 };
@@ -157,7 +161,7 @@ static int open_decoder(kr_video *v, int hw, char *err, int errlen) {
 kr_video *kr_video_open(gm_source src, int index, char *err, int errlen) {
     kr_video *v = calloc(1, sizeof *v);
     if (!v) return NULL;
-    v->src = src; v->index = index; v->sws_fmt = -1;
+    v->src = src; v->index = index; v->sws_fmt = -1; v->sub_index = -1; v->cov_from = v->cov_to = -1;
     uint8_t *iob = av_malloc(1 << 16);
     AVIOContext *io = avio_alloc_context(iob, 1 << 16, 0, v, in_read, NULL, in_seek);
     v->in = avformat_alloc_context();
@@ -190,8 +194,27 @@ int kr_video_hw_decode(const kr_video *v) { return v && v->hw ? 1 : 0; }
 void kr_video_abort(kr_video *v) { if (v) atomic_store(&v->abort, 1); }
 void kr_video_cancel(kr_video *v) { if (v) atomic_store(&v->cancel, 1); }
 
+int kr_video_burn(kr_video *v, int sub_index, const char *file, char *err, int errlen) {
+    if (!v || v->subs) { seterr(err, errlen, "subtitles already set", 0); return -1; }
+    if (sub_index < 0 && !(file && *file)) return 0;
+    v->subs = kr_subs_create(v->ow, v->oh);
+    if (!v->subs) { seterr(err, errlen, "subtitle renderer", 0); return -1; }
+    int r = sub_index >= 0 && sub_index < (int)v->in->nb_streams ? kr_subs_open_stream(v->subs, v->in->streams[sub_index])
+          : file && *file ? kr_subs_load_file(v->subs, file) : -1;
+    if (r < 0) {
+        kr_subs_free(v->subs); v->subs = NULL;
+        seterr(err, errlen, sub_index >= 0 ? "subtitle stream cannot be read" : "subtitle file cannot be read", 0);
+        return -1;
+    }
+    if (sub_index >= 0) { v->sub_index = sub_index; v->in->streams[sub_index]->discard = AVDISCARD_DEFAULT; }
+    return 0;
+}
+int kr_video_burning(const kr_video *v) { return v && v->subs ? 1 : 0; }
+int kr_video_burn_events(const kr_video *v) { return v ? kr_subs_events(v->subs) : 0; }
+
 void kr_video_close(kr_video *v) {
     if (!v) return;
+    kr_subs_free(v->subs);
     avcodec_free_context(&v->dec);
     av_buffer_unref(&v->hw);
     sws_freeContext(v->sws);
@@ -439,6 +462,8 @@ static int gpu_scale(kr_video *v, AVFrame *fr, AVFrame **out) {
 }
 #endif
 
+static int64_t frame_ms(job *j, int64_t pts) { return llround(pts * av_q2d(j->tb) * 1000.0); }
+
 static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen) {
     AVFrame *sw = fr;
     AVFrame *tmp = NULL;
@@ -450,6 +475,15 @@ static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen)
         if (gpu_scale(j->v, fr, &g) == 0) {
             if (!j->enc && open_encoder(j, err, errlen) < 0) { av_frame_free(&g); return -1; }
             j->conv = g;
+            if (j->v->subs) {  // r10: drawn into the encoder's own NV12 buffer (CPU, base address locked)
+                CVPixelBufferRef pb = (CVPixelBufferRef)g->data[3];
+                if (CVPixelBufferLockBaseAddress(pb, 0) == kCVReturnSuccess) {
+                    uint8_t *d[3] = { CVPixelBufferGetBaseAddressOfPlane(pb, 0), CVPixelBufferGetBaseAddressOfPlane(pb, 1), NULL };
+                    int ls[3] = { (int)CVPixelBufferGetBytesPerRowOfPlane(pb, 0), (int)CVPixelBufferGetBytesPerRowOfPlane(pb, 1), 0 };
+                    if (d[0] && d[1]) kr_subs_blend(j->v->subs, frame_ms(j, pts), d, ls, j->v->ow, j->v->oh, 1);
+                    CVPixelBufferUnlockBaseAddress(pb, 0);
+                }
+            }
             goto send;
         }
         // Mid-segment the encoder already takes GPU frames: this segment fails, the next one takes the CPU path.
@@ -467,6 +501,9 @@ static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen)
     r = convert(j, sw, err, errlen);
     av_frame_free(&tmp);
     if (r < 0) return -1;
+    if (j->v->subs)  // r10: burned in after scaling, at this frame's own time
+        kr_subs_blend(j->v->subs, frame_ms(j, pts), j->conv->data, j->conv->linesize, j->v->ow, j->v->oh,
+                      j->conv->format == AV_PIX_FMT_NV12);
 #ifdef KR_GPU
 send:
 #endif
@@ -509,6 +546,33 @@ static void seek_before(kr_video *v, double start) {
     av_seek_frame(v->in, -1, 0, AVSEEK_FLAG_BACKWARD);
 }
 
+// r10: a subtitle that starts before the decoder's first keyframe still shows in this segment: unless the packets of
+// [start - SUB_LOOKBACK, start) were fed already (the previous segment), they are read first with the video skipped.
+#define SUB_LOOKBACK 10.0
+static void sub_lookback(kr_video *v, double start) {
+    double from = start - SUB_LOOKBACK < 0 ? 0 : start - SUB_LOOKBACK;
+    if (v->cov_from >= 0 && v->cov_from <= from + 1e-3 && v->cov_to >= start - 1e-3) return;
+    AVStream *vs = v->in->streams[v->index];
+    AVPacket *p = av_packet_alloc();
+    if (!p) return;
+    vs->discard = AVDISCARD_ALL;
+    if (av_seek_frame(v->in, -1, (int64_t)(from * AV_TIME_BASE), AVSEEK_FLAG_BACKWARD) >= 0) {
+        AVStream *ss = v->in->streams[v->sub_index];
+        int done = 0;
+        while (!atomic_load(&v->abort) && !atomic_load(&v->cancel) && av_read_frame(v->in, p) >= 0) {
+            AVStream *st = v->in->streams[p->stream_index];
+            int64_t t0 = p->pts != AV_NOPTS_VALUE ? p->pts : p->dts;
+            double t = t0 == AV_NOPTS_VALUE ? -1 : t0 * av_q2d(st->time_base);
+            if (st == ss) kr_subs_feed(v->subs, p);
+            av_packet_unref(p);
+            if (t >= start) { done = 1; break; }
+        }
+        if (done) { v->cov_from = from; v->cov_to = start; }
+    }
+    vs->discard = AVDISCARD_DEFAULT;
+    av_packet_free(&p);
+}
+
 // The whole unit (ftyp+moov+moof+mdat) for the source frames in [start, end).
 static int produce(kr_video *v, double start, double end, gm_buf *out, char *err, int errlen) {
     out->len = 0;
@@ -521,6 +585,7 @@ static int produce(kr_video *v, double start, double end, gm_buf *out, char *err
     int r = -1, eof = 0, done = 0, retried = 0;
     if (!j.held || !pkt || !fr) { seterr(err, errlen, "out of memory", 0); goto out; }
     atomic_store(&v->cancel, 0);
+    if (v->subs && v->sub_index >= 0) sub_lookback(v, start);
     seek_before(v, start);
     avcodec_flush_buffers(v->dec);
     while (!done && !eof) {
@@ -530,7 +595,11 @@ static int produce(kr_video *v, double start, double end, gm_buf *out, char *err
         int rr = av_read_frame(v->in, pkt);
         if (rr == AVERROR_EOF) { eof = 1; avcodec_send_packet(v->dec, NULL); }
         else if (rr < 0) { seterr(err, errlen, "read", rr); goto out; }
-        else if (pkt->stream_index != v->index) { av_packet_unref(pkt); continue; }
+        else if (pkt->stream_index != v->index) {
+            if (pkt->stream_index == v->sub_index && v->subs) kr_subs_feed(v->subs, pkt);  // r10
+            av_packet_unref(pkt);
+            continue;
+        }
         else {
             int sr = avcodec_send_packet(v->dec, pkt);
             av_packet_unref(pkt);
@@ -560,6 +629,9 @@ static int produce(kr_video *v, double start, double end, gm_buf *out, char *err
     avio_flush(j.io);
     r = j.written > 0 ? 0 : -1;
     if (r < 0) seterr(err, errlen, "no video in this segment", 0);
+    // r10: the subtitle packets up to the end of this segment were fed: the next segment needs no lookback.
+    if (r == 0 && v->subs && v->cov_from >= 0 && v->cov_from <= start && v->cov_to >= start - 1e-3)
+        v->cov_to = fmax(v->cov_to, end >= 0 ? end : 1e18);
 out:
     if (j.io) { av_freep(&j.io->buffer); avio_context_free(&j.io); }
     if (j.oc) avformat_free_context(j.oc);

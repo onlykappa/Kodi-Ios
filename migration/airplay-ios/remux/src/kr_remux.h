@@ -56,6 +56,14 @@ int kr_remux_compat_clients(void);
 int kr_remux_prefetched(void);
 // r8: 0 turns making segments ahead off (host tests measure with and without it), 1 on (the default).
 void kr_remux_set_prefetch(int on);
+// r10: the subtitles burned into the converted picture (compat), taken by the next kr_remux_start: ordinal >= 0 is
+// Kodi's subtitle stream number (the ordinal-th subtitle stream of the file; at or past the file's count it is
+// Kodi's external subtitle, `file`); -1 none; -2 automatic (`file` when given, else the file's forced / default
+// text subtitle, else the first in language `lang`, ISO 639-2). Third-party receivers then get the converted picture
+// even for H.264 sources. Only text subtitles can be burned (not PGS / DVD images). Changing them is a new session.
+void kr_remux_set_subtitles(int ordinal, const char *file, const char *lang);
+// r10: the running session's burned subtitles: source stream index, -2 an external file, -1 none.
+int kr_remux_burn_track(void);
 #ifdef __cplusplus
 }
 #endif

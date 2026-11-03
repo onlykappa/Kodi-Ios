@@ -9,6 +9,7 @@
 #include "kr_hls.h"
 #include "kr_source.h"
 #include "kr_video.h"
+#include "kr_subs.h"
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
@@ -81,8 +82,23 @@ static struct {
     int compat_ok;             // a third-party receiver can be given the converted picture (source video not H.264)
     char *master_copy, *master_compat;  // fixed at start; master_compat points /cvideo/ at the converted picture
     atomic_int compat_clients, prefetched;
+    // r10: subtitles burned into the converted picture, fixed at start (the session's R_VCOMPAT cache holds only
+    // segments with them: another choice is a new session, so the cache key needs no burn field)
+    int burn_index;            // source text subtitle stream, -1 none
+    char burn_file[1024];      // external subtitle file when burn_index < 0, "" none
 } S = { .lock = PTHREAD_MUTEX_INITIALIZER, .gm_lock = PTHREAD_MUTEX_INITIALIZER, .vlock = PTHREAD_MUTEX_INITIALIZER,
-        .agm_lock = PTHREAD_MUTEX_INITIALIZER, .listen_fd = -1, .vindex = -1 };
+        .agm_lock = PTHREAD_MUTEX_INITIALIZER, .listen_fd = -1, .vindex = -1, .burn_index = -1 };
+
+// r10: the subtitle choice for the next kr_remux_start (Kodi's selection, from Python).
+static struct { pthread_mutex_t lock; int ordinal; char file[1024]; char lang[16]; } SUBS = { PTHREAD_MUTEX_INITIALIZER, -2, "", "" };
+void kr_remux_set_subtitles(int ordinal, const char *file, const char *lang) {
+    pthread_mutex_lock(&SUBS.lock);
+    SUBS.ordinal = ordinal < -2 ? -1 : ordinal;
+    snprintf(SUBS.file, sizeof SUBS.file, "%s", file ? file : "");
+    snprintf(SUBS.lang, sizeof SUBS.lang, "%s", lang ? lang : "");
+    pthread_mutex_unlock(&SUBS.lock);
+}
+int kr_remux_burn_track(void) { return S.burn_index >= 0 ? S.burn_index : S.burn_file[0] ? -2 : -1; }
 
 static void set_message(const char *m) { snprintf(S.message, sizeof S.message, "%s", m ? m : ""); }
 
@@ -257,6 +273,12 @@ static kr_video *session_video(char *err, int errlen) {
     publish_source(&S.vsrc, src);
     kr_video *v = kr_video_open(kr_source_gm(src), S.vindex, err, errlen);
     if (!v) { publish_source(&S.vsrc, NULL); kr_source_close(src); return NULL; }
+    if (S.burn_index >= 0 || S.burn_file[0]) {  // r10: a subtitle that cannot be read leaves the picture as it is
+        char e[128] = "";
+        if (kr_video_burn(v, S.burn_index, S.burn_file, e, sizeof e) < 0) log_line("error: subtitles not burned in: %s", e);
+        else log_line("compat: burning subtitles in (%s, %d events loaded)", S.burn_index >= 0 ? "source stream" : "external file",
+                      kr_video_burn_events(v));
+    }
     pthread_mutex_lock(&src_lock);
     S.video = v;
     if (atomic_load(&S.stopping)) kr_video_abort(v);
@@ -922,10 +944,26 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
         if (!kr_video_available()) { set_message("AirPlay: this build cannot convert video (no H.264 encoder)."); goto done; }
         S.compat = 1;
     }
+    {   // r10: the subtitles to burn into the converted picture (Kodi's choice, else the file's default / forced)
+        AVFormatContext *f = gm_stream_format_context(S.gm);
+        pthread_mutex_lock(&SUBS.lock);
+        int ord = SUBS.ordinal; char lang[16]; snprintf(lang, sizeof lang, "%s", SUBS.lang);
+        S.burn_index = -1; S.burn_file[0] = 0;
+        if (ord >= 0 && ord >= kr_subs_stream_count(f) && SUBS.file[0]) snprintf(S.burn_file, sizeof S.burn_file, "%s", SUBS.file);
+        else if (ord == -2 && SUBS.file[0]) snprintf(S.burn_file, sizeof S.burn_file, "%s", SUBS.file);
+        else S.burn_index = kr_subs_pick(f, ord, lang);
+        pthread_mutex_unlock(&SUBS.lock);
+        if (S.burn_index >= 0) log_line("subtitles: burning source stream %d into the converted picture", S.burn_index);
+        else if (S.burn_file[0]) log_line("subtitles: burning an external file (%s) into the converted picture",
+                                          strrchr(S.burn_file, '.') ? strrchr(S.burn_file, '.') : "?");
+        else if (ord != -1) log_line("subtitles: none to burn in (Kodi's choice %d is not a text subtitle)", ord);
+    }
     {   // r8: per receiver: a third-party AirPlay TV gets the converted picture when the source video is not H.264
+        // r10: or when subtitles are to be burned in (such TVs ignore the WebVTT rendition): H.264 is converted too
         AVFormatContext *f = gm_stream_format_context(S.gm);
         int v = gm_stream_selected_video(S.gm);
-        S.compat_ok = !S.compat && v >= 0 && S.vindex >= 0 && f && f->streams[v]->codecpar->codec_id != AV_CODEC_ID_H264 &&
+        int burn = S.burn_index >= 0 || S.burn_file[0];
+        S.compat_ok = !S.compat && v >= 0 && S.vindex >= 0 && f && (burn || f->streams[v]->codecpar->codec_id != AV_CODEC_ID_H264) &&
                       kr_video_available();
     }
     if (audio_tracks && !playable_audio) {

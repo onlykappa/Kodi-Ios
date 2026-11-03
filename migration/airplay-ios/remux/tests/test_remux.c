@@ -2,12 +2,14 @@
 // bridge (DTS/TrueHD), WebVTT subtitles, range reading over HTTP, seeks (segments out of order) and clean shutdown.
 // r8: per-receiver compat (a TV's AirPlay gets H.264 while the phone keeps the HEVC copy), the cache, video and audio
 // made at the same time, and segments made ahead, timed over a slow source.
+// r10: subtitles burned into the converted picture (libass): cue timing, grid unchanged, selection.
 // usage: test_remux FIXTURE_DIR [HTTP_BASE]   (HTTP_BASE: tests/range_server.py serving FIXTURE_DIR)
 #include "../src/kr_remux.h"
 #include "../src/kr_hls.h"
 #include "../src/kr_audio.h"
 #include "../src/kr_source.h"
 #include "../src/kr_video.h"
+#include "../src/kr_subs.h"
 #include <pthread.h>
 #include <time.h>
 #include <arpa/inet.h>
@@ -645,9 +647,203 @@ static void test_latency(const char *http_base) {
 
 const char *fixture_dir;
 
+// ── r10 burned-in subtitles (kr_subs + kr_video) ──────────────────────────────
+// A gray 320x180 4:2:0 frame; returns how many Y samples differ from 128 in rows [y0, y1), and chroma samples changed.
+static int frame_changes(uint8_t *const d[3], const int ls[3], int nv12, int y0, int y1, int *chroma) {
+    int n = 0; *chroma = 0;
+    for (int y = y0; y < y1; y++) for (int x = 0; x < 320; x++) n += d[0][y * ls[0] + x] != 128;
+    for (int y = 0; y < 90; y++) for (int x = 0; x < (nv12 ? 320 : 160); x++) {
+        *chroma += d[1][y * ls[1] + x] != 128;
+        if (!nv12) *chroma += d[2][y * ls[2] + x] != 128;
+    }
+    return n;
+}
+
+static void gray(uint8_t *buf, uint8_t *d[3], int ls[3], int nv12) {
+    memset(buf, 128, 320 * 180 * 3 / 2);
+    d[0] = buf; ls[0] = 320;
+    if (nv12) { d[1] = buf + 320 * 180; ls[1] = 320; d[2] = NULL; ls[2] = 0; }
+    else { d[1] = buf + 320 * 180; d[2] = d[1] + 160 * 90; ls[1] = ls[2] = 160; }
+}
+
+static void test_burn_render(void) {
+    char path[1024];
+    static uint8_t buf[320 * 180 * 3 / 2];
+    uint8_t *d[3]; int ls[3], ch;
+    for (int nv12 = 0; nv12 < 2; nv12++) {
+        kr_subs *s = kr_subs_create(320, 180);
+        snprintf(path, sizeof path, "%s/subs.srt", fixture_dir);
+        CHECK(s && kr_subs_load_file(s, path) == 0 && kr_subs_events(s) == 2, "SRT file loaded (%d events)", kr_subs_events(s));
+        if (!s) return;
+        int64_t before[] = { 0, 999, 3000, 5000, 6499, 7500, 9000 };
+        for (size_t k = 0; k < sizeof before / sizeof *before; k++) {
+            gray(buf, d, ls, nv12);
+            int drawn = kr_subs_blend(s, before[k], d, ls, 320, 180, nv12);
+            CHECK(!drawn && frame_changes(d, ls, nv12, 0, 180, &ch) == 0 && ch == 0, "nothing drawn at %lld ms (nv12 %d)", (long long)before[k], nv12);
+        }
+        int64_t during[] = { 1000, 2000, 2999, 6500, 7000 };
+        for (size_t k = 0; k < sizeof during / sizeof *during; k++) {
+            gray(buf, d, ls, nv12);
+            int drawn = kr_subs_blend(s, during[k], d, ls, 320, 180, nv12);
+            int low = frame_changes(d, ls, nv12, 120, 180, &ch), high = frame_changes(d, ls, nv12, 0, 100, &ch);
+            CHECK(drawn && low > 200 && high == 0, "cue drawn at %lld ms in the bottom third only (%d / %d changed, nv12 %d)",
+                  (long long)during[k], low, high, nv12);
+        }
+        kr_subs_add(s, "0,Default,,0,0,0,,Hello from SRT", 1000, 2000);  // a duplicate of the first cue
+        CHECK(kr_subs_events(s) == 2, "a cue seen again is not added twice");
+        kr_subs_free(s);
+    }
+    kr_subs *a = kr_subs_create(320, 180);
+    snprintf(path, sizeof path, "%s/subs.ass", fixture_dir);
+    CHECK(a && kr_subs_load_file(a, path) == 0 && kr_subs_events(a) == 1, "ASS file loaded");
+    gray(buf, d, ls, 1);
+    CHECK(a && kr_subs_blend(a, 1500, d, ls, 320, 180, 1) == 0 && kr_subs_blend(a, 3000, d, ls, 320, 180, 1) == 1 &&
+          frame_changes(d, ls, 1, 0, 180, &ch) > 100, "ASS cue only during 2-4 s");
+    kr_subs_free(a);
+    // Latin-1 SRT with CRLF and tags, and WebVTT timestamps
+    char tmp[1024]; snprintf(tmp, sizeof tmp, "%s/out/latin1.vtt", fixture_dir);
+    FILE *f = fopen(tmp, "wb");
+    fputs("WEBVTT\r\n\r\n00:01.000 --> 00:02.500\r\n<i>Caf\xe9</i> <c.x>ok</c>\r\n\r\n", f); fclose(f);
+    kr_subs *v = kr_subs_create(320, 180);
+    CHECK(v && kr_subs_load_file(v, tmp) == 0 && kr_subs_events(v) == 1, "Latin-1 WebVTT file loaded");
+    gray(buf, d, ls, 0);
+    CHECK(v && kr_subs_blend(v, 2000, d, ls, 320, 180, 0) == 1 && kr_subs_blend(v, 2600, d, ls, 320, 180, 0) == 0, "WebVTT cue timing");
+    kr_subs_free(v);
+    snprintf(tmp, sizeof tmp, "%s/missing.srt", fixture_dir);
+    kr_subs *m = kr_subs_create(320, 180);
+    CHECK(kr_subs_load_file(m, tmp) < 0, "a missing file is refused");
+    kr_subs_free(m);
+}
+
+// Decoded Y planes of a unit (320x180), with their times.
+static int unit_frames(const gm_buf *u, const char *tmp, uint8_t **ys, double *ts, int max) {
+    FILE *f = fopen(tmp, "wb"); fwrite(u->data, 1, (size_t)u->len, f); fclose(f);
+    AVFormatContext *in = NULL;
+    if (avformat_open_input(&in, tmp, NULL, NULL) < 0) return -1;
+    avformat_find_stream_info(in, NULL);
+    const AVCodec *dc = avcodec_find_decoder(in->streams[0]->codecpar->codec_id);
+    AVCodecContext *c = avcodec_alloc_context3(dc);
+    avcodec_parameters_to_context(c, in->streams[0]->codecpar);
+    avcodec_open2(c, dc, NULL);
+    AVPacket *p = av_packet_alloc(); AVFrame *fr = av_frame_alloc();
+    int n = 0;
+    for (int flushing = 0; flushing < 2; flushing++) {
+        for (;;) {
+            if (!flushing) { if (av_read_frame(in, p) < 0) break; avcodec_send_packet(c, p); av_packet_unref(p); }
+            else avcodec_send_packet(c, NULL);
+            while (avcodec_receive_frame(c, fr) == 0) {
+                if (n < max) {
+                    ys[n] = malloc(320 * 180);
+                    for (int y = 0; y < 180; y++) memcpy(ys[n] + y * 320, fr->data[0] + y * fr->linesize[0], 320);
+                    ts[n] = fr->best_effort_timestamp * av_q2d(in->streams[0]->time_base);
+                    n++;
+                }
+                av_frame_unref(fr);
+            }
+            if (flushing) break;
+        }
+    }
+    av_frame_free(&fr); av_packet_free(&p); avcodec_free_context(&c); avformat_close_input(&in);
+    return n;
+}
+
+// Samples of rows [y0, y1) that differ by more than `by` (text vs encoder noise).
+static int region_diff(const uint8_t *a, const uint8_t *b, int y0, int y1, int by) {
+    int n = 0;
+    for (int y = y0; y < y1; y++) for (int x = 0; x < 320; x++) n += abs(a[y * 320 + x] - b[y * 320 + x]) > by;
+    return n;
+}
+
+// The SRT stream of h264_aac_srt.mkv (cue 1-3 s) burned into segment 0: frames before the cue identical to the
+// unburned conversion, frames during it changed at the bottom, the same frames and times (grid unchanged).
+static void test_burn_video(const char *work) {
+    char url[1024], err[256] = "", tmp[1024];
+    snprintf(url, sizeof url, "file:%s/h264_aac_srt.mkv", fixture_dir);
+    kr_source *s0 = kr_source_open(url, 10, err, sizeof err), *s1 = kr_source_open(url, 10, err, sizeof err),
+              *s2 = kr_source_open(url, 10, err, sizeof err);
+    gm_stream *gm = s0 ? gm_stream_open(kr_source_gm(s0), 6.0, err, sizeof err) : NULL;
+    kr_video *plain = s1 ? kr_video_open(kr_source_gm(s1), 0, err, sizeof err) : NULL;
+    kr_video *burn = s2 ? kr_video_open(kr_source_gm(s2), 0, err, sizeof err) : NULL;
+    CHECK(gm && plain && burn, "burn: converters open (%s)", err);
+    if (!gm || !plain || !burn) goto out;
+    CHECK(kr_video_burn(plain, -1, NULL, err, sizeof err) == 0 && !kr_video_burning(plain), "no subtitles: nothing burned");
+    CHECK(kr_video_burn(burn, 1, NULL, err, sizeof err) < 0, "an audio stream is not a subtitle (%s)", err);
+    CHECK(kr_video_burn(burn, 2, NULL, err, sizeof err) == 0 && kr_video_burning(burn), "SRT stream 2 burned (%s)", err);
+    gm_buf a = {0}, b = {0}, a2 = {0};
+    CHECK(kr_video_unit(plain, gm, 0, &a, err, sizeof err) == 0 && kr_video_unit(burn, gm, 0, &b, err, sizeof err) == 0, "units made (%s)", err);
+    CHECK(kr_video_burn_events(burn) >= 1, "the cue was read from the stream (%d events)", kr_video_burn_events(burn));
+    int m = kr_first_moof(a.data, a.len);
+    CHECK(m > 0 && m == kr_first_moof(b.data, b.len) && !memcmp(a.data, b.data, (size_t)m), "same init with subtitles burned in");
+    // The no-subtitle path is deterministic: the same unit again is byte-identical.
+    CHECK(kr_video_unit(plain, gm, 0, &a2, err, sizeof err) == 0 && a2.len == a.len && !memcmp(a.data, a2.data, (size_t)a.len),
+          "no subtitles: identical bytes on a second conversion");
+    enum { MAXF = 400 };
+    static uint8_t *ya[MAXF], *yb[MAXF]; static double ta[MAXF], tb[MAXF];
+    snprintf(tmp, sizeof tmp, "%s/burn_a.mp4", work); int na = unit_frames(&a, tmp, ya, ta, MAXF);
+    snprintf(tmp, sizeof tmp, "%s/burn_b.mp4", work); int nb = unit_frames(&b, tmp, yb, tb, MAXF);
+    int same_t = na == nb && na > 24;
+    for (int i = 0; same_t && i < na; i++) same_t = fabs(ta[i] - tb[i]) < 1e-6;
+    CHECK(same_t, "same frames and timestamps with subtitles (%d vs %d)", na, nb);
+    int bad_before = 0, bad_during = 0, top_changed = 0, during = 0;
+    for (int i = 0; same_t && i < na; i++) {
+        int low = region_diff(ya[i], yb[i], 130, 180, 48), high = region_diff(ya[i], yb[i], 0, 60, 48);
+        if (ta[i] < 1.0 - 1e-3) bad_before += region_diff(ya[i], yb[i], 0, 180, 0) > 0;
+        else if (ta[i] >= 1.05 && ta[i] < 2.95) { during++; bad_during += low < 80; top_changed += high > 0; }
+    }
+    CHECK(same_t && bad_before == 0, "frames before the cue untouched (%d differ)", bad_before);
+    CHECK(same_t && during > 30 && bad_during == 0 && top_changed == 0, "the cue burned into the bottom of %d frames (%d missing, %d top changed)",
+          during, bad_during, top_changed);
+    for (int i = 0; i < na; i++) free(ya[i]);
+    for (int i = 0; i < nb; i++) free(yb[i]);
+    free(a.data); free(b.data); free(a2.data);
+    // A later segment opened fresh (a seek) still reads its subtitles (lookback pass), timing unchanged.
+    if (gm_stream_segment_count(gm) > 1) {
+        gm_buf c = {0};
+        int r = kr_video_unit(burn, gm, gm_stream_segment_count(gm) - 1, &c, err, sizeof err);
+        CHECK(r == 0 && kr_first_moof(c.data, c.len) > 0, "a later burned segment (%s)", err);
+        free(c.data);
+    }
+out:
+    kr_video_close(plain); kr_video_close(burn);
+    gm_stream_close(gm);
+    kr_source_close(s0); kr_source_close(s1); kr_source_close(s2);
+}
+
+// Selection: Kodi's subtitle number, off, automatic, an external file; a TV then gets the H.264 picture even for an
+// H.264 source.
+static void test_burn_select(void) {
+    char url[1024], m3u8[256], ext[1024];
+    snprintf(url, sizeof url, "file:%s/h264_aac_srt.mkv", fixture_dir);
+    snprintf(ext, sizeof ext, "%s/subs.srt", fixture_dir);
+    struct { int ord; const char *file; int want; int tv_compat; } cases[] = {
+        { -1, NULL, -1, 0 }, { 0, NULL, 2, 1 }, { -2, NULL, 2, 1 }, { 1, ext, -2, 1 }, { 1, NULL, -1, 0 }, { -2, ext, -2, 1 },
+    };
+    for (size_t k = 0; k < sizeof cases / sizeof *cases; k++) {
+        kr_remux_set_subtitles(cases[k].ord, cases[k].file, "eng");
+        int st = start_session(url, 0, m3u8, sizeof m3u8);
+        CHECK(st == KR_READY && kr_remux_burn_track() == cases[k].want, "subtitles %d%s: burn track %d (want %d)", cases[k].ord,
+              cases[k].file ? " + file" : "", kr_remux_burn_track(), cases[k].want);
+        if (st != KR_READY) continue;
+        reply tv = get_as(UA_TV, kr_remux_port(), "/master.m3u8");
+        CHECK(tv.body && (strstr(tv.body, "/cvideo/") != NULL) == cases[k].tv_compat, "case %zu: the TV %s the H.264 picture", k,
+              cases[k].tv_compat ? "gets" : "does not get");
+        if (cases[k].tv_compat) {
+            reply seg = get_as(UA_TV, kr_remux_port(), "/cvideo/seg0.m4s");
+            CHECK(seg.status == 200 && seg.len > 0, "case %zu: burned segment served (%d)", k, seg.status);
+            free(seg.body);
+        }
+        free(tv.body);
+        kr_remux_stop();
+    }
+    kr_remux_set_subtitles(-1, NULL, NULL);
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: test_remux FIXTURE_DIR [HTTP_BASE]\n"); return 2; }
     fixture_dir = argv[1];
+    // r10: the copy/compat checks below run without burned subtitles (the files' default SRT would be picked).
+    kr_remux_set_subtitles(-1, NULL, NULL);
+    kr_subs_set_font_file(getenv("KR_TEST_FONT"));
     test_kind();
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
     mkdir(work, 0755);
@@ -680,6 +876,10 @@ int main(int argc, char **argv) {
         printf("-- r8 receivers (a TV's AirPlay gets H.264, the phone the HEVC copy)\n"); fflush(stdout);
         char h264[1024]; snprintf(h264, sizeof h264, "file:%s/h264_aac_srt.mkv", argv[1]);
         test_receivers(url, h264, work);
+        printf("-- r10 burned-in subtitles (libass)\n"); fflush(stdout);
+        test_burn_render();
+        test_burn_video(work);
+        test_burn_select();
         kr_video_set_encoder("no_such_encoder");
         char m3u8[256];
         CHECK(kr_remux_start(url, 0, 1, m3u8, sizeof m3u8) == KR_FAILED && strstr(kr_remux_message(), "cannot convert video"),

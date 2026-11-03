@@ -55,4 +55,11 @@ void kr_video_abort(kr_video *v);
 // packet; the next conversion runs normally. Any thread.
 void kr_video_cancel(kr_video *v);
 void kr_video_close(kr_video *v);
+// r10: burns subtitles into every converted frame from now on: source text subtitle stream sub_index (>= 0), else
+// the external file (.srt / .vtt / .ass / .ssa). Once per converter (the libass track is kept for the session; other
+// subtitles mean a new session). No stream and no file: nothing burned, 0. -1 with a reason when they cannot be read.
+// Segment windows and timestamps are unchanged.
+int kr_video_burn(kr_video *v, int sub_index, const char *file, char *err, int errlen);
+int kr_video_burning(const kr_video *v);
+int kr_video_burn_events(const kr_video *v);  // subtitle events loaded so far (tests, log)
 #endif
