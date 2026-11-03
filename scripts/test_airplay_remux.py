@@ -118,9 +118,10 @@ class AirPlayLog(unittest.TestCase):
                  "can't play HEVC",'kr_remux_served(1) == video0','presentationSize'):
    self.assertIn(needle,build)
   lock=__import__('json').loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())
-  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r10')
-  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r9')
-  self.assertEqual(lock['previous']['sha256'],'f31962d9e802b83b0f5bc526248acfeced3e4b7e7c0eaa36941b8a70c25d43b9')
+  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r11')
+  self.assertEqual(lock['framework_release']['sha256'],'PENDING-set-after-publish')
+  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r10')
+  self.assertEqual(lock['previous']['sha256'],'2b451a12a88513fd0bb9d968f9803881b5be9e5b108eb46442453091bb6e57ca')
 
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):
@@ -182,7 +183,7 @@ class R9Speed(unittest.TestCase):
                  'TARGET_OS_IPHONE','__builtin_available(iOS 16.0, *)','"threads", 0','prio_speed'):
    self.assertIn(needle,video)
   code=(src/'kr_remux.c').read_text()
-  for needle in ('t_err','session stopped','atomic_store(&vc_seg, seg)','pthread_mutex_trylock(&S.gm_lock)',
+  for needle in ('t_err','session stopped','atomic_store(&vc_seg, seg)','pthread_mutex_trylock(&S.sgm_lock)',
                  'if (third || S.compat) prefetch_push(R_VCOMPAT, 0);'):
    self.assertIn(needle,code)
   source=(src/'kr_source.c').read_text()
@@ -227,6 +228,15 @@ class R10BurnedSubtitles(unittest.TestCase):
   self.assertIsNone(airplay.send_subtitles(types.SimpleNamespace(),X,vfs,0))
   source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
   self.assertLess(source.index('airplay.send_subtitles('),source.index("lib.kodi_airplay_play(source.encode"))
+ def test_framework_r11(self):
+  """r11 (owner logs): audio waited 5.5 s behind WebVTT reads on its shared lane and the TV hung up."""
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn('r11:',build.split('set -euo pipefail')[0])
+  remux=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
+  for needle in ('subs_demuxer()','sgm_lock','strip_subtitles(S.master_compat)','PF_DEPTH_AUDIO 6','kr_video_path(v)'):
+   self.assertIn(needle,remux)
+  subs=remux[remux.index('/subs/%d/seg%d.vtt'):remux.index('sscanf(path, "/audio/%d/", &idx) == 1) {')]
+  self.assertNotIn('agm_lock',subs);self.assertNotIn('gm_lock)',subs.replace('sgm_lock)',''))
  def test_framework_r10(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn('r10:',build.split('set -euo pipefail')[0])

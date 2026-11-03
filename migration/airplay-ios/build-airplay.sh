@@ -45,6 +45,12 @@
 # FriBidi LGPL-2.1+, HarfBuzz MIT, linked statically, built by build-libass.sh; fonts from iOS through CoreText) on
 # the same segment grid, and a third-party TV gets the converted picture even for H.264 sources when subtitles are
 # on. FFmpeg's own libass filter is not used (FFmpeg stays LGPL without external libraries).
+# r11: audio never waits. r10 read WebVTT cue files on the audio demuxer's lock (5-13 s each on a 4K Drive source) and
+# a TV hung up on an audio segment after 5.5 s. Subtitles now have their own connection and lock and answer an empty
+# cue file within ~1.5 s when busy; a client whose picture has them burned in gets no SUBTITLES group at all. Audio
+# is made 6 segments ahead, video 3 (three background workers), and kodi.log names the conversion path per session
+# (GPU transfer or libswscale) with each slow segment's share of realtime. The output stays at most 1080p: the cost
+# is decoding the 4K source, which a smaller output does not reduce.
 # Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh, REMUX_LIBASS=DIR
 # one of build-libass.sh ios)
 set -euo pipefail
