@@ -122,7 +122,7 @@ def pick_dialogs(xbmc,xbmcgui,dialog,extra,found,done,last):
 
 def send_airplay(xbmc,dialog,player,library,url,title,playing):
  """ISSUE-079: Apple's player for MP4/HLS (Kodi waits paused and carries on if it cannot open the stream);
- ISSUE-095: KodiAirPlay r5 converts MKV/AVI/WebM/TS on the phone first. Screen Mirroring steps for the rest, with
+ ISSUE-083: KodiAirPlay r5 converts MKV/AVI/WebM/TS on the phone first. Screen Mirroring steps for the rest, with
  Kodi still playing."""
  lib=airplay.load(library)
  converting=airplay.converts(lib)
