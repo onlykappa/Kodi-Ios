@@ -1180,15 +1180,19 @@ def listing_cache(cache,store,flags,lists,fetch,wait,busy,log,clock=None):
   while busy():
    if wait(30):return True
   return False
- on,cleared=cache.check(lists(),store,flags,clock)
- log('%d rows and heroes served from copies, %d flags turned off (copy missing or unusable)'%(on,cleared))
- if pace(REFRESH_AFTER):return
- while True:
-  current=lists()
-  done,failed=cache.refresh(current,store,flags,fetch,pace,clock)
-  cache.prune(store,current,clock)
-  if done or failed:log('%d copies made or refreshed, %d failed%s'%(len(done),len(failed),(' ('+'; '.join(failed[:3])+')') if failed else ''))
-  if pace(REFRESH_EVERY):return
+ try:
+  on,cleared=cache.check(lists(),store,flags,clock)
+  log('%d rows and heroes served from copies, %d flags turned off (copy missing or unusable)'%(on,cleared))
+  if pace(REFRESH_AFTER):return
+  while True:
+   current=lists()
+   done,failed=cache.refresh(current,store,flags,fetch,pace,clock)
+   cache.prune(store,current,clock)
+   if done or failed:log('%d copies made or refreshed, %d failed%s'%(len(done),len(failed),(' ('+'; '.join(failed[:3])+')') if failed else ''))
+   if pace(REFRESH_EVERY):return
+ except Exception as error:
+  # Rows keep whatever their flags say: good copies stay served, the others stay live.
+  log('stopped: %r'%error)
 
 def refresh_skin(xbmc,invoke,skin,profile):
  """Bring the portrait folder up to date and reload the skin when a change needs it; returns the changed paths."""
