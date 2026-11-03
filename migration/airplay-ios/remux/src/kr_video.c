@@ -260,7 +260,7 @@ static int open_encoder(job *j, char *err, int errlen) {
     c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;  // closed GOP by construction: one IDR first, no B-frames
     if (!strcmp(codec->name, "h264_videotoolbox")) {
         c->profile = AV_PROFILE_H264_HIGH;
-        c->level = av_q2d(v->fps) > 30.5 ? 42 : 40;
+        av_opt_set_int(c->priv_data, "level", av_q2d(v->fps) > 30.5 ? 42 : 40, 0);  // matches kr_video_codecs
         av_opt_set_int(c->priv_data, "realtime", 1, 0);      // speed over size: segments are made while the TV waits
         av_opt_set_int(c->priv_data, "allow_sw", 0, 0);      // the hardware encoder only (battery)
     }

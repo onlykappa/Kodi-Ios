@@ -48,6 +48,12 @@ case "$TARGET" in
     [[ "$(uname -s)" == Darwin ]] || { echo 'BLOCKED: macOS with the iPhoneOS SDK is required.' >&2; exit 2; }
     SDK="$(xcrun --sdk iphoneos --show-sdk-path)"; CC="$(xcrun --sdk iphoneos -f clang)"
     FLAGS+=(--enable-protocol=https --enable-protocol=tls --enable-securetransport
+            # r7: VideoToolbox decode (hwaccels) and Apple's hardware H.264 encoder (system frameworks VideoToolbox,
+            # CoreMedia, CoreVideo, CoreFoundation; build-airplay.sh links them).
+            --enable-videotoolbox --enable-hwaccel=hevc_videotoolbox --enable-hwaccel=h264_videotoolbox
+            --enable-hwaccel=mpeg2_videotoolbox --enable-hwaccel=mpeg1_videotoolbox
+            --enable-hwaccel=mpeg4_videotoolbox --enable-hwaccel=vp9_videotoolbox
+            --enable-encoder=h264_videotoolbox
             --enable-cross-compile --target-os=darwin --arch=arm64 --cc="$CC"
             --sysroot="$SDK" --extra-cflags="-arch arm64 -miphoneos-version-min=14.0"
             --extra-ldflags="-arch arm64 -miphoneos-version-min=14.0")
