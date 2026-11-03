@@ -67,17 +67,26 @@ void kr_hls_video_codec(gm_stream *s, char *out, int len) {
     AVCodecParameters *p = f->streams[v]->codecpar;
     const uint8_t *x = p->extradata;
     if (p->codec_id == AV_CODEC_ID_HEVC) {
-        int prof = p->profile > 0 ? p->profile : 1, level = p->level > 0 ? p->level : 120, tier = 0;
+        // ISO/IEC 14496-15 E.3: hvc1.[A-C]<profile>.<compat, bit-reversed hex>.<L|H><level>.<constraint bytes>, the
+        // six constraint bytes in hex, trailing zero bytes left out. r6: taken from the hvcC (was always "B0": x265
+        // writes 0x90, and a receiver that checks the string against the stream could refuse the video).
+        int prof = p->profile > 0 ? p->profile : 1, level = p->level > 0 ? p->level : 120, tier = 0, space = 0;
         unsigned compat = 0;
+        char cons[24] = ".B0";
         if (x && p->extradata_size >= 23 && x[0] == 1) {
-            tier = (x[1] >> 5) & 1; prof = x[1] & 0x1f;
+            space = x[1] >> 6; tier = (x[1] >> 5) & 1; prof = x[1] & 0x1f;
             compat = (unsigned)x[2] << 24 | (unsigned)x[3] << 16 | (unsigned)x[4] << 8 | x[5];
             level = x[12];
+            int last = -1;
+            for (int i = 0; i < 6; i++) if (x[6 + i]) last = i;
+            cons[0] = 0;
+            for (int i = 0; i <= last; i++) snprintf(cons + strlen(cons), sizeof cons - strlen(cons), ".%X", x[6 + i]);
         }
         unsigned rev = 0;  // compatibility flags, bit-reversed, as hex (ISO/IEC 14496-15 E.3)
         for (int i = 0; i < 32; i++) if (compat & (1u << i)) rev |= 1u << (31 - i);
         if (!rev) rev = prof == 2 ? 4 : 6;
-        snprintf(out, (size_t)len, "hvc1.%d.%X.%c%d.B0", prof, rev, tier ? 'H' : 'L', level);
+        const char *sp = space == 1 ? "A" : space == 2 ? "B" : space == 3 ? "C" : "";
+        snprintf(out, (size_t)len, "hvc1.%s%d.%X.%c%d%s", sp, prof, rev, tier ? 'H' : 'L', level, cons);
     } else if (p->codec_id == AV_CODEC_ID_H264) {
         if (x && p->extradata_size >= 4 && x[0] == 1) snprintf(out, (size_t)len, "avc1.%02X%02X%02X", x[1], x[2], x[3]);
         else snprintf(out, (size_t)len, "avc1.%02X00%02X", p->profile > 0 ? p->profile & 0xff : 100, p->level > 0 ? p->level : 40);
@@ -138,7 +147,7 @@ char *kr_hls_master(gm_stream *s, const char *base) {
         if (*kr_language(t.language)) sb_add(&b, ",LANGUAGE=\"%s\"", kr_language(t.language));
         sb_add(&b, ",DEFAULT=NO,AUTOSELECT=NO,FORCED=NO,URI=\"%s/subs/%d/index.m3u8\"\n", base, t.src_index);
     }
-    char vcodec[40]; kr_hls_video_codec(s, vcodec, sizeof vcodec);
+    char vcodec[64]; kr_hls_video_codec(s, vcodec, sizeof vcodec);
     AVFormatContext *f = gm_stream_format_context(s);
     double dur = gm_stream_duration(s);
     int64_t size = (f && f->pb) ? avio_size(f->pb) : -1;

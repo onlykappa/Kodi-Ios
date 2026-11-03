@@ -18,6 +18,6 @@ const char *kr_language(const char *iso639);
 // video_codec is the variant's video CODECS value (kr_hls_video_codec).
 char *kr_hls_master(gm_stream *s, const char *base);
 char *kr_hls_media(gm_stream *s, const char *prefix, const char *seg_ext, int with_map);
-// "avc1.640028" / "hvc1.2.4.L150.B0" for the selected video (from the stream's profile and level).
+// "avc1.640028" / "hvc1.2.4.L150.90" for the selected video (from the stream's profile and level).
 void kr_hls_video_codec(gm_stream *s, char *out, int len);
 #endif

@@ -154,6 +154,7 @@ static void test_file(const char *url, const fixture *fx, const char *work) {
     CHECK(count(pl, "TYPE=AUDIO") == fx->audio_tracks, "%s: %d audio renditions", fx->file, fx->audio_tracks);
     CHECK(count(pl, "DEFAULT=YES") == (fx->audio_tracks ? 1 : 0), "%s: one default audio", fx->file);
     CHECK(count(pl, "TYPE=SUBTITLES") == fx->subs, "%s: %d subtitle renditions", fx->file, fx->subs);
+    if (fx->hdr) CHECK(strstr(pl, ".L") && strstr(pl, ".90,") && !strstr(pl, ".B0"), "%s: HEVC constraint bytes from the hvcC (x265: 90) in\n%s", fx->file, pl);
     CHECK(strstr(pl, fx->hdr ? "VIDEO-RANGE=PQ" : "VIDEO-RANGE=SDR") != NULL, "%s video range", fx->file);
     CHECK(strstr(pl, "RESOLUTION=320x180") && strstr(pl, "FRAME-RATE=24.000"), "%s resolution/fps", fx->file);
     CHECK(count(pl, "(AAC)") == fx->bridged, "%s: %d bridged renditions named", fx->file, fx->bridged);
