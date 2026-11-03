@@ -92,13 +92,19 @@ MIRRORING=('Apple\'s AirPlay player can\'t play this video (%s). Use Screen Mirr
            '2. Tap Screen Mirroring and choose your TV.\n'
            'Turn the phone sideways for a full-size picture. To stop, open Screen Mirroring again and tap Stop Mirroring.')
 
-def apple_playable(*names):
+CONVERTED_FORMATS=('.mkv','.mk3d','.avi','.webm','.ts','.m2ts','.mts')
+
+def apple_playable(*names,converts=False):
  """Whether Apple's player can open the video: any of the names (stream link, Kodi's file name) ends in an Apple
- container. Kodi appends request headers after '|'."""
- for name in names:
-  path=urllib.parse.urlsplit((name or '').split('|',1)[0]).path.lower()
-  if path.endswith(APPLE_FORMATS):return True
- return False
+ container. Kodi appends request headers after '|'. With converts (KodiAirPlay r5) MKV, AVI, WebM and MPEG-TS count
+ too, and so do links without a file extension (the framework looks at the bytes)."""
+ paths=[urllib.parse.urlsplit((name or '').split('|',1)[0]).path.lower() for name in names if name]
+ if any(path.endswith(APPLE_FORMATS) for path in paths):return True
+ if not converts or not paths:return False
+ if any(path.endswith(CONVERTED_FORMATS) for path in paths):return True
+ return not any(re.search(r'\.[a-z0-9]{2,4}$',path) for path in paths)
+
+CONVERT_FAILED='%s\n\nYou can still use Screen Mirroring: swipe down from the top-right corner, tap Screen Mirroring and choose your TV.'
 
 def format_name(*names):
  """MKV, AVI... for the Screen Mirroring message ('this format' when unknown)."""

@@ -122,22 +122,27 @@ def pick_dialogs(xbmc,xbmcgui,dialog,extra,found,done,last):
 
 def send_airplay(xbmc,dialog,player,library,url,title,playing):
  """ISSUE-079: Apple's player for MP4/HLS (Kodi waits paused and carries on if it cannot open the stream);
- Screen Mirroring steps for MKV and the rest, with Kodi still playing."""
- if not cast.apple_playable(url,playing):
+ ISSUE-095: KodiAirPlay r5 converts MKV/AVI/WebM/TS on the phone first. Screen Mirroring steps for the rest, with
+ Kodi still playing."""
+ lib=airplay.load(library)
+ converting=airplay.converts(lib)
+ if not cast.apple_playable(url,playing,converts=converting):
   xbmc.log('Kodi iOS Play on TV: %s cannot go through Apple\'s player; Screen Mirroring steps shown'%cast.format_name(url,playing),xbmc.LOGINFO)
   dialog.ok('Play on TV',cast.MIRRORING%cast.format_name(url,playing));return
- lib=airplay.load(library)
  if not hasattr(lib,'kodi_airplay_state'):
   player.stop();xbmc.sleep(500);lib.kodi_airplay_play(url.encode('utf-8'),(title or '').encode('utf-8'));return
  if not xbmc.getCondVisibility('Player.Paused'):player.pause()
  lib.kodi_airplay_play(url.encode('utf-8'),(title or '').encode('utf-8'))
- outcome=cast.airplay_outcome(lib.kodi_airplay_state,xbmc.Monitor().waitForAbort)
- xbmc.log('Kodi iOS Play on TV: Apple\'s player %s %s'%(outcome,url.split('?',1)[0]),xbmc.LOGINFO)
+ # Converting first reads the start of the file (over Elementum or Drive): allow longer than a direct link.
+ outcome=cast.airplay_outcome(lib.kodi_airplay_state,xbmc.Monitor().waitForAbort,60 if converting else 25)
+ why=airplay.message(lib)
+ xbmc.log('Kodi iOS Play on TV: Apple\'s player %s %s%s'%(outcome,url.split('?',1)[0],(' ('+why+')') if why else ''),xbmc.LOGINFO)
  if outcome=='playing':player.stop();notices.note('info','Playing with AirPlay',title or '');return
  lib.kodi_airplay_close()
  if outcome=='aborted':return
  if xbmc.getCondVisibility('Player.Paused'):player.pause()
- dialog.ok('Play on TV',cast.MIRRORING%cast.format_name(url,playing))
+ if why:notices.note('problem',"AirPlay couldn't play this",why);dialog.ok('Play on TV',cast.CONVERT_FAILED%why)
+ else:dialog.ok('Play on TV',cast.MIRRORING%cast.format_name(url,playing))
 
 def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
  try:
