@@ -467,6 +467,46 @@ SEARCH_NATIVE='String.IsEqual(Window(Home).Property(Portrait.SearchBar),1)'
 SEARCH_PATH='Window(Home).Property(Portrait.Search.Path)'
 SEARCH_BAND=161  # the native band ends 60 pt below the top of the safe area: 60 x 2.687 px per pt
 
+GENRE_PHOTO='Portrait.GenrePhoto.'
+GENRE_PHOTOS='portrait-genre-photos.json'
+WEEK=7*86400
+
+def genre_photo_path(gid):
+ return '%s?info=discover&tmdb_type=tv&with_id=True&with_genres=%d&sort_by=popularity.desc'%(TMDB,gid)
+
+def pick_photo(files,used=()):
+ """The backdrop (fanart, else landscape) of the first listed title not already used by another tile."""
+ for f in files or []:
+  art=f.get('art') or {}
+  url=art.get('fanart') or art.get('landscape') or art.get('tvshow.fanart') or ''
+  if url and url not in used:return url
+ return ''
+
+def genre_photos(rpc,set_property,read,write,now):
+ """One backdrop per Search category (TMDb Helper's most popular show of the genre), kept for a week so Search
+ does not run TMDb Helper nine times on every visit. Sets Window(Home).Property(Portrait.GenrePhoto.<genre id>)."""
+ try:cache=json.loads(read() or '{}')
+ except ValueError:cache={}
+ fresh=now()-cache.get('time',0)<WEEK and all(str(gid) in cache.get('photos',{}) for _,gid,_,_ in CATEGORIES)
+ photos=dict(cache.get('photos',{})) if fresh else {}
+ if not fresh:
+  used=set()
+  for _,gid,_,_ in CATEGORIES:
+   try:files=(rpc('Files.GetDirectory',{'directory':genre_photo_path(gid),'media':'video','properties':['art'],'limits':{'start':0,'end':6}}) or {}).get('files')
+   except Exception:files=None
+   photos[str(gid)]=pick_photo(files,used);used.add(photos[str(gid)])
+  if any(photos.values()):write(json.dumps({'time':now(),'photos':photos}))
+ for gid,url in photos.items():
+  if url:set_property(GENRE_PHOTO+gid,url)
+ return photos
+
+def genre_photos_tick(visible,start):
+ """Loads the genre photos (in the background) the first time Search opens."""
+ state={'done':False}
+ def tick():
+  if not state['done'] and visible('Window.IsActive(1105)'):state['done']=True;start()
+ return tick
+
 def search_window(original):
  """Search: a search field at the top, the results of what is typed in a poster grid under it while typing, the
  category tiles while the field is empty (Apple TV app)."""
@@ -478,11 +518,14 @@ def search_window(original):
   '<onclick>%s</onclick><ondown>5100</ondown></control>%s%s</control>'
   )%(SIDE,WIDTH-2*SIDE,WIDTH-2*SIDE,MEDIA,SURFACE,MEDIA,e(SEARCH_ACTION),icon(40,38,48,'magnifying-glass.png',GREY),label(110,0,WIDTH-2*SIDE-150,124,'Shows, Movies, and More','p_body',GREY))+
   '</control>')
- items=''.join('<item><label>%s</label><property name="tile">%stile_%d.png</property>%s</item>'
-  %(e(name),MEDIA,gid,clicks(titled_page(name,'%s?info=discover&tmdb_type=tv&with_id=True&with_genres=%d&sort_by=popularity.desc'%(TMDB,gid)))) for name,gid,_,_ in CATEGORIES)
+ items=''.join('<item><label>%s</label><property name="tile">%stile_%d.png</property><property name="photo">$INFO[Window(Home).Property(%s%d)]</property>%s</item>'
+  %(e(name),MEDIA,gid,GENRE_PHOTO,gid,clicks(titled_page(name,'%s?info=discover&tmdb_type=tv&with_id=True&with_genres=%d&sort_by=popularity.desc'%(TMDB,gid)))) for name,gid,_,_ in CATEGORIES)
  zoom=lambda focused:'<animation effect="zoom" start="100" end="104" time="160" center="auto">Focus</animation>' if focused else ''
  tile=lambda focused:('<control type="group"><left>0</left><top>0</top>%s'%zoom(focused)+
   image(0,0,tile_w,tile_h,'$INFO[ListItem.Property(tile)]',WHITE,diffuse=MEDIA+'poster_mask.png')+
+  # Owner (build-133): a photo per genre like the Apple TV app (genre_photos), the genre colour as a tint over it.
+  image(0,0,tile_w,tile_h,'$INFO[ListItem.Property(photo)]',WHITE,aspect='>scale',diffuse=MEDIA+'poster_mask.png',background=True)+
+  image(0,0,tile_w,tile_h,'$INFO[ListItem.Property(tile)]','99FFFFFF',diffuse=MEDIA+'poster_mask.png')+
   image(0,tile_h-200,tile_w,200,MEDIA+'fade_up.png','80FFFFFF',diffuse=MEDIA+'poster_mask.png')+
   '<control type="textbox"><left>26</left><top>%d</top><width>%d</width><height>120</height><font>p_tile</font><textcolor>FFFFFFFF</textcolor><label>$INFO[ListItem.Label]</label></control>'%(tile_h-150,tile_w-40)+'</control>')
  # With the native field the page has no header: the categories move up under the band.
@@ -1188,6 +1231,22 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
  # controls. The tab bar's tick stays (two size checks in landscape) so it hides as the video starts.
  video=lambda:xbmc.getCondVisibility('Window.IsActive(fullscreenvideo)')
  always=[t for t in (tick,) if t];menu_ticks=[publish]
+ def load_genre_photos():
+  import threading
+  store=os.path.join(str(profile),GENRE_PHOTOS)
+  def read():
+   try:
+    with open(store,encoding='utf-8') as f:return f.read()
+   except OSError:return ''
+  def write(text):
+   try:
+    with open(store,'w',encoding='utf-8') as f:f.write(text)
+   except OSError:pass
+  def rpc(method,params):
+   return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}))).get('result')
+  import time as clock
+  threading.Thread(target=lambda:genre_photos(rpc,home.setProperty,read,write,clock.time),daemon=True).start()
+ menu_ticks.append(genre_photos_tick(xbmc.getCondVisibility,load_genre_photos))
  close=None
  try:
   # Native Liquid Glass tab bar (KodiGlassBar.framework), when the IPA carries it.

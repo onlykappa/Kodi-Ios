@@ -96,6 +96,7 @@ jobs:
           python3 -B scripts/test_pages.py
           python3 -B scripts/test_airplay_remux.py
           python3 -B scripts/test_downloaded_play.py
+          python3 -B scripts/test_genre_photos.py
           python3 -B scripts/test_performance_budget.py
           python3 -B scripts/test_customized_ipa.py
           python3 -B scripts/test_import_builder.py
