@@ -52,6 +52,7 @@ static struct {
     atomic_int stopping, active;
     char base[128];
     char token[40];
+    atomic_int served_video, served_audio;  // r6: media segments answered this session (not init / playlists)
 } S = { .lock = PTHREAD_MUTEX_INITIALIZER, .gm_lock = PTHREAD_MUTEX_INITIALIZER, .listen_fd = -1 };
 
 static void set_message(const char *m) { snprintf(S.message, sizeof S.message, "%s", m ? m : ""); }
@@ -135,6 +136,7 @@ int kr_remux_kind(const char *url) {
 
 int kr_remux_state(void) { return atomic_load(&S.state); }
 const char *kr_remux_message(void) { return S.message; }
+int kr_remux_served(int video) { return atomic_load(video ? &S.served_video : &S.served_audio); }
 int kr_remux_port(void) { return atomic_load(&S.state) == KR_READY ? S.port : 0; }
 
 // ── HTTP ───────────────────────────────────────────────────────────────────────
@@ -250,7 +252,10 @@ static void serve(int fd, const char *method, const char *path, const char *rang
         } else { fail(fd, 404, "Not Found"); return; }
     } else { fail(fd, 404, "Not Found"); return; }
 
-    if (r == 0) respond(fd, head, range, "video/mp4", buf.data, (size_t)buf.len);
+    if (r == 0) {
+        respond(fd, head, range, "video/mp4", buf.data, (size_t)buf.len);
+        if (seg >= 0 && t_status > 0) atomic_fetch_add(path[1] == 'v' ? &S.served_video : &S.served_audio, 1);
+    }
     else {
         if (!atomic_load(&S.stopping)) {
             char m[300]; snprintf(m, sizeof m, "AirPlay conversion failed on %.60s: %s", path, *err ? err : "unknown error");
@@ -391,6 +396,7 @@ int kr_remux_start(const char *url, int lan, char *out, int outlen) {
     pthread_mutex_lock(&S.lock);
     teardown_locked();
     atomic_store(&S.stopping, 0);
+    atomic_store(&S.served_video, 0); atomic_store(&S.served_audio, 0);
     atomic_store(&S.state, KR_STARTING);
     set_message("");
     if (out && outlen > 0) *out = 0;

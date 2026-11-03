@@ -224,6 +224,8 @@ static void test_file(const char *url, const fixture *fx, const char *work) {
     reply bad = http_get(port, "/video/seg9999.m4s", NULL);
     CHECK(bad.status == 500 && *kr_remux_message(), "a failed segment is reported (%s)", kr_remux_message());
     free(missing.body); free(bad.body); free(master.body); free(video.body);
+    CHECK(kr_remux_served(1) >= nseg && (fx->audio_tracks == 0 || kr_remux_served(0) > 0), "%s: segments counted (%d video, %d audio)",
+          fx->file, kr_remux_served(1), kr_remux_served(0));
     char small[48];
     int n1 = kr_remux_log(small, sizeof small);
     CHECK(n1 < (int)sizeof small && (n1 == 0 || small[n1 - 1] == '\n'), "a short buffer gets whole lines only (%d)", n1);
