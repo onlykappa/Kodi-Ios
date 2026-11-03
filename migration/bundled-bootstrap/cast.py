@@ -168,6 +168,11 @@ def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
   else:send_airplay(xbmc,dialog,player,library,url,title,playing);return
  except cast.TVRefused as error:
   xbmc.log('Kodi iOS Play on TV refused (%s): %s'%(tv['kind'],error),xbmc.LOGWARNING)
+  # Owner (build-138): a Roku TV without "Play on Roku" (404) goes straight to AirPlay (Roku TVs have AirPlay built
+  # in) instead of a message; Apple's device sheet then lists that TV.
+  if tv['kind']=='roku' and library:
+   xbmc.log('Kodi iOS Play on TV: %s -> AirPlay'%tv['name'],xbmc.LOGINFO)
+   send_airplay(xbmc,dialog,player,library,url,title,playing);return
   notices.note('problem',"Play on TV couldn't start",tv['name']+': '+str(error))
   dialog.ok('Play on TV',tv['name']+': '+str(error));return
  except Exception as error:

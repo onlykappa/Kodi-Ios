@@ -68,6 +68,13 @@ class KodiStaysPaused(unittest.TestCase):
   playing=body[body.index("if outcome=='playing':"):body.index("lib.kodi_airplay_close()")]
   self.assertNotIn('player.stop()',playing);self.assertIn('player.pause()',playing)
 
+class RokuFallsBackToAirPlay(unittest.TestCase):
+ def test_refused_roku_goes_to_airplay(self):
+  source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
+  refused=source[source.index('except cast.TVRefused as error:'):]
+  self.assertLess(refused.index("tv['kind']=='roku' and library"),refused.index('dialog.ok'))
+  self.assertIn('send_airplay(xbmc,dialog,player,library,url,title,playing);return',refused)
+
 class Framework(unittest.TestCase):
  def test_message_only_from_r5(self):
   old=types.SimpleNamespace()
