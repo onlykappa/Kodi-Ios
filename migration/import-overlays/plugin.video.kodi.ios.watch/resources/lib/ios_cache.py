@@ -88,14 +88,13 @@ def properties(item):
 def directory(handle,query,xbmc,xbmcgui,xbmcplugin,read,write):
  path=url_from_query(query)
  entry=load(read,path) if path else None
- if path and entry is None:
-  # First visit of this row: run it once now (as the row did before), keep the copy for next time. A hero
-  # spotlight that is not a TMDb Helper list (library, other add-ons) is passed through live, never kept.
+ if path and entry is None and cacheable(path):
+  # First visit of this row: run it once now (as the row did before), keep the copy for next time.
   def rpc(method,params):
    return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}))).get('result')
   items=fetch(rpc,path)
   if items is not None:
-   if items and cacheable(path):store(write,path,items)
+   if items:store(write,path,items)
    entry={'items':items}
  for item in (entry or {}).get('items') or []:
   li=xbmcgui.ListItem(label=item.get('label',''),offscreen=True)
