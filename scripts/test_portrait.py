@@ -40,6 +40,17 @@ class PortraitTests(unittest.TestCase):
    self.assertEqual(len(labels),1)
    self.assertEqual(labels[0].findtext('label'),'$INFO[ListItem.Label]')
    for key in ('landscape','fanart','thumb'):self.assertIn('String.IsEmpty(ListItem.Art(%s))'%key,portrait.CARD_NO_ART)
+ def test_show_page_header_collapses_when_episodes_scroll(self):
+  root=self.read('portrait/MyVideoNav.xml');byid={c.get('id'):c for c in root.iter('control') if c.get('id')}
+  anims=lambda c:[(x.get('effect'),x.get('end'),x.get('condition')) for x in c.findall('animation') if x.text=='Conditional']
+  for i,top in (('60',1176+portrait.DL_SHIFT),('52',1036)):
+   self.assertEqual(int(byid[i].findtext('top')),top);self.assertEqual(int(byid[i].findtext('height')),portrait.HEIGHT-portrait.COLLAPSED_TOP)
+   self.assertIn(('slide','0,%d'%(portrait.COLLAPSED_TOP-top),'Container(%s).HasPrevious'%i),anims(byid[i]))
+  header=[c for c in root.iter('control') if c.get('type')=='group' and (c.findtext('visible') or '').startswith('Container.Content(seasons) | ')][0]
+  for c in (header,byid['50']):
+   self.assertIn(('slide','0,%d'%portrait.HEADER_LIFT,portrait.COLLAPSED),anims(c))
+   self.assertIn(('fade','0',portrait.COLLAPSED),anims(c))
+  for i in ('60','52'):self.assertIn('Container(%s).HasPrevious'%i,portrait.COLLAPSED)
  def test_every_xml_parses(self):
   for rel in self.files:
    if rel.endswith('.xml'):ET.parse(self.skin/rel)

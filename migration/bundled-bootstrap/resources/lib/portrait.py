@@ -595,12 +595,22 @@ DL_GAP=20;DL_H=108;DL_SHIFT=DL_GAP+DL_H   # the Download button under Play pushe
 DOWNLOAD_SEASON=('RunScript(service.kodi.ios.bootstrap,download,kind=season,'
  'path=$ESCINFO[Container(50).ListItem.FolderPath],season=$INFO[Container(50).ListItem.Season],'
  'tvshow.tmdb_id=$INFO[Container(50).ListItem.Property(tvshow.tmdb_id)])')
+# Collapsing header: once an episode list scrolls off its first row (offset > 0 -> Container(id).HasPrevious) the
+# header and season chips slide up out of view and the list slides up to just under the back button, so the whole
+# page scrolls together; scrolling back to the top brings them back. Touch hit tests follow the animation.
+COLLAPSED_TOP=180
+COLLAPSED=('[Container.Content(seasons) + Container(60).HasPrevious] | [Container.Content(episodes) + Container(52).HasPrevious]')
+def collapse_anim(dy,cond=COLLAPSED,fade=False):
+ return ('<animation effect="slide" start="0,0" end="0,%d" time="280" tween="cubic" easing="out" condition="%s">Conditional</animation>'%(dy,cond)+
+  ('<animation effect="fade" start="100" end="0" time="200" condition="%s">Conditional</animation>'%cond if fade else ''))
+HEADER_LIFT=-(1176+DL_SHIFT+300)   # clears the chips too, so nothing of the header stays tappable on screen
+
 def show_header(ids_down):
  """Art, logo/title, meta, 'Play' and plot for a show's seasons or episodes page."""
  art_h=840
  logo='$INFO[ListItem.Art(tvshow.clearlogo)]'
  play=('PlayMedia($ESCINFO[Container(60).ListItemAbsolute(0).FileNameAndPath])')
- return ('<control type="group"><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'+
+ return ('<control type="group"><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'+collapse_anim(HEADER_LIFT,fade=True)+
   image(0,0,WIDTH,art_h,'$VAR[Portrait_Show_Art]',WHITE,'','>scale',background=True)+
   image(0,0,WIDTH,art_h,MEDIA+'hero_fade.png')+image(0,0,WIDTH,300,MEDIA+'fade_down.png')+
   '<control type="image"><left>140</left><top>430</top><width>800</width><height>230</height><aspectratio aligny="bottom">keep</aspectratio><texture>%s</texture></control>'%logo+
@@ -629,11 +639,14 @@ def video_nav(original):
  chip=lambda on:(surface(0,8,250,96,'pill_96.png' if on else 'glass_96.png',WHITE,48)+
   label(0,8,250,96,'$INFO[ListItem.Label]','p_foot_b','FF000000' if on else WHITE,'center'))
  chips=('<control type="list" id="50"><left>%d</left><top>%d</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
-  '<ondown>60</ondown><onup>9003</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'
+  '<ondown>60</ondown><onup>9003</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'+collapse_anim(HEADER_LIFT,fade=True)+
   '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout></control>')%(SIDE,1036+DL_SHIFT,WIDTH-SIDE,chip(False),chip(True))
- episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
-  '<onup>%s</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
+ # Real height is the collapsed one (top..bottom of the screen), so the list's rows don't change when it slides up.
+ episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
+  '<onup>%s</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>%s'
   '<itemlayout height="420">%s</itemlayout><focusedlayout height="420">%s</focusedlayout>%s</control>')
+ ep=lambda i,top,up,vis,content:episodes%(i,top,WIDTH,HEIGHT-COLLAPSED_TOP,up,vis,
+  collapse_anim(COLLAPSED_TOP-top,'Container(%d).HasPrevious'%i),episode_item(False),episode_item(True),content)
  gen_item=lambda focused:((surface(SIDE-18,6,WIDTH-2*SIDE+36,198,'round_s.png','14FFFFFF',26) if focused else '')+
   image(SIDE,18,116,174,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'tile_mask.png')+
   image(SIDE,18,116,174,'$INFO[ListItem.Art(poster)]',WHITE,'<visible>!String.IsEmpty(ListItem.Art(poster))</visible>','>scale',MEDIA+'tile_mask.png',background=True)+
@@ -648,8 +661,8 @@ def video_nav(original):
  plain_title=label(SIDE+136,36,WIDTH-2*SIDE-136,108,'$INFO[Container.FolderName]','p_h2',WHITE,'left','<visible>!Container.IsUpdating + !Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>')
  body=('<controls>'+backdrop()+show_header('50')+chips+
   # Seasons page: episodes of the season chip in focus. Episodes page: the folder's own list.
-  episodes%(60,1176+DL_SHIFT,WIDTH,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>')+
-  episodes%(52,1036,WIDTH,'9001','Container.Content(episodes)',episode_item(False),episode_item(True),'')+
+  ep(60,1176+DL_SHIFT,'50','Container.Content(seasons)','<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>')+
+  ep(52,1036,'9001','Container.Content(episodes)','')+
   generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+back+plain_title+'</controls>')
  return window(original,body,'50','<views>50,51,52,53</views>')
 
