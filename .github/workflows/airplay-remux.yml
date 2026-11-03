@@ -1,5 +1,5 @@
 name: AirPlay MKV remuxer
-# Builds and tests the AirPlay remuxer (migration/airplay-ios/remux) and KodiAirPlay.framework r8 with it.
+# Builds and tests the AirPlay remuxer (migration/airplay-ios/remux) and KodiAirPlay.framework r9 with it.
 # Builds only: nothing is published here. The framework release (once per tag, sha256 pinned in
 # migration/airplay-ios/source-lock.json) stays with airplay-ios.yml.
 on:
@@ -49,13 +49,13 @@ jobs:
       - name: FFmpeg 8.1.1 (remux + picture bridge, LGPL) for iPhoneOS
         run: |
           [ -f "$RUNNER_TEMP/ff-ios/lib/libavformat.a" ] || bash migration/airplay-ios/build-remux-ffmpeg.sh ios "$RUNNER_TEMP/ff-ios"
-      - name: Build KodiAirPlay.framework r8 with the remuxer
+      - name: Build KodiAirPlay.framework r9 with the remuxer
         env:
           REMUX_FFMPEG: ${{ runner.temp }}/ff-ios
         run: bash migration/airplay-ios/build-airplay.sh "$RUNNER_TEMP/airplay"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: KodiAirPlay-r8-candidate
+          name: KodiAirPlay-r9-candidate
           path: |
             ${{ runner.temp }}/airplay/KodiAirPlay.framework.zip
             ${{ runner.temp }}/airplay/KodiAirPlay.framework.zip.sha256

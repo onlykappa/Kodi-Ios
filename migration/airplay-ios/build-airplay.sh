@@ -32,6 +32,12 @@
 # recent segments cached, the next two made ahead in the background, audio and video made at the same time (each on
 # its own connection). Apple's player holder follows the screen (any orientation but upside down, relaid out on every
 # size change) instead of the orientation Kodi had when it opened (controls laid out landscape on a portrait screen).
+# r9: owner build-138, TCL Roku TV played the H.264 picture but slowly (a converted 6-s segment of a 4K 10-bit HEVC
+# source took 5-9 s), stalled after skips and showed no subtitles. VideoToolbox-decoded frames now stay on the GPU
+# (VTPixelTransferSession scales 4K P010 to 1080p NV12 into the encoder's own buffers, iOS 16+; threaded libswscale
+# otherwise), the TV's first converted segment starts with its master request, a conversion far from a new request
+# is cancelled, a dead source connection gives up in seconds and reopens at the offset, subtitles read 10 s back on
+# the idle session demuxer instead of 30 s on the audio one, and failed requests carry their reason in kodi.log.
 # Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh)
 set -euo pipefail
 [[ "$(uname -s)" == Darwin ]] || { echo 'BLOCKED: macOS with the iPhoneOS SDK is required.' >&2; exit 2; }

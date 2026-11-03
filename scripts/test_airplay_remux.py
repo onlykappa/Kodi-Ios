@@ -111,9 +111,9 @@ class AirPlayLog(unittest.TestCase):
                  "can't play HEVC",'kr_remux_served(1) == video0','presentationSize'):
    self.assertIn(needle,build)
   lock=__import__('json').loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())
-  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r8')
-  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r7')
-  self.assertEqual(lock['previous']['sha256'],'021887359b0dce707d548c6af7eb6c6a73bcf6ff84410965a93aa4b4bbf810d9')
+  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r9')
+  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r8')
+  self.assertEqual(lock['previous']['sha256'],'4ab229cc846cd87dc417f770a24dc09ea011e7d7e92410a61c01ca808916ef9c')
 
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):
@@ -165,4 +165,25 @@ class PerReceiver(unittest.TestCase):
   self.assertIn('r8:',build.split('set -euo pipefail')[0])
   self.assertEqual(build.count('kr_remux_start(source, 1, 1,'),1)  # one restart path for both triggers
 
+
+class R9Speed(unittest.TestCase):
+ """r9 (owner build-138): converted 4K HEVC segments took 5-9 s, skips stalled, subtitle segments were empty."""
+ def test_gpu_scaling_and_seek_robustness(self):
+  src=ROOT/'migration/airplay-ios/remux/src'
+  video=(src/'kr_video.c').read_text()
+  for needle in ('VTPixelTransferSessionTransferImage','AV_PIX_FMT_VIDEOTOOLBOX; c->sw_pix_fmt = AV_PIX_FMT_NV12',
+                 'TARGET_OS_IPHONE','__builtin_available(iOS 16.0, *)','"threads", 0','prio_speed'):
+   self.assertIn(needle,video)
+  code=(src/'kr_remux.c').read_text()
+  for needle in ('t_err','session stopped','atomic_store(&vc_seg, seg)','pthread_mutex_trylock(&S.gm_lock)',
+                 'if (third || S.compat) prefetch_push(R_VCOMPAT, 0);'):
+   self.assertIn(needle,code)
+  source=(src/'kr_source.c').read_text()
+  for needle in ('reconnect_delay_max','AVSEEK_FORCE','read_once('):
+   self.assertIn(needle,source)
+  gm=(src.parent/'gmplayer/gm_stream.c').read_text()
+  self.assertIn('av_seek_frame(s->in, -1, (int64_t)(seek_to * AV_TIME_BASE)',gm)
+  self.assertIn('"subtitle read"',gm)
+  self.assertIn('Second line',(src.parent/'tests/test_remux.c').read_text())
+  self.assertIn('r9:',(ROOT/'migration/airplay-ios/build-airplay.sh').read_text().split('set -euo pipefail')[0])
 if __name__=='__main__':unittest.main()

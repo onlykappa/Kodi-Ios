@@ -638,6 +638,9 @@ static void serve(int fd, const char *method, const char *path, const char *rang
             log_line("compat: %.80s gets the picture as H.264: %.150s", agent, v);
         }
         if (m) text = strdup(m);
+        // r9: a TV that gets the converted picture asks for its init and first segment next: start converting now,
+        // while it reads the playlists (build-138: the first init/seg0 took ~4 s and the TV's player gave up).
+        if (third || S.compat) prefetch_push(R_VCOMPAT, 0);
     } else if (!strcmp(path, "/video/index.m3u8") || !strcmp(path, "/cvideo/index.m3u8")) {
         char prefix[96]; snprintf(prefix, sizeof prefix, "%s/%s", S.base, cvideo ? "cvideo" : "video");
         text = kr_hls_media(S.gm, prefix, "m4s", 1);  // the plan only (fixed after open): no lock
