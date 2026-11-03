@@ -51,6 +51,16 @@ class PortraitTests(unittest.TestCase):
    self.assertIn(('slide','0,%d'%portrait.HEADER_LIFT,portrait.COLLAPSED),anims(c))
    self.assertIn(('fade','0',portrait.COLLAPSED),anims(c))
   for i in ('60','52'):self.assertIn('Container(%s).HasPrevious'%i,portrait.COLLAPSED)
+ def test_short_episode_lists_stay_reachable(self):
+  root=self.read('portrait/MyVideoNav.xml');ctl=list(root.iter('control'));byid={c.get('id'):c for c in ctl if c.get('id')}
+  short=byid['61'];self.assertIn(portrait.SHORT_60,short.findtext('visible'))
+  self.assertEqual((int(short.findtext('top')),short.findtext('bottom')),(1176+portrait.DL_SHIFT,'0'))
+  self.assertEqual(short.findtext('content'),byid['60'].findtext('content'));self.assertGreater(ctl.index(short),ctl.index(byid['60']))
+  self.assertIn(('fade','0',portrait.SHORT_60),[(x.get('effect'),x.get('end'),x.get('condition')) for x in byid['60'].findall('animation')])
+  self.assertEqual({d.get('condition'):d.text for d in byid['50'].findall('ondown')},{portrait.SHORT_60:'61','!'+portrait.SHORT_60:'60'})
+  for n in range(1,portrait.SHORT_ROWS+1):self.assertLessEqual(1036+portrait.short_lift(n)+n*portrait.EP_ROW,portrait.HEIGHT)
+  for n,c in portrait.SHORT_52:
+   self.assertIn('end="0,%d" time="0" condition="%s"'%(portrait.short_lift(n),c),ET.tostring(byid['52'],encoding='unicode'))
  def test_every_xml_parses(self):
   for rel in self.files:
    if rel.endswith('.xml'):ET.parse(self.skin/rel)

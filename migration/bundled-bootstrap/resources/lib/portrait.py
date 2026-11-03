@@ -603,14 +603,26 @@ COLLAPSED=('[Container.Content(seasons) + Container(60).HasPrevious] | [Containe
 def collapse_anim(dy,cond=COLLAPSED,fade=False):
  return ('<animation effect="slide" start="0,0" end="0,%d" time="280" tween="cubic" easing="out" condition="%s">Conditional</animation>'%(dy,cond)+
   ('<animation effect="fade" start="100" end="0" time="200" condition="%s">Conditional</animation>'%cond if fade else ''))
-HEADER_LIFT=-(1176+DL_SHIFT+300)   # clears the chips too, so nothing of the header stays tappable on screen
+HEADER_LIFT=-(1176+DL_SHIFT+300)
+# Short lists can't scroll (all rows fit the collapsed height), so they never collapse and their lower rows would
+# stay below the screen. Seasons page: a second list (61, same content, the old fixed geometry) takes over while
+# list 60 holds <= SHORT_ROWS episodes; 60 keeps loading (hidden, unfocusable lists don't) but is drawn at alpha 0.
+# Episodes page (52 is the view, it can't be doubled): the header and the list lift just enough to show every row.
+SHORT_ROWS=4;EP_ROW=420
+SHORT_60='Integer.IsLessOrEqual(Container(60).NumItems,%d)'%SHORT_ROWS
+def short_lift(n,top=1036):
+ """How far list 52 (and the header) lifts so n rows fit above the screen bottom; 0 when they already fit."""
+ return min(0,max(HEIGHT-n*EP_ROW,COLLAPSED_TOP)-top)
+SHORT_52=[(n,'Container.Content(episodes) + Integer.IsEqual(Container(52).NumItems,%d)'%n) for n in range(1,SHORT_ROWS+1) if short_lift(n)]
+def short_52_anims():
+ return ''.join('<animation effect="slide" start="0,0" end="0,%d" time="0" condition="%s">Conditional</animation>'%(short_lift(n),c) for n,c in SHORT_52)   # clears the chips too, so nothing of the header stays tappable on screen
 
 def show_header(ids_down):
  """Art, logo/title, meta, 'Play' and plot for a show's seasons or episodes page."""
  art_h=840
  logo='$INFO[ListItem.Art(tvshow.clearlogo)]'
  play=('PlayMedia($ESCINFO[Container(60).ListItemAbsolute(0).FileNameAndPath])')
- return ('<control type="group"><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'+collapse_anim(HEADER_LIFT,fade=True)+
+ return ('<control type="group"><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'+collapse_anim(HEADER_LIFT,fade=True)+short_52_anims()+
   image(0,0,WIDTH,art_h,'$VAR[Portrait_Show_Art]',WHITE,'','>scale',background=True)+
   image(0,0,WIDTH,art_h,MEDIA+'hero_fade.png')+image(0,0,WIDTH,300,MEDIA+'fade_down.png')+
   '<control type="image"><left>140</left><top>430</top><width>800</width><height>230</height><aspectratio aligny="bottom">keep</aspectratio><texture>%s</texture></control>'%logo+
@@ -639,14 +651,18 @@ def video_nav(original):
  chip=lambda on:(surface(0,8,250,96,'pill_96.png' if on else 'glass_96.png',WHITE,48)+
   label(0,8,250,96,'$INFO[ListItem.Label]','p_foot_b','FF000000' if on else WHITE,'center'))
  chips=('<control type="list" id="50"><left>%d</left><top>%d</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
-  '<ondown>60</ondown><onup>9003</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'+collapse_anim(HEADER_LIFT,fade=True)+
+  '<ondown condition="'+SHORT_60+'">61</ondown><ondown condition="!'+SHORT_60+'">60</ondown><onup>9003</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'+collapse_anim(HEADER_LIFT,fade=True)+
   '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout></control>')%(SIDE,1036+DL_SHIFT,WIDTH-SIDE,chip(False),chip(True))
  # Real height is the collapsed one (top..bottom of the screen), so the list's rows don't change when it slides up.
  episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<onup>%s</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>%s'
   '<itemlayout height="420">%s</itemlayout><focusedlayout height="420">%s</focusedlayout>%s</control>')
- ep=lambda i,top,up,vis,content:episodes%(i,top,WIDTH,HEIGHT-COLLAPSED_TOP,up,vis,
-  collapse_anim(COLLAPSED_TOP-top,'Container(%d).HasPrevious'%i),episode_item(False),episode_item(True),content)
+ ep=lambda i,top,up,vis,content,extra='':episodes%(i,top,WIDTH,HEIGHT-COLLAPSED_TOP,up,vis,
+  collapse_anim(COLLAPSED_TOP-top,'Container(%d).HasPrevious'%i)+extra,episode_item(False),episode_item(True),content)
+ season_content='<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>'
+ short=('<control type="list" id="61"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+  '<onup>50</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>Container.Content(seasons) + %s</visible>'
+  '<itemlayout height="420">%s</itemlayout><focusedlayout height="420">%s</focusedlayout>%s</control>')%(1176+DL_SHIFT,WIDTH,SHORT_60,episode_item(False),episode_item(True),season_content)
  gen_item=lambda focused:((surface(SIDE-18,6,WIDTH-2*SIDE+36,198,'round_s.png','14FFFFFF',26) if focused else '')+
   image(SIDE,18,116,174,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'tile_mask.png')+
   image(SIDE,18,116,174,'$INFO[ListItem.Art(poster)]',WHITE,'<visible>!String.IsEmpty(ListItem.Art(poster))</visible>','>scale',MEDIA+'tile_mask.png',background=True)+
@@ -661,8 +677,9 @@ def video_nav(original):
  plain_title=label(SIDE+136,36,WIDTH-2*SIDE-136,108,'$INFO[Container.FolderName]','p_h2',WHITE,'left','<visible>!Container.IsUpdating + !Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>')
  body=('<controls>'+backdrop()+show_header('50')+chips+
   # Seasons page: episodes of the season chip in focus. Episodes page: the folder's own list.
-  ep(60,1176+DL_SHIFT,'50','Container.Content(seasons)','<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>')+
-  ep(52,1036,'9001','Container.Content(episodes)','')+
+  ep(60,1176+DL_SHIFT,'50','Container.Content(seasons)',season_content,
+     '<animation effect="fade" start="100" end="0" time="0" condition="%s">Conditional</animation>'%SHORT_60)+short+
+  ep(52,1036,'9001','Container.Content(episodes)','',short_52_anims())+
   generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+back+plain_title+'</controls>')
  return window(original,body,'50','<views>50,51,52,53</views>')
 
