@@ -43,7 +43,7 @@ case "$TARGET" in
     SDK="$(xcrun --sdk iphoneos --show-sdk-path)"; CC="$(xcrun --sdk iphoneos -f clang)"
     FLAGS+=(--enable-protocol=https --enable-protocol=tls --enable-securetransport
             --enable-cross-compile --target-os=darwin --arch=arm64 --cc="$CC"
-            --sysroot="$SDK" --extra-cflags="-arch arm64 -miphoneos-version-min=14.0 -fembed-bitcode-marker"
+            --sysroot="$SDK" --extra-cflags="-arch arm64 -miphoneos-version-min=14.0"
             --extra-ldflags="-arch arm64 -miphoneos-version-min=14.0")
     ;;
   host) ;;

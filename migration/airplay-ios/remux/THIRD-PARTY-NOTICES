@@ -1,0 +1,39 @@
+THIRD-PARTY NOTICES: Kodi iOS AirPlay remuxer (KodiAirPlay.framework r5 and later)
+
+1. GMPlayer streaming core (gmplayer/: gm_stream, gm_plan, gm_ts, compat)
+   https://github.com/gmorixe/GMPlayer, commit 3da8bda9d557c61837fb2e4c97ed662219283043
+   Kodi iOS changes are marked in the code and listed in gmplayer/UPSTREAM-COMMIT. The playlist logic in
+   src/kr_hls.c is ported from GMPlayer's GMStreamSession.swift. Licence text in full: gmplayer/LICENSE.
+
+   MIT License
+   Copyright (c) 2026 Gaston Morixe
+
+   Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+   documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+   the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+   permit persons to whom the Software is furnished to do so, subject to the following conditions:
+   The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+   the Software.
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+   THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+
+2. FFmpeg 8.1.1 (libavformat, libavcodec, libavutil, libswresample), linked statically
+   Source: https://ffmpeg.org/releases/ffmpeg-8.1.1.tar.xz
+   sha256 b6863adde98898f42602017462871b5f6333e65aec803fdd7a6308639c52edf3
+   Licence: GNU Lesser General Public License version 2.1 or later (https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html).
+   Built without --enable-gpl, --enable-nonfree or external libraries. The exact configure line is in
+   FFMPEG-CONFIG.txt next to this file inside the framework, and in ../build-remux-ffmpeg.sh, which rebuilds it.
+   FFmpeg is unmodified. To relink the framework against a different FFmpeg, run ../build-airplay.sh with
+   REMUX_FFMPEG pointing at your build; all of the framework's other sources are in this repository.
+   FFmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg project.
+
+3. PrismCore (https://github.com/zmrhal/PrismCore, LGPL-2.1+ with an App Store exception)
+   Read for reference only (its audio bridge design). No PrismCore code is copied into this repository, so its
+   licence terms do not apply to these files.
+
+4. CastTV: no licence; ideas only, no code copied.
+
+The Kodi iOS sources in src/ and tests/ were written for this project.
