@@ -42,6 +42,22 @@ class Matching(unittest.TestCase):
    self.assertIsNone(d.find([''],'movie','Coco','2017',walk=walker(tree)))
   finally:os.path.getsize=real
 
+class SeedingTorrents(unittest.TestCase):
+ def test_finished_torrent_in_download_folder_counts_unfinished_does_not(self):
+  tree={'/c/Movies':[],'/c/TV':[],'/e/The Nightmare Before Christmas 1993 1080p':['Nightmare.1993.mkv'],
+        '/e/Coco 2017 1080p':['Coco.2017.mkv']}
+  folders=['/c/Movies','/c/TV','/e']
+  names={'The Nightmare Before Christmas 1993 1080p'}
+  self.assertEqual(d.find_downloaded('movie','The Nightmare Before Christmas','1993',folder_list=folders,names=names,walk=walker(tree)),
+                   '/e/The Nightmare Before Christmas 1993 1080p/Nightmare.1993.mkv')
+  self.assertIsNone(d.find_downloaded('movie','Coco','2017',folder_list=folders,names=names,walk=walker(tree)))
+  self.assertIsNone(d.find_downloaded('movie','Coco','2017',folder_list=folders,names=set(),walk=walker(tree)))
+ def test_finished_names_reads_elementum_progress(self):
+  import json
+  data=json.dumps([{'name':'A','progress':100},{'name':'B','progress':42.5}]).encode()
+  self.assertEqual(d.finished_names(lambda url:data),{'A'})
+  self.assertEqual(d.finished_names(lambda url:b'oops'),set())
+
 class WatchMenu(unittest.TestCase):
  def load(self):
   spec=importlib.util.spec_from_file_location('watch',LIB/'ios_watch_dialog.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m

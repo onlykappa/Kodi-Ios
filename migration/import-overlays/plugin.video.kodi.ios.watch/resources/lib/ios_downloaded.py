@@ -49,10 +49,35 @@ def find(folders,kind,title,year='',season='',episode='',walk=os.walk):
     if not best or size>best[0]:best=(size,path)
  return best[1] if best else None
 
+def finished_names(get=None):
+ """Names of the torrents Elementum reports 100% done (a finished torrent stays in its download folder while it
+ seeds, before Elementum moves it to Kodi Downloads)."""
+ import json,urllib.request
+ get=get or (lambda url:urllib.request.urlopen(url,timeout=3).read())
+ try:return {t.get('name','') for t in json.loads(get('http://127.0.0.1:65220/torrents/list')) if float(t.get('progress') or 0)>=99.9 and t.get('name')}
+ except Exception:return set()
+
+def finished_only(path,root,names):
+ """True when a file under Elementum's download folder belongs to a finished torrent (file or top folder name)."""
+ rel=os.path.relpath(path,root).split(os.sep)
+ return bool(names) and (rel[0] in names or os.path.splitext(rel[-1])[0] in names or rel[-1] in names)
+
 def folders():
- """Elementum's completed-download folders (the phone's Kodi Downloads)."""
+ """Elementum's completed-download folders (the phone's Kodi Downloads), then its download folder."""
  try:
   import xbmcaddon,xbmcvfs
   e=xbmcaddon.Addon('plugin.video.elementum')
-  return [xbmcvfs.translatePath(e.getSetting(k)) for k in ('completed_movies_path','completed_shows_path') if e.getSetting(k)]
+  return [xbmcvfs.translatePath(e.getSetting(k)) for k in ('completed_movies_path','completed_shows_path','download_path') if e.getSetting(k)]
  except Exception:return []
+
+def find_downloaded(kind,title,year='',season='',episode='',folder_list=None,names=None,walk=os.walk):
+ """find() over the completed folders, and over Elementum's download folder for finished torrents only (owner
+ build-138: a finished movie still seeding in Elementum Downloads was offered for download again)."""
+ folder_list=folders() if folder_list is None else folder_list
+ done=[f for f in folder_list[:2]];seeding=folder_list[2:]
+ path=find(done,kind,title,year,season,episode,walk=walk)
+ if path or not seeding:return path
+ names=finished_names() if names is None else names
+ if not names:return None
+ path=find(seeding,kind,title,year,season,episode,walk=walk)
+ return path if path and finished_only(path,seeding[0],names) else None

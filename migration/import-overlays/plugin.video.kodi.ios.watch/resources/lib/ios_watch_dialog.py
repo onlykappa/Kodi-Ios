@@ -41,8 +41,11 @@ def downloaded_item(player,candidates,find=None,folders=None):
   info=getattr(player.details,'infolabels',{}) or {}
   movie=getattr(player,'tmdb_type','')=='movie'
   title=info.get('title') if movie else (info.get('tvshowtitle') or info.get('title'))
-  path=(find or d.find)((folders or d.folders)(),'movie' if movie else 'episode',title,info.get('year') or '',
-                        getattr(player,'season','') or '',getattr(player,'episode','') or '')
+  args=('movie' if movie else 'episode',title,info.get('year') or '',getattr(player,'season','') or '',getattr(player,'episode','') or '')
+  path=find((folders or d.folders)(),*args) if find else d.find_downloaded(*args)
+  try:
+   import xbmc;xbmc.log('Kodi iOS watch: downloaded copy of %s %s: %s'%(args[0],title,path or 'none'),xbmc.LOGINFO)
+  except ImportError:pass
   if not path:return None
   local=next((p for p in candidates if getattr(p,'is_local',False)),None)
   if local is not None:item=copy.copy(local)
