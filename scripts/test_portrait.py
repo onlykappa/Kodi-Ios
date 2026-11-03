@@ -176,6 +176,36 @@ class PortraitTests(unittest.TestCase):
    (self.skin/'1080i/VideoOSD.xml').write_text('<window />');portrait.refresh_if_needed(self.skin,self.profile);self.assertEqual(calls,[])
    home=self.skin/'1080i/Home.xml';home.write_text(home.read_text()+' ');portrait.refresh_if_needed(self.skin,self.profile);self.assertEqual(calls,[1])
   finally:portrait.refresh=real
+ def test_own_1080i_files_are_not_inputs(self):
+  # Build-132 start: a rebuild and full reload ~9 s after Home showed. Every 1080i file the refresh writes must stay out
+  # of the fingerprint, or a later rewrite of it (navigation's start-up patching) would rebuild at every start.
+  own={k.split('/',1)[1] for k in portrait.portrait_files(self.skin,self.profile) if k.startswith('1080i/')}
+  self.assertTrue(own<=portrait.OWN_1080I,own-portrait.OWN_1080I)
+  portrait.refresh_if_needed(self.skin,self.profile)
+  for name in own:(self.skin/'1080i'/name).write_text('<window>patched</window>')
+  self.assertEqual(portrait.refresh_if_needed(self.skin,self.profile),[])
+ def test_reload_only_for_what_kodi_already_read(self):
+  self.assertFalse(portrait.needs_reload(['portrait/Custom_1105_Search.xml','portrait/MyVideoNav.xml']))
+  for path in ('portrait/Font.xml','portrait/Includes.xml','portrait/Home.xml','portrait/DialogBusy.xml','extras/portrait/glass.png','addon.xml'):
+   self.assertTrue(portrait.needs_reload(['portrait/MyVideoNav.xml',path]),path)
+  self.assertTrue(portrait.needs_reload(['portrait/Custom_1105_Search.xml'],lambda c:c=='Window.IsVisible(Custom_1105_Search.xml)'))
+ def test_refresh_skin_skips_the_reload_for_unopened_windows(self):
+  class X:
+   LOGINFO=1;LOGWARNING=2;LOGERROR=3
+   def __init__(self):self.logs=[]
+   def log(self,m,level=0):self.logs.append(m)
+   def getCondVisibility(self,c):return False
+   def getInfoLabel(self,k):return {'System.ScreenHeight':'1920','System.ScreenWidth':'1080'}.get(k,'')
+   def executeJSONRPC(self,r):return '{}'
+  portrait.build(self.skin,self.profile);ran=[];xbmc=X()
+  real=portrait.refresh_if_needed
+  try:
+   portrait.refresh_if_needed=lambda skin,profile:['portrait/Custom_1105_Search.xml']
+   portrait.refresh_skin(xbmc,ran.append,self.skin,self.profile);self.assertNotIn('ReloadSkin()',ran)
+   self.assertIn('no reload needed',xbmc.logs[-1])
+   portrait.refresh_if_needed=lambda skin,profile:['portrait/Font.xml','portrait/Custom_1105_Search.xml']
+   portrait.refresh_skin(xbmc,ran.append,self.skin,self.profile);self.assertIn('ReloadSkin()',ran)
+  finally:portrait.refresh_if_needed=real
  def test_san_francisco_from_the_phone_when_present(self):
   with tempfile.TemporaryDirectory() as tmp:
    sys_font=Path(tmp)/'SFUI.ttf';sys_font.write_bytes(b'font');skin=Path(tmp)/'skin'

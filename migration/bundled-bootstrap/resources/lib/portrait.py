@@ -1026,8 +1026,9 @@ def refresh(skin,profile):
  Returns the changed paths; the caller reloads the skin if any changed."""
  return write(skin,portrait_files(skin,profile))
 
-# Written into 1080i by this module, so they are not inputs.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml'}
+# Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
+# inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml'}
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
@@ -1104,33 +1105,66 @@ def progress_tracker(player,continue_module,read,write,clock,every=10):
   except Exception:pass
  return tick
 
-def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
- """Started by the bootstrap service after setup: keep the portrait folder current, follow rotations and
- Continue Watching progress."""
- skin=Path(xbmcvfs.translatePath('special://skin/')).resolve()
- if skin.name==fuse:
-  try:
-   if missing(skin):
-    # Add the portrait folder and resolution, then have Kodi re-read addon.xml so the folder can be chosen.
-    changed=list(build(skin,profile));invoke('UpdateLocalAddons')
-    xbmc.log('Kodi iOS portrait layout added to the writable skin copy (%d files)'%len(changed),xbmc.LOGINFO)
-   else:changed=refresh_if_needed(skin,profile)
-   # Fuse's start: no hub preloading (it opened each hub window in turn, the portrait hubs are one window) and no
-   # wait-for-widgets loop (its script ran again every half second for up to a minute while rows loaded).
-   for setting,on in (('Startup.EnableHubPreloading',False),('Startup.DisableWaitForLoad',True)):
-    if bool(xbmc.getCondVisibility('Skin.HasSetting(%s)'%setting))!=on:invoke(('Skin.SetBool(%s)' if on else 'Skin.Reset(%s)')%setting)
-   xbmc.log('Kodi iOS portrait files checked in %s: %d updated%s'%(skin,len(changed),(' ('+', '.join(c for c in changed if not c.startswith('extras/'))[:300]+')') if changed else ''),xbmc.LOGINFO)
-   marker=Path(profile)/'addon_data/service.kodi.ios.bootstrap/portrait.json'
-   if not marker.exists():
-    # Once: no ".." rows, so a show page opens on its first season (the owner can turn it back on in Settings).
-    xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Settings.SetSettingValue','params':{'setting':'filelists.showparentdiritems','value':False}}))
-    marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(json.dumps({'revision':REVISION})+'\n')
-   if changed and is_portrait(xbmc.getInfoLabel):invoke('ReloadSkin()')
+# Read by Kodi when the skin loads (fonts, includes, Home and the windows marked LOAD_ON_GUI_INIT in the owner's log):
+# a change to one shows only after ReloadSkin. Every other window is read the first time it opens.
+LOADED_AT_START={'Font.xml','Includes.xml','Home.xml','Startup.xml','Pointer.xml','DialogBusy.xml','DialogNotification.xml',
+                 'DialogVolumeBar.xml','DialogExtendedProgressBar.xml','DialogSeekBar.xml','Custom_1151_OSD_MusicInfoOverlay.xml',
+                 'Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml','Custom_1192_SeasonalTheme.xml',
+                 'Custom_1194_Debug_Grid.xml','Custom_1198_Dialog_Startup.xml','Custom_1199_Debug_Overlay.xml'}
+def needs_reload(changed,visible=lambda condition:False):
+ """ReloadSkin (Home, its rows and the tab pages built again) only for a change Kodi already read: a file loaded with
+ the skin, a texture, addon.xml, or the window on screen. A window not opened yet is read from the new file when it
+ opens (one opened and closed again in the first seconds keeps its old layout until the next start)."""
+ for path in changed:
+  folder,_,name=path.rpartition('/')
+  if folder not in (FOLDER,'1080i') or not name.endswith('.xml') or name in LOADED_AT_START:return True
+  if visible('Window.IsVisible(%s)'%name):return True
+ return False
+
+def refresh_skin(xbmc,invoke,skin,profile):
+ """Bring the portrait folder up to date and reload the skin when a change needs it; returns the changed paths."""
+ if missing(skin):
+  # Add the portrait folder and resolution, then have Kodi re-read addon.xml so the folder can be chosen.
+  changed=list(build(skin,profile));invoke('UpdateLocalAddons')
+  xbmc.log('Kodi iOS portrait layout added to the writable skin copy (%d files)'%len(changed),xbmc.LOGINFO)
+ else:changed=refresh_if_needed(skin,profile)
+ # Fuse's start: no hub preloading (it opened each hub window in turn, the portrait hubs are one window) and no
+ # wait-for-widgets loop (its script ran again every half second for up to a minute while rows loaded).
+ for setting,on in (('Startup.EnableHubPreloading',False),('Startup.DisableWaitForLoad',True)):
+  if bool(xbmc.getCondVisibility('Skin.HasSetting(%s)'%setting))!=on:invoke(('Skin.SetBool(%s)' if on else 'Skin.Reset(%s)')%setting)
+ reload=bool(changed) and needs_reload(changed,xbmc.getCondVisibility)
+ listed=(' ('+', '.join(c for c in changed if not c.startswith('extras/'))[:300]+')') if changed else ''
+ xbmc.log('Kodi iOS portrait files checked in %s: %d updated%s%s'%(skin,len(changed),listed,
+          '; skin reloaded' if reload else ('; no reload needed' if changed else '')),xbmc.LOGINFO)
+ marker=Path(profile)/'addon_data/service.kodi.ios.bootstrap/portrait.json'
+ if not marker.exists():
+  # Once: no ".." rows, so a show page opens on its first season (the owner can turn it back on in Settings).
+  xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Settings.SetSettingValue','params':{'setting':'filelists.showparentdiritems','value':False}}))
+  marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(json.dumps({'revision':REVISION})+'\n')
+ if reload and is_portrait(xbmc.getInfoLabel):invoke('ReloadSkin()')
+ return changed
+
+def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',ready=None):
+ """Started by the bootstrap service as soon as it starts. The tab bar, Continue Watching and the focused-item details
+ start at once; the portrait refresh runs in its own thread once `ready` is set (after setup, which can rewrite Fuse's
+ landscape files the portrait folder is made from). Build-132 started all of it only after setup and the refresh:
+ the owner's tab bar appeared ~10 s after launch."""
+ import threading
+ def keep_current():
+  if ready is not None:
+   while not ready.wait(0.25):
+    if monitor.abortRequested():return
+  skin=Path(xbmcvfs.translatePath('special://skin/')).resolve()
+  if skin.name!=fuse:
+   xbmc.log('Kodi iOS portrait: the current skin is %s, not Arctic Fuse; layouts left alone'%skin,xbmc.LOGWARNING);return
+  try:refresh_skin(xbmc,invoke,skin,profile)
   except Exception as error:
    import traceback
    xbmc.log('Kodi iOS portrait refresh failed: %s\n%s'%(error,traceback.format_exc()),xbmc.LOGERROR)
    xbmc.executebuiltin('Notification(Kodi iOS,Phone layouts did not update - send the log from the gear menu,8000)')
- else:xbmc.log('Kodi iOS portrait: the current skin is %s, not Arctic Fuse; layouts left alone'%skin,xbmc.LOGWARNING)
+ threading.Thread(target=keep_current,daemon=True).start()
+ # The tab bar only over Arctic Fuse in portrait (first-run setup starts in Estuary, whose Home is also "home").
+ portrait=lambda:xbmc.getSkinDir()==fuse and bool(is_portrait(xbmc.getInfoLabel))
  tick=None
  try:
   import importlib.util,time,xbmcaddon
@@ -1163,14 +1197,14 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
    xbmc.executebuiltin(('Skin.SetBool(%s)' if path else 'Skin.Reset(%s)')%NATIVE_TAB_BAR)
   if path:
    lib=glassbar.load(path)
-   bar,poll,close=glassbar.controller(lib,xbmc.getCondVisibility,lambda:bool(is_portrait(xbmc.getInfoLabel)),
+   bar,poll,close=glassbar.controller(lib,xbmc.getCondVisibility,portrait,
                                      lambda action:xbmc.executebuiltin(action),[tab_actions(t[0]) for t in TABS])
    always.append(bar)
    polls=[poll]
    # r3 framework: the Search page's native search field, results listed as you type (searchbar.py).
    import searchbar,time
    if searchbar.bind(lib):
-    find,typed,find_close=searchbar.controller(lib,searchbar.taker(lib),xbmc.getCondVisibility,lambda:bool(is_portrait(xbmc.getInfoLabel)),
+    find,typed,find_close=searchbar.controller(lib,searchbar.taker(lib),xbmc.getCondVisibility,portrait,
                                                home.setProperty,time.monotonic,info=xbmc.getInfoLabel)
     home.setProperty('Portrait.SearchBar','1')
     always.append(find);polls.append(typed)
