@@ -6,21 +6,7 @@ from ios_watch_routes import choices
 
 def run(argv):
  import xbmc,xbmcaddon,xbmcgui,xbmcplugin
- handle=int(argv[1])
- if argv[2].lstrip('?').startswith('action=cached&'):
-  # Hub rows: the last TMDb Helper result at once (ios_cache); url is last and may be raw, so before parse_qs.
-  import xbmcvfs
-  from ios_cache import directory
-  def read(path):
-   f=xbmcvfs.File(path)
-   try:return f.read()
-   finally:f.close()
-  def write(path,text):
-   xbmcvfs.mkdirs(path.rsplit('/',1)[0]);f=xbmcvfs.File(path,'w')
-   try:f.write(text)
-   finally:f.close()
-  directory(handle,argv[2],xbmc,xbmcgui,xbmcplugin,read,write);return
- params={k:v[0] for k,v in parse_qs(argv[2].lstrip('?')).items()}
+ handle=int(argv[1]);params={k:v[0] for k,v in parse_qs(argv[2].lstrip('?')).items()}
  if params.get('action')=='library':
   from ios_library import directory;directory(handle,params);return
  if params.get('action')=='continue':
