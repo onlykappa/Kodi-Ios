@@ -1,5 +1,7 @@
 // Host tests for the AirPlay remuxer: container detection, playlist generation, segment boundaries, the AAC audio
 // bridge (DTS/TrueHD), WebVTT subtitles, range reading over HTTP, seeks (segments out of order) and clean shutdown.
+// r8: per-receiver compat (a TV's AirPlay gets H.264 while the phone keeps the HEVC copy), the cache, video and audio
+// made at the same time, and segments made ahead, timed over a slow source.
 // usage: test_remux FIXTURE_DIR [HTTP_BASE]   (HTTP_BASE: tests/range_server.py serving FIXTURE_DIR)
 #include "../src/kr_remux.h"
 #include "../src/kr_hls.h"
@@ -26,6 +28,7 @@ static int failures, checks;
 typedef struct { int status; char *body; size_t len; char head[1024]; } reply;
 
 static char prefix_path[96];
+static const char *test_ua = "test_remux/1";  // r8: the User-Agent of the requests (receivers are told apart by it)
 static reply http_get_raw(int port, const char *path, const char *range);
 static reply http_get(int port, const char *path, const char *range) {
     char full[512];
@@ -39,7 +42,7 @@ static reply http_get_raw(int port, const char *path, const char *range) {
     struct sockaddr_in a = {0}; a.sin_family = AF_INET; a.sin_port = htons((uint16_t)port); a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     if (connect(fd, (struct sockaddr *)&a, sizeof a) < 0) { close(fd); r.status = -1; return r; }
     char req[512];
-    int n = snprintf(req, sizeof req, "GET %s HTTP/1.1\r\nHost: 127.0.0.1\r\nUser-Agent: test_remux/1\r\n%s%s%s\r\n", path, range ? "Range: " : "", range ? range : "", range ? "\r\n" : "");
+    int n = snprintf(req, sizeof req, "GET %s HTTP/1.1\r\nHost: 127.0.0.1\r\nUser-Agent: %s\r\n%s%s%s\r\n", path, test_ua, range ? "Range: " : "", range ? range : "", range ? "\r\n" : "");
     send(fd, req, (size_t)n, 0);
     size_t cap = 1 << 16, len = 0; char *buf = malloc(cap);
     for (;;) {
@@ -442,6 +445,186 @@ static void test_compat_stop(const char *url) {
     CHECK(s < 4.5 && kr_remux_state() == KR_IDLE, "stop during a conversion returns (%.2f s)", s);
 }
 
+// ── r8: per receiver compat, cache and segments made ahead ─────────────────────
+#define UA_PHONE "AppleCoreMedia/1.0.0.24A446 (iPhone; U; CPU OS 27_0_1 like Mac OS X; en_us)"
+#define UA_APPLETV "AppleCoreMedia/1.0.0.22J580 (Apple TV; U; CPU OS 18_0 like Mac OS X; en_us)"
+#define UA_TV "AirPlay/2.0 (App/80.141.0) MFi_AirPlay_Device (MFiModelGroup/TCL Roku TV)"
+
+static int start_session(const char *url, int compat, char *m3u8, size_t len) {
+    int st = kr_remux_start(url, 0, compat, m3u8, (int)len);
+    if (st == KR_READY) {
+        snprintf(prefix_path, sizeof prefix_path, "%s", strchr(strstr(m3u8, "://") + 3, '/'));
+        char *cut = strstr(prefix_path, "/master.m3u8"); if (cut) *cut = 0;
+    }
+    return st;
+}
+
+static reply get_as(const char *ua, int port, const char *path) {
+    const char *was = test_ua; test_ua = ua;
+    reply r = http_get(port, path, NULL);
+    test_ua = was;
+    return r;
+}
+
+// An HEVC file played in copy mode: the phone and an Apple TV get the HEVC copy, a third-party TV (MFi_AirPlay_Device)
+// the picture converted to H.264, on the same grid. An H.264 file: everyone gets the copy.
+static void test_receivers(const char *hevc, const char *h264, const char *work) {
+    CHECK(kr_remux_third_party_receiver(UA_TV) && kr_remux_third_party_receiver("airplay/2.0 mfi_airplay_device"), "a TV's AirPlay is third-party");
+    CHECK(!kr_remux_third_party_receiver(UA_PHONE) && !kr_remux_third_party_receiver(UA_APPLETV) && !kr_remux_third_party_receiver("AirPlay/2.0") &&
+          !kr_remux_third_party_receiver("") && !kr_remux_third_party_receiver(NULL), "Apple's players are not third-party");
+    static char log[1 << 16];
+    while (kr_remux_log(log, sizeof log) > 0) {}
+    char m3u8[256];
+    int st = start_session(hevc, 0, m3u8, sizeof m3u8);
+    CHECK(st == KR_READY && kr_remux_compat() == 0, "receivers: HEVC copy session (%d %s)", st, kr_remux_message());
+    if (st != KR_READY) return;
+    int port = kr_remux_port();
+    reply phone = get_as(UA_PHONE, port, "/master.m3u8"), atv = get_as(UA_APPLETV, port, "/master.m3u8");
+    CHECK(kr_remux_compat_clients() == 0, "no compat master before the TV asks");
+    reply tv = get_as(UA_TV, port, "/master.m3u8");
+    const char *p = phone.body ? phone.body : "", *t = tv.body ? tv.body : "";
+    CHECK(strstr(p, "hvc1.") && strstr(p, "/video/index.m3u8") && !strstr(p, "cvideo"), "the phone gets the HEVC copy:\n%s", p);
+    CHECK(atv.body && !strcmp(atv.body, p), "an Apple TV gets the HEVC copy:\n%s", atv.body ? atv.body : "");
+    CHECK(strstr(t, "CODECS=\"avc1.640028,ac-3\"") && strstr(t, "/cvideo/index.m3u8") && !strstr(t, "hvc1") && strstr(t, "VIDEO-RANGE=SDR") &&
+          strstr(t, "RESOLUTION=320x180"), "the TV gets the H.264 picture:\n%s", t);
+    const char *pv = strstr(p, "#EXT-X-STREAM-INF:"), *tvv = strstr(t, "#EXT-X-STREAM-INF:");
+    CHECK(pv && tvv && pv - p == tvv - t && !memcmp(p, t, (size_t)(pv - p)), "same audio and subtitle renditions for both");
+    CHECK(kr_remux_compat_clients() == 1, "one compat master served (%d)", kr_remux_compat_clients());
+    reply vpl = get_as(UA_PHONE, port, "/video/index.m3u8"), cpl = get_as(UA_TV, port, "/cvideo/index.m3u8");
+    char *same = cpl.body ? strdup(cpl.body) : strdup("");
+    for (char *q; (q = strstr(same, "/cvideo/")); ) memmove(q + 1, q + 2, strlen(q + 2) + 1);  // "/cvideo/" -> "/video/"
+    CHECK(vpl.body && !strcmp(same, vpl.body), "the converted picture has the copy's segment grid:\n%s\nvs\n%s", same, vpl.body ? vpl.body : "");
+    free(same);
+    double total, maxd; int target;
+    int nseg = playlist_segments(vpl.body ? vpl.body : "", &total, &maxd, &target);
+    reply vinit = get_as(UA_PHONE, port, "/video/init.mp4"), cinit = get_as(UA_TV, port, "/cvideo/init.mp4");
+    CHECK(vinit.status == 200 && cinit.status == 200 && (vinit.len != cinit.len || memcmp(vinit.body, cinit.body, vinit.len)), "two different inits");
+    reply ph0 = get_as(UA_PHONE, port, "/video/seg0.m4s");
+    CHECK(kr_remux_served(1) == 1 && kr_remux_served_external(1) == 0, "the phone's segments are not the TV's (%d, %d)",
+          kr_remux_served(1), kr_remux_served_external(1));
+    free(ph0.body);
+    char tmp[512]; snprintf(tmp, sizeof tmp, "%s/receivers.one.mp4", work);
+    int aligned = 0;
+    for (int i = 0; i < nseg; i++) {
+        char path[64]; snprintf(path, sizeof path, "/video/seg%d.m4s", i);
+        reply a = get_as(UA_PHONE, port, path);
+        snprintf(path, sizeof path, "/cvideo/seg%d.m4s", i);
+        reply b = get_as(UA_TV, port, path);
+        int ka = 0, kb = 0;
+        double ta = segment_first(&vinit, &a, tmp, &ka), tb = segment_first(&cinit, &b, tmp, &kb);
+        if (ka && kb && fabs(ta - tb) < 1.0 / 24 + 0.002) aligned++;
+        else printf("  seg%d: copy %.3f key %d, converted %.3f key %d\n", i, ta, ka, tb, kb);
+        free(a.body); free(b.body);
+    }
+    CHECK(nseg >= 3 && aligned == nseg, "copy and converted segments start on the same frame (%d/%d)", aligned, nseg);
+    CHECK(kr_remux_served_external(1) == nseg && kr_remux_served(1) == 2 * nseg + 1, "the TV took %d video segments (%d in all)",
+          kr_remux_served_external(1), kr_remux_served(1));
+    // A TV asking /video/ itself (without the master) gets the converted picture as well; the phone the copy.
+    reply tv1 = get_as(UA_TV, port, "/video/seg1.m4s"), tc1 = get_as(UA_TV, port, "/cvideo/seg1.m4s"), ph1 = get_as(UA_PHONE, port, "/video/seg1.m4s");
+    CHECK(tv1.len && tv1.len == tc1.len && !memcmp(tv1.body, tc1.body, tv1.len), "the TV's /video/ is converted");
+    CHECK(ph1.len && (ph1.len != tc1.len || memcmp(ph1.body, tc1.body, ph1.len)), "the phone's /video/ is the copy");
+    char out[512]; snprintf(out, sizeof out, "%s/receivers.converted.mp4", work);
+    const char *was = test_ua; test_ua = UA_TV;
+    start_offset = 0;
+    check_rendition(port, "/cvideo", nseg, 20.0, out, 0);
+    test_ua = was;
+    int keys = 0;
+    CHECK(decode_count(out, &keys) == 480 && keys == nseg, "the TV's picture: every frame once, a keyframe per segment (%d)", keys);
+    kr_remux_log(log, sizeof log);
+    CHECK(strstr(log, "compat: third-party AirPlay receivers (MFi_AirPlay_Device) get the picture as H.264, others the hvc1.") &&
+          strstr(log, "compat: AirPlay/2.0 (App/80.141.0) MFi_AirPlay_Device") && strstr(log, "gets the picture as H.264: BANDWIDTH=") &&
+          strstr(log, "client: " UA_TV), "per-receiver compat logged:\n%.3000s", log);
+    free(phone.body); free(atv.body); free(tv.body); free(vpl.body); free(cpl.body); free(vinit.body); free(cinit.body);
+    free(tv1.body); free(tc1.body); free(ph1.body);
+    kr_remux_stop();
+
+    st = start_session(h264, 0, m3u8, sizeof m3u8);
+    CHECK(st == KR_READY, "receivers: H.264 session");
+    if (st != KR_READY) return;
+    port = kr_remux_port();
+    reply h = get_as(UA_TV, port, "/master.m3u8"), c = get_as(UA_TV, port, "/cvideo/index.m3u8");
+    CHECK(h.body && strstr(h.body, "avc1.42C0") && strstr(h.body, "/video/index.m3u8") && !strstr(h.body, "cvideo"), "H.264: the TV gets the copy");
+    CHECK(c.status == 404 && kr_remux_compat_clients() == 0, "H.264: no converted picture (%d)", c.status);
+    free(h.body); free(c.body);
+    kr_remux_stop();
+}
+
+static double mono_ms(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1000.0 + t.tv_nsec / 1e6; }
+
+typedef struct { int port; char path[64]; double ms; int status; } timed;
+static void *timed_get(void *arg) {
+    timed *g = arg;
+    double t0 = mono_ms();
+    reply r = http_get(g->port, g->path, NULL);
+    g->ms = mono_ms() - t0; g->status = r.status;
+    free(r.body);
+    return NULL;
+}
+static double get_ms(int port, const char *path) {
+    timed g = { port, "", 0, 0 };
+    snprintf(g.path, sizeof g.path, "%s", path);
+    timed_get(&g);
+    CHECK(g.status == 200, "%s: %d", path, g.status);
+    return g.ms;
+}
+
+// Over a slow source (tests/range_server.py /slow/: latency per request and limited bytes/s, like Drive through its
+// proxy): video and audio made at the same time, inits and served segments cached, the next segments made ahead.
+static void test_latency(const char *http_base) {
+    char url[512], m3u8[256];
+    snprintf(url, sizeof url, "%s/slow/h264_aac_srt.mkv", http_base);
+    kr_remux_set_prefetch(0);
+    int st = start_session(url, 0, m3u8, sizeof m3u8);
+    CHECK(st == KR_READY, "latency: slow source opens (%s)", kr_remux_message());
+    if (st != KR_READY) { kr_remux_set_prefetch(1); return; }
+    int port = kr_remux_port();
+    reply master = http_get(port, "/master.m3u8", NULL);
+    const char *a = master.body ? strstr(master.body, "/audio/") : NULL;
+    int aidx = a ? atoi(a + 7) : 1;
+    free(master.body);
+    char ainit[64], aseg[64];
+    snprintf(ainit, sizeof ainit, "/audio/%d/init.mp4", aidx);
+    double vinit = get_ms(port, "/video/init.mp4"), first_ainit = get_ms(port, ainit);  // opens the audio demuxer
+    double vinit2 = get_ms(port, "/video/init.mp4"), seg0 = get_ms(port, "/video/seg0.m4s");
+    CHECK(vinit2 < 50 && seg0 < 50, "init and segment 0 made once (init %.0f ms, again %.1f ms, seg0 after it %.1f ms)", vinit, vinit2, seg0);
+    snprintf(aseg, sizeof aseg, "/audio/%d/seg2.m4s", aidx);
+    double tv = get_ms(port, "/video/seg2.m4s"), ta = get_ms(port, aseg);
+    timed gv = { port, "/video/seg1.m4s", 0, 0 }, ga = { port, "", 0, 0 };
+    snprintf(ga.path, sizeof ga.path, "/audio/%d/seg1.m4s", aidx);
+    pthread_t th[2];
+    double t0 = mono_ms();
+    pthread_create(&th[0], NULL, timed_get, &gv); pthread_create(&th[1], NULL, timed_get, &ga);
+    pthread_join(th[0], NULL); pthread_join(th[1], NULL);
+    double both = mono_ms() - t0;
+    CHECK(gv.status == 200 && ga.status == 200, "video and audio together (%d %d)", gv.status, ga.status);
+    CHECK(both < 0.8 * (tv + ta), "video and audio are made at the same time: together %.0f ms, one after the other %.0f + %.0f ms", both, tv, ta);
+    double again = get_ms(port, "/video/seg2.m4s");
+    CHECK(again < 50, "a segment asked again comes from the cache (%.1f ms, made in %.0f ms)", again, tv);
+    CHECK(kr_remux_prefetched() == 0, "nothing made ahead with prefetch off (%d)", kr_remux_prefetched());
+    kr_remux_stop();
+
+    kr_remux_set_prefetch(1);
+    st = start_session(url, 0, m3u8, sizeof m3u8);
+    if (st != KR_READY) { CHECK(0, "latency: second session"); return; }
+    port = kr_remux_port();
+    double p0 = get_ms(port, "/video/seg0.m4s"), p1 = get_ms(port, "/video/seg1.m4s");
+    usleep(2500000);  // the receiver plays segment 1 (6 s in real time): N+1, N+2 are made meanwhile
+    double p2 = get_ms(port, "/video/seg2.m4s");
+    usleep(2500000);
+    double p3 = get_ms(port, "/video/seg3.m4s");
+    printf("  latency over the slow source: cold video segment %.0f ms, audio %.0f ms, both at once %.0f ms; with prefetch "
+           "seg0 %.0f ms, seg1 right after %.0f ms, seg2 %.1f ms, seg3 %.1f ms (%d made ahead)\n", tv, ta, both, p0, p1, p2, p3, kr_remux_prefetched());
+    CHECK(p2 < 50 && p3 < 50, "segments after the first are ready when asked (seg2 %.1f ms, seg3 %.1f ms; cold %.0f ms)", p2, p3, tv);
+    CHECK(kr_remux_prefetched() >= 3, "segments made ahead (%d)", kr_remux_prefetched());
+    // A seek far away while segments are being made ahead: answered, and stop is prompt with work in flight.
+    reply far = http_get(port, "/video/seg0.m4s", NULL);
+    free(far.body);
+    double s0 = mono_ms();
+    kr_remux_stop();
+    double stop_ms = mono_ms() - s0;
+    CHECK(stop_ms < 4500 && kr_remux_state() == KR_IDLE, "stop while making segments ahead returns (%.0f ms)", stop_ms);
+}
+
 const char *fixture_dir;
 
 int main(int argc, char **argv) {
@@ -476,6 +659,9 @@ int main(int argc, char **argv) {
         snprintf(url, sizeof url, "file:%s/h264_ac3.ts", argv[1]); test_compat(url, "h264_ac3.ts", 1, 1.4, "ac-3", work);
         snprintf(url, sizeof url, "file:%s/mpeg2_ac3.mkv", argv[1]); test_compat(url, "mpeg2_ac3.mkv", 0, 0, "ac-3", work);
         snprintf(url, sizeof url, "file:%s/hevc_ac3_ass.mkv", argv[1]); test_compat_stop(url);
+        printf("-- r8 receivers (a TV's AirPlay gets H.264, the phone the HEVC copy)\n"); fflush(stdout);
+        char h264[1024]; snprintf(h264, sizeof h264, "file:%s/h264_aac_srt.mkv", argv[1]);
+        test_receivers(url, h264, work);
         kr_video_set_encoder("no_such_encoder");
         char m3u8[256];
         CHECK(kr_remux_start(url, 0, 1, m3u8, sizeof m3u8) == KR_FAILED && strstr(kr_remux_message(), "cannot convert video"),
@@ -493,6 +679,8 @@ int main(int argc, char **argv) {
         test_file(url, &fx[4], work);
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
+        printf("-- r8 latency (slow source)\n"); fflush(stdout);
+        test_latency(argv[2]);
     }
     printf("%d checks, %d failed\n", checks, failures);
     return failures ? 1 : 0;

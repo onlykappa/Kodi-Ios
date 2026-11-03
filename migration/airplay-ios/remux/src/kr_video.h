@@ -47,7 +47,12 @@ int kr_video_hw_decode(const kr_video *v);  // 1 when VideoToolbox decodes
 // fMP4 init (ftyp+moov) or media segment (moof+mdat) i of the planned grid of `s` (absolute tfdt).
 int kr_video_init(kr_video *v, gm_stream *s, gm_buf *out, char *err, int errlen);
 int kr_video_segment(kr_video *v, gm_stream *s, int i, gm_buf *out, char *err, int errlen);
-// Makes a running kr_video_segment give up at the next packet (server stopping). Any thread.
+// r8: the whole unit (ftyp+moov+moof+mdat) of segment i; the init is [0, kr_first_moof), the media segment the rest.
+int kr_video_unit(kr_video *v, gm_stream *s, int i, gm_buf *out, char *err, int errlen);
+// Makes a running conversion give up at the next packet (server stopping), and every later one. Any thread.
 void kr_video_abort(kr_video *v);
+// r8: makes the conversion in progress (a prefetch the receiver no longer needs after a seek) give up at the next
+// packet; the next conversion runs normally. Any thread.
+void kr_video_cancel(kr_video *v);
 void kr_video_close(kr_video *v);
 #endif

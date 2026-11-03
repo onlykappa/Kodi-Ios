@@ -1,10 +1,16 @@
 """A tiny HTTP file server that answers Range requests (like Elementum's 127.0.0.1:65220 and Google Drive), for the
-remuxer host tests. Prints its port, then serves DIR until killed. usage: range_server.py DIR"""
-import http.server,os,re,sys
+remuxer host tests. Prints its port, then serves DIR until killed. usage: range_server.py DIR
+r8: paths under /slow/ serve the same files like a remote source (Drive through its loopback proxy): every request
+waits SLOW_LATENCY seconds before answering and the bytes come at SLOW_RATE bytes/s (the latency host tests)."""
+import http.server,os,re,sys,time
+SLOW_LATENCY=0.1
+SLOW_RATE=2*1024*1024
 
 class Handler(http.server.SimpleHTTPRequestHandler):
  def log_message(self,*a):pass
  def send_head(self):
+  self.slow=self.path.startswith('/slow/')
+  if self.slow:self.path=self.path[5:];time.sleep(SLOW_LATENCY)
   path=self.translate_path(self.path)
   if not os.path.isfile(path):self.send_error(404);return None
   size=os.path.getsize(path);f=open(path,'rb')
@@ -20,12 +26,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
   self.range_left=b-a+1
   return f
  def copyfile(self,src,dst):
-  left=getattr(self,'range_left',None)
+  left=getattr(self,'range_left',None);step=16384 if self.slow else 65536
   while left is None or left>0:
-   chunk=src.read(65536 if left is None else min(65536,left))
+   chunk=src.read(step if left is None else min(step,left))
    if not chunk:break
    try:dst.write(chunk)
    except (BrokenPipeError,ConnectionResetError):return
+   if self.slow:time.sleep(len(chunk)/SLOW_RATE)
    if left is not None:left-=len(chunk)
 
 if __name__=='__main__':

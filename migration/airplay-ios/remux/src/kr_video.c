@@ -30,8 +30,8 @@ struct kr_video {
     AVRational fps;           // source frame rate (for the encoder's framerate hint)
     struct SwsContext *sws;
     int sws_w, sws_h, sws_fmt;
-    atomic_int abort;
-    gm_buf unit0;             // segment 0's whole unit, kept from the init request for the seg0 request after it
+    atomic_int abort;         // sticky: the server is stopping
+    atomic_int cancel;        // r8: give up the conversion in progress only (the next one clears it)
 };
 
 static const char *encoder_name;
@@ -171,6 +171,7 @@ int kr_video_width(const kr_video *v) { return v ? v->ow : 0; }
 int kr_video_height(const kr_video *v) { return v ? v->oh : 0; }
 int kr_video_hw_decode(const kr_video *v) { return v && v->hw ? 1 : 0; }
 void kr_video_abort(kr_video *v) { if (v) atomic_store(&v->abort, 1); }
+void kr_video_cancel(kr_video *v) { if (v) atomic_store(&v->cancel, 1); }
 
 void kr_video_close(kr_video *v) {
     if (!v) return;
@@ -182,7 +183,6 @@ void kr_video_close(kr_video *v) {
         avformat_close_input(&v->in);
         if (io) { av_freep(&io->buffer); avio_context_free(&io); }
     }
-    free(v->unit0.data);
     free(v);
 }
 
@@ -418,10 +418,13 @@ static int produce(kr_video *v, double start, double end, gm_buf *out, char *err
     AVFrame *fr = av_frame_alloc();
     int r = -1, eof = 0, done = 0, retried = 0;
     if (!j.held || !pkt || !fr) { seterr(err, errlen, "out of memory", 0); goto out; }
+    atomic_store(&v->cancel, 0);
     seek_before(v, start);
     avcodec_flush_buffers(v->dec);
     while (!done && !eof) {
         if (atomic_load(&v->abort)) { seterr(err, errlen, "stopped", 0); goto out; }
+        // r8: checked between packets only (not in the read callback): the demuxer stays usable for the next segment.
+        if (atomic_load(&v->cancel)) { seterr(err, errlen, "cancelled", 0); goto out; }
         int rr = av_read_frame(v->in, pkt);
         if (rr == AVERROR_EOF) { eof = 1; avcodec_send_packet(v->dec, NULL); }
         else if (rr < 0) { seterr(err, errlen, "read", rr); goto out; }
@@ -465,43 +468,26 @@ out:
     return r;
 }
 
-// Segment 0 as a whole unit (ftyp+moov+moof+mdat), made once: the init request and the seg0 request right after it.
-static int unit0(kr_video *v, gm_stream *s, char *err, int errlen) {
-    if (v->unit0.len > 0) return 0;
+// r8: the whole unit (ftyp+moov+moof+mdat) of segment i; the server splits it (kr_first_moof) and caches both parts,
+// so the init request and the seg0 request share one conversion.
+int kr_video_unit(kr_video *v, gm_stream *s, int i, gm_buf *out, char *err, int errlen) {
+    if (!v || i < 0 || i >= gm_stream_segment_count(s)) { seterr(err, errlen, "bad segment index", 0); return -1; }
     double start, end;
-    kr_video_window(s, 0, &start, &end);
-    if (produce(v, start, end, &v->unit0, err, errlen) < 0) { v->unit0.len = 0; return -1; }
+    kr_video_window(s, i, &start, &end);
+    if (produce(v, start, end, out, err, errlen) < 0) return -1;
+    if (kr_first_moof(out->data, out->len) <= 0) { seterr(err, errlen, "bad unit split", 0); return -1; }
     return 0;
 }
 
 int kr_video_init(kr_video *v, gm_stream *s, gm_buf *out, char *err, int errlen) {
-    if (!v) { seterr(err, errlen, "not open", 0); return -1; }
-    if (unit0(v, s, err, errlen) < 0) return -1;
-    int m = kr_first_moof(v->unit0.data, v->unit0.len);
-    if (m <= 0) { seterr(err, errlen, "bad init split", 0); return -1; }
-    out->len = 0;
-    if (ensure(out, m) < 0) { seterr(err, errlen, "out of memory", 0); return -1; }
-    memcpy(out->data, v->unit0.data, (size_t)m);
-    out->len = m;
+    if (kr_video_unit(v, s, 0, out, err, errlen) < 0) return -1;
+    out->len = kr_first_moof(out->data, out->len);
     return 0;
 }
 
 int kr_video_segment(kr_video *v, gm_stream *s, int i, gm_buf *out, char *err, int errlen) {
-    if (!v || i < 0 || i >= gm_stream_segment_count(s)) { seterr(err, errlen, "bad segment index", 0); return -1; }
-    if (i == 0 && v->unit0.len > 0) {
-        int m = kr_first_moof(v->unit0.data, v->unit0.len);
-        if (m <= 0) { seterr(err, errlen, "bad segment split", 0); return -1; }
-        out->len = 0;
-        if (ensure(out, v->unit0.len - m) < 0) { seterr(err, errlen, "out of memory", 0); return -1; }
-        memcpy(out->data, v->unit0.data + m, (size_t)(v->unit0.len - m));
-        out->len = v->unit0.len - m;
-        return 0;
-    }
-    double start, end;
-    kr_video_window(s, i, &start, &end);
-    if (produce(v, start, end, out, err, errlen) < 0) return -1;
+    if (kr_video_unit(v, s, i, out, err, errlen) < 0) return -1;
     int m = kr_first_moof(out->data, out->len);
-    if (m <= 0) { seterr(err, errlen, "bad segment split", 0); return -1; }
     memmove(out->data, out->data + m, (size_t)(out->len - m));
     out->len -= m;
     return 0;

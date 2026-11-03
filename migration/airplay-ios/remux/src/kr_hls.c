@@ -111,7 +111,9 @@ static int name_taken(char names[][160], int count, const char *name) {
     return 0;
 }
 
-char *kr_hls_master(gm_stream *s, const char *base, int compat) {
+char *kr_hls_master(gm_stream *s, const char *base, int compat) { return kr_hls_master_at(s, base, compat, "video"); }
+
+char *kr_hls_master_at(gm_stream *s, const char *base, int compat, const char *video_dir) {
     sb b = {0};
     sb_add(&b, "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n");
     int n = gm_stream_track_count(s), sel = gm_stream_selected_audio(s), nau = 0, nsub = 0, deflt = -1;
@@ -178,7 +180,7 @@ char *kr_hls_master(gm_stream *s, const char *base, int compat) {
     sb_add(&b, ",VIDEO-RANGE=%s", range);
     if (nau) sb_add(&b, ",AUDIO=\"aud\"");
     if (nsub) sb_add(&b, ",SUBTITLES=\"subs\"");
-    sb_add(&b, "\n%s/video/index.m3u8\n", base);
+    sb_add(&b, "\n%s/%s/index.m3u8\n", base, video_dir);
     return b.p;
 }
 

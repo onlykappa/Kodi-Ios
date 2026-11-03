@@ -1008,3 +1008,38 @@ void gm_stream_close(gm_stream *s) {
 
 // Kodi iOS addition (not in GMPlayer upstream): the opened source, for the variant's CODECS profile/level.
 AVFormatContext *gm_stream_format_context(gm_stream *s) { return s ? s->in : NULL; }
+
+// Kodi iOS addition (r8, not upstream): one single-track unit (ftyp+moov+moof+mdat) over segment i, the init/media
+// split in *moov_end, so the server caches the init and the media segment from one pass (the init request no longer
+// muxes segment 0 a second time). Same windows and output as gm_stream_video_segment / gm_stream_audio_segment.
+int gm_stream_track_unit(gm_stream *s, int src, int i, gm_buf *out, int *moov_end, char *err, int errlen) {
+    if (!s || !out || !moov_end || i < 0 || i >= s->n_seg || src < 0 || src >= (int)s->in->nb_streams) {
+        set_err(err, errlen, "bad segment index", 0); return -1;
+    }
+    enum AVMediaType type = s->in->streams[src]->codecpar->codec_type;
+    if (!(type == AVMEDIA_TYPE_VIDEO && src == s->video_in) && type != AVMEDIA_TYPE_AUDIO) {
+        set_err(err, errlen, "bad track", 0); return -1;
+    }
+    gm_sel sel = { type == AVMEDIA_TYPE_VIDEO ? src : -1, type == AVMEDIA_TYPE_AUDIO ? src : -1, 0 };
+    double start = s->seg_starts[i];
+    double end = (i + 1 < s->n_seg) ? s->seg_starts[i + 1] : end_of_media(s);
+    *moov_end = 0;
+    int ret = produce_sel(s, start, end, start, sel, out, moov_end, err, errlen);
+    if (ret < 0) return ret;
+    if (*moov_end <= 0 || *moov_end >= out->len) { set_err(err, errlen, "bad moov split", 0); return -1; }
+    return 0;
+}
+
+// Kodi iOS addition (r8, not upstream): `dst` (the same file opened a second time, for a second demuxer that works in
+// parallel) takes `src`'s segment plan, so both produce segments on exactly the same grid. -1 when they differ in
+// streams (not the same file).
+int gm_stream_adopt_plan(gm_stream *dst, const gm_stream *src) {
+    if (!dst || !src || !dst->in || !src->in || dst->in->nb_streams != src->in->nb_streams) return -1;
+    dst->duration = src->duration;
+    dst->n_seg = src->n_seg;
+    memcpy(dst->seg_starts, src->seg_starts, sizeof dst->seg_starts);
+    for (int i = 0; i < dst->n_seg; i++) dst->seg_real_end[i] = -1.0;
+    dst->video_in = src->video_in;
+    dst->audio_in = src->audio_in;
+    return 0;
+}

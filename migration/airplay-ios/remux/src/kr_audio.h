@@ -12,6 +12,8 @@ int kr_audio_sample_rate(const kr_audio *a);
 // fMP4 init (ftyp+moov) or media segment (moof+mdat) i of the planned grid of `s` (absolute tfdt).
 int kr_audio_init(kr_audio *a, gm_stream *s, gm_buf *out, char *err, int errlen);
 int kr_audio_segment(kr_audio *a, gm_stream *s, int i, gm_buf *out, char *err, int errlen);
+// r8: the whole unit (ftyp+moov+moof+mdat) of segment i; the init is [0, kr_first_moof), the media segment the rest.
+int kr_audio_unit(kr_audio *a, gm_stream *s, int i, gm_buf *out, char *err, int errlen);
 void kr_audio_close(kr_audio *a);
 // Offset of the first top-level 'moof' box (end of the init part), or -1.
 int kr_first_moof(const uint8_t *p, int len);

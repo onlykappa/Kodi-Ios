@@ -304,6 +304,16 @@ static void window(kr_audio *a, gm_stream *s, int i, int64_t *s0, int64_t *s1) {
     if (i + 1 >= n) *s1 += FRAME;  // the tail: whatever is left
 }
 
+// r8: the whole unit (ftyp+moov+moof+mdat) of segment i, for the server's cache (init and media from one pass).
+int kr_audio_unit(kr_audio *a, gm_stream *s, int i, gm_buf *out, char *err, int errlen) {
+    if (!a || i < 0 || i >= gm_stream_segment_count(s)) { seterr(err, errlen, "bad segment index", 0); return -1; }
+    int64_t s0, s1;
+    window(a, s, i, &s0, &s1);
+    if (produce(a, s0, s1, out, err, errlen) < 0) return -1;
+    if (kr_first_moof(out->data, out->len) <= 0) { seterr(err, errlen, "bad unit split", 0); return -1; }
+    return 0;
+}
+
 int kr_audio_init(kr_audio *a, gm_stream *s, gm_buf *out, char *err, int errlen) {
     int64_t s0, s1;
     window(a, s, 0, &s0, &s1);

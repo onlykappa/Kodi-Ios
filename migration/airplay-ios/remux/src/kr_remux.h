@@ -37,10 +37,25 @@ int kr_remux_log(char *buf, int len);
 // r6: media segments sent this session, video (1) or audio (0). A receiver that takes audio segments but never a
 // video one is playing sound only (an AirPlay TV that cannot decode the video codec).
 int kr_remux_served(int video);
+// r8: the same, counting only receivers other than the phone's own player (User-Agent not AppleCoreMedia on an
+// iPhone/iPad): what the TV took. 0 video segments while the TV played: it never got a picture.
+int kr_remux_served_external(int video);
 // r6: the running session's video CODECS value ("avc1.640028", "hvc1.2.4.L120.90"), "" when none.
 const char *kr_remux_video_codec(void);
 // The port of the running server, 0 when none (tests).
 int kr_remux_port(void);
+// r8: 1 when a request's User-Agent is a third-party AirPlay receiver (a TV's built-in AirPlay: "MFi_AirPlay_Device").
+// When the source video is not H.264, such a receiver gets the compat master (CODECS avc1.640028, at most 1080p, SDR)
+// whose video variant is /cvideo/ (the picture converted, kr_video), and its /video/ requests are converted too; every
+// other client (AppleCoreMedia on the phone or an Apple TV) keeps the copy. Both paths use the same segment grid.
+int kr_remux_third_party_receiver(const char *ua);
+// r8: compat masters served to third-party receivers this session (0: none asked).
+int kr_remux_compat_clients(void);
+// r8: segments made ahead in the background this session (after segment N is served, N+1 and N+2 of that rendition
+// are made and cached; inits and recently served segments are cached too).
+int kr_remux_prefetched(void);
+// r8: 0 turns making segments ahead off (host tests measure with and without it), 1 on (the default).
+void kr_remux_set_prefetch(int on);
 #ifdef __cplusplus
 }
 #endif
