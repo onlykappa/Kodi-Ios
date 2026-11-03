@@ -33,6 +33,31 @@ def continuing(argv=None):
  argv=sys.argv if argv is None else argv
  return len(argv)>2 and 'ios_continue=1' in str(argv[2]).lstrip('?').split('&')
 
+def downloaded_item(player,candidates,find=None,folders=None):
+ """A TMDb Helper local player item for the downloaded copy of this title, or None."""
+ try:
+  import copy
+  import ios_downloaded as d
+  info=getattr(player.details,'infolabels',{}) or {}
+  movie=getattr(player,'tmdb_type','')=='movie'
+  title=info.get('title') if movie else (info.get('tvshowtitle') or info.get('title'))
+  path=(find or d.find)((folders or d.folders)(),'movie' if movie else 'episode',title,info.get('year') or '',
+                        getattr(player,'season','') or '',getattr(player,'episode','') or '')
+  if not path:return None
+  local=next((p for p in candidates if getattr(p,'is_local',False)),None)
+  if local is not None:item=copy.copy(local)
+  else:
+   from tmdbhelper.lib.player.dialog.item.kodi import PlayerItemLocalMovie
+   item=PlayerItemLocalMovie({'tmdb':getattr(player,'tmdb_id','')})
+  # TMDb Helper's cached properties live in the instance, so these replace its library lookup.
+  item.__dict__.update(kodi_file=path,kodi_file_contents=None,actions=path,is_valid=True,make_playlist=False)
+  return item
+ except Exception as error:
+  try:
+   import xbmc;xbmc.log('Kodi iOS watch: downloaded-file check failed: %r'%error,xbmc.LOGWARNING)
+  except Exception:pass
+  return None
+
 def choose_player(player):
  import xbmc,xbmcgui,xbmcaddon,xbmcvfs
  player.allow_playlist=False
@@ -60,6 +85,15 @@ def choose_player(player):
   try:f.write(text)
   finally:f.close()
  kind_of=lambda item:'elementum' if item is engine else 'umbrella' if item is umbrella else 'local'
+ # A finished download on the phone plays at once (owner build-132: Home fetched the torrent again).
+ downloaded=downloaded_item(player,candidates)
+ if downloaded is not None:
+  xbmc.log('Kodi iOS watch: playing the downloaded file %s'%downloaded.kodi_file,xbmc.LOGINFO)
+  try:
+   from ios_continue import record
+   record(player,read,write,choice='local')
+  except Exception:pass
+  return downloaded
  home=xbmcgui.Window(10000);home.clearProperty(RESUME_PROPERTY)
  # Continue Watching (its links carry the flag): the player and version picked last time, without asking.
  saved={}
