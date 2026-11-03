@@ -140,6 +140,12 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
  # Converting reads the video on the phone itself, so it uses the link Kodi plays (Drive's and Elementum's helpers
  # answer on 127.0.0.1 only: owner build-132 log, "Connection refused" on the Wi-Fi address).
  source=cast.phone_source(playing,url) if converting and not cast.apple_playable(url,playing) else url
+ # r10: the subtitle Kodi shows goes to the TV burned into the converted picture (TVs' AirPlay ignores WebVTT).
+ try:
+  import time,xbmcvfs
+  subs=airplay.send_subtitles(lib,xbmc,xbmcvfs,time.time())
+  if subs is not None:xbmc.log('Kodi iOS Play on TV: subtitles for AirPlay %s'%('off' if subs[0]==-1 else 'external file' if subs[1] and subs[0]==-2 else 'stream %d%s'%(subs[0],' (+ external file)' if subs[1] else '')),xbmc.LOGINFO)
+ except Exception as error:xbmc.log('Kodi iOS Play on TV: subtitles not passed to AirPlay: %s'%error,xbmc.LOGWARNING)
  lib.kodi_airplay_play(source.encode('utf-8'),(title or '').encode('utf-8'))
  # Converting first reads the start of the file (over Elementum or Drive): allow longer than a direct link.
  outcome=cast.airplay_outcome(lib.kodi_airplay_state,xbmc.Monitor().waitForAbort,60 if converting else 25)

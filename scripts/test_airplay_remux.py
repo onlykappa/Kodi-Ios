@@ -118,7 +118,7 @@ class AirPlayLog(unittest.TestCase):
                  "can't play HEVC",'kr_remux_served(1) == video0','presentationSize'):
    self.assertIn(needle,build)
   lock=__import__('json').loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())
-  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r9')
+  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r10')
   self.assertEqual(lock['previous']['tag'],'kodi-airplay-r8')
   self.assertEqual(lock['previous']['sha256'],'4ab229cc846cd87dc417f770a24dc09ea011e7d7e92410a61c01ca808916ef9c')
 
@@ -193,4 +193,54 @@ class R9Speed(unittest.TestCase):
   self.assertIn('"subtitle read"',gm)
   self.assertIn('Second line',(src.parent/'tests/test_remux.c').read_text())
   self.assertIn('r9:',(ROOT/'migration/airplay-ios/build-airplay.sh').read_text().split('set -euo pipefail')[0])
+class R10BurnedSubtitles(unittest.TestCase):
+ """r10: third-party AirPlay TVs ignore WebVTT; Kodi's current subtitle is burned into the converted picture."""
+ def test_choice_follows_kodi(self):
+  now=10_000_000
+  on=lambda **c:{'subtitleenabled':True,'currentsubtitle':c}
+  self.assertEqual(airplay.subtitle_choice({},[],now),(-2,'',''))
+  self.assertEqual(airplay.subtitle_choice({'subtitleenabled':False,'currentsubtitle':{'index':1}},[],now),(-1,'',''))
+  self.assertEqual(airplay.subtitle_choice(on(index=1,language='eng',name='English'),[],now),(1,'','eng'))
+  self.assertEqual(airplay.subtitle_choice(on(index=None,language='eng'),[],now),(-2,'','eng'))
+  files=[('/t/a4ksubtitles/Movie.2024.WEB.eng.srt',now-60),('/t/old.srt',now-5*3600),('/t/notes.txt',now)]
+  # Kodi names an external subtitle after its file: that file is the choice.
+  self.assertEqual(airplay.subtitle_choice(on(index=3,language='eng',name='Movie.2024.WEB.eng'),files,now),
+                   (-2,'/t/a4ksubtitles/Movie.2024.WEB.eng.srt','eng'))
+  # An embedded one keeps its number; the recent file is only the fallback past the file's own subtitles.
+  self.assertEqual(airplay.subtitle_choice(on(index=0,language='fre',name='French'),files,now),
+                   (0,'/t/a4ksubtitles/Movie.2024.WEB.eng.srt','fre'))
+  self.assertEqual(airplay.subtitle_choice(on(index=0,language='fre',name='French'),files[1:],now),(0,'','fre'))
+ def test_sent_before_playing(self):
+  calls=[]
+  class X:
+   LOGINFO=1
+   @staticmethod
+   def executeJSONRPC(q):
+    import json
+    m=json.loads(q)['method']
+    return json.dumps({'result':[{'playerid':1,'type':'video'}]} if m=='Player.GetActivePlayers' else
+                      {'result':{'subtitleenabled':True,'currentsubtitle':{'index':2,'language':'eng','name':'English'}}})
+  vfs=types.SimpleNamespace(translatePath=lambda p:'/nonexistent/'+p.split('//')[1])
+  lib=types.SimpleNamespace(kodi_airplay_subtitles=lambda *a:calls.append(a))
+  self.assertEqual(airplay.send_subtitles(lib,X,vfs,0),(2,'','eng'))
+  self.assertEqual(calls,[(2,b'',b'eng')])
+  self.assertIsNone(airplay.send_subtitles(types.SimpleNamespace(),X,vfs,0))
+  source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
+  self.assertLess(source.index('airplay.send_subtitles('),source.index("lib.kodi_airplay_play(source.encode"))
+ def test_framework_r10(self):
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn('r10:',build.split('set -euo pipefail')[0])
+  for needle in ('_kodi_airplay_subtitles','kr_remux_set_subtitles(ordinal, file, lang)','build-libass.sh','libass.a','r10 libass burn-in missing'):
+   self.assertIn(needle,build)
+  libass=(ROOT/'migration/airplay-ios/build-libass.sh').read_text()
+  self.assertEqual(libass.count('_SHA256='),4);self.assertIn('sha256sum -c',libass);self.assertIn('--disable-fontconfig',libass)
+  self.assertNotIn('--enable-libass',(ROOT/'migration/airplay-ios/build-remux-ffmpeg.sh').read_text())
+  notices=(ROOT/'migration/airplay-ios/remux/THIRD-PARTY-NOTICES').read_text()
+  for needle in ('libass 0.17.4','ISC License','FreeType License (FTL','FriBidi 1.0.16','Lesser General Public License version 2.1',
+                 'REMUX_LIBASS','HarfBuzz 11.2.1','Fonts: none are shipped'):
+   self.assertIn(needle,notices)
+  src=ROOT/'migration/airplay-ios/remux/src'
+  video=(src/'kr_video.c').read_text()
+  for needle in ('kr_subs_blend','CVPixelBufferLockBaseAddress','sub_lookback'):self.assertIn(needle,video)
+  self.assertIn('test_burn_video',(src.parent/'tests/test_remux.c').read_text())
 if __name__=='__main__':unittest.main()
