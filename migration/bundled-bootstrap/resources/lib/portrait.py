@@ -57,7 +57,19 @@ HUB_OFFSET={'home':0,'movies':10000,'tv':20000}
 LOAD='Portrait.Load.'   # Window(Home).Property(Portrait.Load.<tab>[.more])
 EAGER_ROWS=3            # rows (after the hero) that load with their hub; the rest follow two seconds later
 def load_flag(tab,more=False):return 'Window(Home).Property(%s%s%s)'%(LOAD,tab,'.more' if more else '')
-PREFETCH={'movies':6,'tv':10}  # seconds after Home opens: Movies' and TV's hero and first rows load in the background
+PREFETCH={'movies':4,'tv':7}  # seconds after Home opens: Movies' and TV's hero and first rows load in the background
+# Listing cache (build-134): every TMDb Helper row and hero goes through the watch plugin's cached route
+# (ios_cache.py), which answers from the last result kept on the phone in well under a second, so prefetching the
+# hubs no longer means TMDb Helper runs at start; listing_refresher keeps the copies fresh, one list at a time.
+CACHED='plugin://plugin.video.kodi.ios.watch/?action=cached&url='
+CACHEABLE=('plugin://plugin.video.themoviedb.helper/',)
+def cached(path):
+ """A row path through the listing cache (same as ios_cache.route); other paths are left alone."""
+ from urllib.parse import quote
+ return CACHED+quote(path,safe='') if str(path).startswith(CACHEABLE) else path
+def spotlight_path(spotlight):
+ # The hero's skin string through the cache, raw (the skin cannot URL-encode; ios_cache reads url= last and raw).
+ return CACHED+'$INFO[Skin.String(HomeSwitcher.%s.Spotlight.Path)]'%spotlight
 def first_visit(key):
  """[(condition, builtin)] marking a hub loaded (its lower rows two seconds later); run on each visit, effective once."""
  more=('String.IsEmpty(%s) + !System.HasAlarm(portraitmore%s)'%(load_flag(key,True),key),
@@ -353,7 +365,7 @@ def row(index,widget,last,tab='home',variables=None):
    '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
    '<content target="%s">%s</content></control>'
    )%(id,WIDTH,h,'<ondown>9201</ondown>' if last else '',visible,w+GAP,h,item(False),w+GAP,h,item(True),
-      e(widget.get('target') or 'videos'),gated('Portrait_Row_%s_%d'%(tab,index),widget['path'],load_condition(tab,index),variables)))
+      e(widget.get('target') or 'videos'),gated('Portrait_Row_%s_%d'%(tab,index),cached(widget['path']),load_condition(tab,index),variables)))
 
 def hero(spotlight,title,tab='home',variables=None):
  """Full-bleed hero: the hub's spotlight titles (swipe sideways), logo, genre line, Play and Info, page dots."""
@@ -378,7 +390,7 @@ def hero(spotlight,title,tab='home',variables=None):
   '<control type="grouplist"><left>0</left><top>%d</top><width>%d</width><height>20</height><orientation>horizontal</orientation><align>center</align><itemgap>0</itemgap>%s</control>'
   '</control>'
   )%(WIDTH,HERO,WIDTH,HERO,WIDTH,HERO,art,WIDTH,HERO,art,
-     gated('Portrait_Hero_%s'%tab,'$INFO[Skin.String(HomeSwitcher.%s.Spotlight.Path)]'%spotlight,load_condition(tab,0),variables),
+     gated('Portrait_Hero_%s'%tab,spotlight_path(spotlight),load_condition(tab,0),variables),
      image(0,0,WIDTH,HERO,MEDIA+'hero_fade.png'),image(0,0,WIDTH,420,MEDIA+'fade_down.png'),
      label(SIDE,40,WIDTH-2*SIDE-270,120,title,'p_large'),
      bell(WIDTH-SIDE-240,46,'<ondown>4000</ondown><onright>9206</onright>')+
@@ -1165,6 +1177,19 @@ def needs_reload(changed,visible=lambda condition:False):
   if visible('Window.IsVisible(%s)'%name):return True
  return False
 
+REFRESH_AFTER=30  # seconds after the portrait service starts: past Home's rows and the Movies/TV prefetch
+def listing_paths(profile,spotlights):
+ """Every list the hubs show (rows and heroes), for listing_refresher."""
+ rows=[w['path'] for _,lists,_,_ in HUBS.values() for w in load_widgets(profile,lists)]
+ return [p for p in list(spotlights)+rows if str(p).startswith(CACHEABLE)]
+
+def listing_refresher(cache,rpc,read,write,paths,wait,delay=REFRESH_AFTER):
+ """Background thread body: after the start has settled, refresh stale cached lists one at a time (one TMDb
+ Helper run at a time, never several at start). Lists not cached yet (rows never visited) are filled too, so the
+ next tab switch and the next launch show them at once."""
+ if wait(delay):return []
+ return cache.refresh(rpc,read,write,paths(),wait,pause=2.0)
+
 def refresh_skin(xbmc,invoke,skin,profile):
  """Bring the portrait folder up to date and reload the skin when a change needs it; returns the changed paths."""
  if missing(skin):
@@ -1248,6 +1273,28 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
   import time as clock
   threading.Thread(target=lambda:genre_photos(rpc,home.setProperty,read,write,clock.time),daemon=True).start()
  menu_ticks.append(genre_photos_tick(xbmc.getCondVisibility,load_genre_photos))
+ try:
+  import importlib.util,threading,xbmcaddon
+  lib=Path(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.kodi.ios.watch').getAddonInfo('path')))/'resources/lib/ios_cache.py'
+  spec=importlib.util.spec_from_file_location('ios_cache',lib);cache=importlib.util.module_from_spec(spec);spec.loader.exec_module(cache)
+  def cache_read(path):
+   f=xbmcvfs.File(path)
+   try:return f.read()
+   finally:f.close()
+  def cache_write(path,text):
+   xbmcvfs.mkdirs(path.rsplit('/',1)[0]);f=xbmcvfs.File(path,'w')
+   try:f.write(text)
+   finally:f.close()
+  def cache_rpc(method,params):
+   return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}))).get('result')
+  spots=lambda:[xbmc.getInfoLabel('Skin.String(HomeSwitcher.%s.Spotlight.Path)'%s) for s in dict.fromkeys(SPOTLIGHT.values())]
+  def refresh_listings():
+   try:
+    done=listing_refresher(cache,cache_rpc,cache_read,cache_write,lambda:listing_paths(profile,spots()),monitor.waitForAbort)
+    xbmc.log('Kodi iOS listing cache: %d lists refreshed'%len(done),xbmc.LOGINFO)
+   except Exception as error:xbmc.log('Kodi iOS listing cache refresh failed: '+type(error).__name__,xbmc.LOGWARNING)
+  threading.Thread(target=refresh_listings,daemon=True).start()
+ except Exception as error:xbmc.log('Kodi iOS listing cache unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  close=None
  try:
   # Native Liquid Glass tab bar (KodiGlassBar.framework), when the IPA carries it.
