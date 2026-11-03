@@ -10,7 +10,6 @@ def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
  if not xbmc.getCondVisibility('System.Platform.IOS'):return
  monitor=xbmc.Monitor()
- if monitor.waitForAbort(2):return
  root=Path(__file__).resolve().parent;profile=Path(xbmcvfs.translatePath('special://profile/')).resolve()
  window=xbmcgui.Window(10000);state={'stage':'prepare'};generated=False
  def stage(value):state['stage']=value
@@ -23,6 +22,8 @@ def run():
  # Not for the gear menu's Recover (recover.py runs this with --recover next to the running service).
  if not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
   portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),kwargs={'ready':setup_done},daemon=True);portrait_thread.start()
+ # Owner build-136 log: the tab bar answered ~8 s after launch, 2 s of it this fixed wait. Only setup waits now.
+ if monitor.waitForAbort(2):return
  def prepare_generated(sync=True):
   nonlocal generated
   stage('skin_preferences')
