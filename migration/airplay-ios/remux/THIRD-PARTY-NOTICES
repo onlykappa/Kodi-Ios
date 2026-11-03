@@ -1,7 +1,7 @@
 THIRD-PARTY NOTICES: Kodi iOS AirPlay remuxer (KodiAirPlay.framework r5 and later)
 
 1. GMPlayer streaming core (gmplayer/: gm_stream, gm_plan, gm_ts, compat)
-   https://github.com/gmorixe/GMPlayer, commit 3da8bda9d557c61837fb2e4c97ed662219283043
+   https://github.com/gastonmorixe/GMPlayer, commit 3da8bda9d557c61837fb2e4c97ed662219283043
    Kodi iOS changes are marked in the code and listed in gmplayer/UPSTREAM-COMMIT. The playlist logic in
    src/kr_hls.c is ported from GMPlayer's GMStreamSession.swift. Licence text in full: gmplayer/LICENSE.
 
@@ -30,10 +30,10 @@ THIRD-PARTY NOTICES: Kodi iOS AirPlay remuxer (KodiAirPlay.framework r5 and late
    REMUX_FFMPEG pointing at your build; all of the framework's other sources are in this repository.
    FFmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg project.
 
-3. PrismCore (https://github.com/zmrhal/PrismCore, LGPL-2.1+ with an App Store exception)
+3. PrismCore (https://github.com/Wenzlik/PrismCore, LGPL-2.1+ with an App Store exception)
    Read for reference only (its audio bridge design). No PrismCore code is copied into this repository, so its
    licence terms do not apply to these files.
 
-4. CastTV: no licence; ideas only, no code copied.
+4. CastTV (https://github.com/abadari3/CastTV): no licence; ideas only, no code copied.
 
 The Kodi iOS sources in src/ and tests/ were written for this project.

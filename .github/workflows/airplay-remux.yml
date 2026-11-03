@@ -1,0 +1,61 @@
+name: AirPlay MKV remuxer
+# Builds and tests the AirPlay remuxer (migration/airplay-ios/remux) and KodiAirPlay.framework r5 with it.
+# Builds only: nothing is published here. The framework release (once per tag, sha256 pinned in
+# migration/airplay-ios/source-lock.json) stays with airplay-ios.yml.
+on:
+  push:
+    branches: [feature/airplay-mkv-remux]
+    paths:
+      - '.github/workflows/airplay-remux.yml'
+      - 'migration/airplay-ios/**'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/airplay-remux.yml'
+      - 'migration/airplay-ios/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  host-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: ffmpeg for the test fixtures (x264, x265, DTS and TrueHD encoders)
+        run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/ff-host
+          key: remux-ffmpeg-host-${{ hashFiles('migration/airplay-ios/build-remux-ffmpeg.sh') }}
+      - name: FFmpeg 8.1.1 (remux-only, LGPL) for the host
+        run: |
+          [ -f "$RUNNER_TEMP/ff-host/lib/libavformat.a" ] || bash migration/airplay-ios/build-remux-ffmpeg.sh host "$RUNNER_TEMP/ff-host"
+      - name: Host tests (fixtures from files and over HTTP with Range)
+        run: bash migration/airplay-ios/remux/tests/run_host_tests.sh "$RUNNER_TEMP/ff-host" "$RUNNER_TEMP/remux-tests"
+  framework:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/ff-ios
+          key: remux-ffmpeg-ios-${{ hashFiles('migration/airplay-ios/build-remux-ffmpeg.sh') }}
+      - name: FFmpeg 8.1.1 (remux-only, LGPL) for iPhoneOS
+        run: |
+          [ -f "$RUNNER_TEMP/ff-ios/lib/libavformat.a" ] || bash migration/airplay-ios/build-remux-ffmpeg.sh ios "$RUNNER_TEMP/ff-ios"
+      - name: Build KodiAirPlay.framework r5 with the remuxer
+        env:
+          REMUX_FFMPEG: ${{ runner.temp }}/ff-ios
+        run: bash migration/airplay-ios/build-airplay.sh "$RUNNER_TEMP/airplay"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: KodiAirPlay-r5-candidate
+          path: |
+            ${{ runner.temp }}/airplay/KodiAirPlay.framework.zip
+            ${{ runner.temp }}/airplay/KodiAirPlay.framework.zip.sha256
