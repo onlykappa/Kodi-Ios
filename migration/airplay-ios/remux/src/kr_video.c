@@ -18,6 +18,18 @@
 #include <libavutil/opt.h>
 #include <libavutil/pixdesc.h>
 #include <libswscale/swscale.h>
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+// r9: on the phone the VideoToolbox-decoded picture stays on the GPU: VTPixelTransferSession scales/converts it (4K
+// P010 -> 1080p NV12) into a pooled CVPixelBuffer that h264_videotoolbox takes as is. The CPU path (download +
+// single-threaded libswscale) cost tens of ms per 4K frame: a 6-s segment took 5-9 s (owner build-138). Host builds
+// keep libswscale (now sliced over all cores).
+#include <CoreVideo/CoreVideo.h>
+#include <VideoToolbox/VideoToolbox.h>
+#define KR_GPU 1
+#endif
 
 struct kr_video {
     gm_source src;
@@ -30,6 +42,11 @@ struct kr_video {
     AVRational fps;           // source frame rate (for the encoder's framerate hint)
     struct SwsContext *sws;
     int sws_w, sws_h, sws_fmt;
+#ifdef KR_GPU
+    VTPixelTransferSessionRef xfer;  // r9: GPU scale/convert (iOS 16+), NULL until the first hardware frame
+    CVPixelBufferPoolRef pool;       // NV12 output buffers at ow x oh
+    int gpu_off;                     // the GPU path failed once: CPU from then on
+#endif
     atomic_int abort;         // sticky: the server is stopping
     atomic_int cancel;        // r8: give up the conversion in progress only (the next one clears it)
 };
@@ -178,6 +195,10 @@ void kr_video_close(kr_video *v) {
     avcodec_free_context(&v->dec);
     av_buffer_unref(&v->hw);
     sws_freeContext(v->sws);
+#ifdef KR_GPU
+    if (v->xfer) { VTPixelTransferSessionInvalidate(v->xfer); CFRelease(v->xfer); }
+    if (v->pool) CVPixelBufferPoolRelease(v->pool);
+#endif
     if (v->in) {
         AVIOContext *io = v->in->pb;
         avformat_close_input(&v->in);
@@ -229,6 +250,7 @@ typedef struct {
     int64_t src_pts[RING];
     int64_t last_pts;         // the latest source pts sent (frames must increase)
     AVFrame *conv;
+    int gpu;                  // r9: the encoder takes VideoToolbox frames scaled on the GPU
 } job;
 
 static int open_encoder(job *j, char *err, int errlen) {
@@ -239,6 +261,8 @@ static int open_encoder(job *j, char *err, int errlen) {
     if (!c) { seterr(err, errlen, "out of memory", 0); return -1; }
     c->width = v->ow; c->height = v->oh;
     c->pix_fmt = AV_PIX_FMT_YUV420P;
+    if (j->gpu) { c->pix_fmt = AV_PIX_FMT_VIDEOTOOLBOX; c->sw_pix_fmt = AV_PIX_FMT_NV12; }
+    else {
     const enum AVPixelFormat *fmts = NULL;
     int nfmts = 0;
     if (avcodec_get_supported_config(NULL, codec, AV_CODEC_CONFIG_PIX_FORMAT, 0, (const void **)&fmts, &nfmts) >= 0 &&
@@ -246,6 +270,7 @@ static int open_encoder(job *j, char *err, int errlen) {
         int nv12 = 0, i420 = 0;
         for (int i = 0; i < nfmts; i++) { nv12 |= fmts[i] == AV_PIX_FMT_NV12; i420 |= fmts[i] == AV_PIX_FMT_YUV420P; }
         c->pix_fmt = nv12 ? AV_PIX_FMT_NV12 : i420 ? AV_PIX_FMT_YUV420P : fmts[0];
+    }
     }
     c->time_base = av_inv_q(v->fps);
     c->framerate = v->fps;
@@ -262,6 +287,7 @@ static int open_encoder(job *j, char *err, int errlen) {
         c->profile = AV_PROFILE_H264_HIGH;
         av_opt_set_int(c->priv_data, "level", av_q2d(v->fps) > 30.5 ? 42 : 40, 0);  // matches kr_video_codecs
         av_opt_set_int(c->priv_data, "realtime", 1, 0);      // speed over size: segments are made while the TV waits
+        av_opt_set_int(c->priv_data, "prio_speed", 1, 0);    // r9: favour encoding speed
         av_opt_set_int(c->priv_data, "allow_sw", 0, 0);      // the hardware encoder only (battery)
     }
     int r = avcodec_open2(c, codec, NULL);
@@ -332,9 +358,19 @@ static int convert(job *j, AVFrame *src, char *err, int errlen) {
     kr_video *v = j->v;
     if (!v->sws || v->sws_w != src->width || v->sws_h != src->height || v->sws_fmt != src->format) {
         sws_freeContext(v->sws);
-        v->sws = sws_getContext(src->width, src->height, src->format, v->ow, v->oh, j->enc->pix_fmt,
-                                SWS_BILINEAR, NULL, NULL, NULL);
+        // r9: sliced over all cores; a large downscale takes the fast bilinear filter.
+        v->sws = sws_alloc_context();
         if (!v->sws) { seterr(err, errlen, "scaler", 0); return -1; }
+        int big = src->width >= 2 * v->ow || src->height >= 2 * v->oh;
+        av_opt_set_int(v->sws, "srcw", src->width, 0); av_opt_set_int(v->sws, "srch", src->height, 0);
+        av_opt_set_int(v->sws, "src_format", src->format, 0);
+        av_opt_set_int(v->sws, "dstw", v->ow, 0); av_opt_set_int(v->sws, "dsth", v->oh, 0);
+        av_opt_set_int(v->sws, "dst_format", j->enc->pix_fmt, 0);
+        av_opt_set_int(v->sws, "sws_flags", big ? SWS_FAST_BILINEAR : SWS_BILINEAR, 0);
+        av_opt_set_int(v->sws, "threads", 0, 0);
+        if (sws_init_context(v->sws, NULL, NULL) < 0) {
+            sws_freeContext(v->sws); v->sws = NULL; seterr(err, errlen, "scaler", 0); return -1;
+        }
         int in_cs = src->colorspace == AVCOL_SPC_BT2020_NCL || src->colorspace == AVCOL_SPC_BT2020_CL ? SWS_CS_BT2020
                   : src->colorspace == AVCOL_SPC_BT470BG || src->colorspace == AVCOL_SPC_SMPTE170M ? SWS_CS_ITU601
                   : src->colorspace == AVCOL_SPC_BT709 ? SWS_CS_ITU709
@@ -355,9 +391,72 @@ static int convert(job *j, AVFrame *src, char *err, int errlen) {
     return 0;
 }
 
+#ifdef KR_GPU
+static void release_pb(void *opaque, uint8_t *data) { (void)opaque; CVPixelBufferRelease((CVPixelBufferRef)data); }
+
+// r9: the decoded CVPixelBuffer scaled and converted on the GPU into a pooled NV12 buffer, wrapped as a VideoToolbox
+// AVFrame for the encoder. 0 = done (*out set), -1 = not possible (the caller takes the CPU path).
+static int gpu_scale(kr_video *v, AVFrame *fr, AVFrame **out) {
+    *out = NULL;
+    if (v->gpu_off || fr->format != AV_PIX_FMT_VIDEOTOOLBOX || !fr->data[3]) return -1;
+    if (__builtin_available(iOS 16.0, *)) {
+        if (!v->xfer) {
+            if (VTPixelTransferSessionCreate(kCFAllocatorDefault, &v->xfer) != noErr) { v->xfer = NULL; v->gpu_off = 1; return -1; }
+            VTSessionSetProperty(v->xfer, kVTPixelTransferPropertyKey_ScalingMode, kVTScalingMode_Normal);
+            VTSessionSetProperty(v->xfer, kVTPixelTransferPropertyKey_DestinationColorPrimaries, kCVImageBufferColorPrimaries_ITU_R_709_2);
+            VTSessionSetProperty(v->xfer, kVTPixelTransferPropertyKey_DestinationTransferFunction, kCVImageBufferTransferFunction_ITU_R_709_2);
+            VTSessionSetProperty(v->xfer, kVTPixelTransferPropertyKey_DestinationYCbCrMatrix, kCVImageBufferYCbCrMatrix_ITU_R_709_2);
+        }
+        if (!v->pool) {
+            int32_t w = v->ow, h = v->oh, f = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
+            CFNumberRef nw = CFNumberCreate(NULL, kCFNumberSInt32Type, &w), nh = CFNumberCreate(NULL, kCFNumberSInt32Type, &h),
+                        nf = CFNumberCreate(NULL, kCFNumberSInt32Type, &f);
+            CFDictionaryRef ios = CFDictionaryCreate(NULL, NULL, NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+            const void *k[] = { kCVPixelBufferWidthKey, kCVPixelBufferHeightKey, kCVPixelBufferPixelFormatTypeKey, kCVPixelBufferIOSurfacePropertiesKey };
+            const void *val[] = { nw, nh, nf, ios };
+            CFDictionaryRef attrs = CFDictionaryCreate(NULL, k, val, 4, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+            CVReturn cr = CVPixelBufferPoolCreate(NULL, NULL, attrs, &v->pool);
+            CFRelease(attrs); CFRelease(ios); CFRelease(nw); CFRelease(nh); CFRelease(nf);
+            if (cr != kCVReturnSuccess) { v->pool = NULL; v->gpu_off = 1; return -1; }
+        }
+        CVPixelBufferRef dst = NULL;
+        if (CVPixelBufferPoolCreatePixelBuffer(NULL, v->pool, &dst) != kCVReturnSuccess || !dst) { v->gpu_off = 1; return -1; }
+        if (VTPixelTransferSessionTransferImage(v->xfer, (CVPixelBufferRef)fr->data[3], dst) != noErr) {
+            CVPixelBufferRelease(dst); v->gpu_off = 1; return -1;
+        }
+        AVFrame *f = av_frame_alloc();
+        AVBufferRef *b = f ? av_buffer_create((uint8_t *)dst, 1, release_pb, NULL, AV_BUFFER_FLAG_READONLY) : NULL;
+        if (!b) { av_frame_free(&f); CVPixelBufferRelease(dst); return -1; }
+        f->buf[0] = b; f->data[3] = (uint8_t *)dst;
+        f->format = AV_PIX_FMT_VIDEOTOOLBOX; f->width = v->ow; f->height = v->oh;
+        f->color_range = AVCOL_RANGE_MPEG; f->colorspace = AVCOL_SPC_BT709;
+        f->color_primaries = AVCOL_PRI_BT709; f->color_trc = AVCOL_TRC_BT709;
+        *out = f;
+        return 0;
+    }
+    v->gpu_off = 1;
+    return -1;
+}
+#endif
+
 static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen) {
     AVFrame *sw = fr;
     AVFrame *tmp = NULL;
+    int r;
+#ifdef KR_GPU
+    if (!j->enc) j->gpu = fr->format == AV_PIX_FMT_VIDEOTOOLBOX && !j->v->gpu_off;
+    if (j->gpu) {
+        AVFrame *g = NULL;
+        if (gpu_scale(j->v, fr, &g) == 0) {
+            if (!j->enc && open_encoder(j, err, errlen) < 0) { av_frame_free(&g); return -1; }
+            j->conv = g;
+            goto send;
+        }
+        // Mid-segment the encoder already takes GPU frames: this segment fails, the next one takes the CPU path.
+        if (j->enc) { seterr(err, errlen, "GPU scaling", 0); return -1; }
+        j->gpu = 0;
+    }
+#endif
     if (fr->format == AV_PIX_FMT_VIDEOTOOLBOX) {  // a hardware frame: copy it down (NV12 or P010)
         tmp = av_frame_alloc();
         if (!tmp || av_hwframe_transfer_data(tmp, fr, 0) < 0) { av_frame_free(&tmp); seterr(err, errlen, "hardware frame", 0); return -1; }
@@ -365,9 +464,12 @@ static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen)
         sw = tmp;
     }
     if (!j->enc && open_encoder(j, err, errlen) < 0) { av_frame_free(&tmp); return -1; }
-    int r = convert(j, sw, err, errlen);
+    r = convert(j, sw, err, errlen);
     av_frame_free(&tmp);
     if (r < 0) return -1;
+#ifdef KR_GPU
+send:
+#endif
     j->src_pts[j->sent % RING] = pts;
     j->conv->pts = j->sent;
     j->last_pts = pts;
