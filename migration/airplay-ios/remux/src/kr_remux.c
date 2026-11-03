@@ -7,6 +7,9 @@
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <ifaddrs.h>
+#include <net/if.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdatomic.h>
@@ -44,7 +47,8 @@ static struct {
     int listen_fd, port;
     pthread_t accept_thread;
     atomic_int stopping, active;
-    char base[64];
+    char base[128];
+    char token[40];
 } S = { .lock = PTHREAD_MUTEX_INITIALIZER, .gm_lock = PTHREAD_MUTEX_INITIALIZER, .listen_fd = -1 };
 
 static void set_message(const char *m) { snprintf(S.message, sizeof S.message, "%s", m ? m : ""); }
@@ -192,6 +196,28 @@ static void serve(int fd, const char *method, const char *path, const char *rang
     free(buf.data);
 }
 
+// The phone's Wi-Fi IPv4 address (en0 on iOS; the first up, non-loopback IPv4 elsewhere).
+static int lan_address(char *out, size_t len) {
+    struct ifaddrs *list = NULL, *best = NULL;
+    if (getifaddrs(&list) != 0) return -1;
+    for (struct ifaddrs *i = list; i; i = i->ifa_next) {
+        if (!i->ifa_addr || i->ifa_addr->sa_family != AF_INET || !(i->ifa_flags & IFF_UP) || (i->ifa_flags & IFF_LOOPBACK)) continue;
+        if (!strcmp(i->ifa_name, "en0")) { best = i; break; }
+        if (!best) best = i;
+    }
+    int r = -1;
+    if (best && inet_ntop(AF_INET, &((struct sockaddr_in *)best->ifa_addr)->sin_addr, out, (socklen_t)len)) r = 0;
+    freeifaddrs(list);
+    return r;
+}
+
+static void random_token(char *out, size_t len) {
+    unsigned char b[16] = {0};
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd >= 0) { if (read(fd, b, sizeof b) != (ssize_t)sizeof b) memset(b, 0, sizeof b); close(fd); }
+    for (size_t i = 0; i < sizeof b && 2 * i + 2 < len; i++) snprintf(out + 2 * i, 3, "%02x", b[i]);
+}
+
 static void *connection(void *arg) {
     int fd = (int)(intptr_t)arg;
     char req[8192]; size_t got = 0;
@@ -210,7 +236,9 @@ static void *connection(void *arg) {
             if (!strncasecmp(h, "Range:", 6)) { sscanf(h + 6, " %127[^\r\n]", range); break; }
         }
         char *q = strchr(path, '?'); if (q) *q = 0;
-        serve(fd, method, path, *range ? range : NULL);
+        size_t tl = strlen(S.token);
+        if (path[0] == '/' && !strncmp(path + 1, S.token, tl) && path[1 + tl] == '/') serve(fd, method, path + 1 + tl, *range ? range : NULL);
+        else fail(fd, 404, "Not Found");
     } else fail(fd, 405, "Method Not Allowed");
     close(fd);
     atomic_fetch_sub(&S.active, 1);
@@ -239,13 +267,13 @@ static void *accept_loop(void *unused) {
 }
 
 // Binds 127.0.0.1 on a port the system picks; tries again a few times if that fails.
-static int listen_loopback(int *port) {
+static int listen_on(int lan, int *port) {
     for (int attempt = 0; attempt < 5; attempt++) {
         int fd = socket(AF_INET, SOCK_STREAM, 0);
         if (fd < 0) continue;
         int one = 1; setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
         struct sockaddr_in a = { 0 };
-        a.sin_family = AF_INET; a.sin_addr.s_addr = htonl(INADDR_LOOPBACK); a.sin_port = 0;
+        a.sin_family = AF_INET; a.sin_addr.s_addr = htonl(lan ? INADDR_ANY : INADDR_LOOPBACK); a.sin_port = 0;
         socklen_t len = sizeof a;
         if (bind(fd, (struct sockaddr *)&a, sizeof a) == 0 && listen(fd, 32) == 0 &&
             getsockname(fd, (struct sockaddr *)&a, &len) == 0) { *port = ntohs(a.sin_port); return fd; }
@@ -284,7 +312,7 @@ static int is_direct_format(const char *name) {
     return name && (strstr(name, "mp4") || strstr(name, "mov") || !strcmp(name, "hls"));
 }
 
-int kr_remux_start(const char *url, char *out, int outlen) {
+int kr_remux_start(const char *url, int lan, char *out, int outlen) {
     pthread_mutex_lock(&S.lock);
     teardown_locked();
     atomic_store(&S.stopping, 0);
@@ -327,9 +355,15 @@ int kr_remux_start(const char *url, char *out, int outlen) {
         set_message("AirPlay: this file's audio format cannot be converted, so it would play silent. Use Play on TV instead.");
         goto done;
     }
-    S.listen_fd = listen_loopback(&S.port);
+    char host[64] = "127.0.0.1";
+    if (lan && lan_address(host, sizeof host) != 0) {
+        set_message("AirPlay needs Wi-Fi: the TV fetches the video from the phone over the local network.");
+        goto done;
+    }
+    S.listen_fd = listen_on(lan, &S.port);
     if (S.listen_fd < 0) { set_message("AirPlay: could not start the local streaming server."); goto done; }
-    snprintf(S.base, sizeof S.base, "http://127.0.0.1:%d", S.port);
+    random_token(S.token, sizeof S.token);
+    snprintf(S.base, sizeof S.base, "http://%s:%d/%s", host, S.port, S.token);
     if (pthread_create(&S.accept_thread, NULL, accept_loop, NULL) != 0) {
         close(S.listen_fd); S.listen_fd = -1;
         set_message("AirPlay: could not start the local streaming server."); goto done;

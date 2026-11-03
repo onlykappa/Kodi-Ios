@@ -21,7 +21,15 @@ static int failures, checks;
 
 typedef struct { int status; char *body; size_t len; char head[1024]; } reply;
 
+static char prefix_path[96];
+static reply http_get_raw(int port, const char *path, const char *range);
 static reply http_get(int port, const char *path, const char *range) {
+    char full[512];
+    if (!strncmp(path, "http", 4)) { const char *p = strchr(strstr(path, "://") + 3, '/'); return http_get_raw(port, p, range); }
+    snprintf(full, sizeof full, "%s%s", prefix_path, path);
+    return http_get_raw(port, full, range);
+}
+static reply http_get_raw(int port, const char *path, const char *range) {
     reply r = {0};
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in a = {0}; a.sin_family = AF_INET; a.sin_port = htons((uint16_t)port); a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
@@ -125,16 +133,18 @@ static void test_kind(void) {
     CHECK(!strcmp(kr_language("eng"), "en") && !strcmp(kr_language("und"), "") && !strcmp(kr_language("xyz"), "xyz"), "languages");
 }
 
-typedef struct { const char *file; const char *video; const char *audio_tokens; int audio_tracks, subs, hdr, bridged; const char *sub_text; double offset; } fixture;
+typedef struct { const char *file; const char *video; const char *audio_tokens; int audio_tracks, subs, hdr, bridged; const char *sub_text; double offset; int lan; } fixture;
 
 static void test_file(const char *url, const fixture *fx, const char *work) {
     start_offset = fx->offset;
     char m3u8[256];
-    int st = kr_remux_start(url, m3u8, sizeof m3u8);
+    int st = kr_remux_start(url, fx->lan, m3u8, sizeof m3u8);
+    snprintf(prefix_path, sizeof prefix_path, "%s", strstr(m3u8, "://") ? strchr(strstr(m3u8, "://") + 3, '/') : "");
+    char *cut = strstr(prefix_path, "/master.m3u8"); if (cut) *cut = 0;
     CHECK(st == KR_READY, "%s: start %d (%s)", fx->file, st, kr_remux_message());
     if (st != KR_READY) return;
     int port = kr_remux_port();
-    CHECK(port > 0 && strstr(m3u8, "/master.m3u8") && strstr(m3u8, "http://127.0.0.1:"), "playlist url %s", m3u8);
+    CHECK(port > 0 && strstr(m3u8, "/master.m3u8") && (fx->lan || strstr(m3u8, "http://127.0.0.1:")), "playlist url %s", m3u8);
     reply master = http_get(port, "/master.m3u8", NULL);
     CHECK(master.status == 200 && strstr(master.head, "application/vnd.apple.mpegurl"), "master status");
     const char *pl = master.body ? master.body : "";
@@ -198,13 +208,20 @@ static void test_file(const char *url, const fixture *fx, const char *work) {
     }
     reply missing = http_get(port, "/nothing", NULL);
     CHECK(missing.status == 404, "404 for unknown paths");
+    reply notoken = http_get_raw(port, "/master.m3u8", NULL);
+    CHECK(notoken.status == 404, "404 without the session token");
+    reply badtoken = http_get_raw(port, "/0000/master.m3u8", NULL);
+    CHECK(badtoken.status == 404, "404 with a wrong token");
+    CHECK(strlen(prefix_path) == 33, "token of 32 hex digits (%s)", prefix_path);
+    if (fx->lan) CHECK(!strstr(m3u8, "127.0.0.1") && !strstr(pl, "127.0.0.1"), "AirPlay playlists use the network address: %s", m3u8);
+    free(notoken.body); free(badtoken.body);
     reply bad = http_get(port, "/video/seg9999.m4s", NULL);
     CHECK(bad.status == 500 && *kr_remux_message(), "a failed segment is reported (%s)", kr_remux_message());
     free(missing.body); free(bad.body); free(master.body); free(video.body);
 
     kr_remux_stop();
     CHECK(kr_remux_state() == KR_IDLE && kr_remux_port() == 0, "stopped");
-    reply gone = http_get(port, "/master.m3u8", NULL);
+    reply gone = http_get_raw(port, "/master.m3u8", NULL);
     CHECK(gone.status == -1, "%s: the server is gone after stop", fx->file);
 }
 
@@ -236,9 +253,9 @@ static void test_range_source(const char *http_base) {
     kr_source_close(s);
     char m3u8[256];
     snprintf(url, sizeof url, "%s/h264_aac.mp4", http_base);
-    CHECK(kr_remux_start(url, m3u8, sizeof m3u8) == KR_NOT_NEEDED, "MP4 bytes go direct (%s)", kr_remux_message());
+    CHECK(kr_remux_start(url, 0, m3u8, sizeof m3u8) == KR_NOT_NEEDED, "MP4 bytes go direct (%s)", kr_remux_message());
     snprintf(url, sizeof url, "%s/missing.mkv", http_base);
-    CHECK(kr_remux_start(url, m3u8, sizeof m3u8) == KR_FAILED && strstr(kr_remux_message(), "AirPlay"), "a missing file explains itself: %s", kr_remux_message());
+    CHECK(kr_remux_start(url, 0, m3u8, sizeof m3u8) == KR_FAILED && strstr(kr_remux_message(), "AirPlay"), "a missing file explains itself: %s", kr_remux_message());
     kr_remux_stop();
 }
 
@@ -256,6 +273,7 @@ int main(int argc, char **argv) {
         { "h264_dts.mkv", "avc1.", "mp4a.40.2", 1, 0, 0, 1, NULL },
         { "h264_truehd.mkv", "avc1.", "mp4a.40.2", 1, 0, 0, 1, NULL },
         { "h264_ac3_dts_srt.mkv", "avc1.", "ac-3,mp4a.40.2", 2, 1, 0, 1, "Hello from SRT" },
+        { "h264_ac3_dts_srt.mkv", "avc1.", "ac-3,mp4a.40.2", 2, 1, 0, 1, "Hello from SRT", 0, 1 },  // AirPlay (LAN) mode
         { "h264_ac3.ts", "avc1.", "ac-3", 1, 0, 0, 0, NULL, 1.4 },  // MPEG-TS starts at 1.4 s: kept (absolute tfdt)
     };
     for (size_t i = 0; i < sizeof fx / sizeof *fx; i++) {
