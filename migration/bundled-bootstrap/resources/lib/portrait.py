@@ -314,14 +314,30 @@ def card_item(focused,progress=False):
   label(26,h+18,w-52,44,sub,'p_cap',GREY,'left','<font>p_foot_b</font>')+
   label(26,h+62,w-52,60,'$INFO[ListItem.Label]','p_h3')+'</control>')
 
-def load_condition(tab,index):
- """Every hub row loads at once (the preloader); kept as a hook so a row could be held back later."""
- return ''
+# Listing cache (build-137): a TMDb Helper row or hero shows its last result, kept by the bootstrap service, through
+# the watch plugin's cached route (resources/lib/ios_cache.py there), which only reads a file. Which one a row uses
+# is a skin variable decided by saved skin settings the moment Home opens: the cached route while the row's flag is
+# on (set by the service only after the copy was written and read back), otherwise the real TMDb Helper path. The
+# names, keys and route must match ios_cache.py (scripts/test_listing_cache.py checks them).
+CACHE_ROUTE='plugin://plugin.video.kodi.ios.watch/?action=cached&key='
+CACHE_FLAG='PortraitCache.'
+CACHEABLE=(TMDB,)
+WATCH_ON='System.AddonIsEnabled(plugin.video.kodi.ios.watch)'
+def cache_key(path):return 'r'+hashlib.sha1(str(path).encode('utf-8')).hexdigest()[:15]
+def spotlight_path(spotlight):return 'Skin.String(HomeSwitcher.%s.Spotlight.Path)'%spotlight
 
-def gated(name,path,condition,variables):
- """A container path that stays empty (nothing loads) until condition holds: a skin variable in Includes.xml."""
- if not condition or variables is None:return e(path)
- variables[name]='<variable name="%s"><value condition="%s">%s</value></variable>'%(name,e(condition),e(path))
+def cached_content(name,path,variables,spotlight=None):
+ """Container content for a hub row (path) or hero (spotlight id): a variable in Includes.xml choosing the cached
+ route when its flag is on, else the live path. Other rows (Continue Watching, library) keep their path as is."""
+ if variables is None or (spotlight is None and not str(path).startswith(CACHEABLE)):return e(path)
+ if spotlight is None:
+  key=cache_key(path);on='Skin.HasSetting(%s%s)'%(CACHE_FLAG,key)
+ else:
+  # The flag holds the path the copy was made from: a spotlight changed in the skin settings goes live at once.
+  key='hero.'+str(spotlight).lower();flag='Skin.String(%s%s)'%(CACHE_FLAG,key)
+  on='!String.IsEmpty(%s) + String.IsEqual(%s,%s)'%(flag,flag,spotlight_path(spotlight))
+ variables[name]='<variable name="%s"><value condition="%s + %s">%s</value><value>%s</value></variable>'%(
+  name,e(on),WATCH_ON,e(CACHE_ROUTE+key),e(path))
  return '$VAR[%s]'%name
 
 def row(index,widget,last,tab='home',variables=None):
@@ -337,7 +353,7 @@ def row(index,widget,last,tab='home',variables=None):
    '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
    '<content target="%s">%s</content></control>'
    )%(id,WIDTH,h,'<ondown>9201</ondown>' if last else '',visible,w+GAP,h,item(False),w+GAP,h,item(True),
-      e(widget.get('target') or 'videos'),gated('Portrait_Row_%s_%d'%(tab,index),widget['path'],load_condition(tab,index),variables)))
+      e(widget.get('target') or 'videos'),cached_content('Portrait_Cache_Row_%s_%d'%(tab,index),widget['path'],variables)))
 
 def hero(spotlight,title,tab='home',variables=None):
  """Full-bleed hero: the hub's spotlight titles (swipe sideways), logo, genre line, Play and Info, page dots."""
@@ -362,7 +378,7 @@ def hero(spotlight,title,tab='home',variables=None):
   '<control type="grouplist"><left>0</left><top>%d</top><width>%d</width><height>20</height><orientation>horizontal</orientation><align>center</align><itemgap>0</itemgap>%s</control>'
   '</control>'
   )%(WIDTH,HERO,WIDTH,HERO,WIDTH,HERO,art,WIDTH,HERO,art,
-     gated('Portrait_Hero_%s'%tab,'$INFO[Skin.String(HomeSwitcher.%s.Spotlight.Path)]'%spotlight,load_condition(tab,0),variables),
+     cached_content('Portrait_Cache_Hero_%s'%tab,'$INFO[%s]'%spotlight_path(spotlight),variables,spotlight),
      image(0,0,WIDTH,HERO,MEDIA+'hero_fade.png'),image(0,0,WIDTH,420,MEDIA+'fade_down.png'),
      label(SIDE,40,WIDTH-2*SIDE-270,120,title,'p_large'),
      bell(WIDTH-SIDE-240,46,'<ondown>4000</ondown><onright>9206</onright>')+
@@ -1143,6 +1159,37 @@ def needs_reload(changed,visible=lambda condition:False):
   if visible('Window.IsVisible(%s)'%name):return True
  return False
 
+REFRESH_AFTER=20    # seconds after the service starts before the first TMDb Helper run of the cache (past the start)
+REFRESH_EVERY=600   # then a look for copies past ios_cache.MAX_AGE every ten minutes
+def cache_lists(profile,spotlight):
+ """({spotlight id: path}, [row paths]) the three hubs show, Home first (as hub_files and hub_body build them)."""
+ spots={};rows=[]
+ for name,(title,lists,tab,resume) in sorted(HUBS.items(),key=lambda h:HUB_TABS.index(h[1][2])):
+  spots[SPOTLIGHT[name]]=spotlight(SPOTLIGHT[name])
+  rows+=[w['path'] for w in load_widgets(profile,lists) if not in_progress(w)]
+ return spots,rows
+
+def listing_cache(cache,store,flags,lists,fetch,wait,busy,log,clock=None):
+ """Background thread (run_service). At once: flags whose copy is gone go off, so those rows load TMDb Helper again.
+ After REFRESH_AFTER: missing and stale copies are made one at a time (Files.GetDirectory from this service, never
+ from the plugin), each row's flag going on once its copy reads back; never during video or outside Fuse."""
+ import time
+ clock=clock or time.time
+ def pace(seconds):
+  if wait(seconds):return True
+  while busy():
+   if wait(30):return True
+  return False
+ on,cleared=cache.check(lists(),store,flags,clock)
+ log('%d rows and heroes served from copies, %d flags turned off (copy missing or unusable)'%(on,cleared))
+ if pace(REFRESH_AFTER):return
+ while True:
+  current=lists()
+  done,failed=cache.refresh(current,store,flags,fetch,pace,clock)
+  cache.prune(store,current,clock)
+  if done or failed:log('%d copies made or refreshed, %d failed%s'%(len(done),len(failed),(' ('+'; '.join(failed[:3])+')') if failed else ''))
+  if pace(REFRESH_EVERY):return
+
 def refresh_skin(xbmc,invoke,skin,profile):
  """Bring the portrait folder up to date and reload the skin when a change needs it; returns the changed paths."""
  if missing(skin):
@@ -1202,6 +1249,23 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
    finally:f.close()
   tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic)
  except Exception as error:xbmc.log('Kodi iOS continue watching unavailable: '+type(error).__name__,xbmc.LOGWARNING)
+ # Listing cache: check the row flags against the copies now, then fill and refresh copies in the background.
+ try:
+  import importlib.util,threading,xbmcaddon
+  lib=Path(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.kodi.ios.watch').getAddonInfo('path')))/'resources/lib/ios_cache.py'
+  spec=importlib.util.spec_from_file_location('ios_cache',lib);cache=importlib.util.module_from_spec(spec);spec.loader.exec_module(cache)
+  def fetch(url):
+   answer=json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Files.GetDirectory',
+                     'params':{'directory':url,'media':'video','properties':cache.PROPERTIES}})))
+   if 'error' in answer:raise RuntimeError(str(answer['error'].get('message') or answer['error'])[:120])
+   return answer.get('result')
+  threading.Thread(target=listing_cache,daemon=True,kwargs=dict(
+   cache=cache,store=cache.Store(xbmcvfs.translatePath(cache.FOLDER)),
+   flags=cache.Flags(xbmc.getCondVisibility,xbmc.getInfoLabel,xbmc.executebuiltin),
+   lists=lambda:cache.targets(*cache_lists(profile,lambda s:xbmc.getInfoLabel(spotlight_path(s)))),fetch=fetch,
+   wait=monitor.waitForAbort,busy=lambda:xbmc.getSkinDir()!=fuse or xbmc.getCondVisibility('Player.HasVideo'),
+   log=lambda text:xbmc.log('Kodi iOS listing cache: '+text,xbmc.LOGINFO))).start()
+ except Exception as error:xbmc.log('Kodi iOS listing cache unavailable: %s'%error,xbmc.LOGWARNING)
  import xbmcgui
  home=xbmcgui.Window(10000)
  publish=focused_item_publisher(xbmc.getInfoLabel,xbmc.getCondVisibility,lambda k,v:home.setProperty('Portrait.Item.'+k,v))
