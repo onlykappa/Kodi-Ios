@@ -103,8 +103,9 @@ class AirPlayLog(unittest.TestCase):
                  "can't play HEVC",'kr_remux_served(1) == video0','presentationSize'):
    self.assertIn(needle,build)
   lock=__import__('json').loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())
-  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r7')
-  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r6')
+  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r8')
+  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r7')
+  self.assertEqual(lock['previous']['sha256'],'021887359b0dce707d548c6af7eb6c6a73bcf6ff84410965a93aa4b4bbf810d9')
 
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):
@@ -129,5 +130,31 @@ class PictureBridge(unittest.TestCase):
   self.assertIn('kr_video_abort(S.video)',(src/'kr_remux.c').read_text())
   self.assertIn('libswscale.a',(src.parent/'tests/run_host_tests.sh').read_text())
   self.assertIn('AetherEngine',(src.parent/'THIRD-PARTY-NOTICES').read_text())
+
+class PerReceiver(unittest.TestCase):
+ """r8 (owner build-136): a TCL Roku TV read the HEVC master and init, hung up on the segments and AirPlay went off
+ within ~10 s, before r7's 30 s sound-only check."""
+ def test_remuxer_tells_receivers_apart(self):
+  src=ROOT/'migration/airplay-ios/remux/src'
+  header=(src/'kr_remux.h').read_text();code=(src/'kr_remux.c').read_text()
+  for needle in ('int kr_remux_third_party_receiver(const char *ua);','int kr_remux_compat_clients(void);',
+                 'int kr_remux_served_external(int video);','int kr_remux_prefetched(void);'):
+   self.assertIn(needle,header)
+  for needle in ('mfi_airplay_device','kr_hls_master_at(S.gm, S.base, 1, "cvideo")','prefetch_after(rend','cache_take(',
+                 'audio_demuxer()','kr_video_cancel(S.video)','prefetch_stop();'):
+   self.assertIn(needle,code)
+  tests=(src.parent/'tests/test_remux.c').read_text()
+  for needle in ('MFi_AirPlay_Device','AppleCoreMedia/1.0.0.24A446 (iPhone','(Apple TV;','test_receivers(','test_latency(','/slow/'):
+   self.assertIn(needle,tests)
+  self.assertIn("startswith('/slow/')",(src.parent/'tests/range_server.py').read_text())
+ def test_framework_falls_back_and_follows_the_screen(self):
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  for needle in ('kr_remux_served_external(1) == 0','lasted <= 20','restartCompat(hevc)','kr_remux_compat_clients()',
+                 'UIInterfaceOrientationMaskAllButUpsideDown','viewWillTransitionToSize:','setNeedsUpdateOfSupportedInterfaceOrientations',
+                 'healKodi();','third_party_receiver|served_external|compat_clients'):
+   self.assertIn(needle,build)
+  self.assertNotIn('holder.mask',build)
+  self.assertIn('r8:',build.split('set -euo pipefail')[0])
+  self.assertEqual(build.count('kr_remux_start(source, 1, 1,'),1)  # one restart path for both triggers
 
 if __name__=='__main__':unittest.main()
