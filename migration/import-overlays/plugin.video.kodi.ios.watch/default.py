@@ -7,9 +7,16 @@ from ios_watch_routes import choices
 def run(argv):
  if argv[2].startswith('?action=cached&key='):
   # Hub rows and heroes from their last TMDb Helper result (ios_cache.py): read a file and list it, nothing else.
-  import xbmc,xbmcgui,xbmcplugin,xbmcvfs,ios_cache
-  folder=xbmcvfs.translatePath(ios_cache.FOLDER)
-  ios_cache.serve(int(argv[1]),argv[2].split('&key=',1)[1],xbmc,xbmcgui,xbmcplugin,ios_cache.Store(folder).read);return
+  import xbmc,xbmcgui,xbmcplugin,xbmcvfs
+  key=argv[2].split('&key=',1)[1]
+  try:
+   import ios_cache
+   ios_cache.serve(int(argv[1]),key,xbmc,xbmcgui,xbmcplugin,ios_cache.Store(xbmcvfs.translatePath(ios_cache.FOLDER)).read)
+  except Exception:
+   # Whatever failed, the row must not stay empty: its flag goes off and Kodi loads the TMDb Helper path.
+   if key.replace('.','').isalnum():xbmc.executebuiltin('Skin.Reset(PortraitCache.%s)'%key)
+   xbmcplugin.endOfDirectory(int(argv[1]),succeeded=False)
+  return
  import xbmc,xbmcaddon,xbmcgui,xbmcplugin
  handle=int(argv[1]);params={k:v[0] for k,v in parse_qs(argv[2].lstrip('?')).items()}
  if params.get('action')=='library':

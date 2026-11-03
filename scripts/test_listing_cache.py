@@ -3,7 +3,7 @@
 The watch plugin's cached route only reads a copy (no JSON-RPC, no TMDb Helper); the skin picks cached or live per row
 from saved skin flags; the bootstrap service makes copies one at a time and sets a flag only after the copy reads back.
 """
-import importlib.util,json,os,sys,tempfile,unittest,xml.etree.ElementTree as ET
+import importlib.util,json,os,sys,tempfile,time,unittest,xml.etree.ElementTree as ET
 from pathlib import Path
 from types import SimpleNamespace
 ROOT=Path(__file__).resolve().parents[1]
@@ -130,6 +130,28 @@ class RouteTests(Base):
   default=(WATCH/'default.py').read_text();body=default[default.index('def run('):]
   block=body[:body.index('import xbmc,xbmcaddon')]
   self.assertIn("action=cached&key=",block);self.assertIn('ios_cache.serve(',block);self.assertNotIn('JSONRPC',block)
+ def run_plugin(self,key,broken=False):
+  """The plugin's real entry point (default.py) with stand-in Kodi modules."""
+  kodi=FakeKodi();ends=[];added=[]
+  fakes={'xbmc':kodi,'xbmcgui':SimpleNamespace(ListItem=FakeItem),'xbmcvfs':SimpleNamespace(translatePath=lambda p:self.store.folder),
+         'xbmcplugin':SimpleNamespace(addDirectoryItems=lambda h,i,n:added.extend(i),setContent=lambda h,c:None,
+                                      endOfDirectory=lambda h,succeeded=True,cacheToDisc=True:ends.append(succeeded))}
+  saved={k:sys.modules.get(k) for k in list(fakes)+['ios_cache']}
+  sys.modules.update(fakes)
+  sys.modules['ios_cache']=SimpleNamespace(FOLDER='x',Store=cache.Store,serve=None) if broken else cache
+  try:
+   spec=importlib.util.spec_from_file_location('watch_default',WATCH/'default.py');mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
+   mod.run(['plugin://plugin.video.kodi.ios.watch/','7','?action=cached&key='+key,'resume:false'])
+  finally:
+   for k,v in saved.items():
+    if v is None:sys.modules.pop(k,None)
+    else:sys.modules[k]=v
+  return added,ends,kodi.builtins
+ def test_plugin_entry_point_serves_and_never_leaves_a_row_stuck(self):
+  key=cache.row_key(TRENDING);self.store.write(key,TRENDING,cache.from_rpc(ANSWER),time.time())
+  added,ends,builtins=self.run_plugin(key);self.assertEqual((len(added),ends,builtins),(2,[True],[]))
+  added,ends,builtins=self.run_plugin(key,broken=True)   # any failure in the route: flag off, directory ended
+  self.assertEqual((added,ends,builtins),([],[False],['Skin.Reset(PortraitCache.%s)'%key]))
 
 class FlagTests(Base):
  def test_row_and_hero_flags(self):

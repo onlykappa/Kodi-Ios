@@ -83,23 +83,25 @@ def content(items):
 def serve(handle,key,xbmc,xbmcgui,xbmcplugin,read,now=time.time):
  """List the copy for key; with no usable copy, list nothing and turn the row's flag off (the skin then loads the
  real TMDb Helper path). Never runs TMDb Helper or JSON-RPC, so it cannot hang a row."""
- entry=None
+ items=[];kind=''
  try:
-  if valid_key(key):
-   entry=parse(read(key),key,now())
-   if entry and key.startswith('hero.') and xbmc.getInfoLabel(hero_skin_path(key))!=entry['url']:entry=None
- except Exception:entry=None
- if entry is None:
+  entry=parse(read(key),key,now()) if valid_key(key) else None
+  if entry and key.startswith('hero.') and xbmc.getInfoLabel(hero_skin_path(key))!=entry['url']:entry=None
+  for item in (entry or {}).get('items') or []:
+   try:items.append((item['path'],list_item(xbmcgui,item),bool(item.get('folder'))))
+   except Exception:continue
+  kind=content(entry['items']) if entry else ''
+ except Exception:items=[]
+ if not items:
+  # No usable copy: the flag goes off and Kodi loads this row's TMDb Helper path instead.
   if valid_key(key):xbmc.executebuiltin(flag_off(key))
   xbmc.log('Kodi iOS listing cache: no copy for %s; the row goes back to its TMDb Helper list'%str(key)[:40],xbmc.LOGWARNING)
-  xbmcplugin.endOfDirectory(handle,succeeded=True,cacheToDisc=False);return 0
- items=[]
- for item in entry['items']:
-  try:items.append((item['path'],list_item(xbmcgui,item),bool(item.get('folder'))))
-  except Exception:continue
- xbmcplugin.addDirectoryItems(handle,items,len(items))
- kind=content(entry['items'])
- if kind:xbmcplugin.setContent(handle,kind)
+ else:
+  try:
+   xbmcplugin.addDirectoryItems(handle,items,len(items))
+   if kind:xbmcplugin.setContent(handle,kind)
+  except Exception:
+   xbmc.executebuiltin(flag_off(key));items=[]
  xbmcplugin.endOfDirectory(handle,succeeded=True,cacheToDisc=False)
  return len(items)
 
