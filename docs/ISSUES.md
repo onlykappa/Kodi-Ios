@@ -602,3 +602,10 @@ Status: BUILT ON HOST; device test pending. Branch feature/airplay-mkv-remux (no
 - Host tests (migration/airplay-ios/remux/tests, CI airplay-remux.yml): 574 checks on generated H.264, HEVC HDR10, AAC, AC-3, DTS, TrueHD, SRT, ASS and MPEG-TS files, from files and over HTTP with Range: playlists, segment boundaries, audio timeline without gaps, seeks, token, errors, shutdown; scripts/test_airplay_remux.py for Kodi's routing.
 - Not verified: AVPlayer/Apple TV accepting the stream, lock screen and background behaviour, the iOS build itself (macOS CI job added, not run yet from here), timings on real files, 7.1 sources (down-mixed to 5.1), Dolby Vision (profile 5 will not show correct colours on SDR fallback).
 - Phone tests needed: MKV H.264+AAC; HEVC HDR; DTS audio; TrueHD; subtitles on and off; seek; pause/resume; lock the phone; Elementum stream; Drive file; AirPlay to Apple TV; AirPlay to a speaker.
+
+## ISSUE-084 — Build 133–136 feedback: AirPlay without picture, slow start, downloads (owner)
+Status: FIXED IN SOURCE (build 137); device test pending.
+- AirPlay (build-136 log): Python stopped Kodi's video 7 ms after Apple's player reported "playing"; the app rotated to portrait under Apple's player (cut-off controls) and the TV (TCL Roku TV, "MFi_AirPlay_Device") hung up on video and audio, AirPlay off 4 s later. Kodi now stays paused. KodiAirPlay r8: third-party receivers get an H.264 picture (VideoToolbox) from the first request; early-dropout fallback restart; segment cache, prefetch and parallel audio/video; Apple's player follows the screen orientation.
+- Start: the preloader is back (every hub row loads when Home opens); the tab bar starts before the bootstrap's 2 s wait; TMDb Helper keeps its Python interpreter between lists (reuselanguageinvoker), so only the first list pays the 2–3 s start.
+- Full-season download: Elementum's redirects after the version page are followed over HTTP (they were dropped with RunPlugin). Downloaded titles play from Kodi Downloads when opened from Home.
+- Reverted after build 134: the listing cache (Home showed no rows) and the collapsing show-page header (jumped instead of scrolling).
