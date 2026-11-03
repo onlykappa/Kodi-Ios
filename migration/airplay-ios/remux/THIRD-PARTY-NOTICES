@@ -20,11 +20,13 @@ THIRD-PARTY NOTICES: Kodi iOS AirPlay remuxer (KodiAirPlay.framework r5 and late
    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
    SOFTWARE.
 
-2. FFmpeg 8.1.1 (libavformat, libavcodec, libavutil, libswresample), linked statically
+2. FFmpeg 8.1.1 (libavformat, libavcodec, libavutil, libswresample, libswscale), linked statically
    Source: https://ffmpeg.org/releases/ffmpeg-8.1.1.tar.xz
    sha256 b6863adde98898f42602017462871b5f6333e65aec803fdd7a6308639c52edf3
    Licence: GNU Lesser General Public License version 2.1 or later (https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html).
-   Built without --enable-gpl, --enable-nonfree or external libraries. The exact configure line is in
+   Built without --enable-gpl, --enable-nonfree or external libraries. r7 adds video decoders, libswscale and
+   Apple's VideoToolbox (a system framework, not a bundled library: hardware decode and the h264_videotoolbox
+   encoder) for the picture bridge; still LGPL-2.1+ only (no libx264 / openh264). The exact configure line is in
    FFMPEG-CONFIG.txt next to this file inside the framework, and in ../build-remux-ffmpeg.sh, which rebuilds it.
    FFmpeg is unmodified. To relink the framework against a different FFmpeg, run ../build-airplay.sh with
    REMUX_FFMPEG pointing at your build; all of the framework's other sources are in this repository.
@@ -35,5 +37,9 @@ THIRD-PARTY NOTICES: Kodi iOS AirPlay remuxer (KodiAirPlay.framework r5 and late
    licence terms do not apply to these files.
 
 4. CastTV (https://github.com/abadari3/CastTV): no licence; ideas only, no code copied.
+
+5. AetherEngine (https://github.com/superuser404notfound/AetherEngine, LGPL-3.0 with an App Store exception)
+   Read for reference only (VideoToolbox + HLS design of the r7 picture bridge). No AetherEngine code is copied into
+   this repository, so its licence terms do not apply to these files.
 
 The Kodi iOS sources in src/ and tests/ were written for this project.

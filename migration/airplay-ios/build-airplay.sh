@@ -17,6 +17,13 @@
 # events (ready, failed, its error log, presentation size, external playback). HEVC CODECS carry the stream's real
 # constraint bytes (was a fixed B0). An AirPlay TV that takes the audio segments but never a video one (owner
 # build-133: TCL Roku TV, HEVC file, sound with a music note) gets "No picture on the TV" with the way out.
+# r7: a picture for those TVs. When the TV takes audio segments but no video ones, the stream restarts once in compat
+# mode at the same position (kr_remux_start(..., compat=1): the remuxer decodes the video, VideoToolbox when it can,
+# and re-encodes it to H.264 High 8-bit SDR at most 1080p with Apple's hardware encoder; CODECS avc1.640028), with
+# "Converting the picture for this TV..." on the phone meanwhile; "No picture on the TV" only if that fails too. Files
+# whose video AirPlay cannot carry at all (VP9, MPEG-2) convert from the start. Costs battery and warmth (a hardware
+# decode + encode while playing; nothing runs once the player closes). HDR is not tone mapped (looks washed out).
+# FFmpeg gains video decoders, libswscale and VideoToolbox (LGPL kept), linked with VideoToolbox, CoreMedia, CoreVideo.
 # Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh)
 set -euo pipefail
 [[ "$(uname -s)" == Darwin ]] || { echo 'BLOCKED: macOS with the iPhoneOS SDK is required.' >&2; exit 2; }
@@ -119,6 +126,8 @@ static void setNote(NSString *text) {
     os_unfair_lock_unlock(&noteLock);
 }
 
+static UIView *airplayHolderView(void);
+
 // r6: Apple's player events for kodi_airplay_log() (read with the remuxer's request log), latest 64 kept.
 static NSMutableArray<NSString *> *playerLines;
 
@@ -133,6 +142,35 @@ static void playerNote(NSString *format, ...) {
     [playerLines addObject:[@"player: " stringByAppendingString:line]];
     if (playerLines.count > 64) [playerLines removeObjectAtIndex:0];
     os_unfair_lock_unlock(&noteLock);
+}
+
+// r7: the converted stream's source, for the one restart in compat mode (picture converted to H.264).
+static char *remuxSource;
+static const NSInteger convertingTag = 7707;
+
+static void showConverting(BOOL on) {
+    UIView *host = airplayHolderView();
+    UIView *old = [host viewWithTag:convertingTag];
+    if (!on) { [old removeFromSuperview]; return; }
+    if (old || !host) return;
+    UILabel *label = [[UILabel alloc] init];
+    label.tag = convertingTag;
+    label.text = @"Converting the picture for this TV\u2026";
+    label.textColor = UIColor.whiteColor;
+    label.backgroundColor = [UIColor colorWithWhite:0 alpha:0.7];
+    label.textAlignment = NSTextAlignmentCenter;
+    label.numberOfLines = 0;
+    label.layer.cornerRadius = 10;
+    label.clipsToBounds = YES;
+    label.translatesAutoresizingMaskIntoConstraints = NO;
+    [host addSubview:label];
+    [NSLayoutConstraint activateConstraints:@[
+        [label.centerXAnchor constraintEqualToAnchor:host.centerXAnchor],
+        [label.centerYAnchor constraintEqualToAnchor:host.centerYAnchor],
+        [label.widthAnchor constraintLessThanOrEqualToAnchor:host.widthAnchor constant:-40],
+        [label.widthAnchor constraintGreaterThanOrEqualToConstant:260],
+        [label.heightAnchor constraintGreaterThanOrEqualToConstant:56],
+    ]];
 }
 
 static NSString *sizeText(CGSize size) { return [NSString stringWithFormat:@"%.0fx%.0f", size.width, size.height]; }
@@ -183,6 +221,7 @@ static void stopRemux(void) {
 @end
 
 static KodiAirPlayHolder *airplayHolder;
+static UIView *airplayHolderView(void) { return airplayHolder.view; }
 
 // Real AirPlay video: Apple's player with external playback, then the device sheet. The TV keeps playing while
 // Kodi is in the background (playback audio session). Apple's player handles MP4/MOV/HLS, not MKV.
@@ -219,6 +258,17 @@ static void showNoPicture(BOOL hevc) {
     [airplayHolder presentViewController:alert animated:YES completion:nil];
 }
 
+// r5/r7: Apple's player failing on the converted stream: the remuxer's reason when it has one.
+static void watchFailures(AVPlayerItem *item) {
+    [[NSNotificationCenter defaultCenter] addObserverForName:AVPlayerItemFailedToPlayToEndTimeNotification
+        object:item queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+        if (airplayController.player.currentItem != note.object) return;  // the item replaced by the compat restart
+        const char *m = kr_remux_message();
+        NSError *e = note.userInfo[AVPlayerItemFailedToPlayToEndTimeErrorKey];
+        showProblem(m && *m ? @(m) : (e.localizedDescription ?: @"The converted stream stopped."));
+    }];
+}
+
 static void presentPlayer(NSString *link, NSString *name, BOOL converted) {
     dispatch_async(dispatch_get_main_queue(), ^{
         NSURL *address = link ? [NSURL URLWithString:link] : nil;
@@ -247,10 +297,20 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted) {
         if (converted) {
             __block int waiting = 0, ticks = 0, externalTicks = 0, video0 = 0, audio0 = 0, external = 0;
             __block NSUInteger errorsSeen = 0;
-            __block BOOL warned = NO;
+            __block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO;
+            __block double resumeAt = -1;
             stallWatch = [NSTimer scheduledTimerWithTimeInterval:1.0 repeats:YES block:^(NSTimer *timer) {
                 AVPlayerItem *item = player.currentItem;
                 ticks++;
+                if (restarting) return;  // r7: the compat session is starting
+                // r7: the compat stream is ready: back to where the TV was, then play.
+                if (resumeAt >= 0 && item.status == AVPlayerItemStatusReadyToPlay) {
+                    playerNote(@"compat stream ready, resuming at %.1f s", resumeAt);
+                    [player seekToTime:CMTimeMakeWithSeconds(resumeAt, 600) toleranceBefore:kCMTimeZero
+                        toleranceAfter:kCMTimePositiveInfinity completionHandler:^(BOOL done) { [player play]; }];
+                    resumeAt = -1;
+                    showConverting(NO);
+                }
                 // r6: Apple's player error log (segment / decoder failures it recovered from or not), once each.
                 NSArray<AVPlayerItemErrorLogEvent *> *errors = item.errorLog.events;
                 for (NSUInteger i = errorsSeen; i < errors.count; i++)
@@ -275,6 +335,43 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted) {
                     const char *codec = kr_remux_video_codec();
                     BOOL hevc = codec && (!strncmp(codec, "hvc1", 4) || !strncmp(codec, "hev1", 4));
                     playerNote(@"the TV takes audio segments but no video ones (%s): sound only", codec ? codec : "");
+                    char *source = NULL;
+                    os_unfair_lock_lock(&noteLock);
+                    if (!compatTried && remuxSource) source = strdup(remuxSource);
+                    os_unfair_lock_unlock(&noteLock);
+                    if (source) {
+                        // r7: once per stream: restart with the picture converted to H.264 at the same position.
+                        compatTried = YES; restarting = YES;
+                        double at = CMTimeGetSeconds(player.currentTime);
+                        playerNote(@"restarting in compat mode (picture converted to H.264) at %.1f s", at);
+                        setNote(@"Converting the picture for this TV\u2026");
+                        showConverting(YES);
+                        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                            char playlist[512] = "";
+                            int r = kr_remux_start(source, 1, 1, playlist, sizeof playlist);
+                            free(source);
+                            NSString *link = r == KR_READY ? @(playlist) : nil;
+                            dispatch_async(dispatch_get_main_queue(), ^{
+                                restarting = NO;
+                                NSURL *address = link ? [NSURL URLWithString:link] : nil;
+                                if (!address) {
+                                    const char *m = kr_remux_message();
+                                    playerNote(@"compat restart failed: %s", m ? m : "");
+                                    showConverting(NO);
+                                    showNoPicture(hevc);
+                                    return;
+                                }
+                                AVPlayerItem *next = [AVPlayerItem playerItemWithURL:address];
+                                watchFailures(next);
+                                [player replaceCurrentItemWithPlayerItem:next];
+                                [player play];
+                                resumeAt = at; errorsSeen = 0; waiting = 0; warned = NO;
+                                externalTicks = 0; video0 = kr_remux_served(1); audio0 = kr_remux_served(0);
+                                setNote(nil);
+                            });
+                        });
+                        return;
+                    }
                     showNoPicture(hevc);
                 }
                 if (item.status == AVPlayerItemStatusFailed) {
@@ -286,12 +383,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted) {
                 const char *m = kr_remux_message();
                 if (waiting >= 20 && m && *m) { showProblem(@(m)); [timer invalidate]; }
             }];
-            [[NSNotificationCenter defaultCenter] addObserverForName:AVPlayerItemFailedToPlayToEndTimeNotification
-                object:player.currentItem queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
-                const char *m = kr_remux_message();
-                NSError *e = note.userInfo[AVPlayerItemFailedToPlayToEndTimeErrorKey];
-                showProblem(m && *m ? @(m) : (e.localizedDescription ?: @"The converted stream stopped."));
-            }];
+            watchFailures(player.currentItem);
         }
         player.allowsExternalPlayback = YES;
         player.usesExternalPlaybackWhileExternalScreenIsActive = YES;
@@ -334,11 +426,15 @@ __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, c
     NSString *name = title ? [NSString stringWithUTF8String:title] : @"";
     atomic_store(&airplayState, 0); // before returning, so a caller polling kodi_airplay_state() never sees the last result
     setNote(nil);
-    if (!link || kr_remux_kind(url) == KR_DIRECT) { stopRemux(); presentPlayer(link, name, NO); return; }
+    BOOL direct = !link || kr_remux_kind(url) == KR_DIRECT;
+    os_unfair_lock_lock(&noteLock);  // Python calls from its own thread; the player's timer reads it on the main thread
+    free(remuxSource); remuxSource = direct ? NULL : strdup(url);
+    os_unfair_lock_unlock(&noteLock);
+    if (direct) { stopRemux(); presentPlayer(link, name, NO); return; }
     char *copy = strdup(url);
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         char playlist[512] = "";
-        int r = kr_remux_start(copy, 1, playlist, sizeof playlist);
+        int r = kr_remux_start(copy, 1, 0, playlist, sizeof playlist);
         free(copy);
         if (r == KR_READY) { NSLog(@"KodiAirPlay: converting for AirPlay at %s", playlist); presentPlayer(@(playlist), name, YES); }
         else if (r == KR_NOT_NEEDED) presentPlayer(link, name, NO);
@@ -496,9 +592,10 @@ done
 printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_background_keep\n' > "$WORK/exports"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
+  -framework VideoToolbox -framework CoreVideo \
   -I"$REMUX/src" -Wl,-exported_symbols_list,"$WORK/exports" \
   -o "$FW/KodiAirPlay" "$WORK/KodiAirPlay.m" "${OBJS[@]}" \
-  "$FF/lib/libavformat.a" "$FF/lib/libavcodec.a" "$FF/lib/libswresample.a" "$FF/lib/libavutil.a" \
+  "$FF/lib/libavformat.a" "$FF/lib/libavcodec.a" "$FF/lib/libswscale.a" "$FF/lib/libswresample.a" "$FF/lib/libavutil.a" \
   -framework Security -framework CoreFoundation -lz -liconv
 cp "$REMUX/THIRD-PARTY-NOTICES" "$FW/THIRD-PARTY-NOTICES"; cp "$FF/FFMPEG-CONFIG.txt" "$FW/FFMPEG-CONFIG.txt"
 cat > "$FW/Info.plist" <<PLIST
@@ -517,6 +614,8 @@ cat > "$FW/Info.plist" <<PLIST
 PLIST
 nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message|log)|background_keep)$'
 [[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log)|background_keep)$')" == 8 ]] || { echo 'missing exports' >&2; exit 1; }
-! nm -gU "$FW/KodiAirPlay" | grep -E ' _(av|avformat|avcodec|swr)_' || { echo 'FFmpeg symbols exported: they would clash with Kodi' >&2; exit 1; }
+! nm -gU "$FW/KodiAirPlay" | grep -E ' _(av|avformat|avcodec|swr|sws|kr|gm)_' || { echo 'FFmpeg symbols exported: they would clash with Kodi' >&2; exit 1; }
+# r7: the picture bridge needs Apple's hardware H.264 encoder in this FFmpeg.
+grep -q -- '--enable-encoder=h264_videotoolbox' "$FF/FFMPEG-CONFIG.txt" || { echo 'FFmpeg built without h264_videotoolbox' >&2; exit 1; }
 lipo -info "$FW/KodiAirPlay"
 (cd "$OUT" && zip -qry KodiAirPlay.framework.zip KodiAirPlay.framework && shasum -a 256 KodiAirPlay.framework.zip | tee KodiAirPlay.framework.zip.sha256)

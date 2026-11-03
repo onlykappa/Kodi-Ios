@@ -103,7 +103,31 @@ class AirPlayLog(unittest.TestCase):
                  "can't play HEVC",'kr_remux_served(1) == video0','presentationSize'):
    self.assertIn(needle,build)
   lock=__import__('json').loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())
-  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r6')
-  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r5')
+  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r7')
+  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r6')
+
+class PictureBridge(unittest.TestCase):
+ def test_compat_restart_once_in_the_framework(self):
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  for needle in ('kr_remux_start(copy, 1, 0,','kr_remux_start(source, 1, 1,','compatTried','Converting the picture for this TV',
+                 'replaceCurrentItemWithPlayerItem','seekToTime:','showNoPicture(hevc)','kr_remux_compat()',
+                 '-framework VideoToolbox','-framework CoreVideo','libswscale.a','h264_videotoolbox'):
+   self.assertIn(needle,build)
+  self.assertIn('r7:',build.split('set -euo pipefail')[0])
+ def test_ffmpeg_lgpl_with_videotoolbox(self):
+  ff=(ROOT/'migration/airplay-ios/build-remux-ffmpeg.sh').read_text()
+  for needle in ('--enable-decoder=hevc','--enable-swscale','--enable-videotoolbox','--enable-encoder=h264_videotoolbox',
+                 '--enable-hwaccel=hevc_videotoolbox'):
+   self.assertIn(needle,ff)
+  code=[l.split('#')[0] for l in ff.splitlines()]
+  for banned in ('--enable-gpl','--enable-nonfree','libx264','openh264','--disable-swscale'):
+   self.assertFalse(any(banned in l for l in code),banned)
+ def test_remuxer_compat_api_and_codecs(self):
+  src=ROOT/'migration/airplay-ios/remux/src'
+  self.assertIn('int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen);',(src/'kr_remux.h').read_text())
+  self.assertIn('#define KR_VIDEO_CODECS "avc1.640028"',(src/'kr_video.h').read_text())
+  self.assertIn('kr_video_abort(S.video)',(src/'kr_remux.c').read_text())
+  self.assertIn('libswscale.a',(src.parent/'tests/run_host_tests.sh').read_text())
+  self.assertIn('AetherEngine',(src.parent/'THIRD-PARTY-NOTICES').read_text())
 
 if __name__=='__main__':unittest.main()

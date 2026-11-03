@@ -30,6 +30,34 @@ Atmos-less 5.1 to a receiver but fails on speakers. Changing the target later is
 - Two fixes in the copied core, marked in the code: an early-stopping keyframe index planned one segment for a
   whole short file; the last segment's open end ignored a non-zero start time (MPEG-TS), cutting the tail.
 
+## r7: picture bridge (compat mode)
+
+Many TVs with built-in AirPlay (owner: TCL Roku TV) cannot decode HEVC: they take the audio segments, never a video
+one, and play sound only (r6 detects this). r7 converts the picture on the phone (src/kr_video.c, modeled on the
+audio bridge):
+
+- Per segment of the planned grid: frames with presentation time in [start_i, start_{i+1}) are decoded (VideoToolbox
+  through FFmpeg's hwaccel when available, software otherwise, and a software retry if VideoToolbox refuses the
+  stream), scaled with libswscale to at most 1920x1080 8-bit 4:2:0 BT.709 and encoded by a fresh h264_videotoolbox
+  encoder (High, level 4.0 / 4.2 above 30 fps, ~7 Mbit/s at 1080p, no B-frames, IDR on the first frame: a closed GOP
+  per segment). Timestamps are the source's, so tfdt is absolute on the same grid as audio and subtitles. The demuxer
+  seek is checked (MPEG-TS lands past the target) and goes further back when late.
+- kr_remux_start(url, lan, compat, ...): compat serves /video/ converted; the master says CODECS avc1.640028,
+  RESOLUTION capped, VIDEO-RANGE=SDR. A file whose video AirPlay cannot carry (VP9, MPEG-2, MPEG-1) switches to compat
+  by itself; otherwise the framework restarts once in compat at the current position when the TV plays sound only
+  ("Converting the picture for this TV..." meanwhile), and shows r6's "No picture on the TV" only if that fails too.
+- Battery and heat: hardware decode + encode run only for segments the TV asks for (it reads a few ahead), one at a
+  time (one encoder session); stopping the server aborts a conversion at its next packet and frees everything.
+- Limits: HDR (PQ/HLG) gets no tone or gamut mapping (libswscale has none): it looks washed out. Dolby Vision profile
+  5 looks wrong. AV1 is not decoded (FFmpeg's AV1 decoder needs dav1d, an external library). Each segment's encoder
+  is new, so the SPS/PPS in the init (from segment 0) must equal every segment's; VideoToolbox gives the same
+  parameter sets for the same settings, but this is unverified on a TV.
+- Host tests: FFmpeg has no LGPL software H.264 encoder and Linux has no VideoToolbox, so the tests run the same
+  pipeline with FFmpeg's MPEG-4 Part 2 encoder (kr_video_set_encoder("mpeg4")): window tiling, keyframe at every
+  segment start on the grid, every source frame converted once, absolute tfdt (MPEG-TS at 1.4 s), 10-bit PQ HEVC to
+  8-bit, CODECS in the master, audio alongside, stop during a conversion. The H.264 bytes themselves are only made on
+  the phone.
+
 ## Not verified
 
 Nothing here has run on an iPhone or an Apple TV. The host tests check structure and timing, not that AVPlayer
