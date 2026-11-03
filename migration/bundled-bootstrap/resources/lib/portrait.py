@@ -308,6 +308,8 @@ def poster_item(focused):
   label(20,h-170,w-40,150,'$INFO[ListItem.Label]','p_foot_b',WHITE,'left','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(poster))</visible>')+
   image(0,0,w,h,'$INFO[ListItem.Art(poster)]',WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+'</control>')
 
+CARD_NO_ART='String.IsEmpty(ListItem.Art(landscape)) + String.IsEmpty(ListItem.Art(fanart)) + String.IsEmpty(ListItem.Art(thumb))'
+
 def card_item(focused,progress=False):
  """Apple TV app 'Up Next' card: 16:9 art in a rounded tile, then a small grey line and the title.
  Continue Watching cards add the playback progress over the art."""
@@ -319,6 +321,8 @@ def card_item(focused,progress=False):
  sub=('$INFO[ListItem.Property(subtitle)]' if progress else '$INFO[ListItem.Genre]$INFO[ListItem.Year,  ·  ]')
  return ('<control type="group"><left>%d</left><top>14</top>%s'%(SIDE,zoom)+
   surface(0,0,w,h+text_h,'round_s.png',SURFACE,26)+
+  # No landscape, fanart or thumb (new titles, people): the title on the dark tile instead of a blank card.
+  label(40,30,w-80,h-60,'$INFO[ListItem.Label]','p_h2',WHITE,'center','<aligny>center</aligny><wrapmultiline>true</wrapmultiline><visible>%s</visible>'%CARD_NO_ART)+
   image(0,0,w,h,'$VAR[Portrait_Card_Art]',WHITE,'','>scale',MEDIA+'card_mask.png',background=True)+
   (image(0,h-120,w,120,MEDIA+'fade_up.png','B3FFFFFF',diffuse=MEDIA+'card_mask.png') if progress else '')+bar+
   label(26,h+18,w-52,44,sub,'p_cap',GREY,'left','<font>p_foot_b</font>')+

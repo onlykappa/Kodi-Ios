@@ -33,6 +33,13 @@ class PortraitTests(unittest.TestCase):
  def tearDown(self):self.tmp.cleanup()
  def read(self,rel):return ET.parse(self.skin/rel).getroot()
 
+ def test_card_without_art_shows_its_title(self):
+  for progress in (False,True):
+   card=ET.fromstring(portrait.card_item(False,progress))
+   labels=[c for c in card.iter('control') if c.get('type')=='label' and (c.findtext('visible') or '')==portrait.CARD_NO_ART]
+   self.assertEqual(len(labels),1)
+   self.assertEqual(labels[0].findtext('label'),'$INFO[ListItem.Label]')
+   for key in ('landscape','fanart','thumb'):self.assertIn('String.IsEmpty(ListItem.Art(%s))'%key,portrait.CARD_NO_ART)
  def test_every_xml_parses(self):
   for rel in self.files:
    if rel.endswith('.xml'):ET.parse(self.skin/rel)

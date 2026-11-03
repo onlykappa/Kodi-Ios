@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Poster Card Mockups</title>
+<style>
+:root{--bg:#000;--surface:#1c1c1e;--surface2:#2c2c2e;--label:#fff;--label2:#8e8e93;--accent:#0a84ff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--label);font:15px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text",Helvetica,Arial,sans-serif;padding:24px 16px 64px}
+h1{font-size:28px;margin:0 0 6px}h2{font-size:21px;margin:40px 0 8px}h3{font-size:15px;margin:0 0 10px;color:var(--label2);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+p.note{color:var(--label2);max-width:760px;margin:0 0 14px}
+.options{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.phone{background:#0a0a0b;border:1px solid #2c2c2e;border-radius:36px;padding:18px 14px;overflow:hidden}
+.row{display:flex;gap:10px;overflow:hidden}
+.card{flex:0 0 auto;position:relative;border-radius:12px;overflow:hidden;background:var(--surface)}
+.land{width:200px;aspect-ratio:16/9}.post{width:100px;aspect-ratio:2/3}
+.cap{font-size:11px;color:var(--label2);margin-top:6px}.ttl{font-size:13px;font-weight:600}
+.art1{background:radial-gradient(circle at 70% 30%,#f6a54a,transparent 55%),linear-gradient(135deg,#3a1c71,#d76d77)}
+.art2{background:radial-gradient(circle at 30% 70%,#5ee7df,transparent 50%),linear-gradient(160deg,#0f2027,#2c5364)}
+.art3{background:radial-gradient(circle at 60% 40%,#fbd786,transparent 45%),linear-gradient(120deg,#355c7d,#c06c84)}
+.art4{background:linear-gradient(200deg,#1d4350,#a43931)}
+.logo{position:absolute;left:10px;bottom:10px;font-weight:800;font-size:16px;letter-spacing:.02em;text-shadow:0 1px 6px #0008}
+.fade::after{content:"";position:absolute;inset:0;background:linear-gradient(transparent 45%,#000c)}
+.miss{display:flex;align-items:center;justify-content:center;text-align:center;padding:10px;font-weight:700}
+.miss.plain{color:var(--label2);font-weight:500;font-size:13px}
+.miss.grad{background:linear-gradient(145deg,#2c2c2e,#3a3a3c 60%,#1c1c1e)}
+.miss.tint{background:linear-gradient(145deg,#243b55,#141e30)}
+.badge{position:absolute;top:6px;right:6px;font-size:9px;background:#ff453a;border-radius:4px;padding:1px 4px;font-weight:700}
+.hero{position:relative;height:300px;border-radius:20px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding:18px}
+.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(transparent 35%,#000 96%)}
+.hero>*{position:relative;z-index:1}
+.hero .big{font-size:30px;font-weight:800}.hero .meta{color:var(--label2);font-size:12px;margin:4px 0 12px}
+.btn{background:#fff;color:#000;border-radius:999px;padding:9px 36px;font-weight:700;font-size:14px}
+.blur{position:absolute;inset:-20px;filter:blur(18px);transform:scale(1.2)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.grid .card{width:auto;aspect-ratio:2/3}
+table{border-collapse:collapse;margin-top:10px;max-width:900px}td,th{border-bottom:1px solid #2c2c2e;padding:8px 10px;text-align:left;vertical-align:top}th{color:var(--label2);font-weight:600}
+code{background:#1c1c1e;padding:1px 5px;border-radius:5px;font-size:13px}
+</style>
+</head>
+<body>
+<h1>Poster cards: art and fallbacks</h1>
+<p class="note">Apple TV app artwork cannot be copied (it is Apple's licensed art and has no public API), so these options get the same look from TMDb art: landscape, fanart, poster and clearlogo. Every card shows a red <b>MISSING</b> tag where TMDb has no image, so you can compare how each option handles it. All art here is drawn with CSS gradients.</p>
+
+<h2>1. Home row cards (16:9)</h2>
+<div class="options">
+ <div class="phone"><h3>A. Title on dark tile (built in this change)</h3>
+  <div class="row">
+   <div><div class="card land art1"></div><div class="cap">Drama · 2024</div><div class="ttl">Severed Lines</div></div>
+   <div><div class="card land miss plain">Brand New Show<span class="badge">MISSING</span></div><div class="cap">Comedy · 2026</div><div class="ttl">Brand New Show</div></div>
+  </div>
+  <p class="note">The smallest change: when there is no landscape, fanart or thumb, the title appears centered on the dark tile instead of a blank card.</p></div>
+ <div class="phone"><h3>B. Fanart + clearlogo, then a gradient title card</h3>
+  <div class="row">
+   <div><div class="card land art2 fade"><span class="logo">SEVERED LINES</span></div><div class="cap">Drama · 2024</div><div class="ttl">Severed Lines</div></div>
+   <div><div class="card land miss grad" style="font-size:18px">Brand New Show<span class="badge">MISSING</span></div><div class="cap">Comedy · 2026</div><div class="ttl">Brand New Show</div></div>
+  </div>
+  <p class="note">Looks most like Apple TV: the logo sits over the fanart (bottom-left). With no art at all, a soft grey gradient with a larger bold title.</p></div>
+ <div class="phone"><h3>C. Blurred poster as backdrop</h3>
+  <div class="row">
+   <div><div class="card land art3 fade"><span class="logo">SEVERED LINES</span></div><div class="cap">Drama · 2024</div><div class="ttl">Severed Lines</div></div>
+   <div><div class="card land" style="overflow:hidden"><div class="blur art4"></div><div class="post card art4" style="position:absolute;left:50%;top:8px;transform:translateX(-50%);width:62px;box-shadow:0 4px 14px #000a"></div><span class="badge">NO 16:9</span></div><div class="cap">Comedy · 2026</div><div class="ttl">Brand New Show</div></div>
+  </div>
+  <p class="note">When only a poster exists: the poster centred on a blurred copy of itself. Needs Kodi's blur support or a pre-blurred image, so it is a larger change.</p></div>
+</div>
+
+<h2>2. Hero</h2>
+<div class="options">
+ <div class="phone"><h3>Fanart + clearlogo (today)</h3><div class="hero art1"><div class="big">SEVERED LINES</div><div class="meta">Drama · 2024 · TV-MA</div><div class="btn">Play</div></div></div>
+ <div class="phone"><h3>No fanart: poster, scaled to fill</h3><div class="hero art4"><div class="big" style="font-size:24px">Brand New Show</div><div class="meta">Comedy · 2026</div><div class="btn">Play</div></div><p class="note">Already in place (<code>Portrait_Hero_Art</code> falls back to the poster); the title text replaces a missing clearlogo.</p></div>
+ <div class="phone"><h3>No art at all: tinted gradient</h3><div class="hero miss tint" style="display:flex"><div class="big" style="font-size:24px">Brand New Show</div><div class="meta">Comedy · 2026</div><div class="btn">Play</div></div><p class="note">Proposed: a fixed tinted gradient behind the hero, so it is never pure black.</p></div>
+</div>
+
+<h2>3. Search grid (posters)</h2>
+<div class="options">
+ <div class="phone"><h3>A. Grey title (today)</h3><div class="grid">
+  <div class="card art1"></div><div class="card miss plain">Jane Actor<span class="badge">MISSING</span></div><div class="card art2"></div>
+  <div class="card art3"></div><div class="card art4"></div><div class="card miss plain">Untitled Pilot<span class="badge">MISSING</span></div></div></div>
+ <div class="phone"><h3>B. Gradient title card</h3><div class="grid">
+  <div class="card art1"></div><div class="card miss grad">Jane Actor<span class="badge">MISSING</span></div><div class="card art2"></div>
+  <div class="card art3"></div><div class="card art4"></div><div class="card miss grad">Untitled Pilot<span class="badge">MISSING</span></div></div></div>
+ <div class="phone"><h3>C. Fanart crop + title</h3><div class="grid">
+  <div class="card art1"></div><div class="card art3 fade"><span class="logo" style="font-size:11px">Jane Actor</span><span class="badge">NO POSTER</span></div><div class="card art2"></div>
+  <div class="card art3"></div><div class="card art4"></div><div class="card miss grad">Untitled Pilot<span class="badge">MISSING</span></div></div>
+  <p class="note">Uses fanart or a person's photo (thumb) when there is no poster, then the gradient title card.</p></div>
+</div>
+
+<h2>Proposed order to try each image</h2>
+<table>
+<tr><th>Card</th><th>Order (first image found is used)</th></tr>
+<tr><td>Home 16:9 card</td><td>landscape → fanart (+ clearlogo) → thumb → poster (scaled to fill) → title on gradient</td></tr>
+<tr><td>Poster card / Search</td><td>poster → thumb (people) → fanart (cropped) → title on gradient</td></tr>
+<tr><td>Hero</td><td>fanart → poster → tinted gradient; clearlogo, or the title as text</td></tr>
+</table>
+</body>
+</html>
