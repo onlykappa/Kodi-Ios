@@ -217,6 +217,24 @@ static void test_file(const char *url, const fixture *fx, const char *work) {
         reply vtt = http_get(port, path, NULL);
         CHECK(vtt.status == 200 && !strncmp(vtt.body, "WEBVTT", 6), "%s: WebVTT segment", fx->file);
         CHECK(strstr(vtt.body, fx->sub_text) != NULL && !strchr(vtt.body, '{'), "%s: cue text %s (tags stripped) in\n%s", fx->file, fx->sub_text, vtt.body);
+        // r9: cues of later segments (owner build-138: every segment after a seek was the bare header). The SRT's
+        // second cue (6.5-7.5 s) sits in the segment whose window holds 6.5 s, fetched out of order (last first).
+        if (strstr(fx->sub_text, "SRT")) {
+            double st[64]; int ns = 0; double t = 0;
+            for (const char *q = sp.body; q && (q = strstr(q, "#EXTINF:")) && ns < 63; q += 8) { st[ns++] = t; t += atof(q + 8); }
+            st[ns] = t;
+            int want = -1;
+            for (int k = 0; k < ns; k++) if (6.5 >= st[k] && 6.5 < st[k + 1]) want = k;
+            CHECK(want > 0, "%s: a later subtitle segment holds 6.5 s (%d of %d)", fx->file, want, ns);
+            for (int k = ns - 1; k >= 0 && want > 0; k--) {
+                snprintf(path, sizeof path, "/subs/%d/seg%d.vtt", idx, k);
+                reply sv = http_get(port, path, NULL);
+                int has = sv.body && strstr(sv.body, "Second line") != NULL;
+                CHECK(sv.status == 200 && has == (k == want), "%s: subtitle segment %d %s the 6.5 s cue:\n%s", fx->file, k,
+                      k == want ? "has" : "lacks", sv.body ? sv.body : "");
+                free(sv.body);
+            }
+        }
         free(sp.body); free(vtt.body);
     }
     reply missing = http_get(port, "/nothing", NULL);

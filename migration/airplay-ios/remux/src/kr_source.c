@@ -25,6 +25,11 @@ kr_source *kr_source_open(const char *url, int timeout_s, char *err, int errlen)
     av_dict_set(&o, "rw_timeout", t, 0);
     if (!strncmp(url, "http", 4)) {
         av_dict_set(&o, "reconnect", "1", 0);
+        // r9: give up a dead connection in seconds, not FFmpeg's 120-s backoff (build-138: audio after a seek hung
+        // until the session ended); kr_source_read reopens at the offset instead.
+        av_dict_set(&o, "reconnect_on_network_error", "1", 0);
+        av_dict_set(&o, "reconnect_delay_max", "2", 0);
+        av_dict_set(&o, "reconnect_max_retries", "3", 0);
         av_dict_set(&o, "seekable", "1", 0);  // Elementum and Drive answer Range requests
         av_dict_set(&o, "user_agent", "Kodi-iOS-AirPlay/1", 0);
     }
@@ -44,7 +49,20 @@ kr_source *kr_source_open(const char *url, int timeout_s, char *err, int errlen)
 
 int64_t kr_source_size(kr_source *s) { return s && s->io ? avio_size(s->io) : -1; }
 
+static int read_once(kr_source *s, int64_t offset, uint8_t *buf, int n);
+
+// r9: a failed read (seek refused, connection dropped) is tried again from a fresh Range request at the offset.
 int kr_source_read(kr_source *s, int64_t offset, uint8_t *buf, int n) {
+    int r = read_once(s, offset, buf, n);
+    for (int k = 0; r < 0 && k < 2 && s && s->io && !atomic_load(&s->aborted); k++) {
+        avio_seek(s->io, offset, SEEK_SET | AVSEEK_FORCE);
+        s->pos = -1;  // forces the seek in read_once
+        r = read_once(s, offset, buf, n);
+    }
+    return r;
+}
+
+static int read_once(kr_source *s, int64_t offset, uint8_t *buf, int n) {
     if (!s || !s->io || atomic_load(&s->aborted)) return -1;
     if (offset != s->pos) {
         int64_t r = avio_seek(s->io, offset, SEEK_SET);

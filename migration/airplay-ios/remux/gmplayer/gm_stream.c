@@ -941,14 +941,15 @@ int gm_stream_subtitle_segment(gm_stream *s, int src, int i, gm_buf *out, char *
 
     // Seek a little before the segment so a cue that STARTED earlier but is still on
     // screen at seg_start is decoded and emitted (overlap rule).
-    double seek_to = seg_start > 30.0 ? seg_start - 30.0 : 0.0;
-    int64_t seek_ts = (int64_t)(seek_to / av_q2d(ist->time_base) + 0.5);
-    av_seek_frame(s->in, src, seek_ts, AVSEEK_FLAG_BACKWARD);
+    // Kodi iOS r9: 10 s back, not 30 (a 4K remux reads every stream's bytes on the way: 30 s was ~70 MB per cue
+    // file over Drive), on the default (video) stream, whose index the container always has.
+    double seek_to = seg_start > 10.0 ? seg_start - 10.0 : 0.0;
+    av_seek_frame(s->in, -1, (int64_t)(seek_to * AV_TIME_BASE), AVSEEK_FLAG_BACKWARD);
 
     AVPacket *pkt = av_packet_alloc();
     AVSubtitle sub;
-    int got = 0, ncues = 0, guard = 0;
-    while (guard++ < 100000 && av_read_frame(s->in, pkt) >= 0) {
+    int got = 0, ncues = 0, guard = 0, rr = 0;
+    while (guard++ < 100000 && (rr = av_read_frame(s->in, pkt)) >= 0) {
         if (pkt->stream_index != src) { av_packet_unref(pkt); continue; }
         double pts = (pkt->pts != AV_NOPTS_VALUE ? pkt->pts : pkt->dts) * av_q2d(ist->time_base);
         double dur = pkt->duration > 0 ? pkt->duration * av_q2d(ist->time_base) : 0.0;
@@ -996,6 +997,8 @@ int gm_stream_subtitle_segment(gm_stream *s, int src, int i, gm_buf *out, char *
     av_packet_free(&pkt);
     avcodec_free_context(&dec);
     (void)ncues;
+    // Kodi iOS r9: a read error is an error, not an empty segment (the caller tries its other demuxer).
+    if (rr < 0 && rr != AVERROR_EOF && ncues == 0) { set_err(err, errlen, "subtitle read", rr); return -1; }
     return 0;
 }
 

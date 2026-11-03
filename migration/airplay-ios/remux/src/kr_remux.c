@@ -145,6 +145,7 @@ int kr_remux_log(char *buf, int len) {
 
 static __thread int t_status;   // what this connection answered (negative: the client hung up mid-answer)
 static __thread size_t t_bytes;
+static __thread char t_err[96];  // r9: why a request failed, on its log line (the 500s of build-138 said nothing)
 
 int kr_remux_kind(const char *url) {
     if (!url) return KR_UNKNOWN;
@@ -297,6 +298,9 @@ static pthread_mutex_t *lane(int rend) {
     return NULL;
 }
 
+// r9: the converted segment being made right now (any thread), -1 when none.
+static atomic_int vc_seg = -1;
+
 // The whole unit (ftyp+moov+moof+mdat) of segment seg of a rendition (its lane's lock held).
 static int produce_unit(int rend, int seg, gm_buf *out, char *err, int errlen) {
     int split = 0, r = -1;
@@ -308,7 +312,11 @@ static int produce_unit(int rend, int seg, gm_buf *out, char *err, int errlen) {
     }
     if (rend == R_VCOMPAT) {
         kr_video *v = session_video(err, errlen);
-        return v ? kr_video_unit(v, S.gm, seg, out, err, errlen) : -1;
+        if (!v) return -1;
+        atomic_store(&vc_seg, seg);
+        r = kr_video_unit(v, S.gm, seg, out, err, errlen);
+        atomic_store(&vc_seg, -1);
+        return r;
     }
     int idx = rend - R_AUDIO, route = track_route(idx);
     if (route == KR_AUDIO_COPY) {
@@ -577,6 +585,14 @@ static int get_part(int rend, int seg, gm_buf *out, char *err, int errlen) {
     pthread_mutex_t *l = lane(rend);
     if (!l) { snprintf(err, (size_t)errlen, "no such track"); return -1; }
     prefetch_focus(rend, seg < 0 ? 0 : seg);
+    // r9: a conversion far from this request (a request the TV gave up on after a seek, build-138: seg16 waited
+    // 3-8 s) gives up now instead of finishing first.
+    int busy = atomic_load(&vc_seg), at = seg < 0 ? 0 : seg;
+    if (rend == R_VCOMPAT && busy >= 0 && (busy < at - 1 || busy > at + PF_DEPTH)) {
+        pthread_mutex_lock(&src_lock);
+        if (S.video) kr_video_cancel(S.video);
+        pthread_mutex_unlock(&src_lock);
+    }
     pthread_mutex_lock(l);
     int r = cache_take(rend, seg, out) ? 0 : make_part(rend, seg < 0 ? 0 : seg, 0, seg < 0, out, err, errlen);
     pthread_mutex_unlock(l);
@@ -637,6 +653,14 @@ static void serve(int fd, const char *method, const char *path, const char *rang
         rend = (S.compat || cvideo || third) ? R_VCOMPAT : R_VCOPY;
         r = get_part(rend, seg, &buf, err, sizeof err);
     } else if (sscanf(path, "/subs/%d/seg%d.vtt", &idx, &seg) == 2) {
+        // r9: on the session demuxer when it is free (a TV getting the converted picture leaves it idle): the audio
+        // lane stays free for audio (build-138: audio after a seek waited behind subtitle reads, 14-29 s).
+        if (pthread_mutex_trylock(&S.gm_lock) == 0) {
+            r = gm_stream_subtitle_segment(S.gm, idx, seg, &buf, err, sizeof err);
+            pthread_mutex_unlock(&S.gm_lock);
+            if (r == 0) { respond(fd, head, range, "text/vtt", buf.data, (size_t)buf.len); free(buf.data); return; }
+            buf.len = 0;
+        }
         pthread_mutex_lock(&S.agm_lock);
         gm_stream *g = audio_demuxer();
         if (g) r = gm_stream_subtitle_segment(g, idx, seg, &buf, err, sizeof err);
@@ -671,6 +695,7 @@ static void serve(int fd, const char *method, const char *path, const char *rang
             fprintf(stderr, "kodi-airplay-remux: %s\n", m);
             log_line("error: %s", m);
         }
+        snprintf(t_err, sizeof t_err, "%s", atomic_load(&S.stopping) ? "session stopped" : *err ? err : "unknown error");
         fail(fd, 500, "Remux Failed");
     }
     free(buf.data);
@@ -722,14 +747,14 @@ static void *connection(void *arg) {
         log_agent(agent);
         char *q = strchr(path, '?'); if (q) *q = 0;
         size_t tl = strlen(S.token);
-        t_status = 0; t_bytes = 0;
+        t_status = 0; t_bytes = 0; t_err[0] = 0;
         double t0 = now_ms();
         int ok = path[0] == '/' && !strncmp(path + 1, S.token, tl) && path[1 + tl] == '/';
         if (ok) serve(fd, method, path + 1 + tl, *range ? range : NULL, agent);
         else fail(fd, 404, "Not Found");
         // "GET /video/seg3.m4s 200 1834567 B 412 ms"
-        log_line("%s %s%s%s %d %zu B %.0f ms", method, ok ? path + 1 + tl : "(no token)", *range ? " " : "", range,
-                 t_status, t_bytes, now_ms() - t0);
+        log_line("%s %s%s%s %d %zu B %.0f ms%s%s", method, ok ? path + 1 + tl : "(no token)", *range ? " " : "", range,
+                 t_status, t_bytes, now_ms() - t0, *t_err ? ": " : "", t_err);
     } else fail(fd, 405, "Method Not Allowed");
     close(fd);
     atomic_fetch_sub(&S.active, 1);
