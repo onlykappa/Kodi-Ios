@@ -23,8 +23,15 @@ class StartupLoad(unittest.TestCase):
   lists=[c for c in root.iter('control') if c.get('type')=='list' and (c.findtext('content') or '').strip()]
   self.assertTrue(lists)
   self.assertFalse([c for c in lists if c.findtext('content').startswith('$VAR[Portrait_Row_') or c.findtext('content').startswith('$VAR[Portrait_Hero_')])
-  self.assertEqual(variables,{})
   self.assertNotIn('Portrait.Load.',ET.tostring(root,encoding='unicode'))
+  # Build-137 listing cache: each TMDb Helper row and hero is a variable with exactly two values, the cached route
+  # under its flag and the live path otherwise; neither waits for a timer, a window property or Python.
+  self.assertEqual(len(variables),3*(len(WIDGETS)+1))
+  for name,xml in variables.items():
+   values=ET.fromstring(xml).findall('value')
+   self.assertEqual(len(values),2,name);self.assertIsNone(values[1].get('condition'))
+   self.assertTrue(values[0].text.startswith(portrait.CACHE_ROUTE));self.assertIn(portrait.CACHE_FLAG,values[0].get('condition'))
+   self.assertNotIn('Window(',values[0].get('condition'));self.assertNotIn('Alarm',values[0].get('condition'))
 
  def test_home_rows_are_queued_before_movies_and_tv(self):
   root,_=self.home()

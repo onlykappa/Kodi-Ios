@@ -52,7 +52,8 @@ class PortraitTests(unittest.TestCase):
   self.assertAlmostEqual(portrait.WIDTH/portrait.HEIGHT,402/778,places=3)
  def test_rows_only_for_lists_of_titles(self):
   home=(self.skin/'portrait/Home.xml').read_text()
-  self.assertIn('info=popular',home);self.assertIn('videodb://movies/titles/',home)
+  # TMDb Helper rows sit in Includes.xml (cached route or live path, ios_cache); other rows keep their path in Home.
+  self.assertIn('info=popular',(self.skin/'portrait/Includes.xml').read_text());self.assertIn('videodb://movies/titles/',home)
   self.assertNotIn('sportshub',home);self.assertNotIn('plugin://plugin.video.umbrella<',home)
  def test_hub_keeps_fuse_onloads_window_id_and_has_tab_bar(self):
   home=self.read('portrait/Home.xml');self.assertEqual(home.findtext('onload'),'RunScript(script.skinvariables)')
@@ -104,7 +105,7 @@ class PortraitTests(unittest.TestCase):
   self.assertEqual(portrait.refresh(self.skin,self.profile),[])
   nodes=self.profile/'addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json'
   nodes.write_text(json.dumps([{'label':'New row','path':'plugin://x/?a=1','target':'videos'}]))
-  self.assertEqual(portrait.refresh(self.skin,self.profile),['portrait/Home.xml'])
+  self.assertEqual(portrait.refresh(self.skin,self.profile),['portrait/Home.xml','portrait/Includes.xml'])
  def test_old_writable_copy_gets_the_portrait_layout(self):
   # A phone that ran an earlier build keeps a Fuse copy without the portrait folder or resolution.
   import shutil;shutil.rmtree(self.skin/'portrait');(self.skin/'addon.xml').write_text(ADDON)
