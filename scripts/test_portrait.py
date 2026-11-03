@@ -184,7 +184,12 @@ class PortraitTests(unittest.TestCase):
    self.assertIsNone(portrait.system_font(skin,(str(Path(tmp)/'missing.ttf'),)))
   root=ET.fromstring(portrait.fonts('<fonts><fontset id="Default"/></fonts>','SF-UI.ttf'))
   fonts={f.findtext('name'):(f.findtext('filename'),f.findtext('style')) for f in root.iter('font')}
-  self.assertEqual(fonts['p_large'],('SF-UI.ttf','bold'));self.assertEqual(fonts['p_body'],('SF-UI.ttf',None))
+  self.assertEqual(fonts['p_large'],('SF-UI.ttf','bold'))
+  # Heavier than build-132: primary labels bold too; secondary grey text stays regular.
+  self.assertEqual(fonts['p_body'],('SF-UI.ttf','bold'));self.assertEqual(fonts['p_sub'],('SF-UI.ttf',None));self.assertEqual(fonts['p_cap'],('SF-UI.ttf',None))
+  for name in ('p_title','p_h2','p_h3','p_tab','p_btn','p_tile','p_foot_b'):self.assertEqual(fonts[name][1],'bold',name)
+  for filename in ('Inter-Medium.ttf','Inter-SemiBold.ttf','Inter-Black.ttf','Inter-ExtraBold.ttf'):self.assertTrue(portrait.sf_bold('x',filename),filename)
+  self.assertFalse(portrait.sf_bold('x','Inter-Regular.ttf'));self.assertFalse(portrait.sf_bold('x','Inter-Light.ttf'))
   root=ET.fromstring(portrait.fonts('<fonts><fontset id="Default"/></fonts>'))
   self.assertTrue(all(f.findtext('filename').startswith('Inter') for f in root.iter('font')))
  def test_textures_are_png(self):

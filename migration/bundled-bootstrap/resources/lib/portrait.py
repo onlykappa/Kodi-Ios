@@ -905,12 +905,21 @@ def system_font(skin,candidates=SF_CANDIDATES):
   except OSError:continue
  return None
 
+# Owner (build-132): San Francisco "looks good but skinny". Kodi's FreeType draws the variable SFUI.ttf at its default
+# instance and has no weight setting, only <style>bold</style> (FreeType's emboldening). Every style whose Inter file
+# is heavier than Regular (Medium, SemiBold, Bold, ExtraBold, Black, Heavy) is drawn bold, and so are the primary
+# white labels (row titles, settings rows, the search field: p_body); secondary grey text stays regular so headings
+# and titles still stand out from it.
+HEAVY_FILE=re.compile(r'(Medium|SemiBold|Bold|Black|Heavy)',re.I)
+SF_BOLD_NAMES={'p_body'}
+def sf_bold(name,filename):return bool(HEAVY_FILE.search(filename)) or name in SF_BOLD_NAMES
+
 def fonts(original,sf=None):
  root=ET.fromstring(original)
  for fontset in root.findall('fontset'):
   for name,filename,size in FONTS:
    f=ET.SubElement(fontset,'font');ET.SubElement(f,'name').text=name;ET.SubElement(f,'filename').text=sf or filename;ET.SubElement(f,'size').text=str(size)
-   if sf and 'Bold' in filename:ET.SubElement(f,'style').text='bold'
+   if sf and sf_bold(name,filename):ET.SubElement(f,'style').text='bold'
  return b'<?xml version="1.0" encoding="UTF-8"?>\n'+ET.tostring(root,encoding='utf-8')+b'\n'
 
 def with_variables(xml):return xml
