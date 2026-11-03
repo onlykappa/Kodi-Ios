@@ -19,8 +19,22 @@ def load(path):
  # Kodi awake in the background (background.py).
  if hasattr(lib,'kodi_airplay_state'):lib.kodi_airplay_state.argtypes=[];lib.kodi_airplay_state.restype=ctypes.c_int
  if hasattr(lib,'kodi_airplay_close'):lib.kodi_airplay_close.argtypes=[];lib.kodi_airplay_close.restype=None
+ # r5: MKV/AVI/WebM/TS converted on the phone for AirPlay; why it could not play, for the screen.
+ if hasattr(lib,'kodi_airplay_message'):lib.kodi_airplay_message.argtypes=[ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_message.restype=ctypes.c_int
  if hasattr(lib,'kodi_background_keep'):lib.kodi_background_keep.argtypes=[ctypes.c_int];lib.kodi_background_keep.restype=None
  return lib
+
+def converts(lib):
+ """r5 frameworks convert MKV, AVI, WebM and MPEG-TS for AirPlay on the phone."""
+ return hasattr(lib,'kodi_airplay_message')
+
+def message(lib):
+ """The framework's reason AirPlay could not play the last stream ('' when none or an older framework)."""
+ if not converts(lib):return ''
+ import ctypes
+ buffer=ctypes.create_string_buffer(400)
+ lib.kodi_airplay_message(buffer,400)
+ return buffer.value.decode('utf-8','replace')
 
 def watch(lib,playing,wait):
  """Shows the button while playing() is true, until wait(seconds) reports Kodi is closing."""

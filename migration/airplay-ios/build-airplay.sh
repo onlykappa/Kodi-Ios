@@ -7,11 +7,19 @@
 # and resumes Kodi when it could not), kodi_airplay_close() dismisses it, and kodi_background_keep(1/0) keeps Kodi
 # running after it leaves the screen while a download or upload has work (silence mixed with other apps' sound).
 # r4: Apple's player never turns the phone and Kodi rebuilds its screen when it closes (half-drawn Kodi after AirPlay).
-# Usage: build-airplay.sh OUT_DIR
+# r5: MKV / AVI / WebM / MPEG-TS over AirPlay. kodi_airplay_play() sends those through the remuxer in remux/ (GMPlayer
+# core + Kodi iOS code, FFmpeg 8.1.1 LGPL linked statically, its symbols kept private): an HLS server on the phone's
+# Wi-Fi address that the Apple TV reads, video copied, DTS/TrueHD/FLAC/Opus/Vorbis re-encoded to AAC. MP4/MOV/HLS keep
+# the direct path. kodi_airplay_message() gives the reason when it cannot play, for the screen. Licences in
+# remux/THIRD-PARTY-NOTICES (also inside the framework).
+# Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh)
 set -euo pipefail
 [[ "$(uname -s)" == Darwin ]] || { echo 'BLOCKED: macOS with the iPhoneOS SDK is required.' >&2; exit 2; }
 OUT="$(mkdir -p "${1:?output directory}" && cd "$1" && pwd)"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/kodi-airplay.XXXXXX")"
+HERE="$(cd "$(dirname "$0")" && pwd)"; REMUX="$HERE/remux"
+FF="${REMUX_FFMPEG:-$WORK/ffmpeg-ios}"
+[[ -f "$FF/lib/libavformat.a" ]] || bash "$HERE/build-remux-ffmpeg.sh" ios "$FF"
 MIN_IOS=14.0
 SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 cat > "$WORK/KodiAirPlay.m" <<'OBJC'
@@ -22,6 +30,9 @@ cat > "$WORK/KodiAirPlay.m" <<'OBJC'
 #import <stdatomic.h>
 
 #import <objc/message.h>
+#import <os/lock.h>
+
+#import "kr_remux.h"
 
 static AVRoutePickerView *picker;
 static AVPlayerViewController *airplayController;
@@ -91,6 +102,22 @@ static void healKodi(void) {
     if ([root respondsToSelector:heal]) ((void (*)(id, SEL))objc_msgSend)(root, heal);
 }
 
+// r5: why the current AirPlay stream could not play or stopped (for the alert and kodi_airplay_message()), set from
+// any thread.
+static char remuxNote[320];
+static os_unfair_lock noteLock = OS_UNFAIR_LOCK_INIT;
+static NSTimer *stallWatch;
+
+static void setNote(NSString *text) {
+    os_unfair_lock_lock(&noteLock);
+    snprintf(remuxNote, sizeof remuxNote, "%s", text ? text.UTF8String : "");
+    os_unfair_lock_unlock(&noteLock);
+}
+
+static void stopRemux(void) {
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{ kr_remux_stop(); });
+}
+
 @interface KodiAirPlayHolder : UIViewController
 @property (nonatomic) UIInterfaceOrientationMask mask;
 @property (nonatomic, weak) UIButton *closeButton;
@@ -122,6 +149,8 @@ static void healKodi(void) {
 - (void)viewDidDisappear:(BOOL)animated {
     [super viewDidDisappear:animated];
     if (self.isBeingDismissed || self.presentingViewController == nil) {
+        [stallWatch invalidate]; stallWatch = nil;
+        stopRemux();  // r5: playback stopped: the server, its sockets and the source connections go too
         // Twice: once now, once after any rotation iOS still runs has settled.
         healKodi();
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ healKodi(); });
@@ -133,10 +162,20 @@ static KodiAirPlayHolder *airplayHolder;
 
 // Real AirPlay video: Apple's player with external playback, then the device sheet. The TV keeps playing while
 // Kodi is in the background (playback audio session). Apple's player handles MP4/MOV/HLS, not MKV.
-__attribute__((visibility("default"))) void kodi_airplay_play(const char *url, const char *title) {
-    NSString *link = url ? [NSString stringWithUTF8String:url] : nil;
-    NSString *name = title ? [NSString stringWithUTF8String:title] : @"";
-    atomic_store(&airplayState, 0); // before returning, so a caller polling kodi_airplay_state() never sees the last result
+// r5: never a silent hang: when the converted stream fails or stalls while the remuxer reports an error, say so.
+static void showProblem(NSString *text) {
+    setNote(text);
+    if (!airplayHolder || airplayHolder.presentedViewController) return;
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"AirPlay stopped" message:text
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Close" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
+        [airplayController.player pause];
+        [airplayHolder dismissViewControllerAnimated:YES completion:nil];
+    }]];
+    [airplayHolder presentViewController:alert animated:YES completion:nil];
+}
+
+static void presentPlayer(NSString *link, NSString *name, BOOL converted) {
     dispatch_async(dispatch_get_main_queue(), ^{
         NSURL *address = link ? [NSURL URLWithString:link] : nil;
         if (!address) atomic_store(&airplayState, -1);
@@ -158,6 +197,26 @@ __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, c
                 [timer invalidate];
             }
         }];
+        [stallWatch invalidate]; stallWatch = nil;
+        if (converted) {
+            __block int waiting = 0;
+            stallWatch = [NSTimer scheduledTimerWithTimeInterval:1.0 repeats:YES block:^(NSTimer *timer) {
+                if (player.currentItem.status == AVPlayerItemStatusFailed) {
+                    const char *m = kr_remux_message();
+                    showProblem(m && *m ? @(m) : (player.currentItem.error.localizedDescription ?: @"The TV could not play the converted stream."));
+                    [timer invalidate]; return;
+                }
+                waiting = player.timeControlStatus == AVPlayerTimeControlStatusWaitingToPlayAtSpecifiedRate ? waiting + 1 : 0;
+                const char *m = kr_remux_message();
+                if (waiting >= 20 && m && *m) { showProblem(@(m)); [timer invalidate]; }
+            }];
+            [[NSNotificationCenter defaultCenter] addObserverForName:AVPlayerItemFailedToPlayToEndTimeNotification
+                object:player.currentItem queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+                const char *m = kr_remux_message();
+                NSError *e = note.userInfo[AVPlayerItemFailedToPlayToEndTimeErrorKey];
+                showProblem(m && *m ? @(m) : (e.localizedDescription ?: @"The converted stream stopped."));
+            }];
+        }
         player.allowsExternalPlayback = YES;
         player.usesExternalPlaybackWhileExternalScreenIsActive = YES;
         if (airplayHolder) [airplayHolder dismissViewControllerAnimated:NO completion:nil];
@@ -191,6 +250,41 @@ __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, c
     });
 }
 
+// Real AirPlay video: Apple's player with external playback, then the device sheet. The TV keeps playing while
+// Kodi is in the background (playback audio session). Apple's player handles MP4/MOV/HLS; r5 converts MKV, AVI,
+// WebM and MPEG-TS on the phone first (and links whose bytes turn out not to be MP4).
+__attribute__((visibility("default"))) void kodi_airplay_play(const char *url, const char *title) {
+    NSString *link = url ? [NSString stringWithUTF8String:url] : nil;
+    NSString *name = title ? [NSString stringWithUTF8String:title] : @"";
+    atomic_store(&airplayState, 0); // before returning, so a caller polling kodi_airplay_state() never sees the last result
+    setNote(nil);
+    if (!link || kr_remux_kind(url) == KR_DIRECT) { stopRemux(); presentPlayer(link, name, NO); return; }
+    char *copy = strdup(url);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        char playlist[512] = "";
+        int r = kr_remux_start(copy, 1, playlist, sizeof playlist);
+        free(copy);
+        if (r == KR_READY) { NSLog(@"KodiAirPlay: converting for AirPlay at %s", playlist); presentPlayer(@(playlist), name, YES); }
+        else if (r == KR_NOT_NEEDED) presentPlayer(link, name, NO);
+        else {
+            const char *m = kr_remux_message();
+            NSString *why = m && *m ? @(m) : @"AirPlay could not convert this video.";
+            setNote(why);
+            NSLog(@"KodiAirPlay: %@", why);
+            atomic_store(&airplayState, -1);
+        }
+    });
+}
+
+// r5: why AirPlay could not play the last stream ("" when it could). Returns the length written.
+__attribute__((visibility("default"))) int kodi_airplay_message(char *buf, int len) {
+    if (!buf || len <= 0) return 0;
+    os_unfair_lock_lock(&noteLock);
+    snprintf(buf, (size_t)len, "%s", remuxNote);
+    os_unfair_lock_unlock(&noteLock);
+    return (int)strlen(buf);
+}
+
 // r3: 1 once Apple's player has the stream, -1 if it could not open it, 0 before either (or when idle).
 __attribute__((visibility("default"))) int kodi_airplay_state(void) {
     return atomic_load(&airplayState);
@@ -201,6 +295,8 @@ __attribute__((visibility("default"))) void kodi_airplay_close(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
         [airplayWatch invalidate];
         airplayWatch = nil;
+        [stallWatch invalidate]; stallWatch = nil;
+        stopRemux();
         [airplayController.player pause];
         [airplayHolder dismissViewControllerAnimated:YES completion:nil];
         airplayHolder = nil;
@@ -294,9 +390,21 @@ __attribute__((visibility("default"))) void kodi_airplay_open(void) {
 }
 OBJC
 FW="$OUT/KodiAirPlay.framework"; rm -rf "$FW"; mkdir -p "$FW"
+# The remuxer (C) for iPhoneOS, against the remux-only FFmpeg.
+CC_IOS=(xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -O2 -std=gnu11 -I"$FF/include")
+OBJS=()
+for c in "$REMUX"/src/*.c "$REMUX"/gmplayer/*.c; do
+  o="$WORK/$(basename "${c%.c}").o"; "${CC_IOS[@]}" -c "$c" -o "$o"; OBJS+=("$o")
+done
+# Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
+printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_background_keep\n' > "$WORK/exports"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics \
-  -o "$FW/KodiAirPlay" "$WORK/KodiAirPlay.m"
+  -I"$REMUX/src" -Wl,-exported_symbols_list,"$WORK/exports" \
+  -o "$FW/KodiAirPlay" "$WORK/KodiAirPlay.m" "${OBJS[@]}" \
+  "$FF/lib/libavformat.a" "$FF/lib/libavcodec.a" "$FF/lib/libswresample.a" "$FF/lib/libavutil.a" \
+  -framework Security -framework CoreFoundation -lz -liconv
+cp "$REMUX/THIRD-PARTY-NOTICES" "$FW/THIRD-PARTY-NOTICES"; cp "$FF/FFMPEG-CONFIG.txt" "$FW/FFMPEG-CONFIG.txt"
 cat > "$FW/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -311,6 +419,7 @@ cat > "$FW/Info.plist" <<PLIST
 <key>MinimumOSVersion</key><string>$MIN_IOS</string>
 </dict></plist>
 PLIST
-nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close)|background_keep)$'
+nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message)|background_keep)$'
+! nm -gU "$FW/KodiAirPlay" | grep -E ' _(av|avformat|avcodec|swr)_' || { echo 'FFmpeg symbols exported: they would clash with Kodi' >&2; exit 1; }
 lipo -info "$FW/KodiAirPlay"
 (cd "$OUT" && zip -qry KodiAirPlay.framework.zip KodiAirPlay.framework && shasum -a 256 KodiAirPlay.framework.zip | tee KodiAirPlay.framework.zip.sha256)

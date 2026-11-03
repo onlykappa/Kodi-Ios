@@ -79,3 +79,7 @@ Resumed owner pause and verified successful run 41068166024/artifact 12983492116
 Owner log verifies failed Touch-r1 launch, not successful skin validation. Guard first activation against Home helper/reload races; run pinned view/shortcut generators sequentially without reload, validate fresh outputs, then reload once. Preserve native confirmation and Settings/Recovery strip. Add private sanitized stage/stack evidence and nine regressions; 174 host tests pass. Device confirmation pending, no task completion increased. Older artifacts retained.
 
 Touch-r2 IPA built and uploaded successfully in run 41078491846; artifact/checksum/provenance recorded in reports/ios-touch-r2-artifact.json. Device tests remain pending. No Phase 5, merge or release.
+
+## 2026-11-03 — AirPlay MKV remuxer (feature/airplay-mkv-remux, BUILT ON HOST; device test pending)
+
+KodiAirPlay r5 plays MKV/AVI/WebM/MPEG-TS through AirPlay by remuxing on the phone to fragmented-MP4 HLS (GMPlayer C core, MIT; FFmpeg 8.1.1 LGPL, remux-only, statically linked with private symbols). DTS/TrueHD/FLAC/Opus/Vorbis become AAC; SRT/ASS become WebVTT. Server on the Wi-Fi address with a per-session token; clear messages on failure; stops with Apple's player. 574 host checks plus Python routing tests; CI workflow airplay-remux.yml (builds only). Findings and licences in migration/airplay-ios/remux/FINDINGS.md and THIRD-PARTY-NOTICES. Not merged, no release, no PR (ISSUE-083).
