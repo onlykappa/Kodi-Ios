@@ -307,11 +307,11 @@ TV_ROWS=6
 def play_on_tv():
  """1080i/IOSPlayOnTV.xml for cast.py, on Fuse's landscape 1920x1080 canvas with Fuse's fonts: an AirPlay-style
  glass sheet. Rows 9601+ are filled through properties tv.<n>.name / .kind / .icon / .on; 9500 closes. The sheet is
- as tall as its rows: cast.py sets `count` (rows shown, plus one while searching) and one of the backgrounds matches."""
+ as tall as its rows and centred with <centerleft> (the phone's landscape layout is wider than 1920): cast.py sets `count` (rows shown, plus one while searching) and one of the backgrounds matches."""
  MEDIA='special://skin/extras/portrait/';ICONS='special://skin/extras/icons/'
  P=lambda k:'$INFO[Window().Property(%s)]'%k
  has=lambda k:'!String.IsEmpty(Window().Property(%s))'%k
- w=760;row=104;head=150;foot=120;x=(1920-w)//2;y=60
+ w=760;row=104;head=150;foot=120;y=60
  def img(x,y,w,h,tex,color='FFFFFFFF',extra='',border=''):
   return ('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texture%s colordiffuse="%s">%s</texture>%s</control>'
           %(x,y,w,h,' border="%s"'%border if border else '',color,tex,extra))
@@ -342,10 +342,10 @@ def play_on_tv():
         '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%(head,w,(TV_ROWS+1)*row+foot)+
         ''.join(tv_row(n) for n in range(1,TV_ROWS+1))+searching+
         '<control type="group"><width>%d</width><height>%d</height>%s</control></control>'%(w,foot,note))
- body=('<control type="image"><left>0</left><top>0</top><width>1920</width><height>1080</height><texture colordiffuse="73000000">%swhite.png</texture></control>'%MEDIA+
-  '<control type="button" id="9099"><left>0</left><top>0</top><width>1920</width><height>1080</height><texturefocus /><texturenofocus /><onclick>Close</onclick><onfocus>SetFocus(9601)</onfocus></control>'
-  '<control type="group"><left>%d</left><top>%d</top><width>%d</width>'%(x,y,w)+
-  '<animation effect="zoom" start="94" end="100" center="%d,%d" time="220" tween="back" easing="out">WindowOpen</animation>'%(x+w//2,y+300)+
+ body=('<control type="image"><left>0</left><top>0</top><width>100%%</width><height>100%%</height><texture colordiffuse="73000000">%swhite.png</texture></control>'%MEDIA+
+  '<control type="button" id="9099"><left>0</left><top>0</top><width>100%%</width><height>100%%</height><texturefocus /><texturenofocus /><onclick>Close</onclick><onfocus>SetFocus(9601)</onfocus></control>'
+  '<control type="group"><centerleft>50%%</centerleft><top>%d</top><width>%d</width>'%(y,w)+
+  '<animation effect="zoom" start="94" end="100" center="auto" time="220" tween="back" easing="out">WindowOpen</animation>'+
   '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation><animation effect="fade" start="100" end="0" time="120">WindowClose</animation>'+
   backs+img(36,40,76,76,MEDIA+'dot.png','1FFFFFFF')+img(55,59,38,38,MEDIA+'airplay.png')+
   lab(134,34,w-280,52,'Play on TV','font_head_bold')+lab(134,84,w-280,40,P('subtitle'),'font_mini','99EBEBF5')+
