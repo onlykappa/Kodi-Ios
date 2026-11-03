@@ -2,7 +2,7 @@
   "framework_release": {
     "tag": "kodi-airplay-r8",
     "asset": "KodiAirPlay.framework.zip",
-    "sha256": "PENDING-set-after-publish"
+    "sha256": "4ab229cc846cd87dc417f770a24dc09ea011e7d7e92410a61c01ca808916ef9c"
   },
   "previous": {
     "tag": "kodi-airplay-r7",
