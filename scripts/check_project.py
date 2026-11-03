@@ -59,10 +59,13 @@ REMUX_FILES = {'migration/airplay-ios/remux/THIRD-PARTY-NOTICES',
                'migration/airplay-ios/remux/src/kr_source.h',
                'migration/airplay-ios/remux/src/kr_video.c',
                'migration/airplay-ios/remux/src/kr_video.h',
+               'migration/airplay-ios/remux/src/kr_subs.c',
+               'migration/airplay-ios/remux/src/kr_subs.h',
                'migration/airplay-ios/remux/tests/make_fixtures.sh',
                'migration/airplay-ios/remux/tests/run_host_tests.sh',
                'migration/airplay-ios/remux/tests/test_remux.c',
                'migration/airplay-ios/build-remux-ffmpeg.sh',
+               'migration/airplay-ios/build-libass.sh',
                '.github/workflows/airplay-remux.yml'}
 
 def files():

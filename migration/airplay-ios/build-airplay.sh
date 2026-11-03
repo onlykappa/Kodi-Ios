@@ -38,7 +38,15 @@
 # otherwise), the TV's first converted segment starts with its master request, a conversion far from a new request
 # is cancelled, a dead source connection gives up in seconds and reopens at the offset, subtitles read 10 s back on
 # the idle session demuxer instead of 30 s on the audio one, and failed requests carry their reason in kodi.log.
-# Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh)
+# r10: subtitles on the TV. Third-party AirPlay TVs ignore the master's WebVTT rendition, so the converted picture
+# carries them burned in: kodi_airplay_subtitles(ordinal, file, lang) takes Kodi's current subtitle before
+# kodi_airplay_play (Kodi's subtitle stream number, -1 off, -2 the file's forced/default; an external .srt/.vtt/.ass
+# file such as a4kSubtitles' download), the remuxer draws it into each converted frame with libass (ISC; FreeType FTL,
+# FriBidi LGPL-2.1+, HarfBuzz MIT, linked statically, built by build-libass.sh; fonts from iOS through CoreText) on
+# the same segment grid, and a third-party TV gets the converted picture even for H.264 sources when subtitles are
+# on. FFmpeg's own libass filter is not used (FFmpeg stays LGPL without external libraries).
+# Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh, REMUX_LIBASS=DIR
+# one of build-libass.sh ios)
 set -euo pipefail
 [[ "$(uname -s)" == Darwin ]] || { echo 'BLOCKED: macOS with the iPhoneOS SDK is required.' >&2; exit 2; }
 OUT="$(mkdir -p "${1:?output directory}" && cd "$1" && pwd)"
@@ -46,6 +54,8 @@ WORK="$(mktemp -d "${TMPDIR:-/tmp}/kodi-airplay.XXXXXX")"
 HERE="$(cd "$(dirname "$0")" && pwd)"; REMUX="$HERE/remux"
 FF="${REMUX_FFMPEG:-$WORK/ffmpeg-ios}"
 [[ -f "$FF/lib/libavformat.a" ]] || bash "$HERE/build-remux-ffmpeg.sh" ios "$FF"
+ASS="${REMUX_LIBASS:-$WORK/libass-ios}"
+[[ -f "$ASS/lib/libass.a" ]] || bash "$HERE/build-libass.sh" ios "$ASS"
 MIN_IOS=14.0
 SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 cat > "$WORK/KodiAirPlay.m" <<'OBJC'
@@ -509,6 +519,13 @@ __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, c
     });
 }
 
+// r10: the subtitles the next kodi_airplay_play burns into the picture a TV gets converted: Kodi's subtitle stream
+// number (ordinal >= 0; past the file's own subtitles it is Kodi's external one, `file`), -1 none, -2 automatic (the
+// file's forced / default text subtitle, else language `lang`, ISO 639-2). Changing them means playing again.
+__attribute__((visibility("default"))) void kodi_airplay_subtitles(int ordinal, const char *file, const char *lang) {
+    kr_remux_set_subtitles(ordinal, file, lang);
+}
+
 // r5: why AirPlay could not play the last stream ("" when it could). Returns the length written.
 __attribute__((visibility("default"))) int kodi_airplay_message(char *buf, int len) {
     if (!buf || len <= 0) return 0;
@@ -644,21 +661,23 @@ __attribute__((visibility("default"))) void kodi_airplay_open(void) {
 OBJC
 FW="$OUT/KodiAirPlay.framework"; rm -rf "$FW"; mkdir -p "$FW"
 # The remuxer (C) for iPhoneOS, against the remux-only FFmpeg.
-CC_IOS=(xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -O2 -std=gnu11 -I"$FF/include")
+CC_IOS=(xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -O2 -std=gnu11 -I"$FF/include" -I"$ASS/include")
 OBJS=()
 for c in "$REMUX"/src/*.c "$REMUX"/gmplayer/*.c; do
   o="$WORK/$(basename "${c%.c}").o"; "${CC_IOS[@]}" -c "$c" -o "$o"; OBJS+=("$o")
 done
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
-printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_background_keep\n' > "$WORK/exports"
+printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n' > "$WORK/exports"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
-  -framework VideoToolbox -framework CoreVideo \
+  -framework VideoToolbox -framework CoreVideo -framework CoreText \
   -I"$REMUX/src" -Wl,-exported_symbols_list,"$WORK/exports" \
   -o "$FW/KodiAirPlay" "$WORK/KodiAirPlay.m" "${OBJS[@]}" \
+  "$ASS/lib/libass.a" "$ASS/lib/libharfbuzz.a" "$ASS/lib/libfribidi.a" "$ASS/lib/libfreetype.a" -lc++ \
   "$FF/lib/libavformat.a" "$FF/lib/libavcodec.a" "$FF/lib/libswscale.a" "$FF/lib/libswresample.a" "$FF/lib/libavutil.a" \
   -framework Security -framework CoreFoundation -lz -liconv
 cp "$REMUX/THIRD-PARTY-NOTICES" "$FW/THIRD-PARTY-NOTICES"; cp "$FF/FFMPEG-CONFIG.txt" "$FW/FFMPEG-CONFIG.txt"
+cp "$ASS/LIBASS-CONFIG.txt" "$FW/LIBASS-CONFIG.txt"
 cat > "$FW/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -673,9 +692,11 @@ cat > "$FW/Info.plist" <<PLIST
 <key>MinimumOSVersion</key><string>$MIN_IOS</string>
 </dict></plist>
 PLIST
-nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message|log)|background_keep)$'
-[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log)|background_keep)$')" == 8 ]] || { echo 'missing exports' >&2; exit 1; }
-! nm -gU "$FW/KodiAirPlay" | grep -E ' _(av|avformat|avcodec|swr|sws|kr|gm)_' || { echo 'FFmpeg symbols exported: they would clash with Kodi' >&2; exit 1; }
+nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message|log|subtitles)|background_keep)$'
+[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log|subtitles)|background_keep)$')" == 9 ]] || { echo 'missing exports' >&2; exit 1; }
+! nm -gU "$FW/KodiAirPlay" | grep -E ' _(av|avformat|avcodec|swr|sws|kr|gm|ass|FT|hb|fribidi)_' || { echo 'FFmpeg symbols exported: they would clash with Kodi (libass too)' >&2; exit 1; }
+# r10: libass and the burn-in path are linked in (private).
+[[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _(ass_render_frame|kr_subs_blend|kr_video_burn|kr_remux_set_subtitles|hb_shape|FT_Init_FreeType|fribidi_get_par_embedding_levels_ex)$')" == 7 ]] || { echo 'r10 libass burn-in missing' >&2; exit 1; }
 # r8: the per-receiver picture and the TV's segment count are linked in (private to the framework, not exported).
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _kr_remux_(third_party_receiver|served_external|compat_clients)$')" == 3 ]] || { echo 'r8 remuxer missing' >&2; exit 1; }
 # r7: the picture bridge needs Apple's hardware H.264 encoder in this FFmpeg.

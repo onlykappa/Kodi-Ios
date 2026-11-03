@@ -1,5 +1,5 @@
 name: AirPlay MKV remuxer
-# Builds and tests the AirPlay remuxer (migration/airplay-ios/remux) and KodiAirPlay.framework r9 with it.
+# Builds and tests the AirPlay remuxer (migration/airplay-ios/remux) and KodiAirPlay.framework r10 with it.
 # Builds only: nothing is published here. The framework release (once per tag, sha256 pinned in
 # migration/airplay-ios/source-lock.json) stays with airplay-ios.yml.
 on:
@@ -33,8 +33,15 @@ jobs:
       - name: FFmpeg 8.1.1 (remux + picture bridge, LGPL) for the host
         run: |
           [ -f "$RUNNER_TEMP/ff-host/lib/libavformat.a" ] || bash migration/airplay-ios/build-remux-ffmpeg.sh host "$RUNNER_TEMP/ff-host"
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/ass-host
+          key: remux-libass-host-${{ hashFiles('migration/airplay-ios/build-libass.sh') }}
+      - name: libass 0.17.4 + FreeType + FriBidi + HarfBuzz (r10 burned-in subtitles) for the host
+        run: |
+          [ -f "$RUNNER_TEMP/ass-host/lib/libass.a" ] || bash migration/airplay-ios/build-libass.sh host "$RUNNER_TEMP/ass-host"
       - name: Host tests (fixtures from files and over HTTP with Range)
-        run: bash migration/airplay-ios/remux/tests/run_host_tests.sh "$RUNNER_TEMP/ff-host" "$RUNNER_TEMP/remux-tests"
+        run: bash migration/airplay-ios/remux/tests/run_host_tests.sh "$RUNNER_TEMP/ff-host" "$RUNNER_TEMP/remux-tests" "$RUNNER_TEMP/ass-host"
   framework:
     runs-on: macos-15
     timeout-minutes: 45
@@ -49,13 +56,21 @@ jobs:
       - name: FFmpeg 8.1.1 (remux + picture bridge, LGPL) for iPhoneOS
         run: |
           [ -f "$RUNNER_TEMP/ff-ios/lib/libavformat.a" ] || bash migration/airplay-ios/build-remux-ffmpeg.sh ios "$RUNNER_TEMP/ff-ios"
-      - name: Build KodiAirPlay.framework r9 with the remuxer
+      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ${{ runner.temp }}/ass-ios
+          key: remux-libass-ios-${{ hashFiles('migration/airplay-ios/build-libass.sh') }}
+      - name: libass (r10 burned-in subtitles) for iPhoneOS
+        run: |
+          [ -f "$RUNNER_TEMP/ass-ios/lib/libass.a" ] || bash migration/airplay-ios/build-libass.sh ios "$RUNNER_TEMP/ass-ios"
+      - name: Build KodiAirPlay.framework r10 with the remuxer
         env:
           REMUX_FFMPEG: ${{ runner.temp }}/ff-ios
+          REMUX_LIBASS: ${{ runner.temp }}/ass-ios
         run: bash migration/airplay-ios/build-airplay.sh "$RUNNER_TEMP/airplay"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: KodiAirPlay-r9-candidate
+          name: KodiAirPlay-r10-candidate
           path: |
             ${{ runner.temp }}/airplay/KodiAirPlay.framework.zip
             ${{ runner.temp }}/airplay/KodiAirPlay.framework.zip.sha256

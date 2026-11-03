@@ -1,6 +1,6 @@
 {
   "framework_release": {
-    "tag": "kodi-airplay-r9",
+    "tag": "kodi-airplay-r10",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "f31962d9e802b83b0f5bc526248acfeced3e4b7e7c0eaa36941b8a70c25d43b9"
   },
