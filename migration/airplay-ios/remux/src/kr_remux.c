@@ -12,12 +12,15 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/socket.h>
+#include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 #include <libavformat/avformat.h>
 
@@ -52,6 +55,66 @@ static struct {
 } S = { .lock = PTHREAD_MUTEX_INITIALIZER, .gm_lock = PTHREAD_MUTEX_INITIALIZER, .listen_fd = -1 };
 
 static void set_message(const char *m) { snprintf(S.message, sizeof S.message, "%s", m ? m : ""); }
+
+// -- r6 log: what the receiver asked for and how it went, for kodi.log (kr_remux_log) --
+#define LOG_LINES 128
+#define LOG_WIDTH 240
+static struct {
+    pthread_mutex_t lock;
+    char lines[LOG_LINES][LOG_WIDTH];
+    unsigned long written, read;  // line counters; written - read lines are waiting
+    char agents[4][160];
+} L = { .lock = PTHREAD_MUTEX_INITIALIZER };
+
+static double now_ms(void) {
+    struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t);
+    return t.tv_sec * 1000.0 + t.tv_nsec / 1e6;
+}
+
+static void log_line(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+static void log_line(const char *fmt, ...) {
+    char line[LOG_WIDTH];
+    va_list ap; va_start(ap, fmt); vsnprintf(line, sizeof line, fmt, ap); va_end(ap);
+    for (char *c = line; *c; c++) if (*c == '\n' || *c == '\r') *c = ' ';
+    pthread_mutex_lock(&L.lock);
+    snprintf(L.lines[L.written % LOG_LINES], LOG_WIDTH, "%s", line);
+    L.written++;
+    if (L.written - L.read > LOG_LINES) L.read = L.written - LOG_LINES;  // oldest lines dropped
+    pthread_mutex_unlock(&L.lock);
+}
+
+// Each distinct User-Agent once per session: names the receiver (AppleCoreMedia on the phone, the TV's own player).
+static void log_agent(const char *ua) {
+    if (!ua || !*ua) return;
+    pthread_mutex_lock(&L.lock);
+    int seen = 0, slot = -1;
+    for (int i = 0; i < 4; i++) {
+        if (!strncmp(L.agents[i], ua, sizeof L.agents[i] - 1)) { seen = 1; break; }
+        if (slot < 0 && !L.agents[i][0]) slot = i;
+    }
+    if (!seen && slot >= 0) snprintf(L.agents[slot], sizeof L.agents[slot], "%s", ua);
+    pthread_mutex_unlock(&L.lock);
+    if (!seen && slot >= 0) log_line("client: %.200s", ua);
+}
+
+int kr_remux_log(char *buf, int len) {
+    if (!buf || len <= 0) return 0;
+    buf[0] = 0;
+    size_t used = 0;
+    pthread_mutex_lock(&L.lock);
+    while (L.read < L.written) {
+        const char *line = L.lines[L.read % LOG_LINES];
+        size_t n = strlen(line);
+        if (used + n + 2 > (size_t)len) break;  // the rest waits for the next call
+        memcpy(buf + used, line, n); used += n; buf[used++] = '\n'; buf[used] = 0;
+        L.read++;
+    }
+    pthread_mutex_unlock(&L.lock);
+    return (int)used;
+}
+
+static __thread int t_status;   // what this connection answered (negative: the client hung up mid-answer)
+static __thread size_t t_bytes;
 
 int kr_remux_kind(const char *url) {
     if (!url) return KR_UNKNOWN;
@@ -96,20 +159,23 @@ static void respond(int fd, int head, const char *range, const char *type, const
         if (got >= 1 && a < len) { from = (size_t)a; if (got == 2 && b < len && b >= a) to = (size_t)b; partial = 1; }
         else if (got >= 1) {
             int n = snprintf(h, sizeof h, "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */%zu\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", len);
-            send_all(fd, h, (size_t)n); return;
+            send_all(fd, h, (size_t)n); t_status = 416; return;
         }
     }
     size_t n_body = len ? to - from + 1 : 0;
     int n = partial
         ? snprintf(h, sizeof h, "HTTP/1.1 206 Partial Content\r\nContent-Type: %s\r\nContent-Length: %zu\r\nContent-Range: bytes %zu-%zu/%zu\r\nAccept-Ranges: bytes\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n", type, n_body, from, to, len)
         : snprintf(h, sizeof h, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %zu\r\nAccept-Ranges: bytes\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n", type, n_body);
-    if (send_all(fd, h, (size_t)n) == 0 && !head && n_body) send_all(fd, body + from, n_body);
+    t_status = partial ? 206 : 200;
+    if (send_all(fd, h, (size_t)n) != 0) { t_status = -t_status; return; }
+    if (!head && n_body) { if (send_all(fd, body + from, n_body) == 0) t_bytes = n_body; else t_status = -t_status; }
 }
 
 static void fail(int fd, int code, const char *why) {
     char h[256];
     int n = snprintf(h, sizeof h, "HTTP/1.1 %d %s\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", code, why);
     send_all(fd, h, (size_t)n);
+    t_status = code;
 }
 
 static int ends_with(const char *s, const char *tail) {
@@ -190,6 +256,7 @@ static void serve(int fd, const char *method, const char *path, const char *rang
             char m[300]; snprintf(m, sizeof m, "AirPlay conversion failed on %.60s: %s", path, *err ? err : "unknown error");
             set_message(m);
             fprintf(stderr, "kodi-airplay-remux: %s\n", m);
+            log_line("error: %s", m);
         }
         fail(fd, 500, "Remux Failed");
     }
@@ -230,15 +297,23 @@ static void *connection(void *arg) {
     req[got] = 0;
     char method[8] = "", path[1024] = "";
     if (sscanf(req, "%7s %1023s", method, path) == 2 && (!strcmp(method, "GET") || !strcmp(method, "HEAD"))) {
-        char range[128] = "", *h = req;
+        char range[128] = "", agent[160] = "", *h = req;
         while ((h = strstr(h, "\r\n")) != NULL) {
             h += 2;
-            if (!strncasecmp(h, "Range:", 6)) { sscanf(h + 6, " %127[^\r\n]", range); break; }
+            if (!strncasecmp(h, "Range:", 6)) sscanf(h + 6, " %127[^\r\n]", range);
+            else if (!strncasecmp(h, "User-Agent:", 11)) sscanf(h + 11, " %159[^\r\n]", agent);
         }
+        log_agent(agent);
         char *q = strchr(path, '?'); if (q) *q = 0;
         size_t tl = strlen(S.token);
-        if (path[0] == '/' && !strncmp(path + 1, S.token, tl) && path[1 + tl] == '/') serve(fd, method, path + 1 + tl, *range ? range : NULL);
+        t_status = 0; t_bytes = 0;
+        double t0 = now_ms();
+        int ok = path[0] == '/' && !strncmp(path + 1, S.token, tl) && path[1 + tl] == '/';
+        if (ok) serve(fd, method, path + 1 + tl, *range ? range : NULL);
         else fail(fd, 404, "Not Found");
+        // "GET /video/seg3.m4s 200 1834567 B 412 ms"
+        log_line("%s %s%s%s %d %zu B %.0f ms", method, ok ? path + 1 + tl : "(no token)", *range ? " " : "", range,
+                 t_status, t_bytes, now_ms() - t0);
     } else fail(fd, 405, "Method Not Allowed");
     close(fd);
     atomic_fetch_sub(&S.active, 1);
@@ -323,6 +398,8 @@ int kr_remux_start(const char *url, int lan, char *out, int outlen) {
     int result = KR_FAILED;
     snprintf(S.url, sizeof S.url, "%s", url ? url : "");
     S.src = kr_source_open(S.url, 30, err, sizeof err);
+    pthread_mutex_lock(&L.lock); memset(L.agents, 0, sizeof L.agents); pthread_mutex_unlock(&L.lock);
+    log_line("start: %.*s", (int)(strcspn(S.url, "?") < 200 ? strcspn(S.url, "?") : 200), S.url);  // no query (tokens)
     if (!S.src) { char m[300]; snprintf(m, sizeof m, "AirPlay: %s.", err); set_message(m); goto done; }
     {   // MP4/MOV bytes behind a URL without an extension (a Drive link): Apple's player takes the URL itself
         uint8_t pad[4096 + AVPROBE_PADDING_SIZE] = {0};
@@ -369,9 +446,14 @@ int kr_remux_start(const char *url, int lan, char *out, int outlen) {
         set_message("AirPlay: could not start the local streaming server."); goto done;
     }
     if (out && outlen > 0) snprintf(out, (size_t)outlen, "%s/master.m3u8", S.base);
+    {   // r6: the variant line the receiver judges the stream by (CODECS, RESOLUTION, VIDEO-RANGE), for the log
+        char *m = kr_hls_master(S.gm, S.base), *v = m ? strstr(m, "#EXT-X-STREAM-INF:") : NULL;
+        if (v) { char *e = strchr(v, '\n'); if (e) *e = 0; log_line("master: %.200s", v + 18); }
+        free(m);
+    }
     result = KR_READY;
 done:
-    if (result != KR_READY) teardown_locked();
+    if (result != KR_READY) { log_line("start result %d: %s", result, S.message); teardown_locked(); }
     atomic_store(&S.state, result);
     pthread_mutex_unlock(&S.lock);
     return result;

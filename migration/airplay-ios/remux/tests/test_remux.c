@@ -35,7 +35,7 @@ static reply http_get_raw(int port, const char *path, const char *range) {
     struct sockaddr_in a = {0}; a.sin_family = AF_INET; a.sin_port = htons((uint16_t)port); a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     if (connect(fd, (struct sockaddr *)&a, sizeof a) < 0) { close(fd); r.status = -1; return r; }
     char req[512];
-    int n = snprintf(req, sizeof req, "GET %s HTTP/1.1\r\nHost: 127.0.0.1\r\n%s%s%s\r\n", path, range ? "Range: " : "", range ? range : "", range ? "\r\n" : "");
+    int n = snprintf(req, sizeof req, "GET %s HTTP/1.1\r\nHost: 127.0.0.1\r\nUser-Agent: test_remux/1\r\n%s%s%s\r\n", path, range ? "Range: " : "", range ? range : "", range ? "\r\n" : "");
     send(fd, req, (size_t)n, 0);
     size_t cap = 1 << 16, len = 0; char *buf = malloc(cap);
     for (;;) {
@@ -138,7 +138,12 @@ typedef struct { const char *file; const char *video; const char *audio_tokens; 
 static void test_file(const char *url, const fixture *fx, const char *work) {
     start_offset = fx->offset;
     char m3u8[256];
+    static char log[1 << 16];
+    while (kr_remux_log(log, sizeof log) > 0) {}  // earlier sessions' lines
     int st = kr_remux_start(url, fx->lan, m3u8, sizeof m3u8);
+    kr_remux_log(log, sizeof log);
+    CHECK(strstr(log, "start: ") && strstr(log, "master: BANDWIDTH=") && strstr(log, "CODECS=\"") && !strstr(log, "#EXT"),
+          "%s: the log names the source and the variant line:\n%s", fx->file, log);
     snprintf(prefix_path, sizeof prefix_path, "%s", strstr(m3u8, "://") ? strchr(strstr(m3u8, "://") + 3, '/') : "");
     char *cut = strstr(prefix_path, "/master.m3u8"); if (cut) *cut = 0;
     CHECK(st == KR_READY, "%s: start %d (%s)", fx->file, st, kr_remux_message());
@@ -219,6 +224,13 @@ static void test_file(const char *url, const fixture *fx, const char *work) {
     reply bad = http_get(port, "/video/seg9999.m4s", NULL);
     CHECK(bad.status == 500 && *kr_remux_message(), "a failed segment is reported (%s)", kr_remux_message());
     free(missing.body); free(bad.body); free(master.body); free(video.body);
+    char small[48];
+    int n1 = kr_remux_log(small, sizeof small);
+    CHECK(n1 < (int)sizeof small && (n1 == 0 || small[n1 - 1] == '\n'), "a short buffer gets whole lines only (%d)", n1);
+    strcpy(log, small); kr_remux_log(log + n1, (int)sizeof log - n1);
+    CHECK(strstr(log, "client: test_remux/1\n") && strstr(log, "GET /video/seg9999.m4s 500 0 B ") && strstr(log, "error: AirPlay conversion failed")
+          && strstr(log, "GET (no token) 404") && strstr(log, " 206 100 B "), "%s: requests and errors logged:\n%.3000s", fx->file, log);
+    CHECK(kr_remux_log(log, sizeof log) == 0 && !*log, "the log is read once");
 
     kr_remux_stop();
     CHECK(kr_remux_state() == KR_IDLE && kr_remux_port() == 0, "stopped");

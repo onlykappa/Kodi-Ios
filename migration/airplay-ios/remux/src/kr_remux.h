@@ -24,6 +24,10 @@ int kr_remux_state(void);
 const char *kr_remux_message(void);
 // Stops the server, aborts network reads and frees everything. Safe to call any time, more than once.
 void kr_remux_stop(void);
+// r6: the log lines written since the last call ("start: URL", "master: BANDWIDTH=...,CODECS=...", "client: UA",
+// "GET /video/seg3.m4s 200 1834567 B 412 ms", "error: ..."), newline-separated, at most len-1 bytes; lines that do
+// not fit wait for the next call. Keeps the latest 128. Returns the length written. Any thread.
+int kr_remux_log(char *buf, int len);
 // The port of the running server, 0 when none (tests).
 int kr_remux_port(void);
 #ifdef __cplusplus
