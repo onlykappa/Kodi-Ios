@@ -1217,3 +1217,37 @@ index bf8a8ae..d927130 100644
    bool CanDoWindowed() override { return false; }
  
    void ShowOSMouse(bool show) override {}
+diff --git a/xbmc/cores/AudioEngine/Engines/ActiveAE/ActiveAE.cpp b/xbmc/cores/AudioEngine/Engines/ActiveAE/ActiveAE.cpp
+--- a/xbmc/cores/AudioEngine/Engines/ActiveAE/ActiveAE.cpp
++++ b/xbmc/cores/AudioEngine/Engines/ActiveAE/ActiveAE.cpp
+@@ -580,6 +580,13 @@
+         bool streaming;
+         switch (signal)
+         {
++#if defined(TARGET_DARWIN_IOS)
++        case CActiveAEControlProtocol::INIT:
++          // iOS can resume an engine already configured (startup/foreground callbacks). Acknowledge it;
++          // otherwise Resume() waits five seconds for a reply that never comes. Suspended handles INIT first.
++          msg->Reply(CActiveAEControlProtocol::ACC);
++          return;
++#endif
+         case CActiveAEControlProtocol::RECONFIGURE:
+         {
+           if (m_streams.empty())
+diff --git a/xbmc/interfaces/json-rpc/JSONServiceDescription.cpp b/xbmc/interfaces/json-rpc/JSONServiceDescription.cpp
+--- a/xbmc/interfaces/json-rpc/JSONServiceDescription.cpp
++++ b/xbmc/interfaces/json-rpc/JSONServiceDescription.cpp
+@@ -1627,6 +1627,12 @@
+   if (!globalType->Parse(descriptionObject[typeName]))
+   {
+-    CLog::Log(LOGWARNING, "JSONRPC: Could not parse type \"{}\"", typeName);
++    // A forward/recursive reference is deferred below and retried once its dependency is registered.
++    // Only a parse failure without a missing dependency is a warning.
++    if (globalType->missingReference.empty())
++      CLog::Log(LOGWARNING, "JSONRPC: Could not parse type \"{}\"", typeName);
++    else
++      CLog::Log(LOGDEBUG, "JSONRPC: Deferring type \"{}\" until \"{}\" is registered", typeName,
++                globalType->missingReference);
+     CJSONServiceDescription::removeReferenceTypeDefinition(typeName);
+     if (!globalType->missingReference.empty())
+     {

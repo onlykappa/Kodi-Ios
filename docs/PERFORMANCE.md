@@ -115,3 +115,67 @@ costs one TMDb Helper run at a time (about 36 on the first launch, then only lis
 
 Guard rails: `scripts/test_listing_cache.py` (in CI) and `test_performance_budget.py`
 (`test_preloader_every_hub_row_loads_when_home_opens`).
+
+
+## Startup follow-up — 2026-11-04
+
+The owner clarified that the regression is **opening Kodi until posters appear**. The 0.1–0.2 s values above are
+switches to already-preloaded tabs. They are not an app-launch measurement. The supplied startup capture reaches
+Home after 1.100 s from the first log record and the running application after 1.175 s. It ends at 5.795 s without
+bootstrap/cache milestones or poster readiness. Time before the first log entry and image decode/render completion
+are not measured.
+
+A confirmed inefficiency is navigation.upgrade: bootstrap calls it twice per start, and both calls used to re-read
+and parse all skin XML/templates. It now fingerprints code, file identities/change times and keymap contents, skips
+unchanged work and rechecks any changed/new/deleted inputs. Invalid markers fall back to the full scan; symlink
+protection and recovery backups stay active.
+
+Reproduce the isolated **navigation-only** benchmark on an acquired pinned Fuse 3.4.8 copy (input remains read-only):
+
+```sh
+python3 -B scripts/bench_startup_checks.py --skin-source /path/to/skin.arctic.fuse.3
+```
+
+Five samples, two calls per sample, 223 XML files and 19 templates, Linux/Python 3.12, text-only source copy:
+
+| Work measured | Before median | After median |
+| --- | --- | --- |
+| Two unchanged navigation upgrades | 0.266 s | 0.0175 s |
+
+The same current portrait generator prepares both variants. No Kodi process or iPhone ran in this benchmark.
+A separate code probe measured full portrait regeneration at about 2.5 s and an unchanged portrait check at about
+0.003 s. Those are subsystem timings, not proof that the phone rebuilds at each launch or that posters now appear
+faster. Full results and limits: reports/startup-followup-validation.json.
+
+Remaining launch-to-posters suspects and evidence gaps:
+
+- Cached rows still need Kodi's Python runtime and the watch plugin to list their JSON data. A cache hit removes
+  TMDb/network work, not Python startup or image loading.
+- With missing copies, rows still run TMDb Helper. Background copying starts after 20 s and may not fill every row
+  during a brief initial session. The capture contains no cache coverage evidence.
+- A genuine layout change can trigger regeneration and ReloadSkin, discarding the initial preloaded rows. The
+  unchanged navigation check avoids unnecessary scanning; the existing portrait fingerprint already skips a rebuild
+  when its inputs are unchanged. No repeated phone reload is established by this capture.
+- Kodi's unacknowledged configured-state audio INIT can cause a synchronous Resume caller to wait up to five seconds;
+  ISSUE-086 fixes that source path. The logged request's caller is unknown and no timeout is shown here, so it is not
+  established as this phone's loading delay.
+
+New INFO diagnostics: bootstrap import/stage times, portrait-service entry, portrait refresh duration, cached-row
+hit count/duration and first hero/provider-row data readiness (bounded to 60 s, stops polling after readiness).
+These report no titles/URLs. Readiness means list items exist, not that their images are on screen. Preloading of all
+three hubs remains. The next complete startup log must extend through visible posters to distinguish the remaining
+stages. No iPhone timing improvement or new IPA is claimed.
+
+
+The owner also reports **at least five seconds before the bottom menu bar appears** (ISSUE-090). The native UI now
+runs in a lightweight worker launched before the full bootstrap/setup imports. Its first bar tick occurs before
+Continue Watching, cache/provider lookup, search/GUI setup or the first polling sleep. It owns both native controls;
+the portrait worker no longer owns a second controller. Shared ios_tabs.py keeps skin/native actions identical,
+and recovery avoids starting a second worker. Framework failures restore the skin fallback. Existing portrait input
+fingerprints now include the shared tab and page-generator modules, so changing either regenerates the writable layout.
+
+This removes those Python-side ordering dependencies; it cannot bypass Kodi's Python runtime startup. New log entries
+separate native worker entry and the first show request from full bootstrap entry. The show request is asynchronous
+on UIKit, so it does not establish the time the bar is actually visible. Five new host regressions verify ordering,
+landscape exclusion, fallback and recovery behavior. Actual five-second bar delay and launch-to-poster time need a
+complete phone test after a separately requested build. No native framework was rebuilt or repinned.

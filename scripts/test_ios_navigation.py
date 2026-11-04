@@ -4,6 +4,55 @@ ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('ios_navigation_test',ROOT/'migration/bundled-bootstrap/resources/lib/navigation.py');nav=importlib.util.module_from_spec(spec);spec.loader.exec_module(nav)
 HOME=b'<window><onload>OriginalAction()</onload><controls><include>missing-generated-menu</include><control type="list" id="501"><content>videodb://movies/titles/</content></control></controls></window>'
 class NavigationTests(unittest.TestCase):
+ def test_warm_upgrade_skips_parsing_and_rechecks_modified_or_new_inputs(self):
+  from unittest.mock import patch
+  with tempfile.TemporaryDirectory() as t:
+   base=Path(t);skin=base/'addons/skin.arctic.fuse.3';(skin/'1080i').mkdir(parents=True)
+   home=skin/'1080i/Home.xml';home.write_bytes(HOME);profile=base/'userdata'
+   nav.upgrade(base,profile)
+   with patch.object(nav,'patch_skin',side_effect=AssertionError('warm startup reparsed every window')):
+    self.assertEqual(nav.upgrade(base,profile)['changed_files'],0)
+   home.write_bytes(HOME)
+   self.assertEqual(nav.upgrade(base,profile)['changed_files'],1)
+   parts=skin/nav.TEMPLATES;parts.mkdir(parents=True)
+   (parts/'widgets_standard_include.xmltemplate').write_bytes(b'<include name="{includes_name}-onunload">\n    {combined_widget_unload}\n</include>')
+   self.assertEqual(nav.upgrade(base,profile)['changed_files'],1)
+   keymap=profile/'keymaps/zz-kodi-ios-navigation.xml';keymap.write_text('<keymap/>')
+   self.assertTrue(nav.upgrade(base,profile)['keymap_changed'])
+   (profile/'addon_data/service.kodi.ios.bootstrap/navigation-upgrade.json').write_text('{invalid')
+   with patch.object(nav,'patch_skin',wraps=nav.patch_skin) as scan:
+    nav.upgrade(base,profile);self.assertEqual(scan.call_count,1)
+ def test_warm_upgrade_does_not_bypass_symlink_protection(self):
+  with tempfile.TemporaryDirectory() as t:
+   base=Path(t);skin=base/'addons/skin.arctic.fuse.3/1080i';skin.mkdir(parents=True)
+   (skin/'Home.xml').write_bytes(HOME);profile=base/'userdata';nav.upgrade(base,profile)
+   target=base/'private.xml';target.write_text('<includes/>');(skin/'external.xml').symlink_to(target)
+   with self.assertRaises(ValueError):nav.upgrade(base,profile)
+ def test_empty_generated_unload_is_registered_but_real_actions_are_preserved(self):
+  for empty in (b'<include name="skinvariables-homewidgets-standard-onunload" />',
+                b'<include name="skinvariables-1101widgets-standard-onunload">\n </include>'):
+   fixed=nav.empty_widget_unloads(empty);root=ET.fromstring(fixed)
+   # Kodi 21's LoadIncludes requires FirstChild(): a definition child registers even an empty include.
+   self.assertIsNotNone(root.find('definition'));self.assertEqual(nav.empty_widget_unloads(fixed),fixed)
+  real=b'<include name="skinvariables-homewidgets-standard-onunload"><onunload>ClearProperty(WidgetCombined.1.Path,Home)</onunload></include>'
+  self.assertEqual(nav.empty_widget_unloads(real),real)
+  unrelated=b'<include name="owner-empty" />';self.assertEqual(nav.empty_widget_unloads(unrelated),unrelated)
+ def test_widget_generator_emits_valid_empty_and_nonempty_unloads(self):
+  template=b'<include name="{includes_name}-onunload">\n    {combined_widget_unload}\n</include>'
+  fixed=nav.empty_widget_unloads(template);self.assertEqual(nav.empty_widget_unloads(fixed),fixed)
+  for actions in (b'',b'<onunload>ClearProperty(WidgetCombined.1.Path,Home)</onunload>'):
+   root=ET.fromstring(fixed.replace(b'{includes_name}',b'skinvariables-homewidgets-standard').replace(b'{combined_widget_unload}',actions))
+   definition=root.find('definition');self.assertIsNotNone(definition)
+   self.assertEqual(len(definition),int(bool(actions)))
+ def test_existing_generated_files_and_future_templates_are_repaired_together(self):
+  with tempfile.TemporaryDirectory() as t:
+   skin=Path(t);(skin/'1080i').mkdir();parts=skin/nav.TEMPLATES;parts.mkdir(parents=True)
+   generated=skin/'1080i/script-skinvariables-generator-includes-.xml'
+   generated.write_bytes(b'<includes><include name="skinvariables-homewidgets-standard-onunload" /></includes>')
+   template=parts/'widgets_standard_include.xmltemplate'
+   template.write_bytes(b'<include name="{includes_name}-onunload">\n    {combined_widget_unload}\n</include>')
+   self.assertEqual(len(nav.patch_skin(skin)),2);self.assertEqual(nav.patch_skin(skin),[])
+   self.assertIsNotNone(ET.parse(generated).find('include/definition'));self.assertIn(b'<definition>',template.read_bytes())
  def header(self,data=HOME,name='Home.xml'):return ET.fromstring(nav.patch_window(data,name)).find("controls/control[@id='98200']")
  def test_every_hub_tab_has_a_touch_target(self):
   group=self.header();self.assertTrue(group.findtext('visible').startswith('System.Platform.IOS'))

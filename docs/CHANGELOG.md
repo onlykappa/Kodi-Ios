@@ -83,3 +83,18 @@ Touch-r2 IPA built and uploaded successfully in run 41078491846; artifact/checks
 ## 2026-11-03 — AirPlay MKV remuxer (feature/airplay-mkv-remux, BUILT ON HOST; device test pending)
 
 KodiAirPlay r5 plays MKV/AVI/WebM/MPEG-TS through AirPlay by remuxing on the phone to fragmented-MP4 HLS (GMPlayer C core, MIT; FFmpeg 8.1.1 LGPL, remux-only, statically linked with private symbols). DTS/TrueHD/FLAC/Opus/Vorbis become AAC; SRT/ASS become WebVTT. Server on the Wi-Fi address with a per-session token; clear messages on failure; stops with Apple's player. 574 host checks plus Python routing tests; CI workflow airplay-remux.yml (builds only). Findings and licences in migration/airplay-ios/remux/FINDINGS.md and THIRD-PARTY-NOTICES. Not merged, no release, no PR (ISSUE-083).
+
+
+## 2026-11-04 — Draft PR #8 startup warnings and loading investigation
+
+Normalize empty generated widget unload includes and their template; acknowledge duplicate iOS audio INIT in the
+configured state; classify expected JSON-RPC forward-reference deferral correctly while retaining malformed-schema
+warnings. Real audio underflow remains open. Skip unchanged repeated navigation scans with invalidation/symlink
+regressions. Add bounded startup/feed/cache diagnostics and an isolated benchmark (0.266 s → 0.0175 s for two warm
+navigation checks on Linux; not app launch/poster timing). Owner clarified the slowdown is launch-to-posters.
+361 host tests in 25 suites pass; patch applies to pinned Kodi. Native host branch checks use stubs, not an Apple SDK
+build. r22 is staged only; verified executable pin stays r21. No IPA, workflow dispatch, device-success claim or merge.
+
+Owner added a ≥5 s bottom-bar delay: split native navigation/search into a lightweight worker started before setup
+imports and feed work; share tab actions, tick immediately, retain recovery/single-owner and skin fallback behavior.
+Five host regressions added. Python runtime/main-queue and actual phone visibility timing remain unverified.

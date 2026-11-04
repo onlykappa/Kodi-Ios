@@ -1,18 +1,33 @@
-import json,os,sys,time
+import json,os,sys,time,threading
+_IMPORT_STARTED=time.monotonic()
 from pathlib import Path
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
+# Request the navigation UI before importing the setup/generator/provider stack. Recovery runs beside the existing
+# service and must not create a second owner. Every controller/action still has one implementation.
+_EARLY_UI_STARTED=False
+if __name__=='__main__' and not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
+ import xbmc,xbmcvfs
+ if xbmc.getCondVisibility('System.Platform.IOS'):
+  import native_ui
+  threading.Thread(target=native_ui.run,args=(xbmc,xbmcvfs,xbmc.Monitor()),daemon=True).start()
+  _EARLY_UI_STARTED=True
 from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
 import airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready
+_IMPORT_SECONDS=time.monotonic()-_IMPORT_STARTED
 
 def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
  if not xbmc.getCondVisibility('System.Platform.IOS'):return
+ begun=time.monotonic()
+ xbmc.log('Kodi iOS startup: bootstrap entered (imports %.3fs)'%_IMPORT_SECONDS,xbmc.LOGINFO)
  monitor=xbmc.Monitor()
  root=Path(__file__).resolve().parent;profile=Path(xbmcvfs.translatePath('special://profile/')).resolve()
  window=xbmcgui.Window(10000);state={'stage':'prepare'};generated=False
- def stage(value):state['stage']=value
+ def stage(value):
+  state['stage']=value
+  xbmc.log('Kodi iOS startup: %s +%.3fs'%(value,time.monotonic()-begun),xbmc.LOGINFO)
  def api(method,params):return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params})))
  def invoke(command):xbmc.executebuiltin(command,True)
  # r11: portrait rows follow the owner's widgets, Continue Watching follows playback, the glass tab bar. Started now:
@@ -21,7 +36,7 @@ def run():
  setup_done=threading.Event()
  # Not for the gear menu's Recover (recover.py runs this with --recover next to the running service).
  if not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
-  portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),kwargs={'ready':setup_done},daemon=True);portrait_thread.start()
+  portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),kwargs={'ready':setup_done,'native_ui_started':_EARLY_UI_STARTED},daemon=True);portrait_thread.start()
  # Owner build-136 log: the tab bar answered ~8 s after launch, 2 s of it this fixed wait. Only setup waits now.
  if monitor.waitForAbort(2):return
  def prepare_generated(sync=True):
@@ -54,7 +69,7 @@ def run():
     if actual!=expected.resolve():raise RuntimeError('Kodi did not select the writable skin copy')
   home=Path(xbmcvfs.translatePath('special://home/')).resolve()
   if not profile.is_relative_to(home):raise RuntimeError('Profile is outside the app home')
-  navigation=upgrade(home,profile)
+  stage('navigation');navigation=upgrade(home,profile)
   # Load the guarded XML before a legacy completed profile runs its helpers again.
   if navigation.get('changed_files') and xbmc.getSkinDir()==FUSE:invoke('ReloadSkin()')
   stage('initialize')

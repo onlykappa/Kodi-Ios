@@ -33,7 +33,18 @@ These are log leads, not diagnosed user-facing bugs. No root cause or fix has be
 
 ## Fix queue and verification
 
-Waiting for the owner to select the first observed bug. No code fixes have started.
+Owner selected startup warnings first, then slow opening-to-posters (not tab switching).
+
+| Item | Current state |
+| --- | --- |
+| LOG-001 / ISSUE-085: empty widget unload include | Existing files and future generation repaired; host tests pass, device pending. |
+| LOG-002 / ISSUE-086: duplicate audio INIT | Native source fix staged; three host C++ branch checks cover the native changes. iOS compilation/device pending; executable pin unchanged. |
+| LOG-004 / ISSUE-087: schema dependency warning | Expected deferral uses DEBUG; genuine nondependency parse failures still warn. Native build/device pending. |
+| LOG-003 / ISSUE-089: audio underflow | Open: genuine buffer shortage; warning preserved until its cause can be diagnosed. |
+| ISSUE-090: bottom menu bar delayed ≥5 s | Lightweight native UI worker starts before setup imports/providers and requests display before the first polling wait; phone timing pending. |
+| ISSUE-088: launch until posters appear | Repeated skin scanning reduced on host; timing instrumentation added; end-to-end phone performance unverified. |
+
+See [validation evidence](../reports/startup-followup-validation.json), [performance findings](PERFORMANCE.md#startup-follow-up--2026-11-04), and the detailed ISSUE-085 through ISSUE-090 records. No IPA or native build was triggered.
 
 For each bug, record reproduction, relevant evidence, diagnosis, focused change, appropriate host checks, device-test status and commit here and in docs/ISSUES.md as warranted. Preserve failures and distinguish host results from actual phone results.
 

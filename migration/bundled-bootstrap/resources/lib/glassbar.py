@@ -31,7 +31,7 @@ def page(visible):
   if visible(condition):return index
  return None
 
-def controller(lib,visible,portrait,invoke,actions):
+def controller(lib,visible,portrait,invoke,actions,on_show=None):
  """tick(): show the bar on the tab pages in portrait and mark the page; poll(): run a tapped tab."""
  state={'shown':False,'page':None}
  def tick():
@@ -41,6 +41,7 @@ def controller(lib,visible,portrait,invoke,actions):
   state['page']=index
   if show!=state['shown']:
    state['shown']=show;lib.kodi_glassbar_show(int(show))
+   if show and on_show:on_show()
  def poll():
   tapped=lib.kodi_glassbar_take_tap()
   if 0<=tapped<len(actions) and tapped!=state['page']:

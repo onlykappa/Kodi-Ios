@@ -47,24 +47,13 @@ CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type='
 # Floating tab bar (Apple TV app): Home, Movies, TV, Library (downloaded media), Search.
 # Home, Movies and TV are one window (Home.xml) with a group per hub, so all three load their rows at start and
 # switching between them only changes Window(Home).Property(Portrait.Tab); Custom_1101/1102 forward to it.
-TAB_PROPERTY='Portrait.Tab'
-HUB_TABS=('home','movies','tv')
-HUB_OFFSET={'home':0,'movies':10000,'tv':20000}
-# Preloader (owner, build-135: "bring back the preloader, it was game changing"). The three hubs share Home.xml and
-# every row of Home, Movies and TV loads as soon as Home opens, then keeps its titles: switching tabs finds them
-# filled. Home's hero and rows come first in the window, so Kodi queues them first. The performance pass had made
-# Movies/TV wait for their first visit (and Home's lower rows two seconds), which the owner felt as every menu
-# saying "Loading...". Fuse's startup scripts stay off and there is still one tab bar.
-def tab_actions(key):
- """[(condition, builtin)] for one tab: hubs set the property (and come back to Home), the others open their window."""
- if key in HUB_TABS:
-  return [('','ClearProperty(%s,home)'%TAB_PROPERTY if key=='home' else 'SetProperty(%s,%s,home)'%(TAB_PROPERTY,key)),
-          ('!Window.IsActive(home)','ReplaceWindow(Home)'),('','SetFocus(%d)'%(4000+HUB_OFFSET[key]))]
- return [('','ReplaceWindow(%s)'%{'library':1103,'search':1105}[key])]
+_spec=_iu.spec_from_file_location('ios_tabs',os.path.join(os.path.dirname(os.path.abspath(__file__)),'ios_tabs.py'))
+ios_tabs=_iu.module_from_spec(_spec);_spec.loader.exec_module(ios_tabs)
+TAB_PROPERTY,HUB_TABS,HUB_OFFSET=ios_tabs.TAB_PROPERTY,ios_tabs.HUB_TABS,ios_tabs.HUB_OFFSET
+tab_actions=ios_tabs.tab_actions
 def tab_visible(key):
  return 'String.IsEmpty(Window(Home).Property(%s))'%TAB_PROPERTY if key=='home' else 'String.IsEqual(Window(Home).Property(%s),%s)'%(TAB_PROPERTY,key)
-TABS=[('home','Home','house.png'),('movies','Movies','film.png'),('tv','TV','tv.png'),('library','Library','layer-group.png'),
-      ('search','Search','magnifying-glass.png')]
+TABS=ios_tabs.TABS
 TAB_CLEAR=320                # the last row scrolls fully above the floating tab bar (and the home indicator)
 ACCENT='FF4FA8FF'
 def titled_page(title,path):
@@ -1073,7 +1062,7 @@ def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__)):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),Path(pages.__file__),Path(ios_tabs.__file__)):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())
@@ -1128,6 +1117,25 @@ def focused_item_publisher(info,visible,set_property):
   sub=info(item+'.Property(subtitle)') or '  ·  '.join(v for v in (info(item+'.Year'),info(item+'.Genre')) if v)
   for key,value in (('Title',info(item+'.Label')),('Art',art),('Sub',sub)):
    if last.get(key)!=value:last[key]=value;set_property(key,value)
+ return tick
+
+def first_feed_publisher(info,log,clock,timeout=60,started=None):
+ """Two startup-only milestones, measured from portrait-service entry. Counts mean list data is available, not
+ that poster textures have been decoded/drawn. Stop polling once both arrive or after a minute; no titles/URLs."""
+ started=clock() if started is None else started
+ pending={'hero':4000,'first-row':5002};finished=False
+ def tick():
+  nonlocal finished
+  if finished:return
+  elapsed=clock()-started
+  if elapsed>=timeout:
+   log('Kodi iOS startup feed: pending %s after %.3fs (service clock)'%(','.join(pending),elapsed));finished=True;return
+  for name,container in list(pending.items()):
+   try:count=int(info('Container(%d).NumItems'%container) or 0)
+   except (TypeError,ValueError,RuntimeError):continue
+   if count>0:
+    log('Kodi iOS startup feed: %s has %d items +%.3fs (service clock)'%(name,count,elapsed));del pending[name]
+  finished=not pending
  return tick
 
 def progress_tracker(player,continue_module,read,write,clock,every=10):
@@ -1211,6 +1219,8 @@ def listing_cache(cache,store,flags,lists,fetch,wait,busy,log,clock=None):
 
 def refresh_skin(xbmc,invoke,skin,profile):
  """Bring the portrait folder up to date and reload the skin when a change needs it; returns the changed paths."""
+ import time
+ started=time.monotonic()
  if missing(skin):
   # Add the portrait folder and resolution, then have Kodi re-read addon.xml so the folder can be chosen.
   changed=list(build(skin,profile));invoke('UpdateLocalAddons')
@@ -1222,8 +1232,8 @@ def refresh_skin(xbmc,invoke,skin,profile):
   if bool(xbmc.getCondVisibility('Skin.HasSetting(%s)'%setting))!=on:invoke(('Skin.SetBool(%s)' if on else 'Skin.Reset(%s)')%setting)
  reload=bool(changed) and needs_reload(changed,xbmc.getCondVisibility)
  listed=(' ('+', '.join(c for c in changed if not c.startswith('extras/'))[:300]+')') if changed else ''
- xbmc.log('Kodi iOS portrait files checked in %s: %d updated%s%s'%(skin,len(changed),listed,
-          '; skin reloaded' if reload else ('; no reload needed' if changed else '')),xbmc.LOGINFO)
+ xbmc.log('Kodi iOS portrait files checked in %s: %d updated%s%s (%.3fs)'%(skin,len(changed),listed,
+          '; skin reloaded' if reload else ('; no reload needed' if changed else ''),time.monotonic()-started),xbmc.LOGINFO)
  marker=Path(profile)/'addon_data/service.kodi.ios.bootstrap/portrait.json'
  if not marker.exists():
   # Once: no ".." rows, so a show page opens on its first season (the owner can turn it back on in Settings).
@@ -1232,12 +1242,17 @@ def refresh_skin(xbmc,invoke,skin,profile):
  if reload and is_portrait(xbmc.getInfoLabel):invoke('ReloadSkin()')
  return changed
 
-def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',ready=None):
+def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',ready=None,native_ui_started=False):
  """Started by the bootstrap service as soon as it starts. The tab bar, Continue Watching and the focused-item details
  start at once; the portrait refresh runs in its own thread once `ready` is set (after setup, which can rewrite Fuse's
  landscape files the portrait folder is made from). Build-132 started all of it only after setup and the refresh:
  the owner's tab bar appeared ~10 s after launch."""
- import threading
+ import threading,time
+ entered=time.monotonic()
+ xbmc.log('Kodi iOS startup: portrait service entered',xbmc.LOGINFO)
+ if not native_ui_started:
+  import native_ui
+  threading.Thread(target=native_ui.run,args=(xbmc,xbmcvfs,monitor),daemon=True).start()
  def keep_current():
   if ready is not None:
    while not ready.wait(0.25):
@@ -1251,8 +1266,6 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
    xbmc.log('Kodi iOS portrait refresh failed: %s\n%s'%(error,traceback.format_exc()),xbmc.LOGERROR)
    xbmc.executebuiltin('Notification(Kodi iOS,Phone layouts did not update - send the log from the gear menu,8000)')
  threading.Thread(target=keep_current,daemon=True).start()
- # The tab bar only over Arctic Fuse in portrait (first-run setup starts in Estuary, whose Home is also "home").
- portrait=lambda:xbmc.getSkinDir()==fuse and bool(is_portrait(xbmc.getInfoLabel))
  tick=None
  try:
   import importlib.util,time,xbmcaddon
@@ -1292,7 +1305,8 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
  # lock, and the focused-item publisher asked up to ten of them every half second while the owner used the video
  # controls. The tab bar's tick stays (two size checks in landscape) so it hides as the video starts.
  video=lambda:xbmc.getCondVisibility('Window.IsActive(fullscreenvideo)')
- always=[t for t in (tick,) if t];menu_ticks=[publish]
+ always=[t for t in (tick,) if t]
+ menu_ticks=[first_feed_publisher(xbmc.getInfoLabel,lambda text:xbmc.log(text,xbmc.LOGINFO),time.monotonic,started=entered),publish]
  def load_genre_photos():
   import threading
   store=os.path.join(str(profile),GENRE_PHOTOS)
@@ -1309,43 +1323,9 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
   import time as clock
   threading.Thread(target=lambda:genre_photos(rpc,home.setProperty,read,write,clock.time),daemon=True).start()
  menu_ticks.append(genre_photos_tick(xbmc.getCondVisibility,load_genre_photos))
- close=None
- try:
-  # Native Liquid Glass tab bar (KodiGlassBar.framework), when the IPA carries it.
-  import threading,glassbar
-  path=glassbar.library_path(xbmcvfs.translatePath('special://xbmc/'))
-  if bool(path)!=bool(xbmc.getCondVisibility('Skin.HasSetting(%s)'%NATIVE_TAB_BAR)):
-   xbmc.executebuiltin(('Skin.SetBool(%s)' if path else 'Skin.Reset(%s)')%NATIVE_TAB_BAR)
-  if path:
-   lib=glassbar.load(path)
-   bar,poll,close=glassbar.controller(lib,xbmc.getCondVisibility,portrait,
-                                     lambda action:xbmc.executebuiltin(action),[tab_actions(t[0]) for t in TABS])
-   always.append(bar)
-   polls=[poll]
-   # r3 framework: the Search page's native search field, results listed as you type (searchbar.py).
-   import searchbar,time
-   if searchbar.bind(lib):
-    find,typed,find_close=searchbar.controller(lib,searchbar.taker(lib),xbmc.getCondVisibility,portrait,
-                                               home.setProperty,time.monotonic,info=xbmc.getInfoLabel)
-    home.setProperty('Portrait.SearchBar','1')
-    always.append(find);polls.append(typed)
-    previous_close=close
-    def close():
-     find_close();previous_close()
-   def taps():
-    # The tab bar and the search field are hidden during video: read them twenty times a second only in the menus.
-    playing=False;count=0
-    while not monitor.waitForAbort(0.5 if playing else 0.05):
-     count+=1
-     if playing or count%10==0:playing=bool(video())
-     if not playing:
-      for p in polls:p()
-   threading.Thread(target=taps,daemon=True).start()
- except Exception as error:xbmc.log('Kodi iOS glass tab bar unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  def ticks():
   for t in always:t()
   if not video():
    for t in menu_ticks:t()
  watch(xbmc.getInfoLabel,invoke,monitor.waitForAbort,xbmc.getSkinDir,fuse,tick=ticks)
- if close:close()
 

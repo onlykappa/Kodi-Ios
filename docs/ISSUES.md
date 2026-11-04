@@ -609,3 +609,49 @@ Status: FIXED IN SOURCE (build 137); device test pending.
 - Start: the preloader is back (every hub row loads when Home opens); the tab bar starts before the bootstrap's 2 s wait; TMDb Helper keeps its Python interpreter between lists (reuselanguageinvoker), so only the first list pays the 2–3 s start.
 - Full-season download: Elementum's redirects after the version page are followed over HTTP (they were dropped with RunPlugin). Downloaded titles play from Kodi Downloads when opened from Home.
 - Reverted after build 134: the listing cache (Home showed no rows) and the collapsing show-page header (jumped instead of scrolling).
+
+
+## ISSUE-085 — Empty generated widget unload include is rejected by Kodi
+Status: FIXED ON HOST; device test pending.
+- Owner startup log (2026-11-04, line 331) reports `skinvariables-homewidgets-standard-onunload` unavailable.
+- Pinned Fuse 3.4.8 template `widgets_standard_include.xmltemplate` emits a named include even when no combined widget needs cleanup. Kodi 21.3 `CGUIIncludes::LoadIncludes` registers a named include only if it has a child; an empty generated include is ignored, then Home's reference warns.
+- Fix in navigation.py: normalize existing empty `skinvariables-*-standard-onunload` definitions to an empty `<definition />`, and wrap the template's future cleanup actions in `<definition>`. Real cleanup actions, unrelated includes and widget definitions are preserved. Normal backed-up navigation upgrade applies to existing profiles; no profile reset.
+- Three new navigation regressions cover empty/nonempty output, future generation, idempotence and repair of existing generated files.
+
+## ISSUE-086 — Repeated iOS audio INIT is not acknowledged when already configured
+Status: FIXED IN PATCH; full iOS build and device verification pending.
+- Startup log line 292: signal 0 on OutputControlPort in state 7. Pinned Kodi's protocol identifies 0 as INIT; state 7 is CONFIGURED_IDLE (the enum's old comments are off by one). Configured idle/play inherit CONFIGURED but none acknowledged INIT, so it reached the unhandled warning.
+- CActiveAE::Resume uses a synchronous INIT with a five-second reply timeout. Whether this particular logged request came from Resume or an asynchronous startup retry is NOT established; no timeout error appears in this capture.
+- Fix: iOS CONFIGURED handles INIT by replying ACC without restarting the sink. SUSPENDED still handles INIT in its more-specific state and performs its normal reconfiguration. Other platforms unchanged.
+- C++ host branch checks exercise repeated iOS replies, non-iOS behavior and unrelated signals. Full patch applies to pinned `a3a448d26b8d560a65655dab2cd122994dc4e146`. These are stubbed branch tests, not a full ActiveAE integration or Apple SDK compile.
+- The first host harness incorrectly used an int return for a void handler; corrected the harness, then all tests passed. Staged build tag r22; verified executable pin stays r21. No build run or IPA requested.
+
+## ISSUE-087 — Expected JSON-RPC schema dependency is logged as a parse warning
+Status: DIAGNOSTIC CORRECTED IN PATCH; iOS build/device pending.
+- Setting.Details.SettingList refers to Setting.Details.Setting, whose union in turn includes SettingList. The existing resolver intentionally defers the forward reference and resolves it later; the supplied log confirms successful JSON-RPC v13.5.0 initialization.
+- Log expected missing-reference deferral at DEBUG; retain WARNING when parsing fails without a missing dependency. Resolver behavior and INFO dependency-registration messages remain. A compiled host branch test checks both classifications; no claim that a failed RPC was repaired.
+
+## ISSUE-088 — Opening Kodi until posters appear is slow
+Status: PARTIAL HOST FIX; end-to-end iPhone cause and timing remain open.
+- Owner clarified the problem is opening Kodi until posters appear, not switching already-preloaded tabs. Historical 0.1–0.2-second numbers describe tab switching, not full app launch. Supplied log reaches Home.xml after 1.100 s and running application after 1.175 s, then ends at 5.795 s without custom bootstrap/cache diagnostics or a first-poster measurement.
+- Found redundant work: service.py calls navigation.upgrade twice per startup; each re-read/parses the skin files and generator templates even when unchanged. Add a source/code/keymap fingerprint to skip repeated parsing. File additions/removals/replacements, template/XML edits, keymap edits and code updates invalidate it. Keymap/skin symlink checks remain; invalid marker JSON falls back to the full scan. Backups and actual repairs remain.
+- Repeatable isolated benchmark: scripts/bench_startup_checks.py on text-only pinned Fuse (223 XMLs, 19 templates), five samples, two upgrade calls/sample, current portrait generator used for both variants. Median 0.266 s before versus 0.0175 s after. This measures the navigation subsystem on Linux only. First repair/update still scans; no iPhone or first-poster speedup claimed.
+- Full portrait regeneration separately measured around 2.5 s on this host, versus ~0.003 s for an unchanged portrait fingerprint; regeneration/reload can discard preloaded rows. Not proven to recur on this phone.
+- Cached feeds still require a Python plugin (one per row/hero); uncached feeds invoke TMDb Helper. Background copies begin after 20 s and may not all exist after a brief first session. No capture here establishes actual cache coverage, Python-entry latency or time to rendered poster textures.
+- Add bounded startup-only list readiness milestones (hero/first provider row, at most 60 s), bootstrap stage/import timing, portrait refresh duration and cache-hit timings. Logs contain stage names/keys/counts, no titles or stream URLs. List-item readiness is distinct from image rendering. Preloader retained; no lazy-hub rollback.
+- Evidence and 361 passing host tests/25 suites: reports/startup-followup-validation.json. Next: a complete startup capture extending until posters appear, then separate bootstrap delay, rebuild/reload, cache miss/live TMDb work and image decode. No IPA built.
+
+## ISSUE-089 — Startup iOS audio underrun
+Status: OPEN; warning intentionally preserved pending diagnosis.
+- Supplied log line 358 reports 7456 available bytes for an 8200-byte callback. The preceding startup negotiates 44.1 kHz float input over a 48 kHz hardware route; Kodi explicitly allows Core Audio resampling, so that fact alone is not an error or proof of the underrun's cause.
+- Pinned AESinkDARWINIOS renderCallback logs actual ring-buffer shortages. The log has no playback event, repeat pattern, audible symptom, crash or callback timing. Startup/tail handling versus scheduling/producer starvation remains undetermined.
+- Do not hide the warning, arbitrarily change sample rates or enlarge audio buffers based on this one line. A longer run/callback evidence is required before a root-cause fix can be claimed. Separate from the old ISSUE-075 playback/seek stall.
+
+
+## ISSUE-090 — Bottom menu bar takes at least five seconds to appear
+Status: SOURCE REORDERED; five host regressions pass, device timing pending.
+- Owner reports the bottom navigation bar appears at least ~5 s after opening Kodi. This joins ISSUE-088's launch-to-posters complaint; the supplied log does not identify when the native bar appeared.
+- Before: service.py imported the full bootstrap/generator/provider stack, then portrait.run_service initialized Continue Watching, the listing cache and GUI publishers before creating its native bar controller. The first tick waited another 0.5 s. Python runtime scheduling and native main-queue delay remain unmeasured.
+- Now: a lightweight native_ui worker is started before the heavy setup imports. It requests the bar immediately before search setup or its first polling wait, then owns the bar/search field independently of provider/cache/layout work. ios_tabs.py supplies the same actions to the skin and native controller; there is one native owner. Recovery does not start a duplicate worker; standalone portrait service retains a fallback start. Missing/failed native frameworks restore the skin bar.
+- INFO timestamps distinguish native worker entry, first native show REQUEST, full bootstrap entry and data readiness. A show request is not proof the UIKit view has appeared; Python startup and main-queue/UI work still need a phone capture. No fixed five-second win or restored 0.1 s launch is claimed.
+- Five tests: immediate first show without provider/GUI modules, landscape exclusion, missing framework fallback, load-failure fallback, and early-entry/recovery contract. Existing glassbar/search actions and portrait generation regressions also run. No native framework changed and no IPA built.

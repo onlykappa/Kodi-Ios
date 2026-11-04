@@ -9,6 +9,6 @@
     "asset": "Kodi-portrait-executable.zip",
     "sha256": "b2a3c4926c3fbc12822c85caf35bbe61165731c6d93b119249d42c997df77ed9"
   },
-  "build_tag": "kodi-ios-portrait-r21",
-  "build_note": "The macOS workflow publishes a new executable under build_tag; the IPA keeps executable_release until that build is verified and pinned there."
+  "build_tag": "kodi-ios-portrait-r22",
+  "build_note": "r22 stages idempotent iOS audio resume and expected JSON-RPC schema deferral diagnostics. Not built or pinned: executable_release remains the verified r21 binary until a separately authorized build is checked."
 }

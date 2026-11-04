@@ -14,6 +14,8 @@ on:
       - 'scripts/test_customized_ipa.py'
       - 'scripts/test_bundled_bootstrap.py'
       - 'scripts/test_ios_navigation.py'
+      - 'scripts/test_native_startup.py'
+      - 'scripts/test_native_ui.py'
       - 'scripts/test_updates_calibration.py'
       - 'scripts/test_drive_upload.py'
       - 'scripts/test_settings_search.py'
@@ -48,6 +50,8 @@ on:
       - 'scripts/test_customized_ipa.py'
       - 'scripts/test_bundled_bootstrap.py'
       - 'scripts/test_ios_navigation.py'
+      - 'scripts/test_native_startup.py'
+      - 'scripts/test_native_ui.py'
       - 'scripts/test_updates_calibration.py'
       - 'scripts/test_drive_upload.py'
       - 'scripts/test_settings_search.py'
@@ -87,6 +91,8 @@ jobs:
         run: |
           python3 -B scripts/test_startup_sequence.py
           python3 -B scripts/test_ios_navigation.py
+          python3 -B scripts/test_native_startup.py
+          python3 -B scripts/test_native_ui.py
           python3 -B scripts/test_updates_calibration.py
           python3 -B scripts/test_drive_upload.py
           python3 -B scripts/test_settings_search.py

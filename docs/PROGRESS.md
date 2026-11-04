@@ -2,9 +2,15 @@
 
 ## Current handoff — 2026-11-04
 
+Latest steering: owner also reports the bottom menu bar takes at least five seconds to appear. ISSUE-090 now starts a lightweight native UI worker before heavy setup imports and provider work; first show request precedes the first polling wait. Five host regressions pass; phone visibility timing remains unverified. Shared tab actions and one controller owner are retained.
+
+Latest work on draft PR #8: owner selected warnings, then slow **opening Kodi until posters appear**. ISSUE-085 repairs empty generated widget unload includes; ISSUE-086 stages an iOS audio INIT acknowledgement; ISSUE-087 corrects expected schema-deferral diagnostics. ISSUE-089 (real startup audio underrun) remains open. ISSUE-088 skips redundant unchanged navigation scans (host median 0.266 s → 0.0175 s for two calls) and adds bounded startup/feed/cache timings. 361 tests in 25 host suites pass; full native patch applies to pinned Kodi source. Native r22 is staged only; executable_release still r21. No iOS SDK build, IPA, phone performance result or merge. See docs/BUGFIXES.md, docs/PERFORMANCE.md and reports/startup-followup-validation.json.
+
+Next: retain one draft PR, get complete startup evidence through visible posters and diagnose the remaining delay/underrun. The current six-second log has no custom service/cache entries or first-poster timing; 0.1–0.2 s historical measurements were preloaded tab switches. Do not claim cold launch restored to that value. Keep using [skip ci] and do not build an IPA until requested.
+
 The owner explicitly requested merging PR #7 into main without making an IPA, then opening one new draft PR for bugs handled one at a time. PR #7 is merged at `4a78efdeecbc6f9c47018682fbb60ff1829a8a95` (merge message contains `[skip ci]`). The existing build-141 was built from PR #7 head `c0d2746d76ff362bd18a9d1de30784ee375afa85` and includes KodiAirPlay r11. This supersedes the older unmerged/build-124/127 status below.
 
-Follow-up branch: `fix/build-141-followup`, targeting main in a new draft PR. See [bug-fix handoff and log observations](BUGFIXES.md). A private owner log covers only 5.795 seconds of startup: four explicit warning entries, no error/fatal entries, no playback/AirPlay activity. No fix has started; next step is the owner's first bug, then diagnose/fix/verify one at a time in that same PR. No new IPA or follow-up merge until requested; use `[skip ci]` while the no-build instruction applies. Raw logs and private state stay outside GitHub. Host checks do not establish device success.
+Follow-up branch: `fix/build-141-followup`, targeting main in a new draft PR. See [bug-fix handoff and log observations](BUGFIXES.md). A private owner log covers only 5.795 seconds of startup: four explicit warning entries, no error/fatal entries, no playback/AirPlay activity. The initial handoff below predates the warning/startup work described above; continue diagnosing and verifying in that same PR. No new IPA or follow-up merge until requested; use `[skip ci]` while the no-build instruction applies. Raw logs and private state stay outside GitHub. Host checks do not establish device success.
 
 ## Earlier progress (historical)
 
