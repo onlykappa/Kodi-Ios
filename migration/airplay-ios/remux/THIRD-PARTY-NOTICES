@@ -24,11 +24,13 @@ THIRD-PARTY NOTICES: Kodi iOS AirPlay remuxer (KodiAirPlay.framework r5 and late
    Source: https://ffmpeg.org/releases/ffmpeg-8.1.1.tar.xz
    sha256 b6863adde98898f42602017462871b5f6333e65aec803fdd7a6308639c52edf3
    Licence: GNU Lesser General Public License version 2.1 or later (https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html).
-   Built without --enable-gpl, --enable-nonfree or external libraries. r7 adds video decoders, libswscale and
+   Built without --enable-gpl or --enable-nonfree. The only added FFmpeg external library is BSD-2-Clause dav1d. r7 adds video decoders, libswscale and
    Apple's VideoToolbox (a system framework, not a bundled library: hardware decode and the h264_videotoolbox
    encoder) for the picture bridge; still LGPL-2.1+ only (no libx264 / openh264). The exact configure line is in
    FFMPEG-CONFIG.txt next to this file inside the framework, and in ../build-remux-ffmpeg.sh, which rebuilds it.
-   FFmpeg is unmodified. To relink the framework against a different FFmpeg, run ../build-airplay.sh with
+   FFmpeg includes ffmpeg-mov-pts.patch (shipped with the framework): a Kodi iOS accessor for MOV sample
+   presentation timestamps, avoiding decode/presentation-time confusion without media I/O. The patch is LGPL-2.1+
+   under FFmpeg's terms. To relink the framework against a different FFmpeg, run ../build-airplay.sh with
    REMUX_FFMPEG pointing at your build; all of the framework's other sources are in this repository.
    FFmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg project.
 
@@ -94,3 +96,10 @@ THIRD-PARTY NOTICES: Kodi iOS AirPlay remuxer (KodiAirPlay.framework r5 and late
    The host tests use a font file already on the build machine (DejaVu Sans by default), not distributed.
 
 The Kodi iOS sources in src/ and tests/ were written for this project.
+
+
+7. dav1d 1.5.3, linked statically for AV1 software fallback
+   Upstream: https://github.com/videolan/dav1d, commit b546257f770768b2c88258c533da38b91a06f737.
+   Archive sha256 c5b7428c3f5b28db0aee0c62f6ffb2b42f4b08e7be5ce49d7ad046aaf0dc151d.
+   BSD-2-Clause licence; unmodified. Exact upstream COPYRIGHT/COPYING text is shipped in DAV1D-LICENSE.txt,
+   provenance in DAV1D-CONFIG.txt. Rebuild with ../build-dav1d.sh (host or iOS); iOS keeps optimized ARM assembly.

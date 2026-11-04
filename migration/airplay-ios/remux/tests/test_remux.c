@@ -9,6 +9,9 @@
 #include "../src/kr_audio.h"
 #include "../src/kr_source.h"
 #include "../src/kr_video.h"
+#include "../src/kr_color.h"
+#include <libswscale/swscale.h>
+#include <libavutil/dovi_meta.h>
 #include "../src/kr_subs.h"
 #include <pthread.h>
 #include <time.h>
@@ -130,7 +133,7 @@ static void test_kind(void) {
     CHECK(kr_remux_kind("http://x/a.MKV?token=1.mp4") == KR_REMUX, "query ignored, case");
     CHECK(kr_remux_kind("/a/b.avi") == KR_REMUX && kr_remux_kind("a.webm") == KR_REMUX, "avi webm");
     CHECK(kr_remux_kind("a.ts") == KR_REMUX && kr_remux_kind("a.m2ts") == KR_REMUX, "ts");
-    CHECK(kr_remux_kind("http://x/movie.mp4") == KR_DIRECT && kr_remux_kind("x.m3u8") == KR_DIRECT && kr_remux_kind("x.mov") == KR_DIRECT, "direct");
+    CHECK(kr_remux_kind("http://x/movie.mp4") == KR_REMUX && kr_remux_kind("x.m3u8") == KR_DIRECT && kr_remux_kind("x.mov") == KR_REMUX, "file codecs inspected; HLS stays native");
     CHECK(kr_remux_kind("https://drive.google.com/uc?id=abc&export=download") == KR_UNKNOWN, "drive link");
     CHECK(kr_remux_kind("http://h.example/dir.mkv/file") == KR_UNKNOWN, "dot in a directory");
     CHECK(kr_remux_kind(NULL) == KR_UNKNOWN, "null");
@@ -138,7 +141,8 @@ static void test_kind(void) {
     strcpy(t.codec, "dts"); CHECK(kr_audio_route(&t) == KR_AUDIO_AAC && !strcmp(kr_audio_token(&t), "mp4a.40.2"), "dts bridged");
     strcpy(t.codec, "truehd"); CHECK(kr_audio_route(&t) == KR_AUDIO_AAC, "truehd bridged");
     strcpy(t.codec, "eac3"); t.avf_compatible = 1; CHECK(kr_audio_route(&t) == KR_AUDIO_COPY && !strcmp(kr_audio_token(&t), "ec-3"), "eac3 copied");
-    t.avf_compatible = 0; strcpy(t.codec, "pcm_bluray"); CHECK(kr_audio_route(&t) == KR_AUDIO_NONE, "unknown audio not offered");
+    t.avf_compatible = 0; strcpy(t.codec, "pcm_bluray"); CHECK(kr_audio_route(&t) == KR_AUDIO_AAC, "Blu-ray LPCM bridged");
+    strcpy(t.codec, "unknown_audio"); CHECK(kr_audio_route(&t) == KR_AUDIO_NONE, "unknown audio not offered");
     CHECK(!strcmp(kr_language("eng"), "en") && !strcmp(kr_language("und"), "") && !strcmp(kr_language("xyz"), "xyz"), "languages");
 }
 
@@ -291,13 +295,14 @@ static void test_range_source(const char *http_base) {
         CHECK(n == m && n > 0 && !memcmp(a, b, (size_t)n), "range read at %lld: %d vs %d bytes", (long long)offsets[i], n, m);
     }
     CHECK(kr_source_read(s, size, a, 16) == 0, "read at the end returns 0");
+    CHECK(kr_source_io_ms(s) > 0, "source I/O timing includes actual range reads");
     kr_source_abort(s);
     CHECK(kr_source_read(s, 0, a, 16) < 0, "reads fail after abort (stop pressed)");
     fclose(f);
     kr_source_close(s);
     char m3u8[256];
     snprintf(url, sizeof url, "%s/h264_aac.mp4", http_base);
-    CHECK(kr_remux_start(url, 0, 0, m3u8, sizeof m3u8) == KR_NOT_NEEDED, "MP4 bytes go direct (%s)", kr_remux_message());
+    CHECK(kr_remux_start(url, 0, 0, m3u8, sizeof m3u8) == KR_READY, "MP4 bytes reach codec-aware HLS routing (%s)", kr_remux_message());
     snprintf(url, sizeof url, "%s/missing.mkv", http_base);
     CHECK(kr_remux_start(url, 0, 0, m3u8, sizeof m3u8) == KR_FAILED && strstr(kr_remux_message(), "AirPlay"), "a missing file explains itself: %s", kr_remux_message());
     kr_remux_stop();
@@ -569,6 +574,111 @@ static void test_receivers(const char *hevc, const char *h264, const char *work)
     kr_remux_stop();
 }
 
+static void test_extra_format(const char *url, const char *name, const char *work, int force) {
+    char master_url[256], out[512];
+    int st = start_session(url, force, master_url, sizeof master_url);
+    CHECK(st == KR_READY, "%s: codec routing opens (%s)", name, kr_remux_message());
+    if (st != KR_READY) return;
+    int port = kr_remux_port();
+    reply init = http_get(port, "/video/init.mp4", NULL);
+    reply target = http_get(port, "/video/seg2.m4s", NULL);
+    CHECK(init.status == 200 && target.status == 200, "%s: seek target/init (%d, %d)", name, init.status, target.status);
+    if (init.status == 200 && target.status == 200) {
+        int key = 0, keys = 0;
+        snprintf(out, sizeof out, "%s/%s-seek.mp4", work, name);
+        double at = segment_first(&init, &target, out, &key);
+        CHECK(key && at >= 11 && at < 16, "%s: independent target near requested time (%.3f)", name, at);
+        CHECK(decode_count(out, &keys) > 0, "%s: seek target actually decodes", name);
+    }
+    reply back = http_get(port, "/video/seg0.m4s", NULL);
+    reply retry = http_get(port, "/video/seg2.m4s", NULL);
+    CHECK(back.status == 200 && retry.status == 200 && !*kr_remux_message(), "%s: backward/forward retry", name);
+    reply master = http_get(port, "/master.m3u8", NULL);
+    int audio = -1;
+    const char *p = master.body ? strstr(master.body, "/audio/") : NULL;
+    if (p) audio = atoi(p + 7);
+    CHECK(audio >= 0, "%s: playable audio rendition", name);
+    if (audio >= 0) {
+        char path[64]; snprintf(path, sizeof path, "/audio/%d/init.mp4", audio);
+        reply ai = http_get(port, path, NULL);
+        snprintf(path, sizeof path, "/audio/%d/seg2.m4s", audio);
+        reply as = http_get(port, path, NULL);
+        CHECK(ai.status == 200 && as.status == 200 && as.len > 8, "%s: audio seek produces media", name);
+        free(ai.body); free(as.body);
+    }
+    free(init.body); free(target.body); free(back.body); free(retry.body); free(master.body);
+    kr_remux_stop();
+}
+
+// Synthetic Dolby configuration validates routing only; these HEVC pixels are not a Dolby Vision reference.
+static void test_dovi_native_route(const char *input, const char *work) {
+    AVFormatContext *in = NULL, *out = NULL;
+    char path[512], playlist[256]; snprintf(path, sizeof path, "%s/dovi-routing.mp4", work);
+    int r = avformat_open_input(&in, input, NULL, NULL);
+    if (r >= 0) r = avformat_find_stream_info(in, NULL);
+    if (r >= 0) r = avformat_alloc_output_context2(&out, NULL, "mp4", path);
+    if (r < 0) { CHECK(0, "synthetic Dolby fixture setup"); avformat_close_input(&in); return; }
+    for (unsigned i = 0; i < in->nb_streams; i++) {
+        AVStream *st = avformat_new_stream(out, NULL);
+        avcodec_parameters_copy(st->codecpar, in->streams[i]->codecpar); st->time_base = in->streams[i]->time_base;
+        if (st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            AVPacketSideData *sd = av_packet_side_data_new(&st->codecpar->coded_side_data, &st->codecpar->nb_coded_side_data,
+                AV_PKT_DATA_DOVI_CONF, sizeof(AVDOVIDecoderConfigurationRecord), 0);
+            if (!sd) { r = -1; break; }
+            AVDOVIDecoderConfigurationRecord *c = (void *)sd->data;
+            memset(c, 0, sizeof *c); c->dv_version_major = 1; c->dv_profile = 5; c->dv_level = 6; c->rpu_present_flag = c->bl_present_flag = 1;
+        }
+    }
+    out->strict_std_compliance = FF_COMPLIANCE_UNOFFICIAL; // permit the synthetic dvcC fixture box
+    if (r >= 0) r = avio_open(&out->pb, path, AVIO_FLAG_WRITE);
+    if (r >= 0) r = avformat_write_header(out, NULL);
+    AVPacket *p = av_packet_alloc();
+    while (r >= 0 && av_read_frame(in, p) >= 0) {
+        av_packet_rescale_ts(p, in->streams[p->stream_index]->time_base, out->streams[p->stream_index]->time_base);
+        r = av_interleaved_write_frame(out, p); av_packet_unref(p);
+    }
+    if (r >= 0) r = av_write_trailer(out);
+    av_packet_free(&p); avio_closep(&out->pb); avformat_free_context(out); avformat_close_input(&in);
+    CHECK(r >= 0, "synthetic Dolby configuration is muxed");
+    if (r >= 0) CHECK(kr_remux_start(path, 0, 0, playlist, sizeof playlist) == KR_NOT_NEEDED,
+        "compatible native Dolby route is preserved (%s)", kr_remux_message());
+    kr_remux_stop();
+    CHECK(kr_remux_state() == KR_IDLE, "native Dolby routing cleans up the previous session");
+}
+
+static void test_color_mapping(void) {
+    kr_color *ctx = NULL;
+    AVFrame *src = av_frame_alloc(), *dst = av_frame_alloc();
+    src->format = AV_PIX_FMT_YUV420P10LE; src->width = src->height = 16;
+    src->color_range = AVCOL_RANGE_MPEG; src->colorspace = AVCOL_SPC_BT2020_NCL;
+    src->color_primaries = AVCOL_PRI_BT2020; src->color_trc = AVCOL_TRC_SMPTE2084;
+    av_frame_get_buffer(src, 0);
+    for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++) ((uint16_t *)(src->data[0] + y * src->linesize[0]))[x] = 64 + x * 56;
+    for (int p = 1; p <= 2; p++) for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++) ((uint16_t *)(src->data[p] + y * src->linesize[p]))[x] = 512;
+    dst->format = AV_PIX_FMT_YUV420P; dst->width = dst->height = 16;
+    int r = kr_color_convert(&ctx, dst, src);
+    CHECK(r >= 0, "PQ color mapping succeeds (%d)", r);
+    int pq = r >= 0 ? dst->data[0][4] : -1;
+    if (r >= 0) {
+        int mono = 1;
+        for (int x = 1; x < 16; x++) if (dst->data[0][x] < dst->data[0][x-1]) mono = 0;
+        CHECK(mono && dst->data[0][0] < 20 && dst->data[0][15] <= 235, "PQ black/highlights preserved and bounded");
+        CHECK(abs(dst->data[1][0]-128) <= 2 && abs(dst->data[2][0]-128) <= 2, "neutral HDR stays neutral");
+    }
+    CHECK(dst->color_trc == AVCOL_TRC_BT709 && src->color_trc == AVCOL_TRC_SMPTE2084, "output SDR, source metadata preserved");
+    av_frame_unref(dst); dst->format = AV_PIX_FMT_YUV420P; dst->width = dst->height = 16;
+    src->color_trc = AVCOL_TRC_BT709;
+    r = kr_color_convert(&ctx, dst, src);
+    CHECK(r >= 0 && abs(dst->data[0][4] - pq) > 8, "tone mapping changes pixels, not only tags (PQ %d vs SDR %d)", pq, r >= 0 ? dst->data[0][4] : -1);
+    av_frame_unref(dst); dst->format = AV_PIX_FMT_YUV420P; dst->width = dst->height = 16;
+    src->color_trc = AVCOL_TRC_ARIB_STD_B67;
+    r = kr_color_convert(&ctx, dst, src);
+    CHECK(r >= 0 && kr_color_is_hdr(src), "HLG maps through the same managed path");
+    src->colorspace = AVCOL_SPC_IPT_C2;
+    CHECK(kr_color_convert(&ctx, dst, src) < 0, "IPT/Dolby Vision cannot be relabeled as ordinary HDR");
+    kr_color_free(ctx); av_frame_free(&src); av_frame_free(&dst);
+}
+
 static double mono_ms(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1000.0 + t.tv_nsec / 1e6; }
 
 typedef struct { int port; char path[64]; double ms; int status; } timed;
@@ -738,6 +848,35 @@ static void gray(uint8_t *buf, uint8_t *d[3], int ls[3], int nv12) {
     else { d[1] = buf + 320 * 180; d[2] = d[1] + 160 * 90; ls[1] = ls[2] = 160; }
 }
 
+static void test_bitmap_subtitles(const char *url) {
+    AVFormatContext *f = NULL;
+    int opened = avformat_open_input(&f, url, NULL, NULL);
+    CHECK(opened == 0, "bitmap fixture opens");
+    if (opened) return;
+    avformat_find_stream_info(f, NULL);
+    int idx = kr_subs_pick(f, 0, NULL);
+    CHECK(idx >= 0 && !kr_subs_is_text(f->streams[idx]) && kr_subs_supported(f->streams[idx]), "PGS selected as supported bitmap");
+    kr_subs *s = kr_subs_create(320, 180);
+    if (idx < 0 || !s) { kr_subs_free(s); avformat_close_input(&f); return; }
+    CHECK(kr_subs_open_stream(s, f->streams[idx]) == 0, "actual PGS decoder opens");
+    AVPacket *p = av_packet_alloc();
+    while (av_read_frame(f, p) == 0) {
+        if (p->stream_index == idx) kr_subs_feed(s, p);
+        av_packet_unref(p);
+    }
+    uint8_t *buf = malloc(320*180*3/2), *d[3]; int ls[3];
+    for (int nv12 = 0; nv12 <= 1; nv12++) {
+        gray(buf, d, ls, nv12);
+        CHECK(!kr_subs_blend(s, 500, d, ls, 320, 180, nv12), "bitmap absent before cue");
+        CHECK(kr_subs_blend(s, 2000, d, ls, 320, 180, nv12) && d[0][130*ls[0]+40] > 220, "PGS white pixels at source position");
+        CHECK(d[0][20*ls[0]+20] == 128 && d[0][130*ls[0]+60] > 60 && d[0][130*ls[0]+60] < 128, "bitmap clipping/palette alpha");
+        gray(buf, d, ls, nv12);
+        CHECK(!kr_subs_blend(s, 3500, d, ls, 320, 180, nv12), "PGS clear ends cue");
+        CHECK(kr_subs_blend(s, 2000, d, ls, 320, 180, nv12), "backward seek restores cached bitmap");
+    }
+    free(buf); av_packet_free(&p); kr_subs_free(s); avformat_close_input(&f);
+}
+
 static void test_burn_render(void) {
     char path[1024];
     static uint8_t buf[320 * 180 * 3 / 2];
@@ -828,9 +967,9 @@ static int region_diff(const uint8_t *a, const uint8_t *b, int y0, int y1, int b
 
 // The SRT stream of h264_aac_srt.mkv (cue 1-3 s) burned into segment 0: frames before the cue identical to the
 // unburned conversion, frames during it changed at the bottom, the same frames and times (grid unchanged).
-static void test_burn_video(const char *work) {
+static void test_burn_video(const char *work, const char *file) {
     char url[1024], err[256] = "", tmp[1024];
-    snprintf(url, sizeof url, "file:%s/h264_aac_srt.mkv", fixture_dir);
+    snprintf(url, sizeof url, "file:%s/%s", fixture_dir, file);
     kr_source *s0 = kr_source_open(url, 10, err, sizeof err), *s1 = kr_source_open(url, 10, err, sizeof err),
               *s2 = kr_source_open(url, 10, err, sizeof err);
     gm_stream *gm = s0 ? gm_stream_open(kr_source_gm(s0), 6.0, err, sizeof err) : NULL;
@@ -840,7 +979,7 @@ static void test_burn_video(const char *work) {
     if (!gm || !plain || !burn) goto out;
     CHECK(kr_video_burn(plain, -1, NULL, err, sizeof err) == 0 && !kr_video_burning(plain), "no subtitles: nothing burned");
     CHECK(kr_video_burn(burn, 1, NULL, err, sizeof err) < 0, "an audio stream is not a subtitle (%s)", err);
-    CHECK(kr_video_burn(burn, 2, NULL, err, sizeof err) == 0 && kr_video_burning(burn), "SRT stream 2 burned (%s)", err);
+    CHECK(kr_video_burn(burn, 2, NULL, err, sizeof err) == 0 && kr_video_burning(burn), "subtitle stream 2 burned (%s)", err);
     // r11: a source stream's events load with the picture (the r10 "0 events loaded" log line was read before any).
     CHECK(kr_video_burn_events(burn) == 0 && kr_video_burn_drawn(burn) == 0, "no events before the first segment is read");
     gm_buf a = {0}, b = {0}, a2 = {0};
@@ -933,6 +1072,12 @@ int main(int argc, char **argv) {
     test_kind();
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
     mkdir(work, 0755);
+    if (argc > 3 && !strcmp(argv[3], "--routing-only")) {
+        char url[1024]; snprintf(url, sizeof url, "file:%s/mp4_bytes", argv[1]);
+        kr_video_set_encoder("mpeg4"); test_dovi_native_route(url, work);
+        printf("%d checks, %d failed\n", checks, failures);
+        return failures ? 1 : 0;
+    }
     fixture fx[] = {
         { "h264_aac_srt.mkv", "avc1.42C0", "mp4a.40.2", 1, 1, 0, 0, "Hello from SRT" },
         { "hevc_ac3_ass.mkv", "hvc1.2.4.L", "ac-3", 1, 1, 1, 0, "Hello from ASS" },
@@ -953,6 +1098,23 @@ int main(int argc, char **argv) {
     test_video_units();
     kr_video_set_encoder("mpeg4");
     CHECK(kr_video_available(), "host FFmpeg has the test encoder");
+    test_color_mapping();
+    {
+        const char *names[] = { "av1_opus.mkv", "wmv_wma.asf", "flv_mp3.flv", "theora_vorbis.ogv", "mpeg2_mp2.mpg", "h264_10bit.mp4", "h264_aac.mp4", "rv20_ac3.rm", "mpeg2_ac3.wtv", "mpeg4_pcm.nut", "prores_pcm.mov" };
+        for (unsigned i = 0; i < sizeof names / sizeof names[0]; i++) {
+            char url[1024]; snprintf(url, sizeof url, "file:%s/%s", argv[1], names[i]);
+            test_extra_format(url, names[i], work, i == 5 || i == 6 ? 0 : 1);
+            if (i == 5) CHECK(kr_remux_state() == KR_IDLE, "10-bit H.264 session stopped cleanly");
+        }
+        char url[1024], h264[1024];
+        snprintf(url, sizeof url, "file:%s/mp4_bytes", argv[1]);
+        snprintf(h264, sizeof h264, "file:%s/h264_aac.mp4", argv[1]);
+        test_receivers(url, h264, work);
+        test_dovi_native_route(url, work);
+        char playlist[256]; snprintf(url, sizeof url, "file:%s/native_hls", argv[1]);
+        CHECK(kr_remux_start(url, 0, 0, playlist, sizeof playlist) == KR_NOT_NEEDED, "extensionless HLS remains native");
+        kr_remux_stop();
+    }
     {
         char url[1024];
         snprintf(url, sizeof url, "file:%s/hevc_ac3_ass.mkv", argv[1]); test_compat(url, "hevc_ac3_ass.mkv", 1, 0, "ac-3", work);
@@ -967,8 +1129,10 @@ int main(int argc, char **argv) {
         test_receivers(url, h264, work);
         printf("-- r10 burned-in subtitles (libass)\n"); fflush(stdout);
         test_burn_render();
-        test_burn_video(work);
+        test_burn_video(work, "h264_aac_srt.mkv");
+        test_burn_video(work, "h264_pgs.mkv");
         test_burn_select();
+        snprintf(url, sizeof url, "file:%s/h264_pgs.mkv", argv[1]); test_bitmap_subtitles(url);
         kr_video_set_encoder("no_such_encoder");
         char m3u8[256];
         CHECK(kr_remux_start(url, 0, 1, m3u8, sizeof m3u8) == KR_FAILED && strstr(kr_remux_message(), "cannot convert video"),

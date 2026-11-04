@@ -9,6 +9,15 @@
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <ass/ass.h>
+#include <limits.h>
+
+typedef struct bitmap {
+    int64_t start, end;
+    int x, y, w, h, canvas_w, canvas_h;
+    uint32_t *rgba;
+} bitmap;
+#define BITMAP_LIMIT (32u << 20)
+#define BITMAP_CUES 256
 
 struct kr_subs {
     ASS_Library *lib;
@@ -20,6 +29,9 @@ struct kr_subs {
     long drawn_frames;       // r11: frames something was drawn on (log, tests)
     int order;               // our own ReadOrder: FFmpeg's restarts after a flush, libass would drop those as duplicates
     uint64_t *seen; int nseen, capseen;  // (start, body) hashes already added
+    bitmap images[BITMAP_CUES];
+    int nimages;
+    size_t image_bytes;
 };
 
 static const char *font_file;
@@ -44,6 +56,14 @@ int kr_subs_is_text(const AVStream *st) {
     }
 }
 
+int kr_subs_supported(const AVStream *st) {
+    if (kr_subs_is_text(st)) return 1;
+    if (!st || st->codecpar->codec_type != AVMEDIA_TYPE_SUBTITLE) return 0;
+    enum AVCodecID id = st->codecpar->codec_id;
+    return (id == AV_CODEC_ID_HDMV_PGS_SUBTITLE || id == AV_CODEC_ID_DVD_SUBTITLE ||
+            id == AV_CODEC_ID_DVB_SUBTITLE || id == AV_CODEC_ID_XSUB) && avcodec_find_decoder(id);
+}
+
 int kr_subs_stream_count(AVFormatContext *f) {
     int n = 0;
     for (unsigned i = 0; f && i < f->nb_streams; i++) n += f->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE;
@@ -63,16 +83,16 @@ int kr_subs_pick(AVFormatContext *f, int ordinal, const char *lang) {
         int k = 0;
         for (unsigned i = 0; i < f->nb_streams; i++) {
             if (f->streams[i]->codecpar->codec_type != AVMEDIA_TYPE_SUBTITLE) continue;
-            if (k++ == ordinal) return kr_subs_is_text(f->streams[i]) ? (int)i : -1;
+            if (k++ == ordinal) return kr_subs_supported(f->streams[i]) ? (int)i : -1;
         }
         return -1;
     }
     static const int want[2] = { AV_DISPOSITION_FORCED, AV_DISPOSITION_DEFAULT };
     for (int w = 0; w < 2; w++)
         for (unsigned i = 0; i < f->nb_streams; i++)
-            if (kr_subs_is_text(f->streams[i]) && (f->streams[i]->disposition & want[w])) return (int)i;
+            if (kr_subs_supported(f->streams[i]) && (f->streams[i]->disposition & want[w])) return (int)i;
     for (unsigned i = 0; i < f->nb_streams; i++)
-        if (kr_subs_is_text(f->streams[i]) && lang_match(f->streams[i], lang)) return (int)i;
+        if (kr_subs_supported(f->streams[i]) && lang_match(f->streams[i], lang)) return (int)i;
     return -1;
 }
 
@@ -106,10 +126,11 @@ void kr_subs_free(kr_subs *s) {
     if (s->r) ass_renderer_done(s->r);
     if (s->lib) ass_library_done(s->lib);
     free(s->seen);
+    for (int i = 0; i < s->nimages; i++) free(s->images[i].rgba);
     free(s);
 }
 
-int kr_subs_events(const kr_subs *s) { return s && s->track ? s->track->n_events : 0; }
+int kr_subs_events(const kr_subs *s) { return s ? s->nimages + (s->track ? s->track->n_events : 0) : 0; }
 
 static uint64_t hash(const char *p, int64_t start) {
     uint64_t h = 1469598103934665603ull ^ (uint64_t)start;
@@ -137,13 +158,14 @@ void kr_subs_add(kr_subs *s, const char *body, int64_t start_ms, int64_t dur_ms)
 }
 
 int kr_subs_open_stream(kr_subs *s, AVStream *st) {
-    if (!s || !kr_subs_is_text(st)) return -1;
+    if (!s || !kr_subs_supported(st)) return -1;
     const AVCodec *c = avcodec_find_decoder(st->codecpar->codec_id);
     s->dec = avcodec_alloc_context3(c);
     if (!s->dec || avcodec_parameters_to_context(s->dec, st->codecpar) < 0) return -1;
     s->dec->pkt_timebase = st->time_base;
     if (avcodec_open2(s->dec, c, NULL) < 0) return -1;
     s->tb = st->time_base;
+    if (!kr_subs_is_text(st)) return 0;
     s->track = ass_new_track(s->lib);
     if (!s->track) return -1;
     const char *hdr = s->dec->subtitle_header && s->dec->subtitle_header_size ? (const char *)s->dec->subtitle_header : HEADER;
@@ -152,11 +174,49 @@ int kr_subs_open_stream(kr_subs *s, AVStream *st) {
     return 0;
 }
 
+static void store_bitmap(kr_subs *s, const AVSubtitleRect *r, int64_t start, int64_t end) {
+    if (!r || r->w <= 0 || r->h <= 0 || r->w > 8192 || r->h > 8192 || !r->data[0] || !r->data[1]) return;
+    size_t bytes = (size_t)r->w * r->h * sizeof(uint32_t);
+    if (bytes > BITMAP_LIMIT) return;
+    uint32_t *rgba = malloc(bytes);
+    if (!rgba) return;
+    for (int y = 0; y < r->h; y++) for (int x = 0; x < r->w; x++) {
+        unsigned idx = r->data[0][y * r->linesize[0] + x];
+        rgba[y * r->w + x] = idx < (unsigned)r->nb_colors ? ((uint32_t *)r->data[1])[idx] : 0;
+    }
+    for (int i = 0; i < s->nimages; i++) {
+        bitmap *b = &s->images[i];
+        if (b->start == start && b->x == r->x && b->y == r->y && b->w == r->w && b->h == r->h && !memcmp(b->rgba, rgba, bytes)) {
+            free(rgba); return;
+        }
+    }
+    while (s->nimages && (s->nimages == BITMAP_CUES || s->image_bytes + bytes > BITMAP_LIMIT)) {
+        bitmap *b = &s->images[0];
+        s->image_bytes -= (size_t)b->w * b->h * sizeof(uint32_t); free(b->rgba);
+        memmove(s->images, s->images + 1, (size_t)--s->nimages * sizeof *b);
+    }
+    s->images[s->nimages++] = (bitmap){ start, end, r->x, r->y, r->w, r->h,
+        s->dec->width > 0 ? s->dec->width : s->w, s->dec->height > 0 ? s->dec->height : s->h, rgba };
+    s->image_bytes += bytes;
+}
+
 void kr_subs_feed(kr_subs *s, AVPacket *pkt) {
     if (!s || !s->dec || !pkt || pkt->pts == AV_NOPTS_VALUE) return;
-    AVSubtitle sub;
+    AVSubtitle sub = {0};
     int got = 0;
-    if (avcodec_decode_subtitle2(s->dec, &sub, &got, pkt) < 0 || !got) return;
+    if (avcodec_decode_subtitle2(s->dec, &sub, &got, pkt) < 0 || !got) { avsubtitle_free(&sub); return; }
+    if (!s->track) {
+        int64_t start = (sub.pts != AV_NOPTS_VALUE ? sub.pts / 1000 : av_rescale_q(pkt->pts, s->tb, (AVRational){1,1000})) + sub.start_display_time;
+        int64_t dur = pkt->duration > 0 ? av_rescale_q(pkt->duration, s->tb, (AVRational){1,1000})
+                    : sub.end_display_time != UINT32_MAX && sub.end_display_time > sub.start_display_time
+                    ? (int64_t)sub.end_display_time - sub.start_display_time : 0;
+        // PGS display sets have no explicit end: a later set (including an empty clear) ends the previous set.
+        for (int i = 0; i < s->nimages; i++) if (s->images[i].start < start &&
+            (s->images[i].end == INT64_MAX || (!sub.num_rects && s->images[i].end > start))) s->images[i].end = start;
+        for (unsigned i = 0; i < sub.num_rects; i++) if (sub.rects[i]->type == SUBTITLE_BITMAP)
+            store_bitmap(s, sub.rects[i], start, dur > 0 ? start + dur : INT64_MAX);
+        avsubtitle_free(&sub); return;
+    }
     int64_t start = av_rescale_q(pkt->pts, s->tb, (AVRational){ 1, 1000 }) + sub.start_display_time;
     int64_t dur = pkt->duration > 0 ? av_rescale_q(pkt->duration, s->tb, (AVRational){ 1, 1000 })
                 : sub.end_display_time > sub.start_display_time && sub.end_display_time != UINT32_MAX
@@ -302,8 +362,53 @@ int kr_subs_load_file(kr_subs *s, const char *path) {
 // ── blending ───────────────────────────────────────────────────────────────────
 static inline uint8_t mix(uint8_t d, int c, int a) { return (uint8_t)(d + (c - d) * a / 255); }
 
+static uint32_t bitmap_pixel(const bitmap *b, int x, int y, int w, int h) {
+    int sx = (int)((int64_t)x * b->canvas_w / w) - b->x;
+    int sy = (int)((int64_t)y * b->canvas_h / h) - b->y;
+    return sx >= 0 && sx < b->w && sy >= 0 && sy < b->h ? b->rgba[sy * b->w + sx] : 0;
+}
+
+static void yuv(uint32_t rgba, int *Y, int *U, int *V) {
+    int r = (rgba >> 16) & 255, g = (rgba >> 8) & 255, b = rgba & 255;
+    *Y = 16 + (int)((.2126*r + .7152*g + .0722*b) * 219 / 255 + .5);
+    *U = 128 + (int)((-.1146*r - .3854*g + .5*b) * 224 / 255);
+    *V = 128 + (int)((.5*r - .4542*g - .0458*b) * 224 / 255);
+}
+
+static int blend_bitmaps(kr_subs *s, int64_t t, uint8_t *const d[3], const int ls[3], int w, int h, int nv12) {
+    int drawn = 0;
+    for (int i = 0; i < s->nimages; i++) {
+        const bitmap *b = &s->images[i];
+        if (t < b->start || t >= b->end) continue;
+        int x0 = (int)((int64_t)b->x * w / b->canvas_w), y0 = (int)((int64_t)b->y * h / b->canvas_h);
+        int x1 = (int)(((int64_t)b->x + b->w) * w / b->canvas_w), y1 = (int)(((int64_t)b->y + b->h) * h / b->canvas_h);
+        x0 = x0 < 0 ? 0 : x0; y0 = y0 < 0 ? 0 : y0; x1 = x1 > w ? w : x1; y1 = y1 > h ? h : y1;
+        for (int y = y0; y < y1; y++) for (int x = x0; x < x1; x++) {
+            uint32_t p = bitmap_pixel(b, x, y, w, h); int a = p >> 24, Y, U, V;
+            if (!a) continue;
+            yuv(p, &Y, &U, &V); d[0][y*ls[0]+x] = mix(d[0][y*ls[0]+x], Y, a); drawn = 1;
+        }
+        for (int cy = y0/2; cy < (y1+1)/2; cy++) for (int cx = x0/2; cx < (x1+1)/2; cx++) {
+            int aa = 0, uu = 0, vv = 0;
+            for (int dy = 0; dy < 2; dy++) for (int dx = 0; dx < 2; dx++) {
+                int x = cx*2+dx, y = cy*2+dy;
+                if (x < x0 || x >= x1 || y < y0 || y >= y1) continue;
+                uint32_t p = bitmap_pixel(b, x, y, w, h); int a = p >> 24, Y, U, V;
+                yuv(p, &Y, &U, &V); aa += a; uu += U*a; vv += V*a;
+            }
+            if (!aa) continue;
+            uint8_t *u = d[1]+cy*ls[1]+cx*(nv12?2:1);
+            uint8_t *v = nv12 ? u+1 : d[2]+cy*ls[2]+cx;
+            *u = mix(*u, uu/aa, aa/4); *v = mix(*v, vv/aa, aa/4);
+        }
+    }
+    return drawn;
+}
+
 int kr_subs_blend(kr_subs *s, int64_t t_ms, uint8_t *const data[3], const int linesize[3], int w, int h, int nv12) {
-    if (!s || !s->track || !s->track->n_events) return 0;
+    if (!s) return 0;
+    if (!s->track) { int drawn = blend_bitmaps(s, t_ms, data, linesize, w, h, nv12); s->drawn_frames += drawn; return drawn; }
+    if (!s->track->n_events) return 0;
     int changed = 0;
     ASS_Image *img = ass_render_frame(s->r, s->track, t_ms, &changed);
     int drawn = 0;

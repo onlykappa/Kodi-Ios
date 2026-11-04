@@ -10,6 +10,8 @@ gm_source kr_source_gm(kr_source *s);
 int64_t kr_source_size(kr_source *s);
 // Reads up to n bytes at offset: bytes read, 0 at the end, negative on error.
 int kr_source_read(kr_source *s, int64_t offset, uint8_t *buf, int n);
+// Cumulative seek/read time, including reconnect attempts; no URLs or byte contents.
+double kr_source_io_ms(const kr_source *s);
 // Interrupts waits (stop pressed): reads return errors from now on.
 void kr_source_abort(kr_source *s);
 void kr_source_close(kr_source *s);

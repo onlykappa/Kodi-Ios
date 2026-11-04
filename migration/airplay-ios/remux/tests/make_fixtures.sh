@@ -51,4 +51,21 @@ X265=(-c:v libx265 -preset ultrafast -x265-params keyint=48:min-keyint=48:scenec
 "${F[@]}" -f lavfi -i testsrc2=size=3840x2160:rate=6:duration=20 -an \
   -c:v libx265 -preset ultrafast -x265-params keyint=12:min-keyint=12:scenecut=0:log-level=error:pools=2 \
   -pix_fmt yuv420p10le "$OUT/hevc_4k.mkv"
+# Additional codec/container routes (synthetic media only).
+"${F[@]}" "${V[@]}" "${A[@]}" -c:v libaom-av1 -cpu-used 8 -row-mt 1 -threads 2 -g 48 -crf 45 -c:a libopus "$OUT/av1_opus.mkv"
+"${F[@]}" "${V[@]}" "${A[@]}" -c:v wmv2 -g 48 -c:a wmav2 "$OUT/wmv_wma.asf"
+"${F[@]}" "${V[@]}" "${A[@]}" -c:v flv -g 48 -c:a libmp3lame -ar 44100 "$OUT/flv_mp3.flv"
+"${F[@]}" "${V[@]}" "${A[@]}" -c:v libtheora -g 48 -q:v 4 -c:a libvorbis "$OUT/theora_vorbis.ogv"
+"${F[@]}" "${V[@]}" "${A[@]}" -c:v mpeg2video -g 48 -bf 0 -c:a mp2 -f mpeg "$OUT/mpeg2_mp2.mpg"
+"${F[@]}" "${V[@]}" "${A[@]}" -c:v libx264 -preset ultrafast -g 48 -pix_fmt yuv420p10le -c:a aac "$OUT/h264_10bit.mp4"
+"${F[@]}" -i "$OUT/hevc_ac3_ass.mkv" -map 0:v -map 0:a -c copy -tag:v hvc1 "$OUT/hevc_ac3.mp4"
+"${F[@]}" "${V[@]}" "${A[@]}" -c:v rv20 -g 48 -c:a ac3 -f rm "$OUT/rv20_ac3.rm"
+"${F[@]}" "${V[@]}" "${A[@]}" -c:v mpeg2video -g 48 -c:a ac3 -f wtv "$OUT/mpeg2_ac3.wtv"
+"${F[@]}" "${V[@]}" "${A[@]}" -c:v mpeg4 -g 48 -bf 0 -c:a pcm_f32le -f nut "$OUT/mpeg4_pcm.nut"
+"${F[@]}" "${V[@]}" "${A[@]}" -c:v prores_ks -profile:v 1 -pix_fmt yuv422p10le -threads 2 -c:a pcm_s24le "$OUT/prores_pcm.mov"
+cp "$OUT/hevc_ac3.mp4" "$OUT/mp4_bytes"
+printf '#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nsegment.ts\n#EXT-X-ENDLIST\n' > "$OUT/native_hls"
+python3 -B "$(dirname "$0")/make_pgs.py" "$OUT/box.sup"
+"${F[@]}" -copyts -i "$OUT/h264_aac_srt.mkv" -i "$OUT/box.sup" -map 0:v -map 0:a -map 1:s -c copy \
+  -disposition:s:0 default "$OUT/h264_pgs.mkv"
 ls -l "$OUT"

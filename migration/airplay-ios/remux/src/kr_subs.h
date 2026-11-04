@@ -17,6 +17,8 @@ typedef struct kr_subs kr_subs;
 void kr_subs_set_font_file(const char *path);
 // 1 when FFmpeg can turn this stream into text events (subrip, srt, ass, ssa, mov_text, webvtt, text).
 int kr_subs_is_text(const struct AVStream *st);
+// Text or a supported embedded palette-bitmap subtitle (PGS/DVD/DVB/XSUB).
+int kr_subs_supported(const struct AVStream *st);
 // The source stream to burn. ordinal >= 0: Kodi's subtitle stream number, the ordinal-th subtitle stream of the
 // file in stream order (image subtitles count too, as in Kodi's list; one that is not text gives -1); -2: automatic,
 // the first text stream marked forced, else default, else the first in language `lang` (ISO 639-2 like "eng", or

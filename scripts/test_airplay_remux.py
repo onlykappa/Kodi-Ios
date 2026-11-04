@@ -178,7 +178,7 @@ class R9Speed(unittest.TestCase):
  """r9 (owner build-138): converted 4K HEVC segments took 5-9 s, skips stalled, subtitle segments were empty."""
  def test_gpu_scaling_and_seek_robustness(self):
   src=ROOT/'migration/airplay-ios/remux/src'
-  video=(src/'kr_video.c').read_text()
+  video=(src/'kr_video.c').read_text()+(src/'kr_color.c').read_text()
   for needle in ('VTPixelTransferSessionTransferImage','AV_PIX_FMT_VIDEOTOOLBOX; c->sw_pix_fmt = AV_PIX_FMT_NV12',
                  'TARGET_OS_IPHONE','__builtin_available(iOS 16.0, *)','"threads", 0','prio_speed'):
    self.assertIn(needle,video)
@@ -250,7 +250,7 @@ class R10BurnedSubtitles(unittest.TestCase):
                  'REMUX_LIBASS','HarfBuzz 11.2.1','Fonts: none are shipped'):
    self.assertIn(needle,notices)
   src=ROOT/'migration/airplay-ios/remux/src'
-  video=(src/'kr_video.c').read_text()
+  video=(src/'kr_video.c').read_text()+(src/'kr_color.c').read_text()
   for needle in ('kr_subs_blend','CVPixelBufferLockBaseAddress','sub_lookback'):self.assertIn(needle,video)
   self.assertIn('test_burn_video',(src.parent/'tests/test_remux.c').read_text())
 if __name__=='__main__':unittest.main()

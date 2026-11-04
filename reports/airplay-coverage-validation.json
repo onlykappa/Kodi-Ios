@@ -1,0 +1,115 @@
+{
+  "recorded_utc": "2026-11-04T20:08:45.020092+00:00",
+  "issue": "ISSUE-093",
+  "scope": "Owner requested fixing bug-3 source compatibility gaps now; same draft PR #8, no IPA or merge.",
+  "base_commit": "72221446d60d4e848507a093a7880c8a3392331f",
+  "status": "Common source compatibility gaps implemented and host-tested; device/long-Drive-seek acceptance and profile-5 conversion for incompatible receivers remain open.",
+  "implemented": [
+    "MP4/MOV/M4V files and extensionless file bytes reach codec-aware HLS copy/conversion; native HLS remains direct.",
+    "Pinned dav1d AV1 software decoder; iOS requests native VideoToolbox AV1, with fallback on hardware initialization or initial decode failure.",
+    "Additional MPEG-PS, ASF/WMV, FLV, Ogg, RM, WTV and NUT demuxers and native video/audio decoders; enabled unsupported audio bridges adaptively to AAC.",
+    "Convert unsupported H.264/HEVC profiles/bit depths/chroma formats; offer third-party compatibility for 4K H.264.",
+    "HDR10/PQ and HLG high-precision RGB tone/gamut mapping to SDR, resized before color mapping; preserve source metadata, keep SDR GPU path.",
+    "Palette-bitmap burn-in for embedded PGS/DVD/DVB/XSUB with bounded 32 MiB/256-rectangle cache, timing/clear/scaling/alpha and backward seeking.",
+    "MOV sample-table presentation timestamps fix open-GOP copy/conversion alignment without reading every keyframe; sparse beginning/end indexes no longer create giant segments.",
+    "Native Dolby profile-5 MP4 with compatible audio remains direct; unsupported profile-5 conversion does not silently produce incorrect colors.",
+    "Source seek/read/reconnect timing in conversion logs, alongside total production and queue wait; abort logs retain timing without labeling user stop a conversion failure."
+  ],
+  "verification": {
+    "native_full_suite": {
+      "checks": 1248,
+      "failures": 0,
+      "passed": true,
+      "coverage": [
+        "Copy/conversion/audio/subtitle/cache/receiver/stop/HTTP tests retained.",
+        "Actual decoded forward target, backward seek, retry and audio on each added format.",
+        "Actual 4K 10-bit fixture (six fps, structural scope).",
+        "PQ/HLG pixel mapping, neutral chroma, black/highlights, source metadata preserved; tone mapping changes pixels.",
+        "Real synthetic PGS decoder/palette/alpha/clear tests in planar/NV12 and whole burned-video pixel/timestamp comparison.",
+        "Native Dolby route with synthetic config only, not profile-5 pixel correctness."
+      ]
+    },
+    "python_suites": [
+      {
+        "suite": "test_airplay_remux",
+        "tests": 25,
+        "passed": true
+      },
+      {
+        "suite": "test_ios",
+        "tests": 8,
+        "passed": true
+      }
+    ],
+    "added_media_fixtures": [
+      "AV1/Opus MKV",
+      "WMV2/WMA2 ASF",
+      "FLV1/MP3 FLV",
+      "Theora/Vorbis OGV",
+      "MPEG-2/MP2 program stream",
+      "10-bit H.264/AAC MP4",
+      "HEVC/AC-3 MP4 with hidden extension",
+      "RV20/AC-3 RM",
+      "MPEG-2/AC-3 WTV",
+      "MPEG-4/float PCM NUT",
+      "ProRes/24-bit PCM MOV",
+      "H.264/AAC with generated PGS bitmap/clear"
+    ],
+    "ffmpeg_patch": {
+      "path": "migration/airplay-ios/ffmpeg-mov-pts.patch",
+      "sha256": "52f4454d16c03a3e7d91adeb4786e7b4b1f85916c7752edcdd85d5f9dbdbbfb1",
+      "clean_upstream_patch_applies": true,
+      "clean_patched_mov_c_matches_compiled_source": true,
+      "scope": "Small presentation-time accessor, no media I/O or full-file scan."
+    },
+    "builds": "FFmpeg 8.1.1 and dav1d 1.5.3 built on Linux; no macOS/iOS compile. Linux picture bridge uses MPEG-4 Part 2 test encoder, not H.264/VideoToolbox.",
+    "project_scanner_passed": true,
+    "ios_static_checks_passed": true,
+    "shell_syntax_checks_passed": true,
+    "diff_whitespace_check_passed": true,
+    "live_cloud_or_personal_media_used": false,
+    "ipa_built": false,
+    "framework_built_or_published": false,
+    "device_verified": false
+  },
+  "dependencies": {
+    "ffmpeg": {
+      "version": "8.1.1",
+      "upstream_commit": "239f2c733de417201d7ad3b3b8b0d9b63285b2b1",
+      "commit_archive_sha256": "ec0aa20fb9f6fd3692ffc04dc12ffa43cfffc4a479e388ccd7910ec6cfe188a2",
+      "release_archive_sha256": "b6863adde98898f42602017462871b5f6333e65aec803fdd7a6308639c52edf3",
+      "configuration_license": "LGPL version 2.1 or later; no GPL/nonfree flags",
+      "modification": "Shipped LGPL MOV timestamp accessor patch. Host source initialized from the same signed upstream tag, patch identity separately checked against the commit archive."
+    },
+    "dav1d": {
+      "version": "1.5.3",
+      "commit": "b546257f770768b2c88258c533da38b91a06f737",
+      "archive_sha256": "c5b7428c3f5b28db0aee0c62f6ffb2b42f4b08e7be5ce49d7ad046aaf0dc151d",
+      "license": "BSD-2-Clause; unmodified; license/config copied into framework by build recipe",
+      "host_build": "Portable C, assembly disabled",
+      "ios_recipe": "Optimized ARM assembly, explicit iPhoneOS cross file; not compiled here"
+    }
+  },
+  "validation_recovery": [
+    "Expanded first run exposed managed YUV output saturating neutral chroma, a misleading single midpoint assertion and a MOV-derived frame-rate rational unsupported by the host MPEG-4 encoder. RGB mapping + proven final pack corrected the chroma defect; a darker ramp sample distinguishes tone mapping, and bounded rational reduction retains timestamps.",
+    "Program-stream probing required the raw MPEG-video demuxer. Its sparse start/end-only index also needed a dense-index guard.",
+    "Constant MOV decode/presentation offset failed alignment by about 125 ms because open-GOP offsets vary. Use existing per-sample presentation times through the pinned accessor instead. First accessor compile failed its missing-prototype warning; added declaration, rebuilt and checked the patch against clean source.",
+    "Generated PGS initially shifted its first cue to zero during fixture muxing; preserve source timestamps with copyts. Decoded-pixel and clear tests then pass.",
+    "The synthetic Dolby configuration fixture was not emitting dvcC at default mux strictness; enable unofficial compliance in the fixture writer only. Native route and cleanup checks pass after correction.",
+    "Publication scanner initially rejected four newly required source/build files. Added only their exact paths to the existing remux allowlist; no secret/private/binary rules removed."
+  ],
+  "limits": [
+    "No universal every-file or every-receiver guarantee. Dolby profile-5 conversion for an incompatible TV requires a separate RPU-aware renderer. Preserved native MP4 routing requires compatible audio/receiver; the synthetic test is routing only.",
+    "HDR software color mapping, AV1 hardware fallback, sustained 4K/24\u201360 fps and actual TV acceptance still need a newly built framework and phone results.",
+    "Long Drive seeks are not declared resolved. Source I/O telemetry narrows the next capture; a blocked or obsolete foreground read may still delay a new request.",
+    "External bitmap files, fresh seeks into unusually long cues beyond lookback, arbitrary HLS codec conversion and every enabled profile/container combination are not individually covered.",
+    "Published KodiAirPlay r11 is unchanged. Build/publish a new framework, verify/pin it before any separately requested IPA. No release or merge."
+  ],
+  "owner_requested_progress_estimate": {
+    "scope": "Bug 3 overall completion and source readiness, relative to the installed pre-fix baseline",
+    "overall_percent": 70,
+    "source_readiness_before_out_of_10": 4,
+    "source_readiness_after_out_of_10": 8,
+    "basis": "Subjective engineering/planning estimate; common source changes are host-tested, remaining native/device/Drive validation and Dolby profile-5 renderer work are material. Not a measured performance improvement."
+  }
+}

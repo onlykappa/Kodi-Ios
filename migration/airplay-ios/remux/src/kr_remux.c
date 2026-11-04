@@ -29,6 +29,9 @@
 #include <time.h>
 #include <unistd.h>
 #include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavutil/dovi_meta.h>
+#include <libavutil/pixdesc.h>
 
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
@@ -182,8 +185,9 @@ int kr_remux_kind(const char *url) {
     size_t n = (size_t)(end - dot - 1);
     if (n == 0 || n >= sizeof ext) return KR_UNKNOWN;
     for (size_t i = 0; i < n; i++) ext[i] = (char)tolower((unsigned char)dot[1 + i]);
-    static const char *remux[] = { "mkv", "mk3d", "avi", "webm", "ts", "m2ts", "mts", NULL };
-    static const char *direct[] = { "mp4", "m4v", "mov", "m3u8", NULL };
+    static const char *remux[] = { "mkv", "mk3d", "avi", "webm", "ts", "m2ts", "mts", "mp4", "m4v", "mov",
+                                  "mpg", "mpeg", "vob", "wmv", "asf", "flv", "ogv", "rm", "rmvb", "wtv", "nut", NULL };
+    static const char *direct[] = { "m3u8", NULL };
     for (int i = 0; remux[i]; i++) if (!strcmp(ext, remux[i])) return KR_REMUX;
     for (int i = 0; direct[i]; i++) if (!strcmp(ext, direct[i])) return KR_DIRECT;
     return KR_UNKNOWN;
@@ -293,8 +297,8 @@ static kr_video *session_video(char *err, int errlen) {
     S.video = v;
     if (atomic_load(&S.stopping)) kr_video_abort(v);
     pthread_mutex_unlock(&src_lock);
-    log_line("compat: converting video stream %d to H.264 %dx%d with %s (%s decoding)", S.vindex, kr_video_width(S.video),
-             kr_video_height(S.video), kr_video_encoder(), kr_video_hw_decode(S.video) ? "VideoToolbox" : "software");
+    log_line("compat: converting video stream %d to H.264 %dx%d with %s (%s)", S.vindex, kr_video_width(S.video),
+             kr_video_height(S.video), kr_video_encoder(), kr_video_hw_decode(S.video) ? "VideoToolbox requested" : "software decoding");
     return S.video;
 }
 
@@ -374,17 +378,20 @@ static int produce_unit(int rend, int seg, gm_buf *out, char *err, int errlen) {
         return gm_stream_track_unit(S.gm, v, seg, out, &split, err, errlen);
     }
     if (rend == R_VCOMPAT) {
+        double io0 = kr_source_io_ms(S.vsrc), t0 = now_ms();
         kr_video *v = session_video(err, errlen);
         if (!v) return -1;
         atomic_store(&vc_seg, seg);
-        double t0 = now_ms();
         r = kr_video_unit(v, S.gm, seg, out, err, errlen);
         atomic_store(&vc_seg, -1);
         if (r == 0) {  // r11: the conversion path and speed per segment (realtime = SEG_SECONDS per segment)
             double ms = now_ms() - t0, pct = ms / (SEG_SECONDS * 10.0);
             if (atomic_fetch_add(&S.vlogged, 1) < 3 || pct > 70)
-                log_line("compat: segment %d converted in %.0f ms (%.0f%% of realtime) via %s, %d subtitle events, %ld frames drawn", seg,
-                         ms, pct, kr_video_path(v), kr_video_burn_events(v), kr_video_burn_drawn(v));
+                log_line("compat: segment %d converted in %.0f ms (%.0f%% of realtime) via %s, source I/O %.0f ms, %d subtitle events, %ld frames drawn", seg,
+                         ms, pct, kr_video_path(v), kr_source_io_ms(S.vsrc) - io0, kr_video_burn_events(v), kr_video_burn_drawn(v));
+        } else if (r != KR_VIDEO_CANCELLED) {
+            log_line("compat: segment %d %s after %.0f ms, source I/O %.0f ms", seg,
+                     atomic_load(&S.stopping) ? "stopped" : "failed", now_ms() - t0, kr_source_io_ms(S.vsrc) - io0);
         }
         return r;
     }
@@ -952,8 +959,13 @@ void kr_remux_stop(void) {
     pthread_mutex_unlock(&S.lock);
 }
 
-static int is_direct_format(const char *name) {
-    return name && (strstr(name, "mp4") || strstr(name, "mov") || !strcmp(name, "hls"));
+static int needs_video_conversion(const AVCodecParameters *cp) {
+    if (cp->codec_id != AV_CODEC_ID_H264 && cp->codec_id != AV_CODEC_ID_HEVC) return 0;
+    int depth = cp->codec_id == AV_CODEC_ID_H264 ? 8 : 10;
+    const AVPixFmtDescriptor *pf = av_pix_fmt_desc_get(cp->format);
+    if (cp->bits_per_raw_sample > depth || (pf && (pf->comp[0].depth > depth || pf->log2_chroma_w != 1 || pf->log2_chroma_h != 1))) return 1;
+    if (cp->codec_id == AV_CODEC_ID_H264 && cp->profile >= 0 && (cp->profile & ~AV_PROFILE_H264_CONSTRAINED) > AV_PROFILE_H264_HIGH) return 1;
+    return cp->codec_id == AV_CODEC_ID_HEVC && cp->profile > AV_PROFILE_HEVC_MAIN_STILL_PICTURE;
 }
 
 int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) {
@@ -973,12 +985,11 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
     pthread_mutex_lock(&L.lock); memset(L.agents, 0, sizeof L.agents); pthread_mutex_unlock(&L.lock);
     log_line("start: %.*s", (int)(strcspn(S.url, "?") < 200 ? strcspn(S.url, "?") : 200), S.url);  // no query (tokens)
     if (!S.src) { char m[300]; snprintf(m, sizeof m, "AirPlay: %s.", err); set_message(m); goto done; }
-    {   // MP4/MOV bytes behind a URL without an extension (a Drive link): Apple's player takes the URL itself
-        uint8_t pad[4096 + AVPROBE_PADDING_SIZE] = {0};
+    {   // Adaptive playlists remain native. File containers, including MP4/MOV, must reach codec/receiver routing.
+        uint8_t pad[4096] = {0};
         int n = kr_source_read(S.src, 0, pad, 4096);
-        AVProbeData pd = { "", pad, n > 0 ? n : 0, NULL };
-        const AVInputFormat *fmt = n > 0 ? av_probe_input_format(&pd, 1) : NULL;
-        if (fmt && is_direct_format(fmt->name)) { result = KR_NOT_NEEDED; goto done; }
+        int bom = n >= 3 && pad[0] == 0xef && pad[1] == 0xbb && pad[2] == 0xbf ? 3 : 0;
+        if (n >= bom + 7 && !memcmp(pad + bom, "#EXTM3U", 7)) { result = KR_NOT_NEEDED; goto done; }
     }
     S.gm = gm_stream_open(kr_source_gm(S.src), SEG_SECONDS, err, sizeof err);
     if (!S.gm) {
@@ -986,6 +997,19 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
         snprintf(m, sizeof m, "AirPlay cannot play this file: %s.", *err ? err : "the video is not H.264 or HEVC");
         set_message(m);
         goto done;
+    }
+    // Preserve Apple's native Dolby Vision profile-5 MP4 path when audio is already compatible.
+    // Our converter cannot apply profile-5 RPU reshaping; treating it as ordinary HDR would corrupt colors.
+    gm_color_info colors;
+    AVFormatContext *original = gm_stream_format_context(S.gm);
+    if (!compat && original && strstr(original->iformat->name, "mov") && gm_stream_color_info(S.gm, &colors) == 0 &&
+        colors.dolby_vision && colors.dovi_profile == 5) {
+        int native_audio = 1;
+        for (unsigned i = 0; i < original->nb_streams; i++) {
+            gm_track_info track;
+            if (!gm_stream_track_info(S.gm, (int)i, &track) && track.kind == GM_TRACK_AUDIO && !track.avf_compatible) native_audio = 0;
+        }
+        if (native_audio) { log_line("native: Dolby Vision profile 5 requires a compatible receiver"); result = KR_NOT_NEEDED; goto done; }
     }
     // Every audio track Apple cannot carry but we can decode gets a bridge (opened on first use).
     gm_track_info t;
@@ -1009,7 +1033,8 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
     for (unsigned i = 0; input && i < input->nb_streams; i++)
         if (input->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO &&
             !(input->streams[i]->disposition & AV_DISPOSITION_ATTACHED_PIC)) has_video = 1;
-    if (!compat && gm_stream_selected_video(S.gm) < 0 && has_video) {
+    int selected = gm_stream_selected_video(S.gm);
+    if (!compat && has_video && (selected < 0 || needs_video_conversion(input->streams[selected]->codecpar))) {
         if (S.vindex < 0) { set_message("AirPlay: this build cannot decode this video's codec."); goto done; }
         if (!kr_video_available()) { set_message("AirPlay: this build cannot convert video (no H.264 encoder)."); goto done; }
         compat = 1;
@@ -1039,7 +1064,9 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
         AVFormatContext *f = gm_stream_format_context(S.gm);
         int v = gm_stream_selected_video(S.gm);
         int burn = S.burn_index >= 0 || S.burn_file[0];
-        S.compat_ok = !S.compat && v >= 0 && S.vindex >= 0 && f && (burn || f->streams[v]->codecpar->codec_id != AV_CODEC_ID_H264) &&
+        S.compat_ok = !S.compat && v >= 0 && S.vindex >= 0 && f &&
+                      (burn || f->streams[v]->codecpar->codec_id != AV_CODEC_ID_H264 ||
+                       f->streams[v]->codecpar->width > 1920 || f->streams[v]->codecpar->height > 1080) &&
                       kr_video_available();
     }
     if (audio_tracks && !playable_audio) {

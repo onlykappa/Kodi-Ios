@@ -3,8 +3,8 @@
 // decoded (VideoToolbox when FFmpeg has it, else software), scaled to at most 1920x1080 8-bit 4:2:0 SDR and encoded
 // to H.264 High (h264_videotoolbox on the phone) with a fresh closed GOP that starts with an IDR on the segment's
 // first frame, then muxed to fMP4 with absolute tfdt like kr_audio. Modeled on kr_audio. Kodi iOS code.
-// HDR (PQ/HLG, 10-bit) is only range/matrix converted to 8-bit BT.709: no tone mapping or gamut mapping (libswscale
-// has none), so HDR sources look flat, washed out and slightly desaturated. Dolby Vision profile 5 looks wrong.
+// HDR PQ/HLG uses high-precision RGB tone/gamut mapping; SDR hardware frames retain the fast GPU path.
+// Dolby Vision profile 5 requires native compatible playback or a separate RPU-aware renderer.
 #ifndef KR_VIDEO_H
 #define KR_VIDEO_H
 #include "../gmplayer/gm_stream.h"

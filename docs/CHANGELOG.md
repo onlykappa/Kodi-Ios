@@ -129,3 +129,13 @@ VP9+Opus input and fail clearly when video conversion is unavailable. Add actual
 1,095 native checks plus 33 Python/static tests pass. Keep long Drive seek delays, broader codec/HDR coverage and
 phone acceptance open (docs/AIRPLAY.md). Native C fixes require a future newly built/pinned framework; r11 is unchanged.
 Same draft PR #8, skip CI; no framework/IPA build, release or merge.
+
+
+## 2026-11-04 — Bug 3 compatibility expansion
+
+Route MP4/MOV files through codec-aware receiver handling; add AV1/dav1d fallback, legacy input/decoder coverage,
+adaptive AAC bridging, HDR10/HLG tone/gamut mapping and embedded bitmap subtitles. Correct MOV open-GOP timing
+through a small shipped FFmpeg accessor patch; prevent sparse indexes from producing giant segments. Add real media,
+pixel and seek coverage plus source-I/O timing. Preserve native compatible Dolby profile-5 MP4 routing; unsupported-TV
+profile-5 conversion and phone/Drive performance acceptance remain open. Source only, r11 pin unchanged, same draft
+PR #8 with CI skipped. No iOS framework build, release, IPA or merge.

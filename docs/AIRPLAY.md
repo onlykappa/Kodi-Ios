@@ -1,6 +1,6 @@
 # AirPlay playback and seeking — owner bug 3 / ISSUE-093
 
-Status: partial source fix in draft PR #8. The reproduced seek-cancellation failure and fully bridged-file admission are repaired on the host. Long Drive seek delays, broader codec/HDR coverage and device acceptance remain open. No IPA, iOS framework build or merge.
+Status: source compatibility expansion in draft PR #8, following the seek-cancellation fix. AV1, common legacy formats, MP4 codec-aware routing, HDR10/HLG tone/gamut mapping and embedded bitmap burn-in are implemented and host-tested. Converting Dolby Vision profile 5 for incompatible receivers, long Drive seek delays and device acceptance remain open. No IPA, iOS framework build or merge.
 
 ## What the new phone log establishes
 
@@ -20,28 +20,39 @@ The screenshot error is reproduced against the old server scheduler with synthet
 
 Foreground work already running may still delay a new seek. A read already blocked on Drive is not interrupted by speculative cancellation. These limits remain explicit; no fast-seek or restored 4K throughput claim is made.
 
-## Compatibility audit
+## Compatibility expansion — source/host scope
 
-An extension identifies a container, not the video/audio codec or receiver capability. Current source and published r11 do not support every possible file.
+The earlier audit described published r11 and the previous source. It incorrectly described all libswscale as lacking tone mapping: pinned FFmpeg 8.1.1 supports it through the dynamic frame API, which the old caller bypassed. The source now uses that API. **Published r11 remains unchanged; these capabilities require a newly built framework.**
 
-| Input | Current route and evidence | Remaining limits |
+| Input/feature | New source behavior | Verification and limits |
 | --- | --- | --- |
-| MKV / MK3D / WebM | Matroska demuxer, HLS remux or conversion. Host coverage includes H.264, HEVC, MPEG-2 and VP9 + Opus. | Fully bridged VP9 + Opus admission requires this new source fix/new framework. AV1 decoding is not enabled. |
-| AVI | AVI demuxer; host MPEG-4 Part 2 + MP3 converts and seeks. | The extension does not establish support for every legacy AVI codec. |
-| TS / MTS / M2TS | MPEG-TS demuxer; host H.264 + AC-3 timing/seeks checked, including nonzero start times. | Unsupported contained codecs still need decoders. |
-| MP4 / M4V / MOV | Direct to Apple's player by extension or byte probe. | Codec-aware conversion fallback is bypassed; an unsupported codec/audio track cannot be repaired merely because the container is MP4. This needs a separate routing change and fixtures. |
-| HLS / M3U8 | Direct to Apple's player. | Receiver must accept the playlist's codecs and delivery. Current converter does not demux HLS. |
-| VOB / MPEG-PS, ASF/WMV, FLV, Ogg video and other containers | Not among the four enabled FFmpeg input demuxers. | Add/test specific demuxers, corresponding decoders and seek fixtures before claiming support. Renaming extensions cannot add support. |
-| Converted video | Enabled video decoders: H.264, HEVC, VP8, VP9, MPEG-1, MPEG-2, MPEG-4 Part 2; hardware where available, software fallback for supported profiles. H.264 output capped at 1920×1080, aspect preserved. | AV1 decoder/hardware acceleration and software fallback are not enabled. Other codecs/profiles require explicit support; software 4K can be too slow. |
-| Audio | Copy AAC/AC-3/E-AC-3/ALAC/MP3/supported PCM; bridge DTS/TrueHD/MLP/FLAC/Opus/Vorbis to AAC. | Not every audio codec/profile is covered. Converted 7.1 is reduced to at most 5.1; this does not preserve lossless/Atmos features. |
-| HDR / Dolby Vision | Apple-compatible copy may preserve original signaling; compatibility output is 8-bit BT.709 SDR. | No proper HDR tone/gamut mapping in the compatibility path. Dolby Vision profile 5 is not correctly rendered. SDR labeling alone is not HDR conversion. |
-| Subtitles | Text tracks can become WebVTT or be burned into compatible video. | Bitmap PGS/DVD/DVB subtitles are not handled by the current text burn-in path. |
+| MP4 / M4V / MOV, including extensionless bytes | Inspect file codecs and provide HLS receiver-specific copy/conversion; the extension no longer bypasses conversion. Ordinary compatible video remains copied. | H.264/AAC MP4, HEVC/AC-3 MP4 with its extension hidden, native vs third-party receiver routing, actual decoded seeks. |
+| AV1 | Pinned dav1d 1.5.3 software decoder; iOS requests VideoToolbox AV1 and falls back to dav1d if hardware initialization/initial decoding fails. | Actual AV1/Opus MKV conversion, decoded seek target, backward/retry and audio. iOS hardware selection and sustained 4K throughput pending. |
+| WMV/ASF, FLV, Ogg video | Additional input demuxers and corresponding decoders. | WMV2/WMA2 ASF, FLV1/MP3 FLV and Theora/Vorbis OGV conversion and seeking pass. |
+| MPEG-PS / MPG / VOB | Program-stream and raw-video probing enabled; sparse beginning/end-only indexes cannot create a movie-sized segment. | Actual MPEG-2/MP2 program-stream target/backward/retry and audio. VOB navigation/menu behavior is not claimed. |
+| RM, WTV, NUT, ProRes MOV | Corresponding demuxers/native decoders; supported audio bridges to AAC. | RV20/AC-3 RM, MPEG-2/AC-3 WTV, MPEG-4/float-PCM NUT and ProRes/24-bit-PCM MOV files convert and seek. |
+| H.264/HEVC profiles | Convert H.264 high-bit-depth/non-4:2:0 and unsupported HEVC profile/bit-depth combinations; third-party TV compatibility is also offered for 4K H.264. | Actual 10-bit H.264 MP4 automatic-conversion test; all possible profiles are not individually device-verified. |
+| Audio | Any enabled audio decoder can bridge an otherwise unsupported track to AAC, including WMA, MP2, WavPack and additional PCM types. Existing compatible copy routes retained. | Real audio seeking in format fixtures, prior DTS/TrueHD/Opus tests, Blu-ray LPCM route check. Converted output remains at most 5.1; no lossless/Atmos preservation claim. |
+| HDR10 / HLG | High-precision RGB tone/gamut mapping to BT.709 SDR, resizing before the expensive map. Preserve HDR metadata into mapping; retain the SDR GPU path. | PQ black/highlight/neutral-chroma tests, pixels differ from SDR transfer, HLG conversion, actual 10-bit HDR video decode. HDR software mapping performance needs an iPhone measurement. |
+| Embedded bitmap subtitles | PGS/DVD/DVB/XSUB decoders and bounded palette-bitmap cache; scaling, alpha, timing/clear and backward seek. | Generated real PGS packets/Matroska, decoded palette pixels in NV12 and planar output, and full conversion compared frame-for-frame with no subtitles. DVD/DVB/XSUB share the renderer but lack separate fixtures here. External bitmap IDX/SUP loading is still outside this path. |
+| Dolby Vision profile 5 | Preserve native MP4 playback when its audio is compatible; conversion refuses to treat profile-5 IPT/RPU pixels as ordinary HDR. | Synthetic Dolby configuration verifies native routing only. A compatible receiver is required; an RPU-aware converter for other TVs is still needed. No profile-5 color-accuracy claim. |
+| HLS/M3U8 | Keep Apple's native adaptive-playlist path, including playlists identified by bytes without an extension. | Native routing tested; this does not add conversion for unsupported codecs inside arbitrary HLS playlists. |
 
-The practical expansion path is content-aware routing for MP4/MOV, additional tested container/decoder coverage (including an AV1 decode path), and proper HDR/Dolby Vision conversion. Each needs real fixtures, seek/timestamp validation and device acceptance; none is silently marked completed by this seek fix.
+Existing MKV/WebM/AVI/MPEG-TS copy, audio bridge and conversion checks remain. A container or enabled decoder alone does not establish every profile, malformed file, delivery method or receiver combination.
+
+## MP4 seeking and dependency changes
+
+Open-GOP HEVC MP4 revealed varying decode-to-presentation offsets at keyframes. A constant correction was insufficient: copied and converted segments still differed by about 125 ms. A small LGPL patch to pinned FFmpeg exposes the presentation timestamps already held in MOV's sample tables. The planner uses them without fetching every keyframe or scanning the movie; receiver copy/conversion alignment checks now pass. The patch applies cleanly to the independently pinned upstream commit, and the compiled source matches the clean patched source.
+
+The HDR pixel tests also caught neutral chroma saturating in the pinned library's managed YUV output. The implemented path maps to 16-bit RGB first, then uses the proven range/matrix pack to NV12/planar output. It resizes before the color map to reduce 4K CPU work. This is actual tone/gamut processing, not an SDR tag change. Correct color processing and real-time phone throughput remain separate acceptance checks.
+
+Build recipes add checksum-pinned BSD-2-Clause dav1d, preserve optimized ARM assembly on iOS, and ship its licence/configuration. FFmpeg remains LGPL-2.1+ without GPL/nonfree components; its MOV accessor patch is shipped with the framework. A separately pinned archive of the same upstream FFmpeg release commit is available when the release download site fails. CI cache keys cover dependency recipes and the FFmpeg patch.
+
+Slow conversion logs now separate source seek/read/reconnect time from total production, in addition to queue wait. This narrows a future Drive capture; the old 26.7-second phone stall is not declared fixed by host tests.
 
 ## Validation and next device test
 
-1,095 compiled native host checks pass, plus 25 AirPlay Python tests and eight iOS static tests. The tests cover overlapping seek requests with prefetch off/on, backward/forward retries, actual 4K 10-bit decode/downscale, WebM/VP9/Opus and AVI/MPEG-4/MP3, and existing audio/subtitle/copy/remux/HTTP/stop paths. Genuine failure tests still return errors.
+1,248 expanded native host checks pass, plus 25 AirPlay Python tests and eight iOS static tests. Latest totals, dependency provenance and retained failure/recovery evidence are in [coverage validation](../reports/airplay-coverage-validation.json). The earlier cancellation evidence remains in [seek validation](../reports/airplay-seek-validation.json). The tests cover overlapping seek requests with prefetch off/on, backward/forward retries, actual 4K 10-bit decode/downscale, WebM/VP9/Opus and AVI/MPEG-4/MP3, and existing audio/subtitle/copy/remux/HTTP/stop paths. Genuine failure tests still return errors.
 
 The actual 4K fixture is 20 seconds at six fps, keeping host CI bounded. Converted tail frames decode at the requested time and output pixels are 1920×1080. Linux uses the MPEG-4 Part 2 test encoder; it does not exercise VideoToolbox, H.264 output, sustained phone 23.976/60 fps or TV acceptance. Evidence and retained validation failures: [airplay-seek-validation.json](../reports/airplay-seek-validation.json).
 

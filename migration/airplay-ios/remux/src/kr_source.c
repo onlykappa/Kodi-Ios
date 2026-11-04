@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <libavformat/avio.h>
 #include <libavutil/dict.h>
 #include <libavutil/error.h>
@@ -12,7 +13,11 @@ struct kr_source {
     AVIOContext *io;
     int64_t pos;
     atomic_int aborted;
+    atomic_llong io_ns;
 };
+
+static int64_t io_clock(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (int64_t)t.tv_sec * 1000000000 + t.tv_nsec; }
+double kr_source_io_ms(const kr_source *s) { return s ? atomic_load(&s->io_ns) / 1e6 : 0; }
 
 static int interrupted(void *opaque) { return atomic_load(&((kr_source *)opaque)->aborted); }
 
@@ -53,12 +58,14 @@ static int read_once(kr_source *s, int64_t offset, uint8_t *buf, int n);
 
 // r9: a failed read (seek refused, connection dropped) is tried again from a fresh Range request at the offset.
 int kr_source_read(kr_source *s, int64_t offset, uint8_t *buf, int n) {
+    int64_t start = io_clock();
     int r = read_once(s, offset, buf, n);
     for (int k = 0; r < 0 && k < 2 && s && s->io && !atomic_load(&s->aborted); k++) {
         avio_seek(s->io, offset, SEEK_SET | AVSEEK_FORCE);
         s->pos = -1;  // forces the seek in read_once
         r = read_once(s, offset, buf, n);
     }
+    if (s) atomic_fetch_add(&s->io_ns, io_clock() - start);
     return r;
 }
 

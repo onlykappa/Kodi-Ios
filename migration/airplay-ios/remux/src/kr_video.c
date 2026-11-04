@@ -6,6 +6,7 @@
 // A fresh encoder per segment: its first frame is an IDR, no B-frames, so every segment is a closed GOP.
 #include "kr_video.h"
 #include "kr_audio.h"  // kr_first_moof
+#include "kr_color.h"
 #include "kr_subs.h"   // r10: burned-in subtitles
 #include <math.h>
 #include <stdatomic.h>
@@ -18,6 +19,7 @@
 #include <libavutil/imgutils.h>
 #include <libavutil/opt.h>
 #include <libavutil/pixdesc.h>
+#include <libavutil/dovi_meta.h>
 #include <libswscale/swscale.h>
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
@@ -41,13 +43,13 @@ struct kr_video {
     AVBufferRef *hw;          // VideoToolbox device, NULL for software decoding
     int ow, oh;               // output size
     AVRational fps;           // source frame rate (for the encoder's framerate hint)
-    struct SwsContext *sws;
-    int sws_w, sws_h, sws_fmt;
+    kr_color *sws;
 #ifdef KR_GPU
     VTPixelTransferSessionRef xfer;  // r9: GPU scale/convert (iOS 16+), NULL until the first hardware frame
     CVPixelBufferPoolRef pool;       // NV12 output buffers at ow x oh
     int gpu_off;                     // the GPU path failed once: CPU from then on
 #endif
+    int last_hdr;
     int last_path;            // r11: 1 GPU transfer, 0 libswscale, -1 nothing converted yet
     kr_subs *subs;            // r10: subtitles burned into the picture, NULL when none (kept for the session)
     int sub_index;            // r10: their source stream, -1 for an external file
@@ -142,6 +144,13 @@ static enum AVPixelFormat pick_format(AVCodecContext *c, const enum AVPixelForma
 static int open_decoder(kr_video *v, int hw, char *err, int errlen) {
     AVStream *st = v->in->streams[v->index];
     const AVCodec *dec = avcodec_find_decoder(st->codecpar->codec_id);
+    if (st->codecpar->codec_id == AV_CODEC_ID_AV1) {
+#ifdef KR_GPU
+        dec = hw ? avcodec_find_decoder_by_name("av1") : avcodec_find_decoder_by_name("libdav1d");
+#else
+        dec = avcodec_find_decoder_by_name("libdav1d");
+#endif
+    }
     if (!dec) { seterr(err, errlen, "no decoder for this video codec", 0); return -1; }
     avcodec_free_context(&v->dec);
     av_buffer_unref(&v->hw);
@@ -153,7 +162,11 @@ static int open_decoder(kr_video *v, int hw, char *err, int errlen) {
     // VideoToolbox (iOS build only: the host FFmpeg has no hwaccel, av_hwdevice_ctx_create fails, software it is).
     if (hw && av_hwdevice_ctx_create(&v->hw, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, NULL, NULL, 0) == 0)
         v->dec->hw_device_ctx = av_buffer_ref(v->hw);
-    else v->dec->thread_count = 0;  // software: all cores
+    else {
+        if (hw && st->codecpar->codec_id == AV_CODEC_ID_AV1 && !strcmp(dec->name, "av1"))
+            return open_decoder(v, 0, err, errlen);
+        v->dec->thread_count = 0;  // software: all cores
+    }
     int r = avcodec_open2(v->dec, dec, NULL);
     if (r < 0) { seterr(err, errlen, "decoder", r); return -1; }
     return 0;
@@ -162,7 +175,7 @@ static int open_decoder(kr_video *v, int hw, char *err, int errlen) {
 kr_video *kr_video_open(gm_source src, int index, char *err, int errlen) {
     kr_video *v = calloc(1, sizeof *v);
     if (!v) return NULL;
-    v->src = src; v->index = index; v->sws_fmt = -1; v->last_path = -1; v->sub_index = -1; v->cov_from = v->cov_to = -1;
+    v->src = src; v->index = index; v->last_path = -1; v->sub_index = -1; v->cov_from = v->cov_to = -1;
     uint8_t *iob = av_malloc(1 << 16);
     AVIOContext *io = avio_alloc_context(iob, 1 << 16, 0, v, in_read, NULL, in_seek);
     v->in = avformat_alloc_context();
@@ -176,12 +189,22 @@ kr_video *kr_video_open(gm_source src, int index, char *err, int errlen) {
     if (index < 0 || index >= (int)v->in->nb_streams || v->in->streams[index]->codecpar->codec_type != AVMEDIA_TYPE_VIDEO) {
         seterr(err, errlen, "no such video track", 0); goto fail;
     }
+    AVCodecParameters *params = v->in->streams[index]->codecpar;
+    for (int i = 0; i < params->nb_coded_side_data; i++) {
+        AVPacketSideData *sd = &params->coded_side_data[i];
+        if (sd->type == AV_PKT_DATA_DOVI_CONF && sd->size >= sizeof(AVDOVIDecoderConfigurationRecord) &&
+            ((AVDOVIDecoderConfigurationRecord *)sd->data)->dv_profile == 5) {
+            seterr(err, errlen, "Dolby Vision profile 5 needs an RPU-aware renderer; native playback requires a compatible receiver", 0);
+            goto fail;
+        }
+    }
     if (!kr_video_available()) { seterr(err, errlen, "no H.264 encoder in this build", 0); goto fail; }
-    if (open_decoder(v, 1, err, errlen) < 0) goto fail;
+    if (open_decoder(v, 1, err, errlen) < 0 && open_decoder(v, 0, err, errlen) < 0) goto fail;
     AVStream *st = v->in->streams[index];
     kr_video_output_size(st->codecpar->width, st->codecpar->height, &v->ow, &v->oh);
     v->fps = st->avg_frame_rate.num > 0 && st->avg_frame_rate.den > 0 ? st->avg_frame_rate : st->r_frame_rate;
     if (v->fps.num <= 0 || v->fps.den <= 0) v->fps = (AVRational){ 24000, 1001 };
+    av_reduce(&v->fps.num, &v->fps.den, v->fps.num, v->fps.den, 60000);
     for (unsigned i = 0; i < v->in->nb_streams; i++) v->in->streams[i]->discard = i == (unsigned)index ? AVDISCARD_DEFAULT : AVDISCARD_ALL;
     return v;
 fail:
@@ -193,7 +216,7 @@ int kr_video_width(const kr_video *v) { return v ? v->ow : 0; }
 int kr_video_height(const kr_video *v) { return v ? v->oh : 0; }
 int kr_video_hw_decode(const kr_video *v) { return v && v->hw ? 1 : 0; }
 const char *kr_video_path(const kr_video *v) {
-    return !v || v->last_path < 0 ? "none yet" : v->last_path ? "GPU transfer (VTPixelTransferSession)" : "CPU (libswscale)";
+    return !v || v->last_path < 0 ? "none yet" : v->last_path ? "GPU transfer (VTPixelTransferSession)" : v->last_hdr ? "CPU HDR tone/gamut mapping" : "CPU (libswscale)";
 }
 void kr_video_abort(kr_video *v) { if (v) atomic_store(&v->abort, 1); }
 void kr_video_cancel(kr_video *v) { if (v) atomic_store(&v->cancel, 1); }
@@ -222,7 +245,7 @@ void kr_video_close(kr_video *v) {
     kr_subs_free(v->subs);
     avcodec_free_context(&v->dec);
     av_buffer_unref(&v->hw);
-    sws_freeContext(v->sws);
+    kr_color_free(v->sws);
 #ifdef KR_GPU
     if (v->xfer) { VTPixelTransferSessionInvalidate(v->xfer); CFRelease(v->xfer); }
     if (v->pool) CVPixelBufferPoolRelease(v->pool);
@@ -380,42 +403,15 @@ static int take_packets(job *j, int flushing) {
     return r;
 }
 
-// Scale/convert a decoded (software) frame to the encoder's size and format; HDR and 10-bit become 8-bit BT.709 range
-// without tone mapping.
+// FFmpeg 8.1 dynamic color API: HDR is tone/gamut mapped rather than relabeled as SDR.
 static int convert(job *j, AVFrame *src, char *err, int errlen) {
     kr_video *v = j->v;
-    if (!v->sws || v->sws_w != src->width || v->sws_h != src->height || v->sws_fmt != src->format) {
-        sws_freeContext(v->sws);
-        // r9: sliced over all cores; a large downscale takes the fast bilinear filter.
-        v->sws = sws_alloc_context();
-        if (!v->sws) { seterr(err, errlen, "scaler", 0); return -1; }
-        int big = src->width >= 2 * v->ow || src->height >= 2 * v->oh;
-        av_opt_set_int(v->sws, "srcw", src->width, 0); av_opt_set_int(v->sws, "srch", src->height, 0);
-        av_opt_set_int(v->sws, "src_format", src->format, 0);
-        av_opt_set_int(v->sws, "dstw", v->ow, 0); av_opt_set_int(v->sws, "dsth", v->oh, 0);
-        av_opt_set_int(v->sws, "dst_format", j->enc->pix_fmt, 0);
-        av_opt_set_int(v->sws, "sws_flags", big ? SWS_FAST_BILINEAR : SWS_BILINEAR, 0);
-        av_opt_set_int(v->sws, "threads", 0, 0);
-        if (sws_init_context(v->sws, NULL, NULL) < 0) {
-            sws_freeContext(v->sws); v->sws = NULL; seterr(err, errlen, "scaler", 0); return -1;
-        }
-        int in_cs = src->colorspace == AVCOL_SPC_BT2020_NCL || src->colorspace == AVCOL_SPC_BT2020_CL ? SWS_CS_BT2020
-                  : src->colorspace == AVCOL_SPC_BT470BG || src->colorspace == AVCOL_SPC_SMPTE170M ? SWS_CS_ITU601
-                  : src->colorspace == AVCOL_SPC_BT709 ? SWS_CS_ITU709
-                  : (src->height > 576 ? SWS_CS_ITU709 : SWS_CS_ITU601);
-        int full = src->color_range == AVCOL_RANGE_JPEG;
-        sws_setColorspaceDetails(v->sws, sws_getCoefficients(in_cs), full, sws_getCoefficients(SWS_CS_ITU709), 0,
-                                 0, 1 << 16, 1 << 16);
-        v->sws_w = src->width; v->sws_h = src->height; v->sws_fmt = src->format;
-    }
-    if (!j->conv) {
-        j->conv = av_frame_alloc();
-        if (!j->conv) return -1;
-        j->conv->format = j->enc->pix_fmt; j->conv->width = v->ow; j->conv->height = v->oh;
-        if (av_frame_get_buffer(j->conv, 0) < 0) { seterr(err, errlen, "out of memory", 0); return -1; }
-    }
-    if (av_frame_make_writable(j->conv) < 0) return -1;
-    sws_scale(v->sws, (const uint8_t * const *)src->data, src->linesize, 0, src->height, j->conv->data, j->conv->linesize);
+    if (!j->conv) j->conv = av_frame_alloc();
+    if (!j->conv) { seterr(err, errlen, "out of memory", 0); return -1; }
+    j->conv->format = j->enc->pix_fmt; j->conv->width = v->ow; j->conv->height = v->oh;
+    v->last_hdr = kr_color_is_hdr(src);
+    int r = kr_color_convert(&v->sws, j->conv, src);
+    if (r < 0) { seterr(err, errlen, "tone/gamut conversion", r); return -1; }
     return 0;
 }
 
@@ -474,7 +470,7 @@ static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen)
     AVFrame *tmp = NULL;
     int r;
 #ifdef KR_GPU
-    if (!j->enc) j->gpu = fr->format == AV_PIX_FMT_VIDEOTOOLBOX && !j->v->gpu_off;
+    if (!j->enc) j->gpu = fr->format == AV_PIX_FMT_VIDEOTOOLBOX && !j->v->gpu_off && !kr_color_is_hdr(fr);
     if (j->gpu) {
         AVFrame *g = NULL;
         if (gpu_scale(j->v, fr, &g) == 0) {
@@ -499,7 +495,7 @@ static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen)
     if (fr->format == AV_PIX_FMT_VIDEOTOOLBOX) {  // a hardware frame: copy it down (NV12 or P010)
         tmp = av_frame_alloc();
         if (!tmp || av_hwframe_transfer_data(tmp, fr, 0) < 0) { av_frame_free(&tmp); seterr(err, errlen, "hardware frame", 0); return -1; }
-        tmp->colorspace = fr->colorspace; tmp->color_range = fr->color_range;
+        if (av_frame_copy_props(tmp, fr) < 0) { av_frame_free(&tmp); seterr(err, errlen, "frame metadata", 0); return -1; }
         sw = tmp;
     }
     if (!j->enc && open_encoder(j, err, errlen) < 0) { av_frame_free(&tmp); return -1; }
@@ -616,7 +612,12 @@ static int produce(kr_video *v, double start, double end, gm_buf *out, char *err
                 continue;
             }
         }
-        while (avcodec_receive_frame(v->dec, fr) == 0) {
+        int received;
+        while ((received = avcodec_receive_frame(v->dec, fr)) == 0) {
+            // Hardware frames do not always repeat the stream's color tags.
+            if (fr->color_trc == AVCOL_TRC_UNSPECIFIED) fr->color_trc = st->codecpar->color_trc;
+            if (fr->color_primaries == AVCOL_PRI_UNSPECIFIED) fr->color_primaries = st->codecpar->color_primaries;
+            if (fr->colorspace == AVCOL_SPC_UNSPECIFIED) fr->colorspace = st->codecpar->color_space;
             int64_t pts = fr->best_effort_timestamp != AV_NOPTS_VALUE ? fr->best_effort_timestamp : fr->pts;
             if (pts == AV_NOPTS_VALUE) { av_frame_unref(fr); continue; }
             double t = pts * av_q2d(st->time_base);
@@ -625,6 +626,15 @@ static int produce(kr_video *v, double start, double end, gm_buf *out, char *err
                 if (encode_frame(&j, fr, pts, err, errlen) < 0) { av_frame_unref(fr); goto out; }
             }
             av_frame_unref(fr);
+        }
+        if (received < 0 && received != AVERROR(EAGAIN) && received != AVERROR_EOF && v->hw && !retried && j.sent == 0) {
+            retried = 1;
+            if (open_decoder(v, 0, err, errlen) < 0) goto out;
+            seek_before(v, start);
+            continue;
+        }
+        if (received < 0 && received != AVERROR(EAGAIN) && received != AVERROR_EOF) {
+            seterr(err, errlen, "decode frame", received); goto out;
         }
     }
     if (!j.enc) { seterr(err, errlen, "no video in this segment", 0); goto out; }

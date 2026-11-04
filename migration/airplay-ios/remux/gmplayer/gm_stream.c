@@ -28,6 +28,7 @@
 
 // gm_auto_select lives in CFFmpeg/compat.c. Declare it here (same signature).
 extern int gm_auto_select(AVFormatContext *fmt, enum AVMediaType type);
+extern int64_t avpriv_kodi_mov_index_pts(AVFormatContext *fmt, int stream, int index);
 // gm_codec_is_avf_compatible also lives in compat.c (CFFmpeg target, linked in).
 #include <stdbool.h>
 extern bool gm_codec_is_avf_compatible(enum AVCodecID id);
@@ -79,7 +80,7 @@ static int in_read(void *opaque, uint8_t *buf, int size) {
 static int64_t in_seek(void *opaque, int64_t off, int whence) {
     gm_stream *s = opaque;
     int64_t sz = s->src.size ? s->src.size(s->src.ctx) : -1;
-    switch (whence) {
+    switch (whence & ~AVSEEK_FORCE) {
         case AVSEEK_SIZE: return sz;
         case SEEK_SET: s->src_pos = off; break;
         case SEEK_CUR: s->src_pos += off; break;
@@ -517,6 +518,12 @@ gm_stream *gm_stream_open(gm_source src, double target_seg_sec,
     int n_entries = avformat_index_get_entries_count(vst);
     int want_segs = (s->duration > 0) ? (int)(s->duration / target_seg_sec) : 0;
     int dense = (n_entries >= 2) && (want_segs <= 1 || n_entries >= want_segs / 2);
+    // Duration probing can leave just beginning/end index entries (notably MPEG-PS).
+    // Those sparse entries must not turn a whole movie into one giant segment.
+    for (int i = 1; dense && i < n_entries; i++) {
+        const AVIndexEntry *a = avformat_index_get_entry(vst, i-1), *b = avformat_index_get_entry(vst, i);
+        if (a && b && (b->timestamp - a->timestamp) * av_q2d(vst->time_base) > target_seg_sec * 2) dense = 0;
+    }
 
     if (dense) {
         double *kf = malloc(sizeof(double) * (size_t)n_entries);
@@ -525,7 +532,9 @@ gm_stream *gm_stream_open(gm_source src, double target_seg_sec,
             const AVIndexEntry *e = avformat_index_get_entry(vst, i);
             if (!e) continue;
             if (vst->codecpar->codec_type == AVMEDIA_TYPE_VIDEO && !(e->flags & AVINDEX_KEYFRAME)) continue;
-            kf[n_kf++] = e->timestamp * av_q2d(vst->time_base);
+            if (e->flags & AVINDEX_DISCARD_FRAME) continue;
+            int64_t pts = avpriv_kodi_mov_index_pts(s->in, plan_stream, i);
+            kf[n_kf++] = (pts == AV_NOPTS_VALUE ? e->timestamp : pts) * av_q2d(vst->time_base);
         }
         // Kodi iOS change: an index that stops early (find_stream_info read only the first keyframes of a short
         // file) would plan a single segment; use it only when it reaches the last target window.

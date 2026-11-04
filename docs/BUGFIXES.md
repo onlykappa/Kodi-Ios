@@ -33,11 +33,13 @@ These are log leads, not diagnosed user-facing bugs. No root cause or fix has be
 
 ## Current focused bug — owner item 3
 
+Owner requested proceeding with the gaps immediately. Compatibility source is now expanded: MP4 codec-aware routing, AV1 with dav1d software fallback/iOS hardware request, additional demuxers/decoders and audio bridges, HDR10/HLG tone/gamut mapping, and embedded bitmap subtitles. 1,248 native host checks plus 33 Python/static tests pass; real-format and pixel/seek coverage added. A small FFmpeg MOV accessor patch fixes open-GOP presentation-time planning without scanning the movie. Details and remaining limits: [AirPlay investigation](AIRPLAY.md), [new evidence](../reports/airplay-coverage-validation.json). Native Dolby profile-5 MP4 routing is preserved, while profile-5 conversion for incompatible receivers remains open. All changes require a new framework; r11 stays pinned.
+
 ISSUE-093: AirPlay forward seeking usually stops playback; the screenshot records a new cancellation-error variant. New playback log confirms a Drive source (4K, 10-bit HEVC), VideoToolbox/GPU conversion and large source/queue stalls, including a 26.7-second seek before shutdown. Its final error is `session stopped`, not the screenshot's exact segment-37 cancellation.
 
 Reproduced the cancellation/HTTP-500 defect on the host. Restrict cancellation to speculative work, fix stale worker ownership, prioritize foreground requests and separate cancellation from real errors. Also fix VP9+Opus files rejected before both converters could run, and reject unavailable video conversion instead of silently playing only audio. Add slow-request queue/production diagnostics.
 
-1,095 native host checks plus 33 Python/static tests pass; actual 4K/10-bit structural seeking (six fps), AVI and WebM coverage added. Long Drive stalls, broader container/codec/HDR coverage and device acceptance remain open. See [compatibility and investigation](AIRPLAY.md) and [validation](../reports/airplay-seek-validation.json). No further log needed now to establish the cancellation defect. Published framework pin remains r11; a future requested IPA must first build/publish/verify/pin a new framework. No iOS/framework build, IPA, release or merge.
+1,095 native host checks plus 33 Python/static tests pass; actual 4K/10-bit structural seeking (six fps), AVI and WebM coverage added. Long Drive stalls and device acceptance remain open; the subsequent compatibility expansion is described above. See [compatibility and investigation](AIRPLAY.md) and [validation](../reports/airplay-seek-validation.json). No further log needed now to establish the cancellation defect. Published framework pin remains r11; a future requested IPA must first build/publish/verify/pin a new framework. No iOS/framework build, IPA, release or merge.
 
 ## Previous focused bug — owner item 2
 
