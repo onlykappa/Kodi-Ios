@@ -109,3 +109,13 @@ on lookup failure, missing saved player or resolver retry. Watch add-on 1.4.2. 1
 three actual pinned-resolver path/metadata checks pass with Kodi stubs. New tests enter CI for future requested runs.
 Exact phone failure path, actual playback and resume position still require device acceptance. No IPA, merge or live
 account/media access; all work remains in draft PR #8.
+
+
+## 2026-11-04 — Owner bug 2: Search categories respect Movies/Shows
+
+Replace hardcoded TV category routes with filter-aware movie/TV discovery and the correct movie genre IDs.
+Hide TV-only Kids/Reality for Movies; retain the existing All category behavior and working typed-search code.
+Reuse cached tile artwork and defer cosmetic lookups during downloads/uploads, text queries, playback, dialogs
+or off-page activity. Six new regressions and affected host suites pass; pinned Helper translation preserves all
+22 supported routes. Phone category/lag acceptance remains pending; reduced background work is not proof that
+all lag is fixed. Keep draft PR #8 unmerged, publish with [skip ci], and build no IPA.

@@ -453,6 +453,24 @@ SEARCH_BAND=161  # the native band ends 60 pt below the top of the safe area: 60
 GENRE_PHOTO='Portrait.GenrePhoto.'
 GENRE_PHOTOS='portrait-genre-photos.json'
 WEEK=7*86400
+# TMDb's movie and TV genre taxonomies differ. Reality and Kids have no movie genre counterpart.
+MOVIE_GENRES={18:'18',35:'35',80:'80',10765:'878|14',10759:'28|12',16:'16',9648:'9648',99:'99',10751:'10751',10768:'10752'}
+MOVIE_FILTER='String.IsEqual(Window(Home).Property(Portrait.Search.Type),movie)'
+
+def category_path(gid,kind):
+ from urllib.parse import quote
+ genre=MOVIE_GENRES.get(gid) if kind=='movie' else str(gid)
+ if genre is None:return None
+ return '%s?info=discover&tmdb_type=%s&with_id=True&with_genres=%s&sort_by=popularity.desc'%(TMDB,kind,quote(genre,safe=''))
+
+def category_clicks(name,gid):
+ actions=''
+ for kind,condition in (('movie',MOVIE_FILTER),('tv','!'+MOVIE_FILTER)):
+  path=category_path(gid,kind)
+  if path:
+   title='War' if kind=='movie' and gid==10768 else name
+   actions+=''.join('<onclick condition="%s">%s</onclick>'%(e(condition),e(action)) for action in titled_page(title,path).split('\x00'))
+ return actions
 
 def genre_photo_path(gid):
  return '%s?info=discover&tmdb_type=tv&with_id=True&with_genres=%d&sort_by=popularity.desc'%(TMDB,gid)
@@ -465,19 +483,25 @@ def pick_photo(files,used=()):
   if url and url not in used:return url
  return ''
 
-def genre_photos(rpc,set_property,read,write,now):
+def genre_photos(rpc,set_property,read,write,now,busy=lambda:False,wait=lambda seconds:False):
  """One backdrop per Search category (TMDb Helper's most popular show of the genre), kept for a week so Search
- does not run TMDb Helper nine times on every visit. Sets Window(Home).Property(Portrait.GenrePhoto.<genre id>)."""
+ does not run TMDb Helper twelve times on every visit. Sets Window(Home).Property(Portrait.GenrePhoto.<genre id>)."""
  try:cache=json.loads(read() or '{}')
  except ValueError:cache={}
  fresh=now()-cache.get('time',0)<WEEK and all(str(gid) in cache.get('photos',{}) for _,gid,_,_ in CATEGORIES)
- photos=dict(cache.get('photos',{})) if fresh else {}
+ photos=dict(cache.get('photos',{}))
+ # Existing artwork is usable immediately, even when stale. Cosmetic refresh must yield to actual use.
+ for gid,url in photos.items():
+  if url:set_property(GENRE_PHOTO+gid,url)
  if not fresh:
   used=set()
   for _,gid,_,_ in CATEGORIES:
+   while busy():
+    if wait(2):return photos
    try:files=(rpc('Files.GetDirectory',{'directory':genre_photo_path(gid),'media':'video','properties':['art'],'limits':{'start':0,'end':6}}) or {}).get('files')
    except Exception:files=None
    photos[str(gid)]=pick_photo(files,used);used.add(photos[str(gid)])
+   if wait(0.2):return photos
   if any(photos.values()):write(json.dumps({'time':now(),'photos':photos}))
  for gid,url in photos.items():
   if url:set_property(GENRE_PHOTO+gid,url)
@@ -502,7 +526,8 @@ def search_window(original):
   )%(SIDE,WIDTH-2*SIDE,WIDTH-2*SIDE,MEDIA,SURFACE,MEDIA,e(SEARCH_ACTION),icon(40,38,48,'magnifying-glass.png',GREY),label(110,0,WIDTH-2*SIDE-150,124,'Shows, Movies, and More','p_body',GREY))+
   '</control>')
  items=''.join('<item><label>%s</label><property name="tile">%stile_%d.png</property><property name="photo">$INFO[Window(Home).Property(%s%d)]</property><property name="tint">F2%02X%02X%02X</property>%s</item>'
-  %(e(name),MEDIA,gid,GENRE_PHOTO,gid,*bottom,clicks(titled_page(name,'%s?info=discover&tmdb_type=tv&with_id=True&with_genres=%d&sort_by=popularity.desc'%(TMDB,gid)))) for name,gid,_,bottom in CATEGORIES)
+  %(e(name),MEDIA,gid,GENRE_PHOTO,gid,*bottom,
+    ('<visible>!%s</visible>'%e(MOVIE_FILTER) if gid not in MOVIE_GENRES else '')+category_clicks(name,gid)) for name,gid,_,bottom in CATEGORIES)
  zoom=lambda focused:'<animation effect="zoom" start="100" end="104" time="160" center="auto">Focus</animation>' if focused else ''
  tile=lambda focused:('<control type="group"><left>0</left><top>0</top>%s'%zoom(focused)+
   image(0,0,tile_w,tile_h,'$INFO[ListItem.Property(tile)]',WHITE,diffuse=MEDIA+'poster_mask.png')+
@@ -1321,7 +1346,10 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
   def rpc(method,params):
    return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}))).get('result')
   import time as clock
-  threading.Thread(target=lambda:genre_photos(rpc,home.setProperty,read,write,clock.time),daemon=True).start()
+  busy=lambda:xbmc.getCondVisibility('!Window.IsActive(1105) | Player.HasVideo | System.HasActiveModalDialog | '
+                                    '!String.IsEmpty(Window(Home).Property(Portrait.Search.Query)) | '
+                                    '!String.IsEmpty(Window(Home).Property(Notices.Active))')
+  threading.Thread(target=lambda:genre_photos(rpc,home.setProperty,read,write,clock.time,busy,monitor.waitForAbort),daemon=True).start()
  menu_ticks.append(genre_photos_tick(xbmc.getCondVisibility,load_genre_photos))
  def ticks():
   for t in always:t()

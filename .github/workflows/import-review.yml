@@ -16,6 +16,7 @@ on:
       - 'scripts/test_ios_navigation.py'
       - 'scripts/test_native_startup.py'
       - 'scripts/test_native_ui.py'
+      - 'scripts/test_search_categories.py'
       - 'scripts/test_updates_calibration.py'
       - 'scripts/test_drive_upload.py'
       - 'scripts/test_settings_search.py'
@@ -55,6 +56,7 @@ on:
       - 'scripts/test_ios_navigation.py'
       - 'scripts/test_native_startup.py'
       - 'scripts/test_native_ui.py'
+      - 'scripts/test_search_categories.py'
       - 'scripts/test_updates_calibration.py'
       - 'scripts/test_drive_upload.py'
       - 'scripts/test_settings_search.py'
@@ -111,6 +113,7 @@ jobs:
           python3 -B scripts/test_airplay_remux.py
           python3 -B scripts/test_downloaded_play.py
           python3 -B scripts/test_genre_photos.py
+          python3 -B scripts/test_search_categories.py
           python3 -B scripts/test_performance_budget.py
           python3 -B scripts/test_customized_ipa.py
           python3 -B scripts/test_import_builder.py

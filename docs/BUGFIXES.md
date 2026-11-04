@@ -31,7 +31,15 @@ These are log leads, not diagnosed user-facing bugs. No root cause or fix has be
 | LOG-003 | 358 | `DARWINIOS: underflow (7456 vs 8200 bytes)` | Audio underflow reported during startup; audible effect and cause unverified. |
 | LOG-004 | 333 | JSONRPC could not parse `Setting.Details.SettingList` | The next messages defer/resolve type definitions and report successful JSONRPC v13.5.0 initialization. Not enough evidence to label an RPC failure. |
 
-## Current focused bug — owner item 1
+## Current focused bug — owner item 2
+
+ISSUE-092: selecting Movies and then Drama/Sci-Fi still opened TV discovery. Every category had a hardcoded `tmdb_type=tv`, independently of the working typed-search filter. Category actions now use the selected Movies/Shows type at click time, with the appropriate genre IDs: movie Sci-Fi/Fantasy uses 878 OR 14, Action/Adventure uses 28 OR 12, and War uses 10752. Shared IDs such as Drama 18 remain correct for both endpoints. Reality/Kids have no movie counterpart and are hidden for Movies; All retains its existing TV-category behavior. Typed-search code and result filtering are unchanged.
+
+Search can also issue twelve background TMDb artwork lookups on first/stale visits. Reuse cached artwork immediately and defer each cosmetic request while downloads/uploads, a text query, playback, a dialog or another page is active; pace requests and honor shutdown. Reuse the existing download activity property, with no additional engine polling. An already-running RPC cannot be canceled. This is a targeted reduction in contention; the cause and resolution of all owner-reported multi-download lag remain unverified.
+
+Validation: 143 host tests in 10 suites (including six new behavior regressions), generated XML and pinned Helper discovery translation checks (22 supported movie/TV routes). See [evidence](../reports/search-categories-validation.json). Device retest after a requested build: Movies → Drama/Sci-Fi, Shows → same categories, switching Movies/Shows repeatedly, and typed search with/without multiple active downloads. No IPA, merge or device-success claim.
+
+## Previous focused bug — owner item 1
 
 ISSUE-091: the owner confirmed the completed copy is in Google Drive / Library. Completed movies in Continue Watching must use their existing copy before provider selection; a title previously played through Umbrella must return to Umbrella when there is no completed copy.
 

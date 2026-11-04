@@ -1,0 +1,247 @@
+{
+  "recorded_utc": "2026-11-04T15:44:45.922094+00:00",
+  "base_commit": "782946e342129a096a56633775cb954372ed9bb0",
+  "issue": "ISSUE-092",
+  "owner_bug_number": 2,
+  "scope": "Search category filter correctness and reduced cosmetic contention; phone category behavior and multi-download lag acceptance pending",
+  "input": "Owner report/screenshot; typed search with Movies/Shows already works. No extra log or live account/media access.",
+  "root_cause": "Every category click hardcoded tmdb_type=tv; selected Portrait.Search.Type was used by typed search only.",
+  "result": {
+    "movies": "Movie discovery with appropriate movie genre IDs",
+    "shows": "TV discovery with original TV genre IDs",
+    "movie_combined_genres": {
+      "Sci-Fi & Fantasy": "878|14",
+      "Action & Adventure": "28|12",
+      "War & Politics": "10752"
+    },
+    "tv_only_hidden_for_movies": [
+      "Kids",
+      "Reality"
+    ],
+    "all": "Preserves existing TV-category behavior",
+    "typed_search": "Controller and typed-query result routing unchanged"
+  },
+  "lag_investigation": {
+    "avoidable_work": "First/stale tile-artwork refresh can invoke 12 background TMDb Helper listings.",
+    "change": "Use cached artwork immediately; wait before further cosmetic requests while downloads/uploads, text query, video, modal or another page is active. Pace by 0.2 s and allow abort.",
+    "activity_source": "Existing Notices.Active property; no new download polling.",
+    "limits": [
+      "Cannot cancel an in-flight Files.GetDirectory.",
+      "Existing published activity can take one notification polling interval to update.",
+      "This source change does not establish all lag causes or measured iPhone speedup."
+    ]
+  },
+  "verification": {
+    "all_passed": true,
+    "host_suites": 10,
+    "host_tests": 143,
+    "new_behavior_regressions": 6,
+    "suites": [
+      {
+        "suite": "test_search_categories",
+        "tests": 6,
+        "seconds": 0.007,
+        "passed": true
+      },
+      {
+        "suite": "test_genre_photos",
+        "tests": 4,
+        "seconds": 0.001,
+        "passed": true
+      },
+      {
+        "suite": "test_glassbar",
+        "tests": 18,
+        "seconds": 0.183,
+        "passed": true
+      },
+      {
+        "suite": "test_native_ui",
+        "tests": 5,
+        "seconds": 0.006,
+        "passed": true
+      },
+      {
+        "suite": "test_notices",
+        "tests": 14,
+        "seconds": 2.424,
+        "passed": true
+      },
+      {
+        "suite": "test_performance_budget",
+        "tests": 11,
+        "seconds": 0.064,
+        "passed": true
+      },
+      {
+        "suite": "test_pages",
+        "tests": 18,
+        "seconds": 6.011,
+        "passed": true
+      },
+      {
+        "suite": "test_startup_sequence",
+        "tests": 9,
+        "seconds": 0.018,
+        "passed": true
+      },
+      {
+        "suite": "test_bundled_bootstrap",
+        "tests": 15,
+        "seconds": 0.091,
+        "passed": true
+      },
+      {
+        "suite": "test_portrait",
+        "tests": 43,
+        "seconds": 123.669,
+        "passed": true
+      }
+    ],
+    "pinned_helper": {
+      "version": "6.18.1",
+      "verified_archive_git_blob_sha": "c76fe192cca0ef5f5c6d8d081824dcff1e864650",
+      "method": "Execute actual ListDiscoverProperties class, split_items and get_url_separator extracted from pinned source with dependency stubs; inspect translated API paths. No HTTP requests.",
+      "routes": [
+        {
+          "category": "Drama",
+          "media": "movie",
+          "api_path": "discover/movie?with_genres=18&sort_by=popularity.desc"
+        },
+        {
+          "category": "Drama",
+          "media": "tv",
+          "api_path": "discover/tv?with_genres=18&sort_by=popularity.desc"
+        },
+        {
+          "category": "Comedy",
+          "media": "movie",
+          "api_path": "discover/movie?with_genres=35&sort_by=popularity.desc"
+        },
+        {
+          "category": "Comedy",
+          "media": "tv",
+          "api_path": "discover/tv?with_genres=35&sort_by=popularity.desc"
+        },
+        {
+          "category": "Crime",
+          "media": "movie",
+          "api_path": "discover/movie?with_genres=80&sort_by=popularity.desc"
+        },
+        {
+          "category": "Crime",
+          "media": "tv",
+          "api_path": "discover/tv?with_genres=80&sort_by=popularity.desc"
+        },
+        {
+          "category": "Sci-Fi & Fantasy",
+          "media": "movie",
+          "api_path": "discover/movie?with_genres=878|14&sort_by=popularity.desc"
+        },
+        {
+          "category": "Sci-Fi & Fantasy",
+          "media": "tv",
+          "api_path": "discover/tv?with_genres=10765&sort_by=popularity.desc"
+        },
+        {
+          "category": "Action & Adventure",
+          "media": "movie",
+          "api_path": "discover/movie?with_genres=28|12&sort_by=popularity.desc"
+        },
+        {
+          "category": "Action & Adventure",
+          "media": "tv",
+          "api_path": "discover/tv?with_genres=10759&sort_by=popularity.desc"
+        },
+        {
+          "category": "Animation",
+          "media": "movie",
+          "api_path": "discover/movie?with_genres=16&sort_by=popularity.desc"
+        },
+        {
+          "category": "Animation",
+          "media": "tv",
+          "api_path": "discover/tv?with_genres=16&sort_by=popularity.desc"
+        },
+        {
+          "category": "Mystery",
+          "media": "movie",
+          "api_path": "discover/movie?with_genres=9648&sort_by=popularity.desc"
+        },
+        {
+          "category": "Mystery",
+          "media": "tv",
+          "api_path": "discover/tv?with_genres=9648&sort_by=popularity.desc"
+        },
+        {
+          "category": "Documentary",
+          "media": "movie",
+          "api_path": "discover/movie?with_genres=99&sort_by=popularity.desc"
+        },
+        {
+          "category": "Documentary",
+          "media": "tv",
+          "api_path": "discover/tv?with_genres=99&sort_by=popularity.desc"
+        },
+        {
+          "category": "Reality",
+          "media": "tv",
+          "api_path": "discover/tv?with_genres=10764&sort_by=popularity.desc"
+        },
+        {
+          "category": "Kids",
+          "media": "tv",
+          "api_path": "discover/tv?with_genres=10762&sort_by=popularity.desc"
+        },
+        {
+          "category": "Family",
+          "media": "movie",
+          "api_path": "discover/movie?with_genres=10751&sort_by=popularity.desc"
+        },
+        {
+          "category": "Family",
+          "media": "tv",
+          "api_path": "discover/tv?with_genres=10751&sort_by=popularity.desc"
+        },
+        {
+          "category": "War & Politics",
+          "media": "movie",
+          "api_path": "discover/movie?with_genres=10752&sort_by=popularity.desc"
+        },
+        {
+          "category": "War & Politics",
+          "media": "tv",
+          "api_path": "discover/tv?with_genres=10768&sort_by=popularity.desc"
+        }
+      ]
+    },
+    "pinned_kodi_source_review": {
+      "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
+      "files": [
+        "xbmc/guilib/GUIStaticItem.cpp",
+        "xbmc/guilib/GUIAction.cpp"
+      ],
+      "findings": [
+        "Static items read conditional visibility and click actions.",
+        "Click conditions are evaluated together before actions execute."
+      ],
+      "scope": "Source inspection only, not a desktop Kodi or device execution."
+    },
+    "project_scanner_passed": true,
+    "ios_static_checks_passed": true,
+    "diff_whitespace_check_passed": true,
+    "native_build": false,
+    "ipa_built": false,
+    "device_retested": false,
+    "live_tmdb_or_media_accessed": false,
+    "validation_recovery": "The one-off pinned-source contract harness omitted -B and generated six local __pycache__ files. The publication scanner correctly rejected these binary files. Removed only those generated files, then reran scanner and static checks; no bytecode is included in the change."
+  },
+  "device_acceptance": [
+    "Movies then Drama and Sci-Fi contain only movies.",
+    "Shows then same genres contain only television shows.",
+    "Repeatedly switch Movies/Shows and reopen categories.",
+    "Typed-search media filters retain existing working behavior.",
+    "Compare typing/result responsiveness with multiple downloads and none."
+  ],
+  "publication": "Same draft PR #8; skip CI to avoid IPA workflows; no merge. Installed build-141 does not contain these fixes."
+}
