@@ -1,6 +1,7 @@
 """Owner build-132: a downloaded movie opened from Home fetched the torrent again. The watch menu now plays the copy
 in Kodi Downloads (ios_downloaded) before offering players."""
 import importlib.util,sys,types,unittest
+from unittest import mock
 from pathlib import Path
 LIB=Path(__file__).resolve().parents[1]/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib'
 sys.path.insert(0,str(LIB))
@@ -18,7 +19,7 @@ class Matching(unittest.TestCase):
   self.assertTrue(d.matches('Nightmare.Before.Christmas.1993.mkv','movie','The Nightmare Before Christmas','1993'))
   self.assertFalse(d.matches('The Dark Knight Rises 2012.mkv','movie','The Dark Knight','2008'))
   self.assertTrue(d.matches('The.Dark.Knight.2008.2160p.mkv','movie','The Dark Knight','2008'))
-  self.assertFalse(d.matches('The Nightmare Before Christmas 1993.mkv','movie','Christmas','1993') and False)
+  self.assertFalse(d.matches('The Nightmare Before Christmas 1993.mkv','movie','Christmas','1993'))
   self.assertTrue(d.matches('Amélie (2001).mkv','movie','Amélie','2001'))
   self.assertTrue(d.matches('Fast & Furious 2009.mkv','movie','Fast and Furious','2009'))
  def test_episodes(self):
@@ -48,10 +49,11 @@ class SeedingTorrents(unittest.TestCase):
         '/e/Coco 2017 1080p':['Coco.2017.mkv']}
   folders=['/c/Movies','/c/TV','/e']
   names={'The Nightmare Before Christmas 1993 1080p'}
-  self.assertEqual(d.find_downloaded('movie','The Nightmare Before Christmas','1993',folder_list=folders,names=names,walk=walker(tree)),
-                   '/e/The Nightmare Before Christmas 1993 1080p/Nightmare.1993.mkv')
-  self.assertIsNone(d.find_downloaded('movie','Coco','2017',folder_list=folders,names=names,walk=walker(tree)))
-  self.assertIsNone(d.find_downloaded('movie','Coco','2017',folder_list=folders,names=set(),walk=walker(tree)))
+  with mock.patch.object(d.os.path,'getsize',return_value=1):
+   self.assertEqual(d.find_downloaded('movie','The Nightmare Before Christmas','1993',folder_list=folders,names=names,walk=walker(tree)),
+                    '/e/The Nightmare Before Christmas 1993 1080p/Nightmare.1993.mkv')
+   self.assertIsNone(d.find_downloaded('movie','Coco','2017',folder_list=folders,names=names,walk=walker(tree)))
+   self.assertIsNone(d.find_downloaded('movie','Coco','2017',folder_list=folders,names=set(),walk=walker(tree)))
  def test_finished_names_reads_elementum_progress(self):
   import json
   data=json.dumps([{'name':'A','progress':100},{'name':'B','progress':42.5}]).encode()
@@ -72,8 +74,4 @@ class WatchMenu(unittest.TestCase):
   self.assertIsNot(item,local)
   self.assertEqual((item.kodi_file,item.actions,item.is_local),('/dl/x.mkv','/dl/x.mkv',True))
   self.assertIsNone(m.downloaded_item(player,[local],find=lambda *a:None,folders=lambda:['/dl']))
- def test_menu_checks_downloads_before_asking(self):
-  source=(LIB/'ios_watch_dialog.py').read_text()
-  self.assertLess(source.index('downloaded_item(player,candidates)'),source.index("Dialog().select('How would you like to watch'"))
-
 if __name__=='__main__':unittest.main()

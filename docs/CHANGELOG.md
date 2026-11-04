@@ -98,3 +98,14 @@ build. r22 is staged only; verified executable pin stays r21. No IPA, workflow d
 Owner added a ≥5 s bottom-bar delay: split native navigation/search into a lightweight worker started before setup
 imports and feed work; share tab actions, tick immediately, retain recovery/single-owner and skin fallback behavior.
 Five host regressions added. Python runtime/main-queue and actual phone visibility timing remain unverified.
+
+
+## 2026-11-04 — Owner bug 1: Continue Watching prioritizes completed copies
+
+Fix the downloaded-player metadata contract against pinned TMDb Helper's real resolver; check correct phone/current
+app/seeding/Drive downloads before provider selection. Require positive files and 100% seeding completion, refresh
+Drive cache misses, preserve provider/version across local/Drive playback, reuse Umbrella, and stop silent replacement
+on lookup failure, missing saved player or resolver retry. Watch add-on 1.4.2. 140 affected host tests/12 suites pass;
+three actual pinned-resolver path/metadata checks pass with Kodi stubs. New tests enter CI for future requested runs.
+Exact phone failure path, actual playback and resume position still require device acceptance. No IPA, merge or live
+account/media access; all work remains in draft PR #8.

@@ -36,12 +36,13 @@ def children(drive,folder_id):
   data=json.loads(body);out+=data.get('files',[]);token=data.get('nextPageToken')
   if not token:return out
 
-def find_folder(drive,parts):
+def find_folder(drive,parts,strict=False):
  """The id of Drive › parts[0] › parts[1]..., or None (never creates anything)."""
  parent='root'
  for name in parts:
   query={'q':"name='%s' and mimeType='%s' and '%s' in parents and trashed=false"%(_escape(name),FOLDER,parent),'fields':'files(id)','spaces':'drive'}
   status,_,body=drive.call('GET',API+'?'+urllib.parse.urlencode(query))
+  if strict and status!=200:raise RuntimeError('Drive download check: HTTP %s'%status)
   found=json.loads(body).get('files',[]) if status==200 else []
   if not found:return None
   parent=found[0]['id']
@@ -165,7 +166,7 @@ def client():
  account=next(iter(found.values()))
  drives=account.get('drives') or []
  driveid=(drives[0].get('id') if drives else None) or account.get('id')
- send=driveupload.sender(tls_context())
+ send=driveupload.sender(tls_context(),timeout=8)
  def refresh(refresh_token):
   server=(drive_addon.getSetting('sign-in-server') or 'https://drive.signinserver.com').strip().rstrip('/')
   body=urllib.parse.urlencode({'provider':'googledrive','refresh_token':refresh_token}).encode()
@@ -174,19 +175,44 @@ def client():
   return json.loads(answer)
  return driveupload.Drive(driveupload.token_source(accounts.get_accounts,accounts.save_account,refresh),send),driveid
 
-def listing(kind,state_dir,folder=None,now=time.time):
+def listing(kind,state_dir,folder=None,now=time.time,strict=False,fresh=False):
  """Drive entries for the Library page (cached LISTING_TTL seconds): movies, shows, or one show's episodes."""
  cache_path=os.path.join(state_dir,'drive-library.json');cache=load_json(cache_path,{})
  slot='%s:%s'%(kind,folder or '')
  hit=cache.get(slot)
- if hit and now()-hit.get('time',0)<LISTING_TTL:return hit['entries'],hit['driveid']
+ if not fresh and hit and now()-hit.get('time',0)<LISTING_TTL:return hit['entries'],hit['driveid']
  drive,driveid=client()
  if not drive:return [],None
  if folder:entries=episodes(videos(drive,folder))
  else:
-  top=find_folder(drive,[TOP,SECTION[kind]])
+  top=find_folder(drive,[TOP,SECTION[kind]],strict=strict)
   if not top:entries=[]
   elif kind=='movie':entries=movies(videos(drive,top))
   else:entries=shows(children(drive,top))
  cache[slot]={'time':now(),'entries':entries,'driveid':driveid};save_json(cache_path,cache)
  return entries,driveid
+
+def completed_copy(kind,title,year,season,episode,state_dir):
+ """Match a kept download by title/year or show/episode, without art lookups or source scraping. Local phone
+ matching and this Drive check share the same strict title rule. A Drive error propagates to stop silent redownload."""
+ from ios_downloaded import has_title,has_episode
+ if kind=='movie':
+  for fresh in (False,True):
+   entries,driveid=listing('movie',state_dir,strict=True,fresh=fresh)
+   matches=[e for e in entries if has_title(e.get('title',''),title) and (not year or str(e.get('year'))==str(year)) and int(e.get('size') or 0)>0]
+   if matches or not driveid:break
+ else:
+  for fresh in (False,True):
+   shows,driveid=listing('tv',state_dir,strict=True,fresh=fresh)
+   shows=[s for s in shows if has_title(s.get('title',''),title)]
+   if shows or not driveid:break
+  matches=[]
+  for show in shows:
+   for fresh in (False,True):
+    entries,driveid=listing('tv',state_dir,show['id'],strict=True,fresh=fresh)
+    found=[e for e in entries if has_episode(e.get('name',''),season,episode) and int(e.get('size') or 0)>0]
+    if found or not driveid:break
+   matches+=found
+ if not matches or not driveid:return None
+ item=max(matches,key=lambda e:int(e.get('size') or 0))
+ return play_url(driveid,item['id'])

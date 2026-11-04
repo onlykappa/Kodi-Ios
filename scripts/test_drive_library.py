@@ -1,6 +1,7 @@
 import importlib.util,json,sys,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib'))
 spec=importlib.util.spec_from_file_location('drivelibrary',ROOT/'migration/bundled-bootstrap/resources/lib/drivelibrary.py');lib=importlib.util.module_from_spec(spec);spec.loader.exec_module(lib)
 spec=importlib.util.spec_from_file_location('ios_library',ROOT/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_library.py');page=importlib.util.module_from_spec(spec);spec.loader.exec_module(page)
 FOLDER=lib.FOLDER
@@ -32,6 +33,24 @@ class FakeDrive:
   return 200,{},json.dumps({'files':items}).encode()
 
 class DriveLibrary(unittest.TestCase):
+ def test_completed_copy_finds_movie_or_exact_episode_without_metadata_search(self):
+  drive=FakeDrive()
+  from unittest.mock import patch
+  with patch.object(lib,'client',return_value=(drive,'D1')):
+   with tempfile.TemporaryDirectory() as tmp:
+    self.assertIn('item_id=f1',lib.completed_copy('movie','The Dark Knight','2008','','',tmp))
+    self.assertIsNone(lib.completed_copy('movie','The Dark Knight','2012','','',tmp))
+    self.assertIsNone(lib.completed_copy('movie','Dark','2008','','',tmp))
+    self.assertIn('item_id=e2',lib.completed_copy('episode','Orange Is the New Black','',1,2,tmp))
+    self.assertIsNone(lib.completed_copy('episode','Orange Is the New Black','',1,9,tmp))
+ def test_failed_drive_folder_check_is_not_reported_as_no_download(self):
+  denied=type('Denied',(),{'call':lambda *a:(403,{},b'{}')})()
+  with self.assertRaises(RuntimeError):lib.find_folder(denied,[lib.TOP,'Movies'],strict=True)
+ def test_cached_miss_is_refreshed_before_reporting_no_download(self):
+  from unittest.mock import patch
+  with patch.object(lib,'listing',side_effect=[([], 'D1'),([{'id':'new','title':'Inception','year':'2010','size':100}], 'D1')]) as listing:
+   self.assertIn('item_id=new',lib.completed_copy('movie','Inception','2010','','','state'))
+   self.assertFalse(listing.call_args_list[0].kwargs['fresh']);self.assertTrue(listing.call_args_list[1].kwargs['fresh'])
  def test_names(self):
   self.assertEqual(lib.parse('The.Dark.Knight.2008.2160p.WEB-DL.x265-GRP.mkv'),{'title':'The Dark Knight','year':'2008','season':'','episode':''})
   self.assertEqual(lib.parse('Inception (2010) 1080p BluRay.mkv')['title'],'Inception')

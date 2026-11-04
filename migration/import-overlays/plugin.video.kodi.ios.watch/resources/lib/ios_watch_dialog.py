@@ -27,13 +27,15 @@ def share_details(player,window=None):
 
 RESUME_PROPERTY='KodiIOS.Resume.Source'
 
+class DownloadLookupError(Exception):pass
+
 def continuing(argv=None):
  """True when TMDb Helper was started from a Continue Watching link (ios_continue.CONTINUE_FLAG)."""
  import sys
  argv=sys.argv if argv is None else argv
  return len(argv)>2 and 'ios_continue=1' in str(argv[2]).lstrip('?').split('&')
 
-def downloaded_item(player,candidates,find=None,folders=None):
+def downloaded_item(player,candidates,find=None,folders=None,cloud=False):
  """A TMDb Helper local player item for the downloaded copy of this title, or None."""
  try:
   import copy
@@ -42,28 +44,39 @@ def downloaded_item(player,candidates,find=None,folders=None):
   movie=getattr(player,'tmdb_type','')=='movie'
   title=info.get('title') if movie else (info.get('tvshowtitle') or info.get('title'))
   args=('movie' if movie else 'episode',title,info.get('year') or '',getattr(player,'season','') or '',getattr(player,'episode','') or '')
-  path=find((folders or d.folders)(),*args) if find else d.find_downloaded(*args)
+  copy_info={'path':find((folders or d.folders)(),*args),'source':'local'} if find else d.completed_copy(*args,cloud=cloud)
+  path=(copy_info or {}).get('path')
   try:
-   import xbmc;xbmc.log('Kodi iOS watch: downloaded copy of %s %s: %s'%(args[0],title,path or 'none'),xbmc.LOGINFO)
+   import xbmc;xbmc.log('Kodi iOS watch: completed-copy check (%s): %s'%(args[0],copy_info['source'] if path else 'none'),xbmc.LOGINFO)
   except ImportError:pass
   if not path:return None
   local=next((p for p in candidates if getattr(p,'is_local',False)),None)
   if local is not None:item=copy.copy(local)
   else:
-   from tmdbhelper.lib.player.dialog.item.kodi import PlayerItemLocalMovie
-   item=PlayerItemLocalMovie({'tmdb':getattr(player,'tmdb_id','')})
+   from tmdbhelper.lib.player.dialog.item.kodi import PlayerItemLocalMovie,PlayerItemLocalEpisode
+   # PlayerResolver reads item.details: a bare {'tmdb': ...} dict cannot produce its playback ListItem.
+   item=(PlayerItemLocalMovie if movie else PlayerItemLocalEpisode)(item=player.dictionary)
   # TMDb Helper's cached properties live in the instance, so these replace its library lookup.
-  item.__dict__.update(kodi_file=path,kodi_file_contents=None,actions=path,is_valid=True,make_playlist=False)
+  item.__dict__.update(kodi_file=path,kodi_file_contents=None,actions=path,is_valid=True,make_playlist=False,
+                       ios_download_source=copy_info['source'])
   return item
  except Exception as error:
   try:
-   import xbmc;xbmc.log('Kodi iOS watch: downloaded-file check failed: %r'%error,xbmc.LOGWARNING)
+   import xbmc;xbmc.log('Kodi iOS watch: completed-copy check failed: '+type(error).__name__,xbmc.LOGWARNING)
   except Exception:pass
-  return None
+  raise DownloadLookupError('Could not verify a completed copy') from error
 
 def choose_player(player):
  import xbmc,xbmcgui,xbmcaddon,xbmcvfs
  player.allow_playlist=False
+ home=xbmcgui.Window(10000);home.clearProperty(RESUME_PROPERTY)
+ resume=continuing()
+ if getattr(player,'_ios_copy_selected',False):
+  xbmcgui.Dialog().ok('Downloaded copy','The completed copy could not be opened. Check the file or Drive connection. No replacement download was started.')
+  return None
+ if getattr(player,'_ios_resume_selected',False):
+  xbmcgui.Dialog().ok('Continue Watching','The saved playback could not be opened. Try again or use Choose source. No new download was started.')
+  return None
  details=player.details;art=getattr(details,'art',{}) or {};info=getattr(details,'infolabels',{}) or {}
  settings=xbmcaddon.Addon('plugin.video.kodi.ios.watch')
  candidates=list(player.player_items.items_play)
@@ -89,23 +102,31 @@ def choose_player(player):
   finally:f.close()
  kind_of=lambda item:'elementum' if item is engine else 'umbrella' if item is umbrella else 'local'
  # A finished download on the phone plays at once (owner build-132: Home fetched the torrent again).
- downloaded=downloaded_item(player,candidates)
+ try:downloaded=downloaded_item(player,candidates,cloud=resume)
+ except DownloadLookupError:
+  xbmcgui.Dialog().ok('Check downloaded copy','Completed downloads could not be checked. Try again before starting another download.')
+  return None
  if downloaded is not None:
-  xbmc.log('Kodi iOS watch: playing the downloaded file %s'%downloaded.kodi_file,xbmc.LOGINFO)
+  player._ios_copy_selected=True
+  source=getattr(downloaded,'ios_download_source','local')
+  xbmc.log('Kodi iOS watch: playing a completed %s copy; provider selection skipped'%source,xbmc.LOGINFO)
   try:
    from ios_continue import record
-   record(player,read,write,choice='local')
+   record(player,read,write,choice=source,preserve_player=True)
   except Exception:pass
   return downloaded
- home=xbmcgui.Window(10000);home.clearProperty(RESUME_PROPERTY)
  # Continue Watching (its links carry the flag): the player and version picked last time, without asking.
  saved={}
- if continuing():
+ if resume:
   try:
    from ios_continue import player_key,saved_choice
    saved=saved_choice(read,player_key(player))
-  except Exception:saved={}
+  except Exception:
+   xbmcgui.Dialog().ok('Continue Watching','The saved player could not be read. Try again or use Choose source.');return None
  selected=next((n for n,(_,action,item) in enumerate(rows) if action=='play' and saved.get('player')==kind_of(item)),None)
+ if resume and selected is None and saved.get('player'):
+  xbmcgui.Dialog().ok('Continue Watching','The previous player or completed copy is unavailable. Use Choose source to change it. No new download was started.')
+  return None
  if selected is None:
   items=[]
   for label,action,item in rows:
@@ -120,6 +141,7 @@ def choose_player(player):
  _,action,item=rows[selected]
  if action in NOT_READY:
   log('%s is not available here'%action);xbmcgui.Dialog().ok(*NOT_READY[action]);return None
+ if resume:player._ios_resume_selected=True
  if saved.get('version') and saved.get('player')==kind_of(item):
   # deck_picker.py (Elementum's and Umbrella's version page) takes this once and plays the same version.
   import json,time

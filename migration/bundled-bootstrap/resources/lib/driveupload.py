@@ -110,7 +110,7 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True)
    while os.path.basename(folder) not in ('Movies','TV Shows') and not os.listdir(folder):os.rmdir(folder);folder=os.path.dirname(folder)
  return count
 
-def sender(context):
+def sender(context,timeout=120):
  """HTTP for Drive with the given TLS context; returns (status, headers, body) without following redirects."""
  class NoRedirect(urllib.request.HTTPRedirectHandler):
   def redirect_request(self,*args,**kwargs):return None
@@ -118,7 +118,7 @@ def sender(context):
  def send(method,url,body,headers):
   request=urllib.request.Request(url,data=body,headers=dict(headers,**{'User-Agent':'Kodi iOS Drive upload'}),method=method)
   try:
-   with opener.open(request,timeout=120) as r:return r.status,dict(r.headers),r.read()
+   with opener.open(request,timeout=timeout) as r:return r.status,dict(r.headers),r.read()
   except urllib.error.HTTPError as e:return e.code,dict(e.headers or {}),e.read()
  return send
 

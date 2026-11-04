@@ -31,6 +31,16 @@ These are log leads, not diagnosed user-facing bugs. No root cause or fix has be
 | LOG-003 | 358 | `DARWINIOS: underflow (7456 vs 8200 bytes)` | Audio underflow reported during startup; audible effect and cause unverified. |
 | LOG-004 | 333 | JSONRPC could not parse `Setting.Details.SettingList` | The next messages defer/resolve type definitions and report successful JSONRPC v13.5.0 initialization. Not enough evidence to label an RPC failure. |
 
+## Current focused bug — owner item 1
+
+ISSUE-091: the owner confirmed the completed copy is in Google Drive / Library. Completed movies in Continue Watching must use their existing copy before provider selection; a title previously played through Umbrella must return to Umbrella when there is no completed copy.
+
+Source implementation is ready for review: phone completed files (including current app folders despite stale settings), 100%-finished seeding files, then signed-in Drive copies. Failed checks do not mean "not downloaded"; unavailable saved providers and resolver retries do not silently start Elementum. Existing copies retain the correct TMDb Helper metadata object and preserve the original provider/version in history. Watch add-on version 1.4.2.
+
+Validation: 140 affected tests in 12 host suites, including 19 new behavior regressions; the actual pinned helper resolver also passes local movie, episode and Drive metadata/path checks with Kodi API stubs. See [evidence](../reports/continue-watching-validation.json). The installed build-141 has not changed. No IPA or device acceptance claimed.
+
+Future device retest after a requested build: completed phone movie, Drive-only completed movie, Umbrella-origin title, failed/absent download/provider checks, and expected resume position. No further reproduction is needed to implement the identified source fixes; phone results remain necessary for acceptance.
+
 ## Fix queue and verification
 
 Owner selected startup warnings first, then slow opening-to-posters (not tab switching).
