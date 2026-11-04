@@ -1,5 +1,13 @@
 # Persistent progress
 
+## Current handoff — 2026-11-04
+
+The owner explicitly requested merging PR #7 into main without making an IPA, then opening one new draft PR for bugs handled one at a time. PR #7 is merged at `4a78efdeecbc6f9c47018682fbb60ff1829a8a95` (merge message contains `[skip ci]`). The existing build-141 was built from PR #7 head `c0d2746d76ff362bd18a9d1de30784ee375afa85` and includes KodiAirPlay r11. This supersedes the older unmerged/build-124/127 status below.
+
+Follow-up branch: `fix/build-141-followup`, targeting main in a new draft PR. See [bug-fix handoff and log observations](BUGFIXES.md). A private owner log covers only 5.795 seconds of startup: four explicit warning entries, no error/fatal entries, no playback/AirPlay activity. No fix has started; next step is the owner's first bug, then diagnose/fix/verify one at a time in that same PR. No new IPA or follow-up merge until requested; use `[skip ci]` while the no-build instruction applies. Raw logs and private state stay outside GitHub. Host checks do not establish device success.
+
+## Earlier progress (historical)
+
 Status: IN PROGRESS — owner device testing of iPhone builds
 Current phase: Phase 4 — portrait UI (r11), Elementum, Drive, Play on TV, video controls, notification center; owner tests each IPA on an iPhone 16 Pro
 Last updated UTC: 2026-11-02T17:10Z
