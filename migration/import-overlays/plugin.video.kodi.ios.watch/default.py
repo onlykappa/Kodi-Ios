@@ -1,10 +1,24 @@
 """Kodi renders this real directory UI; no mock screen or engine is generated."""
 import os,sys
 from urllib.parse import parse_qs
-sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
+# reuselanguageinvoker: this file runs again in the same interpreter for every listing; the path goes in once.
+LIB=os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib')
+if LIB not in sys.path:sys.path.insert(0,LIB)
 from ios_watch_routes import choices
 
 def run(argv):
+ if argv[2].startswith('?action=cached&key='):
+  # Hub rows and heroes from their last TMDb Helper result (ios_cache.py): read a file and list it, nothing else.
+  import xbmc,xbmcgui,xbmcplugin,xbmcvfs
+  key=argv[2].split('&key=',1)[1]
+  try:
+   import ios_cache
+   ios_cache.serve(int(argv[1]),key,xbmc,xbmcgui,xbmcplugin,ios_cache.Store(xbmcvfs.translatePath(ios_cache.FOLDER)).read)
+  except Exception:
+   # Whatever failed, the row must not stay empty: its flag goes off and Kodi loads the TMDb Helper path.
+   if key.replace('.','').isalnum():xbmc.executebuiltin('Skin.Reset(PortraitCache.%s)'%key)
+   xbmcplugin.endOfDirectory(int(argv[1]),succeeded=False)
+  return
  import xbmc,xbmcaddon,xbmcgui,xbmcplugin
  handle=int(argv[1]);params={k:v[0] for k,v in parse_qs(argv[2].lstrip('?')).items()}
  if params.get('action')=='library':

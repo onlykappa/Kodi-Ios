@@ -19,8 +19,97 @@ def load(path):
  # Kodi awake in the background (background.py).
  if hasattr(lib,'kodi_airplay_state'):lib.kodi_airplay_state.argtypes=[];lib.kodi_airplay_state.restype=ctypes.c_int
  if hasattr(lib,'kodi_airplay_close'):lib.kodi_airplay_close.argtypes=[];lib.kodi_airplay_close.restype=None
+ # r5: MKV/AVI/WebM/TS converted on the phone for AirPlay; why it could not play, for the screen.
+ if hasattr(lib,'kodi_airplay_message'):lib.kodi_airplay_message.argtypes=[ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_message.restype=ctypes.c_int
+ # r6: what the AirPlay stream did (requests, CODECS, Apple's player events), for kodi.log.
+ if hasattr(lib,'kodi_airplay_log'):lib.kodi_airplay_log.argtypes=[ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_log.restype=ctypes.c_int
+ # r10: the subtitles burned into the picture a TV gets converted (Kodi's current choice, set before playing).
+ if hasattr(lib,'kodi_airplay_subtitles'):lib.kodi_airplay_subtitles.argtypes=[ctypes.c_int,ctypes.c_char_p,ctypes.c_char_p];lib.kodi_airplay_subtitles.restype=None
  if hasattr(lib,'kodi_background_keep'):lib.kodi_background_keep.argtypes=[ctypes.c_int];lib.kodi_background_keep.restype=None
  return lib
+
+def converts(lib):
+ """r5 frameworks convert MKV, AVI, WebM and MPEG-TS for AirPlay on the phone."""
+ return hasattr(lib,'kodi_airplay_message')
+
+def message(lib):
+ """The framework's reason AirPlay could not play the last stream ('' when none or an older framework)."""
+ if not converts(lib):return ''
+ import ctypes
+ buffer=ctypes.create_string_buffer(400)
+ lib.kodi_airplay_message(buffer,400)
+ return buffer.value.decode('utf-8','replace')
+
+SUB_EXTENSIONS=('.srt','.ass','.ssa','.vtt')
+# Where subtitle add-ons leave the file Kodi loads (a4kSubtitles, Kodi's own subtitle search).
+SUB_DIRS=('special://temp/a4ksubtitles','special://profile/addon_data/service.subtitles.a4ksubtitles/temp',
+          'special://temp/subtitles','special://temp')
+SUB_RECENT=3*3600  # an external file older than this belongs to something else
+
+def subtitle_choice(props,files,now):
+ """r10: what to burn in from Kodi's Player.GetProperties (subtitleenabled, currentsubtitle) and recent subtitle
+ files [(path, mtime)]: (ordinal, file, language) for kodi_airplay_subtitles. ordinal is Kodi's subtitle number (the
+ remuxer maps it to the file's subtitle streams in order; past them it is the external file), -1 off, -2 unknown
+ (the file's forced / default). A file whose name matches Kodi's current subtitle is taken as that subtitle (-2 with
+ the file); otherwise the newest recent file is passed only as the fallback for an ordinal past the file's own."""
+ if not isinstance(props,dict) or 'subtitleenabled' not in props:return (-2,'','')
+ if not props.get('subtitleenabled'):return (-1,'','')
+ current=props.get('currentsubtitle') or {}
+ index=current.get('index',-1);index=index if isinstance(index,int) and index>=0 else -2
+ lang=str(current.get('language') or '')[:15]
+ name=str(current.get('name') or '').strip().lower()
+ recent=sorted([(m,p) for p,m in files if os.path.splitext(p)[1].lower() in SUB_EXTENSIONS and now-m<SUB_RECENT],reverse=True)
+ for _,path in recent:
+  base=os.path.basename(path).lower()
+  if name and len(name)>=4 and (name in base or os.path.splitext(base)[0] in name):return (-2,path,lang)
+ return (index,recent[0][1] if recent else '',lang)
+
+def recent_subtitle_files(translate,listdir,mtime):
+ """[(path, mtime)] of subtitle files in SUB_DIRS (translate: xbmcvfs.translatePath)."""
+ found=[]
+ for folder in SUB_DIRS:
+  try:
+   root=translate(folder)
+   for entry in listdir(root):
+    if os.path.splitext(entry)[1].lower() in SUB_EXTENSIONS:
+     path=os.path.join(root,entry);found.append((path,mtime(path)))
+  except Exception:continue
+ return found
+
+def send_subtitles(lib,xbmc,xbmcvfs,now):
+ """r10: hands Kodi's current subtitle to the framework before kodi_airplay_play; returns the choice (None: older
+ framework). Third-party AirPlay TVs ignore the stream's WebVTT subtitles, so the remuxer burns this one in."""
+ if not hasattr(lib,'kodi_airplay_subtitles'):return None
+ import json
+ props={}
+ try:
+  players=json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Player.GetActivePlayers'}))).get('result') or []
+  video=[p['playerid'] for p in players if p.get('type')=='video']
+  if video:
+   props=json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Player.GetProperties','params':{
+    'playerid':video[0],'properties':['subtitleenabled','currentsubtitle']}}))).get('result') or {}
+ except Exception:props={}
+ choice=subtitle_choice(props,recent_subtitle_files(xbmcvfs.translatePath,os.listdir,os.path.getmtime),now)
+ lib.kodi_airplay_subtitles(choice[0],choice[1].encode('utf-8'),choice[2].encode('utf-8'))
+ return choice
+
+def log_lines(lib,size=16384,rounds=8):
+ """The framework's AirPlay log lines since the last call (r6; [] with an older framework). Each call drains them."""
+ if not hasattr(lib,'kodi_airplay_log'):return []
+ import ctypes
+ lines=[]
+ for _ in range(rounds):
+  buffer=ctypes.create_string_buffer(size)
+  if lib.kodi_airplay_log(buffer,size)<=0:break
+  lines+=[line for line in buffer.value.decode('utf-8','replace').split('\n') if line]
+ return lines
+
+def relay(lib,write,wait,every=5):
+ """Writes the framework's AirPlay log into kodi.log every few seconds until wait(seconds) reports Kodi is closing."""
+ if not hasattr(lib,'kodi_airplay_log'):return
+ while True:
+  for line in log_lines(lib):write('Kodi iOS AirPlay: '+line)
+  if wait(every):break
 
 def watch(lib,playing,wait):
  """Shows the button while playing() is true, until wait(seconds) reports Kodi is closing."""

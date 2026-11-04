@@ -1,7 +1,7 @@
 import json,os,sys,time
 from pathlib import Path
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
-from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,follow_container,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
+from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
 import airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready
@@ -10,12 +10,20 @@ def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
  if not xbmc.getCondVisibility('System.Platform.IOS'):return
  monitor=xbmc.Monitor()
- if monitor.waitForAbort(2):return
  root=Path(__file__).resolve().parent;profile=Path(xbmcvfs.translatePath('special://profile/')).resolve()
  window=xbmcgui.Window(10000);state={'stage':'prepare'};generated=False
  def stage(value):state['stage']=value
  def api(method,params):return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params})))
  def invoke(command):xbmc.executebuiltin(command,True)
+ # r11: portrait rows follow the owner's widgets, Continue Watching follows playback, the glass tab bar. Started now:
+ # the tab bar and the rest no longer wait for setup (build-132: ~4 s of setup, then the ~3 s refresh, before the tab
+ # bar showed); only the portrait refresh waits for setup_done, set once setup and its reload are over.
+ setup_done=threading.Event()
+ # Not for the gear menu's Recover (recover.py runs this with --recover next to the running service).
+ if not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
+  portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),kwargs={'ready':setup_done},daemon=True);portrait_thread.start()
+ # Owner build-136 log: the tab bar answered ~8 s after launch, 2 s of it this fixed wait. Only setup waits now.
+ if monitor.waitForAbort(2):return
  def prepare_generated(sync=True):
   nonlocal generated
   stage('skin_preferences')
@@ -77,7 +85,6 @@ def run():
   if xbmc.getCondVisibility('System.AddonIsEnabled(plugin.video.elementum)'):
    try:
     engine=xbmcaddon.Addon('plugin.video.elementum')
-    for key in follow_container(home,engine.getSetting,engine.setSetting):xbmc.log('Kodi iOS setup moved Elementum '+key+' to the current app folder',xbmc.LOGINFO)
     folder=elementum_defaults(updates.updates_folder(home).with_name('Elementum Downloads'),engine.getSetting,engine.setSetting)
     if folder:xbmc.log('Kodi iOS setup set Elementum downloads to '+folder,xbmc.LOGINFO)
    except Exception as error:xbmc.log('Kodi iOS Elementum defaults skipped: '+type(error).__name__,xbmc.LOGWARNING)
@@ -119,16 +126,18 @@ def run():
   invoke('Action(reloadkeymaps)')
   # Exactly one reload after verified generation, never during Keep Skin confirmation.
   if generated and state['stage']=='complete' and xbmc.getSkinDir()==FUSE:invoke('ReloadSkin()')
-  # After any reload has settled: the one-time calibration reset, then a quiet check for a newer build.
-  if xbmc.getSkinDir()==FUSE and not monitor.waitForAbort(10):
+  setup_done.set()
+  # After any reload has settled: the one-time calibration reset, then a quiet check for a newer build. In the
+  # background (performance pass): the tab bar, Continue Watching and the rest below used to wait for these ten
+  # seconds too (the glass bar appeared ~19 s after launch in the owner's log).
+  def later():
+   if xbmc.getSkinDir()!=FUSE or monitor.waitForAbort(10):return
    try:calibration.reset_once(profile,lambda command:xbmc.executebuiltin(command),xbmc.getCondVisibility,monitor.waitForAbort)
    except Exception as error:xbmc.log('Kodi iOS calibration reset skipped: '+type(error).__name__,xbmc.LOGWARNING)
    try:
     if xbmcaddon.Addon().getSettingBool('check_on_start'):updates.run(check_only=True)
    except Exception as error:xbmc.log('Kodi iOS update check skipped: '+type(error).__name__,xbmc.LOGWARNING)
- # r11: portrait rows follow the owner's widgets, rotating the phone reloads the matching layout, and Continue
- # Watching follows playback. Its own thread, since the AirPlay watch below also runs for the whole session.
- portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),daemon=True);portrait_thread.start()
+  threading.Thread(target=later,daemon=True).start()
  # The bell in the hub headers: unread messages and whether a download or Drive upload runs.
  threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),daemon=True).start()
  # Umbrella's getting-ready-to-play screen: its source text, split into the badges the portrait page shows.
@@ -151,6 +160,13 @@ def run():
     return background.reason(notices.downloads(),notices.uploads(profile),uploading and background.videos_waiting(kept))
    threading.Thread(target=background.watch,args=(lib.kodi_background_keep,why,monitor.waitForAbort,lambda m:xbmc.log(m,xbmc.LOGINFO)),daemon=True).start()
  except Exception as error:xbmc.log('Kodi iOS background transfers unavailable: '+type(error).__name__,xbmc.LOGWARNING)
+ # r6: the AirPlay stream's requests, CODECS and Apple's player events into kodi.log (owner build-133: sound only).
+ try:
+  path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
+  lib=airplay.load(path) if path else None
+  if lib is not None and hasattr(lib,'kodi_airplay_log'):
+   threading.Thread(target=airplay.relay,args=(lib,lambda m:xbmc.log(m,xbmc.LOGINFO),monitor.waitForAbort),daemon=True).start()
+ except Exception as error:xbmc.log('Kodi iOS AirPlay log unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  # Stays running for the rest of the session: Apple's AirPlay button in the top-right corner during playback.
  try:
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))

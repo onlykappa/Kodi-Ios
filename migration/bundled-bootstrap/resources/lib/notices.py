@@ -87,10 +87,20 @@ def eta_text(seconds):
  if seconds<3600:return '%d min'%max(1,seconds//60)
  return '%dh %02dm'%(seconds//3600,(seconds%3600)//60)
 
+_LIST={'at':-1e9,'data':None}
+def torrent_list(get=None,ttl=2.0,clock=None):
+ """Elementum's /torrents/list, shared for `ttl` seconds: the bell (every 3 s) and the background keep-alive (every
+ 5 s) asked the engine for it separately (performance pass). A custom get() always asks."""
+ import time
+ now=(clock or time.monotonic)()
+ if get is None and _LIST['data'] is not None and now-_LIST['at']<ttl:return _LIST['data']
+ data=json.loads((get or (lambda url:urllib.request.urlopen(url,timeout=3).read()))(ENGINE+'/torrents/list'))
+ if get is None:_LIST.update(at=now,data=data)
+ return data
+
 def downloads(get=None):
  """Elementum's torrents that are still downloading or paused, for the Downloading cards."""
- get=get or (lambda url:urllib.request.urlopen(url,timeout=3).read())
- try:torrents=json.loads(get(ENGINE+'/torrents/list'))
+ try:torrents=torrent_list(get)
  except Exception:return []
  out=[]
  for t in torrents or []:

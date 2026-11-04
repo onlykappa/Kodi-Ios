@@ -683,7 +683,7 @@ index b2a06d0..0c74089 100644
  - (bool) presentFramebuffer;
  - (CGSize) getScreenSize;
 diff --git a/xbmc/platform/darwin/ios/XBMCController.mm b/xbmc/platform/darwin/ios/XBMCController.mm
-index a450151..4e065e1 100644
+index a450151..816152c 100644
 --- a/xbmc/platform/darwin/ios/XBMCController.mm
 +++ b/xbmc/platform/darwin/ios/XBMCController.mm
 @@ -36,6 +36,8 @@
@@ -1130,7 +1130,7 @@ index a450151..4e065e1 100644
  
    auto scale = [m_glView getScreenScale:m_glView.currentScreen];
    guiInsets = EdgeInsets(insets.left * scale, insets.top * scale, insets.right * scale,
-@@ -1045,4 +1366,64 @@ public:
+@@ -1045,4 +1366,70 @@ public:
    return [m_glView getCurrentEAGLContext];
  }
  
@@ -1149,7 +1149,13 @@ index a450151..4e065e1 100644
 +    const CGPoint where = [touch locationInView:nil];
 +    if (touch.phase == UITouchPhaseBegan)
 +    {
-+      [began setObject:@[ @(where.x), @(where.y), @(touch.timestamp) ] forKey:touch];
++      // Kodi-iOS r21: remember whether a real view of its own took the touch when it began (the native tab bar, the
++      // search field). Its gesture recognizer can leave touch.view nil by the end, and the rescue below then handed
++      // tab-bar taps to Kodi, which pressed the row or hero behind the bar (owner: "presses behind the menu").
++      UIView* owner = touch.view;
++      const BOOL ownView = owner && ![owner isDescendantOfView:m_glView] && ![owner isKindOfClass:UIWindow.class] &&
++                           owner != self.view;
++      [began setObject:@[ @(where.x), @(where.y), @(touch.timestamp), @(ownView) ] forKey:touch];
 +      continue;
 +    }
 +    if (touch.phase != UITouchPhaseEnded && touch.phase != UITouchPhaseCancelled)
@@ -1164,7 +1170,7 @@ index a450151..4e065e1 100644
 +    const BOOL reachedKodi = view && [view isDescendantOfView:m_glView];
 +    // Nothing claimed the point: no view, or a window (ours or another) that no subview took it for.
 +    const BOOL lost = !view || [view isKindOfClass:UIWindow.class] || view == self.view;
-+    const BOOL rescue = tap && lost && KodiGLTakesTouches(m_glView);
++    const BOOL rescue = tap && lost && ![start[3] boolValue] && KodiGLTakesTouches(m_glView);
 +    const CGSize screen = InterfaceBounds(m_window).size;
 +    if (!CGSizeEqualToSize(screen, loggedFor))
 +    {

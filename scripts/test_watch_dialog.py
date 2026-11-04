@@ -7,7 +7,8 @@ spec=importlib.util.spec_from_file_location('watch_dialog',path);module=importli
 class DialogTests(unittest.TestCase):
  def setUp(self):
   self.dialog=mock.Mock();self.dialog.select.return_value=-1
-  self.xbmc=SimpleNamespace(getCondVisibility=mock.Mock(return_value=False),executebuiltin=mock.Mock())
+  self.logged=[]
+  self.xbmc=SimpleNamespace(getCondVisibility=mock.Mock(return_value=False),executebuiltin=mock.Mock(),log=lambda text,level=0:self.logged.append(text),LOGINFO=1)
   self.settings=mock.Mock();self.settings.getSettingBool.return_value=False
   self.home=mock.Mock()
   self.mods={'xbmc':self.xbmc,'xbmcgui':SimpleNamespace(Dialog=lambda:self.dialog,ListItem=mock.Mock(),Window=lambda id:self.home),'xbmcaddon':SimpleNamespace(Addon=lambda id:self.settings),'xbmcvfs':SimpleNamespace(exists=lambda path:True)}
@@ -16,6 +17,10 @@ class DialogTests(unittest.TestCase):
   self.player=SimpleNamespace(allow_playlist=True,details=SimpleNamespace(art={'poster':'fixture'},infolabels={'title':'Fixture'}),player_items=SimpleNamespace(items_play=[self.engine]))
  def tearDown(self):self.patch.stop()
  def test_cancel_never_selects_a_backend(self):self.assertIsNone(module.choose_player(self.player));self.xbmc.executebuiltin.assert_not_called();self.assertFalse(self.player.allow_playlist)
+ def test_the_log_says_what_was_offered_and_picked(self):
+  # Owner logs: "lib.player - Failure!" after a tap, and nothing said why.
+  module.choose_player(self.player)
+  self.assertTrue(any('offered' in t and 'picked -1' in t for t in self.logged));self.assertTrue(any('nothing picked' in t for t in self.logged))
  def test_unready_selection_shows_status_without_playback(self):
   self.dialog.select.return_value=0;self.assertIsNone(module.choose_player(self.player));self.dialog.ok.assert_called_once();self.xbmc.executebuiltin.assert_not_called()
  def test_ready_elementum_is_first_and_explicit(self):

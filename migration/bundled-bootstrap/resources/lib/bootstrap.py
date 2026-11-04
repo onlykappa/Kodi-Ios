@@ -110,19 +110,8 @@ def umbrella_streaming_only(folders,get_setting,set_setting):
  set_setting('downloads','false');set_setting('movie.download.path','');set_setting('tv.download.path','')
  return True
 
-CONTAINER=re.compile(r'/Data/Application/[0-9A-Fa-f-]{36}/')
-ELEMENTUM_FOLDERS=('download_path','completed_movies_path','completed_shows_path','library_path','torrents_path')
-
-def follow_container(home,get_setting,set_setting,keys=ELEMENTUM_FOLDERS):
- """iOS gives the app a new data folder (…/Data/Application/<UUID>/) on reinstall: move folder settings saved
- as full paths to the current one. Returns the keys changed."""
- here=CONTAINER.search(str(home).rstrip('/')+'/')
- if not here:return []
- changed=[]
- for key in keys:
-  value=get_setting(key);fixed=CONTAINER.sub(here.group(0),value)
-  if fixed!=value:set_setting(key,fixed);changed.append(key)
- return changed
+# Elementum's folder settings follow a reinstalled app's new data folder in Elementum itself (ios_follow_container in
+# scripts/build_customized_ipa.py, run before its engine starts); this service did the same a second time.
 
 def elementum_defaults(downloads,get_setting,set_setting):
  """Elementum asks for a download folder before its first stream; use one the Files app can see. iOS can move the
@@ -141,6 +130,7 @@ def phone_housekeeping(profile,elementum_setting=None,api=None):
    address") and keep the radio busy: off.
  - Elementum always shows its version list and waits for an answer (downloads asked nothing).
  - Kodi's Bonjour announcing is refused by iOS for this app (CFNetServiceRegister -72008): off.
+ - Kodi's version check service (desktop release notices): off.
  Done once (marker), so a setting the owner turns back on stays on. Returns what was done."""
  profile=Path(profile);marker=profile/'addon_data'/ID/'housekeeping.json'
  try:done=set(json.loads(marker.read_text()).get('done',[]))
@@ -170,6 +160,10 @@ def phone_housekeeping(profile,elementum_setting=None,api=None):
   for key in ('use_cache_selection','smart_episode_choose','autoyes_enabled','silent_stream_start'):
    if get(key)!='false':put(key,'false')
   now.append('elementum_always_ask')
+ # Kodi's version check service tells desktop users about new Kodi releases; on this sideloaded app it only adds a
+ # Python service at every start (performance pass).
+ if 'versioncheck' not in done and api:
+  api('Addons.SetAddonEnabled',{'addonid':'service.xbmc.versioncheck','enabled':False});now.append('versioncheck')
  if 'zeroconf' not in done and api:
   if 'error' not in api('Settings.SetSettingValue',{'setting':'services.zeroconf','value':False}):now.append('zeroconf')
  if now:

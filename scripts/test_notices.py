@@ -62,6 +62,24 @@ class NoticeTests(unittest.TestCase):
  def test_ago(self):
   self.assertEqual([notices.ago(0,n) for n in (5,120,7200,200000)],['now','2m','2h','2d'])
 
+class TorrentListTests(unittest.TestCase):
+ def test_engine_list_shared_for_two_seconds(self):
+  calls=[]
+  def fake(url):calls.append(url);return b'[]'
+  notices._LIST.update(at=-1e9,data=None)
+  real=notices.urllib.request.urlopen
+  class R:
+   def __init__(self):pass
+   def read(self):calls.append(1);return b'[{"id":"a"}]'
+  notices.urllib.request.urlopen=lambda url,timeout=3:R()
+  try:
+   t=[0.0]
+   self.assertEqual(notices.torrent_list(clock=lambda:t[0]),[{'id':'a'}]);t[0]=1.5;notices.torrent_list(clock=lambda:t[0])
+   self.assertEqual(len(calls),1)
+   t[0]=2.5;notices.torrent_list(clock=lambda:t[0]);self.assertEqual(len(calls),2)
+   notices.torrent_list(fake);self.assertEqual(calls[-1],notices.ENGINE+'/torrents/list')  # a custom get always asks
+  finally:notices.urllib.request.urlopen=real;notices._LIST.update(at=-1e9,data=None)
+
 class PageTests(unittest.TestCase):
  def test_layout_ids_match_controller(self):
   root=ET.fromstring(portrait.notices_page().encode())

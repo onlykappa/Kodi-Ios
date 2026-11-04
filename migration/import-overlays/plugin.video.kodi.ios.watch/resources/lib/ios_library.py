@@ -48,7 +48,8 @@ def directory(handle,params):
  import xbmc,xbmcaddon,xbmcgui,xbmcplugin,xbmcvfs
  import urllib.request
  kind='tv' if params.get('type')=='tv' else 'movie';folder=params.get('folder');show=params.get('show','')
- sys.path.insert(0,xbmcvfs.translatePath(BOOT))
+ boot=xbmcvfs.translatePath(BOOT)
+ if boot not in sys.path:sys.path.insert(0,boot)  # reused interpreter: once
  import drivelibrary as lib
  state_dir=xbmcvfs.translatePath(STATE)
  def rpc(method,args):

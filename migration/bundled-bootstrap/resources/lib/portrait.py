@@ -50,6 +50,11 @@ CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type='
 TAB_PROPERTY='Portrait.Tab'
 HUB_TABS=('home','movies','tv')
 HUB_OFFSET={'home':0,'movies':10000,'tv':20000}
+# Preloader (owner, build-135: "bring back the preloader, it was game changing"). The three hubs share Home.xml and
+# every row of Home, Movies and TV loads as soon as Home opens, then keeps its titles: switching tabs finds them
+# filled. Home's hero and rows come first in the window, so Kodi queues them first. The performance pass had made
+# Movies/TV wait for their first visit (and Home's lower rows two seconds), which the owner felt as every menu
+# saying "Loading...". Fuse's startup scripts stay off and there is still one tab bar.
 def tab_actions(key):
  """[(condition, builtin)] for one tab: hubs set the property (and come back to Home), the others open their window."""
  if key in HUB_TABS:
@@ -85,7 +90,7 @@ MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
       ('Favourites','star.png','FFFF9F0A','ActivateWindow(1160)'),
       ('File manager','clapperboard.png','FF5E5CE6','ActivateWindow(filemanager)'),
       ('iPhone navigation / recovery','life-ring.png','FFFF453A',MENU)]
-HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{SEARCH_FILE,'Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml'}|pages.HANDMADE
+HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml'}|pages.HANDMADE
 # Never shrunk: playback stays landscape, and these are not windows.
 SKIP_WRAP={'VideoFullScreen.xml','VideoOSD.xml','MusicVisualisation.xml','SlideShow.xml','Pointer.xml'}
 # Shown only over landscape playback: no portrait copy, so Kodi always loads them from 1080i with landscape
@@ -219,9 +224,33 @@ def window(original,body,default,extra_root=''):
  keep=''.join(ET.tostring(node,encoding='unicode') for node in root if node.tag in ('onload','onunload','include','param','zorder','depth','menucontrol','views','animation') and not (node.tag=='include' and 'View_' in (node.text or '')))
  return '<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window%s><defaultcontrol always="true">%s</defaultcontrol>%s%s%s</window>\n'%(MARKER,attrs,default,keep,extra_root,body)
 
+# Onload actions of Fuse's Home that only served Fuse's own layout, run at every Home open (each switch back from
+# Library or Search too): its splash script (a Python run; Fuse's splash is never shown here, ISSUE-065), the
+# first-start focus helper and the ratings monitor.
+FUSE_HOME_DROP=('skinvariables-splash.json','Action_FirstStart_HomeFocus','Action_RatingsMonitor')
+
+def strip_fuse_onloads(original):
+ """Fuse's Home.xml without FUSE_HOME_DROP, and with its Skin.SetString/SetBool onloads skipped when the value is
+ already set (each one saved guisettings.xml to disk at every Home open)."""
+ if not original:return original
+ root=ET.fromstring(original)
+ for node in list(root):
+  if node.tag!='onload':continue
+  text=node.text or ''
+  if any(key in text for key in FUSE_HOME_DROP):root.remove(node);continue
+  m=re.fullmatch(r'Skin\.SetString\(([^,()]+),([^()]*)\)',text.strip()) or re.fullmatch(r'Skin\.SetBool\(([^,()]+)\)',text.strip())
+  # Only plain values: one like "10000|11101" would be read as a condition ("|" is OR).
+  if m and not node.get('condition') and re.fullmatch(r'[\w.\-]*',m.groups()[-1]):
+   node.set('condition','!String.IsEqual(Skin.String(%s),%s)'%(m.group(1),m.group(2)) if m.re.pattern.startswith('Skin\\.SetString') else '!Skin.HasSetting(%s)'%m.group(1))
+ return ET.tostring(root,encoding='unicode')
+
 def backdrop():return image(0,0,WIDTH,HEIGHT,MEDIA+'white.png',BG)
 
 # --- hubs: hero, rows, tab bar --------------------------------------------------------------------------
+# Overlap fix (performance pass): the skin's tab bar showed whenever the native glass bar was hidden (a dialog, a page
+# change), so the two swapped when switching quickly. The skin bar now exists only on a phone without the native bar
+# (a saved skin setting, set or reset at each start from the framework's presence).
+NATIVE_TAB_BAR='Portrait.NativeTabBar'
 def tabbar(active):
  """One floating frosted capsule, centred: Home, Movies, TV, Library, Search. The current tab sits in a
  darker inner capsule with a blue icon and label (iOS 26 tab bar)."""
@@ -237,9 +266,9 @@ def tabbar(active):
    +icon(x+(tab_w-58)//2,24,58,glyph,color)+label(x,84,tab_w,40,text,'p_tab',color,'center'))
  return ('<control type="image"><left>0</left><bottom>0</bottom><width>%d</width><height>330</height><texture>%sfade_up.png</texture></control>'
   '<control type="group" id="9200"><description>%s tab bar</description><left>%d</left><bottom>24</bottom><width>%d</width><height>%d</height>'
-  '<visible>String.IsEmpty(Window(Home).Property(Portrait.GlassBar))</visible>'
+  '<visible>!Skin.HasSetting(%s)</visible>'
   '<control type="image"><width>%d</width><height>%d</height><texture border="75">%sglass_150.png</texture></control>%s</control>'
-  )%(WIDTH,MEDIA,MARKER,left,bar_w,h,bar_w,h,MEDIA,''.join(items))
+  )%(WIDTH,MEDIA,MARKER,left,bar_w,h,NATIVE_TAB_BAR,bar_w,h,MEDIA,''.join(items))
 
 def usable(widget):
  path=str(widget.get('path') or '')
@@ -265,6 +294,8 @@ def poster_item(focused):
   label(20,h-170,w-40,150,'$INFO[ListItem.Label]','p_foot_b',WHITE,'left','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(poster))</visible>')+
   image(0,0,w,h,'$INFO[ListItem.Art(poster)]',WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+'</control>')
 
+CARD_NO_ART='String.IsEmpty(ListItem.Art(landscape)) + String.IsEmpty(ListItem.Art(fanart)) + String.IsEmpty(ListItem.Art(thumb))'
+
 def card_item(focused,progress=False):
  """Apple TV app 'Up Next' card: 16:9 art in a rounded tile, then a small grey line and the title.
  Continue Watching cards add the playback progress over the art."""
@@ -276,12 +307,40 @@ def card_item(focused,progress=False):
  sub=('$INFO[ListItem.Property(subtitle)]' if progress else '$INFO[ListItem.Genre]$INFO[ListItem.Year,  ·  ]')
  return ('<control type="group"><left>%d</left><top>14</top>%s'%(SIDE,zoom)+
   surface(0,0,w,h+text_h,'round_s.png',SURFACE,26)+
+  # No landscape, fanart or thumb (new titles, people): the title on the dark tile instead of a blank card.
+  label(40,30,w-80,h-60,'$INFO[ListItem.Label]','p_h2',WHITE,'center','<aligny>center</aligny><wrapmultiline>true</wrapmultiline><visible>%s</visible>'%CARD_NO_ART)+
   image(0,0,w,h,'$VAR[Portrait_Card_Art]',WHITE,'','>scale',MEDIA+'card_mask.png',background=True)+
   (image(0,h-120,w,120,MEDIA+'fade_up.png','B3FFFFFF',diffuse=MEDIA+'card_mask.png') if progress else '')+bar+
   label(26,h+18,w-52,44,sub,'p_cap',GREY,'left','<font>p_foot_b</font>')+
   label(26,h+62,w-52,60,'$INFO[ListItem.Label]','p_h3')+'</control>')
 
-def row(index,widget,last):
+# Listing cache (build-137): a TMDb Helper row or hero shows its last result, kept by the bootstrap service, through
+# the watch plugin's cached route (resources/lib/ios_cache.py there), which only reads a file. Which one a row uses
+# is a skin variable decided by saved skin settings the moment Home opens: the cached route while the row's flag is
+# on (set by the service only after the copy was written and read back), otherwise the real TMDb Helper path. The
+# names, keys and route must match ios_cache.py (scripts/test_listing_cache.py checks them).
+CACHE_ROUTE='plugin://plugin.video.kodi.ios.watch/?action=cached&key='
+CACHE_FLAG='PortraitCache.'
+CACHEABLE=(TMDB,)
+WATCH_ON='System.AddonIsEnabled(plugin.video.kodi.ios.watch)'
+def cache_key(path):return 'r'+hashlib.sha1(str(path).encode('utf-8')).hexdigest()[:15]
+def spotlight_path(spotlight):return 'Skin.String(HomeSwitcher.%s.Spotlight.Path)'%spotlight
+
+def cached_content(name,path,variables,spotlight=None):
+ """Container content for a hub row (path) or hero (spotlight id): a variable in Includes.xml choosing the cached
+ route when its flag is on, else the live path. Other rows (Continue Watching, library) keep their path as is."""
+ if variables is None or (spotlight is None and not str(path).startswith(CACHEABLE)):return e(path)
+ if spotlight is None:
+  key=cache_key(path);on='Skin.HasSetting(%s%s)'%(CACHE_FLAG,key)
+ else:
+  # The flag holds the path the copy was made from: a spotlight changed in the skin settings goes live at once.
+  key='hero.'+str(spotlight).lower();flag='Skin.String(%s%s)'%(CACHE_FLAG,key)
+  on='!String.IsEmpty(%s) + String.IsEqual(%s,%s)'%(flag,flag,spotlight_path(spotlight))
+ variables[name]='<variable name="%s"><value condition="%s + %s">%s</value><value>%s</value></variable>'%(
+  name,e(on),WATCH_ON,e(CACHE_ROUTE+key),e(path))
+ return '$VAR[%s]'%name
+
+def row(index,widget,last,tab='home',variables=None):
  id=5001+index;title=str(widget.get('label') or '')
  style=widget.get('style') or ('poster' if str(widget.get('widget_style') or '').lower()=='poster' else 'card')
  w,h=(POSTER[0],POSTER[1]+40) if style=='poster' else (CARD[0],CARD[1]+180)
@@ -294,9 +353,9 @@ def row(index,widget,last):
    '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
    '<content target="%s">%s</content></control>'
    )%(id,WIDTH,h,'<ondown>9201</ondown>' if last else '',visible,w+GAP,h,item(False),w+GAP,h,item(True),
-      e(widget.get('target') or 'videos'),e(widget['path'])))
+      e(widget.get('target') or 'videos'),cached_content('Portrait_Cache_Row_%s_%d'%(tab,index),widget['path'],variables)))
 
-def hero(spotlight,title):
+def hero(spotlight,title,tab='home',variables=None):
  """Full-bleed hero: the hub's spotlight titles (swipe sideways), logo, genre line, Play and Info, page dots."""
  info='Container(4000).ListItem'
  art=image(0,0,WIDTH,HERO,'$VAR[Portrait_Hero_Art]',WHITE,'','>scale',background=True)
@@ -309,16 +368,17 @@ def hero(spotlight,title):
  btn_w=440
  return ('<control type="group" id="4100"><left>0</left><top>0</top><width>%d</width><height>%d</height>'
   '<control type="list" id="4000"><left>0</left><top>0</top><width>%d</width><height>%d</height><orientation>horizontal</orientation>'
-  '<scrolltime tween="cubic" easing="out">450</scrolltime><ondown>4001</ondown>'
+  '<scrolltime tween="cubic" easing="out">450</scrolltime><ondown>4001</ondown><visible allowhiddenfocus="true">true</visible>'
   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
-  '<content target="videos" limit="8">$INFO[Skin.String(HomeSwitcher.%s.Spotlight.Path)]</content></control>'
+  '<content target="videos" limit="8">%s</content></control>'
   '%s%s'                                        # fades
   '%s%s'                                        # large title + profile
   '<control type="image"><left>120</left><top>%d</top><width>%d</width><height>250</height><aspectratio aligny="bottom">keep</aspectratio><texture>$INFO[%s.Art(clearlogo)]</texture></control>'
   '%s%s%s'
   '<control type="grouplist"><left>0</left><top>%d</top><width>%d</width><height>20</height><orientation>horizontal</orientation><align>center</align><itemgap>0</itemgap>%s</control>'
   '</control>'
-  )%(WIDTH,HERO,WIDTH,HERO,WIDTH,HERO,art,WIDTH,HERO,art,spotlight,
+  )%(WIDTH,HERO,WIDTH,HERO,WIDTH,HERO,art,WIDTH,HERO,art,
+     cached_content('Portrait_Cache_Hero_%s'%tab,'$INFO[%s]'%spotlight_path(spotlight),variables,spotlight),
      image(0,0,WIDTH,HERO,MEDIA+'hero_fade.png'),image(0,0,WIDTH,420,MEDIA+'fade_down.png'),
      label(SIDE,40,WIDTH-2*SIDE-270,120,title,'p_large'),
      bell(WIDTH-SIDE-240,46,'<ondown>4000</ondown><onright>9206</onright>')+
@@ -347,28 +407,28 @@ def shift(xml,offset):
   return str(n+offset) if offset and (4000<=n<4200 or 5000<=n<6000 or 9200<=n<9210) else m.group(0)
  return SHIFTED.sub(move,xml)
 
-def hub_body(title,widgets,tab,spotlight,resume='all'):
+def hub_body(title,widgets,tab,spotlight,resume='all',variables=None):
  # Continue Watching leads (movies and episodes the owner started); the old in-progress rows would repeat it.
  widgets=[{'label':'Continue Watching','path':CONTINUE+resume,'target':'videos','style':'continue'}]+[w for w in widgets if not in_progress(w)]
- rows=''.join(row(i,w,i==len(widgets)-1) for i,w in enumerate(widgets))
+ rows=''.join(row(i,w,i==len(widgets)-1,tab,variables) for i,w in enumerate(widgets))
  body=('<control type="grouplist" id="5000"><top>0</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<itemgap>0</itemgap><scrolltime tween="cubic" easing="out">380</scrolltime><usecontrolcoords>true</usecontrolcoords>%s%s'
   '<control type="image"><height>%d</height><texture /></control></control>'
   '%s%s'
-  )%(WIDTH,PAGE_H,hero(spotlight,title),rows,TAB_CLEAR,image(0,0,WIDTH,90,MEDIA+'fade_down.png'),tabbar(tab))
+  )%(WIDTH,PAGE_H,hero(spotlight,title,tab,variables),rows,TAB_CLEAR,image(0,0,WIDTH,90,MEDIA+'fade_down.png'),tabbar(tab))
  return shift(body,HUB_OFFSET[tab])
 
 def hub_window(original,title,widgets,tab,spotlight,resume='all'):
  """One hub alone in its window (kept for tests and tools; the phone uses hubs_window)."""
  return window(original,'<controls>%s%s</controls>'%(backdrop(),hub_body(title,widgets,tab,spotlight,resume)),'4000')
 
-def hubs_window(original,hubs):
- """Home, Movies and TV in one window: a group per hub, shown by Portrait.Tab. Every row loads when Home opens and
- keeps its titles while another hub shows, so switching tabs needs no reload."""
- groups=''.join('<control type="group" id="%d"><visible>%s</visible>%s</control>'%(3900+HUB_OFFSET[tab],tab_visible(tab),hub_body(*args))
+def hubs_window(original,hubs,variables=None):
+ """Home, Movies and TV in one window: a group per hub, shown by Portrait.Tab. Every row of all three hubs
+ loads when Home opens (the preloader) and keeps its titles while another hub shows, so switching needs no reload."""
+ groups=''.join('<control type="group" id="%d"><visible>%s</visible>%s</control>'%(3900+HUB_OFFSET[tab],tab_visible(tab),hub_body(*args,variables=variables))
                 for tab,args in hubs)
  focus=''.join('<onload condition="%s">SetFocus(%d)</onload>'%(e(tab_visible(tab)),4000+HUB_OFFSET[tab]) for tab,_ in hubs if HUB_OFFSET[tab])
- return window(original,'<controls>%s%s</controls>'%(backdrop(),groups),'4000',focus)
+ return window(strip_fuse_onloads(original),'<controls>%s%s</controls>'%(backdrop(),groups),'4000',focus)
 
 def forward_window(original,tab):
  """Movies/TV windows (opened by Fuse menus or older shortcuts) show that hub in Home instead."""
@@ -401,6 +461,46 @@ SEARCH_NATIVE='String.IsEqual(Window(Home).Property(Portrait.SearchBar),1)'
 SEARCH_PATH='Window(Home).Property(Portrait.Search.Path)'
 SEARCH_BAND=161  # the native band ends 60 pt below the top of the safe area: 60 x 2.687 px per pt
 
+GENRE_PHOTO='Portrait.GenrePhoto.'
+GENRE_PHOTOS='portrait-genre-photos.json'
+WEEK=7*86400
+
+def genre_photo_path(gid):
+ return '%s?info=discover&tmdb_type=tv&with_id=True&with_genres=%d&sort_by=popularity.desc'%(TMDB,gid)
+
+def pick_photo(files,used=()):
+ """The backdrop (fanart, else landscape) of the first listed title not already used by another tile."""
+ for f in files or []:
+  art=f.get('art') or {}
+  url=art.get('fanart') or art.get('landscape') or art.get('tvshow.fanart') or ''
+  if url and url not in used:return url
+ return ''
+
+def genre_photos(rpc,set_property,read,write,now):
+ """One backdrop per Search category (TMDb Helper's most popular show of the genre), kept for a week so Search
+ does not run TMDb Helper nine times on every visit. Sets Window(Home).Property(Portrait.GenrePhoto.<genre id>)."""
+ try:cache=json.loads(read() or '{}')
+ except ValueError:cache={}
+ fresh=now()-cache.get('time',0)<WEEK and all(str(gid) in cache.get('photos',{}) for _,gid,_,_ in CATEGORIES)
+ photos=dict(cache.get('photos',{})) if fresh else {}
+ if not fresh:
+  used=set()
+  for _,gid,_,_ in CATEGORIES:
+   try:files=(rpc('Files.GetDirectory',{'directory':genre_photo_path(gid),'media':'video','properties':['art'],'limits':{'start':0,'end':6}}) or {}).get('files')
+   except Exception:files=None
+   photos[str(gid)]=pick_photo(files,used);used.add(photos[str(gid)])
+  if any(photos.values()):write(json.dumps({'time':now(),'photos':photos}))
+ for gid,url in photos.items():
+  if url:set_property(GENRE_PHOTO+gid,url)
+ return photos
+
+def genre_photos_tick(visible,start):
+ """Loads the genre photos (in the background) the first time Search opens."""
+ state={'done':False}
+ def tick():
+  if not state['done'] and visible('Window.IsActive(1105)'):state['done']=True;start()
+ return tick
+
 def search_window(original):
  """Search: a search field at the top, the results of what is typed in a poster grid under it while typing, the
  category tiles while the field is empty (Apple TV app)."""
@@ -412,16 +512,20 @@ def search_window(original):
   '<onclick>%s</onclick><ondown>5100</ondown></control>%s%s</control>'
   )%(SIDE,WIDTH-2*SIDE,WIDTH-2*SIDE,MEDIA,SURFACE,MEDIA,e(SEARCH_ACTION),icon(40,38,48,'magnifying-glass.png',GREY),label(110,0,WIDTH-2*SIDE-150,124,'Shows, Movies, and More','p_body',GREY))+
   '</control>')
- items=''.join('<item><label>%s</label><property name="tile">%stile_%d.png</property>%s</item>'
-  %(e(name),MEDIA,gid,clicks(titled_page(name,'%s?info=discover&tmdb_type=tv&with_id=True&with_genres=%d&sort_by=popularity.desc'%(TMDB,gid)))) for name,gid,_,_ in CATEGORIES)
+ items=''.join('<item><label>%s</label><property name="tile">%stile_%d.png</property><property name="photo">$INFO[Window(Home).Property(%s%d)]</property><property name="tint">F2%02X%02X%02X</property>%s</item>'
+  %(e(name),MEDIA,gid,GENRE_PHOTO,gid,*bottom,clicks(titled_page(name,'%s?info=discover&tmdb_type=tv&with_id=True&with_genres=%d&sort_by=popularity.desc'%(TMDB,gid)))) for name,gid,_,bottom in CATEGORIES)
  zoom=lambda focused:'<animation effect="zoom" start="100" end="104" time="160" center="auto">Focus</animation>' if focused else ''
  tile=lambda focused:('<control type="group"><left>0</left><top>0</top>%s'%zoom(focused)+
   image(0,0,tile_w,tile_h,'$INFO[ListItem.Property(tile)]',WHITE,diffuse=MEDIA+'poster_mask.png')+
-  image(0,tile_h-200,tile_w,200,MEDIA+'fade_up.png','80FFFFFF',diffuse=MEDIA+'poster_mask.png')+
+  # Owner (build-133): a photo per genre like the Apple TV app (genre_photos), the genre colour as a tint over it.
+  image(0,0,tile_w,tile_h,'$INFO[ListItem.Property(photo)]',WHITE,aspect='>scale',diffuse=MEDIA+'poster_mask.png',background=True)+
+  # Style C (owner): the photo as it is, fading into the genre colour behind the label.
+  image(0,tile_h-300,tile_w,300,MEDIA+'fade_up.png','$INFO[ListItem.Property(tint)]',diffuse=MEDIA+'poster_mask.png',extra='<visible>!String.IsEmpty(ListItem.Property(photo))</visible>')+
+  image(0,tile_h-200,tile_w,200,MEDIA+'fade_up.png','80FFFFFF',diffuse=MEDIA+'poster_mask.png',extra='<visible>String.IsEmpty(ListItem.Property(photo))</visible>')+
   '<control type="textbox"><left>26</left><top>%d</top><width>%d</width><height>120</height><font>p_tile</font><textcolor>FFFFFFFF</textcolor><label>$INFO[ListItem.Label]</label></control>'%(tile_h-150,tile_w-40)+'</control>')
  # With the native field the page has no header: the categories move up under the band.
- up='<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(SEARCH_BAND+40-350,SEARCH_NATIVE)
- panel=('<control type="panel" id="5100"><left>%d</left><top>350</top><width>%d</width><bottom>280</bottom><orientation>vertical</orientation>'
+ up='<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(SEARCH_BAND+160-350,SEARCH_NATIVE)
+ panel=('<control type="panel" id="5100"><left>%d</left><top>350</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
   '<onup>5101</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>String.IsEmpty(%s)</visible>%s'
   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout><content>%s</content></control>'
   )%(left,WIDTH-left,SEARCH_PATH,up,tile_w+gap,tile_h+gap,tile(False),tile_w+gap,tile_h+gap,tile(True),items)
@@ -430,10 +534,25 @@ def search_window(original):
   image(0,0,tile_w,tile_h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
   '<control type="textbox"><left>24</left><top>24</top><width>%d</width><height>%d</height><font>p_body</font><textcolor>%s</textcolor><align>center</align><label>$INFO[ListItem.Label]</label></control>'%(tile_w-48,tile_h-48,GREY)+
   image(0,0,tile_w,tile_h,'$INFO[ListItem.Art(poster)]',WHITE,aspect='>scale',diffuse=MEDIA+'poster_mask.png',background=True)+'</control>')
+ # Filter (owner): All / Movies / Shows, as Window(Home).Property(Portrait.Search.Type) ('' / movie / tv) for searchbar.py.
+ kind='Window(Home).Property(Portrait.Search.Type)'
+ pills=''
+ for n,(text,value) in enumerate((('All',''),('Movies','movie'),('Shows','tv'))):
+  on=('String.IsEmpty(%s)'%kind) if not value else 'String.IsEqual(%s,%s)'%(kind,value)
+  act=('ClearProperty(Portrait.Search.Type,home)' if not value else 'SetProperty(Portrait.Search.Type,%s,home)'%value)
+  x=SIDE+n*230
+  pills+=('<control type="button" id="%d"><left>%d</left><top>0</top><width>210</width><height>96</height><label>%s</label>'
+   '<font>p_sub</font><align>center</align><aligny>center</aligny><textcolor>FFFFFFFF</textcolor><focusedcolor>FFFFFFFF</focusedcolor>'
+   '<texturefocus border="48" colordiffuse="FF3A3A3C">%spill_96.png</texturefocus><texturenofocus border="48" colordiffuse="FF1C1C1E">%spill_96.png</texturenofocus>'
+   '<onclick>%s</onclick></control>'
+   '<control type="image"><left>%d</left><top>0</top><width>210</width><height>96</height><texture border="48" colordiffuse="33FFFFFF">%spill_96.png</texture><visible>%s</visible></control>'
+   )%(5210+n,x,text,MEDIA,MEDIA,e(act),x,MEDIA,e(on))
  top=SEARCH_BAND+30
- results=('<control type="group"><visible>!String.IsEmpty(%s)</visible>'%SEARCH_PATH+
+ filters='<control type="group"><top>%d</top><visible>%s</visible>%s</control>'%(top,SEARCH_NATIVE,pills)
+ top+=120
+ results=(filters+'<control type="group"><visible>!String.IsEmpty(%s)</visible>'%SEARCH_PATH+
   label(SIDE,top,WIDTH-2*SIDE,70,'Results','p_h3',GREY)+
-  ('<control type="panel" id="5200"><left>%d</left><top>%d</top><width>%d</width><bottom>280</bottom><orientation>vertical</orientation>'
+  ('<control type="panel" id="5200"><left>%d</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
    '<scrolltime tween="cubic" easing="out">300</scrolltime><preloaditems>2</preloaditems>'
    '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
    '<content target="videos">$INFO[%s]</content></control>'
@@ -804,26 +923,57 @@ def shrink(data,name=''):
    for key,value in (('top',str(y)),('width',str(WIDTH)),('height',str(height)),('texture',MEDIA+'white.png'),('colordiffuse','FF000000')):ET.SubElement(bar,key).text=value
  return b'<?xml version="1.0" encoding="UTF-8"?>\n'+ET.tostring(root,encoding='utf-8')+b'\n'
 
-def fonts(original):
+# Owner: the text should be San Francisco, Apple's typeface. Apple's licence does not allow shipping it in the app, but
+# every iPhone has it: the portrait build copies the phone's own system font file into the writable skin's fonts
+# folder (it never leaves the phone) and uses it for every style, bold styles with Kodi's bold rendering. Without it
+# (another device, a new iOS path) Inter stays.
+SF_CANDIDATES=('/System/Library/Fonts/CoreUI/SFUI.ttf','/System/Library/Fonts/Core/SFUI.ttf','/System/Library/Fonts/CoreUI/SFUIText.ttf',
+               '/System/Library/Fonts/Core/SFUIText.ttf','/System/Library/Fonts/CoreUI/SFUI-Regular.otf')
+SF_FILE='SF-UI.ttf'
+def system_font(skin,candidates=SF_CANDIDATES):
+ """The phone's San Francisco copied to <skin>/fonts/SF-UI.ttf (once; again when iOS updates it), or None."""
+ import shutil
+ for path in candidates:
+  try:
+   if not os.path.isfile(path):continue
+   dest=Path(skin)/'fonts'/SF_FILE
+   if not dest.exists() or dest.stat().st_size!=os.path.getsize(path):
+    dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(path,dest)
+   return SF_FILE
+  except OSError:continue
+ return None
+
+# Owner (build-132): San Francisco "looks good but skinny". Kodi's FreeType draws the variable SFUI.ttf at its default
+# instance and has no weight setting, only <style>bold</style> (FreeType's emboldening). Every style whose Inter file
+# is heavier than Regular (Medium, SemiBold, Bold, ExtraBold, Black, Heavy) is drawn bold, and so are the primary
+# white labels (row titles, settings rows, the search field: p_body); secondary grey text stays regular so headings
+# and titles still stand out from it.
+HEAVY_FILE=re.compile(r'(Medium|SemiBold|Bold|Black|Heavy)',re.I)
+SF_BOLD_NAMES={'p_body'}
+def sf_bold(name,filename):return bool(HEAVY_FILE.search(filename)) or name in SF_BOLD_NAMES
+
+def fonts(original,sf=None):
  root=ET.fromstring(original)
  for fontset in root.findall('fontset'):
   for name,filename,size in FONTS:
-   f=ET.SubElement(fontset,'font');ET.SubElement(f,'name').text=name;ET.SubElement(f,'filename').text=filename;ET.SubElement(f,'size').text=str(size)
+   f=ET.SubElement(fontset,'font');ET.SubElement(f,'name').text=name;ET.SubElement(f,'filename').text=sf or filename;ET.SubElement(f,'size').text=str(size)
+   if sf and sf_bold(name,filename):ET.SubElement(f,'style').text='bold'
  return b'<?xml version="1.0" encoding="UTF-8"?>\n'+ET.tostring(root,encoding='utf-8')+b'\n'
 
 def with_variables(xml):return xml
 
-def includes():
+def includes(row_variables=None):
  # Kodi reads variables only from includes; Fuse's own includes still come from 1080i.
- return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<includes><include file="../1080i/Includes.xml" />%s%s</includes>\n'
-         %(MARKER,VARIABLES,SHOW_VARS+ctx_variables())).encode()
+ rows=''.join(v for _,v in sorted((row_variables or {}).items()))
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<includes><include file="../1080i/Includes.xml" />%s%s%s</includes>\n'
+         %(MARKER,VARIABLES,SHOW_VARS+ctx_variables(),rows)).encode()
 
-def hub_files(skin,profile):
+def hub_files(skin,profile,variables=None):
  source=Path(skin)/'1080i';out={}
  read=lambda name:(source/name).read_text(encoding='utf-8') if (source/name).exists() else ''
  hubs=[(tab,(title,load_widgets(profile,lists),tab,SPOTLIGHT[name],resume)) for name,(title,lists,tab,resume) in HUBS.items()]
  hubs.sort(key=lambda h:HUB_TABS.index(h[0]))
- out['Home.xml']=hubs_window(read('Home.xml'),hubs).encode()
+ out['Home.xml']=hubs_window(read('Home.xml'),hubs,variables).encode()
  for name,(title,lists,tab,resume) in HUBS.items():
   if name!='Home.xml':out[name]=forward_window(read(name),tab).encode()
  for name in LIBRARY_FILES:out[name]=library_window(read(name)).encode()
@@ -842,7 +992,7 @@ def portrait_files(skin,profile):
   except ET.ParseError:continue
   if data:files[FOLDER+'/'+path.name]=data
  read=lambda name:(source/name).read_text(encoding='utf-8') if (source/name).exists() else ''
- files[FOLDER+'/Font.xml']=fonts(read('Font.xml'))
+ files[FOLDER+'/Font.xml']=fonts(read('Font.xml'),system_font(skin))
  files[FOLDER+'/MyVideoNav.xml']=with_variables(video_nav(read('MyVideoNav.xml'))).encode()
  files[FOLDER+'/DialogVideoInfo.xml']=with_variables(video_info(read('DialogVideoInfo.xml'))).encode()
  files[FOLDER+'/DialogSelect.xml']=select_dialog(read('DialogSelect.xml')).encode()
@@ -850,14 +1000,16 @@ def portrait_files(skin,profile):
  files[FOLDER+'/DialogContextMenu.xml']=context_menu(read('DialogContextMenu.xml')).encode()
  # Fuse's landscape header (tabs/search/gear) is replaced by the portrait header and tab bar.
  files[FOLDER+'/Custom_1182_Dialog_Topmenu_Overlay.xml']=window(read('Custom_1182_Dialog_Topmenu_Overlay.xml'),'<controls />','9999').encode()
- files[FOLDER+'/Includes.xml']=includes()
- for name,data in hub_files(skin,profile).items():files[FOLDER+'/'+name]=data
+ row_variables={}
+ for name,data in hub_files(skin,profile,row_variables).items():files[FOLDER+'/'+name]=data
+ files[FOLDER+'/Includes.xml']=includes(row_variables)
  for name,data in textures().items():files['extras/portrait/'+name]=data
  files[FOLDER+'/DeckSourceSelect.xml']=deck_page().encode()
  files[FOLDER+'/IOSNotifications.xml']=notices_page().encode()
  # Fuse's startup splash ("Arctic Fuse - Reticulating Splines") showed over Home, shrunk into portrait, for up to a
  # minute at every start. The window stays (Fuse keeps its startup status in its properties) but never shows.
  files[FOLDER+'/Custom_1198_Dialog_Startup.xml']=SPLASH
+ files[FOLDER+'/Startup.xml']=STARTUP
  # Settings home, Customisation and Accounts in the iOS Settings style (settings_page.py).
  import types
  files.update(settings_page.files(types.SimpleNamespace(**globals()),read))
@@ -871,6 +1023,16 @@ def portrait_files(skin,profile):
 
 SPLASH=('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: Fuse startup splash, never shown -->\n'
         '<window type="dialog" id="1198"><visible>false</visible><controls /></window>\n'%MARKER).encode()
+
+# Fuse's startup window ran its startup script at every launch: ~60 skin settings written again, a blurred copy of
+# its background made with TMDb Helper (never shown in portrait) and a fixed one-second wait before Home. The script
+# still runs once (Fuse's defaults); after that the app goes straight to Home.
+STARTUP=('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: straight to Home after the first launch -->\n<window>'
+ '<onload condition="Skin.HasSetting(Portrait.FuseStartupDone)">SetProperty(ReloadDone,1,Home)</onload>'
+ '<onload condition="Skin.HasSetting(Portrait.FuseStartupDone)">ReplaceWindow(Home)</onload>'
+ '<onload condition="!Skin.HasSetting(Portrait.FuseStartupDone)">RunScript(script.skinvariables,run_executebuiltin=special://skin/shortcuts/skinvariables-startup.json,use_rules=True,var_image_simplebackground=$VAR[Image_SimpleBackground])</onload>'
+ '<onload condition="!Skin.HasSetting(Portrait.FuseStartupDone)">Skin.SetBool(Portrait.FuseStartupDone)</onload>'
+ '<controls /></window>\n'%MARKER).encode()
 
 def write(skin,files):
  changed=[]
@@ -902,8 +1064,9 @@ def refresh(skin,profile):
  Returns the changed paths; the caller reloads the skin if any changed."""
  return write(skin,portrait_files(skin,profile))
 
-# Written into 1080i by this module, so they are not inputs.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml'}
+# Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
+# inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml'}
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
@@ -956,6 +1119,11 @@ def focused_item_publisher(info,visible,set_property):
  def tick():
   if visible('System.HasActiveModalDialog') or not visible('Window.IsActive(home) | Window.IsActive(1101) | Window.IsActive(1102)'):return
   item='Container.ListItem'
+  # Performance pass: two cheap labels first; the six others only when the focused item changed (they were asked
+  # every half second while Home was on screen, each one waiting for Kodi's GUI lock).
+  key=(info('System.CurrentControlId'),info(item+'.Label'))
+  if key==last.get('_key'):return
+  last['_key']=key
   art=next((v for v in (info(item+'.Art(landscape)'),info(item+'.Art(fanart)'),info(item+'.Art(thumb)')) if v),'')
   sub=info(item+'.Property(subtitle)') or '  ·  '.join(v for v in (info(item+'.Year'),info(item+'.Genre')) if v)
   for key,value in (('Title',info(item+'.Label')),('Art',art),('Sub',sub)):
@@ -975,33 +1143,116 @@ def progress_tracker(player,continue_module,read,write,clock,every=10):
   except Exception:pass
  return tick
 
-def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
- """Started by the bootstrap service after setup: keep the portrait folder current, follow rotations and
- Continue Watching progress."""
- skin=Path(xbmcvfs.translatePath('special://skin/')).resolve()
- if skin.name==fuse:
-  try:
-   if missing(skin):
-    # Add the portrait folder and resolution, then have Kodi re-read addon.xml so the folder can be chosen.
-    changed=list(build(skin,profile));invoke('UpdateLocalAddons')
-    xbmc.log('Kodi iOS portrait layout added to the writable skin copy (%d files)'%len(changed),xbmc.LOGINFO)
-   else:changed=refresh_if_needed(skin,profile)
-   # Fuse's start: no hub preloading (it opened each hub window in turn, the portrait hubs are one window) and no
-   # wait-for-widgets loop (its script ran again every half second for up to a minute while rows loaded).
-   for setting,on in (('Startup.EnableHubPreloading',False),('Startup.DisableWaitForLoad',True)):
-    if bool(xbmc.getCondVisibility('Skin.HasSetting(%s)'%setting))!=on:invoke(('Skin.SetBool(%s)' if on else 'Skin.Reset(%s)')%setting)
-   xbmc.log('Kodi iOS portrait files checked in %s: %d updated%s'%(skin,len(changed),(' ('+', '.join(c for c in changed if not c.startswith('extras/'))[:300]+')') if changed else ''),xbmc.LOGINFO)
-   marker=Path(profile)/'addon_data/service.kodi.ios.bootstrap/portrait.json'
-   if not marker.exists():
-    # Once: no ".." rows, so a show page opens on its first season (the owner can turn it back on in Settings).
-    xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Settings.SetSettingValue','params':{'setting':'filelists.showparentdiritems','value':False}}))
-    marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(json.dumps({'revision':REVISION})+'\n')
-   if changed and is_portrait(xbmc.getInfoLabel):invoke('ReloadSkin()')
+# Read by Kodi when the skin loads (fonts, includes, Home and the windows marked LOAD_ON_GUI_INIT in the owner's log):
+# a change to one shows only after ReloadSkin. Every other window is read the first time it opens.
+LOADED_AT_START={'Font.xml','Includes.xml','Home.xml','Startup.xml','Pointer.xml','DialogBusy.xml','DialogNotification.xml',
+                 'DialogVolumeBar.xml','DialogExtendedProgressBar.xml','DialogSeekBar.xml','Custom_1151_OSD_MusicInfoOverlay.xml',
+                 'Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml','Custom_1192_SeasonalTheme.xml',
+                 'Custom_1194_Debug_Grid.xml','Custom_1198_Dialog_Startup.xml','Custom_1199_Debug_Overlay.xml'}
+def needs_reload(changed,visible=lambda condition:False):
+ """ReloadSkin (Home, its rows and the tab pages built again) only for a change Kodi already read: a file loaded with
+ the skin, a texture, addon.xml, or the window on screen. A window not opened yet is read from the new file when it
+ opens (one opened and closed again in the first seconds keeps its old layout until the next start)."""
+ for path in changed:
+  folder,_,name=path.rpartition('/')
+  if folder not in (FOLDER,'1080i') or not name.endswith('.xml') or name in LOADED_AT_START:return True
+  if visible('Window.IsVisible(%s)'%name):return True
+ return False
+
+REFRESH_AFTER=20    # seconds after the service starts before the first TMDb Helper run of the cache (past the start)
+REFRESH_EVERY=600   # then a look for copies past ios_cache.MAX_AGE every ten minutes
+FETCH_TIMEOUT=90    # seconds one Files.GetDirectory may take
+def bounded(fetch,timeout=FETCH_TIMEOUT):
+ """fetch(url) on its own thread, TimeoutError after timeout. Kodi's Files.GetDirectory never returns when the plugin
+ exits without endOfDirectory (desktop rig: a TMDb Helper Trakt list answered 401 and the call hung for good)."""
+ import threading
+ def call(url):
+  box={}
+  def run():
+   try:box['result']=fetch(url)
+   except Exception as error:box['error']=error
+  worker=threading.Thread(target=run,daemon=True);worker.start();worker.join(timeout)
+  if worker.is_alive():raise TimeoutError('no answer in %d s'%timeout)
+  if 'error' in box:raise box['error']
+  return box.get('result')
+ return call
+def cache_lists(profile,spotlight):
+ """({spotlight id: path}, [row paths]) the three hubs show, Home first (as hub_files and hub_body build them)."""
+ spots={};rows=[]
+ for name,(title,lists,tab,resume) in sorted(HUBS.items(),key=lambda h:HUB_TABS.index(h[1][2])):
+  spots[SPOTLIGHT[name]]=spotlight(SPOTLIGHT[name])
+  rows+=[w['path'] for w in load_widgets(profile,lists) if not in_progress(w)]
+ return spots,rows
+
+def listing_cache(cache,store,flags,lists,fetch,wait,busy,log,clock=None):
+ """Background thread (run_service). At once: flags whose copy is gone go off, so those rows load TMDb Helper again.
+ After REFRESH_AFTER: missing and stale copies are made one at a time (Files.GetDirectory from this service, never
+ from the plugin), each row's flag going on once its copy reads back; never during video or outside Fuse."""
+ import time
+ clock=clock or time.time
+ def pace(seconds):
+  if seconds>0 and wait(seconds):return True   # Kodi's waitForAbort(0) waits for ever
+  while busy():
+   if wait(30):return True
+  return False
+ try:
+  on,cleared=cache.check(lists(),store,flags,clock)
+  log('%d rows and heroes served from copies, %d flags turned off (copy missing or unusable)'%(on,cleared))
+  if pace(REFRESH_AFTER):return
+  while True:
+   current=lists()
+   done,failed=cache.refresh(current,store,flags,fetch,pace,clock)
+   cache.prune(store,current,clock)
+   if done or failed:log('%d copies made or refreshed, %d failed%s'%(len(done),len(failed),(' ('+'; '.join(failed[:3])+')') if failed else ''))
+   if pace(REFRESH_EVERY):return
+ except Exception as error:
+  # Rows keep whatever their flags say: good copies stay served, the others stay live.
+  log('stopped: %r'%error)
+
+def refresh_skin(xbmc,invoke,skin,profile):
+ """Bring the portrait folder up to date and reload the skin when a change needs it; returns the changed paths."""
+ if missing(skin):
+  # Add the portrait folder and resolution, then have Kodi re-read addon.xml so the folder can be chosen.
+  changed=list(build(skin,profile));invoke('UpdateLocalAddons')
+  xbmc.log('Kodi iOS portrait layout added to the writable skin copy (%d files)'%len(changed),xbmc.LOGINFO)
+ else:changed=refresh_if_needed(skin,profile)
+ # Fuse's start: no hub preloading (it opened each hub window in turn, the portrait hubs are one window) and no
+ # wait-for-widgets loop (its script ran again every half second for up to a minute while rows loaded).
+ for setting,on in (('Startup.EnableHubPreloading',False),('Startup.DisableWaitForLoad',True)):
+  if bool(xbmc.getCondVisibility('Skin.HasSetting(%s)'%setting))!=on:invoke(('Skin.SetBool(%s)' if on else 'Skin.Reset(%s)')%setting)
+ reload=bool(changed) and needs_reload(changed,xbmc.getCondVisibility)
+ listed=(' ('+', '.join(c for c in changed if not c.startswith('extras/'))[:300]+')') if changed else ''
+ xbmc.log('Kodi iOS portrait files checked in %s: %d updated%s%s'%(skin,len(changed),listed,
+          '; skin reloaded' if reload else ('; no reload needed' if changed else '')),xbmc.LOGINFO)
+ marker=Path(profile)/'addon_data/service.kodi.ios.bootstrap/portrait.json'
+ if not marker.exists():
+  # Once: no ".." rows, so a show page opens on its first season (the owner can turn it back on in Settings).
+  xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Settings.SetSettingValue','params':{'setting':'filelists.showparentdiritems','value':False}}))
+  marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(json.dumps({'revision':REVISION})+'\n')
+ if reload and is_portrait(xbmc.getInfoLabel):invoke('ReloadSkin()')
+ return changed
+
+def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',ready=None):
+ """Started by the bootstrap service as soon as it starts. The tab bar, Continue Watching and the focused-item details
+ start at once; the portrait refresh runs in its own thread once `ready` is set (after setup, which can rewrite Fuse's
+ landscape files the portrait folder is made from). Build-132 started all of it only after setup and the refresh:
+ the owner's tab bar appeared ~10 s after launch."""
+ import threading
+ def keep_current():
+  if ready is not None:
+   while not ready.wait(0.25):
+    if monitor.abortRequested():return
+  skin=Path(xbmcvfs.translatePath('special://skin/')).resolve()
+  if skin.name!=fuse:
+   xbmc.log('Kodi iOS portrait: the current skin is %s, not Arctic Fuse; layouts left alone'%skin,xbmc.LOGWARNING);return
+  try:refresh_skin(xbmc,invoke,skin,profile)
   except Exception as error:
    import traceback
    xbmc.log('Kodi iOS portrait refresh failed: %s\n%s'%(error,traceback.format_exc()),xbmc.LOGERROR)
    xbmc.executebuiltin('Notification(Kodi iOS,Phone layouts did not update - send the log from the gear menu,8000)')
- else:xbmc.log('Kodi iOS portrait: the current skin is %s, not Arctic Fuse; layouts left alone'%skin,xbmc.LOGWARNING)
+ threading.Thread(target=keep_current,daemon=True).start()
+ # The tab bar only over Arctic Fuse in portrait (first-run setup starts in Estuary, whose Home is also "home").
+ portrait=lambda:xbmc.getSkinDir()==fuse and bool(is_portrait(xbmc.getInfoLabel))
  tick=None
  try:
   import importlib.util,time,xbmcaddon
@@ -1017,6 +1268,23 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
    finally:f.close()
   tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic)
  except Exception as error:xbmc.log('Kodi iOS continue watching unavailable: '+type(error).__name__,xbmc.LOGWARNING)
+ # Listing cache: check the row flags against the copies now, then fill and refresh copies in the background.
+ try:
+  import importlib.util,threading,xbmcaddon
+  lib=Path(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.kodi.ios.watch').getAddonInfo('path')))/'resources/lib/ios_cache.py'
+  spec=importlib.util.spec_from_file_location('ios_cache',lib);cache=importlib.util.module_from_spec(spec);spec.loader.exec_module(cache)
+  def fetch(url):
+   answer=json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Files.GetDirectory',
+                     'params':{'directory':url,'media':'video','properties':cache.PROPERTIES}})))
+   if 'error' in answer:raise RuntimeError(str(answer['error'].get('message') or answer['error'])[:120])
+   return answer.get('result')
+  threading.Thread(target=listing_cache,daemon=True,kwargs=dict(
+   cache=cache,store=cache.Store(xbmcvfs.translatePath(cache.FOLDER)),
+   flags=cache.Flags(xbmc.getCondVisibility,xbmc.getInfoLabel,xbmc.executebuiltin),
+   lists=lambda:cache.targets(*cache_lists(profile,lambda s:xbmc.getInfoLabel(spotlight_path(s)))),fetch=bounded(fetch),
+   wait=monitor.waitForAbort,busy=lambda:xbmc.getSkinDir()!=fuse or xbmc.getCondVisibility('Player.HasVideo'),
+   log=lambda text:xbmc.log('Kodi iOS listing cache: '+text,xbmc.LOGINFO))).start()
+ except Exception as error:xbmc.log('Kodi iOS listing cache unavailable: %s'%error,xbmc.LOGWARNING)
  import xbmcgui
  home=xbmcgui.Window(10000)
  publish=focused_item_publisher(xbmc.getInfoLabel,xbmc.getCondVisibility,lambda k,v:home.setProperty('Portrait.Item.'+k,v))
@@ -1025,22 +1293,40 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3'):
  # controls. The tab bar's tick stays (two size checks in landscape) so it hides as the video starts.
  video=lambda:xbmc.getCondVisibility('Window.IsActive(fullscreenvideo)')
  always=[t for t in (tick,) if t];menu_ticks=[publish]
+ def load_genre_photos():
+  import threading
+  store=os.path.join(str(profile),GENRE_PHOTOS)
+  def read():
+   try:
+    with open(store,encoding='utf-8') as f:return f.read()
+   except OSError:return ''
+  def write(text):
+   try:
+    with open(store,'w',encoding='utf-8') as f:f.write(text)
+   except OSError:pass
+  def rpc(method,params):
+   return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}))).get('result')
+  import time as clock
+  threading.Thread(target=lambda:genre_photos(rpc,home.setProperty,read,write,clock.time),daemon=True).start()
+ menu_ticks.append(genre_photos_tick(xbmc.getCondVisibility,load_genre_photos))
  close=None
  try:
   # Native Liquid Glass tab bar (KodiGlassBar.framework), when the IPA carries it.
   import threading,glassbar
   path=glassbar.library_path(xbmcvfs.translatePath('special://xbmc/'))
+  if bool(path)!=bool(xbmc.getCondVisibility('Skin.HasSetting(%s)'%NATIVE_TAB_BAR)):
+   xbmc.executebuiltin(('Skin.SetBool(%s)' if path else 'Skin.Reset(%s)')%NATIVE_TAB_BAR)
   if path:
    lib=glassbar.load(path)
-   bar,poll,close=glassbar.controller(lib,xbmc.getCondVisibility,lambda:bool(is_portrait(xbmc.getInfoLabel)),
-                                     home.setProperty,lambda action:xbmc.executebuiltin(action))
+   bar,poll,close=glassbar.controller(lib,xbmc.getCondVisibility,portrait,
+                                     lambda action:xbmc.executebuiltin(action),[tab_actions(t[0]) for t in TABS])
    always.append(bar)
    polls=[poll]
    # r3 framework: the Search page's native search field, results listed as you type (searchbar.py).
    import searchbar,time
    if searchbar.bind(lib):
-    find,typed,find_close=searchbar.controller(lib,searchbar.taker(lib),xbmc.getCondVisibility,lambda:bool(is_portrait(xbmc.getInfoLabel)),
-                                               home.setProperty,time.monotonic)
+    find,typed,find_close=searchbar.controller(lib,searchbar.taker(lib),xbmc.getCondVisibility,portrait,
+                                               home.setProperty,time.monotonic,info=xbmc.getInfoLabel)
     home.setProperty('Portrait.SearchBar','1')
     always.append(find);polls.append(typed)
     previous_close=close

@@ -43,7 +43,15 @@ def acquire(source):
 def patch_helper(files,id):
  changes=[];prefix=id+'/'
  xmlpath=prefix+'addon.xml';root=ET.fromstring(files[xmlpath]);root.set('version','6.18.1+ios.1')
- root.find('requires').append(ET.Element('import',{'addon':'plugin.video.kodi.ios.watch','version':'1.0.0'}));ET.indent(root);files[xmlpath]=ET.tostring(root,encoding='utf-8')+b'\n'
+ root.find('requires').append(ET.Element('import',{'addon':'plugin.video.kodi.ios.watch','version':'1.0.0'}))
+ # Owner (build-136): every row and page waited 2-3 s on the phone while a fresh Python interpreter imported TMDb
+ # Helper for each list. Kodi keeps one interpreter alive between calls when the plugin allows it.
+ for source in root.iter('extension'):
+  if source.get('point')=='xbmc.python.pluginsource':
+   reuse=source.find('reuselanguageinvoker')
+   if reuse is None:reuse=ET.SubElement(source,'reuselanguageinvoker')
+   reuse.text='true';changes.append('Python interpreter reused between TMDb Helper lists (no 2-3 s start per row or page)')
+ ET.indent(root);files[xmlpath]=ET.tostring(root,encoding='utf-8')+b'\n'
  player=prefix+'resources/tmdbhelper/lib/player/dialog/player.py';text=files[player].decode();tree=ast.parse(text)
  methods=[n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='get_player'];assert len(methods)==1
  n=methods[0];lines=text.splitlines(keepends=True);indent=' '*(n.col_offset+4)

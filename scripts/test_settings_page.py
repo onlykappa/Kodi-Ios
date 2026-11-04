@@ -88,6 +88,16 @@ class SettingsPages(unittest.TestCase):
   downs=[(o.get('condition'),o.text) for o in card.findall('ondown')]
   self.assertEqual([t for _,t in downs],['9102','9111']);self.assertTrue(downs[1][0].startswith('!['))
   ids=[c.get('id') for c in root.iter('control') if c.get('id')];self.assertEqual(len(ids),len(set(ids)))
+ def back_top(self,root):
+  return int([g for g in root.iter('control') if g.get('type')=='group' and any(c.get('id')=='9001' for c in g)][0].findtext('top'))
+ def test_search_field_and_header_clear_the_status_bar(self):
+  root=self.read('Settings.xml')
+  self.assertEqual(self.clicks(root,9100),['RunScript(service.kodi.ios.bootstrap,settings_search)'])
+  card=[c for c in root.iter('control') if c.get('id')=='9101'][0];self.assertEqual(card.findtext('onup'),'9100')
+  top=self.back_top(root);self.assertGreaterEqual(top,70)
+  lists={c.get('id'):int(c.findtext('top')) for c in root.iter('control') if c.get('id') in ('9300','9310')}
+  self.assertTrue(all(t>=top+108+40 for t in lists.values()),lists)
+  self.assertEqual(self.back_top(self.read('IOSAccounts.xml')),36)   # other pages keep their header
  def test_accounts_page_matches_the_script(self):
   root=self.read('IOSAccounts.xml');ids={c.get('id') for c in root.iter('control')}
   rows={str(page.ROW_BASE+n) for n in range(1,len(accounts.SERVICES)+1)}|{str(page.LINK_BASE+1+i) for i in range(len(accounts.LINKS))}

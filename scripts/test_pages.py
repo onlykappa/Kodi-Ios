@@ -101,6 +101,11 @@ class Pages(unittest.TestCase):
   self.assertTrue((self.skin/'1080i/IOSPlayOnTV.xml').is_file());self.assertFalse((self.skin/'portrait/IOSPlayOnTV.xml').exists())
   # Found by test_portrait: the navigation patch framed it and the portrait refresh rewrote it on every start.
   self.assertEqual(navigation.patch_skin(self.skin),[]);self.assertEqual(portrait.refresh(self.skin,self.profile),[])
+ def test_play_on_tv_is_centred_for_any_width(self):
+  # Found on iPhone: the sheet sat left of centre in the 2340-wide landscape layout (left was worked out for 1920).
+  root=ET.parse(self.skin/'1080i/IOSPlayOnTV.xml').getroot();sheet=root.find('controls/control[@type="group"]')
+  self.assertEqual(sheet.findtext('centerleft'),'50%');self.assertIsNone(sheet.find('left'))
+  self.assertNotIn('1920',(self.skin/'1080i/IOSPlayOnTV.xml').read_text())
  def test_conditions_use_kodi_brackets(self):
   for name in portrait.pages.HANDMADE|{'source_progress.xml'}:
    self.assertNotIn('!(',(self.skin/'portrait'/name).read_text(),name)

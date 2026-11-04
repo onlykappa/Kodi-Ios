@@ -33,7 +33,40 @@ ALLOWED_TOP_LEVEL = {'README.md','ROADMAP.md','.gitignore','migration','docs','s
 ALLOWED_SUFFIXES = {'.md','.json','.py','.xml','.xsp'}
 PORTRAIT_FILES = {'.github/workflows/kodi-ios-portrait.yml','migration/ios-portrait/build-kodi-ios.sh','migration/ios-portrait/kodi-21.3-portrait.patch',
                   '.github/workflows/glassbar-ios.yml','migration/glassbar-ios/build-glassbar.sh',
-                  'docs/design/settings-mockups.html','docs/design/fuse-pages-mockups.html'}   # owner mockups (self-contained pages, no images)
+                  'docs/design/settings-mockups.html','docs/design/fuse-pages-mockups.html',
+                  'docs/design/poster-cards-mockups.html'}   # owner mockups (self-contained pages, no images)
+
+# AirPlay MKV remuxer (migration/airplay-ios/remux): C sources, build and test scripts, licence files, its CI.
+REMUX_FILES = {'migration/airplay-ios/remux/THIRD-PARTY-NOTICES',
+               'migration/airplay-ios/remux/gmplayer/LICENSE',
+               'migration/airplay-ios/remux/gmplayer/UPSTREAM-COMMIT',
+               'migration/airplay-ios/remux/gmplayer/compat.c',
+               'migration/airplay-ios/remux/gmplayer/gm_internal.h',
+               'migration/airplay-ios/remux/gmplayer/gm_plan.c',
+               'migration/airplay-ios/remux/gmplayer/gm_plan.h',
+               'migration/airplay-ios/remux/gmplayer/gm_stream.c',
+               'migration/airplay-ios/remux/gmplayer/gm_stream.h',
+               'migration/airplay-ios/remux/gmplayer/gm_ts.c',
+               'migration/airplay-ios/remux/gmplayer/gm_ts.h',
+               'migration/airplay-ios/remux/gmplayer/gmremux.h',
+               'migration/airplay-ios/remux/src/kr_audio.c',
+               'migration/airplay-ios/remux/src/kr_audio.h',
+               'migration/airplay-ios/remux/src/kr_hls.c',
+               'migration/airplay-ios/remux/src/kr_hls.h',
+               'migration/airplay-ios/remux/src/kr_remux.c',
+               'migration/airplay-ios/remux/src/kr_remux.h',
+               'migration/airplay-ios/remux/src/kr_source.c',
+               'migration/airplay-ios/remux/src/kr_source.h',
+               'migration/airplay-ios/remux/src/kr_video.c',
+               'migration/airplay-ios/remux/src/kr_video.h',
+               'migration/airplay-ios/remux/src/kr_subs.c',
+               'migration/airplay-ios/remux/src/kr_subs.h',
+               'migration/airplay-ios/remux/tests/make_fixtures.sh',
+               'migration/airplay-ios/remux/tests/run_host_tests.sh',
+               'migration/airplay-ios/remux/tests/test_remux.c',
+               'migration/airplay-ios/build-remux-ffmpeg.sh',
+               'migration/airplay-ios/build-libass.sh',
+               '.github/workflows/airplay-remux.yml'}
 
 def files():
     return sorted(p for p in ROOT.rglob('*') if '.git' not in p.relative_to(ROOT).parts and (p.is_file() or p.is_symlink()))
@@ -138,7 +171,7 @@ def check(source_userdata=None, git_history=False):
                 if rx.search(decoded):issues.append({'path':'git-blob:'+oid,'rule':name})
             if any(v in s or v in decoded for v in needles):issues.append({'path':'git-blob:'+oid,'rule':'matches-private-source-value'})
     # r11 portrait: its macOS workflow, build script and Kodi source patch are reviewed text files outside the usual types.
-    issues=[i for i in issues if not (i['path'] in PORTRAIT_FILES and i['rule'] in {'unexpected-top-level-file','unexpected-file-type'})]
+    issues=[i for i in issues if not ((i['path'] in PORTRAIT_FILES or i['path'] in REMUX_FILES) and i['rule'] in {'unexpected-top-level-file','unexpected-file-type'})]
     return {'passed':not issues,'files_scanned':len(allfiles),'git_history_blobs_scanned':history_blobs,'source_value_comparison_performed':source_userdata is not None,'source_sensitive_candidates_checked':len(needles),'scanner':'Python standard-library patterns, exact private-source value comparison, file allowlist and structural/reference checks','limitations':'No scanner can establish absence of every possible secret. No external secret-scanning engine was available. iOS runtime compatibility is not tested.','snapshot_files_checked':len(listed),'missing_referenced_playlists':sorted(missing_playlists),'known_baseline_issues':{'empty_manifests':sorted(known),'missing_plugin_manifests':sorted(set(refs)-valid),'ios_status':'unvalidated baseline; placeholders and desktop-specific behavior remain'},'issues':issues}
 
 if __name__=='__main__':

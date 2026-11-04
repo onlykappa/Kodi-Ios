@@ -33,6 +33,13 @@ class PortraitTests(unittest.TestCase):
  def tearDown(self):self.tmp.cleanup()
  def read(self,rel):return ET.parse(self.skin/rel).getroot()
 
+ def test_card_without_art_shows_its_title(self):
+  for progress in (False,True):
+   card=ET.fromstring(portrait.card_item(False,progress))
+   labels=[c for c in card.iter('control') if c.get('type')=='label' and (c.findtext('visible') or '')==portrait.CARD_NO_ART]
+   self.assertEqual(len(labels),1)
+   self.assertEqual(labels[0].findtext('label'),'$INFO[ListItem.Label]')
+   for key in ('landscape','fanart','thumb'):self.assertIn('String.IsEmpty(ListItem.Art(%s))'%key,portrait.CARD_NO_ART)
  def test_every_xml_parses(self):
   for rel in self.files:
    if rel.endswith('.xml'):ET.parse(self.skin/rel)
@@ -45,7 +52,8 @@ class PortraitTests(unittest.TestCase):
   self.assertAlmostEqual(portrait.WIDTH/portrait.HEIGHT,402/778,places=3)
  def test_rows_only_for_lists_of_titles(self):
   home=(self.skin/'portrait/Home.xml').read_text()
-  self.assertIn('info=popular',home);self.assertIn('videodb://movies/titles/',home)
+  # TMDb Helper rows sit in Includes.xml (cached route or live path, ios_cache); other rows keep their path in Home.
+  self.assertIn('info=popular',(self.skin/'portrait/Includes.xml').read_text());self.assertIn('videodb://movies/titles/',home)
   self.assertNotIn('sportshub',home);self.assertNotIn('plugin://plugin.video.umbrella<',home)
  def test_hub_keeps_fuse_onloads_window_id_and_has_tab_bar(self):
   home=self.read('portrait/Home.xml');self.assertEqual(home.findtext('onload'),'RunScript(script.skinvariables)')
@@ -64,6 +72,7 @@ class PortraitTests(unittest.TestCase):
    # each hub's rows and tab bar live inside its own group
    self.assertIsNotNone(group.find(".//control[@id='%d']"%(int(gid)+1101)))
   movies_tab=home.find(".//control[@id='19202']")
+  # Movies is already loaded (the preloader): its tab only shows it.
   self.assertEqual([o.text for o in movies_tab.findall('onclick')],['SetProperty(Portrait.Tab,movies,home)','ReplaceWindow(Home)','SetFocus(14000)'])
  def test_last_row_clears_the_tab_bar(self):
   home=self.read('portrait/Home.xml');page=home.find(".//control[@id='5000']")
@@ -96,7 +105,7 @@ class PortraitTests(unittest.TestCase):
   self.assertEqual(portrait.refresh(self.skin,self.profile),[])
   nodes=self.profile/'addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json'
   nodes.write_text(json.dumps([{'label':'New row','path':'plugin://x/?a=1','target':'videos'}]))
-  self.assertEqual(portrait.refresh(self.skin,self.profile),['portrait/Home.xml'])
+  self.assertEqual(portrait.refresh(self.skin,self.profile),['portrait/Home.xml','portrait/Includes.xml'])
  def test_old_writable_copy_gets_the_portrait_layout(self):
   # A phone that ran an earlier build keeps a Fuse copy without the portrait folder or resolution.
   import shutil;shutil.rmtree(self.skin/'portrait');(self.skin/'addon.xml').write_text(ADDON)
@@ -167,6 +176,52 @@ class PortraitTests(unittest.TestCase):
    (self.skin/'1080i/VideoOSD.xml').write_text('<window />');portrait.refresh_if_needed(self.skin,self.profile);self.assertEqual(calls,[])
    home=self.skin/'1080i/Home.xml';home.write_text(home.read_text()+' ');portrait.refresh_if_needed(self.skin,self.profile);self.assertEqual(calls,[1])
   finally:portrait.refresh=real
+ def test_own_1080i_files_are_not_inputs(self):
+  # Build-132 start: a rebuild and full reload ~9 s after Home showed. Every 1080i file the refresh writes must stay out
+  # of the fingerprint, or a later rewrite of it (navigation's start-up patching) would rebuild at every start.
+  own={k.split('/',1)[1] for k in portrait.portrait_files(self.skin,self.profile) if k.startswith('1080i/')}
+  self.assertTrue(own<=portrait.OWN_1080I,own-portrait.OWN_1080I)
+  portrait.refresh_if_needed(self.skin,self.profile)
+  for name in own:(self.skin/'1080i'/name).write_text('<window>patched</window>')
+  self.assertEqual(portrait.refresh_if_needed(self.skin,self.profile),[])
+ def test_reload_only_for_what_kodi_already_read(self):
+  self.assertFalse(portrait.needs_reload(['portrait/Custom_1105_Search.xml','portrait/MyVideoNav.xml']))
+  for path in ('portrait/Font.xml','portrait/Includes.xml','portrait/Home.xml','portrait/DialogBusy.xml','extras/portrait/glass.png','addon.xml'):
+   self.assertTrue(portrait.needs_reload(['portrait/MyVideoNav.xml',path]),path)
+  self.assertTrue(portrait.needs_reload(['portrait/Custom_1105_Search.xml'],lambda c:c=='Window.IsVisible(Custom_1105_Search.xml)'))
+ def test_refresh_skin_skips_the_reload_for_unopened_windows(self):
+  class X:
+   LOGINFO=1;LOGWARNING=2;LOGERROR=3
+   def __init__(self):self.logs=[]
+   def log(self,m,level=0):self.logs.append(m)
+   def getCondVisibility(self,c):return False
+   def getInfoLabel(self,k):return {'System.ScreenHeight':'1920','System.ScreenWidth':'1080'}.get(k,'')
+   def executeJSONRPC(self,r):return '{}'
+  portrait.build(self.skin,self.profile);ran=[];xbmc=X()
+  real=portrait.refresh_if_needed
+  try:
+   portrait.refresh_if_needed=lambda skin,profile:['portrait/Custom_1105_Search.xml']
+   portrait.refresh_skin(xbmc,ran.append,self.skin,self.profile);self.assertNotIn('ReloadSkin()',ran)
+   self.assertIn('no reload needed',xbmc.logs[-1])
+   portrait.refresh_if_needed=lambda skin,profile:['portrait/Font.xml','portrait/Custom_1105_Search.xml']
+   portrait.refresh_skin(xbmc,ran.append,self.skin,self.profile);self.assertIn('ReloadSkin()',ran)
+  finally:portrait.refresh_if_needed=real
+ def test_san_francisco_from_the_phone_when_present(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   sys_font=Path(tmp)/'SFUI.ttf';sys_font.write_bytes(b'font');skin=Path(tmp)/'skin'
+   self.assertEqual(portrait.system_font(skin,(str(Path(tmp)/'missing.ttf'),str(sys_font))),'SF-UI.ttf')
+   self.assertEqual((skin/'fonts/SF-UI.ttf').read_bytes(),b'font')
+   self.assertIsNone(portrait.system_font(skin,(str(Path(tmp)/'missing.ttf'),)))
+  root=ET.fromstring(portrait.fonts('<fonts><fontset id="Default"/></fonts>','SF-UI.ttf'))
+  fonts={f.findtext('name'):(f.findtext('filename'),f.findtext('style')) for f in root.iter('font')}
+  self.assertEqual(fonts['p_large'],('SF-UI.ttf','bold'))
+  # Heavier than build-132: primary labels bold too; secondary grey text stays regular.
+  self.assertEqual(fonts['p_body'],('SF-UI.ttf','bold'));self.assertEqual(fonts['p_sub'],('SF-UI.ttf',None));self.assertEqual(fonts['p_cap'],('SF-UI.ttf',None))
+  for name in ('p_title','p_h2','p_h3','p_tab','p_btn','p_tile','p_foot_b'):self.assertEqual(fonts[name][1],'bold',name)
+  for filename in ('Inter-Medium.ttf','Inter-SemiBold.ttf','Inter-Black.ttf','Inter-ExtraBold.ttf'):self.assertTrue(portrait.sf_bold('x',filename),filename)
+  self.assertFalse(portrait.sf_bold('x','Inter-Regular.ttf'));self.assertFalse(portrait.sf_bold('x','Inter-Light.ttf'))
+  root=ET.fromstring(portrait.fonts('<fonts><fontset id="Default"/></fonts>'))
+  self.assertTrue(all(f.findtext('filename').startswith('Inter') for f in root.iter('font')))
  def test_textures_are_png(self):
   for name,data in portrait.textures().items():self.assertTrue(data.startswith(b'\x89PNG'),name)
 
@@ -175,9 +230,26 @@ class PortraitTests(unittest.TestCase):
   home=(self.skin/'portrait/Home.xml').read_text();self.assertNotIn('googledrive',home.split('tab bar')[1])
  def test_continue_watching_leads_each_hub(self):
   root=self.read('portrait/Home.xml')
-  for offset,kind in ((0,'all'),(20000,'episode'),(10000,'movie')):
+  includes=(self.skin/'portrait/Includes.xml').read_text()
+  for offset,kind,tab in ((0,'all','home'),(20000,'episode','tv'),(10000,'movie','movies')):
    first=root.find(".//control[@id='%d']"%(5001+offset))
-   self.assertEqual(first.findtext('content'),portrait.CONTINUE+kind)
+   content=first.findtext('content')
+   # The preloader: every hub's rows hold their real path and load when Home opens.
+   self.assertEqual(content,portrait.CONTINUE+kind)
+   self.assertNotIn('Portrait_Row_%s_0'%tab,includes)
+ def test_preloader_loads_every_hub_at_once(self):
+  # Owner (build-135): back to the preloader: no row or hero waits for a flag or a timer.
+  root=self.read('portrait/Home.xml');includes=(self.skin/'portrait/Includes.xml').read_text()
+  import re
+  self.assertNotIn('Portrait_Row_',includes);self.assertIsNone(re.search(r'Portrait_Hero_(home|movies|tv)"',includes))
+  self.assertNotIn('Portrait.Load.',ET.tostring(root,encoding='unicode'))
+  self.assertFalse([o.text for o in root.findall('onload') if 'AlarmClock(portrait' in (o.text or '')])
+ def test_fuse_home_onloads_no_longer_run_scripts(self):
+  root=self.read('portrait/Home.xml')
+  for o in root.findall('onload'):
+   self.assertNotIn('skinvariables-splash.json',o.text or '');self.assertNotIn('Action_RatingsMonitor',o.text or '')
+  startup=self.read('portrait/Startup.xml');texts=[(o.get('condition'),o.text) for o in startup.findall('onload')]
+  self.assertEqual(texts[1],('Skin.HasSetting(Portrait.FuseStartupDone)','ReplaceWindow(Home)'))
  def test_old_in_progress_rows_are_replaced(self):
   self.assertTrue(portrait.in_progress({'label':'In Progress Movies','path':'special://profile/playlists/video/In Progress Movies.xsp'}))
   self.assertFalse(portrait.in_progress({'label':'Popular','path':'plugin://x/?info=popular'}))
@@ -206,6 +278,14 @@ class ServiceTests(unittest.TestCase):
   tick=portrait.focused_item_publisher(lambda k:labels.get(k,''),lambda c:state['hub'] if 'Window' in c else False,seen.__setitem__)
   tick();self.assertEqual(seen,{'Title':'Show','Art':'art.jpg','Sub':'S1, E2'})
   seen.clear();state['hub']=False;labels['Container.ListItem.Label']='Other';tick();self.assertEqual(seen,{})
+ def test_focused_item_details_asked_only_when_focus_moves(self):
+  # Performance pass: the six detail labels were asked every half second on Home.
+  asked=[];labels={'System.CurrentControlId':'5002','Container.ListItem.Label':'Show'}
+  def info(k):asked.append(k);return labels.get(k,'')
+  tick=portrait.focused_item_publisher(info,lambda c:'Window' in c,lambda k,v:None)
+  tick();first=len(asked);tick();tick()
+  self.assertEqual(len(asked)-first,4)  # two cheap labels per idle tick
+  labels['Container.ListItem.Label']='Next';tick();self.assertGreater(len(asked)-first,6)
  def test_progress_saved_and_stop_reported(self):
   calls=[];clock=iter(range(0,1000,11))
   class Player:

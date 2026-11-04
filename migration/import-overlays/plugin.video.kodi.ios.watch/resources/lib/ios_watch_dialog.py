@@ -33,6 +33,34 @@ def continuing(argv=None):
  argv=sys.argv if argv is None else argv
  return len(argv)>2 and 'ios_continue=1' in str(argv[2]).lstrip('?').split('&')
 
+def downloaded_item(player,candidates,find=None,folders=None):
+ """A TMDb Helper local player item for the downloaded copy of this title, or None."""
+ try:
+  import copy
+  import ios_downloaded as d
+  info=getattr(player.details,'infolabels',{}) or {}
+  movie=getattr(player,'tmdb_type','')=='movie'
+  title=info.get('title') if movie else (info.get('tvshowtitle') or info.get('title'))
+  args=('movie' if movie else 'episode',title,info.get('year') or '',getattr(player,'season','') or '',getattr(player,'episode','') or '')
+  path=find((folders or d.folders)(),*args) if find else d.find_downloaded(*args)
+  try:
+   import xbmc;xbmc.log('Kodi iOS watch: downloaded copy of %s %s: %s'%(args[0],title,path or 'none'),xbmc.LOGINFO)
+  except ImportError:pass
+  if not path:return None
+  local=next((p for p in candidates if getattr(p,'is_local',False)),None)
+  if local is not None:item=copy.copy(local)
+  else:
+   from tmdbhelper.lib.player.dialog.item.kodi import PlayerItemLocalMovie
+   item=PlayerItemLocalMovie({'tmdb':getattr(player,'tmdb_id','')})
+  # TMDb Helper's cached properties live in the instance, so these replace its library lookup.
+  item.__dict__.update(kodi_file=path,kodi_file_contents=None,actions=path,is_valid=True,make_playlist=False)
+  return item
+ except Exception as error:
+  try:
+   import xbmc;xbmc.log('Kodi iOS watch: downloaded-file check failed: %r'%error,xbmc.LOGWARNING)
+  except Exception:pass
+  return None
+
 def choose_player(player):
  import xbmc,xbmcgui,xbmcaddon,xbmcvfs
  player.allow_playlist=False
@@ -60,6 +88,15 @@ def choose_player(player):
   try:f.write(text)
   finally:f.close()
  kind_of=lambda item:'elementum' if item is engine else 'umbrella' if item is umbrella else 'local'
+ # A finished download on the phone plays at once (owner build-132: Home fetched the torrent again).
+ downloaded=downloaded_item(player,candidates)
+ if downloaded is not None:
+  xbmc.log('Kodi iOS watch: playing the downloaded file %s'%downloaded.kodi_file,xbmc.LOGINFO)
+  try:
+   from ios_continue import record
+   record(player,read,write,choice='local')
+  except Exception:pass
+  return downloaded
  home=xbmcgui.Window(10000);home.clearProperty(RESUME_PROPERTY)
  # Continue Watching (its links carry the flag): the player and version picked last time, without asking.
  saved={}
@@ -75,10 +112,14 @@ def choose_player(player):
    li=xbmcgui.ListItem(label=label);li.setArt(art);items.append(li)
   name=str(info.get('title') or info.get('tvshowtitle') or '')
   selected=xbmcgui.Dialog().select('How would you like to watch'+(' '+name if name else '')+'?',items)
- if selected<0 or selected>=len(rows):return None
+ # Owner logs (build-124): TMDb Helper reported "lib.player - Failure!" right after a row was tapped, i.e. this
+ # returned nothing. Say what was offered and what came back, so the next log shows which way it went.
+ log=lambda text:xbmc.log('Kodi iOS watch: '+text,xbmc.LOGINFO)
+ log('offered %s; picked %s'%([label for label,_,_ in rows],selected))
+ if selected<0 or selected>=len(rows):log('nothing picked (the menu closed without a row)');return None
  _,action,item=rows[selected]
  if action in NOT_READY:
-  xbmcgui.Dialog().ok(*NOT_READY[action]);return None
+  log('%s is not available here'%action);xbmcgui.Dialog().ok(*NOT_READY[action]);return None
  if saved.get('version') and saved.get('player')==kind_of(item):
   # deck_picker.py (Elementum's and Umbrella's version page) takes this once and plays the same version.
   import json,time
@@ -89,4 +130,5 @@ def choose_player(player):
   record(player,read,write,choice=kind_of(item))
  except Exception:pass
  if item is engine:share_details(player)
+ log('playing with %s (%s)'%(kind_of(item),getattr(item,'file','')))
  return item

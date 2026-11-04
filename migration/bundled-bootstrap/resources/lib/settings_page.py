@@ -14,6 +14,7 @@ accounts=_iu.module_from_spec(_spec);_spec.loader.exec_module(accounts)
 
 BOOT='special://xbmc/addons/service.kodi.ios.bootstrap/'
 ACCOUNTS='RunScript(service.kodi.ios.bootstrap,accounts_page)'
+SEARCH='RunScript(service.kodi.ios.bootstrap,settings_search)'
 WINDOW='10004'
 PAGE='Window(%s).Property(Settings.Page)'%WINDOW
 ON_ROOT='String.IsEmpty(%s)'%PAGE
@@ -158,8 +159,17 @@ def profile_card(p,moves):
 def updates_banner(p,moves):
  return card(p,[R(9102,'Add-on Updates Available','ActivateWindow(addonbrowser,addons://outdated/,return)',badge=UPDATES)],moves,UPDATES)
 
+def search_field(p,moves):
+ """iOS Settings search field at the top of the list: opens Kodi's keyboard and lists the matching settings."""
+ w=p.WIDTH-2*p.SIDE;h=108
+ return ('<control type="group"><width>%d</width><height>%d</height><control type="group"><left>%d</left>'%(p.WIDTH,h,p.SIDE)+
+  '<control type="button" id="9100"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>'
+  '<texturefocus border="54" colordiffuse="FF3A3A3C">%spill_108.png</texturefocus><texturenofocus border="54" colordiffuse="%s">%spill_108.png</texturenofocus>'
+  '%s%s</control>'%(w,h,p.MEDIA,p.SURFACE,p.MEDIA,clicks(p,SEARCH),nav_xml(p,moves))+
+  p.icon(36,(h-44)//2,44,'magnifying-glass.png',p.GREY)+p.label(100,0,w-140,h,'Search','p_body',p.GREY)+'</control></control>')
+
 def root_ids():
- ids=[(9101,''),(9102,UPDATES)]
+ ids=[(9100,''),(9101,''),(9102,UPDATES)]
  for group in ROOT:ids+=[(r[0],'') for r in group]
  return ids
 
@@ -168,7 +178,7 @@ def custom_ids():
 
 def root_list(p):
  moves=nav(root_ids())
- body=profile_card(p,moves[9101])+spacer(40,UPDATES)+updates_banner(p,moves)+spacer(GAP)
+ body=search_field(p,moves[9100])+spacer(40)+profile_card(p,moves[9101])+spacer(40,UPDATES)+updates_banner(p,moves)+spacer(GAP)
  for group in ROOT:body+=card(p,group,moves)+spacer(GAP)
  body+=('<control type="group"><width>%d</width><height>120</height>'%p.WIDTH+
         p.label(p.SIDE,0,p.WIDTH-2*p.SIDE,60,'Kodi $INFO[System.BuildVersionShort]  ·  $INFO[System.AddonTitle(%s)] $INFO[System.AddonVersion(%s)]'%(FUSE,FUSE),
@@ -181,11 +191,14 @@ def custom_list(p):
   body+=(section(p,title) if title else '')+card(p,rows,moves)+(footer(p,note) if note else spacer(20))+spacer(GAP-30)
  return body+spacer(160)
 
-def header(p,back_actions,titles):
+# Settings home: the header sits lower so the back circle and title clear the status bar like Search's band
+# (SEARCH_BAND, 60 pt) and the large titles of Library and Search (top 40-46); the list starts under it.
+SETTINGS_Y=76;SETTINGS_TOP=SETTINGS_Y+164
+def header(p,back_actions,titles,y=36):
  """Glass back button and centred title over a black bar (the page scrolls under it)."""
- bar=p.image(0,0,p.WIDTH,190,p.MEDIA+'white.png',p.BG)+p.image(0,190,p.WIDTH,60,p.MEDIA+'fade_down.png')
- back=p.pill_button(9001,p.SIDE,36,108,108,'',back_actions,'glass','chevron-left.png','<ondown>9300</ondown>')
- names=''.join(p.label(260,36,p.WIDTH-520,108,t,'p_h3',p.WHITE,'center','<visible>%s</visible>'%c if c else '') for t,c in titles)
+ bar=p.image(0,0,p.WIDTH,y+154,p.MEDIA+'white.png',p.BG)+p.image(0,y+154,p.WIDTH,60,p.MEDIA+'fade_down.png')
+ back=p.pill_button(9001,p.SIDE,y,108,108,'',back_actions,'glass','chevron-left.png','<ondown>9300</ondown>')
+ names=''.join(p.label(260,y,p.WIDTH-520,108,t,'p_h3',p.WHITE,'center','<visible>%s</visible>'%c if c else '') for t,c in titles)
  return bar+names+back
 
 def settings_window(p,original):
@@ -194,8 +207,8 @@ def settings_window(p,original):
  lst=lambda id,cond,body,top:('<control type="grouplist" id="%d"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom>'
   '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords><visible>%s</visible>%s</control>')%(id,top,p.WIDTH,cond,body)
  back=[(ON_CUSTOM,'ClearProperty(Settings.Page,%s)'%WINDOW),(ON_CUSTOM,'SetFocus(9113)'),(ON_ROOT,'Action(Back)')]
- body=('<controls>'+p.backdrop()+lst(9300,ON_ROOT,root_list(p),200)+lst(9310,ON_CUSTOM,custom_list(p),200)+
-       header(p,back,[('Settings',ON_ROOT),('Customisation',ON_CUSTOM)])+'</controls>')
+ body=('<controls>'+p.backdrop()+lst(9300,ON_ROOT,root_list(p),SETTINGS_TOP)+lst(9310,ON_CUSTOM,custom_list(p),SETTINGS_TOP)+
+       header(p,back,[('Settings',ON_ROOT),('Customisation',ON_CUSTOM)],SETTINGS_Y)+'</controls>')
  extra=('<onload condition="Window.Previous(home)">ClearProperty(Settings.Page,%s)</onload>'%WINDOW+
         '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>')
  # Back from a category opened on the Customisation page: the home rows are hidden, so focus that page instead.

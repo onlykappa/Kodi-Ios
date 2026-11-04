@@ -16,6 +16,7 @@ on:
       - 'scripts/test_ios_navigation.py'
       - 'scripts/test_updates_calibration.py'
       - 'scripts/test_drive_upload.py'
+      - 'scripts/test_settings_search.py'
       - 'scripts/test_deck_picker.py'
       - 'migration/deck-picker/**'
       - 'scripts/test_startup_sequence.py'
@@ -26,6 +27,7 @@ on:
       - 'scripts/test_import_profile.py'
       - 'scripts/test_watch_routes.py'
       - 'scripts/test_watch_dialog.py'
+      - 'scripts/test_listing_cache.py'
       - 'scripts/test_activation.py'
       - 'migration/import-inputs/**'
       - 'migration/import-overlays/**'
@@ -48,6 +50,7 @@ on:
       - 'scripts/test_ios_navigation.py'
       - 'scripts/test_updates_calibration.py'
       - 'scripts/test_drive_upload.py'
+      - 'scripts/test_settings_search.py'
       - 'scripts/test_deck_picker.py'
       - 'migration/deck-picker/**'
       - 'scripts/test_startup_sequence.py'
@@ -58,6 +61,7 @@ on:
       - 'scripts/test_import_profile.py'
       - 'scripts/test_watch_routes.py'
       - 'scripts/test_watch_dialog.py'
+      - 'scripts/test_listing_cache.py'
       - 'scripts/test_activation.py'
       - 'migration/import-inputs/**'
       - 'migration/import-overlays/**'
@@ -85,13 +89,23 @@ jobs:
           python3 -B scripts/test_ios_navigation.py
           python3 -B scripts/test_updates_calibration.py
           python3 -B scripts/test_drive_upload.py
+          python3 -B scripts/test_settings_search.py
           python3 -B scripts/test_deck_picker.py
           python3 -B scripts/test_bundled_bootstrap.py
+          python3 -B scripts/test_portrait.py
+          python3 -B scripts/test_glassbar.py
+          python3 -B scripts/test_notices.py
+          python3 -B scripts/test_pages.py
+          python3 -B scripts/test_airplay_remux.py
+          python3 -B scripts/test_downloaded_play.py
+          python3 -B scripts/test_genre_photos.py
+          python3 -B scripts/test_performance_budget.py
           python3 -B scripts/test_customized_ipa.py
           python3 -B scripts/test_import_builder.py
           python3 -B scripts/test_import_profile.py
           python3 -B scripts/test_watch_routes.py
           python3 -B scripts/test_watch_dialog.py
+          python3 -B scripts/test_listing_cache.py
           python3 -B scripts/test_activation.py
           python3 -B scripts/test_ios.py
       - name: Acquire public pinned sources and build review ZIP
