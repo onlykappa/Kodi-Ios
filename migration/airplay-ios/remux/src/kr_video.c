@@ -596,7 +596,7 @@ static int produce(kr_video *v, double start, double end, gm_buf *out, char *err
     while (!done && !eof) {
         if (atomic_load(&v->abort)) { seterr(err, errlen, "stopped", 0); goto out; }
         // r8: checked between packets only (not in the read callback): the demuxer stays usable for the next segment.
-        if (atomic_load(&v->cancel)) { seterr(err, errlen, "cancelled", 0); goto out; }
+        if (atomic_load(&v->cancel)) { seterr(err, errlen, "cancelled", 0); r = KR_VIDEO_CANCELLED; goto out; }
         int rr = av_read_frame(v->in, pkt);
         if (rr == AVERROR_EOF) { eof = 1; avcodec_send_packet(v->dec, NULL); }
         else if (rr < 0) { seterr(err, errlen, "read", rr); goto out; }
@@ -658,7 +658,8 @@ int kr_video_unit(kr_video *v, gm_stream *s, int i, gm_buf *out, char *err, int 
     if (!v || i < 0 || i >= gm_stream_segment_count(s)) { seterr(err, errlen, "bad segment index", 0); return -1; }
     double start, end;
     kr_video_window(s, i, &start, &end);
-    if (produce(v, start, end, out, err, errlen) < 0) return -1;
+    int r = produce(v, start, end, out, err, errlen);
+    if (r < 0) return r;
     if (kr_first_moof(out->data, out->len) <= 0) { seterr(err, errlen, "bad unit split", 0); return -1; }
     return 0;
 }

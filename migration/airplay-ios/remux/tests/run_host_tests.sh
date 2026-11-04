@@ -5,7 +5,10 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; R="$HERE/.."
 FF="$(cd "${1:?host ffmpeg dir}" && pwd)"; WORK="$(mkdir -p "${2:?work dir}" && cd "$2" && pwd)"
-[[ -f "$WORK/fixtures/mpeg2_ac3.mkv" ]] || "$HERE/make_fixtures.sh" "$WORK/fixtures" > /dev/null
+if [[ ! -f "$WORK/fixtures/mpeg2_ac3.mkv" || ! -f "$WORK/fixtures/vp9_opus.webm" ||
+      ! -f "$WORK/fixtures/mpeg4_mp3.avi" || ! -f "$WORK/fixtures/hevc_4k.mkv" ]]; then
+  "$HERE/make_fixtures.sh" "$WORK/fixtures" > /dev/null
+fi
 ASS="$(cd "${3:-$FF/../asshost}" && pwd)"
 export KR_TEST_FONT="${KR_TEST_FONT:-$(ls /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /Library/Fonts/Arial.ttf /System/Library/Fonts/Supplemental/Arial.ttf 2>/dev/null | head -1)}"
 [[ -f "$KR_TEST_FONT" ]] || { echo "no test font (set KR_TEST_FONT)" >&2; exit 2; }

@@ -489,14 +489,22 @@ gm_stream *gm_stream_open(gm_source src, double target_seg_sec,
 
     s->video_in = gm_auto_select(s->in, AVMEDIA_TYPE_VIDEO);
     s->audio_in = gm_auto_select(s->in, AVMEDIA_TYPE_AUDIO);
-    if (s->video_in < 0 && s->audio_in < 0) {
-        set_err(err, errlen, "no AVFoundation-compatible streams", 0);
+    int plan_stream = s->video_in >= 0 ? s->video_in : s->audio_in;
+    // Kodi iOS: a fully bridged file (e.g. VP9 + Opus) has no copy-compatible track.
+    // Still plan on its decodable video so the picture/audio bridges can open it. Keep
+    // video_in == -1: pretending it can be copied would bypass the required conversion.
+    for (unsigned i = 0; plan_stream < 0 && i < s->in->nb_streams; i++) {
+        AVStream *st = s->in->streams[i];
+        if (st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO && !(st->disposition & AV_DISPOSITION_ATTACHED_PIC) &&
+            avcodec_find_decoder(st->codecpar->codec_id)) plan_stream = (int)i;
+    }
+    if (plan_stream < 0) {
+        set_err(err, errlen, "no copy-compatible or decodable video streams", 0);
         gm_stream_close(s); return NULL;
     }
 
     s->duration = (s->in->duration > 0) ? (double)s->in->duration / AV_TIME_BASE : 0.0;
 
-    int plan_stream = s->video_in >= 0 ? s->video_in : s->audio_in;
     AVStream *vst = s->in->streams[plan_stream];
 
     // Use whatever keyframe index find_stream_info already populated WITHOUT forcing
@@ -516,7 +524,7 @@ gm_stream *gm_stream_open(gm_source src, double target_seg_sec,
         for (int i = 0; i < n_entries; i++) {
             const AVIndexEntry *e = avformat_index_get_entry(vst, i);
             if (!e) continue;
-            if (s->video_in >= 0 && !(e->flags & AVINDEX_KEYFRAME)) continue;
+            if (vst->codecpar->codec_type == AVMEDIA_TYPE_VIDEO && !(e->flags & AVINDEX_KEYFRAME)) continue;
             kf[n_kf++] = e->timestamp * av_q2d(vst->time_base);
         }
         // Kodi iOS change: an index that stops early (find_stream_info read only the first keyframes of a short

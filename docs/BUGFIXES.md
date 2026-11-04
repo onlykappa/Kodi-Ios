@@ -31,7 +31,15 @@ These are log leads, not diagnosed user-facing bugs. No root cause or fix has be
 | LOG-003 | 358 | `DARWINIOS: underflow (7456 vs 8200 bytes)` | Audio underflow reported during startup; audible effect and cause unverified. |
 | LOG-004 | 333 | JSONRPC could not parse `Setting.Details.SettingList` | The next messages defer/resolve type definitions and report successful JSONRPC v13.5.0 initialization. Not enough evidence to label an RPC failure. |
 
-## Current focused bug — owner item 2
+## Current focused bug — owner item 3
+
+ISSUE-093: AirPlay forward seeking usually stops playback; the screenshot records a new cancellation-error variant. New playback log confirms a Drive source (4K, 10-bit HEVC), VideoToolbox/GPU conversion and large source/queue stalls, including a 26.7-second seek before shutdown. Its final error is `session stopped`, not the screenshot's exact segment-37 cancellation.
+
+Reproduced the cancellation/HTTP-500 defect on the host. Restrict cancellation to speculative work, fix stale worker ownership, prioritize foreground requests and separate cancellation from real errors. Also fix VP9+Opus files rejected before both converters could run, and reject unavailable video conversion instead of silently playing only audio. Add slow-request queue/production diagnostics.
+
+1,095 native host checks plus 33 Python/static tests pass; actual 4K/10-bit structural seeking (six fps), AVI and WebM coverage added. Long Drive stalls, broader container/codec/HDR coverage and device acceptance remain open. See [compatibility and investigation](AIRPLAY.md) and [validation](../reports/airplay-seek-validation.json). No further log needed now to establish the cancellation defect. Published framework pin remains r11; a future requested IPA must first build/publish/verify/pin a new framework. No iOS/framework build, IPA, release or merge.
+
+## Previous focused bug — owner item 2
 
 ISSUE-092: selecting Movies and then Drama/Sci-Fi still opened TV discovery. Every category had a hardcoded `tmdb_type=tv`, independently of the working typed-search filter. Category actions now use the selected Movies/Shows type at click time, with the appropriate genre IDs: movie Sci-Fi/Fantasy uses 878 OR 14, Action/Adventure uses 28 OR 12, and War uses 10752. Shared IDs such as Drama 18 remain correct for both endpoints. Reality/Kids have no movie counterpart and are hidden for Movies; All retains its existing TV-category behavior. Typed-search code and result filtering are unchanged.
 

@@ -588,6 +588,78 @@ static double get_ms(int port, const char *path) {
     return g.ms;
 }
 
+// A seek/retry may overlap a still-connected request for the old position. Only speculative
+// conversion may be canceled: returning 500 for the other live request poisons AVPlayer's session.
+static void test_seek_overlap(const char *http_base) {
+    char url[512], m3u8[256];
+    snprintf(url, sizeof url, "%s/slow/hevc_ac3_ass.mkv", http_base);
+    for (int ahead = 0; ahead <= 1; ahead++) {
+        kr_remux_set_prefetch(ahead);
+        int st = start_session(url, 0, m3u8, sizeof m3u8);
+        CHECK(st == KR_READY, "seek overlap: source opens (prefetch %d)", ahead);
+        if (st != KR_READY) continue;
+        int port = kr_remux_port();
+        reply init = http_get(port, "/cvideo/init.mp4", NULL);
+        CHECK(init.status == 200, "seek overlap: converted init (%d)", init.status);
+        free(init.body);
+        timed old = { port, "/cvideo/seg1.m4s", 0, 0 };
+        pthread_t t; pthread_create(&t, NULL, timed_get, &old);
+        usleep(20000);
+        reply target = http_get(port, "/cvideo/seg3.m4s", NULL);
+        pthread_join(t, NULL);
+        CHECK(old.status == 200, "seek overlap: live old request survives (prefetch %d, status %d)", ahead, old.status);
+        CHECK(target.status == 200 && target.len > 8, "seek overlap: forward target plays (prefetch %d, status %d)", ahead, target.status);
+        CHECK(!*kr_remux_message(), "seek overlap: no false fatal error (%s)", kr_remux_message());
+        free(target.body);
+        // Then go backward and retry the forward segment; the cache and converter must remain usable.
+        reply back = http_get(port, "/cvideo/seg0.m4s", NULL);
+        reply retry = http_get(port, "/cvideo/seg3.m4s", NULL);
+        CHECK(back.status == 200 && retry.status == 200, "seek overlap: backward/forward retry (%d, %d)", back.status, retry.status);
+        free(back.body); free(retry.body);
+        kr_remux_stop();
+    }
+    kr_remux_set_prefetch(1);
+}
+
+// Actual 4K/10-bit decode and downscale, then seek to the tail and back. Linux uses the MPEG-4
+// test encoder: this checks media/timestamps, not Apple's H.264 encoder or sustained 24/60 fps on iOS.
+static void test_4k_seek(const char *url, const char *work) {
+    char m3u8[256], out[512];
+    kr_remux_set_prefetch(0);
+    int st = start_session(url, 0, m3u8, sizeof m3u8);
+    CHECK(st == KR_READY, "4K seek: source opens (%s)", kr_remux_message());
+    if (st != KR_READY) { kr_remux_set_prefetch(1); return; }
+    int port = kr_remux_port();
+    reply copy = http_get(port, "/master.m3u8", NULL);
+    reply tv = get_as(UA_TV, port, "/master.m3u8");
+    CHECK(copy.body && strstr(copy.body, "RESOLUTION=3840x2160"), "4K: copy preserves original dimensions");
+    CHECK(tv.body && strstr(tv.body, "RESOLUTION=1920x1080") && strstr(tv.body, "avc1.640028"), "4K: TV gets compatibility picture");
+    reply pl = http_get(port, "/cvideo/index.m3u8", NULL);
+    double total, maxd; int target;
+    int n = playlist_segments(pl.body ? pl.body : "", &total, &maxd, &target);
+    CHECK(n >= 3 && fabs(total - 20) < .2, "4K: seekable grid (%d segments, %.2f s)", n, total);
+    reply init = http_get(port, "/cvideo/init.mp4", NULL);
+    reply tail = http_get(port, "/cvideo/seg3.m4s", NULL);
+    CHECK(init.status == 200 && tail.status == 200, "4K: converted init and seek (%d, %d)", init.status, tail.status);
+    if (init.status == 200 && tail.status == 200) {
+        snprintf(out, sizeof out, "%s/4k-seek.mp4", work);
+        int key = 0, keys = 0;
+        double t = segment_first(&init, &tail, out, &key);
+        CHECK(key && fabs(t - 18) < 1.0 / 6, "4K: target is a keyframe at requested time (%.3f)", t);
+        CHECK(decode_count(out, &keys) == 12 && keys == 1, "4K: tail segment actually decodes");
+        AVFormatContext *in = NULL;
+        int opened = avformat_open_input(&in, out, NULL, NULL);
+        if (!opened) avformat_find_stream_info(in, NULL);
+        CHECK(!opened && in->streams[0]->codecpar->width == 1920 && in->streams[0]->codecpar->height == 1080,
+              "4K: encoded pixels are 1920x1080");
+        avformat_close_input(&in);
+    }
+    reply back = http_get(port, "/cvideo/seg0.m4s", NULL);
+    CHECK(back.status == 200 && !*kr_remux_message(), "4K: backward seek remains usable");
+    free(copy.body); free(tv.body); free(pl.body); free(init.body); free(tail.body); free(back.body);
+    kr_remux_stop(); kr_remux_set_prefetch(1);
+}
+
 // Over a slow source (tests/range_server.py /slow/: latency per request and limited bytes/s, like Drive through its
 // proxy): video and audio made at the same time, inits and served segments cached, the next segments made ahead.
 static void test_latency(const char *http_base) {
@@ -852,6 +924,12 @@ int main(int argc, char **argv) {
     // r10: the copy/compat checks below run without burned subtitles (the files' default SRT would be picked).
     kr_remux_set_subtitles(-1, NULL, NULL);
     kr_subs_set_font_file(getenv("KR_TEST_FONT"));
+    if (argc > 3 && !strcmp(argv[3], "--seek-only")) {
+        kr_video_set_encoder("mpeg4");
+        test_seek_overlap(argv[2]);
+        printf("%d checks, %d failed\n", checks, failures);
+        return failures ? 1 : 0;
+    }
     test_kind();
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
     mkdir(work, 0755);
@@ -880,6 +958,9 @@ int main(int argc, char **argv) {
         snprintf(url, sizeof url, "file:%s/hevc_ac3_ass.mkv", argv[1]); test_compat(url, "hevc_ac3_ass.mkv", 1, 0, "ac-3", work);
         snprintf(url, sizeof url, "file:%s/h264_ac3.ts", argv[1]); test_compat(url, "h264_ac3.ts", 1, 1.4, "ac-3", work);
         snprintf(url, sizeof url, "file:%s/mpeg2_ac3.mkv", argv[1]); test_compat(url, "mpeg2_ac3.mkv", 0, 0, "ac-3", work);
+        snprintf(url, sizeof url, "file:%s/vp9_opus.webm", argv[1]); test_compat(url, "vp9_opus.webm", 0, 0, "mp4a.40.2", work);
+        snprintf(url, sizeof url, "file:%s/mpeg4_mp3.avi", argv[1]); test_compat(url, "mpeg4_mp3.avi", 1, 0, "mp4a.40.34", work);
+        snprintf(url, sizeof url, "file:%s/hevc_4k.mkv", argv[1]); test_4k_seek(url, work);
         snprintf(url, sizeof url, "file:%s/hevc_ac3_ass.mkv", argv[1]); test_compat_stop(url);
         printf("-- r8 receivers (a TV's AirPlay gets H.264, the phone the HEVC copy)\n"); fflush(stdout);
         char h264[1024]; snprintf(h264, sizeof h264, "file:%s/h264_aac_srt.mkv", argv[1]);
@@ -893,8 +974,8 @@ int main(int argc, char **argv) {
         CHECK(kr_remux_start(url, 0, 1, m3u8, sizeof m3u8) == KR_FAILED && strstr(kr_remux_message(), "cannot convert video"),
               "compat without an encoder explains itself: %s", kr_remux_message());
         snprintf(url, sizeof url, "file:%s/mpeg2_ac3.mkv", argv[1]);
-        CHECK(kr_remux_start(url, 0, 0, m3u8, sizeof m3u8) == KR_READY && kr_remux_compat() == 0,
-              "no encoder: an MPEG-2 file stays as before (copy path, audio only)");
+        CHECK(kr_remux_start(url, 0, 0, m3u8, sizeof m3u8) == KR_FAILED && strstr(kr_remux_message(), "cannot convert video"),
+              "no encoder: unsupported video must fail clearly instead of silently playing audio only");
         kr_remux_stop();
         kr_video_set_encoder("mpeg4");
     }
@@ -907,6 +988,8 @@ int main(int argc, char **argv) {
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
         test_latency(argv[2]);
+        printf("-- overlapping converted seek requests\n"); fflush(stdout);
+        test_seek_overlap(argv[2]);
     }
     printf("%d checks, %d failed\n", checks, failures);
     return failures ? 1 : 0;

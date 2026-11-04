@@ -9,6 +9,8 @@
 #define KR_VIDEO_H
 #include "../gmplayer/gm_stream.h"
 typedef struct kr_video kr_video;
+// A seek superseded speculative conversion. Distinct from a decode/read/encode failure.
+#define KR_VIDEO_CANCELLED (-2)
 
 // The CODECS value the master playlist declares for the converted video (H.264 High, level 4.0).
 #define KR_VIDEO_CODECS "avc1.640028"

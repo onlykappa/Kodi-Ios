@@ -544,6 +544,8 @@ static struct {
 } P = { .lock = PTHREAD_MUTEX_INITIALIZER, .cond = PTHREAD_COND_INITIALIZER };
 
 static atomic_int pf_on = 1;  // kr_remux_set_prefetch (tests)
+// A foreground request owns priority over speculative work on its rendition.
+static atomic_int demand[NREND];
 static int near(int rend, int seg, int at) { return seg >= at && seg <= at + PF_DEPTH(rend); }
 
 // Queues (rend, seg) unless it is cached, queued or being made (P.lock held).
@@ -574,6 +576,7 @@ static void prefetch_focus(int rend, int seg) {
             pthread_mutex_lock(&src_lock);
             if (S.video) kr_video_cancel(S.video);
             pthread_mutex_unlock(&src_lock);
+            log_line("seek: cancel background converted segment %d for request %d", P.busy_seg[w], seg);
         }
     pthread_mutex_unlock(&P.lock);
 }
@@ -595,6 +598,7 @@ static void *prefetch_worker(void *arg) {
         int pick = -1;
         pthread_mutex_t *l = NULL;
         for (int i = 0; i < P.n && pick < 0; i++) {  // the oldest job whose lane is free (no waiting on a busy lane)
+            if (atomic_load(&demand[P.q[i].rend])) continue;
             pthread_mutex_t *c = lane(P.q[i].rend);
             if (!c) { P.q[i] = P.q[--P.n]; i--; continue; }
             if (pthread_mutex_trylock(c) == 0) { pick = i; l = c; }
@@ -614,13 +618,16 @@ static void *prefetch_worker(void *arg) {
         pthread_mutex_unlock(&P.lock);
         if (!atomic_load(&S.stopping) && !cache_has(rend, seg) && cache_room(rend)) {
             char err[256] = "";
-            if (make_part(rend, seg, 1, 0, NULL, err, sizeof err) == 0) atomic_fetch_add(&S.prefetched, 1);
-            else if (!atomic_load(&S.stopping) && strcmp(err, "cancelled"))
+            int r = make_part(rend, seg, 1, 0, NULL, err, sizeof err);
+            if (r == 0) atomic_fetch_add(&S.prefetched, 1);
+            else if (!atomic_load(&S.stopping) && !(rend == R_VCOMPAT && r == KR_VIDEO_CANCELLED))
                 log_line("prefetch: %s segment %d: %s", rend == R_VCOPY ? "video" : rend == R_VCOMPAT ? "converted video" : "audio", seg, err);
         }
-        pthread_mutex_unlock(l);
         pthread_mutex_lock(&P.lock);
+        // Clear ownership before another request can acquire the lane. Otherwise a seeker can mistake
+        // the new foreground converter for this finished background job and cancel the wrong work.
         P.busy_rend[me] = -1; P.busy_seg[me] = -1;
+        pthread_mutex_unlock(l);
         pthread_cond_broadcast(&P.cond);
     }
     pthread_mutex_unlock(&P.lock);
@@ -654,18 +661,21 @@ static int get_part(int rend, int seg, gm_buf *out, char *err, int errlen) {
     if (cache_take(rend, seg, out)) return 0;
     pthread_mutex_t *l = lane(rend);
     if (!l) { snprintf(err, (size_t)errlen, "no such track"); return -1; }
-    prefetch_focus(rend, seg < 0 ? 0 : seg);
-    // r9: a conversion far from this request (a request the TV gave up on after a seek, build-138: seg16 waited
-    // 3-8 s) gives up now instead of finishing first.
-    int busy = atomic_load(&vc_seg), at = seg < 0 ? 0 : seg;
-    if (rend == R_VCOMPAT && busy >= 0 && (busy < at - 1 || busy > at + PF_DEPTH_VIDEO)) {
-        pthread_mutex_lock(&src_lock);
-        if (S.video) kr_video_cancel(S.video);
-        pthread_mutex_unlock(&src_lock);
-    }
+    atomic_fetch_add(&demand[rend], 1);
+    if (seg >= 0) prefetch_focus(rend, seg);
+    // Cancel only a background job identified under P.lock. Concurrent foreground requests (including
+    // retries/init reads by the phone and TV) must not cancel each other and turn a seek into HTTP 500.
+    double queued = now_ms();
     pthread_mutex_lock(l);
+    double began = now_ms();
     int r = cache_take(rend, seg, out) ? 0 : make_part(rend, seg < 0 ? 0 : seg, 0, seg < 0, out, err, errlen);
     pthread_mutex_unlock(l);
+    atomic_fetch_sub(&demand[rend], 1);
+    double ended = now_ms();
+    if (began - queued > 250 || ended - began > 1000)
+        log_line("request: %s segment %d waited %.0f ms, production %.0f ms, result %d",
+                 rend == R_VCOPY ? "video" : rend == R_VCOMPAT ? "converted video" : "audio", seg,
+                 began - queued, ended - began, r);
     return r;
 }
 
@@ -994,7 +1004,14 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
     // r7: compat mode converts the picture. Asked for (the TV played sound only), or needed: the file's video is not
     // one AirPlay carries (VP9, MPEG-2...) but FFmpeg decodes it.
     S.vindex = kr_video_pick_stream(S.gm);
-    if (!compat && gm_stream_selected_video(S.gm) < 0 && S.vindex >= 0 && kr_video_available()) {
+    AVFormatContext *input = gm_stream_format_context(S.gm);
+    int has_video = 0;
+    for (unsigned i = 0; input && i < input->nb_streams; i++)
+        if (input->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO &&
+            !(input->streams[i]->disposition & AV_DISPOSITION_ATTACHED_PIC)) has_video = 1;
+    if (!compat && gm_stream_selected_video(S.gm) < 0 && has_video) {
+        if (S.vindex < 0) { set_message("AirPlay: this build cannot decode this video's codec."); goto done; }
+        if (!kr_video_available()) { set_message("AirPlay: this build cannot convert video (no H.264 encoder)."); goto done; }
         compat = 1;
         log_line("compat: the video is not H.264/HEVC, converting it");
     }

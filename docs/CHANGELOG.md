@@ -119,3 +119,13 @@ Reuse cached tile artwork and defer cosmetic lookups during downloads/uploads, t
 or off-page activity. Six new regressions and affected host suites pass; pinned Helper translation preserves all
 22 supported routes. Phone category/lag acceptance remains pending; reduced background work is not proof that
 all lag is fixed. Keep draft PR #8 unmerged, publish with [skip ci], and build no IPA.
+
+
+## 2026-11-04 — Owner bug 3: AirPlay seek cancellation and format admission
+
+Reproduce overlapping-seek cancellation/HTTP 500 against the old server scheduler. Limit cancellation to speculative
+work, close worker-ownership race, prioritize live requests and log queue/production durations. Permit fully bridged
+VP9+Opus input and fail clearly when video conversion is unavailable. Add actual 4K/10-bit, WebM and AVI host fixtures;
+1,095 native checks plus 33 Python/static tests pass. Keep long Drive seek delays, broader codec/HDR coverage and
+phone acceptance open (docs/AIRPLAY.md). Native C fixes require a future newly built/pinned framework; r11 is unchanged.
+Same draft PR #8, skip CI; no framework/IPA build, release or merge.
