@@ -4,7 +4,8 @@
 #define KR_SOURCE_H
 #include "../gmplayer/gm_stream.h"
 typedef struct kr_source kr_source;
-// Opens `url`; NULL with `err` filled when it cannot be opened. timeout_s bounds each network wait.
+// Opens `url`; NULL with `err` filled when it cannot be opened. timeout_s bounds opening and each complete
+// read (including retries). HTTP uses bounded ranges; file reads retain normal byte-offset behavior.
 kr_source *kr_source_open(const char *url, int timeout_s, char *err, int errlen);
 gm_source kr_source_gm(kr_source *s);
 int64_t kr_source_size(kr_source *s);

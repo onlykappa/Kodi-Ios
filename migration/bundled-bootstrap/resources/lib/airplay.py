@@ -40,7 +40,7 @@ def message(lib):
  lib.kodi_airplay_message(buffer,400)
  return buffer.value.decode('utf-8','replace')
 
-SUB_EXTENSIONS=('.srt','.ass','.ssa','.vtt')
+SUB_EXTENSIONS=('.srt','.ass','.ssa','.vtt','.sup','.idx')
 # Where subtitle add-ons leave the file Kodi loads (a4kSubtitles, Kodi's own subtitle search).
 SUB_DIRS=('special://temp/a4ksubtitles','special://profile/addon_data/service.subtitles.a4ksubtitles/temp',
           'special://temp/subtitles','special://temp')
@@ -70,7 +70,10 @@ def recent_subtitle_files(translate,listdir,mtime):
  for folder in SUB_DIRS:
   try:
    root=translate(folder)
-   for entry in listdir(root):
+   entries=listdir(root)
+   for entry in entries:
+    # VobSub's IDX is the selectable index; its SUB data must remain beside it.
+    if os.path.splitext(entry)[1].lower()=='.idx' and os.path.splitext(entry)[0]+'.sub' not in entries:continue
     if os.path.splitext(entry)[1].lower() in SUB_EXTENSIONS:
      path=os.path.join(root,entry);found.append((path,mtime(path)))
   except Exception:continue

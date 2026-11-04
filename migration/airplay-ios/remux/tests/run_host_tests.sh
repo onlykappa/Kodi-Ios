@@ -9,6 +9,12 @@ if [[ ! -f "$WORK/fixtures/mpeg2_ac3.mkv" || ! -f "$WORK/fixtures/vp9_opus.webm"
       ! -f "$WORK/fixtures/mpeg4_mp3.avi" || ! -f "$WORK/fixtures/hevc_4k.mkv" || ! -f "$WORK/fixtures/av1_opus.mkv" || ! -f "$WORK/fixtures/h264_10bit.mp4" || ! -f "$WORK/fixtures/h264_pgs.mkv" || ! -f "$WORK/fixtures/prores_pcm.mov" ]]; then
   "$HERE/make_fixtures.sh" "$WORK/fixtures" > /dev/null
 fi
+if [[ ! -f "$WORK/fixtures/long.sup" ]]; then
+  python3 -B "$HERE/make_pgs.py" "$WORK/fixtures/long.sup" --long
+fi
+if [[ ! -f "$WORK/fixtures/dvd.idx" || ! -f "$WORK/fixtures/dvd.sub" ]]; then
+  python3 -B "$HERE/make_pgs.py" "$WORK/fixtures/dvd.idx" --vobsub
+fi
 ASS="$(cd "${3:-$FF/../asshost}" && pwd)"
 export KR_TEST_FONT="${KR_TEST_FONT:-$(ls /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /Library/Fonts/Arial.ttf /System/Library/Fonts/Supplemental/Arial.ttf 2>/dev/null | head -1)}"
 [[ -f "$KR_TEST_FONT" ]] || { echo "no test font (set KR_TEST_FONT)" >&2; exit 2; }

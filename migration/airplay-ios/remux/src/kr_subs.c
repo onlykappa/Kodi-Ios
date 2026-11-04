@@ -32,6 +32,12 @@ struct kr_subs {
     bitmap images[BITMAP_CUES];
     int nimages;
     size_t image_bytes;
+    AVFormatContext *external;
+    AVPacket *pending;
+    char *external_path;
+    const AVInputFormat *external_format;
+    int external_stream, external_eof, external_error;
+    int64_t external_time;
 };
 
 static const char *font_file;
@@ -121,6 +127,9 @@ kr_subs *kr_subs_create(int w, int h) {
 
 void kr_subs_free(kr_subs *s) {
     if (!s) return;
+    avformat_close_input(&s->external);
+    av_packet_free(&s->pending);
+    free(s->external_path);
     avcodec_free_context(&s->dec);
     if (s->track) ass_free_track(s->track);
     if (s->r) ass_renderer_done(s->r);
@@ -344,12 +353,73 @@ static int load_srt(kr_subs *s, char *b) {
     return s->track->n_events > 0 ? 0 : -1;
 }
 
+static int external_open(kr_subs *s) {
+    // Dedicated local subtitle input: do not seek/read the 4K movie just to recover an old display set.
+    AVDictionary *options = NULL;
+    av_dict_set(&options, "protocol_whitelist", "file", 0);
+    int opened = avformat_open_input(&s->external, s->external_path, s->external_format, &options);
+    av_dict_free(&options);
+    if (opened < 0) return -1;
+    for (unsigned i = 0; i < s->external->nb_streams; i++) if (kr_subs_supported(s->external->streams[i])) {
+        s->external_stream = (int)i;
+        return 0;
+    }
+    avformat_close_input(&s->external);
+    return -1;
+}
+
+static int load_bitmap_file(kr_subs *s, const char *path, const char *format) {
+    s->external_format = av_find_input_format(format);
+    s->external_path = strdup(path);
+    s->pending = av_packet_alloc();
+    s->external_time = INT64_MIN;
+    if (!s->external_format || !s->external_path || !s->pending || external_open(s) < 0) return -1;
+    if (kr_subs_open_stream(s, s->external->streams[s->external_stream]) < 0) return -1;
+    // Reject an empty/corrupt input before reporting that the selected subtitle is available.
+    return av_read_frame(s->external, s->pending) < 0 ? -1 : 0;
+}
+
+static int external_advance(kr_subs *s, int64_t time_ms) {
+    if (s->external_error) return -1;
+    if (!s->external) return 0;
+    if (time_ms < s->external_time) {
+        // Re-read the small subtitle file rather than assuming a ten-second cue lookback is sufficient.
+        avformat_close_input(&s->external);
+        av_packet_unref(s->pending);
+        avcodec_flush_buffers(s->dec);
+        for (int i = 0; i < s->nimages; i++) free(s->images[i].rgba);
+        s->nimages = 0; s->image_bytes = 0; s->external_eof = 0;
+        if (external_open(s) < 0) return s->external_error = -1;
+    }
+    s->external_time = time_ms;
+    while (!s->external_eof) {
+        int r;
+        if (!s->pending->size && (r = av_read_frame(s->external, s->pending)) < 0) {
+            if (r != AVERROR_EOF) return s->external_error = -1;
+            s->external_eof = 1; break;
+        }
+        AVPacket *p = s->pending;
+        if (p->stream_index == s->external_stream && p->pts != AV_NOPTS_VALUE) {
+            int64_t start = av_rescale_q(p->pts, s->tb, (AVRational){1,1000});
+            if (start > time_ms) break; // Keep the first future packet, including future PGS clear sets.
+            kr_subs_feed(s, p);
+        }
+        av_packet_unref(p);
+    }
+    return 0;
+}
+
 int kr_subs_load_file(kr_subs *s, const char *path) {
-    if (!s || !path || s->track) return -1;
+    if (!s || !path || s->track || s->dec || s->external_path) return -1;
+    const char *dot = strrchr(path, '.');
+    if (dot && (!strcasecmp(dot, ".sup") || !strcasecmp(dot, ".idx"))) {
+        // Match the existing text loader's local-file contract; never introduce network subtitle I/O here.
+        if (strstr(path, "://")) return -1;
+        return load_bitmap_file(s, path, !strcasecmp(dot, ".sup") ? "sup" : "vobsub");
+    }
     size_t n = 0;
     char *b = read_all(path, &n);
     if (!b) return -1;
-    const char *dot = strrchr(path, '.');
     int r;
     if (dot && (!strcasecmp(dot, ".ass") || !strcasecmp(dot, ".ssa"))) {
         s->track = ass_read_memory(s->lib, b, n, NULL);
@@ -407,6 +477,7 @@ static int blend_bitmaps(kr_subs *s, int64_t t, uint8_t *const d[3], const int l
 
 int kr_subs_blend(kr_subs *s, int64_t t_ms, uint8_t *const data[3], const int linesize[3], int w, int h, int nv12) {
     if (!s) return 0;
+    if (external_advance(s, t_ms) < 0) return -1;
     if (!s->track) { int drawn = blend_bitmaps(s, t_ms, data, linesize, w, h, nv12); s->drawn_frames += drawn; return drawn; }
     if (!s->track->n_events) return 0;
     int changed = 0;

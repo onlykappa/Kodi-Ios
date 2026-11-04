@@ -1,9 +1,9 @@
 {
-  "recorded_utc": "2026-11-04T20:08:45.020092+00:00",
+  "recorded_utc": "2026-11-04T20:31:10.539306+00:00",
   "issue": "ISSUE-093",
   "scope": "Owner requested fixing bug-3 source compatibility gaps now; same draft PR #8, no IPA or merge.",
   "base_commit": "72221446d60d4e848507a093a7880c8a3392331f",
-  "status": "Common source compatibility gaps implemented and host-tested; device/long-Drive-seek acceptance and profile-5 conversion for incompatible receivers remain open.",
+  "status": "Expanded compatibility plus bounded HTTP retry/read transport and external bitmap loading implemented and host-tested; iOS/device/Drive acceptance and incompatible-receiver Dolby profile-5 conversion remain open.",
   "implemented": [
     "MP4/MOV/M4V files and extensionless file bytes reach codec-aware HLS copy/conversion; native HLS remains direct.",
     "Pinned dav1d AV1 software decoder; iOS requests native VideoToolbox AV1, with fallback on hardware initialization or initial decode failure.",
@@ -13,11 +13,13 @@
     "Palette-bitmap burn-in for embedded PGS/DVD/DVB/XSUB with bounded 32 MiB/256-rectangle cache, timing/clear/scaling/alpha and backward seeking.",
     "MOV sample-table presentation timestamps fix open-GOP copy/conversion alignment without reading every keyframe; sparse beginning/end indexes no longer create giant segments.",
     "Native Dolby profile-5 MP4 with compatible audio remains direct; unsupported profile-5 conversion does not silently produce incorrect colors.",
-    "Source seek/read/reconnect timing in conversion logs, alongside total production and queue wait; abort logs retain timing without labeling user stop a conversion failure."
+    "Source seek/read/reconnect timing in conversion logs, alongside total production and queue wait; abort logs retain timing without labeling user stop a conversion failure.",
+    "Bound HTTP probing to 256 KiB and subsequent ranges to 1 MiB, with optional keep-alive; fresh AVIO retries open directly at the requested offset under one read deadline, retaining stop interrupts.",
+    "Local external SUP and IDX/SUB lazy demuxing, long-cue/far/backward/clear handling and bounded bitmap rendering; app discovery/selection includes those formats and skips incomplete IDX/SUB pairs. Later subtitle input errors propagate through conversion."
   ],
   "verification": {
     "native_full_suite": {
-      "checks": 1248,
+      "checks": 1355,
       "failures": 0,
       "passed": true,
       "coverage": [
@@ -26,13 +28,15 @@
         "Actual 4K 10-bit fixture (six fps, structural scope).",
         "PQ/HLG pixel mapping, neutral chroma, black/highlights, source metadata preserved; tone mapping changes pixels.",
         "Real synthetic PGS decoder/palette/alpha/clear tests in planar/NV12 and whole burned-video pixel/timestamp comparison.",
-        "Native Dolby route with synthetic config only, not profile-5 pixel correctness."
+        "Native Dolby route with synthetic config only, not profile-5 pixel correctness.",
+        "Finite-range-only endpoint, complete byte equality across initial/subsequent ranges, EOF, forward/backward seeks, dropped-response recovery and shared timeout budget.",
+        "External real PGS and DVD/VobSub decoders: pixels in NV12/planar output, long cue on a fresh far seek, duration/clear/backward replay, 302-cue cache bound, corrupt input and whole burned-video comparisons."
       ]
     },
     "python_suites": [
       {
         "suite": "test_airplay_remux",
-        "tests": 25,
+        "tests": 27,
         "passed": true
       },
       {
@@ -53,7 +57,9 @@
       "MPEG-2/AC-3 WTV",
       "MPEG-4/float PCM NUT",
       "ProRes/24-bit PCM MOV",
-      "H.264/AAC with generated PGS bitmap/clear"
+      "H.264/AAC with generated PGS bitmap/clear",
+      "External long SUP with 302 cues including a 59-second display set",
+      "External DVD/VobSub IDX and companion MPEG program-stream SUB generated from synthetic PGS"
     ],
     "ffmpeg_patch": {
       "path": "migration/airplay-ios/ffmpeg-mov-pts.patch",
@@ -96,20 +102,57 @@
     "Constant MOV decode/presentation offset failed alignment by about 125 ms because open-GOP offsets vary. Use existing per-sample presentation times through the pinned accessor instead. First accessor compile failed its missing-prototype warning; added declaration, rebuilt and checked the patch against clean source.",
     "Generated PGS initially shifted its first cue to zero during fixture muxing; preserve source timestamps with copyts. Decoded-pixel and clear tests then pass.",
     "The synthetic Dolby configuration fixture was not emitting dvcC at default mux strictness; enable unofficial compliance in the fixture writer only. Native route and cleanup checks pass after correction.",
-    "Publication scanner initially rejected four newly required source/build files. Added only their exact paths to the existing remux allowlist; no secret/private/binary rules removed."
+    "Publication scanner initially rejected four newly required source/build files. Added only their exact paths to the existing remux allowlist; no secret/private/binary rules removed.",
+    "The old Python static source assertion required reconnect_delay_max/AVSEEK_FORCE and failed after replacement of nested HTTP retries. Removed only that obsolete implementation-string assertion; compiled byte-accuracy/fault/deadline regressions validate behavior, plus two new Python bitmap-discovery/selection tests."
   ],
   "limits": [
     "No universal every-file or every-receiver guarantee. Dolby profile-5 conversion for an incompatible TV requires a separate RPU-aware renderer. Preserved native MP4 routing requires compatible audio/receiver; the synthetic test is routing only.",
     "HDR software color mapping, AV1 hardware fallback, sustained 4K/24\u201360 fps and actual TV acceptance still need a newly built framework and phone results.",
     "Long Drive seeks are not declared resolved. Source I/O telemetry narrows the next capture; a blocked or obsolete foreground read may still delay a new request.",
-    "External bitmap files, fresh seeks into unusually long cues beyond lookback, arbitrary HLS codec conversion and every enabled profile/container combination are not individually covered.",
-    "Published KodiAirPlay r11 is unchanged. Build/publish a new framework, verify/pin it before any separately requested IPA. No release or merge."
+    "External SUP/IDX single-stream paths are tested. Fresh seeks into unusually long embedded cues beyond ten-second lookback, external multi-language VobSub selection, arbitrary HLS codec conversion and every enabled profile/container combination remain open.",
+    "Published KodiAirPlay r11 is unchanged. Build/publish a new framework, verify/pin it before any separately requested IPA. No release or merge.",
+    "Bounded ranges add HTTP round trips; the synthetic stalled-read deadline result is not a phone seek-speed improvement. Dedicated external subtitle replay can reread that local subtitle file after backward seeks; it does not scan movie bytes."
   ],
   "owner_requested_progress_estimate": {
     "scope": "Bug 3 overall completion and source readiness, relative to the installed pre-fix baseline",
-    "overall_percent": 70,
+    "overall_percent": 75,
     "source_readiness_before_out_of_10": 4,
     "source_readiness_after_out_of_10": 8,
-    "basis": "Subjective engineering/planning estimate; common source changes are host-tested, remaining native/device/Drive validation and Dolby profile-5 renderer work are material. Not a measured performance improvement."
+    "basis": "Subjective planning estimate, increased from 70% for bounded transport/deadline and external bitmap source work. Source-readiness rating remains 8/10 pending native/device results; not a measured phone performance improvement."
+  },
+  "transport_subtitle_followup": {
+    "base_commit": "514d1b3dedbf27bc2a5272a90f7f95b2468a456a",
+    "before_transport_regression": {
+      "checks_executed": 10,
+      "failures": 2,
+      "finite_range_endpoint_opened": false,
+      "configured_read_budget_seconds": 1,
+      "stalled_read_elapsed_seconds": 5.211,
+      "note": "Old reader eventually returned bytes despite exceeding its budget; baseline compiled against the same host dependencies and new fault harness."
+    },
+    "after_transport_regression": {
+      "checks": 19,
+      "failures": 0,
+      "configured_read_budget_seconds": 1,
+      "stalled_read_elapsed_seconds": 1.002,
+      "scope": "Synthetic loopback fault injection; normal configured production timeout remains unchanged, not a movie-seek measurement."
+    },
+    "external_bitmap_focused": {
+      "checks": 88,
+      "failures": 0,
+      "includes": "Real SUP/DVD decoder pixels, long cues, clears, forward/backward/cache and full burned-video comparison; no personal media."
+    },
+    "native_full_suite_checks": 1355,
+    "native_full_suite_failures": 0,
+    "python_tests": 35,
+    "project_and_ios_static_checks_passed": true,
+    "local_file_only_subtitle_protocols": true,
+    "native_ios_compile": false,
+    "live_drive_or_receiver_test": false,
+    "source_only": true,
+    "published_framework_pin": "r11",
+    "ipa_built": false,
+    "framework_published": false,
+    "merged": false
   }
 }

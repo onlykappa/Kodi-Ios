@@ -273,6 +273,72 @@ static void test_file(const char *url, const fixture *fx, const char *work) {
     CHECK(gone.status == -1, "%s: the server is gone after stop", fx->file);
 }
 
+static void test_source_transport(const char *http_base) {
+    char url[512], path[512], err[256] = "";
+    extern const char *fixture_dir;
+    snprintf(path, sizeof path, "%s/h264_dts.mkv", fixture_dir);
+    FILE *f = fopen(path, "rb");
+    CHECK(f != NULL, "transport fixture opens");
+    if (!f) return;
+    uint8_t *a = malloc(1500000), *b = malloc(1500000);
+    CHECK(a && b, "transport comparison buffers allocated");
+    if (!a || !b) { free(a); free(b); fclose(f); return; }
+    snprintf(url, sizeof url, "%s/bounded/h264_dts.mkv", http_base);
+    kr_source *s = kr_source_open(url, 3, err, sizeof err);
+    CHECK(s != NULL, "finite-range-only server opens (%s)", err);
+    if (s) {
+        int64_t size = kr_source_size(s), offset = 0;
+        // Each read spans the initial 256 KiB and subsequent 1 MiB HTTP response boundaries.
+        while (offset < size) {
+            int n = kr_source_read(s, offset, a, 1500000);
+            int m = (int)fread(b, 1, 1500000, f);
+            CHECK(n == m && n > 0 && !memcmp(a, b, (size_t)n), "bounded sequential bytes at %lld (%d/%d)", (long long)offset, n, m);
+            if (n <= 0 || n != m) break;
+            offset += n;
+        }
+        CHECK(offset == size && kr_source_read(s, size, a, 1) == 0, "bounded reads reach exact EOF");
+        int64_t offsets[] = { size-23, 4096, size/2, 0 };
+        for (int i = 0; i < 4; i++) {
+            int n = kr_source_read(s, offsets[i], a, 4096);
+            fseek(f, (long)offsets[i], SEEK_SET);
+            int m = (int)fread(b, 1, 4096, f);
+            CHECK(n == m && n > 0 && !memcmp(a, b, (size_t)n), "bounded forward/backward seek at %lld", (long long)offsets[i]);
+        }
+        kr_source_close(s);
+    }
+    snprintf(url, sizeof url, "%s/recover/h264_dts.mkv", http_base);
+    s = kr_source_open(url, 3, err, sizeof err);
+    CHECK(s != NULL, "fault-injection source opens");
+    if (s) {
+        int n = kr_source_read(s, 700000, a, 4096);
+        fseek(f, 700000, SEEK_SET); int m = (int)fread(b, 1, 4096, f);
+        CHECK(n == m && n > 0 && !memcmp(a, b, (size_t)n), "truncated seek response recovers exact bytes on fresh connection");
+        n = kr_source_read(s, 704096, a, 4096);
+        m = (int)fread(b, 1, 4096, f);
+        CHECK(n == m && n > 0 && !memcmp(a, b, (size_t)n), "reading continues from recovered offset");
+        n = kr_source_read(s, 699900, a, 4096);
+        fseek(f, 699900, SEEK_SET); m = (int)fread(b, 1, 4096, f);
+        CHECK(n == m && n > 0 && !memcmp(a, b, (size_t)n), "backward seek within reopened buffer preserves absolute offsets");
+        kr_source_close(s);
+    }
+    snprintf(url, sizeof url, "%s/stall/h264_dts.mkv", http_base);
+    s = kr_source_open(url, 1, err, sizeof err);
+    CHECK(s != NULL, "stalled-read source opens");
+    if (s) {
+        struct timespec before, after;
+        clock_gettime(CLOCK_MONOTONIC, &before);
+        int n = kr_source_read(s, 700000, a, 4096);
+        clock_gettime(CLOCK_MONOTONIC, &after);
+        double elapsed = after.tv_sec-before.tv_sec + (after.tv_nsec-before.tv_nsec)/1e9;
+        CHECK(n < 0 && elapsed >= .8 && elapsed < 1.8, "stalled read honors ONE timeout budget, not three (%.3f s, result %d)", elapsed, n);
+        printf("  stalled source: one-second read budget returned in %.3f s\n", elapsed);
+        kr_source_abort(s);
+        CHECK(kr_source_read(s, 0, a, 4096) < 0, "timed-out source still honors stop");
+        kr_source_close(s);
+    }
+    free(a); free(b); fclose(f);
+}
+
 static void test_range_source(const char *http_base) {
     char url[512]; snprintf(url, sizeof url, "%s/h264_dts.mkv", http_base);
     char err[256] = "";
@@ -877,6 +943,59 @@ static void test_bitmap_subtitles(const char *url) {
     free(buf); av_packet_free(&p); kr_subs_free(s); avformat_close_input(&f);
 }
 
+static void test_external_bitmaps(void) {
+    char path[1024]; snprintf(path, sizeof path, "%s/long.sup", fixture_dir);
+    uint8_t *buf = malloc(320*180*3/2), *d[3]; int ls[3];
+    CHECK(buf != NULL, "external bitmap frame allocated");
+    if (!buf) return;
+    for (int nv12 = 0; nv12 <= 1; nv12++) {
+        kr_subs *s = kr_subs_create(320,180);
+        int opened = kr_subs_load_file(s, path);
+        CHECK(s && opened == 0, "external SUP opens (nv12 %d)", nv12);
+        if (!s || opened < 0) { kr_subs_free(s); continue; }
+        CHECK(kr_subs_events(s) == 0, "external SUP does not predecode the entire file");
+        int64_t times[] = { 45000,60000,135000,150000,798500,799000,45000,500,120000,135000 };
+        int expected[] = { 1,0,1,0,1,0,1,0,1,1 };
+        for (unsigned i = 0; i < sizeof times / sizeof *times; i++) {
+            gray(buf,d,ls,nv12);
+            int drawn = kr_subs_blend(s,times[i],d,ls,320,180,nv12);
+            CHECK(drawn == expected[i] && (!drawn || d[0][130*ls[0]+40]>220),
+                  "external bitmap at %lld ms: long cue/fresh seek/clear/backward pixels (%d)", (long long)times[i], drawn);
+            CHECK(kr_subs_events(s) <= 256, "external bitmap cache stays bounded (%d)",kr_subs_events(s));
+        }
+        kr_subs_free(s);
+        snprintf(path,sizeof path,"%s/dvd.idx",fixture_dir);
+        s = kr_subs_create(320,180);
+        CHECK(kr_subs_load_file(s,path)==0,"actual external IDX/SUB decoder opens");
+        gray(buf,d,ls,nv12);
+        CHECK(kr_subs_blend(s,500,d,ls,320,180,nv12)==0,"DVD bitmap absent before cue");
+        CHECK(kr_subs_blend(s,2000,d,ls,320,180,nv12)==1 && d[0][130*ls[0]+40]>220,"DVD bitmap decoded white pixels");
+        gray(buf,d,ls,nv12);
+        CHECK(kr_subs_blend(s,3500,d,ls,320,180,nv12)==0,"DVD bitmap duration ends cue");
+        CHECK(kr_subs_blend(s,2000,d,ls,320,180,nv12)==1,"DVD backward replay restores cue");
+        kr_subs_free(s);
+        snprintf(path,sizeof path,"%s/long.sup",fixture_dir);
+    }
+    kr_subs *s = kr_subs_create(320,180);
+    snprintf(path,sizeof path,"%s/missing.sup",fixture_dir);
+    CHECK(kr_subs_load_file(s,path)<0,"missing external bitmap refused"); kr_subs_free(s);
+    s = kr_subs_create(320,180);
+    CHECK(kr_subs_load_file(s,"http://127.0.0.1/untrusted.sup")<0,"external bitmap loader remains local-only"); kr_subs_free(s);
+    snprintf(path,sizeof path,"%s/out/bad.sup",fixture_dir);
+    FILE *bad = fopen(path,"wb"); fputs("invalid PGS",bad); fclose(bad);
+    s = kr_subs_create(320,180);
+    CHECK(kr_subs_load_file(s,path)<0,"corrupt external bitmap refused at load"); kr_subs_free(s);
+    char original[1024]; snprintf(original,sizeof original,"%s/box.sup",fixture_dir);
+    FILE *input = fopen(original,"rb"); bad = fopen(path,"wb"); int c;
+    while ((c=fgetc(input))!=EOF) fputc(c,bad);
+    fputs("broken tail",bad); fclose(input); fclose(bad);
+    s = kr_subs_create(320,180);
+    CHECK(kr_subs_load_file(s,path)==0,"valid header with later damage opens lazily");
+    gray(buf,d,ls,1);
+    CHECK(kr_subs_blend(s,8000,d,ls,320,180,1)<0,"later subtitle I/O corruption is an error, not silent missing captions"); kr_subs_free(s);
+    free(buf);
+}
+
 static void test_burn_render(void) {
     char path[1024];
     static uint8_t buf[320 * 180 * 3 / 2];
@@ -967,7 +1086,7 @@ static int region_diff(const uint8_t *a, const uint8_t *b, int y0, int y1, int b
 
 // The SRT stream of h264_aac_srt.mkv (cue 1-3 s) burned into segment 0: frames before the cue identical to the
 // unburned conversion, frames during it changed at the bottom, the same frames and times (grid unchanged).
-static void test_burn_video(const char *work, const char *file) {
+static void test_burn_video(const char *work, const char *file, const char *external) {
     char url[1024], err[256] = "", tmp[1024];
     snprintf(url, sizeof url, "file:%s/%s", fixture_dir, file);
     kr_source *s0 = kr_source_open(url, 10, err, sizeof err), *s1 = kr_source_open(url, 10, err, sizeof err),
@@ -979,7 +1098,7 @@ static void test_burn_video(const char *work, const char *file) {
     if (!gm || !plain || !burn) goto out;
     CHECK(kr_video_burn(plain, -1, NULL, err, sizeof err) == 0 && !kr_video_burning(plain), "no subtitles: nothing burned");
     CHECK(kr_video_burn(burn, 1, NULL, err, sizeof err) < 0, "an audio stream is not a subtitle (%s)", err);
-    CHECK(kr_video_burn(burn, 2, NULL, err, sizeof err) == 0 && kr_video_burning(burn), "subtitle stream 2 burned (%s)", err);
+    CHECK(kr_video_burn(burn, external ? -1 : 2, external, err, sizeof err) == 0 && kr_video_burning(burn), "chosen subtitle burned (%s)", err);
     // r11: a source stream's events load with the picture (the r10 "0 events loaded" log line was read before any).
     CHECK(kr_video_burn_events(burn) == 0 && kr_video_burn_drawn(burn) == 0, "no events before the first segment is read");
     gm_buf a = {0}, b = {0}, a2 = {0};
@@ -1063,6 +1182,22 @@ int main(int argc, char **argv) {
     // r10: the copy/compat checks below run without burned subtitles (the files' default SRT would be picked).
     kr_remux_set_subtitles(-1, NULL, NULL);
     kr_subs_set_font_file(getenv("KR_TEST_FONT"));
+    if (argc > 3 && !strcmp(argv[3], "--source-only")) {
+        test_source_transport(argv[2]);
+        printf("%d checks, %d failed\n", checks, failures);
+        return failures ? 1 : 0;
+    }
+    if (argc > 3 && !strcmp(argv[3], "--bitmap-only")) {
+        char work[1024], path[1024];
+        snprintf(work,sizeof work,"%s/out",fixture_dir); mkdir(work,0755);
+        snprintf(path,sizeof path,"%s/box.sup",fixture_dir);
+        kr_video_set_encoder("mpeg4"); test_external_bitmaps();
+        test_burn_video(work,"h264_aac_srt.mkv",path);
+        snprintf(path,sizeof path,"%s/dvd.idx",fixture_dir);
+        test_burn_video(work,"h264_aac_srt.mkv",path);
+        printf("%d checks, %d failed\n", checks, failures);
+        return failures ? 1 : 0;
+    }
     if (argc > 3 && !strcmp(argv[3], "--seek-only")) {
         kr_video_set_encoder("mpeg4");
         test_seek_overlap(argv[2]);
@@ -1129,8 +1264,13 @@ int main(int argc, char **argv) {
         test_receivers(url, h264, work);
         printf("-- r10 burned-in subtitles (libass)\n"); fflush(stdout);
         test_burn_render();
-        test_burn_video(work, "h264_aac_srt.mkv");
-        test_burn_video(work, "h264_pgs.mkv");
+        test_burn_video(work, "h264_aac_srt.mkv", NULL);
+        test_burn_video(work, "h264_pgs.mkv", NULL);
+        char external[1024]; snprintf(external, sizeof external, "%s/box.sup", fixture_dir);
+        test_burn_video(work, "h264_aac_srt.mkv", external);
+        snprintf(external, sizeof external, "%s/dvd.idx", fixture_dir);
+        test_burn_video(work, "h264_aac_srt.mkv", external);
+        test_external_bitmaps();
         test_burn_select();
         snprintf(url, sizeof url, "file:%s/h264_pgs.mkv", argv[1]); test_bitmap_subtitles(url);
         kr_video_set_encoder("no_such_encoder");
@@ -1146,6 +1286,7 @@ int main(int argc, char **argv) {
     if (argc > 2) {
         printf("-- over HTTP (%s)\n", argv[2]);
         test_range_source(argv[2]);
+        test_source_transport(argv[2]);
         char url[1024]; snprintf(url, sizeof url, "%s/h264_ac3_dts_srt.mkv", argv[2]);
         test_file(url, &fx[4], work);
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);

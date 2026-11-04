@@ -66,6 +66,8 @@ X265=(-c:v libx265 -preset ultrafast -x265-params keyint=48:min-keyint=48:scenec
 cp "$OUT/hevc_ac3.mp4" "$OUT/mp4_bytes"
 printf '#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nsegment.ts\n#EXT-X-ENDLIST\n' > "$OUT/native_hls"
 python3 -B "$(dirname "$0")/make_pgs.py" "$OUT/box.sup"
+python3 -B "$(dirname "$0")/make_pgs.py" "$OUT/long.sup" --long
+python3 -B "$(dirname "$0")/make_pgs.py" "$OUT/dvd.idx" --vobsub
 "${F[@]}" -copyts -i "$OUT/h264_aac_srt.mkv" -i "$OUT/box.sup" -map 0:v -map 0:a -map 1:s -c copy \
   -disposition:s:0 default "$OUT/h264_pgs.mkv"
 ls -l "$OUT"

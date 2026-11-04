@@ -186,9 +186,8 @@ class R9Speed(unittest.TestCase):
   for needle in ('t_err','session stopped','atomic_store(&vc_seg, seg)','pthread_mutex_trylock(&S.sgm_lock)',
                  'if (third || S.compat) prefetch_push(R_VCOMPAT, 0);'):
    self.assertIn(needle,code)
-  source=(src/'kr_source.c').read_text()
-  for needle in ('reconnect_delay_max','AVSEEK_FORCE','read_once('):
-   self.assertIn(needle,source)
+  # Source retry/seek behavior is exercised by compiled fault-injection tests; do not require the old
+  # nested HTTP reconnect/AVSEEK_FORCE implementation, which could exceed its timeout repeatedly.
   gm=(src.parent/'gmplayer/gm_stream.c').read_text()
   self.assertIn('av_seek_frame(s->in, -1, (int64_t)(seek_to * AV_TIME_BASE)',gm)
   self.assertIn('"subtitle read"',gm)
@@ -228,6 +227,22 @@ class R10BurnedSubtitles(unittest.TestCase):
   self.assertIsNone(airplay.send_subtitles(types.SimpleNamespace(),X,vfs,0))
   source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
   self.assertLess(source.index('airplay.send_subtitles('),source.index("lib.kodi_airplay_play(source.encode"))
+ def test_external_bitmap_choice(self):
+  now=10_000_000
+  props={'subtitleenabled':True,'currentsubtitle':{'index':4,'language':'eng','name':'Movie.PGS'}}
+  files=[('/t/Movie.PGS.sup',now-60),('/t/other.srt',now)]
+  self.assertEqual(airplay.subtitle_choice(props,files,now),(-2,'/t/Movie.PGS.sup','eng'))
+  props['currentsubtitle']['name']='Movie.DVD.sub'
+  self.assertEqual(airplay.subtitle_choice(props,[('/t/Movie.DVD.idx',now-30)],now),(-2,'/t/Movie.DVD.idx','eng'))
+  props['subtitleenabled']=False
+  self.assertEqual(airplay.subtitle_choice(props,files,now),(-1,'',''))
+ def test_bitmap_discovery_keeps_vobsub_pair(self):
+  def translate(folder):
+   if folder==airplay.SUB_DIRS[0]:return '/subs'
+   raise OSError('not present')
+  entries=['Movie.sup','Other.idx','Other.sub','partial.idx','notes.txt']
+  found=airplay.recent_subtitle_files(translate,lambda p:entries,lambda p:123)
+  self.assertEqual(set(found),{('/subs/Movie.sup',123),('/subs/Other.idx',123)})
  def test_framework_r11(self):
   """r11 (owner logs): audio waited 5.5 s behind WebVTT reads on its shared lane and the TV hung up."""
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()

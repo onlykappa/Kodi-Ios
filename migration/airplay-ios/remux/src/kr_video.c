@@ -481,9 +481,10 @@ static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen)
                 if (CVPixelBufferLockBaseAddress(pb, 0) == kCVReturnSuccess) {
                     uint8_t *d[3] = { CVPixelBufferGetBaseAddressOfPlane(pb, 0), CVPixelBufferGetBaseAddressOfPlane(pb, 1), NULL };
                     int ls[3] = { (int)CVPixelBufferGetBytesPerRowOfPlane(pb, 0), (int)CVPixelBufferGetBytesPerRowOfPlane(pb, 1), 0 };
-                    if (d[0] && d[1]) kr_subs_blend(j->v->subs, frame_ms(j, pts), d, ls, j->v->ow, j->v->oh, 1);
+                    int sub = d[0] && d[1] ? kr_subs_blend(j->v->subs, frame_ms(j, pts), d, ls, j->v->ow, j->v->oh, 1) : -1;
                     CVPixelBufferUnlockBaseAddress(pb, 0);
-                }
+                    if (sub < 0) { seterr(err, errlen, "subtitle input/render", 0); return -1; }
+                } else { seterr(err, errlen, "subtitle frame buffer", 0); return -1; }
             }
             goto send;
         }
@@ -502,9 +503,10 @@ static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen)
     r = convert(j, sw, err, errlen);
     av_frame_free(&tmp);
     if (r < 0) return -1;
-    if (j->v->subs)  // r10: burned in after scaling, at this frame's own time
-        kr_subs_blend(j->v->subs, frame_ms(j, pts), j->conv->data, j->conv->linesize, j->v->ow, j->v->oh,
-                      j->conv->format == AV_PIX_FMT_NV12);
+    if (j->v->subs && kr_subs_blend(j->v->subs, frame_ms(j, pts), j->conv->data, j->conv->linesize, j->v->ow, j->v->oh,
+                                  j->conv->format == AV_PIX_FMT_NV12) < 0) {
+        seterr(err, errlen, "subtitle input/render", 0); return -1;
+    }
 #ifdef KR_GPU
 send:
 #endif
