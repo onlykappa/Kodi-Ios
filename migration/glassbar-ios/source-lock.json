@@ -1,14 +1,11 @@
 {
   "framework_release": {
-    "tag": "kodi-glassbar-r4",
+    "tag": "kodi-glassbar-r5",
     "asset": "KodiGlassBar.framework.zip",
-    "sha256": "9eb413fbbe5268826d3e0670534b709c173e9cc5c8229a3f0250a0c3ea36dab4"
+    "sha256": "d4afde35835827a57ac93b327d9f8d94bf373bc28d20e9614acf9594c3441ece"
   },
   "previous": {
-    "tag": "kodi-glassbar-r3",
-    "sha256": "863dd6efaf28855d8d86c867f7ab0db482ee744e7ac96e9d43d283022472b420"
-  },
-  "build_tag": "kodi-glassbar-r5",
-  "build_status": "PENDING",
-  "build_note": "r5 stages the native-owner handshake (kodi_glassbar_set_native_owner / kodi_glassbar_native_owner) so the Kodi executable r22 shows the tab bar as Home opens, and an instant first show. PENDING: not built or pinned; framework_release stays the verified r4 until a separately authorized macOS build is checked. r4 keeps working with every Kodi executable (the add-on drives it)."
+    "tag": "kodi-glassbar-r4",
+    "sha256": "9eb413fbbe5268826d3e0670534b709c173e9cc5c8229a3f0250a0c3ea36dab4"
+  }
 }

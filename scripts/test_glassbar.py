@@ -200,10 +200,12 @@ class NativeOwnerTests(unittest.TestCase):
     elif action.startswith('SetFocus('):self.assertIn('"SetFocus(" + std::to_string(4000 + 10000 * tapped) + ")"',block);self.assertIn(action,['SetFocus(%d)'%(4000+10000*i) for i in range(3)])
     else:self.assertIn('"%s"'%action,block)
     if condition:self.assertIn('info.EvaluateBool("%s", context)'%condition,block)
- def test_locks_stage_r5_and_r22_as_pending(self):
+ def test_locks_pin_r5_and_stage_r22(self):
   bar=json.loads((ROOT/'migration/glassbar-ios/source-lock.json').read_text())
-  self.assertEqual((bar['build_tag'],bar['build_status']),('kodi-glassbar-r5','PENDING'))
-  self.assertEqual(bar['framework_release']['tag'],'kodi-glassbar-r4','r5 is not pinned before a checked build')
+  self.assertEqual(bar['framework_release']['tag'],'kodi-glassbar-r5')
+  self.assertRegex(bar['framework_release']['sha256'],r'^[0-9a-f]{64}$')
+  self.assertEqual(bar['previous']['tag'],'kodi-glassbar-r4')
+  self.assertNotIn('build_status',bar)
   exe=json.loads((ROOT/'migration/ios-portrait/source-lock.json').read_text())
   self.assertEqual((exe['build_tag'],exe['build_status'],exe['executable_release']['tag']),('kodi-ios-portrait-r22','PENDING','kodi-ios-portrait-r21'))
   self.assertIn('native tab bar',exe['build_note'])
