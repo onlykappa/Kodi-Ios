@@ -100,4 +100,17 @@ class Overlap(unittest.TestCase):
   self.assertIn('!Skin.HasSetting(Portrait.NativeTabBar)',portrait.tabbar('home'))
   self.assertFalse(hasattr(glassbar,'ACTIONS'),'a second copy of the tab actions')
 
+class LaunchToMenus(unittest.TestCase):
+ # Owner (2026-11-04 logs): launch logo, then Kodi's "KODI 21.3 OMEGA" splash, then Home; the tab bar came last because
+ # Python (the add-on that drove it) starts 1.6-4.5 s after Home. Timeline in docs/PERFORMANCE.md.
+ def test_tab_bar_does_not_wait_for_python(self):
+  patch=(ROOT/'migration/ios-portrait/kodi-21.3-portrait.patch').read_text()
+  self.assertIn('+  KodiIOSGlassBarTick();',patch,'Kodi shows the bar from its own frame loop')
+  ui=(LIB/'native_ui.py').read_text()
+  self.assertLess(ui.index('glassbar.native_owner(lib)'),ui.index('glassbar.controller('),'no second owner when Kodi drives it')
+ def test_no_kodi_splash_and_no_logo_launch_screen(self):
+  src=(ROOT/'scripts/build_customized_ipa.py').read_text()
+  self.assertIn('ios_portrait.disable_splash(system.parent)',src)
+  self.assertIn("'launch_screen':black_launch_screen(app)",(ROOT/'scripts/ios_portrait.py').read_text())
+
 if __name__=='__main__':unittest.main()

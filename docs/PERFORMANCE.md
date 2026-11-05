@@ -179,3 +179,84 @@ separate native worker entry and the first show request from full bootstrap entr
 on UIKit, so it does not establish the time the bar is actually visible. Five new host regressions verify ordering,
 landscape exclusion, fallback and recovery behavior. Actual five-second bar delay and launch-to-poster time need a
 complete phone test after a separately requested build. No native framework was rebuilt or repinned.
+
+
+## Launch to menus: splash, launch screen and an instant tab bar — 2026-11-05
+
+Owner: the app opens on the iOS launch screen (static Kodi logo), then Kodi's "KODI v21.3 OMEGA" splash, then the
+menus; pages load quicker now but the bottom tab bar "takes forever". Wanted: the best preloader, no splash, the bar
+at once.
+
+**Timeline from the owner's three startup logs** (Kodi 21.3 r21 executable, KodiGlassBar r4; times from Kodi's first
+log record, which is itself some time after the process starts — that part is not in the log):
+
+| Milestone (log line) | 12:07:29 log | 12:10:26 log | 10:41:24 log |
+| --- | --- | --- | --- |
+| Kodi starts (`Starting Kodi`) | 0.000 s | 0.000 s | 0.000 s |
+| Skin loaded, Home.xml loaded (`Loading skin file: Home.xml`) — Kodi's splash is on screen until here | 0.751 | 0.469 | 0.820 |
+| Kodi init done (`initialize done`, service add-ons were started just before it) | 0.794 | 0.496 | 0.873 |
+| First Python output (`[ plugin.video.umbrella ] Service Started`) | 2.445 | 2.491 | 5.394 |
+| Bootstrap service running: listing-cache start check (`listing cache: 30 rows and heroes served from copies`) | 3.983 | 4.057 | 8.145 |
+| Portrait layout check done (`portrait files checked ... 0 updated`) | 7.565 | 7.211 | 11.630 |
+| Glass bar shown | not logged (≥ first Python output; the bar's worker is in the bootstrap service, which runs beside ~8 other services' Python start) | | |
+| First rows/hero filled | not logged by this build (the readiness lines arrived on 2026-11-04) | | |
+
+Findings:
+
+1. **Kodi itself is quick:** Home is the active window 0.5-0.9 s after Kodi's first log line. Everything Kodi draws
+   before that is its splash picture (`CApplication::CreateGUI` → `CRenderSystemBase::ShowSplash`).
+2. **Every Python piece waits 1.6-4.5 s after Home.** Kodi starts all service add-ons together right before
+   `initialize done`; the first Python line appears 1.65 / 2.00 / 4.52 s later, and the bootstrap service (which drove
+   the tab bar) reached its listing-cache check 3.2-7.3 s after Home. Moving the bar earlier *inside* Python
+   (ISSUE-090) could not beat this: interpreter start and the other add-ons' imports share one GIL. Each Python
+   `getCondVisibility` also waits for Kodi's "external calls" window in `CApplication::FrameMove` (2-80 ms).
+3. **Rows from the copies also need Python.** The cached route is a plugin run (a light one: one JSON read), so a row
+   cannot fill before Python starts. With all 30 copies present (all three logs) the rows fill once Python runs, not
+   3-5 s after it; nothing more can be gained in Python.
+
+**Changes**
+
+- *No Kodi splash* — `scripts/ios_portrait.disable_splash` writes `<splash>false</splash>` into
+  `Kodi.app/AppData/AppHome/system/advancedsettings.xml` (special://xbmc/system). Pinned Kodi reads that file before
+  the profile's own `advancedsettings.xml` (`CAdvancedSettings::Load`), so it applies to existing installs with the
+  next IPA and an owner's own file still wins. `ShowSplash("")` then returns at once; text messages (database
+  upgrade) still show. Verified in the pinned 21.3 source, not on the phone.
+- *Black launch screen* — the official launch storyboard is a black view with one image, `applaunch_screen.png` (the
+  logo), at the app root (pinned `cmake/scripts/darwin_embedded/Install.cmake`). `black_launch_screen` replaces that
+  picture with an all-black PNG of the same size (handles Xcode's CgBI PNGs). No storyboard rebuild (needs ibtool on
+  macOS). The phone then shows black → Home's first frame. iOS caches launch snapshots; an update or restart refreshes
+  it.
+- *Tab bar from Kodi, not Python* — Kodi executable r22 (staged, `migration/ios-portrait/kodi-21.3-portrait.patch`,
+  `xbmc/application/Application.cpp`): on the first `CApplication::Process` loop (right after `initialize done`, Home
+  already active) Kodi `dlopen`s `Frameworks/KodiGlassBar.framework`, claims it with `kodi_glassbar_set_native_owner(1)`
+  and, on its own thread with the graphics lock, applies the same rules as `glassbar.controller`: Arctic Fuse in
+  portrait, no modal dialog, one of the five pages (`glassbar.PAGES`, same order) → show + select; anything else
+  (fullscreen video, visualisation, other windows, landscape) → hide. Visibility every 0.1 s (0.5 s in fullscreen
+  video); taps are taken every loop and run `ios_tabs.tab_actions`' builtins through
+  `CApplicationMessenger::PostMsg(TMSG_EXECUTE_BUILT_IN)` (what `xbmc.executebuiltin` does). It sets
+  `Skin.SetBool(Portrait.NativeTabBar)` if missing. KodiGlassBar r5 (staged) adds the owner flag
+  (`kodi_glassbar_set_native_owner` / `kodi_glassbar_native_owner`) and shows the first time without the fade.
+  **One owner:** the add-on's `native_ui` worker asks `glassbar.native_owner(lib)`; when Kodi owns the bar it never
+  shows/hides/selects or takes taps, does not touch the skin flag (not even on failure), and keeps only the native
+  Search field. Old pieces keep working: r21 executable or r4 framework → the add-on drives the bar as before.
+  Expected on the phone: the bar with Home's first frames, ~0.5-0.9 s after Kodi's first log line instead of
+  ≥ 2.4-5.4 s. New log line: `Kodi iOS startup: native tab bar shown by Kodi (page N)`.
+
+**Preloader (step 4).** The hub row cache and preloader are already the best Python can do for this timeline: every
+row of all three hubs asks for its list when Home opens (`AllocResources`), flags choose the copy without Python, and
+each copy is a single JSON read once Python runs. Writing the copies into the skin as static `<content>` items, so
+rows draw before Python, was considered and **not done**: static items (`CGUIStaticItem`) only carry label, label2,
+thumb, icon, properties and onclick, while the rows use poster/fanart/clearlogo art, TMDb Helper's playable/folder
+semantics and its long-press entries; the skin files would have to be regenerated after every copy refresh and only
+take effect on the next launch (Home.xml is kept in memory), and a mismatch would silently show stale or broken rows.
+That is not robust enough. What remains between Home and posters is Kodi's Python start, then image decode.
+
+**Needs native builds (not done here, no macOS):** Kodi executable r22 (`kodi-ios-portrait.yml`) and KodiGlassBar r5
+(`glassbar-ios.yml`, now publishing `build_tag`); both are PENDING in their source locks and stay unpinned
+(`executable_release` r21, `framework_release` r4) until a checked build. The C++ block was syntax-checked against
+stubs and the whole patch dry-runs cleanly on the pinned Kodi files; it has not been compiled with Kodi's headers.
+Splash and launch-screen changes need only the IPA build. No phone timing is claimed.
+
+Guard rails: `scripts/test_glassbar.py` (handshake, framework exports, native rules equal `glassbar.PAGES` and
+`ios_tabs.tab_actions`, pending locks, black PNG, splash file), `test_native_ui.py` (no second owner, skin flag kept
+on failure), `test_performance_budget.py` (`LaunchToMenus`), `test_customized_ipa.py` (advancedsettings in the app).
