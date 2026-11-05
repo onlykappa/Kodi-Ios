@@ -10,8 +10,10 @@
 #include "../src/kr_source.h"
 #include "../src/kr_video.h"
 #include "../src/kr_color.h"
+#include "../src/kr_dovi.h"
 #include <libswscale/swscale.h>
 #include <libavutil/dovi_meta.h>
+#include <libavutil/intreadwrite.h>
 #include "../src/kr_subs.h"
 #include <pthread.h>
 #include <time.h>
@@ -28,6 +30,7 @@
 #include <libavcodec/avcodec.h>
 
 static int failures, checks;
+extern const char *fixture_dir;
 #define CHECK(c, ...) do { checks++; if (!(c)) { failures++; printf("FAIL %s:%d: ", __FILE__, __LINE__); printf(__VA_ARGS__); printf("\n"); } } while (0)
 
 typedef struct { int status; char *body; size_t len; char head[1024]; } reply;
@@ -706,8 +709,8 @@ static void test_dovi_native_route(const char *input, const char *work) {
     if (r >= 0) r = av_write_trailer(out);
     av_packet_free(&p); avio_closep(&out->pb); avformat_free_context(out); avformat_close_input(&in);
     CHECK(r >= 0, "synthetic Dolby configuration is muxed");
-    if (r >= 0) CHECK(kr_remux_start(path, 0, 0, playlist, sizeof playlist) == KR_NOT_NEEDED,
-        "compatible native Dolby route is preserved (%s)", kr_remux_message());
+    if (r >= 0) CHECK(kr_remux_start(path, 0, 0, playlist, sizeof playlist) == KR_READY && kr_remux_compat(),
+        "profile-5 metadata selects RPU-aware compatibility instead of an unsafe receiver bypass (%s)", kr_remux_message());
     kr_remux_stop();
     CHECK(kr_remux_state() == KR_IDLE, "native Dolby routing cleans up the previous session");
 }
@@ -743,6 +746,60 @@ static void test_color_mapping(void) {
     src->colorspace = AVCOL_SPC_IPT_C2;
     CHECK(kr_color_convert(&ctx, dst, src) < 0, "IPT/Dolby Vision cannot be relabeled as ordinary HDR");
     kr_color_free(ctx); av_frame_free(&src); av_frame_free(&dst);
+}
+
+static void test_dovi_render(const char *work) {
+    char path[1024]; snprintf(path,sizeof path,"%s/dovi.mkv",fixture_dir);
+    AVFormatContext *input=NULL;
+    int r=avformat_open_input(&input,path,NULL,NULL);
+    CHECK(r>=0,"RPU fixture opens"); if(r<0)return;
+    avformat_find_stream_info(input,NULL);
+    AVCodecContext *dec=avcodec_alloc_context3(avcodec_find_decoder(AV_CODEC_ID_HEVC));
+    avcodec_parameters_to_context(dec,input->streams[0]->codecpar);avcodec_open2(dec,dec->codec,NULL);
+    AVPacket *p=av_packet_alloc(); AVFrame *src=av_frame_alloc(),*pq=av_frame_alloc(),*sdr=av_frame_alloc();
+    int got=0;
+    while(av_read_frame(input,p)>=0){if(p->stream_index==0){avcodec_send_packet(dec,p);if(avcodec_receive_frame(dec,src)==0)got=1;}av_packet_unref(p);if(got)break;}
+    CHECK(got && kr_dovi_is_profile5(src),"real HEVC decoder exposes parsed profile-5 metadata");
+    kr_dovi *ctx=NULL;kr_color *color=NULL;
+    if(got){
+        pq->width=src->width;pq->height=src->height;
+        r=kr_dovi_convert(&ctx,pq,src);CHECK(r==0,"RPU reshape/IPT/PQ/LMS pipeline renders (%d)",r);
+        if(!r){
+            snprintf(path,sizeof path,"%s/dovi-rgb48.raw",work); FILE *f=fopen(path,"wb");
+            for(int y=0;y<pq->height;y++)fwrite(pq->data[0]+y*pq->linesize[0],1,(size_t)pq->width*6,f);
+            fclose(f);
+            CHECK(pq->color_trc==AVCOL_TRC_SMPTE2084 && pq->color_primaries==AVCOL_PRI_BT2020 &&
+                  !av_frame_get_side_data(pq,AV_FRAME_DATA_DOVI_METADATA),"rendered RGB is PQ/2020 without stale RPU");
+        }
+        sdr->format=AV_PIX_FMT_YUV420P;sdr->width=src->width;sdr->height=src->height;
+        CHECK(kr_color_convert(&color,sdr,src)>=0 && sdr->color_trc==AVCOL_TRC_BT709,"profile-5 RPU reaches SDR tone mapping");
+        AVFrameSideData *sd=av_frame_get_side_data(src,AV_FRAME_DATA_DOVI_METADATA);
+        if(sd){AVDOVIMetadata *m=(void*)sd->data;
+            AVDOVIDataMapping *mapping=av_dovi_get_mapping(m);
+            for(int k=0;k<3;k++){
+                int w=k?src->width/2:src->width,h=k?src->height/2:src->height;
+                for(int y=0;y<h;y++)for(int x=0;x<w;x++)AV_WL16(src->data[k]+y*src->linesize[k]+x*2,(k+1)*256);
+                AVDOVIReshapingCurve *curve=&mapping->curves[k];memset(curve,0,sizeof *curve);
+                curve->num_pivots=2;curve->pivots[1]=1023;curve->mapping_idc[0]=AV_DOVI_MAPPING_MMR;
+                curve->mmr_order[0]=k+1;curve->mmr_constant[0]=1<<21;
+                for(int j=0;j<=k;j++)for(int n=0;n<7;n++)curve->mmr_coef[0][j][n]=1<<17;
+            }
+            AVFrame *mmr=av_frame_alloc(),*expected=av_frame_alloc();
+            mmr->width=expected->width=src->width;mmr->height=expected->height=src->height;
+            int converted=kr_dovi_convert(&ctx,mmr,src);
+            // Exact dyadic sums for signals (.25,.5,.75), every seven MMR terms through orders 1/2/3.
+            const int constants[3]={2396160,2537088,2618956};
+            for(int k=0;k<3;k++){AVDOVIReshapingCurve *curve=&mapping->curves[k];memset(curve,0,sizeof *curve);
+                curve->num_pivots=2;curve->pivots[1]=1023;curve->poly_order[0]=1;curve->poly_coef[0][0]=constants[k];}
+            int rendered=kr_dovi_convert(&ctx,expected,src);
+            CHECK(converted==0 && rendered==0 && !memcmp(mmr->data[0],expected->data[0],6),"all MMR orders/cross terms match independently calculated polynomial-equivalent pixels");
+            av_frame_free(&mmr);av_frame_free(&expected);
+            m->mapping_offset=SIZE_MAX;
+            AVFrame *bad=av_frame_alloc();bad->width=src->width;bad->height=src->height;
+            CHECK(kr_dovi_convert(&ctx,bad,src)<0,"corrupt metadata offsets rejected before dereference");av_frame_free(&bad);}
+    }
+    kr_color_free(color);kr_dovi_free(ctx);av_frame_free(&src);av_frame_free(&pq);av_frame_free(&sdr);
+    av_packet_free(&p);avcodec_free_context(&dec);avformat_close_input(&input);
 }
 
 static double mono_ms(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1000.0 + t.tv_nsec / 1e6; }
@@ -994,6 +1051,18 @@ static void test_external_bitmaps(void) {
     gray(buf,d,ls,1);
     CHECK(kr_subs_blend(s,8000,d,ls,320,180,1)<0,"later subtitle I/O corruption is an error, not silent missing captions"); kr_subs_free(s);
     free(buf);
+    snprintf(path,sizeof path,"%s/multi.idx",fixture_dir);
+    for(int spanish=0;spanish<2;spanish++){
+        s=kr_subs_create(320,180);kr_subs_set_language(s,spanish?"spa|es":"eng|en");
+        CHECK(kr_subs_load_file(s,path)==0,"multi-language VobSub opens");
+        uint8_t pixels[320*180*3/2];gray(pixels,d,ls,1);
+        CHECK(kr_subs_blend(s,2000,d,ls,320,180,1)==1 && d[0][130*ls[0]+(spanish?200:40)]>220 &&
+              d[0][130*ls[0]+(spanish?40:200)]==128,"selected VobSub language burns its own distinct bitmap (%s)",spanish?"es":"en");
+        gray(pixels,d,ls,1);
+        CHECK(kr_subs_blend(s,500,d,ls,320,180,1)==0 && kr_subs_blend(s,2000,d,ls,320,180,1)==1 &&
+              d[0][130*ls[0]+(spanish?200:40)]>220,"VobSub language selection survives backward replay");
+        kr_subs_free(s);
+    }
 }
 
 static void test_burn_render(void) {
@@ -1144,6 +1213,29 @@ out:
 
 // Selection: Kodi's subtitle number, off, automatic, an external file; a TV then gets the H.264 picture even for an
 // H.264 source.
+static void test_long_embedded(const char *work) {
+    char url[1024],err[256]="",path[1024];snprintf(url,sizeof url,"file:%s/long_pgs.mkv",fixture_dir);
+    kr_source *s0=kr_source_open(url,10,err,sizeof err),*s1=kr_source_open(url,10,err,sizeof err);
+    gm_stream *gm=s0?gm_stream_open(kr_source_gm(s0),6,err,sizeof err):NULL;
+    kr_video *v=s1?kr_video_open(kr_source_gm(s1),0,err,sizeof err):NULL;
+    CHECK(gm && v,"long embedded cue converters open (%s)",err);
+    if(gm && v){
+        CHECK(kr_video_burn(v,2,NULL,err,sizeof err)==0,"long embedded PGS selected");
+        gm_buf b={0};int r=kr_video_unit(v,gm,7,&b,err,sizeof err);
+        CHECK(r==0 && kr_video_burn_drawn(v)>0,"fresh far seek recovers cue begun more than ten seconds earlier (%s)",err);
+        double target=gm_stream_segment_start(gm,7);
+        CHECK(kr_video_subtitle_scan_end(v)>=target && kr_video_subtitle_scan_end(v)<target+.1,
+              "subtitle preroll ends on the target video, not next caption/clear (%.3f vs %.3f)",kr_video_subtitle_scan_end(v),target);
+        uint8_t *frames[300]={0};double times[300];snprintf(path,sizeof path,"%s/long-pgs.mp4",work);
+        int n=r==0?unit_frames(&b,path,frames,times,300):0;
+        CHECK(n>0 && frames[0][130*320+40]>220,"far-seek video decodes with actual white subtitle pixels");
+        for(int i=0;i<n;i++)free(frames[i]);
+        free(b.data);
+        b=(gm_buf){0};CHECK(kr_video_unit(v,gm,0,&b,err,sizeof err)==0,"embedded long-cue backward retry succeeds");free(b.data);
+    }
+    kr_video_close(v);gm_stream_close(gm);kr_source_close(s0);kr_source_close(s1);
+}
+
 static void test_burn_select(void) {
     char url[1024], m3u8[256], ext[1024];
     snprintf(url, sizeof url, "file:%s/h264_aac_srt.mkv", fixture_dir);
@@ -1192,6 +1284,7 @@ int main(int argc, char **argv) {
         snprintf(work,sizeof work,"%s/out",fixture_dir); mkdir(work,0755);
         snprintf(path,sizeof path,"%s/box.sup",fixture_dir);
         kr_video_set_encoder("mpeg4"); test_external_bitmaps();
+        test_long_embedded(work);
         test_burn_video(work,"h264_aac_srt.mkv",path);
         snprintf(path,sizeof path,"%s/dvd.idx",fixture_dir);
         test_burn_video(work,"h264_aac_srt.mkv",path);
@@ -1207,6 +1300,12 @@ int main(int argc, char **argv) {
     test_kind();
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
     mkdir(work, 0755);
+    if (argc > 3 && !strcmp(argv[3], "--dovi-only")) {
+        kr_video_set_encoder("mpeg4");test_dovi_render(work);
+        char url[1024];snprintf(url,sizeof url,"file:%s/dovi.mkv",fixture_dir);
+        test_extra_format(url,"dovi",work,1);
+        printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+    }
     if (argc > 3 && !strcmp(argv[3], "--routing-only")) {
         char url[1024]; snprintf(url, sizeof url, "file:%s/mp4_bytes", argv[1]);
         kr_video_set_encoder("mpeg4"); test_dovi_native_route(url, work);
@@ -1234,8 +1333,9 @@ int main(int argc, char **argv) {
     kr_video_set_encoder("mpeg4");
     CHECK(kr_video_available(), "host FFmpeg has the test encoder");
     test_color_mapping();
+    test_dovi_render(work);
     {
-        const char *names[] = { "av1_opus.mkv", "wmv_wma.asf", "flv_mp3.flv", "theora_vorbis.ogv", "mpeg2_mp2.mpg", "h264_10bit.mp4", "h264_aac.mp4", "rv20_ac3.rm", "mpeg2_ac3.wtv", "mpeg4_pcm.nut", "prores_pcm.mov" };
+        const char *names[] = { "av1_opus.mkv", "wmv_wma.asf", "flv_mp3.flv", "theora_vorbis.ogv", "mpeg2_mp2.mpg", "h264_10bit.mp4", "h264_aac.mp4", "rv20_ac3.rm", "mpeg2_ac3.wtv", "mpeg4_pcm.nut", "prores_pcm.mov", "dovi.mkv" };
         for (unsigned i = 0; i < sizeof names / sizeof names[0]; i++) {
             char url[1024]; snprintf(url, sizeof url, "file:%s/%s", argv[1], names[i]);
             test_extra_format(url, names[i], work, i == 5 || i == 6 ? 0 : 1);
@@ -1271,6 +1371,7 @@ int main(int argc, char **argv) {
         snprintf(external, sizeof external, "%s/dvd.idx", fixture_dir);
         test_burn_video(work, "h264_aac_srt.mkv", external);
         test_external_bitmaps();
+        test_long_embedded(work);
         test_burn_select();
         snprintf(url, sizeof url, "file:%s/h264_pgs.mkv", argv[1]); test_bitmap_subtitles(url);
         kr_video_set_encoder("no_such_encoder");

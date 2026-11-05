@@ -1,27 +1,38 @@
 #include "kr_color.h"
+#include "kr_dovi.h"
 #include <errno.h>
 #include <stdlib.h>
 #include <libavutil/frame.h>
 #include <libavutil/opt.h>
 #include <libswscale/swscale.h>
 
-struct kr_color { SwsContext *unpack, *map, *pack; };
+struct kr_color { SwsContext *unpack, *map, *pack; kr_dovi *dovi; };
 
 int kr_color_is_hdr(const AVFrame *f) {
-    return f && (f->color_trc == AVCOL_TRC_SMPTE2084 || f->color_trc == AVCOL_TRC_ARIB_STD_B67);
+    return f && (f->color_trc == AVCOL_TRC_SMPTE2084 || f->color_trc == AVCOL_TRC_ARIB_STD_B67 ||
+                 f->colorspace == AVCOL_SPC_IPT_C2 || kr_dovi_is_profile5(f));
 }
 
 void kr_color_free(kr_color *ctx) {
     if (!ctx) return;
+    kr_dovi_free(ctx->dovi);
     sws_free_context(&ctx->unpack); sws_free_context(&ctx->map); sws_free_context(&ctx->pack); free(ctx);
 }
 
 int kr_color_convert(kr_color **ctx, AVFrame *dst, const AVFrame *src) {
     if (!ctx || !src || !dst) return AVERROR(EINVAL);
-    if (src->colorspace == AVCOL_SPC_IPT_C2) return AVERROR(ENOTSUP);
     if (!*ctx) *ctx = calloc(1, sizeof **ctx);
     if (!*ctx) return AVERROR(ENOMEM);
     kr_color *c = *ctx;
+    if (src->colorspace == AVCOL_SPC_IPT_C2 || kr_dovi_is_profile5(src)) {
+        AVFrame *pq = av_frame_alloc();
+        if (!pq) return AVERROR(ENOMEM);
+        pq->width = dst->width; pq->height = dst->height;
+        int r = kr_dovi_convert(&c->dovi, pq, src);
+        if (r >= 0) r = kr_color_convert(ctx, dst, pq);
+        av_frame_free(&pq);
+        return r;
+    }
     if (!c->map) c->map = sws_alloc_context();
     if (!c->map) return AVERROR(ENOMEM);
     AVFrame *in = av_frame_alloc(), *rgb = av_frame_alloc();

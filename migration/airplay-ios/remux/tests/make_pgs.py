@@ -1,7 +1,8 @@
 """Synthetic PGS display/clear; --long adds seek/cache cues, --vobsub generates an IDX/SUB pair via FFmpeg."""
-import struct,sys
+import json,struct,sys
 from pathlib import Path
 out=bytearray()
+position=40
 def segment(kind,payload,time):
  out.extend(b'PG'+struct.pack('>II',time*90000,time*90000)+bytes([kind])+struct.pack('>H',len(payload))+payload)
 def pcs(time,objects,state=0):
@@ -9,8 +10,8 @@ def pcs(time,objects,state=0):
  for oid,x,y in objects:data+=struct.pack('>HBBHH',oid,0,0,x,y)
  segment(0x16,data,time)
 def cue(start,end):
- pcs(start,[(1,40,130)],0x80)
- segment(0x17,bytes([1])+struct.pack('>BHHHH',0,40,130,32,8),start)
+ pcs(start,[(1,position,130)],0x80)
+ segment(0x17,bytes([1])+struct.pack('>BHHHH',0,position,130,32,8),start)
  segment(0x14,bytes([0,0,0,16,128,128,0,1,235,128,128,255,2,81,240,90,128]),start)
  rle=(bytes([1])*16+bytes([2])*16+b'\0\0')*8
  segment(0x15,struct.pack('>HBB',1,0,0xc0)+(len(rle)+4).to_bytes(3,'big')+struct.pack('>HH',32,8)+rle,start)
@@ -26,10 +27,19 @@ if '--vobsub' in sys.argv:
  import subprocess,tempfile
  with tempfile.TemporaryDirectory() as work:
   source=Path(work)/'fixture.sup';source.write_bytes(out)
-  subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y','-fix_sub_duration','-i',str(source),
-                  '-map','0:s:0','-c:s','dvdsub','-f','mpeg',str(target.with_suffix('.sub'))],check=True)
+  args=['ffmpeg','-hide_banner','-loglevel','error','-y','-fix_sub_duration','-i',str(source)]
+  if '--multi' in sys.argv:
+   out=bytearray();position=200;cue(1,3);second=Path(work)/'second.sup';second.write_bytes(out)
+   args+=['-fix_sub_duration','-i',str(second)]
+  args+=['-map','0:s:0']
+  if '--multi' in sys.argv:args+=['-map','1:s:0']
+  subprocess.run(args+['-c:s','dvdsub','-f','mpeg',str(target.with_suffix('.sub'))],check=True)
+  packets=json.loads(subprocess.check_output(['ffprobe','-v','error','-show_packets','-show_entries','packet=stream_index,pos','-of','json',str(target.with_suffix('.sub'))]))['packets']
+  positions={p['stream_index']:int(p['pos'])//2048*2048 for p in packets}
  target.write_text('# VobSub index file, v7 (do not modify this line!)\nsize: 320x180\n'
                    'palette: 000000, 0000ff, 00ff00, ff0000, ffff00, ff00ff, 00ffff, ffffff, '
                    '808000, 8080ff, 800080, 80ff80, 008080, ff8080, 555555, aaaaaa\n'
-                   'id: en, index: 0\ntimestamp: 00:00:01:000, filepos: 000000000\n')
+                   'id: en, index: 0\ntimestamp: 00:00:01:000, filepos: %09x\n'%positions[0])
+ if '--multi' in sys.argv:
+  with target.open('a') as f:f.write('id: es, index: 1\ntimestamp: 00:00:01:000, filepos: %09x\n'%positions[1])
 else:target.write_bytes(out)

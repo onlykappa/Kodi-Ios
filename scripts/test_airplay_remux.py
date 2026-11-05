@@ -224,6 +224,9 @@ class R10BurnedSubtitles(unittest.TestCase):
   lib=types.SimpleNamespace(kodi_airplay_subtitles=lambda *a:calls.append(a))
   self.assertEqual(airplay.send_subtitles(lib,X,vfs,0),(2,'','eng'))
   self.assertEqual(calls,[(2,b'',b'eng')])
+  X.ISO_639_1=1;X.ISO_639_2=2;X.convertLanguage=staticmethod(lambda lang,fmt:'en' if fmt==1 else 'eng')
+  self.assertEqual(airplay.send_subtitles(lib,X,vfs,0),(2,'','eng|en'))
+  self.assertEqual(calls[-1],(2,b'',b'eng|en'))
   self.assertIsNone(airplay.send_subtitles(types.SimpleNamespace(),X,vfs,0))
   source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
   self.assertLess(source.index('airplay.send_subtitles('),source.index("lib.kodi_airplay_play(source.encode"))
@@ -240,9 +243,9 @@ class R10BurnedSubtitles(unittest.TestCase):
   def translate(folder):
    if folder==airplay.SUB_DIRS[0]:return '/subs'
    raise OSError('not present')
-  entries=['Movie.sup','Other.idx','Other.sub','partial.idx','notes.txt']
+  entries=['Movie.sup','Other.idx','Other.sub','UPPER.IDX','UPPER.SUB','partial.idx','notes.txt']
   found=airplay.recent_subtitle_files(translate,lambda p:entries,lambda p:123)
-  self.assertEqual(set(found),{('/subs/Movie.sup',123),('/subs/Other.idx',123)})
+  self.assertEqual(set(found),{('/subs/Movie.sup',123),('/subs/Other.idx',123),('/subs/UPPER.IDX',123)})
  def test_framework_r11(self):
   """r11 (owner logs): audio waited 5.5 s behind WebVTT reads on its shared lane and the TV hung up."""
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()

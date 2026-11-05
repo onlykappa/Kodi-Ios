@@ -95,7 +95,7 @@ THIRD-PARTY NOTICES: Kodi iOS AirPlay remuxer (KodiAirPlay.framework r5 and late
    time through Apple's CoreText; they stay part of iOS. An .ass file's own attached fonts are used when present.
    The host tests use a font file already on the build machine (DejaVu Sans by default), not distributed.
 
-The Kodi iOS sources in src/ and tests/ were written for this project.
+The Kodi iOS sources were written for this project except the explicitly attributed adaptations/fixtures below.
 
 
 7. dav1d 1.5.3, linked statically for AV1 software fallback
@@ -103,3 +103,39 @@ The Kodi iOS sources in src/ and tests/ were written for this project.
    Archive sha256 c5b7428c3f5b28db0aee0c62f6ffb2b42f4b08e7be5ce49d7ad046aaf0dc151d.
    BSD-2-Clause licence; unmodified. Exact upstream COPYRIGHT/COPYING text is shipped in DAV1D-LICENSE.txt,
    provenance in DAV1D-CONFIG.txt. Rebuild with ../build-dav1d.sh (host or iOS); iOS keeps optimized ARM assembly.
+
+
+11. Profile-5 RPU color processing in src/kr_dovi.c follows/adapts libplacebo algorithms and matrices.
+    Source: https://github.com/haasn/libplacebo, commit 0e4352271c7cf85399d2589df4158781cf4c4e93.
+    Files: src/shaders/colorspace.c and src/include/libplacebo/utils/libav_internal.h.
+    Authors: Niklas Haas and libplacebo contributors. GNU LGPL version 2.1 or later; full terms in
+    LICENSE-LGPL-2.1 (also shipped with the framework). Kodi changes: CPU direct polynomial/MMR reshaping,
+    bounded/validated FFmpeg metadata access, cached one-dimensional PQ tables, matrix composition and
+    output-size component resampling. No libplacebo binary, Vulkan or GPU shader compiler is linked on iOS.
+
+12. Test-only RPU metadata in tests/make_dovi.py derives from assets/tests/profile5-02.bin in
+    https://github.com/quietvoid/dovi_tool, commit 41dae646193c12de152333ff5dbc33579cb9ef4a.
+    Modified: identity curves generated using pinned FFmpeg 8.1.1 RPU encoder; color metadata retained.
+    All picture/audio bytes in the test movie are synthetic, generated here. No upstream picture/audio used.
+
+MIT License
+
+Copyright (c) 2026 quietvoid
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

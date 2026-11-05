@@ -38,6 +38,7 @@ struct kr_subs {
     const AVInputFormat *external_format;
     int external_stream, external_eof, external_error;
     int64_t external_time;
+    char language[16];
 };
 
 static const char *font_file;
@@ -79,8 +80,15 @@ int kr_subs_stream_count(AVFormatContext *f) {
 static int lang_match(const AVStream *st, const char *lang) {
     const AVDictionaryEntry *e = av_dict_get(st->metadata, "language", NULL, 0);
     if (!e || !lang || !*lang) return 0;
-    size_t n = strlen(lang);
-    return !strcasecmp(e->value, lang) || (n == 2 && !strncasecmp(e->value, lang, 2));
+    // Kodi supplies aliases (e.g. ger|deu|de) so container ISO 639-1 and 639-2 names both match.
+    for(const char *p=lang;*p;){
+        const char *end=strchr(p,'|');size_t n=end?(size_t)(end-p):strlen(p);
+        if(n && ((strlen(e->value)==n && !strncasecmp(e->value,p,n)) ||
+                 (n==2 && !strncasecmp(e->value,p,2))))return 1;
+        if(!end)break;
+        p=end+1;
+    }
+    return 0;
 }
 
 int kr_subs_pick(AVFormatContext *f, int ordinal, const char *lang) {
@@ -209,11 +217,19 @@ static void store_bitmap(kr_subs *s, const AVSubtitleRect *r, int64_t start, int
     s->image_bytes += bytes;
 }
 
-void kr_subs_feed(kr_subs *s, AVPacket *pkt) {
-    if (!s || !s->dec || !pkt || pkt->pts == AV_NOPTS_VALUE) return;
+void kr_subs_reset_stream(kr_subs *s) {
+    if (!s) return;
+    if(s->dec) avcodec_flush_buffers(s->dec);
+    for(int i=0;i<s->nimages;i++)free(s->images[i].rgba);
+    s->nimages=0;s->image_bytes=0;
+}
+
+int kr_subs_feed(kr_subs *s, AVPacket *pkt) {
+    if (!s || !s->dec || !pkt || pkt->pts == AV_NOPTS_VALUE) return 0;
     AVSubtitle sub = {0};
     int got = 0;
-    if (avcodec_decode_subtitle2(s->dec, &sub, &got, pkt) < 0 || !got) { avsubtitle_free(&sub); return; }
+    int result=avcodec_decode_subtitle2(s->dec, &sub, &got, pkt);
+    if (result<0 || !got) { avsubtitle_free(&sub); return result<0 ? -1 : 0; }
     if (!s->track) {
         int64_t start = (sub.pts != AV_NOPTS_VALUE ? sub.pts / 1000 : av_rescale_q(pkt->pts, s->tb, (AVRational){1,1000})) + sub.start_display_time;
         int64_t dur = pkt->duration > 0 ? av_rescale_q(pkt->duration, s->tb, (AVRational){1,1000})
@@ -224,7 +240,7 @@ void kr_subs_feed(kr_subs *s, AVPacket *pkt) {
             (s->images[i].end == INT64_MAX || (!sub.num_rects && s->images[i].end > start))) s->images[i].end = start;
         for (unsigned i = 0; i < sub.num_rects; i++) if (sub.rects[i]->type == SUBTITLE_BITMAP)
             store_bitmap(s, sub.rects[i], start, dur > 0 ? start + dur : INT64_MAX);
-        avsubtitle_free(&sub); return;
+        avsubtitle_free(&sub); return 1;
     }
     int64_t start = av_rescale_q(pkt->pts, s->tb, (AVRational){ 1, 1000 }) + sub.start_display_time;
     int64_t dur = pkt->duration > 0 ? av_rescale_q(pkt->duration, s->tb, (AVRational){ 1, 1000 })
@@ -237,6 +253,7 @@ void kr_subs_feed(kr_subs *s, AVPacket *pkt) {
         if (body) kr_subs_add(s, body + 1, start, dur);
     }
     avsubtitle_free(&sub);
+    return 1;
 }
 
 // ── external files ─────────────────────────────────────────────────────────────
@@ -360,12 +377,18 @@ static int external_open(kr_subs *s) {
     int opened = avformat_open_input(&s->external, s->external_path, s->external_format, &options);
     av_dict_free(&options);
     if (opened < 0) return -1;
+    int selected = -1;
     for (unsigned i = 0; i < s->external->nb_streams; i++) if (kr_subs_supported(s->external->streams[i])) {
-        s->external_stream = (int)i;
-        return 0;
+        if (selected < 0) selected = (int)i;
+        if (lang_match(s->external->streams[i], s->language)) { selected = (int)i; break; }
     }
+    if (selected >= 0) { s->external_stream = selected; return 0; }
     avformat_close_input(&s->external);
     return -1;
+}
+
+void kr_subs_set_language(kr_subs *s, const char *lang) {
+    if (s && !s->external_path) snprintf(s->language, sizeof s->language, "%s", lang ? lang : "");
 }
 
 static int load_bitmap_file(kr_subs *s, const char *path, const char *format) {
@@ -400,9 +423,10 @@ static int external_advance(kr_subs *s, int64_t time_ms) {
         }
         AVPacket *p = s->pending;
         if (p->stream_index == s->external_stream && p->pts != AV_NOPTS_VALUE) {
+            if (!p->size) return s->external_error=-1;
             int64_t start = av_rescale_q(p->pts, s->tb, (AVRational){1,1000});
             if (start > time_ms) break; // Keep the first future packet, including future PGS clear sets.
-            kr_subs_feed(s, p);
+            if(kr_subs_feed(s,p)<0) return s->external_error=-1;
         }
         av_packet_unref(p);
     }

@@ -683,6 +683,7 @@ xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$
   "$FF/lib/libavformat.a" "$FF/lib/libavcodec.a" "$FF/lib/libdav1d.a" "$FF/lib/libswscale.a" "$FF/lib/libswresample.a" "$FF/lib/libavutil.a" \
   -framework Security -framework CoreFoundation -lz -liconv
 cp "$REMUX/THIRD-PARTY-NOTICES" "$FW/THIRD-PARTY-NOTICES"; cp "$FF/FFMPEG-CONFIG.txt" "$FW/FFMPEG-CONFIG.txt"
+cp "$REMUX/LICENSE-LGPL-2.1" "$FW/LICENSE-LGPL-2.1"
 cp "$ASS/LIBASS-CONFIG.txt" "$FW/LIBASS-CONFIG.txt"
 cp "$FF/DAV1D-CONFIG.txt" "$FF/DAV1D-LICENSE.txt" "$FF/ffmpeg-mov-pts.patch" "$FW/"
 cat > "$FW/Info.plist" <<PLIST

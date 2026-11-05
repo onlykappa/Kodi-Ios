@@ -29,13 +29,17 @@ int kr_subs_stream_count(struct AVFormatContext *f);
 
 // A renderer for w x h output frames.
 kr_subs *kr_subs_create(int w, int h);
+// Preferred external subtitle language aliases (e.g. ger|deu|de), normalized by Kodi; set before loading a file.
+void kr_subs_set_language(kr_subs *s, const char *lang);
 // Local file: .ass / .ssa through libass, .srt / .vtt parsed here (UTF-8, else Latin-1), .sup / .idx + companion
 // .sub decoded lazily with a bounded bitmap cache. Backward requests replay the subtitle input. 0 on success.
 int kr_subs_load_file(kr_subs *s, const char *path);
 // Events from a source stream: opens its decoder (FFmpeg's ASS header goes to libass). 0 on success.
 int kr_subs_open_stream(kr_subs *s, struct AVStream *st);
 // One packet of that stream: decoded, its events added once (a packet seen again after a seek is skipped).
-void kr_subs_feed(kr_subs *s, struct AVPacket *pkt);
+int kr_subs_feed(kr_subs *s, struct AVPacket *pkt);
+// Restart embedded decoding before an independent seek/preroll (clear bitmap state, preserve text deduplication).
+void kr_subs_reset_stream(kr_subs *s);
 // One event: an ASS dialogue body ("Layer,Style,Name,MarginL,MarginR,MarginV,Effect,Text") at [start, start+dur) ms.
 // Duplicates (same start and body) are ignored.
 void kr_subs_add(kr_subs *s, const char *body, int64_t start_ms, int64_t dur_ms);

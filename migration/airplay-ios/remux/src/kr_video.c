@@ -54,6 +54,9 @@ struct kr_video {
     kr_subs *subs;            // r10: subtitles burned into the picture, NULL when none (kept for the session)
     int sub_index;            // r10: their source stream, -1 for an external file
     double cov_from, cov_to;  // r10: the span of the timeline whose subtitle packets were fed (seconds)
+    char sub_language[16];
+    int dovi_profile5;
+    double sub_scan_to;
     atomic_int abort;         // sticky: the server is stopping
     atomic_int cancel;        // r8: give up the conversion in progress only (the next one clears it)
 };
@@ -175,7 +178,7 @@ static int open_decoder(kr_video *v, int hw, char *err, int errlen) {
 kr_video *kr_video_open(gm_source src, int index, char *err, int errlen) {
     kr_video *v = calloc(1, sizeof *v);
     if (!v) return NULL;
-    v->src = src; v->index = index; v->last_path = -1; v->sub_index = -1; v->cov_from = v->cov_to = -1;
+    v->src = src; v->index = index; v->last_path = -1; v->sub_index = -1; v->cov_from = v->cov_to = -1; v->sub_scan_to=-1;
     uint8_t *iob = av_malloc(1 << 16);
     AVIOContext *io = avio_alloc_context(iob, 1 << 16, 0, v, in_read, NULL, in_seek);
     v->in = avformat_alloc_context();
@@ -194,8 +197,7 @@ kr_video *kr_video_open(gm_source src, int index, char *err, int errlen) {
         AVPacketSideData *sd = &params->coded_side_data[i];
         if (sd->type == AV_PKT_DATA_DOVI_CONF && sd->size >= sizeof(AVDOVIDecoderConfigurationRecord) &&
             ((AVDOVIDecoderConfigurationRecord *)sd->data)->dv_profile == 5) {
-            seterr(err, errlen, "Dolby Vision profile 5 needs an RPU-aware renderer; native playback requires a compatible receiver", 0);
-            goto fail;
+            v->dovi_profile5 = 1;
         }
     }
     if (!kr_video_available()) { seterr(err, errlen, "no H.264 encoder in this build", 0); goto fail; }
@@ -221,11 +223,16 @@ const char *kr_video_path(const kr_video *v) {
 void kr_video_abort(kr_video *v) { if (v) atomic_store(&v->abort, 1); }
 void kr_video_cancel(kr_video *v) { if (v) atomic_store(&v->cancel, 1); }
 
+void kr_video_subtitle_language(kr_video *v, const char *lang) {
+    if (v && !v->subs) snprintf(v->sub_language, sizeof v->sub_language, "%s", lang ? lang : "");
+}
+
 int kr_video_burn(kr_video *v, int sub_index, const char *file, char *err, int errlen) {
     if (!v || v->subs) { seterr(err, errlen, "subtitles already set", 0); return -1; }
     if (sub_index < 0 && !(file && *file)) return 0;
     v->subs = kr_subs_create(v->ow, v->oh);
     if (!v->subs) { seterr(err, errlen, "subtitle renderer", 0); return -1; }
+    kr_subs_set_language(v->subs, v->sub_language);
     int r = sub_index >= 0 && sub_index < (int)v->in->nb_streams ? kr_subs_open_stream(v->subs, v->in->streams[sub_index])
           : file && *file ? kr_subs_load_file(v->subs, file) : -1;
     if (r < 0) {
@@ -239,6 +246,7 @@ int kr_video_burn(kr_video *v, int sub_index, const char *file, char *err, int e
 int kr_video_burning(const kr_video *v) { return v && v->subs ? 1 : 0; }
 int kr_video_burn_events(const kr_video *v) { return v ? kr_subs_events(v->subs) : 0; }
 long kr_video_burn_drawn(const kr_video *v) { return v ? kr_subs_drawn(v->subs) : 0; }
+double kr_video_subtitle_scan_end(const kr_video *v) { return v ? v->sub_scan_to : -1; }
 
 void kr_video_close(kr_video *v) {
     if (!v) return;
@@ -410,6 +418,9 @@ static int convert(job *j, AVFrame *src, char *err, int errlen) {
     if (!j->conv) { seterr(err, errlen, "out of memory", 0); return -1; }
     j->conv->format = j->enc->pix_fmt; j->conv->width = v->ow; j->conv->height = v->oh;
     v->last_hdr = kr_color_is_hdr(src);
+    if (v->dovi_profile5 && !av_frame_get_side_data(src, AV_FRAME_DATA_DOVI_METADATA)) {
+        seterr(err, errlen, "Dolby Vision frame is missing RPU metadata", 0); return -1;
+    }
     int r = kr_color_convert(&v->sws, j->conv, src);
     if (r < 0) { seterr(err, errlen, "tone/gamut conversion", r); return -1; }
     return 0;
@@ -470,7 +481,7 @@ static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen)
     AVFrame *tmp = NULL;
     int r;
 #ifdef KR_GPU
-    if (!j->enc) j->gpu = fr->format == AV_PIX_FMT_VIDEOTOOLBOX && !j->v->gpu_off && !kr_color_is_hdr(fr);
+    if (!j->enc) j->gpu = fr->format == AV_PIX_FMT_VIDEOTOOLBOX && !j->v->gpu_off && !j->v->dovi_profile5 && !kr_color_is_hdr(fr);
     if (j->gpu) {
         AVFrame *g = NULL;
         if (gpu_scale(j->v, fr, &g) == 0) {
@@ -549,28 +560,34 @@ static void seek_before(kr_video *v, double start) {
     av_seek_frame(v->in, -1, 0, AVSEEK_FLAG_BACKWARD);
 }
 
-// r10: a subtitle that starts before the decoder's first keyframe still shows in this segment: unless the packets of
-// [start - SUB_LOOKBACK, start) were fed already (the previous segment), they are read first with the video skipped.
-#define SUB_LOOKBACK 10.0
+// Read video packets without decoding to bound preroll at the target timestamp. Discarding video here used to
+// scan until the NEXT caption, potentially minutes beyond the seek during a subtitle gap.
+// Expand a cold lookback when no complete subtitle display state was recovered (long-running cues).
 static void sub_lookback(kr_video *v, double start) {
-    double from = start - SUB_LOOKBACK < 0 ? 0 : start - SUB_LOOKBACK;
+    v->sub_scan_to=-1;
+    double span=10,from = fmax(0,start-span);
     if (v->cov_from >= 0 && v->cov_from <= from + 1e-3 && v->cov_to >= start - 1e-3) return;
     AVStream *vs = v->in->streams[v->index];
     AVPacket *p = av_packet_alloc();
     if (!p) return;
-    vs->discard = AVDISCARD_ALL;
-    if (av_seek_frame(v->in, -1, (int64_t)(from * AV_TIME_BASE), AVSEEK_FLAG_BACKWARD) >= 0) {
+    vs->discard = AVDISCARD_DEFAULT;
+    for (;;) {
+        kr_subs_reset_stream(v->subs);
+        if (av_seek_frame(v->in, -1, (int64_t)(from * AV_TIME_BASE), AVSEEK_FLAG_BACKWARD)<0) break;
         AVStream *ss = v->in->streams[v->sub_index];
-        int done = 0;
+        int done = 0, recovered=0;
         while (!atomic_load(&v->abort) && !atomic_load(&v->cancel) && av_read_frame(v->in, p) >= 0) {
             AVStream *st = v->in->streams[p->stream_index];
             int64_t t0 = p->pts != AV_NOPTS_VALUE ? p->pts : p->dts;
             double t = t0 == AV_NOPTS_VALUE ? -1 : t0 * av_q2d(st->time_base);
-            if (st == ss) kr_subs_feed(v->subs, p);
+            if(st==vs && t>=0)v->sub_scan_to=t;
+            if (st == ss && t<=start && kr_subs_feed(v->subs, p)>0) recovered=1;
             av_packet_unref(p);
-            if (t >= start) { done = 1; break; }
+            if (st==vs && t >= start) { done = 1; break; }
         }
         if (done) { v->cov_from = from; v->cov_to = start; }
+        if (recovered || from<=0 || atomic_load(&v->abort) || atomic_load(&v->cancel)) break;
+        span*=2;from=fmax(0,start-span);
     }
     vs->discard = AVDISCARD_DEFAULT;
     av_packet_free(&p);

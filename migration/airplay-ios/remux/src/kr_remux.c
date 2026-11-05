@@ -98,6 +98,7 @@ static struct {
     gm_stream *sgm;
     int sgm_failed;
     char burn_file[1024];      // external subtitle file when burn_index < 0, "" none
+    char burn_language[16];
 } S = { .lock = PTHREAD_MUTEX_INITIALIZER, .gm_lock = PTHREAD_MUTEX_INITIALIZER, .vlock = PTHREAD_MUTEX_INITIALIZER,
         .agm_lock = PTHREAD_MUTEX_INITIALIZER, .sgm_lock = PTHREAD_MUTEX_INITIALIZER, .listen_fd = -1, .vindex = -1, .burn_index = -1 };
 
@@ -288,6 +289,7 @@ static kr_video *session_video(char *err, int errlen) {
     if (!v) { publish_source(&S.vsrc, NULL); kr_source_close(src); return NULL; }
     if (S.burn_index >= 0 || S.burn_file[0]) {  // r10: a subtitle that cannot be read leaves the picture as it is
         char e[128] = "";
+        kr_video_subtitle_language(v, S.burn_language);
         if (kr_video_burn(v, S.burn_index, S.burn_file, e, sizeof e) < 0) log_line("error: subtitles not burned in: %s", e);
         else if (S.burn_index >= 0)  // r11: a source stream's events are read with the picture, segment by segment
             log_line("compat: burning subtitles in (source stream %d: events load as each segment is converted)", S.burn_index);
@@ -387,8 +389,8 @@ static int produce_unit(int rend, int seg, gm_buf *out, char *err, int errlen) {
         if (r == 0) {  // r11: the conversion path and speed per segment (realtime = SEG_SECONDS per segment)
             double ms = now_ms() - t0, pct = ms / (SEG_SECONDS * 10.0);
             if (atomic_fetch_add(&S.vlogged, 1) < 3 || pct > 70)
-                log_line("compat: segment %d converted in %.0f ms (%.0f%% of realtime) via %s, source I/O %.0f ms, %d subtitle events, %ld frames drawn", seg,
-                         ms, pct, kr_video_path(v), kr_source_io_ms(S.vsrc) - io0, kr_video_burn_events(v), kr_video_burn_drawn(v));
+                log_line("compat: segment %d converted in %.0f ms (%.0f%% of realtime) via %s, source I/O %.0f ms, %d subtitle events, %ld frames drawn, subtitle preroll through %.3f s", seg,
+                         ms, pct, kr_video_path(v), kr_source_io_ms(S.vsrc) - io0, kr_video_burn_events(v), kr_video_burn_drawn(v),kr_video_subtitle_scan_end(v));
         } else if (r != KR_VIDEO_CANCELLED) {
             log_line("compat: segment %d %s after %.0f ms, source I/O %.0f ms", seg,
                      atomic_load(&S.stopping) ? "stopped" : "failed", now_ms() - t0, kr_source_io_ms(S.vsrc) - io0);
@@ -998,18 +1000,14 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
         set_message(m);
         goto done;
     }
-    // Preserve Apple's native Dolby Vision profile-5 MP4 path when audio is already compatible.
-    // Our converter cannot apply profile-5 RPU reshaping; treating it as ordinary HDR would corrupt colors.
+    // Profile 5 has no ordinary HDR base layer. Route it through RPU-aware SDR conversion so third-party
+    // receivers do not inherit the phone's native Dolby capability or display unreshaped IPT pixels.
     gm_color_info colors;
     AVFormatContext *original = gm_stream_format_context(S.gm);
-    if (!compat && original && strstr(original->iformat->name, "mov") && gm_stream_color_info(S.gm, &colors) == 0 &&
+    if (!compat && original && gm_stream_color_info(S.gm, &colors) == 0 &&
         colors.dolby_vision && colors.dovi_profile == 5) {
-        int native_audio = 1;
-        for (unsigned i = 0; i < original->nb_streams; i++) {
-            gm_track_info track;
-            if (!gm_stream_track_info(S.gm, (int)i, &track) && track.kind == GM_TRACK_AUDIO && !track.avf_compatible) native_audio = 0;
-        }
-        if (native_audio) { log_line("native: Dolby Vision profile 5 requires a compatible receiver"); result = KR_NOT_NEEDED; goto done; }
+        compat=1;
+        log_line("compat: Dolby Vision profile 5 uses RPU-aware SDR conversion");
     }
     // Every audio track Apple cannot carry but we can decode gets a bridge (opened on first use).
     gm_track_info t;
@@ -1049,6 +1047,7 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
         AVFormatContext *f = gm_stream_format_context(S.gm);
         pthread_mutex_lock(&SUBS.lock);
         int ord = SUBS.ordinal; char lang[16]; snprintf(lang, sizeof lang, "%s", SUBS.lang);
+        snprintf(S.burn_language, sizeof S.burn_language, "%s", lang);
         S.burn_index = -1; S.burn_file[0] = 0;
         if (ord >= 0 && ord >= kr_subs_stream_count(f) && SUBS.file[0]) snprintf(S.burn_file, sizeof S.burn_file, "%s", SUBS.file);
         else if (ord == -2 && SUBS.file[0]) snprintf(S.burn_file, sizeof S.burn_file, "%s", SUBS.file);

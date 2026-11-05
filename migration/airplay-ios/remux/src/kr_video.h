@@ -43,6 +43,9 @@ int kr_video_pick_stream(gm_stream *s);
 
 // Opens its own demuxer over `src` (a second connection) for video stream `index`.
 kr_video *kr_video_open(gm_source src, int index, char *err, int errlen);
+void kr_video_subtitle_language(kr_video *v, const char *lang);
+// Last embedded subtitle preroll's observed end time, or -1 when no scan was needed.
+double kr_video_subtitle_scan_end(const kr_video *v);
 int kr_video_width(const kr_video *v);   // output size
 int kr_video_height(const kr_video *v);
 int kr_video_hw_decode(const kr_video *v);  // 1 when VideoToolbox decodes

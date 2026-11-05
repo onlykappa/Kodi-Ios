@@ -68,6 +68,10 @@ printf '#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nsegment.ts\n#EXT-X-ENDLIST
 python3 -B "$(dirname "$0")/make_pgs.py" "$OUT/box.sup"
 python3 -B "$(dirname "$0")/make_pgs.py" "$OUT/long.sup" --long
 python3 -B "$(dirname "$0")/make_pgs.py" "$OUT/dvd.idx" --vobsub
+python3 -B "$(dirname "$0")/make_pgs.py" "$OUT/multi.idx" --vobsub --multi
+python3 -B "$(dirname "$0")/make_dovi.py" "$OUT/dovi.mkv"
 "${F[@]}" -copyts -i "$OUT/h264_aac_srt.mkv" -i "$OUT/box.sup" -map 0:v -map 0:a -map 1:s -c copy \
   -disposition:s:0 default "$OUT/h264_pgs.mkv"
+"${F[@]}" -copyts -stream_loop 3 -i "$OUT/h264_aac_srt.mkv" -i "$OUT/long.sup" \
+  -map 0:v -map 0:a -map 1:s -c copy -t 65 -disposition:s:0 default "$OUT/long_pgs.mkv"
 ls -l "$OUT"
