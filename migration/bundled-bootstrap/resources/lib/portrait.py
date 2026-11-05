@@ -79,7 +79,7 @@ MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
       ('Favourites','star.png','FFFF9F0A','ActivateWindow(1160)'),
       ('File manager','clapperboard.png','FF5E5CE6','ActivateWindow(filemanager)'),
       ('iPhone navigation / recovery','life-ring.png','FFFF453A',MENU)]
-HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml'}|pages.HANDMADE
+HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{'Includes_Portrait.xml',SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml'}|pages.HANDMADE
 # Never shrunk: playback stays landscape, and these are not windows.
 SKIP_WRAP={'VideoFullScreen.xml','VideoOSD.xml','MusicVisualisation.xml','SlideShow.xml','Pointer.xml'}
 # Shown only over landscape playback: no portrait copy, so Kodi always loads them from 1080i with landscape
@@ -979,11 +979,29 @@ def fonts(original,sf=None):
 
 def with_variables(xml):return xml
 
+def variable_block(row_variables=None):
+ rows=''.join(v for _,v in sorted((row_variables or {}).items()))
+ return VARIABLES+SHOW_VARS+ctx_variables()+rows
+
 def includes(row_variables=None):
  # Kodi reads variables only from includes; Fuse's own includes still come from 1080i.
- rows=''.join(v for _,v in sorted((row_variables or {}).items()))
- return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<includes><include file="../1080i/Includes.xml" />%s%s%s</includes>\n'
-         %(MARKER,VARIABLES,SHOW_VARS+ctx_variables(),rows)).encode()
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<includes><include file="../1080i/Includes.xml" />%s</includes>\n'
+         %(MARKER,variable_block(row_variables))).encode()
+
+# Owner log (build 142): Kodi read the skin's includes once, from 1080i, because the screen turned portrait only
+# after the skin loaded; Home then came from the portrait folder with every $VAR (rows, heroes, card art) undefined,
+# so no row showed. The same variables now also come from 1080i (one include line in Fuse's Includes.xml), whichever
+# folder Kodi reads first. A second identical definition is ignored by Kodi.
+LANDSCAPE_VARS='Includes_Portrait.xml'
+LANDSCAPE_HOOK='<include file="%s" />'%LANDSCAPE_VARS
+def landscape_variables(row_variables=None):
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: portrait variables, also defined when Kodi reads 1080i -->\n'
+         '<includes>%s</includes>\n'%(MARKER,variable_block(row_variables))).encode()
+def landscape_includes(original):
+ """Fuse's 1080i/Includes.xml with the include line for LANDSCAPE_VARS (once)."""
+ if not original or LANDSCAPE_HOOK in original:return original
+ if re.search(r'<includes\s*/>',original):return re.sub(r'<includes\s*/>','<includes>'+LANDSCAPE_HOOK+'</includes>',original,count=1)
+ return re.sub(r'(<includes(?:\s[^>]*)?>)',lambda m:m.group(1)+'\n    '+LANDSCAPE_HOOK,original,count=1)
 
 def hub_files(skin,profile,variables=None):
  source=Path(skin)/'1080i';out={}
@@ -1020,6 +1038,8 @@ def portrait_files(skin,profile):
  row_variables={}
  for name,data in hub_files(skin,profile,row_variables).items():files[FOLDER+'/'+name]=data
  files[FOLDER+'/Includes.xml']=includes(row_variables)
+ files['1080i/'+LANDSCAPE_VARS]=landscape_variables(row_variables)
+ if read('Includes.xml'):files['1080i/Includes.xml']=landscape_includes(read('Includes.xml')).encode()
  for name,data in textures().items():files['extras/portrait/'+name]=data
  files[FOLDER+'/DeckSourceSelect.xml']=deck_page().encode()
  files[FOLDER+'/IOSNotifications.xml']=notices_page().encode()
@@ -1083,7 +1103,7 @@ def refresh(skin,profile):
 
 # Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
 # inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml'}
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml','Includes.xml','Includes_Portrait.xml'}
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
@@ -1181,7 +1201,7 @@ def progress_tracker(player,continue_module,read,write,clock,every=10):
 
 # Read by Kodi when the skin loads (fonts, includes, Home and the windows marked LOAD_ON_GUI_INIT in the owner's log):
 # a change to one shows only after ReloadSkin. Every other window is read the first time it opens.
-LOADED_AT_START={'Font.xml','Includes.xml','Home.xml','Startup.xml','Pointer.xml','DialogBusy.xml','DialogNotification.xml',
+LOADED_AT_START={'Font.xml','Includes.xml','Includes_Portrait.xml','Home.xml','Startup.xml','Pointer.xml','DialogBusy.xml','DialogNotification.xml',
                  'DialogVolumeBar.xml','DialogExtendedProgressBar.xml','DialogSeekBar.xml','Custom_1151_OSD_MusicInfoOverlay.xml',
                  'Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml','Custom_1192_SeasonalTheme.xml',
                  'Custom_1194_Debug_Grid.xml','Custom_1198_Dialog_Startup.xml','Custom_1199_Debug_Overlay.xml'}

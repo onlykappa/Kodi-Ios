@@ -736,3 +736,10 @@ Status: SOURCE CHANGED; native r22/r5 builds and phone timing pending.
 - Kodi splash off via special://xbmc/system/advancedsettings.xml (applies to existing installs); launch-screen logo replaced by a black PNG of the same size.
 - Kodi executable r22 (staged) drives KodiGlassBar r5 (staged) from CApplication::Process with the add-on's rules and tab actions; the add-on attaches (owner flag) and keeps only the Search field. Old executable or framework: unchanged add-on behaviour.
 - Static skin rows before Python considered and rejected (static items cannot carry the rows' art, playable semantics or context entries). No IPA built; no phone timing claimed.
+
+## ISSUE-096 — Build 142: Home rows missing, app quits about 35 s after launch
+
+Status: ROWS FIX IN SOURCE (no device evidence yet); CRASH CAUSE UNKNOWN, iOS crash report requested.
+- Owner log (build 142, 2026-11-05): Kodi read the skin includes from 1080i at 04.65 s, before the screen turned portrait (05.87 s, "Screen size out of step"). Kodi then reloaded each window for the portrait layout but not the includes, so Home logged every portrait variable as undefined (`Portrait_Hero_Art`, `Portrait_Card_Art`, `Portrait_Cache_Row_*`). With no row content, tab taps failed to focus rows 4000/14000/24000.
+- Fix: the same variables are also written to `1080i/Includes_Portrait.xml`, and one include line (added once) in Fuse's `1080i/Includes.xml` loads it, so they are defined whichever folder Kodi reads first. Both files count as written by us in the portrait fingerprint. Test: `test_variables_defined_when_kodi_reads_1080i_includes`.
+- Crash: the log just stops at 06:12:40 after three tab taps, with no error or exception, which means iOS ended the process. At launch Elementum also resumed two 2160p torrents stored on the phone. Telling a native crash from a memory kill (Jetsam) needs the iOS crash report (Settings › Privacy & Security › Analytics & Improvements › Analytics Data, entries starting with `Kodi` or `JetsamEvent`, from about 06:12).
