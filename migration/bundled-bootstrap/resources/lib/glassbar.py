@@ -22,7 +22,15 @@ def load(path):
  lib.kodi_glassbar_show.argtypes=[ctypes.c_int];lib.kodi_glassbar_show.restype=None
  lib.kodi_glassbar_select.argtypes=[ctypes.c_int];lib.kodi_glassbar_select.restype=None
  lib.kodi_glassbar_take_tap.argtypes=[];lib.kodi_glassbar_take_tap.restype=ctypes.c_int
+ if hasattr(lib,'kodi_glassbar_native_owner'):lib.kodi_glassbar_native_owner.argtypes=[];lib.kodi_glassbar_native_owner.restype=ctypes.c_int
  return lib
+
+def native_owner(lib):
+ """True when the Kodi executable (r22+) already drives this bar (framework r5+): Kodi loads the framework and shows
+ the bar as Home opens, seconds before Python starts, and runs the tab taps itself. The add-on must then not run a
+ second controller on the same bar. False with an older framework or Kodi executable: the add-on drives it."""
+ try:return bool(hasattr(lib,'kodi_glassbar_native_owner') and lib.kodi_glassbar_native_owner())
+ except Exception:return False
 
 def page(visible):
  """Index of the tab page on screen, or None (another window, or a dialog over it)."""

@@ -50,6 +50,29 @@ class NativeUI(unittest.TestCase):
   with patch.object(native_ui.glassbar,'library_path',return_value='/app/framework'),patch.object(native_ui.glassbar,'load',side_effect=OSError('cannot load')):
    native_ui.run(kodi,type('VFS',(),{'translatePath':staticmethod(lambda path:'/app/')}),None)
   self.assertIn('Skin.Reset(Portrait.NativeTabBar)',kodi.commands)
+ def test_attaches_to_the_bar_kodi_already_drives(self):
+  # Kodi r22 + KodiGlassBar r5: Kodi showed the bar as Home opened and runs its taps; no second owner here.
+  class Owned(Lib):
+   def kodi_glassbar_native_owner(self):return 1
+   def kodi_glassbar_take_tap(self):raise AssertionError('Kodi takes the taps')
+  kodi=Kodi();kodi.getCondVisibility=lambda key:False;lib=Owned()
+  with patch.object(native_ui.glassbar,'library_path',return_value='/app/framework'),patch.object(native_ui.glassbar,'load',return_value=lib),patch.dict(sys.modules,{'xbmcaddon':None,'xbmcgui':None}):
+   native_ui.run(kodi,type('VFS',(),{'translatePath':staticmethod(lambda path:'/app/')}),type('M',(),{'waitForAbort':lambda self,s:True})())
+  self.assertEqual(lib.calls,[],'the add-on must not show, hide or select on a bar Kodi drives')
+  self.assertEqual(kodi.commands,[],'Kodi sets the skin flag itself')
+  self.assertTrue(any('already driven by Kodi' in s for s in kodi.logs))
+ def test_failure_after_attaching_keeps_the_skin_bar_hidden(self):
+  class Owned(Lib):
+   def kodi_glassbar_native_owner(self):return 1
+  kodi=Kodi();lib=Owned();log=kodi.log
+  def failing(text,level):
+   log(text,level)
+   if 'already driven' in text:raise RuntimeError('worker failure after attaching')
+  kodi.log=failing
+  with patch.object(native_ui.glassbar,'library_path',return_value='/app/framework'),patch.object(native_ui.glassbar,'load',return_value=lib):
+   native_ui.run(kodi,type('VFS',(),{'translatePath':staticmethod(lambda path:'/app/')}),None)
+  self.assertTrue(any('native UI unavailable' in s for s in kodi.logs))
+  self.assertNotIn('Skin.Reset(Portrait.NativeTabBar)',kodi.commands);self.assertEqual(lib.calls,[])
  def test_early_entrypoint_excludes_recovery_and_runs_before_heavy_imports(self):
   service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   start=service.index('target=native_ui.run')

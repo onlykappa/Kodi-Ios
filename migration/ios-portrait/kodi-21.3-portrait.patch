@@ -137,6 +137,181 @@ index 84f28b0..4504250 100644
  
  # configuration settings
  CONFIGURE=cp -f $(CONFIG_SUB) $(CONFIG_GUESS) .; \
+diff --git a/xbmc/application/Application.cpp b/xbmc/application/Application.cpp
+--- a/xbmc/application/Application.cpp
++++ b/xbmc/application/Application.cpp
+@@ -209,6 +209,159 @@
+ 
+ #define MAX_FFWD_SPEED 5
+ 
++#if defined(TARGET_DARWIN_IOS)
++// Kodi-iOS r22: the portrait tab bar (KodiGlassBar.framework r5, migration/glassbar-ios) is shown by Kodi itself.
++// Python services start ~2-4.5 s after Home on the phone (owner logs, docs/PERFORMANCE.md), so a bar driven from
++// the setup add-on appeared late. Kodi now loads the framework from the app's Frameworks folder once its frame loop
++// runs, claims it (kodi_glassbar_set_native_owner) and follows the same rules as glassbar.controller in
++// migration/bundled-bootstrap/resources/lib/glassbar.py: shown on the five tab pages in portrait with Arctic Fuse,
++// hidden for modal dialogs, other windows (fullscreen video, visualisation, settings...) and landscape. A tapped tab
++// runs the same builtins as ios_tabs.tab_actions, posted through the app messenger like xbmc.executebuiltin. The
++// setup add-on sees the claim (kodi_glassbar_native_owner) and only keeps the Search field. A framework without the
++// claim symbol (r4 or older) is left to the add-on, as before.
++#include "windowing/GraphicContext.h"
++
++#include <chrono>
++#include <dlfcn.h>
++
++namespace
++{
++struct KodiIOSGlassBar
++{
++  bool loaded = false;
++  void (*show)(int) = nullptr;
++  void (*select)(int) = nullptr;
++  int (*takeTap)() = nullptr;
++  int page = -1; // tab page on screen (0 Home ... 4 Search), -1 none
++  bool shown = false;
++  bool skinFlagChecked = false;
++  std::chrono::steady_clock::time_point next{};
++};
++KodiIOSGlassBar s_glassBar;
++
++// Same conditions and order as glassbar.PAGES.
++const char* const kGlassBarPages[] = {
++    "Window.IsActive(home) + String.IsEmpty(Window(Home).Property(Portrait.Tab))",
++    "Window.IsActive(home) + String.IsEqual(Window(Home).Property(Portrait.Tab),movies)",
++    "Window.IsActive(home) + String.IsEqual(Window(Home).Property(Portrait.Tab),tv)",
++    "Window.IsActive(1103) | Window.IsActive(1104)",
++    "Window.IsActive(1105)",
++};
++constexpr int kGlassBarTabs = 5;
++
++void KodiIOSGlassBarLoad()
++{
++  s_glassBar.loaded = true;
++  const std::string path =
++      URIUtils::AddFileToFolder(CUtil::GetFrameworksPath(), "KodiGlassBar.framework", "KodiGlassBar");
++  // The same image the setup add-on opens with ctypes later (dyld shares one copy, so one bar and one owner flag).
++  void* lib = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
++  if (!lib)
++  {
++    CLog::Log(LOGINFO, "Kodi iOS tab bar: no KodiGlassBar framework, the skin's own bar stays");
++    return;
++  }
++  auto claim = reinterpret_cast<void (*)(int)>(dlsym(lib, "kodi_glassbar_set_native_owner"));
++  auto show = reinterpret_cast<void (*)(int)>(dlsym(lib, "kodi_glassbar_show"));
++  auto select = reinterpret_cast<void (*)(int)>(dlsym(lib, "kodi_glassbar_select"));
++  auto takeTap = reinterpret_cast<int (*)()>(dlsym(lib, "kodi_glassbar_take_tap"));
++  if (!claim || !show || !select || !takeTap)
++  {
++    // Never dlclose: the add-on still drives this older framework.
++    CLog::Log(LOGINFO, "Kodi iOS tab bar: KodiGlassBar before r5, the setup add-on drives it");
++    return;
++  }
++  claim(1);
++  s_glassBar.show = show;
++  s_glassBar.select = select;
++  s_glassBar.takeTap = takeTap;
++  CLog::Log(LOGINFO, "Kodi iOS tab bar: KodiGlassBar driven by Kodi");
++}
++
++void KodiIOSPostBuiltin(const std::string& builtin)
++{
++  CServiceBroker::GetAppMessenger()->PostMsg(TMSG_EXECUTE_BUILT_IN, -1, -1, nullptr, builtin);
++}
++
++// Called by CApplication::Process on Kodi's application thread, once per frame loop.
++void KodiIOSGlassBarTick()
++{
++  if (!s_glassBar.loaded)
++    KodiIOSGlassBarLoad();
++  if (!s_glassBar.show || !CServiceBroker::GetGUI())
++    return;
++  std::unique_lock<CCriticalSection> lock(CServiceBroker::GetWinSystem()->GetGfxContext());
++  CGUIWindowManager& windows = CServiceBroker::GetGUI()->GetWindowManager();
++  CGUIInfoManager& info = CServiceBroker::GetGUI()->GetInfoManager();
++  int context = windows.GetTopmostModalDialog();
++  if (context == WINDOW_INVALID)
++    context = windows.GetActiveWindow();
++
++  // A tap: taken every loop (an atomic exchange), run unless it is the page already on screen (glassbar.poll).
++  const int tapped = s_glassBar.takeTap();
++  if (tapped >= 0 && tapped < kGlassBarTabs && tapped != s_glassBar.page)
++  {
++    if (tapped <= 2)
++    {
++      // ios_tabs.tab_actions for home / movies / tv: the hubs are groups of Home picked by Portrait.Tab.
++      KodiIOSPostBuiltin(tapped == 0 ? "ClearProperty(Portrait.Tab,home)"
++                                     : std::string("SetProperty(Portrait.Tab,") +
++                                           (tapped == 1 ? "movies" : "tv") + ",home)");
++      if (info.EvaluateBool("!Window.IsActive(home)", context))
++        KodiIOSPostBuiltin("ReplaceWindow(Home)");
++      KodiIOSPostBuiltin("SetFocus(" + std::to_string(4000 + 10000 * tapped) + ")");
++    }
++    else
++      KodiIOSPostBuiltin(tapped == 3 ? "ReplaceWindow(1103)" : "ReplaceWindow(1105)");
++  }
++
++  // Visibility: every 0.1 s, every 0.5 s during fullscreen video (the add-on checked every 0.5 s).
++  const auto now = std::chrono::steady_clock::now();
++  if (now < s_glassBar.next)
++    return;
++  const bool video = windows.IsWindowActive(WINDOW_FULLSCREEN_VIDEO);
++  s_glassBar.next = now + std::chrono::milliseconds(video ? 500 : 100);
++  const CGraphicContext& gfx = CServiceBroker::GetWinSystem()->GetGfxContext();
++  const bool fuse = g_SkinInfo && g_SkinInfo->ID() == "skin.arctic.fuse.3";
++  const bool portrait = fuse && gfx.GetHeight() > gfx.GetWidth();
++  int page = -1;
++  if (portrait && !info.EvaluateBool("System.HasActiveModalDialog", context))
++  {
++    for (int i = 0; i < kGlassBarTabs; ++i)
++    {
++      if (info.EvaluateBool(kGlassBarPages[i], context))
++      {
++        page = i;
++        break;
++      }
++    }
++  }
++  // The skin hides its own bar on this flag (saved with the skin settings; set once if missing).
++  if (fuse && !s_glassBar.skinFlagChecked)
++  {
++    s_glassBar.skinFlagChecked = true;
++    if (!info.EvaluateBool("Skin.HasSetting(Portrait.NativeTabBar)", context))
++      KodiIOSPostBuiltin("Skin.SetBool(Portrait.NativeTabBar)");
++  }
++  if (page >= 0 && page != s_glassBar.page)
++    s_glassBar.select(page);
++  s_glassBar.page = page;
++  const bool show = page >= 0;
++  if (show != s_glassBar.shown)
++  {
++    s_glassBar.shown = show;
++    s_glassBar.show(show ? 1 : 0);
++    static bool logged = false;
++    if (show && !logged)
++    {
++      logged = true;
++      CLog::Log(LOGINFO, "Kodi iOS startup: native tab bar shown by Kodi (page {})", page);
++    }
++  }
++}
++} // namespace
++#endif
++
+ CApplication::CApplication(void)
+   :
+ #ifdef HAS_OPTICAL_DRIVE
+@@ -3231,6 +3384,11 @@
+   CServiceBroker::GetAppMessenger()->ProcessMessages();
+   if (m_bStop) return; //we're done, everything has been unloaded
+ 
++#if defined(TARGET_DARWIN_IOS)
++  // Kodi-iOS r22: the native tab bar follows the page from here, from the first loop after Home opens.
++  KodiIOSGlassBarTick();
++#endif
++
+   // do any processing that isn't needed on each run
+   if( m_slowTimer.GetElapsedMilliseconds() > 500 )
+   {
 diff --git a/xbmc/application/ApplicationSkinHandling.cpp b/xbmc/application/ApplicationSkinHandling.cpp
 index bf73f14..4a017af 100644
 --- a/xbmc/application/ApplicationSkinHandling.cpp
