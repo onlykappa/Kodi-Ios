@@ -20,7 +20,8 @@ def card_properties(downloads,uploads):
   for key in ('title','line','speed'):props['dl.%d.%s'%(n,key)]=d.get(key,'')
   props['dl.%d.pausetext'%n]=('Resume' if d.get('paused') else 'Pause') if d else ''
  u=uploads[0] if uploads else {}
- for key in ('title','folder','line'):props['up.'+key]=u.get(key,'')
+ for key in ('title','line'):props['up.'+key]=u.get(key,'')
+ props['up.summary']=' · '.join(x for x in (u.get('folder',''),'then off the phone') if x) if u else ''
  return props
 
 def message_properties(items,filter_key,now=None):
@@ -65,7 +66,8 @@ def run():
     current=preparing[0] if preparing else {}
     self.setProperty('has.prepare','true' if preparing else '')
     for key in ('title','line'):self.setProperty('prepare.'+key,str(current.get(key,'')))
-    self.setProperty('prepare.summary','Download → Drive → Prepare · %d remaining'%current.get('queued',0) if preparing else '')
+    queued=current.get('queued',0)
+    self.setProperty('prepare.summary',('Download → Drive → Prepare'+(' · %d remaining'%queued if queued else '')) if preparing else '')
     self.percent(9431,current.get('progress',0))
     for n in range(1,SLOTS+1):
      if n<=len(self.downloads):self.percent(9400+n,self.downloads[n-1]['progress'])

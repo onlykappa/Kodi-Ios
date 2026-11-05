@@ -10,6 +10,7 @@ appends each one to toasts.jsonl in the same folder (creating it on a first star
 store (General, or Problems for warnings and errors).
 """
 import json,os,time,urllib.request
+import drivelibrary
 from pathlib import Path
 
 MAX=50
@@ -108,7 +109,7 @@ def downloads(get=None):
   if progress>=100 or status.lower() in ('seeding','finished'):continue
   size=float(t.get('size_bytes') or 0);rate=float(t.get('download_rate') or 0)*1024  # engine reports KB/s
   done=size*progress/100;paused=status.lower()=='paused'
-  out.append({'id':t.get('id',''),'title':t.get('name',''),'progress':progress,'paused':paused,
+  out.append({'id':t.get('id',''),'title':drivelibrary.display_title(t.get('name','')),'progress':progress,'paused':paused,
               'line':'%d%%  ·  %s of %s'%(progress,size_text(done),size_text(size)),
               'speed':'Paused' if paused else ('%.1f MB/s  ·  %s'%(rate/1024**2,eta_text((size-done)/rate)) if rate>0 else 'Waiting for peers')})
  return out
@@ -120,7 +121,7 @@ def uploads(profile):
  now=state.get('current') if isinstance(state,dict) else None
  if not now or not now.get('total'):return []
  progress=100.0*now.get('sent',0)/now['total']
- return [{'title':now.get('name',''),'folder':now.get('folder',''),'progress':progress,
+ return [{'title':drivelibrary.display_title(now.get('name','')),'folder':now.get('folder',''),'progress':progress,
           'line':'%d%%  ·  %s of %s'%(progress,size_text(now.get('sent',0)),size_text(now['total']))}]
 
 def engine_action(command,torrent,get=None):

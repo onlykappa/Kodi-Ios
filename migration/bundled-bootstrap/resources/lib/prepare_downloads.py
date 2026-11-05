@@ -269,5 +269,8 @@ def cards(profile,now=time.time):
   job=waiting[0];current={'title':job['source']['name'],'stage':job.get('error') or 'Queued','progress':0,'running':False}
  fresh=current.get('running') and now()-current.get('updated',0)<15
  current['running']=bool(fresh)
- current['line']='%s · %d%% · %d remaining'%(current.get('stage','Queued'),current.get('progress',0),len(waiting))
+ # One fact per line (ISSUE-101): the count lives in the card's summary, the line says what is happening now.
+ current['title']=drivelibrary.display_title(current.get('title',''))
+ current['queued']=len(waiting)
+ current['line']='%s · %d%%'%(current.get('stage','Queued'),current.get('progress',0))
  return [current]
