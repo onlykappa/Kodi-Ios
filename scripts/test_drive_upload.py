@@ -156,6 +156,11 @@ class SeedingTorrents(unittest.TestCase):
   self.assertIn('Lanterns.S01E02.1080p.mkv',found)
   self.assertNotIn('sample.mkv',found);self.assertNotIn('Half.Done.2025.mkv',found)
   self.assertEqual(up.seeding_pending(self.root,[{'id':'x','name':'../etc','progress':100}]),[])
+ def test_season_pack_files_without_episode_numbers_go_to_the_show(self):
+  p=os.path.join(self.root,'The.Bear.Season.2.1080p','01 - Beef.mkv');os.makedirs(os.path.dirname(p))
+  open(p,'wb').write(b'x'*10)
+  found=up.seeding_pending(self.root,[{'id':'d','name':'The.Bear.Season.2.1080p','progress':100}])
+  self.assertEqual(found[0][1],['Kodi Downloads','TV Shows','The Bear'])
  def test_torrent_dropped_only_after_every_video_is_verified(self):
   seeding=up.seeding_pending(self.root,self.torrents);dropped=[]
   class D:

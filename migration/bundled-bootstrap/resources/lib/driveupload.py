@@ -103,7 +103,11 @@ def seeding_pending(root,torrents):
    try:
     if os.path.getsize(path)<=0:continue
    except OSError:continue
-   found.append((path,drive_folders(path,root),tid))
+   parts=drive_folders(path,root)
+   pack=re.match(r'(?i)(.+?)[ ._-]+(?:S\d{1,2}(?![ ._-]?E\d)|season[ ._-]*\d|complete)\b',name)
+   if parts[1]=='Movies' and pack:  # season pack whose files have no SxxEyy ("01 - Pilot.mkv")
+    parts=[TOP,'TV Shows',re.sub(r'[._]+',' ',pack.group(1)).strip()]
+   found.append((path,parts,tid))
  return found
 
 def remove_torrent(tid,get=None,engine='http://127.0.0.1:65220'):
