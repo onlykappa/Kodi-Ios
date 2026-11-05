@@ -293,6 +293,98 @@ ELEMENTUM_PATCHES=[('resources/site-packages/elementum/daemon.py',b'def get_elem
  ('resources/site-packages/elementum/service.py',b'    if not ONLY_CLIENT and PLATFORM["fork"]:',b'    if not ONLY_CLIENT and (PLATFORM["fork"] or PLATFORM.get("os") == "ios"):'),
  ('resources/site-packages/elementum/osarch.py',b'    if global_platform:\n',b'    if xbmc.getCondVisibility("System.Platform.IOS"):\n        ret.update(os="ios", arch="arm64", fork=False)\n        return ret\n\n    if global_platform:\n')]
 
+# Kodi-iOS source check (service.kodi.ios.bootstrap/resources/lib/source_match.py) inside Burst, where every provider's
+# results arrive: a torrent of another title ("Fall" 2026 for "Fall" 2022) never reaches Elementum, so its dialog, its
+# auto-pick ("silent") plays and downloads only get the title asked for. Burst 0.0.99 (migration/elementum-ios/source-lock.json).
+BURST_HELPERS=b"""# KODI-IOS-SOURCE-MATCH r1: only torrents of the title Elementum asked for (service.kodi.ios.bootstrap source_match.py)
+_kios = {}
+
+
+def _kios_start(payload, method):
+    _kios.clear()
+    _kios.update(payload=payload, method=method, hidden=[], exp=None, ready=False)
+    Thread(target=_kios_expect).start()    # TMDb while the providers search, not after them
+
+
+def _kios_expect():
+    # The identity (titles in every language, year(s), IMDb/TMDb, season/episode), completed from TMDb once per search.
+    from threading import Lock
+    lock = _kios.setdefault('lock', Lock())
+    with lock:
+        if not _kios.get('ready'):
+            _kios['ready'] = True
+            try:
+                import sys
+                try:
+                    from xbmcvfs import translatePath
+                except ImportError:
+                    translatePath = xbmc.translatePath
+                lib = translatePath('special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib')
+                if lib not in sys.path:
+                    sys.path.insert(0, lib)
+                import source_match
+                exp = source_match.from_burst(_kios.get('payload'), _kios.get('method'))
+                _kios['sm'] = source_match
+                _kios['exp'] = source_match.enrich(exp) if exp else None
+            except Exception as e:
+                log.warning("Kodi-iOS source check unavailable: %s" % repr(e))
+    return _kios.get('sm'), _kios.get('exp')
+
+
+def _kios_prefilter(provider, results):
+    try:
+        sm, exp = _kios_expect()
+        if not sm or not exp:
+            return results
+        kept, hidden = sm.split(results, exp, name=lambda r: r.get('name'))
+        _kios['hidden'].extend(hidden)
+        if hidden:
+            log.info("[%s] Kodi-iOS source check: kept %d, hidden %d (%s)" % (provider, len(kept), len(hidden), sm.reasons_text(hidden)))
+        return kept
+    except Exception as e:
+        log.warning("[%s] Kodi-iOS source check failed: %s" % (provider, repr(e)))
+        return results
+
+
+def _kios_finish(results, payload):
+    sm, exp = _kios.get('sm'), _kios.get('exp')
+    if not sm or not exp:
+        return results
+    hidden = _kios.get('hidden') or []
+    sm.report('Burst', exp, results, hidden, name=lambda r: r.get('name'))
+    revealed = False
+    if hidden and not results:
+        message = "No source is %s: %d hidden (%s)" % (exp.get('label'), len(hidden), sm.reasons_text(hidden))
+        if not payload.get('silent'):
+            try:
+                revealed = xbmcgui.Dialog().yesno('Not this title?', message + "\\n\\nShow them anyway?")
+            except Exception:
+                revealed = False
+        if revealed:
+            results = cleanup_results([r for r, _ in hidden])
+        else:
+            notify(message, ADDON_ICON)
+    sm.publish(exp, hidden=len(hidden), revealed=revealed)
+    return results
+
+
+"""
+BURST_PATCHES=[('burst/burst.py',b'def search(payload, method="general"):\n',BURST_HELPERS+b'def search(payload, method="general"):\n'),
+ ('burst/burst.py',b"    request_time = time.time()\n\n    cookie_sync(payload['silent'])\n",b"    request_time = time.time()\n    _kios_start(payload, method)  # KODI-IOS-SOURCE-MATCH\n\n    cookie_sync(payload['silent'])\n"),
+ # Before each provider's results are sorted and cut to the best ones, so the other title cannot crowd this one out.
+ ('burst/burst.py',b'    definition = get_alias(definition, get_setting("%s_alias" % provider))\n\n    # 0 "Resolution"\n',
+  b'    definition = get_alias(definition, get_setting("%s_alias" % provider))\n    results = _kios_prefilter(provider, results)  # KODI-IOS-SOURCE-MATCH\n\n    # 0 "Resolution"\n'),
+ ('burst/burst.py',b'    filtered_results = apply_filters(provider_results)\n',b'    filtered_results = apply_filters(provider_results)\n    filtered_results = _kios_finish(filtered_results, payload)  # KODI-IOS-SOURCE-MATCH\n')]
+
+def patch_burst(addonroot):
+ """BURST_PATCHES into the unpacked Burst; [{'path','before_sha256','after_sha256'}]."""
+ files={}
+ for name,old,new in BURST_PATCHES:
+  path=addonroot/BURST/name;before=files.setdefault(name,(path,path.read_bytes()))[1]
+  data=path.read_bytes();assert data.count(old)==1,'Unexpected Burst source: '+name
+  path.write_bytes(data.replace(old,new))
+ return [{'path':'addons/'+BURST+'/'+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]
+
 def unpack_addon(archive,id,dest):
  """Extract one add-on zip (plain Python and data only) into dest/<id>."""
  with zipfile.ZipFile(archive) as z:
@@ -309,6 +401,7 @@ def add_profile_addons(inputs,bootstrap):
  return [a.stem for a in found]
 
 DECK_PICKER=ROOT/'migration/deck-picker'
+SOURCE_MATCH=ROOT/'migration/bundled-bootstrap/resources/lib/source_match.py'
 
 def deck_page_files():
  """The Deck's page and its pictures, {path under resources/skins/Default: bytes}."""
@@ -325,7 +418,9 @@ def deck_page_files():
 def add_deck_picker(addonroot):
  """The Deck's Elementum link page: quality first, then the five best links with the title's poster and details.
  Umbrella gets the same page through the bootstrap add-on (umbrella_picker.py), which carries its own copy."""
- files={'site-packages/elementum/deck_picker.py':(DECK_PICKER/'deck_picker.py').read_bytes()}
+ files={'site-packages/elementum/deck_picker.py':(DECK_PICKER/'deck_picker.py').read_bytes(),
+        # The page's source check (the bootstrap add-on's lib has its own copy, from migration/bundled-bootstrap).
+        'site-packages/elementum/source_match.py':SOURCE_MATCH.read_bytes()}
  files.update({'skins/Default/'+rel:data for rel,data in deck_page_files().items()})
  # The page's dark backdrop and close button are Elementum's own pictures: Umbrella's copy needs them too.
  media=addonroot/ELEMENTUM/'resources/skins/Default/media'
@@ -357,6 +452,7 @@ def add_elementum(inputs,target,addonroot):
   path=addonroot/ELEMENTUM/name;files.setdefault(name,(path,path.read_bytes()))[1]
   data=path.read_bytes();assert data.count(old)==1,'Unexpected Elementum source: '+name
   path.write_bytes(data.replace(old,new))
+ burst_patches=patch_burst(addonroot)
  deck_picker=add_deck_picker(addonroot)
  modules=sorted((inputs/'modules').iterdir())
  apps=sorted((inputs/'extras-app').glob('*.zip')) if (inputs/'extras-app').is_dir() else []
@@ -375,7 +471,7 @@ def add_elementum(inputs,target,addonroot):
    z.extractall(frameworks)
   executable=frameworks/name/name[:-len('.framework')];assert executable.read_bytes()[:4]==b'\xcf\xfa\xed\xfe',name+' is not a 64-bit Mach-O'
   extra.append('Frameworks/'+name)
- return {'addons':[ELEMENTUM,BURST]+[d.name for d in modules]+[a.stem for a in apps],'framework':'Frameworks/elementum.framework','frameworks':extra,'deck_picker':deck_picker,'framework_sha256':digest(binary.read_bytes()),
+ return {'addons':[ELEMENTUM,BURST]+[d.name for d in modules]+[a.stem for a in apps],'framework':'Frameworks/elementum.framework','frameworks':extra,'deck_picker':deck_picker,'burst_patches':burst_patches,'framework_sha256':digest(binary.read_bytes()),
          'patches':[{'path':'addons/'+ELEMENTUM+'/'+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]}
 
 def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):

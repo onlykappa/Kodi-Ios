@@ -21,6 +21,7 @@ on:
       - 'scripts/test_drive_upload.py'
       - 'scripts/test_settings_search.py'
       - 'scripts/test_deck_picker.py'
+      - 'scripts/test_source_match.py'
       - 'migration/deck-picker/**'
       - 'scripts/test_startup_sequence.py'
       - 'migration/bundled-bootstrap/**'
@@ -61,6 +62,7 @@ on:
       - 'scripts/test_drive_upload.py'
       - 'scripts/test_settings_search.py'
       - 'scripts/test_deck_picker.py'
+      - 'scripts/test_source_match.py'
       - 'migration/deck-picker/**'
       - 'scripts/test_startup_sequence.py'
       - 'migration/bundled-bootstrap/**'
@@ -105,6 +107,7 @@ jobs:
           python3 -B scripts/test_drive_upload.py
           python3 -B scripts/test_settings_search.py
           python3 -B scripts/test_deck_picker.py
+          python3 -B scripts/test_source_match.py
           python3 -B scripts/test_bundled_bootstrap.py
           python3 -B scripts/test_portrait.py
           python3 -B scripts/test_glassbar.py

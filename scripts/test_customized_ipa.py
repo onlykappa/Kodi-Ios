@@ -1,7 +1,7 @@
 import json,tempfile,unittest,xml.etree.ElementTree as ET
 from pathlib import Path
 import zipfile
-from build_customized_ipa import prepare,patch_drive,DRIVE_PATCHES,DRIVE_COMMON,BOOT,ELEMENTUM,BURST,ELEMENTUM_PATCHES,ELEMENTUM_IOS
+from build_customized_ipa import prepare,patch_drive,DRIVE_PATCHES,DRIVE_COMMON,BOOT,ELEMENTUM,BURST,ELEMENTUM_PATCHES,ELEMENTUM_IOS,BURST_PATCHES
 from test_import_profile import make_bundle
 class EngineGuardTests(unittest.TestCase):
  """The patched Elementum start (ELEMENTUM_IOS) run with stand-ins for Kodi."""
@@ -83,6 +83,7 @@ class BundleTests(unittest.TestCase):
   with zipfile.ZipFile(inputs/'burst.zip','w') as z:
    z.writestr(BURST+'/addon.xml','<addon id="'+BURST+'" version="0.0.99"><requires><import addon="plugin.video.elementum" optional="true"/><import addon="script.module.kodi-six"/><import addon="script.module.future"/></requires></addon>')
    z.writestr(BURST+'/burst/providers/providers.json','{}')
+   z.writestr(BURST+'/burst/burst.py',b''.join(b'# x\n'+old for _,old,_ in BURST_PATCHES))
   for mode,id in [('app','script.module.resolveurl'),('profile','script.module.cocoscrapers')]:
    (inputs/('extras-'+mode)).mkdir()
    with zipfile.ZipFile(inputs/('extras-'+mode)/(id+'.zip'),'w') as z:z.writestr(id+'/addon.xml','<addon id="'+id+'" version="1"><requires><import addon="xbmc.python"/></requires></addon>');z.writestr(id+'/lib/m.py','x=1')
@@ -101,6 +102,11 @@ class BundleTests(unittest.TestCase):
   seed=json.loads((base/'addons'/BOOT/'seed/seed-manifest.json').read_text());order=seed['addons']
   self.assertLess(order.index('script.module.kodi-six'),order.index(ELEMENTUM));self.assertLess(order.index('script.module.future'),order.index(BURST))
   self.assertTrue((base/'addons'/BURST/'burst/providers/providers.json').is_file())
+  # Burst checks every provider's results against the title asked for, with the bootstrap add-on's source_match.py.
+  burst=(base/'addons'/BURST/'burst/burst.py').read_bytes()
+  for _,_,after in BURST_PATCHES:self.assertIn(after,burst)
+  self.assertEqual([p['path'] for p in receipt['elementum']['burst_patches']],['addons/'+BURST+'/burst/burst.py'])
+  self.assertTrue((base/'addons'/BOOT/'resources/lib/source_match.py').is_file());self.assertTrue((site/'source_match.py').is_file())
   self.assertTrue((base/'addons/script.module.resolveurl/lib/m.py').is_file());self.assertIn('script.module.resolveurl',order)
   self.assertTrue((base/'addons'/BOOT/'payload/script.module.cocoscrapers/lib/m.py').is_file());self.assertNotIn('script.module.cocoscrapers',order)
   self.assertEqual(receipt['profile_addons'],['script.module.cocoscrapers'])
