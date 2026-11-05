@@ -25,6 +25,8 @@ def run():
  monitor=xbmc.Monitor()
  root=Path(__file__).resolve().parent;profile=Path(xbmcvfs.translatePath('special://profile/')).resolve()
  window=xbmcgui.Window(10000);state={'stage':'prepare'};generated=False
+ # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).
+ window.setProperty('KodiIOS.Build',updates.installed_build(root))
  def stage(value):
   state['stage']=value
   xbmc.log('Kodi iOS startup: %s +%.3fs'%(value,time.monotonic()-begun),xbmc.LOGINFO)
