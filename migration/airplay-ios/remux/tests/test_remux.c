@@ -782,6 +782,19 @@ static void test_dovi_render(const char *work) {
     int got=0;
     while(av_read_frame(input,p)>=0){if(p->stream_index==0){avcodec_send_packet(dec,p);if(avcodec_receive_frame(dec,src)==0)got=1;}av_packet_unref(p);if(got)break;}
     CHECK(got && kr_dovi_is_profile5(src),"real HEVC decoder exposes parsed profile-5 metadata");
+    if(got && !kr_dovi_is_profile5(src)){
+        printf("  DOVI diagnostic: format %d, %d side data entries\n",src->format,src->nb_side_data);
+        for(int i=0;i<src->nb_side_data;i++)printf("  side data %d size %zu\n",src->side_data[i]->type,src->side_data[i]->size);
+        AVFrameSideData *side=av_frame_get_side_data(src,AV_FRAME_DATA_DOVI_METADATA);
+        if(side && side->size>=sizeof(AVDOVIMetadata)){
+            AVDOVIMetadata *meta=(void*)side->data;
+            printf("  offsets: header %zu mapping %zu color %zu; sizes %zu/%zu/%zu metadata %zu\n",meta->header_offset,meta->mapping_offset,meta->color_offset,sizeof(AVDOVIRpuDataHeader),sizeof(AVDOVIDataMapping),sizeof(AVDOVIColorMetadata),side->size);
+            if(meta->header_offset<=side->size && sizeof(AVDOVIRpuDataHeader)<=side->size-meta->header_offset){
+                AVDOVIRpuDataHeader header;memcpy(&header,side->data+meta->header_offset,sizeof header);
+                printf("  RPU header profile %u full-range %u bit depth %u denom %u\n",header.vdr_rpu_profile,header.bl_video_full_range_flag,header.bl_bit_depth,header.coef_log2_denom);
+            }
+        }
+    }
     kr_dovi *ctx=NULL;kr_color *color=NULL;
     if(got){
         pq->width=src->width;pq->height=src->height;

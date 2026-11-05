@@ -45,7 +45,7 @@ struct kr_video {
     AVRational fps;           // source frame rate (for the encoder's framerate hint)
     kr_color *sws;
 #ifdef KR_GPU
-    VTPixelTransferSessionRef xfer;  // r9: GPU scale/convert (iOS 16+), NULL until the first hardware frame
+    void *xfer;              // opaque iOS-16-only VTPixelTransferSessionRef, created under availability guard
     CVPixelBufferPoolRef pool;       // NV12 output buffers at ow x oh
     int gpu_off;                     // the GPU path failed once: CPU from then on
 #endif
@@ -256,7 +256,9 @@ void kr_video_close(kr_video *v) {
     av_buffer_unref(&v->hw);
     kr_color_free(v->sws);
 #ifdef KR_GPU
-    if (v->xfer) { VTPixelTransferSessionInvalidate(v->xfer); CFRelease(v->xfer); }
+    if (__builtin_available(iOS 16.0, *)) {
+        if (v->xfer) { VTPixelTransferSessionInvalidate(v->xfer); CFRelease(v->xfer); }
+    }
     if (v->pool) CVPixelBufferPoolRelease(v->pool);
 #endif
     if (v->in) {
@@ -437,7 +439,9 @@ static int gpu_scale(kr_video *v, AVFrame *fr, AVFrame **out) {
     if (v->gpu_off || fr->format != AV_PIX_FMT_VIDEOTOOLBOX || !fr->data[3]) return -1;
     if (__builtin_available(iOS 16.0, *)) {
         if (!v->xfer) {
-            if (VTPixelTransferSessionCreate(kCFAllocatorDefault, &v->xfer) != noErr) { v->xfer = NULL; v->gpu_off = 1; return -1; }
+            VTPixelTransferSessionRef session=NULL;
+            if (VTPixelTransferSessionCreate(kCFAllocatorDefault, &session) != noErr) { v->gpu_off = 1; return -1; }
+            v->xfer=session;
             VTSessionSetProperty(v->xfer, kVTPixelTransferPropertyKey_ScalingMode, kVTScalingMode_Normal);
             VTSessionSetProperty(v->xfer, kVTPixelTransferPropertyKey_DestinationColorPrimaries, kCVImageBufferColorPrimaries_ITU_R_709_2);
             VTSessionSetProperty(v->xfer, kVTPixelTransferPropertyKey_DestinationTransferFunction, kCVImageBufferTransferFunction_ITU_R_709_2);

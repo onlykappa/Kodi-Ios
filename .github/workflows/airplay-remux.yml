@@ -43,6 +43,14 @@ jobs:
           [ -f "$RUNNER_TEMP/ass-host/lib/libass.a" ] || bash migration/airplay-ios/build-libass.sh host "$RUNNER_TEMP/ass-host"
       - name: Host tests (fixtures from files and over HTTP with Range)
         run: bash migration/airplay-ios/remux/tests/run_host_tests.sh "$RUNNER_TEMP/ff-host" "$RUNNER_TEMP/remux-tests" "$RUNNER_TEMP/ass-host"
+      - name: Retain synthetic fixture and dependency configuration on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: AirPlay-host-diagnostics
+          path: |
+            ${{ runner.temp }}/remux-tests/fixtures/dovi.mkv
+            ${{ runner.temp }}/ff-host/FFMPEG-CONFIG.txt
   framework:
     runs-on: macos-15
     timeout-minutes: 45
