@@ -66,6 +66,51 @@ def pending(root,settle=120,now=None):
      found.append((path,[TOP,section]+([] if relative=='.' else relative.split(os.sep))))
  return found
 
+def drive_folders(path,root):
+ """Drive › Kodi Downloads › Movies, or › TV Shows › <show> for an episode (SxxEyy / 1x02 in the name)."""
+ name=os.path.basename(path)
+ m=re.search(r'(?i)\bS(\d{1,2})[ ._-]?E(\d{1,3})\b',name) or re.search(r'\b(\d{1,2})x(\d{2,3})\b',name)
+ if not m:return [TOP,'Movies']
+ show=re.split(r'(?i)[ ._-]+(?:S\d{1,2}[ ._-]?E\d|\d{1,2}x\d{2}|season[ ._-]*\d)',name)[0]
+ if not show.strip(' ._-'):  # "S01E02.mkv" inside a show folder
+  parts=os.path.relpath(os.path.dirname(path),root).split(os.sep)
+  show=parts[0] if parts and parts[0]!='.' else ''
+  show=re.split(r'(?i)[ ._-]+(?:S\d{1,2}|season)',show)[0]
+ show=re.sub(r'[._]+',' ',show).strip() or 'Episodes'
+ return [TOP,'TV Shows',show]
+
+def seeding_pending(root,torrents):
+ """[(path, Drive folders, torrent id)] for videos of torrents Elementum reports 100% done that are still in its
+ download folder. Owner (PR 8): Elementum moves a download to Kodi Downloads only after it stops seeding (up to a day
+ or a 200% ratio), so season packs and many movies stayed on the phone and never reached Drive."""
+ found=[]
+ for torrent in torrents or []:
+  try:done=float(torrent.get('progress') or 0)>=99.9
+  except (TypeError,ValueError):done=False
+  name=str(torrent.get('name') or '');tid=str(torrent.get('id') or '')
+  if not done or not name or not tid or '/' in name or name in ('.','..'):continue
+  base=os.path.join(root,name)
+  if os.path.islink(base):continue
+  if os.path.isfile(base):candidates=[base]
+  else:
+   candidates=[]
+   for folder,dirs,files in os.walk(base):
+    dirs[:]=[d for d in dirs if not d.startswith('.') and not os.path.islink(os.path.join(folder,d))]
+    candidates+=[os.path.join(folder,f) for f in sorted(files)]
+  for path in candidates:
+   name_only=os.path.basename(path)
+   if not name_only.lower().endswith(VIDEO) or name_only.startswith('.') or PARTIAL.search(name_only) or os.path.islink(path):continue
+   try:
+    if os.path.getsize(path)<=0:continue
+   except OSError:continue
+   found.append((path,drive_folders(path,root),tid))
+ return found
+
+def remove_torrent(tid,get=None,engine='http://127.0.0.1:65220'):
+ """Elementum drops the torrent and its files (it stops seeding a copy Drive now has)."""
+ get=get or (lambda url:urllib.request.urlopen(url,timeout=15).read())
+ get('%s/torrents/delete/%s?torrent=true&files=true&confirmation=true'%(engine,urllib.parse.quote(tid,safe='')))
+
 class Drive(object):
  def __init__(self,token,send):
   self.token=token;self.send=send;self.folders={}
@@ -123,8 +168,10 @@ def _next_offset(headers):
  value=headers.get('Range') or headers.get('range') or ''
  return int(value.rsplit('-',1)[1])+1 if '-' in value else 0
 
-def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,on_uploaded=lambda:None):
- """Uploads every finished video once; returns the number uploaded."""
+def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,on_uploaded=lambda:None,seeding=(),drop=None):
+ """Uploads every finished video once; returns the number uploaded. `seeding` adds finished torrents still in
+ Elementum's folder ((path, folders, torrent id)); once all of a torrent's videos are on Drive and verified, `drop`
+ removes the torrent and its files through Elementum."""
  try:
   with open(state_path,encoding='utf-8') as source:state=json.load(source)
  except Exception:state={}
@@ -133,8 +180,10 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
   temp=state_path+'.tmp'
   with open(temp,'w') as f:json.dump(state,f)
   os.replace(temp,state_path)
- count=0
- for path,parts in pending(root):
+ count=0;torrent_files={};torrent_ok={}
+ for path,parts,tid in seeding:torrent_files.setdefault(tid,set()).add(path)
+ work=[(p,parts,None) for p,parts in pending(root)]+list(seeding)
+ for path,parts,tid in work:
   if not keep_going():break
   before=fingerprint(path)
   # What is uploading now, for the notification center's Uploading card (notices.uploads).
@@ -151,6 +200,13 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
    digest=checksum(path,keep_going)
    if fingerprint(path)!=before or not confirmed(drive,meta.get('id'),before[2],digest):
     log('Drive checksum could not be verified; the phone copy is kept');continue
+   if tid is not None:
+    # A seeding torrent's files belong to Elementum: drop the whole torrent once every video of it is verified.
+    torrent_ok.setdefault(tid,set()).add(path)
+    if torrent_ok[tid]>=torrent_files.get(tid,set()) and drop:
+     try:drop(tid);log('Removed the finished torrent from the phone (Google Drive has it)')
+     except Exception as error:log('Elementum could not remove the finished torrent: %s'%type(error).__name__)
+    continue
    if not keep_going():raise Stop()
    if fingerprint(path)!=before:continue
    os.remove(path);folder=os.path.dirname(path)

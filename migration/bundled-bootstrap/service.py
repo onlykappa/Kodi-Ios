@@ -194,7 +194,7 @@ def run():
 
 def drive_uploads(monitor,home,profile):
  """Every two minutes while Kodi is idle: upload kept Elementum videos with the Google Drive add-on's sign-in."""
- import urllib.parse,xbmc,xbmcaddon,xbmcgui,xbmcvfs
+ import urllib.parse,urllib.request,xbmc,xbmcaddon,xbmcgui,xbmcvfs
  if not xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)'):return
  common=xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
  if common not in sys.path:sys.path.append(common)
@@ -215,12 +215,20 @@ def drive_uploads(monitor,home,profile):
  idle=lambda:not monitor.abortRequested() and not xbmc.Player().isPlayingVideo()
  log=lambda message:xbmc.log('Kodi iOS '+message,xbmc.LOGINFO)
  while not monitor.waitForAbort(120):
-  if not idle() or not accounts.get_accounts() or not driveupload.pending(root):continue
+  if not idle() or not accounts.get_accounts():continue
+  # Finished torrents still seeding in Elementum's folder go to Drive too (owner: nothing should stay on the phone).
+  seeding=[]
+  try:
+   torrents=json.loads(urllib.request.urlopen('http://127.0.0.1:65220/torrents/list',timeout=5).read())
+   download=xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.elementum').getSetting('download_path') or '')
+   if download:seeding=driveupload.seeding_pending(download,torrents)
+  except Exception:seeding=[]
+  if not seeding and not driveupload.pending(root):continue
   try:
    state_dir=str(profile/'addon_data/service.kodi.ios.bootstrap')
    with driveupload.transfer_lock(state_dir):
     count=driveupload.run_once(root,drive,state,log,idle,xbmcaddon.Addon().getSettingBool('drive_upload_delete'),
-                             lambda:driveupload.invalidate_library(state_dir))
+                             lambda:driveupload.invalidate_library(state_dir),seeding,driveupload.remove_torrent)
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))
   except driveupload.Stop:pass
   except Exception as error:

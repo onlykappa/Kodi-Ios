@@ -134,3 +134,41 @@ class Upload(unittest.TestCase):
   self.assertEqual(up.token_source(lambda:{'a':account},saved.append,None,now=lambda:10001)(),'new')
   with self.assertRaises(RuntimeError):up.token_source(lambda:{},None,None)()
 if __name__=='__main__':unittest.main()
+
+class SeedingTorrents(unittest.TestCase):
+ """Owner (PR 8): finished torrents still seeding in Elementum's folder must go to Drive, not stay on the phone."""
+ def setUp(self):
+  self.dir=tempfile.TemporaryDirectory();self.root=self.dir.name;old=time.time()-600
+  def make(rel,data=b'x'*10):
+   p=os.path.join(self.root,rel);os.makedirs(os.path.dirname(p),exist_ok=True)
+   with open(p,'wb') as f:f.write(data)
+   os.utime(p,(old,old));return p
+  self.movie=make('Scary.Movie.2026.2160p/Scary.Movie.2026.2160p.mkv')
+  self.ep1=make('Lanterns.S01.1080p/Lanterns.S01E01.1080p.mkv');self.ep2=make('Lanterns.S01.1080p/Lanterns.S01E02.1080p.mkv')
+  make('Lanterns.S01.1080p/sample.mkv');make('Half.Done.2025/Half.Done.2025.mkv')
+  self.torrents=[{'id':'a','name':'Scary.Movie.2026.2160p','progress':100},{'id':'b','name':'Lanterns.S01.1080p','progress':100.0},
+                 {'id':'c','name':'Half.Done.2025','progress':42.0}]
+ def tearDown(self):self.dir.cleanup()
+ def test_only_finished_torrents_with_movie_and_show_folders(self):
+  found={os.path.basename(p):(parts,tid) for p,parts,tid in up.seeding_pending(self.root,self.torrents)}
+  self.assertEqual(found['Scary.Movie.2026.2160p.mkv'],(['Kodi Downloads','Movies'],'a'))
+  self.assertEqual(found['Lanterns.S01E01.1080p.mkv'],(['Kodi Downloads','TV Shows','Lanterns'],'b'))
+  self.assertIn('Lanterns.S01E02.1080p.mkv',found)
+  self.assertNotIn('sample.mkv',found);self.assertNotIn('Half.Done.2025.mkv',found)
+  self.assertEqual(up.seeding_pending(self.root,[{'id':'x','name':'../etc','progress':100}]),[])
+ def test_torrent_dropped_only_after_every_video_is_verified(self):
+  seeding=up.seeding_pending(self.root,self.torrents);dropped=[]
+  class D:
+   def folder(self,parts):return '/'.join(parts)
+   def upload(self,path,folder,sessions,save,keep,progress):return {'id':path,'size':os.path.getsize(path)}
+  verified={self.movie,self.ep1}  # episode 2's Drive copy cannot be verified
+  with mock.patch.object(up,'confirmed',lambda drive,fid,size,digest:fid in verified), \
+       mock.patch.object(up,'pending',lambda root:[]):
+   state=os.path.join(self.root,'state.json')
+   count=up.run_once(self.root,D(),state,lambda m:None,seeding=seeding,drop=dropped.append)
+  self.assertEqual(count,3);self.assertEqual(dropped,['a'])  # the show keeps seeding until episode 2 verifies
+  self.assertTrue(os.path.exists(self.ep1))  # Elementum removes torrent files itself, never a half torrent
+ def test_service_feeds_seeding_torrents(self):
+  source=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
+  self.assertIn('driveupload.seeding_pending(download,torrents)',source)
+  self.assertIn('seeding,driveupload.remove_torrent',source)
