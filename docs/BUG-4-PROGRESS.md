@@ -1,5 +1,9 @@
 # Bug 4 — downloaded Library and iPhone scan
 
+## Authorized merge and test delivery
+
+Owner explicitly requests merging PR #8 and a test IPA. The earlier no-build/no-merge instructions below are historical and superseded for this delivery. Use unique native build tag **kodi-ios-portrait-r23** for the new whole-page scrolling/parent-row source; retain the r22 executable pin until r23 is built, downloaded and verified. Merge with `[skip ci]`, build r23 first, then pin it and package the IPA so the testing build includes the new native fix. Status: delivery in progress; no device success claimed. AirPlay r12/GlassBar r5 pins stay unchanged.
+
 ## Current continuation — downloaded show layout / scrolling
 
 Owner supplied Claude screenshots and explicitly asked primary + agents to resume. Synced the clean worktree from `c815259` to current PR #8 head `46367aab6fb3fe3943ee202b1801ca0b002b14be` before editing; preserve all intervening Claude changes, including native r22/r12 pins. Do not build another IPA or merge.

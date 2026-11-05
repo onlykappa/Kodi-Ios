@@ -3,6 +3,7 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
+  "build_tag": "kodi-ios-portrait-r23",
   "staged_patch_note": "Downloaded-show whole-page scroll handoff and parent-row suppression are staged in source only. The pinned r22 executable does not contain these new GUI changes; a separately authorized executable build, verified release and updated pin are required before device acceptance. No executable pin was changed by this patch.",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
