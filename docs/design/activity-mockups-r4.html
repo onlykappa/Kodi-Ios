@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- Round 4 mockup (owner request 2026-11-05): activity pill, sheet and Notifications under docs/design/APPLE-UI-POLICY.md (PR #11). Evidence class: mockup. Placeholder colour only, no film artwork. -->
+<title>Kodi iOS Activity Round 4</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a dark review board. Phones at true iPhone 16 Pro point size (402 x 874), scaled down to fit; notes beside them. */
+:root{
+  color-scheme:dark;
+  /* review board */
+  --board:#0D0E11; --panel:#15161A; --panel-line:#26272D; --ink:#F2F2F7; --ink-2:rgba(235,235,245,.62); --tag:#FFD60A;
+  /* app tokens, from portrait.py / pages.py (APPLE-UI-POLICY 4.3) */
+  --bg:#000; --s1:#1C1C1E; --s2:#2C2C2E; --s3:#3A3A3C; --label:#fff; --label2:rgba(235,235,245,.6); --sep:rgba(235,235,245,.2);
+  --blue:#0A84FF; --blue-text:#4FA8FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
+  --app:"Inter",-apple-system,system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{background:var(--board);color:var(--ink);font-family:var(--app);font-size:15px;line-height:1.5;margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+header{display:flex;flex-direction:column;gap:12px;max-width:760px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.eyebrow b{color:var(--tag);font-weight:500}
+h1{font-size:clamp(28px,4vw,40px);line-height:1.1;letter-spacing:-.02em;margin:0;font-weight:800;text-wrap:balance}
+h2{font-size:22px;letter-spacing:-.01em;margin:0;font-weight:700;text-wrap:balance}
+p{margin:0;color:var(--ink-2);max-width:68ch}
+section{display:flex;flex-direction:column;gap:20px}
+.row{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}
+.notes{flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:14px}
+.notes ul{margin:0;padding-left:18px;color:var(--ink-2);display:flex;flex-direction:column;gap:8px}
+.notes li b{color:var(--ink);font-weight:600}
+code,.mono{font-family:var(--mono);font-size:.86em}
+.fix{display:inline-block;font-family:var(--mono);font-size:11px;padding:1px 6px;border-radius:4px;border:1px solid var(--panel-line);color:var(--tag);margin-right:4px;vertical-align:1px}
+
+/* phone frame: inner is exactly 402 x 874 pt, scaled by --k (set by script) */
+.phone-slot{flex:0 0 auto;width:calc(402px * var(--k,1) + 20px);max-width:100%}
+.phone-cap{font-size:13px;color:var(--ink-2);margin-top:10px;text-align:center}
+.bezel{width:calc(402px * var(--k,1) + 20px);height:calc(874px * var(--k,1) + 20px);max-width:100%;border-radius:calc(62px * var(--k,1));padding:10px;background:#1d1e22;box-shadow:0 0 0 1px #2c2d33,0 30px 60px -30px #000}
+.screen{width:402px;height:874px;transform:scale(var(--k,1));transform-origin:0 0;border-radius:52px;overflow:hidden;position:relative;background:var(--bg);color:var(--label);font-family:var(--app);font-size:17px;line-height:1.25;-webkit-font-smoothing:antialiased}
+.status{position:absolute;inset:0 0 auto;height:54px;display:flex;align-items:center;justify-content:space-between;padding:6px 34px 0 46px;font-weight:600;font-size:16px;z-index:30;pointer-events:none}
+.island{position:absolute;top:11px;left:50%;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#000;z-index:31}
+.home-ind{position:absolute;bottom:8px;left:50%;width:140px;height:5px;margin-left:-70px;border-radius:3px;background:#fff;z-index:40;opacity:.9}
+.scroll{position:absolute;inset:0;overflow:hidden}
+
+/* app pieces, sizes in pt */
+.hero{position:relative;height:470px;background:radial-gradient(120% 80% at 70% 20%,#2a3b5a 0%,#101828 45%,#000 85%)}
+.hero::after{content:"";position:absolute;inset:auto 0 0;height:180px;background:linear-gradient(transparent,#000)}
+.hero .art-note{position:absolute;top:120px;right:20px;font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.35)}
+.large-title{position:absolute;top:62px;left:20px;font-size:34px;font-weight:800;letter-spacing:-.02em;z-index:2}
+.top-btns{position:absolute;top:62px;right:16px;display:flex;gap:8px;z-index:2}
+.circle{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:rgba(44,44,46,.92);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.18);position:relative}
+.circle svg{width:20px;height:20px}
+.badge{position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;border-radius:9px;background:var(--red);font-size:11px;font-weight:700;display:grid;place-items:center;padding:0 5px}
+.hero-info{position:absolute;left:20px;right:20px;bottom:14px;z-index:2;display:flex;flex-direction:column;align-items:center;gap:10px}
+.hero-title{font-size:30px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;text-align:center}
+.meta{font-size:15px;color:var(--label2)}
+.actions{display:flex;gap:10px;width:100%}
+.capsule{flex:1;height:50px;border-radius:25px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:17px;border:0;font-family:var(--app);cursor:pointer}
+.capsule.primary{background:#fff;color:#000}
+.capsule.secondary{background:rgba(44,44,46,.92);color:#fff;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.18)}
+.capsule svg{width:17px;height:17px}
+.dots{display:flex;gap:6px;justify-content:center}.dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.35)}.dots i:first-child{background:#fff}
+.shelf{padding:18px 0 0 20px}
+.shelf h3{margin:0 0 10px;font-size:22px;font-weight:700;letter-spacing:-.01em}
+.shelf h3 span{color:var(--label2);font-weight:600}
+.cards{display:flex;gap:10px}
+.poster{flex:0 0 112px;height:168px;border-radius:10px;background:linear-gradient(160deg,var(--c1),var(--c2));position:relative}
+.wide{flex:0 0 238px;border-radius:10px;overflow:hidden;background:var(--s1)}
+.wide .img{height:134px;background:linear-gradient(160deg,var(--c1),var(--c2))}
+.wide .cap{padding:8px 12px 10px}.wide .cap small{display:block;color:var(--label2);font-size:13px}.wide .cap b{font-size:17px}
+.art-label{position:absolute;inset:auto 8px 8px;font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.55)}
+
+/* native tab bar: real Liquid Glass on device (KodiGlassBar); approximated here with a CSS blur */
+.tabbar{position:absolute;left:12px;right:12px;bottom:28px;height:64px;border-radius:32px;display:flex;align-items:center;justify-content:space-around;
+  background:rgba(30,30,32,.55);-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.22);z-index:20}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px;font-weight:600;min-width:56px}
+.tab svg{width:24px;height:24px}
+.tab.on{color:var(--blue)}
+
+/* activity pill: Kodi-drawn, so a near-opaque glass-styled surface (policy 2), never a blur */
+.pill{position:absolute;left:12px;right:12px;bottom:102px;height:62px;border-radius:31px;background:rgba(44,44,46,.96);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.18),0 10px 30px rgba(0,0,0,.55);
+  display:flex;align-items:center;gap:12px;padding:0 6px 0 5px;z-index:21;cursor:pointer;text-align:left;color:var(--label);font-family:var(--app);border:0;width:auto}
+.pill:focus-visible,.capsule:focus-visible,.icon-btn:focus-visible,.seg button:focus-visible{outline:2px solid var(--blue-text);outline-offset:2px}
+.pill.static{position:relative;left:auto;right:auto;bottom:auto;width:378px;flex:0 0 auto}
+.ringtile{position:relative;width:52px;height:52px;flex:0 0 52px;display:grid;place-items:center}
+.ringtile svg.ring{position:absolute;inset:0;transform:rotate(-90deg)}
+.tile{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;background:var(--tint,#0A84FF)}
+.tile svg{width:22px;height:22px}
+.pill .txt,.job .txt{flex:1;min-width:0;display:flex;flex-direction:column}
+.t1{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t2{font-size:13px;color:var(--label2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.icon-btn{width:44px;height:44px;border-radius:50%;flex:0 0 44px;display:grid;place-items:center;background:transparent;border:0;color:#fff;cursor:pointer;padding:0;position:relative}
+.icon-btn .disc{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center}
+.icon-btn svg{width:15px;height:15px}
+.hit{position:absolute;inset:0;border-radius:50%;outline:1px dashed rgba(255,214,10,.0)}
+.show-hits .hit{outline-color:rgba(255,214,10,.85)}
+.stack{position:relative;width:52px;height:52px;flex:0 0 52px}
+.stack .tile{position:absolute;width:34px;height:34px;border-radius:9px;box-shadow:0 0 0 2.5px rgba(44,44,46,1)}
+.stack .tile svg{width:18px;height:18px}
+.count{font-size:13px;font-weight:700;color:var(--label);min-width:44px;text-align:center}
+.spin{animation:spin 1s linear infinite;transform-origin:50% 50%}
+@keyframes spin{to{transform:rotate(270deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}.sheet,.dim{transition:none!important}}
+
+/* sheet */
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.48);z-index:24;opacity:0;pointer-events:none;transition:opacity .25s}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--s1);border-radius:38px 38px 0 0;z-index:25;transform:translateY(105%);transition:transform .32s cubic-bezier(.2,.8,.2,1);
+  padding:8px 16px 40px;box-shadow:0 -0.5px 0 rgba(255,255,255,.12)}
+.open .dim{opacity:1;pointer-events:auto}.open .sheet{transform:none}
+.static-sheet .sheet{transform:none}.static-sheet .dim{opacity:1}
+.grabber{width:36px;height:5px;border-radius:3px;background:rgba(235,235,245,.3);margin:0 auto 6px}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;height:52px;padding:0 4px}
+.sheet-head h4{margin:0;font-size:28px;font-weight:800;letter-spacing:-.02em}
+.group-h{font-size:13px;font-weight:600;color:var(--label2);text-transform:uppercase;letter-spacing:.04em;padding:14px 4px 6px;display:flex;justify-content:space-between}
+.group-h span:last-child{text-transform:none;letter-spacing:0;font-weight:500}
+.jobs{background:var(--s2);border-radius:16px;overflow:hidden}
+.job{display:flex;align-items:center;gap:12px;padding:10px 6px 10px 10px;min-height:72px;position:relative}
+.job+.job::before{content:"";position:absolute;top:0;left:74px;right:0;height:.5px;background:var(--sep)}
+.pct{font-size:13px;font-weight:600;color:var(--label2);font-variant-numeric:tabular-nums;min-width:36px;text-align:right}
+
+/* notifications page */
+.navrow{position:absolute;top:54px;left:0;right:0;height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 4px}
+.navrow .link{color:var(--blue-text);font-size:17px;font-weight:500;padding:0 12px;height:44px;display:flex;align-items:center}
+.page-title{position:absolute;top:100px;left:20px;font-size:34px;font-weight:800;letter-spacing:-.02em}
+.seg{position:absolute;top:152px;left:16px;right:16px;height:36px;border-radius:18px;background:var(--s1);display:flex;padding:2px}
+.seg button{flex:1;border:0;background:transparent;color:var(--label2);font:600 14px var(--app);border-radius:16px;cursor:pointer}
+.seg button.on{background:var(--s3);color:#fff}
+.list{position:absolute;top:196px;left:0;right:0;bottom:0;overflow:hidden;padding:0 16px 120px;display:flex;flex-direction:column}
+.sec{font-size:13px;font-weight:600;color:var(--label2);padding:16px 4px 8px;display:flex;justify-content:space-between;text-transform:uppercase;letter-spacing:.04em}
+.sec span:last-child{text-transform:none;letter-spacing:0;font-weight:500}
+.card{background:var(--s1);border-radius:16px;padding:12px;display:flex;gap:12px;align-items:flex-start}
+.card+.card{margin-top:8px}
+.card .tile{width:44px;height:44px;flex:0 0 44px}
+.card .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.bar{height:4px;border-radius:2px;background:rgba(120,120,128,.32);margin:6px 0 4px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:2px;background:var(--fill,var(--blue))}
+.btns{display:flex;gap:8px;margin-top:8px}
+.mini{height:44px;padding:0 18px;border-radius:22px;border:0;background:var(--s2);color:#fff;font:600 15px var(--app);display:flex;align-items:center;cursor:pointer}
+.mini.red{color:var(--red)}
+.msg{display:flex;gap:12px;align-items:flex-start;background:var(--s1);border-radius:16px;padding:12px;position:relative}
+.msg+.msg{margin-top:8px}
+.msg .tile{width:36px;height:36px;border-radius:9px;flex:0 0 36px}
+.msg .tile svg{width:19px;height:19px}
+.msg .head{display:flex;gap:8px;align-items:baseline}
+.msg .head b{flex:1;min-width:0;font-size:15px;line-height:1.25;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.msg .head time{flex:0 0 auto;font-size:13px;color:var(--label2)}
+.msg p{font-size:14px;color:var(--label2);margin:2px 0 0;line-height:1.3}
+.unread::before{content:"";position:absolute;left:4px;top:26px;width:6px;height:6px;border-radius:50%;background:var(--blue)}
+.empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:40px 20px;text-align:center}
+.empty b{font-size:20px}.empty span{color:var(--label2);font-size:15px}
+
+/* gallery + tables */
+.gallery{flex:1 1 400px;min-width:0;display:flex;flex-direction:column;gap:16px;background:var(--panel);border:1px solid var(--panel-line);border-radius:18px;padding:18px}
+.gitem{display:flex;flex-direction:column;gap:8px}
+.gitem .scale{overflow:hidden}
+.gitem .cap2{font-size:13px;color:var(--ink-2)}
+.gitem .cap2 b{color:var(--ink)}
+.toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2)}
+.table-wrap{overflow-x:auto;border:1px solid var(--panel-line);border-radius:14px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--panel-line);vertical-align:top}
+th{font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-2);font-weight:500}
+td{color:var(--ink-2)}td:first-child{color:var(--ink);font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--ink)}
+</style>
+</head><body>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow"><b>Mockup</b> · round 4 · not a Kodi render, not a device screenshot</div>
+  <h1>Activity pill, sheet and Notifications</h1>
+  <p>Redesign of the PR #9 pill and sheet and the Notifications page, following the new Apple UI policy. Phones are drawn at iPhone 16 Pro point size (402 × 874). Artwork is placeholder colour on purpose. Tap the pill in the first phone to open the sheet.</p>
+  <label class="toggle"><input type="checkbox" id="hits"> Show 44 pt touch areas</label>
+</header>
+
+<!-- 1. pill -->
+<section>
+  <h2>1 · The pill</h2>
+  <div class="row">
+    <div class="phone-slot">
+      <div class="bezel"><div class="screen" id="ph1">
+        <div class="status"><span>9:41</span><span>●●● 100%</span></div><div class="island"></div>
+        <div class="scroll">
+          <div class="hero">
+            <div class="large-title">Movies</div>
+            <div class="top-btns">
+              <div class="circle" aria-label="Notifications, 3 new"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 3a6 6 0 0 0-6 6v3.6L4.3 15.5A1 1 0 0 0 5.2 17h13.6a1 1 0 0 0 .9-1.5L18 12.6V9a6 6 0 0 0-6-6Zm-2.5 15a2.5 2.5 0 0 0 5 0Z"/></svg><span class="badge">3</span></div>
+              <div class="circle" aria-label="More"><svg viewBox="0 0 24 24" fill="#fff"><circle cx="12" cy="8.5" r="4"/><path d="M4 20c.8-4 4-6 8-6s7.2 2 8 6Z"/></svg></div>
+            </div>
+            <div class="art-note">hero artwork</div>
+            <div class="hero-info">
+              <div class="hero-title">Interstellar</div>
+              <div class="meta">Sci-Fi · 2014 · PG-13</div>
+              <div class="actions">
+                <button class="capsule primary"><svg viewBox="0 0 24 24" fill="#000"><path d="M7 4.5v15l13-7.5Z"/></svg>Play</button>
+                <button class="capsule secondary"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5" stroke-linecap="round"/></svg>Info</button>
+              </div>
+              <div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+          </div>
+          <div class="shelf"><h3>Continue Watching <span>›</span></h3>
+            <div class="cards">
+              <div class="wide" style="--c1:#5b2a2a;--c2:#1a0f12"><div class="img"></div><div class="cap"><small>2000</small><b>Scary Movie</b></div></div>
+              <div class="wide" style="--c1:#3a6ea5;--c2:#c7a46a"><div class="img"></div><div class="cap"><small>2022</small><b>Fall</b></div></div>
+            </div></div>
+          <div class="shelf"><h3>Popular Movies <span>›</span></h3>
+            <div class="cards">
+              <div class="poster" style="--c1:#23324d;--c2:#0b0f18"></div><div class="poster" style="--c1:#c9c2b0;--c2:#5b5546"></div><div class="poster" style="--c1:#2c3a30;--c2:#0c1210"></div><div class="poster" style="--c1:#4a3b5c;--c2:#120c18"></div>
+            </div></div>
+        </div>
+
+        <button class="pill" id="pill1" aria-label="Interstellar downloading, 42 percent. Open Activity">
+          <span class="ringtile" data-ring="42" data-tint="#0A84FF"><span class="tile" style="--tint:#0A84FF"><svg viewBox="0 0 24 24" fill="#fff"><path d="M6 4h4v8a2 2 0 0 0 4 0V4h4v8a6 6 0 0 1-12 0Zm0 0"/><path d="M6 4h4v3H6zM14 4h4v3h-4z" fill="#d6e8ff"/></svg></span></span>
+          <span class="txt"><span class="t1">Interstellar (2014)</span><span class="t2">42% · 4K · 20.9 MB/s · 5 min left</span></span>
+          <span class="icon-btn" role="button" aria-label="Pause" data-pause><span class="hit"></span><span class="disc"><svg viewBox="0 0 24 24" fill="#fff"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></span></span>
+        </button>
+
+        <nav class="tabbar" aria-label="Native tab bar">
+          <span class="tab"><svg viewBox="0 0 24 24" fill="#fff"><path d="M12 3 2 11h3v9h5v-6h4v6h5v-9h3Z"/></svg>Home</span>
+          <span class="tab on"><svg viewBox="0 0 24 24" fill="#0A84FF"><path d="M3 5h18v14H3Zm2 2v2h2V7Zm0 4v2h2v-2Zm0 4v2h2v-2Zm12-8v2h2V7Zm0 4v2h2v-2Zm0 4v2h2v-2Z"/></svg>Movies</span>
+          <span class="tab"><svg viewBox="0 0 24 24" fill="#fff"><path d="M3 5h18v12H3Zm5 14h8v2H8Z"/></svg>TV</span>
+          <span class="tab"><svg viewBox="0 0 24 24" fill="#fff"><path d="M6 3h12v2H6Zm-2 4h16v2H4Zm-1 4h18v10H3Z"/></svg>Library</span>
+          <span class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5.5 5.5" stroke-linecap="round"/></svg>Search</span>
+        </nav>
+
+        <div class="dim" data-close></div>
+        <div class="sheet" role="dialog" aria-label="Activity">
+          <div class="grabber"></div>
+          <div class="sheet-head"><h4>Activity</h4>
+            <button class="icon-btn" aria-label="Close" data-close><span class="hit"></span><span class="disc"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"/></svg></span></button></div>
+          <div class="group-h"><span>Downloading</span><span>2 running</span></div>
+          <div class="jobs" data-jobs="dl"></div>
+          <div class="group-h"><span>Preparing for AirPlay</span><span>8 waiting</span></div>
+          <div class="jobs" data-jobs="prep"></div>
+        </div>
+        <div class="home-ind"></div>
+      </div></div>
+      <div class="phone-cap">Movies tab · tap the pill</div>
+    </div>
+
+    <div class="gallery" id="gallery">
+      <div class="eyebrow">Pill states · drawn at real size</div>
+    </div>
+  </div>
+  <div class="notes">
+    <ul>
+      <li><span class="fix">ISSUE-102</span><b>Progress is a ring around the app tile</b>, filling clockwise. The empty grey badge on the tile's corner is gone. If there's no percentage, the same ring spins, so the indicator stays in the same place and shape (HIG progress indicators).</li>
+      <li><span class="fix">ISSUE-102</span><b>Every control is 44 pt.</b> The pause disc is drawn at 34 pt inside a 44 pt touch area (turn on the toggle above to see the areas). In Kodi units that's 118, against 104 and 96 today.</li>
+      <li><b>One line of each kind, never two labels in one place.</b> The title is bold 16 pt. The status line is 13 pt and starts with the percentage, so if it gets cut off, the time left goes first, not the progress.</li>
+      <li><b>The pill is drawn by Kodi, so it's an almost solid surface (96 %)</b> with a hairline edge, not a blur. Only the native tab bar under it is real Liquid Glass.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 2. sheet -->
+<section>
+  <h2>2 · Activity sheet</h2>
+  <div class="row">
+    <div class="phone-slot">
+      <div class="bezel"><div class="screen static-sheet" id="ph2"></div></div>
+      <div class="phone-cap">Opened from the pill or the bell</div>
+    </div>
+    <div class="notes">
+      <ul>
+        <li><b>Close (✕) instead of Done.</b> The sheet only shows status and has nothing to save. HIG reserves Done for finishing a task. Swiping down and tapping the dimmed page also close it.</li>
+        <li><b>Grouped by kind</b> (Downloading, Preparing for AirPlay, Uploading to Drive), with each group's count in its header, said once.</li>
+        <li><b>Rows match the pill:</b> the same ring tile, the same two lines, and a pause control with a 44 pt touch area. Paused rows show their percentage in grey, plus a play glyph.</li>
+        <li><b>The sheet's height follows its rows</b> up to about half the screen (iOS medium height), then it scrolls.</li>
+        <li><b>Blue has two jobs.</b> Fills (rings, the selected tab, app tiles) use system blue <code>#0A84FF</code>. Small blue text uses <code>#4FA8FF</code> (5.6 : 1 on the sheet) because system blue fails there at 3.8 : 1. Owner to confirm.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 3. notifications -->
+<section>
+  <h2>3 · Notifications</h2>
+  <div class="row">
+    <div class="phone-slot">
+      <div class="bezel"><div class="screen" id="ph3"></div></div>
+      <div class="phone-cap">All · live work first, then earlier messages. Try the filter.</div>
+    </div>
+    <div class="phone-slot">
+      <div class="bezel"><div class="screen" id="ph4"></div></div>
+      <div class="phone-cap">Problems · each with one way to fix it</div>
+    </div>
+    <div class="notes">
+      <ul>
+        <li><span class="fix">ISSUE-101</span><b>No text overlaps.</b> Each card is title, summary, bar, status, one label per line. The "then off the phone" hint now sits in the summary instead of on top of the status. This matches the fix pushed to PR #10.</li>
+        <li><span class="fix">ISSUE-101</span><b>Readable titles:</b> <span class="mono">Lanterns.S01E01.Pilot.2160p…</span> becomes "Lanterns · S1 E1". The "8 remaining" count appears once.</li>
+        <li><b>Pause and Cancel are 44 pt capsules.</b> Cancel is red because it loses progress (HIG: say when stopping has a cost).</li>
+        <li><b>Timestamps and section counts use readable grey.</b> The 30 % grey they used before is too faint for text (2.2 : 1).</li>
+        <li><b>Problems explain what happened and offer one action</b> (Retry, Sign in, Free up space). Raw errors and file paths stay in the log.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 4. kodi units -->
+<section>
+  <h2>4 · Handing this to Kodi</h2>
+  <p>Point sizes converted to the portrait skin's units (2.687 units per pt), so the XML can match the mockup. Re-render in the desktop rig after building. Device review is still needed for the native tab bar and real touch.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Element</th><th>pt</th><th>Kodi units</th><th>Today (PR #9)</th><th>Helper to reuse</th></tr></thead>
+    <tbody>
+      <tr><td>Pill height</td><td class="num">62</td><td class="num">167</td><td>170</td><td><code>pill_glass_170.png</code>, opacity ≥ 96 %</td></tr>
+      <tr><td>Ring tile (ring + tile)</td><td class="num">52 / 40</td><td class="num">140 / 108</td><td>118 tile + 72 corner badge</td><td><code>activity_skin.arc()</code> ring frames, drawn around the tile</td></tr>
+      <tr><td>Pause / close touch area</td><td class="num">44</td><td class="num">118</td><td>104 (pill), 96 (sheet)</td><td>button 118, drawn disc 92</td></tr>
+      <tr><td>Card buttons (Pause, Cancel)</td><td class="num">44 high</td><td class="num">118</td><td>72</td><td><code>pill_button</code>, glass style</td></tr>
+      <tr><td>Title / status text</td><td class="num">16 / 13</td><td class="num">43 / 35</td><td>p_pill / p_cap 30</td><td><code>p_foot_b</code>-weight title, <code>p_foot</code> status</td></tr>
+      <tr><td>Section header</td><td class="num">13</td><td class="num">35</td><td>p_foot_b + DIM</td><td><code>section()</code>, GREY only</td></tr>
+      <tr><td>Card / sheet radius</td><td class="num">16 / 38</td><td class="num">43 / 102</td><td>32 / —</td><td><code>rounded()</code></td></tr>
+    </tbody>
+  </table></div>
+</section>
+</div>
+
+<script>
+(function(){
+  const SVG={
+    elementum:'<svg viewBox="0 0 24 24" fill="#fff"><path d="M6 4h4v8a2 2 0 0 0 4 0V4h4v8a6 6 0 0 1-12 0Z"/></svg>',
+    prepare:'<svg viewBox="0 0 24 24" fill="#fff"><path d="M4 6h16v12H4Zm2 2v8h12V8Zm3 1.5 6 2.5-6 2.5Z"/></svg>',
+    drive:'<svg viewBox="0 0 24 24" fill="#fff"><path d="M7 18a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 9.5 4.2 4.2 0 0 1 17.5 18Zm5-9-3.5 3.6h2.3V16h2.4v-3.4h2.3Z"/></svg>',
+    search:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6"><circle cx="10.5" cy="10.5" r="6"/><path d="m15 15 5.5 5.5" stroke-linecap="round"/></svg>',
+    check:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 12.5 4 4 8-9"/></svg>',
+    warn:'<svg viewBox="0 0 24 24" fill="#fff"><path d="M12 3 2 20h20Zm-1 6h2v6h-2Zm0 7.5h2v2h-2Z"/></svg>',
+    key:'<svg viewBox="0 0 24 24" fill="#fff"><path d="M8 14a5 5 0 1 1 4.6-7H22v3h-2v3h-3v-3h-4.4A5 5 0 0 1 8 14Zm-1-6.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z"/></svg>',
+    disk:'<svg viewBox="0 0 24 24" fill="#fff"><path d="M4 5h16v14H4Zm2 9v3h12v-3Zm10 1h1v1h-1Z"/></svg>',
+    pause:'<svg viewBox="0 0 24 24" fill="#fff"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
+    play:'<svg viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7Z"/></svg>',
+    info:'<svg viewBox="0 0 24 24" fill="#fff"><path d="M11 10h2v8h-2Zm0-4h2v2h-2Z"/><circle cx="12" cy="12" r="10" fill="none" stroke="#fff" stroke-width="2"/></svg>'
+  };
+  const C={blue:'#0A84FF',purple:'#BF5AF2',green:'#30D158',orange:'#FF9F0A',red:'#FF453A',grey:'#636366'};
+
+  function ring(pct,tint,spin){
+    const r=24,c=2*Math.PI*r;
+    if(spin) return `<svg class="ring spin" viewBox="0 0 52 52"><circle cx="26" cy="26" r="${r}" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="3.5"/><circle cx="26" cy="26" r="${r}" fill="none" stroke="${tint}" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="${c*0.28} ${c}"/></svg>`;
+    return `<svg class="ring" viewBox="0 0 52 52"><circle cx="26" cy="26" r="${r}" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="3.5"/><circle cx="26" cy="26" r="${r}" fill="none" stroke="${tint}" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="${c*pct/100} ${c}"/></svg>`;
+  }
+  function ringTile(icon,tint,pct,opts={}){
+    const fill=opts.done?C.green:tint;
+    const inner=opts.done?SVG.check:SVG[icon];
+    const r=opts.noRing?'':ring(opts.done?100:pct,opts.paused?'rgba(235,235,245,.6)':fill,opts.spin);
+    return `<span class="ringtile">${r}<span class="tile" style="--tint:${opts.done?C.green:tint}">${inner}</span></span>`;
+  }
+  function pauseBtn(state){
+    if(!state) return '';
+    return `<span class="icon-btn" role="button" aria-label="${state==='pause'?'Pause':'Resume'}"><span class="hit"></span><span class="disc">${state==='pause'?SVG.pause:SVG.play}</span></span>`;
+  }
+  function pillHTML(p){
+    const lead=p.stack?`<span class="stack">${p.stack.map((s,i)=>`<span class="tile" style="--tint:${s.tint};left:${i*9}px;top:${i*9}px">${SVG[s.icon]}</span>`).join('')}</span>`:ringTile(p.icon,p.tint,p.pct,p);
+    const trail=p.count?`<span class="count">${p.count}</span>`:pauseBtn(p.pause);
+    return `<div class="pill static" role="img" aria-label="${p.t1}, ${p.t2}">${lead}<span class="txt"><span class="t1">${p.t1}</span><span class="t2">${p.t2}</span></span>${trail}</div>`;
+  }
+
+  const states=[
+    {name:'Downloading',note:'A known percentage fills the ring. Pause sits on the right.',icon:'elementum',tint:C.blue,pct:42,pause:'pause',t1:'Interstellar (2014)',t2:'42% · 4K · 20.9 MB/s · 5 min left'},
+    {name:'No percentage yet',note:'The same ring spins in the same place. There is nothing to pause yet.',icon:'search',tint:C.orange,spin:true,t1:'Finding a source',t2:'Searching torrent sites · 4 sites left'},
+    {name:'Paused',note:'The ring stays put and turns grey, and the button changes to play.',icon:'elementum',tint:C.blue,pct:42,paused:true,pause:'resume',t1:'Interstellar (2014)',t2:'Paused · 42% · 7.6 of 18.0 GB'},
+    {name:'Several running',note:'Up to three tiles stacked. Tap opens the sheet.',stack:[{icon:'elementum',tint:C.blue},{icon:'prepare',tint:C.purple},{icon:'drive',tint:C.green}],count:'3',t1:'3 running',t2:'Interstellar · Lanterns · upload'},
+    {name:'Preparing for AirPlay',note:'Same pattern, with its own app colour.',icon:'prepare',tint:C.purple,pct:40,pause:'pause',t1:'Lanterns · S1 E1',t2:'40% · Step 3 of 3 · Preparing audio'},
+    {name:'Done',note:'A green check for 4 seconds, then the pill leaves.',icon:'elementum',tint:C.blue,done:true,t1:'Interstellar (2014)',t2:'Downloaded · in your Library'}
+  ];
+  const gal=document.getElementById('gallery');
+  states.forEach(s=>{
+    const d=document.createElement('div');d.className='gitem';
+    d.innerHTML=`<div class="scale"><div class="inner">${pillHTML(s)}</div></div><div class="cap2"><b>${s.name}.</b> ${s.note}</div>`;
+    gal.appendChild(d);
+  });
+
+  // pill ring in phone 1
+  document.querySelectorAll('.ringtile[data-ring]').forEach(el=>{el.insertAdjacentHTML('afterbegin',ring(+el.dataset.ring,el.dataset.tint));});
+
+  const JOBS={
+    dl:[{icon:'elementum',tint:C.blue,pct:42,t1:'Interstellar (2014)',t2:'4K · 20.9 MB/s · 5 min left',pause:'pause'},
+        {icon:'elementum',tint:C.blue,pct:12,paused:true,t1:'Fall (2022)',t2:'Paused · 1.2 of 9.8 GB',pause:'resume'}],
+    prep:[{icon:'prepare',tint:C.purple,pct:40,t1:'Lanterns · S1 E1',t2:'Step 3 of 3 · Preparing audio',pause:'pause'}],
+    up:[{icon:'drive',tint:C.green,pct:71,t1:'Scary Movie (2000)',t2:'Movies · then off the phone',pause:''}]
+  };
+  function jobRows(list){return list.map(j=>`<div class="job">${ringTile(j.icon,j.tint,j.pct,j)}<span class="txt"><span class="t1">${j.t1}</span><span class="t2">${j.t2}</span></span><span class="pct">${j.pct}%</span>${pauseBtn(j.pause)||'<span style="width:44px;flex:0 0 44px"></span>'}</div>`).join('');}
+  document.querySelectorAll('#ph1 [data-jobs]').forEach(el=>{el.innerHTML=jobRows(JOBS[el.dataset.jobs]);});
+
+  // phone 2: static open sheet over the same page
+  const ph1=document.getElementById('ph1'),ph2=document.getElementById('ph2');
+  ph2.innerHTML=ph1.innerHTML;
+  const sh=ph2.querySelector('.sheet');
+  sh.querySelector('.group-h').insertAdjacentHTML('beforebegin','');
+  sh.insertAdjacentHTML('beforeend',`<div class="group-h"><span>Uploading to Google Drive</span><span>1</span></div><div class="jobs">${jobRows(JOBS.up)}</div>`);
+  ph2.querySelector('.pill').remove();
+
+  // phone 1 interactions
+  const open=()=>ph1.classList.add('open'),close=()=>ph1.classList.remove('open');
+  document.getElementById('pill1').addEventListener('click',e=>{if(e.target.closest('[data-pause]'))return;open();});
+  ph1.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',close));
+  document.addEventListener('click',e=>{
+    const b=e.target.closest('.icon-btn[aria-label="Pause"],.icon-btn[aria-label="Resume"],[data-pause]');
+    if(!b)return; e.stopPropagation();
+    const paused=b.getAttribute('aria-label')==='Pause';
+    b.setAttribute('aria-label',paused?'Resume':'Pause');
+    b.querySelector('.disc').innerHTML=paused?SVG.play:SVG.pause;
+  },true);
+
+  // notifications phones
+  const navTop=(title)=>`<div class="status"><span>9:41</span><span>●●● 100%</span></div><div class="island"></div>
+    <div class="navrow"><span class="icon-btn" aria-label="Back"><span class="hit"></span><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><path d="M15 4 7 12l8 8"/></svg></span><span class="link">Clear All</span></div>
+    <div class="page-title">${title}</div>`;
+  const seg=(on)=>`<div class="seg" role="tablist">${['All','General','Downloads','Problems'].map(x=>`<button role="tab" class="${x===on?'on':''}" aria-selected="${x===on}">${x}</button>`).join('')}</div>`;
+  const card=(c)=>`<div class="card"><span class="tile" style="--tint:${c.tint}">${SVG[c.icon]}</span><div class="txt"><span class="t1">${c.t1}</span><span class="t2">${c.sum}</span><div class="bar" style="--fill:${c.fill||c.tint}"><i style="width:${c.pct}%"></i></div><span class="t2">${c.line}</span>${c.btns?`<div class="btns"><button class="mini">${c.btns}</button><button class="mini red">Cancel</button></div>`:''}</div></div>`;
+  const msg=(m)=>`<div class="msg ${m.unread?'unread':''}"><span class="tile" style="--tint:${m.tint}">${SVG[m.icon]}</span><div class="txt" style="flex:1;min-width:0"><div class="head"><b>${m.t}</b><time>${m.ago}</time></div><p>${m.p}</p>${m.act?`<div class="btns" style="margin-top:8px"><button class="mini" style="color:var(--blue-text)">${m.act}</button></div>`:''}</div></div>`;
+  const ALL=`<div class="sec"><span>Downloading</span><span>2 running</span></div>
+    ${card({icon:'elementum',tint:C.blue,t1:'Interstellar (2014)',sum:'4K · from Elementum',pct:42,line:'42% · 7.6 of 18.0 GB · 20.9 MB/s · 5 min',btns:'Pause'})}
+    <div class="sec"><span>Preparing for Kodi and AirPlay</span><span>8 remaining</span></div>
+    ${card({icon:'prepare',tint:C.purple,t1:'Lanterns · S1 E1',sum:'Download → Drive → Prepare · source resolution',pct:40,line:'Step 3 of 3 · Preparing audio · 40%'})}
+    <div class="sec"><span>Uploading to Google Drive</span><span></span></div>
+    ${card({icon:'drive',tint:C.green,t1:'Scary Movie (2000)',sum:'Movies · then off the phone',pct:71,line:'71% · 3.1 of 4.4 GB'})}
+    <div class="sec"><span>Earlier</span><span></span></div>
+    ${msg({icon:'check',tint:C.green,t:'Fall (2022) is ready',ago:'12m',p:'Downloaded and prepared. It plays on the TV without converting.',unread:true})}
+    ${msg({icon:'info',tint:C.grey,t:'Kodi updated 3 add-ons',ago:'1h',p:'TMDb Helper, Elementum and Skin Variables.'})}`;
+  const PROB=`<div class="sec"><span>Problems</span><span>3</span></div>
+    ${msg({icon:'warn',tint:C.orange,t:'Preparation paused for Lanterns · S1 E2',ago:'4m',p:'Not enough free space on the phone. 6.2 GB is needed and 1.4 GB is free.',act:'Free up space',unread:true})}
+    ${msg({icon:'key',tint:C.red,t:'Google Drive needs you to sign in again',ago:'2h',p:'Uploads are waiting. Nothing has been lost.',act:'Sign in'})}
+    ${msg({icon:'warn',tint:C.orange,t:'No sources found for Lanterns · S1 E5',ago:'Yesterday',p:'4 torrent sites had nothing. It might not be out yet.',act:'Retry'})}
+    <div class="empty" style="padding-top:28px"><span>Older problems clear themselves once fixed.</span></div>`;
+  function notif(el,which){
+    el.innerHTML=navTop('Notifications')+seg(which)+`<div class="list">${which==='Problems'?PROB:ALL}</div><div class="home-ind"></div>`;
+    el.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>notif(el,b.textContent==='Problems'?'Problems':(b.textContent==='All'?'All':b.textContent))));
+    if(which==='General'||which==='Downloads'){
+      el.querySelector('.list').innerHTML=which==='Downloads'?ALL.split('<div class="sec"><span>Earlier')[0]:`<div class="sec"><span>Earlier</span><span></span></div>`+ALL.split('<div class="sec"><span>Earlier</span><span></span></div>')[1];
+    }
+  }
+  notif(document.getElementById('ph3'),'All');
+  notif(document.getElementById('ph4'),'Problems');
+
+  // touch-area toggle
+  const hits=document.getElementById('hits');
+  hits.addEventListener('change',()=>document.body.classList.toggle('show-hits',hits.checked));
+
+  // scale phones and gallery to fit
+  function fit(){
+    document.querySelectorAll('.phone-slot').forEach(slot=>{
+      const avail=Math.min(slot.parentElement.clientWidth,422);
+      const k=Math.min(1,Math.max(.5,(avail-20)/402))*(window.innerWidth>900?0.86:1);
+      slot.style.setProperty('--k',k.toFixed(3));
+    });
+    document.querySelectorAll('.gitem .scale').forEach(s=>{
+      const k=Math.min(1,s.clientWidth/378);const inner=s.firstElementChild;
+      inner.style.transform=`scale(${k})`;inner.style.transformOrigin='0 0';s.style.height=(62*k)+'px';
+    });
+  }
+  window.addEventListener('resize',fit);fit();
+})();
+</script>
+</body></html>
