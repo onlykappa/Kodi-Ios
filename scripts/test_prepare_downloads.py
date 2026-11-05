@@ -1,5 +1,5 @@
 """One-file Drive replacement, boot/post-upload queue and failure/restart boundaries."""
-import hashlib,importlib.util,json,os,sys,tempfile,unittest,urllib.parse
+import hashlib,importlib.util,io,json,os,sys,tempfile,unittest,urllib.parse
 from pathlib import Path
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
@@ -73,6 +73,17 @@ class Replacement(unittest.TestCase):
  def test_completed_but_unacknowledged_upload_recovers_without_reupload(self):
   self.drive.data=self.path.read_bytes();result=self.replace()
   self.assertEqual(result['id'],'source-id');self.assertFalse(any(m=='PUT' for m,*_ in self.drive.requests))
+ def test_change_during_partial_upload_prevents_final_commit(self):
+  original_call=self.drive.call;changed=[False]
+  def call(method,url,body=None,headers=None):
+   result=original_call(method,url,body,headers)
+   if method=='PUT' and result[0]==308 and not changed[0]:
+    self.drive.data=b'owner changed the movie';self.drive.version+=1;changed[0]=True
+   return result
+  self.drive.call=call
+  with patch.object(driveupload,'CHUNK',4):
+   with self.assertRaisesRegex(RuntimeError,'source changed'):self.replace()
+  self.assertEqual(self.drive.data,b'owner changed the movie')
 
 class QueueTests(unittest.TestCase):
  def setUp(self):
@@ -120,12 +131,52 @@ class QueueTests(unittest.TestCase):
  def test_low_space_never_replaces_original(self):
   with patch.object(prep.shutil,'disk_usage',return_value=type('Disk',(),{'free':0})()):self.assertFalse(self.queue.process_one())
   self.assertEqual(self.native.calls,0);self.assertEqual(self.drive.data,b'original video')
+ def test_compatible_4k_uses_copy_budget_instead_of_full_reencode_budget(self):
+  probe=self.native.probe
+  self.native.probe=lambda path:dict(probe(path),copy_video=True,audio_work_bytes=0)
+  with patch.object(prep.shutil,'disk_usage',return_value=type('Disk',(),{'free':512*1024*1024})()):
+   self.assertTrue(self.queue.process_one())
+  self.assertTrue(prep.ready(self.drive.meta()))
+ def test_manual_upload_invalidation_requests_a_scan(self):
+  self.queue.state['last_scan']=self.clock();self.queue.commit()
+  driveupload.invalidate_library(str(prep.location(self.profile).parent))
+  with patch.object(prep.library_scan,'remote_files',return_value=[self.drive.meta()]) as remote:
+   self.queue.scan();remote.assert_called_once()
+  self.assertFalse((prep.location(self.profile).parent/'airplay-preparation-rescan').exists())
  def test_external_mutation_of_tagged_file_is_scanned_again(self):
   item=self.drive.meta();item['appProperties']={prep.PROPERTY:prep.PROFILE,prep.CHECKSUM_PROPERTY:'old'}
   self.assertFalse(prep.ready(item))
  def test_stale_running_card_does_not_hold_background_keepalive(self):
   self.queue.state['current']={'title':'Movie','stage':'Preparing','running':True,'updated':1,'progress':50};self.queue.commit()
   self.assertFalse(prep.cards(self.profile,self.clock)[0]['running'])
+
+class Download(unittest.TestCase):
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.path=Path(self.tmp.name)/'source';self.drive=Drive();self.data=self.drive.data
+ def tearDown(self):self.tmp.cleanup()
+ def response(self,body,status=200,range=None):
+  result=io.BytesIO(body);result.status=status;result.headers={'Content-Range':range} if range else {};return result
+ def run_download(self,response,keep=lambda:True):
+  return prep.download(self.drive,self.drive.meta(),str(self.path),keep,lambda n,t:None,open_url=lambda req:response)
+ def test_resume_uses_exact_byte_range(self):
+  self.path.write_bytes(self.data[:4]);requests=[]
+  def open_url(req):
+   requests.append(req);return self.response(self.data[4:],206,'bytes 4-%d/%d'%(len(self.data)-1,len(self.data)))
+  prep.download(self.drive,self.drive.meta(),str(self.path),lambda:True,lambda n,t:None,open_url=open_url)
+  self.assertEqual(requests[0].get_header('Range'),'bytes=4-');self.assertEqual(self.path.read_bytes(),self.data)
+ def test_server_ignoring_range_restarts_instead_of_appending_duplicate_bytes(self):
+  self.path.write_bytes(self.data[:4]);self.run_download(self.response(self.data))
+  self.assertEqual(self.path.read_bytes(),self.data)
+ def test_wrong_range_is_rejected_without_damaging_checkpoint(self):
+  self.path.write_bytes(self.data[:4])
+  with self.assertRaisesRegex(RuntimeError,'wrong byte range'):self.run_download(self.response(self.data,206,'bytes 0-13/14'))
+  self.assertEqual(self.path.read_bytes(),self.data[:4])
+ def test_cancelled_read_preserves_resume_prefix(self):
+  self.path.write_bytes(self.data[:4])
+  with self.assertRaises(driveupload.Stop):self.run_download(self.response(self.data[4:],206,'bytes 4-13/14'),lambda:False)
+  self.assertEqual(self.path.read_bytes(),self.data[:4])
+ def test_oversized_response_is_never_accepted(self):
+  with self.assertRaisesRegex(RuntimeError,'size changed'):self.run_download(self.response(self.data+b'extra'))
 
 class Integration(unittest.TestCase):
  def test_service_scans_on_boot_and_after_uploads_and_settings_enable_it(self):

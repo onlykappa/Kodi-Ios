@@ -55,9 +55,15 @@ int kodi_airplay_probe(const char *input,char *json,int size) {
     if(avformat_open_input(&f,input,NULL,NULL)<0 || avformat_find_stream_info(f,NULL)<0) goto end;
     int v=video_index(f);if(v<0) goto end;
     AVCodecParameters *p=f->streams[v]->codecpar;
-    snprintf(json,(size_t)size,"{\"ready\":%s,\"width\":%d,\"height\":%d,\"hdr\":%s,\"duration\":%.6f}",
+    double audio_work=0,duration=f->duration>0?(double)f->duration/AV_TIME_BASE:0;
+    for(unsigned i=0;i<f->nb_streams;i++) {
+        AVCodecParameters *a=f->streams[i]->codecpar;
+        if(a->codec_type==AVMEDIA_TYPE_AUDIO && a->codec_id!=AV_CODEC_ID_AAC)
+            audio_work+=duration*(a->ch_layout.nb_channels>=6?384000:160000)/8;
+    }
+    snprintf(json,(size_t)size,"{\"ready\":%s,\"width\":%d,\"height\":%d,\"hdr\":%s,\"duration\":%.6f,\"copy_video\":%s,\"audio_work_bytes\":%.0f}",
              kr_prepare_ready(f) && av_dict_get(f->metadata,"kodi_airplay_prepared",NULL,0)?"true":"false",p->width,p->height,hdr(p)?"true":"false",
-             f->duration>0?(double)f->duration/AV_TIME_BASE:0);r=0;
+             duration,copy_video(p)?"true":"false",audio_work);r=0;
 end:avformat_close_input(&f);return r;
 }
 static int tick(kr_prepare_progress cb,void *ctx,int stage,double done,double total) {
@@ -206,11 +212,12 @@ int kodi_airplay_prepare(const char *input,const char *output,kr_prepare_progres
     AVDictionary *opts=NULL;av_dict_set(&opts,"movflags","+faststart+use_metadata_tags",0);
     int q=avformat_write_header(out,&opts);av_dict_free(&opts);if(q<0){fail(err,en,"MP4 header",q);goto end;}header=1;
     for(int i=0;i<ninputs;i++){ins[i].packet=av_packet_alloc();if(!ins[i].packet || next(&ins[i])<0)goto end;}
+    unsigned packets=0;
     for(;;) {
         int pick=-1;double earliest=0;
         for(int i=0;i<ninputs;i++)if(!ins[i].eof && (pick<0 || packet_time(&ins[i])<earliest)){pick=i;earliest=packet_time(&ins[i]);}
         if(pick<0)break;
-        if(!tick(cb,ctx,2,earliest,(double)original->duration/AV_TIME_BASE)){r=-2;goto end;}
+        if((packets++%128)==0 && !tick(cb,ctx,2,earliest,(double)original->duration/AV_TIME_BASE)){r=-2;goto end;}
         input_track *in=&ins[pick];AVPacket *p=in->packet;int si=p->stream_index,di=in->map[si];
         AVStream *src=in->f->streams[si],*dst=out->streams[di];
         if(pick==0 && subs[si].dec) {

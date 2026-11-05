@@ -52,6 +52,9 @@ def confirmed(drive,item_id,size,digest):
 def invalidate_library(state_dir):
  try:os.remove(os.path.join(state_dir,'drive-library.json'))
  except FileNotFoundError:pass
+ # Both automatic and manual uploads ask the idle preparation worker for a fresh scan.
+ os.makedirs(state_dir,exist_ok=True)
+ with open(os.path.join(state_dir,'airplay-preparation-rescan'),'a'):pass
 
 def pending(root,settle=120,now=None):
  """(path, folders on Drive) for finished videos: untouched for `settle` seconds (Elementum moves them whole)."""

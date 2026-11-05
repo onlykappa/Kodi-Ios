@@ -46,9 +46,17 @@ class Native:
   return json.loads(out.value.decode())
  def convert(self,source,output,keep_going,progress):
   error=ctypes.create_string_buffer(512);callback_error=[]
+  cpu_clock=getattr(time,'thread_time',time.process_time)
+  window=[time.monotonic(),cpu_clock()]
   def update(stage,done,total,context):
    try:
     if not keep_going():return 0
+    # Offline work can yield: keep this worker around half a CPU core instead of recreating the
+    # previous iOS CPU-resource kill while repackaging a large movie in the background.
+    wall=time.monotonic()-window[0];cpu=cpu_clock()-window[1]
+    if wall>=0.1:
+     time.sleep(min(0.1,max(0.0,2*cpu-wall)))
+     window[:]=[time.monotonic(),cpu_clock()]
     progress(stage,done,total);return 1
    except Exception as error:callback_error.append(error);return 0
   callback=CALLBACK(update) # keep Python's callback alive until the synchronous native job exits
@@ -145,7 +153,8 @@ class Queue:
   self.work=location(profile).parent/'preparing-videos';self.work.mkdir(parents=True,exist_ok=True)
  def commit(self):save(self.profile,self.state)
  def scan(self,keep_going=lambda:True,force=False):
-  if not force and self.clock()-self.state.get('last_scan',0)<300:return
+  requested=location(self.profile).parent/'airplay-preparation-rescan'
+  if not force and not requested.exists() and self.clock()-self.state.get('last_scan',0)<300:return
   self.state['current']={'title':'Movies and shows','stage':'Checking downloaded videos','progress':0,'queued':0,'running':True,'updated':self.clock()};self.commit()
   found=library_scan.remote_files(self.drive,keep_going);seen=set()
   for number,item in enumerate(found):
@@ -161,7 +170,7 @@ class Queue:
    if slot not in seen and job.get('status')!='committing':
     self.state['jobs'].pop(slot,None);self.state['sessions'].pop(slot,None)
     shutil.rmtree(self.work/slot,ignore_errors=True)
-  self.state['last_scan']=self.clock();self.state.pop('current',None);self.commit()
+  self.state['last_scan']=self.clock();self.state.pop('current',None);self.commit();requested.unlink(missing_ok=True)
  def process_one(self,keep_going=lambda:True):
   candidates=[(slot,job) for slot,job in self.state['jobs'].items() if job.get('status') not in ('done','superseded') and not job.get('blocked') and job.get('retry_after',0)<=self.clock()]
   if not candidates:return False
@@ -200,8 +209,16 @@ class Queue:
     before=self.native.probe(str(source))
     # Never trade the selected 4K/HDR source for the live converter's 1080p fallback.
     if not output.is_file():
-     estimate=max(int(item['size']),int(before.get('duration',0)*max(1.5e6,7e6*before['width']*before['height']/(1920*1080))/8))
-     if shutil.disk_usage(folder).free<2*estimate+RESERVE:raise RuntimeError('Free phone space is needed to finish this video; existing Drive file is unchanged')
+     audio=int(before.get('audio_work_bytes',0));size=int(item['size'])
+     if before.get('copy_video'):
+      # One MP4 output plus only the audio tracks which actually need bridging. No H.264 re-encode estimate
+      # for the usual 4K HEVC download: those video bytes remain unchanged.
+      needed=size+2*audio+16*1024*1024+RESERVE
+     else:
+      video=int(before.get('duration',0)*max(1.5e6,7e6*before['width']*before['height']/(1920*1080))/8)
+      needed=size+2*(video+audio)+RESERVE
+     used=sum(p.stat().st_size for p in folder.glob('prepared.mp4.track*') if p.is_file())
+     if shutil.disk_usage(folder).free<max(RESERVE,needed-used):raise RuntimeError('Free phone space is needed to finish this video; existing Drive file is unchanged')
      progress('Step 3 of 3 · Preparing at source resolution',20)
      self.native.convert(str(source),str(output),keep_going,
       lambda stage,n,t:progress('Step 3 of 3 · '+('Preparing video','Preparing audio','Packaging MP4','Verifying video')[stage],(20,35,50,74)[stage]+(15,15,24,1)[stage]*(n/t if t else 0)))
