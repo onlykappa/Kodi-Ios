@@ -215,7 +215,11 @@ def drive_uploads(monitor,home,profile):
  state=str(profile/'addon_data/service.kodi.ios.bootstrap/drive-uploads.json')
  idle=lambda:not monitor.abortRequested() and not xbmc.Player().isPlayingVideo()
  log=lambda message:xbmc.log('Kodi iOS '+message,xbmc.LOGINFO)
- while not monitor.waitForAbort(120):
+ import library_scan
+ # First pass 30 s after start (owner, build 145: the Library was opened, and left, before the old 120 s first pass).
+ delay=30
+ while not monitor.waitForAbort(delay):
+  delay=120
   if not idle() or not accounts.get_accounts():continue
   # Finished torrents still seeding in Elementum's folder go to Drive too (owner: nothing should stay on the phone).
   seeding=[]
@@ -224,12 +228,15 @@ def drive_uploads(monitor,home,profile):
    download=xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.elementum').getSetting('download_path') or '')
    if download:seeding=driveupload.seeding_pending(download,torrents)
   except Exception:seeding=[]
-  if not seeding and not driveupload.pending(root):continue
+  waiting=driveupload.pending(root)
+  if not seeding and not waiting:continue
+  log('Drive: %d phone video%s and %d finished torrent file%s to check'%(len(waiting),'' if len(waiting)==1 else 's',len(seeding),'' if len(seeding)==1 else 's'))
   try:
    state_dir=str(profile/'addon_data/service.kodi.ios.bootstrap')
    with driveupload.transfer_lock(state_dir):
     count=driveupload.run_once(root,drive,state,log,idle,xbmcaddon.Addon().getSettingBool('drive_upload_delete'),
-                             lambda:driveupload.invalidate_library(state_dir),seeding,driveupload.remove_torrent)
+                             lambda:driveupload.invalidate_library(state_dir),seeding,driveupload.remove_torrent,
+                             remote=lambda:library_scan.remote_files(drive,idle),pace=1)
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))
   except driveupload.Stop:pass
   except Exception as error:

@@ -27,14 +27,19 @@ def fingerprint(path):
  stat=os.stat(path,follow_symlinks=False)
  return (stat.st_dev,stat.st_ino,stat.st_size,stat.st_mtime_ns,stat.st_ctime_ns)
 
-def checksum(path,keep_going=lambda:True):
+def checksum(path,keep_going=lambda:True,pace=0,clock=time.monotonic,sleep=time.sleep):
+ """MD5 of a file. pace>0 rests pace x the time each megabyte took (pace 1: half of one core at most). The
+ background uploader paces: iOS ended Kodi for 91% CPU over 53 s in the background (owner report, build 142), and
+ a 9.5 GB 2160p file takes many seconds to read."""
  digest=hashlib.md5()
  with open(path,'rb') as source:
   while True:
    if not keep_going():raise Stop('Scan stopped; phone files kept')
+   started=clock()
    chunk=source.read(1024*1024)
    if not chunk:break
    digest.update(chunk)
+   if pace:sleep(max(0.0,clock()-started)*pace)
  return digest.hexdigest()
 
 def confirmed(drive,item_id,size,digest):
@@ -172,10 +177,29 @@ def _next_offset(headers):
  value=headers.get('Range') or headers.get('range') or ''
  return int(value.rsplit('-',1)[1])+1 if '-' in value else 0
 
-def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,on_uploaded=lambda:None,seeding=(),drop=None):
+def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,on_uploaded=lambda:None,seeding=(),drop=None,
+             remote=None,pace=0):
  """Uploads every finished video once; returns the number uploaded. `seeding` adds finished torrents still in
  Elementum's folder ((path, folders, torrent id)); once all of a torrent's videos are on Drive and verified, `drop`
- removes the torrent and its files through Elementum."""
+ removes the torrent and its files through Elementum.
+
+ `remote()` lists the videos already in Drive › Kodi Downloads (library_scan.remote_files). A phone video whose exact
+ bytes (size + MD5, confirmed with fresh Drive metadata) are already there is not uploaded again; its phone copy is
+ removed under the same rules as an upload (owner, build 145: phone duplicates of Drive videos stayed on the phone)."""
+ index=[None]
+ def already_on_drive(size,digest):
+  if remote is None:return None
+  if index[0] is None:
+   try:index[0]=list(remote())
+   except Exception as error:
+    log('Drive listing for duplicates failed (%s); uploading as usual'%type(error).__name__);index[0]=[]
+  for item in index[0]:
+   if int(item.get('size') or 0)!=size:continue
+   listed=(item.get('md5Checksum') or '').lower()
+   if listed and listed!=digest:continue
+   if not keep_going():raise Stop()
+   if confirmed(drive,item.get('id'),size,digest):return item
+  return None
  try:
   with open(state_path,encoding='utf-8') as source:state=json.load(source)
  except Exception:state={}
@@ -192,6 +216,7 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
   if not keep_going():break
   before=fingerprint(path)
   known=done_before.get(path)
+  if tid is None and known and known.get('fp')==list(before):continue  # on Drive already; phone copy kept by setting
   if tid is not None and known and known.get('fp')==list(before):
    # Already on Drive and verified (its torrent could not be dropped yet, or a sibling failed): never upload twice.
    torrent_ok.setdefault(tid,set()).add(path)
@@ -199,18 +224,31 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
     try:drop(tid);log('Removed the finished torrent from the phone (Google Drive has it)')
     except Exception as error:log('Elementum could not remove the finished torrent: %s'%type(error).__name__)
    continue
-  # What is uploading now, for the notification center's Uploading card (notices.uploads).
-  def progress(done,total,name=os.path.basename(path),folder=' › '.join(['Drive']+list(parts))):
-   state['current']={'name':name,'folder':folder,'sent':done,'total':total};save()
-  try:meta=drive.upload(path,drive.folder(parts),sessions,save,keep_going,progress)
-  finally:
-   if state.pop('current',None) is not None:save()
-  if int(meta.get('size',-1))!=os.path.getsize(path):
-   log('Drive upload size differs for %s; the phone copy is kept'%os.path.basename(path));continue
-  count+=1;log('Uploaded %s to Google Drive › %s'%(os.path.basename(path),' › '.join(parts)))
-  on_uploaded()  # each file, even when a later transfer fails or is interrupted
+  digest=None;duplicate=None
+  if remote is not None:
+   digest=checksum(path,keep_going,pace)
+   if fingerprint(path)!=before:continue  # still changing: next pass
+   duplicate=already_on_drive(before[2],digest)
+  if duplicate is not None:
+   meta=dict(duplicate,size=before[2])
+   log('%s is already on Google Drive (same size and checksum); not uploaded again'%os.path.basename(path))
+  else:
+   # What is uploading now, for the notification center's Uploading card (notices.uploads).
+   def progress(done,total,name=os.path.basename(path),folder=' › '.join(['Drive']+list(parts))):
+    state['current']={'name':name,'folder':folder,'sent':done,'total':total};save()
+   try:meta=drive.upload(path,drive.folder(parts),sessions,save,keep_going,progress)
+   finally:
+    if state.pop('current',None) is not None:save()
+   if int(meta.get('size',-1))!=os.path.getsize(path):
+    log('Drive upload size differs for %s; the phone copy is kept'%os.path.basename(path));continue
+   count+=1;log('Uploaded %s to Google Drive › %s'%(os.path.basename(path),' › '.join(parts)))
+   if index[0] is not None and digest:index[0].append(dict(meta,size=before[2],md5Checksum=digest))
+   on_uploaded()  # each file, even when a later transfer fails or is interrupted
+  if not delete_after:
+   if tid is None:done_before[path]={'fp':list(before),'id':meta.get('id')};save()
+   continue
   if delete_after:
-   digest=checksum(path,keep_going)
+   if digest is None or fingerprint(path)!=before:digest=checksum(path,keep_going,pace)
    if fingerprint(path)!=before or not confirmed(drive,meta.get('id'),before[2],digest):
     log('Drive checksum could not be verified; the phone copy is kept');continue
    if tid is not None:
@@ -224,6 +262,8 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
    if not keep_going():raise Stop()
    if fingerprint(path)!=before:continue
    os.remove(path);folder=os.path.dirname(path)
+   log('Removed the phone copy of %s (Google Drive has it)'%os.path.basename(path))
+   if duplicate is not None:on_uploaded()  # the Library lists it from Drive now
    while os.path.basename(folder) not in ('Movies','TV Shows') and not os.listdir(folder):os.rmdir(folder);folder=os.path.dirname(folder)
  return count
 

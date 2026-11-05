@@ -133,6 +133,54 @@ class Upload(unittest.TestCase):
   self.assertEqual(token(),'new');self.assertEqual(saved[0]['access_tokens']['date'],10000)
   self.assertEqual(up.token_source(lambda:{'a':account},saved.append,None,now=lambda:10001)(),'new')
   with self.assertRaises(RuntimeError):up.token_source(lambda:{},None,None)()
+class PhoneDuplicates(unittest.TestCase):
+ """Owner (build 145): a phone video already on Drive must not be uploaded again; its phone copy goes."""
+ def setUp(self):
+  self.dir=tempfile.TemporaryDirectory();self.root=self.dir.name;old=time.time()-600
+  self.path=os.path.join(self.root,'Movies','Inception (2010)','Inception.2010.2160p.mkv')
+  os.makedirs(os.path.dirname(self.path))
+  with open(self.path,'wb') as f:f.write(b'inception'*100)
+  os.utime(self.path,(old,old))
+  self.digest=up.checksum(self.path);self.size=os.path.getsize(self.path)
+  self.state=os.path.join(self.root,'state.json');self.uploads=[];uploads=self.uploads
+  class D:
+   def folder(self,parts):return '/'.join(parts)
+   def upload(self,path,folder,sessions,save,keep,progress):uploads.append(path);return {'id':'new','size':os.path.getsize(path)}
+  self.D=D
+ def tearDown(self):self.dir.cleanup()
+ def run_once(self,remote,delete=True,confirm=lambda fid:True):
+  logs=[]
+  with mock.patch.object(up,'confirmed',lambda drive,fid,size,digest:confirm(fid) and digest==self.digest and size==self.size):
+   count=up.run_once(self.root,self.D(),self.state,logs.append,delete_after=delete,remote=remote)
+  return count,logs
+ def test_identical_drive_copy_removes_phone_copy_without_upload(self):
+  count,logs=self.run_once(lambda:[{'id':'old','size':str(self.size),'md5Checksum':self.digest}])
+  self.assertEqual((count,self.uploads),(0,[]));self.assertFalse(os.path.exists(self.path))
+  self.assertFalse(os.path.exists(os.path.dirname(self.path)))  # the empty title folder goes too
+  self.assertTrue(any('already on Google Drive' in m for m in logs))
+ def test_same_size_different_bytes_is_uploaded_not_deleted_unverified(self):
+  count,_=self.run_once(lambda:[{'id':'old','size':str(self.size),'md5Checksum':'0'*32}],confirm=lambda fid:fid=='new')
+  self.assertEqual((count,self.uploads),(1,[self.path]));self.assertFalse(os.path.exists(self.path))
+ def test_unverifiable_duplicate_keeps_phone_copy(self):
+  count,_=self.run_once(lambda:[{'id':'old','size':str(self.size)}],confirm=lambda fid:False)
+  self.assertTrue(os.path.exists(self.path))  # neither the listed copy nor the new upload verified
+ def test_listing_failure_falls_back_to_upload(self):
+  def broken():raise RuntimeError('offline')
+  count,logs=self.run_once(broken)
+  self.assertEqual(self.uploads,[self.path]);self.assertTrue(any('listing for duplicates failed' in m for m in logs))
+ def test_keep_setting_never_uploads_twice(self):
+  self.run_once(lambda:[],delete=False);self.run_once(lambda:[],delete=False)
+  self.assertEqual(self.uploads,[self.path]);self.assertTrue(os.path.exists(self.path))
+ def test_paced_checksum_rests_between_reads(self):
+  ticks=iter(range(0,1000,2));slept=[]
+  digest=up.checksum(self.path,pace=1,clock=lambda:next(ticks),sleep=slept.append)
+  self.assertEqual(digest,self.digest);self.assertTrue(slept and all(t==2 for t in slept))
+ def test_service_passes_remote_listing_and_pace(self):
+  source=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
+  self.assertIn('remote=lambda:library_scan.remote_files(drive,idle),pace=1',source);self.assertIn('delay=30',source)
+  watch=(ROOT/'migration/bundled-bootstrap/resources/lib/library_watch.py').read_text()
+  self.assertNotIn("art_busy=lambda:xbmc.getInfoLabel('Window(Home).Property(Notices.Active)')",watch)
+
 if __name__=='__main__':unittest.main()
 
 class SeedingTorrents(unittest.TestCase):

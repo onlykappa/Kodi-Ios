@@ -74,7 +74,10 @@ def run(xbmc,xbmcaddon,xbmcvfs,monitor,profile):
   state_dir=str(profile/'addon_data/service.kodi.ios.bootstrap')
   info=lambda:xbmc.getInfoLabel('Container.FolderPath') if xbmc.getCondVisibility('Window.IsActive(videos)') else ''
   busy=lambda:xbmc.Player().isPlayingVideo() or xbmc.getCondVisibility('System.HasActiveModalDialog') or xbmc.getCondVisibility('Container.IsUpdating')
-  art_busy=lambda:xbmc.getInfoLabel('Window(Home).Property(Notices.Active)')=='true'
+  # Owner (build 145): downloaded movies stayed grey. Notices.Active is 'true' for as long as any Elementum download
+  # runs, so posters waited for every download to end. Art is a few small TMDb requests, cached once per title;
+  # it now runs during downloads too (still never during playback, a dialog or a page load: busy()).
+  art_busy=lambda:False
   try:key=drivelibrary.tmdb_key(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.themoviedb.helper').getAddonInfo('path')))
   except Exception:key=''
   def get(url,timeout):
