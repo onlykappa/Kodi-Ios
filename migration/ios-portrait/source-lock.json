@@ -5,11 +5,14 @@
   "patch": "kodi-21.3-portrait.patch",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
+    "tag": "kodi-ios-portrait-r22",
+    "asset": "Kodi-portrait-executable.zip",
+    "sha256": "1b30b81921b27416113c362fd1443f4f88d2ecd64087f9b8491ba04628a17172"
+  },
+  "build_note": "r22: idempotent iOS audio resume, JSON-RPC schema deferral diagnostics, and the native tab bar owner (Application.cpp loads KodiGlassBar r5 and shows/hides it and runs tab taps from its frame loop, no Python wait). Built and published by kodi-ios-portrait.yml; sha256 is the Kodi binary, checked against the downloaded release. Not yet device-verified.",
+  "previous_executable_release": {
     "tag": "kodi-ios-portrait-r21",
     "asset": "Kodi-portrait-executable.zip",
     "sha256": "b2a3c4926c3fbc12822c85caf35bbe61165731c6d93b119249d42c997df77ed9"
-  },
-  "build_tag": "kodi-ios-portrait-r22",
-  "build_note": "r22 stages idempotent iOS audio resume, expected JSON-RPC schema deferral diagnostics, and the native tab bar owner (Application.cpp: Kodi loads KodiGlassBar r5 from Frameworks and shows/hides it and runs tab taps from its frame loop, no Python wait). Not built or pinned: executable_release remains the verified r21 binary until a separately authorized build is checked.",
-  "build_status": "PENDING"
+  }
 }
