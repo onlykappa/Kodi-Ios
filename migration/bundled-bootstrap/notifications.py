@@ -20,7 +20,8 @@ def card_properties(downloads,uploads):
   for key in ('title','line','speed'):props['dl.%d.%s'%(n,key)]=d.get(key,'')
   props['dl.%d.pausetext'%n]=('Resume' if d.get('paused') else 'Pause') if d else ''
  u=uploads[0] if uploads else {}
- for key in ('title','folder','line'):props['up.'+key]=u.get(key,'')
+ for key in ('title','line'):props['up.'+key]=u.get(key,'')
+ props['up.summary']=' · '.join(x for x in (u.get('folder',''),'then off the phone') if x) if u else ''
  return props
 
 def message_properties(items,filter_key,now=None):

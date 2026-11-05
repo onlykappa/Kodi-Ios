@@ -899,27 +899,28 @@ def notices_page():
  w=WIDTH-2*SIDE
  def section(text,cond,extra=''):
   return ('<control type="group"><width>%d</width><height>96</height><visible>%s</visible>'%(WIDTH,cond)+
-   label(SIDE,30,w,60,text,'p_foot_b',GREY)+(label(SIDE,30,w,60,extra,'p_foot',DIM,'right') if extra else '')+'</control>')
+   label(SIDE,30,w-260,60,text,'p_foot_b',GREY)+(label(SIDE+w-240,30,240,60,extra,'p_foot',GREY,'right') if extra else '')+'</control>')
  def card(n):
-  h=300;pre='dl.%d.'%n
+  h=350;pre='dl.%d.'%n   # Pause/Cancel are 124 high (46 pt): touch areas of at least 44 pt (APPLE-UI-POLICY 4.5)
   return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(WIDTH,h+24,has(pre+'title'))+
    surface(SIDE-6,0,w+12,h,'round.png',SURFACE,32)+
    surface(SIDE+24,26,130,196,'round_s.png','FF3A3A3C',20)+icon(SIDE+59,94,60,'download.png',GREY)+
    label(SIDE+184,22,w-210,64,P(pre+'title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
    '<control type="progress" id="%d"><left>%d</left><top>110</top><width>%d</width><height>14</height>'
    '<texturebg border="7" colordiffuse="52787880">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="FF0A84FF">%sdot.png</midtexture><righttexture /></control>'%(9400+n,SIDE+184,w-210,MEDIA,MEDIA)+
-   label(SIDE+184,136,w-210,48,P(pre+'line'),'p_cap',GREY)+
-   label(SIDE+184,136,w-210,48,P(pre+'speed'),'p_cap',GREY,'right')+
-   pill_button(9410+n,SIDE+184,206,210,72,P(pre+'pausetext'),[('','noop')],'glass')+
-   pill_button(9420+n,SIDE+184+230,206,210,72,'[COLOR FFFF453A]Cancel[/COLOR]',[('','noop')],'glass')+'</control>')
- upload=('<control type="group"><width>%d</width><height>244</height><visible>%s</visible>'%(WIDTH,has('up.title'))+
+   label(SIDE+184,136,w-210,48,P(pre+'line')+'$INFO[Window().Property(%sspeed),  ·  ,]'%pre,'p_cap',GREY)+
+   pill_button(9410+n,SIDE+184,202,240,124,P(pre+'pausetext'),[('','noop')],'glass')+
+   pill_button(9420+n,SIDE+184+260,202,240,124,'[COLOR FFFF453A]Cancel[/COLOR]',[('','noop')],'glass')+'</control>')
+ def transfer(pre,progress_id,glyph,tint,tile):
+  """Upload/preparation card: title, summary, bar, status. One label per line, each truncating (ISSUE-101)."""
+  return ('<control type="group"><width>%d</width><height>244</height><visible>%s</visible>'%(WIDTH,has(pre+'title'))+
    surface(SIDE-6,0,w+12,220,'round.png',SURFACE,32)+
-   surface(SIDE+24,26,130,168,'round_s.png','FF1F3D2B',20)+icon(SIDE+59,80,60,'cloud-arrow-up.png',GREEN)+
-   label(SIDE+184,20,w-210,60,P('up.title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
-   label(SIDE+184,76,w-210,46,P('up.folder'),'p_cap',GREY)+
-   '<control type="progress" id="9430"><left>%d</left><top>134</top><width>%d</width><height>14</height>'
-   '<texturebg border="7" colordiffuse="52787880">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="%s">%sdot.png</midtexture><righttexture /></control>'%(SIDE+184,w-210,MEDIA,GREEN,MEDIA)+
-   label(SIDE+184,158,w-210,46,P('up.line'),'p_cap',GREY)+label(SIDE+184,158,w-210,46,'then off the phone','p_cap',DIM,'right')+'</control>')
+   surface(SIDE+24,26,130,168,'round_s.png',tile,20)+icon(SIDE+59,80,60,glyph,tint)+
+   label(SIDE+184,20,w-210,60,P(pre+'title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
+   label(SIDE+184,80,w-210,46,P(pre+'summary'),'p_cap',GREY)+
+   '<control type="progress" id="%d"><left>%d</left><top>134</top><width>%d</width><height>14</height>'
+   '<texturebg border="7" colordiffuse="52787880">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="%s">%sdot.png</midtexture><righttexture /></control>'%(progress_id,SIDE+184,w-210,MEDIA,tint,MEDIA)+
+   label(SIDE+184,158,w-210,46,P(pre+'line'),'p_cap',GREY)+'</control>')
  def row(n):
   pre='msg.%d.'%n;h=170
   return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(WIDTH,h+14,has(pre+'title'))+
@@ -928,22 +929,22 @@ def notices_page():
    image(SIDE+8,h//2-8,16,16,MEDIA+'dot.png','FF0A84FF','<visible>%s</visible>'%has(pre+'unread'))+
    surface(SIDE+36,30,86,86,'round_s.png',P(pre+'tint'),20)+icon(SIDE+56,50,46,ICONS+P(pre+'icon'),WHITE)+
    label(SIDE+150,22,w-300,58,P(pre+'title'),'p_foot_b',WHITE,'left','<scroll>false</scroll>')+
-   label(SIDE+150,78,w-190,70,P(pre+'text'),'p_cap',GREY,'left','<wrapmultiline>true</wrapmultiline>')+
-   label(SIDE+150,22,w-170,58,P(pre+'ago'),'p_cap',DIM,'right')+'</control>')
+   label(SIDE+150,80,w-190,70,P(pre+'text'),'p_cap',GREY,'left','<wrapmultiline>true</wrapmultiline>')+
+   label(SIDE+w-140,22,120,58,P(pre+'ago'),'p_cap',GREY,'right')+'</control>')
  filters=''.join('<control type="group"><left>%d</left><top>0</top>'%(i*w//len(NOTICE_FILTERS))+
    image(4,4,w//len(NOTICE_FILTERS)-8,80,MEDIA+'pill_96.png','FF636366','<visible>String.IsEqual(Window().Property(filter),%s)</visible>'%key,border=40)+
-   '<control type="button" id="%d"><width>%d</width><height>88</height><label>%s</label><font>p_foot_b</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
+   '<control type="button" id="%d"><top>-15</top><width>%d</width><height>118</height><label>%s</label><font>p_foot_b</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
    '<align>center</align><aligny>center</aligny><texturefocus /><texturenofocus /></control></control>'%(9101+i,w//len(NOTICE_FILTERS),text,GREY,WHITE)
    for i,(key,text) in enumerate(NOTICE_FILTERS))
  body=('<controls>'+backdrop()+
   nav_button(9001,SIDE,36,'chevron-left.png','Close','<ondown>9101</ondown>')+
-  '<control type="button" id="9002"><left>%d</left><top>36</top><width>260</width><height>108</height><label>Clear All</label><font>p_body</font>'
-  '<textcolor>FF0A84FF</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>right</align><aligny>center</aligny><texturefocus /><texturenofocus /></control>'%(WIDTH-SIDE-260)+
+  '<control type="button" id="9002"><left>%d</left><top>31</top><width>260</width><height>118</height><label>Clear All</label><font>p_body</font>'
+  '<textcolor>%s</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>right</align><aligny>center</aligny><texturefocus /><texturenofocus /></control>'%(WIDTH-SIDE-260,ACCENT)+
   label(SIDE,160,w,110,'Notifications','p_large')+
   '<control type="group"><left>%d</left><top>290</top>'%SIDE+surface(0,0,w,88,'pill_96.png',SURFACE,44)+filters+'</control>'+
   '<control type="grouplist" id="9300"><left>0</left><top>400</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%WIDTH+
   section('Downloading',has('has.dl'),P('dl.summary'))+''.join(card(n) for n in range(1,NOTICE_SLOTS+1))+
-  section('Uploading to Google Drive',has('has.up'))+upload+
+  section('Uploading to Google Drive',has('has.up'))+transfer('up.',9430,'cloud-arrow-up.png',GREEN,'FF1F3D2B')+
   section('Earlier',has('has.msg'))+''.join(row(n) for n in range(1,NOTICE_ROWS+1))+
   '<control type="group"><width>%d</width><height>300</height><visible>%s</visible>'%(WIDTH,has('empty'))+
   label(SIDE,80,w,80,"You're all caught up",'p_h3',GREY,'center')+'</control>'+
