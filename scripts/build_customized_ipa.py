@@ -1,5 +1,5 @@
 """Bundle the validated configuration in an isolated official app; no native patching."""
-import argparse,contextlib,hashlib,io,json,os,shutil,xml.etree.ElementTree as ET,zipfile
+import argparse,contextlib,hashlib,io,json,os,shutil,subprocess,xml.etree.ElementTree as ET,zipfile
 from pathlib import Path
 from build_unsigned_ipa import build as unsigned,validate_staging
 import ios_portrait
@@ -525,8 +525,34 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
  ET.indent(root);tree.write(system,encoding='utf-8',xml_declaration=True)
  return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'elementum':engine,'profile_addons':profile_addons,'portrait':portrait,'splash':splash}
 
+# Owner crash report (build 142, cpu_resource_fatal): iOS killed Kodi for CPU use, and part of it was Python compiling
+# source (builtin_compile / Py_CompileStringObject under import). The app bundle is read-only, so Python can never save
+# a .pyc there: the official package ships none for its standard library (1089 .py, 0 in python3.11/__pycache__) and
+# none for most add-ons, and every plugin run (a row, a show page, a source search) parsed os, json and TMDb Helper
+# again. They are now compiled here by the same Python version (3.11, cache tag cpython-311), as unchecked-hash .pyc
+# files, which Python uses without comparing them with the source (the bundle never changes after signing).
+PYC_TAG='cpython-311'
+def python311():
+ exe=os.environ.get('KODI_IOS_PYTHON311') or shutil.which('python3.11')
+ assert exe,'Python 3.11 is required to precompile the bundle (set KODI_IOS_PYTHON311)'
+ version=subprocess.run([exe,'-I','-c','import sys;print(sys.implementation.cache_tag)'],capture_output=True,text=True,check=True).stdout.strip()
+ assert version==PYC_TAG,'Bundle bytecode must come from CPython 3.11, got '+version
+ return exe
+def precompile(app):
+ app=Path(app);roots=sorted(str(p) for p in list(app.glob('Frameworks/lib/python3.11'))+list(app.rglob('AppHome/addons')) if p.is_dir())
+ assert len(roots)==2,'Expected the Python standard library and AppHome/addons, got %r'%roots
+ before=sum(1 for _ in app.rglob('*.%s.pyc'%PYC_TAG))
+ # Files that are not Python 3 (old test data, Python 2 back-ports) fail to compile and stay source-only.
+ subprocess.run([python311(),'-I','-m','compileall','-q','-j','0','--invalidation-mode','unchecked-hash',
+                 '-s',str(app),'-p','Kodi.app']+roots,check=False,stdout=subprocess.DEVNULL)
+ after=sum(1 for _ in app.rglob('*.%s.pyc'%PYC_TAG))
+ sources=sum(1 for root in roots for _ in Path(root).rglob('*.py'))
+ assert after-before>sources//2,'Too few modules precompiled (%d of %d)'%(after-before,sources)
+ return {'tag':PYC_TAG,'added':after-before,'sources':sources}
+
 def build(app,bundle,expected,deb,output,work,elementum=None,portrait_inputs=None):
  staged,details=prepare(app,bundle,expected,work,elementum,portrait_inputs)
+ details['bytecode']=precompile(staged)
  # The shared native packer emits a diagnostic-only intermediate label; publish only the final verified customized report.
  with contextlib.redirect_stdout(io.StringIO()):report=unsigned(staged,output,deb)
  old=output/report['filename'];ipa=output/'Kodi-iOS-Customized-Touch-r10.ipa';old.rename(ipa)
@@ -545,6 +571,9 @@ def build(app,bundle,expected,deb,output,work,elementum=None,portrait_inputs=Non
    assert digest(z.read(base+'/'+name))==expected_hash,'Bundled addon bytes changed unexpectedly'
   for e in details['seed_files']:assert digest(z.read(base+'/addons/'+BOOT+'/seed/'+e['path']))==e['sha256']
   assert digest(z.read(base+'/system/advancedsettings.xml'))==details['splash']['sha256'],'Splash setting missing from IPA'
+  names=set(z.namelist())
+  for module in ('Payload/Kodi.app/Frameworks/lib/python3.11/__pycache__/os.%s.pyc','Payload/Kodi.app/Frameworks/lib/python3.11/json/__pycache__/decoder.%s.pyc'):
+   assert module%PYC_TAG in names,'Precompiled standard library missing from IPA: '+module%PYC_TAG
   if details['elementum']:
    assert digest(z.read('Payload/Kodi.app/Frameworks/elementum.framework/elementum'))==details['elementum']['framework_sha256'],'Engine framework missing from IPA'
    for e in details['elementum']['patches']:assert digest(z.read(base+'/'+e['path']))==e['after_sha256']

@@ -116,4 +116,26 @@ class BundleTests(unittest.TestCase):
   self.assertFalse((self.root/'work').exists())
  def test_overlapping_source_and_work_rejected(self):
   with self.assertRaises(AssertionError):prepare(self.app,self.bundle,self.sha,self.app/'nested')
+class BytecodeTests(unittest.TestCase):
+ def test_bundle_python_precompiled_for_311(self):
+  # Owner crash report (build 142): iOS killed Kodi for CPU; Python recompiled read-only bundle sources on every run.
+  import build_customized_ipa as b,importlib.util as iu,marshal,sys
+  with tempfile.TemporaryDirectory() as tmp:
+   app=Path(tmp)/'Kodi.app';std=app/'Frameworks/lib/python3.11';add=app/'AppData/AppHome/addons/plugin.x'
+   for d,names in ((std,('os.py','json/decoder.py')),(add,('default.py','resources/lib/a.py'))):
+    for n in names:(d/n).parent.mkdir(parents=True,exist_ok=True);(d/n).write_text('VALUE=%r\n'%n)
+   (add/'py2.py').write_text('print "python 2"\n')
+   info=b.precompile(app)
+   self.assertEqual((info['tag'],info['added'],info['sources']),('cpython-311',4,5))
+   pyc=std/'__pycache__/os.cpython-311.pyc';data=pyc.read_bytes()
+   # PEP 552 flags: bit 0 hash-based, bit 1 check source. 0b01 = never compared with the source.
+   self.assertEqual(int.from_bytes(data[4:8],'little'),0b01)
+   self.assertFalse((add/'__pycache__/py2.cpython-311.pyc').exists())
+   if sys.implementation.cache_tag=='cpython-311':
+    self.assertEqual(marshal.loads(data[16:]).co_filename,'Kodi.app/Frameworks/lib/python3.11/os.py')
+ def test_build_requires_python311(self):
+  import build_customized_ipa as b,os
+  from unittest import mock
+  with mock.patch.dict(os.environ,{'KODI_IOS_PYTHON311':'/nonexistent/python'}):
+   with self.assertRaises(Exception):b.python311()
 if __name__=='__main__':unittest.main()

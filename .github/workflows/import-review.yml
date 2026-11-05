@@ -158,7 +158,16 @@ jobs:
         run: python3 -B scripts/ios_portrait.py --fetch "$RUNNER_TEMP/portrait-inputs"
       - name: Acquire pinned Elementum client, iPhoneOS engine framework and kodi-six
         run: python3 -B scripts/fetch_elementum_inputs.py --output "$RUNNER_TEMP/elementum-inputs"
+      # The phone runs CPython 3.11: the bundle's .pyc files must come from the same version (build_customized_ipa.precompile).
+      - name: Python 3.11 for the bundle bytecode
+        id: py311
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+          update-environment: false
       - name: Build and validate full customized unsigned ARM64 IPA
+        env:
+          KODI_IOS_PYTHON311: ${{ steps.py311.outputs.python-path }}
         run: |
           # The bundle was just rebuilt from pinned, hash-checked sources; pin the IPA to that exact bundle.
           bundle_sha=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['sha256'])" "$RUNNER_TEMP/kodi-import-review/import-review-report.json")

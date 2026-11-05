@@ -166,6 +166,11 @@ def phone_housekeeping(profile,elementum_setting=None,api=None):
   api('Addons.SetAddonEnabled',{'addonid':'service.xbmc.versioncheck','enabled':False});now.append('versioncheck')
  if 'zeroconf' not in done and api:
   if 'error' not in api('Settings.SetSettingValue',{'setting':'services.zeroconf','value':False}):now.append('zeroconf')
+ # Owner crash report (build 142, cpu_resource_fatal): iOS killed Kodi in the background for 91% CPU over 53 s; 7 of 12
+ # samples were Kodi's WS-Discovery listener (Windows network/SMB discovery) spinning in the kernel. Nothing here
+ # uses SMB; switching the setting off stops the listener at once.
+ if 'wsdiscovery' not in done and api:
+  if 'error' not in api('Settings.SetSettingValue',{'setting':'services.wsdiscovery','value':False}):now.append('wsdiscovery')
  if now:
   marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(json.dumps({'done':sorted(done|set(now))})+'\n')
  return now
