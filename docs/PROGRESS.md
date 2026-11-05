@@ -119,3 +119,7 @@ PAUSED at owner explicit request. Stop implementation/publication until resumed.
 ## Resume after owner pause — 2026-10-30T14:24:00.732908+00:00
 
 Owner explicitly resumed. Inspected run 41068166024: SUCCESS; revised artifact 12983492116 uploaded and not expired. Actual IPA checksum recorded in reports/ios-touch-r1-artifact.json. Prior pause above is historical and no longer active. Stop at Phase 4 device-test boundary after publishing evidence; do not infer the prior navigation failure is fixed on the phone.
+
+## Test delivery build tracker
+
+PR #8 merged at `2a8bb1cb16dfa0984f7a1b3d974e20857c0f6d3c`. Native r23 source: `d13ec87c3db61a1667de0023450a8acc1f4d033b`; [native run 42078285510](https://github.com/onlykappa/Kodi-Ios/actions/runs/42078285510) queued/running. The pin intentionally remains r22 until the native output is verified; no intermediate IPA job was started. Resume by inspecting this run and reports/ipa-test-delivery.json, verify/pin r23, then build and verify the test IPA. Owner authorizes this delivery; device results still pending.

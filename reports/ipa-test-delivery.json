@@ -1,0 +1,20 @@
+{
+  "status": "native_build_queued",
+  "authorization": "Owner explicitly requested PR8 merge and testIPA.",
+  "pull_request": 8,
+  "merged": true,
+  "merge_commit": "2a8bb1cb16dfa0984f7a1b3d974e20857c0f6d3c",
+  "native_build_source": "d13ec87c3db61a1667de0023450a8acc1f4d033b",
+  "native_run": 42078285510,
+  "native_url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/42078285510",
+  "native_tag": "kodi-ios-portrait-r23",
+  "native_pin_current": "kodi-ios-portrait-r22",
+  "patch_sha256": "054c3ff6ea11ebcdc3f95cf422627193335ceb34d4d770247da83b002c5f25cf",
+  "next": [
+    "Wait native compile/publish; inspect actual logs and provenance.",
+    "Download native release/archive, verify binary+patch hash then pinr23.",
+    "Build IPA frommain, verify bundle/executable/framework/addons and publishrawlink."
+  ],
+  "device_verified": false,
+  "ipa_built": false
+}

@@ -85,3 +85,7 @@ The phone scan can access Kodi's sandbox and folders made available to Kodi; it 
 ## Final integrated verification
 
 **258/258 tests pass in 15 suites**, including the 43-test portrait layout run. Project and iOS static checks and `git diff --check` pass. Exact suite counts, source hashes, review findings and phone acceptance steps are in [the validation report](../reports/library-downloads-validation.json). Scanner, Settings and review agents completed their work; no source blocker remains in the verified scope. PR #8 remains the sole delivery target, draft and unmerged; main and native pins remain unchanged. No IPA, release or live owner media operation. Device acceptance is the remaining work.
+
+## Test delivery build tracker
+
+PR #8 merged at `2a8bb1cb16dfa0984f7a1b3d974e20857c0f6d3c`. Native r23 source: `d13ec87c3db61a1667de0023450a8acc1f4d033b`; [native run 42078285510](https://github.com/onlykappa/Kodi-Ios/actions/runs/42078285510) queued/running. The pin intentionally remains r22 until the native output is verified; no intermediate IPA job was started. Resume by inspecting this run and reports/ipa-test-delivery.json, verify/pin r23, then build and verify the test IPA. Owner authorizes this delivery; device results still pending.
