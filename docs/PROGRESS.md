@@ -24,6 +24,8 @@ Next: retain one draft PR, get complete startup evidence through visible posters
 
 The owner explicitly requested merging PR #7 into main without making an IPA, then opening one new draft PR for bugs handled one at a time. PR #7 is merged at `4a78efdeecbc6f9c47018682fbb60ff1829a8a95` (merge message contains `[skip ci]`). The existing build-141 was built from PR #7 head `c0d2746d76ff362bd18a9d1de30784ee375afa85` and includes KodiAirPlay r11. This supersedes the older unmerged/build-124/127 status below.
 
+Build 142 (PR 8, commit b0d154f): unsigned IPA `Kodi-iOS-Customized-Touch-r10.ipa`, https://github.com/onlykappa/Kodi-Ios/releases/tag/build-142. Includes Drive-only downloads, strict torrent filter, Choose source/player fix, splash removal with native tab bar (r22 + KodiGlassBar r5), AirPlay r12 and the owner's Drive sign-in worker. Device test PENDING owner evidence.
+
 Native pins (PR 8, 2026-11-05): Kodi executable r22 (native tab bar owner), KodiGlassBar r5 and KodiAirPlay r12 are published and pinned; each sha256 was checked against the downloaded release. The Kodi release call returned HTTP 403 three times although the token had contents: write, so publishing now runs as a separate short job after the macOS build. None of the three is device-verified yet.
 
 Drive sign-in (repo review fix 1, PR 8): the app now uses the owner's own sign-in worker `https://kodi-signin.ballaking1738.workers.dev` instead of the public relay `drive.signinserver.com`. Existing installs whose setting is blank or the public relay are switched at service start (`signin_server.migrate`). If the current Drive sign-in came from the public relay, signing in to Drive again may be needed. Not yet device-verified.
