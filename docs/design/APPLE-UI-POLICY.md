@@ -94,8 +94,11 @@ In this repository:
 rounded action buttons, horizontal media rows, a compact floating activity control and a larger activity sheet.
 It should be content-first, with chrome that recedes.
 
-**Reference screenshots (device class, owner, 2026-11-05; not committed because they contain film artwork).**
-The owner supplied them after this policy was first written. They show the current app:
+**Reference screenshots (owner-supplied 2026-11-05; evidence class: desktop Kodi rig, not device).** These are
+renders of PR #9's unmerged activity pill from the Kodi 21 desktop rig. Their 603 × 1311 proportions match the rig
+(603 × 1167 plus the safe-area bars added back), the black top band is that added bar, and the tab bar is Kodi's
+fallback drawing, not the native `KodiGlassBar`. The installed build-151 does not contain the pill. The images are
+not committed because they contain film artwork. They show:
 
 1. **Movies tab with the activity pill.** Shows a full-bleed hero with a title logo, a "Crime · 2008 · PG-13" meta line,
    a white capsule Play button next to a dark capsule Info button, and page dots. Below come "Continue Watching ›"
@@ -108,7 +111,7 @@ The owner supplied them after this policy was first written. They show the curre
 
 These screens are the target look: keep the structure and style, and fix the defects in ISSUE-102. They are
 aesthetic references, not specifications, and not permission to add features. Never copy film artwork, logos,
-branding or fonts from them. Screenshot measurements use 920 px = 402 pt (2.29 px/pt) and are approximate.
+branding or fonts from them. Screenshot measurements take the image width as 402 pt (2.29 px/pt at the supplied 920 px) and are approximate.
 
 ### 4.1 Units: points to Kodi coordinates
 
