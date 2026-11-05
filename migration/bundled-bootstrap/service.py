@@ -4,7 +4,7 @@ sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
 from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
-import airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready
+import activity,airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready
 
 def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
@@ -143,6 +143,15 @@ def run():
  # Umbrella's getting-ready-to-play screen: its source text, split into the badges the portrait page shows.
  threading.Thread(target=umbrella_ready.watch,args=(lambda:xbmc.getCondVisibility('Window.IsVisible(%s)'%umbrella_ready.WINDOW),
   lambda:xbmc.getInfoLabel('Control.GetLabel(2001)'),window.setProperty,window.clearProperty,monitor.waitForAbort),daemon=True).start()
+ # The activity pill: Kodi's background progress box (never drawn) read and rewritten, plus Elementum and Drive.
+ def activity_setting(key,default):
+  try:
+   value=xbmcaddon.Addon().getSetting(key)
+   return default if value=='' else value.lower()=='true'
+  except Exception:return default
+ threading.Thread(target=activity.watch,args=(lambda:activity.read_box(xbmc,xbmcgui),notices.downloads,lambda:notices.uploads(profile),
+  activity_setting,lambda:xbmc.Player().isPlayingVideo(),lambda props:[window.setProperty(k,v) for k,v in props.items()],
+  lambda text:notices.add(profile,'problem','Elementum Burst',text),monitor.waitForAbort),daemon=True).start()
  # Kept Elementum videos go to Google Drive in the background, never during playback.
  try:
   if xbmcaddon.Addon().getSettingBool('drive_upload'):

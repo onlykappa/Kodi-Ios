@@ -16,6 +16,8 @@ _spec=_iu.spec_from_file_location('settings_page',os.path.join(os.path.dirname(o
 settings_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(settings_page)
 _spec=_iu.spec_from_file_location('pages',os.path.join(os.path.dirname(os.path.abspath(__file__)),'pages.py'))
 pages=_iu.module_from_spec(_spec);_spec.loader.exec_module(pages)
+_spec=_iu.spec_from_file_location('activity_skin',os.path.join(os.path.dirname(os.path.abspath(__file__)),'activity_skin.py'))
+activity_skin=_iu.module_from_spec(_spec);_spec.loader.exec_module(activity_skin)
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -90,7 +92,7 @@ MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
       ('Favourites','star.png','FFFF9F0A','ActivateWindow(1160)'),
       ('File manager','clapperboard.png','FF5E5CE6','ActivateWindow(filemanager)'),
       ('iPhone navigation / recovery','life-ring.png','FFFF453A',MENU)]
-HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml'}|pages.HANDMADE
+HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml',activity_skin.NAME,activity_skin.BOX}|pages.HANDMADE
 # Never shrunk: playback stays landscape, and these are not windows.
 SKIP_WRAP={'VideoFullScreen.xml','VideoOSD.xml','MusicVisualisation.xml','SlideShow.xml','Pointer.xml'}
 # Shown only over landscape playback: no portrait copy, so Kodi always loads them from 1080i with landscape
@@ -105,7 +107,8 @@ VIDEO_ONLY={'DialogSeekBar.xml','DialogFullScreenInfo.xml','DialogSubtitles.xml'
 FONTS=[('p_large','Inter-Bold.ttf',92),('p_title','Inter-Bold.ttf',78),('p_h2','Inter-Bold.ttf',58),
        ('p_h3','Inter-Bold.ttf',46),('p_body','Inter-Regular.ttf',44),('p_sub','Inter-Regular.ttf',40),
        ('p_foot','Inter-Regular.ttf',35),('p_foot_b','Inter-Bold.ttf',35),('p_cap','Inter-Regular.ttf',30),
-       ('p_tab','Inter-Bold.ttf',27),('p_tile','Inter-Bold.ttf',38),('p_btn','Inter-Bold.ttf',46)]
+       ('p_tab','Inter-Bold.ttf',27),('p_tile','Inter-Bold.ttf',38),('p_btn','Inter-Bold.ttf',46),
+       ('p_pill','Inter-Bold.ttf',40),('p_pill_s','Inter-Regular.ttf',33)]   # the activity pill (activity_skin.py)
 SIDE=54                      # 20 pt margins
 POSTER=(300,450);CARD=(640,360);GAP=26;RADIUS=26
 HERO=1420
@@ -1015,6 +1018,10 @@ def portrait_files(skin,profile):
  files.update(settings_page.files(types.SimpleNamespace(**globals()),read))
  # Round 2: shared dialogs, Add-ons, Event Log, System Info, File Manager, Umbrella's getting-ready, Play on TV.
  files.update(pages.files(types.SimpleNamespace(**globals()),read))
+ # The activity pill in place of Kodi's background progress box, which is never drawn (activity_skin.py).
+ ns=types.SimpleNamespace(**globals());files.update(activity_skin.files(ns))
+ for rel in list(files):
+  if rel.startswith(FOLDER+'/'):files[rel]=activity_skin.inject(ns,rel[len(FOLDER)+1:],files[rel])
  # Fullscreen video is landscape: the Apple TV-style controls go into the landscape folder.
  files['1080i/VideoOSD.xml']=player_osd.window().encode()
  # Fuse's seek bar flashed up at every video start (buffering, the resume jump): ours shows only while seeking.
@@ -1066,7 +1073,7 @@ def refresh(skin,profile):
 
 # Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
 # inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml'}
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml'}   # + activity_skin.py
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
@@ -1145,7 +1152,7 @@ def progress_tracker(player,continue_module,read,write,clock,every=10):
 
 # Read by Kodi when the skin loads (fonts, includes, Home and the windows marked LOAD_ON_GUI_INIT in the owner's log):
 # a change to one shows only after ReloadSkin. Every other window is read the first time it opens.
-LOADED_AT_START={'Font.xml','Includes.xml','Home.xml','Startup.xml','Pointer.xml','DialogBusy.xml','DialogNotification.xml',
+LOADED_AT_START={'Font.xml','Includes.xml','Home.xml','Custom_1187_Activity.xml','Startup.xml','Pointer.xml','DialogBusy.xml','DialogNotification.xml',
                  'DialogVolumeBar.xml','DialogExtendedProgressBar.xml','DialogSeekBar.xml','Custom_1151_OSD_MusicInfoOverlay.xml',
                  'Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml','Custom_1192_SeasonalTheme.xml',
                  'Custom_1194_Debug_Grid.xml','Custom_1198_Dialog_Startup.xml','Custom_1199_Debug_Overlay.xml'}

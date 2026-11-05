@@ -60,7 +60,8 @@ ROOT=[
   R(9133,'Profiles','ActivateWindow(profiles)','user.png',BLUE)],
  [R(9141,'Add-ons','ActivateWindow(addonbrowser)','puzzle-piece.png',ORANGE,badge=UPDATES),
   R(9142,'File Manager','ActivateWindow(filemanager)','folder.png',TEAL),
-  R(9143,'Event Log','ActivateWindow(eventlog)','list.png',SILVER)],
+  R(9143,'Event Log','ActivateWindow(eventlog)','list.png',SILVER),
+  R(9144,'Activity','Addon.OpenSettings(service.kodi.ios.bootstrap)','bars-progress.png',BLUE)],
  [R(9151,'Information','ActivateWindow(systeminfo)','circle-info.png',SILVER)],
 ]
 # Fuse's Customisation list (1080i/Settings.xml), same actions.
