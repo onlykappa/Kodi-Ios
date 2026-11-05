@@ -92,6 +92,60 @@ def parse(name):
  found['title']=re.sub(r'\s{2,}',' ',title) or text.strip()
  return found
 
+def show_key(title):
+ """Same show or movie name ignoring case, punctuation and year: 'Lanterns' and 'Lanterns (2026)' match
+ (the Library's merge rule, ios_library.show_key, applied to a parsed title)."""
+ return re.sub(r'[^0-9a-z]+','',str(parse(title)['title'] if title else '').casefold())
+
+def media_key(name,folder=''):
+ """('episode', show, season, episode) or ('movie', title, year) for duplicate checks, or None if unknown.
+ Bare episode names (S01E02.mkv) take the show from their folder."""
+ info=parse(name)
+ if info['season'] and info['episode']:
+  title=info['title']
+  if not title or title.casefold() in ('episode','season') or re.match(r'^(?:s\d+[ ._-]*e\d+|\d+x\d+)',title,re.I):
+   title='' if re.match(r'(?i)^(?:season|s)[ ._-]*\d+\b',str(folder)) else folder   # "Season 1" names no show
+  key=show_key(title)
+  return ('episode',key,int(info['season']),int(info['episode'])) if key else None
+ key=re.sub(r'[^0-9a-z]+','',info['title'].casefold())
+ return ('movie',key,info['year']) if key else None
+
+QUALITY=re.compile(r'(?i)\b(?:(2160|1440|1080|720|576|480)p|(4k|uhd))\b')
+def quality(name):
+ """Vertical resolution named in a release (4K/UHD = 2160), 0 when it does not say."""
+ m=QUALITY.search(str(name))
+ return 0 if not m else (2160 if m.group(2) else int(m.group(1)))
+
+def show_folder(drive,parts):
+ """Upload folder for an episode: the existing Drive › Kodi Downloads › TV Shows folder of the same show if there is
+ one ('Lanterns (2026)' goes into 'Lanterns'), so one show never gets two folders. Other paths are unchanged."""
+ parts=list(parts)
+ if len(parts)!=3 or parts[1]!='TV Shows':return parts
+ want=show_key(parts[2])
+ try:
+  for parent in find_folders(drive,parts[:2]):
+   names=[item.get('name','') for item in children(drive,parent) if item.get('mimeType')==FOLDER]
+   if parts[2] in names:return parts
+   for name in names:
+    if want and show_key(name)==want:return parts[:2]+[name]
+ except Exception:return parts
+ return parts
+
+def same_media(name,folder,remote):
+ """Drive videos that are the same episode or movie as `name` (another release; exact byte copies are handled by
+ the checksum rule), best first."""
+ key=media_key(name,folder)
+ if key is None:return []
+ found=[item for item in remote if media_key(item.get('name',''),item.get('folderName',''))==key]
+ return sorted(found,key=lambda item:(-quality(item.get('name','')),-int(item.get('size') or 0)))
+
+def better_on_drive(path,remote):
+ """The Drive copy that makes uploading `path` pointless: same episode/movie at equal or higher resolution."""
+ name=os.path.basename(path);folder=os.path.basename(os.path.dirname(path))
+ for item in same_media(name,folder,remote):
+  if quality(item.get('name',''))>=quality(name):return item
+ return None
+
 def display_title(name):
  """A release or file name as people read it: 'Lanterns · S1 E1', 'Inception (2010)'. Plain text is kept."""
  info=parse(name)

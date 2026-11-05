@@ -2,6 +2,7 @@ import hashlib,http.server,importlib.util,json,os,tempfile,threading,time,unitte
 from unittest import mock
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
+import sys;sys.path.insert(0,str(ROOT/'migration/bundled-bootstrap/resources/lib'))
 spec=importlib.util.spec_from_file_location('driveupload',ROOT/'migration/bundled-bootstrap/resources/lib/driveupload.py')
 up=importlib.util.module_from_spec(spec);spec.loader.exec_module(up)
 
@@ -180,6 +181,46 @@ class PhoneDuplicates(unittest.TestCase):
   self.assertIn('remote=lambda:library_scan.remote_files(drive,idle),pace=1',source);self.assertIn('delay=30',source)
   watch=(ROOT/'migration/bundled-bootstrap/resources/lib/library_watch.py').read_text()
   self.assertNotIn("art_busy=lambda:xbmc.getInfoLabel('Window(Home).Property(Notices.Active)')",watch)
+
+class SameEpisode(unittest.TestCase):
+ """Owner (build 152): 'Lanterns' and 'Lanterns (2026)' each held S1 E1. Check Drive before uploading."""
+ DRIVE=[{'id':'old','name':'Lanterns.S01E01.Pilot.2160p.10bit.WEB-DL.mkv','size':'999','md5Checksum':'a'*32,'folderName':'Lanterns'}]
+ def setUp(self):
+  self.dir=tempfile.TemporaryDirectory();self.root=self.dir.name;self.uploads=[];self.parts=[];self.notes=[]
+  self.state=os.path.join(self.root,'state.json');uploads,parts=self.uploads,self.parts
+  class D:
+   def folder(self,p):parts.append(list(p));return '/'.join(p)
+   def upload(self,path,folder,sessions,save,keep,progress):uploads.append(path);return {'id':'new','size':os.path.getsize(path)}
+  self.D=D
+ def tearDown(self):self.dir.cleanup()
+ def make(self,name):
+  path=os.path.join(self.root,'TV Shows','Lanterns (2026)',name);os.makedirs(os.path.dirname(path),exist_ok=True)
+  with open(path,'wb') as f:f.write(b'episode'*50)
+  old=time.time()-600;os.utime(path,(old,old));return path
+ def run_once(self):
+  sums=[]
+  real=up.checksum
+  def counting(*a,**k):sums.append(a[0]);return real(*a,**k)
+  with mock.patch.object(up,'checksum',counting),mock.patch.object(up,'confirmed',lambda *a:False),\
+       mock.patch('drivelibrary.show_folder',lambda drive,parts:parts[:2]+['Lanterns'] if len(parts)==3 else parts):
+   count=up.run_once(self.root,self.D(),self.state,lambda m:None,remote=lambda:list(self.DRIVE),notify=lambda t,x:self.notes.append((t,x)))
+  return count,sums
+ def test_same_episode_already_on_drive_is_not_uploaded_and_stays(self):
+  path=self.make('Lanterns (2026) - S01E01 - Pilot 1080p.mkv')
+  count,_=self.run_once()
+  self.assertEqual((count,self.uploads),(0,[]));self.assertTrue(os.path.exists(path))
+  self.assertEqual(len(self.notes),1);self.assertIn('Lanterns · S1 E1',self.notes[0][1]);self.assertIn('“Lanterns”',self.notes[0][1])
+  count,sums=self.run_once()   # next pass: no second notification, no re-reading the whole file
+  self.assertEqual((count,len(self.notes),sums),(0,1,[]))
+ def test_better_copy_is_uploaded_into_the_existing_show_folder(self):
+  type(self).DRIVE=[dict(SameEpisode.DRIVE[0],name='Lanterns.S01E01.720p.mkv')]
+  try:
+   path=self.make('Lanterns (2026) - S01E01 - Pilot 2160p.mkv');count,_=self.run_once()
+  finally:type(self).DRIVE=[dict(SameEpisode.DRIVE[0],name='Lanterns.S01E01.Pilot.2160p.10bit.WEB-DL.mkv')]
+  self.assertEqual(self.uploads,[path]);self.assertEqual(self.parts,[['Kodi Downloads','TV Shows','Lanterns']])
+ def test_other_episodes_upload_as_usual(self):
+  path=self.make('Lanterns (2026) - S01E02 - 1080p.mkv');count,_=self.run_once()
+  self.assertEqual(self.uploads,[path]);self.assertEqual(self.notes,[])
 
 if __name__=='__main__':unittest.main()
 

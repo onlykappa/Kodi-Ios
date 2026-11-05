@@ -156,10 +156,10 @@ class Queue:
   requested=location(self.profile).parent/'airplay-preparation-rescan'
   if not force and not requested.exists() and self.clock()-self.state.get('last_scan',0)<300:return
   self.state['current']={'title':'Movies and shows','stage':'Checking downloaded videos','progress':0,'queued':0,'running':True,'updated':self.clock()};self.commit()
-  found=library_scan.remote_files(self.drive,keep_going);seen=set()
-  for number,item in enumerate(found):
+  found=self.unique(library_scan.remote_files(self.drive,keep_going));seen=set()
+  for number,listed in enumerate(found):
    if not keep_going():raise driveupload.Stop('Preparation scan paused')
-   item=metadata(self.drive,item['id']);slot=key(item);seen.add(slot)
+   item=dict(metadata(self.drive,listed['id']),folderName=listed.get('folderName',''));slot=key(item);seen.add(slot)
    recovering=[old for old,job in self.state['jobs'].items() if job['source']['id']==item['id'] and job.get('status')=='committing']
    if recovering:seen.update(recovering);continue
    if ready(item):continue
@@ -171,6 +171,30 @@ class Queue:
     self.state['jobs'].pop(slot,None);self.state['sessions'].pop(slot,None)
     shutil.rmtree(self.work/slot,ignore_errors=True)
   self.state['last_scan']=self.clock();self.state.pop('current',None);self.commit();requested.unlink(missing_ok=True)
+ def unique(self,found):
+  """One copy per episode or movie (owner, build 152: 'Lanterns' and 'Lanterns (2026)' each held S1 E1, and both
+  were queued). Keeps, in order: a copy already prepared, one being saved or with downloaded working files, the
+  highest resolution, the largest. The others are left on Drive untouched and are not downloaded to the phone."""
+  started={job['source']['id']:(2 if job.get('status')=='committing' else 1) for slot,job in self.state['jobs'].items()
+           if job.get('status')=='committing' or (self.work/slot).exists()}
+  groups={};out=[]
+  for item in found:
+   k=drivelibrary.media_key(item.get('name',''),item.get('folderName',''))
+   if k is None:out.append(item)
+   else:groups.setdefault(k,[]).append(item)
+  skipped=self.state.setdefault('duplicates',{})
+  for k,items in groups.items():
+   rank=lambda item:(ready(item),started.get(item['id'],0),drivelibrary.quality(item.get('name','')),int(item.get('size') or 0))
+   items.sort(key=rank,reverse=True);out.append(items[0])
+   if len(items)>1:
+    ids=','.join(sorted(item['id'] for item in items))
+    if ids not in skipped:
+     skipped[ids]=self.clock()
+     where=lambda item:'“%s”'%item.get('folderName','') if item.get('folderName') else 'Drive'
+     self.notify('info','Same video on Drive %d times'%len(items),'%s: preparing the copy in %s only. The other%s in %s %s left as %s.'%(
+      drivelibrary.display_title(items[0].get('name','')),where(items[0]),'' if len(items)==2 else 's',
+      ', '.join(where(item) for item in items[1:]),'is' if len(items)==2 else 'are','it is' if len(items)==2 else 'they are'))
+  return out
  def process_one(self,keep_going=lambda:True):
   candidates=[(slot,job) for slot,job in self.state['jobs'].items() if job.get('status') not in ('done','superseded') and not job.get('blocked') and job.get('retry_after',0)<=self.clock()]
   if not candidates:return False
@@ -238,7 +262,7 @@ class Queue:
    if status!=200:raise RuntimeError('Preparation verification marker: HTTP %d'%status)
    job['status']='done';job['completed']=self.clock();self.commit()
    driveupload.invalidate_library(str(location(self.profile).parent));shutil.rmtree(folder)
-   self.notify('info','Ready for Kodi and AirPlay',item['name']);return True
+   self.notify('info','Ready for Kodi and AirPlay',drivelibrary.display_title(item['name']));return True
   except driveupload.Stop:
    if job.get('status')!='committing':job['status']='paused'
    job['retry_after']=0;return False

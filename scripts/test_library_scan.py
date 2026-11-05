@@ -43,7 +43,10 @@ class ScanTests(unittest.TestCase):
   self.assertFalse(path.exists());self.assertEqual(self.drive.checked,['existing','existing'])
  def test_matching_name_and_size_but_different_bytes_are_not_a_duplicate(self):
   path=self.file();remote=self.drive.duplicate(path,md5Checksum='0'*32,name=path.name)
-  result=self.run_scan([path],remote=[remote]);self.assertEqual((result['duplicates'],result['uploaded'],result['deleted']),(0,1,1))
+  result=self.run_scan([path],remote=[remote])
+  # Same name, different bytes: never a byte duplicate, so the phone copy is never deleted on its name alone. Since the
+  # owner's duplicate rule (build 152), it is the same episode/movie already on Drive, so it is not uploaded either.
+  self.assertEqual((result['duplicates'],result['uploaded'],result['deleted'],result['same_media']),(0,0,0,1))
   self.assertNotIn('existing',self.drive.checked)
  def test_absent_listing_checksum_is_verified_from_fresh_metadata(self):
   path=self.file();remote=self.drive.duplicate(path);remote.pop('md5Checksum')

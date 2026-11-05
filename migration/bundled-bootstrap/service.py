@@ -247,7 +247,8 @@ def drive_uploads(monitor,home,profile):
     if (waiting or seeding) and xbmcaddon.Addon().getSettingBool('drive_upload'):
      count=driveupload.run_once(root,drive,state,log,idle,xbmcaddon.Addon().getSettingBool('drive_upload_delete'),
                               lambda:driveupload.invalidate_library(state_dir),seeding,driveupload.remove_torrent,
-                              remote=lambda:library_scan.remote_files(drive,idle),pace=1)
+                              remote=lambda:library_scan.remote_files(drive,idle),pace=1,
+                              notify=lambda title,text:notices.add(profile,'drive',title,text))
     if xbmcaddon.Addon().getSettingBool('prepare_downloads'):
      if preparation is None:preparation=preparation_queue()
      can_prepare=lambda:idle() and xbmcaddon.Addon().getSettingBool('prepare_downloads')
