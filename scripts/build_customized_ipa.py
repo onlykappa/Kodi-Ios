@@ -384,6 +384,8 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
  target=work/'Kodi.app';shutil.copytree(app,target,symlinks=True)
  manifests=list(target.rglob('system/addon-manifest.xml'));assert len(manifests)==1,'Unique Kodi system manifest required'
  system=manifests[0];base=system.parent.parent;addonroot=base/'addons';assert addonroot.is_dir()
+ # special://xbmc/system/advancedsettings.xml: Kodi's splash off on every install (ios_portrait.disable_splash).
+ splash=ios_portrait.disable_splash(system.parent)
  for name,data in addons.items():
   dest=base/name
   assert not dest.exists(),'Unexpected bundled addon collision: '+name
@@ -425,7 +427,7 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
  for id in order+[BOOT]:
   assert id not in existing,'System manifest collision';ET.SubElement(root,'addon',{} if id==BOOT else {'optional':'true'}).text=id
  ET.indent(root);tree.write(system,encoding='utf-8',xml_declaration=True)
- return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'elementum':engine,'profile_addons':profile_addons,'portrait':portrait}
+ return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'elementum':engine,'profile_addons':profile_addons,'portrait':portrait,'splash':splash}
 
 def build(app,bundle,expected,deb,output,work,elementum=None,portrait_inputs=None):
  staged,details=prepare(app,bundle,expected,work,elementum,portrait_inputs)
@@ -446,6 +448,7 @@ def build(app,bundle,expected,deb,output,work,elementum=None,portrait_inputs=Non
    expected_hash=patches[name]['after_sha256'] if name in patches else digest(body)
    assert digest(z.read(base+'/'+name))==expected_hash,'Bundled addon bytes changed unexpectedly'
   for e in details['seed_files']:assert digest(z.read(base+'/addons/'+BOOT+'/seed/'+e['path']))==e['sha256']
+  assert digest(z.read(base+'/system/advancedsettings.xml'))==details['splash']['sha256'],'Splash setting missing from IPA'
   if details['elementum']:
    assert digest(z.read('Payload/Kodi.app/Frameworks/elementum.framework/elementum'))==details['elementum']['framework_sha256'],'Engine framework missing from IPA'
    for e in details['elementum']['patches']:assert digest(z.read(base+'/'+e['path']))==e['after_sha256']

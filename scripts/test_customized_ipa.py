@@ -65,6 +65,9 @@ class BundleTests(unittest.TestCase):
   self.assertTrue((base/'addons'/BOOT/'service.py').is_file());self.assertTrue((base/'addons'/BOOT/'recover.py').is_file());self.assertTrue((base/'addons/fixture.addon/resources/settings.xml').is_file())
   seed=json.loads((base/'addons'/BOOT/'seed/seed-manifest.json').read_text());self.assertEqual(seed['addons'],['fixture.addon']);self.assertEqual(len(seed['files']),3)
   self.assertFalse((self.app/'AppData/AppHome/addons/fixture.addon').exists());self.assertEqual(len(ET.parse(self.app/'AppData/AppHome/system/addon-manifest.xml').getroot()),1)
+  # Kodi's splash off for every install: special://xbmc/system/advancedsettings.xml, read before the profile's file.
+  self.assertEqual(ET.parse(base/'system/advancedsettings.xml').getroot().findtext('splash'),'false')
+  self.assertEqual(receipt['splash']['path'],'advancedsettings.xml');self.assertFalse((self.app/'AppData/AppHome/system/advancedsettings.xml').exists())
  def elementum_inputs(self):
   inputs=self.root/'elementum';inputs.mkdir();files={}
   for name,old,_ in ELEMENTUM_PATCHES:files[name]=files.get(name,b'')+b'# x\n'+old+b'\n'
