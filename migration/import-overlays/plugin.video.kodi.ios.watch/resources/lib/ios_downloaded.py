@@ -2,7 +2,8 @@
 forgets the torrent, so playing the title again from Home made it fetch the torrent again (owner, build-132); Library
 browses the folder and played the file. The watch menu asks here first and plays the file when there is one."""
 import os,re,unicodedata
-VIDEO=('.mkv','.mp4','.m4v','.mov','.avi','.ts','.m2ts','.webm')
+VIDEO=('.mkv','.mp4','.m4v','.mov','.avi','.ts','.m2ts','.mts','.webm','.wmv','.mpg','.mpeg')
+PARTIAL=re.compile(r'(?:^|[._ -])(?:sample|partial|incomplete|downloading)(?:[._ -]|$)|\.(?:part|tmp|download)(?:\.|$)',re.I)
 
 def words(text):
  text=unicodedata.normalize('NFKD',str(text or '')).encode('ascii','ignore').decode().lower().replace('&',' and ')
@@ -90,6 +91,35 @@ def default_completed_folder(kind):
   parent=next((p for p in (home,*home.parents) if p.name=='Documents'),home.parent)
   return [str(parent/'Kodi Downloads'/('Movies' if kind=='movie' else 'TV Shows'))]
  except (ImportError,AttributeError,TypeError,ValueError):return []
+
+def completed_files(kind,folder_list=None,names=None):
+ """List completed phone videos, including verified finished torrents that are still seeding.
+ A preallocated/partly downloaded file in the active folder is never a library download.
+ """
+ defaults=default_completed_folder(kind) if folder_list is None else []
+ configured=folders() if folder_list is None else folder_list
+ done=(configured[:1] if kind=='movie' else configured[1:2])+defaults
+ active=[os.path.realpath(p) for p in configured[2:] if p]
+ found=set();pending=set()
+ def scan(roots):
+  for base in roots:
+   if not base or os.path.islink(base):continue
+   for root,dirs,files in os.walk(base):
+    dirs[:]=[d for d in dirs if not d.startswith('.') and not os.path.islink(os.path.join(root,d))]
+    for name in files:
+     if name.startswith('.') or not name.lower().endswith(VIDEO) or PARTIAL.search(name):continue
+     path=os.path.abspath(os.path.join(root,name))
+     if os.path.islink(path):continue
+     try:
+      if os.path.getsize(path)>0:yield path
+     except FileNotFoundError:continue  # upload/move completed while scanning
+ for path in scan(done):
+  if not any(os.path.commonpath([os.path.realpath(path),base])==base for base in active):found.add(path)
+ pending.update(scan(active))
+ if pending:
+  names=finished_names() if names is None else names
+  found.update(p for p in pending if any(finished_only(p,base,names) for base in active))
+ return sorted(found)
 
 def find_downloaded(kind,title,year='',season='',episode='',folder_list=None,names=None,walk=None,strict=False):
  """find() over the completed folders, and over Elementum's download folder for finished torrents only (owner

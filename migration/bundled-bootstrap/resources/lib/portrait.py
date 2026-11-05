@@ -642,11 +642,14 @@ def video_nav(original):
   '<itemlayout height="210">%s</itemlayout><focusedlayout height="210">%s</focusedlayout></control>')%(WIDTH,gen_item(False),gen_item(True))
  back=circle_button(9001,SIDE,36,108,'chevron-left.png','Back','<ondown>9002</ondown>')
  plain_title=label(SIDE+136,36,WIDTH-2*SIDE-136,108,'$INFO[Container.FolderName]','p_h2',WHITE,'left','<visible>!Container.IsUpdating + !Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>')
+ refresh=circle_button(9010,WIDTH-SIDE-108,36,108,'arrows-rotate.png',
+  'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh)',
+  '<visible>String.StartsWith(Container.FolderPath,plugin://plugin.video.kodi.ios.watch/) + String.Contains(Container.FolderPath,action=library)</visible><ondown>53</ondown>')
  body=('<controls>'+backdrop()+show_header('50')+chips+
   # Seasons page: episodes of the season chip in focus. Episodes page: the folder's own list.
   episodes%(60,1176+DL_SHIFT,WIDTH,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>')+
   episodes%(52,1036,WIDTH,'9001','Container.Content(episodes)',episode_item(False),episode_item(True),'')+
-  generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+back+plain_title+'</controls>')
+  generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+back+plain_title+refresh+'</controls>')
  return window(original,body,'50','<views>50,51,52,53</views>')
 
 GRID='Container.Content(movies) | Container.Content(tvshows)'

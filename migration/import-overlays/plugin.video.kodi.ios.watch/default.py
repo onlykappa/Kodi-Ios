@@ -21,6 +21,21 @@ def run(argv):
   return
  import xbmc,xbmcaddon,xbmcgui,xbmcplugin
  handle=int(argv[1]);params={k:v[0] for k,v in parse_qs(argv[2].lstrip('?')).items()}
+ if params.get('action')=='library_refresh':
+  from ios_library import refresh_current,current_params,BOOT,STATE
+  if params.get('all')=='1':
+   import xbmcvfs
+   boot=xbmcvfs.translatePath(BOOT)
+   if boot not in sys.path:sys.path.append(boot)
+   import driveupload
+   driveupload.invalidate_library(xbmcvfs.translatePath(STATE))
+   if current_params(xbmc.getInfoLabel('Container.FolderPath')) is None:
+    xbmcgui.Dialog().notification('Library','Library will be refreshed when opened',xbmcgui.NOTIFICATION_INFO,3000)
+  refresh_current(xbmc.getInfoLabel,xbmc.executebuiltin);return
+ if not params or set(params)=={'content_type'}:
+  # Kodi's parent (..) item leads here. It is navigation, not a movie to resolve.
+  from ios_library import root_directory
+  root_directory(handle);return
  if params.get('action')=='library':
   from ios_library import directory;directory(handle,params);return
  if params.get('action')=='continue':

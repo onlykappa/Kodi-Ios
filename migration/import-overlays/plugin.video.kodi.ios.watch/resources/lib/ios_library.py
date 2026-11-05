@@ -5,10 +5,67 @@ plugin://plugin.video.kodi.ios.watch/?action=library&type=movie        movies
 plugin://plugin.video.kodi.ios.watch/?action=library&type=tv           shows (a Drive show opens its episodes)
 plugin://plugin.video.kodi.ios.watch/?action=library&type=tv&folder=ID episodes of one show folder in Drive
 """
-import json,os,sys,urllib.parse
+import json,os,re,sys,urllib.parse
 BOOT='special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib'
 STATE='special://profile/addon_data/service.kodi.ios.bootstrap/'
 ME='plugin://plugin.video.kodi.ios.watch/'
+REFRESH='RunPlugin('+ME+'?action=library_refresh)'
+
+def page_url(params):return ME+'?'+urllib.parse.urlencode(dict(action='library',**params))
+
+def current_params(path):
+ """Only our Library can be refreshed; rebuild the URL instead of executing an arbitrary folder path."""
+ url=urllib.parse.urlsplit(path);query=urllib.parse.parse_qs(url.query)
+ if url.scheme!='plugin' or url.netloc!='plugin.video.kodi.ios.watch' or query.get('action')!=['library']:return None
+ return {k:v[0] for k,v in query.items() if k in ('type','folder','show','year','local','loose')}
+
+def refresh_current(info,invoke):
+ params=current_params(info('Container.FolderPath'))
+ if params is not None:invoke('Container.Refresh(%s)'%page_url(dict(params,fresh='1')))
+
+def root_directory(handle):
+ """A real destination for Kodi's parent-folder entry and the add-on's root."""
+ import xbmcgui,xbmcplugin
+ for title,kind in (('Movies','movie'),('TV Shows','tv')):
+  li=xbmcgui.ListItem(label=title,offscreen=True)
+  xbmcplugin.addDirectoryItem(handle,page_url({'type':kind}),li,isFolder=True)
+ xbmcplugin.setPluginCategory(handle,'Library');xbmcplugin.setContent(handle,'files')
+ xbmcplugin.endOfDirectory(handle,cacheToDisc=False)
+
+def local_entries(kind,lib):
+ """Local completion is independent of a Kodi scan or a future Drive upload."""
+ from ios_downloaded import completed_files
+ out=[]
+ for path in completed_files(kind):
+  info=lib.parse(os.path.basename(path))
+  # Season packs often use just S01E02.mkv or Episode S01E02.mkv inside a named show folder.
+  if info['title'].casefold() in ('movie','video','feature','episode') or re.match(r'^(?:s\d+[ ._-]*e\d+|\d+x\d+)',info['title'],re.I):
+   for parent in list(reversed(os.path.dirname(path).split(os.sep))):
+    if not parent or parent in ('Movies','TV Shows','Kodi Downloads','Elementum Downloads'):break
+    candidate=lib.parse(parent)
+    if re.match(r'^(?:season\b|s\d+\b)',parent,re.I):continue
+    info['title']=candidate['title'];info['year']=info['year'] or candidate['year'];break
+  if (kind=='movie' and info['season']) or (kind=='tv' and not info['season']):continue
+  out.append(dict(info,path=path))
+ return out
+
+def local_rows(kind,show,year,entries,lib,art_cache,key,get,cached_only=False):
+ rows=[];seen=set()
+ for entry in entries:
+  identity=(entry['title'].casefold(),entry['year'])
+  if show and identity!=(show.casefold(),year):continue
+  if kind=='tv' and not show:
+   if identity in seen:continue
+   seen.add(identity);path=page_url({'type':'tv','local':'1','show':entry['title'],'year':entry['year']})
+   label=entry['title'];info={'mediatype':'tvshow','year':entry['year'],'source':'local'};folder=True
+  else:
+   path=entry['path'];folder=False;label=entry['title'];info={'year':entry['year'],'source':'local','mediatype':'movie'}
+   if kind=='tv':
+    label='S%02dE%02d'%(int(entry['season']),int(entry['episode']))
+    info.update(mediatype='episode',season=entry['season'],episode=entry['episode'],tvshowtitle=entry['title'])
+  art=lib.artwork(kind,entry['title'],entry['year'],key,art_cache,get,cached_only=cached_only)
+  rows.append((path,label,art,info,folder))
+ return sorted(rows,key=lambda r:(int(r[3].get('season') or 0),int(r[3].get('episode') or 0),r[1].casefold()))
 
 def library_rows(kind,rpc):
  """Kodi's own library: [(path, label, art, info, is_folder)]."""
@@ -23,31 +80,34 @@ def library_rows(kind,rpc):
                 'mediatype':'tvshow'},True))
  return rows
 
-def drive_rows(kind,folder,show,lib,state_dir,art_cache,key,get):
+def drive_rows(kind,folder,show,lib,state_dir,art_cache,key,get,fresh=False,loose=False,year='',cached_only=False):
  """Google Drive › Kodi Downloads: [(path, label, art, info, is_folder)]."""
- entries,driveid=lib.listing(kind,state_dir,folder)
+ entries,driveid=lib.listing(kind,state_dir,folder,strict=True,fresh=fresh)
  rows=[]
  for e in entries:
+  if folder and loose and (e['title'].casefold()!=show.casefold() or e['year']!=year):continue
   if folder:
-   art=lib.artwork('tv',show or e['title'],'',key,art_cache,get)
+   art=lib.artwork('tv',show or e['title'],'',key,art_cache,get,cached_only=cached_only)
    label=('S%02dE%02d  '%(int(e['season']),int(e['episode'])) if e['season'] else '')+(e['title'] if not show else '')
    rows.append((lib.play_url(driveid,e['id']),label.strip() or e['name'],{'poster':art.get('poster',''),'fanart':art.get('fanart',''),'thumb':art.get('fanart','')},
                 {'mediatype':'episode','season':e['season'],'episode':e['episode'],'tvshowtitle':show,'source':'drive'},False))
   elif kind=='movie':
-   art=lib.artwork('movie',e['title'],e['year'],key,art_cache,get)
+   art=lib.artwork('movie',e['title'],e['year'],key,art_cache,get,cached_only=cached_only)
    rows.append((lib.play_url(driveid,e['id']),e['title'],{'poster':art.get('poster',''),'fanart':art.get('fanart','')},
                 {'year':e['year'],'plot':art.get('plot',''),'mediatype':'movie','source':'drive'},False))
   else:
-   art=lib.artwork('tv',e['title'],e['year'],key,art_cache,get)
-   path=ME+'?'+urllib.parse.urlencode({'action':'library','type':'tv','folder':e['id'],'show':e['title']})
+   art=lib.artwork('tv',e['title'],e['year'],key,art_cache,get,cached_only=cached_only)
+   params={'type':'tv','folder':e['id'],'show':e['title']}
+   if e.get('loose'):params.update(loose='1',year=e['year'])
+   path=page_url(params)
    rows.append((path,e['title'],{'poster':art.get('poster',''),'fanart':art.get('fanart','')},
                 {'year':e['year'],'plot':art.get('plot',''),'mediatype':'tvshow','source':'drive'},True))
  return rows
 
 def directory(handle,params):
  import xbmc,xbmcaddon,xbmcgui,xbmcplugin,xbmcvfs
- import urllib.request
  kind='tv' if params.get('type')=='tv' else 'movie';folder=params.get('folder');show=params.get('show','')
+ local=params.get('local')=='1';episodes=bool(folder or local);year=params.get('year','')
  boot=xbmcvfs.translatePath(BOOT)
  if boot not in sys.path:sys.path.insert(0,boot)  # reused interpreter: once
  import drivelibrary as lib
@@ -55,20 +115,32 @@ def directory(handle,params):
  def rpc(method,args):
   try:return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':args}))).get('result',{})
   except ValueError:return {}
- rows=[] if folder else library_rows(kind,rpc)
+ rows=[] if episodes else library_rows(kind,rpc)
  try:
   helper=xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.themoviedb.helper').getAddonInfo('path'))
   key=lib.tmdb_key(helper)
  except Exception:key=''
  art_path=os.path.join(state_dir,'drive-library-art.json');art_cache=lib.load_json(art_path,{})
- get=lambda url:urllib.request.urlopen(url,timeout=8).read()
- try:rows+=drive_rows(kind,folder,show,lib,state_dir,art_cache,key,get)
+ # Posters must never hold up a directory: the visible-page worker fills missing art later.
+ get=None
+ if not folder:
+  try:rows+=local_rows(kind,show if local else '',year,local_entries(kind,lib),lib,art_cache,key,get,cached_only=True)
+  except OSError as error:
+   xbmc.log('Kodi iOS Library: phone download listing failed: '+type(error).__name__,xbmc.LOGWARNING)
+   xbmcgui.Dialog().notification('Library','Phone downloads could not be checked',xbmcgui.NOTIFICATION_WARNING,4000)
+ try:
+  if not local and xbmc.getCondVisibility('System.AddonIsEnabled(plugin.googledrive)'):
+   rows+=drive_rows(kind,folder,show,lib,state_dir,art_cache,key,get,params.get('fresh')=='1',params.get('loose')=='1',year,cached_only=True)
  except Exception as error:
-  xbmc.log('Kodi iOS Library: Google Drive listing failed: %s: %s'%(type(error).__name__,error),xbmc.LOGWARNING)
+  xbmc.log('Kodi iOS Library: Google Drive listing failed: '+type(error).__name__,xbmc.LOGWARNING)
   xbmcgui.Dialog().notification('Library','Google Drive could not be listed',xbmcgui.NOTIFICATION_WARNING,4000)
- lib.save_json(art_path,art_cache)
+ seen=set()
  for path,label,art,info,is_folder in rows:
+  if path in seen:continue
+  seen.add(path)
   li=xbmcgui.ListItem(label=label,offscreen=True);li.setArt({k:v for k,v in art.items() if v})
+  li.addContextMenuItems([('Refresh Library',REFRESH)])
+  if info.get('source'):li.setLabel2('On this iPhone' if info['source']=='local' else 'Google Drive')
   tag=li.getVideoInfoTag();tag.setMediaType(info.get('mediatype','video'));tag.setTitle(label)
   if info.get('year'):
    try:tag.setYear(int(info['year']))
@@ -81,6 +153,11 @@ def directory(handle,params):
   if resume.get('position'):tag.setResumePoint(resume['position'],resume.get('total',0))
   if not is_folder:li.setProperty('IsPlayable','true')
   xbmcplugin.addDirectoryItem(handle,path,li,isFolder=is_folder)
- xbmcplugin.setContent(handle,'episodes' if folder else ('movies' if kind=='movie' else 'tvshows'))
+ # Always offer refresh, including an empty Library; Kodi ignores this non-media action in playlists.
+ refresh=xbmcgui.ListItem(label='Refresh Library',offscreen=True)
+ refresh.setArt({'icon':'DefaultFolder.png'});refresh.setProperty('IsPlayable','false')
+ clean={k:v for k,v in params.items() if k in ('type','folder','show','year','local','loose')}
+ xbmcplugin.addDirectoryItem(handle,page_url(dict(clean,fresh='1')),refresh,isFolder=True)
+ xbmcplugin.setContent(handle,'episodes' if episodes else ('movies' if kind=='movie' else 'tvshows'))
  xbmcplugin.setPluginCategory(handle,show or ('Movies' if kind=='movie' else 'TV Shows'))
  xbmcplugin.endOfDirectory(handle,cacheToDisc=False)

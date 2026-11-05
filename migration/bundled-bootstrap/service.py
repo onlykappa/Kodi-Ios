@@ -155,6 +155,8 @@ def run():
   threading.Thread(target=later,daemon=True).start()
  # The bell in the hub headers: unread messages and whether a download or Drive upload runs.
  threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),daemon=True).start()
+ import library_watch
+ threading.Thread(target=library_watch.run,args=(xbmc,xbmcaddon,xbmcvfs,monitor,profile),daemon=True).start()
  # Umbrella's getting-ready-to-play screen: its source text, split into the badges the portrait page shows.
  threading.Thread(target=umbrella_ready.watch,args=(lambda:xbmc.getCondVisibility('Window.IsVisible(%s)'%umbrella_ready.WINDOW),
   lambda:xbmc.getInfoLabel('Control.GetLabel(2001)'),window.setProperty,window.clearProperty,monitor.waitForAbort),daemon=True).start()
@@ -215,12 +217,11 @@ def drive_uploads(monitor,home,profile):
  while not monitor.waitForAbort(120):
   if not idle() or not accounts.get_accounts() or not driveupload.pending(root):continue
   try:
-   count=driveupload.run_once(root,drive,state,log,idle,xbmcaddon.Addon().getSettingBool('drive_upload_delete'))
+   state_dir=str(profile/'addon_data/service.kodi.ios.bootstrap')
+   with driveupload.transfer_lock(state_dir):
+    count=driveupload.run_once(root,drive,state,log,idle,xbmcaddon.Addon().getSettingBool('drive_upload_delete'),
+                             lambda:driveupload.invalidate_library(state_dir))
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))
-   # Library › Movies / TV Shows lists Drive (cached a few minutes): show the new uploads at once.
-   if count:
-    try:os.remove(str(profile/'addon_data/service.kodi.ios.bootstrap/drive-library.json'))
-    except OSError:pass
   except driveupload.Stop:pass
   except Exception as error:
    xbmc.log('Kodi iOS Drive upload paused: %s %s'%(type(error).__name__,error),xbmc.LOGWARNING)

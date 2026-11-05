@@ -1,6 +1,6 @@
 """Owner build-132: a downloaded movie opened from Home fetched the torrent again. The watch menu now plays the copy
 in Kodi Downloads (ios_downloaded) before offering players."""
-import importlib.util,sys,types,unittest
+import importlib.util,sys,tempfile,types,unittest
 from unittest import mock
 from pathlib import Path
 LIB=Path(__file__).resolve().parents[1]/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib'
@@ -44,6 +44,30 @@ class Matching(unittest.TestCase):
   finally:os.path.getsize=real
 
 class SeedingTorrents(unittest.TestCase):
+ def test_library_lists_completed_folders_and_only_verified_finished_seeds(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   root=Path(tmp);movies=root/'Movies';tv=root/'TV Shows';active=root/'Elementum Downloads'
+   def file(rel,data=b'video'):
+    path=root/rel;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data);return str(path)
+   done=file('Movies/Heat.1995.mkv');show=file('TV Shows/Lanterns.S01E01.mkv')
+   seed=file('Elementum Downloads/Finished.2000/Finished.2000.mkv')
+   file('Elementum Downloads/Unfinished.2001/Unfinished.2001.mkv',b'x'*4096)  # preallocated size is not completion
+   file('Movies/sample.mkv');file('Movies/empty.mkv',b'');file('Movies/notes.txt');file('Movies/Heat.mkv.part')
+   folders=[str(movies),str(tv),str(active)]
+   self.assertEqual(set(d.completed_files('movie',folders,names={'Finished.2000'})),{done,seed})
+   self.assertEqual(set(d.completed_files('tv',folders,names=set())),{show})
+ def test_library_overlapping_active_root_stays_unfinished_and_symlinks_are_skipped(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   root=Path(tmp);active=root/'active';active.mkdir();file=active/'Partial.2000.mkv';file.write_bytes(b'preallocated')
+   link=root/'linked.mkv';link.symlink_to(file)
+   self.assertEqual(d.completed_files('movie',[str(root),'',str(active)],names=set()),[])
+   alias=root/'alias';alias.symlink_to(active,target_is_directory=True)
+   self.assertEqual(d.completed_files('movie',[str(alias),'',str(active)],names=set()),[])
+ def test_library_falls_back_to_current_sandbox_when_elementum_setting_is_stale(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   movie=Path(tmp)/'Heat.1995.mkv';movie.write_bytes(b'video')
+   with mock.patch.object(d,'folders',return_value=['/old/app/Movies','','']),mock.patch.object(d,'default_completed_folder',return_value=[tmp]):
+    self.assertEqual(d.completed_files('movie'),[str(movie)])
  def test_finished_torrent_in_download_folder_counts_unfinished_does_not(self):
   tree={'/c/Movies':[],'/c/TV':[],'/e/The Nightmare Before Christmas 1993 1080p':['Nightmare.1993.mkv'],
         '/e/Coco 2017 1080p':['Coco.2017.mkv']}

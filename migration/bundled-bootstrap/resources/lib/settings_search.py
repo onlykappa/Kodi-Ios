@@ -11,9 +11,10 @@ SECTIONS={'system':'systemsettings','player':'playersettings','media':'mediasett
 HIDDEN_LEVEL=4   # Kodi's internal settings, never shown in its own pages
 
 def page_entries(settings_page):
- """[(label, section, actions)] for every row of the portrait Settings home and its Customisation page."""
+ """[(label, section, actions)] for every row of Settings, Customisation and Library."""
  out=[(r[1],'Settings',r[2]) for group in settings_page.ROOT for r in group]
  out+=[(r[1],'Customisation'+(' · '+title if title else ''),r[2]) for title,rows,_ in settings_page.CUSTOM for r in rows]
+ out+=[(r[1],'Library'+(' · '+title if title else ''),r[2]) for title,rows,_ in settings_page.LIBRARY for r in rows]
  return out
 
 def kodi_entries(xml_text,localize):

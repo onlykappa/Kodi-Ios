@@ -31,7 +31,15 @@ These are log leads, not diagnosed user-facing bugs. No root cause or fix has be
 | LOG-003 | 358 | `DARWINIOS: underflow (7456 vs 8200 bytes)` | Audio underflow reported during startup; audible effect and cause unverified. |
 | LOG-004 | 333 | JSONRPC could not parse `Setting.Details.SettingList` | The next messages defer/resolve type definitions and report successful JSONRPC v13.5.0 initialization. Not enough evidence to label an RPC failure. |
 
-## Current focused bug — owner item 3
+## Current focused bug — owner item 4
+
+ISSUE-094: completed movies/shows did not automatically appear in Library; tapping the grey `..` navigation tile produced an incomplete media route error. Owner also requests a manual refresh and Settings › Library action to scan accessible iPhone files, upload missing movies/shows to Drive and delete verified phone duplicates.
+
+Implementation: real root navigation, completed phone and verified 100%-seeding discovery, local show episode pages, loose Drive episode discovery/filtering, explicit refresh and visible-page membership updates. Upload invalidation runs after each successful file, including before a later batch failure. The scanner coordinates with automatic uploads and verifies an unchanged source plus fresh Drive size/MD5 metadata before deletion; matching filename/size alone never authorizes removal. Active/partial downloads, symlinks and app data are excluded. Settings › Library and Settings search expose the action. Phone access is limited to Kodi's files and folders made available to it; Drive checks cover Kodi Downloads.
+
+Validation: **258 tests across 15 suites pass**, plus project/iOS static checks and diff validation. See [evidence](../reports/library-downloads-validation.json) and [live progress](BUG-4-PROGRESS.md). Phone results remain pending. No IPA, release or merge.
+
+## Previous focused bug — owner item 3
 
 Latest source pass adds profile-5 RPU rendering with independent numerical pixel comparison, selected-language VobSub, and target-bounded/adaptive embedded subtitle preroll. The supplied log had embedded subtitles enabled; the previous preroll could continue until the next caption during a gap. 1,385 native checks and 35 Python/static checks pass; native candidate compilation passes in clean CI; actual phone/Drive/TV acceptance remains pending. See [AirPlay investigation](AIRPLAY.md).
 

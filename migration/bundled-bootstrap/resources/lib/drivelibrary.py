@@ -8,10 +8,10 @@ menu's Google Drive browser (2026-11-02). The watch add-on lists them (plugin://
 Names come from Elementum's release folders, so titles, years and SxxEyy are read from them; posters and
 backgrounds are looked up on TMDb once per title (TMDb Helper's API key, read from its add-on at run time) and kept.
 """
-import json,os,re,time,urllib.parse
+import json,os,re,tempfile,time,urllib.parse
 API='https://www.googleapis.com/drive/v3/files'
 FOLDER='application/vnd.google-apps.folder'
-VIDEO=('.mkv','.mp4','.m4v','.avi','.mov','.webm','.ts','.m2ts','.wmv','.mpg')
+VIDEO=('.mkv','.mp4','.m4v','.avi','.mov','.webm','.ts','.m2ts','.mts','.wmv','.mpg','.mpeg')
 TOP='Kodi Downloads'
 SECTION={'movie':'Movies','tv':'TV Shows'}
 TMDB='https://api.themoviedb.org/3'
@@ -28,7 +28,7 @@ def children(drive,folder_id):
  """Everything directly in a Drive folder: [{id, name, mimeType, size}]."""
  out=[];token=None
  while True:
-  query={'q':"'%s' in parents and trashed=false"%_escape(folder_id),'fields':'nextPageToken,files(id,name,mimeType,size)',
+  query={'q':"'%s' in parents and trashed=false"%_escape(folder_id),'fields':'nextPageToken,files(id,name,mimeType,size,md5Checksum)',
          'pageSize':'1000','spaces':'drive'}
   if token:query['pageToken']=token
   status,_,body=drive.call('GET',API+'?'+urllib.parse.urlencode(query))
@@ -36,17 +36,31 @@ def children(drive,folder_id):
   data=json.loads(body);out+=data.get('files',[]);token=data.get('nextPageToken')
   if not token:return out
 
-def find_folder(drive,parts,strict=False):
- """The id of Drive › parts[0] › parts[1]..., or None (never creates anything)."""
- parent='root'
+def find_folders(drive,parts,strict=False):
+ """All matching branches. Drive permits duplicate names, including folders made by older upload retries."""
+ parents=['root']
  for name in parts:
-  query={'q':"name='%s' and mimeType='%s' and '%s' in parents and trashed=false"%(_escape(name),FOLDER,parent),'fields':'files(id)','spaces':'drive'}
-  status,_,body=drive.call('GET',API+'?'+urllib.parse.urlencode(query))
-  if strict and status!=200:raise RuntimeError('Drive download check: HTTP %s'%status)
-  found=json.loads(body).get('files',[]) if status==200 else []
-  if not found:return None
-  parent=found[0]['id']
- return parent
+  found=[]
+  for parent in parents:
+   token=None
+   while True:
+    query={'q':"name='%s' and mimeType='%s' and '%s' in parents and trashed=false"%(_escape(name),FOLDER,parent),
+           'fields':'nextPageToken,files(id)','pageSize':'1000','spaces':'drive'}
+    if token:query['pageToken']=token
+    status,_,body=drive.call('GET',API+'?'+urllib.parse.urlencode(query))
+    if status!=200:
+     if strict:raise RuntimeError('Drive download check: HTTP %s'%status)
+     return []
+    data=json.loads(body);found.extend(item['id'] for item in data.get('files',[]));token=data.get('nextPageToken')
+    if not token:break
+  parents=list(dict.fromkeys(found))
+  if not parents:break
+ return parents
+
+def find_folder(drive,parts,strict=False):
+ """First matching folder, or None, for older callers. Library discovery uses all matching branches."""
+ found=find_folders(drive,parts,strict)
+ return found[0] if found else None
 
 def is_video(name):return os.path.splitext(str(name))[1].lower() in VIDEO
 
@@ -92,12 +106,18 @@ def movies(files):
   out.append(dict(info,id=item['id'],name=item['name'],size=int(item.get('size') or 0)))
  return sorted(out,key=lambda e:(e['title'].lower(),e['year']))
 
-def shows(folders):
- """TV Shows › <show> folders (driveupload uploads each show into its own folder)."""
+def shows(folders,top=None):
+ """Show folders and episodes uploaded directly into TV Shows (single-file torrents have no show folder)."""
  out=[]
+ loose=set()
  for item in folders:
-  if item.get('mimeType')!=FOLDER:continue
   info=parse(item['name'])
+  if item.get('mimeType')!=FOLDER:
+   if top and is_video(item['name']) and info['season'] and int(item.get('size') or 0)>0:
+    identity=(info['title'].casefold(),info['year'])
+    if identity not in loose:
+     loose.add(identity);out.append({'title':info['title'],'year':info['year'],'id':top,'name':info['title'],'loose':True})
+   continue
   out.append({'title':info['title'] or item['name'],'year':info['year'],'id':item['id'],'name':item['name']})
  return sorted(out,key=lambda e:e['title'].lower())
 
@@ -119,10 +139,11 @@ def tmdb_key(helper_path):
   return found.group(1) if found else ''
  except OSError:return ''
 
-def artwork(kind,title,year,key,cache,get):
+def artwork(kind,title,year,key,cache,get,cached_only=False):
  """{'poster','fanart','tmdb_id','plot'} for a title (kind 'movie' or 'tv'); cache is a dict kept between calls."""
  slot='%s:%s:%s'%(kind,title.lower(),year)
  if slot in cache:return cache[slot]
+ if cached_only or not key or not title:return {}
  found={}
  if key and title:
   query={'api_key':key,'query':title}
@@ -146,9 +167,16 @@ def load_json(path,default):
  except (OSError,ValueError):return default
 
 def save_json(path,data):
- os.makedirs(os.path.dirname(path),exist_ok=True);temp=path+'.tmp'
- with open(temp,'w',encoding='utf-8') as f:json.dump(data,f)
- os.replace(temp,path)
+ # Listings and the visible-page watcher can save concurrently; each writer owns its temporary file.
+ folder=os.path.dirname(path);os.makedirs(folder,exist_ok=True)
+ with tempfile.NamedTemporaryFile(mode='w',encoding='utf-8',dir=folder,delete=False) as f:
+  temp=f.name
+  try:json.dump(data,f)
+  except Exception:
+   os.unlink(temp);raise
+ try:os.replace(temp,path)
+ finally:
+  if os.path.exists(temp):os.unlink(temp)
 
 def client():
  """(Drive, driveid) with the Google Drive add-on's first account, or (None, None) when it is not signed in."""
@@ -185,10 +213,11 @@ def listing(kind,state_dir,folder=None,now=time.time,strict=False,fresh=False):
  if not drive:return [],None
  if folder:entries=episodes(videos(drive,folder))
  else:
-  top=find_folder(drive,[TOP,SECTION[kind]],strict=strict)
-  if not top:entries=[]
-  elif kind=='movie':entries=movies(videos(drive,top))
-  else:entries=shows(children(drive,top))
+  entries=[]
+  for top in find_folders(drive,[TOP,SECTION[kind]],strict=strict):
+   if kind=='movie':entries+=movies(videos(drive,top))
+   else:entries+=shows(children(drive,top),top)
+  entries.sort(key=lambda entry:(entry['title'].casefold(),entry['year']))
  cache[slot]={'time':now(),'entries':entries,'driveid':driveid};save_json(cache_path,cache)
  return entries,driveid
 
@@ -210,7 +239,8 @@ def completed_copy(kind,title,year,season,episode,state_dir):
   for show in shows:
    for fresh in (False,True):
     entries,driveid=listing('tv',state_dir,show['id'],strict=True,fresh=fresh)
-    found=[e for e in entries if has_episode(e.get('name',''),season,episode) and int(e.get('size') or 0)>0]
+    found=[e for e in entries if has_episode(e.get('name',''),season,episode) and int(e.get('size') or 0)>0
+           and (not show.get('loose') or has_title(e.get('title',''),title))]
     if found or not driveid:break
    matches+=found
  if not matches or not driveid:return None

@@ -1,4 +1,5 @@
 import importlib.util,json,sys,tempfile,unittest
+from unittest.mock import Mock,patch
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib'))
@@ -14,9 +15,9 @@ class FakeDrive:
    'r1':[('f1','The.Dark.Knight.2008.2160p.WEB-DL.x265-GRP.mkv','video/x-matroska'),('s1','sample.mkv','video/x-matroska'),('n1','info.nfo','text/plain')],
    'tv':[('show','Orange Is the New Black',FOLDER)],'show':[('season','Season 1',FOLDER)],
    'season':[('e2','Orange.Is.the.New.Black.S01E02.1080p.mkv','v'),('e1','Orange.Is.the.New.Black.S01E01.1080p.mkv','v')]}
-  self.calls=0
+  self.calls=0;self.methods=[]
  def call(self,method,url,body=None,headers=None):
-  self.calls+=1
+  self.calls+=1;self.methods.append(method)
   import urllib.parse
   q=urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
   query=q['q'][0]
@@ -51,6 +52,82 @@ class DriveLibrary(unittest.TestCase):
   with patch.object(lib,'listing',side_effect=[([], 'D1'),([{'id':'new','title':'Inception','year':'2010','size':100}], 'D1')]) as listing:
    self.assertIn('item_id=new',lib.completed_copy('movie','Inception','2010','','','state'))
    self.assertFalse(listing.call_args_list[0].kwargs['fresh']);self.assertTrue(listing.call_args_list[1].kwargs['fresh'])
+ def test_single_file_tv_uploads_appear_and_open_only_the_selected_show(self):
+  drive=FakeDrive()
+  drive.tree['tv'] += [('loose1','Lanterns.S01E01.2160p.mkv','video/x-matroska'),
+                       ('loose2','Lanterns.S01E02.2160p.mkv','video/x-matroska'),
+                       ('other','Other.Show.S01E01.2160p.mkv','video/x-matroska')]
+  with patch.object(lib,'client',return_value=(drive,'D1')),tempfile.TemporaryDirectory() as tmp:
+   entries,_=lib.listing('tv',tmp,fresh=True)
+   self.assertEqual([(e['title'],e['id']) for e in entries if e.get('loose')],[('Lanterns','tv'),('Other Show','tv')])
+   rows=page.drive_rows('tv',None,'',lib,tmp,{},'',lambda url:b'{}')
+   show=next(r for r in rows if r[1]=='Lanterns');self.assertIn('loose=1',show[0]);self.assertTrue(show[4])
+   eps=page.drive_rows('tv','tv','Lanterns',lib,tmp,{},'',lambda url:b'{}',loose=True)
+   self.assertEqual([r[1] for r in eps],['S01E01','S01E02'])
+   self.assertTrue(all('item_id=loose' in r[0] for r in eps))
+   self.assertIn('item_id=loose1',lib.completed_copy('episode','Lanterns','',1,1,tmp))
+   self.assertNotIn('item_id=other',lib.completed_copy('episode','Lanterns','',1,1,tmp))
+   self.assertIsNone(lib.completed_copy('episode','Lanterns','',1,3,tmp))
+ def test_manual_fresh_listing_bypasses_an_existing_empty_cache(self):
+  drive=FakeDrive();drive.tree['mov']=[]
+  with patch.object(lib,'client',return_value=(drive,'D1')),tempfile.TemporaryDirectory() as tmp:
+   self.assertEqual(lib.listing('movie',tmp)[0],[])
+   drive.tree['mov']=[('new','Heat.1995.mkv','video/x-matroska')]
+   self.assertEqual(lib.listing('movie',tmp)[0],[])
+   self.assertEqual(lib.listing('movie',tmp,fresh=True)[0][0]['id'],'new')
+ def test_existing_duplicate_download_folders_are_all_listed_without_creating_more(self):
+  drive=FakeDrive()
+  drive.tree['root'].append(('top2','Kodi Downloads',FOLDER))
+  drive.tree['top2']=[('mov2','Movies',FOLDER),('tv2','TV Shows',FOLDER)]
+  drive.tree['mov2']=[('heat','Heat.1995.mkv','video/x-matroska')]
+  drive.tree['tv2']=[('lanterns','Lanterns',FOLDER)]
+  drive.tree['lanterns']=[('lantern1','Lanterns.S01E01.mkv','video/x-matroska')]
+  with patch.object(lib,'client',return_value=(drive,'D1')),tempfile.TemporaryDirectory() as tmp:
+   movies,_=lib.listing('movie',tmp,fresh=True)
+   self.assertEqual({e['id'] for e in movies},{'f1','f2','heat'})
+   shows,_=lib.listing('tv',tmp,fresh=True)
+   self.assertEqual({e['id'] for e in shows},{'show','lanterns'})
+   self.assertIn('item_id=lantern1',lib.completed_copy('episode','Lanterns','',1,1,tmp))
+  self.assertTrue(drive.methods);self.assertEqual(set(drive.methods),{'GET'})
+ def test_duplicate_folder_discovery_follows_all_pages_and_each_parent_branch(self):
+  from urllib.parse import parse_qs,urlsplit
+  seen=[]
+  def call(method,url,body=None,headers=None):
+   q=parse_qs(urlsplit(url).query);seen.append(q)
+   if "name='Kodi Downloads'" in q['q'][0]:
+    data={'files':[{'id':'top2'}]} if q.get('pageToken')==['second'] else {'files':[{'id':'top1'}],'nextPageToken':'second'}
+   else:data={'files':[{'id':'movies2' if "'top2' in parents" in q['q'][0] else 'movies1'}]}
+   return 200,{},json.dumps(data).encode()
+  self.assertEqual(lib.find_folders(type('PagedDrive',(),{'call':staticmethod(call)})(),[lib.TOP,'Movies'],strict=True),['movies1','movies2'])
+  self.assertEqual(len(seen),4)
+ def test_local_show_groups_generic_pack_names_and_preserves_episode_coordinates(self):
+  import ios_downloaded
+  paths=['/phone/Kodi Downloads/TV Shows/Breaking Bad/Season 1/S01E02.mkv',
+         '/phone/Kodi Downloads/TV Shows/Breaking Bad/Season 1/Episode S01E01.mkv',
+         '/phone/Kodi Downloads/TV Shows/Other Show/Season 1/S01E01.mkv']
+  with patch.object(ios_downloaded,'completed_files',return_value=paths):entries=page.local_entries('tv',lib)
+  self.assertEqual([e['title'] for e in entries],['Breaking Bad','Breaking Bad','Other Show'])
+  rows=page.local_rows('tv','','',entries,lib,{},'',lambda url:b'{}')
+  self.assertEqual([r[1] for r in rows],['Breaking Bad','Other Show']);self.assertTrue(all(r[4] for r in rows))
+  self.assertIn('local=1',rows[0][0])
+  episodes=page.local_rows('tv','Breaking Bad','',entries,lib,{},'',lambda url:b'{}')
+  self.assertEqual([r[1] for r in episodes],['S01E01','S01E02'])
+  self.assertEqual([r[3]['episode'] for r in episodes],['1','2']);self.assertTrue(all(not r[4] for r in episodes))
+  self.assertTrue(all(r[0] in paths[:2] for r in episodes))
+ def test_local_season_pack_alternate_coordinate_names_keep_the_show_identity(self):
+  import ios_downloaded
+  with patch.object(ios_downloaded,'completed_files',return_value=[
+       '/phone/Kodi Downloads/TV Shows/Lanterns/Season 1/S01 E02.mkv',
+       '/phone/Kodi Downloads/TV Shows/Lanterns/Season 1/1x03.mkv']):
+   entries=page.local_entries('tv',lib)
+  self.assertEqual([e['title'] for e in entries],['Lanterns','Lanterns'])
+  self.assertEqual([e['episode'] for e in entries],['2','3'])
+ def test_local_movie_infers_generic_filename_from_release_folder_and_filters_tv(self):
+  import ios_downloaded
+  with patch.object(ios_downloaded,'completed_files',return_value=[
+       '/phone/Kodi Downloads/Movies/Heat (1995)/movie.mkv','/phone/Kodi Downloads/Movies/Show.S01E01.mkv']):
+   entries=page.local_entries('movie',lib)
+  self.assertEqual([(e['title'],e['year']) for e in entries],[('Heat','1995')])
  def test_names(self):
   self.assertEqual(lib.parse('The.Dark.Knight.2008.2160p.WEB-DL.x265-GRP.mkv'),{'title':'The Dark Knight','year':'2008','season':'','episode':''})
   self.assertEqual(lib.parse('Inception (2010) 1080p BluRay.mkv')['title'],'Inception')
@@ -74,6 +151,12 @@ class DriveLibrary(unittest.TestCase):
   def broken(url):raise OSError('offline')
   self.assertEqual(lib.artwork('tv','Lost','','KEY',cache,broken),{});self.assertNotIn('tv:lost:',cache)
   self.assertEqual(lib.artwork('movie','X','','',cache,get),{})   # no key: no request
+ def test_foreground_cached_art_never_waits_for_a_metadata_request(self):
+  get=Mock(side_effect=AssertionError('foreground metadata request'))
+  cache={'movie:heat:1995':{'poster':'cached-poster'}}
+  self.assertEqual(lib.artwork('movie','Heat','1995','KEY',cache,get,cached_only=True),{'poster':'cached-poster'})
+  self.assertEqual(lib.artwork('movie','New title','2024','KEY',cache,get,cached_only=True),{})
+  get.assert_not_called()
  def test_tmdb_key_read_from_helper(self):
   with tempfile.TemporaryDirectory() as tmp:
    path=Path(tmp)/'resources/tmdbhelper/lib/api/api_keys';path.mkdir(parents=True);fake='ab'*16   # a stand-in, built here so it never looks like a real key
@@ -96,4 +179,13 @@ class DriveLibrary(unittest.TestCase):
    lib.client=lambda:(None,None)
    with tempfile.TemporaryDirectory() as tmp:self.assertEqual(lib.listing('tv',tmp),([],None))
   finally:lib.client=real
+ def test_concurrent_cache_writers_publish_complete_json_without_shared_temp_failures(self):
+  from concurrent.futures import ThreadPoolExecutor
+  with tempfile.TemporaryDirectory() as tmp:
+   path=str(Path(tmp)/'drive-library.json')
+   def save(index):lib.save_json(path,{'writer':index,'entries':['entry']*1000})
+   with ThreadPoolExecutor(max_workers=8) as pool:list(pool.map(save,range(32)))
+   result=lib.load_json(path,None)
+   self.assertIn(result['writer'],range(32));self.assertEqual(len(result['entries']),1000)
+   self.assertEqual([p.name for p in Path(tmp).iterdir()],['drive-library.json'])
 if __name__=='__main__':unittest.main()

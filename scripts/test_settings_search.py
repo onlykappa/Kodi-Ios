@@ -33,5 +33,11 @@ class SettingsSearch(unittest.TestCase):
  def test_script_is_a_bootstrap_page(self):
   self.assertIn('settings_search',default.PAGES);self.assertTrue((BOOT/'settings_search.py').is_file())
   self.assertEqual(sp.SEARCH,'RunScript(service.kodi.ios.bootstrap,settings_search)')
+ def test_library_scan_is_discoverable_and_runs_the_scan_dispatcher(self):
+  found=search.search(search.page_entries(sp),'scan iPhone')
+  self.assertEqual(found,[('Scan iPhone files','Library · iPhone Files','RunScript(service.kodi.ios.bootstrap,library_scan)')])
+  path,argv=default.target(['service.kodi.ios.bootstrap','library_scan'])
+  self.assertEqual(Path(path),BOOT/'library_scan.py');self.assertEqual(argv,[path])
+  self.assertIn(('Refresh Library','Library · Library',sp.LIBRARY_REFRESH),search.search(search.page_entries(sp),'refresh library'))
 
 if __name__=='__main__':unittest.main()
