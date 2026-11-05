@@ -30,7 +30,7 @@ jobs:
       - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
         with:
           path: ${{ runner.temp }}/ff-host
-          key: remux-ffmpeg-host-${{ hashFiles('migration/airplay-ios/build-remux-ffmpeg.sh', 'migration/airplay-ios/build-dav1d.sh', 'migration/airplay-ios/ffmpeg-mov-pts.patch') }}
+          key: remux-ffmpeg-host-${{ hashFiles('migration/airplay-ios/build-remux-ffmpeg.sh', 'migration/airplay-ios/build-dav1d.sh', 'migration/airplay-ios/ffmpeg-mov-pts.patch', 'migration/airplay-ios/ffmpeg-dovi-padding.patch') }}
       - name: FFmpeg 8.1.1 (remux + picture bridge, LGPL) for the host
         run: |
           [ -f "$RUNNER_TEMP/ff-host/lib/libavformat.a" ] || bash migration/airplay-ios/build-remux-ffmpeg.sh host "$RUNNER_TEMP/ff-host"
@@ -61,7 +61,7 @@ jobs:
       - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
         with:
           path: ${{ runner.temp }}/ff-ios
-          key: remux-ffmpeg-ios-${{ hashFiles('migration/airplay-ios/build-remux-ffmpeg.sh', 'migration/airplay-ios/build-dav1d.sh', 'migration/airplay-ios/ffmpeg-mov-pts.patch') }}
+          key: remux-ffmpeg-ios-${{ hashFiles('migration/airplay-ios/build-remux-ffmpeg.sh', 'migration/airplay-ios/build-dav1d.sh', 'migration/airplay-ios/ffmpeg-mov-pts.patch', 'migration/airplay-ios/ffmpeg-dovi-padding.patch') }}
       - name: FFmpeg 8.1.1 (remux + picture bridge, LGPL) for iPhoneOS
         run: |
           [ -f "$RUNNER_TEMP/ff-ios/lib/libavformat.a" ] || bash migration/airplay-ios/build-remux-ffmpeg.sh ios "$RUNNER_TEMP/ff-ios"

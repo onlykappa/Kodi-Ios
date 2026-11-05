@@ -19,7 +19,6 @@ struct kr_source {
     int timeout_s;
     int (*extra_interrupt)(void *);
     void *interrupt_context;
-    atomic_int saw_interrupt;
 };
 
 static int64_t io_clock(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (int64_t)t.tv_sec * 1000000000 + t.tv_nsec; }
@@ -29,10 +28,8 @@ static int interrupted(void *opaque) {
     kr_source *s = opaque;
     int64_t deadline = atomic_load(&s->deadline_ns);
     int extra=s->extra_interrupt && s->extra_interrupt(s->interrupt_context);
-    if(extra)atomic_store(&s->saw_interrupt,1);
     return atomic_load(&s->aborted) || (deadline && io_clock() >= deadline) || extra;
 }
-int kr_source_interrupted(kr_source *s) { return s && atomic_load(&s->saw_interrupt); }
 
 void kr_source_set_interrupt(kr_source *s, int (*callback)(void *), void *context) {
     if(s){s->extra_interrupt=callback;s->interrupt_context=context;}

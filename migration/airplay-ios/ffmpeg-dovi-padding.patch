@@ -1,0 +1,16 @@
+diff --git a/libavcodec/dovi_rpudec.c b/libavcodec/dovi_rpudec.c
+--- a/libavcodec/dovi_rpudec.c
++++ b/libavcodec/dovi_rpudec.c
+@@ -401,6 +401,12 @@ int ff_dovi_rpu_parse(DOVIContext *s, const uint8_t *rpu, size_t rpu_size,
+         VALIDATE(emdf_protection, 0x400, 0x400);
+     } else {
+         /* NAL unit with prefix and trailing zeroes */
++        /* Kodi iOS: ignore NAL trailing_zero_8bits before extension detection.
++         * Otherwise padding can make the CRC/terminator look like DM v2 data. */
++        while (rpu_size && !rpu[rpu_size - 1])
++            rpu_size--;
++        if (rpu_size < 5)
++            return AVERROR_INVALIDDATA;
+         VALIDATE(rpu[0], 25, 25); /* NAL prefix */
+         rpu++;
+         rpu_size--;

@@ -80,7 +80,7 @@ Speculative converter cancellation now reaches already-bound source network wait
 
 ## Validation and next device test
 
-1,384 expanded native host checks pass, plus 27 AirPlay Python tests and eight iOS static tests. Latest totals, dependency provenance and retained failure/recovery evidence are in [coverage validation](../reports/airplay-coverage-validation.json). The earlier cancellation evidence remains in [seek validation](../reports/airplay-seek-validation.json). The tests cover overlapping seek requests with prefetch off/on, backward/forward retries, actual 4K 10-bit decode/downscale, WebM/VP9/Opus and AVI/MPEG-4/MP3, and existing audio/subtitle/copy/remux/HTTP/stop paths. Genuine failure tests still return errors.
+1,385 expanded native host checks pass, plus 27 AirPlay Python tests and eight iOS static tests. Latest totals, dependency provenance and retained failure/recovery evidence are in [coverage validation](../reports/airplay-coverage-validation.json). The earlier cancellation evidence remains in [seek validation](../reports/airplay-seek-validation.json). The tests cover overlapping seek requests with prefetch off/on, backward/forward retries, actual 4K 10-bit decode/downscale, WebM/VP9/Opus and AVI/MPEG-4/MP3, and existing audio/subtitle/copy/remux/HTTP/stop paths. Genuine failure tests still return errors.
 
 The actual 4K fixture is 20 seconds at six fps, keeping host CI bounded. Converted tail frames decode at the requested time and output pixels are 1920×1080. Linux uses the MPEG-4 Part 2 test encoder; it does not exercise VideoToolbox, H.264 output, sustained phone 23.976/60 fps or TV acceptance. Evidence and retained validation failures: [airplay-seek-validation.json](../reports/airplay-seek-validation.json).
 
@@ -92,3 +92,12 @@ No extra owner log is needed to establish the reproduced cancellation defect. A 
 ### Clean CI follow-up (in progress)
 
 Both iPhoneOS candidate compiles passed. The second Linux CI run still rejected the first synthetic RPU frame, so the earlier parser-association explanation is unconfirmed; changing insertion order was insufficient. Exact metadata diagnostics and a retained synthetic failure fixture are added for reproduction. That run also exposed a later HTTP segment read error after background cancellation. The source now retires an interrupted speculative decoder/source, so a foreground request gets a fresh parser instead of inheriting a half-read block. The same ownership rule continues to protect connected foreground requests. Native builds also revealed two existing iOS-16 API availability warnings under the iOS-14 target; typed creation and cleanup are now guarded. These changes require the next clean candidate result; failures remain in the coverage report.
+
+
+### Confirmed clean-CI RPU cause and fix
+
+The third clean run isolated the remaining failures to the first RPU frame; HTTP cancellation/seek checks passed. Downloading its synthetic fixture reproduced both failures locally. The RPU bytes are present: the older muxer retains an extra zero after the RPU terminator. FFmpeg 8.1.1 uses remaining bit count to detect a second DM extension block and misinterprets that padding. The earlier insertion-order hypothesis was disproved.
+
+A small shipped LGPL patch, `ffmpeg-dovi-padding.patch`, removes NAL `trailing_zero_8bits` before extension detection. It leaves picture bytes, terminator/CRC validation and the AV1 EMDF path intact. The exact failed CI movie now passes all 29 focused checks with CRC validation enabled. The native regression deliberately appends zero padding to an RPU, so its success does not depend on the machine's fixture muxer version. The patch applies to clean pinned upstream and matches the compiled source; both framework/host dependency cache keys include it. Independent color comparison still passes.
+
+Canceled speculative decoder/source instances are retired consistently before the next foreground request, including cancellation caught by custom AVIO before a source wait. This prevents partial parser state from leaking into another segment, at the cost of possible fresh header/probe I/O. Connected foreground requests remain protected. The clean patched-dependency candidate result is the remaining build/test gate; actual iPhone/Drive/Roku acceptance is still separate.
