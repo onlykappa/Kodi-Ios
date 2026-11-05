@@ -113,6 +113,10 @@ jobs:
           python3 -B scripts/test_airplay_remux.py
           python3 -B scripts/test_downloaded_play.py
           python3 -B scripts/test_choose_source.py
+          python3 -B scripts/test_library_scan.py
+          python3 -B scripts/test_library_refresh.py
+          python3 -B scripts/test_library_artwork.py
+          python3 -B scripts/test_settings_page.py
           python3 -B scripts/test_genre_photos.py
           python3 -B scripts/test_search_categories.py
           python3 -B scripts/test_performance_budget.py

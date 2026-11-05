@@ -173,6 +173,15 @@ class SeedingTorrents(unittest.TestCase):
    count=up.run_once(self.root,D(),state,lambda m:None,seeding=seeding,drop=dropped.append)
   self.assertEqual(count,3);self.assertEqual(dropped,['a'])  # the show keeps seeding until episode 2 verifies
   self.assertTrue(os.path.exists(self.ep1))  # Elementum removes torrent files itself, never a half torrent
+  # Next cycle: the two verified files are not uploaded again; once episode 2 verifies, the show is dropped.
+  uploads=[]
+  class D2(D):
+   def upload(self,path,folder,sessions,save,keep,progress):uploads.append(path);return {'id':path,'size':os.path.getsize(path)}
+  verified.add(self.ep2)
+  with mock.patch.object(up,'confirmed',lambda drive,fid,size,digest:fid in verified), \
+       mock.patch.object(up,'pending',lambda root:[]):
+   up.run_once(self.root,D2(),state,lambda m:None,seeding=up.seeding_pending(self.root,self.torrents),drop=dropped.append)
+  self.assertEqual(uploads,[self.ep2]);self.assertIn('b',dropped)
  def test_service_feeds_seeding_torrents(self):
   source=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertIn('driveupload.seeding_pending(download,torrents)',source)

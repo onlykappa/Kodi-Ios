@@ -187,9 +187,18 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
  count=0;torrent_files={};torrent_ok={}
  for path,parts,tid in seeding:torrent_files.setdefault(tid,set()).add(path)
  work=[(p,parts,None) for p,parts in pending(root)]+list(seeding)
+ done_before=state.setdefault('verified',{})
  for path,parts,tid in work:
   if not keep_going():break
   before=fingerprint(path)
+  known=done_before.get(path)
+  if tid is not None and known and known.get('fp')==list(before):
+   # Already on Drive and verified (its torrent could not be dropped yet, or a sibling failed): never upload twice.
+   torrent_ok.setdefault(tid,set()).add(path)
+   if torrent_ok[tid]>=torrent_files.get(tid,set()) and drop:
+    try:drop(tid);log('Removed the finished torrent from the phone (Google Drive has it)')
+    except Exception as error:log('Elementum could not remove the finished torrent: %s'%type(error).__name__)
+   continue
   # What is uploading now, for the notification center's Uploading card (notices.uploads).
   def progress(done,total,name=os.path.basename(path),folder=' › '.join(['Drive']+list(parts))):
    state['current']={'name':name,'folder':folder,'sent':done,'total':total};save()
@@ -206,6 +215,7 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
     log('Drive checksum could not be verified; the phone copy is kept');continue
    if tid is not None:
     # A seeding torrent's files belong to Elementum: drop the whole torrent once every video of it is verified.
+    done_before[path]={'fp':list(before),'id':meta.get('id')};save()
     torrent_ok.setdefault(tid,set()).add(path)
     if torrent_ok[tid]>=torrent_files.get(tid,set()) and drop:
      try:drop(tid);log('Removed the finished torrent from the phone (Google Drive has it)')
