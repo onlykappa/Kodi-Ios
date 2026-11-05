@@ -181,7 +181,9 @@ class Download(unittest.TestCase):
 class Integration(unittest.TestCase):
  def test_service_scans_on_boot_and_after_uploads_and_settings_enable_it(self):
   service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
-  self.assertIn('preparation.scan(can_prepare,force=bool(count))',service);self.assertIn('preparation.process_one(can_prepare)',service)
+  self.assertIn('preparation.scan(can_prepare,force=bool(count))',service);self.assertIn('preparation.process_one(converting)',service)
+  # A requested check pauses the current conversion and brings the loop back within seconds.
+  self.assertIn('not prepare_downloads.check_requested(profile)',service);self.assertIn('if prepare_downloads.check_requested(profile):delay=5',service)
   import xml.etree.ElementTree as ET
   setting=ET.parse(ROOT/'migration/bundled-bootstrap/resources/settings.xml').find(".//setting[@id='prepare_downloads']")
   self.assertEqual(setting.findtext('default'),'true')
@@ -251,5 +253,62 @@ class OneCopyEach(unittest.TestCase):
    {'id':'other','name':'Lanterns (2026) - S01E01 - 1080p.mkv','folderName':'Lanterns (2026)','size':'5'}]
   with patch.object(prep.library_scan,'remote_files',return_value=listed):self.queue.scan(force=True)
   self.assertEqual(len(self.queue.state['jobs']),1)
+
+class LibraryCheck(unittest.TestCase):
+ """Owner (build 156): no movies were being converted; add Settings › Library › Check library for conversion."""
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.shelf=Shelf()
+  self.queue=prep.Queue(self.tmp.name,self.shelf,Native(),clock=lambda:1000)
+ def tearDown(self):self.tmp.cleanup()
+ def test_one_unreadable_file_does_not_stop_the_library_check(self):
+  listed=[self.shelf.add('a','Heat.1995.mkv','f3'),self.shelf.add('b','Fall.2022.mkv','f3'),self.shelf.add('c','Dune.2021.mkv','f3')]
+  del self.shelf.files['b']   # listed, then Drive cannot describe it
+  with patch.object(prep.library_scan,'remote_files',return_value=listed):self.queue.scan(force=True)
+  queued=sorted(job['source']['id'] for job in self.queue.state['jobs'].values())
+  self.assertEqual(queued,['a','c'])
+  self.assertEqual({k:self.queue.state['library'][k] for k in ('videos','ready','unreadable')},{'videos':3,'ready':0,'unreadable':1})
+ def test_an_unreadable_files_existing_work_is_kept(self):
+  listed=[self.shelf.add('a','Heat.1995.mkv','f3')]
+  self.queue.state['jobs']['slot-a']={'source':dict(listed[0]),'status':'waiting'}
+  del self.shelf.files['a']
+  with patch.object(prep.library_scan,'remote_files',return_value=listed):self.queue.scan(force=True)
+  self.assertIn('slot-a',self.queue.state['jobs'])
+ def test_a_stuck_half_downloaded_video_does_not_hold_the_queue(self):
+  stuck={'source':{'id':'s','name':'Stuck.2020.mkv'},'status':'failed','retry_after':5000,'attempts':3}
+  ready={'source':{'id':'r','name':'Next.2021.mkv'},'status':'waiting','retry_after':0}
+  self.queue.state['jobs']={'stuck':stuck,'next':ready};(self.queue.work/'stuck').mkdir()
+  tried=[]
+  def fail_fast(*a,**k):tried.append(True);raise RuntimeError('stop here')
+  with patch.object(prep,'metadata',fail_fast):self.queue.process_one()
+  self.assertEqual(len(tried),1);self.assertEqual(self.queue.state['jobs']['next']['status'],'failed')   # the other video got its turn
+  self.assertEqual(self.queue.state['jobs']['stuck']['retry_after'],5000)
+ def test_a_ready_half_downloaded_video_still_goes_first(self):
+  half={'source':{'id':'h','name':'Half.2020.mkv'},'status':'waiting','retry_after':0}
+  other={'source':{'id':'o','name':'Other.2021.mkv'},'status':'waiting','retry_after':0}
+  self.queue.state['jobs']={'other':other,'half':half};(self.queue.work/'half').mkdir()
+  seen=[]
+  def first(drive,item_id):seen.append(item_id);raise RuntimeError('stop here')
+  with patch.object(prep,'metadata',first):self.queue.process_one()
+  self.assertEqual(seen,['h'])
+ def test_summary_in_plain_words(self):
+  state={'library':{'videos':23,'ready':15,'unreadable':1,'checked':940},
+         'jobs':{'1':{'status':'waiting'},'2':{'status':'waiting'},'3':{'status':'failed','error':'Free phone space is needed for temporary preparation'},
+                 '4':{'status':'waiting','blocked':True}},
+         'current':{'title':'Lanterns.S01E01.Pilot.2160p.mkv','progress':39,'running':True}}
+  text=prep.summary(state,now=lambda:1000)
+  for part in ('has 23 videos','15 ready for Kodi and AirPlay','2 waiting to be prepared. Preparing now: Lanterns · S1 E1, 39%',
+               '1 paused, will try again: Free phone space','1 cannot be prepared without losing quality','1 could not be read','Last checked 1 minute ago'):
+   self.assertIn(part,text)
+  self.assertIn('not been checked yet',prep.summary({}))
+ def test_request_check_marker(self):
+  self.assertFalse(prep.check_requested(self.tmp.name));prep.request_check(self.tmp.name);self.assertTrue(prep.check_requested(self.tmp.name))
+  with patch.object(prep.library_scan,'remote_files',return_value=[]):self.queue.scan()   # a request runs the check even within 5 minutes
+  self.assertFalse(prep.check_requested(self.tmp.name));self.assertIn('library',self.queue.state)
+ def test_settings_button(self):
+  import xml.etree.ElementTree as ET
+  setting=ET.parse(ROOT/'migration/bundled-bootstrap/resources/settings.xml').find(".//setting[@id='prepare_check']")
+  self.assertEqual(setting.findtext('data'),'RunScript(service.kodi.ios.bootstrap,prepare_check)')
+  self.assertIn("'prepare_check'",(ROOT/'migration/bundled-bootstrap/default.py').read_text())
+  self.assertIn("R(9457,'Check library for conversion',PREPARE_CHECK",(ROOT/'migration/bundled-bootstrap/resources/lib/settings_page.py').read_text())
 
 if __name__=='__main__':unittest.main()

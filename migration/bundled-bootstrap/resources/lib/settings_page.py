@@ -50,6 +50,7 @@ def R(id,text,actions,glyph='',tint=SILVER,value='',badge=''):return (id,text,ac
 CUSTOM_PAGE='SetProperty(Settings.Page,custom,%s)\x00SetFocus(9401)'%WINDOW
 LIBRARY_PAGE='SetProperty(Settings.Page,library,%s)\x00SetFocus(9451)'%WINDOW
 LIBRARY_SCAN='RunScript(service.kodi.ios.bootstrap,library_scan)'
+PREPARE_CHECK='RunScript(service.kodi.ios.bootstrap,prepare_check)'
 LIBRARY_REFRESH='RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&all=1)'
 ROOT=[
  [R(9111,'Skin','ActivateWindow(skinsettings)','paintbrush.png',PURPLE),
@@ -91,6 +92,8 @@ LIBRARY=[
   R(9453,'Movies','ActivateWindow(Videos,plugin://plugin.video.kodi.ios.watch/?action=library&type=movie&fresh=1,return)','film.png',ORANGE),
   R(9454,'TV Shows','ActivateWindow(Videos,plugin://plugin.video.kodi.ios.watch/?action=library&type=tv&fresh=1,return)','tv.png',PURPLE)],
   'Includes completed downloads on this iPhone and in Google Drive.'),
+ ('Kodi and AirPlay',[R(9457,'Check library for conversion',PREPARE_CHECK,'file-waveform.png',PURPLE)],
+  'Every movie and show in Google Drive › Kodi Downloads is prepared once, so seeking on Kodi and AirPlay never waits. Check now to see what is ready, waiting or paused.'),
  ('Google Drive',[R(9455,'Google Drive settings','Addon.OpenSettings(plugin.googledrive)','cloud.png',BLUE),
   R(9456,'Transfer settings','Addon.OpenSettings(service.kodi.ios.bootstrap)','sliders.png',SILVER)],
   'Kodi can scan its own files and folders made available to the app.'),

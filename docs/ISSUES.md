@@ -810,3 +810,18 @@ Status: FIXED IN SOURCE; device check pending.
   - Deletion on Drive is always to the Trash, restorable there for 30 days, never permanent. Every removal produces one notification naming what was kept and what went.
   - "Ready for Kodi and AirPlay" names the title ("Lanterns · S1 E1"), not the file.
 - Regression: `test_drive_library.Duplicates`, `test_drive_upload.SameEpisode` (6), `test_prepare_downloads.OneCopyEach` (8: best copy kept, trash plus empty folder, shared folder kept, prepared or in-progress copy wins, unconfirmed or changed copies kept, different years), `test_library_scan` (same movie replaces the phone copy only when confirmed; different years upload), and `test_updates_calibration.AlreadyDownloaded`.
+
+## ISSUE-104 — Owner sees no movies being converted (build 156)
+
+Status: FIXED IN SOURCE (local draft, not pushed: owner is testing build 156); device check pending.
+- Owner: "check if the auto converter starts at launch because I don't see any files being converted and I know all my movies need to be", and asked for a Settings entry to check the library.
+- Launch: the service's first pass runs 5 s after start (idle, Drive signed in, setting on). The owner's build-152 screenshot showed it preparing Lanterns, so it starts.
+- Two queue bugs could keep every movie waiting:
+  1. One video Drive could not describe (`metadata` error) aborted the whole launch scan, so nothing after it was queued, on every pass.
+  2. The queue only resumed a half-downloaded video (to save phone space). If that video was in a retry wait (low space, network), nothing else could start, for up to an hour each time, indefinitely.
+- Fix:
+  - The scan skips an unreadable file (keeping its existing work) and records totals: videos, ready, unreadable, checked time.
+  - A stuck half-downloaded video no longer holds the queue. A resumable one still goes first, and every job checks free space itself.
+  - New Settings › Library › Kodi and AirPlay › **Check library for conversion** (also in the add-on's Google Drive settings). It asks the service to check now; a conversion in progress pauses and resumes where it was. It then shows how many videos are ready, waiting or paused, with the reasons.
+- Regression: `test_prepare_downloads.LibraryCheck` (7) plus the updated service wiring test.
+- Open question for the owner: are the movies in Google Drive › Kodi Downloads › Movies? Videos elsewhere on Drive are not scanned.

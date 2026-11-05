@@ -146,6 +146,37 @@ when Drive returns an ETag. A completed-but-unacknowledged upload is recovered b
    offset=next_offset;stream.seek(offset);progress(offset,size)
  raise RuntimeError('Drive did not confirm the prepared upload')
 
+RESCAN='airplay-preparation-rescan'
+def request_check(profile):
+ """Ask the service to check Google Drive › Kodi Downloads now (Settings › Library › Check library for conversion)."""
+ marker=location(profile).parent/RESCAN;marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(str(time.time()))
+def check_requested(profile):return (location(profile).parent/RESCAN).exists()
+
+def summary(state,now=time.time):
+ """Plain-words status for Settings › Library › Check library for conversion."""
+ library=state.get('library') or {};jobs=list((state.get('jobs') or {}).values())
+ waiting=[j for j in jobs if j.get('status') not in ('done','superseded','failed') and not j.get('blocked')]
+ paused=[j for j in jobs if j.get('status')=='failed' and not j.get('blocked')]
+ blocked=[j for j in jobs if j.get('blocked')]
+ plural=lambda n,one,many:'%d %s'%(n,one if n==1 else many)
+ lines=[]
+ if library:
+  lines.append('Google Drive › Kodi Downloads has %s.'%plural(library.get('videos',0),'video','videos'))
+  lines.append('%d ready for Kodi and AirPlay.'%library.get('ready',0))
+ else:lines.append('The library has not been checked yet.')
+ current=state.get('current') or {}
+ now_line=' Preparing now: %s, %d%%.'%(drivelibrary.display_title(current.get('title','')),current.get('progress',0)) if current.get('running') and current.get('title') else ''
+ lines.append('%d waiting to be prepared.%s'%(len(waiting),now_line))
+ if paused:
+  reasons=sorted({j.get('error','Will try again') for j in paused})
+  lines.append('%d paused, will try again: %s'%(len(paused),'; '.join(reasons)[:200]))
+ if blocked:lines.append('%d cannot be prepared without losing quality; kept as they are.'%len(blocked))
+ if library.get('unreadable'):lines.append('%d could not be read from Drive this time.'%library['unreadable'])
+ if library.get('checked'):
+  minutes=int(max(0,now()-library['checked'])//60)
+  lines.append('Last checked %s.'%('just now' if minutes<1 else '%s ago'%plural(minutes,'minute','minutes')))
+ return '\n'.join(lines)
+
 class Queue:
  def __init__(self,profile,drive,native,download_file=download,notify=lambda *args:None,clock=time.time):
   self.profile=Path(profile);self.drive=drive;self.native=native;self.download=download_file;self.notify=notify;self.clock=clock
@@ -156,13 +187,21 @@ class Queue:
   requested=location(self.profile).parent/'airplay-preparation-rescan'
   if not force and not requested.exists() and self.clock()-self.state.get('last_scan',0)<300:return
   self.state['current']={'title':'Movies and shows','stage':'Checking downloaded videos','progress':0,'queued':0,'running':True,'updated':self.clock()};self.commit()
-  found=self.unique(library_scan.remote_files(self.drive,keep_going));seen=set()
+  listed_all=library_scan.remote_files(self.drive,keep_going)
+  found=self.unique(listed_all);seen=set();counts={'videos':len(found),'ready':0,'unreadable':0}
   for number,listed in enumerate(found):
    if not keep_going():raise driveupload.Stop('Preparation scan paused')
-   item=dict(metadata(self.drive,listed['id']),folderName=listed.get('folderName',''));slot=key(item);seen.add(slot)
+   try:item=dict(metadata(self.drive,listed['id']),folderName=listed.get('folderName',''))
+   except Exception:
+    # One file Drive cannot describe right now must not stop the whole library check (owner, build 156: no
+    # movies were being converted). Its existing work, if any, is kept for the next check.
+    counts['unreadable']+=1
+    seen.update(slot for slot,job in self.state['jobs'].items() if job['source']['id']==listed['id'])
+    continue
+   slot=key(item);seen.add(slot)
    recovering=[old for old,job in self.state['jobs'].items() if job['source']['id']==item['id'] and job.get('status')=='committing']
    if recovering:seen.update(recovering);continue
-   if ready(item):continue
+   if ready(item):counts['ready']+=1;continue
    if slot not in self.state['jobs'] or self.state['jobs'][slot].get('status')=='superseded' or identity(self.state['jobs'][slot]['source'])!=identity(item):
     self.state['jobs'][slot]={'source':item,'status':'waiting','attempts':0,'retry_after':0}
   # A source modified/replaced by another client no longer owns its old work/session.
@@ -170,6 +209,7 @@ class Queue:
    if slot not in seen and job.get('status')!='committing':
     self.state['jobs'].pop(slot,None);self.state['sessions'].pop(slot,None)
     shutil.rmtree(self.work/slot,ignore_errors=True)
+  self.state['library']=dict(counts,checked=self.clock())
   self.state['last_scan']=self.clock();self.state.pop('current',None);self.commit();requested.unlink(missing_ok=True)
  def unique(self,found):
   """One copy per episode or movie (owner, build 152: 'Lanterns' and 'Lanterns (2026)' each held S1 E1, and both
@@ -218,7 +258,10 @@ class Queue:
   candidates=[(slot,job) for slot,job in self.state['jobs'].items() if job.get('status') not in ('done','superseded') and not job.get('blocked') and job.get('retry_after',0)<=self.clock()]
   if not candidates:return False
   working=[slot for slot,job in self.state['jobs'].items() if (self.work/slot).exists() and job.get('status')!='done']
-  if working:candidates=[pair for pair in candidates if pair[0] in working]
+  # Finish a half-downloaded video before starting another (phone space), but only while it can actually run: one
+  # stuck in a retry wait must not hold the whole queue (owner, build 156). Every job checks free space itself.
+  resumable=[pair for pair in candidates if pair[0] in working]
+  if resumable:candidates=resumable
   if not candidates:return False
   # Always resume the one downloaded working source before allocating space for another movie.
   candidates.sort(key=lambda pair:0 if (self.work/pair[0]).exists() else 1)

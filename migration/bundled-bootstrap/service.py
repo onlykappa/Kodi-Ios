@@ -253,11 +253,15 @@ def drive_uploads(monitor,home,profile):
      if preparation is None:preparation=preparation_queue()
      can_prepare=lambda:idle() and xbmcaddon.Addon().getSettingBool('prepare_downloads')
      preparation.scan(can_prepare,force=bool(count))
-     if preparation.process_one(can_prepare):delay=2
+     # Settings › Library › Check library for conversion: the current video pauses (it resumes where it was) so
+     # the check runs within seconds instead of after a long conversion.
+     converting=lambda:can_prepare() and not prepare_downloads.check_requested(profile)
+     if preparation.process_one(converting):delay=2
      else:delay=30
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))
   except driveupload.Stop:pass
   except Exception as error:
    xbmc.log('Kodi iOS Drive upload paused: %s %s'%(type(error).__name__,error),xbmc.LOGWARNING)
    notices.add(profile,'problem','Google Drive upload paused',str(error)[:160])
+  if prepare_downloads.check_requested(profile):delay=5
 if __name__=='__main__':run()
