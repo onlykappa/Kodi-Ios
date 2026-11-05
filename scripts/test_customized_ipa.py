@@ -1,7 +1,7 @@
 import json,tempfile,unittest,xml.etree.ElementTree as ET
 from pathlib import Path
 import zipfile
-from build_customized_ipa import prepare,patch_drive,DRIVE_PATCHES,DRIVE_COMMON,BOOT,ELEMENTUM,BURST,ELEMENTUM_PATCHES,ELEMENTUM_IOS
+from build_customized_ipa import prepare,patch_drive,DRIVE_PATCHES,DRIVE_COMMON,BOOT,ELEMENTUM,BURST,ELEMENTUM_PATCHES,ELEMENTUM_IOS,BURST_PATCHES
 from test_import_profile import make_bundle
 class EngineGuardTests(unittest.TestCase):
  """The patched Elementum start (ELEMENTUM_IOS) run with stand-ins for Kodi."""
@@ -65,6 +65,9 @@ class BundleTests(unittest.TestCase):
   self.assertTrue((base/'addons'/BOOT/'service.py').is_file());self.assertTrue((base/'addons'/BOOT/'recover.py').is_file());self.assertTrue((base/'addons/fixture.addon/resources/settings.xml').is_file())
   seed=json.loads((base/'addons'/BOOT/'seed/seed-manifest.json').read_text());self.assertEqual(seed['addons'],['fixture.addon']);self.assertEqual(len(seed['files']),3)
   self.assertFalse((self.app/'AppData/AppHome/addons/fixture.addon').exists());self.assertEqual(len(ET.parse(self.app/'AppData/AppHome/system/addon-manifest.xml').getroot()),1)
+  # Kodi's splash off for every install: special://xbmc/system/advancedsettings.xml, read before the profile's file.
+  self.assertEqual(ET.parse(base/'system/advancedsettings.xml').getroot().findtext('splash'),'false')
+  self.assertEqual(receipt['splash']['path'],'advancedsettings.xml');self.assertFalse((self.app/'AppData/AppHome/system/advancedsettings.xml').exists())
  def elementum_inputs(self):
   inputs=self.root/'elementum';inputs.mkdir();files={}
   for name,old,_ in ELEMENTUM_PATCHES:files[name]=files.get(name,b'')+b'# x\n'+old+b'\n'
@@ -80,6 +83,7 @@ class BundleTests(unittest.TestCase):
   with zipfile.ZipFile(inputs/'burst.zip','w') as z:
    z.writestr(BURST+'/addon.xml','<addon id="'+BURST+'" version="0.0.99"><requires><import addon="plugin.video.elementum" optional="true"/><import addon="script.module.kodi-six"/><import addon="script.module.future"/></requires></addon>')
    z.writestr(BURST+'/burst/providers/providers.json','{}')
+   z.writestr(BURST+'/burst/burst.py',b''.join(b'# x\n'+old for _,old,_ in BURST_PATCHES))
   for mode,id in [('app','script.module.resolveurl'),('profile','script.module.cocoscrapers')]:
    (inputs/('extras-'+mode)).mkdir()
    with zipfile.ZipFile(inputs/('extras-'+mode)/(id+'.zip'),'w') as z:z.writestr(id+'/addon.xml','<addon id="'+id+'" version="1"><requires><import addon="xbmc.python"/></requires></addon>');z.writestr(id+'/lib/m.py','x=1')
@@ -98,6 +102,11 @@ class BundleTests(unittest.TestCase):
   seed=json.loads((base/'addons'/BOOT/'seed/seed-manifest.json').read_text());order=seed['addons']
   self.assertLess(order.index('script.module.kodi-six'),order.index(ELEMENTUM));self.assertLess(order.index('script.module.future'),order.index(BURST))
   self.assertTrue((base/'addons'/BURST/'burst/providers/providers.json').is_file())
+  # Burst checks every provider's results against the title asked for, with the bootstrap add-on's source_match.py.
+  burst=(base/'addons'/BURST/'burst/burst.py').read_bytes()
+  for _,_,after in BURST_PATCHES:self.assertIn(after,burst)
+  self.assertEqual([p['path'] for p in receipt['elementum']['burst_patches']],['addons/'+BURST+'/burst/burst.py'])
+  self.assertTrue((base/'addons'/BOOT/'resources/lib/source_match.py').is_file());self.assertTrue((site/'source_match.py').is_file())
   self.assertTrue((base/'addons/script.module.resolveurl/lib/m.py').is_file());self.assertIn('script.module.resolveurl',order)
   self.assertTrue((base/'addons'/BOOT/'payload/script.module.cocoscrapers/lib/m.py').is_file());self.assertNotIn('script.module.cocoscrapers',order)
   self.assertEqual(receipt['profile_addons'],['script.module.cocoscrapers'])
@@ -107,4 +116,26 @@ class BundleTests(unittest.TestCase):
   self.assertFalse((self.root/'work').exists())
  def test_overlapping_source_and_work_rejected(self):
   with self.assertRaises(AssertionError):prepare(self.app,self.bundle,self.sha,self.app/'nested')
+class BytecodeTests(unittest.TestCase):
+ def test_bundle_python_precompiled_for_311(self):
+  # Owner crash report (build 142): iOS killed Kodi for CPU; Python recompiled read-only bundle sources on every run.
+  import build_customized_ipa as b,importlib.util as iu,marshal,sys
+  with tempfile.TemporaryDirectory() as tmp:
+   app=Path(tmp)/'Kodi.app';std=app/'Frameworks/lib/python3.11';add=app/'AppData/AppHome/addons/plugin.x'
+   for d,names in ((std,('os.py','json/decoder.py')),(add,('default.py','resources/lib/a.py'))):
+    for n in names:(d/n).parent.mkdir(parents=True,exist_ok=True);(d/n).write_text('VALUE=%r\n'%n)
+   (add/'py2.py').write_text('print "python 2"\n')
+   info=b.precompile(app)
+   self.assertEqual((info['tag'],info['added'],info['sources']),('cpython-311',4,5))
+   pyc=std/'__pycache__/os.cpython-311.pyc';data=pyc.read_bytes()
+   # PEP 552 flags: bit 0 hash-based, bit 1 check source. 0b01 = never compared with the source.
+   self.assertEqual(int.from_bytes(data[4:8],'little'),0b01)
+   self.assertFalse((add/'__pycache__/py2.cpython-311.pyc').exists())
+   if sys.implementation.cache_tag=='cpython-311':
+    self.assertEqual(marshal.loads(data[16:]).co_filename,'Kodi.app/Frameworks/lib/python3.11/os.py')
+ def test_build_requires_python311(self):
+  import build_customized_ipa as b,os
+  from unittest import mock
+  with mock.patch.dict(os.environ,{'KODI_IOS_PYTHON311':'/nonexistent/python'}):
+   with self.assertRaises(Exception):b.python311()
 if __name__=='__main__':unittest.main()

@@ -30,7 +30,7 @@ jobs:
           REPO: ${{ github.repository }}
           SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          tag="$(python3 -c "import json;print(json.load(open('migration/glassbar-ios/source-lock.json'))['framework_release']['tag'])")"
+          tag="$(python3 -c "import json;d=json.load(open('migration/glassbar-ios/source-lock.json'));print(d.get('build_tag') or d['framework_release']['tag'])")"
           if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then echo "$tag already published"; exit 0; fi
           dir="$RUNNER_TEMP/glassbar"
           gh release create "$tag" "$dir/KodiGlassBar.framework.zip" --repo "$REPO" --target "$SHA" --prerelease \

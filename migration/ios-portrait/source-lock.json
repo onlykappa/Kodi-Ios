@@ -3,12 +3,18 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
+  "build_tag": "kodi-ios-portrait-r23",
+  "staged_patch_note": "Whole-page show scrolling and downloaded-show parent-row suppression are included in the verified r23 executable. Owner reports scrolling is fine; acceptance of the newly packaged IPA remains pending.",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
-    "tag": "kodi-ios-portrait-r21",
+    "tag": "kodi-ios-portrait-r23",
     "asset": "Kodi-portrait-executable.zip",
-    "sha256": "b2a3c4926c3fbc12822c85caf35bbe61165731c6d93b119249d42c997df77ed9"
+    "sha256": "9fa9ad78f8613bf4ce4b369eb19e46bfe5a99bc934f568d16dd0953c946fb7fd"
   },
-  "build_tag": "kodi-ios-portrait-r21",
-  "build_note": "The macOS workflow publishes a new executable under build_tag; the IPA keeps executable_release until that build is verified and pinned there."
+  "build_note": "r23: includes the r22 native navigation/audio fixes plus whole-page show scrolling and downloaded-show parent-row suppression. Native run 42078285510 succeeded; release executable matches CI artifact byte-for-byte, binary SHA256, patch SHA256 and pinned upstream commit verified before pinning. Owner requested fresh test IPA.",
+  "previous_executable_release": {
+    "tag": "kodi-ios-portrait-r22",
+    "asset": "Kodi-portrait-executable.zip",
+    "sha256": "1b30b81921b27416113c362fd1443f4f88d2ecd64087f9b8491ba04628a17172"
+  }
 }

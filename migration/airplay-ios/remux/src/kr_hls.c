@@ -32,9 +32,8 @@ static void sb_add(sb *b, const char *fmt, ...) {
 int kr_audio_route(const gm_track_info *t) {
     if (!t || t->kind != GM_TRACK_AUDIO) return KR_AUDIO_NONE;
     if (t->avf_compatible) return KR_AUDIO_COPY;
-    static const char *bridged[] = { "dts", "truehd", "mlp", "flac", "opus", "vorbis", NULL };
-    for (int i = 0; bridged[i]; i++)
-        if (!strcmp(t->codec, bridged[i])) return KR_AUDIO_AAC;
+    const AVCodecDescriptor *desc = avcodec_descriptor_get_by_name(t->codec);
+    if (desc && desc->type == AVMEDIA_TYPE_AUDIO && avcodec_find_decoder(desc->id)) return KR_AUDIO_AAC;
     return KR_AUDIO_NONE;
 }
 

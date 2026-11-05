@@ -5,9 +5,12 @@
 - Optionally swap in the Kodi executable built by .github/workflows/kodi-ios-portrait.yml from the same 21.3 tag
   with migration/ios-portrait/kodi-21.3-portrait.patch; without it the app keeps the official, landscape-only one.
 - Optionally add KodiGlassBar.framework (migration/glassbar-ios): the native Liquid Glass tab bar.
+- No logo -> splash -> menu sequence at launch: the launch screen's Kodi logo becomes black (black_launch_screen) and
+  Kodi's own "KODI 21.3 OMEGA" splash is turned off for every install (disable_splash, run by build_customized_ipa).
 All optional inputs come from one directory written by `ios_portrait.py --fetch DIR` (pinned releases only).
 """
-import argparse,hashlib,importlib.util,io,json,plistlib,shutil,sys,zipfile
+import argparse,hashlib,importlib.util,io,json,plistlib,shutil,struct,sys,zipfile,zlib
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from inspect_ios_foundation import macho
 ROOT=Path(__file__).resolve().parents[1]
@@ -41,6 +44,53 @@ def swap_executable(app,executable,expected_sha256=None):
  return {'path':name,'official_sha256':sha(old),'portrait_sha256':sha(new),
          'dylibs_added':sorted(loads-official),'dylibs_dropped':sorted(official-loads)}
 
+def black_png(width,height):
+ """An all-black RGB PNG of the given size (zero rows compress to a few KB)."""
+ def chunk(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
+ raw=(b'\x00'+b'\x00'*3*width)*height
+ return (b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',width,height,8,2,0,0,0))+
+         chunk(b'IDAT',zlib.compress(raw,9))+chunk(b'IEND',b''))
+
+def png_size(data):
+ """(width, height) from IHDR; Xcode's PNG compression may put Apple's CgBI chunk in front of it."""
+ assert data[:8]==b'\x89PNG\r\n\x1a\n','Not a PNG'
+ at=8
+ while at+8<=len(data):
+  length,kind=struct.unpack('>I4s',data[at:at+8])
+  if kind==b'IHDR':return struct.unpack('>II',data[at+8:at+16])
+  at+=12+length
+ raise AssertionError('PNG without IHDR')
+
+def black_launch_screen(app):
+ """Kodi's LaunchScreen storyboard (xbmc/platform/darwin/ios/LaunchScreen.storyboard, compiled in the official
+ package) is a black view with one image view showing applaunch_screen.png, the Kodi logo. The same picture in black,
+ same size, makes the launch screen plain black like the first frames Kodi draws, without a new storyboard (that
+ needs Xcode's ibtool). iOS may keep its cached launch snapshot until the app is updated or the phone restarts."""
+ changed=[]
+ for path in sorted(Path(app).glob('applaunch_screen*.png')):
+  data=path.read_bytes();black=black_png(*png_size(data))
+  if data!=black:path.write_bytes(black)
+  changed.append({'path':path.name,'before_sha256':sha(data),'after_sha256':sha(black)})
+ return changed
+
+SPLASH_OFF='<splash>false</splash>'
+def disable_splash(system):
+ """special://xbmc/system/advancedsettings.xml inside the app: Kodi reads it before the profile's own
+ advancedsettings.xml (CAdvancedSettings::Load), so it applies to new and existing installs alike, and an owner's own
+ file can still override it. <splash>false</splash> makes CRenderSystemBase::ShowSplash skip the picture (messages
+ such as a database upgrade still show)."""
+ path=Path(system)/'advancedsettings.xml'
+ if path.exists():
+  root=ET.fromstring(path.read_bytes());assert root.tag=='advancedsettings','Unexpected system advancedsettings.xml'
+  splash=root.find('splash')
+  if splash is None:splash=ET.SubElement(root,'splash')
+  splash.text='false';data=ET.tostring(root,encoding='utf-8')+b'\n'
+ else:
+  data=('<advancedsettings version="1.0">\n  <!-- Kodi-iOS: no "KODI 21.3 OMEGA" splash between the launch screen and Home -->\n'
+        '  %s\n</advancedsettings>\n'%SPLASH_OFF).encode()
+ path.write_bytes(data)
+ return {'path':path.name,'sha256':sha(data)}
+
 GLASSBAR=ROOT/'migration/glassbar-ios/source-lock.json'
 EXECUTABLE=ROOT/'migration/ios-portrait/source-lock.json'
 RELEASES='https://github.com/onlykappa/Kodi-Ios/releases/download/'
@@ -58,7 +108,7 @@ def add_glassbar(app,archive):
 def apply(app,skin,profile,inputs=None):
  """Returns {'orientations','skin_files','changed','executable','glassbar'}; 'changed' lists existing skin files it
  edited. inputs: directory from fetch() (optional Kodi + Kodi.sha256, KodiGlassBar.framework.zip)."""
- skin=Path(skin);addon=skin/'addon.xml'
+ skin=Path(skin)
  # Existing skin files the build overwrites (addon.xml, and in 1080i the video controls and seek bar).
  before={str(p.relative_to(skin)):sha(p.read_bytes()) for p in skin.rglob('*') if p.is_file()}
  files=portrait.build(skin,profile)
@@ -69,7 +119,7 @@ def apply(app,skin,profile,inputs=None):
  bar=inputs/'KodiGlassBar.framework.zip' if inputs and (inputs/'KodiGlassBar.framework.zip').is_file() else None
  return {'revision':portrait.REVISION,'orientations':allow_portrait(app),'skin_files':len(files),'changed':changed,
          'executable':swap_executable(app,exe,(inputs/'Kodi.sha256').read_text().split()[0]) if exe else None,
-         'glassbar':add_glassbar(app,bar) if bar else None}
+         'glassbar':add_glassbar(app,bar) if bar else None,'launch_screen':black_launch_screen(app)}
 
 def fetch(out,get=None):
  """Download the pinned native pieces that are published; skip any not pinned yet (the IPA still builds)."""

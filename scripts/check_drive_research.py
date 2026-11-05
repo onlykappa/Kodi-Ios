@@ -5,7 +5,7 @@ ROOT=Path(__file__).resolve().parents[1]
 def validate(lock,research,suite,roadmap,ci=None):
  assert lock['owner_approved'] and research['owner_approved'],'Missing owner approval'
  assert lock['selected_architecture']==research['architecture_selection']=='direct-addon-maintainer-oauth-relay'
- assert lock['relay']['endpoint']=='https://drive.signinserver.com','Unexpected or legacy relay'
+ assert lock['relay']['endpoint']=='https://kodi-signin.ballaking1738.workers.dev','Unexpected or legacy relay'
  assert lock['relay']['scope']=='https://www.googleapis.com/auth/drive.readonly','Scope expansion'
  assert not research['ios_runtime_verified'] and not suite['ios_runtime_verified']
  identities=[]

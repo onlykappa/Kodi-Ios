@@ -137,6 +137,181 @@ index 84f28b0..4504250 100644
  
  # configuration settings
  CONFIGURE=cp -f $(CONFIG_SUB) $(CONFIG_GUESS) .; \
+diff --git a/xbmc/application/Application.cpp b/xbmc/application/Application.cpp
+--- a/xbmc/application/Application.cpp
++++ b/xbmc/application/Application.cpp
+@@ -209,6 +209,159 @@
+ 
+ #define MAX_FFWD_SPEED 5
+ 
++#if defined(TARGET_DARWIN_IOS)
++// Kodi-iOS r22: the portrait tab bar (KodiGlassBar.framework r5, migration/glassbar-ios) is shown by Kodi itself.
++// Python services start ~2-4.5 s after Home on the phone (owner logs, docs/PERFORMANCE.md), so a bar driven from
++// the setup add-on appeared late. Kodi now loads the framework from the app's Frameworks folder once its frame loop
++// runs, claims it (kodi_glassbar_set_native_owner) and follows the same rules as glassbar.controller in
++// migration/bundled-bootstrap/resources/lib/glassbar.py: shown on the five tab pages in portrait with Arctic Fuse,
++// hidden for modal dialogs, other windows (fullscreen video, visualisation, settings...) and landscape. A tapped tab
++// runs the same builtins as ios_tabs.tab_actions, posted through the app messenger like xbmc.executebuiltin. The
++// setup add-on sees the claim (kodi_glassbar_native_owner) and only keeps the Search field. A framework without the
++// claim symbol (r4 or older) is left to the add-on, as before.
++#include "windowing/GraphicContext.h"
++
++#include <chrono>
++#include <dlfcn.h>
++
++namespace
++{
++struct KodiIOSGlassBar
++{
++  bool loaded = false;
++  void (*show)(int) = nullptr;
++  void (*select)(int) = nullptr;
++  int (*takeTap)() = nullptr;
++  int page = -1; // tab page on screen (0 Home ... 4 Search), -1 none
++  bool shown = false;
++  bool skinFlagChecked = false;
++  std::chrono::steady_clock::time_point next{};
++};
++KodiIOSGlassBar s_glassBar;
++
++// Same conditions and order as glassbar.PAGES.
++const char* const kGlassBarPages[] = {
++    "Window.IsActive(home) + String.IsEmpty(Window(Home).Property(Portrait.Tab))",
++    "Window.IsActive(home) + String.IsEqual(Window(Home).Property(Portrait.Tab),movies)",
++    "Window.IsActive(home) + String.IsEqual(Window(Home).Property(Portrait.Tab),tv)",
++    "Window.IsActive(1103) | Window.IsActive(1104)",
++    "Window.IsActive(1105)",
++};
++constexpr int kGlassBarTabs = 5;
++
++void KodiIOSGlassBarLoad()
++{
++  s_glassBar.loaded = true;
++  const std::string path =
++      URIUtils::AddFileToFolder(CUtil::GetFrameworksPath(), "KodiGlassBar.framework", "KodiGlassBar");
++  // The same image the setup add-on opens with ctypes later (dyld shares one copy, so one bar and one owner flag).
++  void* lib = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
++  if (!lib)
++  {
++    CLog::Log(LOGINFO, "Kodi iOS tab bar: no KodiGlassBar framework, the skin's own bar stays");
++    return;
++  }
++  auto claim = reinterpret_cast<void (*)(int)>(dlsym(lib, "kodi_glassbar_set_native_owner"));
++  auto show = reinterpret_cast<void (*)(int)>(dlsym(lib, "kodi_glassbar_show"));
++  auto select = reinterpret_cast<void (*)(int)>(dlsym(lib, "kodi_glassbar_select"));
++  auto takeTap = reinterpret_cast<int (*)()>(dlsym(lib, "kodi_glassbar_take_tap"));
++  if (!claim || !show || !select || !takeTap)
++  {
++    // Never dlclose: the add-on still drives this older framework.
++    CLog::Log(LOGINFO, "Kodi iOS tab bar: KodiGlassBar before r5, the setup add-on drives it");
++    return;
++  }
++  claim(1);
++  s_glassBar.show = show;
++  s_glassBar.select = select;
++  s_glassBar.takeTap = takeTap;
++  CLog::Log(LOGINFO, "Kodi iOS tab bar: KodiGlassBar driven by Kodi");
++}
++
++void KodiIOSPostBuiltin(const std::string& builtin)
++{
++  CServiceBroker::GetAppMessenger()->PostMsg(TMSG_EXECUTE_BUILT_IN, -1, -1, nullptr, builtin);
++}
++
++// Called by CApplication::Process on Kodi's application thread, once per frame loop.
++void KodiIOSGlassBarTick()
++{
++  if (!s_glassBar.loaded)
++    KodiIOSGlassBarLoad();
++  if (!s_glassBar.show || !CServiceBroker::GetGUI())
++    return;
++  std::unique_lock<CCriticalSection> lock(CServiceBroker::GetWinSystem()->GetGfxContext());
++  CGUIWindowManager& windows = CServiceBroker::GetGUI()->GetWindowManager();
++  CGUIInfoManager& info = CServiceBroker::GetGUI()->GetInfoManager();
++  int context = windows.GetTopmostModalDialog();
++  if (context == WINDOW_INVALID)
++    context = windows.GetActiveWindow();
++
++  // A tap: taken every loop (an atomic exchange), run unless it is the page already on screen (glassbar.poll).
++  const int tapped = s_glassBar.takeTap();
++  if (tapped >= 0 && tapped < kGlassBarTabs && tapped != s_glassBar.page)
++  {
++    if (tapped <= 2)
++    {
++      // ios_tabs.tab_actions for home / movies / tv: the hubs are groups of Home picked by Portrait.Tab.
++      KodiIOSPostBuiltin(tapped == 0 ? "ClearProperty(Portrait.Tab,home)"
++                                     : std::string("SetProperty(Portrait.Tab,") +
++                                           (tapped == 1 ? "movies" : "tv") + ",home)");
++      if (info.EvaluateBool("!Window.IsActive(home)", context))
++        KodiIOSPostBuiltin("ReplaceWindow(Home)");
++      KodiIOSPostBuiltin("SetFocus(" + std::to_string(4000 + 10000 * tapped) + ")");
++    }
++    else
++      KodiIOSPostBuiltin(tapped == 3 ? "ReplaceWindow(1103)" : "ReplaceWindow(1105)");
++  }
++
++  // Visibility: every 0.1 s, every 0.5 s during fullscreen video (the add-on checked every 0.5 s).
++  const auto now = std::chrono::steady_clock::now();
++  if (now < s_glassBar.next)
++    return;
++  const bool video = windows.IsWindowActive(WINDOW_FULLSCREEN_VIDEO);
++  s_glassBar.next = now + std::chrono::milliseconds(video ? 500 : 100);
++  const CGraphicContext& gfx = CServiceBroker::GetWinSystem()->GetGfxContext();
++  const bool fuse = g_SkinInfo && g_SkinInfo->ID() == "skin.arctic.fuse.3";
++  const bool portrait = fuse && gfx.GetHeight() > gfx.GetWidth();
++  int page = -1;
++  if (portrait && !info.EvaluateBool("System.HasActiveModalDialog", context))
++  {
++    for (int i = 0; i < kGlassBarTabs; ++i)
++    {
++      if (info.EvaluateBool(kGlassBarPages[i], context))
++      {
++        page = i;
++        break;
++      }
++    }
++  }
++  // The skin hides its own bar on this flag (saved with the skin settings; set once if missing).
++  if (fuse && !s_glassBar.skinFlagChecked)
++  {
++    s_glassBar.skinFlagChecked = true;
++    if (!info.EvaluateBool("Skin.HasSetting(Portrait.NativeTabBar)", context))
++      KodiIOSPostBuiltin("Skin.SetBool(Portrait.NativeTabBar)");
++  }
++  if (page >= 0 && page != s_glassBar.page)
++    s_glassBar.select(page);
++  s_glassBar.page = page;
++  const bool show = page >= 0;
++  if (show != s_glassBar.shown)
++  {
++    s_glassBar.shown = show;
++    s_glassBar.show(show ? 1 : 0);
++    static bool logged = false;
++    if (show && !logged)
++    {
++      logged = true;
++      CLog::Log(LOGINFO, "Kodi iOS startup: native tab bar shown by Kodi (page {})", page);
++    }
++  }
++}
++} // namespace
++#endif
++
+ CApplication::CApplication(void)
+   :
+ #ifdef HAS_OPTICAL_DRIVE
+@@ -3231,6 +3384,11 @@
+   CServiceBroker::GetAppMessenger()->ProcessMessages();
+   if (m_bStop) return; //we're done, everything has been unloaded
+ 
++#if defined(TARGET_DARWIN_IOS)
++  // Kodi-iOS r22: the native tab bar follows the page from here, from the first loop after Home opens.
++  KodiIOSGlassBarTick();
++#endif
++
+   // do any processing that isn't needed on each run
+   if( m_slowTimer.GetElapsedMilliseconds() > 500 )
+   {
 diff --git a/xbmc/application/ApplicationSkinHandling.cpp b/xbmc/application/ApplicationSkinHandling.cpp
 index bf73f14..4a017af 100644
 --- a/xbmc/application/ApplicationSkinHandling.cpp
@@ -263,13 +438,12 @@ index 2f8ca00..af8137b 100644
    toast.eType = eType;
    toast.imagefile = aImageFile;
 diff --git a/xbmc/guilib/GUIBaseContainer.cpp b/xbmc/guilib/GUIBaseContainer.cpp
-index 8974597..cec71e8 100644
 --- a/xbmc/guilib/GUIBaseContainer.cpp
 +++ b/xbmc/guilib/GUIBaseContainer.cpp
 @@ -8,7 +8,10 @@
- 
+
  #include "GUIBaseContainer.h"
- 
+
 +#include <cmath>
 +
  #include "FileItem.h"
@@ -277,10 +451,17 @@ index 8974597..cec71e8 100644
  #include "GUIInfoManager.h"
  #include "GUIListItemLayout.h"
  #include "GUIMessage.h"
-@@ -776,6 +779,25 @@ bool CGUIBaseContainer::OnMouseOver(const CPoint &point)
-   return CGUIControl::OnMouseOver(point);
- }
- 
+@@ -773,7 +776,68 @@
+   // select the item under the pointer
+   if (!m_waitForScrollEnd)
+     SelectItemFromPoint(point - CPoint(m_posX, m_posY));
+-  return CGUIControl::OnMouseOver(point);
++  m_portraitTouchFocus = PortraitScroller() != nullptr;
++  const bool handled = CGUIControl::OnMouseOver(point);
++  m_portraitTouchFocus = false;
++  return handled;
++}
++
 +bool CGUIBaseContainer::GestureAcross(float offsetX, float offsetY) const
 +{
 +  // Kodi-iOS: whether a movement runs more across this list's direction than along it.
@@ -300,10 +481,47 @@ index 8974597..cec71e8 100644
 +  return nullptr;
 +}
 +
++CGUIControlGroupList* CGUIBaseContainer::PortraitScroller() const
++{
++  if (GetParentID() != 10025 || m_orientation != VERTICAL || (GetID() != 52 && GetID() != 60))
++    return nullptr;
++  for (CGUIControl* parent = GetParentControl(); parent; parent = parent->GetParentControl())
++  {
++    if (parent->GetControlType() == GUICONTROL_GROUPLIST && parent->GetID() == 9900)
++      return static_cast<CGUIControlGroupList*>(parent);
++  }
++  return nullptr;
++}
++
++float CGUIBaseContainer::PortraitContentHeight() const
++{
++  return m_layout ? m_items.size() * m_layout->Size(VERTICAL) : 0.0f;
++}
++
++float CGUIBaseContainer::PortraitScroll(float distance)
++{
++  if (!m_layout || m_items.empty())
++    return 0.0f;
++  const float size = m_layout->Size(VERTICAL);
++  if (size <= 0.0f)
++    return 0.0f;
++  int minimum = 0, maximum = 0;
++  GetOffsetRange(minimum, maximum);
++  const float before = m_scroller.GetValue();
++  const int selected = CorrectOffset(GetOffset(), GetCursor());
++  m_scroller.SetValue(std::max(0.0f, std::min(before + distance, std::max(0, maximum) * size)));
++  SetOffset(static_cast<int>(std::floor(m_scroller.GetValue() / size)));
++  ValidateOffset();
++  // Preserve selection without emitting focus messages that would jump the page to the episode viewport.
++  CGUIBaseContainer::SetCursor(selected - CorrectOffset(GetOffset(), 0));
++  m_lastScrollStartTimer.Stop();
++  m_scrollTimer.Start();
++  SetInvalid();
++  return m_scroller.GetValue() - before;
+ }
+
  EVENT_RESULT CGUIBaseContainer::OnMouseEvent(const CPoint& point, const MOUSE::CMouseEvent& event)
- {
-   if (event.m_id == ACTION_MOUSE_LEFT_CLICK ||
-@@ -810,13 +832,33 @@ EVENT_RESULT CGUIBaseContainer::OnMouseEvent(const CPoint& point, const MOUSE::C
+@@ -810,13 +874,39 @@
    }
    else if (event.m_id == ACTION_GESTURE_BEGIN)
    { // grab exclusive access
@@ -321,6 +539,12 @@ index 8974597..cec71e8 100644
    else if (event.m_id == ACTION_GESTURE_PAN)
 -  { // do the drag and validate our offset (corrects for end of scroll)
 +  {
++    // Kodi-iOS: the entire TV page consumes this delta once, even when the finger starts on an episode.
++    if (CGUIControlGroupList* page = PortraitScroller())
++    {
++      const float consumed = page->ScrollPortrait(-event.m_offsetY);
++      return (m_waitForScrollEnd && std::abs(consumed) < 0.001f) ? EVENT_RESULT_UNHANDLED : EVENT_RESULT_HANDLED;
++    }
 +    // Kodi-iOS: a list inside a scrolling group list (a row of posters on a page) hands a drag that starts across
 +    // its own direction to the page, which then takes the gesture (and its momentum) instead of the row.
 +    if (!m_gestureDecided)
@@ -338,34 +562,92 @@ index 8974597..cec71e8 100644
      m_scroller.SetValue(m_scroller.GetValue() - ((m_orientation == HORIZONTAL) ? event.m_offsetX : event.m_offsetY));
      float size = (m_layout) ? m_layout->Size(m_orientation) : 10.0f;
      int offset = MathUtils::round_int(static_cast<double>(m_scroller.GetValue() / size));
+@@ -847,6 +937,13 @@
+     CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, 0, GetParentID());
+     SendWindowMessage(msg);
+     m_scrollTimer.Stop();
++    if (PortraitScroller())
++    {
++      // Keep the exact combined page position; snapping an episode would move the header independently.
++      m_waitForScrollEnd = false;
++      m_gestureActive = false;
++      return EVENT_RESULT_HANDLED;
++    }
+     // and compute the nearest offset from this and scroll there
+     float size = (m_layout) ? m_layout->Size(m_orientation) : 10.0f;
+     float offset = m_scroller.GetValue() / size;
 diff --git a/xbmc/guilib/GUIBaseContainer.h b/xbmc/guilib/GUIBaseContainer.h
-index 38e68cf..dd53f32 100644
 --- a/xbmc/guilib/GUIBaseContainer.h
 +++ b/xbmc/guilib/GUIBaseContainer.h
-@@ -234,6 +234,9 @@ private:
+@@ -30,6 +30,7 @@
+ class IListProvider;
+ class TiXmlNode;
+ class CGUIListItemLayout;
++class CGUIControlGroupList;
+
+ class CGUIBaseContainer : public IGUIContainer
+ {
+@@ -44,6 +45,11 @@
+   void OnLeft() override;
+   void OnRight() override;
+   bool OnMouseOver(const CPoint &point) override;
++  // Kodi-iOS: shared scrolling only for the portrait TV page, whose episode viewport remains virtualized.
++  bool PortraitTouchFocus() const { return m_portraitTouchFocus; }
++  float PortraitContentHeight() const;
++  float PortraitScroll(float distance);
++
+   bool CanFocus() const override;
+   bool OnMessage(CGUIMessage& message) override;
+   void SetFocus(bool bOnOff) override;
+@@ -234,6 +240,11 @@
    static const int letter_match_timeout = 1000;
- 
+
    bool m_gestureActive = false;
++  bool m_portraitTouchFocus = false; // Kodi-iOS: suppress focus scrolling only while touch focus is dispatched
 +  bool m_gestureDecided = false; // Kodi-iOS: whether this drag is ours or the page's
++  CGUIControlGroupList* PortraitScroller() const; // Kodi-iOS
 +  bool GestureAcross(float offsetX, float offsetY) const; // Kodi-iOS
 +  CGUIControl* CrossScroller() const; // Kodi-iOS
- 
+
    // early inertial scroll cancellation
    bool m_waitForScrollEnd = false;
 diff --git a/xbmc/guilib/GUIControlGroupList.cpp b/xbmc/guilib/GUIControlGroupList.cpp
-index b0940ef..0230902 100644
 --- a/xbmc/guilib/GUIControlGroupList.cpp
 +++ b/xbmc/guilib/GUIControlGroupList.cpp
-@@ -8,6 +8,8 @@
- 
+@@ -8,7 +8,10 @@
+
  #include "GUIControlGroupList.h"
- 
+
 +#include <cmath>
 +
  #include "GUIAction.h"
++#include "GUIBaseContainer.h"
  #include "GUIControlProfiler.h"
  #include "GUIFont.h" // for XBFONT_* definitions
-@@ -404,12 +406,17 @@ EVENT_RESULT CGUIControlGroupList::SendMouseEvent(const CPoint& point,
+ #include "GUIMessage.h"
+@@ -177,6 +180,11 @@
+           continue;
+         if (control->GetControl(message.GetControlId()))
+         {
++          // A touch on an already-visible episode must not hide the whole header as a focus side effect.
++          if (IsPortraitShowPage() && control->GetControlType() == GUICONTAINER_LIST &&
++              (control->GetID() == 52 || control->GetID() == 60) &&
++              static_cast<CGUIBaseContainer*>(control)->PortraitTouchFocus())
++            break;
+           // find out whether this is the first or last control
+           if (control == GetFirstFocusableControl())
+             ScrollTo(0);
+@@ -371,6 +379,9 @@
+
+ float CGUIControlGroupList::Size(const CGUIControl *control) const
+ {
++  if (IsPortraitShowPage() && control->GetControlType() == GUICONTAINER_LIST &&
++      (control->GetID() == 52 || control->GetID() == 60))
++    return control->GetYPosition() + std::min(control->GetHeight(), static_cast<const CGUIBaseContainer*>(control)->PortraitContentHeight());
+   return (m_orientation == VERTICAL) ? control->GetYPosition() + control->GetHeight() : control->GetXPosition() + control->GetWidth();
+ }
+
+@@ -404,12 +415,17 @@
    {
      float pos = 0;
      float alignOffset = GetAlignOffset();
@@ -384,7 +666,49 @@ index b0940ef..0230902 100644
          { // we're on screen
            float offsetX = m_orientation == VERTICAL ? m_posX : m_posX + alignOffset + pos - m_scroller.GetValue();
            float offsetY = m_orientation == VERTICAL ? m_posY + alignOffset + pos - m_scroller.GetValue() : m_posY;
-@@ -568,8 +575,26 @@ EVENT_RESULT CGUIControlGroupList::OnMouseEvent(const CPoint& point,
+@@ -543,6 +559,41 @@
+   return 0.0f;
+ }
+
++bool CGUIControlGroupList::IsPortraitShowPage() const
++{
++  return GetParentID() == 10025 && GetID() == 9900 && m_orientation == VERTICAL;
++}
++
++float CGUIControlGroupList::ScrollPortrait(float distance)
++{
++  if (!IsPortraitShowPage())
++    return 0.0f;
++  ValidateOffset();
++  CGUIBaseContainer* episodes = nullptr;
++  for (CGUIControl* control : m_children)
++  {
++    if (control->IsVisible() && control->GetControlType() == GUICONTAINER_LIST &&
++        (control->GetID() == 52 || control->GetID() == 60))
++    {
++      episodes = static_cast<CGUIBaseContainer*>(control);
++      break;
++    }
++  }
++  const float before = m_scroller.GetValue();
++  float remaining = distance;
++  // Moving back first rewinds episodes, then restores the header, all in the same finger movement.
++  if (remaining < 0.0f && episodes)
++    remaining -= episodes->PortraitScroll(remaining);
++  const float limit = std::max(0.0f, m_totalSize - Size());
++  m_scroller.SetValue(std::max(0.0f, std::min(before + remaining, limit)));
++  const float moved = m_scroller.GetValue() - before;
++  remaining -= moved;
++  if (remaining > 0.0f && episodes)
++    remaining -= episodes->PortraitScroll(remaining);
++  SetInvalid();
++  return distance - remaining;
++}
++
+ EVENT_RESULT CGUIControlGroupList::OnMouseEvent(const CPoint& point,
+                                                 const MOUSE::CMouseEvent& event)
+ {
+@@ -568,8 +619,26 @@
        offset = nextOffset;
      }
    }
@@ -410,6 +734,15 @@ index b0940ef..0230902 100644
 +    }
      CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, GetID(), GetParentID());
      SendWindowMessage(msg);
+     return EVENT_RESULT_HANDLED;
+@@ -582,6 +651,8 @@
+   }
+   else if (event.m_id == ACTION_GESTURE_PAN)
+   { // do the drag and validate our offset (corrects for end of scroll)
++    if (IsPortraitShowPage())
++      return std::abs(ScrollPortrait(-event.m_offsetY)) < 0.001f ? EVENT_RESULT_UNHANDLED : EVENT_RESULT_HANDLED;
+     m_scroller.SetValue(CLAMP(m_scroller.GetValue() - ((m_orientation == HORIZONTAL) ? event.m_offsetX : event.m_offsetY), 0, m_totalSize - Size()));
+     SetInvalid();
      return EVENT_RESULT_HANDLED;
 diff --git a/xbmc/guilib/GUIFontManager.cpp b/xbmc/guilib/GUIFontManager.cpp
 index f5c0732..2d7257c 100644
@@ -1217,3 +1550,72 @@ index bf8a8ae..d927130 100644
    bool CanDoWindowed() override { return false; }
  
    void ShowOSMouse(bool show) override {}
+diff --git a/xbmc/cores/AudioEngine/Engines/ActiveAE/ActiveAE.cpp b/xbmc/cores/AudioEngine/Engines/ActiveAE/ActiveAE.cpp
+--- a/xbmc/cores/AudioEngine/Engines/ActiveAE/ActiveAE.cpp
++++ b/xbmc/cores/AudioEngine/Engines/ActiveAE/ActiveAE.cpp
+@@ -580,6 +580,13 @@
+         bool streaming;
+         switch (signal)
+         {
++#if defined(TARGET_DARWIN_IOS)
++        case CActiveAEControlProtocol::INIT:
++          // iOS can resume an engine already configured (startup/foreground callbacks). Acknowledge it;
++          // otherwise Resume() waits five seconds for a reply that never comes. Suspended handles INIT first.
++          msg->Reply(CActiveAEControlProtocol::ACC);
++          return;
++#endif
+         case CActiveAEControlProtocol::RECONFIGURE:
+         {
+           if (m_streams.empty())
+diff --git a/xbmc/interfaces/json-rpc/JSONServiceDescription.cpp b/xbmc/interfaces/json-rpc/JSONServiceDescription.cpp
+--- a/xbmc/interfaces/json-rpc/JSONServiceDescription.cpp
++++ b/xbmc/interfaces/json-rpc/JSONServiceDescription.cpp
+@@ -1627,6 +1627,12 @@
+   if (!globalType->Parse(descriptionObject[typeName]))
+   {
+-    CLog::Log(LOGWARNING, "JSONRPC: Could not parse type \"{}\"", typeName);
++    // A forward/recursive reference is deferred below and retried once its dependency is registered.
++    // Only a parse failure without a missing dependency is a warning.
++    if (globalType->missingReference.empty())
++      CLog::Log(LOGWARNING, "JSONRPC: Could not parse type \"{}\"", typeName);
++    else
++      CLog::Log(LOGDEBUG, "JSONRPC: Deferring type \"{}\" until \"{}\" is registered", typeName,
++                globalType->missingReference);
+     CJSONServiceDescription::removeReferenceTypeDefinition(typeName);
+     if (!globalType->missingReference.empty())
+     {
+diff --git a/xbmc/guilib/GUIControlGroupList.h b/xbmc/guilib/GUIControlGroupList.h
+--- a/xbmc/guilib/GUIControlGroupList.h
++++ b/xbmc/guilib/GUIControlGroupList.h
+@@ -14,6 +14,8 @@
+ */
+
+ #include "GUIControlGroup.h"
++
++class CGUIBaseContainer;
+
+ struct SGUIControlAndOffset
+ {
+@@ -55,6 +57,9 @@
+    */
+   float GetTotalSize() const;
+   ORIENTATION GetOrientation() const { return m_orientation; }
++  bool IsPortraitShowPage() const;
++  float ScrollPortrait(float distance);
++
+
+   // based on grouplist orientation pick one value as minSize;
+   void SetMinSize(float minWidth, float minHeight);
+diff --git a/xbmc/windows/GUIMediaWindow.cpp b/xbmc/windows/GUIMediaWindow.cpp
+--- a/xbmc/windows/GUIMediaWindow.cpp
++++ b/xbmc/windows/GUIMediaWindow.cpp
+@@ -778,6 +778,9 @@
+     bHideParent = true;
+   if (items.GetPath() == GetRootPath())
+     bHideParent = true;
++  // Kodi-iOS: the show page has a back arrow; a parent item would occupy a fake season/episode slot.
++  if (GetID() == 10025 && items.GetProperty("KodiIOS.DownloadedShow").asString() == "true")
++    bHideParent = true;
+
+   if (!bHideParent)
+   {

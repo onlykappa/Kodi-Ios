@@ -2,19 +2,27 @@
 remuxer host tests. Prints its port, then serves DIR until killed. usage: range_server.py DIR
 r8: paths under /slow/ serve the same files like a remote source (Drive through its loopback proxy): every request
 waits SLOW_LATENCY seconds before answering and the bytes come at SLOW_RATE bytes/s (the latency host tests)."""
-import http.server,os,re,sys,time
+import http.server,os,re,sys,time,threading
 SLOW_LATENCY=0.1
 SLOW_RATE=2*1024*1024
+RECOVERED=set()
+RECOVER_LOCK=threading.Lock()
 
 class Handler(http.server.SimpleHTTPRequestHandler):
  def log_message(self,*a):pass
  def send_head(self):
+  self.fault=None
+  for mode in ('bounded','recover','stall'):
+   if self.path.startswith('/'+mode+'/'):
+    self.fault=mode;self.path=self.path[len(mode)+1:];break
   self.slow=self.path.startswith('/slow/')
   if self.slow:self.path=self.path[5:];time.sleep(SLOW_LATENCY)
   path=self.translate_path(self.path)
   if not os.path.isfile(path):self.send_error(404);return None
   size=os.path.getsize(path);f=open(path,'rb')
   m=re.match(r'bytes=(\d+)-(\d*)',self.headers.get('Range',''))
+  if self.fault=='bounded' and (not m or not m.group(2) or int(m.group(2))-int(m.group(1))+1>1048576):
+   self.send_error(400,'test requires finite ranges no larger than 1 MiB');f.close();return None
   if not m:
    self.send_response(200);self.send_header('Content-Length',str(size));self.send_header('Accept-Ranges','bytes');self.end_headers()
    return f
@@ -24,8 +32,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
   self.send_response(206);self.send_header('Content-Range','bytes %d-%d/%d'%(a,b,size))
   self.send_header('Content-Length',str(b-a+1));self.send_header('Accept-Ranges','bytes');self.end_headers()
   self.range_left=b-a+1
+  if a>262144 and self.fault=='recover':
+   with RECOVER_LOCK:
+    if path not in RECOVERED:RECOVERED.add(path);self.drop=True
+  if a>262144 and self.fault=='stall':time.sleep(2)
   return f
  def copyfile(self,src,dst):
+  if getattr(self,'drop',False):return # headers promised bytes, but this connection dies before its body
   left=getattr(self,'range_left',None);step=16384 if self.slow else 65536
   while left is None or left>0:
    chunk=src.read(step if left is None else min(step,left))

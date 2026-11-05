@@ -46,4 +46,15 @@ class ContinueTests(unittest.TestCase):
  def test_long_press_offers_choose_source(self):
   entry={'kind':'episode','tmdb_id':'2','season':'1','episode':'3'}
   self.assertEqual(module.choose_source_action(entry),'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=choose_source&key=episode%3A2%3A1%3A3)')
+ def test_completed_copy_preserves_original_provider_and_version(self):
+  player=self.player('movie','1')
+  key=module.record(player,self.read,self.write,choice='umbrella')
+  data=self.data();data['items'][key]['version']={'name':'original release','quality':'1080p'};self.write(module.STORE,json.dumps(data))
+  for source in ('local','drive'):
+   module.record(player,self.read,self.write,choice=source,preserve_player=True)
+   saved=module.saved_choice(self.read,key)
+   self.assertEqual(saved['player'],'umbrella');self.assertEqual(saved['version']['name'],'original release')
+   self.assertEqual(self.data()['items'][key]['playback_source'],source)
+  module.record(player,self.read,self.write,choice='elementum')
+  self.assertEqual(module.saved_choice(self.read,key),{'player':'elementum'})
 if __name__=='__main__':unittest.main()

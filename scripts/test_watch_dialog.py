@@ -6,6 +6,7 @@ path=Path(__file__).resolve().parents[1]/'migration/import-overlays/plugin.video
 spec=importlib.util.spec_from_file_location('watch_dialog',path);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 class DialogTests(unittest.TestCase):
  def setUp(self):
+  self.copy_patch=mock.patch.object(module,'downloaded_item',return_value=None);self.copy_check=self.copy_patch.start();self.addCleanup(self.copy_patch.stop)
   self.dialog=mock.Mock();self.dialog.select.return_value=-1
   self.logged=[]
   self.xbmc=SimpleNamespace(getCondVisibility=mock.Mock(return_value=False),executebuiltin=mock.Mock(),log=lambda text,level=0:self.logged.append(text),LOGINFO=1)

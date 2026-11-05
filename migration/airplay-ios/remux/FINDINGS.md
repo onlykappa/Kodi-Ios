@@ -1,5 +1,7 @@
 # AirPlay MKV remux: findings (2026-11-03)
 
+Latest owner bug 3 investigation/source fixes (2026-11-04): [AirPlay playback and seeking](../../../docs/AIRPLAY.md), ISSUE-093. 1,095 native host checks pass; published framework pin remains r11 and device acceptance is pending. Earlier r7/r8 findings below are historical, not universal format support.
+
 Studied three projects (shallow clones, read locally):
 
 | | Licence | What it offers | Used |

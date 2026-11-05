@@ -1,0 +1,110 @@
+{
+  "status": "test_ipa_published_and_verified_device_retest_pending",
+  "authorization": "Owner explicitly requested PR8 merge and testIPA.",
+  "pull_request": 8,
+  "merged": true,
+  "merge_commit": "2a8bb1cb16dfa0984f7a1b3d974e20857c0f6d3c",
+  "native_build_source": "d13ec87c3db61a1667de0023450a8acc1f4d033b",
+  "native_run": 42078285510,
+  "native_url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/42078285510",
+  "native_tag": "kodi-ios-portrait-r23",
+  "native_pin_current": "kodi-ios-portrait-r23",
+  "patch_sha256": "054c3ff6ea11ebcdc3f95cf422627193335ceb34d4d770247da83b002c5f25cf",
+  "next": [
+    "Owner signs/installs build-151 as an update.",
+    "Retest AirPlay forward/backward seeking on the same source and receiver; capture the new log if it fails."
+  ],
+  "device_verified": false,
+  "ipa_built": true,
+  "native_binary_sha256": "9fa9ad78f8613bf4ce4b369eb19e46bfe5a99bc934f568d16dd0953c946fb7fd",
+  "pin_commit": "463bbae440d4302bf68cbe7a84197f6fe8be9084",
+  "native_release_equals_ci_artifact": true,
+  "native_patch_and_upstream_commit_verified": true,
+  "owner_reports_scrolling_fine": true,
+  "ipa_run": 42090634251,
+  "ipa_run_number": 151,
+  "ipa_url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/42090634251",
+  "airplay_review": {
+    "screenshot_matches_log": true,
+    "fatal_path": "/cvideo/seg8.m4s",
+    "failure": "HTTP 500: video conversion: cancelled",
+    "source_kind": "Google Drive add-on via loopback HTTP proxy, after completed upload",
+    "direct_phone_file_playback_established": false,
+    "receiver_path": "Roku compatibility: 4K HEVC 10-bit converted to H.264 1080p with VideoToolbox",
+    "segment_duration_seconds": 6,
+    "sample_conversion_ms": [
+      3581,
+      4380,
+      4682,
+      4873,
+      5462,
+      5914,
+      6834
+    ],
+    "framework_in_capture": "Older diagnostic format; exact installed version/hash unavailable",
+    "verified_target_framework": "kodi-airplay-r12",
+    "target_framework_archive_sha256": "867700c24d35932e17eb6f6e26a3d8f33cb9ca775678339c205bb21f1846c3ff",
+    "target_binary_contains_cancellation_fix_markers": true,
+    "source_changed_for_this_review": false,
+    "device_retest_pending": true,
+    "raw_log_published": false
+  },
+  "local_validation": {
+    "show_scrolling": {
+      "tests": 7,
+      "passed": true
+    },
+    "parent_navigation": {
+      "tests": 1,
+      "passed": true
+    },
+    "ios_foundation": {
+      "tests": 11,
+      "passed": true
+    },
+    "airplay_python_static": {
+      "tests": 27,
+      "passed": true
+    },
+    "project_check": true,
+    "ios_static_check": true,
+    "portrait": {
+      "tests": 44,
+      "passed": true
+    },
+    "glassbar": {
+      "tests": 25,
+      "passed": true
+    }
+  },
+  "failed_attempts": [
+    {
+      "ipa_run": 42090224927,
+      "number": 150,
+      "reason": "test_glassbar expected old r22 tag and r21 previous pin; build stopped before packaging",
+      "fix": "Update regression to exact verified r23 SHA256 and r22 rollback SHA256; 25 glassbar tests pass",
+      "fix_commit": "d95295e06f13229f37bf25fb63f36c64b58460b3",
+      "ipa_published": false
+    }
+  ],
+  "redundant_native_run_cancelled": 42090224839,
+  "ipa_source_commit": "d95295e06f13229f37bf25fb63f36c64b58460b3",
+  "native_artifact_zip_sha256": "672fe580f5bddd0c3ef320ac781e9d6a0b0a13594527b1c1181c7db0db41064d",
+  "ipa_release": "build-151",
+  "ipa_download_url": "https://github.com/onlykappa/Kodi-Ios/releases/download/build-151/Kodi-iOS-Customized-Touch-r10.ipa",
+  "verification": {
+    "zip_integrity": true,
+    "executable": "Kodi",
+    "executable_equals_verified_r23_after_signature_removal": true,
+    "r23_unsigned_sha256": "8973650752a3e023c3bb6d2f4936076ba7635326541fbf008c2626c189478b4f",
+    "KodiAirPlay_equals_verified_release_after_signature_removal": true,
+    "KodiGlassBar_equals_verified_release_after_signature_removal": true,
+    "unsigned_unencrypted_arm64_native_images": 154,
+    "python_bytecode_included": true,
+    "required_addons_included": true,
+    "portrait_orientation_included": true,
+    "ipa_sha256": "da6b7bf89a0f41869e754c378a9bdc378c4b333b9b968263f7c0c6f009963549",
+    "ipa_bytes": 619424613,
+    "device_verified": false
+  }
+}

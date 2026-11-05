@@ -14,10 +14,14 @@ on:
       - 'scripts/test_customized_ipa.py'
       - 'scripts/test_bundled_bootstrap.py'
       - 'scripts/test_ios_navigation.py'
+      - 'scripts/test_native_startup.py'
+      - 'scripts/test_native_ui.py'
+      - 'scripts/test_search_categories.py'
       - 'scripts/test_updates_calibration.py'
       - 'scripts/test_drive_upload.py'
       - 'scripts/test_settings_search.py'
       - 'scripts/test_deck_picker.py'
+      - 'scripts/test_source_match.py'
       - 'migration/deck-picker/**'
       - 'scripts/test_startup_sequence.py'
       - 'migration/bundled-bootstrap/**'
@@ -27,6 +31,9 @@ on:
       - 'scripts/test_import_profile.py'
       - 'scripts/test_watch_routes.py'
       - 'scripts/test_watch_dialog.py'
+      - 'scripts/test_watch_continue.py'
+      - 'scripts/test_continue_downloads.py'
+      - 'scripts/test_drive_library.py'
       - 'scripts/test_listing_cache.py'
       - 'scripts/test_activation.py'
       - 'migration/import-inputs/**'
@@ -48,10 +55,14 @@ on:
       - 'scripts/test_customized_ipa.py'
       - 'scripts/test_bundled_bootstrap.py'
       - 'scripts/test_ios_navigation.py'
+      - 'scripts/test_native_startup.py'
+      - 'scripts/test_native_ui.py'
+      - 'scripts/test_search_categories.py'
       - 'scripts/test_updates_calibration.py'
       - 'scripts/test_drive_upload.py'
       - 'scripts/test_settings_search.py'
       - 'scripts/test_deck_picker.py'
+      - 'scripts/test_source_match.py'
       - 'migration/deck-picker/**'
       - 'scripts/test_startup_sequence.py'
       - 'migration/bundled-bootstrap/**'
@@ -61,6 +72,9 @@ on:
       - 'scripts/test_import_profile.py'
       - 'scripts/test_watch_routes.py'
       - 'scripts/test_watch_dialog.py'
+      - 'scripts/test_watch_continue.py'
+      - 'scripts/test_continue_downloads.py'
+      - 'scripts/test_drive_library.py'
       - 'scripts/test_listing_cache.py'
       - 'scripts/test_activation.py'
       - 'migration/import-inputs/**'
@@ -83,14 +97,26 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      # The phone runs CPython 3.11: the bundle's .pyc files must come from the same version (build_customized_ipa.precompile).
+      - name: Python 3.11 for the bundle bytecode
+        id: py311
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+          update-environment: false
       - name: Test staged import and navigation safety
+        env:
+          KODI_IOS_PYTHON311: ${{ steps.py311.outputs.python-path }}
         run: |
           python3 -B scripts/test_startup_sequence.py
           python3 -B scripts/test_ios_navigation.py
+          python3 -B scripts/test_native_startup.py
+          python3 -B scripts/test_native_ui.py
           python3 -B scripts/test_updates_calibration.py
           python3 -B scripts/test_drive_upload.py
           python3 -B scripts/test_settings_search.py
           python3 -B scripts/test_deck_picker.py
+          python3 -B scripts/test_source_match.py
           python3 -B scripts/test_bundled_bootstrap.py
           python3 -B scripts/test_portrait.py
           python3 -B scripts/test_glassbar.py
@@ -98,13 +124,27 @@ jobs:
           python3 -B scripts/test_pages.py
           python3 -B scripts/test_airplay_remux.py
           python3 -B scripts/test_downloaded_play.py
+          python3 -B scripts/test_choose_source.py
+          python3 -B scripts/test_signin_server.py
+          python3 -B scripts/test_library_scan.py
+          python3 -B scripts/test_library_refresh.py
+          python3 -B scripts/test_library_artwork.py
+          python3 -B scripts/test_library_pages.py
+          python3 -B scripts/test_downloaded_show.py
+          python3 -B scripts/test_show_scrolling.py
+          python3 -B scripts/test_show_parent_navigation.py
+          python3 -B scripts/test_settings_page.py
           python3 -B scripts/test_genre_photos.py
+          python3 -B scripts/test_search_categories.py
           python3 -B scripts/test_performance_budget.py
           python3 -B scripts/test_customized_ipa.py
           python3 -B scripts/test_import_builder.py
           python3 -B scripts/test_import_profile.py
           python3 -B scripts/test_watch_routes.py
           python3 -B scripts/test_watch_dialog.py
+          python3 -B scripts/test_watch_continue.py
+          python3 -B scripts/test_continue_downloads.py
+          python3 -B scripts/test_drive_library.py
           python3 -B scripts/test_listing_cache.py
           python3 -B scripts/test_activation.py
           python3 -B scripts/test_ios.py
@@ -132,6 +172,8 @@ jobs:
       - name: Acquire pinned Elementum client, iPhoneOS engine framework and kodi-six
         run: python3 -B scripts/fetch_elementum_inputs.py --output "$RUNNER_TEMP/elementum-inputs"
       - name: Build and validate full customized unsigned ARM64 IPA
+        env:
+          KODI_IOS_PYTHON311: ${{ steps.py311.outputs.python-path }}
         run: |
           # The bundle was just rebuilt from pinned, hash-checked sources; pin the IPA to that exact bundle.
           bundle_sha=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['sha256'])" "$RUNNER_TEMP/kodi-import-review/import-review-report.json")

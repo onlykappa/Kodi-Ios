@@ -6,6 +6,10 @@ versions in it. The answer is what Umbrella's own window returns, so Umbrella pl
 tapped in its list: ('play_Item', item) or (None, '') when cancelled. None means "use Umbrella's own list"
 (Show all, or too few sources to be worth a page). Uncached torrents and TorBox cloud folders need Umbrella's own
 handling, so they are left to its list.
+
+Kodi-iOS: only sources of the title being played (source_match.py, from Umbrella's meta: title, original title, year,
+IMDb/TMDb ids, show/season/episode): the page hides the others behind a "N hidden (wrong title/year)" row, and when
+Umbrella's own list opens it has only the verified ones (all hidden: asked first).
 """
 import importlib.util,json,os,re,sys,time,types
 
@@ -72,15 +76,49 @@ def share(meta,window=None):
  for key,value in values.items():window.setProperty('Deck.Picker.'+key,str(value))
  return values
 
-def run(results,meta,deck=None,make_item=None):
- """What Umbrella's source window should return, or None to show Umbrella's own list."""
+def matcher():
+ try:
+  import source_match
+  return source_match
+ except Exception:
+  return None
+
+def ask_reveal(message):
+ import xbmcgui
+ return xbmcgui.Dialog().yesno('Not this title?',message+'\n\nShow them anyway?')
+
+def verify_list(results,exp,sm,ask=None):
+ """Umbrella's own list keeps only sources of this title (in place: the window shows self.results). When every
+ source would go, ask instead of showing an empty list: False means the person said no (cancel)."""
+ if not exp or sm is None or not results:return True
+ kept,hidden=sm.split(list(results),exp,name=lambda it:it.get('name') or '')
+ sm.report("Umbrella's list",exp,kept,hidden,name=lambda it:it.get('name') or '')
+ if not hidden:return True
+ if kept:
+  results[:]=kept
+  return True
+ return bool((ask or ask_reveal)('All %d sources look like a different title (%s).'%(len(hidden),sm.reasons_text(hidden))))
+
+def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
+ """What Umbrella's source window should return, or None to show Umbrella's own list (which run() has left with
+ only the sources of this title, source_match.py)."""
+ sm=sm if sm is not None else matcher()
+ exp=None
+ if sm is not None:
+  try:
+   exp=sm.from_meta(meta)
+   exp=sm.enrich(exp) if exp else None
+  except Exception:exp=None
  playable_items=[(n,item) for n,item in enumerate(results or []) if playable(item)]
- if not playable_items:return None
+ if not playable_items:
+  return None if verify_list(results,exp,sm,ask) else (None,'')
  deck=deck or load()
  share(meta)
  title=(meta or {}).get('tvshowtitle') or (meta or {}).get('title') or ''
- choice=deck.run(title,[label(item) for _,item in playable_items])
- if choice is None:return None
+ labels=[label(item) for _,item in playable_items]
+ choice=deck.run(title,labels,expect=exp) if exp else deck.run(title,labels)
+ if choice is None:
+  return None if verify_list(results,exp,sm,ask) else (None,'')
  if choice<0:return (None,'')
  item=playable_items[choice][1]
  if make_item is None:

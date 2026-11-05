@@ -337,14 +337,14 @@ class Elementum(unittest.TestCase):
    settings={'disable_upnp':'false'};calls=[]
    api=lambda method,params:calls.append((method,params)) or {'result':'OK'}
    done=bootstrap.phone_housekeeping(profile,(lambda k:settings.get(k,''),settings.__setitem__),api)
-   self.assertEqual(sorted(done),['elementum_always_ask','elementum_network','media_folders','tmdbhelper_players','versioncheck','zeroconf'])
+   self.assertEqual(sorted(done),['elementum_always_ask','elementum_network','media_folders','tmdbhelper_players','versioncheck','wsdiscovery','zeroconf'])
    # Downloads (and every play) show Elementum's version list and wait for an answer.
    self.assertEqual([settings[k] for k in ('use_cache_selection','smart_episode_choose','autoyes_enabled','silent_stream_start')],['false']*4)
    self.assertTrue((profile/'media/local_media_root_04').is_dir());self.assertFalse((profile/'escape').exists())
    self.assertTrue((profile/'addon_data/plugin.video.themoviedb.helper/reconfigured_players').is_dir())
    self.assertEqual([settings[k] for k in ('disable_upnp','disable_natpmp','disable_lsd')],['true']*3)
-   self.assertEqual(calls,[('Addons.SetAddonEnabled',{'addonid':'service.xbmc.versioncheck','enabled':False}),('Settings.SetSettingValue',{'setting':'services.zeroconf','value':False})])
+   self.assertEqual(calls,[('Addons.SetAddonEnabled',{'addonid':'service.xbmc.versioncheck','enabled':False}),('Settings.SetSettingValue',{'setting':'services.zeroconf','value':False}),('Settings.SetSettingValue',{'setting':'services.wsdiscovery','value':False})])
    # Once: the owner turning UPnP back on is left alone.
    settings['disable_upnp']='false';self.assertEqual(bootstrap.phone_housekeeping(profile,(lambda k:settings.get(k,''),settings.__setitem__),api),[])
-   self.assertEqual(settings['disable_upnp'],'false');self.assertEqual(len(calls),2)
+   self.assertEqual(settings['disable_upnp'],'false');self.assertEqual(len(calls),3)
 if __name__=='__main__':unittest.main()

@@ -5,11 +5,30 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; R="$HERE/.."
 FF="$(cd "${1:?host ffmpeg dir}" && pwd)"; WORK="$(mkdir -p "${2:?work dir}" && cd "$2" && pwd)"
-[[ -f "$WORK/fixtures/mpeg2_ac3.mkv" ]] || "$HERE/make_fixtures.sh" "$WORK/fixtures" > /dev/null
+if [[ ! -f "$WORK/fixtures/mpeg2_ac3.mkv" || ! -f "$WORK/fixtures/vp9_opus.webm" ||
+      ! -f "$WORK/fixtures/mpeg4_mp3.avi" || ! -f "$WORK/fixtures/hevc_4k.mkv" || ! -f "$WORK/fixtures/av1_opus.mkv" || ! -f "$WORK/fixtures/h264_10bit.mp4" || ! -f "$WORK/fixtures/h264_pgs.mkv" || ! -f "$WORK/fixtures/prores_pcm.mov" ]]; then
+  "$HERE/make_fixtures.sh" "$WORK/fixtures" > /dev/null
+fi
+if [[ ! -f "$WORK/fixtures/long.sup" ]]; then
+  python3 -B "$HERE/make_pgs.py" "$WORK/fixtures/long.sup" --long
+fi
+if [[ ! -f "$WORK/fixtures/dvd.idx" || ! -f "$WORK/fixtures/dvd.sub" ]]; then
+  python3 -B "$HERE/make_pgs.py" "$WORK/fixtures/dvd.idx" --vobsub
+fi
 ASS="$(cd "${3:-$FF/../asshost}" && pwd)"
+if [[ ! -f "$WORK/fixtures/dovi.mkv" ]]; then
+  python3 -B "$HERE/make_dovi.py" "$WORK/fixtures/dovi.mkv"
+fi
+if [[ ! -f "$WORK/fixtures/multi.idx" || ! -f "$WORK/fixtures/multi.sub" ]]; then
+  python3 -B "$HERE/make_pgs.py" "$WORK/fixtures/multi.idx" --vobsub --multi
+fi
+if [[ ! -f "$WORK/fixtures/long_pgs.mkv" ]]; then
+  ffmpeg -hide_banner -loglevel error -y -copyts -stream_loop 3 -i "$WORK/fixtures/h264_aac_srt.mkv" -i "$WORK/fixtures/long.sup" \
+    -map 0:v -map 0:a -map 1:s -c copy -t 65 -disposition:s:0 default "$WORK/fixtures/long_pgs.mkv"
+fi
 export KR_TEST_FONT="${KR_TEST_FONT:-$(ls /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /Library/Fonts/Arial.ttf /System/Library/Fonts/Supplemental/Arial.ttf 2>/dev/null | head -1)}"
 [[ -f "$KR_TEST_FONT" ]] || { echo "no test font (set KR_TEST_FONT)" >&2; exit 2; }
-LIBS=("$ASS/lib/libass.a" "$ASS/lib/libharfbuzz.a" "$ASS/lib/libfribidi.a" "$ASS/lib/libfreetype.a" "$FF/lib/libavformat.a" "$FF/lib/libavcodec.a" "$FF/lib/libswscale.a" "$FF/lib/libswresample.a" "$FF/lib/libavutil.a")
+LIBS=("$ASS/lib/libass.a" "$ASS/lib/libharfbuzz.a" "$ASS/lib/libfribidi.a" "$ASS/lib/libfreetype.a" "$FF/lib/libavformat.a" "$FF/lib/libavcodec.a" "$FF/lib/libdav1d.a" "$FF/lib/libswscale.a" "$FF/lib/libswresample.a" "$FF/lib/libavutil.a")
 EXTRA=(-lm -lpthread -lz -lstdc++)
 [[ "$(uname -s)" == Darwin ]] && EXTRA+=(-framework Security -framework CoreFoundation -liconv) || EXTRA+=(-ldl)
 cc -std=gnu11 -O1 -g -Wall -Wextra -Wno-format-truncation -Wno-unused-parameter -Wno-sign-compare -I"$FF/include" -I"$ASS/include" \
@@ -17,4 +36,4 @@ cc -std=gnu11 -O1 -g -Wall -Wextra -Wno-format-truncation -Wno-unused-parameter 
 python3 -B "$HERE/range_server.py" "$WORK/fixtures" > "$WORK/port" & SERVER=$!
 trap 'kill $SERVER 2>/dev/null || true' EXIT
 for _ in $(seq 50); do [[ -s "$WORK/port" ]] && break; sleep 0.1; done
-"$WORK/test_remux" "$WORK/fixtures" "http://127.0.0.1:$(cat "$WORK/port")"
+"$WORK/test_remux" "$WORK/fixtures" "http://127.0.0.1:$(cat "$WORK/port")" "${4:-}"

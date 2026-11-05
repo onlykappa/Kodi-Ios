@@ -33,7 +33,11 @@ class DeckPicker(unittest.TestCase):
  def test_cancel_and_show_all_fall_back_safely(self):
   with mock.patch.object(dp,'choose_quality',lambda labels:-1):self.assertEqual(dp.run('t',ITEMS),-1)
   with mock.patch.object(dp,'choose_quality',lambda labels:len(labels)-1):self.assertIsNone(dp.run('t',ITEMS))
-  self.assertIsNone(dp.run('t',['not a torrent line']*10));self.assertIsNone(dp.run('t',ITEMS[:3]))
+  self.assertIsNone(dp.run('t',['not a torrent line']*10))
+  # Kodi-iOS: a short list gets the page too (its links are checked against the title: source_match.py).
+  seen=[]
+  with mock.patch.object(dp,'choose_source',lambda title,rows,q,c:seen.append(rows) or 2):self.assertEqual(dp.run('t',ITEMS[:3]),2)
+  self.assertEqual(len(seen[0]),3)
 
 class WatchMenuDetails(unittest.TestCase):
  def test_details_left_for_the_picker(self):
@@ -84,14 +88,14 @@ class UmbrellaPage(unittest.TestCase):
   self.assertFalse(any('top pick' in l or 'seeds' in l for l in labels))
   self.assertEqual(sys.modules.get('elementum'),None)  # stand-ins only lived inside load()
  def test_run_returns_what_umbrellas_window_returns(self):
-  deck=types.SimpleNamespace(run=lambda title,labels:1)
+  deck=types.SimpleNamespace(run=lambda title,labels,expect=None:1)
   with mock.patch.object(up,'share',lambda meta:None):
    action,item=up.run(UMBRELLA,{'title':'Scary Movie'},deck,FakeItem)
    self.assertEqual(action,'play_Item')
    # The uncached torrent is left to Umbrella's own list, so the second playable entry is UMBRELLA[1].
    self.assertEqual(json.loads(item.getProperty('umbrella.source_dict')),[UMBRELLA[1]])
-   self.assertEqual(up.run(UMBRELLA,{},types.SimpleNamespace(run=lambda t,l:-1),FakeItem),(None,''))
-   self.assertIsNone(up.run(UMBRELLA,{},types.SimpleNamespace(run=lambda t,l:None),FakeItem))
+   self.assertEqual(up.run(UMBRELLA,{},types.SimpleNamespace(run=lambda t,l,expect=None:-1),FakeItem),(None,''))
+   self.assertIsNone(up.run(UMBRELLA,{},types.SimpleNamespace(run=lambda t,l,expect=None:None),FakeItem))
    self.assertIsNone(up.run([UMBRELLA[2]],{},deck,FakeItem))
  def test_hook_goes_into_umbrellas_window_once(self):
   import tempfile

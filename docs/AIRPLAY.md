@@ -1,0 +1,110 @@
+# AirPlay playback and seeking — owner bug 3 / ISSUE-093
+
+Status: the AirPlay source pass is verified by [clean CI run 41946561571](https://github.com/onlykappa/Kodi-Ios/actions/runs/41946561571): 1,385 host checks / zero failures and successful iPhoneOS arm64 compilation with no source availability warnings. Independent color comparison and 35 Python/static checks also pass. Physical iPhone/Drive/Roku seek/color/throughput acceptance remains pending. No IPA or release; PR #8 remains draft/unmerged.
+
+## What the new phone log establishes
+
+The private 199,922-byte log spans 07:50:28.818–07:53:28.472 on 2026-11-04 (log timezone unstated). Its movie source is the Google Drive download proxy. The source is 3840×1608, 10-bit HEVC at 23.976 fps, advertised SDR; 10-bit alone does not establish HDR. This third-party AirPlay receiver gets 1920×804 H.264. VideoToolbox decoding and GPU transfer are confirmed by the actual conversion log, so CPU fallback is not this capture's explanation.
+
+Converted six-second segments include 3,782, 3,526 and 2,667 ms of conversion; a later converted request takes 4,844 ms in total. Copied audio requests also take 7,007 and 8,388 ms, and CoreMedia reports six-second media-response timeouts. A large seek to segment 521 (about 52:06) has repeated audio/video requests outstanding for up to 26,669 ms before shutdown. Its final 500s say `session stopped`. The screenshot's `seg37` foreground cancellation is a separate error variant; the owner confirms that forward seeking typically stops playback. This log does not contain that exact screenshot failure.
+
+The screenshot error is reproduced against the old server scheduler with synthetic media: a request for the forward position cancels another connected request's video conversion; the old request returns HTTP 500 and sets a persistent fatal message. Two of twelve targeted checks fail before the fix. This is a demonstrated source defect, not proof that it explains all 26-second Drive delays.
+
+## Focused source changes
+
+- Cancel only speculative conversion identified under the background scheduler lock. Connected foreground requests no longer cancel each other; init reads do not refocus background work to time zero.
+- Clear a background worker's ownership while it still holds the lane, preventing a stale marker from canceling the next foreground conversion.
+- Give queued foreground work priority over speculative work. Keep expected cancellation as a typed result, distinct from decode/read/encode failure; genuine failures remain visible.
+- Log slow requests with separate lane-wait and production times. Production still includes source I/O, seek/preroll, subtitles and encoding; this does not identify their individual costs.
+- Let the segment planner accept decodable video with no copy-compatible stream. VP9 + Opus previously failed before the converters could run, despite both decoders being present. Keep the no-copy marker so video conversion is mandatory. If conversion is required but unavailable, fail clearly instead of silently succeeding with audio only.
+
+Foreground work already running may still delay a new seek. A read already blocked on Drive is not interrupted by speculative cancellation. These limits remain explicit; no fast-seek or restored 4K throughput claim is made.
+
+## Compatibility expansion — source/host scope
+
+The earlier audit described published r11 and the previous source. It incorrectly described all libswscale as lacking tone mapping: pinned FFmpeg 8.1.1 supports it through the dynamic frame API, which the old caller bypassed. The source now uses that API. **Published r11 remains unchanged; these capabilities require a newly built framework.**
+
+| Input/feature | New source behavior | Verification and limits |
+| --- | --- | --- |
+| MP4 / M4V / MOV, including extensionless bytes | Inspect file codecs and provide HLS receiver-specific copy/conversion; the extension no longer bypasses conversion. Ordinary compatible video remains copied. | H.264/AAC MP4, HEVC/AC-3 MP4 with its extension hidden, native vs third-party receiver routing, actual decoded seeks. |
+| AV1 | Pinned dav1d 1.5.3 software decoder; iOS requests VideoToolbox AV1 and falls back to dav1d if hardware initialization/initial decoding fails. | Actual AV1/Opus MKV conversion, decoded seek target, backward/retry and audio. iOS hardware selection and sustained 4K throughput pending. |
+| WMV/ASF, FLV, Ogg video | Additional input demuxers and corresponding decoders. | WMV2/WMA2 ASF, FLV1/MP3 FLV and Theora/Vorbis OGV conversion and seeking pass. |
+| MPEG-PS / MPG / VOB | Program-stream and raw-video probing enabled; sparse beginning/end-only indexes cannot create a movie-sized segment. | Actual MPEG-2/MP2 program-stream target/backward/retry and audio. VOB navigation/menu behavior is not claimed. |
+| RM, WTV, NUT, ProRes MOV | Corresponding demuxers/native decoders; supported audio bridges to AAC. | RV20/AC-3 RM, MPEG-2/AC-3 WTV, MPEG-4/float-PCM NUT and ProRes/24-bit-PCM MOV files convert and seek. |
+| H.264/HEVC profiles | Convert H.264 high-bit-depth/non-4:2:0 and unsupported HEVC profile/bit-depth combinations; third-party TV compatibility is also offered for 4K H.264. | Actual 10-bit H.264 MP4 automatic-conversion test; all possible profiles are not individually device-verified. |
+| Audio | Any enabled audio decoder can bridge an otherwise unsupported track to AAC, including WMA, MP2, WavPack and additional PCM types. Existing compatible copy routes retained. | Real audio seeking in format fixtures, prior DTS/TrueHD/Opus tests, Blu-ray LPCM route check. Converted output remains at most 5.1; no lossless/Atmos preservation claim. |
+| HDR10 / HLG | High-precision RGB tone/gamut mapping to BT.709 SDR, resizing before the expensive map. Preserve HDR metadata into mapping; retain the SDR GPU path. | PQ black/highlight/neutral-chroma tests, pixels differ from SDR transfer, HLG conversion, actual 10-bit HDR video decode. HDR software mapping performance needs an iPhone measurement. |
+| Embedded bitmap subtitles | PGS/DVD/DVB/XSUB decoders and bounded palette-bitmap cache; scaling, alpha, timing/clear and backward seek. | Generated real PGS packets/Matroska, decoded palette pixels in NV12 and planar output, and full conversion compared frame-for-frame with no subtitles. DVD has a separate external VobSub fixture; DVB/XSUB still lack individual fixtures. External IDX/SUP loading is covered in the follow-up below; embedded long-cue lookback remains limited. |
+| Dolby Vision profile 5 | Apply decoded RPU polynomial/MMR reshaping, custom nonlinear/linear matrices and PQ processing before HDR-to-SDR mapping. Files declaring profile 5 now use SDR compatibility across receivers. Missing RPU fails explicitly. | Real synthetic IPT/PQ HEVC with RPU metadata, decoded seeks/backward retry/audio, MMR algebra checks and an independent libplacebo pixel comparison. At most 1080p SDR; sustained phone throughput and actual TV color acceptance pending. |
+| HLS/M3U8 | Keep Apple's native adaptive-playlist path, including playlists identified by bytes without an extension. | Native routing tested; this does not add conversion for unsupported codecs inside arbitrary HLS playlists. |
+
+Existing MKV/WebM/AVI/MPEG-TS copy, audio bridge and conversion checks remain. A container or enabled decoder alone does not establish every profile, malformed file, delivery method or receiver combination.
+
+## MP4 seeking and dependency changes
+
+Open-GOP HEVC MP4 revealed varying decode-to-presentation offsets at keyframes. A constant correction was insufficient: copied and converted segments still differed by about 125 ms. A small LGPL patch to pinned FFmpeg exposes the presentation timestamps already held in MOV's sample tables. The planner uses them without fetching every keyframe or scanning the movie; receiver copy/conversion alignment checks now pass. The patch applies cleanly to the independently pinned upstream commit, and the compiled source matches the clean patched source.
+
+The HDR pixel tests also caught neutral chroma saturating in the pinned library's managed YUV output. The implemented path maps to 16-bit RGB first, then uses the proven range/matrix pack to NV12/planar output. It resizes before the color map to reduce 4K CPU work. This is actual tone/gamut processing, not an SDR tag change. Correct color processing and real-time phone throughput remain separate acceptance checks.
+
+Build recipes add checksum-pinned BSD-2-Clause dav1d, preserve optimized ARM assembly on iOS, and ship its licence/configuration. FFmpeg remains LGPL-2.1+ without GPL/nonfree components; its MOV accessor patch is shipped with the framework. A separately pinned archive of the same upstream FFmpeg release commit is available when the release download site fails. CI cache keys cover dependency recipes and the FFmpeg patch.
+
+Slow conversion logs now separate source seek/read/reconnect time from total production, in addition to queue wait. This narrows a future Drive capture; the old 26.7-second phone stall is not declared fixed by host tests.
+
+## Drive transport and external subtitle follow-up
+
+HTTP probing now requests at most 256 KiB, then at most 1 MiB per range, with connection reuse where the server permits it. This bounds read-ahead after a seek: the pinned Drive proxy can grow open-ended requests to 8 MiB and may drain abandoned data to preserve its upstream connection. The reader previously described a fresh retry but reused the same AVIO context. It now opens a fresh context directly at the requested byte offset, with all attempts sharing one monotonic read deadline. Stop still interrupts network waits. The normal configured timeout is unchanged; this is not a one-second production timeout.
+
+Fault injection against the previous committed reader fails two targeted checks: an endpoint requiring finite ranges rejects its open-ended request, and a one-second read budget takes 5.211 seconds under repeated stalls. The new reader passes byte-for-byte sequential/cross-boundary/EOF and forward/backward checks, dropped-response recovery and a 1.002-second deadline measurement. Those timings describe this synthetic fault, not movie-seek latency or the owner's 26.7-second Drive stall. Smaller ranges can add HTTP round trips; high-bitrate Drive throughput still needs a phone measurement.
+
+External PGS `.sup` and VobSub `.idx` + companion `.sub` now use a dedicated local subtitle demuxer and the existing bounded bitmap renderer. Decode only through the requested frame, retain the first future packet (including clear sets), and replay the small subtitle input on backward seeks. A fresh seek 45 seconds into a long cue works without reading 45 seconds of 4K video. SUP/IDX discovery and Kodi's selected-file forwarding are connected; incomplete IDX/SUB pairs are skipped. Network subtitle protocols are disabled. Missing/corrupt files fail loading; later subtitle read errors propagate through video conversion instead of silently dropping captions.
+
+Real generated SUP and DVD/VobSub decode/pixel tests cover planar/NV12 output, long cues, clear/duration timing, far/backward seeks, 302 cues with a 256-rectangle cache, and complete burned-video frame/timestamp comparisons. The subsequent pass below adds selected-language VobSub and adaptive embedded preroll; these were limits of the preceding implementation.
+
+## RPU rendering and embedded subtitle seek completion pass
+
+The supplied log confirms that embedded subtitles were selected for the stalled Drive playback. An additional source defect matters here: the old lookback discarded video packets, so its stop condition could wait for the next caption or clear, even far beyond the requested time. Preroll now observes video timestamps without decoding pictures and stops at the target. A cold seek with no recovered display state widens its lookback instead of assuming every cue lasts less than ten seconds. Sequentially covered intervals still reuse prior work. New telemetry reports the timestamp reached by subtitle preroll, alongside existing source-I/O/production/queue timings. This is a reproduced source defect; it does not prove that all 26.7 seconds in the phone capture came from subtitles.
+
+A synthetic 59-second embedded PGS cue verifies an initially cold seek around 42 seconds, actual burned pixels in decoded output, a scan ending at the target video timestamp, and backward retry. The prior lookback is separately replayed against this regression with diagnostic-only timestamp recording. More complex overlapping text-cue histories are not exhaustively verified; recovering old state in unindexed files can require earlier reads. No universal constant-time seek claim is made.
+
+External IDX/SUB selection now receives Kodi-normalized language aliases (for example `ger|deu|de`) and chooses the matching decoded stream, including after backward replay. Actual English/Spanish VobSub tracks contain different bitmap positions so the test proves which language was rendered. IDX/SUB upper-case companion names are preserved. An initial failure was a generated fixture's incorrect second-stream byte offset; correcting the index makes both tracks pass. Empty/damaged selected packets now report an input error.
+
+Profile-5 rendering is derived from pinned LGPL-2.1+ libplacebo algorithms, with attribution/full licence shipped in the framework. The CPU path validates RPU metadata, applies polynomial and MMR reshaping, custom nonlinear offsets/matrices, PQ linearization, the RPU linear matrix and BT.2020 HPE transform. It preserves high precision into SDR mapping and carries the RPU's source mastering luminance. Direct per-pixel reshaping/matrices plus small one-dimensional PQ tables replace a rejected 3D LUT that lost accuracy near saturated black. iOS links no libplacebo/Vulkan dependency; those are used only for independent host comparison. Ordinary SDR retains its existing GPU path.
+
+The color fixture starts from synthetic BT.2020/PQ RGB, encodes IPT using the inverse RPU matrices, then uses lossless HEVC plus a generated identity reshaping RPU derived from public MIT metadata. Extra tests verify all three MMR orders/all cross terms against exact dyadic polynomial-equivalent pixels and reject malformed metadata offsets. Against the independent system libplacebo renderer, 172,800 channel samples have mean absolute error about 0.0105 nits and maximum 0.3604 nits; ignoring RPU in the reference is a negative control (mean PQ error 0.1307). These are numerical test-image results, not Dolby certification or phone color/performance acceptance. Installed libplacebo 7.349 uses the older `2^N-1` code convention; the reference input is explicitly normalized to the pinned current implementation's `2^N` convention and matched chroma filtering. Reproduce with `tests/test_dovi_reference.py` and a Vulkan driver (software lavapipe works).
+
+An isolated `validation/airplay-source` push runs only the source host suite and iPhoneOS framework-candidate compile. This branch has no IPA/release trigger; the PR keeps `[skip ci]`. The source-lock still pins the published r11 release; a candidate build never substitutes for a separately verified new release/pin before an owner-requested IPA.
+
+The first isolated iPhoneOS candidate compile passed ([run 41942478228](https://github.com/onlykappa/Kodi-Ios/actions/runs/41942478228)). Its clean Linux host job failed two first-frame RPU fixture checks with an older system FFmpeg parser. The fixture now prefixes its synthetic RPU before the single slice; local decoding and independent pixel checks pass. The next candidate revalidates both that correction and the transient-read change below; the failed attempt remains recorded.
+
+Speculative converter cancellation now reaches already-bound source network waits through an additional interrupt predicate. Previously it was observed only after a read completed. The following job resets parser/error state and can reopen at the requested offset; canceled partial output never enters the segment cache. Foreground request cancellation is still prohibited by the scheduler ownership rule. A stalled loopback-source test verifies cancellation within one second and exact-byte recovery after resetting the predicate. This does not introduce cancellation of connected foreground requests or claim that every Drive wait is eliminated.
+
+## Validation and next device test
+
+1,385 expanded native host checks pass, plus 27 AirPlay Python tests and eight iOS static tests. Latest totals, dependency provenance and retained failure/recovery evidence are in [coverage validation](../reports/airplay-coverage-validation.json). The earlier cancellation evidence remains in [seek validation](../reports/airplay-seek-validation.json). The tests cover overlapping seek requests with prefetch off/on, backward/forward retries, actual 4K 10-bit decode/downscale, WebM/VP9/Opus and AVI/MPEG-4/MP3, and existing audio/subtitle/copy/remux/HTTP/stop paths. Genuine failure tests still return errors.
+
+The actual 4K fixture is 20 seconds at six fps, keeping host CI bounded. Converted tail frames decode at the requested time and output pixels are 1920×1080. Linux uses the MPEG-4 Part 2 test encoder; it does not exercise VideoToolbox, H.264 output, sustained phone 23.976/60 fps or TV acceptance. Evidence and retained validation failures: [airplay-seek-validation.json](../reports/airplay-seek-validation.json).
+
+No extra owner log is needed to establish the reproduced cancellation defect. A later build/device capture is needed to measure the remaining delays using the new queue/production timings. Test small, large and repeated forward/backward seeks on a completed phone copy, a Drive copy and active Elementum input, with subtitles both on and off. Check picture, audio synchronization and resumed position on the receiver.
+
+**Build dependency:** the source-lock still pins published KodiAirPlay r11. Before any future requested IPA, build/publish a new framework release, verify its checksum and pin it. An IPA made with the unchanged r11 framework would omit these C fixes. An isolated candidate compile is being validated; no release has been changed.
+
+
+### Clean CI follow-up (historical failed attempts)
+
+Both iPhoneOS candidate compiles passed. The second Linux CI run still rejected the first synthetic RPU frame, so the earlier parser-association explanation is unconfirmed; changing insertion order was insufficient. Exact metadata diagnostics and a retained synthetic failure fixture are added for reproduction. That run also exposed a later HTTP segment read error after background cancellation. The source now retires an interrupted speculative decoder/source, so a foreground request gets a fresh parser instead of inheriting a half-read block. The same ownership rule continues to protect connected foreground requests. Native builds also revealed two existing iOS-16 API availability warnings under the iOS-14 target; typed creation and cleanup are now guarded. These changes require the next clean candidate result; failures remain in the coverage report.
+
+
+### Confirmed clean-CI RPU cause and fix
+
+The third clean run isolated the remaining failures to the first RPU frame; HTTP cancellation/seek checks passed. Downloading its synthetic fixture reproduced both failures locally. The RPU bytes are present: the older muxer retains an extra zero after the RPU terminator. FFmpeg 8.1.1 uses remaining bit count to detect a second DM extension block and misinterprets that padding. The earlier insertion-order hypothesis was disproved.
+
+A small shipped LGPL patch, `ffmpeg-dovi-padding.patch`, removes NAL `trailing_zero_8bits` before extension detection. It leaves picture bytes, terminator/CRC validation and the AV1 EMDF path intact. The exact failed CI movie now passes all 29 focused checks with CRC validation enabled. The native regression deliberately appends zero padding to an RPU, so its success does not depend on the machine's fixture muxer version. The patch applies to clean pinned upstream and matches the compiled source; both framework/host dependency cache keys include it. Independent color comparison still passes.
+
+Canceled speculative decoder/source instances are retired consistently before the next foreground request, including cancellation caught by custom AVIO before a source wait. This prevents partial parser state from leaking into another segment, at the cost of possible fresh header/probe I/O. Connected foreground requests remain protected. The clean patched-dependency candidate result is the remaining build/test gate; actual iPhone/Drive/Roku acceptance is still separate.
+
+
+## Final automated verification — 2026-11-05
+
+[Run 41946561571](https://github.com/onlykappa/Kodi-Ios/actions/runs/41946561571) passes both jobs: 1,385 host checks / zero failures, and iPhoneOS arm64 framework compilation. Source availability warnings are gone. The exact earlier CI clip passes 29 focused checks with CRC validation enabled. Independent libplacebo comparison remains within its recorded bounds. Source commit `b148d23f819b5e427c294ed5a075aafbabf858f6` is identical to the tested candidate except for one validation marker. Candidate inner framework ZIP SHA-256: `34329c017afeacc00b973fc9b668fe57ba5186ccfa740140178cec06852b217c`.
+
+All prior failed attempts and recovery evidence remain in the coverage report. The final gate is actual iPhone/Drive/Roku playback and sustained 4K/seek acceptance. This is a framework candidate, not an IPA or release; no merge was made and published r11 stays pinned. The owner's earlier no-IPA instruction must change before preparing a device-test app.

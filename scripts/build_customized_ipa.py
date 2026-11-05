@@ -1,5 +1,5 @@
 """Bundle the validated configuration in an isolated official app; no native patching."""
-import argparse,contextlib,hashlib,io,json,os,shutil,xml.etree.ElementTree as ET,zipfile
+import argparse,contextlib,hashlib,io,json,os,shutil,subprocess,xml.etree.ElementTree as ET,zipfile
 from pathlib import Path
 from build_unsigned_ipa import build as unsigned,validate_staging
 import ios_portrait
@@ -142,7 +142,7 @@ DRIVE_PATCHES=[('clouddrive/common/remote/request.py',b'response = urllib.reques
 def patch_drive(addonroot):
  files={}
  for name,old,new in DRIVE_PATCHES:
-  path=addonroot/DRIVE_COMMON/name;before=files.setdefault(name,(path,path.read_bytes()))[1]
+  path=addonroot/DRIVE_COMMON/name;files.setdefault(name,(path,path.read_bytes()))[1]
   data=path.read_bytes();assert data.count(old)==1,'Unexpected Drive source: '+name
   path.write_bytes(data.replace(old,new))
  return [{'path':'addons/'+DRIVE_COMMON+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]
@@ -293,6 +293,98 @@ ELEMENTUM_PATCHES=[('resources/site-packages/elementum/daemon.py',b'def get_elem
  ('resources/site-packages/elementum/service.py',b'    if not ONLY_CLIENT and PLATFORM["fork"]:',b'    if not ONLY_CLIENT and (PLATFORM["fork"] or PLATFORM.get("os") == "ios"):'),
  ('resources/site-packages/elementum/osarch.py',b'    if global_platform:\n',b'    if xbmc.getCondVisibility("System.Platform.IOS"):\n        ret.update(os="ios", arch="arm64", fork=False)\n        return ret\n\n    if global_platform:\n')]
 
+# Kodi-iOS source check (service.kodi.ios.bootstrap/resources/lib/source_match.py) inside Burst, where every provider's
+# results arrive: a torrent of another title ("Fall" 2026 for "Fall" 2022) never reaches Elementum, so its dialog, its
+# auto-pick ("silent") plays and downloads only get the title asked for. Burst 0.0.99 (migration/elementum-ios/source-lock.json).
+BURST_HELPERS=b"""# KODI-IOS-SOURCE-MATCH r1: only torrents of the title Elementum asked for (service.kodi.ios.bootstrap source_match.py)
+_kios = {}
+
+
+def _kios_start(payload, method):
+    _kios.clear()
+    _kios.update(payload=payload, method=method, hidden=[], exp=None, ready=False)
+    Thread(target=_kios_expect).start()    # TMDb while the providers search, not after them
+
+
+def _kios_expect():
+    # The identity (titles in every language, year(s), IMDb/TMDb, season/episode), completed from TMDb once per search.
+    from threading import Lock
+    lock = _kios.setdefault('lock', Lock())
+    with lock:
+        if not _kios.get('ready'):
+            _kios['ready'] = True
+            try:
+                import sys
+                try:
+                    from xbmcvfs import translatePath
+                except ImportError:
+                    translatePath = xbmc.translatePath
+                lib = translatePath('special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib')
+                if lib not in sys.path:
+                    sys.path.insert(0, lib)
+                import source_match
+                exp = source_match.from_burst(_kios.get('payload'), _kios.get('method'))
+                _kios['sm'] = source_match
+                _kios['exp'] = source_match.enrich(exp) if exp else None
+            except Exception as e:
+                log.warning("Kodi-iOS source check unavailable: %s" % repr(e))
+    return _kios.get('sm'), _kios.get('exp')
+
+
+def _kios_prefilter(provider, results):
+    try:
+        sm, exp = _kios_expect()
+        if not sm or not exp:
+            return results
+        kept, hidden = sm.split(results, exp, name=lambda r: r.get('name'))
+        _kios['hidden'].extend(hidden)
+        if hidden:
+            log.info("[%s] Kodi-iOS source check: kept %d, hidden %d (%s)" % (provider, len(kept), len(hidden), sm.reasons_text(hidden)))
+        return kept
+    except Exception as e:
+        log.warning("[%s] Kodi-iOS source check failed: %s" % (provider, repr(e)))
+        return results
+
+
+def _kios_finish(results, payload):
+    sm, exp = _kios.get('sm'), _kios.get('exp')
+    if not sm or not exp:
+        return results
+    hidden = _kios.get('hidden') or []
+    sm.report('Burst', exp, results, hidden, name=lambda r: r.get('name'))
+    revealed = False
+    if hidden and not results:
+        message = "No source is %s: %d hidden (%s)" % (exp.get('label'), len(hidden), sm.reasons_text(hidden))
+        if not payload.get('silent'):
+            try:
+                revealed = xbmcgui.Dialog().yesno('Not this title?', message + "\\n\\nShow them anyway?")
+            except Exception:
+                revealed = False
+        if revealed:
+            results = cleanup_results([r for r, _ in hidden])
+        else:
+            notify(message, ADDON_ICON)
+    sm.publish(exp, hidden=len(hidden), revealed=revealed)
+    return results
+
+
+"""
+BURST_PATCHES=[('burst/burst.py',b'def search(payload, method="general"):\n',BURST_HELPERS+b'def search(payload, method="general"):\n'),
+ ('burst/burst.py',b"    request_time = time.time()\n\n    cookie_sync(payload['silent'])\n",b"    request_time = time.time()\n    _kios_start(payload, method)  # KODI-IOS-SOURCE-MATCH\n\n    cookie_sync(payload['silent'])\n"),
+ # Before each provider's results are sorted and cut to the best ones, so the other title cannot crowd this one out.
+ ('burst/burst.py',b'    definition = get_alias(definition, get_setting("%s_alias" % provider))\n\n    # 0 "Resolution"\n',
+  b'    definition = get_alias(definition, get_setting("%s_alias" % provider))\n    results = _kios_prefilter(provider, results)  # KODI-IOS-SOURCE-MATCH\n\n    # 0 "Resolution"\n'),
+ ('burst/burst.py',b'    filtered_results = apply_filters(provider_results)\n',b'    filtered_results = apply_filters(provider_results)\n    filtered_results = _kios_finish(filtered_results, payload)  # KODI-IOS-SOURCE-MATCH\n')]
+
+def patch_burst(addonroot):
+ """BURST_PATCHES into the unpacked Burst; [{'path','before_sha256','after_sha256'}]."""
+ files={}
+ for name,old,new in BURST_PATCHES:
+  path=addonroot/BURST/name;before=files.setdefault(name,(path,path.read_bytes()))[1]
+  data=path.read_bytes();assert data.count(old)==1,'Unexpected Burst source: '+name
+  path.write_bytes(data.replace(old,new))
+ return [{'path':'addons/'+BURST+'/'+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]
+
 def unpack_addon(archive,id,dest):
  """Extract one add-on zip (plain Python and data only) into dest/<id>."""
  with zipfile.ZipFile(archive) as z:
@@ -309,6 +401,7 @@ def add_profile_addons(inputs,bootstrap):
  return [a.stem for a in found]
 
 DECK_PICKER=ROOT/'migration/deck-picker'
+SOURCE_MATCH=ROOT/'migration/bundled-bootstrap/resources/lib/source_match.py'
 
 def deck_page_files():
  """The Deck's page and its pictures, {path under resources/skins/Default: bytes}."""
@@ -325,7 +418,9 @@ def deck_page_files():
 def add_deck_picker(addonroot):
  """The Deck's Elementum link page: quality first, then the five best links with the title's poster and details.
  Umbrella gets the same page through the bootstrap add-on (umbrella_picker.py), which carries its own copy."""
- files={'site-packages/elementum/deck_picker.py':(DECK_PICKER/'deck_picker.py').read_bytes()}
+ files={'site-packages/elementum/deck_picker.py':(DECK_PICKER/'deck_picker.py').read_bytes(),
+        # The page's source check (the bootstrap add-on's lib has its own copy, from migration/bundled-bootstrap).
+        'site-packages/elementum/source_match.py':SOURCE_MATCH.read_bytes()}
  files.update({'skins/Default/'+rel:data for rel,data in deck_page_files().items()})
  # The page's dark backdrop and close button are Elementum's own pictures: Umbrella's copy needs them too.
  media=addonroot/ELEMENTUM/'resources/skins/Default/media'
@@ -354,9 +449,10 @@ def add_elementum(inputs,target,addonroot):
    dest=addonroot/n;assert not dest.exists(),'Unexpected Elementum collision';dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(z.read(n))
  files={}
  for name,old,new in ELEMENTUM_PATCHES:
-  path=addonroot/ELEMENTUM/name;before=files.setdefault(name,(path,path.read_bytes()))[1]
+  path=addonroot/ELEMENTUM/name;files.setdefault(name,(path,path.read_bytes()))[1]
   data=path.read_bytes();assert data.count(old)==1,'Unexpected Elementum source: '+name
   path.write_bytes(data.replace(old,new))
+ burst_patches=patch_burst(addonroot)
  deck_picker=add_deck_picker(addonroot)
  modules=sorted((inputs/'modules').iterdir())
  apps=sorted((inputs/'extras-app').glob('*.zip')) if (inputs/'extras-app').is_dir() else []
@@ -375,7 +471,7 @@ def add_elementum(inputs,target,addonroot):
    z.extractall(frameworks)
   executable=frameworks/name/name[:-len('.framework')];assert executable.read_bytes()[:4]==b'\xcf\xfa\xed\xfe',name+' is not a 64-bit Mach-O'
   extra.append('Frameworks/'+name)
- return {'addons':[ELEMENTUM,BURST]+[d.name for d in modules]+[a.stem for a in apps],'framework':'Frameworks/elementum.framework','frameworks':extra,'deck_picker':deck_picker,'framework_sha256':digest(binary.read_bytes()),
+ return {'addons':[ELEMENTUM,BURST]+[d.name for d in modules]+[a.stem for a in apps],'framework':'Frameworks/elementum.framework','frameworks':extra,'deck_picker':deck_picker,'burst_patches':burst_patches,'framework_sha256':digest(binary.read_bytes()),
          'patches':[{'path':'addons/'+ELEMENTUM+'/'+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]}
 
 def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
@@ -384,6 +480,8 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
  target=work/'Kodi.app';shutil.copytree(app,target,symlinks=True)
  manifests=list(target.rglob('system/addon-manifest.xml'));assert len(manifests)==1,'Unique Kodi system manifest required'
  system=manifests[0];base=system.parent.parent;addonroot=base/'addons';assert addonroot.is_dir()
+ # special://xbmc/system/advancedsettings.xml: Kodi's splash off on every install (ios_portrait.disable_splash).
+ splash=ios_portrait.disable_splash(system.parent)
  for name,data in addons.items():
   dest=base/name
   assert not dest.exists(),'Unexpected bundled addon collision: '+name
@@ -425,10 +523,36 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
  for id in order+[BOOT]:
   assert id not in existing,'System manifest collision';ET.SubElement(root,'addon',{} if id==BOOT else {'optional':'true'}).text=id
  ET.indent(root);tree.write(system,encoding='utf-8',xml_declaration=True)
- return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'elementum':engine,'profile_addons':profile_addons,'portrait':portrait}
+ return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'elementum':engine,'profile_addons':profile_addons,'portrait':portrait,'splash':splash}
+
+# Owner crash report (build 142, cpu_resource_fatal): iOS killed Kodi for CPU use, and part of it was Python compiling
+# source (builtin_compile / Py_CompileStringObject under import). The app bundle is read-only, so Python can never save
+# a .pyc there: the official package ships none for its standard library (1089 .py, 0 in python3.11/__pycache__) and
+# none for most add-ons, and every plugin run (a row, a show page, a source search) parsed os, json and TMDb Helper
+# again. They are now compiled here by the same Python version (3.11, cache tag cpython-311), as unchecked-hash .pyc
+# files, which Python uses without comparing them with the source (the bundle never changes after signing).
+PYC_TAG='cpython-311'
+def python311():
+ exe=os.environ.get('KODI_IOS_PYTHON311') or shutil.which('python3.11')
+ assert exe,'Python 3.11 is required to precompile the bundle (set KODI_IOS_PYTHON311)'
+ version=subprocess.run([exe,'-I','-c','import sys;print(sys.implementation.cache_tag)'],capture_output=True,text=True,check=True).stdout.strip()
+ assert version==PYC_TAG,'Bundle bytecode must come from CPython 3.11, got '+version
+ return exe
+def precompile(app):
+ app=Path(app);roots=sorted(str(p) for p in list(app.glob('Frameworks/lib/python3.11'))+list(app.rglob('AppHome/addons')) if p.is_dir())
+ assert len(roots)==2,'Expected the Python standard library and AppHome/addons, got %r'%roots
+ before=sum(1 for _ in app.rglob('*.%s.pyc'%PYC_TAG))
+ # Files that are not Python 3 (old test data, Python 2 back-ports) fail to compile and stay source-only.
+ subprocess.run([python311(),'-I','-m','compileall','-q','-j','0','--invalidation-mode','unchecked-hash',
+                 '-s',str(app),'-p','Kodi.app']+roots,check=False,stdout=subprocess.DEVNULL)
+ after=sum(1 for _ in app.rglob('*.%s.pyc'%PYC_TAG))
+ sources=sum(1 for root in roots for _ in Path(root).rglob('*.py'))
+ assert after-before>sources//2,'Too few modules precompiled (%d of %d)'%(after-before,sources)
+ return {'tag':PYC_TAG,'added':after-before,'sources':sources}
 
 def build(app,bundle,expected,deb,output,work,elementum=None,portrait_inputs=None):
  staged,details=prepare(app,bundle,expected,work,elementum,portrait_inputs)
+ details['bytecode']=precompile(staged)
  # The shared native packer emits a diagnostic-only intermediate label; publish only the final verified customized report.
  with contextlib.redirect_stdout(io.StringIO()):report=unsigned(staged,output,deb)
  old=output/report['filename'];ipa=output/'Kodi-iOS-Customized-Touch-r10.ipa';old.rename(ipa)
@@ -446,6 +570,10 @@ def build(app,bundle,expected,deb,output,work,elementum=None,portrait_inputs=Non
    expected_hash=patches[name]['after_sha256'] if name in patches else digest(body)
    assert digest(z.read(base+'/'+name))==expected_hash,'Bundled addon bytes changed unexpectedly'
   for e in details['seed_files']:assert digest(z.read(base+'/addons/'+BOOT+'/seed/'+e['path']))==e['sha256']
+  assert digest(z.read(base+'/system/advancedsettings.xml'))==details['splash']['sha256'],'Splash setting missing from IPA'
+  names=set(z.namelist())
+  for module in ('Payload/Kodi.app/Frameworks/lib/python3.11/__pycache__/os.%s.pyc','Payload/Kodi.app/Frameworks/lib/python3.11/json/__pycache__/decoder.%s.pyc'):
+   assert module%PYC_TAG in names,'Precompiled standard library missing from IPA: '+module%PYC_TAG
   if details['elementum']:
    assert digest(z.read('Payload/Kodi.app/Frameworks/elementum.framework/elementum'))==details['elementum']['framework_sha256'],'Engine framework missing from IPA'
    for e in details['elementum']['patches']:assert digest(z.read(base+'/'+e['path']))==e['after_sha256']

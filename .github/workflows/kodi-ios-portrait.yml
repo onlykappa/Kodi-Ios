@@ -1,4 +1,4 @@
-name: Kodi 21.3 iPhone executable with rotation (r11 portrait)
+name: Build Kodi iPhone executable
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -54,6 +54,27 @@ jobs:
             ${{ runner.temp }}/kodi-ios/depends
             ${{ runner.temp }}/kodi-ios/xbmc
           key: kodi-ios-depends-21.3-Omega-${{ runner.os }}-${{ runner.arch }}-v1
+      # Keep the built executable even if publishing fails, so the publish job can be re-run alone.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: kodi-ios-portrait-executable
+          path: ${{ runner.temp }}/kodi-ios-out/*
+          if-no-files-found: error
+          retention-days: 30
+  # Publishing runs as its own short job: a failed release call (HTTP 403 on r22) can be retried
+  # with "Re-run failed jobs" in seconds instead of rebuilding Kodi on macOS.
+  publish:
+    needs: executable
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: kodi-ios-portrait-executable
+          path: ${{ runner.temp }}/kodi-ios-out
       # The IPA build fetches the executable from this release and checks the sha256 pinned in
       # migration/ios-portrait/source-lock.json; an existing tag is never replaced, so the pin stays valid.
       - name: Publish the executable once per tag
@@ -68,9 +89,3 @@ jobs:
           (cd "$dir" && zip -q Kodi-portrait-executable.zip Kodi)
           gh release create "$tag" "$dir/Kodi-portrait-executable.zip" --repo "$REPO" --target "$SHA" --prerelease \
             --title "Kodi 21.3 iPhone executable with rotation ($tag)" --notes "$(cat "$dir/Kodi.sha256")"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: kodi-ios-portrait-executable
-          path: ${{ runner.temp }}/kodi-ios-out/*
-          if-no-files-found: error
-          retention-days: 30

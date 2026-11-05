@@ -105,7 +105,7 @@ class PortraitTests(unittest.TestCase):
   self.assertEqual(portrait.refresh(self.skin,self.profile),[])
   nodes=self.profile/'addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homewidgets.json'
   nodes.write_text(json.dumps([{'label':'New row','path':'plugin://x/?a=1','target':'videos'}]))
-  self.assertEqual(portrait.refresh(self.skin,self.profile),['portrait/Home.xml','portrait/Includes.xml'])
+  self.assertEqual(portrait.refresh(self.skin,self.profile),['portrait/Home.xml','portrait/Includes.xml','1080i/Includes_Portrait.xml'])
  def test_old_writable_copy_gets_the_portrait_layout(self):
   # A phone that ran an earlier build keeps a Fuse copy without the portrait folder or resolution.
   import shutil;shutil.rmtree(self.skin/'portrait');(self.skin/'addon.xml').write_text(ADDON)
@@ -270,6 +270,18 @@ class PortraitTests(unittest.TestCase):
   self.assertIn('Portrait_Ctx_Icon_0',(self.skin/'portrait/Includes.xml').read_text())
  def test_movie_and_show_folders_use_the_grid(self):
   self.assertIn('<views>50,51,52,53</views>',(self.skin/'portrait/MyVideoNav.xml').read_text())
+
+ def test_variables_defined_when_kodi_reads_1080i_includes(self):
+  # Owner log, build 142: the includes came from 1080i (screen still landscape at skin load) and every portrait $VAR
+  # was undefined, so no Home row showed. The landscape Includes.xml now pulls the same variables in.
+  portrait.refresh(self.skin,self.profile)
+  land=(self.skin/'1080i/Includes.xml').read_text()
+  self.assertEqual(land.count(portrait.LANDSCAPE_HOOK),1)
+  names={v.get('name') for v in ET.fromstring((self.skin/'1080i/Includes_Portrait.xml').read_bytes()).iter('variable')}
+  for needed in ('Portrait_Hero_Art','Portrait_Card_Art'):self.assertIn(needed,names)
+  self.assertTrue(any(n.startswith('Portrait_Cache_Row_') for n in names))
+  self.assertEqual(portrait.refresh(self.skin,self.profile),[])
+
 
 class ServiceTests(unittest.TestCase):
  def test_focused_item_published_only_on_home_and_hubs(self):

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# DECK-ELEMENTUM deck_picker v1
+# DECK-ELEMENTUM deck_picker v2 (Kodi-iOS: source_match)
 """
 Steam Deck link picker for Elementum.
 
@@ -12,10 +12,16 @@ and Kodi shows them in a big dialog. run() sits in front of that dialog:
      ("best" keeps Elementum's own ordering, i.e. your sorting setting)
 
 run() returns the index of the chosen entry in Elementum's ORIGINAL list, -1 if you
-cancelled, or None when it should not handle the list (not a torrent list, a short
-list, "Show all", or any problem). The caller then shows Elementum's normal dialog,
-so nothing can get stuck.
+cancelled, or None when it should not handle the list (not a torrent list, "Show all"
+when every link is verified, or any problem). The caller then shows Elementum's normal
+dialog, so nothing can get stuck.
+
+Kodi-iOS (source_match.py): every link is checked against the title being played (title,
+year, season/episode). Links of another title ("Fall" 2026 for "Fall" 2022) are never
+offered as versions: short lists get this page too, "Show all" lists only verified links
+when some were hidden, and a "N hidden (wrong title/year)" row reveals the others.
 """
+import os
 import re
 
 TOP_N = 5
@@ -502,37 +508,142 @@ def remember(item, title, path=None, now=None):
         return False
 
 
-def run(title, items, top_n=TOP_N):
+# ---------------------------------------------------------------------------------
+# Kodi-iOS: only links of the title being played (source_match.py)
+# ---------------------------------------------------------------------------------
+_MATCHER = []
+
+
+def _matcher():
+    """source_match.py: beside this file (Elementum's site-packages/elementum, the bootstrap add-on's lib) or on
+    sys.path; in the repository it sits in migration/bundled-bootstrap/resources/lib."""
+    if _MATCHER:
+        return _MATCHER[0]
+    found = None
+    try:
+        import source_match as found
+    except Exception:
+        try:
+            from elementum import source_match as found
+        except Exception:
+            here = os.path.dirname(os.path.abspath(__file__))
+            for path in (os.path.join(here, 'source_match.py'),
+                         os.path.join(here, '..', 'bundled-bootstrap', 'resources', 'lib', 'source_match.py')):
+                if os.path.isfile(path):
+                    try:
+                        import importlib.util
+                        spec = importlib.util.spec_from_file_location('deck_source_match', path)
+                        found = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(found)
+                        break
+                    except Exception:
+                        found = None
+    _MATCHER.append(found)
+    return found
+
+
+def identity(title, sm=None):
+    """What the links must be: the identity Burst checked for this search (Home window), else the title and year the
+    watch menu left for this page, completed from TMDb. None when it cannot be known."""
+    sm = sm or _matcher()
+    if sm is None:
+        return None
+    exp = sm.published(title) or sm.from_details(title)
+    if exp and not exp.get('enriched'):
+        exp = sm.enrich(exp)
+    return exp
+
+
+def hidden_row(hidden, sm):
+    return {'headline': u'%d hidden (wrong title/year)' % len(hidden), 'tags': sm.reasons_text(hidden) if sm else u'',
+            'meta': u'Not this title: tap to see them', 'badge': u'', 'icon': u''}
+
+
+def hidden_rows(hidden):
+    rows = build_rows([it for it, _ in hidden])
+    for row, (it, reason) in zip(rows, hidden):
+        row['badge'] = reason.upper()[:24]
+        row['tags'] = it['name'][:110]                     # the release name, to judge it
+    return rows
+
+
+def show_hidden(title, hidden):
+    """The links that are not this title, with the reason, when asked for."""
+    sel = choose_source(title, hidden_rows(hidden), u'Hidden: not this title?', u'%d hidden' % len(hidden))
+    if sel is None or sel < 0 or sel >= len(hidden):
+        return -1
+    return hidden[sel][0]['idx']
+
+
+def show_list(title, entries, hidden, sm, quality_text, count_text):
+    """Our page for a list of verified links (every one of them), plus the hidden row."""
+    rows = build_rows(entries) + ([hidden_row(hidden, sm)] if hidden else [])
+    sel = choose_source(title, rows, quality_text, count_text)
+    if sel is None or sel < 0:
+        return -1
+    if sel < len(entries):
+        remember(entries[sel], title)
+        return entries[sel]['idx']
+    return show_hidden(title, hidden)
+
+
+def show_all(title, items, parsed, kept, hidden, sm):
+    """"Show all": Elementum's own list when every link in it is verified, else every verified link here."""
+    if not hidden and len(parsed) == len(items):
+        return None
+    return show_list(title, kept, hidden, sm, u'All verified links', u'%d link%s' % (len(kept), u'' if len(kept) == 1 else u's'))
+
+
+def run(title, items, top_n=TOP_N, expect=None):
     parsed = parse_all(items)
     if parsed is None:
         return None
+    sm = _matcher()
+    exp = expect if expect is not None else identity(title, sm)
+    if sm is not None and exp:
+        kept, hidden = sm.split(parsed, exp, name=lambda p: p['name'], result=lambda p: None)
+        sm.report('Choose a version', exp, kept, hidden, name=lambda p: p['name'])
+    else:
+        kept, hidden = parsed, []
+        if sm is not None:
+            sm.log(u'Choose a version: %d links for "%s" not checked (the title being played is not known)' % (len(parsed), title))
     # Continue Watching: the same version as last time, without asking, when it is still in the list.
-    same = find_same(parsed, resume_wanted())
+    same = find_same(kept, resume_wanted())
     if same is not None:
         return same['idx']
-    if len(parsed) <= top_n:
-        return None
-    keys, groups = group_by_quality(parsed)
+    if not kept:
+        if exp and exp.get('revealed'):                     # already asked to see them (Burst)
+            return show_hidden(title, hidden)
+        sel = choose_source(title, [hidden_row(hidden, sm)], u'No version of this title', u'All %d links hidden' % len(hidden))
+        if sel is None or sel < 0:
+            return -1
+        return show_hidden(title, hidden)
+    if len(kept) <= top_n:
+        return show_list(title, kept, hidden, sm, quality_label(kept[0]['quality']) if len(group_by_quality(kept)[0]) == 1
+                         else u'All versions', count_label(len(kept), len(kept)))
+    keys, groups = group_by_quality(kept)
     labels = quality_menu_labels(keys, groups, top_n)
     while True:
         if len(keys) == 1:
             qi = 0
         else:
-            choice = choose_quality(labels + [u'Show all %d links' % len(items)])
+            choice = choose_quality(labels + [u'Show all %d links' % len(kept)])
             if choice is None or choice < 0:
                 return -1
             if choice >= len(keys):
-                return None
+                return show_all(title, items, parsed, kept, hidden, sm)
             qi = choice
         q = keys[qi]
         shown = pick(groups[q], top_n)
-        rows = build_rows(shown) + [SHOW_ALL_ROW]
+        rows = build_rows(shown) + [SHOW_ALL_ROW] + ([hidden_row(hidden, sm)] if hidden else [])
         sel = choose_source(title, rows, quality_label(q), count_label(len(shown), len(dedupe(groups[q]))))
         if sel is None or sel < 0:
             if len(keys) == 1:
                 return -1
             continue
-        if sel >= len(shown):
-            return None
+        if sel == len(shown):
+            return show_all(title, items, parsed, kept, hidden, sm)
+        if sel > len(shown):
+            return show_hidden(title, hidden)
         remember(shown[sel], title)
         return shown[sel]['idx']

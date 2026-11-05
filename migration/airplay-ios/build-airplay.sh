@@ -680,10 +680,13 @@ xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$
   -I"$REMUX/src" -Wl,-exported_symbols_list,"$WORK/exports" \
   -o "$FW/KodiAirPlay" "$WORK/KodiAirPlay.m" "${OBJS[@]}" \
   "$ASS/lib/libass.a" "$ASS/lib/libharfbuzz.a" "$ASS/lib/libfribidi.a" "$ASS/lib/libfreetype.a" -lc++ \
-  "$FF/lib/libavformat.a" "$FF/lib/libavcodec.a" "$FF/lib/libswscale.a" "$FF/lib/libswresample.a" "$FF/lib/libavutil.a" \
+  "$FF/lib/libavformat.a" "$FF/lib/libavcodec.a" "$FF/lib/libdav1d.a" "$FF/lib/libswscale.a" "$FF/lib/libswresample.a" "$FF/lib/libavutil.a" \
   -framework Security -framework CoreFoundation -lz -liconv
 cp "$REMUX/THIRD-PARTY-NOTICES" "$FW/THIRD-PARTY-NOTICES"; cp "$FF/FFMPEG-CONFIG.txt" "$FW/FFMPEG-CONFIG.txt"
+cp "$REMUX/LICENSE-LGPL-2.1" "$FW/LICENSE-LGPL-2.1"
 cp "$ASS/LIBASS-CONFIG.txt" "$FW/LIBASS-CONFIG.txt"
+cp "$FF/DAV1D-CONFIG.txt" "$FF/DAV1D-LICENSE.txt" "$FF/ffmpeg-mov-pts.patch" "$FW/"
+cp "$FF/ffmpeg-dovi-padding.patch" "$FW/"
 cat > "$FW/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -705,6 +708,7 @@ nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _(ass_render_frame|kr_subs_blend|kr_video_burn|kr_remux_set_subtitles|hb_shape|FT_Init_FreeType|fribidi_get_par_embedding_levels_ex)$')" == 7 ]] || { echo 'r10 libass burn-in missing' >&2; exit 1; }
 # r8: the per-receiver picture and the TV's segment count are linked in (private to the framework, not exported).
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _kr_remux_(third_party_receiver|served_external|compat_clients)$')" == 3 ]] || { echo 'r8 remuxer missing' >&2; exit 1; }
+[[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _(kr_dovi_convert|kr_source_set_interrupt|kr_video_subtitle_scan_end)$')" == 3 ]] || { echo 'AirPlay RPU/seek source fixes missing' >&2; exit 1; }
 # r7: the picture bridge needs Apple's hardware H.264 encoder in this FFmpeg.
 grep -q -- '--enable-encoder=h264_videotoolbox' "$FF/FFMPEG-CONFIG.txt" || { echo 'FFmpeg built without h264_videotoolbox' >&2; exit 1; }
 lipo -info "$FW/KodiAirPlay"

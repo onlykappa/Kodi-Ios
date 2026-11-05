@@ -1,0 +1,138 @@
+{
+  "recorded_utc": "2026-11-04T15:30:52.538084+00:00",
+  "base_commit": "d2c1804f09ad4a83511a79aac22dea0c3f6d6181",
+  "issue": "ISSUE-091",
+  "owner_bug_number": 1,
+  "scope": "Continue Watching completed-copy priority and saved-provider resume; source/host verified, device pending",
+  "evidence_input": "Owner report and screenshot showing Elementum buffering after tapping a reported completed movie; no reproduction log used. Raw screenshot/history/account state not published. Owner subsequently confirmed the completed copy is playable in Google Drive / Library, matching the missing Drive-check path.",
+  "verified_source_defects": [
+    "A newly constructed downloaded player received a plain tmdb dict; pinned TMDb Helper resolver requires item.details.",
+    "Completed-copy lookup covered only local paths although automatic Drive upload can delete the local file.",
+    "Removing empty settings slots could classify active files as completed; mixed completed/partial versions could miss the finished copy.",
+    "Choosing a completed local file overwrote the saved provider and version origin.",
+    "Failed download checks and unavailable saved providers could fall through to another source choice."
+  ],
+  "resulting_order": [
+    "Positive-sized matching file in the correct completed folder/current app download folder",
+    "Positive-sized matching file in an active torrent only when Elementum reports 100% complete",
+    "Signed-in Drive Kodi Downloads copy (cached positives; refresh misses before declaring absence)",
+    "Previously chosen available provider, including Umbrella, without another player question",
+    "Clear failure for unknown checks/unavailable saved provider or failed resolver retry; no silent replacement download"
+  ],
+  "verification": {
+    "affected_suites": 12,
+    "host_tests": 140,
+    "all_passed": true,
+    "new_behavior_regressions": 19,
+    "pinned_resolver": {
+      "pinned_helper_version": "6.18.1",
+      "verified_archive_git_blob_sha": "c76fe192cca0ef5f5c6d8d081824dcff1e864650",
+      "old_metadata_failure_reproduced": true,
+      "actual_helper_resolver_checks": [
+        {
+          "kind": "movie",
+          "source": "local",
+          "resolver_path_and_listitem": true
+        },
+        {
+          "kind": "tv",
+          "source": "local",
+          "resolver_path_and_listitem": true
+        },
+        {
+          "kind": "movie",
+          "source": "drive",
+          "resolver_path_and_listitem": true
+        }
+      ],
+      "scope": "Pinned Python player classes and resolver, using Kodi/dependency stubs; no playback or device test"
+    },
+    "project_scanner_passed": true,
+    "ios_static_checks_passed": true,
+    "diff_whitespace_check_passed": true,
+    "ipa_built": false,
+    "device_retested": false,
+    "live_drive_or_media_accessed": false
+  },
+  "suites": [
+    {
+      "suite": "test_continue_downloads",
+      "passed": true,
+      "tests": 19,
+      "seconds": 0.163
+    },
+    {
+      "suite": "test_watch_dialog",
+      "passed": true,
+      "tests": 13,
+      "seconds": 0.122
+    },
+    {
+      "suite": "test_watch_continue",
+      "passed": true,
+      "tests": 8,
+      "seconds": 0.064
+    },
+    {
+      "suite": "test_downloaded_play",
+      "passed": true,
+      "tests": 6,
+      "seconds": 0.18
+    },
+    {
+      "suite": "test_drive_library",
+      "passed": true,
+      "tests": 8,
+      "seconds": 0.126
+    },
+    {
+      "suite": "test_drive_upload",
+      "passed": true,
+      "tests": 3,
+      "seconds": 1.7
+    },
+    {
+      "suite": "test_deck_picker",
+      "passed": true,
+      "tests": 10,
+      "seconds": 0.152
+    },
+    {
+      "suite": "test_import_builder",
+      "passed": true,
+      "tests": 13,
+      "seconds": 0.114
+    },
+    {
+      "suite": "test_customized_ipa",
+      "passed": true,
+      "tests": 8,
+      "seconds": 0.211
+    },
+    {
+      "suite": "test_bundled_bootstrap",
+      "passed": true,
+      "tests": 15,
+      "seconds": 0.151
+    },
+    {
+      "suite": "test_watch_routes",
+      "passed": true,
+      "tests": 10,
+      "seconds": 0.069
+    },
+    {
+      "suite": "test_listing_cache",
+      "passed": true,
+      "tests": 27,
+      "seconds": 0.465
+    }
+  ],
+  "limits": [
+    "The source defects are reproduced on the host; the exact combination causing the owner phone failure is not proven without playback evidence.",
+    "Drive uses the existing first-account library integration; lookup requires that account to be signed in and a network for uncached checks.",
+    "Actual Kodi/Drive playback and resume position remain a device acceptance check.",
+    "Source changes are in draft PR #8, not in the already installed build-141. No new IPA or merge requested."
+  ],
+  "owner_confirmed_completed_copy_location": "Google Drive / Library"
+}

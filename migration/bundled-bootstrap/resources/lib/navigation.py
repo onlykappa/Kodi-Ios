@@ -212,6 +212,15 @@ def patch_includes(data):
  for action in IOS_OFF:data=re.sub(rb'<(on\w+)(?: condition="((?:(?!System\.Platform\.IOS)[^"])*)")?>('+action+rb')</\1>',guard,data)
  return data.replace(*ZOOM)
 
+def empty_widget_unloads(data):
+ """Kodi ignores a named include with no child, then warns when Home references it. Fuse generates just such an
+ include when no combined widget needs cleanup. An empty definition is a registered no-op; real unloads stay intact.
+ Also fix the generator template so later widget rebuilds do not bring the warning back."""
+ data=re.sub(rb'(<include\s+name="skinvariables-[^"<>]+-standard-onunload")\s*(?:/>|>\s*</include>)',
+             rb'\1><definition /></include>',data)
+ return data.replace(b'<include name="{includes_name}-onunload">\n    {combined_widget_unload}\n</include>',
+                     b'<include name="{includes_name}-onunload">\n    <definition>{combined_widget_unload}</definition>\n</include>')
+
 def patch_skin(skin,backup=None):
  skin=Path(skin);changed=[]
  for path in sorted((skin/'1080i').glob('*.xml'))+sorted((skin/TEMPLATES).glob('*.xmltemplate')):
@@ -222,6 +231,7 @@ def patch_skin(skin,backup=None):
   if b'Kodi-iOS player controls' in before:continue
   if path.suffix=='.xmltemplate' or path.name in INCLUDES:after=patch_includes(before)
   else:after=patch_frame(patch_osd(patch_window(before,path.name),path.name),path.name)
+  after=empty_widget_unloads(after)
   if before==after:continue
   if backup is not None:
    dest=Path(backup)/path.name
@@ -230,13 +240,32 @@ def patch_skin(skin,backup=None):
   changed.append({'path':path.relative_to(skin).as_posix(),'before_sha256':sha(before),'after_sha256':sha(after)})
  return changed
 
+def upgrade_inputs(skin,keymap):
+ """Stat the inputs before deciding to read/parse every skin window again. File additions/removals, replacements,
+ add-on updates, generator output, template edits, code changes and the touch keymap all invalidate the check."""
+ h=hashlib.sha256(Path(__file__).read_bytes())
+ for path in sorted((skin/'1080i').glob('*.xml'))+sorted((skin/TEMPLATES).glob('*.xmltemplate')):
+  if path.is_symlink():raise ValueError('Skin XML symlink refused')
+  st=path.stat();h.update(('%s:%d:%d:%d;'%(path.relative_to(skin),st.st_size,st.st_mtime_ns,st.st_ctime_ns)).encode())
+ if keymap.is_symlink():raise ValueError('Keymap symlink refused')
+ h.update(keymap.read_bytes() if keymap.exists() else b'no keymap')
+ return h.hexdigest()
+
 def upgrade(home,profile):
  home=Path(home);profile=Path(profile);skin=home/'addons/skin.arctic.fuse.3'
  if not skin.is_dir():return {'revision':REVISION,'status':'WAITING FOR WRITABLE SKIN','changed_files':0}
  if skin.is_symlink() or any(p.is_symlink() for p in [home,profile,*skin.parents]):raise ValueError('Navigation upgrade symlink refused')
  state=profile/'addon_data/service.kodi.ios.bootstrap';backup=state/'navigation-backup'/REVISION
+ keymap=profile/'keymaps/zz-kodi-ios-navigation.xml';inputs=upgrade_inputs(skin,keymap)
+ record=state/'navigation-upgrade.json'
+ try:
+  previous=json.loads(record.read_text())
+  if previous.get('revision')==REVISION and previous.get('inputs')==inputs:
+   return {'revision':REVISION,'status':'UNCHANGED','changed_files':0,'keymap_changed':False,'files':[],
+           'device_navigation_verified':False}
+ except (OSError,ValueError,AttributeError):pass
  changed=patch_skin(skin,backup)
- keymap=profile/'keymaps/zz-kodi-ios-navigation.xml';body=TOUCH.encode()+b'\n'
+ body=TOUCH.encode()+b'\n'
  key_changed=not keymap.exists() or keymap.read_bytes()!=body
  if key_changed:
   if keymap.is_symlink():raise ValueError('Keymap symlink refused')
@@ -245,7 +274,8 @@ def upgrade(home,profile):
    if not dest.exists():dest.write_bytes(keymap.read_bytes())
   keymap.parent.mkdir(parents=True,exist_ok=True);keymap.write_bytes(body)
  state.mkdir(parents=True,exist_ok=True);receipt={'revision':REVISION,'status':'PATCHED','changed_files':len(changed),'keymap_changed':key_changed,'files':changed,'device_navigation_verified':False}
- if changed or key_changed or not (state/'navigation-upgrade.json').exists():(state/'navigation-upgrade.json').write_text(json.dumps(receipt,indent=2)+'\n')
+ receipt['inputs']=upgrade_inputs(skin,keymap)
+ record.write_text(json.dumps(receipt,indent=2)+'\n')
  return receipt
 
 def update_nodes(profile):

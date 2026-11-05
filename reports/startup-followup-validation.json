@@ -1,0 +1,215 @@
+{
+  "recorded_utc": "2026-11-04T14:58:27.122669+00:00",
+  "base_commit": "fbedba8c6602c7085d9d19794adb21e9005bdf70",
+  "scope": "PR #8 host source changes; no IPA or native iOS build",
+  "log_sha256": "862e20942d59b8919f19fc7ee8de023119b63d37a937ca2fdf8b48bb113170e0",
+  "log_duration_seconds": 5.795,
+  "device_observations_seconds_after_first_log": {
+    "home_xml_opened": 1.1,
+    "running_application": 1.175,
+    "umbrella_service_started": 4.673,
+    "cocoscrapers_service_started": 5.794,
+    "first_poster": null
+  },
+  "warning_status": {
+    "empty_skin_include": "Fixed at source: normalize existing output and future generator template; host tests pass; device pending",
+    "duplicate_audio_init": "iOS configured state now acknowledges INIT; host C++ branch test; full iOS build/device pending",
+    "jsonrpc_forward_reference": "Expected deferred dependency is debug, malformed nondependency parse still warns; host C++ branch tests",
+    "audio_underflow": "OPEN: no playback, repeats, callback profiling or audible symptom in supplied capture; warning preserved"
+  },
+  "verification": {
+    "project_suites": 25,
+    "project_tests": 361,
+    "all_suites_passed": true,
+    "native_patch_applies_to_pinned_kodi_source": true,
+    "native_host_branch_tests": 3,
+    "native_ios_compiled": false,
+    "desktop_kodi_rig_available": false,
+    "project_scanner_passed": true,
+    "ios_static_checks_passed": true,
+    "existing_workflow_contract_check_passed": true,
+    "device_tested": false,
+    "ipa_built": false,
+    "notes": [
+      "The C++ checks compile the modified branches with protocol/log stubs, not the entire ActiveAE engine.",
+      "An initial test harness incorrectly treated a void branch as returning int; corrected the harness, all three cases pass.",
+      "No private-source value comparison is possible without the original private source."
+    ],
+    "native_ui_regression_tests": 5
+  },
+  "navigation_benchmark": {
+    "scope": "navigation subsystem only; Linux host, no Kodi renderer or iPhone",
+    "before_ref": "fbedba8c6602c7085d9d19794adb21e9005bdf70",
+    "samples": 5,
+    "calls_per_sample": 2,
+    "metrics": {
+      "before": {
+        "seconds": [
+          0.2728491480002049,
+          0.2606284419998701,
+          0.26603599599980043,
+          0.25223428699996475,
+          0.3001762349999808
+        ],
+        "median_seconds": 0.26603599599980043,
+        "skin_xml_files": 223,
+        "templates": 19
+      },
+      "after": {
+        "seconds": [
+          0.016750632999901427,
+          0.01695413000015833,
+          0.021764663000112705,
+          0.01752235499998278,
+          0.018412464999983058
+        ],
+        "median_seconds": 0.01752235499998278,
+        "skin_xml_files": 223,
+        "templates": 19
+      }
+    }
+  },
+  "suites": [
+    {
+      "suite": "test_startup_sequence",
+      "code": 0,
+      "seconds": 0.107
+    },
+    {
+      "suite": "test_ios_navigation",
+      "code": 0,
+      "seconds": 0.181
+    },
+    {
+      "suite": "test_updates_calibration",
+      "code": 0,
+      "seconds": 0.5
+    },
+    {
+      "suite": "test_drive_upload",
+      "code": 0,
+      "seconds": 1.71
+    },
+    {
+      "suite": "test_settings_search",
+      "code": 0,
+      "seconds": 0.068
+    },
+    {
+      "suite": "test_deck_picker",
+      "code": 0,
+      "seconds": 0.131
+    },
+    {
+      "suite": "test_bundled_bootstrap",
+      "code": 0,
+      "seconds": 0.132
+    },
+    {
+      "suite": "test_portrait",
+      "code": 0,
+      "seconds": 118.944
+    },
+    {
+      "suite": "test_glassbar",
+      "code": 0,
+      "seconds": 0.347
+    },
+    {
+      "suite": "test_notices",
+      "code": 0,
+      "seconds": 2.435
+    },
+    {
+      "suite": "test_pages",
+      "code": 0,
+      "seconds": 5.195
+    },
+    {
+      "suite": "test_airplay_remux",
+      "code": 0,
+      "seconds": 0.108
+    },
+    {
+      "suite": "test_downloaded_play",
+      "code": 0,
+      "seconds": 0.092
+    },
+    {
+      "suite": "test_genre_photos",
+      "code": 0,
+      "seconds": 0.143
+    },
+    {
+      "suite": "test_customized_ipa",
+      "code": 0,
+      "seconds": 0.214
+    },
+    {
+      "suite": "test_import_builder",
+      "code": 0,
+      "seconds": 0.097
+    },
+    {
+      "suite": "test_import_profile",
+      "code": 0,
+      "seconds": 0.183
+    },
+    {
+      "suite": "test_watch_routes",
+      "code": 0,
+      "seconds": 0.06
+    },
+    {
+      "suite": "test_watch_dialog",
+      "code": 0,
+      "seconds": 0.104
+    },
+    {
+      "suite": "test_activation",
+      "code": 0,
+      "seconds": 0.116
+    },
+    {
+      "suite": "test_ios",
+      "code": 0,
+      "seconds": 0.531
+    },
+    {
+      "suite": "test_native_startup",
+      "code": 0,
+      "seconds": 0.41
+    },
+    {
+      "suite": "test_performance_budget",
+      "code": 0,
+      "seconds": 0.181
+    },
+    {
+      "suite": "test_listing_cache",
+      "code": 0,
+      "seconds": 0.383
+    },
+    {
+      "suite": "test_native_ui",
+      "code": 0,
+      "seconds": 0.118
+    }
+  ],
+  "native_artifacts": {
+    "staged_build_tag": "kodi-ios-portrait-r22",
+    "still_pinned_executable": "kodi-ios-portrait-r21",
+    "pin_changed": false
+  },
+  "limitations": [
+    "Navigation timing is a Linux subsystem benchmark, not iPhone launch-to-poster performance.",
+    "The log does not demonstrate a five-second audio resume timeout; the missing reply is verified in source only.",
+    "Poster image decode/render completion and launch before Kodi logging are not measured."
+  ],
+  "owner_observations": {
+    "opening_until_posters_is_slow": true,
+    "bottom_menu_bar_delay_seconds_minimum_reported": 5,
+    "device_timing_retest_performed": false
+  },
+  "native_ui_change": "One lightweight navigation/search worker starts before heavy bootstrap imports, ticks before first sleep, has shared tab actions and fallback/recovery protection; actual device visibility unverified"
+}

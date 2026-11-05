@@ -1,0 +1,25 @@
+--- a/libavformat/mov.c
++++ b/libavformat/mov.c
+@@ -11574,6 +11574,22 @@
+  * Some key sample may be key frames but not IDR frames, so a random access to
+  * them may not be allowed.
+  */
++// Kodi iOS: expose presentation times already held in MOV's sample tables. No media I/O.
++// Public AVIndexEntry timestamps are decode times and can differ per keyframe in open-GOP HEVC.
++int64_t avpriv_kodi_mov_index_pts(AVFormatContext *s, int stream, int sample);
++int64_t avpriv_kodi_mov_index_pts(AVFormatContext *s, int stream, int sample)
++{
++    if (!s || !strstr(s->iformat->name, "mov") || stream < 0 || stream >= s->nb_streams)
++        return AV_NOPTS_VALUE;
++    AVStream *st = s->streams[stream];
++    MOVStreamContext *sc = st->priv_data;
++    const AVIndexEntry *e = avformat_index_get_entry(st, sample);
++    if (!sc || !e) return AV_NOPTS_VALUE;
++    if (sc->ctts_count && sample >= 0 && sample < sc->tts_count)
++        return av_sat_add64(e->timestamp, av_sat_add64(sc->dts_shift, sc->tts_data[sample].offset));
++    return e->timestamp;
++}
++
+ static int can_seek_to_key_sample(AVStream *st, int sample, int64_t requested_pts)
+ {
+     MOVStreamContext *sc = st->priv_data;

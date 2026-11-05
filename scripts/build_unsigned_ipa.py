@@ -7,7 +7,7 @@ from inspect_ios_foundation import macho
 ROOT=Path(__file__).resolve().parents[1]
 MACHO=b'\xcf\xfa\xed\xfe'
 def unsign(data):
- info=macho(data);out=bytearray(data);n,size=struct.unpack_from('<II',data,16);cursor=32;commands=[];removed=0
+ macho(data);out=bytearray(data);n,size=struct.unpack_from('<II',data,16);cursor=32;commands=[];removed=0
  for _ in range(n):
   cmd,length=struct.unpack_from('<II',data,cursor)
   if cmd==0x1d:

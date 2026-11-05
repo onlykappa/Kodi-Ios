@@ -3,12 +3,14 @@
 // decoded (VideoToolbox when FFmpeg has it, else software), scaled to at most 1920x1080 8-bit 4:2:0 SDR and encoded
 // to H.264 High (h264_videotoolbox on the phone) with a fresh closed GOP that starts with an IDR on the segment's
 // first frame, then muxed to fMP4 with absolute tfdt like kr_audio. Modeled on kr_audio. Kodi iOS code.
-// HDR (PQ/HLG, 10-bit) is only range/matrix converted to 8-bit BT.709: no tone mapping or gamut mapping (libswscale
-// has none), so HDR sources look flat, washed out and slightly desaturated. Dolby Vision profile 5 looks wrong.
+// HDR PQ/HLG uses high-precision RGB tone/gamut mapping; SDR hardware frames retain the fast GPU path.
+// Dolby Vision profile 5 requires native compatible playback or a separate RPU-aware renderer.
 #ifndef KR_VIDEO_H
 #define KR_VIDEO_H
 #include "../gmplayer/gm_stream.h"
 typedef struct kr_video kr_video;
+// A seek superseded speculative conversion. Distinct from a decode/read/encode failure.
+#define KR_VIDEO_CANCELLED (-2)
 
 // The CODECS value the master playlist declares for the converted video (H.264 High, level 4.0).
 #define KR_VIDEO_CODECS "avc1.640028"
@@ -41,6 +43,9 @@ int kr_video_pick_stream(gm_stream *s);
 
 // Opens its own demuxer over `src` (a second connection) for video stream `index`.
 kr_video *kr_video_open(gm_source src, int index, char *err, int errlen);
+void kr_video_subtitle_language(kr_video *v, const char *lang);
+// Last embedded subtitle preroll's observed end time, or -1 when no scan was needed.
+double kr_video_subtitle_scan_end(const kr_video *v);
 int kr_video_width(const kr_video *v);   // output size
 int kr_video_height(const kr_video *v);
 int kr_video_hw_decode(const kr_video *v);  // 1 when VideoToolbox decodes
@@ -56,6 +61,7 @@ void kr_video_abort(kr_video *v);
 // r8: makes the conversion in progress (a prefetch the receiver no longer needs after a seek) give up at the next
 // packet; the next conversion runs normally. Any thread.
 void kr_video_cancel(kr_video *v);
+int kr_video_interrupted(const kr_video *v);
 void kr_video_close(kr_video *v);
 // r10: burns subtitles into every converted frame from now on: source text subtitle stream sub_index (>= 0), else
 // the external file (.srt / .vtt / .ass / .ssa). Once per converter (the libass track is kept for the session; other

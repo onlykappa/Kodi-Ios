@@ -1,18 +1,33 @@
-import json,os,sys,time
+import json,os,sys,time,threading
+_IMPORT_STARTED=time.monotonic()
 from pathlib import Path
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
+# Request the navigation UI before importing the setup/generator/provider stack. Recovery runs beside the existing
+# service and must not create a second owner. Every controller/action still has one implementation.
+_EARLY_UI_STARTED=False
+if __name__=='__main__' and not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
+ import xbmc,xbmcvfs
+ if xbmc.getCondVisibility('System.Platform.IOS'):
+  import native_ui
+  threading.Thread(target=native_ui.run,args=(xbmc,xbmcvfs,xbmc.Monitor()),daemon=True).start()
+  _EARLY_UI_STARTED=True
 from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
-import activity,airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready
+import activity,signin_server,airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready
+_IMPORT_SECONDS=time.monotonic()-_IMPORT_STARTED
 
 def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
  if not xbmc.getCondVisibility('System.Platform.IOS'):return
+ begun=time.monotonic()
+ xbmc.log('Kodi iOS startup: bootstrap entered (imports %.3fs)'%_IMPORT_SECONDS,xbmc.LOGINFO)
  monitor=xbmc.Monitor()
  root=Path(__file__).resolve().parent;profile=Path(xbmcvfs.translatePath('special://profile/')).resolve()
  window=xbmcgui.Window(10000);state={'stage':'prepare'};generated=False
- def stage(value):state['stage']=value
+ def stage(value):
+  state['stage']=value
+  xbmc.log('Kodi iOS startup: %s +%.3fs'%(value,time.monotonic()-begun),xbmc.LOGINFO)
  def api(method,params):return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params})))
  def invoke(command):xbmc.executebuiltin(command,True)
  # r11: portrait rows follow the owner's widgets, Continue Watching follows playback, the glass tab bar. Started now:
@@ -21,7 +36,7 @@ def run():
  setup_done=threading.Event()
  # Not for the gear menu's Recover (recover.py runs this with --recover next to the running service).
  if not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
-  portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),kwargs={'ready':setup_done},daemon=True);portrait_thread.start()
+  portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),kwargs={'ready':setup_done,'native_ui_started':_EARLY_UI_STARTED},daemon=True);portrait_thread.start()
  # Owner build-136 log: the tab bar answered ~8 s after launch, 2 s of it this fixed wait. Only setup waits now.
  if monitor.waitForAbort(2):return
  def prepare_generated(sync=True):
@@ -54,7 +69,7 @@ def run():
     if actual!=expected.resolve():raise RuntimeError('Kodi did not select the writable skin copy')
   home=Path(xbmcvfs.translatePath('special://home/')).resolve()
   if not profile.is_relative_to(home):raise RuntimeError('Profile is outside the app home')
-  navigation=upgrade(home,profile)
+  stage('navigation');navigation=upgrade(home,profile)
   # Load the guarded XML before a legacy completed profile runs its helpers again.
   if navigation.get('changed_files') and xbmc.getSkinDir()==FUSE:invoke('ReloadSkin()')
   stage('initialize')
@@ -140,6 +155,8 @@ def run():
   threading.Thread(target=later,daemon=True).start()
  # The bell in the hub headers: unread messages and whether a download or Drive upload runs.
  threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),daemon=True).start()
+ import library_watch
+ threading.Thread(target=library_watch.run,args=(xbmc,xbmcaddon,xbmcvfs,monitor,profile),daemon=True).start()
  # Umbrella's getting-ready-to-play screen: its source text, split into the badges the portrait page shows.
  threading.Thread(target=umbrella_ready.watch,args=(lambda:xbmc.getCondVisibility('Window.IsVisible(%s)'%umbrella_ready.WINDOW),
   lambda:xbmc.getInfoLabel('Control.GetLabel(2001)'),window.setProperty,window.clearProperty,monitor.waitForAbort),daemon=True).start()
@@ -186,17 +203,18 @@ def run():
 
 def drive_uploads(monitor,home,profile):
  """Every two minutes while Kodi is idle: upload kept Elementum videos with the Google Drive add-on's sign-in."""
- import urllib.parse,xbmc,xbmcaddon,xbmcgui,xbmcvfs
+ import urllib.parse,urllib.request,xbmc,xbmcaddon,xbmcgui,xbmcvfs
  if not xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)'):return
  common=xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
  if common not in sys.path:sys.path.append(common)
  from clouddrive.common.account import AccountManager
  from clouddrive.common.remote.request import tls_context
  drive_addon=xbmcaddon.Addon('plugin.googledrive')
+ if signin_server.migrate(drive_addon):xbmc.log('Kodi iOS Drive: sign-in server set to the owner worker',xbmc.LOGINFO)
  accounts=AccountManager(xbmcvfs.translatePath(drive_addon.getAddonInfo('profile')))
  send=driveupload.sender(tls_context())
  def refresh(refresh_token):
-  server=(drive_addon.getSetting('sign-in-server') or 'https://drive.signinserver.com').strip().rstrip('/')
+  server=signin_server.server(drive_addon.getSetting('sign-in-server'))
   body=urllib.parse.urlencode({'provider':'googledrive','refresh_token':refresh_token}).encode()
   status,_,answer=send('POST',server+'/refresh',body,{'Content-Type':'application/x-www-form-urlencoded'})
   if status!=200:raise RuntimeError('Drive sign-in refresh: HTTP %s'%status)
@@ -206,15 +224,29 @@ def drive_uploads(monitor,home,profile):
  state=str(profile/'addon_data/service.kodi.ios.bootstrap/drive-uploads.json')
  idle=lambda:not monitor.abortRequested() and not xbmc.Player().isPlayingVideo()
  log=lambda message:xbmc.log('Kodi iOS '+message,xbmc.LOGINFO)
- while not monitor.waitForAbort(120):
-  if not idle() or not accounts.get_accounts() or not driveupload.pending(root):continue
+ import library_scan
+ # First pass 30 s after start (owner, build 145: the Library was opened, and left, before the old 120 s first pass).
+ delay=30
+ while not monitor.waitForAbort(delay):
+  delay=120
+  if not idle() or not accounts.get_accounts():continue
+  # Finished torrents still seeding in Elementum's folder go to Drive too (owner: nothing should stay on the phone).
+  seeding=[]
   try:
-   count=driveupload.run_once(root,drive,state,log,idle,xbmcaddon.Addon().getSettingBool('drive_upload_delete'))
+   torrents=json.loads(urllib.request.urlopen('http://127.0.0.1:65220/torrents/list',timeout=5).read())
+   download=xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.elementum').getSetting('download_path') or '')
+   if download:seeding=driveupload.seeding_pending(download,torrents)
+  except Exception:seeding=[]
+  waiting=driveupload.pending(root)
+  if not seeding and not waiting:continue
+  log('Drive: %d phone video%s and %d finished torrent file%s to check'%(len(waiting),'' if len(waiting)==1 else 's',len(seeding),'' if len(seeding)==1 else 's'))
+  try:
+   state_dir=str(profile/'addon_data/service.kodi.ios.bootstrap')
+   with driveupload.transfer_lock(state_dir):
+    count=driveupload.run_once(root,drive,state,log,idle,xbmcaddon.Addon().getSettingBool('drive_upload_delete'),
+                             lambda:driveupload.invalidate_library(state_dir),seeding,driveupload.remove_torrent,
+                             remote=lambda:library_scan.remote_files(drive,idle),pace=1)
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))
-   # Library › Movies / TV Shows lists Drive (cached a few minutes): show the new uploads at once.
-   if count:
-    try:os.remove(str(profile/'addon_data/service.kodi.ios.bootstrap/drive-library.json'))
-    except OSError:pass
   except driveupload.Stop:pass
   except Exception as error:
    xbmc.log('Kodi iOS Drive upload paused: %s %s'%(type(error).__name__,error),xbmc.LOGWARNING)
