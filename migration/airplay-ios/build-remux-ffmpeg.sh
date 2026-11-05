@@ -71,7 +71,7 @@ FLAGS=(
   # Text subtitles as WebVTT.
   --enable-decoder=pgssub --enable-decoder=dvdsub --enable-decoder=dvbsub --enable-decoder=xsub
   --enable-decoder=subrip --enable-decoder=srt --enable-decoder=ass --enable-decoder=ssa
-  --enable-decoder=movtext --enable-decoder=webvtt --enable-decoder=text --enable-encoder=webvtt
+  --enable-decoder=movtext --enable-decoder=webvtt --enable-decoder=text --enable-encoder=webvtt --enable-encoder=movtext
   # Picture bridge: native decoders plus pinned dav1d for AV1 fallback on all devices.
   --enable-libdav1d --enable-decoder=libdav1d
   --enable-decoder=hevc --enable-decoder=h264 --enable-decoder=vp9 --enable-decoder=vp8 --enable-decoder=mpeg2video

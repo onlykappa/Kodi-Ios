@@ -43,6 +43,8 @@ int kr_video_pick_stream(gm_stream *s);
 
 // Opens its own demuxer over `src` (a second connection) for video stream `index`.
 kr_video *kr_video_open(gm_source src, int index, char *err, int errlen);
+// Offline preparation only: keep the selected source's dimensions (never the live 1080p limit).
+void kr_video_keep_resolution(kr_video *v);
 void kr_video_subtitle_language(kr_video *v, const char *lang);
 // Last embedded subtitle preroll's observed end time, or -1 when no scan was needed.
 double kr_video_subtitle_scan_end(const kr_video *v);

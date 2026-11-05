@@ -140,7 +140,8 @@ def note(kind,title,text='',action=''):
 
 def badge(profile,get=None):
  """What the bell shows: (unread count as text, '' when none; 'true' while a download runs, else '')."""
- count=unread(profile);active=any(not d['paused'] for d in downloads(get)) or bool(uploads(profile))
+ import prepare_downloads
+ count=unread(profile);active=any(not d['paused'] for d in downloads(get)) or bool(uploads(profile)) or any(c.get('running') for c in prepare_downloads.cards(profile))
  return (str(min(count,99)) if count else '','true' if active else '')
 
 def publish(window,profile,wait,busy=lambda:False,every=3):

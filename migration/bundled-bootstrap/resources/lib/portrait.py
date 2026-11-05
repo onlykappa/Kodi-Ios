@@ -941,6 +941,8 @@ def notices_page():
   '<control type="grouplist" id="9300"><left>0</left><top>400</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%WIDTH+
   section('Downloading',has('has.dl'),P('dl.summary'))+''.join(card(n) for n in range(1,NOTICE_SLOTS+1))+
   section('Uploading to Google Drive',has('has.up'))+upload+
+  section('Preparing for Kodi and AirPlay',has('has.prepare'))+
+  upload.replace('up.title','prepare.title').replace('up.folder','prepare.summary').replace('up.line','prepare.line').replace('id="9430"','id="9431"').replace('then off the phone','one file · source resolution')+
   section('Earlier',has('has.msg'))+''.join(row(n) for n in range(1,NOTICE_ROWS+1))+
   '<control type="group"><width>%d</width><height>300</height><visible>%s</visible>'%(WIDTH,has('empty'))+
   label(SIDE,80,w,80,"You're all caught up",'p_h3',GREY,'center')+'</control>'+

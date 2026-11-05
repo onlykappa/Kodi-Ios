@@ -1,0 +1,51 @@
+{
+  "status": "implementation_in_native_and_host_validation",
+  "requirements": {
+    "startup_scan": true,
+    "post_upload_third_step": true,
+    "trackable_progress": true,
+    "one_drive_file_same_id": true,
+    "source_resolution_preserved": true,
+    "compatible_hdr_preserved": true,
+    "no_permanent_airplay_variant": true
+  },
+  "raw_owner_log_published": false,
+  "log_findings": {
+    "updated_framework_diagnostics_present": true,
+    "forward_target_segment": 183,
+    "target_lane_wait_ms": 20812,
+    "preceding_segment_total_ms": 20770,
+    "preceding_segment_source_io_ms": 17712,
+    "player_stops_before_target_completes": true
+  },
+  "validation_so_far": {
+    "focused_native_checks": 7928,
+    "focused_native_failures": 0,
+    "python_preparation_tests": 18,
+    "python_preparation_failures": 0,
+    "notifications_tests": 14,
+    "airplay_routing_static_tests": 27,
+    "project_check": true,
+    "full_native_suite": "in progress",
+    "iphoneos_framework": "pending"
+  },
+  "failures_and_fixes": [
+    {
+      "failure": "Initial queue fixture required more free space than the test executor; notifications had one indentation error.",
+      "fix": "Mocked disk capacity for synthetic success cases, retained explicit low-space rejection, corrected indentation.",
+      "retest": "18 queue tests and 14 notifications tests pass."
+    },
+    {
+      "failure": "Existing native stop regression observed 5.27 seconds during concurrent fixture runs.",
+      "fix": "Register and shut down active sockets and wait for request completion before freeing session state; add idle-client regression.",
+      "retest": "Full native suite pending."
+    }
+  ],
+  "device_verified": false,
+  "ipa_delivered": false,
+  "limitations": [
+    "Temporary working space is required for one movie at a time.",
+    "Unpreservable bitmap tracks or HDR conversions retain the original rather than silently dropping tracks or reducing quality.",
+    "Receiver codec/HDR support and end-to-end iPhone/Drive/Roku behavior require a new device retest."
+  ]
+}
