@@ -1,0 +1,127 @@
+{
+  "status": "test_ipa_published_and_verified_device_retest_pending",
+  "requirements": {
+    "startup_scan": true,
+    "post_upload_third_step": true,
+    "trackable_progress": true,
+    "one_drive_file_same_id": true,
+    "source_resolution_preserved": true,
+    "compatible_hdr_preserved": true,
+    "no_permanent_airplay_variant": true
+  },
+  "raw_owner_log_published": false,
+  "log_findings": {
+    "updated_framework_diagnostics_present": true,
+    "forward_target_segment": 183,
+    "target_lane_wait_ms": 20812,
+    "preceding_segment_total_ms": 20770,
+    "preceding_segment_source_io_ms": 17712,
+    "player_stops_before_target_completes": true
+  },
+  "validation_so_far": {
+    "focused_native_checks": 7928,
+    "focused_native_failures": 0,
+    "python_preparation_tests": 26,
+    "python_preparation_failures": 0,
+    "notifications_tests": 14,
+    "airplay_routing_static_tests": 27,
+    "project_check": true,
+    "full_native_suite": {
+      "checks": 9311,
+      "failures": 0,
+      "source": "e9beab07abec11eaee926045ff9d09856a41127d"
+    },
+    "iphoneos_framework": {
+      "status": "success",
+      "run": 42099308207,
+      "source": "c7a5e1250a5ad53854674dc453dcbf368de53c5a",
+      "artifact": 13449371029,
+      "archive_sha256": "e5e45d2ea2c08208127fba5ad9d9bcde0da0f0a7f16db994c869cd233ca7dce2",
+      "artifact_digest_verified": true,
+      "arm64": true,
+      "new_exports_and_final_code_markers_verified": true
+    },
+    "final_focused_native": {
+      "checks": 208,
+      "failures": 0
+    },
+    "portrait_tests": 44,
+    "pages_tests": 18,
+    "settings_search_tests": 5,
+    "upload_tests": 17,
+    "library_scan_tests": 31,
+    "performance_tests": 13,
+    "bootstrap_tests": 15,
+    "final_clean_host_ci": {
+      "run": 42099308207,
+      "checks": 1579,
+      "failures": 0,
+      "status": "success"
+    },
+    "customized_ipa_tests": 10,
+    "import_builder_tests": 13,
+    "glassbar_tests": 25
+  },
+  "failures_and_fixes": [
+    {
+      "failure": "Initial queue fixture required more free space than the test executor; notifications had one indentation error.",
+      "fix": "Mocked disk capacity for synthetic success cases, retained explicit low-space rejection, corrected indentation.",
+      "retest": "18 queue tests and 14 notifications tests pass."
+    },
+    {
+      "failure": "Existing native stop regression observed 5.27 seconds during concurrent fixture runs.",
+      "fix": "Register and shut down active sockets and wait for request completion before freeing session state; add idle-client regression.",
+      "retest": "Full local suite passes, final clean native CI passes 1579 checks; idle-client shutdown regression passes."
+    },
+    {
+      "failure": "Local customized-IPA regression requires CPython 3.11, absent from initial executor.",
+      "fix": "Use a task-local CPython 3.11; CI already configures this version.",
+      "retest": "All 10 customized-IPA regressions pass with task-local CPython 3.11.17."
+    },
+    {
+      "failure": "Workspace release upload returned HTTP 401 at uploads.github.com after validation.",
+      "fix": "Publish the exact verified candidate through a short Actions job with run-provenance and pinned SHA256 checks; no rebuild or unverified substitution.",
+      "retest": "Publication run 42100250341 passed. Downloaded r13 asset equals the verified candidate byte-for-byte."
+    }
+  ],
+  "device_verified": false,
+  "ipa_delivered": true,
+  "limitations": [
+    "Temporary working space is required for one movie at a time.",
+    "Unpreservable bitmap tracks or HDR conversions retain the original rather than silently dropping tracks or reducing quality.",
+    "Receiver codec/HDR support and end-to-end iPhone/Drive/Roku behavior require a new device retest."
+  ],
+  "framework_release": {
+    "tag": "kodi-airplay-r13",
+    "archive_sha256": "e5e45d2ea2c08208127fba5ad9d9bcde0da0f0a7f16db994c869cd233ca7dce2",
+    "published_asset_equals_verified_candidate": true,
+    "publication_run": 42100250341
+  },
+  "ipa": {
+    "run": 42100422540,
+    "build": 152,
+    "source": "cf2ef5ddc1c2bd1f5a26e383094fa81ef5b51443",
+    "status": "success; published and independently downloaded/verified",
+    "download_url": "https://github.com/onlykappa/Kodi-Ios/releases/download/build-152/Kodi-iOS-Customized-Touch-r10.ipa"
+  },
+  "ipa_verification": {
+    "zip_integrity": true,
+    "verified_r23_executable": true,
+    "KodiAirPlay_matches_verified_release": true,
+    "KodiGlassBar_matches_verified_release": true,
+    "preparation_worker_matches_tested_source": true,
+    "preparation_precompiled_for_python311": true,
+    "startup_preparation_enabled_by_default": true,
+    "notification_preparation_progress_included": true,
+    "startup_and_post_upload_scan_included": true,
+    "unsigned_unencrypted_arm64_images": 154,
+    "ipa_sha256": "3b5a50c338277aca77256b0926ca62fe47892b2aa8e3b8047394319becd634b2",
+    "ipa_bytes": 619464663,
+    "device_verified": false
+  },
+  "next": [
+    "Owner installs build-152 as an update and opens Kodi while signed into Drive.",
+    "Observe preparation in Notifications > Downloads; let the selected movie finish, then repeat the long AirPlay seek.",
+    "Verify selected 4K/1080p resolution and HDR on the actual receiver."
+  ]
+}

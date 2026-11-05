@@ -2,7 +2,7 @@
 earlier messages. The layout is portrait/IOSNotifications.xml, written by portrait.py; this fills it."""
 import os,sys,threading
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
-import notices
+import notices,prepare_downloads
 
 ICON={'download':('download.png','330A84FF'),'drive':('circle-check.png','3330D158'),'problem':('triangle-exclamation.png','33FF453A'),
       'update':('circle-down.png','330A84FF'),'info':('circle-info.png','33FF9F0A'),'general':('bell.png','338E8E93')}
@@ -55,13 +55,20 @@ def run():
    props,self.shown=message_properties(self.items,self.filter)
    props['filter']=self.filter;self.set_all(props);self.update_empty()
   def update_empty(self):
-   live=self.filter in ('all','downloads') and (self.getProperty('has.dl') or self.getProperty('has.up'))
+   live=self.filter in ('all','downloads') and (self.getProperty('has.dl') or self.getProperty('has.up') or self.getProperty('has.prepare'))
    self.setProperty('empty','' if (self.shown or live) else 'true')
   def refresh(self):
    with self.lock:
     show_live=self.filter in ('all','downloads')
     self.downloads=notices.downloads() if show_live else [];ups=notices.uploads(profile) if show_live else []
     self.set_all(card_properties(self.downloads,ups))
+    preparing=prepare_downloads.cards(profile) if show_live else []
+    current=preparing[0] if preparing else {}
+    self.setProperty('has.prepare','true' if preparing else '')
+    for key in ('title','line'):self.setProperty('prepare.'+key,str(current.get(key,'')))
+    queued=current.get('queued',0)
+    self.setProperty('prepare.summary',('Download → Drive → Prepare'+(' · %d remaining'%queued if queued else '')) if preparing else '')
+    self.percent(9431,current.get('progress',0))
     for n in range(1,SLOTS+1):
      if n<=len(self.downloads):self.percent(9400+n,self.downloads[n-1]['progress'])
     if ups:self.percent(9430,ups[0]['progress'])

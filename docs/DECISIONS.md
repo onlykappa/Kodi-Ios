@@ -103,3 +103,7 @@ The owner explicitly authorized merging the iOS work into `main` once the r13 bu
 ## DEC-025 — Merge PR #8 and publish a fresh test IPA
 
 Owner explicitly requests: "merge pr 8 so we can start fresh and push me ipa for testing". This authorizes merging the completed draft and the native build/release/pin plus IPA delivery needed to test all changes, superseding the prior no-merge/no-IPA restriction for this delivery. The new show-scroll/parent-row patch is not in r22: build unique r23, verify binary/release/provenance, then pin r23 and publish the test IPA. Avoid a misleading intermediate IPA from the old native pin by skipping merge-triggered CI and starting the native build first. Preserve AirPlay r12/GlassBar r5 and owner data; no branch deletion or device-success claim is implied.
+
+## DEC-028 — Duplicates: the extra copy is deleted; check before downloading
+
+Owner (2026-11-05), on "Lanterns" and "Lanterns (2026)" each holding S1 E1: "it should be deleted", and yes to a duplicate check before Elementum downloads. The extra copy is removed only after the kept copy is confirmed on Drive. Drive copies go to Drive's Trash (restorable for 30 days), never a permanent delete. Phone copies are removed under the existing "remove phone copies after upload" setting. Copies with different named years are never treated as duplicates. Details: ISSUE-103. No merge or release implied.

@@ -110,3 +110,18 @@ def download_each(episodes,start,wait,get=None,per_episode=300):
    if wait():return added
    if torrents(get)-before:added.append(n);break
  return added
+
+
+# --- already downloaded? (owner, build 152: check for duplicates before downloading) -----------------------------
+def where(copy):
+ return 'on this iPhone' if (copy or {}).get('source')=='local' else 'on Google Drive'
+
+def mark_owned(labels,owned):
+ """Episode chooser labels with the ones already downloaded marked."""
+ return ['%s  ·  Downloaded'%label if have else label for label,have in zip(labels,owned)]
+
+def season_question(season,owned,total):
+ """(heading, text) asking before a whole-season download, or None when nothing of it is downloaded yet."""
+ if not owned:return None
+ if owned>=total:return ('Already downloaded','All %d episodes of season %s are already downloaded. Download the season again?'%(total,season))
+ return ('Some already downloaded','%d of %d episodes of season %s are already downloaded. Elementum downloads the whole season. Download it?'%(owned,total,season))

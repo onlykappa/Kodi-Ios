@@ -157,6 +157,11 @@ def run():
   threading.Thread(target=later,daemon=True).start()
  # The bell in the hub headers: unread messages and whether a download or Drive upload runs.
  threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),daemon=True).start()
+ # A torrent whose real name turns out to be another film (owner, build 156: Fall 2022 → Fall.2.Deadpoint.2026) is
+ # stopped once Elementum knows its name, and explained in Notifications.
+ import source_guard
+ threading.Thread(target=source_guard.run,args=(window,notices.torrent_list,driveupload.remove_torrent,
+  lambda title,text:notices.add(profile,'problem',title,text),monitor.waitForAbort),daemon=True).start()
  import library_watch
  threading.Thread(target=library_watch.run,args=(xbmc,xbmcaddon,xbmcvfs,monitor,profile),daemon=True).start()
  # Umbrella's getting-ready-to-play screen: its source text, split into the badges the portrait page shows.
@@ -181,7 +186,7 @@ def run():
   lambda text:notices.add(profile,'problem','Elementum Burst',text),monitor.waitForAbort),kwargs={'posters':posters},daemon=True).start()
  # Kept Elementum videos go to Google Drive in the background, never during playback.
  try:
-  if xbmcaddon.Addon().getSettingBool('drive_upload'):
+  if xbmcaddon.Addon().getSettingBool('drive_upload') or xbmcaddon.Addon().getSettingBool('prepare_downloads'):
    threading.Thread(target=drive_uploads,args=(monitor,home,profile),daemon=True).start()
  except Exception as error:xbmc.log('Kodi iOS Drive upload unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  # Downloads and Drive uploads keep going when Kodi leaves the screen (KodiAirPlay r3 plays silence meanwhile).
@@ -193,7 +198,9 @@ def run():
    def why():
     if xbmc.Player().isPlayingAudio():return ''  # Kodi's own music keeps it running; the silence would make it mixable
     uploading=xbmcaddon.Addon().getSettingBool('drive_upload') and xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)')
-    return background.reason(notices.downloads(),notices.uploads(profile),uploading and background.videos_waiting(kept))
+    import prepare_downloads
+    preparing=any(card.get('running') for card in prepare_downloads.cards(profile))
+    return ('video preparation' if preparing else background.reason(notices.downloads(),notices.uploads(profile),uploading and background.videos_waiting(kept)))
    threading.Thread(target=background.watch,args=(lib.kodi_background_keep,why,monitor.waitForAbort,lambda m:xbmc.log(m,xbmc.LOGINFO)),daemon=True).start()
  except Exception as error:xbmc.log('Kodi iOS background transfers unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  # r6: the AirPlay stream's requests, CODECS and Apple's player events into kodi.log (owner build-133: sound only).
@@ -212,7 +219,7 @@ def run():
  while not monitor.waitForAbort(60):pass
 
 def drive_uploads(monitor,home,profile):
- """Every two minutes while Kodi is idle: upload kept Elementum videos with the Google Drive add-on's sign-in."""
+ """Idle-only download → upload → one-file preparation. Startup scan and new uploads share one queue/lock."""
  import urllib.parse,urllib.request,xbmc,xbmcaddon,xbmcgui,xbmcvfs
  if not xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)'):return
  common=xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
@@ -234,9 +241,17 @@ def drive_uploads(monitor,home,profile):
  state=str(profile/'addon_data/service.kodi.ios.bootstrap/drive-uploads.json')
  idle=lambda:not monitor.abortRequested() and not xbmc.Player().isPlayingVideo()
  log=lambda message:xbmc.log('Kodi iOS '+message,xbmc.LOGINFO)
- import library_scan
+ import library_scan,prepare_downloads
+ preparation=None
+ def preparation_queue():
+  path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
+  if not path:raise RuntimeError('AirPlay preparation framework is missing')
+  native=prepare_downloads.Native(airplay.load(path))
+  return prepare_downloads.Queue(profile,drive,native,
+    download_file=lambda *args:prepare_downloads.download(*args,context=tls_context()),
+    notify=lambda kind,title,text:notices.add(profile,kind,title,text))
  # First pass 30 s after start (owner, build 145: the Library was opened, and left, before the old 120 s first pass).
- delay=30
+ delay=5
  while not monitor.waitForAbort(delay):
   delay=120
   if not idle() or not accounts.get_accounts():continue
@@ -248,17 +263,29 @@ def drive_uploads(monitor,home,profile):
    if download:seeding=driveupload.seeding_pending(download,torrents)
   except Exception:seeding=[]
   waiting=driveupload.pending(root)
-  if not seeding and not waiting:continue
-  log('Drive: %d phone video%s and %d finished torrent file%s to check'%(len(waiting),'' if len(waiting)==1 else 's',len(seeding),'' if len(seeding)==1 else 's'))
+  if waiting or seeding:log('Drive: %d phone video%s and %d finished torrent file%s to check'%(len(waiting),'' if len(waiting)==1 else 's',len(seeding),'' if len(seeding)==1 else 's'))
   try:
    state_dir=str(profile/'addon_data/service.kodi.ios.bootstrap')
    with driveupload.transfer_lock(state_dir):
-    count=driveupload.run_once(root,drive,state,log,idle,xbmcaddon.Addon().getSettingBool('drive_upload_delete'),
-                             lambda:driveupload.invalidate_library(state_dir),seeding,driveupload.remove_torrent,
-                             remote=lambda:library_scan.remote_files(drive,idle),pace=1)
+    count=0
+    if (waiting or seeding) and xbmcaddon.Addon().getSettingBool('drive_upload'):
+     count=driveupload.run_once(root,drive,state,log,idle,xbmcaddon.Addon().getSettingBool('drive_upload_delete'),
+                              lambda:driveupload.invalidate_library(state_dir),seeding,driveupload.remove_torrent,
+                              remote=lambda:library_scan.remote_files(drive,idle),pace=1,
+                              notify=lambda title,text:notices.add(profile,'drive',title,text))
+    if xbmcaddon.Addon().getSettingBool('prepare_downloads'):
+     if preparation is None:preparation=preparation_queue()
+     can_prepare=lambda:idle() and xbmcaddon.Addon().getSettingBool('prepare_downloads')
+     preparation.scan(can_prepare,force=bool(count))
+     # Settings › Library › Check library for conversion: the current video pauses (it resumes where it was) so
+     # the check runs within seconds instead of after a long conversion.
+     converting=lambda:can_prepare() and not prepare_downloads.check_requested(profile)
+     if preparation.process_one(converting):delay=2
+     else:delay=30
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))
   except driveupload.Stop:pass
   except Exception as error:
    xbmc.log('Kodi iOS Drive upload paused: %s %s'%(type(error).__name__,error),xbmc.LOGWARNING)
    notices.add(profile,'problem','Google Drive upload paused',str(error)[:160])
+  if prepare_downloads.check_requested(profile):delay=5
 if __name__=='__main__':run()
