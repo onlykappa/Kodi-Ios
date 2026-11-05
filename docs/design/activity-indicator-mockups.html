@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Download Indicator Mockups</title>
+<title>Activity Indicator Mockups</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -313,7 +313,7 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
 .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.06em;padding:3px 8px;border-radius:6px;margin-bottom:8px}
 .tag.a{background:rgba(48,209,88,.16);color:#30d158}.tag.b{background:rgba(10,132,255,.16);color:#64b5ff}.tag.c{background:rgba(142,142,147,.2);color:#aeaeb2}
 
-/* ---------- round 3: download indicator ---------- */
+
 .dl{position:absolute;left:14px;right:14px;z-index:22;height:62px;border-radius:31px;display:flex;align-items:center;gap:11px;padding:0 10px 0 8px;
  background:rgba(36,36,40,.82);backdrop-filter:blur(26px) saturate(1.6);-webkit-backdrop-filter:blur(26px) saturate(1.6);
  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.18),0 10px 30px rgba(0,0,0,.55);overflow:hidden}
@@ -337,7 +337,7 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
 .dl.compact .ring,.dl.compact .ring svg{width:34px;height:34px}
 .dl.compact .ring span{font-size:10px}
 .dl.compact .t b{font-size:13.5px}
-.dl.island{top:52px;left:50%;transform:translateX(-50%);width:236px;height:38px;border-radius:19px;background:#000;box-shadow:inset 0 0 0 .5px rgba(255,255,255,.1),0 6px 18px rgba(0,0,0,.6);padding:0 12px 0 5px;z-index:40}
+.dl.island{top:12px;left:50%;transform:translateX(-50%);width:250px;height:37px;border-radius:20px;background:#000;box-shadow:none;padding:0 12px 0 6px;z-index:40}
 .dl.island .ring,.dl.island .ring svg{width:28px;height:28px}
 .dl.island .ring span{font-size:0}
 .dl.island .t b{font-size:12.5px}
@@ -411,6 +411,63 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
 .vcenter i{width:64px;height:64px;border-radius:50%;background:rgba(40,40,44,.6);display:grid;place-items:center}
 .vcenter i.big{width:86px;height:86px}
 .vcenter svg{width:30px;height:30px}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+.dl .spinring{animation:spin 1s linear infinite}
+@keyframes sweep{from{transform:translateX(-100%)}to{transform:translateX(340%)}}
+.act-row .bar.ind i{animation:sweep 1.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.dl .spinring,.act-row .bar.ind i{animation:none}}
+
+/* ---------- round 3b: activity pill for every background job ---------- */
+.dl .tile{width:44px;height:44px;border-radius:12px;flex:none;display:grid;place-items:center;position:relative;color:#fff}
+.dl .tile svg{width:22px;height:22px}
+.dl .tile .mini{position:absolute;right:-5px;bottom:-5px;width:22px;height:22px}
+.dl .tile .mini svg{width:22px;height:22px;transform:rotate(-90deg)}
+.dl .stack{display:flex;flex:none;padding-left:4px}
+.dl .stack .tile{width:34px;height:34px;border-radius:10px;margin-left:-10px;box-shadow:0 0 0 2.5px #2a2a2e}
+.dl .stack .tile svg{width:17px;height:17px}
+.dl .spinring{width:26px;height:26px;border-radius:50%;border:3px solid rgba(255,255,255,.16);border-top-color:#fff;flex:none;margin-right:6px}
+.dl .pctv{font-size:14px;font-weight:800;margin-right:6px;flex:none}
+.sheet2{position:absolute;left:8px;right:8px;bottom:8px;z-index:30;border-radius:40px;padding:10px 0 18px;background:rgba(30,30,34,.94);
+ backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);box-shadow:inset 0 0 0 .5px rgba(255,255,255,.16),0 -10px 40px rgba(0,0,0,.6)}
+.sheet2 .grab{width:38px;height:5px;border-radius:3px;background:rgba(255,255,255,.3);margin:0 auto 10px}
+.sheet2 .sh2{display:flex;align-items:center;padding:0 20px 8px}
+.sheet2 .sh2 b{flex:1;font-size:20px;font-weight:800}
+.sheet2 .sh2 span{color:var(--blue);font-weight:600;font-size:16px}
+.act-row{display:flex;align-items:center;gap:12px;padding:11px 20px}
+.act-row + .act-row{box-shadow:inset 0 .5px 0 rgba(255,255,255,.1)}
+.act-row .tile{width:42px;height:42px;border-radius:11px;flex:none;display:grid;place-items:center;color:#fff}
+.act-row .tile svg{width:21px;height:21px}
+.act-row .tx{flex:1;min-width:0}
+.act-row .tx b{display:block;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.act-row .tx span{display:block;font-size:12.5px;color:var(--label2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.act-row .bar{height:5px;border-radius:3px;background:rgba(255,255,255,.14);margin-top:7px;overflow:hidden}
+.act-row .bar i{display:block;height:100%;border-radius:3px}
+.act-row .bar.ind i{width:30%;background:linear-gradient(90deg,transparent,#fff,transparent)}
+.act-row .btn{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.12);display:grid;place-items:center;flex:none}
+.act-row .btn svg{width:15px;height:15px}
+.dimall{position:absolute;inset:0;background:rgba(0,0,0,.45);z-index:29}
+.finding{max-width:1150px;margin:0 auto;padding:0 16px 10px}
+.finding h2{font-size:26px;font-weight:800;margin:10px 0 6px}
+.finding > p{color:var(--label2);font-size:15px;line-height:1.5;margin-bottom:14px;max-width:900px}
+.srcgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px}
+.src{background:var(--cell);border-radius:20px;padding:16px}
+.src .hd{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.src .hd .tile{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:#fff}
+.src .hd .tile svg{width:19px;height:19px}
+.src .hd b{font-size:16px}
+.src .hd span{display:block;font-size:12px;color:var(--label2)}
+.src ul{list-style:none;font-size:13px;line-height:1.55;color:#d1d1d6}
+.src li{padding:3px 0;border-top:.5px solid #2c2c2e}
+.src li:first-child{border-top:none}
+.src code{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:#ffd60a;background:#2a2a1e;border-radius:5px;padding:1px 5px}
+.rw{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px;background:var(--cell);border-radius:18px;overflow:hidden}
+.rw th{text-align:left;color:var(--label2);font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:12px 14px;background:#232326}
+.rw td{padding:11px 14px;border-top:.5px solid #2c2c2e;vertical-align:top}
+.rw td:first-child{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#ffd60a;width:46%}
+.rw td b{display:block}
+.rw td span{color:var(--label2);font-size:12.5px}
+.tablewrap{overflow-x:auto}
 </style>
 </head>
 <body>
@@ -497,94 +554,121 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
 <symbol id="fwd10" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4v4.5H15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="xmark" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
 </svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="library" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3.5" y="4" width="4" height="16" rx="1"/><rect x="9.5" y="4" width="4" height="16" rx="1"/><path d="M15.5 5.2l3.7-1 3.3 15.5-3.7.8z"/></g></symbol>
+<symbol id="copy" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="8" y="8" width="12.5" height="12.5" rx="2.5"/><path d="M16 8V5.5A2 2 0 0 0 14 3.5H5.5a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2H8"/></g></symbol>
+<symbol id="antenna" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="10" r="2"/><path d="M12 12v9M7.5 5.5a6.5 6.5 0 0 0 0 9M16.5 5.5a6.5 6.5 0 0 1 0 9M4.5 3a10 10 0 0 0 0 14M19.5 3a10 10 0 0 1 0 14"/></g></symbol>
+<symbol id="fire" viewBox="0 0 24 24"><path d="M12 2.5c1 3.5 5.5 5.5 5.5 10.5a5.5 5.5 0 0 1-11 0c0-2.5 1.2-4 2.5-5 0 2 1 3 2 3.5C11 9 11 5.5 12 2.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+</svg>
 
 <header class="intro">
-  <div class="eyebrow">Kodi for iOS · Design mockups · round 3</div>
-  <h1>Downloads, where you can see them</h1>
-  <p>Today Elementum's download shows as Kodi's background progress box: Fuse's tiny landscape strip ("Elementum · INCEPTION.2010.PROPER.BLURAY.2… - 446 KB/S - 0 B/S - 10%") squeezed into whatever page is open, in a different spot on each one. This replaces it with <b>one glass pill</b> that always sits in the same place: just above the tab bar, or at the bottom of pages without one. It shows a progress ring, the movie's name instead of the file name, speed and time left. Tap it to open Notifications › Downloads, or tap ❚❚ to pause.</p>
+  <div class="eyebrow">Kodi for iOS · Design mockups · round 3 (revised)</div>
+  <h1>One activity pill for everything running in the background</h1>
+  <p>That loader is Kodi's <b>background progress box</b> (Kodi calls it <i>DialogExtendedProgressBar</i>; add-ons open it with <i>DialogProgressBG</i>). It isn't only Elementum: Kodi itself, Elementum, Burst, Umbrella, TMDb Helper and Skin Variables all write into it. It has room for a heading, one line of text and a progress bar. When several jobs run, Kodi <b>flips between them every 2 seconds</b>. On the phone it is Fuse's landscape strip shrunk into whatever page is open, which is why it's tiny and turns up everywhere. These mockups replace it with one activity pill. It shows who is working (an app tile), what it's doing in plain words, and real progress. With several jobs it shows them all at once instead of flipping, and tapping it opens a sheet listing every job.</p>
   <nav class="chips">
-    <a href="#p-home">Home</a><a href="#p-movies">Movies</a><a href="#p-tv">TV show page</a><a href="#p-library">Library</a>
-    <a href="#p-search">Search</a><a href="#p-info">Info page</a><a href="#p-settings">Settings</a><a href="#p-notices">Notifications</a>
-    <a href="#p-umbrella">Umbrella</a><a href="#p-video">Video</a><a href="#states">All states</a><a href="#compare">Other placement</a>
+    <a href="#found">What uses it</a><a href="#p-home">Home · launch</a><a href="#p-movies">Movies · Umbrella</a><a href="#p-tv">Show · Elementum</a>
+    <a href="#p-library">Library · scan</a><a href="#p-search">Search · download</a><a href="#p-info">Info · TMDb</a><a href="#p-addons">Add-ons · install</a>
+    <a href="#p-files">Files · copy</a><a href="#p-sheet">Several at once</a><a href="#p-umbrella">Full-screen</a><a href="#p-video">Video</a>
+    <a href="#p-notices">Notifications</a><a href="#p-settings">Settings</a><a href="#states">States</a><a href="#rewrite">Wording</a>
   </nav>
 </header>
 
+<section class="finding" id="found">
+ <h2>What shows this box on your phone</h2>
+ <p>Found by reading Kodi 21's source and the add-ons in your setup. The yellow text is exactly what each one sends to the box today.</p>
+ <div class="srcgrid">
+  <div class="src"><div class="hd"><div class="tile" style="background:#2a6cdf"><svg><use href="#library"/></svg></div><div><b>Kodi</b><span>built in</span></div></div><ul>
+   <li>Add-on update check at every start: <code>Checking for add-on updates</code></li>
+   <li>Installing or updating an add-on: <code>Installing Umbrella...</code> then <code>Downloading add-on...</code>, <code>Verifying downloaded add-on...</code>, <code>Checking dependencies...</code></li>
+   <li>Library scan: <code>Scanning movies using The Movie Database</code> plus each title, <code>Scanning for new content</code>, <code>Compressing database...</code></li>
+   <li>File Manager in the background: <code>Copy</code> / <code>Move</code> / <code>Delete</code> plus the file name</li>
+   <li>Live TV: <code>Importing guide from clients</code></li></ul></div>
+  <div class="src"><div class="hd"><div class="tile" style="background:#1f6feb"><svg><use href="#magnet"/></svg></div><div><b>Elementum</b><span>engine and add-on</span></div></div><ul>
+   <li>Downloads, every torrent in turn: <code>INCEPTION.2010.PROPER.BLURAY.2... - 446 kB/s - 0 B/s</code></li>
+   <li>Between them, a total: <code>Total - D/L: 1.2 MB/s - U/L: 80 kB/s</code></li>
+   <li>Before playing: <code>Resolving torrent files...</code>, <code>Scraping trackers...</code>, <code>Resolving magnet link</code></li>
+   <li>Log upload: <code>Uploading file to pastebin</code></li></ul></div>
+  <div class="src"><div class="hd"><div class="tile" style="background:#ff6b00"><svg><use href="#fire"/></svg></div><div><b>Elementum Burst</b><span>torrent search</span></div></div><ul>
+   <li>Each search: <code>Starting...</code>, then <code>7 providers left</code> … <code>1 provider left</code></li>
+   <li>Provider errors, in a second box: <code>Elementum Burst errors</code> plus the provider names</li>
+   <li><code>Syncing cookies ...</code></li></ul></div>
+  <div class="src"><div class="hd"><div class="tile" style="background:#7d3cff"><svg><use href="#umbrella2"/></svg></div><div><b>Umbrella</b><span>sources and sync</span></div></div><ul>
+   <li>Scraping in background mode: <code>Preparing sources</code>, then <code>4K: 3 | 1080p: 5 | 720p: 2 | SD: 1</code> and the providers left</li>
+   <li>Resolving when its own window can't open: <code>Resolving...</code> plus the file name</li>
+   <li>Trakt watched sync for a show; TorBox and Offcloud: <code>Clearing cloud files</code></li></ul></div>
+  <div class="src"><div class="hd"><div class="tile" style="background:#01b4e4"><svg><use href="#film"/></svg></div><div><b>TMDb Helper</b><span>Home rows</span></div></div><ul>
+   <li>Adding to Kodi's library: <code>TMDbHelper Library</code></li>
+   <li>Tagging library items: <code>TMDbHelper Tagger</code></li></ul></div>
+  <div class="src"><div class="hd"><div class="tile" style="background:#636366"><svg><use href="#layers"/></svg></div><div><b>Skin Variables</b><span>Fuse's helper</span></div></div><ul>
+   <li>After menu or widget changes: <code>Skin Variables</code>, <code>Skin Viewtypes</code> · <code>Constructing Viewtypes...</code></li></ul></div>
+ </div>
+</section>
+
 <main class="grid">
 
-<!-- HOME -->
+<!-- HOME at launch -->
 <figure id="p-home">
 <div class="phone"><div class="screen">
  <div class="pg">
-  <div class="hdr"><h3>Home</h3><div class="cb active"><svg><use href="#bell"/></svg></div><div class="cb"><svg><use href="#person"/></svg></div></div>
+  <div class="hdr"><h3>Home</h3><div class="cb"><svg><use href="#bell"/></svg></div><div class="cb"><svg><use href="#person"/></svg></div></div>
   <div class="herocard"><b>Inception</b><i>▶ Play</i></div>
-  <div class="rowt">Continue Watching</div>
-  <div class="cards"><i></i><i style="--a:#4a2f2f;--b:#170e0e"></i></div>
-  <div class="rowt">Trending Movies</div>
-  <div class="posters"><i></i><i style="--a:#2d4a3b;--b:#0e1712"></i><i style="--a:#4a432d;--b:#17150e"></i><i></i></div>
+  <div class="rowt">Continue Watching</div><div class="cards"><i></i><i style="--a:#4a2f2f;--b:#170e0e"></i></div>
+  <div class="rowt">Trending Movies</div><div class="posters"><i></i><i style="--a:#2d4a3b;--b:#0e1712"></i><i style="--a:#4a432d;--b:#17150e"></i><i></i></div>
  </div>
- <div class="fadeb"></div>
- <div class="dl above-tabs" data-s="dl"></div>
- <div class="tabs" data-tabs="0"></div>
+ <div class="fadeb"></div><div class="dl above-tabs" data-a="updates"></div><div class="tabs" data-tabs="0"></div>
 </div></div>
-<figcaption><div class="n">01 · HOME</div><h2>Above the tab bar</h2>
-<p>The pill floats 8 pt above the tab bar, like the mini player in Apple Music, so it never covers the page title, the bell or the hero. The page scrolls underneath it. The bell's blue ring stays on as a second hint.</p></figcaption>
+<figcaption><div class="n">01 · HOME · RIGHT AFTER LAUNCH</div><h2>Kodi checking for updates</h2>
+<p>The most common one: on every start Kodi checks your repositories. It has no percentage, so the pill shows a spinner and "Checking for add-on updates". It sits just above the tab bar, and once the check finishes it slides away without leaving a message.</p></figcaption>
 </figure>
 
-<!-- MOVIES -->
+<!-- MOVIES: Umbrella scraping -->
 <figure id="p-movies">
 <div class="phone"><div class="screen">
  <div class="pg">
-  <div class="hdr"><h3>Movies</h3><div class="cb active"><svg><use href="#bell"/></svg></div><div class="cb"><svg><use href="#person"/></svg></div></div>
+  <div class="hdr"><h3>Movies</h3><div class="cb"><svg><use href="#bell"/></svg></div><div class="cb"><svg><use href="#person"/></svg></div></div>
   <div class="herocard" style="background:linear-gradient(160deg,#5a3a1e,#1b120a 70%)"><b>Dune: Part Two</b><i>▶ Play</i></div>
-  <div class="rowt">Popular</div>
-  <div class="posters"><i style="--a:#3b4a5e"></i><i style="--a:#5e3b3b"></i><i style="--a:#3b5e47"></i><i></i></div>
-  <div class="rowt">Because You Watched Inception</div>
-  <div class="posters"><i style="--a:#4b3b5e"></i><i style="--a:#5e553b"></i><i></i><i></i></div>
+  <div class="rowt">Popular</div><div class="posters"><i style="--a:#3b4a5e"></i><i style="--a:#5e3b3b"></i><i style="--a:#3b5e47"></i><i></i></div>
+  <div class="rowt">New Releases</div><div class="posters"><i style="--a:#4b3b5e"></i><i style="--a:#5e553b"></i><i></i><i></i></div>
  </div>
- <div class="fadeb"></div>
- <div class="dl above-tabs" data-s="two"></div>
- <div class="tabs" data-tabs="1"></div>
+ <div class="fadeb"></div><div class="dl above-tabs" data-a="umbrella"></div><div class="tabs" data-tabs="1"></div>
 </div></div>
-<figcaption><div class="n">02 · MOVIES · TWO DOWNLOADS</div><h2>More than one download</h2>
-<p>With several downloads the pill shows how many are running and their combined progress ("2 downloading · 34%"), with the one closest to finishing named. Tap to see them all.</p></figcaption>
+<figcaption><div class="n">02 · MOVIES · UMBRELLA SCRAPING</div><h2>Umbrella finding sources</h2>
+<p>With Umbrella set to scrape in the background, the pill shows the title and the sources found so far ("4K 3 · 1080p 5 · 12 providers left") with a ring. You can keep browsing while it works.</p></figcaption>
 </figure>
 
-<!-- TV SHOW PAGE -->
+<!-- TV: Burst + Elementum resolving -->
 <figure id="p-tv">
 <div class="phone"><div class="screen">
  <div class="show">
   <div class="art"></div><div class="ttl">The Bear</div>
-  <div class="btns"><span class="pri">▶ Play S3 E1</span><span class="dlb">⬇ Download</span></div>
+  <div class="btns"><span class="pri">▶ Play S3 E1</span><span>⬇ Download</span></div>
   <div class="rowt">Season 3</div>
-  <div class="ep"><i></i><div><b>1. Tomorrow</b><span>36 min</span><br><span class="mini">⬇ Downloading 72%</span></div></div>
-  <div class="ep"><i></i><div><b>2. Next</b><span>31 min</span><br><span class="mini" style="color:var(--label2)">Waiting</span></div></div>
+  <div class="ep"><i></i><div><b>1. Tomorrow</b><span>36 min</span></div></div>
+  <div class="ep"><i></i><div><b>2. Next</b><span>31 min</span></div></div>
   <div class="ep"><i></i><div><b>3. Doors</b><span>29 min</span></div></div>
  </div>
  <div class="glassback"><svg><use href="#back"/></svg></div>
- <div class="fadeb" style="height:150px"></div>
- <div class="dl bottom" data-s="season"></div>
+ <div class="fadeb" style="height:150px"></div><div class="dl bottom" data-a="burst"></div>
 </div></div>
-<figcaption><div class="n">03 · TV SHOW PAGE</div><h2>No tab bar: bottom edge</h2>
-<p>Pages without the tab bar (show, season, info) put the pill at the bottom edge instead. A whole-season download says "Season 3 · 2 of 10 episodes". Each episode row also shows its own status in blue.</p></figcaption>
+<figcaption><div class="n">03 · SHOW PAGE · ELEMENTUM SEARCH</div><h2>Burst searching, then Elementum</h2>
+<p>Tapping Play with Elementum starts a Burst search: "Searching torrent sites · 4 of 7 done". Then Elementum's "Resolving magnet link" takes over in the same pill, so there's one thing to watch instead of two boxes taking turns. Pages without a tab bar keep it at the bottom.</p></figcaption>
 </figure>
 
-<!-- LIBRARY: done -->
+<!-- LIBRARY: scan -->
 <figure id="p-library">
 <div class="phone"><div class="screen">
  <div class="pg">
-  <div class="hdr"><h3>Library</h3><div class="cb"><svg><use href="#bell"/></svg><span class="bd">1</span></div><div class="cb"><svg><use href="#person"/></svg></div></div>
-  <div class="rowt" style="padding-top:4px">Downloaded Movies</div>
+  <div class="hdr"><h3>Library</h3><div class="cb"><svg><use href="#bell"/></svg></div><div class="cb"><svg><use href="#person"/></svg></div></div>
+  <div class="rowt" style="padding-top:4px">Movies</div>
   <div class="grid3"><i style="--a:#30405e"></i><i style="--a:#5a3a1e"></i><i style="--a:#3b5e47"></i><i></i><i style="--a:#5e3b3b"></i><i style="--a:#4b3b5e"></i></div>
  </div>
- <div class="fadeb"></div>
- <div class="dl above-tabs done" data-s="done"></div>
- <div class="tabs" data-tabs="3"></div>
+ <div class="fadeb"></div><div class="dl above-tabs" data-a="scan"></div><div class="tabs" data-tabs="3"></div>
 </div></div>
-<figcaption><div class="n">04 · LIBRARY · FINISHED</div><h2>Done: green, then gone</h2>
-<p>When a download finishes, the ring turns into a green check: "Inception · Saved · Tap to play". It stays for 6 seconds, then slides away, and the message waits in the bell (red badge). Upload to Google Drive gets its own green state (see All states).</p></figcaption>
+<figcaption><div class="n">04 · LIBRARY · KODI SCAN</div><h2>Library scan</h2>
+<p>After a download lands in Kodi Downloads or Google Drive, Kodi scans it into the library: "Updating library · Inception (2010)". It uses TMDb's name instead of the raw "Scanning movies using The Movie Database".</p></figcaption>
 </figure>
 
-<!-- SEARCH -->
+<!-- SEARCH: Elementum download -->
 <figure id="p-search">
 <div class="phone"><div class="screen">
  <div class="pg">
@@ -597,78 +681,107 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
    <i style="background:linear-gradient(160deg,#f4842c,#962018)">Action</i><i style="background:linear-gradient(160deg,#fcb040,#de4880)">Animation</i>
   </div>
  </div>
- <div class="fadeb"></div>
- <div class="dl above-tabs" data-s="paused"></div>
- <div class="tabs" data-tabs="4"></div>
+ <div class="fadeb"></div><div class="dl above-tabs" data-a="download"></div><div class="tabs" data-tabs="4"></div>
 </div></div>
-<figcaption><div class="n">05 · SEARCH · PAUSED</div><h2>Same spot on every tab</h2>
-<p>Paused looks the same, but the ring is grey and the button changes to ▶. While the keyboard is open the pill hides, so it never sits on top of the keys, and it comes back when the keyboard closes.</p></figcaption>
+<figcaption><div class="n">05 · SEARCH · ELEMENTUM DOWNLOAD</div><h2>Your screenshot, redone</h2>
+<p>"INCEPTION.2010.PROPER.BLURAY.2... - 446 KB/S - 0 B/S - 10%" becomes "Inception (2010) · 1080p · 446 KB/s · 41 min left", with a ring and ❚❚ to pause. Elementum's "Total" line is dropped, since the pill already sums up every download.</p></figcaption>
 </figure>
 
-<!-- INFO PAGE -->
+<!-- INFO: TMDb library -->
 <figure id="p-info">
 <div class="phone"><div class="screen">
  <div class="show">
-  <div class="art" style="background:linear-gradient(160deg,#30405e,#0c111b 70%)"></div><div class="ttl">Inception</div>
-  <div style="padding:4px 18px 0;color:var(--label2);font-size:13.5px">2010 · Sci-Fi, Action · 2h 28m · 4K</div>
-  <div class="btns"><span class="pri">▶ Play</span><span>⬇ 10%</span></div>
-  <div style="padding:14px 18px;color:#c7c7cc;font-size:14.5px;line-height:1.45">Cobb, a skilled thief who commits corporate espionage by infiltrating the subconscious of his targets, is offered a chance to regain his old life.</div>
-  <div class="rowt">Cast</div>
-  <div class="posters"><i style="border-radius:50%;width:74px;height:74px"></i><i style="border-radius:50%;width:74px;height:74px"></i><i style="border-radius:50%;width:74px;height:74px"></i><i style="border-radius:50%;width:74px;height:74px"></i></div>
+  <div class="art" style="background:linear-gradient(160deg,#30405e,#0c111b 70%)"></div><div class="ttl">Severance</div>
+  <div style="padding:4px 18px 0;color:var(--label2);font-size:13.5px">2022 · Drama, Sci-Fi · 2 Seasons</div>
+  <div class="btns"><span class="pri">▶ Play S1 E1</span><span>＋ Library</span></div>
+  <div style="padding:14px 18px;color:#c7c7cc;font-size:14.5px;line-height:1.45">Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives.</div>
  </div>
  <div class="glassback"><svg><use href="#back"/></svg></div>
- <div class="fadeb" style="height:150px"></div>
- <div class="dl bottom" data-s="dl"></div>
+ <div class="fadeb" style="height:150px"></div><div class="dl bottom" data-a="tmdb"></div>
 </div></div>
-<figcaption><div class="n">06 · INFO PAGE</div><h2>The movie being downloaded</h2>
-<p>On that movie's own page, the Download button itself shows the percentage, so you can see it in two places at once.</p></figcaption>
+<figcaption><div class="n">06 · INFO PAGE · TMDB HELPER</div><h2>Adding to the library</h2>
+<p>"TMDbHelper Library" becomes "Adding Severance to your library · 9 of 19 episodes", on TMDb Helper's blue tile.</p></figcaption>
 </figure>
 
-<!-- SETTINGS -->
-<figure id="p-settings">
+<!-- ADD-ONS: install -->
+<figure id="p-addons">
 <div class="phone"><div class="screen">
- <div class="nav"><a class="back"><svg><use href="#back"/></svg></a><div class="title">Settings</div></div>
+ <div class="nav"><a class="back"><svg><use href="#back"/></svg></a><div class="title">My Add-ons</div></div>
  <div class="scroll" style="padding-bottom:0">
-  <div class="group"><div class="profile"><div class="av">MU</div><div class="nm"><b>Master user</b><span>Trakt, Drive, Elementum &amp; more</span></div><svg class="chev"><use href="#chev"/></svg></div></div>
-  <div class="gap"></div>
   <div class="group">
-   <div class="row"><i class="ic" style="--c:var(--purple)"><svg><use href="#brush"/></svg></i><span class="ct"><span class="lb">Skin</span><svg class="chev"><use href="#chev"/></svg></span></div>
-   <div class="row"><i class="ic" style="--c:var(--blue)"><svg><use href="#palette"/></svg></i><span class="ct"><span class="lb">Interface</span><svg class="chev"><use href="#chev"/></svg></span></div>
-   <div class="row"><i class="ic" style="--c:#d1d1d6"><svg><use href="#sliders"/></svg></i><span class="ct"><span class="lb">Customisation</span><svg class="chev"><use href="#chev"/></svg></span></div>
-   <div class="row"><i class="ic" style="--c:var(--green)"><svg><use href="#play"/></svg></i><span class="ct"><span class="lb">Player</span><svg class="chev"><use href="#chev"/></svg></span></div>
-   <div class="row"><i class="ic" style="--c:var(--orange)"><svg><use href="#film"/></svg></i><span class="ct"><span class="lb">Media</span><svg class="chev"><use href="#chev"/></svg></span></div>
-  </div>
-  <div class="gap"></div>
-  <div class="group">
-   <div class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#gear"/></svg></i><span class="ct"><span class="lb">System</span><svg class="chev"><use href="#chev"/></svg></span></div>
-   <div class="row"><i class="ic" style="--c:var(--teal)"><svg><use href="#net"/></svg></i><span class="ct"><span class="lb">Services</span><svg class="chev"><use href="#chev"/></svg></span></div>
+   <div class="trow"><div class="aicon" style="background:#1f6feb"><svg><use href="#magnet"/></svg></div><div class="t"><b>Elementum</b><span>Video · 0.1.103</span></div><svg class="chev"><use href="#chev"/></svg></div>
+   <div class="trow"><div class="aicon" style="background:#7d3cff"><svg><use href="#umbrella2"/></svg></div><div class="t"><b>Umbrella</b><span>Video · 6.7.98 → <span style="color:var(--blue)">6.7.99</span></span></div><svg class="chev"><use href="#chev"/></svg></div>
+   <div class="trow"><div class="aicon" style="background:#1a9e5c"><svg><use href="#cloud"/></svg></div><div class="t"><b>Google Drive</b><span>Video · 1.x</span></div><svg class="chev"><use href="#chev"/></svg></div>
+   <div class="trow"><div class="aicon" style="background:#01b4e4"><svg><use href="#film"/></svg></div><div class="t"><b>TMDb Helper</b><span>Video · 6.18.1</span></div><svg class="chev"><use href="#chev"/></svg></div>
+   <div class="trow"><div class="aicon" style="background:#ed1c24"><svg><use href="#ccheck"/></svg></div><div class="t"><b>Trakt</b><span>Script · 3.9.0</span></div><svg class="chev"><use href="#chev"/></svg></div>
   </div>
  </div>
- <div class="fadeb" style="height:150px"></div>
- <div class="dl bottom" data-s="dl"></div>
+ <div class="fadeb" style="height:150px"></div><div class="dl bottom" data-a="install"></div>
 </div></div>
-<figcaption><div class="n">07 · SETTINGS (AND ALL INNER PAGES)</div><h2>Settings, Accounts, Add-ons…</h2>
-<p>Every page from rounds 1 and 2 (Settings, Accounts, Add-ons, Event Log, Information, File Manager) gets the pill in the same bottom spot. Those lists leave extra space at the bottom, so the last row can scroll above the pill.</p></figcaption>
+<figcaption><div class="n">07 · ADD-ONS · INSTALLING</div><h2>Add-on install or update</h2>
+<p>Kodi's four separate messages ("Installing Umbrella...", "Downloading add-on...", "Verifying...", "Checking dependencies...") become one pill: "Updating Umbrella to 6.7.99 · Downloading 42%". The tile is the add-on's own icon.</p></figcaption>
 </figure>
 
-<!-- NOTIFICATIONS -->
-<figure id="p-notices">
+<!-- FILE MANAGER: copy -->
+<figure id="p-files">
 <div class="phone"><div class="screen">
- <div class="pg" style="padding-top:58px">
-  <div class="glassback" style="position:relative;top:0;left:16px"><svg><use href="#back"/></svg></div>
-  <div style="font-size:34px;font-weight:800;padding:10px 18px 12px">Notifications</div>
-  <div class="seg"><span class="on">All</span><span>General</span><span>Downloads</span><span>Problems</span></div>
-  <div class="rowt">Downloading <span style="float:right;color:var(--label2);font-size:13px;font-weight:500;padding-top:4px">1 active</span></div>
-  <div class="notice"><div class="ic2"><svg><use href="#arrowd"/></svg></div><div class="tx"><b>Inception (2010)</b><div class="pb"><i style="width:10%"></i></div><span>10% · 1080p BluRay · 446 KB/s · 41 min left</span></div></div>
-  <div class="rowt">Earlier</div>
-  <div class="notice"><div class="ic2" style="height:46px;background:#1f3d2b"><svg style="color:var(--green)"><use href="#ok"/></svg></div><div class="tx"><b>Uploaded to Google Drive</b><span>The Bear S3E1 · Kodi Downloads</span></div></div>
+ <div class="nav"><a class="back"><svg><use href="#back"/></svg></a><div class="title">File Manager</div></div>
+ <div class="scroll" style="padding-bottom:0">
+  <div class="sh">Files</div>
+  <div class="group">
+   <div class="row"><i class="ic" style="--c:var(--blue)"><svg><use href="#folder"/></svg></i><span class="ct"><span class="lb">Kodi Downloads<small>4 items</small></span><svg class="chev"><use href="#chev"/></svg></span></div>
+   <div class="row"><i class="ic" style="--c:#aeaeb2"><svg><use href="#film"/></svg></i><span class="ct"><span class="lb">Inception.2010.1080p.mkv<small>11.2 GB</small></span><span class="val" style="color:var(--blue)">✓</span></span></div>
+  </div>
+  <div class="gap"></div>
+  <div class="sh">Copy &amp; Move To</div>
+  <div class="group">
+   <div class="row"><i class="ic" style="--c:var(--green)"><svg><use href="#cloud"/></svg></i><span class="ct"><span class="lb">Google Drive<small>Kodi Downloads</small></span><svg class="chev"><use href="#chev"/></svg></span></div>
+  </div>
  </div>
+ <div class="fadeb" style="height:150px"></div><div class="dl bottom" data-a="copy"></div>
 </div></div>
-<figcaption><div class="n">08 · NOTIFICATIONS</div><h2>Tap the pill: it opens here</h2>
-<p>Tapping the pill opens Notifications on the Downloads card, which has the full controls (pause, cancel). The pill is hidden on this page, since the card already shows the same thing.</p></figcaption>
+<figcaption><div class="n">08 · FILE MANAGER · COPYING</div><h2>Copy, move, delete</h2>
+<p>"Copy" plus a raw file name becomes "Copying to Google Drive · Inception.2010.1080p.mkv · 34%".</p></figcaption>
 </figure>
 
-<!-- UMBRELLA -->
+<!-- SEVERAL AT ONCE + sheet -->
+<figure id="p-sheet">
+<div class="phone"><div class="screen">
+ <div class="pg">
+  <div class="hdr"><h3>Home</h3><div class="cb active"><svg><use href="#bell"/></svg></div><div class="cb"><svg><use href="#person"/></svg></div></div>
+  <div class="herocard"><b>Inception</b><i>▶ Play</i></div>
+  <div class="rowt">Continue Watching</div><div class="cards"><i></i><i></i></div>
+ </div>
+ <div class="dimall"></div>
+ <div class="sheet2">
+  <div class="grab"></div>
+  <div class="sh2"><b>Activity</b><span>Done</span></div>
+  <div class="act-row"><div class="tile" style="background:#1f6feb"><svg><use href="#magnet"/></svg></div><div class="tx"><b>Inception (2010)</b><span>Downloading · 446 KB/s · 41 min left</span><div class="bar"><i style="width:10%;background:#0a84ff"></i></div></div><div class="btn"><svg><use href="#pause"/></svg></div></div>
+  <div class="act-row"><div class="tile" style="background:#1f6feb"><svg><use href="#magnet"/></svg></div><div class="tx"><b>The Bear · S3 E1</b><span>Downloading · 2.3 MB/s · 4 min left</span><div class="bar"><i style="width:72%;background:#0a84ff"></i></div></div><div class="btn"><svg><use href="#pause"/></svg></div></div>
+  <div class="act-row"><div class="tile" style="background:#7d3cff"><svg><use href="#umbrella2"/></svg></div><div class="tx"><b>Updating Umbrella to 6.7.99</b><span>Verifying download</span><div class="bar"><i style="width:88%;background:#bf5af2"></i></div></div></div>
+  <div class="act-row"><div class="tile" style="background:#2a6cdf"><svg><use href="#library"/></svg></div><div class="tx"><b>Updating library</b><span>Inception (2010)</span><div class="bar ind"><i></i></div></div></div>
+  <div class="act-row"><div class="tile" style="background:#1a9e5c"><svg><use href="#cloud"/></svg></div><div class="tx"><b>Uploading to Google Drive</b><span>The Bear S3 E1 · 58% · then off the phone</span><div class="bar"><i style="width:58%;background:#30d158"></i></div></div></div>
+ </div>
+</div></div>
+<figcaption><div class="n">09 · SEVERAL AT ONCE · TAP THE PILL</div><h2>All of them, side by side</h2>
+<p>Kodi shows one job at a time and swaps every 2 seconds. Here the pill shows "5 running" with the apps' tiles stacked (next card), and tapping it opens this Activity sheet with every job and its own bar. Downloads keep their pause button, and jobs without a percentage get a moving bar.</p></figcaption>
+</figure>
+
+<figure>
+<div class="phone"><div class="screen">
+ <div class="pg">
+  <div class="hdr"><h3>Home</h3><div class="cb active"><svg><use href="#bell"/></svg></div><div class="cb"><svg><use href="#person"/></svg></div></div>
+  <div class="herocard"><b>Inception</b><i>▶ Play</i></div>
+  <div class="rowt">Continue Watching</div><div class="cards"><i></i><i style="--a:#4a2f2f;--b:#170e0e"></i></div>
+  <div class="rowt">Trending Movies</div><div class="posters"><i></i><i></i><i></i><i></i></div>
+ </div>
+ <div class="fadeb"></div><div class="dl above-tabs" data-a="many"></div><div class="tabs" data-tabs="0"></div>
+</div></div>
+<figcaption><div class="n">10 · SEVERAL AT ONCE · THE PILL</div><h2>"5 running"</h2>
+<p>The stacked tiles show who is busy, the line under it names the job closest to finishing, and the ring shows the downloads' combined progress.</p></figcaption>
+</figure>
+
+<!-- UMBRELLA FULL SCREEN -->
 <figure id="p-umbrella">
 <div class="phone"><div class="screen">
  <div class="ready">
@@ -685,10 +798,10 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
   </div>
  </div>
  <div class="cancel">Cancel</div>
- <div class="dl top compact" data-s="compact" style="left:50%;transform:translateX(-50%);top:58px"></div>
+ <div class="dl compact" data-a="compact" style="left:50%;transform:translateX(-50%);top:58px"></div>
 </div></div>
-<figcaption><div class="n">09 · FULL-SCREEN PAGES</div><h2>Umbrella's getting-ready screen</h2>
-<p>On full-screen pages with a big button at the bottom (Umbrella getting ready, Choose a version), a smaller pill moves to the top, under the clock, so it never covers Cancel or the source card.</p></figcaption>
+<figcaption><div class="n">11 · FULL-SCREEN PAGES</div><h2>Compact, at the top</h2>
+<p>Over Umbrella's getting-ready screen and Choose a version, the pill shrinks to one line under the clock so it never covers Cancel. Umbrella's own job is already on that screen, so only the other jobs show here.</p></figcaption>
 </figure>
 
 <!-- VIDEO -->
@@ -698,57 +811,102 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
    <div class="video"></div>
    <div class="osdbtn" style="left:56px"><svg><use href="#xmark"/></svg></div>
    <div class="osdbtn" style="left:110px"><svg><use href="#airplay"/></svg></div>
-   <div class="dl compact" data-s="compact" style="top:24px;left:50%;transform:translateX(-50%);width:auto;max-width:360px"></div>
+   <div class="dl compact" data-a="compact2" style="top:24px;left:50%;transform:translateX(-50%);width:auto;max-width:380px"></div>
    <div class="osdbtn" style="right:56px"><svg><use href="#cc"/></svg></div>
    <div class="vcenter"><i><svg><use href="#back10"/></svg></i><i class="big"><svg><use href="#pause"/></svg></i><i><svg><use href="#fwd10"/></svg></i></div>
    <div class="vtitle">Scary Movie</div><div class="vbar"><i></i></div>
   </div></div>
  </div></div>
- <figcaption style="max-width:880px"><div class="n">10 · OVER VIDEO (LANDSCAPE)</div><h2>Only with the video controls</h2>
- <p>While a video plays, the pill appears only when you tap to show the controls: small, top centre, between ✕ / AirPlay and CC. When the controls hide, it hides too, so nothing is ever drawn over the picture. The download keeps going either way.</p></figcaption>
+ <figcaption style="max-width:880px"><div class="n">12 · OVER VIDEO</div><h2>Only while the controls are up</h2>
+ <p>While a video plays, nothing is ever drawn over the picture. The compact pill appears only when you tap to show the controls, top centre, and hides with them. Quiet jobs (update checks, Skin Variables) are never shown during playback.</p></figcaption>
+</figure>
+
+<!-- NOTIFICATIONS -->
+<figure id="p-notices">
+<div class="phone"><div class="screen">
+ <div class="pg" style="padding-top:58px">
+  <div class="glassback" style="position:relative;top:0;left:16px"><svg><use href="#back"/></svg></div>
+  <div style="font-size:34px;font-weight:800;padding:10px 18px 12px">Notifications</div>
+  <div class="seg"><span class="on">All</span><span>General</span><span>Downloads</span><span>Problems</span></div>
+  <div class="rowt">Running now <span style="float:right;color:var(--label2);font-size:13px;font-weight:500;padding-top:4px">3</span></div>
+  <div class="group" style="margin:0 16px">
+   <div class="act-row"><div class="tile" style="background:#1f6feb"><svg><use href="#magnet"/></svg></div><div class="tx"><b>Inception (2010)</b><span>Downloading · 10% · 446 KB/s</span><div class="bar"><i style="width:10%;background:#0a84ff"></i></div></div><div class="btn"><svg><use href="#pause"/></svg></div></div>
+   <div class="act-row"><div class="tile" style="background:#7d3cff"><svg><use href="#umbrella2"/></svg></div><div class="tx"><b>Updating Umbrella</b><span>Downloading 42%</span><div class="bar"><i style="width:42%;background:#bf5af2"></i></div></div></div>
+   <div class="act-row"><div class="tile" style="background:#2a6cdf"><svg><use href="#library"/></svg></div><div class="tx"><b>Updating library</b><span>Inception (2010)</span><div class="bar ind"><i></i></div></div></div>
+  </div>
+  <div class="rowt">Earlier</div>
+  <div class="notice"><div class="ic2" style="height:46px;background:#3a1f1f"><svg style="color:var(--red)"><use href="#bang"/></svg></div><div class="tx"><b>Burst: 2 sites didn't answer</b><span>1337x, TorrentGalaxy · 9:14 PM</span></div></div>
+ </div>
+</div></div>
+<figcaption><div class="n">13 · NOTIFICATIONS</div><h2>"Running now" section</h2>
+<p>The bell's page gets a "Running now" group at the top with the same rows as the Activity sheet. Problems a job reports (Burst's error box, a failed install) become messages under Problems instead of a second flashing box.</p></figcaption>
+</figure>
+
+<!-- SETTINGS: activity options -->
+<figure id="p-settings">
+<div class="phone"><div class="screen">
+ <div class="nav"><a class="back"><svg><use href="#back"/></svg></a><div class="title">Activity</div></div>
+ <div class="scroll" style="padding-bottom:0">
+  <div class="group">
+   <div class="row"><span class="ct"><span class="lb">Show Activity Pill</span><span class="tg on"></span></span></div>
+   <div class="row"><span class="ct"><span class="lb">Show During Video</span><span class="tg on"></span></span></div>
+  </div>
+  <div class="foot">Over video it only appears with the controls.</div>
+  <div class="gap"></div>
+  <div class="sh">Show Activity From</div>
+  <div class="group">
+   <div class="row"><i class="ic fill" style="--c:#1f6feb"><svg><use href="#magnet"/></svg></i><span class="ct"><span class="lb">Elementum Downloads</span><span class="tg on"></span></span></div>
+   <div class="row"><i class="ic fill" style="--c:#ff6b00"><svg><use href="#fire"/></svg></i><span class="ct"><span class="lb">Torrent Searches (Burst)</span><span class="tg on"></span></span></div>
+   <div class="row"><i class="ic fill" style="--c:#7d3cff"><svg><use href="#umbrella2"/></svg></i><span class="ct"><span class="lb">Umbrella</span><span class="tg on"></span></span></div>
+   <div class="row"><i class="ic fill" style="--c:#2a6cdf"><svg><use href="#library"/></svg></i><span class="ct"><span class="lb">Library Scans</span><span class="tg on"></span></span></div>
+   <div class="row"><i class="ic fill" style="--c:#ff9f0a"><svg><use href="#puzzle"/></svg></i><span class="ct"><span class="lb">Add-on Installs</span><span class="tg on"></span></span></div>
+   <div class="row"><i class="ic fill" style="--c:#636366"><svg><use href="#refresh"/></svg></i><span class="ct"><span class="lb">Update Checks &amp; Skin Jobs</span><span class="tg"></span></span></div>
+  </div>
+  <div class="foot">Turned-off jobs still run. They just don't show the pill (they stay in Notifications › Running now).</div>
+ </div>
+</div></div>
+<figcaption><div class="n">14 · SETTINGS › NOTIFICATIONS › ACTIVITY</div><h2>Choose what pops up</h2>
+<p>A small settings page to quiet the noisy ones. By default the start-up update check and Skin Variables' view building are hidden, since they flash by on every launch.</p></figcaption>
 </figure>
 
 </main>
 
-<h2 class="states-h" id="states">All states</h2>
+<h2 class="states-h" id="states">States</h2>
 <div class="states">
- <div class="state"><h4>Downloading</h4><p>Blue ring with %, the title (from Elementum's library info, not the file name), quality, speed, time left. ❚❚ pauses.</p><div class="stage"><div class="dl static" data-s="dl"></div></div></div>
- <div class="state"><h4>Starting</h4><p>While Elementum looks for peers: the ring spins with no %, "Finding sources…".</p><div class="stage"><div class="dl static" data-s="start"></div></div></div>
- <div class="state"><h4>Paused</h4><p>Grey ring, "Paused · 46%", ▶ resumes.</p><div class="stage"><div class="dl static" data-s="paused"></div></div></div>
- <div class="state"><h4>Several downloads</h4><p>A count and their combined progress, with the one closest to finishing named.</p><div class="stage"><div class="dl static" data-s="two"></div></div></div>
- <div class="state"><h4>Uploading to Google Drive</h4><p>After the download: green ring with an up arrow, "then off the phone".</p><div class="stage"><div class="dl static done" data-s="upload"></div></div></div>
- <div class="state"><h4>Finished</h4><p>Green check for 6 seconds, then it slides away. Tap to play.</p><div class="stage"><div class="dl static done" data-s="done"></div></div></div>
- <div class="state"><h4>Problem</h4><p>Red, "Download stopped: no peers". Tap for the reason in Notifications › Problems.</p><div class="stage"><div class="dl static" data-s="fail"></div></div></div>
- <div class="state"><h4>Over video / full-screen pages</h4><p>The compact version: ring, short title and %.</p><div class="stage" style="justify-content:center"><div class="dl static compact" data-s="compact" style="width:auto"></div></div></div>
+ <div class="state"><h4>Progress with a percentage</h4><p>A ring around the app's tile; the bottom hairline fills too.</p><div class="stage"><div class="dl static" data-a="download"></div></div></div>
+ <div class="state"><h4>No percentage</h4><p>Kodi jobs without a percentage get a spinner instead of a ring.</p><div class="stage"><div class="dl static" data-a="updates"></div></div></div>
+ <div class="state"><h4>Several jobs</h4><p>Stacked tiles and a count. Tap for the Activity sheet.</p><div class="stage"><div class="dl static" data-a="many"></div></div></div>
+ <div class="state"><h4>Paused</h4><p>Elementum downloads only: grey ring, ▶ resumes.</p><div class="stage"><div class="dl static" data-a="paused"></div></div></div>
+ <div class="state"><h4>Finished</h4><p>Green check for 4 seconds, then it slides away. Downloads also leave a message in the bell.</p><div class="stage"><div class="dl static done" data-a="done"></div></div></div>
+ <div class="state"><h4>Problem</h4><p>A red tile; tap to read it in Notifications › Problems.</p><div class="stage"><div class="dl static" data-a="fail"></div></div></div>
 </div>
 
-<section class="compare" id="compare">
- <h2>Other placement: under the Dynamic Island</h2>
- <p>For comparison: a black pill hanging under the Dynamic Island, like iOS Live Activities. It stays out of the content on every page, but it sits next to the clock and the large titles, and it's harder to tap. I recommend <b>above the tab bar</b> (mockups above). Pick whichever you prefer.</p>
- <div class="grid" style="padding:10px 0 0">
-  <figure>
-  <div class="phone"><div class="screen">
-   <div class="pg" style="padding-top:96px">
-    <div class="hdr"><h3>Home</h3><div class="cb active"><svg><use href="#bell"/></svg></div><div class="cb"><svg><use href="#person"/></svg></div></div>
-    <div class="herocard"><b>Inception</b><i>▶ Play</i></div>
-    <div class="rowt">Continue Watching</div><div class="cards"><i></i><i></i></div>
-    <div class="rowt">Trending Movies</div><div class="posters"><i></i><i></i><i></i><i></i></div>
-   </div>
-   <div class="dl island" data-s="island"></div>
-   <div class="fadeb"></div><div class="tabs" data-tabs="0"></div>
-  </div></div>
-  <figcaption><div class="n">ALT · TOP</div><h2>Island style</h2><p>Black pill joined to the Dynamic Island: ring on the left, % on the right, the title in between.</p></figcaption>
-  </figure>
- </div>
+<section class="finding" id="rewrite">
+ <h2>Wording: what Kodi shows today, what the pill says</h2>
+ <p>The pill knows the add-ons in your setup and rewrites their messages into plain words. Anything it doesn't recognise is shown as the add-on wrote it (with the [COLOR] tags removed), on that add-on's own icon.</p>
+ <div class="tablewrap"><table class="rw">
+  <tr><th>Kodi's box today</th><th>Activity pill</th></tr>
+  <tr><td>Elementum · INCEPTION.2010.PROPER.BLURAY.2... - 446 kB/s - 0 B/s</td><td><b>Inception (2010)</b><span>1080p · 446 KB/s · 41 min left (name from Elementum's library list)</span></td></tr>
+  <tr><td>Elementum · Total - D/L: 1.2 MB/s - U/L: 80 kB/s</td><td><b>(not shown)</b><span>The pill sums up every download already</span></td></tr>
+  <tr><td>Elementum · Resolving magnet link</td><td><b>Getting the torrent ready</b><span>Elementum · The Bear S3 E1</span></td></tr>
+  <tr><td>Elementum Burst · 4 providers left</td><td><b>Searching torrent sites</b><span>3 of 7 done · 18 found</span></td></tr>
+  <tr><td>Umbrella · 4K: 3 | 1080p: 5 | 720p: 2 | SD: 1</td><td><b>Finding sources · Dune: Part Two</b><span>4K 3 · 1080p 5 · 12 providers left</span></td></tr>
+  <tr><td>Checking for add-on updates</td><td><b>Checking for add-on updates</b><span>Kodi (hidden by default)</span></td></tr>
+  <tr><td>Installing Umbrella... / Downloading add-on...</td><td><b>Updating Umbrella to 6.7.99</b><span>Downloading 42% → Verifying → Done</span></td></tr>
+  <tr><td>Scanning movies using The Movie Database · Inception</td><td><b>Updating library</b><span>Inception (2010)</span></td></tr>
+  <tr><td>Copy · Inception.2010.1080p.mkv</td><td><b>Copying to Google Drive</b><span>Inception.2010.1080p.mkv · 34%</span></td></tr>
+  <tr><td>TMDbHelper Library</td><td><b>Adding Severance to your library</b><span>TMDb Helper · 9 of 19</span></td></tr>
+  <tr><td>Skin Variables · Constructing Viewtypes...</td><td><b>Setting up views</b><span>Arctic Fuse (hidden by default)</span></td></tr>
+ </table></div>
 </section>
 
 <section class="specs" id="specs">
  <h2>How it would be built</h2>
  <div class="spec-grid">
-  <div class="spec"><h4>What it replaces</h4><ul><li>Kodi's background progress box (<code>DialogExtendedProgressBar</code>), which Elementum opens for each download</li><li>Hidden for Elementum; other add-ons' background progress uses the same pill</li></ul></div>
-  <div class="spec"><h4>Where the data comes from</h4><ul><li>The notification center already reads Elementum's engine (<code>/torrents/list</code>): title, %, speed, paused</li><li>Drive upload progress from <code>driveupload</code></li></ul></div>
-  <div class="spec"><h4>Placement</h4><ul><li>Tab pages: 8 pt above the tab bar</li><li>Other pages: bottom edge, above the home indicator</li><li>Full-screen pages: compact, top centre</li><li>Video: compact, only with the controls</li></ul></div>
-  <div class="spec"><h4>Size (iPhone points)</h4><ul><li>Pill <code>62 pt</code>, inset <code>14 pt</code>, radius <code>31 pt</code></li><li>Ring <code>46 pt</code>, 3.5 pt stroke</li><li>Compact <code>44 pt</code></li><li>Progress hairline along the bottom edge</li></ul></div>
+  <div class="spec"><h4>The box itself</h4><ul><li>Kodi's <code>DialogExtendedProgressBar</code> (labels 30 heading, 31 text, 32 progress) is redrawn as the pill</li><li>Kodi flips its jobs every 2 s; our service reads 30/31/32 each time and keeps a list of every job it has seen</li></ul></div>
+  <div class="spec"><h4>Richer details</h4><ul><li>Elementum downloads: its engine's <code>/torrents/list</code> (title, %, speed, pause)</li><li>Drive upload: <code>driveupload</code></li><li>Everything else: the rewrite rules above, keyed on the heading</li></ul></div>
+  <div class="spec"><h4>Placement</h4><ul><li>Tab pages: 8 pt above the tab bar</li><li>Other pages: bottom edge</li><li>Full-screen pages: compact, top</li><li>Video: compact, only with controls</li></ul></div>
+  <div class="spec"><h4>Tapping</h4><ul><li>Kodi's box can't take taps, so the pill is drawn by our pages and the Kodi box itself is hidden</li><li>Tap opens the Activity sheet; ❚❚ pauses Elementum</li></ul></div>
  </div>
 </section>
 
@@ -767,28 +925,39 @@ document.querySelectorAll('.screen:not(.land-screen)').forEach(s => s.insertAdja
 function fitLandscape(){document.querySelectorAll('.land-wrap').forEach(w=>{const s=Math.min(1,w.clientWidth/880);const inner=w.firstElementChild;inner.style.transform='scale('+s+')';w.style.height=(420*s)+'px'});}
 addEventListener('resize',fitLandscape);fitLandscape();
 
-// Pills and tab bars are drawn from one template so every page shows the same component.
-const S={
- dl:{pct:10,c:'#0a84ff',t:'Inception (2010)',s:'1080p · 446 KB/s · 41 min left',act:'pause'},
- two:{pct:34,c:'#0a84ff',t:'2 downloading · 34%',s:'Dune: Part Two next · 1.2 MB/s',act:'chev'},
- season:{pct:72,c:'#0a84ff',t:'The Bear · Season 3',s:'Episode 1 of 10 · 72% · 2.3 MB/s',act:'pause'},
- paused:{pct:46,c:'#8e8e93',t:'Inception (2010)',s:'Paused · 46% · 5.1 of 11 GB',act:'playf'},
- done:{pct:100,c:'#30d158',t:'Inception (2010)',s:'Saved · Tap to play',glyph:'ok',act:'chev'},
- upload:{pct:58,c:'#30d158',t:'Uploading to Google Drive',s:'Inception · 58%',glyph:'arrowu',act:'chev'},
- start:{pct:22,c:'#0a84ff',t:'Inception (2010)',s:'Finding sources…',spin:true,act:'xmark'},
- fail:{pct:100,c:'#ff453a',t:'Download stopped',s:'No peers found · Tap for details',glyph:'bang',act:'chev'},
- compact:{pct:10,c:'#0a84ff',t:'Inception · 10%',compact:true},
- island:{pct:10,c:'#0a84ff',t:'Inception',island:true}
+const T={elementum:['#1f6feb','magnet'],burst:['#ff6b00','fire'],umbrella:['#7d3cff','umbrella2'],kodi:['#2a6cdf','library'],
+ addon:['#ff9f0a','puzzle'],tmdb:['#01b4e4','film'],skin:['#636366','layers'],drive:['#1a9e5c','cloud'],files:['#0a84ff','copy'],update:['#636366','refresh']};
+const A={
+ updates:{app:'update',t:'Checking for add-on updates',s:'Kodi · 4 repositories',spin:true},
+ umbrella:{app:'umbrella',t:'Finding sources · Dune: Part Two',s:'4K 3 · 1080p 5 · 12 providers left',pct:58,c:'#bf5af2',act:'xmark'},
+ burst:{app:'burst',t:'Searching torrent sites',s:'The Bear S3 E1 · 4 of 7 done · 18 found',pct:57,c:'#ff9f0a',act:'xmark'},
+ scan:{app:'kodi',t:'Updating library',s:'Inception (2010)',spin:true},
+ download:{app:'elementum',t:'Inception (2010)',s:'1080p · 446 KB/s · 41 min left',pct:10,c:'#0a84ff',act:'pause'},
+ tmdb:{app:'tmdb',t:'Adding Severance to your library',s:'TMDb Helper · 9 of 19 episodes',pct:47,c:'#64d2ff'},
+ install:{app:'umbrella',t:'Updating Umbrella to 6.7.99',s:'Downloading 42% · 4.4 of 10.5 MB',pct:42,c:'#bf5af2'},
+ copy:{app:'files',t:'Copying to Google Drive',s:'Inception.2010.1080p.mkv · 34%',pct:34,c:'#0a84ff',act:'xmark'},
+ many:{stack:['elementum','umbrella','kodi','drive'],t:'5 running',s:'The Bear S3 E1 almost done · 72%',pct:41,c:'#0a84ff'},
+ paused:{app:'elementum',t:'Inception (2010)',s:'Paused · 46% · 5.1 of 11 GB',pct:46,c:'#8e8e93',act:'playf'},
+ done:{app:'addon',t:'Umbrella updated',s:'6.7.99 · Tap for what\'s new',pct:100,c:'#30d158',done:true},
+ fail:{app:'burst',t:'Search found nothing',s:'2 sites didn\'t answer · Tap for details',pct:100,c:'#ff453a',fail:true},
+ compact:{app:'elementum',t:'Inception · 10%',pct:10,c:'#0a84ff',compact:true},
+ compact2:{stack:['elementum','kodi'],t:'2 running · Inception 10%',pct:10,c:'#0a84ff',compact:true}
 };
-function ring(st,size){const r=size/2-3.5,c=2*Math.PI*r,off=st.spin?c*.72:c*(1-st.pct/100);
- return `<div class="ring"><svg viewBox="0 0 ${size} ${size}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="3.5"/>`+
- `<circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${st.c}" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"/></svg>`+
- (st.glyph?`<div class="glyph" style="color:${st.c}"><svg><use href="#${st.glyph}"/></svg></div>`:(st.spin?'':`<span>${st.pct}%</span>`))+`</div>`}
-document.querySelectorAll('.dl[data-s]').forEach(el=>{const st=S[el.dataset.s];
- if(st.island){el.innerHTML=ring(st,28)+`<div class="t"><b>${st.t}</b></div><div class="pct">${st.pct}%</div>`;return}
- if(st.compact){el.innerHTML=ring(st,34)+`<div class="t"><b>${st.t}</b></div>`;return}
- const act=st.act==='chev'?`<svg class="chev" style="width:14px;height:14px;color:#8e8e93;margin-right:8px"><use href="#chev"/></svg>`:`<div class="act"><svg><use href="#${st.act}"/></svg></div>`;
- el.innerHTML=ring(st,46)+`<div class="t"><b>${st.t}</b><span>${st.s}</span></div>`+act+`<i class="line" style="width:${st.pct}%;background:${st.c}"></i>`;});
+function tile(app,size,ring){const [bg,ic]=T[app];
+ return `<div class="tile" style="background:${bg};width:${size}px;height:${size}px"><svg><use href="#${ic}"/></svg>${ring||''}</div>`}
+function mini(st){if(st.spin)return '';const r=8,c=2*Math.PI*r,off=c*(1-(st.pct||0)/100);
+ const col=st.fail?'#ff453a':st.c;const inner=st.done?`<path d="M7 11.5l3 3 5-6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" transform="rotate(90 11 11)"/>`:(st.fail?`<path d="M11 6.5v5.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round" transform="rotate(90 11 11)"/><circle cx="11" cy="15" r="1.3" fill="#fff" transform="rotate(90 11 11)"/>`:'');
+ return `<div class="mini"><svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="10.5" fill="#1c1c1e"/><circle cx="11" cy="11" r="${r}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="2.6"/>`+
+  `<circle cx="11" cy="11" r="${r}" fill="${st.done||st.fail?col:'none'}" stroke="${col}" stroke-width="2.6" stroke-dasharray="${c}" stroke-dashoffset="${st.done||st.fail?0:off}" stroke-linecap="round"/>${inner}</svg></div>`}
+document.querySelectorAll('.dl[data-a]').forEach(el=>{const st=A[el.dataset.a];
+ const lead=st.stack?`<div class="stack">${st.stack.map(a=>tile(a,34)).join('')}</div>`:tile(st.app,st.compact?32:44,st.compact?'':mini(st));
+ if(st.compact){el.innerHTML=lead+`<div class="t"><b>${st.t}</b></div>`;return}
+ let tail='';
+ if(st.spin)tail='<div class="spinring"></div>';
+ else if(st.act)tail=`<div class="act"><svg><use href="#${st.act}"/></svg></div>`;
+ else if(st.done||st.fail)tail=`<svg class="chev" style="width:14px;height:14px;color:#8e8e93;margin-right:8px"><use href="#chev"/></svg>`;
+ else tail=`<div class="pctv" style="color:${st.c}">${st.pct}%</div>`;
+ el.innerHTML=lead+`<div class="t"><b>${st.t}</b><span>${st.s}</span></div>`+tail+(st.spin?'':`<i class="line" style="width:${st.pct}%;background:${st.fail?'#ff453a':st.c}"></i>`);});
 const TABS=[['house','Home'],['film','Movies'],['tv','TV'],['layers','Library'],['search','Search']];
 document.querySelectorAll('.tabs[data-tabs]').forEach(el=>{el.innerHTML=TABS.map((t,i)=>`<span class="${i==el.dataset.tabs?'on':''}"><svg><use href="#${t[0]}"/></svg>${t[1]}</span>`).join('')});
 </script>
