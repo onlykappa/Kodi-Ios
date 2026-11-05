@@ -15,5 +15,8 @@ int kr_source_read(kr_source *s, int64_t offset, uint8_t *buf, int n);
 double kr_source_io_ms(const kr_source *s);
 // Interrupts waits (stop pressed): reads return errors from now on.
 void kr_source_abort(kr_source *s);
+// Additional transient interrupt predicate (e.g. canceled speculative conversion). Bind with no active read;
+// context must outlive reads. Resetting its condition lets subsequent reads recover through fresh connections.
+void kr_source_set_interrupt(kr_source *s, int (*callback)(void *), void *context);
 void kr_source_close(kr_source *s);
 #endif

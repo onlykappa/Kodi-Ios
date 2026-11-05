@@ -16,6 +16,7 @@
 #include <libavutil/intreadwrite.h>
 #include "../src/kr_subs.h"
 #include <pthread.h>
+#include <stdatomic.h>
 #include <time.h>
 #include <arpa/inet.h>
 #include <math.h>
@@ -276,6 +277,12 @@ static void test_file(const char *url, const fixture *fx, const char *work) {
     CHECK(gone.status == -1, "%s: the server is gone after stop", fx->file);
 }
 
+typedef struct { kr_source *source; int result; uint8_t bytes[4096]; } source_wait;
+static int interrupt_source_wait(void *context) { return atomic_load((atomic_int *)context); }
+static void *waiting_source_read(void *context) {
+    source_wait *w=context;w->result=kr_source_read(w->source,700000,w->bytes,sizeof w->bytes);return NULL;
+}
+
 static void test_source_transport(const char *http_base) {
     char url[512], path[512], err[256] = "";
     extern const char *fixture_dir;
@@ -308,6 +315,21 @@ static void test_source_transport(const char *http_base) {
             CHECK(n == m && n > 0 && !memcmp(a, b, (size_t)n), "bounded forward/backward seek at %lld", (long long)offsets[i]);
         }
         kr_source_close(s);
+    }
+    snprintf(url,sizeof url,"%s/stall/h264_dts.mkv",http_base);
+    s=kr_source_open(url,10,err,sizeof err);
+    CHECK(s!=NULL,"transient-interrupt source opens");
+    if(s){
+        atomic_int cancelled=0;kr_source_set_interrupt(s,interrupt_source_wait,&cancelled);
+        source_wait wait={.source=s};pthread_t thread;pthread_create(&thread,NULL,waiting_source_read,&wait);
+        usleep(150000);struct timespec before,after;clock_gettime(CLOCK_MONOTONIC,&before);
+        atomic_store(&cancelled,1);pthread_join(thread,NULL);clock_gettime(CLOCK_MONOTONIC,&after);
+        double elapsed=after.tv_sec-before.tv_sec+(after.tv_nsec-before.tv_nsec)/1e9;
+        CHECK(wait.result<0 && elapsed<1,"canceled speculative read interrupts network wait (%.3f s, result %d)",elapsed,wait.result);
+        atomic_store(&cancelled,0);
+        int n=kr_source_read(s,700000,a,4096);fseek(f,700000,SEEK_SET);int m=(int)fread(b,1,4096,f);
+        CHECK(n==m && n>0 && !memcmp(a,b,(size_t)n),"next read recovers exact bytes after transient cancellation");
+        kr_source_set_interrupt(s,NULL,NULL);kr_source_close(s);
     }
     snprintf(url, sizeof url, "%s/recover/h264_dts.mkv", http_base);
     s = kr_source_open(url, 3, err, sizeof err);

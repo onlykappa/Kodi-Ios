@@ -114,7 +114,7 @@ int kr_video_pick_stream(gm_stream *s) {
 
 static int in_read(void *o, uint8_t *buf, int n) {
     kr_video *v = o;
-    if (atomic_load(&v->abort)) return AVERROR_EXIT;
+    if (kr_video_interrupted(v)) return AVERROR_EXIT;
     int r = v->src.read(v->src.ctx, v->pos, buf, n);
     if (r > 0) { v->pos += r; return r; }
     return r == 0 ? AVERROR_EOF : AVERROR(EIO);
@@ -222,6 +222,7 @@ const char *kr_video_path(const kr_video *v) {
 }
 void kr_video_abort(kr_video *v) { if (v) atomic_store(&v->abort, 1); }
 void kr_video_cancel(kr_video *v) { if (v) atomic_store(&v->cancel, 1); }
+int kr_video_interrupted(const kr_video *v) { return v && (atomic_load(&v->abort) || atomic_load(&v->cancel)); }
 
 void kr_video_subtitle_language(kr_video *v, const char *lang) {
     if (v && !v->subs) snprintf(v->sub_language, sizeof v->sub_language, "%s", lang ? lang : "");
@@ -604,13 +605,18 @@ static int produce(kr_video *v, double start, double end, gm_buf *out, char *err
     AVFrame *fr = av_frame_alloc();
     int r = -1, eof = 0, done = 0, retried = 0;
     if (!j.held || !pkt || !fr) { seterr(err, errlen, "out of memory", 0); goto out; }
-    atomic_store(&v->cancel, 0);
+    if(atomic_exchange(&v->cancel,0)) {
+        // The previous speculative job may have interrupted an AVIO wait. Drop parser/error state before
+        // seeking so its expected cancellation cannot poison the next foreground segment.
+        avformat_flush(v->in);
+        if(v->in->pb){v->in->pb->error=0;v->in->pb->eof_reached=0;}
+    }
     if (v->subs && v->sub_index >= 0) sub_lookback(v, start);
     seek_before(v, start);
     avcodec_flush_buffers(v->dec);
     while (!done && !eof) {
         if (atomic_load(&v->abort)) { seterr(err, errlen, "stopped", 0); goto out; }
-        // r8: checked between packets only (not in the read callback): the demuxer stays usable for the next segment.
+        // Speculative cancellation also interrupts source waits; the next job resets parser/error state above.
         if (atomic_load(&v->cancel)) { seterr(err, errlen, "cancelled", 0); r = KR_VIDEO_CANCELLED; goto out; }
         int rr = av_read_frame(v->in, pkt);
         if (rr == AVERROR_EOF) { eof = 1; avcodec_send_packet(v->dec, NULL); }
@@ -672,6 +678,9 @@ static int produce(kr_video *v, double start, double end, gm_buf *out, char *err
     if (r == 0 && v->subs && v->cov_from >= 0 && v->cov_from <= start && v->cov_to >= start - 1e-3)
         v->cov_to = fmax(v->cov_to, end >= 0 ? end : 1e18);
 out:
+    if(atomic_load(&v->cancel) && !atomic_load(&v->abort)) {
+        seterr(err,errlen,"cancelled",0);r=KR_VIDEO_CANCELLED;out->len=0;
+    }
     if (j.io) { av_freep(&j.io->buffer); avio_context_free(&j.io); }
     if (j.oc) avformat_free_context(j.oc);
     avcodec_free_context(&j.enc);

@@ -17,6 +17,8 @@ struct kr_source {
     atomic_llong deadline_ns;
     char *url;
     int timeout_s;
+    int (*extra_interrupt)(void *);
+    void *interrupt_context;
 };
 
 static int64_t io_clock(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (int64_t)t.tv_sec * 1000000000 + t.tv_nsec; }
@@ -25,7 +27,12 @@ double kr_source_io_ms(const kr_source *s) { return s ? atomic_load(&s->io_ns) /
 static int interrupted(void *opaque) {
     kr_source *s = opaque;
     int64_t deadline = atomic_load(&s->deadline_ns);
-    return atomic_load(&s->aborted) || (deadline && io_clock() >= deadline);
+    return atomic_load(&s->aborted) || (deadline && io_clock() >= deadline) ||
+           (s->extra_interrupt && s->extra_interrupt(s->interrupt_context));
+}
+
+void kr_source_set_interrupt(kr_source *s, int (*callback)(void *), void *context) {
+    if(s){s->extra_interrupt=callback;s->interrupt_context=context;}
 }
 
 static int open_at(kr_source *s, int64_t offset) {
@@ -125,6 +132,7 @@ void kr_source_abort(kr_source *s) { if (s) atomic_store(&s->aborted, 1); }
 
 void kr_source_close(kr_source *s) {
     if (!s) return;
+    s->extra_interrupt=NULL;s->interrupt_context=NULL;
     if (s->io) avio_closep(&s->io);
     free(s->url);
     free(s);
