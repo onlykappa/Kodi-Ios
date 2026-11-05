@@ -157,16 +157,18 @@ From `portrait.py` and `pages.py` (dark-only UI, matching iOS dark system colour
 | `DIM` | `4DEBEBF5` | disabled or placeholder only |
 | `SEP` | `33EBEBF5` | separators |
 | `GREEN` | `FF30D158` | success, "done" |
-| Blue accent | `FF0A84FF` (`pages.BLUE`), `FF4FA8FF` (`portrait.ACCENT`) | interactive tint only |
+| Blue, fills | `FF0A84FF` (`pages.BLUE`) | progress rings and bars, selected tab, app tiles, unread dot |
+| Blue, text | `FF4FA8FF` (`portrait.ACCENT`) | blue text and glyphs: links such as "Clear All", text buttons |
 | `RED`, `ORANGE` | `FFFF453A`, `FFFF9F0A` | destructive, warnings |
 
 Rules:
 
 - Use colour to mean interactivity or status. Static decoration stays neutral. Have one or two tinted elements per view.
 - Per-app colours (activity sheet bars) are allowed as small identifiers only, never as backgrounds behind text.
-- **Known drift to resolve in a UI PR, not silently:** the project has two blues. Measured on `SURFACE2`,
-  `0A84FF` small text reaches only 3.82:1, which is below 4.5:1, while `4FA8FF` reaches 5.56:1. Pick one accent
-  per role (fills compared with small text) with the owner. Do not add a third.
+- **Two blues, one role each (owner decision, DEC-027).** System blue `0A84FF` is for fills. Small blue text on
+  `SURFACE2` would reach only 3.82:1 in system blue, so blue text uses `4FA8FF` (5.56:1). Code that still uses
+  `0A84FF` for text (for example Notifications' "Clear All") should move to `4FA8FF` when that screen is next
+  touched. Do not add a third blue.
 
 ### 4.4 Shape and surfaces
 
@@ -200,14 +202,22 @@ Rules:
 
 ### 4.7 Activity control (pill) and activity sheet
 
-These are aesthetic rules. Behaviour belongs to PR #9:
+These are aesthetic rules; behaviour belongs to PR #9. The approved design is the round-4 mockup
+(`docs/design/activity-mockups-r4.html` on PR #9; owner approved it on 2026-11-05, DEC-027).
 
-- **Pill:** compact, floating, capsule. Have one line of text, and it must fit (§4.2). Show an app tile or ring with
-  progress, plus a status glyph. Place it above the tab bar on tab pages. Hide it over alerts, the keyboard and
-  sheets. It never covers playback controls. Its hit area must be at least 118 units tall.
-- **Sheet:** use `SURFACE2` with the sheet top radius (§4.4) and a grabber. Have one row per job: title (one line,
-  truncated), a status line (one line, truncated), and a thin progress bar in the app's colour. Pause/resume
-  controls need 118-unit hit areas. The sheet's height follows its content up to a maximum, then scrolls.
+- **Progress is a ring around the app tile, in both the pill and the sheet.** It fills clockwise, and with no
+  percentage the same ring spins in the same place. It turns grey while paused, and the tile shows a green check when
+  done. No corner badges, and no switch between ring and bar for the same job.
+- **Pill:** a compact floating capsule, 62 pt (167 units) high, with the ring tile, a bold title line and a status
+  line that starts with the percentage, plus a trailing pause/resume control or a job count. Each text line must fit
+  (§4.2). Place it above the tab bar on tab pages. Hide it over alerts, the keyboard and sheets. It never covers
+  playback controls. With several jobs, show stacked tiles and "N running".
+- **Sheet:** use `SURFACE1` rows on a `SURFACE2` group (or the reverse; keep one), with the sheet top radius (§4.4)
+  and a grabber. Group the jobs by kind (Downloading, Preparing for AirPlay, Uploading to Google Drive) with the
+  count once in the group header. Each row: ring tile, title, status line, percentage, pause/resume.
+- **A status-only sheet closes with a ✕ (Close) control, not "Done".** HIG keeps Done for finishing a task.
+  Swiping down and tapping the dimmed page also close it.
+- Every pause, resume and close control has a 118-unit touch area, with a smaller drawn disc (about 92 units).
 - Progress wording is plain and short: "Preparing audio · 40 %". Do not repeat the same count ("8 remaining")
   twice in one row.
 
