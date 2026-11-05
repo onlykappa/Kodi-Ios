@@ -200,18 +200,18 @@ class NativeOwnerTests(unittest.TestCase):
     elif action.startswith('SetFocus('):self.assertIn('"SetFocus(" + std::to_string(4000 + 10000 * tapped) + ")"',block);self.assertIn(action,['SetFocus(%d)'%(4000+10000*i) for i in range(3)])
     else:self.assertIn('"%s"'%action,block)
     if condition:self.assertIn('info.EvaluateBool("%s", context)'%condition,block)
- def test_locks_pin_r5_and_r22(self):
+ def test_locks_pin_r5_and_r23(self):
   bar=json.loads((ROOT/'migration/glassbar-ios/source-lock.json').read_text())
   self.assertEqual(bar['framework_release']['tag'],'kodi-glassbar-r5')
   self.assertRegex(bar['framework_release']['sha256'],r'^[0-9a-f]{64}$')
   self.assertEqual(bar['previous']['tag'],'kodi-glassbar-r4')
   self.assertNotIn('build_status',bar)
   exe=json.loads((ROOT/'migration/ios-portrait/source-lock.json').read_text())
-  self.assertEqual(exe['executable_release']['tag'],'kodi-ios-portrait-r22')
-  self.assertRegex(exe['executable_release']['sha256'],r'^[0-9a-f]{64}$')
-  self.assertEqual(exe['previous_executable_release']['tag'],'kodi-ios-portrait-r21')
+  self.assertEqual(exe['executable_release']['tag'],'kodi-ios-portrait-r23')
+  self.assertEqual(exe['executable_release']['sha256'],'9fa9ad78f8613bf4ce4b369eb19e46bfe5a99bc934f568d16dd0953c946fb7fd')
+  self.assertEqual(exe['previous_executable_release']['tag'],'kodi-ios-portrait-r22')
   self.assertNotIn('build_status',exe)
-  self.assertIn('native tab bar',exe['build_note'])
+  self.assertEqual(exe['previous_executable_release']['sha256'],'1b30b81921b27416113c362fd1443f4f88d2ecd64087f9b8491ba04628a17172')
   workflow=(ROOT/'.github/workflows/glassbar-ios.yml').read_text()
   self.assertIn("d.get('build_tag') or d['framework_release']['tag']",workflow)
 
