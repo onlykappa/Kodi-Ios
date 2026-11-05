@@ -94,11 +94,21 @@ In this repository:
 rounded action buttons, horizontal media rows, a compact floating activity control and a larger activity sheet.
 It should be content-first, with chrome that recedes.
 
-The owner referred to two attached aesthetic screenshots. **They were not available in the session that wrote this
-policy.** The only screenshot available showed the Notifications defect in ISSUE-101. The direction above comes
-from the owner's written description, and no layout has been inferred from images. If the reference screenshots
-are supplied later, record what they show here. Treat them as aesthetic references, not as specifications or as
-permission to add features. Never copy film artwork, logos, branding or fonts from them.
+**Reference screenshots (device class, owner, 2026-11-05; not committed because they contain film artwork).**
+The owner supplied them after this policy was first written. They show the current app:
+
+1. **Movies tab with the activity pill.** Shows a full-bleed hero with a title logo, a "Crime · 2008 · PG-13" meta line,
+   a white capsule Play button next to a dark capsule Info button, and page dots. Below come "Continue Watching ›"
+   16:9 cards with year and title, then a "Popular Movies ›" poster row. The floating activity pill sits above the
+   native tab bar (Home · Movies · TV · Library · Search), with Movies tinted blue.
+2. **The same page with the Activity sheet open.** The page is dimmed. There is a bell with a red "3" badge and a
+   blue progress arc, plus a profile circle. The sheet has a grabber, a large "Activity" title and a blue "Done".
+   Each row has a blue app tile, a title, a "4K · 20.9 MB/s · 5 min left" line, a thin blue progress bar and a
+   round pause button.
+
+These screens are the target look: keep the structure and style, and fix the defects in ISSUE-102. They are
+aesthetic references, not specifications, and not permission to add features. Never copy film artwork, logos,
+branding or fonts from them. Screenshot measurements use 920 px = 402 pt (2.29 px/pt) and are approximate.
 
 ### 4.1 Units: points to Kodi coordinates
 
