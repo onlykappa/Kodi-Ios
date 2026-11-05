@@ -203,7 +203,7 @@ Rules:
 ### 4.7 Activity control (pill) and activity sheet
 
 These are aesthetic rules; behaviour belongs to PR #9. The approved design is the round-4 mockup
-(`docs/design/activity-mockups-r4.html` on PR #9; owner approved it on 2026-11-05, DEC-027).
+(`activity-mockups-r4.html` in docs/design on PR #9's branch; owner approved it on 2026-11-05, DEC-027).
 
 - **Progress is a ring around the app tile, in both the pill and the sheet.** It fills clockwise, and with no
   percentage the same ring spins in the same place. It turns grey while paused, and the tile shows a green check when
