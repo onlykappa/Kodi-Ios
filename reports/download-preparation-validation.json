@@ -1,5 +1,5 @@
 {
-  "status": "implementation_in_native_and_host_validation",
+  "status": "native_verified_framework_publication_in_progress",
   "requirements": {
     "startup_scan": true,
     "post_upload_third_step": true,
@@ -21,13 +21,46 @@
   "validation_so_far": {
     "focused_native_checks": 7928,
     "focused_native_failures": 0,
-    "python_preparation_tests": 18,
+    "python_preparation_tests": 26,
     "python_preparation_failures": 0,
     "notifications_tests": 14,
     "airplay_routing_static_tests": 27,
     "project_check": true,
-    "full_native_suite": "in progress",
-    "iphoneos_framework": "pending"
+    "full_native_suite": {
+      "checks": 9311,
+      "failures": 0,
+      "source": "e9beab07abec11eaee926045ff9d09856a41127d"
+    },
+    "iphoneos_framework": {
+      "status": "success",
+      "run": 42099308207,
+      "source": "c7a5e1250a5ad53854674dc453dcbf368de53c5a",
+      "artifact": 13449371029,
+      "archive_sha256": "e5e45d2ea2c08208127fba5ad9d9bcde0da0f0a7f16db994c869cd233ca7dce2",
+      "artifact_digest_verified": true,
+      "arm64": true,
+      "new_exports_and_final_code_markers_verified": true
+    },
+    "final_focused_native": {
+      "checks": 208,
+      "failures": 0
+    },
+    "portrait_tests": 44,
+    "pages_tests": 18,
+    "settings_search_tests": 5,
+    "upload_tests": 17,
+    "library_scan_tests": 31,
+    "performance_tests": 13,
+    "bootstrap_tests": 15,
+    "final_clean_host_ci": {
+      "run": 42099308207,
+      "checks": 1579,
+      "failures": 0,
+      "status": "success"
+    },
+    "customized_ipa_tests": 10,
+    "import_builder_tests": 13,
+    "glassbar_tests": 25
   },
   "failures_and_fixes": [
     {
@@ -38,7 +71,17 @@
     {
       "failure": "Existing native stop regression observed 5.27 seconds during concurrent fixture runs.",
       "fix": "Register and shut down active sockets and wait for request completion before freeing session state; add idle-client regression.",
-      "retest": "Full native suite pending."
+      "retest": "Full local suite passes, final clean native CI passes 1579 checks; idle-client shutdown regression passes."
+    },
+    {
+      "failure": "Local customized-IPA regression requires CPython 3.11, absent from initial executor.",
+      "fix": "Use a task-local CPython 3.11; CI already configures this version.",
+      "retest": "All 10 customized-IPA regressions pass with task-local CPython 3.11.17."
+    },
+    {
+      "failure": "Workspace release upload returned HTTP 401 at uploads.github.com after validation.",
+      "fix": "Publish the exact verified candidate through a short Actions job with run-provenance and pinned SHA256 checks; no rebuild or unverified substitution.",
+      "retest": "in progress"
     }
   ],
   "device_verified": false,

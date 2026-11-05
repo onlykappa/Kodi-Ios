@@ -20,7 +20,7 @@ false-fatal `video conversion: cancelled` defect. Raw logs, Drive IDs and URLs r
   PATCH. Library routes and saved IDs remain stable; no second folder/file is created.
 - Compatible H.264/HEVC video is copied packet-for-packet, retaining selected resolution, frame rate and
   HDR/Dolby configuration. Unsupported SDR video uses source dimensions, not the live 1080p fallback.
-  Non-AAC audio becomes AAC; selectable text subtitles become MP4 text tracks.
+  Non-AAC audio becomes AAC (at most 5.1; lossless/Atmos is not retained by that conversion); selectable text subtitles become MP4 text tracks.
 - The MP4 has a front-loaded sample index and must pass duration, dimensions, HDR, track-count and
   mid/end seek checks before its bytes can replace the original. Drive size/MD5 are verified again before
   marking ready and removing temporary work. Concurrent source version changes stop replacement.
