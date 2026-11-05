@@ -672,6 +672,7 @@ SHOW_VARS=('<variable name="Portrait_Show_Art"><value condition="!String.IsEmpty
            '<variable name="Portrait_Show_Title"><value condition="!String.IsEmpty(ListItem.TVShowTitle)">$INFO[ListItem.TVShowTitle]</value><value>$INFO[Container.FolderName]</value></variable>'
            '<variable name="Portrait_Select_Art">'+''.join('<value condition="!String.IsEmpty(Container(%d).ListItem.Art(%s))">$INFO[Container(%d).ListItem.Art(%s)]</value>'%(c,k,c,k) for k in ('thumb','fanart','poster') for c in (3,6))+'</variable>'
            '<variable name="Portrait_Page_Title"><value condition="!String.IsEmpty(Window(Home).Property(Portrait.Title)) + String.IsEqual(Container.FolderName,TMDb Helper)">$INFO[Window(Home).Property(Portrait.Title)]</value>'
+           '<value condition="!String.IsEmpty(Container.PluginCategory)">$INFO[Container.PluginCategory]</value>'
            '<value>$INFO[Container.FolderName]</value></variable>'
            '<variable name="Portrait_Thumb"><value condition="!String.IsEmpty(ListItem.Art(thumb))">$INFO[ListItem.Art(thumb)]</value><value>$INFO[ListItem.Art(fanart)]</value></variable>')
 

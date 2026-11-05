@@ -154,9 +154,27 @@ def artwork(kind,title,year,key,cache,get,cached_only=False):
   if results is None:return {}   # not cached: try again next time
   if results:
    r=results[0]
-   found={'tmdb_id':str(r.get('id') or ''),'plot':r.get('overview') or '',
+   found={'tmdb_id':str(r.get('id') or ''),'plot':r.get('overview') or '','rating':r.get('vote_average') or 0,
           'poster':IMAGE+'w500'+r['poster_path'] if r.get('poster_path') else '',
           'fanart':IMAGE+'w1280'+r['backdrop_path'] if r.get('backdrop_path') else ''}
+ cache[slot]=found
+ return found
+
+def season(tmdb_id,number,key,cache,get,cached_only=False):
+ """{episode number (text): {'title','plot','thumb','runtime','aired'}} for one season of a TMDb show, cached.
+ Owner (build 146): downloaded shows opened a bare page (no episode names, stills or plots)."""
+ slot='season:%s:%s'%(tmdb_id,number)
+ if slot in cache:return cache[slot]
+ if cached_only or not key or not tmdb_id:return {}
+ try:data=json.loads(get(TMDB+'/tv/%s/season/%d?'%(urllib.parse.quote(str(tmdb_id),safe=''),int(number))+urllib.parse.urlencode({'api_key':key})))
+ except Exception:return {}   # not cached: try again next time
+ found={}
+ for ep in data.get('episodes') or []:
+  n=ep.get('episode_number')
+  if n is None:continue
+  found[str(n)]={'title':ep.get('name') or '','plot':ep.get('overview') or '',
+                 'thumb':IMAGE+'w780'+ep['still_path'] if ep.get('still_path') else '',
+                 'runtime':int(ep.get('runtime') or 0),'aired':ep.get('air_date') or ''}
  cache[slot]=found
  return found
 

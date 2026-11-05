@@ -4,10 +4,14 @@ import json,os,time
 def art_titles(params,local,cloud):
  """Exactly the artwork identities used by the displayed local/Drive rows, once per title."""
  kind='tv' if params.get('type')=='tv' else 'movie';seen=set()
+ # A show page (phone, Drive or both) takes its header art from the show (ios_library.episode_rows).
+ if kind=='tv' and params.get('show') and (params.get('folder') or params.get('local')=='1' or params.get('merge')=='1'):
+  seen.add((kind,params['show'],''));yield (kind,params['show'],'')
  for source,entries in (('local',local),('drive',cloud)):
   for entry in entries:
    title=entry.get('title','');year=entry.get('year','')
-   if source=='local' and params.get('local')=='1':
+   if source=='local' and (params.get('local')=='1' or params.get('merge')=='1'):
+    if params.get('merge')=='1':continue  # the show identity above is the one the page shows
     if title.casefold()!=params.get('show','').casefold() or year!=params.get('year',''):continue
    if source=='drive' and params.get('folder'):
     if params.get('loose')=='1' and (title.casefold()!=params.get('show','').casefold() or year!=params.get('year','')):continue
@@ -28,6 +32,14 @@ def hydrate_artwork(params,local,cloud,drive,state_dir,key,get,active,clock=time
   if attempted>=max_titles or clock()>=deadline or not active():break
   if '%s:%s:%s'%(kind,title.lower(),year) in cache:continue
   attempted+=1;drive.artwork(kind,title,year,key,cache,request)
+ # Episode names, plots and stills for the seasons on a show page.
+ show=params.get('show')
+ if params.get('type')=='tv' and show and (params.get('folder') or params.get('local')=='1' or params.get('merge')=='1'):
+  tmdb=(cache.get('tv:%s:'%show.lower()) or {}).get('tmdb_id')
+  for number in sorted({int(e.get('season') or 0) for e in list(local)+list(cloud) if e.get('season')}):
+   if not tmdb or attempted>=max_titles or clock()>=deadline or not active():break
+   if 'season:%s:%s'%(tmdb,number) in cache:continue
+   attempted+=1;drive.season(tmdb,number,key,cache,request)
  updates={k:v for k,v in cache.items() if k not in before or before[k]!=v}
  if not updates:return False
  # Preserve any results written while these requests were in flight.
@@ -44,10 +56,10 @@ def watch(info,busy,refresh,wait,page,drive,state_dir,clock=time.monotonic,every
   if path!=last_path:last=None;cloud_at=-1e9;art_at=-1e9;last_path=path;cloud=[];cache_seen=False;art_pending=False
   kind='tv' if params.get('type')=='tv' else 'movie'
   try:
-   local=[] if params.get('folder') else page.local_entries(kind,drive)
+   local=[] if params.get('folder') and params.get('merge')!='1' else page.local_entries(kind,drive)
    if clock()-cloud_at>=cloud_every or (cache_seen and not os.path.exists(os.path.join(state_dir,'drive-library.json'))):
     cloud_at=clock()
-    try:cloud=[] if params.get('local')=='1' else drive.listing(kind,state_dir,params.get('folder'),strict=True,fresh=True)[0]
+    try:cloud=[] if params.get('local')=='1' or (params.get('merge')=='1' and not params.get('folder')) else drive.listing(kind,state_dir,params.get('folder'),strict=True,fresh=True)[0]
     except Exception as error:_quiet('library_watch:51',error)  # offline Drive must not hide a newly completed phone download
     cache_seen=os.path.exists(os.path.join(state_dir,'drive-library.json'))
    # Art is cosmetic; only media membership/paths need to refresh the page.
