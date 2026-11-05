@@ -41,8 +41,7 @@ def run(argv):
  if params.get('action')=='continue':
   from ios_continue import directory;directory(handle,params.get('type','all'));return
  if params.get('action')=='choose_source':
-  # Long press › Choose source on Continue Watching: forget last time's pick, then play the item as a tap does
-  # (Kodi's resume question, then the watch menu and the version page, whose answers are remembered again).
+  # Long press › Choose source on Continue Watching: forget last time's pick, then ask for the source of THIS title.
   import xbmcvfs
   from ios_continue import forget_choice
   def read(path):
@@ -53,8 +52,25 @@ def run(argv):
    f=xbmcvfs.File(path,'w')
    try:f.write(text)
    finally:f.close()
-  forget_choice(read,write,params.get('key',''))
-  xbmc.sleep(300);xbmc.executebuiltin('Action(Select)');return
+  from ios_continue import entry_for,choose_url
+  key=params.get('key','');entry=entry_for(read,key)
+  forget_choice(read,write,key)
+  if not entry:xbmcgui.Dialog().notification('Choose source','This title is no longer in Continue Watching');return
+  # Owner bug: a simulated tap on the focused control hit whatever had focus after the menu closed and Kodi's resume
+  # question led back to the saved pick. Now: our own resume question, then the source menu for THIS title.
+  position=int(entry.get('position') or 0);start=0
+  if position>=30:
+   pick=xbmcgui.Dialog().select('Choose source',['Resume from %d:%02d:%02d'%(position//3600,position%3600//60,position%60),'Play from beginning'])
+   if pick<0:return
+   start=position if pick==0 else 0
+  xbmc.executebuiltin('PlayMedia(%s)'%choose_url(entry))
+  if start:
+   player=xbmc.Player();monitor=xbmc.Monitor()
+   for _ in range(240):  # up to 2 minutes for the source page and buffering
+    if monitor.waitForAbort(0.5):return
+    if player.isPlayingVideo() and player.getTotalTime()>0:
+     player.seekTime(start);break
+  return
  if params.get('action')=='engine_status':
   xbmcgui.Dialog().ok('Elementum not available','Elementum is not installed or is switched off in this build. Check Add-ons > Video add-ons > Elementum.')
   xbmcplugin.endOfDirectory(handle,succeeded=False);return

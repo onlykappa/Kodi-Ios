@@ -83,6 +83,15 @@ def play_url(entry):
  if entry['kind']=='movie':return HELPER+'?info=play&tmdb_type=movie&tmdb_id='+entry['tmdb_id']+'&'+CONTINUE_FLAG
  return HELPER+'?info=play&tmdb_type=tv&tmdb_id=%s&season=%s&episode=%s&%s'%(entry['tmdb_id'],entry['season'],entry['episode'],CONTINUE_FLAG)
 
+CHOOSE_FLAG='ios_choose=1'
+
+def choose_url(entry):
+ """The title's play link that always asks for the source (ios_watch_dialog.choosing)."""
+ return play_url(entry).replace(CONTINUE_FLAG,CHOOSE_FLAG)
+
+def entry_for(read,item_key):
+ return load(read)['items'].get(item_key)
+
 def choose_source_action(entry):
  from urllib.parse import quote
  return 'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=choose_source&key=%s)'%quote(key(entry),safe='')

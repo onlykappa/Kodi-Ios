@@ -66,6 +66,15 @@ def downloaded_item(player,candidates,find=None,folders=None,cloud=False):
   except Exception:pass
   raise DownloadLookupError('Could not verify a completed copy') from error
 
+def choosing(player=None,argv=None):
+ """True when the owner asked to pick the source (long press › Choose source / Choose player): no saved player,
+ no automatic completed copy, always the menu. Owner bug: those entries fell back to the resume question and the
+ saved pick, so "choosing" never offered a choice."""
+ import sys
+ argv=sys.argv if argv is None else argv
+ flag=len(argv)>2 and 'ios_choose=1' in str(argv[2]).lstrip('?').split('&')
+ return flag or bool(getattr(player,'ignore_default',False))
+
 def choose_player(player):
  import xbmc,xbmcgui,xbmcaddon,xbmcvfs
  player.allow_playlist=False
@@ -101,8 +110,15 @@ def choose_player(player):
   try:f.write(text)
   finally:f.close()
  kind_of=lambda item:'elementum' if item is engine else 'umbrella' if item is umbrella else 'local'
+ if choosing(player):
+  # Asked to choose: offer the completed copy as one of the rows instead of playing it automatically.
+  resume=False
+  try:copy=downloaded_item(player,candidates,cloud=True)
+  except DownloadLookupError:copy=None
+  if copy is not None:rows.insert(0,('Downloaded copy','play',copy));kind_of=(lambda item,old=kind_of:getattr(item,'ios_download_source','local') if item is copy else old(item))
+  xbmc.log('Kodi iOS watch: choose source asked; offering %d options'%len(rows),xbmc.LOGINFO)
  # A finished download on the phone plays at once (owner build-132: Home fetched the torrent again).
- try:downloaded=downloaded_item(player,candidates,cloud=resume)
+ try:downloaded=None if choosing(player) else downloaded_item(player,candidates,cloud=resume)
  except DownloadLookupError:
   xbmcgui.Dialog().ok('Check downloaded copy','Completed downloads could not be checked. Try again before starting another download.')
   return None
