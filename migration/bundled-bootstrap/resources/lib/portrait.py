@@ -25,8 +25,12 @@ REVISION='ios-portrait-r3'
 FOLDER='portrait'
 # iPhone 16 Pro portrait: 402x874 pt with 62/34 pt safe-area insets. Kodi stretches the skin canvas into
 # the safe area, so 1080 x 2090 keeps pixels square there (1 pt = 2.687 units). 9:16 covers home-button phones.
+# The aspect label is the canvas's true ratio: Kodi chooses a resolution by the ratio its *label* states
+# (CSkinInfo closestRes / RESOLUTION_INFO::DisplayRatio), not by width/height. The old '9:19.5' (0.462) lost to
+# '9:16' (0.563) on the 16 Pro's 0.517 safe area, so the phone drew every portrait page on 1080 x 1920 stretched
+# 9 % taller: circles became ovals and anything placed near the bottom ran off screen (owner, build 154).
 WIDTH,HEIGHT=1080,2090
-RES=[('9:19.5',WIDTH,HEIGHT),('9:16',WIDTH,1920)]
+RES=[('1080:2090',WIDTH,HEIGHT),('9:16',WIDTH,1920)]
 MARKER='Kodi-iOS portrait '+REVISION
 NODES='addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-{}.json'
 ICONS='special://skin/extras/icons/'
@@ -1131,9 +1135,13 @@ def build(skin,profile):
  return files
 
 def add_resolutions(addon):
+ """Fuse's addon.xml lists the portrait resolutions exactly as RES says. Also upgrades a phone's writable copy that
+ has older entries (the '9:19.5' label). Returns True when the file changed."""
  data=addon.read_text(encoding='utf-8')
- if 'folder="%s"'%FOLDER in data:return False
  res=''.join('<res aspect="%s" default="false" folder="%s" width="%d" height="%d" />\n        '%(a,FOLDER,w,h) for a,w,h in RES)
+ old=re.compile(r'<res [^>]*folder="%s"[^>]*/>\s*'%FOLDER)
+ if ''.join(m.group(0) for m in old.finditer(data))==res:return False
+ data=old.sub('',data)
  anchor=re.search(r'<res [^>]*default="true"[^>]*/>',data);assert anchor,'Fuse resolution list not found'
  addon.write_text(data[:anchor.start()]+res+data[anchor.start():],encoding='utf-8');return True
 
@@ -1315,7 +1323,12 @@ def refresh_skin(xbmc,invoke,skin,profile):
   # Add the portrait folder and resolution, then have Kodi re-read addon.xml so the folder can be chosen.
   changed=list(build(skin,profile));invoke('UpdateLocalAddons')
   xbmc.log('Kodi iOS portrait layout added to the writable skin copy (%d files)'%len(changed),xbmc.LOGINFO)
- else:changed=refresh_if_needed(skin,profile)
+ else:
+  changed=refresh_if_needed(skin,profile)
+  if add_resolutions(Path(skin)/'addon.xml'):
+   # Kodi reads a skin's resolutions when it loads the skin add-on: the new label applies from the next start.
+   invoke('UpdateLocalAddons');changed=list(changed)+['addon.xml']
+   xbmc.log('Kodi iOS portrait resolution label updated (true 1080:2090 ratio); applies when Kodi next starts',xbmc.LOGINFO)
  # Fuse's start: no hub preloading (it opened each hub window in turn, the portrait hubs are one window) and no
  # wait-for-widgets loop (its script ran again every half second for up to a minute while rows loaded).
  for setting,on in (('Startup.EnableHubPreloading',False),('Startup.DisableWaitForLoad',True)):

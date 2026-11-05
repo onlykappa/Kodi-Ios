@@ -388,4 +388,30 @@ class IpaTests(unittest.TestCase):
       with self.assertRaises(AssertionError):ios_portrait.swap_executable(app,exe)
       self.assertEqual((app/'Kodi').read_bytes(),b'official')
   finally:ios_portrait.macho=real
+class ResolutionChoice(unittest.TestCase):
+ """Owner (build 154): circles drawn as ovals and the Activity sheet running off the bottom. Kodi picks the skin
+ resolution whose aspect *label* is closest to the screen (Kodi 21.3 xbmc/addons/Skin.cpp closestRes,
+ RESOLUTION_INFO::DisplayRatio), so the label must state the canvas's true ratio."""
+ @staticmethod
+ def kodi_choice(entries,screen_ratio):
+  ratio=lambda a:float(a.split(':')[0])/float(a.split(':')[1])
+  return min(entries,key=lambda e:abs(ratio(e[0])-screen_ratio))
+ def test_16_pro_safe_area_gets_the_1080_by_2090_canvas(self):
+  self.assertEqual(self.kodi_choice(portrait.RES,402/778)[1:],(1080,2090))
+  self.assertEqual(self.kodi_choice([('9:19.5',1080,2090),('9:16',1080,1920)],402/778)[1:],(1080,1920))   # the bug
+  a,w,h=portrait.RES[0];self.assertAlmostEqual(float(a.split(':')[0])/float(a.split(':')[1]),w/h,places=6)   # square pixels
+ def test_home_button_phones_keep_9_16(self):
+  self.assertEqual(self.kodi_choice(portrait.RES,375/667)[1:],(1080,1920))
+ def test_an_existing_skin_copy_is_upgraded_once(self):
+  import tempfile
+  with tempfile.TemporaryDirectory() as d:
+   addon=Path(d)/'addon.xml'
+   addon.write_text('<addon><extension point="xbmc.gui.skin">\n        <res aspect="9:19.5" default="false" folder="portrait" width="1080" height="2090" />\n        '
+                    '<res aspect="9:16" default="false" folder="portrait" width="1080" height="1920" />\n        '
+                    '<res aspect="16:9" default="true" folder="1080i" width="1920" height="1080" />\n</extension></addon>')
+   self.assertTrue(portrait.add_resolutions(addon));text=addon.read_text()
+   self.assertIn('aspect="1080:2090"',text);self.assertNotIn('9:19.5',text);self.assertEqual(text.count('folder="portrait"'),2)
+   self.assertFalse(portrait.add_resolutions(addon));self.assertEqual(addon.read_text(),text)
+  self.assertIn("if add_resolutions(Path(skin)/'addon.xml'):",Path(portrait.__file__).read_text())   # every start
+
 if __name__=='__main__':unittest.main()

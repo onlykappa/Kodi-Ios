@@ -10,7 +10,7 @@ as Home window properties (Activity.*) for the pill (Custom_1187_Activity.xml) a
 Elementum downloads come from its engine instead (title, %, speed, pause) and the Google Drive upload from
 driveupload, so the pill shows them even between Kodi's turns. Nothing here raises into the service.
 """
-import re,time
+import re,threading,time
 
 PREFIX='Activity.'
 ROWS=6                      # rows on the Activity sheet (Activity.<n>.*)
@@ -161,7 +161,7 @@ class Tracker:
    speed=speed_text(d.get('speed',''))
    out.append({'key':'dl|'+str(d.get('id','')),'app':'elementum','group':'elementum','title':title,'pct':int(d.get('progress') or 0),
                'sub':('Paused · %d%%'%int(d.get('progress') or 0)) if d.get('paused') else ' · '.join(x for x in (quality,speed.replace('  ·  ',' · ')) if x),
-               'paused':bool(d.get('paused')),'id':d.get('id',''),'download':d.get('title','')})
+               'paused':bool(d.get('paused')),'id':d.get('id',''),'download':d.get('title',''),'raw':d.get('title','')})
   # An engine download that leaves the list near the end has finished: green check (found in the rig: it just vanished).
   now_keys={'dl|'+str(d.get('id','')) for d in downloads}
   for key,job in list(self.engine.items()):
@@ -170,7 +170,7 @@ class Tracker:
     if (job.get('pct') or 0)>=95:self.done[key]=dict(job,pct=100,paused=False,id='',sub='Downloaded · Saved to Kodi Downloads',until=now+DONE_FOR)
   for job in out:self.engine[job['key']]=job
   for u in uploads:
-   out.append({'key':'drive','app':'drive','group':'drive','title':'Uploading to Google Drive','pct':int(u.get('progress') or 0),
+   out.append({'key':'drive','app':'drive','group':'drive','title':'Uploading to Google Drive','pct':int(u.get('progress') or 0),'raw':u.get('title',''),
                'sub':'%s · %d%%'%(release(u.get('title',''))[0],int(u.get('progress') or 0))})
   # Elementum's own download lines are replaced by the engine's list, and stay ignored for a while after the last
   # engine download (they linger in Kodi's box for a few seconds; found in the tests: "446 KB/s" beside "Downloaded").
@@ -222,12 +222,42 @@ def status_line(job,state):
  elif sub:parts.append(sub)
  return ' · '.join(parts)
 
-def properties(jobs,count_hidden=0):
+class Posters:
+ """The poster of what a job is working on (owner, build 154: 'a photo of the movie instead of the blue box').
+ Looked up once per release name in a background thread, never in the 0.5 s loop; '' until it is known."""
+ def __init__(self,lookup):
+  self.lookup=lookup;self.cache={};self.wanted=[];self.lock=threading.Lock();self.running=False
+ def url(self,raw):
+  if not raw:return ''
+  if raw in self.cache:return self.cache[raw]
+  with self.lock:
+   if raw not in self.wanted:self.wanted.append(raw)
+   if not self.running:self.running=True;threading.Thread(target=self.fetch,daemon=True).start()
+  return ''
+ def fetch(self):
+  while True:
+   with self.lock:
+    if not self.wanted:self.running=False;return
+    raw=self.wanted.pop(0)
+   try:found=self.lookup(raw) or ''
+   except Exception:found=''
+   self.cache[raw]=found   # also '' for no match, so a title is never looked up twice in a session
+
+def poster_lookup(key,get):
+ """raw release name -> TMDb poster URL, through the Library's cached TMDb search (drivelibrary.artwork)."""
+ import drivelibrary
+ cache={}
+ def lookup(raw):
+  info=drivelibrary.parse(raw)
+  return drivelibrary.artwork('tv' if info['season'] else 'movie',info['title'],info['year'],key,cache,get).get('poster','')
+ return lookup
+
+def properties(jobs,count_hidden=0,art=lambda job:''):
  """Home window properties for the pill and the sheet. `jobs`: what may show, in order."""
- props={PREFIX+k:'' for k in ('Show','Count','Title','Sub','Icon','Tint','Ring','RingTint','Pct','State','Pause','PauseId','Stack','Running','Layout')}
+ props={PREFIX+k:'' for k in ('Show','Count','Title','Sub','Icon','Tint','Art','Ring','RingTint','Pct','State','Pause','PauseId','Stack','Running','Layout')}
  for n in range(1,5):props.update({PREFIX+'S%d.Icon'%n:'',PREFIX+'S%d.Tint'%n:''})
  for n in range(1,ROWS+1):
-  for k in ('Title','Sub','Icon','Tint','Bar','Ring','Pct','State','Pause','Id','Head','HeadCount','Pos'):props[PREFIX+'%d.%s'%(n,k)]=''
+  for k in ('Title','Sub','Icon','Tint','Art','Bar','Ring','Pct','State','Pause','Id','Head','HeadCount','Pos'):props[PREFIX+'%d.%s'%(n,k)]=''
  props[PREFIX+'Running']=str(len(jobs)+count_hidden) if jobs or count_hidden else ''
  if not jobs:return props
  def state(j):
@@ -243,7 +273,7 @@ def properties(jobs,count_hidden=0):
   size=sum(1 for x in kinds if x==k)
   if st=='done':icon,tile='check.png','FF30D158'
   props.update({PREFIX+'%d.Title'%n:j['title'],PREFIX+'%d.Sub'%n:status_line(dict(j,pct=None),st) if st!='spin' else j.get('sub',''),
-                PREFIX+'%d.Icon'%n:icon,PREFIX+'%d.Tint'%n:tile,
+                PREFIX+'%d.Icon'%n:icon,PREFIX+'%d.Tint'%n:tile,PREFIX+'%d.Art'%n:'' if st=='done' else art(j),
                 PREFIX+'%d.Bar'%n:'FF30D158' if st=='done' else ('FF8E8E93' if j.get('paused') else ring),
                 PREFIX+'%d.Ring'%n:ring_name(100 if st=='done' else j.get('pct')),
                 PREFIX+'%d.Pct'%n:'' if j.get('pct') is None else str(j['pct']),PREFIX+'%d.State'%n:st,
@@ -256,7 +286,7 @@ def properties(jobs,count_hidden=0):
  if len(jobs)==1:
   st=state(first)
   if st=='done':props.update({PREFIX+'Icon':'check.png',PREFIX+'Tint':'FF30D158'})
-  props.update({PREFIX+'Title':first['title'],PREFIX+'Sub':status_line(first,st),PREFIX+'State':st,
+  props.update({PREFIX+'Title':first['title'],PREFIX+'Sub':status_line(first,st),PREFIX+'State':st,PREFIX+'Art':'' if st=='done' else art(first),
                 PREFIX+'Pct':'' if first.get('pct') is None else str(first['pct']),
                 PREFIX+'Ring':ring_name(100 if st=='done' else first.get('pct')),
                 PREFIX+'RingTint':'FF30D158' if st=='done' else ('FF8E8E93' if st=='paused' else ring),
@@ -289,7 +319,7 @@ def read_box(xbmc,xbmcgui):
  if not heading and not text:return None
  return heading,text,pct
 
-def watch(read,downloads,uploads,setting,playing,publish,report,wait,interval=0.5,clock=time.time):
+def watch(read,downloads,uploads,setting,playing,publish,report,wait,interval=0.5,clock=time.time,posters=None):
  """The service loop. read() -> (heading, text, pct) or None; downloads()/uploads() -> lists (notices.py);
  setting(id, default) -> bool; playing() -> bool; publish(props); report(problem text) -> None; wait(s) -> True to stop."""
  tracker=Tracker();last={};engine_every=2.0;engine_at=0;dl=[];up=[]
@@ -309,7 +339,7 @@ def watch(read,downloads,uploads,setting,playing,publish,report,wait,interval=0.
    jobs=tracker.current(dl,up,now)
    video=playing()
    shown=[j for j in jobs if allowed(j,setting,video)]
-   props=properties(shown,len(jobs)-len(shown))
+   props=properties(shown,len(jobs)-len(shown),art=lambda job:posters.url(job.get('raw','')) if posters else '')
    changed={k:v for k,v in props.items() if last.get(k)!=v}
    if changed:publish(changed);last.update(changed)
   except Exception:

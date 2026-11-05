@@ -70,7 +70,7 @@ def tile(p,x,y,size,icon,tint,texture):
  g=int(size*0.54)
  return p.image(x,y,size,size,p.MEDIA+texture,tint)+p.icon(x+(size-g)//2,y+(size-g)//2,g,p.ICONS+icon,p.WHITE)
 
-def ring_tile(p,x,y,ring,ring_tint,icon,tint,ring_on,spin_on):
+def ring_tile(p,x,y,ring,ring_tint,icon,tint,ring_on,spin_on,art='',art_on='false'):
  """The app tile inside its progress ring: filled clockwise to the job's percentage (ring_00..ring_20), or, with no
  percentage, a short arc spinning in the same place (HIG: keep the indicator's place and style)."""
  M=p.MEDIA;o=(RING-TILE)//2
@@ -79,7 +79,10 @@ def ring_tile(p,x,y,ring,ring_tint,icon,tint,ring_on,spin_on):
   p.image(0,0,RING,RING,M+ring,ring_tint,'<visible>%s</visible>'%ring_on)+
   p.image(0,0,RING,RING,M+'ring_06.png',ring_tint,'<visible>%s</visible>'%spin_on+
    '<animation effect="rotate" end="-360" center="auto" time="1100" loop="true" reversible="false" condition="true">Conditional</animation>')+
-  tile(p,o,o,TILE,icon,tint,'tile108.png')+'</control>')
+  tile(p,o,o,TILE,icon,tint,'tile108.png')+
+  # The poster of what is downloading, over the app tile (which stays as the fallback while it loads).
+  (p.image(o,o,TILE,TILE,art,p.WHITE,'<visible>%s</visible>'%art_on,aspect='>scale',diffuse=M+'tile108.png',background=True) if art else '')+
+  '</control>')
 
 def round_button(p,id,x,y,glyphs,extra='',navigation=''):
  """A 118-unit (44 pt) touch area with a 92-unit drawn disc and a centred glyph; glyphs: [(icon, condition)]."""
@@ -97,7 +100,7 @@ def full_pill(p,w):
  h=170;M=p.MEDIA;single='!%s'%HAS('Stack')
  ring_on='%s + [%s | %s | %s]'%(single,IS('State','progress'),IS('State','paused'),IS('State','done'))
  spin_on='%s + %s'%(single,IS('State','spin'))
- one=ring_tile(p,14,(h-RING)//2,P('Ring'),P('RingTint'),P('Icon'),P('Tint'),ring_on,spin_on)
+ one=ring_tile(p,14,(h-RING)//2,P('Ring'),P('RingTint'),P('Icon'),P('Tint'),ring_on,spin_on,P('Art'),HAS('Art'))
  stack=''.join(('<control type="group"><left>%d</left><top>%d</top><visible>%s + %s</visible>'%(22+i*58,39,HAS('Stack'),HAS('S%d.Icon'%(i+1)))+
   p.image(-7,-7,106,106,M+'tile92.png','FF2A2A2E')+tile(p,0,0,92,P('S%d.Icon'%(i+1)),P('S%d.Tint'%(i+1)),'tile92.png')+'</control>') for i in range(4))
  right=16+HIT+16   # the pause control's lane, kept clear even when it is hidden
@@ -185,7 +188,7 @@ def sheet(p):
   ring_on='[%s | %s | %s]'%(Q(n,'State','progress'),Q(n,'State','paused'),Q(n,'State','done'))
   nav='<onup>%d</onup><ondown>%d</ondown>'%(9610+n-1 if n>1 else 9600,9610+n+1)
   return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(w,row,H(n,'Title'))+backs+sep+
-   ring_tile(p,18,(row-RING)//2,R(n,'Ring'),R(n,'Bar'),R(n,'Icon'),R(n,'Tint'),ring_on,Q(n,'State','spin'))+
+   ring_tile(p,18,(row-RING)//2,R(n,'Ring'),R(n,'Bar'),R(n,'Icon'),R(n,'Tint'),ring_on,Q(n,'State','spin'),R(n,'Art'),H(n,'Art'))+
    p.label(176,30,w-176-240,58,R(n,'Title'),'p_pill',p.WHITE,'left','<scroll>false</scroll>')+
    p.label(176,94,w-176-240,50,R(n,'Sub'),'p_pill_s',p.GREY,'left','<scroll>false</scroll>')+
    p.label(w-236,0,90,row,R(n,'Pct')+'%','p_pill_s',p.GREY,'right','<visible>%s + !%s</visible>'%(H(n,'Pct'),Q(n,'State','done')))+

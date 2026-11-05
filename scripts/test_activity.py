@@ -193,6 +193,36 @@ class Grouping(unittest.TestCase):
   pr=activity.properties([dict(self.JOBS[1],state='done')])
   self.assertEqual((pr[activity.PREFIX+'Icon'],pr[activity.PREFIX+'Tint'],pr[activity.PREFIX+'Ring']),('check.png','FF30D158','ring_20.png'))
 
+class Posters(unittest.TestCase):
+ """Owner (build 154): the pill shows a photo of what is downloading instead of the app's blue tile."""
+ def test_lookup_runs_once_per_title_in_the_background(self):
+  import threading
+  calls=[];done=threading.Event()
+  def lookup(raw):calls.append(raw);done.set();return 'https://image.tmdb.org/t/p/w500/x.jpg'
+  posters=activity.Posters(lookup)
+  self.assertEqual(posters.url('Buddy.2026.1080p.WEB.mkv'),'')   # never waits for the network
+  done.wait(2)
+  for _ in range(50):
+   if posters.cache:break
+   threading.Event().wait(0.02)
+  self.assertEqual(posters.url('Buddy.2026.1080p.WEB.mkv'),'https://image.tmdb.org/t/p/w500/x.jpg');self.assertEqual(calls,['Buddy.2026.1080p.WEB.mkv'])
+  self.assertEqual(posters.url(''),'')
+ def test_poster_lookup_uses_the_parsed_title_and_kind(self):
+  seen=[]
+  def get(url):seen.append(url);return b'{"results":[{"id":1,"poster_path":"/p.jpg"}]}'
+  lookup=activity.poster_lookup('k'*32,get)
+  self.assertTrue(lookup('Buddy.2026.1080p.WEB.mkv').endswith('/p.jpg'));self.assertIn('/search/movie?',seen[0]);self.assertIn('query=Buddy',seen[0])
+  lookup('Lanterns.S01E01.2160p.mkv');self.assertIn('/search/tv?',seen[1])
+ def test_art_in_properties_but_not_on_a_finished_job(self):
+  job={'app':'elementum','title':'Buddy (2026)','sub':'3.3 MB/s','pct':97,'id':'x','raw':'Buddy.2026.mkv'}
+  art=lambda j:'poster:'+j['raw']
+  pr=activity.properties([job],art=art);self.assertEqual((pr[activity.PREFIX+'Art'],pr[activity.PREFIX+'1.Art']),('poster:Buddy.2026.mkv',)*2)
+  pr=activity.properties([dict(job,state='done')],art=art);self.assertEqual(pr[activity.PREFIX+'Art'],'')
+ def test_skin_draws_the_poster_inside_the_ring_over_the_tile(self):
+  for xml in (activity_skin.pill_window(portrait),activity_skin.sheet(portrait)):
+   self.assertIn('<aspectratio>scale</aspectratio><texture background="true" diffuse="special://skin/extras/portrait/tile108.png"',xml)
+  self.assertIn('Property(Activity.Art)',activity_skin.pill_window(portrait));self.assertIn('Property(Activity.1.Art)',activity_skin.sheet(portrait))
+
 class Toggle(unittest.TestCase):
  def test_pause_and_resume(self):
   class W(dict):

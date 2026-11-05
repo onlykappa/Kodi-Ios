@@ -166,9 +166,17 @@ def run():
    value=xbmcaddon.Addon().getSetting(key)
    return default if value=='' else value.lower()=='true'
   except Exception:return default
+ # The pill shows the poster of what is downloading (TMDb, with TMDb Helper's key, as the Library does).
+ try:
+  import drivelibrary,urllib.request
+  key=drivelibrary.tmdb_key(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.themoviedb.helper').getAddonInfo('path')))
+  def get(url):
+   with urllib.request.urlopen(url,timeout=8) as response:return response.read(1024*1024)
+  posters=activity.Posters(activity.poster_lookup(key,get)) if key else None
+ except Exception:posters=None
  threading.Thread(target=activity.watch,args=(lambda:activity.read_box(xbmc,xbmcgui),notices.downloads,lambda:notices.uploads(profile),
   activity_setting,lambda:xbmc.Player().isPlayingVideo(),lambda props:[window.setProperty(k,v) for k,v in props.items()],
-  lambda text:notices.add(profile,'problem','Elementum Burst',text),monitor.waitForAbort),daemon=True).start()
+  lambda text:notices.add(profile,'problem','Elementum Burst',text),monitor.waitForAbort),kwargs={'posters':posters},daemon=True).start()
  # Kept Elementum videos go to Google Drive in the background, never during playback.
  try:
   if xbmcaddon.Addon().getSettingBool('drive_upload'):
