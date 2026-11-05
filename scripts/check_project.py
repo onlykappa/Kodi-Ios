@@ -29,7 +29,8 @@ PATTERNS = {
     'assigned-secret': re.compile(r'''(?ix)(?:["']?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd)["']?)\s*[:=]\s*["']([A-Za-z0-9_+/.=-]{12,})["']'''),
 }
 FORBIDDEN_EXTENSIONS = {'.ipa','.deb','.mobileprovision','.p12','.pfx','.zip','.zst','.tgz','.tar','.db','.sqlite','.sqlite3','.log','.mp4','.mkv','.mov','.avi','.mp3','.flac','.jpg','.jpeg','.png','.webp','.pem','.key','.so','.dll','.dylib','.exe','.strm'}
-ALLOWED_TOP_LEVEL = {'README.md','ROADMAP.md','.gitignore','migration','docs','scripts','inventory','snapshot','reports'}
+ALLOWED_TOP_LEVEL = {'README.md','ROADMAP.md','.gitignore','migration','docs','scripts','inventory','snapshot','reports',
+                     'AGENTS.md','CLAUDE.md','.agents','.claude'}   # agent instructions and project skills (DEC-026)
 ALLOWED_SUFFIXES = {'.md','.json','.py','.xml','.xsp'}
 PORTRAIT_FILES = {'.github/workflows/kodi-ios-portrait.yml','migration/ios-portrait/build-kodi-ios.sh','migration/ios-portrait/kodi-21.3-portrait.patch',
                   '.github/workflows/glassbar-ios.yml','migration/glassbar-ios/build-glassbar.sh',
@@ -181,6 +182,8 @@ def check(source_userdata=None, git_history=False):
             if any(v in s or v in decoded for v in needles):issues.append({'path':'git-blob:'+oid,'rule':'matches-private-source-value'})
     # r11 portrait: its macOS workflow, build script and Kodi source patch are reviewed text files outside the usual types.
     issues=[i for i in issues if not ((i['path'] in PORTRAIT_FILES or i['path'] in REMUX_FILES) and i['rule'] in {'unexpected-top-level-file','unexpected-file-type'})]
+    # Vendored Apple UI skills keep their upstream licence files and agent metadata unchanged (docs/design/apple-ui-resources.md).
+    issues=[i for i in issues if not (i['rule']=='unexpected-file-type' and i['path'].startswith('.agents/skills/') and (Path(i['path']).name in {'LICENSE','NOTICE'} or i['path'].endswith('/agents/openai.yaml')))]
     return {'passed':not issues,'files_scanned':len(allfiles),'git_history_blobs_scanned':history_blobs,'source_value_comparison_performed':source_userdata is not None,'source_sensitive_candidates_checked':len(needles),'scanner':'Python standard-library patterns, exact private-source value comparison, file allowlist and structural/reference checks','limitations':'No scanner can establish absence of every possible secret. No external secret-scanning engine was available. iOS runtime compatibility is not tested.','snapshot_files_checked':len(listed),'missing_referenced_playlists':sorted(missing_playlists),'known_baseline_issues':{'empty_manifests':sorted(known),'missing_plugin_manifests':sorted(set(refs)-valid),'ios_status':'unvalidated baseline; placeholders and desktop-specific behavior remain'},'issues':issues}
 
 if __name__=='__main__':

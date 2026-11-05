@@ -22,6 +22,10 @@ The full backup stays offline from this repository. It includes private settings
 - Google Drive media and authentication remain outside this repository.
 - Migration work belongs on `feature/ios-migration`; the pull request targets `main` and must not be merged without owner approval.
 
+## UI work
+
+All UI changes follow the [Kodi iOS Apple UI policy](docs/design/APPLE-UI-POLICY.md). Agent instructions are in [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md), and the vendored Apple guidance and its provenance are in [docs/design/apple-ui-resources.md](docs/design/apple-ui-resources.md). Check it with `python3 -B scripts/check_ui_guidance.py`.
+
 ## Review and check
 
 Read [the inspection report](docs/inspection.md), [compatibility report](docs/compatibility.md) and [roadmap notes](docs/roadmap.md).
