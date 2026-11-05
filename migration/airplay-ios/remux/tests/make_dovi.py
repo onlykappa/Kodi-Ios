@@ -35,7 +35,10 @@ with tempfile.TemporaryDirectory() as work:
  data=raw.read_bytes();starts=list(re.finditer(b'\x00\x00(?:\x00)?\x01',data));output=bytearray()
  for i,m in enumerate(starts):
   end=starts[i+1].start() if i+1<len(starts) else len(data)
-  output.extend(data[m.start():end]);kind=(data[m.end()]>>1)&63
+  kind=(data[m.end()]>>1)&63
+  # Prefix the synthetic RPU before its single slice. Older system FFmpeg parsers can move a trailing
+  # first-frame RPU into the next access unit, leaving the clean CI fixture's first picture without metadata.
   if kind<=31:output.extend(b'\x00\x00\x00\x01\x7c\x01'+RPU[4:])
+  output.extend(data[m.start():end])
  annotated.write_bytes(output)
  subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y','-fflags','+genpts','-r','12','-i',str(annotated),'-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=20','-map','0:v','-map','1:a','-c:v','copy','-c:a','aac',sys.argv[1]],check=True)

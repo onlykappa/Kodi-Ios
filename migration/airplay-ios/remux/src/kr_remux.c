@@ -279,6 +279,8 @@ static kr_audio *bridge_audio(bridge *b, char *err, int errlen) {
 }
 
 // r7: the converter for the session's video, opened the first time the receiver asks for a video part (vlock held).
+static int video_read_interrupted(void *opaque) { return kr_video_interrupted(opaque); }
+
 static kr_video *session_video(char *err, int errlen) {
     if (S.video) return S.video;
     if (atomic_load(&S.stopping)) { snprintf(err, (size_t)errlen, "stopping"); return NULL; }
@@ -296,6 +298,7 @@ static kr_video *session_video(char *err, int errlen) {
         else log_line("compat: burning subtitles in (external file, %d events loaded)", kr_video_burn_events(v));
     }
     pthread_mutex_lock(&src_lock);
+    kr_source_set_interrupt(src,video_read_interrupted,v);
     S.video = v;
     if (atomic_load(&S.stopping)) kr_video_abort(v);
     pthread_mutex_unlock(&src_lock);
@@ -625,7 +628,7 @@ static void *prefetch_worker(void *arg) {
         memmove(P.q + pick, P.q + pick + 1, sizeof P.q[0] * (size_t)(P.n - pick - 1)); P.n--;
         P.busy_rend[me] = rend; P.busy_seg[me] = seg;
         pthread_mutex_unlock(&P.lock);
-        if (!atomic_load(&S.stopping) && !cache_has(rend, seg) && cache_room(rend)) {
+        if (!atomic_load(&S.stopping) && !atomic_load(&demand[rend]) && !cache_has(rend, seg) && cache_room(rend)) {
             char err[256] = "";
             int r = make_part(rend, seg, 1, 0, NULL, err, sizeof err);
             if (r == 0) atomic_fetch_add(&S.prefetched, 1);

@@ -707,6 +707,7 @@ nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _(ass_render_frame|kr_subs_blend|kr_video_burn|kr_remux_set_subtitles|hb_shape|FT_Init_FreeType|fribidi_get_par_embedding_levels_ex)$')" == 7 ]] || { echo 'r10 libass burn-in missing' >&2; exit 1; }
 # r8: the per-receiver picture and the TV's segment count are linked in (private to the framework, not exported).
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _kr_remux_(third_party_receiver|served_external|compat_clients)$')" == 3 ]] || { echo 'r8 remuxer missing' >&2; exit 1; }
+[[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _(kr_dovi_convert|kr_source_set_interrupt|kr_video_subtitle_scan_end)$')" == 3 ]] || { echo 'AirPlay RPU/seek source fixes missing' >&2; exit 1; }
 # r7: the picture bridge needs Apple's hardware H.264 encoder in this FFmpeg.
 grep -q -- '--enable-encoder=h264_videotoolbox' "$FF/FFMPEG-CONFIG.txt" || { echo 'FFmpeg built without h264_videotoolbox' >&2; exit 1; }
 lipo -info "$FW/KodiAirPlay"

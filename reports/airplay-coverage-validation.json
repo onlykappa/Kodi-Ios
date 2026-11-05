@@ -1,5 +1,5 @@
 {
-  "recorded_utc": "2026-11-04T21:12:26.537844+00:00",
+  "recorded_utc": "2026-11-05T00:43:32.181220+00:00",
   "issue": "ISSUE-093",
   "scope": "Owner requested fixing bug-3 source compatibility gaps now; same draft PR #8, no IPA or merge.",
   "base_commit": "72221446d60d4e848507a093a7880c8a3392331f",
@@ -19,11 +19,12 @@
     "Profile-5 RPU polynomial/MMR reshaping, nonlinear offsets/matrices, PQ linearization and RPU/HPE color conversion before SDR mapping; validated metadata and one-dimensional PQ tables, source mastering luminance retained.",
     "Profile-5 configuration selects receiver-independent SDR compatibility conversion; missing RPU fails explicitly instead of passing unreshaped IPT pixels.",
     "Embedded subtitle preroll observes video timestamps to stop at the target instead of waiting for a future caption; expands cold lookback when no display state was recovered; new scan-end telemetry.",
-    "External VobSub follows Kodi language aliases through fresh/backward rendering; real two-language bitmaps verify selection and uppercase companion matching."
+    "External VobSub follows Kodi language aliases through fresh/backward rendering; real two-language bitmaps verify selection and uppercase companion matching.",
+    "Canceled speculative conversions interrupt an already-bound network source wait through the converter cancellation predicate. Next segment flushes parser/error state and recovers source reads; canceled partial output cannot reach the cache. Connected foreground requests remain protected by scheduler ownership."
   ],
   "verification": {
     "native_full_suite": {
-      "checks": 1381,
+      "checks": 1384,
       "failures": 0,
       "passed": true,
       "coverage": [
@@ -36,7 +37,8 @@
         "Finite-range-only endpoint, complete byte equality across initial/subsequent ranges, EOF, forward/backward seeks, dropped-response recovery and shared timeout budget.",
         "External real PGS and DVD/VobSub decoders: pixels in NV12/planar output, long cue on a fresh far seek, duration/clear/backward replay, 302-cue cache bound, corrupt input and whole burned-video comparisons.",
         "Real HEVC RPU decode, profile-5 RGB/SDR output, decoded target/backward retry/audio; exact dyadic MMR orders/all cross-term equivalence and corrupt-offset rejection.",
-        "Cold seek into 59-second embedded PGS cue, actual decoded subtitle pixels and scan ending on target video, backward retry; selected English/Spanish VobSub bitmaps."
+        "Cold seek into 59-second embedded PGS cue, actual decoded subtitle pixels and scan ending on target video, backward retry; selected English/Spanish VobSub bitmaps.",
+        "Transient network wait cancellation and exact-byte recovery after resetting its condition, plus full overlapping HTTP seek/prefetch/stop suite."
       ]
     },
     "python_suites": [
@@ -81,8 +83,9 @@
     "diff_whitespace_check_passed": true,
     "live_cloud_or_personal_media_used": false,
     "ipa_built": false,
-    "framework_built_or_published": false,
-    "device_verified": false
+    "framework_built_or_published": "Candidate framework compiled and uploaded as a CI artifact; no framework release published; r11 pin unchanged.",
+    "device_verified": false,
+    "native_ios_compile": "First framework candidate successfully compiled against the iPhoneOS SDK; latest transient-read addition has a separate candidate rerun pending."
   },
   "dependencies": {
     "ffmpeg": {
@@ -114,7 +117,8 @@
     "Initial annotated HEVC fixture mux failed unknown timestamps with B frames; use a zero-B-frame synthetic fixture and generated timestamps. Existing separate open-GOP/4K fixtures remain.",
     "An approximate 3D color LUT lost accuracy around saturated black and was rejected. Use direct polynomial/MMR and matrices with one-dimensional PQ tables. Ordinary YCbCr bars are not physical profile-5 colors; generate test IPT from valid BT.2020/PQ RGB with inverse RPU matrices for independent comparison.",
     "System libplacebo 7.349 uses the older code/(2^N-1) convention. Reference explicitly matches raw chroma filtering and normalizes to current pinned code/2^BL convention; comparisons include a reference-with-RPU-disabled negative control.",
-    "First two-language VobSub test failed because its generated second IDX offset pointed at the first language. Derive per-stream sector offsets from ffprobe; distinct Spanish/English pixel and backward tests then pass."
+    "First two-language VobSub test failed because its generated second IDX offset pointed at the first language. Derive per-stream sector offsets from ffprobe; distinct Spanish/English pixel and backward tests then pass.",
+    "First isolated clean CI: native framework job passed; Linux host job failed two first-frame DOVI metadata checks (1378 checks executed). Older fixture-generating FFmpeg associated trailing first-frame RPU with another access unit. Change insertion to prefix the single slice; local first-frame test and independent comparison pass, clean CI rerun required."
   ],
   "limits": [
     "HDR software color mapping, AV1 hardware fallback, sustained 4K/24\u201360 fps and actual TV acceptance still need a newly built framework and phone results.",
@@ -168,7 +172,7 @@
   },
   "renderer_subtitle_completion_pass": {
     "base_commit": "79b2e5999a407e5f98eba70e3d2c9df171830259",
-    "native_host_checks": 1381,
+    "native_host_checks": 1384,
     "native_host_failures": 0,
     "python_static_tests": 35,
     "independent_color_reference": {
@@ -193,8 +197,27 @@
     "rpu_fixture_source_path": "assets/tests/profile5-02.bin",
     "rpu_fixture_changes": "Identity curves generated by pinned FFmpeg 8.1.1 RPU encoder; color metadata retained; all video/audio generated locally.",
     "native_candidate": {
-      "status": "pending",
+      "status": "first framework passed, clean host fixture failed; updated source candidate rerun pending",
       "branch": "validation/airplay-source",
+      "first_run_id": 41942478228,
+      "first_commit": "39ce7250dc1f0c64253dfb04c5038c9865fb19cc",
+      "first_run_url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/41942478228",
+      "first_framework_job": {
+        "id": 126966458836,
+        "conclusion": "success"
+      },
+      "first_host_job": {
+        "id": 126966459227,
+        "conclusion": "failure",
+        "checks": 1378,
+        "failures": 2,
+        "reason": "First decoded synthetic HEVC frame lacked RPU metadata on older fixture-generating FFmpeg. Prefix insertion before the single slice is now under revalidation."
+      },
+      "artifact": {
+        "id": 13376718365,
+        "sha256": "382e9068d0ab1328c85fc4422c97eb4a5b01f69ae841c776587633ffb2d7d565",
+        "kind": "framework candidate only, not an IPA or published release"
+      },
       "ipa_workflow_enabled": false,
       "release_job_enabled": false
     },
@@ -211,14 +234,14 @@
       "migration/airplay-ios/remux/src/kr_dovi.h": "7ca25668e16db55156bf7e811fecddedd6a9403daa86dc568e73860b2d71364a",
       "migration/airplay-ios/remux/src/kr_hls.c": "a8cb1520a852ed4a8c30e1a9c46ec3622eb95608507362f7ba145306e09709d7",
       "migration/airplay-ios/remux/src/kr_hls.h": "e4cf63558d48f0749ef85bc8e62eba586132d8f7868806d88a09f9e3aa94ed4a",
-      "migration/airplay-ios/remux/src/kr_remux.c": "db2d5768a46f90f0a4a6ede1720daa2b8f8b805df1aad04bceb73eee6685312f",
+      "migration/airplay-ios/remux/src/kr_remux.c": "a069b64cfb24448fba930b0595325cf86c908e41c44bbd9cdb091120b8ca7e8d",
       "migration/airplay-ios/remux/src/kr_remux.h": "1c951f93d34565f2f42334cf469ca090b86183e05b7cbd52307bfc4d293300c8",
-      "migration/airplay-ios/remux/src/kr_source.c": "1adfb2bf7365d599d280b6517bf9d16924fe27c62613858de011aff1bb3d0154",
-      "migration/airplay-ios/remux/src/kr_source.h": "90da5ee6573592ab70dc55680b907265d942a30d1e89144f448896529330d5c3",
+      "migration/airplay-ios/remux/src/kr_source.c": "c21856bba898bedcae992b3a5a06a55474642fa8560925e5b45da7e472c7700f",
+      "migration/airplay-ios/remux/src/kr_source.h": "508390c2d94947dc66579b759ce5afb2ec1b1cbe4ddc4027014b1601c1ded69d",
       "migration/airplay-ios/remux/src/kr_subs.c": "29dad8639d2a4523e795a2967a92fa2a3a9d0fda095b2a402984bbfd1d999d02",
       "migration/airplay-ios/remux/src/kr_subs.h": "d94560b143af166ede39032143305c89cf6eb754dabecb39dee884ee3ff6123c",
-      "migration/airplay-ios/remux/src/kr_video.c": "697a3e0257717548c77b106f8812a88b578441ab6f00cbc8410bd8a60c491085",
-      "migration/airplay-ios/remux/src/kr_video.h": "98d008d1d6c894fe8cbda7b6381205206cab24ef06d2f0599d13834a8984a1f7"
+      "migration/airplay-ios/remux/src/kr_video.c": "898fc4c9ff283d8835690eb6421ad3b1cd61a04f09c736dfe19ae778fcfdf78a",
+      "migration/airplay-ios/remux/src/kr_video.h": "998e2df7de7d48b47bbdea1950660dd30747c77da42cd251a526525e99a14d12"
     },
     "previous_preroll_regression": {
       "scope": "Previous committed lookback function substituted in current harness; added timestamp observation only, other code unchanged.",
@@ -229,5 +252,14 @@
       "after_focused_checks": 100,
       "after_failures": 0
     }
+  },
+  "transient_source_followup": {
+    "native_host_checks": 1384,
+    "native_host_failures": 0,
+    "focused_transport_checks": 22,
+    "focused_failures": 0,
+    "scope": "Bind the converter cancellation predicate after opening; canceled background conversions interrupt source waits and discard partial output. Clear parser/error state on the next job; preserve the foreground-only cancellation boundary.",
+    "test": "Ten-second read budget on a stalled loopback source interrupted within one second, followed by exact-byte recovery. No measured phone latency claim.",
+    "native_candidate_status": "pending latest rerun"
   }
 }

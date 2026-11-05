@@ -61,6 +61,7 @@ void kr_video_abort(kr_video *v);
 // r8: makes the conversion in progress (a prefetch the receiver no longer needs after a seek) give up at the next
 // packet; the next conversion runs normally. Any thread.
 void kr_video_cancel(kr_video *v);
+int kr_video_interrupted(const kr_video *v);
 void kr_video_close(kr_video *v);
 // r10: burns subtitles into every converted frame from now on: source text subtitle stream sub_index (>= 0), else
 // the external file (.srt / .vtt / .ass / .ssa). Once per converter (the libass track is kept for the session; other
