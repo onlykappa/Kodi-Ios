@@ -142,7 +142,7 @@ DRIVE_PATCHES=[('clouddrive/common/remote/request.py',b'response = urllib.reques
 def patch_drive(addonroot):
  files={}
  for name,old,new in DRIVE_PATCHES:
-  path=addonroot/DRIVE_COMMON/name;before=files.setdefault(name,(path,path.read_bytes()))[1]
+  path=addonroot/DRIVE_COMMON/name;files.setdefault(name,(path,path.read_bytes()))[1]
   data=path.read_bytes();assert data.count(old)==1,'Unexpected Drive source: '+name
   path.write_bytes(data.replace(old,new))
  return [{'path':'addons/'+DRIVE_COMMON+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]
@@ -354,7 +354,7 @@ def add_elementum(inputs,target,addonroot):
    dest=addonroot/n;assert not dest.exists(),'Unexpected Elementum collision';dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(z.read(n))
  files={}
  for name,old,new in ELEMENTUM_PATCHES:
-  path=addonroot/ELEMENTUM/name;before=files.setdefault(name,(path,path.read_bytes()))[1]
+  path=addonroot/ELEMENTUM/name;files.setdefault(name,(path,path.read_bytes()))[1]
   data=path.read_bytes();assert data.count(old)==1,'Unexpected Elementum source: '+name
   path.write_bytes(data.replace(old,new))
  deck_picker=add_deck_picker(addonroot)

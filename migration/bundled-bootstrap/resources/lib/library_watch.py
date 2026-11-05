@@ -48,7 +48,7 @@ def watch(info,busy,refresh,wait,page,drive,state_dir,clock=time.monotonic,every
    if clock()-cloud_at>=cloud_every or (cache_seen and not os.path.exists(os.path.join(state_dir,'drive-library.json'))):
     cloud_at=clock()
     try:cloud=[] if params.get('local')=='1' else drive.listing(kind,state_dir,params.get('folder'),strict=True,fresh=True)[0]
-    except Exception:pass  # offline Drive must not hide a newly completed phone download
+    except Exception as error:_quiet('library_watch:51',error)  # offline Drive must not hide a newly completed phone download
     cache_seen=os.path.exists(os.path.join(state_dir,'drive-library.json'))
    # Art is cosmetic; only media membership/paths need to refresh the page.
    signature=json.dumps([local,cloud],sort_keys=True)
@@ -57,7 +57,7 @@ def watch(info,busy,refresh,wait,page,drive,state_dir,clock=time.monotonic,every
   if hydrate is not None and clock()-art_at>=art_every and not busy() and not art_busy() and info()==path:
    art_at=clock()
    try:art_changed=hydrate(params,local,cloud)
-   except Exception:pass  # cosmetic metadata must not interrupt completed-download discovery
+   except Exception as error:_quiet('library_watch:60',error)  # cosmetic metadata must not interrupt completed-download discovery
   art_pending=art_pending or art_changed
   if signature!=last or (art_pending and not art_busy()):
    # Also refresh on entry: a previous cached empty listing must not remain empty for five minutes.
@@ -86,3 +86,12 @@ def run(xbmc,xbmcaddon,xbmcvfs,monitor,profile):
         xbmc.executebuiltin,monitor.waitForAbort,ios_library,drivelibrary,
         state_dir,hydrate=hydrate,art_busy=art_busy)
  except Exception as error:xbmc.log('Kodi iOS Library refresh unavailable: '+type(error).__name__,xbmc.LOGWARNING)
+
+def _quiet(where,error,_seen=set()):
+ """Log an error that is deliberately not shown on screen, once per place and kind (loops run every second)."""
+ key=(where,type(error).__name__)
+ if key in _seen:return
+ _seen.add(key)
+ try:
+  import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
+ except Exception:pass

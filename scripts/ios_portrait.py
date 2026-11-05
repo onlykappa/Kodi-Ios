@@ -108,7 +108,7 @@ def add_glassbar(app,archive):
 def apply(app,skin,profile,inputs=None):
  """Returns {'orientations','skin_files','changed','executable','glassbar'}; 'changed' lists existing skin files it
  edited. inputs: directory from fetch() (optional Kodi + Kodi.sha256, KodiGlassBar.framework.zip)."""
- skin=Path(skin);addon=skin/'addon.xml'
+ skin=Path(skin)
  # Existing skin files the build overwrites (addon.xml, and in 1080i the video controls and seek bar).
  before={str(p.relative_to(skin)):sha(p.read_bytes()) for p in skin.rglob('*') if p.is_file()}
  files=portrait.build(skin,profile)

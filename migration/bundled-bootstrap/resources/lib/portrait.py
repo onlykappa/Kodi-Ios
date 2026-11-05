@@ -1176,7 +1176,7 @@ def progress_tracker(player,continue_module,read,write,clock,every=10):
     if clock()-state['saved']>=every:continue_module.update(read,write,state['position'],state['total']);state['saved']=clock()
    elif state['playing']:
     state['playing']=False;continue_module.update(read,write,state['position'],state['total']);continue_module.stopped(read,write)
-  except Exception:pass
+  except Exception as error:_quiet('portrait:1179',error)
  return tick
 
 # Read by Kodi when the skin loads (fonts, includes, Home and the windows marked LOAD_ON_GUI_INIT in the owner's log):
@@ -1360,3 +1360,11 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
    for t in menu_ticks:t()
  watch(xbmc.getInfoLabel,invoke,monitor.waitForAbort,xbmc.getSkinDir,fuse,tick=ticks)
 
+def _quiet(where,error,_seen=set()):
+ """Log an error that is deliberately not shown on screen, once per place and kind (loops run every second)."""
+ key=(where,type(error).__name__)
+ if key in _seen:return
+ _seen.add(key)
+ try:
+  import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
+ except Exception:pass

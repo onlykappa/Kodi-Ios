@@ -23,7 +23,7 @@ def share_details(player,window=None):
    window=xbmcgui.Window(10000)
   for key,value in (('Title',title),('Poster',poster),('Fanart',fanart),('Meta','  |  '.join(bits)),('Plot',info.get('plot') or ''),('Time',str(time.time()))):
    window.setProperty('Deck.Picker.'+key,str(value))
- except Exception:pass
+ except Exception as error:_quiet('ios_watch_dialog:26',error)
 
 RESUME_PROPERTY='KodiIOS.Resume.Source'
 
@@ -63,7 +63,7 @@ def downloaded_item(player,candidates,find=None,folders=None,cloud=False):
  except Exception as error:
   try:
    import xbmc;xbmc.log('Kodi iOS watch: completed-copy check failed: '+type(error).__name__,xbmc.LOGWARNING)
-  except Exception:pass
+  except Exception as error:_quiet('ios_watch_dialog:66',error)
   raise DownloadLookupError('Could not verify a completed copy') from error
 
 def choosing(player=None,argv=None):
@@ -129,7 +129,7 @@ def choose_player(player):
   try:
    from ios_continue import record
    record(player,read,write,choice=source,preserve_player=True)
-  except Exception:pass
+  except Exception as error:_quiet('ios_watch_dialog:132',error)
   return downloaded
  # Continue Watching (its links carry the flag): the player and version picked last time, without asking.
  saved={}
@@ -166,7 +166,16 @@ def choose_player(player):
   # Continue Watching: remember what was started (the bootstrap service follows its progress).
   from ios_continue import record
   record(player,read,write,choice=kind_of(item))
- except Exception:pass
+ except Exception as error:_quiet('ios_watch_dialog:169',error)
  if item is engine:share_details(player)
  log('playing with %s (%s)'%(kind_of(item),getattr(item,'file','')))
  return item
+
+def _quiet(where,error,_seen=set()):
+ """Log an error that is deliberately not shown on screen, once per place and kind (loops run every second)."""
+ key=(where,type(error).__name__)
+ if key in _seen:return
+ _seen.add(key)
+ try:
+  import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
+ except Exception:pass

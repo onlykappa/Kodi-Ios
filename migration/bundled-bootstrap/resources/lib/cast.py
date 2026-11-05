@@ -200,7 +200,7 @@ def dlna_play(control,url,title,post):
  def call(action,arguments):
   post(control,soap(action,arguments).encode('utf-8'),{'Content-Type':'text/xml; charset="utf-8"','SOAPAction':'"urn:schemas-upnp-org:service:AVTransport:1#%s"'%action})
  try:call('Stop',[('InstanceID','0')])
- except Exception:pass
+ except Exception as error:_quiet('cast:203',error)
  call('SetAVTransportURI',[('InstanceID','0'),('CurrentURI',escape(url)),('CurrentURIMetaData',escape(didl(url,title)))])
  call('Play',[('InstanceID','0'),('Speed','1')])
 
@@ -309,3 +309,12 @@ def find_tvs(phone_ip,get,workers=128,locations=None):
 
 def http_post_body(url,body,headers,timeout=8):
  with urllib.request.urlopen(urllib.request.Request(url,data=body,headers=headers,method='POST'),timeout=timeout) as r:return r.status
+
+def _quiet(where,error,_seen=set()):
+ """Log an error that is deliberately not shown on screen, once per place and kind (loops run every second)."""
+ key=(where,type(error).__name__)
+ if key in _seen:return
+ _seen.add(key)
+ try:
+  import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
+ except Exception:pass

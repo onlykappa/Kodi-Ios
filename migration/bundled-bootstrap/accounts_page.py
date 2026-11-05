@@ -51,7 +51,7 @@ def run():
    while not self.stop.is_set() and not monitor.waitForAbort(2):
     if self.stop.is_set():break
     try:self.refresh()
-    except Exception:pass
+    except Exception as error:_quiet('accounts_page:54',error)
   def onAction(self,action):
    if action.getId() in BACK:self.finish()
   def finish(self):
@@ -70,3 +70,12 @@ def run():
  del page
 
 if __name__=='__main__':run()
+
+def _quiet(where,error,_seen=set()):
+ """Log an error that is deliberately not shown on screen, once per place and kind (loops run every second)."""
+ key=(where,type(error).__name__)
+ if key in _seen:return
+ _seen.add(key)
+ try:
+  import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
+ except Exception:pass
