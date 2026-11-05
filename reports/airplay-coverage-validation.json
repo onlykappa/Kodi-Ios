@@ -1,9 +1,9 @@
 {
-  "recorded_utc": "2026-11-05T01:08:40.806795+00:00",
+  "recorded_utc": "2026-11-05T01:16:55.221460+00:00",
   "issue": "ISSUE-093",
   "scope": "Owner requested fixing bug-3 source compatibility gaps now; same draft PR #8, no IPA or merge.",
   "base_commit": "72221446d60d4e848507a093a7880c8a3392331f",
-  "status": "Further source gaps patched and host-tested: profile-5 RPU rendering, bounded/adaptive embedded subtitle preroll and selected-language VobSub. iPhoneOS candidate validation and actual Drive/Roku acceptance pending; no 100% device claim.",
+  "status": "AirPlay source fixes pass clean CI host tests and native iPhoneOS compilation; physical iPhone/Drive/Roku seek, color and throughput acceptance remains pending. No IPA, release or merge.",
   "implemented": [
     "MP4/MOV/M4V files and extensionless file bytes reach codec-aware HLS copy/conversion; native HLS remains direct.",
     "Pinned dav1d AV1 software decoder; iOS requests native VideoToolbox AV1, with fallback on hardware initialization or initial decode failure.",
@@ -76,7 +76,7 @@
       "clean_patched_mov_c_matches_compiled_source": true,
       "scope": "Small presentation-time accessor, no media I/O or full-file scan."
     },
-    "builds": "Expanded FFmpeg 8.1.1/dav1d built on Linux; 1,381 checks compiled with the host MPEG-4 test encoder. iPhoneOS candidate compile pending separately; no IPA or release.",
+    "builds": "Expanded FFmpeg 8.1.1/dav1d and AirPlay source built/tested on Linux; the same source plus an isolated validation marker compiled successfully for iPhoneOS arm64. Host test encoder is MPEG-4 Part 2; TV/phone runtime acceptance is not established.",
     "project_scanner_passed": true,
     "ios_static_checks_passed": true,
     "shell_syntax_checks_passed": true,
@@ -85,7 +85,15 @@
     "ipa_built": false,
     "framework_built_or_published": true,
     "device_verified": false,
-    "native_ios_compile": "First framework candidate successfully compiled against the iPhoneOS SDK; latest transient-read addition has a separate candidate rerun pending.",
+    "native_ios_compile": {
+      "passed": true,
+      "run_id": 41946561571,
+      "job_id": 126980125747,
+      "target": "iPhoneOS arm64",
+      "deployment_target": "14.0",
+      "source_availability_warnings": 0,
+      "required_new_symbols_checked": true
+    },
     "framework_release_published": false
   },
   "dependencies": {
@@ -95,7 +103,7 @@
       "commit_archive_sha256": "ec0aa20fb9f6fd3692ffc04dc12ffa43cfffc4a479e388ccd7910ec6cfe188a2",
       "release_archive_sha256": "b6863adde98898f42602017462871b5f6333e65aec803fdd7a6308639c52edf3",
       "configuration_license": "LGPL version 2.1 or later; no GPL/nonfree flags",
-      "modification": "Shipped LGPL MOV timestamp accessor patch. Host source initialized from the same signed upstream tag, patch identity separately checked against the commit archive."
+      "modification": "Shipped LGPL MOV PTS accessor and RPU NAL-padding patches. Both exact patches are in the framework and dependency cache keys; the RPU patch applies to clean pinned source and matches the host-compiled file."
     },
     "dav1d": {
       "version": "1.5.3",
@@ -123,7 +131,8 @@
     "Second clean CI disproved that RPU prefix placement alone resolves metadata rejection; preserve the initial hypothesis as unconfirmed. Native framework passed again; host executed 1381 checks with eight failures: two DOVI checks and six consequences of one interrupted HTTP video segment. Retire interrupted speculative decoder/source rather than reuse a half-read parser; add first-frame metadata diagnostics and synthetic failure artifact retention.",
     "Native SDK builds exposed two existing unguarded iOS-16 pixel-transfer type/cleanup warnings with an iOS-14 deployment target. Store the session opaquely, create its typed local within the availability block and guard cleanup; validate the native warnings again.",
     "Exact CI synthetic artifact reproduced the two missing-RPU failures locally. Both files contain RPUs, disproving the earlier parser-association hypothesis. CI final RPU has an extra trailing zero; FFmpeg remaining-bit extension detection misreads it as DM v2 data. Strip NAL padding before parsing, retaining the terminator/CRC and AV1 behavior. Exact artifact now passes 29 checks with CRC validation; native test deliberately adds padding to prevent regression.",
-    "Conservatively retire every canceled speculative decoder/source because cancellation can also enter through custom AVIO before the source predicate is invoked. Fresh foreground instances avoid inheriting half-read parser state; this can require new header/probe I/O."
+    "Conservatively retire every canceled speculative decoder/source because cancellation can also enter through custom AVIO before the source predicate is invoked. Fresh foreground instances avoid inheriting half-read parser state; this can require new header/probe I/O.",
+    "Final clean CI run 41946561571: 1385 native host checks, zero failures; iPhoneOS arm64 framework compiled with required new symbols and no source availability warnings. Prior failed runs remain above. No IPA/release/merge and no physical device acceptance claim."
   ],
   "limits": [
     "HDR software color mapping, AV1 hardware fallback, sustained 4K/24\u201360 fps and actual TV acceptance still need a newly built framework and phone results.",
@@ -136,10 +145,10 @@
   ],
   "owner_requested_progress_estimate": {
     "scope": "Bug 3 overall completion and source readiness, relative to the installed pre-fix baseline",
-    "overall_percent": 85,
+    "overall_percent": 90,
     "source_readiness_before_out_of_10": 4,
-    "source_readiness_after_out_of_10": 8,
-    "basis": "Subjective planning estimate after closing further demonstrated source gaps; independent numerical color/host evidence now added. Native iPhoneOS and actual Drive/Roku acceptance remain gates. Not measured phone speed or a 100% success claim."
+    "source_readiness_after_out_of_10": 9,
+    "basis": "Subjective planning estimate only: clean host/SDK and independent numerical color checks now pass. The remaining acceptance gate is physical iPhone/Drive/Roku playback and sustained seek/4K behavior. Not measured speed or a 100% device-success claim."
   },
   "transport_subtitle_followup": {
     "base_commit": "514d1b3dedbf27bc2a5272a90f7f95b2468a456a",
@@ -203,7 +212,7 @@
     "rpu_fixture_source_path": "assets/tests/profile5-02.bin",
     "rpu_fixture_changes": "Identity curves generated by pinned FFmpeg 8.1.1 RPU encoder; color metadata retained; all video/audio generated locally.",
     "native_candidate": {
-      "status": "Three iPhoneOS candidate compiles passed, latest without source availability warnings. Remaining host RPU failure reproduced exactly and fixed in FFmpeg padding patch; clean patched-dependency rerun pending.",
+      "status": "success: final clean host and iPhoneOS framework jobs passed",
       "branch": "validation/airplay-source",
       "first_run_id": 41942478228,
       "first_commit": "39ce7250dc1f0c64253dfb04c5038c9865fb19cc",
@@ -268,6 +277,33 @@
           "sha256": "3fc095c23f8fccdbd5c1da6c7131948a442613cc22b206096da1c88febe40691",
           "synthetic_movie_sha256": "0948651a29ed57597d5947b87434ab255f10894152c0bc9356cfdb42a2987745"
         }
+      },
+      "final_run": {
+        "id": 41946561571,
+        "url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/41946561571",
+        "conclusion": "success",
+        "source_commit": "b148d23f819b5e427c294ed5a075aafbabf858f6",
+        "source_tree": "17b456ce3477fc340bb4e105ebe3b64ba17701c7",
+        "candidate_commit": "4c25690e1bc1a6c1ec2868ef0c108eb6b0dd2cdd",
+        "tree_difference": "One validation marker only; build/source files identical.",
+        "framework_job": {
+          "id": 126980125747,
+          "conclusion": "success",
+          "source_availability_warnings": 0,
+          "inner_framework_zip_sha256": "34329c017afeacc00b973fc9b668fe57ba5186ccfa740140178cec06852b217c"
+        },
+        "host_job": {
+          "id": 126980125443,
+          "conclusion": "success",
+          "checks": 1385,
+          "failures": 0
+        },
+        "artifact": {
+          "id": 13378986637,
+          "name": "KodiAirPlay-source-candidate",
+          "archive_sha256": "58007350f06f24c3a1bca6dd61664b32454abbdb45962061fb68e9fd95449f6b",
+          "kind": "candidate framework ZIP; no IPA or release"
+        }
       }
     },
     "phone_drive_receiver_verified": false,
@@ -303,13 +339,13 @@
     }
   },
   "transient_source_followup": {
-    "native_host_checks": 1384,
+    "native_host_checks": 1385,
     "native_host_failures": 0,
     "focused_transport_checks": 22,
     "focused_failures": 0,
     "scope": "Bind the converter cancellation predicate after opening; canceled background conversions interrupt source waits and discard partial output. Clear parser/error state on the next job; preserve the foreground-only cancellation boundary.",
     "test": "Ten-second read budget on a stalled loopback source interrupted within one second, followed by exact-byte recovery. No measured phone latency claim.",
-    "native_candidate_status": "pending latest rerun"
+    "native_candidate_status": "passed final clean host and iPhoneOS candidate"
   },
   "confirmed_dovi_padding_regression": {
     "cause": "Older muxer retains trailing_zero_8bits on the final RPU NAL. Pinned FFmpeg 8.1.1 uses remaining bit count to infer DM v2 extensions, misreads padding and drops metadata. Prefix placement was not the cause.",
@@ -329,7 +365,7 @@
     "clean_patched_source_matches_compiled": true,
     "nal_only_AV1_EMDF_unchanged": true,
     "picture_and_crc_unchanged": true,
-    "clean_candidate_status": "pending",
+    "clean_candidate_status": "passed: 1385 checks / 0 failures and iPhoneOS compile on run 41946561571",
     "full_local_checks": 1385,
     "full_local_failures": 0
   }

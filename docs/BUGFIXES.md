@@ -33,7 +33,7 @@ These are log leads, not diagnosed user-facing bugs. No root cause or fix has be
 
 ## Current focused bug — owner item 3
 
-Latest source pass adds profile-5 RPU rendering with independent numerical pixel comparison, selected-language VobSub, and target-bounded/adaptive embedded subtitle preroll. The supplied log had embedded subtitles enabled; the previous preroll could continue until the next caption during a gap. 1,385 native checks and 35 Python/static checks pass; native candidate compilation and actual phone/Drive/TV acceptance remain separate pending gates. See [AirPlay investigation](AIRPLAY.md).
+Latest source pass adds profile-5 RPU rendering with independent numerical pixel comparison, selected-language VobSub, and target-bounded/adaptive embedded subtitle preroll. The supplied log had embedded subtitles enabled; the previous preroll could continue until the next caption during a gap. 1,385 native checks and 35 Python/static checks pass; native candidate compilation passes in clean CI; actual phone/Drive/TV acceptance remains pending. See [AirPlay investigation](AIRPLAY.md).
 
 Latest follow-up bounds HTTP ranges and replaces nested retries with fresh connections sharing one read deadline. A one-second synthetic stalled-read budget returns in about 1.002 s versus 5.211 s with the previous reader; this is not measured phone seek speed. External SUP and IDX/SUB burn-in is now connected through app discovery and dedicated subtitle I/O, with real decoder/pixel/seek/video checks. Long Drive seek and sustained 4K phone acceptance remain open, alongside the documented embedded long-cue and Dolby profile-5 gaps. Final evidence/totals: [coverage validation](../reports/airplay-coverage-validation.json).
 

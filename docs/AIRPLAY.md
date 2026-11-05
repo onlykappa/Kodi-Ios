@@ -1,6 +1,6 @@
 # AirPlay playback and seeking — owner bug 3 / ISSUE-093
 
-Status: further bug-3 source gaps are patched and host-tested in draft PR #8: RPU-aware Dolby Vision profile-5 conversion, target-bounded/adaptive embedded subtitle preroll, and selected-language external VobSub. Independent libplacebo pixel comparison passes. Native iPhoneOS candidate compilation and actual Drive/Roku seek acceptance are separate remaining gates. No IPA or release; draft stays unmerged.
+Status: the AirPlay source pass is verified by [clean CI run 41946561571](https://github.com/onlykappa/Kodi-Ios/actions/runs/41946561571): 1,385 host checks / zero failures and successful iPhoneOS arm64 compilation with no source availability warnings. Independent color comparison and 35 Python/static checks also pass. Physical iPhone/Drive/Roku seek/color/throughput acceptance remains pending. No IPA or release; PR #8 remains draft/unmerged.
 
 ## What the new phone log establishes
 
@@ -89,7 +89,7 @@ No extra owner log is needed to establish the reproduced cancellation defect. A 
 **Build dependency:** the source-lock still pins published KodiAirPlay r11. Before any future requested IPA, build/publish a new framework release, verify its checksum and pin it. An IPA made with the unchanged r11 framework would omit these C fixes. An isolated candidate compile is being validated; no release has been changed.
 
 
-### Clean CI follow-up (in progress)
+### Clean CI follow-up (historical failed attempts)
 
 Both iPhoneOS candidate compiles passed. The second Linux CI run still rejected the first synthetic RPU frame, so the earlier parser-association explanation is unconfirmed; changing insertion order was insufficient. Exact metadata diagnostics and a retained synthetic failure fixture are added for reproduction. That run also exposed a later HTTP segment read error after background cancellation. The source now retires an interrupted speculative decoder/source, so a foreground request gets a fresh parser instead of inheriting a half-read block. The same ownership rule continues to protect connected foreground requests. Native builds also revealed two existing iOS-16 API availability warnings under the iOS-14 target; typed creation and cleanup are now guarded. These changes require the next clean candidate result; failures remain in the coverage report.
 
@@ -101,3 +101,10 @@ The third clean run isolated the remaining failures to the first RPU frame; HTTP
 A small shipped LGPL patch, `ffmpeg-dovi-padding.patch`, removes NAL `trailing_zero_8bits` before extension detection. It leaves picture bytes, terminator/CRC validation and the AV1 EMDF path intact. The exact failed CI movie now passes all 29 focused checks with CRC validation enabled. The native regression deliberately appends zero padding to an RPU, so its success does not depend on the machine's fixture muxer version. The patch applies to clean pinned upstream and matches the compiled source; both framework/host dependency cache keys include it. Independent color comparison still passes.
 
 Canceled speculative decoder/source instances are retired consistently before the next foreground request, including cancellation caught by custom AVIO before a source wait. This prevents partial parser state from leaking into another segment, at the cost of possible fresh header/probe I/O. Connected foreground requests remain protected. The clean patched-dependency candidate result is the remaining build/test gate; actual iPhone/Drive/Roku acceptance is still separate.
+
+
+## Final automated verification — 2026-11-05
+
+[Run 41946561571](https://github.com/onlykappa/Kodi-Ios/actions/runs/41946561571) passes both jobs: 1,385 host checks / zero failures, and iPhoneOS arm64 framework compilation. Source availability warnings are gone. The exact earlier CI clip passes 29 focused checks with CRC validation enabled. Independent libplacebo comparison remains within its recorded bounds. Source commit `b148d23f819b5e427c294ed5a075aafbabf858f6` is identical to the tested candidate except for one validation marker. Candidate inner framework ZIP SHA-256: `34329c017afeacc00b973fc9b668fe57ba5186ccfa740140178cec06852b217c`.
+
+All prior failed attempts and recovery evidence remain in the coverage report. The final gate is actual iPhone/Drive/Roku playback and sustained 4K/seek acceptance. This is a framework candidate, not an IPA or release; no merge was made and published r11 stays pinned. The owner's earlier no-IPA instruction must change before preparing a device-test app.
