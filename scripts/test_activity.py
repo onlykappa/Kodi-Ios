@@ -12,6 +12,7 @@ activity=load('activity_t',LIB/'activity.py')
 portrait=load('portrait_act',LIB/'portrait.py')
 navigation=load('navigation_act',LIB/'navigation.py')
 page=load('activity_page_t',BOOT/'activity_page.py')
+activity_skin=load('activity_skin_t',LIB/'activity_skin.py')
 C=activity.classify
 
 class Wording(unittest.TestCase):
@@ -121,15 +122,76 @@ class Skin(unittest.TestCase):
    self.assertNotIn('activity pill tap',(self.skin/'portrait'/name).read_text(),name)
  def test_sheet_matches_the_script(self):
   r=self.root('portrait/IOSActivity.xml');ids={c.get('id') for c in r.iter('control')}
-  for n in range(1,activity.ROWS+1):self.assertTrue({str(page.PAUSE_BASE+n),str(page.BAR_BASE+n)}<=ids)
+  for n in range(1,activity.ROWS+1):self.assertIn(str(page.PAUSE_BASE+n),ids)
   self.assertTrue({'9600','9099'}<=ids)
  def test_textures_and_fonts(self):
   for k in (0,10,20):self.assertTrue((self.skin/('extras/portrait/ring_%02d.png'%k)).read_bytes().startswith(b'\x89PNG'))
-  for name in ('pill_glass_170.png','pill_glass_124.png','pill_glass_72.png','tile118.png'):self.assertTrue((self.skin/'extras/portrait'/name).is_file())
+  for name in ('pill_glass_170.png','pill_glass_124.png','pill_glass_72.png','tile108.png','sheet_bg.png','row_only.png','row_first.png','row_last.png'):
+   self.assertTrue((self.skin/'extras/portrait'/name).is_file(),name)
   self.assertIn('p_pill',(self.skin/'portrait/Font.xml').read_text())
  def test_conditions_use_kodi_brackets(self):
   for rel in ('portrait/Custom_1187_Activity.xml','1080i/Custom_1187_Activity.xml','portrait/IOSActivity.xml'):
    self.assertNotIn('!(',(self.skin/rel).read_text(),rel)
+
+def label_boxes(group):
+ out=[]
+ for c in group.findall('control'):
+  if c.get('type')!='label':continue
+  num=lambda tag:float(c.findtext(tag) or 0)
+  out.append((num('left'),num('top'),num('left')+num('width'),num('top')+num('height'),c.findtext('label'),c.findtext('visible') or ''))
+ return out
+
+class ApprovedDesign(unittest.TestCase):
+ """Round-4 mockup approved by the owner (DEC-027; docs/design/APPLE-UI-POLICY.md section 4.7)."""
+ @classmethod
+ def setUpClass(cls):
+  cls.pill=ET.fromstring(activity_skin.pill_window(portrait).split('\n',2)[2])
+  cls.sheet=ET.fromstring(activity_skin.sheet(portrait).split('\n',2)[2])
+ def test_every_sheet_control_is_at_least_44_pt(self):
+  for c in self.sheet.iter('control'):
+   if c.get('type')=='button' and c.get('id')!='9099':
+    self.assertGreaterEqual(min(int(c.findtext('width')),int(c.findtext('height'))),118,c.get('id'))
+ def test_pill_pause_tap_area_is_44_pt(self):
+  taps=activity_skin.tap_controls(portrait,'Home.xml');self.assertIn('<width>118</width><height>118</height>',taps.split('id="9792"')[1])
+ def test_close_not_done(self):
+  xml=activity_skin.sheet(portrait);self.assertNotIn('>Done<',xml);self.assertIn('xmark.png',xml.split('id="9600"')[0][-900:]+xml.split('id="9600"')[1][:200])
+ def test_ring_around_the_tile_in_pill_and_sheet(self):
+  for root in (self.pill,self.sheet):
+   textures=[t.text for t in root.iter('texture')]
+   self.assertTrue(any(t and 'ring_20.png' in t for t in textures));self.assertTrue(any(t and 'tile108.png' in t for t in textures))
+  self.assertNotIn('<control type="progress"',activity_skin.sheet(portrait))
+ def test_no_two_labels_overlap_unless_never_shown_together(self):
+  for root in (self.pill,self.sheet):
+   for group in root.iter('control'):
+    boxes=label_boxes(group)
+    for i,a in enumerate(boxes):
+     for b in boxes[i+1:]:
+      if a[0]<b[2] and b[0]<a[2] and a[1]<b[3] and b[1]<a[3]:self.fail('labels overlap: %r and %r'%(a[4],b[4]))
+ def test_every_layout_has_a_background(self):
+  xml=activity_skin.sheet(portrait)
+  for k in range(1,activity.ROWS+1):
+   for g in range(1,min(k,activity_skin.MAX_HEADS)+1):
+    if (k,g)!=(1,1):self.assertIn('Activity.Layout),%d_%d)'%(k,g),xml)
+  self.assertGreaterEqual(activity_skin.MAX_HEADS,len(activity.KINDS))
+
+class Grouping(unittest.TestCase):
+ JOBS=[{'app':'drive','title':'Scary Movie (2000)','sub':'Movies · then off the phone','pct':71},
+       {'app':'elementum','title':'Interstellar (2014)','sub':'4K · 20.9 MB/s · 5 min left','pct':42,'id':'x'},
+       {'app':'elementum','title':'Fall (2022)','sub':'1.2 of 9.8 GB','pct':12,'paused':True,'id':'y'}]
+ def test_rows_grouped_by_kind_with_one_header_each(self):
+  pr=activity.properties(self.JOBS);row=lambda n,k:pr['%s%d.%s'%(activity.PREFIX,n,k)]
+  self.assertEqual([row(n,'Title') for n in (1,2,3)],['Interstellar (2014)','Fall (2022)','Scary Movie (2000)'])
+  self.assertEqual([row(n,'Head') for n in (1,2,3)],['Downloading','','Uploading to Google Drive'])
+  self.assertEqual(row(1,'HeadCount'),'2 running');self.assertEqual(row(3,'HeadCount'),'')
+  self.assertEqual([row(n,'Pos') for n in (1,2,3)],['first','last','only'])
+  self.assertEqual(pr[activity.PREFIX+'Layout'],'3_2')
+ def test_pill_line_starts_with_the_percentage(self):
+  pr=activity.properties(self.JOBS[1:2]);self.assertEqual(pr[activity.PREFIX+'Sub'],'42% · 4K · 20.9 MB/s · 5 min left')
+  pr=activity.properties(self.JOBS[2:3]);self.assertEqual(pr[activity.PREFIX+'Sub'],'Paused · 12% · 1.2 of 9.8 GB')
+  self.assertEqual(activity.status_line({'pct':5,'sub':'5% · 1 of 20 GB'},'progress'),'5% · 1 of 20 GB')
+ def test_done_shows_a_green_check(self):
+  pr=activity.properties([dict(self.JOBS[1],state='done')])
+  self.assertEqual((pr[activity.PREFIX+'Icon'],pr[activity.PREFIX+'Tint'],pr[activity.PREFIX+'Ring']),('check.png','FF30D158','ring_20.png'))
 
 class Toggle(unittest.TestCase):
  def test_pause_and_resume(self):

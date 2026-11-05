@@ -1,6 +1,6 @@
 """Taps on the activity pill (portrait/Custom_1187_Activity.xml).
 
- activity_page.py          the Activity sheet (portrait/IOSActivity.xml): every running job with its own bar
+ activity_page.py          the Activity sheet (portrait/IOSActivity.xml): every running job with its ring
  activity_page.py,pause    pause or resume the one Elementum download the pill shows
 The bootstrap service (activity.watch) keeps Window(Home).Property(Activity.*) current; this only reads it."""
 import os,sys,threading
@@ -9,7 +9,6 @@ import activity,notices
 
 BACK=(9,10,92,110)
 PAUSE_BASE=9610   # row n's pause button is 9610+n
-BAR_BASE=9620     # row n's progress bar is 9620+n
 
 def toggle(window,prefix):
  """Pause or resume the Elementum download behind `prefix` (Activity. or Activity.<n>.)."""
@@ -31,18 +30,7 @@ def run(args):
 
  class Sheet(xbmcgui.WindowXMLDialog):
   def onInit(self):
-   self.stop=threading.Event();self.bars()
-   threading.Thread(target=self.loop,daemon=True).start()
-  def bars(self):
-   for n in range(1,activity.ROWS+1):
-    pct=home.getProperty('%s%d.Pct'%(activity.PREFIX,n))
-    try:self.getControl(BAR_BASE+n).setPercent(float(pct or 0))
-    except Exception:pass
-  def loop(self):
-   monitor=xbmc.Monitor()
-   while not self.stop.is_set() and not monitor.waitForAbort(0.5):
-    if self.stop.is_set():break
-    self.bars()
+   self.stop=threading.Event()   # rings and percentages are window properties; nothing here needs to poll
   def onAction(self,action):
    if action.getId() in BACK:self.finish()
   def finish(self):

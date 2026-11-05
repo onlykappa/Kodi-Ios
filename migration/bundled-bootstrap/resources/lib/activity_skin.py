@@ -6,7 +6,10 @@
 - 1080i/Custom_1187_Activity.xml: over video, compact and only while the video controls are up.
 - portrait/ and 1080i/DialogExtendedProgressBar.xml: Kodi's own background progress box, drawn invisible. Kodi still
   fills its heading (30), text (31) and progress (32), which activity.py reads; nothing of it is ever drawn.
-- portrait/IOSActivity.xml: the Activity sheet (activity_page.py), every job with its own bar.
+- portrait/IOSActivity.xml: the Activity sheet (activity_page.py): jobs grouped by kind, each with its ring.
+
+Look: round-4 mockup approved by the owner (DEC-027; docs/design/activity-mockups-r4.html): progress is a ring
+around the app tile in both pill and sheet, every control has a 118-unit (44 pt) touch area, Close instead of Done.
 """
 import math
 ID=1187
@@ -17,6 +20,7 @@ BOX='DialogExtendedProgressBar.xml'
 OPEN='RunScript(service.kodi.ios.bootstrap,activity_page)'
 PAUSE='RunScript(service.kodi.ios.bootstrap,activity_page,pause)'
 ROWS=6
+MAX_HEADS=5   # kinds of job in the sheet (activity.KINDS)
 # navigation.patch_skin and the portrait refresh both leave files with this marker alone (see pages.play_on_tv).
 LANDSCAPE_MARKER='Kodi-iOS player controls: activity'
 P=lambda k:'$INFO[Window(Home).Property(Activity.%s)]'%k
@@ -42,49 +46,71 @@ def arc(p,size,stroke,frac):
   return (255,255,255,int(255*a)) if frac>=1 or ang<=frac*360 else (255,255,255,0)
  return p.png(size,size,pixel)
 
+RING=140;TILE=108;HIT=118;DISC=92   # ring tile 52 pt around a 40 pt tile; touch areas 44 pt, drawn discs 34 pt
+
+def corner_texture(p,size,radius,top,bottom):
+ """White rounded square with only the chosen ends rounded (nine-sliced with border=radius). One rounded end is the
+ matching half of a rectangle twice as tall, so the other end's corners fall outside the texture."""
+ if top and bottom:cover=lambda x,y:p.coverage(x,y,size,size,radius)
+ elif top:cover=lambda x,y:p.coverage(x,y,size,2*size,radius)
+ else:cover=lambda x,y:p.coverage(x,y+size,size,2*size,radius)
+ return p.png(size,size,lambda x,y:(255,255,255,int(255*cover(x,y))))
+
 def textures(p):
- out={'ring_%02d.png'%k:arc(p,72,9,k/20.0) for k in range(21)}
+ out={'ring_%02d.png'%k:arc(p,RING,10,k/20.0) for k in range(21)}
  # Nearly opaque glass: the standard glass let list rows show through the pill (found in the rig on Settings).
  for h in (170,124,72):out['pill_glass_%d.png'%h]=p.glass(h,h/2,(36,36,40,250),(255,255,255,46))
- out['tile118.png']=p.rounded(118,118,32);out['tile86.png']=p.rounded(86,86,24);out['tile92.png']=p.rounded(92,92,26)
- out['sheet_top.png']=p.png(160,160,lambda x,y:(255,255,255,int(255*p.coverage(x,y,160,320,64))) if y<160 else (0,0,0,0))
+ out['tile108.png']=p.rounded(TILE,TILE,27);out['tile86.png']=p.rounded(86,86,24);out['tile92.png']=p.rounded(92,92,26)
+ # Sheet: top corners 38 pt (102 units); grouped rows: 16 pt (43 units) on the group's outer corners only.
+ out['sheet_bg.png']=corner_texture(p,240,102,True,False)
+ for name,top,bottom in (('row_only',True,True),('row_first',True,False),('row_last',False,True)):out[name+'.png']=corner_texture(p,160,43,top,bottom)
  return out
-
-def spinner(p,x,y,size,extra=''):
- return p.image(x,y,size,size,p.MEDIA+'ring.png',p.WHITE,
-  '<animation effect="rotate" end="-360" center="auto" time="1100" loop="true" reversible="false" condition="true">Conditional</animation>'+extra)
 
 def tile(p,x,y,size,icon,tint,texture):
  g=int(size*0.54)
  return p.image(x,y,size,size,p.MEDIA+texture,tint)+p.icon(x+(size-g)//2,y+(size-g)//2,g,p.ICONS+icon,p.WHITE)
 
+def ring_tile(p,x,y,ring,ring_tint,icon,tint,ring_on,spin_on):
+ """The app tile inside its progress ring: filled clockwise to the job's percentage (ring_00..ring_20), or, with no
+ percentage, a short arc spinning in the same place (HIG: keep the indicator's place and style)."""
+ M=p.MEDIA;o=(RING-TILE)//2
+ return ('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(x,y,RING,RING)+
+  p.image(0,0,RING,RING,M+'ring_20.png','29FFFFFF','<visible>%s | %s</visible>'%(ring_on,spin_on))+
+  p.image(0,0,RING,RING,M+ring,ring_tint,'<visible>%s</visible>'%ring_on)+
+  p.image(0,0,RING,RING,M+'ring_06.png',ring_tint,'<visible>%s</visible>'%spin_on+
+   '<animation effect="rotate" end="-360" center="auto" time="1100" loop="true" reversible="false" condition="true">Conditional</animation>')+
+  tile(p,o,o,TILE,icon,tint,'tile108.png')+'</control>')
+
+def round_button(p,id,x,y,glyphs,extra='',navigation=''):
+ """A 118-unit (44 pt) touch area with a 92-unit drawn disc and a centred glyph; glyphs: [(icon, condition)]."""
+ M=p.MEDIA;d=(HIT-DISC)//2;g=46
+ button=('<control type="button" id="%d"><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus />%s</control>'%(id,HIT,HIT,navigation)
+         if id else '')
+ return ('<control type="group"><left>%d</left><top>%d</top>%s'%(x,y,extra)+
+  p.image(d,d,DISC,DISC,M+'dot.png','26FFFFFF')+
+  (p.image(d,d,DISC,DISC,M+'dot.png','33FFFFFF','<visible>Control.HasFocus(%d)</visible>'%id) if id else '')+
+  ''.join(p.icon((HIT-g)//2,(HIT-g)//2,g,icon,p.WHITE,'<visible>%s</visible>'%cond if cond else '') for icon,cond in glyphs)+
+  button+'</control>')
+
 def full_pill(p,w):
- """The 62 pt pill: app tile with a ring badge (or stacked tiles), title, detail, then %, spinner or pause."""
+ """The 62 pt pill: ring tile (or stacked tiles), title, status line (it starts with the percentage), pause/resume."""
  h=170;M=p.MEDIA;single='!%s'%HAS('Stack')
- ring_on='[%s | %s | %s]'%(IS('State','progress'),IS('State','paused'),IS('State','done'))
- one=('<control type="group"><visible>%s</visible>'%single+tile(p,26,26,118,P('Icon'),P('Tint'),'tile118.png')+
-  '<control type="group"><left>%d</left><top>%d</top><visible>%s</visible>'%(26+118-50,26+118-50,ring_on)+
-  p.image(-6,-6,84,84,M+'dot.png','FF2A2A2E')+p.image(0,0,72,72,M+'ring_20.png','40FFFFFF')+
-  p.image(0,0,72,72,M+P('Ring'),P('RingTint'))+'</control></control>')
+ ring_on='%s + [%s | %s | %s]'%(single,IS('State','progress'),IS('State','paused'),IS('State','done'))
+ spin_on='%s + %s'%(single,IS('State','spin'))
+ one=ring_tile(p,14,(h-RING)//2,P('Ring'),P('RingTint'),P('Icon'),P('Tint'),ring_on,spin_on)
  stack=''.join(('<control type="group"><left>%d</left><top>%d</top><visible>%s + %s</visible>'%(22+i*58,39,HAS('Stack'),HAS('S%d.Icon'%(i+1)))+
   p.image(-7,-7,106,106,M+'tile92.png','FF2A2A2E')+tile(p,0,0,92,P('S%d.Icon'%(i+1)),P('S%d.Tint'%(i+1)),'tile92.png')+'</control>') for i in range(4))
+ right=16+HIT+16   # the pause control's lane, kept clear even when it is hidden
  def texts(x,cond):
   return ('<control type="group"><visible>%s</visible>'%cond+
-   p.label(x,30,w-x-210,58,P('Title'),'p_pill',p.WHITE,'left','<scroll>false</scroll>')+
-   p.label(x,88,w-x-210,50,P('Sub'),'p_pill_s',p.GREY,'left','<scroll>false</scroll>')+'</control>')
- text=(texts(186,single)+   # clear of the ring badge on the tile
+   p.label(x,28,w-x-right,58,P('Title'),'p_pill',p.WHITE,'left','<scroll>false</scroll>')+
+   p.label(x,90,w-x-right,50,P('Sub'),'p_pill_s',p.GREY,'left','<scroll>false</scroll>')+'</control>')
+ text=(texts(14+RING+26,single)+
        texts(22+58+92+26,'%s + %s'%(HAS('Stack'),IS('Count','2')))+
        texts(22+2*58+92+26,'%s + %s'%(HAS('Stack'),IS('Count','3')))+
        texts(22+3*58+92+26,'%s + !%s + !%s'%(HAS('Stack'),IS('Count','2'),IS('Count','3'))))
- right=(spinner(p,w-122,(h-72)//2,72,'<visible>%s</visible>'%IS('State','spin'))+
-  p.label(w-200,0,170,h,P('Pct')+'%','p_pill','$INFO[Window(Home).Property(Activity.RingTint)]','right',
-          '<visible>%s + !%s</visible>'%(IS('State','progress'),HAS('Pause')))+
-  p.icon(w-74,(h-40)//2,40,'chevron-right.png',p.GREY,'<visible>%s</visible>'%IS('State','done')))
- pause=('<control type="group"><left>%d</left><top>%d</top><visible>%s</visible>'%(w-134,(h-104)//2,HAS('Pause'))+
-  p.image(0,0,104,104,M+'dot.png','26FFFFFF')+
-  p.icon(26,26,52,'pause.png',p.WHITE,'<visible>%s</visible>'%IS('Pause','pause'))+
-  p.icon(28,26,52,'play.png',p.WHITE,'<visible>%s</visible>'%IS('Pause','resume'))+'</control>')
- return p.image(0,0,w,h,M+'pill_glass_170.png',p.WHITE,border=85)+one+stack+text+right+pause
+ pause=round_button(p,0,w-16-HIT,(h-HIT)//2,[('pause.png',IS('Pause','pause')),('play.png',IS('Pause','resume'))],'<visible>%s</visible>'%HAS('Pause'))
+ return p.image(0,0,w,h,M+'pill_glass_170.png',p.WHITE,border=85)+one+stack+text+pause
 
 def compact_pill(p,w):
  h=124;M=p.MEDIA
@@ -137,52 +163,53 @@ def hidden_box(marker):
          '</control></controls></window>\n')%(marker,'p_cap' if 'portrait' in marker else 'font_mini','p_cap' if 'portrait' in marker else 'font_mini')
 
 def sheet(p):
- """portrait/IOSActivity.xml: bottom sheet over a dimmed page; rows 9601+ (pause 9611+), progress bars 9621+.
- As tall as its rows: one background per row count, and the content slides up to match (Activity.Count)."""
- W=p.WIDTH;M=p.MEDIA;row=190;head=170;foot=60;x=24;w=W-2*x
+ """portrait/IOSActivity.xml: a bottom sheet over the dimmed page. Jobs grouped by kind (a header above the first job
+ of each kind, Activity.<n>.Head), rows 1..ROWS with pause/resume 9611+, Close 9600, dimmed page 9099.
+ As tall as its content: one background per layout (rows_heads, Activity.Layout); the content slides up to match."""
+ W=p.WIDTH;M=p.MEDIA;side=43;w=W-2*side;row=196;ghead=84;head=200;foot=90
  R=lambda n,k:'$INFO[Window(Home).Property(Activity.%d.%s)]'%(n,k)
  H=lambda n,k:'!String.IsEmpty(Window(Home).Property(Activity.%d.%s))'%(n,k)
  Q=lambda n,k,v:'String.IsEqual(Window(Home).Property(Activity.%d.%s),%s)'%(n,k,v)
- rows_of=lambda k:max(1,min(ROWS,k))
- height=lambda k:head+rows_of(k)*row+foot
- count=lambda k:'String.IsEqual(Window(Home).Property(Activity.Count),%d)'%k
+ layouts=[(k,g) for k in range(1,ROWS+1) for g in range(1,min(k,MAX_HEADS)+1)]
+ height=lambda k,g:head+k*row+g*ghead+foot
+ lay=lambda k,g:IS('Layout','%d_%d'%(k,g))
+ small=height(1,0)
+ def header(n):
+  return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(w,ghead,H(n,'Head'))+
+   p.label(12,28,w-276,50,R(n,'Head'),'p_foot_b',p.GREY,'left','<scroll>false</scroll>')+
+   p.label(w-252,28,240,50,R(n,'HeadCount'),'p_foot',p.GREY,'right')+'</control>')
  def line(n):
-  return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(w,row,H(n,'Title'))+
-   (p.image(170,0,w-210,2,M+'white.png','1AFFFFFF') if n>1 else '')+
-   tile(p,40,(row-112)//2,112,R(n,'Icon'),R(n,'Tint'),'tile118.png')+
-   p.label(178,26,w-178-170,56,R(n,'Title'),'p_pill',p.WHITE,'left','<scroll>false</scroll>')+
-   p.label(178,84,w-178-170,46,R(n,'Sub'),'p_pill_s',p.GREY,'left','<scroll>false</scroll>')+
-   '<control type="progress" id="%d"><left>178</left><top>144</top><width>%d</width><height>12</height><visible>!%s + !%s</visible>'
-   '<texturebg border="6" colordiffuse="26FFFFFF">%sdot.png</texturebg><lefttexture /><midtexture border="6" colordiffuse="%s">%sdot.png</midtexture>'
-   '<righttexture /></control>'%(9620+n,w-178-170,Q(n,'State','spin'),Q(n,'State','done'),M,R(n,'Bar'),M)+
-   '<control type="group"><left>178</left><top>144</top><visible>%s</visible>'%Q(n,'State','spin')+
-   p.image(0,0,w-178-170,12,M+'dot.png','26FFFFFF',border=6)+
-   p.image(0,0,180,12,M+'dot.png','B3FFFFFF','<animation effect="slide" start="0,0" end="%d,0" time="1400" loop="true" reversible="false" condition="true">Conditional</animation>'%(w-178-170-180),border=6)+
-   '</control>'+
-   p.icon(w-120,(row-56)//2,56,'circle-check.png','FF30D158','<visible>%s</visible>'%Q(n,'State','done'))+
-   '<control type="group"><left>%d</left><top>%d</top><visible>%s</visible>'%(w-150,(row-96)//2,H(n,'Pause'))+
-   '<control type="button" id="%d"><width>96</width><height>96</height><label></label><texturefocus colordiffuse="40FFFFFF">%sdot.png</texturefocus>'
-   '<texturenofocus colordiffuse="26FFFFFF">%sdot.png</texturenofocus><onup>%d</onup><ondown>%d</ondown></control>'%(9610+n,M,M,9610+n-1 if n>1 else 9600,9610+n+1)+
-   p.icon(22,22,52,'pause.png',p.WHITE,'<visible>%s</visible>'%Q(n,'Pause','pause'))+
-   p.icon(24,22,52,'play.png',p.WHITE,'<visible>%s</visible>'%Q(n,'Pause','resume'))+'</control></control>')
+  backs=''.join(p.image(0,0,w,row,M+tex,'FF2C2C2E','<visible>%s</visible>'%Q(n,'Pos',pos),border=43) for pos,tex in
+                (('only','row_only.png'),('first','row_first.png'),('last','row_last.png'),('mid','white.png')))
+  sep=p.image(176,0,w-176,2,M+'white.png',p.SEP,'<visible>%s | %s</visible>'%(Q(n,'Pos','mid'),Q(n,'Pos','last')))
+  ring_on='[%s | %s | %s]'%(Q(n,'State','progress'),Q(n,'State','paused'),Q(n,'State','done'))
+  nav='<onup>%d</onup><ondown>%d</ondown>'%(9610+n-1 if n>1 else 9600,9610+n+1)
+  return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(w,row,H(n,'Title'))+backs+sep+
+   ring_tile(p,18,(row-RING)//2,R(n,'Ring'),R(n,'Bar'),R(n,'Icon'),R(n,'Tint'),ring_on,Q(n,'State','spin'))+
+   p.label(176,30,w-176-240,58,R(n,'Title'),'p_pill',p.WHITE,'left','<scroll>false</scroll>')+
+   p.label(176,94,w-176-240,50,R(n,'Sub'),'p_pill_s',p.GREY,'left','<scroll>false</scroll>')+
+   p.label(w-236,0,90,row,R(n,'Pct')+'%','p_pill_s',p.GREY,'right','<visible>%s + !%s</visible>'%(H(n,'Pct'),Q(n,'State','done')))+
+   round_button(p,9610+n,w-16-HIT,(row-HIT)//2,[('pause.png',Q(n,'Pause','pause')),('play.png',Q(n,'Pause','resume'))],
+                '<visible>%s</visible>'%H(n,'Pause'),nav)+'</control>')
  empty=('<control type="group"><width>%d</width><height>%d</height><visible>String.IsEmpty(Window(Home).Property(Activity.1.Title))</visible>'%(w,row)+
         p.label(0,40,w,90,'Nothing running right now','p_h3',p.GREY,'center')+'</control>')
- base=p.HEIGHT-24-height(1)
- # Backgrounds: one per row count (bottom edge fixed); 0 rows uses the one-row size with the empty message.
- backs=''.join(p.image(x,p.HEIGHT-24-height(k),w,height(k),M+'alert.png',p.WHITE,
-                       '<visible>%s</visible>'%(count(k) if k>1 else '![%s]'%' | '.join(count(j) for j in range(2,ROWS+1))),border=40)
-               for k in range(1,ROWS+1))
- rise=''.join('<animation effect="slide" start="0,0" end="0,-%d" time="0" condition="%s">Conditional</animation>'%((k-1)*row,count(k)) for k in range(2,ROWS+1))
- content=('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>%s'%(x,base,w,height(ROWS),rise)+
-  p.image((w-100)//2,22,100,14,M+'dot.png','4DFFFFFF',border=7)+
-  p.label(48,56,w-400,90,'Activity','p_h2')+
-  '<control type="button" id="9600"><left>%d</left><top>56</top><width>240</width><height>90</height><label>Done</label><font>p_btn</font>'
-  '<textcolor>FF0A84FF</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>right</align><aligny>center</aligny><textoffsetx>0</textoffsetx>'
-  '<texturefocus /><texturenofocus /><ondown>9611</ondown></control>'%(w-288)+
-  '<control type="grouplist" id="9300"><left>0</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
-  '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%(head,w,ROWS*row)+''.join(line(n) for n in range(1,ROWS+1))+empty+'</control></control>')
+ others=' | '.join(lay(k,g) for k,g in layouts if (k,g)!=(1,1))
+ backs=''.join(p.image(0,p.HEIGHT-height(k,g),W,height(k,g)+140,M+'sheet_bg.png','FF1C1C1E',
+                       '<visible>%s</visible>'%(lay(k,g) if (k,g)!=(1,1) else '![%s]'%others),border=102)
+               for k,g in layouts)
+ rise=''.join('<animation effect="slide" start="0,0" end="0,-%d" time="0" condition="%s">Conditional</animation>'%(height(k,g)-height(1,1),lay(k,g))
+              for k,g in layouts if (k,g)!=(1,1))
+ top=p.HEIGHT-height(1,1)
+ content=('<control type="group"><left>0</left><top>%d</top><width>%d</width><height>%d</height>%s'%(top,W,height(ROWS,MAX_HEADS),rise)+
+  p.image((W-100)//2,22,100,14,M+'dot.png','4DFFFFFF',border=7)+
+  p.label(side+12,60,w-200,100,'Activity','p_title')+
+  round_button(p,9600,W-side-HIT,52,[('xmark.png','')],'','<ondown>9611</ondown>')+
+  '<control type="grouplist" id="9300"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
+  '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%(side,head,w,ROWS*row+MAX_HEADS*ghead)+
+  ''.join(header(n)+line(n) for n in range(1,ROWS+1))+empty+'</control></control>')
+ drop=height(ROWS,MAX_HEADS)
  anim=('<animation effect="slide" start="0,%d" end="0,0" time="300" tween="cubic" easing="out">WindowOpen</animation>'
-       '<animation effect="slide" start="0,0" end="0,%d" time="220" tween="cubic" easing="in">WindowClose</animation>')%(height(ROWS),height(ROWS))
+       '<animation effect="slide" start="0,0" end="0,%d" time="220" tween="cubic" easing="in">WindowClose</animation>')%(drop,drop)
  body=('<control type="button" id="9099"><width>%d</width><height>%d</height><texturefocus colordiffuse="73000000">%swhite.png</texturefocus>'
        '<texturenofocus colordiffuse="73000000">%swhite.png</texturenofocus><onclick>Close</onclick></control>'%(W,p.HEIGHT,M,M)+
        '<control type="group">%s%s%s</control>'%(anim,backs,content))
@@ -210,7 +237,7 @@ def tap_controls(p,name):
  place='<bottom>196</bottom>' if name in TAB_PAGES else '<bottom>50</bottom>'
  return ('<control type="group"><left>%d</left>%s<width>%d</width><height>170</height><visible>%s</visible>'%(inset,place,w,p.e(VISIBLE))+
          btn(9791,'<width>%d</width><height>170</height>'%w,OPEN)+
-         btn(9792,'<left>%d</left><top>33</top><width>104</width><height>104</height><visible>%s</visible>'%(w-134,p.e(HAS('Pause'))),PAUSE)+'</control>')
+         btn(9792,'<left>%d</left><top>%d</top><width>%d</width><height>%d</height><visible>%s</visible>'%(w-16-HIT,(170-HIT)//2,HIT,HIT,p.e(HAS('Pause'))),PAUSE)+'</control>')
 
 def inject(p,name,data):
  """The page's XML with the pill's tap area as its last (topmost) control. Dialogs other than the full-screen pages

@@ -26,6 +26,9 @@ APPS={'elementum':('magnet.png','FF1F6FEB','FF0A84FF'),'burst':('fire-flame-curv
 # Switches in the bootstrap's settings (category Activity): which jobs may show the pill.
 GROUPS={'elementum':'activity_elementum','burst':'activity_burst','umbrella':'activity_umbrella','library':'activity_library',
         'addon':'activity_addons','quiet':'activity_quiet','drive':'activity_elementum','other':''}
+# The Activity sheet groups jobs by kind, in this order (activity_skin.MAX_HEADS covers every kind).
+KINDS=(('Downloading',('elementum',)),('Finding sources',('burst',)),('Uploading to Google Drive',('drive',)),
+       ('Getting ready',('umbrella','tmdb')),('Kodi',None))
 DONE_FOR=4.0                # seconds a finished job stays as a green check
 
 TAG=re.compile(r'\[/?(?:COLOR|B|I|UPPERCASE|LOWERCASE|CAPITALIZE|LIGHT)[^\]]*\]',re.I)
@@ -200,29 +203,60 @@ def ring_name(pct):
  """Texture for a ring filled to the nearest 5% (activity_page.textures draws ring_00..ring_20)."""
  return 'ring_%02d.png'%max(0,min(20,int(round((pct or 0)/5.0))))
 
+def kind_of(job):
+ for n,(label,apps) in enumerate(KINDS):
+  if apps is None or job.get('app') in apps:return n,label
+
+def status_line(job,state):
+ """The pill's second line: what is happening, starting with the percentage (if it is cut short, the end goes)."""
+ pct=job.get('pct');sub=job.get('sub','')
+ has_pct=bool(re.match(r'^\s*\d+\s*%',sub))
+ parts=[]
+ if state=='paused':
+  parts.append('Paused')
+  if pct is not None and not has_pct:parts.append('%d%%'%pct)
+  if sub and 'paused' not in sub.lower():parts.append(sub)
+ elif state=='progress':
+  if pct is not None and not has_pct:parts.append('%d%%'%pct)
+  if sub:parts.append(sub)
+ elif sub:parts.append(sub)
+ return ' · '.join(parts)
+
 def properties(jobs,count_hidden=0):
  """Home window properties for the pill and the sheet. `jobs`: what may show, in order."""
- props={PREFIX+k:'' for k in ('Show','Count','Title','Sub','Icon','Tint','Ring','RingTint','Pct','State','Pause','PauseId','Stack','Running')}
+ props={PREFIX+k:'' for k in ('Show','Count','Title','Sub','Icon','Tint','Ring','RingTint','Pct','State','Pause','PauseId','Stack','Running','Layout')}
  for n in range(1,5):props.update({PREFIX+'S%d.Icon'%n:'',PREFIX+'S%d.Tint'%n:''})
  for n in range(1,ROWS+1):
-  for k in ('Title','Sub','Icon','Tint','Bar','Pct','State','Pause','Id'):props[PREFIX+'%d.%s'%(n,k)]=''
+  for k in ('Title','Sub','Icon','Tint','Bar','Ring','Pct','State','Pause','Id','Head','HeadCount','Pos'):props[PREFIX+'%d.%s'%(n,k)]=''
  props[PREFIX+'Running']=str(len(jobs)+count_hidden) if jobs or count_hidden else ''
  if not jobs:return props
  def state(j):
   if j.get('state')=='done':return 'done'
   if j.get('paused'):return 'paused'
   return 'spin' if j.get('pct') is None else 'progress'
- for n,j in enumerate(jobs[:ROWS],1):
-  icon,tile,ring=APPS.get(j['app'],APPS['other'])
-  props.update({PREFIX+'%d.Title'%n:j['title'],PREFIX+'%d.Sub'%n:j.get('sub',''),PREFIX+'%d.Icon'%n:icon,PREFIX+'%d.Tint'%n:tile,
-                PREFIX+'%d.Bar'%n:'FF30D158' if state(j)=='done' else ('FF8E8E93' if j.get('paused') else ring),
-                PREFIX+'%d.Pct'%n:'' if j.get('pct') is None else str(j['pct']),PREFIX+'%d.State'%n:state(j),
-                PREFIX+'%d.Pause'%n:('resume' if j.get('paused') else 'pause') if j.get('id') else '',PREFIX+'%d.Id'%n:str(j.get('id',''))})
+ # Sheet rows: grouped by kind (stable within a kind), a header above each kind's first row, and each row's place in
+ # its group (only/first/mid/last) for the rounded group background. Bar is the ring's tint.
+ rows=sorted(jobs[:ROWS],key=lambda j:kind_of(j)[0]);kinds=[kind_of(j) for j in rows]
+ for n,j in enumerate(rows,1):
+  icon,tile,ring=APPS.get(j['app'],APPS['other']);st=state(j);k=kinds[n-1]
+  first=n==1 or kinds[n-2]!=k;last=n==len(rows) or kinds[n]!=k
+  size=sum(1 for x in kinds if x==k)
+  if st=='done':icon,tile='check.png','FF30D158'
+  props.update({PREFIX+'%d.Title'%n:j['title'],PREFIX+'%d.Sub'%n:status_line(dict(j,pct=None),st) if st!='spin' else j.get('sub',''),
+                PREFIX+'%d.Icon'%n:icon,PREFIX+'%d.Tint'%n:tile,
+                PREFIX+'%d.Bar'%n:'FF30D158' if st=='done' else ('FF8E8E93' if j.get('paused') else ring),
+                PREFIX+'%d.Ring'%n:ring_name(100 if st=='done' else j.get('pct')),
+                PREFIX+'%d.Pct'%n:'' if j.get('pct') is None else str(j['pct']),PREFIX+'%d.State'%n:st,
+                PREFIX+'%d.Pause'%n:('resume' if j.get('paused') else 'pause') if j.get('id') else '',PREFIX+'%d.Id'%n:str(j.get('id','')),
+                PREFIX+'%d.Head'%n:k[1] if first else '',PREFIX+'%d.HeadCount'%n:('%d running'%size if size>1 else '') if first else '',
+                PREFIX+'%d.Pos'%n:'only' if first and last else ('first' if first else ('last' if last else 'mid'))})
+ props[PREFIX+'Layout']='%d_%d'%(len(rows),len(set(kinds)))
  first=jobs[0];icon,tile,ring=APPS.get(first['app'],APPS['other'])
  props.update({PREFIX+'Show':'true',PREFIX+'Count':str(len(jobs)),PREFIX+'Icon':icon,PREFIX+'Tint':tile})
  if len(jobs)==1:
   st=state(first)
-  props.update({PREFIX+'Title':first['title'],PREFIX+'Sub':first.get('sub',''),PREFIX+'State':st,
+  if st=='done':props.update({PREFIX+'Icon':'check.png',PREFIX+'Tint':'FF30D158'})
+  props.update({PREFIX+'Title':first['title'],PREFIX+'Sub':status_line(first,st),PREFIX+'State':st,
                 PREFIX+'Pct':'' if first.get('pct') is None else str(first['pct']),
                 PREFIX+'Ring':ring_name(100 if st=='done' else first.get('pct')),
                 PREFIX+'RingTint':'FF30D158' if st=='done' else ('FF8E8E93' if st=='paused' else ring),
