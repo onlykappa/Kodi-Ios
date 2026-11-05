@@ -242,11 +242,27 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
    if fingerprint(path)!=before:continue  # still changing: next pass
    duplicate=already_on_drive(before[2],digest)
   if duplicate is None and better is not None:
+   where=better.get('folderName') or 'Kodi Downloads';title=drivelibrary.display_title(os.path.basename(path))
+   # The owner's rule: the extra copy is deleted. Only with the remove-phone-copies setting on, and only once the
+   # Drive copy is confirmed to still be there with its listed size and checksum.
+   if delete_after and better.get('md5Checksum') and confirmed(drive,better.get('id'),int(better.get('size') or 0),better['md5Checksum'].lower()):
+    if fingerprint(path)!=before:continue
+    log('%s: Google Drive already has it in “%s” (%s); removing this copy'%(os.path.basename(path),where,better.get('name','')))
+    if tid is not None:
+     # A seeding torrent's files belong to Elementum: count this file as on Drive and drop the torrent once all are.
+     done_before[path]={'fp':list(before),'id':better.get('id')};save()
+     torrent_ok.setdefault(tid,set()).add(path)
+     if torrent_ok[tid]>=torrent_files.get(tid,set()) and drop:
+      try:drop(tid);log('Removed the finished torrent from the phone (Google Drive has it)')
+      except Exception as error:log('Elementum could not remove the finished torrent: %s'%type(error).__name__)
+    else:
+     os.remove(path);folder=os.path.dirname(path)
+     while os.path.basename(folder) not in ('Movies','TV Shows') and not os.listdir(folder):os.rmdir(folder);folder=os.path.dirname(folder)
+    notify('Duplicate removed from the phone','%s is already in “%s” on Google Drive, so this copy was removed.'%(title,where))
+    continue
    noted[path]=list(before);save()
-   where=better.get('folderName') or 'Kodi Downloads'
-   log('%s: Google Drive already has this %s (%s); not uploaded'%(os.path.basename(path),'episode' if drivelibrary.media_key(os.path.basename(path),os.path.basename(os.path.dirname(path)))[0]=='episode' else 'movie',better.get('name','')))
-   notify('Already on Google Drive','%s is already in “%s”, so this copy was not uploaded. It stays on the phone.'%(
-    drivelibrary.display_title(os.path.basename(path)),where))
+   log('%s: Google Drive already has it in “%s” (%s); not uploaded'%(os.path.basename(path),where,better.get('name','')))
+   notify('Already on Google Drive','%s is already in “%s”, so this copy was not uploaded. It stays on the phone.'%(title,where))
    continue
   if duplicate is not None:
    meta=dict(duplicate,size=before[2])
@@ -262,6 +278,11 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
    if int(meta.get('size',-1))!=os.path.getsize(path):
     log('Drive upload size differs for %s; the phone copy is kept'%os.path.basename(path));continue
    count+=1;log('Uploaded %s to Google Drive › %s'%(os.path.basename(path),' › '.join(parts)))
+   if remote is not None and digest and confirmed(drive,meta.get('id'),before[2],digest):
+    # This copy is better than what Drive had for the same episode/movie: the old one goes to Drive's Trash.
+    gone=drivelibrary.trash_worse(drive,os.path.basename(path),os.path.basename(os.path.dirname(path)),listing(),meta.get('id'))
+    if gone:notify('Duplicate removed from Google Drive','%s: uploaded a better copy; moved the older one in %s to Drive’s Trash.'%(
+     drivelibrary.display_title(os.path.basename(path)),', '.join('“%s”'%g for g in gone)))
    if index[0] is not None and digest:index[0].append(dict(meta,size=before[2],md5Checksum=digest))
    on_uploaded()  # each file, even when a later transfer fails or is interrupted
   if not delete_after:

@@ -3,6 +3,21 @@ import os,sys
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
 import elementum_download as dl,elementum_engine,notices
 
+def owned_copy(kind,title,year='',season='',episode=''):
+ """The completed phone or Drive copy of this movie/episode (ios_downloaded.completed_copy, as Continue Watching
+ uses), or None. A failed check never blocks a download."""
+ if not title:return None
+ try:
+  import xbmc,xbmcaddon,xbmcvfs
+  lib=os.path.join(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.kodi.ios.watch').getAddonInfo('path')),'resources','lib')
+  if lib not in sys.path:sys.path.append(lib)
+  import ios_downloaded
+  return ios_downloaded.completed_copy(kind,title,year,season,episode,cloud=True)
+ except Exception as error:
+  try:xbmc.log('Kodi iOS download: duplicate check skipped (%s)'%type(error).__name__,xbmc.LOGWARNING)
+  except Exception:pass
+  return None
+
 def run():
  import xbmc,xbmcgui
  args=dict(a.split('=',1) for a in sys.argv[1:] if '=' in a)
@@ -13,6 +28,8 @@ def run():
   path=path or item.getPath()
   values.update({'tmdb':item.getUniqueID('tmdb'),'tvshow.tmdb_id':item.getProperty('tvshow.tmdb_id'),
                  'season':str(tag.getSeason()) if tag.getSeason()>0 else '','episode':str(tag.getEpisode()) if tag.getEpisode()>0 else ''})
+  values.setdefault('title',(tag.getTVShowTitle() if kind in ('episode','season','tvshow') else '') or tag.getTitle())
+  values.setdefault('year',str(tag.getYear() or ''))
  else:kind=args.get('kind','')
  dialog=xbmcgui.Dialog()
  tmdb,season,episode=dl.ids(kind,path,values)
@@ -25,6 +42,19 @@ def run():
  if not elementum_engine.running():
   dialog.ok('Download','Elementum is not running. Gear menu › Retry Elementum engine, then try again.');return
  wait=lambda:xbmc.Monitor().waitForAbort(1)
+ title,year=values.get('title',''),values.get('year','')
+ def check(k,s='',e=''):
+  xbmc.executebuiltin('ActivateWindow(busydialognocancel)')
+  try:return owned_copy(k,title,year if k=='movie' else '',s,e)
+  finally:xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
+ def again(name,copy):
+  return dialog.yesno('Already downloaded','%s is already downloaded %s. Download it again?'%(name,dl.where(copy)),nolabel='Cancel',yeslabel='Download again')
+ if kind=='movie':
+  copy=check('movie')
+  if copy and not again('%s%s'%(title,' (%s)'%year if year else ''),copy):return
+ if kind=='episode':
+  copy=check('episode',season,episode)
+  if copy and not again('%s · S%s E%s'%(title,season,episode),copy):return
  def start(k,e=None):
   url=dl.plugin_url(k,tmdb,season,e);xbmc.log('Kodi iOS download: asking Elementum '+url,xbmc.LOGINFO)
   if k=='movie':xbmc.executebuiltin('RunPlugin(%s)'%url);return
@@ -53,7 +83,8 @@ def run():
    if not choices:dialog.ok('Download','Could not list the episodes of season %s.'%season);return
    # Owner (build-132): ticking in Fuse's multi-select did not register, so OK came back empty and the page just
    # closed. One tap now picks one episode; "Several episodes..." keeps the tick list and says when none was ticked.
-   labels=[label for n,label in choices]
+   owned=[bool(check('episode',season,n)) for n,label in choices]
+   labels=dl.mark_owned([label for n,label in choices],owned)
    pick=dialog.select('Season %s: which episode?'%season,labels+['Several episodes...'])
    xbmc.log('Kodi iOS download: season %s episode list, picked %s'%(season,pick),xbmc.LOGINFO)
    if pick<0:return
@@ -62,6 +93,11 @@ def run():
     chosen=dialog.multiselect('Season %s: tick the episodes'%season,labels) or []
     xbmc.log('Kodi iOS download: ticked %s'%chosen,xbmc.LOGINFO)
     if not chosen:dialog.ok('Download','No episode was ticked. Tap an episode to tick it, then OK.');return
+   again_chosen=[i for i in chosen if owned[i]]
+   if again_chosen and not dialog.yesno('Already downloaded','%d of the chosen episodes %s already downloaded. Download %s again?'%(
+     len(again_chosen),'is' if len(again_chosen)==1 else 'are','it' if len(again_chosen)==1 else 'them'),nolabel='Skip them',yeslabel='Download again'):
+    chosen=[i for i in chosen if not owned[i]]
+    if not chosen:return
    episodes=[choices[i][0] for i in chosen]
    watching=mode(dl.mode_labels('season',episodes))
    xbmc.log('Kodi iOS download: episodes %s, watch %s'%(episodes,watching),xbmc.LOGINFO)
@@ -76,6 +112,15 @@ def run():
    if added:notices.note('download','Downloading season %s'%season,'%d of %d episodes'%(len(added),len(episodes)))
    if watching:watch('episode',tid,first)
    return
+  # Whole season: say first how much of it is already downloaded (a failed listing never blocks the download).
+  try:
+   import json
+   answer=json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Files.GetDirectory','params':{
+    'directory':dl.season_path(tmdb,season),'media':'video','properties':['episode','title']}})))
+   numbers=[n for n,label in dl.episode_choices(answer.get('result',{}).get('files'))]
+  except Exception:numbers=[]
+  question=dl.season_question(season,sum(1 for n in numbers if check('episode',season,n)),len(numbers)) if numbers else None
+  if question and not dialog.yesno(question[0],question[1],nolabel='Cancel',yeslabel='Download'):return
   watching=mode(dl.mode_labels('season'))
   if watching is None:return
   # Elementum fetches one file of a season pack: switch the new pack to "download all" once it is added.

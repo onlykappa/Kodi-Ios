@@ -197,14 +197,31 @@ class SameEpisode(unittest.TestCase):
   path=os.path.join(self.root,'TV Shows','Lanterns (2026)',name);os.makedirs(os.path.dirname(path),exist_ok=True)
   with open(path,'wb') as f:f.write(b'episode'*50)
   old=time.time()-600;os.utime(path,(old,old));return path
- def run_once(self):
-  sums=[]
+ def run_once(self,confirm=lambda *a:False,delete=True):
+  sums=[];self.trashed=[]
   real=up.checksum
   def counting(*a,**k):sums.append(a[0]);return real(*a,**k)
-  with mock.patch.object(up,'checksum',counting),mock.patch.object(up,'confirmed',lambda *a:False),\
+  with mock.patch.object(up,'checksum',counting),mock.patch.object(up,'confirmed',confirm),\
+       mock.patch('drivelibrary.trash',lambda drive,fid:self.trashed.append(fid)),mock.patch('drivelibrary.trash_if_empty',lambda *a:False),\
        mock.patch('drivelibrary.show_folder',lambda drive,parts:parts[:2]+['Lanterns'] if len(parts)==3 else parts):
-   count=up.run_once(self.root,self.D(),self.state,lambda m:None,remote=lambda:list(self.DRIVE),notify=lambda t,x:self.notes.append((t,x)))
+   count=up.run_once(self.root,self.D(),self.state,lambda m:None,delete_after=delete,remote=lambda:list(self.DRIVE),
+                     notify=lambda t,x:self.notes.append((t,x)))
   return count,sums
+ def test_extra_phone_copy_is_deleted_once_drives_copy_is_confirmed(self):
+  path=self.make('Lanterns (2026) - S01E01 - Pilot 1080p.mkv')
+  count,_=self.run_once(confirm=lambda drive,fid,size,digest:fid=='old')
+  self.assertEqual((count,self.uploads),(0,[]));self.assertFalse(os.path.exists(path))
+  self.assertFalse(os.path.exists(os.path.dirname(path)))   # the emptied "Lanterns (2026)" folder on the phone too
+  self.assertEqual(self.notes[0][0],'Duplicate removed from the phone')
+ def test_keep_phone_copies_setting_keeps_the_extra_copy(self):
+  path=self.make('Lanterns (2026) - S01E01 - Pilot 1080p.mkv')
+  self.run_once(confirm=lambda *a:True,delete=False);self.assertTrue(os.path.exists(path));self.assertEqual(self.uploads,[])
+ def test_better_upload_trashes_the_worse_drive_copy(self):
+  type(self).DRIVE=[dict(SameEpisode.DRIVE[0],name='Lanterns.S01E01.720p.mkv',folderId='f1')]
+  try:
+   self.make('Lanterns (2026) - S01E01 - Pilot 2160p.mkv');self.run_once(confirm=lambda *a:True)
+  finally:type(self).DRIVE=[dict(SameEpisode.DRIVE[0],name='Lanterns.S01E01.Pilot.2160p.10bit.WEB-DL.mkv')]
+  self.assertEqual(self.trashed,['old']);self.assertTrue(any(t=='Duplicate removed from Google Drive' for t,x in self.notes))
  def test_same_episode_already_on_drive_is_not_uploaded_and_stays(self):
   path=self.make('Lanterns (2026) - S01E01 - Pilot 1080p.mkv')
   count,_=self.run_once()

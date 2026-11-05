@@ -607,6 +607,7 @@ VARIABLES=('<variable name="Portrait_Hero_Art"><value condition="!String.IsEmpty
 DL_GAP=20;DL_H=108;DL_SHIFT=DL_GAP+DL_H   # the Download button under Play pushes the seasons page down by this
 DOWNLOAD_SEASON=('RunScript(service.kodi.ios.bootstrap,download,kind=season,'
  'path=$ESCINFO[Container(50).ListItem.FolderPath],season=$INFO[Container(50).ListItem.Season],'
+ 'title=$ESCINFO[ListItem.TVShowTitle],year=$INFO[ListItem.Year],'
  'tvshow.tmdb_id=$INFO[Container(50).ListItem.Property(tvshow.tmdb_id)])')
 DOWNLOADED_SHOW='String.IsEqual(Container.Property(KodiIOS.DownloadedShow),true)'
 def show_header(ids_down):

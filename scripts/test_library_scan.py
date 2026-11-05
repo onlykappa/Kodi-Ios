@@ -41,13 +41,20 @@ class ScanTests(unittest.TestCase):
   path=self.file();remote=self.drive.duplicate(path)
   result=self.run_scan([path],remote=[remote]);self.assertEqual((result['duplicates'],result['uploaded'],result['deleted']),(1,0,1))
   self.assertFalse(path.exists());self.assertEqual(self.drive.checked,['existing','existing'])
- def test_matching_name_and_size_but_different_bytes_are_not_a_duplicate(self):
+ def test_another_release_of_the_same_movie_on_drive_replaces_the_phone_copy(self):
   path=self.file();remote=self.drive.duplicate(path,md5Checksum='0'*32,name=path.name)
   result=self.run_scan([path],remote=[remote])
-  # Same name, different bytes: never a byte duplicate, so the phone copy is never deleted on its name alone. Since the
-  # owner's duplicate rule (build 152), it is the same episode/movie already on Drive, so it is not uploaded either.
-  self.assertEqual((result['duplicates'],result['uploaded'],result['deleted'],result['same_media']),(0,0,0,1))
-  self.assertNotIn('existing',self.drive.checked)
+  # Not a byte duplicate, but the same movie at equal resolution (owner, build 152: "it should be deleted"). The phone
+  # copy goes only after Drive's copy is confirmed with fresh metadata; nothing is uploaded.
+  self.assertEqual((result['duplicates'],result['uploaded'],result['deleted'],result['same_media']),(0,0,1,1))
+  self.assertIn('existing',self.drive.checked);self.assertFalse(path.exists())
+ def test_same_movie_is_kept_when_drives_copy_cannot_be_confirmed(self):
+  path=self.file();remote=dict(self.drive.duplicate(path,md5Checksum='0'*32,name=path.name),md5Checksum='1'*32)
+  result=self.run_scan([path],remote=[remote])
+  self.assertEqual((result['uploaded'],result['deleted'],result['same_media']),(0,0,0));self.assertTrue(path.exists())
+ def test_different_years_are_different_movies(self):
+  path=self.file('Dune.2021.1080p.mkv');remote=self.drive.duplicate(path,md5Checksum='0'*32,name='Dune.1984.2160p.mkv')
+  result=self.run_scan([path],remote=[remote]);self.assertEqual((result['uploaded'],result['same_media']),(1,0))
  def test_absent_listing_checksum_is_verified_from_fresh_metadata(self):
   path=self.file();remote=self.drive.duplicate(path);remote.pop('md5Checksum')
   result=self.run_scan([path],remote=[remote]);self.assertEqual(result['deleted'],1);self.assertEqual(result['uploaded'],0)

@@ -173,8 +173,9 @@ class Queue:
   self.state['last_scan']=self.clock();self.state.pop('current',None);self.commit();requested.unlink(missing_ok=True)
  def unique(self,found):
   """One copy per episode or movie (owner, build 152: 'Lanterns' and 'Lanterns (2026)' each held S1 E1, and both
-  were queued). Keeps, in order: a copy already prepared, one being saved or with downloaded working files, the
-  highest resolution, the largest. The others are left on Drive untouched and are not downloaded to the phone."""
+  were queued; the owner then asked for the extra copy to be deleted). Keeps, in order: a copy already prepared, one
+  being saved or with downloaded working files, the highest resolution, the largest. The others go to Drive's Trash
+  once the kept copy is confirmed on Drive. Copies whose years disagree are never treated as one."""
   started={job['source']['id']:(2 if job.get('status')=='committing' else 1) for slot,job in self.state['jobs'].items()
            if job.get('status')=='committing' or (self.work/slot).exists()}
   groups={};out=[]
@@ -182,19 +183,37 @@ class Queue:
    k=drivelibrary.media_key(item.get('name',''),item.get('folderName',''))
    if k is None:out.append(item)
    else:groups.setdefault(k,[]).append(item)
-  skipped=self.state.setdefault('duplicates',{})
   for k,items in groups.items():
+   years={drivelibrary.media_year(i.get('name',''),i.get('folderName','')) for i in items}-{''}
+   if len(items)==1 or len(years)>1:out.extend(items);continue
    rank=lambda item:(ready(item),started.get(item['id'],0),drivelibrary.quality(item.get('name','')),int(item.get('size') or 0))
-   items.sort(key=rank,reverse=True);out.append(items[0])
-   if len(items)>1:
-    ids=','.join(sorted(item['id'] for item in items))
-    if ids not in skipped:
-     skipped[ids]=self.clock()
-     where=lambda item:'“%s”'%item.get('folderName','') if item.get('folderName') else 'Drive'
-     self.notify('info','Same video on Drive %d times'%len(items),'%s: preparing the copy in %s only. The other%s in %s %s left as %s.'%(
-      drivelibrary.display_title(items[0].get('name','')),where(items[0]),'' if len(items)==2 else 's',
-      ', '.join(where(item) for item in items[1:]),'is' if len(items)==2 else 'are','it is' if len(items)==2 else 'they are'))
+   items.sort(key=rank,reverse=True);keep=items[0];out.append(keep)
+   removed=self.remove_copies(keep,items[1:],started)
+   kept_back=[i for i in items[1:] if i not in removed]
+   out.extend(kept_back)   # a copy that could not be removed safely is still handled as its own video
+   if removed:
+    where=lambda item:'“%s”'%item['folderName'] if item.get('folderName') else 'Drive'
+    self.notify('drive','Duplicate removed from Google Drive','%s: kept the copy in %s; moved the copy in %s to Drive’s Trash.'%(
+     drivelibrary.display_title(keep.get('name','')),where(keep),', '.join(where(i) for i in removed)))
   return out
+ def remove_copies(self,keep,others,started):
+  """Trash `others` after confirming `keep` is a complete, untrashed Drive file; never a copy being saved."""
+  try:metadata(self.drive,keep['id'])
+  except Exception:return []
+  removed=[]
+  for item in others:
+   if started.get(item['id'])==2:continue
+   try:
+    current=metadata(self.drive,item['id'])
+    if (current.get('md5Checksum','').lower(),int(current['size']))!=(str(item.get('md5Checksum','')).lower(),int(item.get('size') or 0)):continue
+    drivelibrary.trash(self.drive,item['id']);removed.append(item)
+   except Exception:continue
+   for slot,job in list(self.state['jobs'].items()):
+    if job['source']['id']==item['id']:self.state['jobs'].pop(slot,None);self.state['sessions'].pop(slot,None);shutil.rmtree(self.work/slot,ignore_errors=True)
+   try:drivelibrary.trash_if_empty(self.drive,item.get('folderId'),item.get('folderName',''))
+   except Exception:pass
+  if removed:driveupload.invalidate_library(str(location(self.profile).parent))
+  return removed
  def process_one(self,keep_going=lambda:True):
   candidates=[(slot,job) for slot,job in self.state['jobs'].items() if job.get('status') not in ('done','superseded') and not job.get('blocked') and job.get('retry_after',0)<=self.clock()]
   if not candidates:return False

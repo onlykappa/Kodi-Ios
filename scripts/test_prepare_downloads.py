@@ -193,31 +193,62 @@ class Integration(unittest.TestCase):
   self.assertIn('_kodi_airplay_prepare\\n_kodi_airplay_probe\\n',source)
   self.assertIn('[link hasSuffix:@"/prepared.mp4"]',source)
 
+class Shelf:
+ """A Drive with several files and folders, a Trash, and the calls preparation's duplicate step makes."""
+ def __init__(self):self.files={};self.trashed=[]
+ def add(self,id,name,folder,size=10,**extra):
+  self.files[id]=dict({'id':id,'name':name,'size':str(size),'md5Checksum':id*4,'parent':folder,'version':'1'},**extra)
+  return dict(self.files[id],folderName={'f1':'Lanterns','f2':'Lanterns (2026)','f3':'Movies'}[folder],folderId=folder)
+ def call(self,method,url,body=None,headers=None):
+  parsed=urllib.parse.urlsplit(url);fid=urllib.parse.unquote(parsed.path.rsplit('/',1)[1])
+  if method=='PATCH' and json.loads(body).get('trashed'):self.trashed.append(fid);self.files.get(fid,{})['trashed']=True;return 200,{},b'{}'
+  if method=='GET' and fid=='files':
+   parent=urllib.parse.parse_qs(parsed.query)['q'][0].split("'")[1]
+   return 200,{},json.dumps({'files':[f for f in self.files.values() if f['parent']==parent and not f.get('trashed')]}).encode()
+  if method=='GET' and fid in self.files:return 200,{},json.dumps(self.files[fid]).encode()
+  return 404,{},b'{}'
+
 class OneCopyEach(unittest.TestCase):
- """Owner (build 152): S1 E1 in 'Lanterns' and 'Lanterns (2026)' was queued twice."""
+ """Owner (build 152): S1 E1 in 'Lanterns' and 'Lanterns (2026)' was queued twice; the extra copy should be deleted."""
  def setUp(self):
-  self.tmp=tempfile.TemporaryDirectory();self.notes=[]
-  self.queue=prep.Queue(self.tmp.name,Drive(),Native(),notify=lambda *a:self.notes.append(a),clock=lambda:1000)
+  self.tmp=tempfile.TemporaryDirectory();self.notes=[];self.shelf=Shelf()
+  self.queue=prep.Queue(self.tmp.name,self.shelf,Native(),notify=lambda *a:self.notes.append(a),clock=lambda:1000)
  def tearDown(self):self.tmp.cleanup()
- def item(self,id,name,folder,size=10,**extra):return dict({'id':id,'name':name,'folderName':folder,'size':str(size)},**extra)
- def test_one_copy_per_episode_highest_resolution(self):
-  a=self.item('a','Lanterns.S01E01.Pilot.2160p.mkv','Lanterns');b=self.item('b','Lanterns (2026) - S01E01 - 1080p.mkv','Lanterns (2026)',size=99)
-  c=self.item('c','Lanterns.S01E02.2160p.mkv','Lanterns');m=self.item('m','Inception.2010.mkv','Movies')
+ def test_keeps_the_best_copy_and_trashes_the_other_with_its_empty_folder(self):
+  a=self.shelf.add('a','Lanterns.S01E01.Pilot.2160p.mkv','f1');b=self.shelf.add('b','Lanterns (2026) - S01E01 - 1080p.mkv','f2',size=99)
+  c=self.shelf.add('c','Lanterns.S01E02.2160p.mkv','f1');m=self.shelf.add('m','Inception.2010.mkv','f3')
   kept=self.queue.unique([b,a,c,m])
   self.assertEqual(sorted(x['id'] for x in kept),['a','c','m'])
-  self.assertEqual(len(self.notes),1);self.assertIn('Lanterns · S1 E1',self.notes[0][2]);self.assertIn('“Lanterns (2026)”',self.notes[0][2])
-  self.queue.unique([b,a,c,m]);self.assertEqual(len(self.notes),1)   # reported once
+  self.assertEqual(self.shelf.trashed,['b','f2'])   # the copy, then its now-empty "Lanterns (2026)" folder
+  self.assertEqual(len(self.notes),1);self.assertIn('Lanterns · S1 E1',self.notes[0][2]);self.assertIn('Trash',self.notes[0][2])
+ def test_a_shared_folder_is_not_trashed(self):
+  a=self.shelf.add('a','Lanterns.S01E01.2160p.mkv','f1');b=self.shelf.add('b','Lanterns (2026) - S01E01 - 1080p.mkv','f2')
+  self.shelf.add('e','Lanterns (2026) - S01E02 - 1080p.mkv','f2')
+  self.queue.unique([a,b]);self.assertEqual(self.shelf.trashed,['b'])
  def test_an_already_prepared_copy_wins(self):
-  ready=self.item('b','Lanterns (2026) - S01E01 - 1080p.mkv','Lanterns (2026)',appProperties={prep.PROPERTY:prep.PROFILE,prep.CHECKSUM_PROPERTY:'x'},md5Checksum='x')
-  other=self.item('a','Lanterns.S01E01.2160p.mkv','Lanterns')
+  ready=self.shelf.add('b','Lanterns (2026) - S01E01 - 1080p.mkv','f2',appProperties={prep.PROPERTY:prep.PROFILE,prep.CHECKSUM_PROPERTY:'bbbb'})
+  other=self.shelf.add('a','Lanterns.S01E01.2160p.mkv','f1')
   self.assertTrue(prep.ready(ready))
-  self.assertEqual([x['id'] for x in self.queue.unique([other,ready])],['b'])   # 1080p prepared beats 2160p unprepared
- def test_a_started_copy_wins_over_a_fresh_one(self):
-  started=self.item('b','Lanterns (2026) - S01E01 - 1080p.mkv','Lanterns (2026)')
-  self.queue.state['jobs']['slot-b']={'source':started,'status':'committing'}
-  self.assertEqual([x['id'] for x in self.queue.unique([self.item('a','Lanterns.S01E01.2160p.mkv','Lanterns'),started])],['b'])
+  self.assertEqual([x['id'] for x in self.queue.unique([other,ready])],['b']);self.assertEqual(self.shelf.trashed,['a','f1'])
+ def test_a_copy_being_saved_wins_and_is_never_trashed(self):
+  saving=self.shelf.add('b','Lanterns (2026) - S01E01 - 1080p.mkv','f2')
+  self.queue.state['jobs']['slot-b']={'source':saving,'status':'committing'}
+  self.assertEqual([x['id'] for x in self.queue.unique([self.shelf.add('a','Lanterns.S01E01.2160p.mkv','f1'),saving])],['b'])
+  self.assertNotIn('b',self.shelf.trashed)
+ def test_nothing_is_trashed_when_the_kept_copy_cannot_be_confirmed(self):
+  a=self.shelf.add('a','Lanterns.S01E01.2160p.mkv','f1');b=self.shelf.add('b','Lanterns (2026) - S01E01 - 1080p.mkv','f2')
+  del self.shelf.files['a']   # listed, but gone when checked
+  kept=self.queue.unique([a,b]);self.assertEqual(self.shelf.trashed,[]);self.assertEqual(sorted(x['id'] for x in kept),['a','b'])
+ def test_a_copy_changed_since_listing_is_kept(self):
+  a=self.shelf.add('a','Lanterns.S01E01.2160p.mkv','f1');b=self.shelf.add('b','Lanterns (2026) - S01E01 - 1080p.mkv','f2')
+  self.shelf.files['b']['md5Checksum']='changed'
+  self.queue.unique([a,b]);self.assertEqual(self.shelf.trashed,[])
+ def test_different_years_are_different_shows(self):
+  a=self.shelf.add('a','The Office (2001) - S01E01.mkv','f1');b=self.shelf.add('b','The Office (2005) - S01E01.mkv','f2')
+  self.assertEqual(sorted(x['id'] for x in self.queue.unique([a,b])),['a','b']);self.assertEqual(self.shelf.trashed,[])
  def test_scan_queues_one_job_for_two_copies(self):
-  d=self.queue.drive;listed=[self.item('source-id','Lanterns.S01E01.2160p.mkv','Lanterns'),self.item('other','Lanterns (2026) - S01E01 - 1080p.mkv','Lanterns (2026)')]
+  d=self.queue.drive=Drive();listed=[dict(d.meta(),folderName='Lanterns',name='Lanterns.S01E01.2160p.mkv'),
+   {'id':'other','name':'Lanterns (2026) - S01E01 - 1080p.mkv','folderName':'Lanterns (2026)','size':'5'}]
   with patch.object(prep.library_scan,'remote_files',return_value=listed):self.queue.scan(force=True)
   self.assertEqual(len(self.queue.state['jobs']),1)
 

@@ -131,12 +131,22 @@ def show_folder(drive,parts):
  except Exception:return parts
  return parts
 
+def media_year(name,folder=''):
+ """The year a release or its folder names ('' if neither does)."""
+ return parse(name)['year'] or (parse(folder)['year'] if folder else '')
+
+def same_year(a,b):
+ """Two years that do not contradict each other: 'The Office (2001)' and 'The Office (2005)' are different shows,
+ while 'Lanterns' and 'Lanterns (2026)' may be the same one."""
+ return not a or not b or a==b
+
 def same_media(name,folder,remote):
  """Drive videos that are the same episode or movie as `name` (another release; exact byte copies are handled by
  the checksum rule), best first."""
- key=media_key(name,folder)
+ key=media_key(name,folder);year=media_year(name,folder)
  if key is None:return []
- found=[item for item in remote if media_key(item.get('name',''),item.get('folderName',''))==key]
+ found=[item for item in remote if media_key(item.get('name',''),item.get('folderName',''))==key
+        and same_year(year,media_year(item.get('name',''),item.get('folderName','')))]
  return sorted(found,key=lambda item:(-quality(item.get('name','')),-int(item.get('size') or 0)))
 
 def better_on_drive(path,remote):
@@ -145,6 +155,31 @@ def better_on_drive(path,remote):
  for item in same_media(name,folder,remote):
   if quality(item.get('name',''))>=quality(name):return item
  return None
+
+def trash(drive,item_id):
+ """Moves a Drive file or folder to Drive's Trash (restorable there for 30 days); never a permanent delete."""
+ status,_,_=drive.call('PATCH',API+'/'+urllib.parse.quote(str(item_id),safe='')+'?fields=id,trashed',
+                       json.dumps({'trashed':True}).encode(),{'Content-Type':'application/json'})
+ if status!=200:raise RuntimeError('Drive trash: HTTP %s'%status)
+
+def trash_if_empty(drive,folder_id,folder_name):
+ """A show or release folder left empty by a removed duplicate goes too; Kodi Downloads' own folders never do."""
+ if not folder_id or folder_name in ('',TOP,'Movies','TV Shows'):return False
+ if children(drive,folder_id):return False
+ trash(drive,folder_id);return True
+
+def trash_worse(drive,name,folder,remote,kept_id):
+ """After `name` is confirmed on Drive (as kept_id): lower-resolution copies of the same episode/movie go to Drive's
+ Trash, and their folder if it is left empty. Returns the folders they were in."""
+ gone=[]
+ for item in same_media(name,folder,remote):
+  if item.get('id')==kept_id or quality(item.get('name',''))>=quality(name):continue
+  try:trash(drive,item['id'])
+  except Exception:continue
+  gone.append(item.get('folderName') or TOP)
+  try:trash_if_empty(drive,item.get('folderId'),item.get('folderName',''))
+  except Exception:pass
+ return gone
 
 def display_title(name):
  """A release or file name as people read it: 'Lanterns · S1 E1', 'Inception (2010)'. Plain text is kept."""
