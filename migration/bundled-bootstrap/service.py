@@ -155,6 +155,11 @@ def run():
   threading.Thread(target=later,daemon=True).start()
  # The bell in the hub headers: unread messages and whether a download or Drive upload runs.
  threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),daemon=True).start()
+ # A torrent whose real name turns out to be another film (owner, build 156: Fall 2022 → Fall.2.Deadpoint.2026) is
+ # stopped once Elementum knows its name, and explained in Notifications.
+ import source_guard
+ threading.Thread(target=source_guard.run,args=(window,notices.torrent_list,driveupload.remove_torrent,
+  lambda title,text:notices.add(profile,'problem',title,text),monitor.waitForAbort),daemon=True).start()
  import library_watch
  threading.Thread(target=library_watch.run,args=(xbmc,xbmcaddon,xbmcvfs,monitor,profile),daemon=True).start()
  # Umbrella's getting-ready-to-play screen: its source text, split into the badges the portrait page shows.

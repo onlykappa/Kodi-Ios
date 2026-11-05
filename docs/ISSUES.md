@@ -825,3 +825,15 @@ Status: FIXED IN SOURCE (local draft, not pushed: owner is testing build 156); d
   - New Settings › Library › Kodi and AirPlay › **Check library for conversion** (also in the add-on's Google Drive settings). It asks the service to check now; a conversion in progress pauses and resumes where it was. It then shows how many videos are ready, waiting or paused, with the reasons.
 - Regression: `test_prepare_downloads.LibraryCheck` (7) plus the updated service wiring test.
 - Open question for the owner: are the movies in Google Drive › Kodi Downloads › Movies? Videos elsewhere on Drive are not scanned.
+
+## ISSUE-106 — "Best" 4K source for Fall (2022) downloaded Fall.2.Deadpoint.2026 (build 156)
+
+Status: FIXED IN SOURCE (local draft, not pushed); device check pending.
+- Owner screenshot (build 156): after choosing Fall (2022) › 4K › the best source, Elementum's buffering dialog showed `Fall.2.Deadpoint.2026.2160p.4K.WEB.x265.10bit.AAC5.1-[YTS.GG - YTS.BZ].mkv`.
+- Root cause: the source check (`source_match`, run on every provider's results in Burst) is correct for this name: it returns "wrong title" for the 2026 sequel and accepts `Fall.2022…`. But some sites (YTS look-alikes such as YTS.GG/YTS.BZ) label each result from their own movie catalogue ("Fall 2022 2160p"), so the label passed. The torrent's real name only exists once Elementum has its metadata, after the choice was made.
+- Fix: `source_guard.py`, a service thread reusing the shared engine list every 2 s.
+  - Every torrent added after a source search is judged against the search current when it first appeared (so several chosen episodes never judge each other), for 5 minutes, once its real name is known.
+  - A clear mismatch stops the download: for a film, another title or year, or an episode; for a show, another show. The torrent and its files are removed, with a Notifications › Problems entry ("Fall.2.Deadpoint.2026… is not Fall (2022) (wrong title)… choose another version").
+  - Uncertain names (no year, hash-only names before metadata), torrents that were already there, searches over 30 minutes old, and a hidden source the owner chose deliberately are left alone.
+- Not changed: Elementum's own ranking of the "best" source (it re-sorts Burst's results by its quality/seeds setting).
+- Regression: `test_source_match.WhatTheTorrentReallyIs` (7, including the owner's exact name and the several-episodes race).
