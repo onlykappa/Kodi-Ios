@@ -18,5 +18,6 @@ void kr_source_abort(kr_source *s);
 // Additional transient interrupt predicate (e.g. canceled speculative conversion). Bind with no active read;
 // context must outlive reads. Resetting its condition lets subsequent reads recover through fresh connections.
 void kr_source_set_interrupt(kr_source *s, int (*callback)(void *), void *context);
+int kr_source_interrupted(kr_source *s);
 void kr_source_close(kr_source *s);
 #endif

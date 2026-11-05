@@ -87,3 +87,8 @@ The actual 4K fixture is 20 seconds at six fps, keeping host CI bounded. Convert
 No extra owner log is needed to establish the reproduced cancellation defect. A later build/device capture is needed to measure the remaining delays using the new queue/production timings. Test small, large and repeated forward/backward seeks on a completed phone copy, a Drive copy and active Elementum input, with subtitles both on and off. Check picture, audio synchronization and resumed position on the receiver.
 
 **Build dependency:** the source-lock still pins published KodiAirPlay r11. Before any future requested IPA, build/publish a new framework release, verify its checksum and pin it. An IPA made with the unchanged r11 framework would omit these C fixes. An isolated candidate compile is being validated; no release has been changed.
+
+
+### Clean CI follow-up (in progress)
+
+Both iPhoneOS candidate compiles passed. The second Linux CI run still rejected the first synthetic RPU frame, so the earlier parser-association explanation is unconfirmed; changing insertion order was insufficient. Exact metadata diagnostics and a retained synthetic failure fixture are added for reproduction. That run also exposed a later HTTP segment read error after background cancellation. The source now retires an interrupted speculative decoder/source, so a foreground request gets a fresh parser instead of inheriting a half-read block. The same ownership rule continues to protect connected foreground requests. Native builds also revealed two existing iOS-16 API availability warnings under the iOS-14 target; typed creation and cleanup are now guarded. These changes require the next clean candidate result; failures remain in the coverage report.
