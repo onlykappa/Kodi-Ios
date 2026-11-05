@@ -139,3 +139,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+FFmpeg also includes ffmpeg-dovi-padding.patch (LGPL-2.1+): ignore NAL trailing_zero_8bits
+before Dolby RPU extension detection. This avoids interpreting zero padding as DM v2 metadata;
+the unmodified picture/RPU content and CRC checks remain intact. Patch shipped with the framework.

@@ -777,10 +777,24 @@ static void test_dovi_render(const char *work) {
     CHECK(r>=0,"RPU fixture opens"); if(r<0)return;
     avformat_find_stream_info(input,NULL);
     AVCodecContext *dec=avcodec_alloc_context3(avcodec_find_decoder(AV_CODEC_ID_HEVC));
-    avcodec_parameters_to_context(dec,input->streams[0]->codecpar);avcodec_open2(dec,dec->codec,NULL);
+    avcodec_parameters_to_context(dec,input->streams[0]->codecpar);
+    dec->err_recognition=AV_EF_CRCCHECK|AV_EF_EXPLODE;avcodec_open2(dec,dec->codec,NULL);
     AVPacket *p=av_packet_alloc(); AVFrame *src=av_frame_alloc(),*pq=av_frame_alloc(),*sdr=av_frame_alloc();
-    int got=0;
-    while(av_read_frame(input,p)>=0){if(p->stream_index==0){avcodec_send_packet(dec,p);if(avcodec_receive_frame(dec,src)==0)got=1;}av_packet_unref(p);if(got)break;}
+    int got=0,padded=0;
+    while(av_read_frame(input,p)>=0){
+        if(p->stream_index==0){
+            // Reproduce older muxers retaining trailing_zero_8bits on a length-prefixed RPU NAL.
+            int pos=0,last=-1;
+            while(pos+4<=p->size){unsigned n=AV_RB32(p->data+pos);if(n<2 || n>(unsigned)(p->size-pos-4))break;last=pos;pos+=4+(int)n;}
+            if(pos==p->size && last>=0 && ((p->data[last+4]>>1)&63)==62){
+                unsigned n=AV_RB32(p->data+last);
+                if(av_grow_packet(p,1)==0){p->data[p->size-1]=0;AV_WB32(p->data+last,n+1);padded=1;}
+            }
+            avcodec_send_packet(dec,p);if(avcodec_receive_frame(dec,src)==0)got=1;
+        }
+        av_packet_unref(p);if(got)break;
+    }
+    CHECK(padded,"Dolby regression includes trailing zero padding with CRC validation enabled");
     CHECK(got && kr_dovi_is_profile5(src),"real HEVC decoder exposes parsed profile-5 metadata");
     if(got && !kr_dovi_is_profile5(src)){
         printf("  DOVI diagnostic: format %d, %d side data entries\n",src->format,src->nb_side_data);

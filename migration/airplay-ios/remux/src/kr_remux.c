@@ -389,7 +389,7 @@ static int produce_unit(int rend, int seg, gm_buf *out, char *err, int errlen) {
         atomic_store(&vc_seg, seg);
         r = kr_video_unit(v, S.gm, seg, out, err, errlen);
         atomic_store(&vc_seg, -1);
-        if(r==KR_VIDEO_CANCELLED && kr_source_interrupted(S.vsrc)) {
+        if(r==KR_VIDEO_CANCELLED) {
             // FFmpeg's parser can retain a half-read block after an interrupted HTTP wait. Retire this
             // speculative decoder/source; the next foreground request gets a clean independent instance.
             pthread_mutex_lock(&src_lock);
@@ -398,7 +398,7 @@ static int produce_unit(int rend, int seg, gm_buf *out, char *err, int errlen) {
             S.video=NULL;S.vsrc=NULL;
             pthread_mutex_unlock(&src_lock);
             kr_video_close(v);kr_source_close(interrupted);
-            log_line("seek: retired interrupted background decoder/source");
+            log_line("seek: retired canceled background decoder/source");
             return r;
         }
         if (r == 0) {  // r11: the conversion path and speed per segment (realtime = SEG_SECONDS per segment)

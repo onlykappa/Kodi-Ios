@@ -43,6 +43,9 @@ fi
 if ! grep -q 'int64_t avpriv_kodi_mov_index_pts' "$SRC/libavformat/mov.c"; then
   patch --batch --forward -d "$SRC" -p1 < "$HERE/ffmpeg-mov-pts.patch"
 fi
+if ! grep -q 'Kodi iOS: ignore NAL trailing_zero_8bits' "$SRC/libavcodec/dovi_rpudec.c"; then
+  patch --batch --forward -d "$SRC" -p1 < "$HERE/ffmpeg-dovi-padding.patch"
+fi
 FLAGS=(
   --disable-everything --disable-programs --disable-doc --disable-debug
   --disable-shared --enable-static --enable-pic --enable-small --disable-autodetect
@@ -109,7 +112,7 @@ make -j"$( (command -v nproc >/dev/null && nproc) || sysctl -n hw.ncpu)" > "$OUT
 make install > /dev/null
 cp "$DAV/lib/libdav1d.a" "$OUT/lib/"
 cp "$DAV/DAV1D-CONFIG.txt" "$DAV/DAV1D-LICENSE.txt" "$OUT/"
-cp "$HERE/ffmpeg-mov-pts.patch" "$OUT/"
+cp "$HERE/ffmpeg-mov-pts.patch" "$HERE/ffmpeg-dovi-padding.patch" "$OUT/"
 # The exact configuration goes into THIRD-PARTY-NOTICES (FFmpeg LGPL: say how it was built).
 printf 'FFmpeg %s (%s, sha256 %s)\nconfigure %s\n' "$FFMPEG_VERSION" "$SOURCE_URL" "$SOURCE_SHA256" "${FLAGS[*]}" > "$OUT/FFMPEG-CONFIG.txt"
 echo "FFmpeg $FFMPEG_VERSION ($TARGET) in $OUT"

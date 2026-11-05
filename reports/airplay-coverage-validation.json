@@ -1,5 +1,5 @@
 {
-  "recorded_utc": "2026-11-05T00:52:58.836145+00:00",
+  "recorded_utc": "2026-11-05T01:08:40.806795+00:00",
   "issue": "ISSUE-093",
   "scope": "Owner requested fixing bug-3 source compatibility gaps now; same draft PR #8, no IPA or merge.",
   "base_commit": "72221446d60d4e848507a093a7880c8a3392331f",
@@ -24,7 +24,7 @@
   ],
   "verification": {
     "native_full_suite": {
-      "checks": 1384,
+      "checks": 1385,
       "failures": 0,
       "passed": true,
       "coverage": [
@@ -121,7 +121,9 @@
     "First two-language VobSub test failed because its generated second IDX offset pointed at the first language. Derive per-stream sector offsets from ffprobe; distinct Spanish/English pixel and backward tests then pass.",
     "First isolated clean CI: native framework job passed; Linux host job failed two first-frame DOVI metadata checks (1378 checks executed). Older fixture-generating FFmpeg associated trailing first-frame RPU with another access unit. Change insertion to prefix the single slice; local first-frame test and independent comparison pass, clean CI rerun required.",
     "Second clean CI disproved that RPU prefix placement alone resolves metadata rejection; preserve the initial hypothesis as unconfirmed. Native framework passed again; host executed 1381 checks with eight failures: two DOVI checks and six consequences of one interrupted HTTP video segment. Retire interrupted speculative decoder/source rather than reuse a half-read parser; add first-frame metadata diagnostics and synthetic failure artifact retention.",
-    "Native SDK builds exposed two existing unguarded iOS-16 pixel-transfer type/cleanup warnings with an iOS-14 deployment target. Store the session opaquely, create its typed local within the availability block and guard cleanup; validate the native warnings again."
+    "Native SDK builds exposed two existing unguarded iOS-16 pixel-transfer type/cleanup warnings with an iOS-14 deployment target. Store the session opaquely, create its typed local within the availability block and guard cleanup; validate the native warnings again.",
+    "Exact CI synthetic artifact reproduced the two missing-RPU failures locally. Both files contain RPUs, disproving the earlier parser-association hypothesis. CI final RPU has an extra trailing zero; FFmpeg remaining-bit extension detection misreads it as DM v2 data. Strip NAL padding before parsing, retaining the terminator/CRC and AV1 behavior. Exact artifact now passes 29 checks with CRC validation; native test deliberately adds padding to prevent regression.",
+    "Conservatively retire every canceled speculative decoder/source because cancellation can also enter through custom AVIO before the source predicate is invoked. Fresh foreground instances avoid inheriting half-read parser state; this can require new header/probe I/O."
   ],
   "limits": [
     "HDR software color mapping, AV1 hardware fallback, sustained 4K/24\u201360 fps and actual TV acceptance still need a newly built framework and phone results.",
@@ -129,7 +131,8 @@
     "Published KodiAirPlay r11 is unchanged. Build/publish a new framework, verify/pin it before any separately requested IPA. No release or merge.",
     "Bounded ranges add HTTP round trips; the synthetic stalled-read deadline result is not a phone seek-speed improvement. Dedicated external subtitle replay can reread that local subtitle file after backward seeks; it does not scan movie bytes.",
     "No universal every-file/every-receiver guarantee or Dolby certification. Profile-5 CPU rendering and all 4K/frame-rate hardware paths need phone/TV throughput and color acceptance.",
-    "Overlapping long text histories and every container/profile combination are not exhaustively verified. Recovering state in unindexed embedded streams can require earlier reads. Arbitrary HLS codec conversion remains outside the native-playlist path."
+    "Overlapping long text histories and every container/profile combination are not exhaustively verified. Recovering state in unindexed embedded streams can require earlier reads. Arbitrary HLS codec conversion remains outside the native-playlist path.",
+    "Retiring canceled speculative decoder/source may add fresh header/probe I/O after a seek. Actual Drive latency remains a device acceptance check."
   ],
   "owner_requested_progress_estimate": {
     "scope": "Bug 3 overall completion and source readiness, relative to the installed pre-fix baseline",
@@ -175,16 +178,16 @@
   },
   "renderer_subtitle_completion_pass": {
     "base_commit": "79b2e5999a407e5f98eba70e3d2c9df171830259",
-    "native_host_checks": 1384,
+    "native_host_checks": 1385,
     "native_host_failures": 0,
     "python_static_tests": 35,
     "independent_color_reference": {
       "renderer": "system FFmpeg/libplacebo on Vulkan (software driver permitted)",
       "legacy_code_normalization": true,
       "samples": 172800,
-      "mean_pq_error": 2.1710373874293924e-05,
+      "mean_pq_error": 1.5728978578028708e-05,
       "max_pq_error": 0.0264438849469749,
-      "mean_absolute_nits_error": 0.010490864433167615,
+      "mean_absolute_nits_error": 0.008788056409273794,
       "max_absolute_nits_error": 0.36032105165497796,
       "mean_pq_error_when_reference_ignores_rpu": 0.13067116189680944,
       "limits": {
@@ -200,7 +203,7 @@
     "rpu_fixture_source_path": "assets/tests/profile5-02.bin",
     "rpu_fixture_changes": "Identity curves generated by pinned FFmpeg 8.1.1 RPU encoder; color metadata retained; all video/audio generated locally.",
     "native_candidate": {
-      "status": "Two native framework compiles passed; clean host failures retained and under correction. Latest source includes interrupted-decoder retirement, native availability guards and failure diagnostics.",
+      "status": "Three iPhoneOS candidate compiles passed, latest without source availability warnings. Remaining host RPU failure reproduced exactly and fixed in FFmpeg padding patch; clean patched-dependency rerun pending.",
       "branch": "validation/airplay-source",
       "first_run_id": 41942478228,
       "first_commit": "39ce7250dc1f0c64253dfb04c5038c9865fb19cc",
@@ -242,6 +245,29 @@
             "One HTTP compatibility segment failed after transient cancellation, indicating decoder/parser reuse was not robust across clean CI. Retire interrupted speculative decoder/source before the next request."
           ]
         }
+      },
+      "third_run": {
+        "id": 41944692877,
+        "url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/41944692877",
+        "commit": "9c94e48d3c9383cfdc18a49b67cc99c8cf90f8e2",
+        "framework_job": {
+          "id": 126973861675,
+          "conclusion": "success",
+          "source_availability_warnings": 0,
+          "inner_framework_zip_sha256": "b840e1d5189dec47c4d461a7fc269554e1d22647f73136bfdb1faf1598a5bf52"
+        },
+        "host_job": {
+          "id": 126973861367,
+          "conclusion": "failure",
+          "checks": 1381,
+          "failures": 2,
+          "scope": "Only first-frame DOVI checks failed; HTTP cancellation segment errors no longer occurred."
+        },
+        "diagnostic_artifact": {
+          "id": 13378775669,
+          "sha256": "3fc095c23f8fccdbd5c1da6c7131948a442613cc22b206096da1c88febe40691",
+          "synthetic_movie_sha256": "0948651a29ed57597d5947b87434ab255f10894152c0bc9356cfdb42a2987745"
+        }
       }
     },
     "phone_drive_receiver_verified": false,
@@ -257,10 +283,10 @@
       "migration/airplay-ios/remux/src/kr_dovi.h": "7ca25668e16db55156bf7e811fecddedd6a9403daa86dc568e73860b2d71364a",
       "migration/airplay-ios/remux/src/kr_hls.c": "a8cb1520a852ed4a8c30e1a9c46ec3622eb95608507362f7ba145306e09709d7",
       "migration/airplay-ios/remux/src/kr_hls.h": "e4cf63558d48f0749ef85bc8e62eba586132d8f7868806d88a09f9e3aa94ed4a",
-      "migration/airplay-ios/remux/src/kr_remux.c": "dd1f8a5def0665c24c113f17cbb91487ea8e03feda4cb84abbaf3fe558c222a1",
+      "migration/airplay-ios/remux/src/kr_remux.c": "0074f4ada48d9c9716ee791d4b65b9cc84bcae63d882871b5ad2134840aee909",
       "migration/airplay-ios/remux/src/kr_remux.h": "1c951f93d34565f2f42334cf469ca090b86183e05b7cbd52307bfc4d293300c8",
-      "migration/airplay-ios/remux/src/kr_source.c": "d5499321204b9058d092ca4f67b28cf5d4035a68b8d433c0d8f72cba5aefe985",
-      "migration/airplay-ios/remux/src/kr_source.h": "96961865eec2b64e5b5ebaad950653ef59f07d4d79993f8d74cd48ccd89875af",
+      "migration/airplay-ios/remux/src/kr_source.c": "e1ab48c6697603a25c543015ab8fc3a578522fbacfa22a09e076d42946feb132",
+      "migration/airplay-ios/remux/src/kr_source.h": "508390c2d94947dc66579b759ce5afb2ec1b1cbe4ddc4027014b1601c1ded69d",
       "migration/airplay-ios/remux/src/kr_subs.c": "29dad8639d2a4523e795a2967a92fa2a3a9d0fda095b2a402984bbfd1d999d02",
       "migration/airplay-ios/remux/src/kr_subs.h": "d94560b143af166ede39032143305c89cf6eb754dabecb39dee884ee3ff6123c",
       "migration/airplay-ios/remux/src/kr_video.c": "3706e5b146ab046eea95e8064d343a614fd725bf2d72a3c2d4ad040256889298",
@@ -284,5 +310,27 @@
     "scope": "Bind the converter cancellation predicate after opening; canceled background conversions interrupt source waits and discard partial output. Clear parser/error state on the next job; preserve the foreground-only cancellation boundary.",
     "test": "Ten-second read budget on a stalled loopback source interrupted within one second, followed by exact-byte recovery. No measured phone latency claim.",
     "native_candidate_status": "pending latest rerun"
+  },
+  "confirmed_dovi_padding_regression": {
+    "cause": "Older muxer retains trailing_zero_8bits on the final RPU NAL. Pinned FFmpeg 8.1.1 uses remaining bit count to infer DM v2 extensions, misreads padding and drops metadata. Prefix placement was not the cause.",
+    "exact_ci_fixture_before": {
+      "checks": 25,
+      "failures": 2
+    },
+    "exact_ci_fixture_after": {
+      "checks": 29,
+      "failures": 0,
+      "crc_validation_enabled": true
+    },
+    "deliberate_padding_regression": true,
+    "patch": "migration/airplay-ios/ffmpeg-dovi-padding.patch",
+    "patch_sha256": "18569e3b789fa340e1a678a99c60a5203841680864114beccd12db2641167998",
+    "applies_to_clean_pinned_upstream": true,
+    "clean_patched_source_matches_compiled": true,
+    "nal_only_AV1_EMDF_unchanged": true,
+    "picture_and_crc_unchanged": true,
+    "clean_candidate_status": "pending",
+    "full_local_checks": 1385,
+    "full_local_failures": 0
   }
 }
