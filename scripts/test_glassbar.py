@@ -157,4 +157,97 @@ class IpaTests(unittest.TestCase):
   # (r4 pinned Kodi's orientation at open: landscape controls on a portrait screen once Kodi turned underneath).
   for text in ('UIModalPresentationOverFullScreen','- (BOOL)shouldAutorotate { return YES; }','UIInterfaceOrientationMaskAllButUpsideDown',
                'viewWillTransitionToSize:','NSSelectorFromString(@"applyRotatedScreen")'):self.assertIn(text,src)
+class NativeOwnerTests(unittest.TestCase):
+ """r22/r5: Kodi itself shows the bar as Home opens (Python starts 2-4.5 s later on the phone)."""
+ PATCH=(ROOT/'migration/ios-portrait/kodi-21.3-portrait.patch').read_text()
+ SRC=(ROOT/'migration/glassbar-ios/build-glassbar.sh').read_text()
+ def native_block(self):
+  start=self.PATCH.index('diff --git a/xbmc/application/Application.cpp');end=self.PATCH.index('diff --git',start+10)
+  return self.PATCH[start:end]
+ def test_handshake_follows_the_framework(self):
+  class Owner(Lib):
+   def __init__(self,v):super().__init__();self.v=v
+   def kodi_glassbar_native_owner(self):return self.v
+  self.assertTrue(glassbar.native_owner(Owner(1)));self.assertFalse(glassbar.native_owner(Owner(0)))
+  self.assertFalse(glassbar.native_owner(Lib()),'r4 framework: the add-on drives the bar')
+ def test_framework_exports_the_owner_flag(self):
+  for name in ('void kodi_glassbar_set_native_owner(int owner)','int kodi_glassbar_native_owner(void)'):
+   self.assertIn('__attribute__((visibility("default"))) '+name,self.SRC)
+  self.assertIn('set_native_owner|native_owner',self.SRC)
+ def test_kodi_loads_the_framework_and_claims_it_from_its_frame_loop(self):
+  block=self.native_block()
+  for name in ('kodi_glassbar_set_native_owner','kodi_glassbar_show','kodi_glassbar_select','kodi_glassbar_take_tap'):
+   self.assertIn('dlsym(lib, "%s")'%name,block);self.assertIn(name,self.SRC)
+  self.assertIn('"KodiGlassBar.framework", "KodiGlassBar"',block);self.assertIn('CUtil::GetFrameworksPath()',block)
+  self.assertIn('claim(1);',block)
+  # In CApplication::Process after the messages are handled and the stop check, on Kodi's application thread.
+  self.assertIn(' if (m_bStop) return; //we\'re done, everything has been unloaded\n \n+#if defined(TARGET_DARWIN_IOS)\n+  // Kodi-iOS r22',block)
+  self.assertIn('+  KodiIOSGlassBarTick();',block)
+ def test_native_rules_match_the_python_controller(self):
+  block=self.native_block()
+  # The same page conditions, in the same order (indices are the framework's tab indices).
+  at=[block.index('"%s"'%condition) for condition,_ in glassbar.PAGES];self.assertEqual(at,sorted(at))
+  for text in ('"System.HasActiveModalDialog"','g_SkinInfo->ID() == "skin.arctic.fuse.3"','gfx.GetHeight() > gfx.GetWidth()',
+               'tapped != s_glassBar.page','"Skin.SetBool(Portrait.NativeTabBar)"','PostMsg(TMSG_EXECUTE_BUILT_IN, -1, -1, nullptr, builtin)'):
+   self.assertIn(text,block)
+  # Taps run the builtins of ios_tabs.tab_actions.
+  spec_t=importlib.util.spec_from_file_location('ios_tabs',ROOT/'migration/bundled-bootstrap/resources/lib/ios_tabs.py')
+  tabs=importlib.util.module_from_spec(spec_t);spec_t.loader.exec_module(tabs)
+  self.assertEqual([t[0] for t in tabs.TABS],['home','movies','tv','library','search'])
+  for key,_,_ in tabs.TABS:
+   for condition,action in tabs.tab_actions(key):
+    if action.startswith('SetProperty('):self.assertIn('std::string("SetProperty(Portrait.Tab,") +',block);self.assertIn('"%s"'%action.split(',')[1],block)
+    elif action.startswith('SetFocus('):self.assertIn('"SetFocus(" + std::to_string(4000 + 10000 * tapped) + ")"',block);self.assertIn(action,['SetFocus(%d)'%(4000+10000*i) for i in range(3)])
+    else:self.assertIn('"%s"'%action,block)
+    if condition:self.assertIn('info.EvaluateBool("%s", context)'%condition,block)
+ def test_locks_pin_r5_and_r22(self):
+  bar=json.loads((ROOT/'migration/glassbar-ios/source-lock.json').read_text())
+  self.assertEqual(bar['framework_release']['tag'],'kodi-glassbar-r5')
+  self.assertRegex(bar['framework_release']['sha256'],r'^[0-9a-f]{64}$')
+  self.assertEqual(bar['previous']['tag'],'kodi-glassbar-r4')
+  self.assertNotIn('build_status',bar)
+  exe=json.loads((ROOT/'migration/ios-portrait/source-lock.json').read_text())
+  self.assertEqual(exe['executable_release']['tag'],'kodi-ios-portrait-r22')
+  self.assertRegex(exe['executable_release']['sha256'],r'^[0-9a-f]{64}$')
+  self.assertEqual(exe['previous_executable_release']['tag'],'kodi-ios-portrait-r21')
+  self.assertNotIn('build_status',exe)
+  self.assertIn('native tab bar',exe['build_note'])
+  workflow=(ROOT/'.github/workflows/glassbar-ios.yml').read_text()
+  self.assertIn("d.get('build_tag') or d['framework_release']['tag']",workflow)
+
+class LaunchTests(unittest.TestCase):
+ """No logo -> "KODI 21.3 OMEGA" splash -> menus: a black launch screen and no Kodi splash."""
+ def test_launch_picture_becomes_black_at_the_same_size(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   app=Path(tmp)/'Kodi.app';app.mkdir()
+   import struct,zlib
+   # An Xcode-compressed PNG: Apple's CgBI chunk before IHDR, then non-black pixels.
+   def chunk(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data)&0xffffffff)
+   logo=b'\x89PNG\r\n\x1a\n'+chunk(b'CgBI',b'\x50\x00\x20\x06')+chunk(b'IHDR',struct.pack('>IIBBBBB',1920,1080,8,6,0,0,0))+chunk(b'IDAT',b'x')+chunk(b'IEND',b'')
+   (app/'applaunch_screen.png').write_bytes(logo)
+   changed=ios_portrait.black_launch_screen(app)
+   self.assertEqual([c['path'] for c in changed],['applaunch_screen.png'])
+   data=(app/'applaunch_screen.png').read_bytes();self.assertEqual(ios_portrait.png_size(data),(1920,1080))
+   width,height=ios_portrait.png_size(data)
+   at=8;pixels=b''
+   while at<len(data):
+    length,kind=struct.unpack('>I4s',data[at:at+8])
+    if kind==b'IDAT':pixels+=data[at+8:at+8+length]
+    at+=12+length
+   self.assertEqual(set(zlib.decompress(pixels)),{0});self.assertLess(len(data),40000)
+   self.assertEqual(ios_portrait.black_launch_screen(Path(tmp)/'none'),[])
+ def test_splash_off_for_new_and_existing_installs(self):
+  import xml.etree.ElementTree as ET
+  with tempfile.TemporaryDirectory() as tmp:
+   system=Path(tmp)
+   info=ios_portrait.disable_splash(system);root=ET.parse(system/'advancedsettings.xml').getroot()
+   self.assertEqual((root.tag,root.findtext('splash')),('advancedsettings','false'))
+   self.assertEqual(info['sha256'],ios_portrait.sha((system/'advancedsettings.xml').read_bytes()))
+   (system/'advancedsettings.xml').write_text('<advancedsettings><loglevel>1</loglevel><splash>true</splash></advancedsettings>')
+   ios_portrait.disable_splash(system);root=ET.parse(system/'advancedsettings.xml').getroot()
+   self.assertEqual((root.findtext('loglevel'),root.findtext('splash')),('1','false'))
+  # The bundle's system file is read before the profile's (pinned Kodi CAdvancedSettings::Load), so updates apply.
+  src=(ROOT/'scripts/build_customized_ipa.py').read_text()
+  self.assertIn('ios_portrait.disable_splash(system.parent)',src);self.assertIn("'/system/advancedsettings.xml'",src)
+
 if __name__=='__main__':unittest.main()

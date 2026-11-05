@@ -41,7 +41,7 @@ def forget_choice(read,write,item_key):
  if not entry:return False
  entry.pop('player',None);entry.pop('version',None);save(data,write);return True
 
-def record(player,read,write,now=time.time,choice=None):
+def record(player,read,write,now=time.time,choice=None,preserve_player=False):
  """Called by the chooser when it hands a title to a player (choice: 'elementum', 'umbrella' or 'local'). The
  version picked last time is kept while the same player is used; the Choose a version page replaces it."""
  kind='movie' if getattr(player,'tmdb_type','')=='movie' else 'episode'
@@ -53,7 +53,10 @@ def record(player,read,write,now=time.time,choice=None):
  if not entry['tmdb_id']:return None
  data=load(read);old=data['items'].get(key(entry),{})
  entry.update(position=old.get('position',0),total=old.get('total',0),played=now())
- entry['player']=choice or old.get('player')
+ # A downloaded copy is a playback location, not a new provider choice. Keep Umbrella/Elementum for when that
+ # copy is moved or removed; an explicit player selection still replaces the old choice/version.
+ entry['player']=old.get('player') if preserve_player and old.get('player') in ('umbrella','elementum') else choice or old.get('player')
+ if choice:entry['playback_source']=choice
  if old.get('version') and entry['player']==old.get('player'):entry['version']=old['version']
  if not entry['player']:del entry['player']
  data['items'][key(entry)]=entry;data['current']=key(entry);save(data,write)
@@ -79,6 +82,15 @@ CONTINUE_FLAG='ios_continue=1'
 def play_url(entry):
  if entry['kind']=='movie':return HELPER+'?info=play&tmdb_type=movie&tmdb_id='+entry['tmdb_id']+'&'+CONTINUE_FLAG
  return HELPER+'?info=play&tmdb_type=tv&tmdb_id=%s&season=%s&episode=%s&%s'%(entry['tmdb_id'],entry['season'],entry['episode'],CONTINUE_FLAG)
+
+CHOOSE_FLAG='ios_choose=1'
+
+def choose_url(entry):
+ """The title's play link that always asks for the source (ios_watch_dialog.choosing)."""
+ return play_url(entry).replace(CONTINUE_FLAG,CHOOSE_FLAG)
+
+def entry_for(read,item_key):
+ return load(read)['items'].get(item_key)
 
 def choose_source_action(entry):
  from urllib.parse import quote

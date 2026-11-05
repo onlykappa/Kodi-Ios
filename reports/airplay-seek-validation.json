@@ -1,0 +1,155 @@
+{
+  "recorded_utc": "2026-11-04T16:07:27.313166+00:00",
+  "base_commit": "eadbdb9cd8a5763d655a882ea79ad48744b9608b",
+  "issue": "ISSUE-093",
+  "owner_bug_number": 3,
+  "status": "Seek cancellation and fully bridged stream admission fixed in source; long Drive seek delays, universal format coverage and phone acceptance remain open.",
+  "input": {
+    "source": "Owner screenshot, later playback log, and clarification: seeking usually stops playback; screenshot error is a new variant.",
+    "sha256": "abc1311ef27c1fb8d970ad11e03c86accff5622d0de2f2a8921db0ccecda5dd5",
+    "bytes": 199922,
+    "lines": 1565,
+    "first_timestamp": "2026-11-04 07:50:28.818",
+    "last_timestamp": "2026-11-04 07:53:28.472",
+    "raw_log_published": false
+  },
+  "phone_evidence": [
+    {
+      "lines": [
+        376,
+        1019,
+        1370
+      ],
+      "finding": "Google Drive download proxy serves this movie, not an active Elementum stream; no private source URL/IDs retained."
+    },
+    {
+      "lines": [
+        1372,
+        1388,
+        1395,
+        1398,
+        1409,
+        1410,
+        1419
+      ],
+      "finding": "3840x1608 HEVC 10-bit at 23.976 fps, advertised SDR. Third-party receiver gets 1920x804 H.264, VideoToolbox decode and GPU transfer. Conversions include 3782, 3526 and 2667 ms; a later converted request takes 4844 ms including request work."
+    },
+    {
+      "lines": [
+        1037,
+        1097,
+        1397
+      ],
+      "finding": "Six-second CoreMedia timeouts; source/queue delays also affect copied media. Audio requests include 7007 and 8388 ms."
+    },
+    {
+      "lines": [
+        1417,
+        1425,
+        1504
+      ],
+      "finding": "Prefetch converted segments are canceled around seeks."
+    },
+    {
+      "lines": [
+        1506,
+        1507,
+        1508,
+        1517,
+        1518,
+        1519,
+        1520
+      ],
+      "finding": "Large seek to segment 521 (about 3126 seconds) has repeated requests waiting up to 26669 ms before session shutdown; final HTTP 500 reports session stopped. This log does not contain screenshot segment-37 foreground cancellation."
+    }
+  ],
+  "source_findings": [
+    "Foreground conversions could cancel one another whenever a new request was far away; canceled output became HTTP 500 and a persistent error message.",
+    "Background ownership was cleared after unlocking its lane; a seeker could cancel a new foreground conversion under the stale background marker.",
+    "Speculative workers could acquire a lane ahead of queued foreground requests.",
+    "Expected prefetch cancellation compared an unprefixed string against video conversion: cancelled.",
+    "VP9+Opus (no copy-compatible track) was rejected by gm_stream_open before conversion bridges could run.",
+    "When a video needed conversion but no encoder was available, a session could succeed with audio only."
+  ],
+  "changes": [
+    "Cancel only identified speculative conversion; preserve connected foreground requests. Clear background ownership before releasing its lane.",
+    "Prioritize queued foreground work over speculative work; initialization reads do not refocus speculative work to time zero.",
+    "Propagate a typed cancellation result to background workers; genuine read/decode/encode failures remain visible.",
+    "Log slow requests with separate lane-wait and production durations, without source URLs or titles.",
+    "Allow segment planning on decodable video when no copy-compatible track exists, retaining the no-copy marker so conversion is mandatory.",
+    "Reject unsupported video/absent encoder clearly instead of silently succeeding with audio only."
+  ],
+  "verification": {
+    "native_host_checks": 1095,
+    "native_host_failures": 0,
+    "python_suites": [
+      {
+        "suite": "test_airplay_remux",
+        "tests": 25,
+        "passed": true
+      },
+      {
+        "suite": "test_ios",
+        "tests": 8,
+        "passed": true
+      }
+    ],
+    "cancel_reproduction": {
+      "baseline": "Pre-fix kr_remux.c scheduler linked against the same harness/media and other current units, isolating server cancellation behavior.",
+      "checks": 12,
+      "failed_before": 2,
+      "failure": "Live overlapping converted request returns HTTP 500 and AirPlay conversion failed: video conversion: cancelled.",
+      "fixed_behavior": "Old request and forward target both return 200; backward seek and target retry remain usable, prefetch off/on; no fatal message."
+    },
+    "actual_4k_fixture": {
+      "resolution": "3840x2160",
+      "pixel_format": "10-bit HEVC",
+      "fps": 6,
+      "duration_seconds": 20,
+      "checks": "Original copy retains 4K dimensions. Converted output is actually 1920x1080; seeking to 18 s yields 12 decodable frames starting on a keyframe; backward seek succeeds.",
+      "limit": "6 fps bounds host fixture cost. This does not measure 23.976/60 fps, iPhone hardware, GPU or H.264 performance."
+    },
+    "format_fixtures": [
+      "H.264 + AAC/SRT MKV",
+      "HEVC 10-bit PQ + AC-3/ASS MKV",
+      "H.264 + DTS MKV",
+      "H.264 + TrueHD MKV",
+      "Multiple AC-3/DTS audio tracks",
+      "MPEG-TS with 1.4-second start offset",
+      "MPEG-2 + AC-3 MKV",
+      "VP9 + Opus WebM (fully bridged)",
+      "MPEG-4 Part 2 + MP3 AVI",
+      "4K 10-bit HEVC MKV"
+    ],
+    "host_encoder": "MPEG-4 Part 2 test encoder through the same conversion pipeline; no iOS/H.264 encoder execution.",
+    "ffmpeg_host_source": {
+      "version": "8.1.1",
+      "source": "FFmpeg GitHub n8.1.1 archive after official release-tarball host returned HTTP 503",
+      "tag_object": "150ba6ddfabb5c433bb2fb3ee546d2a96e59066d",
+      "commit": "239f2c733de417201d7ad3b3b8b0d9b63285b2b1",
+      "tag_signature": "GitHub reports verified valid; not independently PGP-verified here.",
+      "archive_sha256": "918929faccab2700c9cc7be2531c0b74f054a4dd5d3862bc485b0ab17af76486",
+      "configuration": "Repository host build flags; pinned release tarball hash was not verified because that download failed. No dependency configuration change committed."
+    },
+    "validation_recovery": [
+      "Initial native suite: 995 checks, one existing PQ fixture assertion failed. Generated frames lacked transfer metadata on this host; explicitly set frame color parameters and x265 VUI so the fixture is actually PQ.",
+      "Expanded native suite: 1048 checks, two failures including the fixture issue and real VP9+Opus admission failure. Fixed both; final suite: 1095 checks, zero failures.",
+      "An extra Python test command referenced nonexistent scripts/test_airplay.py; the actual relevant suite is test_airplay_remux (25 passing tests)."
+    ],
+    "project_scanner_passed": true,
+    "ios_static_checks_passed": true,
+    "diff_whitespace_check_passed": true,
+    "macos_or_ios_build": false,
+    "framework_published": false,
+    "ipa_built": false,
+    "device_retested": false,
+    "live_cloud_or_personal_media_accessed": false
+  },
+  "remaining": [
+    "No claimed cause/resolution for all long Drive seeks: production includes source I/O, subtitle lookback, decoding and encoding. New queue/production diagnostics will narrow a later device capture.",
+    "Containers/codecs/HDR are separate constraints: AV1 decoding, some older containers/codecs, MP4 codec-aware fallback, proper HDR-to-SDR tone mapping and Dolby Vision remain gaps. See docs/AIRPLAY.md.",
+    "When a build is explicitly requested, build and publish a NEW KodiAirPlay release and verify/pin its checksum before the IPA. The existing r11 pin is unchanged and does not include these native source fixes.",
+    "Retest small/large/repeated forward/backward seeks on completed phone files, Drive copies and active Elementum input, with/without subtitles, and verify picture/audio/resume on the TV."
+  ],
+  "publication": "Draft PR #8 only, skip CI, no merge; no universal every-file claim."
+}

@@ -1,0 +1,180 @@
+{
+  "date": "2026-11-05",
+  "issue": "ISSUE-094",
+  "owner_bug": 4,
+  "status": "source_and_host_validation_complete_device_acceptance_pending",
+  "pull_request": "https://github.com/onlykappa/Kodi-Ios/pull/8",
+  "branch": "fix/build-141-followup",
+  "parent_commit": "772c36438def02936340080c712b94ec3dde6726",
+  "main_unchanged_from": "4a78efdeecbc6f9c47018682fbb60ff1829a8a95",
+  "collaboration": "Owner explicitly requested parallel agents; scan, Settings and independent regression review integrated by primary agent.",
+  "tests": {
+    "passed": true,
+    "total": 258,
+    "suites": [
+      {
+        "suite": "test_library_scan",
+        "tests": 31,
+        "passed": true,
+        "seconds": 0.154
+      },
+      {
+        "suite": "test_library_refresh",
+        "tests": 16,
+        "passed": true,
+        "seconds": 0.152
+      },
+      {
+        "suite": "test_library_artwork",
+        "tests": 14,
+        "passed": true,
+        "seconds": 0.137
+      },
+      {
+        "suite": "test_drive_library",
+        "tests": 17,
+        "passed": true,
+        "seconds": 0.176
+      },
+      {
+        "suite": "test_drive_upload",
+        "tests": 10,
+        "passed": true,
+        "seconds": 4.775
+      },
+      {
+        "suite": "test_downloaded_play",
+        "tests": 9,
+        "passed": true,
+        "seconds": 0.137
+      },
+      {
+        "suite": "test_settings_page",
+        "tests": 22,
+        "passed": true,
+        "seconds": 2.42
+      },
+      {
+        "suite": "test_settings_search",
+        "tests": 5,
+        "passed": true,
+        "seconds": 0.071
+      },
+      {
+        "suite": "test_listing_cache",
+        "tests": 27,
+        "passed": true,
+        "seconds": 0.407
+      },
+      {
+        "suite": "test_continue_downloads",
+        "tests": 19,
+        "passed": true,
+        "seconds": 0.15
+      },
+      {
+        "suite": "test_watch_routes",
+        "tests": 10,
+        "passed": true,
+        "seconds": 0.067
+      },
+      {
+        "suite": "test_watch_dialog",
+        "tests": 13,
+        "passed": true,
+        "seconds": 0.1
+      },
+      {
+        "suite": "test_watch_continue",
+        "tests": 8,
+        "passed": true,
+        "seconds": 0.062
+      },
+      {
+        "suite": "test_notices",
+        "tests": 14,
+        "passed": true,
+        "seconds": 2.127
+      },
+      {
+        "suite": "test_portrait",
+        "tests": 43,
+        "passed": true,
+        "seconds": 117.007
+      }
+    ]
+  },
+  "static_checks": {
+    "project": {
+      "passed": true,
+      "files_scanned": 358,
+      "private_state_used": false
+    },
+    "ios": {
+      "passed": true,
+      "static_only": true,
+      "target_files": 33,
+      "dependency_candidates": 43
+    },
+    "git_diff_check": true
+  },
+  "verified_behaviors": [
+    "Actual root and parent plugin dispatch lists Movies/TV without watch-options error, including content_type=video.",
+    "Actual directory calls with Kodi stubs preserve phone downloads when Drive is disabled, unsigned or offline and always provide usable Refresh Library.",
+    "Completed local/seeding files exclude partial, symlink, hidden and active-overlap paths; exact episodes and specials retain playable paths.",
+    "Loose TV episodes and all duplicate Drive folder branches/page tokens are discovered; failed folder GET cannot create a duplicate.",
+    "Visible-page updates retain busy baseline, avoid refreshing a different page and preserve phone discovery during cloud failures.",
+    "Foreground rows make zero artwork HTTP calls; background hydration limits titles/request timeouts and yields during playback/transfers.",
+    "Local HTTP integration verifies resumable uploads, remote metadata checksums, per-file invalidation and original retention after mismatches/mutations/cancellation.",
+    "Scanner hashes in bounded memory, indexes all Drive Kodi Downloads branches, compares content rather than names, checks source again and freshly verifies Drive before deleting.",
+    "Current/default/stale active torrent roots, symlink ancestor aliases, partial files, app data and unsigned accounts do not authorize phone cleanup.",
+    "Settings Library page/scan dispatcher/refresh/focus and Settings search are wired to real implementations; existing Continue Watching and portrait regressions pass."
+  ],
+  "review_regressions_repaired": [
+    "Busy-page refresh baseline reset",
+    "Symlink/hidden/sample/partial handling",
+    "Generic spaced season/episode names",
+    "Duplicate Drive folder discovery and HTTP error handling",
+    "Stale active folder exclusions",
+    "Synchronous foreground artwork and stale cache overwrite"
+  ],
+  "source_sha256": {
+    "migration/bundled-bootstrap/default.py": "661bcc6a59e8508639b6e5d7582f32c6916e5c8c3565258834968b2be73fb728",
+    "migration/bundled-bootstrap/library_scan.py": "1f8b219cdf2d62797b8abb57ab3d40dd0fd063c9522224a3eb571f0836e039d1",
+    "migration/bundled-bootstrap/resources/lib/drivelibrary.py": "cb455b9f49dca35234d6bb29a5c59589718ad21cdfc74ffb306627c25bf33747",
+    "migration/bundled-bootstrap/resources/lib/driveupload.py": "6dfa36cb8c0933e4ab8bc79a9a0333a6dadf8b543e729cc494cb00f097839524",
+    "migration/bundled-bootstrap/resources/lib/library_scan.py": "94c0bf49a01f97b67abe3b2000c6cd091dbc0203b251c49864101a38b0528d75",
+    "migration/bundled-bootstrap/resources/lib/library_watch.py": "0e7fc592bb886a3a70797eaff5860bcb00a7ee7d93e74b396ede258dad448cc5",
+    "migration/bundled-bootstrap/resources/lib/portrait.py": "7a133bdd66aabd35c4695be5e58a60d2cd2ea55fae9e8b4106556dda2f97e16a",
+    "migration/bundled-bootstrap/resources/lib/settings_page.py": "45be33cb0650f5954a64778430dbfccd9b4696c8eac6922efb6e120fa34672d1",
+    "migration/bundled-bootstrap/resources/lib/settings_search.py": "f0f9d98176ef862de372f98557501f1c444ba15a9c0a5ecfe0407c4c130ca0d3",
+    "migration/bundled-bootstrap/resources/settings.xml": "cbbbcdbbb2dabb0cb942e9634a39dc5ec9f09a10a4b558b7c353c20d1e1e8596",
+    "migration/bundled-bootstrap/service.py": "4cf905976fd6b7b83540c12f4024770d904e45714b427673abaf4f11c633ee7a",
+    "migration/import-overlays/plugin.video.kodi.ios.watch/addon.xml": "60a94098a49037119dea815cc25349f74f9d585f6a39f61daf88bcfff736d13c",
+    "migration/import-overlays/plugin.video.kodi.ios.watch/default.py": "44056456dfb74b844c569e2f060caf4b5f6e44ec7ae0b00140b01f058c9bc7a0",
+    "migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_downloaded.py": "fe1842afc0410a14a2c971a3315e3e41f963bca608f9e66996f7a6475d3f6e84",
+    "migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_library.py": "81d42497c3ddc7f889278e2788562e2a0665b8a9241e9ee98faaf05aaf78520e",
+    "scripts/test_downloaded_play.py": "9a6a9ecde95a3e0802d1ea46828339cbff8291f86e653e32ff8afc0f872802ee",
+    "scripts/test_drive_library.py": "84a214b47c4531627c206df965d0544c91a472c266f7d9a5ab21cb51a6f75b6c",
+    "scripts/test_drive_upload.py": "dea41c8bb88ae91727941d7c278668f1a2dcfe663518af0d1b91561043a91995",
+    "scripts/test_library_artwork.py": "1fa0e3333a3d224b9a52a9f6b2f269f7be0fe5b9699378e79d78a9ecd8afac10",
+    "scripts/test_library_refresh.py": "748087ca3129e9f8ad5f9f91a7fda7913b7c749a127cedcbc1fa3db4ec9f7229",
+    "scripts/test_library_scan.py": "38f844c3f9413d48b4e8716a93d0ecbf1da860d5c32211fc16437e939ad567ff",
+    "scripts/test_settings_page.py": "f381516bbaf74000ac3e1b831d53f925bfd86b50353d2e21e970436e3de528a7",
+    "scripts/test_settings_search.py": "20dc707b64a917df7151a4bb5aaae4bdd32846b67b905188d02b2ed28d08a125"
+  },
+  "limits": [
+    "No physical iPhone Library, touch, upload or deletion acceptance yet.",
+    "Only Kodi sandbox/accessible folders and app-created Drive Kodi Downloads are in scan scope.",
+    "Artwork budget limits request starts/socket timeout, not a universal HTTP end-to-end deadline.",
+    "No IPA, framework release, merge or live owner-account upload/cleanup performed.",
+    "Tests use temporary fixture files, Kodi stubs and a local HTTP server; no installed build changed."
+  ],
+  "device_retest": [
+    "Complete a movie and episode; observe phone/seeding then Drive Library appearance.",
+    "Refresh an empty Library; navigate parent and exact episodes/specials.",
+    "Scan missing and duplicate files, verify Drive playback and phone cleanup.",
+    "Cancel a scan, disconnect Drive and check originals remain."
+  ],
+  "publication_policy": "Keep existing PR draft/unmerged; use [skip ci]; native framework/executable pins unchanged."
+}

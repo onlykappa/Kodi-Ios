@@ -19,6 +19,7 @@ WINDOW='10004'
 PAGE='Window(%s).Property(Settings.Page)'%WINDOW
 ON_ROOT='String.IsEmpty(%s)'%PAGE
 ON_CUSTOM='String.IsEqual(%s,custom)'%PAGE
+ON_LIBRARY='String.IsEqual(%s,library)'%PAGE
 UPDATES='!String.IsEmpty(System.AddonUpdateCount) + !String.IsEqual(System.AddonUpdateCount,0)'
 FUSE='skin.arctic.fuse.3'
 
@@ -47,12 +48,16 @@ def textures(p):
 # Rows: (id, label, actions joined by \x00, glyph, tint, value, badge condition)
 def R(id,text,actions,glyph='',tint=SILVER,value='',badge=''):return (id,text,actions,glyph,tint,value,badge)
 CUSTOM_PAGE='SetProperty(Settings.Page,custom,%s)\x00SetFocus(9401)'%WINDOW
+LIBRARY_PAGE='SetProperty(Settings.Page,library,%s)\x00SetFocus(9451)'%WINDOW
+LIBRARY_SCAN='RunScript(service.kodi.ios.bootstrap,library_scan)'
+LIBRARY_REFRESH='RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&all=1)'
 ROOT=[
  [R(9111,'Skin','ActivateWindow(skinsettings)','paintbrush.png',PURPLE),
   R(9112,'Interface','ActivateWindow(interfacesettings)','palette.png',BLUE),
   R(9113,'Customisation',CUSTOM_PAGE,'sliders.png','FFD1D1D6'),
   R(9114,'Player','ActivateWindow(playersettings)','circle-play.png',GREEN),
-  R(9115,'Media','ActivateWindow(mediasettings)','film.png',ORANGE)],
+  R(9115,'Media','ActivateWindow(mediasettings)','film.png',ORANGE),
+  R(9116,'Library',LIBRARY_PAGE,'folder.png',BLUE)],
  [R(9121,'PVR & Live TV','ActivateWindow(pvrsettings)','tv.png',RED),
   R(9122,'Games','ActivateWindow(gamesettings)','gamepad.png',PINK)],
  [R(9131,'System','ActivateWindow(systemsettings)','gear.png',SILVER),
@@ -78,6 +83,17 @@ CUSTOM=[
  ('',[R(9421,'Skin Settings','ActivateWindow(skinsettings)','paintbrush.png',PURPLE),
   R(9422,'TMDb Helper','Addon.OpenSettings(plugin.video.themoviedb.helper)','film.png','FF01B4E4')],
   'TMDb Helper fills the Home rows. Sign in to Trakt from Accounts.'),
+]
+LIBRARY=[
+ ('iPhone Files',[R(9451,'Scan iPhone files',LIBRARY_SCAN,'magnifying-glass.png',BLUE)],
+  'Find movies and shows in Kodi Downloads or a folder you choose. Upload missing files to Google Drive. Remove phone copies only after their size and checksum match Drive.'),
+ ('Library',[R(9452,'Refresh Library',LIBRARY_REFRESH,'arrows-rotate.png',BLUE),
+  R(9453,'Movies','ActivateWindow(Videos,plugin://plugin.video.kodi.ios.watch/?action=library&type=movie&fresh=1,return)','film.png',ORANGE),
+  R(9454,'TV Shows','ActivateWindow(Videos,plugin://plugin.video.kodi.ios.watch/?action=library&type=tv&fresh=1,return)','tv.png',PURPLE)],
+  'Includes completed downloads on this iPhone and in Google Drive.'),
+ ('Google Drive',[R(9455,'Google Drive settings','Addon.OpenSettings(plugin.googledrive)','cloud.png',BLUE),
+  R(9456,'Transfer settings','Addon.OpenSettings(service.kodi.ios.bootstrap)','sliders.png',SILVER)],
+  'Kodi can scan its own files and folders made available to the app.'),
 ]
 
 def clicks(p,actions):return ''.join('<onclick>%s</onclick>'%p.e(a) for a in actions.split('\x00'))
@@ -191,13 +207,20 @@ def custom_list(p):
   body+=(section(p,title) if title else '')+card(p,rows,moves)+(footer(p,note) if note else spacer(20))+spacer(GAP-30)
  return body+spacer(160)
 
+def library_list(p):
+ moves=nav([(r[0],'') for _,rows,_ in LIBRARY for r in rows]);body=''
+ moves[9451]=([('',9001)],moves[9451][1])
+ for title,rows,note in LIBRARY:
+  body+=section(p,title)+card(p,rows,moves)+footer(p,note,210 if title=='iPhone Files' else 130)+spacer(GAP-30)
+ return body+spacer(160)
+
 # Settings home: the header sits lower so the back circle and title clear the status bar like Search's band
 # (SEARCH_BAND, 60 pt) and the large titles of Library and Search (top 40-46); the list starts under it.
 SETTINGS_Y=76;SETTINGS_TOP=SETTINGS_Y+164
-def header(p,back_actions,titles,y=36):
+def header(p,back_actions,titles,y=36,down='<ondown>9300</ondown>'):
  """Glass back button and centred title over a black bar (the page scrolls under it)."""
  bar=p.image(0,0,p.WIDTH,y+154,p.MEDIA+'white.png',p.BG)+p.image(0,y+154,p.WIDTH,60,p.MEDIA+'fade_down.png')
- back=p.pill_button(9001,p.SIDE,y,108,108,'',back_actions,'glass','chevron-left.png','<ondown>9300</ondown>')
+ back=p.nav_button(9001,p.SIDE,y,'chevron-left.png',back_actions,down)
  names=''.join(p.label(260,y,p.WIDTH-520,108,t,'p_h3',p.WHITE,'center','<visible>%s</visible>'%c if c else '') for t,c in titles)
  return bar+names+back
 
@@ -206,13 +229,17 @@ def settings_window(p,original):
  from Home (coming back from a category keeps the page you left)."""
  lst=lambda id,cond,body,top:('<control type="grouplist" id="%d"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom>'
   '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords><visible>%s</visible>%s</control>')%(id,top,p.WIDTH,cond,body)
- back=[(ON_CUSTOM,'ClearProperty(Settings.Page,%s)'%WINDOW),(ON_CUSTOM,'SetFocus(9113)'),(ON_ROOT,'Action(Back)')]
+ back=[(ON_CUSTOM,'ClearProperty(Settings.Page,%s)'%WINDOW),(ON_CUSTOM,'SetFocus(9113)'),
+       (ON_LIBRARY,'ClearProperty(Settings.Page,%s)'%WINDOW),(ON_LIBRARY,'SetFocus(9116)'),(ON_ROOT,'Action(Back)')]
  body=('<controls>'+p.backdrop()+lst(9300,ON_ROOT,root_list(p),SETTINGS_TOP)+lst(9310,ON_CUSTOM,custom_list(p),SETTINGS_TOP)+
-       header(p,back,[('Settings',ON_ROOT),('Customisation',ON_CUSTOM)],SETTINGS_Y)+'</controls>')
+       lst(9320,ON_LIBRARY,library_list(p),SETTINGS_TOP)+
+       header(p,back,[('Settings',ON_ROOT),('Customisation',ON_CUSTOM),('Library',ON_LIBRARY)],SETTINGS_Y,
+              '<ondown condition="%s">9300</ondown><ondown condition="%s">9401</ondown><ondown condition="%s">9451</ondown>'%(ON_ROOT,ON_CUSTOM,ON_LIBRARY))+'</controls>')
  extra=('<onload condition="Window.Previous(home)">ClearProperty(Settings.Page,%s)</onload>'%WINDOW+
         '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>')
  # Back from a category opened on the Customisation page: the home rows are hidden, so focus that page instead.
  extra+='<onload condition="%s">SetFocus(9401)</onload>'%ON_CUSTOM
+ extra+='<onload condition="%s">SetFocus(9451)</onload>'%ON_LIBRARY
  return p.window(original,body,'9101',extra)
 
 def account_row(p,n,y,first,moves,w):
@@ -338,7 +365,7 @@ def setting_body(p,title,header_buttons,extra='',categories=True):
 
 def category_window(p,original):
  """portrait/SettingsCategory.xml: System, Player, Media, Interface, Services, PVR and Games pages."""
- back=p.pill_button(9001,p.SIDE,36,108,108,'',[('','Action(Back)')],'glass','chevron-left.png','<ondown>3</ondown>')
+ back=p.nav_button(9001,p.SIDE,36,'chevron-left.png','Action(Back)','<ondown>3</ondown>')
  level=('<control type="button" id="20"><left>%d</left><top>36</top><width>290</width><height>108</height><font>p_foot_b</font>'
         '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
         '<texturefocus border="54" colordiffuse="FF48484A">%spill_108.png</texturefocus><texturenofocus border="54" colordiffuse="%s">%spill_108.png</texturenofocus>'

@@ -1,3 +1,6 @@
 3da8bda9d557c61837fb2e4c97ed662219283043 2026-06-02 20:19:10 -0400
 Kodi iOS changes: gm_stream_format_context(), r8 gm_stream_track_unit() and gm_stream_adopt_plan() added at the end of gm_stream.c/.h; an index that stops early no longer
 plans one segment (gm_stream_open, marked "Kodi iOS change"); the last segment's open end counts from the start time (end_of_media); nothing else changed.
+
+2026-11-04 ISSUE-093 follow-up: plan fully bridged video, reject sparse beginning/end-only indexes as dense,
+mask AVSEEK_FORCE, and use presentation timestamps from the pinned MOV accessor (ffmpeg-mov-pts.patch).

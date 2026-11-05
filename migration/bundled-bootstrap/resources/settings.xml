@@ -8,6 +8,12 @@
     <setting id="check_now" type="action" label="Check for updates now"><level>0</level><data>RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/check_updates.py)</data><control type="button" format="action"/></setting>
    </group>
   </category>
+  <category id="library" label="Library">
+   <group id="1">
+    <setting id="library_scan" type="action" label="Scan iPhone files for movies and shows"><level>0</level><data>RunScript(service.kodi.ios.bootstrap,library_scan)</data><control type="button" format="action"/><help>Scan Kodi Downloads or a folder available to Kodi. Missing movies and shows are uploaded to Google Drive; phone copies are removed only after the Drive files are verified.</help></setting>
+    <setting id="library_refresh" type="action" label="Refresh Library"><level>0</level><data>RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&amp;all=1)</data><control type="button" format="action"/></setting>
+   </group>
+  </category>
   <category id="drive" label="Google Drive">
    <group id="1">
     <setting id="drive_upload" type="boolean" label="Upload the Elementum videos you keep to Google Drive › Kodi Downloads"><level>0</level><default>true</default><control type="toggle"/></setting>

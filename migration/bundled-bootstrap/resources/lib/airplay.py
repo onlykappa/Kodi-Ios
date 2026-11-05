@@ -40,7 +40,7 @@ def message(lib):
  lib.kodi_airplay_message(buffer,400)
  return buffer.value.decode('utf-8','replace')
 
-SUB_EXTENSIONS=('.srt','.ass','.ssa','.vtt')
+SUB_EXTENSIONS=('.srt','.ass','.ssa','.vtt','.sup','.idx')
 # Where subtitle add-ons leave the file Kodi loads (a4kSubtitles, Kodi's own subtitle search).
 SUB_DIRS=('special://temp/a4ksubtitles','special://profile/addon_data/service.subtitles.a4ksubtitles/temp',
           'special://temp/subtitles','special://temp')
@@ -70,7 +70,11 @@ def recent_subtitle_files(translate,listdir,mtime):
  for folder in SUB_DIRS:
   try:
    root=translate(folder)
-   for entry in listdir(root):
+   entries=listdir(root)
+   for entry in entries:
+    # VobSub's IDX is the selectable index; its SUB data must remain beside it.
+    stem,extension=os.path.splitext(entry)
+    if extension.lower()=='.idx' and stem+('.SUB' if extension=='.IDX' else '.sub') not in entries:continue
     if os.path.splitext(entry)[1].lower() in SUB_EXTENSIONS:
      path=os.path.join(root,entry);found.append((path,mtime(path)))
   except Exception:continue
@@ -90,6 +94,14 @@ def send_subtitles(lib,xbmc,xbmcvfs,now):
     'playerid':video[0],'properties':['subtitleenabled','currentsubtitle']}}))).get('result') or {}
  except Exception:props={}
  choice=subtitle_choice(props,recent_subtitle_files(xbmcvfs.translatePath,os.listdir,os.path.getmtime),now)
+ # Kodi can report names/ISO 639-2 while VobSub uses ISO 639-1. Let Kodi's complete language table normalize it.
+ try:
+  aliases=[choice[2]] if len(choice[2]) in (2,3) else []
+  for fmt in (xbmc.ISO_639_2,xbmc.ISO_639_1):
+   normalized=xbmc.convertLanguage(choice[2],fmt)
+   if normalized and normalized not in aliases:aliases.append(normalized)
+  if aliases:choice=(choice[0],choice[1],'|'.join(aliases)[:15])
+ except (AttributeError,TypeError,ValueError):pass
  lib.kodi_airplay_subtitles(choice[0],choice[1].encode('utf-8'),choice[2].encode('utf-8'))
  return choice
 

@@ -29,6 +29,9 @@
 #include <time.h>
 #include <unistd.h>
 #include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavutil/dovi_meta.h>
+#include <libavutil/pixdesc.h>
 
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
@@ -95,6 +98,7 @@ static struct {
     gm_stream *sgm;
     int sgm_failed;
     char burn_file[1024];      // external subtitle file when burn_index < 0, "" none
+    char burn_language[16];
 } S = { .lock = PTHREAD_MUTEX_INITIALIZER, .gm_lock = PTHREAD_MUTEX_INITIALIZER, .vlock = PTHREAD_MUTEX_INITIALIZER,
         .agm_lock = PTHREAD_MUTEX_INITIALIZER, .sgm_lock = PTHREAD_MUTEX_INITIALIZER, .listen_fd = -1, .vindex = -1, .burn_index = -1 };
 
@@ -182,8 +186,9 @@ int kr_remux_kind(const char *url) {
     size_t n = (size_t)(end - dot - 1);
     if (n == 0 || n >= sizeof ext) return KR_UNKNOWN;
     for (size_t i = 0; i < n; i++) ext[i] = (char)tolower((unsigned char)dot[1 + i]);
-    static const char *remux[] = { "mkv", "mk3d", "avi", "webm", "ts", "m2ts", "mts", NULL };
-    static const char *direct[] = { "mp4", "m4v", "mov", "m3u8", NULL };
+    static const char *remux[] = { "mkv", "mk3d", "avi", "webm", "ts", "m2ts", "mts", "mp4", "m4v", "mov",
+                                  "mpg", "mpeg", "vob", "wmv", "asf", "flv", "ogv", "rm", "rmvb", "wtv", "nut", NULL };
+    static const char *direct[] = { "m3u8", NULL };
     for (int i = 0; remux[i]; i++) if (!strcmp(ext, remux[i])) return KR_REMUX;
     for (int i = 0; direct[i]; i++) if (!strcmp(ext, direct[i])) return KR_DIRECT;
     return KR_UNKNOWN;
@@ -274,6 +279,8 @@ static kr_audio *bridge_audio(bridge *b, char *err, int errlen) {
 }
 
 // r7: the converter for the session's video, opened the first time the receiver asks for a video part (vlock held).
+static int video_read_interrupted(void *opaque) { return kr_video_interrupted(opaque); }
+
 static kr_video *session_video(char *err, int errlen) {
     if (S.video) return S.video;
     if (atomic_load(&S.stopping)) { snprintf(err, (size_t)errlen, "stopping"); return NULL; }
@@ -284,17 +291,19 @@ static kr_video *session_video(char *err, int errlen) {
     if (!v) { publish_source(&S.vsrc, NULL); kr_source_close(src); return NULL; }
     if (S.burn_index >= 0 || S.burn_file[0]) {  // r10: a subtitle that cannot be read leaves the picture as it is
         char e[128] = "";
+        kr_video_subtitle_language(v, S.burn_language);
         if (kr_video_burn(v, S.burn_index, S.burn_file, e, sizeof e) < 0) log_line("error: subtitles not burned in: %s", e);
         else if (S.burn_index >= 0)  // r11: a source stream's events are read with the picture, segment by segment
             log_line("compat: burning subtitles in (source stream %d: events load as each segment is converted)", S.burn_index);
         else log_line("compat: burning subtitles in (external file, %d events loaded)", kr_video_burn_events(v));
     }
     pthread_mutex_lock(&src_lock);
+    kr_source_set_interrupt(src,video_read_interrupted,v);
     S.video = v;
     if (atomic_load(&S.stopping)) kr_video_abort(v);
     pthread_mutex_unlock(&src_lock);
-    log_line("compat: converting video stream %d to H.264 %dx%d with %s (%s decoding)", S.vindex, kr_video_width(S.video),
-             kr_video_height(S.video), kr_video_encoder(), kr_video_hw_decode(S.video) ? "VideoToolbox" : "software");
+    log_line("compat: converting video stream %d to H.264 %dx%d with %s (%s)", S.vindex, kr_video_width(S.video),
+             kr_video_height(S.video), kr_video_encoder(), kr_video_hw_decode(S.video) ? "VideoToolbox requested" : "software decoding");
     return S.video;
 }
 
@@ -374,17 +383,32 @@ static int produce_unit(int rend, int seg, gm_buf *out, char *err, int errlen) {
         return gm_stream_track_unit(S.gm, v, seg, out, &split, err, errlen);
     }
     if (rend == R_VCOMPAT) {
+        double io0 = kr_source_io_ms(S.vsrc), t0 = now_ms();
         kr_video *v = session_video(err, errlen);
         if (!v) return -1;
         atomic_store(&vc_seg, seg);
-        double t0 = now_ms();
         r = kr_video_unit(v, S.gm, seg, out, err, errlen);
         atomic_store(&vc_seg, -1);
+        if(r==KR_VIDEO_CANCELLED) {
+            // FFmpeg's parser can retain a half-read block after an interrupted HTTP wait. Retire this
+            // speculative decoder/source; the next foreground request gets a clean independent instance.
+            pthread_mutex_lock(&src_lock);
+            kr_source *interrupted=S.vsrc;
+            kr_source_set_interrupt(interrupted,NULL,NULL);
+            S.video=NULL;S.vsrc=NULL;
+            pthread_mutex_unlock(&src_lock);
+            kr_video_close(v);kr_source_close(interrupted);
+            log_line("seek: retired canceled background decoder/source");
+            return r;
+        }
         if (r == 0) {  // r11: the conversion path and speed per segment (realtime = SEG_SECONDS per segment)
             double ms = now_ms() - t0, pct = ms / (SEG_SECONDS * 10.0);
             if (atomic_fetch_add(&S.vlogged, 1) < 3 || pct > 70)
-                log_line("compat: segment %d converted in %.0f ms (%.0f%% of realtime) via %s, %d subtitle events, %ld frames drawn", seg,
-                         ms, pct, kr_video_path(v), kr_video_burn_events(v), kr_video_burn_drawn(v));
+                log_line("compat: segment %d converted in %.0f ms (%.0f%% of realtime) via %s, source I/O %.0f ms, %d subtitle events, %ld frames drawn, subtitle preroll through %.3f s", seg,
+                         ms, pct, kr_video_path(v), kr_source_io_ms(S.vsrc) - io0, kr_video_burn_events(v), kr_video_burn_drawn(v),kr_video_subtitle_scan_end(v));
+        } else if (r != KR_VIDEO_CANCELLED) {
+            log_line("compat: segment %d %s after %.0f ms, source I/O %.0f ms", seg,
+                     atomic_load(&S.stopping) ? "stopped" : "failed", now_ms() - t0, kr_source_io_ms(S.vsrc) - io0);
         }
         return r;
     }
@@ -544,6 +568,8 @@ static struct {
 } P = { .lock = PTHREAD_MUTEX_INITIALIZER, .cond = PTHREAD_COND_INITIALIZER };
 
 static atomic_int pf_on = 1;  // kr_remux_set_prefetch (tests)
+// A foreground request owns priority over speculative work on its rendition.
+static atomic_int demand[NREND];
 static int near(int rend, int seg, int at) { return seg >= at && seg <= at + PF_DEPTH(rend); }
 
 // Queues (rend, seg) unless it is cached, queued or being made (P.lock held).
@@ -574,6 +600,7 @@ static void prefetch_focus(int rend, int seg) {
             pthread_mutex_lock(&src_lock);
             if (S.video) kr_video_cancel(S.video);
             pthread_mutex_unlock(&src_lock);
+            log_line("seek: cancel background converted segment %d for request %d", P.busy_seg[w], seg);
         }
     pthread_mutex_unlock(&P.lock);
 }
@@ -595,6 +622,7 @@ static void *prefetch_worker(void *arg) {
         int pick = -1;
         pthread_mutex_t *l = NULL;
         for (int i = 0; i < P.n && pick < 0; i++) {  // the oldest job whose lane is free (no waiting on a busy lane)
+            if (atomic_load(&demand[P.q[i].rend])) continue;
             pthread_mutex_t *c = lane(P.q[i].rend);
             if (!c) { P.q[i] = P.q[--P.n]; i--; continue; }
             if (pthread_mutex_trylock(c) == 0) { pick = i; l = c; }
@@ -612,15 +640,18 @@ static void *prefetch_worker(void *arg) {
         memmove(P.q + pick, P.q + pick + 1, sizeof P.q[0] * (size_t)(P.n - pick - 1)); P.n--;
         P.busy_rend[me] = rend; P.busy_seg[me] = seg;
         pthread_mutex_unlock(&P.lock);
-        if (!atomic_load(&S.stopping) && !cache_has(rend, seg) && cache_room(rend)) {
+        if (!atomic_load(&S.stopping) && !atomic_load(&demand[rend]) && !cache_has(rend, seg) && cache_room(rend)) {
             char err[256] = "";
-            if (make_part(rend, seg, 1, 0, NULL, err, sizeof err) == 0) atomic_fetch_add(&S.prefetched, 1);
-            else if (!atomic_load(&S.stopping) && strcmp(err, "cancelled"))
+            int r = make_part(rend, seg, 1, 0, NULL, err, sizeof err);
+            if (r == 0) atomic_fetch_add(&S.prefetched, 1);
+            else if (!atomic_load(&S.stopping) && !(rend == R_VCOMPAT && r == KR_VIDEO_CANCELLED))
                 log_line("prefetch: %s segment %d: %s", rend == R_VCOPY ? "video" : rend == R_VCOMPAT ? "converted video" : "audio", seg, err);
         }
-        pthread_mutex_unlock(l);
         pthread_mutex_lock(&P.lock);
+        // Clear ownership before another request can acquire the lane. Otherwise a seeker can mistake
+        // the new foreground converter for this finished background job and cancel the wrong work.
         P.busy_rend[me] = -1; P.busy_seg[me] = -1;
+        pthread_mutex_unlock(l);
         pthread_cond_broadcast(&P.cond);
     }
     pthread_mutex_unlock(&P.lock);
@@ -654,18 +685,21 @@ static int get_part(int rend, int seg, gm_buf *out, char *err, int errlen) {
     if (cache_take(rend, seg, out)) return 0;
     pthread_mutex_t *l = lane(rend);
     if (!l) { snprintf(err, (size_t)errlen, "no such track"); return -1; }
-    prefetch_focus(rend, seg < 0 ? 0 : seg);
-    // r9: a conversion far from this request (a request the TV gave up on after a seek, build-138: seg16 waited
-    // 3-8 s) gives up now instead of finishing first.
-    int busy = atomic_load(&vc_seg), at = seg < 0 ? 0 : seg;
-    if (rend == R_VCOMPAT && busy >= 0 && (busy < at - 1 || busy > at + PF_DEPTH_VIDEO)) {
-        pthread_mutex_lock(&src_lock);
-        if (S.video) kr_video_cancel(S.video);
-        pthread_mutex_unlock(&src_lock);
-    }
+    atomic_fetch_add(&demand[rend], 1);
+    if (seg >= 0) prefetch_focus(rend, seg);
+    // Cancel only a background job identified under P.lock. Concurrent foreground requests (including
+    // retries/init reads by the phone and TV) must not cancel each other and turn a seek into HTTP 500.
+    double queued = now_ms();
     pthread_mutex_lock(l);
+    double began = now_ms();
     int r = cache_take(rend, seg, out) ? 0 : make_part(rend, seg < 0 ? 0 : seg, 0, seg < 0, out, err, errlen);
     pthread_mutex_unlock(l);
+    atomic_fetch_sub(&demand[rend], 1);
+    double ended = now_ms();
+    if (began - queued > 250 || ended - began > 1000)
+        log_line("request: %s segment %d waited %.0f ms, production %.0f ms, result %d",
+                 rend == R_VCOPY ? "video" : rend == R_VCOMPAT ? "converted video" : "audio", seg,
+                 began - queued, ended - began, r);
     return r;
 }
 
@@ -942,8 +976,13 @@ void kr_remux_stop(void) {
     pthread_mutex_unlock(&S.lock);
 }
 
-static int is_direct_format(const char *name) {
-    return name && (strstr(name, "mp4") || strstr(name, "mov") || !strcmp(name, "hls"));
+static int needs_video_conversion(const AVCodecParameters *cp) {
+    if (cp->codec_id != AV_CODEC_ID_H264 && cp->codec_id != AV_CODEC_ID_HEVC) return 0;
+    int depth = cp->codec_id == AV_CODEC_ID_H264 ? 8 : 10;
+    const AVPixFmtDescriptor *pf = av_pix_fmt_desc_get(cp->format);
+    if (cp->bits_per_raw_sample > depth || (pf && (pf->comp[0].depth > depth || pf->log2_chroma_w != 1 || pf->log2_chroma_h != 1))) return 1;
+    if (cp->codec_id == AV_CODEC_ID_H264 && cp->profile >= 0 && (cp->profile & ~AV_PROFILE_H264_CONSTRAINED) > AV_PROFILE_H264_HIGH) return 1;
+    return cp->codec_id == AV_CODEC_ID_HEVC && cp->profile > AV_PROFILE_HEVC_MAIN_STILL_PICTURE;
 }
 
 int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) {
@@ -963,12 +1002,11 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
     pthread_mutex_lock(&L.lock); memset(L.agents, 0, sizeof L.agents); pthread_mutex_unlock(&L.lock);
     log_line("start: %.*s", (int)(strcspn(S.url, "?") < 200 ? strcspn(S.url, "?") : 200), S.url);  // no query (tokens)
     if (!S.src) { char m[300]; snprintf(m, sizeof m, "AirPlay: %s.", err); set_message(m); goto done; }
-    {   // MP4/MOV bytes behind a URL without an extension (a Drive link): Apple's player takes the URL itself
-        uint8_t pad[4096 + AVPROBE_PADDING_SIZE] = {0};
+    {   // Adaptive playlists remain native. File containers, including MP4/MOV, must reach codec/receiver routing.
+        uint8_t pad[4096] = {0};
         int n = kr_source_read(S.src, 0, pad, 4096);
-        AVProbeData pd = { "", pad, n > 0 ? n : 0, NULL };
-        const AVInputFormat *fmt = n > 0 ? av_probe_input_format(&pd, 1) : NULL;
-        if (fmt && is_direct_format(fmt->name)) { result = KR_NOT_NEEDED; goto done; }
+        int bom = n >= 3 && pad[0] == 0xef && pad[1] == 0xbb && pad[2] == 0xbf ? 3 : 0;
+        if (n >= bom + 7 && !memcmp(pad + bom, "#EXTM3U", 7)) { result = KR_NOT_NEEDED; goto done; }
     }
     S.gm = gm_stream_open(kr_source_gm(S.src), SEG_SECONDS, err, sizeof err);
     if (!S.gm) {
@@ -976,6 +1014,15 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
         snprintf(m, sizeof m, "AirPlay cannot play this file: %s.", *err ? err : "the video is not H.264 or HEVC");
         set_message(m);
         goto done;
+    }
+    // Profile 5 has no ordinary HDR base layer. Route it through RPU-aware SDR conversion so third-party
+    // receivers do not inherit the phone's native Dolby capability or display unreshaped IPT pixels.
+    gm_color_info colors;
+    AVFormatContext *original = gm_stream_format_context(S.gm);
+    if (!compat && original && gm_stream_color_info(S.gm, &colors) == 0 &&
+        colors.dolby_vision && colors.dovi_profile == 5) {
+        compat=1;
+        log_line("compat: Dolby Vision profile 5 uses RPU-aware SDR conversion");
     }
     // Every audio track Apple cannot carry but we can decode gets a bridge (opened on first use).
     gm_track_info t;
@@ -994,7 +1041,15 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
     // r7: compat mode converts the picture. Asked for (the TV played sound only), or needed: the file's video is not
     // one AirPlay carries (VP9, MPEG-2...) but FFmpeg decodes it.
     S.vindex = kr_video_pick_stream(S.gm);
-    if (!compat && gm_stream_selected_video(S.gm) < 0 && S.vindex >= 0 && kr_video_available()) {
+    AVFormatContext *input = gm_stream_format_context(S.gm);
+    int has_video = 0;
+    for (unsigned i = 0; input && i < input->nb_streams; i++)
+        if (input->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO &&
+            !(input->streams[i]->disposition & AV_DISPOSITION_ATTACHED_PIC)) has_video = 1;
+    int selected = gm_stream_selected_video(S.gm);
+    if (!compat && has_video && (selected < 0 || needs_video_conversion(input->streams[selected]->codecpar))) {
+        if (S.vindex < 0) { set_message("AirPlay: this build cannot decode this video's codec."); goto done; }
+        if (!kr_video_available()) { set_message("AirPlay: this build cannot convert video (no H.264 encoder)."); goto done; }
         compat = 1;
         log_line("compat: the video is not H.264/HEVC, converting it");
     }
@@ -1007,6 +1062,7 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
         AVFormatContext *f = gm_stream_format_context(S.gm);
         pthread_mutex_lock(&SUBS.lock);
         int ord = SUBS.ordinal; char lang[16]; snprintf(lang, sizeof lang, "%s", SUBS.lang);
+        snprintf(S.burn_language, sizeof S.burn_language, "%s", lang);
         S.burn_index = -1; S.burn_file[0] = 0;
         if (ord >= 0 && ord >= kr_subs_stream_count(f) && SUBS.file[0]) snprintf(S.burn_file, sizeof S.burn_file, "%s", SUBS.file);
         else if (ord == -2 && SUBS.file[0]) snprintf(S.burn_file, sizeof S.burn_file, "%s", SUBS.file);
@@ -1022,7 +1078,9 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
         AVFormatContext *f = gm_stream_format_context(S.gm);
         int v = gm_stream_selected_video(S.gm);
         int burn = S.burn_index >= 0 || S.burn_file[0];
-        S.compat_ok = !S.compat && v >= 0 && S.vindex >= 0 && f && (burn || f->streams[v]->codecpar->codec_id != AV_CODEC_ID_H264) &&
+        S.compat_ok = !S.compat && v >= 0 && S.vindex >= 0 && f &&
+                      (burn || f->streams[v]->codecpar->codec_id != AV_CODEC_ID_H264 ||
+                       f->streams[v]->codecpar->width > 1920 || f->streams[v]->codecpar->height > 1080) &&
                       kr_video_available();
     }
     if (audio_tracks && !playable_audio) {

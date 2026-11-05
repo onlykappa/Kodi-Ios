@@ -43,7 +43,7 @@ class FakeItem:
  def addContextMenuItems(self,m):self.menu+=m
 class FakeKodi:
  """xbmc with no executeJSONRPC: the cached route must never call it."""
- def __init__(self,labels=None):self.builtins=[];self.labels=labels or {};self.logs=[];self.LOGWARNING=2
+ def __init__(self,labels=None):self.builtins=[];self.labels=labels or {};self.logs=[];self.LOGWARNING=2;self.LOGINFO=1
  def executebuiltin(self,b):self.builtins.append(b)
  def getInfoLabel(self,l):return self.labels.get(l,'')
  def log(self,text,level=0):self.logs.append(text)

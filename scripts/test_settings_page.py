@@ -83,6 +83,38 @@ class SettingsPages(unittest.TestCase):
   root=self.read('Settings.xml');button=[c for c in root.iter('control') if c.get('id')=='9001'][0]
   actions=[(o.get('condition'),o.text) for o in button.findall('onclick')]
   self.assertEqual(actions[-1][1],'Action(Back)');self.assertTrue(actions[0][1].startswith('ClearProperty(Settings.Page'))
+ def test_library_page_has_scan_refresh_and_fresh_movie_tv_routes(self):
+  root=self.read('Settings.xml');settings=portrait.settings_page
+  self.assertEqual(self.clicks(root,9116),['SetProperty(Settings.Page,library,10004)','SetFocus(9451)'])
+  self.assertEqual(self.clicks(root,9451),['RunScript(service.kodi.ios.bootstrap,library_scan)'])
+  self.assertEqual(self.clicks(root,9452),['RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&all=1)'])
+  self.assertEqual(self.clicks(root,9453),['ActivateWindow(Videos,plugin://plugin.video.kodi.ios.watch/?action=library&type=movie&fresh=1,return)'])
+  self.assertEqual(self.clicks(root,9454),['ActivateWindow(Videos,plugin://plugin.video.kodi.ios.watch/?action=library&type=tv&fresh=1,return)'])
+  library=root.find(".//control[@id='9320']")
+  self.assertEqual(library.findtext('visible'),settings.ON_LIBRARY)
+  text=' '.join(n.text or '' for n in library.iter('label'))
+  self.assertIn('size and checksum match Drive',text)
+  self.assertIn('folders made available to the app',text)
+ def test_library_back_and_header_navigation_return_to_visible_controls(self):
+  root=self.read('Settings.xml');settings=portrait.settings_page
+  back=root.find(".//control[@id='9001']")
+  actions=[(o.get('condition'),o.text) for o in back.findall('onclick')]
+  self.assertIn((settings.ON_LIBRARY,'ClearProperty(Settings.Page,10004)'),actions)
+  self.assertIn((settings.ON_LIBRARY,'SetFocus(9116)'),actions)
+  self.assertIn((settings.ON_LIBRARY,'9451'),[(o.get('condition'),o.text) for o in back.findall('ondown')])
+  first=root.find(".//control[@id='9451']")
+  self.assertEqual(first.findtext('onup'),'9001')
+  self.assertEqual(first.findtext('ondown'),'9452')
+  self.assertIn((settings.ON_LIBRARY,'SetFocus(9451)'),[(o.get('condition'),o.text) for o in root.findall('onload')])
+ def test_native_addon_settings_expose_the_same_scan_and_refresh_actions(self):
+  root=ET.parse(BOOT/'resources/settings.xml').getroot();library=root.find(".//category[@id='library']")
+  self.assertIsNotNone(library)
+  actions={n.get('id'):n.findtext('data') for n in library.iter('setting')}
+  self.assertEqual(actions,{'library_scan':'RunScript(service.kodi.ios.bootstrap,library_scan)',
+                            'library_refresh':'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&all=1)'})
+  dispatch=load('settings_scan_dispatch',BOOT/'default.py')
+  script,argv=dispatch.target(['service.kodi.ios.bootstrap','library_scan'])
+  self.assertEqual(Path(script),BOOT/'library_scan.py');self.assertEqual(argv,[script])
  def test_navigation_skips_the_hidden_updates_banner(self):
   root=self.read('Settings.xml');card=[c for c in root.iter('control') if c.get('id')=='9101'][0]
   downs=[(o.get('condition'),o.text) for o in card.findall('ondown')]

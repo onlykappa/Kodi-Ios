@@ -47,24 +47,13 @@ CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type='
 # Floating tab bar (Apple TV app): Home, Movies, TV, Library (downloaded media), Search.
 # Home, Movies and TV are one window (Home.xml) with a group per hub, so all three load their rows at start and
 # switching between them only changes Window(Home).Property(Portrait.Tab); Custom_1101/1102 forward to it.
-TAB_PROPERTY='Portrait.Tab'
-HUB_TABS=('home','movies','tv')
-HUB_OFFSET={'home':0,'movies':10000,'tv':20000}
-# Preloader (owner, build-135: "bring back the preloader, it was game changing"). The three hubs share Home.xml and
-# every row of Home, Movies and TV loads as soon as Home opens, then keeps its titles: switching tabs finds them
-# filled. Home's hero and rows come first in the window, so Kodi queues them first. The performance pass had made
-# Movies/TV wait for their first visit (and Home's lower rows two seconds), which the owner felt as every menu
-# saying "Loading...". Fuse's startup scripts stay off and there is still one tab bar.
-def tab_actions(key):
- """[(condition, builtin)] for one tab: hubs set the property (and come back to Home), the others open their window."""
- if key in HUB_TABS:
-  return [('','ClearProperty(%s,home)'%TAB_PROPERTY if key=='home' else 'SetProperty(%s,%s,home)'%(TAB_PROPERTY,key)),
-          ('!Window.IsActive(home)','ReplaceWindow(Home)'),('','SetFocus(%d)'%(4000+HUB_OFFSET[key]))]
- return [('','ReplaceWindow(%s)'%{'library':1103,'search':1105}[key])]
+_spec=_iu.spec_from_file_location('ios_tabs',os.path.join(os.path.dirname(os.path.abspath(__file__)),'ios_tabs.py'))
+ios_tabs=_iu.module_from_spec(_spec);_spec.loader.exec_module(ios_tabs)
+TAB_PROPERTY,HUB_TABS,HUB_OFFSET=ios_tabs.TAB_PROPERTY,ios_tabs.HUB_TABS,ios_tabs.HUB_OFFSET
+tab_actions=ios_tabs.tab_actions
 def tab_visible(key):
  return 'String.IsEmpty(Window(Home).Property(%s))'%TAB_PROPERTY if key=='home' else 'String.IsEqual(Window(Home).Property(%s),%s)'%(TAB_PROPERTY,key)
-TABS=[('home','Home','house.png'),('movies','Movies','film.png'),('tv','TV','tv.png'),('library','Library','layer-group.png'),
-      ('search','Search','magnifying-glass.png')]
+TABS=ios_tabs.TABS
 TAB_CLEAR=320                # the last row scrolls fully above the floating tab bar (and the home indicator)
 ACCENT='FF4FA8FF'
 def titled_page(title,path):
@@ -90,7 +79,7 @@ MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
       ('Favourites','star.png','FFFF9F0A','ActivateWindow(1160)'),
       ('File manager','clapperboard.png','FF5E5CE6','ActivateWindow(filemanager)'),
       ('iPhone navigation / recovery','life-ring.png','FFFF453A',MENU)]
-HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml'}|pages.HANDMADE
+HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{'Includes_Portrait.xml',SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml'}|pages.HANDMADE
 # Never shrunk: playback stays landscape, and these are not windows.
 SKIP_WRAP={'VideoFullScreen.xml','VideoOSD.xml','MusicVisualisation.xml','SlideShow.xml','Pointer.xml'}
 # Shown only over landscape playback: no portrait copy, so Kodi always loads them from 1080i with landscape
@@ -198,9 +187,26 @@ def pill_button(id,x,y,w,h,text,actions,style,glyph='',extra='',glyph_x=None):
         '%s%s</control>')%(id,w,h,e(text),textcolor,textcolor,36 if glyph and text else 0,h//2,fill,MEDIA,tex,h//2,fill,MEDIA,tex,clicks,extra)
  gx=glyph_x if glyph_x is not None else ((w//2-100) if text else (w-46)//2)
  glyphxml=icon(gx,(h-46)//2,46,glyph,textcolor) if glyph else ''
- return '<control type="group"><left>%s</left><top>%s</top><width>%s</width><height>%s</height>%s%s</control>'%(x,y,w,h,inner,glyphxml)
+ # Visibility belongs to the complete capsule, including its decorative glyph.
+ visible=''.join(re.findall(r'<visible(?: [^>]*)?>.*?</visible>',extra))
+ return '<control type="group"><left>%s</left><top>%s</top><width>%s</width><height>%s</height>%s%s%s</control>'%(x,y,w,h,visible,inner,glyphxml)
 
 def circle_button(id,x,y,size,glyph,action,extra=''):return pill_button(id,x,y,size,size,'',[('',action)],'glass',glyph,extra)
+
+NAV_TOUCH=150;NAV_GLYPH=104
+def nav_button(id,x,y,glyph,actions,extra='',visible=''):
+ """Back and refresh as the video player has them (owner, build 146: "I love this back button, apply it everywhere"):
+ a bold white glyph with no circle, the player's 104 in a 150 touch area (both layouts show 1 unit as the same size
+ on the phone). x, y place it where the 108 glass circle was; the glyph dims while focused so a tap shows.
+ actions: an action, or [(condition, action)]."""
+ actions=[('',actions)] if isinstance(actions,str) else actions
+ clicks=''.join('<onclick%s>%s</onclick>'%(' condition="%s"'%e(c) if c else '',e(a)) for c,a in actions)
+ c=54  # centre of the old 108 circle, inside the group placed where it was
+ dim='<animation effect="fade" start="100" end="65" time="0" condition="Control.HasFocus(%d)">Conditional</animation>'%id
+ return ('<control type="group"><left>%s</left><top>%s</top><width>108</width><height>108</height>%s'%(x,y,'<visible>%s</visible>'%visible if visible else '')+
+  '<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
+  '<texturefocus /><texturenofocus />%s%s</control>'%(id,c-NAV_TOUCH//2,c-NAV_TOUCH//2,NAV_TOUCH,NAV_TOUCH,clicks,extra)+
+  icon(c-NAV_GLYPH//2,c-NAV_GLYPH//2,NAV_GLYPH,glyph,WHITE,dim)+'</control>')
 
 NOTICES='RunScript(service.kodi.ios.bootstrap,notifications)'
 def bell(x,y,extra=''):
@@ -464,6 +470,24 @@ SEARCH_BAND=161  # the native band ends 60 pt below the top of the safe area: 60
 GENRE_PHOTO='Portrait.GenrePhoto.'
 GENRE_PHOTOS='portrait-genre-photos.json'
 WEEK=7*86400
+# TMDb's movie and TV genre taxonomies differ. Reality and Kids have no movie genre counterpart.
+MOVIE_GENRES={18:'18',35:'35',80:'80',10765:'878|14',10759:'28|12',16:'16',9648:'9648',99:'99',10751:'10751',10768:'10752'}
+MOVIE_FILTER='String.IsEqual(Window(Home).Property(Portrait.Search.Type),movie)'
+
+def category_path(gid,kind):
+ from urllib.parse import quote
+ genre=MOVIE_GENRES.get(gid) if kind=='movie' else str(gid)
+ if genre is None:return None
+ return '%s?info=discover&tmdb_type=%s&with_id=True&with_genres=%s&sort_by=popularity.desc'%(TMDB,kind,quote(genre,safe=''))
+
+def category_clicks(name,gid):
+ actions=''
+ for kind,condition in (('movie',MOVIE_FILTER),('tv','!'+MOVIE_FILTER)):
+  path=category_path(gid,kind)
+  if path:
+   title='War' if kind=='movie' and gid==10768 else name
+   actions+=''.join('<onclick condition="%s">%s</onclick>'%(e(condition),e(action)) for action in titled_page(title,path).split('\x00'))
+ return actions
 
 def genre_photo_path(gid):
  return '%s?info=discover&tmdb_type=tv&with_id=True&with_genres=%d&sort_by=popularity.desc'%(TMDB,gid)
@@ -476,19 +500,25 @@ def pick_photo(files,used=()):
   if url and url not in used:return url
  return ''
 
-def genre_photos(rpc,set_property,read,write,now):
+def genre_photos(rpc,set_property,read,write,now,busy=lambda:False,wait=lambda seconds:False):
  """One backdrop per Search category (TMDb Helper's most popular show of the genre), kept for a week so Search
- does not run TMDb Helper nine times on every visit. Sets Window(Home).Property(Portrait.GenrePhoto.<genre id>)."""
+ does not run TMDb Helper twelve times on every visit. Sets Window(Home).Property(Portrait.GenrePhoto.<genre id>)."""
  try:cache=json.loads(read() or '{}')
  except ValueError:cache={}
  fresh=now()-cache.get('time',0)<WEEK and all(str(gid) in cache.get('photos',{}) for _,gid,_,_ in CATEGORIES)
- photos=dict(cache.get('photos',{})) if fresh else {}
+ photos=dict(cache.get('photos',{}))
+ # Existing artwork is usable immediately, even when stale. Cosmetic refresh must yield to actual use.
+ for gid,url in photos.items():
+  if url:set_property(GENRE_PHOTO+gid,url)
  if not fresh:
   used=set()
   for _,gid,_,_ in CATEGORIES:
+   while busy():
+    if wait(2):return photos
    try:files=(rpc('Files.GetDirectory',{'directory':genre_photo_path(gid),'media':'video','properties':['art'],'limits':{'start':0,'end':6}}) or {}).get('files')
    except Exception:files=None
    photos[str(gid)]=pick_photo(files,used);used.add(photos[str(gid)])
+   if wait(0.2):return photos
   if any(photos.values()):write(json.dumps({'time':now(),'photos':photos}))
  for gid,url in photos.items():
   if url:set_property(GENRE_PHOTO+gid,url)
@@ -513,7 +543,8 @@ def search_window(original):
   )%(SIDE,WIDTH-2*SIDE,WIDTH-2*SIDE,MEDIA,SURFACE,MEDIA,e(SEARCH_ACTION),icon(40,38,48,'magnifying-glass.png',GREY),label(110,0,WIDTH-2*SIDE-150,124,'Shows, Movies, and More','p_body',GREY))+
   '</control>')
  items=''.join('<item><label>%s</label><property name="tile">%stile_%d.png</property><property name="photo">$INFO[Window(Home).Property(%s%d)]</property><property name="tint">F2%02X%02X%02X</property>%s</item>'
-  %(e(name),MEDIA,gid,GENRE_PHOTO,gid,*bottom,clicks(titled_page(name,'%s?info=discover&tmdb_type=tv&with_id=True&with_genres=%d&sort_by=popularity.desc'%(TMDB,gid)))) for name,gid,_,bottom in CATEGORIES)
+  %(e(name),MEDIA,gid,GENRE_PHOTO,gid,*bottom,
+    ('<visible>!%s</visible>'%e(MOVIE_FILTER) if gid not in MOVIE_GENRES else '')+category_clicks(name,gid)) for name,gid,_,bottom in CATEGORIES)
  zoom=lambda focused:'<animation effect="zoom" start="100" end="104" time="160" center="auto">Focus</animation>' if focused else ''
  tile=lambda focused:('<control type="group"><left>0</left><top>0</top>%s'%zoom(focused)+
   image(0,0,tile_w,tile_h,'$INFO[ListItem.Property(tile)]',WHITE,diffuse=MEDIA+'poster_mask.png')+
@@ -577,43 +608,50 @@ DL_GAP=20;DL_H=108;DL_SHIFT=DL_GAP+DL_H   # the Download button under Play pushe
 DOWNLOAD_SEASON=('RunScript(service.kodi.ios.bootstrap,download,kind=season,'
  'path=$ESCINFO[Container(50).ListItem.FolderPath],season=$INFO[Container(50).ListItem.Season],'
  'tvshow.tmdb_id=$INFO[Container(50).ListItem.Property(tvshow.tmdb_id)])')
+DOWNLOADED_SHOW='String.IsEqual(Container.Property(KodiIOS.DownloadedShow),true)'
 def show_header(ids_down):
- """Art, logo/title, meta, 'Play' and plot for a show's seasons or episodes page."""
- art_h=840
- logo='$INFO[ListItem.Art(tvshow.clearlogo)]'
- play=('PlayMedia($ESCINFO[Container(60).ListItemAbsolute(0).FileNameAndPath])')
- return ('<control type="group"><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'+
+ """A show's header is ordinary page content, so the same vertical page moves art, controls and episodes."""
+ art_h=840;logo='$INFO[ListItem.Art(tvshow.clearlogo)]'
+ # A selected season has its own next playable episode; the child episode page uses the container fallback.
+ play=[(DOWNLOADED_SHOW+' + Container.Content(seasons) + !String.IsEmpty(Container(50).ListItem.Property(KodiIOS.PlayPath))','PlayMedia($ESCINFO[Container(50).ListItem.Property(KodiIOS.PlayPath)])'),
+       (DOWNLOADED_SHOW+' + Container.Content(seasons) + String.IsEmpty(Container(50).ListItem.Property(KodiIOS.PlayPath))','PlayMedia($ESCINFO[Container.Property(KodiIOS.PlayPath)])'),
+       (DOWNLOADED_SHOW+' + Container.Content(episodes)','PlayMedia($ESCINFO[Container.Property(KodiIOS.PlayPath)])'),
+       ('!'+DOWNLOADED_SHOW,'PlayMedia($ESCINFO[Container(60).ListItemAbsolute(0).FileNameAndPath])')]
+ header=('<control type="group"><width>%d</width><height>744</height>'%WIDTH+
   image(0,0,WIDTH,art_h,'$VAR[Portrait_Show_Art]',WHITE,'','>scale',background=True)+
   image(0,0,WIDTH,art_h,MEDIA+'hero_fade.png')+image(0,0,WIDTH,300,MEDIA+'fade_down.png')+
   '<control type="image"><left>140</left><top>430</top><width>800</width><height>230</height><aspectratio aligny="bottom">keep</aspectratio><texture>%s</texture></control>'%logo+
   label(SIDE,430,WIDTH-2*SIDE,230,'$VAR[Portrait_Show_Title]','p_title',WHITE,'center','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(tvshow.clearlogo))</visible>')+
-  label(SIDE,672,WIDTH-2*SIDE,52,'[COLOR %s]$INFO[ListItem.Rating,★ ]  [/COLOR]$INFO[ListItem.Year]$INFO[ListItem.Genre,  ·  ]'%GREEN,'p_foot',GREY,'center')+
-  pill_button(9002,SIDE,744,WIDTH-2*SIDE,124,'Play  $INFO[Container(50).ListItem.Label]',[('','%s'%play)],'primary',MEDIA+'play.png',
-              '<visible>Container.Content(seasons)</visible><onup>9001</onup><ondown>9003</ondown>',glyph_x=(WIDTH-2*SIDE)//2-200)+
-  # Under Play: download the season in focus (Elementum), the whole season or chosen episodes.
-  pill_button(9003,SIDE,744+124+DL_GAP,WIDTH-2*SIDE,DL_H,'Download  $INFO[Container(50).ListItem.Label]',[('',DOWNLOAD_SEASON)],'glass',ICONS+'download.png',
-              '<visible>Container.Content(seasons) + System.HasAddon(plugin.video.elementum)</visible><onup>9002</onup><ondown>50</ondown>',glyph_x=(WIDTH-2*SIDE)//2-300)+
-  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label><autoscroll>false</autoscroll><visible>!Container.Content(seasons)</visible></control>'%(SIDE,886,WIDTH-2*SIDE,GREY)+
-  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label><autoscroll>false</autoscroll><visible>Container.Content(seasons)</visible></control>'%(SIDE,886+DL_SHIFT,WIDTH-2*SIDE,GREY)+
-  '</control>')
+  label(SIDE,672,WIDTH-2*SIDE,52,'[COLOR %s]$VAR[Portrait_Show_Rating,★ ]  [/COLOR]$VAR[Portrait_Show_Year]$VAR[Portrait_Show_Genres,  ·  ]'%GREEN,'p_foot',GREY,'center')+'</control>')
+ play_visible='Container.Content(seasons) | [Container.Content(episodes) + '+DOWNLOADED_SHOW+']'
+ play_button=pill_button(9002,SIDE,0,WIDTH-2*SIDE,124,'$VAR[Portrait_Show_Play_Label]',play,'primary',MEDIA+'play.png',
+  '<visible>%s</visible><onup>9001</onup><ondown condition="%s">52</ondown><ondown condition="%s">50</ondown><ondown condition="%s">9003</ondown>'%(
+   play_visible,'Container.Content(episodes)','['+DOWNLOADED_SHOW+' | !System.HasAddon(plugin.video.elementum)] + Container.Content(seasons)','!'+DOWNLOADED_SHOW+' + Container.Content(seasons) + System.HasAddon(plugin.video.elementum)'),glyph_x=(WIDTH-2*SIDE)//2-230)
+ header+='<control type="group"><width>%d</width><height>144</height><visible>%s</visible>%s</control>'%(WIDTH,play_visible,play_button)
+ download_visible='Container.Content(seasons) + !'+DOWNLOADED_SHOW+' + System.HasAddon(plugin.video.elementum)'
+ header+='<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>%s</control>'%(WIDTH,DL_SHIFT,download_visible,
+  pill_button(9003,SIDE,0,WIDTH-2*SIDE,DL_H,'Download  $INFO[Container(50).ListItem.Label]',[('',DOWNLOAD_SEASON)],'glass',ICONS+'download.png',
+              '<visible>%s</visible><onup>9002</onup><ondown>50</ondown>'%download_visible,glyph_x=(WIDTH-2*SIDE)//2-300))
+ header+='<control type="group"><width>%d</width><height>170</height><control type="textbox"><left>%d</left><top>0</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>$VAR[Portrait_Show_Plot]</label><autoscroll>false</autoscroll></control></control>'%(WIDTH,SIDE,WIDTH-2*SIDE,GREY)
+ return header
 
 def episode_item(focused):
  thumb_w,thumb_h=400,225
  bg=surface(SIDE-18,4,WIDTH-2*SIDE+36,thumb_h+176,'round_s.png','14FFFFFF',26) if focused else ''
- return (bg+image(SIDE,18,thumb_w,thumb_h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'thumb_mask.png')+
+ return ('<control type="group"><visible>String.IsEqual(ListItem.DBType,episode)</visible>'+bg+image(SIDE,18,thumb_w,thumb_h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'thumb_mask.png')+
   image(SIDE,18,thumb_w,thumb_h,'$VAR[Portrait_Thumb]',WHITE,'','>scale',MEDIA+'thumb_mask.png',background=True)+
   image(SIDE+thumb_w//2-48,18+thumb_h//2-48,96,96,MEDIA+'glass_96.png')+icon(SIDE+thumb_w//2-18,18+thumb_h//2-20,40,MEDIA+'play.png')+
   label(SIDE+thumb_w+30,40,WIDTH-2*SIDE-thumb_w-30,110,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_h3',WHITE,'left','<wrapmultiline>true</wrapmultiline>')+
   label(SIDE+thumb_w+30,154,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]','p_cap',GREY)+
-  label(SIDE,thumb_h+40,WIDTH-2*SIDE,56,'$INFO[ListItem.Plot]','p_cap',GREY,'left','<scroll>false</scroll>'))
+  label(SIDE,thumb_h+40,WIDTH-2*SIDE,56,'$INFO[ListItem.Plot]','p_cap',GREY,'left','<scroll>false</scroll>')+'</control>')
 
 def video_nav(original):
- chip=lambda on:(surface(0,8,250,96,'pill_96.png' if on else 'glass_96.png',WHITE,48)+
-  label(0,8,250,96,'$INFO[ListItem.Label]','p_foot_b','FF000000' if on else WHITE,'center'))
+ chip=lambda on:('<control type="group"><visible>String.IsEqual(ListItem.DBType,season)</visible>'+surface(0,8,250,96,'pill_96.png' if on else 'glass_96.png',WHITE,48)+
+  label(0,8,250,96,'$INFO[ListItem.Label]','p_foot_b','FF000000' if on else WHITE,'center')+'</control>')
  chips=('<control type="list" id="50"><left>%d</left><top>%d</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
-  '<ondown>60</ondown><onup>9003</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'
-  '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout></control>')%(SIDE,1036+DL_SHIFT,WIDTH-SIDE,chip(False),chip(True))
- episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+  '<ondown>60</ondown><onup condition="%s">9002</onup><onup condition="%s">9003</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'
+  '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout></control>')%(SIDE,0,WIDTH-SIDE,'['+DOWNLOADED_SHOW+' | !System.HasAddon(plugin.video.elementum)]','!'+DOWNLOADED_SHOW+' + System.HasAddon(plugin.video.elementum)',chip(False),chip(True))
+ episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<onup>%s</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
   '<itemlayout height="420">%s</itemlayout><focusedlayout height="420">%s</focusedlayout>%s</control>')
  gen_item=lambda focused:((surface(SIDE-18,6,WIDTH-2*SIDE+36,198,'round_s.png','14FFFFFF',26) if focused else '')+
@@ -626,13 +664,20 @@ def video_nav(original):
  generic=('<control type="list" id="51"><left>0</left><top>190</top><width>%d</width><bottom>0</bottom><onup>9001</onup>'
   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>!Container.IsUpdating + !Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>'
   '<itemlayout height="210">%s</itemlayout><focusedlayout height="210">%s</focusedlayout></control>')%(WIDTH,gen_item(False),gen_item(True))
- back=circle_button(9001,SIDE,36,108,'chevron-left.png','Back','<ondown>9002</ondown>')
- plain_title=label(SIDE+136,36,WIDTH-2*SIDE-136,108,'$INFO[Container.FolderName]','p_h2',WHITE,'left','<visible>!Container.IsUpdating + !Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>')
- body=('<controls>'+backdrop()+show_header('50')+chips+
-  # Seasons page: episodes of the season chip in focus. Episodes page: the folder's own list.
-  episodes%(60,1176+DL_SHIFT,WIDTH,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>')+
-  episodes%(52,1036,WIDTH,'9001','Container.Content(episodes)',episode_item(False),episode_item(True),'')+
-  generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+back+plain_title+'</controls>')
+ back=nav_button(9001,SIDE,36,'chevron-left.png','Back','<ondown>9002</ondown>')
+ plain_title=label(SIDE+136,36,WIDTH-2*SIDE-136,108,'$VAR[Portrait_Page_Title]','p_h2',WHITE,'left','<visible>!Container.IsUpdating + !Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>')
+ refresh=nav_button(9010,WIDTH-SIDE-108,36,'arrows-rotate.png',
+  'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh)','<ondown>53</ondown>',
+  'String.StartsWith(Container.FolderPath,plugin://plugin.video.kodi.ios.watch/) + String.Contains(Container.FolderPath,action=library)')
+ # One scroll owner for the complete show page. The native portrait handoff keeps this viewport lazy and
+ # shares each vertical pan between the header and the episode list, including drags that begin on a card.
+ show_page=('<control type="grouplist" id="9900"><left>0</left><top>0</top><width>%d</width><height>%d</height>'
+  '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'
+  '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'
+  '%s%s%s%s</control>')%(WIDTH,HEIGHT,show_header('50'),chips,
+  episodes%(60,0,WIDTH,HEIGHT,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>'),
+  episodes%(52,0,WIDTH,HEIGHT,'9002','Container.Content(episodes)',episode_item(False),episode_item(True),''))
+ body=('<controls>'+backdrop()+show_page+generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+back+plain_title+refresh+'</controls>')
  return window(original,body,'50','<views>50,51,52,53</views>')
 
 GRID='Container.Content(movies) | Container.Content(tvshows)'
@@ -652,11 +697,17 @@ def grid():
 
 SHOW_VARS=('<variable name="Portrait_Show_Art"><value condition="!String.IsEmpty(ListItem.Art(tvshow.fanart))">$INFO[ListItem.Art(tvshow.fanart)]</value>'
            '<value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value><value>$INFO[Container.Art(fanart)]</value></variable>'
-           '<variable name="Portrait_Show_Title"><value condition="!String.IsEmpty(ListItem.TVShowTitle)">$INFO[ListItem.TVShowTitle]</value><value>$INFO[Container.FolderName]</value></variable>'
+           '<variable name="Portrait_Show_Title"><value condition="!String.IsEmpty(ListItem.TVShowTitle)">$INFO[ListItem.TVShowTitle]</value><value condition="!String.IsEmpty(Container.PluginCategory)">$INFO[Container.PluginCategory]</value><value>$INFO[Container.FolderName]</value></variable>'
            '<variable name="Portrait_Select_Art">'+''.join('<value condition="!String.IsEmpty(Container(%d).ListItem.Art(%s))">$INFO[Container(%d).ListItem.Art(%s)]</value>'%(c,k,c,k) for k in ('thumb','fanart','poster') for c in (3,6))+'</variable>'
            '<variable name="Portrait_Page_Title"><value condition="!String.IsEmpty(Window(Home).Property(Portrait.Title)) + String.IsEqual(Container.FolderName,TMDb Helper)">$INFO[Window(Home).Property(Portrait.Title)]</value>'
+           '<value condition="!String.IsEmpty(Container.PluginCategory)">$INFO[Container.PluginCategory]</value>'
            '<value>$INFO[Container.FolderName]</value></variable>'
            '<variable name="Portrait_Thumb"><value condition="!String.IsEmpty(ListItem.Art(thumb))">$INFO[ListItem.Art(thumb)]</value><value>$INFO[ListItem.Art(fanart)]</value></variable>')
+
+# Downloaded pages keep show metadata stable while an episode card is focused.
+SHOW_VARS+=''.join('<variable name="Portrait_Show_%s"><value condition="%s + !String.IsEmpty(Container.Property(KodiIOS.Show%s))">$INFO[Container.Property(KodiIOS.Show%s)]</value><value>$INFO[ListItem.%s]</value></variable>'%
+ (name,DOWNLOADED_SHOW,name,name,label) for name,label in (('Plot','Plot'),('Year','Year'),('Rating','Rating'),('Genres','Genre')))
+SHOW_VARS+='<variable name="Portrait_Show_Play_Label"><value condition="%s + Container.Content(seasons) + !String.IsEmpty(Container(50).ListItem.Property(KodiIOS.PlayLabel))">$INFO[Container(50).ListItem.Property(KodiIOS.PlayLabel)]</value><value condition="%s">$INFO[Container.Property(KodiIOS.PlayLabel)]</value><value>Play $INFO[Container(50).ListItem.Label]</value></variable>'%(DOWNLOADED_SHOW,DOWNLOADED_SHOW)
 
 def video_info(original):
  art_h=1150;w=WIDTH-2*SIDE
@@ -830,7 +881,7 @@ def deck_page(original=''):
  lst=('<control type="list" id="32503"><left>%d</left><top>%d</top><width>%d</width><bottom>40</bottom><orientation>vertical</orientation>'
   '<onup>32500</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
   '<itemlayout height="236">%s</itemlayout><focusedlayout height="236">%s</focusedlayout></control>')%(SIDE,top+poster_h+230,WIDTH-2*SIDE,deck_row(False),deck_row(True))
- back=circle_button(32500,SIDE,36,108,'chevron-left.png','Close','<ondown>32503</ondown>')
+ back=nav_button(32500,SIDE,36,'chevron-left.png','Close','<ondown>32503</ondown>')
  body='<controls>%s%s%s%s%s%s</controls>'%(backdrop(),head,heading,sub,lst,back)
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">32503</defaultcontrol>'
          '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>%s</window>\n')%(MARKER,body)
@@ -882,7 +933,7 @@ def notices_page():
    '<align>center</align><aligny>center</aligny><texturefocus /><texturenofocus /></control></control>'%(9101+i,w//len(NOTICE_FILTERS),text,GREY,WHITE)
    for i,(key,text) in enumerate(NOTICE_FILTERS))
  body=('<controls>'+backdrop()+
-  circle_button(9001,SIDE,36,108,'chevron-left.png','Close','<ondown>9101</ondown>')+
+  nav_button(9001,SIDE,36,'chevron-left.png','Close','<ondown>9101</ondown>')+
   '<control type="button" id="9002"><left>%d</left><top>36</top><width>260</width><height>108</height><label>Clear All</label><font>p_body</font>'
   '<textcolor>FF0A84FF</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>right</align><aligny>center</aligny><texturefocus /><texturenofocus /></control>'%(WIDTH-SIDE-260)+
   label(SIDE,160,w,110,'Notifications','p_large')+
@@ -962,11 +1013,29 @@ def fonts(original,sf=None):
 
 def with_variables(xml):return xml
 
+def variable_block(row_variables=None):
+ rows=''.join(v for _,v in sorted((row_variables or {}).items()))
+ return VARIABLES+SHOW_VARS+ctx_variables()+rows
+
 def includes(row_variables=None):
  # Kodi reads variables only from includes; Fuse's own includes still come from 1080i.
- rows=''.join(v for _,v in sorted((row_variables or {}).items()))
- return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<includes><include file="../1080i/Includes.xml" />%s%s%s</includes>\n'
-         %(MARKER,VARIABLES,SHOW_VARS+ctx_variables(),rows)).encode()
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<includes><include file="../1080i/Includes.xml" />%s</includes>\n'
+         %(MARKER,variable_block(row_variables))).encode()
+
+# Owner log (build 142): Kodi read the skin's includes once, from 1080i, because the screen turned portrait only
+# after the skin loaded; Home then came from the portrait folder with every $VAR (rows, heroes, card art) undefined,
+# so no row showed. The same variables now also come from 1080i (one include line in Fuse's Includes.xml), whichever
+# folder Kodi reads first. A second identical definition is ignored by Kodi.
+LANDSCAPE_VARS='Includes_Portrait.xml'
+LANDSCAPE_HOOK='<include file="%s" />'%LANDSCAPE_VARS
+def landscape_variables(row_variables=None):
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: portrait variables, also defined when Kodi reads 1080i -->\n'
+         '<includes>%s</includes>\n'%(MARKER,variable_block(row_variables))).encode()
+def landscape_includes(original):
+ """Fuse's 1080i/Includes.xml with the include line for LANDSCAPE_VARS (once)."""
+ if not original or LANDSCAPE_HOOK in original:return original
+ if re.search(r'<includes\s*/>',original):return re.sub(r'<includes\s*/>','<includes>'+LANDSCAPE_HOOK+'</includes>',original,count=1)
+ return re.sub(r'(<includes(?:\s[^>]*)?>)',lambda m:m.group(1)+'\n    '+LANDSCAPE_HOOK,original,count=1)
 
 def hub_files(skin,profile,variables=None):
  source=Path(skin)/'1080i';out={}
@@ -1003,6 +1072,8 @@ def portrait_files(skin,profile):
  row_variables={}
  for name,data in hub_files(skin,profile,row_variables).items():files[FOLDER+'/'+name]=data
  files[FOLDER+'/Includes.xml']=includes(row_variables)
+ files['1080i/'+LANDSCAPE_VARS]=landscape_variables(row_variables)
+ if read('Includes.xml'):files['1080i/Includes.xml']=landscape_includes(read('Includes.xml')).encode()
  for name,data in textures().items():files['extras/portrait/'+name]=data
  files[FOLDER+'/DeckSourceSelect.xml']=deck_page().encode()
  files[FOLDER+'/IOSNotifications.xml']=notices_page().encode()
@@ -1066,14 +1137,14 @@ def refresh(skin,profile):
 
 # Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
 # inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml'}
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml','Includes.xml','Includes_Portrait.xml'}
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__)):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),Path(pages.__file__),Path(ios_tabs.__file__)):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())
@@ -1130,6 +1201,25 @@ def focused_item_publisher(info,visible,set_property):
    if last.get(key)!=value:last[key]=value;set_property(key,value)
  return tick
 
+def first_feed_publisher(info,log,clock,timeout=60,started=None):
+ """Two startup-only milestones, measured from portrait-service entry. Counts mean list data is available, not
+ that poster textures have been decoded/drawn. Stop polling once both arrive or after a minute; no titles/URLs."""
+ started=clock() if started is None else started
+ pending={'hero':4000,'first-row':5002};finished=False
+ def tick():
+  nonlocal finished
+  if finished:return
+  elapsed=clock()-started
+  if elapsed>=timeout:
+   log('Kodi iOS startup feed: pending %s after %.3fs (service clock)'%(','.join(pending),elapsed));finished=True;return
+  for name,container in list(pending.items()):
+   try:count=int(info('Container(%d).NumItems'%container) or 0)
+   except (TypeError,ValueError,RuntimeError):continue
+   if count>0:
+    log('Kodi iOS startup feed: %s has %d items +%.3fs (service clock)'%(name,count,elapsed));del pending[name]
+  finished=not pending
+ return tick
+
 def progress_tracker(player,continue_module,read,write,clock,every=10):
  """Continue Watching: save the position of what the chooser started, and drop it once finished."""
  state={'playing':False,'saved':float('-inf'),'position':0,'total':0}
@@ -1140,12 +1230,12 @@ def progress_tracker(player,continue_module,read,write,clock,every=10):
     if clock()-state['saved']>=every:continue_module.update(read,write,state['position'],state['total']);state['saved']=clock()
    elif state['playing']:
     state['playing']=False;continue_module.update(read,write,state['position'],state['total']);continue_module.stopped(read,write)
-  except Exception:pass
+  except Exception as error:_quiet('portrait:1179',error)
  return tick
 
 # Read by Kodi when the skin loads (fonts, includes, Home and the windows marked LOAD_ON_GUI_INIT in the owner's log):
 # a change to one shows only after ReloadSkin. Every other window is read the first time it opens.
-LOADED_AT_START={'Font.xml','Includes.xml','Home.xml','Startup.xml','Pointer.xml','DialogBusy.xml','DialogNotification.xml',
+LOADED_AT_START={'Font.xml','Includes.xml','Includes_Portrait.xml','Home.xml','Startup.xml','Pointer.xml','DialogBusy.xml','DialogNotification.xml',
                  'DialogVolumeBar.xml','DialogExtendedProgressBar.xml','DialogSeekBar.xml','Custom_1151_OSD_MusicInfoOverlay.xml',
                  'Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml','Custom_1192_SeasonalTheme.xml',
                  'Custom_1194_Debug_Grid.xml','Custom_1198_Dialog_Startup.xml','Custom_1199_Debug_Overlay.xml'}
@@ -1211,6 +1301,8 @@ def listing_cache(cache,store,flags,lists,fetch,wait,busy,log,clock=None):
 
 def refresh_skin(xbmc,invoke,skin,profile):
  """Bring the portrait folder up to date and reload the skin when a change needs it; returns the changed paths."""
+ import time
+ started=time.monotonic()
  if missing(skin):
   # Add the portrait folder and resolution, then have Kodi re-read addon.xml so the folder can be chosen.
   changed=list(build(skin,profile));invoke('UpdateLocalAddons')
@@ -1222,8 +1314,8 @@ def refresh_skin(xbmc,invoke,skin,profile):
   if bool(xbmc.getCondVisibility('Skin.HasSetting(%s)'%setting))!=on:invoke(('Skin.SetBool(%s)' if on else 'Skin.Reset(%s)')%setting)
  reload=bool(changed) and needs_reload(changed,xbmc.getCondVisibility)
  listed=(' ('+', '.join(c for c in changed if not c.startswith('extras/'))[:300]+')') if changed else ''
- xbmc.log('Kodi iOS portrait files checked in %s: %d updated%s%s'%(skin,len(changed),listed,
-          '; skin reloaded' if reload else ('; no reload needed' if changed else '')),xbmc.LOGINFO)
+ xbmc.log('Kodi iOS portrait files checked in %s: %d updated%s%s (%.3fs)'%(skin,len(changed),listed,
+          '; skin reloaded' if reload else ('; no reload needed' if changed else ''),time.monotonic()-started),xbmc.LOGINFO)
  marker=Path(profile)/'addon_data/service.kodi.ios.bootstrap/portrait.json'
  if not marker.exists():
   # Once: no ".." rows, so a show page opens on its first season (the owner can turn it back on in Settings).
@@ -1232,12 +1324,17 @@ def refresh_skin(xbmc,invoke,skin,profile):
  if reload and is_portrait(xbmc.getInfoLabel):invoke('ReloadSkin()')
  return changed
 
-def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',ready=None):
+def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',ready=None,native_ui_started=False):
  """Started by the bootstrap service as soon as it starts. The tab bar, Continue Watching and the focused-item details
  start at once; the portrait refresh runs in its own thread once `ready` is set (after setup, which can rewrite Fuse's
  landscape files the portrait folder is made from). Build-132 started all of it only after setup and the refresh:
  the owner's tab bar appeared ~10 s after launch."""
- import threading
+ import threading,time
+ entered=time.monotonic()
+ xbmc.log('Kodi iOS startup: portrait service entered',xbmc.LOGINFO)
+ if not native_ui_started:
+  import native_ui
+  threading.Thread(target=native_ui.run,args=(xbmc,xbmcvfs,monitor),daemon=True).start()
  def keep_current():
   if ready is not None:
    while not ready.wait(0.25):
@@ -1251,8 +1348,6 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
    xbmc.log('Kodi iOS portrait refresh failed: %s\n%s'%(error,traceback.format_exc()),xbmc.LOGERROR)
    xbmc.executebuiltin('Notification(Kodi iOS,Phone layouts did not update - send the log from the gear menu,8000)')
  threading.Thread(target=keep_current,daemon=True).start()
- # The tab bar only over Arctic Fuse in portrait (first-run setup starts in Estuary, whose Home is also "home").
- portrait=lambda:xbmc.getSkinDir()==fuse and bool(is_portrait(xbmc.getInfoLabel))
  tick=None
  try:
   import importlib.util,time,xbmcaddon
@@ -1292,7 +1387,8 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
  # lock, and the focused-item publisher asked up to ten of them every half second while the owner used the video
  # controls. The tab bar's tick stays (two size checks in landscape) so it hides as the video starts.
  video=lambda:xbmc.getCondVisibility('Window.IsActive(fullscreenvideo)')
- always=[t for t in (tick,) if t];menu_ticks=[publish]
+ always=[t for t in (tick,) if t]
+ menu_ticks=[first_feed_publisher(xbmc.getInfoLabel,lambda text:xbmc.log(text,xbmc.LOGINFO),time.monotonic,started=entered),publish]
  def load_genre_photos():
   import threading
   store=os.path.join(str(profile),GENRE_PHOTOS)
@@ -1307,45 +1403,22 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
   def rpc(method,params):
    return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}))).get('result')
   import time as clock
-  threading.Thread(target=lambda:genre_photos(rpc,home.setProperty,read,write,clock.time),daemon=True).start()
+  busy=lambda:xbmc.getCondVisibility('!Window.IsActive(1105) | Player.HasVideo | System.HasActiveModalDialog | '
+                                    '!String.IsEmpty(Window(Home).Property(Portrait.Search.Query)) | '
+                                    '!String.IsEmpty(Window(Home).Property(Notices.Active))')
+  threading.Thread(target=lambda:genre_photos(rpc,home.setProperty,read,write,clock.time,busy,monitor.waitForAbort),daemon=True).start()
  menu_ticks.append(genre_photos_tick(xbmc.getCondVisibility,load_genre_photos))
- close=None
- try:
-  # Native Liquid Glass tab bar (KodiGlassBar.framework), when the IPA carries it.
-  import threading,glassbar
-  path=glassbar.library_path(xbmcvfs.translatePath('special://xbmc/'))
-  if bool(path)!=bool(xbmc.getCondVisibility('Skin.HasSetting(%s)'%NATIVE_TAB_BAR)):
-   xbmc.executebuiltin(('Skin.SetBool(%s)' if path else 'Skin.Reset(%s)')%NATIVE_TAB_BAR)
-  if path:
-   lib=glassbar.load(path)
-   bar,poll,close=glassbar.controller(lib,xbmc.getCondVisibility,portrait,
-                                     lambda action:xbmc.executebuiltin(action),[tab_actions(t[0]) for t in TABS])
-   always.append(bar)
-   polls=[poll]
-   # r3 framework: the Search page's native search field, results listed as you type (searchbar.py).
-   import searchbar,time
-   if searchbar.bind(lib):
-    find,typed,find_close=searchbar.controller(lib,searchbar.taker(lib),xbmc.getCondVisibility,portrait,
-                                               home.setProperty,time.monotonic,info=xbmc.getInfoLabel)
-    home.setProperty('Portrait.SearchBar','1')
-    always.append(find);polls.append(typed)
-    previous_close=close
-    def close():
-     find_close();previous_close()
-   def taps():
-    # The tab bar and the search field are hidden during video: read them twenty times a second only in the menus.
-    playing=False;count=0
-    while not monitor.waitForAbort(0.5 if playing else 0.05):
-     count+=1
-     if playing or count%10==0:playing=bool(video())
-     if not playing:
-      for p in polls:p()
-   threading.Thread(target=taps,daemon=True).start()
- except Exception as error:xbmc.log('Kodi iOS glass tab bar unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  def ticks():
   for t in always:t()
   if not video():
    for t in menu_ticks:t()
  watch(xbmc.getInfoLabel,invoke,monitor.waitForAbort,xbmc.getSkinDir,fuse,tick=ticks)
- if close:close()
 
+def _quiet(where,error,_seen=set()):
+ """Log an error that is deliberately not shown on screen, once per place and kind (loops run every second)."""
+ key=(where,type(error).__name__)
+ if key in _seen:return
+ _seen.add(key)
+ try:
+  import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
+ except Exception:pass

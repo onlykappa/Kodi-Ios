@@ -6,6 +6,11 @@
 # kodi_glassbar_select and kodi_glassbar_take_tap. UIGlassEffect is looked up at run time, so any Xcode builds it.
 # r3: the Search page's field as a native iOS search field at the top of the screen (kodi_search_show, _focus, _take,
 # _set): typing happens in iOS's own keyboard while Kodi lists the results under it as you type (searchbar.py).
+# r5: Kodi itself can drive the bar (Kodi executable r22, xbmc/application/Application.cpp): it dlopens this
+# framework when its frame loop starts, calls kodi_glassbar_set_native_owner(1) and then show/select/take_tap from
+# its own thread, so the bar is up as Home opens instead of when Python starts (2-4.5 s later on the phone). The
+# setup add-on reads kodi_glassbar_native_owner() and then leaves the bar alone (no second owner). The first show
+# appears at once, without the fade.
 # Usage: build-glassbar.sh OUT_DIR
 set -euo pipefail
 [[ "$(uname -s)" == Darwin ]] || { echo 'BLOCKED: macOS with the iPhoneOS SDK is required.' >&2; exit 2; }
@@ -22,6 +27,7 @@ static NSString *const kTitles[] = {@"Home", @"Movies", @"TV", @"Library", @"Sea
 static NSString *const kSymbols[] = {@"house.fill", @"film.fill", @"tv.fill", @"square.stack.fill", @"magnifyingglass"};
 static const NSInteger kCount = 5;
 static atomic_int pendingTap = -1;
+static atomic_int nativeOwner = 0; // r5: 1 once the Kodi executable drives the bar
 
 // Apple's Liquid Glass when the system has it (iOS 26), otherwise the frosted chrome material.
 static UIVisualEffect *glassEffect(BOOL interactive) {
@@ -247,8 +253,16 @@ static KodiGlassBar *ensureBar(void) {
 // Shows (1) or hides (0) the bar with a short fade. Safe to call from any thread.
 __attribute__((visibility("default"))) void kodi_glassbar_show(int visible) {
     dispatch_async(dispatch_get_main_queue(), ^{
+        static BOOL everShown = NO;
         KodiGlassBar *view = ensureBar();
         if (!view) return;
+        if (visible && !everShown) {
+            // r5: at launch the bar is there with Home's first frame, not faded in after it.
+            everShown = YES;
+            view.hidden = NO;
+            view.alpha = 1;
+            return;
+        }
         if (visible) view.hidden = NO;
         [UIView animateWithDuration:0.2 animations:^{ view.alpha = visible ? 1 : 0; }
                          completion:^(BOOL done) { if (!visible && done) view.hidden = YES; }];
@@ -263,6 +277,16 @@ __attribute__((visibility("default"))) void kodi_glassbar_select(int index) {
 // The tab the owner last tapped, once (-1 if none since the previous call).
 __attribute__((visibility("default"))) int kodi_glassbar_take_tap(void) {
     return atomic_exchange(&pendingTap, -1);
+}
+
+// r5: the Kodi executable claims the bar (1) before driving it; the setup add-on then only keeps the Search field.
+__attribute__((visibility("default"))) void kodi_glassbar_set_native_owner(int owner) {
+    atomic_store(&nativeOwner, owner ? 1 : 0);
+}
+
+// r5: 1 when the Kodi executable drives the bar, 0 when the setup add-on must (older Kodi executable).
+__attribute__((visibility("default"))) int kodi_glassbar_native_owner(void) {
+    return atomic_load(&nativeOwner);
 }
 
 // ---- r3: Search page field ----------------------------------------------------------------------------------------
@@ -458,6 +482,6 @@ cat > "$FW/Info.plist" <<PLIST
 <key>MinimumOSVersion</key><string>$MIN_IOS</string>
 </dict></plist>
 PLIST
-nm -gU "$FW/KodiGlassBar" | grep -E ' _kodi_(glassbar_(show|select|take_tap)|search_(show|focus|set|take))$'
+nm -gU "$FW/KodiGlassBar" | grep -E ' _kodi_(glassbar_(show|select|take_tap|set_native_owner|native_owner)|search_(show|focus|set|take))$'
 lipo -info "$FW/KodiGlassBar"
 (cd "$OUT" && zip -qry KodiGlassBar.framework.zip KodiGlassBar.framework && shasum -a 256 KodiGlassBar.framework.zip | tee KodiGlassBar.framework.zip.sha256)

@@ -50,6 +50,22 @@ class StartupLoad(unittest.TestCase):
   self.assertIn('ReplaceWindow(Home)',[o.text for o in first])
 
 class ServiceLoad(unittest.TestCase):
+ def test_first_feed_reports_data_readiness_then_stops_polling(self):
+  clock=[0.0];asked=[];logs=[];counts={}
+  def info(key):asked.append(key);return counts.get(key,'')
+  tick=portrait.first_feed_publisher(info,logs.append,lambda:clock[0])
+  tick();self.assertEqual(logs,[])
+  clock[0]=2.5;counts['Container(4000).NumItems']='20';tick()
+  self.assertIn('hero has 20 items +2.500s',logs[0])
+  clock[0]=3.0;counts['Container(5002).NumItems']='10';tick()
+  self.assertIn('first-row has 10 items +3.000s',logs[1])
+  before=len(asked);tick();tick();self.assertEqual(len(asked),before)
+  self.assertNotIn('plugin://',''.join(logs))
+ def test_first_feed_timeout_stops_polling_without_claiming_success(self):
+  clock=[0.0];asked=[];logs=[]
+  tick=portrait.first_feed_publisher(lambda key:asked.append(key) or 'not available',logs.append,lambda:clock[0])
+  tick();clock[0]=60;tick();before=len(asked);tick()
+  self.assertEqual(len(asked),before);self.assertIn('pending hero,first-row',logs[0]);self.assertNotIn('has ',logs[0])
  def test_tab_bar_and_portrait_service_do_not_wait_for_the_update_check(self):
   # Was: a fixed ten-second wait (calibration, update check) before the tab bar and Continue Watching started.
   wait=SERVICE.index('monitor.waitForAbort(10)')
@@ -63,7 +79,10 @@ class ServiceLoad(unittest.TestCase):
   self.assertIn("'ready':setup_done",SERVICE[start:start+200])
   self.assertLess(SERVICE.index("invoke('ReloadSkin()')\n  setup_done.set()"),SERVICE.index('def later():'))
   src=Path(portrait.__file__).read_text();run=src[src.index('def run_service('):]
-  self.assertLess(run.index('threading.Thread(target=keep_current'),run.index('glassbar.controller('))
+  self.assertLess(run.index('target=native_ui.run'),run.index('threading.Thread(target=keep_current'))
+  self.assertNotIn('glassbar.controller(',run,'portrait worker must not own a second native bar')
+  self.assertLess(SERVICE.index('target=native_ui.run'),SERVICE.index('from bootstrap import'))
+  self.assertIn("'native_ui_started':_EARLY_UI_STARTED",SERVICE)
  def test_elementum_folders_are_not_fixed_twice(self):
   self.assertNotIn('follow_container(',SERVICE)
 
@@ -80,5 +99,18 @@ class Overlap(unittest.TestCase):
   # Was: the skin's tab bar appeared whenever the native glass bar hid (dialogs, page changes), two bars swapping.
   self.assertIn('!Skin.HasSetting(Portrait.NativeTabBar)',portrait.tabbar('home'))
   self.assertFalse(hasattr(glassbar,'ACTIONS'),'a second copy of the tab actions')
+
+class LaunchToMenus(unittest.TestCase):
+ # Owner (2026-11-04 logs): launch logo, then Kodi's "KODI 21.3 OMEGA" splash, then Home; the tab bar came last because
+ # Python (the add-on that drove it) starts 1.6-4.5 s after Home. Timeline in docs/PERFORMANCE.md.
+ def test_tab_bar_does_not_wait_for_python(self):
+  patch=(ROOT/'migration/ios-portrait/kodi-21.3-portrait.patch').read_text()
+  self.assertIn('+  KodiIOSGlassBarTick();',patch,'Kodi shows the bar from its own frame loop')
+  ui=(LIB/'native_ui.py').read_text()
+  self.assertLess(ui.index('glassbar.native_owner(lib)'),ui.index('glassbar.controller('),'no second owner when Kodi drives it')
+ def test_no_kodi_splash_and_no_logo_launch_screen(self):
+  src=(ROOT/'scripts/build_customized_ipa.py').read_text()
+  self.assertIn('ios_portrait.disable_splash(system.parent)',src)
+  self.assertIn("'launch_screen':black_launch_screen(app)",(ROOT/'scripts/ios_portrait.py').read_text())
 
 if __name__=='__main__':unittest.main()

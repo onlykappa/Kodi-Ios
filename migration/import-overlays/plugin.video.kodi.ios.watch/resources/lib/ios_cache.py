@@ -84,7 +84,7 @@ def content(items):
 def serve(handle,key,xbmc,xbmcgui,xbmcplugin,read,now=time.time):
  """List the copy for key; with no usable copy, list nothing and turn the row's flag off (the skin then loads the
  real TMDb Helper path). Never runs TMDb Helper or JSON-RPC, so it cannot hang a row."""
- items=[];kind=''
+ started=time.monotonic();items=[];kind=''
  try:
   entry=parse(read(key),key,now()) if valid_key(key) else None
   if entry and key.startswith('hero.') and xbmc.getInfoLabel(hero_skin_path(key))!=entry['url']:entry=None
@@ -104,6 +104,8 @@ def serve(handle,key,xbmc,xbmcgui,xbmcplugin,read,now=time.time):
   except Exception:
    xbmc.executebuiltin(flag_off(key));items=[]
  xbmcplugin.endOfDirectory(handle,succeeded=True,cacheToDisc=False)
+ if items:
+  xbmc.log('Kodi iOS listing cache: served %s, %d items in %.1fms'%(str(key)[:40],len(items),1000*(time.monotonic()-started)),xbmc.LOGINFO)
  return len(items)
 
 # --- copies (bootstrap service) -------------------------------------------------------------------------------

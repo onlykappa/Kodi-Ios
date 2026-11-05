@@ -149,9 +149,18 @@ def publish(window,profile,wait,busy=lambda:False,every=3):
  last=None
  while not wait(every):
   try:ingest(profile)
-  except Exception:pass
+  except Exception as error:_quiet('notices:152',error)
   if busy():continue
   try:now=badge(profile)
   except Exception:continue
   if now!=last:
    window.setProperty('Notices.Unread',now[0]);window.setProperty('Notices.Active',now[1]);last=now
+
+def _quiet(where,error,_seen=set()):
+ """Log an error that is deliberately not shown on screen, once per place and kind (loops run every second)."""
+ key=(where,type(error).__name__)
+ if key in _seen:return
+ _seen.add(key)
+ try:
+  import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
+ except Exception:pass

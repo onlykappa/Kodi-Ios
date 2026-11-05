@@ -150,7 +150,6 @@ def event_log(p,original):
  """portrait/EventLog.xml: Kodi's buttons 21 (level), 22 (that level only), 4 (order) and 20 (clear) become pills
  over list 50; each event is a row with its level badge, description and time."""
  w=p.WIDTH-2*p.SIDE
- level='ListItem.Property(Event.Level)'
  def item(f):
   h=170;x=40+84+34
   return (p.image(0,0,w,h,p.MEDIA+'white.png',p.SURFACE2 if f else p.SURFACE)+p.image(x,h-2,w-x,2,p.MEDIA+'white.png',p.SEP)+

@@ -1,6 +1,6 @@
 """Google Drive network diagnostics: which TLS path reaches each host from this device. No response bodies or account data."""
 import http.client,os,socket,ssl,sys
-HOSTS=[('Drive sign-in server','drive.signinserver.com','/ip'),('Google Drive API','www.googleapis.com','/discovery/v1/apis/drive/v3/rest'),('TMDb (works in Kodi)','api.themoviedb.org','/3/configuration')]
+HOSTS=[('Drive sign-in server','kodi-signin.ballaking1738.workers.dev','/'),('Google Drive API','www.googleapis.com','/discovery/v1/apis/drive/v3/rest'),('TMDb (works in Kodi)','api.themoviedb.org','/3/configuration')]
 
 def contexts(certifi_path):
  yield 'python default',ssl.create_default_context

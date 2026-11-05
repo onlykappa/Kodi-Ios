@@ -164,7 +164,7 @@ def airplay_png(png,size=96):
  s=size/96.0
  def inside_triangle(x,y):
   # apex (48,54), base y=88 from x=22..74
-  ax,ay,by,bl,br=48*s,54*s,88*s,22*s,74*s
+  ax,ay,by,_,br=48*s,54*s,88*s,22*s,74*s
   if y<ay or y>by:return False
   half=(y-ay)/(by-ay)*(br-ax)
   return ax-half<=x<=ax+half

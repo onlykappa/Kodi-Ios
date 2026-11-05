@@ -96,7 +96,7 @@ def build():
  for id in roots:add(id)
  if drive_contracts.exists():
   settings=DEST/'userdata/addon_data/plugin.googledrive/settings.xml';settings.parent.mkdir(parents=True,exist_ok=True)
-  settings.write_text('<settings version="2">\n  <setting id="sign-in-server">https://drive.signinserver.com</setting>\n  <setting id="set_subtitle">true</setting>\n  <setting id="ask_resume">true</setting>\n  <setting id="allow_directory_listing">false</setting>\n  <setting id="clean_folder">false</setting>\n</settings>\n')
+  settings.write_text('<settings version="2">\n  <setting id="sign-in-server">https://kodi-signin.ballaking1738.workers.dev</setting>\n  <setting id="set_subtitle">true</setting>\n  <setting id="ask_resume">true</setting>\n  <setting id="allow_directory_listing">false</setting>\n  <setting id="clean_folder">false</setting>\n</settings>\n')
   menu=DEST/'userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json'
   items=json.loads(menu.read_text());items.append({'label':'Google Drive','path':'plugin://plugin.googledrive/','icon':'DefaultFolder.png','target':'videos'})
   menu.write_text(json.dumps(items,indent=2)+'\n')

@@ -83,3 +83,59 @@ Touch-r2 IPA built and uploaded successfully in run 41078491846; artifact/checks
 ## 2026-11-03 — AirPlay MKV remuxer (feature/airplay-mkv-remux, BUILT ON HOST; device test pending)
 
 KodiAirPlay r5 plays MKV/AVI/WebM/MPEG-TS through AirPlay by remuxing on the phone to fragmented-MP4 HLS (GMPlayer C core, MIT; FFmpeg 8.1.1 LGPL, remux-only, statically linked with private symbols). DTS/TrueHD/FLAC/Opus/Vorbis become AAC; SRT/ASS become WebVTT. Server on the Wi-Fi address with a per-session token; clear messages on failure; stops with Apple's player. 574 host checks plus Python routing tests; CI workflow airplay-remux.yml (builds only). Findings and licences in migration/airplay-ios/remux/FINDINGS.md and THIRD-PARTY-NOTICES. Not merged, no release, no PR (ISSUE-083).
+
+
+## 2026-11-04 — Draft PR #8 startup warnings and loading investigation
+
+Normalize empty generated widget unload includes and their template; acknowledge duplicate iOS audio INIT in the
+configured state; classify expected JSON-RPC forward-reference deferral correctly while retaining malformed-schema
+warnings. Real audio underflow remains open. Skip unchanged repeated navigation scans with invalidation/symlink
+regressions. Add bounded startup/feed/cache diagnostics and an isolated benchmark (0.266 s → 0.0175 s for two warm
+navigation checks on Linux; not app launch/poster timing). Owner clarified the slowdown is launch-to-posters.
+361 host tests in 25 suites pass; patch applies to pinned Kodi. Native host branch checks use stubs, not an Apple SDK
+build. r22 is staged only; verified executable pin stays r21. No IPA, workflow dispatch, device-success claim or merge.
+
+Owner added a ≥5 s bottom-bar delay: split native navigation/search into a lightweight worker started before setup
+imports and feed work; share tab actions, tick immediately, retain recovery/single-owner and skin fallback behavior.
+Five host regressions added. Python runtime/main-queue and actual phone visibility timing remain unverified.
+
+
+## 2026-11-04 — Owner bug 1: Continue Watching prioritizes completed copies
+
+Fix the downloaded-player metadata contract against pinned TMDb Helper's real resolver; check correct phone/current
+app/seeding/Drive downloads before provider selection. Require positive files and 100% seeding completion, refresh
+Drive cache misses, preserve provider/version across local/Drive playback, reuse Umbrella, and stop silent replacement
+on lookup failure, missing saved player or resolver retry. Watch add-on 1.4.2. 140 affected host tests/12 suites pass;
+three actual pinned-resolver path/metadata checks pass with Kodi stubs. New tests enter CI for future requested runs.
+Exact phone failure path, actual playback and resume position still require device acceptance. No IPA, merge or live
+account/media access; all work remains in draft PR #8.
+
+
+## 2026-11-04 — Owner bug 2: Search categories respect Movies/Shows
+
+Replace hardcoded TV category routes with filter-aware movie/TV discovery and the correct movie genre IDs.
+Hide TV-only Kids/Reality for Movies; retain the existing All category behavior and working typed-search code.
+Reuse cached tile artwork and defer cosmetic lookups during downloads/uploads, text queries, playback, dialogs
+or off-page activity. Six new regressions and affected host suites pass; pinned Helper translation preserves all
+22 supported routes. Phone category/lag acceptance remains pending; reduced background work is not proof that
+all lag is fixed. Keep draft PR #8 unmerged, publish with [skip ci], and build no IPA.
+
+
+## 2026-11-04 — Owner bug 3: AirPlay seek cancellation and format admission
+
+Reproduce overlapping-seek cancellation/HTTP 500 against the old server scheduler. Limit cancellation to speculative
+work, close worker-ownership race, prioritize live requests and log queue/production durations. Permit fully bridged
+VP9+Opus input and fail clearly when video conversion is unavailable. Add actual 4K/10-bit, WebM and AVI host fixtures;
+1,095 native checks plus 33 Python/static tests pass. Keep long Drive seek delays, broader codec/HDR coverage and
+phone acceptance open (docs/AIRPLAY.md). Native C fixes require a future newly built/pinned framework; r11 is unchanged.
+Same draft PR #8, skip CI; no framework/IPA build, release or merge.
+
+
+## 2026-11-04 — Bug 3 compatibility expansion
+
+Route MP4/MOV files through codec-aware receiver handling; add AV1/dav1d fallback, legacy input/decoder coverage,
+adaptive AAC bridging, HDR10/HLG tone/gamut mapping and embedded bitmap subtitles. Correct MOV open-GOP timing
+through a small shipped FFmpeg accessor patch; prevent sparse indexes from producing giant segments. Add real media,
+pixel and seek coverage plus source-I/O timing. Preserve native compatible Dolby profile-5 MP4 routing; unsupported-TV
+profile-5 conversion and phone/Drive performance acceptance remain open. Source only, r11 pin unchanged, same draft
+PR #8 with CI skipped. No iOS framework build, release, IPA or merge.
