@@ -36,6 +36,8 @@ def hydrate_artwork(params,local,cloud,drive,state_dir,key,get,active,clock=time
  show=params.get('show')
  if params.get('type')=='tv' and show and (params.get('folder') or params.get('local')=='1' or params.get('merge')=='1'):
   tmdb=(cache.get('tv:%s:'%show.lower()) or {}).get('tmdb_id')
+  if tmdb and 'show:%s'%tmdb not in cache and attempted<max_titles and clock()<deadline and active():
+   attempted+=1;drive.show_details(tmdb,key,cache,request)
   for number in sorted({int(e.get('season') or 0) for e in list(local)+list(cloud) if e.get('season')}):
    if not tmdb or attempted>=max_titles or clock()>=deadline or not active():break
    if 'season:%s:%s'%(tmdb,number) in cache:continue
@@ -46,7 +48,13 @@ def hydrate_artwork(params,local,cloud,drive,state_dir,key,get,active,clock=time
  latest=drive.load_json(path,{});latest.update(updates);drive.save_json(path,latest)
  return True
 
-def watch(info,busy,refresh,wait,page,drive,state_dir,clock=time.monotonic,every=5,cloud_every=30,hydrate=None,art_every=15,art_busy=lambda:False):
+def progress_stamp(path):
+ """Cheap revision of the local Continue Watching store, checked only on an idle visible show page."""
+ try:
+  stat=os.stat(path);return (stat.st_mtime_ns,stat.st_size)
+ except FileNotFoundError:return None
+
+def watch(info,busy,refresh,wait,page,drive,state_dir,clock=time.monotonic,every=5,cloud_every=30,hydrate=None,art_every=15,art_busy=lambda:False,progress_signature=None):
  last_path=None;last=None;cloud_at=-1e9;art_at=-1e9;cloud=[];cache_seen=False;art_pending=False
  while not wait(every):
   path=info();params=page.current_params(path)
@@ -56,14 +64,20 @@ def watch(info,busy,refresh,wait,page,drive,state_dir,clock=time.monotonic,every
   if path!=last_path:last=None;cloud_at=-1e9;art_at=-1e9;last_path=path;cloud=[];cache_seen=False;art_pending=False
   kind='tv' if params.get('type')=='tv' else 'movie'
   try:
-   local=[] if params.get('folder') and params.get('merge')!='1' else page.local_entries(kind,drive)
+   local=[] if params.get('folder') and not params.get('show') and params.get('merge')!='1' else page.local_entries(kind,drive)
+   if params.get('show'):
+    local=[entry for entry in local if (page.show_key(entry.get('title')) if hasattr(page,'show_key') else entry.get('title','').casefold())==
+           (page.show_key(params['show']) if hasattr(page,'show_key') else params['show'].casefold())]
    if clock()-cloud_at>=cloud_every or (cache_seen and not os.path.exists(os.path.join(state_dir,'drive-library.json'))):
     cloud_at=clock()
-    try:cloud=[] if params.get('local')=='1' or (params.get('merge')=='1' and not params.get('folder')) else drive.listing(kind,state_dir,params.get('folder'),strict=True,fresh=True)[0]
+    try:
+     if params.get('show') and hasattr(page,'cloud_entries'):cloud=page.cloud_entries(params,drive,state_dir,fresh=True)
+     else:cloud=[] if params.get('local')=='1' or (params.get('merge')=='1' and not params.get('folder')) else drive.listing(kind,state_dir,params.get('folder'),strict=True,fresh=True)[0]
     except Exception as error:_quiet('library_watch:51',error)  # offline Drive must not hide a newly completed phone download
     cache_seen=os.path.exists(os.path.join(state_dir,'drive-library.json'))
    # Art is cosmetic; only media membership/paths need to refresh the page.
-   signature=json.dumps([local,cloud],sort_keys=True)
+   progress=progress_signature() if params.get('show') and progress_signature is not None else None
+   signature=json.dumps([local,cloud,progress],sort_keys=True)
   except Exception:continue  # preserve the working page during an offline/failed check
   art_changed=False
   if hydrate is not None and clock()-art_at>=art_every and not busy() and not art_busy() and info()==path:
@@ -97,9 +111,10 @@ def run(xbmc,xbmcaddon,xbmcvfs,monitor,profile):
   def hydrate(params,local,cloud):
    active=lambda:not monitor.abortRequested() and not busy() and not art_busy() and ios_library.current_params(info())==params
    return hydrate_artwork(params,local,cloud,drivelibrary,state_dir,key,get,active)
+  progress_path=xbmcvfs.translatePath('special://profile/addon_data/plugin.video.kodi.ios.watch/continue.json')
   watch(info,busy,
         xbmc.executebuiltin,monitor.waitForAbort,ios_library,drivelibrary,
-        state_dir,hydrate=hydrate,art_busy=art_busy)
+        state_dir,hydrate=hydrate,art_busy=art_busy,progress_signature=lambda:progress_stamp(progress_path))
  except Exception as error:xbmc.log('Kodi iOS Library refresh unavailable: '+type(error).__name__,xbmc.LOGWARNING)
 
 def _quiet(where,error,_seen=set()):

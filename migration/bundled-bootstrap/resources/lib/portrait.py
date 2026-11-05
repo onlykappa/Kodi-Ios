@@ -187,7 +187,9 @@ def pill_button(id,x,y,w,h,text,actions,style,glyph='',extra='',glyph_x=None):
         '%s%s</control>')%(id,w,h,e(text),textcolor,textcolor,36 if glyph and text else 0,h//2,fill,MEDIA,tex,h//2,fill,MEDIA,tex,clicks,extra)
  gx=glyph_x if glyph_x is not None else ((w//2-100) if text else (w-46)//2)
  glyphxml=icon(gx,(h-46)//2,46,glyph,textcolor) if glyph else ''
- return '<control type="group"><left>%s</left><top>%s</top><width>%s</width><height>%s</height>%s%s</control>'%(x,y,w,h,inner,glyphxml)
+ # Visibility belongs to the complete capsule, including its decorative glyph.
+ visible=''.join(re.findall(r'<visible(?: [^>]*)?>.*?</visible>',extra))
+ return '<control type="group"><left>%s</left><top>%s</top><width>%s</width><height>%s</height>%s%s%s</control>'%(x,y,w,h,visible,inner,glyphxml)
 
 def circle_button(id,x,y,size,glyph,action,extra=''):return pill_button(id,x,y,size,size,'',[('',action)],'glass',glyph,extra)
 
@@ -606,43 +608,50 @@ DL_GAP=20;DL_H=108;DL_SHIFT=DL_GAP+DL_H   # the Download button under Play pushe
 DOWNLOAD_SEASON=('RunScript(service.kodi.ios.bootstrap,download,kind=season,'
  'path=$ESCINFO[Container(50).ListItem.FolderPath],season=$INFO[Container(50).ListItem.Season],'
  'tvshow.tmdb_id=$INFO[Container(50).ListItem.Property(tvshow.tmdb_id)])')
+DOWNLOADED_SHOW='String.IsEqual(Container.Property(KodiIOS.DownloadedShow),true)'
 def show_header(ids_down):
- """Art, logo/title, meta, 'Play' and plot for a show's seasons or episodes page."""
- art_h=840
- logo='$INFO[ListItem.Art(tvshow.clearlogo)]'
- play=('PlayMedia($ESCINFO[Container(60).ListItemAbsolute(0).FileNameAndPath])')
- return ('<control type="group"><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'+
+ """A show's header is ordinary page content, so the same vertical page moves art, controls and episodes."""
+ art_h=840;logo='$INFO[ListItem.Art(tvshow.clearlogo)]'
+ # A selected season has its own next playable episode; the child episode page uses the container fallback.
+ play=[(DOWNLOADED_SHOW+' + Container.Content(seasons) + !String.IsEmpty(Container(50).ListItem.Property(KodiIOS.PlayPath))','PlayMedia($ESCINFO[Container(50).ListItem.Property(KodiIOS.PlayPath)])'),
+       (DOWNLOADED_SHOW+' + Container.Content(seasons) + String.IsEmpty(Container(50).ListItem.Property(KodiIOS.PlayPath))','PlayMedia($ESCINFO[Container.Property(KodiIOS.PlayPath)])'),
+       (DOWNLOADED_SHOW+' + Container.Content(episodes)','PlayMedia($ESCINFO[Container.Property(KodiIOS.PlayPath)])'),
+       ('!'+DOWNLOADED_SHOW,'PlayMedia($ESCINFO[Container(60).ListItemAbsolute(0).FileNameAndPath])')]
+ header=('<control type="group"><width>%d</width><height>744</height>'%WIDTH+
   image(0,0,WIDTH,art_h,'$VAR[Portrait_Show_Art]',WHITE,'','>scale',background=True)+
   image(0,0,WIDTH,art_h,MEDIA+'hero_fade.png')+image(0,0,WIDTH,300,MEDIA+'fade_down.png')+
   '<control type="image"><left>140</left><top>430</top><width>800</width><height>230</height><aspectratio aligny="bottom">keep</aspectratio><texture>%s</texture></control>'%logo+
   label(SIDE,430,WIDTH-2*SIDE,230,'$VAR[Portrait_Show_Title]','p_title',WHITE,'center','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(tvshow.clearlogo))</visible>')+
-  label(SIDE,672,WIDTH-2*SIDE,52,'[COLOR %s]$INFO[ListItem.Rating,★ ]  [/COLOR]$INFO[ListItem.Year]$INFO[ListItem.Genre,  ·  ]'%GREEN,'p_foot',GREY,'center')+
-  pill_button(9002,SIDE,744,WIDTH-2*SIDE,124,'Play  $INFO[Container(50).ListItem.Label]',[('','%s'%play)],'primary',MEDIA+'play.png',
-              '<visible>Container.Content(seasons)</visible><onup>9001</onup><ondown>9003</ondown>',glyph_x=(WIDTH-2*SIDE)//2-200)+
-  # Under Play: download the season in focus (Elementum), the whole season or chosen episodes.
-  pill_button(9003,SIDE,744+124+DL_GAP,WIDTH-2*SIDE,DL_H,'Download  $INFO[Container(50).ListItem.Label]',[('',DOWNLOAD_SEASON)],'glass',ICONS+'download.png',
-              '<visible>Container.Content(seasons) + System.HasAddon(plugin.video.elementum)</visible><onup>9002</onup><ondown>50</ondown>',glyph_x=(WIDTH-2*SIDE)//2-300)+
-  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label><autoscroll>false</autoscroll><visible>!Container.Content(seasons)</visible></control>'%(SIDE,886,WIDTH-2*SIDE,GREY)+
-  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label><autoscroll>false</autoscroll><visible>Container.Content(seasons)</visible></control>'%(SIDE,886+DL_SHIFT,WIDTH-2*SIDE,GREY)+
-  '</control>')
+  label(SIDE,672,WIDTH-2*SIDE,52,'[COLOR %s]$VAR[Portrait_Show_Rating,★ ]  [/COLOR]$VAR[Portrait_Show_Year]$VAR[Portrait_Show_Genres,  ·  ]'%GREEN,'p_foot',GREY,'center')+'</control>')
+ play_visible='Container.Content(seasons) | [Container.Content(episodes) + '+DOWNLOADED_SHOW+']'
+ play_button=pill_button(9002,SIDE,0,WIDTH-2*SIDE,124,'$VAR[Portrait_Show_Play_Label]',play,'primary',MEDIA+'play.png',
+  '<visible>%s</visible><onup>9001</onup><ondown condition="%s">52</ondown><ondown condition="%s">50</ondown><ondown condition="%s">9003</ondown>'%(
+   play_visible,'Container.Content(episodes)','['+DOWNLOADED_SHOW+' | !System.HasAddon(plugin.video.elementum)] + Container.Content(seasons)','!'+DOWNLOADED_SHOW+' + Container.Content(seasons) + System.HasAddon(plugin.video.elementum)'),glyph_x=(WIDTH-2*SIDE)//2-230)
+ header+='<control type="group"><width>%d</width><height>144</height><visible>%s</visible>%s</control>'%(WIDTH,play_visible,play_button)
+ download_visible='Container.Content(seasons) + !'+DOWNLOADED_SHOW+' + System.HasAddon(plugin.video.elementum)'
+ header+='<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>%s</control>'%(WIDTH,DL_SHIFT,download_visible,
+  pill_button(9003,SIDE,0,WIDTH-2*SIDE,DL_H,'Download  $INFO[Container(50).ListItem.Label]',[('',DOWNLOAD_SEASON)],'glass',ICONS+'download.png',
+              '<visible>%s</visible><onup>9002</onup><ondown>50</ondown>'%download_visible,glyph_x=(WIDTH-2*SIDE)//2-300))
+ header+='<control type="group"><width>%d</width><height>170</height><control type="textbox"><left>%d</left><top>0</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>$VAR[Portrait_Show_Plot]</label><autoscroll>false</autoscroll></control></control>'%(WIDTH,SIDE,WIDTH-2*SIDE,GREY)
+ return header
 
 def episode_item(focused):
  thumb_w,thumb_h=400,225
  bg=surface(SIDE-18,4,WIDTH-2*SIDE+36,thumb_h+176,'round_s.png','14FFFFFF',26) if focused else ''
- return (bg+image(SIDE,18,thumb_w,thumb_h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'thumb_mask.png')+
+ return ('<control type="group"><visible>String.IsEqual(ListItem.DBType,episode)</visible>'+bg+image(SIDE,18,thumb_w,thumb_h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'thumb_mask.png')+
   image(SIDE,18,thumb_w,thumb_h,'$VAR[Portrait_Thumb]',WHITE,'','>scale',MEDIA+'thumb_mask.png',background=True)+
   image(SIDE+thumb_w//2-48,18+thumb_h//2-48,96,96,MEDIA+'glass_96.png')+icon(SIDE+thumb_w//2-18,18+thumb_h//2-20,40,MEDIA+'play.png')+
   label(SIDE+thumb_w+30,40,WIDTH-2*SIDE-thumb_w-30,110,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_h3',WHITE,'left','<wrapmultiline>true</wrapmultiline>')+
   label(SIDE+thumb_w+30,154,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]','p_cap',GREY)+
-  label(SIDE,thumb_h+40,WIDTH-2*SIDE,56,'$INFO[ListItem.Plot]','p_cap',GREY,'left','<scroll>false</scroll>'))
+  label(SIDE,thumb_h+40,WIDTH-2*SIDE,56,'$INFO[ListItem.Plot]','p_cap',GREY,'left','<scroll>false</scroll>')+'</control>')
 
 def video_nav(original):
- chip=lambda on:(surface(0,8,250,96,'pill_96.png' if on else 'glass_96.png',WHITE,48)+
-  label(0,8,250,96,'$INFO[ListItem.Label]','p_foot_b','FF000000' if on else WHITE,'center'))
+ chip=lambda on:('<control type="group"><visible>String.IsEqual(ListItem.DBType,season)</visible>'+surface(0,8,250,96,'pill_96.png' if on else 'glass_96.png',WHITE,48)+
+  label(0,8,250,96,'$INFO[ListItem.Label]','p_foot_b','FF000000' if on else WHITE,'center')+'</control>')
  chips=('<control type="list" id="50"><left>%d</left><top>%d</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
-  '<ondown>60</ondown><onup>9003</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'
-  '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout></control>')%(SIDE,1036+DL_SHIFT,WIDTH-SIDE,chip(False),chip(True))
- episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+  '<ondown>60</ondown><onup condition="%s">9002</onup><onup condition="%s">9003</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'
+  '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout></control>')%(SIDE,0,WIDTH-SIDE,'['+DOWNLOADED_SHOW+' | !System.HasAddon(plugin.video.elementum)]','!'+DOWNLOADED_SHOW+' + System.HasAddon(plugin.video.elementum)',chip(False),chip(True))
+ episodes=('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
   '<onup>%s</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
   '<itemlayout height="420">%s</itemlayout><focusedlayout height="420">%s</focusedlayout>%s</control>')
  gen_item=lambda focused:((surface(SIDE-18,6,WIDTH-2*SIDE+36,198,'round_s.png','14FFFFFF',26) if focused else '')+
@@ -656,15 +665,19 @@ def video_nav(original):
   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>!Container.IsUpdating + !Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>'
   '<itemlayout height="210">%s</itemlayout><focusedlayout height="210">%s</focusedlayout></control>')%(WIDTH,gen_item(False),gen_item(True))
  back=nav_button(9001,SIDE,36,'chevron-left.png','Back','<ondown>9002</ondown>')
- plain_title=label(SIDE+136,36,WIDTH-2*SIDE-136,108,'$INFO[Container.FolderName]','p_h2',WHITE,'left','<visible>!Container.IsUpdating + !Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>')
+ plain_title=label(SIDE+136,36,WIDTH-2*SIDE-136,108,'$VAR[Portrait_Page_Title]','p_h2',WHITE,'left','<visible>!Container.IsUpdating + !Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>')
  refresh=nav_button(9010,WIDTH-SIDE-108,36,'arrows-rotate.png',
   'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh)','<ondown>53</ondown>',
   'String.StartsWith(Container.FolderPath,plugin://plugin.video.kodi.ios.watch/) + String.Contains(Container.FolderPath,action=library)')
- body=('<controls>'+backdrop()+show_header('50')+chips+
-  # Seasons page: episodes of the season chip in focus. Episodes page: the folder's own list.
-  episodes%(60,1176+DL_SHIFT,WIDTH,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>')+
-  episodes%(52,1036,WIDTH,'9001','Container.Content(episodes)',episode_item(False),episode_item(True),'')+
-  generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+back+plain_title+refresh+'</controls>')
+ # One scroll owner for the complete show page. The native portrait handoff keeps this viewport lazy and
+ # shares each vertical pan between the header and the episode list, including drags that begin on a card.
+ show_page=('<control type="grouplist" id="9900"><left>0</left><top>0</top><width>%d</width><height>%d</height>'
+  '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'
+  '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>Container.Content(seasons) | Container.Content(episodes)</visible>'
+  '%s%s%s%s</control>')%(WIDTH,HEIGHT,show_header('50'),chips,
+  episodes%(60,0,WIDTH,HEIGHT,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>'),
+  episodes%(52,0,WIDTH,HEIGHT,'9002','Container.Content(episodes)',episode_item(False),episode_item(True),''))
+ body=('<controls>'+backdrop()+show_page+generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+back+plain_title+refresh+'</controls>')
  return window(original,body,'50','<views>50,51,52,53</views>')
 
 GRID='Container.Content(movies) | Container.Content(tvshows)'
@@ -684,12 +697,17 @@ def grid():
 
 SHOW_VARS=('<variable name="Portrait_Show_Art"><value condition="!String.IsEmpty(ListItem.Art(tvshow.fanart))">$INFO[ListItem.Art(tvshow.fanart)]</value>'
            '<value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value><value>$INFO[Container.Art(fanart)]</value></variable>'
-           '<variable name="Portrait_Show_Title"><value condition="!String.IsEmpty(ListItem.TVShowTitle)">$INFO[ListItem.TVShowTitle]</value><value>$INFO[Container.FolderName]</value></variable>'
+           '<variable name="Portrait_Show_Title"><value condition="!String.IsEmpty(ListItem.TVShowTitle)">$INFO[ListItem.TVShowTitle]</value><value condition="!String.IsEmpty(Container.PluginCategory)">$INFO[Container.PluginCategory]</value><value>$INFO[Container.FolderName]</value></variable>'
            '<variable name="Portrait_Select_Art">'+''.join('<value condition="!String.IsEmpty(Container(%d).ListItem.Art(%s))">$INFO[Container(%d).ListItem.Art(%s)]</value>'%(c,k,c,k) for k in ('thumb','fanart','poster') for c in (3,6))+'</variable>'
            '<variable name="Portrait_Page_Title"><value condition="!String.IsEmpty(Window(Home).Property(Portrait.Title)) + String.IsEqual(Container.FolderName,TMDb Helper)">$INFO[Window(Home).Property(Portrait.Title)]</value>'
            '<value condition="!String.IsEmpty(Container.PluginCategory)">$INFO[Container.PluginCategory]</value>'
            '<value>$INFO[Container.FolderName]</value></variable>'
            '<variable name="Portrait_Thumb"><value condition="!String.IsEmpty(ListItem.Art(thumb))">$INFO[ListItem.Art(thumb)]</value><value>$INFO[ListItem.Art(fanart)]</value></variable>')
+
+# Downloaded pages keep show metadata stable while an episode card is focused.
+SHOW_VARS+=''.join('<variable name="Portrait_Show_%s"><value condition="%s + !String.IsEmpty(Container.Property(KodiIOS.Show%s))">$INFO[Container.Property(KodiIOS.Show%s)]</value><value>$INFO[ListItem.%s]</value></variable>'%
+ (name,DOWNLOADED_SHOW,name,name,label) for name,label in (('Plot','Plot'),('Year','Year'),('Rating','Rating'),('Genres','Genre')))
+SHOW_VARS+='<variable name="Portrait_Show_Play_Label"><value condition="%s + Container.Content(seasons) + !String.IsEmpty(Container(50).ListItem.Property(KodiIOS.PlayLabel))">$INFO[Container(50).ListItem.Property(KodiIOS.PlayLabel)]</value><value condition="%s">$INFO[Container.Property(KodiIOS.PlayLabel)]</value><value>Play $INFO[Container(50).ListItem.Label]</value></variable>'%(DOWNLOADED_SHOW,DOWNLOADED_SHOW)
 
 def video_info(original):
  art_h=1150;w=WIDTH-2*SIDE

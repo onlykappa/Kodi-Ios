@@ -438,13 +438,12 @@ index 2f8ca00..af8137b 100644
    toast.eType = eType;
    toast.imagefile = aImageFile;
 diff --git a/xbmc/guilib/GUIBaseContainer.cpp b/xbmc/guilib/GUIBaseContainer.cpp
-index 8974597..cec71e8 100644
 --- a/xbmc/guilib/GUIBaseContainer.cpp
 +++ b/xbmc/guilib/GUIBaseContainer.cpp
 @@ -8,7 +8,10 @@
- 
+
  #include "GUIBaseContainer.h"
- 
+
 +#include <cmath>
 +
  #include "FileItem.h"
@@ -452,10 +451,17 @@ index 8974597..cec71e8 100644
  #include "GUIInfoManager.h"
  #include "GUIListItemLayout.h"
  #include "GUIMessage.h"
-@@ -776,6 +779,25 @@ bool CGUIBaseContainer::OnMouseOver(const CPoint &point)
-   return CGUIControl::OnMouseOver(point);
- }
- 
+@@ -773,7 +776,68 @@
+   // select the item under the pointer
+   if (!m_waitForScrollEnd)
+     SelectItemFromPoint(point - CPoint(m_posX, m_posY));
+-  return CGUIControl::OnMouseOver(point);
++  m_portraitTouchFocus = PortraitScroller() != nullptr;
++  const bool handled = CGUIControl::OnMouseOver(point);
++  m_portraitTouchFocus = false;
++  return handled;
++}
++
 +bool CGUIBaseContainer::GestureAcross(float offsetX, float offsetY) const
 +{
 +  // Kodi-iOS: whether a movement runs more across this list's direction than along it.
@@ -475,10 +481,47 @@ index 8974597..cec71e8 100644
 +  return nullptr;
 +}
 +
++CGUIControlGroupList* CGUIBaseContainer::PortraitScroller() const
++{
++  if (GetParentID() != 10025 || m_orientation != VERTICAL || (GetID() != 52 && GetID() != 60))
++    return nullptr;
++  for (CGUIControl* parent = GetParentControl(); parent; parent = parent->GetParentControl())
++  {
++    if (parent->GetControlType() == GUICONTROL_GROUPLIST && parent->GetID() == 9900)
++      return static_cast<CGUIControlGroupList*>(parent);
++  }
++  return nullptr;
++}
++
++float CGUIBaseContainer::PortraitContentHeight() const
++{
++  return m_layout ? m_items.size() * m_layout->Size(VERTICAL) : 0.0f;
++}
++
++float CGUIBaseContainer::PortraitScroll(float distance)
++{
++  if (!m_layout || m_items.empty())
++    return 0.0f;
++  const float size = m_layout->Size(VERTICAL);
++  if (size <= 0.0f)
++    return 0.0f;
++  int minimum = 0, maximum = 0;
++  GetOffsetRange(minimum, maximum);
++  const float before = m_scroller.GetValue();
++  const int selected = CorrectOffset(GetOffset(), GetCursor());
++  m_scroller.SetValue(std::max(0.0f, std::min(before + distance, std::max(0, maximum) * size)));
++  SetOffset(static_cast<int>(std::floor(m_scroller.GetValue() / size)));
++  ValidateOffset();
++  // Preserve selection without emitting focus messages that would jump the page to the episode viewport.
++  CGUIBaseContainer::SetCursor(selected - CorrectOffset(GetOffset(), 0));
++  m_lastScrollStartTimer.Stop();
++  m_scrollTimer.Start();
++  SetInvalid();
++  return m_scroller.GetValue() - before;
+ }
+
  EVENT_RESULT CGUIBaseContainer::OnMouseEvent(const CPoint& point, const MOUSE::CMouseEvent& event)
- {
-   if (event.m_id == ACTION_MOUSE_LEFT_CLICK ||
-@@ -810,13 +832,33 @@ EVENT_RESULT CGUIBaseContainer::OnMouseEvent(const CPoint& point, const MOUSE::C
+@@ -810,13 +874,39 @@
    }
    else if (event.m_id == ACTION_GESTURE_BEGIN)
    { // grab exclusive access
@@ -496,6 +539,12 @@ index 8974597..cec71e8 100644
    else if (event.m_id == ACTION_GESTURE_PAN)
 -  { // do the drag and validate our offset (corrects for end of scroll)
 +  {
++    // Kodi-iOS: the entire TV page consumes this delta once, even when the finger starts on an episode.
++    if (CGUIControlGroupList* page = PortraitScroller())
++    {
++      const float consumed = page->ScrollPortrait(-event.m_offsetY);
++      return (m_waitForScrollEnd && std::abs(consumed) < 0.001f) ? EVENT_RESULT_UNHANDLED : EVENT_RESULT_HANDLED;
++    }
 +    // Kodi-iOS: a list inside a scrolling group list (a row of posters on a page) hands a drag that starts across
 +    // its own direction to the page, which then takes the gesture (and its momentum) instead of the row.
 +    if (!m_gestureDecided)
@@ -513,34 +562,92 @@ index 8974597..cec71e8 100644
      m_scroller.SetValue(m_scroller.GetValue() - ((m_orientation == HORIZONTAL) ? event.m_offsetX : event.m_offsetY));
      float size = (m_layout) ? m_layout->Size(m_orientation) : 10.0f;
      int offset = MathUtils::round_int(static_cast<double>(m_scroller.GetValue() / size));
+@@ -847,6 +937,13 @@
+     CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, 0, GetParentID());
+     SendWindowMessage(msg);
+     m_scrollTimer.Stop();
++    if (PortraitScroller())
++    {
++      // Keep the exact combined page position; snapping an episode would move the header independently.
++      m_waitForScrollEnd = false;
++      m_gestureActive = false;
++      return EVENT_RESULT_HANDLED;
++    }
+     // and compute the nearest offset from this and scroll there
+     float size = (m_layout) ? m_layout->Size(m_orientation) : 10.0f;
+     float offset = m_scroller.GetValue() / size;
 diff --git a/xbmc/guilib/GUIBaseContainer.h b/xbmc/guilib/GUIBaseContainer.h
-index 38e68cf..dd53f32 100644
 --- a/xbmc/guilib/GUIBaseContainer.h
 +++ b/xbmc/guilib/GUIBaseContainer.h
-@@ -234,6 +234,9 @@ private:
+@@ -30,6 +30,7 @@
+ class IListProvider;
+ class TiXmlNode;
+ class CGUIListItemLayout;
++class CGUIControlGroupList;
+
+ class CGUIBaseContainer : public IGUIContainer
+ {
+@@ -44,6 +45,11 @@
+   void OnLeft() override;
+   void OnRight() override;
+   bool OnMouseOver(const CPoint &point) override;
++  // Kodi-iOS: shared scrolling only for the portrait TV page, whose episode viewport remains virtualized.
++  bool PortraitTouchFocus() const { return m_portraitTouchFocus; }
++  float PortraitContentHeight() const;
++  float PortraitScroll(float distance);
++
+   bool CanFocus() const override;
+   bool OnMessage(CGUIMessage& message) override;
+   void SetFocus(bool bOnOff) override;
+@@ -234,6 +240,11 @@
    static const int letter_match_timeout = 1000;
- 
+
    bool m_gestureActive = false;
++  bool m_portraitTouchFocus = false; // Kodi-iOS: suppress focus scrolling only while touch focus is dispatched
 +  bool m_gestureDecided = false; // Kodi-iOS: whether this drag is ours or the page's
++  CGUIControlGroupList* PortraitScroller() const; // Kodi-iOS
 +  bool GestureAcross(float offsetX, float offsetY) const; // Kodi-iOS
 +  CGUIControl* CrossScroller() const; // Kodi-iOS
- 
+
    // early inertial scroll cancellation
    bool m_waitForScrollEnd = false;
 diff --git a/xbmc/guilib/GUIControlGroupList.cpp b/xbmc/guilib/GUIControlGroupList.cpp
-index b0940ef..0230902 100644
 --- a/xbmc/guilib/GUIControlGroupList.cpp
 +++ b/xbmc/guilib/GUIControlGroupList.cpp
-@@ -8,6 +8,8 @@
- 
+@@ -8,7 +8,10 @@
+
  #include "GUIControlGroupList.h"
- 
+
 +#include <cmath>
 +
  #include "GUIAction.h"
++#include "GUIBaseContainer.h"
  #include "GUIControlProfiler.h"
  #include "GUIFont.h" // for XBFONT_* definitions
-@@ -404,12 +406,17 @@ EVENT_RESULT CGUIControlGroupList::SendMouseEvent(const CPoint& point,
+ #include "GUIMessage.h"
+@@ -177,6 +180,11 @@
+           continue;
+         if (control->GetControl(message.GetControlId()))
+         {
++          // A touch on an already-visible episode must not hide the whole header as a focus side effect.
++          if (IsPortraitShowPage() && control->GetControlType() == GUICONTAINER_LIST &&
++              (control->GetID() == 52 || control->GetID() == 60) &&
++              static_cast<CGUIBaseContainer*>(control)->PortraitTouchFocus())
++            break;
+           // find out whether this is the first or last control
+           if (control == GetFirstFocusableControl())
+             ScrollTo(0);
+@@ -371,6 +379,9 @@
+
+ float CGUIControlGroupList::Size(const CGUIControl *control) const
+ {
++  if (IsPortraitShowPage() && control->GetControlType() == GUICONTAINER_LIST &&
++      (control->GetID() == 52 || control->GetID() == 60))
++    return control->GetYPosition() + std::min(control->GetHeight(), static_cast<const CGUIBaseContainer*>(control)->PortraitContentHeight());
+   return (m_orientation == VERTICAL) ? control->GetYPosition() + control->GetHeight() : control->GetXPosition() + control->GetWidth();
+ }
+
+@@ -404,12 +415,17 @@
    {
      float pos = 0;
      float alignOffset = GetAlignOffset();
@@ -559,7 +666,49 @@ index b0940ef..0230902 100644
          { // we're on screen
            float offsetX = m_orientation == VERTICAL ? m_posX : m_posX + alignOffset + pos - m_scroller.GetValue();
            float offsetY = m_orientation == VERTICAL ? m_posY + alignOffset + pos - m_scroller.GetValue() : m_posY;
-@@ -568,8 +575,26 @@ EVENT_RESULT CGUIControlGroupList::OnMouseEvent(const CPoint& point,
+@@ -543,6 +559,41 @@
+   return 0.0f;
+ }
+
++bool CGUIControlGroupList::IsPortraitShowPage() const
++{
++  return GetParentID() == 10025 && GetID() == 9900 && m_orientation == VERTICAL;
++}
++
++float CGUIControlGroupList::ScrollPortrait(float distance)
++{
++  if (!IsPortraitShowPage())
++    return 0.0f;
++  ValidateOffset();
++  CGUIBaseContainer* episodes = nullptr;
++  for (CGUIControl* control : m_children)
++  {
++    if (control->IsVisible() && control->GetControlType() == GUICONTAINER_LIST &&
++        (control->GetID() == 52 || control->GetID() == 60))
++    {
++      episodes = static_cast<CGUIBaseContainer*>(control);
++      break;
++    }
++  }
++  const float before = m_scroller.GetValue();
++  float remaining = distance;
++  // Moving back first rewinds episodes, then restores the header, all in the same finger movement.
++  if (remaining < 0.0f && episodes)
++    remaining -= episodes->PortraitScroll(remaining);
++  const float limit = std::max(0.0f, m_totalSize - Size());
++  m_scroller.SetValue(std::max(0.0f, std::min(before + remaining, limit)));
++  const float moved = m_scroller.GetValue() - before;
++  remaining -= moved;
++  if (remaining > 0.0f && episodes)
++    remaining -= episodes->PortraitScroll(remaining);
++  SetInvalid();
++  return distance - remaining;
++}
++
+ EVENT_RESULT CGUIControlGroupList::OnMouseEvent(const CPoint& point,
+                                                 const MOUSE::CMouseEvent& event)
+ {
+@@ -568,8 +619,26 @@
        offset = nextOffset;
      }
    }
@@ -585,6 +734,15 @@ index b0940ef..0230902 100644
 +    }
      CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, GetID(), GetParentID());
      SendWindowMessage(msg);
+     return EVENT_RESULT_HANDLED;
+@@ -582,6 +651,8 @@
+   }
+   else if (event.m_id == ACTION_GESTURE_PAN)
+   { // do the drag and validate our offset (corrects for end of scroll)
++    if (IsPortraitShowPage())
++      return std::abs(ScrollPortrait(-event.m_offsetY)) < 0.001f ? EVENT_RESULT_UNHANDLED : EVENT_RESULT_HANDLED;
+     m_scroller.SetValue(CLAMP(m_scroller.GetValue() - ((m_orientation == HORIZONTAL) ? event.m_offsetX : event.m_offsetY), 0, m_totalSize - Size()));
+     SetInvalid();
      return EVENT_RESULT_HANDLED;
 diff --git a/xbmc/guilib/GUIFontManager.cpp b/xbmc/guilib/GUIFontManager.cpp
 index f5c0732..2d7257c 100644
@@ -1426,3 +1584,38 @@ diff --git a/xbmc/interfaces/json-rpc/JSONServiceDescription.cpp b/xbmc/interfac
      CJSONServiceDescription::removeReferenceTypeDefinition(typeName);
      if (!globalType->missingReference.empty())
      {
+diff --git a/xbmc/guilib/GUIControlGroupList.h b/xbmc/guilib/GUIControlGroupList.h
+--- a/xbmc/guilib/GUIControlGroupList.h
++++ b/xbmc/guilib/GUIControlGroupList.h
+@@ -14,6 +14,8 @@
+ */
+
+ #include "GUIControlGroup.h"
++
++class CGUIBaseContainer;
+
+ struct SGUIControlAndOffset
+ {
+@@ -55,6 +57,9 @@
+    */
+   float GetTotalSize() const;
+   ORIENTATION GetOrientation() const { return m_orientation; }
++  bool IsPortraitShowPage() const;
++  float ScrollPortrait(float distance);
++
+
+   // based on grouplist orientation pick one value as minSize;
+   void SetMinSize(float minWidth, float minHeight);
+diff --git a/xbmc/windows/GUIMediaWindow.cpp b/xbmc/windows/GUIMediaWindow.cpp
+--- a/xbmc/windows/GUIMediaWindow.cpp
++++ b/xbmc/windows/GUIMediaWindow.cpp
+@@ -778,6 +778,9 @@
+     bHideParent = true;
+   if (items.GetPath() == GetRootPath())
+     bHideParent = true;
++  // Kodi-iOS: the show page has a back arrow; a parent item would occupy a fake season/episode slot.
++  if (GetID() == 10025 && items.GetProperty("KodiIOS.DownloadedShow").asString() == "true")
++    bHideParent = true;
+
+   if (!bHideParent)
+   {

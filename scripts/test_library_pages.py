@@ -62,14 +62,16 @@ class Pages(unittest.TestCase):
   local=[{'title':'Lanterns','year':'2026','season':'1','episode':'1'}];cloud=[{'title':'Lanterns','year':'','season':'2','episode':'1'}]
   self.assertEqual(list(worker.art_titles(params,local,cloud)),[('tv','Lanterns','')])
   answers={'search':json.dumps({'results':[{'id':99,'poster_path':'/p.jpg','backdrop_path':'/b.jpg'}]}).encode(),
-           'season':json.dumps({'episodes':[{'episode_number':1,'name':'Pilot'}]}).encode()}
+           'season':json.dumps({'episodes':[{'episode_number':1,'name':'Pilot'}]}).encode(),
+           'show':json.dumps({'id':99,'overview':'Show overview','genres':[{'name':'Drama'}],'images':{'logos':[{'iso_639_1':'en','file_path':'/logo.png'}]}}).encode()}
   import tempfile
   with tempfile.TemporaryDirectory() as tmp:
    urls=[]
-   def get(url,timeout):urls.append(url);return answers['season' if '/season/' in url else 'search']
+   def get(url,timeout):urls.append(url);return answers['season' if '/season/' in url else ('show' if '/tv/99?' in url else 'search')]
    self.assertTrue(worker.hydrate_artwork(params,local,cloud,lib,tmp,'KEY',get,lambda:True))
    cache=lib.load_json(tmp+'/drive-library-art.json',{})
-  self.assertIn('season:99:1',cache);self.assertIn('season:99:2',cache);self.assertEqual(len(urls),3)
+  self.assertIn('season:99:1',cache);self.assertIn('season:99:2',cache);self.assertEqual(len(urls),4)
+  self.assertEqual(cache['show:99']['genres'],['Drama']);self.assertTrue(cache['show:99']['clearlogo'].endswith('/logo.png'))
  def test_pages_are_named(self):
   source=(ROOT/'migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_library.py').read_text()
   self.assertIn("'Downloaded Movies' if kind=='movie' else 'Downloaded TV Shows'",source)

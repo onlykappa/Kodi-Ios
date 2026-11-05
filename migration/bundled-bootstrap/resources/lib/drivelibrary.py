@@ -178,6 +178,24 @@ def season(tmdb_id,number,key,cache,get,cached_only=False):
  cache[slot]=found
  return found
 
+def show_details(tmdb_id,key,cache,get,cached_only=False):
+ """Full show metadata for the downloaded seasons header; only the visible-page worker fetches it."""
+ slot='show:%s'%tmdb_id
+ if slot in cache:return cache[slot]
+ if cached_only or not key or not tmdb_id:return {}
+ query=urllib.parse.urlencode({'api_key':key,'append_to_response':'images','include_image_language':'en,null'})
+ try:data=json.loads(get(TMDB+'/tv/%s?'%urllib.parse.quote(str(tmdb_id),safe='')+query))
+ except Exception:return {}
+ if not data.get('id'):return {}
+ logos=(data.get('images') or {}).get('logos') or []
+ logos=sorted((logo for logo in logos if logo.get('file_path')),key=lambda logo:(logo.get('iso_639_1')!='en',-float(logo.get('vote_average') or 0)))
+ found={'plot':data.get('overview') or '', 'genres':[g['name'] for g in data.get('genres') or [] if g.get('name')],
+        'rating':data.get('vote_average') or 0,'year':str(data.get('first_air_date') or '')[:4],
+        'clearlogo':IMAGE+'original'+logos[0]['file_path'] if logos else ''}
+ if data.get('poster_path'):found['poster']=IMAGE+'w500'+data['poster_path']
+ if data.get('backdrop_path'):found['fanart']=IMAGE+'w1280'+data['backdrop_path']
+ cache[slot]=found;return found
+
 # --- Kodi side -----------------------------------------------------------------------------------------------------
 def load_json(path,default):
  try:

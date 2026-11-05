@@ -107,7 +107,7 @@ class ActualDirectory(unittest.TestCase):
   self.plugin.addDirectoryItem.side_effect=add
   listing=mock.Mock(side_effect=OSError('private URL must not be logged')) if drive_failure else mock.Mock(return_value=([],None))
   fake_drive=SimpleNamespace(parse=drive_lib.parse,tmdb_key=lambda path:'',load_json=lambda path,default:default,
-    save_json=mock.Mock(),artwork=mock.Mock(return_value={}),listing=listing)
+    save_json=mock.Mock(),artwork=mock.Mock(return_value={}),show_details=lambda *a,**k:{},listing=listing)
   self.xbmc=SimpleNamespace(executeJSONRPC=lambda payload:'{"result":{}}',getCondVisibility=lambda condition:drive_enabled,
     log=lambda text,level:self.logs.append(text),LOGWARNING=2)
   with tempfile.TemporaryDirectory() as tmp:
@@ -141,9 +141,19 @@ class ActualDirectory(unittest.TestCase):
   self.plugin.setContent.assert_called_once_with(7,'movies')
  def test_local_tv_episode_renders_resume_safe_exact_path_and_zero_season(self):
   file='/phone/Kodi Downloads/TV Shows/Lanterns/Season 0/S00E02.mkv'
-  self.render([file],params={'action':'library','type':'tv','local':'1','show':'Lanterns','fresh':'1'})
-  self.assertEqual(self.items[0][0],file);self.assertFalse(self.items[0][2]);tag=self.items[0][1].getVideoInfoTag.return_value
+  self.render([file],params={'action':'library','type':'tv','local':'1','show':'Lanterns','fresh':'1','season':'0'})
+  self.assertEqual(parse_qs(urlsplit(self.items[0][0]).query)['path'],[file]);self.assertFalse(self.items[0][2]);tag=self.items[0][1].getVideoInfoTag.return_value
   tag.setMediaType.assert_called_once_with('episode');tag.setSeason.assert_called_once_with(0);tag.setEpisode.assert_called_once_with(2)
   self.plugin.setContent.assert_called_once_with(7,'episodes')
+  self.assertEqual(len(self.items),1)  # no Refresh folder drawn as a fake episode
+ def test_local_show_root_lists_seasons_with_working_downloaded_play_properties(self):
+  file='/phone/Kodi Downloads/TV Shows/Lanterns/Season 1/S01E01.mkv'
+  self.render([file],params={'action':'library','type':'tv','local':'1','show':'Lanterns'})
+  self.assertEqual(len(self.items),1);path,item,folder=self.items[0]
+  self.assertTrue(folder);self.assertEqual(parse_qs(urlsplit(path).query)['season'],['1'])
+  self.plugin.setContent.assert_called_once_with(7,'seasons')
+  properties={call.args[1]:call.args[2] for call in self.plugin.setProperty.call_args_list}
+  self.assertEqual(properties['KodiIOS.DownloadedShow'],'true');self.assertEqual(properties['KodiIOS.PlayLabel'],'Play Episode 1')
+  self.assertEqual(parse_qs(urlsplit(properties['KodiIOS.PlayPath']).query)['path'],[file])
 
 if __name__=='__main__':unittest.main()

@@ -1,5 +1,27 @@
 # Bug 4 — downloaded Library and iPhone scan
 
+## Current continuation — downloaded show layout / scrolling
+
+Owner supplied Claude screenshots and explicitly asked primary + agents to resume. Synced the clean worktree from `c815259` to current PR #8 head `46367aab6fb3fe3943ee202b1801ca0b002b14be` before editing; preserve all intervening Claude changes, including native r22/r12 pins. Do not build another IPA or merge.
+
+The screenshots request: downloaded TV shows use the polished seasons page with logo/rating/genres/plot, a Play Episode 1 or Continue Episode N button, no Download action for existing downloads, no stray grey episode/play tile, correct Library/show titles, and fluid whole-page scrolling rather than an isolated episode list.
+
+Committed Claude work (`91ff714`, `46367aa`) already merges duplicate show/movie cards, adds episode metadata/background season fetching, names plugin categories and changes navigation button styling. The screenshot's later seasons/Play/Download changes are **not present in this synced branch**: downloaded shows still return `episodes`, the skin still gates Play on `seasons`, and a Refresh Library folder is still appended to episode content. The source also fixes the episode list below a static header, explaining why only its lower portion scrolls.
+
+Assignments completed: `downloaded_show` implemented seasons/episode routes, cached show metadata and exact completed-file Play/Continue state; `show_layout` implemented shared polished skin behavior, stray-item visibility and whole-page scrolling. Primary integrated/reviewed source, added parent-row suppression and ran combined checks. **362 tests across 24 suites pass**, with native methods compiled on the host and the complete patch applied to the exact Kodi pin. Delivery stays in existing draft PR #8 with `[skip ci]`; no new phone success claimed. Earlier validation below is historical to the previous bug-4 patch.
+
+Continuation milestones:
+
+- Baseline synced-source suites passed: Library pages 8, refresh 16, artwork 14, Continue Watching 19 (57 tests before this continuation's changes).
+- Downloaded-show seasons routes, cached full-show details and episode playback wrapper are implemented locally; resume/history tests are being added. Episode pages no longer append a refresh folder that could appear as a fake episode card.
+- Whole-page scroll design is confirmed against Kodi source: a full-height lazy-rendered episode viewport inside one portrait Videos group, with a scoped native handoff that consumes the header offset first and then episode offset, reversing in the opposite order. XML-only nesting would leave the original swipe capture bug. New native code remains staged and requires a future executable build/pin before phone acceptance.
+- Primary review found that Kodi's `Files.GetFileDetails` performs VFS existence/directory work, so calling it for every cloud episode could invoke Drive browsing and local calls could repeatedly rescan a folder. Agent is replacing this with safe/batched local and history/database lookup before final validation.
+- Downloaded-show source is now complete: **20 new behavior tests** pass, including batched bookmarks, exact completed-copy resolution, provider/history preservation and Play/Continue refresh after playback. Refresh suite now has **17 passing tests**; artwork suite **14**.
+- Layout/native source is complete: **7 tests** compile and exercise actual scroll methods (direction changes, bounds, short lists, isolation and selection). Existing portrait suite passes **44 tests**. Parent-row suppression adds a compiled native decision test. Full patch applies to all **30** affected pinned source files; applied-source comparison confirms only the five intended GUI files differ from Claude's baseline.
+- Combined verification exposed two integration issues: unchanged native patch whitespace broke a literal existing tab-bar assertion (restored untouched hunks byte-for-byte; 25 tab-bar tests now pass), and an existing bundle-precompile test requires Python 3.11 while the executor defaults to 3.12. Installing a separate task-local 3.11 interpreter to run that check; no IPA is being built.
+- Final verification: both issues above are repaired; **362/362 tests across 24 suites pass**. Full patched-source comparison confirms exactly five GUI files differ from Claude's baseline, with all unrelated native hunks preserved. Exact source hashes, original failures/rechecks and device tests are in [reports/downloaded-show-validation.json](../reports/downloaded-show-validation.json).
+- Remaining: the new whole-page touch handoff and parent-row suppression are **staged source**, absent from the pinned r22 executable. A separately authorized executable build/release/pin and actual iPhone testing are needed to deliver/accept those native changes. No new IPA, executable/framework release, merge or owner-media operation occurred in this continuation.
+
 ## Scope and status
 
 Owner requests: downloaded movies/shows appear automatically in Library; repair the grey `..` navigation tile; add manual refresh; add Settings › Library › Scan iPhone files for movies and shows, upload missing files to Drive, then delete only verified phone duplicates. Continue in draft PR #8. No IPA, release or merge.

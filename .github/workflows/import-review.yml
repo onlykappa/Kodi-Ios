@@ -130,6 +130,9 @@ jobs:
           python3 -B scripts/test_library_refresh.py
           python3 -B scripts/test_library_artwork.py
           python3 -B scripts/test_library_pages.py
+          python3 -B scripts/test_downloaded_show.py
+          python3 -B scripts/test_show_scrolling.py
+          python3 -B scripts/test_show_parent_navigation.py
           python3 -B scripts/test_settings_page.py
           python3 -B scripts/test_genre_photos.py
           python3 -B scripts/test_search_categories.py

@@ -768,3 +768,19 @@ Status: FIXED IN SOURCE; device evidence pending.
 Status: DONE IN SOURCE; device check pending.
 - Owner (build 146, screenshot): prefers the video player's back button (a bold white chevron with no circle, 104 in a 150 touch area) to the 108 glass circle with a 46 glyph used on the other pages.
 - `portrait.nav_button` draws back and refresh that way (same size on the phone in both layouts) and is used for: video/Library/episode pages (back + refresh), Choose a version, Notifications, and the Settings header (Settings, Accounts and the pages built on it). The glyph dims while focused. Test: `test_back_and_refresh_look_like_the_player_everywhere`.
+
+### ISSUE-098 screenshot continuation — downloaded seasons / Play and Continue
+
+- Owner's Claude screenshots showed the unfinished follow-up: downloaded Lanterns still used a bare episode page, with no logo/genres/Play and an extra grey play tile; movies/TV could show the Watch add-on name.
+- Downloaded shows now return seasons and season-specific episode routes, cached full-show metadata and exact completed-file Play/Continue state. Background fetches remain bounded; metadata is also allowed during downloads as fixed by Claude. All matching Drive folders participate, with phone copies preferred. Bookmark reads batch local directories; plugin paths never trigger filesystem bookmark RPCs.
+- Actual local/Drive playback resolver retains resume and provider/version history, and clears unrelated history when TMDb identity is unavailable. Returning from playback refreshes the button after progress changes. Refresh stays in header/context instead of a fake episode folder; non-episode decorations are hidden. Titles use show/plugin category fallbacks. Watch add-on version 1.4.4.
+- Evidence: reports/downloaded-show-validation.json; 362 tests/24 suites pass. New native layout behavior is tracked in ISSUE-100; phone acceptance pending.
+
+## ISSUE-100 — Show page scrolls only the lower episode list
+
+Status: FIXED IN SOURCE, NATIVE PATCH STAGED; pinned r22 lacks the new code.
+- Root cause: portrait seasons/episodes lived in a fixed lower list below an unscrolling header. Simply nesting another vertical list does not help because Kodi's child list captures same-axis gestures.
+- One portrait Videos group (window 10025, group 9900, lists 52/60) now contains header, actions, plot, seasons and a full-height lazy episode viewport. A single native pan delta moves the header first then episode offset; reverse gestures rewind episodes before restoring the header. Short seasons avoid extra blank extent, edge/inertial scrolling clamps, horizontal chips retain independent movement, and keyboard focus keeps ordinary scroll-into-view behavior. Touch selection cannot jump the header away.
+- A downloaded-show-only parent-row guard suppresses Kodi's synthetic `..` item so it cannot occupy a blank season/episode slot; back navigation remains available. Unrelated native patch sections are preserved byte-for-byte.
+- Validation: production method bodies compiled/executed with GUI geometry stubs, scoped parent-row branch compiled/executed, generated layout/visibility checks, 44 portrait regressions, full patch applied against 30 original files at Kodi a3a448d26b8d560a65655dab2cd122994dc4e146. Applied-source comparison changes only five intended GUI files. Total 362 tests/24 suites pass; first formatting/interpreter failures and successful rechecks retained in the report.
+- Remaining: full iPhoneOS SDK build/release/verified executable pin, then actual phone touch/momentum, short/long seasons, local/Drive resume and visual acceptance. No new native build, IPA, release or merge performed; current executable pin stays r22.

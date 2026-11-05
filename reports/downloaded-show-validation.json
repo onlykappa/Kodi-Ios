@@ -1,0 +1,418 @@
+{
+  "date": "2026-11-05",
+  "scope": "Downloaded show seasons layout, Play/Continue, stray navigation cards and whole-page scrolling",
+  "baseline": "46367aab6fb3fe3943ee202b1801ca0b002b14be",
+  "pull_request": "https://github.com/onlykappa/Kodi-Ios/pull/8",
+  "status": "source_verified_native_change_staged_phone_acceptance_pending",
+  "tests": {
+    "passed": true,
+    "total": 362,
+    "suite_count": 24,
+    "final_results": [
+      {
+        "suite": "test_downloaded_show",
+        "tests": 20,
+        "passed": true,
+        "seconds": 0.177
+      },
+      {
+        "suite": "test_show_scrolling",
+        "tests": 7,
+        "passed": true,
+        "seconds": 0.744
+      },
+      {
+        "suite": "test_show_parent_navigation",
+        "tests": 1,
+        "passed": true,
+        "seconds": 0.347
+      },
+      {
+        "suite": "test_library_pages",
+        "tests": 8,
+        "passed": true,
+        "seconds": 0.152
+      },
+      {
+        "suite": "test_library_scan",
+        "tests": 31,
+        "passed": true,
+        "seconds": 0.201
+      },
+      {
+        "suite": "test_library_refresh",
+        "tests": 17,
+        "passed": true,
+        "seconds": 0.173
+      },
+      {
+        "suite": "test_library_artwork",
+        "tests": 14,
+        "passed": true,
+        "seconds": 0.171
+      },
+      {
+        "suite": "test_drive_library",
+        "tests": 17,
+        "passed": true,
+        "seconds": 0.168
+      },
+      {
+        "suite": "test_drive_upload",
+        "tests": 17,
+        "passed": true,
+        "seconds": 4.809
+      },
+      {
+        "suite": "test_downloaded_play",
+        "tests": 9,
+        "passed": true,
+        "seconds": 0.139
+      },
+      {
+        "suite": "test_settings_page",
+        "tests": 22,
+        "passed": true,
+        "seconds": 2.421
+      },
+      {
+        "suite": "test_settings_search",
+        "tests": 5,
+        "passed": true,
+        "seconds": 0.069
+      },
+      {
+        "suite": "test_listing_cache",
+        "tests": 27,
+        "passed": true,
+        "seconds": 0.406
+      },
+      {
+        "suite": "test_continue_downloads",
+        "tests": 19,
+        "passed": true,
+        "seconds": 0.153
+      },
+      {
+        "suite": "test_watch_routes",
+        "tests": 10,
+        "passed": true,
+        "seconds": 0.074
+      },
+      {
+        "suite": "test_watch_dialog",
+        "tests": 13,
+        "passed": true,
+        "seconds": 0.11
+      },
+      {
+        "suite": "test_watch_continue",
+        "tests": 8,
+        "passed": true,
+        "seconds": 0.071
+      },
+      {
+        "suite": "test_notices",
+        "tests": 14,
+        "passed": true,
+        "seconds": 2.302
+      },
+      {
+        "suite": "test_native_startup",
+        "tests": 3,
+        "passed": true,
+        "seconds": 0.45
+      },
+      {
+        "suite": "test_glassbar",
+        "tests": 25,
+        "passed": true,
+        "seconds": 0.465
+      },
+      {
+        "suite": "test_performance_budget",
+        "tests": 13,
+        "passed": true,
+        "seconds": 0.216
+      },
+      {
+        "suite": "test_ios",
+        "tests": 8,
+        "passed": true,
+        "seconds": 0.484
+      },
+      {
+        "suite": "test_customized_ipa",
+        "tests": 10,
+        "passed": true,
+        "seconds": 0.524,
+        "bundle_precompile_interpreter": "3.11.17"
+      },
+      {
+        "suite": "test_portrait",
+        "tests": 44,
+        "passed": true,
+        "seconds": 141.12
+      }
+    ],
+    "initial_attempt": [
+      {
+        "suite": "test_downloaded_show",
+        "tests": 20,
+        "passed": true,
+        "seconds": 0.177
+      },
+      {
+        "suite": "test_show_scrolling",
+        "tests": 7,
+        "passed": true,
+        "seconds": 0.697
+      },
+      {
+        "suite": "test_show_parent_navigation",
+        "tests": 1,
+        "passed": true,
+        "seconds": 0.37
+      },
+      {
+        "suite": "test_library_pages",
+        "tests": 8,
+        "passed": true,
+        "seconds": 0.152
+      },
+      {
+        "suite": "test_library_scan",
+        "tests": 31,
+        "passed": true,
+        "seconds": 0.201
+      },
+      {
+        "suite": "test_library_refresh",
+        "tests": 17,
+        "passed": true,
+        "seconds": 0.173
+      },
+      {
+        "suite": "test_library_artwork",
+        "tests": 14,
+        "passed": true,
+        "seconds": 0.171
+      },
+      {
+        "suite": "test_drive_library",
+        "tests": 17,
+        "passed": true,
+        "seconds": 0.168
+      },
+      {
+        "suite": "test_drive_upload",
+        "tests": 17,
+        "passed": true,
+        "seconds": 4.809
+      },
+      {
+        "suite": "test_downloaded_play",
+        "tests": 9,
+        "passed": true,
+        "seconds": 0.139
+      },
+      {
+        "suite": "test_settings_page",
+        "tests": 22,
+        "passed": true,
+        "seconds": 2.421
+      },
+      {
+        "suite": "test_settings_search",
+        "tests": 5,
+        "passed": true,
+        "seconds": 0.069
+      },
+      {
+        "suite": "test_listing_cache",
+        "tests": 27,
+        "passed": true,
+        "seconds": 0.406
+      },
+      {
+        "suite": "test_continue_downloads",
+        "tests": 19,
+        "passed": true,
+        "seconds": 0.153
+      },
+      {
+        "suite": "test_watch_routes",
+        "tests": 10,
+        "passed": true,
+        "seconds": 0.074
+      },
+      {
+        "suite": "test_watch_dialog",
+        "tests": 13,
+        "passed": true,
+        "seconds": 0.11
+      },
+      {
+        "suite": "test_watch_continue",
+        "tests": 8,
+        "passed": true,
+        "seconds": 0.071
+      },
+      {
+        "suite": "test_notices",
+        "tests": 14,
+        "passed": true,
+        "seconds": 2.302
+      },
+      {
+        "suite": "test_native_startup",
+        "tests": 3,
+        "passed": true,
+        "seconds": 0.345
+      },
+      {
+        "suite": "test_glassbar",
+        "tests": 25,
+        "passed": false,
+        "seconds": 0.449
+      },
+      {
+        "suite": "test_performance_budget",
+        "tests": 13,
+        "passed": true,
+        "seconds": 0.149
+      },
+      {
+        "suite": "test_ios",
+        "tests": 8,
+        "passed": true,
+        "seconds": 0.484
+      },
+      {
+        "suite": "test_customized_ipa",
+        "tests": 10,
+        "passed": false,
+        "seconds": 0.26
+      },
+      {
+        "suite": "test_portrait",
+        "tests": 44,
+        "passed": true,
+        "seconds": 141.12
+      }
+    ],
+    "targeted_rechecks": [
+      {
+        "suite": "test_glassbar",
+        "tests": 25,
+        "passed": true,
+        "seconds": 0.465
+      },
+      {
+        "suite": "test_customized_ipa",
+        "tests": 10,
+        "passed": true,
+        "seconds": 0.524,
+        "bundle_precompile_interpreter": "3.11.17"
+      },
+      {
+        "suite": "test_show_scrolling",
+        "tests": 7,
+        "passed": true,
+        "seconds": 0.744
+      },
+      {
+        "suite": "test_show_parent_navigation",
+        "tests": 1,
+        "passed": true,
+        "seconds": 0.347
+      },
+      {
+        "suite": "test_native_startup",
+        "tests": 3,
+        "passed": true,
+        "seconds": 0.45
+      },
+      {
+        "suite": "test_performance_budget",
+        "tests": 13,
+        "passed": true,
+        "seconds": 0.216
+      }
+    ]
+  },
+  "repaired_validation_issues": [
+    "Restored unchanged native patch sections byte-for-byte to retain literal tab-bar regression context; semantic applied changes remain only five GUI files.",
+    "Executor default Python is 3.12; installed task-local 3.11.17 and used KODI_IOS_PYTHON311 for the existing bundle-precompile fixture test. No IPA was produced."
+  ],
+  "native_patch": {
+    "passed": true,
+    "pin": "a3a448d26b8d560a65655dab2cd122994dc4e146",
+    "pinned_files": 30,
+    "full_patch_applies": true,
+    "only_native_semantic_changes": [
+      "xbmc/guilib/GUIBaseContainer.cpp",
+      "xbmc/guilib/GUIBaseContainer.h",
+      "xbmc/guilib/GUIControlGroupList.cpp",
+      "xbmc/guilib/GUIControlGroupList.h",
+      "xbmc/windows/GUIMediaWindow.cpp"
+    ],
+    "patch_sha256": "054c3ff6ea11ebcdc3f95cf422627193335ceb34d4d770247da83b002c5f25cf"
+  },
+  "integration_source_review": {
+    "kodi_commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
+    "bookmark_lookup": "Files.GetFileDetails performs Exists + parent-directory enumeration. Replaced per-episode calls with unique local-parent batches and database/history reads; plugin paths never sent to filesystem RPCs.",
+    "plugin_resolution": "Application::PlayFile invokes directory Resolve. PluginDirectory::GetResolvedPluginResult recursively resolves plugin URLs, and GetPluginResult merges metadata and forces STARTOFFSET_RESUME when a resume point is supplied. This supports the watch -> Google Drive -> media resolver contract in source."
+  },
+  "verified_behaviors": [
+    "Downloaded show opens seasons with cached logo/rating/year/genres/plot; season route returns exact available episodes including specials.",
+    "Play Episode N or Continue Episode N selects an actual completed copy and preserves bookmark/resume plus provider/version history. Unknown TMDb identity clears unrelated active history.",
+    "Show episode lists omit the Refresh folder; decorative episode groups exclude non-episode rows. Native show-only parent-row suppression removes blank parent slots.",
+    "All matching Drive show folders participate; local duplicates preferred; no provider redownload fallback.",
+    "Progress-file revision refreshes the Play/Continue state once after returning from playback while avoiding off-page or busy file reads.",
+    "One lazy portrait show-page viewport shares a pan delta between header and episode offsets; reverse direction, limits, short seasons, non-TV/horizontal isolation and selection tested using production method bodies.",
+    "Touch focus cannot jump header away; keyboard focus retains ordinary scroll-into-view behavior.",
+    "Provider season Play/Download actions and Claude plain navigation-button style remain."
+  ],
+  "source_sha256": {
+    ".github/workflows/import-review.yml": "cf9092fa65fc6cc541ee1e854a410ac77dac115fd8be33c4b80aa1cf89fd941c",
+    "migration/bundled-bootstrap/resources/lib/drivelibrary.py": "621e57eb82fd1309d0d8518f11785801c42f1c1017103bcfc5a64bc7da7cd732",
+    "migration/bundled-bootstrap/resources/lib/library_watch.py": "235c430ecd6ea1ecb954815aebf429913aab7e7e49507316b856db58aa38e5ed",
+    "migration/bundled-bootstrap/resources/lib/portrait.py": "c8d75bb4d7596ed1b98de09047ee71737141f4dafe7aa470c440d6ec2b31210b",
+    "migration/import-overlays/plugin.video.kodi.ios.watch/addon.xml": "bfd79fe3253fd161221c2b747246a9ef8c2b43eaefd8a8a378af9d81a57b7952",
+    "migration/import-overlays/plugin.video.kodi.ios.watch/default.py": "2b8a8357d0795dda0cfda02046c869005c34c36477df3bc9ca14a753aa40bf63",
+    "migration/import-overlays/plugin.video.kodi.ios.watch/resources/lib/ios_library.py": "1652843f220bcbc6a9266a4c22d2b45331cc470b74f686471cc1b6b98e852b28",
+    "migration/ios-portrait/kodi-21.3-portrait.patch": "054c3ff6ea11ebcdc3f95cf422627193335ceb34d4d770247da83b002c5f25cf",
+    "migration/ios-portrait/source-lock.json": "f9c52f02d17698cb0972db64d0cf54315754770bfb1fd615fa9c75efec36cdca",
+    "scripts/test_downloaded_show.py": "38de801d6c778cc949814d100dbf23389fb503a0aac6d6c4aa8d4696a01ae4b6",
+    "scripts/test_library_pages.py": "f70e85b5f7b7b2fde92499015ae85a5daf75fa8385f085e048163aee34982894",
+    "scripts/test_library_refresh.py": "c221232d3baa1ca188c39e52cca997606000d19ba1274a9ce85705ece9a0ef9c",
+    "scripts/test_show_parent_navigation.py": "e33e823720c6354aabb2fcd495c721c922c8b36f90aea0fddf8928759a91c274",
+    "scripts/test_show_scrolling.py": "145c832fb78a0861a95f4b026f41840594ce0f47ebbf8be28d554e9c0312d06a"
+  },
+  "limits": [
+    "No full iPhoneOS SDK compile or desktop Kodi rendering in this continuation; native tests use actual patched method bodies with small GUI geometry stubs.",
+    "Pinned Kodi executable stays r22; it does not contain the new scroll/parent-row code. Requires separately authorized executable build, verified release and pin before testing these native changes on a phone.",
+    "Actual iPhone touch momentum, long/short seasons, nested Drive resume and final layout need device acceptance.",
+    "No new IPA, executable/framework release, merge, live account upload or phone-file operation."
+  ],
+  "device_retest": [
+    "Downloaded Lanterns and a multi-season show: logo/meta/plot, season chips, correct Play/Continue, no Download button or grey extra card.",
+    "Swipe starting on header, plot, season chips and episode card; verify whole page, reverse swipes, short season, long list and back/refresh access.",
+    "Play/resume downloaded local and Drive episodes, return and observe updated Continue target; existing provider show still offers Download.",
+    "Open Downloaded Movies/TV and root/empty folders: correct title and working refresh; no Watch add-on branding."
+  ],
+  "static_checks": {
+    "check_project.py": {
+      "passed": true,
+      "files_scanned": 368,
+      "static_only": null
+    },
+    "check_ios.py": {
+      "passed": true,
+      "files_scanned": null,
+      "static_only": true
+    },
+    "diff_check": true
+  }
+}

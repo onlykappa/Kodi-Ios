@@ -38,6 +38,8 @@ def run(argv):
   root_directory(handle);return
  if params.get('action')=='library':
   from ios_library import directory;directory(handle,params);return
+ if params.get('action')=='library_play':
+  from ios_library import play_downloaded;play_downloaded(handle,params);return
  if params.get('action')=='continue':
   from ios_continue import directory;directory(handle,params.get('type','all'));return
  if params.get('action')=='choose_source':
