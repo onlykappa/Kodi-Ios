@@ -1,4 +1,4 @@
-name: Kodi 21.3 iPhone executable with rotation (r11 portrait)
+name: Build Kodi iPhone executable
 on:
   pull_request:
     types: [opened, synchronize, reopened]
