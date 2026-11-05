@@ -14,7 +14,7 @@ if __name__=='__main__' and not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
 from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
-import airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready
+import signin_server,airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready
 _IMPORT_SECONDS=time.monotonic()-_IMPORT_STARTED
 
 def run():
@@ -201,10 +201,11 @@ def drive_uploads(monitor,home,profile):
  from clouddrive.common.account import AccountManager
  from clouddrive.common.remote.request import tls_context
  drive_addon=xbmcaddon.Addon('plugin.googledrive')
+ if signin_server.migrate(drive_addon):xbmc.log('Kodi iOS Drive: sign-in server set to the owner worker',xbmc.LOGINFO)
  accounts=AccountManager(xbmcvfs.translatePath(drive_addon.getAddonInfo('profile')))
  send=driveupload.sender(tls_context())
  def refresh(refresh_token):
-  server=(drive_addon.getSetting('sign-in-server') or 'https://drive.signinserver.com').strip().rstrip('/')
+  server=signin_server.server(drive_addon.getSetting('sign-in-server'))
   body=urllib.parse.urlencode({'provider':'googledrive','refresh_token':refresh_token}).encode()
   status,_,answer=send('POST',server+'/refresh',body,{'Content-Type':'application/x-www-form-urlencoded'})
   if status!=200:raise RuntimeError('Drive sign-in refresh: HTTP %s'%status)

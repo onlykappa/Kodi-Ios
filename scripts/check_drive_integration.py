@@ -17,7 +17,7 @@ def check(root=ROOT):
  config=root/'migration/ios/userdata/addon_data/plugin.googledrive'
  assert {p.name for p in config.iterdir()}=={'settings.xml'},'Unexpected private account-state file'
  settings={x.get('id'):x.text for x in ET.parse(config/'settings.xml').getroot().findall('setting')}
- expected={'sign-in-server':'https://drive.signinserver.com','set_subtitle':'true','ask_resume':'true','allow_directory_listing':'false','clean_folder':'false'}
+ expected={'sign-in-server':'https://kodi-signin.ballaking1738.workers.dev','set_subtitle':'true','ask_resume':'true','allow_directory_listing':'false','clean_folder':'false'}
  assert settings==expected,'Unexpected endpoint, private setting, or unsafe preference'
  menu=json.loads((root/'migration/ios/userdata/addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-homesubmenu.json').read_text())
  entries=[x for x in menu if x.get('label')=='Google Drive']

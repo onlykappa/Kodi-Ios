@@ -6,7 +6,7 @@
   "relay": {
     "repository": "cguZZman/signin-server",
     "commit": "5923ee409dec93f7c749ccb91b7a2fe5a22519b3",
-    "endpoint": "https://drive.signinserver.com",
+    "endpoint": "https://kodi-signin.ballaking1738.workers.dev",
     "scope": "https://www.googleapis.com/auth/drive.readonly",
     "runtime_verified": false
   },
