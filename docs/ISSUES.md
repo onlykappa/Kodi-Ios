@@ -762,3 +762,9 @@ Status: FIXED IN SOURCE; device evidence pending.
 - One card per downloaded show (same name ignoring case, punctuation and year; Kodi's own library rows untouched). It opens `?action=library&type=tv&show=…&merge=1[&folder=…]`, listing the phone's and Drive's episodes. A movie both on the phone and on Drive shows once (the phone copy).
 - Show page: each episode once (phone copy first), in season/episode order, with the show's TMDb background and poster (`tvshow.fanart`/`tvshow.poster` for the existing show header) and TMDb episode name, plot, still, runtime and air date (`drivelibrary.season`, cached; fetched by the visible-page worker like posters).
 - Titles: "Downloaded Movies", "Downloaded TV Shows" or the show name (`Container.PluginCategory`, now used by `Portrait_Page_Title` before the folder name). Test: `scripts/test_library_pages.py` (in CI).
+
+## ISSUE-099 — Owner request: the video player's back button everywhere
+
+Status: DONE IN SOURCE; device check pending.
+- Owner (build 146, screenshot): prefers the video player's back button (a bold white chevron with no circle, 104 in a 150 touch area) to the 108 glass circle with a 46 glyph used on the other pages.
+- `portrait.nav_button` draws back and refresh that way (same size on the phone in both layouts) and is used for: video/Library/episode pages (back + refresh), Choose a version, Notifications, and the Settings header (Settings, Accounts and the pages built on it). The glyph dims while focused. Test: `test_back_and_refresh_look_like_the_player_everywhere`.

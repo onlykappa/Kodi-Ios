@@ -220,7 +220,7 @@ SETTINGS_Y=76;SETTINGS_TOP=SETTINGS_Y+164
 def header(p,back_actions,titles,y=36,down='<ondown>9300</ondown>'):
  """Glass back button and centred title over a black bar (the page scrolls under it)."""
  bar=p.image(0,0,p.WIDTH,y+154,p.MEDIA+'white.png',p.BG)+p.image(0,y+154,p.WIDTH,60,p.MEDIA+'fade_down.png')
- back=p.pill_button(9001,p.SIDE,y,108,108,'',back_actions,'glass','chevron-left.png',down)
+ back=p.nav_button(9001,p.SIDE,y,'chevron-left.png',back_actions,down)
  names=''.join(p.label(260,y,p.WIDTH-520,108,t,'p_h3',p.WHITE,'center','<visible>%s</visible>'%c if c else '') for t,c in titles)
  return bar+names+back
 
@@ -365,7 +365,7 @@ def setting_body(p,title,header_buttons,extra='',categories=True):
 
 def category_window(p,original):
  """portrait/SettingsCategory.xml: System, Player, Media, Interface, Services, PVR and Games pages."""
- back=p.pill_button(9001,p.SIDE,36,108,108,'',[('','Action(Back)')],'glass','chevron-left.png','<ondown>3</ondown>')
+ back=p.nav_button(9001,p.SIDE,36,'chevron-left.png','Action(Back)','<ondown>3</ondown>')
  level=('<control type="button" id="20"><left>%d</left><top>36</top><width>290</width><height>108</height><font>p_foot_b</font>'
         '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
         '<texturefocus border="54" colordiffuse="FF48484A">%spill_108.png</texturefocus><texturenofocus border="54" colordiffuse="%s">%spill_108.png</texturenofocus>'

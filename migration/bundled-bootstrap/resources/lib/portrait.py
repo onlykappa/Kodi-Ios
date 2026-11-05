@@ -191,6 +191,21 @@ def pill_button(id,x,y,w,h,text,actions,style,glyph='',extra='',glyph_x=None):
 
 def circle_button(id,x,y,size,glyph,action,extra=''):return pill_button(id,x,y,size,size,'',[('',action)],'glass',glyph,extra)
 
+NAV_TOUCH=150;NAV_GLYPH=104
+def nav_button(id,x,y,glyph,actions,extra='',visible=''):
+ """Back and refresh as the video player has them (owner, build 146: "I love this back button, apply it everywhere"):
+ a bold white glyph with no circle, the player's 104 in a 150 touch area (both layouts show 1 unit as the same size
+ on the phone). x, y place it where the 108 glass circle was; the glyph dims while focused so a tap shows.
+ actions: an action, or [(condition, action)]."""
+ actions=[('',actions)] if isinstance(actions,str) else actions
+ clicks=''.join('<onclick%s>%s</onclick>'%(' condition="%s"'%e(c) if c else '',e(a)) for c,a in actions)
+ c=54  # centre of the old 108 circle, inside the group placed where it was
+ dim='<animation effect="fade" start="100" end="65" time="0" condition="Control.HasFocus(%d)">Conditional</animation>'%id
+ return ('<control type="group"><left>%s</left><top>%s</top><width>108</width><height>108</height>%s'%(x,y,'<visible>%s</visible>'%visible if visible else '')+
+  '<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
+  '<texturefocus /><texturenofocus />%s%s</control>'%(id,c-NAV_TOUCH//2,c-NAV_TOUCH//2,NAV_TOUCH,NAV_TOUCH,clicks,extra)+
+  icon(c-NAV_GLYPH//2,c-NAV_GLYPH//2,NAV_GLYPH,glyph,WHITE,dim)+'</control>')
+
 NOTICES='RunScript(service.kodi.ios.bootstrap,notifications)'
 def bell(x,y,extra=''):
  """Bell beside the profile circle: red count of unread messages, blue ring while a download runs
@@ -640,11 +655,11 @@ def video_nav(original):
  generic=('<control type="list" id="51"><left>0</left><top>190</top><width>%d</width><bottom>0</bottom><onup>9001</onup>'
   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>!Container.IsUpdating + !Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>'
   '<itemlayout height="210">%s</itemlayout><focusedlayout height="210">%s</focusedlayout></control>')%(WIDTH,gen_item(False),gen_item(True))
- back=circle_button(9001,SIDE,36,108,'chevron-left.png','Back','<ondown>9002</ondown>')
+ back=nav_button(9001,SIDE,36,'chevron-left.png','Back','<ondown>9002</ondown>')
  plain_title=label(SIDE+136,36,WIDTH-2*SIDE-136,108,'$INFO[Container.FolderName]','p_h2',WHITE,'left','<visible>!Container.IsUpdating + !Container.Content(seasons) + !Container.Content(episodes) + !Container.Content(movies) + !Container.Content(tvshows)</visible>')
- refresh=circle_button(9010,WIDTH-SIDE-108,36,108,'arrows-rotate.png',
-  'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh)',
-  '<visible>String.StartsWith(Container.FolderPath,plugin://plugin.video.kodi.ios.watch/) + String.Contains(Container.FolderPath,action=library)</visible><ondown>53</ondown>')
+ refresh=nav_button(9010,WIDTH-SIDE-108,36,'arrows-rotate.png',
+  'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh)','<ondown>53</ondown>',
+  'String.StartsWith(Container.FolderPath,plugin://plugin.video.kodi.ios.watch/) + String.Contains(Container.FolderPath,action=library)')
  body=('<controls>'+backdrop()+show_header('50')+chips+
   # Seasons page: episodes of the season chip in focus. Episodes page: the folder's own list.
   episodes%(60,1176+DL_SHIFT,WIDTH,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>')+
@@ -848,7 +863,7 @@ def deck_page(original=''):
  lst=('<control type="list" id="32503"><left>%d</left><top>%d</top><width>%d</width><bottom>40</bottom><orientation>vertical</orientation>'
   '<onup>32500</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
   '<itemlayout height="236">%s</itemlayout><focusedlayout height="236">%s</focusedlayout></control>')%(SIDE,top+poster_h+230,WIDTH-2*SIDE,deck_row(False),deck_row(True))
- back=circle_button(32500,SIDE,36,108,'chevron-left.png','Close','<ondown>32503</ondown>')
+ back=nav_button(32500,SIDE,36,'chevron-left.png','Close','<ondown>32503</ondown>')
  body='<controls>%s%s%s%s%s%s</controls>'%(backdrop(),head,heading,sub,lst,back)
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">32503</defaultcontrol>'
          '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>%s</window>\n')%(MARKER,body)
@@ -900,7 +915,7 @@ def notices_page():
    '<align>center</align><aligny>center</aligny><texturefocus /><texturenofocus /></control></control>'%(9101+i,w//len(NOTICE_FILTERS),text,GREY,WHITE)
    for i,(key,text) in enumerate(NOTICE_FILTERS))
  body=('<controls>'+backdrop()+
-  circle_button(9001,SIDE,36,108,'chevron-left.png','Close','<ondown>9101</ondown>')+
+  nav_button(9001,SIDE,36,'chevron-left.png','Close','<ondown>9101</ondown>')+
   '<control type="button" id="9002"><left>%d</left><top>36</top><width>260</width><height>108</height><label>Clear All</label><font>p_body</font>'
   '<textcolor>FF0A84FF</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>right</align><aligny>center</aligny><texturefocus /><texturenofocus /></control>'%(WIDTH-SIDE-260)+
   label(SIDE,160,w,110,'Notifications','p_large')+

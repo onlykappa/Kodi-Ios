@@ -76,5 +76,18 @@ class Pages(unittest.TestCase):
   skin=(BOOT/'portrait.py').read_text()
   self.assertIn('<value condition="!String.IsEmpty(Container.PluginCategory)">$INFO[Container.PluginCategory]</value>',skin)
   self.assertEqual(page.current_params(page.page_url({'type':'tv','show':'A','merge':'1'}))['merge'],'1')
+ def test_back_and_refresh_look_like_the_player_everywhere(self):
+  # Owner (build 146): "I love this back button and want it applied everywhere" (the video player's back).
+  for name in ('portrait.py','settings_page.py'):
+   source=(BOOT/name).read_text()
+   for line in source.splitlines():
+    if ('chevron-left.png' in line or 'arrows-rotate.png' in line) and ('circle_button(' in line or "'glass','chevron-left.png'" in line):
+     self.fail('%s still draws a glass circle: %s'%(name,line.strip()[:90]))
+  sys.path.insert(0,str(BOOT))
+  import portrait
+  xml=portrait.nav_button(9001,48,36,'chevron-left.png','Back')
+  self.assertIn('<width>150</width>',xml);self.assertIn('<width>104</width>',xml);self.assertNotIn('glass_',xml)
+  self.assertIn('<left>48</left><top>36</top>',xml)
+
 
 if __name__=='__main__':unittest.main()
