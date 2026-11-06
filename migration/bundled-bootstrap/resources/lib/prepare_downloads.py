@@ -99,7 +99,8 @@ class Native:
  def __init__(self,lib):
   if not hasattr(lib,'kodi_airplay_prepare') or not hasattr(lib,'kodi_airplay_probe'):
    raise RuntimeError('Install the build with download preparation support')
-  self.lib=lib
+  self.lib=lib;self.keep_going=lambda:True
+  self.hdr=hasattr(lib,'kodi_airplay_prepare_hdr') and lib.kodi_airplay_prepare_hdr()==1
   self.outputs=hasattr(lib,'kodi_airplay_prepare_to') and hasattr(lib,'kodi_airplay_verify')
   if not self.outputs:raise RuntimeError('Install the build with storage-free preparation support')
   lib.kodi_airplay_prepare_to.argtypes=[ctypes.c_char_p,WRITE,ctypes.c_void_p,CALLBACK,ctypes.c_void_p,ctypes.c_char_p,ctypes.c_int]
@@ -108,6 +109,9 @@ class Native:
   lib.kodi_airplay_verify.restype=ctypes.c_int
   # r14: probe/prepare read an http://127.0.0.1 source, so a Drive file is streamed, never downloaded first.
   self.streams=bool(hasattr(lib,'kodi_airplay_prepare_streams') and lib.kodi_airplay_prepare_streams()==1)
+  if hasattr(lib,'kodi_airplay_probe_ex'):
+   lib.kodi_airplay_probe_ex.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_int,CALLBACK,ctypes.c_void_p]
+   lib.kodi_airplay_probe_ex.restype=ctypes.c_int
   lib.kodi_airplay_probe.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_probe.restype=ctypes.c_int
   lib.kodi_airplay_prepare.argtypes=[ctypes.c_char_p,ctypes.c_char_p,CALLBACK,ctypes.c_void_p,ctypes.c_char_p,ctypes.c_int]
   lib.kodi_airplay_prepare.restype=ctypes.c_int
@@ -119,7 +123,18 @@ class Native:
    lib.kodi_airplay_prepare_keep_image_subs(1)
  def probe(self,path):
   out=ctypes.create_string_buffer(1024)
-  if self.lib.kodi_airplay_probe(os.fsencode(str(path)),out,len(out))<0:raise RuntimeError('Video could not be inspected')
+  if hasattr(self.lib,'kodi_airplay_probe_ex'):
+   errors=[]
+   def continuing(stage,n,t,ctx):
+    try:return int(bool(self.keep_going()))
+    except Exception as error:errors.append(error);return 0
+   callback=CALLBACK(continuing)
+   r=self.lib.kodi_airplay_probe_ex(os.fsencode(str(path)),out,len(out),callback,None)
+   if errors:raise errors[0]
+  else:r=self.lib.kodi_airplay_probe(os.fsencode(str(path)),out,len(out))
+  if r==-2:raise driveupload.Stop('Inspection cancelled')
+  if r==-3:raise RuntimeError('Drive video inspection timed out; will retry')
+  if r<0:raise RuntimeError('Drive video could not be inspected; will retry')
   return json.loads(out.value.decode())
  def verify(self,source,output):
   error=ctypes.create_string_buffer(512)
@@ -307,7 +322,7 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
    rows['kept'].append(dict(base,state='kept',owner=bool(job.get('kept')) and not job.get('blocked'),
     sub='Kept as it is · %s'%('you chose to keep it' if job.get('kept') and not job.get('blocked') else plain(why))));continue
   if job and current.get('running') and current.get('title') in (e['name'],title(e['name'])):
-   rows['preparing'].append(dict(base,state='preparing',pct=int(current.get('progress',0)),sub='%s · %d%%'%(str(current.get('stage','Preparing')).replace('Step 3 of 3 · ',''),current.get('progress',0))));continue
+   rows['preparing'].append(dict(base,state='preparing',pct=int(current.get('progress',0)),indeterminate=bool(current.get('indeterminate')),sub=str(current.get('stage','Preparing')).replace('Step 3 of 3 · ','')+('' if current.get('indeterminate') else ' · %d%%'%current.get('progress',0))));continue
   if e['state']=='unreadable':rows['waiting'].append(dict(base,state='problem',warn=True,sub='Google Drive could not describe it; checking again next time'));continue
   if job and job.get('status')=='failed':
    wait=max(0,int((job.get('retry_after',0)-now())//60))
@@ -376,7 +391,8 @@ def summary(state,now=time.time):
  return '\n'.join(lines)
 
 class Queue:
- def __init__(self,profile,drive,native,download_file=download,notify=lambda *args:None,clock=time.time,stream=None):
+ def __init__(self,profile,drive,native,download_file=download,notify=lambda *args:None,clock=time.time,stream=None,log=lambda message:None):
+  self.log=log;self.runtime=None
   self.profile=Path(profile);self.drive=drive;self.native=native;self.download=download_file;self.notify=notify;self.clock=clock
   # drive_stream.DriveStream when the framework can read a loopback source: no downloaded copy of the Drive file.
   self.stream=stream if stream is not None and getattr(native,'streams',False) else None
@@ -405,6 +421,9 @@ class Queue:
     counts['unreadable']+=1;entries.append(entry(listed,'unreadable'))
     seen.update(slot for slot,job in self.state['jobs'].items() if job['source']['id']==listed['id'])
     continue
+   if self.runtime:self.runtime.phase('Checking video %d of %d'%(number+1,len(found)),True)
+   self.state['current'].update(stage='Checking video %d of %d'%(number+1,len(found)),progress=100*(number+1)/max(1,len(found)),updated=self.clock())
+   self.commit()
    slot=key(item);seen.add(slot)
    recovering=[old for old,job in self.state['jobs'].items() if job['source']['id']==item['id'] and job.get('status')=='committing']
    if recovering:seen.update(recovering);continue
@@ -508,6 +527,11 @@ class Queue:
   return n
  def process_one(self,keep_going=lambda:True):
   self.apply_requests();self.tidy();self.retry_image_subtitles()
+  if getattr(self.native,'hdr',False):
+   for job in self.state['jobs'].values():
+    if job.get('blocked') and 'without changing HDR' in job.get('error','') and not job.get('hdr_retried'):
+     job.update(blocked=False,status='waiting',retry_after=0,attempts=0,hdr_retried=True);job.pop('error',None)
+   self.commit()
   if getattr(self.native,'outputs',False):
    if not self.stream:raise RuntimeError('Drive streaming is required; no phone-file fallback')
    import prepare_cloud
@@ -630,8 +654,19 @@ class Queue:
    else:self.state['current']=current
    self.commit()
 
-def cards(profile,now=time.time):
+def snapshot(profile,now=time.time):
  state=load(profile);current=state.get('current') or {}
+ import preparation_runtime
+ runtime=preparation_runtime.read(profile,now)
+ if runtime and current.get('running'):
+  current['updated']=runtime['updated'];current['indeterminate']=not runtime.get('known')
+  current['stage']=runtime.get('phase') or current.get('stage')
+  if current['indeterminate'] and runtime.get('read_bytes'):current['stage']+=' · %.0f MB read'%(runtime['read_bytes']/1024**2)
+  state['current']=current
+ return state
+
+def cards(profile,now=time.time):
+ state=snapshot(profile,now);current=state.get('current') or {}
  waiting=[j for j in state.get('jobs',{}).values() if j.get('status')!='done']
  if not current and not waiting:return []
  current=dict(current)
@@ -642,5 +677,5 @@ def cards(profile,now=time.time):
  # One fact per line (ISSUE-101): the count lives in the card's summary, the line says what is happening now.
  current['title']=drivelibrary.display_title(current.get('title',''))
  current['queued']=len(waiting)
- current['line']='%s · %d%%'%(current.get('stage','Queued'),current.get('progress',0))
+ current['line']=current.get('stage','Queued')+('' if current.get('indeterminate') else ' · %d%%'%current.get('progress',0))
  return [current]

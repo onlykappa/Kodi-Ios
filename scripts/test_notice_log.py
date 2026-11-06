@@ -94,8 +94,12 @@ class Sheet(unittest.TestCase):
   props,_=boot.detail_properties({'kind':'problem','title':'t','time':BASE},[])
   for k in props:self.assertIn('Window().Property(%s)'%k,self.xml,k)
   self.assertIn('ListItem.Property(level)',self.xml)
+ def test_log_rows_wrap_and_open_the_complete_record(self):
+  boxes=[c for c in self.tree.iter('control') if c.get('type')=='textbox']
+  self.assertTrue(any(c.findtext('label')=='$INFO[ListItem.Label]' for c in boxes))
+  self.assertIn('Dialog().textviewer(self.rows[index][1],self.rows[index][0])',(BOOT/'notifications.py').read_text())
  def test_closes_with_a_cross_and_fits_the_screen(self):
-  self.assertIn('xmark.png',self.xml);self.assertNotIn('>Done<',self.xml)
+  self.assertIn('close_cross.png',self.xml);self.assertNotIn('>Done<',self.xml)
   listing=[c for c in self.tree.iter('control') if c.get('id')==str(notice_page.LOG)][0]
   top=portrait.HEIGHT-1780+640+64
   self.assertLessEqual(top+int(listing.findtext('height')),portrait.HEIGHT-170)

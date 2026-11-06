@@ -390,6 +390,17 @@ class StreamFromDrive(unittest.TestCase):
   self.assertEqual(self.get(url.replace(self.stream.secret,'guess'))[0],404)
   self.stream.forget('file-1');self.assertEqual(self.get(url)[0],404);self.assertEqual(len(self.seen),0)
  def test_drive_errors_pass_through(self):self.assertEqual(self.get(self.stream.url('missing'))[0],404)
+ def test_transient_media_open_retries_without_a_partial_local_copy(self):
+  import urllib.error
+  original=self.stream.open_url;calls=[]
+  def flaky(request,timeout):
+   calls.append(timeout)
+   if len(calls)<3:raise urllib.error.URLError(TimeoutError())
+   return original(request,timeout)
+  self.stream.open_url=flaky
+  status,headers,body=self.get(self.stream.url('file-1'))
+  self.assertEqual(status,200);self.assertTrue(body);self.assertEqual(calls,[20,20,20])
+  self.assertEqual(self.stream.stats()['read_error'],'')
  def test_queue_streams_instead_of_downloading(self):
   class StreamingNative(Native):
    streams=True

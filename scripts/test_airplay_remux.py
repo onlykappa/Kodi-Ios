@@ -4,6 +4,7 @@ import importlib.util,sys,types,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 LIB=ROOT/'migration/bundled-bootstrap/resources/lib'
+sys.path.insert(0,str(LIB))
 def load(name):
  spec=importlib.util.spec_from_file_location(name,LIB/(name+'.py'));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 cast=load('cast');airplay=load('airplay')
@@ -125,10 +126,10 @@ class AirPlayLog(unittest.TestCase):
    self.assertIn(needle,build)
   lock=__import__('json').loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())
   import re
-  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r16')
+  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r17')
   self.assertRegex(lock['framework_release']['sha256'],r'^(PENDING-set-after-publish|[0-9a-f]{64})$')
-  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r15')
-  self.assertEqual(lock['previous']['sha256'],'8afe00964006b3fc959587daa33dcbc5cf1552a628431bf380495ece540d55a9')
+  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r16')
+  self.assertEqual(lock['previous']['sha256'],'d1b443feccdb8651207f65ccd96e6374082bebae99824825ef9f7f06d7ba0e86')
 
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):

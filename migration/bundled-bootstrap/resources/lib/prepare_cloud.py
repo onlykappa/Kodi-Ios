@@ -7,6 +7,8 @@ import drive_prepare
 import driveupload
 import drivelibrary
 import prepare_downloads as prep
+import preparation_runtime
+import diagnostics
 
 
 def process_one(q, keep_going):
@@ -30,11 +32,12 @@ def process_one(q, keep_going):
     slot,job = candidates[0];item = job['source'];last = [0]
     job.pop('space',None)
     def progress(stage,pct):
+        if q.runtime:q.runtime.phase(stage,pct is not None,item['name'])
         if not keep_going():raise driveupload.Stop('Preparation paused')
         now = q.clock()
-        if now-last[0] < .5 and pct < 100:return
+        if now-last[0] < .5 and (pct or 0) < 100:return
         last[0] = now
-        q.state['current'] = dict(title=item['name'],stage='Step 3 of 3 · '+stage,progress=max(0,min(100,pct)),
+        q.state['current'] = dict(title=item['name'],stage='Step 3 of 3 · '+stage,progress=max(0,min(100,pct or 0)),indeterminate=pct is None,
                                   queued=len(candidates),running=True,updated=now)
         q.commit()
     def clear_temps():
@@ -49,10 +52,12 @@ def process_one(q, keep_going):
             if item_id in pending:pending.remove(item_id)
             q.commit()
         return success
+    q.native.keep_going=keep_going
     outputs = job.setdefault('cloud_output',{})
     temp_id = None
     try:
-        progress('Reading from Google Drive',0)
+        q.log('preparation: %s — opening Drive file'%drivelibrary.display_title(item['name']))
+        progress('Reading from Google Drive',None)
         current = prep.metadata(q.drive,item['id'])
         if prep.ready(current):
             job['status']='done';clear_temps();q.commit();return True
@@ -65,13 +70,21 @@ def process_one(q, keep_going):
                 # Remove completed sidecars from an interrupted generation before retrying.
                 if not clear_temps():raise RuntimeError('Preparation temporary files could not be cleaned up')
                 outputs=job.setdefault('cloud_output',{})
+                progress('Inspecting video and track index',None)
                 before=q.native.probe(source);job['probe']=before;q.commit()
+                q.log('preparation: %s — codec %s, %sx%s, %s-bit, HDR=%s, copy=%s, audio work=%s'%(drivelibrary.display_title(item['name']),before.get('codec'),before.get('width'),before.get('height'),before.get('bit_depth'),before.get('hdr'),before.get('copy_video'),before.get('audio_work_bytes')))
+                progress('Opening conversion tracks',None)
                 parent=q.drive.folder([driveupload.TOP,'.Preparation'])
                 def on_file(track,result):outputs[track]=result;q.commit()
                 sink=drive_prepare.Sink(q.drive,parent,slot,keep_going,on_file)
+                converted=[0]
+                def converted_progress(stage,n,t):
+                    value=80 if stage==3 else (min(80,80*n/t) if t else converted[0])
+                    converted[0]=max(converted[0],value)
+                    progress('Converting and saving to Drive',converted[0])
                 try:
                     q.native.convert_to(source,sink,keep_going,
-                        lambda stage,n,t:progress('Converting and saving to Drive',min(80,80*n/t) if t else 0))
+                        converted_progress)
                     sink.finish()
                 except Exception:
                     # Drop RAM buffers immediately. Complete staging objects are recorded for cleanup next time.
@@ -129,8 +142,12 @@ def process_one(q, keep_going):
         job['attempts']=job.get('attempts',0)+1
         job['retry_after']=q.clock()+min(3600,60*2**min(job['attempts']-1,6))
         if job.get('status')!='committing':job['status']='failed'
-        text=str(error) if isinstance(error,RuntimeError) else 'Preparation paused (%s)'%type(error).__name__
-        if 'http://' in text or 'https://' in text:text='Preparation paused; connection needs a retry'
+        diagnostics.exception(q.log,'preparation',error,phase=(q.state.get('current') or {}).get('stage','opening'),attempt=job['attempts'],video=job.get('probe') or {})
+        text=preparation_runtime.problem(error)
+        if 'could not be inspected' in text and q.stream and hasattr(q.stream,'stats'):
+            underlying=q.stream.stats().get('read_error')
+            if underlying:text+=': '+underlying
+        q.log('preparation: failed for %s: %s; phase=%s; video=%s'%(drivelibrary.display_title(item['name']),text,(q.state.get('current') or {}).get('stage','opening'),json.dumps(job.get('probe') or {},sort_keys=True)))
         if 'source changed' in text:job['status']='superseded';q.state['last_scan']=0;clear_temps()
         elif 'tracks MP4 cannot preserve' in text or 'without changing HDR' in text:job['blocked']=True
         if job.get('error')!=text:q.notify('problem','Video preparation paused',drivelibrary.display_title(item['name'])+': '+text[:200])

@@ -1,5 +1,5 @@
 """Storage-free output, interrupted conversion, validation and original-ID replacement."""
-import hashlib,io,json,sys,tempfile,unittest,urllib.parse
+import hashlib,io,json,sys,tempfile,unittest,urllib.parse,urllib.error
 from pathlib import Path
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'migration/bundled-bootstrap/resources/lib'))
@@ -27,6 +27,7 @@ class Drive:
    return 200,{'Location':session},b''
   if method=='PUT':
    s=self.sessions[url];cr=headers['Content-Range']
+   if cr.startswith('bytes */') and s.get('result'):return 200,{},json.dumps(s['result']).encode()
    if cr.startswith('bytes */'):return 308,({'Range':'bytes=0-%d'%(len(s['data'])-1)} if s['data'] else {}),b''
    start,end=map(int,cr.split()[1].split('/')[0].split('-'));total=cr.split('/')[-1]
    assert start==len(s['data']);assert end==start+len(body)-1
@@ -39,6 +40,7 @@ class Drive:
    self.files[key]=dict(old,**s['meta'],id=key,data=s['data'],version=str(int(old.get('version',0))+1))
    result=self.meta(key)
    if self.corrupt:result['md5Checksum']='wrong'
+   s['result']=result
    return 200,{},json.dumps(result).encode()
   if method=='DELETE':
    key=url.split('/files/')[1].split('?')[0]
@@ -61,6 +63,32 @@ class Upload(unittest.TestCase):
   self.assertEqual(list(self.d.files),['source'])
   result=sink.finish()['0'];self.assertEqual(self.d.files[result['id']]['data'],block*300)
   self.assertEqual(self.d.files['source']['data'],b'original')
+ def test_lost_acknowledgement_does_not_duplicate_intermediate_or_final_bytes(self):
+  for final in (False,True):
+   with self.subTest(final=final):
+    drive=Drive();original_call=drive.call;lost=[False]
+    def unreliable(method,url,body=None,headers=None):
+     result=original_call(method,url,body,headers)
+     cr=(headers or {}).get('Content-Range','')
+     is_final=not cr.endswith('/*')
+     if method=='PUT' and not cr.startswith('bytes */') and is_final==final and not lost[0]:
+      lost[0]=True;raise urllib.error.URLError(TimeoutError('ack lost'))
+     return result
+    drive.call=unreliable
+    sink=dp.Sink(drive,'staging','prepared',lambda:True)
+    data=b'prepared'*(dp.CHUNK//8+20);sink.write(0,'.mp4',data)
+    result=sink.finish()['0']
+    self.assertTrue(lost[0]);self.assertEqual(drive.files[result['id']]['data'],data)
+    self.assertEqual(drive.files['source']['data'],b'original')
+ def test_unacknowledged_chunk_is_replayed_once(self):
+  original=self.d.call;failed=[False]
+  def unreliable(method,url,body=None,headers=None):
+   if method=='PUT' and not (headers or {}).get('Content-Range','').startswith('bytes */') and not failed[0]:
+    failed[0]=True;raise urllib.error.URLError(TimeoutError())
+   return original(method,url,body,headers)
+  self.d.call=unreliable;sink=dp.Sink(self.d,'staging','prepared',lambda:True)
+  sink.write(0,'.mp4',b'prepared');result=sink.finish()['0']
+  self.assertEqual(self.d.files[result['id']]['data'],b'prepared')
  def test_upload_error_or_bad_checksum_does_not_replace_original(self):
   sink=dp.Sink(self.d,'staging','prepared',lambda:True);sink.write(0,'.mp4',b'prepared')
   self.d.corrupt=True

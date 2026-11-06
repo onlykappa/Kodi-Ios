@@ -8,6 +8,7 @@ import hashlib
 import json
 import urllib.parse
 import urllib.request
+import urllib.error
 import driveupload
 
 CHUNK = 8 * 1024 * 1024  # Drive requires multiples of 256 KiB
@@ -45,8 +46,13 @@ class Sink:
         if not self.keep_going():raise driveupload.Stop('Preparation paused')
         start, end = t['offset'], t['offset'] + length
         body = bytes(t['buffer'][:length])
-        status, headers, answer = self.drive.call('PUT', t['url'], body,
-            {'Content-Range':'bytes %d-%d/%s' % (start, end - 1, str(end) if final else '*')})
+        content_range='bytes %d-%d/%s' % (start,end-1,str(end) if final else '*')
+        try:status,headers,answer=self.drive.call('PUT',t['url'],body,{'Content-Range':content_range})
+        except (urllib.error.URLError,TimeoutError,ConnectionError):
+            # The server may have committed the bytes before its acknowledgement was lost.
+            status,headers,answer=self.drive.call('PUT',t['url'],b'',{'Content-Range':'bytes */%s'%(str(end) if final else '*')})
+            if status==308 and driveupload._next_offset(headers)==start:
+                status,headers,answer=self.drive.call('PUT',t['url'],body,{'Content-Range':content_range})
         if final:
             if status not in (200, 201):raise RuntimeError('Preparation upload finish: HTTP %d' % status)
             result = json.loads(answer)
