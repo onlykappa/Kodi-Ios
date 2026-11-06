@@ -156,13 +156,76 @@ def ring(size,stroke):
   return (255,255,255,int(255*max(outer-inner,0)*(0 if 230<angle<320 else 1)))
  return png(size,size,pixel)
 
+def shape(size,inside,samples=4):
+ """Anti-aliased white glyph: inside(u,v) on a 24x24 design grid (the mockups' SVG viewBox), supersampled."""
+ k=24/size;n=samples*samples
+ def pixel(x,y):
+  hits=sum(1 for i in range(samples) for j in range(samples) if inside((x+(i+.5)/samples)*k,(y+(j+.5)/samples)*k))
+  return (255,255,255,int(255*hits/n))
+ return png(size,size,pixel)
+
+ROUND=0.9   # corner radius of the gear's teeth on the 24 grid
+def gear_outline(teeth=8,tip=10.4,root=8.1,tip_half=10,base_half=17,steps=6):
+ """Header gear (owner-approved, round 5, then "cleaned up"): tapered teeth with rounded tips and curved gaps
+ around a centred hole, like SF Symbols' gearshape.fill. The polygon is drawn ROUND inside the final edge; the
+ rounding (a ROUND-wide margin, round joins) brings it back out. Shared with header-buttons-mockups.html."""
+ import math
+ pts=[];t_r=tip-ROUND;b_r=root-ROUND
+ at=lambda r,deg:(12+r*math.sin(math.radians(deg)),12-r*math.cos(math.radians(deg)))
+ step=360/teeth
+ for i in range(teeth):
+  c=i*step
+  pts+=[at(b_r,c-base_half),at(t_r,c-tip_half),at(t_r,c+tip_half),at(b_r,c+base_half)]
+  pts+=[at(b_r,c+base_half+(step-2*base_half)*k/steps) for k in range(1,steps)]
+ return pts
+GEAR=gear_outline();GEAR_HOLE=3.7
+def gear_inside(u,v,pts=GEAR):
+ import math
+ if math.hypot(u-12,v-12)<GEAR_HOLE:return False
+ inside=False;near=False;n=len(pts)
+ for i in range(n):
+  (x1,y1),(x2,y2)=pts[i],pts[(i+1)%n]
+  if (y1>v)!=(y2>v) and u<x1+(v-y1)*(x2-x1)/(y2-y1):inside=not inside
+  dx,dy=x2-x1,y2-y1;t=max(0,min(1,((u-x1)*dx+(v-y1)*dy)/(dx*dx+dy*dy)))
+  if math.hypot(u-x1-t*dx,v-y1-t*dy)<=ROUND:near=True
+ return inside or near
+def gear_svg():
+ """The same gear as an SVG symbol body for the mockups (fill plus a round-joined stroke of 2 x ROUND)."""
+ d='M'+' L'.join('%.2f %.2f'%pt for pt in GEAR)+'Z'
+ h=GEAR_HOLE+ROUND
+ return ('<path d="%s M12 %.2f a%.2f %.2f 0 1 0 0.01 0Z" fill="currentColor" fill-rule="evenodd" stroke="currentColor" '
+         'stroke-width="%.1f" stroke-linejoin="round"/>')%(d,12-h,h,h,2*ROUND)
+
+def refresh_inside(u,v):
+ """arrow.clockwise: an open circle (r 7.7, stroke 2.4) with its arrowhead at the top right."""
+ import math
+ dx,dy=u-11.9,v-12.4;r=math.hypot(dx,dy);a=math.degrees(math.atan2(dy,dx))%360
+ if abs(r-7.7)<=1.2 and not (a>318 or a<6):return True
+ def seg(ax,ay,bx,by):
+  px,py=bx-ax,by-ay;t=max(0,min(1,((u-ax)*px+(v-ay)*py)/(px*px+py*py)))
+  return math.hypot(u-ax-t*px,v-ay-t*py)<=1.2
+ return seg(18.6,2.8,18.6,7.4) or seg(18.6,7.4,14.0,7.4)
+
+def arc(size,stroke,degrees):
+ """Thin open ring for the busy bell (round 5): degrees of arc, round ends, spun by the skin."""
+ import math
+ c=size/2;rr=c-stroke/2-1
+ def inside(u,v):
+  x,y=u*size/24,v*size/24;dx,dy=x-c,y-c;r=math.hypot(dx,dy);a=math.degrees(math.atan2(dy,dx))%360
+  if abs(r-rr)<=stroke/2 and a<=degrees:return True
+  for e in (0,degrees):
+   ex,ey=c+rr*math.cos(math.radians(e)),c+rr*math.sin(math.radians(e))
+   if math.hypot(x-ex,y-ey)<=stroke/2:return True
+  return False
+ return shape(size,inside,3)
+
 def textures():
  return {'round.png':rounded(96,96,32),'round_s.png':rounded(64,64,26),'glass_card.png':glass(160,44,(44,44,46,245),(255,255,255,26)),
          'fade_down.png':fade(lambda t:(1-t)**1.6*0.85),'fade_up.png':fade(lambda t:t**1.5),
          'hero_fade.png':fade(lambda t:0 if t<0.3 else ((t-0.3)/0.7)**1.25),
          'poster_mask.png':rounded(POSTER[0],POSTER[1],RADIUS),'card_mask.png':rounded(CARD[0],CARD[1],RADIUS),
          'thumb_mask.png':rounded(400,225,20),'tile_mask.png':rounded(80,80,18),'dot.png':rounded(24,24,12),'knob.png':rounded(48,48,24),'clear48.png':png(4,48,lambda x,y:(0,0,0,0)),
-         'white.png':png(4,4,lambda x,y:(255,255,255,255)),'play.png':triangle(64),'airplay.png':player_osd.airplay_png(png),'ring.png':ring(132,7),
+         'white.png':png(4,4,lambda x,y:(255,255,255,255)),'play.png':triangle(64),'airplay.png':player_osd.airplay_png(png),'ring.png':ring(132,7),'ring_arc.png':arc(132,5,150),'hdr_gear.png':shape(96,gear_inside),'hdr_refresh.png':shape(96,refresh_inside),
          # Capsules per height: 9-slice borders of h/2 keep the ends perfectly round at any width.
          **{'pill_%d.png'%h:rounded(h,h,h/2) for h in CAPSULES},
          **{'glass_%d.png'%h:glass(h,h/2,(30,30,34,232),(255,255,255,50)) for h in CAPSULES},
@@ -230,17 +293,61 @@ def nav_button(id,x,y,glyph,actions,extra='',visible=''):
   icon(c-NAV_GLYPH//2,c-NAV_GLYPH//2,NAV_GLYPH,glyph,WHITE,dim)+'</control>')
 
 NOTICES='RunScript(service.kodi.ios.bootstrap,notifications)'
+SETTINGS='ActivateWindow(settings)'
+HDR=108;HDR_GAP=24;HDR_GLYPH=52   # header buttons (owner-approved round 5, option A): 40 pt glass circles, 19 pt glyphs
+def header_button(id,x,y,glyph,action,extra=''):
+ """Glass header circle with a centred glyph (bell, gear, refresh); glyph is an icons/ name or a full path."""
+ off=(HDR-HDR_GLYPH)//2
+ return pill_button(id,x,y,HDR,HDR,'',[('',action)],'glass','',extra)[:-len('</control>')]+icon(off,off,HDR_GLYPH,glyph)+'</control>'
 def bell(x,y,extra=''):
- """Bell beside the profile circle: red count of unread messages, blue ring while a download runs
+ """Bell: red count of unread messages, a thin blue arc turning around it while something runs
  (the bootstrap service keeps Notices.Unread and Notices.Active on the Home window)."""
  unread='Window(Home).Property(Notices.Unread)'
  return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+
-  image(-12,-12,132,132,MEDIA+'ring.png',ACCENT,'<visible>!String.IsEmpty(Window(Home).Property(Notices.Active))</visible>'
-   '<animation effect="rotate" end="-360" center="auto" time="1600" loop="true" reversible="false" condition="true">Conditional</animation>')+
-  circle_button(9207,0,0,108,'bell.png',NOTICES,extra)+
-  '<control type="group"><left>62</left><top>-10</top><visible>!String.IsEmpty(%s) + !String.IsEqual(%s,0)</visible>'%(unread,unread)+
-  image(0,0,60,60,MEDIA+'dot.png','FF000000')+image(5,5,50,50,MEDIA+'dot.png','FFFF453A')+
-  label(5,5,50,50,'$INFO[%s]'%unread,'p_foot_b',WHITE,'center','<aligny>center</aligny>')+'</control></control>')
+  image(-12,-12,132,132,MEDIA+'ring_arc.png',ACCENT,'<visible>!String.IsEmpty(Window(Home).Property(Notices.Active))</visible>'
+   '<animation effect="rotate" end="-360" center="auto" time="1200" loop="true" reversible="false" condition="true">Conditional</animation>')+
+  header_button(9207,0,0,'bell.png',NOTICES,extra)+
+  '<control type="group"><left>66</left><top>-8</top><visible>!String.IsEmpty(%s) + !String.IsEqual(%s,0)</visible>'%(unread,unread)+
+  image(0,0,56,56,MEDIA+'dot.png','FF000000')+image(4,4,48,48,MEDIA+'dot.png','FFFF453A')+
+  label(4,4,48,48,'$INFO[%s]'%unread,'p_foot_b',WHITE,'center','<aligny>center</aligny>')+'</control></control>')
+
+def gear(x,y,extra=''):
+ """Gear in place of the profile picture: opens Settings (Accounts is its first row). A dot while add-on updates wait."""
+ updates='!String.IsEmpty(System.AddonUpdateCount) + !String.IsEqual(System.AddonUpdateCount,0)'
+ return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+
+  header_button(9206,0,0,MEDIA+'hdr_gear.png',SETTINGS,extra)+
+  '<control type="group"><left>78</left><top>-4</top><visible>%s</visible>'%updates+
+  image(0,0,36,36,MEDIA+'dot.png','FF000000')+image(4,4,28,28,MEDIA+'dot.png','FFFF453A')+'</control></control>')
+
+REFRESHING='Window(Home).Property(Portrait.Refreshing)'
+def refresh_rows_action(tab):return 'RunScript(service.kodi.ios.bootstrap,refresh_rows,tab=%s)'%tab
+def refresh_button(x,y,tab,extra=''):
+ """Refresh on Home, Movies and TV: every TMDb Helper row and the hero show the next page of their list
+ (refresh_rows.py). The arrow spins while the rows load, then a tick for a moment."""
+ busy='String.IsEqual(%s,%s)'%(REFRESHING,tab);done='String.IsEqual(%s,done.%s)'%(REFRESHING,tab)
+ off=(HDR-HDR_GLYPH)//2
+ return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+
+  pill_button(9208,0,0,HDR,HDR,'',[('!'+busy,refresh_rows_action(tab))],'glass','',extra)+
+  '<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><visible>!%s</visible>'%(off,off,HDR_GLYPH,HDR_GLYPH,done)+
+  '<animation effect="rotate" end="-360" center="auto" time="900" loop="true" reversible="false" condition="%s">Conditional</animation>'%busy+
+  icon(0,0,HDR_GLYPH,MEDIA+'hdr_refresh.png')+'</control>'+
+  icon(off,off,HDR_GLYPH,'circle-check.png',GREEN,'<visible>%s</visible>'%done)+'</control>')
+
+def refreshed_toast(tab,title):
+ """'New picks on Home': under the header for a moment after a refresh."""
+ done='String.IsEqual(%s,done.%s)'%(REFRESHING,tab);w=560;h=96
+ return ('<control type="group"><left>%d</left><top>184</top><width>%d</width><height>%d</height><visible>%s</visible>'%((WIDTH-w)//2,w,h,done)+
+  '<animation effect="fade" time="180">VisibleChange</animation><animation effect="slide" start="0,-30" end="0,0" time="220" tween="cubic" easing="out">Visible</animation>'+
+  surface(0,0,w,h,'glass_96.png',WHITE,48)+icon(40,(h-44)//2,44,'circle-check.png',GREEN)+
+  label(100,0,w-130,h,'New picks on %s'%title,'p_foot_b',WHITE,'left')+'</control>')
+
+def header_buttons(y,tab=None,down=''):
+ """Right side of a large-title header: [refresh] bell gear, with left/right moves between them."""
+ gx=WIDTH-SIDE-HDR;bx=gx-HDR_GAP-HDR;rx=bx-HDR_GAP-HDR
+ xml=bell(bx,y,down+'<onright>9206</onright>'+('<onleft>9208</onleft>' if tab else ''))+gear(gx,y,down+'<onleft>9207</onleft>')
+ if tab:xml=refresh_button(rx,y,tab,down+'<onright>9207</onright>')+xml
+ return xml
+def header_width(tab=None):return WIDTH-2*SIDE-(3 if tab else 2)*(HDR+HDR_GAP)
 
 def window(original,body,default,extra_root=''):
  # Pages with the tab bar forget the title of the last category or library page.
@@ -407,9 +514,8 @@ def hero(spotlight,title,tab='home',variables=None):
   )%(WIDTH,HERO,WIDTH,HERO,WIDTH,HERO,art,WIDTH,HERO,art,
      cached_content('Portrait_Cache_Hero_%s'%tab,'$INFO[%s]'%spotlight_path(spotlight),variables,spotlight),
      image(0,0,WIDTH,HERO,MEDIA+'hero_fade.png'),image(0,0,WIDTH,420,MEDIA+'fade_down.png'),
-     label(SIDE,40,WIDTH-2*SIDE-270,120,title,'p_large'),
-     bell(WIDTH-SIDE-240,46,'<ondown>4000</ondown><onright>9206</onright>')+
-     circle_button(9206,WIDTH-SIDE-108,46,108,'circle-user.png','ActivateWindow(1170)','<ondown>4000</ondown><onleft>9207</onleft>'),
+     label(SIDE,40,header_width(tab),120,title,'p_large'),
+     header_buttons(46,tab,'<ondown>4000</ondown>')+refreshed_toast(tab,title),
      HERO-560,WIDTH-240,info,
      label(SIDE,HERO-560,WIDTH-2*SIDE,250,'$INFO[%s.Label]'%info,'p_title',WHITE,'center','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(%s.Art(clearlogo))</visible>'%info),
      label(SIDE,HERO-296,WIDTH-2*SIDE,56,meta,'p_foot',GREY,'center'),
@@ -428,7 +534,7 @@ def in_progress(widget):
 
 SHIFTED=re.compile(r'(?<=id=")(\d+)(?=")|(?<=>)(\d+)(?=<)|(?<=\()(\d+)(?=[,)])')
 def shift(xml,offset):
- """Move one hub's control ids (4000s hero, 5000s rows, 9200s tab bar, 9206/9207 header) out of the others' way."""
+ """Move one hub's control ids (4000s hero, 5000s rows, 9200s tab bar, 9206-9208 header) out of the others' way."""
  def move(m):
   n=int(m.group(0))
   return str(n+offset) if offset and (4000<=n<4200 or 5000<=n<6000 or 9200<=n<9210) else m.group(0)
@@ -463,9 +569,8 @@ def forward_window(original,tab):
                '<onload>SetProperty(%s,%s,home)</onload><onload>ReplaceWindow(Home)</onload>'%(TAB_PROPERTY,tab))
 
 def page_header(title):
- """Large title on black with the profile circle (More), as on the Apple TV app's Library and Search."""
- return (label(SIDE,40,WIDTH-2*SIDE-270,120,title,'p_large')+bell(WIDTH-SIDE-240,46)+
-         circle_button(9206,WIDTH-SIDE-108,46,108,'circle-user.png','ActivateWindow(1170)'))
+ """Large title on black with the bell and gear (Settings), as on the Apple TV app's Library and Search."""
+ return label(SIDE,40,header_width(),120,title,'p_large')+header_buttons(46)
 
 def clicks(actions):return ''.join('<onclick>%s</onclick>'%e(a) for a in actions.split('\x00'))
 
