@@ -101,7 +101,7 @@ class SpeedEverywhere(unittest.TestCase):
    view=prep.library_view({},uploads=[up])
    row=view['rows']['downloading'][0];self.assertEqual(row['sub'],'Uploading to Google Drive · 86% · 8.4 MB/s · about 4 min left')
    facts=dict(library_rows.details(row,view)['facts'])
-   self.assertEqual(facts['Speed'],'8.4 MB/s');self.assertEqual(facts['Time left'],'about 4 min left');self.assertIn('14.6 of 16.9 GB',facts['Progress'])
+   self.assertEqual(facts['Speed'],'8.4 MB/s');self.assertEqual(facts['Time left'],'about 4 min');self.assertIn('14.6 of 16.9 GB',facts['Progress'])
    self.assertEqual(facts['Saving to'],'Google Drive › Kodi Downloads › Movies')
  def test_preparing_details_are_full(self):
   import library_rows
@@ -110,6 +110,14 @@ class SpeedEverywhere(unittest.TestCase):
   s=library_rows.details(row,{'free':0})
   self.assertEqual(s['status'],'Preparing now');self.assertEqual(s['quality'],'AV1 10-bit HDR → HEVC (re-encoded)')
   self.assertEqual([f[0] for f in s['facts']],['Step','Speed','Time left','On Google Drive'])
+ def test_preparing_sheet_has_a_bar_and_short_time(self):
+  import library_rows
+  row={'state':'preparing','title':'Inception (2010)','pct':24,'step':'Converting and saving to Drive','speed':'2.1 GB read · 4.6 MB/s',
+       'eta':'about 25 min left','video':'AV1 10-bit HDR → HEVC (re-encoded)','size':8.9*1024**3}
+  s=library_rows.details(row,{'free':0});facts=dict(s['facts'])
+  self.assertEqual(s['bar'],'24');self.assertEqual(s['bar_tint'],'FFBF5AF2');self.assertEqual(facts['Time left'],'about 25 min')
+  self.assertEqual(library_rows.details(dict(row,pct=0),{'free':0})['bar'],'')
+  self.assertIn('<control type="progress" id="9210">',(LIB/'library_page.py').read_text())
  def test_cloud_progress_records_speed_and_folder_icons_resolve(self):
   self.assertIn("detail=prep.speed_text(*speed),eta=eta",(LIB/'prepare_cloud.py').read_text())
   self.assertIn("p.ICONS + '$INFO[ListItem.Property(icon)]'",(LIB/'library_page.py').read_text())

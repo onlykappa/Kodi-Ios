@@ -1,14 +1,17 @@
-"""Transfers page (owner, build 170: "a graph showing the history of download like what steam does and peak and
-everything"; approved mockup, opened only by tapping a transfer card in Notifications).
+"""Transfers page speed history, one job at a time (owner, build 172: "I want the graph to be simple and show me only
+what its doing at that time like if its downloading then i can tap on it and it will show me the downloading peak, then
+once done with that it can show me conversion"; approved mockup).
 
-History: the bootstrap service records, every 2 s, how fast things move (bytes per second):
-  down  downloading (Elementum torrents, AllDebrid to Drive copies)
-  up    uploading to Google Drive (AllDebrid copies, phone uploads)
+The bootstrap service looks every 2 s at what is moving and keeps one record per kind of job:
+  down  an Elementum torrent downloading to the phone
+  up    a copy going to Google Drive (AllDebrid → Drive; it comes in and goes out at one speed, so it is one job)
   conv  the conversion reading the movie from Drive
-kept at three resolutions (5 min at 2 s, 1 hour at 30 s, 24 hours at 10 min) in transfer-history.json.
+Each record has the job's title, when it started, its peak and average, and its speed over time (at most MAX_POINTS
+points: when full, neighbours are merged and the spacing doubles, so the graph always covers the whole job). A job that
+changes title or stops for STALE seconds moves to `finished` (the newest FINISHED kept) with its size, time and peak.
 
-Graph: Kodi skins cannot draw charts, so the page paints the selected range into a small PNG (pure Python) and shows
-it; the file name cycles through GRAPH_FILES names so Kodi's texture manager never shows a stale copy.
+Graph: Kodi skins cannot draw charts, so the page paints the chosen job into a small PNG (pure Python); the file name
+cycles through GRAPH_FILES names so Kodi's texture manager never shows a stale copy.
 """
 import json
 import os
@@ -17,11 +20,14 @@ import time
 import zlib
 
 FILE = 'transfer-history.json'
-RANGES = {'5min': (2, 150), 'hour': (30, 120), 'day': (600, 144)}   # seconds per sample, samples kept
-UPLOAD_LIMIT = 70e6 / 8          # the owner's upload (70 Mbps, speed test)
+KINDS = ('down', 'up', 'conv')
+LABELS = {'down': 'Downloading', 'up': 'Saving to Google Drive', 'conv': 'Converting'}
+TINTS = {'down': 'FF0A84FF', 'up': 'FF30D158', 'conv': 'FFBF5AF2'}
+MAX_POINTS = 180
+STALE = 30            # seconds without movement before a job counts as finished
+FINISHED = 20
 GRAPH_FILES = 10
-W, H = 360, 150
-DOWN, UP, CONV, LIMIT, GRID = (10, 132, 255), (48, 209, 88), (191, 90, 242), (255, 159, 10), (60, 60, 67)
+W, H = 470, 220
 
 
 def location(profile):
@@ -46,75 +52,112 @@ def save(profile, data):
     os.replace(tmp, path)
 
 
-def record(data, now, down, up, conv):
-    """Add one sample to every range (a coarser range averages what falls into its slot). Returns data."""
-    for key, (step, keep) in RANGES.items():
-        ring = data.setdefault(key, [])
-        slot = int(now // step) * step
-        if ring and ring[-1][0] == slot:
-            last = ring[-1]
-            n = last[4] + 1
-            ring[-1] = [slot, (last[1] * last[4] + down) / n, (last[2] * last[4] + up) / n, (last[3] * last[4] + conv) / n, n]
+def _title(name):
+    try:
+        import drivelibrary
+        return drivelibrary.display_title(name)
+    except Exception:
+        return str(name or '')
+
+
+def activity(torrents, debrid_current, prep_current):
+    """What is moving right now: {kind: {'title', 'rate' (bytes/s), 'done', 'total'}} for each kind that runs."""
+    out = {}
+    live = []
+    for t in torrents or []:
+        try:
+            if str(t.get('status', '')).lower() in ('paused', 'finished', 'seeding') or float(t.get('progress') or 0) >= 100:
+                continue
+            live.append(t)
+        except (AttributeError, TypeError, ValueError):
+            pass
+    if live:
+        size = sum(float(t.get('size_bytes') or 0) for t in live)
+        out['down'] = {'title': _title(live[0].get('name', '')) + (' and %d more' % (len(live) - 1) if len(live) > 1 else ''),
+                       'rate': sum(float(t.get('download_rate') or 0) for t in live) * 1024,   # Elementum reports KB/s
+                       'done': sum(float(t.get('size_bytes') or 0) * float(t.get('progress') or 0) / 100 for t in live),
+                       'total': size}
+    d = debrid_current or {}
+    if d.get('stage') == 'copying' and d.get('total'):
+        out['up'] = {'title': _title(d.get('name', '')), 'rate': float(d.get('rate') or 0),
+                     'done': float(d.get('sent') or 0), 'total': float(d.get('total') or 0)}
+    c = prep_current or {}
+    if c.get('running') and c.get('title') and time.time() - float(c.get('updated') or 0) < 15:
+        out['conv'] = {'title': _title(c.get('title', '')), 'rate': float(c.get('rate') or 0),
+                       'done': float(c.get('read') or 0), 'total': 0.0, 'pct': float(c.get('progress') or 0)}
+    return out
+
+
+def _finish(data, job):
+    n = max(1, job.get('n', 1))
+    data.setdefault('finished', []).insert(0, {
+        'kind': job['kind'], 'title': job['title'], 'start': job['start'], 'end': job['last'],
+        'peak': job.get('peak', 0.0), 'avg': job.get('sum', 0.0) / n, 'size': job.get('total') or job.get('done') or 0})
+    del data['finished'][FINISHED:]
+
+
+def track(data, now, active):
+    """Add one look at `active` (from activity()) to the running jobs; close jobs that ended. Returns data."""
+    jobs = data.setdefault('jobs', {})
+    for kind in KINDS:
+        a = active.get(kind)
+        job = jobs.get(kind)
+        if job and ((a and a['title'] != job['title']) or (not a and now - job['last'] > STALE)):
+            _finish(data, job)
+            del jobs[kind]
+            job = None
+        if not a:
+            continue
+        rate = max(0.0, float(a.get('rate') or 0))
+        if not job:
+            job = jobs[kind] = {'kind': kind, 'title': a['title'], 'start': now, 'last': now, 'peak': 0.0, 'sum': 0.0,
+                                'n': 0, 'step': 2, 'points': []}
+        job.update(last=now, peak=max(job['peak'], rate), sum=job['sum'] + rate, n=job['n'] + 1,
+                   done=a.get('done', 0), total=a.get('total', 0), pct=a.get('pct'))
+        pts = job['points']
+        if pts and now - pts[-1][0] < job['step']:
+            last = pts[-1]
+            last[1] = (last[1] * last[2] + rate) / (last[2] + 1)
+            last[2] += 1
         else:
-            ring.append([slot, down, up, conv, 1])
-        del ring[:-keep]
-    date = time.strftime('%Y-%m-%d', time.localtime(now))
-    if data.get('date') != date:
-        data['date'], data['moved'], data['peak'] = date, 0.0, 0.0
-    data['moved'] = data.get('moved', 0.0) + max(down, up) * RANGES['5min'][0]
-    data['peak'] = max(data.get('peak', 0.0), down, up)
-    data['now'] = [now, down, up, conv]
+            pts.append([now, rate, 1])
+        if len(pts) > MAX_POINTS:
+            merged = []
+            for i in range(0, len(pts), 2):
+                pair = pts[i:i + 2]
+                count = sum(p[2] for p in pair)
+                merged.append([pair[0][0], sum(p[1] * p[2] for p in pair) / count, count])
+            job['points'] = merged
+            job['step'] *= 2
     return data
 
 
-def series(data, key, now):
-    """[(down, up, conv)] for the range, oldest first, one per slot, gaps as 0."""
-    step, keep = RANGES[key]
-    by_slot = {s[0]: s for s in data.get(key, [])}
-    end = int(now // step) * step
-    return [tuple(by_slot.get(end - (keep - 1 - i) * step, [0, 0, 0, 0])[1:4]) for i in range(keep)]
+def running(data, now, fresh=10):
+    """The kinds with a job that moved in the last `fresh` seconds, in KINDS order."""
+    jobs = data.get('jobs') or {}
+    return [k for k in KINDS if k in jobs and now - jobs[k].get('last', 0) <= fresh]
 
 
-def stats(data, key, now):
-    """Current down/up/conv (0 when older than 10 s), the range's peak, and what moved today, in bytes(/s)."""
-    cur = data.get('now') or [0, 0, 0, 0]
-    fresh = now - cur[0] <= 10
-    values = series(data, key, now)
-    return {'down': cur[1] if fresh else 0.0, 'up': cur[2] if fresh else 0.0, 'conv': cur[3] if fresh else 0.0,
-            'peak': max([max(v[0], v[1]) for v in values] + [0.0]), 'today': data.get('moved', 0.0)}
-
-
-def mb(value):
-    return '%.1f MB/s' % (value / 1048576.0)
-
-
-def mbps(value):
-    return '%d Mbps' % round(value * 8 / 1e6)
-
-
-def rates(torrents, debrid_current, prep_current):
-    """(down, up, conv) bytes per second right now: Elementum's torrents (download_rate is KB/s) plus a copy from
-    AllDebrid (it flows in and out at the same speed), uploads to Drive, and the conversion's read speed."""
-    down = 0.0
-    for t in torrents or []:
-        try:
-            if str(t.get('status', '')).lower() not in ('paused', 'finished', 'seeding'):
-                down += float(t.get('download_rate') or 0) * 1024
-        except (TypeError, ValueError):
-            pass
-    copy = float((debrid_current or {}).get('rate') or 0) if (debrid_current or {}).get('stage') == 'copying' else 0.0
-    conv = float((prep_current or {}).get('rate') or 0) if (prep_current or {}).get('running') else 0.0
-    return down + copy, copy, conv
+def pick(data, wanted, now):
+    """The job the graph shows: the one tapped while it runs, otherwise the next one still running, or None."""
+    live = running(data, now)
+    if wanted in live:
+        return wanted
+    for kind in ('conv', 'up', 'down'):
+        if kind in live:
+            return kind
+    return None
 
 
 def watch(profile, read, wait, every=2, save_every=10, clock=time.time):
-    """The service loop: read() -> (down, up, conv); records every `every` s, saves every `save_every` s."""
+    """The service loop: read() -> activity(); looks every `every` s, saves every `save_every` s."""
     data = load(profile)
+    data.pop('5min', None), data.pop('hour', None), data.pop('day', None)   # the build-171 ranges
     last_save = 0.0
     while not wait(every):
         try:
             now = clock()
-            record(data, now, *read())
+            track(data, now, read())
             if now - last_save >= save_every:
                 save(profile, data)
                 last_save = now
@@ -122,53 +165,70 @@ def watch(profile, read, wait, every=2, save_every=10, clock=time.time):
             pass
 
 
-# --- the graph -------------------------------------------------------------------------------------------------------
-def render(values, width=W, height=H, limit=UPLOAD_LIMIT):
-    """PNG bytes: down as bars, up as a 2-px line, conversion as a dotted line, the upload limit dashed, faint grid."""
-    top = max([max(v) for v in values] + [limit * 1.15, 1.0])
-    px = bytearray(width * height * 4)   # transparent
+# --- words ------------------------------------------------------------------------------------------------------------
+def mb(value):
+    value = float(value or 0)
+    return '%d KB/s' % round(value / 1024) if 0 < value < 1048576 else '%.1f MB/s' % (value / 1048576.0)
 
-    def put(x, y, c, a=255):
+
+def size(value):
+    value = float(value or 0)
+    return '%.1f GB' % (value / 1024 ** 3) if value >= 1024 ** 3 else '%d MB' % (value // 1024 ** 2)
+
+
+def ago(seconds):
+    m = int(max(0, seconds) // 60)
+    if m < 1:
+        return 'just now'
+    return '%d min ago' % m if m < 60 else '%d h %d min ago' % (m // 60, m % 60) if m % 60 else '%d h ago' % (m // 60)
+
+
+def took(seconds):
+    m = int(max(0, seconds) // 60)
+    return 'under a minute' if m < 1 else '%d min' % m if m < 60 else '%d h %d min' % (m // 60, m % 60)
+
+
+# --- the graph -------------------------------------------------------------------------------------------------------
+def render(points, colour, width=W, height=H, start=None, now=None):
+    """PNG bytes: the job's speed as one line over a fading fill, with its peak as a faint dashed line."""
+    rgb = tuple(int(colour[i:i + 2], 16) for i in (2, 4, 6)) if isinstance(colour, str) else colour
+    top = max([p[1] for p in points] + [1.0]) * 1.12
+    px = bytearray(width * height * 4)
+    if not points:
+        return _png(px, width, height)
+    t0 = points[0][0] if start is None else start
+    t1 = max(points[-1][0] if now is None else now, t0 + 1)
+
+    def put(x, y, c, a):
         if 0 <= x < width and 0 <= y < height:
             i = (y * width + x) * 4
             px[i:i + 4] = bytes((c[0], c[1], c[2], a))
 
     def ypos(v):
-        return int(round((height - 2) - (v / top) * (height - 6)))
-    for g in range(1, 4):   # grid
-        y = int(height * g / 4)
-        for x in range(0, width, 2):
-            put(x, y, GRID, 160)
-    n = len(values)
-    col = width / float(n)
-    for i, (down, up, conv) in enumerate(values):   # bars
-        y0 = ypos(down)
-        for x in range(int(i * col), max(int(i * col) + 1, int((i + 1) * col) - 1)):
-            for y in range(y0, height):
-                put(x, y, DOWN, 190)
-    ly = ypos(limit)   # upload limit
+        return int(round((height - 3) - (v / top) * (height - 12)))
+    xy = [(int(round((p[0] - t0) / (t1 - t0) * (width - 4))) + 2, ypos(p[1])) for p in points]
+    if len(xy) == 1:
+        xy = [(2, xy[0][1]), (width - 3, xy[0][1])]
+    line = {}
+    for (x0, y0), (x1, y1) in zip(xy, xy[1:]):
+        steps = max(abs(x1 - x0), abs(y1 - y0), 1)
+        for s in range(steps + 1):
+            x = x0 + (x1 - x0) * s // steps
+            y = y0 + (y1 - y0) * s // steps
+            line[x] = min(line.get(x, height), y)
+            for dy in (-1, 0, 1):
+                put(x, y + dy, rgb, 255)
+    for x, y in line.items():   # fill fades towards the bottom
+        for yy in range(y + 2, height):
+            put(x, yy, rgb, int(110 * (1 - (yy - y) / float(height - y + 1))))
+    py = ypos(max(p[1] for p in points))   # the peak
     for x in range(width):
-        if (x // 4) % 2 == 0:
-            put(x, ly, LIMIT)
+        if (x // 6) % 2 == 0 and px[(py * width + x) * 4 + 3] == 0:
+            put(x, py, (255, 255, 255), 70)
+    return _png(px, width, height)
 
-    def line(index, colour, dotted):
-        prev = None
-        for i, v in enumerate(values):
-            x = int((i + 0.5) * col)
-            y = ypos(v[index])
-            if prev:
-                x0, y0 = prev
-                steps = max(abs(x - x0), abs(y - y0), 1)
-                for s in range(steps + 1):
-                    if dotted and (s // 2) % 2:
-                        continue
-                    xx = x0 + (x - x0) * s // steps
-                    yy = y0 + (y - y0) * s // steps
-                    put(xx, yy, colour)
-                    put(xx, yy + 1, colour)
-            prev = (x, y)
-    line(1, UP, False)
-    line(2, CONV, True)
+
+def _png(px, width, height):
     rows = b''.join(b'\0' + bytes(px[y * width * 4:(y + 1) * width * 4]) for y in range(height))
 
     def chunk(tag, data):

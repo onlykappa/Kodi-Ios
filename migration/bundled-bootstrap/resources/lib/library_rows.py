@@ -101,6 +101,12 @@ def page_properties(view, checking=False, usage=None):
     return props
 
 
+def short_eta(text):
+    """'about 25 min left' as 'about 25 min' (the fact is already called Time left)."""
+    text = str(text or '')
+    return text[:-5] if text.endswith(' left') else text
+
+
 def details(row, view):
     """One video's details sheet: title, status (tone ok|warn|plain), quality, up to 4 facts and up to 2 actions
     (label, request) where request is prepare_downloads.request's action, or None."""
@@ -108,7 +114,8 @@ def details(row, view):
     on_drive = ('On Google Drive', '%.1f GB' % (size / GB)) if size else None
     folder = ('Folder', row.get('folder') or 'Kodi Downloads') if row.get('folder') else None
     state = row['state']
-    sheet = {'title': row['title'], 'quality': '', 'facts': [], 'actions': [], 'tone': 'plain', 'status': row.get('sub', '')}
+    sheet = {'title': row['title'], 'quality': '', 'facts': [], 'actions': [], 'tone': 'plain', 'status': row.get('sub', ''),
+             'bar': '', 'bar_tint': ''}
     if state == 'ready':
         sheet.update(status='Ready for Kodi and AirPlay', tone='ok', quality=row.get('sub', ''),
                      facts=[f for f in (on_drive, folder, ('Plays', 'on this iPhone and over AirPlay, seeking straight away')) if f])
@@ -119,16 +126,19 @@ def details(row, view):
                      quality=row.get('video', ''),
                      facts=[f for f in (('Step', row.get('step') or row.get('sub', '')),
                                         ('Speed', row.get('speed') or 'starting'),
-                                        ('Time left', row.get('eta') or 'working it out'),
+                                        ('Time left', short_eta(row.get('eta')) or 'working it out'),
                                         on_drive) if f])
+        if pct and not row.get('indeterminate'):
+            sheet.update(bar=str(pct), bar_tint='FFBF5AF2')
     elif state in ('downloading', 'uploading'):
         sent, total, rate = row.get('sent') or 0, row.get('total') or 0, row.get('rate') or 0
         sheet.update(status=('AllDebrid is fetching it' if row.get('stage') == 'fetching' else
                              'Uploading to Google Drive' if state == 'uploading' else 'Downloading'),
                      facts=[f for f in (('Progress', '%s%%' % row.get('pct', 0) + (' · %.1f of %.1f GB' % (sent / GB, total / GB) if total else '')),
                                         ('Speed', '%.1f MB/s' % (rate / 1024 ** 2) if rate else 'measuring'),
-                                        ('Time left', row.get('eta') or 'working it out'),
+                                        ('Time left', short_eta(row.get('eta')) or 'working it out'),
                                         ('Saving to', 'Google Drive › Kodi Downloads' + (' › ' + row['folder'] if row.get('folder') else ''))) if f])
+        sheet.update(bar=str(row.get('pct', 0)), bar_tint='FF30D158' if state == 'uploading' else 'FF0A84FF')
     elif state == 'waiting':
         sheet.update(status=row.get('sub', '').split(' · ')[0], quality=' · '.join(row.get('sub', '').split(' · ')[1:]),
                      facts=[f for f in (on_drive, folder) if f],

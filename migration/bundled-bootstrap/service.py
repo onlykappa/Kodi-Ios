@@ -168,12 +168,12 @@ def run():
  # its part of kodi.log, shown when it is tapped.
  threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),
   kwargs={'log_path':os.path.join(xbmcvfs.translatePath('special://logpath/'),'kodi.log')},daemon=True).start()
- # The Transfers page's speed history (transfer_history): sampled every 2 s for the graph and the peak.
+ # The Transfers page's speed history (transfer_history): what each running job does, every 2 s, for its graph.
  def transfer_rates():
   import transfer_history,debrid_drive,prepare_downloads
   try:torrents=notices.torrent_list()
   except Exception:torrents=[]
-  return transfer_history.rates(torrents,debrid_drive.load(profile).get('current'),prepare_downloads.load(profile).get('current'))
+  return transfer_history.activity(torrents,debrid_drive.load(profile).get('current'),prepare_downloads.load(profile).get('current'))
  import transfer_history
  threading.Thread(target=transfer_history.watch,args=(profile,transfer_rates,monitor.waitForAbort),daemon=True).start()
  # A torrent whose real name turns out to be another film (owner, build 156: Fall 2022 → Fall.2.Deadpoint.2026) is

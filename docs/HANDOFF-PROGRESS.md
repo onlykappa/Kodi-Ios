@@ -1,4 +1,4 @@
-# Kodi iOS — live progress (updated 2026-11-06 ~12:55 UTC)
+# Kodi iOS — live progress (updated 2026-11-06, build 172)
 
 ## Branches
 - **`fix/elementum-cloud-164` (PR #13): current work.** Codex continued here from `feature/library-status` (`2b3cbb6`) and produced builds 164–168. KodiAirPlay r17, GlassBar r6, portrait r23. Its notes are in `docs/pr13-verification.md`, `docs/elementum-cloud-downloads.md` and `docs/diagnostic-logs.md`.
@@ -12,6 +12,8 @@
 | 163 | feature/library-status | AllDebrid→Drive, folders, r15. Verified |
 | 164–168 | fix/elementum-cloud-164 | Codex: r16/r17 storage-free preparation, HDR re-encode, native Settings search, diagnostics/export. 168 tested by owner (log `Kodi-build-168-…log`) |
 | 169 | fix/elementum-cloud-164 | This session: fixes below plus KodiAirPlay r18. Commit 36d528f; native CI run 42238135886 → pin r18 → publish → import-review |
+| 170 | fix/elementum-cloud-164 | r19, speed text. Owner tested |
+| 172 | fix/elementum-cloud-164 | r20 + simple Transfers page + sheet bar |
 
 ## Build-168 log findings (owner, 04:31–04:42 local)
 - Inception (2010): AV1 10-bit HDR 3840×1600, copy=False, so it needs a full re-encode. It stayed at "0%" with about 79 MB read in 3 min. Kodi restarted at 04:39 and the conversion restarted.
@@ -23,7 +25,17 @@
 - Each Drive copy chunk logs its source-read and Drive-send times and MB/s (`driveupload.upload_stream`), so the next log shows which side is slow.
 - While an AllDebrid file is being copied into Drive, preparation waits its turn; it resumes afterwards (`debrid_drive.copying`, service loop).
 
-## Build 171 (from the build-170 log): KodiAirPlay r20
+## Build 172 (owner: "converter is like not working at all but downloading is working great")
+- Carries KodiAirPlay r20 (30-second preparation units; 171 was cancelled before it shipped). r20 is the converter fix to test.
+- Transfers page redone (owner-approved mockup "simple graph"): one job at a time. The tapped card's job (down / up / conv) gets the graph,
+  its speed now, peak, average, started; its bar and time left. When it ends, the page moves to the next running job. "Also running" rows
+  switch the graph. Finished jobs (size, time, peak) and Up next below. No range switch, no upload-limit line.
+  `transfer_history` now keeps one record per job (`activity`, `track`, `pick`, `finished`), not the build-171 5 min / 1 h / 24 h rings.
+- Details sheet for converting/uploading: a progress bar in the job's colour (id 9210); Time left reads "about 25 min" (no doubled "left").
+- Approved but not built yet: Phone space, Queue (Edit order), History (Transfers › History), AirPlay check (mockup
+  https://claude.ai/artifact/3ajZJDwzALocLDJ4xxwE8n). Owner asked whether History needs a Library status row too: not answered yet.
+
+## Build 171 (from the build-170 log): KodiAirPlay r20 (cancelled; shipped in 172)
 - Inception converted at ~0.55 MB/s read (about a quarter of real time, ~10 h). Cause: preparation used the live-AirPlay 6-second units; each re-seeks to its keyframe, re-decodes from there, flushes the decoder and opens a new encoder.
 - r20: whole-file preparation uses 30-second units (`PREP_UNIT`). The checkpoint stores the unit length, so a 6-second checkpoint starts over instead of being misread.
 - Each unit logs "prepare: video i/n made in X s for 30 s of film (Nx real time) via <route>" (hardware HDR / GPU / CPU + decoder), through `kr_remux_note`.

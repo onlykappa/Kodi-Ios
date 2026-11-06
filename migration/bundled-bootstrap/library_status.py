@@ -100,6 +100,9 @@ def run(args=()):
    s=self.sheet
    for k in ('title','status','tone','quality'):self.setProperty(k,s[k])
    self.setProperty('poster',poster(self.row))
+   self.setProperty('bar',s.get('bar',''));self.setProperty('bar.tint',s.get('bar_tint',''))
+   try:self.getControl(9210).setPercent(float(s.get('bar') or 0))
+   except Exception:pass
    for n in range(4):
     label,value=s['facts'][n] if n<len(s['facts']) else ('','')
     self.setProperty('fact%d.label'%n,label);self.setProperty('fact%d.value'%n,value)

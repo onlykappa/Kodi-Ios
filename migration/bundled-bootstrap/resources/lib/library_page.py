@@ -177,6 +177,10 @@ def item_sheet(p):
             p.label(S + 230, top + 70, w - 230 - HIT, 90, P('title'), 'p_h2', p.WHITE, 'left', '<scroll>false</scroll>') +
             status +
             p.label(S + 230, top + 222, w - 230, 56, P('quality'), 'p_pill_s', p.GREY, 'left', '<scroll>false</scroll>') +
+            '<control type="progress" id="9210"><left>%d</left><top>%d</top><width>%d</width><height>14</height><visible>%s</visible>'
+            '<texturebg border="7" colordiffuse="FF3A3A3C">%sdot.png</texturebg><lefttexture />'
+            '<midtexture border="7" colordiffuse="%s">%sdot.png</midtexture><righttexture /></control>'
+            % (S + 230, top + 300, w - 230, has('bar'), M, P('bar.tint'), M) +
             close +
             '<control type="group"><left>%d</left><top>%d</top>' % (S, top + 380) +
             p.image(0, 0, w, 4 * 104, M + 'round.png', p.SURFACE2, border=32) + facts + '</control>' +
