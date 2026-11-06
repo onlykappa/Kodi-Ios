@@ -119,6 +119,31 @@ def apple_playable(*names,converts=False):
 
 CONVERT_FAILED='%s\n\nYou can still use Screen Mirroring: swipe down from the top-right corner, tap Screen Mirroring and choose your TV.'
 
+# Owner (build 160): a Ready (prepared) movie said "Apple's AirPlay player can't play this video (MP4)". That text is for
+# formats Apple's player cannot open; when the player simply did not start, say what happened instead.
+NOT_STARTED=('AirPlay didn\'t start on the TV: %s.\n\nMake sure the TV is on and on the same Wi-Fi as the phone, then '
+             'try Play on TV again. Screen Mirroring also works: swipe down from the top-right corner, tap Screen '
+             'Mirroring and choose your TV.')
+PLAYER_ERRORS=((r'Code=-1004\b|Could not connect to the server','the TV could not connect to the phone'),
+               (r'Code=-1001\b|timed out','the TV took too long to answer'),
+               (r'Code=-1009\b|offline','the phone is not on Wi-Fi'),
+               (r'Code=-11800\b|operation could not be completed','the TV stopped the video'))
+
+def player_problem(lines):
+ """What Apple's player said went wrong (KodiAirPlay's log lines), in everyday words, or ''."""
+ for line in reversed(list(lines or ())):
+  if 'could not open the stream:' in line or 'stopped:' in line or 'failed:' in line:
+   for pattern,words in PLAYER_ERRORS:
+    if re.search(pattern,line):return words
+   return line.split(':',2)[-1].strip()[:120]
+ return ''
+
+BUSY='KodiIOS.PlayOnTV'   # Home window property while Play on TV is starting (a second press waits for it)
+def busy(value,now,window=90):
+ """Whether Play on TV is already starting: the property holds when it began (seconds)."""
+ try:return now-float(value)<window
+ except (TypeError,ValueError):return False
+
 def format_name(*names):
  """MKV, AVI... for the Screen Mirroring message ('this format' when unknown)."""
  for name in names:

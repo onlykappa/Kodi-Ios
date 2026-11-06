@@ -935,3 +935,12 @@ Status: IN SOURCE (KodiAirPlay r15); CI build, then device check pending.
 - Root cause: its Blu-ray picture subtitles (PGS) cannot go into MP4, and preparation never drops subtitles silently, so the file was kept as it is.
 - Fix: KodiAirPlay r15 `kodi_airplay_prepare_keep_image_subs(1)` writes each PGS track, untouched, to `output.sub<track>.<lang>[.forced].sup` (FFmpeg's `sup` muxer, now built) and prepares the MP4 without them. The add-on saves them next to the video on Google Drive as `<video>.<lang>[.forced].sup` (as Kodi names external subtitles) before replacing the video, and gives videos kept only for that one new try. Off by default in the framework. DVD picture subtitles or a second video track still keep a file as it is.
 - Regression: host `test_remux.c` (the .sup holds every PGS byte, none in the MP4, probe reports codec and PGS count), `test_image_subtitles` (9).
+
+## ISSUE-116 — Play on TV: a Ready movie "can't play (MP4)"; Play on TV pressed twice (build 160)
+
+Status: FIXED IN SOURCE; device check pending (build 162).
+- Owner: "this movie is under ready and it gives me this bs" (Apple's AirPlay player can't play this video (MP4)…) and "its super buggy i like have to press it twice for it too work".
+- Log (build 160, The Nightmare Before Christmas, prepared MP4, TCL Roku TV): every attempt shows "Play on TV: opened" twice about 10 s apart. Nothing was on screen while the TV connected, so Play on TV was pressed again; the second session's start tore down the first session's file server (the first failed with -1004 "Could not connect to the server"), and the first session, failing, closed the second one's. The failure then fell through to the Screen Mirroring text, which names the file's extension (MP4).
+- Fix: one Play on TV at a time (Home property `KodiIOS.PlayOnTV`, 90 s; a second press says "Still connecting to the TV…"); a "Connecting to the TV…" progress with Cancel from the moment AirPlay starts (Cancel and failures let Kodi's video carry on); with a converting framework a failure says what Apple's player reported in everyday words ("AirPlay didn't start on the TV: the TV could not connect to the phone") instead of blaming the format.
+- Still to see: whether this TCL Roku TV shows the picture of a prepared HEVC MP4 (prepared files go to the TV as they are; build 136-era logs needed the H.264 picture for this TV). If it plays sound only, the existing "No picture on the TV" alert says so.
+- Regression: `test_play_on_tv_start` (5).
