@@ -128,12 +128,12 @@ class BackgroundUpload(unittest.TestCase):
   import time as _t
   d=Drive();orig=d.call;puts=[]
   def slow(method,url,body=None,headers=None):
-   if method=='PUT' and body:_t.sleep(0.3);puts.append(len(body))
+   if method=='PUT' and body:_t.sleep(1.5);puts.append(len(body))   # one piece takes 1.5 s to go up
    return orig(method,url,body,headers)
   d.call=slow;sink=dp.Sink(d,'staging','prepared',lambda:True)
   piece=b'z'*(dp.MAIN_CHUNK)
   t0=_t.monotonic();sink.write(0,'.mp4',piece);sink.write(0,'.mp4',piece);sink.write(0,'.mp4',b'end')
-  self.assertLess(_t.monotonic()-t0,0.25)   # handed over, not uploaded in this thread
+  self.assertLess(_t.monotonic()-t0,1.0)   # handed over, not uploaded in this thread (that alone would take 1.5 s)
   result=sink.finish()['0']
   self.assertEqual(d.files[result['id']]['data'],piece*2+b'end')
   self.assertEqual(puts[:2],[dp.MAIN_CHUNK,dp.MAIN_CHUNK]);self.assertEqual(sink.sent,dp.MAIN_CHUNK*2+3)
