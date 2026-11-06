@@ -13,6 +13,18 @@ PROPERTY='kodiAirPlayProfile'
 CHECKSUM_PROPERTY='kodiAirPlayMD5'
 FILE='airplay-preparation.json'
 RESERVE=256*1024*1024
+# Owner (build 157): "we need to ensure storage is never an issue". Preparation never takes the phone below this, and
+# a video starts only when its whole working set (the Drive file plus the prepared copy) fits above it.
+KEEP_FREE=5*1024**3
+
+def folder_bytes(path):
+ try:return sum(f.stat().st_size for f in Path(path).rglob('*') if f.is_file())
+ except OSError:return 0
+
+def space_needed(item):
+ """Phone space one video takes while it is prepared: the Drive file, the prepared copy (about the same size: the
+ picture is copied, not re-encoded) and a margin, plus what must stay free for the owner."""
+ return 2*int(item.get('size') or 0)+RESERVE+KEEP_FREE
 CALLBACK=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_int,ctypes.c_double,ctypes.c_double,ctypes.c_void_p)
 
 def location(profile):return Path(profile)/'addon_data/service.kodi.ios.bootstrap'/FILE
@@ -170,6 +182,9 @@ def summary(state,now=time.time):
  if paused:
   reasons=sorted({j.get('error','Will try again') for j in paused})
   lines.append('%d paused, will try again: %s'%(len(paused),'; '.join(reasons)[:200]))
+ spaced=[j for j in waiting if j.get('space')]
+ if spaced:lines.append('%d of the waiting videos need more phone space (up to %.0f GB free); they start when there is room.'%(
+  len(spaced),max(j['space'] for j in spaced)/1024**3))
  if blocked:lines.append('%d cannot be prepared without losing quality; kept as they are.'%len(blocked))
  if library.get('unreadable'):lines.append('%d could not be read from Drive this time.'%library['unreadable'])
  if library.get('checked'):
@@ -254,6 +269,16 @@ class Queue:
    except Exception:pass
   if removed:driveupload.invalidate_library(str(location(self.profile).parent))
   return removed
+ def note_space(self,waiting,free):
+  """One notification when more videos start waiting for phone space; none while the list stays the same."""
+  ids=sorted(job['source']['id'] for slot,job in waiting)
+  before=self.state.get('space_waiting') or []
+  self.state['space_waiting']=ids
+  if not ids or set(ids)<=set(before):return
+  biggest=max(job['space'] for slot,job in waiting)
+  gb=lambda n:'%.0f GB'%(n/1024**3)
+  self.notify('info','Waiting for phone space','%d video%s will be prepared when there is room: the largest needs %s free, %s is free now. Kodi always leaves %s free for you.'%(
+   len(ids),'' if len(ids)==1 else 's',gb(biggest),gb(free),gb(KEEP_FREE)))
  def process_one(self,keep_going=lambda:True):
   candidates=[(slot,job) for slot,job in self.state['jobs'].items() if job.get('status') not in ('done','superseded') and not job.get('blocked') and job.get('retry_after',0)<=self.clock()]
   if not candidates:return False
@@ -261,8 +286,23 @@ class Queue:
   # Finish a half-downloaded video before starting another (phone space), but only while it can actually run: one
   # stuck in a retry wait must not hold the whole queue (owner, build 156). Every job checks free space itself.
   resumable=[pair for pair in candidates if pair[0] in working]
+  free=shutil.disk_usage(self.work).free
+  def fits(pair):
+   slot,job=pair;return free+folder_bytes(self.work/slot)>=space_needed(job['source'])
+  if resumable and not any(fits(pair) for pair in resumable):
+   # A half-prepared video that cannot finish gives its space back instead of keeping gigabytes on the phone.
+   for slot,job in resumable:
+    shutil.rmtree(self.work/slot,ignore_errors=True);job['status']='waiting';job.pop('retry_after',None)
+   free=shutil.disk_usage(self.work).free;resumable=[]
   if resumable:candidates=resumable
-  if not candidates:return False
+  # Only videos that fit start; the others wait (smallest first once space frees up) without failing or notifying.
+  waiting=[pair for pair in candidates if not fits(pair)]
+  for slot,job in waiting:job['space']=space_needed(job['source'])
+  for slot,job in candidates:
+   if (slot,job) not in waiting:job.pop('space',None)
+  self.note_space(waiting,free)
+  candidates=sorted([pair for pair in candidates if fits(pair)],key=lambda pair:0 if pair in resumable else 1)
+  if not candidates:self.commit();return False
   # Always resume the one downloaded working source before allocating space for another movie.
   candidates.sort(key=lambda pair:0 if (self.work/pair[0]).exists() else 1)
   slot,job=candidates[0];folder=self.work/slot;folder.mkdir(exist_ok=True)
@@ -338,7 +378,13 @@ class Queue:
     job['status']='superseded';self.state['last_scan']=0;shutil.rmtree(folder,ignore_errors=True)
    elif 'tracks MP4 cannot preserve' in text or 'cannot be prepared without changing HDR' in text:
     job['blocked']=True;shutil.rmtree(folder,ignore_errors=True)
-   job['error']=text[:240];self.notify('problem','Video preparation paused',job['error']);return False
+   elif 'Free phone space' in text:
+    # Space ran out after all (the phone filled up meanwhile): give the space back and wait, quietly.
+    shutil.rmtree(folder,ignore_errors=True);job['status']='waiting';job['space']=space_needed(item);job['retry_after']=self.clock()+600
+    job['error']=text[:240];return False
+   # One notification per video and reason, not one per retry (owner, build 157: the same message five times).
+   if job.get('error')!=text[:240]:self.notify('problem','Video preparation paused','%s: %s'%(drivelibrary.display_title(item.get('name','')),text[:200]))
+   job['error']=text[:240];return False
   finally:
    current=self.state.get('current') or {}
    current.update(running=False,stage='Paused' if job.get('status')=='paused' else job.get('error','Waiting for the next video'),updated=self.clock())

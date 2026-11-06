@@ -837,3 +837,18 @@ Status: FIXED IN SOURCE (local draft, not pushed); device check pending.
   - Uncertain names (no year, hash-only names before metadata), torrents that were already there, searches over 30 minutes old, and a hidden source the owner chose deliberately are left alone.
 - Not changed: Elementum's own ranking of the "best" source (it re-sorts Burst's results by its quality/seeds setting).
 - Regression: `test_source_match.WhatTheTorrentReallyIs` (7, including the owner's exact name and the several-episodes race).
+
+## ISSUE-107 — AirPlay refused for every prepared movie; preparation stuck on phone space (build 157)
+
+Status: FIXED IN SOURCE; device check pending.
+- Owner (build 157): "AirPlay won't work at all" ("AirPlay: cannot open the stream (Connection refused)") and repeated "Video preparation paused: Free phone space is needed" (5 times). The phone had about 51 GB free of 256 GB.
+- AirPlay root cause (kodi.log): KodiAirPlay was given `http://10.0.0.247:57527/…/Scary.Movie…mp4`, the Wi-Fi address of the Google Drive add-on's helper, which only answers on 127.0.0.1 (the same refusal as build 132). `cast.py` used the phone's own link only for files that were not Apple-playable. Prepared movies are `.mp4`, so every prepared movie got the Wi-Fi link. Fix: `cast.airplay_source`. A converting framework (r5+) always reads the video itself and gets the 127.0.0.1 link; an older framework keeps the Wi-Fi link for Apple's player.
+- Space root cause: preparing a video needs the Drive file and the prepared copy on the phone at the same time (about twice its size; the native step takes local files). The queue started videos without checking that, kept a stuck video's partial download on the phone, and notified on every retry.
+- Fix:
+  - A video starts only when twice its size plus a margin fits while leaving 5 GB free for the owner (`KEEP_FREE`). Videos that fit go first.
+  - A half-prepared video that cannot finish gives its space back.
+  - Running out midway frees the working files quietly and waits.
+  - "Waiting for phone space" is notified once when the list grows; other problems are notified once per video and reason.
+  - Settings › Check library for conversion shows how many videos wait for space.
+- Not solved here: a video larger than (free space − 5 GB) / 2 still waits. Halving the need means reading straight from Drive instead of downloading first, which requires a KodiAirPlay native change (local-path-only input today) and a macOS framework build.
+- Regression: `test_prepare_downloads.NeverRunsOutOfSpace` (5), `test_airplay_remux.PhoneSource.test_a_prepared_mp4_also_uses_the_phones_own_link`.
