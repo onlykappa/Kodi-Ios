@@ -1,6 +1,6 @@
 """Settings › Library › Library status (owner-approved mockup, build 158): prepare_downloads.library_view and its
 requests, library_rows (what the page lists and the details sheet says), library_page (the skin XML) and the wiring."""
-import importlib.util,json,sys,tempfile,unittest,xml.etree.ElementTree as ET
+import importlib.util,json,os,sys,tempfile,unittest,xml.etree.ElementTree as ET
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1];BOOT=ROOT/'migration/bundled-bootstrap';LIB=BOOT/'resources/lib'
 sys.dont_write_bytecode=True
@@ -200,12 +200,15 @@ class FakeKodi:
   gui.ListItem,gui.WindowXMLDialog,gui.Dialog=ListItem,Window,Dialog
   addon=types.ModuleType('xbmcaddon')
   class Addon:
-   def __init__(self,name=None):self.name=name
+   def __init__(self,name=None):
+    # Real Kodi (build 159 log): a script run through default.py's runpy has no add-on of its own.
+    if name is None:raise RuntimeError('No valid addon id could be obtained. None was passed and the script wasn\'t executed in a normal Kodi manner.')
+    self.name=name
    def getSettingBool(self,k):return kodi.settings.get(k,False)
    def setSettingBool(self,k,v):kodi.settings[k]=v
    def getAddonInfo(self,k):raise RuntimeError('TMDb Helper not installed')
   addon.Addon=Addon
-  vfs=types.ModuleType('xbmcvfs');vfs.translatePath=lambda path:profile
+  vfs=types.ModuleType('xbmcvfs');vfs.translatePath=lambda path:os.path.join(profile,'home') if path=='special://home/' else profile
   self.modules={'xbmc':xbmc,'xbmcgui':gui,'xbmcaddon':addon,'xbmcvfs':vfs}
 
 def tap(control):return lambda w:w.onClick(control)
@@ -300,5 +303,54 @@ class TapEveryButton(unittest.TestCase):
   self.assertTrue(kodi.settings['prepare_downloads']);self.assertEqual(prep.pending_requests(self.profile),[{'action':'next','id':'w1'}])
  def test_service_wakes_for_a_choice(self):
   self.assertIn('if prepare_downloads.check_requested(profile) or prepare_downloads.pending_requests(profile):delay=5',(BOOT/'service.py').read_text())
+
+class PhoneSpace(unittest.TestCase):
+ """Owner (build 159): "Kodi is eating 10 GB"."""
+ def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)
+ def tearDown(self):self.tmp.cleanup()
+ def queue(self,jobs):
+  q=prep.Queue.__new__(prep.Queue);q.state={'jobs':jobs};q.work=self.root/'work';q.work.mkdir(exist_ok=True)
+  for slot in list(jobs)+['orphan']:(q.work/slot).mkdir();(q.work/slot/'prepared.mp4').write_bytes(b'x'*1000)
+  return q
+ def test_only_work_that_carries_on_keeps_its_files(self):
+  q=self.queue({'wait':job('a','A.mkv'),'paused':job('b','B.mkv',status='paused'),'saving':job('c','C.mkv',status='committing'),
+                'failed':job('d','D.mkv',status='failed'),'kept':job('e','E.mkv',kept=True),'blocked':job('f','F.mkv',blocked=True),
+                'done':job('g','G.mkv',status='done')})
+  self.assertEqual(q.tidy(),5000)
+  self.assertEqual(sorted(d.name for d in q.work.iterdir()),['paused','saving','wait'])
+ def test_tidy_runs_before_every_video(self):
+  self.assertIn('self.apply_requests();self.tidy()',(LIB/'prepare_downloads.py').read_text())
+ def test_usage_counts_each_file_once(self):
+  status=load('library_status_usage',BOOT/'library_status.py')
+  (self.root/'a/b').mkdir(parents=True);(self.root/'a/x').write_bytes(b'1'*300);(self.root/'a/b/y').write_bytes(b'2'*200)
+  self.assertEqual(status.usage([('inner',self.root/'a/b'),('outer',self.root/'a'),('again',self.root/'a/b'),('none',self.root/'nope')]),
+                   {'inner':200,'outer':500})
+ def test_usage_line(self):
+  self.assertEqual(rows.usage_text({'Elementum downloads':6*GB,'artwork':1*GB,'preparing':0.5*GB,'temporary files':1}),
+                   'Kodi uses 7.5 GB · Elementum downloads 6.0 GB · artwork 1.0 GB')
+  props=rows.page_properties(prep.library_view({},free=10*GB),usage={'artwork':10*GB})
+  self.assertEqual((props['space_pct'],props['space']),('50','Kodi uses 10.0 GB · artwork 10.0 GB'))
+ def test_page_shows_what_kodi_uses(self):
+  page=TapEveryButton('test_page_opens_filled');page.setUp()
+  try:
+   art=Path(page.profile)/'Thumbnails';art.mkdir();(art/'a.jpg').write_bytes(b'x'*(GB//5))
+   import time
+   seen={}
+   def wait(w):
+    for _ in range(100):
+     if 'Kodi uses' in w.getProperty('space'):break
+     time.sleep(0.02)
+    seen['space']=w.getProperty('space')
+   page.run_page([(library_page.WINDOW,wait),(library_page.WINDOW,tap(library_page.BACK))])
+   self.assertIn('artwork 0.2 GB',seen['space'])
+  finally:page.tearDown()
+
+class EveryScriptNamesItsAddon(unittest.TestCase):
+ def test_no_bare_addon_in_runscript_pages(self):
+  import re
+  pages=re.search(r"PAGES=\(([^)]*)\)",(BOOT/'default.py').read_text()).group(1)
+  for page in re.findall(r"'([a-z_]+)'",pages):
+   path=BOOT/(page+'.py')
+   if path.exists():self.assertNotRegex(path.read_text(),r'xbmcaddon\.Addon\(\)',page)
 
 if __name__=='__main__':unittest.main()

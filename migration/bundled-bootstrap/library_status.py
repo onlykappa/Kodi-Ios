@@ -10,6 +10,9 @@ sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resou
 import library_page,library_rows,prepare_downloads
 
 BACK=(9,10,92,110)
+# By id: a script started through RunScript(service.kodi.ios.bootstrap,...) runs via default.py's runpy, and Kodi
+# cannot tell which add-on an Addon call without an id means (build 159: the page never opened).
+ADDON='service.kodi.ios.bootstrap'
 FILTER_BASE=9101
 
 def folder_size(path):
@@ -19,6 +22,33 @@ def folder_size(path):
    try:total+=os.path.getsize(os.path.join(root,name))
    except OSError:pass
  return total
+
+def usage(places):
+ """{what: bytes} for [(what, path)], each file counted once (a folder inside an earlier one is not counted again)."""
+ out={};seen=[]
+ for what,path in places:
+  try:real=os.path.realpath(str(path))
+  except (OSError,ValueError):continue
+  if not real or not os.path.isdir(real) or any(real==s or real.startswith(s+os.sep) for s in seen):continue
+  seen.append(real)
+  size=folder_size(real)
+  if size:out[what]=out.get(what,0)+size
+ return out
+
+def places(profile,home,elementum_path=''):
+ """Where Kodi keeps things on the phone, in the order they are counted (the most specific first)."""
+ import updates
+ data=os.path.join(profile,'addon_data')
+ kept=updates.updates_folder(home)
+ return [('preparing',str(prepare_downloads.location(profile).parent/'preparing-videos')),
+         ('Elementum downloads',elementum_path or str(kept.with_name('Elementum Downloads'))),
+         ('Elementum downloads',str(kept.with_name('Elementum Downloads'))),
+         ('Elementum',os.path.join(data,'plugin.video.elementum')),
+         ('videos on this iPhone',str(kept.with_name('Kodi Downloads'))),
+         ('artwork',os.path.join(profile,'Thumbnails')),
+         ('temporary files',os.path.join(home,'temp')),
+         ('add-on downloads',os.path.join(home,'addons','packages')),
+         ('add-on data',data)]
 
 def snapshot(profile,downloads,uploads):
  """library_view() for the page right now (never raises: an empty library on any error)."""
@@ -36,7 +66,7 @@ def snapshot(profile,downloads,uploads):
 def run(args=()):
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
  import drivelibrary,notices
- profile=xbmcvfs.translatePath('special://profile/');addon=xbmcaddon.Addon();dialog=xbmcgui.Dialog()
+ profile=xbmcvfs.translatePath('special://profile/');addon=xbmcaddon.Addon(ADDON);dialog=xbmcgui.Dialog()
  here=os.path.dirname(os.path.abspath(__file__))
  # Posters as in the Library: TMDb with TMDb Helper's key, cached; looked up in the background, one at a time.
  try:
@@ -89,6 +119,17 @@ def run(args=()):
    self.setProperty('filter',self.filter)
    self.refresh(force=True)
    threading.Thread(target=self.loop,daemon=True).start()
+   self.measure()
+  def measure(self):
+   """What Kodi keeps on the phone, for the Phone space card (in the background: walking the folders takes a while)."""
+   def run():
+    try:
+     try:engine=xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.elementum').getSetting('download_path') or '')
+     except Exception:engine=''
+     self.used=usage(places(profile,xbmcvfs.translatePath('special://home/'),engine))
+     if not self.stop.is_set():self.refresh()
+    except Exception as error:xbmc.log('Library status: phone space not measured: %s'%error,xbmc.LOGWARNING)
+   threading.Thread(target=run,daemon=True).start()
   def loop(self):
    monitor=xbmc.Monitor()
    while not self.stop.is_set() and not monitor.waitForAbort(2):
@@ -101,8 +142,9 @@ def run(args=()):
     if self.checking and (state.get('library') or {}).get('checked',0)>=self.checking:self.checking=0
     if self.checking and time.time()-self.checking>300:self.checking=0
     self.view=view
-    for k,v in library_rows.page_properties(view,bool(self.checking)).items():self.setProperty(k,v)
-    try:self.getControl(library_page.SPACE).setPercent(float(library_rows.page_properties(view)['space_pct']))
+    props=library_rows.page_properties(view,bool(self.checking),getattr(self,'used',None))
+    for k,v in props.items():self.setProperty(k,v)
+    try:self.getControl(library_page.SPACE).setPercent(float(props['space_pct']))
     except Exception:pass
     items=library_rows.list_items(view,self.filter)
     shape=[(i['kind'],i['props'].get('id',''),i['props'].get('state',''),i['label']) for i in items]
@@ -145,7 +187,7 @@ def run(args=()):
     if not dialog.yesno('Library status','Preparing videos for Kodi and AirPlay is turned off. Turn it on and check now?',
                         nolabel='Cancel',yeslabel='Turn on'):return
     addon.setSettingBool('prepare_downloads',True)
-   self.checking=time.time();prepare_downloads.request_check(profile);self.refresh()
+   self.checking=time.time();prepare_downloads.request_check(profile);self.refresh();self.measure()
   def open_row(self,position):
    items=getattr(self,'items',[])
    if not 0<=position<len(items):return

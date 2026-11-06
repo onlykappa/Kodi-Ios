@@ -386,8 +386,21 @@ class Queue:
   requests=pending_requests(self.profile)
   path.unlink(missing_ok=True)
   apply_to(self.state,requests,self.clock());self.commit();return True
+ def tidy(self):
+  """Phone space (owner, build 159: "Kodi is eating 10 GB"): working files stay only for a video that will carry on
+  where it was: waiting with a half-made copy, paused for playback, or saving to Drive. A video that failed (its next
+  try starts again: a streamed preparation cannot resume), is kept as it is, done, or no longer in the library gives
+  its space back now, not at its next try."""
+  freed=0
+  try:folders=[d for d in self.work.iterdir() if d.is_dir()]
+  except OSError:return 0
+  for folder in folders:
+   job=self.state['jobs'].get(folder.name)
+   if job and job.get('status') in ('waiting','paused','committing') and not job.get('kept') and not job.get('blocked'):continue
+   freed+=folder_bytes(folder);shutil.rmtree(folder,ignore_errors=True)
+  return freed
  def process_one(self,keep_going=lambda:True):
-  self.apply_requests()
+  self.apply_requests();self.tidy()
   candidates=[(slot,job) for slot,job in self.state['jobs'].items() if job.get('status') not in ('done','superseded') and not job.get('blocked') and not job.get('kept') and job.get('retry_after',0)<=self.clock()]
   if not candidates:return False
   working=[slot for slot,job in self.state['jobs'].items() if (self.work/slot).exists() and job.get('status')!='done']

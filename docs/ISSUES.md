@@ -884,3 +884,19 @@ Status: FIXED IN SOURCE; device check pending (build 158).
 - Fix: Settings › Library › Library status (owner-approved mockup, `docs/design/library-status-mockup.html`), skin `library_page.py`, rows `library_rows.py`, controller `library_status.py`. Every video in Google Drive › Kodi Downloads grouped as preparing now, downloading, waiting (in line, waiting for phone space, retrying after a problem), ready for Kodi and AirPlay, kept as it is; a ring with ready of total, phone space, four filters, Check now, and a details sheet per video. Its actions (Prepare next, Try again now, Keep as it is, Prepare it after all) go to the service through `preparation-requests.json` (`prepare_downloads.request` / `Queue.apply_requests`), so the page never writes the queue's state. The library check now records each video (`state['library']['items']`).
 - Owner (build 158): "the buttons i press better work". A choice made while a video was being prepared only reached the service after that video (it reads choices between videos), so the page looked as if nothing happened. The page now shows a choice at once (`prepare_downloads.apply_to` on a copy of the state, with `pending_requests`), the service wakes within 5 s for one, and a choice with preparation turned off asks to turn it on instead of doing nothing.
 - Regression: `test_library_status` (32): view, rows, filters, details actions, requests applied once, kept videos skipped, every button at least 44 pt, ids and properties the controller uses, wiring; `TapEveryButton` runs the real controller against a fake Kodi and taps Back, Check now, the four filters, Show all, every row action (Prepare next, Keep as it is, Prepare it after all, Try again now), the sheet's ✕, the dimmed backdrop and the back key.
+
+## ISSUE-110 — Library status did nothing when tapped (build 159)
+
+Status: FIXED IN SOURCE; device check pending.
+- Owner (build 159, kodi.log): tapping Settings › Library › Library status did nothing. Every tap logged `RuntimeError: No valid addon id could be obtained` at `library_status.py` `xbmcaddon.Addon()`.
+- Root cause: scripts started as `RunScript(service.kodi.ios.bootstrap,page)` run through `default.py`'s `runpy`, so Kodi cannot tell which add-on a bare `xbmcaddon.Addon()` means. The old Check library for conversion (`prepare_check.py`) had the same call, which is why it "didn't seem to work" (ISSUE-109). The fake Kodi in `test_library_status` accepted the bare call, so the tests passed.
+- Fix: both scripts name the add-on (`Addon('service.kodi.ios.bootstrap')`). The fake Kodi now refuses a bare `Addon()` as Kodi does.
+- Regression: `test_library_status.EveryScriptNamesItsAddon` (no RunScript page calls a bare `Addon()`); `TapEveryButton` runs the real controller against the strict fake.
+
+## ISSUE-111 — Kodi uses about 10 GB of the phone (owner, build 159)
+
+Status: PARTLY FIXED IN SOURCE; what the 10 GB is will show on Library status (device check pending).
+- Owner: "does this fix why kodi is eating 10gb?" The bundled log showed only startup, so the 10 GB could not be attributed from it.
+- Found while checking: a video whose preparation failed, or that the owner chose to keep as it is, kept its half-made working files until its next try (or forever when kept). With KodiAirPlay r14 a streamed preparation cannot resume, so those files were only taking space.
+- Fix: `Queue.tidy()` before every video: working files stay only for a video that carries on where it was (waiting, paused for playback, saving to Drive); failed, kept, blocked, done and unknown ones give their space back at once. Library status's Phone space card now measures what Kodi keeps on the phone (preparation, Elementum downloads and data, videos on this iPhone, artwork, temporary files, add-on downloads and data; each file counted once) and names the two largest, and its bar shows Kodi's share.
+- Regression: `test_library_status.PhoneSpace` (5).

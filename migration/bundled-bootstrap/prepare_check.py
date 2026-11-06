@@ -9,7 +9,7 @@ import prepare_downloads
 
 def run():
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
- profile=xbmcvfs.translatePath('special://profile/');addon=xbmcaddon.Addon();dialog=xbmcgui.Dialog()
+ profile=xbmcvfs.translatePath('special://profile/');addon=xbmcaddon.Addon('service.kodi.ios.bootstrap');dialog=xbmcgui.Dialog()
  if not addon.getSettingBool('prepare_downloads'):
   if not dialog.yesno('Check library for conversion','Preparing videos for Kodi and AirPlay is turned off. Turn it on and check now?',
                       nolabel='Cancel',yeslabel='Turn on'):return
