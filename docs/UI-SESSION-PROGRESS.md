@@ -53,3 +53,8 @@ Variables `buildviews`, SkinSettings categories).
 1. ~~Library tools, the four pages, with tests~~ (done on `claude/trusting-euler-kgug98`; device check pending).
 2. Header buttons and refresh rows, after the owner decides on the back-button circle.
 3. Customisation pages.
+
+## After build 174 (merged into main)
+- Owner: Back stays the bold chevron with **no circle**. Header buttons (gear, thin bell arc, refresh on Home/Movies/TV)
+  are unblocked: rebase `feature/customisation-header-buttons` onto main and finish it (glyph sizes, test_portrait speed).
+- The Home / Movies / TV refresh ("new picks") is designed (section 3) but not coded; not in build 174.
