@@ -346,10 +346,10 @@ def drive_uploads(monitor,home,profile):
      with preparation_runtime.Lease(profile,stats=preparation.stream.stats if preparation.stream else lambda:{}) as runtime:
       preparation.runtime=runtime
       preparation.scan(can_prepare,force=bool(count))
-      # Explicit rescans pause conversion, then the worker resumes the queue.
       # Build 169 made preparation wait for AllDebrid copies; with copies at 6-8 MB/s (build-169 log) both run at once
       # again, so conversion never sits paused behind an hour-long download.
-      converting=lambda:can_prepare() and not prepare_downloads.check_requested(profile)
+      # A check no longer stops it (build-170 log: each stop restarted Inception from 0%); it runs when this one ends.
+      converting=lambda:can_prepare() and not prepare_downloads.interrupts(profile)
       if preparation.process_one(converting):delay=2
       else:delay=30
      preparation.runtime=None

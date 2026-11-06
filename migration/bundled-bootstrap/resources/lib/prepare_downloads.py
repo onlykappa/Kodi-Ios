@@ -391,6 +391,13 @@ def request_check(profile):
  marker=location(profile).parent/RESCAN;marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(str(time.time()))
 def check_requested(profile):return (location(profile).parent/RESCAN).exists()
 
+def interrupts(profile):
+ """Whether the running conversion must stop now. Only the owner's own choice does (Prepare next on another video,
+ Keep as it is): a storage-free conversion cannot resume, so stopping it throws its work away. A library check (a
+ finished AllDebrid copy, the refresh button) waits for the conversion instead (build-170 log: Inception went back
+ to 0% when the Fall 2 copy finished)."""
+ return any(r.get('action') in ('next','keep') for r in pending_requests(profile))
+
 def summary(state,now=time.time):
  """Plain-words status for Settings › Library › Check library for conversion."""
  library=state.get('library') or {};jobs=list((state.get('jobs') or {}).values())

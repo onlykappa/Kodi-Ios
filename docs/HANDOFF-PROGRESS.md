@@ -13,7 +13,8 @@
 | 164–168 | fix/elementum-cloud-164 | Codex: r16/r17 storage-free preparation, HDR re-encode, native Settings search, diagnostics/export. 168 tested by owner (log `Kodi-build-168-…log`) |
 | 169 | fix/elementum-cloud-164 | This session: fixes below plus KodiAirPlay r18. Commit 36d528f; native CI run 42238135886 → pin r18 → publish → import-review |
 | 170 | fix/elementum-cloud-164 | r19, speed text. Owner tested |
-| 172 | fix/elementum-cloud-164 | r20 + simple Transfers page + sheet bar |
+| 172 | fix/elementum-cloud-164 | cancelled (superseded by 173) |
+| 173 | fix/elementum-cloud-164 | r20 + simple Transfers page + sheet bar + checks no longer restart conversion |
 
 ## Build-168 log findings (owner, 04:31–04:42 local)
 - Inception (2010): AV1 10-bit HDR 3840×1600, copy=False, so it needs a full re-encode. It stayed at "0%" with about 79 MB read in 3 min. Kodi restarted at 04:39 and the conversion restarted.
@@ -24,6 +25,19 @@
 - Settings search page always visible: before typing it lists Settings' own rows; list focus is set; Back always works (`settings_page.search_window`, `settings_search.py`).
 - Each Drive copy chunk logs its source-read and Drive-send times and MB/s (`driveupload.upload_stream`), so the next log shows which side is slow.
 - While an AllDebrid file is being copied into Drive, preparation waits its turn; it resumes afterwards (`debrid_drive.copying`, service loop).
+
+## Build 173 (build-170 log 09:36–09:52, owner: "converter is like not working at all")
+- Inception went back to 0% twice: the 09:36 Kodi start, and at 09:44, 15 s after the Fall 2 AllDebrid copy finished.
+  Cause: the copy's on_done asks for a library check, and any check request stopped the running conversion
+  (`converting` lambda in service.py). Storage-free conversion (prepare_cloud + Drive Sink) cannot resume, so the next
+  attempt cleared its staging and started from 0. The Library status refresh button did the same.
+- Fix: `prepare_downloads.interrupts(profile)`: only the owner's Prepare next / Keep stop a conversion; checks wait.
+- Still restarts from 0: Kodi being closed or killed, and video playback (idle() is false). Real resume needs native
+  work (resume the Sink at Drive's confirmed offset from a checkpoint). Not done yet.
+- Speed in r19: about 0.055 % of the film per minute (~5 s of film per minute, ~0.08× real time, ~30 h for Inception),
+  reading ~1.4 MB/s from Drive. r19 does not log the decode route; r20 (in 173) logs route and time for every 30 s unit.
+  If the route is the CPU (dav1d) for AV1 HDR, hardware AV1 decode is the next fix.
+- 172 was cancelled (built before this fix); 173 = 172 + this fix.
 
 ## Build 172 (owner: "converter is like not working at all but downloading is working great")
 - Carries KodiAirPlay r20 (30-second preparation units; 171 was cancelled before it shipped). r20 is the converter fix to test.

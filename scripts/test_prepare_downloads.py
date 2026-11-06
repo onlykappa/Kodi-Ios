@@ -180,11 +180,17 @@ class Download(unittest.TestCase):
   with self.assertRaisesRegex(RuntimeError,'size changed'):self.run_download(self.response(self.data+b'extra'))
 
 class Integration(unittest.TestCase):
+ def test_only_the_owners_choice_stops_a_conversion(self):
+  with tempfile.TemporaryDirectory() as p:
+   prep.request_check(p);self.assertFalse(prep.interrupts(p))           # a check waits for the conversion
+   prep.request(p,'retry','x');self.assertFalse(prep.interrupts(p))
+   prep.request(p,'next','y');self.assertTrue(prep.interrupts(p))       # Prepare next on another video
  def test_service_scans_on_boot_and_after_uploads_and_settings_enable_it(self):
   service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertIn('preparation.scan(can_prepare,force=bool(count))',service);self.assertIn('preparation.process_one(converting)',service)
-  # A requested check pauses the current conversion and brings the loop back within seconds.
-  self.assertIn('not prepare_downloads.check_requested(profile)',service);self.assertIn('if prepare_downloads.check_requested(profile) or prepare_downloads.pending_requests(profile):delay=5',service)
+  # A requested check no longer stops the running conversion (build-170 log); only Prepare next / Keep do.
+  self.assertIn('converting=lambda:can_prepare() and not prepare_downloads.interrupts(profile)',service)
+  self.assertNotIn('not prepare_downloads.check_requested(profile)',service);self.assertIn('if prepare_downloads.check_requested(profile) or prepare_downloads.pending_requests(profile):delay=5',service)
   import xml.etree.ElementTree as ET
   setting=ET.parse(ROOT/'migration/bundled-bootstrap/resources/settings.xml').find(".//setting[@id='prepare_downloads']")
   self.assertEqual(setting.findtext('default'),'true')
