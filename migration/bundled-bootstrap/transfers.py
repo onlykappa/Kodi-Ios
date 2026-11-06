@@ -19,8 +19,11 @@ def page_state(history,now,wanted,queued):
   done,total=float(job.get('done') or 0),float(job.get('total') or 0)
   rate=pts[-1][1] if pts else 0.0
   if kind=='conv':
-   pct=float(job.get('pct') or 0)
-   line=' · '.join(x for x in ('%s read'%th.size(done) if done else '','%d%% done'%pct if pct>=1 else '') if x) or 'Starting'
+   pct=float(job.get('pct') or 0);extra=job.get('extra') or {}
+   # Build 177 (approved mockup): how much of the film is done and how fast, not how much was read.
+   film=film_text(extra.get('film_done'),extra.get('film_total'))
+   pace='%.1f× the film\'s speed'%float(extra['pace']) if extra.get('pace') else ''
+   line=' · '.join(x for x in ('%d%%'%pct if pct>=1 else '',film,pace) if x) or 'Starting'
   else:
    pct=100.0*done/total if total else 0.0
    line='%s of %s'%(th.size(done),th.size(total)) if total else ''
@@ -36,7 +39,8 @@ def page_state(history,now,wanted,queued):
   props['other.%d.label'%n]=('%s %s'%(th.LABELS[k],j.get('title',''))) if k else ''
   props['other.%d.tint'%n]=th.TINTS.get(k,'')
   props['other.%d.rate'%n]=th.mb((j.get('points') or [[0,0]])[-1][1]) if k else ''
- finished=[f for f in history.get('finished') or [] if now-f.get('end',0)<24*3600]
+ # Owner (build 176): "it says finished? but its clearly not finished": stopped attempts stay in History only.
+ finished=[f for f in history.get('finished') or [] if now-f.get('end',0)<24*3600 and th.outcome(f)=='done']
  for n in range(1,tp.DONE+1):
   f=finished[n-1] if n<=len(finished) else None
   props['done.%d.title'%n]=f['title'] if f else ''
@@ -50,12 +54,18 @@ def page_state(history,now,wanted,queued):
   props['next.%d.title'%n],props['next.%d.line'%n]=r
  return props,pct,kind,others
 
+def film_text(done,total):
+ """'46 of 148 min of film' ('' before the film's length is known)."""
+ try:done,total=float(done or 0),float(total or 0)
+ except (TypeError,ValueError):return ''
+ return '%d of %d min of film'%(done//60,round(total/60)) if total>0 else ''
+
 def _left(kind,job,rate,pct,now):
  """'about 25 min left' from the job's own pace, or ''."""
  import prepare_downloads
  if kind=='conv':
-  if pct<1 or now<=job['start']:return ''
-  seconds=(now-job['start'])*(100-pct)/pct
+  # This attempt's own estimate (prepare_cloud): a restarted conversion keeps its history job, so its start is older.
+  return str((job.get('extra') or {}).get('eta') or '')
  else:
   total,done=float(job.get('total') or 0),float(job.get('done') or 0)
   if not rate or not total:return ''

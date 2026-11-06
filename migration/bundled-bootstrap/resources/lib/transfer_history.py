@@ -30,6 +30,7 @@ FINISHED = 400       # History keeps 30 days (KEEP_DAYS); the Transfers page sho
 KEEP_DAYS = 30
 FAILURES = 'transfer-failures.json'
 GRAPH_FILES = 10
+SMOOTH = 4          # points either side averaged in the graph
 W, H = 470, 220
 
 
@@ -90,7 +91,10 @@ def activity(torrents, debrid_current, prep_current):
     checking = str(c.get('stage') or '').startswith('Checking') or c.get('title') == 'Movies and shows'
     if c.get('running') and c.get('title') and not checking and time.time() - float(c.get('updated') or 0) < 15:
         out['conv'] = {'title': _title(c.get('title', '')), 'rate': float(c.get('rate') or 0),
-                       'done': float(c.get('read') or 0), 'total': 0.0, 'pct': float(c.get('progress') or 0)}
+                       'done': float(c.get('read') or 0), 'total': 0.0, 'pct': float(c.get('progress') or 0),
+                       # Build 177: film position, pace and time left of this attempt (prepare_cloud).
+                       'extra': {k: c[k] for k in ('film_done', 'film_total', 'pace', 'eta', 'out_bytes', 'out_total')
+                                 if c.get(k) not in (None, '')}}
     return out
 
 
@@ -170,7 +174,7 @@ def track(data, now, active):
             job = jobs[kind] = {'kind': kind, 'title': a['title'], 'start': now, 'last': now, 'peak': 0.0, 'sum': 0.0,
                                 'n': 0, 'step': 2, 'points': []}
         job.update(last=now, peak=max(job['peak'], rate), sum=job['sum'] + rate, n=job['n'] + 1,
-                   done=a.get('done', 0), total=a.get('total', 0), pct=a.get('pct'))
+                   done=a.get('done', 0), total=a.get('total', 0), pct=a.get('pct'), extra=a.get('extra') or {})
         pts = job['points']
         if pts and now - pts[-1][0] < job['step']:
             last = pts[-1]
@@ -246,10 +250,22 @@ def took(seconds):
 
 
 # --- the graph -------------------------------------------------------------------------------------------------------
+def smoothed(points, window=SMOOTH):
+    """Each point as the average of its neighbours (owner, build 176: "the graph is a little ugly": Drive moves the
+    data in bursts, so the raw speed is all spikes)."""
+    out = []
+    for i, p in enumerate(points):
+        near = points[max(0, i - window):i + window + 1]
+        weight = sum(q[2] if len(q) > 2 else 1 for q in near) or 1
+        out.append([p[0], sum(q[1] * (q[2] if len(q) > 2 else 1) for q in near) / weight] + list(p[2:3]))
+    return out
+
+
 def render(points, colour, width=W, height=H, start=None, now=None):
-    """PNG bytes: the job's speed as one line over a fading fill, with its peak as a faint dashed line."""
+    """PNG bytes: the job's speed as one smoothed line over a fading fill, with faint guide lines."""
     rgb = tuple(int(colour[i:i + 2], 16) for i in (2, 4, 6)) if isinstance(colour, str) else colour
-    top = max([p[1] for p in points] + [1.0]) * 1.12
+    points = smoothed(points)
+    top = max([p[1] for p in points] + [1.0]) * 1.25
     px = bytearray(width * height * 4)
     if not points:
         return _png(px, width, height)
@@ -278,10 +294,11 @@ def render(points, colour, width=W, height=H, start=None, now=None):
     for x, y in line.items():   # fill fades towards the bottom
         for yy in range(y + 2, height):
             put(x, yy, rgb, int(110 * (1 - (yy - y) / float(height - y + 1))))
-    py = ypos(max(p[1] for p in points))   # the peak
-    for x in range(width):
-        if (x // 6) % 2 == 0 and px[(py * width + x) * 4 + 3] == 0:
-            put(x, py, (255, 255, 255), 70)
+    for g in (0.25, 0.5, 0.75):   # faint guide lines, under the fill
+        gy = int(round((height - 3) - g * (height - 12)))
+        for x in range(width):
+            if px[(gy * width + x) * 4 + 3] == 0:
+                put(x, gy, (255, 255, 255), 28)
     return _png(px, width, height)
 
 

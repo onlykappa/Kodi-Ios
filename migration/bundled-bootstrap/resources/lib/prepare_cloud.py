@@ -31,6 +31,10 @@ def process_one(q, keep_going):
     candidates.sort(key=lambda pair:(-pair[1].get('priority',0),pair[0]))
     slot,job = candidates[0];item = job['source'];last = [0]
     job.pop('space',None)
+    # Build 177: time left and pace come from this attempt only. The old job['eta_mark'] outlived stopped attempts,
+    # so a restart measured from hours earlier ("about 46 h 28 min", owner screenshot).
+    job.pop('eta_mark',None);job['started_at']=q.clock()   # Library status › a ready movie: "took 41 min"
+    attempt={'mark':None,'sink':None,'fraction':0.0,'convert_start':None}
     def progress(stage,pct):
         if q.runtime:q.runtime.phase(stage,pct is not None,item['name'])
         if not keep_going():raise driveupload.Stop('Preparation paused')
@@ -39,13 +43,24 @@ def process_one(q, keep_going):
         last[0] = now
         # Owner (build 170): speed and time left, not a bare "Converting and saving to Drive".
         speed=q.read_speed(now)
-        mark=job.setdefault('eta_mark',[now,pct or 0]) if pct is not None else None
-        eta=''
+        if pct is not None and attempt['mark'] is None:attempt['mark']=[now,pct]
+        mark=attempt['mark'];eta=''
+        eta_s=0
         if mark and (pct or 0)-mark[1]>=0.2 and now>mark[0]:
-            eta=prep.eta_text((now-mark[0])*(100-(pct or 0))/((pct or 0)-mark[1]))
-        q.state['current'] = dict(title=item['name'],stage='Step 3 of 3 · '+stage,progress=max(0,min(100,pct or 0)),indeterminate=pct is None,
-                                  queued=len(candidates),running=True,updated=now,read=speed[0],rate=speed[1],
-                                  detail=prep.speed_text(*speed),eta=eta)
+            eta_s=(now-mark[0])*(100-(pct or 0))/((pct or 0)-mark[1]);eta=prep.eta_text(eta_s)
+        current=dict(title=item['name'],stage='Step 3 of 3 · '+stage,progress=max(0,min(100,pct or 0)),indeterminate=pct is None,
+                     queued=len(candidates),running=True,updated=now,read=speed[0],rate=speed[1],
+                     detail=prep.speed_text(*speed),eta=eta,eta_s=eta_s)
+        # Build 177 (owner-approved movie sheet): upload speed, film done, pace and the expected size.
+        sink=attempt['sink'];duration=float((job.get('probe') or {}).get('duration') or 0)
+        if sink is not None:
+            f=attempt['fraction'];up=sink.rate()
+            current.update(up_rate=up,out_bytes=sink.sent,film_total=duration,film_done=f*duration)
+            if f>0.01 and attempt['convert_start'] and now>attempt['convert_start']:
+                current['pace']=f*duration/(now-attempt['convert_start'])
+                current['out_total']=int(sink.sent/f) if sink.sent else 0
+            current['rate']=up   # what the graphs show while converting: the movie going up to Drive
+        q.state['current']=current
         q.commit()
     def clear_temps():
         discard=[o['id'] for o in (job.get('cloud_output') or {}).values() if not o.get('moved')]
@@ -86,6 +101,7 @@ def process_one(q, keep_going):
                 # A video playing pauses the conversion where it is (owner, build 175): the upload session waits too.
                 paused=getattr(q,'paused',None) or (lambda:False)
                 sink=drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file)
+                attempt['sink']=sink
                 def waiting():
                     if q.runtime:q.runtime.phase('Paused while a video plays',False,item['name'])
                     current=q.state.get('current') or {}
@@ -94,6 +110,8 @@ def process_one(q, keep_going):
                         q.state['current']=current;q.commit()
                 converted=[0]
                 def converted_progress(stage,n,t):
+                    if attempt['convert_start'] is None:attempt['convert_start']=q.clock()
+                    if stage in (0,2) and t:attempt['fraction']=max(attempt['fraction'],min(1.0,float(n)/t))
                     value=80 if stage==3 else (min(80,80*n/t) if t else converted[0])
                     converted[0]=max(converted[0],value)
                     progress('Converting and saving to Drive',converted[0])
@@ -103,7 +121,7 @@ def process_one(q, keep_going):
                     sink.finish()
                 except Exception:
                     # Drop RAM buffers immediately. Complete staging objects are recorded for cleanup next time.
-                    sink.tracks.clear();raise
+                    sink.close();sink.tracks.clear();raise
                 main=outputs['0']
             temp_id=main['id'];target=q.stream.url(temp_id)
             progress('Verifying the Drive file and seek index',82)

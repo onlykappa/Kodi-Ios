@@ -59,7 +59,7 @@ class Upload(unittest.TestCase):
   block=b'x'*65536
   for _ in range(300):
    sink.write(0,'.mp4',block)
-   self.assertLessEqual(len(sink.tracks[0]['buffer']),dp.CHUNK)
+   self.assertLessEqual(len(sink.tracks[0]['buffer']),dp.MAIN_CHUNK)
   self.assertEqual(list(self.d.files),['source'])
   result=sink.finish()['0'];self.assertEqual(self.d.files[result['id']]['data'],block*300)
   self.assertEqual(self.d.files['source']['data'],b'original')
@@ -76,7 +76,7 @@ class Upload(unittest.TestCase):
      return result
     drive.call=unreliable
     sink=dp.Sink(drive,'staging','prepared',lambda:True)
-    data=b'prepared'*(dp.CHUNK//8+20);sink.write(0,'.mp4',data)
+    data=b'prepared'*(dp.MAIN_CHUNK//8+20);sink.write(0,'.mp4',data)
     result=sink.finish()['0']
     self.assertTrue(lost[0]);self.assertEqual(drive.files[result['id']]['data'],data)
     self.assertEqual(drive.files['source']['data'],b'original')
@@ -121,6 +121,41 @@ class Upload(unittest.TestCase):
   with self.assertRaisesRegex(RuntimeError,'wrong prepared byte range'):
    dp.replace(self.d,self.source,main,{},lambda:None,lambda:True,wrong,lambda n,t:None)
   self.assertEqual(self.d.files['source']['data'],b'original')
+
+class BackgroundUpload(unittest.TestCase):
+ """Build 177 (build-176 log: upload busy 270 of 294 s at ~3 MB/s, the converter waiting on each 8 MB piece)."""
+ def test_converter_does_not_wait_for_a_slow_upload(self):
+  import time as _t
+  d=Drive();orig=d.call;puts=[]
+  def slow(method,url,body=None,headers=None):
+   if method=='PUT' and body:_t.sleep(0.3);puts.append(len(body))
+   return orig(method,url,body,headers)
+  d.call=slow;sink=dp.Sink(d,'staging','prepared',lambda:True)
+  piece=b'z'*(dp.MAIN_CHUNK)
+  t0=_t.monotonic();sink.write(0,'.mp4',piece);sink.write(0,'.mp4',piece);sink.write(0,'.mp4',b'end')
+  self.assertLess(_t.monotonic()-t0,0.25)   # handed over, not uploaded in this thread
+  result=sink.finish()['0']
+  self.assertEqual(d.files[result['id']]['data'],piece*2+b'end')
+  self.assertEqual(puts[:2],[dp.MAIN_CHUNK,dp.MAIN_CHUNK]);self.assertEqual(sink.sent,dp.MAIN_CHUNK*2+3)
+ def test_upload_error_reaches_the_converter_and_original_stays(self):
+  d=Drive();orig=d.call
+  def broken(method,url,body=None,headers=None):
+   if method=='PUT':return 400,{},b''
+   return orig(method,url,body,headers)
+  d.call=broken;sink=dp.Sink(d,'staging','prepared',lambda:True,sleep=lambda s:None)
+  import time as _t
+  with self.assertRaises(RuntimeError):
+   for _ in range(8):sink.write(0,'.mp4',b'q'*dp.MAIN_CHUNK);_t.sleep(0.05)
+   sink.finish()
+  self.assertEqual(d.files['source']['data'],b'original')
+ def test_close_ends_the_thread(self):
+  sink=dp.Sink(Drive(),'staging','prepared',lambda:True);sink.write(0,'.mp4',b'a'*(dp.MAIN_CHUNK+1))
+  sink.close();self.assertFalse(sink.tracks[0]['thread'].is_alive())
+ def test_rate_over_recent_seconds(self):
+  now=[0.0];sink=dp.Sink(Drive(),'staging','p',lambda:True,clock=lambda:now[0])
+  t={'offset':0}
+  for i in range(5):now[0]=i*2.0;t['offset']=i*16*1024*1024;sink._confirmed(t,0)
+  self.assertAlmostEqual(sink.rate(),8*1024*1024)
 
 class Native:
  outputs=True;streams=True;keeps_image_subs=True

@@ -96,9 +96,10 @@ class Rows(unittest.TestCase):
   actions=lambda n:[a for _,a in rows.details(by[n],self.view)['actions']]
   self.assertEqual(actions('w1'),['next','keep']);self.assertEqual(actions('s1'),['next','keep'])
   self.assertEqual(actions('f1'),['retry','keep']);self.assertEqual(actions('k2'),['prepare']);self.assertEqual(actions('k1'),[])
-  self.assertEqual(actions('r1'),[]);self.assertEqual(rows.details(by['r1'],self.view)['tone'],'ok')
+  # Build 177 (approved): a ready movie can be played from its sheet.
+  self.assertEqual(actions('r1'),['play','tv']);self.assertEqual(rows.details(by['r1'],self.view)['tone'],'ok')
   space=rows.details(by['s1'],self.view);self.assertEqual(space['tone'],'warn')
-  self.assertIn(('Free now','40 GB'),space['facts']);self.assertTrue(all(len(rows.details(r,self.view)['facts'])<=4 for r in by.values()))
+  self.assertIn(('Free now','40 GB'),space['facts']);self.assertTrue(all(len(rows.details(r,self.view)['facts'])<=rows.FACTS for r in by.values()))
 
 class Requests(unittest.TestCase):
  def setUp(self):
@@ -320,12 +321,14 @@ class TapEveryButton(unittest.TestCase):
   self.run_page([(library_page.WINDOW,tap_row('f1')),(library_page.ITEM,tap(9201)),(library_page.WINDOW,tap(library_page.BACK))])
   self.assertEqual(prep.pending_requests(self.profile),[{'action':'retry','id':'f1'}])
  def test_close_buttons_and_no_action_sheets(self):
-  kodi=self.run_page([(library_page.WINDOW,tap_row('r1')),(library_page.ITEM,tap(9201)),(library_page.ITEM,tap(9200)),
+  kodi=self.run_page([(library_page.WINDOW,tap_row('r1')),(library_page.ITEM,tap(9200)),
                       (library_page.WINDOW,tap_row('k1')),(library_page.ITEM,tap(9099)),
                       (library_page.WINDOW,lambda w:w.onAction(type('A',(),{'getId':lambda self:92})())),
                       (library_page.WINDOW,lambda w:w.onAction(type('A',(),{'getId':lambda self:92})())) ])
   sheets=[w for w in kodi.windows if w.xml==library_page.ITEM]
-  self.assertTrue(all(w.closed for w in sheets));self.assertEqual(sheets[0].focus,9200);self.assertTrue(kodi.windows[0].closed)
+  self.assertTrue(all(w.closed for w in sheets));self.assertTrue(kodi.windows[0].closed)
+  self.assertEqual((sheets[0].props['action1.label'],sheets[0].props['action2.label']),('Play','Play on TV'))
+  self.assertEqual(sheets[0].props['action2.colour'],'FFFFFFFF')
   self.assertEqual(prep.pending_requests(self.profile),[])
  def test_action_with_preparation_off_asks_to_turn_it_on(self):
   kodi=self.run_page([(library_page.WINDOW,tap_row('w1')),(library_page.ITEM,tap(9201)),(library_page.WINDOW,tap(library_page.BACK))],

@@ -53,6 +53,14 @@ class History(unittest.TestCase):
                 {'running':True,'rate':.5*MB,'title':'Inception.mkv','read':GB,'progress':12,'updated':time.time()})
   self.assertEqual(a['down']['rate'],MB);self.assertEqual(a['down']['done'],GB/2);self.assertEqual(a['up']['rate'],8*MB);self.assertEqual(a['conv']['pct'],12)
   self.assertEqual(th.activity(None,{'stage':'fetching','rate':5},{'running':True,'title':'x','updated':0}),{})   # old conversion state is not running
+ def test_conversion_extra_reaches_the_job(self):
+  a=th.activity([],{},{'running':True,'title':'Inception.mkv','rate':7*MB,'progress':24,'updated':time.time(),
+                      'film_done':2780,'film_total':8880,'pace':3.8,'eta':'about 27 min left','detail':'x'})
+  self.assertEqual(a['conv']['extra'],{'film_done':2780,'film_total':8880,'pace':3.8,'eta':'about 27 min left'})
+  d=th.track({},1000,a);self.assertEqual(d['jobs']['conv']['extra']['pace'],3.8)
+ def test_graph_is_smoothed(self):
+  pts=[[i,(8 if i%2 else 0)*MB,1] for i in range(40)]
+  sm=th.smoothed(pts);self.assertLess(max(p[1] for p in sm[5:-5])-min(p[1] for p in sm[5:-5]),2*MB)
  def test_saved_and_loaded(self):
   with tempfile.TemporaryDirectory() as p:
    th.save(p,feed({},1000,4,up={'title':'A','rate':MB}));self.assertEqual(th.load(p)['jobs']['up']['title'],'A')
@@ -91,14 +99,18 @@ class Page(unittest.TestCase):
   import transfers
   now=time.time()
   d=feed({},now-600,600,up={'title':'Fall 2','rate':7.2*MB,'done':15.8*GB,'total':16.9*GB},conv={'title':'Inception','rate':4.6*MB,'done':2.1*GB,'pct':24})
-  d['finished']=[{'kind':'down','title':'Batman','start':now-3000,'end':now-500,'peak':30*MB,'avg':20*MB,'size':12*GB}]
+  d['finished']=[{'kind':'conv','title':'Inception','start':now-400,'end':now-300,'peak':3*MB,'avg':2*MB,'size':0,'pct':4.0},   # stopped: not listed
+                  {'kind':'down','title':'Batman','start':now-3000,'end':now-500,'peak':30*MB,'avg':20*MB,'size':12*GB,'done':12*GB,'total':12*GB}]
   props,pct,kind,others=transfers.page_state(d,now,'up',[('Interstellar','convert · 8.4 GB')])
   self.assertEqual(kind,'up');self.assertEqual(others,['conv']);self.assertEqual(props['now'],'7.2 MB/s');self.assertEqual(props['kind'],'SAVING TO GOOGLE DRIVE')
   self.assertEqual(props['tint'],th.TINTS['up']);self.assertAlmostEqual(pct,100*15.8/16.9,1);self.assertIn('15.8 GB of 16.9 GB',props['line'])
   self.assertIn('left',props['line']);self.assertEqual(props['other.1.label'],'Converting Inception');self.assertEqual(props['started'],'10 min ago')
   self.assertEqual(props['done.1.title'],'Batman');self.assertIn('peak 30.0 MB/s',props['done.1.line']);self.assertEqual(props['next.1.title'],'Interstellar')
   props2,pct2,kind2,_=transfers.page_state(d,now,'conv',[])
-  self.assertEqual(kind2,'conv');self.assertEqual(pct2,24);self.assertIn('2.1 GB read · 24% done',props2['line'])
+  self.assertEqual(kind2,'conv');self.assertEqual(pct2,24);self.assertEqual(props2['line'],'24%')
+  d['jobs']['conv']['extra']={'film_done':46*60+20,'film_total':148*60,'pace':3.8,'eta':'about 27 min left'}
+  props3,_,_,_=transfers.page_state(d,now,'conv',[])
+  self.assertEqual(props3['line'],"24% · 46 of 148 min of film · 3.8× the film's speed · about 27 min left")
   for k in props:
    if k!='graph':self.assertIn('Window().Property(%s)'%k,self.xml,k)
   self.assertIn('Window().Property(graph)',self.xml)

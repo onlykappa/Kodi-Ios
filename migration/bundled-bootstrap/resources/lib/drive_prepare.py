@@ -6,12 +6,20 @@ process restarts keep the original, and completed staging files can be resumed.
 """
 import hashlib
 import json
+import queue
+import threading
+import time
 import urllib.parse
 import urllib.request
 import urllib.error
 import driveupload
 
 CHUNK = 8 * 1024 * 1024  # Drive requires multiples of 256 KiB
+# Build 177 (build-176 log: the upload was busy 270 of 294 s at ~3 MB/s while the converter waited for each 8 MB
+# piece): the movie goes up in 32 MB pieces on its own thread, AHEAD pieces may wait their turn, and the converter
+# only waits when all of them are full.
+MAIN_CHUNK = 32 * 1024 * 1024
+AHEAD = 2
 
 
 def discard(drive, item_id):
@@ -21,10 +29,54 @@ def discard(drive, item_id):
 
 
 class Sink:
-    def __init__(self, drive, parent, name, keep_going, on_file=lambda track,item:None):
+    def __init__(self, drive, parent, name, keep_going, on_file=lambda track,item:None, background=True, clock=time.monotonic, sleep=None):
         self.drive, self.parent, self.name, self.keep_going = drive, parent, name, keep_going
         self.tracks = {}
         self.on_file = on_file
+        self.background, self.clock, self.sleep = background, clock, sleep
+        self.closed = False
+        self.sent = 0            # bytes Drive has confirmed for the movie
+        self.marks = []          # (time, sent) over the last 20 s, for the upload speed
+
+    def rate(self):
+        """How fast the movie goes up to Drive (bytes per second over the last ~20 s)."""
+        marks = list(self.marks)
+        if len(marks) < 2 or marks[-1][0] - marks[0][0] < 1:return 0.0
+        return (marks[-1][1] - marks[0][1]) / (marks[-1][0] - marks[0][0])
+
+    def _confirmed(self, t, track):
+        if track != 0:return
+        self.sent = t['offset']
+        now = self.clock()
+        self.marks.append((now, self.sent))
+        self.marks[:] = [m for m in self.marks if now - m[0] <= 20]
+
+    def _uploader(self, t):
+        """The movie's pieces, in order, to Drive. Errors are kept and raised in the converter's thread."""
+        wire = t['wire']
+        while True:
+            try:piece = t['queue'].get(timeout=0.5)
+            except queue.Empty:
+                if self.closed:return
+                continue
+            if piece is None or self.closed:return
+            try:
+                wire['buffer'].extend(piece)
+                self._send(wire, len(piece), final=False, sleep=self.sleep)
+                self._confirmed(wire, 0)
+            except BaseException as error:
+                t['error'] = error
+                return
+
+    def _raise(self, t):
+        if t.get('error') is not None:raise t['error']
+
+    def close(self):
+        """Stop the upload thread (a failed or cancelled conversion): it ends at its next piece."""
+        self.closed = True
+        for t in self.tracks.values():
+            if t.get('thread'):
+                t['thread'].join(timeout=60)
 
     def write(self, track, suffix, data):
         if not self.keep_going():raise driveupload.Stop('Preparation paused')
@@ -35,12 +87,31 @@ class Sink:
                 {'Content-Type':'application/json', 'X-Upload-Content-Type':'video/mp4' if track == 0 else 'application/octet-stream'})
             url = headers.get('Location') or headers.get('location')
             if status != 200 or not url:raise RuntimeError('Preparation upload start: HTTP %d' % status)
-            self.tracks[track] = dict(url=url, offset=0, buffer=bytearray(), md5=hashlib.md5(), name=name, chunk=CHUNK if track == 0 else 256*1024)
+            self.tracks[track] = dict(url=url, offset=0, buffer=bytearray(), md5=hashlib.md5(), name=name,
+                                      chunk=(MAIN_CHUNK if self.background else CHUNK) if track == 0 else 256*1024)
+            if track == 0 and self.background:
+                t = self.tracks[0]
+                t['wire'] = dict(url=url, offset=0, buffer=bytearray())
+                t['queue'] = queue.Queue(maxsize=AHEAD)
+                t['thread'] = threading.Thread(target=self._uploader, args=(t,), daemon=True)
+                t['thread'].start()
         t = self.tracks[track]
+        if t.get('queue') is not None:self._raise(t)
         t['md5'].update(data)
         t['buffer'].extend(data)
         # Keep the last chunk until generation succeeds: cancellation cannot commit a truncated movie.
-        while len(t['buffer']) > t['chunk']:self._send(t, t['chunk'], final=False)
+        while len(t['buffer']) > t['chunk']:
+            if t.get('queue') is None:
+                self._send(t, t['chunk'], final=False)
+                self._confirmed(t, track)
+                continue
+            piece = bytes(t['buffer'][:t['chunk']])
+            while True:   # wait for room, but never forever: an upload error or a pause ends the wait
+                self._raise(t)
+                if not self.keep_going():raise driveupload.Stop('Preparation paused')
+                try:t['queue'].put(piece, timeout=0.5);break
+                except queue.Full:continue
+            del t['buffer'][:t['chunk']]
 
     def _send(self, t, length, final, attempts=8, sleep=None):
         """Send the first `length` buffered bytes. Drive may keep only part of a chunk (308 with a shorter Range) or
@@ -88,7 +159,17 @@ class Sink:
         # Finish sidecars first. A failed main output leaves its source intact.
         for track in sorted(self.tracks, key=lambda n:n == 0):
             t = self.tracks[track]
+            if t.get('queue') is not None:
+                # Every piece handed over must be confirmed before the last one is sent.
+                t['queue'].put(None)
+                while t['thread'].is_alive():
+                    t['thread'].join(timeout=0.5)
+                    if not self.keep_going():
+                        self.close();raise driveupload.Stop('Preparation paused')
+                self._raise(t)
+                t['offset'] = t['wire']['offset']
             self._send(t, len(t['buffer']), final=True)
+            self._confirmed(t, track)
             self.on_file(str(track),t['result'])
         if 0 not in self.tracks:raise RuntimeError('Preparation produced no video')
         return {str(k):t['result'] for k,t in self.tracks.items()}

@@ -89,6 +89,58 @@ def short_eta(text):
     return text[:-5] if text.endswith(' left') else text
 
 
+CONV, DOWN = 'FFBF5AF2', 'FF0A84FF'
+FACTS = 5
+
+
+def film_text(done, total):
+    """'46 of 148 min of the film' ('' while the film's length is unknown)."""
+    try:
+        done, total = float(done or 0), float(total or 0)
+    except (TypeError, ValueError):
+        return ''
+    return '%d of %d min of the film' % (done // 60, round(total / 60)) if total > 0 else ''
+
+
+def clock_text(seconds, now=None):
+    """'4:35 PM' when something `seconds` from now ends ('' when unknown or more than a day away)."""
+    import time as _time
+    try:
+        seconds = float(seconds or 0)
+    except (TypeError, ValueError):
+        return ''
+    if seconds <= 0 or seconds > 86400:
+        return ''
+    t = _time.localtime((_time.time() if now is None else now) + seconds)
+    return _time.strftime('%I:%M %p', t).lstrip('0')
+
+
+def day_text(when, now=None):
+    """'Today', 'Yesterday' or '6 Nov' ('' when unknown)."""
+    import time as _time
+    if not when:
+        return ''
+    now = _time.time() if now is None else now
+    a, b = _time.localtime(when), _time.localtime(now)
+    days = (_time.mktime(b[:3] + (0, 0, 0, 0, 0, -1)) - _time.mktime(a[:3] + (0, 0, 0, 0, 0, -1))) // 86400
+    return 'Today' if days == 0 else 'Yesterday' if days == 1 else '%d %s' % (a.tm_mday, _time.strftime('%b', a))
+
+
+def minutes_text(seconds):
+    m = int(max(0, seconds) // 60)
+    return 'under a minute' if m < 1 else '%d min' % m if m < 60 else '%d h %d min' % (m // 60, m % 60)
+
+
+def picture_text(probe, kept=False):
+    """'4K HDR', 'HD' ... from the native probe; kept=True adds ', kept as 4K HDR' (the picture is not made smaller)."""
+    if not probe:
+        return ''
+    w = int(probe.get('width') or 0)
+    res = '4K' if w >= 3000 else 'HD' if w >= 1200 else 'SD' if w else ''
+    what = ' '.join(x for x in (res, 'HDR' if probe.get('hdr') else '') if x)
+    return '%s, kept as %s' % (what, what) if kept and what else what
+
+
 def details(row, view):
     """One video's details sheet: title, status (tone ok|warn|plain), quality, up to 4 facts and up to 2 actions
     (label, request) where request is prepare_downloads.request's action, or None."""
@@ -98,29 +150,45 @@ def details(row, view):
     state = row['state']
     sheet = {'title': row['title'], 'quality': '', 'facts': [], 'actions': [], 'tone': 'plain', 'status': row.get('sub', ''),
              'bar': '', 'bar_tint': ''}
+    # Build 177 (owner-approved movie sheet): a live speed card for anything moving, and rows that each answer one
+    # question. "On Google Drive" (the original's size) and "Speed: 1.8 GB read" are gone (owner: they "dont make sense").
+    sheet['card'] = ''
     if state == 'ready':
-        sheet.update(status='Ready for Kodi and AirPlay', tone='ok', quality=row.get('sub', ''),
-                     facts=[f for f in (on_drive, folder, ('Plays', 'on this iPhone and over AirPlay, seeking straight away')) if f])
+        probe = row.get('probe') or {}
+        took = (row['completed'] - row['started_at']) if row.get('completed') and row.get('started_at') else 0
+        made = ' · '.join(x for x in (day_text(row.get('completed')), 'took %s' % minutes_text(took) if took > 0 else '') if x)
+        sheet.update(status='Ready on iPhone and Apple TV', tone='ok', quality='Seeks straight away over AirPlay',
+                     facts=[f for f in (('Picture', picture_text(probe, kept=False) or row.get('sub', '')),
+                                        ('Size', '%.1f GB' % (size / GB)) if size else None,
+                                        ('Folder', 'Kodi Downloads › ' + row['folder']) if row.get('folder') else None,
+                                        ('Made ready', made) if made else None) if f],
+                     actions=[('Play', 'play'), ('Play on TV', 'tv')])
     elif state == 'preparing':
-        # Owner (build 170): "the details are blank and seem ugly": what it is doing, how fast and how long.
         pct = row.get('pct', 0)
-        sheet.update(status='Preparing now' + (' · %s%%' % pct if pct and not row.get('indeterminate') else ''),
-                     quality=row.get('video', ''),
-                     facts=[f for f in (('Step', row.get('step') or row.get('sub', '')),
-                                        ('Speed', row.get('speed') or 'starting'),
-                                        ('Time left', short_eta(row.get('eta')) or 'working it out'),
-                                        on_drive) if f])
+        out_total = row.get('out_total') or 0
+        sheet.update(status='Converting for Apple TV' + (' · %s%%' % pct if pct and not row.get('indeterminate') else ''),
+                     tone='conv', quality='Plays on iPhone already · TV after this', card='conv',
+                     facts=[f for f in (('Done so far', film_text(row.get('film_done'), row.get('film_total')) or 'starting'),
+                                        ('Ready around', clock_text(row.get('eta_s')) or 'working it out'),
+                                        ('Pace', '%.1f× faster than the film plays' % float(row['pace'])) if row.get('pace') else None,
+                                        ('Picture', picture_text(row.get('probe'), kept=True)) if row.get('probe') else None,
+                                        ('Size', '%.1f GB now' % (size / GB) + (' · about %.1f GB after' % (out_total / GB) if out_total else ''))
+                                        if size else None) if f])
         if pct and not row.get('indeterminate'):
-            sheet.update(bar=str(pct), bar_tint='FFBF5AF2')
+            sheet.update(bar=str(pct), bar_tint=CONV)
     elif state in ('downloading', 'uploading'):
-        sent, total, rate = row.get('sent') or 0, row.get('total') or 0, row.get('rate') or 0
-        sheet.update(status=('AllDebrid is fetching it' if row.get('stage') == 'fetching' else
-                             'Uploading to Google Drive' if state == 'uploading' else 'Downloading'),
-                     facts=[f for f in (('Progress', '%s%%' % row.get('pct', 0) + (' · %.1f of %.1f GB' % (sent / GB, total / GB) if total else '')),
-                                        ('Speed', '%.1f MB/s' % (rate / 1024 ** 2) if rate else 'measuring'),
-                                        ('Time left', short_eta(row.get('eta')) or 'working it out'),
-                                        ('Saving to', 'Google Drive › Kodi Downloads' + (' › ' + row['folder'] if row.get('folder') else ''))) if f])
-        sheet.update(bar=str(row.get('pct', 0)), bar_tint='FF30D158' if state == 'uploading' else 'FF0A84FF')
+        sent, total = row.get('sent') or 0, row.get('total') or 0
+        fetching = row.get('stage') == 'fetching'
+        debrid = state == 'uploading'
+        sheet.update(status=('AllDebrid is fetching it' if fetching else 'Downloading') + ' · %s%%' % row.get('pct', 0),
+                     tone='down', quality='Straight to Google Drive, not the phone' if debrid else 'To this iPhone, then to Google Drive',
+                     card='up' if debrid else 'down',
+                     facts=[f for f in (('Downloaded', '%.1f of %.1f GB' % (sent / GB, total / GB)) if total and not fetching else None,
+                                        ('Done around', clock_text(row.get('eta_s')) or 'working it out'),
+                                        ('Through', 'AllDebrid' if debrid else 'Elementum (torrent)'),
+                                        ('Saving to', 'Drive › Kodi Downloads' + (' › ' + row['folder'] if row.get('folder') else '')),
+                                        ('After that', 'Converted for Apple TV if it needs it')) if f])
+        sheet.update(bar=str(row.get('pct', 0)), bar_tint=DOWN)
     elif state == 'waiting':
         sheet.update(status=row.get('sub', '').split(' · ')[0], quality=' · '.join(row.get('sub', '').split(' · ')[1:]),
                      facts=[f for f in (on_drive, folder) if f],
@@ -140,5 +208,25 @@ def details(row, view):
         sheet.update(status='Kept as it is', facts=[f for f in (on_drive, ('Why', row.get('sub', '').replace('Kept as it is · ', ''))) if f])
         if row.get('owner'):
             sheet['actions'] = [('Prepare it after all', 'prepare')]
-    sheet['facts'] = sheet['facts'][:4]
+    sheet['facts'] = sheet['facts'][:FACTS]
     return sheet
+
+
+def card(history, kind, title, now):
+    """The live speed card of a movie's sheet (build 177): window properties and the points to paint, from
+    transfer_history's job of that kind when it is this movie's. ({}, []) when there is none yet ("Measuring…")."""
+    import transfer_history as th
+    job = (history.get('jobs') or {}).get(kind)
+    if not job or job.get('title') != title or now - job.get('last', 0) > 15:
+        return {'card.now': 'starting', 'card.peak': '–', 'card.avg': '–', 'card.left': '–', 'card.from': ''}, []
+    pts = job.get('points') or []
+    rate = pts[-1][1] if pts else 0.0
+    left = ''
+    if kind == 'conv':
+        left = short_eta((job.get('extra') or {}).get('eta'))
+    elif rate and job.get('total'):
+        import prepare_downloads
+        left = short_eta(prepare_downloads.eta_text((float(job['total']) - float(job.get('done') or 0)) / rate))
+    return ({'card.now': th.mb(rate), 'card.peak': th.mb(job.get('peak')),
+             'card.avg': th.mb(job.get('sum', 0) / max(1, job.get('n', 1))), 'card.left': left or '–',
+             'card.from': th.ago(now - job['start']).replace('just now', 'a moment ago')}, pts)

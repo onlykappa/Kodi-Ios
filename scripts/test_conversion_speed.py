@@ -111,26 +111,42 @@ class SpeedEverywhere(unittest.TestCase):
    self.assertIn('8.4 MB/s',up['line']);self.assertIn('about 4 min left',up['line']);self.assertEqual(up['short'],'86% · 8.4 MB/s · about 4 min left')
    view=prep.library_view({},uploads=[up])
    row=view['rows']['downloading'][0];self.assertEqual(row['sub'],'Uploading to Google Drive · 86% · 8.4 MB/s · about 4 min left')
-   facts=dict(library_rows.details(row,view)['facts'])
-   self.assertEqual(facts['Speed'],'8.4 MB/s');self.assertEqual(facts['Time left'],'about 4 min');self.assertIn('14.6 of 16.9 GB',facts['Progress'])
-   self.assertEqual(facts['Saving to'],'Google Drive › Kodi Downloads › Movies')
- def test_preparing_details_are_full(self):
+   s=library_rows.details(row,view);facts=dict(s['facts'])
+   # Build 177 (approved sheet): the speed lives in the card; the rows say what is left and where it goes.
+   self.assertEqual(s['card'],'up');self.assertEqual(s['status'],'Downloading · 86%');self.assertEqual(facts['Downloaded'],'14.6 of 16.9 GB')
+   self.assertEqual(facts['Through'],'AllDebrid');self.assertEqual(facts['Saving to'],'Drive › Kodi Downloads › Movies')
+   self.assertRegex(facts['Done around'],r'^\d{1,2}:\d\d [AP]M$');self.assertNotIn('On Google Drive',facts)
+ def test_converting_sheet_rows(self):
   import library_rows
-  row={'state':'preparing','title':'Inception (2010)','pct':0,'step':'Converting and saving to Drive','speed':'177 MB read · 0.6 MB/s',
-       'eta':'','video':'AV1 10-bit HDR → HEVC (re-encoded)','size':8.9*1024**3}
-  s=library_rows.details(row,{'free':0})
-  self.assertEqual(s['status'],'Preparing now');self.assertEqual(s['quality'],'AV1 10-bit HDR → HEVC (re-encoded)')
-  self.assertEqual([f[0] for f in s['facts']],['Step','Speed','Time left','On Google Drive'])
- def test_preparing_sheet_has_a_bar_and_short_time(self):
-  import library_rows
-  row={'state':'preparing','title':'Inception (2010)','pct':24,'step':'Converting and saving to Drive','speed':'2.1 GB read · 4.6 MB/s',
-       'eta':'about 25 min left','video':'AV1 10-bit HDR → HEVC (re-encoded)','size':8.9*1024**3}
+  row={'state':'preparing','title':'Inception (2010)','pct':24,'size':8.9*1024**3,'film_done':46*60+20,'film_total':148*60,
+       'pace':3.8,'eta_s':1620,'out_total':5.2*1024**3,'probe':{'width':3840,'height':1600,'hdr':True}}
   s=library_rows.details(row,{'free':0});facts=dict(s['facts'])
-  self.assertEqual(s['bar'],'24');self.assertEqual(s['bar_tint'],'FFBF5AF2');self.assertEqual(facts['Time left'],'about 25 min')
-  self.assertEqual(library_rows.details(dict(row,pct=0),{'free':0})['bar'],'')
+  self.assertEqual((s['status'],s['tone'],s['card']),('Converting for Apple TV · 24%','conv','conv'))
+  self.assertEqual([f[0] for f in s['facts']],['Done so far','Ready around','Pace','Picture','Size'])
+  self.assertEqual(facts['Done so far'],'46 of 148 min of the film');self.assertEqual(facts['Pace'],'3.8× faster than the film plays')
+  self.assertEqual(facts['Picture'],'4K HDR, kept as 4K HDR');self.assertEqual(facts['Size'],'8.9 GB now · about 5.2 GB after')
+  self.assertEqual((s['bar'],s['bar_tint']),('24','FFBF5AF2'))
+  early=library_rows.details(dict(row,pct=0,film_done=None,film_total=None,pace=None,eta_s=0,out_total=0,probe=None),{'free':0})
+  self.assertEqual(dict(early['facts'])['Done so far'],'starting');self.assertEqual(dict(early['facts'])['Ready around'],'working it out')
+  self.assertEqual(early['bar'],'');self.assertNotIn('Pace',dict(early['facts']))
   self.assertIn('<control type="progress" id="9210">',(LIB/'library_page.py').read_text())
+ def test_ready_sheet(self):
+  import library_rows,time
+  now=time.time()
+  row={'state':'ready','title':'Fall 2','size':16.9*1024**3,'folder':'Movies','sub':'4K','probe':{'width':3840,'hdr':True},
+       'completed':now-60,'started_at':now-60-41*60}
+  s=library_rows.details(row,{'free':0});facts=dict(s['facts'])
+  self.assertEqual(s['actions'],[('Play','play'),('Play on TV','tv')]);self.assertEqual(s['card'],'')
+  self.assertEqual(facts['Picture'],'4K HDR');self.assertEqual(facts['Made ready'],'Today · took 41 min');self.assertEqual(facts['Size'],'16.9 GB')
+ def test_live_card(self):
+  import library_rows,transfer_history as th
+  d={}
+  for i in range(0,60,2):th.track(d,1000+i,{'conv':{'title':'Inception (2010)','rate':7*1024**2,'extra':{'eta':'about 27 min left'}}})
+  props,pts=library_rows.card(d,'conv','Inception (2010)',1060)
+  self.assertEqual((props['card.now'],props['card.left']),('7.0 MB/s','about 27 min'));self.assertGreater(len(pts),1)
+  props,pts=library_rows.card(d,'conv','Interstellar (2014)',1060);self.assertEqual((props['card.now'],pts),('starting',[]))
  def test_cloud_progress_records_speed_and_folder_icons_resolve(self):
-  self.assertIn("detail=prep.speed_text(*speed),eta=eta",(LIB/'prepare_cloud.py').read_text())
+  self.assertIn("detail=prep.speed_text(*speed),eta=eta,eta_s=eta_s",(LIB/'prepare_cloud.py').read_text())
   self.assertIn("p.ICONS + '$INFO[ListItem.Property(icon)]'",(LIB/'library_page.py').read_text())
 
 class Build175Log(unittest.TestCase):

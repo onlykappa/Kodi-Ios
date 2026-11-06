@@ -362,17 +362,22 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
  title=lambda name:drivelibrary.display_title(name)
  for d in downloads:
   rows['downloading'].append({'id':'dl:'+str(d.get('id','')),'title':d.get('title',''),'state':'downloading','pct':int(d.get('progress') or 0),
+   'sent':d.get('sent',0),'total':d.get('total',0),'rate':d.get('rate',0),'eta_s':d.get('eta_s',0),
    'sub':'Downloading · %s'%' · '.join(x for x in (str(d.get('line','')).replace('  ',' '),str(d.get('speed','')).replace('  ',' ')) if x)})
  for u in uploads:
   # Owner (build 170): "no way for me to see download or upload speed anywhere".
   rows['downloading'].append({'id':'up','title':u.get('title',''),'state':'uploading','pct':int(u.get('progress') or 0),
    'sub':'Uploading to Google Drive · %s'%(u.get('short') or '%d%%'%int(u.get('progress') or 0)),
    'sent':u.get('sent',0),'total':u.get('total',0),'rate':u.get('rate',0),'eta':u.get('eta',''),'folder':u.get('folder',''),
+   'eta_s':(float(u.get('total') or 0)-float(u.get('sent') or 0))/float(u['rate']) if u.get('rate') else 0,
    'stage':u.get('stage','')})
  order=[]
  for e in library.get('items') or []:
   job=jobs.get(e['id']);base={'id':e['id'],'title':title(e['name']),'name':e['name'],'folder':e['folder'],'size':e['size']}
-  if e['state']=='ready':rows['ready'].append(dict(base,state='ready',sub=quality_text(e['name'],e['size'])));continue
+  if e['state']=='ready':
+   done=job if job and job.get('status')=='done' else {}
+   rows['ready'].append(dict(base,state='ready',sub=quality_text(e['name'],e['size']),probe=done.get('probe'),
+    completed=done.get('completed'),started_at=done.get('started_at')));continue
   if job and (job.get('blocked') or job.get('kept')):
    why=job.get('error') or 'Kept as it is'
    rows['kept'].append(dict(base,state='kept',owner=bool(job.get('kept')) and not job.get('blocked'),
@@ -380,7 +385,10 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
   if job and current.get('running') and current.get('title') in (e['name'],title(e['name'])):
    rows['preparing'].append(dict(base,state='preparing',pct=int(current.get('progress',0)),indeterminate=bool(current.get('indeterminate')),
     step=str(current.get('stage','Preparing')).replace('Step 3 of 3 · ',''),speed=current.get('detail',''),eta=current.get('eta',''),
-    video=video_text((job or {}).get('probe')),sub=str(current.get('stage','Preparing')).replace('Step 3 of 3 · ','')+live_line(current)));continue
+    video=video_text((job or {}).get('probe')),sub=str(current.get('stage','Preparing')).replace('Step 3 of 3 · ','')+live_line(current),
+    # Build 177 movie sheet: film done, pace, expected size, time left in seconds, the probe for "Picture".
+    film_done=current.get('film_done'),film_total=current.get('film_total'),pace=current.get('pace'),out_total=current.get('out_total'),
+    eta_s=current.get('eta_s'),probe=(job or {}).get('probe'),up_rate=current.get('up_rate')));continue
   if e['state']=='unreadable':rows['waiting'].append(dict(base,state='problem',warn=True,sub='Google Drive could not describe it; checking again next time'));continue
   if job and job.get('status')=='failed':
    wait=max(0,int((job.get('retry_after',0)-now())//60))

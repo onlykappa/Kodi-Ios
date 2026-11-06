@@ -205,6 +205,7 @@ def downloads(get=None):
   size=float(t.get('size_bytes') or 0);rate=float(t.get('download_rate') or 0)*1024  # engine reports KB/s
   done=size*progress/100;paused=status.lower()=='paused'
   out.append({'id':t.get('id',''),'title':drivelibrary.display_title(t.get('name','')),'progress':progress,'paused':paused,
+              'sent':done,'total':size,'rate':0 if paused else rate,'eta_s':(size-done)/rate if rate>0 and not paused else 0,
               'line':'%d%%  ·  %s of %s'%(progress,size_text(done),size_text(size)),
               'speed':'Paused' if paused else ('%.1f MB/s  ·  %s'%(rate/1024**2,eta_text((size-done)/rate)) if rate>0 else 'Waiting for peers')})
  return out

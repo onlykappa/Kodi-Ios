@@ -29,6 +29,20 @@
 - Each Drive copy chunk logs its source-read and Drive-send times and MB/s (`driveupload.upload_stream`), so the next log shows which side is slow.
 - While an AllDebrid file is being copied into Drive, preparation waits its turn; it resumes afterwards (`debrid_drive.copying`, service loop).
 
+## Build-176 log (owner, 14:52–14:58) and build 177
+- r24 works: video units 12–16 s per 30 s of film per lane (hardware HDR av1 → hevc_videotoolbox), two lanes, audio
+  units 1–2 s. Real throughput only ~1.8x real time: the Drive upload of the output was busy 270 of 294 s (109 serial
+  8 MB PUTs, ~3.1 MB/s; owner's line ~8.75 MB/s) and the muxer waited on each PUT. Output ~14 Mbit/s.
+- Read 1.2 GB for ~0.37 GB of film (blocks fetched again; lanes drift): not limiting yet. At 14:57:21 lane 2 fell to
+  the CPU path (libdav1d) and stayed there (a VT decode refusal, possibly Kodi leaving the screen).
+- Build 177: `drive_prepare.Sink` uploads the movie on its own thread in 32 MB pieces (2 waiting), the converter does
+  not wait; upload speed measured (`Sink.rate`). Time left per attempt (the stale `eta_mark` gave "46 h 28 min").
+  Transfers: smoothed graph, converting line "24% · 46 of 148 min of film · 3.8× the film's speed · about 27 min
+  left", Finished lists only completed jobs. Library status movie sheet (owner-approved mockup image, shared in chat): live speed card (MB/s, peak, average, time left, graph, bar), rows
+  Done so far / Ready around / Pace / Picture / Size; downloading: Downloaded / Done around / Through / Saving to /
+  After that; ready: Picture / Size / Folder / Made ready + Play / Play on TV. "On Google Drive" removed.
+- Next after the 177 log: KEEP blocks (read waste), retry hardware decode per unit after a refusal, locked-screen log.
+
 ## Build-175 log (owner, 13:45–13:48): where the time goes (r22 notes)
 - Video: "unit started via hardware HDR (av1 decoder to hevc_videotoolbox)", 22.5 fps, 30 s of film in 37.2 s (0.81x).
 - Audio: two tracks, each 30 s of film in 23.3 s, one after the other: ~83 s per 30 s (0.36x, ~7 h for Inception).

@@ -67,29 +67,60 @@ def run(args=()):
   return ''
 
  class Details(xbmcgui.WindowXMLDialog):
-  def setup(self,sheet,row):
-   self.sheet,self.row,self.chosen=sheet,row,None
+  def setup(self,sheet,row,fresh=None):
+   self.sheet,self.row,self.chosen,self.fresh=sheet,row,None,fresh
   def onInit(self):
-   s=self.sheet
+   self.stop=threading.Event();self.counter=0
+   self.show(self.sheet)
+   if not self.sheet['actions']:
+    try:self.setFocusId(9200)
+    except Exception:pass
+   # Build 177: a moving movie's sheet stays live (speed card, graph, rows) every 2 s while open.
+   if self.sheet.get('card'):threading.Thread(target=self.loop,daemon=True).start()
+  def show(self,s):
    for k in ('title','status','tone','quality'):self.setProperty(k,s[k])
    self.setProperty('poster',poster(self.row))
+   self.setProperty('card',s.get('card',''))
    self.setProperty('bar',s.get('bar',''));self.setProperty('bar.tint',s.get('bar_tint',''))
    try:self.getControl(9210).setPercent(float(s.get('bar') or 0))
    except Exception:pass
-   for n in range(4):
+   self.setProperty('facts.n',str(len(s['facts'])))
+   for n in range(library_rows.FACTS):
     label,value=s['facts'][n] if n<len(s['facts']) else ('','')
     self.setProperty('fact%d.label'%n,label);self.setProperty('fact%d.value'%n,value)
    for n in range(2):
-    self.setProperty('action%d.label'%(n+1),s['actions'][n][0] if n<len(s['actions']) else '')
-   if not s['actions']:
-    try:self.setFocusId(9200)
-    except Exception:pass
+    label,action=s['actions'][n] if n<len(s['actions']) else ('','')
+    self.setProperty('action%d.label'%(n+1),label)
+   # "Keep as it is" stays red (it gives up on preparing); Play on TV is an ordinary button.
+   second=s['actions'][1][1] if len(s['actions'])>1 else ''
+   self.setProperty('action2.colour','FFFF453A' if second in ('keep','') else 'FFFFFFFF')
+   if s.get('card'):self.speed(s)
+  def speed(self,s):
+   import transfer_history
+   props,points=library_rows.card(transfer_history.load(profile),s['card'],s['title'],time.time())
+   if len(points)>1:
+    self.counter+=1
+    folder=os.path.join(xbmcvfs.translatePath('special://skin/'),'extras','portrait','graph')
+    props['card.graph']='special://skin/extras/portrait/graph/'+transfer_history.write_graph(folder,self.counter,
+      transfer_history.render(points,library_rows.CONV if s['card']=='conv' else library_rows.DOWN,start=points[0][0],now=time.time()))
+   else:props['card.graph']=''
+   for k,v in props.items():self.setProperty(k,v)
+  def loop(self):
+   monitor=xbmc.Monitor()
+   while not self.stop.is_set() and not monitor.waitForAbort(2):
+    try:
+     fresh=self.fresh() if self.fresh else None
+     if fresh:self.sheet,self.row=fresh
+     self.show(self.sheet)
+    except Exception as error:xbmc.log('Library status sheet: %s: %s'%(type(error).__name__,error),xbmc.LOGWARNING)
   def onAction(self,action):
-   if action.getId() in BACK:self.close()
+   if action.getId() in BACK:self.finish()
   def onClick(self,control):
    if control in (9201,9202) and len(self.sheet['actions'])>control-9201:
-    self.chosen=self.sheet['actions'][control-9201];self.close()
-   elif control in (9200,9099):self.close()
+    self.chosen=self.sheet['actions'][control-9201];self.finish()
+   elif control in (9200,9099):self.finish()
+  def finish(self):
+   self.stop.set();self.close()
 
  class Page(xbmcgui.WindowXMLDialog):
   def onInit(self):
@@ -168,10 +199,24 @@ def run(args=()):
    item=items[position]
    if item['kind']=='folder':self.set_filter(item['props']['folder']);return
    if item['kind']!='row':return
-   sheet=Details(library_page.ITEM,here,'Default','1080i')
-   sheet.setup(library_rows.details(item['row'],self.view),item['row'])
+   try:sheet=Details(library_page.ITEM,here,'Default','1080i')
+   except RuntimeError:
+    xbmcvfs.listdir(os.path.join(xbmcvfs.translatePath('special://skin/'),'portrait')+'/')   # a page added while Kodi runs (build 173)
+    sheet=Details(library_page.ITEM,here,'Default','1080i')
+   wanted=item['row']
+   def fresh():
+    _,view=snapshot(profile,notices.downloads,lambda:notices.uploads(profile))
+    for rows in view['rows'].values():
+     for r in rows:
+      if r.get('id')==wanted.get('id') and r.get('title')==wanted.get('title'):return library_rows.details(r,view),r
+    return None
+   sheet.setup(library_rows.details(item['row'],self.view),item['row'],fresh)
    sheet.doModal()
-   chosen=sheet.chosen;del sheet
+   chosen=sheet.chosen
+   if hasattr(sheet,'stop'):sheet.stop.set()
+   del sheet
+   if chosen and chosen[1] in ('play','tv'):
+    play(item['row'],chosen[1]=='tv');return
    if chosen:
     label,action=chosen
     if not addon.getSettingBool('prepare_downloads'):
@@ -182,6 +227,21 @@ def run(args=()):
     dialog.notification('Library status','%s: %s'%(label,item['row']['title']),xbmcgui.NOTIFICATION_INFO,2500)
     self.refresh(force=True)
 
+ def play(row,tv):
+  """A ready movie's sheet: Play (Kodi plays it from Drive) or Play on TV (the same, then the AirPlay picker)."""
+  import navigation
+  try:_,driveid=drivelibrary.client()
+  except Exception:driveid=None
+  if not driveid:dialog.notification('Library status','Sign in to Google Drive first',xbmcgui.NOTIFICATION_WARNING,3000);return
+  page.finish()
+  xbmc.executebuiltin('PlayMedia(%s)'%drivelibrary.play_url(driveid,row['id']))
+  if tv:
+   def picker():
+    monitor=xbmc.Monitor()
+    for _ in range(40):   # up to 20 s for playback to start, then Play on TV opens over it
+     if xbmc.Player().isPlayingVideo():xbmc.executebuiltin(navigation.CAST_SCRIPT);return
+     if monitor.waitForAbort(0.5):return
+   threading.Thread(target=picker,daemon=True).start()
  page=Page(library_page.WINDOW,here,'Default','1080i')
  page.doModal()
  if hasattr(page,'stop'):page.stop.set()
