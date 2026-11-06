@@ -637,7 +637,7 @@ class Queue:
    if 'http://' in text or 'https://' in text:text='Preparation paused; connection needs a retry'
    if 'source changed' in text:
     job['status']='superseded';self.state['last_scan']=0;shutil.rmtree(folder,ignore_errors=True)
-   elif 'tracks MP4 cannot preserve' in text or 'cannot be prepared without changing HDR' in text:
+   elif 'tracks MP4 cannot preserve' in text or 'cannot be prepared without changing HDR' in text or 'needs RPU remapping' in text:
     job['blocked']=True;shutil.rmtree(folder,ignore_errors=True)
    elif 'Free phone space' in text:
     # Space ran out after all (the phone filled up meanwhile): give the space back and wait, quietly.

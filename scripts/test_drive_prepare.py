@@ -143,6 +143,13 @@ class Queue(unittest.TestCase):
   self.q.state['jobs']={'slot':{'source':prep.metadata(self.d,'source'),'status':'waiting'}}
   self.open=patch('prepare_cloud.urllib.request.urlopen',side_effect=lambda req,timeout:self.d.open_at(req.full_url.split('/')[-2],int(req.headers['Range'][6:-1])))
   self.open.start();self.addCleanup(self.open.stop)
+ def test_unsupported_dolby_vision_is_kept_without_endless_background_retries(self):
+  def unsupported(*args):raise RuntimeError('This Dolby Vision codec needs RPU remapping; original retained')
+  self.n.convert_to=unsupported
+  self.assertFalse(self.q.process_one())
+  self.assertTrue(self.q.state['jobs']['slot']['blocked'])
+  self.assertFalse(self.q.process_one())
+  self.assertEqual(self.d.files['source']['data'],b'original')
  def test_end_to_end_queue_writes_no_local_media_and_marks_ready(self):
   with patch.object(prep.phone_space,'free',return_value=0):self.assertTrue(self.q.process_one())
   self.assertEqual(self.d.files['source']['data'],b'prepared video');self.assertTrue(prep.ready(self.d.meta('source')))

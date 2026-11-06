@@ -149,7 +149,7 @@ def process_one(q, keep_going):
             if underlying:text+=': '+underlying
         q.log('preparation: failed for %s: %s; phase=%s; video=%s'%(drivelibrary.display_title(item['name']),text,(q.state.get('current') or {}).get('stage','opening'),json.dumps(job.get('probe') or {},sort_keys=True)))
         if 'source changed' in text:job['status']='superseded';q.state['last_scan']=0;clear_temps()
-        elif 'tracks MP4 cannot preserve' in text or 'without changing HDR' in text:job['blocked']=True
+        elif 'tracks MP4 cannot preserve' in text or 'without changing HDR' in text or 'needs RPU remapping' in text:job['blocked']=True
         if job.get('error')!=text:q.notify('problem','Video preparation paused',drivelibrary.display_title(item['name'])+': '+text[:200])
         job['error']=text;return False
     finally:
