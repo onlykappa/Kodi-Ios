@@ -7,7 +7,7 @@ this add-on. Without a page this is the recovery script, as the add-on's script 
 """
 import os,runpy,sys
 HERE=os.path.dirname(os.path.abspath(__file__))
-PAGES=('notifications','cast','speed','accounts_page','settings_search','navigation_menu','check_updates','download','library_scan','prepare_check','recover')
+PAGES=('notifications','cast','speed','accounts_page','settings_search','navigation_menu','check_updates','download','activity_page','library_scan','prepare_check','recover')
 
 def target(argv):
  """(script path, its argv) for RunScript's arguments."""

@@ -14,7 +14,7 @@ if __name__=='__main__' and not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
 from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
-import signin_server,airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready
+import activity,signin_server,airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready
 _IMPORT_SECONDS=time.monotonic()-_IMPORT_STARTED
 
 def run():
@@ -25,6 +25,8 @@ def run():
  monitor=xbmc.Monitor()
  root=Path(__file__).resolve().parent;profile=Path(xbmcvfs.translatePath('special://profile/')).resolve()
  window=xbmcgui.Window(10000);state={'stage':'prepare'};generated=False
+ # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).
+ window.setProperty('KodiIOS.Build',updates.installed_build(root))
  def stage(value):
   state['stage']=value
   xbmc.log('Kodi iOS startup: %s +%.3fs'%(value,time.monotonic()-begun),xbmc.LOGINFO)
@@ -165,6 +167,23 @@ def run():
  # Umbrella's getting-ready-to-play screen: its source text, split into the badges the portrait page shows.
  threading.Thread(target=umbrella_ready.watch,args=(lambda:xbmc.getCondVisibility('Window.IsVisible(%s)'%umbrella_ready.WINDOW),
   lambda:xbmc.getInfoLabel('Control.GetLabel(2001)'),window.setProperty,window.clearProperty,monitor.waitForAbort),daemon=True).start()
+ # The activity pill: Kodi's background progress box (never drawn) read and rewritten, plus Elementum and Drive.
+ def activity_setting(key,default):
+  try:
+   value=xbmcaddon.Addon().getSetting(key)
+   return default if value=='' else value.lower()=='true'
+  except Exception:return default
+ # The pill shows the poster of what is downloading (TMDb, with TMDb Helper's key, as the Library does).
+ try:
+  import drivelibrary,urllib.request
+  key=drivelibrary.tmdb_key(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.themoviedb.helper').getAddonInfo('path')))
+  def get(url):
+   with urllib.request.urlopen(url,timeout=8) as response:return response.read(1024*1024)
+  posters=activity.Posters(activity.poster_lookup(key,get)) if key else None
+ except Exception:posters=None
+ threading.Thread(target=activity.watch,args=(lambda:activity.read_box(xbmc,xbmcgui),notices.downloads,lambda:notices.uploads(profile),
+  activity_setting,lambda:xbmc.Player().isPlayingVideo(),lambda props:[window.setProperty(k,v) for k,v in props.items()],
+  lambda text:notices.add(profile,'problem','Elementum Burst',text),monitor.waitForAbort),kwargs={'posters':posters},daemon=True).start()
  # Kept Elementum videos go to Google Drive in the background, never during playback.
  try:
   if xbmcaddon.Addon().getSettingBool('drive_upload') or xbmcaddon.Addon().getSettingBool('prepare_downloads'):

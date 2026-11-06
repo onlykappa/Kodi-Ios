@@ -70,6 +70,8 @@ BUILT ON HOST; device test pending (ISSUE-083). Remuxer + AAC audio bridge + HLS
 574 host checks pass on Linux; KodiAirPlay r5 links it (macOS CI job, not yet run). Not merged, no release, no PR.
 Next: owner says whether to run CI on the branch and publish kodi-airplay-r5 for a test IPA.
 
+Activity pill (branch feature/activity-pill, PR not merged, owner: no IPA): Kodi's background progress box (DialogExtendedProgressBar) is drawn invisible in portrait and 1080i; the service reads it (heading/text buttons 30/31, bar 32), rewrites each job (activity.py) and publishes Activity.*; the pill is the modeless Custom_1187 dialog; every portrait page carries its tap area (Kodi sends taps only to the active window); Activity sheet IOSActivity.xml; switches in the setup add-on's Activity category (Settings › Activity). Rig-checked in Kodi 21.2 with a stand-in Elementum engine.
+
 ## Where things stand (2026-11-01, night)
 
 Working on the owner's phone (owner-confirmed):

@@ -121,6 +121,14 @@ class OverlapTests(unittest.TestCase):
     for b in boxes[i+1:]:
      overlap=a[0]<b[2] and b[0]<a[2] and a[1]<b[3] and b[1]<a[3]
      self.assertFalse(overlap,'labels overlap: %r and %r'%(a[4],b[4]))
+ def test_every_button_is_at_least_44_pt_tall(self):
+  root=ET.fromstring(portrait.notices_page().split('\n',2)[2])
+  for c in root.iter('control'):
+   if c.get('type')=='button' and c.findtext('height'):self.assertGreaterEqual(int(c.findtext('height')),118,c.get('id'))
+  for g in root.iter('control'):
+   inner=g.find("control[@type='button']")
+   if g.get('type')=='group' and inner is not None and inner.findtext('height') is None and g.findtext('height'):
+    self.assertGreaterEqual(int(g.findtext('height')),118)
  def test_detector_catches_the_build_152_layout(self):
   bad=ET.fromstring('<control type="group"><control type="label"><left>238</left><top>158</top><width>762</width><height>46</height><label>a</label></control>'
                     '<control type="label"><left>238</left><top>158</top><width>762</width><height>46</height><label>b</label></control></control>')
