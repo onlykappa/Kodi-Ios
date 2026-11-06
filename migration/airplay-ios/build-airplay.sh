@@ -589,6 +589,8 @@ __attribute__((visibility("default"))) void kodi_airplay_close(void) {
 // in the background, play one second of silence on a loop, mixed with other apps so their sound carries on.
 static AVAudioPlayer *keepPlayer;
 static BOOL keepWanted, keepInBackground, keepSaved;
+static BOOL keepInterrupted=NO;
+static atomic_int keepState=0;
 static AVAudioSessionCategory keepCategory;
 static AVAudioSessionMode keepMode;
 static AVAudioSessionCategoryOptions keepOptions;
@@ -608,7 +610,9 @@ static NSData *silence(void) {
 static void keepUpdate(void) {
     // Main thread only.
     AVAudioSession *session = AVAudioSession.sharedInstance;
+    if(keepInterrupted){atomic_store(&keepState,-2);return;}
     const BOOL run = keepWanted && keepInBackground;
+    if(!keepInBackground)atomic_store(&keepState,keepWanted?1:0);
     if (run && !keepPlayer.playing) {
         if (!keepSaved) {
             keepCategory = session.category; keepMode = session.mode; keepOptions = session.categoryOptions; keepSaved = YES;
@@ -622,8 +626,10 @@ static void keepUpdate(void) {
             keepPlayer.numberOfLoops = -1;
         }
         BOOL playing = [keepPlayer prepareToPlay] && [keepPlayer play];
+        atomic_store(&keepState,playing?2:-1);
         NSLog(@"KodiAirPlay: staying awake in the background for a download or upload: %@", playing ? @"yes" : error);
-    } else if (!run && keepPlayer.playing) {
+    } else if (!run && (keepPlayer.playing || keepSaved)) {
+        atomic_store(&keepState,keepWanted?1:0);
         [keepPlayer stop];
         if (keepSaved) [session setCategory:keepCategory mode:keepMode options:keepOptions error:nil];
         keepSaved = NO;
@@ -644,7 +650,10 @@ __attribute__((visibility("default"))) void kodi_background_keep(int on) {
             // A phone call or another app's sound stops the silence; start it again when that ends.
             [center addObserverForName:AVAudioSessionInterruptionNotification object:nil queue:NSOperationQueue.mainQueue
                             usingBlock:^(NSNotification *note) {
-                if ([note.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue] == AVAudioSessionInterruptionTypeEnded) {
+                if ([note.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue] == AVAudioSessionInterruptionTypeBegan) {
+                    keepInterrupted=YES;[keepPlayer stop];atomic_store(&keepState,-2);
+                } else if ([note.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue] == AVAudioSessionInterruptionTypeEnded) {
+                    keepInterrupted=NO;
                     [keepPlayer stop];
                     keepUpdate();
                 }
@@ -654,6 +663,8 @@ __attribute__((visibility("default"))) void kodi_background_keep(int on) {
         keepUpdate();
     });
 }
+
+__attribute__((visibility("default"))) int kodi_background_state(void) { return atomic_load(&keepState); }
 
 // Opens the "AirPlay & Bluetooth devices" sheet as if the button had been tapped.
 __attribute__((visibility("default"))) void kodi_airplay_open(void) {
@@ -676,7 +687,7 @@ for c in "$REMUX"/src/*.c "$REMUX"/gmplayer/*.c; do
   o="$WORK/$(basename "${c%.c}").o"; "${CC_IOS[@]}" -c "$c" -o "$o"; OBJS+=("$o")
 done
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
-printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n' > "$WORK/exports"
+printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n' > "$WORK/exports"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
   -framework VideoToolbox -framework CoreVideo -framework CoreText \
@@ -704,10 +715,10 @@ cat > "$FW/Info.plist" <<PLIST
 <key>MinimumOSVersion</key><string>$MIN_IOS</string>
 </dict></plist>
 PLIST
-nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message|log|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify)|background_keep)$'
+nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message|log|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex)|background_(keep|state))$'
 # r14: prepare_streams is what tells the setup add-on it may stream from Drive instead of downloading first.
 # r15: prepare_keep_image_subs keeps Blu-ray picture subtitles in .sup files beside the MP4 (Interstellar, build 160).
-[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify)|background_keep)$')" == 15 ]] || { echo 'missing exports' >&2; exit 1; }
+[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex)|background_(keep|state))$')" == 18 ]] || { echo 'missing exports' >&2; exit 1; }
 ! nm -gU "$FW/KodiAirPlay" | grep -E ' _(av|avformat|avcodec|swr|sws|kr|gm|ass|FT|hb|fribidi)_' || { echo 'FFmpeg symbols exported: they would clash with Kodi (libass too)' >&2; exit 1; }
 # r10: libass and the burn-in path are linked in (private).
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _(ass_render_frame|kr_subs_blend|kr_video_burn|kr_remux_set_subtitles|hb_shape|FT_Init_FreeType|fribidi_get_par_embedding_levels_ex)$')" == 7 ]] || { echo 'r10 libass burn-in missing' >&2; exit 1; }

@@ -7,8 +7,10 @@ typedef int (*kr_prepare_progress)(int stage, double done, double total, void *c
 int kr_prepare_ready(AVFormatContext *format);
 // JSON describes the file, without paths. Negative on invalid input.
 int kodi_airplay_probe(const char *input, char *json, int size);
+int kodi_airplay_probe_ex(const char *input,char *json,int size,kr_prepare_progress progress,void *context);
 // r14: 1 when probe/prepare accept an http://127.0.0.1 source (streamed, no downloaded copy).
 int kodi_airplay_prepare_streams(void);
+int kodi_airplay_prepare_hdr(void);
 // r15: 1 keeps each Blu-ray picture subtitle (PGS) track in output.sub<track>.<language>[.forced].sup beside the MP4
 // instead of refusing the file; 0 (default) refuses it, so they are never silently dropped.
 void kodi_airplay_prepare_keep_image_subs(int on);

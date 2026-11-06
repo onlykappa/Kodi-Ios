@@ -143,7 +143,10 @@ class PictureBridge(unittest.TestCase):
   for needle in ('--enable-decoder=hevc','--enable-swscale','--enable-videotoolbox','--enable-encoder=h264_videotoolbox',
                  '--enable-hwaccel=hevc_videotoolbox'):
    self.assertIn(needle,ff)
-  code=[l.split('#')[0] for l in ff.splitlines()]
+  ios=ff.split('case "$TARGET" in',1)[0]+ff.split('  ios)',1)[1].split('  host)',1)[0]
+  code=[l.split('#')[0] for l in ios.splitlines()]
+  self.assertIn('if [[ "${KR_HDR_TESTS:-0}" == 1 ]]',ff)
+  self.assertIn('--enable-encoder=hevc_videotoolbox',ios)
   for banned in ('--enable-gpl','--enable-nonfree','libx264','openh264','--disable-swscale'):
    self.assertFalse(any(banned in l for l in code),banned)
  def test_remuxer_compat_api_and_codecs(self):

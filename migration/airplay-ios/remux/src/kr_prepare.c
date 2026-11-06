@@ -10,6 +10,7 @@
 #include <libavutil/dovi_meta.h>
 #include <libavutil/mathematics.h>
 #include <libavutil/intreadwrite.h>
+#include <libavutil/time.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -68,28 +69,41 @@ int kr_prepare_ready(AVFormatContext *f) {
 static int local_input(const char *input) {
     return input && (input[0]=='/' || !strncmp(input,"http://127.0.0.1:",17));
 }
-static int open_source(AVFormatContext **f,const char *input) {
+typedef struct {int64_t deadline;kr_prepare_progress progress;void *context;int cancelled;} inspect_wait;
+static int inspect_interrupt(void *opaque) {
+    inspect_wait *w=opaque;
+    if(w->progress && !w->progress(0,0,0,w->context)){w->cancelled=1;return 1;}
+    return av_gettime_relative()>=w->deadline;
+}
+static int open_source_checked(AVFormatContext **f,const char *input,inspect_wait *wait) {
     AVDictionary *o=NULL;int r;
+    *f=avformat_alloc_context();if(!*f)return AVERROR(ENOMEM);
+    if(wait)(*f)->interrupt_callback=(AVIOInterruptCB){inspect_interrupt,wait};
     if(!strncmp(input,"http://",7)) {
-        // Long reads over the phone's loopback to Drive: bounded waits, reconnect at the same offset, Range seeks.
-        av_dict_set(&o,"rw_timeout","60000000",0);
-        av_dict_set(&o,"reconnect","1",0);
-        av_dict_set(&o,"reconnect_on_network_error","1",0);
-        av_dict_set(&o,"reconnect_delay_max","30",0);
-        av_dict_set(&o,"seekable","1",0);
-        av_dict_set(&o,"multiple_requests","1",0);
+        av_dict_set(&o,"rw_timeout","30000000",0);
+        av_dict_set(&o,"reconnect","1",0);av_dict_set(&o,"reconnect_on_network_error","1",0);
+        av_dict_set(&o,"reconnect_delay_max","5",0);av_dict_set(&o,"reconnect_max_retries","3",0);
+        av_dict_set(&o,"reconnect_delay_total_max","15",0);av_dict_set(&o,"reconnect_on_http_error","429,500,502,503,504",0);
+        av_dict_set(&o,"seekable","1",0);av_dict_set(&o,"multiple_requests","1",0);
         av_dict_set(&o,"user_agent","Kodi-iOS-AirPlay/1",0);
     }
     r=avformat_open_input(f,input,NULL,&o);av_dict_free(&o);
-    if(r<0)return r;
-    return avformat_find_stream_info(*f,NULL);
+    if(r>=0)r=avformat_find_stream_info(*f,NULL);
+    // AVIO copies the callback: its context must survive until avformat_close_input.
+    if(wait && wait->cancelled)return AVERROR_EXIT;
+    if(wait && av_gettime_relative()>=wait->deadline)return AVERROR(ETIMEDOUT);
+    return r;
 }
+static int open_source(AVFormatContext **f,const char *input){return open_source_checked(f,input,NULL);}
 // The setup add-on asks this before streaming a Drive file to preparation instead of downloading it first.
 int kodi_airplay_prepare_streams(void) { return 1; }
-int kodi_airplay_probe(const char *input,char *json,int size) {
+int kodi_airplay_prepare_hdr(void) { return 1; }
+static int probe(const char *input,char *json,int size,kr_prepare_progress cb,void *ctx) {
     AVFormatContext *f=NULL;int r=-1;
     if(!local_input(input) || !json || size<2) return -1;
-    if(open_source(&f,input)<0) goto end;
+    inspect_wait wait={av_gettime_relative()+120LL*AV_TIME_BASE,cb,ctx,0};
+    int opened=open_source_checked(&f,input,&wait);
+    if(opened<0){r=opened==AVERROR_EXIT?-2:opened==AVERROR(ETIMEDOUT)?-3:-1;goto end;}
     int v=video_index(f);if(v<0) goto end;
     AVCodecParameters *p=f->streams[v]->codecpar;
     double audio_work=0,duration=f->duration>0?(double)f->duration/AV_TIME_BASE:0;int pgs=0,other_image=0,extra_video=0;
@@ -109,6 +123,8 @@ int kodi_airplay_probe(const char *input,char *json,int size) {
              pgs,other_image,extra_video);r=0;
 end:avformat_close_input(&f);return r;
 }
+int kodi_airplay_probe(const char *input,char *json,int size){return probe(input,json,size,NULL,NULL);}
+int kodi_airplay_probe_ex(const char *input,char *json,int size,kr_prepare_progress cb,void *ctx){return probe(input,json,size,cb,ctx);}
 static int tick(kr_prepare_progress cb,void *ctx,int stage,double done,double total) {
     return !cb || cb(stage,done,total,ctx);
 }
@@ -317,8 +333,11 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
     int vi=video_index(original);if(vi<0 || original->nb_streams>=TRACKS) {fail(err,en,"Unsupported track layout",0);goto end;}
     sinks[0].duration=(double)original->duration/AV_TIME_BASE;
     if(original->duration<=0){fail(err,en,"Source duration is unknown",0);goto end;}
-    if(!copy_video(original->streams[vi]->codecpar) && hdr(original->streams[vi]->codecpar)) {
-        fail(err,en,"This HDR codec cannot be prepared without changing HDR; original retained",0);goto end;
+    if(!copy_video(original->streams[vi]->codecpar)) {
+        AVCodecParameters *p=original->streams[vi]->codecpar;
+        for(int i=0;i<p->nb_coded_side_data;i++)if(p->coded_side_data[i].type==AV_PKT_DATA_DOVI_CONF) {
+            fail(err,en,"This Dolby Vision codec needs RPU remapping; original retained",0);goto end;
+        }
     }
     // Never silently discard image subtitles or alternate video tracks during an in-place replacement.
     for(unsigned i=0;i<original->nb_streams;i++) {
@@ -356,6 +375,8 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
             int ni=ninputs++;input_track *one=&ins[ni];one->own=1;
             if(writer) {
                 if(generated_open(&gens[ni],&one->f,&readers[ni],input,(int)i,(int)i==vi,cb,ctx,err,en)<0)goto end;
+                one->f->probesize=2*1024*1024;one->f->max_analyze_duration=AV_TIME_BASE;
+                if(avformat_find_stream_info(one->f,NULL)<0){fail(err,en,"Converted track inspection failed",0);goto end;}
             } else {
                 snprintf(spools[i],sizeof spools[i],"%s.track%u",output,i);
                 int q=spool(input,spools[i],(int)i,(int)i==vi,cb,ctx,err,en);if(q){r=q;goto end;}
@@ -364,6 +385,13 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
             if(one->f->nb_streams!=1)goto end;
             one->map[0]=dst->index;avcodec_parameters_copy(dst->codecpar,one->f->streams[0]->codecpar);
             dst->codecpar->codec_tag=0;dst->time_base=one->f->streams[0]->time_base;
+            // Preserve static HDR metadata when another HDR codec is encoded to HEVC Main10.
+            if((int)i==vi)for(int m=0;m<p->nb_coded_side_data;m++) {
+                AVPacketSideData *from=&p->coded_side_data[m];
+                if(from->type!=AV_PKT_DATA_MASTERING_DISPLAY_METADATA && from->type!=AV_PKT_DATA_CONTENT_LIGHT_LEVEL)continue;
+                AVPacketSideData *to=av_packet_side_data_new(&dst->codecpar->coded_side_data,&dst->codecpar->nb_coded_side_data,from->type,from->size,0);
+                if(!to)goto end;memcpy(to->data,from->data,from->size);
+            }
         } else {
             ins[0].map[i]=dst->index;
             if(p->codec_type==AVMEDIA_TYPE_SUBTITLE && p->codec_id!=AV_CODEC_ID_MOV_TEXT) {
