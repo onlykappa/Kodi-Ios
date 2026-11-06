@@ -1,14 +1,14 @@
 {
   "framework_release": {
+    "tag": "kodi-airplay-r18",
+    "asset": "KodiAirPlay.framework.zip",
+    "sha256": "88b2182dae9d26ff5c0d280f7de336f111f7927dc9d529a6bda05dc1f73a9160"
+  },
+  "previous": {
     "tag": "kodi-airplay-r17",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "3af44780a1944d8f588740c81024381677e12b9a0da08cc325eb4a6c11ef08f6"
   },
-  "previous": {
-    "tag": "kodi-airplay-r16",
-    "asset": "KodiAirPlay.framework.zip",
-    "sha256": "d1b443feccdb8651207f65ccd96e6374082bebae99824825ef9f7f06d7ba0e86"
-  },
-  "source_commit": "a154bc28f7dfdff40b1ee376d50dc54734c9869a",
-  "verified_run": 42213336835
+  "source_commit": "36d528f6be986906a2adc7f210e538efd6161841",
+  "verified_run": 42238135886
 }
