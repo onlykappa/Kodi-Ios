@@ -134,7 +134,8 @@ class QueueTests(unittest.TestCase):
  def test_compatible_4k_uses_copy_budget_instead_of_full_reencode_budget(self):
   probe=self.native.probe
   self.native.probe=lambda path:dict(probe(path),copy_video=True,audio_work_bytes=0)
-  with patch.object(prep.shutil,'disk_usage',return_value=type('Disk',(),{'free':512*1024*1024})()):
+  # 512 MB above the space always kept free for the owner (KEEP_FREE): enough for a copied picture, not a re-encode.
+  with patch.object(prep.shutil,'disk_usage',return_value=type('Disk',(),{'free':prep.KEEP_FREE+512*1024*1024})()):
    self.assertTrue(self.queue.process_one())
   self.assertTrue(prep.ready(self.drive.meta()))
  def test_manual_upload_invalidation_requests_a_scan(self):
@@ -310,5 +311,45 @@ class LibraryCheck(unittest.TestCase):
   self.assertEqual(setting.findtext('data'),'RunScript(service.kodi.ios.bootstrap,prepare_check)')
   self.assertIn("'prepare_check'",(ROOT/'migration/bundled-bootstrap/default.py').read_text())
   self.assertIn("R(9457,'Check library for conversion',PREPARE_CHECK",(ROOT/'migration/bundled-bootstrap/resources/lib/settings_page.py').read_text())
+
+class NeverRunsOutOfSpace(unittest.TestCase):
+ """Owner (build 157): "we need to ensure storage is never an issue" (the same 'Free phone space' message five times)."""
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.notes=[]
+  self.queue=prep.Queue(self.tmp.name,Drive(),Native(),notify=lambda *a:self.notes.append(a),clock=lambda:1000)
+  gb=1024**3
+  self.big={'source':{'id':'big','name':'Big.2020.2160p.mkv','size':str(30*gb)},'status':'waiting','retry_after':0}
+  self.small={'source':{'id':'small','name':'Small.2021.1080p.mkv','size':str(2*gb)},'status':'waiting','retry_after':0}
+ def tearDown(self):self.tmp.cleanup()
+ def disk(self,free):return patch.object(prep.shutil,'disk_usage',return_value=type('Disk',(),{'free':free})())
+ def test_a_video_that_does_not_fit_never_starts_and_the_next_one_that_fits_does(self):
+  self.queue.state['jobs']={'big':self.big,'small':self.small};seen=[]
+  def first(drive,item_id):seen.append(item_id);raise RuntimeError('stop here')
+  with self.disk(20*1024**3),patch.object(prep,'metadata',first):self.queue.process_one()
+  self.assertEqual(seen,['small']);self.assertEqual(self.big['space'],prep.space_needed(self.big['source']))
+  self.assertEqual([n[1] for n in self.notes].count('Waiting for phone space'),1)
+ def test_nothing_fits_nothing_downloads_and_one_notification(self):
+  self.queue.state['jobs']={'big':self.big};seen=[]
+  with self.disk(10*1024**3),patch.object(prep,'metadata',lambda *a:seen.append(a)):
+   self.assertFalse(self.queue.process_one());self.assertFalse(self.queue.process_one())
+  self.assertEqual(seen,[]);self.assertEqual(len(self.notes),1);self.assertIn('Kodi always leaves 5 GB free',self.notes[0][2])
+ def test_a_stuck_half_prepared_video_gives_its_space_back(self):
+  self.queue.state['jobs']={'big':self.big};(self.queue.work/'big').mkdir();(self.queue.work/'big'/'source').write_bytes(b'x'*1000)
+  with self.disk(10*1024**3):self.queue.process_one()
+  self.assertFalse((self.queue.work/'big').exists());self.assertEqual(self.big['status'],'waiting')
+ def test_space_running_out_midway_frees_the_working_files_quietly(self):
+  self.queue.state['jobs']={'small':self.small};(self.queue.work/'small').mkdir()
+  def full(*a):raise RuntimeError('Free phone space is needed to finish this video; existing Drive file is unchanged')
+  with self.disk(50*1024**3),patch.object(prep,'metadata',full):self.queue.process_one()
+  self.assertFalse((self.queue.work/'small').exists());self.assertEqual(self.small['status'],'waiting')
+  self.assertEqual([n for n in self.notes if n[1]=='Video preparation paused'],[])
+ def test_other_problems_notify_once_per_video(self):
+  self.queue.state['jobs']={'small':self.small}
+  def broken(*a):raise RuntimeError('Drive file check: HTTP 500')
+  for _ in range(3):
+   self.small['retry_after']=0
+   with self.disk(50*1024**3),patch.object(prep,'metadata',broken):self.queue.process_one()
+  self.assertEqual(len([n for n in self.notes if n[1]=='Video preparation paused']),1)
+  self.assertIn('Small (2021)',self.notes[-1][2])
 
 if __name__=='__main__':unittest.main()

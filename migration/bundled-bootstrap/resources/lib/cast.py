@@ -25,6 +25,13 @@ def phone_source(playing,fallback):
  url=(playing or '').split('|',1)[0]
  return url if urllib.parse.urlsplit(url).scheme in {'http','https'} else fallback
 
+def airplay_source(playing,url,converting):
+ """What KodiAirPlay reads. A converting framework (r5+) always reads the video on the phone itself and serves the TV
+ from its own endpoint, so it gets the link Kodi plays: Drive's and Elementum's helpers answer on 127.0.0.1 only.
+ Owner build 157: prepared movies end in .mp4, were treated as Apple-playable and got the Wi-Fi address instead
+ ("Connection refused"). An older framework hands the link to Apple's player, which needs the Wi-Fi address."""
+ return phone_source(playing,url) if converting else url
+
 def launch_url(roku,url,title='',command='input'):
  # Roku's built-in "Play on Roku" receiver (channel 15985) takes a direct media link: `input` hands it to the
  # receiver, `launch` starts the receiver with it (some Roku OS versions only accept one of the two).

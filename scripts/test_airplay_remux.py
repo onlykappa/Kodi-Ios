@@ -31,8 +31,14 @@ class PhoneSource(unittest.TestCase):
   self.assertEqual(cast.phone_source(playing,'http://192.168.1.11:60047/x'),'http://127.0.0.1:60047/download/1/1/abc/Movie.mkv')
   self.assertEqual(cast.phone_source('/var/mobile/Movie.mkv','http://fallback/x'),'http://fallback/x')
   source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
-  self.assertIn('cast.phone_source(playing,url)',source)
+  self.assertIn('cast.airplay_source(playing,url,converting)',source)
   self.assertIn('AirPlay converts this %s video on the phone',source)
+ def test_a_prepared_mp4_also_uses_the_phones_own_link(self):
+  # Owner build 157: Scary.Movie...mp4 (prepared) went out as http://10.0.0.247:57527/... and was refused.
+  playing='http://127.0.0.1:57527/download/1/1/abc/Scary.Movie.2026.2160p.mp4'
+  wifi='http://10.0.0.247:57527/download/1/1/abc/Scary.Movie.2026.2160p.mp4'
+  self.assertEqual(cast.airplay_source(playing,wifi,True),playing)
+  self.assertEqual(cast.airplay_source(playing,wifi,False),wifi)   # an older framework gives Apple's player the link
 
 class EpisodePicker(unittest.TestCase):
  def test_one_tap_picks_an_episode_and_empty_ticks_explain(self):
