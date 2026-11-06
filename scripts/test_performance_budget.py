@@ -24,14 +24,16 @@ class StartupLoad(unittest.TestCase):
   self.assertTrue(lists)
   self.assertFalse([c for c in lists if c.findtext('content').startswith('$VAR[Portrait_Row_') or c.findtext('content').startswith('$VAR[Portrait_Hero_')])
   self.assertNotIn('Portrait.Load.',ET.tostring(root,encoding='unicode'))
-  # Build-137 listing cache: each TMDb Helper row and hero is a variable with exactly two values, the cached route
-  # under its flag and the live path otherwise; neither waits for a timer, a window property or Python.
+  # Build-137 listing cache: each TMDb Helper row and hero is a variable: the cached route under its flag, the live
+  # list at the tab's page after a refresh (round 5), the live path otherwise; none waits for a timer, a window
+  # property or Python (only saved skin settings).
   self.assertEqual(len(variables),3*(len(WIDGETS)+1))
   for name,xml in variables.items():
    values=ET.fromstring(xml).findall('value')
-   self.assertEqual(len(values),2,name);self.assertIsNone(values[1].get('condition'))
+   self.assertEqual(len(values),3,name);self.assertIsNone(values[2].get('condition'))
    self.assertTrue(values[0].text.startswith(portrait.CACHE_ROUTE));self.assertIn(portrait.CACHE_FLAG,values[0].get('condition'))
-   self.assertNotIn('Window(',values[0].get('condition'));self.assertNotIn('Alarm',values[0].get('condition'))
+   self.assertIn('Skin.String(Portrait.Page.',values[1].get('condition'))
+   for v in values[:2]:self.assertNotIn('Window(',v.get('condition'));self.assertNotIn('Alarm',v.get('condition'))
 
  def test_home_rows_are_queued_before_movies_and_tv(self):
   root,_=self.home()

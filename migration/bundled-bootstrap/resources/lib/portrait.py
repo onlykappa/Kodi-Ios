@@ -183,7 +183,11 @@ def gear_outline(teeth=8,tip=10.4,root=8.1,tip_half=10,base_half=17,steps=6):
 GEAR=gear_outline();GEAR_HOLE=3.7
 def gear_inside(u,v,pts=GEAR):
  import math
- if math.hypot(u-12,v-12)<GEAR_HOLE:return False
+ r=math.hypot(u-12,v-12)
+ if r<GEAR_HOLE:return False
+ # Only the band of the teeth needs the polygon test (tests drew the texture slowly: 268 s for test_portrait).
+ if pts is GEAR and r<8.1-ROUND-0.05:return True
+ if pts is GEAR and r>10.4+0.05:return False
  inside=False;near=False;n=len(pts)
  for i in range(n):
   (x1,y1),(x2,y2)=pts[i],pts[(i+1)%n]
@@ -221,13 +225,19 @@ def arc(size,stroke,degrees):
   return False
  return shape(size,inside,3)
 
+_GLYPHS={}
+def header_glyphs():
+ """The round-5 header textures, drawn once per process (supersampled, so not cheap)."""
+ if not _GLYPHS:_GLYPHS.update({'ring_arc.png':arc(132,5,150),'hdr_gear.png':shape(96,gear_inside),'hdr_refresh.png':shape(96,refresh_inside)})
+ return _GLYPHS
+
 def textures():
- return {'round.png':rounded(96,96,32),'round_s.png':rounded(64,64,26),'glass_card.png':glass(160,44,(44,44,46,245),(255,255,255,26)),
+ return {**header_glyphs(),'round.png':rounded(96,96,32),'round_s.png':rounded(64,64,26),'glass_card.png':glass(160,44,(44,44,46,245),(255,255,255,26)),
          'fade_down.png':fade(lambda t:(1-t)**1.6*0.85),'fade_up.png':fade(lambda t:t**1.5),
          'hero_fade.png':fade(lambda t:0 if t<0.3 else ((t-0.3)/0.7)**1.25),
          'poster_mask.png':rounded(POSTER[0],POSTER[1],RADIUS),'card_mask.png':rounded(CARD[0],CARD[1],RADIUS),
          'thumb_mask.png':rounded(400,225,20),'tile_mask.png':rounded(80,80,18),'dot.png':rounded(24,24,12),'knob.png':rounded(48,48,24),'clear48.png':png(4,48,lambda x,y:(0,0,0,0)),
-         'white.png':png(4,4,lambda x,y:(255,255,255,255)),'play.png':triangle(64),'airplay.png':player_osd.airplay_png(png),'ring.png':ring(132,7),'ring_arc.png':arc(132,5,150),'hdr_gear.png':shape(96,gear_inside),'hdr_refresh.png':shape(96,refresh_inside),
+         'white.png':png(4,4,lambda x,y:(255,255,255,255)),'play.png':triangle(64),'airplay.png':player_osd.airplay_png(png),'ring.png':ring(132,7),
          # Capsules per height: 9-slice borders of h/2 keep the ends perfectly round at any width.
          **{'pill_%d.png'%h:rounded(h,h,h/2) for h in CAPSULES},
          **{'glass_%d.png'%h:glass(h,h/2,(30,30,34,232),(255,255,255,50)) for h in CAPSULES},
@@ -314,7 +324,7 @@ def nav_button(id,x,y,glyph,actions,extra='',visible=''):
 
 NOTICES='RunScript(service.kodi.ios.bootstrap,notifications)'
 SETTINGS='ActivateWindow(settings)'
-HDR=108;HDR_GAP=24;HDR_GLYPH=52   # header buttons (owner-approved round 5, option A): 40 pt glass circles, 19 pt glyphs
+HDR=108;HDR_GAP=24;HDR_GLYPH=46   # header buttons (owner-approved round 5, option A): 40 pt glass circles; button glyphs 46 (APPLE-UI-POLICY §5.5)
 def header_button(id,x,y,glyph,action,extra=''):
  """Glass header circle with a centred glyph (bell, gear, refresh); glyph is an icons/ name or a full path."""
  off=(HDR-HDR_GLYPH)//2
@@ -480,18 +490,43 @@ WATCH_ON='System.AddonIsEnabled(plugin.video.kodi.ios.watch)'
 def cache_key(path):return 'r'+hashlib.sha1(str(path).encode('utf-8')).hexdigest()[:15]
 def spotlight_path(spotlight):return 'Skin.String(HomeSwitcher.%s.Spotlight.Path)'%spotlight
 
-def cached_content(name,path,variables,spotlight=None):
+# Refresh on Home, Movies and TV (round 5): each tab has a page number, Skin.String(Portrait.Page.<tab>), empty for
+# the first page. Its TMDb Helper rows and hero load that page (TMDb Helper's own `page` parameter); Continue Watching,
+# Up Next and library rows never change. refresh_rows.py moves it on; copies keep their key without the page.
+PAGE_STRING='Portrait.Page.%s'
+PAGES=5   # then back to the first page
+PAGED=re.compile(r'[&?]page=\d+$')
+def page_of(tab):return 'Skin.String(%s)'%(PAGE_STRING%tab)
+def unpaged(path):return PAGED.sub('',str(path or ''))
+def paged(path,page):
+ """path showing that page of its list (TMDb Helper only; page 1 or none: the plain path)."""
+ path=unpaged(path)
+ if not str(page or '').isdigit() or int(page)<=1 or not path.startswith(CACHEABLE):return path
+ return '%s%spage=%d'%(path,'&' if '?' in path else '?',int(page))
+def next_page(current):
+ """The page the refresh button shows next: 2, 3 ... PAGES, then the first again."""
+ n=int(current) if str(current or '').isdigit() else 1
+ return 1 if n>=PAGES else n+1
+
+def cached_content(name,path,variables,spotlight=None,tab=None):
  """Container content for a hub row (path) or hero (spotlight id): a variable in Includes.xml choosing the cached
- route when its flag is on, else the live path. Other rows (Continue Watching, library) keep their path as is."""
+ route when its flag is on, else the live path (at the tab's page, when the refresh button moved it on). Other rows
+ (Continue Watching, library) keep their path as is."""
  if variables is None or (spotlight is None and not str(path).startswith(CACHEABLE)):return e(path)
  if spotlight is None:
   key=cache_key(path);on='Skin.HasSetting(%s%s)'%(CACHE_FLAG,key)
+  tmdb=''
  else:
   # The flag holds the path the copy was made from: a spotlight changed in the skin settings goes live at once.
   key='hero.'+str(spotlight).lower();flag='Skin.String(%s%s)'%(CACHE_FLAG,key)
   on='!String.IsEmpty(%s) + String.IsEqual(%s,%s)'%(flag,flag,spotlight_path(spotlight))
- variables[name]='<variable name="%s"><value condition="%s + %s">%s</value><value>%s</value></variable>'%(
-  name,e(on),WATCH_ON,e(CACHE_ROUTE+key),e(path))
+  tmdb=' + String.StartsWith(%s,%s)'%(spotlight_path(spotlight),CACHEABLE[0])
+ page=''
+ if tab:
+  # Another page while its copy is being made: the live list at that page.
+  page='<value condition="%s">%s</value>'%(e('!String.IsEmpty(%s)%s'%(page_of(tab),tmdb)),e('%s&page=$INFO[%s]'%(path,page_of(tab))))
+ variables[name]='<variable name="%s"><value condition="%s + %s">%s</value>%s<value>%s</value></variable>'%(
+  name,e(on),WATCH_ON,e(CACHE_ROUTE+key),page,e(path))
  return '$VAR[%s]'%name
 
 def row(index,widget,last,tab='home',variables=None):
@@ -507,7 +542,7 @@ def row(index,widget,last,tab='home',variables=None):
    '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
    '<content target="%s">%s</content></control>'
    )%(id,WIDTH,h,'<ondown>9201</ondown>' if last else '',visible,w+GAP,h,item(False),w+GAP,h,item(True),
-      e(widget.get('target') or 'videos'),cached_content('Portrait_Cache_Row_%s_%d'%(tab,index),widget['path'],variables)))
+      e(widget.get('target') or 'videos'),cached_content('Portrait_Cache_Row_%s_%d'%(tab,index),widget['path'],variables,tab=tab)))
 
 def hero(spotlight,title,tab='home',variables=None):
  """Full-bleed hero: the hub's spotlight titles (swipe sideways), logo, genre line, Play and Info, page dots."""
@@ -532,7 +567,7 @@ def hero(spotlight,title,tab='home',variables=None):
   '<control type="grouplist"><left>0</left><top>%d</top><width>%d</width><height>20</height><orientation>horizontal</orientation><align>center</align><itemgap>0</itemgap>%s</control>'
   '</control>'
   )%(WIDTH,HERO,WIDTH,HERO,WIDTH,HERO,art,WIDTH,HERO,art,
-     cached_content('Portrait_Cache_Hero_%s'%tab,'$INFO[%s]'%spotlight_path(spotlight),variables,spotlight),
+     cached_content('Portrait_Cache_Hero_%s'%tab,'$INFO[%s]'%spotlight_path(spotlight),variables,spotlight,tab),
      image(0,0,WIDTH,HERO,MEDIA+'hero_fade.png'),image(0,0,WIDTH,420,MEDIA+'fade_down.png'),
      label(SIDE,40,header_width(tab),120,title,'p_large'),
      header_buttons(46,tab,'<ondown>4000</ondown>')+refreshed_toast(tab,title),
@@ -1439,13 +1474,26 @@ def bounded(fetch,timeout=FETCH_TIMEOUT):
   if 'error' in box:raise box['error']
   return box.get('result')
  return call
-def cache_lists(profile,spotlight):
- """({spotlight id: path}, [row paths]) the three hubs show, Home first (as hub_files and hub_body build them)."""
+def cache_lists(profile,spotlight,page=lambda tab:''):
+ """({spotlight id: path}, [row paths]) the three hubs show, Home first (as hub_files and hub_body build them), each at
+ the page its tab shows (page(tab): Skin.String(Portrait.Page.<tab>)); the copies' keys leave the page out."""
  spots={};rows=[]
  for name,(title,lists,tab,resume) in sorted(HUBS.items(),key=lambda h:HUB_TABS.index(h[1][2])):
-  spots[SPOTLIGHT[name]]=spotlight(SPOTLIGHT[name])
-  rows+=[w['path'] for w in load_widgets(profile,lists) if not in_progress(w)]
+  n=page(tab)
+  spots[SPOTLIGHT[name]]=paged(spotlight(SPOTLIGHT[name]),n)
+  rows+=[paged(w['path'],n) for w in load_widgets(profile,lists) if not in_progress(w)]
  return spots,rows
+
+def tab_lists(profile,tab):
+ """(cache keys, container ids) of one hub's TMDb Helper rows and hero: what refresh_rows turns live and waits for."""
+ for name,(title,lists,hub_tab,resume) in HUBS.items():
+  if hub_tab!=tab:continue
+  widgets=[w for w in load_widgets(profile,lists) if not in_progress(w)]
+  keys=['hero.'+str(SPOTLIGHT[name]).lower()]+[cache_key(w['path']) for w in widgets if str(w['path']).startswith(CACHEABLE)]
+  # Row ids as hub_body numbers them: Continue Watching is 5001, the widgets follow; all shifted by the hub's offset.
+  ids=[4000+HUB_OFFSET[tab]]+[5002+i+HUB_OFFSET[tab] for i,w in enumerate(widgets) if str(w['path']).startswith(CACHEABLE)]
+  return keys,ids
+ return [],[]
 
 def listing_cache(cache,store,flags,lists,fetch,wait,busy,log,clock=None):
  """Background thread (run_service). At once: flags whose copy is gone go off, so those rows load TMDb Helper again.
@@ -1565,7 +1613,7 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
   threading.Thread(target=listing_cache,daemon=True,kwargs=dict(
    cache=cache,store=cache.Store(xbmcvfs.translatePath(cache.FOLDER)),
    flags=cache.Flags(xbmc.getCondVisibility,xbmc.getInfoLabel,xbmc.executebuiltin),
-   lists=lambda:cache.targets(*cache_lists(profile,lambda s:xbmc.getInfoLabel(spotlight_path(s)))),fetch=bounded(fetch),
+   lists=lambda:cache.targets(*cache_lists(profile,lambda s:xbmc.getInfoLabel(spotlight_path(s)),lambda tab:xbmc.getInfoLabel(page_of(tab)))),fetch=bounded(fetch),
    wait=monitor.waitForAbort,busy=lambda:xbmc.getSkinDir()!=fuse or xbmc.getCondVisibility('Player.HasVideo'),
    log=lambda text:xbmc.log('Kodi iOS listing cache: '+text,xbmc.LOGINFO))).start()
  except Exception as error:xbmc.log('Kodi iOS listing cache unavailable: %s'%error,xbmc.LOGWARNING)

@@ -33,7 +33,11 @@ KEY=re.compile(r'(r[0-9a-f]{15}|hero\.[0-9a-z]{1,16})$')
 MENU=re.compile(r'contextmenu(label|action)\((\d+)\)$')
 
 def cacheable(path):return str(path or '').startswith(CACHEABLE)
-def row_key(path):return 'r'+hashlib.sha1(str(path).encode('utf-8')).hexdigest()[:15]
+# A hub's refresh button shows another page of its lists (portrait.paged: '&page=N' at the end). A copy keeps the
+# list's key without the page; its url says which page it holds, so a new page is fetched and the old copy replaced.
+PAGED=re.compile(r'[&?]page=\d+$')
+def unpaged(path):return PAGED.sub('',str(path or ''))
+def row_key(path):return 'r'+hashlib.sha1(unpaged(path).encode('utf-8')).hexdigest()[:15]
 def hero_key(spotlight):return 'hero.'+str(spotlight).lower()
 def valid_key(key):return bool(KEY.match(str(key or '')))
 def hero_skin_path(key):return 'Skin.String(HomeSwitcher.%s.Spotlight.Path)'%key.split('.',1)[1] if key.startswith('hero.') else ''
@@ -177,12 +181,13 @@ class Flags:
  compares it with the hero's current path, so a changed spotlight goes live at once)."""
  def __init__(self,visible,info,run):self.visible,self.info,self.run=visible,info,run
  def on(self,key,url):
-  if key.startswith('hero.'):return self.info('Skin.String(%s%s)'%(FLAG,key))==url
+  # A hero's flag holds its spotlight path without the page (what the skin compares it with).
+  if key.startswith('hero.'):return self.info('Skin.String(%s%s)'%(FLAG,key))==unpaged(url)
   return bool(self.visible('Skin.HasSetting(%s%s)'%(FLAG,key)))
  def set(self,key,url):
   if key.startswith('hero.'):
    if '"' in url or '\\' in url:return False   # not safe to quote in a builtin: this hero stays live
-   self.run('Skin.SetString(%s%s,"%s")'%(FLAG,key,url))
+   self.run('Skin.SetString(%s%s,"%s")'%(FLAG,key,unpaged(url)))
   else:self.run('Skin.SetBool(%s%s)'%(FLAG,key))
   return True
  def clear(self,key):self.run(flag_off(key))

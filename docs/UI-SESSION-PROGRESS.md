@@ -58,3 +58,14 @@ Variables `buildviews`, SkinSettings categories).
 - Owner: Back stays the bold chevron with **no circle**. Header buttons (gear, thin bell arc, refresh on Home/Movies/TV)
   are unblocked: rebase `feature/customisation-header-buttons` onto main and finish it (glyph sizes, test_portrait speed).
 - The Home / Movies / TV refresh ("new picks") is designed (section 3) but not coded; not in build 174.
+
+## Ready for build 175 (branch `claude/trusting-euler-kgug98`, not on main yet; owner testing 174 first)
+- Header buttons (round 5, option A): gear (opens Settings) instead of the profile picture, thin busy arc on the bell,
+  refresh on Home / Movies / TV, glyphs 46 (policy §5.5). Back unchanged (no circle, owner's answer).
+- Refresh: `refresh_rows.py` moves the tab to the next page (2..5, then 1) in `Skin.String(Portrait.Page.<tab>)`,
+  turns that tab's copies off, waits for the rows, then "New picks on <tab>". Rows and hero: cached copy, else the live
+  list at that page, else the plain list. Copies keep their key without the page (`ios_cache.unpaged`); the service
+  copies the new page (`cache_lists(..., page)`). Continue Watching, Up Next and library rows never change.
+- Settings gets the More menu's rows: Google Drive, Favourites, Check for updates, iPhone navigation / recovery.
+- test_portrait: the gear texture is drawn once and only its teeth band uses the polygon test (same pixels); 109 s, all pass.
+- Tests: `scripts/test_header_buttons.py`; listing-cache and performance tests updated for the page value.

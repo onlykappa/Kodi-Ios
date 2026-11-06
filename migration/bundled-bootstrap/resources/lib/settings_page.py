@@ -59,6 +59,11 @@ ROOT=[
   R(9114,'Player','ActivateWindow(playersettings)','circle-play.png',GREEN),
   R(9115,'Media','ActivateWindow(mediasettings)','film.png',ORANGE),
   R(9116,'Library',LIBRARY_PAGE,'folder.png',BLUE)],
+ # What the profile button's More menu held (round 5: the gear in the header opens Settings instead).
+ [R(9171,'Google Drive','ActivateWindow(Videos,plugin://plugin.googledrive/,return)','cloud.png',BLUE),
+  R(9172,'Favourites','ActivateWindow(1160)','star.png',ORANGE),
+  R(9173,'Check for updates','RunScript(service.kodi.ios.bootstrap,check_updates)','cloud-arrow-down.png',GREEN),
+  R(9174,'iPhone navigation / recovery','RunScript(service.kodi.ios.bootstrap,navigation_menu)','life-ring.png',RED)],
  [R(9121,'PVR & Live TV','ActivateWindow(pvrsettings)','tv.png',RED),
   R(9122,'Games','ActivateWindow(gamesettings)','gamepad.png',PINK)],
  [R(9131,'System','ActivateWindow(systemsettings)','gear.png',SILVER),
