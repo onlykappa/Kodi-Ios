@@ -1345,6 +1345,16 @@ def listing_cache(cache,store,flags,lists,fetch,wait,busy,log,clock=None):
   # Rows keep whatever their flags say: good copies stay served, the others stay live.
   log('stopped: %r'%error)
 
+def refresh_listing(skin,folder=None):
+ """Read the portrait folder through Kodi once after writing it. Kodi answers "does this window file exist" from its
+ directory cache when the folder was listed before (CFile::Exists -> g_directoryCache), so a page added while Kodi
+ runs was "missing" until the next start (build 173: IOSTransfers.xml, "XML File for Window is missing"). A plain
+ listing replaces the cached copy."""
+ try:
+  import xbmcvfs
+  xbmcvfs.listdir(os.path.join(str(skin),folder or FOLDER)+'/')
+ except Exception:pass
+
 def refresh_skin(xbmc,invoke,skin,profile):
  """Bring the portrait folder up to date and reload the skin when a change needs it; returns the changed paths."""
  import time
@@ -1363,6 +1373,7 @@ def refresh_skin(xbmc,invoke,skin,profile):
  # wait-for-widgets loop (its script ran again every half second for up to a minute while rows loaded).
  for setting,on in (('Startup.EnableHubPreloading',False),('Startup.DisableWaitForLoad',True)):
   if bool(xbmc.getCondVisibility('Skin.HasSetting(%s)'%setting))!=on:invoke(('Skin.SetBool(%s)' if on else 'Skin.Reset(%s)')%setting)
+ if changed:refresh_listing(skin)
  reload=bool(changed) and needs_reload(changed,xbmc.getCondVisibility)
  listed=(' ('+', '.join(c for c in changed if not c.startswith('extras/'))[:300]+')') if changed else ''
  xbmc.log('Kodi iOS portrait files checked in %s: %d updated%s%s (%.3fs)'%(skin,len(changed),listed,

@@ -26,6 +26,15 @@
 - Each Drive copy chunk logs its source-read and Drive-send times and MB/s (`driveupload.upload_stream`), so the next log shows which side is slow.
 - While an AllDebrid file is being copied into Drive, preparation waits its turn; it resumes afterwards (`debrid_drive.copying`, service loop).
 
+## Build 174 (build-173 log 11:05–11:20)
+- r20 did nothing on the phone: the storage-free path (`kodi_airplay_prepare_to` → `generated_open/read`) kept
+  6-second units and had no timing. r21: PREP_UNIT there too, and each unit logs time and route. Host test checks
+  the notes. Speed in 173 unchanged (~0.06 %/min).
+- Transfers: "XML File for Window is missing" on every tap. Kodi's `CFile::Exists` answers from its directory cache
+  when the portrait folder was listed before the file was written. Fix: `portrait.refresh_listing` lists the folder
+  after writing; `transfers.run` re-lists and retries once.
+- 11:19 restart from 0 was playback (owner played a video at 11:18), as expected.
+
 ## Build 173 (build-170 log 09:36–09:52, owner: "converter is like not working at all")
 - Inception went back to 0% twice: the 09:36 Kodi start, and at 09:44, 15 s after the Fall 2 AllDebrid copy finished.
   Cause: the copy's on_done asks for a library check, and any check request stopped the running conversion

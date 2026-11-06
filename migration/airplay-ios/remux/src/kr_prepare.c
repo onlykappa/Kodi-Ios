@@ -184,7 +184,7 @@ static int spool(const char *input,const char *path,int index,int is_video,
 end:if(file)fclose(file);free(unit.data);kr_video_close(video);kr_audio_close(audio);
     gm_stream_close(plan);kr_source_close(source);return r;
 }
-// Sequential conversion source: only the current six-second unit lives in RAM. Unlike the
+// Sequential conversion source: only the current PREP_UNIT-second unit lives in RAM. Unlike the
 // legacy spool this reader never opens a working file. Each track owns its demuxer.
 typedef struct {
     kr_source *source;gm_stream *plan;kr_video *video;kr_audio *audio;
@@ -197,9 +197,18 @@ static int generated_read(void *opaque,uint8_t *data,int size) {
         if(g->segment>=g->count)return AVERROR_EOF;
         if(!tick(g->progress,g->context,g->is_video?0:1,g->segment,g->count))return AVERROR_EXIT;
         g->unit.len=0;
+        struct timespec t0,t1;clock_gettime(CLOCK_MONOTONIC,&t0);
         int r=g->is_video?kr_video_unit(g->video,g->plan,g->segment,&g->unit,g->error,g->error_size):
                           kr_audio_unit(g->audio,g->plan,g->segment,&g->unit,g->error,g->error_size);
         if(r<0)return AVERROR(EIO);
+        // r21: the storage-free path (prepare_to, used on the phone) logs each unit's time and route too; r20 only
+        // instrumented the spool path, so the build-173 log had none.
+        clock_gettime(CLOCK_MONOTONIC,&t1);
+        double took=(double)(t1.tv_sec-t0.tv_sec)+(double)(t1.tv_nsec-t0.tv_nsec)/1e9;
+        if(g->is_video || g->segment%10==0)
+            kr_remux_note("prepare: %s %d/%d made in %.1f s for %d s of film (%.2fx real time)%s%s",g->is_video?"video":"audio",
+                          g->segment+1,g->count,took,PREP_UNIT,took>0?PREP_UNIT/took:0,g->is_video?" via ":"",
+                          g->is_video?kr_video_route(g->video):"");
         g->offset=g->segment?kr_first_moof(g->unit.data,g->unit.len):0;
         if(g->offset<0 || g->offset>=g->unit.len)return AVERROR_INVALIDDATA;
         g->segment++;
@@ -214,7 +223,7 @@ static int generated_open(generated_reader *g,AVFormatContext **format,AVIOConte
                           const char *input,int index,int video,kr_prepare_progress cb,void *ctx,char *err,int en) {
     g->is_video=video;g->progress=cb;g->context=ctx;g->error=err;g->error_size=en;
     g->source=kr_source_open(input,30,err,en);if(!g->source)return -1;
-    g->plan=gm_stream_open(kr_source_gm(g->source),6,err,en);if(!g->plan)return -1;
+    g->plan=gm_stream_open(kr_source_gm(g->source),PREP_UNIT,err,en);if(!g->plan)return -1;   // r21: was 6 s
     g->count=gm_stream_segment_count(g->plan);
     if(video){g->video=kr_video_open(kr_source_gm(g->source),index,err,en);if(!g->video)return -1;kr_video_keep_resolution(g->video);}
     else {g->audio=kr_audio_open(kr_source_gm(g->source),index,err,en);if(!g->audio)return -1;}

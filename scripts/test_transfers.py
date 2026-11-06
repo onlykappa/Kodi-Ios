@@ -106,6 +106,19 @@ class Page(unittest.TestCase):
  def test_registered_and_pill_hidden(self):
   self.assertIn('transfers_page.files(ns)',(LIB/'portrait.py').read_text());self.assertIn('IOSTransfers.xml',(LIB/'activity_skin.py').read_text())
 
+class NewPageFound(unittest.TestCase):
+ """Build 173: "XML File for Window is missing" for a page written while Kodi ran (Kodi's directory cache)."""
+ def test_portrait_folder_is_read_again_after_writing(self):
+  import types
+  from unittest.mock import patch
+  seen=[];fake=types.SimpleNamespace(listdir=lambda path:seen.append(path) or ([],[]))
+  with patch.dict(sys.modules,{'xbmcvfs':fake}):portrait.refresh_listing('/skin')
+  self.assertEqual(seen,['/skin/portrait/'])
+  self.assertIn(' if changed:refresh_listing(skin)',(LIB/'portrait.py').read_text())
+ def test_transfers_retries_once_after_refreshing(self):
+  text=(BOOT/'transfers.py').read_text()
+  self.assertIn("except RuntimeError:",text);self.assertIn("xbmcvfs.listdir(os.path.join(skin,'portrait')+'/')",text)
+
 class OnlyFromNotifications(unittest.TestCase):
  def test_cards_have_tap_targets_under_pause(self):
   xml=portrait.notices_page()

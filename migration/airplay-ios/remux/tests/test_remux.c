@@ -1351,6 +1351,8 @@ static int preparation_write(int track,const char *suffix,const uint8_t *data,in
 static void test_preparation_stream(const char *work,const char *http_base) {
     const char *files[]={"h264_aac_srt.mkv","hevc_ac3_ass.mkv","h264_ac3_dts_srt.mkv","hevc_4k.mkv","dovi.mkv","long_seek.mkv","h264_pgs.mkv"};
     kodi_airplay_prepare_keep_image_subs(1);
+    {char drain[16384];while(kr_remux_log(drain,sizeof drain)>0){}}   // r21: earlier tests' lines
+    static char notes[262144];int noted=0;notes[0]=0;
     for(unsigned i=0;i<sizeof files/sizeof files[0];i++) {
         char input[1024],output[1024],base[1024],err[512]="",json[1024];int calls=0;
         snprintf(input,sizeof input,"%s/%s",http_base,files[i]);snprintf(base,sizeof base,"%s/stream-prepared-%u",fixture_dir,i);
@@ -1358,6 +1360,7 @@ static void test_preparation_stream(const char *work,const char *http_base) {
         test_prepare_sink sink={0};sink.base=base;
         int r=kodi_airplay_prepare_to(input,preparation_write,&sink,preparation_progress,&calls,err,sizeof err);
         for(int n=0;n<65;n++)if(sink.files[n])fclose(sink.files[n]);
+        {int got;while(noted<(int)sizeof notes-1 && (got=kr_remux_log(notes+noted,(int)sizeof notes-noted))>0)noted+=got;}
         CHECK(r==0,"storage-free prepare %s: %s",files[i],err);if(r)continue;
         char remote[1200];snprintf(remote,sizeof remote,"%s/stream-prepared-%u.mp4",http_base,i);
         CHECK(kodi_airplay_verify(input,remote,err,sizeof err)==0,"remote output validates tracks, duration and seeks for %s: %s",files[i],err);
@@ -1383,6 +1386,8 @@ static void test_preparation_stream(const char *work,const char *http_base) {
             avformat_close_input(&f);
         }
     }
+    // r21: the storage-free path logs its units (the phone uses it; r20 only logged the spool path).
+    CHECK(strstr(notes,"prepare: audio 1/") && strstr(notes," s for 30 s of film ("),"storage-free preparation logs 30-second units: %.300s",notes);
     char input[1024],base[1024],err[512]="";int calls=0;
     snprintf(input,sizeof input,"%s/hevc_ac3_ass.mkv",http_base);snprintf(base,sizeof base,"%s/stream-cancel",work);
     test_prepare_sink sink={0};sink.base=base;sink.cancel=2;

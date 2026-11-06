@@ -70,6 +70,16 @@ class Build169Log(unittest.TestCase):
   src=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertNotIn('debrid_drive.copying(profile)',src)
 
+class Build173Log(unittest.TestCase):
+ """Build-173 log: no "prepare:" lines in 13 min and the same speed as r19: the phone uses the storage-free path
+ (kodi_airplay_prepare_to), which r20 had not changed (6-second units, no timing)."""
+ def test_storage_free_path_uses_30_second_units_and_logs(self):
+  c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
+  reader=c[c.index('static int generated_read'):c.index('typedef struct {\n    kr_prepare_write')]
+  self.assertIn('gm_stream_open(kr_source_gm(g->source),PREP_UNIT,err,en)',reader)
+  self.assertNotIn('kr_source_gm(g->source),6,',reader)
+  self.assertIn('kr_remux_note("prepare: %s %d/%d made in %.1f s',reader);self.assertIn('kr_video_route(g->video)',reader)
+
 class Build170Log(unittest.TestCase):
  """Owner (build 170 log): Inception read ~0.55 MB/s, about a quarter of real time, in 6-second live units."""
  def test_whole_file_units_and_safe_resume(self):

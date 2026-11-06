@@ -106,7 +106,12 @@ def run(args=()):
     self.wanted=self.others[control-tp.OTHER-1];self.refresh()
   def finish(self):
    self.stop.set();self.close()
- page=Page(tp.WINDOW,here,'Default','1080i')
+ skin=xbmcvfs.translatePath('special://skin/')
+ try:page=Page(tp.WINDOW,here,'Default','1080i')
+ except RuntimeError:
+  # Added while Kodi was running: Kodi's directory cache may not list it yet (build 173). Re-read and try once more.
+  xbmcvfs.listdir(os.path.join(skin,'portrait')+'/')
+  page=Page(tp.WINDOW,here,'Default','1080i')
  page.doModal()
  if hasattr(page,'stop'):page.stop.set()
  del page
