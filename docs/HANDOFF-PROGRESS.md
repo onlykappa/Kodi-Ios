@@ -9,7 +9,8 @@ Always commit with `[skip ci]`; builds are started by hand (import-review.yml = 
 |---|---|---|
 | 160 | Library status opens (Addon id fix), leftovers freed, phone-space card | Released; owner tested |
 | 161 | Folders on Library status, iPhone free-space figure, one space estimate, KodiAirPlay r15 (Interstellar .sup subtitles), notification log sheet | Built (run 42160779351), **not verified / not sent**: superseded by 162 |
-| 162 | 161 + Play on TV fix + AllDebrid-to-Drive downloads | **Not started yet** |
+| 162 | 161 + Play on TV fix + AllDebrid-to-Drive (Download only) | Cancelled (superseded) |
+| 163 | 162 + played versions also go AllDebrid→Drive after 3 min idle (`debrid_drive.adopt`) | Building |
 
 KodiAirPlay r15 is published and pinned (`8afe0096…55a9`, verified run 42160014524, 1605 host checks).
 

@@ -248,9 +248,17 @@ def drive_uploads(monitor,home,profile):
   delay=10
   while not monitor.waitForAbort(delay):
    delay=20
+   try:token=xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken')
+   except Exception:token=''
+   # A version played from the source page keeps downloading onto the phone after playback (Elementum's keep
+   # downloading): once nothing plays, AllDebrid takes it to Drive and Elementum drops it (owner, build 160).
+   if token and accounts.get_accounts():
+    try:
+     for tid in debrid_drive.adopt(profile,notices.torrent_list(),xbmc.Player().isPlayingVideo()):
+      driveupload.remove_torrent(tid);xbmc.log('Kodi iOS AllDebrid to Drive: took %s from Elementum'%tid,xbmc.LOGINFO)
+    except Exception as error:xbmc.log('Kodi iOS AllDebrid to Drive: Elementum list unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
    if not debrid_drive.active(profile) or not accounts.get_accounts():continue
    try:
-    token=xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken')
     def done(job):
      driveupload.invalidate_library(str(profile/'addon_data/service.kodi.ios.bootstrap'))
      prepare_downloads.request_check(profile)   # preparation for Kodi and AirPlay picks it up from Drive

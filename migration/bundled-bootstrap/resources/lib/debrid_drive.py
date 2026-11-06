@@ -77,6 +77,59 @@ def folders(kind, name, title=''):
     return parts
 
 
+def kind_of(name):
+    """movie, episode (SxxEyy) or season (a pack: S01, Season 1, Complete) from a torrent's name."""
+    import re
+    if re.search(r'(?i)\bS\d{1,2}[ ._-]?E\d{1,3}\b|\b\d{1,2}x\d{2,3}\b', name):
+        return 'episode'
+    if re.search(r'(?i)\bS\d{1,2}\b|\bseason[ ._-]*\d|\bcomplete\b', name):
+        return 'season'
+    return 'movie'
+
+
+GRACE = 180   # seconds a torrent must sit unfinished with nothing playing before it is taken (buffering, choosing)
+
+
+def adopt(profile, torrents, playing, now=None):
+    """Owner (build 160): a version played from the source page kept downloading onto the phone (Elementum keeps
+    downloading after playback). After GRACE seconds with nothing playing (so never while a video buffers or plays),
+    every unfinished torrent is queued here instead; returns the Elementum ids to drop. A finished one stays: its file
+    is on the phone already and goes to Drive the usual way."""
+    import drivelibrary
+    now = time.time() if now is None else now
+    state = load(profile)
+    seen = state.setdefault('idle_seen', {})
+    if playing:
+        if seen:
+            state['idle_seen'] = {}
+            save(profile, state)
+        return []
+    out = []
+    current = set()
+    for torrent in torrents or []:
+        try:
+            done = float(torrent.get('progress') or 0) >= 99.9
+        except (TypeError, ValueError):
+            done = False
+        name = str(torrent.get('name') or '')
+        h = info_hash(torrent)
+        if done or not h or not name:
+            continue
+        current.add(h)
+        first = seen.setdefault(h, now)
+        if now - first < GRACE:
+            continue
+        info = drivelibrary.parse(name)
+        kind = kind_of(name)
+        queue(profile, torrent, kind, info.get('title') or drivelibrary.display_title(name), info.get('season') or '',
+              info.get('episode') or '' if kind == 'episode' else '')
+        out.append(str(torrent.get('id')))
+    state = load(profile)   # queue() saved jobs; keep them and record what was seen
+    state['idle_seen'] = {h: t for h, t in seen.items() if h in current and str(h) not in out}
+    save(profile, state)
+    return out
+
+
 def default_open(url, offset, timeout=60):
     req = urllib.request.Request(url, headers={'Range': 'bytes=%d-' % offset} if offset else {})
     return urllib.request.urlopen(req, timeout=timeout)

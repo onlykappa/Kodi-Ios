@@ -129,4 +129,26 @@ class Wiring(unittest.TestCase):
   self.assertIn('debrid_drive.step(profile,alldebrid.AllDebrid(token),drive',src);self.assertIn('threading.Thread(target=debrid_loop,daemon=True).start()',src)
   self.assertIn('prepare_downloads.request_check(profile)',src[src.index('def debrid_loop'):])
 
+class PlayedVersions(unittest.TestCase):
+ """Owner (build 160): "Download only or download and watch doesnt appear when i select the source it just starts
+ downloading" — a played version kept downloading onto the phone (19.8 GB Fall)."""
+ def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name
+ def tearDown(self):self.tmp.cleanup()
+ def test_taken_after_grace_only_while_nothing_plays(self):
+  t=[{'id':H,'name':'Fall.2022.2160p.WEB-DL.DV.mkv','progress':12},{'id':'b'*40,'name':'Done.2020.mkv','progress':100}]
+  self.assertEqual(debrid_drive.adopt(self.p,t,playing=False,now=1000),[])        # just appeared (buffering, choosing)
+  self.assertEqual(debrid_drive.adopt(self.p,t,playing=True,now=1100),[])         # playing: never, and the clock restarts
+  self.assertEqual(debrid_drive.adopt(self.p,t,playing=False,now=1200),[])
+  self.assertEqual(debrid_drive.adopt(self.p,t,playing=False,now=1200+debrid_drive.GRACE),[H])
+  job=debrid_drive.load(self.p)['jobs'][0]
+  self.assertEqual((job['kind'],job['title'],job['hash']),('movie','Fall',H))
+  self.assertEqual(debrid_drive.adopt(self.p,t,playing=False,now=5000),[])        # once
+ def test_kinds(self):
+  self.assertEqual([debrid_drive.kind_of(n) for n in ('Fall.2022.mkv','Lanterns.S01E02.mkv','Lanterns.S01.2160p','Show Season 2 Complete')],
+                   ['movie','episode','season','season'])
+ def test_service_takes_them_back_from_elementum(self):
+  src=(BOOT/'service.py').read_text()
+  self.assertIn("debrid_drive.adopt(profile,notices.torrent_list(),xbmc.Player().isPlayingVideo())",src)
+  self.assertIn("driveupload.remove_torrent(tid)",src[src.index('def debrid_loop'):])
+
 if __name__=='__main__':unittest.main()
