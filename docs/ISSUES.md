@@ -944,3 +944,11 @@ Status: FIXED IN SOURCE; device check pending (build 162).
 - Fix: one Play on TV at a time (Home property `KodiIOS.PlayOnTV`, 90 s; a second press says "Still connecting to the TV…"); a "Connecting to the TV…" progress with Cancel from the moment AirPlay starts (Cancel and failures let Kodi's video carry on); with a converting framework a failure says what Apple's player reported in everyday words ("AirPlay didn't start on the TV: the TV could not connect to the phone") instead of blaming the format.
 - Still to see: whether this TCL Roku TV shows the picture of a prepared HEVC MP4 (prepared files go to the TV as they are; build 136-era logs needed the H.264 picture for this TV). If it plays sound only, the existing "No picture on the TV" alert says so.
 - Regression: `test_play_on_tv_start` (5).
+
+## ISSUE-117 — Downloads fill the phone; a large movie can never download (build 160)
+
+Status: IN SOURCE; device check pending (build 162).
+- Owner: "a movie im downloading goes onto my phone still … its eating all my storage and if i do a large movie it wont ever download" (Files: Fall.2022.2160p.WEB-DL… 19.83 GB). Chose "AllDebrid straight to Drive".
+- Root cause: Download always went through Elementum; a torrent is written to the phone, uploaded to Drive, then deleted, so it needs its whole size free.
+- Fix: with AllDebrid signed in (Umbrella › Accounts, `alldebridtoken`), Download only (movie, episode, chosen episodes, whole season) hands the version picked to AllDebrid (`alldebrid.py`) and Elementum drops it and its files; the service (`debrid_loop`, `debrid_drive.step`) waits while AllDebrid fetches it on its servers, then copies each video into Drive › Kodi Downloads › Movies / TV Shows › <show> with `Drive.upload_stream` (16 MB at a time, resumes at Drive's offset; nothing written to the phone), rescans the library and asks preparation to check. Progress shows on the Uploading card, the pill and Library status. Without AllDebrid, or with Download and watch, Elementum as before.
+- Regression: `test_debrid_drive` (13).

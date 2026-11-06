@@ -241,6 +241,26 @@ def drive_uploads(monitor,home,profile):
  drive=driveupload.Drive(driveupload.token_source(accounts.get_accounts,accounts.save_account,refresh),send)
  root=str(updates.updates_folder(home).with_name('Kodi Downloads'))
  state=str(profile/'addon_data/service.kodi.ios.bootstrap/drive-uploads.json')
+ # Downloads through AllDebrid go straight to Drive (debrid_drive): its own loop, so a long copy never holds up the
+ # phone-to-Drive uploads or preparation below, and it runs during playback too (network only, no phone storage).
+ def debrid_loop():
+  import alldebrid,debrid_drive,prepare_downloads
+  delay=10
+  while not monitor.waitForAbort(delay):
+   delay=20
+   if not debrid_drive.active(profile) or not accounts.get_accounts():continue
+   try:
+    token=xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken')
+    def done(job):
+     driveupload.invalidate_library(str(profile/'addon_data/service.kodi.ios.bootstrap'))
+     prepare_downloads.request_check(profile)   # preparation for Kodi and AirPlay picks it up from Drive
+    delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text:notices.add(profile,kind,title,text),
+                            keep_going=lambda:not monitor.abortRequested(),on_done=done) or 20
+   except alldebrid.Problem as problem:
+    notices.add(profile,'problem',"Couldn't download to Google Drive",str(problem));delay=300
+   except Exception as error:
+    xbmc.log('Kodi iOS AllDebrid to Drive paused: %s %s'%(type(error).__name__,error),xbmc.LOGWARNING);delay=60
+ threading.Thread(target=debrid_loop,daemon=True).start()
  idle=lambda:not monitor.abortRequested() and not xbmc.Player().isPlayingVideo()
  log=lambda message:xbmc.log('Kodi iOS '+message,xbmc.LOGINFO)
  import library_scan,prepare_downloads

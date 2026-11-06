@@ -18,6 +18,34 @@ def owned_copy(kind,title,year='',season='',episode=''):
   except Exception:pass
   return None
 
+def to_drive(tids,kind,title,season='',episodes=()):
+ """Owner (build 160): "a movie im downloading goes onto my phone still … if i do a large movie it wont ever
+ download". With AllDebrid signed in (Umbrella › Accounts), the version picked goes to AllDebrid instead and from there
+ straight into Google Drive (debrid_drive, run by the bootstrap service); Elementum drops it and what it had
+ fetched. Returns True when it was handed over; False keeps Elementum's download on the phone as before."""
+ import urllib.request,xbmc,xbmcaddon,xbmcgui,xbmcvfs
+ import debrid_drive,driveupload
+ try:token=xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken')
+ except Exception:token=''
+ tids=[t for t in tids or () if t]
+ if not token or not tids:return False
+ try:listed={str(t.get('id')):t for t in notices.torrent_list(get=lambda url:urllib.request.urlopen(url,timeout=5).read())}
+ except Exception:listed={}
+ profile=xbmcvfs.translatePath('special://profile/');moved=0
+ for tid in tids:
+  torrent=listed.get(tid) or {'id':tid}
+  if not debrid_drive.info_hash(torrent):
+   xbmc.log('Kodi iOS download: %s has no info-hash; Elementum keeps it'%tid,xbmc.LOGWARNING);continue
+  debrid_drive.queue(profile,torrent,kind,title,season,episodes[0] if kind=='episode' and episodes else '',episodes=episodes if kind=='season' else ())
+  try:driveupload.remove_torrent(tid)
+  except Exception as error:xbmc.log('Kodi iOS download: Elementum kept %s (%s)'%(tid,type(error).__name__),xbmc.LOGWARNING)
+  moved+=1
+ if moved:
+  xbmc.log('Kodi iOS download: %d torrent%s to Google Drive through AllDebrid'%(moved,'' if moved==1 else 's'),xbmc.LOGINFO)
+  notices.note('download','Downloading to Google Drive','%s · through AllDebrid, nothing kept on the phone'%title)
+  xbmcgui.Dialog().notification('Download','Going straight to Google Drive through AllDebrid',xbmcgui.NOTIFICATION_INFO,4000)
+ return moved>0
+
 def run():
  import xbmc,xbmcgui
  args=dict(a.split('=',1) for a in sys.argv[1:] if '=' in a)
@@ -109,6 +137,7 @@ def run():
    start('episode',first)
    tid=dl.added(before,wait,attempts=300)
    added=([first] if tid else [])+dl.download_each([n for n in episodes if n!=first],lambda n:start('episode',n),wait)
+   if not watching and to_drive(sorted(dl.torrents()-set(before)),'season',title,season,episodes):return
    if added:notices.note('download','Downloading season %s'%season,'%d of %d episodes'%(len(added),len(episodes)))
    if watching:watch('episode',tid,first)
    return
@@ -127,6 +156,7 @@ def run():
   before=dl.torrents()
   start('season')
   tid=dl.download_all_when_added(before,wait)
+  if not watching and to_drive([tid],'season',title,season):return
   if tid:notices.note('download','Downloading all of season %s'%season)
   if watching:watch('episode',tid,1)
   return
@@ -134,7 +164,11 @@ def run():
  if watching is None:return
  before=dl.torrents()
  start(kind,episode)
- if watching:watch(kind,dl.added(before,wait,attempts=300),episode)
+ tid=dl.added(before,wait,attempts=300)
+ # Download only: AllDebrid straight to Drive when signed in. Download and watch keeps Elementum (it plays from the
+ # torrent as it arrives on the phone).
+ if not watching and to_drive([tid],kind,title,season,[int(episode)] if kind=='episode' and episode else ()):return
+ if watching:watch(kind,tid,episode)
 
 def main():
  # Owner (build-127): after picking episodes nothing happened. Every step is logged and a failure is shown, never

@@ -209,14 +209,25 @@ def downloads(get=None):
  return out
 
 def uploads(profile):
- """The Google Drive upload in progress (driveupload records it), for the Uploading card."""
+ """The Google Drive upload in progress (driveupload records it), and a download going straight to Drive through
+ AllDebrid (debrid_drive), for the Uploading card, the activity pill and Library status."""
+ out=[]
  try:state=json.loads((Path(profile)/'addon_data/service.kodi.ios.bootstrap/drive-uploads.json').read_text(encoding='utf-8'))
- except (OSError,ValueError):return []
+ except (OSError,ValueError):state={}
  now=state.get('current') if isinstance(state,dict) else None
- if not now or not now.get('total'):return []
- progress=100.0*now.get('sent',0)/now['total']
- return [{'title':drivelibrary.display_title(now.get('name','')),'folder':now.get('folder',''),'progress':progress,
-          'line':'%d%%  ·  %s of %s'%(progress,size_text(now.get('sent',0)),size_text(now['total']))}]
+ if now and now.get('total'):
+  progress=100.0*now.get('sent',0)/now['total']
+  out.append({'title':drivelibrary.display_title(now.get('name','')),'folder':now.get('folder',''),'progress':progress,
+              'line':'%d%%  ·  %s of %s'%(progress,size_text(now.get('sent',0)),size_text(now['total']))})
+ try:
+  import debrid_drive
+  for d in debrid_drive.uploads(profile):
+   progress=100.0*d.get('sent',0)/d['total']
+   line=('AllDebrid is fetching it · %d%%'%progress if d.get('stage')=='fetching'
+         else '%d%%  ·  %s of %s, straight to Google Drive'%(progress,size_text(d.get('sent',0)),size_text(d['total'])))
+   out.append({'title':drivelibrary.display_title(d.get('name','')),'folder':d.get('folder',''),'progress':progress,'line':line})
+ except Exception as error:_quiet('notices:debrid',error)
+ return out
 
 def engine_action(command,torrent,get=None):
  """Pause, resume or cancel (delete, keeping nothing) one Elementum download from the page."""
