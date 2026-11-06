@@ -43,6 +43,7 @@ struct kr_video {
     AVBufferRef *hw;          // VideoToolbox device, NULL for software decoding
     int ow, oh;               // output size
     int offline,keep_hdr;
+    char route[64];           // r20: how the last segment was made (hardware HDR / GPU / CPU + decoder), for the log
     AVRational fps;           // source frame rate (for the encoder's framerate hint)
     kr_color *sws;
 #ifdef KR_GPU
@@ -338,6 +339,7 @@ typedef struct {
 // is used for the rest of the session.
 static int hdr_pass_broken = 0;
 int kr_video_hdr_passthrough(void) { return !hdr_pass_broken; }
+const char *kr_video_route(kr_video *v) { return v && v->route[0] ? v->route : "not started"; }
 #ifdef KR_GPU
 static int hdr_passable(kr_video *v, AVFrame *fr) {
     if (fr->format != AV_PIX_FMT_VIDEOTOOLBOX || !fr->hw_frames_ctx || fr->width != v->ow || fr->height != v->oh) return 0;
@@ -561,6 +563,7 @@ static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen)
                     goto cpu;
                 }
             }
+            if (j->sent == 0) snprintf(j->v->route, sizeof j->v->route, "hardware HDR (%s decoder to %s)", j->v->dec->codec->name, j->enc->codec->name);
             j->conv = av_frame_clone(fr);   // HDR tags and mastering metadata travel with the frame
             if (!j->conv) { seterr(err, errlen, "out of memory", 0); return -1; }
             goto send;
@@ -574,6 +577,7 @@ static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen)
         if (gpu_scale(j->v, fr, &g) == 0) {
             if (!j->enc && open_encoder(j, err, errlen) < 0) { av_frame_free(&g); return -1; }
             j->conv = g;
+            if (j->sent == 0) snprintf(j->v->route, sizeof j->v->route, "GPU path (%s decoder to %s)", j->v->dec->codec->name, j->enc->codec->name);
             if (j->v->subs) {  // r10: drawn into the encoder's own NV12 buffer (CPU, base address locked)
                 CVPixelBufferRef pb = (CVPixelBufferRef)g->data[3];
                 if (CVPixelBufferLockBaseAddress(pb, 0) == kCVReturnSuccess) {
@@ -602,6 +606,8 @@ cpu:
     r = convert(j, sw, err, errlen);
     av_frame_free(&tmp);
     if (r < 0) return -1;
+    if (j->sent == 0) snprintf(j->v->route, sizeof j->v->route, "CPU path (%s decoder%s, %s)", j->v->dec->codec->name,
+                               fr->format == AV_PIX_FMT_VIDEOTOOLBOX ? " in hardware" : "", j->enc->codec->name);
     if (j->v->subs && kr_subs_blend(j->v->subs, frame_ms(j, pts), j->conv->data, j->conv->linesize, j->v->ow, j->v->oh,
                                   j->conv->format == AV_PIX_FMT_NV12) < 0) {
         seterr(err, errlen, "subtitle input/render", 0); return -1;

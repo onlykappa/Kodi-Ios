@@ -70,4 +70,17 @@ class Build169Log(unittest.TestCase):
   src=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertNotIn('debrid_drive.copying(profile)',src)
 
+class Build170Log(unittest.TestCase):
+ """Owner (build 170 log): Inception read ~0.55 MB/s, about a quarter of real time, in 6-second live units."""
+ def test_whole_file_units_and_safe_resume(self):
+  c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
+  self.assertIn('#define PREP_UNIT 30',c);self.assertIn('gm_stream_open(kr_source_gm(source),PREP_UNIT,err,en)',c)
+  self.assertIn('if(unit_s!=PREP_UNIT){first=0;offset=0;}',c)   # an r19 6-second checkpoint is not misread
+  self.assertIn('"%d %lld %d\\n",i+1,offset,PREP_UNIT',c)
+ def test_log_says_route_and_speed(self):
+  c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
+  self.assertIn('prepare: %s %d/%d made in %.1f s for %d s of film (%.2fx real time)',c)
+  v=(ROOT/'migration/airplay-ios/remux/src/kr_video.c').read_text()
+  for route in ('hardware HDR (%s decoder to %s)','GPU path (%s decoder to %s)','CPU path (%s decoder%s, %s)'):self.assertIn(route,v)
+
 if __name__=='__main__':unittest.main()

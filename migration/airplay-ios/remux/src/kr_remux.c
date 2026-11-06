@@ -149,6 +149,13 @@ static void log_line(const char *fmt, ...) {
     pthread_mutex_unlock(&L.lock);
 }
 
+// r20: preparation (kr_prepare.c) writes its per-segment timing and route to the same log Kodi relays.
+void kr_remux_note(const char *fmt, ...) {
+    char line[LOG_WIDTH];
+    va_list ap; va_start(ap, fmt); vsnprintf(line, sizeof line, fmt, ap); va_end(ap);
+    log_line("%s", line);
+}
+
 // Each distinct User-Agent once per session: names the receiver (AppleCoreMedia on the phone, the TV's own player).
 static void log_agent(const char *ua) {
     if (!ua || !*ua) return;

@@ -75,4 +75,6 @@ int kr_video_burn(kr_video *v, int sub_index, const char *file, char *err, int e
 int kr_video_burning(const kr_video *v);
 int kr_video_burn_events(const kr_video *v);  // subtitle events loaded so far (tests, log)
 long kr_video_burn_drawn(const kr_video *v);  // r11: converted frames with a subtitle drawn on them so far
+// r20: how the last segment was made, for the preparation log.
+const char *kr_video_route(kr_video *v);
 #endif

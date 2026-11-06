@@ -23,6 +23,12 @@
 - Each Drive copy chunk logs its source-read and Drive-send times and MB/s (`driveupload.upload_stream`), so the next log shows which side is slow.
 - While an AllDebrid file is being copied into Drive, preparation waits its turn; it resumes afterwards (`debrid_drive.copying`, service loop).
 
+## Build 171 (from the build-170 log): KodiAirPlay r20
+- Inception converted at ~0.55 MB/s read (about a quarter of real time, ~10 h). Cause: preparation used the live-AirPlay 6-second units; each re-seeks to its keyframe, re-decodes from there, flushes the decoder and opens a new encoder.
+- r20: whole-file preparation uses 30-second units (`PREP_UNIT`). The checkpoint stores the unit length, so a 6-second checkpoint starts over instead of being misread.
+- Each unit logs "prepare: video i/n made in X s for 30 s of film (Nx real time) via <route>" (hardware HDR / GPU / CPU + decoder), through `kr_remux_note`.
+- Steps: native CI → pin r20 (previous r19 785178e5…) → publish → build 171 → verify.
+
 ## Build 170 (from the build-169 log, owner: "downloading is alot quicker", "converting is having issues still")
 - Copy speed is fixed: AllDebrid 12–17 MB/s in, Drive 6–8 MB/s out (it was 0.2 MB/s).
 - Inception (build 168, 05:08) failed after 30 min on "Picture subtitle packet: Invalid data" (r15 sidecar writer). r19: a malformed or empty PGS packet is skipped, not fatal (`kr_prepare.c`).

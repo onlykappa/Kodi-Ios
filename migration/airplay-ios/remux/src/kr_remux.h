@@ -9,6 +9,8 @@ enum { KR_DIRECT = 0, KR_REMUX = 1, KR_UNKNOWN = -1 };
 // From the URL's path: KR_REMUX for .mkv/.mk3d/.avi/.webm/.ts/.m2ts/.mts, KR_DIRECT for .mp4/.m4v/.mov/.m3u8,
 // KR_UNKNOWN otherwise (Drive links, Elementum ids: kr_remux_start probes the bytes).
 int kr_remux_kind(const char *url);
+// r20: a line in the framework log (relayed into kodi.log as "Kodi iOS AirPlay: ...").
+void kr_remux_note(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 enum { KR_IDLE = 0, KR_STARTING = 1, KR_READY = 2, KR_FAILED = -1, KR_NOT_NEEDED = 3 };
 // Opens `url`, plans the segments and starts the loopback server. On success returns KR_READY and writes the

@@ -2,6 +2,8 @@
 // bridge other SDR video at its ORIGINAL dimensions, AAC audio, selectable text subtitles,
 // and a front-loaded MP4 sample index. No conversion or speculative segment queue at playback.
 #include "kr_prepare.h"
+#include "kr_remux.h"
+#include <time.h>
 #include "kr_video.h"
 #include "kr_audio.h"
 #include "kr_source.h"
@@ -19,6 +21,7 @@
 #include <math.h>
 
 #define TRACKS 64
+#define PREP_UNIT 30   // seconds per preparation unit (r20; live AirPlay keeps its 6)
 #define SIDECAR TRACKS   // map value of a picture subtitle track written beside the MP4 (r15), not into it
 
 // r15 (owner, build 160: "Interstellar ... needs to be ready for airplay"): MP4 cannot hold Blu-ray picture subtitles
@@ -133,7 +136,7 @@ static int fail(char *err,int n,const char *what,int code) {
     if(err && n>0)snprintf(err,(size_t)n,"%s%s%s",what,*detail?": ":"",detail);
     return -1;
 }
-// A whole track is bounded-memory fMP4; only the current six-second unit is held in RAM.
+// A whole track is bounded-memory fMP4; only the current PREP_UNIT-second unit is held in RAM.
 // Spools checkpoint after every completed segment, so restart/pause does not redo a movie.
 static int spool(const char *input,const char *path,int index,int is_video,
                  kr_prepare_progress cb,void *ctx,char *err,int en) {
@@ -141,12 +144,17 @@ static int spool(const char *input,const char *path,int index,int is_video,
     FILE *file=NULL;gm_buf unit={0};int r=-1,first=0;long long offset=0;
     char state[4096],tmp[4100];snprintf(state,sizeof state,"%s.state",path);snprintf(tmp,sizeof tmp,"%s.tmp",state);
     source=kr_source_open(input,30,err,en);if(!source)goto end;
-    plan=gm_stream_open(kr_source_gm(source),6,err,en);if(!plan)goto end;
+    // r20 (owner, build 170: Inception converted at about a quarter of real time): 6-second units were made for live
+    // AirPlay; for a whole file each one re-seeks to its keyframe, re-decodes from there and starts a new encoder.
+    // Preparation uses PREP_UNIT-second units (one ~100 MB unit in RAM at 4K); checkpoints carry the length.
+    plan=gm_stream_open(kr_source_gm(source),PREP_UNIT,err,en);if(!plan)goto end;
     if(is_video) {
         video=kr_video_open(kr_source_gm(source),index,err,en);if(!video)goto end;
         kr_video_keep_resolution(video);
     } else {audio=kr_audio_open(kr_source_gm(source),index,err,en);if(!audio)goto end;}
-    FILE *saved=fopen(state,"r");if(saved){if(fscanf(saved,"%d %lld",&first,&offset)!=2){first=0;offset=0;}fclose(saved);}
+    int unit_s=0;
+    FILE *saved=fopen(state,"r");if(saved){if(fscanf(saved,"%d %lld %d",&first,&offset,&unit_s)<2){first=0;offset=0;}fclose(saved);}
+    if(unit_s!=PREP_UNIT){first=0;offset=0;}   // a checkpoint from other-sized units (r19 and earlier) starts over
     struct stat st;
     if(first<0 || offset<0 || stat(path,&st) || st.st_size<offset){first=0;offset=0;}
     file=fopen(path,first?"r+b":"w+b");if(!file){fail(err,en,"Cannot create working file",0);goto end;}
@@ -156,14 +164,20 @@ static int spool(const char *input,const char *path,int index,int is_video,
     for(int i=first;i<count;i++) {
         if(!tick(cb,ctx,is_video?0:1,i,count)){r=-2;goto end;}
         unit.len=0;
+        struct timespec t0,t1;clock_gettime(CLOCK_MONOTONIC,&t0);
         int q=is_video?kr_video_unit(video,plan,i,&unit,err,en):kr_audio_unit(audio,plan,i,&unit,err,en);
         if(q<0)goto end;
+        clock_gettime(CLOCK_MONOTONIC,&t1);
+        double took=(double)(t1.tv_sec-t0.tv_sec)+(double)(t1.tv_nsec-t0.tv_nsec)/1e9;
+        if(is_video || i%10==0)
+            kr_remux_note("prepare: %s %d/%d made in %.1f s for %d s of film (%.2fx real time)%s%s",is_video?"video":"audio",i+1,count,
+                          took,PREP_UNIT,took>0?PREP_UNIT/took:0,is_video?" via ":"",is_video?kr_video_route(video):"");
         int start=i?kr_first_moof(unit.data,unit.len):0;
         if(start<0 || fwrite(unit.data+start,1,(size_t)(unit.len-start),file)!=(size_t)(unit.len-start) ||
            fflush(file) || fsync(fileno(file))){fail(err,en,"Cannot save converted segment",0);goto end;}
         offset=(long long)ftello(file);
         saved=fopen(tmp,"w");if(!saved){fail(err,en,"Cannot save conversion checkpoint",0);goto end;}
-        int ok=fprintf(saved,"%d %lld\n",i+1,offset)>0 && !fflush(saved) && !fsync(fileno(saved));
+        int ok=fprintf(saved,"%d %lld %d\n",i+1,offset,PREP_UNIT)>0 && !fflush(saved) && !fsync(fileno(saved));
         if(fclose(saved) || !ok || rename(tmp,state)){fail(err,en,"Cannot commit conversion checkpoint",0);goto end;}
     }
     r=0;
