@@ -33,3 +33,7 @@ Built from round 3 (`activity.py`, `activity_skin.py`, `activity_page.py`): the 
 ## Round 4: Customisation (`customisation-mockups.html`)
 
 Mockups only, for owner review: every page under Settings › Customisation that still opens a Fuse window: Hubs (Custom_1115) as Tabs & Rows, the widget editor (Custom_1116/1124) as Rows / Edit Rows / One Row / Row Style, Custom_1118's Indicators, Video info and Video OSD lists as Poster Badges, Info Page and Video Controls, Skin Variables' view types as View Types with a preview picker, and Skin Settings' categories as native pages. Every Fuse option is kept and writes the same setting.
+
+## Round 5: header buttons
+
+`header-buttons-mockups.html`: one family of glass buttons with SF Symbols-style icons. Bell (unread count, thin busy ring), a gear in place of the profile picture (opens Settings), refresh on Home/Movies/TV (each row loads the next page of its list; Continue Watching, Up Next and library rows never change) and one back button on every page that has back. Option A has separate circles; option B groups them in one capsule.
