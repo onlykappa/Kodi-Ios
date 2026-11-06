@@ -16,7 +16,7 @@ def process_one(q, keep_going):
             left={}
             for track,output in j['cloud_output'].items():
                 if output.get('moved'):continue
-                try:drivelibrary.trash(q.drive,output['id'])
+                try:drive_prepare.discard(q.drive,output['id'])
                 except Exception:left[track]=output
             j['cloud_output']=left;q.commit()
     candidates = [(slot,j) for slot,j in q.state['jobs'].items() if j.get('status') not in ('done','superseded')
@@ -39,7 +39,7 @@ def process_one(q, keep_going):
     def clear_temps():
         for output in (job.get('cloud_output') or {}).values():
             if output.get('moved'):continue
-            try:drivelibrary.trash(q.drive,output['id'])
+            try:drive_prepare.discard(q.drive,output['id'])
             except Exception:return False
         job.pop('cloud_output',None);job.pop('cloud_replace',None);q.commit();return True
     outputs = job.setdefault('cloud_output',{})

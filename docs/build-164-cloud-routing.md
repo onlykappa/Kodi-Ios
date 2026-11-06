@@ -1,4 +1,4 @@
-# Build 164 candidate: Elementum without movie files on iPhone storage
+# Build 165 (supersedes 164): Elementum without movie files on iPhone storage
 
 The November 5 device log confirms that source selection still reached Elementum `/play`, added a 4K torrent with file storage, and chose `Documents/Elementum Downloads`. The existing delayed adoption cannot prevent this initial local download. The same log includes an unrelated live AirPlay conversion from a debrid URL; that is not a prepared Drive download.
 
@@ -12,7 +12,7 @@ Watch requests wait for the Drive checksum/profile marker and an idle player. Th
 
 KodiAirPlay r16 adds callback output and remote verification. Source bytes are read through the existing authenticated loopback Drive proxy. Audio/video conversion readers hold their current six-second unit in RAM instead of spooling full tracks to disk. Output is a completed fragmented MP4 with its fragment index and finite movie/track durations in the initial header, uploaded in bounded 8 MiB chunks (small subtitle streams use 256 KiB chunks). PGS subtitles use the same callback path and remain small separate subtitle files.
 
-A temporary object in `Kodi Downloads/.Preparation` is validated over HTTP for duration, track count, resolution/HDR and seek index. The app then streams it into a resumable update of the original movie ID, verifies its checksum, marks it ready and removes the temporary movie. One final movie remains. The original stays intact while conversion, validation or an incomplete update fails. Completed staging objects and update sessions survive a restart. Old local preparation checkpoints are removed when the new worker runs.
+A temporary object in `Kodi Downloads/.Preparation` is validated over HTTP for duration, track count, resolution/HDR and seek index. The app then streams it into a resumable update of the original movie ID, verifies its checksum, marks it ready and permanently deletes the app-owned temporary movie. Moving it to Trash would still consume quota; build 165 corrects that cleanup from the 164 candidate. One final movie remains. The original stays intact while conversion, validation or an incomplete update fails. Completed staging objects and update sessions survive a restart. Old local preparation checkpoints are removed when the new worker runs.
 
 Phone CPU, RAM and Wi-Fi still do work. Drive does not execute the converter. The staging-to-original update adds network traffic to preserve existing Drive IDs and validate before replacement. There is no permanent second AirPlay movie, resolution downgrade, or movie-sized local input/output.
 

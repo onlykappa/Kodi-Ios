@@ -13,6 +13,12 @@ import driveupload
 CHUNK = 8 * 1024 * 1024  # Drive requires multiples of 256 KiB
 
 
+def discard(drive, item_id):
+    """Remove only an app-owned staging object. Trash still consumes Drive quota."""
+    status, _, _ = drive.call('DELETE', driveupload.API+'/'+urllib.parse.quote(str(item_id),safe=''))
+    if status not in (204,404):raise RuntimeError('Temporary preparation cleanup: HTTP %d'%status)
+
+
 class Sink:
     def __init__(self, drive, parent, name, keep_going, on_file=lambda track,item:None):
         self.drive, self.parent, self.name, self.keep_going = drive, parent, name, keep_going

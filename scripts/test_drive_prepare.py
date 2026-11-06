@@ -34,12 +34,16 @@ class Drive:
    s['data']+=body
    if total=='*' or len(s['data'])<int(total):return 308,{'Range':'bytes=0-%d'%end},b''
    assert int(total)==len(s['data'])
-   key=s['target'] or 'temp-%d'%self.number
+   key=s['target'] or 'temp-'+url.rsplit('/',1)[1]
    old=self.files.get(key,{})
    self.files[key]=dict(old,**s['meta'],id=key,data=s['data'],version=str(int(old.get('version',0))+1))
    result=self.meta(key)
    if self.corrupt:result['md5Checksum']='wrong'
    return 200,{},json.dumps(result).encode()
+  if method=='DELETE':
+   key=url.split('/files/')[1].split('?')[0]
+   if key not in self.files:return 404,{},b''
+   del self.files[key];return 204,{},b''
   if method=='PATCH':
    key=url.split('/files/')[1].split('?')[0];self.files[key].update(json.loads(body));return 200,{},b'{}'
   raise AssertionError((method,url))
@@ -114,7 +118,8 @@ class Queue(unittest.TestCase):
  def test_end_to_end_queue_writes_no_local_media_and_marks_ready(self):
   with patch.object(prep.phone_space,'free',return_value=0):self.assertTrue(self.q.process_one())
   self.assertEqual(self.d.files['source']['data'],b'prepared video');self.assertTrue(prep.ready(self.d.meta('source')))
-  self.assertEqual(list(self.q.work.iterdir()),[]);self.assertTrue(self.d.files['temp-1']['trashed'])
+  self.assertEqual(list(self.q.work.iterdir()),[]);self.assertNotIn('temp-1',self.d.files)
+  self.assertEqual([c[1].split('/files/')[1] for c in self.d.calls if c[0]=='DELETE'],['temp-1'])
  def test_cancel_keeps_original_and_retry_restarts_generation(self):
   self.n.fail=True;self.assertFalse(self.q.process_one());self.assertEqual(self.d.files['source']['data'],b'original')
   self.n.fail=False;self.assertTrue(self.q.process_one());self.assertEqual(self.n.calls,2)
@@ -132,5 +137,15 @@ class Queue(unittest.TestCase):
   self.assertFalse(self.q.process_one());self.n.verify=verify
   self.q.state['jobs']['slot']['retry_after']=0
   self.assertTrue(self.q.process_one());self.assertEqual(self.n.calls,1)
+
+ def test_cleanup_failure_retries_without_reencoding_or_deleting_original(self):
+  call=self.d.call;fail=[True]
+  def failing(method,*args,**kwargs):
+   if method=='DELETE' and fail[0]:fail[0]=False;return 500,{},b''
+   return call(method,*args,**kwargs)
+  with patch.object(self.d,'call',side_effect=failing):self.assertTrue(self.q.process_one())
+  self.assertTrue(prep.ready(self.d.meta('source')));self.assertIn('temp-1',self.d.files)
+  self.assertFalse(self.q.process_one());self.assertNotIn('temp-1',self.d.files);self.assertEqual(self.n.calls,1)
+  self.assertIn('source',self.d.files)
 
 if __name__=='__main__':unittest.main()
