@@ -194,14 +194,18 @@ class Drive(object):
   try:
    while offset<size:
     if not keep_going():raise Stop()
-    chunk=b''
+    chunk=b'';began=time.monotonic()
     while len(chunk)<CHUNK and offset+len(chunk)<size:
      data=source.read(min(CHUNK-len(chunk),1024*1024))
      if not data:break
      chunk+=data
     if not chunk:raise RuntimeError('The download stopped before the end; it will carry on')
-    end=offset+len(chunk)-1
+    end=offset+len(chunk)-1;read_s=time.monotonic()-began;began=time.monotonic()
     status,headers,body=self.call('PUT',session['url'],chunk,{'Content-Range':'bytes %d-%d/%d'%(offset,end,size)})
+    # Owner (build 168): 0.2 MB/s. Which side is slow, the source (AllDebrid) or Google Drive, for the next log.
+    put_s=time.monotonic()-began;mb=len(chunk)/1048576.0
+    _note('Drive copy: %.1f MB read in %.1f s (%.2f MB/s from the source), sent in %.1f s (%.2f MB/s to Google Drive), %.1f%% done'%(
+     mb,read_s,mb/max(read_s,.001),put_s,mb/max(put_s,.001),100.0*(end+1)/size))
     if status in (200,201):progress(size,size);return json.loads(body or b'{}')
     if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
     confirmed=_next_offset(headers)
@@ -217,6 +221,11 @@ class Drive(object):
  def _done(self,path,sessions,save,body):
   sessions.pop(path,None);save()
   return json.loads(body or b'{}')
+
+def _note(message):
+ try:
+  import xbmc;xbmc.log('Kodi iOS '+message,xbmc.LOGINFO)
+ except Exception:pass
 
 def _next_offset(headers):
  value=headers.get('Range') or headers.get('range') or ''

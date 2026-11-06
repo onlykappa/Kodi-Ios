@@ -254,10 +254,11 @@ def settings_window(p,original):
  return p.window(original,body,'9101',extra)
 
 def search_window(p):
- # Empty query: the existing Settings page stays visible under the native field.
- # Typing: this full-page results surface replaces only the list, with no keyboard dialog.
+ # Owner (build 168 log): with the field empty the whole page was hidden, yet the modal dialog stayed on top: taps
+ # went nowhere, Back was hidden and list 9160 "can't focus". The page is now always shown: before typing it lists
+ # Settings' own rows (as the approved mockup), then the matches; Back always works.
  top=SETTINGS_TOP+160
- visible='!String.IsEmpty(Window(Home).Property(Settings.Search.Query))'
+ visible='true'
  row=lambda focus:('<%s height="160">'%('focusedlayout' if focus else 'itemlayout')+
    (p.image(p.SIDE,0,p.WIDTH-2*p.SIDE,160,p.MEDIA+'white.png','18FFFFFF') if focus else '')+
    p.label(p.SIDE+34,14,p.WIDTH-2*p.SIDE-68,76,'$INFO[ListItem.Label]','p_body')+

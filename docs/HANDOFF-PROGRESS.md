@@ -1,57 +1,34 @@
-# Kodi iOS — live progress (updated 2026-11-06 ~04:45 UTC)
+# Kodi iOS — live progress (updated 2026-11-06 ~12:55 UTC)
 
-Working branch: `feature/library-status` (PR #12, draft). Worktree: `/tmp/claude-0/-home-user-Kodi-Ios/06c10366-b20c-55b8-ac88-a3d2020d9a15/scratchpad/libstatus`.
-PR #9 and #10 merged into main. PR #11 (Apple UI guidance) stays open, untouched.
-Always commit with `[skip ci]`; builds are started by hand (import-review.yml = IPA, airplay-remux.yml = native CI).
+## Branches
+- **`fix/elementum-cloud-164` (PR #13): current work.** Codex continued here from `feature/library-status` (`2b3cbb6`) and produced builds 164–168. KodiAirPlay r17, GlassBar r6, portrait r23. Its notes are in `docs/pr13-verification.md`, `docs/elementum-cloud-downloads.md` and `docs/diagnostic-logs.md`.
+- `feature/library-status` (PR #12): older; everything on it is included in PR #13.
+- PR #11 (Apple UI guidance): stays open and untouched. PR #9 and #10 are merged.
+- Always commit with `[skip ci]`; builds are started by hand (import-review.yml).
 
 ## Builds
-| Build | What | State |
+| Build | Branch | State |
 |---|---|---|
-| 160 | Library status opens (Addon id fix), leftovers freed, phone-space card | Released; owner tested |
-| 161 | Folders on Library status, iPhone free-space figure, one space estimate, KodiAirPlay r15 (Interstellar .sup subtitles), notification log sheet | Built (run 42160779351), **not verified / not sent**: superseded by 162 |
-| 162 | 161 + Play on TV fix + AllDebrid-to-Drive (Download only) | Cancelled (superseded) |
-| 163 | 162 + played versions also go AllDebrid→Drive after 3 min idle (`debrid_drive.adopt`) | Building |
+| 163 | feature/library-status | AllDebrid→Drive, folders, r15. Verified |
+| 164–168 | fix/elementum-cloud-164 | Codex: r16/r17 storage-free preparation, HDR re-encode, native Settings search, diagnostics/export. 168 tested by owner (log `Kodi-build-168-…log`) |
+| 169 | fix/elementum-cloud-164 | This session: fixes from the build-168 log (below). Building |
 
-KodiAirPlay r15 is published and pinned (`8afe0096…55a9`, verified run 42160014524, 1605 host checks).
+## Build-168 log findings (owner, 04:31–04:42 local)
+- Inception (2010): AV1 10-bit HDR 3840×1600, copy=False, so it needs a full re-encode. It stayed at "0%" with about 79 MB read in 3 min. Kodi restarted at 04:39 and the conversion restarted.
+- Fall 2 (AllDebrid → Drive, 18.1 GB): 52 MB copied. Codex measured 76–86 s for Drive to acknowledge each 16 MB (~0.2 MB/s), while the conversion was using Drive at the same time.
+- Settings search: "Control 9160 in window 13000 has been asked to focus, but it can't". The search page was hidden while the field was empty, but its modal dialog stayed on top, so taps went nowhere and Back was hidden.
 
-## Done in source, committed and pushed (head 60c4f12)
-- ISSUE-113: Library status as folders (one layout; Waiting / Ready / Kept folders; Back returns to All).
-- ISSUE-114: `phone_space.free` (iPhone's "important usage" figure); `work_bytes`/`space_needed` with the probe, plus a "Why" line on a waiting video.
-- ISSUE-115: KodiAirPlay r15 keeps PGS subtitles as `.sup` beside the MP4 and uploads them next to the video on Drive. Interstellar gets one retry.
-- ISSUE-112: notification tap opens a sheet with its kodi.log lines.
-- ISSUE-116: Play on TV runs one at a time, shows "Connecting…" with Cancel, and gives a plain reason instead of "can't play (MP4)". Root cause in the build-160 log: the second press tore down the first AirPlay session (-1004).
+## Build 169 changes (this session)
+- Settings search page always visible: before typing it lists Settings' own rows; list focus is set; Back always works (`settings_page.search_window`, `settings_search.py`).
+- Each Drive copy chunk logs its source-read and Drive-send times and MB/s (`driveupload.upload_stream`), so the next log shows which side is slow.
+- While an AllDebrid file is being copied into Drive, preparation waits its turn; it resumes afterwards (`debrid_drive.copying`, service loop).
 
-## In progress: AllDebrid straight to Drive (owner chose this; NOT committed yet)
-Owner: "a movie im downloading goes onto my phone still … large movie wont ever download". Elementum torrents land on the phone first.
-Files written, not yet tested or committed:
-- `resources/lib/alldebrid.py`: API v4 client (`add`, `status`, `files`, `unlock`, `pick`). Key = Umbrella setting `alldebridtoken`.
-- `resources/lib/driveupload.py`: `Drive.upload_stream` (web file → Drive resumable upload, 16 MB chunks, resumes at Drive's offset).
-- `resources/lib/debrid_drive.py`: job queue `debrid-drive.json` and `step()` (new → fetching → copying → done/failed); `uploads()` for the cards.
-- `resources/lib/notices.py`: `uploads()` also shows the AllDebrid copy.
-- `service.py`: `debrid_loop` thread inside `drive_uploads` (runs during playback, then rescans the library and asks preparation to check).
-- `download.py`: `to_drive()` hands the picked torrent to AllDebrid for Download only and seasons, and removes it from Elementum along with its files. Download and watch still uses Elementum.
+## Lost from the Codex session (hit its usage limit before pushing). Redo if still wanted
+- RAM range cache for Drive reads during conversion ("96 repeated reads → 2 upstream fetches").
+- Remove the foreground CPU pacing in `Native.convert` (keep it only in the background). Needs a reliable foreground/background signal.
+- Show conversion progress without a rounded "0%".
 
-### Next steps
-1. Write `scripts/test_debrid_drive.py`: fake AllDebrid answers (add, status, files tree, unlock, errors), `pick` (movie / episode / season with episodes), `upload_stream` resume, `step` end to end, `to_drive` wiring, `notices.uploads` showing the copy.
-2. Run all `scripts/test_*.py` (skip `test_drive_runtime.py`, which needs args) and `python3 -B scripts/check_project.py`.
-3. Add ISSUE-117 (AllDebrid to Drive) to docs/ISSUES.md, commit `[skip ci]`, push.
-4. Dispatch import-review.yml on `feature/library-status` → build-162. Verify the IPA: r15 binary sha `aac8ee21…`, plus `debrid_drive.py`, `alldebrid.py`, `phone_space.py` and `IOSNoticeDetail.xml` present.
-5. Send the owner the build-162 link and a test list:
-   - Folders.
-   - Phone space vs iPhone Storage.
-   - Inception's "Why" line.
-   - Interstellar becomes Ready with a `.sup` on Drive.
-   - Play on TV: press once, see Connecting; on the TCL Roku TV watch for sound-only with HEVC.
-   - Download a movie: nothing should go to the phone; the Uploading card should show AllDebrid then Drive.
-   - Tap a notification for its log.
-   - Delete the old 19.8 GB `Fall.2022.2160p.WEB-DL…` file from Elementum Downloads.
-
-## Waiting on the owner
-- Log sheet and Settings search mockup: BOTH APPROVED (https://claude.ai/artifact/BNL6H5zvTd1tXmF7oEUUiT). Log sheet is built (ships in 162).
-- TODO build 163, Settings search: native iOS search field (KodiGlassBar r3 `kodi_search_*`, as `searchbar.py` drives it on the Search page) at the top of Settings; results listed under it as you type from `settings_search.search`, grouped "Kodi iOS" / "Kodi settings", each with where it lives and a chevron; tap runs the row's action; Cancel or clear restores Settings. Today `settings_search.py` opens Kodi's keyboard page (black "Enter Search Query", see ISSUES).
-- Merge PR #12 only with the owner's approval.
-
-## Known open questions
-- The TCL Roku TV may play only the sound of prepared HEVC MP4s (it needed H.264 before).
-- Inception probably needs a re-encode (its codec will show on its details sheet with r15).
-- The `.sup` subtitles are saved on Drive, but playback from Drive does not attach them yet.
+## Open questions
+- Is Drive upload really ~0.2 MB/s from the owner's network? Build 169's chunk timing will show.
+- Inception's AV1 4K HDR re-encode on the phone may take many hours. An alternative is to download a different (HEVC) version.
+- The TCL Roku TV may play only the sound of HEVC.

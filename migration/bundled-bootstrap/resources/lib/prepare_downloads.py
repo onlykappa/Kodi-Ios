@@ -6,7 +6,7 @@ validated result is uploaded in place. Native r16 streams both input and output;
 """
 import ctypes,hashlib,json,os,re,shutil,time,urllib.error,urllib.parse,urllib.request
 from pathlib import Path
-import driveupload,drivelibrary,library_scan,phone_space
+import app_state,driveupload,drivelibrary,library_scan,phone_space
 
 PROFILE='source-resolution-mp4-v1'
 PROPERTY='kodiAirPlayProfile'
@@ -38,6 +38,19 @@ def space_needed(item,streaming=False,probe=None):
  streaming (KodiAirPlay before r14) the Drive file is downloaded first as well. The same figure decides whether a video
  starts and what Library status says it needs (owner, build 160: the page said 14 GB while the step itself wanted more)."""
  return (0 if streaming else int(item.get('size') or 0))+work_bytes(item,probe)+KEEP_FREE
+
+def speed_text(read,rate):
+ """'1.2 GB read · 8.4 MB/s' ('' before anything was read)."""
+ if not read:return ''
+ size='%.1f GB'%(read/1024**3) if read>=1024**3 else '%d MB'%(read//1024**2)
+ return '%s read · %.1f MB/s'%(size,rate/1024**2) if rate else '%s read'%size
+
+def live_line(current):
+ """' · 12% · 1.2 GB read · 8.4 MB/s': the percentage only once it moved off 0, then what was read and how fast."""
+ parts=[]
+ if not current.get('indeterminate') and current.get('progress',0)>=1:parts.append('%d%%'%current.get('progress',0))
+ if current.get('detail'):parts.append(current['detail'])
+ return ''.join(' · '+x for x in parts)
 
 def space_reason(probe):
  """Why a video needs more than its own size, in everyday words, or ''."""
@@ -147,13 +160,11 @@ class Native:
     if errors:return 0
     sink.write(track,suffix.decode(),ctypes.string_at(data,size));return 1
    except Exception as ex:errors.append(ex);return 0
-  cpu_clock=getattr(time,'thread_time',time.process_time);window=[time.monotonic(),cpu_clock()]
+  pace=app_state.Pace()   # flat out on screen; under iOS's background CPU limit otherwise
   def update(stage,done,total,context):
    try:
     if errors or not keep_going():return 0
-    wall=time.monotonic()-window[0];cpu=cpu_clock()-window[1]
-    if wall>=0.1:
-     time.sleep(min(0.1,max(0.0,2*cpu-wall)));window[:]=[time.monotonic(),cpu_clock()]
+    pace.tick()
     progress(stage,done,total);return 1
    except Exception as ex:errors.append(ex);return 0
   writer=WRITE(write);callback=CALLBACK(update)
@@ -163,17 +174,12 @@ class Native:
   if r:raise RuntimeError(error.value.decode('utf-8','replace') or 'Preparation failed; original retained')
  def convert(self,source,output,keep_going,progress):
   error=ctypes.create_string_buffer(512);callback_error=[]
-  cpu_clock=getattr(time,'thread_time',time.process_time)
-  window=[time.monotonic(),cpu_clock()]
+  # Owner (build 168): run as hard as other apps on screen; in the background stay under iOS's CPU limit (app_state).
+  pace=app_state.Pace()
   def update(stage,done,total,context):
    try:
     if not keep_going():return 0
-    # Offline work can yield: keep this worker around half a CPU core instead of recreating the
-    # previous iOS CPU-resource kill while repackaging a large movie in the background.
-    wall=time.monotonic()-window[0];cpu=cpu_clock()-window[1]
-    if wall>=0.1:
-     time.sleep(min(0.1,max(0.0,2*cpu-wall)))
-     window[:]=[time.monotonic(),cpu_clock()]
+    pace.tick()
     progress(stage,done,total);return 1
    except Exception as error:callback_error.append(error);return 0
   callback=CALLBACK(update) # keep Python's callback alive until the synchronous native job exits
@@ -322,7 +328,7 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
    rows['kept'].append(dict(base,state='kept',owner=bool(job.get('kept')) and not job.get('blocked'),
     sub='Kept as it is · %s'%('you chose to keep it' if job.get('kept') and not job.get('blocked') else plain(why))));continue
   if job and current.get('running') and current.get('title') in (e['name'],title(e['name'])):
-   rows['preparing'].append(dict(base,state='preparing',pct=int(current.get('progress',0)),indeterminate=bool(current.get('indeterminate')),sub=str(current.get('stage','Preparing')).replace('Step 3 of 3 · ','')+('' if current.get('indeterminate') else ' · %d%%'%current.get('progress',0))));continue
+   rows['preparing'].append(dict(base,state='preparing',pct=int(current.get('progress',0)),indeterminate=bool(current.get('indeterminate')),sub=str(current.get('stage','Preparing')).replace('Step 3 of 3 · ','')+live_line(current)));continue
   if e['state']=='unreadable':rows['waiting'].append(dict(base,state='problem',warn=True,sub='Google Drive could not describe it; checking again next time'));continue
   if job and job.get('status')=='failed':
    wait=max(0,int((job.get('retry_after',0)-now())//60))
@@ -525,6 +531,15 @@ class Queue:
     job.update(blocked=False,status='waiting',attempts=0,retry_after=0,image_subs_retried=True);job.pop('error',None);n+=1
   if n:self.commit()
   return n
+ def read_speed(self,now):
+  """(bytes read from Drive so far, bytes per second over the last ~10 s) for the job running now."""
+  try:read=int((self.stream.stats() if self.stream else {}).get('read_bytes') or 0)
+  except Exception:read=0
+  marks=getattr(self,'_speed',None)
+  if not marks or read<marks[-1][1]:marks=self._speed=[(now,read)]
+  marks.append((now,read));marks[:]=[m for m in marks if now-m[0]<=10] or [(now,read)]
+  span=marks[-1][0]-marks[0][0]
+  return read,((marks[-1][1]-marks[0][1])/span if span>=1 else 0.0)
  def process_one(self,keep_going=lambda:True):
   self.apply_requests();self.tidy();self.retry_image_subtitles()
   if getattr(self.native,'hdr',False):
@@ -569,8 +584,12 @@ class Queue:
    now=self.clock()
    if now-last[0]<0.5 and value<100:return
    last[0]=now
+   # Owner (build 168): "add how fast its moving too": what has been read from Drive and how fast, so the card is
+   # never a bare 0%.
+   speed=self.read_speed(now)
    self.state['current']={'title':item['name'],'stage':stage,'progress':max(0,min(100,value)),
-                         'queued':len(candidates),'running':True,'updated':now};self.commit()
+                         'queued':len(candidates),'running':True,'updated':now,
+                         'read':speed[0],'rate':speed[1],'detail':speed_text(*speed)};self.commit()
   try:
    if not keep_going():raise driveupload.Stop('Preparation paused')
    current=metadata(self.drive,item['id'])
@@ -677,5 +696,5 @@ def cards(profile,now=time.time):
  # One fact per line (ISSUE-101): the count lives in the card's summary, the line says what is happening now.
  current['title']=drivelibrary.display_title(current.get('title',''))
  current['queued']=len(waiting)
- current['line']=current.get('stage','Queued')+('' if current.get('indeterminate') else ' · %d%%'%current.get('progress',0))
+ current['line']=current.get('stage','Queued')+live_line(current)
  return [current]

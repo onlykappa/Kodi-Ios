@@ -46,13 +46,16 @@ def run():
    home.clearProperty('Settings.Search.Query');home.clearProperty('Settings.Search.Close')
    home.setProperty('Settings.Search.Active','1')
    threading.Thread(target=self.poll,daemon=True).start()
+   try:self.setFocusId(9160)
+   except Exception:pass
   def poll(self):
    monitor=xbmc.Monitor()
    while not self.stop.is_set() and not monitor.waitForAbort(.1):
     if home.getProperty('Settings.Search.Close')=='1':self.finish();break
     query=home.getProperty('Settings.Search.Query')
     if query==self.query:continue
-    self.query=query;self.found=settings_search.search(entries,query)
+    # Nothing typed yet: Settings' own rows, so the page is never blank and a tap still goes somewhere.
+    self.query=query;self.found=settings_search.search(entries,query) if query else [e for e in entries if e[1]=='Settings']
     self.setProperty('empty','true' if query and not self.found else '')
     self.setProperty('query',query)
     control=self.getControl(9160);control.reset()

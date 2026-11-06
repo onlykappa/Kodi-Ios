@@ -151,4 +151,20 @@ class PlayedVersions(unittest.TestCase):
   self.assertIn("debrid_drive.adopt(profile,notices.torrent_list(),xbmc.Player().isPlayingVideo())",src)
   self.assertIn("driveupload.remove_torrent(tid)",src[src.index('def debrid_loop'):])
 
+
+class OneAtATimeOnTheConnection(unittest.TestCase):
+ """Owner (build 168 log): Fall's copy from AllDebrid ran at ~0.2 MB/s while Inception's conversion read and wrote Drive."""
+ def test_copying_flag_and_preparation_waits(self):
+  import tempfile
+  with tempfile.TemporaryDirectory() as p:
+   self.assertFalse(debrid_drive.copying(p))
+   debrid_drive.save(p,{'jobs':[],'current':{'stage':'copying','sent':1,'total':2}});self.assertTrue(debrid_drive.copying(p))
+   debrid_drive.save(p,{'jobs':[],'current':{'stage':'fetching','sent':1,'total':2}});self.assertFalse(debrid_drive.copying(p))
+  src=(BOOT/'service.py').read_text()
+  self.assertIn("if debrid_drive.copying(profile):delay=30",src)
+  self.assertIn("and not debrid_drive.copying(profile)",src)
+ def test_each_chunk_reports_both_sides(self):
+  src=(LIB/'driveupload.py').read_text()
+  self.assertIn("MB/s from the source), sent in %.1f s (%.2f MB/s to Google Drive)",src)
+
 if __name__=='__main__':unittest.main()

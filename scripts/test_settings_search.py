@@ -40,4 +40,18 @@ class SettingsSearch(unittest.TestCase):
   self.assertEqual(Path(path),BOOT/'library_scan.py');self.assertEqual(argv,[path])
   self.assertIn(('Refresh Library','Library · Library',sp.LIBRARY_REFRESH),search.search(search.page_entries(sp),'refresh library'))
 
+
+class NeverAnInvisibleDialog(unittest.TestCase):
+ """Owner (build 168 log): "Control 9160 in window 13000 has been asked to focus, but it can't" - the search page was
+ hidden until something was typed, yet sat over Settings: taps went nowhere and Back was hidden."""
+ def test_page_always_shown_and_lists_settings_before_typing(self):
+  import importlib.util,types
+  root=Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap'
+  src=(root/'resources/lib/settings_page.py').read_text()
+  body=src[src.index('def search_window(p):'):src.index('def account_row(')]
+  self.assertIn("visible='true'",body);self.assertNotIn("String.IsEmpty(Window(Home).Property(Settings.Search.Query))'",body.split("visible=")[1][:80])
+  ctl=(root/'settings_search.py').read_text()
+  self.assertIn("settings_search.search(entries,query) if query else [e for e in entries if e[1]=='Settings']",ctl)
+  self.assertIn('self.setFocusId(9160)',ctl)
+
 if __name__=='__main__':unittest.main()

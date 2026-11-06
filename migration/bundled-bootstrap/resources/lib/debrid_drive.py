@@ -153,6 +153,12 @@ def default_open(url, offset, timeout=60):
     return urllib.request.urlopen(req, timeout=timeout)
 
 
+def copying(profile):
+    """A file is being copied from AllDebrid into Drive right now (not just waiting for AllDebrid's servers)."""
+    current = load(profile).get('current') or {}
+    return current.get('stage') == 'copying'
+
+
 def active(profile):
     return any(j['status'] not in ('done', 'failed') for j in load(profile).get('jobs', []))
 

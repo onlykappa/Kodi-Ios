@@ -327,7 +327,24 @@ typedef struct {
     int64_t last_pts;         // the latest source pts sent (frames must increase)
     AVFrame *conv;
     int gpu;                  // r9: the encoder takes VideoToolbox frames scaled on the GPU
+    int hdr_pass;             // r18: HDR kept at its size: the decoder's 10-bit hardware frames go straight to the encoder
+    AVBufferRef *pass_frames; // their hardware frames context (borrowed from the first frame)
 } job;
+
+// r18 (owner, build 168: Inception, AV1 10-bit HDR 4K, stayed at 0% on an iPhone 16 Pro): the GPU path skipped HDR,
+// so every 4K 10-bit frame was copied out of the hardware decoder, colour-processed on the CPU and copied back into
+// the hardware HEVC encoder. When HDR is kept at the source size nothing needs changing: the decoder's P010 frame
+// (AV1/HEVC via VideoToolbox) goes to hevc_videotoolbox Main10 as it is. If the phone refuses that once, the CPU path
+// is used for the rest of the session.
+static int hdr_pass_broken = 0;
+int kr_video_hdr_passthrough(void) { return !hdr_pass_broken; }
+#ifdef KR_GPU
+static int hdr_passable(kr_video *v, AVFrame *fr) {
+    if (fr->format != AV_PIX_FMT_VIDEOTOOLBOX || !fr->hw_frames_ctx || fr->width != v->ow || fr->height != v->oh) return 0;
+    const AVHWFramesContext *frames = (const AVHWFramesContext *)fr->hw_frames_ctx->data;
+    return frames && frames->sw_format == AV_PIX_FMT_P010;
+}
+#endif
 
 static int open_encoder(job *j, char *err, int errlen) {
     kr_video *v = j->v;
@@ -355,6 +372,11 @@ static int open_encoder(job *j, char *err, int errlen) {
         if(!p010 && !planar){seterr(err,errlen,"encoder cannot preserve 10-bit HDR",0);return -1;}
         c->pix_fmt=p010?AV_PIX_FMT_P010LE:AV_PIX_FMT_YUV420P10LE;
         c->profile=AV_PROFILE_HEVC_MAIN_10;
+        if(j->hdr_pass && j->pass_frames) {   // r18: hardware frames in, as they came from the decoder
+            c->pix_fmt=AV_PIX_FMT_VIDEOTOOLBOX;c->sw_pix_fmt=AV_PIX_FMT_P010LE;
+            c->hw_frames_ctx=av_buffer_ref(j->pass_frames);
+            if(!c->hw_frames_ctx){seterr(err,errlen,"out of memory",0);return -1;}
+        }
     }
     c->time_base = av_inv_q(v->fps);
     c->framerate = v->fps;
@@ -527,6 +549,25 @@ static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen)
     AVFrame *tmp = NULL;
     int r;
 #ifdef KR_GPU
+    if (!j->enc) j->hdr_pass = !hdr_pass_broken && j->v->keep_hdr && !j->v->subs && !j->v->dovi_profile5 && hdr_passable(j->v, fr);
+    if (j->hdr_pass) {
+        if (hdr_passable(j->v, fr)) {
+            if (!j->enc) {
+                j->pass_frames = fr->hw_frames_ctx;
+                if (open_encoder(j, err, errlen) < 0) {   // this phone's encoder will not take them: CPU path from now on
+                    hdr_pass_broken = 1; j->hdr_pass = 0; j->pass_frames = NULL;
+                    avcodec_free_context(&j->enc);
+                    if (err && errlen > 0) *err = 0;
+                    goto cpu;
+                }
+            }
+            j->conv = av_frame_clone(fr);   // HDR tags and mastering metadata travel with the frame
+            if (!j->conv) { seterr(err, errlen, "out of memory", 0); return -1; }
+            goto send;
+        }
+        if (j->enc) { seterr(err, errlen, "HDR hardware frames", 0); return -1; }
+        j->hdr_pass = 0;
+    }
     if (!j->enc) j->gpu = fr->format == AV_PIX_FMT_VIDEOTOOLBOX && !j->v->gpu_off && !j->v->dovi_profile5 && !kr_color_is_hdr(fr);
     if (j->gpu) {
         AVFrame *g = NULL;
@@ -549,6 +590,7 @@ static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen)
         if (j->enc) { seterr(err, errlen, "GPU scaling", 0); return -1; }
         j->gpu = 0;
     }
+cpu:
 #endif
     if (fr->format == AV_PIX_FMT_VIDEOTOOLBOX) {  // a hardware frame: copy it down (NV12 or P010)
         tmp = av_frame_alloc();
@@ -571,7 +613,10 @@ send:
     j->conv->pts = j->sent;
     j->last_pts = pts;
     j->conv->pict_type = j->sent == 0 ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
-    if ((r = avcodec_send_frame(j->enc, j->conv)) < 0) { seterr(err, errlen, "encode", r); return -1; }
+    if ((r = avcodec_send_frame(j->enc, j->conv)) < 0) {
+        if (j->hdr_pass) hdr_pass_broken = 1;   // the next attempt takes the CPU path
+        seterr(err, errlen, "encode", r); return -1;
+    }
     j->sent++;
     // The encoder keeps its own reference only if it needs one; a fresh buffer next time keeps this frame intact.
     av_frame_unref(j->conv); av_frame_free(&j->conv);
