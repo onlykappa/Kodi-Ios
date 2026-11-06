@@ -18,6 +18,8 @@ All 46 suites in the initial Python workflow run passed (780 tests). Subsequent 
 
 An isolated Debian container runs Kodi 21.2 with the current portrait XML/controllers at 603×1167 under Xvfb. It uses synthetic library/queue/notices and a local cached poster, with no signed-in account or real torrent. Tests inspected Settings, search results/selection, Notifications, message log detail, Library status and item detail, clean close controls, filter labels and log export. Mouse/keyboard input stands in for touch.
 
+[Rendered screenshots](pr13-simulation/) show the synthetic test data, not a real device playback session.
+
 The walkthrough found and corrected truncated filter captions, a missing library-cache poster path, and single-line log rows. Log rows now wrap; selecting a record opens the complete text. Export produced a build-labelled file and success dialog, using the installed build metadata from the rig's base bundle.
 
 The Settings search result renderer was exercised by injecting query text into the same Home property used by the native field. Linux cannot render UIKit's keyboard/search overlay. Existing controller tests cover context changes, keyboard focus/cancel and preservation of the movie search.
