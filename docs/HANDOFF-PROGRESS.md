@@ -28,6 +28,15 @@
 - Each Drive copy chunk logs its source-read and Drive-send times and MB/s (`driveupload.upload_stream`), so the next log shows which side is slow.
 - While an AllDebrid file is being copied into Drive, preparation waits its turn; it resumes afterwards (`debrid_drive.copying`, service loop).
 
+## Build-175 log (owner, 13:45–13:48): where the time goes (r22 notes)
+- Video: "unit started via hardware HDR (av1 decoder to hevc_videotoolbox)", 22.5 fps, 30 s of film in 37.2 s (0.81x).
+- Audio: two tracks, each 30 s of film in 23.3 s, one after the other: ~83 s per 30 s (0.36x, ~7 h for Inception).
+- Cause: each generated track opens the source itself and reads the whole interleaved file, and every 1 MiB request
+  (kr_source request_size) was a separate Drive request (~1.3 MB/s). Fix (Python, no new framework):
+  `drive_stream._Blocks`: 8 MB blocks fetched once, 12 kept (96 MB), the next one fetched ahead; the audio tracks read
+  what the video track already brought in. Expected ~37 s + a few s of audio work per 30 s (~0.7x).
+- Next if still slow: produce the tracks' units on their own threads in kr_prepare (video and audio at once).
+
 ## Build-174 log (owner, 12:47–12:57): conversion not moving
 - Inception (AV1 10-bit HDR 3840x1600, copy=False) started again from 0 at 12:47 (Kodi start; storage-free work cannot
   resume). Read reached 63 MB by 12:51 and stayed there to 12:57; progress 0.00; no "prepare:" line at all, so not one
