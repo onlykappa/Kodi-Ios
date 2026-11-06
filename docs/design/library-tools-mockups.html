@@ -1,0 +1,177 @@
+<title>Kodi iOS Space, Queue, History and AirPlay</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the dark review board used by every Kodi iOS mockup; four phones, each with a "where you find it" strip. Single dark look on purpose. */
+:root{color-scheme:dark;
+  --board:#0D0E11;--panel:#15161A;--panel-line:#26272D;--ink:#F2F2F7;--ink-2:rgba(235,235,245,.62);--tag:#FFD60A;
+  --bg:#000;--s1:#1C1C1E;--s2:#2C2C2E;--s3:#3A3A3C;--label2:rgba(235,235,245,.6);--label3:rgba(235,235,245,.32);--sep:rgba(235,235,245,.16);
+  --blue:#0A84FF;--blue-text:#4FA8FF;--green:#30D158;--purple:#BF5AF2;--orange:#FF9F0A;--red:#FF453A;--teal:#64D2FF;--grey:#8E8E93;
+  --app:"Inter",-apple-system,system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+*{box-sizing:border-box}
+body{background:var(--board);color:var(--ink);font-family:var(--app);font-size:15px;line-height:1.5;margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+.wrap{max-width:1340px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+header{display:flex;flex-direction:column;gap:12px;max-width:800px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.eyebrow b{color:var(--tag);font-weight:500}
+h1{font-size:clamp(28px,4vw,40px);line-height:1.1;letter-spacing:-.02em;margin:0;font-weight:800;text-wrap:balance}
+h2{font-size:21px;margin:0;font-weight:700}
+p{margin:0;color:var(--ink-2);max-width:70ch}
+.grid{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}
+.slot{flex:0 0 auto;width:calc(402px * var(--k,1) + 20px);max-width:100%;display:flex;flex-direction:column;gap:10px}
+.where{background:var(--panel);border:1px solid var(--panel-line);border-radius:14px;padding:10px 12px;font-size:13.5px;color:var(--ink-2)}
+.where b{color:var(--ink);font-weight:600}
+.where .path{font-family:var(--mono);font-size:12px;color:var(--tag);display:block;margin-bottom:4px;letter-spacing:.02em}
+.bezel{width:calc(402px * var(--k,1) + 20px);height:calc(874px * var(--k,1) + 20px);max-width:100%;border-radius:calc(62px * var(--k,1));padding:10px;background:#1d1e22;box-shadow:0 0 0 1px #2c2d33,0 30px 60px -30px #000}
+.screen{width:402px;height:874px;transform:scale(var(--k,1));transform-origin:0 0;border-radius:52px;overflow:hidden;position:relative;background:var(--bg);color:#fff;font-size:17px;line-height:1.25;-webkit-font-smoothing:antialiased}
+.status{position:absolute;inset:0 0 auto;height:54px;display:flex;align-items:center;justify-content:space-between;padding:6px 34px 0 46px;font-weight:600;font-size:16px;z-index:30}
+.island{position:absolute;top:11px;left:50%;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#000;z-index:31}
+.home{position:absolute;bottom:8px;left:50%;width:140px;height:5px;margin-left:-70px;border-radius:3px;background:#fff;opacity:.9;z-index:40}
+.scroll{position:absolute;inset:54px 0 0;overflow-y:auto;padding:0 16px 60px;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.nav{height:44px;display:flex;align-items:center;justify-content:space-between;margin:0 -8px 0 -12px}
+.ib{width:44px;height:44px;border:0;background:none;display:grid;place-items:center;color:#fff;cursor:pointer;padding:0}
+.ib svg{width:24px;height:24px}
+.tb{background:none;border:0;color:var(--blue-text);font:500 17px var(--app);min-height:44px;padding:0 8px;cursor:pointer}
+.title{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:4px 0 6px}
+.sub{font-size:15px;color:var(--label2);margin-bottom:12px}
+.sec{font-size:13px;font-weight:600;color:var(--label2);padding:16px 4px 8px;text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:space-between}
+.sec span:last-child{text-transform:none;letter-spacing:0;font-weight:500}
+.group{background:var(--s1);border-radius:16px;overflow:hidden}
+.r{display:flex;gap:12px;align-items:center;padding:11px 12px;min-height:58px;position:relative}
+.r+.r::before{content:"";position:absolute;top:0;left:56px;right:0;height:.5px;background:var(--sep)}
+.sw{width:30px;height:30px;border-radius:8px;flex:0 0 30px;display:grid;place-items:center}
+.sw svg{width:16px;height:16px}
+.tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.a{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b{font-size:13px;color:var(--label2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.val{font-size:15px;color:var(--label2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pill{border:0;border-radius:15px;height:30px;padding:0 12px;font:600 13.5px var(--app);cursor:pointer;background:var(--s3);color:#fff;white-space:nowrap}
+.pill.blue{background:rgba(10,132,255,.2);color:var(--blue-text)}
+.pill.red{background:rgba(255,69,58,.18);color:var(--red)}
+.pill:focus-visible,.ib:focus-visible,.tb:focus-visible,.mv:focus-visible{outline:2px solid var(--blue-text);outline-offset:2px}
+.bigbar{display:flex;height:22px;border-radius:7px;overflow:hidden;background:var(--s3);margin:8px 0 10px}
+.bigbar i{height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;color:var(--label2)}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
+.card{background:var(--s1);border-radius:16px;padding:14px}
+.hero{font-size:28px;font-weight:800;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.foot{font-size:12.5px;color:var(--label3);padding:12px 4px 0;line-height:1.4}
+.poster{width:34px;height:50px;border-radius:6px;flex:0 0 34px;background:linear-gradient(160deg,var(--c1),var(--c2))}
+.mv{width:38px;height:38px;border-radius:50%;background:var(--s2);border:0;display:grid;place-items:center;cursor:pointer;flex:0 0 38px;color:#fff}
+.mv svg{width:14px;height:14px}
+.mv[disabled]{opacity:.3;cursor:default}
+.badge{font:600 11px var(--mono);letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:6px}
+.step{display:flex;gap:12px;padding:8px 2px;align-items:flex-start}
+.dot{width:12px;height:12px;border-radius:50%;margin-top:4px;flex:0 0 12px}
+.step .a{font-size:15px}
+.ok{color:var(--green)}.warn{color:var(--orange)}.bad{color:var(--red)}
+.toast{position:absolute;left:16px;right:16px;bottom:30px;background:var(--s2);border-radius:14px;padding:12px 14px;font-size:14px;z-index:35;box-shadow:0 10px 30px #000}
+.notes{display:flex;flex-direction:column;gap:10px}
+.notes ul{margin:0;padding-left:18px;color:var(--ink-2);display:flex;flex-direction:column;gap:7px}
+.notes li b{color:var(--ink);font-weight:600}
+.table-wrap{overflow-x:auto;border:1px solid var(--panel-line);border-radius:14px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--panel-line);vertical-align:top}
+th{font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-2);font-weight:500}
+td{color:var(--ink-2)}td:first-child{color:var(--ink);font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow"><b>Mockup</b> · four pages · not a Kodi render</div>
+  <h1>Phone space, Queue, History and AirPlay check</h1>
+  <p>Each phone shows one page, with where you reach it above it. The figures are from your logs and screenshots (48 GB free, Fall 2, Inception AV1, Interstellar, the TCL Roku TV). Buttons work: try Clear, the arrows in Queue and the day switch in History.</p>
+</header>
+
+<section class="grid">
+  <div class="slot"><div class="where"><span class="path">Library status › tap “Phone space”</span>See what Kodi keeps on the phone and clear what is safe.</div><div class="bezel"><div class="screen" id="space"></div></div></div>
+  <div class="slot"><div class="where"><span class="path">Library status › Waiting folder › “Edit order”</span>The whole line in one place; move a video up or down.</div><div class="bezel"><div class="screen" id="queue"></div></div></div>
+  <div class="slot"><div class="where"><span class="path">Transfers › “History” (top right)</span>What finished each day, how long it took and how fast, and anything that failed.</div><div class="bezel"><div class="screen" id="history"></div></div></div>
+  <div class="slot"><div class="where"><span class="path">Play on TV sheet › “Last time” · or tap an AirPlay notification</span>What happened on the last Play on TV, in plain words.</div><div class="bezel"><div class="screen" id="airplay"></div></div></div>
+</section>
+
+<section class="grid">
+  <div class="notes" style="flex:1 1 320px;min-width:0">
+    <h2>What each page does</h2>
+    <ul>
+      <li><b>Phone space.</b> One bar split by what uses the space: artwork cache, Elementum leftovers, temporary files, add-on data and Kodi itself. Each line says if it is safe to clear; Clear removes it and the bar shrinks. Elementum leftovers are files from torrents that are already on Google Drive.</li>
+      <li><b>Queue.</b> Converting now stays on top. Everything waiting is listed in order with ▲ ▼ (Kodi has no drag and drop on iPhone, so arrows, 44 pt each). Downloads to Drive have their own line. "Keep as it is" is still in each video's sheet.</li>
+      <li><b>History.</b> Today, Yesterday and the last 7 days. Each row: what, size, how long, average speed, and the result (ready, on Drive, failed and why). The top shows the week's total and the busiest day.</li>
+      <li><b>AirPlay check.</b> The last Play on TV as steps: the TV it went to, how the picture was sent (as it is, or converted to H.264 because the TV needs it), whether the TV asked for the video, and how it ended. A failure says what to try.</li>
+    </ul>
+  </div>
+  <div class="notes" style="flex:1 1 320px;min-width:0">
+    <h2>Where they come from</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Page</th><th>Data the app already has</th></tr></thead>
+      <tbody>
+        <tr><td>Phone space</td><td><code>library_status.usage</code> (folder sizes), Elementum's torrent list, Kodi's Thumbnails and temp folders.</td></tr>
+        <tr><td>Queue</td><td>The preparation queue's priority (Prepare next already sets it) and the AllDebrid job list.</td></tr>
+        <tr><td>History</td><td>A finished-job record kept by the service (one line per video, 30 days).</td></tr>
+        <tr><td>AirPlay check</td><td>The framework's AirPlay log lines (start, CODECS, the TV's requests, player events) saved per session.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+</div>
+
+<script>
+const S=()=>'<div class="status"><span>9:41</span><span>●●●</span></div><div class="island"></div><div class="home"></div>';
+const svg=(p,vb='0 0 24 24')=>`<svg viewBox="${vb}" aria-hidden="true">${p}</svg>`;
+const back='<button class="ib" aria-label="Back">'+svg('<path d="M15 5l-7 7 7 7" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>')+'</button>';
+const ico={photo:'<rect x="4" y="5" width="16" height="14" rx="2" stroke="#fff" stroke-width="2" fill="none"/><path d="M6 17l4-4 3 3 2-2 3 3" stroke="#fff" stroke-width="2" fill="none"/>',
+ dl:'<path d="M12 4v11m-4-4 4 4 4-4M5 20h14" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>',
+ tmp:'<circle cx="12" cy="12" r="8" stroke="#fff" stroke-width="2" fill="none"/><path d="M12 8v4l3 2" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>',
+ box:'<path d="M4 8l8-4 8 4v8l-8 4-8-4z" stroke="#fff" stroke-width="2" fill="none"/>',
+ app:'<rect x="5" y="5" width="14" height="14" rx="4" stroke="#fff" stroke-width="2" fill="none"/>'};
+/* 1. Phone space */
+let space=[{k:'Artwork cache',c:'#0A84FF',gb:0.21,i:'photo',safe:'Safe to clear · posters come back as you browse'},
+ {k:'Elementum leftovers',c:'#FF9F0A',gb:1.6,i:'dl',safe:'Safe to clear · already on Google Drive'},
+ {k:'Temporary files',c:'#64D2FF',gb:0.35,i:'tmp',safe:'Safe to clear'},
+ {k:'Add-on data',c:'#BF5AF2',gb:0.2,i:'box',safe:'Keep · your settings and sign-ins'},
+ {k:'Kodi app',c:'#8E8E93',gb:0.62,i:'app',safe:'Keep · the app itself'}];
+let toast='';
+function rSpace(){const tot=space.reduce((a,s)=>a+s.gb,0);
+ document.getElementById('space').innerHTML=S()+'<div class="scroll"><div class="nav">'+back+'<span></span></div><div class="title">Phone space</div><div class="sub">48 GB free on this iPhone</div>'+
+ `<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline"><span class="hero">${tot.toFixed(1)} GB</span><span class="b">used by Kodi</span></div><div class="bigbar">${space.map(s=>`<i style="width:${s.gb/tot*100}%;background:${s.c}"></i>`).join('')}</div><div class="legend">${space.map(s=>`<span><i style="background:${s.c}"></i>${s.k}</span>`).join('')}</div></div>`+
+ '<div class="sec"><span>What uses it</span></div><div class="group">'+space.map((s,n)=>`<div class="r"><span class="sw" style="background:${s.c}">${svg(ico[s.i])}</span><span class="tx"><span class="a">${s.k}</span><span class="b">${s.safe}</span></span><span class="val">${s.gb<0.05?'0 MB':s.gb<1?Math.round(s.gb*1024)+' MB':s.gb.toFixed(1)+' GB'}</span>${s.safe.startsWith('Safe')&&s.gb>0.05?`<button class="pill blue" data-n="${n}">Clear</button>`:''}</div>`).join('')+'</div>'+
+ '<div class="foot">Movies never stay on the phone: they live on Google Drive. Kodi always leaves at least 5 GB free for you.</div></div>'+(toast?`<div class="toast">${toast}</div>`:'');
+ document.querySelectorAll('#space .pill[data-n]').forEach(b=>b.onclick=()=>{const s=space[+b.dataset.n];toast=`Cleared ${s.gb<1?Math.round(s.gb*1024)+' MB':s.gb.toFixed(1)+' GB'} of ${s.k.toLowerCase()}`;s.gb=0.01;rSpace();setTimeout(()=>{toast='';rSpace()},2200)});}
+/* 2. Queue */
+let line=[{t:'Interstellar (2014)',m:'HEVC · copied as it is · 8.4 GB',c:['#4b3b2a','#c4a77d']},{t:'Lanterns · S1 E2',m:'HEVC · copied · 3.1 GB',c:['#1c2e2c','#6d8f7c']},{t:'Buddy (2026)',m:'AV1 → HEVC · 4.3 GB',c:['#5a1d1d','#d0745c']}];
+const up=svg('<path d="M3 10l5-5 5 5" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>','0 0 16 16'),dn=svg('<path d="M3 6l5 5 5-5" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>','0 0 16 16');
+function rQueue(){document.getElementById('queue').innerHTML=S()+'<div class="scroll"><div class="nav">'+back+'<button class="tb">Done</button></div><div class="title">Queue</div><div class="sub">Converts one video at a time, top first</div>'+
+ '<div class="sec"><span>Converting now</span></div><div class="group"><div class="r"><span class="poster" style="--c1:#1f3a52;--c2:#5d7c8f"></span><span class="tx"><span class="a">Inception (2010)</span><span class="b" style="color:var(--purple)">AV1 → HEVC · 4% · about 2 h left</span></span></div></div>'+
+ '<div class="sec"><span>Up next</span><span>'+line.length+' videos</span></div><div class="group">'+line.map((v,i)=>`<div class="r"><span class="poster" style="--c1:${v.c[0]};--c2:${v.c[1]}"></span><span class="tx"><span class="a">${i+1}. ${v.t}</span><span class="b">${v.m}</span></span><button class="mv" aria-label="Move up" data-u="${i}" ${i?'':'disabled'}>${up}</button><button class="mv" aria-label="Move down" data-d="${i}" ${i<line.length-1?'':'disabled'}>${dn}</button></div>`).join('')+'</div>'+
+ '<div class="sec"><span>Downloading to Google Drive</span></div><div class="group"><div class="r"><span class="poster" style="--c1:#4a6f8a;--c2:#c9b8a0"></span><span class="tx"><span class="a">Fall 2 Deadpoint</span><span class="b" style="color:var(--green)">93% · 8.4 MB/s · about 2 min left</span></span></div><div class="r"><span class="poster" style="--c1:#2b2b44;--c2:#8c7fb5"></span><span class="tx"><span class="a">The Batman (2022)</span><span class="b">Waiting · AllDebrid has it ready</span></span></div></div>'+
+ '<div class="foot">Moving a video to the top makes it next; the one converting now finishes first.</div></div>';
+ document.querySelectorAll('#queue [data-u]').forEach(b=>b.onclick=()=>{const i=+b.dataset.u;[line[i-1],line[i]]=[line[i],line[i-1]];rQueue()});
+ document.querySelectorAll('#queue [data-d]').forEach(b=>b.onclick=()=>{const i=+b.dataset.d;[line[i+1],line[i]]=[line[i],line[i+1]];rQueue()});}
+/* 3. History */
+const days={'Today':[['Fall 2 Deadpoint','To Google Drive','16.9 GB · 37 min · 7.8 MB/s','ok'],['Lanterns · S1 E1','Ready for AirPlay','2.8 GB · 6 min','ok'],['Inception (2010)','Conversion stopped: a damaged subtitle (fixed in build 170)','after 30 min','bad']],
+ 'Yesterday':[['Scary Movie (2026)','Ready for AirPlay','4.3 GB · 9 min','ok'],['Fall (2022)','To Google Drive','18.1 GB · 41 min · 7.5 MB/s','ok'],['Interstellar (2014)','Upload interrupted, tried again','after 2 h','warn']],
+ '7 days':[['The Blair Witch Project (1999)','Ready for AirPlay','1.6 GB · 3 min','ok'],['Buddy (2026)','Ready for AirPlay','4.3 GB · 8 min','ok'],['The Nightmare Before Christmas','Ready for AirPlay','1.1 GB · 2 min','ok']]};
+let day='Today';
+function rHistory(){const rows=days[day];
+ document.getElementById('history').innerHTML=S()+'<div class="scroll"><div class="nav">'+back+'<span></span></div><div class="title">History</div><div class="sub">What finished, and how it went</div>'+
+ '<div class="card" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px"><div><div class="b">This week</div><div class="hero" style="font-size:22px">71 GB</div></div><div><div class="b">Videos</div><div class="hero" style="font-size:22px">9</div></div><div><div class="b">Busiest</div><div class="hero" style="font-size:22px">Thu</div></div></div>'+
+ `<div style="display:flex;gap:6px;margin:12px 0 2px">${Object.keys(days).map(d=>`<button class="pill ${d===day?'blue':''}" data-day="${d}">${d}</button>`).join('')}</div>`+
+ `<div class="sec"><span>${day}</span><span>${rows.length} items</span></div><div class="group">`+rows.map(r=>`<div class="r"><span class="sw" style="background:${r[3]==='ok'?'rgba(48,209,88,.2)':r[3]==='warn'?'rgba(255,159,10,.2)':'rgba(255,69,58,.2)'}">${svg(r[3]==='ok'?'<path d="M6 12l4 4 8-8" stroke="#30D158" stroke-width="2.6" fill="none" stroke-linecap="round"/>':r[3]==='warn'?'<path d="M12 7v6m0 3v.01" stroke="#FF9F0A" stroke-width="2.6" fill="none" stroke-linecap="round"/>':'<path d="M7 7l10 10M17 7 7 17" stroke="#FF453A" stroke-width="2.6" stroke-linecap="round"/>')}</span><span class="tx"><span class="a">${r[0]}</span><span class="b ${r[3]}" style="white-space:normal">${r[1]}</span><span class="b">${r[2]}</span></span></div>`).join('')+'</div>'+
+ '<div class="foot">Kept for 30 days. Tap a row for its log.</div></div>';
+ document.querySelectorAll('#history [data-day]').forEach(b=>b.onclick=()=>{day=b.dataset.day;rHistory()});}
+/* 4. AirPlay check */
+function rAir(){document.getElementById('airplay').innerHTML=S()+'<div class="scroll"><div class="nav">'+back+'<span></span></div><div class="title">AirPlay check</div><div class="sub">Last Play on TV · today 8:01 PM</div>'+
+ '<div class="card"><div style="display:flex;gap:12px;align-items:center"><span class="sw" style="width:44px;height:44px;background:rgba(10,132,255,.2)">'+svg('<rect x="3" y="5" width="18" height="12" rx="2" stroke="#4FA8FF" stroke-width="2" fill="none"/><path d="M9 20h6" stroke="#4FA8FF" stroke-width="2" stroke-linecap="round"/>')+'</span><span class="tx"><span class="a">TCL Roku TV</span><span class="b">AirPlay · third-party TV</span></span><span class="badge" style="background:rgba(255,69,58,.18);color:var(--red)">Stopped</span></div></div>'+
+ '<div class="sec"><span>What happened</span></div><div class="card" style="padding:8px 12px">'+
+ [['ok','Sent Fall (2022)','4K HEVC, Dolby Vision · from AllDebrid'],['warn','This TV needs H.264','The picture was converted on the phone to 1080p H.264'],['ok','The TV asked for the video','After 20 s; the first piece took 16 s to make'],['bad','The TV gave up waiting','"The operation could not be completed" after 32 s']].map(s=>`<div class="step"><span class="dot" style="background:var(--${s[0]==='ok'?'green':s[0]==='warn'?'orange':'red'})"></span><span class="tx"><span class="a">${s[1]}</span><span class="b" style="white-space:normal">${s[2]}</span></span></div>`).join('')+'</div>'+
+ '<div class="sec"><span>What to try</span></div><div class="group"><div class="r"><span class="tx"><span class="a">Use a version that is Ready</span><span class="b" style="white-space:normal">Ready videos start straight away; this one was converted live.</span></span></div><div class="r"><span class="tx"><span class="a">Screen Mirroring</span><span class="b" style="white-space:normal">Control Center › Screen Mirroring › TCL Roku TV.</span></span></div></div>'+
+ '<div class="foot">From the AirPlay log of that session (the same lines as in kodi.log).</div></div>';}
+rSpace();rQueue();rHistory();rAir();
+function fit(){const w=Math.min(window.innerWidth-32,422);document.documentElement.style.setProperty('--k',Math.min(1,(w-20)/402).toFixed(3));}
+fit();addEventListener('resize',fit);
+</script>

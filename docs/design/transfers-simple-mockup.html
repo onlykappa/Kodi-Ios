@@ -1,0 +1,44 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0}body{background:#111;font-family:Inter,Roboto,Arial,sans-serif;color:#fff;padding:40px;display:flex;gap:40px;width:1520px}
+.col{width:460px}.cap{color:#ffd60a;font-size:17px;margin-bottom:12px;height:46px;line-height:1.3}
+.ph{width:460px;height:960px;background:#000;border-radius:48px;border:6px solid #2c2c2e;padding:26px 20px;position:relative;overflow:hidden}
+.back{font-size:30px;color:#fff}h1{font-size:44px;font-weight:700;margin:14px 0 18px}
+.card{background:#1c1c1e;border-radius:22px;padding:18px}
+.kind{font-size:14px;font-weight:700;letter-spacing:.06em}
+.title{font-size:22px;font-weight:600;margin:4px 0 14px}
+.now{font-size:46px;font-weight:700;line-height:1}.now small{font-size:16px;color:#8e8e93;font-weight:500;margin-left:6px}
+.stats{display:flex;gap:26px;margin:12px 0 10px;font-size:15px;color:#8e8e93}.stats b{display:block;color:#fff;font-size:19px;margin-top:2px}
+svg{display:block;width:100%;height:190px}
+.axis{display:flex;justify-content:space-between;font-size:12px;color:#636366;margin-top:4px}
+.bar{height:8px;border-radius:4px;background:#3a3a3c;margin:16px 0 8px}.bar i{display:block;height:100%;border-radius:4px}
+.line{font-size:15px;color:#8e8e93}
+.sec{color:#8e8e93;font-size:17px;font-weight:600;margin:22px 4px 10px}
+.chip{display:flex;align-items:center;gap:12px;background:#1c1c1e;border-radius:18px;padding:0 16px;height:60px;margin-bottom:8px;font-size:16px}
+.chip .d{width:10px;height:10px;border-radius:5px}.chip .r{margin-left:auto;color:#8e8e93}
+.done{display:flex;justify-content:space-between;font-size:15px;padding:12px 4px;border-bottom:1px solid #2c2c2e}.done span:last-child{color:#8e8e93}
+.tag{position:absolute;bottom:14px;left:0;right:0;text-align:center;font-size:12px;color:#48484a}
+</style></head><body>
+<script>
+function series(seed,n,base,jit,ramp){let s=seed,a=[];for(let i=0;i<n;i++){s=(s*9301+49297)%233280;let r=s/233280;let v=base+(r-.5)*jit;if(ramp&&i<ramp)v*=i/ramp;a.push(Math.max(0,v))}return a}
+function graph(vals,col,max){const W=420,H=190,n=vals.length;let pts=vals.map((v,i)=>[i*(W/(n-1)),H-6-(v/max)*(H-20)]);
+let d='M'+pts.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' L');let pk=Math.max(...vals),pi=vals.indexOf(pk),py=H-6-(pk/max)*(H-20);
+return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><defs><linearGradient id="g${col.slice(1)}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${col}" stop-opacity=".45"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+<line x1="0" x2="${W}" y1="${py}" y2="${py}" stroke="#fff" stroke-opacity=".25" stroke-dasharray="4 4"/>
+<path d="${d} L${W} ${H} L0 ${H} Z" fill="url(#g${col.slice(1)})"/><path d="${d}" fill="none" stroke="${col}" stroke-width="3" stroke-linejoin="round"/>
+<circle cx="${pts[n-1][0]-3}" cy="${pts[n-1][1]}" r="6" fill="${col}"/></svg>`}
+function phone(o){return `<div class="col"><div class="cap">${o.cap}</div><div class="ph"><div class="back">‹</div><h1>Transfers</h1>
+<div class="card"><div class="kind" style="color:${o.col}">${o.kind}</div><div class="title">${o.title}</div>
+<div class="now">${o.now}<small>right now</small></div>
+<div class="stats"><div>Peak<b>${o.peak}</b></div><div>Average<b>${o.avg}</b></div><div>Started<b>${o.start}</b></div></div>
+${graph(o.vals,o.col,o.max)}<div class="axis"><span>${o.from}</span><span>now</span></div>
+<div class="bar"><i style="width:${o.pct}%;background:${o.col}"></i></div><div class="line">${o.line}</div></div>
+${o.more}<div class="tag">MOCKUP · example numbers</div></div></div>`}
+const d1=series(7,90,7.4,2.2,8),d2=series(3,90,4.6,1.4,10),d3=series(11,90,21,14,6);
+document.body.innerHTML=
+phone({cap:'1 · You tap the Drive upload card in Notifications. The graph shows that job only.',col:'#30d158',kind:'SAVING TO GOOGLE DRIVE',title:'Fall 2 Deadpoint',now:'7.2 MB/s',peak:'8.6 MB/s',avg:'7.0 MB/s',start:'38 min ago',vals:d1,max:10,from:'38 min ago',pct:93,line:'15.8 of 16.9 GB · about 2 min left',
+more:`<div class="sec">Also running · tap to see its graph</div><div class="chip"><span class="d" style="background:#bf5af2"></span>Converting Inception<span class="r">4.6 MB/s ›</span></div>`})+
+phone({cap:'2 · The upload finishes. The page moves on by itself to the next job still running.',col:'#bf5af2',kind:'CONVERTING',title:'Inception (2010)',now:'4.6 MB/s',peak:'5.3 MB/s',avg:'4.4 MB/s',start:'9 min ago',vals:d2,max:6.5,from:'9 min ago',pct:24,line:'2.1 of 8.9 GB read · about 25 min left',
+more:`<div class="sec">Finished</div><div class="done"><span>Fall 2 Deadpoint</span><span>16.9 GB · 41 min · peak 8.6 MB/s</span></div><div class="sec">Up next</div><div class="done"><span>Interstellar (2014)</span><span>convert · 8.4 GB</span></div>`})+
+phone({cap:'3 · You tap a torrent download card. Same layout, in blue.',col:'#0a84ff',kind:'DOWNLOADING',title:'The Batman (2022)',now:'24.1 MB/s',peak:'31.4 MB/s',avg:'19.8 MB/s',start:'4 min ago',vals:d3,max:36,from:'4 min ago',pct:61,line:'7.3 of 12.0 GB · 42 peers · about 3 min left',
+more:`<div class="sec">Nothing else running</div>`});
+</script></body></html>
