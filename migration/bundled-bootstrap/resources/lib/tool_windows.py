@@ -1,7 +1,6 @@
 """Runs the library tools' pages (library_tools_page.py draws them, library_tools.py says what they show).
 
 open_queue      Library status › Waiting › Edit order
-open_space      Library status › the Phone space card
 open_history    Transfers › History
 open_airplay    Play on TV › Last time (landscape, over the video), or a tap on an AirPlay notification
 Each page refreshes while it is open; every choice goes through the module that owns it (prepare_downloads.request for
@@ -119,111 +118,6 @@ def open_queue(profile=None):
     show(Queue, page.QUEUE)
 
 
-def _elementum_paths(home):
-    paths = []
-    try:
-        import xbmcaddon
-        import xbmcvfs
-        configured = xbmcaddon.Addon('plugin.video.elementum').getSetting('download_path')
-        if configured:
-            paths.append(xbmcvfs.translatePath(configured).rstrip('/'))
-    except Exception:
-        pass
-    try:
-        import updates
-        paths.append(str(updates.updates_folder(home).with_name('Elementum Downloads')))
-    except Exception:
-        pass
-    return paths
-
-
-def _torrents():
-    """Elementum's torrent list, or None when it did not answer (then nothing of Elementum's is cleared)."""
-    try:
-        import notices
-        listed = notices.torrent_list()
-        return listed if isinstance(listed, list) else None
-    except Exception:
-        return None
-
-
-def open_space(profile=None):
-    import xbmc
-    import xbmcgui
-    import xbmcvfs
-    import phone_space
-    profile = profile or _profile()
-    home = xbmcvfs.translatePath('special://home/')
-    dialog = xbmcgui.Dialog()
-
-    def places():
-        try:
-            app = xbmcvfs.translatePath('special://xbmc/')
-        except Exception:
-            app = ''
-        return lt.space_places(profile, home, _elementum_paths(home), app)
-
-    class Space(xbmcgui.WindowXMLDialog):
-        def onInit(self):
-            self.stop = threading.Event()
-            self.measured = None
-            self.show_numbers()
-            self.measure()
-
-        def measure(self):
-            def run():
-                try:
-                    self.measured = lt.measure(places(), _torrents(), time.time())
-                except Exception as error:
-                    _log('phone space: %s' % error)
-                    self.measured = {k: {'bytes': 0, 'clear': None} for k, *_ in lt.SPACE_KINDS}
-                if not self.stop.is_set():
-                    self.show_numbers()
-            threading.Thread(target=run, daemon=True).start()
-
-        def show_numbers(self):
-            try:
-                free = phone_space.free(profile)
-            except OSError:
-                free = None
-            props, cumulative = lt.space_properties(self.measured, free)
-            for k, v in props.items():
-                self.setProperty(k, v)
-            for n in range(1, page.SPACE_ROWS + 1):
-                try:
-                    self.getControl(page.BAR + n).setPercent(float(cumulative[n - 1]) if cumulative else 0.0)
-                except Exception:
-                    pass
-
-        def onAction(self, action):
-            if action.getId() in BACK:
-                self.finish()
-
-        def finish(self):
-            self.stop.set()
-            self.close()
-
-        def onClick(self, control):
-            if control == page.BACK:
-                self.finish()
-            elif page.CLEAR < control <= page.CLEAR + page.SPACE_ROWS and self.measured:
-                key, name, _, _, _, can = lt.SPACE_KINDS[control - page.CLEAR - 1]
-                found = self.measured.get(key) or {}
-                if not can or not found.get('clear'):
-                    return
-                if not dialog.yesno('Phone space', 'Clear %s of %s?' % (lt.size_text(found['bytes']), name.lower()),
-                                    nolabel='Cancel', yeslabel='Clear'):
-                    return
-                # Measured again just before deleting: what Elementum or Kodi started meanwhile is left alone.
-                now = lt.measure(places(), _torrents(), time.time()).get(key) or {}
-                freed = lt.clear(now.get('clear'), lambda: not self.stop.is_set())
-                dialog.notification('Phone space', 'Cleared %s of %s' % (lt.size_text(freed), name.lower()), xbmcgui.NOTIFICATION_INFO, 2500)
-                self.measured = None
-                self.show_numbers()
-                self.measure()
-    show(Space, page.SPACE)
-
-
 def open_history(profile=None):
     import xbmcgui
     import transfer_history as th
@@ -278,7 +172,7 @@ def open_airplay(profile=None):
     show(Check, page.AIRPLAY)
 
 
-PAGES = {'queue': open_queue, 'space': open_space, 'history': open_history, 'airplay': open_airplay}
+PAGES = {'queue': open_queue, 'history': open_history, 'airplay': open_airplay}
 
 
 def run(args=()):

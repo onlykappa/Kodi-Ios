@@ -89,9 +89,8 @@ class Rows(unittest.TestCase):
   self.assertEqual((rows.ring_name(0),rows.ring_name(39),rows.ring_name(100),rows.ring_name(None)),('ring_00.png','ring_08.png','ring_20.png','ring_00.png'))
  def test_page_top(self):
   props=rows.page_properties(self.view)
-  self.assertEqual(props['headline'],'10 of 18 ready');self.assertEqual(props['free'],'40 GB free')
-  self.assertIn('Preparing now uses 2 GB',props['space']);self.assertIn('5 GB',props['space'])
-  self.assertEqual(props['space_pct'],'4');self.assertIn('checking now',rows.page_properties(self.view,True)['sub'])
+  self.assertEqual(props['headline'],'10 of 18 ready');self.assertNotIn('space',props)   # owner, build 173: no phone space card
+  self.assertIn('checking now',rows.page_properties(self.view,True)['sub'])
  def test_details_actions(self):
   by={r['id']:r for k in self.view['rows'].values() for r in k}
   actions=lambda n:[a for _,a in rows.details(by[n],self.view)['actions']]
@@ -134,12 +133,12 @@ class Skin(unittest.TestCase):
      self.assertGreaterEqual(float(c.findtext('height') or 0),library_page.HIT,c.get('id'))
  def test_ids_the_controller_uses(self):
   ids={c.get('id') for c in self.pagex.iter('control')}
-  for n in (library_page.LIST,library_page.BACK,library_page.CHECK,library_page.SPACE,9101,9102,9103,9104):self.assertIn(str(n),ids)
+  for n in (library_page.LIST,library_page.BACK,library_page.CHECK,library_page.EDIT,9101,9102,9103,9104):self.assertIn(str(n),ids)
   ids={c.get('id') for c in self.sheetx.iter('control')}
   for n in (9200,9201,9202,9099):self.assertIn(str(n),ids)
  def test_properties_the_controller_sets(self):
   for k in rows.page_properties(prep.library_view({})):
-   if k!='space_pct':self.assertIn('Window().Property(%s)'%k,self.page,k)
+   self.assertIn('Window().Property(%s)'%k,self.page,k)
   for k in ('title','status','tone','quality','poster','fact3.value','action2.label'):self.assertIn('Window().Property(%s)'%k,self.sheet,k)
   for k in ('kind','pos','state','ring','pct','warn'):self.assertIn('ListItem.Property(%s)'%k,self.page,k)
  def test_status_sheet_closes_with_a_cross(self):
@@ -351,31 +350,6 @@ class PhoneSpace(unittest.TestCase):
   self.assertEqual(sorted(d.name for d in q.work.iterdir()),['paused','saving','wait'])
  def test_tidy_runs_before_every_video(self):
   self.assertIn('self.apply_requests();self.tidy()',(LIB/'prepare_downloads.py').read_text())
- def test_usage_counts_each_file_once(self):
-  status=load('library_status_usage',BOOT/'library_status.py')
-  (self.root/'a/b').mkdir(parents=True);(self.root/'a/x').write_bytes(b'1'*300);(self.root/'a/b/y').write_bytes(b'2'*200)
-  self.assertEqual(status.usage([('inner',self.root/'a/b'),('outer',self.root/'a'),('again',self.root/'a/b'),('none',self.root/'nope')]),
-                   {'inner':200,'outer':500})
- def test_usage_line(self):
-  self.assertEqual(rows.usage_text({'Elementum downloads':6*GB,'artwork':1*GB,'preparing':0.5*GB,'temporary files':1}),
-                   'Kodi uses 7.5 GB · Elementum downloads 6.0 GB · artwork 1.0 GB')
-  props=rows.page_properties(prep.library_view({},free=10*GB),usage={'artwork':10*GB})
-  self.assertEqual((props['space_pct'],props['space']),('50','Kodi uses 10.0 GB · artwork 10.0 GB'))
- def test_page_shows_what_kodi_uses(self):
-  page=TapEveryButton('test_page_opens_filled');page.setUp()
-  try:
-   art=Path(page.profile)/'Thumbnails';art.mkdir();(art/'a.jpg').write_bytes(b'x'*(GB//5))
-   import time
-   seen={}
-   def wait(w):
-    for _ in range(100):
-     if 'Kodi uses' in w.getProperty('space'):break
-     time.sleep(0.02)
-    seen['space']=w.getProperty('space')
-   page.run_page([(library_page.WINDOW,wait),(library_page.WINDOW,tap(library_page.BACK))])
-   self.assertIn('artwork 0.2 GB',seen['space'])
-  finally:page.tearDown()
-
 class EveryScriptNamesItsAddon(unittest.TestCase):
  def test_no_bare_addon_in_runscript_pages(self):
   import re

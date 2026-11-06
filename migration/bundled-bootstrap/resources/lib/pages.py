@@ -302,6 +302,17 @@ def image_bg(p,texture):
          '<texture background="true" colordiffuse="B3FFFFFF">%s</texture></control>')%(p.WIDTH,p.HEIGHT,texture)
 
 # --- Play on TV (landscape, over video) -------------------------------------------------------------------
+def close_button_1080(id,x,y,extra='',size=100):
+ """close_button (portrait.py) for the landscape sheets (Play on TV, AirPlay check), on Fuse's 1920x1080 canvas."""
+ disc=int(size*104/118);g=int(size*52/118);d=(size-disc)//2;o=(size-g)//2
+ img=lambda x,y,s,tex,col,more='':('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
+                                   '<texture colordiffuse="%s">%s%s</texture>%s</control>'%(x,y,s,s,col,'special://skin/extras/portrait/',tex,more))
+ return ('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(x,y,size,size)+
+  img(d,d,disc,'close_disc.png','2EFFFFFF')+img(d,d,disc,'close_disc.png','24FFFFFF','<visible>Control.HasFocus(%d)</visible>'%id)+
+  img(o,o,g,'close_cross.png','FFFFFFFF')+
+  '<control type="button" id="%d"><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus />%s</control>'%(id,size,size,extra)+
+  '</control>')
+
 TV_ROWS=6
 def play_on_tv():
  """1080i/IOSPlayOnTV.xml for cast.py, on Fuse's landscape 1920x1080 canvas with Fuse's fonts: an AirPlay-style
@@ -353,11 +364,8 @@ def play_on_tv():
   '<control type="button" id="9501"><left>%d</left><top>28</top><width>190</width><height>100</height><label>Last time</label><font>font_mini</font>'
   '<textcolor>FF4FA8FF</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>center</align><aligny>center</aligny>'
   '<texturefocus border="30" colordiffuse="26FFFFFF">%sround_s.png</texturefocus><texturenofocus />'
-  '<visible>%s</visible><onright>9500</onright><ondown>9601</ondown></control>'%(w-300,MEDIA,has('last'))+
-  '<control type="button" id="9500"><left>%d</left><top>48</top><width>60</width><height>60</height><label>×</label><font>font_main_bold</font>'
-  '<textcolor>FFD1D1D6</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>center</align><aligny>center</aligny>'
-  '<texturefocus colordiffuse="40FFFFFF">%sdot.png</texturefocus><texturenofocus colordiffuse="1FFFFFFF">%sdot.png</texturenofocus>'
-  '<ondown>9601</ondown></control>'%(w-96,MEDIA,MEDIA)+stack+'</control>')
+  '<visible>%s</visible><onright>9500</onright><ondown>9601</ondown></control>'%(w-336,MEDIA,has('last'))+
+  close_button_1080(9500,w-126,28,'<ondown>9601</ondown><onleft>9501</onleft>')+stack+'</control>')
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: Play on TV sheet r1 (navigation.patch_skin leaves this marker alone) -->\n'
          '<window type="dialog"><defaultcontrol always="true">9601</defaultcontrol><controls>%s</controls></window>\n')%body
 

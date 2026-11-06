@@ -15,7 +15,7 @@ Two traps found on device:
 - Kodi picks among conditional itemlayouts globally, not per item: one layout per list, parts shown by `visible` on
   ListItem.Property.
 
-## 1. Phone space
+## 1. Phone space (removed by the owner, build 173)
 - Opened from Library status: tap the "Phone space" card (today it is display-only).
 - One bar: what Kodi keeps on the phone. Rows: Artwork cache, Elementum leftovers, Temporary files (each with
   Clear), Add-on data and the Kodi app (Keep, no button).
@@ -55,14 +55,15 @@ started by hand (`import-review.yml`). No merge or release without the owner.
 |---|---|
 | What each page shows (pure, tested) | `resources/lib/library_tools.py` |
 | Page XML (portrait; AirPlay check also 1080i) | `resources/lib/library_tools_page.py`, registered in `portrait.py` |
-| Controllers | `resources/lib/tool_windows.py`; `RunScript(service.kodi.ios.bootstrap,tool_pages,<queue/space/history/airplay>)` |
+| Controllers | `resources/lib/tool_windows.py`; `RunScript(service.kodi.ios.bootstrap,tool_pages,<queue/history/airplay>)` |
 | Queue order | `prepare_downloads` `up` / `down` requests, `queue_order`, `apply_to` (line numbered `now-1-rank`, so a Prepare next of the same moment still wins); `request()` keeps every up / down tap; `interrupts()` unchanged. Library status's Waiting order now breaks ties by job key, as `prepare_cloud` does. |
 | History data | `transfer_history.FINISHED` 400, 30 days; `transfer_history.failed()` / `failures()` (own file) from `prepare_cloud`, `prepare_downloads` and `debrid_drive` |
 | AirPlay data | `library_tools.begin_airplay` / `note_airplay` (`airplay-last.json`), fed by `cast.send_airplay` and `airplay.relay(keep=...)` |
-| Entry points | Library status: "Edit order" (Waiting folder, top right) and the Phone space card; Transfers: "History" (top right); Play on TV sheet: "Last time" (once there has been an AirPlay session); Notifications: an AirPlay message opens the check instead of its details sheet |
+| Entry points | Library status: "Edit order" (Waiting folder, top right); Transfers: "History" (top right); Play on TV sheet: "Last time" (once there has been an AirPlay session); Notifications: an AirPlay message opens the check instead of its details sheet |
 | Tests | `scripts/test_library_tools.py` |
 
-Phone space safety: artwork = image files in Thumbnails only; Elementum leftovers = top-level entries in Elementum's
-download folders that no torrent in Elementum's list owns (nothing when Elementum does not answer); temporary files =
-not `.log`, not changed in the last 10 minutes. The list is measured again right before deleting.
+Owner review (build 173, previews): Phone space removed, page and the card on Library status ("everything is in
+drive"); ▲ ▼ larger and centred (128 px chevron centred in its texture, 68 in a 104 circle); one close button
+everywhere (`portrait.close_button`, `pages.close_button_1080`: smooth 128 px circle, larger 128 px cross); titles fit
+(the AirPlay check's large title is "AirPlay check", the video's name scrolls on the line under it).
 Still open for the owner: History also as a row on Library status?

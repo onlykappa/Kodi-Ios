@@ -7,7 +7,7 @@ This session's own progress file, so it does not touch `HANDOFF-PROGRESS.md` (th
 | Branch | Based on | State |
 |---|---|---|
 | `fix/elementum-cloud-164` (PR #13) | — | Base for the library tools. |
-| `claude/trusting-euler-kgug98` | `fix/elementum-cloud-164` (c5e9eb6) | **The four library-tools pages, built and tested** (second session took over here). Not merged into PR #13; no build started. |
+| `claude/trusting-euler-kgug98` | `fix/elementum-cloud-164` (c5e9eb6) | Library tools (Queue, History, AirPlay check), built and tested (second session took over here); merged into PR #13. No build started. |
 | `design/customisation-mockups` | rebased onto `fix/elementum-cloud-164` (7cf3643) | Round-4 Customisation mockups and round-5 header-buttons mockups. Pushed (4420307). No PR. |
 | `feature/customisation-header-buttons` | rebased onto `fix/elementum-cloud-164` (7cf3643) | Work in progress: header buttons (gear, refresh, bell arc). Pushed (0ee8aca). No PR. |
 
@@ -19,12 +19,12 @@ Code read: `library_page.py`, `library_status.py`, `transfers_page.py`, `transfe
 | Page | State |
 |---|---|
 | Queue (Edit order) | built: `up` / `down` requests, `queue_order`, page, Library status › Waiting › "Edit order" |
-| Phone space | built: measure in a thread, Clear (yes/no, measured again first), Library status › the Phone space card |
+| Phone space | removed by the owner (build 173): page and Library status card |
 | History | built: `transfer_history.failed()` from prepare_cloud / prepare_downloads / debrid_drive, 30 days, Today / Yesterday / 7 days, Transfers › "History" |
 | AirPlay check | built: `airplay-last.json` from `cast.send_airplay` and `airplay.relay`, portrait page and 1080i sheet, Play on TV › "Last time", AirPlay notifications |
 
-Details and the safety rules are in the "Built" section of `docs/design/library-tools-spec.md`. Next: merge the branch
-into PR #13 (or open a PR into it) once the owner agrees, and check the four pages on a device build.
+Details and the safety rules are in the "Built" section of `docs/design/library-tools-spec.md`. Merged into PR #13 at the owner's request; check the pages on a device build.
+Also done: one close button everywhere (larger cross, smooth circle), larger centred ▲ ▼, titles that fit.
 
 Rules to keep: window files added while Kodi runs need the `RuntimeError` → `xbmcvfs.listdir` → retry once pattern
 (`transfers.run`). Use one item layout per list, with parts shown by `ListItem.Property`. Every control at least

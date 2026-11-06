@@ -34,12 +34,7 @@ def sheet(p):
     has = lambda k: '!String.IsEmpty(Window().Property(%s))' % k
     height = 1780
     top = p.HEIGHT - height
-    close = ('<control type="group"><left>%d</left><top>%d</top>' % (W - S - HIT + 13, top + 40) +
-             p.image(13, 13, 92, 92, M + 'dot.png', '26FFFFFF') +
-             p.image(13, 13, 92, 92, M + 'dot.png', '33FFFFFF', '<visible>Control.HasFocus(%d)</visible>' % CLOSE) +
-             p.image(29, 29, 60, 60, M + 'close_cross.png', p.WHITE) +
-             '<control type="button" id="%d"><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus />'
-             '<ondown>%d</ondown></control></control>' % (CLOSE, HIT, HIT, LOG))
+    close = p.close_button(CLOSE, W - S - HIT + 13, top + 40, navigation='<ondown>%d</ondown>' % LOG)
     head = (p.surface(S, top + 64, 110, 110, 'round_s.png', P('tint'), 24) +
             p.icon(S + 27, top + 91, 56, p.ICONS + P('icon'), p.WHITE) +
             p.label(S + 140, top + 56, w - 140 - HIT, 80, P('title'), 'p_h3', p.WHITE, 'left', '<scroll>false</scroll>') +

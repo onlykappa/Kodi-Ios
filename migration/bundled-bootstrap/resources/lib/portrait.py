@@ -192,7 +192,25 @@ def close_cross():
  def distance(x,y,ax,ay,bx,by):
   t=max(0,min(1,((x-ax)*(bx-ax)+(y-ay)*(by-ay))/((bx-ax)**2+(by-ay)**2)))
   return math.hypot(x-ax-t*(bx-ax),y-ay-t*(by-ay))
- return png(64,64,lambda x,y:(255,255,255,int(255*max(0,min(1,3.25-min(distance(x+.5,y+.5,13,13,51,51),distance(x+.5,y+.5,13,51,51,13)))))))
+ # 128 px with ends at 18..110 (owner: "cleaner larger x"), so it stays sharp at any button size.
+ return png(128,128,lambda x,y:(255,255,255,int(255*max(0,min(1,7.5-min(distance(x+.5,y+.5,18,18,110,110),distance(x+.5,y+.5,18,110,110,18)))))))
+
+def close_disc():
+ """A smooth 128 px circle for close buttons (dot.png is 24 px and its edge went soft when scaled up)."""
+ return png(128,128,lambda x,y:(255,255,255,int(255*coverage(x,y,128,128,64))))
+
+CLOSE_DISC=104;CLOSE_GLYPH=52
+def close_button(id,x,y,extra='',navigation='',size=118):
+ """The one close (×) button of every sheet (owner, build 173: "cleaner larger x and cleaner circle"): a `size`
+ touch area, a smooth CLOSE_DISC circle and a CLOSE_GLYPH cross centred in it; the circle brightens while focused."""
+ d=(size-CLOSE_DISC)//2;g=(size-CLOSE_GLYPH)//2
+ return ('<control type="group"><left>%s</left><top>%s</top><width>%d</width><height>%d</height>%s'%(x,y,size,size,extra)+
+  image(d,d,CLOSE_DISC,CLOSE_DISC,MEDIA+'close_disc.png','2EFFFFFF')+
+  image(d,d,CLOSE_DISC,CLOSE_DISC,MEDIA+'close_disc.png','24FFFFFF','<visible>Control.HasFocus(%d)</visible>'%id)+
+  image(g,g,CLOSE_GLYPH,CLOSE_GLYPH,MEDIA+'close_cross.png',WHITE)+
+  '<control type="button" id="%d"><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus />%s</control>'%(id,size,size,navigation)+
+  '</control>')
+
 
 def icon(x,y,size,name,color=WHITE,extra=''):return image(x,y,size,size,name if ('://' in name or name.startswith('$')) else ICONS+name,color,extra,'>keep')
 def label(x,y,w,h,text,font,color=WHITE,align='left',extra=''):
@@ -1117,7 +1135,7 @@ def portrait_files(skin,profile):
  # Settings home, Customisation and Accounts in the iOS Settings style (settings_page.py).
  import types
  files.update(settings_page.files(types.SimpleNamespace(**globals()),read))
- files['extras/portrait/close_cross.png']=close_cross()
+ files['extras/portrait/close_cross.png']=close_cross();files['extras/portrait/close_disc.png']=close_disc()
  # Round 2: shared dialogs, Add-ons, Event Log, System Info, File Manager, Umbrella's getting-ready, Play on TV.
  files.update(pages.files(types.SimpleNamespace(**globals()),read))
  # The activity pill in place of Kodi's background progress box, which is never drawn (activity_skin.py).

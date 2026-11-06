@@ -1,4 +1,4 @@
-"""RunScript(service.kodi.ios.bootstrap,tool_pages,<queue|space|history|airplay>): one of the library tools' pages
+"""RunScript(service.kodi.ios.bootstrap,tool_pages,<queue|history|airplay>): one of the library tools' pages
 (resources/lib/tool_windows.py runs them; Library status, Transfers, Play on TV and Notifications open them directly)."""
 import os,sys
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))

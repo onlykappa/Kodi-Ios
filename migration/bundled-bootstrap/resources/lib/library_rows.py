@@ -72,33 +72,15 @@ def list_items(view, filter_key='all'):
     return out
 
 
-def usage_text(usage):
-    """'Kodi uses 9.8 GB · Elementum downloads 6.1 GB · artwork 1.2 GB' from {name: bytes} (largest two named)."""
-    total = sum(usage.values())
-    big = [(n, b) for n, b in sorted(usage.items(), key=lambda kv: -kv[1]) if b >= 0.1 * GB][:2]
-    return ' · '.join(['Kodi uses %.1f GB' % (total / GB)] + ['%s %.1f GB' % (n, b / GB) for n, b in big])
-
-
-def page_properties(view, checking=False, usage=None):
-    """Window properties for the page's top: subtitle, ring, headline, legend and phone space. usage: {what: bytes}
-    Kodi keeps on the phone (library_status measures it), or None while it is being measured."""
-    free, working = view.get('free'), view.get('working') or 0
+def page_properties(view, checking=False):
+    """Window properties for the page's top: subtitle, ring, headline and legend."""
     legend = '  '.join('%s %d %s' % (DOT % colour, n, word) for colour, n, word in (
         ('FF30D158', view['ready'], 'ready'), ('FFBF5AF2', view['todo'], 'to do'),
         ('FF0A84FF', view['downloading'], 'downloading'), ('FF8E8E93', view['kept'], 'kept')))
-    space = 'Kodi always leaves you 5 GB'
-    if working >= 0.1 * GB:
-        space = 'Preparing now uses %.0f GB · %s' % (working / GB, space)
-    props = {'sub': 'Kodi Downloads on Google Drive · ' + ('checking now…' if checking else view['checked']),
+    return {'sub': 'Kodi Downloads on Google Drive · ' + ('checking now…' if checking else view['checked']),
             'ring': ring_name(view['pct']), 'pct': str(view['pct']),
             'headline': '%d of %d ready' % (view['ready'], view['total']) if view['total'] else 'Not checked yet',
-            'legend': legend, 'free': '' if free is None else '%.0f GB free' % (free / GB), 'space': space,
-            'space_pct': '0' if not free else str(int(100 * working / (working + free)))}
-    if usage:
-        used = sum(usage.values())
-        props['space'] = usage_text(usage)
-        props['space_pct'] = '0' if not free else str(int(100 * used / (used + free)))
-    return props
+            'legend': legend}
 
 
 def short_eta(text):

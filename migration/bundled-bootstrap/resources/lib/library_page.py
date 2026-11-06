@@ -2,7 +2,7 @@
 
 Every movie and episode in Google Drive › Kodi Downloads, grouped by where it is: preparing now, downloading, waiting
 (in line, waiting for phone space, or retrying after a problem), ready for Kodi and AirPlay, kept as it is. A summary
-ring and the phone space on top, a filter, and a details sheet per video with what can be done about it.
+ring on top (owner, build 173: no phone space card: videos live on Google Drive), a filter, and a details sheet per video with what can be done about it.
 
 - portrait/IOSLibraryStatus.xml: the page; library_status.py fills it (window properties, list 9300 items).
 - portrait/IOSLibraryItem.xml: the details sheet for one video.
@@ -11,8 +11,8 @@ Sizes follow docs/design/APPLE-UI-POLICY.md: 2.687 units per pt, every control a
 WINDOW = 'IOSLibraryStatus.xml'
 ITEM = 'IOSLibraryItem.xml'
 FILTERS = (('all', 'All'), ('ready', 'Ready'), ('todo', 'To do'), ('downloading', 'Downloading'))   # buttons 9101-9104
-LIST, BACK, CHECK, SPACE = 9300, 9001, 9002, 9440
-EDIT, SPACE_TAP = 9003, 9004   # Waiting › Edit order (the Queue); the Phone space card (Phone space page)
+LIST, BACK, CHECK = 9300, 9001, 9002
+EDIT = 9003   # Waiting › Edit order (the Queue)
 ROW = 200
 HIT = 118
 PURPLE = 'FFBF5AF2'
@@ -116,18 +116,6 @@ def page(p):
                p.label(S + 24, 365, 160, 160, P('pct') + '%', 'p_h3', p.WHITE, 'center', '<aligny>center</aligny>') +
                p.label(S + 214, 382, w - 238, 64, P('headline'), 'p_h3', p.WHITE, 'left', '<scroll>false</scroll>') +
                p.label(S + 214, 450, w - 238, 56, P('legend'), 'p_cap', p.GREY, 'left', '<scroll>false</scroll>'))
-    space = (p.surface(S - 6, 570, w + 12, 176, 'round.png', p.SURFACE, 32) +
-             p.label(S + 24, 590, w - 330, 50, 'Phone space', 'p_foot', p.GREY) +
-             p.label(S + w - 340, 590, 276, 50, P('free'), 'p_foot_b', p.WHITE, 'right') +
-             p.icon(S + w - 54, 595, 40, 'chevron-right.png', p.GREY) +
-             # The whole card opens Phone space (what Kodi keeps on the phone, and Clear).
-             '<control type="button" id="%d"><left>%d</left><top>570</top><width>%d</width><height>176</height><label></label>'
-             '<texturefocus border="32" colordiffuse="14FFFFFF">%sround.png</texturefocus><texturenofocus />'
-             '<onup>%d</onup><ondown>9101</ondown></control>' % (SPACE_TAP, S - 6, w + 12, M, CHECK) +
-             '<control type="progress" id="%d">' % SPACE + '<left>%d</left><top>652</top><width>%d</width><height>16</height>'
-             '<texturebg border="8" colordiffuse="52787880">%sdot.png</texturebg><lefttexture />'
-             '<midtexture border="8" colordiffuse="%s">%sdot.png</midtexture><righttexture /></control>' % (S + 24, w - 48, M, PURPLE, M) +
-             p.label(S + 24, 682, w - 48, 50, P('space'), 'p_cap', p.GREY, 'left', '<scroll>false</scroll>'))
     n = len(FILTERS)
     filters = ''.join('<control type="group"><left>%d</left><top>0</top>' % (i * w // n) +
                       p.image(4, 4, w // n - 8, 80, M + 'pill_96.png', 'FF636366',
@@ -136,15 +124,15 @@ def page(p):
                       '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
                       '<texturefocus /><texturenofocus /><ondown>%d</ondown><onup>%d</onup></control></control>'
                       % (9101 + i, w // n, HIT, text, p.GREY, p.WHITE, LIST, CHECK) for i, (key, text) in enumerate(FILTERS))
-    listing = ('<control type="list" id="%d"><left>0</left><top>890</top><width>%d</width><bottom>0</bottom>'
+    listing = ('<control type="list" id="%d"><left>0</left><top>690</top><width>%d</width><bottom>0</bottom>'
                '<orientation>vertical</orientation><onup>9101</onup><scrolltime tween="cubic" easing="out">250</scrolltime>' % (LIST, W) +
                _layouts(p, False) + _layouts(p, True) + '</control>')
     body = ('<controls>' + p.backdrop() +
             p.nav_button(BACK, S, 36, 'chevron-left.png', [('String.IsEqual(Window().Property(filter),all)', 'Close')], '<ondown>9101</ondown>') + check + edit +
             p.label(S, 160, w, 110, P('title'), 'p_large', p.WHITE, 'left', '<scroll>false</scroll>') +
             p.label(S, 268, w, 56, P('sub'), 'p_sub', p.GREY, 'left', '<scroll>false</scroll>') +
-            summary + space +
-            '<control type="group"><left>%d</left><top>770</top>' % S + p.surface(0, 0, w, 88, 'pill_96.png', p.SURFACE, 44) + filters + '</control>' +
+            summary +
+            '<control type="group"><left>%d</left><top>570</top>' % S + p.surface(0, 0, w, 88, 'pill_96.png', p.SURFACE, 44) + filters + '</control>' +
             listing + '</controls>')
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s library status -->\n<window><defaultcontrol always="true">%d</defaultcontrol>'
             '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n') % (p.MARKER, LIST, body)
@@ -166,12 +154,7 @@ def item_sheet(p):
     status = (p.label(S + 230, top + 160, w - 230, 56, P('status'), 'p_pill_s', p.GREEN, 'left', '<scroll>false</scroll><visible>String.IsEqual(Window().Property(tone),ok)</visible>') +
               p.label(S + 230, top + 160, w - 230, 56, P('status'), 'p_pill_s', 'FFFF9F0A', 'left', '<scroll>false</scroll><visible>String.IsEqual(Window().Property(tone),warn)</visible>') +
               p.label(S + 230, top + 160, w - 230, 56, P('status'), 'p_pill_s', p.GREY, 'left', '<scroll>false</scroll><visible>String.IsEqual(Window().Property(tone),plain)</visible>'))
-    close = ('<control type="group"><left>%d</left><top>%d</top>' % (W - S - HIT + 13, top + 40) +
-             p.image(13, 13, 92, 92, M + 'dot.png', '26FFFFFF') +
-             p.image(13, 13, 92, 92, M + 'dot.png', '33FFFFFF', '<visible>Control.HasFocus(9200)</visible>') +
-             p.image(29, 29, 60, 60, M + 'close_cross.png', p.WHITE) +
-             '<control type="button" id="9200"><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus />'
-             '<ondown>9201</ondown></control></control>' % (HIT, HIT))
+    close = p.close_button(9200, W - S - HIT + 13, top + 40, navigation='<ondown>9201</ondown>')
     buttons = (p.pill_button(9201, S, top + 1010, w, 124, P('action1.label'), [('', 'noop')], 'primary', '',
                              '<visible>%s</visible><onup>9200</onup><ondown>9202</ondown>' % has('action1.label')) +
                p.pill_button(9202, S, top + 1150, w, 124, '[COLOR FFFF453A]%s[/COLOR]' % P('action2.label'), [('', 'noop')], 'glass', '',

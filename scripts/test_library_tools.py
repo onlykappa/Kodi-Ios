@@ -96,8 +96,6 @@ class Pages(unittest.TestCase):
   ids=lambda name:{c.get('id') for c in self.trees[name].iter('control')}
   q=ids('portrait/IOSQueue.xml')
   for n in range(1,ltp.QUEUE_SLOTS+1):self.assertIn(str(ltp.UP+n),q);self.assertIn(str(ltp.DOWN+n),q)
-  s=ids('portrait/IOSPhoneSpace.xml')
-  for n in range(1,ltp.SPACE_ROWS+1):self.assertIn(str(ltp.BAR+n),s);self.assertIn(str(ltp.CLEAR+n),s)
   self.assertTrue({str(ltp.DAY+n) for n in (1,2,3)}<=ids('portrait/IOSHistory.xml'))
   self.assertIn(str(ltp.CLOSE),ids('1080i/IOSAirPlayCheck.xml'));self.assertIn(str(ltp.BACK),ids('portrait/IOSAirPlayCheck.xml'))
   self.assertEqual(ltp.DAYS,lt.DAYS)
@@ -107,48 +105,11 @@ class Pages(unittest.TestCase):
   self.assertIn('library_tools_page.files(ns)',text);self.assertIn("'IOSAirPlayCheck.xml'",text.split('OWN_1080I=')[1].split('\n')[0])
   self.assertIn('Path(library_tools_page.__file__)',text)
   skip=(LIB/'activity_skin.py').read_text()
-  for name in (ltp.QUEUE,ltp.SPACE,ltp.HISTORY,ltp.AIRPLAY):self.assertIn("'%s'"%name,skip)
+  for name in (ltp.QUEUE,ltp.HISTORY,ltp.AIRPLAY):self.assertIn("'%s'"%name,skip)
+  self.assertNotIn('IOSPhoneSpace',skip+text)
  def test_back_is_the_nav_button(self):
-  for name in ('portrait/IOSQueue.xml','portrait/IOSPhoneSpace.xml','portrait/IOSHistory.xml','portrait/IOSAirPlayCheck.xml'):
+  for name in ('portrait/IOSQueue.xml','portrait/IOSHistory.xml','portrait/IOSAirPlayCheck.xml'):
    self.assertIn('chevron-left.png',self.files[name].decode())
-
-class PhoneSpaceTools(unittest.TestCase):
- def setUp(self):
-  self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)
-  self.profile=self.root/'userdata';self.home=self.root/'home';self.el=self.root/'Elementum Downloads'
-  (self.profile/'Thumbnails/a').mkdir(parents=True);(self.profile/'Thumbnails/a/x.jpg').write_bytes(b'1'*3000)
-  (self.profile/'Thumbnails/a/Textures.db').write_bytes(b'd'*10)
-  (self.home/'temp').mkdir(parents=True);(self.home/'temp/kodi.log').write_bytes(b'l'*500)
-  (self.home/'temp/old.tmp').write_bytes(b't'*700);(self.home/'temp/new.tmp').write_bytes(b'n'*100)
-  os.utime(self.home/'temp/old.tmp',(time.time()-3600,)*2)
-  (self.el/'Running Movie').mkdir(parents=True);(self.el/'Running Movie/a.mkv').write_bytes(b'r'*4000)
-  (self.el/'Old Movie.2019').mkdir();(self.el/'Old Movie.2019/b.mkv').write_bytes(b'o'*5000)
-  (self.profile/'addon_data/x').mkdir(parents=True);(self.profile/'addon_data/x/settings.xml').write_bytes(b's'*200)
-  self.places=lt.space_places(str(self.profile),str(self.home),[str(self.el),str(self.el)],'')
- def tearDown(self):self.tmp.cleanup()
- def test_measure_and_what_is_safe(self):
-  m=lt.measure(self.places,[{'name':'Running Movie','progress':40}],time.time())
-  self.assertEqual(m['artwork']['bytes'],3010);self.assertEqual([Path(p).name for p in m['artwork']['clear']],['x.jpg'])
-  self.assertEqual([Path(p).name for p in m['elementum']['clear']],['Old Movie.2019']);self.assertEqual(m['elementum']['bytes'],5000)
-  self.assertEqual([Path(p).name for p in m['temp']['clear']],['old.tmp'])   # not the log, not a file changed just now
-  self.assertEqual((m['data']['bytes'],m['data']['clear']),(200,None))
- def test_elementum_not_answering_clears_nothing(self):
-  m=lt.measure(self.places,None,time.time());self.assertIsNone(m['elementum']['clear'])
-  props,_=lt.space_properties(m,40*GB);self.assertEqual(props['space.2.clear'],'');self.assertIn("isn't answering",props['space.2.line'])
- def test_clear_frees_and_keeps_the_rest(self):
-  m=lt.measure(self.places,[{'name':'Running Movie'}],time.time())
-  self.assertEqual(lt.clear(m['elementum']['clear']),5000)
-  self.assertTrue((self.el/'Running Movie/a.mkv').exists());self.assertFalse((self.el/'Old Movie.2019').exists())
-  self.assertEqual(lt.clear(m['temp']['clear']),700);self.assertTrue((self.home/'temp/kodi.log').exists())
- def test_properties_and_the_split_bar(self):
-  m={'artwork':{'bytes':GB,'clear':['x']},'elementum':{'bytes':GB,'clear':['y']},'temp':{'bytes':0,'clear':[]},
-     'data':{'bytes':GB,'clear':None},'app':{'bytes':GB,'clear':None}}
-  props,bar=lt.space_properties(m,48*GB)
-  self.assertEqual(props['total'],'4.0 GB');self.assertEqual(props['free'],'48 GB free on this iPhone');self.assertEqual(bar,[25,50,50,75,100])
-  self.assertEqual((props['space.1.clear'],props['space.3.clear'],props['space.4.clear']),('true','',''))
-  xml=ltp.space_page(portrait)
-  for k in props:self.assertIn('Window().Property(%s)'%k,xml,k)
-  self.assertEqual(lt.space_properties(None,None)[0]['total'],'Measuring…')
 
 class History(unittest.TestCase):
  def test_failures_are_kept_30_days(self):
@@ -218,6 +179,7 @@ class AirPlayCheck(unittest.TestCase):
   self.assertEqual(check['steps'][3][1],'It stopped: the TV could not connect to the phone');self.assertIn('same Wi-Fi',check['try'])
   props=lt.airplay_properties(check,61);self.assertEqual(props['headline'],"It didn't work");self.assertEqual(props['when'],'1 min ago')
   for xml in (ltp.airplay_page(portrait),ltp.airplay_sheet()):
+   self.assertIn('<scroll>true</scroll>',xml)   # a long video name scrolls instead of being cut off
    for k in props:
     if k!='tone':self.assertIn('Window().Property(%s)'%k,xml,k)
  def test_apple_tv_and_no_session(self):
@@ -246,10 +208,41 @@ class AirPlayCheck(unittest.TestCase):
   sheet=load('pages_tools',LIB/'pages.py').play_on_tv();self.assertIn('id="9501"',sheet);self.assertIn('Last time',sheet)
   self.assertTrue(lt.airplay_notice({'title':"AirPlay didn't start"}));self.assertFalse(lt.airplay_notice({'title':'Saved to Google Drive'}))
 
+class Buttons(unittest.TestCase):
+ """Owner (build 173): "cleaner larger x and cleaner circle", everywhere; arrows larger and centred."""
+ def test_one_close_button_everywhere(self):
+  pages=load('pages_close_t',LIB/'pages.py');notice=load('notice_page_t',LIB/'notice_page.py');act=load('activity_skin_t',LIB/'activity_skin.py')
+  for name,xml in (('library item',library_page.item_sheet(portrait)),('notice',notice.page(portrait) if hasattr(notice,'page') else ''),
+                   ('play on tv',pages.play_on_tv()),('airplay',ltp.airplay_sheet())):
+   if xml:self.assertIn('close_disc.png',xml,name);self.assertNotIn('<label>×</label>',xml,name)
+  for src in ('library_page.py','notice_page.py','activity_skin.py','pages.py','library_tools_page.py'):
+   self.assertNotIn("'dot.png', '26FFFFFF') +\n             p.image(29, 29, 60, 60",(LIB/src).read_text())
+   self.assertNotIn("('xmark.png'",(LIB/src).read_text())
+  self.assertIn('close_disc',(LIB/'portrait.py').read_text())
+ def test_cross_and_disc_are_large_and_sharp(self):
+  for png in (portrait.close_cross(),portrait.close_disc(),ltp.arrow(portrait,True),ltp.arrow(portrait,False)):
+   import struct;self.assertEqual(struct.unpack('>II',png[16:24]),(128,128))
+ def test_arrows_are_centred(self):
+  import struct,zlib
+  for up in (True,False):
+   png=ltp.arrow(portrait,up);data=b'';i=33
+   while i<len(png):
+    n=struct.unpack('>I',png[i:i+4])[0]
+    if png[i+4:i+8]==b'IDAT':data+=png[i+8:i+8+n]
+    i+=12+n
+   raw=zlib.decompress(data);rows=[raw[y*513+1:(y+1)*513] for y in range(128)]
+   ys=[y for y in range(128) if any(rows[y][x*4+3]>127 for x in range(128))]
+   xs=[x for x in range(128) if any(rows[y][x*4+3]>127 for y in range(128))]
+   self.assertLessEqual(abs((ys[0]+ys[-1])/2-63.5),1);self.assertLessEqual(abs((xs[0]+xs[-1])/2-63.5),1)
+  self.assertIn("p.image(25, 25, 68, 68, p.MEDIA + glyph",(LIB/'library_tools_page.py').read_text())
+
 class Wiring(unittest.TestCase):
  def test_entry_points(self):
   self.assertIn("'tool_pages'",(BOOT/'default.py').read_text());self.assertTrue((BOOT/'tool_pages.py').exists())
-  self.assertIn('id="%d"'%library_page.EDIT,library_page.page(portrait));self.assertIn('id="%d"'%library_page.SPACE_TAP,library_page.page(portrait))
+  self.assertIn('id="%d"'%library_page.EDIT,library_page.page(portrait))
+  # Owner (build 173): no phone space card or page ("everything is in drive").
+  self.assertNotIn('Phone space',library_page.page(portrait));self.assertFalse(hasattr(library_page,'SPACE_TAP'))
+  self.assertNotIn('open_space',(LIB/'tool_windows.py').read_text())
   tp=load('transfers_page_tools',LIB/'transfers_page.py');self.assertIn('id="%d"'%tp.HISTORY,tp.page(portrait))
   self.assertIn('tool_windows.open_history(profile)',(BOOT/'transfers.py').read_text())
   self.assertIn('tool_windows.open_airplay(profile)',(BOOT/'notifications.py').read_text())
@@ -282,24 +275,6 @@ class TapEveryButton(unittest.TestCase):
   waiting=[r[0] for r in seen[4] if r[1]=='waiting'];self.assertEqual(waiting,['w1','w2','w4','w3'])   # Library status agrees
   self.assertEqual([(r['action'],r['id']) for r in prep.pending_requests(self.profile)],[('down','w1'),('up','w1'),('up','w4')])
   self.assertFalse(prep.interrupts(self.profile));self.assertTrue(all(w.closed for w in kodi.windows))
- def test_phone_space_card_opens_and_clears(self):
-  art=Path(self.profile)/'Thumbnails';art.mkdir();(art/'a.jpg').write_bytes(b'x'*(2*MB))
-  seen={}
-  def wait(w):
-   for _ in range(200):
-    if w.getProperty('space.1.clear'):break
-    time.sleep(0.02)
-   seen['before']=(w.getProperty('space.1.size'),w.getProperty('space.1.clear'),w.getControl(ltp.BAR+1).percent)
-  def after(w):
-   for _ in range(200):
-    if w.getProperty('space.1.size')=='0 MB':break
-    time.sleep(0.02)
-   seen['after']=w.getProperty('space.1.size')
-  kodi=self.run_status([(library_page.WINDOW,ls.tap(library_page.SPACE_TAP)),(ltp.SPACE,wait),(ltp.SPACE,ls.tap(ltp.CLEAR+1)),(ltp.SPACE,after),
-                        (ltp.SPACE,ls.tap(ltp.BACK)),(library_page.WINDOW,ls.tap(library_page.BACK))])
-  self.assertEqual(seen['before'][:2],('2 MB','true'));self.assertIsNotNone(seen['before'][2])
-  self.assertEqual(seen['after'],'0 MB');self.assertFalse((art/'a.jpg').exists())
-  self.assertIn(('yesno','Clear 2 MB of artwork cache?'),kodi.notes);self.assertIn(('note','Cleared 2 MB of artwork cache'),kodi.notes)
  def test_history_from_transfers(self):
   now=time.time()
   th.save(self.profile,{'finished':[{'kind':'up','title':'Fall 2','start':now-600,'end':now-60,'avg':MB,'size':GB,'peak':MB}]})
