@@ -85,7 +85,10 @@ def activity(torrents, debrid_current, prep_current):
         out['up'] = {'title': _title(d.get('name', '')), 'rate': float(d.get('rate') or 0),
                      'done': float(d.get('sent') or 0), 'total': float(d.get('total') or 0)}
     c = prep_current or {}
-    if c.get('running') and c.get('title') and time.time() - float(c.get('updated') or 0) < 15:
+    # The library check also shows in the queue's 'current' ("Movies and shows", "Checking video 3 of 9"): not a
+    # conversion (build 174: History listed it as a finished one).
+    checking = str(c.get('stage') or '').startswith('Checking') or c.get('title') == 'Movies and shows'
+    if c.get('running') and c.get('title') and not checking and time.time() - float(c.get('updated') or 0) < 15:
         out['conv'] = {'title': _title(c.get('title', '')), 'rate': float(c.get('rate') or 0),
                        'done': float(c.get('read') or 0), 'total': 0.0, 'pct': float(c.get('progress') or 0)}
     return out
@@ -95,9 +98,23 @@ def _finish(data, job):
     n = max(1, job.get('n', 1))
     data.setdefault('finished', []).insert(0, {
         'kind': job['kind'], 'title': job['title'], 'start': job['start'], 'end': job['last'],
-        'peak': job.get('peak', 0.0), 'avg': job.get('sum', 0.0) / n, 'size': job.get('total') or job.get('done') or 0})
+        'peak': job.get('peak', 0.0), 'avg': job.get('sum', 0.0) / n, 'size': job.get('total') or job.get('done') or 0,
+        # How far it got: a job also "finishes" when it stops (Kodi closed, a video played), not only when it is done.
+        'done': job.get('done') or 0, 'total': job.get('total') or 0, 'pct': job.get('pct')})
     cutoff = job['last'] - KEEP_DAYS * 86400
     data['finished'] = [f for f in data['finished'] if f.get('end', 0) >= cutoff][:FINISHED]
+
+
+def outcome(f):
+    """'done' (it completed), 'stopped' (it ended part-way) or 'unknown' (a record from before builds kept it)."""
+    if f.get('kind') == 'conv':
+        if f.get('pct') is None:
+            return 'unknown'
+        return 'done' if float(f['pct']) >= 99 else 'stopped'
+    total, done = float(f.get('total') or 0), float(f.get('done') or 0)
+    if not total:
+        return 'unknown'
+    return 'done' if done >= 0.99 * total else 'stopped'
 
 
 # --- failures (History) -----------------------------------------------------------------------------------------------

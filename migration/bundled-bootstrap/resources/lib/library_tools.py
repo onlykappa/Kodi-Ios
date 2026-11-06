@@ -148,6 +148,16 @@ def history_entries(finished, failures):
             out.append({'title': f['title'], 'kind': f['kind'], 'end': f['end'], 'tone': 'bad',
                         'result': match.get('reason') or 'Stopped', 'line': 'after %s' % _took(f['end'] - f['start']), 'size': 0})
             continue
+        import transfer_history
+        state = transfer_history.outcome(f)
+        if state != 'done':
+            # Ended part-way (Kodi closed, a video played): not "Ready" (build 174: two Inception restarts said so).
+            how = ('at %d%%' % float(f['pct'])) if f.get('kind') == 'conv' and f.get('pct') is not None else (
+                'at %s of %s' % (size_text(f.get('done')), size_text(f.get('total'))) if f.get('total') else '')
+            out.append({'title': f['title'], 'kind': f['kind'], 'end': f['end'], 'tone': 'plain',
+                        'result': ('Stopped %s' % how).strip() if state == 'stopped' else 'Ended',
+                        'line': ' · '.join(x for x in (_took(f['end'] - f['start']), _speed(f.get('avg'))) if x), 'size': 0})
+            continue
         line = ' · '.join(x for x in (size_text(f['size']) if f.get('size') else '', _took(f['end'] - f['start']),
                                       _speed(f.get('avg'))) if x)
         out.append({'title': f['title'], 'kind': f['kind'], 'end': f['end'], 'tone': 'ok', 'result': RESULT.get(f['kind'], 'Done'),

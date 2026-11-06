@@ -124,10 +124,10 @@ class History(unittest.TestCase):
   self.assertEqual([f['title'] for f in d['finished']],['new']);self.assertGreaterEqual(th.FINISHED,200)
  def test_days_totals_and_a_stopped_conversion(self):
   now=time.mktime((2026,11,6,15,0,0,0,0,-1));today=lt.midnight(now)
-  finished=[{'kind':'up','title':'Fall 2','start':today+3600,'end':today+3600+37*60,'avg':7.8*MB,'size':16.9*GB},
-            {'kind':'conv','title':'Inception (2010)','start':today+7200,'end':today+7200+1800,'avg':MB,'size':0},
-            {'kind':'down','title':'Scarface','start':today-80000,'end':today-79000,'avg':20*MB,'size':4*GB},
-            {'kind':'down','title':'Ancient','start':today-20*86400,'end':today-20*86400+60,'size':GB}]
+  finished=[{'kind':'up','title':'Fall 2','start':today+3600,'end':today+3600+37*60,'avg':7.8*MB,'size':16.9*GB,'done':16.9*GB,'total':16.9*GB},
+            {'kind':'conv','title':'Inception (2010)','start':today+7200,'end':today+7200+1800,'avg':MB,'size':0,'pct':40},
+            {'kind':'down','title':'Scarface','start':today-80000,'end':today-79000,'avg':20*MB,'size':4*GB,'done':4*GB,'total':4*GB},
+            {'kind':'down','title':'Ancient','start':today-20*86400,'end':today-20*86400+60,'size':GB,'done':GB,'total':GB}]
   failures=[{'kind':'conv','title':'Inception (2010)','reason':'a damaged subtitle','time':today+7200+1830},
             {'kind':'up','title':'The Batman','reason':'AllDebrid could not fetch it','time':today-3*86400}]
   h=lt.history_view(finished,failures,now,'today')
@@ -142,6 +142,22 @@ class History(unittest.TestCase):
    if k!='day':self.assertIn('Window().Property(%s)'%k,xml,k)
   self.assertIn("Window().Property(day)",xml)
   self.assertEqual(lt.history_properties(lt.history_view([],[],now,'yesterday'),'yesterday')['empty'],'Nothing finished yesterday.')
+ def test_a_job_that_stopped_part_way_is_not_ready(self):
+  """Build 174: Kodi restarted during Inception's conversion; History said 'Ready for AirPlay' twice, and listed the
+  library check ('Movies and shows') as a conversion."""
+  now=time.mktime((2026,11,6,13,0,0,0,0,-1))
+  fin=[{'kind':'conv','title':'Inception (2010)','start':now-900,'end':now-500,'avg':MB,'size':0,'pct':1.6},
+       {'kind':'conv','title':'Lanterns','start':now-400,'end':now-100,'avg':MB,'size':0,'pct':100},
+       {'kind':'up','title':'Fall 2','start':now-400,'end':now-50,'avg':MB,'size':2*GB,'done':GB,'total':2*GB},
+       {'kind':'conv','title':'Old record','start':now-300,'end':now-60,'avg':MB,'size':0}]
+  rows={r['title']:(r['tone'],r['result']) for r in lt.history_view(fin,[],now,'today')['rows']}
+  self.assertEqual(rows['Inception (2010)'],('plain','Stopped at 1%'));self.assertEqual(rows['Lanterns'],('ok','Ready for AirPlay'))
+  self.assertEqual(rows['Fall 2'],('plain','Stopped at 1.0 GB of 2.0 GB'));self.assertEqual(rows['Old record'],('plain','Ended'))
+  self.assertEqual(lt.history_view(fin,[],now,'today')['count'],1)
+  self.assertNotIn('conv',th.activity([],{},{'running':True,'title':'Movies and shows','stage':'Checking video 2 of 9','updated':time.time()}))
+  d={};th.track(d,1000,{'conv':{'title':'Inception','rate':MB,'pct':1.6}});th.track(d,1100,{})
+  self.assertEqual((d['finished'][0]['pct'],th.outcome(d['finished'][0])),(1.6,'stopped'))
+  self.assertIn("_is(key + 'tone', 'plain')",(LIB/'library_tools_page.py').read_text())
  def test_failures_are_noted_where_jobs_fail(self):
   self.assertIn("transfer_history.failed(q.profile,'conv'",(LIB/'prepare_cloud.py').read_text())
   self.assertIn("transfer_history.failed(self.profile,'conv'",(LIB/'prepare_downloads.py').read_text())
@@ -277,7 +293,7 @@ class TapEveryButton(unittest.TestCase):
   self.assertFalse(prep.interrupts(self.profile));self.assertTrue(all(w.closed for w in kodi.windows))
  def test_history_from_transfers(self):
   now=time.time()
-  th.save(self.profile,{'finished':[{'kind':'up','title':'Fall 2','start':now-600,'end':now-60,'avg':MB,'size':GB,'peak':MB}]})
+  th.save(self.profile,{'finished':[{'kind':'up','title':'Fall 2','start':now-600,'end':now-60,'avg':MB,'size':GB,'peak':MB,'done':GB,'total':GB}]})
   th.failed(self.profile,'conv','Inception.2010.mkv','a damaged subtitle',now-30)
   seen=[]
   import transfers_page as tp

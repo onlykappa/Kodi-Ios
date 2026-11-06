@@ -40,7 +40,10 @@ def page_state(history,now,wanted,queued):
  for n in range(1,tp.DONE+1):
   f=finished[n-1] if n<=len(finished) else None
   props['done.%d.title'%n]=f['title'] if f else ''
-  props['done.%d.line'%n]=' · '.join(x for x in (th.size(f['size']) if f.get('size') else '',th.took(f['end']-f['start']),
+  # A job that ended part-way says so (build 174: a restarted conversion looked finished).
+  stopped=f and th.outcome(f)=='stopped'
+  props['done.%d.line'%n]=' · '.join(x for x in (('stopped at %d%%'%float(f['pct']) if f.get('kind')=='conv' else 'stopped') if stopped else
+                                                 (th.size(f['size']) if f.get('size') else ''),th.took(f['end']-f['start']),
                                                  'peak '+th.mb(f['peak'])) if x) if f else ''
  for n in range(1,tp.NEXT+1):
   r=queued[n-1] if n<=len(queued) else ('','')

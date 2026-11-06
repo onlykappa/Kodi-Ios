@@ -133,6 +133,7 @@ def history_page(p):
                 p.label(S + 12, 18, w - 24, 58, _P(key + 'title'), 'p_pill', p.WHITE, 'left', NOLABEL) +
                 p.label(S + 12, 78, w - 24, 50, _P(key + 'result'), 'p_pill_s', p.GREEN, 'left', NOLABEL + '<visible>%s</visible>' % _is(key + 'tone', 'ok')) +
                 p.label(S + 12, 78, w - 24, 50, _P(key + 'result'), 'p_pill_s', RED, 'left', NOLABEL + '<visible>%s</visible>' % _is(key + 'tone', 'bad')) +
+                p.label(S + 12, 78, w - 24, 50, _P(key + 'result'), 'p_pill_s', p.GREY, 'left', NOLABEL + '<visible>%s</visible>' % _is(key + 'tone', 'plain')) +
                 p.label(S + 12, 78, w - 24, 50, _P(key + 'line'), 'p_cap', p.GREY, 'right', NOLABEL) +
                 p.image(S + 12, ROW - 2, w - 24, 2, M + 'white.png', p.SEP) + '</control>')
     listing = ('<control type="grouplist" id="%d"><left>0</left><top>690</top><width>%d</width><bottom>0</bottom>'

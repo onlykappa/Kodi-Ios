@@ -27,6 +27,16 @@
 - Each Drive copy chunk logs its source-read and Drive-send times and MB/s (`driveupload.upload_stream`), so the next log shows which side is slow.
 - While an AllDebrid file is being copied into Drive, preparation waits its turn; it resumes afterwards (`debrid_drive.copying`, service loop).
 
+## Build-174 log (owner, 12:47–12:57): conversion not moving
+- Inception (AV1 10-bit HDR 3840x1600, copy=False) started again from 0 at 12:47 (Kodi start; storage-free work cannot
+  resume). Read reached 63 MB by 12:51 and stayed there to 12:57; progress 0.00; no "prepare:" line at all, so not one
+  30-second video unit finished in 10 minutes (r19 managed ~5 s of film per minute). The worker heartbeat stayed fresh.
+- r22 source (not built): `kr_video.c` notes "prepare: unit started via <route>" at a unit's first frame and
+  "prepare: N frames in S s (F fps) via <route>" every 20 s, preparation only. Shows whether AV1 decodes in hardware
+  (av1_videotoolbox, A17 Pro and later) or on the CPU (libdav1d), and whether frames move at all.
+- History said "Ready for AirPlay" for two stopped Inception runs and listed the library check as a conversion: fixed
+  (finished records keep pct/done/total; `transfer_history.outcome`; the check is not a conversion).
+
 ## Build 174 (build-173 log 11:05–11:20)
 - r20 did nothing on the phone: the storage-free path (`kodi_airplay_prepare_to` → `generated_open/read`) kept
   6-second units and had no timing. r21: PREP_UNIT there too, and each unit logs time and route. Host test checks

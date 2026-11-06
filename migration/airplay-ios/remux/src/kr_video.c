@@ -8,6 +8,8 @@
 #include "kr_audio.h"  // kr_first_moof
 #include "kr_color.h"
 #include "kr_subs.h"   // r10: burned-in subtitles
+#include "kr_remux.h"  // r22: kr_remux_note
+#include <time.h>
 #include <math.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -330,6 +332,7 @@ typedef struct {
     int gpu;                  // r9: the encoder takes VideoToolbox frames scaled on the GPU
     int hdr_pass;             // r18: HDR kept at its size: the decoder's 10-bit hardware frames go straight to the encoder
     AVBufferRef *pass_frames; // their hardware frames context (borrowed from the first frame)
+    double began, noted;      // r22: preparation only, when the first frame went in and the last progress note
 } job;
 
 // r18 (owner, build 168: Inception, AV1 10-bit HDR 4K, stayed at 0% on an iPhone 16 Pro): the GPU path skipped HDR,
@@ -624,6 +627,21 @@ send:
         seterr(err, errlen, "encode", r); return -1;
     }
     j->sent++;
+    // r22 (owner, build 174: Inception's first 30-second unit had not finished after 10 minutes, and the log said
+    // nothing): during preparation, the route at the first frame and the frame rate every 20 s, so a slow or stuck
+    // unit shows which path it is on. Live AirPlay segments stay quiet.
+    if (j->v->offline) {
+        struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
+        double now = (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+        if (j->sent == 1) {
+            j->began = j->noted = now;
+            kr_remux_note("prepare: unit started via %s", j->v->route);
+        } else if (now - j->noted >= 20) {
+            j->noted = now;
+            kr_remux_note("prepare: %d frames in %.0f s (%.2f fps) via %s", j->sent, now - j->began,
+                          now > j->began ? j->sent / (now - j->began) : 0, j->v->route);
+        }
+    }
     // The encoder keeps its own reference only if it needs one; a fresh buffer next time keeps this frame intact.
     av_frame_unref(j->conv); av_frame_free(&j->conv);
     return take_packets(j, 0) < 0 ? (seterr(err, errlen, "mux", 0), -1) : 0;

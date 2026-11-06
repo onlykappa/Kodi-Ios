@@ -1388,6 +1388,8 @@ static void test_preparation_stream(const char *work,const char *http_base) {
     }
     // r21: the storage-free path logs its units (the phone uses it; r20 only logged the spool path).
     CHECK(strstr(notes,"prepare: audio 1/") && strstr(notes," s for 30 s of film ("),"storage-free preparation logs 30-second units: %.300s",notes);
+    // r22: a re-encoded unit names its route at its first frame, never before the route is known.
+    CHECK(!strstr(notes,"unit started via not started"),"the first-frame note names the route: %.300s",notes);
     char input[1024],base[1024],err[512]="";int calls=0;
     snprintf(input,sizeof input,"%s/hevc_ac3_ass.mkv",http_base);snprintf(base,sizeof base,"%s/stream-cancel",work);
     test_prepare_sink sink={0};sink.base=base;sink.cancel=2;
