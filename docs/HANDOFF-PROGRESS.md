@@ -14,7 +14,7 @@
 | 169 | fix/elementum-cloud-164 | This session: fixes below plus KodiAirPlay r18. Commit 36d528f; native CI run 42238135886 → pin r18 → publish → import-review |
 | 170 | fix/elementum-cloud-164 | r19, speed text. Owner tested |
 | 172 | fix/elementum-cloud-164 | cancelled (superseded by 173) |
-| 173 | fix/elementum-cloud-164 | r20 + simple Transfers page + sheet bar + checks no longer restart conversion |
+| 173 | fix/elementum-cloud-164 | r20 + simple Transfers + sheet bar + checks no longer restart conversion. Built and verified (run 42266852853; r20 sha a5e323fe…, interrupts(), track(), sheet bar 9210) |
 
 ## Build-168 log findings (owner, 04:31–04:42 local)
 - Inception (2010): AV1 10-bit HDR 3840×1600, copy=False, so it needs a full re-encode. It stayed at "0%" with about 79 MB read in 3 min. Kodi restarted at 04:39 and the conversion restarted.
