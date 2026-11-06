@@ -29,3 +29,7 @@ Built from round 2 (`resources/lib/pages.py`): Play on TV, Umbrella getting read
 Mockups only, for owner review. The loader is Kodi's background progress box (DialogExtendedProgressBar / DialogProgressBG), shared by Kodi (update checks, add-on installs, library scans, file operations, Live TV guide), Elementum (downloads, magnet resolving), Elementum Burst (searches), Umbrella (background scraping, resolving, Trakt sync, debrid cloud), TMDb Helper (library) and Skin Variables. Kodi rotates its jobs every 2 s; Fuse draws it as a small landscape strip. The mockups replace it with one activity pill (app tile, plain wording, real progress), an Activity sheet for several jobs, a Running now group in Notifications and per-source switches, placed the same way on every page.
 
 Built from round 3 (`activity.py`, `activity_skin.py`, `activity_page.py`): the pill, the Activity sheet and the per-source switches. Not built: the Running now group on the Notifications page (the Activity sheet lists the same jobs).
+
+## Round 4: Customisation (`customisation-mockups.html`)
+
+Mockups only, for owner review: every page under Settings › Customisation that still opens a Fuse window: Hubs (Custom_1115) as Tabs & Rows, the widget editor (Custom_1116/1124) as Rows / Edit Rows / One Row / Row Style, Custom_1118's Indicators, Video info and Video OSD lists as Poster Badges, Info Page and Video Controls, Skin Variables' view types as View Types with a preview picker, and Skin Settings' categories as native pages. Every Fuse option is kept and writes the same setting.
