@@ -8,6 +8,10 @@
 - Settings uses the in-place iPhone search field, with matching Kodi and app settings beneath it. Search context preserves movie searches. Notification and Library sheets use a shared clean X. Transfer cards use cached posters with separate bounded artwork lookups; filter labels fit their buttons.
 - Build/session diagnostics, detailed exceptions and a redacted Files export are described in [diagnostic-logs.md](diagnostic-logs.md).
 
+## Released artifact
+
+[Build 168](https://github.com/onlykappa/Kodi-Ios/releases/tag/build-168) passed the final 49-suite workflow (813 Python tests). The downloaded IPA was checked against all 63 runtime source files and their Python 3.11 bytecode, both pinned native frameworks, build metadata and Elementum routing hooks. Its SHA256 matches GitHub’s published asset digest. [Machine-readable verification](pr13-build168-verification.json).
+
 ## Automated verification
 
 The full host native suite passed **1,890 checks**. It exercises media from files and a real HTTP Range server, output indexes, long seeks, overlapping segment requests, stalled input, receiver routing, video/audio conversion, subtitle paths and bounded streaming output. The targeted preparation/HDR run passed **517 checks**, including AV1 PQ/HLG, H.264 High10 HDR, HEVC 12-bit and 4:2:2 HDR. The HDR reference encoder is test-only libx265; the iPhone build uses VideoToolbox and remains LGPL.
