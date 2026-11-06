@@ -143,7 +143,7 @@ class Skin(unittest.TestCase):
   for k in ('title','status','tone','quality','poster','fact3.value','action2.label'):self.assertIn('Window().Property(%s)'%k,self.sheet,k)
   for k in ('kind','pos','state','ring','pct','warn'):self.assertIn('ListItem.Property(%s)'%k,self.page,k)
  def test_status_sheet_closes_with_a_cross(self):
-  self.assertIn('xmark.png',self.sheet);self.assertNotIn('>Done<',self.sheet)
+  self.assertIn('close_cross.png',self.sheet);self.assertNotIn('>Done<',self.sheet)
  def test_pill_stays_off_this_page(self):
   skin=(LIB/'activity_skin.py').read_text()
   self.assertIn('IOSLibraryStatus.xml',skin);self.assertIn('IOSLibraryItem.xml',skin)

@@ -6,7 +6,7 @@
 #include <libavutil/opt.h>
 #include <libswscale/swscale.h>
 
-struct kr_color { SwsContext *unpack, *map, *pack; kr_dovi *dovi; };
+struct kr_color { SwsContext *unpack, *map, *pack, *preserve; kr_dovi *dovi; };
 
 int kr_color_is_hdr(const AVFrame *f) {
     return f && (f->color_trc == AVCOL_TRC_SMPTE2084 || f->color_trc == AVCOL_TRC_ARIB_STD_B67 ||
@@ -16,7 +16,7 @@ int kr_color_is_hdr(const AVFrame *f) {
 void kr_color_free(kr_color *ctx) {
     if (!ctx) return;
     kr_dovi_free(ctx->dovi);
-    sws_free_context(&ctx->unpack); sws_free_context(&ctx->map); sws_free_context(&ctx->pack); free(ctx);
+    sws_free_context(&ctx->unpack); sws_free_context(&ctx->map); sws_free_context(&ctx->pack); sws_free_context(&ctx->preserve); free(ctx);
 }
 
 int kr_color_convert(kr_color **ctx, AVFrame *dst, const AVFrame *src) {
@@ -80,4 +80,21 @@ int kr_color_convert(kr_color **ctx, AVFrame *dst, const AVFrame *src) {
 done:
     av_frame_free(&in); av_frame_free(&rgb);
     return r;
+}
+
+int kr_color_preserve(kr_color **ctx,AVFrame *dst,const AVFrame *src) {
+    if(!ctx || !src || !dst)return AVERROR(EINVAL);
+    if(!*ctx)*ctx=calloc(1,sizeof **ctx);if(!*ctx)return AVERROR(ENOMEM);
+    kr_color *c=*ctx;
+    c->preserve=sws_getCachedContext(c->preserve,src->width,src->height,src->format,
+                    dst->width,dst->height,dst->format,SWS_BICUBIC,NULL,NULL,NULL);
+    if(!c->preserve)return AVERROR(ENOMEM);
+    int cs=src->colorspace==AVCOL_SPC_BT2020_NCL || src->colorspace==AVCOL_SPC_BT2020_CL?SWS_CS_BT2020:
+           src->colorspace==AVCOL_SPC_BT470BG || src->colorspace==AVCOL_SPC_SMPTE170M?SWS_CS_ITU601:SWS_CS_ITU709;
+    const int *coeff=sws_getCoefficients(cs);int full=src->color_range==AVCOL_RANGE_JPEG;
+    if(sws_setColorspaceDetails(c->preserve,coeff,full,coeff,full,0,1<<16,1<<16)<0)return AVERROR(EINVAL);
+    int r=av_frame_get_buffer(dst,32);if(r<0)return r;
+    if((r=av_frame_copy_props(dst,src))<0)return r;
+    r=sws_scale(c->preserve,(const uint8_t * const*)src->data,src->linesize,0,src->height,dst->data,dst->linesize);
+    return r==dst->height?0:AVERROR(EINVAL);
 }

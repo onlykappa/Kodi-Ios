@@ -67,6 +67,7 @@ ROOT=[
  [R(9141,'Add-ons','ActivateWindow(addonbrowser)','puzzle-piece.png',ORANGE,badge=UPDATES),
   R(9142,'File Manager','ActivateWindow(filemanager)','folder.png',TEAL),
   R(9143,'Event Log','ActivateWindow(eventlog)','list.png',SILVER),
+  R(9145,'Export diagnostic log','RunScript(service.kodi.ios.bootstrap,export_logs)','list.png',BLUE),
   R(9144,'Activity','Addon.OpenSettings(service.kodi.ios.bootstrap)','bars-progress.png',BLUE)],
  [R(9151,'Information','ActivateWindow(systeminfo)','circle-info.png',SILVER)],
 ]
@@ -181,7 +182,7 @@ def updates_banner(p,moves):
 
 def search_field(p,moves):
  """iOS Settings search field at the top of the list: opens Kodi's keyboard and lists the matching settings."""
- w=p.WIDTH-2*p.SIDE;h=108
+ w=p.WIDTH-2*p.SIDE;h=124
  return ('<control type="group"><width>%d</width><height>%d</height><control type="group"><left>%d</left>'%(p.WIDTH,h,p.SIDE)+
   '<control type="button" id="9100"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>'
   '<texturefocus border="54" colordiffuse="FF3A3A3C">%spill_108.png</texturefocus><texturenofocus border="54" colordiffuse="%s">%spill_108.png</texturenofocus>'
@@ -221,12 +222,17 @@ def library_list(p):
 
 # Settings home: the header sits lower so the back circle and title clear the status bar like Search's band
 # (SEARCH_BAND, 60 pt) and the large titles of Library and Search (top 40-46); the list starts under it.
-SETTINGS_Y=76;SETTINGS_TOP=SETTINGS_Y+164
+SETTINGS_Y=76;SETTINGS_TOP=340
 def header(p,back_actions,titles,y=36,down='<ondown>9300</ondown>'):
  """Glass back button and centred title over a black bar (the page scrolls under it)."""
  bar=p.image(0,0,p.WIDTH,y+154,p.MEDIA+'white.png',p.BG)+p.image(0,y+154,p.WIDTH,60,p.MEDIA+'fade_down.png')
  back=p.nav_button(9001,p.SIDE,y,'chevron-left.png',back_actions,down)
  names=''.join(p.label(260,y,p.WIDTH-520,108,t,'p_h3',p.WHITE,'center','<visible>%s</visible>'%c if c else '') for t,c in titles)
+ root=next((cond for text,cond in titles if text=='Settings'),None)
+ if root is not None:
+  regular=' + '.join('![%s]'%root for _ in [0])
+  large=p.image(0,0,p.WIDTH,320,p.MEDIA+'white.png',p.BG)+p.label(p.SIDE,200,p.WIDTH-2*p.SIDE,140,'Settings','p_title')
+  return '<control type="group"><visible>%s</visible>%s</control><control type="group"><visible>%s</visible>%s</control>'%(root,large,regular,bar+names)+back
  return bar+names+back
 
 def settings_window(p,original):
@@ -246,6 +252,22 @@ def settings_window(p,original):
  extra+='<onload condition="%s">SetFocus(9401)</onload>'%ON_CUSTOM
  extra+='<onload condition="%s">SetFocus(9451)</onload>'%ON_LIBRARY
  return p.window(original,body,'9101',extra)
+
+def search_window(p):
+ # Empty query: the existing Settings page stays visible under the native field.
+ # Typing: this full-page results surface replaces only the list, with no keyboard dialog.
+ top=SETTINGS_TOP+160
+ visible='!String.IsEmpty(Window(Home).Property(Settings.Search.Query))'
+ row=lambda focus:('<%s height="160">'%('focusedlayout' if focus else 'itemlayout')+
+   (p.image(p.SIDE,0,p.WIDTH-2*p.SIDE,160,p.MEDIA+'white.png','18FFFFFF') if focus else '')+
+   p.label(p.SIDE+34,14,p.WIDTH-2*p.SIDE-68,76,'$INFO[ListItem.Label]','p_body')+
+   p.label(p.SIDE+34,90,p.WIDTH-2*p.SIDE-68,50,'$INFO[ListItem.Label2]','p_foot',p.GREY)+
+   '</%s>'%('focusedlayout' if focus else 'itemlayout'))
+ body=p.backdrop()+p.label(p.SIDE,200,p.WIDTH-2*p.SIDE,140,'Settings','p_title')
+ body+=p.nav_button(9001,p.SIDE,76,'chevron-left.png',[], '<ondown>9160</ondown>')
+ body+=p.label(p.SIDE,top,p.WIDTH-2*p.SIDE,160,'No matching settings. Change your search above.','p_body',p.GREY,extra='<wrapmultiline>true</wrapmultiline><visible>!String.IsEmpty(Window().Property(empty))</visible>')
+ body+='<control type="list" id="9160"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><scrolltime>160</scrolltime>%s%s</control>'%(top,p.WIDTH,row(False),row(True))
+ return '<?xml version="1.0" encoding="UTF-8"?><window type="dialog"><defaultcontrol>9160</defaultcontrol><controls><control type="group"><visible>%s</visible>%s</control></controls></window>'%(visible,body)
 
 def account_row(p,n,y,first,moves,w):
  P=lambda k:'$INFO[Window().Property(acct.%d.%s)]'%(n,k)
@@ -394,6 +416,7 @@ def files(p,read):
  """{relative path: bytes} for the portrait folder and its textures."""
  out={p.FOLDER+'/Settings.xml':settings_window(p,read('Settings.xml')).encode(),
       p.FOLDER+'/IOSAccounts.xml':accounts_page(p).encode(),
+      p.FOLDER+'/IOSSettingsSearch.xml':search_window(p).encode(),
       p.FOLDER+'/SettingsCategory.xml':category_window(p,read('SettingsCategory.xml')).encode(),
       p.FOLDER+'/DialogAddonSettings.xml':addon_settings_window(p,read('DialogAddonSettings.xml')).encode()}
  for name,data in textures(p).items():out['extras/portrait/'+name]=data

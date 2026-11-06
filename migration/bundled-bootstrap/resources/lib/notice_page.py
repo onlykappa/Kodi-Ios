@@ -21,7 +21,7 @@ def _log_item(p, focused):
             (p.image(S, 0, w, LINE, p.MEDIA + 'white.png', '14FFFFFF') if focused else '') +
             ''.join(p.label(S + 24, 18, w - 48, 44, '$INFO[ListItem.Label2]', 'p_cap', tint, 'left',
                             '<scroll>false</scroll><visible>%s</visible>' % level(name)) for name, tint in LEVELS) +
-            p.label(S + 24, 62, w - 48, 120, '$INFO[ListItem.Label]', 'p_cap', p.WHITE, 'left', '<wrapmultiline>true</wrapmultiline>') +
+            '<control type="textbox"><left>%d</left><top>62</top><width>%d</width><height>120</height><font>p_cap</font><textcolor>%s</textcolor><label>$INFO[ListItem.Label]</label><autoscroll>false</autoscroll></control>' % (S + 24,w - 48,p.WHITE) +
             p.image(S + 24, LINE - 2, w - 48, 2, p.MEDIA + 'white.png', p.SEP) +
             '</%s>' % tag)
 
@@ -37,7 +37,7 @@ def sheet(p):
     close = ('<control type="group"><left>%d</left><top>%d</top>' % (W - S - HIT + 13, top + 40) +
              p.image(13, 13, 92, 92, M + 'dot.png', '26FFFFFF') +
              p.image(13, 13, 92, 92, M + 'dot.png', '33FFFFFF', '<visible>Control.HasFocus(%d)</visible>' % CLOSE) +
-             p.icon(36, 36, 46, 'xmark.png', p.WHITE) +
+             p.image(29, 29, 60, 60, M + 'close_cross.png', p.WHITE) +
              '<control type="button" id="%d"><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus />'
              '<ondown>%d</ondown></control></control>' % (CLOSE, HIT, HIT, LOG))
     head = (p.surface(S, top + 64, 110, 110, 'round_s.png', P('tint'), 24) +
@@ -51,7 +51,7 @@ def sheet(p):
                 p.label(30, 76, w - 60, 140, P('summary'), 'p_pill_s', p.WHITE, 'left', '<wrapmultiline>true</wrapmultiline>') +
                 '</control>')
     listing = ('<control type="group"><top>%d</top>' % (top + 640) +
-               p.label(S + 12, 0, w - 24, 56, 'From kodi.log', 'p_foot_b', p.GREY) +
+               p.label(S + 12, 0, w - 24, 56, 'From kodi.log · tap a line to read', 'p_foot_b', p.GREY) +
                p.label(S + 12, 70, w - 24, 120, P('nolog'), 'p_pill_s', p.GREY, 'left',
                        '<wrapmultiline>true</wrapmultiline><visible>%s</visible>' % has('nolog')) +
                '<control type="list" id="%d"><left>0</left><top>64</top><width>%d</width><height>%d</height>'

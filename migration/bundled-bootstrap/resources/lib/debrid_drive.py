@@ -1,15 +1,15 @@
 """Downloads that go straight to Google Drive through AllDebrid (owner, build 160: "a movie im downloading goes onto my
 phone still … if i do a large movie it wont ever download"; chose "AllDebrid straight to Drive").
 
-Download › a version, as before; download.py then takes the torrent back from Elementum (with what it had fetched) and
-queues it here. The bootstrap service gives AllDebrid the torrent, waits while AllDebrid fetches it on its own servers,
-then copies each video into Google Drive › Kodi Downloads › Movies (or › TV Shows › <show>), CHUNK at a time:
-nothing is written to the phone, so any size works. A restart carries on where Drive got to. Preparation for Kodi
-and AirPlay then reads it from Drive as it does every other download.
+Elementum's navigation and dedicated Download action queue the selected URI before its local engine starts.
+AllDebrid fetches the torrent on its servers, then the service copies each video to Drive in bounded RAM chunks.
+Nothing is written to phone media storage. Both download modes use this path; watch requests wait for a prepared
+Drive copy. A restart resumes acknowledged Drive ranges. Legacy local torrents still use adopt() below.
 
 State: addon_data/service.kodi.ios.bootstrap/debrid-drive.json {'jobs': [...], 'current': {...}}.
 """
 import json
+import fcntl
 import os
 import time
 import urllib.request
@@ -34,12 +34,29 @@ def load(profile):
         return {'jobs': []}
 
 
-def save(profile, state):
+def save(profile, state, enqueue=False):
+    # UI scripts can enqueue while the service is in a long HTTP transfer. Merge new
+    # jobs and watch requests under a short cross-process lock; never lose that enqueue.
     path = location(profile)
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix('.tmp')
-    tmp.write_text(json.dumps(state, indent=1), encoding='utf-8')
-    os.replace(tmp, path)
+    with open(str(path)+'.lock','a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        current=load(profile)
+        key=lambda j:(j['hash'],str(j.get('episode','')),j.get('added',0))
+        pending={key(j):j for j in current.get('jobs',[])}
+        for index,job in enumerate(state.get('jobs',[])):
+            old=pending.pop(key(job),{})
+            if enqueue and old:
+                request=job.get('watch_requested',0)
+                state['jobs'][index]=job=old
+                job['watch_requested']=max(request,job.get('watch_requested',0))
+            for field in ('watch_requested','watch_handled'):
+                if old.get(field,0)>job.get(field,0):job[field]=old[field]
+        state.setdefault('jobs',[]).extend(pending.values())
+        tmp = path.with_suffix('.tmp')
+        tmp.write_text(json.dumps(state, indent=1), encoding='utf-8')
+        os.replace(tmp, path)
+
 
 
 def info_hash(torrent):
@@ -51,7 +68,7 @@ def info_hash(torrent):
     return ''
 
 
-def queue(profile, torrent, kind, title='', season='', episode='', now=None, episodes=()):
+def queue(profile, torrent, kind, title='', season='', episode='', now=None, episodes=(), watch=False):
     """Add a Download to the queue (once per torrent and episode). Returns the job."""
     state = load(profile)
     h = info_hash(torrent)
@@ -59,13 +76,14 @@ def queue(profile, torrent, kind, title='', season='', episode='', now=None, epi
         raise ValueError('torrent without an info-hash')
     for job in state['jobs']:
         if job['hash'] == h and job.get('episode', '') == str(episode or '') and job['status'] not in ('done', 'failed'):
+            if watch:job['watch_requested']=time.time();save(profile,state,enqueue=True)
             return job
     job = {'hash': h, 'name': str(torrent.get('name') or title or h), 'title': title, 'kind': kind,
            'season': str(season or ''), 'episode': str(episode or ''), 'episodes': sorted(int(n) for n in episodes or ()),
-           'status': 'new', 'files': [],
+           'status': 'new', 'files': [], 'watch_requested':(time.time() if watch else 0),
            'added': time.time() if now is None else now}
     state['jobs'].append(job)
-    save(profile, state)
+    save(profile, state, enqueue=True)
     return job
 
 
@@ -234,3 +252,24 @@ def uploads(profile):
     if not current or not current.get('total'):
         return []
     return [current]
+
+
+def next_watch(profile,is_ready,playing=False,now=None):
+    """Only the oldest outstanding watch request may play, and only after preparation.
+    Mark before playback so a restart does not unexpectedly replay an already-opened movie.
+    """
+    if playing:return None
+    state=load(profile)
+    jobs=sorted((j for j in state.get('jobs',[]) if j.get('watch_requested',0)>j.get('watch_handled',0)),
+                key=lambda j:j['watch_requested'])
+    for job in jobs:
+        if job['status']=='failed':
+            job['watch_handled']=job['watch_requested'];save(profile,state);continue
+        if job['status']!='done':return None
+        files=[f for f in job.get('files',[]) if f.get('done') and f.get('drive_id')]
+        if not files:return None
+        first=files[0]
+        if not is_ready(first['drive_id']):return None
+        job['watch_handled']=job['watch_requested'];save(profile,state)
+        return first['drive_id']
+    return None

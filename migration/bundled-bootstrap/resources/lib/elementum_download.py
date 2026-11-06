@@ -1,8 +1,8 @@
 """Download with Elementum (long press › Download, and Download on a show's seasons page).
 
-Elementum's own download action searches the sources and fetches in the background without playing. For a
-season it picks a season pack but fetches only one file of it, so the pack is then switched to "download all".
-Kept downloads go to Google Drive through the bootstrap service (driveupload), as before."""
+Elementum searches the sources; selected /download and /play redirects are intercepted by elementum_cloud
+before its local downloader starts. These helpers retain the existing movie/season/episode picker entry points.
+"""
 import json,time,urllib.parse,urllib.request
 ENGINE='http://127.0.0.1:65220'
 PLUGIN='plugin://plugin.video.elementum'
@@ -28,16 +28,22 @@ def plugin_url(kind,tmdb,season=None,episode=None):
 
 PLUGIN_PREFIX='plugin://plugin.video.elementum'
 
-def follow(url,opener=None,hops=6,timeout=600):
+def follow(url,opener=None,hops=6,timeout=600,route=None):
  """Run an Elementum plugin link over its HTTP API, following its redirects. Owner (build-133): a season download
  picked a version, then Elementum answered with a redirect to plugin://.../download (and that to /play?background)
  which Kodi dropped when the link was run with RunPlugin, so no torrent was added. Returns the last URL reached."""
  import urllib.error
  class Stop(urllib.request.HTTPRedirectHandler):
   def redirect_request(self,*a,**k):return None
+ if route is None:
+  if opener is None:
+   import elementum_cloud
+   route=elementum_cloud.route
+  else:route=lambda url:False
  opener=opener or urllib.request.build_opener(Stop)
  url=url.replace(PLUGIN_PREFIX,ENGINE,1)
  for _ in range(hops):
+  if route(url):return url
   try:
    response=opener.open(url,timeout=timeout);response.read();return url
   except urllib.error.HTTPError as error:

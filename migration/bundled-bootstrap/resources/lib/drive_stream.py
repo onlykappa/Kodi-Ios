@@ -10,6 +10,7 @@ import http.server
 import secrets
 import socketserver
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -30,6 +31,9 @@ class DriveStream(object):
         self.open_url = open_url or (lambda request, timeout: urllib.request.urlopen(request, timeout=timeout, context=context))
         self.secret = secrets.token_urlsafe(18)
         self.allowed = set()
+        self.bytes_read=0
+        self.last_read=0
+        self.last_problem=''
         stream = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -60,11 +64,22 @@ class DriveStream(object):
                 headers['Range'] = wanted or 'bytes=0-'
                 request = urllib.request.Request(API + '/' + urllib.parse.quote(item, safe='') + '?alt=media', headers=headers)
                 try:
-                    upstream = stream.open_url(request, 60)
+                    for attempt in range(3):
+                        try:
+                            upstream = stream.open_url(request, 20)
+                            stream.last_problem='';break
+                        except urllib.error.HTTPError as error:
+                            if error.code not in (429,500,502,503,504) or attempt==2:raise
+                        except (urllib.error.URLError,TimeoutError,ConnectionError) as error:
+                            if 'CERTIFICATE_VERIFY_FAILED' in str(error) or attempt==2:raise
+                        time.sleep(.25*(attempt+1))
                 except urllib.error.HTTPError as error:
+                    stream.last_problem='Drive media request failed: HTTP %d'%error.code
                     self.send_error(error.code if error.code in (404, 416) else 502)
                     return
-                except Exception:
+                except Exception as error:
+                    import preparation_runtime
+                    stream.last_problem=preparation_runtime.problem(error)
                     self.send_error(502)
                     return
                 try:
@@ -84,9 +99,15 @@ class DriveStream(object):
                     if not body:
                         return
                     while True:
-                        data = upstream.read(CHUNK)
+                        try:data = upstream.read(CHUNK)
+                        except (OSError,urllib.error.URLError) as error:
+                            import preparation_runtime
+                            stream.last_problem=preparation_runtime.problem(error)
+                            self.close_connection=True;break
                         if not data:
                             break
+                        stream.bytes_read+=len(data)
+                        stream.last_read=time.time()
                         self.wfile.write(data)    # the converter closing to seek ends this read: that is fine
                 except (BrokenPipeError, ConnectionResetError, OSError):
                     self.close_connection = True
@@ -99,6 +120,9 @@ class DriveStream(object):
         self.server = _Server(('127.0.0.1', 0), Handler)
         self.port = self.server.server_address[1]
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def stats(self):
+        return {'read_bytes':self.bytes_read,'last_read':self.last_read,'read_error':self.last_problem}
 
     def url(self, item_id):
         """The loopback link KodiAirPlay reads for one Drive file."""

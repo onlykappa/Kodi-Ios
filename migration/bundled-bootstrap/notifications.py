@@ -2,7 +2,7 @@
 earlier messages. The layout is portrait/IOSNotifications.xml, written by portrait.py; this fills it."""
 import os,sys,threading
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
-import notice_page,notices,prepare_downloads
+import notice_page,notices,prepare_downloads,transfer_artwork,drivelibrary
 
 ICON={'download':('download.png','330A84FF'),'drive':('circle-check.png','3330D158'),'problem':('triangle-exclamation.png','33FF453A'),
       'update':('circle-down.png','330A84FF'),'info':('circle-info.png','33FF9F0A'),'general':('bell.png','338E8E93')}
@@ -50,7 +50,7 @@ def detail_properties(item,records,now=None):
  worst=next((r for level in ('error','fatal','warning') for r in reversed(records) if r['level']==level),None)
  props={'title':item.get('title',''),'text':item.get('text',''),'icon':glyph,'tint':tint,
         'ago':' · '.join(x for x in (KIND_WORDS.get(item.get('kind'),'Kodi iOS'),notices.ago(item['time'],now) if item.get('time') else '') if x),
-        'summary':short(notices.plain_record(worst)) if worst else '','nolog':'' if records else NO_LOG,
+        'summary':short(notices.plain_record(worst)) if worst else short(item.get('text','')),'nolog':'' if records else NO_LOG,
         'action.label':'Open' if item.get('action') else ''}
  rows=[]
  for r in reversed(records):     # newest first, as the messages are
@@ -71,7 +71,7 @@ def records_for(profile,item,log_path=None):
  except OSError:return []
 
 def run():
- import xbmc,xbmcgui,xbmcvfs
+ import xbmc,xbmcgui,xbmcvfs,xbmcaddon
  profile=xbmcvfs.translatePath('special://profile/')
  home=os.path.dirname(os.path.abspath(__file__))
  log_path=os.path.join(xbmcvfs.translatePath('special://logpath/'),'kodi.log')
@@ -91,6 +91,9 @@ def run():
    if action.getId() in BACK:self.close()
   def onClick(self,control):
    if control==notice_page.ACTION and self.props.get('action.label'):self.chosen=True;self.close()
+   elif control==notice_page.LOG:
+    index=self.getControl(notice_page.LOG).getSelectedPosition()
+    if 0<=index<len(self.rows):xbmcgui.Dialog().textviewer(self.rows[index][1],self.rows[index][0])
    elif control in (notice_page.CLOSE,notice_page.DIM):self.close()
 
  class Page(xbmcgui.WindowXMLDialog):
@@ -100,8 +103,12 @@ def run():
    self.items=[dict(i,was_read=i.get('read',False)) for i in items];notices.mark_all_read(profile)
    xbmcgui.Window(10000).setProperty('Notices.Unread','')
    self.filter='all';self.shown=[];self.downloads=[];self.lock=threading.Lock();self.stop=threading.Event()
+   self.attempted=set()
+   try:self.artkey=drivelibrary.tmdb_key(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.themoviedb.helper').getAddonInfo('path')))
+   except Exception:self.artkey=''
    self.show_messages();self.refresh()
    threading.Thread(target=self.loop,daemon=True).start()
+   threading.Thread(target=self.art_loop,daemon=True).start()
   def set_all(self,props):
    for key,value in props.items():self.setProperty(key,value)
   def show_messages(self):
@@ -118,6 +125,7 @@ def run():
     preparing=prepare_downloads.cards(profile) if show_live else []
     current=preparing[0] if preparing else {}
     self.setProperty('has.prepare','true' if preparing else '')
+    self.setProperty('prepare.indeterminate','1' if current.get('indeterminate') else '')
     for key in ('title','line'):self.setProperty('prepare.'+key,str(current.get(key,'')))
     queued=current.get('queued',0)
     self.setProperty('prepare.summary',('Download → Drive → Prepare'+(' · %d remaining'%queued if queued else '')) if preparing else '')
@@ -125,6 +133,10 @@ def run():
     for n in range(1,SLOTS+1):
      if n<=len(self.downloads):self.percent(9400+n,self.downloads[n-1]['progress'])
     if ups:self.percent(9430,ups[0]['progress'])
+    self.artnames=[d.get('title','') for d in self.downloads]+[u.get('title','') for u in ups]+[current.get('title','')]
+    cache=drivelibrary.load_json(transfer_artwork.cache_path(profile),{})
+    for pre,name in [('dl.%d.'%(n+1),d.get('title','')) for n,d in enumerate(self.downloads[:SLOTS])]+[('up.',ups[0].get('title','') if ups else ''),('prepare.',current.get('title',''))]:
+     self.setProperty(pre+'poster',transfer_artwork.describe(name,cache)['poster'] if name else '')
     self.update_empty()
   def percent(self,control,value):
    try:self.getControl(control).setPercent(float(value))
@@ -135,6 +147,14 @@ def run():
     if self.stop.is_set():break
     try:self.refresh()
     except Exception as error:_quiet('notifications:76',error)
+  def art_loop(self):
+   import urllib.request
+   def get(url):
+    with urllib.request.urlopen(url,timeout=8) as response:return response.read(1024*1024)
+   monitor=xbmc.Monitor()
+   while not self.stop.is_set() and not monitor.waitForAbort(2):
+    try:transfer_artwork.hydrate(profile,list(self.artnames),self.artkey,get,lambda:not self.stop.is_set(),self.attempted)
+    except Exception as error:_quiet('notifications:artwork',error)
   def onAction(self,action):
    if action.getId() in BACK:self.finish()
   def finish(self):
@@ -169,8 +189,6 @@ def run():
  page.doModal();page.stop.set() if hasattr(page,'stop') else None
  del page
 
-if __name__=='__main__':run()
-
 def _quiet(where,error,_seen=set()):
  """Log an error that is deliberately not shown on screen, once per place and kind (loops run every second)."""
  key=(where,type(error).__name__)
@@ -179,3 +197,5 @@ def _quiet(where,error,_seen=set()):
  try:
   import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
  except Exception:pass
+
+if __name__=='__main__':run()

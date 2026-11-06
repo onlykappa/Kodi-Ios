@@ -107,6 +107,7 @@ def excerpt(records,when,title='',before=90,after=1,limit=30):
  def wanted(r):
   if not when-before<=r['time']<=when+after or any(n in r['text'] for n in NOISE):return False
   low=r['text'].lower()
+  if 'preparation' in words and not ('preparation' in low or 'prepare_cloud.py' in str(r.get('more','')) or 'prepare_downloads.py' in str(r.get('more',''))):return False
   if r['level'] in ('error','fatal'):return not (low.startswith('exception:') and not r['more'])
   if any(n in low for n in ROUTINE):return False
   inner=re.search(r'\b(INFO|NOTI|DEBU|WARN|ERRO|FATA)\b',r['text'])

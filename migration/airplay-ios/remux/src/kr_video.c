@@ -42,7 +42,7 @@ struct kr_video {
     AVCodecContext *dec;
     AVBufferRef *hw;          // VideoToolbox device, NULL for software decoding
     int ow, oh;               // output size
-    int offline;
+    int offline,keep_hdr;
     AVRational fps;           // source frame rate (for the encoder's framerate hint)
     kr_color *sws;
 #ifdef KR_GPU
@@ -63,6 +63,8 @@ struct kr_video {
 };
 
 static const char *encoder_name;
+static const char *hdr_encoder_name;
+void kr_video_set_hdr_encoder(const char *name){hdr_encoder_name=name && *name?name:NULL;}
 
 void kr_video_set_encoder(const char *name) { encoder_name = name && *name ? name : NULL; }
 const char *kr_video_encoder(void) { return encoder_name ? encoder_name : "h264_videotoolbox"; }
@@ -147,6 +149,11 @@ static enum AVPixelFormat pick_format(AVCodecContext *c, const enum AVPixelForma
 
 static int open_decoder(kr_video *v, int hw, char *err, int errlen) {
     AVStream *st = v->in->streams[v->index];
+    const AVPixFmtDescriptor *description=av_pix_fmt_desc_get(st->codecpar->format);
+    // iPhone hardware does not decode High10 H.264 or >10-bit/4:2:2 HEVC. Select the software
+    // decoder up front instead of accepting a hardware context that fails at its first packet.
+    if(hw && description && (description->log2_chroma_w!=1 || description->log2_chroma_h!=1 ||
+       description->comp[0].depth>(st->codecpar->codec_id==AV_CODEC_ID_H264?8:10)))hw=0;
     const AVCodec *dec = avcodec_find_decoder(st->codecpar->codec_id);
     if (st->codecpar->codec_id == AV_CODEC_ID_AV1) {
 #ifdef KR_GPU
@@ -220,6 +227,7 @@ void kr_video_keep_resolution(kr_video *v) {
     if (!v) return;
     AVCodecParameters *p=v->in->streams[v->index]->codecpar;
     v->ow=p->width;v->oh=p->height;v->offline=1;
+    v->keep_hdr=p->color_trc==AVCOL_TRC_SMPTE2084 || p->color_trc==AVCOL_TRC_ARIB_STD_B67;
 }
 int kr_video_height(const kr_video *v) { return v ? v->oh : 0; }
 int kr_video_hw_decode(const kr_video *v) { return v && v->hw ? 1 : 0; }
@@ -323,8 +331,8 @@ typedef struct {
 
 static int open_encoder(job *j, char *err, int errlen) {
     kr_video *v = j->v;
-    const AVCodec *codec = avcodec_find_encoder_by_name(kr_video_encoder());
-    if (!codec) { seterr(err, errlen, "no H.264 encoder in this build", 0); return -1; }
+    const AVCodec *codec = avcodec_find_encoder_by_name(v->keep_hdr?(hdr_encoder_name?hdr_encoder_name:"hevc_videotoolbox"):kr_video_encoder());
+    if (!codec) { seterr(err, errlen, v->keep_hdr?"10-bit HEVC HDR encoder unavailable":"no H.264 encoder in this build", 0); return -1; }
     AVCodecContext *c = j->enc = avcodec_alloc_context3(codec);
     if (!c) { seterr(err, errlen, "out of memory", 0); return -1; }
     c->width = v->ow; c->height = v->oh;
@@ -340,6 +348,14 @@ static int open_encoder(job *j, char *err, int errlen) {
         c->pix_fmt = nv12 ? AV_PIX_FMT_NV12 : i420 ? AV_PIX_FMT_YUV420P : fmts[0];
     }
     }
+    if(v->keep_hdr) {
+        const enum AVPixelFormat *formats=NULL;int count=0,p010=0,planar=0;
+        if(avcodec_get_supported_config(NULL,codec,AV_CODEC_CONFIG_PIX_FORMAT,0,(const void**)&formats,&count)>=0)
+            for(int i=0;i<count;i++){p010|=formats[i]==AV_PIX_FMT_P010LE;planar|=formats[i]==AV_PIX_FMT_YUV420P10LE;}
+        if(!p010 && !planar){seterr(err,errlen,"encoder cannot preserve 10-bit HDR",0);return -1;}
+        c->pix_fmt=p010?AV_PIX_FMT_P010LE:AV_PIX_FMT_YUV420P10LE;
+        c->profile=AV_PROFILE_HEVC_MAIN_10;
+    }
     c->time_base = av_inv_q(v->fps);
     c->framerate = v->fps;
     c->sample_aspect_ratio = (AVRational){ 1, 1 };
@@ -351,6 +367,13 @@ static int open_encoder(job *j, char *err, int errlen) {
     c->max_b_frames = 0;       // pts == dts, closed GOP
     c->color_range = AVCOL_RANGE_MPEG;
     c->color_primaries = AVCOL_PRI_BT709; c->color_trc = AVCOL_TRC_BT709; c->colorspace = AVCOL_SPC_BT709;
+    if(v->keep_hdr) {
+        AVCodecParameters *p=v->in->streams[v->index]->codecpar;
+        c->color_range=p->color_range==AVCOL_RANGE_UNSPECIFIED?AVCOL_RANGE_MPEG:p->color_range;
+        c->color_primaries=p->color_primaries==AVCOL_PRI_UNSPECIFIED?AVCOL_PRI_BT2020:p->color_primaries;
+        c->color_trc=p->color_trc;
+        c->colorspace=p->color_space==AVCOL_SPC_UNSPECIFIED?AVCOL_SPC_BT2020_NCL:p->color_space;
+    }
     c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;  // closed GOP by construction: one IDR first, no B-frames
     if (!strcmp(codec->name, "h264_videotoolbox")) {
         c->profile = AV_PROFILE_H264_HIGH;
@@ -359,6 +382,15 @@ static int open_encoder(job *j, char *err, int errlen) {
         av_opt_set_int(c->priv_data, "realtime", 1, 0);      // speed over size: segments are made while the TV waits
         av_opt_set_int(c->priv_data, "prio_speed", 1, 0);    // r9: favour encoding speed
         av_opt_set_int(c->priv_data, "allow_sw", 0, 0);      // the hardware encoder only (battery)
+    }
+    if(!strcmp(codec->name,"hevc_videotoolbox")) {
+        av_opt_set(c->priv_data,"profile","main10",0);
+        av_opt_set_int(c->priv_data,"allow_sw",1,0);
+        av_opt_set_int(c->priv_data,"realtime",0,0);
+    }
+    if(!strcmp(codec->name,"libx265")) {
+        av_opt_set(c->priv_data,"preset","ultrafast",0);
+        av_opt_set(c->priv_data,"x265-params","pools=1:frame-threads=1:log-level=error:repeat-headers=1",0);
     }
     int r = avcodec_open2(c, codec, NULL);
     if (r < 0) { seterr(err, errlen, "encoder", r); return -1; }
@@ -370,6 +402,7 @@ static int open_encoder(job *j, char *err, int errlen) {
     if (!os || !j->io) { if (!j->io) av_free(iob); seterr(err, errlen, "muxer", 0); return -1; }
     avcodec_parameters_from_context(os->codecpar, c);
     if (c->codec_id == AV_CODEC_ID_H264) os->codecpar->codec_tag = MKTAG('a', 'v', 'c', '1');
+    if (c->codec_id == AV_CODEC_ID_HEVC) os->codecpar->codec_tag = MKTAG('h','v','c','1');
     os->time_base = j->tb;
     os->avg_frame_rate = v->fps;
     j->oc->pb = j->io;
@@ -432,7 +465,7 @@ static int convert(job *j, AVFrame *src, char *err, int errlen) {
     if (v->dovi_profile5 && !av_frame_get_side_data(src, AV_FRAME_DATA_DOVI_METADATA)) {
         seterr(err, errlen, "Dolby Vision frame is missing RPU metadata", 0); return -1;
     }
-    int r = kr_color_convert(&v->sws, j->conv, src);
+    int r = v->keep_hdr?kr_color_preserve(&v->sws,j->conv,src):kr_color_convert(&v->sws, j->conv, src);
     if (r < 0) { seterr(err, errlen, "tone/gamut conversion", r); return -1; }
     return 0;
 }

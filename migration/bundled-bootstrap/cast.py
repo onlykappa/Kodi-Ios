@@ -6,7 +6,7 @@ first, then the TVs as the search finds them, with a spinner while it keeps look
 loaded (an older skin copy), the previous progress box and list are used instead."""
 import json,os,sys
 sys.path.insert(0,os.path.join(os.path.dirname(__file__),'resources','lib'))
-import airplay,cast,notices
+import airplay,cast,notices,diagnostics
 
 KINDS={'roku':'Roku','dlna':'Smart TV','chromecast':'Chromecast','airplay':'AirPlay'}
 ICONS={'phone':'mobile-screen-button.png','roku':'tv.png','dlna':'tv.png','chromecast':'tv.png','airplay':'tv.png'}
@@ -74,9 +74,10 @@ def run():
          else 'AirPlay shows this %s video through Screen Mirroring; other TVs use their own player.'%cast.format_name(url,playing))
  last=addon.getSettingString('last_tv')
  found={};done=threading.Event()
+ diagnostics.attach(os.path.dirname(os.path.abspath(__file__)),xbmcvfs.translatePath('special://profile/'))
  def search():
   try:found['tvs']=cast.find_tvs(phone,cast.http_get)
-  except Exception as error:xbmc.log('Kodi iOS Play on TV search failed: %s'%type(error).__name__,xbmc.LOGWARNING)
+  except Exception as error:diagnostics.log_exception(xbmc,'tv_discovery',error)
   finally:done.set()
  threading.Thread(target=search,daemon=True).start()
  tv=pick_sheet(xbmc,xbmcgui,os.path.dirname(os.path.abspath(__file__)),title,note,extra,found,done,last)
@@ -148,12 +149,14 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
  # Converting reads the video on the phone itself, so it uses the link Kodi plays (Drive's and Elementum's helpers
  # answer on 127.0.0.1 only: owner build-132 log, "Connection refused" on the Wi-Fi address).
  source=cast.airplay_source(playing,url,converting)
+ import urllib.parse
+ diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','start',format=cast.format_name(playing,url),converts=converting,loopback=urllib.parse.urlsplit(source.split('|',1)[0]).hostname in ('127.0.0.1','localhost','::1'))
  # r10: the subtitle Kodi shows goes to the TV burned into the converted picture (TVs' AirPlay ignores WebVTT).
  try:
   import time,xbmcvfs
   subs=airplay.send_subtitles(lib,xbmc,xbmcvfs,time.time())
   if subs is not None:xbmc.log('Kodi iOS Play on TV: subtitles for AirPlay %s'%('off' if subs[0]==-1 else 'external file' if subs[1] and subs[0]==-2 else 'stream %d%s'%(subs[0],' (+ external file)' if subs[1] else '')),xbmc.LOGINFO)
- except Exception as error:xbmc.log('Kodi iOS Play on TV: subtitles not passed to AirPlay: %s'%error,xbmc.LOGWARNING)
+ except Exception as error:diagnostics.log_exception(xbmc,'airplay_subtitles',error)
  lib.kodi_airplay_play(source.encode('utf-8'),(title or '').encode('utf-8'))
  # Something on screen at once while the TV connects (it can take a while), with Cancel.
  import xbmcgui
@@ -169,8 +172,8 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
  # r6: the stream's variant line (CODECS), the receiver's requests and Apple's player events so far; the service
  # keeps relaying the rest while it plays (airplay.relay).
  lines=list(airplay.log_lines(lib))
- for line in lines:xbmc.log('Kodi iOS AirPlay: '+line,xbmc.LOGINFO)
- xbmc.log('Kodi iOS Play on TV: Apple\'s player %s %s%s'%(outcome,url.split('?',1)[0],(' ('+why+')') if why else ''),xbmc.LOGINFO)
+ for line in lines:xbmc.log('Kodi iOS AirPlay: '+diagnostics.redact(line),xbmc.LOGINFO)
+ diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','outcome',outcome=outcome,elapsed_s=round(started[0],2),reason=why)
  if outcome=='playing':
   # Owner build-136 log: stopping Kodi's video here (7 ms after "playing") turned the app back to portrait under
   # Apple's player; the TV then hung up on the video and audio segments and AirPlay switched off 4 s later. Kodi's
@@ -194,7 +197,7 @@ def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
   elif tv['kind']=='chromecast':cast.chromecast_play(tv['host'],url,title)
   else:send_airplay(xbmc,dialog,player,library,url,title,playing);return
  except cast.TVRefused as error:
-  xbmc.log('Kodi iOS Play on TV refused (%s): %s'%(tv['kind'],error),xbmc.LOGWARNING)
+  diagnostics.log_exception(xbmc,'play_on_tv',error,receiver=tv['kind'])
   # Owner (build-138): a Roku TV without "Play on Roku" (404) goes straight to AirPlay (Roku TVs have AirPlay built
   # in) instead of a message; Apple's device sheet then lists that TV.
   if tv['kind']=='roku' and library:
@@ -203,7 +206,7 @@ def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
   notices.note('problem',"Play on TV couldn't start",tv['name']+': '+str(error))
   dialog.ok('Play on TV',tv['name']+': '+str(error));return
  except Exception as error:
-  xbmc.log('Kodi iOS Play on TV failed (%s): %s: %s'%(tv['kind'],type(error).__name__,error),xbmc.LOGWARNING)
+  diagnostics.log_exception(xbmc,'play_on_tv',error,receiver=tv['kind'])
   notices.note('problem',"Play on TV couldn't start",tv['name']+' did not accept the video. Make sure the TV is on.')
   dialog.ok('Play on TV',tv['name']+' did not accept the video. Make sure the TV is on, then try again.');return
  player.stop();notices.note('info','Playing on '+tv['name'],title or '')

@@ -96,14 +96,18 @@ case "$TARGET" in
             --enable-hwaccel=mpeg2_videotoolbox --enable-hwaccel=mpeg1_videotoolbox
             --enable-hwaccel=mpeg4_videotoolbox --enable-hwaccel=vp9_videotoolbox
             --enable-decoder=av1 --enable-hwaccel=av1_videotoolbox
-            --enable-encoder=h264_videotoolbox
+            --enable-encoder=h264_videotoolbox --enable-encoder=hevc_videotoolbox
             --enable-cross-compile --target-os=darwin --arch=arm64 --cc="$CC"
             --sysroot="$SDK" --extra-cflags="-arch arm64 -miphoneos-version-min=14.0"
             --extra-ldflags="-arch arm64 -miphoneos-version-min=14.0")
     ;;
   # No hand-written assembly needed for tests (and no nasm on CI). FFmpeg has no LGPL H.264 encoder and the host has no
   # VideoToolbox, so the host tests drive the picture bridge with the built-in MPEG-4 Part 2 encoder (tests only).
-  host) FLAGS+=(--disable-x86asm --enable-encoder=mpeg4) ;;
+  host)
+    FLAGS+=(--disable-x86asm --enable-encoder=mpeg4)
+    # Test-only HEVC Main10 reference encoder. Never used or shipped in the iPhone framework.
+    if [[ "${KR_HDR_TESTS:-0}" == 1 ]]; then FLAGS+=(--enable-gpl --enable-libx265 --enable-encoder=libx265); fi
+    ;;
   *) echo "unknown target $TARGET" >&2; exit 2;;
 esac
 BUILD="$WORK/build-$TARGET"; mkdir -p "$BUILD"; cd "$BUILD"

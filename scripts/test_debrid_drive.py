@@ -117,13 +117,13 @@ class Queue(unittest.TestCase):
   self.assertEqual(debrid_drive.info_hash({'id':H.upper()}),H);self.assertEqual(debrid_drive.info_hash({'id':'nothex'}),'')
 
 class Wiring(unittest.TestCase):
- def test_download_hands_over_for_download_only(self):
+ def test_download_uses_the_shared_pre_selection_interceptor(self):
   src=(BOOT/'download.py').read_text()
-  self.assertIn("token=xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken')",src)
-  self.assertIn("if not watching and to_drive([tid],kind,title,season",src)
-  self.assertIn("if not watching and to_drive([tid],'season',title,season):return",src)
-  body=src[src.index('def to_drive('):src.index('def run():')]
-  self.assertLess(body.index('debrid_drive.queue('),body.index('driveupload.remove_torrent(tid)'))   # queued before Elementum drops it
+  self.assertIn('dl.follow(url)',src)
+  self.assertNotIn('dl.added(',src)
+  self.assertNotIn('to_drive(',src)
+  hook=(BOOT/'resources/lib/elementum_cloud.py').read_text()
+  self.assertIn('watch=mode == 1',hook)
  def test_service_runs_the_queue(self):
   src=(BOOT/'service.py').read_text()
   self.assertIn('debrid_drive.step(profile,alldebrid.AllDebrid(token),drive',src);self.assertIn('threading.Thread(target=debrid_loop,daemon=True).start()',src)

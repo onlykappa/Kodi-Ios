@@ -295,6 +295,8 @@ __attribute__((visibility("default"))) int kodi_glassbar_native_owner(void) {
 enum { SearchChanged = 1, SearchSubmitted = 2, SearchClosed = 4 };
 static UIView *searchBand;
 static UITextField *searchField;
+static NSLayoutConstraint *searchTop, *settingsSearchTop, *searchBottom;
+static int searchContext=0;
 static NSString *searchText = @"";
 static atomic_int searchEvents = 0;
 
@@ -402,12 +404,15 @@ static UIView *ensureSearch(void) {
     if (searchBand.superview != window) {
         [searchBand removeFromSuperview];
         [window addSubview:searchBand];
+        searchTop=[searchBand.topAnchor constraintEqualToAnchor:window.topAnchor];
+        settingsSearchTop=[searchBand.topAnchor constraintEqualToAnchor:window.safeAreaLayoutGuide.topAnchor constant:116.5];
+        searchBottom=[searchBand.bottomAnchor constraintEqualToAnchor:window.safeAreaLayoutGuide.topAnchor constant:60];
         [NSLayoutConstraint activateConstraints:@[
-            [searchBand.topAnchor constraintEqualToAnchor:window.topAnchor],
+            searchContext?settingsSearchTop:searchTop,
             [searchBand.leadingAnchor constraintEqualToAnchor:window.leadingAnchor],
             [searchBand.trailingAnchor constraintEqualToAnchor:window.trailingAnchor],
             // The band ends 60 pt below the top of the safe area: the Search page starts its results under it.
-            [searchBand.bottomAnchor constraintEqualToAnchor:window.safeAreaLayoutGuide.topAnchor constant:60],
+            searchBottom,
         ]];
         UIPanGestureRecognizer *drag = [[UIPanGestureRecognizer alloc] initWithTarget:searchHandler action:@selector(dragged:)];
         drag.cancelsTouchesInView = NO;
@@ -428,6 +433,21 @@ __attribute__((visibility("default"))) void kodi_search_show(int visible) {
         if (!visible) [searchField resignFirstResponder];
         band.hidden = !visible;
         if (visible) [band.window bringSubviewToFront:band];
+    });
+}
+
+// r6: reuse the native field in Settings, below its large title, without Kodi's keyboard page.
+__attribute__((visibility("default"))) void kodi_search_context(int context) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if(!ensureSearch())return;
+        searchContext=context?1:0;
+        searchTop.active=NO;settingsSearchTop.active=NO;
+        if(searchContext)settingsSearchTop.active=YES;else searchTop.active=YES;
+        searchBottom.constant=searchContext?182.5:60;
+        NSString *hint=searchContext?@"Search":@"Shows, Movies, and More";
+        searchField.attributedPlaceholder=[[NSAttributedString alloc] initWithString:hint attributes:@{NSForegroundColorAttributeName:UIColor.secondaryLabelColor}];
+        searchField.accessibilityLabel=searchContext?@"Search Settings":@"Search movies and shows";
+        [searchBand.window layoutIfNeeded];
     });
 }
 
@@ -482,6 +502,6 @@ cat > "$FW/Info.plist" <<PLIST
 <key>MinimumOSVersion</key><string>$MIN_IOS</string>
 </dict></plist>
 PLIST
-nm -gU "$FW/KodiGlassBar" | grep -E ' _kodi_(glassbar_(show|select|take_tap|set_native_owner|native_owner)|search_(show|focus|set|take))$'
+nm -gU "$FW/KodiGlassBar" | grep -E ' _kodi_(glassbar_(show|select|take_tap|set_native_owner|native_owner)|search_(show|focus|set|take|context))$'
 lipo -info "$FW/KodiGlassBar"
 (cd "$OUT" && zip -qry KodiGlassBar.framework.zip KodiGlassBar.framework && shasum -a 256 KodiGlassBar.framework.zip | tee KodiGlassBar.framework.zip.sha256)

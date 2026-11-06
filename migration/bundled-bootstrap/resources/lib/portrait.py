@@ -182,6 +182,14 @@ def image(x,y,w,h,texture,color=WHITE,extra='',aspect='',diffuse='',border='',ba
          '<texture%s%s%s colordiffuse="%s">%s</texture>%s</control>')%(
   x,y,w,h,('<aspectratio%s</aspectratio>'%aspect) if aspect else '',
   ' background="true"' if background else '',' diffuse="%s"'%diffuse if diffuse else '',' border="%s"'%border if border else '',color,texture,extra)
+def close_cross():
+ # SF-style rounded X, without the large transparent margins of the icon-pack glyph.
+ import math
+ def distance(x,y,ax,ay,bx,by):
+  t=max(0,min(1,((x-ax)*(bx-ax)+(y-ay)*(by-ay))/((bx-ax)**2+(by-ay)**2)))
+  return math.hypot(x-ax-t*(bx-ax),y-ay-t*(by-ay))
+ return png(64,64,lambda x,y:(255,255,255,int(255*max(0,min(1,3.25-min(distance(x+.5,y+.5,13,13,51,51),distance(x+.5,y+.5,13,51,51,13)))))))
+
 def icon(x,y,size,name,color=WHITE,extra=''):return image(x,y,size,size,name if ('://' in name or name.startswith('$')) else ICONS+name,color,extra,'>keep')
 def label(x,y,w,h,text,font,color=WHITE,align='left',extra=''):
  return ('<control type="label"><left>%s</left><top>%s</top><width>%s</width><height>%s</height><font>%s</font>'
@@ -913,7 +921,8 @@ def notices_page():
   h=350;pre='dl.%d.'%n   # Pause/Cancel are 124 high (46 pt): touch areas of at least 44 pt (APPLE-UI-POLICY 4.5)
   return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(WIDTH,h+24,has(pre+'title'))+
    surface(SIDE-6,0,w+12,h,'round.png',SURFACE,32)+
-   surface(SIDE+24,26,130,196,'round_s.png','FF3A3A3C',20)+icon(SIDE+59,94,60,'download.png',GREY)+
+   surface(SIDE+24,26,130,196,'round_s.png','FF3A3A3C',20)+icon(SIDE+59,94,60,'download.png',GREY,'<visible>!%s</visible>'%has(pre+'poster'))+
+   image(SIDE+24,26,130,196,P(pre+'poster'),extra='<aspectratio>scale</aspectratio><visible>%s</visible>'%has(pre+'poster'))+
    label(SIDE+184,22,w-210,64,P(pre+'title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
    '<control type="progress" id="%d"><left>%d</left><top>110</top><width>%d</width><height>14</height>'
    '<texturebg border="7" colordiffuse="52787880">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="FF0A84FF">%sdot.png</midtexture><righttexture /></control>'%(9400+n,SIDE+184,w-210,MEDIA,MEDIA)+
@@ -924,7 +933,9 @@ def notices_page():
   """Upload/preparation card: title, summary, bar, status. One label per line, each truncating (ISSUE-101)."""
   return ('<control type="group"><width>%d</width><height>244</height><visible>%s</visible>'%(WIDTH,has(pre+'title'))+
    surface(SIDE-6,0,w+12,220,'round.png',SURFACE,32)+
-   surface(SIDE+24,26,130,168,'round_s.png',tile,20)+icon(SIDE+59,80,60,glyph,tint)+
+   surface(SIDE+24,26,130,168,'round_s.png',tile,20)+icon(SIDE+59,80,60,glyph,tint,'<visible>![%s] + ![%s]</visible>'%(has(pre+'indeterminate'),has(pre+'poster')))+
+   image(SIDE+59,80,60,60,MEDIA+'ring_06.png',tint,'<visible>%s</visible><animation effect="rotate" end="-360" center="auto" time="1100" loop="true" condition="true">Conditional</animation>'%has(pre+'indeterminate'))+
+   image(SIDE+24,26,130,168,P(pre+'poster'),extra='<aspectratio>scale</aspectratio><visible>%s</visible>'%has(pre+'poster'))+
    label(SIDE+184,20,w-210,60,P(pre+'title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
    label(SIDE+184,80,w-210,46,P(pre+'summary'),'p_cap',GREY)+
    '<control type="progress" id="%d"><left>%d</left><top>134</top><width>%d</width><height>14</height>'
@@ -942,7 +953,7 @@ def notices_page():
    label(SIDE+w-140,22,120,58,P(pre+'ago'),'p_cap',GREY,'right')+'</control>')
  filters=''.join('<control type="group"><left>%d</left><top>0</top>'%(i*w//len(NOTICE_FILTERS))+
    image(4,4,w//len(NOTICE_FILTERS)-8,80,MEDIA+'pill_96.png','FF636366','<visible>String.IsEqual(Window().Property(filter),%s)</visible>'%key,border=40)+
-   '<control type="button" id="%d"><top>-15</top><width>%d</width><height>118</height><label>%s</label><font>p_foot_b</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
+   '<control type="button" id="%d"><top>-15</top><width>%d</width><height>118</height><label>%s</label><font>p_foot_b</font><textoffsetx>0</textoffsetx><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
    '<align>center</align><aligny>center</aligny><texturefocus /><texturenofocus /></control></control>'%(9101+i,w//len(NOTICE_FILTERS),text,GREY,WHITE)
    for i,(key,text) in enumerate(NOTICE_FILTERS))
  body=('<controls>'+backdrop()+
@@ -1099,6 +1110,7 @@ def portrait_files(skin,profile):
  # Settings home, Customisation and Accounts in the iOS Settings style (settings_page.py).
  import types
  files.update(settings_page.files(types.SimpleNamespace(**globals()),read))
+ files['extras/portrait/close_cross.png']=close_cross()
  # Round 2: shared dialogs, Add-ons, Event Log, System Info, File Manager, Umbrella's getting-ready, Play on TV.
  files.update(pages.files(types.SimpleNamespace(**globals()),read))
  # The activity pill in place of Kodi's background progress box, which is never drawn (activity_skin.py).
@@ -1171,7 +1183,7 @@ def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),Path(pages.__file__),Path(ios_tabs.__file__)):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__)):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())

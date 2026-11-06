@@ -114,7 +114,7 @@ def details(row, view):
         sheet.update(status='Ready for Kodi and AirPlay', tone='ok', quality=row.get('sub', ''),
                      facts=[f for f in (on_drive, folder, ('Plays', 'on this iPhone and over AirPlay, seeking straight away')) if f])
     elif state == 'preparing':
-        sheet.update(status='Preparing now · %s%%' % row.get('pct', 0), facts=[f for f in (on_drive, ('Step', row.get('sub', ''))) if f])
+        sheet.update(status='Preparing now'+('' if row.get('indeterminate') else ' · %s%%'%row.get('pct',0)), facts=[f for f in (on_drive, ('Step', row.get('sub', ''))) if f])
     elif state in ('downloading', 'uploading'):
         sheet.update(status=row.get('sub', ''), facts=[('Progress', '%s%%' % row.get('pct', 0))])
     elif state == 'waiting':

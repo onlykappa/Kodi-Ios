@@ -350,16 +350,31 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
    while os.path.basename(folder) not in ('Movies','TV Shows') and not os.listdir(folder):os.rmdir(folder);folder=os.path.dirname(folder)
  return count
 
-def sender(context,timeout=120):
+def sender(context,timeout=120,log=lambda message:None):
  """HTTP for Drive with the given TLS context; returns (status, headers, body) without following redirects."""
+ import diagnostics
  class NoRedirect(urllib.request.HTTPRedirectHandler):
   def redirect_request(self,*args,**kwargs):return None
  opener=urllib.request.build_opener(NoRedirect,urllib.request.HTTPSHandler(context=context))
  def send(method,url,body,headers):
   request=urllib.request.Request(url,data=body,headers=dict(headers,**{'User-Agent':'Kodi iOS Drive upload'}),method=method)
-  try:
-   with opener.open(request,timeout=timeout) as r:return r.status,dict(r.headers),r.read()
-  except urllib.error.HTTPError as e:return e.code,dict(e.headers or {}),e.read()
+  safe=method in ('GET','HEAD','DELETE')
+  for attempt in range(3 if safe else 1):
+   begun=time.monotonic()
+   fields=dict(method=method,host=urllib.parse.urlsplit(url).hostname,attempt=attempt+1,request_bytes=len(body) if body else 0)
+   try:
+    with opener.open(request,timeout=min(timeout,30) if safe else timeout) as r:
+     answer=r.read();elapsed=round(time.monotonic()-begun,3)
+     if elapsed>=10 or (body and len(body)>=256*1024):diagnostics.event(log,'drive_http','response',status=r.status,elapsed_s=elapsed,response_bytes=len(answer),**fields)
+     return r.status,dict(r.headers),answer
+   except urllib.error.HTTPError as e:
+    diagnostics.event(log,'drive_http','http_error',status=e.code,elapsed_s=round(time.monotonic()-begun,3),retry=safe and e.code in (429,500,502,503,504) and attempt<2,**fields)
+    if not safe or e.code not in (429,500,502,503,504) or attempt==2:return e.code,dict(e.headers or {}),e.read()
+    e.close()
+   except (urllib.error.URLError,TimeoutError) as e:
+    diagnostics.exception(log,'drive_http',e,elapsed_s=round(time.monotonic()-begun,3),retry=safe and attempt<2 and 'CERTIFICATE_VERIFY_FAILED' not in str(e),**fields)
+    if not safe or attempt==2 or 'CERTIFICATE_VERIFY_FAILED' in str(e):raise
+   time.sleep(.5*2**attempt)
  return send
 
 def token_source(accounts,save_account,refresh,now=time.time):

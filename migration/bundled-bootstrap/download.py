@@ -18,34 +18,6 @@ def owned_copy(kind,title,year='',season='',episode=''):
   except Exception:pass
   return None
 
-def to_drive(tids,kind,title,season='',episodes=()):
- """Owner (build 160): "a movie im downloading goes onto my phone still … if i do a large movie it wont ever
- download". With AllDebrid signed in (Umbrella › Accounts), the version picked goes to AllDebrid instead and from there
- straight into Google Drive (debrid_drive, run by the bootstrap service); Elementum drops it and what it had
- fetched. Returns True when it was handed over; False keeps Elementum's download on the phone as before."""
- import urllib.request,xbmc,xbmcaddon,xbmcgui,xbmcvfs
- import debrid_drive,driveupload
- try:token=xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken')
- except Exception:token=''
- tids=[t for t in tids or () if t]
- if not token or not tids:return False
- try:listed={str(t.get('id')):t for t in notices.torrent_list(get=lambda url:urllib.request.urlopen(url,timeout=5).read())}
- except Exception:listed={}
- profile=xbmcvfs.translatePath('special://profile/');moved=0
- for tid in tids:
-  torrent=listed.get(tid) or {'id':tid}
-  if not debrid_drive.info_hash(torrent):
-   xbmc.log('Kodi iOS download: %s has no info-hash; Elementum keeps it'%tid,xbmc.LOGWARNING);continue
-  debrid_drive.queue(profile,torrent,kind,title,season,episodes[0] if kind=='episode' and episodes else '',episodes=episodes if kind=='season' else ())
-  try:driveupload.remove_torrent(tid)
-  except Exception as error:xbmc.log('Kodi iOS download: Elementum kept %s (%s)'%(tid,type(error).__name__),xbmc.LOGWARNING)
-  moved+=1
- if moved:
-  xbmc.log('Kodi iOS download: %d torrent%s to Google Drive through AllDebrid'%(moved,'' if moved==1 else 's'),xbmc.LOGINFO)
-  notices.note('download','Downloading to Google Drive','%s · through AllDebrid, nothing kept on the phone'%title)
-  xbmcgui.Dialog().notification('Download','Going straight to Google Drive through AllDebrid',xbmcgui.NOTIFICATION_INFO,4000)
- return moved>0
-
 def run():
  import xbmc,xbmcgui
  args=dict(a.split('=',1) for a in sys.argv[1:] if '=' in a)
@@ -84,22 +56,10 @@ def run():
   copy=check('episode',season,episode)
   if copy and not again('%s · S%s E%s'%(title,season,episode),copy):return
  def start(k,e=None):
-  url=dl.plugin_url(k,tmdb,season,e);xbmc.log('Kodi iOS download: asking Elementum '+url,xbmc.LOGINFO)
-  if k=='movie':xbmc.executebuiltin('RunPlugin(%s)'%url);return
-  # Seasons and episodes: Elementum's redirects after the version page were lost with RunPlugin (owner build-133).
-  def run():
-   try:xbmc.log('Kodi iOS download: Elementum reached '+dl.follow(url),xbmc.LOGINFO)
-   except Exception as error:
-    xbmc.log('Kodi iOS download: Elementum request failed: %r'%error,xbmc.LOGWARNING)
-    xbmcgui.Dialog().ok('Download','Elementum did not start the download: %s'%error)
-  import threading;threading.Thread(target=run).start()   # not daemon: the script waits for it
- def watch(k,torrent=None,e=None):
-  if torrent is None:return
-  # Elementum shows a few seconds of buffering, then the video; the download carries on in the background.
-  xbmc.executebuiltin('PlayMedia(%s)'%dl.watch_url(k,tmdb,torrent,season,e))
- def mode(labels):
-  pick=dialog.select('Download',labels)
-  return None if pick<0 else pick==1
+  # Every entry point shares the post-selection cloud prompt. Do not wait for a local torrent:
+  # the /play or /download URI is intercepted before Elementum can add one.
+  url=dl.plugin_url(k,tmdb,season,e)
+  dl.follow(url)
  if kind=='season':
   pick=dialog.select('Download season %s'%season,['Full season','Choose episodes...'])
   if pick<0:return
@@ -127,19 +87,9 @@ def run():
     chosen=[i for i in chosen if not owned[i]]
     if not chosen:return
    episodes=[choices[i][0] for i in chosen]
-   watching=mode(dl.mode_labels('season',episodes))
-   xbmc.log('Kodi iOS download: episodes %s, watch %s'%(episodes,watching),xbmc.LOGINFO)
-   if watching is None:return
-   first=min(episodes)
-   # Every version is chosen first (one page per episode), then the first episode plays: a page for the next
-   # episode never opens over the video.
-   before=dl.torrents()
-   start('episode',first)
-   tid=dl.added(before,wait,attempts=300)
-   added=([first] if tid else [])+dl.download_each([n for n in episodes if n!=first],lambda n:start('episode',n),wait)
-   if not watching and to_drive(sorted(dl.torrents()-set(before)),'season',title,season,episodes):return
-   if added:notices.note('download','Downloading season %s'%season,'%d of %d episodes'%(len(added),len(episodes)))
-   if watching:watch('episode',tid,first)
+   for e in episodes:
+    if xbmc.Monitor().abortRequested():return
+    start('episode',e)
    return
   # Whole season: say first how much of it is already downloaded (a failed listing never blocks the download).
   try:
@@ -150,25 +100,9 @@ def run():
   except Exception:numbers=[]
   question=dl.season_question(season,sum(1 for n in numbers if check('episode',season,n)),len(numbers)) if numbers else None
   if question and not dialog.yesno(question[0],question[1],nolabel='Cancel',yeslabel='Download'):return
-  watching=mode(dl.mode_labels('season'))
-  if watching is None:return
-  # Elementum fetches one file of a season pack: switch the new pack to "download all" once it is added.
-  before=dl.torrents()
   start('season')
-  tid=dl.download_all_when_added(before,wait)
-  if not watching and to_drive([tid],'season',title,season):return
-  if tid:notices.note('download','Downloading all of season %s'%season)
-  if watching:watch('episode',tid,1)
   return
- watching=mode(dl.mode_labels(kind))
- if watching is None:return
- before=dl.torrents()
  start(kind,episode)
- tid=dl.added(before,wait,attempts=300)
- # Download only: AllDebrid straight to Drive when signed in. Download and watch keeps Elementum (it plays from the
- # torrent as it arrives on the phone).
- if not watching and to_drive([tid],kind,title,season,[int(episode)] if kind=='episode' and episode else ()):return
- if watching:watch(kind,tid,episode)
 
 def main():
  # Owner (build-127): after picking episodes nothing happened. Every step is logged and a failure is shown, never

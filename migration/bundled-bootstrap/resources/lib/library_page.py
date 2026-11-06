@@ -120,7 +120,7 @@ def page(p):
     filters = ''.join('<control type="group"><left>%d</left><top>0</top>' % (i * w // n) +
                       p.image(4, 4, w // n - 8, 80, M + 'pill_96.png', 'FF636366',
                               '<visible>String.IsEqual(Window().Property(filter),%s)</visible>' % key, border=40) +
-                      '<control type="button" id="%d"><top>-15</top><width>%d</width><height>%d</height><label>%s</label><font>p_foot_b</font>'
+                      '<control type="button" id="%d"><top>-15</top><width>%d</width><height>%d</height><label>%s</label><font>p_foot_b</font><textoffsetx>0</textoffsetx>'
                       '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
                       '<texturefocus /><texturenofocus /><ondown>%d</ondown><onup>%d</onup></control></control>'
                       % (9101 + i, w // n, HIT, text, p.GREY, p.WHITE, LIST, CHECK) for i, (key, text) in enumerate(FILTERS))
@@ -157,7 +157,7 @@ def item_sheet(p):
     close = ('<control type="group"><left>%d</left><top>%d</top>' % (W - S - HIT + 13, top + 40) +
              p.image(13, 13, 92, 92, M + 'dot.png', '26FFFFFF') +
              p.image(13, 13, 92, 92, M + 'dot.png', '33FFFFFF', '<visible>Control.HasFocus(9200)</visible>') +
-             p.icon(36, 36, 46, 'xmark.png', p.WHITE) +
+             p.image(29, 29, 60, 60, M + 'close_cross.png', p.WHITE) +
              '<control type="button" id="9200"><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus />'
              '<ondown>9201</ondown></control></control>' % (HIT, HIT))
     buttons = (p.pill_button(9201, S, top + 1010, w, 124, P('action1.label'), [('', 'noop')], 'primary', '',

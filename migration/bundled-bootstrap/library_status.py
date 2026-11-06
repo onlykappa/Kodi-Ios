@@ -53,7 +53,7 @@ def places(profile,home,elementum_path=''):
 def snapshot(profile,downloads,uploads):
  """library_view() for the page right now (never raises: an empty library on any error)."""
  # Choices not yet applied by the service show at once (it applies them before its next video).
- state=prepare_downloads.apply_to(prepare_downloads.load(profile),prepare_downloads.pending_requests(profile),time.time())
+ state=prepare_downloads.apply_to(prepare_downloads.snapshot(profile),prepare_downloads.pending_requests(profile),time.time())
  work=prepare_downloads.location(profile).parent/'preparing-videos'
  import phone_space
  try:free=phone_space.free(str(work if work.exists() else work.parent))
@@ -66,7 +66,7 @@ def snapshot(profile,downloads,uploads):
 
 def run(args=()):
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
- import drivelibrary,notices
+ import drivelibrary,notices,transfer_artwork
  profile=xbmcvfs.translatePath('special://profile/');addon=xbmcaddon.Addon(ADDON);dialog=xbmcgui.Dialog()
  here=os.path.dirname(os.path.abspath(__file__))
  # Posters as in the Library: TMDb with TMDb Helper's key, cached; looked up in the background, one at a time.
@@ -76,9 +76,11 @@ def run(args=()):
  import urllib.request
  def get(url):
   with urllib.request.urlopen(url,timeout=8) as response:return response.read(1024*1024)
- cache={};posters={};asked=set();lock=threading.Lock()
+ cache=drivelibrary.load_json(transfer_artwork.cache_path(profile),{});posters={};asked=set();lock=threading.Lock()
  def poster(row):
   name=row.get('name') or row.get('title') or ''
+  cached=transfer_artwork.describe(name,cache)['poster']
+  if cached:return cached
   if name in posters or not key:return posters.get(name,'')
   with lock:
    if name in asked:return ''

@@ -4,6 +4,7 @@ import importlib.util,sys,types,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 LIB=ROOT/'migration/bundled-bootstrap/resources/lib'
+sys.path.insert(0,str(LIB))
 def load(name):
  spec=importlib.util.spec_from_file_location(name,LIB/(name+'.py'));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 cast=load('cast');airplay=load('airplay')
@@ -64,7 +65,7 @@ class SeasonDownload(unittest.TestCase):
   last=dl.follow('plugin://plugin.video.elementum/show/95350/season/1/download',opener=Opener())
   self.assertEqual(seen[0],'http://127.0.0.1:65220/show/95350/season/1/download')
   self.assertEqual(last,'http://127.0.0.1:65220/play?uri=x&type=episode&background=true')
-  self.assertIn("if k=='movie'",(ROOT/'migration/bundled-bootstrap/download.py').read_text())
+  self.assertIn("dl.follow(url)",(ROOT/'migration/bundled-bootstrap/download.py').read_text())
 
 class KodiStaysPaused(unittest.TestCase):
  def test_airplay_playing_does_not_stop_kodi(self):
@@ -125,10 +126,10 @@ class AirPlayLog(unittest.TestCase):
    self.assertIn(needle,build)
   lock=__import__('json').loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())
   import re
-  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r15')
+  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r17')
   self.assertRegex(lock['framework_release']['sha256'],r'^(PENDING-set-after-publish|[0-9a-f]{64})$')
-  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r14')
-  self.assertEqual(lock['previous']['sha256'],'c09b064f4ac68b7966caee7f0ea915dcce6484a11a3bcc256d928b77156703b3')
+  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r16')
+  self.assertEqual(lock['previous']['sha256'],'d1b443feccdb8651207f65ccd96e6374082bebae99824825ef9f7f06d7ba0e86')
 
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):
@@ -143,7 +144,10 @@ class PictureBridge(unittest.TestCase):
   for needle in ('--enable-decoder=hevc','--enable-swscale','--enable-videotoolbox','--enable-encoder=h264_videotoolbox',
                  '--enable-hwaccel=hevc_videotoolbox'):
    self.assertIn(needle,ff)
-  code=[l.split('#')[0] for l in ff.splitlines()]
+  ios=ff.split('case "$TARGET" in',1)[0]+ff.split('  ios)',1)[1].split('  host)',1)[0]
+  code=[l.split('#')[0] for l in ios.splitlines()]
+  self.assertIn('if [[ "${KR_HDR_TESTS:-0}" == 1 ]]',ff)
+  self.assertIn('--enable-encoder=hevc_videotoolbox',ios)
   for banned in ('--enable-gpl','--enable-nonfree','libx264','openh264','--disable-swscale'):
    self.assertFalse(any(banned in l for l in code),banned)
  def test_remuxer_compat_api_and_codecs(self):

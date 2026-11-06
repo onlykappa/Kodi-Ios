@@ -1,5 +1,6 @@
 """Apple's AirPlay button over Kodi, from Kodi.app/Frameworks/KodiAirPlay.framework (migration/airplay-ios)."""
 import os
+import diagnostics
 # Full-screen video or music only: on Fuse's menus the top-right corner holds the clock and the gear.
 PLAYING='Player.HasMedia + [Window.IsActive(fullscreenvideo) | Window.IsActive(visualisation)]'
 
@@ -26,6 +27,7 @@ def load(path):
  # r10: the subtitles burned into the picture a TV gets converted (Kodi's current choice, set before playing).
  if hasattr(lib,'kodi_airplay_subtitles'):lib.kodi_airplay_subtitles.argtypes=[ctypes.c_int,ctypes.c_char_p,ctypes.c_char_p];lib.kodi_airplay_subtitles.restype=None
  if hasattr(lib,'kodi_background_keep'):lib.kodi_background_keep.argtypes=[ctypes.c_int];lib.kodi_background_keep.restype=None
+ if hasattr(lib,'kodi_background_state'):lib.kodi_background_state.argtypes=[];lib.kodi_background_state.restype=ctypes.c_int
  return lib
 
 def converts(lib):
@@ -120,7 +122,7 @@ def relay(lib,write,wait,every=5):
  """Writes the framework's AirPlay log into kodi.log every few seconds until wait(seconds) reports Kodi is closing."""
  if not hasattr(lib,'kodi_airplay_log'):return
  while True:
-  for line in log_lines(lib):write('Kodi iOS AirPlay: '+line)
+  for line in log_lines(lib):write('Kodi iOS AirPlay: '+diagnostics.redact(line))
   if wait(every):break
 
 def watch(lib,playing,wait):
