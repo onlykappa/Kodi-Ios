@@ -21,10 +21,12 @@ def folder_bytes(path):
  try:return sum(f.stat().st_size for f in Path(path).rglob('*') if f.is_file())
  except OSError:return 0
 
-def space_needed(item):
- """Phone space one video takes while it is prepared: the Drive file, the prepared copy (about the same size: the
- picture is copied, not re-encoded) and a margin, plus what must stay free for the owner."""
- return 2*int(item.get('size') or 0)+RESERVE+KEEP_FREE
+def space_needed(item,streaming=False):
+ """Phone space one video takes while it is prepared: the prepared copy (about the Drive file's size: the picture is
+ copied, not re-encoded) and a margin, plus what must stay free for the owner. Without streaming (KodiAirPlay before
+ r14) the Drive file is downloaded first as well, so twice the size."""
+ size=int(item.get('size') or 0)
+ return (1 if streaming else 2)*size+RESERVE+KEEP_FREE
 CALLBACK=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_int,ctypes.c_double,ctypes.c_double,ctypes.c_void_p)
 
 def location(profile):return Path(profile)/'addon_data/service.kodi.ios.bootstrap'/FILE
@@ -49,12 +51,14 @@ class Native:
   if not hasattr(lib,'kodi_airplay_prepare') or not hasattr(lib,'kodi_airplay_probe'):
    raise RuntimeError('Install the build with download preparation support')
   self.lib=lib
+  # r14: probe/prepare read an http://127.0.0.1 source, so a Drive file is streamed, never downloaded first.
+  self.streams=bool(hasattr(lib,'kodi_airplay_prepare_streams') and lib.kodi_airplay_prepare_streams()==1)
   lib.kodi_airplay_probe.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_probe.restype=ctypes.c_int
   lib.kodi_airplay_prepare.argtypes=[ctypes.c_char_p,ctypes.c_char_p,CALLBACK,ctypes.c_void_p,ctypes.c_char_p,ctypes.c_int]
   lib.kodi_airplay_prepare.restype=ctypes.c_int
  def probe(self,path):
   out=ctypes.create_string_buffer(1024)
-  if self.lib.kodi_airplay_probe(os.fsencode(path),out,len(out))<0:raise RuntimeError('Video could not be inspected')
+  if self.lib.kodi_airplay_probe(os.fsencode(str(path)),out,len(out))<0:raise RuntimeError('Video could not be inspected')
   return json.loads(out.value.decode())
  def convert(self,source,output,keep_going,progress):
   error=ctypes.create_string_buffer(512);callback_error=[]
@@ -72,7 +76,7 @@ class Native:
     progress(stage,done,total);return 1
    except Exception as error:callback_error.append(error);return 0
   callback=CALLBACK(update) # keep Python's callback alive until the synchronous native job exits
-  r=self.lib.kodi_airplay_prepare(os.fsencode(source),os.fsencode(output),callback,None,error,len(error))
+  r=self.lib.kodi_airplay_prepare(os.fsencode(str(source)),os.fsencode(str(output)),callback,None,error,len(error))
   if callback_error:raise callback_error[0]
   if r==-2:raise driveupload.Stop('Preparation paused')
   if r:raise RuntimeError(error.value.decode('utf-8','replace') or 'Preparation failed; existing file retained')
@@ -193,8 +197,10 @@ def summary(state,now=time.time):
  return '\n'.join(lines)
 
 class Queue:
- def __init__(self,profile,drive,native,download_file=download,notify=lambda *args:None,clock=time.time):
+ def __init__(self,profile,drive,native,download_file=download,notify=lambda *args:None,clock=time.time,stream=None):
   self.profile=Path(profile);self.drive=drive;self.native=native;self.download=download_file;self.notify=notify;self.clock=clock
+  # drive_stream.DriveStream when the framework can read a loopback source: no downloaded copy of the Drive file.
+  self.stream=stream if stream is not None and getattr(native,'streams',False) else None
   self.state=load(profile);self.state.setdefault('jobs',{});self.state.setdefault('sessions',{})
   self.work=location(profile).parent/'preparing-videos';self.work.mkdir(parents=True,exist_ok=True)
  def commit(self):save(self.profile,self.state)
@@ -288,7 +294,7 @@ class Queue:
   resumable=[pair for pair in candidates if pair[0] in working]
   free=shutil.disk_usage(self.work).free
   def fits(pair):
-   slot,job=pair;return free+folder_bytes(self.work/slot)>=space_needed(job['source'])
+   slot,job=pair;return free+folder_bytes(self.work/slot)>=space_needed(job['source'],bool(self.stream))
   if resumable and not any(fits(pair) for pair in resumable):
    # A half-prepared video that cannot finish gives its space back instead of keeping gigabytes on the phone.
    for slot,job in resumable:
@@ -297,7 +303,7 @@ class Queue:
   if resumable:candidates=resumable
   # Only videos that fit start; the others wait (smallest first once space frees up) without failing or notifying.
   waiting=[pair for pair in candidates if not fits(pair)]
-  for slot,job in waiting:job['space']=space_needed(job['source'])
+  for slot,job in waiting:job['space']=space_needed(job['source'],bool(self.stream))
   for slot,job in candidates:
    if (slot,job) not in waiting:job.pop('space',None)
   self.note_space(waiting,free)
@@ -325,13 +331,20 @@ class Queue:
     already_uploaded=int(current['size'])==output.stat().st_size and current['md5Checksum'].lower()==digest
    if not already_uploaded:
     if identity(current)!=identity(item):raise RuntimeError('Drive source changed; preparation will rescan')
-    if not source.is_file() or source.stat().st_size!=int(item['size']):
-     required=max(0,int(item['size'])-(source.stat().st_size if source.exists() else 0))+RESERVE
-     if shutil.disk_usage(folder).free<required:raise RuntimeError('Free phone space is needed for temporary preparation')
-     progress('Step 3 of 3 · Reading the downloaded video',0)
-     self.download(self.drive,item,str(source),keep_going,lambda n,t:progress('Step 3 of 3 · Reading the downloaded video',20*n/t))
-    if driveupload.checksum(str(source),keep_going,pace=1)!=item['md5Checksum'].lower():
-     source.unlink();raise RuntimeError('Source checksum differs; will read it again')
+    if self.stream:
+     # Streamed from Drive as the converter reads it: nothing downloaded, no copy of the source on the phone.
+     # A Drive change meanwhile is caught by replace()'s fresh version/checksum check, and the output is validated.
+     source.unlink(missing_ok=True)   # a copy left by an older build gives its space back
+     source=self.stream.url(item['id'])
+     progress('Step 3 of 3 · Reading from Google Drive',2)
+    else:
+     if not source.is_file() or source.stat().st_size!=int(item['size']):
+      required=max(0,int(item['size'])-(source.stat().st_size if source.exists() else 0))+RESERVE
+      if shutil.disk_usage(folder).free<required:raise RuntimeError('Free phone space is needed for temporary preparation')
+      progress('Step 3 of 3 · Reading the downloaded video',0)
+      self.download(self.drive,item,str(source),keep_going,lambda n,t:progress('Step 3 of 3 · Reading the downloaded video',20*n/t))
+     if driveupload.checksum(str(source),keep_going,pace=1)!=item['md5Checksum'].lower():
+      source.unlink();raise RuntimeError('Source checksum differs; will read it again')
     before=self.native.probe(str(source))
     # Never trade the selected 4K/HDR source for the live converter's 1080p fallback.
     if not output.is_file():
@@ -380,12 +393,13 @@ class Queue:
     job['blocked']=True;shutil.rmtree(folder,ignore_errors=True)
    elif 'Free phone space' in text:
     # Space ran out after all (the phone filled up meanwhile): give the space back and wait, quietly.
-    shutil.rmtree(folder,ignore_errors=True);job['status']='waiting';job['space']=space_needed(item);job['retry_after']=self.clock()+600
+    shutil.rmtree(folder,ignore_errors=True);job['status']='waiting';job['space']=space_needed(item,bool(self.stream));job['retry_after']=self.clock()+600
     job['error']=text[:240];return False
    # One notification per video and reason, not one per retry (owner, build 157: the same message five times).
    if job.get('error')!=text[:240]:self.notify('problem','Video preparation paused','%s: %s'%(drivelibrary.display_title(item.get('name','')),text[:200]))
    job['error']=text[:240];return False
   finally:
+   if self.stream:self.stream.forget(item['id'])
    current=self.state.get('current') or {}
    current.update(running=False,stage='Paused' if job.get('status')=='paused' else job.get('error','Waiting for the next video'),updated=self.clock())
    if job.get('status')=='done':self.state.pop('current',None)

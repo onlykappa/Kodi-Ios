@@ -49,10 +49,34 @@ int kr_prepare_ready(AVFormatContext *f) {
     }
     return 1;
 }
+// r14 (owner, build 157: "my storage can't handle large scale downloads"): the source may be read straight from the
+// phone's own loopback server (the setup add-on streams the Drive file through it) instead of a downloaded copy.
+// Only a local path or http://127.0.0.1 is accepted: preparation never reaches out to the network by itself.
+static int local_input(const char *input) {
+    return input && (input[0]=='/' || !strncmp(input,"http://127.0.0.1:",17));
+}
+static int open_source(AVFormatContext **f,const char *input) {
+    AVDictionary *o=NULL;int r;
+    if(!strncmp(input,"http://",7)) {
+        // Long reads over the phone's loopback to Drive: bounded waits, reconnect at the same offset, Range seeks.
+        av_dict_set(&o,"rw_timeout","60000000",0);
+        av_dict_set(&o,"reconnect","1",0);
+        av_dict_set(&o,"reconnect_on_network_error","1",0);
+        av_dict_set(&o,"reconnect_delay_max","30",0);
+        av_dict_set(&o,"seekable","1",0);
+        av_dict_set(&o,"multiple_requests","1",0);
+        av_dict_set(&o,"user_agent","Kodi-iOS-AirPlay/1",0);
+    }
+    r=avformat_open_input(f,input,NULL,&o);av_dict_free(&o);
+    if(r<0)return r;
+    return avformat_find_stream_info(*f,NULL);
+}
+// The setup add-on asks this before streaming a Drive file to preparation instead of downloading it first.
+int kodi_airplay_prepare_streams(void) { return 1; }
 int kodi_airplay_probe(const char *input,char *json,int size) {
     AVFormatContext *f=NULL;int r=-1;
-    if(!input || input[0]!='/' || !json || size<2) return -1;
-    if(avformat_open_input(&f,input,NULL,NULL)<0 || avformat_find_stream_info(f,NULL)<0) goto end;
+    if(!local_input(input) || !json || size<2) return -1;
+    if(open_source(&f,input)<0) goto end;
     int v=video_index(f);if(v<0) goto end;
     AVCodecParameters *p=f->streams[v]->codecpar;
     double audio_work=0,duration=f->duration>0?(double)f->duration/AV_TIME_BASE:0;
@@ -150,9 +174,9 @@ int kodi_airplay_prepare(const char *input,const char *output,kr_prepare_progres
     AVFormatContext *original=NULL,*out=NULL;input_track ins[TRACKS]={0};subtitle subs[TRACKS]={0};
     int ninputs=1,r=-1,header=0,mapped=0;char partial[4096],spools[TRACKS][4096]={{0}};
     if(err && en>0)*err=0;
-    if(!input || !output || input[0]!='/' || output[0]!='/' || !strcmp(input,output))return fail(err,en,"Separate local input/output paths required",0);
+    if(!local_input(input) || !output || output[0]!='/' || !strcmp(input,output))return fail(err,en,"A local or loopback input and a separate local output are required",0);
     snprintf(partial,sizeof partial,"%s.partial",output);
-    if(avformat_open_input(&original,input,NULL,NULL)<0 || avformat_find_stream_info(original,NULL)<0)goto end;
+    if(open_source(&original,input)<0){fail(err,en,"Cannot read the source video",0);goto end;}
     int vi=video_index(original);if(vi<0 || original->nb_streams>=TRACKS) {fail(err,en,"Unsupported track layout",0);goto end;}
     if(original->duration<=0){fail(err,en,"Source duration is unknown",0);goto end;}
     if(!copy_video(original->streams[vi]->codecpar) && hdr(original->streams[vi]->codecpar)) {
