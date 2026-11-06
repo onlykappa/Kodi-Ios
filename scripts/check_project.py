@@ -38,6 +38,8 @@ PORTRAIT_FILES = {'.github/workflows/kodi-ios-portrait.yml','migration/ios-portr
 
 # AirPlay MKV remuxer (migration/airplay-ios/remux): C sources, build and test scripts, licence files, its CI.
 REMUX_FILES = {'migration/airplay-ios/remux/THIRD-PARTY-NOTICES',
+               'migration/airplay-ios/remux/src/kr_prepare.c',
+               'migration/airplay-ios/remux/src/kr_prepare.h',
                'migration/airplay-ios/build-dav1d.sh',
                'migration/airplay-ios/ffmpeg-mov-pts.patch',
                'migration/airplay-ios/ffmpeg-dovi-padding.patch',

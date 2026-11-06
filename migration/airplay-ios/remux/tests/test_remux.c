@@ -5,6 +5,8 @@
 // r10: subtitles burned into the converted picture (libass): cue timing, grid unchanged, selection.
 // usage: test_remux FIXTURE_DIR [HTTP_BASE]   (HTTP_BASE: tests/range_server.py serving FIXTURE_DIR)
 #include "../src/kr_remux.h"
+#include "../src/kr_prepare.h"
+#include <libavutil/md5.h>
 #include "../src/kr_hls.h"
 #include "../src/kr_audio.h"
 #include "../src/kr_source.h"
@@ -1317,6 +1319,97 @@ static void test_burn_select(void) {
     kr_remux_set_subtitles(-1, NULL, NULL);
 }
 
+
+static int preparation_progress(int stage,double done,double total,void *ctx) {
+    int *calls=ctx;(*calls)++;
+    CHECK(stage>=0 && stage<=3 && isfinite(done) && total>0,"preparation progress is bounded");
+    return 1;
+}
+static int pause_preparation(int stage,double done,double total,void *ctx) {
+    (void)done;(void)total;(void)ctx;return stage!=2;
+}
+static int video_digest(const char *path,uint8_t digest[16],int *width,int *height,int *tracks) {
+    AVFormatContext *f=NULL;AVPacket *p=av_packet_alloc();struct AVMD5 *md5=av_md5_alloc();int r=-1;
+    if(!p || !md5 || avformat_open_input(&f,path,NULL,NULL)<0 || avformat_find_stream_info(f,NULL)<0)goto end;
+    int video=-1;for(unsigned i=0;i<f->nb_streams;i++)if(f->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_VIDEO){video=(int)i;break;}
+    if(video<0)goto end;
+    *width=f->streams[video]->codecpar->width;*height=f->streams[video]->codecpar->height;*tracks=(int)f->nb_streams;
+    av_md5_init(md5);while(av_read_frame(f,p)>=0){if(p->stream_index==video)av_md5_update(md5,p->data,p->size);av_packet_unref(p);}
+    av_md5_final(md5,digest);r=0;
+end:av_free(md5);av_packet_free(&p);avformat_close_input(&f);return r;
+}
+static void test_preparation(const char *work) {
+    const char *files[]={"h264_aac_srt.mkv","hevc_ac3_ass.mkv","h264_ac3_dts_srt.mkv","hevc_4k.mkv","dovi.mkv","long_seek.mkv"};
+    for(unsigned i=0;i<sizeof files/sizeof files[0];i++) {
+        char input[1024],output[1024],err[512]="",json[1024],url[1100],playlist[512];
+        snprintf(input,sizeof input,"%s/%s",fixture_dir,files[i]);snprintf(output,sizeof output,"%s/prepared-%u.mp4",work,i);unlink(output);
+        int calls=0;
+        int r=kodi_airplay_prepare(input,output,preparation_progress,&calls,err,sizeof err);
+        CHECK(r==0,"prepare %s: %s",files[i],err);if(r)continue;
+        CHECK(calls>0,"prepare %s publishes progress",files[i]);
+        CHECK(kodi_airplay_probe(output,json,sizeof json)==0 && strstr(json,"\"ready\":true"),"prepared portable MP4: %s",json);
+        uint8_t a[16],b[16];int aw,ah,an,bw,bh,bn;
+        CHECK(video_digest(input,a,&aw,&ah,&an)==0 && video_digest(output,b,&bw,&bh,&bn)==0,"read preparation input/output");
+        CHECK(aw==bw && ah==bh,"source resolution preserved (%dx%d -> %dx%d)",aw,ah,bw,bh);
+        CHECK(an==bn,"all selected video/audio/text tracks preserved (%d -> %d)",an,bn);
+        CHECK(!memcmp(a,b,16),"H.264/HEVC video packets preserved without quality loss: %s",files[i]);
+        snprintf(url,sizeof url,"file:%s",output);
+        CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared.mp4"),"prepared file uses indexed byte-range seeking without live conversion");
+        int port=kr_remux_port();
+        reply bytes=http_get(port,playlist,"bytes=0-127");
+        CHECK(bytes.status==206 && bytes.len==128 && !memcmp(bytes.body+4,"ftyp",4),"prepared MP4 ranges return exact bytes");free(bytes.body);
+        bytes=http_get(port,playlist,"bytes=-128");CHECK(bytes.status==206 && bytes.len==128,"prepared MP4 suffix range");free(bytes.body);
+        bytes=http_get(port,playlist,"bytes=10-2");CHECK(bytes.status==416,"prepared MP4 rejects invalid range");free(bytes.body);
+        CHECK(kr_remux_compat()==0 && kr_remux_prefetched()==0,"prepared playback never converts/prefetches segments");
+        int idle_fd=socket(AF_INET,SOCK_STREAM,0);struct sockaddr_in idle_address={0};
+        idle_address.sin_family=AF_INET;idle_address.sin_port=htons((uint16_t)port);idle_address.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
+        CHECK(connect(idle_fd,(struct sockaddr *)&idle_address,sizeof idle_address)==0,"connect idle seek client");usleep(20000);
+        double stop_at=mono_ms();kr_remux_stop();
+        CHECK(mono_ms()-stop_at<1500,"idle client is interrupted on stop, never freed while active");close(idle_fd);
+        AVFormatContext *f=NULL;CHECK(avformat_open_input(&f,output,NULL,NULL)==0,"open output MP4");
+        if(f){avformat_find_stream_info(f,NULL);
+            if(!strcmp(files[i],"long_seek.mkv")) {
+                CHECK(av_seek_frame(f,-1,1200LL*AV_TIME_BASE,AVSEEK_FLAG_BACKWARD)>=0,"prepared file seeks twenty minutes");
+                AVPacket *seek=av_packet_alloc();int got=av_read_frame(f,seek);
+                double at=got>=0?seek->pts*av_q2d(f->streams[seek->stream_index]->time_base):-1;
+                CHECK(got>=0 && at>=1198 && at<=1202,"twenty-minute seek lands at the selected time (%.3f)",at);av_packet_free(&seek);
+            }
+            for(unsigned n=0;n<f->nb_streams;n++) {
+            AVCodecParameters *cp=f->streams[n]->codecpar;
+            if(cp->codec_type==AVMEDIA_TYPE_AUDIO)CHECK(cp->codec_id==AV_CODEC_ID_AAC,"prepared audio is AAC");
+            if(cp->codec_type==AVMEDIA_TYPE_SUBTITLE)CHECK(cp->codec_id==AV_CODEC_ID_MOV_TEXT,"prepared subtitles stay selectable text");
+        }avformat_close_input(&f);}
+    }
+    char input[1024],output[1024],err[512]="";
+    snprintf(input,sizeof input,"%s/hevc_ac3_ass.mkv",fixture_dir);snprintf(output,sizeof output,"%s/preparation-pause.mp4",work);unlink(output);
+    CHECK(kodi_airplay_prepare(input,output,pause_preparation,NULL,err,sizeof err)==-2,"pause preparation without committing partial output");
+    CHECK(access(output,F_OK)!=0,"paused file never becomes a completed movie");
+    CHECK(kodi_airplay_prepare(input,output,NULL,NULL,err,sizeof err)==0,"resume checkpointed preparation: %s",err);
+    snprintf(input,sizeof input,"%s/h264_pgs.mkv",fixture_dir);unlink(output);
+    CHECK(kodi_airplay_prepare(input,output,NULL,NULL,err,sizeof err)<0 && strstr(err,"tracks MP4 cannot preserve"),"never silently drop bitmap subtitles: %s",err);
+    CHECK(access(output,F_OK)!=0,"unsupported tracks keep the original untouched");
+}
+
+// r14: prepare straight from a loopback HTTP source (the phone streams the Drive file), never a downloaded copy.
+static void test_preparation_http(const char *http_base,const char *work) {
+    const char *files[]={"hevc_ac3_ass.mkv","h264_ac3_dts_srt.mkv"};
+    for(unsigned i=0;i<sizeof files/sizeof files[0];i++) {
+        char input[1024],local[1024],output[1024],err[512]="",json[1024];
+        snprintf(input,sizeof input,"%s/%s",http_base,files[i]);snprintf(local,sizeof local,"%s/%s",fixture_dir,files[i]);
+        snprintf(output,sizeof output,"%s/prepared-http-%u.mp4",work,i);unlink(output);
+        CHECK(kodi_airplay_probe(input,json,sizeof json)==0 && strstr(json,"\"ready\":false"),"probe over loopback HTTP: %s",json);
+        int r=kodi_airplay_prepare(input,output,NULL,NULL,err,sizeof err);
+        CHECK(r==0,"prepare over loopback HTTP %s: %s",files[i],err);if(r)continue;
+        CHECK(kodi_airplay_probe(output,json,sizeof json)==0 && strstr(json,"\"ready\":true"),"HTTP-prepared portable MP4: %s",json);
+        uint8_t a[16],b[16];int aw,ah,an,bw,bh,bn;
+        CHECK(video_digest(local,a,&aw,&ah,&an)==0 && video_digest(output,b,&bw,&bh,&bn)==0,"read HTTP preparation input/output");
+        CHECK(aw==bw && ah==bh && an==bn && !memcmp(a,b,16),"HTTP-prepared video packets identical to the source: %s",files[i]);
+    }
+    char output[1024],err[512]="";snprintf(output,sizeof output,"%s/prepared-remote.mp4",work);
+    CHECK(kodi_airplay_prepare("http://example.com/movie.mkv",output,NULL,NULL,err,sizeof err)<0 && access(output,F_OK)!=0,
+          "preparation never reads a non-loopback URL: %s",err);
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: test_remux FIXTURE_DIR [HTTP_BASE]\n"); return 2; }
     fixture_dir = argv[1];
@@ -1349,6 +1442,9 @@ int main(int argc, char **argv) {
     test_kind();
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
     mkdir(work, 0755);
+    if (argc > 3 && !strcmp(argv[3], "--prepare-only")) {
+        test_preparation(work);test_preparation_http(argv[2],work);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+    }
     if (argc > 3 && !strcmp(argv[3], "--dovi-only")) {
         kr_video_set_encoder("mpeg4");test_dovi_render(work);
         char url[1024];snprintf(url,sizeof url,"file:%s/dovi.mkv",fixture_dir);
@@ -1361,6 +1457,8 @@ int main(int argc, char **argv) {
         printf("%d checks, %d failed\n", checks, failures);
         return failures ? 1 : 0;
     }
+    test_preparation(work);
+    if (argc > 2) test_preparation_http(argv[2], work);
     fixture fx[] = {
         { "h264_aac_srt.mkv", "avc1.42C0", "mp4a.40.2", 1, 1, 0, 0, "Hello from SRT" },
         { "hevc_ac3_ass.mkv", "hvc1.2.4.L", "ac-3", 1, 1, 1, 0, "Hello from ASS" },

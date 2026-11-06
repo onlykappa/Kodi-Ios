@@ -31,8 +31,14 @@ class PhoneSource(unittest.TestCase):
   self.assertEqual(cast.phone_source(playing,'http://192.168.1.11:60047/x'),'http://127.0.0.1:60047/download/1/1/abc/Movie.mkv')
   self.assertEqual(cast.phone_source('/var/mobile/Movie.mkv','http://fallback/x'),'http://fallback/x')
   source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
-  self.assertIn('cast.phone_source(playing,url)',source)
+  self.assertIn('cast.airplay_source(playing,url,converting)',source)
   self.assertIn('AirPlay converts this %s video on the phone',source)
+ def test_a_prepared_mp4_also_uses_the_phones_own_link(self):
+  # Owner build 157: Scary.Movie...mp4 (prepared) went out as http://10.0.0.247:57527/... and was refused.
+  playing='http://127.0.0.1:57527/download/1/1/abc/Scary.Movie.2026.2160p.mp4'
+  wifi='http://10.0.0.247:57527/download/1/1/abc/Scary.Movie.2026.2160p.mp4'
+  self.assertEqual(cast.airplay_source(playing,wifi,True),playing)
+  self.assertEqual(cast.airplay_source(playing,wifi,False),wifi)   # an older framework gives Apple's player the link
 
 class EpisodePicker(unittest.TestCase):
  def test_one_tap_picks_an_episode_and_empty_ticks_explain(self):
@@ -119,10 +125,10 @@ class AirPlayLog(unittest.TestCase):
    self.assertIn(needle,build)
   lock=__import__('json').loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())
   import re
-  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r12')
+  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r14')
   self.assertRegex(lock['framework_release']['sha256'],r'^(PENDING-set-after-publish|[0-9a-f]{64})$')
-  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r11')
-  self.assertEqual(lock['previous']['sha256'],'7cfbb57f12feadd4951991c4b5b4a978404cbd22db3ad1254b9b287346fa645e')
+  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r13')
+  self.assertEqual(lock['previous']['sha256'],'e5e45d2ea2c08208127fba5ad9d9bcde0da0f0a7f16db994c869cd233ca7dce2')
 
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):

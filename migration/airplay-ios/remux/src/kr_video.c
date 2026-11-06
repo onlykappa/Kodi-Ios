@@ -42,6 +42,7 @@ struct kr_video {
     AVCodecContext *dec;
     AVBufferRef *hw;          // VideoToolbox device, NULL for software decoding
     int ow, oh;               // output size
+    int offline;
     AVRational fps;           // source frame rate (for the encoder's framerate hint)
     kr_color *sws;
 #ifdef KR_GPU
@@ -215,6 +216,11 @@ fail:
 }
 
 int kr_video_width(const kr_video *v) { return v ? v->ow : 0; }
+void kr_video_keep_resolution(kr_video *v) {
+    if (!v) return;
+    AVCodecParameters *p=v->in->streams[v->index]->codecpar;
+    v->ow=p->width;v->oh=p->height;v->offline=1;
+}
 int kr_video_height(const kr_video *v) { return v ? v->oh : 0; }
 int kr_video_hw_decode(const kr_video *v) { return v && v->hw ? 1 : 0; }
 const char *kr_video_path(const kr_video *v) {
@@ -338,6 +344,7 @@ static int open_encoder(job *j, char *err, int errlen) {
     c->framerate = v->fps;
     c->sample_aspect_ratio = (AVRational){ 1, 1 };
     c->bit_rate = kr_video_bitrate(v->ow, v->oh);
+    if(v->offline)c->bit_rate=(int)fmax(1.5e6,7e6*(double)v->ow*v->oh/(1920.0*1080.0));
     c->rc_max_rate = c->bit_rate * 3 / 2;
     c->rc_buffer_size = (int)c->bit_rate * 2;
     c->gop_size = 100000;      // one keyframe: the first frame of the segment
@@ -348,6 +355,7 @@ static int open_encoder(job *j, char *err, int errlen) {
     if (!strcmp(codec->name, "h264_videotoolbox")) {
         c->profile = AV_PROFILE_H264_HIGH;
         av_opt_set_int(c->priv_data, "level", av_q2d(v->fps) > 30.5 ? 42 : 40, 0);  // matches kr_video_codecs
+        if(v->offline && (v->ow>1920 || v->oh>1080))av_opt_set_int(c->priv_data,"level",av_q2d(v->fps)>30.5?52:51,0);
         av_opt_set_int(c->priv_data, "realtime", 1, 0);      // speed over size: segments are made while the TV waits
         av_opt_set_int(c->priv_data, "prio_speed", 1, 0);    // r9: favour encoding speed
         av_opt_set_int(c->priv_data, "allow_sw", 0, 0);      // the hardware encoder only (battery)

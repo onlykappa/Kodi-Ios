@@ -39,16 +39,17 @@ def remote_files(drive,keep_going=lambda:True):
  out=[];seen=set();stack=[]
  for section in ('Movies','TV Shows'):
   if not keep_going():raise driveupload.Stop()
-  stack.extend(drivelibrary.find_folders(drive,[drivelibrary.TOP,section],strict=True))
+  stack.extend((folder,section) for folder in drivelibrary.find_folders(drive,[drivelibrary.TOP,section],strict=True))
  while stack:
   if not keep_going():raise driveupload.Stop()
-  folder=stack.pop()
+  folder,name=stack.pop()
   if folder in seen:continue
   seen.add(folder)
   for item in drivelibrary.children(drive,folder):
-   if item.get('mimeType')==drivelibrary.FOLDER:stack.append(item['id'])
-   elif drivelibrary.is_video(item.get('name','')) and int(item.get('size') or 0)>0:out.append(item)
+   if item.get('mimeType')==drivelibrary.FOLDER:stack.append((item['id'],item.get('name','')))
+   elif drivelibrary.is_video(item.get('name','')) and int(item.get('size') or 0)>0:out.append(dict(item,folderName=name,folderId=folder))
  return out
+
 
 def destination(path):
  info=drivelibrary.parse(os.path.basename(path))
@@ -72,7 +73,7 @@ Duplicate means identical bytes (size + MD5), even if the filename differs. Name
  sessions=state.setdefault('sessions',{});digests=state.setdefault('digests',{})
  def save():drivelibrary.save_json(state_path,state)
  candidates=remote_files(drive,keep_going) if remote is None else list(remote)
- result={'uploaded':0,'duplicates':0,'deleted':0,'kept':0,'failed':0,'cancelled':False}
+ result={'uploaded':0,'duplicates':0,'same_media':0,'deleted':0,'kept':0,'failed':0,'cancelled':False}
  for index,path in enumerate(paths):
   if not keep_going():result['cancelled']=True;break
   try:
@@ -92,12 +93,22 @@ Duplicate means identical bytes (size + MD5), even if the filename differs. Name
     if not keep_going():raise driveupload.Stop()
     if driveupload.confirmed(drive,candidate.get('id'),before[2],digest):item=candidate;break
    if item is None:
+    better=drivelibrary.better_on_drive(path,candidates)
+    if better is not None:
+     # Another release of the same episode/movie, at least as good, is on Drive: this copy is the extra one (owner).
+     if not better.get('md5Checksum') or not driveupload.confirmed(drive,better.get('id'),int(better.get('size') or 0),better['md5Checksum'].lower()):continue
+     if not keep_going():raise driveupload.Stop()
+     if os.path.islink(path) or driveupload.fingerprint(path)!=before:continue
+     digests.pop(path,None);sessions.pop(path,None);save()
+     os.remove(path);result['deleted']+=1;result['same_media']+=1;continue
     progress('Uploading',index,len(paths))
     if digests.get(path)!=digest:sessions.pop(path,None)
     digests[path]=digest;save()
-    item=drive.upload(path,drive.folder(destination(path)),sessions,save,keep_going,
+    item=drive.upload(path,drive.folder(drivelibrary.show_folder(drive,destination(path))),sessions,save,keep_going,
                       lambda done,total:progress('Uploading',index,len(paths)))
     result['uploaded']+=1
+    if driveupload.confirmed(drive,item.get('id'),before[2],digest):
+     drivelibrary.trash_worse(drive,os.path.basename(path),os.path.basename(os.path.dirname(path)),candidates,item.get('id'))
    else:result['duplicates']+=1
    # Re-read the source after any lengthy upload and compare current remote metadata before deletion.
    progress('Verifying',index,len(paths))
@@ -160,6 +171,8 @@ def run():
   message='%d uploaded, %d duplicates checked, %d phone copies removed, %d kept.'%(
            result['uploaded'],result['duplicates'],result['deleted'],result['kept'])
   if result['failed']:message+=' %d files could not be checked; their phone copies were kept.'%result['failed']
+  if result.get('same_media'):message+=' %d %s already on Google Drive as another copy, so %s removed from the phone instead of uploaded.'%(
+   result['same_media'],*(('was','it was') if result['same_media']==1 else ('were','they were')))
   dialog.close();xbmcgui.Dialog().ok(status,message)
   if result['deleted'] or result['uploaded']:xbmc.executebuiltin('Container.Refresh')
  except driveupload.Stop:

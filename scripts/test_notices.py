@@ -138,8 +138,8 @@ class OverlapTests(unittest.TestCase):
   self.assertNotIn('<textcolor>%s</textcolor>'%portrait.DIM,portrait.notices_page())
  def test_transfer_rows_have_one_label_per_line_and_readable_titles(self):
   xml=portrait.notices_page()
-  self.assertNotIn('then off the phone',xml)
-  for pre in ('up.',):
+  self.assertNotIn('then off the phone',xml);self.assertNotIn('source resolution',xml)
+  for pre in ('up.','prepare.'):
    for key in ('title','summary','line'):self.assertIn('Window().Property(%s%s)'%(pre,key),xml)
   props=page.card_properties([],[{'title':'Fall (2022)','folder':'Movies','progress':5,'line':'5%'}])
   self.assertEqual(props['up.summary'],'Movies · then off the phone')

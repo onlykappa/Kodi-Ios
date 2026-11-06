@@ -188,4 +188,32 @@ class DriveLibrary(unittest.TestCase):
    result=lib.load_json(path,None)
    self.assertIn(result['writer'],range(32));self.assertEqual(len(result['entries']),1000)
    self.assertEqual([p.name for p in Path(tmp).iterdir()],['drive-library.json'])
+class Duplicates(unittest.TestCase):
+ """Owner (build 152): the same show must not get two Drive folders, nor the same episode two preparations."""
+ def setUp(self):
+  self.lib=lib
+ def test_same_show_and_episode_match_across_releases_and_years(self):
+  k=self.lib.media_key
+  self.assertEqual(k('Lanterns.S01E01.Pilot.2160p.10bit.AMZN.WEB-DL.DDP5.1.HEVC-Vyndros.mkv'),('episode','lanterns',1,1))
+  self.assertEqual(k('Lanterns (2026) - S01E01 - 1080p.mkv'),k('Lanterns.S01E01.Pilot.2160p.mkv'))
+  self.assertEqual(k('S01E01.mkv','Lanterns (2026)'),('episode','lanterns',1,1))
+  self.assertIsNone(k('S01E01.mkv','Season 1'))   # a season folder names no show: never guess
+  self.assertNotEqual(k('Lanterns.S01E02.mkv'),k('Lanterns.S01E01.mkv'))
+  self.assertEqual(k('Inception.2010.2160p.mkv'),('movie','inception','2010'))
+  self.assertNotEqual(k('Dune.2021.mkv'),k('Dune.1984.mkv'))
+  self.assertEqual(self.lib.show_key('Lanterns (2026)'),self.lib.show_key('lanterns'))
+ def test_quality(self):
+  q=self.lib.quality
+  self.assertEqual((q('a.2160p.mkv'),q('a 4K HDR.mkv'),q('a.1080p.mkv'),q('a.mkv')),(2160,2160,1080,0))
+ def test_episode_goes_into_the_shows_existing_folder(self):
+  from unittest import mock
+  folders=[{'name':'Lanterns','mimeType':self.lib.FOLDER},{'name':'Other Show','mimeType':self.lib.FOLDER}]
+  with mock.patch.object(self.lib,'find_folders',lambda drive,parts,strict=False:['tv']),mock.patch.object(self.lib,'children',lambda drive,fid:folders):
+   self.assertEqual(self.lib.show_folder(None,['Kodi Downloads','TV Shows','Lanterns (2026)']),['Kodi Downloads','TV Shows','Lanterns'])
+   self.assertEqual(self.lib.show_folder(None,['Kodi Downloads','TV Shows','New Show']),['Kodi Downloads','TV Shows','New Show'])
+   self.assertEqual(self.lib.show_folder(None,['Kodi Downloads','Movies']),['Kodi Downloads','Movies'])
+  def broken(*a,**k):raise RuntimeError('offline')
+  with mock.patch.object(self.lib,'find_folders',broken):
+   self.assertEqual(self.lib.show_folder(None,['Kodi Downloads','TV Shows','Lanterns (2026)']),['Kodi Downloads','TV Shows','Lanterns (2026)'])
+
 if __name__=='__main__':unittest.main()

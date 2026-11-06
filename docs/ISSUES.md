@@ -807,3 +807,71 @@ Status: FIXED IN SOURCE (local draft, not pushed: owner testing); rig and device
   - The pill and the Activity sheet rows show the TMDb poster of the download (or upload) inside the progress ring, cropped to the rounded tile. It comes from the Library's cached `drivelibrary.artwork` with TMDb Helper's key, is looked up once per title in a background thread, and falls back to the app tile while loading or when there is no match. A finished job shows the green check.
 - Expect every portrait page to look about 9 % shorter (as designed), with things previously cut off at the bottom now visible. This needs a rig re-render and an owner check on the phone.
 - Regression: `test_portrait.ResolutionChoice` (Kodi's rule replayed: 16 Pro → 1080 × 2090, old labels → 1920, home-button phones → 9:16, in-place upgrade once), `test_activity.Posters` (4).
+## ISSUE-103 — The same show in two Drive folders, the same episode prepared twice (build 152)
+
+Status: FIXED IN SOURCE; device check pending.
+- Owner screenshots (build 152): Drive › Kodi Downloads › TV Shows held "Lanterns" and "Lanterns (2026)", the same show, each with S1 E1. Both were queued for preparation ("7 remaining"). The owner asked for a duplicate check before any uploading or downloading, then (DEC-028) for the extra copy to be deleted and for a check before Elementum downloads.
+- Root cause: upload folders were named from each release's file name ("Lanterns.S01E01…" gives "Lanterns", a release with the year gives "Lanterns (2026)"). Duplicates were only identical bytes (size + MD5), so two releases of one episode were both uploaded and both queued.
+- Fix:
+  - One rule, `drivelibrary.media_key`: the same episode means the same show name, ignoring case, punctuation and year (the Library's merge rule), plus the same season and episode. The same movie means the same title and year. Copies whose named years disagree are never treated as one: "The Office (2001)" and "The Office (2005)" are different shows. A bare `S01E01.mkv` in a "Season 1" folder gets no key.
+  - Before an Elementum download (`download.py`, using `ios_downloaded.completed_copy`, the same phone + Drive lookup as Continue Watching):
+    - A movie or episode already downloaded asks "Download again?" and names where it is.
+    - The episode chooser marks downloaded episodes, and picking them asks first.
+    - A whole season says how many of its episodes are already downloaded.
+    - A failed check never blocks the download.
+  - Before an upload: an episode goes into the show's existing Drive folder. If Drive already has the same episode or movie at equal or higher resolution, the phone copy is the extra one. It is removed once Drive's copy is confirmed with fresh metadata, and only with the "remove phone copies" setting on (otherwise it is kept and reported once). A seeding torrent is removed through Elementum. A better phone copy is uploaded, verified, and then the worse Drive copy goes to Drive's Trash. Settings › Library scan follows the same rule.
+  - Before preparation downloads a Drive file: one copy per episode or movie is kept. The kept copy is chosen in this order: already prepared, then being saved or with working files, then the highest resolution, then the largest. Once the kept copy is confirmed on Drive, the others go to Drive's Trash, along with a show/release folder left empty (never Kodi Downloads' own folders). A copy being saved, or changed since it was listed, is never trashed.
+  - Deletion on Drive is always to the Trash, restorable there for 30 days, never permanent. Every removal produces one notification naming what was kept and what went.
+  - "Ready for Kodi and AirPlay" names the title ("Lanterns · S1 E1"), not the file.
+- Regression: `test_drive_library.Duplicates`, `test_drive_upload.SameEpisode` (6), `test_prepare_downloads.OneCopyEach` (8: best copy kept, trash plus empty folder, shared folder kept, prepared or in-progress copy wins, unconfirmed or changed copies kept, different years), `test_library_scan` (same movie replaces the phone copy only when confirmed; different years upload), and `test_updates_calibration.AlreadyDownloaded`.
+
+## ISSUE-104 — Owner sees no movies being converted (build 156)
+
+Status: FIXED IN SOURCE (local draft, not pushed: owner is testing build 156); device check pending.
+- Owner: "check if the auto converter starts at launch because I don't see any files being converted and I know all my movies need to be", and asked for a Settings entry to check the library.
+- Launch: the service's first pass runs 5 s after start (idle, Drive signed in, setting on). The owner's build-152 screenshot showed it preparing Lanterns, so it starts.
+- Two queue bugs could keep every movie waiting:
+  1. One video Drive could not describe (`metadata` error) aborted the whole launch scan, so nothing after it was queued, on every pass.
+  2. The queue only resumed a half-downloaded video (to save phone space). If that video was in a retry wait (low space, network), nothing else could start, for up to an hour each time, indefinitely.
+- Fix:
+  - The scan skips an unreadable file (keeping its existing work) and records totals: videos, ready, unreadable, checked time.
+  - A stuck half-downloaded video no longer holds the queue. A resumable one still goes first, and every job checks free space itself.
+  - New Settings › Library › Kodi and AirPlay › **Check library for conversion** (also in the add-on's Google Drive settings). It asks the service to check now; a conversion in progress pauses and resumes where it was. It then shows how many videos are ready, waiting or paused, with the reasons.
+- Regression: `test_prepare_downloads.LibraryCheck` (7) plus the updated service wiring test.
+- Open question for the owner: are the movies in Google Drive › Kodi Downloads › Movies? Videos elsewhere on Drive are not scanned.
+
+## ISSUE-106 — "Best" 4K source for Fall (2022) downloaded Fall.2.Deadpoint.2026 (build 156)
+
+Status: FIXED IN SOURCE (local draft, not pushed); device check pending.
+- Owner screenshot (build 156): after choosing Fall (2022) › 4K › the best source, Elementum's buffering dialog showed `Fall.2.Deadpoint.2026.2160p.4K.WEB.x265.10bit.AAC5.1-[YTS.GG - YTS.BZ].mkv`.
+- Root cause: the source check (`source_match`, run on every provider's results in Burst) is correct for this name: it returns "wrong title" for the 2026 sequel and accepts `Fall.2022…`. But some sites (YTS look-alikes such as YTS.GG/YTS.BZ) label each result from their own movie catalogue ("Fall 2022 2160p"), so the label passed. The torrent's real name only exists once Elementum has its metadata, after the choice was made.
+- Fix: `source_guard.py`, a service thread reusing the shared engine list every 2 s.
+  - Every torrent added after a source search is judged against the search current when it first appeared (so several chosen episodes never judge each other), for 5 minutes, once its real name is known.
+  - A clear mismatch stops the download: for a film, another title or year, or an episode; for a show, another show. The torrent and its files are removed, with a Notifications › Problems entry ("Fall.2.Deadpoint.2026… is not Fall (2022) (wrong title)… choose another version").
+  - Uncertain names (no year, hash-only names before metadata), torrents that were already there, searches over 30 minutes old, and a hidden source the owner chose deliberately are left alone.
+- Not changed: Elementum's own ranking of the "best" source (it re-sorts Burst's results by its quality/seeds setting).
+- Regression: `test_source_match.WhatTheTorrentReallyIs` (7, including the owner's exact name and the several-episodes race).
+
+## ISSUE-107 — AirPlay refused for every prepared movie; preparation stuck on phone space (build 157)
+
+Status: FIXED IN SOURCE; device check pending.
+- Owner (build 157): "AirPlay won't work at all" ("AirPlay: cannot open the stream (Connection refused)") and repeated "Video preparation paused: Free phone space is needed" (5 times). The phone had about 51 GB free of 256 GB.
+- AirPlay root cause (kodi.log): KodiAirPlay was given `http://10.0.0.247:57527/…/Scary.Movie…mp4`, the Wi-Fi address of the Google Drive add-on's helper, which only answers on 127.0.0.1 (the same refusal as build 132). `cast.py` used the phone's own link only for files that were not Apple-playable. Prepared movies are `.mp4`, so every prepared movie got the Wi-Fi link. Fix: `cast.airplay_source`. A converting framework (r5+) always reads the video itself and gets the 127.0.0.1 link; an older framework keeps the Wi-Fi link for Apple's player.
+- Space root cause: preparing a video needs the Drive file and the prepared copy on the phone at the same time (about twice its size; the native step takes local files). The queue started videos without checking that, kept a stuck video's partial download on the phone, and notified on every retry.
+- Fix:
+  - A video starts only when twice its size plus a margin fits while leaving 5 GB free for the owner (`KEEP_FREE`). Videos that fit go first.
+  - A half-prepared video that cannot finish gives its space back.
+  - Running out midway frees the working files quietly and waits.
+  - "Waiting for phone space" is notified once when the list grows; other problems are notified once per video and reason.
+  - Settings › Check library for conversion shows how many videos wait for space.
+- Not solved here: a video larger than (free space − 5 GB) / 2 still waits. Halving the need means reading straight from Drive instead of downloading first, which requires a KodiAirPlay native change (local-path-only input today) and a macOS framework build.
+- Regression: `test_prepare_downloads.NeverRunsOutOfSpace` (5), `test_airplay_remux.PhoneSource.test_a_prepared_mp4_also_uses_the_phones_own_link`.
+
+## ISSUE-108 — Preparation must not download movies first (owner, after build 157)
+
+Status: IN SOURCE; KodiAirPlay r14 build, then device check pending.
+- Owner: "Please have it read from the drive as my storage can't handle large scale downloads." Before this, a movie needed its Drive file and its prepared copy on the phone at once (about twice its size; ISSUE-107).
+- Native (KodiAirPlay r14, `kr_prepare.c`): probe and prepare accept `http://127.0.0.1:` sources as well as local paths (loopback only, never the internet), opened with bounded timeouts, reconnects at the same offset and Range seeks. The spool passes already read through `kr_source`, which handles HTTP. `kodi_airplay_prepare_streams()` (exported) tells the add-on the build can do it. Host test: `test_preparation_http` prepares two fixtures through the range server, gets byte-identical video packets to the file version, and refuses a non-loopback URL.
+- Add-on: `drive_stream.DriveStream`, a 127.0.0.1 server (random session secret, registered Drive files only) that answers byte ranges by fetching them from Drive as the converter asks; nothing is written to the phone. With r14, `prepare_downloads` streams instead of downloading, skips the local-copy checksum (a Drive change meanwhile is still refused by `replace()`'s fresh version/checksum check, and the output is still validated for resolution, HDR and duration), deletes any copy an older build left, and plans space for about 1× the movie (`space_needed(item, streaming=True)`). An older framework keeps the download path.
+- Trade-off: more data is read from Drive (a movie whose audio needs converting is read twice), in exchange for half the phone space.
+- Regression: `test_prepare_downloads.StreamFromDrive` (8).

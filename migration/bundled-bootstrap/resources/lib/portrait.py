@@ -614,6 +614,7 @@ VARIABLES=('<variable name="Portrait_Hero_Art"><value condition="!String.IsEmpty
 DL_GAP=20;DL_H=108;DL_SHIFT=DL_GAP+DL_H   # the Download button under Play pushes the seasons page down by this
 DOWNLOAD_SEASON=('RunScript(service.kodi.ios.bootstrap,download,kind=season,'
  'path=$ESCINFO[Container(50).ListItem.FolderPath],season=$INFO[Container(50).ListItem.Season],'
+ 'title=$ESCINFO[ListItem.TVShowTitle],year=$INFO[ListItem.Year],'
  'tvshow.tmdb_id=$INFO[Container(50).ListItem.Property(tvshow.tmdb_id)])')
 DOWNLOADED_SHOW='String.IsEqual(Container.Property(KodiIOS.DownloadedShow),true)'
 def show_header(ids_down):
@@ -949,6 +950,8 @@ def notices_page():
   '<control type="grouplist" id="9300"><left>0</left><top>400</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%WIDTH+
   section('Downloading',has('has.dl'),P('dl.summary'))+''.join(card(n) for n in range(1,NOTICE_SLOTS+1))+
   section('Uploading to Google Drive',has('has.up'))+transfer('up.',9430,'cloud-arrow-up.png',GREEN,'FF1F3D2B')+
+  section('Preparing for Kodi and AirPlay',has('has.prepare'))+
+  transfer('prepare.',9431,'cloud-arrow-up.png',GREEN,'FF1F3D2B')+
   section('Earlier',has('has.msg'))+''.join(row(n) for n in range(1,NOTICE_ROWS+1))+
   '<control type="group"><width>%d</width><height>300</height><visible>%s</visible>'%(WIDTH,has('empty'))+
   label(SIDE,80,w,80,"You're all caught up",'p_h3',GREY,'center')+'</control>'+

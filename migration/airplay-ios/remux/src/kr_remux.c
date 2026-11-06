@@ -10,6 +10,7 @@
 #include "kr_source.h"
 #include "kr_video.h"
 #include "kr_subs.h"
+#include "kr_prepare.h"
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
@@ -74,6 +75,8 @@ static struct {
     atomic_int served_ext_video, served_ext_audio;  // r8: to receivers other than the phone's own player
     char vcodec[64];  // r6: the variant's video CODECS value ("hvc1.2.4.L120.90")
     int compat;       // r7: /video/ is the picture converted to H.264 (kr_video), not copied
+    int prepared;
+    int64_t prepared_size;
     int vindex;       // r7: the source video stream converted in compat mode
     kr_source *vsrc;  // r7: the converter's own connection to the source, opened on first use
     kr_video *video;
@@ -104,6 +107,10 @@ static struct {
 
 // r10: the subtitle choice for the next kr_remux_start (Kodi's selection, from Python).
 static struct { pthread_mutex_t lock; int ordinal; char file[1024]; char lang[16]; } SUBS = { PTHREAD_MUTEX_INITIALIZER, -2, "", "" };
+// Registered sockets are shut down before a session is freed/reused, including clients which
+// disconnected during a seek or connected without completing an HTTP request.
+#define CONNECTION_LIMIT 64
+static struct {pthread_mutex_t lock;int fd[CONNECTION_LIMIT];} CLIENTS={.lock=PTHREAD_MUTEX_INITIALIZER};
 void kr_remux_set_subtitles(int ordinal, const char *file, const char *lang) {
     pthread_mutex_lock(&SUBS.lock);
     SUBS.ordinal = ordinal < -2 ? -1 : ordinal;
@@ -724,8 +731,58 @@ static int phone_player(const char *ua) {
     return ua && strstr(ua, "AppleCoreMedia") && (strstr(ua, "(iPhone") || strstr(ua, "(iPad") || strstr(ua, "(iPod"));
 }
 
+
+static int preparation_stopping(void *unused) { (void)unused;return atomic_load(&S.stopping); }
+static void serve_prepared(int fd,int head,const char *range,const char *agent) {
+    int64_t size=S.prepared_size,first=0,last=size-1;int partial=range!=NULL,valid=size>0;
+    if(range) {
+        if(strncmp(range,"bytes=",6) || strchr(range,','))valid=0;
+        else if(range[6]=='-') {
+            char *end=NULL;long long suffix=strtoll(range+7,&end,10);
+            if(suffix<=0 || !end || *end)valid=0;else first=suffix>=size?0:size-suffix;
+        } else {
+            char *end=NULL;first=strtoll(range+6,&end,10);
+            if(first<0 || !end || *end!='-')valid=0;
+            else if(end[1]) {char *tail=NULL;last=strtoll(end+1,&tail,10);if(!tail || *tail || last<first)valid=0;}
+            if(last>=size)last=size-1;
+        }
+        if(first>=size)valid=0;
+    }
+    char header[512];int length;
+    if(!valid) {
+        length=snprintf(header,sizeof header,"HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */%lld\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",(long long)size);
+        send_all(fd,header,(size_t)length);t_status=416;return;
+    }
+    length=partial?snprintf(header,sizeof header,"HTTP/1.1 206 Partial Content\r\nContent-Type: video/mp4\r\nContent-Length: %lld\r\nContent-Range: bytes %lld-%lld/%lld\r\nAccept-Ranges: bytes\r\nConnection: close\r\n\r\n",(long long)(last-first+1),(long long)first,(long long)last,(long long)size):
+        snprintf(header,sizeof header,"HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: %lld\r\nAccept-Ranges: bytes\r\nConnection: close\r\n\r\n",(long long)size);
+    t_status=partial?206:200;
+    if(send_all(fd,header,(size_t)length)){t_status=-t_status;return;}
+    if(head)return;
+    char error[128]="";
+    // A request owns its reader, with no conversion lane or speculative queue ahead of a seek.
+    kr_source *source=kr_source_open(S.url,5,error,sizeof error);
+    if(!source){t_status=-t_status;snprintf(t_err,sizeof t_err,"Prepared file read unavailable");return;}
+    kr_source_set_interrupt(source,preparation_stopping,NULL);
+    uint8_t buffer[65536];
+    while(first<=last && !atomic_load(&S.stopping)) {
+        int want=(int)((last-first+1)>(int64_t)sizeof buffer?sizeof buffer:last-first+1);
+        int got=kr_source_read(source,first,buffer,want);
+        if(got<=0 || send_all(fd,buffer,(size_t)got)){t_status=-t_status;break;}
+        t_bytes+=(size_t)got;first+=got;
+    }
+    kr_source_close(source);
+    if(t_bytes) {
+        atomic_fetch_add(&S.served_video,1);atomic_fetch_add(&S.served_audio,1);
+        if(!strstr(agent?agent:"","AppleCoreMedia")){atomic_fetch_add(&S.served_ext_video,1);atomic_fetch_add(&S.served_ext_audio,1);}
+    }
+}
+
 static void serve(int fd, const char *method, const char *path, const char *range, const char *agent) {
     int head = !strcmp(method, "HEAD");
+    if(S.prepared) {
+        if(strcmp(path,"/prepared.mp4")){fail(fd,404,"Not Found");return;}
+        serve_prepared(fd,head,range,agent);return;
+    }
     char err[256] = "";
     gm_buf buf = {0};
     int idx = -1, seg = -1, r = -1, rend = -1;
@@ -836,7 +893,8 @@ static void random_token(char *out, size_t len) {
 }
 
 static void *connection(void *arg) {
-    int fd = (int)(intptr_t)arg;
+    int slot=(int)(intptr_t)arg;
+    pthread_mutex_lock(&CLIENTS.lock);int fd=CLIENTS.fd[slot]-1;pthread_mutex_unlock(&CLIENTS.lock);
     char req[8192]; size_t got = 0;
     while (got < sizeof req - 1) {
         ssize_t n = recv(fd, req + got, sizeof req - 1 - got, 0);
@@ -865,7 +923,7 @@ static void *connection(void *arg) {
         log_line("%s %s%s%s %d %zu B %.0f ms%s%s", method, ok ? path + 1 + tl : "(no token)", *range ? " " : "", range,
                  t_status, t_bytes, now_ms() - t0, *t_err ? ": " : "", t_err);
     } else fail(fd, 405, "Method Not Allowed");
-    close(fd);
+    pthread_mutex_lock(&CLIENTS.lock);close(fd);CLIENTS.fd[slot]=0;pthread_mutex_unlock(&CLIENTS.lock);
     atomic_fetch_sub(&S.active, 1);
     return NULL;
 }
@@ -876,6 +934,11 @@ static void *accept_loop(void *unused) {
         int fd = accept(S.listen_fd, NULL, NULL);
         if (fd < 0) { if (errno == EINTR) continue; break; }
         if (atomic_load(&S.stopping)) { close(fd); break; }
+        int slot=-1;
+        pthread_mutex_lock(&CLIENTS.lock);
+        for(int i=0;i<CONNECTION_LIMIT;i++)if(!CLIENTS.fd[i]){slot=i;CLIENTS.fd[i]=fd+1;break;}
+        pthread_mutex_unlock(&CLIENTS.lock);
+        if(slot<0){close(fd);continue;}
 #ifdef SO_NOSIGPIPE
         int one = 1; setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);
 #endif
@@ -885,7 +948,10 @@ static void *accept_loop(void *unused) {
         atomic_fetch_add(&S.active, 1);
         pthread_t t;
         pthread_attr_t at; pthread_attr_init(&at); pthread_attr_setdetachstate(&at, PTHREAD_CREATE_DETACHED);
-        if (pthread_create(&t, &at, connection, (void *)(intptr_t)fd) != 0) { close(fd); atomic_fetch_sub(&S.active, 1); }
+        if (pthread_create(&t, &at, connection, (void *)(intptr_t)slot) != 0) {
+            pthread_mutex_lock(&CLIENTS.lock);close(fd);CLIENTS.fd[slot]=0;pthread_mutex_unlock(&CLIENTS.lock);
+            atomic_fetch_sub(&S.active, 1);
+        }
         pthread_attr_destroy(&at);
     }
     return NULL;
@@ -922,8 +988,11 @@ static void teardown_locked(void) {
         shutdown(S.listen_fd, SHUT_RDWR); close(S.listen_fd); S.listen_fd = -1;
         pthread_join(S.accept_thread, NULL);
     }
+    pthread_mutex_lock(&CLIENTS.lock);
+    for(int i=0;i<CONNECTION_LIMIT;i++)if(CLIENTS.fd[i])shutdown(CLIENTS.fd[i]-1,SHUT_RDWR);
+    pthread_mutex_unlock(&CLIENTS.lock);
     prefetch_stop();  // r8: background producers end (their reads fail now) before anything is freed
-    for (int i = 0; i < 400 && atomic_load(&S.active) > 0; i++) usleep(10000);  // up to 4 s for open requests
+    while(atomic_load(&S.active)>0)usleep(10000); // sockets and sources are interrupted; never free a live session
     pthread_mutex_lock(&S.agm_lock);
     gm_stream_close(S.agm); S.agm = NULL;
     kr_source *asrc = S.asrc;
@@ -960,7 +1029,7 @@ static void teardown_locked(void) {
     kr_video_close(video);
     kr_source_close(vsrc);
     pthread_mutex_unlock(&S.vlock);
-    S.compat = 0; S.vindex = -1; S.compat_ok = 0;
+    S.compat = 0; S.vindex = -1; S.compat_ok = 0;S.prepared=0;S.prepared_size=0;
     atomic_store(&S.vlogged, 0);
     free(S.master_copy); S.master_copy = NULL;
     free(S.master_compat); S.master_compat = NULL;
@@ -1014,6 +1083,24 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
         snprintf(m, sizeof m, "AirPlay cannot play this file: %s.", *err ? err : "the video is not H.264 or HEVC");
         set_message(m);
         goto done;
+    }
+    // Fully prepared, indexed MP4: AVPlayer seeks the one Drive file directly. In particular do not
+    // assume all third-party receivers require 1080p H.264, or burn subtitles/transcode after a seek.
+    AVFormatContext *prepared=gm_stream_format_context(S.gm);
+    if(kr_prepare_ready(prepared) && av_dict_get(prepared->metadata,"kodi_airplay_prepared",NULL,0)) {
+        char host[64]="127.0.0.1";
+        if(lan && lan_address(host,sizeof host)){set_message("AirPlay needs Wi-Fi.");goto done;}
+        S.prepared_size=kr_source_size(S.src);
+        if(S.prepared_size<=0){set_message("Prepared file size is unavailable.");goto done;}
+        S.prepared=1;S.listen_fd=listen_on(lan,&S.port);
+        if(S.listen_fd<0){set_message("AirPlay file server could not start.");goto done;}
+        random_token(S.token,sizeof S.token);
+        snprintf(S.base,sizeof S.base,"http://%s:%d/%s",host,S.port,S.token);
+        kr_hls_video_codec(S.gm,S.vcodec,sizeof S.vcodec);
+        if(pthread_create(&S.accept_thread,NULL,accept_loop,NULL)){close(S.listen_fd);S.listen_fd=-1;goto done;}
+        if(out && outlen>0)snprintf(out,(size_t)outlen,"%s/prepared.mp4",S.base);
+        log_line("prepared: source-resolution MP4 byte ranges; no live conversion, subtitle burn or prefetch queue");
+        result=KR_READY;goto done;
     }
     // Profile 5 has no ordinary HDR base layer. Route it through RPU-aware SDR conversion so third-party
     // receivers do not inherit the phone's native Dolby capability or display unreshaped IPT pixels.
