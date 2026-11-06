@@ -1,4 +1,4 @@
-# Kodi iOS — live progress (updated 2026-11-06, build 174; merged into main)
+# Kodi iOS — live progress (updated 2026-11-06, build 175 from main)
 
 ## Branches
 - **`fix/elementum-cloud-164` (PR #13): current work.** Codex continued here from `feature/library-status` (`2b3cbb6`) and produced builds 164–168. KodiAirPlay r17, GlassBar r6, portrait r23. Its notes are in `docs/pr13-verification.md`, `docs/elementum-cloud-downloads.md` and `docs/diagnostic-logs.md`.
@@ -14,6 +14,7 @@
 | 169 | fix/elementum-cloud-164 | This session: fixes below plus KodiAirPlay r18. Commit 36d528f; native CI run 42238135886 → pin r18 → publish → import-review |
 | 170 | fix/elementum-cloud-164 | r19, speed text. Owner tested |
 | 172 | fix/elementum-cloud-164 | cancelled (superseded by 173) |
+| 175 | main | r22 (per-frame preparation progress, pinned 445752d…, run 42293112042) + History fixes + header buttons / refresh rows + Settings rows from the More menu. Built and verified (release build-175, IPA sha 812d345c…): build.json commit ddeeb35, AirPlay binary identical to the r22 candidate, refresh_rows.py, hdr_gear.png, outcome() inside. Owner testing |
 | 174 | fix/elementum-cloud-164 | KodiAirPlay r21 (pinned 8e51391…, candidate run 42279166590) + library tools (Queue, History, AirPlay check), cleaner close button. Built and verified (run 42289027680, release build-174, IPA sha a175df70…): build.json commit c588cc7, AirPlay binary identical to the r21 candidate, `prepare: … made in … s` log line present, library tools pages and close_disc.png inside. Owner testing conversion |
 | 173 | fix/elementum-cloud-164 | r20 + simple Transfers + sheet bar + checks no longer restart conversion. Built and verified (run 42266852853; r20 sha a5e323fe…, interrupts(), track(), sheet bar 9210) |
 
