@@ -414,6 +414,9 @@ static int open_encoder(job *j, char *err, int errlen) {
         av_opt_set(c->priv_data,"profile","main10",0);
         av_opt_set_int(c->priv_data,"allow_sw",1,0);
         av_opt_set_int(c->priv_data,"realtime",0,0);
+        // r24 (owner: AV1 re-encodes "ridiculous"): speed over quality, as the H.264 path always had; at the fixed
+        // ~20 Mbit/s a 4K picture gets here the difference is not visible, the time is.
+        if(v->offline)av_opt_set_int(c->priv_data,"prio_speed",1,0);
     }
     if(!strcmp(codec->name,"libx265")) {
         av_opt_set(c->priv_data,"preset","ultrafast",0);

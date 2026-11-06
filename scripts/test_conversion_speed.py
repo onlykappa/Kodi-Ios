@@ -77,9 +77,9 @@ class Build173Log(unittest.TestCase):
   c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
   # r23: units are made (and noted) by each track's worker thread, generated_note / generated_work.
   reader=c[c.index('static void generated_note'):c.index('typedef struct {\n    kr_prepare_write')]
-  self.assertIn('gm_stream_open(kr_source_gm(g->source),PREP_UNIT,err,en)',reader)
-  self.assertNotIn('kr_source_gm(g->source),6,',reader)
-  self.assertIn('kr_remux_note("prepare: %s %d/%d made in %.1f s',reader);self.assertIn('kr_video_route(g->video)',reader)
+  self.assertIn('gm_stream_open(kr_source_gm(l->source),PREP_UNIT,err,en)',reader)
+  self.assertNotIn('kr_source_gm(l->source),6,',reader)
+  self.assertIn('kr_remux_note("prepare: %s %d/%d made in %.1f s',reader);self.assertIn('kr_video_route(l->video)',reader)
 
 class Build170Log(unittest.TestCase):
  """Owner (build 170 log): Inception read ~0.55 MB/s, about a quarter of real time, in 6-second live units."""
@@ -139,8 +139,8 @@ class Build175Log(unittest.TestCase):
  movie from 0% (owner: "this needs to be fixed for ... All movies")."""
  def test_tracks_are_made_at_the_same_time(self):
   c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
-  self.assertIn('pthread_create(&g->thread,NULL,generated_work,g)',c)
-  self.assertIn('pthread_join(g->thread,NULL)',c.split('static void generated_close')[1][:600])
+  self.assertIn('pthread_create(&g->lanes[i].thread,NULL,generated_work,job)',c)
+  self.assertIn('pthread_join(l->thread,NULL)',c.split('static void generated_close')[1][:700])
   read=c.split('static int generated_read(')[1].split('static void generated_close')[0]
   self.assertNotIn('kr_video_unit',read);self.assertNotIn('kr_audio_unit',read)   # only the worker makes units
   self.assertIn('kr_video_unit',c.split('static void *generated_work(')[1][:1600])
@@ -184,5 +184,21 @@ class Build175Log(unittest.TestCase):
   cloud=(LIB/'prepare_cloud.py').read_text()
   self.assertIn('drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file)',cloud)
   self.assertIn('converted_progress,paused,waiting)',cloud)
+
+class AV1Speed(unittest.TestCase):
+ """Owner: "we need a way to really boost speed for av1". r24: the HEVC encoder favours speed during preparation, and a
+ picture decoded by the hardware is made in two lanes (units 1, 3, 5... and 2, 4, 6...), taken in order."""
+ def test_encoder_prioritises_speed_for_preparation(self):
+  v=(ROOT/'migration/airplay-ios/remux/src/kr_video.c').read_text()
+  hevc=v.split('if(!strcmp(codec->name,"hevc_videotoolbox")) {')[1].split('}')[0]
+  self.assertIn('if(v->offline)av_opt_set_int(c->priv_data,"prio_speed",1,0);',hevc)
+ def test_two_lanes_in_order(self):
+  c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
+  self.assertIn('#define VIDEO_LANES 2',c);self.assertIn('if(!i && kr_video_hw_decode(l->video))g->nlanes=VIDEO_LANES;',c)
+  self.assertIn('generated_lane *l=&g->lanes[g->segment%g->nlanes];',c)
+  self.assertIn('if(r>=0 && l->next_segment!=g->segment)r=-1;',c)
+  self.assertIn('for(int segment=index;;segment+=g->nlanes)',c)
+  t=(ROOT/'migration/airplay-ios/remux/tests/test_remux.c').read_text()
+  self.assertIn('setenv("KR_PREP_LANES","2",1);',t)
 
 if __name__=='__main__':unittest.main()

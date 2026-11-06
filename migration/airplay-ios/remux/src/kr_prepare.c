@@ -191,36 +191,45 @@ end:if(file)fclose(file);free(unit.data);kr_video_close(video);kr_audio_close(au
 // after another): each track's next unit is made on its own thread while the muxer takes the current one, so the
 // picture and the audio tracks are converted at the same time (and read the same Drive blocks together). One unit is
 // made ahead per track, so memory stays at two units per track.
+// r24 (owner: "we need a way to really boost speed for av1"): a re-encoded picture is made in VIDEO_LANES lanes, each
+// with its own source, decoder and encoder: lane l makes units l, l+n, l+2n... and the muxer takes them in order. Each
+// unit already had a fresh encoder (closed GOP), so a unit is the same whichever lane makes it. Audio keeps one lane.
+#define VIDEO_LANES 2
+#define MAX_LANES 4
 typedef struct {
     kr_source *source;gm_stream *plan;kr_video *video;kr_audio *audio;
+    pthread_t thread;int started,has_next,next_result,next_segment;gm_buf next;char work_error[512];
+} generated_lane;
+typedef struct {
+    generated_lane lanes[MAX_LANES];int nlanes;
     gm_buf unit;int segment,offset,count,is_video;kr_prepare_progress progress;void *context;
     char *error;int error_size;
-    pthread_t thread;pthread_mutex_t lock;pthread_cond_t cond;int inited,started,stop,produce,has_next,next_result;
-    gm_buf next;char work_error[512];
+    pthread_mutex_t lock;pthread_cond_t cond;int inited,stop;
 } generated_reader;
-static void generated_note(generated_reader *g,int segment,double took) {
+typedef struct {generated_reader *g;int lane;} generated_job;
+static void generated_note(generated_reader *g,generated_lane *l,int segment,double took) {
     if(g->is_video || segment%10==0)
-        kr_remux_note("prepare: %s %d/%d made in %.1f s for %d s of film (%.2fx real time)%s%s",g->is_video?"video":"audio",
+        kr_remux_note("prepare: %s %d/%d made in %.1f s for %d s of film (%.2fx real time)%s%s%s",g->is_video?"video":"audio",
                       segment+1,g->count,took,PREP_UNIT,took>0?PREP_UNIT/took:0,g->is_video?" via ":"",
-                      g->is_video?kr_video_route(g->video):"");
+                      g->is_video?kr_video_route(l->video):"",g->is_video && g->nlanes>1?(segment%g->nlanes?", lane 2":", lane 1"):"");
 }
 static void *generated_work(void *opaque) {
-    generated_reader *g=opaque;
-    for(;;) {
+    generated_job *job=opaque;generated_reader *g=job->g;int index=job->lane;free(job);
+    generated_lane *l=&g->lanes[index];
+    for(int segment=index;;segment+=g->nlanes) {
         pthread_mutex_lock(&g->lock);
-        while(!g->stop && g->has_next)pthread_cond_wait(&g->cond,&g->lock);
-        if(g->stop || g->produce>=g->count){pthread_mutex_unlock(&g->lock);return NULL;}
-        int segment=g->produce;
+        while(!g->stop && l->has_next)pthread_cond_wait(&g->cond,&g->lock);   // the muxer has not taken our last one yet
+        if(g->stop || segment>=g->count){pthread_mutex_unlock(&g->lock);return NULL;}
         pthread_mutex_unlock(&g->lock);
         gm_buf unit={0};char error[512]="";
         struct timespec t0,t1;clock_gettime(CLOCK_MONOTONIC,&t0);
-        int r=g->is_video?kr_video_unit(g->video,g->plan,segment,&unit,error,sizeof error):
-                          kr_audio_unit(g->audio,g->plan,segment,&unit,error,sizeof error);
+        int r=g->is_video?kr_video_unit(l->video,l->plan,segment,&unit,error,sizeof error):
+                          kr_audio_unit(l->audio,l->plan,segment,&unit,error,sizeof error);
         clock_gettime(CLOCK_MONOTONIC,&t1);
-        if(r>=0)generated_note(g,segment,(double)(t1.tv_sec-t0.tv_sec)+(double)(t1.tv_nsec-t0.tv_nsec)/1e9);
+        if(r>=0)generated_note(g,l,segment,(double)(t1.tv_sec-t0.tv_sec)+(double)(t1.tv_nsec-t0.tv_nsec)/1e9);
         pthread_mutex_lock(&g->lock);
-        free(g->next.data);g->next=unit;g->next_result=r;g->has_next=1;g->produce++;
-        if(r<0)snprintf(g->work_error,sizeof g->work_error,"%s",error);
+        free(l->next.data);l->next=unit;l->next_result=r;l->next_segment=segment;l->has_next=1;
+        if(r<0)snprintf(l->work_error,sizeof l->work_error,"%s",error);
         pthread_cond_broadcast(&g->cond);
         pthread_mutex_unlock(&g->lock);
         if(r<0)return NULL;
@@ -231,16 +240,21 @@ static int generated_read(void *opaque,uint8_t *data,int size) {
     if(g->offset>=g->unit.len) {
         if(g->segment>=g->count)return AVERROR_EOF;
         if(!tick(g->progress,g->context,g->is_video?0:1,g->segment,g->count))return AVERROR_EXIT;
-        if(!g->started) {
-            if(pthread_create(&g->thread,NULL,generated_work,g)){if(g->error && g->error_size>0)snprintf(g->error,(size_t)g->error_size,"Conversion thread");return AVERROR(EIO);}
-            g->started=1;
+        for(int i=0;i<g->nlanes;i++) if(!g->lanes[i].started) {
+            generated_job *job=malloc(sizeof *job);if(job){job->g=g;job->lane=i;}
+            if(!job || pthread_create(&g->lanes[i].thread,NULL,generated_work,job)) {
+                free(job);if(g->error && g->error_size>0)snprintf(g->error,(size_t)g->error_size,"Conversion thread");return AVERROR(EIO);
+            }
+            g->lanes[i].started=1;
         }
+        generated_lane *l=&g->lanes[g->segment%g->nlanes];
         pthread_mutex_lock(&g->lock);
-        while(!g->has_next)pthread_cond_wait(&g->cond,&g->lock);
-        int r=g->next_result;
-        free(g->unit.data);g->unit=g->next;memset(&g->next,0,sizeof g->next);g->has_next=0;
-        if(r<0 && g->error && g->error_size>0)snprintf(g->error,(size_t)g->error_size,"%s",g->work_error);
-        pthread_cond_broadcast(&g->cond);   // the worker makes the unit after this one meanwhile
+        while(!l->has_next)pthread_cond_wait(&g->cond,&g->lock);
+        int r=l->next_result;
+        if(r>=0 && l->next_segment!=g->segment)r=-1;   // never out of order
+        free(g->unit.data);g->unit=l->next;memset(&l->next,0,sizeof l->next);l->has_next=0;
+        if(r<0 && g->error && g->error_size>0)snprintf(g->error,(size_t)g->error_size,"%s",l->work_error[0]?l->work_error:"Conversion unit order");
+        pthread_cond_broadcast(&g->cond);   // that lane makes its next unit meanwhile
         pthread_mutex_unlock(&g->lock);
         if(r<0)return AVERROR(EIO);
         g->offset=g->segment?kr_first_moof(g->unit.data,g->unit.len):0;
@@ -250,24 +264,37 @@ static int generated_read(void *opaque,uint8_t *data,int size) {
     int n=FFMIN(size,g->unit.len-g->offset);memcpy(data,g->unit.data+g->offset,(size_t)n);g->offset+=n;return n;
 }
 static void generated_close(generated_reader *g) {
-    if(g->started) {   // the worker finishes the unit it is making (it never touches the reader's state after stop)
+    if(g->inited) {   // each lane finishes the unit it is making (none touches the reader after stop)
         pthread_mutex_lock(&g->lock);g->stop=1;pthread_cond_broadcast(&g->cond);pthread_mutex_unlock(&g->lock);
-        pthread_join(g->thread,NULL);g->started=0;
+    }
+    for(int i=0;i<MAX_LANES;i++) {
+        generated_lane *l=&g->lanes[i];
+        if(l->started){pthread_join(l->thread,NULL);l->started=0;}
+        free(l->next.data);kr_video_close(l->video);kr_audio_close(l->audio);gm_stream_close(l->plan);kr_source_close(l->source);
     }
     if(g->inited){pthread_mutex_destroy(&g->lock);pthread_cond_destroy(&g->cond);}
-    free(g->next.data);
-    kr_video_close(g->video);kr_audio_close(g->audio);gm_stream_close(g->plan);
-    kr_source_close(g->source);free(g->unit.data);memset(g,0,sizeof *g);
+    free(g->unit.data);memset(g,0,sizeof *g);
 }
 static int generated_open(generated_reader *g,AVFormatContext **format,AVIOContext **io,
                           const char *input,int index,int video,kr_prepare_progress cb,void *ctx,char *err,int en) {
     g->is_video=video;g->progress=cb;g->context=ctx;g->error=err;g->error_size=en;
     pthread_mutex_init(&g->lock,NULL);pthread_cond_init(&g->cond,NULL);g->inited=1;
-    g->source=kr_source_open(input,30,err,en);if(!g->source)return -1;
-    g->plan=gm_stream_open(kr_source_gm(g->source),PREP_UNIT,err,en);if(!g->plan)return -1;   // r21: was 6 s
-    g->count=gm_stream_segment_count(g->plan);
-    if(video){g->video=kr_video_open(kr_source_gm(g->source),index,err,en);if(!g->video)return -1;kr_video_keep_resolution(g->video);}
-    else {g->audio=kr_audio_open(kr_source_gm(g->source),index,err,en);if(!g->audio)return -1;}
+    g->nlanes=1;
+    for(int i=0;i<g->nlanes;i++) {
+        generated_lane *l=&g->lanes[i];
+        l->source=kr_source_open(input,30,err,en);if(!l->source)return -1;
+        l->plan=gm_stream_open(kr_source_gm(l->source),PREP_UNIT,err,en);if(!l->plan)return -1;   // r21: was 6 s
+        if(!i)g->count=gm_stream_segment_count(l->plan);
+        if(video) {
+            l->video=kr_video_open(kr_source_gm(l->source),index,err,en);if(!l->video)return -1;kr_video_keep_resolution(l->video);
+            // A picture copied by hardware HDR / GPU work in lanes; one lane for anything else (CPU work is already
+            // spread over the cores inside one lane).
+            if(!i && kr_video_hw_decode(l->video))g->nlanes=VIDEO_LANES;
+            // Host tests have no VideoToolbox: KR_PREP_LANES forces the lanes so the in-order hand-over is tested.
+            const char *forced=getenv("KR_PREP_LANES");
+            if(!i && forced && atoi(forced)>=1 && atoi(forced)<=MAX_LANES)g->nlanes=atoi(forced);
+        } else {l->audio=kr_audio_open(kr_source_gm(l->source),index,err,en);if(!l->audio)return -1;}
+    }
     uint8_t *buffer=av_malloc(32768);if(!buffer)return -1;
     *io=avio_alloc_context(buffer,32768,0,g,generated_read,NULL,NULL);
     if(!*io){av_free(buffer);return -1;}
