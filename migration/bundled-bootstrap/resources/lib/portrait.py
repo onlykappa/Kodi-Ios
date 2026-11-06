@@ -22,6 +22,8 @@ _spec=_iu.spec_from_file_location('library_page',os.path.join(os.path.dirname(os
 library_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_page)
 _spec=_iu.spec_from_file_location('notice_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'notice_page.py'))
 notice_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(notice_page)
+_spec=_iu.spec_from_file_location('transfers_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'transfers_page.py'))
+transfers_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(transfers_page)
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -921,6 +923,8 @@ def notices_page():
   h=350;pre='dl.%d.'%n   # Pause/Cancel are 124 high (46 pt): touch areas of at least 44 pt (APPLE-UI-POLICY 4.5)
   return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(WIDTH,h+24,has(pre+'title'))+
    surface(SIDE-6,0,w+12,h,'round.png',SURFACE,32)+
+   # Owner: tapping a transfer card opens the Transfers page (speed graph); Pause/Cancel are drawn on top of this.
+   '<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus /></control>'%(9435+n,SIDE-6,w+12,h)+
    surface(SIDE+24,26,130,196,'round_s.png','FF3A3A3C',20)+icon(SIDE+59,94,60,'download.png',GREY,'<visible>!%s</visible>'%has(pre+'poster'))+
    image(SIDE+24,26,130,196,P(pre+'poster'),extra='<aspectratio>scale</aspectratio><visible>%s</visible>'%has(pre+'poster'))+
    label(SIDE+184,22,w-210,64,P(pre+'title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
@@ -933,6 +937,7 @@ def notices_page():
   """Upload/preparation card: title, summary, bar, status. One label per line, each truncating (ISSUE-101)."""
   return ('<control type="group"><width>%d</width><height>244</height><visible>%s</visible>'%(WIDTH,has(pre+'title'))+
    surface(SIDE-6,0,w+12,220,'round.png',SURFACE,32)+
+   '<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>220</height><label></label><texturefocus colordiffuse="14FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>'%(progress_id+2,SIDE-6,w+12,MEDIA)+
    surface(SIDE+24,26,130,168,'round_s.png',tile,20)+icon(SIDE+59,80,60,glyph,tint,'<visible>![%s] + ![%s]</visible>'%(has(pre+'indeterminate'),has(pre+'poster')))+
    image(SIDE+59,80,60,60,MEDIA+'ring_06.png',tint,'<visible>%s</visible><animation effect="rotate" end="-360" center="auto" time="1100" loop="true" condition="true">Conditional</animation>'%has(pre+'indeterminate'))+
    image(SIDE+24,26,130,168,P(pre+'poster'),extra='<aspectratio>scale</aspectratio><visible>%s</visible>'%has(pre+'poster'))+
@@ -1119,6 +1124,8 @@ def portrait_files(skin,profile):
  files.update(library_page.files(ns))
  # Notifications › a message's details with its part of kodi.log (notice_page.py).
  files.update(notice_page.files(ns))
+ # The Transfers page (speed graph), opened from a transfer card in Notifications (transfers_page.py).
+ files.update(transfers_page.files(ns))
  for rel in list(files):
   if rel.startswith(FOLDER+'/'):files[rel]=activity_skin.inject(ns,rel[len(FOLDER)+1:],files[rel])
  # Fullscreen video is landscape: the Apple TV-style controls go into the landscape folder.

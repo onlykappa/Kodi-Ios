@@ -174,6 +174,9 @@ def run():
     else:return
     if not notices.engine_action(command,d['id']):xbmcgui.Dialog().notification('Elementum','The download engine did not answer',xbmcgui.NOTIFICATION_WARNING,3000)
     self.refresh()
+   elif control in (9432,9433) or 9436<=control<=9435+SLOTS:
+    # Owner: the speed graph shows only when a transfer card is tapped.
+    import transfers;transfers.run()
    elif 9501<=control<=9500+ROWS:
     # Owner (build 159): a message opens its details and its part of kodi.log; its own action (if any) is a button there.
     n=control-9500
