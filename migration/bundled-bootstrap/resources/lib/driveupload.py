@@ -146,8 +146,9 @@ class Drive(object):
      self.folders[key]=json.loads(body)['id']
    parent=self.folders[key]
   return parent
- def upload(self,path,parent,sessions,save,keep_going=lambda:True,progress=lambda done,total:None):
-  """Resumable upload; sessions[path] survives a restart. Returns the Drive file's metadata."""
+ def upload(self,path,parent,sessions,save,keep_going=lambda:True,progress=lambda done,total:None,name=None):
+  """Resumable upload; sessions[path] survives a restart. Returns the Drive file's metadata. name: the Drive file's
+  name when it is not the local file's."""
   size=os.path.getsize(path);session=sessions.get(path)
   if session and session.get('size')!=size:session=None
   offset=0
@@ -158,7 +159,7 @@ class Drive(object):
    else:session=None
   if not session:
    status,headers,_=self.call('POST',UPLOAD+'?uploadType=resumable&fields=id,size',
-                              json.dumps({'name':os.path.basename(path),'parents':[parent]}).encode(),
+                              json.dumps({'name':name or os.path.basename(path),'parents':[parent]}).encode(),
                               {'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Length':str(size)})
    location=headers.get('Location') or headers.get('location')
    if status!=200 or not location:raise RuntimeError('Drive upload start: HTTP %s'%status)

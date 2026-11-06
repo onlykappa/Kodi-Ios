@@ -55,7 +55,7 @@ FLAGS=(
   --enable-demuxer=mpegvideo --enable-demuxer=mpegps --enable-demuxer=asf --enable-demuxer=flv --enable-demuxer=ogg
   --enable-demuxer=rm --enable-demuxer=wtv --enable-demuxer=nut
   --enable-demuxer=sup --enable-demuxer=vobsub
-  --enable-muxer=mov --enable-muxer=mp4 --enable-muxer=webvtt
+  --enable-muxer=mov --enable-muxer=mp4 --enable-muxer=webvtt --enable-muxer=sup
   --enable-parser=hevc --enable-parser=h264 --enable-parser=aac --enable-parser=aac_latm --enable-parser=ac3
   --enable-parser=av1 --enable-parser=mpegaudio --enable-parser=flac --enable-parser=opus --enable-parser=vorbis
   --enable-parser=dca --enable-parser=mlp --enable-parser=vp9

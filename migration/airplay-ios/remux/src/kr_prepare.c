@@ -17,6 +17,15 @@
 #include <math.h>
 
 #define TRACKS 64
+#define SIDECAR TRACKS   // map value of a picture subtitle track written beside the MP4 (r15), not into it
+
+// r15 (owner, build 160: "Interstellar ... needs to be ready for airplay"): MP4 cannot hold Blu-ray picture subtitles
+// (PGS). With this on, each PGS track is kept, untouched, in its own .sup file beside the prepared MP4
+// (output.sub<track>.<language>[.forced].sup); the setup add-on saves them next to the video on Google Drive, where
+// Kodi finds them as external subtitles. Off (the default), such a file is refused as before, so a caller that cannot
+// save the .sup files never loses them.
+static int keep_image_subs=0;
+void kodi_airplay_prepare_keep_image_subs(int on) { keep_image_subs=on!=0; }
 static int video_index(AVFormatContext *f) {
     for (unsigned i=0;i<f->nb_streams;i++)
         if(f->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_VIDEO &&
@@ -34,6 +43,9 @@ static int copy_video(const AVCodecParameters *p) {
     int depth=p->codec_id==AV_CODEC_ID_HEVC?10:8;
     return p->bits_per_raw_sample<=depth && (!d || (d->comp[0].depth<=depth &&
            d->log2_chroma_w==1 && d->log2_chroma_h==1));
+}
+static int sidecar_sub(const AVCodecParameters *p) {
+    return keep_image_subs && p->codec_type==AVMEDIA_TYPE_SUBTITLE && p->codec_id==AV_CODEC_ID_HDMV_PGS_SUBTITLE;
 }
 static int text_sub(enum AVCodecID id) {
     return id==AV_CODEC_ID_MOV_TEXT || id==AV_CODEC_ID_SUBRIP || id==AV_CODEC_ID_ASS ||
@@ -79,15 +91,21 @@ int kodi_airplay_probe(const char *input,char *json,int size) {
     if(open_source(&f,input)<0) goto end;
     int v=video_index(f);if(v<0) goto end;
     AVCodecParameters *p=f->streams[v]->codecpar;
-    double audio_work=0,duration=f->duration>0?(double)f->duration/AV_TIME_BASE:0;
+    double audio_work=0,duration=f->duration>0?(double)f->duration/AV_TIME_BASE:0;int pgs=0,other_image=0,extra_video=0;
     for(unsigned i=0;i<f->nb_streams;i++) {
         AVCodecParameters *a=f->streams[i]->codecpar;
         if(a->codec_type==AVMEDIA_TYPE_AUDIO && a->codec_id!=AV_CODEC_ID_AAC)
             audio_work+=duration*(a->ch_layout.nb_channels>=6?384000:160000)/8;
+        if(a->codec_type==AVMEDIA_TYPE_SUBTITLE && !text_sub(a->codec_id)){if(a->codec_id==AV_CODEC_ID_HDMV_PGS_SUBTITLE)pgs++;else other_image++;}
+        if(a->codec_type==AVMEDIA_TYPE_VIDEO && (int)i!=v && !(f->streams[i]->disposition&AV_DISPOSITION_ATTACHED_PIC))extra_video++;
     }
-    snprintf(json,(size_t)size,"{\"ready\":%s,\"width\":%d,\"height\":%d,\"hdr\":%s,\"duration\":%.6f,\"copy_video\":%s,\"audio_work_bytes\":%.0f}",
+    // r15: the codec and the tracks that decide whether and how a file can be prepared, for the owner's status page.
+    snprintf(json,(size_t)size,"{\"ready\":%s,\"width\":%d,\"height\":%d,\"hdr\":%s,\"duration\":%.6f,\"copy_video\":%s,\"audio_work_bytes\":%.0f,"
+             "\"codec\":\"%s\",\"bit_depth\":%d,\"pgs_subtitles\":%d,\"other_image_subtitles\":%d,\"extra_video\":%d}",
              kr_prepare_ready(f) && av_dict_get(f->metadata,"kodi_airplay_prepared",NULL,0)?"true":"false",p->width,p->height,hdr(p)?"true":"false",
-             duration,copy_video(p)?"true":"false",audio_work);r=0;
+             duration,copy_video(p)?"true":"false",audio_work,avcodec_get_name(p->codec_id),
+             p->bits_per_raw_sample?p->bits_per_raw_sample:(av_pix_fmt_desc_get(p->format)?av_pix_fmt_desc_get(p->format)->comp[0].depth:0),
+             pgs,other_image,extra_video);r=0;
 end:avformat_close_input(&f);return r;
 }
 static int tick(kr_prepare_progress cb,void *ctx,int stage,double done,double total) {
@@ -171,8 +189,8 @@ static int validate(const char *path,AVFormatContext *original,int expected_trac
 end:avformat_close_input(&f);if(r<0)fail(err,en,"Output validation failed; original retained",0);return r;
 }
 int kodi_airplay_prepare(const char *input,const char *output,kr_prepare_progress cb,void *ctx,char *err,int en) {
-    AVFormatContext *original=NULL,*out=NULL;input_track ins[TRACKS]={0};subtitle subs[TRACKS]={0};
-    int ninputs=1,r=-1,header=0,mapped=0;char partial[4096],spools[TRACKS][4096]={{0}};
+    AVFormatContext *original=NULL,*out=NULL,*side[TRACKS]={0};input_track ins[TRACKS]={0};subtitle subs[TRACKS]={0};
+    int ninputs=1,r=-1,header=0,mapped=0;char partial[4096],spools[TRACKS][4096]={{0}},sides[TRACKS][4200]={{0}};
     if(err && en>0)*err=0;
     if(!local_input(input) || !output || output[0]!='/' || !strcmp(input,output))return fail(err,en,"A local or loopback input and a separate local output are required",0);
     snprintf(partial,sizeof partial,"%s.partial",output);
@@ -185,7 +203,7 @@ int kodi_airplay_prepare(const char *input,const char *output,kr_prepare_progres
     // Never silently discard image subtitles or alternate video tracks during an in-place replacement.
     for(unsigned i=0;i<original->nb_streams;i++) {
         AVCodecParameters *p=original->streams[i]->codecpar;
-        if((p->codec_type==AVMEDIA_TYPE_SUBTITLE && !text_sub(p->codec_id)) ||
+        if((p->codec_type==AVMEDIA_TYPE_SUBTITLE && !text_sub(p->codec_id) && !sidecar_sub(p)) ||
            (p->codec_type==AVMEDIA_TYPE_VIDEO && i!=(unsigned)vi && !(original->streams[i]->disposition&AV_DISPOSITION_ATTACHED_PIC))) {
             fail(err,en,"This file has tracks MP4 cannot preserve; original retained",0);goto end;
         }
@@ -196,6 +214,19 @@ int kodi_airplay_prepare(const char *input,const char *output,kr_prepare_progres
     for(unsigned i=0;i<original->nb_streams;i++) {
         AVStream *src=original->streams[i];AVCodecParameters *p=src->codecpar;
         if((int)i!=vi && p->codec_type!=AVMEDIA_TYPE_AUDIO && p->codec_type!=AVMEDIA_TYPE_SUBTITLE)continue;
+        if(sidecar_sub(p)) {
+            // Its own .sup file, packets copied as they are (written as .partial, renamed with the MP4).
+            char lang[9]="und";AVDictionaryEntry *l=av_dict_get(src->metadata,"language",NULL,0);
+            if(l && l->value[0]){int k=0;for(const char *c=l->value;*c && k<8;c++)if((*c>='a'&&*c<='z')||(*c>='A'&&*c<='Z'))lang[k++]=(char)(*c|32);if(k)lang[k]=0;}
+            snprintf(sides[i],sizeof sides[i],"%s.sub%u.%s%s.sup",output,i,lang,(src->disposition&AV_DISPOSITION_FORCED)?".forced":"");
+            char part[4300];snprintf(part,sizeof part,"%s.partial",sides[i]);
+            AVStream *s=NULL;
+            if(avformat_alloc_output_context2(&side[i],NULL,"sup",part)<0 || !side[i] || !(s=avformat_new_stream(side[i],NULL)) ||
+               avcodec_parameters_copy(s->codecpar,p)<0){fail(err,en,"Picture subtitle file",0);goto end;}
+            s->time_base=src->time_base;s->codecpar->codec_tag=0;
+            if(avio_open(&side[i]->pb,part,AVIO_FLAG_WRITE)<0 || avformat_write_header(side[i],NULL)<0){fail(err,en,"Picture subtitle file",0);goto end;}
+            ins[0].map[i]=SIDECAR;continue;
+        }
         AVStream *dst=avformat_new_stream(out,NULL);if(!dst)goto end;mapped++;
         av_dict_copy(&dst->metadata,src->metadata,0);dst->disposition=src->disposition;dst->time_base=src->time_base;
         avcodec_parameters_copy(dst->codecpar,p);dst->codecpar->codec_tag=0;
@@ -243,6 +274,13 @@ int kodi_airplay_prepare(const char *input,const char *output,kr_prepare_progres
         if(pick<0)break;
         if((packets++%128)==0 && !tick(cb,ctx,2,earliest,(double)original->duration/AV_TIME_BASE)){r=-2;goto end;}
         input_track *in=&ins[pick];AVPacket *p=in->packet;int si=p->stream_index,di=in->map[si];
+        if(pick==0 && di==SIDECAR) {
+            AVStream *from=in->f->streams[si],*to=side[si]->streams[0];
+            av_packet_rescale_ts(p,from->time_base,to->time_base);p->stream_index=0;p->pos=-1;
+            q=av_write_frame(side[si],p);if(q<0){fail(err,en,"Picture subtitle packet",q);goto end;}
+            q=next(in);if(q<0){fail(err,en,"Source read",q);goto end;}
+            continue;
+        }
         AVStream *src=in->f->streams[si],*dst=out->streams[di];
         if(pick==0 && subs[si].dec) {
             AVSubtitle sub={0};int got=0;
@@ -270,8 +308,16 @@ int kodi_airplay_prepare(const char *input,const char *output,kr_prepare_progres
     if(!tick(cb,ctx,3,0,1)){r=-2;goto end;}
     q=av_write_trailer(out);header=0;
     if(q<0 || avio_closep(&out->pb)<0){fail(err,en,"MP4 finalization",q);goto end;}
+    for(int i=0;i<TRACKS;i++) if(side[i]) {
+        q=av_write_trailer(side[i]);
+        if(q<0 || avio_closep(&side[i]->pb)<0){fail(err,en,"Picture subtitle file",q);goto end;}
+    }
     if(validate(partial,original,mapped,err,en)<0)goto end;
     if(!tick(cb,ctx,3,1,1)){r=-2;goto end;}
+    for(int i=0;i<TRACKS;i++) if(side[i]) {
+        char part[4300];snprintf(part,sizeof part,"%s.partial",sides[i]);
+        if(rename(part,sides[i])){fail(err,en,"Cannot commit picture subtitle file",0);goto end;}
+    }
     if(rename(partial,output)){fail(err,en,"Cannot commit prepared file",0);goto end;}
     r=0;
 end:
@@ -280,6 +326,8 @@ end:
         avcodec_free_context(&subs[i].dec);avcodec_free_context(&subs[i].enc);
         av_packet_free(&ins[i].packet);if(ins[i].own)avformat_close_input(&ins[i].f);
         if(r==0 && spools[i][0]){unlink(spools[i]);char state[4110];snprintf(state,sizeof state,"%s.state",spools[i]);unlink(state);}
+        if(side[i]){if(side[i]->pb)avio_closep(&side[i]->pb);avformat_free_context(side[i]);side[i]=NULL;}
+        if(r && sides[i][0]){char part[4300];snprintf(part,sizeof part,"%s.partial",sides[i]);unlink(part);unlink(sides[i]);}
     }
     if(out){if(out->pb)avio_closep(&out->pb);avformat_free_context(out);}
     avformat_close_input(&original);if(r)unlink(partial);

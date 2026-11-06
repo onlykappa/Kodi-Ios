@@ -36,13 +36,41 @@ def ready(item):
  props=item.get('appProperties') or {}
  return bool(item.get('md5Checksum')) and props.get(PROPERTY)==PROFILE and props.get(CHECKSUM_PROPERTY)==item['md5Checksum'].lower()
 def metadata(drive,item_id):
- status,headers,body=drive.call('GET',driveupload.API+'/'+urllib.parse.quote(str(item_id),safe='')+'?fields=id,name,size,md5Checksum,version,mimeType,appProperties,trashed')
+ status,headers,body=drive.call('GET',driveupload.API+'/'+urllib.parse.quote(str(item_id),safe='')+'?fields=id,name,size,md5Checksum,version,mimeType,appProperties,trashed,parents')
  if status!=200:raise RuntimeError('Drive file check: HTTP %d'%status)
  item=json.loads(body)
  if item.get('trashed') or not item.get('id') or not item.get('md5Checksum') or int(item.get('size') or 0)<=0:
   raise RuntimeError('Drive video is unavailable or incomplete')
  item['_etag']=headers.get('ETag') or headers.get('etag') or ''
  return item
+SIDECAR=re.compile(r'^prepared\.mp4\.sub(\d+)\.([a-z]{1,8})(\.forced)?\.sup$')
+def sidecar_names(video_name,files):
+ """[(local file, Drive name)] for the .sup files KodiAirPlay r15 wrote beside a prepared MP4: named after the video,
+ as Kodi looks for external subtitles ('Interstellar (2014).eng.sup', '.eng.forced.sup'; a second English track
+ '.eng.2.sup'), in track order."""
+ base=os.path.splitext(video_name)[0];out=[];seen={}
+ for path in sorted(files,key=lambda f:int(SIDECAR.match(Path(f).name).group(1)) if SIDECAR.match(Path(f).name) else 0):
+  m=SIDECAR.match(Path(path).name)
+  if not m:continue
+  tag=m.group(2)+(m.group(3) or '');seen[tag]=seen.get(tag,0)+1
+  out.append((path,'%s.%s%s.sup'%(base,tag,'' if seen[tag]==1 else '.%d'%seen[tag])))
+ return out
+
+def save_sidecars(drive,item,folder,sessions,commit,keep_going):
+ """Upload the .sup files beside the video on Drive (once: a file of that name and size already there is kept).
+ Returns their Drive ids. Runs before the video is replaced, so a failure leaves the original untouched."""
+ parents=item.get('parents') or metadata(drive,item['id']).get('parents') or []
+ if not parents:raise RuntimeError('Google Drive did not say which folder the video is in')
+ ids=[]
+ for path,name in sidecar_names(item['name'],[str(f) for f in Path(folder).glob('prepared.mp4.sub*.sup')]):
+  size=os.path.getsize(path)
+  q="name='%s' and '%s' in parents and trashed=false"%(name.replace("\\","\\\\").replace("'","\\'"),parents[0])
+  status,_,body=drive.call('GET',driveupload.API+'?fields=files(id,size)&q='+urllib.parse.quote(q))
+  found=[f for f in (json.loads(body).get('files') or []) if int(f.get('size') or 0)==size] if status==200 else []
+  if found:ids.append(found[0]['id']);continue
+  ids.append(drive.upload(path,parents[0],sessions,commit,keep_going,name=name).get('id',''))
+ return ids
+
 def identity(item):return (str(item['id']),str(item.get('md5Checksum','')).lower(),int(item.get('size') or 0),str(item.get('version') or ''))
 def key(item):return hashlib.sha256(('|'.join(map(str,identity(item)[:3]))).encode()).hexdigest()[:32]
 
@@ -56,6 +84,12 @@ class Native:
   lib.kodi_airplay_probe.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_probe.restype=ctypes.c_int
   lib.kodi_airplay_prepare.argtypes=[ctypes.c_char_p,ctypes.c_char_p,CALLBACK,ctypes.c_void_p,ctypes.c_char_p,ctypes.c_int]
   lib.kodi_airplay_prepare.restype=ctypes.c_int
+  # r15: Blu-ray picture subtitles (PGS) are kept in .sup files beside the prepared MP4 instead of the file being
+  # refused (owner, build 160: Interstellar); the queue saves them next to the video on Drive before replacing it.
+  self.keeps_image_subs=hasattr(lib,'kodi_airplay_prepare_keep_image_subs')
+  if self.keeps_image_subs:
+   lib.kodi_airplay_prepare_keep_image_subs.argtypes=[ctypes.c_int];lib.kodi_airplay_prepare_keep_image_subs.restype=None
+   lib.kodi_airplay_prepare_keep_image_subs(1)
  def probe(self,path):
   out=ctypes.create_string_buffer(1024)
   if self.lib.kodi_airplay_probe(os.fsencode(str(path)),out,len(out))<0:raise RuntimeError('Video could not be inspected')
@@ -240,7 +274,7 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
          'checked':'not checked yet' if minutes is None else ('checked just now' if minutes<1 else 'checked %d min ago'%minutes),
          'free':free,'working':working}
 
-REASONS=(('tracks MP4 cannot preserve','picture subtitles or extra video tracks cannot go into MP4'),
+REASONS=(('tracks MP4 cannot preserve','DVD picture subtitles or a second video track cannot go into MP4'),
          ('without changing HDR','its HDR picture cannot be kept'),
          ('HTTP','Google Drive did not answer'),('connection','the connection dropped'),
          ('Free phone space','not enough phone space'),('checksum','Google Drive returned a different copy'),
@@ -399,8 +433,18 @@ class Queue:
    if job and job.get('status') in ('waiting','paused','committing') and not job.get('kept') and not job.get('blocked'):continue
    freed+=folder_bytes(folder);shutil.rmtree(folder,ignore_errors=True)
   return freed
+ def retry_image_subtitles(self):
+  """Videos kept as they are only for their picture subtitles get one new try with a KodiAirPlay that saves them
+  beside the MP4 (r15). A DVD picture subtitle or a second video track still keeps a video as it is."""
+  if not getattr(self.native,'keeps_image_subs',False):return 0
+  n=0
+  for job in self.state['jobs'].values():
+   if job.get('blocked') and 'tracks MP4 cannot preserve' in str(job.get('error','')) and not job.get('image_subs_retried'):
+    job.update(blocked=False,status='waiting',attempts=0,retry_after=0,image_subs_retried=True);job.pop('error',None);n+=1
+  if n:self.commit()
+  return n
  def process_one(self,keep_going=lambda:True):
-  self.apply_requests();self.tidy()
+  self.apply_requests();self.tidy();self.retry_image_subtitles()
   candidates=[(slot,job) for slot,job in self.state['jobs'].items() if job.get('status') not in ('done','superseded') and not job.get('blocked') and not job.get('kept') and job.get('retry_after',0)<=self.clock()]
   if not candidates:return False
   working=[slot for slot,job in self.state['jobs'].items() if (self.work/slot).exists() and job.get('status')!='done']
@@ -482,6 +526,8 @@ class Queue:
      output.unlink(missing_ok=True);raise RuntimeError('Prepared video did not preserve resolution/HDR; original retained')
     if abs(before.get('duration',0)-after.get('duration',0))>2:raise RuntimeError('Prepared duration differs; original retained')
     progress('Step 3 of 3 · Saving the prepared file to Drive',75)
+    if list(folder.glob('prepared.mp4.sub*.sup')):
+     job['sidecars']=save_sidecars(self.drive,current,folder,self.state['sessions'],self.commit,keep_going)
     job['status']='committing';self.commit()
     current=replace(self.drive,item,str(output),self.state['sessions'],self.commit,keep_going,
                     lambda n,t:progress('Step 3 of 3 · Saving the prepared file to Drive',75+24*n/t))
