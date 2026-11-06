@@ -224,9 +224,16 @@ def uploads(profile):
   import debrid_drive
   for d in debrid_drive.uploads(profile):
    progress=100.0*d.get('sent',0)/d['total']
-   line=('AllDebrid is fetching it · %d%%'%progress if d.get('stage')=='fetching'
-         else '%d%%  ·  %s of %s, straight to Google Drive'%(progress,size_text(d.get('sent',0)),size_text(d['total'])))
-   out.append({'title':drivelibrary.display_title(d.get('name','')),'folder':d.get('folder',''),'progress':progress,'line':line})
+   import prepare_downloads
+   rate=float(d.get('rate') or 0);eta=prepare_downloads.eta_text(d.get('eta_s') or 0)
+   speed='%.1f MB/s'%(rate/1024**2) if rate else ''
+   if d.get('stage')=='fetching':
+    line='AllDebrid is fetching it · %d%%'%progress;short=line
+   else:
+    line='  ·  '.join(x for x in ('%d%%'%progress,'%s of %s'%(size_text(d.get('sent',0)),size_text(d['total'])),speed,eta) if x)
+    short=' · '.join(x for x in ('%d%%'%progress,speed,eta) if x)
+   out.append({'title':drivelibrary.display_title(d.get('name','')),'folder':d.get('folder',''),'progress':progress,'line':line,
+               'short':short,'sent':d.get('sent',0),'total':d['total'],'rate':rate,'eta':eta,'stage':d.get('stage','')})
  except Exception as error:_quiet('notices:debrid',error)
  return out
 

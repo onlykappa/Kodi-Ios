@@ -83,4 +83,35 @@ class Build170Log(unittest.TestCase):
   v=(ROOT/'migration/airplay-ios/remux/src/kr_video.c').read_text()
   for route in ('hardware HDR (%s decoder to %s)','GPU path (%s decoder to %s)','CPU path (%s decoder%s, %s)'):self.assertIn(route,v)
 
+class SpeedEverywhere(unittest.TestCase):
+ """Owner (build 170 screenshots): "no way for me to see download or upload speed anywhere … the details are blank and
+ seem ugly"; the folder tiles had no icons."""
+ def test_time_and_video_words(self):
+  self.assertEqual(prep.eta_text(0),'');self.assertEqual(prep.eta_text(30),'less than a minute left')
+  self.assertEqual(prep.eta_text(300),'about 5 min left');self.assertEqual(prep.eta_text(3*3600+600),'about 3 h 10 min left')
+  self.assertEqual(prep.video_text({'codec':'av1','bit_depth':10,'hdr':True,'copy_video':False}),'AV1 10-bit HDR → HEVC (re-encoded)')
+  self.assertEqual(prep.video_text({'codec':'hevc','bit_depth':10,'hdr':False,'copy_video':True}),'HEVC 10-bit, copied as it is')
+ def test_upload_card_and_details(self):
+  import tempfile,notices,debrid_drive,library_rows
+  with tempfile.TemporaryDirectory() as p:
+   debrid_drive.save(p,{'jobs':[],'current':{'name':'Fall.2.Deadpoint.mkv','folder':'Movies','sent':14.6*1024**3,'total':16.9*1024**3,
+                                             'stage':'copying','rate':8.4*1024**2,'eta_s':290}})
+   up=notices.uploads(p)[0]
+   self.assertIn('8.4 MB/s',up['line']);self.assertIn('about 4 min left',up['line']);self.assertEqual(up['short'],'86% · 8.4 MB/s · about 4 min left')
+   view=prep.library_view({},uploads=[up])
+   row=view['rows']['downloading'][0];self.assertEqual(row['sub'],'Uploading to Google Drive · 86% · 8.4 MB/s · about 4 min left')
+   facts=dict(library_rows.details(row,view)['facts'])
+   self.assertEqual(facts['Speed'],'8.4 MB/s');self.assertEqual(facts['Time left'],'about 4 min left');self.assertIn('14.6 of 16.9 GB',facts['Progress'])
+   self.assertEqual(facts['Saving to'],'Google Drive › Kodi Downloads › Movies')
+ def test_preparing_details_are_full(self):
+  import library_rows
+  row={'state':'preparing','title':'Inception (2010)','pct':0,'step':'Converting and saving to Drive','speed':'177 MB read · 0.6 MB/s',
+       'eta':'','video':'AV1 10-bit HDR → HEVC (re-encoded)','size':8.9*1024**3}
+  s=library_rows.details(row,{'free':0})
+  self.assertEqual(s['status'],'Preparing now');self.assertEqual(s['quality'],'AV1 10-bit HDR → HEVC (re-encoded)')
+  self.assertEqual([f[0] for f in s['facts']],['Step','Speed','Time left','On Google Drive'])
+ def test_cloud_progress_records_speed_and_folder_icons_resolve(self):
+  self.assertIn("detail=prep.speed_text(*speed),eta=eta",(LIB/'prepare_cloud.py').read_text())
+  self.assertIn("p.ICONS + '$INFO[ListItem.Property(icon)]'",(LIB/'library_page.py').read_text())
+
 if __name__=='__main__':unittest.main()

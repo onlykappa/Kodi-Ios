@@ -39,6 +39,22 @@ def space_needed(item,streaming=False,probe=None):
  starts and what Library status says it needs (owner, build 160: the page said 14 GB while the step itself wanted more)."""
  return (0 if streaming else int(item.get('size') or 0))+work_bytes(item,probe)+KEEP_FREE
 
+def eta_text(seconds):
+ """'about 5 min left', 'about 3 h 10 min left' ('' when unknown)."""
+ if not seconds or seconds<0 or seconds>14*24*3600:return ''
+ m=int(seconds//60)
+ if m<1:return 'less than a minute left'
+ return 'about %d min left'%m if m<60 else 'about %d h%s left'%(m//60,' %d min'%(m%60) if m%60 else '')
+
+def video_text(probe):
+ """'AV1 10-bit HDR → HEVC (re-encoded)' / 'HEVC 10-bit, copied as it is' from the native probe."""
+ if not probe:return ''
+ codec=str(probe.get('codec') or '').upper().replace('H264','H.264')
+ depth=int(probe.get('bit_depth') or 0)
+ what=' '.join(x for x in (codec,'%d-bit'%depth if depth>8 else '','HDR' if probe.get('hdr') else '') if x)
+ if probe.get('copy_video',True):return (what+', copied as it is').strip(', ')
+ return '%s → HEVC (re-encoded)'%what if probe.get('hdr') else '%s → H.264 (re-encoded)'%what
+
 def speed_text(read,rate):
  """'1.2 GB read · 8.4 MB/s' ('' before anything was read)."""
  if not read:return ''
@@ -46,10 +62,12 @@ def speed_text(read,rate):
  return '%s read · %.1f MB/s'%(size,rate/1024**2) if rate else '%s read'%size
 
 def live_line(current):
- """' · 12% · 1.2 GB read · 8.4 MB/s': the percentage only once it moved off 0, then what was read and how fast."""
+ """' · 12% · 1.2 GB read · 8.4 MB/s · about 3 h left': the percentage only once it moved off 0, what was read, how
+ fast, and the time left once it can be told."""
  parts=[]
  if not current.get('indeterminate') and current.get('progress',0)>=1:parts.append('%d%%'%current.get('progress',0))
  if current.get('detail'):parts.append(current['detail'])
+ if current.get('eta'):parts.append(current['eta'])
  return ''.join(' · '+x for x in parts)
 
 def space_reason(probe):
@@ -317,8 +335,11 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
   rows['downloading'].append({'id':'dl:'+str(d.get('id','')),'title':d.get('title',''),'state':'downloading','pct':int(d.get('progress') or 0),
    'sub':'Downloading · %s'%' · '.join(x for x in (str(d.get('line','')).replace('  ',' '),str(d.get('speed','')).replace('  ',' ')) if x)})
  for u in uploads:
+  # Owner (build 170): "no way for me to see download or upload speed anywhere".
   rows['downloading'].append({'id':'up','title':u.get('title',''),'state':'uploading','pct':int(u.get('progress') or 0),
-   'sub':'Uploading to Google Drive · %d%%'%int(u.get('progress') or 0)})
+   'sub':'Uploading to Google Drive · %s'%(u.get('short') or '%d%%'%int(u.get('progress') or 0)),
+   'sent':u.get('sent',0),'total':u.get('total',0),'rate':u.get('rate',0),'eta':u.get('eta',''),'folder':u.get('folder',''),
+   'stage':u.get('stage','')})
  order=[]
  for e in library.get('items') or []:
   job=jobs.get(e['id']);base={'id':e['id'],'title':title(e['name']),'name':e['name'],'folder':e['folder'],'size':e['size']}
@@ -328,7 +349,9 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
    rows['kept'].append(dict(base,state='kept',owner=bool(job.get('kept')) and not job.get('blocked'),
     sub='Kept as it is · %s'%('you chose to keep it' if job.get('kept') and not job.get('blocked') else plain(why))));continue
   if job and current.get('running') and current.get('title') in (e['name'],title(e['name'])):
-   rows['preparing'].append(dict(base,state='preparing',pct=int(current.get('progress',0)),indeterminate=bool(current.get('indeterminate')),sub=str(current.get('stage','Preparing')).replace('Step 3 of 3 · ','')+live_line(current)));continue
+   rows['preparing'].append(dict(base,state='preparing',pct=int(current.get('progress',0)),indeterminate=bool(current.get('indeterminate')),
+    step=str(current.get('stage','Preparing')).replace('Step 3 of 3 · ',''),speed=current.get('detail',''),eta=current.get('eta',''),
+    video=video_text((job or {}).get('probe')),sub=str(current.get('stage','Preparing')).replace('Step 3 of 3 · ','')+live_line(current)));continue
   if e['state']=='unreadable':rows['waiting'].append(dict(base,state='problem',warn=True,sub='Google Drive could not describe it; checking again next time'));continue
   if job and job.get('status')=='failed':
    wait=max(0,int((job.get('retry_after',0)-now())//60))

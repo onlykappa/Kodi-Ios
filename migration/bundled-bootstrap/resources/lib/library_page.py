@@ -72,7 +72,7 @@ def _folder(p, focused):
         for v, tex in (('only', 'row_only.png'), ('first', 'row_first.png'), ('last', 'row_last.png')))) if focused else ''
     sep = p.image(S + 160, 0, w - 160, 2, M + 'white.png', p.SEP, '<visible>%s | %s</visible>' % (pos('mid'), pos('last')))
     tile = (p.surface(S + 30, 44, 112, 112, 'round_s.png', '$INFO[ListItem.Property(tint)]', 26) +
-            p.icon(S + 56, 70, 60, '$INFO[ListItem.Property(icon)]', p.WHITE))
+            p.icon(S + 56, 70, 60, p.ICONS + '$INFO[ListItem.Property(icon)]', p.WHITE))
     text_w = w - 160 - 230
     texts = (p.label(S + 160, 40, text_w, 58, '$INFO[ListItem.Label]', 'p_pill', p.WHITE, 'left', '<scroll>false</scroll>') +
              p.label(S + 160, 100, text_w, 50, '$INFO[ListItem.Label2]', 'p_pill_s', p.GREY, 'left', '<scroll>false</scroll>'))

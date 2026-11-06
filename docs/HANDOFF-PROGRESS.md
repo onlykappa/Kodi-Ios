@@ -27,6 +27,12 @@
 - Inception converted at ~0.55 MB/s read (about a quarter of real time, ~10 h). Cause: preparation used the live-AirPlay 6-second units; each re-seeks to its keyframe, re-decodes from there, flushes the decoder and opens a new encoder.
 - r20: whole-file preparation uses 30-second units (`PREP_UNIT`). The checkpoint stores the unit length, so a 6-second checkpoint starts over instead of being misread.
 - Each unit logs "prepare: video i/n made in X s for 30 s of film (Nx real time) via <route>" (hardware HDR / GPU / CPU + decoder), through `kr_remux_note`.
+- Screens (owner, build 170 screenshots: "no way for me to see download or upload speed anywhere … the details are blank and seem ugly"):
+  - The upload card, Library row and pill show "86% · 8.4 MB/s · about 4 min left".
+  - The conversion (prepare_cloud) records the read speed and a time left.
+  - The details sheet for converting shows Step, Speed, Time left, the size on Drive, and Video ("AV1 10-bit HDR → HEVC (re-encoded)").
+  - The details sheet for uploading shows Progress, Speed, Time left and Saving to.
+  - The folder tiles' icons are fixed (ICONS path). The footnote is shorter.
 - Steps: native CI → pin r20 (previous r19 785178e5…) → publish → build 171 → verify.
 
 ## Build 170 (from the build-169 log, owner: "downloading is alot quicker", "converting is having issues still")

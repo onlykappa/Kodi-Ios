@@ -37,8 +37,15 @@ def process_one(q, keep_going):
         now = q.clock()
         if now-last[0] < .5 and (pct or 0) < 100:return
         last[0] = now
+        # Owner (build 170): speed and time left, not a bare "Converting and saving to Drive".
+        speed=q.read_speed(now)
+        mark=job.setdefault('eta_mark',[now,pct or 0]) if pct is not None else None
+        eta=''
+        if mark and (pct or 0)-mark[1]>=0.2 and now>mark[0]:
+            eta=prep.eta_text((now-mark[0])*(100-(pct or 0))/((pct or 0)-mark[1]))
         q.state['current'] = dict(title=item['name'],stage='Step 3 of 3 · '+stage,progress=max(0,min(100,pct or 0)),indeterminate=pct is None,
-                                  queued=len(candidates),running=True,updated=now)
+                                  queued=len(candidates),running=True,updated=now,read=speed[0],rate=speed[1],
+                                  detail=prep.speed_text(*speed),eta=eta)
         q.commit()
     def clear_temps():
         discard=[o['id'] for o in (job.get('cloud_output') or {}).values() if not o.get('moved')]

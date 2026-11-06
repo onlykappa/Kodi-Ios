@@ -213,8 +213,17 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 parts = folders(job['kind'], name, job.get('title') if job['kind'] != 'movie' else '')
                 parent = drive.folder(parts)
 
+                marks = []
+
                 def progress(sent, total):
-                    state['current'] = {'name': title, 'folder': parts[-1], 'sent': sent, 'total': total, 'stage': 'copying'}
+                    # Owner (build 170): the speed and the time left, measured over the last ~20 s.
+                    now = clock()
+                    marks.append((now, sent))
+                    marks[:] = [m for m in marks if now - m[0] <= 20] or [(now, sent)]
+                    span = marks[-1][0] - marks[0][0]
+                    rate = (marks[-1][1] - marks[0][1]) / span if span >= 1 else 0.0
+                    state['current'] = {'name': title, 'folder': parts[-1], 'sent': sent, 'total': total, 'stage': 'copying',
+                                        'rate': rate, 'eta_s': (total - sent) / rate if rate else 0}
                     commit()
                 result = drive.upload_stream(lambda offset: open_url(url, offset), size, name, parent, entry['session'],
                                              commit, keep_going, progress)

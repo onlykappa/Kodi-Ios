@@ -15,8 +15,7 @@ SHOWN = {'ready': ('ready',), 'waiting': ('waiting',), 'kept': ('kept',),
 TITLES = {'all': 'Library status', 'ready': 'Ready', 'waiting': 'Waiting', 'kept': 'Kept as it is', 'todo': 'To do',
           'downloading': 'Downloading'}
 DOT = '[COLOR %s]●[/COLOR]'
-NOTE = ('Kodi prepares one video at a time while nothing is playing, reading it from Google Drive. A video that needs '
-        'more phone space than is free waits until there is room.')
+NOTE = 'Kodi prepares one video at a time from Google Drive while nothing plays.'
 
 
 def ring_name(pct):
@@ -114,9 +113,22 @@ def details(row, view):
         sheet.update(status='Ready for Kodi and AirPlay', tone='ok', quality=row.get('sub', ''),
                      facts=[f for f in (on_drive, folder, ('Plays', 'on this iPhone and over AirPlay, seeking straight away')) if f])
     elif state == 'preparing':
-        sheet.update(status='Preparing now'+('' if row.get('indeterminate') else ' · %s%%'%row.get('pct',0)), facts=[f for f in (on_drive, ('Step', row.get('sub', ''))) if f])
+        # Owner (build 170): "the details are blank and seem ugly": what it is doing, how fast and how long.
+        pct = row.get('pct', 0)
+        sheet.update(status='Preparing now' + (' · %s%%' % pct if pct and not row.get('indeterminate') else ''),
+                     quality=row.get('video', ''),
+                     facts=[f for f in (('Step', row.get('step') or row.get('sub', '')),
+                                        ('Speed', row.get('speed') or 'starting'),
+                                        ('Time left', row.get('eta') or 'working it out'),
+                                        on_drive) if f])
     elif state in ('downloading', 'uploading'):
-        sheet.update(status=row.get('sub', ''), facts=[('Progress', '%s%%' % row.get('pct', 0))])
+        sent, total, rate = row.get('sent') or 0, row.get('total') or 0, row.get('rate') or 0
+        sheet.update(status=('AllDebrid is fetching it' if row.get('stage') == 'fetching' else
+                             'Uploading to Google Drive' if state == 'uploading' else 'Downloading'),
+                     facts=[f for f in (('Progress', '%s%%' % row.get('pct', 0) + (' · %.1f of %.1f GB' % (sent / GB, total / GB) if total else '')),
+                                        ('Speed', '%.1f MB/s' % (rate / 1024 ** 2) if rate else 'measuring'),
+                                        ('Time left', row.get('eta') or 'working it out'),
+                                        ('Saving to', 'Google Drive › Kodi Downloads' + (' › ' + row['folder'] if row.get('folder') else ''))) if f])
     elif state == 'waiting':
         sheet.update(status=row.get('sub', '').split(' · ')[0], quality=' · '.join(row.get('sub', '').split(' · ')[1:]),
                      facts=[f for f in (on_drive, folder) if f],
