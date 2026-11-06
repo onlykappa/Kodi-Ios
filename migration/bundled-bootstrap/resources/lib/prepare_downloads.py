@@ -171,6 +171,26 @@ def request(profile,action,item_id):
  pending=[r for r in pending if r.get('id')!=str(item_id)]+[{'action':action,'id':str(item_id)}]
  tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(pending));os.replace(tmp,path)
 
+def pending_requests(profile):
+ """What the owner asked for on Library status that the service has not applied yet."""
+ try:pending=json.loads((location(profile).parent/REQUESTS).read_text())
+ except (OSError,ValueError):return []
+ return pending if isinstance(pending,list) else []
+
+def apply_to(state,requests,now):
+ """Apply owner requests to a queue state (the service for real; the page on a copy, so a tap shows at once).
+ next: prepare it first once it can run; retry: try a paused one now; keep / prepare: keep it as it is, or put it
+ back in the queue."""
+ jobs={job['source']['id']:job for job in (state.get('jobs') or {}).values()}
+ for request in requests:
+  job=jobs.get(str(request.get('id')));action=request.get('action')
+  if not job:continue
+  if action=='next':job['priority']=now
+  elif action=='retry':job.update(retry_after=0,attempts=0);job.pop('error',None);job['status']='waiting'
+  elif action=='keep':job['kept']=True
+  elif action=='prepare':job.pop('kept',None)
+ return state
+
 def entry(item,state):
  return {'id':str(item.get('id','')),'name':item.get('name',''),'folder':item.get('folderName',''),'size':int(item.get('size') or 0),'state':state}
 
@@ -360,21 +380,12 @@ class Queue:
    len(ids),'' if len(ids)==1 else 's',gb(biggest),gb(free),gb(KEEP_FREE)))
  def apply_requests(self):
   """What the owner asked for on Settings › Library › Library status (a separate file: the page never writes the
-  queue's own state). next: prepare it first once it can run; retry: try a paused one now; keep / prepare: keep it
-  as it is, or put it back in the queue."""
+  queue's own state); see apply_to."""
   path=location(self.profile).parent/REQUESTS
-  try:requests=json.loads(path.read_text())
-  except (OSError,ValueError):return False
+  if not path.exists():return False
+  requests=pending_requests(self.profile)
   path.unlink(missing_ok=True)
-  jobs={job['source']['id']:job for job in self.state['jobs'].values()}
-  for request in requests if isinstance(requests,list) else []:
-   job=jobs.get(str(request.get('id')));action=request.get('action')
-   if not job:continue
-   if action=='next':job['priority']=self.clock()
-   elif action=='retry':job.update(retry_after=0,attempts=0);job.pop('error',None);job['status']='waiting'
-   elif action=='keep':job['kept']=True
-   elif action=='prepare':job.pop('kept',None)
-  self.commit();return True
+  apply_to(self.state,requests,self.clock());self.commit();return True
  def process_one(self,keep_going=lambda:True):
   self.apply_requests()
   candidates=[(slot,job) for slot,job in self.state['jobs'].items() if job.get('status') not in ('done','superseded') and not job.get('blocked') and not job.get('kept') and job.get('retry_after',0)<=self.clock()]

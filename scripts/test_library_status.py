@@ -155,4 +155,150 @@ class Wiring(unittest.TestCase):
   module=load('library_status_t',BOOT/'library_status.py')
   self.assertTrue(callable(module.run));self.assertEqual(module.FILTER_BASE,9101)
 
+class FakeKodi:
+ """Just enough of xbmc, xbmcgui, xbmcaddon and xbmcvfs to run library_status.run() and tap every button."""
+ def __init__(self,profile,script,settings=None,answer=True):
+  import types
+  self.script=list(script);self.settings=dict(settings or {'prepare_downloads':True});self.answer=answer
+  self.notes=[];self.windows=[];kodi=self
+  xbmc=types.ModuleType('xbmc');xbmc.LOGWARNING=2;xbmc.LOGINFO=1;xbmc.log=lambda *a:None
+  class Monitor:
+   def waitForAbort(self,t=0):return True    # the refresh loop ends at once; the test refreshes by tapping
+  xbmc.Monitor=Monitor
+  gui=types.ModuleType('xbmcgui');gui.NOTIFICATION_INFO='info';gui.NOTIFICATION_WARNING='warn'
+  class ListItem:
+   def __init__(self,label='',label2=''):self.label,self.label2,self.props,self.art=label,label2,{},{}
+   def setProperty(self,k,v):self.props[k]=v
+   def getProperty(self,k):return self.props.get(k,'')
+   def setLabel2(self,v):self.label2=v
+   def setArt(self,a):self.art.update(a)
+   def getArt(self,k):return self.art.get(k,'')
+  class Control:
+   def __init__(self):self.items=[];self.selected=0;self.percent=None
+   def reset(self):self.items=[];self.selected=0
+   def addItems(self,items):self.items.extend(items)
+   def getSelectedPosition(self):return self.selected if self.items else -1
+   def selectItem(self,n):self.selected=n
+   def getListItem(self,n):return self.items[n]
+   def setPercent(self,v):self.percent=v
+  class Window:
+   def __init__(self,xml,*rest):self.xml=xml;self.props={};self.controls={};self.closed=False;self.focus=None;kodi.windows.append(self)
+   def setProperty(self,k,v):self.props[k]=v
+   def getProperty(self,k):return self.props.get(k,'')
+   def getControl(self,n):return self.controls.setdefault(n,Control())
+   def setFocusId(self,n):self.focus=n
+   def close(self):self.closed=True
+   def doModal(self):
+    self.onInit()
+    while not self.closed and kodi.script:
+     step=kodi.script.pop(0)
+     if step[0]!=self.xml:kodi.script.insert(0,step);break
+     step[1](self)
+  class Dialog:
+   def yesno(self,*a,**k):kodi.notes.append(('yesno',a[1]));return kodi.answer
+   def notification(self,title,text,*a):kodi.notes.append(('note',text))
+  gui.ListItem,gui.WindowXMLDialog,gui.Dialog=ListItem,Window,Dialog
+  addon=types.ModuleType('xbmcaddon')
+  class Addon:
+   def __init__(self,name=None):self.name=name
+   def getSettingBool(self,k):return kodi.settings.get(k,False)
+   def setSettingBool(self,k,v):kodi.settings[k]=v
+   def getAddonInfo(self,k):raise RuntimeError('TMDb Helper not installed')
+  addon.Addon=Addon
+  vfs=types.ModuleType('xbmcvfs');vfs.translatePath=lambda path:profile
+  self.modules={'xbmc':xbmc,'xbmcgui':gui,'xbmcaddon':addon,'xbmcvfs':vfs}
+
+def tap(control):return lambda w:w.onClick(control)
+def tap_row(ident):
+ def go(w):
+  rows=w.getControl(library_page.LIST).items
+  w.getControl(library_page.LIST).selectItem([r.getProperty('id') for r in rows].index(ident));w.onClick(library_page.LIST)
+ return go
+def tap_kind(kind):
+ def go(w):
+  rows=w.getControl(library_page.LIST).items
+  w.getControl(library_page.LIST).selectItem([r.getProperty('kind') for r in rows].index(kind));w.onClick(library_page.LIST)
+ return go
+
+class TapEveryButton(unittest.TestCase):
+ """Owner (build 158): "the buttons i press better work". Runs the real controller against a fake Kodi."""
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.profile=self.tmp.name
+  state=library_state()
+  for n in range(8):state['library']['items'].append(item('x%d'%n,'Film%d.2000.1080p.mkv'%n,'ready'))
+  prep.save(self.profile,state)
+ def tearDown(self):self.tmp.cleanup()
+ def run_page(self,script,**kw):
+  from unittest.mock import patch
+  kodi=FakeKodi(self.profile,script,**kw)
+  import notices
+  with patch.dict(sys.modules,kodi.modules),patch.object(notices,'downloads',lambda get=None:[]):
+   module=load('library_status_run',BOOT/'library_status.py');module.run([])
+  return kodi
+ def page_rows(self,w):return [(r.getProperty('id'),r.getProperty('state'),r.label2) for r in w.getControl(library_page.LIST).items if r.getProperty('kind')=='row']
+ def test_page_opens_filled(self):
+  seen={}
+  kodi=self.run_page([(library_page.WINDOW,lambda w:seen.update(props=dict(w.props),rows=self.page_rows(w))),(library_page.WINDOW,tap(library_page.BACK))])
+  page=kodi.windows[0]
+  self.assertTrue(page.closed);self.assertEqual(seen['props']['headline'],'10 of 18 ready');self.assertEqual(seen['props']['filter'],'all')
+  self.assertIn(('w2','waiting'),[r[:2] for r in seen['rows']])
+ def test_filters(self):
+  seen=[]
+  snap=lambda w:seen.append((w.getProperty('filter'),{s for _,s,_ in self.page_rows(w)}))
+  self.run_page([(library_page.WINDOW,tap(9102)),(library_page.WINDOW,snap),(library_page.WINDOW,tap(9103)),(library_page.WINDOW,snap),
+                 (library_page.WINDOW,tap(9104)),(library_page.WINDOW,snap),(library_page.WINDOW,tap(9101)),(library_page.WINDOW,snap),
+                 (library_page.WINDOW,tap(library_page.BACK))])
+  self.assertEqual([f for f,_ in seen],['ready','todo','downloading','all'])
+  self.assertEqual(seen[0][1],{'ready'});self.assertNotIn('ready',seen[1][1]);self.assertEqual(seen[2][1],set())
+  self.assertIn('ready',seen[3][1])
+ def test_show_all_row_opens_ready(self):
+  seen=[]
+  self.run_page([(library_page.WINDOW,tap_kind('more')),(library_page.WINDOW,lambda w:seen.append((w.getProperty('filter'),len(self.page_rows(w))))),
+                 (library_page.WINDOW,tap(library_page.BACK))])
+  self.assertEqual(seen,[('ready',10)])
+ def test_check_now(self):
+  seen=[]
+  self.run_page([(library_page.WINDOW,tap(library_page.CHECK)),(library_page.WINDOW,lambda w:seen.append(w.getProperty('sub'))),
+                 (library_page.WINDOW,tap(library_page.BACK))])
+  self.assertTrue(prep.check_requested(self.profile));self.assertIn('checking now',seen[0])
+ def test_check_now_with_preparation_off_asks_first(self):
+  kodi=self.run_page([(library_page.WINDOW,tap(library_page.CHECK)),(library_page.WINDOW,tap(library_page.BACK))],
+                     settings={'prepare_downloads':False},answer=False)
+  self.assertFalse(prep.check_requested(self.profile));self.assertEqual(kodi.notes[0][0],'yesno')
+ def test_prepare_next_shows_at_once_and_the_service_applies_it(self):
+  seen=[]
+  sheet={}
+  kodi=self.run_page([(library_page.WINDOW,tap_row('w1')),
+                      (library_page.ITEM,lambda w:sheet.update(dict(w.props))),(library_page.ITEM,tap(9201)),
+                      (library_page.WINDOW,lambda w:seen.append(self.page_rows(w))),(library_page.WINDOW,tap(library_page.BACK))])
+  self.assertEqual((sheet['action1.label'],sheet['action2.label']),('Prepare next','Keep as it is'))
+  self.assertEqual(prep.pending_requests(self.profile),[{'action':'next','id':'w1'}])
+  waiting=[r for r in seen[0] if r[1]=='waiting'];self.assertEqual(waiting[0][0],'w1');self.assertTrue(waiting[0][2].startswith('Next'))
+  self.assertIn(('note','Prepare next: Fall (2022)'),kodi.notes)
+  queue=prep.Queue.__new__(prep.Queue);queue.profile=self.profile;queue.clock=lambda:7000;queue.state=prep.load(self.profile);queue.commit=lambda:None
+  self.assertTrue(queue.apply_requests());self.assertEqual(queue.state['jobs']['a']['priority'],7000);self.assertEqual(prep.pending_requests(self.profile),[])
+ def test_keep_moves_it_to_kept_and_prepare_after_all_brings_it_back(self):
+  seen=[]
+  snap=lambda w:seen.append({i:s for i,s,_ in self.page_rows(w)})
+  self.run_page([(library_page.WINDOW,tap_row('w2')),(library_page.ITEM,tap(9202)),(library_page.WINDOW,snap),
+                 (library_page.WINDOW,tap_row('w2')),(library_page.ITEM,tap(9201)),(library_page.WINDOW,snap),
+                 (library_page.WINDOW,tap(library_page.BACK))])
+  self.assertEqual(seen[0]['w2'],'kept');self.assertEqual(seen[1]['w2'],'waiting')
+ def test_try_again(self):
+  self.run_page([(library_page.WINDOW,tap_row('f1')),(library_page.ITEM,tap(9201)),(library_page.WINDOW,tap(library_page.BACK))])
+  self.assertEqual(prep.pending_requests(self.profile),[{'action':'retry','id':'f1'}])
+ def test_close_buttons_and_no_action_sheets(self):
+  kodi=self.run_page([(library_page.WINDOW,tap_row('r1')),(library_page.ITEM,tap(9201)),(library_page.ITEM,tap(9200)),
+                      (library_page.WINDOW,tap_row('k1')),(library_page.ITEM,tap(9099)),
+                      (library_page.WINDOW,lambda w:w.onAction(type('A',(),{'getId':lambda self:92})())) ])
+  sheets=[w for w in kodi.windows if w.xml==library_page.ITEM]
+  self.assertTrue(all(w.closed for w in sheets));self.assertEqual(sheets[0].focus,9200);self.assertTrue(kodi.windows[0].closed)
+  self.assertEqual(prep.pending_requests(self.profile),[])
+ def test_action_with_preparation_off_asks_to_turn_it_on(self):
+  kodi=self.run_page([(library_page.WINDOW,tap_row('w1')),(library_page.ITEM,tap(9201)),(library_page.WINDOW,tap(library_page.BACK))],
+                     settings={'prepare_downloads':False},answer=True)
+  self.assertTrue(kodi.settings['prepare_downloads']);self.assertEqual(prep.pending_requests(self.profile),[{'action':'next','id':'w1'}])
+ def test_service_wakes_for_a_choice(self):
+  self.assertIn('if prepare_downloads.check_requested(profile) or prepare_downloads.pending_requests(profile):delay=5',(BOOT/'service.py').read_text())
+
 if __name__=='__main__':unittest.main()

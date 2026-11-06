@@ -184,7 +184,7 @@ class Integration(unittest.TestCase):
   service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertIn('preparation.scan(can_prepare,force=bool(count))',service);self.assertIn('preparation.process_one(converting)',service)
   # A requested check pauses the current conversion and brings the loop back within seconds.
-  self.assertIn('not prepare_downloads.check_requested(profile)',service);self.assertIn('if prepare_downloads.check_requested(profile):delay=5',service)
+  self.assertIn('not prepare_downloads.check_requested(profile)',service);self.assertIn('if prepare_downloads.check_requested(profile) or prepare_downloads.pending_requests(profile):delay=5',service)
   import xml.etree.ElementTree as ET
   setting=ET.parse(ROOT/'migration/bundled-bootstrap/resources/settings.xml').find(".//setting[@id='prepare_downloads']")
   self.assertEqual(setting.findtext('default'),'true')

@@ -22,7 +22,8 @@ def folder_size(path):
 
 def snapshot(profile,downloads,uploads):
  """library_view() for the page right now (never raises: an empty library on any error)."""
- state=prepare_downloads.load(profile)
+ # Choices not yet applied by the service show at once (it applies them before its next video).
+ state=prepare_downloads.apply_to(prepare_downloads.load(profile),prepare_downloads.pending_requests(profile),time.time())
  work=prepare_downloads.location(profile).parent/'preparing-videos'
  try:free=shutil.disk_usage(str(work if work.exists() else work.parent)).free
  except OSError:free=None
@@ -157,6 +158,10 @@ def run(args=()):
    chosen=sheet.chosen;del sheet
    if chosen:
     label,action=chosen
+    if not addon.getSettingBool('prepare_downloads'):
+     if not dialog.yesno('Library status','Preparing videos for Kodi and AirPlay is turned off. Turn it on so this can happen?',
+                         nolabel='Cancel',yeslabel='Turn on'):return
+     addon.setSettingBool('prepare_downloads',True)
     prepare_downloads.request(profile,action,item['row']['id'])
     dialog.notification('Library status','%s: %s'%(label,item['row']['title']),xbmcgui.NOTIFICATION_INFO,2500)
     self.refresh(force=True)

@@ -293,5 +293,6 @@ def drive_uploads(monitor,home,profile):
   except Exception as error:
    xbmc.log('Kodi iOS Drive upload paused: %s %s'%(type(error).__name__,error),xbmc.LOGWARNING)
    notices.add(profile,'problem','Google Drive upload paused',str(error)[:160])
-  if prepare_downloads.check_requested(profile):delay=5
+  # A check or a Library status choice (prepare next, try again, keep) is picked up within seconds.
+  if prepare_downloads.check_requested(profile) or prepare_downloads.pending_requests(profile):delay=5
 if __name__=='__main__':run()
