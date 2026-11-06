@@ -293,6 +293,20 @@ ELEMENTUM_PATCHES=[('resources/site-packages/elementum/daemon.py',b'def get_elem
  ('resources/site-packages/elementum/service.py',b'    if not ONLY_CLIENT and PLATFORM["fork"]:',b'    if not ONLY_CLIENT and (PLATFORM["fork"] or PLATFORM.get("os") == "ios"):'),
  ('resources/site-packages/elementum/osarch.py',b'    if global_platform:\n',b'    if xbmc.getCondVisibility("System.Platform.IOS"):\n        ret.update(os="ios", arch="arm64", fork=False)\n        return ret\n\n    if global_platform:\n')]
 
+# Inspect initial /play requests AND source-picker redirects before either reaches the local downloader.
+ELEMENTUM_CLOUD=b"""def _kodi_cloud(url):
+    import sys
+    from xbmcvfs import translatePath
+    lib=translatePath('special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib')
+    if lib not in sys.path:sys.path.insert(0,lib)
+    import elementum_cloud
+    return elementum_cloud.route(url)
+
+"""
+ELEMENTUM_PATCHES += [
+ ('resources/site-packages/elementum/navigation.py',b'def _json(url):\n',ELEMENTUM_CLOUD+b'def _json(url):\n    if _kodi_cloud(url):return None\n'),
+ ('resources/site-packages/elementum/navigation.py',b'        if response.code == 300:\n',b'        if location and _kodi_cloud(location):return None\n        if response.code == 300:\n')]
+
 # Kodi-iOS source check (service.kodi.ios.bootstrap/resources/lib/source_match.py) inside Burst, where every provider's
 # results arrive: a torrent of another title ("Fall" 2026 for "Fall" 2022) never reaches Elementum, so its dialog, its
 # auto-pick ("silent") plays and downloads only get the title asked for. Burst 0.0.99 (migration/elementum-ios/source-lock.json).

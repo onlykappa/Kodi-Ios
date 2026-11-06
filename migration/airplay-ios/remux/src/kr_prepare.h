@@ -1,4 +1,4 @@
-// Prepare one local, seekable MP4 before playback. No server/session globals or HTTP input.
+// Prepare a complete, seekable MP4 before playback, from a local or loopback Drive source.
 #ifndef KR_PREPARE_H
 #define KR_PREPARE_H
 #include <libavformat/avformat.h>
@@ -16,4 +16,11 @@ void kodi_airplay_prepare_keep_image_subs(int on);
 // progress stages: 0 video, 1 audio, 2 packaging, 3 verification. Return 0 success, -2 paused, -1 failure.
 int kodi_airplay_prepare(const char *input, const char *output, kr_prepare_progress progress,
                          void *context, char *error, int error_size);
+// r16: output goes directly to a bounded-memory consumer. track 0 is the MP4;
+// other tracks are preserved PGS sidecars, with suffix identifying language/forced flag.
+// Return nonzero from write to accept bytes, zero to cancel. No working files are opened.
+typedef int (*kr_prepare_write)(int track,const char *suffix,const uint8_t *data,int size,void *context);
+int kodi_airplay_prepare_to(const char *input,kr_prepare_write write,void *write_context,
+                           kr_prepare_progress progress,void *context,char *error,int error_size);
+int kodi_airplay_verify(const char *input,const char *output,char *error,int error_size);
 #endif

@@ -153,6 +153,60 @@ static int spool(const char *input,const char *path,int index,int is_video,
 end:if(file)fclose(file);free(unit.data);kr_video_close(video);kr_audio_close(audio);
     gm_stream_close(plan);kr_source_close(source);return r;
 }
+// Sequential conversion source: only the current six-second unit lives in RAM. Unlike the
+// legacy spool this reader never opens a working file. Each track owns its demuxer.
+typedef struct {
+    kr_source *source;gm_stream *plan;kr_video *video;kr_audio *audio;
+    gm_buf unit;int segment,offset,count,is_video;kr_prepare_progress progress;void *context;
+    char *error;int error_size;
+} generated_reader;
+static int generated_read(void *opaque,uint8_t *data,int size) {
+    generated_reader *g=opaque;
+    if(g->offset>=g->unit.len) {
+        if(g->segment>=g->count)return AVERROR_EOF;
+        if(!tick(g->progress,g->context,g->is_video?0:1,g->segment,g->count))return AVERROR_EXIT;
+        g->unit.len=0;
+        int r=g->is_video?kr_video_unit(g->video,g->plan,g->segment,&g->unit,g->error,g->error_size):
+                          kr_audio_unit(g->audio,g->plan,g->segment,&g->unit,g->error,g->error_size);
+        if(r<0)return AVERROR(EIO);
+        g->offset=g->segment?kr_first_moof(g->unit.data,g->unit.len):0;
+        if(g->offset<0 || g->offset>=g->unit.len)return AVERROR_INVALIDDATA;
+        g->segment++;
+    }
+    int n=FFMIN(size,g->unit.len-g->offset);memcpy(data,g->unit.data+g->offset,(size_t)n);g->offset+=n;return n;
+}
+static void generated_close(generated_reader *g) {
+    kr_video_close(g->video);kr_audio_close(g->audio);gm_stream_close(g->plan);
+    kr_source_close(g->source);free(g->unit.data);memset(g,0,sizeof *g);
+}
+static int generated_open(generated_reader *g,AVFormatContext **format,AVIOContext **io,
+                          const char *input,int index,int video,kr_prepare_progress cb,void *ctx,char *err,int en) {
+    g->is_video=video;g->progress=cb;g->context=ctx;g->error=err;g->error_size=en;
+    g->source=kr_source_open(input,30,err,en);if(!g->source)return -1;
+    g->plan=gm_stream_open(kr_source_gm(g->source),6,err,en);if(!g->plan)return -1;
+    g->count=gm_stream_segment_count(g->plan);
+    if(video){g->video=kr_video_open(kr_source_gm(g->source),index,err,en);if(!g->video)return -1;kr_video_keep_resolution(g->video);}
+    else {g->audio=kr_audio_open(kr_source_gm(g->source),index,err,en);if(!g->audio)return -1;}
+    uint8_t *buffer=av_malloc(32768);if(!buffer)return -1;
+    *io=avio_alloc_context(buffer,32768,0,g,generated_read,NULL,NULL);
+    if(!*io){av_free(buffer);return -1;}
+    *format=avformat_alloc_context();if(!*format)return -1;
+    (*format)->pb=*io;(*format)->flags|=AVFMT_FLAG_CUSTOM_IO;
+    return avformat_open_input(format,NULL,av_find_input_format("mov"),NULL);
+}
+typedef struct {kr_prepare_write write;void *context;int track;char suffix[80];} output_sink;
+static int sink_write(void *opaque,const uint8_t *data,int size) {
+    output_sink *s=opaque;
+    return s->write(s->track,s->suffix,data,size,s->context)?size:AVERROR_EXIT;
+}
+static int sink_open(AVFormatContext *f,output_sink *sink) {
+    uint8_t *buffer=av_malloc(32768);if(!buffer)return -1;
+    f->pb=avio_alloc_context(buffer,32768,1,sink,NULL,sink_write,NULL);
+    if(!f->pb){av_free(buffer);return -1;}f->flags|=AVFMT_FLAG_CUSTOM_IO;return 0;
+}
+static void sink_close(AVFormatContext *f) {
+    if(f && f->pb){av_freep(&f->pb->buffer);avio_context_free(&f->pb);}
+}
 typedef struct {AVFormatContext *f;AVPacket *packet;int map[TRACKS];int eof;int own;} input_track;
 typedef struct {AVCodecContext *dec,*enc;} subtitle;
 static int next(input_track *in) {
@@ -188,12 +242,17 @@ static int validate(const char *path,AVFormatContext *original,int expected_trac
     av_packet_free(&p);r=0;
 end:avformat_close_input(&f);if(r<0)fail(err,en,"Output validation failed; original retained",0);return r;
 }
-int kodi_airplay_prepare(const char *input,const char *output,kr_prepare_progress cb,void *ctx,char *err,int en) {
+static int prepare(const char *input,const char *output,kr_prepare_progress cb,void *ctx,char *err,int en,
+                   kr_prepare_write writer,void *writer_context) {
+    generated_reader gens[TRACKS]={0};AVIOContext *readers[TRACKS]={0};
+    output_sink sinks[TRACKS+1]={0};
+    for(int i=0;i<=TRACKS;i++){sinks[i].write=writer;sinks[i].context=writer_context;sinks[i].track=i;}
+    snprintf(sinks[0].suffix,sizeof sinks[0].suffix,".mp4");
     AVFormatContext *original=NULL,*out=NULL,*side[TRACKS]={0};input_track ins[TRACKS]={0};subtitle subs[TRACKS]={0};
     int ninputs=1,r=-1,header=0,mapped=0;char partial[4096],spools[TRACKS][4096]={{0}},sides[TRACKS][4200]={{0}};
     if(err && en>0)*err=0;
-    if(!local_input(input) || !output || output[0]!='/' || !strcmp(input,output))return fail(err,en,"A local or loopback input and a separate local output are required",0);
-    snprintf(partial,sizeof partial,"%s.partial",output);
+    if(!local_input(input) || (!writer && (!output || output[0]!='/' || !strcmp(input,output))))return fail(err,en,"A local or loopback input and a separate local output are required",0);
+    snprintf(partial,sizeof partial,"%s.partial",output?output:"stream");
     if(open_source(&original,input)<0){fail(err,en,"Cannot read the source video",0);goto end;}
     int vi=video_index(original);if(vi<0 || original->nb_streams>=TRACKS) {fail(err,en,"Unsupported track layout",0);goto end;}
     if(original->duration<=0){fail(err,en,"Source duration is unknown",0);goto end;}
@@ -218,13 +277,14 @@ int kodi_airplay_prepare(const char *input,const char *output,kr_prepare_progres
             // Its own .sup file, packets copied as they are (written as .partial, renamed with the MP4).
             char lang[9]="und";AVDictionaryEntry *l=av_dict_get(src->metadata,"language",NULL,0);
             if(l && l->value[0]){int k=0;for(const char *c=l->value;*c && k<8;c++)if((*c>='a'&&*c<='z')||(*c>='A'&&*c<='Z'))lang[k++]=(char)(*c|32);if(k)lang[k]=0;}
-            snprintf(sides[i],sizeof sides[i],"%s.sub%u.%s%s.sup",output,i,lang,(src->disposition&AV_DISPOSITION_FORCED)?".forced":"");
+            snprintf(sides[i],sizeof sides[i],"%s.sub%u.%s%s.sup",output?output:"stream",i,lang,(src->disposition&AV_DISPOSITION_FORCED)?".forced":"");
+            snprintf(sinks[i+1].suffix,sizeof sinks[i+1].suffix,".%s%s.%u.sup",lang,(src->disposition&AV_DISPOSITION_FORCED)?".forced":"",i);
             char part[4300];snprintf(part,sizeof part,"%s.partial",sides[i]);
             AVStream *s=NULL;
             if(avformat_alloc_output_context2(&side[i],NULL,"sup",part)<0 || !side[i] || !(s=avformat_new_stream(side[i],NULL)) ||
                avcodec_parameters_copy(s->codecpar,p)<0){fail(err,en,"Picture subtitle file",0);goto end;}
             s->time_base=src->time_base;s->codecpar->codec_tag=0;
-            if(avio_open(&side[i]->pb,part,AVIO_FLAG_WRITE)<0 || avformat_write_header(side[i],NULL)<0){fail(err,en,"Picture subtitle file",0);goto end;}
+            if((writer?sink_open(side[i],&sinks[i+1]):avio_open(&side[i]->pb,part,AVIO_FLAG_WRITE))<0 || avformat_write_header(side[i],NULL)<0){fail(err,en,"Picture subtitle file",0);goto end;}
             ins[0].map[i]=SIDECAR;continue;
         }
         AVStream *dst=avformat_new_stream(out,NULL);if(!dst)goto end;mapped++;
@@ -232,10 +292,14 @@ int kodi_airplay_prepare(const char *input,const char *output,kr_prepare_progres
         avcodec_parameters_copy(dst->codecpar,p);dst->codecpar->codec_tag=0;
         int generated=((int)i==vi && !copy_video(p)) || (p->codec_type==AVMEDIA_TYPE_AUDIO && p->codec_id!=AV_CODEC_ID_AAC);
         if(generated) {
-            snprintf(spools[i],sizeof spools[i],"%s.track%u",output,i);
-            int q=spool(input,spools[i],(int)i,(int)i==vi,cb,ctx,err,en);if(q){r=q;goto end;}
-            input_track *one=&ins[ninputs++];one->own=1;
-            if(avformat_open_input(&one->f,spools[i],NULL,NULL)<0 || avformat_find_stream_info(one->f,NULL)<0)goto end;
+            int ni=ninputs++;input_track *one=&ins[ni];one->own=1;
+            if(writer) {
+                if(generated_open(&gens[ni],&one->f,&readers[ni],input,(int)i,(int)i==vi,cb,ctx,err,en)<0)goto end;
+            } else {
+                snprintf(spools[i],sizeof spools[i],"%s.track%u",output,i);
+                int q=spool(input,spools[i],(int)i,(int)i==vi,cb,ctx,err,en);if(q){r=q;goto end;}
+                if(avformat_open_input(&one->f,spools[i],NULL,NULL)<0 || avformat_find_stream_info(one->f,NULL)<0)goto end;
+            }
             if(one->f->nb_streams!=1)goto end;
             one->map[0]=dst->index;avcodec_parameters_copy(dst->codecpar,one->f->streams[0]->codecpar);
             dst->codecpar->codec_tag=0;dst->time_base=one->f->streams[0]->time_base;
@@ -263,8 +327,9 @@ int kodi_airplay_prepare(const char *input,const char *output,kr_prepare_progres
     av_dict_copy(&out->metadata,original->metadata,0);
     av_dict_set(&out->metadata,"kodi_airplay_prepared","source-resolution-v1",0);
     out->avoid_negative_ts=AVFMT_AVOID_NEG_TS_MAKE_NON_NEGATIVE;
-    if(avio_open(&out->pb,partial,AVIO_FLAG_WRITE)<0)goto end;
-    AVDictionary *opts=NULL;av_dict_set(&opts,"movflags","+faststart+use_metadata_tags",0);
+    if((writer?sink_open(out,&sinks[0]):avio_open(&out->pb,partial,AVIO_FLAG_WRITE))<0)goto end;
+    AVDictionary *opts=NULL;av_dict_set(&opts,"movflags",writer?"+empty_moov+default_base_moof+frag_keyframe+use_metadata_tags":"+faststart+use_metadata_tags",0);
+    if(writer)av_dict_set(&opts,"frag_duration","6000000",0);
     int q=avformat_write_header(out,&opts);av_dict_free(&opts);if(q<0){fail(err,en,"MP4 header",q);goto end;}header=1;
     for(int i=0;i<ninputs;i++){ins[i].packet=av_packet_alloc();if(!ins[i].packet || next(&ins[i])<0)goto end;}
     unsigned packets=0;
@@ -307,30 +372,58 @@ int kodi_airplay_prepare(const char *input,const char *output,kr_prepare_progres
     }
     if(!tick(cb,ctx,3,0,1)){r=-2;goto end;}
     q=av_write_trailer(out);header=0;
-    if(q<0 || avio_closep(&out->pb)<0){fail(err,en,"MP4 finalization",q);goto end;}
+    if(writer){avio_flush(out->pb);if(out->pb->error<0)q=out->pb->error;}
+    if(q<0 || (!writer && avio_closep(&out->pb)<0)){fail(err,en,"MP4 finalization",q);goto end;}
     for(int i=0;i<TRACKS;i++) if(side[i]) {
         q=av_write_trailer(side[i]);
-        if(q<0 || avio_closep(&side[i]->pb)<0){fail(err,en,"Picture subtitle file",q);goto end;}
+        if(writer){avio_flush(side[i]->pb);if(side[i]->pb->error<0)q=side[i]->pb->error;}
+        if(q<0 || (!writer && avio_closep(&side[i]->pb)<0)){fail(err,en,"Picture subtitle file",q);goto end;}
     }
-    if(validate(partial,original,mapped,err,en)<0)goto end;
+    if(!writer && validate(partial,original,mapped,err,en)<0)goto end;
     if(!tick(cb,ctx,3,1,1)){r=-2;goto end;}
     for(int i=0;i<TRACKS;i++) if(side[i]) {
         char part[4300];snprintf(part,sizeof part,"%s.partial",sides[i]);
-        if(rename(part,sides[i])){fail(err,en,"Cannot commit picture subtitle file",0);goto end;}
+        if(!writer && rename(part,sides[i])){fail(err,en,"Cannot commit picture subtitle file",0);goto end;}
     }
-    if(rename(partial,output)){fail(err,en,"Cannot commit prepared file",0);goto end;}
+    if(!writer && rename(partial,output)){fail(err,en,"Cannot commit prepared file",0);goto end;}
     r=0;
 end:
     (void)header;
     for(int i=0;i<TRACKS;i++) {
         avcodec_free_context(&subs[i].dec);avcodec_free_context(&subs[i].enc);
         av_packet_free(&ins[i].packet);if(ins[i].own)avformat_close_input(&ins[i].f);
+        if(readers[i]){av_freep(&readers[i]->buffer);avio_context_free(&readers[i]);}generated_close(&gens[i]);
         if(r==0 && spools[i][0]){unlink(spools[i]);char state[4110];snprintf(state,sizeof state,"%s.state",spools[i]);unlink(state);}
-        if(side[i]){if(side[i]->pb)avio_closep(&side[i]->pb);avformat_free_context(side[i]);side[i]=NULL;}
-        if(r && sides[i][0]){char part[4300];snprintf(part,sizeof part,"%s.partial",sides[i]);unlink(part);unlink(sides[i]);}
+        if(side[i]){if(writer)sink_close(side[i]);else if(side[i]->pb)avio_closep(&side[i]->pb);avformat_free_context(side[i]);side[i]=NULL;}
+        if(!writer && r && sides[i][0]){char part[4300];snprintf(part,sizeof part,"%s.partial",sides[i]);unlink(part);unlink(sides[i]);}
     }
-    if(out){if(out->pb)avio_closep(&out->pb);avformat_free_context(out);}
-    avformat_close_input(&original);if(r)unlink(partial);
+    if(out){if(writer)sink_close(out);else if(out->pb)avio_closep(&out->pb);avformat_free_context(out);}
+    avformat_close_input(&original);if(r && !writer)unlink(partial);
     if(r==-1 && err && en>0 && !*err)fail(err,en,"Preparation failed; original retained",0);
     return r;
+}
+
+int kodi_airplay_prepare(const char *input,const char *output,kr_prepare_progress cb,void *ctx,char *err,int en) {
+    return prepare(input,output,cb,ctx,err,en,NULL,NULL);
+}
+// Non-seekable output with a completed fragment index (mfra). The caller must remotely
+// validate the completed file before replacing the original; successful generation alone is insufficient.
+int kodi_airplay_prepare_to(const char *input,kr_prepare_write write,void *write_context,
+                            kr_prepare_progress cb,void *ctx,char *err,int en) {
+    if(!write)return fail(err,en,"Output callback is required",0);
+    return prepare(input,NULL,cb,ctx,err,en,write,write_context);
+}
+
+int kodi_airplay_verify(const char *input,const char *output,char *err,int en) {
+    AVFormatContext *original=NULL;int r=-1,mapped=0;
+    if(!local_input(input) || !local_input(output))return -1;
+    if(open_source(&original,input)<0)goto end;
+    int vi=video_index(original);
+    for(unsigned i=0;i<original->nb_streams;i++){
+        AVCodecParameters *p=original->streams[i]->codecpar;
+        if((int)i==vi || p->codec_type==AVMEDIA_TYPE_AUDIO ||
+           (p->codec_type==AVMEDIA_TYPE_SUBTITLE && text_sub(p->codec_id)))mapped++;
+    }
+    r=validate(output,original,mapped,err,en);
+end:avformat_close_input(&original);return r;
 }

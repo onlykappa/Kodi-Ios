@@ -257,6 +257,15 @@ def drive_uploads(monitor,home,profile):
      for tid in debrid_drive.adopt(profile,notices.torrent_list(),xbmc.Player().isPlayingVideo()):
       driveupload.remove_torrent(tid);xbmc.log('Kodi iOS AllDebrid to Drive: took %s from Elementum'%tid,xbmc.LOGINFO)
     except Exception as error:xbmc.log('Kodi iOS AllDebrid to Drive: Elementum list unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
+   try:
+    def ready_to_watch(item_id):return prepare_downloads.ready(prepare_downloads.metadata(drive,item_id))
+    item_id=debrid_drive.next_watch(profile,ready_to_watch,xbmc.Player().isPlayingVideo())
+    if item_id:
+     import drivelibrary
+     found=accounts.get_accounts();account=next(iter(found.values()))
+     drives=account.get('drives') or [];driveid=(drives[0].get('id') if drives else None) or account.get('id')
+     xbmc.executebuiltin('PlayMedia(%s)'%drivelibrary.play_url(driveid,item_id))
+   except Exception as error:xbmc.log('Kodi iOS watch after preparation: %s'%type(error).__name__,xbmc.LOGWARNING)
    if not debrid_drive.active(profile) or not accounts.get_accounts():continue
    try:
     def done(job):

@@ -64,7 +64,7 @@ class SeasonDownload(unittest.TestCase):
   last=dl.follow('plugin://plugin.video.elementum/show/95350/season/1/download',opener=Opener())
   self.assertEqual(seen[0],'http://127.0.0.1:65220/show/95350/season/1/download')
   self.assertEqual(last,'http://127.0.0.1:65220/play?uri=x&type=episode&background=true')
-  self.assertIn("if k=='movie'",(ROOT/'migration/bundled-bootstrap/download.py').read_text())
+  self.assertIn("dl.follow(url)",(ROOT/'migration/bundled-bootstrap/download.py').read_text())
 
 class KodiStaysPaused(unittest.TestCase):
  def test_airplay_playing_does_not_stop_kodi(self):

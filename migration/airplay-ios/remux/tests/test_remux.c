@@ -1339,6 +1339,48 @@ static int video_digest(const char *path,uint8_t digest[16],int *width,int *heig
     av_md5_final(md5,digest);r=0;
 end:av_free(md5);av_packet_free(&p);avformat_close_input(&f);return r;
 }
+typedef struct {const char *base;FILE *files[65];int calls,cancel;} test_prepare_sink;
+static int preparation_write(int track,const char *suffix,const uint8_t *data,int size,void *context) {
+    test_prepare_sink *sink=context;
+    if(sink->cancel && ++sink->calls>sink->cancel)return 0;
+    if(track<0 || track>=65)return 0;
+    if(!sink->files[track]){char path[2048];snprintf(path,sizeof path,"%s%s",sink->base,suffix);sink->files[track]=fopen(path,"wb");}
+    return sink->files[track] && fwrite(data,1,(size_t)size,sink->files[track])==(size_t)size;
+}
+static void test_preparation_stream(const char *work,const char *http_base) {
+    const char *files[]={"h264_aac_srt.mkv","hevc_ac3_ass.mkv","h264_ac3_dts_srt.mkv","hevc_4k.mkv","dovi.mkv","long_seek.mkv","h264_pgs.mkv"};
+    kodi_airplay_prepare_keep_image_subs(1);
+    for(unsigned i=0;i<sizeof files/sizeof files[0];i++) {
+        char input[1024],output[1024],base[1024],err[512]="",json[1024];int calls=0;
+        snprintf(input,sizeof input,"%s/%s",http_base,files[i]);snprintf(base,sizeof base,"%s/stream-prepared-%u",fixture_dir,i);
+        snprintf(output,sizeof output,"%s.mp4",base);unlink(output);
+        test_prepare_sink sink={0};sink.base=base;
+        int r=kodi_airplay_prepare_to(input,preparation_write,&sink,preparation_progress,&calls,err,sizeof err);
+        for(int n=0;n<65;n++)if(sink.files[n])fclose(sink.files[n]);
+        CHECK(r==0,"storage-free prepare %s: %s",files[i],err);if(r)continue;
+        char remote[1200];snprintf(remote,sizeof remote,"%s/stream-prepared-%u.mp4",http_base,i);
+        CHECK(kodi_airplay_verify(input,remote,err,sizeof err)==0,"remote output validates tracks, duration and seeks for %s: %s",files[i],err);
+        uint8_t a[16],b[16];int aw,ah,an,bw,bh,bn;char local[1100];snprintf(local,sizeof local,"%s/%s",fixture_dir,files[i]);
+        CHECK(video_digest(local,a,&aw,&ah,&an)==0 && video_digest(output,b,&bw,&bh,&bn)==0 && !memcmp(a,b,16),"streaming preserves original H.264/HEVC packets for %s",files[i]);
+        CHECK(kodi_airplay_probe(output,json,sizeof json)==0 && strstr(json,"\"ready\":true"),"streamed output is prepared: %s",json);
+        AVFormatContext *f=NULL;CHECK(avformat_open_input(&f,output,NULL,NULL)==0,"open streaming output");
+        if(f){avformat_find_stream_info(f,NULL);
+            if(!strcmp(files[i],"long_seek.mkv")) {
+                avformat_close_input(&f);CHECK(avformat_open_input(&f,remote,NULL,NULL)==0,"open remote twenty-minute output");avformat_find_stream_info(f,NULL);
+                CHECK(av_seek_frame(f,-1,1200LL*AV_TIME_BASE,AVSEEK_FLAG_BACKWARD)>=0,"streamed output seeks twenty minutes");
+                AVPacket *p=av_packet_alloc();int q=av_read_frame(f,p);double at=q>=0?p->pts*av_q2d(f->streams[p->stream_index]->time_base):-1;
+                CHECK(q>=0 && at>=1198 && at<=1202,"streamed twenty-minute seek lands correctly (%.3f)",at);av_packet_free(&p);
+            }
+            avformat_close_input(&f);
+        }
+    }
+    char input[1024],base[1024],err[512]="";int calls=0;
+    snprintf(input,sizeof input,"%s/hevc_ac3_ass.mkv",http_base);snprintf(base,sizeof base,"%s/stream-cancel",work);
+    test_prepare_sink sink={0};sink.base=base;sink.cancel=2;
+    CHECK(kodi_airplay_prepare_to(input,preparation_write,&sink,preparation_progress,&calls,err,sizeof err)<0,"failed consumer stops native conversion");
+    for(int n=0;n<65;n++)if(sink.files[n])fclose(sink.files[n]);
+}
+
 static void test_preparation(const char *work) {
     const char *files[]={"h264_aac_srt.mkv","hevc_ac3_ass.mkv","h264_ac3_dts_srt.mkv","hevc_4k.mkv","dovi.mkv","long_seek.mkv"};
     for(unsigned i=0;i<sizeof files/sizeof files[0];i++) {
@@ -1475,7 +1517,7 @@ int main(int argc, char **argv) {
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
     mkdir(work, 0755);
     if (argc > 3 && !strcmp(argv[3], "--prepare-only")) {
-        test_preparation(work);test_preparation_http(argv[2],work);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+        test_preparation(work);test_preparation_http(argv[2],work);test_preparation_stream(work,argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
     if (argc > 3 && !strcmp(argv[3], "--dovi-only")) {
         kr_video_set_encoder("mpeg4");test_dovi_render(work);
@@ -1490,7 +1532,7 @@ int main(int argc, char **argv) {
         return failures ? 1 : 0;
     }
     test_preparation(work);
-    if (argc > 2) test_preparation_http(argv[2], work);
+    if (argc > 2){test_preparation_http(argv[2], work);test_preparation_stream(work,argv[2]);}
     fixture fx[] = {
         { "h264_aac_srt.mkv", "avc1.42C0", "mp4a.40.2", 1, 1, 0, 0, "Hello from SRT" },
         { "hevc_ac3_ass.mkv", "hvc1.2.4.L", "ac-3", 1, 1, 1, 0, "Hello from ASS" },

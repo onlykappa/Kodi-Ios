@@ -2,7 +2,7 @@
 
 The service scans app-managed Movies/TV Shows at startup and after uploads. Work is serialized with
 the uploader/scanner, paused during playback, and checkpointed. Source bytes stay on Drive until a
-validated local result is uploaded in place. No permanent AirPlay variant, source-ID switch or extra folder.
+validated result is uploaded in place. Native r16 streams both input and output; no media working files. No permanent AirPlay variant, source-ID switch or extra folder.
 """
 import ctypes,hashlib,json,os,re,shutil,time,urllib.error,urllib.parse,urllib.request
 from pathlib import Path
@@ -47,6 +47,7 @@ def space_reason(probe):
  what=' '.join(x for x in (codec,'%d-bit'%depth if depth>8 else '') if x)
  return 'its picture%s cannot go into MP4 as it is, so it is re-encoded'%(' (%s)'%what if what else '')
 
+WRITE=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_int,ctypes.c_char_p,ctypes.POINTER(ctypes.c_ubyte),ctypes.c_int,ctypes.c_void_p)
 CALLBACK=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_int,ctypes.c_double,ctypes.c_double,ctypes.c_void_p)
 
 def location(profile):return Path(profile)/'addon_data/service.kodi.ios.bootstrap'/FILE
@@ -99,6 +100,12 @@ class Native:
   if not hasattr(lib,'kodi_airplay_prepare') or not hasattr(lib,'kodi_airplay_probe'):
    raise RuntimeError('Install the build with download preparation support')
   self.lib=lib
+  self.outputs=hasattr(lib,'kodi_airplay_prepare_to') and hasattr(lib,'kodi_airplay_verify')
+  if not self.outputs:raise RuntimeError('Install the build with storage-free preparation support')
+  lib.kodi_airplay_prepare_to.argtypes=[ctypes.c_char_p,WRITE,ctypes.c_void_p,CALLBACK,ctypes.c_void_p,ctypes.c_char_p,ctypes.c_int]
+  lib.kodi_airplay_prepare_to.restype=ctypes.c_int
+  lib.kodi_airplay_verify.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_char_p,ctypes.c_int]
+  lib.kodi_airplay_verify.restype=ctypes.c_int
   # r14: probe/prepare read an http://127.0.0.1 source, so a Drive file is streamed, never downloaded first.
   self.streams=bool(hasattr(lib,'kodi_airplay_prepare_streams') and lib.kodi_airplay_prepare_streams()==1)
   lib.kodi_airplay_probe.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_probe.restype=ctypes.c_int
@@ -114,6 +121,31 @@ class Native:
   out=ctypes.create_string_buffer(1024)
   if self.lib.kodi_airplay_probe(os.fsencode(str(path)),out,len(out))<0:raise RuntimeError('Video could not be inspected')
   return json.loads(out.value.decode())
+ def verify(self,source,output):
+  error=ctypes.create_string_buffer(512)
+  if self.lib.kodi_airplay_verify(os.fsencode(source),os.fsencode(output),error,len(error)):
+   raise RuntimeError(error.value.decode('utf-8','replace') or 'Prepared Drive file validation failed')
+ def convert_to(self,source,sink,keep_going,progress):
+  error=ctypes.create_string_buffer(512);errors=[]
+  def write(track,suffix,data,size,context):
+   try:
+    if errors:return 0
+    sink.write(track,suffix.decode(),ctypes.string_at(data,size));return 1
+   except Exception as ex:errors.append(ex);return 0
+  cpu_clock=getattr(time,'thread_time',time.process_time);window=[time.monotonic(),cpu_clock()]
+  def update(stage,done,total,context):
+   try:
+    if errors or not keep_going():return 0
+    wall=time.monotonic()-window[0];cpu=cpu_clock()-window[1]
+    if wall>=0.1:
+     time.sleep(min(0.1,max(0.0,2*cpu-wall)));window[:]=[time.monotonic(),cpu_clock()]
+    progress(stage,done,total);return 1
+   except Exception as ex:errors.append(ex);return 0
+  writer=WRITE(write);callback=CALLBACK(update)
+  r=self.lib.kodi_airplay_prepare_to(os.fsencode(source),writer,None,callback,None,error,len(error))
+  if errors:raise errors[0]
+  if not keep_going() or r==-2:raise driveupload.Stop('Preparation paused')
+  if r:raise RuntimeError(error.value.decode('utf-8','replace') or 'Preparation failed; original retained')
  def convert(self,source,output,keep_going,progress):
   error=ctypes.create_string_buffer(512);callback_error=[]
   cpu_clock=getattr(time,'thread_time',time.process_time)
@@ -466,6 +498,10 @@ class Queue:
   return n
  def process_one(self,keep_going=lambda:True):
   self.apply_requests();self.tidy();self.retry_image_subtitles()
+  if getattr(self.native,'outputs',False):
+   if not self.stream:raise RuntimeError('Drive streaming is required; no phone-file fallback')
+   import prepare_cloud
+   return prepare_cloud.process_one(self,keep_going)
   candidates=[(slot,job) for slot,job in self.state['jobs'].items() if job.get('status') not in ('done','superseded') and not job.get('blocked') and not job.get('kept') and job.get('retry_after',0)<=self.clock()]
   if not candidates:return False
   working=[slot for slot,job in self.state['jobs'].items() if (self.work/slot).exists() and job.get('status')!='done']

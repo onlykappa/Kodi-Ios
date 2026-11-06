@@ -1,0 +1,147 @@
+"""Intercept Elementum's selected URI before /play starts its local torrent engine.
+
+Called for both initial plugin requests and source-picker redirects. Fail closed:
+missing accounts or an unreadable torrent must never start a phone download.
+"""
+import base64
+import hashlib
+import os
+import urllib.parse
+import urllib.request
+
+LIMIT = 8 * 1024 * 1024  # torrent metadata only, never media
+
+
+def torrent_hash(data):
+    """Hash the original bencoded info span (re-encoding can change the torrent hash)."""
+    def end(pos, depth=0):
+        if depth > 64 or pos >= len(data):
+            raise ValueError('Invalid torrent metadata')
+        ch = data[pos:pos + 1]
+        if ch == b'i':
+            return data.index(b'e', pos) + 1
+        if ch in (b'l', b'd'):
+            pos += 1
+            while data[pos:pos + 1] != b'e':
+                pos = end(pos, depth + 1)
+            return pos + 1
+        colon = data.index(b':', pos)
+        count = int(data[pos:colon])
+        if count < 0 or colon + 1 + count > len(data):
+            raise ValueError('Invalid torrent metadata')
+        return colon + 1 + count
+    if not data.startswith(b'd') or len(data) > LIMIT:
+        raise ValueError('Invalid torrent metadata')
+    pos = 1
+    while data[pos:pos + 1] != b'e':
+        colon = data.index(b':', pos)
+        key = data[colon + 1:end(pos)]
+        pos = end(pos)
+        stop = end(pos)
+        if key == b'info':
+            return hashlib.sha1(data[pos:stop]).hexdigest()
+        pos = stop
+    raise ValueError('Torrent has no info dictionary')
+
+
+def selected(url, read=None):
+    """Selected hash, display name and episode context, or None for a browsing/search URL."""
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme == 'plugin':
+        if parsed.netloc != 'plugin.video.elementum':return None
+    elif parsed.hostname not in ('127.0.0.1', 'localhost') or parsed.port != 65220:return None
+    if parsed.path.rstrip('/') not in ('/play', '/download'):return None
+    q = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
+    uri = q.get('uri') or q.get('resume') or ''
+    if not uri:raise ValueError('Elementum did not provide the selected torrent')
+    name = q.get('query', '')
+    magnet = urllib.parse.urlsplit(uri)
+    if magnet.scheme == 'magnet':
+        mq = urllib.parse.parse_qs(magnet.query)
+        hashes = [v[9:] for v in mq.get('xt', []) if v.lower().startswith('urn:btih:')]
+        h = hashes[0] if hashes else ''
+        if len(h) == 32:h = base64.b32decode(h.upper()).hex()
+        name = (mq.get('dn') or [name])[0]
+    elif len(uri) == 40 and all(c in '0123456789abcdefABCDEF' for c in uri):h = uri
+    else:
+        if read is None:
+            if uri.startswith(('http://', 'https://')):
+                with urllib.request.urlopen(uri, timeout=30) as response:data = response.read(LIMIT + 1)
+            else:
+                import xbmcvfs
+                path = xbmcvfs.translatePath(uri)
+                with open(path, 'rb') as f:data = f.read(LIMIT + 1)
+        else:data = read(uri)
+        h = torrent_hash(data)
+    if len(h) != 40 or any(c not in '0123456789abcdefABCDEF' for c in h):
+        raise ValueError('The selected torrent has no supported info-hash')
+    return dict(q, hash=h.lower(), name=name)
+
+
+def route(url):
+    """True means consumed (queued, cancelled or error). False means ordinary browsing."""
+    # Test the route before importing Kodi APIs; don't affect Elementum browsing.
+    p = urllib.parse.urlsplit(url)
+    if p.path.rstrip('/') not in ('/play', '/download'):return False
+    import xbmcaddon, xbmcgui, xbmcvfs
+    import debrid_drive, drivelibrary, notices
+    dialog = xbmcgui.Dialog()
+    try:
+        choice = selected(url)
+        if choice is None:return False
+        if not xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken'):
+            raise RuntimeError('Sign in to AllDebrid in Umbrella › Accounts first.')
+        # The Drive add-on owns its account registry; use the same registry as the service.
+        common = xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
+        import sys
+        if common not in sys.path:sys.path.append(common)
+        from clouddrive.common.account import AccountManager
+        accounts = AccountManager(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.googledrive').getAddonInfo('profile')))
+        if not accounts.get_accounts():raise RuntimeError('Sign in to Google Drive first.')
+        profile = xbmcvfs.translatePath('special://profile/')
+        existing = existing_url(profile,choice)
+        if existing:
+            import xbmc
+            xbmc.executebuiltin('PlayMedia(%s)'%existing)
+            return True
+        mode = dialog.select('Save to Google Drive', ['Download only', 'Download and watch after preparation'])
+        if mode < 0:return True
+        profile = xbmcvfs.translatePath('special://profile/')
+        name = choice['name'] or choice['hash']
+        info = drivelibrary.parse(name)
+        kind = 'episode' if choice.get('episode') else ('season' if choice.get('season') else debrid_drive.kind_of(name))
+        job = debrid_drive.queue(profile, {'id':choice['hash'], 'name':name}, kind,
+                                 info.get('title') or drivelibrary.display_title(name),
+                                 choice.get('season') or info.get('season') or '',
+                                 choice.get('episode') or info.get('episode') or '', watch=mode == 1)
+        notices.note('download', 'Queued for Google Drive', '%s · %s' % (job['title'],
+                     'will play after preparation' if mode == 1 else 'AllDebrid → Drive → Prepare'))
+        dialog.notification('Download', 'Queued for Google Drive', xbmcgui.NOTIFICATION_INFO, 4000)
+    except Exception as error:
+        # Transport errors can contain signed URLs. Only our own plain errors are displayed.
+        message = str(error) if isinstance(error, (ValueError, RuntimeError)) else 'Could not queue this torrent (%s).' % type(error).__name__
+        if 'http://' in message or 'https://' in message:message = 'Could not read the selected torrent metadata.'
+        dialog.ok('Download to Google Drive', message)
+    return True
+
+
+def existing_url(profile,choice):
+    """Skip the download question only for a verified, prepared copy at the selected quality."""
+    import prepare_downloads as prep
+    import drivelibrary
+    name=choice['name']
+    if not name:return None
+    key=drivelibrary.media_key(name)
+    if key is None:return None
+    items=(prep.load(profile).get('library') or {}).get('items') or []
+    matches=[e for e in items if e.get('state')=='ready' and drivelibrary.media_key(e.get('name',''))==key
+             and drivelibrary.media_year(e.get('name',''))==drivelibrary.media_year(name)
+             and drivelibrary.quality(e.get('name',''))>=drivelibrary.quality(name)]
+    if not matches:return None
+    try:
+        drive,driveid=drivelibrary.client()
+        if drive and driveid:
+            for item in matches:
+                if prep.ready(prep.metadata(drive,item['id'])):return drivelibrary.play_url(driveid,item['id'])
+    except Exception:pass
+    return None

@@ -258,6 +258,7 @@ class OneCopyEach(unittest.TestCase):
 class LibraryCheck(unittest.TestCase):
  """Owner (build 156): no movies were being converted; add Settings › Library › Check library for conversion."""
  def setUp(self):
+  space=patch.object(prep.phone_space,'free',return_value=10**15);space.start();self.addCleanup(space.stop)
   self.tmp=tempfile.TemporaryDirectory();self.shelf=Shelf()
   self.queue=prep.Queue(self.tmp.name,self.shelf,Native(),clock=lambda:1000)
  def tearDown(self):self.tmp.cleanup()
