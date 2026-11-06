@@ -100,7 +100,13 @@ jobs:
           sha=$(python3 -c "import json;print(json.load(open('migration/airplay-ios/source-lock.json'))['source_commit'])")
           digest=$(sha256sum "$archive" | cut -d' ' -f1)
           if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then
-            gh release download "$tag" --repo "$REPO" --pattern KodiAirPlay.framework.zip --dir "$RUNNER_TEMP/existing-airplay"
+            if gh release view "$tag" --repo "$REPO" --json assets --jq '.assets[].name' | grep -qx KodiAirPlay.framework.zip; then
+              gh release download "$tag" --repo "$REPO" --pattern KodiAirPlay.framework.zip --dir "$RUNNER_TEMP/existing-airplay"
+            else
+              # Recover a release created before its upload failed; never replace an existing archive.
+              gh release upload "$tag" "$archive" --repo "$REPO"
+              gh release download "$tag" --repo "$REPO" --pattern KodiAirPlay.framework.zip --dir "$RUNNER_TEMP/existing-airplay"
+            fi
             echo "$digest  $RUNNER_TEMP/existing-airplay/KodiAirPlay.framework.zip" | sha256sum -c -
             exit 0
           fi
