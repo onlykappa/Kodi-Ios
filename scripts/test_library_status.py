@@ -421,4 +421,12 @@ class SpaceAsTheIPhoneCountsIt(unittest.TestCase):
   facts=dict(rows.details(row,view)['facts'])
   self.assertEqual(facts['Free now'],'49 GB');self.assertTrue(facts['Why'].startswith('Its picture (AV1 10-bit)'))
 
+
+class RoundPosterInTheRing(unittest.TestCase):
+ """Owner (build 170): the square poster did not fit in the preparing ring."""
+ def test_poster_is_a_circle_inside_the_ring(self):
+  src=(LIB/'library_page.py').read_text()
+  ring=src[src.index("ring = ("):src.index("text_w = w - 160 - 130")]
+  self.assertNotIn('tile108.png',ring);self.assertEqual(ring.count("M + 'knob.png'"),2)
+
 if __name__=='__main__':unittest.main()

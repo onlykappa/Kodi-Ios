@@ -43,8 +43,9 @@ def _row(p, focused):
     ring = ('<control type="group"><visible>%s</visible>' % preparing +
             p.image(S + 10, 25, 150, 150, M + 'ring_20.png', '29FFFFFF') +
             p.image(S + 10, 25, 150, 150, M + '$INFO[ListItem.Property(ring)]', PURPLE) +
-            p.image(S + 31, 46, 108, 108, M + 'white.png', p.SURFACE2, diffuse=M + 'tile108.png') +
-            p.image(S + 31, 46, 108, 108, art, p.WHITE, '', '>scale', M + 'tile108.png', background=True) + '</control>')
+            # Owner (build 170): the square poster stuck out of the ring. A round poster inside it (knob.png is a circle).
+            p.image(S + 35, 50, 100, 100, M + 'white.png', p.SURFACE2, diffuse=M + 'knob.png') +
+            p.image(S + 35, 50, 100, 100, art, p.WHITE, '', '>scale', M + 'knob.png', background=True) + '</control>')
     text_w = w - 160 - 130
     warn = '!String.IsEmpty(ListItem.Property(warn))'
     texts = (p.label(S + 160, 40, text_w, 58, '$INFO[ListItem.Label]', 'p_pill', p.WHITE, 'left', '<scroll>false</scroll>') +
