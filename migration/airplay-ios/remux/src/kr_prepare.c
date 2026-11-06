@@ -9,6 +9,7 @@
 #include <libavutil/pixdesc.h>
 #include <libavutil/dovi_meta.h>
 #include <libavutil/mathematics.h>
+#include <libavutil/intreadwrite.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -194,10 +195,60 @@ static int generated_open(generated_reader *g,AVFormatContext **format,AVIOConte
     (*format)->pb=*io;(*format)->flags|=AVFMT_FLAG_CUSTOM_IO;
     return avformat_open_input(format,NULL,av_find_input_format("mov"),NULL);
 }
-typedef struct {kr_prepare_write write;void *context;int track;char suffix[80];} output_sink;
+typedef struct {
+    kr_prepare_write write;void *context;int track;char suffix[80];
+    uint8_t *init;int init_size,initialized;double duration;
+} output_sink;
+// A finite standalone fragmented movie must advertise its full duration in the init,
+// before any packets have been muxed. FFmpeg's empty_moov otherwise writes zero.
+// Update fixed-size fields only: every moof/mfra byte offset remains unchanged.
+static int init_duration(uint8_t *p,int size,double seconds,uint32_t *movie_scale) {
+    for(int at=0;at+8<=size;) {
+        uint64_t n=AV_RB32(p+at);int header=8;
+        if(n==1){if(at+16>size)return -1;n=AV_RB64(p+at+8);header=16;}
+        if(n<(uint64_t)header || n>(uint64_t)(size-at))return -1;
+        uint8_t *box=p+at;uint32_t type=AV_RB32(box+4);
+        if(type==MKBETAG('m','o','o','v') || type==MKBETAG('t','r','a','k') || type==MKBETAG('m','d','i','a')) {
+            if(init_duration(box+header,(int)n-header,seconds,movie_scale)<0)return -1;
+        } else if(type==MKBETAG('m','v','h','d') || type==MKBETAG('m','d','h','d') || type==MKBETAG('t','k','h','d')) {
+            if(n<(uint64_t)(header+4))return -1;
+            int version=box[header];if(version>1)return -1;
+            int track=type==MKBETAG('t','k','h','d');
+            int offset=header+(track?(version?28:20):(version?24:16));
+            int bytes=version?8:4;
+            if(offset+bytes>(int)n)return -1;
+            uint32_t scale=track?*movie_scale:AV_RB32(box+offset-4);
+            if(type==MKBETAG('m','v','h','d'))*movie_scale=scale;
+            if(!scale)return -1;
+            uint64_t duration=(uint64_t)llround(seconds*scale);
+            if(!version && duration>UINT32_MAX)return -1;
+            if(version)AV_WB64(box+offset,duration);else AV_WB32(box+offset,(uint32_t)duration);
+        }
+        at+=(int)n;
+    }
+    return 0;
+}
 static int sink_write(void *opaque,const uint8_t *data,int size) {
     output_sink *s=opaque;
-    return s->write(s->track,s->suffix,data,size,s->context)?size:AVERROR_EXIT;
+    if(s->track || s->initialized)return s->write(s->track,s->suffix,data,size,s->context)?size:AVERROR_EXIT;
+    // Only the init boxes are buffered, capped independently of movie duration/size.
+    if(size<0 || s->init_size>4*1024*1024-size)return AVERROR(ENOMEM);
+    uint8_t *grown=av_realloc(s->init,(size_t)(s->init_size+size));if(!grown)return AVERROR(ENOMEM);
+    s->init=grown;memcpy(s->init+s->init_size,data,(size_t)size);s->init_size+=size;
+    for(int at=0;at+8<=s->init_size;) {
+        uint64_t n=AV_RB32(s->init+at);int header=8;
+        if(n==1){if(at+16>s->init_size)return size;n=AV_RB64(s->init+at+8);header=16;}
+        if(n<(uint64_t)header)return AVERROR_INVALIDDATA;
+        if(n>(uint64_t)(s->init_size-at))return size;
+        if(AV_RB32(s->init+at+4)==MKBETAG('m','o','o','v')) {
+            uint32_t scale=0;
+            if(init_duration(s->init+at,(int)n,s->duration,&scale)<0)return AVERROR_INVALIDDATA;
+            if(!s->write(0,s->suffix,s->init,s->init_size,s->context))return AVERROR_EXIT;
+            av_freep(&s->init);s->init_size=0;s->initialized=1;return size;
+        }
+        at+=(int)n;
+    }
+    return size;
 }
 static int sink_open(AVFormatContext *f,output_sink *sink) {
     uint8_t *buffer=av_malloc(32768);if(!buffer)return -1;
@@ -235,9 +286,18 @@ static int validate(const char *path,AVFormatContext *original,int expected_trac
     // Exercise the index at a long seek and near the end; do not accept a truncated, unseekable result.
     AVPacket *p=av_packet_alloc();if(!p)goto end;
     for(int k=1;k<=2;k++) {
-        int64_t t=(int64_t)((double)f->duration*(k==1?.5:.95));
-        if(av_seek_frame(f,-1,t,AVSEEK_FLAG_BACKWARD)<0){av_packet_free(&p);goto end;}
-        int q=av_read_frame(f,p);av_packet_unref(p);if(q<0){av_packet_free(&p);goto end;}
+        double target=(double)f->duration/AV_TIME_BASE*(k==1?.5:.95);
+        int64_t t=(int64_t)(target/av_q2d(f->streams[b]->time_base));
+        if(av_seek_frame(f,b,t,AVSEEK_FLAG_BACKWARD)<0){av_packet_free(&p);goto end;}
+        int found=0;
+        for(int count=0;count<4096 && av_read_frame(f,p)>=0;count++) {
+            if(p->stream_index==b && p->pts!=AV_NOPTS_VALUE) {
+                double at=p->pts*av_q2d(f->streams[b]->time_base);
+                if(at>=target-2){found=at<=target+2;av_packet_unref(p);break;}
+            }
+            av_packet_unref(p);
+        }
+        if(!found){av_packet_free(&p);goto end;}
     }
     av_packet_free(&p);r=0;
 end:avformat_close_input(&f);if(r<0)fail(err,en,"Output validation failed; original retained",0);return r;
@@ -255,6 +315,7 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
     snprintf(partial,sizeof partial,"%s.partial",output?output:"stream");
     if(open_source(&original,input)<0){fail(err,en,"Cannot read the source video",0);goto end;}
     int vi=video_index(original);if(vi<0 || original->nb_streams>=TRACKS) {fail(err,en,"Unsupported track layout",0);goto end;}
+    sinks[0].duration=(double)original->duration/AV_TIME_BASE;
     if(original->duration<=0){fail(err,en,"Source duration is unknown",0);goto end;}
     if(!copy_video(original->streams[vi]->codecpar) && hdr(original->streams[vi]->codecpar)) {
         fail(err,en,"This HDR codec cannot be prepared without changing HDR; original retained",0);goto end;
@@ -399,6 +460,7 @@ end:
     }
     if(out){if(writer)sink_close(out);else if(out->pb)avio_closep(&out->pb);avformat_free_context(out);}
     avformat_close_input(&original);if(r && !writer)unlink(partial);
+    for(int i=0;i<=TRACKS;i++)av_free(sinks[i].init);
     if(r==-1 && err && en>0 && !*err)fail(err,en,"Preparation failed; original retained",0);
     return r;
 }

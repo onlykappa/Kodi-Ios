@@ -10,7 +10,7 @@ import urllib.parse
 import urllib.request
 import driveupload
 
-CHUNK = 1024 * 1024  # Drive requires multiples of 256 KiB
+CHUNK = 8 * 1024 * 1024  # Drive requires multiples of 256 KiB
 
 
 class Sink:
@@ -28,12 +28,12 @@ class Sink:
                 {'Content-Type':'application/json', 'X-Upload-Content-Type':'video/mp4' if track == 0 else 'application/octet-stream'})
             url = headers.get('Location') or headers.get('location')
             if status != 200 or not url:raise RuntimeError('Preparation upload start: HTTP %d' % status)
-            self.tracks[track] = dict(url=url, offset=0, buffer=bytearray(), md5=hashlib.md5(), name=name)
+            self.tracks[track] = dict(url=url, offset=0, buffer=bytearray(), md5=hashlib.md5(), name=name, chunk=CHUNK if track == 0 else 256*1024)
         t = self.tracks[track]
         t['md5'].update(data)
         t['buffer'].extend(data)
         # Keep the last chunk until generation succeeds: cancellation cannot commit a truncated movie.
-        while len(t['buffer']) > CHUNK:self._send(t, CHUNK, final=False)
+        while len(t['buffer']) > t['chunk']:self._send(t, t['chunk'], final=False)
 
     def _send(self, t, length, final):
         if not self.keep_going():raise driveupload.Stop('Preparation paused')

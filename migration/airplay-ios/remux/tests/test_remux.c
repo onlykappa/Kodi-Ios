@@ -1363,6 +1363,9 @@ static void test_preparation_stream(const char *work,const char *http_base) {
         uint8_t a[16],b[16];int aw,ah,an,bw,bh,bn;char local[1100];snprintf(local,sizeof local,"%s/%s",fixture_dir,files[i]);
         CHECK(video_digest(local,a,&aw,&ah,&an)==0 && video_digest(output,b,&bw,&bh,&bn)==0 && !memcmp(a,b,16),"streaming preserves original H.264/HEVC packets for %s",files[i]);
         CHECK(kodi_airplay_probe(output,json,sizeof json)==0 && strstr(json,"\"ready\":true"),"streamed output is prepared: %s",json);
+        {uint8_t header[65536];FILE *file=fopen(output,"rb");size_t length=file?fread(header,1,sizeof header,file):0;if(file)fclose(file);int duration=0;
+         for(size_t n=4;n+24<length;n++)if(!memcmp(header+n,"mvhd",4) && header[n+4]==0){duration=AV_RB32(header+n+20)>0;break;}
+         CHECK(duration,"streamed MP4 advertises a finite nonzero movie duration in its init: %s",files[i]);}
         AVFormatContext *f=NULL;CHECK(avformat_open_input(&f,output,NULL,NULL)==0,"open streaming output");
         if(f){avformat_find_stream_info(f,NULL);
             if(!strcmp(files[i],"long_seek.mkv")) {
@@ -1370,6 +1373,11 @@ static void test_preparation_stream(const char *work,const char *http_base) {
                 CHECK(av_seek_frame(f,-1,1200LL*AV_TIME_BASE,AVSEEK_FLAG_BACKWARD)>=0,"streamed output seeks twenty minutes");
                 AVPacket *p=av_packet_alloc();int q=av_read_frame(f,p);double at=q>=0?p->pts*av_q2d(f->streams[p->stream_index]->time_base):-1;
                 CHECK(q>=0 && at>=1198 && at<=1202,"streamed twenty-minute seek lands correctly (%.3f)",at);av_packet_free(&p);
+                char broken[1200];snprintf(broken,sizeof broken,"%s/truncated-stream.mp4",work);
+                FILE *src=fopen(output,"rb"),*dst=fopen(broken,"wb");struct stat st;stat(output,&st);long long left=st.st_size/2;
+                while(src && dst && left>0){uint8_t data[4096];size_t n=fread(data,1,(size_t)FFMIN(left,4096),src);if(!n)break;fwrite(data,1,n,dst);left-=(long long)n;}
+                if(src)fclose(src);if(dst)fclose(dst);
+                CHECK(kodi_airplay_verify(input,broken,err,sizeof err)<0,"declared duration cannot hide missing media at the seek target");unlink(broken);
             }
             avformat_close_input(&f);
         }

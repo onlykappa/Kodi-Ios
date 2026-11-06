@@ -51,11 +51,11 @@ class Upload(unittest.TestCase):
  def test_unknown_length_stream_is_bounded_and_not_committed_until_success(self):
   sink=dp.Sink(self.d,'staging','prepared',lambda:True)
   block=b'x'*65536
-  for _ in range(50):
+  for _ in range(300):
    sink.write(0,'.mp4',block)
    self.assertLessEqual(len(sink.tracks[0]['buffer']),dp.CHUNK)
   self.assertEqual(list(self.d.files),['source'])
-  result=sink.finish()['0'];self.assertEqual(self.d.files[result['id']]['data'],block*50)
+  result=sink.finish()['0'];self.assertEqual(self.d.files[result['id']]['data'],block*300)
   self.assertEqual(self.d.files['source']['data'],b'original')
  def test_upload_error_or_bad_checksum_does_not_replace_original(self):
   sink=dp.Sink(self.d,'staging','prepared',lambda:True);sink.write(0,'.mp4',b'prepared')
