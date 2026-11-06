@@ -6,6 +6,7 @@ the same pieces as Library status (backdrop, nav button, SURFACE cards); every c
 """
 WINDOW = 'IOSTransfers.xml'
 BACK, LIST = 9001, 9300
+HISTORY = 9002   # top right: what finished each day (library_tools_page.HISTORY)
 BAR = 9711
 OTHER = 9720      # "Also running" rows are 9721, 9722
 OTHERS, DONE, NEXT = 2, 3, 3
@@ -83,7 +84,11 @@ def page(p):
              '<visible>!%s</visible>' % (LIST + 1, W, has('title')) +
              section('Finished', has('done.1.title')) + ''.join(entry('done', n) for n in range(1, DONE + 1)) +
              section('Up next', has('next.1.title')) + ''.join(entry('next', n) for n in range(1, NEXT + 1)) + '</control>')
-    body = ('<controls>' + p.backdrop() + p.nav_button(BACK, S, 36, 'chevron-left.png', 'Close', '<ondown>%d</ondown>' % (OTHER + 1)) +
+    history = ('<control type="group"><left>%d</left><top>31</top><width>260</width><height>%d</height>' % (W - S - 260 + 20, HIT) +
+               '<control type="button" id="%d"><width>260</width><height>%d</height><label>History</label><font>p_foot_b</font>'
+               '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>right</align><aligny>center</aligny><textoffsetx>20</textoffsetx>'
+               '<texturefocus /><texturenofocus /></control></control>' % (HISTORY, HIT, p.ACCENT, p.WHITE))
+    body = ('<controls>' + p.backdrop() + p.nav_button(BACK, S, 36, 'chevron-left.png', 'Close', '<ondown>%d</ondown>' % (OTHER + 1)) + history +
             p.label(S, 160, w, 110, 'Transfers', 'p_large') + card + empty + listing + quiet + '</controls>')
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s transfers -->\n<window><defaultcontrol always="true">%d</defaultcontrol>'
             '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n') % (p.MARKER, BACK, body)

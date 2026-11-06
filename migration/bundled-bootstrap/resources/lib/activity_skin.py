@@ -225,7 +225,7 @@ def sheet(p):
 # round button on the right = pause or resume. The modeless pill itself can never take focus from the page.
 TAB_PAGES={'Home.xml','Custom_1101_Hub.xml','Custom_1102_Hub.xml','Custom_1103_Hub.xml','Custom_1104_Hub.xml','Custom_1105_Search.xml'}
 FULL_PAGES={'source_progress.xml','DeckSourceSelect.xml'}
-SKIP={NAME,SHEET,BOX,'IOSNotifications.xml','IOSLibraryStatus.xml','IOSLibraryItem.xml','IOSNoticeDetail.xml','IOSTransfers.xml','Font.xml','Includes.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','Startup.xml',
+SKIP={NAME,SHEET,BOX,'IOSNotifications.xml','IOSLibraryStatus.xml','IOSLibraryItem.xml','IOSNoticeDetail.xml','IOSTransfers.xml','IOSQueue.xml','IOSPhoneSpace.xml','IOSHistory.xml','IOSAirPlayCheck.xml','Font.xml','Includes.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','Startup.xml',
       'Custom_1198_Dialog_Startup.xml'}
 MARK='<!-- activity pill tap -->'
 

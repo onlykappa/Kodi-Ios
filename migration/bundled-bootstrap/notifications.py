@@ -2,7 +2,7 @@
 earlier messages. The layout is portrait/IOSNotifications.xml, written by portrait.py; this fills it."""
 import os,sys,threading
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
-import notice_page,notices,prepare_downloads,transfer_artwork,drivelibrary
+import notice_page,notices,prepare_downloads,transfer_artwork,drivelibrary,library_tools
 
 ICON={'download':('download.png','330A84FF'),'drive':('circle-check.png','3330D158'),'problem':('triangle-exclamation.png','33FF453A'),
       'update':('circle-down.png','330A84FF'),'info':('circle-info.png','33FF9F0A'),'general':('bell.png','338E8E93')}
@@ -182,6 +182,9 @@ def run():
     n=control-9500
     if n>len(self.shown):return
     item=self.shown[n-1]
+    if library_tools.airplay_notice(item):
+     # An AirPlay message opens the AirPlay check: the last Play on TV as steps, and what to try.
+     import tool_windows;tool_windows.open_airplay(profile);return
     sheet=Detail(notice_page.SHEET,home,'Default','1080i')
     sheet.setup(*detail_properties(item,records_for(profile,item,log_path)))
     sheet.doModal();chosen=sheet.chosen;del sheet

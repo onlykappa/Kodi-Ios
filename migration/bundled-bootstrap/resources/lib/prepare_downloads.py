@@ -288,12 +288,16 @@ when Drive returns an ETag. A completed-but-unacknowledged upload is recovered b
  raise RuntimeError('Drive did not confirm the prepared upload')
 
 REQUESTS='preparation-requests.json'
+MOVES=('up','down')
 def request(profile,action,item_id):
- """Queue an owner request for the service (next, retry, keep, prepare); applied at its next pass."""
+ """Queue an owner request for the service (next, retry, keep, prepare, up, down); applied at its next pass."""
  path=location(profile).parent/REQUESTS;path.parent.mkdir(parents=True,exist_ok=True)
  try:pending=json.loads(path.read_text())
  except (OSError,ValueError):pending=[]
- pending=[r for r in pending if r.get('id')!=str(item_id)]+[{'action':action,'id':str(item_id)}]
+ # Up / down taps in the Queue are each kept, in order (three taps on ▲ move it three places); any other choice
+ # replaces the earlier choice for that video.
+ if action not in MOVES:pending=[r for r in pending if r.get('id')!=str(item_id) or r.get('action') in MOVES]
+ pending.append({'action':action,'id':str(item_id)})
  tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(pending));os.replace(tmp,path)
 
 def pending_requests(profile):
@@ -305,7 +309,7 @@ def pending_requests(profile):
 def apply_to(state,requests,now):
  """Apply owner requests to a queue state (the service for real; the page on a copy, so a tap shows at once).
  next: prepare it first once it can run; retry: try a paused one now; keep / prepare: keep it as it is, or put it
- back in the queue."""
+ back in the queue; up / down: move it one place in the line (queue_order)."""
  jobs={job['source']['id']:job for job in (state.get('jobs') or {}).values()}
  for request in requests:
   job=jobs.get(str(request.get('id')));action=request.get('action')
@@ -314,7 +318,22 @@ def apply_to(state,requests,now):
   elif action=='retry':job.update(retry_after=0,attempts=0);job.pop('error',None);job['status']='waiting'
   elif action=='keep':job['kept']=True
   elif action=='prepare':job.pop('kept',None)
+  elif action in MOVES:
+   # Queue › ▲ ▼: swap with its neighbour in the line, then number the whole line (top = just under now, so a Prepare
+   # next of the same moment still comes first) so the order stays as shown. Never a reason to stop the running
+   # conversion (interrupts() ignores these).
+   line=queue_order(state,now);ident=str(request.get('id'))
+   if ident not in line:continue
+   i=line.index(ident);j=i-1 if action=='up' else i+1
+   if not 0<=j<len(line):continue
+   line[i],line[j]=line[j],line[i]
+   for rank,other in enumerate(line):jobs[other]['priority']=now-1-rank
  return state
+
+def queue_order(state,now=None):
+ """The ids of the videos waiting in line, in the order they will be prepared (Library status › Waiting, the Queue)."""
+ clock=(lambda:now) if now is not None else time.time
+ return [r['id'] for r in library_view(state,now=clock)['rows']['waiting'] if r['state']=='waiting']
 
 def entry(item,state):
  return {'id':str(item.get('id','')),'name':item.get('name',''),'folder':item.get('folderName',''),'size':int(item.get('size') or 0),'state':state}
@@ -329,6 +348,7 @@ def quality_text(name,size=0):
 def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time):
  """Settings › Library › Library status: counts, phone space and the rows of each section, in plain words."""
  library=state.get('library') or {};jobs={j['source']['id']:j for j in (state.get('jobs') or {}).values()}
+ slots={j['source']['id']:slot for slot,j in (state.get('jobs') or {}).items()}
  current=state.get('current') or {};rows={'preparing':[],'downloading':[],'waiting':[],'ready':[],'kept':[]}
  title=lambda name:drivelibrary.display_title(name)
  for d in downloads:
@@ -360,7 +380,8 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
    rows['waiting'].append(dict(base,state='space',warn=True,needs=job['space'],why=space_reason(job.get('probe')),
     sub='Needs %.0f GB free · %.0f GB free now'%(job['space']/1024**3,(free or 0)/1024**3)));continue
   order.append(dict(base,state='waiting',priority=(job or {}).get('priority',0)))
- order.sort(key=lambda r:-r['priority'])
+ # The order prepare_cloud picks in: highest priority first, then by job key (not the order Drive listed them).
+ order.sort(key=lambda r:(-r['priority'],slots.get(r['id'],'')))
  for n,r in enumerate(order,1):r['sub']='%s · %s'%('Next' if n==1 else '%s in line'%ordinal(n),quality_text(r['name'],r['size']))
  rows['waiting']=order+rows['waiting']
  todo=len(rows['preparing'])+len(rows['waiting']);total=len(rows['ready'])+todo+len(rows['kept'])
@@ -693,7 +714,10 @@ class Queue:
     shutil.rmtree(folder,ignore_errors=True);job['status']='waiting';job['space']=space_needed(item,bool(self.stream),job.get('probe'));job['retry_after']=self.clock()+600
     job['error']=text[:240];return False
    # One notification per video and reason, not one per retry (owner, build 157: the same message five times).
-   if job.get('error')!=text[:240]:self.notify('problem','Video preparation paused','%s: %s'%(drivelibrary.display_title(item.get('name','')),text[:200]))
+   if job.get('error')!=text[:240]:
+    self.notify('problem','Video preparation paused','%s: %s'%(drivelibrary.display_title(item.get('name','')),text[:200]))
+    if job.get('status')!='superseded':
+     import transfer_history;transfer_history.failed(self.profile,'conv',item.get('name',''),plain(text),self.clock())
    job['error']=text[:240];return False
   finally:
    if self.stream:self.stream.forget(item['id'])

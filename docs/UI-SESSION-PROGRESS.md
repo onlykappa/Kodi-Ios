@@ -1,4 +1,4 @@
-# UI session progress: library tools, header buttons, Customisation (updated 2026-11-06)
+# UI session progress: library tools, header buttons, Customisation (updated 2026-11-06, second session)
 
 This session's own progress file, so it does not touch `HANDOFF-PROGRESS.md` (the build session's). Commits use
 `[skip ci]`. No builds are started here: the other session is building 174 with converter r21.
@@ -6,7 +6,8 @@ This session's own progress file, so it does not touch `HANDOFF-PROGRESS.md` (th
 ## Branches
 | Branch | Based on | State |
 |---|---|---|
-| `fix/elementum-cloud-164` (PR #13) | — | The four library-tools pages are built here. **Not started in code yet.** |
+| `fix/elementum-cloud-164` (PR #13) | — | Base for the library tools. |
+| `claude/trusting-euler-kgug98` | `fix/elementum-cloud-164` (c5e9eb6) | **The four library-tools pages, built and tested** (second session took over here). Not merged into PR #13; no build started. |
 | `design/customisation-mockups` | rebased onto `fix/elementum-cloud-164` (7cf3643) | Round-4 Customisation mockups and round-5 header-buttons mockups. Pushed (4420307). No PR. |
 | `feature/customisation-header-buttons` | rebased onto `fix/elementum-cloud-164` (7cf3643) | Work in progress: header buttons (gear, refresh, bell arc). Pushed (0ee8aca). No PR. |
 
@@ -15,12 +16,15 @@ Spec, its two traps and `APPLE-UI-POLICY.md` (on `design/apple-ui-guidance`, not
 Code read: `library_page.py`, `library_status.py`, `transfers_page.py`, `transfers.py`, `transfer_history.py`,
 `prepare_downloads.py`, `debrid_drive.py`, `airplay.py`, `cast.py`, `pages.play_on_tv`, `notifications.py`.
 
-| Page | State | Plan |
-|---|---|---|
-| Phone space | not started | Tap the Phone space card on Library status. Reuse `library_status.places/usage`, measured in a thread. Clear (yes/no first) for artwork cache, Elementum leftovers and temporary files. Never touch a file Elementum is still downloading or a preparation working folder in use. |
-| Queue (Edit order) | not started | Library status › Waiting folder › "Edit order". New `up` / `down` requests applied in `apply_to`, which reorders the waiting videos by giving them `priority = now - rank`. They are not in `interrupts()`, so the running conversion is never stopped. `request()` must keep repeated up/down taps (it currently keeps one request per video). "Downloading to Google Drive" comes from the `debrid_drive` jobs. |
-| History | not started | Transfers › "History" (top right). `transfer_history.FINISHED` raised, 30 days kept. Failures added from `prepare_downloads` (`error`) and `debrid_drive` (`failed`, `error`). Today / Yesterday / 7 days, week totals. |
-| AirPlay check | not started | Play on TV sheet › "Last time", and a tap on an AirPlay notification (opened directly from `notifications.py`). The last session's KodiAirPlay lines are kept in a small JSON file by `cast.send_airplay` and `airplay.relay`. The steps are read from them: `client:` (third-party TV or Apple TV), `master:` CODECS/RESOLUTION, `prepared:` / `compat:` (converted to H.264), `GET /video/seg… 200` (the TV asked for video), and `player:` ready / could not open / external playback ended / closed. The sheet is landscape (1080i), so this page needs a 1080i layout as well as the portrait one. |
+| Page | State |
+|---|---|
+| Queue (Edit order) | built: `up` / `down` requests, `queue_order`, page, Library status › Waiting › "Edit order" |
+| Phone space | built: measure in a thread, Clear (yes/no, measured again first), Library status › the Phone space card |
+| History | built: `transfer_history.failed()` from prepare_cloud / prepare_downloads / debrid_drive, 30 days, Today / Yesterday / 7 days, Transfers › "History" |
+| AirPlay check | built: `airplay-last.json` from `cast.send_airplay` and `airplay.relay`, portrait page and 1080i sheet, Play on TV › "Last time", AirPlay notifications |
+
+Details and the safety rules are in the "Built" section of `docs/design/library-tools-spec.md`. Next: merge the branch
+into PR #13 (or open a PR into it) once the owner agrees, and check the four pages on a device build.
 
 Rules to keep: window files added while Kodi runs need the `RuntimeError` → `xbmcvfs.listdir` → retry once pattern
 (`transfers.run`). Use one item layout per list, with parts shown by `ListItem.Property`. Every control at least
@@ -46,6 +50,6 @@ Rules to keep: window files added while Kodi runs need the `RuntimeError` → `x
 Variables `buildviews`, SkinSettings categories).
 
 ## Order of work
-1. Library tools, the four pages on `fix/elementum-cloud-164`, with tests.
+1. ~~Library tools, the four pages, with tests~~ (done on `claude/trusting-euler-kgug98`; device check pending).
 2. Header buttons and refresh rows, after the owner decides on the back-button circle.
 3. Customisation pages.

@@ -17,6 +17,7 @@ from pathlib import Path
 
 import alldebrid
 import driveupload
+import transfer_history
 
 FILE = 'debrid-drive.json'
 TOP = driveupload.TOP
@@ -247,6 +248,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         state.pop('current', None)
         commit()
         notify('problem', "Couldn't download to Google Drive", '%s: %s' % (title, problem))
+        transfer_history.failed(profile, 'up', title, str(problem), clock())
         return 1
     except Exception as error:   # network, Drive: try again in a while, from where it got to
         job['tries'] = job.get('tries', 0) + 1
@@ -256,6 +258,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             job['status'] = 'failed'
             commit()
             notify('problem', "Couldn't download to Google Drive", '%s: %s' % (title, job['error']))
+            transfer_history.failed(profile, 'up', title, 'gave up after 20 tries: ' + job['error'].split(': ', 1)[0], clock())
             return 1
         return min(600, 30 * job['tries'])
     return 5

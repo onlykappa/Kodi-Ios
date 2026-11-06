@@ -12,6 +12,7 @@ WINDOW = 'IOSLibraryStatus.xml'
 ITEM = 'IOSLibraryItem.xml'
 FILTERS = (('all', 'All'), ('ready', 'Ready'), ('todo', 'To do'), ('downloading', 'Downloading'))   # buttons 9101-9104
 LIST, BACK, CHECK, SPACE = 9300, 9001, 9002, 9440
+EDIT, SPACE_TAP = 9003, 9004   # Waiting › Edit order (the Queue); the Phone space card (Phone space page)
 ROW = 200
 HIT = 118
 PURPLE = 'FFBF5AF2'
@@ -98,7 +99,12 @@ def page(p):
     W, S, M = p.WIDTH, p.SIDE, p.MEDIA
     w = W - 2 * S
     P = lambda k: '$INFO[Window().Property(%s)]' % k
-    check = ('<control type="group"><left>%d</left><top>31</top><width>%d</width><height>%d</height>' % (W - S - HIT + 20, HIT, HIT) +
+    waiting = 'String.IsEqual(Window().Property(filter),waiting)'
+    edit = ('<control type="group"><left>%d</left><top>31</top><width>300</width><height>%d</height><visible>%s</visible>' % (W - S - 300 + 20, HIT, waiting) +
+            '<control type="button" id="%d"><width>300</width><height>%d</height><label>Edit order</label><font>p_foot_b</font>'
+            '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>right</align><aligny>center</aligny><textoffsetx>20</textoffsetx>'
+            '<texturefocus /><texturenofocus /><ondown>9101</ondown></control></control>' % (EDIT, HIT, p.ACCENT, p.WHITE))
+    check = ('<control type="group"><left>%d</left><top>31</top><width>%d</width><height>%d</height><visible>!%s</visible>' % (W - S - HIT + 20, HIT, HIT, waiting) +
              '<control type="button" id="%d"><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus />'
              '<ondown>9101</ondown></control>' % (CHECK, HIT, HIT) +
              p.icon((HIT - 56) // 2, (HIT - 56) // 2, 56, 'arrows-rotate.png', p.ACCENT,
@@ -112,7 +118,12 @@ def page(p):
                p.label(S + 214, 450, w - 238, 56, P('legend'), 'p_cap', p.GREY, 'left', '<scroll>false</scroll>'))
     space = (p.surface(S - 6, 570, w + 12, 176, 'round.png', p.SURFACE, 32) +
              p.label(S + 24, 590, w - 330, 50, 'Phone space', 'p_foot', p.GREY) +
-             p.label(S + w - 300, 590, 276, 50, P('free'), 'p_foot_b', p.WHITE, 'right') +
+             p.label(S + w - 340, 590, 276, 50, P('free'), 'p_foot_b', p.WHITE, 'right') +
+             p.icon(S + w - 54, 595, 40, 'chevron-right.png', p.GREY) +
+             # The whole card opens Phone space (what Kodi keeps on the phone, and Clear).
+             '<control type="button" id="%d"><left>%d</left><top>570</top><width>%d</width><height>176</height><label></label>'
+             '<texturefocus border="32" colordiffuse="14FFFFFF">%sround.png</texturefocus><texturenofocus />'
+             '<onup>%d</onup><ondown>9101</ondown></control>' % (SPACE_TAP, S - 6, w + 12, M, CHECK) +
              '<control type="progress" id="%d">' % SPACE + '<left>%d</left><top>652</top><width>%d</width><height>16</height>'
              '<texturebg border="8" colordiffuse="52787880">%sdot.png</texturebg><lefttexture />'
              '<midtexture border="8" colordiffuse="%s">%sdot.png</midtexture><righttexture /></control>' % (S + 24, w - 48, M, PURPLE, M) +
@@ -129,7 +140,7 @@ def page(p):
                '<orientation>vertical</orientation><onup>9101</onup><scrolltime tween="cubic" easing="out">250</scrolltime>' % (LIST, W) +
                _layouts(p, False) + _layouts(p, True) + '</control>')
     body = ('<controls>' + p.backdrop() +
-            p.nav_button(BACK, S, 36, 'chevron-left.png', [('String.IsEqual(Window().Property(filter),all)', 'Close')], '<ondown>9101</ondown>') + check +
+            p.nav_button(BACK, S, 36, 'chevron-left.png', [('String.IsEqual(Window().Property(filter),all)', 'Close')], '<ondown>9101</ondown>') + check + edit +
             p.label(S, 160, w, 110, P('title'), 'p_large', p.WHITE, 'left', '<scroll>false</scroll>') +
             p.label(S, 268, w, 56, P('sub'), 'p_sub', p.GREY, 'left', '<scroll>false</scroll>') +
             summary + space +

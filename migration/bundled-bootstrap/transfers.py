@@ -102,6 +102,8 @@ def run(args=()):
    if action.getId() in BACK:self.finish()
   def onClick(self,control):
    if control==tp.BACK:self.finish()
+   elif control==tp.HISTORY:
+    import tool_windows;tool_windows.open_history(profile)
    elif tp.OTHER<control<=tp.OTHER+tp.OTHERS and control-tp.OTHER<=len(self.others):
     self.wanted=self.others[control-tp.OTHER-1];self.refresh()
   def finish(self):

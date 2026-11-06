@@ -7,7 +7,7 @@ Check now (top right) asks the service to look at Google Drive again; a row open
 service applies on its next pass (prepare_downloads.request)."""
 import os,shutil,sys,threading,time
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
-import library_page,library_rows,prepare_downloads
+import library_page,library_rows,prepare_downloads,tool_windows
 
 BACK=(9,10,92,110)
 # By id: a script started through RunScript(service.kodi.ios.bootstrap,...) runs via default.py's runpy, and Kodi
@@ -191,6 +191,11 @@ def run(args=()):
   def onClick(self,control):
    if control==library_page.BACK:self.go_back()
    elif control==library_page.CHECK:self.check()
+   elif control==library_page.EDIT:
+    # Waiting › Edit order: the Queue page (▲ ▼); this page shows the new order when it comes back.
+    tool_windows.open_queue(profile);self.refresh(force=True)
+   elif control==library_page.SPACE_TAP:
+    tool_windows.open_space(profile);self.measure()
    elif FILTER_BASE<=control<FILTER_BASE+len(library_page.FILTERS):self.set_filter(library_page.FILTERS[control-FILTER_BASE][0])
    elif control==library_page.LIST:self.open_row(self.getControl(library_page.LIST).getSelectedPosition())
   def check(self):

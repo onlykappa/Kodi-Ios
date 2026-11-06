@@ -13,6 +13,7 @@ ICONS={'phone':'mobile-screen-button.png','roku':'tv.png','dlna':'tv.png','chrom
 ROWS=6          # pages.TV_ROWS
 ROW_BASE=9600   # row n is button 9600+n
 CLOSE=(9500,9099)
+LAST=9501       # Last time: the AirPlay check
 BACK=(9,10,92,110)
 SEARCHING='Looking for more TVs on this Wi-Fi…'
 NONE_FOUND=('No other TV answered on this Wi-Fi. Check the TV is on the same network. On a Roku: Settings › System › '
@@ -95,6 +96,11 @@ def pick_sheet(xbmc,xbmcgui,home,title,note,extra,found,done,last):
  class Sheet(xbmcgui.WindowXMLDialog):
   def onInit(self):
    self.tvs=[];self.stop=threading.Event();self.show(searching=True)
+   # Last time: how the last Play on TV over AirPlay went (tool_windows.open_airplay), once there has been one.
+   try:
+    import library_tools,xbmcvfs
+    self.setProperty('last','true' if library_tools.load_airplay(xbmcvfs.translatePath('special://profile/')) else '')
+   except Exception:self.setProperty('last','')
    threading.Thread(target=self.wait_search,daemon=True).start()
   def show(self,searching):
    self.tvs=ordered(extra+(found.get('tvs') or []),last)
@@ -109,6 +115,8 @@ def pick_sheet(xbmc,xbmcgui,home,title,note,extra,found,done,last):
    self.stop.set();self.close()
   def onClick(self,control):
    if control in CLOSE or control==ROW_BASE+1:self.finish()
+   elif control==LAST:
+    import tool_windows;tool_windows.open_airplay()
    elif ROW_BASE+1<control<=ROW_BASE+ROWS:
     n=control-ROW_BASE-2
     if n<len(self.tvs):chosen['tv']=self.tvs[n];self.finish()
@@ -157,6 +165,11 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
   subs=airplay.send_subtitles(lib,xbmc,xbmcvfs,time.time())
   if subs is not None:xbmc.log('Kodi iOS Play on TV: subtitles for AirPlay %s'%('off' if subs[0]==-1 else 'external file' if subs[1] and subs[0]==-2 else 'stream %d%s'%(subs[0],' (+ external file)' if subs[1] else '')),xbmc.LOGINFO)
  except Exception as error:diagnostics.log_exception(xbmc,'airplay_subtitles',error)
+ # The AirPlay check (Play on TV › Last time) starts a new record for this Play on TV.
+ try:
+  import library_tools,xbmcvfs
+  profile=xbmcvfs.translatePath('special://profile/');library_tools.begin_airplay(profile,title)
+ except Exception:profile=None
  lib.kodi_airplay_play(source.encode('utf-8'),(title or '').encode('utf-8'))
  # Something on screen at once while the TV connects (it can take a while), with Cancel.
  import xbmcgui
@@ -173,6 +186,9 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
  # keeps relaying the rest while it plays (airplay.relay).
  lines=list(airplay.log_lines(lib))
  for line in lines:xbmc.log('Kodi iOS AirPlay: '+diagnostics.redact(line),xbmc.LOGINFO)
+ if profile:
+  try:library_tools.note_airplay(profile,[diagnostics.redact(line) for line in lines])
+  except Exception:pass
  diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','outcome',outcome=outcome,elapsed_s=round(started[0],2),reason=why)
  if outcome=='playing':
   # Owner build-136 log: stopping Kodi's video here (7 ms after "playing") turned the app back to portrait under

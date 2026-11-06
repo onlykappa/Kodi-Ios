@@ -157,7 +157,11 @@ def process_one(q, keep_going):
         q.log('preparation: failed for %s: %s; phase=%s; video=%s'%(drivelibrary.display_title(item['name']),text,(q.state.get('current') or {}).get('stage','opening'),json.dumps(job.get('probe') or {},sort_keys=True)))
         if 'source changed' in text:job['status']='superseded';q.state['last_scan']=0;clear_temps()
         elif 'tracks MP4 cannot preserve' in text or 'without changing HDR' in text or 'needs RPU remapping' in text:job['blocked']=True
-        if job.get('error')!=text:q.notify('problem','Video preparation paused',drivelibrary.display_title(item['name'])+': '+text[:200])
+        if job.get('error')!=text:
+            q.notify('problem','Video preparation paused',drivelibrary.display_title(item['name'])+': '+text[:200])
+            # Transfers › History: once per video and reason, like the notification (not a source changed meanwhile).
+            if job.get('status')!='superseded':
+                import transfer_history;transfer_history.failed(q.profile,'conv',item['name'],prep.plain(text),q.clock())
         job['error']=text;return False
     finally:
         q.stream.forget(item['id'])

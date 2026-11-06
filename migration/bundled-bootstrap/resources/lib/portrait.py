@@ -24,6 +24,8 @@ _spec=_iu.spec_from_file_location('notice_page',os.path.join(os.path.dirname(os.
 notice_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(notice_page)
 _spec=_iu.spec_from_file_location('transfers_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'transfers_page.py'))
 transfers_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(transfers_page)
+_spec=_iu.spec_from_file_location('library_tools_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_tools_page.py'))
+library_tools_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_tools_page)
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -1126,6 +1128,8 @@ def portrait_files(skin,profile):
  files.update(notice_page.files(ns))
  # The Transfers page (speed graph), opened from a transfer card in Notifications (transfers_page.py).
  files.update(transfers_page.files(ns))
+ # Library tools: Queue, Phone space, History and AirPlay check (library_tools_page.py).
+ files.update(library_tools_page.files(ns))
  for rel in list(files):
   if rel.startswith(FOLDER+'/'):files[rel]=activity_skin.inject(ns,rel[len(FOLDER)+1:],files[rel])
  # Fullscreen video is landscape: the Apple TV-style controls go into the landscape folder.
@@ -1183,14 +1187,14 @@ def refresh(skin,profile):
 
 # Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
 # inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml'}   # + activity_skin.py
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml'}   # + activity_skin.py
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__)):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__)):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())

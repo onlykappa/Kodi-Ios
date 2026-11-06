@@ -347,7 +347,13 @@ def play_on_tv():
   '<animation effect="zoom" start="94" end="100" center="auto" time="220" tween="back" easing="out">WindowOpen</animation>'+
   '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation><animation effect="fade" start="100" end="0" time="120">WindowClose</animation>'+
   backs+img(36,40,76,76,MEDIA+'dot.png','1FFFFFFF')+img(55,59,38,38,MEDIA+'airplay.png')+
-  lab(134,34,w-280,52,'Play on TV','font_head_bold')+lab(134,84,w-280,40,P('subtitle'),'font_mini','99EBEBF5')+
+  lab(134,34,w-280,52,'Play on TV','font_head_bold')+lab(134,84,w-280,40,P('subtitle'),'font_mini','99EBEBF5','left','<visible>!%s</visible>'%has('last'))+
+  lab(134,84,w-400,40,P('subtitle'),'font_mini','99EBEBF5','left','<visible>%s</visible>'%has('last'))+
+  # How the last Play on TV over AirPlay went (the AirPlay check, library_tools_page.airplay_sheet), once there is one.
+  '<control type="button" id="9501"><left>%d</left><top>28</top><width>190</width><height>100</height><label>Last time</label><font>font_mini</font>'
+  '<textcolor>FF4FA8FF</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>center</align><aligny>center</aligny>'
+  '<texturefocus border="30" colordiffuse="26FFFFFF">%sround_s.png</texturefocus><texturenofocus />'
+  '<visible>%s</visible><onright>9500</onright><ondown>9601</ondown></control>'%(w-300,MEDIA,has('last'))+
   '<control type="button" id="9500"><left>%d</left><top>48</top><width>60</width><height>60</height><label>×</label><font>font_main_bold</font>'
   '<textcolor>FFD1D1D6</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>center</align><aligny>center</aligny>'
   '<texturefocus colordiffuse="40FFFFFF">%sdot.png</texturefocus><texturenofocus colordiffuse="1FFFFFFF">%sdot.png</texturenofocus>'

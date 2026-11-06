@@ -118,11 +118,16 @@ def log_lines(lib,size=16384,rounds=8):
   lines+=[line for line in buffer.value.decode('utf-8','replace').split('\n') if line]
  return lines
 
-def relay(lib,write,wait,every=5):
- """Writes the framework's AirPlay log into kodi.log every few seconds until wait(seconds) reports Kodi is closing."""
+def relay(lib,write,wait,every=5,keep=None):
+ """Writes the framework's AirPlay log into kodi.log every few seconds until wait(seconds) reports Kodi is closing.
+ keep(lines): also hands them on (library_tools.note_airplay keeps the last Play on TV for the AirPlay check)."""
  if not hasattr(lib,'kodi_airplay_log'):return
  while True:
-  for line in log_lines(lib):write('Kodi iOS AirPlay: '+diagnostics.redact(line))
+  lines=[diagnostics.redact(line) for line in log_lines(lib)]
+  for line in lines:write('Kodi iOS AirPlay: '+line)
+  if lines and keep:
+   try:keep(lines)
+   except Exception:pass
   if wait(every):break
 
 def watch(lib,playing,wait):

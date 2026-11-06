@@ -1,7 +1,7 @@
 # Library tools: Phone space, Queue, History, AirPlay check
 
 Owner-approved 2026-11-06 ("these look great"). Mockup: `library-tools-mockups.html` (also
-https://claude.ai/artifact/3ajZJDwzALocLDJ4xxwE8n). Not built yet. Build on `fix/elementum-cloud-164` (PR #13), not
+https://claude.ai/artifact/3ajZJDwzALocLDJ4xxwE8n). Built 2026-11-06 on `claude/trusting-euler-kgug98` (based on `fix/elementum-cloud-164`); see "Built" at the end. Build on `fix/elementum-cloud-164` (PR #13), not
 `main`: Library status, Transfers, `transfer_history` and the details sheet only exist there.
 
 Read `docs/design/APPLE-UI-POLICY.md` first. Kodi skin XML generated in Python like `library_page.py` and
@@ -49,3 +49,20 @@ Two traps found on device:
 Tests like `scripts/test_transfers.py` (page XML, 44 pt, every property set, fake-Kodi navigation). Run every
 `scripts/test_*.py` and `python3 -B scripts/check_project.py` before pushing. Commit with `[skip ci]`; builds are
 started by hand (`import-review.yml`). No merge or release without the owner.
+
+## Built (2026-11-06, not yet on a device)
+| Part | Where |
+|---|---|
+| What each page shows (pure, tested) | `resources/lib/library_tools.py` |
+| Page XML (portrait; AirPlay check also 1080i) | `resources/lib/library_tools_page.py`, registered in `portrait.py` |
+| Controllers | `resources/lib/tool_windows.py`; `RunScript(service.kodi.ios.bootstrap,tool_pages,<queue/space/history/airplay>)` |
+| Queue order | `prepare_downloads` `up` / `down` requests, `queue_order`, `apply_to` (line numbered `now-1-rank`, so a Prepare next of the same moment still wins); `request()` keeps every up / down tap; `interrupts()` unchanged. Library status's Waiting order now breaks ties by job key, as `prepare_cloud` does. |
+| History data | `transfer_history.FINISHED` 400, 30 days; `transfer_history.failed()` / `failures()` (own file) from `prepare_cloud`, `prepare_downloads` and `debrid_drive` |
+| AirPlay data | `library_tools.begin_airplay` / `note_airplay` (`airplay-last.json`), fed by `cast.send_airplay` and `airplay.relay(keep=...)` |
+| Entry points | Library status: "Edit order" (Waiting folder, top right) and the Phone space card; Transfers: "History" (top right); Play on TV sheet: "Last time" (once there has been an AirPlay session); Notifications: an AirPlay message opens the check instead of its details sheet |
+| Tests | `scripts/test_library_tools.py` |
+
+Phone space safety: artwork = image files in Thumbnails only; Elementum leftovers = top-level entries in Elementum's
+download folders that no torrent in Elementum's list owns (nothing when Elementum does not answer); temporary files =
+not `.log`, not changed in the last 10 minutes. The list is measured again right before deleting.
+Still open for the owner: History also as a row on Library status?

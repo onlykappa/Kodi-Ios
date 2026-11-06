@@ -16,6 +16,7 @@ cycles through GRAPH_FILES names so Kodi's texture manager never shows a stale c
 import json
 import os
 import struct
+import threading
 import time
 import zlib
 
@@ -25,7 +26,9 @@ LABELS = {'down': 'Downloading', 'up': 'Saving to Google Drive', 'conv': 'Conver
 TINTS = {'down': 'FF0A84FF', 'up': 'FF30D158', 'conv': 'FFBF5AF2'}
 MAX_POINTS = 180
 STALE = 30            # seconds without movement before a job counts as finished
-FINISHED = 20
+FINISHED = 400       # History keeps 30 days (KEEP_DAYS); the Transfers page shows the last 24 hours
+KEEP_DAYS = 30
+FAILURES = 'transfer-failures.json'
 GRAPH_FILES = 10
 W, H = 470, 220
 
@@ -93,7 +96,44 @@ def _finish(data, job):
     data.setdefault('finished', []).insert(0, {
         'kind': job['kind'], 'title': job['title'], 'start': job['start'], 'end': job['last'],
         'peak': job.get('peak', 0.0), 'avg': job.get('sum', 0.0) / n, 'size': job.get('total') or job.get('done') or 0})
-    del data['finished'][FINISHED:]
+    cutoff = job['last'] - KEEP_DAYS * 86400
+    data['finished'] = [f for f in data['finished'] if f.get('end', 0) >= cutoff][:FINISHED]
+
+
+# --- failures (History) -----------------------------------------------------------------------------------------------
+_FAIL_LOCK = threading.Lock()
+
+
+def failures_location(profile):
+    return os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap', FAILURES)
+
+
+def failures(profile, now=None):
+    """[{'kind', 'title', 'reason', 'time'}] newest first, the last KEEP_DAYS days."""
+    try:
+        with open(failures_location(profile), encoding='utf-8') as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return []
+    cutoff = (time.time() if now is None else now) - KEEP_DAYS * 86400
+    return [x for x in data if isinstance(x, dict) and x.get('time', 0) >= cutoff] if isinstance(data, list) else []
+
+
+def failed(profile, kind, title, reason, now=None):
+    """Note a job that failed (a conversion that stopped, an AllDebrid copy that gave up) for History. Its own file:
+    the watch loop rewrites transfer-history.json every few seconds from memory. Never raises."""
+    try:
+        now = time.time() if now is None else now
+        with _FAIL_LOCK:
+            items = failures(profile, now)
+            items.insert(0, {'kind': kind, 'title': _title(title), 'reason': str(reason or '')[:160], 'time': now})
+            path = failures_location(profile)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path + '.tmp', 'w', encoding='utf-8') as f:
+                json.dump(items[:200], f)
+            os.replace(path + '.tmp', path)
+    except Exception:
+        pass
 
 
 def track(data, now, active):
