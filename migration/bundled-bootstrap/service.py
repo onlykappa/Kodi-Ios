@@ -352,6 +352,11 @@ def drive_uploads(monitor,home,profile):
       # again, so conversion never sits paused behind an hour-long download.
       # A check no longer stops it (build-170 log: each stop restarted Inception from 0%); it runs when this one ends.
       converting=lambda:can_prepare() and not prepare_downloads.interrupts(profile)
+      # A video playing holds the conversion where it is instead of stopping it (owner, build 175: a storage-free
+      # conversion cannot resume, so each video played restarted the movie from 0%). Closing Kodi, Prepare next / Keep
+      # as it is and turning preparation off still stop it.
+      preparation.paused=lambda:(not monitor.abortRequested() and xbmc.Player().isPlayingVideo() and
+                                 xbmcaddon.Addon().getSettingBool('prepare_downloads') and not prepare_downloads.interrupts(profile))
       if preparation.process_one(converting):delay=2
       else:delay=30
      preparation.runtime=None

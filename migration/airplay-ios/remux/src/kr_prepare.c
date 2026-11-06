@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <pthread.h>
 
 #define TRACKS 64
 #define PREP_UNIT 30   // seconds per preparation unit (r20; live AirPlay keeps its 6)
@@ -186,29 +187,62 @@ end:if(file)fclose(file);free(unit.data);kr_video_close(video);kr_audio_close(au
 }
 // Sequential conversion source: only the current PREP_UNIT-second unit lives in RAM. Unlike the
 // legacy spool this reader never opens a working file. Each track owns its demuxer.
+// r23 (owner, build 175 log: per 30 s of Inception the video took 37 s and each of two audio tracks 23 s more, one
+// after another): each track's next unit is made on its own thread while the muxer takes the current one, so the
+// picture and the audio tracks are converted at the same time (and read the same Drive blocks together). One unit is
+// made ahead per track, so memory stays at two units per track.
 typedef struct {
     kr_source *source;gm_stream *plan;kr_video *video;kr_audio *audio;
     gm_buf unit;int segment,offset,count,is_video;kr_prepare_progress progress;void *context;
     char *error;int error_size;
+    pthread_t thread;pthread_mutex_t lock;pthread_cond_t cond;int inited,started,stop,produce,has_next,next_result;
+    gm_buf next;char work_error[512];
 } generated_reader;
+static void generated_note(generated_reader *g,int segment,double took) {
+    if(g->is_video || segment%10==0)
+        kr_remux_note("prepare: %s %d/%d made in %.1f s for %d s of film (%.2fx real time)%s%s",g->is_video?"video":"audio",
+                      segment+1,g->count,took,PREP_UNIT,took>0?PREP_UNIT/took:0,g->is_video?" via ":"",
+                      g->is_video?kr_video_route(g->video):"");
+}
+static void *generated_work(void *opaque) {
+    generated_reader *g=opaque;
+    for(;;) {
+        pthread_mutex_lock(&g->lock);
+        while(!g->stop && g->has_next)pthread_cond_wait(&g->cond,&g->lock);
+        if(g->stop || g->produce>=g->count){pthread_mutex_unlock(&g->lock);return NULL;}
+        int segment=g->produce;
+        pthread_mutex_unlock(&g->lock);
+        gm_buf unit={0};char error[512]="";
+        struct timespec t0,t1;clock_gettime(CLOCK_MONOTONIC,&t0);
+        int r=g->is_video?kr_video_unit(g->video,g->plan,segment,&unit,error,sizeof error):
+                          kr_audio_unit(g->audio,g->plan,segment,&unit,error,sizeof error);
+        clock_gettime(CLOCK_MONOTONIC,&t1);
+        if(r>=0)generated_note(g,segment,(double)(t1.tv_sec-t0.tv_sec)+(double)(t1.tv_nsec-t0.tv_nsec)/1e9);
+        pthread_mutex_lock(&g->lock);
+        free(g->next.data);g->next=unit;g->next_result=r;g->has_next=1;g->produce++;
+        if(r<0)snprintf(g->work_error,sizeof g->work_error,"%s",error);
+        pthread_cond_broadcast(&g->cond);
+        pthread_mutex_unlock(&g->lock);
+        if(r<0)return NULL;
+    }
+}
 static int generated_read(void *opaque,uint8_t *data,int size) {
     generated_reader *g=opaque;
     if(g->offset>=g->unit.len) {
         if(g->segment>=g->count)return AVERROR_EOF;
         if(!tick(g->progress,g->context,g->is_video?0:1,g->segment,g->count))return AVERROR_EXIT;
-        g->unit.len=0;
-        struct timespec t0,t1;clock_gettime(CLOCK_MONOTONIC,&t0);
-        int r=g->is_video?kr_video_unit(g->video,g->plan,g->segment,&g->unit,g->error,g->error_size):
-                          kr_audio_unit(g->audio,g->plan,g->segment,&g->unit,g->error,g->error_size);
+        if(!g->started) {
+            if(pthread_create(&g->thread,NULL,generated_work,g)){if(g->error && g->error_size>0)snprintf(g->error,(size_t)g->error_size,"Conversion thread");return AVERROR(EIO);}
+            g->started=1;
+        }
+        pthread_mutex_lock(&g->lock);
+        while(!g->has_next)pthread_cond_wait(&g->cond,&g->lock);
+        int r=g->next_result;
+        free(g->unit.data);g->unit=g->next;memset(&g->next,0,sizeof g->next);g->has_next=0;
+        if(r<0 && g->error && g->error_size>0)snprintf(g->error,(size_t)g->error_size,"%s",g->work_error);
+        pthread_cond_broadcast(&g->cond);   // the worker makes the unit after this one meanwhile
+        pthread_mutex_unlock(&g->lock);
         if(r<0)return AVERROR(EIO);
-        // r21: the storage-free path (prepare_to, used on the phone) logs each unit's time and route too; r20 only
-        // instrumented the spool path, so the build-173 log had none.
-        clock_gettime(CLOCK_MONOTONIC,&t1);
-        double took=(double)(t1.tv_sec-t0.tv_sec)+(double)(t1.tv_nsec-t0.tv_nsec)/1e9;
-        if(g->is_video || g->segment%10==0)
-            kr_remux_note("prepare: %s %d/%d made in %.1f s for %d s of film (%.2fx real time)%s%s",g->is_video?"video":"audio",
-                          g->segment+1,g->count,took,PREP_UNIT,took>0?PREP_UNIT/took:0,g->is_video?" via ":"",
-                          g->is_video?kr_video_route(g->video):"");
         g->offset=g->segment?kr_first_moof(g->unit.data,g->unit.len):0;
         if(g->offset<0 || g->offset>=g->unit.len)return AVERROR_INVALIDDATA;
         g->segment++;
@@ -216,12 +250,19 @@ static int generated_read(void *opaque,uint8_t *data,int size) {
     int n=FFMIN(size,g->unit.len-g->offset);memcpy(data,g->unit.data+g->offset,(size_t)n);g->offset+=n;return n;
 }
 static void generated_close(generated_reader *g) {
+    if(g->started) {   // the worker finishes the unit it is making (it never touches the reader's state after stop)
+        pthread_mutex_lock(&g->lock);g->stop=1;pthread_cond_broadcast(&g->cond);pthread_mutex_unlock(&g->lock);
+        pthread_join(g->thread,NULL);g->started=0;
+    }
+    if(g->inited){pthread_mutex_destroy(&g->lock);pthread_cond_destroy(&g->cond);}
+    free(g->next.data);
     kr_video_close(g->video);kr_audio_close(g->audio);gm_stream_close(g->plan);
     kr_source_close(g->source);free(g->unit.data);memset(g,0,sizeof *g);
 }
 static int generated_open(generated_reader *g,AVFormatContext **format,AVIOContext **io,
                           const char *input,int index,int video,kr_prepare_progress cb,void *ctx,char *err,int en) {
     g->is_video=video;g->progress=cb;g->context=ctx;g->error=err;g->error_size=en;
+    pthread_mutex_init(&g->lock,NULL);pthread_cond_init(&g->cond,NULL);g->inited=1;
     g->source=kr_source_open(input,30,err,en);if(!g->source)return -1;
     g->plan=gm_stream_open(kr_source_gm(g->source),PREP_UNIT,err,en);if(!g->plan)return -1;   // r21: was 6 s
     g->count=gm_stream_segment_count(g->plan);

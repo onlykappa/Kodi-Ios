@@ -171,7 +171,10 @@ class Native:
   error=ctypes.create_string_buffer(512)
   if self.lib.kodi_airplay_verify(os.fsencode(source),os.fsencode(output),error,len(error)):
    raise RuntimeError(error.value.decode('utf-8','replace') or 'Prepared Drive file validation failed')
- def convert_to(self,source,sink,keep_going,progress):
+ def convert_to(self,source,sink,keep_going,progress,paused=None,waiting=None):
+  """paused(): the conversion should wait where it is rather than stop (a video is playing); waiting() is called
+  about once a second meanwhile. Owner (build 175): a storage-free conversion cannot resume, so every video played
+  used to throw away hours of work."""
   error=ctypes.create_string_buffer(512);errors=[]
   def write(track,suffix,data,size,context):
    try:
@@ -181,7 +184,13 @@ class Native:
   pace=app_state.Pace()   # flat out on screen; under iOS's background CPU limit otherwise
   def update(stage,done,total,context):
    try:
-    if errors or not keep_going():return 0
+    if errors:return 0
+    if not keep_going():
+     # Held here, in the converter's own thread: the units made so far and the Drive upload session stay as they are.
+     while paused and paused() and not keep_going():
+      if waiting:waiting()
+      time.sleep(1)
+     if not keep_going():return 0
     pace.tick()
     progress(stage,done,total);return 1
    except Exception as ex:errors.append(ex);return 0

@@ -75,7 +75,8 @@ class Build173Log(unittest.TestCase):
  (kodi_airplay_prepare_to), which r20 had not changed (6-second units, no timing)."""
  def test_storage_free_path_uses_30_second_units_and_logs(self):
   c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
-  reader=c[c.index('static int generated_read'):c.index('typedef struct {\n    kr_prepare_write')]
+  # r23: units are made (and noted) by each track's worker thread, generated_note / generated_work.
+  reader=c[c.index('static void generated_note'):c.index('typedef struct {\n    kr_prepare_write')]
   self.assertIn('gm_stream_open(kr_source_gm(g->source),PREP_UNIT,err,en)',reader)
   self.assertNotIn('kr_source_gm(g->source),6,',reader)
   self.assertIn('kr_remux_note("prepare: %s %d/%d made in %.1f s',reader);self.assertIn('kr_video_route(g->video)',reader)
@@ -131,5 +132,57 @@ class SpeedEverywhere(unittest.TestCase):
  def test_cloud_progress_records_speed_and_folder_icons_resolve(self):
   self.assertIn("detail=prep.speed_text(*speed),eta=eta",(LIB/'prepare_cloud.py').read_text())
   self.assertIn("p.ICONS + '$INFO[ListItem.Property(icon)]'",(LIB/'library_page.py').read_text())
+
+class Build175Log(unittest.TestCase):
+ """Build-175 log: per 30 s of Inception the video took 37 s on the phone's hardware and each of its two audio tracks
+ 23 s more, one after another, every track reading the whole file from Drive; and each video played restarted the
+ movie from 0% (owner: "this needs to be fixed for ... All movies")."""
+ def test_tracks_are_made_at_the_same_time(self):
+  c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
+  self.assertIn('pthread_create(&g->thread,NULL,generated_work,g)',c)
+  self.assertIn('pthread_join(g->thread,NULL)',c.split('static void generated_close')[1][:600])
+  read=c.split('static int generated_read(')[1].split('static void generated_close')[0]
+  self.assertNotIn('kr_video_unit',read);self.assertNotIn('kr_audio_unit',read)   # only the worker makes units
+  self.assertIn('kr_video_unit',c.split('static void *generated_work(')[1][:1600])
+ def test_drive_is_read_once_in_blocks(self):
+  s=(LIB/'drive_stream.py').read_text()
+  self.assertIn('class _Blocks',s);self.assertIn('stream.blocks.ahead(item, index + 1)',s)
+ def test_a_video_playing_pauses_instead_of_stopping(self):
+  import prepare_downloads as prep,types,time as clock
+  from unittest.mock import patch
+  calls=[];state={'playing':False}
+  def prepare_to(source,writer,ctx,callback,cctx,error,size):
+   for n in range(6):
+    if n==2:state['playing']=True
+    if n==4:state['playing']=False
+    if not callback(0,n,6,None):return -2
+    calls.append(n)
+   return 0
+  lib=types.SimpleNamespace(kodi_airplay_prepare=lambda *a:0,kodi_airplay_probe=lambda *a:0,kodi_airplay_prepare_to=prepare_to,
+                            kodi_airplay_verify=lambda *a:0)
+  native=prep.Native(lib);waits=[]
+  sleeps=[]
+  def fake_sleep(s):
+   sleeps.append(s)
+   if len(sleeps)>=3:state['playing']=False   # the video ends after a few seconds
+  with patch.object(prep.time,'sleep',fake_sleep),patch.object(prep.app_state,'Pace',lambda:types.SimpleNamespace(tick=lambda:None)):
+   native.convert_to('src',types.SimpleNamespace(write=lambda *a:None),lambda:not state['playing'],lambda *a:None,
+                     paused=lambda:state['playing'],waiting=lambda:waits.append(1))
+  self.assertEqual(calls,[0,1,2,3,4,5]);self.assertTrue(waits)   # held, then carried on: nothing thrown away
+  # A real stop (Prepare next, Kodi closing) still stops it.
+  state['playing']=False;stopped={'v':False}
+  def prepare_to2(source,writer,ctx,callback,cctx,error,size):
+   stopped['v']=True
+   return 0 if callback(0,0,1,None) else -2
+  lib.kodi_airplay_prepare_to=prepare_to2;native.lib=lib
+  with patch.object(prep.app_state,'Pace',lambda:types.SimpleNamespace(tick=lambda:None)):
+   with self.assertRaises(prep.driveupload.Stop):
+    native.convert_to('src',None,lambda:False,lambda *a:None,paused=lambda:False)
+ def test_the_service_and_upload_wait_through_playback(self):
+  svc=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
+  self.assertIn('preparation.paused=lambda:(not monitor.abortRequested() and xbmc.Player().isPlayingVideo()',svc)
+  cloud=(LIB/'prepare_cloud.py').read_text()
+  self.assertIn('drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file)',cloud)
+  self.assertIn('converted_progress,paused,waiting)',cloud)
 
 if __name__=='__main__':unittest.main()

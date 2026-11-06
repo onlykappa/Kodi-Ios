@@ -126,7 +126,7 @@ class Native:
  outputs=True;streams=True;keeps_image_subs=True
  def __init__(self):self.calls=0;self.fail=False;self.bad=False
  def probe(self,path):return dict(ready='temp-' in path,width=3840,height=2160,hdr=True,duration=1300)
- def convert_to(self,source,sink,keep,progress):
+ def convert_to(self,source,sink,keep,progress,paused=None,waiting=None):
   self.calls+=1;sink.write(0,'.mp4',b'prepared video')
   if self.fail:raise driveupload.Stop('stopped')
   progress(2,1300,1300)

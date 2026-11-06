@@ -83,7 +83,15 @@ def process_one(q, keep_going):
                 progress('Opening conversion tracks',None)
                 parent=q.drive.folder([driveupload.TOP,'.Preparation'])
                 def on_file(track,result):outputs[track]=result;q.commit()
-                sink=drive_prepare.Sink(q.drive,parent,slot,keep_going,on_file)
+                # A video playing pauses the conversion where it is (owner, build 175): the upload session waits too.
+                paused=getattr(q,'paused',None) or (lambda:False)
+                sink=drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file)
+                def waiting():
+                    if q.runtime:q.runtime.phase('Paused while a video plays',False,item['name'])
+                    current=q.state.get('current') or {}
+                    if q.clock()-float(current.get('updated') or 0)>=10:   # under transfer_history's 15 s: still running
+                        current.update(stage='Step 3 of 3 · Paused while a video plays',running=True,updated=q.clock(),rate=0,detail='')
+                        q.state['current']=current;q.commit()
                 converted=[0]
                 def converted_progress(stage,n,t):
                     value=80 if stage==3 else (min(80,80*n/t) if t else converted[0])
@@ -91,7 +99,7 @@ def process_one(q, keep_going):
                     progress('Converting and saving to Drive',converted[0])
                 try:
                     q.native.convert_to(source,sink,keep_going,
-                        converted_progress)
+                        converted_progress,paused,waiting)
                     sink.finish()
                 except Exception:
                     # Drop RAM buffers immediately. Complete staging objects are recorded for cleanup next time.
