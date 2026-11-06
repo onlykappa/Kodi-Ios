@@ -10,7 +10,7 @@ NOT built, NOT pinned. Owner: "max this out, we got great hardware in this phone
 - 3bdb079 + 1ce20eb: r23 (each converted track made on its own thread) pinned (sha dabd6c69…, run 42303303269) and
   PUBLISHED as release kodi-airplay-r23. Python: a playing video pauses a conversion in place (Native.convert_to
   paused/waiting, prepare_cloud Sink alive=keep_going or paused, service `preparation.paused`).
-- Build 176 has NOT been made yet. Next build number from import-review will be 176.
+- Build 176 made and verified (main 55dd44d, r24 pinned and published). Waiting for the owner's 10-minute log.
 
 ## On this branch only (uncommitted before this file; now committed): r24 source
 - `kr_video.c`: hevc_videotoolbox gets `prio_speed=1` during preparation (v->offline).
