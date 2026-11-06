@@ -1,6 +1,20 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <settings version="1">
  <section id="service.kodi.ios.bootstrap">
+  <category id="activity" label="Activity">
+   <group id="1">
+    <setting id="activity_show" type="boolean" label="Show the activity pill"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="activity_video" type="boolean" label="Show it during video (only with the controls)"><level>0</level><default>true</default><control type="toggle"/></setting>
+   </group>
+   <group id="2" label="Show activity from">
+    <setting id="activity_elementum" type="boolean" label="Elementum downloads and Drive uploads"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="activity_burst" type="boolean" label="Torrent searches (Burst)"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="activity_umbrella" type="boolean" label="Umbrella"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="activity_library" type="boolean" label="Library scans"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="activity_addons" type="boolean" label="Add-on installs"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="activity_quiet" type="boolean" label="Update checks and skin jobs"><level>0</level><default>false</default><control type="toggle"/></setting>
+   </group>
+  </category>
   <category id="updates" label="Updates">
    <group id="1">
     <setting id="check_on_start" type="boolean" label="Check GitHub for a newer test build when Kodi starts"><level>0</level><default>true</default><control type="toggle"/></setting>

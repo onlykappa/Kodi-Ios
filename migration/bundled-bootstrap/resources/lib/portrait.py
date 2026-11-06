@@ -16,6 +16,8 @@ _spec=_iu.spec_from_file_location('settings_page',os.path.join(os.path.dirname(o
 settings_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(settings_page)
 _spec=_iu.spec_from_file_location('pages',os.path.join(os.path.dirname(os.path.abspath(__file__)),'pages.py'))
 pages=_iu.module_from_spec(_spec);_spec.loader.exec_module(pages)
+_spec=_iu.spec_from_file_location('activity_skin',os.path.join(os.path.dirname(os.path.abspath(__file__)),'activity_skin.py'))
+activity_skin=_iu.module_from_spec(_spec);_spec.loader.exec_module(activity_skin)
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -23,8 +25,12 @@ REVISION='ios-portrait-r3'
 FOLDER='portrait'
 # iPhone 16 Pro portrait: 402x874 pt with 62/34 pt safe-area insets. Kodi stretches the skin canvas into
 # the safe area, so 1080 x 2090 keeps pixels square there (1 pt = 2.687 units). 9:16 covers home-button phones.
+# The aspect label is the canvas's true ratio: Kodi chooses a resolution by the ratio its *label* states
+# (CSkinInfo closestRes / RESOLUTION_INFO::DisplayRatio), not by width/height. The old '9:19.5' (0.462) lost to
+# '9:16' (0.563) on the 16 Pro's 0.517 safe area, so the phone drew every portrait page on 1080 x 1920 stretched
+# 9 % taller: circles became ovals and anything placed near the bottom ran off screen (owner, build 154).
 WIDTH,HEIGHT=1080,2090
-RES=[('9:19.5',WIDTH,HEIGHT),('9:16',WIDTH,1920)]
+RES=[('1080:2090',WIDTH,HEIGHT),('9:16',WIDTH,1920)]
 MARKER='Kodi-iOS portrait '+REVISION
 NODES='addon_data/script.skinvariables/nodes/skin.arctic.fuse.3/skinvariables-shortcut-{}.json'
 ICONS='special://skin/extras/icons/'
@@ -79,7 +85,7 @@ MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
       ('Favourites','star.png','FFFF9F0A','ActivateWindow(1160)'),
       ('File manager','clapperboard.png','FF5E5CE6','ActivateWindow(filemanager)'),
       ('iPhone navigation / recovery','life-ring.png','FFFF453A',MENU)]
-HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{'Includes_Portrait.xml',SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml'}|pages.HANDMADE
+HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{'Includes_Portrait.xml',SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml',activity_skin.NAME,activity_skin.BOX}|pages.HANDMADE
 # Never shrunk: playback stays landscape, and these are not windows.
 SKIP_WRAP={'VideoFullScreen.xml','VideoOSD.xml','MusicVisualisation.xml','SlideShow.xml','Pointer.xml'}
 # Shown only over landscape playback: no portrait copy, so Kodi always loads them from 1080i with landscape
@@ -94,7 +100,8 @@ VIDEO_ONLY={'DialogSeekBar.xml','DialogFullScreenInfo.xml','DialogSubtitles.xml'
 FONTS=[('p_large','Inter-Bold.ttf',92),('p_title','Inter-Bold.ttf',78),('p_h2','Inter-Bold.ttf',58),
        ('p_h3','Inter-Bold.ttf',46),('p_body','Inter-Regular.ttf',44),('p_sub','Inter-Regular.ttf',40),
        ('p_foot','Inter-Regular.ttf',35),('p_foot_b','Inter-Bold.ttf',35),('p_cap','Inter-Regular.ttf',30),
-       ('p_tab','Inter-Bold.ttf',27),('p_tile','Inter-Bold.ttf',38),('p_btn','Inter-Bold.ttf',46)]
+       ('p_tab','Inter-Bold.ttf',27),('p_tile','Inter-Bold.ttf',38),('p_btn','Inter-Bold.ttf',46),
+       ('p_pill','Inter-Bold.ttf',40),('p_pill_s','Inter-Regular.ttf',35)]   # the activity pill (activity_skin.py)
 SIDE=54                      # 20 pt margins
 POSTER=(300,450);CARD=(640,360);GAP=26;RADIUS=26
 HERO=1420
@@ -896,27 +903,28 @@ def notices_page():
  w=WIDTH-2*SIDE
  def section(text,cond,extra=''):
   return ('<control type="group"><width>%d</width><height>96</height><visible>%s</visible>'%(WIDTH,cond)+
-   label(SIDE,30,w,60,text,'p_foot_b',GREY)+(label(SIDE,30,w,60,extra,'p_foot',DIM,'right') if extra else '')+'</control>')
+   label(SIDE,30,w-260,60,text,'p_foot_b',GREY)+(label(SIDE+w-240,30,240,60,extra,'p_foot',GREY,'right') if extra else '')+'</control>')
  def card(n):
-  h=300;pre='dl.%d.'%n
+  h=350;pre='dl.%d.'%n   # Pause/Cancel are 124 high (46 pt): touch areas of at least 44 pt (APPLE-UI-POLICY 4.5)
   return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(WIDTH,h+24,has(pre+'title'))+
    surface(SIDE-6,0,w+12,h,'round.png',SURFACE,32)+
    surface(SIDE+24,26,130,196,'round_s.png','FF3A3A3C',20)+icon(SIDE+59,94,60,'download.png',GREY)+
    label(SIDE+184,22,w-210,64,P(pre+'title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
    '<control type="progress" id="%d"><left>%d</left><top>110</top><width>%d</width><height>14</height>'
    '<texturebg border="7" colordiffuse="52787880">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="FF0A84FF">%sdot.png</midtexture><righttexture /></control>'%(9400+n,SIDE+184,w-210,MEDIA,MEDIA)+
-   label(SIDE+184,136,w-210,48,P(pre+'line'),'p_cap',GREY)+
-   label(SIDE+184,136,w-210,48,P(pre+'speed'),'p_cap',GREY,'right')+
-   pill_button(9410+n,SIDE+184,206,210,72,P(pre+'pausetext'),[('','noop')],'glass')+
-   pill_button(9420+n,SIDE+184+230,206,210,72,'[COLOR FFFF453A]Cancel[/COLOR]',[('','noop')],'glass')+'</control>')
- upload=('<control type="group"><width>%d</width><height>244</height><visible>%s</visible>'%(WIDTH,has('up.title'))+
+   label(SIDE+184,136,w-210,48,P(pre+'line')+'$INFO[Window().Property(%sspeed),  ·  ,]'%pre,'p_cap',GREY)+
+   pill_button(9410+n,SIDE+184,202,240,124,P(pre+'pausetext'),[('','noop')],'glass')+
+   pill_button(9420+n,SIDE+184+260,202,240,124,'[COLOR FFFF453A]Cancel[/COLOR]',[('','noop')],'glass')+'</control>')
+ def transfer(pre,progress_id,glyph,tint,tile):
+  """Upload/preparation card: title, summary, bar, status. One label per line, each truncating (ISSUE-101)."""
+  return ('<control type="group"><width>%d</width><height>244</height><visible>%s</visible>'%(WIDTH,has(pre+'title'))+
    surface(SIDE-6,0,w+12,220,'round.png',SURFACE,32)+
-   surface(SIDE+24,26,130,168,'round_s.png','FF1F3D2B',20)+icon(SIDE+59,80,60,'cloud-arrow-up.png',GREEN)+
-   label(SIDE+184,20,w-210,60,P('up.title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
-   label(SIDE+184,76,w-210,46,P('up.folder'),'p_cap',GREY)+
-   '<control type="progress" id="9430"><left>%d</left><top>134</top><width>%d</width><height>14</height>'
-   '<texturebg border="7" colordiffuse="52787880">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="%s">%sdot.png</midtexture><righttexture /></control>'%(SIDE+184,w-210,MEDIA,GREEN,MEDIA)+
-   label(SIDE+184,158,w-210,46,P('up.line'),'p_cap',GREY)+label(SIDE+184,158,w-210,46,'then off the phone','p_cap',DIM,'right')+'</control>')
+   surface(SIDE+24,26,130,168,'round_s.png',tile,20)+icon(SIDE+59,80,60,glyph,tint)+
+   label(SIDE+184,20,w-210,60,P(pre+'title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
+   label(SIDE+184,80,w-210,46,P(pre+'summary'),'p_cap',GREY)+
+   '<control type="progress" id="%d"><left>%d</left><top>134</top><width>%d</width><height>14</height>'
+   '<texturebg border="7" colordiffuse="52787880">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="%s">%sdot.png</midtexture><righttexture /></control>'%(progress_id,SIDE+184,w-210,MEDIA,tint,MEDIA)+
+   label(SIDE+184,158,w-210,46,P(pre+'line'),'p_cap',GREY)+'</control>')
  def row(n):
   pre='msg.%d.'%n;h=170
   return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(WIDTH,h+14,has(pre+'title'))+
@@ -925,22 +933,22 @@ def notices_page():
    image(SIDE+8,h//2-8,16,16,MEDIA+'dot.png','FF0A84FF','<visible>%s</visible>'%has(pre+'unread'))+
    surface(SIDE+36,30,86,86,'round_s.png',P(pre+'tint'),20)+icon(SIDE+56,50,46,ICONS+P(pre+'icon'),WHITE)+
    label(SIDE+150,22,w-300,58,P(pre+'title'),'p_foot_b',WHITE,'left','<scroll>false</scroll>')+
-   label(SIDE+150,78,w-190,70,P(pre+'text'),'p_cap',GREY,'left','<wrapmultiline>true</wrapmultiline>')+
-   label(SIDE+150,22,w-170,58,P(pre+'ago'),'p_cap',DIM,'right')+'</control>')
+   label(SIDE+150,80,w-190,70,P(pre+'text'),'p_cap',GREY,'left','<wrapmultiline>true</wrapmultiline>')+
+   label(SIDE+w-140,22,120,58,P(pre+'ago'),'p_cap',GREY,'right')+'</control>')
  filters=''.join('<control type="group"><left>%d</left><top>0</top>'%(i*w//len(NOTICE_FILTERS))+
    image(4,4,w//len(NOTICE_FILTERS)-8,80,MEDIA+'pill_96.png','FF636366','<visible>String.IsEqual(Window().Property(filter),%s)</visible>'%key,border=40)+
-   '<control type="button" id="%d"><width>%d</width><height>88</height><label>%s</label><font>p_foot_b</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
+   '<control type="button" id="%d"><top>-15</top><width>%d</width><height>118</height><label>%s</label><font>p_foot_b</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
    '<align>center</align><aligny>center</aligny><texturefocus /><texturenofocus /></control></control>'%(9101+i,w//len(NOTICE_FILTERS),text,GREY,WHITE)
    for i,(key,text) in enumerate(NOTICE_FILTERS))
  body=('<controls>'+backdrop()+
   nav_button(9001,SIDE,36,'chevron-left.png','Close','<ondown>9101</ondown>')+
-  '<control type="button" id="9002"><left>%d</left><top>36</top><width>260</width><height>108</height><label>Clear All</label><font>p_body</font>'
-  '<textcolor>FF0A84FF</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>right</align><aligny>center</aligny><texturefocus /><texturenofocus /></control>'%(WIDTH-SIDE-260)+
+  '<control type="button" id="9002"><left>%d</left><top>31</top><width>260</width><height>118</height><label>Clear All</label><font>p_body</font>'
+  '<textcolor>%s</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>right</align><aligny>center</aligny><texturefocus /><texturenofocus /></control>'%(WIDTH-SIDE-260,ACCENT)+
   label(SIDE,160,w,110,'Notifications','p_large')+
   '<control type="group"><left>%d</left><top>290</top>'%SIDE+surface(0,0,w,88,'pill_96.png',SURFACE,44)+filters+'</control>'+
   '<control type="grouplist" id="9300"><left>0</left><top>400</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%WIDTH+
   section('Downloading',has('has.dl'),P('dl.summary'))+''.join(card(n) for n in range(1,NOTICE_SLOTS+1))+
-  section('Uploading to Google Drive',has('has.up'))+upload+
+  section('Uploading to Google Drive',has('has.up'))+transfer('up.',9430,'cloud-arrow-up.png',GREEN,'FF1F3D2B')+
   section('Earlier',has('has.msg'))+''.join(row(n) for n in range(1,NOTICE_ROWS+1))+
   '<control type="group"><width>%d</width><height>300</height><visible>%s</visible>'%(WIDTH,has('empty'))+
   label(SIDE,80,w,80,"You're all caught up",'p_h3',GREY,'center')+'</control>'+
@@ -1086,6 +1094,10 @@ def portrait_files(skin,profile):
  files.update(settings_page.files(types.SimpleNamespace(**globals()),read))
  # Round 2: shared dialogs, Add-ons, Event Log, System Info, File Manager, Umbrella's getting-ready, Play on TV.
  files.update(pages.files(types.SimpleNamespace(**globals()),read))
+ # The activity pill in place of Kodi's background progress box, which is never drawn (activity_skin.py).
+ ns=types.SimpleNamespace(**globals());files.update(activity_skin.files(ns))
+ for rel in list(files):
+  if rel.startswith(FOLDER+'/'):files[rel]=activity_skin.inject(ns,rel[len(FOLDER)+1:],files[rel])
  # Fullscreen video is landscape: the Apple TV-style controls go into the landscape folder.
  files['1080i/VideoOSD.xml']=player_osd.window().encode()
  # Fuse's seek bar flashed up at every video start (buffering, the resume jump): ours shows only while seeking.
@@ -1123,9 +1135,13 @@ def build(skin,profile):
  return files
 
 def add_resolutions(addon):
+ """Fuse's addon.xml lists the portrait resolutions exactly as RES says. Also upgrades a phone's writable copy that
+ has older entries (the '9:19.5' label). Returns True when the file changed."""
  data=addon.read_text(encoding='utf-8')
- if 'folder="%s"'%FOLDER in data:return False
  res=''.join('<res aspect="%s" default="false" folder="%s" width="%d" height="%d" />\n        '%(a,FOLDER,w,h) for a,w,h in RES)
+ old=re.compile(r'<res [^>]*folder="%s"[^>]*/>\s*'%FOLDER)
+ if ''.join(m.group(0) for m in old.finditer(data))==res:return False
+ data=old.sub('',data)
  anchor=re.search(r'<res [^>]*default="true"[^>]*/>',data);assert anchor,'Fuse resolution list not found'
  addon.write_text(data[:anchor.start()]+res+data[anchor.start():],encoding='utf-8');return True
 
@@ -1137,7 +1153,7 @@ def refresh(skin,profile):
 
 # Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
 # inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml','Includes.xml','Includes_Portrait.xml'}
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml'}   # + activity_skin.py
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
@@ -1235,7 +1251,7 @@ def progress_tracker(player,continue_module,read,write,clock,every=10):
 
 # Read by Kodi when the skin loads (fonts, includes, Home and the windows marked LOAD_ON_GUI_INIT in the owner's log):
 # a change to one shows only after ReloadSkin. Every other window is read the first time it opens.
-LOADED_AT_START={'Font.xml','Includes.xml','Includes_Portrait.xml','Home.xml','Startup.xml','Pointer.xml','DialogBusy.xml','DialogNotification.xml',
+LOADED_AT_START={'Font.xml','Includes.xml','Includes_Portrait.xml','Home.xml','Custom_1187_Activity.xml','Startup.xml','Pointer.xml','DialogBusy.xml','DialogNotification.xml',
                  'DialogVolumeBar.xml','DialogExtendedProgressBar.xml','DialogSeekBar.xml','Custom_1151_OSD_MusicInfoOverlay.xml',
                  'Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml','Custom_1192_SeasonalTheme.xml',
                  'Custom_1194_Debug_Grid.xml','Custom_1198_Dialog_Startup.xml','Custom_1199_Debug_Overlay.xml'}
@@ -1307,7 +1323,12 @@ def refresh_skin(xbmc,invoke,skin,profile):
   # Add the portrait folder and resolution, then have Kodi re-read addon.xml so the folder can be chosen.
   changed=list(build(skin,profile));invoke('UpdateLocalAddons')
   xbmc.log('Kodi iOS portrait layout added to the writable skin copy (%d files)'%len(changed),xbmc.LOGINFO)
- else:changed=refresh_if_needed(skin,profile)
+ else:
+  changed=refresh_if_needed(skin,profile)
+  if add_resolutions(Path(skin)/'addon.xml'):
+   # Kodi reads a skin's resolutions when it loads the skin add-on: the new label applies from the next start.
+   invoke('UpdateLocalAddons');changed=list(changed)+['addon.xml']
+   xbmc.log('Kodi iOS portrait resolution label updated (true 1080:2090 ratio); applies when Kodi next starts',xbmc.LOGINFO)
  # Fuse's start: no hub preloading (it opened each hub window in turn, the portrait hubs are one window) and no
  # wait-for-widgets loop (its script ran again every half second for up to a minute while rows loaded).
  for setting,on in (('Startup.EnableHubPreloading',False),('Startup.DisableWaitForLoad',True)):

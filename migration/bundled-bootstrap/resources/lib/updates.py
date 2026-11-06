@@ -32,6 +32,13 @@ def updates_folder(home):
   if parent.name=='Documents':return parent/'Kodi Updates'
  return home.parent/'Kodi Updates'
 
+def installed_build(addon_path):
+ """This IPA's build number (build.json, written by the IPA build), or '' for a build without one."""
+ try:
+  value=json.loads((Path(addon_path)/'build.json').read_text()).get('build')
+  return str(int(value)) if value else ''
+ except (OSError,ValueError,TypeError):return ''
+
 def run(check_only=False):
  import urllib.parse,xbmc,xbmcaddon,xbmcgui,xbmcvfs
  addon=xbmcaddon.Addon('service.kodi.ios.bootstrap');token=addon.getSettingString('github_token').strip()

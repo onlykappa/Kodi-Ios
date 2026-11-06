@@ -65,7 +65,8 @@ ROOT=[
   R(9133,'Profiles','ActivateWindow(profiles)','user.png',BLUE)],
  [R(9141,'Add-ons','ActivateWindow(addonbrowser)','puzzle-piece.png',ORANGE,badge=UPDATES),
   R(9142,'File Manager','ActivateWindow(filemanager)','folder.png',TEAL),
-  R(9143,'Event Log','ActivateWindow(eventlog)','list.png',SILVER)],
+  R(9143,'Event Log','ActivateWindow(eventlog)','list.png',SILVER),
+  R(9144,'Activity','Addon.OpenSettings(service.kodi.ios.bootstrap)','bars-progress.png',BLUE)],
  [R(9151,'Information','ActivateWindow(systeminfo)','circle-info.png',SILVER)],
 ]
 # Fuse's Customisation list (1080i/Settings.xml), same actions.
@@ -197,8 +198,9 @@ def root_list(p):
  body=search_field(p,moves[9100])+spacer(40)+profile_card(p,moves[9101])+spacer(40,UPDATES)+updates_banner(p,moves)+spacer(GAP)
  for group in ROOT:body+=card(p,group,moves)+spacer(GAP)
  body+=('<control type="group"><width>%d</width><height>120</height>'%p.WIDTH+
-        p.label(p.SIDE,0,p.WIDTH-2*p.SIDE,60,'Kodi $INFO[System.BuildVersionShort]  ·  $INFO[System.AddonTitle(%s)] $INFO[System.AddonVersion(%s)]'%(FUSE,FUSE),
-                'p_foot',p.DIM,'center')+'</control>')
+        p.label(p.SIDE,0,p.WIDTH-2*p.SIDE,60,'Kodi $INFO[System.BuildVersionShort]$INFO[Window(Home).Property(KodiIOS.Build), (build ,)]'
+                '  ·  $INFO[System.AddonTitle(%s)] $INFO[System.AddonVersion(%s)]'%(FUSE,FUSE),
+                'p_foot',p.GREY,'center')+'</control>')
  return body+spacer(160)
 
 def custom_list(p):

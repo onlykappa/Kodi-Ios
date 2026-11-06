@@ -92,6 +92,14 @@ def parse(name):
  found['title']=re.sub(r'\s{2,}',' ',title) or text.strip()
  return found
 
+def display_title(name):
+ """A release or file name as people read it: 'Lanterns · S1 E1', 'Inception (2010)'. Plain text is kept."""
+ info=parse(name)
+ title=info['title'] or str(name)
+ if title.isupper() and len(title)>4:title=title.title()   # INCEPTION -> Inception (short ones may be acronyms)
+ if info['season'] and info['episode']:return '%s · S%s E%s'%(title,info['season'],info['episode'])
+ return '%s (%s)'%(title,info['year']) if info['year'] else title
+
 def play_url(driveid,item_id):
  """Plays one Drive file through the Google Drive add-on (it streams from Drive)."""
  return 'plugin://plugin.googledrive/?'+urllib.parse.urlencode({'action':'play','content_type':'video','driveid':driveid,

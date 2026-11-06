@@ -784,3 +784,26 @@ Status: FIXED IN SOURCE, NATIVE PATCH STAGED; pinned r22 lacks the new code.
 - A downloaded-show-only parent-row guard suppresses Kodi's synthetic `..` item so it cannot occupy a blank season/episode slot; back navigation remains available. Unrelated native patch sections are preserved byte-for-byte.
 - Validation: production method bodies compiled/executed with GUI geometry stubs, scoped parent-row branch compiled/executed, generated layout/visibility checks, 44 portrait regressions, full patch applied against 30 original files at Kodi a3a448d26b8d560a65655dab2cd122994dc4e146. Applied-source comparison changes only five intended GUI files. Total 362 tests/24 suites pass; first formatting/interpreter failures and successful rechecks retained in the report.
 - Remaining: full iPhoneOS SDK build/release/verified executable pin, then actual phone touch/momentum, short/long seasons, local/Drive resume and visual acceptance. No new native build, IPA, release or merge performed; current executable pin stays r22.
+
+## ISSUE-101 — Notifications › Preparing row: two text lines overlap (build-152)
+
+Status: FIXED IN SOURCE; device check pending.
+- Owner screenshot (build-152): "Step 3 of 3 · Preparing audio · 40% · 8 remaining" was drawn over "…one file · source resolution"; the title was a raw release name and "8 remaining" appeared twice.
+- Root cause: the upload card drew its status line (left) and a fixed hint (right) as two labels in the same box (`SIDE+184, 158, w-210`); the preparation card was a string-replaced copy of it. The download card did the same with progress (left) and speed (right). The hint also used `DIM` (≈2.2:1, below the text-contrast minimum).
+- Fix (`portrait.notices_page`): one `transfer()` builder for upload and preparation cards with one label per line (title, summary, bar, status); the hint moves into the summary ("Movies · then off the phone"); the download card's progress and speed share one truncating line; section summaries and timestamps get reserved widths and readable grey; titles go through `drivelibrary.display_title` ("Lanterns · S1 E1", "Inception (2010)"); the preparation count appears only in the summary. Text widths measured with Inter: typical lines 389–678 of 762 units; longer titles and folders truncate.
+- Regression: `test_notices.OverlapTests` checks that no two labels on the page share space (it caught two further 2–4 unit box overlaps, now fixed), that the detector flags the build-152 layout, and that no `DIM` text remains. Policy: docs/design/APPLE-UI-POLICY.md (PR #11) §4.2.
+
+## ISSUE-105 — Portrait pages drawn 9 % too tall; Activity sheet off the bottom; pill without a picture (build 154)
+
+Status: FIXED IN SOURCE (local draft, not pushed: owner testing); rig and device checks pending.
+- Owner screenshot (build 154, device): the Activity sheet's bottom runs off the screen, the ring around the app tile is an oval blob, and the owner wants the pill to show a photo of what is downloading instead of the blue app tile.
+- Root cause (confirmed in Kodi 21.3's xbmc/addons/Skin.cpp `closestRes` and `RESOLUTION_INFO::DisplayRatio`): Kodi chooses a skin resolution by the ratio its `aspect` *label* states, not by its width and height.
+  - The portrait entries were labelled `9:19.5` (0.462) and `9:16` (0.563). On the iPhone 16 Pro's 0.517 safe area, `9:16` was closer, so every portrait page was drawn on 1080 × 1920 and stretched into the 1080 × 2090 space it was designed for.
+  - The result: everything 9 % taller (rings and circles were ovals: the screenshot's tile ring is 116 × 128 px, the bell 90 × 95), and anything placed by absolute position near the bottom 170 units low. The sheet's top measured exactly at 2090 − 570 in 1920-unit space.
+  - The desktop rig (603 × 1167, the same ratio) had the same choice, which is why the round-3/4 rig renders showed the sheet cut off too.
+- Fix:
+  - The portrait entry is labelled with its true ratio, `1080:2090`. `9:16` stays for home-button phones.
+  - `add_resolutions` now also upgrades a phone's existing writable skin copy on every start. Kodi reads the skin's resolutions when it loads the skin, so the change shows from the next start.
+  - The pill and the Activity sheet rows show the TMDb poster of the download (or upload) inside the progress ring, cropped to the rounded tile. It comes from the Library's cached `drivelibrary.artwork` with TMDb Helper's key, is looked up once per title in a background thread, and falls back to the app tile while loading or when there is no match. A finished job shows the green check.
+- Expect every portrait page to look about 9 % shorter (as designed), with things previously cut off at the bottom now visible. This needs a rig re-render and an owner check on the phone.
+- Regression: `test_portrait.ResolutionChoice` (Kodi's rule replayed: 16 Pro → 1080 × 2090, old labels → 1920, home-button phones → 9:16, in-place upgrade once), `test_activity.Posters` (4).

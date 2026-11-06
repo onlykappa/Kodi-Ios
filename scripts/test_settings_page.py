@@ -159,4 +159,16 @@ class SettingsPages(unittest.TestCase):
   self.assertIn('<visible>![!String.IsEmpty(System.ProfileThumb) + !String.Contains(System.ProfileThumb,DefaultUser)]</visible>',
                 (self.skin/'portrait/Settings.xml').read_text())
 
+class BuildNumber(unittest.TestCase):
+ """Owner: the build number beside Kodi's version at the bottom of Settings."""
+ def test_footer_and_reader(self):
+  import tempfile,importlib.util
+  spec=importlib.util.spec_from_file_location('updates_bn',BOOT/'resources/lib/updates.py');up=importlib.util.module_from_spec(spec);spec.loader.exec_module(up)
+  with tempfile.TemporaryDirectory() as d:
+   self.assertEqual(up.installed_build(d),'')
+   Path(d,'build.json').write_text('{"build": 157, "commit": "abc"}');self.assertEqual(up.installed_build(d),'157')
+  source=(BOOT/'resources/lib/settings_page.py').read_text()
+  self.assertIn("$INFO[Window(Home).Property(KodiIOS.Build), (build ,)]",source)
+  self.assertIn("window.setProperty('KodiIOS.Build',updates.installed_build(root))",(BOOT/'service.py').read_text())
+
 if __name__=='__main__':unittest.main()
