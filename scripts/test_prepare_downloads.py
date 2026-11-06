@@ -352,4 +352,66 @@ class NeverRunsOutOfSpace(unittest.TestCase):
   self.assertEqual(len([n for n in self.notes if n[1]=='Video preparation paused']),1)
   self.assertIn('Small (2021)',self.notes[-1][2])
 
+class StreamFromDrive(unittest.TestCase):
+ """Owner (build 157): "my storage can't handle large scale downloads". KodiAirPlay r14 reads the Drive file through a
+ loopback stream; the movie is never downloaded to the phone first."""
+ DATA=bytes(range(256))*4096   # 1 MiB of known bytes
+ def setUp(self):
+  import drive_stream,urllib.error
+  self.seen=[]
+  data=self.DATA;seen=self.seen
+  class Upstream:
+   def __init__(self,status,body,headers):self.status=status;self.body=io.BytesIO(body);self.headers=headers
+   def read(self,n):return self.body.read(n)
+   def close(self):pass
+  def open_url(request,timeout):
+   seen.append((request.full_url,request.get_header('Authorization'),request.get_header('Range')))
+   if 'missing' in request.full_url:raise urllib.error.HTTPError(request.full_url,404,'nf',{},None)
+   a,b=request.get_header('Range')[6:].split('-');a=int(a);b=int(b) if b else len(data)-1
+   return Upstream(206,data[a:b+1],{'Content-Length':str(b-a+1),'Content-Range':'bytes %d-%d/%d'%(a,b,len(data))})
+  self.stream=drive_stream.DriveStream(lambda:'tok',open_url=open_url)
+ def tearDown(self):self.stream.close()
+ def get(self,url,rng=None):
+  import urllib.request
+  req=urllib.request.Request(url,headers={'Range':rng} if rng else {})
+  try:
+   with urllib.request.urlopen(req,timeout=5) as r:return r.status,dict(r.headers),r.read()
+  except urllib.error.HTTPError as e:return e.code,{},b''
+ def test_ranges_are_relayed_from_drive_with_the_token(self):
+  url=self.stream.url('file-1');self.assertTrue(url.startswith('http://127.0.0.1:'))
+  status,headers,body=self.get(url,'bytes=1000-1999')
+  self.assertEqual((status,body),(206,self.DATA[1000:2000]));self.assertEqual(headers['Content-Range'],'bytes 1000-1999/%d'%len(self.DATA))
+  self.assertIn('/files/file-1?alt=media',self.seen[0][0]);self.assertEqual(self.seen[0][1:],('Bearer tok','bytes=1000-1999'))
+ def test_whole_file_answers_200_with_its_length(self):
+  status,headers,body=self.get(self.stream.url('file-1'))
+  self.assertEqual((status,len(body),headers['Content-Length']),(200,len(self.DATA),str(len(self.DATA))));self.assertEqual(body,self.DATA)
+ def test_only_registered_files_and_the_session_secret(self):
+  url=self.stream.url('file-1')
+  self.assertEqual(self.get(url.replace('file-1','other'))[0],404)
+  self.assertEqual(self.get(url.replace(self.stream.secret,'guess'))[0],404)
+  self.stream.forget('file-1');self.assertEqual(self.get(url)[0],404);self.assertEqual(len(self.seen),0)
+ def test_drive_errors_pass_through(self):self.assertEqual(self.get(self.stream.url('missing'))[0],404)
+ def test_queue_streams_instead_of_downloading(self):
+  class StreamingNative(Native):
+   streams=True
+   def probe(self,path):
+    self.paths=getattr(self,'paths',[])+[str(path)];return Native.probe(self,path) if not str(path).startswith('http') else {'ready':False,'width':3840,'height':2160,'hdr':True,'duration':1300,'copy_video':True,'audio_work_bytes':0}
+  tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup)
+  native=StreamingNative();drive=Drive();downloads=[]
+  queue=prep.Queue(tmp.name,drive,native,download_file=lambda *a:downloads.append(a),clock=lambda:1000,stream=self.stream)
+  item=prep.metadata(drive,'source-id');queue.state['jobs'][prep.key(item)]={'source':item,'status':'waiting','retry_after':0}
+  with patch.object(prep.shutil,'disk_usage',return_value=type('Disk',(),{'free':prep.KEEP_FREE+512*1024*1024})()):
+   self.assertTrue(queue.process_one())
+  self.assertEqual(downloads,[]);self.assertTrue(native.paths[0].startswith('http://127.0.0.1:'))
+  self.assertTrue(prep.ready(drive.meta()));self.assertNotIn('source-id',self.stream.allowed)
+ def test_streaming_needs_half_the_space(self):
+  item={'size':str(20*1024**3)}
+  self.assertEqual(prep.space_needed(item,True)-prep.space_needed(item,False),-20*1024**3)
+ def test_an_older_framework_keeps_downloading(self):
+  tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup)
+  self.assertIsNone(prep.Queue(tmp.name,Drive(),Native(),stream=self.stream).stream)
+ def test_service_creates_the_stream_for_r14(self):
+  source=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
+  self.assertIn('stream=drive_stream.DriveStream(drive.token,context=tls_context())',source)
+
 if __name__=='__main__':unittest.main()

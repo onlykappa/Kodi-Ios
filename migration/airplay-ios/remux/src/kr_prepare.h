@@ -7,6 +7,8 @@ typedef int (*kr_prepare_progress)(int stage, double done, double total, void *c
 int kr_prepare_ready(AVFormatContext *format);
 // JSON describes the file, without paths. Negative on invalid input.
 int kodi_airplay_probe(const char *input, char *json, int size);
+// r14: 1 when probe/prepare accept an http://127.0.0.1 source (streamed, no downloaded copy).
+int kodi_airplay_prepare_streams(void);
 // Writes output.partial then validates and atomically renames it to output. Input is never modified.
 // progress stages: 0 video, 1 audio, 2 packaging, 3 verification. Return 0 success, -2 paused, -1 failure.
 int kodi_airplay_prepare(const char *input, const char *output, kr_prepare_progress progress,

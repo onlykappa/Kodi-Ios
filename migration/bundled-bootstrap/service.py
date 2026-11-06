@@ -247,9 +247,15 @@ def drive_uploads(monitor,home,profile):
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
   if not path:raise RuntimeError('AirPlay preparation framework is missing')
   native=prepare_downloads.Native(airplay.load(path))
+  # KodiAirPlay r14 reads the Drive file through this loopback stream: no downloaded copy on the phone.
+  stream=None
+  if native.streams:
+   import drive_stream
+   stream=drive_stream.DriveStream(drive.token,context=tls_context())
+   xbmc.log('Kodi iOS preparation: streaming from Google Drive (no downloaded copy)',xbmc.LOGINFO)
   return prepare_downloads.Queue(profile,drive,native,
     download_file=lambda *args:prepare_downloads.download(*args,context=tls_context()),
-    notify=lambda kind,title,text:notices.add(profile,kind,title,text))
+    notify=lambda kind,title,text:notices.add(profile,kind,title,text),stream=stream)
  # First pass 30 s after start (owner, build 145: the Library was opened, and left, before the old 120 s first pass).
  delay=5
  while not monitor.waitForAbort(delay):

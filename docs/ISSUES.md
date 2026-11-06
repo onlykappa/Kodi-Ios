@@ -866,3 +866,12 @@ Status: FIXED IN SOURCE; device check pending.
   - Settings › Check library for conversion shows how many videos wait for space.
 - Not solved here: a video larger than (free space − 5 GB) / 2 still waits. Halving the need means reading straight from Drive instead of downloading first, which requires a KodiAirPlay native change (local-path-only input today) and a macOS framework build.
 - Regression: `test_prepare_downloads.NeverRunsOutOfSpace` (5), `test_airplay_remux.PhoneSource.test_a_prepared_mp4_also_uses_the_phones_own_link`.
+
+## ISSUE-108 — Preparation must not download movies first (owner, after build 157)
+
+Status: IN SOURCE; KodiAirPlay r14 build, then device check pending.
+- Owner: "Please have it read from the drive as my storage can't handle large scale downloads." Before this, a movie needed its Drive file and its prepared copy on the phone at once (about twice its size; ISSUE-107).
+- Native (KodiAirPlay r14, `kr_prepare.c`): probe and prepare accept `http://127.0.0.1:` sources as well as local paths (loopback only, never the internet), opened with bounded timeouts, reconnects at the same offset and Range seeks. The spool passes already read through `kr_source`, which handles HTTP. `kodi_airplay_prepare_streams()` (exported) tells the add-on the build can do it. Host test: `test_preparation_http` prepares two fixtures through the range server, gets byte-identical video packets to the file version, and refuses a non-loopback URL.
+- Add-on: `drive_stream.DriveStream`, a 127.0.0.1 server (random session secret, registered Drive files only) that answers byte ranges by fetching them from Drive as the converter asks; nothing is written to the phone. With r14, `prepare_downloads` streams instead of downloading, skips the local-copy checksum (a Drive change meanwhile is still refused by `replace()`'s fresh version/checksum check, and the output is still validated for resolution, HDR and duration), deletes any copy an older build left, and plans space for about 1× the movie (`space_needed(item, streaming=True)`). An older framework keeps the download path.
+- Trade-off: more data is read from Drive (a movie whose audio needs converting is read twice), in exchange for half the phone space.
+- Regression: `test_prepare_downloads.StreamFromDrive` (8).

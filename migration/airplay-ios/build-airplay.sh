@@ -51,6 +51,9 @@
 # is made 6 segments ahead, video 3 (three background workers), and kodi.log names the conversion path per session
 # (GPU transfer or libswscale) with each slow segment's share of realtime. The output stays at most 1080p: the cost
 # is decoding the 4K source, which a smaller output does not reduce.
+# r14: one-file preparation reads its source from the phone's loopback (http://127.0.0.1, the setup add-on streaming
+# the Drive file) instead of a downloaded copy, so a movie needs its prepared size on the phone, not twice that
+# (owner, build 157). Loopback only; kodi_airplay_prepare_streams() tells the add-on this build can do it.
 # Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh, REMUX_LIBASS=DIR
 # one of build-libass.sh ios)
 set -euo pipefail
@@ -673,7 +676,7 @@ for c in "$REMUX"/src/*.c "$REMUX"/gmplayer/*.c; do
   o="$WORK/$(basename "${c%.c}").o"; "${CC_IOS[@]}" -c "$c" -o "$o"; OBJS+=("$o")
 done
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
-printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_airplay_prepare\n_kodi_airplay_probe\n' > "$WORK/exports"
+printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n' > "$WORK/exports"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
   -framework VideoToolbox -framework CoreVideo -framework CoreText \

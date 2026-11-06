@@ -1390,6 +1390,26 @@ static void test_preparation(const char *work) {
     CHECK(access(output,F_OK)!=0,"unsupported tracks keep the original untouched");
 }
 
+// r14: prepare straight from a loopback HTTP source (the phone streams the Drive file), never a downloaded copy.
+static void test_preparation_http(const char *http_base,const char *work) {
+    const char *files[]={"hevc_ac3_ass.mkv","h264_ac3_dts_srt.mkv"};
+    for(unsigned i=0;i<sizeof files/sizeof files[0];i++) {
+        char input[1024],local[1024],output[1024],err[512]="",json[1024];
+        snprintf(input,sizeof input,"%s/%s",http_base,files[i]);snprintf(local,sizeof local,"%s/%s",fixture_dir,files[i]);
+        snprintf(output,sizeof output,"%s/prepared-http-%u.mp4",work,i);unlink(output);
+        CHECK(kodi_airplay_probe(input,json,sizeof json)==0 && strstr(json,"\"ready\":false"),"probe over loopback HTTP: %s",json);
+        int r=kodi_airplay_prepare(input,output,NULL,NULL,err,sizeof err);
+        CHECK(r==0,"prepare over loopback HTTP %s: %s",files[i],err);if(r)continue;
+        CHECK(kodi_airplay_probe(output,json,sizeof json)==0 && strstr(json,"\"ready\":true"),"HTTP-prepared portable MP4: %s",json);
+        uint8_t a[16],b[16];int aw,ah,an,bw,bh,bn;
+        CHECK(video_digest(local,a,&aw,&ah,&an)==0 && video_digest(output,b,&bw,&bh,&bn)==0,"read HTTP preparation input/output");
+        CHECK(aw==bw && ah==bh && an==bn && !memcmp(a,b,16),"HTTP-prepared video packets identical to the source: %s",files[i]);
+    }
+    char output[1024],err[512]="";snprintf(output,sizeof output,"%s/prepared-remote.mp4",work);
+    CHECK(kodi_airplay_prepare("http://example.com/movie.mkv",output,NULL,NULL,err,sizeof err)<0 && access(output,F_OK)!=0,
+          "preparation never reads a non-loopback URL: %s",err);
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: test_remux FIXTURE_DIR [HTTP_BASE]\n"); return 2; }
     fixture_dir = argv[1];
@@ -1423,7 +1443,7 @@ int main(int argc, char **argv) {
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
     mkdir(work, 0755);
     if (argc > 3 && !strcmp(argv[3], "--prepare-only")) {
-        test_preparation(work);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+        test_preparation(work);test_preparation_http(argv[2],work);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
     if (argc > 3 && !strcmp(argv[3], "--dovi-only")) {
         kr_video_set_encoder("mpeg4");test_dovi_render(work);
@@ -1438,6 +1458,7 @@ int main(int argc, char **argv) {
         return failures ? 1 : 0;
     }
     test_preparation(work);
+    if (argc > 2) test_preparation_http(argv[2], work);
     fixture fx[] = {
         { "h264_aac_srt.mkv", "avc1.42C0", "mp4a.40.2", 1, 1, 0, 0, "Hello from SRT" },
         { "hevc_ac3_ass.mkv", "hvc1.2.4.L", "ac-3", 1, 1, 1, 0, "Hello from ASS" },
