@@ -184,7 +184,7 @@ class Integration(unittest.TestCase):
   service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertIn('preparation.scan(can_prepare,force=bool(count))',service);self.assertIn('preparation.process_one(converting)',service)
   # A requested check pauses the current conversion and brings the loop back within seconds.
-  self.assertIn('not prepare_downloads.check_requested(profile)',service);self.assertIn('if prepare_downloads.check_requested(profile):delay=5',service)
+  self.assertIn('not prepare_downloads.check_requested(profile)',service);self.assertIn('if prepare_downloads.check_requested(profile) or prepare_downloads.pending_requests(profile):delay=5',service)
   import xml.etree.ElementTree as ET
   setting=ET.parse(ROOT/'migration/bundled-bootstrap/resources/settings.xml').find(".//setting[@id='prepare_downloads']")
   self.assertEqual(setting.findtext('default'),'true')
@@ -306,11 +306,9 @@ class LibraryCheck(unittest.TestCase):
   with patch.object(prep.library_scan,'remote_files',return_value=[]):self.queue.scan()   # a request runs the check even within 5 minutes
   self.assertFalse(prep.check_requested(self.tmp.name));self.assertIn('library',self.queue.state)
  def test_settings_button(self):
-  import xml.etree.ElementTree as ET
-  setting=ET.parse(ROOT/'migration/bundled-bootstrap/resources/settings.xml').find(".//setting[@id='prepare_check']")
-  self.assertEqual(setting.findtext('data'),'RunScript(service.kodi.ios.bootstrap,prepare_check)')
+  # Build 158: the row now opens Settings › Library › Library status (test_library_status.py); the old script stays callable.
   self.assertIn("'prepare_check'",(ROOT/'migration/bundled-bootstrap/default.py').read_text())
-  self.assertIn("R(9457,'Check library for conversion',PREPARE_CHECK",(ROOT/'migration/bundled-bootstrap/resources/lib/settings_page.py').read_text())
+  self.assertIn("R(9457,'Library status',LIBRARY_STATUS",(ROOT/'migration/bundled-bootstrap/resources/lib/settings_page.py').read_text())
 
 class NeverRunsOutOfSpace(unittest.TestCase):
  """Owner (build 157): "we need to ensure storage is never an issue" (the same 'Free phone space' message five times)."""

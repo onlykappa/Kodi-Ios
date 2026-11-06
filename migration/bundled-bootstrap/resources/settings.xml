@@ -31,7 +31,7 @@
   <category id="drive" label="Google Drive">
    <group id="1">
     <setting id="prepare_downloads" type="boolean" label="Prepare downloaded movies and shows for Kodi and AirPlay"><level>0</level><default>true</default><control type="toggle"/><help>Scan on startup and after uploads. Prepare one seekable MP4 in the same Drive file, keeping the selected source resolution and compatible HDR. Follow progress in Notifications. Temporary phone space is required.</help></setting>
-    <setting id="prepare_check" type="action" label="Check library for conversion"><level>0</level><data>RunScript(service.kodi.ios.bootstrap,prepare_check)</data><control type="button" format="action"/><help>Check Google Drive › Kodi Downloads now and show which videos are ready for Kodi and AirPlay, waiting or paused.</help></setting>
+    <setting id="library_status" type="action" label="Library status"><level>0</level><data>RunScript(service.kodi.ios.bootstrap,library_status)</data><control type="button" format="action"/><help>Every video in Google Drive › Kodi Downloads: ready for Kodi and AirPlay, preparing, downloading, waiting or kept as it is, with what can be done about each.</help></setting>
     <setting id="drive_upload" type="boolean" label="Upload the Elementum videos you keep to Google Drive › Kodi Downloads"><level>0</level><default>true</default><control type="toggle"/></setting>
     <setting id="drive_upload_delete" type="boolean" label="Remove the phone copy once Google Drive has it"><level>0</level><default>true</default><control type="toggle"/></setting>
     <setting id="background_transfers" type="boolean" label="Keep downloading and uploading while Kodi is in the background"><level>0</level><default>true</default><control type="toggle"/></setting>

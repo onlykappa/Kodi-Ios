@@ -4,9 +4,9 @@ The service scans app-managed Movies/TV Shows at startup and after uploads. Work
 the uploader/scanner, paused during playback, and checkpointed. Source bytes stay on Drive until a
 validated local result is uploaded in place. No permanent AirPlay variant, source-ID switch or extra folder.
 """
-import ctypes,hashlib,json,os,shutil,time,urllib.error,urllib.parse,urllib.request
+import ctypes,hashlib,json,os,re,shutil,time,urllib.error,urllib.parse,urllib.request
 from pathlib import Path
-import driveupload,drivelibrary,library_scan
+import driveupload,drivelibrary,library_scan,phone_space
 
 PROFILE='source-resolution-mp4-v1'
 PROPERTY='kodiAirPlayProfile'
@@ -21,12 +21,32 @@ def folder_bytes(path):
  try:return sum(f.stat().st_size for f in Path(path).rglob('*') if f.is_file())
  except OSError:return 0
 
-def space_needed(item,streaming=False):
- """Phone space one video takes while it is prepared: the prepared copy (about the Drive file's size: the picture is
- copied, not re-encoded) and a margin, plus what must stay free for the owner. Without streaming (KodiAirPlay before
- r14) the Drive file is downloaded first as well, so twice the size."""
+def work_bytes(item,probe=None):
+ """Phone space the prepared copy needs (the native step's own estimate, from its probe). Picture copied: about the
+ Drive file's size plus the audio it converts (twice: a working track, then the MP4). Picture re-encoded (a codec MP4
+ or AirPlay cannot take as it is): the new picture at about 7 Mbit/s per 1080p, also twice. Without a probe yet:
+ about the file's size."""
  size=int(item.get('size') or 0)
- return (1 if streaming else 2)*size+RESERVE+KEEP_FREE
+ if not probe:return size+RESERVE
+ audio=int(probe.get('audio_work_bytes',0))
+ if probe.get('copy_video',True):return size+2*audio+16*1024*1024+RESERVE
+ video=int(probe.get('duration',0)*max(1.5e6,7e6*probe.get('width',1920)*probe.get('height',1080)/(1920*1080))/8)
+ return size+2*(video+audio)+RESERVE
+
+def space_needed(item,streaming=False,probe=None):
+ """Phone space one video takes while it is prepared, plus what always stays free for the owner (KEEP_FREE). Without
+ streaming (KodiAirPlay before r14) the Drive file is downloaded first as well. The same figure decides whether a video
+ starts and what Library status says it needs (owner, build 160: the page said 14 GB while the step itself wanted more)."""
+ return (0 if streaming else int(item.get('size') or 0))+work_bytes(item,probe)+KEEP_FREE
+
+def space_reason(probe):
+ """Why a video needs more than its own size, in everyday words, or ''."""
+ if not probe or probe.get('copy_video',True):return ''
+ codec=str(probe.get('codec') or '').upper().replace('HEVC','HEVC').replace('H264','H.264')
+ depth=int(probe.get('bit_depth') or 0)
+ what=' '.join(x for x in (codec,'%d-bit'%depth if depth>8 else '') if x)
+ return 'its picture%s cannot go into MP4 as it is, so it is re-encoded'%(' (%s)'%what if what else '')
+
 CALLBACK=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_int,ctypes.c_double,ctypes.c_double,ctypes.c_void_p)
 
 def location(profile):return Path(profile)/'addon_data/service.kodi.ios.bootstrap'/FILE
@@ -36,13 +56,41 @@ def ready(item):
  props=item.get('appProperties') or {}
  return bool(item.get('md5Checksum')) and props.get(PROPERTY)==PROFILE and props.get(CHECKSUM_PROPERTY)==item['md5Checksum'].lower()
 def metadata(drive,item_id):
- status,headers,body=drive.call('GET',driveupload.API+'/'+urllib.parse.quote(str(item_id),safe='')+'?fields=id,name,size,md5Checksum,version,mimeType,appProperties,trashed')
+ status,headers,body=drive.call('GET',driveupload.API+'/'+urllib.parse.quote(str(item_id),safe='')+'?fields=id,name,size,md5Checksum,version,mimeType,appProperties,trashed,parents')
  if status!=200:raise RuntimeError('Drive file check: HTTP %d'%status)
  item=json.loads(body)
  if item.get('trashed') or not item.get('id') or not item.get('md5Checksum') or int(item.get('size') or 0)<=0:
   raise RuntimeError('Drive video is unavailable or incomplete')
  item['_etag']=headers.get('ETag') or headers.get('etag') or ''
  return item
+SIDECAR=re.compile(r'^prepared\.mp4\.sub(\d+)\.([a-z]{1,8})(\.forced)?\.sup$')
+def sidecar_names(video_name,files):
+ """[(local file, Drive name)] for the .sup files KodiAirPlay r15 wrote beside a prepared MP4: named after the video,
+ as Kodi looks for external subtitles ('Interstellar (2014).eng.sup', '.eng.forced.sup'; a second English track
+ '.eng.2.sup'), in track order."""
+ base=os.path.splitext(video_name)[0];out=[];seen={}
+ for path in sorted(files,key=lambda f:int(SIDECAR.match(Path(f).name).group(1)) if SIDECAR.match(Path(f).name) else 0):
+  m=SIDECAR.match(Path(path).name)
+  if not m:continue
+  tag=m.group(2)+(m.group(3) or '');seen[tag]=seen.get(tag,0)+1
+  out.append((path,'%s.%s%s.sup'%(base,tag,'' if seen[tag]==1 else '.%d'%seen[tag])))
+ return out
+
+def save_sidecars(drive,item,folder,sessions,commit,keep_going):
+ """Upload the .sup files beside the video on Drive (once: a file of that name and size already there is kept).
+ Returns their Drive ids. Runs before the video is replaced, so a failure leaves the original untouched."""
+ parents=item.get('parents') or metadata(drive,item['id']).get('parents') or []
+ if not parents:raise RuntimeError('Google Drive did not say which folder the video is in')
+ ids=[]
+ for path,name in sidecar_names(item['name'],[str(f) for f in Path(folder).glob('prepared.mp4.sub*.sup')]):
+  size=os.path.getsize(path)
+  q="name='%s' and '%s' in parents and trashed=false"%(name.replace("\\","\\\\").replace("'","\\'"),parents[0])
+  status,_,body=drive.call('GET',driveupload.API+'?fields=files(id,size)&q='+urllib.parse.quote(q))
+  found=[f for f in (json.loads(body).get('files') or []) if int(f.get('size') or 0)==size] if status==200 else []
+  if found:ids.append(found[0]['id']);continue
+  ids.append(drive.upload(path,parents[0],sessions,commit,keep_going,name=name).get('id',''))
+ return ids
+
 def identity(item):return (str(item['id']),str(item.get('md5Checksum','')).lower(),int(item.get('size') or 0),str(item.get('version') or ''))
 def key(item):return hashlib.sha256(('|'.join(map(str,identity(item)[:3]))).encode()).hexdigest()[:32]
 
@@ -56,6 +104,12 @@ class Native:
   lib.kodi_airplay_probe.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_probe.restype=ctypes.c_int
   lib.kodi_airplay_prepare.argtypes=[ctypes.c_char_p,ctypes.c_char_p,CALLBACK,ctypes.c_void_p,ctypes.c_char_p,ctypes.c_int]
   lib.kodi_airplay_prepare.restype=ctypes.c_int
+  # r15: Blu-ray picture subtitles (PGS) are kept in .sup files beside the prepared MP4 instead of the file being
+  # refused (owner, build 160: Interstellar); the queue saves them next to the video on Drive before replacing it.
+  self.keeps_image_subs=hasattr(lib,'kodi_airplay_prepare_keep_image_subs')
+  if self.keeps_image_subs:
+   lib.kodi_airplay_prepare_keep_image_subs.argtypes=[ctypes.c_int];lib.kodi_airplay_prepare_keep_image_subs.restype=None
+   lib.kodi_airplay_prepare_keep_image_subs(1)
  def probe(self,path):
   out=ctypes.create_string_buffer(1024)
   if self.lib.kodi_airplay_probe(os.fsencode(str(path)),out,len(out))<0:raise RuntimeError('Video could not be inspected')
@@ -162,6 +216,99 @@ when Drive returns an ETag. A completed-but-unacknowledged upload is recovered b
    offset=next_offset;stream.seek(offset);progress(offset,size)
  raise RuntimeError('Drive did not confirm the prepared upload')
 
+REQUESTS='preparation-requests.json'
+def request(profile,action,item_id):
+ """Queue an owner request for the service (next, retry, keep, prepare); applied at its next pass."""
+ path=location(profile).parent/REQUESTS;path.parent.mkdir(parents=True,exist_ok=True)
+ try:pending=json.loads(path.read_text())
+ except (OSError,ValueError):pending=[]
+ pending=[r for r in pending if r.get('id')!=str(item_id)]+[{'action':action,'id':str(item_id)}]
+ tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(pending));os.replace(tmp,path)
+
+def pending_requests(profile):
+ """What the owner asked for on Library status that the service has not applied yet."""
+ try:pending=json.loads((location(profile).parent/REQUESTS).read_text())
+ except (OSError,ValueError):return []
+ return pending if isinstance(pending,list) else []
+
+def apply_to(state,requests,now):
+ """Apply owner requests to a queue state (the service for real; the page on a copy, so a tap shows at once).
+ next: prepare it first once it can run; retry: try a paused one now; keep / prepare: keep it as it is, or put it
+ back in the queue."""
+ jobs={job['source']['id']:job for job in (state.get('jobs') or {}).values()}
+ for request in requests:
+  job=jobs.get(str(request.get('id')));action=request.get('action')
+  if not job:continue
+  if action=='next':job['priority']=now
+  elif action=='retry':job.update(retry_after=0,attempts=0);job.pop('error',None);job['status']='waiting'
+  elif action=='keep':job['kept']=True
+  elif action=='prepare':job.pop('kept',None)
+ return state
+
+def entry(item,state):
+ return {'id':str(item.get('id','')),'name':item.get('name',''),'folder':item.get('folderName',''),'size':int(item.get('size') or 0),'state':state}
+
+def quality_text(name,size=0):
+ """'2160p HDR · 14.2 GB' from a release name and size."""
+ q=drivelibrary.quality(name);parts=['%dp'%q if q else '']
+ if re.search(r'(?i)\b(hdr10\+?|hdr|dv|dovi|dolby[ ._-]?vision)\b',str(name)):parts[0]=(parts[0]+' HDR').strip()
+ if size:parts.append('%.1f GB'%(size/1024**3))
+ return ' · '.join(p for p in parts if p)
+
+def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time):
+ """Settings › Library › Library status: counts, phone space and the rows of each section, in plain words."""
+ library=state.get('library') or {};jobs={j['source']['id']:j for j in (state.get('jobs') or {}).values()}
+ current=state.get('current') or {};rows={'preparing':[],'downloading':[],'waiting':[],'ready':[],'kept':[]}
+ title=lambda name:drivelibrary.display_title(name)
+ for d in downloads:
+  rows['downloading'].append({'id':'dl:'+str(d.get('id','')),'title':d.get('title',''),'state':'downloading','pct':int(d.get('progress') or 0),
+   'sub':'Downloading · %s'%' · '.join(x for x in (str(d.get('line','')).replace('  ',' '),str(d.get('speed','')).replace('  ',' ')) if x)})
+ for u in uploads:
+  rows['downloading'].append({'id':'up','title':u.get('title',''),'state':'uploading','pct':int(u.get('progress') or 0),
+   'sub':'Uploading to Google Drive · %d%%'%int(u.get('progress') or 0)})
+ order=[]
+ for e in library.get('items') or []:
+  job=jobs.get(e['id']);base={'id':e['id'],'title':title(e['name']),'name':e['name'],'folder':e['folder'],'size':e['size']}
+  if e['state']=='ready':rows['ready'].append(dict(base,state='ready',sub=quality_text(e['name'],e['size'])));continue
+  if job and (job.get('blocked') or job.get('kept')):
+   why=job.get('error') or 'Kept as it is'
+   rows['kept'].append(dict(base,state='kept',owner=bool(job.get('kept')) and not job.get('blocked'),
+    sub='Kept as it is · %s'%('you chose to keep it' if job.get('kept') and not job.get('blocked') else plain(why))));continue
+  if job and current.get('running') and current.get('title') in (e['name'],title(e['name'])):
+   rows['preparing'].append(dict(base,state='preparing',pct=int(current.get('progress',0)),sub='%s · %d%%'%(str(current.get('stage','Preparing')).replace('Step 3 of 3 · ',''),current.get('progress',0))));continue
+  if e['state']=='unreadable':rows['waiting'].append(dict(base,state='problem',warn=True,sub='Google Drive could not describe it; checking again next time'));continue
+  if job and job.get('status')=='failed':
+   wait=max(0,int((job.get('retry_after',0)-now())//60))
+   rows['waiting'].append(dict(base,state='problem',warn=True,reason=plain(job.get('error')),sub='Will try again%s · %s'%(' in %d min'%wait if wait else ' soon',plain(job.get('error')))));continue
+  if job and job.get('space'):
+   rows['waiting'].append(dict(base,state='space',warn=True,needs=job['space'],why=space_reason(job.get('probe')),
+    sub='Needs %.0f GB free · %.0f GB free now'%(job['space']/1024**3,(free or 0)/1024**3)));continue
+  order.append(dict(base,state='waiting',priority=(job or {}).get('priority',0)))
+ order.sort(key=lambda r:-r['priority'])
+ for n,r in enumerate(order,1):r['sub']='%s · %s'%('Next' if n==1 else '%s in line'%ordinal(n),quality_text(r['name'],r['size']))
+ rows['waiting']=order+rows['waiting']
+ todo=len(rows['preparing'])+len(rows['waiting']);total=len(rows['ready'])+todo+len(rows['kept'])
+ checked=library.get('checked')
+ minutes=int(max(0,now()-checked)//60) if checked else None
+ return {'rows':rows,'ready':len(rows['ready']),'todo':todo,'downloading':len(rows['downloading']),'kept':len(rows['kept']),'total':total,
+         'pct':int(round(100*len(rows['ready'])/total)) if total else 0,
+         'checked':'not checked yet' if minutes is None else ('checked just now' if minutes<1 else 'checked %d min ago'%minutes),
+         'free':free,'working':working}
+
+REASONS=(('tracks MP4 cannot preserve','DVD picture subtitles or a second video track cannot go into MP4'),
+         ('without changing HDR','its HDR picture cannot be kept'),
+         ('HTTP','Google Drive did not answer'),('connection','the connection dropped'),
+         ('Free phone space','not enough phone space'),('checksum','Google Drive returned a different copy'),
+         ('validation','the prepared copy did not pass its checks'))
+def plain(reason):
+ """A known preparation problem in everyday words; anything else as it is, first clause only."""
+ text=str(reason or '')
+ for marker,words in REASONS:
+  if marker.lower() in text.lower():return words
+ return text.split(';')[0].strip() or 'a problem'
+
+def ordinal(n):return '%d%s'%(n,'th' if 10<=n%100<=20 else {1:'st',2:'nd',3:'rd'}.get(n%10,'th'))
+
 RESCAN='airplay-preparation-rescan'
 def request_check(profile):
  """Ask the service to check Google Drive › Kodi Downloads now (Settings › Library › Check library for conversion)."""
@@ -209,20 +356,21 @@ class Queue:
   if not force and not requested.exists() and self.clock()-self.state.get('last_scan',0)<300:return
   self.state['current']={'title':'Movies and shows','stage':'Checking downloaded videos','progress':0,'queued':0,'running':True,'updated':self.clock()};self.commit()
   listed_all=library_scan.remote_files(self.drive,keep_going)
-  found=self.unique(listed_all);seen=set();counts={'videos':len(found),'ready':0,'unreadable':0}
+  found=self.unique(listed_all);seen=set();counts={'videos':len(found),'ready':0,'unreadable':0};entries=[]
   for number,listed in enumerate(found):
    if not keep_going():raise driveupload.Stop('Preparation scan paused')
    try:item=dict(metadata(self.drive,listed['id']),folderName=listed.get('folderName',''))
    except Exception:
     # One file Drive cannot describe right now must not stop the whole library check (owner, build 156: no
     # movies were being converted). Its existing work, if any, is kept for the next check.
-    counts['unreadable']+=1
+    counts['unreadable']+=1;entries.append(entry(listed,'unreadable'))
     seen.update(slot for slot,job in self.state['jobs'].items() if job['source']['id']==listed['id'])
     continue
    slot=key(item);seen.add(slot)
    recovering=[old for old,job in self.state['jobs'].items() if job['source']['id']==item['id'] and job.get('status')=='committing']
    if recovering:seen.update(recovering);continue
-   if ready(item):counts['ready']+=1;continue
+   if ready(item):counts['ready']+=1;entries.append(entry(item,'ready'));continue
+   entries.append(entry(item,'todo'))
    if slot not in self.state['jobs'] or self.state['jobs'][slot].get('status')=='superseded' or identity(self.state['jobs'][slot]['source'])!=identity(item):
     self.state['jobs'][slot]={'source':item,'status':'waiting','attempts':0,'retry_after':0}
   # A source modified/replaced by another client no longer owns its old work/session.
@@ -230,7 +378,7 @@ class Queue:
    if slot not in seen and job.get('status')!='committing':
     self.state['jobs'].pop(slot,None);self.state['sessions'].pop(slot,None)
     shutil.rmtree(self.work/slot,ignore_errors=True)
-  self.state['library']=dict(counts,checked=self.clock())
+  self.state['library']=dict(counts,checked=self.clock(),items=entries)
   self.state['last_scan']=self.clock();self.state.pop('current',None);self.commit();requested.unlink(missing_ok=True)
  def unique(self,found):
   """One copy per episode or movie (owner, build 152: 'Lanterns' and 'Lanterns (2026)' each held S1 E1, and both
@@ -285,29 +433,62 @@ class Queue:
   gb=lambda n:'%.0f GB'%(n/1024**3)
   self.notify('info','Waiting for phone space','%d video%s will be prepared when there is room: the largest needs %s free, %s is free now. Kodi always leaves %s free for you.'%(
    len(ids),'' if len(ids)==1 else 's',gb(biggest),gb(free),gb(KEEP_FREE)))
+ def apply_requests(self):
+  """What the owner asked for on Settings › Library › Library status (a separate file: the page never writes the
+  queue's own state); see apply_to."""
+  path=location(self.profile).parent/REQUESTS
+  if not path.exists():return False
+  requests=pending_requests(self.profile)
+  path.unlink(missing_ok=True)
+  apply_to(self.state,requests,self.clock());self.commit();return True
+ def tidy(self):
+  """Phone space (owner, build 159: "Kodi is eating 10 GB"): working files stay only for a video that will carry on
+  where it was: waiting with a half-made copy, paused for playback, or saving to Drive. A video that failed (its next
+  try starts again: a streamed preparation cannot resume), is kept as it is, done, or no longer in the library gives
+  its space back now, not at its next try."""
+  freed=0
+  try:folders=[d for d in self.work.iterdir() if d.is_dir()]
+  except OSError:return 0
+  for folder in folders:
+   job=self.state['jobs'].get(folder.name)
+   if job and job.get('status') in ('waiting','paused','committing') and not job.get('kept') and not job.get('blocked'):continue
+   freed+=folder_bytes(folder);shutil.rmtree(folder,ignore_errors=True)
+  return freed
+ def retry_image_subtitles(self):
+  """Videos kept as they are only for their picture subtitles get one new try with a KodiAirPlay that saves them
+  beside the MP4 (r15). A DVD picture subtitle or a second video track still keeps a video as it is."""
+  if not getattr(self.native,'keeps_image_subs',False):return 0
+  n=0
+  for job in self.state['jobs'].values():
+   if job.get('blocked') and 'tracks MP4 cannot preserve' in str(job.get('error','')) and not job.get('image_subs_retried'):
+    job.update(blocked=False,status='waiting',attempts=0,retry_after=0,image_subs_retried=True);job.pop('error',None);n+=1
+  if n:self.commit()
+  return n
  def process_one(self,keep_going=lambda:True):
-  candidates=[(slot,job) for slot,job in self.state['jobs'].items() if job.get('status') not in ('done','superseded') and not job.get('blocked') and job.get('retry_after',0)<=self.clock()]
+  self.apply_requests();self.tidy();self.retry_image_subtitles()
+  candidates=[(slot,job) for slot,job in self.state['jobs'].items() if job.get('status') not in ('done','superseded') and not job.get('blocked') and not job.get('kept') and job.get('retry_after',0)<=self.clock()]
   if not candidates:return False
   working=[slot for slot,job in self.state['jobs'].items() if (self.work/slot).exists() and job.get('status')!='done']
   # Finish a half-downloaded video before starting another (phone space), but only while it can actually run: one
   # stuck in a retry wait must not hold the whole queue (owner, build 156). Every job checks free space itself.
   resumable=[pair for pair in candidates if pair[0] in working]
-  free=shutil.disk_usage(self.work).free
+  free=phone_space.free(self.work)
   def fits(pair):
-   slot,job=pair;return free+folder_bytes(self.work/slot)>=space_needed(job['source'],bool(self.stream))
+   slot,job=pair;return free+folder_bytes(self.work/slot)>=space_needed(job['source'],bool(self.stream),job.get('probe'))
   if resumable and not any(fits(pair) for pair in resumable):
    # A half-prepared video that cannot finish gives its space back instead of keeping gigabytes on the phone.
    for slot,job in resumable:
     shutil.rmtree(self.work/slot,ignore_errors=True);job['status']='waiting';job.pop('retry_after',None)
-   free=shutil.disk_usage(self.work).free;resumable=[]
+   free=phone_space.free(self.work);resumable=[]
   if resumable:candidates=resumable
   # Only videos that fit start; the others wait (smallest first once space frees up) without failing or notifying.
   waiting=[pair for pair in candidates if not fits(pair)]
-  for slot,job in waiting:job['space']=space_needed(job['source'],bool(self.stream))
+  for slot,job in waiting:job['space']=space_needed(job['source'],bool(self.stream),job.get('probe'))
   for slot,job in candidates:
    if (slot,job) not in waiting:job.pop('space',None)
   self.note_space(waiting,free)
-  candidates=sorted([pair for pair in candidates if fits(pair)],key=lambda pair:0 if pair in resumable else 1)
+  # A half-prepared video finishes first, then what the owner asked to prepare next (latest request first).
+  candidates=sorted([pair for pair in candidates if fits(pair)],key=lambda pair:(0 if pair in resumable else 1,-pair[1].get('priority',0)))
   if not candidates:self.commit();return False
   # Always resume the one downloaded working source before allocating space for another movie.
   candidates.sort(key=lambda pair:0 if (self.work/pair[0]).exists() else 1)
@@ -340,24 +521,19 @@ class Queue:
     else:
      if not source.is_file() or source.stat().st_size!=int(item['size']):
       required=max(0,int(item['size'])-(source.stat().st_size if source.exists() else 0))+RESERVE
-      if shutil.disk_usage(folder).free<required:raise RuntimeError('Free phone space is needed for temporary preparation')
+      if phone_space.free(folder)<required:raise RuntimeError('Free phone space is needed for temporary preparation')
       progress('Step 3 of 3 · Reading the downloaded video',0)
       self.download(self.drive,item,str(source),keep_going,lambda n,t:progress('Step 3 of 3 · Reading the downloaded video',20*n/t))
      if driveupload.checksum(str(source),keep_going,pace=1)!=item['md5Checksum'].lower():
       source.unlink();raise RuntimeError('Source checksum differs; will read it again')
     before=self.native.probe(str(source))
+    # Kept with the job: the queue and Library status then use the same estimate as this step (work_bytes).
+    job['probe']={k:before.get(k) for k in ('copy_video','audio_work_bytes','duration','width','height','codec','bit_depth','pgs_subtitles')}
     # Never trade the selected 4K/HDR source for the live converter's 1080p fallback.
     if not output.is_file():
-     audio=int(before.get('audio_work_bytes',0));size=int(item['size'])
-     if before.get('copy_video'):
-      # One MP4 output plus only the audio tracks which actually need bridging. No H.264 re-encode estimate
-      # for the usual 4K HEVC download: those video bytes remain unchanged.
-      needed=size+2*audio+16*1024*1024+RESERVE
-     else:
-      video=int(before.get('duration',0)*max(1.5e6,7e6*before['width']*before['height']/(1920*1080))/8)
-      needed=size+2*(video+audio)+RESERVE
+     needed=work_bytes(item,before)
      used=sum(p.stat().st_size for p in folder.glob('prepared.mp4.track*') if p.is_file())
-     if shutil.disk_usage(folder).free<max(RESERVE,needed-used):raise RuntimeError('Free phone space is needed to finish this video; existing Drive file is unchanged')
+     if phone_space.free(folder)<max(RESERVE,needed-used)+KEEP_FREE:raise RuntimeError('Free phone space is needed to finish this video; existing Drive file is unchanged')
      progress('Step 3 of 3 · Preparing at source resolution',20)
      self.native.convert(str(source),str(output),keep_going,
       lambda stage,n,t:progress('Step 3 of 3 · '+('Preparing video','Preparing audio','Packaging MP4','Verifying video')[stage],(20,35,50,74)[stage]+(15,15,24,1)[stage]*(n/t if t else 0)))
@@ -366,6 +542,8 @@ class Queue:
      output.unlink(missing_ok=True);raise RuntimeError('Prepared video did not preserve resolution/HDR; original retained')
     if abs(before.get('duration',0)-after.get('duration',0))>2:raise RuntimeError('Prepared duration differs; original retained')
     progress('Step 3 of 3 · Saving the prepared file to Drive',75)
+    if list(folder.glob('prepared.mp4.sub*.sup')):
+     job['sidecars']=save_sidecars(self.drive,current,folder,self.state['sessions'],self.commit,keep_going)
     job['status']='committing';self.commit()
     current=replace(self.drive,item,str(output),self.state['sessions'],self.commit,keep_going,
                     lambda n,t:progress('Step 3 of 3 · Saving the prepared file to Drive',75+24*n/t))
@@ -393,7 +571,7 @@ class Queue:
     job['blocked']=True;shutil.rmtree(folder,ignore_errors=True)
    elif 'Free phone space' in text:
     # Space ran out after all (the phone filled up meanwhile): give the space back and wait, quietly.
-    shutil.rmtree(folder,ignore_errors=True);job['status']='waiting';job['space']=space_needed(item,bool(self.stream));job['retry_after']=self.clock()+600
+    shutil.rmtree(folder,ignore_errors=True);job['status']='waiting';job['space']=space_needed(item,bool(self.stream),job.get('probe'));job['retry_after']=self.clock()+600
     job['error']=text[:240];return False
    # One notification per video and reason, not one per retry (owner, build 157: the same message five times).
    if job.get('error')!=text[:240]:self.notify('problem','Video preparation paused','%s: %s'%(drivelibrary.display_title(item.get('name','')),text[:200]))

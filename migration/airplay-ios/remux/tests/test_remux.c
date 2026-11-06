@@ -29,6 +29,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 
@@ -1388,6 +1389,37 @@ static void test_preparation(const char *work) {
     snprintf(input,sizeof input,"%s/h264_pgs.mkv",fixture_dir);unlink(output);
     CHECK(kodi_airplay_prepare(input,output,NULL,NULL,err,sizeof err)<0 && strstr(err,"tracks MP4 cannot preserve"),"never silently drop bitmap subtitles: %s",err);
     CHECK(access(output,F_OK)!=0,"unsupported tracks keep the original untouched");
+    // r15 (owner, build 160: Interstellar): with picture subtitles kept beside the MP4, the file prepares and its PGS
+    // track is in output.sub<track>.<language>.sup, packet for packet; the MP4 itself holds no picture subtitles.
+    kodi_airplay_prepare_keep_image_subs(1);
+    CHECK(kodi_airplay_prepare(input,output,NULL,NULL,err,sizeof err)==0,"prepare with picture subtitles kept beside: %s",err);
+    kodi_airplay_prepare_keep_image_subs(0);
+    char side[1200]="";{
+        char dir[1024],base[512];snprintf(dir,sizeof dir,"%s",work);snprintf(base,sizeof base,"preparation-pause.mp4.sub");
+        DIR *d=opendir(dir);struct dirent *e;int found=0;
+        while(d && (e=readdir(d))){size_t n=strlen(e->d_name);
+            if(!strncmp(e->d_name,base,strlen(base)) && n>4 && !strcmp(e->d_name+n-4,".sup")){found++;snprintf(side,sizeof side,"%s/%s",dir,e->d_name);}
+            CHECK(!strstr(e->d_name,".sup.partial"),"no partial subtitle file left: %s",e->d_name);}
+        if(d)closedir(d);
+        CHECK(found==1,"one .sup file beside the MP4 (%d)",found);
+    }
+    {AVFormatContext *f=NULL;int subs_in_mp4=0;
+     if(avformat_open_input(&f,output,NULL,NULL)==0 && avformat_find_stream_info(f,NULL)>=0){
+         for(unsigned i=0;i<f->nb_streams;i++)if(f->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_SUBTITLE)subs_in_mp4++;
+         avformat_close_input(&f);}
+     CHECK(subs_in_mp4==0,"no picture subtitles inside the MP4 (%d)",subs_in_mp4);}
+    {AVFormatContext *a=NULL,*b=NULL;int pa=0,pb=0;AVPacket *k=av_packet_alloc();
+     // The .sup demuxer returns one packet per PGS segment, Matroska one per display set: compare the bytes.
+     if(side[0] && avformat_open_input(&a,side,NULL,NULL)==0){while(av_read_frame(a,k)>=0){pa+=k->size;av_packet_unref(k);}avformat_close_input(&a);}
+     if(avformat_open_input(&b,input,NULL,NULL)==0 && avformat_find_stream_info(b,NULL)>=0){
+         while(av_read_frame(b,k)>=0){if(b->streams[k->stream_index]->codecpar->codec_id==AV_CODEC_ID_HDMV_PGS_SUBTITLE)pb+=k->size;av_packet_unref(k);}
+         avformat_close_input(&b);}
+     av_packet_free(&k);
+     CHECK(pa>0 && pa==pb,"the .sup file holds every picture subtitle byte (%d of %d)",pa,pb);}
+    {char json[512]="";snprintf(input,sizeof input,"%s/h264_pgs.mkv",fixture_dir);
+     CHECK(kodi_airplay_probe(input,json,sizeof json)==0 && strstr(json,"\"pgs_subtitles\":1") && strstr(json,"\"codec\":\"h264\""),
+           "probe reports the codec and the picture subtitles: %s",json);}
+    if(side[0])unlink(side);unlink(output);
 }
 
 // r14: prepare straight from a loopback HTTP source (the phone streams the Drive file), never a downloaded copy.

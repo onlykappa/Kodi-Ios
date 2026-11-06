@@ -146,8 +146,9 @@ class Drive(object):
      self.folders[key]=json.loads(body)['id']
    parent=self.folders[key]
   return parent
- def upload(self,path,parent,sessions,save,keep_going=lambda:True,progress=lambda done,total:None):
-  """Resumable upload; sessions[path] survives a restart. Returns the Drive file's metadata."""
+ def upload(self,path,parent,sessions,save,keep_going=lambda:True,progress=lambda done,total:None,name=None):
+  """Resumable upload; sessions[path] survives a restart. Returns the Drive file's metadata. name: the Drive file's
+  name when it is not the local file's."""
   size=os.path.getsize(path);session=sessions.get(path)
   if session and session.get('size')!=size:session=None
   offset=0
@@ -158,7 +159,7 @@ class Drive(object):
    else:session=None
   if not session:
    status,headers,_=self.call('POST',UPLOAD+'?uploadType=resumable&fields=id,size',
-                              json.dumps({'name':os.path.basename(path),'parents':[parent]}).encode(),
+                              json.dumps({'name':name or os.path.basename(path),'parents':[parent]}).encode(),
                               {'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Length':str(size)})
    location=headers.get('Location') or headers.get('location')
    if status!=200 or not location:raise RuntimeError('Drive upload start: HTTP %s'%status)
@@ -171,6 +172,47 @@ class Drive(object):
     if status in (200,201):return self._done(path,sessions,save,body)
     if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
     offset=_next_offset(headers);progress(offset,size)
+  raise RuntimeError('Drive did not confirm the upload')
+ def upload_stream(self,open_at,size,name,parent,session,save,keep_going=lambda:True,progress=lambda done,total:None):
+  """Resumable upload of a web file straight into Drive, CHUNK at a time: nothing is written to the phone (owner,
+  build 160: AllDebrid straight to Drive). open_at(offset) -> a readable response from that byte on. `session` is a
+  dict kept by the caller ({'url','size'}) so a restart carries on where Drive got to. Returns the Drive file."""
+  offset=0
+  if session.get('url') and session.get('size')==size:
+   status,headers,body=self.call('PUT',session['url'],b'',{'Content-Range':'bytes */%d'%size})
+   if status in (200,201):return json.loads(body or b'{}')
+   if status==308:offset=_next_offset(headers)
+   else:session.clear()
+  if not session.get('url'):
+   status,headers,_=self.call('POST',UPLOAD+'?uploadType=resumable&fields=id,size,md5Checksum',
+                              json.dumps({'name':name,'parents':[parent]}).encode(),
+                              {'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Length':str(size)})
+   location=headers.get('Location') or headers.get('location')
+   if status!=200 or not location:raise RuntimeError('Drive upload start: HTTP %s'%status)
+   session.clear();session.update(url=location,size=size);save();offset=0
+  source=open_at(offset)
+  try:
+   while offset<size:
+    if not keep_going():raise Stop()
+    chunk=b''
+    while len(chunk)<CHUNK and offset+len(chunk)<size:
+     data=source.read(min(CHUNK-len(chunk),1024*1024))
+     if not data:break
+     chunk+=data
+    if not chunk:raise RuntimeError('The download stopped before the end; it will carry on')
+    end=offset+len(chunk)-1
+    status,headers,body=self.call('PUT',session['url'],chunk,{'Content-Range':'bytes %d-%d/%d'%(offset,end,size)})
+    if status in (200,201):progress(size,size);return json.loads(body or b'{}')
+    if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
+    confirmed=_next_offset(headers)
+    if confirmed!=end+1:   # Drive kept less than sent: read again from where it got to
+     try:source.close()
+     except Exception:pass
+     source=open_at(confirmed)
+    offset=confirmed;save();progress(offset,size)
+  finally:
+   try:source.close()
+   except Exception:pass
   raise RuntimeError('Drive did not confirm the upload')
  def _done(self,path,sessions,save,body):
   sessions.pop(path,None);save()

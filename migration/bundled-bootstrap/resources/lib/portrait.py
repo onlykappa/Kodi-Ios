@@ -18,6 +18,10 @@ _spec=_iu.spec_from_file_location('pages',os.path.join(os.path.dirname(os.path.a
 pages=_iu.module_from_spec(_spec);_spec.loader.exec_module(pages)
 _spec=_iu.spec_from_file_location('activity_skin',os.path.join(os.path.dirname(os.path.abspath(__file__)),'activity_skin.py'))
 activity_skin=_iu.module_from_spec(_spec);_spec.loader.exec_module(activity_skin)
+_spec=_iu.spec_from_file_location('library_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_page.py'))
+library_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_page)
+_spec=_iu.spec_from_file_location('notice_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'notice_page.py'))
+notice_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(notice_page)
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -1099,6 +1103,10 @@ def portrait_files(skin,profile):
  files.update(pages.files(types.SimpleNamespace(**globals()),read))
  # The activity pill in place of Kodi's background progress box, which is never drawn (activity_skin.py).
  ns=types.SimpleNamespace(**globals());files.update(activity_skin.files(ns))
+ # Settings › Library › Library status and its details sheet (library_page.py).
+ files.update(library_page.files(ns))
+ # Notifications › a message's details with its part of kodi.log (notice_page.py).
+ files.update(notice_page.files(ns))
  for rel in list(files):
   if rel.startswith(FOLDER+'/'):files[rel]=activity_skin.inject(ns,rel[len(FOLDER)+1:],files[rel])
  # Fullscreen video is landscape: the Apple TV-style controls go into the landscape folder.

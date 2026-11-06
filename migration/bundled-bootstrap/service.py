@@ -155,8 +155,10 @@ def run():
     if xbmcaddon.Addon().getSettingBool('check_on_start'):updates.run(check_only=True)
    except Exception as error:xbmc.log('Kodi iOS update check skipped: '+type(error).__name__,xbmc.LOGWARNING)
   threading.Thread(target=later,daemon=True).start()
- # The bell in the hub headers: unread messages and whether a download or Drive upload runs.
- threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),daemon=True).start()
+ # The bell in the hub headers: unread messages and whether a download or Drive upload runs. Each message also gets
+ # its part of kodi.log, shown when it is tapped.
+ threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),
+  kwargs={'log_path':os.path.join(xbmcvfs.translatePath('special://logpath/'),'kodi.log')},daemon=True).start()
  # A torrent whose real name turns out to be another film (owner, build 156: Fall 2022 → Fall.2.Deadpoint.2026) is
  # stopped once Elementum knows its name, and explained in Notifications.
  import source_guard
@@ -239,6 +241,34 @@ def drive_uploads(monitor,home,profile):
  drive=driveupload.Drive(driveupload.token_source(accounts.get_accounts,accounts.save_account,refresh),send)
  root=str(updates.updates_folder(home).with_name('Kodi Downloads'))
  state=str(profile/'addon_data/service.kodi.ios.bootstrap/drive-uploads.json')
+ # Downloads through AllDebrid go straight to Drive (debrid_drive): its own loop, so a long copy never holds up the
+ # phone-to-Drive uploads or preparation below, and it runs during playback too (network only, no phone storage).
+ def debrid_loop():
+  import alldebrid,debrid_drive,prepare_downloads
+  delay=10
+  while not monitor.waitForAbort(delay):
+   delay=20
+   try:token=xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken')
+   except Exception:token=''
+   # A version played from the source page keeps downloading onto the phone after playback (Elementum's keep
+   # downloading): once nothing plays, AllDebrid takes it to Drive and Elementum drops it (owner, build 160).
+   if token and accounts.get_accounts():
+    try:
+     for tid in debrid_drive.adopt(profile,notices.torrent_list(),xbmc.Player().isPlayingVideo()):
+      driveupload.remove_torrent(tid);xbmc.log('Kodi iOS AllDebrid to Drive: took %s from Elementum'%tid,xbmc.LOGINFO)
+    except Exception as error:xbmc.log('Kodi iOS AllDebrid to Drive: Elementum list unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
+   if not debrid_drive.active(profile) or not accounts.get_accounts():continue
+   try:
+    def done(job):
+     driveupload.invalidate_library(str(profile/'addon_data/service.kodi.ios.bootstrap'))
+     prepare_downloads.request_check(profile)   # preparation for Kodi and AirPlay picks it up from Drive
+    delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text:notices.add(profile,kind,title,text),
+                            keep_going=lambda:not monitor.abortRequested(),on_done=done) or 20
+   except alldebrid.Problem as problem:
+    notices.add(profile,'problem',"Couldn't download to Google Drive",str(problem));delay=300
+   except Exception as error:
+    xbmc.log('Kodi iOS AllDebrid to Drive paused: %s %s'%(type(error).__name__,error),xbmc.LOGWARNING);delay=60
+ threading.Thread(target=debrid_loop,daemon=True).start()
  idle=lambda:not monitor.abortRequested() and not xbmc.Player().isPlayingVideo()
  log=lambda message:xbmc.log('Kodi iOS '+message,xbmc.LOGINFO)
  import library_scan,prepare_downloads
@@ -293,5 +323,6 @@ def drive_uploads(monitor,home,profile):
   except Exception as error:
    xbmc.log('Kodi iOS Drive upload paused: %s %s'%(type(error).__name__,error),xbmc.LOGWARNING)
    notices.add(profile,'problem','Google Drive upload paused',str(error)[:160])
-  if prepare_downloads.check_requested(profile):delay=5
+  # A check or a Library status choice (prepare next, try again, keep) is picked up within seconds.
+  if prepare_downloads.check_requested(profile) or prepare_downloads.pending_requests(profile):delay=5
 if __name__=='__main__':run()

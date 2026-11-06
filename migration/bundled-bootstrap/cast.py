@@ -46,6 +46,12 @@ def run():
  import threading,time,xbmc,xbmcaddon,xbmcgui,xbmcvfs
  xbmc.log('Kodi iOS Play on TV: opened',xbmc.LOGINFO)
  dialog=xbmcgui.Dialog();addon=xbmcaddon.Addon('service.kodi.ios.bootstrap');player=xbmc.Player()
+ # Owner (build 160): "i like have to press it twice". A second press started a second AirPlay session that shut the
+ # first one's stream (and the first, failing, shut the second's). One at a time; the second press is told.
+ home=xbmcgui.Window(10000)
+ if cast.busy(home.getProperty(cast.BUSY),time.time()):
+  xbmc.log('Kodi iOS Play on TV: already starting; second press ignored',xbmc.LOGINFO)
+  dialog.notification('Play on TV','Still connecting to the TV…',xbmcgui.NOTIFICATION_INFO,3000);return
  if not player.isPlayingVideo():dialog.ok('Play on TV','Start a video first.');return
  phone=cast.phone_address()
  url,needs_phone=cast.stream_url(player.getPlayingFile(),phone)
@@ -77,7 +83,9 @@ def run():
  if tv=='fallback':tv=pick_dialogs(xbmc,xbmcgui,dialog,extra,found,done,last)
  if not tv:return
  addon.setSettingString('last_tv',tv['kind']+'|'+tv['host'])
- send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing)
+ home.setProperty(cast.BUSY,str(time.time()))
+ try:send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing)
+ finally:home.clearProperty(cast.BUSY)
 
 def pick_sheet(xbmc,xbmcgui,home,title,note,extra,found,done,last):
  """The TV picked in the sheet, None when closed (or This iPhone), 'fallback' when the sheet cannot load."""
@@ -147,12 +155,21 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
   if subs is not None:xbmc.log('Kodi iOS Play on TV: subtitles for AirPlay %s'%('off' if subs[0]==-1 else 'external file' if subs[1] and subs[0]==-2 else 'stream %d%s'%(subs[0],' (+ external file)' if subs[1] else '')),xbmc.LOGINFO)
  except Exception as error:xbmc.log('Kodi iOS Play on TV: subtitles not passed to AirPlay: %s'%error,xbmc.LOGWARNING)
  lib.kodi_airplay_play(source.encode('utf-8'),(title or '').encode('utf-8'))
+ # Something on screen at once while the TV connects (it can take a while), with Cancel.
+ import xbmcgui
+ progress=xbmcgui.DialogProgress();progress.create('Play on TV','Connecting to the TV… This can take up to a minute.')
+ started=[0.0];monitor=xbmc.Monitor()
+ def wait(seconds):
+  started[0]+=seconds;progress.update(min(95,int(started[0]*100/(60 if converting else 25))))
+  return progress.iscanceled() or monitor.waitForAbort(seconds)
  # Converting first reads the start of the file (over Elementum or Drive): allow longer than a direct link.
- outcome=cast.airplay_outcome(lib.kodi_airplay_state,xbmc.Monitor().waitForAbort,60 if converting else 25)
+ try:outcome=cast.airplay_outcome(lib.kodi_airplay_state,wait,60 if converting else 25)
+ finally:progress.close()
  why=airplay.message(lib)
  # r6: the stream's variant line (CODECS), the receiver's requests and Apple's player events so far; the service
  # keeps relaying the rest while it plays (airplay.relay).
- for line in airplay.log_lines(lib):xbmc.log('Kodi iOS AirPlay: '+line,xbmc.LOGINFO)
+ lines=list(airplay.log_lines(lib))
+ for line in lines:xbmc.log('Kodi iOS AirPlay: '+line,xbmc.LOGINFO)
  xbmc.log('Kodi iOS Play on TV: Apple\'s player %s %s%s'%(outcome,url.split('?',1)[0],(' ('+why+')') if why else ''),xbmc.LOGINFO)
  if outcome=='playing':
   # Owner build-136 log: stopping Kodi's video here (7 ms after "playing") turned the app back to portrait under
@@ -161,9 +178,13 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
   if not xbmc.getCondVisibility('Player.Paused'):player.pause()
   notices.note('info','Playing with AirPlay',title or '');return
  lib.kodi_airplay_close()
+ if xbmc.getCondVisibility('Player.Paused'):player.pause()   # Kodi carries on (also after Cancel)
  if outcome=='aborted':return
- if xbmc.getCondVisibility('Player.Paused'):player.pause()
  if why:notices.note('problem',"AirPlay couldn't play this",why);dialog.ok('Play on TV',cast.CONVERT_FAILED%why)
+ elif converting:
+  # The format was fine (this framework plays or converts it): Apple's player or the TV did not start.
+  problem=cast.player_problem(lines) or 'the TV did not answer'
+  notices.note('problem',"AirPlay didn't start",problem);dialog.ok('Play on TV',cast.NOT_STARTED%problem)
  else:dialog.ok('Play on TV',cast.MIRRORING%cast.format_name(url,playing))
 
 def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):

@@ -91,6 +91,7 @@ jobs:
               binary=z.read('KodiAirPlay.framework/KodiAirPlay')
               assert b'_kodi_airplay_prepare' in binary and b'_kodi_airplay_probe' in binary
               assert b'_kodi_airplay_prepare_streams' in binary   # r14: streamed preparation
+              assert b'_kodi_airplay_prepare_keep_image_subs' in binary   # r15: picture subtitles kept beside the MP4
           PY
           tag=$(python3 -c "import json;print(json.load(open('migration/airplay-ios/source-lock.json'))['framework_release']['tag'])")
           sha=$(python3 -c "import json;print(json.load(open('migration/airplay-ios/source-lock.json'))['source_commit'])")
