@@ -114,8 +114,8 @@ def queue_properties(q):
 
 # --- Phone space ------------------------------------------------------------------------------------------------------
 # (key, name, colour, icon, what it says, can be cleared)
-SPACE_KINDS = (('artwork', 'Artwork cache', 'FF0A84FF', 'film.png', 'Safe to clear · posters come back as you browse', True),
-               ('elementum', 'Elementum leftovers', 'FFFF9F0A', 'download.png', 'Safe to clear · torrents Elementum no longer has', True),
+SPACE_KINDS = (('artwork', 'Artwork cache', 'FF0A84FF', 'film.png', 'Safe to clear · posters come back', True),
+               ('elementum', 'Elementum leftovers', 'FFFF9F0A', 'download.png', 'Safe to clear · no torrent uses them', True),
                ('temp', 'Temporary files', 'FF64D2FF', 'clock-rotate-left.png', 'Safe to clear', True),
                ('data', 'Add-on data', 'FFBF5AF2', 'puzzle-piece.png', 'Keep · your settings and sign-ins', False),
                ('app', 'Kodi app', 'FF8E8E93', 'mobile-screen-button.png', 'Keep · the app itself', False))
@@ -487,7 +487,7 @@ def airplay_steps(session, problem_words=None):
     if has('prepared:'):
         steps.append(('The picture', 'Sent as it is%s: this video is already prepared' % (' (%s)' % what if what else ''), 'ok'))
     elif converted:
-        steps.append(('The picture', 'Converted to H.264 on the phone%s, because this TV needs it' % (' from %s' % what if what else ''), 'ok'))
+        steps.append(('The picture', 'Converted to H.264%s (this TV needs it)' % (' from %s' % what if what else ''), 'ok'))
     elif master:
         steps.append(('The picture', 'Sent as it is' + (' (%s)' % what if what else ''), 'ok'))
     else:

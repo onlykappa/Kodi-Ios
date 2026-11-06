@@ -125,7 +125,8 @@ def space_page(p):
 
     def row(n):
         key = 'space.%d.' % n
-        clear = p.pill_button(CLEAR + n, S + w - 200, (ROW - HIT) // 2, 180, HIT, 'Clear', [('', 'noop')], 'glass', '',
+        # 124: a capsule height portrait.CAPSULES makes a texture for (118 has none).
+        clear = p.pill_button(CLEAR + n, S + w - 200, (ROW - 124) // 2, 180, 124, 'Clear', [('', 'noop')], 'glass', '',
                               '<visible>%s</visible>' % _has(key + 'clear'))
         return ('<control type="group"><width>%d</width><height>%d</height>' % (W, ROW + 12) +
                 p.surface(S - 6, 0, w + 12, ROW, 'round.png', p.SURFACE, 32) +
@@ -187,12 +188,12 @@ def airplay_page(p):
         return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>' % (W, 212, _has(key + 'name')) +
                 p.surface(S - 6, 0, w + 12, 200, 'round.png', p.SURFACE, 32) + icons +
                 p.label(S + 116, 20, w - 140, 44, _P(key + 'name'), 'p_cap', p.GREY, 'left', NOLABEL) +
-                p.label(S + 116, 64, w - 140, 120, _P(key + 'detail'), 'p_pill_s', p.WHITE, 'left', '<wrapmultiline>true</wrapmultiline><aligny>top</aligny>') +
+                p.label(S + 116, 62, w - 140, 112, _P(key + 'detail'), 'p_pill_s', p.WHITE, 'left', '<wrapmultiline>true</wrapmultiline>') +
                 '</control>')
     tip = ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>' % (W, 340, _has('try')) +
            _section(p, 'What to try', 'true').replace('<control type="group">', '<control type="group"><top>0</top>', 1) +
            '<control type="group"><top>96</top>' + p.surface(S - 6, 0, w + 12, 230, 'round.png', p.SURFACE, 32) +
-           p.label(S + 24, 20, w - 48, 190, _P('try'), 'p_pill_s', p.WHITE, 'left', '<wrapmultiline>true</wrapmultiline><aligny>top</aligny>') +
+           p.label(S + 24, 20, w - 48, 190, _P('try'), 'p_pill_s', p.WHITE, 'left', '<wrapmultiline>true</wrapmultiline>') +
            '</control></control>')
     headline = ''.join(p.label(S, 340, w, 70, _P('headline'), 'p_h3', colour, 'left', NOLABEL + '<visible>%s</visible>' % _is('tone', tone))
                        for tone, colour in (('ok', p.GREEN), ('bad', RED)))
@@ -206,7 +207,7 @@ def airplay_sheet():
     """1080i/IOSAirPlayCheck.xml: the same check as a sheet over the video (Play on TV › Last time), on Fuse's 1920x1080
     canvas with Fuse's fonts, like the Play on TV sheet."""
     MEDIA, ICONS = 'special://skin/extras/portrait/', 'special://skin/extras/icons/'
-    w, row, top = 1100, 120, 40
+    w, row, top = 1400, 120, 40
 
     def img(x, y, w, h, tex, color='FFFFFFFF', extra='', border=''):
         return ('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texture%s colordiffuse="%s">%s</texture>%s</control>'
@@ -225,14 +226,16 @@ def airplay_sheet():
                 (img(120, 0, w - 160, 2, MEDIA + 'white.png', '1AFFFFFF') if n > 1 else '') + icons +
                 lab(120, 10, 300, 40, _P(key + 'name'), 'font_mini', '99EBEBF5') +
                 lab(120, 48, w - 160, 60, _P(key + 'detail'), 'font_main_bold') + '</control>')
-    height = 150 + STEPS * row + 150
+    height = 150 + STEPS * row + 160
     body = ('<control type="image"><left>0</left><top>0</top><width>100%%</width><height>100%%</height><texture colordiffuse="73000000">%swhite.png</texture></control>' % MEDIA +
             '<control type="button" id="9099"><left>0</left><top>0</top><width>100%%</width><height>100%%</height><texturefocus /><texturenofocus />'
             '<onclick>Close</onclick><onfocus>SetFocus(%d)</onfocus></control>' % CLOSE +
             '<control type="group"><centerleft>50%%</centerleft><top>%d</top><width>%d</width>' % (top, w) +
             '<animation effect="zoom" start="94" end="100" center="auto" time="220" tween="back" easing="out">WindowOpen</animation>'
             '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation><animation effect="fade" start="100" end="0" time="120">WindowClose</animation>' +
-            img(0, 0, w, height, MEDIA + 'sheet_l.png', border='40') +
+            # As tall as it needs: the "What to try" part only when something went wrong.
+            img(0, 0, w, height, MEDIA + 'sheet_l.png', border='40', extra='<visible>%s</visible>' % _has('try')) +
+            img(0, 0, w, height - 120, MEDIA + 'sheet_l.png', border='40', extra='<visible>!%s</visible>' % _has('try')) +
             img(36, 40, 76, 76, MEDIA + 'dot.png', '1FFFFFFF') + img(55, 59, 38, 38, MEDIA + 'airplay.png') +
             lab(134, 30, w - 300, 56, _P('title'), 'font_head_bold') +
             lab(134, 84, w - 300, 40, '%s · %s' % (_P('headline'), _P('when')), 'font_mini', '99EBEBF5', 'left', '<visible>%s</visible>' % _has('headline')) +

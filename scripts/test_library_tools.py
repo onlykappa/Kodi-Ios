@@ -205,7 +205,7 @@ class AirPlayCheck(unittest.TestCase):
    check=lt.airplay_steps(s)
    self.assertEqual(check['tone'],'ok');self.assertEqual(check['try'],'')
    self.assertEqual([x[1] for x in check['steps']],['A TV with AirPlay built in (TCL-Roku)',
-                    'Converted to H.264 on the phone from HEVC 4K HDR, because this TV needs it','The TV asked for the video (2 parts sent)',
+                    'Converted to H.264 from HEVC 4K HDR (this TV needs it)','The TV asked for the video (2 parts sent)',
                     'AirPlay ended on the TV after 21 min'])
  def test_a_tv_that_never_asked(self):
   import cast
