@@ -2,7 +2,7 @@
 earlier messages. The layout is portrait/IOSNotifications.xml, written by portrait.py; this fills it."""
 import os,sys,threading
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
-import notices,prepare_downloads
+import notice_page,notices,prepare_downloads
 
 ICON={'download':('download.png','330A84FF'),'drive':('circle-check.png','3330D158'),'problem':('triangle-exclamation.png','33FF453A'),
       'update':('circle-down.png','330A84FF'),'info':('circle-info.png','33FF9F0A'),'general':('bell.png','338E8E93')}
@@ -35,10 +35,63 @@ def message_properties(items,filter_key,now=None):
                 'msg.%d.icon'%n:glyph,'msg.%d.tint'%n:tint,'msg.%d.unread'%n:'true' if i and not i.get('was_read') else ''})
  return props,shown
 
+KIND_WORDS={'download':'Downloads','drive':'Google Drive','problem':'Problem','update':'Update','info':'Kodi iOS','general':'General'}
+NO_LOG='Kodi wrote nothing else about this around that time.'
+
+def short(text):
+ """Log text for a phone screen: app folders cut to their last parts."""
+ import re
+ return re.sub(r'/(?:private/)?var/(?:mobile|containers)/\S*?/((?:[^/\s"]+/)?[^/\s"]+)(?=["\s,:)]|$)',r'…/\1',str(text))
+
+def detail_properties(item,records,now=None):
+ """Window properties for the details sheet (portrait/IOSNoticeDetail.xml) and its log rows [(label, label2, level)]."""
+ import time as _time
+ glyph,tint=ICON.get(item.get('kind'),ICON['info'])
+ worst=next((r for level in ('error','fatal','warning') for r in reversed(records) if r['level']==level),None)
+ props={'title':item.get('title',''),'text':item.get('text',''),'icon':glyph,'tint':tint,
+        'ago':' · '.join(x for x in (KIND_WORDS.get(item.get('kind'),'Kodi iOS'),notices.ago(item['time'],now) if item.get('time') else '') if x),
+        'summary':short(notices.plain_record(worst)) if worst else '','nolog':'' if records else NO_LOG,
+        'action.label':'Open' if item.get('action') else ''}
+ rows=[]
+ for r in reversed(records):     # newest first, as the messages are
+  count=r.get('count',1)
+  when=_time.strftime('%H:%M:%S',_time.localtime(r['time']))
+  rows.append((short(notices.plain_record(r)),'%s · %s%s'%(when,r['level'].capitalize(),' · %d times'%count if count>1 else ''),
+               r['level'] if r['level'] in ('error','warning') else 'info'))
+ return props,rows
+
+def records_for(profile,item,log_path=None):
+ """The kodi.log records kept for a message; for one from before they were kept, read now from this launch's log."""
+ if 'log' in item:return notices.log_of(profile,item)
+ if not log_path:return []
+ try:
+  with open(log_path,'rb') as handle:
+   handle.seek(0,2);size=handle.tell();handle.seek(max(0,size-2*1024*1024))
+   return notices.excerpt(notices.parse_log(handle.read().decode('utf-8','replace')),item.get('time',0),item.get('title',''))
+ except OSError:return []
+
 def run():
  import xbmc,xbmcgui,xbmcvfs
  profile=xbmcvfs.translatePath('special://profile/')
  home=os.path.dirname(os.path.abspath(__file__))
+ log_path=os.path.join(xbmcvfs.translatePath('special://logpath/'),'kodi.log')
+
+ class Detail(xbmcgui.WindowXMLDialog):
+  def setup(self,props,rows):
+   self.props,self.rows,self.chosen=props,rows,False
+  def onInit(self):
+   for key,value in self.props.items():self.setProperty(key,value)
+   items=[]
+   for label,label2,level in self.rows:
+    li=xbmcgui.ListItem(label,label2);li.setProperty('level',level);items.append(li)
+   try:
+    listing=self.getControl(notice_page.LOG);listing.reset();listing.addItems(items)
+   except Exception as error:_quiet('notifications:detail',error)
+  def onAction(self,action):
+   if action.getId() in BACK:self.close()
+  def onClick(self,control):
+   if control==notice_page.ACTION and self.props.get('action.label'):self.chosen=True;self.close()
+   elif control in (notice_page.CLOSE,notice_page.DIM):self.close()
 
  class Page(xbmcgui.WindowXMLDialog):
   def onInit(self):
@@ -102,9 +155,15 @@ def run():
     if not notices.engine_action(command,d['id']):xbmcgui.Dialog().notification('Elementum','The download engine did not answer',xbmcgui.NOTIFICATION_WARNING,3000)
     self.refresh()
    elif 9501<=control<=9500+ROWS:
+    # Owner (build 159): a message opens its details and its part of kodi.log; its own action (if any) is a button there.
     n=control-9500
-    if n<=len(self.shown) and self.shown[n-1].get('action'):
-     self.finish();xbmc.executebuiltin(self.shown[n-1]['action'])
+    if n>len(self.shown):return
+    item=self.shown[n-1]
+    sheet=Detail(notice_page.SHEET,home,'Default','1080i')
+    sheet.setup(*detail_properties(item,records_for(profile,item,log_path)))
+    sheet.doModal();chosen=sheet.chosen;del sheet
+    if chosen and item.get('action'):
+     self.finish();xbmc.executebuiltin(item['action'])
 
  page=Page('IOSNotifications.xml',home,'Default','1080i')
  page.doModal();page.stop.set() if hasattr(page,'stop') else None

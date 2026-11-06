@@ -155,8 +155,10 @@ def run():
     if xbmcaddon.Addon().getSettingBool('check_on_start'):updates.run(check_only=True)
    except Exception as error:xbmc.log('Kodi iOS update check skipped: '+type(error).__name__,xbmc.LOGWARNING)
   threading.Thread(target=later,daemon=True).start()
- # The bell in the hub headers: unread messages and whether a download or Drive upload runs.
- threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),daemon=True).start()
+ # The bell in the hub headers: unread messages and whether a download or Drive upload runs. Each message also gets
+ # its part of kodi.log, shown when it is tapped.
+ threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),
+  kwargs={'log_path':os.path.join(xbmcvfs.translatePath('special://logpath/'),'kodi.log')},daemon=True).start()
  # A torrent whose real name turns out to be another film (owner, build 156: Fall 2022 → Fall.2.Deadpoint.2026) is
  # stopped once Elementum knows its name, and explained in Notifications.
  import source_guard
