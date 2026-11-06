@@ -12,7 +12,7 @@ import urllib.request
 LIMIT = 8 * 1024 * 1024  # torrent metadata only, never media
 
 
-def torrent_hash(data):
+def torrent_hash(data, with_name=False):
     """Hash the original bencoded info span (re-encoding can change the torrent hash)."""
     def end(pos, depth=0):
         if depth > 64 or pos >= len(data):
@@ -39,7 +39,18 @@ def torrent_hash(data):
         pos = end(pos)
         stop = end(pos)
         if key == b'info':
-            return hashlib.sha1(data[pos:stop]).hexdigest()
+            h=hashlib.sha1(data[pos:stop]).hexdigest()
+            name=''
+            if with_name and data[pos:pos+1]==b'd':
+                at=pos+1
+                while data[at:at+1]!=b'e':
+                    colon=data.index(b':',at);field=data[colon+1:end(at)];at=end(at)
+                    finish=end(at)
+                    if field in (b'name',b'name.utf-8'):
+                        colon=data.index(b':',at);name=data[colon+1:finish].decode('utf-8','replace')
+                        if field==b'name.utf-8':break
+                    at=finish
+            return (h,name) if with_name else h
         pos = stop
     raise ValueError('Torrent has no info dictionary')
 
@@ -72,7 +83,8 @@ def selected(url, read=None):
                 path = xbmcvfs.translatePath(uri)
                 with open(path, 'rb') as f:data = f.read(LIMIT + 1)
         else:data = read(uri)
-        h = torrent_hash(data)
+        h, torrent_name = torrent_hash(data, with_name=True)
+        name = name or torrent_name
     if len(h) != 40 or any(c not in '0123456789abcdefABCDEF' for c in h):
         raise ValueError('The selected torrent has no supported info-hash')
     return dict(q, hash=h.lower(), name=name)
@@ -106,7 +118,6 @@ def route(url):
             return True
         mode = dialog.select('Save to Google Drive', ['Download only', 'Download and watch after preparation'])
         if mode < 0:return True
-        profile = xbmcvfs.translatePath('special://profile/')
         name = choice['name'] or choice['hash']
         info = drivelibrary.parse(name)
         kind = 'episode' if choice.get('episode') else ('season' if choice.get('season') else debrid_drive.kind_of(name))

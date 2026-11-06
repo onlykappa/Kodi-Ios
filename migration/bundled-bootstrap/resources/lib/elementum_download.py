@@ -1,8 +1,8 @@
 """Download with Elementum (long press › Download, and Download on a show's seasons page).
 
-Elementum's own download action searches the sources and fetches in the background without playing. For a
-season it picks a season pack but fetches only one file of it, so the pack is then switched to "download all".
-Kept downloads go to Google Drive through the bootstrap service (driveupload), as before."""
+Elementum searches the sources; selected /download and /play redirects are intercepted by elementum_cloud
+before its local downloader starts. These helpers retain the existing movie/season/episode picker entry points.
+"""
 import json,time,urllib.parse,urllib.request
 ENGINE='http://127.0.0.1:65220'
 PLUGIN='plugin://plugin.video.elementum'

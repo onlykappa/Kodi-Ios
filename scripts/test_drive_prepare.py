@@ -121,8 +121,15 @@ class Queue(unittest.TestCase):
  def test_bad_output_keeps_original_untagged(self):
   self.n.bad=True;self.assertFalse(self.q.process_one())
   self.assertEqual(self.d.files['source']['data'],b'original');self.assertFalse(prep.ready(self.d.meta('source')))
- def test_completed_temp_is_reused_after_interruption(self):
+ def test_invalid_completed_temp_is_regenerated_on_retry(self):
   self.n.bad=True;self.assertFalse(self.q.process_one());self.n.bad=False
+  self.q.state['jobs']['slot']['retry_after']=0
+  self.assertTrue(self.q.process_one());self.assertEqual(self.n.calls,2)
+
+ def test_transient_verification_failure_reuses_valid_completed_temp(self):
+  verify=self.n.verify
+  self.n.verify=lambda *args:(_ for _ in ()).throw(OSError('network'))
+  self.assertFalse(self.q.process_one());self.n.verify=verify
   self.q.state['jobs']['slot']['retry_after']=0
   self.assertTrue(self.q.process_one());self.assertEqual(self.n.calls,1)
 

@@ -41,7 +41,7 @@ def process_one(q, keep_going):
             if output.get('moved'):continue
             try:drivelibrary.trash(q.drive,output['id'])
             except Exception:return False
-        job.pop('cloud_output',None);q.commit();return True
+        job.pop('cloud_output',None);job.pop('cloud_replace',None);q.commit();return True
     outputs = job.setdefault('cloud_output',{})
     temp_id = None
     try:
@@ -72,10 +72,19 @@ def process_one(q, keep_going):
                 main=outputs['0']
             temp_id=main['id'];target=q.stream.url(temp_id)
             progress('Verifying the Drive file and seek index',82)
-            after=q.native.probe(target);before=job.get('probe') or q.native.probe(source)
-            if not after.get('ready') or (before['width'],before['height'],before['hdr']) != (after['width'],after['height'],after['hdr']):
-                raise RuntimeError('Prepared video did not preserve resolution/HDR; original retained')
-            q.native.verify(source,target)  # duration, all tracks, middle/end index seeks over HTTP
+            try:
+                fresh=prep.metadata(q.drive,temp_id)
+                if (fresh['md5Checksum'].lower(),int(fresh['size'])) != (main['md5Checksum'].lower(),int(main['size'])):
+                    raise RuntimeError('Prepared Drive file checksum differs; original retained')
+                after=q.native.probe(target);before=job.get('probe') or q.native.probe(source)
+                if not after.get('ready') or (before['width'],before['height'],before['hdr']) != (after['width'],after['height'],after['hdr']):
+                    raise RuntimeError('Prepared video did not preserve resolution/HDR; original retained')
+                q.native.verify(source,target)  # duration, all tracks, middle/end index seeks over HTTP
+            except driveupload.Stop:raise
+            except Exception as error:
+                # Network interruptions can retry a valid completed object; invalid output must be regenerated.
+                if isinstance(error,RuntimeError) and any(word in str(error).lower() for word in ('validation','preserve','checksum')):clear_temps()
+                raise
             # Move tiny subtitle sidecars beside the movie before replacing its source.
             parents=current.get('parents') or []
             if any(k!='0' for k in outputs) and not parents:raise RuntimeError('Drive did not describe the video folder')

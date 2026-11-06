@@ -1,11 +1,10 @@
 """Downloads that go straight to Google Drive through AllDebrid (owner, build 160: "a movie im downloading goes onto my
 phone still … if i do a large movie it wont ever download"; chose "AllDebrid straight to Drive").
 
-Download › a version, as before; download.py then takes the torrent back from Elementum (with what it had fetched) and
-queues it here. The bootstrap service gives AllDebrid the torrent, waits while AllDebrid fetches it on its own servers,
-then copies each video into Google Drive › Kodi Downloads › Movies (or › TV Shows › <show>), CHUNK at a time:
-nothing is written to the phone, so any size works. A restart carries on where Drive got to. Preparation for Kodi
-and AirPlay then reads it from Drive as it does every other download.
+Elementum's navigation and dedicated Download action queue the selected URI before its local engine starts.
+AllDebrid fetches the torrent on its servers, then the service copies each video to Drive in bounded RAM chunks.
+Nothing is written to phone media storage. Both download modes use this path; watch requests wait for a prepared
+Drive copy. A restart resumes acknowledged Drive ranges. Legacy local torrents still use adopt() below.
 
 State: addon_data/service.kodi.ios.bootstrap/debrid-drive.json {'jobs': [...], 'current': {...}}.
 """

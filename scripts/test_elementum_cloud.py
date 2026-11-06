@@ -22,7 +22,8 @@ class Selected(unittest.TestCase):
   self.assertEqual(cloud.selected(url(uri=m))['hash'],H)
  def test_torrent_hash_uses_original_info_bytes(self):
   info=b'd4:name5:Movie6:lengthi123ee';torrent=b'd8:announce3:url4:info'+info+b'e'
-  self.assertEqual(cloud.selected(url(uri='/Movie.torrent'),read=lambda _:torrent)['hash'],hashlib.sha1(info).hexdigest())
+  choice=cloud.selected(url(uri='/Movie.torrent'),read=lambda _:torrent)
+  self.assertEqual(choice['hash'],hashlib.sha1(info).hexdigest());self.assertEqual(choice['name'],'Movie')
  def test_browsing_and_other_plugins_are_ignored(self):
   for value in ('plugin://plugin.video.elementum/movie/3/links','plugin://other/play?uri='+H,'https://example.com/play?uri='+H):
    self.assertIsNone(cloud.selected(value))
