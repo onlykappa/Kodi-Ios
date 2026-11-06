@@ -325,7 +325,7 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
     for(int i=0;i<=TRACKS;i++){sinks[i].write=writer;sinks[i].context=writer_context;sinks[i].track=i;}
     snprintf(sinks[0].suffix,sizeof sinks[0].suffix,".mp4");
     AVFormatContext *original=NULL,*out=NULL,*side[TRACKS]={0};input_track ins[TRACKS]={0};subtitle subs[TRACKS]={0};
-    int ninputs=1,r=-1,header=0,mapped=0;char partial[4096],spools[TRACKS][4096]={{0}},sides[TRACKS][4200]={{0}};
+    int ninputs=1,r=-1,header=0,mapped=0,skipped_subs=0;char partial[4096],spools[TRACKS][4096]={{0}},sides[TRACKS][4200]={{0}};
     if(err && en>0)*err=0;
     if(!local_input(input) || (!writer && (!output || output[0]!='/' || !strcmp(input,output))))return fail(err,en,"A local or loopback input and a separate local output are required",0);
     snprintf(partial,sizeof partial,"%s.partial",output?output:"stream");
@@ -431,7 +431,11 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
         if(pick==0 && di==SIDECAR) {
             AVStream *from=in->f->streams[si],*to=side[si]->streams[0];
             av_packet_rescale_ts(p,from->time_base,to->time_base);p->stream_index=0;p->pos=-1;
-            q=av_write_frame(side[si],p);if(q<0){fail(err,en,"Picture subtitle packet",q);goto end;}
+            // r19 (owner, build 168: Inception failed after 30 min on "Picture subtitle packet: Invalid data"): a
+            // malformed or empty PGS packet is skipped; the rest of the subtitles and the movie carry on.
+            q=p->size>0?av_write_frame(side[si],p):0;
+            if(q==AVERROR_INVALIDDATA || q==AVERROR(EINVAL)){skipped_subs++;(void)skipped_subs;q=0;}
+            if(q<0){fail(err,en,"Picture subtitle packet",q);goto end;}
             q=next(in);if(q<0){fail(err,en,"Source read",q);goto end;}
             continue;
         }

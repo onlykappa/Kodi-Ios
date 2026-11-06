@@ -339,12 +339,10 @@ def drive_uploads(monitor,home,profile):
       preparation.runtime=runtime
       preparation.scan(can_prepare,force=bool(count))
       # Explicit rescans pause conversion, then the worker resumes the queue.
-      # Owner (build 168): Fall's copy from AllDebrid crawled while Inception's conversion also read and wrote Drive.
-      # A download being copied goes first; preparation pauses (it resumes where it was) and carries on after.
-      import debrid_drive
-      converting=lambda:can_prepare() and not prepare_downloads.check_requested(profile) and not debrid_drive.copying(profile)
-      if debrid_drive.copying(profile):delay=30   # waits its turn instead of starting and pausing every pass
-      elif preparation.process_one(converting):delay=2
+      # Build 169 made preparation wait for AllDebrid copies; with copies at 6-8 MB/s (build-169 log) both run at once
+      # again, so conversion never sits paused behind an hour-long download.
+      converting=lambda:can_prepare() and not prepare_downloads.check_requested(profile)
+      if preparation.process_one(converting):delay=2
       else:delay=30
      preparation.runtime=None
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))

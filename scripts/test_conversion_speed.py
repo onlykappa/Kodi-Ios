@@ -59,4 +59,15 @@ class HardwareHDR(unittest.TestCase):
   self.assertLess(c.index('if (!j->enc) j->hdr_pass ='),c.index('if (!j->enc) j->gpu ='))
   self.assertIn('--enable-decoder=av1 --enable-hwaccel=av1_videotoolbox',(ROOT/'migration/airplay-ios/build-remux-ffmpeg.sh').read_text())
 
+class Build169Log(unittest.TestCase):
+ def test_bad_subtitle_packet_skipped_not_fatal(self):
+  c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
+  self.assertIn('if(q==AVERROR_INVALIDDATA || q==AVERROR(EINVAL)){skipped_subs++',c)
+ def test_converter_hangups_not_logged_as_errors(self):
+  s=(LIB/'drive_stream.py').read_text()
+  self.assertIn('def handle_error(self, request, client_address):',s);self.assertIn('ConnectionResetError',s)
+ def test_conversion_runs_alongside_downloads(self):
+  src=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
+  self.assertNotIn('debrid_drive.copying(profile)',src)
+
 if __name__=='__main__':unittest.main()

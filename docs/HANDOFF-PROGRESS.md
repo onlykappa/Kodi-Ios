@@ -23,6 +23,14 @@
 - Each Drive copy chunk logs its source-read and Drive-send times and MB/s (`driveupload.upload_stream`), so the next log shows which side is slow.
 - While an AllDebrid file is being copied into Drive, preparation waits its turn; it resumes afterwards (`debrid_drive.copying`, service loop).
 
+## Build 170 (from the build-169 log, owner: "downloading is alot quicker", "converting is having issues still")
+- Copy speed is fixed: AllDebrid 12–17 MB/s in, Drive 6–8 MB/s out (it was 0.2 MB/s).
+- Inception (build 168, 05:08) failed after 30 min on "Picture subtitle packet: Invalid data" (r15 sidecar writer). r19: a malformed or empty PGS packet is skipped, not fatal (`kr_prepare.c`).
+- Interstellar (07:03) failed after about 2 h on "Preparation upload did not acknowledge its byte range". `drive_prepare.Sink._send` now keeps what Drive confirmed (partial 308) and resends the rest; it retries lost answers and 5xx up to 8 times with backoff.
+- The 169 rule "preparation waits for AllDebrid copies" kept Inception paused; removed (both run at once).
+- "Connection reset by peer" tracebacks from the loopback Drive reader (the converter hangs up when it seeks) are no longer logged (`drive_stream._Server.handle_error`).
+- Steps: native CI for r19 → pin (previous r18 88b2182d…) → publish → import-review build 170 → verify.
+
 ## Build 169 additions (owner: iPhone 16 Pro, "add the decoder and everything you recommend", no torrent filter yet)
 - KodiAirPlay r18 source (kr_video.c): HDR kept at its size passes the decoder's P010 VideoToolbox frames (AV1/HEVC hardware decode) straight to hevc_videotoolbox Main10. Before, the GPU path skipped HDR, so every 4K 10-bit frame was copied to the CPU and back. If the phone refuses once, the CPU path is used for the rest of the session.
 - `app_state.Pace`: no CPU cap while Kodi is on screen; 60% of a core in the background (iOS kills apps over 80% for 60 s). If the state is unknown, it counts as background.

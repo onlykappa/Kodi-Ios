@@ -23,6 +23,14 @@ class _Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
+    def handle_error(self, request, client_address):
+        # The converter hangs up whenever it seeks (owner, build 169 log: dozens of "Connection reset by peer"
+        # tracebacks a minute). That is normal here; anything else is still reported.
+        import sys
+        if isinstance(sys.exc_info()[1], (ConnectionResetError, BrokenPipeError, ConnectionAbortedError, TimeoutError)):
+            return
+        super().handle_error(request, client_address)
+
 
 class DriveStream(object):
     def __init__(self, token, context=None, open_url=None):

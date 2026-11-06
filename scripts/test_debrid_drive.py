@@ -160,9 +160,7 @@ class OneAtATimeOnTheConnection(unittest.TestCase):
    self.assertFalse(debrid_drive.copying(p))
    debrid_drive.save(p,{'jobs':[],'current':{'stage':'copying','sent':1,'total':2}});self.assertTrue(debrid_drive.copying(p))
    debrid_drive.save(p,{'jobs':[],'current':{'stage':'fetching','sent':1,'total':2}});self.assertFalse(debrid_drive.copying(p))
-  src=(BOOT/'service.py').read_text()
-  self.assertIn("if debrid_drive.copying(profile):delay=30",src)
-  self.assertIn("and not debrid_drive.copying(profile)",src)
+  # build 170: preparation no longer waits for copies (they run at 6-8 MB/s now)
  def test_each_chunk_reports_both_sides(self):
   src=(LIB/'driveupload.py').read_text()
   self.assertIn("MB/s from the source), sent in %.1f s (%.2f MB/s to Google Drive)",src)

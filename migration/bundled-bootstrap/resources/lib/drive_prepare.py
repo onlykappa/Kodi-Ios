@@ -42,27 +42,47 @@ class Sink:
         # Keep the last chunk until generation succeeds: cancellation cannot commit a truncated movie.
         while len(t['buffer']) > t['chunk']:self._send(t, t['chunk'], final=False)
 
-    def _send(self, t, length, final):
-        if not self.keep_going():raise driveupload.Stop('Preparation paused')
-        start, end = t['offset'], t['offset'] + length
-        body = bytes(t['buffer'][:length])
-        content_range='bytes %d-%d/%s' % (start,end-1,str(end) if final else '*')
-        try:status,headers,answer=self.drive.call('PUT',t['url'],body,{'Content-Range':content_range})
-        except (urllib.error.URLError,TimeoutError,ConnectionError):
-            # The server may have committed the bytes before its acknowledgement was lost.
-            status,headers,answer=self.drive.call('PUT',t['url'],b'',{'Content-Range':'bytes */%s'%(str(end) if final else '*')})
-            if status==308 and driveupload._next_offset(headers)==start:
-                status,headers,answer=self.drive.call('PUT',t['url'],body,{'Content-Range':content_range})
-        if final:
-            if status not in (200, 201):raise RuntimeError('Preparation upload finish: HTTP %d' % status)
-            result = json.loads(answer)
-            if int(result.get('size', -1)) != end or result.get('md5Checksum', '').lower() != t['md5'].hexdigest():
-                raise RuntimeError('Prepared Drive file checksum differs')
-            t['result'] = result
-        elif status != 308 or driveupload._next_offset(headers) != end:
-            raise RuntimeError('Preparation upload did not acknowledge its byte range')
-        del t['buffer'][:length]
-        t['offset'] = end
+    def _send(self, t, length, final, attempts=8, sleep=None):
+        """Send the first `length` buffered bytes. Drive may keep only part of a chunk (308 with a shorter Range) or
+        answer 5xx: what it confirmed is dropped from the buffer and the rest is sent again (owner, build 169:
+        Interstellar failed after two hours on "did not acknowledge its byte range")."""
+        import time
+        sleep = sleep or time.sleep
+        target = t['offset'] + length
+        for attempt in range(attempts):
+            if not self.keep_going():raise driveupload.Stop('Preparation paused')
+            start = t['offset']
+            remaining = target - start
+            body = bytes(t['buffer'][:remaining])
+            content_range = 'bytes %d-%d/%s' % (start, target - 1, str(target) if final else '*')
+            try:status, headers, answer = self.drive.call('PUT', t['url'], body, {'Content-Range':content_range})
+            except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):
+                status, headers, answer = 0, {}, b''
+            if final and status in (200, 201):
+                result = json.loads(answer)
+                if int(result.get('size', -1)) != target or result.get('md5Checksum', '').lower() != t['md5'].hexdigest():
+                    raise RuntimeError('Prepared Drive file checksum differs')
+                t['result'] = result
+                del t['buffer'][:remaining]
+                t['offset'] = target
+                return
+            if status != 308:
+                # Lost answer or a Drive hiccup: ask how far it got, then carry on from there.
+                sleep(min(30, 2 ** attempt))
+                try:status, headers, answer = self.drive.call('PUT', t['url'], b'', {'Content-Range':'bytes */%s' % (str(target) if final else '*')})
+                except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):continue
+                if final and status in (200, 201):
+                    result = json.loads(answer)
+                    if int(result.get('size', -1)) == target and result.get('md5Checksum', '').lower() == t['md5'].hexdigest():
+                        t['result'] = result;del t['buffer'][:remaining];t['offset'] = target;return
+                    raise RuntimeError('Prepared Drive file checksum differs')
+                if status != 308:continue
+            got = driveupload._next_offset(headers) if headers.get('Range') or headers.get('range') else start
+            if got < start or got > target:raise RuntimeError('Preparation upload offset is invalid')
+            del t['buffer'][:got - start]
+            t['offset'] = got
+            if got == target and not final:return
+        raise RuntimeError('Preparation upload did not acknowledge its byte range')
 
     def finish(self):
         # Finish sidecars first. A failed main output leaves its source intact.

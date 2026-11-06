@@ -209,4 +209,23 @@ class Queue(unittest.TestCase):
   self.assertFalse(self.q.process_one());self.assertNotIn('temp-1',self.d.files)
   self.assertEqual(self.d.files['source']['data'],b'original');self.assertEqual(self.n.calls,1)
 
+
+class PartialAcknowledgements(unittest.TestCase):
+ """Owner (build 169 log): Interstellar failed after two hours: "Preparation upload did not acknowledge its byte range"."""
+ def test_partial_keep_and_hiccup_carry_on(self):
+  import drive_prepare
+  class D:
+   def __init__(s):s.got=b'';s.calls=0
+   def call(s,method,url,body=b'',headers=None):
+    s.calls+=1;cr=headers['Content-Range']
+    if cr.startswith('bytes */'):return 308,{'Range':'bytes=0-%d'%(len(s.got)-1)} if s.got else {},b''
+    a=int(cr[6:].split('-')[0])
+    if s.calls==1:s.got+=body[:len(body)//2];return 308,{'Range':'bytes=0-%d'%(len(s.got)-1)},b''   # half kept
+    if s.calls==2:return 503,{},b''                                                                     # hiccup
+    s.got=s.got[:a]+body;return 308,{'Range':'bytes=0-%d'%(len(s.got)-1)},b''
+  d=D();sink=drive_prepare.Sink(d,'p','x',lambda:True)
+  t=dict(url='u',offset=0,buffer=bytearray(b'a'*1000),md5=None,name='x',chunk=1000)
+  sink._send(t,1000,final=False,sleep=lambda s:None)
+  self.assertEqual((t['offset'],len(t['buffer']),d.got),(1000,0,b'a'*1000))
+
 if __name__=='__main__':unittest.main()
