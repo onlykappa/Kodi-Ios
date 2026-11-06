@@ -148,4 +148,30 @@ class Queue(unittest.TestCase):
   self.assertFalse(self.q.process_one());self.assertNotIn('temp-1',self.d.files);self.assertEqual(self.n.calls,1)
   self.assertIn('source',self.d.files)
 
+ def test_cleanup_journal_survives_restart_and_library_rescan(self):
+  with patch.object(dp,'discard',side_effect=SystemExit('simulated process exit')):
+   with self.assertRaises(SystemExit):self.q.process_one()
+  self.assertTrue(prep.ready(self.d.meta('source')));self.assertIn('temp-1',self.d.files)
+  q=prep.Queue(self.tmp.name,self.d,self.n,stream=Stream())
+  with patch.object(prep.library_scan,'remote_files',return_value=[self.d.meta('source')]):q.scan(force=True)
+  self.assertNotIn('slot',q.state['jobs'])
+  self.assertFalse(q.process_one());self.assertNotIn('temp-1',self.d.files)
+  self.assertEqual(q.state['staging_cleanup'],[]);self.assertEqual(self.n.calls,1)
+
+ def test_changed_source_rescan_journals_unused_output_before_removing_its_job(self):
+  self.n.verify=lambda *args:(_ for _ in ()).throw(OSError('network'))
+  self.assertFalse(self.q.process_one());self.assertIn('temp-1',self.d.files)
+  self.d.files['source'].update(data=b'changed original',version='2')
+  with patch.object(prep.library_scan,'remote_files',return_value=[self.d.meta('source')]):self.q.scan(force=True)
+  self.assertNotIn('slot',self.q.state['jobs']);self.assertIn('temp-1',self.q.state['staging_cleanup'])
+  for job in self.q.state['jobs'].values():job['kept']=True
+  self.assertFalse(self.q.process_one());self.assertNotIn('temp-1',self.d.files)
+  self.assertEqual(self.d.files['source']['data'],b'changed original')
+ def test_keep_original_cleans_unused_output_without_starting_another_conversion(self):
+  self.n.verify=lambda *args:(_ for _ in ()).throw(OSError('network'))
+  self.assertFalse(self.q.process_one());self.assertIn('temp-1',self.d.files)
+  prep.request(self.tmp.name,'keep','source')
+  self.assertFalse(self.q.process_one());self.assertNotIn('temp-1',self.d.files)
+  self.assertEqual(self.d.files['source']['data'],b'original');self.assertEqual(self.n.calls,1)
+
 if __name__=='__main__':unittest.main()

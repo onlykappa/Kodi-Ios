@@ -10,15 +10,16 @@ import prepare_downloads as prep
 
 
 def process_one(q, keep_going):
+    # Cleanup is independent of jobs: a library rescan can remove completed or superseded jobs.
+    # Journal before deleting, and retry 404 safely if a process exited after Drive acknowledged deletion.
+    pending=q.state.setdefault('staging_cleanup',[])
+    for item_id in list(pending):
+        try:drive_prepare.discard(q.drive,item_id)
+        except Exception:continue
+        pending.remove(item_id);q.commit()
+    if pending:return False
     for j in q.state['jobs'].values():
         if j.pop('space',None):j['retry_after']=0
-        if j.get('status')=='done' and j.get('cloud_output'):
-            left={}
-            for track,output in j['cloud_output'].items():
-                if output.get('moved'):continue
-                try:drive_prepare.discard(q.drive,output['id'])
-                except Exception:left[track]=output
-            j['cloud_output']=left;q.commit()
     candidates = [(slot,j) for slot,j in q.state['jobs'].items() if j.get('status') not in ('done','superseded')
                   and not j.get('blocked') and not j.get('kept') and j.get('retry_after',0) <= q.clock()]
     # Old builds' checkpoints are no longer used: their full-sized local media can go.
@@ -37,11 +38,17 @@ def process_one(q, keep_going):
                                   queued=len(candidates),running=True,updated=now)
         q.commit()
     def clear_temps():
-        for output in (job.get('cloud_output') or {}).values():
-            if output.get('moved'):continue
-            try:drive_prepare.discard(q.drive,output['id'])
-            except Exception:return False
-        job.pop('cloud_output',None);job.pop('cloud_replace',None);q.commit();return True
+        discard=[o['id'] for o in (job.get('cloud_output') or {}).values() if not o.get('moved')]
+        pending=q.state.setdefault('staging_cleanup',[])
+        pending.extend(item_id for item_id in discard if item_id not in pending)
+        job.pop('cloud_output',None);job.pop('cloud_replace',None);q.commit()
+        success=True
+        for item_id in discard:
+            try:drive_prepare.discard(q.drive,item_id)
+            except Exception:success=False;continue
+            if item_id in pending:pending.remove(item_id)
+            q.commit()
+        return success
     outputs = job.setdefault('cloud_output',{})
     temp_id = None
     try:
@@ -108,7 +115,10 @@ def process_one(q, keep_going):
         status,_,_=q.drive.call('PATCH',driveupload.API+'/'+urllib.parse.quote(item['id'],safe=''),json.dumps({'appProperties':props}).encode(),{'Content-Type':'application/json'})
         if status!=200:raise RuntimeError('Preparation verification marker: HTTP %d'%status)
         # Sidecars now belong to the library; only the temporary main movie is removed.
-        job['cloud_output']={'0':main};job['status']='done';job['completed']=q.clock();q.commit();clear_temps()
+        job['cloud_output']={'0':main};job['status']='done';job['completed']=q.clock()
+        pending=q.state.setdefault('staging_cleanup',[])
+        if main['id'] not in pending:pending.append(main['id'])
+        q.commit();clear_temps()
         driveupload.invalidate_library(str(prep.location(q.profile).parent));prep.request_check(q.profile)
         q.state.pop('current',None);q.commit()
         q.notify('info','Ready for Kodi and AirPlay',drivelibrary.display_title(item['name']));return True

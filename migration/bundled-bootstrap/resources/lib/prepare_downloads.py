@@ -383,6 +383,13 @@ class Queue:
   self.state=load(profile);self.state.setdefault('jobs',{});self.state.setdefault('sessions',{})
   self.work=location(profile).parent/'preparing-videos';self.work.mkdir(parents=True,exist_ok=True)
  def commit(self):save(self.profile,self.state)
+ def stage_cleanup(self,job):
+  """Journal unused app-owned staging files before a job is removed or kept as its original.
+  The journal survives library rescans; cloud preparation retries deletion independently of that job."""
+  pending=self.state.setdefault('staging_cleanup',[])
+  for output in (job.pop('cloud_output',None) or {}).values():
+   if not output.get('moved') and output['id'] not in pending:pending.append(output['id'])
+  job.pop('cloud_replace',None)
  def scan(self,keep_going=lambda:True,force=False):
   requested=location(self.profile).parent/'airplay-preparation-rescan'
   if not force and not requested.exists() and self.clock()-self.state.get('last_scan',0)<300:return
@@ -408,7 +415,7 @@ class Queue:
   # A source modified/replaced by another client no longer owns its old work/session.
   for slot,job in list(self.state['jobs'].items()):
    if slot not in seen and job.get('status')!='committing':
-    self.state['jobs'].pop(slot,None);self.state['sessions'].pop(slot,None)
+    self.stage_cleanup(job);self.state['jobs'].pop(slot,None);self.state['sessions'].pop(slot,None)
     shutil.rmtree(self.work/slot,ignore_errors=True)
   self.state['library']=dict(counts,checked=self.clock(),items=entries)
   self.state['last_scan']=self.clock();self.state.pop('current',None);self.commit();requested.unlink(missing_ok=True)
@@ -450,7 +457,7 @@ class Queue:
     drivelibrary.trash(self.drive,item['id']);removed.append(item)
    except Exception:continue
    for slot,job in list(self.state['jobs'].items()):
-    if job['source']['id']==item['id']:self.state['jobs'].pop(slot,None);self.state['sessions'].pop(slot,None);shutil.rmtree(self.work/slot,ignore_errors=True)
+    if job['source']['id']==item['id']:self.stage_cleanup(job);self.state['jobs'].pop(slot,None);self.state['sessions'].pop(slot,None);shutil.rmtree(self.work/slot,ignore_errors=True)
    try:drivelibrary.trash_if_empty(self.drive,item.get('folderId'),item.get('folderName',''))
    except Exception:pass
   if removed:driveupload.invalidate_library(str(location(self.profile).parent))
@@ -472,7 +479,10 @@ class Queue:
   if not path.exists():return False
   requests=pending_requests(self.profile)
   path.unlink(missing_ok=True)
-  apply_to(self.state,requests,self.clock());self.commit();return True
+  apply_to(self.state,requests,self.clock())
+  for job in self.state['jobs'].values():
+   if job.get('kept'):self.stage_cleanup(job)
+  self.commit();return True
  def tidy(self):
   """Phone space (owner, build 159: "Kodi is eating 10 GB"): working files stay only for a video that will carry on
   where it was: waiting with a half-made copy, paused for playback, or saving to Drive. A video that failed (its next
