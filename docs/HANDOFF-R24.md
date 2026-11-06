@@ -36,3 +36,45 @@ NOT built, NOT pinned. Owner: "max this out, we got great hardware in this phone
 - Build-175 log: video 37 s per 30 s unit (22.5 fps, hardware HDR av1→hevc_videotoolbox), each audio track 23 s,
   serial → 83 s/30 s. Expected after r23+blocks: ~37 s/30 s; r24 should approach 2x on top.
 - UI work notes: docs/UI-SESSION-PROGRESS.md; build history: docs/HANDOFF-PROGRESS.md.
+
+## Roadmap (priority order)
+
+### 1. Ship what is written (small, do first)
+- r24 through CI → pin → publish → build 176 → verify IPA (steps above).
+- Ask the owner to leave Inception converting 10 min with Kodi on screen and send the log; confirm the
+  `fps` lines and `lane 1` / `lane 2` both appear, and that audio units no longer add time.
+
+### 2. Measure, then tune (needs the 176 log)
+- If video fps roughly doubled: try VIDEO_LANES=3 (one constant) and watch memory (iOS kills apps over the limit,
+  lower in the background). Raise `drive_stream.KEEP` to 16–24 if the lanes drift apart (log: read_bytes grows
+  faster than film time → blocks are being fetched twice).
+- If fps did not move: the engine is saturated. Then options are lower output bitrate for re-encodes (`kr_video.c`
+  offline bit_rate, now ~7 Mbit/s per 1080p area) or HEVC 8-bit SDR for non-HDR AV1.
+- Background: `app_state.Pace` caps CPU at 60% of a core when Kodi is not on screen; hardware lanes use little CPU,
+  but check the log's fps with the screen off too.
+
+### 3. Resume after Kodi closes (biggest remaining time loss)
+- Today a closed/killed Kodi restarts the movie from 0% (storage-free output cannot resume).
+- Approach: the fMP4 output is init + moof/mdat fragments with absolute timestamps. Record, per committed Drive
+  upload offset, the last complete fragment's end time and unit index; on restart skip units before it, open the
+  muxer with `fragment_index` continuing and skip writing the init; the Drive resumable session (`drive_prepare.Sink`)
+  continues at the confirmed offset. Needs a host test that stops mid-file, resumes, and `kodi_airplay_verify`s.
+- Until then: pause-in-place covers video playback; tell the owner not to close Kodi during long AV1 jobs.
+
+### 4. Queue behaviour (quick wins)
+- Put re-encode jobs (probe `copy_video=False`, e.g. AV1) behind copy-only jobs so one long AV1 never blocks quick
+  ones (owner offered this; not built). `prepare_cloud.process_one` candidate sort: add `job['probe']['copy_video']`.
+- Show an estimate on Library status for AV1 ("about 1 h 30 min") from fps × duration once known.
+
+### 5. UI still open (docs/UI-SESSION-PROGRESS.md)
+- Customisation pages (round-4 mockups, `design/customisation-mockups`): not built.
+- History as a row on Library status: owner not asked again.
+- PR #13 still open against `feature/library-status`; its content is on main — can be closed.
+
+## Recommendations
+- Keep every converter change behind a host test (two-lane test exists) and verify each IPA's AirPlay sha against
+  the candidate artifact before telling the owner it is ready.
+- Do not raise lanes and cache together; change one, read one log.
+- Advise the owner to prefer HEVC/x265 HDR10 releases: they prepare in minutes (picture copied); AV1 will always
+  cost a real-time-or-slower re-encode on the phone.
+- Pace builds: one build per verified fix, with the owner's log in between.
