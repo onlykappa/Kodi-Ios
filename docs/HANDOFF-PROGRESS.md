@@ -14,6 +14,7 @@
 | 169 | fix/elementum-cloud-164 | This session: fixes below plus KodiAirPlay r18. Commit 36d528f; native CI run 42238135886 → pin r18 → publish → import-review |
 | 170 | fix/elementum-cloud-164 | r19, speed text. Owner tested |
 | 172 | fix/elementum-cloud-164 | cancelled (superseded by 173) |
+| 174 | fix/elementum-cloud-164 | KodiAirPlay r21 (pinned 8e51391…, candidate run 42279166590) + library tools (Queue, History, AirPlay check), cleaner close button. Started by the UI session at the owner's request |
 | 173 | fix/elementum-cloud-164 | r20 + simple Transfers + sheet bar + checks no longer restart conversion. Built and verified (run 42266852853; r20 sha a5e323fe…, interrupts(), track(), sheet bar 9210) |
 
 ## Build-168 log findings (owner, 04:31–04:42 local)
