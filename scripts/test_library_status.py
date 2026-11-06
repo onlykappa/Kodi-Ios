@@ -61,15 +61,24 @@ class Rows(unittest.TestCase):
   state=library_state()
   for n in range(8):state['library']['items'].append(item('x%d'%n,'Film%d.2000.1080p.mkv'%n,'ready'))
   self.view=prep.library_view(state,free=40*GB,working=2*GB,now=lambda:1000)
- def test_all_previews_ready_with_show_all(self):
+ def test_all_shows_what_happens_now_and_folders(self):
+  """Owner (build 160): "it needs to be in like a folder so ready will show 7 then if i tap it it shows the movies"."""
   items=rows.list_items(self.view)
-  kinds=[i['kind'] for i in items]
-  self.assertEqual(kinds[0],'header');self.assertEqual(kinds[-1],'foot')
-  more=[i for i in items if i['kind']=='more'];self.assertEqual(more[0]['label'],'Show all 10')
-  ready=[i for i in items if i['kind']=='row' and i['props']['state']=='ready'];self.assertEqual(len(ready),rows.READY_PREVIEW)
+  self.assertEqual([(i['kind'],i['props'].get('folder') or i['props'].get('id')) for i in items],
+                   [('row','p1'),('folder','waiting'),('folder','ready'),('folder','kept'),('foot',None)])
+  folders={i['props']['folder']:i for i in items if i['kind']=='folder'}
+  self.assertEqual({k:f['props']['count'] for k,f in folders.items()},{'waiting':'5','ready':'10','kept':'2'})
+  self.assertEqual(folders['ready']['label'],'Ready for Kodi and AirPlay')
+  self.assertEqual(folders['waiting']['label2'],'Alien (1979) · next and 4 more')
+  self.assertTrue(folders['ready']['label2'].endswith('and 8 more'))
+  self.assertEqual([f['props']['pos'] for f in folders.values()],['first','mid','last'])
+  self.assertEqual((folders['ready']['props']['icon'],folders['ready']['props']['tint']),('circle-check.png','FF30D158'))
   self.assertEqual(len([i for i in rows.list_items(self.view,'ready') if i['kind']=='row']),10)
+ def test_every_item_is_one_height_in_one_layout(self):
+  self.assertNotIn('condition=',library_page.page(portrait).split('<control type="list"')[1].split('</control>')[0][:400])
+  self.assertEqual(rows.TITLES['ready'],'Ready')
  def test_positions_round_the_group(self):
-  waiting=[i['props']['pos'] for i in rows.list_items(self.view,'todo') if i['kind']=='row' and i['props']['state'] in ('waiting','space','problem')]
+  waiting=[i['props']['pos'] for i in rows.list_items(self.view,'waiting')]
   self.assertEqual((waiting[0],waiting[-1]),('first','last'));self.assertTrue(all(p=='mid' for p in waiting[1:-1]))
  def test_filters(self):
   todo={i['props']['state'] for i in rows.list_items(self.view,'todo') if i['kind']=='row'}
@@ -213,9 +222,17 @@ class FakeKodi:
 
 def tap(control):return lambda w:w.onClick(control)
 def tap_row(ident):
+ """Tap a video's row, opening the folder it is in first when it is not on the page (All shows folders)."""
  def go(w):
-  rows=w.getControl(library_page.LIST).items
-  w.getControl(library_page.LIST).selectItem([r.getProperty('id') for r in rows].index(ident));w.onClick(library_page.LIST)
+  listing=w.getControl(library_page.LIST)
+  ids=lambda:[r.getProperty('id') for r in listing.items]
+  if ident not in ids():
+   if w.getProperty('filter')!='all':w.onClick(library_page.BACK)
+   for folder in [r.getProperty('folder') for r in listing.items if r.getProperty('kind')=='folder']:
+    listing.selectItem([r.getProperty('folder') for r in listing.items].index(folder));w.onClick(library_page.LIST)
+    if ident in ids():break
+    w.onClick(library_page.BACK)
+  listing.selectItem(ids().index(ident));w.onClick(library_page.LIST)
  return go
 def tap_kind(kind):
  def go(w):
@@ -244,7 +261,9 @@ class TapEveryButton(unittest.TestCase):
   kodi=self.run_page([(library_page.WINDOW,lambda w:seen.update(props=dict(w.props),rows=self.page_rows(w))),(library_page.WINDOW,tap(library_page.BACK))])
   page=kodi.windows[0]
   self.assertTrue(page.closed);self.assertEqual(seen['props']['headline'],'10 of 18 ready');self.assertEqual(seen['props']['filter'],'all')
-  self.assertIn(('w2','waiting'),[r[:2] for r in seen['rows']])
+  self.assertEqual(seen['props']['title'],'Library status')
+  self.assertEqual([r[:2] for r in seen['rows']],[('p1','preparing')])
+  self.assertEqual(self.folders(kodi.windows[0]),[('waiting','5'),('ready','10'),('kept','2')])
  def test_filters(self):
   seen=[]
   snap=lambda w:seen.append((w.getProperty('filter'),{s for _,s,_ in self.page_rows(w)}))
@@ -253,12 +272,23 @@ class TapEveryButton(unittest.TestCase):
                  (library_page.WINDOW,tap(library_page.BACK))])
   self.assertEqual([f for f,_ in seen],['ready','todo','downloading','all'])
   self.assertEqual(seen[0][1],{'ready'});self.assertNotIn('ready',seen[1][1]);self.assertEqual(seen[2][1],set())
-  self.assertIn('ready',seen[3][1])
- def test_show_all_row_opens_ready(self):
+  self.assertEqual(seen[3][1],{'preparing'})   # All: what happens now; the rest is in folders
+ def folders(self,w):return [(r.getProperty('folder'),r.getProperty('count')) for r in w.getControl(library_page.LIST).items if r.getProperty('kind')=='folder']
+ def test_a_folder_opens_and_back_returns_to_all(self):
   seen=[]
-  self.run_page([(library_page.WINDOW,tap_kind('more')),(library_page.WINDOW,lambda w:seen.append((w.getProperty('filter'),len(self.page_rows(w))))),
-                 (library_page.WINDOW,tap(library_page.BACK))])
-  self.assertEqual(seen,[('ready',10)])
+  snap=lambda w:seen.append((w.getProperty('filter'),w.getProperty('title'),len(self.page_rows(w)),self.folders(w),w.closed))
+  kodi=self.run_page([(library_page.WINDOW,snap),(library_page.WINDOW,tap_kind('folder')),(library_page.WINDOW,snap),
+                      (library_page.WINDOW,tap(library_page.BACK)),(library_page.WINDOW,snap),
+                      (library_page.WINDOW,tap_kind('folder')),(library_page.WINDOW,lambda w:w.onAction(type('A',(),{'getId':lambda s:92})())),(library_page.WINDOW,snap),
+                      (library_page.WINDOW,tap(library_page.BACK))])
+  self.assertEqual(seen[0][:2],('all','Library status'));self.assertEqual(seen[0][3],[('waiting','5'),('ready','10'),('kept','2')])
+  self.assertEqual(seen[1][:3],('waiting','Waiting',5));self.assertFalse(seen[1][4])
+  self.assertEqual(seen[2][:2],('all','Library status'));self.assertFalse(seen[2][4])
+  self.assertEqual(seen[3][:2],('all','Library status'))   # the back gesture in a folder returns to All
+  self.assertTrue(kodi.windows[0].closed)
+ def test_back_closes_only_from_all_in_the_skin_too(self):
+  xml=library_page.page(portrait)
+  self.assertIn('<onclick condition="String.IsEqual(Window().Property(filter),all)">Close</onclick>',xml)
  def test_check_now(self):
   seen=[]
   self.run_page([(library_page.WINDOW,tap(library_page.CHECK)),(library_page.WINDOW,lambda w:seen.append(w.getProperty('sub'))),
@@ -283,7 +313,7 @@ class TapEveryButton(unittest.TestCase):
  def test_keep_moves_it_to_kept_and_prepare_after_all_brings_it_back(self):
   seen=[]
   snap=lambda w:seen.append({i:s for i,s,_ in self.page_rows(w)})
-  self.run_page([(library_page.WINDOW,tap_row('w2')),(library_page.ITEM,tap(9202)),(library_page.WINDOW,snap),
+  self.run_page([(library_page.WINDOW,tap(9103)),(library_page.WINDOW,tap_row('w2')),(library_page.ITEM,tap(9202)),(library_page.WINDOW,snap),
                  (library_page.WINDOW,tap_row('w2')),(library_page.ITEM,tap(9201)),(library_page.WINDOW,snap),
                  (library_page.WINDOW,tap(library_page.BACK))])
   self.assertEqual(seen[0]['w2'],'kept');self.assertEqual(seen[1]['w2'],'waiting')
@@ -293,6 +323,7 @@ class TapEveryButton(unittest.TestCase):
  def test_close_buttons_and_no_action_sheets(self):
   kodi=self.run_page([(library_page.WINDOW,tap_row('r1')),(library_page.ITEM,tap(9201)),(library_page.ITEM,tap(9200)),
                       (library_page.WINDOW,tap_row('k1')),(library_page.ITEM,tap(9099)),
+                      (library_page.WINDOW,lambda w:w.onAction(type('A',(),{'getId':lambda self:92})())),
                       (library_page.WINDOW,lambda w:w.onAction(type('A',(),{'getId':lambda self:92})())) ])
   sheets=[w for w in kodi.windows if w.xml==library_page.ITEM]
   self.assertTrue(all(w.closed for w in sheets));self.assertEqual(sheets[0].focus,9200);self.assertTrue(kodi.windows[0].closed)
@@ -352,5 +383,42 @@ class EveryScriptNamesItsAddon(unittest.TestCase):
   for page in re.findall(r"'([a-z_]+)'",pages):
    path=BOOT/(page+'.py')
    if path.exists():self.assertNotRegex(path.read_text(),r'xbmcaddon\.Addon\(\)',page)
+
+class SpaceAsTheIPhoneCountsIt(unittest.TestCase):
+ """Owner (build 160): "It says my phone has 30gb free but it has 50" and Inception waited on a figure the page did not show."""
+ def test_free_is_never_less_than_statvfs_and_falls_back_off_ios(self):
+  import phone_space,shutil
+  from unittest.mock import patch
+  self.assertIsNone(phone_space.important_usage('/'))     # no Objective-C runtime here
+  self.assertEqual(phone_space.free('/'),shutil.disk_usage('/').free)
+  with patch.object(phone_space,'important_usage',return_value=49*GB),patch.object(phone_space.shutil,'disk_usage',return_value=type('U',(),{'free':29*GB})()):
+   self.assertEqual(phone_space.free('/'),49*GB)
+  with patch.object(phone_space,'important_usage',return_value=None),patch.object(phone_space.shutil,'disk_usage',return_value=type('U',(),{'free':29*GB})()):
+   self.assertEqual(phone_space.free('/'),29*GB)
+ def test_reads_the_key_the_settings_app_uses(self):
+  import phone_space
+  self.assertEqual(phone_space.KEY,'NSURLVolumeAvailableCapacityForImportantUsageKey')
+  src=(LIB/'phone_space.py').read_text()
+  for s in ("'resourceValuesForKeys:error:'","'longLongValue'","objc_autoreleasePoolPush"):self.assertIn(s,src)
+ def test_one_estimate_for_the_queue_the_step_and_the_page(self):
+  item={'size':9*GB}
+  self.assertEqual(prep.space_needed(item,True),9*GB+prep.RESERVE+prep.KEEP_FREE)
+  copy={'copy_video':True,'audio_work_bytes':400*1024**2}
+  self.assertEqual(prep.space_needed(item,True,copy),9*GB+800*1024**2+16*1024**2+prep.RESERVE+prep.KEEP_FREE)
+  av1={'copy_video':False,'audio_work_bytes':0,'duration':8880,'width':3840,'height':2160,'codec':'av1','bit_depth':10}
+  self.assertGreater(prep.space_needed(item,True,av1),60*GB)
+  self.assertEqual(prep.space_reason(av1),'its picture (AV1 10-bit) cannot go into MP4 as it is, so it is re-encoded')
+  self.assertEqual(prep.space_reason(copy),'');self.assertEqual(prep.space_reason(None),'')
+  src=(LIB/'prepare_downloads.py').read_text()
+  self.assertIn("needed=work_bytes(item,before)",src);self.assertIn("job['probe']=",src)
+  self.assertEqual(src.count("space_needed(job['source'],bool(self.stream),job.get('probe'))"),2)
+  self.assertNotIn('shutil.disk_usage',src)
+ def test_the_page_says_why(self):
+  state={'library':{'items':[item('i1','Inception.2010.2160p.mkv',size=9*GB)],'checked':1},
+         'jobs':{'a':job('i1','Inception.2010.2160p.mkv',space=72*GB,probe={'copy_video':False,'codec':'av1','bit_depth':10})}}
+  view=prep.library_view(state,free=49*GB,now=lambda:1)
+  row=view['rows']['waiting'][0];self.assertEqual(row['state'],'space')
+  facts=dict(rows.details(row,view)['facts'])
+  self.assertEqual(facts['Free now'],'49 GB');self.assertTrue(facts['Why'].startswith('Its picture (AV1 10-bit)'))
 
 if __name__=='__main__':unittest.main()

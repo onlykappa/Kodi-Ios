@@ -12,7 +12,7 @@ WINDOW = 'IOSLibraryStatus.xml'
 ITEM = 'IOSLibraryItem.xml'
 FILTERS = (('all', 'All'), ('ready', 'Ready'), ('todo', 'To do'), ('downloading', 'Downloading'))   # buttons 9101-9104
 LIST, BACK, CHECK, SPACE = 9300, 9001, 9002, 9440
-HEAD, ROW, MORE, FOOT = 96, 200, 120, 300
+ROW = 200
 HIT = 118
 PURPLE = 'FFBF5AF2'
 BLUE = 'FF0A84FF'
@@ -61,19 +61,35 @@ def _row(p, focused):
     return backs + focus + sep + poster + ring + texts + bar('downloading', BLUE) + bar('uploading', p.GREEN) + right
 
 
+def _folder(p, focused):
+    """A folder row (Waiting, Ready for Kodi and AirPlay, Kept as it is): coloured tile, name, what is in it, count."""
+    S, w, M = p.SIDE, p.WIDTH - 2 * p.SIDE, p.MEDIA
+    pos = lambda v: 'String.IsEqual(ListItem.Property(pos),%s)' % v
+    backs = ''.join(p.image(S, 0, w, ROW, M + tex, p.SURFACE, '<visible>%s</visible>' % pos(v), border=43)
+                    for v, tex in (('only', 'row_only.png'), ('first', 'row_first.png'), ('last', 'row_last.png'), ('mid', 'white.png')))
+    focus = (p.image(S, 0, w, ROW, M + 'white.png', '14FFFFFF', '<visible>%s</visible>' % pos('mid')) + ''.join(
+        p.image(S, 0, w, ROW, M + tex, '14FFFFFF', '<visible>%s</visible>' % pos(v), border=43)
+        for v, tex in (('only', 'row_only.png'), ('first', 'row_first.png'), ('last', 'row_last.png')))) if focused else ''
+    sep = p.image(S + 160, 0, w - 160, 2, M + 'white.png', p.SEP, '<visible>%s | %s</visible>' % (pos('mid'), pos('last')))
+    tile = (p.surface(S + 30, 44, 112, 112, 'round_s.png', '$INFO[ListItem.Property(tint)]', 26) +
+            p.icon(S + 56, 70, 60, '$INFO[ListItem.Property(icon)]', p.WHITE))
+    text_w = w - 160 - 230
+    texts = (p.label(S + 160, 40, text_w, 58, '$INFO[ListItem.Label]', 'p_pill', p.WHITE, 'left', '<scroll>false</scroll>') +
+             p.label(S + 160, 100, text_w, 50, '$INFO[ListItem.Label2]', 'p_pill_s', p.GREY, 'left', '<scroll>false</scroll>'))
+    right = (p.label(S + w - 220, 0, 130, ROW, '$INFO[ListItem.Property(count)]', 'p_pill', p.GREY, 'right', '<aligny>center</aligny>') +
+             p.icon(S + w - 76, (ROW - 40) // 2, 40, 'chevron-right.png', p.GREY))
+    return backs + focus + sep + tile + texts + right
+
+
 def _layouts(p, focused):
+    """One layout for every item: Kodi chooses among conditional item layouts by global conditions, not per item (build
+    160 drew the section headers as empty poster rows), so each part shows by the item's kind instead."""
     S, w = p.SIDE, p.WIDTH - 2 * p.SIDE
     tag = 'focusedlayout' if focused else 'itemlayout'
-    header = ('<%s height="%d" condition="%s">' % (tag, HEAD, _kind('header')) +
-              p.label(S + 12, 34, w - 290, 56, '$INFO[ListItem.Label]', 'p_foot_b', p.GREY, 'left', '<scroll>false</scroll>') +
-              p.label(S + w - 262, 34, 250, 56, '$INFO[ListItem.Label2]', 'p_foot', p.GREY, 'right') + '</%s>' % tag)
-    more = ('<%s height="%d" condition="%s">' % (tag, MORE, _kind('more')) +
-            (p.image(S, 0, w, MORE, p.MEDIA + 'white.png', '14FFFFFF') if focused else '') +
-            p.label(S + 12, 0, w - 24, MORE, '$INFO[ListItem.Label]', 'p_body', p.ACCENT, 'left', '<aligny>center</aligny>') + '</%s>' % tag)
-    foot = ('<%s height="%d" condition="%s">' % (tag, FOOT, _kind('foot')) +
-            p.label(S + 12, 36, w - 24, FOOT - 60, '$INFO[ListItem.Label]', 'p_cap', p.GREY, 'left', '<wrapmultiline>true</wrapmultiline>') + '</%s>' % tag)
-    row = '<%s height="%d">' % (tag, ROW) + _row(p, focused) + '</%s>' % tag
-    return header + more + foot + row
+    group = lambda kind, body: '<control type="group"><visible>%s</visible>%s</control>' % (_kind(kind), body)
+    foot = p.label(S + 12, 24, w - 24, ROW - 40, '$INFO[ListItem.Label]', 'p_cap', p.GREY, 'left', '<wrapmultiline>true</wrapmultiline>')
+    return ('<%s height="%d">' % (tag, ROW) + group('row', _row(p, focused)) + group('folder', _folder(p, focused)) +
+            group('foot', foot) + '</%s>' % tag)
 
 
 def page(p):
@@ -112,8 +128,8 @@ def page(p):
                '<orientation>vertical</orientation><onup>9101</onup><scrolltime tween="cubic" easing="out">250</scrolltime>' % (LIST, W) +
                _layouts(p, False) + _layouts(p, True) + '</control>')
     body = ('<controls>' + p.backdrop() +
-            p.nav_button(BACK, S, 36, 'chevron-left.png', 'Close', '<ondown>9101</ondown>') + check +
-            p.label(S, 160, w, 110, 'Library status', 'p_large') +
+            p.nav_button(BACK, S, 36, 'chevron-left.png', [('String.IsEqual(Window().Property(filter),all)', 'Close')], '<ondown>9101</ondown>') + check +
+            p.label(S, 160, w, 110, P('title'), 'p_large', p.WHITE, 'left', '<scroll>false</scroll>') +
             p.label(S, 268, w, 56, P('sub'), 'p_sub', p.GREY, 'left', '<scroll>false</scroll>') +
             summary + space +
             '<control type="group"><left>%d</left><top>770</top>' % S + p.surface(0, 0, w, 88, 'pill_96.png', p.SURFACE, 44) + filters + '</control>' +

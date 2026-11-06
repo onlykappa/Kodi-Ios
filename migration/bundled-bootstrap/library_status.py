@@ -55,7 +55,8 @@ def snapshot(profile,downloads,uploads):
  # Choices not yet applied by the service show at once (it applies them before its next video).
  state=prepare_downloads.apply_to(prepare_downloads.load(profile),prepare_downloads.pending_requests(profile),time.time())
  work=prepare_downloads.location(profile).parent/'preparing-videos'
- try:free=shutil.disk_usage(str(work if work.exists() else work.parent)).free
+ import phone_space
+ try:free=phone_space.free(str(work if work.exists() else work.parent))
  except OSError:free=None
  try:down=downloads() or []
  except Exception:down=[]
@@ -116,7 +117,7 @@ def run(args=()):
   def onInit(self):
    self.filter=getattr(self,'filter','all');self.checking=0;self.shown=None;self.view=None
    self.stop=threading.Event();self.busy=threading.Lock()
-   self.setProperty('filter',self.filter)
+   self.setProperty('filter',self.filter);self.setProperty('title',library_rows.TITLES.get(self.filter,'Library status'))
    self.refresh(force=True)
    threading.Thread(target=self.loop,daemon=True).start()
    self.measure()
@@ -172,13 +173,18 @@ def run(args=()):
        if art:li.setArt({'poster':art})
      self.items=items
   def set_filter(self,key):
-   self.filter=key;self.setProperty('filter',key);self.refresh(force=True)
+   # A folder (Waiting, Ready, Kept) or a filter: the page's title says which; Back returns to All.
+   self.filter=key;self.setProperty('filter',key);self.setProperty('title',library_rows.TITLES.get(key,'Library status'))
+   self.refresh(force=True)
   def finish(self):
    self.stop.set();self.close()
+  def go_back(self):
+   if self.filter!='all':self.set_filter('all')
+   else:self.finish()
   def onAction(self,action):
-   if action.getId() in BACK:self.finish()
+   if action.getId() in BACK:self.go_back()
   def onClick(self,control):
-   if control==library_page.BACK:self.finish()
+   if control==library_page.BACK:self.go_back()
    elif control==library_page.CHECK:self.check()
    elif FILTER_BASE<=control<FILTER_BASE+len(library_page.FILTERS):self.set_filter(library_page.FILTERS[control-FILTER_BASE][0])
    elif control==library_page.LIST:self.open_row(self.getControl(library_page.LIST).getSelectedPosition())
@@ -192,7 +198,7 @@ def run(args=()):
    items=getattr(self,'items',[])
    if not 0<=position<len(items):return
    item=items[position]
-   if item['kind']=='more':self.set_filter(item['props'].get('filter','ready'));return
+   if item['kind']=='folder':self.set_filter(item['props']['folder']);return
    if item['kind']!='row':return
    sheet=Details(library_page.ITEM,here,'Default','1080i')
    sheet.setup(library_rows.details(item['row'],self.view),item['row'])

@@ -6,10 +6,17 @@ video's details with what can be done about it. No Kodi imports, so it is tested
 GB = 1024 ** 3
 SECTIONS = (('preparing', 'Preparing now'), ('downloading', 'Downloading'), ('waiting', 'Waiting'),
             ('ready', 'Ready for Kodi and AirPlay'), ('kept', 'Kept as it is'))
-SHOWN = {'all': ('preparing', 'downloading', 'waiting', 'ready', 'kept'), 'ready': ('ready',),
+# Owner (build 160): "make it look nice and it needs to be in like a folder so ready will show 7 then if i tap it it shows
+# the movies". All shows what is happening now (preparing, downloading) as rows and the rest as folders.
+FOLDERS = (('waiting', 'Waiting', 'clock-rotate-left.png', 'FFBF5AF2'), ('ready', 'Ready for Kodi and AirPlay', 'circle-check.png', 'FF30D158'),
+           ('kept', 'Kept as it is', 'folder.png', 'FF8E8E93'))
+SHOWN = {'ready': ('ready',), 'waiting': ('waiting',), 'kept': ('kept',),
          'todo': ('preparing', 'waiting', 'kept'), 'downloading': ('downloading',)}
-READY_PREVIEW = 6     # "All" shows the first few ready videos and a "Show all N" row
+TITLES = {'all': 'Library status', 'ready': 'Ready', 'waiting': 'Waiting', 'kept': 'Kept as it is', 'todo': 'To do',
+          'downloading': 'Downloading'}
 DOT = '[COLOR %s]●[/COLOR]'
+NOTE = ('Kodi prepares one video at a time while nothing is playing, reading it from Google Drive. A video that needs '
+        'more phone space than is free waits until there is room.')
 
 
 def ring_name(pct):
@@ -17,33 +24,49 @@ def ring_name(pct):
     return 'ring_%02d.png' % max(0, min(20, int(round((pct or 0) / 5.0))))
 
 
+def _positions(items):
+    for n, item in enumerate(items):
+        item['props']['pos'] = ('only' if len(items) == 1 else 'first' if n == 0 else 'last' if n == len(items) - 1 else 'mid')
+    return items
+
+
+def _video(r):
+    props = {'kind': 'row', 'state': r['state'], 'id': r['id'], 'pct': str(r.get('pct', '')),
+             'ring': ring_name(r.get('pct')), 'warn': 'true' if r.get('warn') else ''}
+    return {'kind': 'row', 'label': r['title'], 'label2': r['sub'], 'props': props, 'row': r}
+
+
+def _folder_line(key, rows):
+    """The line under a folder: what is in it, in a few words."""
+    titles = [r['title'] for r in rows]
+    if key == 'waiting':
+        first = rows[0]
+        why = first['sub'].split(' · ')[0] if first['state'] != 'waiting' else 'next'
+        return '%s · %s%s' % (first['title'], why, ' and %d more' % (len(rows) - 1) if len(rows) > 1 else '')
+    shown = ', '.join(titles[:2])
+    return shown + (' and %d more' % (len(titles) - 2) if len(titles) > 2 else '')
+
+
 def list_items(view, filter_key='all'):
-    """[{kind: header|row|more|foot, label, label2, props}] for list 9300, in order."""
-    out = []
+    """[{kind: row|folder|foot, label, label2, props}] for list 9300, in order. One layout draws them all (Kodi's
+    conditional item layouts follow global conditions, not each item, so the kind is a property its parts show by)."""
     rows = view['rows']
-    for key, title in SECTIONS:
-        if key not in SHOWN.get(filter_key, SHOWN['all']) or not rows[key]:
-            continue
-        items = rows[key]
-        count = len(items)
-        right = {'waiting': '%d in line' % sum(1 for r in items if r['state'] == 'waiting')} \
-            if key == 'waiting' and any(r['state'] == 'waiting' for r in items) else {}
-        out.append({'kind': 'header', 'label': title, 'label2': right.get('waiting', str(count))})
-        cut = items[:READY_PREVIEW] if key == 'ready' and filter_key == 'all' else items
-        for n, r in enumerate(cut):
-            pos = 'only' if len(cut) == 1 else 'first' if n == 0 else 'last' if n == len(cut) - 1 else 'mid'
-            props = {'kind': 'row', 'state': r['state'], 'pos': pos, 'id': r['id'],
-                     'pct': str(r.get('pct', '')), 'ring': ring_name(r.get('pct')), 'warn': 'true' if r.get('warn') else ''}
-            out.append({'kind': 'row', 'label': r['title'], 'label2': r['sub'], 'props': props, 'row': r})
-        if len(cut) < count:
-            out.append({'kind': 'more', 'label': 'Show all %d' % count, 'props': {'kind': 'more', 'filter': 'ready'}})
-    if not any(i['kind'] == 'row' for i in out):
-        empty = {'ready': 'Nothing is ready yet.', 'todo': 'Nothing left to prepare.',
-                 'downloading': 'Nothing is downloading.'}.get(filter_key, 'Nothing here yet.')
-        out.append({'kind': 'foot', 'label': empty + ' Check now (top right) to look at Google Drive › Kodi Downloads again.'})
+    if filter_key == 'all':
+        active = _positions([_video(r) for key in ('preparing', 'downloading') for r in rows[key]])
+        folders = _positions([{'kind': 'folder', 'label': title, 'label2': _folder_line(key, rows[key]),
+                               'props': {'kind': 'folder', 'folder': key, 'icon': glyph, 'tint': tint, 'count': str(len(rows[key]))}}
+                              for key, title, glyph, tint in FOLDERS if rows[key]])
+        out = active + folders
+        if not out:
+            out = [{'kind': 'foot', 'label': 'Nothing here yet. Check now (top right) to look at Google Drive › Kodi Downloads again.'}]
+        else:
+            out.append({'kind': 'foot', 'label': NOTE})
     else:
-        out.append({'kind': 'foot', 'label': 'Kodi prepares one video at a time while nothing is playing, reading it from '
-                                             'Google Drive. A video that needs more phone space than is free waits until there is room.'})
+        out = _positions([_video(r) for key in SHOWN.get(filter_key, ()) for r in rows[key]])
+        if not out:
+            empty = {'ready': 'Nothing is ready yet.', 'todo': 'Nothing left to prepare.', 'waiting': 'Nothing is waiting.',
+                     'kept': 'Nothing is kept as it is.', 'downloading': 'Nothing is downloading.'}.get(filter_key, 'Nothing here yet.')
+            out = [{'kind': 'foot', 'label': empty}]
     for item in out:
         item.setdefault('props', {'kind': item['kind']})
         item['props'].setdefault('kind', item['kind'])
@@ -102,7 +125,7 @@ def details(row, view):
         free = view.get('free') or 0
         sheet.update(status='Waiting for phone space', tone='warn',
                      facts=[f for f in (on_drive, ('Needs free', '%.0f GB, incl. 5 GB kept for you' % (row.get('needs', 0) / GB)),
-                                        ('Free now', '%.0f GB' % (free / GB))) if f],
+                                        ('Free now', '%.0f GB' % (free / GB)), ('Why', row['why'][:1].upper() + row['why'][1:]) if row.get('why') else None) if f],
                      actions=[("Prepare first when there's room", 'next'), ('Keep as it is', 'keep')])
     elif state == 'problem':
         sheet.update(status='Paused · %s' % row.get('reason', 'a problem'), tone='warn',

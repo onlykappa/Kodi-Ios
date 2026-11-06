@@ -910,3 +910,28 @@ Status: IN SOURCE, not yet built (owner: "dont build this just have it ready for
 - Checked against the owner's build-159 log: the crash pop-up shows "RuntimeError: No valid addon id could be obtained… (library_status.py, line 39)", 5 times; an Elementum message shows only Elementum's repository error, not its ~280 lines of chatter.
 - Regression: `test_notice_log` (14): parsing, excerpt choices, attach once / clear, the sheet (44 pt buttons, ids, properties, fits above the button), and taps on the real Notifications page in the fake Kodi (crash → log; action → Open; dimmed page and back close).
 - Visual check pending: no render in this environment; first seen on the device.
+
+## ISSUE-113 — Library status: grey boxes for section names; owner wants folders (build 160)
+
+Status: FIXED IN SOURCE; device check pending (build 161).
+- Owner (build 160 screenshots): "I hate the grey boxes next to 'waiting' and 'ready for kodi and airplay' … it needs to be in like a folder so ready will show 7 then if i tap it it shows the movies." The footnote also showed as a row with an empty poster.
+- Root cause: the list used conditional item layouts (`<itemlayout condition="String.IsEqual(ListItem.Property(kind),header)">`). Kodi chooses among them by global conditions, not per item, so every item, the section names too, was drawn with the video row layout.
+- Fix: one layout for every item whose parts show by `ListItem.Property(kind)` (row, folder, foot). All shows what is happening now (preparing, downloading) as rows, then folders (Waiting, Ready for Kodi and AirPlay, Kept as it is) with a coloured tile, what is in them and the count; a folder opens its videos and the page title becomes its name; Back (arrow, gesture or back key) returns to All and closes only from All (the skin's Close is conditional too).
+- Regression: `test_library_status` (folders, one layout, positions, folder open and back in the fake Kodi).
+
+## ISSUE-114 — Phone space: 29 GB shown, iPhone says about 49; Inception waited on a figure the page did not show (build 160)
+
+Status: FIXED IN SOURCE; device check pending (build 161).
+- Owner: "It says my phone has 30gb free but it has 50 and we made it so my phone storage doesnt matter so it shouldnt be waiting at all."
+- Root cause 1: `shutil.disk_usage` (statvfs) counts only space free right now; iOS Settings also counts space it clears on its own when an app needs it. Fix: `phone_space.free` reads `NSURLVolumeAvailableCapacityForImportantUsageKey` through the Objective-C runtime (ctypes; never less than statvfs; statvfs elsewhere or on any failure); used by the queue, the preparation step and the page.
+- Root cause 2: the queue and the page used "the file's size", the preparation step its own estimate from the native probe (picture copied, or re-encoded at about 7 Mbit/s per 1080p, twice while it is made). Inception's step wanted far more than the 14 GB the page showed. Fix: the probe is kept with the job; `work_bytes` / `space_needed` give one figure for all three; a video that waits says why ("its picture (AV1 10-bit) cannot go into MP4 as it is, so it is re-encoded") in its details.
+- Not solved here: a movie whose picture must be re-encoded still needs room for the new picture on the phone while it is made (MP4's index is written after the picture). Which codec Inception has will show on its details sheet with KodiAirPlay r15 (the probe now reports codec and bit depth).
+- Regression: `test_library_status.SpaceAsTheIPhoneCountsIt` (4).
+
+## ISSUE-115 — Interstellar kept as it is: picture subtitles (build 160)
+
+Status: IN SOURCE (KodiAirPlay r15); CI build, then device check pending.
+- Owner: "Interstellar isnt being transferred and doesnt say ready … It needs to be ready for airplay."
+- Root cause: its Blu-ray picture subtitles (PGS) cannot go into MP4, and preparation never drops subtitles silently, so the file was kept as it is.
+- Fix: KodiAirPlay r15 `kodi_airplay_prepare_keep_image_subs(1)` writes each PGS track, untouched, to `output.sub<track>.<lang>[.forced].sup` (FFmpeg's `sup` muxer, now built) and prepares the MP4 without them. The add-on saves them next to the video on Google Drive as `<video>.<lang>[.forced].sup` (as Kodi names external subtitles) before replacing the video, and gives videos kept only for that one new try. Off by default in the framework. DVD picture subtitles or a second video track still keep a file as it is.
+- Regression: host `test_remux.c` (the .sup holds every PGS byte, none in the MP4, probe reports codec and PGS count), `test_image_subtitles` (9).

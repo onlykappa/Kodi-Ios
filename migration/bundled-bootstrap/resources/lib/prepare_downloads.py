@@ -6,7 +6,7 @@ validated local result is uploaded in place. No permanent AirPlay variant, sourc
 """
 import ctypes,hashlib,json,os,re,shutil,time,urllib.error,urllib.parse,urllib.request
 from pathlib import Path
-import driveupload,drivelibrary,library_scan
+import driveupload,drivelibrary,library_scan,phone_space
 
 PROFILE='source-resolution-mp4-v1'
 PROPERTY='kodiAirPlayProfile'
@@ -21,12 +21,32 @@ def folder_bytes(path):
  try:return sum(f.stat().st_size for f in Path(path).rglob('*') if f.is_file())
  except OSError:return 0
 
-def space_needed(item,streaming=False):
- """Phone space one video takes while it is prepared: the prepared copy (about the Drive file's size: the picture is
- copied, not re-encoded) and a margin, plus what must stay free for the owner. Without streaming (KodiAirPlay before
- r14) the Drive file is downloaded first as well, so twice the size."""
+def work_bytes(item,probe=None):
+ """Phone space the prepared copy needs (the native step's own estimate, from its probe). Picture copied: about the
+ Drive file's size plus the audio it converts (twice: a working track, then the MP4). Picture re-encoded (a codec MP4
+ or AirPlay cannot take as it is): the new picture at about 7 Mbit/s per 1080p, also twice. Without a probe yet:
+ about the file's size."""
  size=int(item.get('size') or 0)
- return (1 if streaming else 2)*size+RESERVE+KEEP_FREE
+ if not probe:return size+RESERVE
+ audio=int(probe.get('audio_work_bytes',0))
+ if probe.get('copy_video',True):return size+2*audio+16*1024*1024+RESERVE
+ video=int(probe.get('duration',0)*max(1.5e6,7e6*probe.get('width',1920)*probe.get('height',1080)/(1920*1080))/8)
+ return size+2*(video+audio)+RESERVE
+
+def space_needed(item,streaming=False,probe=None):
+ """Phone space one video takes while it is prepared, plus what always stays free for the owner (KEEP_FREE). Without
+ streaming (KodiAirPlay before r14) the Drive file is downloaded first as well. The same figure decides whether a video
+ starts and what Library status says it needs (owner, build 160: the page said 14 GB while the step itself wanted more)."""
+ return (0 if streaming else int(item.get('size') or 0))+work_bytes(item,probe)+KEEP_FREE
+
+def space_reason(probe):
+ """Why a video needs more than its own size, in everyday words, or ''."""
+ if not probe or probe.get('copy_video',True):return ''
+ codec=str(probe.get('codec') or '').upper().replace('HEVC','HEVC').replace('H264','H.264')
+ depth=int(probe.get('bit_depth') or 0)
+ what=' '.join(x for x in (codec,'%d-bit'%depth if depth>8 else '') if x)
+ return 'its picture%s cannot go into MP4 as it is, so it is re-encoded'%(' (%s)'%what if what else '')
+
 CALLBACK=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_int,ctypes.c_double,ctypes.c_double,ctypes.c_void_p)
 
 def location(profile):return Path(profile)/'addon_data/service.kodi.ios.bootstrap'/FILE
@@ -261,7 +281,8 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
    wait=max(0,int((job.get('retry_after',0)-now())//60))
    rows['waiting'].append(dict(base,state='problem',warn=True,reason=plain(job.get('error')),sub='Will try again%s · %s'%(' in %d min'%wait if wait else ' soon',plain(job.get('error')))));continue
   if job and job.get('space'):
-   rows['waiting'].append(dict(base,state='space',warn=True,needs=job['space'],sub='Needs %.0f GB free · %.0f GB free now'%(job['space']/1024**3,(free or 0)/1024**3)));continue
+   rows['waiting'].append(dict(base,state='space',warn=True,needs=job['space'],why=space_reason(job.get('probe')),
+    sub='Needs %.0f GB free · %.0f GB free now'%(job['space']/1024**3,(free or 0)/1024**3)));continue
   order.append(dict(base,state='waiting',priority=(job or {}).get('priority',0)))
  order.sort(key=lambda r:-r['priority'])
  for n,r in enumerate(order,1):r['sub']='%s · %s'%('Next' if n==1 else '%s in line'%ordinal(n),quality_text(r['name'],r['size']))
@@ -451,18 +472,18 @@ class Queue:
   # Finish a half-downloaded video before starting another (phone space), but only while it can actually run: one
   # stuck in a retry wait must not hold the whole queue (owner, build 156). Every job checks free space itself.
   resumable=[pair for pair in candidates if pair[0] in working]
-  free=shutil.disk_usage(self.work).free
+  free=phone_space.free(self.work)
   def fits(pair):
-   slot,job=pair;return free+folder_bytes(self.work/slot)>=space_needed(job['source'],bool(self.stream))
+   slot,job=pair;return free+folder_bytes(self.work/slot)>=space_needed(job['source'],bool(self.stream),job.get('probe'))
   if resumable and not any(fits(pair) for pair in resumable):
    # A half-prepared video that cannot finish gives its space back instead of keeping gigabytes on the phone.
    for slot,job in resumable:
     shutil.rmtree(self.work/slot,ignore_errors=True);job['status']='waiting';job.pop('retry_after',None)
-   free=shutil.disk_usage(self.work).free;resumable=[]
+   free=phone_space.free(self.work);resumable=[]
   if resumable:candidates=resumable
   # Only videos that fit start; the others wait (smallest first once space frees up) without failing or notifying.
   waiting=[pair for pair in candidates if not fits(pair)]
-  for slot,job in waiting:job['space']=space_needed(job['source'],bool(self.stream))
+  for slot,job in waiting:job['space']=space_needed(job['source'],bool(self.stream),job.get('probe'))
   for slot,job in candidates:
    if (slot,job) not in waiting:job.pop('space',None)
   self.note_space(waiting,free)
@@ -500,24 +521,19 @@ class Queue:
     else:
      if not source.is_file() or source.stat().st_size!=int(item['size']):
       required=max(0,int(item['size'])-(source.stat().st_size if source.exists() else 0))+RESERVE
-      if shutil.disk_usage(folder).free<required:raise RuntimeError('Free phone space is needed for temporary preparation')
+      if phone_space.free(folder)<required:raise RuntimeError('Free phone space is needed for temporary preparation')
       progress('Step 3 of 3 · Reading the downloaded video',0)
       self.download(self.drive,item,str(source),keep_going,lambda n,t:progress('Step 3 of 3 · Reading the downloaded video',20*n/t))
      if driveupload.checksum(str(source),keep_going,pace=1)!=item['md5Checksum'].lower():
       source.unlink();raise RuntimeError('Source checksum differs; will read it again')
     before=self.native.probe(str(source))
+    # Kept with the job: the queue and Library status then use the same estimate as this step (work_bytes).
+    job['probe']={k:before.get(k) for k in ('copy_video','audio_work_bytes','duration','width','height','codec','bit_depth','pgs_subtitles')}
     # Never trade the selected 4K/HDR source for the live converter's 1080p fallback.
     if not output.is_file():
-     audio=int(before.get('audio_work_bytes',0));size=int(item['size'])
-     if before.get('copy_video'):
-      # One MP4 output plus only the audio tracks which actually need bridging. No H.264 re-encode estimate
-      # for the usual 4K HEVC download: those video bytes remain unchanged.
-      needed=size+2*audio+16*1024*1024+RESERVE
-     else:
-      video=int(before.get('duration',0)*max(1.5e6,7e6*before['width']*before['height']/(1920*1080))/8)
-      needed=size+2*(video+audio)+RESERVE
+     needed=work_bytes(item,before)
      used=sum(p.stat().st_size for p in folder.glob('prepared.mp4.track*') if p.is_file())
-     if shutil.disk_usage(folder).free<max(RESERVE,needed-used):raise RuntimeError('Free phone space is needed to finish this video; existing Drive file is unchanged')
+     if phone_space.free(folder)<max(RESERVE,needed-used)+KEEP_FREE:raise RuntimeError('Free phone space is needed to finish this video; existing Drive file is unchanged')
      progress('Step 3 of 3 · Preparing at source resolution',20)
      self.native.convert(str(source),str(output),keep_going,
       lambda stage,n,t:progress('Step 3 of 3 · '+('Preparing video','Preparing audio','Packaging MP4','Verifying video')[stage],(20,35,50,74)[stage]+(15,15,24,1)[stage]*(n/t if t else 0)))
@@ -555,7 +571,7 @@ class Queue:
     job['blocked']=True;shutil.rmtree(folder,ignore_errors=True)
    elif 'Free phone space' in text:
     # Space ran out after all (the phone filled up meanwhile): give the space back and wait, quietly.
-    shutil.rmtree(folder,ignore_errors=True);job['status']='waiting';job['space']=space_needed(item,bool(self.stream));job['retry_after']=self.clock()+600
+    shutil.rmtree(folder,ignore_errors=True);job['status']='waiting';job['space']=space_needed(item,bool(self.stream),job.get('probe'));job['retry_after']=self.clock()+600
     job['error']=text[:240];return False
    # One notification per video and reason, not one per retry (owner, build 157: the same message five times).
    if job.get('error')!=text[:240]:self.notify('problem','Video preparation paused','%s: %s'%(drivelibrary.display_title(item.get('name','')),text[:200]))
