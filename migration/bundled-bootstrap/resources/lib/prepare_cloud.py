@@ -110,14 +110,17 @@ def process_one(q, keep_going):
                 # r30: carry on from where the last run got to (Kodi closed, the app updated), if Drive still has it.
                 resumes=bool(getattr(q.native,'resumes',False))
                 checkpoint=resume_store.load(q.profile,slot,prep.identity(item)) if resumes else None
-                if checkpoint and not (job.get('probe') and resume_store.alive(q.drive,checkpoint)):checkpoint=None
+                if checkpoint:
+                    held=resume_store.confirmed(q.drive,checkpoint) if job.get('probe') else None
+                    checkpoint=resume_store.fit(checkpoint,held,bool((job.get('probe') or {}).get('copy_video')))
                 if not checkpoint:resume_store.clear(q.profile,slot)
                 # Remove completed sidecars from an interrupted generation before retrying.
                 if not clear_temps():raise RuntimeError('Preparation temporary files could not be cleaned up')
                 outputs=job.setdefault('cloud_output',{})
                 if checkpoint:
                     before=job['probe']
-                    q.log('preparation: %s — carrying on from byte %d (Drive kept it)'%(drivelibrary.display_title(item['name']),checkpoint['offset']+len(checkpoint['tail'])))
+                    q.log('preparation: %s — carrying on from byte %d (Drive kept it; %d bytes past the mark already on Drive)'%(
+                        drivelibrary.display_title(item['name']),checkpoint['offset']+len(checkpoint['tail'])-checkpoint.get('skip',0),checkpoint.get('skip',0)))
                 else:
                     progress('Inspecting video and track index',None)
                     before=q.native.probe(source);job['probe']=before;q.commit()
@@ -130,6 +133,7 @@ def process_one(q, keep_going):
                 identity=prep.identity(item)
                 sink=drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=paused,
                     spool=str(resume_store.folder(q.profile)) if resumes else None,checkpoint=checkpoint,
+                    keep_pieces=resumes and not (job.get('probe') or {}).get('copy_video'),
                     on_checkpoint=lambda cp:resume_store.save(q.profile,slot,identity,cp))
                 attempt['sink']=sink
                 def waiting():

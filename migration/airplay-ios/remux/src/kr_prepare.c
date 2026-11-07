@@ -122,18 +122,27 @@ static int inspect_interrupt(void *opaque) {
     if(w->progress && !w->progress(0,0,0,w->context)){w->cancelled=1;return 1;}
     return av_gettime_relative()>=w->deadline;
 }
+// The options every reader of a Drive (loopback) file uses; r31: also the read-back check (validate), which opened
+// without them: no reconnect, and FFmpeg then walked every fragment of a prepared movie (655 reads of a 100 MB test).
+static void reading_options(AVDictionary **o,const char *input) {
+    if(!strncmp(input,"http://",7)) {
+        av_dict_set(o,"rw_timeout","30000000",0);
+        av_dict_set(o,"reconnect","1",0);av_dict_set(o,"reconnect_on_network_error","1",0);
+        av_dict_set(o,"reconnect_delay_max","5",0);av_dict_set(o,"reconnect_max_retries","3",0);
+        av_dict_set(o,"reconnect_delay_total_max","15",0);av_dict_set(o,"reconnect_on_http_error","429,500,502,503,504",0);
+        av_dict_set(o,"seekable","1",0);av_dict_set(o,"multiple_requests","1",0);
+        av_dict_set(o,"user_agent","Kodi-iOS-AirPlay/1",0);
+    }
+    av_dict_set(o,"use_mfra_for","pts",0);
+}
 static int open_source_checked(AVFormatContext **f,const char *input,inspect_wait *wait) {
     AVDictionary *o=NULL;int r;
     *f=avformat_alloc_context();if(!*f)return AVERROR(ENOMEM);
     if(wait)(*f)->interrupt_callback=(AVIOInterruptCB){inspect_interrupt,wait};
-    if(!strncmp(input,"http://",7)) {
-        av_dict_set(&o,"rw_timeout","30000000",0);
-        av_dict_set(&o,"reconnect","1",0);av_dict_set(&o,"reconnect_on_network_error","1",0);
-        av_dict_set(&o,"reconnect_delay_max","5",0);av_dict_set(&o,"reconnect_max_retries","3",0);
-        av_dict_set(&o,"reconnect_delay_total_max","15",0);av_dict_set(&o,"reconnect_on_http_error","429,500,502,503,504",0);
-        av_dict_set(&o,"seekable","1",0);av_dict_set(&o,"multiple_requests","1",0);
-        av_dict_set(&o,"user_agent","Kodi-iOS-AirPlay/1",0);
-    }
+    // r31 (owner, build-189 log: Interstellar's last check timed out three times): a prepared movie is fragmented, and
+    // without its index (mfra) FFmpeg opens it by reading every fragment header in turn: ~1,700 Drive reads for a
+    // 2 h 49 min movie. With the index it reads the start and the end.
+    reading_options(&o,input);
     r=avformat_open_input(f,input,NULL,&o);av_dict_free(&o);
     if(r>=0)r=avformat_find_stream_info(*f,NULL);
     // AVIO copies the callback: its context must survive until avformat_close_input.
@@ -482,7 +491,7 @@ static int marks_on=0;
 void kodi_airplay_prepare_marks(int on) { marks_on=on!=0; }
 typedef struct {int64_t pos,dts;double t;int si,eof;} in_mark;
 typedef struct {int markable;in_mark in[TRACKS];int64_t side[TRACKS];} prep_state;
-typedef struct {int64_t end,start,shift;int has_start;} out_track;   // by MP4 track_ID - 1 (= output stream index)
+typedef struct {int64_t end,start,shift;int has_start,from_mark,carried;} out_track;   // by MP4 track_ID - 1 (= output stream index)
 typedef struct {uint32_t id;int64_t time,offset;} tfra_entry;
 typedef struct resume_ctx {
     int resume;int64_t resume_at;uint32_t resume_seq;int64_t at;
@@ -641,7 +650,7 @@ static int rc_load(resume_ctx *rc,const char *text,int *ninputs) {
         else if(sscanf(at,"in %d %d %lld %d %lld %lf",&i,&e,&a,&si,&b2,&t)==6){if(i<0 || i>=TRACKS)return -1;
             rc->resumed.in[i]=(in_mark){a,b2,t,si,e};if(i+1>*ninputs)*ninputs=i+1;}
         else if(sscanf(at,"track %d %lld %d %lld %lld",&i,&a,&h,&b2,&c)==5){if(i<1 || i>TRACKS)return -1;
-            rc->base[i-1]=a;rc->tracks[i-1].end=a;rc->tracks[i-1].has_start=h;rc->tracks[i-1].start=b2;rc->tracks[i-1].shift=c;}
+            rc->base[i-1]=a;rc->tracks[i-1].end=a;rc->tracks[i-1].has_start=h;rc->tracks[i-1].start=b2;rc->tracks[i-1].shift=c;rc->tracks[i-1].from_mark=h;}
         else if(sscanf(at,"side %d %lld",&i,&a)==2){if(i<0 || i>=TRACKS)return -1;rc->resumed.side[i]=a;}
         else if(sscanf(at,"tfra %u %lld %lld",&id,&a,&b2)==3){if(b2>=rc->resume_at)continue;if(tfra_add(rc,id,a,b2)<0)return -1;}
     }
@@ -702,7 +711,8 @@ static double packet_time(input_track *in) {
 }
 static int validate(const char *path,AVFormatContext *original,int expected_tracks,char *err,int en) {
     AVFormatContext *f=NULL;int r=-1;
-    if(avformat_open_input(&f,path,NULL,NULL)<0 || avformat_find_stream_info(f,NULL)<0)goto end;
+    {AVDictionary *o=NULL;reading_options(&o,path);   // r31: same reader as everywhere, opened by the index
+     int q=avformat_open_input(&f,path,NULL,&o);av_dict_free(&o);if(q<0 || avformat_find_stream_info(f,NULL)<0)goto end;}
     int a=video_index(original),b=video_index(f);
     if(a<0 || b<0 || (int)f->nb_streams!=expected_tracks || !kr_prepare_ready(f))goto end;
     AVCodecParameters *src=original->streams[a]->codecpar,*dst=f->streams[b]->codecpar;
@@ -735,6 +745,18 @@ static int put(AVFormatContext *out,resume_ctx *rc,AVPacket *p) {
         rc->shift_known=1;
     }
     out_track *t=&rc->tracks[p->stream_index];
+    // r31 (end-to-end test: a run carried on from a mark differed from a straight run by one tick in one duration): in
+    // the first run FFmpeg moved this packet's dts to where the track's earlier durations ended (it starts a fragment);
+    // a resumed run starts the track here. Moving dts and pts by the same amount gives the same durations and the same
+    // composition offsets, so a copied movie comes out byte for byte the same and Drive's bytes past a mark can be kept.
+    // Moving it earlier is always allowed (nothing of this track comes before it here). When the first run had moved it
+    // later (a source whose packet durations overshoot), moving it here could pass the next packet: it keeps its time,
+    // and only this first fragment's first duration differs from the first run (the fragments after it match).
+    if(rc->resume && t->from_mark && !t->carried && p->dts!=AV_NOPTS_VALUE) {
+        int64_t moved=t->start-t->shift+rc->base[p->stream_index]-p->dts;
+        if(moved<=0){p->dts+=moved;if(p->pts!=AV_NOPTS_VALUE)p->pts+=moved;}
+    }
+    t->carried=1;
     if(!t->has_start && p->dts!=AV_NOPTS_VALUE){t->start=p->dts+t->shift;t->has_start=1;}
     int q=av_write_frame(out,p);
     if(q>=0){avio_flush(out->pb);if(out->pb->error<0)q=out->pb->error;}

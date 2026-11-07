@@ -32,6 +32,16 @@ if [[ ! -f "$WORK/fixtures/resume_av1_hdr.mkv" ]]; then
     -vf 'format=yuv420p10le,setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc' -c:v libaom-av1 -cpu-used 8 -crf 30 -row-mt 1 -threads 2 -g 8 \
     -color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc -c:a ac3 -b:a 96k "$WORK/fixtures/resume_av1_hdr.mkv"
 fi
+# Build 190 end-to-end test (e2e_conversion.py): a 100 MB copy, and a re-encode whose 30 s units span several pieces.
+if [[ ! -f "$WORK/fixtures/long_big.mkv" ]]; then
+  ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=640x360:rate=10:duration=1300' -f lavfi -i 'sine=frequency=440:duration=1300' \
+    -c:v libx264 -preset ultrafast -g 20 -b:v 600k -c:a aac -b:a 64k "$WORK/fixtures/long_big.mkv"
+fi
+if [[ ! -f "$WORK/fixtures/resume_av1_hdr_big.mkv" ]]; then
+  ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=640x360:rate=24:duration=95' -f lavfi -i 'sine=frequency=440:duration=95' \
+    -vf 'format=yuv420p10le,setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc' -c:v libaom-av1 -cpu-used 8 -crf 30 -row-mt 1 -threads 4 -g 24 \
+    -color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc -c:a ac3 -b:a 96k "$WORK/fixtures/resume_av1_hdr_big.mkv"
+fi
 # Long sparse fixture proves an actual twenty-minute MP4 seek without a large test download.
 if [[ ! -f "$WORK/fixtures/long_seek.mkv" ]]; then
   ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=64x36:rate=1:duration=1300' \

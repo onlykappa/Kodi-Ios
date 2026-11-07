@@ -85,13 +85,54 @@ class Pieces(unittest.TestCase):
   (resume_store.folder(self.tmp.name)/'s.side2').write_bytes(b'x')
   resume_store.clear(self.tmp.name,'s');self.assertEqual(list(resume_store.folder(self.tmp.name).glob('s.*')),[])
 
+class Fit(unittest.TestCase):
+ """Build 190 (end-to-end test): Drive is nearly always between two marks when Kodi closes."""
+ def setUp(self):self.tmp=tempfile.TemporaryDirectory()
+ def tearDown(self):self.tmp.cleanup()
+ def cp(self,**kw):return dict(dict(url='u',offset=10*STEP,tail=b't'*100,mark=mark(10*STEP+100)),**kw)
+ def test_up_to_the_mark_the_tail_fills_the_gap(self):
+  r=resume_store.fit(self.cp(),10*STEP+40,copied=False)
+  self.assertEqual((r['offset'],r['tail'],r['skip']),(10*STEP+40,b't'*60,0))
+ def test_past_the_mark_a_copy_skips_what_drive_has(self):
+  r=resume_store.fit(self.cp(),12*STEP,copied=True)
+  self.assertEqual((r['offset'],r['tail'],r['skip']),(12*STEP,b'',12*STEP-(10*STEP+100)))
+  self.assertIsNone(resume_store.fit(self.cp(),12*STEP,copied=False))   # a re-encode does not repeat exactly
+  self.assertIsNone(resume_store.fit(self.cp(),None,copied=True));self.assertIsNone(resume_store.fit(None,0,True))
+ def test_kept_pieces_cover_what_drive_lacks(self):
+  a=os.path.join(self.tmp.name,'p0');b=os.path.join(self.tmp.name,'p1')
+  Path(a).write_bytes(b'A'*STEP);Path(b).write_bytes(b'B'*STEP)
+  c=dict(url='u',offset=2*STEP,tail=b'',mark=mark(2*STEP),pieces=[[0,STEP,a],[STEP,2*STEP,b]])
+  r=resume_store.fit(c,STEP//2,copied=False)
+  self.assertEqual((r['offset'],r['tail']),(STEP//2,b'A'*(STEP//2)+b'B'*STEP))
+  os.remove(b);self.assertIsNone(resume_store.fit(c,STEP//2,copied=False))   # a missing piece: start again
+ def test_sink_skips_and_keeps(self):
+  drive=Drive();_,headers,_=drive.call('POST','x?uploadType=resumable','{"name":"slot.mp4"}'.encode())
+  url=headers['Location'];drive.call('PUT',url,b'm'*STEP,{'Content-Range':'bytes 0-%d/*'%(STEP-1)})
+  # Drive has STEP bytes, the mark is at 100: the converter's next STEP-100 bytes are already there.
+  s=dp.Sink(drive,'staging','slot',lambda:True,background=False,spool=self.tmp.name,checkpoint=dict(url=url,offset=STEP,tail=b'',mark=mark(100),skip=STEP-100))
+  s.write(0,'.mp4',b'm'*(STEP-100)+b'rest')
+  out=s.finish()['0'];self.assertEqual(drive.files[out['id']]['data'],b'm'*STEP+b'rest')
+ def test_kept_files_follow_the_movie_and_go_once_drive_has_them(self):
+  saved=[];s=dp.Sink(Drive(),'staging','slot',lambda:True,spool=self.tmp.name,keep_pieces=True,on_checkpoint=saved.append)
+  old=dp.MAIN_CHUNK;dp.MAIN_CHUNK=STEP
+  try:
+   s._new_track(0,'u',0)
+   s.tracks[0]['buffer']=bytearray()   # write path only for _keep
+   s._keep(0,b'x'*(STEP+10));self.assertEqual(sorted(p[:2] for p in s.pieces.values()),[[0,STEP],[STEP,STEP+10]])
+   self.assertEqual(Path(s.pieces[STEP][2]).read_bytes(),b'x'*10)
+   s.mark_from(mark(STEP+5));self.assertEqual(saved[-1]['offset'],STEP+5);self.assertEqual(len(saved[-1]['pieces']),2)
+   s._drop_confirmed(STEP);self.assertEqual(list(s.pieces),[STEP])
+  finally:dp.MAIN_CHUNK=old;s.close()
+
 class Wiring(unittest.TestCase):
  def test_native_and_queue(self):
   prep=(LIB/'prepare_downloads.py').read_text();cloud=(LIB/'prepare_cloud.py').read_text()
   self.assertIn("lib.kodi_airplay_prepare_marks(1)",prep);self.assertIn('if track==-1:',prep)
   self.assertIn("r=self.lib.kodi_airplay_prepare_resume(",prep);self.assertIn('raise ResumeFailed(',prep)
   self.assertIn("checkpoint=resume_store.load(q.profile,slot,prep.identity(item)) if resumes else None",cloud)
-  self.assertIn("resume_store.alive(q.drive,checkpoint)",cloud)
+  self.assertIn("held=resume_store.confirmed(q.drive,checkpoint) if job.get('probe') else None",cloud)
+  self.assertIn("checkpoint=resume_store.fit(checkpoint,held,bool((job.get('probe') or {}).get('copy_video')))",cloud)
+  self.assertIn("keep_pieces=resumes and not (job.get('probe') or {}).get('copy_video'),",cloud)
   self.assertIn("except prep.ResumeFailed as error:",cloud);self.assertIn("raise driveupload.Stop('Starting the conversion again')",cloud)
   self.assertIn("sink.finish()\n                    resume_store.clear(q.profile,slot)",cloud)
   c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()

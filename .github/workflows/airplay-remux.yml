@@ -43,6 +43,16 @@ jobs:
           [ -f "$RUNNER_TEMP/ass-host/lib/libass.a" ] || bash migration/airplay-ios/build-libass.sh host "$RUNNER_TEMP/ass-host"
       - name: Host tests (fixtures from files and over HTTP with Range)
         run: KR_HDR_TESTS=1 bash migration/airplay-ios/remux/tests/run_host_tests.sh "$RUNNER_TEMP/ff-host" "$RUNNER_TEMP/remux-tests" "$RUNNER_TEMP/ass-host"
+      # Build 190 (owner: "do a full rundown audit and tests on this conversion"): the real converter and the add-on's
+      # queue end to end against a local Drive stand-in: interrupted runs, killed uploads, slow lines, the read-back check.
+      - name: End-to-end conversion (converter + add-on queue + Drive stand-in)
+        run: |
+          sudo apt-get install -yq libass-dev
+          FF="$RUNNER_TEMP/ff-host";R=migration/airplay-ios/remux
+          cc -std=gnu11 -O2 -fPIC -shared -w -I"$FF/include" "$R"/src/*.c "$R"/gmplayer/*.c -Wl,-Bsymbolic \
+            "$FF/lib/libavformat.a" "$FF/lib/libavcodec.a" "$FF/lib/libdav1d.a" "$FF/lib/libswscale.a" "$FF/lib/libswresample.a" "$FF/lib/libavutil.a" \
+            -lass -lx265 -lz -lm -lpthread -lstdc++ -ldl -o "$RUNNER_TEMP/libkodiairplay.so"
+          python3 -B "$R/tests/e2e_conversion.py" "$RUNNER_TEMP/libkodiairplay.so" "$RUNNER_TEMP/remux-tests/fixtures"
       - name: Retain synthetic fixture and dependency configuration on failure
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

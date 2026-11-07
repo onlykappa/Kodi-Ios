@@ -26,7 +26,10 @@ AHEAD = 4   # build 185: 4 x 32 MB may wait, so a short upload stall does not st
 # Drive never gets past a mark the app could not make again. Far from a mark (more than MARK_CAP buffered) the movie
 # goes up anyway and the next mark is used.
 STEP = 256 * 1024
-MARK_CAP = 3 * MAIN_CHUNK
+# Build 190 (end-to-end test of an interrupted AV1 → HEVC conversion): a re-encode only has a mark every 30 s unit,
+# and 30 s of 4K HEVC is 75-300 MB. With 96 MB the movie went up past the saved mark inside every unit, so closing
+# Kodi there started the movie again. 256 MB holds a unit up to ~68 Mbit/s in memory.
+MARK_CAP = 8 * MAIN_CHUNK
 
 
 def parse_mark(text):
@@ -57,7 +60,7 @@ def discard(drive, item_id):
 
 class Sink:
     def __init__(self, drive, parent, name, keep_going, on_file=lambda track,item:None, background=True, clock=time.monotonic, sleep=None,
-                 hold=lambda:False, spool=None, checkpoint=None, on_checkpoint=None):
+                 hold=lambda:False, spool=None, checkpoint=None, on_checkpoint=None, keep_pieces=False):
         self.drive, self.parent, self.name, self.keep_going = drive, parent, name, keep_going
         # Owner (build 181: AirPlay of Buddy failed while Interstellar's 32 MB pieces went up, one took 94 s): while a
         # video plays, hold() is true and the pieces wait, so playback gets the whole line.
@@ -74,17 +77,40 @@ class Sink:
         # of them to keep; marks bound the movie's pieces; on_checkpoint(dict) is told what Drive holds at a mark.
         self.spool, self.on_checkpoint = spool, on_checkpoint
         self.mark = None         # (offset, full text) of the latest mark
+        self.skip = 0            # bytes of the converter's output Drive already has (carrying on past a mark)
+        # Build 190: a re-encoded picture does not come out the same twice, and Drive is nearly always past the last
+        # mark (pieces are on their way to the next one), so a re-encode could not be carried on. With keep_pieces the
+        # movie is also written, as it is made, to files of MAIN_CHUNK in `spool`; each is deleted once Drive has it
+        # (at most MARK_CAP plus the AHEAD queue, ~384 MB). Every mark is saved at once, naming the files from what Drive
+        # may not have up to the mark, so the next run can send Drive the rest of them and carry on from the mark.
+        self.keep_pieces = bool(keep_pieces and spool)
+        self.pieces = {}         # start -> [start, end, path] of kept parts of the movie
         self.tfra = []
         self.spooled = {}
         if checkpoint:
             offset, _, tfra = parse_mark(checkpoint['mark'])
             self.tfra = list(tfra)
             tail = bytes(checkpoint.get('tail') or b'')
-            if checkpoint['offset'] + len(tail) != offset:raise ValueError('Checkpoint does not end at its mark')
+            # skip: Drive already holds this many bytes past the mark (a copied picture comes out the same again).
+            self.skip = int(checkpoint.get('skip') or 0)
+            if checkpoint['offset'] + len(tail) - self.skip != offset or (self.skip and tail):
+                raise ValueError('Checkpoint does not end at its mark')
             t = self._new_track(0, checkpoint['url'], checkpoint['offset'])
             t['md5'] = None      # the earlier bytes are on Drive only: Drive's checksum and verification decide
             t['buffer'].extend(tail)
             self.made = offset
+            if self.keep_pieces:
+                # The kept files go on from the mark: what an earlier run wrote past it is cut off.
+                import os
+                for start, end, path in checkpoint.get('pieces') or []:
+                    if start >= offset or end <= checkpoint['offset']:
+                        try:os.remove(path)
+                        except OSError:pass
+                        continue
+                    try:
+                        with open(path, 'r+b') as f:f.truncate(min(end, offset) - start)
+                    except OSError:continue
+                    self.pieces[start] = [start, min(end, offset), path]
             for track, length in mark_sides(checkpoint['mark']).items():
                 path = self._spool_path(track)
                 with open(path, 'ab') as f:f.truncate(length)
@@ -99,6 +125,27 @@ class Sink:
         offset, head, tfra = parse_mark(text)
         self.tfra.extend(tfra)
         if offset > 0:self.mark = (offset, '\n'.join(head + self.tfra) + '\n')
+        t = self.tracks.get(0)
+        if offset > 0 and self.keep_pieces and t is not None:
+            # Everything Drive may not have yet, up to the mark, is in the kept files: save the mark now.
+            self._checkpoint(t['url'], offset, dict(tail=b'', mark=self.mark[1]),
+                             [p for p in sorted(self.pieces.values()) if p[0] < offset])
+
+    def _keep(self, pos, data):
+        """Write the movie's bytes [pos, pos + len(data)) to the kept files (one per MAIN_CHUNK of the movie)."""
+        import os
+        size = MAIN_CHUNK
+        while data:
+            start = pos // size * size
+            n = min(len(data), start + size - pos)
+            part = self.pieces.get(start)
+            if part is None:
+                part = self.pieces[start] = [start, start, os.path.join(self.spool, '%s.piece%d' % (self.name, start))]
+                open(part[2], 'wb').close()
+            if part[1] != pos:raise RuntimeError('Kept movie file out of order')
+            with open(part[2], 'ab') as f:f.write(data[:n])
+            part[1] = pos + n
+            pos += n;data = data[n:]
 
     def rate(self):
         """How fast the movie goes up to Drive (bytes per second over the last ~20 s)."""
@@ -137,14 +184,24 @@ class Sink:
                 self._send(wire, len(piece), final=False, sleep=self.sleep)
                 self._confirmed(wire, track)
                 if saved:self._checkpoint(wire['url'], wire['offset'], saved)
+                if track == 0 and self.keep_pieces:self._drop_confirmed(wire['offset'])
             except BaseException as error:
                 t['error'] = error
                 return
 
-    def _checkpoint(self, url, offset, saved):
+    def _checkpoint(self, url, offset, saved, pieces=()):
         if self.on_checkpoint is None:return
-        try:self.on_checkpoint(dict(url=url, offset=offset, tail=saved['tail'], mark=saved['mark']))
+        try:self.on_checkpoint(dict(url=url, offset=offset, tail=saved['tail'], mark=saved['mark'], pieces=[list(p) for p in pieces]))
         except Exception:pass   # a checkpoint that cannot be saved only means a restart starts over
+
+    def _drop_confirmed(self, offset):
+        """Drive has the movie up to offset: kept files wholly before it go."""
+        import os
+        for start, part in list(self.pieces.items()):
+            if start + MAIN_CHUNK <= offset:
+                self.pieces.pop(start, None)
+                try:os.remove(part[2])
+                except OSError:pass
 
     def _raise(self, t):
         if t.get('error') is not None:raise t['error']
@@ -204,6 +261,9 @@ class Sink:
             self.suffixes = getattr(self, 'suffixes', {});self.suffixes.setdefault(track, suffix)
             with open(path, 'ab') as f:f.write(data)
             return
+        if track == 0 and self.skip:
+            drop = min(self.skip, len(data));self.skip -= drop;self.made += drop;data = data[drop:]
+            if not data:return
         if track not in self.tracks:self._new_track(track, None, 0, suffix)
         t = self.tracks[track]
         if t.get('queue') is not None:self._raise(t)
@@ -214,6 +274,7 @@ class Sink:
                 self.made_marks.append((now, self.made))
                 self.made_marks[:] = [m for m in self.made_marks if now - m[0] <= 20]
         if t['md5'] is not None:t['md5'].update(data)
+        if track == 0 and self.keep_pieces:self._keep(t['queued'] + len(t['buffer']), data)
         t['buffer'].extend(data)
         # Keep the last chunk until generation succeeds: cancellation cannot commit a truncated movie.
         while True:
@@ -226,6 +287,7 @@ class Sink:
                 if saved:self._checkpoint(t['url'], t['offset'], saved)
                 continue
             piece = bytes(t['buffer'][:n])
+            if track == 0 and self.keep_pieces:saved = None   # marks are saved as they come (mark_from)
             while True:   # wait for room, but never forever: an upload error or a pause ends the wait
                 self._raise(t)
                 if not self.keep_going():raise driveupload.Stop('Preparation paused')

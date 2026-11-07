@@ -1493,6 +1493,24 @@ static char *resume_record(resume_sink *r,int chosen) {
 static int save_bytes(const char *path,const uint8_t *a,size_t na,const uint8_t *b,size_t nb) {
     FILE *f=fopen(path,"wb");if(!f)return -1;int ok=fwrite(a,1,na,f)==na && (!nb || fwrite(b,1,nb,f)==nb);return fclose(f)||!ok?-1:0;
 }
+// r31: a prepared (fragmented) movie opens by its index: FFmpeg reads its start and its end, not every fragment.
+typedef struct {FILE *f;long long bytes;} counted;
+static int counted_read(void *o,uint8_t *b,int n){counted *c=o;size_t r=fread(b,1,(size_t)n,c->f);c->bytes+=(long long)r;return r?(int)r:AVERROR_EOF;}
+static int64_t counted_seek(void *o,int64_t off,int whence) {
+    counted *c=o;
+    if(whence==AVSEEK_SIZE){long at=ftell(c->f);fseek(c->f,0,SEEK_END);long size=ftell(c->f);fseek(c->f,at,SEEK_SET);return size;}
+    return fseeko(c->f,(off_t)off,whence&~AVSEEK_FORCE)?-1:(int64_t)ftello(c->f);
+}
+static long long bytes_to_open(const char *path) {
+    counted c={fopen(path,"rb"),0};if(!c.f)return -1;
+    AVFormatContext *f=avformat_alloc_context();uint8_t *buf=av_malloc(32768);
+    f->pb=avio_alloc_context(buf,32768,0,&c,counted_read,NULL,counted_seek);f->flags|=AVFMT_FLAG_CUSTOM_IO;
+    AVDictionary *o=NULL;av_dict_set(&o,"use_mfra_for","pts",0);
+    int r=avformat_open_input(&f,NULL,NULL,&o);av_dict_free(&o);
+    if(r>=0)r=avformat_find_stream_info(f,NULL);
+    AVIOContext *pb=f?f->pb:NULL;avformat_close_input(&f);if(pb){av_freep(&pb->buffer);avio_context_free(&pb);}
+    fclose(c.f);return r<0?-1:c.bytes;
+}
 static void test_preparation_resume(const char *work,const char *http_base) {
     struct {const char *file;int same;} cases[]={{"long_seek.mkv",1},{"long_pgs.mkv",1},{"h264_ac3_dts_srt.mkv",0},{"resume_av1_hdr.mkv",0}};
     kodi_airplay_prepare_keep_image_subs(1);kr_video_set_encoder("mpeg4");kodi_airplay_prepare_marks(1);
@@ -1508,6 +1526,8 @@ static void test_preparation_resume(const char *work,const char *http_base) {
         snprintf(path,sizeof path,"%s/resume-full-%u.mp4",fixture_dir,c);snprintf(remote,sizeof remote,"%s/resume-full-%u.mp4",http_base,c);
         if(r || !full.nmarks || save_bytes(path,full.data[0],full.len[0],NULL,0)){resume_free(&full);continue;}
         CHECK(kodi_airplay_verify(input,remote,err,sizeof err)==0,"resume %s: the straight run with its own index validates: %s",cases[c].file,err);
+        {long long read=bytes_to_open(path);
+         CHECK(read>0 && (!strcmp(cases[c].file,"long_seek.mkv")?read*10<(long long)full.len[0]:1),"resume %s: opening reads %lld of %zu bytes (by its index)",cases[c].file,read,full.len[0]);}
         int chosen=full.nmarks/2;long long at=mark_value(full.marks[chosen],"offset");
         CHECK(at>0 && at<(long long)full.len[0],"resume %s: mark %d at byte %lld of %zu",cases[c].file,chosen,at,full.len[0]);
         char *record=resume_record(&full,chosen);
@@ -1517,6 +1537,8 @@ static void test_preparation_resume(const char *work,const char *http_base) {
             snprintf(path,sizeof path,"%s/resume-joined-%u.mp4",fixture_dir,c);snprintf(remote,sizeof remote,"%s/resume-joined-%u.mp4",http_base,c);
             save_bytes(path,full.data[0],(size_t)at,more.data[0],more.len[0]);
             CHECK(kodi_airplay_verify(input,remote,err,sizeof err)==0,"resume %s: the joined movie validates: %s",cases[c].file,err);
+            {long long read=bytes_to_open(path);size_t total=(size_t)at+more.len[0];
+             CHECK(read>0 && (!strcmp(cases[c].file,"long_seek.mkv")?read*10<(long long)total:1),"resume %s: the joined movie opens by its index too (%lld of %zu bytes)",cases[c].file,read,total);}
             size_t joined=(size_t)at+more.len[0];
             if(cases[c].same)CHECK(joined==full.len[0] && !memcmp(full.data[0]+at,more.data[0],more.len[0]),"resume %s: the joined movie is the straight one (%zu / %zu bytes)",cases[c].file,joined,full.len[0]);
             uint8_t a[16],b[16];int w,h,n,w2,h2,n2;char straight[1300];snprintf(straight,sizeof straight,"%s/resume-full-%u.mp4",fixture_dir,c);
