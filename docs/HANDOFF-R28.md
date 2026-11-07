@@ -102,7 +102,7 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
 - Build 187 = run 42341483347 (r30 pinned, sha 4f102aad…). Owner ran it overnight: Kodi never closed, so resume was
   not exercised yet.
 
-## Build 188 (Python only)
+## Build 188 (Python only) — verified (IPA sha 981cc980…, build.json 8ee00ec, AirPlay binary = r30 release d4524be2…)
 (owner, build-187 log: Interstellar "timed out"; downloads and AirPlay stop with the screen off)
 - Interstellar converted and uploaded in ~7 h (402 PUT write timeouts of 45 s overnight), then the read-back probe of
   the Drive file (120 s) timed out and the retry waited behind Fall 2. Now check-only jobs go first (order_key) and the
