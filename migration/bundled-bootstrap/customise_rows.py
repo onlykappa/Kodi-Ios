@@ -38,13 +38,16 @@ class Editor:
   if self.editing:self.editing=False;return False
   return True
  def click(self,control):
-  n=lambda base:control-base if 1<=control-base<=min(page.SLOTS,len(self.rows)) else 0
+  # Slot n is the n-th row in the page's order (rows_editor.view: Home's order, then the rows Home never shows).
+  order=re_.view(self.rows)
+  n=lambda base:control-base if 1<=control-base<=min(page.SLOTS,len(order)) else 0
+  at=lambda base:order[n(base)-1]
   if control==page.EDIT:self.editing=not self.editing
-  elif n(page.ROW_BASE) and not self.editing:self.current=n(page.ROW_BASE)-1
-  elif n(page.UP):self._set(re_.move(self.rows,n(page.UP)-1,-1))
-  elif n(page.DOWN):self._set(re_.move(self.rows,n(page.DOWN)-1,1))
+  elif n(page.ROW_BASE) and not self.editing:self.current=at(page.ROW_BASE)
+  elif n(page.UP):self._set(re_.move_shown(self.rows,at(page.UP),-1))
+  elif n(page.DOWN):self._set(re_.move_shown(self.rows,at(page.DOWN),1))
   elif n(page.REMOVE):
-   i=n(page.REMOVE)-1
+   i=at(page.REMOVE)
    if self.ui.confirm('Delete "%s"?'%(self.rows[i].get('label') or 'this row')):self._set(re_.delete(self.rows,i))
   elif control==page.ADD:self.add()
   elif control==page.RESTORE:

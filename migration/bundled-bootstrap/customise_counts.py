@@ -17,8 +17,8 @@ def values(rules,visible,profile=None,settings=None,rows=None):
  if profile is not None and rows is not None:
   total=0
   for key,_,lst in rows.TABS:
-   n=rows.count(profile,lst);total+=n;out['custom.rows.'+key]='%d rows'%n
-  out['custom.rows']='%d rows'%total
+   n=rows.count(profile,lst);total+=n;out['custom.rows.'+key]=rows.plural(n)
+  out['custom.rows']=rows.plural(total)
  if settings is not None:out['custom.views']=settings.view_name(visible)
  return out
 

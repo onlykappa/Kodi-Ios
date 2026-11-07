@@ -423,14 +423,36 @@ def sender(context,timeout=STALL,log=lambda message:None):
    time.sleep(.5*2**attempt)
  return send
 
+class SignedOut(RuntimeError):
+ """Google no longer accepts the saved Drive sign-in (the sign-in server's refresh answered 400/401: invalid_grant,
+ e.g. a refresh token of an OAuth app in Testing status, which Google ends after 7 days). Only signing in again helps."""
+class RefreshBusy(RuntimeError):
+ """The sign-in server could not refresh right now (429, 5xx): wait before asking again."""
+REFUSED={}          # refresh token -> when Google refused it: not sent again until the account has a new one
+HOLD={'until':0.0}  # no refresh before this time (after a 429 / 5xx)
+HOLD_S=120
+def refresh_error(status):
+ """The error for a refresh that did not answer 200 (owner, build 192: a refused sign-in was asked again every 5 s
+ by two threads until the sign-in server answered 429)."""
+ if status in (400,401):return SignedOut('Google no longer accepts the saved Drive sign-in. Sign in to Google Drive again (Settings › Accounts).')
+ return RefreshBusy('Drive sign-in refresh: HTTP %s, trying again in a few minutes'%status)
+
 def token_source(accounts,save_account,refresh,now=time.time):
- """Access token from the Google Drive add-on's first signed-in account, refreshed through the sign-in server."""
+ """Access token from the Google Drive add-on's first signed-in account, refreshed through the sign-in server.
+ A refused refresh token is never sent again (signing in again saves a new one); after a busy answer every thread
+ waits HOLD_S before the next refresh."""
  def token():
   account=next(iter(accounts().values()),None)
   if not account:raise RuntimeError('Sign in to Google Drive in Kodi first')
   tokens=account['access_tokens']
   if now()>tokens.get('date',0)+tokens.get('expires_in',0)-600:
-   fresh=refresh(tokens['refresh_token']);fresh['date']=now()
+   old=tokens.get('refresh_token','')
+   if old in REFUSED:raise refresh_error(400)
+   if now()<HOLD['until']:raise RefreshBusy('Drive sign-in refresh: waiting %d s after the sign-in server was busy'%(HOLD['until']-now()))
+   try:fresh=refresh(old)
+   except SignedOut:REFUSED[old]=now();raise
+   except RefreshBusy:HOLD['until']=now()+HOLD_S;raise
+   fresh['date']=now()
    tokens.update(fresh);account['access_tokens']=tokens;save_account(account)
   return tokens['access_token']
  return token

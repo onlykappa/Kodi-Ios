@@ -263,7 +263,7 @@ def drive_uploads(monitor,home,profile):
   server=signin_server.server(drive_addon.getSetting('sign-in-server'))
   body=urllib.parse.urlencode({'provider':'googledrive','refresh_token':refresh_token}).encode()
   status,_,answer=send('POST',server+'/refresh',body,{'Content-Type':'application/x-www-form-urlencoded'})
-  if status!=200:raise RuntimeError('Drive sign-in refresh: HTTP %s'%status)
+  if status!=200:raise driveupload.refresh_error(status)
   return json.loads(answer)
  drive=driveupload.Drive(driveupload.token_source(accounts.get_accounts,accounts.save_account,refresh),send)
  root=str(updates.updates_folder(home).with_name('Kodi Downloads'))
@@ -319,6 +319,7 @@ def drive_uploads(monitor,home,profile):
     if not accounts.get_accounts():continue
     done=drivelibrary.refresh_stale(state_dir)
     if done:log('Library lists refreshed from Google Drive: %s'%', '.join(done))
+   except (driveupload.SignedOut,driveupload.RefreshBusy):monitor.waitForAbort(60)   # the uploads loop tells the owner
    except Exception as error:diagnostics.log_exception(xbmc,'library_lists',error)
  threading.Thread(target=library_lists,daemon=True).start()
  idle=lambda:not monitor.abortRequested() and not xbmc.Player().isPlayingVideo() and not airplay_busy()
@@ -423,9 +424,18 @@ def drive_uploads(monitor,home,profile):
      preparation.runtime=None
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))
   except driveupload.Stop:pass
+  except driveupload.SignedOut as error:
+   # Once per refused sign-in, then quiet until the owner signs in again (no new refresh is tried meanwhile).
+   if not getattr(drive_uploads,'told_signed_out',False):
+    diagnostics.log_exception(xbmc,'drive_upload',error)
+    notices.add(profile,'problem','Sign in to Google Drive again',str(error));drive_uploads.told_signed_out=True
+   delay=max(delay,60)
+  except driveupload.RefreshBusy as error:
+   xbmc.log('Kodi iOS Drive: %s'%error,xbmc.LOGINFO);delay=max(delay,60)
   except Exception as error:
    diagnostics.log_exception(xbmc,'drive_upload',error)
    notices.add(profile,'problem','Google Drive upload paused',diagnostics.redact(error)[:160])
+  else:drive_uploads.told_signed_out=False
   # A check or a Library status choice (prepare next, try again, keep) is picked up within seconds.
   if prepare_downloads.check_requested(profile) or prepare_downloads.pending_requests(profile):delay=5
 if __name__=='__main__':run()

@@ -86,8 +86,24 @@ def parse_log(text):
   elif records and line.strip():records[-1]['more'].append(line.strip())
  return records
 
+def diagnostic_sentence(text):
+ """A 'Kodi iOS diagnostic {json}' line in words (owner, build 192: "What happened" showed the raw JSON), or ''."""
+ if not text.startswith('Kodi iOS diagnostic {'):return ''
+ try:data=json.loads(text[text.index('{'):])
+ except ValueError:return ''
+ where=str(data.get('component') or '').replace('_',' ')
+ errors=data.get('errors') or []
+ if errors:
+  first=errors[0];frames=first.get('frames') or []
+  return '%s: %s%s'%(where,first.get('message') or first.get('type') or 'error',' (%s, line %s)'%(frames[-1].get('file'),frames[-1].get('line')) if frames else '')
+ if data.get('event')=='http_error':
+  return '%s: HTTP %s from %s'%(where,data.get('status') or data.get('error') or '?',data.get('host') or '?')
+ return '%s: %s'%(where,data.get('event') or 'event')
+
 def plain_record(record):
  """One record in a sentence: a Python error report becomes 'RuntimeError: … (library_status.py, line 39)'."""
+ said=diagnostic_sentence(record.get('text',''))
+ if said:return said
  more=record.get('more') or []
  error=next((l for l in reversed(more) if re.match(r'^[A-Za-z_.]+(Error|Exception|Stop|Exit)\b',l)),'')
  if not error:

@@ -95,7 +95,7 @@ class MorePages(Pages):
   with tempfile.TemporaryDirectory() as d:
    rows.save(d,'homewidgets',[{'label':'A','path':'p'},{'label':'B','path':'q','disabled':'true'}])
    out=counts.values({},lambda c:False,d,sp,rows)
-  self.assertEqual((out['custom.rows.home'],out['custom.rows.tv'],out['custom.rows'],out['custom.views']),('1 rows','0 rows','1 rows','Poster Grid'))
+  self.assertEqual((out['custom.rows.home'],out['custom.rows.tv'],out['custom.rows'],out['custom.views']),('2 rows','1 row','4 rows','Poster Grid'))
 
 class RowsEditor(unittest.TestCase):
  def setUp(self):
@@ -110,7 +110,7 @@ class RowsEditor(unittest.TestCase):
   rows=r.move(rows,0,1);rows=r.rename(rows,1,'  Popular Now ');rows=r.set_style(rows,0,'Poster');rows[1]=r.set_on(rows[1],False)
   r.save(self.p,'1102widgets',rows);back=r.load(self.p,'1102widgets')
   self.assertEqual([w['label'] for w in back],['Library','Popular Now']);self.assertEqual(back[1]['extra'],1)
-  self.assertEqual(back[1]['disabled'],'true');self.assertEqual(r.summary(back[1]),'Off');self.assertEqual(r.summary(back[0]),'Poster · Your library')
+  self.assertEqual(back[1]['disabled'],'true');self.assertEqual(r.summary(back[1]),'Off · not on Home');self.assertEqual(r.summary(back[0]),'Poster · Your library')
   self.assertFalse(portrait.usable(back[1]));self.assertTrue(portrait.usable(back[0]))
   r.save(self.p,'1102widgets',r.delete(back,0))   # the kept copy is the first one
   self.assertTrue(r.restore(self.p,'1102widgets'));self.assertEqual(r.load(self.p,'1102widgets'),self.original)
@@ -122,11 +122,32 @@ class RowsEditor(unittest.TestCase):
  def test_properties(self):
   r=self.rows;props=r.properties(r.load(self.p,'1102widgets'),3)
   self.assertEqual((props['row.1.title'],props['row.1.up'],props['row.1.down'],props['row.2.down'],props['row.3.title'],props['count']),
-                   ('Popular','','true','','','2 rows'))
+                   ('Popular','','true','','','3 rows on the page'))
  def test_catalogue_paths_are_rows_portrait_shows(self):
   for key,items in self.rows.CATALOGUE.items():
    self.assertTrue(items,key)
    for label,path in items:self.assertTrue(portrait.usable({'path':path}),path)
+
+class MatchesHome(unittest.TestCase):
+ """Owner (build 192): the page said 17 rows, Home had 7 and began with Continue Watching."""
+ def setUp(self):self.r=load('rows_m',LIB/'rows_editor.py')
+ SAMPLES=[{'label':'In Progress Movies','path':'special://profile/playlists/video/In Progress Movies.xsp'},
+          {'label':'Video add-ons','path':'library://video/addons.xml/'},{'label':'Umbrella','path':'plugin://plugin.video.umbrella/'},
+          {'label':'Netflix','path':'plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_networks=213'},
+          {'label':'Run','path':'RunScript(x)'},{'label':'Movies','path':'videodb://movies/titles/'},{'label':'Recently added Tv','path':'videodb://recentlyaddedepisodes/'}]
+ def test_same_rules_as_portrait(self):
+  for w in self.SAMPLES+[{'label':l,'path':p} for k in self.r.CATALOGUE for l,p in self.r.CATALOGUE[k]]:
+   self.assertEqual(not self.r.why_not_shown(w),portrait.usable(w) and not portrait.in_progress(w),w)
+ def test_page_order_count_and_moves(self):
+  rows=self.SAMPLES;order=self.r.view(rows)
+  self.assertEqual([rows[i]['label'] for i in order[:3]],['Netflix','Movies','Recently added Tv'])
+  self.assertEqual(self.r.shown_count(rows),4)   # Continue Watching + the three
+  props=self.r.properties(rows,10)
+  self.assertEqual((props['row.1.up'],props['row.3.down'],props['row.4.up'],props['row.4.off']),('','','','true'))
+  self.assertIn('Continue Watching already shows these',props['row.4.sub'])
+  moved=self.r.move_shown(rows,5,-1)   # 'Movies' up past the hidden rows, over 'Netflix'
+  self.assertEqual([moved[i]['label'] for i in self.r.view(moved)[:3]],['Movies','Netflix','Recently added Tv'])
+  self.assertEqual(self.r.move_shown(rows,0,1),rows)   # a row Home never shows does not move
 
 class RowsScript(unittest.TestCase):
  class UI:

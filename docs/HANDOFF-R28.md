@@ -194,3 +194,17 @@ KodiAirPlay r33 (source 53c7968, CI run 42410566627, published by airplay-ios ru
   retry, up to 20 times) instead of failing the job at once, and say what came back ("HTTP 503, a web page: …" and the
   endpoint). Every retry and failure is logged ("Kodi iOS AllDebrid: …"). Focus chatter is no longer picked as a
   message's "What happened". scripts/test_alldebrid_busy.py.
+
+## Next build (193, not built: owner collecting more bugs; do not push until asked)
+(owner, build-192 log: "Google Drive upload paused · Drive sign-in refresh: HTTP 429")
+- The sign-in server's refresh answered 400 from Kodi's start (Google refused the saved sign-in: re-sign-in needed;
+  likely the OAuth app is in Testing, whose refresh tokens Google ends after 7 days). Two threads then asked again
+  every 5-10 s until the server answered 429. Now: driveupload.SignedOut (400/401) is never retried with the same
+  refresh token (signing in again saves a new one); RefreshBusy (429/5xx) holds every refresh 120 s; the message is
+  "Sign in to Google Drive again" once; notification details show diagnostic lines as sentences. test_drive_signin.py.
+(owner, build 192 screenshots: Tabs & Rows said 17 rows, Home has 7 and starts with Continue Watching; "arrows to easily
+change up the layouts")
+- The Rows page now matches Home: Continue Watching fixed first, then the rows Home shows in Home's order; rows Home
+  never shows (in-progress lists Continue Watching replaces, menus such as Video add-ons) are listed last, faded, with
+  why. Counts are rows on the page. ▲ ▼ on every row at all times (they move among Home's rows); Edit adds delete.
+

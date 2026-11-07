@@ -86,6 +86,33 @@ def set_style(rows,i,style):
 def add(rows,label,path):
  return list(rows)+[{'label':label,'path':path,'icon':'special://skin/extras/icons/folder.png','target':'videos','widget_style':'Poster'}]
 
+# What Home shows (portrait.hub_body: Continue Watching first, then the list's rows that are titles and on; scripts/
+# test_customisation.py checks these match portrait.usable / portrait.in_progress). Owner (build 192): the page listed
+# 17 rows, Home had 7 and started with Continue Watching.
+def in_progress(row):
+ text=(str(row.get('path') or '')+' '+str(row.get('label') or '')).lower()
+ return 'inprogress' in text or 'in progress' in text or 'continue watching' in text
+def is_titles(row):
+ path=str(row.get('path') or '')
+ if not path or path.startswith(('RunScript(','ActivateWindow(','library://','$','${')):return False
+ return not (path.startswith('plugin://') and '?' not in path)
+def why_not_shown(row):
+ """'' when Home shows the row (if it is on); otherwise why it never shows."""
+ if in_progress(row):return 'Not on Home · Continue Watching already shows these'
+ if not is_titles(row):return 'Not on Home · a menu, not a row of titles'
+ return ''
+def view(rows):
+ """Indices into rows in the page's order: the rows Home can show (in Home's order), then the others."""
+ shown=[i for i,r in enumerate(rows) if not why_not_shown(r)]
+ return shown+[i for i,r in enumerate(rows) if why_not_shown(r)]
+def move_shown(rows,i,step):
+ """Move row i one place up/down among the rows Home shows (rows Home never shows keep their places)."""
+ shown=[n for n,r in enumerate(rows) if not why_not_shown(r)]
+ if i not in shown:return list(rows)
+ k=shown.index(i)+step
+ if not 0<=k<len(shown):return list(rows)
+ rows=list(rows);j=shown[k];rows[i],rows[j]=rows[j],rows[i];return rows
+
 def style_name(row):
  return 'Poster' if str(row.get('widget_style') or '').lower()=='poster' else 'Landscape'
 
@@ -100,20 +127,26 @@ def source(path):
  return 'Folder'
 
 def summary(row):
- return '%s · %s'%(style_name(row),source(row.get('path'))) if is_on(row) else 'Off'
+ why=why_not_shown(row)
+ if why:return why
+ return '%s · %s'%(style_name(row),source(row.get('path'))) if is_on(row) else 'Off · not on Home'
 
-def count(profile,lst,usable=None):
- """Rows that show: on and, with portrait.usable, a list of titles."""
- return sum(1 for r in load(profile,lst) if is_on(r) and (usable is None or usable(r)))
+def shown_count(rows):
+ """Rows on the page: Continue Watching and every row that is on and can show."""
+ return 1+sum(1 for r in rows if is_on(r) and not why_not_shown(r))
+def count(profile,lst):return shown_count(load(profile,lst))
+def plural(n):return '%d row%s'%(n,'' if n==1 else 's')
 
 def properties(rows,slots):
- """Window properties for the Rows page: row.<n>.title / sub / off / up / down, and count."""
- out={'count':'%d rows'%sum(1 for r in rows if is_on(r)),'empty':'' if rows else 'No rows yet. Add one below.'}
+ """Window properties for the Rows page, slot n = the n-th row in view(rows): row.<n>.title / sub / off / up / down."""
+ order=view(rows);shown=[i for i in order if not why_not_shown(rows[i])]
+ out={'count':'%s on the page'%plural(shown_count(rows)),'empty':'' if shown else 'Only Continue Watching. Add a row below.'}
  for n in range(1,slots+1):
-  r=rows[n-1] if n<=len(rows) else None
-  out.update({'row.%d.title'%n:r.get('label','') or 'Untitled' if r else '','row.%d.sub'%n:summary(r) if r else '',
-              'row.%d.off'%n:'' if (r is None or is_on(r)) else 'true',
-              'row.%d.up'%n:'true' if r is not None and n>1 else '','row.%d.down'%n:'true' if r is not None and n<len(rows) else ''})
+  i=order[n-1] if n<=len(order) else None;r=rows[i] if i is not None else None
+  k=shown.index(i) if i in shown else -1
+  out.update({'row.%d.title'%n:(r.get('label','') or 'Untitled') if r else '','row.%d.sub'%n:summary(r) if r else '',
+              'row.%d.off'%n:'true' if r is not None and (not is_on(r) or why_not_shown(r)) else '',
+              'row.%d.up'%n:'true' if k>0 else '','row.%d.down'%n:'true' if 0<=k<len(shown)-1 else ''})
  out['more']='%d more rows are not shown here.'%(len(rows)-slots) if len(rows)>slots else ''
  return out
 
