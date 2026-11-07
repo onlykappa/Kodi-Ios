@@ -81,7 +81,10 @@ def queue_lists(profile,now):
  for job in (state.get('jobs') or {}).values():
   src=job.get('source') or {};name=src.get('name','')
   if job.get('status') in ('waiting','paused') and name!=running and not job.get('kept') and not job.get('blocked'):
-   nexts.append((drivelibrary.display_title(name),'convert · %.1f GB'%(int(src.get('size') or 0)/GB)))
+   # A repack (prepared before build 191) is already Ready and plays; it is only rearranged to open faster (owner,
+   # build 192: "all my stuff is re converting even though it says ready").
+   what='faster start' if job.get('repack') else 'convert'
+   nexts.append((drivelibrary.display_title(name),'%s · %.1f GB'%(what,int(src.get('size') or 0)/GB)))
  return nexts
 
 def run(args=()):
