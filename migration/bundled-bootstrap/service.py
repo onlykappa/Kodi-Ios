@@ -365,7 +365,20 @@ def drive_uploads(monitor,home,profile):
       # Build 191 (owner: "If i press refresh in the library status it doesnt do anything"): a check asked for while a
       # movie converts (hours) runs beside it instead of waiting for the movie to finish.
       def check_beside(q):
+       seen={'at':time.time(),'bytes':None}
        while not monitor.waitForAbort(5):
+        # Build 192 (owner: Fall 2 "stuck on starting / 67%"; the log could not show whether Drive was being read): once a
+        # minute while a movie converts, how much was read from Drive, how long since the last read, and the last error.
+        try:
+         if q.busy and q.stream and time.time()-seen['at']>=60:
+          stats=q.stream.stats();got=int(stats.get('read_bytes') or 0);now=time.time()
+          if seen['bytes'] is not None:
+           since=now-float(stats.get('last_read') or 0) if stats.get('last_read') else -1
+           log('preparation: Drive reads: %.1f MB in %.0f s (%.2f MB/s), last read %s ago%s'%((got-seen['bytes'])/1048576.0,now-seen['at'],
+               (got-seen['bytes'])/1048576.0/max(1,now-seen['at']),'%.0f s'%since if since>=0 else 'never',
+               '; problem: '+str(stats.get('read_error')) if stats.get('read_error') else ''))
+          seen.update(at=now,bytes=got)
+        except Exception as error:diagnostics.log_exception(xbmc,'library_check',error)
         try:
          if q.busy and prepare_downloads.check_requested(profile):
           q.scan(lambda:not monitor.abortRequested(),force=True,beside=True)

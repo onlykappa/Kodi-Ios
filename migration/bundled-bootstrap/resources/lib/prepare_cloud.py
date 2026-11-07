@@ -143,7 +143,9 @@ def process_one(q, keep_going):
                     if q.clock()-float(current.get('updated') or 0)>=10:   # under transfer_history's 15 s: still running
                         current.update(stage='Step 3 of 3 · Paused while a video plays',running=True,updated=q.clock(),rate=0,detail='')
                         q.state['current']=current;q.commit()
-                converted=[0]
+                # Build 192: a resumed movie shows where it got to (the mark's place in the film), not 0%, while it lines up.
+                duration=float((job.get('probe') or {}).get('duration') or 0)
+                converted=[min(80,80*resume_store.mark_seconds(checkpoint['mark'])/duration) if checkpoint and duration else 0]
                 def converted_progress(stage,n,t):
                     if stage==4:   # r32: lining up after Kodi was closed
                         progress('Finding where it left off',converted[0]);return
@@ -151,7 +153,7 @@ def process_one(q, keep_going):
                     if stage in (0,2) and t:attempt['fraction']=max(attempt['fraction'],min(1.0,float(n)/t))
                     value=80 if stage==3 else (min(80,80*n/t) if t else converted[0])
                     converted[0]=max(converted[0],value)
-                    progress('Converting and saving to Drive',converted[0])
+                    progress('Converting',converted[0])   # build 192 (owner): shorter, more fits on the page
                 try:
                     try:
                         q.native.convert_to(source,sink,keep_going,

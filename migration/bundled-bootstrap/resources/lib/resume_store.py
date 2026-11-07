@@ -44,6 +44,16 @@ def alive(drive,checkpoint):
  """Drive holds exactly the checkpoint's confirmed bytes."""
  return confirmed(drive,checkpoint)==checkpoint['offset']
 
+def mark_seconds(text):
+ """How far into the film a mark is (the latest of its inputs' next packets), in seconds."""
+ out=0.0
+ for line in str(text or '').splitlines():
+  parts=line.split()
+  if len(parts)==7 and parts[0]=='in' and parts[2]=='0':
+   try:out=max(out,float(parts[6]))
+   except ValueError:pass
+ return out
+
 def pieces_from(pieces,first,end):
  """The bytes [first, end) from kept piece files, or None if any of them is missing."""
  out=bytearray();at=first

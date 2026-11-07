@@ -156,6 +156,7 @@ def details(row, view):
     # Build 177 (owner-approved movie sheet): a live speed card for anything moving, and rows that each answer one
     # question. "On Google Drive" (the original's size) and "Speed: 1.8 GB read" are gone (owner: they "dont make sense").
     sheet['card'] = ''
+    sheet['step'] = str(row.get('step') or '')
     if state == 'ready':
         probe = row.get('probe') or {}
         took = (row['completed'] - row['started_at']) if row.get('completed') and row.get('started_at') else 0
@@ -219,13 +220,15 @@ def details(row, view):
     return sheet
 
 
-def card(history, kind, title, now):
+def card(history, kind, title, now, step=''):
     """The live speed card of a movie's sheet (build 177): window properties and the points to paint, from
-    transfer_history's job of that kind when it is this movie's. ({}, []) when there is none yet ("Measuring…")."""
+    transfer_history's job of that kind when it is this movie's. ({}, []) when there is none yet ("Measuring…").
+    step: what the movie is doing now; shown instead of "starting" while nothing moves yet (build 192, owner:
+    "seems to just be stuck on starting ... its not showing me what its doing")."""
     import transfer_history as th
     job = (history.get('jobs') or {}).get(kind)
     if not job or job.get('title') != title or now - job.get('last', 0) > 15:
-        return {'card.now': 'starting', 'card.peak': '–', 'card.avg': '–', 'card.left': '–', 'card.from': ''}, []
+        return {'card.now': step or 'starting', 'card.peak': '–', 'card.avg': '–', 'card.left': '–', 'card.from': ''}, []
     pts = job.get('points') or []
     rate = pts[-1][1] if pts else 0.0
     left = ''

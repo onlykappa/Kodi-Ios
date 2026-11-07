@@ -134,3 +134,13 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
   poster grid / over video); Fuse's landscape video info inset 140 from both sides (Dynamic Island); OSD taps ≥150.
 - Open UI items found: DialogNotification / DialogVolumeBar / Custom_1193 still stock; Custom_1152 can show while our
   OSD is up (title twice); portrait.fingerprint() does not hash activity_skin.py. Local: e2e 194/0, native 3,143/0.
+
+## Next build (192, not built yet: owner collects more bugs first)
+(owner, build-191 log: Fall 2 "stuck on starting / 67%")
+- Fall 2 carried on at byte 15,807,214,282 (as on build 190) and reached the mux loop: its only progress call was the
+  audio lane's unit 166 of 196 (67.76% = 80 x 166/196), then nothing for 3 min and no Drive upload at all: the lane was
+  reading the ~30 s of 4K it re-encodes from. Not reproduced locally (e2e incl. TrueHD + skip 11.75 MB + 32 MB pieces).
+  Now: the unit a resumed run waits for reports stage 4 ("Finding where it left off"), the bar starts at the mark's
+  place in the film, the sheet's "Right now" names the step instead of "starting", and Drive read speed / last read /
+  error are logged every minute while converting (service.py check_beside) — the next log will show the cause.
+- "Converting and saving to Drive" → "Converting" (owner). Library status / sheet default focus on controls that exist.

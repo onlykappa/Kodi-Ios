@@ -134,8 +134,10 @@ def page(p):
             summary +
             '<control type="group"><left>%d</left><top>570</top>' % S + p.surface(0, 0, w, 88, 'pill_96.png', p.SURFACE, 44) + filters + '</control>' +
             listing + '</controls>')
+    # Build 192 (owner log: "Control 9300 ... asked to focus, but it can't"): the list is empty on the first frame and the
+    # sheet's first action is hidden when there is none; both open on a control that is always there.
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s library status -->\n<window><defaultcontrol always="true">%d</defaultcontrol>'
-            '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n') % (p.MARKER, LIST, body)
+            '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n') % (p.MARKER, BACK, body)
 
 
 CARD_FACTS = 5      # rows under the speed card (library_rows.FACTS)
@@ -212,7 +214,7 @@ def item_sheet(p):
             close + card +
             facts(top + 1030, card_on) + facts(top + 380, '!' + card_on) +
             buttons + '</control>')
-    return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s library item -->\n<window><defaultcontrol always="true">9201</defaultcontrol>'
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s library item -->\n<window><defaultcontrol always="true">9200</defaultcontrol>'
             '<controls>%s</controls></window>\n') % (p.MARKER, body)
 
 

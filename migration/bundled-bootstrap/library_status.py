@@ -102,7 +102,7 @@ def run(args=()):
    if s.get('card'):self.speed(s)
   def speed(self,s):
    import transfer_history
-   props,points=library_rows.card(transfer_history.load(profile),s['card'],s['title'],time.time())
+   props,points=library_rows.card(transfer_history.load(profile),s['card'],s['title'],time.time(),s.get('step',''))
    if len(points)>1:
     self.counter+=1
     folder=os.path.join(xbmcvfs.translatePath('special://skin/'),'extras','portrait','graph')

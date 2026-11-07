@@ -42,6 +42,28 @@ class Beside(unittest.TestCase):
   with mock.patch.object(prep,'save',side_effect=save):self.q.commit()
   self.assertEqual(len(calls),2)
 
+class ShowsWhatItDoes(unittest.TestCase):
+ """Build 192 (owner: "stuck on starting / 67% or its not showing me what its doing")."""
+ def test_card_names_the_step_while_nothing_moves(self):
+  import library_rows
+  props,points=library_rows.card({},'conv','Fall 2',100,'Finding where it left off')
+  self.assertEqual((props['card.now'],points),('Finding where it left off',[]))
+  self.assertEqual(library_rows.card({},'conv','Fall 2',100)[0]['card.now'],'starting')
+ def test_a_resumed_movie_starts_at_its_place(self):
+  import resume_store
+  self.assertEqual(resume_store.mark_seconds('kr-resume 1\nin 0 0 1 1 2 4980.5\nin 1 0 0 0 9 4981.0\nin 2 1 0 0 0 0.0\n'),4981.0)
+  self.assertEqual(resume_store.mark_seconds(''),0.0)
+  cloud=(LIB/'prepare_cloud.py').read_text()
+  self.assertIn("converted=[min(80,80*resume_store.mark_seconds(checkpoint['mark'])/duration) if checkpoint and duration else 0]",cloud)
+  self.assertIn("progress('Converting',converted[0])",cloud);self.assertNotIn("progress('Converting and saving to Drive'",cloud)
+  self.assertIn("library_rows.card(transfer_history.load(profile),s['card'],s['title'],time.time(),s.get('step',''))",(BOOT/'library_status.py').read_text())
+ def test_drive_reads_are_logged_while_converting(self):
+  svc=(BOOT/'service.py').read_text()
+  self.assertIn("log('preparation: Drive reads: %.1f MB in %.0f s (%.2f MB/s), last read %s ago%s'",svc)
+ def test_the_unit_a_resume_waits_for_is_finding(self):
+  c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
+  self.assertIn('g->resuming?4:g->is_video?0:1',c);self.assertIn('for(int i=0;i<TRACKS;i++)gens[i].resuming=0;',c)
+
 class Wiring(unittest.TestCase):
  def test_service_and_queue(self):
   svc=(BOOT/'service.py').read_text();cloud=(LIB/'prepare_cloud.py').read_text()

@@ -266,7 +266,7 @@ typedef struct {
 } generated_lane;
 typedef struct {
     generated_lane *lanes[MAX_LANES];int nlanes;generated_hub *hub;
-    gm_buf unit;int segment,offset,count,is_video,index,served,start;kr_prepare_progress progress;void *context;
+    gm_buf unit;int segment,offset,count,is_video,index,served,start,resuming;kr_prepare_progress progress;void *context;
     char *error;int error_size;char *input;   // the reader array lives on the converter's stack: keep it small
     long seen_frames[MAX_LANES];double seen_at[MAX_LANES];
 } generated_reader;
@@ -334,7 +334,8 @@ static int generated_read(void *opaque,uint8_t *data,int size) {
     generated_reader *g=opaque;generated_hub *h=g->hub;
     if(g->offset>=g->unit.len) {
         if(g->segment>=g->count)return AVERROR_EOF;
-        if(!tick(g->progress,g->context,g->is_video?0:1,g->segment,g->count))return AVERROR_EXIT;
+        // r32: while a resumed run lines up, the unit it waits for is part of "finding where it left off" (stage 4).
+        if(!tick(g->progress,g->context,g->resuming?4:g->is_video?0:1,g->segment,g->count))return AVERROR_EXIT;
         for(int i=0;i<g->nlanes;i++) if(!g->lanes[i]->started && lane_start(g->lanes[i])) {
             if(g->error && g->error_size>0)snprintf(g->error,(size_t)g->error_size,"Conversion thread");return AVERROR(EIO);
         }
@@ -418,7 +419,7 @@ static int generated_open(generated_reader *g,AVFormatContext **format,AVIOConte
     g->count=gm_stream_segment_count(first->plan);
     int start=resume_unit(first->plan,resume_t,video);
     if(start<0 || (start>=g->count && g->count>0))return fail(err,en,"Resume position not found",0);
-    g->segment=start;g->start=start;
+    g->segment=start;g->start=start;g->resuming=resume_t>=0;
     if(video) {
         first->video=kr_video_open(kr_source_gm(first->source),index,err,en);if(!first->video)return -1;kr_video_keep_resolution(first->video);
         // A picture copied by hardware HDR / GPU work in lanes; one lane for anything else (CPU work is already
@@ -965,6 +966,7 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
             if(q==-2){r=-2;goto end;}
             if(q<0){fail(err,en,"Resume position not found",0);goto end;}
         }
+        for(int i=0;i<TRACKS;i++)gens[i].resuming=0;
         kr_remux_note("prepare: carrying on from %.0f s (byte %lld, fragment %u)",rc->resumed.in[0].eof?rc->resumed.in[ninputs>1?1:0].t:rc->resumed.in[0].t,(long long)rc->resume_at,rc->resume_seq);
     }
     unsigned packets=0;
