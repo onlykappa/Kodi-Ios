@@ -158,4 +158,21 @@ class OnlyFromNotifications(unittest.TestCase):
    self.assertEqual(seen['after'],'Inception');self.assertTrue(all(w.closed for w in kodi.windows))
    self.assertTrue(os.path.exists(os.path.join(profile,'extras','portrait','graph')))
 
+class NeverNothingWhileConverting(unittest.TestCase):
+ """Owner (build 181 screenshot): Transfers said "Nothing is moving right now" at random while a movie converted."""
+ def test_a_conversion_quiet_during_an_upload_still_runs(self):
+  now=time.time()
+  a=th.activity([],{},{'running':True,'title':'Inception.mkv','updated':now-40,'progress':30,'rate':MB})
+  self.assertIn('conv',a)   # a 32 MB piece can take 6-17 s to upload on a busy line, and progress waits for it
+  self.assertNotIn('conv',th.activity([],{},{'running':True,'title':'Inception.mkv','updated':now-120}))
+ def test_the_page_reads_a_saved_record_as_running(self):
+  d=feed({},1000,20,conv={'title':'Inception','rate':MB,'pct':10})
+  self.assertEqual(th.running(d,1018+20),['conv'])   # saved up to 5 s before, read 20 s after the last look
+  self.assertEqual(th.pick(d,'conv',1040),'conv')
+  import inspect
+  self.assertEqual(inspect.signature(th.watch).parameters['save_every'].default,5)
+ def test_library_cards_too(self):
+  import prepare_downloads as prep
+  self.assertIn("now()-current.get('updated',0)<60",(LIB/'prepare_downloads.py').read_text())
+
 if __name__=='__main__':unittest.main()

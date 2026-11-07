@@ -11,7 +11,8 @@ committed and pushed; nothing is only local. Builds are started by hand; commit 
 | 179 | r25 only | not given to the owner |
 | 180 | r26: stuck unit remade after 90 s, off-screen CPU decode, Start converting now, audio = original + English | verified, owner tested |
 | 181 | r27: upload once (promote + bin), English subtitles only, subtitle uploads on own threads, AllDebrid read-ahead | verified, owner testing (Interstellar ~40 min, works) |
-| 182 | r28 keep-awake re-armed on background/foreground, Drive read 4 blocks ahead in parallel, Home hero copy compared without page, quick movies first | **import-review run 42327383714 (#182) running at handoff: verify the IPA** |
+| 182 | r28 keep-awake re-armed on background/foreground, Drive read 4 blocks ahead in parallel, Home hero copy compared without page, quick movies first | verified (IPA sha 90ead4df…, build.json b65cf2e, AirPlay binary = r28 release ec5249b9…) |
+| 183 | 182 + Transfers never says "Nothing is moving" during a conversion (CONV_FRESH 60 s, running() 30 s, saves every 5 s, cards 60 s) | building |
 
 r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run 42326849053) and published
 (release kodi-airplay-r28, digest matches).
@@ -19,7 +20,7 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
 ## Next steps, in order
 1. **Build 182**: when run 42327383714 ends, download release build-182, check build.json commit = b65cf2e, airplay
    tag r28, binary sha = candidate of run 42326849053; record in HANDOFF-PROGRESS; give the owner the link.
-2. **Transfers says "Nothing is moving right now" at random while converting** (owner screenshot, build 181). Two
+2. **DONE in 183.** Transfers said "Nothing is moving right now" at random while converting (owner screenshot, build 181). Two
    causes, NOT fixed yet:
    - `transfer_history.running(fresh=10)` while `watch()` saves every 10 s: the page reads a record up to ~10+ s old.
      Fix: fresh=30 (and/or save every 4 s).

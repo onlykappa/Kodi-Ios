@@ -843,7 +843,7 @@ def cards(profile,now=time.time):
  current=dict(current)
  if not current:
   job=waiting[0];current={'title':job['source']['name'],'stage':job.get('error') or 'Queued','progress':0,'running':False}
- fresh=current.get('running') and now()-current.get('updated',0)<15
+ fresh=current.get('running') and now()-current.get('updated',0)<60   # a 32 MB upload can quiet progress (build 181)
  current['running']=bool(fresh)
  # One fact per line (ISSUE-101): the count lives in the card's summary, the line says what is happening now.
  current['title']=drivelibrary.display_title(current.get('title',''))

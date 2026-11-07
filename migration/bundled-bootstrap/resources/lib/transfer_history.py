@@ -26,6 +26,10 @@ LABELS = {'down': 'Downloading', 'up': 'Saving to Google Drive', 'conv': 'Conver
 TINTS = {'down': 'FF0A84FF', 'up': 'FF30D158', 'conv': 'FFBF5AF2'}
 MAX_POINTS = 180
 STALE = 30            # seconds without movement before a job counts as finished
+# Owner (build 181): Transfers said "Nothing is moving right now" at random while a movie converted. The conversion's
+# progress goes quiet while a 32 MB piece uploads (6-17 s on a busy line), so it counts as running for CONV_FRESH s
+# after its last update; and the page reads a record saved every 5 s, so a job counts as running for 30 s, not 10.
+CONV_FRESH = 60
 FINISHED = 400       # History keeps 30 days (KEEP_DAYS); the Transfers page shows the last 24 hours
 KEEP_DAYS = 30
 FAILURES = 'transfer-failures.json'
@@ -89,7 +93,7 @@ def activity(torrents, debrid_current, prep_current):
     # The library check also shows in the queue's 'current' ("Movies and shows", "Checking video 3 of 9"): not a
     # conversion (build 174: History listed it as a finished one).
     checking = str(c.get('stage') or '').startswith('Checking') or c.get('title') == 'Movies and shows'
-    if c.get('running') and c.get('title') and not checking and time.time() - float(c.get('updated') or 0) < 15:
+    if c.get('running') and c.get('title') and not checking and time.time() - float(c.get('updated') or 0) < CONV_FRESH:
         out['conv'] = {'title': _title(c.get('title', '')), 'rate': float(c.get('rate') or 0),
                        'done': float(c.get('read') or 0), 'total': 0.0, 'pct': float(c.get('progress') or 0),
                        # Build 177: film position, pace and time left of this attempt (prepare_cloud).
@@ -193,7 +197,7 @@ def track(data, now, active):
     return data
 
 
-def running(data, now, fresh=10):
+def running(data, now, fresh=30):
     """The kinds with a job that moved in the last `fresh` seconds, in KINDS order."""
     jobs = data.get('jobs') or {}
     return [k for k in KINDS if k in jobs and now - jobs[k].get('last', 0) <= fresh]
@@ -210,7 +214,7 @@ def pick(data, wanted, now):
     return None
 
 
-def watch(profile, read, wait, every=2, save_every=10, clock=time.time):
+def watch(profile, read, wait, every=2, save_every=5, clock=time.time):
     """The service loop: read() -> activity(); looks every `every` s, saves every `save_every` s."""
     data = load(profile)
     data.pop('5min', None), data.pop('hour', None), data.pop('day', None)   # the build-171 ranges
