@@ -47,3 +47,16 @@ past the last safe boundary, and the few bytes between Drive's confirmed offset 
 ## Effort and order
 Native parser + marks + mfra rewrite (largest), Sink mark-aware upload + checkpoint, sidecars to local files,
 resume entry + Python restart, tests. Own release r29 and build. Do it as one PR with the host test first.
+
+## Findings from FFmpeg 8 movenc.c (read 2026-11-07)
+- `tfdt` = `cluster[0].dts - track->start_dts`: decode time relative to the FIRST packet the muxer saw for that track
+  in this session. A resumed muxer would restart every track's tfdt at 0 → broken timeline. Fix: before the resumed
+  packets, write one priming packet per track with dts = that track's first dts of session 1 (recorded), force a
+  fragment flush (`movflags +frag_custom`, `av_write_frame(out, NULL)`), and drop that fragment's bytes (and the
+  init) in the sink. Then start_dts matches session 1 and tfdt continues.
+- tfra entry: `time = cluster[0].dts + cluster[0].cts` (absolute, clamped at 0), `offset = moof start + data_offset`,
+  traf/trun/sample numbers all 1, one `tfra` per track that had fragments; `mfro` holds the mfra size. Rebuild it from
+  parsed moofs as `time = tfdt + start_dts + first sample's cts` (cts from trun when its flags carry composition
+  offsets; copied HEVC can have B-frames).
+- Record per output track at session start: first dts (track timescale = out->streams[i]->time_base after
+  avformat_write_header).
