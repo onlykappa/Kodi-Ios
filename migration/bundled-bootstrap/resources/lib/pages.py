@@ -6,6 +6,7 @@ boxes shrunk into the middle of the screen:
 - Kodi windows: AddonBrowser, EventLog, SettingsSystemInfo, FileManager.
 - Umbrella's "getting ready to play" window (source_progress.xml, filled from umbrella_ready.py).
 - Play on TV over video: 1080i/IOSPlayOnTV.xml, driven by cast.py (landscape, Fuse's 1920x1080 canvas and fonts).
+- Kodi's busy dialog (DialogBusy) as a centred pill in both folders (busy_dialog).
 
 Every page keeps the control ids Kodi (or Umbrella) drives. portrait.py passes its helpers in `p`;
 settings_page.py supplies the shared row/header pieces.
@@ -369,7 +370,30 @@ def play_on_tv():
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: Play on TV sheet r1 (navigation.patch_skin leaves this marker alone) -->\n'
          '<window type="dialog"><defaultcontrol always="true">9601</defaultcontrol><controls>%s</controls></window>\n')%body
 
-HANDMADE={'DialogConfirm.xml','DialogTextViewer.xml','DialogSettings.xml','AddonBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml'}
+# --- Kodi's busy dialog (DialogBusy: opening a video, buffering, loading a list) ---------------------------
+# Build 191 (owner: a white badge with the Kodi logo over the Library posters, and a small spinner over the video
+# "instead of the pill loader"): Fuse's DialogBusy, its Kodi logo in a white circle with a spinning arc made for
+# the bottom-right corner of a 1920x1080 screen, was shrunk into the portrait screen as it is (so it floated over
+# the poster grid) and left untouched in landscape (1080i, over the video). Both folders now get one pill in the
+# middle of the screen: the glass of the activity pill, the open ring spinning, "Loading…". The 1080i copy carries
+# the landscape marker (navigation.patch_skin leaves it alone) and is centred with centerleft/centertop, so it
+# holds on the 2340-wide layout too. Progress 10 stays (Kodi drives it), never drawn.
+BUSY='DialogBusy.xml'
+def busy_dialog(marker,font,media='special://skin/extras/portrait/'):
+ w,h,ring=380,124,76;pad=(h-ring)//2
+ spin='<animation effect="rotate" end="-360" center="auto" time="1200" loop="true" reversible="false" condition="true">Conditional</animation>'
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: Kodi busy dialog as a centred pill -->\n<window><zorder>1000</zorder><controls>'
+  '<control type="group"><centerleft>50%%</centerleft><centertop>50%%</centertop><width>%d</width><height>%d</height>'
+  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
+  '<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture border="%d" colordiffuse="FFFFFFFF">%spill_glass_124.png</texture></control>'
+  '<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texture colordiffuse="FFFFFFFF">%sring.png</texture>%s</control>'
+  '<control type="label"><left>%d</left><top>0</top><width>%d</width><height>%d</height><font>%s</font><textcolor>FFFFFFFF</textcolor>'
+  '<align>left</align><aligny>center</aligny><label>Loading…</label></control></control>'
+  '<control type="group"><left>-4000</left><top>-4000</top><width>10</width><height>10</height><visible>false</visible>'
+  '<control type="progress" id="10"><width>10</width><height>10</height><texturebg /><lefttexture /><midtexture /><righttexture /></control></control>'
+  '</controls></window>\n')%(marker,w,h,w,h,h//2,media,pad,pad,ring,ring,media,spin,pad+ring+24,w-pad-ring-24-pad,h,font)
+
+HANDMADE={'DialogConfirm.xml','DialogTextViewer.xml','DialogSettings.xml','AddonBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml',BUSY}
 
 def files(p,read):
  out={p.FOLDER+'/DialogConfirm.xml':confirm_dialog(p,read('DialogConfirm.xml')),
@@ -380,7 +404,9 @@ def files(p,read):
       p.FOLDER+'/SettingsSystemInfo.xml':system_info(p,read('SettingsSystemInfo.xml')),
       p.FOLDER+'/FileManager.xml':file_manager(p,read('FileManager.xml')),
       p.FOLDER+'/source_progress.xml':umbrella_ready(p),
-      '1080i/IOSPlayOnTV.xml':play_on_tv()}
+      '1080i/IOSPlayOnTV.xml':play_on_tv(),
+      p.FOLDER+'/'+BUSY:busy_dialog(p.MARKER,'p_pill'),
+      '1080i/'+BUSY:busy_dialog('Kodi-iOS player controls: busy pill','font_main_bold')}
  out={k:v.encode() for k,v in out.items()}
  for name,data in textures(p).items():out['extras/portrait/'+name]=data
  return out

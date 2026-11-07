@@ -1294,6 +1294,9 @@ def portrait_files(skin,profile):
  files['1080i/VideoOSD.xml']=player_osd.window().encode()
  # Fuse's seek bar flashed up at every video start (buffering, the resume jump): ours shows only while seeking.
  if (source/'DialogSeekBar.xml').exists():files['1080i/DialogSeekBar.xml']=player_osd.seekbar_window().encode()
+ # Fuse's info over the video, clear of the Dynamic Island on either side (player_osd.safe_inset).
+ for name in player_osd.INSET:
+  if read(name):files['1080i/'+name]=player_osd.safe_inset(read(name)).encode()
  return files
 
 SPLASH=('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: Fuse startup splash, never shown -->\n'
@@ -1345,7 +1348,7 @@ def refresh(skin,profile):
 
 # Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
 # inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml'}   # + activity_skin.py
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml','DialogBusy.xml'}|set(player_osd.INSET)   # + activity_skin.py, pages.BUSY, player_osd.INSET
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
