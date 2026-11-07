@@ -187,3 +187,9 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
 - View Types (9370): Poster Grid (3 across) or Large Posters (2 across) for the Library / category / search grid
   (Skin.String(Portrait.Grid), conditional layouts on panel 53).
 - Skin Settings still opens Fuse's window: its options change Fuse's own (shrunk) windows, not our pages.
+(owner, build 191: new source for Inception → "AllDebrid gave an answer this app cannot read", details showed a
+"Control 9201 … asked to focus" line; the log sent started after a restart, so the reply itself is unknown)
+- alldebrid.Busy: no connection, HTTP errors and replies that are not AllDebrid's JSON are tried again (debrid_drive's
+  retry, up to 20 times) instead of failing the job at once, and say what came back ("HTTP 503, a web page: …" and the
+  endpoint). Every retry and failure is logged ("Kodi iOS AllDebrid: …"). Focus chatter is no longer picked as a
+  message's "What happened". scripts/test_alldebrid_busy.py.

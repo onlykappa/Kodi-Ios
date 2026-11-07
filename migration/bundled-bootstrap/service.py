@@ -301,7 +301,8 @@ def drive_uploads(monitor,home,profile):
     delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text:notices.add(profile,kind,title,text),
                             keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up') and not airplay_busy(),on_done=done,
                             cancelled=lambda:transfer_control.cancelled_copies(profile),
-                            forget=lambda h:transfer_control.clear_cancelled(profile,h)) or 20
+                            forget=lambda h:transfer_control.clear_cancelled(profile,h),
+                            log=lambda text:xbmc.log('Kodi iOS AllDebrid: '+text,xbmc.LOGWARNING)) or 20
    except alldebrid.Problem as problem:
     diagnostics.log_exception(xbmc,'alldebrid_to_drive',problem)
     notices.add(profile,'problem',"Couldn't download to Google Drive",str(problem));delay=300

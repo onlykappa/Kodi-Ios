@@ -165,7 +165,7 @@ def active(profile):
 
 
 def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=default_open, keep_going=lambda: True,
-         clock=time.time, on_done=lambda job: None, cancelled=lambda: set(), forget=lambda info_hash: None):
+         clock=time.time, on_done=lambda job: None, cancelled=lambda: set(), forget=lambda info_hash: None, log=lambda text: None):
     """Move the oldest unfinished job on by one step. Returns seconds until the next step is worth trying
     (None when nothing is queued). cancelled(): info hashes the owner cancelled (long press in Notifications);
     those jobs end as failed with 'Cancelled' and forget(hash) clears each request."""
@@ -254,6 +254,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
     except driveupload.Stop:
         return 30
     except alldebrid.Problem as problem:
+        log('%s: failed: %s' % (title, problem))
         job['status'] = 'failed'
         job['error'] = str(problem)
         state.pop('current', None)
@@ -264,6 +265,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
     except Exception as error:   # network, Drive: try again in a while, from where it got to
         job['tries'] = job.get('tries', 0) + 1
         job['error'] = '%s: %s' % (type(error).__name__, str(error)[:160])
+        log('%s: try %d, again in %d s: %s' % (title, job['tries'], min(600, 30 * job['tries']), job['error']))
         commit()
         if job['tries'] >= 20:
             job['status'] = 'failed'

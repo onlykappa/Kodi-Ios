@@ -67,7 +67,9 @@ def ingest(profile):
 # Kodi starts a new kodi.log at every launch, so the lines are copied next to the message as soon as it arrives.
 import re
 LOG_LINE=re.compile(r'^\ufeff?(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\.(\d{3}) T:\d+\s+(\w+) <[^>]*>: ?(.*)$')
-NOISE=('[GIN]','JSONRPC Server:','Touch at ','Tap at ','Click at ')
+# Kodi's 'has been asked to focus, but it can't' is skin navigation (a hidden control), never the cause of a message
+# (owner, build 191: an AllDebrid failure showed one as "What happened").
+NOISE=('[GIN]','JSONRPC Server:','Touch at ','Tap at ','Click at ','has been asked to focus, but it can')
 ANSI=re.compile(r'\x1b?\[\d+(?:;\d+)*m')
 TROUBLE=re.compile(r'\b(fail\w*|errors?|paused|skipped|refused|unavailable|cannot|could not|denied|missing|timed out)\b')
 def logs(profile):return Path(profile)/'addon_data/service.kodi.ios.bootstrap/notice-logs'

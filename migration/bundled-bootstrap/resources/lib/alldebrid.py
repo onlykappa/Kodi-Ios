@@ -23,6 +23,21 @@ class Problem(Exception):
     """AllDebrid said no; str() is what to tell the owner."""
 
 
+class Busy(RuntimeError):
+    """AllDebrid could not be reached, or answered with something other than its JSON (a busy or maintenance page, an
+    empty reply). Not a "no": debrid_drive tries again later (a RuntimeError, like a network error), and the words
+    say what came back, so the log shows it (owner, build 191: Inception failed at once with "an answer this app
+    cannot read", and nothing said what the answer was)."""
+
+
+def describe(raw, code=None):
+    """A short, safe description of a reply that is not AllDebrid's JSON."""
+    text = (raw or b'').decode('utf-8', 'replace').strip()
+    kind = 'an empty reply' if not text else ('a web page' if text.startswith('<') else 'text')
+    first = re.sub(r'\s+', ' ', re.sub(r'<[^>]*>', ' ', text)).strip()[:80]
+    return '%s%s%s' % ('HTTP %d, ' % code if code else '', kind, (': "%s"' % first) if first else '')
+
+
 ERRORS = {'AUTH_BAD_APIKEY': 'AllDebrid did not accept the key. Sign in to AllDebrid again in Umbrella › Accounts.',
           'AUTH_MISSING_APIKEY': 'Sign in to AllDebrid in Umbrella › Accounts first.',
           'AUTH_BLOCKED': 'AllDebrid blocked this sign-in; open the e-mail AllDebrid sent you to allow it.',
@@ -60,18 +75,22 @@ class AllDebrid(object):
 
     def call(self, path, params=None, post=None):
         url = API + path + '?' + urllib.parse.urlencode(dict(params or {}, agent=AGENT), doseq=True)
+        code = None
         try:
             raw = self.request('POST' if post is not None else 'GET', url, post, {'Authorization': 'Bearer ' + self.token})
         except urllib.error.HTTPError as error:
+            code = error.code
             raw = error.read() if hasattr(error, 'read') else b''
             if not raw:
-                raise Problem('AllDebrid did not answer (HTTP %d).' % error.code)
+                raise Busy('AllDebrid did not answer (HTTP %d).' % error.code)
         except (OSError, ValueError) as error:
-            raise Problem('AllDebrid could not be reached (%s).' % type(error).__name__)
+            raise Busy('AllDebrid could not be reached (%s).' % type(error).__name__)
         try:
             answer = json.loads(raw)
+            if not isinstance(answer, dict):
+                raise ValueError(answer)
         except ValueError:
-            raise Problem('AllDebrid gave an answer this app cannot read.')
+            raise Busy('AllDebrid gave an answer this app cannot read (%s %s).' % (describe(raw, code), path))
         if answer.get('status') != 'success':
             error = answer.get('error') or {}
             raise Problem(ERRORS.get(error.get('code'), 'AllDebrid: %s' % (error.get('message') or 'unknown problem')))
