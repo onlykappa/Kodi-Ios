@@ -232,7 +232,7 @@ class Build178Log(unittest.TestCase):
   self.assertIn('if(p->codec_type==AVMEDIA_TYPE_AUDIO && !keep_audio(original,i))continue;',c)
   self.assertIn('(p->codec_type==AVMEDIA_TYPE_AUDIO && keep_audio(original,i))',c)   # verify counts the same tracks
   b=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
-  self.assertIn('_kodi_airplay_prepare_audio_languages',b);self.assertIn("== 21 ]]",b)
+  self.assertIn('_kodi_airplay_prepare_audio_languages',b);self.assertIn("== 23 ]]",b)   # r30: prepare_marks, prepare_resume
  def test_language_codes(self):
   self.assertEqual(prep.audio_languages('English','resource.language.en_gb'),'en,eng')
   self.assertEqual(prep.audio_languages('original','resource.language.de_de'),'de,ger,deu')
