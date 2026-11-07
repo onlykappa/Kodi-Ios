@@ -23,6 +23,12 @@ def folder_size(path):
    except OSError:pass
  return total
 
+def quality_key(height):
+ """drivelibrary.quality (2160, 1080...) as the source picker names it ('4k', '1080p'...); '' when unknown."""
+ try:height=int(height or 0)
+ except (TypeError,ValueError):return ''
+ return '4k' if height>=2000 else '1440p' if height>=1400 else '1080p' if height>=1000 else '720p' if height>=700 else '480p' if height>=400 else ''
+
 def snapshot(profile,downloads,uploads):
  """library_view() for the page right now (never raises: an empty library on any error)."""
  # Choices not yet applied by the service show at once (it applies them before its next video).
@@ -216,6 +222,8 @@ def run(args=()):
    del sheet
    if chosen and chosen[1] in ('play','tv'):
     play(item['row'],chosen[1]=='tv');return
+   if chosen and chosen[1]=='quicker':
+    find_quicker(item['row']);return
    if chosen and chosen[1]=='now':
     # Owner (build 178): start this one now, over the one converting (which starts over later: no resume yet).
     state=prepare_downloads.load(profile);running=prepare_downloads.running_id(state)
@@ -232,6 +240,26 @@ def run(args=()):
     prepare_downloads.request(profile,action,item['row']['id'])
     dialog.notification('Library status','%s: %s'%(label,item['row']['title']),xbmcgui.NOTIFICATION_INFO,2500)
     self.refresh(force=True)
+
+ def find_quicker(row):
+  """Library status › a movie that must be re-encoded › "Find a version without converting": Elementum's sources for
+  the same movie or episode, only those that need no conversion, at the same quality (deck_picker.avoid_request). The
+  new copy goes to Drive the usual way; the library keeps it and sends the AV1 copy to the bin (Queue.unique)."""
+  try:
+   info=drivelibrary.parse(row.get('name') or '')
+   found=drivelibrary.artwork('tv' if info['season'] else 'movie',info['title'],info['year'],key,cache,get) if key else {}
+  except Exception as error:
+   xbmc.log('Library status: TMDb lookup failed: %s'%error,xbmc.LOGWARNING);info,found={},{}
+  tmdb=str((found or {}).get('tmdb_id') or '')
+  if not tmdb:
+   dialog.ok('Find a version without converting','TMDb did not recognise "%s", so its other versions cannot be looked up.'%row.get('title',''));return
+  quality=quality_key(drivelibrary.quality(row.get('name') or ''))
+  xbmcgui.Window(10000).setProperty('KodiIOS.AvoidAV1','%s|%d'%(quality,int(time.time())))
+  if info.get('season'):
+   args='kind=episode,tvshow.tmdb_id=%s,season=%s,episode=%s,replace=1'%(tmdb,info['season'],info.get('episode') or '')
+  else:args='kind=movie,tmdb=%s,replace=1'%tmdb
+  xbmc.log('Library status: looking for a version of %s without conversion (%s)'%(row.get('title',''),quality or 'any quality'),xbmc.LOGINFO)
+  xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,download,%s)'%args)
 
  def play(row,tv):
   """A ready movie's sheet: Play (Kodi plays it from Drive) or Play on TV (the same, then the AirPlay picker)."""

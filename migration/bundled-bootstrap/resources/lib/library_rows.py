@@ -141,6 +141,9 @@ def picture_text(probe, kept=False):
     return '%s, kept as %s' % (what, what) if kept and what else what
 
 
+QUICKER = ('Find a version without converting', 'quicker')
+
+
 def details(row, view):
     """One video's details sheet: title, status (tone ok|warn|plain), quality, up to 4 facts and up to 2 actions
     (label, request) where request is prepare_downloads.request's action, or None."""
@@ -208,6 +211,10 @@ def details(row, view):
         sheet.update(status='Kept as it is', facts=[f for f in (on_drive, ('Why', row.get('sub', '').replace('Kept as it is · ', ''))) if f])
         if row.get('owner'):
             sheet['actions'] = [('Prepare it after all', 'prepare')]
+    # Owner (build 184): a movie that must be re-encoded (AV1) can be swapped for a version that is only repackaged.
+    if row.get('reencode') and state in ('waiting', 'space', 'problem', 'preparing'):
+        sheet['actions'] = ([QUICKER] + [a for a in sheet['actions'] if a[1] != 'next'])[:3]
+        sheet['facts'] = sheet['facts'][:FACTS - 1] + [('Why it is slow', 'AV1 is re-encoded on the phone; HEVC and H.264 are only repackaged')]
     sheet['facts'] = sheet['facts'][:FACTS]
     return sheet
 

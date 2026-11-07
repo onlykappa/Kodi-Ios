@@ -44,6 +44,8 @@ def run():
  wait=lambda:xbmc.Monitor().waitForAbort(1)
  title,year=values.get('title',''),values.get('year','')
  def check(k,s='',e=''):
+  # Library status › "Find a version without converting" (replace=1): the copy we have is the one being replaced.
+  if args.get('replace')=='1':return None
   xbmc.executebuiltin('ActivateWindow(busydialognocancel)')
   try:return owned_copy(k,title,year if k=='movie' else '',s,e)
   finally:xbmc.executebuiltin('Dialog.Close(busydialognocancel)')

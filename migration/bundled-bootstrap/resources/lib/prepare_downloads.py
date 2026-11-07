@@ -399,6 +399,14 @@ def quality_text(name,size=0):
  if size:parts.append('%.1f GB'%(size/1024**3))
  return ' · '.join(p for p in parts if p)
 
+AV1_NAME=re.compile(r'(?i)(?<![a-z0-9])av1(?![a-z0-9])')
+def needs_reencode(job,name=''):
+ """Whether this video's picture must be re-encoded on the phone (AV1 and the like: an hour or more), from its probe,
+ or from its name before it was probed. Library status then offers "Find a version without converting"."""
+ probe=(job or {}).get('probe') or {}
+ if 'copy_video' in probe:return not probe.get('copy_video',True)
+ return bool(AV1_NAME.search(str(name or '')))
+
 def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time):
  """Settings › Library › Library status: counts, phone space and the rows of each section, in plain words."""
  library=state.get('library') or {};jobs={j['source']['id']:j for j in (state.get('jobs') or {}).values()}
@@ -419,7 +427,8 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
    'stage':u.get('stage','')})
  order=[]
  for e in library.get('items') or []:
-  job=jobs.get(e['id']);base={'id':e['id'],'title':title(e['name']),'name':e['name'],'folder':e['folder'],'size':e['size']}
+  job=jobs.get(e['id']);base={'id':e['id'],'title':title(e['name']),'name':e['name'],'folder':e['folder'],'size':e['size'],
+                               'reencode':needs_reencode(job,e['name'])}
   if e['state']=='ready':
    # Build 181: a prepared movie is a new Drive file; its job is found by the id it was given.
    job=job or prepared.get(e['id'])
@@ -608,7 +617,10 @@ class Queue:
   for k,items in groups.items():
    years={drivelibrary.media_year(i.get('name',''),i.get('folderName','')) for i in items}-{''}
    if len(items)==1 or len(years)>1:out.extend(items);continue
-   rank=lambda item:(ready(item),started.get(item['id'],0),drivelibrary.quality(item.get('name','')),int(item.get('size') or 0))
+   # Build 185 (Library status › "Find a version without converting"): a copy that needs no re-encoding wins over an
+   # AV1 one (which goes to Drive's bin), unless the AV1 one is already prepared.
+   rank=lambda item:(ready(item),not needs_reencode(None,item.get('name','')),started.get(item['id'],0),
+                     drivelibrary.quality(item.get('name','')),int(item.get('size') or 0))
    items.sort(key=rank,reverse=True);keep=items[0];out.append(keep)
    removed=self.remove_copies(keep,items[1:],started)
    kept_back=[i for i in items[1:] if i not in removed]

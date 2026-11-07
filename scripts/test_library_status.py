@@ -407,4 +407,24 @@ class RoundPosterInTheRing(unittest.TestCase):
   ring=src[src.index("ring = ("):src.index("text_w = w - 160 - 130")]
   self.assertNotIn('tile108.png',ring);self.assertEqual(ring.count("M + 'knob.png'"),2)
 
+class FindAVersionWithoutConverting(unittest.TestCase):
+ def test_sheet_offers_it_for_reencodes_only(self):
+  base={'id':'a','title':'Inception (2010)','name':'Inception.2010.2160p.AV1.mkv','size':9*GB,'state':'waiting','sub':'Next · 2160p'}
+  sheet=rows.details(dict(base,reencode=True),{'free':0})
+  self.assertEqual(sheet['actions'][0],('Find a version without converting','quicker'));self.assertNotIn('next',[a[1] for a in sheet['actions']])
+  self.assertLessEqual(len(sheet['actions']),3)
+  self.assertNotIn('quicker',[a[1] for a in rows.details(dict(base,reencode=False),{'free':0})['actions']])
+ def test_reencode_from_probe_or_name(self):
+  self.assertTrue(prep.needs_reencode({'probe':{'copy_video':False}},'x.mkv'));self.assertFalse(prep.needs_reencode({'probe':{'copy_video':True}},'x.AV1.mkv'))
+  self.assertTrue(prep.needs_reencode(None,'Inception.2010.2160p.WEB-DL.AV1.mkv'));self.assertFalse(prep.needs_reencode(None,'Movie.2010.2160p.x265.mkv'))
+ def test_the_copy_without_conversion_is_kept(self):
+  src=(LIB/'prepare_downloads.py').read_text()
+  self.assertIn("rank=lambda item:(ready(item),not needs_reencode(None,item.get('name','')),started.get(item['id'],0),",src)
+ def test_wiring(self):
+  st=(BOOT/'library_status.py').read_text()
+  self.assertIn("xbmcgui.Window(10000).setProperty('KodiIOS.AvoidAV1'",st);self.assertIn("RunScript(service.kodi.ios.bootstrap,download,%s)",st)
+  self.assertIn("if args.get('replace')=='1':return None",(BOOT/'download.py').read_text())
+  status=load('library_status_q',BOOT/'library_status.py')
+  self.assertEqual([status.quality_key(h) for h in (2160,1080,720,0)],['4k','1080p','720p',''])
+
 if __name__=='__main__':unittest.main()
