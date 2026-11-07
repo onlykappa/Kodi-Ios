@@ -32,7 +32,10 @@ def quality_key(height):
 def snapshot(profile,downloads,uploads):
  """library_view() for the page right now (never raises: an empty library on any error)."""
  # Choices not yet applied by the service show at once (it applies them before its next video).
- state=prepare_downloads.apply_to(prepare_downloads.snapshot(profile),prepare_downloads.pending_requests(profile),time.time())
+ import work_state
+ # Build 193: "preparing" and its words come from the status model, as on every other page and the bell.
+ state=work_state.align(prepare_downloads.snapshot(profile),work_state.load(profile))
+ state=prepare_downloads.apply_to(state,prepare_downloads.pending_requests(profile),time.time())
  work=prepare_downloads.location(profile).parent/'preparing-videos'
  import phone_space
  try:free=phone_space.free(str(work if work.exists() else work.parent))

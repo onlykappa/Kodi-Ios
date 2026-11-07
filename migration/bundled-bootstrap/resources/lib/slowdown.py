@@ -1,0 +1,116 @@
+"""Work never stops; it only slows down while a video or AirPlay plays (owner, build 192: "stuff should ALWAYS be moving
+even if an AirPlay movie is playing, just slower"). Build 193 replaces every playback hold (service.py idle(),
+preparation.paused, Sink.hold, DriveStream.hold, the AllDebrid copy's keep_going) with this one rule:
+
+- reason() is 'airplay' while AirPlay plays, 'video' while Kodi plays a video, '' otherwise. The service tells it
+  (configure) from Player.HasVideo and airplay.busy; it is never guessed from a page.
+- Each worker calls Gate.after(seconds) after a piece of work that took `seconds` (a Drive block read, an upload
+  piece, an AllDebrid copy piece, a converter progress tick). While slowed it rests so that it is busy only SHARE of
+  the time: the line and the CPU are left to the video.
+- AirPlay must not stutter: the TV reads the movie from Kodi's in-app server, whose request lines (KodiAirPlay
+  "GET /video/x 206 1834567 B 412 ms") come through airplay.relay. A slow read (STRAIN_MS) cuts the share to
+  STRAINED for STRAIN_HOLD seconds.
+- The owner's Pause (transfer_control) is not this: it stays a real pause.
+"""
+import re
+import threading
+import time
+
+SHARE = {'video': 0.35, 'airplay': 0.25}
+STRAINED = 0.08           # share while the TV's reads are slow
+STRAIN_MS = 1500          # one TV read slower than this (for a sizeable range) counts as strain
+STRAIN_BYTES = 256 * 1024
+STRAIN_HOLD = 60
+MAX_REST = 8.0            # never rest longer than this at once (a Stop or Pause is noticed within it)
+WORDS = {'airplay': 'Slower while AirPlay plays', 'video': 'Slower while a video plays'}
+SERVED = re.compile(r'^(?:GET|HEAD) /\S+ (?:bytes=\S+ )?(\d{3}) (\d+) B (\d+) ms')
+
+_lock = threading.Lock()
+_state = {'reason': lambda: '', 'cached': '', 'at': -10.0, 'strain_until': 0.0}
+
+
+def configure(reason):
+    """reason() -> 'airplay' | 'video' | ''. Called once by the service."""
+    with _lock:
+        _state.update(reason=reason, at=-10.0)
+
+
+def reason(clock=time.monotonic):
+    """Why work is slowed now ('' when it runs at full speed), checked at most once a second."""
+    now = clock()
+    with _lock:
+        if now - _state['at'] >= 1.0:
+            try:
+                value = _state['reason']() or ''
+            except Exception:
+                value = ''
+            _state.update(cached=value if value in SHARE else '', at=now)
+        return _state['cached']
+
+
+def strained(now=None):
+    return (time.time() if now is None else now) < _state['strain_until']
+
+
+def share(why=None, now=None):
+    """The share of the time a worker may be busy (1.0 at full speed)."""
+    why = reason() if why is None else why
+    if not why:
+        return 1.0
+    if why == 'airplay' and strained(now):
+        return STRAINED
+    return SHARE[why]
+
+
+def rest_for(seconds, part):
+    """How long to rest after `seconds` of work so the work takes `part` of the time."""
+    if part >= 1.0 or seconds <= 0:
+        return 0.0
+    return min(MAX_REST, seconds * (1.0 / part - 1.0))
+
+
+def note_served(lines, now=None):
+    """airplay.relay's lines: a slow read of the movie by the TV marks strain. Returns True when strain was marked."""
+    now = time.time() if now is None else now
+    hit = False
+    for line in lines or ():
+        m = SERVED.match(str(line))
+        if not m:
+            continue
+        status, size, ms = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if status in (200, 206) and size >= STRAIN_BYTES and ms >= STRAIN_MS:
+            hit = True
+    if hit:
+        with _lock:
+            _state['strain_until'] = now + STRAIN_HOLD
+    return hit
+
+
+class Gate(object):
+    """One per worker. after(seconds): rest while slowed. sleep() is replaceable for tests; keep_going() ends a rest
+    early (Stop, Pause, Kodi closing)."""
+    def __init__(self, why=None, sleep=time.sleep, keep_going=lambda: True, now=None):
+        self.why = why or reason
+        self.sleep = sleep
+        self.keep_going = keep_going
+        self.now = now
+        self.rested = 0.0
+
+    def after(self, seconds):
+        why = self.why()
+        wait = rest_for(seconds, share(why, self.now() if self.now else None))
+        left = wait
+        while left > 0 and self.keep_going():
+            step = min(1.0, left)
+            self.sleep(step)
+            left -= step
+        self.rested += wait - max(0.0, left)
+        return wait
+
+    def timed(self, fn, *args, **kwargs):
+        """Run fn, then rest for its share."""
+        began = time.monotonic()
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            self.after(time.monotonic() - began)

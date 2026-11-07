@@ -17,6 +17,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+import slowdown
+
 API = 'https://www.googleapis.com/drive/v3/files'
 CHUNK = 1024 * 1024
 # Owner (build 175 log: "our converter is awful"): per 30 s of Inception the video took 37 s on the phone's hardware,
@@ -118,7 +120,8 @@ class DriveStream(object):
         self.bytes_read=0
         self.last_read=0
         self.last_problem=''
-        self.hold = lambda: False   # true while a video plays: no read-ahead then (the service sets it)
+        self.hold = lambda: False   # true while the owner paused converting: no read-ahead then (the service sets it)
+        self.gate = slowdown.Gate()   # build 193: a video or AirPlay playing slows the reads to a share of the line
         self.blocks = _Blocks(self._fetch)
         stream = self
 
@@ -197,7 +200,8 @@ class DriveStream(object):
                         # Build 182 (build-181 log: the upload waited for the Drive read 45% of the time at ~4-5 MB/s):
                         # the next READ_AHEAD blocks are fetched at once, in parallel, not one after another.
                         # Not while a video plays (build-181 log: AirPlay starved while a conversion read and uploaded).
-                        for step in range(1, 0 if stream.hold() else READ_AHEAD + 1):
+                        # Build 193: while a video or AirPlay plays, one block ahead instead of none (it slows, never stops).
+                        for step in range(1, 0 if stream.hold() else (1 if slowdown.reason() else READ_AHEAD) + 1):
                             stream.blocks.ahead(item, index + step)
                         piece = block[position - index * BLOCK:end - index * BLOCK + 1]
                         if not piece:
@@ -217,6 +221,7 @@ class DriveStream(object):
         request = urllib.request.Request(API + '/' + urllib.parse.quote(item, safe='') + '?alt=media',
                                          headers={'Authorization': 'Bearer ' + self.token(), 'Range': 'bytes=%d-%d' % (start, end)})
         for attempt in range(3):
+            began = time.monotonic()
             try:
                 upstream = self.open_url(request, 20)
                 try:
@@ -247,6 +252,7 @@ class DriveStream(object):
                     except Exception:
                         pass
                 self.last_problem = ''
+                self.gate.after(time.monotonic() - began)   # build 193: a share of the line while a video plays
                 return b''.join(parts), total
             except urllib.error.HTTPError as error:
                 if error.code not in (429, 500, 502, 503, 504) or attempt == 2:

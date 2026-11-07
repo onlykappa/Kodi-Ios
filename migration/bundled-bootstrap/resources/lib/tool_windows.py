@@ -62,7 +62,9 @@ def queue_snapshot(profile, now=None):
     import debrid_drive
     import prepare_downloads
     now = time.time() if now is None else now
-    state = prepare_downloads.apply_to(prepare_downloads.snapshot(profile), prepare_downloads.pending_requests(profile), now)
+    import work_state
+    state = work_state.align(prepare_downloads.snapshot(profile), work_state.load(profile, now))   # build 193: the status model
+    state = prepare_downloads.apply_to(state, prepare_downloads.pending_requests(profile), now)
     view = prepare_downloads.library_view(state, now=lambda: now)
     return lt.queue_view(view, lt.debrid_jobs(debrid_drive.load(profile)), now)
 

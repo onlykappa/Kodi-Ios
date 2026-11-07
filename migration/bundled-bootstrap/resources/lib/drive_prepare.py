@@ -64,7 +64,9 @@ class Sink:
         self.drive, self.parent, self.name, self.keep_going = drive, parent, name, keep_going
         # Owner (build 181: AirPlay of Buddy failed while Interstellar's 32 MB pieces went up, one took 94 s): while a
         # video plays, hold() is true and the pieces wait, so playback gets the whole line.
-        self.hold = hold
+        self.hold = hold          # build 193: only the owner's Pause holds now; playback slows it (gate)
+        import slowdown
+        self.gate = slowdown.Gate(keep_going=lambda: not self.closed)
         self.tracks = {}
         self.on_file = on_file
         self.background, self.clock, self.sleep = background, clock, sleep
@@ -181,7 +183,10 @@ class Sink:
             if self.closed:return
             try:
                 wire['buffer'].extend(piece)
+                began = time.monotonic()
                 self._send(wire, len(piece), final=False, sleep=self.sleep)
+                # Build 193: while a video or AirPlay plays the movie still goes up, at a share of the line.
+                self.gate.after(time.monotonic() - began)
                 self._confirmed(wire, track)
                 if saved:self._checkpoint(wire['url'], wire['offset'], saved)
                 if track == 0 and self.keep_pieces:self._drop_confirmed(wire['offset'])

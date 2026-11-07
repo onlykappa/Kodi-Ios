@@ -120,8 +120,8 @@ def log_lines(lib,size=16384,rounds=8):
 
 # Owner (build 185 log: "airplay stops out of nowhere"): the TV's first read of the movie took 12 s and the next ones
 # 19 s while an AllDebrid copy went up to Drive, so Apple's player timed out. While AirPlay plays (this window property
-# holds the time it was last seen working), the copies, the uploads and the conversion wait.
-BUSY='KodiIOS.AirPlay'
+# holds the time it was last seen working), the copies, the uploads and the conversion wait (build 193: they slow down instead).
+BUSY='KodiIOS.AirPlay'   # build 193: work slows down while it is set (slowdown.py); it no longer waits
 BUSY_FOR=90   # seconds after its last log line; Apple's player logs its requests and a heartbeat while it plays
 ENDED=('player: closed','player: stopped')
 def mark_busy(window,now):window.setProperty(BUSY,'%.0f'%now)
@@ -129,9 +129,19 @@ def clear_busy(window):window.setProperty(BUSY,'')
 def busy(window,now):
  try:return now-float(window.getProperty(BUSY) or 0)<BUSY_FOR
  except (TypeError,ValueError):return False
+# Build 193 (build-192 log, 13:10-13:30): the converter writes its own 'prepare: …' lines to the same log; they counted as
+# AirPlay playing and held every worker for 90 s ("Paused while a video plays" with nothing playing). Only the AirPlay
+# server's and Apple's player's lines count now.
+CONVERTER=('prepare:',)
+def airplay_lines(lines):return [l for l in lines or () if not str(l).lstrip().startswith(CONVERTER)]
 def activity(lines,window,now):
- """relay's keep: a line from Apple's player keeps AirPlay marked busy; closed / stopped ends it."""
+ """relay's keep: a line from Apple's player or the AirPlay server keeps AirPlay marked busy; closed / stopped ends
+ it. A slow read of the movie by the TV slows the background work further (slowdown.note_served)."""
+ lines=airplay_lines(lines)
  if not lines:return
+ try:
+  import slowdown;slowdown.note_served(lines,now)
+ except Exception:pass
  if any(end in line for line in lines for end in ENDED) and not any('start:' in line for line in lines):clear_busy(window)
  else:mark_busy(window,now)
 

@@ -615,6 +615,14 @@ class Queue:
   card, and the movie being converted (and its source file) is never dropped or replaced."""
   if not self.scanning.acquire(blocking=not beside):return
   try:self._scan(keep_going,force,beside)
+  except BaseException:
+   # Build 193 (build-192 log, 12:57-13:09): a check that failed (Drive sign-in refused) left "Checking downloaded videos"
+   # running, so every page showed a check in progress while nothing could run.
+   if not beside:
+    with self.lock:
+     if (self.state.get('current') or {}).get('title')=='Movies and shows':self.state.pop('current',None)
+    self.commit()
+   raise
   finally:
    self.scanning.release()
    if beside:

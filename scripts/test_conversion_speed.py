@@ -196,7 +196,9 @@ class Build175Log(unittest.TestCase):
     native.convert_to('src',None,lambda:False,lambda *a:None,paused=lambda:False)
  def test_the_service_and_upload_wait_through_playback(self):
   svc=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
-  self.assertIn("preparation.paused=lambda:(not monitor.abortRequested() and (xbmc.Player().isPlayingVideo() or transfer_control.paused(profile,'conv') or airplay_busy())",svc)
+  # Build 193: playback slows the conversion (slowdown.py); only the owner's Pause holds it where it is.
+  self.assertIn("preparation.paused=lambda:(not monitor.abortRequested() and transfer_control.paused(profile,'conv') and",svc)
+  self.assertNotIn('isPlayingVideo() or transfer_control',svc)
   cloud=(LIB/'prepare_cloud.py').read_text()
   self.assertIn('drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=paused,',cloud)
   self.assertIn('converted_progress,paused,waiting,resume=',cloud)
@@ -369,9 +371,10 @@ class AirPlayGetsTheLine(unittest.TestCase):
   state['hold']=False;clock.sleep(1.5);self.assertEqual(sent,[10])
   sink.closed=True;th.join(3)
   self.assertIn('hold=paused',(LIB/'prepare_cloud.py').read_text())
- def test_no_read_ahead_while_a_video_plays(self):
+ def test_read_ahead_while_a_video_plays(self):
+  # Build 193: one block ahead while a video or AirPlay plays (slowed, never stopped); none only when the owner paused.
   s=(LIB/'drive_stream.py').read_text()
-  self.assertIn('for step in range(1, 0 if stream.hold() else READ_AHEAD + 1):',s)
+  self.assertIn('for step in range(1, 0 if stream.hold() else (1 if slowdown.reason() else READ_AHEAD) + 1):',s)
   self.assertIn('if preparation.stream:preparation.stream.hold=preparation.paused',(ROOT/'migration/bundled-bootstrap/service.py').read_text())
 
 class PreparedAirPlayServer(unittest.TestCase):

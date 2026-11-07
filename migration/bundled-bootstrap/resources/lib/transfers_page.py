@@ -45,8 +45,8 @@ def page(p):
             '</control>')
     empty = ('<control type="group"><left>%d</left><top>290</top><visible>!%s</visible>' % (S, has('title')) +
              p.surface(-6, 0, w + 12, 300, 'round.png', p.SURFACE, 32) +
-             p.label(24, 60, w - 48, 70, 'Nothing is moving right now', 'p_pill', p.WHITE, 'center', nolabel) +
-             p.label(24, 140, w - 48, 110, 'Downloads, Drive copies and conversions show here while they run.',
+             p.label(24, 60, w - 48, 70, P('empty.title'), 'p_pill', p.WHITE, 'center', nolabel) +
+             p.label(24, 140, w - 48, 110, P('empty.text'),
                      'p_cap', p.GREY, 'center', '<wrapmultiline>true</wrapmultiline>') + '</control>')
 
     def section(text, cond):

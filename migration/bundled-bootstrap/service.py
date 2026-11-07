@@ -165,6 +165,8 @@ def run():
     if xbmcaddon.Addon().getSettingBool('check_on_start'):updates.run(check_only=True)
    except Exception as error:xbmc.log('Kodi iOS update check skipped: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
   threading.Thread(target=later,daemon=True).start()
+ import slowdown
+ slowdown.configure(lambda:'airplay' if airplay.busy(xbmcgui.Window(10000),time.time()) else ('video' if xbmc.getCondVisibility('Player.HasVideo') else ''))
  # The bell in the hub headers: unread messages and whether a download or Drive upload runs. Each message also gets
  # its part of kodi.log, shown when it is tapped.
  threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),
@@ -177,6 +179,17 @@ def run():
   return transfer_history.activity(torrents,debrid_drive.load(profile).get('current'),prepare_downloads.load(profile).get('current'))
  import transfer_history
  threading.Thread(target=transfer_history.watch,args=(profile,transfer_rates,monitor.waitForAbort),daemon=True).start()
+ # Build 193: one status model for every page and the bell (work_state.py), every 2 s, with the reason stored.
+ import work_state,slowdown
+ def work_inputs():
+  import debrid_drive,prepare_downloads,preparation_runtime
+  phone=[u for u in notices.uploads(profile) if u.get('source')=='phone']
+  return {'prep':prepare_downloads.load(profile),'runtime':preparation_runtime.read(profile),'debrid':debrid_drive.load(profile),
+          'phone':phone,'torrents':notices.downloads(),
+          'paused':{k:transfer_control.paused(profile,k) for k in transfer_control.KINDS},'slow':slowdown.reason(),
+          **work_state.flags()}
+ threading.Thread(target=work_state.publish,args=(profile,work_inputs,monitor.waitForAbort),
+                  kwargs={'set_property':window.setProperty,'log':lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGWARNING)},daemon=True).start()
  # A torrent whose real name turns out to be another film (owner, build 156: Fall 2022 → Fall.2.Deadpoint.2026) is
  # stopped once Elementum knows its name, and explained in Notifications.
  import source_guard
@@ -246,10 +259,15 @@ def run():
  while not monitor.waitForAbort(60):pass
 
 def drive_uploads(monitor,home,profile):
- """Idle-only download → upload → one-file preparation. Startup scan and new uploads share one queue/lock."""
+ """Download → upload → one-file preparation (build 193: slower, never stopped, while a video or AirPlay plays). Startup scan and new uploads share one queue/lock."""
  import urllib.parse,urllib.request,xbmc,xbmcaddon,xbmcgui,xbmcvfs
- # Build 186: AirPlay playing holds the AllDebrid copies, the uploads and the conversion (airplay.BUSY).
+ # (slowdown.configure is also called in run(); this keeps the same rule here.)
+ # Build 186 held the AllDebrid copies, the uploads and the conversion while AirPlay played. Build 193 (owner: "stuff
+ # should ALWAYS be moving even if an AirPlay movie is playing, just slower"): nothing waits for playback any more; every
+ # worker slows to a share of the line and the CPU (slowdown.py). Only the owner's Pause still holds.
  airplay_busy=lambda:airplay.busy(xbmcgui.Window(10000),time.time())
+ import slowdown
+ slowdown.configure(lambda:'airplay' if airplay_busy() else ('video' if xbmc.getCondVisibility('Player.HasVideo') else ''))
  if not xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)'):return
  common=xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
  if common not in sys.path:sys.path.append(common)
@@ -279,6 +297,8 @@ def drive_uploads(monitor,home,profile):
    except Exception:token=''
    # A version played from the source page keeps downloading onto the phone after playback (Elementum's keep
    # downloading): once nothing plays, AllDebrid takes it to Drive and Elementum drops it (owner, build 160).
+   import work_state
+   work_state.need('alldebrid_key',not token and debrid_drive.active(profile))
    if token and accounts.get_accounts():
     try:
      for tid in debrid_drive.adopt(profile,notices.torrent_list(),xbmc.Player().isPlayingVideo()):
@@ -299,7 +319,7 @@ def drive_uploads(monitor,home,profile):
      driveupload.invalidate_library(str(profile/'addon_data/service.kodi.ios.bootstrap'))
      prepare_downloads.request_check(profile)   # preparation for Kodi and AirPlay picks it up from Drive
     delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text:notices.add(profile,kind,title,text),
-                            keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up') and not airplay_busy(),on_done=done,
+                            keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up'),on_done=done,
                             cancelled=lambda:transfer_control.cancelled_copies(profile),
                             forget=lambda h:transfer_control.clear_cancelled(profile,h),
                             log=lambda text:xbmc.log('Kodi iOS AllDebrid: '+text,xbmc.LOGWARNING)) or 20
@@ -322,9 +342,10 @@ def drive_uploads(monitor,home,profile):
    except (driveupload.SignedOut,driveupload.RefreshBusy):monitor.waitForAbort(60)   # the uploads loop tells the owner
    except Exception as error:diagnostics.log_exception(xbmc,'library_lists',error)
  threading.Thread(target=library_lists,daemon=True).start()
- idle=lambda:not monitor.abortRequested() and not xbmc.Player().isPlayingVideo() and not airplay_busy()
+ # Build 193: "idle" only means Kodi is not closing (build-192 log: one busy look made the queue wait 120 s).
+ idle=lambda:not monitor.abortRequested()
  log=lambda message:xbmc.log('Kodi iOS '+diagnostics.redact(message),xbmc.LOGINFO)
- import library_scan,prepare_downloads
+ import library_scan,prepare_downloads,work_state
  preparation=None
  def preparation_queue():
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
@@ -368,7 +389,7 @@ def drive_uploads(monitor,home,profile):
    with driveupload.transfer_lock(state_dir):
     count=0
     if (waiting or seeding) and xbmcaddon.Addon().getSettingBool('drive_upload'):
-     uploading=lambda:idle() and not transfer_control.paused(profile,'up') and not airplay_busy()   # long press › Pause uploads
+     uploading=lambda:idle() and not transfer_control.paused(profile,'up')   # long press › Pause uploads
      count=driveupload.run_once(root,drive,state,log,uploading,xbmcaddon.Addon().getSettingBool('drive_upload_delete'),
                               lambda:driveupload.invalidate_library(state_dir),seeding,driveupload.remove_torrent,
                               remote=lambda:library_scan.remote_files(drive,idle),pace=1,
@@ -384,7 +405,9 @@ def drive_uploads(monitor,home,profile):
         # Build 192 (owner: Fall 2 "stuck on starting / 67%"; the log could not show whether Drive was being read): once a
         # minute while a movie converts, how much was read from Drive, how long since the last read, and the last error.
         try:
-         if q.busy and q.stream and time.time()-seen['at']>=60:
+         # Build 193 (build-192 log: "103 MB in 187 s" spanned a held and an idle queue): the window starts with each run.
+         if not q.busy:seen.update(at=time.time(),bytes=None)
+         elif q.stream and time.time()-seen['at']>=60:
           stats=q.stream.stats();got=int(stats.get('read_bytes') or 0);now=time.time()
           if seen['bytes'] is not None:
            since=now-float(stats.get('last_read') or 0) if stats.get('last_read') else -1
@@ -407,14 +430,15 @@ def drive_uploads(monitor,home,profile):
       # Build 169 made preparation wait for AllDebrid copies; with copies at 6-8 MB/s (build-169 log) both run at once
       # again, so conversion never sits paused behind an hour-long download.
       # A check no longer stops it (build-170 log: each stop restarted Inception from 0%); it runs when this one ends.
-      converting=lambda:can_prepare() and not prepare_downloads.interrupts(profile)
-      # A video playing holds the conversion where it is instead of stopping it (owner, build 175: a storage-free
-      # conversion cannot resume, so each video played restarted the movie from 0%). Closing Kodi, Prepare next / Keep
-      # as it is and turning preparation off still stop it.
-      # Long press › Pause converting (build 186) is the same hold, for as long as the owner wants.
-      preparation.paused=lambda:(not monitor.abortRequested() and (xbmc.Player().isPlayingVideo() or transfer_control.paused(profile,'conv') or airplay_busy()) and
+      # Build 193: the owner's Pause makes converting() false too, so the converter reaches its hold loop and says
+      # "Paused by you" (it used to stop silently at a full upload queue, with old words on every page).
+      converting=lambda:can_prepare() and not prepare_downloads.interrupts(profile) and not transfer_control.paused(profile,'conv')
+      # Long press › Pause converting (build 186) holds the conversion where it is, for as long as the owner wants.
+      # Closing Kodi, Start converting now / Keep as it is and turning preparation off still stop it.
+      # Build 193: only the owner's Pause holds it; a video or AirPlay playing slows it (slowdown.py), never pauses it.
+      preparation.paused=lambda:(not monitor.abortRequested() and transfer_control.paused(profile,'conv') and
                                  xbmcaddon.Addon().getSettingBool('prepare_downloads') and not prepare_downloads.interrupts(profile))
-      # The upload pieces and the Drive read-ahead wait too, so a video (or AirPlay) gets the whole line.
+      # The upload pieces and the Drive read-ahead wait too while paused by the owner.
       if preparation.stream:preparation.stream.hold=preparation.paused
       if transfer_control.paused(profile,'conv') and not (prepare_downloads.load(profile).get('current') or {}).get('running'):delay=30
       else:
@@ -429,13 +453,17 @@ def drive_uploads(monitor,home,profile):
    if not getattr(drive_uploads,'told_signed_out',False):
     diagnostics.log_exception(xbmc,'drive_upload',error)
     notices.add(profile,'problem','Sign in to Google Drive again',str(error));drive_uploads.told_signed_out=True
+   work_state.need('drive_signin')   # build 193: the orange card with Sign in on Library status and Notifications
    delay=max(delay,60)
   except driveupload.RefreshBusy as error:
    xbmc.log('Kodi iOS Drive: %s'%error,xbmc.LOGINFO);delay=max(delay,60)
+   work_state.network('drive',driveupload.HOLD.get('until') or time.time()+60,'Google Drive is busy')
   except Exception as error:
    diagnostics.log_exception(xbmc,'drive_upload',error)
    notices.add(profile,'problem','Google Drive upload paused',diagnostics.redact(error)[:160])
-  else:drive_uploads.told_signed_out=False
+  else:
+   drive_uploads.told_signed_out=False
+   work_state.need('drive_signin',False);work_state.network('drive')
   # A check or a Library status choice (prepare next, try again, keep) is picked up within seconds.
   if prepare_downloads.check_requested(profile) or prepare_downloads.pending_requests(profile):delay=5
 if __name__=='__main__':run()

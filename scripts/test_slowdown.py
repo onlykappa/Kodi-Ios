@@ -1,0 +1,105 @@
+"""Build 193, Phase 3 (owner: "stuff should ALWAYS be moving even if an AirPlay movie is playing, just slower … AirPlay
+must not stutter … Pause stays a real pause"): slowdown.py, its use by every worker, and the build-192 log's cause 1
+(the converter's own log lines counted as AirPlay playing and held everything)."""
+import sys,threading,time,unittest
+from pathlib import Path
+ROOT=Path(__file__).resolve().parents[1];BOOT=ROOT/'migration/bundled-bootstrap';LIB=BOOT/'resources/lib'
+sys.dont_write_bytecode=True
+sys.path.insert(0,str(LIB))
+import slowdown,airplay,app_state
+
+class Window:
+ def __init__(self):self.p={}
+ def setProperty(self,k,v):self.p[k]=v
+ def getProperty(self,k):return self.p.get(k,'')
+
+class Reset(unittest.TestCase):
+ def setUp(self):slowdown._state.update(strain_until=0.0);slowdown.configure(lambda:'')
+ def tearDown(self):slowdown._state.update(strain_until=0.0);slowdown.configure(lambda:'')
+
+class Rule(Reset):
+ def test_reason_only_from_the_service(self):
+  self.assertEqual(slowdown.reason(),'')
+  slowdown.configure(lambda:'video');self.assertEqual(slowdown.reason(),'video')
+  slowdown.configure(lambda:'airplay');self.assertEqual(slowdown.reason(),'airplay')
+  slowdown.configure(lambda:'nonsense');self.assertEqual(slowdown.reason(),'')   # only the two reasons exist
+  def broken():raise RuntimeError('player gone')
+  slowdown.configure(broken);self.assertEqual(slowdown.reason(),'')               # never stops work on an error
+ def test_share_per_reason(self):
+  self.assertEqual(slowdown.share(''),1.0)
+  self.assertEqual(slowdown.share('video'),0.35);self.assertEqual(slowdown.share('airplay'),0.25)
+  self.assertGreater(slowdown.share('airplay'),0)    # slowed, never stopped
+ def test_rest_keeps_the_share(self):
+  self.assertEqual(slowdown.rest_for(2.0,1.0),0.0)
+  self.assertAlmostEqual(slowdown.rest_for(1.0,0.25),3.0)        # busy 1 s of every 4
+  self.assertAlmostEqual(slowdown.rest_for(1.0,0.35),1/0.35-1)
+  self.assertEqual(slowdown.rest_for(30.0,0.25),slowdown.MAX_REST)   # a Stop or Pause is noticed within MAX_REST
+ def test_gate_rests_only_while_slowed_and_ends_early(self):
+  slept=[];g=slowdown.Gate(why=lambda:'',sleep=slept.append)
+  self.assertEqual(g.after(1.0),0.0);self.assertEqual(slept,[])
+  g=slowdown.Gate(why=lambda:'airplay',sleep=slept.append);self.assertAlmostEqual(g.after(1.0),3.0)
+  self.assertAlmostEqual(sum(slept),3.0);self.assertTrue(all(s<=1.0 for s in slept))
+  slept.clear();going=[True,False]
+  g=slowdown.Gate(why=lambda:'video',sleep=slept.append,keep_going=lambda:going.pop(0) if going else False)
+  g.after(2.0);self.assertEqual(len(slept),1)    # Pause / Stop pressed during the rest: it ends at once
+
+class AirPlayNotStutter(Reset):
+ def test_slow_tv_read_cuts_the_share(self):
+  now=1000.0
+  self.assertFalse(slowdown.note_served(['GET /video/prepared.mp4 bytes=0-4194303 206 4194304 B 310 ms'],now))
+  self.assertFalse(slowdown.note_served(['GET /video/prepared.mp4 bytes=0-1 206 2 B 4000 ms'],now))   # a tiny probe
+  self.assertEqual(slowdown.share('airplay',now),0.25)
+  self.assertTrue(slowdown.note_served(['GET /video/prepared.mp4 bytes=0-4194303 206 4194304 B 2600 ms'],now))
+  self.assertEqual(slowdown.share('airplay',now+10),slowdown.STRAINED)
+  self.assertEqual(slowdown.share('airplay',now+slowdown.STRAIN_HOLD+1),0.25)   # back once the TV keeps up again
+  self.assertEqual(slowdown.share('video',now+10),0.35)                          # strain is about AirPlay only
+
+class Build192Cause1(Reset):
+ def test_converter_lines_are_not_airplay(self):
+  """Build-192 log 13:10:00-13:10:36: 'prepare: unit started …' marked AirPlay busy; 16 s later the conversion said
+  'Paused while a video plays' with nothing playing."""
+  w=Window()
+  airplay.activity(['prepare: unit started via hardware HDR (av1 decoder to hevc_videotoolbox)',
+                    'prepare: video 1/297 made in 16.4 s for 30 s of film (1.82x real time)'],w,500)
+  self.assertFalse(airplay.busy(w,501))
+  airplay.activity(['  prepare: fragments of about 60 s (source 7.0 Mbit/s), samples interleaved'],w,510)
+  self.assertFalse(airplay.busy(w,511))
+  airplay.activity(['prepare: unit started','GET /video/prepared.mp4 bytes=0-1 206 2 B 12 ms'],w,520)
+  self.assertTrue(airplay.busy(w,521))          # the AirPlay server's own lines still count
+  airplay.activity(['player: closed at 812.0 s'],w,530);self.assertFalse(airplay.busy(w,531))
+
+class Workers(Reset):
+ def test_pace_slows_the_converter_on_screen(self):
+  clock=[0.0];slept=[]
+  def sleep(s):slept.append(s);clock[0]+=s
+  pace=app_state.Pace(on_screen=lambda:True,cpu_clock=lambda:0.0,clock=lambda:clock[0],sleep=sleep)
+  clock[0]+=1.0;self.assertEqual(pace.tick(),0.0)       # nothing plays: flat out on screen (build 168)
+  slowdown.configure(lambda:'video');slowdown._state['at']=-10
+  clock[0]+=1.0;self.assertAlmostEqual(pace.tick(),1/0.35-1)   # a video plays: a share, never a hold
+ def test_every_worker_uses_the_gate(self):
+  self.assertIn('self.gate.after(time.monotonic() - began)',(LIB/'drive_prepare.py').read_text())
+  stream=(LIB/'drive_stream.py').read_text()
+  self.assertIn('self.gate.after(time.monotonic() - began)',stream)
+  self.assertIn('(1 if slowdown.reason() else READ_AHEAD)',stream)
+  up=(LIB/'driveupload.py').read_text()
+  self.assertEqual(up.count('slowdown.Gate(keep_going=keep_going)'),2)   # phone uploads and AllDebrid copies
+  self.assertIn('gate.after(put_s)',up)
+  self.assertIn('pause = max(pause, self.slow(wall))',(LIB/'app_state.py').read_text())
+ def test_sink_hold_is_only_the_owners_pause(self):
+  import drive_prepare
+  sink=drive_prepare.Sink(None,'p','n',lambda:True,hold=lambda:False,background=False)
+  self.assertIsInstance(sink.gate,slowdown.Gate)
+ def test_service_never_waits_for_playback(self):
+  svc=(BOOT/'service.py').read_text()
+  self.assertIn("idle=lambda:not monitor.abortRequested()\n",svc)
+  self.assertNotIn('and not airplay_busy()',svc)
+  self.assertNotIn('isPlayingVideo() or transfer_control',svc)
+  self.assertIn("preparation.paused=lambda:(not monitor.abortRequested() and transfer_control.paused(profile,'conv') and",svc)
+  self.assertEqual(svc.count("slowdown.configure(lambda:'airplay' if"),2)
+  # The owner's Pause reaches the converter's hold loop (its words: "Paused by you").
+  self.assertIn("not transfer_control.paused(profile,'conv')",svc.split('converting=lambda:')[1].split('\n')[0])
+  cloud=(LIB/'prepare_cloud.py').read_text()
+  self.assertIn("q.runtime.phase('Paused by you',False,item['name'])",cloud)
+  self.assertNotIn("phase('Paused while a video plays'",cloud)
+
+if __name__=='__main__':unittest.main()

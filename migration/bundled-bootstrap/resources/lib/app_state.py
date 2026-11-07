@@ -54,10 +54,18 @@ def foreground(clock=time.monotonic, read=_read):
     return _cache['value'] in (ACTIVE, INACTIVE)
 
 
+def _slow_rest(wall):
+    try:
+        import slowdown
+        return slowdown.rest_for(wall, slowdown.share())
+    except Exception:
+        return 0.0
+
+
 class Pace(object):
     """Call tick() from a long native job's progress callback: no pause on screen; in the background, sleeps so the
     calling thread stays at about BACKGROUND_SHARE of a core."""
-    def __init__(self, on_screen=foreground, cpu_clock=None, clock=time.monotonic, sleep=time.sleep):
+    def __init__(self, on_screen=foreground, cpu_clock=None, clock=time.monotonic, sleep=time.sleep, slow=None):
         self.on_screen = on_screen
         # r25: the whole app's CPU time, not this thread's: off screen the picture may be decoded on the CPU by
         # several decoder threads (VideoToolbox refused, build-178 log), and iOS judges the app, not one thread.
@@ -65,6 +73,7 @@ class Pace(object):
         self.clock = clock
         self.sleep = sleep
         self.window = [clock(), self.cpu_clock()]
+        self.slow = slow or _slow_rest
 
     def tick(self):
         wall = self.clock() - self.window[0]
@@ -72,6 +81,9 @@ class Pace(object):
             return 0.0
         cpu = self.cpu_clock() - self.window[1]
         pause = 0.0 if self.on_screen() else min(0.25, max(0.0, cpu / BACKGROUND_SHARE - wall))
+        # Build 193: while a video or AirPlay plays the converter keeps going at a share of the time (slowdown.SHARE)
+        # instead of holding, so the video and the TV get the CPU and the line first.
+        pause = max(pause, self.slow(wall))
         if pause:
             self.sleep(pause)
         self.window[:] = [self.clock(), self.cpu_clock()]

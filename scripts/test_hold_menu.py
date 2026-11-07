@@ -72,8 +72,9 @@ class Wiring(unittest.TestCase):
   page=(BOOT/'notifications.py').read_text();service=(BOOT/'service.py').read_text()
   self.assertIn('LONG=(101,117)',page);self.assertIn('if code in LONG or code==10:',page)
   self.assertIn('xbmcgui.Dialog().contextmenu(',page);self.assertIn("prepare_downloads.request(profile,'keep',item['id'])",page)
-  self.assertIn("transfer_control.paused(profile,'conv') or airplay_busy()) and",service)
-  self.assertIn("uploading=lambda:idle() and not transfer_control.paused(profile,'up') and not airplay_busy()",service)
+  self.assertIn("preparation.paused=lambda:(not monitor.abortRequested() and transfer_control.paused(profile,'conv') and",service)
+  self.assertIn("and not transfer_control.paused(profile,'conv')",service.split('converting=lambda:')[1].split('\n')[0])
+  self.assertIn("uploading=lambda:idle() and not transfer_control.paused(profile,'up')",service)
   self.assertIn("cancelled=lambda:transfer_control.cancelled_copies(profile)",service)
   self.assertIn('<longpress>RightClick</longpress>',(LIB/'navigation.py').read_text())
 

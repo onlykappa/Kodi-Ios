@@ -50,7 +50,7 @@ def process_one(q, keep_going):
         eta_s=0
         if mark and (pct or 0)-mark[1]>=0.2 and now>mark[0]:
             eta_s=(now-mark[0])*(100-(pct or 0))/((pct or 0)-mark[1]);eta=prep.eta_text(eta_s)
-        current=dict(title=item['name'],stage='Step 3 of 3 · '+stage,progress=max(0,min(100,pct or 0)),indeterminate=pct is None,
+        current=dict(title=item['name'],stage='Step 3 of 3 · '+stage,kind='repack' if job.get('repack') else 'conv',progress=max(0,min(100,pct or 0)),indeterminate=pct is None,
                      queued=len(candidates),running=True,updated=now,read=speed[0],rate=speed[1],
                      detail=prep.speed_text(*speed),eta=eta,eta_s=eta_s)
         # Build 177 (owner-approved movie sheet): upload speed, film done, pace and the expected size.
@@ -138,10 +138,13 @@ def process_one(q, keep_going):
                     on_checkpoint=lambda cp:resume_store.save(q.profile,slot,identity,cp))
                 attempt['sink']=sink
                 def waiting():
-                    if q.runtime:q.runtime.phase('Paused while a video plays',False,item['name'])
+                    # Build 193: only the owner's Pause holds a conversion now (a video or AirPlay slows it instead),
+                    # so the words say so; the reason is stored, never guessed (build-192 log: "Paused while a video
+                    # plays" with nothing playing).
+                    if q.runtime:q.runtime.phase('Paused by you',False,item['name'])
                     current=q.state.get('current') or {}
-                    if q.clock()-float(current.get('updated') or 0)>=10:   # under transfer_history's 15 s: still running
-                        current.update(stage='Step 3 of 3 · Paused while a video plays',running=True,updated=q.clock(),rate=0,detail='')
+                    if q.clock()-float(current.get('updated') or 0)>=2:
+                        current.update(stage='Step 3 of 3 · Paused by you',running=True,paused=True,updated=q.clock(),rate=0,detail='')
                         q.state['current']=current;q.commit()
                 # Build 192: a resumed movie shows where it got to (the mark's place in the film), not 0%, while it lines up.
                 duration=float((job.get('probe') or {}).get('duration') or 0)
@@ -256,5 +259,7 @@ def process_one(q, keep_going):
     finally:
         q.stream.forget(item['id'])
         if temp_id:q.stream.forget(temp_id)
-        if q.state.get('current'):q.state['current'].update(running=False,updated=q.clock())
+        # Build 193 (build-192 log: a stopped Inception kept "Paused while a video plays"): a stopped job says it stopped.
+        if q.state.get('current'):q.state['current'].update(running=False,paused=False,updated=q.clock(),rate=0,detail='',
+                                                            stage='Stopped' if job.get('status')!='failed' else 'Will try again')
         q.commit()

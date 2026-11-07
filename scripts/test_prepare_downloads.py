@@ -196,7 +196,7 @@ class Integration(unittest.TestCase):
   setting=ET.parse(ROOT/'migration/bundled-bootstrap/resources/settings.xml').find(".//setting[@id='prepare_downloads']")
   self.assertEqual(setting.findtext('default'),'true')
  def test_notifications_have_preparation_progress(self):
-  source=(ROOT/'migration/bundled-bootstrap/notifications.py').read_text();self.assertIn('prepare_downloads.cards(profile)',source)
+  source=(ROOT/'migration/bundled-bootstrap/notifications.py').read_text();self.assertIn('model_cards(model,',source)   # build 193: the status model
   self.assertIn('self.percent(9431,',source)
  def test_framework_exports_probe_and_preparation(self):
   source=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()

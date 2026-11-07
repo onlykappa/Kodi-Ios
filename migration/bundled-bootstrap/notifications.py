@@ -27,6 +27,21 @@ def card_properties(downloads,uploads):
  props['up.summary']=' · '.join(x for x in (u.get('folder',''),'then off the phone') if x) if u else ''
  return props
 
+def model_cards(state,running_id=''):
+ """Build 193: the Preparing and Uploading cards from the status model (work_state), the same words as Library status,
+ Transfers and the bell. Returns (prepare card or {}, upload line or '')."""
+ import work_state
+ conv=work_state.job(state,'conv');copy=work_state.job(state,'up');card={}
+ if conv:
+  card={'title':conv['title'],'line':conv['line'],'progress':conv['pct'],'indeterminate':conv['indeterminate'] or conv['state'] not in work_state.MOVING,
+        'running':conv['state'] in work_state.MOVING,'paused':conv['state']==work_state.PAUSED,'id':running_id}
+ elif state and state.get('next'):
+  first=state['next'][0]
+  card={'title':first['title'],'progress':0,'indeterminate':False,'running':False,'id':first['id'],
+        'line':'Paused by you' if first.get('paused') else (state.get('wait') or 'Up next · #1')}
+ if card:card['queued']=len((state or {}).get('next') or [])
+ return card,(copy['line'] if copy else '')
+
 def message_properties(items,filter_key,now=None):
  """Window properties for the Earlier rows under the chosen filter, and the empty state."""
  kinds=notices.FILTERS.get(filter_key,notices.KINDS);shown=[i for i in items if i.get('kind','info') in kinds][:ROWS]
@@ -125,10 +140,13 @@ def run():
     show_live=self.filter in ('all','downloads')
     self.downloads=notices.downloads() if show_live else [];ups=notices.uploads(profile) if show_live else []
     props=card_properties(self.downloads,ups)
-    if ups and transfer_control.paused(profile,'up'):props['up.line']='Paused by you · hold this card to resume'
+    # Build 193: the conversion and Drive cards say what the status model says (every page reads the same).
+    import work_state
+    model=work_state.load(profile)
+    current,up_line=model_cards(model,prepare_downloads.running_id(prepare_downloads.load(profile))) if show_live else ({},'')
+    if ups and up_line:props['up.line']=up_line
     self.set_all(props)
-    preparing=prepare_downloads.cards(profile) if show_live else []
-    current=preparing[0] if preparing else {}
+    preparing=[current] if current else []
     self.ups,self.current=ups,current
     self.setProperty('has.prepare','true' if preparing else '')
     self.setProperty('prepare.indeterminate','1' if current.get('indeterminate') else '')

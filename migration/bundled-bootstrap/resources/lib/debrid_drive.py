@@ -232,8 +232,13 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     marks[:] = [m for m in marks if now - m[0] <= 20] or [(now, sent)]
                     span = marks[-1][0] - marks[0][0]
                     rate = (marks[-1][1] - marks[0][1]) / span if span >= 1 else 0.0
+                    # Build 193 (build-192 log): progress carries its time, so a hung piece is never shown as moving,
+                    # and a piece that went up resets the tries (six AllDebrid 500s made a later timeout wait 210 s).
                     state['current'] = {'name': title, 'folder': parts[-1], 'sent': sent, 'total': total, 'stage': 'copying',
-                                        'rate': rate, 'eta_s': (total - sent) / rate if rate else 0}
+                                        'rate': rate, 'eta_s': (total - sent) / rate if rate else 0, 'updated': now}
+                    if job.get('tries') and sent > (marks[0][1] if len(marks) > 1 else 0):
+                        job['tries'] = 0
+                        job.pop('error', None)
                     commit()
                 hash_ = str(job['hash']).lower()
                 going = lambda: keep_going() and hash_ not in {str(h).lower() for h in cancelled()}
@@ -266,6 +271,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
         job['tries'] = job.get('tries', 0) + 1
         job['error'] = '%s: %s' % (type(error).__name__, str(error)[:160])
         log('%s: try %d, again in %d s: %s' % (title, job['tries'], min(600, 30 * job['tries']), job['error']))
+        job['retry_at'] = clock() + min(600, 30 * job['tries'])   # build 193: pages say "trying again in N min"
         commit()
         if job['tries'] >= 20:
             job['status'] = 'failed'

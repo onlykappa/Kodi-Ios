@@ -208,3 +208,13 @@ change up the layouts")
   never shows (in-progress lists Continue Watching replaces, menus such as Video add-ons) are listed last, faded, with
   why. Counts are rows on the page. ▲ ▼ on every row at all times (they move among Home's rows); Edit adds delete.
 
+(build-193 roadmap Phases 1-3, 2026-11-07; Phase 4 pages wait for the owner's go-ahead; not built)
+- Phase 1: docs/LOG-REVIEW-192.md (two audits of the build-192 log). Main cause: the converter's own `prepare:` log lines
+  counted as AirPlay playing and held every worker 90 s ("Paused while a video plays" seven times; no video played).
+- Phase 3: `slowdown.py`: nothing waits for playback; a video plays → 35 % share, AirPlay → 25 % (8 % for 60 s after a
+  slow TV read); converter pace (`app_state.Pace`), Drive reads (one block ahead), Sink upload pieces, phone uploads,
+  AllDebrid copies. `service.idle()` is only "not closing". The owner's Pause holds as before and says "Paused by you".
+- Phase 2: `work_state.py` (work-state.json every 2 s; bell properties Notices.Active/State/Pct/Tint/Count/Needs).
+  Library status and the Queue (`align`), Notifications (`model_cards`), Transfers (`page_state(model=…)`) and the bell
+  (`notices.badge`) read it. Needs-you: Drive sign-in refused, no AllDebrid key. Waiting: Drive busy, AllDebrid retry.
+- Python only (KodiAirPlay r33 unchanged). Tests: test_slowdown.py, test_work_state.py; all scripts/test_*.py pass.

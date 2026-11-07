@@ -173,11 +173,14 @@ class Drive(object):
    location=headers.get('Location') or headers.get('location')
    if status!=200 or not location:raise RuntimeError('Drive upload start: HTTP %s'%status)
    session={'url':location,'size':size};sessions[path]=session;save();offset=0
+  import slowdown;gate=slowdown.Gate(keep_going=keep_going)
   with open(path,'rb') as f:
    while offset<size:
     if not keep_going():raise Stop()
     f.seek(offset);chunk=f.read(CHUNK);end=offset+len(chunk)-1
+    began=time.monotonic()
     status,headers,body=self.call('PUT',session['url'],chunk,{'Content-Range':'bytes %d-%d/%d'%(offset,end,size)})
+    gate.after(time.monotonic()-began)   # build 193: slower, never stopped, while a video or AirPlay plays
     if status in (200,201):return self._done(path,sessions,save,body)
     if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
     offset=_next_offset(headers);progress(offset,size)
@@ -211,6 +214,7 @@ class Drive(object):
   # Build 181 (owner: "whatever that will make uploading and downloading quicker"): the next piece downloads from
   # the source while this one goes up to Drive (they used to take turns).
   ahead=concurrent.futures.ThreadPoolExecutor(max_workers=1);coming=None
+  import slowdown;gate=slowdown.Gate(keep_going=keep_going)   # build 193: slower while a video or AirPlay plays
   try:
    while offset<size:
     if not keep_going():raise Stop()
@@ -222,6 +226,7 @@ class Drive(object):
     status,headers,body=self.call('PUT',session['url'],chunk,{'Content-Range':'bytes %d-%d/%d'%(offset,end,size)})
     # Owner (build 168): 0.2 MB/s. Which side is slow, the source (AllDebrid) or Google Drive, for the next log.
     put_s=time.monotonic()-began;mb=len(chunk)/1048576.0
+    gate.after(put_s)
     _note('Drive copy: %.1f MB read in %.1f s (%.2f MB/s from the source), sent in %.1f s (%.2f MB/s to Google Drive), %.1f%% done'%(
      mb,read_s,mb/max(read_s,.001),put_s,mb/max(put_s,.001),100.0*(end+1)/size))
     if status in (200,201):progress(size,size);return json.loads(body or b'{}')

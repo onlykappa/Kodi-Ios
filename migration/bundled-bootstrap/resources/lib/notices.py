@@ -273,11 +273,12 @@ def note(kind,title,text='',action=''):
   return add(xbmcvfs.translatePath('special://profile/'),kind,title,text,action)
  except Exception:return None
 
-def badge(profile,get=None):
- """What the bell shows: (unread count as text, '' when none; 'true' while a download runs, else '')."""
- import prepare_downloads
- count=unread(profile);active=any(not d['paused'] for d in downloads(get)) or bool(uploads(profile)) or any(c.get('running') for c in prepare_downloads.cards(profile))
- return (str(min(count,99)) if count else '','true' if active else '')
+def badge(profile,get=None,now=None):
+ """What the bell shows: (unread count as text, '' when none; 'true' while something moves, else ''). Build 193: whether
+ something moves comes from the status model (work_state), the same one every page reads."""
+ import work_state
+ count=unread(profile);state=work_state.load(profile,now)
+ return (str(min(count,99)) if count else '',work_state.bell_properties(state)['Notices.Active'] if state else '')
 
 def publish(window,profile,wait,busy=lambda:False,every=3,log_path=None):
  """Keep the bell's Home properties current for the session (not while a video plays: the bell is hidden). Pop-ups
@@ -292,8 +293,9 @@ def publish(window,profile,wait,busy=lambda:False,every=3,log_path=None):
   if busy():continue
   try:now=badge(profile)
   except Exception:continue
+  # Notices.Active and the ring's state are set by work_state.publish (the status model), every 2 s.
   if now!=last:
-   window.setProperty('Notices.Unread',now[0]);window.setProperty('Notices.Active',now[1]);last=now
+   window.setProperty('Notices.Unread',now[0]);last=now
 
 def _quiet(where,error,_seen=set()):
  """Log an error that is deliberately not shown on screen, once per place and kind (loops run every second)."""

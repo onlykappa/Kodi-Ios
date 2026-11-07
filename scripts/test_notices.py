@@ -39,7 +39,12 @@ class NoticeTests(unittest.TestCase):
   state.parent.mkdir(parents=True,exist_ok=True);state.write_text(json.dumps({'current':{'name':'Pilot.mkv','folder':'TV','sent':50,'total':200}}))
   self.assertEqual(notices.uploads(self.profile)[0]['progress'],25.0)
   notices.add(self.profile,'info','x')
-  self.assertEqual(notices.badge(self.profile,lambda url:'[]'),('1','true'))
+  # Build 193: "something moves" is the status model's (work_state), not a file of any age.
+  import work_state,time
+  now=time.time()
+  work_state.save(self.profile,work_state.build({'phone':notices.uploads(self.profile)},now))
+  self.assertEqual(notices.badge(self.profile,lambda url:'[]',now=now+1),('1','true'))
+  self.assertEqual(notices.badge(self.profile,lambda url:'[]',now=now+60),('1',''))   # an old snapshot never counts as moving
  def test_ingest_kodi_popups(self):
   path=notices.toasts(self.profile);path.parent.mkdir(parents=True,exist_ok=True)
   path.write_text('\n'.join([json.dumps({'time':10,'type':'info','caption':'TMDbHelper','description':'Trakt authorized in 1.665s'}),
