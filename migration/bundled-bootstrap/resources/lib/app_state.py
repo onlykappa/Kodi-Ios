@@ -10,7 +10,7 @@ work is paced as in the background: never a CPU-limit kill because a reading fai
 import ctypes
 import time
 
-BACKGROUND_SHARE = 0.6
+BACKGROUND_SHARE = 0.7   # build 185: iOS ends background apps over ~80% of a core for a minute; 70% keeps a margin
 ACTIVE, INACTIVE, BACKGROUND = 0, 1, 2
 _cache = {'at': -10.0, 'value': None}
 _runtime = {}
