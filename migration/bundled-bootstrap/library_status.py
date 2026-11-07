@@ -255,6 +255,8 @@ def run(args=()):
    dialog.ok('Find a version without converting','TMDb did not recognise "%s", so its other versions cannot be looked up.'%row.get('title',''));return
   quality=quality_key(drivelibrary.quality(row.get('name') or ''))
   xbmcgui.Window(10000).setProperty('KodiIOS.AvoidAV1','%s|%d'%(quality,int(time.time())))
+  # Owner (build 185): once a replacement is picked, this one stops converting (elementum_cloud → 'replace').
+  xbmcgui.Window(10000).setProperty('KodiIOS.Replacing','%s|%d'%(row.get('id',''),int(time.time())))
   if info.get('season'):
    args='kind=episode,tvshow.tmdb_id=%s,season=%s,episode=%s,replace=1'%(tmdb,info['season'],info.get('episode') or '')
   else:args='kind=movie,tmdb=%s,replace=1'%tmdb

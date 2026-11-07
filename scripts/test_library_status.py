@@ -427,4 +427,31 @@ class FindAVersionWithoutConverting(unittest.TestCase):
   status=load('library_status_q',BOOT/'library_status.py')
   self.assertEqual([status.quality_key(h) for h in (2160,1080,720,0)],['4k','1080p','720p',''])
 
+class ReplacementStopsTheConversion(unittest.TestCase):
+ """Owner (build 185): the button worked but Inception kept converting; "it needs to end the conversion and begin
+ the downloading automatically"."""
+ def test_replace_stops_now_and_says_so(self):
+  with tempfile.TemporaryDirectory() as p:
+   state=library_state();prep.save(p,state)
+   prep.request(p,'replace','p1')                 # p1 is converting in library_state()
+   self.assertTrue(prep.interrupts(p))
+   s=prep.apply_to(prep.load(p),prep.pending_requests(p),1000)
+   job=[j for j in s['jobs'].values() if j['source']['id']=='p1'][0]
+   self.assertTrue(job['kept']);self.assertEqual(job['replacing'],1000)
+   s.pop('current',None)
+   view=prep.library_view(s,now=lambda:1000)
+   row=[r for r in view['rows']['kept'] if r['id']=='p1'][0]
+   self.assertEqual(row['sub'],'Being replaced · a version without conversion is downloading')
+ def test_the_pick_hands_over_once(self):
+  import elementum_cloud
+  class W:
+   def __init__(s,v):s.v=v
+   def getProperty(s,k):return s.v
+   def clearProperty(s,k):s.v=''
+  w=W('abc|1000');self.assertEqual(elementum_cloud.replacing(w,now=1100),'abc');self.assertEqual(w.v,'')
+  self.assertEqual(elementum_cloud.replacing(W('abc|1000'),now=1000+16*60),'')
+  src=(LIB/'elementum_cloud.py').read_text()
+  self.assertIn("prepare_downloads.request(profile, 'replace', replaced)",src)
+  self.assertIn("setProperty('KodiIOS.Replacing'",(BOOT/'library_status.py').read_text())
+
 if __name__=='__main__':unittest.main()

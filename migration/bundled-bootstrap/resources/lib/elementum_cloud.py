@@ -125,6 +125,12 @@ def route(url):
                                  info.get('title') or drivelibrary.display_title(name),
                                  choice.get('season') or info.get('season') or '',
                                  choice.get('episode') or info.get('episode') or '', watch=mode == 1)
+        replaced = replacing(xbmcgui.Window(10000))
+        if replaced:
+            # Library status › "Find a version without converting": the AV1 copy stops converting now and goes to Drive's
+            # bin once this copy is on Drive (owner, build 185: "it needs to end the conversion and begin the download").
+            import prepare_downloads
+            prepare_downloads.request(profile, 'replace', replaced)
         notices.note('download', 'Queued for Google Drive', '%s · %s' % (job['title'],
                      'will play after preparation' if mode == 1 else 'AllDebrid → Drive → Prepare'))
         dialog.notification('Download', 'Queued for Google Drive', xbmcgui.NOTIFICATION_INFO, 4000)
@@ -134,6 +140,22 @@ def route(url):
         if 'http://' in message or 'https://' in message:message = 'Could not read the selected torrent metadata.'
         dialog.ok('Download to Google Drive', message)
     return True
+
+
+REPLACING = 'KodiIOS.Replacing'
+
+
+def replacing(window, now=None):
+    """The Drive id of the video a "without converting" search replaces (set by Library status, 15 minutes), once."""
+    import time
+    raw = window.getProperty(REPLACING) or ''
+    ident, _, at = raw.partition('|')
+    window.clearProperty(REPLACING)
+    try:
+        fresh = (time.time() if now is None else now) - float(at) < 15 * 60
+    except ValueError:
+        fresh = False
+    return ident if ident and fresh else ''
 
 
 def existing_url(profile,choice):

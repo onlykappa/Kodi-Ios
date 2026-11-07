@@ -358,6 +358,7 @@ def apply_to(state,requests,now):
   elif action=='now':job['priority']=now+10**9;job.update(retry_after=0);job.pop('kept',None)
   elif action=='retry':job.update(retry_after=0,attempts=0);job.pop('error',None);job['status']='waiting'
   elif action=='keep':job['kept']=True
+  elif action=='replace':job.update(kept=True,replacing=now)   # build 186: a version without conversion is on its way
   elif action=='prepare':job.pop('kept',None)
   elif action in MOVES:
    # Queue › ▲ ▼: swap with its neighbour in the line, then number the whole line (top = just under now, so a Prepare
@@ -438,7 +439,8 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
   if job and (job.get('blocked') or job.get('kept')):
    why=job.get('error') or 'Kept as it is'
    rows['kept'].append(dict(base,state='kept',owner=bool(job.get('kept')) and not job.get('blocked'),
-    sub='Kept as it is · %s'%('you chose to keep it' if job.get('kept') and not job.get('blocked') else plain(why))));continue
+    sub=('Being replaced · a version without conversion is downloading' if job.get('replacing') else
+        'Kept as it is · %s'%('you chose to keep it' if job.get('kept') and not job.get('blocked') else plain(why)))));continue
   if job and current.get('running') and current.get('title') in (e['name'],title(e['name'])):
    rows['preparing'].append(dict(base,state='preparing',pct=int(current.get('progress',0)),indeterminate=bool(current.get('indeterminate')),
     step=str(current.get('stage','Preparing')).replace('Step 3 of 3 · ',''),speed=current.get('detail',''),eta=current.get('eta',''),
@@ -523,7 +525,7 @@ def interrupts(profile):
  asked=pending_requests(profile)
  if not asked:return False
  running=running_id(load(profile))
- return any((r.get('action')=='now' and str(r.get('id'))!=running) or (r.get('action')=='keep' and (not running or str(r.get('id'))==running))
+ return any((r.get('action')=='now' and str(r.get('id'))!=running) or (r.get('action') in ('keep','replace') and (not running or str(r.get('id'))==running))
             for r in asked)
 
 def summary(state,now=time.time):
