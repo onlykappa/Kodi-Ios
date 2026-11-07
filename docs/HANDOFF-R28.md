@@ -112,7 +112,7 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
   lifecycle / network path / per-piece upload gaps; then URLSession background uploads, progress-based stalls, audio
   session, AirPlay while locked, Elementum sockets).
 
-## Build 189 (Python only)
+## Build 189 (Python only) — verified (IPA sha 8b3aa3fe…, build.json 4bc9ccf, AirPlay binary = r30 d4524be2…)
 (owner: "why is fall 2 so so slow")
 - Build-187 log, every drive_http event over 8 MB: 250 pieces went through at a median 0.43 MB/s, 399 failed with
   "The write operation timed out" at exactly ~45 s. Python's socket timeout limits the whole sendall (3.5+), so a 32 MB
