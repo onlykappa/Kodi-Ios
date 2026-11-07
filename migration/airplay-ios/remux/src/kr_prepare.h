@@ -27,5 +27,10 @@ int kodi_airplay_prepare(const char *input, const char *output, kr_prepare_progr
 typedef int (*kr_prepare_write)(int track,const char *suffix,const uint8_t *data,int size,void *context);
 int kodi_airplay_prepare_to(const char *input,kr_prepare_write write,void *write_context,
                            kr_prepare_progress progress,void *context,char *error,int error_size);
+// r30: marks (write(-1, "mark", text)) where a conversion can carry on, and carrying on from one (the text of the
+// latest mark plus the tfra lines of all earlier ones). The resumed output starts at the mark's byte offset.
+void kodi_airplay_prepare_marks(int on);
+int kodi_airplay_prepare_resume(const char *input,const char *resume,kr_prepare_write write,void *write_context,
+                                kr_prepare_progress progress,void *context,char *error,int error_size);
 int kodi_airplay_verify(const char *input,const char *output,char *error,int error_size);
 #endif

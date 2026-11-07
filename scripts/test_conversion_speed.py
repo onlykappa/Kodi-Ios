@@ -198,8 +198,8 @@ class Build175Log(unittest.TestCase):
   svc=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertIn("preparation.paused=lambda:(not monitor.abortRequested() and (xbmc.Player().isPlayingVideo() or transfer_control.paused(profile,'conv') or airplay_busy())",svc)
   cloud=(LIB/'prepare_cloud.py').read_text()
-  self.assertIn('drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=paused)',cloud)
-  self.assertIn('converted_progress,paused,waiting)',cloud)
+  self.assertIn('drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=paused,',cloud)
+  self.assertIn('converted_progress,paused,waiting,resume=',cloud)
 
 class AV1Speed(unittest.TestCase):
  """Owner: "we need a way to really boost speed for av1". r24: the HEVC encoder favours speed during preparation, and a
@@ -211,7 +211,7 @@ class AV1Speed(unittest.TestCase):
  def test_two_lanes_in_order(self):
   c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
   self.assertIn('#define VIDEO_LANES 2',c);self.assertIn('if(kr_video_hw_decode(first->video))g->nlanes=VIDEO_LANES;',c)
-  self.assertIn('int li=g->segment%g->nlanes;generated_lane *l=g->lanes[li];',c)
+  self.assertIn('int li=(g->segment-g->start)%g->nlanes;generated_lane *l=g->lanes[li];',c)   # r30: lanes may start at a later unit
   self.assertIn('if(r>=0 && l->next_segment!=g->segment)r=-1;',c)
   self.assertIn('for(int segment=l->first;;segment+=l->stride)',c)
   t=(ROOT/'migration/airplay-ios/remux/tests/test_remux.c').read_text()
@@ -363,7 +363,7 @@ class AirPlayGetsTheLine(unittest.TestCase):
   sink.closed=False;sink.hold=lambda:state['hold'];sink.sleep=None
   sink._send=lambda wire,n,final,sleep=None:sent.append(n);sink._confirmed=lambda wire,track:None
   import queue
-  t={'wire':{'buffer':bytearray()},'queue':queue.Queue()};t['queue'].put(b'x'*10)
+  t={'wire':{'buffer':bytearray()},'queue':queue.Queue()};t['queue'].put((b'x'*10,None))   # r30: (piece, checkpoint at its end)
   th=threading.Thread(target=sink._uploader,args=(t,0),daemon=True);th.start()
   clock.sleep(1.3);self.assertEqual(sent,[])          # held while the video plays
   state['hold']=False;clock.sleep(1.5);self.assertEqual(sent,[10])

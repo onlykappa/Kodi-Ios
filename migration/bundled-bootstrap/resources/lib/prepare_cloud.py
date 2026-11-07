@@ -9,6 +9,7 @@ import drivelibrary
 import prepare_downloads as prep
 import preparation_runtime
 import diagnostics
+import resume_store
 
 
 def process_one(q, keep_going):
@@ -106,18 +107,30 @@ def process_one(q, keep_going):
             if prep.identity(current) != prep.identity(item):raise RuntimeError('Drive source changed; preparation will rescan')
             source = q.stream.url(item['id'])
             if not main:
+                # r30: carry on from where the last run got to (Kodi closed, the app updated), if Drive still has it.
+                resumes=bool(getattr(q.native,'resumes',False))
+                checkpoint=resume_store.load(q.profile,slot,prep.identity(item)) if resumes else None
+                if checkpoint and not (job.get('probe') and resume_store.alive(q.drive,checkpoint)):checkpoint=None
+                if not checkpoint:resume_store.clear(q.profile,slot)
                 # Remove completed sidecars from an interrupted generation before retrying.
                 if not clear_temps():raise RuntimeError('Preparation temporary files could not be cleaned up')
                 outputs=job.setdefault('cloud_output',{})
-                progress('Inspecting video and track index',None)
-                before=q.native.probe(source);job['probe']=before;q.commit()
+                if checkpoint:
+                    before=job['probe']
+                    q.log('preparation: %s — carrying on from byte %d (Drive kept it)'%(drivelibrary.display_title(item['name']),checkpoint['offset']+len(checkpoint['tail'])))
+                else:
+                    progress('Inspecting video and track index',None)
+                    before=q.native.probe(source);job['probe']=before;q.commit()
                 q.log('preparation: %s — codec %s, %sx%s, %s-bit, HDR=%s, copy=%s, audio work=%s'%(drivelibrary.display_title(item['name']),before.get('codec'),before.get('width'),before.get('height'),before.get('bit_depth'),before.get('hdr'),before.get('copy_video'),before.get('audio_work_bytes')))
                 progress('Opening conversion tracks',None)
                 parent=q.drive.folder([driveupload.TOP,'.Preparation'])
                 def on_file(track,result):outputs[track]=result;q.commit()
                 # A video playing pauses the conversion where it is (owner, build 175): the upload session waits too.
                 paused=getattr(q,'paused',None) or (lambda:False)
-                sink=drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=paused)
+                identity=prep.identity(item)
+                sink=drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=paused,
+                    spool=str(resume_store.folder(q.profile)) if resumes else None,checkpoint=checkpoint,
+                    on_checkpoint=lambda cp:resume_store.save(q.profile,slot,identity,cp))
                 attempt['sink']=sink
                 def waiting():
                     if q.runtime:q.runtime.phase('Paused while a video plays',False,item['name'])
@@ -133,9 +146,16 @@ def process_one(q, keep_going):
                     converted[0]=max(converted[0],value)
                     progress('Converting and saving to Drive',converted[0])
                 try:
-                    q.native.convert_to(source,sink,keep_going,
-                        converted_progress,paused,waiting)
+                    try:
+                        q.native.convert_to(source,sink,keep_going,
+                            converted_progress,paused,waiting,resume=checkpoint['mark'] if checkpoint else None)
+                    except prep.ResumeFailed as error:
+                        # The saved place no longer fits: start this movie again at once.
+                        q.log('preparation: cannot carry on (%s); starting again'%error)
+                        sink.close();sink.tracks.clear();resume_store.clear(q.profile,slot)
+                        raise driveupload.Stop('Starting the conversion again')
                     sink.finish()
+                    resume_store.clear(q.profile,slot)
                 except Exception:
                     # Drop RAM buffers immediately. Complete staging objects are recorded for cleanup next time.
                     sink.close();sink.tracks.clear();raise
@@ -153,7 +173,8 @@ def process_one(q, keep_going):
             except driveupload.Stop:raise
             except Exception as error:
                 # Network interruptions can retry a valid completed object; invalid output must be regenerated.
-                if isinstance(error,RuntimeError) and any(word in str(error).lower() for word in ('validation','preserve','checksum')):clear_temps()
+                if isinstance(error,RuntimeError) and any(word in str(error).lower() for word in ('validation','preserve','checksum')):
+                    clear_temps();resume_store.clear(q.profile,slot)
                 raise
             # Move tiny subtitle sidecars beside the movie before replacing its source.
             parents=current.get('parents') or []
@@ -207,7 +228,7 @@ def process_one(q, keep_going):
             underlying=q.stream.stats().get('read_error')
             if underlying:text+=': '+underlying
         q.log('preparation: failed for %s: %s; phase=%s; video=%s'%(drivelibrary.display_title(item['name']),text,(q.state.get('current') or {}).get('stage','opening'),json.dumps(job.get('probe') or {},sort_keys=True)))
-        if 'source changed' in text:job['status']='superseded';q.state['last_scan']=0;clear_temps()
+        if 'source changed' in text:job['status']='superseded';q.state['last_scan']=0;clear_temps();resume_store.clear(q.profile,slot)
         elif 'tracks MP4 cannot preserve' in text or 'without changing HDR' in text or 'needs RPU remapping' in text:job['blocked']=True
         if job.get('error')!=text:
             q.notify('problem','Video preparation paused',drivelibrary.display_title(item['name'])+': '+text[:200])

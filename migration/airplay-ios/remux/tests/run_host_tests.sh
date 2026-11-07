@@ -26,6 +26,12 @@ if [[ ! -f "$WORK/fixtures/long_pgs.mkv" ]]; then
   ffmpeg -hide_banner -loglevel error -y -copyts -stream_loop 3 -i "$WORK/fixtures/h264_aac_srt.mkv" -i "$WORK/fixtures/long.sup" \
     -map 0:v -map 0:a -map 1:s -c copy -t 65 -disposition:s:0 default "$WORK/fixtures/long_pgs.mkv"
 fi
+# r30: a re-encoded HDR picture (AV1 -> HEVC Main10) and audio (AC-3 -> AAC) over two 30-second units, to carry on from.
+if [[ ! -f "$WORK/fixtures/resume_av1_hdr.mkv" ]]; then
+  ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=128x72:rate=4:duration=75' -f lavfi -i 'sine=frequency=440:duration=75' \
+    -vf 'format=yuv420p10le,setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc' -c:v libaom-av1 -cpu-used 8 -crf 30 -row-mt 1 -threads 2 -g 8 \
+    -color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc -c:a ac3 -b:a 96k "$WORK/fixtures/resume_av1_hdr.mkv"
+fi
 # Long sparse fixture proves an actual twenty-minute MP4 seek without a large test download.
 if [[ ! -f "$WORK/fixtures/long_seek.mkv" ]]; then
   ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=64x36:rate=1:duration=1300' \

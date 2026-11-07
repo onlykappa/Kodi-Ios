@@ -170,7 +170,7 @@ class Native:
  outputs=True;streams=True;keeps_image_subs=True
  def __init__(self):self.calls=0;self.fail=False;self.bad=False
  def probe(self,path):return dict(ready='temp-' in path,width=3840,height=2160,hdr=True,duration=1300)
- def convert_to(self,source,sink,keep,progress,paused=None,waiting=None):
+ def convert_to(self,source,sink,keep,progress,paused=None,waiting=None,resume=None):
   self.calls+=1;sink.write(0,'.mp4',b'prepared video')
   if self.fail:raise driveupload.Stop('stopped')
   progress(2,1300,1300)
@@ -188,7 +188,7 @@ class Queue(unittest.TestCase):
   self.open=patch('prepare_cloud.urllib.request.urlopen',side_effect=lambda req,timeout:self.d.open_at(req.full_url.split('/')[-2],int(req.headers['Range'][6:-1])))
   self.open.start();self.addCleanup(self.open.stop)
  def test_unsupported_dolby_vision_is_kept_without_endless_background_retries(self):
-  def unsupported(*args):raise RuntimeError('This Dolby Vision codec needs RPU remapping; original retained')
+  def unsupported(*args,**kwargs):raise RuntimeError('This Dolby Vision codec needs RPU remapping; original retained')
   self.n.convert_to=unsupported
   self.assertFalse(self.q.process_one())
   self.assertTrue(self.q.state['jobs']['slot']['blocked'])

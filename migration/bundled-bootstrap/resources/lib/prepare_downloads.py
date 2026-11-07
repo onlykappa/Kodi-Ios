@@ -126,6 +126,9 @@ def save_sidecars(drive,item,folder,sessions,commit,keep_going):
 def identity(item):return (str(item['id']),str(item.get('md5Checksum','')).lower(),int(item.get('size') or 0),str(item.get('version') or ''))
 def key(item):return hashlib.sha256(('|'.join(map(str,identity(item)[:3]))).encode()).hexdigest()[:32]
 
+class ResumeFailed(RuntimeError):
+ """r30: the saved mark does not fit this video or framework any more: start the movie again."""
+
 class Native:
  def __init__(self,lib):
   if not hasattr(lib,'kodi_airplay_prepare') or not hasattr(lib,'kodi_airplay_probe'):
@@ -158,6 +161,13 @@ class Native:
   self.filters_audio=hasattr(lib,'kodi_airplay_prepare_audio_languages')
   if self.filters_audio:
    lib.kodi_airplay_prepare_audio_languages.argtypes=[ctypes.c_char_p];lib.kodi_airplay_prepare_audio_languages.restype=None
+  # r30: marks (places a conversion can carry on from) and carrying on from one after Kodi was closed.
+  self.resumes=hasattr(lib,'kodi_airplay_prepare_resume') and hasattr(lib,'kodi_airplay_prepare_marks')
+  if self.resumes:
+   lib.kodi_airplay_prepare_marks.argtypes=[ctypes.c_int];lib.kodi_airplay_prepare_marks.restype=None
+   lib.kodi_airplay_prepare_resume.argtypes=[ctypes.c_char_p,ctypes.c_char_p,WRITE,ctypes.c_void_p,CALLBACK,ctypes.c_void_p,ctypes.c_char_p,ctypes.c_int]
+   lib.kodi_airplay_prepare_resume.restype=ctypes.c_int
+   lib.kodi_airplay_prepare_marks(1)
   self.keeps_image_subs=hasattr(lib,'kodi_airplay_prepare_keep_image_subs')
   if self.keeps_image_subs:
    lib.kodi_airplay_prepare_keep_image_subs.argtypes=[ctypes.c_int];lib.kodi_airplay_prepare_keep_image_subs.restype=None
@@ -187,7 +197,7 @@ class Native:
   error=ctypes.create_string_buffer(512)
   if self.lib.kodi_airplay_verify(os.fsencode(source),os.fsencode(output),error,len(error)):
    raise RuntimeError(error.value.decode('utf-8','replace') or 'Prepared Drive file validation failed')
- def convert_to(self,source,sink,keep_going,progress,paused=None,waiting=None):
+ def convert_to(self,source,sink,keep_going,progress,paused=None,waiting=None,resume=None):
   """paused(): the conversion should wait where it is rather than stop (a video is playing); waiting() is called
   about once a second meanwhile. Owner (build 175): a storage-free conversion cannot resume, so every video played
   used to throw away hours of work."""
@@ -195,6 +205,9 @@ class Native:
   def write(track,suffix,data,size,context):
    try:
     if errors:return 0
+    if track==-1:   # r30: a mark
+     if hasattr(sink,'mark_from'):sink.mark_from(ctypes.string_at(data,size).decode('utf-8','replace'))
+     return 1
     sink.write(track,suffix.decode(),ctypes.string_at(data,size));return 1
    except Exception as ex:errors.append(ex);return 0
   pace=app_state.Pace()   # flat out on screen; under iOS's background CPU limit otherwise
@@ -223,10 +236,15 @@ class Native:
     except Exception:pass
     done.wait(2)
   threading.Thread(target=screen,daemon=True).start()
-  try:r=self.lib.kodi_airplay_prepare_to(os.fsencode(source),writer,None,callback,None,error,len(error))
+  try:
+   if resume:
+    if not self.resumes:raise ResumeFailed('This framework cannot carry on a conversion')
+    r=self.lib.kodi_airplay_prepare_resume(os.fsencode(source),resume.encode(),writer,None,callback,None,error,len(error))
+   else:r=self.lib.kodi_airplay_prepare_to(os.fsencode(source),writer,None,callback,None,error,len(error))
   finally:done.set()
   if errors:raise errors[0]
   if not keep_going() or r==-2:raise driveupload.Stop('Preparation paused')
+  if r and resume and error.value.decode('utf-8','replace').startswith('Resume'):raise ResumeFailed(error.value.decode('utf-8','replace'))
   if r:raise RuntimeError(error.value.decode('utf-8','replace') or 'Preparation failed; original retained')
  def convert(self,source,output,keep_going,progress):
   error=ctypes.create_string_buffer(512);callback_error=[]

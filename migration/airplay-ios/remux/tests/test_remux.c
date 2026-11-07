@@ -1459,6 +1459,87 @@ static void test_hdr_preparation(const char *work,const char *http_base) {
     kr_video_set_hdr_encoder(NULL);
 }
 
+// r30: a conversion carries on from a mark after the app is closed. A straight run collects the marks; a run from a
+// middle mark, after the first run's bytes up to it, gives the same movie (byte for byte when nothing is re-encoded).
+typedef struct {uint8_t *data[65];size_t len[65],cap[65];char *marks[4096];int nmarks;int stop_after_marks;} resume_sink;
+static int resume_write(int track,const char *suffix,const uint8_t *data,int size,void *context) {
+    resume_sink *r=context;(void)suffix;
+    if(track==-1){if(r->nmarks>=4096)return 0;char *m=malloc((size_t)size+1);if(!m)return 0;memcpy(m,data,(size_t)size);m[size]=0;r->marks[r->nmarks++]=m;
+        return !(r->stop_after_marks && r->nmarks>=r->stop_after_marks);}
+    if(track<0 || track>=65)return 0;
+    if(r->len[track]+(size_t)size>r->cap[track]){size_t c=(r->len[track]+(size_t)size)*2;uint8_t *g=realloc(r->data[track],c);if(!g)return 0;r->data[track]=g;r->cap[track]=c;}
+    memcpy(r->data[track]+r->len[track],data,(size_t)size);r->len[track]+=(size_t)size;return 1;
+}
+static void resume_free(resume_sink *r){for(int i=0;i<65;i++)free(r->data[i]);for(int i=0;i<r->nmarks;i++)free(r->marks[i]);memset(r,0,sizeof *r);}
+static long long mark_value(const char *mark,const char *key) {
+    char k[64];snprintf(k,sizeof k,"\n%s ",key);const char *at=strstr(mark,k);return at?atoll(at+strlen(k)):-1;
+}
+static long long side_length(const char *mark,int track) {
+    char k[64];snprintf(k,sizeof k,"\nside %d ",track);const char *at=strstr(mark,k);return at?atoll(at+strlen(k)):-1;
+}
+// What the add-on saves: the chosen mark without its tfra lines, then every tfra line up to and including it.
+static char *resume_record(resume_sink *r,int chosen) {
+    size_t cap=1<<20,len=0;char *out=malloc(cap);if(!out)return NULL;out[0]=0;
+    const char *m=r->marks[chosen];
+    for(const char *line=m;line && *line;) {const char *end=strchr(line,'\n');size_t n=end?(size_t)(end-line+1):strlen(line);
+        if(strncmp(line,"tfra ",5)){if(len+n+1>cap)break;memcpy(out+len,line,n);len+=n;out[len]=0;}line=end?end+1:NULL;}
+    for(int i=0;i<=chosen;i++)for(const char *line=strstr(r->marks[i],"\ntfra ");line;line=strstr(line+1,"\ntfra ")) {
+        const char *end=strchr(line+1,'\n');size_t n=end?(size_t)(end-line):strlen(line);
+        if(len+n+2>cap){cap*=2;char *g=realloc(out,cap);if(!g){free(out);return NULL;}out=g;}
+        memcpy(out+len,line+1,n);len+=n;if(!end){out[len++]='\n';}out[len]=0;
+    }
+    return out;
+}
+static int save_bytes(const char *path,const uint8_t *a,size_t na,const uint8_t *b,size_t nb) {
+    FILE *f=fopen(path,"wb");if(!f)return -1;int ok=fwrite(a,1,na,f)==na && (!nb || fwrite(b,1,nb,f)==nb);return fclose(f)||!ok?-1:0;
+}
+static void test_preparation_resume(const char *work,const char *http_base) {
+    struct {const char *file;int same;} cases[]={{"long_seek.mkv",1},{"long_pgs.mkv",1},{"h264_ac3_dts_srt.mkv",0},{"resume_av1_hdr.mkv",0}};
+    kodi_airplay_prepare_keep_image_subs(1);kr_video_set_encoder("mpeg4");kodi_airplay_prepare_marks(1);
+    int hdr=avcodec_find_encoder_by_name("libx265")!=NULL;if(hdr)kr_video_set_hdr_encoder("libx265");   // the phone re-encodes to HEVC
+    for(unsigned c=0;c<sizeof cases/sizeof cases[0];c++) {
+        char input[1024],err[512]="",path[1200],remote[1300];int calls=0;
+        if(!hdr && strstr(cases[c].file,"_hdr")){CHECK(!getenv("KR_HDR_TESTS"),"resume: HDR test encoder present");continue;}
+        snprintf(input,sizeof input,"%s/%s",http_base,cases[c].file);
+        resume_sink full={0},more={0};
+        int r=kodi_airplay_prepare_to(input,resume_write,&full,preparation_progress,&calls,err,sizeof err);
+        CHECK(r==0,"resume %s: straight run: %s",cases[c].file,err);
+        CHECK(full.nmarks>=1,"resume %s: the straight run gives marks (%d)",cases[c].file,full.nmarks);
+        snprintf(path,sizeof path,"%s/resume-full-%u.mp4",fixture_dir,c);snprintf(remote,sizeof remote,"%s/resume-full-%u.mp4",http_base,c);
+        if(r || !full.nmarks || save_bytes(path,full.data[0],full.len[0],NULL,0)){resume_free(&full);continue;}
+        CHECK(kodi_airplay_verify(input,remote,err,sizeof err)==0,"resume %s: the straight run with its own index validates: %s",cases[c].file,err);
+        int chosen=full.nmarks/2;long long at=mark_value(full.marks[chosen],"offset");
+        CHECK(at>0 && at<(long long)full.len[0],"resume %s: mark %d at byte %lld of %zu",cases[c].file,chosen,at,full.len[0]);
+        char *record=resume_record(&full,chosen);
+        r=record?kodi_airplay_prepare_resume(input,record,resume_write,&more,preparation_progress,&calls,err,sizeof err):-1;
+        CHECK(r==0,"resume %s: carrying on from mark %d: %s",cases[c].file,chosen,err);
+        if(!r) {
+            snprintf(path,sizeof path,"%s/resume-joined-%u.mp4",fixture_dir,c);snprintf(remote,sizeof remote,"%s/resume-joined-%u.mp4",http_base,c);
+            save_bytes(path,full.data[0],(size_t)at,more.data[0],more.len[0]);
+            CHECK(kodi_airplay_verify(input,remote,err,sizeof err)==0,"resume %s: the joined movie validates: %s",cases[c].file,err);
+            size_t joined=(size_t)at+more.len[0];
+            if(cases[c].same)CHECK(joined==full.len[0] && !memcmp(full.data[0]+at,more.data[0],more.len[0]),"resume %s: the joined movie is the straight one (%zu / %zu bytes)",cases[c].file,joined,full.len[0]);
+            uint8_t a[16],b[16];int w,h,n,w2,h2,n2;char straight[1300];snprintf(straight,sizeof straight,"%s/resume-full-%u.mp4",fixture_dir,c);
+            CHECK(video_digest(straight,a,&w,&h,&n)==0 && video_digest(path,b,&w2,&h2,&n2)==0 && n==n2 && (!cases[c].same || !memcmp(a,b,16)),"resume %s: same tracks and picture",cases[c].file);
+            for(int t=1;t<65;t++)if(full.len[t]) {
+                long long keep=side_length(full.marks[chosen],t-1);
+                CHECK(keep>=0 && keep<=(long long)full.len[t] && keep+(long long)more.len[t]==(long long)full.len[t] && !memcmp(full.data[t]+keep,more.data[t],more.len[t]),
+                      "resume %s: picture subtitles carry on (%lld + %zu of %zu)",cases[c].file,keep,more.len[t],full.len[t]);
+            }
+        }
+        // A mark from another video (other tracks) is refused before anything is written.
+        if(record && c==0) {
+            resume_sink other={0};char wrong[1024];snprintf(wrong,sizeof wrong,"%s/h264_aac_srt.mkv",http_base);
+            CHECK(kodi_airplay_prepare_resume(wrong,record,resume_write,&other,preparation_progress,&calls,err,sizeof err)<0 && !other.len[0],"resume: a mark from another video is refused: %s",err);
+            resume_free(&other);
+            CHECK(kodi_airplay_prepare_resume(input,"kr-resume 9\n",resume_write,&other,preparation_progress,&calls,err,sizeof err)<0,"resume: a bad record is refused");
+            resume_free(&other);
+        }
+        free(record);resume_free(&full);resume_free(&more);
+    }
+    kodi_airplay_prepare_marks(0);kr_video_set_hdr_encoder(NULL);
+}
+
 // r25: only the original (first) audio track and the chosen languages are kept; verification uses the same rule.
 static int audio_tracks(const char *path) {
     AVFormatContext *f=NULL;int n=-1;
@@ -1634,7 +1715,10 @@ int main(int argc, char **argv) {
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
     mkdir(work, 0755);
     if (argc > 3 && !strcmp(argv[3], "--prepare-only")) {
-        test_preparation(work);test_audio_languages(work);test_preparation_http(argv[2],work);test_preparation_stream(work,argv[2]);test_hdr_preparation(work,argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+        test_preparation(work);test_audio_languages(work);test_preparation_http(argv[2],work);test_preparation_stream(work,argv[2]);test_hdr_preparation(work,argv[2]);test_preparation_resume(work,argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+    }
+    if (argc > 3 && !strcmp(argv[3], "--resume-only")) {
+        test_preparation_resume(work,argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
     if (argc > 3 && !strcmp(argv[3], "--dovi-only")) {
         kr_video_set_encoder("mpeg4");test_dovi_render(work);
@@ -1649,7 +1733,7 @@ int main(int argc, char **argv) {
         return failures ? 1 : 0;
     }
     test_preparation(work);test_audio_languages(work);
-    if (argc > 2){test_preparation_http(argv[2], work);test_preparation_stream(work,argv[2]);test_hdr_preparation(work,argv[2]);}
+    if (argc > 2){test_preparation_http(argv[2], work);test_preparation_stream(work,argv[2]);test_hdr_preparation(work,argv[2]);test_preparation_resume(work,argv[2]);}
     fixture fx[] = {
         { "h264_aac_srt.mkv", "avc1.42C0", "mp4a.40.2", 1, 1, 0, 0, "Hello from SRT" },
         { "hevc_ac3_ass.mkv", "hvc1.2.4.L", "ac-3", 1, 1, 1, 0, "Hello from ASS" },

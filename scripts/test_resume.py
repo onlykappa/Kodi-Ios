@@ -1,0 +1,101 @@
+"""r30 (owner: "lets fix restarting when its closed and have it keep progress"): the Drive side of carrying a
+conversion on. Pieces end at KodiAirPlay's marks (rounded down to 256 KiB), a checkpoint is saved once Drive confirmed
+such a piece, and a new run sends the kept bytes and then the converter's output from the mark into the same upload."""
+import importlib.util,os,sys,tempfile,unittest
+from pathlib import Path
+ROOT=Path(__file__).resolve().parents[1];BOOT=ROOT/'migration/bundled-bootstrap';LIB=BOOT/'resources/lib'
+sys.dont_write_bytecode=True
+sys.path[:0]=[str(LIB),str(Path(__file__).resolve().parent)]
+import drive_prepare as dp,resume_store,driveupload
+from test_drive_prepare import Drive
+
+STEP=dp.STEP
+def mark(offset,tfra=(),sides=None):
+ lines=['kr-resume 1','offset %d'%offset,'seq 7','layout 2/1/27/86018']+['side %d %d'%(k-1,v) for k,v in (sides or {}).items()]+list(tfra)
+ return '\n'.join(lines)+'\n'
+
+class Pieces(unittest.TestCase):
+ def setUp(self):
+  self.old=(dp.MAIN_CHUNK,dp.CHUNK,dp.MARK_CAP);dp.CHUNK=dp.MAIN_CHUNK=4*STEP;dp.MARK_CAP=12*STEP
+  self.tmp=tempfile.TemporaryDirectory()
+ def tearDown(self):dp.MAIN_CHUNK,dp.CHUNK,dp.MARK_CAP=self.old;self.tmp.cleanup()
+ def run_until(self,drive,data,marks,stop_at,saved,background=False):
+  """A first run: the movie in 100 KB writes, marks as the converter gives them; it stops after stop_at bytes."""
+  sink=dp.Sink(drive,'staging','slot',lambda:True,background=background,spool=self.tmp.name,on_checkpoint=saved.append)
+  for at in range(0,stop_at,100*1024):
+   for m in [m for m in marks if at<=m<at+100*1024]:sink.mark_from(mark(m,['tfra 1 %d %d'%(m,m)]))
+   sink.write(0,'.mp4',data[at:min(at+100*1024,stop_at)])
+  return sink
+ def test_pieces_end_at_marks_and_a_new_run_carries_on(self):
+  drive=Drive();data=os.urandom(40*STEP+12345);marks=[5*STEP+777,11*STEP+3,23*STEP+999]
+  saved=[];sink=self.run_until(drive,data,marks,30*STEP,saved)
+  self.assertTrue(saved);cp=saved[-1]
+  sent=len(drive.sessions[cp['url']]['data'])
+  self.assertEqual(sent%STEP,0);self.assertEqual(cp['offset'],sent)
+  m=cp['offset']+len(cp['tail']);self.assertIn(m,marks);self.assertLess(len(cp['tail']),STEP)
+  self.assertEqual(cp['tail'],data[cp['offset']:m])
+  self.assertEqual(cp['mark'].count('tfra '),marks.index(m)+1)   # every index line up to that mark
+  for c in saved:self.assertEqual(c['offset']%STEP,0)
+  # Kodi closed: everything in RAM is gone. The next run gets the converter's output from the mark on.
+  resume_store.save(self.tmp.name,'slot',('src','md5',1,'1'),cp)
+  back=resume_store.load(self.tmp.name,'slot',('src','md5',1,'1'))
+  self.assertEqual(back,cp);self.assertTrue(resume_store.alive(drive,back))
+  self.assertIsNone(resume_store.load(self.tmp.name,'slot',('src','other',1,'1')))
+  again=dp.Sink(drive,'staging','slot',lambda:True,background=False,spool=self.tmp.name,checkpoint=back)
+  for at in range(m,len(data),100*1024):again.write(0,'.mp4',data[at:at+100*1024])
+  result=again.finish()['0']
+  self.assertEqual(drive.files[result['id']]['data'],data)   # the same movie, uploaded once
+  self.assertEqual(sum(1 for c in drive.calls if c[0]=='POST'),1)
+ def test_the_upload_thread_saves_checkpoints_too(self):
+  import time
+  drive=Drive();data=os.urandom(30*STEP);saved=[]
+  sink=self.run_until(drive,data,[5*STEP+10,9*STEP+20],20*STEP,saved,background=True)
+  for _ in range(100):
+   if saved:break
+   time.sleep(0.05)
+  sink.close()
+  self.assertTrue(saved);self.assertEqual(saved[-1]['offset']%STEP,0);self.assertLess(len(saved[-1]['tail']),STEP)
+ def test_far_from_a_mark_it_goes_up_anyway(self):
+  drive=Drive();data=os.urandom(20*STEP);saved=[]
+  sink=self.run_until(drive,data,[],len(data),saved)
+  self.assertFalse(saved);self.assertGreater(sink.tracks[0]['offset'],0)
+  self.assertLessEqual(len(sink.tracks[0]['buffer']),dp.MARK_CAP)
+ def test_a_lost_session_is_not_alive(self):
+  drive=Drive();cp={'url':'https://upload.example/none','offset':0,'tail':b'','mark':mark(1)}
+  self.assertFalse(resume_store.alive(drive,cp))
+ def test_picture_subtitles_wait_and_carry_on(self):
+  drive=Drive()
+  sink=dp.Sink(drive,'staging','slot',lambda:True,background=False,spool=self.tmp.name)
+  sink.write(2,'.eng.1.sup',b'A'*1000);sink.write(2,'.eng.1.sup',b'B'*500)
+  self.assertEqual(sum(1 for c in drive.calls if c[0]=='POST'),0)   # nothing goes up before the movie ends
+  cp={'url':None,'offset':0,'tail':b'','mark':mark(5,sides={2:1200})}
+  sink.write(0,'.mp4',b'm'*5)
+  # Carry on from a mark that kept 1200 bytes of the subtitle file
+  drive2=Drive();_,headers,_=drive2.call('POST','x?uploadType=resumable','{"name":"slot.mp4"}'.encode());cp['url']=headers['Location']
+  drive2.call('PUT',cp['url'],b'm'*0 or b'',{'Content-Range':'bytes */*'})
+  again=dp.Sink(drive2,'staging','slot',lambda:True,background=False,spool=self.tmp.name,checkpoint=dict(cp,tail=b'mmmmm'))
+  again.write(2,'.eng.1.sup',b'C'*10);again.write(0,'.mp4',b'rest')
+  out=again.finish()
+  self.assertEqual(drive2.files[out['0']['id']]['data'],b'mmmmmrest')
+  side=[f for f in drive2.files.values() if f.get('name','').endswith('.sup')]
+  self.assertEqual(side[0]['data'],b'A'*1000+b'B'*200+b'C'*10)
+  self.assertEqual(side[0]['name'],'slot.eng.1.sup')
+ def test_store_clears(self):
+  resume_store.save(self.tmp.name,'s',('a',),{'url':'u','offset':0,'tail':b'x','mark':'m'})
+  (resume_store.folder(self.tmp.name)/'s.side2').write_bytes(b'x')
+  resume_store.clear(self.tmp.name,'s');self.assertEqual(list(resume_store.folder(self.tmp.name).glob('s.*')),[])
+
+class Wiring(unittest.TestCase):
+ def test_native_and_queue(self):
+  prep=(LIB/'prepare_downloads.py').read_text();cloud=(LIB/'prepare_cloud.py').read_text()
+  self.assertIn("lib.kodi_airplay_prepare_marks(1)",prep);self.assertIn('if track==-1:',prep)
+  self.assertIn("r=self.lib.kodi_airplay_prepare_resume(",prep);self.assertIn('raise ResumeFailed(',prep)
+  self.assertIn("checkpoint=resume_store.load(q.profile,slot,prep.identity(item)) if resumes else None",cloud)
+  self.assertIn("resume_store.alive(q.drive,checkpoint)",cloud)
+  self.assertIn("except prep.ResumeFailed as error:",cloud);self.assertIn("raise driveupload.Stop('Starting the conversion again')",cloud)
+  self.assertIn("sink.finish()\n                    resume_store.clear(q.profile,slot)",cloud)
+  c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
+  self.assertIn('int kodi_airplay_prepare_resume(',c);self.assertIn('+skip_trailer',c);self.assertIn('static int write_mfra(',c)
+  self.assertIn('test_preparation_resume(work,argv[2]);',(ROOT/'migration/airplay-ios/remux/tests/test_remux.c').read_text())
+
+if __name__=='__main__':unittest.main()
