@@ -26,6 +26,8 @@ _spec=_iu.spec_from_file_location('transfers_page',os.path.join(os.path.dirname(
 transfers_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(transfers_page)
 _spec=_iu.spec_from_file_location('library_tools_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_tools_page.py'))
 library_tools_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_tools_page)
+_spec=_iu.spec_from_file_location('rows_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'rows_page.py'))
+rows_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(rows_page)
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -437,6 +439,8 @@ def tabbar(active):
 def usable(widget):
  path=str(widget.get('path') or '')
  if not path or path.startswith(('RunScript(','ActivateWindow(','library://','$','${')):return False
+ # Turned off in Settings › Customisation › Tabs & Rows (rows_editor.set_on): keeps its place, not shown.
+ if str(widget.get('disabled') or '').lower() in ('true','1'):return False
  # An add-on's root folder is a menu, not a row of titles.
  if path.startswith('plugin://') and '?' not in path:return False
  return True
@@ -904,19 +908,27 @@ def video_nav(original):
  return window(original,body,'50','<views>50,51,52,53</views>')
 
 GRID='Container.Content(movies) | Container.Content(tvshows)'
+GRID_LARGE='String.IsEqual(Skin.String(Portrait.Grid),large)'   # Settings › Customisation › View Types
 def grid():
- """Movies and shows (Library, categories, search results): a three-column poster grid."""
- cols=3;gap=24;w=(WIDTH-2*SIDE-(cols-1)*gap)//cols;h=w*3//2;left=(WIDTH-cols*w-(cols-1)*gap)//2
- item=lambda focused:('<control type="group"><left>0</left><top>0</top>%s'%('<animation effect="zoom" start="100" end="104" time="160" center="auto">Focus</animation>' if focused else '')+
-  image(0,0,w,h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
-  label(20,h-170,w-40,150,'$INFO[ListItem.Label]','p_foot_b',WHITE,'left','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(poster))</visible>')+
-  image(0,0,w,h,'$INFO[ListItem.Art(poster)]',WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+
-  poster_badges(w,h)+'</control>')
+ """Movies and shows (Library, categories, search results): a poster grid, three across (or two, View Types)."""
+ gap=24
+ def size(cols):
+  w=(WIDTH-2*SIDE-(cols-1)*gap)//cols;return w,w*3//2
+ def item(focused,w,h):
+  return ('<control type="group"><left>0</left><top>0</top>%s'%('<animation effect="zoom" start="100" end="104" time="160" center="auto">Focus</animation>' if focused else '')+
+   image(0,0,w,h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
+   label(20,h-170,w-40,150,'$INFO[ListItem.Label]','p_foot_b',WHITE,'left','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(poster))</visible>')+
+   image(0,0,w,h,'$INFO[ListItem.Art(poster)]',WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+
+   poster_badges(w,h)+'</control>')
+ (w3,h3),(w2,h2)=size(3),size(2);left=SIDE
+ layouts=''
+ for cond,(w,h) in (('',(w3,h3)),(GRID_LARGE,(w2,h2))):
+  c=' condition="%s"'%cond if cond else ''
+  layouts+=('<itemlayout width="%d" height="%d"%s>%s</itemlayout><focusedlayout width="%d" height="%d"%s>%s</focusedlayout>'
+            %(w+gap,h+gap,c,item(False,w,h),w+gap,h+gap,c,item(True,w,h)))
  return (label(SIDE,180,WIDTH-2*SIDE,110,'$VAR[Portrait_Page_Title]','p_title',WHITE,'left','<visible>%s</visible>'%GRID)+
   ('<control type="panel" id="53"><left>%d</left><top>320</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><onup>9001</onup>'
-   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
-   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout></control>'
-   )%(left,WIDTH-left,GRID,w+gap,h+gap,item(False),w+gap,h+gap,item(True)))
+   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>%s</control>')%(left,WIDTH-left,GRID,layouts))
 
 SHOW_VARS=('<variable name="Portrait_Show_Art"><value condition="!String.IsEmpty(ListItem.Art(tvshow.fanart))">$INFO[ListItem.Art(tvshow.fanart)]</value>'
            '<value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value><value>$INFO[Container.Art(fanart)]</value></variable>'
@@ -932,6 +944,45 @@ SHOW_VARS+=''.join('<variable name="Portrait_Show_%s"><value condition="%s + !St
  (name,DOWNLOADED_SHOW,name,name,label) for name,label in (('Plot','Plot'),('Year','Year'),('Rating','Rating'),('Genres','Genre')))
 SHOW_VARS+='<variable name="Portrait_Show_Play_Label"><value condition="%s + Container.Content(seasons) + !String.IsEmpty(Container(50).ListItem.Property(KodiIOS.PlayLabel))">$INFO[Container(50).ListItem.Property(KodiIOS.PlayLabel)]</value><value condition="%s">$INFO[Container.Property(KodiIOS.PlayLabel)]</value><value>Play $INFO[Container(50).ListItem.Label]</value></variable>'%(DOWNLOADED_SHOW,DOWNLOADED_SHOW)
 
+# Settings › Customisation › Info Page: rows under the plot, from TMDb Helper, each behind Fuse's own switch
+# (settings_page.INFO). (key, title, TMDb Helper info, setting, only for, landscape thumbnails)
+INFO_ROWS=(('cast','Starring','cast','VideoInfo.Widgets.DisableStarring','',False),
+           ('crew','Crew','crew','VideoInfo.Widgets.DisableCrew','',False),
+           ('seasons','Seasons','seasons','VideoInfo.Widgets.DisableSeasons','tvshow',False),
+           ('collection','Collection','collection','VideoInfo.Widgets.DisableCollection','movie',False),
+           ('similar','More Like This','recommendations','VideoInfo.Widgets.DisableRecommendations','',False),
+           ('videos','Videos & Trailers','videos','VideoInfo.Widgets.DisableVideos','',True))
+INFO_ID=5101
+INFO_KIND='[String.IsEqual(ListItem.DBType,movie) | String.IsEqual(ListItem.DBType,tvshow)]'
+def info_variables():
+ tmdb='plugin://plugin.video.themoviedb.helper/?info=%s&'
+ query=('<variable name="Portrait_Info_Query">'
+  '<value condition="String.IsEqual(ListItem.DBType,tvshow) + !String.IsEmpty(ListItem.UniqueID(tmdb))">tmdb_type=tv&amp;tmdb_id=$INFO[ListItem.UniqueID(tmdb)]</value>'
+  '<value condition="String.IsEqual(ListItem.DBType,tvshow)">tmdb_type=tv&amp;query=$INFO[ListItem.Title]&amp;year=$INFO[ListItem.Year]</value>'
+  '<value condition="!String.IsEmpty(ListItem.UniqueID(tmdb))">tmdb_type=movie&amp;tmdb_id=$INFO[ListItem.UniqueID(tmdb)]</value>'
+  '<value>tmdb_type=movie&amp;query=$INFO[ListItem.Title]&amp;year=$INFO[ListItem.Year]</value></variable>')
+ rows=''
+ for key,_,info,setting,only,_ in INFO_ROWS:
+  cond='!Skin.HasSetting(%s) + %s + System.HasAddon(plugin.video.themoviedb.helper)'%(setting,'String.IsEqual(ListItem.DBType,%s)'%only if only else INFO_KIND)
+  # Empty while the switch is off, so a section that is off never asks TMDb Helper for anything.
+  rows+='<variable name="Portrait_Info_%s"><value condition="%s">%s$VAR[Portrait_Info_Query]</value><value></value></variable>'%(key,e(cond),e(tmdb%info))
+ return query+rows
+def info_row(n,key,title,landscape):
+ id=INFO_ID+n;w,h=(400,225) if landscape else (220,330)
+ def item(focused):
+  zoom='<animation effect="zoom" start="100" end="104" time="160" center="auto">Focus</animation>' if focused else ''
+  return ('<control type="group"><left>%d</left><top>10</top>%s'%(SIDE,zoom)+
+   image(0,0,w,h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+('thumb_mask.png' if landscape else 'poster_mask.png'))+
+   image(0,0,w,h,'$INFO[ListItem.Art(%s)]'%('thumb' if landscape else 'poster'),WHITE,'','>scale',MEDIA+('thumb_mask.png' if landscape else 'poster_mask.png'),background=True)+
+   ('' if landscape else image(0,0,w,h,'$INFO[ListItem.Art(thumb)]',WHITE,'<visible>String.IsEmpty(ListItem.Art(poster))</visible>','>scale',MEDIA+'poster_mask.png',background=True))+
+   label(0,h+10,w,44,'$INFO[ListItem.Label]','p_cap',WHITE)+label(0,h+52,w,40,'$INFO[ListItem.Label2]','p_cap',GREY)+'</control>')
+ shown='Integer.IsGreater(Container(%d).NumItems,0) | Container(%d).IsUpdating'%(id,id)
+ return (label(SIDE,0,WIDTH-2*SIDE,110,title,'p_h3',WHITE,'left','<aligny>bottom</aligny><visible>%s</visible>'%shown)+
+  ('<control type="list" id="%d"><left>0</left><width>%d</width><height>%d</height><orientation>horizontal</orientation>'
+   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible allowhiddenfocus="true">%s</visible>'
+   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
+   '<content target="videos">$VAR[Portrait_Info_%s]</content></control>')%(id,WIDTH,h+110,shown,w+GAP,h+110,item(False),w+GAP,h+110,item(True),key))
+
 def video_info(original):
  art_h=1150;w=WIDTH-2*SIDE
  body=('<controls>'+backdrop()+
@@ -942,8 +993,13 @@ def video_info(original):
   label(SIDE,906,w,52,'[COLOR %s]$INFO[ListItem.Rating,★ ]  [/COLOR]$INFO[ListItem.Year]$INFO[ListItem.Genre,  ·  ]$INFO[ListItem.Duration(mins),  ·  ,m]$INFO[ListItem.MPAA,  ·  ]'%GREEN,'p_foot',GREY,'center')+
   pill_button(8,SIDE,990,w,124,'Play',[],'primary',MEDIA+'play.png','<visible>!String.IsEqual(ListItem.DBType,tvshow)</visible>')+
   pill_button(9010,SIDE,990,w,124,'Episodes',[('','Close'),('','ActivateWindow(Videos,$ESCINFO[ListItem.FolderPath],return)')],'primary','tv.png','<visible>String.IsEqual(ListItem.DBType,tvshow)</visible>')+
-  '<control type="textbox" id="4"><left>%d</left><top>1150</top><width>%d</width><height>620</height><font>p_sub</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label></control>'%(SIDE,w,GREY)+
-  label(SIDE,1790,w,48,'$INFO[ListItem.Director,Director: ]','p_cap',DIM)+
+  # The plot, then the Info Page rows (Settings › Customisation › Info Page), scrolling under the buttons.
+  '<control type="grouplist" id="5100"><left>0</left><top>1150</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+  '<itemgap>10</itemgap><usecontrolcoords>true</usecontrolcoords><onup>8</onup>'%WIDTH+
+  '<control type="textbox" id="4"><left>%d</left><width>%d</width><height>420</height><font>p_sub</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label></control>'%(SIDE,w,GREY)+
+  label(SIDE,0,w,60,'$INFO[ListItem.Director,Director: ]','p_cap',DIM)+
+  ''.join(info_row(n,key,title,land) for n,(key,title,_,_,_,land) in enumerate(INFO_ROWS))+
+  '<control type="image"><height>200</height><texture /></control></control>'+
   circle_button(9001,SIDE,36,108,'xmark.png','Close')+'</controls>')
  return window(original,body,'8')
 
@@ -1247,7 +1303,7 @@ def with_variables(xml):return xml
 
 def variable_block(row_variables=None):
  rows=''.join(v for _,v in sorted((row_variables or {}).items()))
- return VARIABLES+SHOW_VARS+ctx_variables()+rows
+ return VARIABLES+SHOW_VARS+ctx_variables()+info_variables()+rows
 
 def includes(row_variables=None):
  # Kodi reads variables only from includes; Fuse's own includes still come from 1080i.
@@ -1329,6 +1385,8 @@ def portrait_files(skin,profile):
  files.update(transfers_page.files(ns))
  # Library tools: Queue, Phone space, History and AirPlay check (library_tools_page.py).
  files.update(library_tools_page.files(ns))
+ # Settings › Customisation › Tabs & Rows › a tab (rows_page.py, filled by customise_rows.py).
+ files.update(rows_page.files(ns))
  for rel in list(files):
   if rel.startswith(FOLDER+'/'):files[rel]=activity_skin.inject(ns,rel[len(FOLDER)+1:],files[rel])
  # Fullscreen video is landscape: the Apple TV-style controls go into the landscape folder.
@@ -1337,7 +1395,7 @@ def portrait_files(skin,profile):
  if (source/'DialogSeekBar.xml').exists():files['1080i/DialogSeekBar.xml']=player_osd.seekbar_window().encode()
  # Fuse's info over the video, clear of the Dynamic Island on either side (player_osd.safe_inset).
  for name in player_osd.INSET:
-  if read(name):files['1080i/'+name]=player_osd.safe_inset(read(name)).encode()
+  if read(name):files['1080i/'+name]=player_osd.safe_inset(read(name),name in player_osd.HIDE_UNDER_OSD).encode()
  return files
 
 SPLASH=('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: Fuse startup splash, never shown -->\n'
@@ -1389,14 +1447,14 @@ def refresh(skin,profile):
 
 # Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
 # inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml','DialogBusy.xml'}|set(player_osd.INSET)   # + activity_skin.py, pages.BUSY, player_osd.INSET
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + activity_skin.py, pages.BUSY, player_osd.INSET
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__)):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__),Path(rows_page.__file__)):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())

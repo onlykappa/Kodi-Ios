@@ -182,13 +182,17 @@ def hide_seekbar(original):
 INSET=('VideoFullScreen.xml','Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml')
 INSET_MARKER='Kodi-iOS player controls: safe-area inset'   # navigation.patch_skin leaves files with this alone
 
-def safe_inset(original):
+# Build 192 (quick win): Fuse's info over the video repeated the title our controls already show, so it hides while
+# the controls are up.
+HIDE_UNDER_OSD=('Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml')
+def safe_inset(original,hide_under_osd=False):
  """Fuse's landscape window with everything in <controls> moved into a group SAFE in from the left and right."""
  if not original or INSET_MARKER in original:return original
  root=ET.fromstring(original);controls=root.find('controls')
  if root.tag!='window' or controls is None:return original
  group=ET.Element('control',{'type':'group'})
  for key,value in (('description',INSET_MARKER),('left',SAFE),('right',SAFE),('top',0),('bottom',0)):ET.SubElement(group,key).text=str(value)
+ if hide_under_osd:ET.SubElement(group,'visible').text='!Window.IsVisible(videoosd)'
  for child in list(controls):
   if child.tag=='control' and child.get('id')=='98400':continue
   controls.remove(child);group.append(child)

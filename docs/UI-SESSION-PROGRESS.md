@@ -53,10 +53,10 @@ Variables `buildviews`, SkinSettings categories).
 | 01 Customisation | built: new names, "N on" values |
 | 08 Poster Badges | built, and our posters / episode rows now draw the badges |
 | 10 Video Controls | built: Hide Controls After (wired into our OSD) and the overlay pair; Fuse's details panel and swipe-up rows do not exist in our OSD |
-| 09 Info Page | not built: our portrait info page has none of Fuse's sections, so the page needs those sections first |
-| 02-07 Tabs & Rows, a tab, Rows, Edit rows, one row, row style | not built (Skin Variables nodes; Home rows already read them) |
-| 11-12 View Types | not built: our Library pages are hand-made, check which Fuse views are still used |
-| 13-15 Skin Settings, Appearance, Behaviour | not built: many options only affect Fuse's shrunk windows |
+| 09 Info Page | built: six sections added to our info page, each behind its switch |
+| 02-07 Tabs & Rows, a tab, Rows, Edit rows, one row, row style | built (IOSRows.xml, customise_rows.py); drag is ▲ ▼ in Edit; styles are the two our rows draw |
+| 11-12 View Types | built as the grid size (3 or 2 across); Fuse's Skin Variables views are not used by our pages |
+| 13-15 Skin Settings, Appearance, Behaviour | kept as Fuse's window: its options affect Fuse's shrunk windows only |
 
 ## Order of work
 1. ~~Library tools, the four pages, with tests~~ (done on `claude/trusting-euler-kgug98`; device check pending).

@@ -76,8 +76,9 @@ class SettingsPages(unittest.TestCase):
  def test_customisation_page_uses_fuse_actions(self):
   root=self.read('Settings.xml')
   self.assertEqual(self.clicks(root,9113),['SetProperty(Settings.Page,custom,10004)','SetFocus(9401)','RunScript(service.kodi.ios.bootstrap,customise_counts)'])
-  self.assertEqual(self.clicks(root,9401),['ActivateWindow(1115)'])
-  self.assertEqual(self.clicks(root,9412)[-1],'ActivateWindow(1118)')
+  self.assertEqual(self.clicks(root,9401),['SetProperty(Settings.Page,tabs,10004)','SetFocus(9551)'])
+  self.assertEqual(self.clicks(root,9412),['SetProperty(Settings.Page,info,10004)','SetFocus(9561)'])
+  self.assertEqual(self.clicks(root,9421),['ActivateWindow(skinsettings)'])
   self.assertEqual(self.clicks(root,9411),['SetProperty(Settings.Page,osd,10004)','SetFocus(9531)'])
   self.assertEqual(self.clicks(root,9414),['SetProperty(Settings.Page,badges,10004)','SetFocus(9501)'])
  def test_back_button_leaves_customisation_first(self):

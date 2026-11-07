@@ -171,3 +171,19 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
   Seasons, Recommendations…), so its switches do nothing on the phone. Tabs & Rows, Rows editing, View Types and
   Skin Settings pages come next.
 - portrait.fingerprint now includes activity_skin.py.
+(owner: "add 1-3 and the customisation pages too … then 5 and 6 in the next build")
+- Quick wins: Fuse's info over the video (Custom_1152/1153) hides while our controls are up (the title showed twice);
+  Kodi's notifications and volume bar are iOS banners at the top (portrait and landscape, pages.NOTIFY / VOLUME); the
+  controls' Info wait (Custom_1193) shows the centred ring instead of Fuse's corner spinner; fingerprint as above.
+- Tabs & Rows (9350): Home, Movies, TV Shows with their row counts; each opens IOSRows.xml (customise_rows.py,
+  rows_editor.py): rows with style and source, Edit (delete disc, ▲ ▼), a row's page (Show This Row, Name, Style
+  Poster/Landscape, its content, Delete), Add Row (ready-made TMDb Helper / library rows, or any add-on folder), Restore
+  Default Rows (the list as it was before the first change here). Writes the same Skin Variables lists Home reads; a
+  row that is off keeps "disabled": "true" (portrait.usable skips it). On close after a change: portrait.refresh_skin
+  (rebuild + reload). Search Page row removed: our Search page never read searchwidgets.
+- Info Page (9360): Starring, Crew, Seasons, Collection, More Like This, Videos & Trailers, now rows under the plot on our
+  info page from TMDb Helper (by tmdb id, else title + year), each behind Fuse's VideoInfo.Widgets switch; a row
+  that is off has no path, so it asks TMDb Helper for nothing.
+- View Types (9370): Poster Grid (3 across) or Large Posters (2 across) for the Library / category / search grid
+  (Skin.String(Portrait.Grid), conditional layouts on panel 53).
+- Skin Settings still opens Fuse's window: its options change Fuse's own (shrunk) windows, not our pages.
