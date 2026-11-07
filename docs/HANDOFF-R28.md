@@ -48,3 +48,13 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
 - AV1 4K HDR re-encode: ~2.5x real time with 2 hardware lanes (chip-bound); Inception ~1 h.
 - Drive upload: 32 MB pieces 3-4 s on a good line (8-10 MB/s), 6-17 s when the line is busy.
 - Copy-only 4K (Interstellar 8.4 GB): ~40 min in build 181; 182 should be faster (parallel reads).
+
+## Session 2026-11-07 (after 182)
+- 183: Transfers fix (built from 59156d6). AirPlay of Buddy failed in the build-181 log ("Cannot Complete Action"):
+  every AVPlayer range opened a new Drive connection (1-6 s) and the line was busy with Interstellar's upload.
+- 34fcf8b: while a video/AirPlay plays, the conversion's upload pieces (Sink.hold) and Drive read-ahead
+  (DriveStream.hold) wait too.
+- r29 source: kr_remux serve_prepared reads through one kept-open source + 4 MB x 12 block cache (prepared_read).
+  Next: CI, pin r29, publish, build (184). Then owner tests AirPlay; then optional "gentle mode" during AirPlay only
+  (keep converting with 1 lane, no read-ahead, upload capped ~50%) — owner agreed to step 1 first.
+- Resume design: docs/RESUME-DESIGN.md (not started).

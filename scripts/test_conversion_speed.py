@@ -374,4 +374,13 @@ class AirPlayGetsTheLine(unittest.TestCase):
   self.assertIn('for step in range(1, 0 if stream.hold() else READ_AHEAD + 1):',s)
   self.assertIn('if preparation.stream:preparation.stream.hold=preparation.paused',(ROOT/'migration/bundled-bootstrap/service.py').read_text())
 
+class PreparedAirPlayServer(unittest.TestCase):
+ """Build-181 log: every range AVPlayer asked for opened a new connection to Drive (1-6 s each): "Cannot Complete
+ Action" after 17 s. r29 reads a prepared session through one kept-open source and a block cache."""
+ def test_one_source_and_a_cache(self):
+  c=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
+  serve=c.split('static void serve_prepared(')[1].split('\n}\n')[0]
+  self.assertNotIn('kr_source_open',serve);self.assertIn('prepared_read(first,buffer,want,error,sizeof error)',serve)
+  self.assertIn('#define PC_BLOCK (4 * 1024 * 1024)',c);self.assertEqual(c.count('prepared_cache_clear();'),2)
+
 if __name__=='__main__':unittest.main()

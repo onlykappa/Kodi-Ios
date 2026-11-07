@@ -740,6 +740,50 @@ static int phone_player(const char *ua) {
 
 
 static int preparation_stopping(void *unused) { (void)unused;return atomic_load(&S.stopping); }
+// r29 (owner, build-181 log: AirPlay of a prepared movie failed with "Cannot Complete Action"): every range AVPlayer
+// asked for opened a new connection to the source (Kodi's Drive link), 1-6 s each, so it gave up after 17 s. A prepared
+// session now reads through one kept-open source and a small block cache: blocks of PC_BLOCK, PC_N kept (least recently
+// used goes), so repeated and nearby ranges come from memory and sequential reads continue one connection.
+#define PC_BLOCK (4 * 1024 * 1024)
+#define PC_N 12
+static struct {
+    pthread_mutex_t lock;kr_source *src;int64_t at[PC_N];int len[PC_N];uint8_t *data[PC_N];unsigned used[PC_N];unsigned clock;
+} PC = {PTHREAD_MUTEX_INITIALIZER};
+static void prepared_cache_clear(void) {
+    pthread_mutex_lock(&PC.lock);
+    kr_source_close(PC.src);PC.src=NULL;
+    for(int i=0;i<PC_N;i++){free(PC.data[i]);PC.data[i]=NULL;PC.at[i]=-1;PC.len[i]=0;PC.used[i]=0;}
+    PC.clock=0;pthread_mutex_unlock(&PC.lock);
+}
+// Bytes of the prepared file from offset (up to the end of its block), copied into buf; -1 on a read failure.
+static int prepared_read(int64_t offset,uint8_t *buf,int want,char *error,int errlen) {
+    int64_t block=offset/PC_BLOCK;int slot=-1,r=-1;
+    pthread_mutex_lock(&PC.lock);
+    for(int i=0;i<PC_N;i++)if(PC.data[i] && PC.at[i]==block){slot=i;break;}
+    if(slot<0) {
+        if(!PC.src) {
+            PC.src=kr_source_open(S.url,15,error,errlen);
+            if(!PC.src)goto end;
+            kr_source_set_interrupt(PC.src,preparation_stopping,NULL);
+        }
+        slot=0;for(int i=1;i<PC_N;i++)if(!PC.data[i] || (PC.data[slot] && PC.used[i]<PC.used[slot]))slot=i;
+        if(!PC.data[slot] && !(PC.data[slot]=malloc(PC_BLOCK)))goto end;
+        int64_t start=block*PC_BLOCK;int need=(int)FFMIN((int64_t)PC_BLOCK,S.prepared_size-start),filled=0;
+        PC.at[slot]=-1;
+        while(filled<need && !atomic_load(&S.stopping)) {
+            int got=kr_source_read(PC.src,start+filled,PC.data[slot]+filled,need-filled);
+            if(got<=0)break;
+            filled+=got;
+        }
+        if(filled<=0){kr_source_close(PC.src);PC.src=NULL;goto end;}   // a fresh connection next time
+        PC.at[slot]=block;PC.len[slot]=filled;
+    }
+    PC.used[slot]=++PC.clock;
+    {int within=(int)(offset-block*PC_BLOCK);int n=FFMIN(want,PC.len[slot]-within);
+     if(n>0){memcpy(buf,PC.data[slot]+within,(size_t)n);r=n;}}
+end:pthread_mutex_unlock(&PC.lock);
+    return r;
+}
 static void serve_prepared(int fd,int head,const char *range,const char *agent) {
     int64_t size=S.prepared_size,first=0,last=size-1;int partial=range!=NULL,valid=size>0;
     if(range) {
@@ -766,18 +810,14 @@ static void serve_prepared(int fd,int head,const char *range,const char *agent) 
     if(send_all(fd,header,(size_t)length)){t_status=-t_status;return;}
     if(head)return;
     char error[128]="";
-    // A request owns its reader, with no conversion lane or speculative queue ahead of a seek.
-    kr_source *source=kr_source_open(S.url,5,error,sizeof error);
-    if(!source){t_status=-t_status;snprintf(t_err,sizeof t_err,"Prepared file read unavailable");return;}
-    kr_source_set_interrupt(source,preparation_stopping,NULL);
     uint8_t buffer[65536];
     while(first<=last && !atomic_load(&S.stopping)) {
         int want=(int)((last-first+1)>(int64_t)sizeof buffer?sizeof buffer:last-first+1);
-        int got=kr_source_read(source,first,buffer,want);
-        if(got<=0 || send_all(fd,buffer,(size_t)got)){t_status=-t_status;break;}
+        int got=prepared_read(first,buffer,want,error,sizeof error);
+        if(got<=0){t_status=-t_status;snprintf(t_err,sizeof t_err,"Prepared file read unavailable");break;}
+        if(send_all(fd,buffer,(size_t)got)){t_status=-t_status;break;}
         t_bytes+=(size_t)got;first+=got;
     }
-    kr_source_close(source);
     if(t_bytes) {
         atomic_fetch_add(&S.served_video,1);atomic_fetch_add(&S.served_audio,1);
         if(!strstr(agent?agent:"","AppleCoreMedia")){atomic_fetch_add(&S.served_ext_video,1);atomic_fetch_add(&S.served_ext_audio,1);}
@@ -1037,6 +1077,7 @@ static void teardown_locked(void) {
     kr_source_close(vsrc);
     pthread_mutex_unlock(&S.vlock);
     S.compat = 0; S.vindex = -1; S.compat_ok = 0;S.prepared=0;S.prepared_size=0;
+    prepared_cache_clear();   // r29
     atomic_store(&S.vlogged, 0);
     free(S.master_copy); S.master_copy = NULL;
     free(S.master_compat); S.master_compat = NULL;
@@ -1099,7 +1140,7 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
         if(lan && lan_address(host,sizeof host)){set_message("AirPlay needs Wi-Fi.");goto done;}
         S.prepared_size=kr_source_size(S.src);
         if(S.prepared_size<=0){set_message("Prepared file size is unavailable.");goto done;}
-        S.prepared=1;S.listen_fd=listen_on(lan,&S.port);
+        prepared_cache_clear();S.prepared=1;S.listen_fd=listen_on(lan,&S.port);
         if(S.listen_fd<0){set_message("AirPlay file server could not start.");goto done;}
         random_token(S.token,sizeof S.token);
         snprintf(S.base,sizeof S.base,"http://%s:%d/%s",host,S.port,S.token);
