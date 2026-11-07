@@ -74,3 +74,27 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
   from parsed moofs must use movenc's tfra time (start_dts + tfdt + cts), and start_dts per track is not in the
   stream; options: write edts-free output (start at 0) or keep movenc's tfra entries by parsing each session's
   trailer. Do it as its own native release (r30) with a stop/resume host test.
+
+## Build 186 — Python only (airplay r29 unchanged)
+- 54d4e8e: picking "Find a version without converting" stops the AV1 conversion (prepare_downloads 'replace') and the
+  AllDebrid download goes first.
+- 426c094: long press on a transfer card in Notifications (the touch keymap's long press is a right click, which became
+  "previous menu" and closed the page) → menu: pause / resume, cancel, speed graph. transfer_control.py holds the
+  choices as files the service reads: paused-conv (same hold as playback), paused-up (Drive uploads and AllDebrid
+  copies stop at the next piece, resumable), cancel-up (AllDebrid job ends as Cancelled). Cancel conversion = Keep as is.
+- AirPlay (owner build-185 log, "airplay stops out of nowhere"): the TV's first range read of the prepared movie took
+  12 s, the next ones ~19 s, while an AllDebrid copy went up to Drive and Kodi's paused player still read the movie;
+  Apple's player timed out at 39 s. Now Window(10000) KodiIOS.AirPlay holds the time AirPlay was last seen working
+  (cast.send_airplay marks it, airplay.relay refreshes it from Apple's player log lines, closed/stopped clears it,
+  90 s expiry); while set, AllDebrid copies, Drive uploads, preparation (hold) and the library scan wait. A timeout at
+  the start is retried once (cast.retry_airplay).
+- Resume after Kodi closes (r30): native work in progress, NOT in 186. Design settled and coded, saved as docs/R30-RESUME-WIP.md (a diff; not built):
+  av_write_frame + flush per packet so each fragment = packets between two fragment starts; sink parses moofs,
+  rewrites tfdt onto run-1 timeline, builds its own mfra (+skip_trailer; tfra time = start_dts(first dts + FFmpeg's
+  make-non-negative shift) + tfdt + first cts); marks via write(-1,"mark",text) at fragments starting on a video
+  keyframe (re-encoded picture: unit start); kodi_airplay_prepare_resume seeks each input to its recorded next
+  packet (original: pos/stream/dts; generated: unit containing the time, then exact dts). Host test
+  test_preparation_resume (straight run vs run from a middle mark, byte-identical for copied tracks). Next: run the
+  host test locally (FFmpeg 8.1.1 host builds fine from git clones; codeload/ffmpeg.org are blocked), then the
+  Python side (Sink sends only up to the latest mark rounded to 256 KiB, checkpoint after Drive confirms, sidecars
+  spooled locally), CI, pin r30.

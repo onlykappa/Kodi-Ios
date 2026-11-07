@@ -220,7 +220,7 @@ class AirPlayCheck(unittest.TestCase):
  def test_wired_into_play_on_tv_and_the_service(self):
   cast_src=(BOOT/'cast.py').read_text();self.assertIn('library_tools.begin_airplay(profile,title)',cast_src)
   self.assertLess(cast_src.index('library_tools.begin_airplay'),cast_src.index("lib.kodi_airplay_play(source"))
-  self.assertIn('library_tools.note_airplay(profile,',cast_src);self.assertIn("'keep':lambda lines:library_tools.note_airplay(profile,lines)",(BOOT/'service.py').read_text())
+  self.assertIn('library_tools.note_airplay(profile,',cast_src);self.assertIn("'keep':lambda lines:(library_tools.note_airplay(profile,lines),",(BOOT/'service.py').read_text())
   sheet=load('pages_tools',LIB/'pages.py').play_on_tv();self.assertIn('id="9501"',sheet);self.assertIn('Last time',sheet)
   self.assertTrue(lt.airplay_notice({'title':"AirPlay didn't start"}));self.assertFalse(lt.airplay_notice({'title':'Saved to Google Drive'}))
 

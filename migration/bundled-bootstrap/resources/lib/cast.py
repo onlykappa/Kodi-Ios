@@ -151,6 +151,10 @@ def format_name(*names):
   if m:return m.group(1).upper()
  return 'this format'
 
+def retry_airplay(outcome,why):
+ """Build 186: one more try when Apple's player gave up waiting for the first reads (a busy line), not otherwise."""
+ return outcome=='failed' and 'timed out' in str(why or '').lower()
+
 def airplay_outcome(state,wait,timeout=25):
  """Poll Apple's player (state(): 1 has the stream, -1 failed, 0 not yet) for up to `timeout` seconds; wait(s)
  sleeps and returns True if Kodi is closing. Returns 'playing', 'failed' or 'aborted'."""

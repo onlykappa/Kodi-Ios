@@ -72,7 +72,7 @@ class KodiStaysPaused(unittest.TestCase):
   # Owner build-136 log: player.stop() right after "playing" rotated the app and the TV dropped the session.
   source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
   body=source[source.index('def send_airplay('):source.index('def send(xbmc')]
-  playing=body[body.index("if outcome=='playing':"):body.index("lib.kodi_airplay_close()")]
+  playing=body[body.index("if outcome=='playing':"):body.index("lib.kodi_airplay_close();airplay.clear_busy(home)")]
   self.assertNotIn('player.stop()',playing);self.assertIn('player.pause()',playing)
 
 class RokuFallsBackToAirPlay(unittest.TestCase):

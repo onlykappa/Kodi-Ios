@@ -232,7 +232,7 @@ def run():
   if lib is not None and hasattr(lib,'kodi_airplay_log'):
    import library_tools
    threading.Thread(target=airplay.relay,args=(lib,lambda m:xbmc.log(m,xbmc.LOGINFO),monitor.waitForAbort),
-                    kwargs={'keep':lambda lines:library_tools.note_airplay(profile,lines)},daemon=True).start()
+                    kwargs={'keep':lambda lines:(library_tools.note_airplay(profile,lines),airplay.activity(lines,xbmcgui.Window(10000),time.time()))},daemon=True).start()
  except Exception as error:xbmc.log('Kodi iOS AirPlay log unavailable: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
  # Stays running for the rest of the session: Apple's AirPlay button in the top-right corner during playback.
  try:
@@ -245,6 +245,8 @@ def run():
 def drive_uploads(monitor,home,profile):
  """Idle-only download → upload → one-file preparation. Startup scan and new uploads share one queue/lock."""
  import urllib.parse,urllib.request,xbmc,xbmcaddon,xbmcgui,xbmcvfs
+ # Build 186: AirPlay playing holds the AllDebrid copies, the uploads and the conversion (airplay.BUSY).
+ airplay_busy=lambda:airplay.busy(xbmcgui.Window(10000),time.time())
  if not xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)'):return
  common=xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
  if common not in sys.path:sys.path.append(common)
@@ -294,7 +296,7 @@ def drive_uploads(monitor,home,profile):
      driveupload.invalidate_library(str(profile/'addon_data/service.kodi.ios.bootstrap'))
      prepare_downloads.request_check(profile)   # preparation for Kodi and AirPlay picks it up from Drive
     delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text:notices.add(profile,kind,title,text),
-                            keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up'),on_done=done,
+                            keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up') and not airplay_busy(),on_done=done,
                             cancelled=lambda:transfer_control.cancelled_copies(profile),
                             forget=lambda h:transfer_control.clear_cancelled(profile,h)) or 20
    except alldebrid.Problem as problem:
@@ -303,7 +305,7 @@ def drive_uploads(monitor,home,profile):
    except Exception as error:
     diagnostics.log_exception(xbmc,'alldebrid_to_drive',error);delay=60
  threading.Thread(target=debrid_loop,daemon=True).start()
- idle=lambda:not monitor.abortRequested() and not xbmc.Player().isPlayingVideo()
+ idle=lambda:not monitor.abortRequested() and not xbmc.Player().isPlayingVideo() and not airplay_busy()
  log=lambda message:xbmc.log('Kodi iOS '+diagnostics.redact(message),xbmc.LOGINFO)
  import library_scan,prepare_downloads
  preparation=None
@@ -349,7 +351,7 @@ def drive_uploads(monitor,home,profile):
    with driveupload.transfer_lock(state_dir):
     count=0
     if (waiting or seeding) and xbmcaddon.Addon().getSettingBool('drive_upload'):
-     uploading=lambda:idle() and not transfer_control.paused(profile,'up')   # long press › Pause uploads
+     uploading=lambda:idle() and not transfer_control.paused(profile,'up') and not airplay_busy()   # long press › Pause uploads
      count=driveupload.run_once(root,drive,state,log,uploading,xbmcaddon.Addon().getSettingBool('drive_upload_delete'),
                               lambda:driveupload.invalidate_library(state_dir),seeding,driveupload.remove_torrent,
                               remote=lambda:library_scan.remote_files(drive,idle),pace=1,
@@ -369,7 +371,7 @@ def drive_uploads(monitor,home,profile):
       # conversion cannot resume, so each video played restarted the movie from 0%). Closing Kodi, Prepare next / Keep
       # as it is and turning preparation off still stop it.
       # Long press › Pause converting (build 186) is the same hold, for as long as the owner wants.
-      preparation.paused=lambda:(not monitor.abortRequested() and (xbmc.Player().isPlayingVideo() or transfer_control.paused(profile,'conv')) and
+      preparation.paused=lambda:(not monitor.abortRequested() and (xbmc.Player().isPlayingVideo() or transfer_control.paused(profile,'conv') or airplay_busy()) and
                                  xbmcaddon.Addon().getSettingBool('prepare_downloads') and not prepare_downloads.interrupts(profile))
       # The upload pieces and the Drive read-ahead wait too, so a video (or AirPlay) gets the whole line.
       if preparation.stream:preparation.stream.hold=preparation.paused

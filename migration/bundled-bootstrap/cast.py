@@ -170,18 +170,29 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
   import library_tools,xbmcvfs
   profile=xbmcvfs.translatePath('special://profile/');library_tools.begin_airplay(profile,title)
  except Exception:profile=None
+ import time,xbmcgui
+ # Build 186 (owner: "airplay stops out of nowhere"): the copies, uploads and conversion step aside from now on.
+ home=xbmcgui.Window(10000);airplay.mark_busy(home,time.time())
  lib.kodi_airplay_play(source.encode('utf-8'),(title or '').encode('utf-8'))
  # Something on screen at once while the TV connects (it can take a while), with Cancel.
- import xbmcgui
  progress=xbmcgui.DialogProgress();progress.create('Play on TV','Connecting to the TV… This can take up to a minute.')
  started=[0.0];monitor=xbmc.Monitor()
  def wait(seconds):
-  started[0]+=seconds;progress.update(min(95,int(started[0]*100/(60 if converting else 25))))
+  started[0]+=seconds;airplay.mark_busy(home,time.time());progress.update(min(95,int(started[0]*100/(60 if converting else 25))))
   return progress.iscanceled() or monitor.waitForAbort(seconds)
  # Converting first reads the start of the file (over Elementum or Drive): allow longer than a direct link.
- try:outcome=cast.airplay_outcome(lib.kodi_airplay_state,wait,60 if converting else 25)
+ try:
+  outcome=cast.airplay_outcome(lib.kodi_airplay_state,wait,60 if converting else 25)
+  why=airplay.message(lib)
+  if cast.retry_airplay(outcome,why):
+   # The first reads timed out while other transfers had the line; they are held now, so try once more.
+   xbmc.log('Kodi iOS Play on TV: Apple\'s player timed out (%s); trying once more'%why,xbmc.LOGINFO)
+   progress.update(5,'The TV took too long to answer. Trying again…')
+   lib.kodi_airplay_close();monitor.waitForAbort(2)
+   lib.kodi_airplay_play(source.encode('utf-8'),(title or '').encode('utf-8'))
+   outcome=cast.airplay_outcome(lib.kodi_airplay_state,wait,60 if converting else 25)
+   why=airplay.message(lib)
  finally:progress.close()
- why=airplay.message(lib)
  # r6: the stream's variant line (CODECS), the receiver's requests and Apple's player events so far; the service
  # keeps relaying the rest while it plays (airplay.relay).
  lines=list(airplay.log_lines(lib))
@@ -196,7 +207,7 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
   # video stays paused in landscape while AirPlay plays; closing Apple's player returns to it.
   if not xbmc.getCondVisibility('Player.Paused'):player.pause()
   notices.note('info','Playing with AirPlay',title or '');return
- lib.kodi_airplay_close()
+ lib.kodi_airplay_close();airplay.clear_busy(home)
  if xbmc.getCondVisibility('Player.Paused'):player.pause()   # Kodi carries on (also after Cancel)
  if outcome=='aborted':return
  if why:notices.note('problem',"AirPlay couldn't play this",why);dialog.ok('Play on TV',cast.CONVERT_FAILED%why)
