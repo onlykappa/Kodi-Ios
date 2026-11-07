@@ -343,4 +343,14 @@ class Build181Log(unittest.TestCase):
   b=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn('usingBlock:^(NSNotification *note) { keepInBackground = YES; keepInterrupted = NO; keepUpdate(); }];',b)
 
+class QuickFirst(unittest.TestCase):
+ """Owner (build 181): "quick movies first": repack-only videos before re-encodes; the owner's own order still wins."""
+ def test_order(self):
+  jobs={'a':{'source':{'name':'Inception.2010.2160p.AV1.mkv'}},'b':{'source':{'name':'Interstellar.2014.2160p.x265.mkv'}},
+        'c':{'source':{'name':'Dune.mkv'},'probe':{'copy_video':False}},'d':{'source':{'name':'Fall.mkv'},'probe':{'copy_video':True}}}
+  self.assertEqual([k for k,_ in sorted(jobs.items(),key=lambda p:prep.order_key(*p))],['b','d','a','c'])
+  jobs['a']['priority']=5000   # Start now / Prepare next / ▲ on the AV1 one
+  self.assertEqual(sorted(jobs.items(),key=lambda p:prep.order_key(*p))[0][0],'a')
+  self.assertIn('candidates.sort(key=lambda pair:prep.order_key(*pair))',(LIB/'prepare_cloud.py').read_text())
+
 if __name__=='__main__':unittest.main()

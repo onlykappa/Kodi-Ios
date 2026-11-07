@@ -371,6 +371,19 @@ def apply_to(state,requests,now):
    for rank,other in enumerate(line):jobs[other]['priority']=now-1-rank
  return state
 
+SLOW=re.compile(r'(?i)(\bav1\b|\bvp9\b|\bxvid\b|\bdivx\b|\bmpeg-?2\b|\bvc-?1\b|\bwmv\d?\b|\bhi10p?\b)')
+def slow(job):
+ """Whether a video needs its picture re-encoded (long, e.g. AV1), from its probe or, before one, its name."""
+ probe=job.get('probe') or {}
+ if 'copy_video' in probe:return not probe['copy_video']
+ return bool(SLOW.search(str((job.get('source') or {}).get('name',''))))
+
+def order_key(slot,job):
+ """The order videos are prepared in: the owner's choices first (Start now, Prepare next, ▲ ▼), then videos that
+ only need repacking before ones that need re-encoding (owner, build 181: "quick movies first", so one AV1 film
+ never holds the others up for an hour), then the order they came in."""
+ return (-job.get('priority',0),1 if slow(job) else 0,slot)
+
 def queue_order(state,now=None):
  """The ids of the videos waiting in line, in the order they will be prepared (Library status › Waiting, the Queue)."""
  clock=(lambda:now) if now is not None else time.time
@@ -431,9 +444,9 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
   if job and job.get('space'):
    rows['waiting'].append(dict(base,state='space',warn=True,needs=job['space'],why=space_reason(job.get('probe')),
     sub='Needs %.0f GB free · %.0f GB free now'%(job['space']/1024**3,(free or 0)/1024**3)));continue
-  order.append(dict(base,state='waiting',priority=(job or {}).get('priority',0)))
+  order.append(dict(base,state='waiting',priority=(job or {}).get('priority',0),slow=slow(job or {'source':{'name':e['name']}})))
  # The order prepare_cloud picks in: highest priority first, then by job key (not the order Drive listed them).
- order.sort(key=lambda r:(-r['priority'],slots.get(r['id'],'')))
+ order.sort(key=lambda r:(-r['priority'],1 if r['slow'] else 0,slots.get(r['id'],'')))
  for n,r in enumerate(order,1):r['sub']='%s · %s'%('Next' if n==1 else '%s in line'%ordinal(n),quality_text(r['name'],r['size']))
  rows['waiting']=order+rows['waiting']
  todo=len(rows['preparing'])+len(rows['waiting']);total=len(rows['ready'])+todo+len(rows['kept'])

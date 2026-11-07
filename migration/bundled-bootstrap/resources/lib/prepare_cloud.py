@@ -28,7 +28,7 @@ def process_one(q, keep_going):
     for folder in q.work.iterdir():
         if folder.is_dir():shutil.rmtree(folder)
     if not candidates:return False
-    candidates.sort(key=lambda pair:(-pair[1].get('priority',0),pair[0]))
+    candidates.sort(key=lambda pair:prep.order_key(*pair))   # build 182: quick (repack only) before re-encodes
     slot,job = candidates[0];item = job['source'];last = [0]
     job.pop('space',None)
     # Build 177: time left and pace come from this attempt only. The old job['eta_mark'] outlived stopped attempts,
