@@ -12,7 +12,8 @@ committed and pushed; nothing is only local. Builds are started by hand; commit 
 | 180 | r26: stuck unit remade after 90 s, off-screen CPU decode, Start converting now, audio = original + English | verified, owner tested |
 | 181 | r27: upload once (promote + bin), English subtitles only, subtitle uploads on own threads, AllDebrid read-ahead | verified, owner testing (Interstellar ~40 min, works) |
 | 182 | r28 keep-awake re-armed on background/foreground, Drive read 4 blocks ahead in parallel, Home hero copy compared without page, quick movies first | verified (IPA sha 90ead4df…, build.json b65cf2e, AirPlay binary = r28 release ec5249b9…) |
-| 183 | 182 + Transfers never says "Nothing is moving" during a conversion (CONV_FRESH 60 s, running() 30 s, saves every 5 s, cards 60 s) | building |
+| 183 | 182 + Transfers never says "Nothing is moving" during a conversion | built (superseded by 184, not given) |
+| 184 | r29 (prepared AirPlay through one source + 48 MB cache; pinned 80346abc…, run 42328810669) + upload and read-ahead wait while a video plays + 183 | verified (IPA sha f52c5e0f…, build.json df4b22c, AirPlay binary = r29 release 4a310154…). Owner testing AirPlay |
 
 r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run 42326849053) and published
 (release kodi-airplay-r28, digest matches).
