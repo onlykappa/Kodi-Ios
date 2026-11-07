@@ -135,7 +135,8 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
 - Open UI items found: DialogNotification / DialogVolumeBar / Custom_1193 still stock; Custom_1152 can show while our
   OSD is up (title twice); portrait.fingerprint() does not hash activity_skin.py. Local: e2e 194/0, native 3,143/0.
 
-## Next build (192, not built yet: owner collects more bugs first)
+## Build 192 — verified (IPA sha 41477d75…, build.json be5358b, AirPlay binary = r33 2111267… from release 86ce5247…, run 42411704392)
+KodiAirPlay r33 (source 53c7968, CI run 42410566627, published by airplay-ios run 42411384562). Contents:
 (owner, build-191 log: Fall 2 "stuck on starting / 67%")
 - Fall 2 carried on at byte 15,807,214,282 (as on build 190) and reached the mux loop: its only progress call was the
   audio lane's unit 166 of 196 (67.76% = 80 x 166/196), then nothing for 3 min and no Drive upload at all: the lane was
