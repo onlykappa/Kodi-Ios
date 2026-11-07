@@ -118,6 +118,7 @@ class DriveStream(object):
         self.bytes_read=0
         self.last_read=0
         self.last_problem=''
+        self.hold = lambda: False   # true while a video plays: no read-ahead then (the service sets it)
         self.blocks = _Blocks(self._fetch)
         stream = self
 
@@ -195,7 +196,8 @@ class DriveStream(object):
                             return
                         # Build 182 (build-181 log: the upload waited for the Drive read 45% of the time at ~4-5 MB/s):
                         # the next READ_AHEAD blocks are fetched at once, in parallel, not one after another.
-                        for step in range(1, READ_AHEAD + 1):
+                        # Not while a video plays (build-181 log: AirPlay starved while a conversion read and uploaded).
+                        for step in range(1, 0 if stream.hold() else READ_AHEAD + 1):
                             stream.blocks.ahead(item, index + step)
                         piece = block[position - index * BLOCK:end - index * BLOCK + 1]
                         if not piece:

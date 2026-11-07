@@ -29,8 +29,12 @@ def discard(drive, item_id):
 
 
 class Sink:
-    def __init__(self, drive, parent, name, keep_going, on_file=lambda track,item:None, background=True, clock=time.monotonic, sleep=None):
+    def __init__(self, drive, parent, name, keep_going, on_file=lambda track,item:None, background=True, clock=time.monotonic, sleep=None,
+                 hold=lambda:False):
         self.drive, self.parent, self.name, self.keep_going = drive, parent, name, keep_going
+        # Owner (build 181: AirPlay of Buddy failed while Interstellar's 32 MB pieces went up, one took 94 s): while a
+        # video plays, hold() is true and the pieces wait, so playback gets the whole line.
+        self.hold = hold
         self.tracks = {}
         self.on_file = on_file
         self.background, self.clock, self.sleep = background, clock, sleep
@@ -68,6 +72,9 @@ class Sink:
                 if self.closed:return
                 continue
             if piece is None or self.closed:return
+            while not self.closed and self.hold():
+                time.sleep(1)
+            if self.closed:return
             try:
                 wire['buffer'].extend(piece)
                 self._send(wire, len(piece), final=False, sleep=self.sleep)

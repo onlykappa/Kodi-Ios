@@ -117,7 +117,7 @@ def process_one(q, keep_going):
                 def on_file(track,result):outputs[track]=result;q.commit()
                 # A video playing pauses the conversion where it is (owner, build 175): the upload session waits too.
                 paused=getattr(q,'paused',None) or (lambda:False)
-                sink=drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file)
+                sink=drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=paused)
                 attempt['sink']=sink
                 def waiting():
                     if q.runtime:q.runtime.phase('Paused while a video plays',False,item['name'])

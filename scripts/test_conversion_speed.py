@@ -198,7 +198,7 @@ class Build175Log(unittest.TestCase):
   svc=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertIn('preparation.paused=lambda:(not monitor.abortRequested() and xbmc.Player().isPlayingVideo()',svc)
   cloud=(LIB/'prepare_cloud.py').read_text()
-  self.assertIn('drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file)',cloud)
+  self.assertIn('drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=paused)',cloud)
   self.assertIn('converted_progress,paused,waiting)',cloud)
 
 class AV1Speed(unittest.TestCase):
@@ -352,5 +352,26 @@ class QuickFirst(unittest.TestCase):
   jobs['a']['priority']=5000   # Start now / Prepare next / ▲ on the AV1 one
   self.assertEqual(sorted(jobs.items(),key=lambda p:prep.order_key(*p))[0][0],'a')
   self.assertIn('candidates.sort(key=lambda pair:prep.order_key(*pair))',(LIB/'prepare_cloud.py').read_text())
+
+class AirPlayGetsTheLine(unittest.TestCase):
+ """Build-181 log: AirPlay of Buddy failed ("Cannot Complete Action") while Interstellar's 32 MB pieces went up (one
+ took 94 s) and the conversion read ahead from Drive. While a video plays both wait."""
+ def test_upload_pieces_wait_while_a_video_plays(self):
+  import drive_prepare,threading,time as clock
+  sent=[];state={'hold':True}
+  sink=drive_prepare.Sink.__new__(drive_prepare.Sink)
+  sink.closed=False;sink.hold=lambda:state['hold'];sink.sleep=None
+  sink._send=lambda wire,n,final,sleep=None:sent.append(n);sink._confirmed=lambda wire,track:None
+  import queue
+  t={'wire':{'buffer':bytearray()},'queue':queue.Queue()};t['queue'].put(b'x'*10)
+  th=threading.Thread(target=sink._uploader,args=(t,0),daemon=True);th.start()
+  clock.sleep(1.3);self.assertEqual(sent,[])          # held while the video plays
+  state['hold']=False;clock.sleep(1.5);self.assertEqual(sent,[10])
+  sink.closed=True;th.join(3)
+  self.assertIn('hold=paused',(LIB/'prepare_cloud.py').read_text())
+ def test_no_read_ahead_while_a_video_plays(self):
+  s=(LIB/'drive_stream.py').read_text()
+  self.assertIn('for step in range(1, 0 if stream.hold() else READ_AHEAD + 1):',s)
+  self.assertIn('if preparation.stream:preparation.stream.hold=preparation.paused',(ROOT/'migration/bundled-bootstrap/service.py').read_text())
 
 if __name__=='__main__':unittest.main()

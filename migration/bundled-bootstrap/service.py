@@ -366,6 +366,8 @@ def drive_uploads(monitor,home,profile):
       # as it is and turning preparation off still stop it.
       preparation.paused=lambda:(not monitor.abortRequested() and xbmc.Player().isPlayingVideo() and
                                  xbmcaddon.Addon().getSettingBool('prepare_downloads') and not prepare_downloads.interrupts(profile))
+      # The upload pieces and the Drive read-ahead wait too, so a video (or AirPlay) gets the whole line.
+      if preparation.stream:preparation.stream.hold=preparation.paused
       if preparation.process_one(converting):delay=2
       else:delay=30
      preparation.runtime=None
