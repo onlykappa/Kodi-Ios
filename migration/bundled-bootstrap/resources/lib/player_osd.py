@@ -5,6 +5,7 @@ Top left: close and Play on TV (AirPlay icon). Centre: back 10 s, play/pause, fo
 speed / audio / subtitles, the progress bar with time left, then Info and Continue Watching (the in-progress
 row). No volume control. Fuse's seek bar is replaced by seekbar_window(), shown only while the owner seeks.
 """
+import re
 from xml.sax.saxutils import escape
 import xml.etree.ElementTree as ET
 
@@ -75,6 +76,15 @@ def group(anchor,width,body,extra=''):
         'left':'<left>0</left><width>%d</width>'%width}[anchor]
  return '<control type="group">%s%s%s</control>'%(where,extra,body)
 
+# Settings › Customisation › Video Controls › Hide Controls After (Fuse's OSD_Timeout, in seconds): the controls close
+# that long after they open or after the last tap, unless paused or Continue Watching is open. Empty = never.
+TIMEOUT='Skin.String(OSD_Timeout)'
+ARM_WHEN='!String.IsEmpty(%s) + !Player.Paused + !Skin.HasSetting(ios_osd_continue)'%TIMEOUT
+ARM=('CancelAlarm(osd_timeout,true)','AlarmClock(osd_timeout,Dialog.Close(videoosd),$INFO[%s,00:,],silent)'%TIMEOUT)
+def rearm(xml):
+ tags=''.join('<onclick condition="%s">%s</onclick>'%(e(ARM_WHEN),e(a)) for a in ARM)
+ return re.sub(r'(<control type="button" id="\d+">)',lambda m:m.group(1)+tags,xml)
+
 def window():
  """Layout from the owner's reference (Apple TV player, landscape): back top left; AirPlay / audio / subtitles /
  speed top right; back 10, play-pause, forward 10 in the centre; the title, a thin bar with a white knob and the
@@ -137,7 +147,8 @@ def window():
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window>\n<defaultcontrol always="true">7112</defaultcontrol>'
   '<animation effect="fade" start="0" end="100" time="150">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
   '<onunload>Skin.Reset(ios_osd_continue)</onunload><onunload>Skin.Reset(ios_osd_continue_path)</onunload><onunload>CancelAlarm(osd_timeout,true)</onunload>'
-  '<controls>%s%s%s%s%s%s%s</controls>\n</window>\n')%(MARKER,shade,head,centre,title,bar,row,panel)
+  +''.join('<onload condition="%s">%s</onload>'%(e(ARM_WHEN),e(a)) for a in ARM)+
+  '<controls>%s</controls>\n</window>\n')%(MARKER,rearm(shade+head+centre+title+bar+row+panel))
 
 # r4: never shown. The owner does not want a bar besides the controls' own ("the old one still appears"): the
 # window stays because Kodi opens it while seeking and moves its progress control (401).

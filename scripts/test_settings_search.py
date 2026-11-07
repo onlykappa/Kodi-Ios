@@ -16,7 +16,7 @@ class SettingsSearch(unittest.TestCase):
  def test_page_rows_are_indexed_with_their_actions(self):
   entries=search.page_entries(sp)
   self.assertIn(('Player','Settings','ActivateWindow(playersettings)'),entries)
-  self.assertTrue(any(l=='Widgets' and w.startswith('Customisation') for l,w,_ in entries))
+  self.assertTrue(any(l=='Tabs & Rows' and w.startswith('Customisation') for l,w,_ in entries))
  def test_kodi_settings_open_their_section_at_the_category(self):
   entries=search.kodi_entries(KODI,NAMES.get)
   self.assertIn(('Play next video automatically','Player · Videos','ActivateWindow(playersettings,videoplayer)'),entries)

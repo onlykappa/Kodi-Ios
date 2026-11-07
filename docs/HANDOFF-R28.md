@@ -155,3 +155,19 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
   The page logs "Kodi iOS Library: <type> page in N s".
 - DialogBusy: just the spinning ring in the centre (no pill, no "Loading…").
 - Local: e2e 199/0 (adds the repack scenario), native 3,143/0, all scripts/test_*.py.
+(owner: Customisation mockups, round 4: first pages; scripts/test_customisation.py)
+- Settings › Customisation: "Widgets" → "Tabs & Rows", "Indicators" → "Poster Badges"; Poster Badges and Video
+  Controls show "N on" (customise_counts.py, counted from the same skin settings).
+- Poster Badges is a native page (9330): 11 of Fuse's indicator switches in three groups with a preview. Our own
+  posters (Home/Movies/TV rows, Library grid) and episode rows now draw those badges: one corner badge (watched,
+  Trakt watchlist, Trakt favourite, collection, in library), episodes left, progress bar, video version, premiere /
+  finale. Before this only the Library grid had a watched tick, so Fuse's switches changed nothing on our pages.
+  Fuse's "Recently Added" switch is left out: Fuse itself never reads Indicator.DisableLatest.
+- Video Controls is a native page (9340): Hide Controls After (Fuse's OSD_Timeout, now honoured by our controls:
+  they close that long after opening or the last tap, never while paused or with Continue Watching open), and the
+  two switches of the info shown over the video at start/pause (Custom_1152/1153). Fuse's Details panel and
+  swipe-up rows are not on the page: our Apple TV-style controls do not have them.
+- Not yet: Info Page still opens Fuse's box, but our portrait info page has none of those sections (Starring,
+  Seasons, Recommendations…), so its switches do nothing on the phone. Tabs & Rows, Rows editing, View Types and
+  Skin Settings pages come next.
+- portrait.fingerprint now includes activity_skin.py.

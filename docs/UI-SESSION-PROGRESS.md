@@ -45,9 +45,18 @@ Rules to keep: window files added while Kodi runs need the `RuntimeError` → `x
 - The script `refresh_rows` moves to the next page (or a random one, as a setting). It turns off that tab's listing-cache flags so the new page shows at once, and the service then caches the new page (`ios_cache` keys use the path without `&page=`).
 - The button spins while the rows load, then "New picks on <tab>" shows.
 
-## 4. Customisation pages (round 4): mockups approved, not coded
+## 4. Customisation pages (round 4): mockups approved, coding started (build 192 branch)
 15 screens in `customisation-mockups.html`, mapped to Fuse's settings (Custom_1115/1116/1118 item lists, Skin
 Variables `buildviews`, SkinSettings categories).
+| Screen | State |
+|---|---|
+| 01 Customisation | built: new names, "N on" values |
+| 08 Poster Badges | built, and our posters / episode rows now draw the badges |
+| 10 Video Controls | built: Hide Controls After (wired into our OSD) and the overlay pair; Fuse's details panel and swipe-up rows do not exist in our OSD |
+| 09 Info Page | not built: our portrait info page has none of Fuse's sections, so the page needs those sections first |
+| 02-07 Tabs & Rows, a tab, Rows, Edit rows, one row, row style | not built (Skin Variables nodes; Home rows already read them) |
+| 11-12 View Types | not built: our Library pages are hand-made, check which Fuse views are still used |
+| 13-15 Skin Settings, Appearance, Behaviour | not built: many options only affect Fuse's shrunk windows |
 
 ## Order of work
 1. ~~Library tools, the four pages, with tests~~ (done on `claude/trusting-euler-kgug98`; device check pending).

@@ -450,13 +450,53 @@ def load_widgets(profile,lists):
   rows+=[w for w in data if isinstance(w,dict) and usable(w)]
  return rows
 
+# Poster Badges (Settings › Customisation › Poster Badges): Fuse's own indicator settings, drawn on our posters and
+# episode rows. One badge at the top right (the first that applies: watched, Trakt watchlist, Trakt favourite,
+# collection, in the library), episodes left at the top left, the progress bar and the movie's version along the bottom.
+BADGE={'watched':'!Skin.HasSetting(Indicator.DisableWatched) + [ListItem.IsPlayed | String.IsEqual(ListItem.Overlay,OverlayWatched.png)]',
+ 'watchlist':'Skin.HasSetting(Indicator.TraktWatchlist) + !String.IsEmpty(ListItem.Property(watchlist_rank))',
+ 'favourite':'Skin.HasSetting(Indicator.TraktFavourites) + !String.IsEmpty(ListItem.Property(favorites_rank))',
+ 'collection':'!Skin.HasSetting(Indicator.DisableCollection) + ListItem.IsCollection',
+ 'library':'!Skin.HasSetting(Indicator.DisableLibrary) + !String.IsEmpty(ListItem.DBID) + !String.IsEmpty(ListItem.Property(Item.Info))',
+ 'episodes':'!Skin.HasSetting(Indicator.DisableEpisodes) + String.IsEqual(ListItem.DBType,tvshow) + !String.IsEmpty(ListItem.Property(UnWatchedEpisodes))'
+            ' + !Integer.IsEqual(ListItem.Property(UnWatchedEpisodes),0) + [!Integer.IsEqual(ListItem.Property(WatchedEpisodes),0) | Skin.HasSetting(Indicator.EnableUnwatchedCount)]',
+ 'progress':'!Skin.HasSetting(Indicator.DisableProgress) + !ListItem.IsCollection + ListItem.IsResumable',
+ 'version':'Skin.HasSetting(Indicator.MovieVersionBanner) + String.IsEqual(ListItem.DBType,movie) + ListItem.HasVideoVersions + !String.IsEmpty(ListItem.VideoVersionName)',
+ 'episode_type':'Skin.HasSetting(Indicator.EpisodeTypeBanner) + !String.IsEmpty(ListItem.Property(episode_type))'}
+CORNER=(('watched','circle-check.png',GREEN),('watchlist','bookmark.png','FFED1C24'),('favourite','heart.png','FFED1C24'),
+        ('collection','layer-group.png',WHITE),('library','hard-drive.png',WHITE))
+EPISODE_TYPES=(('series_premiere','Series Premiere'),('season_premiere','Season Premiere'),('mid_season_premiere','Mid-season Premiere'),
+               ('series_finale','Series Finale'),('season_finale','Season Finale'),('mid_season_finale','Mid-season Finale'))
+def progress_bar(x,y,w,info='ListItem.PercentPlayed',visible=''):
+ return ('<control type="progress"><left>%d</left><top>%d</top><width>%d</width><height>10</height><info>%s</info>%s'
+  '<texturebg border="5" colordiffuse="59FFFFFF">%spill_96.png</texturebg><midtexture border="5" colordiffuse="FFFFFFFF">%spill_96.png</midtexture>'
+  '<lefttexture /><righttexture /><overlaytexture /></control>')%(x,y,w,info,'<visible>%s</visible>'%visible if visible else '',MEDIA,MEDIA)
+def poster_badges(w,h):
+ xml='';shown=[]
+ for key,glyph,color in CORNER:
+  cond=' + '.join(['[%s]'%BADGE[key]]+['![%s]'%BADGE[k] for k in shown]);shown.append(key)
+  xml+=('<control type="group"><left>%d</left><top>14</top><visible>%s</visible>'%(w-70,cond)+
+        image(0,0,56,56,MEDIA+'avatar_s.png','B3000000')+icon(10,10,36,glyph,color)+'</control>')
+ xml+=('<control type="group"><left>14</left><top>14</top><visible>%s</visible>'%BADGE['episodes']+
+       image(0,0,72,56,MEDIA+'pill_56.png','E60A84FF',border=28)+label(0,0,72,56,'$INFO[ListItem.Property(UnWatchedEpisodes)]','p_foot_b',WHITE,'center')+'</control>')
+ xml+=image(0,h-110,w,110,MEDIA+'fade_up.png','B3FFFFFF',diffuse=MEDIA+'poster_mask.png',extra='<visible>[%s] | [%s]</visible>'%(BADGE['progress'],BADGE['version']))
+ xml+=label(20,h-84,w-40,44,'$INFO[ListItem.VideoVersionName]','p_cap',WHITE,'left','<visible>%s</visible>'%BADGE['version'])
+ xml+=progress_bar(20,h-30,w-40,visible=BADGE['progress'])
+ return xml
+def episode_badges(x,y,w,h):
+ types=''.join(label(20,14,w-40,44,'[B]%s[/B]'%text,'p_cap',WHITE,'left','<visible>String.IsEqual(ListItem.Property(episode_type),%s)</visible>'%key) for key,text in EPISODE_TYPES)
+ return ('<control type="group"><left>%d</left><top>%d</top>'%(x,y)+
+  '<control type="group"><visible>%s</visible>%s</control>'%(BADGE['episode_type'],types)+
+  '<control type="group"><left>%d</left><top>14</top><visible>%s</visible>'%(w-70,BADGE['watched'])+image(0,0,56,56,MEDIA+'avatar_s.png','B3000000')+icon(10,10,36,'circle-check.png',GREEN)+'</control>'+
+  progress_bar(20,h-30,w-40,visible='!Skin.HasSetting(Indicator.DisableProgress) + ListItem.IsResumable')+'</control>')
+
 def poster_item(focused):
  w,h=POSTER
  zoom='<animation effect="zoom" start="100" end="104" time="160" center="auto" tween="cubic" easing="out">Focus</animation>' if focused else ''
  return ('<control type="group"><left>%d</left><top>14</top>%s'%(SIDE,zoom)+
   image(0,0,w,h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
   label(20,h-170,w-40,150,'$INFO[ListItem.Label]','p_foot_b',WHITE,'left','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(poster))</visible>')+
-  image(0,0,w,h,'$INFO[ListItem.Art(poster)]',WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+'</control>')
+  image(0,0,w,h,'$INFO[ListItem.Art(poster)]',WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+poster_badges(w,h)+'</control>')
 
 CARD_NO_ART='String.IsEmpty(ListItem.Art(landscape)) + String.IsEmpty(ListItem.Art(fanart)) + String.IsEmpty(ListItem.Art(thumb))'
 
@@ -823,6 +863,7 @@ def episode_item(focused):
  return ('<control type="group"><visible>String.IsEqual(ListItem.DBType,episode)</visible>'+bg+image(SIDE,18,thumb_w,thumb_h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'thumb_mask.png')+
   image(SIDE,18,thumb_w,thumb_h,'$VAR[Portrait_Thumb]',WHITE,'','>scale',MEDIA+'thumb_mask.png',background=True)+
   image(SIDE+thumb_w//2-48,18+thumb_h//2-48,96,96,MEDIA+'glass_96.png')+icon(SIDE+thumb_w//2-18,18+thumb_h//2-20,40,MEDIA+'play.png')+
+  episode_badges(SIDE,18,thumb_w,thumb_h)+
   label(SIDE+thumb_w+30,40,WIDTH-2*SIDE-thumb_w-30,110,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_h3',WHITE,'left','<wrapmultiline>true</wrapmultiline>')+
   label(SIDE+thumb_w+30,154,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]','p_cap',GREY)+
   label(SIDE,thumb_h+40,WIDTH-2*SIDE,56,'$INFO[ListItem.Plot]','p_cap',GREY,'left','<scroll>false</scroll>')+'</control>')
@@ -870,7 +911,7 @@ def grid():
   image(0,0,w,h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
   label(20,h-170,w-40,150,'$INFO[ListItem.Label]','p_foot_b',WHITE,'left','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(poster))</visible>')+
   image(0,0,w,h,'$INFO[ListItem.Art(poster)]',WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+
-  image(w-58,14,44,44,ICONS+'circle-check.png',GREEN,'<visible>ListItem.IsPlayed</visible>')+'</control>')
+  poster_badges(w,h)+'</control>')
  return (label(SIDE,180,WIDTH-2*SIDE,110,'$VAR[Portrait_Page_Title]','p_title',WHITE,'left','<visible>%s</visible>'%GRID)+
   ('<control type="panel" id="53"><left>%d</left><top>320</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><onup>9001</onup>'
    '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
@@ -1355,7 +1396,7 @@ def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__)):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__)):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())
