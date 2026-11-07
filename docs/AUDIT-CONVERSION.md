@@ -50,3 +50,17 @@ movie as a straight run where the picture is copied.
 - Not yet run on the phone: everything above is tested here with the real converter and a Drive stand-in.
 - Kodi's own player opens a prepared movie with its own FFmpeg, which does not use the index either: playing a
   prepared movie from Drive in Kodi may start slowly. To check on the phone next.
+
+## r32 / build 191 (owner, build 190: converted Interstellar took 30 s to start in Kodi and the picture broke up;
+Fall 2 MKV played perfectly; Library status refresh "doesnt do anything"; Fall 2 "frozen")
+- Kodi read the converted file back and forth: each fragment held all its picture, then all its sound. Samples are now
+  interleaved inside fragments (frag_interleave 12): a Kodi-style read of long_big takes 39 requests instead of 189.
+- Kodi opens a fragmented MP4 by reading every fragment header (~1,700 for Interstellar, 30 s). Fragments now hold about
+  64 MB of the movie (6-60 s from its bitrate, frag_size 96 MB): ~170 for Interstellar. Movies converted before r32
+  keep their layout.
+- A moof with interleaved samples is over 32 KB: the movie's output buffer is now 4 MB (FFmpeg fills sizes by going back
+  in it; with 32 KB that corrupted the parse).
+- After carrying on, lining up the inputs reports stage 4 ("Finding where it left off"), so it can be paused/stopped
+  and does not look frozen.
+- Library status › refresh while a movie converts: the check now runs beside the conversion (it waited for the movie).
+- Tests: e2e 194/0 (adds a Kodi-style play-through check), native 3,143/0 (adds fragment sizing and interleaving).

@@ -1324,7 +1324,7 @@ static void test_burn_select(void) {
 
 static int preparation_progress(int stage,double done,double total,void *ctx) {
     int *calls=ctx;(*calls)++;
-    CHECK(stage>=0 && stage<=3 && isfinite(done) && total>0,"preparation progress is bounded");
+    CHECK(stage>=0 && stage<=4 && isfinite(done) && total>0,"preparation progress is bounded");
     return 1;
 }
 static int pause_preparation(int stage,double done,double total,void *ctx) {
@@ -1514,6 +1514,19 @@ static long long bytes_to_open(const char *path) {
 static void test_preparation_resume(const char *work,const char *http_base) {
     struct {const char *file;int same;} cases[]={{"long_seek.mkv",1},{"long_pgs.mkv",1},{"h264_ac3_dts_srt.mkv",0},{"resume_av1_hdr.mkv",0}};
     kodi_airplay_prepare_keep_image_subs(1);kr_video_set_encoder("mpeg4");kodi_airplay_prepare_marks(1);
+    // r32: fragments are sized from the bitrate (6-60 s); for the short films here keep 6 s so each has several marks.
+    {   // ... but first: a real-sized conversion has few, large fragments with interleaved samples (Kodi reads them
+        // straight through; it opens a file by reading every fragment header).
+        char input[1024],err[512]="";int calls=0;resume_sink one={0};
+        snprintf(input,sizeof input,"%s/long_pgs.mkv",http_base);   // picture + sound, 65 s at a low bitrate
+        CHECK(kodi_airplay_prepare_to(input,resume_write,&one,preparation_progress,&calls,err,sizeof err)==0,"r32: sized conversion: %s",err);
+        int moofs=0,truns=0;for(size_t at=0;at+8<=one.len[0];){uint32_t n=AV_RB32(one.data[0]+at);if(n<8)break;
+            if(!memcmp(one.data[0]+at+4,"moof",4)){moofs++;for(size_t k=at;k+4<at+n;k++)truns+=!memcmp(one.data[0]+k,"trun",4);}at+=n;}
+        CHECK(moofs>=1 && moofs<=3,"r32: a 65 s low-bitrate film has one or two fragments of up to 60 s (%d), not one per keyframe",moofs);
+        CHECK(truns>moofs*2,"r32: samples are interleaved inside fragments (%d runs in %d fragments)",truns,moofs);
+        resume_free(&one);
+    }
+    setenv("KR_PREP_FRAG_S","6",1);
     int hdr=avcodec_find_encoder_by_name("libx265")!=NULL;if(hdr)kr_video_set_hdr_encoder("libx265");   // the phone re-encodes to HEVC
     for(unsigned c=0;c<sizeof cases/sizeof cases[0];c++) {
         char input[1024],err[512]="",path[1200],remote[1300];int calls=0;
@@ -1559,7 +1572,7 @@ static void test_preparation_resume(const char *work,const char *http_base) {
         }
         free(record);resume_free(&full);resume_free(&more);
     }
-    kodi_airplay_prepare_marks(0);kr_video_set_hdr_encoder(NULL);
+    kodi_airplay_prepare_marks(0);kr_video_set_hdr_encoder(NULL);unsetenv("KR_PREP_FRAG_S");
 }
 
 // r25: only the original (first) audio track and the chosen languages are kept; verification uses the same rule.

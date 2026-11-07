@@ -27,6 +27,9 @@
 #include "../gmplayer/gm_stream.h"
 
 #define TRACKS 64
+// r32: FFmpeg writes a box's size last, by going back in its output buffer; a fragment header (moof) with interleaved
+// samples is larger than 32 KB, so the movie's buffer holds 4 MB (picture subtitle files keep 32 KB).
+#define SINK_BUFFER (4*1024*1024)
 #define PREP_UNIT 30   // seconds per preparation unit (r20; live AirPlay keeps its 6)
 #define SIDECAR TRACKS   // map value of a picture subtitle track written beside the MP4 (r15), not into it
 
@@ -608,7 +611,7 @@ static int out_feed(output_sink *s,const uint8_t *d,int n) {
         int hl=rc->head_len;uint32_t type=AV_RB32(rc->head+4);rc->box_start=rc->at;rc->head_len=0;
         if(size && size<(uint64_t)hl)return 0;
         if(type==MKBETAG('m','o','o','f')) {
-            if(size>64*1024*1024)return 0;
+            if(!size || size>(uint64_t)SINK_BUFFER)return 0;   // a fragment header larger than the buffer could not be finished
             rc->moof=av_malloc((size_t)size);if(!rc->moof)return 0;
             memcpy(rc->moof,rc->head,(size_t)hl);rc->moof_len=hl;rc->moof_size=(int)size;rc->in_moof=1;
         } else {
@@ -686,8 +689,9 @@ static int sink_write(void *opaque,const uint8_t *data,int size) {
     return size;
 }
 static int sink_open(AVFormatContext *f,output_sink *sink) {
-    uint8_t *buffer=av_malloc(32768);if(!buffer)return -1;
-    f->pb=avio_alloc_context(buffer,32768,1,sink,NULL,sink_write,NULL);
+    int size=sink->track?32768:SINK_BUFFER;
+    uint8_t *buffer=av_malloc((size_t)size);if(!buffer)return -1;
+    f->pb=avio_alloc_context(buffer,size,1,sink,NULL,sink_write,NULL);
     if(!f->pb){av_free(buffer);return -1;}f->flags|=AVFMT_FLAG_CUSTOM_IO;return 0;
 }
 static void sink_close(AVFormatContext *f) {
@@ -782,7 +786,10 @@ static void snapshot(resume_ctx *rc,input_track *ins,int ninputs,generated_reade
     st->markable=1;
 }
 // Bring an input to the packet a mark recorded as its next one; everything before it is already in the movie.
-static int resume_input(input_track *in,const in_mark *m,int original) {
+// r32 (owner, build 190: Fall 2 "seems to be frozen" after carrying on): lining up after a restart reads the source
+// from a little before the mark, which says nothing for a while over a slow line; it now reports stage 4 ("finding where
+// it left off"), which also lets the add-on pause or stop it.
+static int resume_input(input_track *in,const in_mark *m,int original,kr_prepare_progress cb,void *ctx) {
     if(m->eof){in->eof=1;return 0;}
     if(!original) {
         for(int guard=0;guard<10000000;guard++) {
@@ -790,6 +797,7 @@ static int resume_input(input_track *in,const in_mark *m,int original) {
             AVPacket *p=in->packet;
             if(p->stream_index==m->si && p->dts==m->dts)return 0;
             if(p->dts!=AV_NOPTS_VALUE && p->dts>m->dts && p->stream_index==m->si)return -1;
+            if(!(guard&63) && !tick(cb,ctx,4,(double)guard,(double)guard+1))return -2;
             if(next(in)<0)return -1;
         }
         return -1;
@@ -803,6 +811,7 @@ static int resume_input(input_track *in,const in_mark *m,int original) {
             AVPacket *p=in->packet;
             if(p->pos==m->pos && p->stream_index==m->si && p->dts==m->dts)return 0;
             if(p->pos>m->pos){passed=1;break;}
+            if(!tick(cb,ctx,4,p->pos>0?(double)p->pos:0,m->pos>0?(double)m->pos:1))return -2;
             if(next(in)<0)return -1;
         }
         if(!passed)return -1;
@@ -927,12 +936,35 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
         snprintf(rc->layout,sizeof rc->layout,"%s",layout);rc->nstreams=(int)out->nb_streams;rc->ninputs=ninputs;
     }
     AVDictionary *opts=NULL;av_dict_set(&opts,"movflags",writer?"+empty_moov+default_base_moof+frag_keyframe+use_metadata_tags+skip_trailer":"+faststart+use_metadata_tags",0);
-    if(writer)av_dict_set(&opts,"frag_duration","6000000",0);
+    if(writer) {
+        // r32 (owner, build 190: a prepared Interstellar took 30 s to start in Kodi and the picture broke up, while the
+        // original MKV started at once): each fragment held all its picture, then all its sound, so Kodi's player
+        // jumped back and forth inside every fragment, each jump a new Drive request; and it opens a file by reading
+        // every fragment header (~1,700 for Interstellar). Samples are now interleaved inside fragments (12 at a time,
+        // like an MKV), and fragments hold about FRAG_BYTES of the movie (6-60 s, from its bitrate) instead of starting
+        // at every keyframe, at most FRAG_MAX bytes in memory.
+        const int64_t FRAG_BYTES=64LL*1024*1024,FRAG_MAX=96LL*1024*1024;
+        int64_t rate=original->bit_rate>0?original->bit_rate:0;
+        if(!rate && original->pb && original->duration>0){int64_t size=avio_size(original->pb);if(size>0)rate=(int64_t)(size*8.0/((double)original->duration/AV_TIME_BASE));}
+        double seconds=rate>0?FRAG_BYTES*8.0/(double)rate:6.0;
+        if(seconds<6)seconds=6;if(seconds>60)seconds=60;
+        const char *forced=getenv("KR_PREP_FRAG_S");   // host tests: short test films keep several marks
+        if(forced && atof(forced)>0)seconds=atof(forced);
+        av_dict_set_int(&opts,"min_frag_duration",(int64_t)(seconds*1e6),0);
+        av_dict_set_int(&opts,"frag_duration",(int64_t)(seconds*2e6),0);
+        av_dict_set_int(&opts,"frag_size",FRAG_MAX,0);
+        av_dict_set(&opts,"frag_interleave","12",0);
+        kr_remux_note("prepare: fragments of about %.0f s (source %.1f Mbit/s), samples interleaved",seconds,rate/1e6);
+    }
     if(rc && rc->resume)av_dict_set_int(&opts,"fragment_index",rc->resume_seq,0);
     int q=avformat_write_header(out,&opts);av_dict_free(&opts);if(q<0){fail(err,en,"MP4 header",q);goto end;}header=1;
     for(int i=0;i<ninputs;i++){ins[i].packet=av_packet_alloc();if(!ins[i].packet || next(&ins[i])<0)goto end;}
     if(rc && rc->resume) {
-        for(int i=0;i<ninputs;i++)if(resume_input(&ins[i],&rc->resumed.in[i],i==0)<0){fail(err,en,"Resume position not found",0);goto end;}
+        for(int i=0;i<ninputs;i++) {
+            int q=resume_input(&ins[i],&rc->resumed.in[i],i==0,cb,ctx);
+            if(q==-2){r=-2;goto end;}
+            if(q<0){fail(err,en,"Resume position not found",0);goto end;}
+        }
         kr_remux_note("prepare: carrying on from %.0f s (byte %lld, fragment %u)",rc->resumed.in[0].eof?rc->resumed.in[ninputs>1?1:0].t:rc->resumed.in[0].t,(long long)rc->resume_at,rc->resume_seq);
     }
     unsigned packets=0;

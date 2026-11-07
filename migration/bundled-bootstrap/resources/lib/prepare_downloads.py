@@ -585,7 +585,17 @@ class Queue:
   self.stream=stream if stream is not None and getattr(native,'streams',False) else None
   self.state=load(profile);self.state.setdefault('jobs',{});self.state.setdefault('sessions',{})
   self.work=location(profile).parent/'preparing-videos';self.work.mkdir(parents=True,exist_ok=True)
- def commit(self):save(self.profile,self.state)
+  # Build 191 (owner: "If i press refresh in the library status it doesnt do anything"): a library check asked for while
+  # a movie converts runs beside it (service.py), so the state is shared between two threads: lock is held while the
+  # job list changes and while it is saved; scanning holds one check at a time.
+  self.lock=threading.RLock();self.scanning=threading.Lock();self.busy=False
+ def commit(self):
+  with self.lock:
+   for tries in range(5):
+    try:save(self.profile,self.state);return
+    except RuntimeError:   # the converting thread changed a job while it was being written: write it again
+     if tries==4:raise
+     time.sleep(0.05)
  def stage_cleanup(self,job):
   """Journal unused app-owned staging files before a job is removed or kept as its original.
   The journal survives library rescans; cloud preparation retries deletion independently of that job."""
@@ -593,10 +603,23 @@ class Queue:
   for output in (job.pop('cloud_output',None) or {}).values():
    if not output.get('moved') and output['id'] not in pending:pending.append(output['id'])
   job.pop('cloud_replace',None)
- def scan(self,keep_going=lambda:True,force=False):
+ def scan(self,keep_going=lambda:True,force=False,beside=False):
+  """beside: a check while a movie converts (build 191). Its progress goes to state['checking'], not the converting
+  card, and the movie being converted (and its source file) is never dropped or replaced."""
+  if not self.scanning.acquire(blocking=not beside):return
+  try:self._scan(keep_going,force,beside)
+  finally:
+   self.scanning.release()
+   if beside:
+    with self.lock:self.state.pop('checking',None)
+    self.commit()
+ def _scan(self,keep_going,force,beside):
   requested=location(self.profile).parent/'airplay-preparation-rescan'
   if not force and not requested.exists() and self.clock()-self.state.get('last_scan',0)<300:return
-  self.state['current']={'title':'Movies and shows','stage':'Checking downloaded videos','progress':0,'queued':0,'running':True,'updated':self.clock()};self.commit()
+  status={'title':'Movies and shows','stage':'Checking downloaded videos','progress':0,'queued':0,'running':True,'updated':self.clock()}
+  converting=running_id(self.state) if beside else ''
+  with self.lock:self.state['checking' if beside else 'current']=status
+  self.commit()
   listed_all=library_scan.remote_files(self.drive,keep_going)
   found=self.unique(listed_all);seen=set();counts={'videos':len(found),'ready':0,'unreadable':0};entries=[]
   for number,listed in enumerate(found):
@@ -608,30 +631,38 @@ class Queue:
     counts['unreadable']+=1;entries.append(entry(listed,'unreadable'))
     seen.update(slot for slot,job in self.state['jobs'].items() if job['source']['id']==listed['id'])
     continue
-   if self.runtime:self.runtime.phase('Checking video %d of %d'%(number+1,len(found)),True)
-   self.state['current'].update(stage='Checking video %d of %d'%(number+1,len(found)),progress=100*(number+1)/max(1,len(found)),updated=self.clock())
+   if self.runtime and not beside:self.runtime.phase('Checking video %d of %d'%(number+1,len(found)),True)
+   status.update(stage='Checking video %d of %d'%(number+1,len(found)),progress=100*(number+1)/max(1,len(found)),updated=self.clock())
    self.commit()
    slot=key(item);seen.add(slot)
    recovering=[old for old,job in self.state['jobs'].items() if job['source']['id']==item['id'] and job.get('status')=='committing']
    if recovering:seen.update(recovering);continue
    if ready(item):counts['ready']+=1;entries.append(entry(item,'ready'));continue
    entries.append(entry(item,'todo'))
-   if slot not in self.state['jobs'] or self.state['jobs'][slot].get('status')=='superseded' or identity(self.state['jobs'][slot]['source'])!=identity(item):
-    self.state['jobs'][slot]={'source':item,'status':'waiting','attempts':0,'retry_after':0}
+   with self.lock:
+    if item['id']==converting:continue   # the movie being converted keeps its job as it is
+    if slot not in self.state['jobs'] or self.state['jobs'][slot].get('status')=='superseded' or identity(self.state['jobs'][slot]['source'])!=identity(item):
+     self.state['jobs'][slot]={'source':item,'status':'waiting','attempts':0,'retry_after':0}
   # A source modified/replaced by another client no longer owns its old work/session.
-  for slot,job in list(self.state['jobs'].items()):
-   if slot not in seen and job.get('status')!='committing':
-    self.stage_cleanup(job);self.state['jobs'].pop(slot,None);self.state['sessions'].pop(slot,None)
-    shutil.rmtree(self.work/slot,ignore_errors=True)
-  self.state['library']=dict(counts,checked=self.clock(),items=entries)
-  self.state['last_scan']=self.clock();self.state.pop('current',None);self.commit();requested.unlink(missing_ok=True)
+  with self.lock:
+   for slot,job in list(self.state['jobs'].items()):
+    if slot not in seen and job.get('status')!='committing' and job['source'].get('id')!=converting:
+     self.stage_cleanup(job);self.state['jobs'].pop(slot,None);self.state['sessions'].pop(slot,None)
+     shutil.rmtree(self.work/slot,ignore_errors=True)
+   self.state['library']=dict(counts,checked=self.clock(),items=entries)
+   self.state['last_scan']=self.clock()
+   if not beside:self.state.pop('current',None)
+  self.commit();requested.unlink(missing_ok=True)
  def unique(self,found):
   """One copy per episode or movie (owner, build 152: 'Lanterns' and 'Lanterns (2026)' each held S1 E1, and both
   were queued; the owner then asked for the extra copy to be deleted). Keeps, in order: a copy already prepared, one
   being saved or with downloaded working files, the highest resolution, the largest. The others go to Drive's Trash
   once the kept copy is confirmed on Drive. Copies whose years disagree are never treated as one."""
-  started={job['source']['id']:(2 if job.get('status')=='committing' else 1) for slot,job in self.state['jobs'].items()
-           if job.get('status')=='committing' or (self.work/slot).exists()}
+  with self.lock:
+   started={job['source']['id']:(2 if job.get('status')=='committing' else 1) for slot,job in self.state['jobs'].items()
+            if job.get('status')=='committing' or (self.work/slot).exists()}
+   converting=running_id(self.state)
+  if converting:started[converting]=2   # build 191: a check beside a conversion never bins the file being converted
   groups={};out=[]
   for item in found:
    k=drivelibrary.media_key(item.get('name',''),item.get('folderName',''))

@@ -23,8 +23,9 @@ def process_one(q, keep_going):
     if pending:return False
     for j in q.state['jobs'].values():
         if j.pop('space',None):j['retry_after']=0
-    candidates = [(slot,j) for slot,j in q.state['jobs'].items() if j.get('status') not in ('done','superseded')
-                  and not j.get('blocked') and not j.get('kept') and j.get('retry_after',0) <= q.clock()]
+    with q.lock:   # build 191: a library check may change the list beside a conversion
+        candidates = [(slot,j) for slot,j in q.state['jobs'].items() if j.get('status') not in ('done','superseded')
+                      and not j.get('blocked') and not j.get('kept') and j.get('retry_after',0) <= q.clock()]
     # Old builds' checkpoints are no longer used: their full-sized local media can go.
     for folder in q.work.iterdir():
         if folder.is_dir():shutil.rmtree(folder)
@@ -144,6 +145,8 @@ def process_one(q, keep_going):
                         q.state['current']=current;q.commit()
                 converted=[0]
                 def converted_progress(stage,n,t):
+                    if stage==4:   # r32: lining up after Kodi was closed
+                        progress('Finding where it left off',converted[0]);return
                     if attempt['convert_start'] is None:attempt['convert_start']=q.clock()
                     if stage in (0,2) and t:attempt['fraction']=max(attempt['fraction'],min(1.0,float(n)/t))
                     value=80 if stage==3 else (min(80,80*n/t) if t else converted[0])

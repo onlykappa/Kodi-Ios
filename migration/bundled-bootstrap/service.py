@@ -360,7 +360,18 @@ def drive_uploads(monitor,home,profile):
                               remote=lambda:library_scan.remote_files(drive,idle),pace=1,
                               notify=lambda title,text:notices.add(profile,'drive',title,text))
     if xbmcaddon.Addon().getSettingBool('prepare_downloads'):
-     if preparation is None:preparation=preparation_queue()
+     if preparation is None:
+      preparation=preparation_queue()
+      # Build 191 (owner: "If i press refresh in the library status it doesnt do anything"): a check asked for while a
+      # movie converts (hours) runs beside it instead of waiting for the movie to finish.
+      def check_beside(q):
+       while not monitor.waitForAbort(5):
+        try:
+         if q.busy and prepare_downloads.check_requested(profile):
+          q.scan(lambda:not monitor.abortRequested(),force=True,beside=True)
+        except driveupload.Stop:pass
+        except Exception as error:diagnostics.log_exception(xbmc,'library_check',error)
+      threading.Thread(target=check_beside,args=(preparation,),daemon=True).start()
      can_prepare=lambda:idle() and xbmcaddon.Addon().getSettingBool('prepare_downloads')
      import preparation_runtime
      with preparation_runtime.Lease(profile,stats=preparation.stream.stats if preparation.stream else lambda:{}) as runtime:
@@ -379,8 +390,10 @@ def drive_uploads(monitor,home,profile):
       # The upload pieces and the Drive read-ahead wait too, so a video (or AirPlay) gets the whole line.
       if preparation.stream:preparation.stream.hold=preparation.paused
       if transfer_control.paused(profile,'conv') and not (prepare_downloads.load(profile).get('current') or {}).get('running'):delay=30
-      elif preparation.process_one(converting):delay=2
-      else:delay=30
+      else:
+       preparation.busy=True
+       try:delay=2 if preparation.process_one(converting) else 30
+       finally:preparation.busy=False
      preparation.runtime=None
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))
   except driveupload.Stop:pass

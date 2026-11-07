@@ -188,7 +188,7 @@ def prepared_file(drive):
 
 
 def scenario(lib_path, fixtures, name, interrupt_at=None, expire=False, corrupt=False, upload_rate=0, small_pieces=True,
-             hdr=False, expect_same_as=None, may_restart=False, killed_mid_piece=0):
+             hdr=False, expect_same_as=None, may_restart=False, killed_mid_piece=0, kodi_reads=None):
     servers = [];drive, port = setup(fixtures, name, servers);drive.upload_rate = upload_rate
     profile = tempfile.mkdtemp();lines = []
     lib = ctypes.CDLL(lib_path)
@@ -245,6 +245,15 @@ def scenario(lib_path, fixtures, name, interrupt_at=None, expire=False, corrupt=
         # the number of reads above tells the same story everywhere (1,305 before r31, 14 now, for long_big.mkv).
         if size > 40 * 1024 * 1024 and os.environ.get('E2E_EXACT_BYTES'):
             check(read <= size // 3, '%s: checking it took %d of %d bytes (by its index, not reading it all)' % (label, read, size))
+        if kodi_reads is not None and shutil.which('ffmpeg'):
+            # r32: read like Kodi's player (a stock FFmpeg demuxing it over HTTP in play order). With all of a
+            # fragment's picture then all its sound it jumped back and forth: 189 requests for long_big.mkv (r31).
+            before = len(drive.requests.get(out['id'], []))
+            import subprocess
+            subprocess.run(['ffmpeg', '-v', 'error', '-i', 'http://127.0.0.1:%d/media/%s' % (port, out['id']), '-map', '0', '-c', 'copy', '-f', 'null', '-'],
+                           capture_output=True, timeout=600)
+            played = len(drive.requests.get(out['id'], [])) - before
+            check(played <= kodi_reads, '%s: played through like Kodi in %d requests (at most %d)' % (label, played, kodi_reads))
         sups = [f for f in drive.files.values() if f['name'].endswith('.sup') and 'movies' in f['parents']]
         if b'S_HDMV/PGS' in drive.files['source']['data'] or 'pgs' in name:
             check(bool(sups) and all(len(f['data']) > 0 for f in sups), '%s: picture subtitles saved beside it (%d)' % (label, len(sups)))
@@ -267,6 +276,10 @@ def main():
     # Pieces small enough for test films (the phone: 32 MB pieces, 96 MB past a mark).
     drive_prepare.MAIN_CHUNK = drive_prepare.CHUNK = 1024 * 1024;drive_prepare.MARK_CAP = 3 * 1024 * 1024
     def want(n):return not only or n in only
+    # r32 sizes fragments from the bitrate (6-60 s); these short films would have only one or two, so no mark to carry
+    # on from: the tests that interrupt them keep 6 s fragments (KR_PREP_FRAG_S). long_big and the HDR films use the
+    # real sizing.
+    os.environ['KR_PREP_FRAG_S'] = '6'
     if want('copy'):
         straight = scenario(lib_path, fixtures, 'long_pgs.mkv')
         scenario(lib_path, fixtures, 'long_pgs.mkv', interrupt_at=2 * 1024 * 1024, expect_same_as=straight)
@@ -276,17 +289,20 @@ def main():
         straight = scenario(lib_path, fixtures, 'long_seek.mkv')
         scenario(lib_path, fixtures, 'long_seek.mkv', interrupt_at=512 * 1024, expect_same_as=straight)
     if want('big'):
+        os.environ.pop('KR_PREP_FRAG_S', None)
         # Phone proportions: fragments (~450 KB here, ~45 MB of 4K remux) above the piece size (256 KB / 32 MB), so Drive
         # is usually between two marks when Kodi closes. A copied picture carries on from anywhere.
         drive_prepare.MAIN_CHUNK = drive_prepare.CHUNK = 256 * 1024;drive_prepare.MARK_CAP = 8 * 1024 * 1024
         try:
-            straight = scenario(lib_path, fixtures, 'long_big.mkv')
+            straight = scenario(lib_path, fixtures, 'long_big.mkv', kodi_reads=60)
             size = LAST_SIZE[0]
             for part in (0.21, 0.47, 0.83):
                 scenario(lib_path, fixtures, 'long_big.mkv', interrupt_at=int(size * part), expect_same_as=straight)
                 scenario(lib_path, fixtures, 'long_big.mkv', interrupt_at=int(size * part), expect_same_as=straight, killed_mid_piece=512 * 1024)
             check(len(SKIPS) >= 1, 'long_big.mkv: at least one run carried on with Drive already past its mark (%d)' % len(SKIPS))
-        finally:drive_prepare.MAIN_CHUNK = drive_prepare.CHUNK = 1024 * 1024;drive_prepare.MARK_CAP = 3 * 1024 * 1024
+        finally:
+            drive_prepare.MAIN_CHUNK = drive_prepare.CHUNK = 1024 * 1024;drive_prepare.MARK_CAP = 3 * 1024 * 1024
+            os.environ['KR_PREP_FRAG_S'] = '6'
     if want('audio'):
         scenario(lib_path, fixtures, 'h264_ac3_dts_srt.mkv')
     if want('hdr'):
