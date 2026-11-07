@@ -166,7 +166,14 @@ def process_one(q, keep_going):
                 fresh=prep.metadata(q.drive,temp_id)
                 if (fresh['md5Checksum'].lower(),int(fresh['size'])) != (main['md5Checksum'].lower(),int(main['size'])):
                     raise RuntimeError('Prepared Drive file checksum differs; original retained')
-                after=q.native.probe(target);before=job.get('probe') or q.native.probe(source)
+                # Build 188: reading a 50 GB movie's index back over a slow line can take longer than one probe's
+                # 120 s; the Drive blocks it read stay cached, so another try gets further.
+                for tries in range(3):
+                    try:after=q.native.probe(target);break
+                    except RuntimeError as error:
+                        if 'timed out' not in str(error) or tries==2:raise
+                        q.log('preparation: checking the Drive file timed out (try %d of 3); trying again'%(tries+1))
+                before=job.get('probe') or q.native.probe(source)
                 if not after.get('ready') or (before['width'],before['height'],before['hdr']) != (after['width'],after['height'],after['hdr']):
                     raise RuntimeError('Prepared video did not preserve resolution/HDR; original retained')
                 q.native.verify(source,target)  # duration, all tracks, middle/end index seeks over HTTP

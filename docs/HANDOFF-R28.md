@@ -99,3 +99,15 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
   checkpoint after Drive confirms (resume_store.py: preparation-resume/<slot>.json, <slot>.side<track>), sidecars
   spooled and uploaded at finish, md5 skipped on a resumed run (Drive md5 + verify decide), ResumeFailed -> start again.
   Tests: scripts/test_resume.py. Exports 23 (build-airplay.sh).
+- Build 187 = run 42341483347 (r30 pinned, sha 4f102aad…). Owner ran it overnight: Kodi never closed, so resume was
+  not exercised yet.
+
+## Build 188 (Python only)
+(owner, build-187 log: Interstellar "timed out"; downloads and AirPlay stop with the screen off)
+- Interstellar converted and uploaded in ~7 h (402 PUT write timeouts of 45 s overnight), then the read-back probe of
+  the Drive file (120 s) timed out and the retry waited behind Fall 2. Now check-only jobs go first (order_key) and the
+  probe is tried 3 times.
+- AirPlay is a keep-awake reason (service.py why): the TV reads from Kodi's in-app server.
+- docs/PROMPT-ALWAYS-RUNNING.md: the owner's prompt for the "works whenever Kodi is open" project (measure first:
+  lifecycle / network path / per-piece upload gaps; then URLSession background uploads, progress-based stalls, audio
+  session, AirPlay while locked, Elementum sockets).

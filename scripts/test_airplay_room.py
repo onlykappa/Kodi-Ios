@@ -37,6 +37,8 @@ class Wiring(unittest.TestCase):
   self.assertIn('airplay.activity(lines,xbmcgui.Window(10000),time.time())',svc)
   self.assertIn('airplay.mark_busy(home,time.time())',send);self.assertIn('lib.kodi_airplay_close();airplay.clear_busy(home)',send)
   self.assertIn('if cast.retry_airplay(outcome,why):',send)
+  # Build 188: Kodi stays awake while AirPlay plays (the TV reads from Kodi's server), before the music exception ends
+  self.assertIn("if airplay.busy(xbmcgui.Window(10000),time.time()):return 'AirPlay'",svc)
   self.assertLess(send.index('airplay.mark_busy(home,time.time())\n lib.kodi_airplay_play'),send.index('cast.airplay_outcome('))
 
 if __name__=='__main__':unittest.main()

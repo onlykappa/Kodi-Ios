@@ -401,7 +401,10 @@ def order_key(slot,job):
  """The order videos are prepared in: the owner's choices first (Start now, Prepare next, ▲ ▼), then videos that
  only need repacking before ones that need re-encoding (owner, build 181: "quick movies first", so one AV1 film
  never holds the others up for an hour), then the order they came in."""
- return (-job.get('priority',0),1 if slow(job) else 0,slot)
+ # Build 188 (owner, build-187 log: Interstellar was converted and uploaded overnight, its last check on Drive timed out,
+ # and the check then waited behind the next movie's hours of conversion): a movie that only needs checking goes first.
+ checked_only=bool((job.get('cloud_output') or {}).get('0'))
+ return (-job.get('priority',0),0 if checked_only else 1,1 if slow(job) else 0,slot)
 
 def queue_order(state,now=None):
  """The ids of the videos waiting in line, in the order they will be prepared (Library status › Waiting, the Queue)."""

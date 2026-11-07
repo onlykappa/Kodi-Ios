@@ -218,6 +218,9 @@ def run():
    def why():
     if not xbmcaddon.Addon().getSettingBool('background_transfers'):return ''
     if xbmc.Player().isPlayingAudio():return ''  # Kodi's own music keeps it running; the silence would make it mixable
+    # Build 188 (owner: "airplay also stops if my screen turns off"): the TV reads the movie from Kodi's own server,
+    # so Kodi stays awake while AirPlay plays, even with nothing else to do.
+    if airplay.busy(xbmcgui.Window(10000),time.time()):return 'AirPlay'
     uploading=xbmcaddon.Addon().getSettingBool('drive_upload') and xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)')
     import prepare_downloads,preparation_runtime,debrid_drive
     if debrid_drive.active(profile):return 'AllDebrid download or Drive transfer'
