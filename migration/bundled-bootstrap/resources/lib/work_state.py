@@ -420,3 +420,11 @@ def metrics_line(job):
     if job.get('state') != RUNNING:
         return job['line']
     return ' · '.join(x for x in (speed(job.get('rate')), left(job.get('eta_s'))) if x) or job['line']
+
+
+
+def job_key(job):
+    """Stable identity for per-job presentation state; titles never identify Drive copies."""
+    job=job or {}
+    return (job.get('kind',''), str(job.get('id') or job.get('hash') or job.get('name') or job.get('title') or ''),
+            str(job.get('folder') or ''))

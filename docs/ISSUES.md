@@ -987,3 +987,19 @@ Status: IN SOURCE on PR #16 (build 193 Phases 1–5, not built); visual and devi
   Regression: `test_build193_pages.test_queued_faster_start_is_counted_once_and_keeps_play`.
 - All initial failures were diagnosed and retested. Visual verification remains PENDING without a Kodi rig;
   build-193 iPhone results are still required. No converter change or device-success claim.
+
+
+### ISSUE-118 — Eight build-193 review findings
+
+- Owner supplied a source review: title-only transfer joins hid the kept original; download Pause used an unsupported
+  pause-file kind; incomplete transfers offered Play; notification cards lacked cancel identifiers; live actions
+  dropped QUICKER; recovery opened behind modal windows; graphs re-rendered unchanged samples; first-seen starts reset
+  and blocked faster-start jobs showed ineffective retry.
+- Fixed all eight in the page/data controllers. Graph files are cached by job and sample signature; stopped
+  faster-start retries are hidden rather than unblocking a known converter failure. No converter or slowdown rules
+  changed. Per-item fixes and regression names: [BUILD-193-UI-HANDOVER.md](BUILD-193-UI-HANDOVER.md).
+- Regression protection: ten additional `test_build193_pages.ReviewFindings` tests, including real controllers with
+  fake Kodi controls, correct engine/cancel targets, recovery dismissal ordering and renderer call counts. Device
+  verification remains with the owner; the desktop rig is not being used as acceptance evidence.
+- Retest: **80/80 test scripts passed** (only `test_drive_runtime.py` excluded); the page suite passes **24 tests**.
+  `check_project.py` and `check_ui_guidance.py` both pass with zero issues/problems. No app/IPA build was run.

@@ -156,7 +156,7 @@ class OnlyFromNotifications(unittest.TestCase):
    kodi.modules['xbmcgui'].Window=Window;kodi.modules['xbmc'].executebuiltin=lambda a:None
    with patch.dict(sys.modules,kodi.modules),patch.object(notices,'downloads',lambda get=None:[]),patch.object(notices,'uploads',lambda p:[]):
     load('notifications_run_t',BOOT/'notifications.py').run()
-   self.assertEqual(seen['title'],'Fall 2');self.assertEqual(seen['now'],'8.0 MB/s');self.assertTrue(seen['graph'].startswith('special://skin/extras/portrait/graph/graph_'))
+   self.assertEqual(seen['title'],'Fall 2');self.assertEqual(seen['now'],'8.0 MB/s');self.assertTrue(seen['graph'].startswith('special://skin/extras/portrait/graph/transfers-') and Path(seen['graph']).name.startswith('graph_'))
    self.assertEqual(seen['after'],'Inception');self.assertTrue(all(w.closed for w in kodi.windows))
    self.assertTrue(os.path.exists(os.path.join(profile,'extras','portrait','graph')))
 

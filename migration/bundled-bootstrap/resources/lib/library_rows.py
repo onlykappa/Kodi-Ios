@@ -150,6 +150,15 @@ def picture_text(probe, kept=False):
 QUICKER = ('Find a version without converting', 'quicker')
 
 
+def matches_job(job, row):
+    """Only conversions may borrow library metadata by title. Transfer rows carry their own job key."""
+    import work_state
+    if row.get('work_key'):
+        return tuple(row['work_key']) == work_state.job_key(job)
+    same_id=bool(job.get('id') and row.get('id') and str(job['id'])==str(row['id']))
+    return same_id or (job.get('kind') in ('conv','repack') and bool(job.get('title')) and job['title']==row.get('title'))
+
+
 def details(row, view):
     """One video's details sheet: title, status (tone ok|warn|plain), quality, up to 4 facts and up to 2 actions
     (label, request) where request is prepare_downloads.request's action, or None."""
@@ -222,14 +231,21 @@ def details(row, view):
         sheet['facts'] = sheet['facts'][:FACTS - 1] + [('Why it is slow', 'AV1 is re-encoded on the phone; HEVC and H.264 are only repackaged')]
     model = view.get('model')
     import work_state
-    live = next((j for j in (model or {}).get('jobs',[]) if j.get('id') == row.get('id') or j.get('title') == row.get('title')), None)
+    live = next((j for j in (model or {}).get('jobs',[]) if matches_job(j,row)), None)
     if live:
+        converting=live['kind'] in ('conv','repack')
+        actions=[('Resume' if live['state']=='paused_by_you' else 'Pause','toggle')]
+        if converting:
+            actions.insert(0,('Play','play'))
+            if row.get('reencode'):actions.append(QUICKER)
+        elif (live['kind']=='down' and live.get('id')) or (live['kind']=='copy' and live.get('hash')):
+            actions.append(('Cancel','cancel'))
         sheet.update(status=live['line'], step=live['step'], bar=str(live.get('pct') or 0), bar_tint=live['tint_now'],
                      card='conv' if live['kind'] in ('conv','repack') else 'up' if live['kind'] in ('copy','upload') else 'down',
-                     actions=[('Play','play'), ('Resume' if live['state']=='paused_by_you' else 'Pause','toggle')])
+                     actions=actions)
     probe = row.get('probe') or {}
     sheet['quality'] = ' · '.join(x for x in (picture_text(probe), str(probe.get('codec') or '').upper(), '%.1f GB'%(size/GB) if size else '') if x)
-    sheet['sentence'] = ('Already plays in Kodi and AirPlay; this makes it open faster.' if live['kind']=='repack' else 'Play on this iPhone while Kodi gets it ready for AirPlay.') if live else ''
+    sheet['sentence'] = ('Already plays in Kodi and AirPlay; this makes it open faster.' if live['kind']=='repack' else 'Play on this iPhone while Kodi gets it ready for AirPlay.') if live and live['kind'] in ('conv','repack') else ''
     ready = state == 'ready'
     sheet['steps'] = [('Downloaded', 'FF30D158'), ('On Drive' if state not in ('downloading','uploading') else 'On Drive…',
                       'FF30D158' if state not in ('downloading','uploading') else DOWN),
@@ -273,10 +289,10 @@ def with_model(view, model):
     active_ids=set()
     for j in (model or {}).get('jobs') or []:
         if j['kind']=='check':continue
-        base=lookup.get(j.get('id')) or by_title.get(j['title']) or {}
+        base=lookup.get(j.get('id')) or (by_title.get(j['title']) if j['kind'] in ('conv','repack') else None) or {}
         state='preparing' if j['kind'] in ('conv','repack') else 'downloading' if j['kind']=='down' else 'uploading'
         r=dict(base,**{k:v for k,v in j.items() if k not in ('state',)})
-        r.update(id=base.get('id') or j.get('id') or 'up',state=state,sub=j['line'],step=j['step'],size=base.get('size') or j.get('total') or 0)
+        r.update(id=base.get('id') or j.get('id') or 'work:'+':'.join(work_state.job_key(j)),work_key=work_state.job_key(j),state=state,sub=j['line'],step=j['step'],size=base.get('size') or j.get('total') or 0)
         rows['preparing' if state=='preparing' else 'downloading'].append(r)
         active_ids.add(r['id'])
     # A ready faster-start job may run; it appears once in the summary.

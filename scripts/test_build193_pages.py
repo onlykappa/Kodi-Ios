@@ -217,4 +217,193 @@ class StateAndActions(unittest.TestCase):
                 self.assertEqual(enqueue.call_args.args[1],{'id':'a'*40,'name':'A.mkv'})
 
 
+class ReviewFindings(unittest.TestCase):
+    """The eight owner-supplied build-193 review findings, exercised without Kodi accounts."""
+    def work(self,kind='conv',**extra):
+        j=dict(model()['jobs'][0],kind=kind,title='Inception (2010)',name='Inception.2010.mkv',id='new-id',hash='a'*40,total=10*MB)
+        j.update(extra)
+        return j
+
+    def view(self,jobs,kept=()):
+        m=dict(model(),jobs=jobs,next=[])
+        v={'rows':{'preparing':[],'downloading':[],'waiting':[],'ready':[],'kept':list(kept)},'checked':'checked just now'}
+        return lr.with_model(v,m)
+
+    def run_library(self,profile,m,script,state=None):
+        import test_library_status as fixture
+        import prepare_downloads as prep
+        import library_status
+        from unittest.mock import patch
+        prep.save(profile,state or {})
+        fake=fixture.FakeKodi(profile,script)
+        with patch.dict(sys.modules,fake.modules),patch.object(ws,'load',return_value=m):
+            library_status.run()
+        return fake
+
+    def test_1_transfer_titles_cannot_replace_or_bind_the_kept_drive_copy(self):
+        kept={'id':'old-drive-id','title':'Inception (2010)','name':'Inception.2010.AV1.mkv','state':'kept',
+              'sub':'Being replaced · a version without conversion is downloading','size':MB,'owner':False}
+        for kind in ('copy','upload','down'):
+            for ident in (None,'another-id'):
+                with self.subTest(kind=kind,id=ident):
+                    j=self.work(kind,id=ident)
+                    view=self.view([j],[dict(kept)])
+                    self.assertEqual(view['rows']['kept'],[kept])
+                    sheet=lr.details(view['rows']['kept'][0],view)
+                    self.assertIsNone(sheet['live']);self.assertEqual(sheet['status'],'Kept as it is')
+                    self.assertEqual(sheet['actions'],[])
+                    self.assertEqual([i['label2'] for i in lr.list_items(view) if i['props']['state']=='kept'],
+                                     ['Being replaced by the new download above'])
+                    self.assertNotEqual(view['rows']['downloading'][0]['id'],'old-drive-id')
+        for kind in ('conv','repack'):
+            self.assertTrue(lr.matches_job(self.work(kind,id=None),kept))
+        self.assertTrue(lr.matches_job(self.work('copy',id='old-drive-id'),kept))
+        self.assertFalse(lr.matches_job(self.work('copy',id=None),dict(kept,id=None)))
+
+    def test_2_elementum_pause_and_resume_use_the_engine(self):
+        import test_library_status as fixture
+        import transfer_control as tc
+        import notices
+        from unittest.mock import patch
+        for state,command in (('running','pause'),('paused_by_you','resume')):
+            with self.subTest(state=state),tempfile.TemporaryDirectory() as profile:
+                j=self.work('down',id='torrent-id',state=state)
+                m=dict(model(),jobs=[j],next=[])
+                script=[(lp.WINDOW,fixture.tap(lp.SLOT)),(lp.ITEM,fixture.tap(9201)),(lp.WINDOW,fixture.tap(lp.BACK))]
+                with patch.object(notices,'engine_action',return_value=True) as engine,patch.object(tc,'set_paused') as flags:
+                    self.run_library(profile,m,script)
+                engine.assert_called_once_with(command,'torrent-id');flags.assert_not_called()
+
+    def test_3_transfer_sheets_have_pause_cancel_without_play(self):
+        for kind in ('copy','down','upload'):
+            with self.subTest(kind=kind):
+                j=self.work(kind,id='up' if kind=='copy' else 'torrent')
+                view=self.view([j]);row=view['rows']['downloading'][0]
+                sheet=lr.details(row,view)
+                self.assertEqual(sheet['actions'][0],('Pause','toggle'))
+                self.assertFalse(any(action in ('play','tv') for _,action in sheet['actions']))
+                self.assertEqual(sheet['sentence'],'')
+                if kind!='upload':self.assertEqual(sheet['actions'][1],('Cancel','cancel'))
+        import test_library_status as fixture
+        import transfer_control as tc
+        import notices
+        from unittest.mock import patch
+        for kind in ('copy','down'):
+            with self.subTest(cancel=kind),tempfile.TemporaryDirectory() as profile:
+                j=self.work(kind,id='torrent')
+                m=dict(model(),jobs=[j],next=[])
+                script=[(lp.WINDOW,fixture.tap(lp.SLOT)),(lp.ITEM,fixture.tap(9202)),(lp.WINDOW,fixture.tap(lp.BACK))]
+                with patch.object(notices,'engine_action',return_value=True) as engine:
+                    self.run_library(profile,m,script)
+                if kind=='down':engine.assert_called_once_with('cancel','torrent')
+                else:
+                    engine.assert_not_called();self.assertEqual(tc.cancelled_copies(profile),{'a'*40})
+
+    def test_4_notification_cards_keep_both_cancel_targets(self):
+        import test_library_status as fixture
+        import prepare_downloads as prep
+        import transfer_control as tc
+        import types
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as profile:
+            prep.save(profile,fixture.library_state())
+            m=dict(model(),jobs=[self.work('conv',id=None),self.work('copy',id=None)],next=[])
+            seen={}
+            def inspect(w):
+                seen['conv']=dict(w.current);seen['copy']=dict(w.ups[0])
+            fake=fixture.FakeKodi(profile,[('IOSNotifications.xml',inspect),('IOSNotifications.xml',fixture.tap(9001))])
+            fake.modules['xbmcgui'].Window=lambda ident:types.SimpleNamespace(setProperty=lambda *a:None)
+            with patch.dict(sys.modules,fake.modules),patch.object(ws,'load',return_value=m):notifications.run()
+            self.assertEqual(seen['conv']['id'],'p1')
+            self.assertIn(('Cancel conversion','cancel'),tc.menu('conv',seen['conv']))
+            self.assertEqual((seen['copy']['source'],seen['copy']['hash']),('debrid','a'*40))
+            self.assertIn(('Cancel this download','cancel'),tc.menu('up',seen['copy']))
+
+    def test_5_reencoding_keeps_quicker_as_the_third_sheet_button(self):
+        j=self.work('conv')
+        view=self.view([j]);row=view['rows']['preparing'][0];row['reencode']=True
+        self.assertEqual(lr.details(row,view)['actions'],[('Play','play'),('Pause','toggle'),lr.QUICKER])
+        j['state']='paused_by_you'
+        self.assertEqual(lr.details(row,view)['actions'],[('Play','play'),('Resume','toggle'),lr.QUICKER])
+        row['reencode']=False
+        self.assertEqual(len(lr.details(row,view)['actions']),2)
+        self.assertIn('id="9203"',lp.item_sheet(p))
+
+    def test_6_recovery_dismisses_all_modals_before_running_its_action(self):
+        import test_library_status as fixture
+        import library_status
+        import prepare_downloads as prep
+        from unittest.mock import patch
+        action='ActivateWindow(Videos,plugin://plugin.googledrive/,return)'
+        for in_sheet in (False,True):
+            with self.subTest(sheet=in_sheet),tempfile.TemporaryDirectory() as profile:
+                prep.save(profile,{})
+                m=dict(model(),jobs=[self.work()],next=[],needs=[{'title':'Sign in','text':'Again','button':'Sign in','action':action}])
+                script=([(lp.WINDOW,fixture.tap(lp.WORK)),(lp.ITEM,fixture.tap(lp.NEED))] if in_sheet else [(lp.WINDOW,fixture.tap(lp.NEED))])
+                fake=fixture.FakeKodi(profile,script);seen=[]
+                fake.modules['xbmc'].executebuiltin=lambda command:seen.append((command,[w.closed for w in fake.windows]))
+                with patch.dict(sys.modules,fake.modules),patch.object(ws,'load',return_value=m):library_status.run()
+                self.assertEqual(seen,[(action,[True]*(2 if in_sheet else 1))])
+
+    def test_7_plot_cache_reuses_files_until_count_or_last_time_changes(self):
+        from unittest.mock import patch
+        for namespace in ('item','spark','transfers'):
+            with self.subTest(namespace=namespace),tempfile.TemporaryDirectory() as folder,patch.object(th,'render',return_value=b'png') as render:
+                cache=th.GraphCache(namespace);key=ws.job_key(self.work())
+                points=[[1,MB],[2,2*MB]]
+                image=cache.image(key,points,ws.PURPLE,folder,'special://plot',width=40,height=20)
+                for _ in range(5):self.assertEqual(cache.image(key,points,ws.GREY,folder,'special://plot',now=1000),image)
+                self.assertEqual(render.call_count,1)
+                points.append([3,3*MB]);updated=cache.image(key,points,ws.PURPLE,folder,'special://plot')
+                self.assertNotEqual(updated,image);self.assertEqual(render.call_count,2)
+                points[-1][0]=4
+                cache.image(key,points,ws.PURPLE,folder,'special://plot');self.assertEqual(render.call_count,3)
+                other=ws.job_key(self.work(id='other'))
+                cache.image(other,points,ws.PURPLE,folder,'special://plot');self.assertEqual(render.call_count,4)
+                cache.image(key,points,ws.PURPLE,folder,'special://plot');self.assertEqual(render.call_count,4)
+
+    def test_7_all_three_page_graphs_use_the_cache_on_repeated_refresh(self):
+        import test_library_status as fixture
+        import transfers as controller
+        from unittest.mock import patch
+        j=self.work();m=dict(model(),jobs=[j],next=[])
+        now=time.time();history={'jobs':{'conv':{'title':j['title'],'start':now-60,'last':now,'points':[[now-60,MB],[now,2*MB]],'n':2,'sum':3*MB,'peak':2*MB}}}
+        with tempfile.TemporaryDirectory() as profile,patch.object(th,'load',return_value=history),patch.object(th,'render',return_value=b'png') as render:
+            script=[(lp.WINDOW,lambda w:w.refresh()),(lp.WINDOW,fixture.tap(lp.WORK)),
+                    (lp.ITEM,lambda w:(w.show(w.sheet),w.show(w.sheet))),
+                    (lp.ITEM,fixture.tap(9200)),(lp.WINDOW,fixture.tap(lp.BACK))]
+            self.run_library(profile,m,script)
+            self.assertEqual(render.call_count,2)  # one sparkline, one movie plot
+            fake=fixture.FakeKodi(profile,[(tp.WINDOW,lambda w:(w.refresh(),w.refresh())),(tp.WINDOW,fixture.tap(tp.BACK))])
+            with patch.dict(sys.modules,fake.modules),patch.object(ws,'load',return_value=m):controller.run()
+            self.assertEqual(render.call_count,3)  # one Transfers plot
+
+    def test_8_missing_history_keeps_first_seen_time_per_job(self):
+        j=self.work('copy',id=None);m=dict(model(),jobs=[j],next=[]);seen={}
+        props=transfers.page_state({},1000,'up',[],m,seen)[0]
+        self.assertEqual(props['started'],'just now')
+        props=transfers.page_state({},1200,'up',[],m,seen)[0]
+        self.assertEqual(props['started'],'3 min ago')
+        history={'jobs':{'up':{'title':j['title'],'start':950,'last':1200,'points':[]}}}
+        transfers.page_state(history,1200,'up',[],m,seen)
+        self.assertEqual(transfers.page_state({},1250,'up',[],m,seen)[0]['started'],'5 min ago')
+        transfers.page_state({},1300,'up',[],dict(m,jobs=[]),seen)
+        self.assertEqual(transfers.page_state({},1400,'up',[],m,seen)[0]['started'],'just now')
+
+    def test_8_stopped_faster_start_has_no_ineffective_history_retry(self):
+        import prepare_downloads as prep
+        with tempfile.TemporaryDirectory() as profile:
+            job={'source':{'id':'failed-id','name':'Failed.mkv'},'status':'failed','blocked':True,
+                 'repack':True,'repack_failed':'MP4 packet: Invalid argument'}
+            prep.save(profile,{'jobs':{'slot':job}})
+            entry={'tone':'bad','kind':'conv','title':'Failed','result':'MP4 packet: Invalid argument','end':time.time()}
+            entry['retry']=tool_windows.retry_target(profile,entry)
+            self.assertIsNone(entry['retry'])
+            h={'rows':[entry],'total':'0 MB','count':0,'failed':1,'busiest':''}
+            self.assertEqual(lt.history_properties(h,'today')['h.1.retry'],'')
+            self.assertTrue(prep.load(profile)['jobs']['slot']['blocked'])
+            job.pop('blocked');job.pop('repack_failed');prep.save(profile,{'jobs':{'slot':job}})
+            self.assertEqual(tool_windows.retry_target(profile,entry),('conv','failed-id'))
+
+
 if __name__=='__main__':unittest.main()

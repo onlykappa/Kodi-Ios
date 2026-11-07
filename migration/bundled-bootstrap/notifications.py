@@ -27,6 +27,14 @@ def card_properties(downloads,uploads):
  props['up.summary']=' · '.join(x for x in (u.get('folder',''),'then off the phone') if x) if u else ''
  return props
 
+def transfer_card(job, running_id=''):
+ """Control metadata stays with the model card so its long-press menu can cancel the right job."""
+ card=dict(job,progress=job.get('pct') or 0,paused=job.get('state')=='paused_by_you')
+ if job.get('kind') in ('conv','repack'):card['id']=job.get('id') or running_id
+ if job.get('kind')=='copy':card.update(source='debrid',hash=job.get('hash') or '')
+ return card
+
+
 def model_cards(state,running_id=''):
  """Build 193: the Preparing and Uploading cards from the status model (work_state), the same words as Library status,
  Transfers and the bell. Returns (prepare card or {}, upload line or '')."""
@@ -141,12 +149,10 @@ def run():
     import work_state
     model=work_state.load(profile) if show_live else None
     jobs=(model or {}).get('jobs') or []
-    def card(j):
-     return dict(j,progress=j.get('pct') or 0,paused=j.get('state')=='paused_by_you')
-    self.downloads=[card(j) for j in jobs if j['kind']=='down']
-    ups=[card(j) for j in jobs if j['kind'] in ('copy','upload')]
+    self.downloads=[transfer_card(j) for j in jobs if j['kind']=='down']
+    ups=[transfer_card(j) for j in jobs if j['kind'] in ('copy','upload')]
     conv=work_state.job(model,'conv')
-    current=card(conv) if conv else {}
+    current=transfer_card(conv,prepare_downloads.running_id(prepare_downloads.load(profile))) if conv else {}
     self.ups,self.current=ups,current
     self.setProperty('live','true' if jobs else '')
     self.setProperty('has.prepare','true' if current else '')

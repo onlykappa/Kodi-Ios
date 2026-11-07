@@ -189,11 +189,12 @@ def retry_target(profile, entry):
     import debrid_drive
     import drivelibrary
     if entry.get('kind')=='conv':
-        matches=[j['source']['id'] for j in (prep.load(profile).get('jobs') or {}).values()
+        matches=[j for j in (prep.load(profile).get('jobs') or {}).values()
                  if (j.get('source') or {}).get('id') and
                  drivelibrary.display_title(j['source'].get('name',''))==entry.get('title')]
-        ids=set(matches)
-        return ('conv',matches[0]) if len(ids)==1 else None
+        ids={j['source']['id'] for j in matches}
+        stopped=any(j.get('blocked') and j.get('repack_failed') for j in matches)
+        return ('conv',matches[0]['source']['id']) if len(ids)==1 and not stopped else None
     if entry.get('kind')=='up':
         matches=[j for j in debrid_drive.load(profile).get('jobs') or [] if j.get('status')=='failed' and
                  (j.get('title') or drivelibrary.display_title(j.get('name','')))==entry.get('title')]

@@ -7,7 +7,7 @@ Check now (top right) asks the service to look at Google Drive again; a row open
 service applies on its next pass (prepare_downloads.request)."""
 import os,shutil,sys,threading,time
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
-import library_page,library_rows,prepare_downloads,tool_windows
+import library_page,library_rows,prepare_downloads,tool_windows,transfer_history
 
 BACK=(9,10,92,110)
 # By id: a script started through RunScript(service.kodi.ios.bootstrap,...) runs via default.py's runpy, and Kodi
@@ -77,8 +77,9 @@ def run(args=()):
  class Details(xbmcgui.WindowXMLDialog):
   def setup(self,sheet,row,fresh=None):
    self.sheet,self.row,self.chosen,self.fresh=sheet,row,None,fresh
+   self.recovery=''
   def onInit(self):
-   self.stop=threading.Event();self.counter=0
+   self.stop=threading.Event();self.graphs=transfer_history.GraphCache('item')
    self.show(self.sheet)
    if not self.sheet['actions']:
     try:self.setFocusId(9200)
@@ -119,12 +120,11 @@ def run(args=()):
           'card.started':time.strftime('%H:%M',time.localtime(j['start'])) if j.get('start') else '–'}
    for k,v in transfer_history.graph_labels(points,j.get('start')).items():props['card.'+k]=v
    props['card.peak']=transfer_history.mb(j.get('peak'))
-   if len(points)>1:
-    self.counter+=1
-    folder=os.path.join(xbmcvfs.translatePath('special://skin/'),'extras','portrait','graph')
-    props['card.graph']='special://skin/extras/portrait/graph/'+transfer_history.write_graph(folder,self.counter,
-      transfer_history.render(points,live.get('tint_now') or library_rows.DOWN,width=832,height=240,scale=transfer_history.device_scale(),start=points[0][0],now=time.time()))
-   else:props['card.graph']=''
+   import work_state
+   folder=os.path.join(xbmcvfs.translatePath('special://skin/'),'extras','portrait','graph')
+   props['card.graph']=self.graphs.image(work_state.job_key(live),points if len(points)>1 else [],
+      live.get('tint_now') or library_rows.DOWN,folder,'special://skin/extras/portrait/graph',
+      width=832,height=240,scale=transfer_history.device_scale(),start=j.get('start'),now=points[-1][0] if points else None)
    for k,v in props.items():self.setProperty(k,v)
   def loop(self):
    monitor=xbmc.Monitor()
@@ -140,7 +140,7 @@ def run(args=()):
    if action.getId() in BACK:self.finish()
   def onClick(self,control):
    if control==9004 and self.sheet.get('need',{}).get('action'):
-    xbmc.executebuiltin(self.sheet['need']['action'])
+    self.recovery=self.sheet['need']['action'];self.finish()
    elif control in (9201,9202,9203) and len(self.sheet['actions'])>control-9201:
     self.chosen=self.sheet['actions'][control-9201];self.finish()
    elif control in (9200,9099):self.finish()
@@ -149,7 +149,7 @@ def run(args=()):
 
  class Page(xbmcgui.WindowXMLDialog):
   def onInit(self):
-   self.offset=0;self.counter=0;self.filter=getattr(self,'filter','all');self.checking=0;self.shown=None;self.view=None
+   self.offset=0;self.graphs=transfer_history.GraphCache('spark');self.filter=getattr(self,'filter','all');self.checking=0;self.shown=None;self.view=None
    self.stop=threading.Event();self.busy=threading.Lock()
    self.setProperty('filter',self.filter);self.setProperty('title',library_rows.TITLES.get(self.filter,'Library status'))
    self.refresh(force=True)
@@ -183,14 +183,15 @@ def run(args=()):
     self.setProperty('work.ring',library_rows.ring_name(conv.get('pct')))
     self.setProperty('work.percent','' if conv.get('indeterminate') else '%d%%'%float(conv.get('pct') or 0))
     self.setProperty('work.poster',poster(conv))
-    self.setProperty('work.graph','')
+    graph=''
     if conv:
      import transfer_history as th
      j=(th.load(profile).get('jobs') or {}).get('conv') or {}
      if j.get('title')==conv.get('title') and j.get('points'):
-      self.counter+=1;folder=os.path.join(xbmcvfs.translatePath('special://skin/'),'extras','portrait','spark')
-      self.setProperty('work.graph','special://skin/extras/portrait/spark/'+th.write_graph(folder,self.counter,
-       th.render(j['points'],conv['tint_now'],360,80,scale=th.device_scale(),guides=False)))
+      folder=os.path.join(xbmcvfs.translatePath('special://skin/'),'extras','portrait','spark')
+      graph=self.graphs.image(work_state.job_key(conv),j['points'],conv['tint_now'],folder,
+       'special://skin/extras/portrait/spark',width=360,height=80,scale=th.device_scale(),guides=False)
+    self.setProperty('work.graph',graph)
     for n in range(library_page.SLOTS):
      i=items[self.offset+n] if self.offset+n<len(items) else {}
      r=i.get('row',{});props=i.get('props',{})
@@ -217,7 +218,7 @@ def run(args=()):
    elif FILTER_BASE<=control<FILTER_BASE+len(library_page.FILTERS):self.set_filter(library_page.FILTERS[control-FILTER_BASE][0])
    elif control==library_page.NEED:
     need=((self.view.get('model') or {}).get('needs') or [{}])[0]
-    if need.get('action'):xbmc.executebuiltin(need['action'])
+    if need.get('action'):self.finish();xbmc.executebuiltin(need['action'])
    elif control==library_page.WORK:
     import work_state
     conv=work_state.job(self.view.get('model'),'conv')
@@ -250,20 +251,35 @@ def run(args=()):
     for rows in view['rows'].values():
      for r in rows:
       if r.get('id')==wanted.get('id') and r.get('title')==wanted.get('title'):return library_rows.details(r,view),r
-    matches=[r for group in view['rows'].values() for r in group if r.get('title')==wanted.get('title')]
+    matches=[r for group in view['rows'].values() for r in group if wanted.get('state')=='preparing' and r.get('state') in ('preparing','ready') and r.get('title')==wanted.get('title')]
     if len(matches)==1:return library_rows.details(matches[0],view),matches[0]
     return None
    sheet.setup(library_rows.details(item['row'],self.view),item['row'],fresh)
    sheet.doModal()
-   chosen=sheet.chosen
+   chosen=sheet.chosen;recovery=sheet.recovery;chosen_row=sheet.row;live=sheet.sheet.get('live') or {}
    if hasattr(sheet,'stop'):sheet.stop.set()
    del sheet
+   if recovery:self.finish();xbmc.executebuiltin(recovery);return
    if chosen and chosen[1] in ('play','tv'):
-    play(item['row'],chosen[1]=='tv');return
-   if chosen and chosen[1]=='toggle':
+    play(chosen_row,chosen[1]=='tv');return
+   if chosen and chosen[1] in ('toggle','cancel'):
     import transfer_control
-    kind=library_rows.details(item['row'],self.view).get('card') or 'conv'
-    transfer_control.set_paused(profile,kind,not transfer_control.paused(profile,kind));self.refresh(force=True);return
+    kind=live.get('kind')
+    action=chosen[1]
+    if kind=='down':
+     command='resume' if live.get('state')=='paused_by_you' else 'pause'
+     if action=='cancel':
+      if not dialog.yesno('Cancel download','Stop downloading %s and delete what has downloaded so far?'%live.get('title','this video')):return
+      command='cancel'
+     if live.get('id') and not notices.engine_action(command,live['id']):
+      dialog.notification('Elementum','The download engine did not answer',xbmcgui.NOTIFICATION_WARNING,3000)
+    elif action=='toggle':
+     channel='conv' if kind in ('conv','repack') else 'up'
+     transfer_control.set_paused(profile,channel,not transfer_control.paused(profile,channel))
+    elif kind=='copy' and live.get('hash'):
+     if dialog.yesno('Cancel download','Stop copying %s from AllDebrid to Google Drive? What has been copied so far is dropped.'%live.get('title','this video')):
+      transfer_control.cancel_copy(profile,live['hash'])
+    self.refresh(force=True);return
    if chosen and chosen[1]=='quicker':
     find_quicker(item['row']);return
    if chosen and chosen[1]=='now':

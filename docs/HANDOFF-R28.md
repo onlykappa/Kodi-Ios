@@ -227,8 +227,22 @@ change up the layouts")
   [BUILD-193-UI-HANDOVER.md](BUILD-193-UI-HANDOVER.md).
 - Only `claude/trusting-euler-kgug98` was used. Draft PR #16 remains based on `main`. Every new commit uses `[skip ci]`.
   No converter or native pin changes (KodiAirPlay r33), no app/IPA build, release or merge.
-- Visual verification is **PENDING**: no installed desktop Kodi rig. Approved HTML is evidence class **mockup**;
-  actual **device** evidence must come from the owner's iPhone. Host XML/pixel tests do not prove appearance.
+- Visual verification is **PENDING** on the owner's iPhone; the later desktop rig experiment was stopped at the
+  owner's request. Approved HTML is evidence class **mockup**; host XML/pixel tests do not prove appearance.
 - Validation: **80/80** `scripts/test_*.py` passed (only `test_drive_runtime.py` excluded); final focused
   `test_build193_pages.py` passes 14 tests. `check_project.py` and `check_ui_guidance.py` both pass, with zero issues.
   Updated old layout pins follow the approved boards; no test was removed or weakened to hide a failure.
+
+
+(build-193 owner review, eight findings; source only, no build)
+- Separate transfer identity from titles so the kept old Drive copy and its sheet survive a replacement download.
+  Elementum Pause/Resume/Cancel uses the engine; incomplete transfer sheets do not offer Play. Notification cards
+  retain conversion IDs and AllDebrid source/hash metadata, and AV1 conversions retain QUICKER as the third action.
+- Needs-you recovery closes sheet/page before executing its action. Graphs cache per job/sample count/last time;
+  Transfers retain first-seen starts while history catches up. History hides retry for blocked + repack_failed jobs
+  instead of bypassing the deliberate REPACK_STOPS block.
+- Ten added regression tests in `test_build193_pages.ReviewFindings`; item-by-item rationale and test names are in
+  [BUILD-193-UI-HANDOVER.md](BUILD-193-UI-HANDOVER.md). The owner prefers the iPhone for the next visual review;
+  desktop rig work was stopped and no uncommitted rig layout changes are included.
+- Follow-up validation: **80/80 test scripts passed**, excluding only `test_drive_runtime.py`.
+  `test_build193_pages.py` passes **24 tests**; `check_project.py` and `check_ui_guidance.py` pass with zero issues.

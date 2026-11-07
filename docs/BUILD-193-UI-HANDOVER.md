@@ -83,8 +83,8 @@ The full sweep was followed by focused retests for the final caption/tint and sa
 
 - **Mockup:** `docs/design/library-status-mockups-r1.html` is the owner's approved reference. No new mockup screenshot
   is presented as app evidence.
-- **Desktop Kodi rig:** unavailable in this environment (`kodi`/`kodi-x11` not installed or supplied). Visual
-  verification is **PENDING**. No Kodi source build was attempted.
+- **Desktop Kodi rig:** a later desktop experiment was stopped at the owner's request. Its uncommitted layout
+  changes are excluded; no rig capture is acceptance evidence. Visual verification is **PENDING** on the iPhone.
 - **Device:** PENDING. The owner must check all nine boards, scrolling/taps, ring colours/percentage, long titles,
   graph clarity, movie-sheet transition to ready, and two-second agreement while converting, paused, signed out,
   retrying, playing a video, and using AirPlay. Confirm Play/Play on TV, Pause/Resume, Queue arrows and History retry.
@@ -102,3 +102,28 @@ Differences/limits to check against the mockup:
   beyond 40 Library rows, 10 Queue jobs or 12 History entries, keeping larger libraries/history accessible.
 - Legacy History records have no stable job ID. Retry resolves only an unambiguous current preparation ID or
   failed AllDebrid hash/episode; unmatched or ambiguous records have no unsafe guessed retry action.
+
+
+## Owner review follow-up (build 193, source only)
+
+The owner chose device review instead of continuing the desktop rig. The rig processes were stopped;
+its uncommitted layout experiments were set aside. This follow-up preserves the committed layout and
+addresses the eight supplied behavior findings. No app/IPA build, converter change, release or merge.
+
+| Review item | Root cause and fix | Regression in `test_build193_pages.ReviewFindings` |
+|---|---|---|
+| 1 | Transfer titles borrowed the kept Drive file's metadata/identity. Copy/upload/download joins now require a nonempty matching ID; synthetic transfer rows retain a separate model job key. Only conversion/re-pack joins may fall back to a title. The kept row and its sheet stay independent. | `test_1_transfer_titles_cannot_replace_or_bind_the_kept_drive_copy` |
+| 2 | Movie-sheet Pause passed Elementum's `down` kind to the pause-file API. Down jobs now call the engine's pause/resume endpoint with the model's torrent ID. | `test_2_elementum_pause_and_resume_use_the_engine` |
+| 3 | Every live sheet received Play, including incomplete transfers. Play is limited to conv/repack; downloads/copies have Pause/Resume and confirmed Cancel when their target ID/hash is known. Plain phone uploads keep Pause/Resume. | `test_3_transfer_sheets_have_pause_cancel_without_play` |
+| 4 | Notification model cards dropped the control metadata. Conversion cards retain the running Drive ID; AllDebrid cards retain `source=debrid` and their hash, restoring both Cancel menu entries. | `test_4_notification_cards_keep_both_cancel_targets` |
+| 5 | Live-action replacement discarded QUICKER. Re-encoding movies retain it as the third action beside Play and Pause/Resume. | `test_5_reencoding_keeps_quicker_as_the_third_sheet_button` |
+| 6 | Recovery ran underneath a modal. Sheet recovery is returned to its parent; the sheet and page close before executing the action. A page's own recovery button closes the page first. | `test_6_recovery_dismisses_all_modals_before_running_its_action` |
+| 7 | Polling re-rendered unchanged samples. Per-job plot caches reuse the previous file until point count or last sample time changes. Item, sparkline and Transfers caches have separate namespaces and job paths. | Both `test_7_*` tests (cache invalidation and repeated actual-controller refreshes) |
+| 8 | Synthetic history reset start to each refresh's clock; failed re-packs offered an ineffective retry. Transfers now retain first-seen times per job, accepting earlier sampled starts. History hides retry when the matched job is both blocked and repack_failed, preserving REPACK_STOPS. | Both `test_8_*` tests (clock persistence and stopped faster-start recovery) |
+
+Ten new regressions cover all eight findings. `test_transfers.py`'s graph-path assertion now checks the job-scoped
+cache path rather than the old shared filename. No existing test was removed. Device behavior remains pending.
+
+Final follow-up validation: **80/80 test scripts passed**, excluding only `test_drive_runtime.py` as requested.
+`test_build193_pages.py` passes **24 tests** (14 existing plus ten review regressions). Both
+`python3 -B scripts/check_project.py` and `python3 -B scripts/check_ui_guidance.py` pass with zero issues/problems.

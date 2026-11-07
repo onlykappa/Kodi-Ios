@@ -356,3 +356,26 @@ def write_graph(folder, counter, png):
         f.write(png)
     os.replace(path + '.tmp', path)
     return name
+
+
+
+class GraphCache:
+    """A page's plots are repainted only when that job's point count or last sample time changes."""
+    def __init__(self, namespace):
+        self.namespace=namespace
+        self.entries={}
+        self.counter=0
+
+    def image(self, identity, points, colour, folder, prefix, **options):
+        if not points:return ''
+        identity=tuple(identity)
+        signature=(len(points),points[-1][0])
+        previous=self.entries.get(identity)
+        if previous and previous[0]==signature:return previous[1]
+        import hashlib
+        stream=self.namespace+'-'+hashlib.sha256(repr(identity).encode()).hexdigest()[:12]
+        self.counter+=1
+        name=write_graph(os.path.join(folder,stream),self.counter,render(points,colour,**options))
+        path=prefix.rstrip('/')+'/'+stream+'/'+name
+        self.entries[identity]=(signature,path)
+        return path

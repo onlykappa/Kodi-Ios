@@ -34,16 +34,25 @@ def model_job(model,kind):
  return next((j for key,j in model_entries(model) if key==kind),None)
 
 
-def page_state(history,now,wanted,queued,model=None):
+def page_state(history,now,wanted,queued,model=None,first_seen=None):
  """(window properties, bar percent, shown kind, the other running kinds) for one refresh (pure: tested without Kodi).
  model: the status model (work_state.load); it decides what runs, its words and the empty state's words."""
  history=live(history,model)
  if model is not None:
+  import work_state
+  entries=model_entries(model)
+  first_seen={} if first_seen is None else first_seen
+  active={work_state.job_key(j) for _,j in entries}
+  for identity in list(first_seen):
+   if identity not in active:first_seen.pop(identity)
   jobs={}
-  for k,j in model_entries(model):
-   old=(history.get('jobs') or {}).get(k,{})
+  for k,j in entries:
+   old=(history.get('jobs') or {}).get(k) or (history.get('jobs') or {}).get(k.split('.')[0],{})
    if old.get('title')!=j['title']:old={}
-   jobs[k]=dict(old,kind=k,title=j['title'],start=old.get('start',now),last=now,
+   identity=work_state.job_key(j)
+   start=first_seen.setdefault(identity,old.get('start',now))
+   start=min(start,old.get('start',start));first_seen[identity]=start
+   jobs[k]=dict(old,kind=k,title=j['title'],start=start,last=now,
                 pct=j.get('pct'),done=j.get('sent') or 0,total=j.get('total') or 0)
   history=dict(history,jobs=jobs)
  kind=(wanted if wanted in history.get('jobs',{}) else next(iter(history.get('jobs',{})),None)) if model is not None else th.pick(history,wanted,now)
@@ -155,7 +164,7 @@ def run(args=()):
  here=os.path.dirname(os.path.abspath(__file__))
  class Page(xbmcgui.WindowXMLDialog):
   def onInit(self):
-   self.wanted=wanted;self.others=[];self.counter=0;self.stop=threading.Event();self.lock=threading.Lock()
+   self.wanted=wanted;self.others=[];self.first_seen={};self.graphs=th.GraphCache('transfers');self.stop=threading.Event();self.lock=threading.Lock()
    self.refresh();threading.Thread(target=self.loop,daemon=True).start()
   def loop(self):
    monitor=xbmc.Monitor()
@@ -168,12 +177,13 @@ def run(args=()):
     nexts=[]   # queue order and words come from the same published snapshot as the jobs
     import work_state
     model=work_state.load(profile,now) or {'mode':'stale','headline':'Updating…','jobs':[],'next':[]}
-    props,pct,kind,self.others=page_state(history,now,self.wanted,nexts,model)
+    props,pct,kind,self.others=page_state(history,now,self.wanted,nexts,model,self.first_seen)
     if kind:
-     job=(history.get('jobs') or {}).get(kind) or {}
+     job=(history.get('jobs') or {}).get(kind) or (history.get('jobs') or {}).get(kind.split('.')[0]) or {}
      if job.get('title')!=props['title']:job={}
-     self.counter+=1
-     props['graph']='special://skin/extras/portrait/graph/'+th.write_graph(folder,self.counter,th.render(job.get('points') or [],props['tint'],width=832,height=320,scale=th.device_scale(),start=job.get('start',now),now=now))
+     props['graph']=self.graphs.image(work_state.job_key(model_job(model,kind)),job.get('points') or [],
+      props['tint'],folder,'special://skin/extras/portrait/graph',width=832,height=320,scale=th.device_scale(),
+      start=job.get('start'),now=(job.get('points') or [[now]])[-1][0])
     for k,v in props.items():self.setProperty(k,v)
     try:self.getControl(tp.BAR).setPercent(float(pct))
     except Exception:pass
