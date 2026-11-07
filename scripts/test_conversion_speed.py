@@ -383,4 +383,18 @@ class PreparedAirPlayServer(unittest.TestCase):
   self.assertNotIn('kr_source_open',serve);self.assertIn('prepared_read(first,buffer,want,error,sizeof error)',serve)
   self.assertIn('#define PC_BLOCK (4 * 1024 * 1024)',c);self.assertEqual(c.count('prepared_cache_clear();'),2)
 
+class UploadStalls(unittest.TestCase):
+ """Build-184 log: a 32 MB piece hung 120 s with nothing moving before it was retried, and with only 2 pieces allowed
+ to wait the converter stopped too."""
+ def test_stall_gives_up_sooner_and_more_pieces_wait(self):
+  import driveupload,drive_prepare,inspect
+  self.assertEqual(driveupload.STALL,45);self.assertEqual(inspect.signature(driveupload.sender).parameters['timeout'].default,45)
+  self.assertEqual(drive_prepare.AHEAD,4)
+ def test_elementum_upload_capped_unless_the_owner_chose(self):
+  import bootstrap
+  got={}
+  self.assertTrue(bootstrap.elementum_upload_cap(lambda k:'0',got.__setitem__));self.assertEqual(got,{'max_upload_rate':'1024'})
+  got.clear();self.assertFalse(bootstrap.elementum_upload_cap(lambda k:'500',got.__setitem__));self.assertEqual(got,{})
+  self.assertIn('elementum_upload_cap(engine.getSetting,engine.setSetting)',(ROOT/'migration/bundled-bootstrap/service.py').read_text())
+
 if __name__=='__main__':unittest.main()

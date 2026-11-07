@@ -11,7 +11,7 @@ if __name__=='__main__' and not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
   import native_ui
   threading.Thread(target=native_ui.run,args=(xbmc,xbmcvfs,xbmc.Monitor()),daemon=True).start()
   _EARLY_UI_STARTED=True
-from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
+from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,elementum_upload_cap,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
 import activity,signin_server,airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready,diagnostics
@@ -112,6 +112,7 @@ def run():
     engine=xbmcaddon.Addon('plugin.video.elementum')
     folder=elementum_defaults(updates.updates_folder(home).with_name('Elementum Downloads'),engine.getSetting,engine.setSetting)
     if folder:xbmc.log('Kodi iOS setup set Elementum downloads to '+folder,xbmc.LOGINFO)
+    if elementum_upload_cap(engine.getSetting,engine.setSetting):xbmc.log('Kodi iOS setup capped Elementum torrent upload at 1 MB/s',xbmc.LOGINFO)
    except Exception as error:xbmc.log('Kodi iOS Elementum defaults skipped: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
   # Once per phone: folders the Deck config expects, phone-useless network discovery off (ISSUE-070).
   try:

@@ -19,7 +19,7 @@ CHUNK = 8 * 1024 * 1024  # Drive requires multiples of 256 KiB
 # piece): the movie goes up in 32 MB pieces on its own thread, AHEAD pieces may wait their turn, and the converter
 # only waits when all of them are full.
 MAIN_CHUNK = 32 * 1024 * 1024
-AHEAD = 2
+AHEAD = 4   # build 185: 4 x 32 MB may wait, so a short upload stall does not stop the converter
 
 
 def discard(drive, item_id):

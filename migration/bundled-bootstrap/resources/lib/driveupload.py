@@ -376,7 +376,11 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
    while os.path.basename(folder) not in ('Movies','TV Shows') and not os.listdir(folder):os.rmdir(folder);folder=os.path.dirname(folder)
  return count
 
-def sender(context,timeout=120,log=lambda message:None):
+# Build-184 log: a 32 MB piece hung with no progress for 120 s ("The write operation timed out") and only then was
+# retried. The socket timeout is per send/receive, so 45 s means 45 s with nothing moving; the piece is then retried
+# on a new connection (the resumable session asks Drive what it kept first).
+STALL=45
+def sender(context,timeout=STALL,log=lambda message:None):
  """HTTP for Drive with the given TLS context; returns (status, headers, body) without following redirects."""
  import diagnostics
  class NoRedirect(urllib.request.HTTPRedirectHandler):
