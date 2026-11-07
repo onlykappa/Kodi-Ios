@@ -126,3 +126,11 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
   32 MB files until Drive has them and save every mark at once; MARK_CAP 256 MB.
 - New end-to-end test migration/airplay-ios/remux/tests/e2e_conversion.py, run in CI host-tests (airplay-remux.yml).
   Local: e2e 200/0, native 2,097/0.
+
+## Build 191 — verified (IPA sha 5826e4be…, build.json e6da035, AirPlay binary = r32 e785ea37…)
+- r32: interleaved samples + ~64 MB fragments (Kodi plays converted movies smoothly, opens faster; earlier conversions
+  keep their layout), 4 MB output buffer, "Finding where it left off" (stage 4); library check beside a conversion.
+- UI (second agent): DialogBusy is a centred pill in portrait and landscape (was Fuse's Kodi-logo badge floating on the
+  poster grid / over video); Fuse's landscape video info inset 140 from both sides (Dynamic Island); OSD taps ≥150.
+- Open UI items found: DialogNotification / DialogVolumeBar / Custom_1193 still stock; Custom_1152 can show while our
+  OSD is up (title twice); portrait.fingerprint() does not hash activity_skin.py. Local: e2e 194/0, native 3,143/0.
