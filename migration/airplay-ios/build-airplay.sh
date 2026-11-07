@@ -643,10 +643,12 @@ __attribute__((visibility("default"))) void kodi_background_keep(int on) {
         dispatch_once(&once, ^{
             NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
             keepInBackground = UIApplication.sharedApplication.applicationState == UIApplicationStateBackground;
+            // r28 (build-181 log: "audio interrupted by iOS" at 17:45 and the silence never came back): iOS often sends
+            // no "interruption ended", so leaving or reopening Kodi tries the silence again instead of waiting for it.
             [center addObserverForName:UIApplicationDidEnterBackgroundNotification object:nil queue:NSOperationQueue.mainQueue
-                            usingBlock:^(NSNotification *note) { keepInBackground = YES; keepUpdate(); }];
+                            usingBlock:^(NSNotification *note) { keepInBackground = YES; keepInterrupted = NO; keepUpdate(); }];
             [center addObserverForName:UIApplicationWillEnterForegroundNotification object:nil queue:NSOperationQueue.mainQueue
-                            usingBlock:^(NSNotification *note) { keepInBackground = NO; keepUpdate(); }];
+                            usingBlock:^(NSNotification *note) { keepInBackground = NO; keepInterrupted = NO; keepUpdate(); }];
             // A phone call or another app's sound stops the silence; start it again when that ends.
             [center addObserverForName:AVAudioSessionInterruptionNotification object:nil queue:NSOperationQueue.mainQueue
                             usingBlock:^(NSNotification *note) {

@@ -121,6 +121,12 @@ class RouteTests(Base):
   spot='Skin.String(HomeSwitcher.home.Spotlight.Path)'
   self.assertEqual(len(self.serve('hero.home',{spot:TRENDING})[0]),2)
   added,kodi=self.serve('hero.home',{spot:POPULAR});self.assertEqual(added,[]);self.assertEqual(kodi.builtins,['Skin.Reset(PortraitCache.hero.home)'])
+ def test_hero_copy_of_another_page_is_still_served(self):
+  # Builds 176-181 (owner logs: "no copy for hero.home", the Home hero 4-60 s late): after the refresh button the
+  # copy's url has '&page=2' and the skin's spotlight path never does.
+  self.store.write('hero.home',TRENDING+'&page=2',cache.from_rpc(ANSWER),10**6)
+  spot='Skin.String(HomeSwitcher.home.Spotlight.Path)'
+  self.assertEqual(len(self.serve('hero.home',{spot:TRENDING})[0]),2)
  def test_bad_keys_touch_nothing(self):
   for key in ('../../guisettings','hero.home)','r1234'):
    added,kodi=self.serve(key);self.assertEqual((added,kodi.builtins),([],[]))

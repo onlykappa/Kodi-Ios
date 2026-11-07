@@ -414,9 +414,10 @@ class StreamFromDrive(unittest.TestCase):
   url=stream.url('f');B=drive_stream.BLOCK
   status,_,body=self.get(url,'bytes=%d-%d'%(B-10,B+9));self.assertEqual(body,big[B-10:B+10])
   for _ in range(100):
-   if 2*B in seen:break
+   if 3*B in seen:break
    time.sleep(0.02)
-  self.assertEqual(sorted(seen),[0,B,2*B])   # block 2 was fetched ahead while block 1 was read
+  # Blocks 2 and 3 (the last) were fetched ahead while block 1 was read; nothing past the end (build 182).
+  self.assertEqual(sorted(seen),[0,B,2*B,3*B])
   stream.forget('f');self.assertEqual(len(stream.blocks.data),0)
  def test_one_fetch_when_readers_ask_at_once(self):
   import drive_stream,threading,time

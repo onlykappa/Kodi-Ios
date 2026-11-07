@@ -26,6 +26,7 @@ CHUNK = 1024 * 1024
 # block is fetched while one is being read.
 BLOCK = 8 * 1024 * 1024
 KEEP = 24            # 192 MB (build 181: two video lanes and the audio drift apart; build-176 read 3x the film)
+READ_AHEAD = 4       # blocks fetched ahead in parallel (32 MB on its way while one block is read)
 SPAN = re.compile(r'bytes (\d+)-(\d+)/(\d+)')
 
 
@@ -192,7 +193,10 @@ class DriveStream(object):
                             stream.last_problem = preparation_runtime.problem(error)
                             self.close_connection = True
                             return
-                        stream.blocks.ahead(item, index + 1)
+                        # Build 182 (build-181 log: the upload waited for the Drive read 45% of the time at ~4-5 MB/s):
+                        # the next READ_AHEAD blocks are fetched at once, in parallel, not one after another.
+                        for step in range(1, READ_AHEAD + 1):
+                            stream.blocks.ahead(item, index + step)
                         piece = block[position - index * BLOCK:end - index * BLOCK + 1]
                         if not piece:
                             self.close_connection = True

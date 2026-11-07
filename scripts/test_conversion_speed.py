@@ -162,7 +162,7 @@ class Build175Log(unittest.TestCase):
   self.assertIn('kr_video_unit',c.split('static void *generated_work(')[1][:2000])
  def test_drive_is_read_once_in_blocks(self):
   s=(LIB/'drive_stream.py').read_text()
-  self.assertIn('class _Blocks',s);self.assertIn('stream.blocks.ahead(item, index + 1)',s)
+  self.assertIn('class _Blocks',s);self.assertIn('stream.blocks.ahead(item, index + step)',s)
  def test_a_video_playing_pauses_instead_of_stopping(self):
   import prepare_downloads as prep,types,time as clock
   from unittest.mock import patch
@@ -324,5 +324,23 @@ class Build180Log(unittest.TestCase):
   import driveupload,drive_stream
   self.assertEqual(driveupload.CHUNK,32*1024*1024);self.assertEqual(drive_stream.KEEP,24)
   self.assertIn('if end+1<size:coming=ahead.submit(read,end+1)',(LIB/'driveupload.py').read_text())
+
+class Build181Log(unittest.TestCase):
+ """Build-181 log: the upload waited for the Drive read 45% of the time; the Home hero came 60 s late."""
+ def test_blocks_are_read_ahead_in_parallel(self):
+  import drive_stream,threading,time as _t
+  live=[0];peak=[0];lock=threading.Lock()
+  def fetch(item,start,end):
+   with lock:live[0]+=1;peak[0]=max(peak[0],live[0])
+   _t.sleep(0.2)
+   with lock:live[0]-=1
+   return b'x'*(end-start+1),drive_stream.BLOCK*20
+  b=drive_stream._Blocks(fetch);b.get('f',0)
+  for step in range(1,drive_stream.READ_AHEAD+1):b.ahead('f',step)
+  _t.sleep(0.6)
+  self.assertEqual(drive_stream.READ_AHEAD,4);self.assertGreaterEqual(peak[0],4)
+ def test_background_keep_alive_rearms_after_an_interruption(self):
+  b=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn('usingBlock:^(NSNotification *note) { keepInBackground = YES; keepInterrupted = NO; keepUpdate(); }];',b)
 
 if __name__=='__main__':unittest.main()

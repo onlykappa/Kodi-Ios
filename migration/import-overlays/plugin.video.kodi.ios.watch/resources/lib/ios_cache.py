@@ -91,7 +91,10 @@ def serve(handle,key,xbmc,xbmcgui,xbmcplugin,read,now=time.time):
  started=time.monotonic();items=[];kind=''
  try:
   entry=parse(read(key),key,now()) if valid_key(key) else None
-  if entry and key.startswith('hero.') and xbmc.getInfoLabel(hero_skin_path(key))!=entry['url']:entry=None
+  # The skin's spotlight path never has the page; a copy made after the refresh button does ('&page=2'). Builds
+  # 176-181 compared them as they are, so after one refresh the hero's copy was never served (owner logs: "no copy
+  # for hero.home", the Home hero 4-60 s late instead of 0.5 s).
+  if entry and key.startswith('hero.') and unpaged(xbmc.getInfoLabel(hero_skin_path(key)))!=unpaged(entry['url']):entry=None
   for item in (entry or {}).get('items') or []:
    try:items.append((item['path'],list_item(xbmcgui,item),bool(item.get('folder'))))
    except Exception:continue
