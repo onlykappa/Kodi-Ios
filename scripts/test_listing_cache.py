@@ -121,6 +121,12 @@ class RouteTests(Base):
   spot='Skin.String(HomeSwitcher.home.Spotlight.Path)'
   self.assertEqual(len(self.serve('hero.home',{spot:TRENDING})[0]),2)
   added,kodi=self.serve('hero.home',{spot:POPULAR});self.assertEqual(added,[]);self.assertEqual(kodi.builtins,['Skin.Reset(PortraitCache.hero.home)'])
+ def test_hero_copy_of_another_page_is_still_served(self):
+  # Builds 176-181 (owner logs: "no copy for hero.home", the Home hero 4-60 s late): after the refresh button the
+  # copy's url has '&page=2' and the skin's spotlight path never does.
+  self.store.write('hero.home',TRENDING+'&page=2',cache.from_rpc(ANSWER),10**6)
+  spot='Skin.String(HomeSwitcher.home.Spotlight.Path)'
+  self.assertEqual(len(self.serve('hero.home',{spot:TRENDING})[0]),2)
  def test_bad_keys_touch_nothing(self):
   for key in ('../../guisettings','hero.home)','r1234'):
    added,kodi=self.serve(key);self.assertEqual((added,kodi.builtins),([],[]))
@@ -246,7 +252,9 @@ class SkinTests(unittest.TestCase):
   root,variables=self.hubs();key=cache.row_key(TRENDING)
   row=ET.fromstring(variables['Portrait_Cache_Row_home_2']).findall('value')
   self.assertEqual(row[0].get('condition'),'Skin.HasSetting(PortraitCache.%s) + System.AddonIsEnabled(plugin.video.kodi.ios.watch)'%key)
-  self.assertEqual((row[0].text,row[1].text,row[1].get('condition')),(cache.ROUTE+key,TRENDING,None))
+  self.assertEqual((row[0].text,row[2].text,row[2].get('condition')),(cache.ROUTE+key,TRENDING,None))
+  # Refresh (round 5): another page of the list while its copy is being made.
+  self.assertEqual((row[1].get('condition'),row[1].text),('!String.IsEmpty(Skin.String(Portrait.Page.home))',TRENDING+'&page=$INFO[Skin.String(Portrait.Page.home)]'))
   contents=[c.findtext('content') for c in root.iter('control') if c.get('type')=='list' and c.findtext('content')]
   self.assertIn(portrait.CONTINUE+'all',contents);self.assertIn('videodb://movies/titles/',contents)  # not TMDb Helper: as before
   self.assertIn('$VAR[Portrait_Cache_Row_tv_2]',contents)
@@ -255,7 +263,9 @@ class SkinTests(unittest.TestCase):
   hero=ET.fromstring(variables['Portrait_Cache_Hero_movies']).findall('value')
   self.assertIn('String.IsEqual(Skin.String(PortraitCache.hero.1102),Skin.String(HomeSwitcher.1102.Spotlight.Path))',hero[0].get('condition'))
   self.assertIn('!String.IsEmpty(Skin.String(PortraitCache.hero.1102))',hero[0].get('condition'))
-  self.assertEqual((hero[0].text,hero[1].text),(cache.ROUTE+'hero.1102','$INFO[Skin.String(HomeSwitcher.1102.Spotlight.Path)]'))
+  self.assertEqual((hero[0].text,hero[2].text),(cache.ROUTE+'hero.1102','$INFO[Skin.String(HomeSwitcher.1102.Spotlight.Path)]'))
+  # Only a TMDb Helper spotlight gets a page.
+  self.assertIn('String.StartsWith(Skin.String(HomeSwitcher.1102.Spotlight.Path),plugin://plugin.video.themoviedb.helper/)',hero[1].get('condition'))
  def test_service_lists_every_hub_home_first(self):
   with tempfile.TemporaryDirectory() as tmp:
    nodes=Path(tmp)/'addon_data/script.skinvariables/nodes/skin.arctic.fuse.3';nodes.mkdir(parents=True)

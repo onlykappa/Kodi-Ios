@@ -35,10 +35,14 @@ ALLOWED_SUFFIXES = {'.md','.json','.py','.xml','.xsp'}
 PORTRAIT_FILES = {'.github/workflows/kodi-ios-portrait.yml','migration/ios-portrait/build-kodi-ios.sh','migration/ios-portrait/kodi-21.3-portrait.patch',
                   '.github/workflows/glassbar-ios.yml','migration/glassbar-ios/build-glassbar.sh',
                   'docs/design/settings-mockups.html','docs/design/fuse-pages-mockups.html',
-                  'docs/design/poster-cards-mockups.html'}   # owner mockups (self-contained pages, no images)
+                  'docs/design/poster-cards-mockups.html','docs/design/activity-indicator-mockups.html','docs/design/activity-mockups-r4.html',
+                  'docs/design/library-status-mockup.html','docs/design/library-tools-mockups.html',
+                  'docs/design/transfers-simple-mockup.html'}   # owner mockups (self-contained pages, no images)
 
 # AirPlay MKV remuxer (migration/airplay-ios/remux): C sources, build and test scripts, licence files, its CI.
 REMUX_FILES = {'migration/airplay-ios/remux/THIRD-PARTY-NOTICES',
+               'migration/airplay-ios/remux/src/kr_prepare.c',
+               'migration/airplay-ios/remux/src/kr_prepare.h',
                'migration/airplay-ios/build-dav1d.sh',
                'migration/airplay-ios/ffmpeg-mov-pts.patch',
                'migration/airplay-ios/ffmpeg-dovi-padding.patch',

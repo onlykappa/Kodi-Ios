@@ -23,3 +23,9 @@ The design specs (colours, spacing, type) are at the bottom of `settings-mockups
 Mockups only, for owner review: Play on TV over video (landscape AirPlay-style sheet), Umbrella's "getting ready to play" screen (its `source_progress.xml`, which the portrait skin folder can override), Add-ons and My Add-ons, File Manager, Event Log, System Information, Hubs & Widgets, Skin Settings, and the shared alert / progress / action-sheet dialogs. The page ends with the full list of the 89 windows that are still Fuse's shrunk landscape box, grouped as own page, shared template, or later.
 
 Built from round 2 (`resources/lib/pages.py`): Play on TV, Umbrella getting ready, Add-ons, File Manager (two stacked panes: Kodi copies between them), Event Log, System Information and the alert/progress/text/settings dialogs. Not built yet: Skin Settings, Hubs & Widgets, My Add-ons filter pills, add-on info, and the action sheet for pick-one lists outside Choose a version.
+
+## Round 3: activity indicator (`activity-indicator-mockups.html`)
+
+Mockups only, for owner review. The loader is Kodi's background progress box (DialogExtendedProgressBar / DialogProgressBG), shared by Kodi (update checks, add-on installs, library scans, file operations, Live TV guide), Elementum (downloads, magnet resolving), Elementum Burst (searches), Umbrella (background scraping, resolving, Trakt sync, debrid cloud), TMDb Helper (library) and Skin Variables. Kodi rotates its jobs every 2 s; Fuse draws it as a small landscape strip. The mockups replace it with one activity pill (app tile, plain wording, real progress), an Activity sheet for several jobs, a Running now group in Notifications and per-source switches, placed the same way on every page.
+
+Built from round 3 (`activity.py`, `activity_skin.py`, `activity_page.py`): the pill, the Activity sheet and the per-source switches. Not built: the Running now group on the Notifications page (the Activity sheet lists the same jobs).

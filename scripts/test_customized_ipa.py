@@ -90,10 +90,10 @@ class BundleTests(unittest.TestCase):
   return inputs
  def test_elementum_engine_bundled_in_frameworks_and_patched_for_ios(self):
   app,receipt=prepare(self.app,self.bundle,self.sha,self.root/'work',self.elementum_inputs());base=app/'AppData/AppHome'
-  self.assertTrue((app/'Frameworks/elementum.framework/elementum').is_file());self.assertTrue((app/'Frameworks/KodiAirPlay.framework/KodiAirPlay').is_file());self.assertEqual(receipt['elementum']['frameworks'],['Frameworks/KodiAirPlay.framework']);self.assertEqual(len(receipt['elementum']['patches']),4)
+  self.assertTrue((app/'Frameworks/elementum.framework/elementum').is_file());self.assertTrue((app/'Frameworks/KodiAirPlay.framework/KodiAirPlay').is_file());self.assertEqual(receipt['elementum']['frameworks'],['Frameworks/KodiAirPlay.framework']);self.assertEqual(len(receipt['elementum']['patches']),5)
   daemon=(base/'addons'/ELEMENTUM/'resources/site-packages/elementum/daemon.py').read_bytes()
   site=base/'addons'/ELEMENTUM/'resources/site-packages/elementum'
-  for _,_,after in ELEMENTUM_PATCHES:self.assertIn(after,daemon+(site/'osarch.py').read_bytes()+(site/'service.py').read_bytes()+(site/'rpc.py').read_bytes())
+  for _,_,after in ELEMENTUM_PATCHES:self.assertIn(after,daemon+(site/'osarch.py').read_bytes()+(site/'service.py').read_bytes()+(site/'rpc.py').read_bytes()+(site/'navigation.py').read_bytes())
   self.assertFalse((base/'addons'/ELEMENTUM/'resources/site-packages/platform_detect/libraries').exists())
   self.assertIn(b'ios_crash_guard()\n',daemon);self.assertIn(b'engine-starting',daemon)
   self.assertIn(b'deck_picker.run(title_encoded, items)',(site/'rpc.py').read_bytes())

@@ -33,18 +33,29 @@ class ScanTests(unittest.TestCase):
   path=self.root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data);os.utime(path,(time.time()-1000,)*2);return path
  def run_scan(self,paths,remote=(),**kwargs):return scan.scan([str(p) for p in paths],self.drive,str(self.state),remote=remote,**kwargs)
  def test_missing_movie_is_uploaded_verified_then_removed(self):
-  path=self.file();cache=self.state/'drive-library.json';cache.parent.mkdir();cache.write_text('{}')
+  path=self.file();cache=self.state/'drive-library.json';cache.parent.mkdir();cache.write_text('{"movie:":{"time":99,"entries":[],"driveid":"d"}}')
   result=self.run_scan([path]);self.assertEqual((result['uploaded'],result['deleted'],result['failed']),(1,1,0))
-  self.assertFalse(path.exists());self.assertFalse(cache.exists());self.assertEqual(self.drive.parts,['Kodi Downloads','Movies'])
+  # Build 192: the saved Library list is kept (the page shows it at once) and marked stale for the service to refresh.
+  self.assertFalse(path.exists());self.assertEqual(json.loads(cache.read_text())['movie:']['time'],0);self.assertEqual(self.drive.parts,['Kodi Downloads','Movies'])
   self.assertIn('uploaded-0',self.drive.checked)
  def test_identical_bytes_with_different_name_remove_duplicate_without_upload(self):
   path=self.file();remote=self.drive.duplicate(path)
   result=self.run_scan([path],remote=[remote]);self.assertEqual((result['duplicates'],result['uploaded'],result['deleted']),(1,0,1))
   self.assertFalse(path.exists());self.assertEqual(self.drive.checked,['existing','existing'])
- def test_matching_name_and_size_but_different_bytes_are_not_a_duplicate(self):
+ def test_another_release_of_the_same_movie_on_drive_replaces_the_phone_copy(self):
   path=self.file();remote=self.drive.duplicate(path,md5Checksum='0'*32,name=path.name)
-  result=self.run_scan([path],remote=[remote]);self.assertEqual((result['duplicates'],result['uploaded'],result['deleted']),(0,1,1))
-  self.assertNotIn('existing',self.drive.checked)
+  result=self.run_scan([path],remote=[remote])
+  # Not a byte duplicate, but the same movie at equal resolution (owner, build 152: "it should be deleted"). The phone
+  # copy goes only after Drive's copy is confirmed with fresh metadata; nothing is uploaded.
+  self.assertEqual((result['duplicates'],result['uploaded'],result['deleted'],result['same_media']),(0,0,1,1))
+  self.assertIn('existing',self.drive.checked);self.assertFalse(path.exists())
+ def test_same_movie_is_kept_when_drives_copy_cannot_be_confirmed(self):
+  path=self.file();remote=dict(self.drive.duplicate(path,md5Checksum='0'*32,name=path.name),md5Checksum='1'*32)
+  result=self.run_scan([path],remote=[remote])
+  self.assertEqual((result['uploaded'],result['deleted'],result['same_media']),(0,0,0));self.assertTrue(path.exists())
+ def test_different_years_are_different_movies(self):
+  path=self.file('Dune.2021.1080p.mkv');remote=self.drive.duplicate(path,md5Checksum='0'*32,name='Dune.1984.2160p.mkv')
+  result=self.run_scan([path],remote=[remote]);self.assertEqual((result['uploaded'],result['same_media']),(1,0))
  def test_absent_listing_checksum_is_verified_from_fresh_metadata(self):
   path=self.file();remote=self.drive.duplicate(path);remote.pop('md5Checksum')
   result=self.run_scan([path],remote=[remote]);self.assertEqual(result['deleted'],1);self.assertEqual(result['uploaded'],0)

@@ -150,4 +150,30 @@ class UmbrellaPage(unittest.TestCase):
   self.assertEqual([dp.too_heavy(p) for p in parsed],[True,True,False,False])
   shown=dp.pick(parsed,5);self.assertEqual([p['idx'] for p in shown][:2],[2,3])
   rows=dp.build_rows(shown);self.assertEqual([r['badge'] for r in rows][2:],['MAY STUTTER','MAY STUTTER']);self.assertNotEqual(rows[0]['badge'],'MAY STUTTER')
+AV1_ITEMS=['2160p (90 / 0) [8.9 GB] WebDL AV1 - Torrentio\nInception.2010.2160p.WEB-DL.AV1.10bit.HDR.mkv\nicon.png',
+ '2160p (40 / 0) [14.2 GB] Blu-Ray H.265 - Torrentio\nInception.2010.2160p.BluRay.x265.10bit.HDR.mkv\nicon.png',
+ '1080p (60 / 0) [2.1 GB] Blu-Ray H.264 - Torrentio\nInception.2010.1080p.BluRay.x264.mkv\nicon.png',
+ '2160p (30 / 0) [12.0 GB] WebDL H.265 - Torrentio\nInception.2010.2160p.WEB-DL.HEVC.HDR10.mkv\nicon.png']
+
+class SlowToPrepare(unittest.TestCase):
+ """Owner (build 184): AV1 movies took hours to prepare; "find the same quality in a different source that won't
+ require conversion"."""
+ def test_av1_goes_last_and_says_so(self):
+  q=dp.group_by_quality(dp.parse_all(AV1_ITEMS))[1]['4k']
+  shown=dp.pick(q,dp.TOP_N)
+  self.assertEqual([dp.codec(i) for i in shown],['H.265','H.265','AV1'])
+  rows=dp.build_rows(shown);self.assertEqual(rows[-1]['badge'],'AV1 \u00b7 SLOW TO PREPARE')
+ def test_without_converting_same_quality_only(self):
+  seen={}
+  def source(title,rows,quality,count):seen['rows']=rows;seen['quality']=quality;return 0
+  with mock.patch.object(dp,'avoid_request',lambda:'4k'),mock.patch.object(dp,'choose_source',source):
+   choice=dp.run('Inception 2010',AV1_ITEMS,expect={})
+  self.assertEqual(len(seen['rows']),2);self.assertTrue(all(r['badge']=='NO CONVERSION NEEDED' for r in seen['rows']))
+  self.assertEqual(seen['quality'],dp.quality_label('4k'));self.assertNotEqual(choice,0)   # never the AV1 link
+  self.assertIn(choice,(1,3))
+ def test_request_expires(self):
+  self.assertEqual(dp.avoid_request(now=1000,read=lambda:'4k|900'),'4k')
+  self.assertIsNone(dp.avoid_request(now=1000+dp.AVOID_FOR+100,read=lambda:'4k|900'))
+  self.assertIsNone(dp.avoid_request(now=1000,read=lambda:''))
+
 if __name__=='__main__':unittest.main()

@@ -75,3 +75,13 @@ python3 -B "$(dirname "$0")/make_dovi.py" "$OUT/dovi.mkv"
 "${F[@]}" -copyts -stream_loop 3 -i "$OUT/h264_aac_srt.mkv" -i "$OUT/long.sup" \
   -map 0:v -map 0:a -map 1:s -c copy -t 65 -disposition:s:0 default "$OUT/long_pgs.mkv"
 ls -l "$OUT"
+# Offline HDR preparation matrix: codecs/chroma/bit depths that require HEVC Main10 output.
+for spec in 'av1_hdr10 libaom-av1 yuv420p10le smpte2084' 'av1_hlg libaom-av1 yuv420p10le arib-std-b67' 'h264_hdr10 libx264 yuv420p10le smpte2084' 'hevc_12_hdr libx265 yuv420p12le smpte2084' 'hevc_422_hdr libx265 yuv422p10le smpte2084'; do
+  read -r name encoder pix transfer <<< "$spec"
+  [[ -f "$OUT/$name.mkv" ]] && continue
+  options=(-preset ultrafast)
+  [[ "$encoder" == libaom-av1 ]] && options=(-cpu-used 8 -crf 28 -row-mt 1)
+  [[ "$encoder" == libx265 ]] && options+=(-x265-params 'pools=1:frame-threads=1:log-level=error')
+  ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=128x72:rate=2:duration=14' -an -vf "format=$pix,setparams=color_primaries=bt2020:color_trc=$transfer:colorspace=bt2020nc" \
+    -c:v "$encoder" -threads 2 "${options[@]}" -g 4 -color_primaries bt2020 -color_trc "$transfer" -colorspace bt2020nc "$OUT/$name.mkv"
+done

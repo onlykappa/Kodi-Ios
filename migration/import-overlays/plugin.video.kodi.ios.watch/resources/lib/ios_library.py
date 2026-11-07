@@ -85,7 +85,7 @@ def library_rows(kind,rpc):
 
 def drive_rows(kind,folder,show,lib,state_dir,art_cache,key,get,fresh=False,loose=False,year='',cached_only=False):
  """Google Drive › Kodi Downloads: [(path, label, art, info, is_folder)]."""
- entries,driveid=lib.listing(kind,state_dir,folder,strict=True,fresh=fresh)
+ entries,driveid=lib.listing(kind,state_dir,folder,strict=True,fresh=fresh,stale_ok=True)
  rows=[]
  for e in entries:
   if folder and loose and (e['title'].casefold()!=show.casefold() or e['year']!=year):continue
@@ -177,13 +177,13 @@ def episode_rows(rows,show,lib,art_cache,key,get,cached_only=True):
 
 def cloud_entries(params,lib,state_dir,fresh=False):
  """Every matching downloaded-show folder, not just the first phone/Drive duplicate selected on the grid."""
- show=params.get('show','');folders,driveid=lib.listing('tv',state_dir,strict=True,fresh=fresh)
+ show=params.get('show','');folders,driveid=lib.listing('tv',state_dir,strict=True,fresh=fresh,stale_ok=True)
  matches=[entry for entry in folders if show_key(entry.get('title'))==show_key(show)]
  if params.get('folder') and not any(entry.get('id')==params['folder'] for entry in matches):
   matches.append({'id':params['folder'],'loose':params.get('loose')=='1','year':params.get('year','')})
  out=[];seen=set()
  for folder in matches:
-  entries,driveid=lib.listing('tv',state_dir,folder['id'],strict=True,fresh=fresh)
+  entries,driveid=lib.listing('tv',state_dir,folder['id'],strict=True,fresh=fresh,stale_ok=True)
   for entry in entries:
    if folder.get('loose') and (show_key(entry.get('title'))!=show_key(show) or entry.get('year','')!=folder.get('year','')):continue
    if entry['id'] in seen:continue
@@ -318,6 +318,17 @@ def play_downloaded(handle,params):
  xbmcplugin.setResolvedUrl(handle,True,li)
 
 def directory(handle,params):
+ # Build 192 (owner: "pressing movies under library takes a few seconds"): how long a Library page took, in kodi.log.
+ import time as _time
+ started=_time.monotonic()
+ try:return _directory(handle,params)
+ finally:
+  try:
+   import xbmc
+   xbmc.log('Kodi iOS Library: %s page in %.2f s'%(params.get('type','?'),_time.monotonic()-started),xbmc.LOGINFO)
+  except Exception:pass
+
+def _directory(handle,params):
  import xbmc,xbmcaddon,xbmcgui,xbmcplugin,xbmcvfs
  kind='tv' if params.get('type')=='tv' else 'movie';folder=params.get('folder');show=params.get('show','')
  local=params.get('local')=='1';merge=params.get('merge')=='1';episodes=bool(folder or local or merge);year=params.get('year','')

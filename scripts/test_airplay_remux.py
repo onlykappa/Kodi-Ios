@@ -4,6 +4,7 @@ import importlib.util,sys,types,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 LIB=ROOT/'migration/bundled-bootstrap/resources/lib'
+sys.path.insert(0,str(LIB))
 def load(name):
  spec=importlib.util.spec_from_file_location(name,LIB/(name+'.py'));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 cast=load('cast');airplay=load('airplay')
@@ -31,8 +32,14 @@ class PhoneSource(unittest.TestCase):
   self.assertEqual(cast.phone_source(playing,'http://192.168.1.11:60047/x'),'http://127.0.0.1:60047/download/1/1/abc/Movie.mkv')
   self.assertEqual(cast.phone_source('/var/mobile/Movie.mkv','http://fallback/x'),'http://fallback/x')
   source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
-  self.assertIn('cast.phone_source(playing,url)',source)
+  self.assertIn('cast.airplay_source(playing,url,converting)',source)
   self.assertIn('AirPlay converts this %s video on the phone',source)
+ def test_a_prepared_mp4_also_uses_the_phones_own_link(self):
+  # Owner build 157: Scary.Movie...mp4 (prepared) went out as http://10.0.0.247:57527/... and was refused.
+  playing='http://127.0.0.1:57527/download/1/1/abc/Scary.Movie.2026.2160p.mp4'
+  wifi='http://10.0.0.247:57527/download/1/1/abc/Scary.Movie.2026.2160p.mp4'
+  self.assertEqual(cast.airplay_source(playing,wifi,True),playing)
+  self.assertEqual(cast.airplay_source(playing,wifi,False),wifi)   # an older framework gives Apple's player the link
 
 class EpisodePicker(unittest.TestCase):
  def test_one_tap_picks_an_episode_and_empty_ticks_explain(self):
@@ -58,14 +65,14 @@ class SeasonDownload(unittest.TestCase):
   last=dl.follow('plugin://plugin.video.elementum/show/95350/season/1/download',opener=Opener())
   self.assertEqual(seen[0],'http://127.0.0.1:65220/show/95350/season/1/download')
   self.assertEqual(last,'http://127.0.0.1:65220/play?uri=x&type=episode&background=true')
-  self.assertIn("if k=='movie'",(ROOT/'migration/bundled-bootstrap/download.py').read_text())
+  self.assertIn("dl.follow(url)",(ROOT/'migration/bundled-bootstrap/download.py').read_text())
 
 class KodiStaysPaused(unittest.TestCase):
  def test_airplay_playing_does_not_stop_kodi(self):
   # Owner build-136 log: player.stop() right after "playing" rotated the app and the TV dropped the session.
   source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
   body=source[source.index('def send_airplay('):source.index('def send(xbmc')]
-  playing=body[body.index("if outcome=='playing':"):body.index("lib.kodi_airplay_close()")]
+  playing=body[body.index("if outcome=='playing':"):body.index("lib.kodi_airplay_close();airplay.clear_busy(home)")]
   self.assertNotIn('player.stop()',playing);self.assertIn('player.pause()',playing)
 
 class RokuFallsBackToAirPlay(unittest.TestCase):
@@ -119,10 +126,10 @@ class AirPlayLog(unittest.TestCase):
    self.assertIn(needle,build)
   lock=__import__('json').loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())
   import re
-  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r12')
+  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r33')
   self.assertRegex(lock['framework_release']['sha256'],r'^(PENDING-set-after-publish|[0-9a-f]{64})$')
-  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r11')
-  self.assertEqual(lock['previous']['sha256'],'7cfbb57f12feadd4951991c4b5b4a978404cbd22db3ad1254b9b287346fa645e')
+  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r32')
+  self.assertEqual(lock['previous']['sha256'],'c3307e22715824245eb99cd65953ecfc1752feb0ed08abac5d73b115607d4426')
 
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):
@@ -137,7 +144,10 @@ class PictureBridge(unittest.TestCase):
   for needle in ('--enable-decoder=hevc','--enable-swscale','--enable-videotoolbox','--enable-encoder=h264_videotoolbox',
                  '--enable-hwaccel=hevc_videotoolbox'):
    self.assertIn(needle,ff)
-  code=[l.split('#')[0] for l in ff.splitlines()]
+  ios=ff.split('case "$TARGET" in',1)[0]+ff.split('  ios)',1)[1].split('  host)',1)[0]
+  code=[l.split('#')[0] for l in ios.splitlines()]
+  self.assertIn('if [[ "${KR_HDR_TESTS:-0}" == 1 ]]',ff)
+  self.assertIn('--enable-encoder=hevc_videotoolbox',ios)
   for banned in ('--enable-gpl','--enable-nonfree','libx264','openh264','--disable-swscale'):
    self.assertFalse(any(banned in l for l in code),banned)
  def test_remuxer_compat_api_and_codecs(self):

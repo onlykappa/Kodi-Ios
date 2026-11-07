@@ -6,6 +6,7 @@ boxes shrunk into the middle of the screen:
 - Kodi windows: AddonBrowser, EventLog, SettingsSystemInfo, FileManager.
 - Umbrella's "getting ready to play" window (source_progress.xml, filled from umbrella_ready.py).
 - Play on TV over video: 1080i/IOSPlayOnTV.xml, driven by cast.py (landscape, Fuse's 1920x1080 canvas and fonts).
+- Kodi's busy dialog (DialogBusy) as a centred pill in both folders (busy_dialog).
 
 Every page keeps the control ids Kodi (or Umbrella) drives. portrait.py passes its helpers in `p`;
 settings_page.py supplies the shared row/header pieces.
@@ -302,6 +303,17 @@ def image_bg(p,texture):
          '<texture background="true" colordiffuse="B3FFFFFF">%s</texture></control>')%(p.WIDTH,p.HEIGHT,texture)
 
 # --- Play on TV (landscape, over video) -------------------------------------------------------------------
+def close_button_1080(id,x,y,extra='',size=100):
+ """close_button (portrait.py) for the landscape sheets (Play on TV, AirPlay check), on Fuse's 1920x1080 canvas."""
+ disc=int(size*104/118);g=int(size*52/118);d=(size-disc)//2;o=(size-g)//2
+ img=lambda x,y,s,tex,col,more='':('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
+                                   '<texture colordiffuse="%s">%s%s</texture>%s</control>'%(x,y,s,s,col,'special://skin/extras/portrait/',tex,more))
+ return ('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(x,y,size,size)+
+  img(d,d,disc,'close_disc.png','2EFFFFFF')+img(d,d,disc,'close_disc.png','24FFFFFF','<visible>Control.HasFocus(%d)</visible>'%id)+
+  img(o,o,g,'close_cross.png','FFFFFFFF')+
+  '<control type="button" id="%d"><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus />%s</control>'%(id,size,size,extra)+
+  '</control>')
+
 TV_ROWS=6
 def play_on_tv():
  """1080i/IOSPlayOnTV.xml for cast.py, on Fuse's landscape 1920x1080 canvas with Fuse's fonts: an AirPlay-style
@@ -347,15 +359,93 @@ def play_on_tv():
   '<animation effect="zoom" start="94" end="100" center="auto" time="220" tween="back" easing="out">WindowOpen</animation>'+
   '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation><animation effect="fade" start="100" end="0" time="120">WindowClose</animation>'+
   backs+img(36,40,76,76,MEDIA+'dot.png','1FFFFFFF')+img(55,59,38,38,MEDIA+'airplay.png')+
-  lab(134,34,w-280,52,'Play on TV','font_head_bold')+lab(134,84,w-280,40,P('subtitle'),'font_mini','99EBEBF5')+
-  '<control type="button" id="9500"><left>%d</left><top>48</top><width>60</width><height>60</height><label>×</label><font>font_main_bold</font>'
-  '<textcolor>FFD1D1D6</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>center</align><aligny>center</aligny>'
-  '<texturefocus colordiffuse="40FFFFFF">%sdot.png</texturefocus><texturenofocus colordiffuse="1FFFFFFF">%sdot.png</texturenofocus>'
-  '<ondown>9601</ondown></control>'%(w-96,MEDIA,MEDIA)+stack+'</control>')
+  lab(134,34,w-280,52,'Play on TV','font_head_bold')+lab(134,84,w-280,40,P('subtitle'),'font_mini','99EBEBF5','left','<visible>!%s</visible>'%has('last'))+
+  lab(134,84,w-400,40,P('subtitle'),'font_mini','99EBEBF5','left','<visible>%s</visible>'%has('last'))+
+  # How the last Play on TV over AirPlay went (the AirPlay check, library_tools_page.airplay_sheet), once there is one.
+  '<control type="button" id="9501"><left>%d</left><top>28</top><width>190</width><height>100</height><label>Last time</label><font>font_mini</font>'
+  '<textcolor>FF4FA8FF</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>center</align><aligny>center</aligny>'
+  '<texturefocus border="30" colordiffuse="26FFFFFF">%sround_s.png</texturefocus><texturenofocus />'
+  '<visible>%s</visible><onright>9500</onright><ondown>9601</ondown></control>'%(w-336,MEDIA,has('last'))+
+  close_button_1080(9500,w-126,28,'<ondown>9601</ondown><onleft>9501</onleft>')+stack+'</control>')
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: Play on TV sheet r1 (navigation.patch_skin leaves this marker alone) -->\n'
          '<window type="dialog"><defaultcontrol always="true">9601</defaultcontrol><controls>%s</controls></window>\n')%body
 
-HANDMADE={'DialogConfirm.xml','DialogTextViewer.xml','DialogSettings.xml','AddonBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml'}
+# --- Kodi's busy dialog (DialogBusy: opening a video, buffering, loading a list) ---------------------------
+# Build 191 (owner: a white badge with the Kodi logo over the Library posters, and a small spinner over the video
+# "instead of the pill loader"): Fuse's DialogBusy, its Kodi logo in a white circle with a spinning arc made for
+# the bottom-right corner of a 1920x1080 screen, was shrunk into the portrait screen as it is (so it floated over
+# the poster grid) and left untouched in landscape (1080i, over the video). Both folders now get one pill in the
+# middle of the screen: the glass of the activity pill, the open ring spinning, "Loading…". The 1080i copy carries
+# the landscape marker (navigation.patch_skin leaves it alone) and is centred with centerleft/centertop, so it
+# holds on the 2340-wide layout too. Progress 10 stays (Kodi drives it), never drawn.
+BUSY='DialogBusy.xml'
+def busy_dialog(marker,font,media='special://skin/extras/portrait/'):
+ # Build 192 (owner: "we can remove the loading… and just have a clean loading circle in the center"): the open ring
+ # alone, spinning in the middle of the screen; no pill, no words. (font is kept for the callers; nothing uses it.)
+ ring=96
+ spin='<animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation>'
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: Kodi busy dialog as a centred spinning ring -->\n<window><zorder>1000</zorder><controls>'
+  '<control type="group"><centerleft>50%%</centerleft><centertop>50%%</centertop><width>%d</width><height>%d</height>'
+  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
+  '<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture colordiffuse="FFFFFFFF">%sring.png</texture>%s</control></control>'
+  '<control type="group"><left>-4000</left><top>-4000</top><width>10</width><height>10</height><visible>false</visible>'
+  '<control type="progress" id="10"><width>10</width><height>10</height><texturebg /><lefttexture /><midtexture /><righttexture /></control></control>'
+  '</controls></window>\n')%(marker,ring,ring,ring,ring,media,spin)
+
+# Build 192 (quick wins): Kodi's toasts and volume bar as iOS banners instead of Fuse's corner pill, and the info
+# button's wait (Custom_1193) as the same centred ring as DialogBusy. Kodi fills 400/401/402 (icon, heading, text) and
+# moves 933 (volume); they stay, hidden, and the banner reads their labels.
+NOTIFY='DialogNotification.xml';VOLUME='DialogVolumeBar.xml';INFO_WAIT='Custom_1193_VideoOSDInfo.xml'
+def banner(marker,x,y,w,h,inner,extra=''):
+ media='special://skin/extras/portrait/'
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: iOS banner -->\n<window type="dialog"><zorder>1000</zorder>%s<controls>'
+  '<control type="group"><left>%s</left><top>%d</top><width>%d</width><height>%d</height>'
+  '<animation effect="slide" start="0,-%d" end="0,0" time="260" tween="cubic" easing="out">WindowOpen</animation>'
+  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>'
+  '<animation effect="slide" start="0,0" end="0,-%d" time="220" tween="cubic" easing="in">WindowClose</animation>'
+  '<animation effect="fade" start="100" end="0" time="200">WindowClose</animation>'
+  '<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture border="%d" colordiffuse="F21C1C1E">%sgroup.png</texture></control>'
+  '%s</control>%s</controls></window>\n')%(marker,'',x,y,w,h,y+h,y+h,w,h,min(70,h//2),media,inner,extra)
+def notification_dialog(marker,x,y,w,big,small):
+ h=170;icons='special://skin/extras/icons/';tile=110;tx=30+tile+30
+ own='!String.StartsWith(Control.GetLabel(400),Default) + !String.IsEmpty(Control.GetLabel(400))'
+ inner=('<control type="image"><left>30</left><top>30</top><width>%d</width><height>%d</height><texture colordiffuse="FF2C2C2E" border="28">special://skin/extras/portrait/tile100.png</texture></control>'%(tile,tile)+
+  '<control type="image"><left>55</left><top>55</top><width>60</width><height>60</height><aspectratio>keep</aspectratio><texture colordiffuse="FFFFFFFF">%sbell.png</texture><visible>![%s]</visible></control>'%(icons,own)+
+  '<control type="image"><left>30</left><top>30</top><width>%d</width><height>%d</height><aspectratio>keep</aspectratio><texture>$INFO[Control.GetLabel(400)]</texture><visible>%s</visible></control>'%(tile,tile,own)+
+  '<control type="label"><left>%d</left><top>26</top><width>%d</width><height>60</height><font>%s</font><textcolor>FFFFFFFF</textcolor><aligny>center</aligny><label>$INFO[Control.GetLabel(401)]</label></control>'%(tx,w-tx-30,big)+
+  '<control type="label"><left>%d</left><top>86</top><width>%d</width><height>60</height><font>%s</font><textcolor>FFAEAEB2</textcolor><aligny>center</aligny><scroll>true</scroll><label>$INFO[Control.GetLabel(402)]</label></control>'%(tx,w-tx-30,small))
+ hidden=('<control type="image" id="400"><width>1</width><height>1</height><visible>false</visible></control>'
+         '<control type="label" id="401"><width>1</width><height>1</height><visible>false</visible></control>'
+         '<control type="label" id="402"><width>1</width><height>1</height><visible>false</visible></control>')
+ return banner(marker,x,y,w,h,inner,hidden)
+def volume_dialog(marker,x,y,w,font):
+ h=120;icons='special://skin/extras/icons/';media='special://skin/extras/portrait/';bar=w-60-70-40-130
+ inner=('<control type="image"><left>40</left><top>30</top><width>60</width><height>60</height><aspectratio>keep</aspectratio><texture colordiffuse="FFFFFFFF">%svolume-high.png</texture><visible>!Player.Muted</visible></control>'%icons+
+  '<control type="image"><left>40</left><top>30</top><width>60</width><height>60</height><aspectratio>keep</aspectratio><texture colordiffuse="FFFF453A">%svolume-xmark.png</texture><visible>Player.Muted</visible></control>'%icons+
+  '<control type="progress"><left>130</left><top>52</top><width>%d</width><height>16</height><info>Player.Volume</info>'
+  '<texturebg border="8" colordiffuse="59FFFFFF">%spill_96.png</texturebg><midtexture border="8" colordiffuse="FFFFFFFF">%spill_96.png</midtexture>'
+  '<lefttexture /><righttexture /><overlaytexture /></control>'%(bar,media,media)+
+  '<control type="label"><left>%d</left><top>0</top><width>110</width><height>%d</height><font>%s</font><textcolor>FFFFFFFF</textcolor><align>right</align><aligny>center</aligny><label>$INFO[Control.GetLabel(933)]</label></control>'%(130+bar+10,h,font))
+ hidden=('<control type="label" id="31"><width>1</width><height>1</height><visible>false</visible></control>'
+         '<control type="progress" id="933"><width>1</width><height>1</height><visible>false</visible><info>Player.Volume</info></control>')
+ return banner(marker,x,y,w,h,inner,hidden).replace('<zorder>1000</zorder>','<zorder>1001</zorder>',1)
+def info_wait(original,media='special://skin/extras/portrait/'):
+ """Fuse's Custom_1193 (the controls' Info: waits for TMDb Helper's details) with its corner spinner swapped for the ring."""
+ import xml.etree.ElementTree as ET
+ if not original:return original
+ root=ET.fromstring(original);controls=root.find('controls')
+ if controls is None:return original
+ for group in list(controls):
+  if group.tag=='control' and any(i.tag=='include' and i.get('content')=='Furniture_Busy' for i in group):
+   for child in [c for c in group if c.tag!='visible']:group.remove(child)
+   ring=ET.fromstring('<control type="group"><centerleft>50%</centerleft><centertop>50%</centertop><width>96</width><height>96</height>'
+    '<animation effect="fade" start="0" end="100" time="200" delay="400">Visible</animation>'
+    '<control type="image"><width>96</width><height>96</height><texture colordiffuse="FFFFFFFF">'+media+'ring.png</texture>'
+    '<animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation></control></control>')
+   group.append(ring)
+ return '<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: info wait ring -->\n'+ET.tostring(root,encoding='unicode')+'\n'
+
+HANDMADE={NOTIFY,VOLUME,'DialogConfirm.xml','DialogTextViewer.xml','DialogSettings.xml','AddonBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml',BUSY}
 
 def files(p,read):
  out={p.FOLDER+'/DialogConfirm.xml':confirm_dialog(p,read('DialogConfirm.xml')),
@@ -366,7 +456,16 @@ def files(p,read):
       p.FOLDER+'/SettingsSystemInfo.xml':system_info(p,read('SettingsSystemInfo.xml')),
       p.FOLDER+'/FileManager.xml':file_manager(p,read('FileManager.xml')),
       p.FOLDER+'/source_progress.xml':umbrella_ready(p),
-      '1080i/IOSPlayOnTV.xml':play_on_tv()}
+      '1080i/IOSPlayOnTV.xml':play_on_tv(),
+      p.FOLDER+'/'+BUSY:busy_dialog(p.MARKER,'p_pill'),
+      '1080i/'+BUSY:busy_dialog('Kodi-iOS player controls: busy pill','font_main_bold'),
+      p.FOLDER+'/'+NOTIFY:notification_dialog(p.MARKER,p.SIDE,150,p.WIDTH-2*p.SIDE,'p_foot_b','p_foot'),
+      p.FOLDER+'/'+VOLUME:volume_dialog(p.MARKER,(p.WIDTH-640)//2,150,640,'p_foot_b'),
+      # Landscape (video): centred at the top, clear of the island on either side.
+      '1080i/'+NOTIFY:notification_dialog('Kodi-iOS player controls: notification','(1920-1100)/2',40,1100,'font_main_bold','font_midi').replace('<left>(1920-1100)/2</left>','<centerleft>50%</centerleft>'),
+      '1080i/'+VOLUME:volume_dialog('Kodi-iOS player controls: volume','x',40,700,'font_main_bold').replace('<left>x</left>','<centerleft>50%</centerleft>')}
+ wait=info_wait(read(INFO_WAIT)) if read(INFO_WAIT) else None
+ if wait:out['1080i/'+INFO_WAIT]=wait
  out={k:v.encode() for k,v in out.items()}
  for name,data in textures(p).items():out['extras/portrait/'+name]=data
  return out

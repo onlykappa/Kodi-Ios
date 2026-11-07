@@ -785,12 +785,174 @@ Status: FIXED IN SOURCE, NATIVE PATCH STAGED; pinned r22 lacks the new code.
 - Validation: production method bodies compiled/executed with GUI geometry stubs, scoped parent-row branch compiled/executed, generated layout/visibility checks, 44 portrait regressions, full patch applied against 30 original files at Kodi a3a448d26b8d560a65655dab2cd122994dc4e146. Applied-source comparison changes only five intended GUI files. Total 362 tests/24 suites pass; first formatting/interpreter failures and successful rechecks retained in the report.
 - Remaining: full iPhoneOS SDK build/release/verified executable pin, then actual phone touch/momentum, short/long seasons, local/Drive resume and visual acceptance. No new native build, IPA, release or merge performed; current executable pin stays r22.
 
-## ISSUE-101 — Notifications › Preparing row: two text lines overlap (build-152, PR #10)
+## ISSUE-101 — Notifications › Preparing row: two text lines overlap (build-152)
 
-Status: OPEN; found by owner screenshot, not yet fixed.
-- Owner screenshot (build-152, Notifications › All, "Preparing for Kodi and AirPlay"): the bottom line "Step 3 of 3 · Preparing audio · 40% · 8 remaining" is drawn over a second right-aligned label "…one file · source resolution", producing unreadable overlapping text. The title is also a raw release file name ("Lanterns.S01E01.Pilot.2160p.10b…"), and "8 remaining" appears twice in the row.
-- Root cause (confirmed in PR #10 `portrait.py` line 919/945, head 55603af): the upload row draws `up.line` (left-aligned) and a fixed hint (right-aligned) as two labels in the **same box** (`SIDE+184, 158, w-210, 46`), so any line longer than the free space runs into the hint. The preparation row is the upload row string-replaced (`upload.replace(...)`), so it inherits the bug with a longer hint ("one file · source resolution"). The hint uses `DIM` (≈2.2:1 contrast), which is below the HIG text minimum anyway. The upload row has the same latent overlap.
-- Fix belongs on PR #10's branch: one label per line or explicit non-overlapping widths with truncation, a cleaned title, no repeated count. The rule is now in docs/design/APPLE-UI-POLICY.md §4.2/§4.7; a regression test should assert that no two labels on the same row overlap. Device recheck required.
+Status: FIXED IN SOURCE; device check pending.
+- Owner screenshot (build-152): "Step 3 of 3 · Preparing audio · 40% · 8 remaining" was drawn over "…one file · source resolution"; the title was a raw release name and "8 remaining" appeared twice.
+- Root cause: the upload card drew its status line (left) and a fixed hint (right) as two labels in the same box (`SIDE+184, 158, w-210`); the preparation card was a string-replaced copy of it. The download card did the same with progress (left) and speed (right). The hint also used `DIM` (≈2.2:1, below the text-contrast minimum).
+- Fix (`portrait.notices_page`): one `transfer()` builder for upload and preparation cards with one label per line (title, summary, bar, status); the hint moves into the summary ("Movies · then off the phone"); the download card's progress and speed share one truncating line; section summaries and timestamps get reserved widths and readable grey; titles go through `drivelibrary.display_title` ("Lanterns · S1 E1", "Inception (2010)"); the preparation count appears only in the summary. Text widths measured with Inter: typical lines 389–678 of 762 units; longer titles and folders truncate.
+- Regression: `test_notices.OverlapTests` checks that no two labels on the page share space (it caught two further 2–4 unit box overlaps, now fixed), that the detector flags the build-152 layout, and that no `DIM` text remains. Policy: docs/design/APPLE-UI-POLICY.md (PR #11) §4.2.
+
+## ISSUE-105 — Portrait pages drawn 9 % too tall; Activity sheet off the bottom; pill without a picture (build 154)
+
+Status: FIXED IN SOURCE (local draft, not pushed: owner testing); rig and device checks pending.
+- Owner screenshot (build 154, device): the Activity sheet's bottom runs off the screen, the ring around the app tile is an oval blob, and the owner wants the pill to show a photo of what is downloading instead of the blue app tile.
+- Root cause (confirmed in Kodi 21.3's xbmc/addons/Skin.cpp `closestRes` and `RESOLUTION_INFO::DisplayRatio`): Kodi chooses a skin resolution by the ratio its `aspect` *label* states, not by its width and height.
+  - The portrait entries were labelled `9:19.5` (0.462) and `9:16` (0.563). On the iPhone 16 Pro's 0.517 safe area, `9:16` was closer, so every portrait page was drawn on 1080 × 1920 and stretched into the 1080 × 2090 space it was designed for.
+  - The result: everything 9 % taller (rings and circles were ovals: the screenshot's tile ring is 116 × 128 px, the bell 90 × 95), and anything placed by absolute position near the bottom 170 units low. The sheet's top measured exactly at 2090 − 570 in 1920-unit space.
+  - The desktop rig (603 × 1167, the same ratio) had the same choice, which is why the round-3/4 rig renders showed the sheet cut off too.
+- Fix:
+  - The portrait entry is labelled with its true ratio, `1080:2090`. `9:16` stays for home-button phones.
+  - `add_resolutions` now also upgrades a phone's existing writable skin copy on every start. Kodi reads the skin's resolutions when it loads the skin, so the change shows from the next start.
+  - The pill and the Activity sheet rows show the TMDb poster of the download (or upload) inside the progress ring, cropped to the rounded tile. It comes from the Library's cached `drivelibrary.artwork` with TMDb Helper's key, is looked up once per title in a background thread, and falls back to the app tile while loading or when there is no match. A finished job shows the green check.
+- Expect every portrait page to look about 9 % shorter (as designed), with things previously cut off at the bottom now visible. This needs a rig re-render and an owner check on the phone.
+- Regression: `test_portrait.ResolutionChoice` (Kodi's rule replayed: 16 Pro → 1080 × 2090, old labels → 1920, home-button phones → 9:16, in-place upgrade once), `test_activity.Posters` (4).
+## ISSUE-103 — The same show in two Drive folders, the same episode prepared twice (build 152)
+
+Status: FIXED IN SOURCE; device check pending.
+- Owner screenshots (build 152): Drive › Kodi Downloads › TV Shows held "Lanterns" and "Lanterns (2026)", the same show, each with S1 E1. Both were queued for preparation ("7 remaining"). The owner asked for a duplicate check before any uploading or downloading, then (DEC-028) for the extra copy to be deleted and for a check before Elementum downloads.
+- Root cause: upload folders were named from each release's file name ("Lanterns.S01E01…" gives "Lanterns", a release with the year gives "Lanterns (2026)"). Duplicates were only identical bytes (size + MD5), so two releases of one episode were both uploaded and both queued.
+- Fix:
+  - One rule, `drivelibrary.media_key`: the same episode means the same show name, ignoring case, punctuation and year (the Library's merge rule), plus the same season and episode. The same movie means the same title and year. Copies whose named years disagree are never treated as one: "The Office (2001)" and "The Office (2005)" are different shows. A bare `S01E01.mkv` in a "Season 1" folder gets no key.
+  - Before an Elementum download (`download.py`, using `ios_downloaded.completed_copy`, the same phone + Drive lookup as Continue Watching):
+    - A movie or episode already downloaded asks "Download again?" and names where it is.
+    - The episode chooser marks downloaded episodes, and picking them asks first.
+    - A whole season says how many of its episodes are already downloaded.
+    - A failed check never blocks the download.
+  - Before an upload: an episode goes into the show's existing Drive folder. If Drive already has the same episode or movie at equal or higher resolution, the phone copy is the extra one. It is removed once Drive's copy is confirmed with fresh metadata, and only with the "remove phone copies" setting on (otherwise it is kept and reported once). A seeding torrent is removed through Elementum. A better phone copy is uploaded, verified, and then the worse Drive copy goes to Drive's Trash. Settings › Library scan follows the same rule.
+  - Before preparation downloads a Drive file: one copy per episode or movie is kept. The kept copy is chosen in this order: already prepared, then being saved or with working files, then the highest resolution, then the largest. Once the kept copy is confirmed on Drive, the others go to Drive's Trash, along with a show/release folder left empty (never Kodi Downloads' own folders). A copy being saved, or changed since it was listed, is never trashed.
+  - Deletion on Drive is always to the Trash, restorable there for 30 days, never permanent. Every removal produces one notification naming what was kept and what went.
+  - "Ready for Kodi and AirPlay" names the title ("Lanterns · S1 E1"), not the file.
+- Regression: `test_drive_library.Duplicates`, `test_drive_upload.SameEpisode` (6), `test_prepare_downloads.OneCopyEach` (8: best copy kept, trash plus empty folder, shared folder kept, prepared or in-progress copy wins, unconfirmed or changed copies kept, different years), `test_library_scan` (same movie replaces the phone copy only when confirmed; different years upload), and `test_updates_calibration.AlreadyDownloaded`.
+
+## ISSUE-104 — Owner sees no movies being converted (build 156)
+
+Status: FIXED IN SOURCE (local draft, not pushed: owner is testing build 156); device check pending.
+- Owner: "check if the auto converter starts at launch because I don't see any files being converted and I know all my movies need to be", and asked for a Settings entry to check the library.
+- Launch: the service's first pass runs 5 s after start (idle, Drive signed in, setting on). The owner's build-152 screenshot showed it preparing Lanterns, so it starts.
+- Two queue bugs could keep every movie waiting:
+  1. One video Drive could not describe (`metadata` error) aborted the whole launch scan, so nothing after it was queued, on every pass.
+  2. The queue only resumed a half-downloaded video (to save phone space). If that video was in a retry wait (low space, network), nothing else could start, for up to an hour each time, indefinitely.
+- Fix:
+  - The scan skips an unreadable file (keeping its existing work) and records totals: videos, ready, unreadable, checked time.
+  - A stuck half-downloaded video no longer holds the queue. A resumable one still goes first, and every job checks free space itself.
+  - New Settings › Library › Kodi and AirPlay › **Check library for conversion** (also in the add-on's Google Drive settings). It asks the service to check now; a conversion in progress pauses and resumes where it was. It then shows how many videos are ready, waiting or paused, with the reasons.
+- Regression: `test_prepare_downloads.LibraryCheck` (7) plus the updated service wiring test.
+- Open question for the owner: are the movies in Google Drive › Kodi Downloads › Movies? Videos elsewhere on Drive are not scanned.
+
+## ISSUE-106 — "Best" 4K source for Fall (2022) downloaded Fall.2.Deadpoint.2026 (build 156)
+
+Status: FIXED IN SOURCE (local draft, not pushed); device check pending.
+- Owner screenshot (build 156): after choosing Fall (2022) › 4K › the best source, Elementum's buffering dialog showed `Fall.2.Deadpoint.2026.2160p.4K.WEB.x265.10bit.AAC5.1-[YTS.GG - YTS.BZ].mkv`.
+- Root cause: the source check (`source_match`, run on every provider's results in Burst) is correct for this name: it returns "wrong title" for the 2026 sequel and accepts `Fall.2022…`. But some sites (YTS look-alikes such as YTS.GG/YTS.BZ) label each result from their own movie catalogue ("Fall 2022 2160p"), so the label passed. The torrent's real name only exists once Elementum has its metadata, after the choice was made.
+- Fix: `source_guard.py`, a service thread reusing the shared engine list every 2 s.
+  - Every torrent added after a source search is judged against the search current when it first appeared (so several chosen episodes never judge each other), for 5 minutes, once its real name is known.
+  - A clear mismatch stops the download: for a film, another title or year, or an episode; for a show, another show. The torrent and its files are removed, with a Notifications › Problems entry ("Fall.2.Deadpoint.2026… is not Fall (2022) (wrong title)… choose another version").
+  - Uncertain names (no year, hash-only names before metadata), torrents that were already there, searches over 30 minutes old, and a hidden source the owner chose deliberately are left alone.
+- Not changed: Elementum's own ranking of the "best" source (it re-sorts Burst's results by its quality/seeds setting).
+- Regression: `test_source_match.WhatTheTorrentReallyIs` (7, including the owner's exact name and the several-episodes race).
+
+## ISSUE-107 — AirPlay refused for every prepared movie; preparation stuck on phone space (build 157)
+
+Status: FIXED IN SOURCE; device check pending.
+- Owner (build 157): "AirPlay won't work at all" ("AirPlay: cannot open the stream (Connection refused)") and repeated "Video preparation paused: Free phone space is needed" (5 times). The phone had about 51 GB free of 256 GB.
+- AirPlay root cause (kodi.log): KodiAirPlay was given `http://10.0.0.247:57527/…/Scary.Movie…mp4`, the Wi-Fi address of the Google Drive add-on's helper, which only answers on 127.0.0.1 (the same refusal as build 132). `cast.py` used the phone's own link only for files that were not Apple-playable. Prepared movies are `.mp4`, so every prepared movie got the Wi-Fi link. Fix: `cast.airplay_source`. A converting framework (r5+) always reads the video itself and gets the 127.0.0.1 link; an older framework keeps the Wi-Fi link for Apple's player.
+- Space root cause: preparing a video needs the Drive file and the prepared copy on the phone at the same time (about twice its size; the native step takes local files). The queue started videos without checking that, kept a stuck video's partial download on the phone, and notified on every retry.
+- Fix:
+  - A video starts only when twice its size plus a margin fits while leaving 5 GB free for the owner (`KEEP_FREE`). Videos that fit go first.
+  - A half-prepared video that cannot finish gives its space back.
+  - Running out midway frees the working files quietly and waits.
+  - "Waiting for phone space" is notified once when the list grows; other problems are notified once per video and reason.
+  - Settings › Check library for conversion shows how many videos wait for space.
+- Not solved here: a video larger than (free space − 5 GB) / 2 still waits. Halving the need means reading straight from Drive instead of downloading first, which requires a KodiAirPlay native change (local-path-only input today) and a macOS framework build.
+- Regression: `test_prepare_downloads.NeverRunsOutOfSpace` (5), `test_airplay_remux.PhoneSource.test_a_prepared_mp4_also_uses_the_phones_own_link`.
+
+## ISSUE-108 — Preparation must not download movies first (owner, after build 157)
+
+Status: IN SOURCE; KodiAirPlay r14 build, then device check pending.
+- Owner: "Please have it read from the drive as my storage can't handle large scale downloads." Before this, a movie needed its Drive file and its prepared copy on the phone at once (about twice its size; ISSUE-107).
+- Native (KodiAirPlay r14, `kr_prepare.c`): probe and prepare accept `http://127.0.0.1:` sources as well as local paths (loopback only, never the internet), opened with bounded timeouts, reconnects at the same offset and Range seeks. The spool passes already read through `kr_source`, which handles HTTP. `kodi_airplay_prepare_streams()` (exported) tells the add-on the build can do it. Host test: `test_preparation_http` prepares two fixtures through the range server, gets byte-identical video packets to the file version, and refuses a non-loopback URL.
+- Add-on: `drive_stream.DriveStream`, a 127.0.0.1 server (random session secret, registered Drive files only) that answers byte ranges by fetching them from Drive as the converter asks; nothing is written to the phone. With r14, `prepare_downloads` streams instead of downloading, skips the local-copy checksum (a Drive change meanwhile is still refused by `replace()`'s fresh version/checksum check, and the output is still validated for resolution, HDR and duration), deletes any copy an older build left, and plans space for about 1× the movie (`space_needed(item, streaming=True)`). An older framework keeps the download path.
+- Trade-off: more data is read from Drive (a movie whose audio needs converting is read twice), in exchange for half the phone space.
+- Regression: `test_prepare_downloads.StreamFromDrive` (8).
+
+## ISSUE-109 — "Check library for conversion" did not seem to work; no view of what is ready (owner, after build 157)
+
+Status: FIXED IN SOURCE; device check pending (build 158).
+- Owner: "when i click library check for conversion it doesnt seem to work, I want it to open a menu showing me whats converted and is good to go and what still needs to be converted or if its still downloading."
+- Root cause: the row asked the service for a check and then waited up to two minutes behind a progress dialog for a plain-text summary; while a video played or a long check ran, nothing visible happened, and the summary gave counts, not videos.
+- Fix: Settings › Library › Library status (owner-approved mockup, `docs/design/library-status-mockup.html`), skin `library_page.py`, rows `library_rows.py`, controller `library_status.py`. Every video in Google Drive › Kodi Downloads grouped as preparing now, downloading, waiting (in line, waiting for phone space, retrying after a problem), ready for Kodi and AirPlay, kept as it is; a ring with ready of total, phone space, four filters, Check now, and a details sheet per video. Its actions (Prepare next, Try again now, Keep as it is, Prepare it after all) go to the service through `preparation-requests.json` (`prepare_downloads.request` / `Queue.apply_requests`), so the page never writes the queue's state. The library check now records each video (`state['library']['items']`).
+- Owner (build 158): "the buttons i press better work". A choice made while a video was being prepared only reached the service after that video (it reads choices between videos), so the page looked as if nothing happened. The page now shows a choice at once (`prepare_downloads.apply_to` on a copy of the state, with `pending_requests`), the service wakes within 5 s for one, and a choice with preparation turned off asks to turn it on instead of doing nothing.
+- Regression: `test_library_status` (32): view, rows, filters, details actions, requests applied once, kept videos skipped, every button at least 44 pt, ids and properties the controller uses, wiring; `TapEveryButton` runs the real controller against a fake Kodi and taps Back, Check now, the four filters, Show all, every row action (Prepare next, Keep as it is, Prepare it after all, Try again now), the sheet's ✕, the dimmed backdrop and the back key.
+
+## ISSUE-110 — Library status did nothing when tapped (build 159)
+
+Status: FIXED IN SOURCE; device check pending.
+- Owner (build 159, kodi.log): tapping Settings › Library › Library status did nothing. Every tap logged `RuntimeError: No valid addon id could be obtained` at `library_status.py` `xbmcaddon.Addon()`.
+- Root cause: scripts started as `RunScript(service.kodi.ios.bootstrap,page)` run through `default.py`'s `runpy`, so Kodi cannot tell which add-on a bare `xbmcaddon.Addon()` means. The old Check library for conversion (`prepare_check.py`) had the same call, which is why it "didn't seem to work" (ISSUE-109). The fake Kodi in `test_library_status` accepted the bare call, so the tests passed.
+- Fix: both scripts name the add-on (`Addon('service.kodi.ios.bootstrap')`). The fake Kodi now refuses a bare `Addon()` as Kodi does.
+- Regression: `test_library_status.EveryScriptNamesItsAddon` (no RunScript page calls a bare `Addon()`); `TapEveryButton` runs the real controller against the strict fake.
+
+## ISSUE-111 — Kodi uses about 10 GB of the phone (owner, build 159)
+
+Status: PARTLY FIXED IN SOURCE; what the 10 GB is will show on Library status (device check pending).
+- Owner: "does this fix why kodi is eating 10gb?" The bundled log showed only startup, so the 10 GB could not be attributed from it.
+- Found while checking: a video whose preparation failed, or that the owner chose to keep as it is, kept its half-made working files until its next try (or forever when kept). With KodiAirPlay r14 a streamed preparation cannot resume, so those files were only taking space.
+- Fix: `Queue.tidy()` before every video: working files stay only for a video that carries on where it was (waiting, paused for playback, saving to Drive); failed, kept, blocked, done and unknown ones give their space back at once. Library status's Phone space card now measures what Kodi keeps on the phone (preparation, Elementum downloads and data, videos on this iPhone, artwork, temporary files, add-on downloads and data; each file counted once) and names the two largest, and its bar shows Kodi's share.
+- Regression: `test_library_status.PhoneSpace` (5).
+
+## ISSUE-112 — Tapping a notification should show its log (owner, build 159)
+
+Status: IN SOURCE, not yet built (owner: "dont build this just have it ready for next round"); device check pending.
+- Owner: "when i tap a notification it brings me to that log." Kodi's own pop-ups ("Kodi iOS Automatic Setup and Recovery… Check the log for more information.") said only that, and a row did nothing unless the message carried an action.
+- Kodi writes a new kodi.log at every launch, so the lines are kept with the message when it arrives: the bootstrap service's bell loop (`notices.publish`) calls `notices.attach_logs` with `special://logpath/kodi.log`; each new message gets, 2 s after it arrived, the records from 90 s before to 1 s after it (`notices.excerpt`): every error (a Python error report is one record, said in one sentence with its file and line: `plain_record`), warnings that name the message's add-on, Kodi iOS lines that report trouble from the last 15 s; Elementum's web server and its own info lines, add-on config dumps and touch tracing are left out, repeats merged with a count. Kept in `notice-logs/<id>.json` (removed with the message and by Clear All).
+- Tapping a message opens `portrait/IOSNoticeDetail.xml` (`notice_page.py`, built from the Library status sheet's pieces): the message, "What happened" (the worst record in one sentence), and "From kodi.log" (newest first, error red, warning orange, app folders shortened). A message's own action is the sheet's Open button. A message from before this build reads the current launch's log when tapped.
+- Checked against the owner's build-159 log: the crash pop-up shows "RuntimeError: No valid addon id could be obtained… (library_status.py, line 39)", 5 times; an Elementum message shows only Elementum's repository error, not its ~280 lines of chatter.
+- Regression: `test_notice_log` (14): parsing, excerpt choices, attach once / clear, the sheet (44 pt buttons, ids, properties, fits above the button), and taps on the real Notifications page in the fake Kodi (crash → log; action → Open; dimmed page and back close).
+- Visual check pending: no render in this environment; first seen on the device.
+
+## ISSUE-113 — Library status: grey boxes for section names; owner wants folders (build 160)
+
+Status: FIXED IN SOURCE; device check pending (build 161).
+- Owner (build 160 screenshots): "I hate the grey boxes next to 'waiting' and 'ready for kodi and airplay' … it needs to be in like a folder so ready will show 7 then if i tap it it shows the movies." The footnote also showed as a row with an empty poster.
+- Root cause: the list used conditional item layouts (`<itemlayout condition="String.IsEqual(ListItem.Property(kind),header)">`). Kodi chooses among them by global conditions, not per item, so every item, the section names too, was drawn with the video row layout.
+- Fix: one layout for every item whose parts show by `ListItem.Property(kind)` (row, folder, foot). All shows what is happening now (preparing, downloading) as rows, then folders (Waiting, Ready for Kodi and AirPlay, Kept as it is) with a coloured tile, what is in them and the count; a folder opens its videos and the page title becomes its name; Back (arrow, gesture or back key) returns to All and closes only from All (the skin's Close is conditional too).
+- Regression: `test_library_status` (folders, one layout, positions, folder open and back in the fake Kodi).
+
+## ISSUE-114 — Phone space: 29 GB shown, iPhone says about 49; Inception waited on a figure the page did not show (build 160)
+
+Status: FIXED IN SOURCE; device check pending (build 161).
+- Owner: "It says my phone has 30gb free but it has 50 and we made it so my phone storage doesnt matter so it shouldnt be waiting at all."
+- Root cause 1: `shutil.disk_usage` (statvfs) counts only space free right now; iOS Settings also counts space it clears on its own when an app needs it. Fix: `phone_space.free` reads `NSURLVolumeAvailableCapacityForImportantUsageKey` through the Objective-C runtime (ctypes; never less than statvfs; statvfs elsewhere or on any failure); used by the queue, the preparation step and the page.
+- Root cause 2: the queue and the page used "the file's size", the preparation step its own estimate from the native probe (picture copied, or re-encoded at about 7 Mbit/s per 1080p, twice while it is made). Inception's step wanted far more than the 14 GB the page showed. Fix: the probe is kept with the job; `work_bytes` / `space_needed` give one figure for all three; a video that waits says why ("its picture (AV1 10-bit) cannot go into MP4 as it is, so it is re-encoded") in its details.
+- Not solved here: a movie whose picture must be re-encoded still needs room for the new picture on the phone while it is made (MP4's index is written after the picture). Which codec Inception has will show on its details sheet with KodiAirPlay r15 (the probe now reports codec and bit depth).
+- Regression: `test_library_status.SpaceAsTheIPhoneCountsIt` (4).
+
+## ISSUE-115 — Interstellar kept as it is: picture subtitles (build 160)
+
+Status: IN SOURCE (KodiAirPlay r15); CI build, then device check pending.
+- Owner: "Interstellar isnt being transferred and doesnt say ready … It needs to be ready for airplay."
+- Root cause: its Blu-ray picture subtitles (PGS) cannot go into MP4, and preparation never drops subtitles silently, so the file was kept as it is.
+- Fix: KodiAirPlay r15 `kodi_airplay_prepare_keep_image_subs(1)` writes each PGS track, untouched, to `output.sub<track>.<lang>[.forced].sup` (FFmpeg's `sup` muxer, now built) and prepares the MP4 without them. The add-on saves them next to the video on Google Drive as `<video>.<lang>[.forced].sup` (as Kodi names external subtitles) before replacing the video, and gives videos kept only for that one new try. Off by default in the framework. DVD picture subtitles or a second video track still keep a file as it is.
+- Regression: host `test_remux.c` (the .sup holds every PGS byte, none in the MP4, probe reports codec and PGS count), `test_image_subtitles` (9).
+
+## ISSUE-116 — Play on TV: a Ready movie "can't play (MP4)"; Play on TV pressed twice (build 160)
+
+Status: FIXED IN SOURCE; device check pending (build 162).
+- Owner: "this movie is under ready and it gives me this bs" (Apple's AirPlay player can't play this video (MP4)…) and "its super buggy i like have to press it twice for it too work".
+- Log (build 160, The Nightmare Before Christmas, prepared MP4, TCL Roku TV): every attempt shows "Play on TV: opened" twice about 10 s apart. Nothing was on screen while the TV connected, so Play on TV was pressed again; the second session's start tore down the first session's file server (the first failed with -1004 "Could not connect to the server"), and the first session, failing, closed the second one's. The failure then fell through to the Screen Mirroring text, which names the file's extension (MP4).
+- Fix: one Play on TV at a time (Home property `KodiIOS.PlayOnTV`, 90 s; a second press says "Still connecting to the TV…"); a "Connecting to the TV…" progress with Cancel from the moment AirPlay starts (Cancel and failures let Kodi's video carry on); with a converting framework a failure says what Apple's player reported in everyday words ("AirPlay didn't start on the TV: the TV could not connect to the phone") instead of blaming the format.
+- Still to see: whether this TCL Roku TV shows the picture of a prepared HEVC MP4 (prepared files go to the TV as they are; build 136-era logs needed the H.264 picture for this TV). If it plays sound only, the existing "No picture on the TV" alert says so.
+- Regression: `test_play_on_tv_start` (5).
+
+## ISSUE-117 — Downloads fill the phone; a large movie can never download (build 160)
+
+Status: IN SOURCE; device check pending (build 162).
+- Owner: "a movie im downloading goes onto my phone still … its eating all my storage and if i do a large movie it wont ever download" (Files: Fall.2022.2160p.WEB-DL… 19.83 GB). Chose "AllDebrid straight to Drive".
+- Root cause: Download always went through Elementum; a torrent is written to the phone, uploaded to Drive, then deleted, so it needs its whole size free.
+- Fix: with AllDebrid signed in (Umbrella › Accounts, `alldebridtoken`), Download only (movie, episode, chosen episodes, whole season) hands the version picked to AllDebrid (`alldebrid.py`) and Elementum drops it and its files; the service (`debrid_loop`, `debrid_drive.step`) waits while AllDebrid fetches it on its servers, then copies each video into Drive › Kodi Downloads › Movies / TV Shows › <show> with `Drive.upload_stream` (16 MB at a time, resumes at Drive's offset; nothing written to the phone), rescans the library and asks preparation to check. Progress shows on the Uploading card, the pill and Library status. Without AllDebrid, or with Download and watch, Elementum as before.
+- Owner, same day: "Download only or download and watch doesnt appear when i select the source it just starts downloading". Playing a version from the source page goes through Elementum, which this app sets to keep downloading after playback, so the whole movie still landed on the phone. Fix: with AllDebrid signed in, the service takes every unfinished Elementum torrent after 3 minutes with nothing playing (never while a video plays or buffers; `debrid_drive.adopt`), queues it for AllDebrid and Drive, and Elementum drops it and its files. A finished one goes to Drive the usual way.
+- Regression: `test_debrid_drive` (16).
 
 ## ISSUE-102 — Activity pill and sheet (PR #9): review against the Apple UI policy (rig screenshots, 2026-11-05)
 

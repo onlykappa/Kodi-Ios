@@ -348,4 +348,54 @@ class FakeItem:
  def __init__(self):self.props={}
  def setProperty(self,k,v):self.props[k]=v
 
+class WhatTheTorrentReallyIs(unittest.TestCase):
+ """Owner (build 156): Fall (2022) in 4K, "the best one", downloaded Fall.2.Deadpoint.2026. The site's label passed the
+ source check; the torrent's real name, known only once Elementum has its metadata, did not."""
+ def setUp(self):
+  sys.modules['source_match']=sm
+  self.g=load('source_guard_t',LIB/'source_guard.py');self.now=[1000.0];self.stopped=[];self.notes=[]
+  self.guard=self.g.Guard(self.stopped.append,lambda t,x:self.notes.append((t,x)),clock=lambda:self.now[0])
+  self.found=(sm.expected('movie',titles=['Fall'],year=2022),995.0)
+ def add(self,name,tid='new'):return [{'id':'old','name':'Something.Else.2019.mkv'},{'id':tid,'name':name}]
+ def test_the_wrong_film_is_stopped_once_its_real_name_is_known(self):
+  self.guard.tick([{'id':'old','name':'Something.Else.2019.mkv'}],self.found)   # what was there before: never judged
+  self.guard.tick(self.add('Fall 2022 2160p'),self.found)                         # the site's label: fine
+  self.assertEqual(self.stopped,[])
+  self.now[0]+=8
+  self.guard.tick(self.add('Fall.2.Deadpoint.2026.2160p.4K.WEB.x265.10bit.AAC5.1-[YTS.GG - YTS.BZ].mkv'),self.found)
+  self.assertEqual(self.stopped,['new']);self.assertIn('is not Fall (2022) (wrong title)',self.notes[0][1])
+  self.guard.tick(self.add('Fall.2.Deadpoint.2026.2160p.mkv'),self.found);self.assertEqual(self.stopped,['new'])   # once
+ def test_the_right_film_and_unclear_names_are_left_alone(self):
+  self.guard.tick([{'id':'old','name':'Something.Else.2019.mkv'}],self.found)
+  for name in ('Fall.2022.2160p.4K.WEB.x265.10bit.AAC5.1-[YTS.MX].mkv','Fall 2160p WEB','a'*40):
+   self.guard.tick(self.add(name),self.found)
+  self.assertEqual(self.stopped,[])
+ def test_wrong_year_is_stopped(self):
+  self.guard.tick([{'id':'old','name':'Something.Else.2019.mkv'}],self.found)
+  self.guard.tick(self.add('Fall.2026.1080p.WEB.mkv'),self.found);self.assertEqual(self.stopped,['new'])
+ def test_not_after_choosing_a_hidden_source_nor_for_an_old_search(self):
+  class W:
+   def __init__(self,data):self.data=data
+   def getProperty(self,key):return json.dumps(self.data) if key==sm.PROPERTY else ''
+  self.assertIsNone(self.g.identity(W({'exp':{'titles':['Fall']},'time':1,'revealed':True})))
+  self.assertEqual(self.g.identity(W({'exp':{'titles':['Fall']},'time':5})),({'titles':['Fall']},5.0))
+  self.guard.tick([{'id':'old','name':'x'}],self.found);self.now[0]=995+self.g.FRESH+60
+  self.guard.tick(self.add('Fall.2026.1080p.WEB.mkv'),self.found);self.assertEqual(self.stopped,[])   # search too old
+ def test_a_torrent_started_before_the_search_is_not_judged_by_it(self):
+  self.guard.tick([{'id':'old','name':'x'}],self.found)
+  self.guard.tick(self.add('Fall.2026.1080p.WEB.mkv'),(self.found[0],2000.0));self.assertEqual(self.stopped,[])
+ def test_each_torrent_is_judged_by_the_search_it_came_from(self):
+  ep=lambda n:(sm.expected('episode',titles=['Lanterns'],season=1,episode=n),self.now[0])
+  self.guard.tick([],ep(1))
+  self.guard.tick([{'id':'e1','name':'Lanterns S01E01 label'}],ep(1))   # episode 1 appears during its own search
+  self.now[0]+=4
+  ep3=ep(3)                                                             # then episode 3 is searched
+  self.guard.tick([{'id':'e1','name':'Lanterns.S01E01.2160p.mkv'}],ep3)
+  self.assertEqual(self.stopped,[])
+  self.guard.tick([{'id':'e1','name':'Lanterns.S01E01.2160p.mkv'},{'id':'x','name':'Other.Show.S01E03.mkv'}],ep3)
+  self.assertEqual(self.stopped,['x'])                                   # another show is still stopped
+ def test_service_runs_the_guard(self):
+  service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
+  self.assertIn('target=source_guard.run,args=(window,notices.torrent_list,driveupload.remove_torrent,',service)
+
 if __name__=='__main__':unittest.main()

@@ -7,6 +7,11 @@ on:
       - 'migration/airplay-ios/build-airplay.sh'
       - 'migration/airplay-ios/source-lock.json'
   workflow_dispatch:
+    inputs:
+      publish_verified_candidate:
+        description: Publish the already-tested candidate pinned in source-lock.json, without rebuilding
+        type: boolean
+        default: false
 permissions:
   contents: write
 concurrency:
@@ -14,6 +19,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   airplay:
+    if: github.event.inputs.publish_verified_candidate != 'true'
     runs-on: macos-15
     timeout-minutes: 20
     steps:
@@ -35,3 +41,75 @@ jobs:
           dir="$RUNNER_TEMP/airplay"
           gh release create "$tag" "$dir/KodiAirPlay.framework.zip" --repo "$REPO" --target "$SHA" --prerelease \
             --title "AirPlay button for iPhoneOS ($tag)" --notes "$(cat "$dir/KodiAirPlay.framework.zip.sha256")"
+  publish-verified:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish_verified_candidate == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify the pinned source passed both candidate jobs
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          run_id=$(python3 -c "import json;print(json.load(open('migration/airplay-ios/source-lock.json'))['verified_run'])")
+          gh api "repos/$REPO/actions/runs/$run_id" > "$RUNNER_TEMP/candidate-run.json"
+          python3 - "$RUNNER_TEMP/candidate-run.json" "$REPO" <<'PY'
+          import json,sys
+          lock=json.load(open('migration/airplay-ios/source-lock.json'))
+          run=json.load(open(sys.argv[1]))
+          assert run['repository']['full_name']==sys.argv[2]
+          assert run['status']=='completed' and run['conclusion']=='success'
+          assert run['head_sha']==lock['source_commit']
+          PY
+          echo "run=$run_id" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
+        with:
+          name: KodiAirPlay-source-candidate
+          run-id: ${{ steps.source.outputs.run }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/verified-airplay
+      - name: Verify archive and publish the immutable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          archive="$RUNNER_TEMP/verified-airplay/KodiAirPlay.framework.zip"
+          python3 - "$archive" <<'PY'
+          import hashlib,json,sys,zipfile
+          lock=json.load(open('migration/airplay-ios/source-lock.json'))
+          data=open(sys.argv[1],'rb').read()
+          assert hashlib.sha256(data).hexdigest()==lock['framework_release']['sha256']
+          with zipfile.ZipFile(sys.argv[1]) as z:
+              assert z.testzip() is None
+              binary=z.read('KodiAirPlay.framework/KodiAirPlay')
+              assert b'_kodi_airplay_prepare' in binary and b'_kodi_airplay_probe' in binary
+              assert b'_kodi_airplay_prepare_streams' in binary   # r14: streamed preparation
+              assert b'_kodi_airplay_prepare_to' in binary and b'_kodi_airplay_verify' in binary
+              assert b'_kodi_airplay_probe_ex' in binary and b'_kodi_airplay_prepare_hdr' in binary
+              assert b'_kodi_background_state' in binary
+              assert b'_kodi_airplay_prepare_keep_image_subs' in binary   # r15: picture subtitles kept beside the MP4
+          PY
+          tag=$(python3 -c "import json;print(json.load(open('migration/airplay-ios/source-lock.json'))['framework_release']['tag'])")
+          sha=$(python3 -c "import json;print(json.load(open('migration/airplay-ios/source-lock.json'))['source_commit'])")
+          digest=$(sha256sum "$archive" | cut -d' ' -f1)
+          if gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then
+            if gh release view "$tag" --repo "$REPO" --json assets --jq '.assets[].name' | grep -qx KodiAirPlay.framework.zip; then
+              gh release download "$tag" --repo "$REPO" --pattern KodiAirPlay.framework.zip --dir "$RUNNER_TEMP/existing-airplay"
+            else
+              # Recover a release created before its upload failed; never replace an existing archive.
+              gh release upload "$tag" "$archive" --repo "$REPO"
+              gh release download "$tag" --repo "$REPO" --pattern KodiAirPlay.framework.zip --dir "$RUNNER_TEMP/existing-airplay"
+            fi
+            echo "$digest  $RUNNER_TEMP/existing-airplay/KodiAirPlay.framework.zip" | sha256sum -c -
+            exit 0
+          fi
+          gh release create "$tag" "$archive" --repo "$REPO" --target "$sha" --prerelease \
+            --title "AirPlay ($tag): one-file preparation at source resolution" \
+            --notes "$digest  KodiAirPlay.framework.zip; verified candidate $sha, run ${{ steps.source.outputs.run }}. Device retest pending."

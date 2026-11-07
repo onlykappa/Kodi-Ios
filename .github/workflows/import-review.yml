@@ -121,8 +121,17 @@ jobs:
           python3 -B scripts/test_portrait.py
           python3 -B scripts/test_glassbar.py
           python3 -B scripts/test_notices.py
+          python3 -B scripts/test_notice_log.py
           python3 -B scripts/test_pages.py
           python3 -B scripts/test_airplay_remux.py
+          python3 -B scripts/test_prepare_downloads.py
+          python3 -B scripts/test_debrid_drive.py
+          python3 -B scripts/test_elementum_cloud.py
+          python3 -B scripts/test_drive_prepare.py
+          python3 -B scripts/test_preparation_runtime.py
+          python3 -B scripts/test_transfer_artwork.py
+          python3 -B scripts/test_diagnostics.py
+          python3 -B scripts/test_library_status.py
           python3 -B scripts/test_downloaded_play.py
           python3 -B scripts/test_choose_source.py
           python3 -B scripts/test_signin_server.py

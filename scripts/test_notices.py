@@ -102,4 +102,49 @@ class PageTests(unittest.TestCase):
   tree=ast.parse((BOOT/'service.py').read_text(encoding='utf-8'))
   self.assertTrue(any(isinstance(n,ast.Attribute) and n.attr=='publish' for n in ast.walk(tree)))
 
+def label_boxes(group):
+ """(left, top, right, bottom, text) for each label directly inside a group."""
+ out=[]
+ for c in group.findall('control'):
+  if c.get('type')!='label':continue
+  num=lambda tag:float(c.findtext(tag) or 0)
+  out.append((num('left'),num('top'),num('left')+num('width'),num('top')+num('height'),c.findtext('label')))
+ return out
+
+class OverlapTests(unittest.TestCase):
+ """ISSUE-101: two labels drawn into the same box overlapped in Notifications (build-152)."""
+ def test_no_two_labels_on_the_notifications_page_overlap(self):
+  root=ET.fromstring(portrait.notices_page().split('\n',2)[2])
+  for group in root.iter('control'):
+   boxes=label_boxes(group)
+   for i,a in enumerate(boxes):
+    for b in boxes[i+1:]:
+     overlap=a[0]<b[2] and b[0]<a[2] and a[1]<b[3] and b[1]<a[3]
+     self.assertFalse(overlap,'labels overlap: %r and %r'%(a[4],b[4]))
+ def test_every_button_is_at_least_44_pt_tall(self):
+  root=ET.fromstring(portrait.notices_page().split('\n',2)[2])
+  for c in root.iter('control'):
+   if c.get('type')=='button' and c.findtext('height'):self.assertGreaterEqual(int(c.findtext('height')),118,c.get('id'))
+  for g in root.iter('control'):
+   inner=g.find("control[@type='button']")
+   if g.get('type')=='group' and inner is not None and inner.findtext('height') is None and g.findtext('height'):
+    self.assertGreaterEqual(int(g.findtext('height')),118)
+ def test_detector_catches_the_build_152_layout(self):
+  bad=ET.fromstring('<control type="group"><control type="label"><left>238</left><top>158</top><width>762</width><height>46</height><label>a</label></control>'
+                    '<control type="label"><left>238</left><top>158</top><width>762</width><height>46</height><label>b</label></control></control>')
+  a,b=label_boxes(bad);self.assertTrue(a[0]<b[2] and b[0]<a[2] and a[1]<b[3] and b[1]<a[3])
+ def test_no_dim_text_on_the_notifications_page(self):
+  # DIM (30 % grey) is about 2.2:1 on black, below the HIG 4.5:1 text minimum (docs/design/APPLE-UI-POLICY.md section 4.3).
+  self.assertNotIn('<textcolor>%s</textcolor>'%portrait.DIM,portrait.notices_page())
+ def test_transfer_rows_have_one_label_per_line_and_readable_titles(self):
+  xml=portrait.notices_page()
+  self.assertNotIn('then off the phone',xml);self.assertNotIn('source resolution',xml)
+  for pre in ('up.','prepare.'):
+   for key in ('title','summary','line'):self.assertIn('Window().Property(%s%s)'%(pre,key),xml)
+  props=page.card_properties([],[{'title':'Fall (2022)','folder':'Movies','progress':5,'line':'5%'}])
+  self.assertEqual(props['up.summary'],'Movies · then off the phone')
+  self.assertEqual(notices.drivelibrary.display_title('Lanterns.S01E01.Pilot.2160p.10bit.WEB-DL.mkv'),'Lanterns · S1 E1')
+  self.assertEqual(notices.drivelibrary.display_title('INCEPTION.2010.PROPER.1080p.BluRay.x264'),'Inception (2010)')
+  self.assertEqual(notices.drivelibrary.display_title('Movies and shows'),'Movies and shows')
+
 if __name__=='__main__':unittest.main()

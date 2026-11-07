@@ -92,6 +92,103 @@ def parse(name):
  found['title']=re.sub(r'\s{2,}',' ',title) or text.strip()
  return found
 
+def show_key(title):
+ """Same show or movie name ignoring case, punctuation and year: 'Lanterns' and 'Lanterns (2026)' match
+ (the Library's merge rule, ios_library.show_key, applied to a parsed title)."""
+ return re.sub(r'[^0-9a-z]+','',str(parse(title)['title'] if title else '').casefold())
+
+def media_key(name,folder=''):
+ """('episode', show, season, episode) or ('movie', title, year) for duplicate checks, or None if unknown.
+ Bare episode names (S01E02.mkv) take the show from their folder."""
+ info=parse(name)
+ if info['season'] and info['episode']:
+  title=info['title']
+  if not title or title.casefold() in ('episode','season') or re.match(r'^(?:s\d+[ ._-]*e\d+|\d+x\d+)',title,re.I):
+   title='' if re.match(r'(?i)^(?:season|s)[ ._-]*\d+\b',str(folder)) else folder   # "Season 1" names no show
+  key=show_key(title)
+  return ('episode',key,int(info['season']),int(info['episode'])) if key else None
+ key=re.sub(r'[^0-9a-z]+','',info['title'].casefold())
+ return ('movie',key,info['year']) if key else None
+
+QUALITY=re.compile(r'(?i)\b(?:(2160|1440|1080|720|576|480)p|(4k|uhd))\b')
+def quality(name):
+ """Vertical resolution named in a release (4K/UHD = 2160), 0 when it does not say."""
+ m=QUALITY.search(str(name))
+ return 0 if not m else (2160 if m.group(2) else int(m.group(1)))
+
+def show_folder(drive,parts):
+ """Upload folder for an episode: the existing Drive › Kodi Downloads › TV Shows folder of the same show if there is
+ one ('Lanterns (2026)' goes into 'Lanterns'), so one show never gets two folders. Other paths are unchanged."""
+ parts=list(parts)
+ if len(parts)!=3 or parts[1]!='TV Shows':return parts
+ want=show_key(parts[2])
+ try:
+  for parent in find_folders(drive,parts[:2]):
+   names=[item.get('name','') for item in children(drive,parent) if item.get('mimeType')==FOLDER]
+   if parts[2] in names:return parts
+   for name in names:
+    if want and show_key(name)==want:return parts[:2]+[name]
+ except Exception:return parts
+ return parts
+
+def media_year(name,folder=''):
+ """The year a release or its folder names ('' if neither does)."""
+ return parse(name)['year'] or (parse(folder)['year'] if folder else '')
+
+def same_year(a,b):
+ """Two years that do not contradict each other: 'The Office (2001)' and 'The Office (2005)' are different shows,
+ while 'Lanterns' and 'Lanterns (2026)' may be the same one."""
+ return not a or not b or a==b
+
+def same_media(name,folder,remote):
+ """Drive videos that are the same episode or movie as `name` (another release; exact byte copies are handled by
+ the checksum rule), best first."""
+ key=media_key(name,folder);year=media_year(name,folder)
+ if key is None:return []
+ found=[item for item in remote if media_key(item.get('name',''),item.get('folderName',''))==key
+        and same_year(year,media_year(item.get('name',''),item.get('folderName','')))]
+ return sorted(found,key=lambda item:(-quality(item.get('name','')),-int(item.get('size') or 0)))
+
+def better_on_drive(path,remote):
+ """The Drive copy that makes uploading `path` pointless: same episode/movie at equal or higher resolution."""
+ name=os.path.basename(path);folder=os.path.basename(os.path.dirname(path))
+ for item in same_media(name,folder,remote):
+  if quality(item.get('name',''))>=quality(name):return item
+ return None
+
+def trash(drive,item_id):
+ """Moves a Drive file or folder to Drive's Trash (restorable there for 30 days); never a permanent delete."""
+ status,_,_=drive.call('PATCH',API+'/'+urllib.parse.quote(str(item_id),safe='')+'?fields=id,trashed',
+                       json.dumps({'trashed':True}).encode(),{'Content-Type':'application/json'})
+ if status!=200:raise RuntimeError('Drive trash: HTTP %s'%status)
+
+def trash_if_empty(drive,folder_id,folder_name):
+ """A show or release folder left empty by a removed duplicate goes too; Kodi Downloads' own folders never do."""
+ if not folder_id or folder_name in ('',TOP,'Movies','TV Shows'):return False
+ if children(drive,folder_id):return False
+ trash(drive,folder_id);return True
+
+def trash_worse(drive,name,folder,remote,kept_id):
+ """After `name` is confirmed on Drive (as kept_id): lower-resolution copies of the same episode/movie go to Drive's
+ Trash, and their folder if it is left empty. Returns the folders they were in."""
+ gone=[]
+ for item in same_media(name,folder,remote):
+  if item.get('id')==kept_id or quality(item.get('name',''))>=quality(name):continue
+  try:trash(drive,item['id'])
+  except Exception:continue
+  gone.append(item.get('folderName') or TOP)
+  try:trash_if_empty(drive,item.get('folderId'),item.get('folderName',''))
+  except Exception:pass
+ return gone
+
+def display_title(name):
+ """A release or file name as people read it: 'Lanterns · S1 E1', 'Inception (2010)'. Plain text is kept."""
+ info=parse(name)
+ title=info['title'] or str(name)
+ if title.isupper() and len(title)>4:title=title.title()   # INCEPTION -> Inception (short ones may be acronyms)
+ if info['season'] and info['episode']:return '%s · S%s E%s'%(title,info['season'],info['episode'])
+ return '%s (%s)'%(title,info['year']) if info['year'] else title
+
 def play_url(driveid,item_id):
  """Plays one Drive file through the Google Drive add-on (it streams from Drive)."""
  return 'plugin://plugin.googledrive/?'+urllib.parse.urlencode({'action':'play','content_type':'video','driveid':driveid,
@@ -239,12 +336,15 @@ def client():
   return json.loads(answer)
  return driveupload.Drive(driveupload.token_source(accounts.get_accounts,accounts.save_account,refresh),send),driveid
 
-def listing(kind,state_dir,folder=None,now=time.time,strict=False,fresh=False):
- """Drive entries for the Library page (cached LISTING_TTL seconds): movies, shows, or one show's episodes."""
+def listing(kind,state_dir,folder=None,now=time.time,strict=False,fresh=False,stale_ok=False):
+ """Drive entries for the Library page (cached LISTING_TTL seconds): movies, shows, or one show's episodes.
+ stale_ok: return the saved list whatever its age (build 192, owner: "pressing movies under library takes a few
+ seconds"; each open after 5 minutes, or after any upload, listed Drive live while Kodi showed its progress box). The
+ service keeps the saved lists fresh (refresh_stale), so the page opens at once."""
  cache_path=os.path.join(state_dir,'drive-library.json');cache=load_json(cache_path,{})
  slot='%s:%s'%(kind,folder or '')
  hit=cache.get(slot)
- if not fresh and hit and now()-hit.get('time',0)<LISTING_TTL:return hit['entries'],hit['driveid']
+ if not fresh and hit and (stale_ok or now()-hit.get('time',0)<LISTING_TTL):return hit['entries'],hit['driveid']
  drive,driveid=client()
  if not drive:return [],None
  if folder:entries=episodes(videos(drive,folder))
@@ -256,6 +356,19 @@ def listing(kind,state_dir,folder=None,now=time.time,strict=False,fresh=False):
   entries.sort(key=lambda entry:(entry['title'].casefold(),entry['year']))
  cache[slot]={'time':now(),'entries':entries,'driveid':driveid};save_json(cache_path,cache)
  return entries,driveid
+
+def refresh_stale(state_dir,now=time.time,ttl=LISTING_TTL):
+ """Build 192: the service's part of stale_ok: every saved list older than ttl (or marked stale by
+ driveupload.invalidate_library) is listed again; movies and shows are always kept. Returns the slots refreshed."""
+ cache=load_json(os.path.join(state_dir,'drive-library.json'),{})
+ slots=set(cache)|{'movie:','tv:'}
+ done=[]
+ for slot in sorted(slots):
+  hit=cache.get(slot) or {}
+  if now()-hit.get('time',0)<ttl:continue
+  kind,folder=slot.split(':',1)
+  listing(kind,state_dir,folder or None,now=now,strict=True,fresh=True);done.append(slot)
+ return done
 
 def completed_copy(kind,title,year,season,episode,state_dir):
  """Match a kept download by title/year or show/episode, without art lookups or source scraping. Local phone

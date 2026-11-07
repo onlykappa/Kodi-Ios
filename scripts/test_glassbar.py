@@ -54,6 +54,8 @@ searchbar=importlib.util.module_from_spec(spec_s);spec_s.loader.exec_module(sear
 class SearchLib:
  def __init__(self):self.calls=[]
  def kodi_search_show(self,v):self.calls.append(('show',v))
+ def kodi_search_set(self,v):self.text=v
+ def kodi_search_focus(self,v):self.focus=v
 
 class SearchFieldTests(unittest.TestCase):
  def setUp(self):
@@ -61,6 +63,7 @@ class SearchFieldTests(unittest.TestCase):
   visible=lambda c:self.dialog if c=='System.HasActiveModalDialog' else (self.page if c==searchbar.PAGE else False)
   take=lambda:self.queue.pop(0) if self.queue else (0,'')
   self.tick,self.poll,self.close=searchbar.controller(self.lib,take,visible,lambda:self.portrait,self.props.__setitem__,lambda:self.now)
+  self.tick()
  def test_field_shows_only_on_the_search_page_in_portrait_without_dialogs(self):
   self.tick();self.tick();self.assertEqual(self.lib.calls,[('show',1)])
   self.dialog=True;self.tick();self.dialog=False;self.tick();self.page=False;self.tick()
@@ -83,6 +86,22 @@ class SearchFieldTests(unittest.TestCase):
   tick();poll();self.assertIn('tmdb_type=multi',self.props['Portrait.Search.Path'])
   kind['v']='movie';tick();self.assertIn('tmdb_type=movie&query=alien',self.props['Portrait.Search.Path'])
   kind['v']='tv';tick();self.assertIn('tmdb_type=tv',self.props['Portrait.Search.Path'])
+ def test_settings_context_focus_cancel_and_media_restore(self):
+  class Context(SearchLib):
+   def kodi_search_context(self,v):self.context=v
+  lib=Context();props={};queue=[];active=['']
+  tick,poll,_=searchbar.controller(lib,lambda:queue.pop(0) if queue else (0,''),lambda c:c==searchbar.PAGE,lambda:True,props.__setitem__,lambda:0,info=lambda l:active[0] if 'Settings.Search.Active' in l else '')
+  tick();queue.append((3,'alien'));poll()
+  active[0]='1';tick();self.assertEqual(lib.context,1);self.assertEqual(lib.focus,1)
+  queue.append((3,'library'));poll();self.assertEqual(props['Settings.Search.Query'],'library')
+  self.assertEqual(props['Portrait.Search.Query'],'alien')
+  lib.focus=0;tick();self.assertEqual(lib.focus,0,'dragging must not summon the keyboard again')
+  queue.append((4,''));poll();self.assertEqual(props['Settings.Search.Close'],'1')
+  active[0]='';tick();self.assertEqual(lib.context,0);self.assertEqual(lib.text,b'alien')
+  active[0]='1';tick();self.assertEqual(lib.text,b'','new Settings session starts empty')
+ def test_hidden_field_does_not_consume_native_events(self):
+  self.page=False;self.tick();self.queue.append((3,'hidden'));self.poll()
+  self.assertEqual(self.props,{});self.assertEqual(len(self.queue),1)
  def test_search_page_layout(self):
   import xml.etree.ElementTree as ET
   spec=importlib.util.spec_from_file_location('portrait',ROOT/'migration/bundled-bootstrap/resources/lib/portrait.py')
@@ -200,11 +219,11 @@ class NativeOwnerTests(unittest.TestCase):
     elif action.startswith('SetFocus('):self.assertIn('"SetFocus(" + std::to_string(4000 + 10000 * tapped) + ")"',block);self.assertIn(action,['SetFocus(%d)'%(4000+10000*i) for i in range(3)])
     else:self.assertIn('"%s"'%action,block)
     if condition:self.assertIn('info.EvaluateBool("%s", context)'%condition,block)
- def test_locks_pin_r5_and_r23(self):
+ def test_locks_pin_r6_and_r23(self):
   bar=json.loads((ROOT/'migration/glassbar-ios/source-lock.json').read_text())
-  self.assertEqual(bar['framework_release']['tag'],'kodi-glassbar-r5')
+  self.assertEqual(bar['framework_release']['tag'],'kodi-glassbar-r6')
   self.assertRegex(bar['framework_release']['sha256'],r'^[0-9a-f]{64}$')
-  self.assertEqual(bar['previous']['tag'],'kodi-glassbar-r4')
+  self.assertEqual(bar['previous']['tag'],'kodi-glassbar-r5')
   self.assertNotIn('build_status',bar)
   exe=json.loads((ROOT/'migration/ios-portrait/source-lock.json').read_text())
   self.assertEqual(exe['executable_release']['tag'],'kodi-ios-portrait-r23')

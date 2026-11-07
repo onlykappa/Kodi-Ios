@@ -55,7 +55,7 @@ FLAGS=(
   --enable-demuxer=mpegvideo --enable-demuxer=mpegps --enable-demuxer=asf --enable-demuxer=flv --enable-demuxer=ogg
   --enable-demuxer=rm --enable-demuxer=wtv --enable-demuxer=nut
   --enable-demuxer=sup --enable-demuxer=vobsub
-  --enable-muxer=mov --enable-muxer=mp4 --enable-muxer=webvtt
+  --enable-muxer=mov --enable-muxer=mp4 --enable-muxer=webvtt --enable-muxer=sup
   --enable-parser=hevc --enable-parser=h264 --enable-parser=aac --enable-parser=aac_latm --enable-parser=ac3
   --enable-parser=av1 --enable-parser=mpegaudio --enable-parser=flac --enable-parser=opus --enable-parser=vorbis
   --enable-parser=dca --enable-parser=mlp --enable-parser=vp9
@@ -71,7 +71,7 @@ FLAGS=(
   # Text subtitles as WebVTT.
   --enable-decoder=pgssub --enable-decoder=dvdsub --enable-decoder=dvbsub --enable-decoder=xsub
   --enable-decoder=subrip --enable-decoder=srt --enable-decoder=ass --enable-decoder=ssa
-  --enable-decoder=movtext --enable-decoder=webvtt --enable-decoder=text --enable-encoder=webvtt
+  --enable-decoder=movtext --enable-decoder=webvtt --enable-decoder=text --enable-encoder=webvtt --enable-encoder=movtext
   # Picture bridge: native decoders plus pinned dav1d for AV1 fallback on all devices.
   --enable-libdav1d --enable-decoder=libdav1d
   --enable-decoder=hevc --enable-decoder=h264 --enable-decoder=vp9 --enable-decoder=vp8 --enable-decoder=mpeg2video
@@ -96,14 +96,18 @@ case "$TARGET" in
             --enable-hwaccel=mpeg2_videotoolbox --enable-hwaccel=mpeg1_videotoolbox
             --enable-hwaccel=mpeg4_videotoolbox --enable-hwaccel=vp9_videotoolbox
             --enable-decoder=av1 --enable-hwaccel=av1_videotoolbox
-            --enable-encoder=h264_videotoolbox
+            --enable-encoder=h264_videotoolbox --enable-encoder=hevc_videotoolbox
             --enable-cross-compile --target-os=darwin --arch=arm64 --cc="$CC"
             --sysroot="$SDK" --extra-cflags="-arch arm64 -miphoneos-version-min=14.0"
             --extra-ldflags="-arch arm64 -miphoneos-version-min=14.0")
     ;;
   # No hand-written assembly needed for tests (and no nasm on CI). FFmpeg has no LGPL H.264 encoder and the host has no
   # VideoToolbox, so the host tests drive the picture bridge with the built-in MPEG-4 Part 2 encoder (tests only).
-  host) FLAGS+=(--disable-x86asm --enable-encoder=mpeg4) ;;
+  host)
+    FLAGS+=(--disable-x86asm --enable-encoder=mpeg4)
+    # Test-only HEVC Main10 reference encoder. Never used or shipped in the iPhone framework.
+    if [[ "${KR_HDR_TESTS:-0}" == 1 ]]; then FLAGS+=(--enable-gpl --enable-libx265 --enable-encoder=libx265); fi
+    ;;
   *) echo "unknown target $TARGET" >&2; exit 2;;
 esac
 BUILD="$WORK/build-$TARGET"; mkdir -p "$BUILD"; cd "$BUILD"

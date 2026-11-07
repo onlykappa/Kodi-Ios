@@ -75,10 +75,12 @@ class SettingsPages(unittest.TestCase):
   self.assertTrue((BOOT/'accounts_page.py').is_file())
  def test_customisation_page_uses_fuse_actions(self):
   root=self.read('Settings.xml')
-  self.assertEqual(self.clicks(root,9113),['SetProperty(Settings.Page,custom,10004)','SetFocus(9401)'])
-  self.assertEqual(self.clicks(root,9401),['ActivateWindow(1115)'])
-  self.assertEqual(self.clicks(root,9411)[-1],'ActivateWindow(1118)')
-  self.assertIn('SetProperty(CustomDialogSettingsItems,DialogCustom_VideoOSD_Items,Home)',self.clicks(root,9411))
+  self.assertEqual(self.clicks(root,9113),['SetProperty(Settings.Page,custom,10004)','SetFocus(9401)','RunScript(service.kodi.ios.bootstrap,customise_counts)'])
+  self.assertEqual(self.clicks(root,9401),['SetProperty(Settings.Page,tabs,10004)','SetFocus(9551)'])
+  self.assertEqual(self.clicks(root,9412),['SetProperty(Settings.Page,info,10004)','SetFocus(9561)'])
+  self.assertEqual(self.clicks(root,9421),['ActivateWindow(skinsettings)'])
+  self.assertEqual(self.clicks(root,9411),['SetProperty(Settings.Page,osd,10004)','SetFocus(9531)'])
+  self.assertEqual(self.clicks(root,9414),['SetProperty(Settings.Page,badges,10004)','SetFocus(9501)'])
  def test_back_button_leaves_customisation_first(self):
   root=self.read('Settings.xml');button=[c for c in root.iter('control') if c.get('id')=='9001'][0]
   actions=[(o.get('condition'),o.text) for o in button.findall('onclick')]
@@ -158,5 +160,17 @@ class SettingsPages(unittest.TestCase):
   # Negating a compound condition needs the brackets, or '!' binds to the first term only (profile glyph bug).
   self.assertIn('<visible>![!String.IsEmpty(System.ProfileThumb) + !String.Contains(System.ProfileThumb,DefaultUser)]</visible>',
                 (self.skin/'portrait/Settings.xml').read_text())
+
+class BuildNumber(unittest.TestCase):
+ """Owner: the build number beside Kodi's version at the bottom of Settings."""
+ def test_footer_and_reader(self):
+  import tempfile,importlib.util
+  spec=importlib.util.spec_from_file_location('updates_bn',BOOT/'resources/lib/updates.py');up=importlib.util.module_from_spec(spec);spec.loader.exec_module(up)
+  with tempfile.TemporaryDirectory() as d:
+   self.assertEqual(up.installed_build(d),'')
+   Path(d,'build.json').write_text('{"build": 157, "commit": "abc"}');self.assertEqual(up.installed_build(d),'157')
+  source=(BOOT/'resources/lib/settings_page.py').read_text()
+  self.assertIn("$INFO[Window(Home).Property(KodiIOS.Build), (build ,)]",source)
+  self.assertIn("window.setProperty('KodiIOS.Build',updates.installed_build(root))",(BOOT/'service.py').read_text())
 
 if __name__=='__main__':unittest.main()

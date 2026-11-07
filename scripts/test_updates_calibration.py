@@ -1,6 +1,7 @@
-import importlib.util,json,tempfile,unittest
+import importlib.util,sys,json,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'migration/bundled-bootstrap/resources/lib'))
 def load(name):
  spec=importlib.util.spec_from_file_location(name,ROOT/'migration/bundled-bootstrap/resources/lib'/(name+'.py'));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 updates=load('updates');calibration=load('calibration');bootstrap=load('bootstrap')
@@ -144,6 +145,21 @@ class PlayOnTV(unittest.TestCase):
    raise OSError('refused')
   self.assertEqual(cast.find_rokus('192.168.1.11',get,workers=8),[('192.168.1.20','Living Room'),('192.168.1.31','Roku Express')])
   self.assertEqual(cast.find_rokus(None,get),[])
+class AlreadyDownloaded(unittest.TestCase):
+ """Owner (build 152): check for duplicates before downloading."""
+ def test_wording_and_marks(self):
+  dl=load('elementum_download')
+  self.assertEqual(dl.where({'source':'local','path':'x'}),'on this iPhone');self.assertEqual(dl.where({'source':'drive'}),'on Google Drive')
+  self.assertEqual(dl.mark_owned(['1. Pilot','2. Two'],[True,False]),['1. Pilot  ·  Downloaded','2. Two'])
+  self.assertIsNone(dl.season_question('1',0,10))
+  self.assertIn('All 10 episodes',dl.season_question('1',10,10)[1]);self.assertIn('3 of 10',dl.season_question('1',3,10)[1])
+ def test_download_script_checks_before_starting(self):
+  source=(ROOT/'migration/bundled-bootstrap/download.py').read_text()
+  for kind in ("check('movie')","check('episode',season,episode)","dl.mark_owned(","dl.season_question("):self.assertIn(kind,source)
+  # every check happens before Elementum is asked: the first start() call comes after the movie/episode checks
+  self.assertLess(source.index("check('movie')"),source.index("start('season')"))
+  self.assertIn('return None',source.split('def owned_copy',1)[1].split('\ndef ',1)[0])   # a failed check never blocks
+
 class DownloadFolders(unittest.TestCase):
  def test_movies_and_shows_folders_for_elementum_and_umbrella_unless_owner_chose(self):
   with tempfile.TemporaryDirectory() as t:

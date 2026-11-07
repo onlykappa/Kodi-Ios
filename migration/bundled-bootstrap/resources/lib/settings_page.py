@@ -20,6 +20,16 @@ PAGE='Window(%s).Property(Settings.Page)'%WINDOW
 ON_ROOT='String.IsEmpty(%s)'%PAGE
 ON_CUSTOM='String.IsEqual(%s,custom)'%PAGE
 ON_LIBRARY='String.IsEqual(%s,library)'%PAGE
+ON_BADGES='String.IsEqual(%s,badges)'%PAGE
+ON_OSD='String.IsEqual(%s,osd)'%PAGE
+ON_TABS='String.IsEqual(%s,tabs)'%PAGE
+ON_INFO='String.IsEqual(%s,info)'%PAGE
+ON_VIEWS='String.IsEqual(%s,views)'%PAGE
+# Customisation's own pages: (page, condition, first row, the Customisation row it came from, title).
+SUBPAGES=(('badges',ON_BADGES,9501,9414,'Poster Badges'),('osd',ON_OSD,9531,9411,'Video Controls'),('tabs',ON_TABS,9551,9401,'Tabs & Rows'),
+          ('info',ON_INFO,9561,9412,'Info Page'),('views',ON_VIEWS,9581,9413,'View Types'))
+ON_SUBPAGE=' | '.join('[%s]'%c for _,c,_,_,_ in SUBPAGES)
+COUNTS='RunScript(service.kodi.ios.bootstrap,customise_counts)'
 UPDATES='!String.IsEmpty(System.AddonUpdateCount) + !String.IsEqual(System.AddonUpdateCount,0)'
 FUSE='skin.arctic.fuse.3'
 
@@ -47,9 +57,10 @@ def textures(p):
 
 # Rows: (id, label, actions joined by \x00, glyph, tint, value, badge condition)
 def R(id,text,actions,glyph='',tint=SILVER,value='',badge=''):return (id,text,actions,glyph,tint,value,badge)
-CUSTOM_PAGE='SetProperty(Settings.Page,custom,%s)\x00SetFocus(9401)'%WINDOW
+CUSTOM_PAGE='SetProperty(Settings.Page,custom,%s)\x00SetFocus(9401)\x00RunScript(service.kodi.ios.bootstrap,customise_counts)'%WINDOW
 LIBRARY_PAGE='SetProperty(Settings.Page,library,%s)\x00SetFocus(9451)'%WINDOW
 LIBRARY_SCAN='RunScript(service.kodi.ios.bootstrap,library_scan)'
+LIBRARY_STATUS='RunScript(service.kodi.ios.bootstrap,library_status)'
 LIBRARY_REFRESH='RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&all=1)'
 ROOT=[
  [R(9111,'Skin','ActivateWindow(skinsettings)','paintbrush.png',PURPLE),
@@ -58,6 +69,11 @@ ROOT=[
   R(9114,'Player','ActivateWindow(playersettings)','circle-play.png',GREEN),
   R(9115,'Media','ActivateWindow(mediasettings)','film.png',ORANGE),
   R(9116,'Library',LIBRARY_PAGE,'folder.png',BLUE)],
+ # What the profile button's More menu held (round 5: the gear in the header opens Settings instead).
+ [R(9171,'Google Drive','ActivateWindow(Videos,plugin://plugin.googledrive/,return)','cloud.png',BLUE),
+  R(9172,'Favourites','ActivateWindow(1160)','star.png',ORANGE),
+  R(9173,'Check for updates','RunScript(service.kodi.ios.bootstrap,check_updates)','cloud-arrow-down.png',GREEN),
+  R(9174,'iPhone navigation / recovery','RunScript(service.kodi.ios.bootstrap,navigation_menu)','life-ring.png',RED)],
  [R(9121,'PVR & Live TV','ActivateWindow(pvrsettings)','tv.png',RED),
   R(9122,'Games','ActivateWindow(gamesettings)','gamepad.png',PINK)],
  [R(9131,'System','ActivateWindow(systemsettings)','gear.png',SILVER),
@@ -65,21 +81,26 @@ ROOT=[
   R(9133,'Profiles','ActivateWindow(profiles)','user.png',BLUE)],
  [R(9141,'Add-ons','ActivateWindow(addonbrowser)','puzzle-piece.png',ORANGE,badge=UPDATES),
   R(9142,'File Manager','ActivateWindow(filemanager)','folder.png',TEAL),
-  R(9143,'Event Log','ActivateWindow(eventlog)','list.png',SILVER)],
+  R(9143,'Event Log','ActivateWindow(eventlog)','list.png',SILVER),
+  R(9145,'Export diagnostic log','RunScript(service.kodi.ios.bootstrap,export_logs)','list.png',BLUE),
+  R(9144,'Activity','Addon.OpenSettings(service.kodi.ios.bootstrap)','bars-progress.png',BLUE)],
  [R(9151,'Information','ActivateWindow(systeminfo)','circle-info.png',SILVER)],
 ]
 # Fuse's Customisation list (1080i/Settings.xml), same actions.
 def fuse_dialog(items,title):
  return 'SetProperty(CustomDialogSettingsItems,%s,Home)\x00SetProperty(CustomDialogSettingsTitle,%s,Home)\x00ActivateWindow(1118)'%(items,title)
+def subpage(name):
+ first=[f for n,_,f,_,_ in SUBPAGES if n==name][0]
+ return 'SetProperty(Settings.Page,%s,%s)\x00SetFocus(%d)'%(name,WINDOW,first)
+BADGES_PAGE,OSD_PAGE,TABS_PAGE,INFO_PAGE,VIEWS_PAGE=(subpage(n) for n in ('badges','osd','tabs','info','views'))
+COUNT=lambda key:'$INFO[Window(%s).Property(custom.%s)]'%(WINDOW,key)
 CUSTOM=[
- ('Home Screen',[R(9401,'Widgets','ActivateWindow(1115)','table-cells-large.png',BLUE),
-  R(9402,'Search Page','SetProperty(Shortcuts.EditMenu,menu=searchwidgets,Home)\x00ClearProperty(Shortcuts.EditMode,Home)'
-                       '\x00ClearProperty(Shortcuts.EditGUID,Home)\x00ActivateWindow(1116)','magnifying-glass.png',SILVER)],
-  'Choose and reorder the rows on Home and on the Search page.'),
- ('Pages',[R(9411,'Video Controls',fuse_dialog('DialogCustom_VideoOSD_Items','$LOCALIZE[31434]'),'circle-play.png',GREEN),
-  R(9412,'Info Page',fuse_dialog('DialogCustom_VideoInfo_Items','$LOCALIZE[12003]'),'circle-info.png',SILVER),
-  R(9413,'View Types','RunScript(script.skinvariables,action=buildviews,configure)','grip.png',PURPLE),
-  R(9414,'Indicators',fuse_dialog('DialogCustom_Settings_Items_Indicators','$LOCALIZE[31234]'),'circle-check.png',ORANGE)],''),
+ ('Home Screen',[R(9401,'Tabs & Rows',TABS_PAGE,'table-cells-large.png',BLUE,COUNT('rows'))],
+  'Choose which tabs show, their order and the rows on each.'),
+ ('Pages',[R(9411,'Video Controls',OSD_PAGE,'circle-play.png',GREEN,COUNT('osd')),
+  R(9412,'Info Page',INFO_PAGE,'circle-info.png',SILVER,COUNT('info')),
+  R(9413,'View Types',VIEWS_PAGE,'grip.png',PURPLE,COUNT('views')),
+  R(9414,'Poster Badges',BADGES_PAGE,'circle-check.png',ORANGE,COUNT('badges'))],''),
  ('',[R(9421,'Skin Settings','ActivateWindow(skinsettings)','paintbrush.png',PURPLE),
   R(9422,'TMDb Helper','Addon.OpenSettings(plugin.video.themoviedb.helper)','film.png','FF01B4E4')],
   'TMDb Helper fills the Home rows. Sign in to Trakt from Accounts.'),
@@ -91,10 +112,62 @@ LIBRARY=[
   R(9453,'Movies','ActivateWindow(Videos,plugin://plugin.video.kodi.ios.watch/?action=library&type=movie&fresh=1,return)','film.png',ORANGE),
   R(9454,'TV Shows','ActivateWindow(Videos,plugin://plugin.video.kodi.ios.watch/?action=library&type=tv&fresh=1,return)','tv.png',PURPLE)],
   'Includes completed downloads on this iPhone and in Google Drive.'),
+ ('Kodi and AirPlay',[R(9457,'Library status',LIBRARY_STATUS,'file-waveform.png',PURPLE)],
+  'Every movie and show in Google Drive › Kodi Downloads is prepared once, so seeking on Kodi and AirPlay never waits. Check now to see what is ready, waiting or paused.'),
  ('Google Drive',[R(9455,'Google Drive settings','Addon.OpenSettings(plugin.googledrive)','cloud.png',BLUE),
   R(9456,'Transfer settings','Addon.OpenSettings(service.kodi.ios.bootstrap)','sliders.png',SILVER)],
   'Kodi can scan its own files and folders made available to the app.'),
 ]
+
+# Native switch pages (round-4 mockups 08 and 10). Each switch writes the same skin setting as Fuse's box did:
+# S(id, label, setting, on when the setting is absent, needs this condition to be changeable).
+def S(id,text,setting,inverted=False,enable=''):return {'id':id,'text':text,'setting':setting,'inverted':inverted,'enable':enable}
+def on_condition(sw):return ('!' if sw['inverted'] else '')+'Skin.HasSetting(%s)'%sw['setting']
+BADGES=[
+ ('On Posters',[S(9501,'Watched','Indicator.DisableWatched',True),S(9502,'In Your Library','Indicator.DisableLibrary',True),
+  S(9503,'Part of a Collection','Indicator.DisableCollection',True),S(9504,'Progress Bar','Indicator.DisableProgress',True),
+  S(9505,'Video Versions','Indicator.MovieVersionBanner')],'Shown on the posters in Home, Movies, TV and the Library.'),
+ ('Episodes & TV',[S(9511,'Episodes Left','Indicator.DisableEpisodes',True),
+  S(9512,'Also on Shows Not Started','Indicator.EnableUnwatchedCount',False,'!Skin.HasSetting(Indicator.DisableEpisodes)'),
+  S(9513,'Premiere / Finale','Indicator.EpisodeTypeBanner'),S(9514,'Catch-up (Live TV)','Indicator.DisablePVRGuideCatchUp',True)],
+  'Episodes Left counts the episodes you have not watched yet, on shows you have started.'),
+ ('Trakt (TMDb Helper)',[S(9521,'On Your Watchlist','Indicator.TraktWatchlist'),S(9522,'In Your Favourites','Indicator.TraktFavourites')],
+  'Shown when you are signed in to Trakt in TMDb Helper.'),
+]
+OSD_TIMEOUT='Skin.String(OSD_Timeout)'
+OSD=[
+ ('Controls',[('value',R(9531,'Hide Controls After','Skin.SetNumeric(OSD_Timeout)',value='$INFO[%s,, s]'%OSD_TIMEOUT))],
+  'Leave it empty to keep the controls until you tap the video.'),
+ ('Info Over the Video',[S(9541,'Landscape Artwork','OSD.InfoOverlay.DisableLandscapeOnInfo',True),
+  S(9542,'Plot & Ratings','OSD.InfoOverlay.DisablePlotRatingsOnInfo',True)],'Shown when a video starts and when you pause it.'),
+]
+ROWS_SCRIPT='RunScript(service.kodi.ios.bootstrap,customise_rows,tab=%s)'
+TABS_PAGE_ROWS=[
+ ('Tab Bar',[('value',R(9551,'Home',ROWS_SCRIPT%'home','house.png',BLUE,COUNT('rows.home'))),
+  ('value',R(9552,'Movies',ROWS_SCRIPT%'movies','film.png',ORANGE,COUNT('rows.movies'))),
+  ('value',R(9553,'TV Shows',ROWS_SCRIPT%'tv','tv.png',PURPLE,COUNT('rows.tv')))],
+  'Tap a tab to choose its rows. Library and Search are fixed pages.'),
+]
+# Our info page (portrait.video_info) draws these rows under the plot, from TMDb Helper.
+INFO=[
+ ('Sections',[S(9561,'Starring','VideoInfo.Widgets.DisableStarring',True),S(9562,'Crew','VideoInfo.Widgets.DisableCrew',True),
+  S(9563,'Seasons','VideoInfo.Widgets.DisableSeasons',True),S(9564,'Collection','VideoInfo.Widgets.DisableCollection',True),
+  S(9565,'Recommendations','VideoInfo.Widgets.DisableRecommendations',True),S(9566,'Videos & Trailers','VideoInfo.Widgets.DisableVideos',True)],
+  'The rows under the plot on a movie or show page, from TMDb Helper. Seasons shows on shows, Collection on movies.'),
+]
+GRID='Skin.String(Portrait.Grid)'
+VIEWS=[
+ ('Movies & TV Shows',[('radio',R(9581,'Poster Grid · 3 across','Skin.Reset(Portrait.Grid)'),'String.IsEmpty(%s)'%GRID),
+  ('radio',R(9582,'Large Posters · 2 across','Skin.SetString(Portrait.Grid,large)'),'String.IsEqual(%s,large)'%GRID)],
+  'How the Library, categories and search results show movies and shows.'),
+]
+def view_name(visible):return 'Large Posters' if visible('String.IsEqual(%s,large)'%GRID) else 'Poster Grid'
+
+def switches(page):return [r for _,rows,_ in page for r in rows if isinstance(r,dict)]
+def count_rules():
+ """{property: [conditions]} for customise_counts.py: how many of a page's switches are on."""
+ return {'badges':[on_condition(sw) for sw in switches(BADGES)],'osd':[on_condition(sw) for sw in switches(OSD)],
+         'info':[on_condition(sw) for sw in switches(INFO)]}
 
 def clicks(p,actions):return ''.join('<onclick>%s</onclick>'%p.e(a) for a in actions.split('\x00'))
 
@@ -124,7 +197,7 @@ def highlight(p,w,h):
  # iOS 26 press state: a rounded inset highlight, so it never pokes out of the group's rounded corners.
  return ('<texturefocus border="44" colordiffuse="1FFFFFFF">%shl.png</texturefocus><texturenofocus />'%p.MEDIA)
 
-def row_xml(p,r,y,first,moves,w,height=ROW):
+def row_xml(p,r,y,first,moves,w,height=ROW,check=''):
  rid,text,actions,glyph,tint,value,badge=r;x=TEXT_X if glyph else PAD
  xml=('<control type="button" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><label></label>%s%s%s</control>'
       %(rid,y,w,height,highlight(p,w,height),clicks(p,actions),nav_xml(p,moves)))
@@ -137,7 +210,8 @@ def row_xml(p,r,y,first,moves,w,height=ROW):
  if badge:
   xml+=('<control type="group"><left>%d</left><top>%d</top><visible>%s</visible>'%(right-100,y+(height-60)//2,badge)+
         p.surface(0,0,80,60,'pill_56.png',RED,28)+p.label(0,0,80,60,'$INFO[System.AddonUpdateCount]','p_foot_b',p.WHITE,'center')+'</control>')
- xml+=p.icon(right,y+(height-34)//2,34,'chevron-right.png',p.GREY)
+ if check:xml+=p.icon(right-10,y+(height-50)//2,50,'check.png',BLUE,'<visible>%s</visible>'%check)
+ else:xml+=p.icon(right,y+(height-34)//2,34,'chevron-right.png',p.GREY)
  return xml
 
 def card(p,rows,moves,visible='',height=ROW):
@@ -177,12 +251,66 @@ def updates_banner(p,moves):
 
 def search_field(p,moves):
  """iOS Settings search field at the top of the list: opens Kodi's keyboard and lists the matching settings."""
- w=p.WIDTH-2*p.SIDE;h=108
+ w=p.WIDTH-2*p.SIDE;h=124
  return ('<control type="group"><width>%d</width><height>%d</height><control type="group"><left>%d</left>'%(p.WIDTH,h,p.SIDE)+
   '<control type="button" id="9100"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>'
   '<texturefocus border="54" colordiffuse="FF3A3A3C">%spill_108.png</texturefocus><texturenofocus border="54" colordiffuse="%s">%spill_108.png</texturenofocus>'
   '%s%s</control>'%(w,h,p.MEDIA,p.SURFACE,p.MEDIA,clicks(p,SEARCH),nav_xml(p,moves))+
   p.icon(36,(h-44)//2,44,'magnifying-glass.png',p.GREY)+p.label(100,0,w-140,h,'Search','p_body',p.GREY)+'</control></control>')
+
+def switch_row(p,sw,y,first,moves,w):
+ on=on_condition(sw);tx,ty=w-PAD-130,y+(ROW-58)//2
+ xml=('<control type="button" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><label></label>%s%s%s%s</control>'
+      %(sw['id'],y,w,ROW,highlight(p,w,ROW),'<enable>%s</enable>'%sw['enable'] if sw['enable'] else '',
+        '<onclick>Skin.ToggleSetting(%s)</onclick>'%sw['setting'],nav_xml(p,moves)))
+ if not first:xml+=p.image(PAD,y,w-PAD,2,p.MEDIA+'white.png',p.SEP)
+ dim='<animation effect="fade" start="100" end="40" time="0" condition="![%s]">Conditional</animation>'%sw['enable'] if sw['enable'] else ''
+ return xml+('<control type="group">%s'%dim+p.label(PAD,y,w-PAD-200,ROW,sw['text'],'p_body')+
+  p.image(tx,ty,130,58,p.MEDIA+'toggle_on.png',p.WHITE,'<visible>%s</visible>'%on)+
+  p.image(tx,ty,130,58,p.MEDIA+'toggle_off.png',p.WHITE,'<visible>![%s]</visible>'%on)+'</control>')
+
+def unwrap(item):
+ """A page's item: a switch (dict), ('value', R) or ('radio', R, condition that it is the chosen one)."""
+ if isinstance(item,dict):return 'switch',item,''
+ if item[0]=='radio':return 'radio',item[1],item[2]
+ return 'value',item[1],''
+def page_rows(page):return [unwrap(r)[1] for _,rows,_ in page for r in rows]
+def row_id(r):return r['id'] if isinstance(r,dict) else r[0]
+
+def switch_list(p,page,first_up=9001,top=''):
+ """A page of grouped switches, value rows (Hide Controls After) and choices (View Types)."""
+ ids=[(row_id(r),'') for r in page_rows(page)];moves=nav(ids)
+ moves[ids[0][0]]=([('',first_up)],moves[ids[0][0]][1])
+ w=p.WIDTH-2*p.SIDE;body=top
+ for title,rows,note in page:
+  inner=''
+  for i,item in enumerate(rows):
+   kind,r,cond=unwrap(item)
+   if kind=='switch':inner+=switch_row(p,r,i*ROW,i==0,moves[r['id']],w)
+   else:
+    inner+=row_xml(p,r,i*ROW,i==0,moves[r[0]],w,check=cond)
+    if r[0]==9531:inner+=p.label(w-PAD-34-420,i*ROW,400,ROW,'Never','p_body',p.GREY,'right','<visible>String.IsEmpty(%s)</visible>'%OSD_TIMEOUT)
+  h=ROW*len(rows)
+  body+=((section(p,title) if title else spacer(20))+'<control type="group"><width>%d</width><height>%d</height>'%(p.WIDTH,h)+
+         p.surface(p.SIDE,0,w,h,'group.png',p.SURFACE,RADIUS)+'<control type="group"><left>%d</left>%s</control></control>'%(p.SIDE,inner)+
+         (footer(p,note,130) if note else spacer(20))+spacer(GAP-30))
+ return body+spacer(160)
+
+def badges_preview(p):
+ """Mockup 08: three posters showing the badges that are on (a watched film, a show part-way through, one in progress)."""
+ w,h=220,330;gap=40;left=(p.WIDTH-3*w-2*gap)//2;xml=''
+ for n,(badge,glyph,color) in enumerate((('Indicator.DisableWatched','circle-check.png',p.GREEN if hasattr(p,'GREEN') else GREEN),
+                                        ('Indicator.DisableEpisodes','',''),('Indicator.DisableProgress','',''))):
+  x=left+n*(w+gap);xml+=p.surface(x,0,w,h,'tile100.png','FF2C2C2E',28)
+  on='!Skin.HasSetting(%s)'%badge
+  if glyph:xml+=('<control type="group"><left>%d</left><top>12</top><visible>%s</visible>'%(x+w-62,on)+
+                 p.image(0,0,50,50,p.MEDIA+'avatar_s.png','B3000000')+p.icon(9,9,32,glyph,color)+'</control>')
+  elif n==1:xml+=('<control type="group"><left>%d</left><top>12</top><visible>%s</visible>'%(x+12,on)+
+                  p.image(0,0,66,50,p.MEDIA+'pill_56.png','E60A84FF','',border=25)+p.label(0,0,66,50,'4','p_foot_b',p.WHITE,'center')+'</control>')
+  else:xml+=(p.image(x+18,h-34,w-36,10,p.MEDIA+'pill_96.png','59FFFFFF','<visible>%s</visible>'%on,border=5)+
+             p.image(x+18,h-34,(w-36)*3//5,10,p.MEDIA+'pill_96.png',p.WHITE,'<visible>%s</visible>'%on,border=5))
+ return ('<control type="group"><width>%d</width><height>%d</height>%s</control>'%(p.WIDTH,h+30,xml)+
+         footer(p,'A preview of the badges you have on.',90)+spacer(30))
 
 def root_ids():
  ids=[(9100,''),(9101,''),(9102,UPDATES)]
@@ -197,8 +325,9 @@ def root_list(p):
  body=search_field(p,moves[9100])+spacer(40)+profile_card(p,moves[9101])+spacer(40,UPDATES)+updates_banner(p,moves)+spacer(GAP)
  for group in ROOT:body+=card(p,group,moves)+spacer(GAP)
  body+=('<control type="group"><width>%d</width><height>120</height>'%p.WIDTH+
-        p.label(p.SIDE,0,p.WIDTH-2*p.SIDE,60,'Kodi $INFO[System.BuildVersionShort]  ·  $INFO[System.AddonTitle(%s)] $INFO[System.AddonVersion(%s)]'%(FUSE,FUSE),
-                'p_foot',p.DIM,'center')+'</control>')
+        p.label(p.SIDE,0,p.WIDTH-2*p.SIDE,60,'Kodi $INFO[System.BuildVersionShort]$INFO[Window(Home).Property(KodiIOS.Build), (build ,)]'
+                '  ·  $INFO[System.AddonTitle(%s)] $INFO[System.AddonVersion(%s)]'%(FUSE,FUSE),
+                'p_foot',p.GREY,'center')+'</control>')
  return body+spacer(160)
 
 def custom_list(p):
@@ -216,12 +345,17 @@ def library_list(p):
 
 # Settings home: the header sits lower so the back circle and title clear the status bar like Search's band
 # (SEARCH_BAND, 60 pt) and the large titles of Library and Search (top 40-46); the list starts under it.
-SETTINGS_Y=76;SETTINGS_TOP=SETTINGS_Y+164
+SETTINGS_Y=76;SETTINGS_TOP=340
 def header(p,back_actions,titles,y=36,down='<ondown>9300</ondown>'):
  """Glass back button and centred title over a black bar (the page scrolls under it)."""
  bar=p.image(0,0,p.WIDTH,y+154,p.MEDIA+'white.png',p.BG)+p.image(0,y+154,p.WIDTH,60,p.MEDIA+'fade_down.png')
  back=p.nav_button(9001,p.SIDE,y,'chevron-left.png',back_actions,down)
  names=''.join(p.label(260,y,p.WIDTH-520,108,t,'p_h3',p.WHITE,'center','<visible>%s</visible>'%c if c else '') for t,c in titles)
+ root=next((cond for text,cond in titles if text=='Settings'),None)
+ if root is not None:
+  regular=' + '.join('![%s]'%root for _ in [0])
+  large=p.image(0,0,p.WIDTH,320,p.MEDIA+'white.png',p.BG)+p.label(p.SIDE,200,p.WIDTH-2*p.SIDE,140,'Settings','p_title')
+  return '<control type="group"><visible>%s</visible>%s</control><control type="group"><visible>%s</visible>%s</control>'%(root,large,regular,bar+names)+back
  return bar+names+back
 
 def settings_window(p,original):
@@ -230,17 +364,45 @@ def settings_window(p,original):
  lst=lambda id,cond,body,top:('<control type="grouplist" id="%d"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom>'
   '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords><visible>%s</visible>%s</control>')%(id,top,p.WIDTH,cond,body)
  back=[(ON_CUSTOM,'ClearProperty(Settings.Page,%s)'%WINDOW),(ON_CUSTOM,'SetFocus(9113)'),
-       (ON_LIBRARY,'ClearProperty(Settings.Page,%s)'%WINDOW),(ON_LIBRARY,'SetFocus(9116)'),(ON_ROOT,'Action(Back)')]
+       (ON_LIBRARY,'ClearProperty(Settings.Page,%s)'%WINDOW),(ON_LIBRARY,'SetFocus(9116)'),
+       # A Customisation page goes back to Customisation (its rows' values counted again).
+       # Kodi checks every condition first and then runs the actions in order, so the page changes before the focus.
+       (ON_SUBPAGE,'SetProperty(Settings.Page,custom,%s)'%WINDOW)]+[(c,'SetFocus(%d)'%row) for _,c,_,row,_ in SUBPAGES]+[
+       (ON_SUBPAGE,COUNTS),(ON_ROOT,'Action(Back)')]
  body=('<controls>'+p.backdrop()+lst(9300,ON_ROOT,root_list(p),SETTINGS_TOP)+lst(9310,ON_CUSTOM,custom_list(p),SETTINGS_TOP)+
        lst(9320,ON_LIBRARY,library_list(p),SETTINGS_TOP)+
-       header(p,back,[('Settings',ON_ROOT),('Customisation',ON_CUSTOM),('Library',ON_LIBRARY)],SETTINGS_Y,
-              '<ondown condition="%s">9300</ondown><ondown condition="%s">9401</ondown><ondown condition="%s">9451</ondown>'%(ON_ROOT,ON_CUSTOM,ON_LIBRARY))+'</controls>')
+       lst(9330,ON_BADGES,switch_list(p,BADGES,top=badges_preview(p)),SETTINGS_TOP)+lst(9340,ON_OSD,switch_list(p,OSD),SETTINGS_TOP)+
+       lst(9350,ON_TABS,switch_list(p,TABS_PAGE_ROWS),SETTINGS_TOP)+lst(9360,ON_INFO,switch_list(p,INFO),SETTINGS_TOP)+
+       lst(9370,ON_VIEWS,switch_list(p,VIEWS),SETTINGS_TOP)+
+       header(p,back,[('Settings',ON_ROOT),('Customisation',ON_CUSTOM),('Library',ON_LIBRARY)]+[(t,c) for _,c,_,_,t in SUBPAGES],SETTINGS_Y,
+              '<ondown condition="%s">9300</ondown><ondown condition="%s">9401</ondown><ondown condition="%s">9451</ondown>'%(ON_ROOT,ON_CUSTOM,ON_LIBRARY)+
+              ''.join('<ondown condition="%s">%d</ondown>'%(c,f) for _,c,f,_,_ in SUBPAGES))+'</controls>')
  extra=('<onload condition="Window.Previous(home)">ClearProperty(Settings.Page,%s)</onload>'%WINDOW+
         '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>')
  # Back from a category opened on the Customisation page: the home rows are hidden, so focus that page instead.
  extra+='<onload condition="%s">SetFocus(9401)</onload>'%ON_CUSTOM
  extra+='<onload condition="%s">SetFocus(9451)</onload>'%ON_LIBRARY
+ extra+='<onload condition="%s">%s</onload>'%(ON_CUSTOM,COUNTS)
+ extra+=''.join('<onload condition="%s">SetFocus(%d)</onload>'%(c,f) for _,c,f,_,_ in SUBPAGES)
+ extra+='<onload condition="%s">%s</onload>'%(ON_TABS,COUNTS)   # back from a tab's rows: its count again
  return p.window(original,body,'9101',extra)
+
+def search_window(p):
+ # Owner (build 168 log): with the field empty the whole page was hidden, yet the modal dialog stayed on top: taps
+ # went nowhere, Back was hidden and list 9160 "can't focus". The page is now always shown: before typing it lists
+ # Settings' own rows (as the approved mockup), then the matches; Back always works.
+ top=SETTINGS_TOP+160
+ visible='true'
+ row=lambda focus:('<%s height="160">'%('focusedlayout' if focus else 'itemlayout')+
+   (p.image(p.SIDE,0,p.WIDTH-2*p.SIDE,160,p.MEDIA+'white.png','18FFFFFF') if focus else '')+
+   p.label(p.SIDE+34,14,p.WIDTH-2*p.SIDE-68,76,'$INFO[ListItem.Label]','p_body')+
+   p.label(p.SIDE+34,90,p.WIDTH-2*p.SIDE-68,50,'$INFO[ListItem.Label2]','p_foot',p.GREY)+
+   '</%s>'%('focusedlayout' if focus else 'itemlayout'))
+ body=p.backdrop()+p.label(p.SIDE,200,p.WIDTH-2*p.SIDE,140,'Settings','p_title')
+ body+=p.nav_button(9001,p.SIDE,76,'chevron-left.png',[], '<ondown>9160</ondown>')
+ body+=p.label(p.SIDE,top,p.WIDTH-2*p.SIDE,160,'No matching settings. Change your search above.','p_body',p.GREY,extra='<wrapmultiline>true</wrapmultiline><visible>!String.IsEmpty(Window().Property(empty))</visible>')
+ body+='<control type="list" id="9160"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><scrolltime>160</scrolltime>%s%s</control>'%(top,p.WIDTH,row(False),row(True))
+ return '<?xml version="1.0" encoding="UTF-8"?><window type="dialog"><defaultcontrol>9160</defaultcontrol><controls><control type="group"><visible>%s</visible>%s</control></controls></window>'%(visible,body)
 
 def account_row(p,n,y,first,moves,w):
  P=lambda k:'$INFO[Window().Property(acct.%d.%s)]'%(n,k)
@@ -389,6 +551,7 @@ def files(p,read):
  """{relative path: bytes} for the portrait folder and its textures."""
  out={p.FOLDER+'/Settings.xml':settings_window(p,read('Settings.xml')).encode(),
       p.FOLDER+'/IOSAccounts.xml':accounts_page(p).encode(),
+      p.FOLDER+'/IOSSettingsSearch.xml':search_window(p).encode(),
       p.FOLDER+'/SettingsCategory.xml':category_window(p,read('SettingsCategory.xml')).encode(),
       p.FOLDER+'/DialogAddonSettings.xml':addon_settings_window(p,read('DialogAddonSettings.xml')).encode()}
  for name,data in textures(p).items():out['extras/portrait/'+name]=data

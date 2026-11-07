@@ -121,6 +121,15 @@ def elementum_defaults(downloads,get_setting,set_setting):
  if current and not current.endswith('/Documents/Elementum Downloads'):return None
  Path(downloads).mkdir(parents=True,exist_ok=True);set_setting('download_path',str(downloads).rstrip('/')+'/');return str(downloads)
 
+UPLOAD_CAP_KB=1024
+def elementum_upload_cap(get_setting,set_setting):
+ """Build 185 (build-184 log: Drive uploads of a conversion stalled for 120 s at a time): a seeding torrent with no
+ upload limit can fill the phone's upload. Elementum's limit (max_upload_rate, KB/s) goes to 1 MB/s while it is still
+ unlimited (0); a value the owner chose stays. Returns True when it was set."""
+ current=str(get_setting('max_upload_rate') or '').strip()
+ if current not in ('','0'):return False
+ set_setting('max_upload_rate',str(UPLOAD_CAP_KB));return True
+
 def phone_housekeeping(profile,elementum_setting=None,api=None):
  """Once per phone (owner's logs, ISSUE-070): errors Kodi logged at every start, each harmless but each costing time.
  - sources.xml and a home row from the Deck point at special://profile/media/... folders that do not exist here:

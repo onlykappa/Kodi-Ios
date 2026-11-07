@@ -1,0 +1,215 @@
+<title>Kodi iOS Library Status</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a dark review board, phones at iPhone 16 Pro point size (402 x 874) scaled to fit, notes beside them. Same tokens as the round-4 activity mockup. */
+:root{
+  color-scheme:dark;
+  --board:#0D0E11; --panel:#15161A; --panel-line:#26272D; --ink:#F2F2F7; --ink-2:rgba(235,235,245,.62); --tag:#FFD60A;
+  --bg:#000; --s1:#1C1C1E; --s2:#2C2C2E; --s3:#3A3A3C; --label:#fff; --label2:rgba(235,235,245,.6); --sep:rgba(235,235,245,.2);
+  --blue:#0A84FF; --blue-text:#4FA8FF; --green:#30D158; --red:#FF453A; --orange:#FF9F0A; --purple:#BF5AF2;
+  --app:"Inter",-apple-system,system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{background:var(--board);color:var(--ink);font-family:var(--app);font-size:15px;line-height:1.5;margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:48px}
+header{display:flex;flex-direction:column;gap:12px;max-width:760px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.eyebrow b{color:var(--tag);font-weight:500}
+h1{font-size:clamp(28px,4vw,40px);line-height:1.1;letter-spacing:-.02em;margin:0;font-weight:800;text-wrap:balance}
+h2{font-size:22px;margin:0;font-weight:700}
+p{margin:0;color:var(--ink-2);max-width:68ch}
+.row{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}
+.notes{flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:12px}
+.notes ul{margin:0;padding-left:18px;color:var(--ink-2);display:flex;flex-direction:column;gap:8px}
+.notes li b{color:var(--ink);font-weight:600}
+.phone-slot{flex:0 0 auto;width:calc(402px * var(--k,1) + 20px);max-width:100%}
+.phone-cap{font-size:13px;color:var(--ink-2);margin-top:10px;text-align:center}
+.bezel{width:calc(402px * var(--k,1) + 20px);height:calc(874px * var(--k,1) + 20px);max-width:100%;border-radius:calc(62px * var(--k,1));padding:10px;background:#1d1e22;box-shadow:0 0 0 1px #2c2d33,0 30px 60px -30px #000}
+.screen{width:402px;height:874px;transform:scale(var(--k,1));transform-origin:0 0;border-radius:52px;overflow:hidden;position:relative;background:var(--bg);color:var(--label);font-family:var(--app);font-size:17px;line-height:1.25;-webkit-font-smoothing:antialiased}
+.status{position:absolute;inset:0 0 auto;height:54px;display:flex;align-items:center;justify-content:space-between;padding:6px 34px 0 46px;font-weight:600;font-size:16px;z-index:30;pointer-events:none;background:linear-gradient(#000 70%,transparent)}
+.island{position:absolute;top:11px;left:50%;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#000;z-index:31}
+.home-ind{position:absolute;bottom:8px;left:50%;width:140px;height:5px;margin-left:-70px;border-radius:3px;background:#fff;z-index:40;opacity:.9}
+.scroll{position:absolute;inset:54px 0 0;overflow-y:auto;padding:0 16px 60px;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.navrow{height:44px;display:flex;align-items:center;justify-content:space-between;margin:0 -8px 0 -12px}
+.icon-btn{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:transparent;border:0;color:#fff;cursor:pointer;padding:0}
+.icon-btn svg{width:24px;height:24px}
+.page-title{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:4px 0 2px}
+.page-sub{font-size:15px;color:var(--label2);margin-bottom:14px}
+/* summary */
+.summary{background:var(--s1);border-radius:16px;padding:14px;display:flex;gap:14px;align-items:center}
+.big-ring{position:relative;width:72px;height:72px;flex:0 0 72px}
+.big-ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.big-ring b{position:absolute;inset:0;display:grid;place-items:center;font-size:17px;font-weight:800}
+.summary .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.summary .t1{font-size:17px;font-weight:700}
+.legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;color:var(--label2)}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:1px}
+.space{margin-top:10px;background:var(--s1);border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.space .line{display:flex;justify-content:space-between;font-size:14px;color:var(--label2)}
+.space .line b{color:var(--label);font-weight:600}
+.meter{height:8px;border-radius:4px;background:rgba(120,120,128,.32);display:flex;overflow:hidden}
+.meter i{height:100%}
+/* segmented */
+.seg{margin:14px 0 4px;height:36px;border-radius:18px;background:var(--s1);display:flex;padding:2px}
+.seg button{flex:1;border:0;background:transparent;color:var(--label2);font:600 13.5px var(--app);border-radius:16px;cursor:pointer;min-height:32px}
+.seg button.on{background:var(--s3);color:#fff}
+.seg button:focus-visible,.icon-btn:focus-visible,.capsule:focus-visible,.lrow:focus-visible{outline:2px solid var(--blue-text);outline-offset:2px}
+/* sections + rows */
+.sec{font-size:13px;font-weight:600;color:var(--label2);padding:18px 4px 8px;display:flex;justify-content:space-between;text-transform:uppercase;letter-spacing:.04em}
+.sec span:last-child{text-transform:none;letter-spacing:0;font-weight:500}
+.group{background:var(--s1);border-radius:16px;overflow:hidden}
+.lrow{display:flex;gap:12px;align-items:center;padding:10px 8px 10px 10px;min-height:72px;position:relative;cursor:pointer;width:100%;background:none;border:0;color:inherit;font:inherit;text-align:left}
+.lrow+.lrow::before{content:"";position:absolute;top:0;left:68px;right:0;height:.5px;background:var(--sep)}
+.poster{width:44px;height:64px;border-radius:7px;flex:0 0 44px;background:linear-gradient(160deg,var(--c1),var(--c2));position:relative}
+.ringtile{position:relative;width:52px;height:52px;flex:0 0 52px;display:grid;place-items:center}
+.ringtile svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.ringtile .art{width:40px;height:40px;border-radius:10px;background:linear-gradient(160deg,var(--c1),var(--c2))}
+.lrow .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.t1{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t2{font-size:13px;color:var(--label2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.t2.warn{color:var(--orange)}
+.bar{height:4px;border-radius:2px;background:rgba(120,120,128,.32);margin-top:5px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:2px;background:var(--fill,var(--blue))}
+.badge{flex:0 0 auto;font-size:12px;font-weight:600;padding:3px 8px;border-radius:10px;background:var(--s3);color:var(--label2)}
+.check{width:24px;height:24px;flex:0 0 24px}
+.chev{width:14px;height:14px;flex:0 0 14px;opacity:.45}
+.more{font-size:15px;color:var(--blue-text);padding:12px 4px;font-weight:500}
+.foot{font-size:13px;color:var(--label2);padding:14px 4px 0;line-height:1.4}
+.capsule{height:50px;border-radius:25px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;font-size:17px;border:0;font-family:var(--app);cursor:pointer;width:100%;margin-top:16px}
+.capsule.primary{background:#fff;color:#000}
+.capsule.secondary{background:var(--s2);color:#fff}
+.capsule.danger{background:var(--s2);color:var(--red)}
+/* sheet */
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:24}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--s1);border-radius:38px 38px 0 0;z-index:25;padding:8px 16px 36px}
+.grabber{width:36px;height:5px;border-radius:3px;background:rgba(235,235,245,.3);margin:0 auto 10px}
+.sheet-head{display:flex;gap:14px;align-items:flex-start}
+.sheet-head .poster{width:72px;height:104px;flex:0 0 72px;border-radius:10px}
+.sheet-head .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;padding-top:4px}
+.sheet-head h4{margin:0;font-size:22px;font-weight:800;letter-spacing:-.01em}
+.facts{margin-top:14px;background:var(--s2);border-radius:14px}
+.fact{display:flex;justify-content:space-between;gap:12px;padding:12px 14px;font-size:15px}
+.fact+.fact{border-top:.5px solid var(--sep)}
+.fact span:first-child{color:var(--label2);white-space:nowrap}
+.fact span:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.table-wrap{overflow-x:auto;border:1px solid var(--panel-line);border-radius:14px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--panel-line);vertical-align:top}
+th{font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-2);font-weight:500}
+td{color:var(--ink-2)}td:first-child{color:var(--ink);font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow"><b>Mockup</b> · Settings › Library › Kodi and AirPlay · not a Kodi render</div>
+  <h1>Library status for Kodi and AirPlay</h1>
+  <p>Replaces the "Check library for conversion" text box with a page you can open any time. Every movie and episode in Google Drive › Kodi Downloads, grouped by where it is: ready to play anywhere, being prepared, downloading, waiting, or kept as it is. Try the filter and tap a row.</p>
+</header>
+
+<section class="row">
+  <div class="phone-slot"><div class="bezel"><div class="screen" id="main"></div></div><div class="phone-cap">The page · tap a row for its details</div></div>
+  <div class="phone-slot"><div class="bezel"><div class="screen" id="detail"></div></div><div class="phone-cap">A row's details (waiting for space)</div></div>
+  <div class="notes">
+    <h2>What it shows</h2>
+    <ul>
+      <li><b>One number at the top:</b> how much of the library is ready for Kodi and AirPlay (a ring like the pill's), with a colour per state underneath.</li>
+      <li><b>Phone space, in plain words:</b> what Kodi is using for the movie it is preparing now, what is free, and the 5 GB it always leaves you. With streaming from Drive (r14), a movie needs about its own size, not twice.</li>
+      <li><b>Grouped by state, the active work first:</b> Preparing now (poster in its ring, the step, pause), Downloading (Elementum, then Drive), Waiting (in order, with why: queued, needs X GB free, or retrying after a problem), Ready (green check, quality and size), Kept as it is (cannot be prepared without losing something).</li>
+      <li><b>Filter:</b> All · Ready · To do · Downloading. "To do" is everything not ready yet.</li>
+      <li><b>Tap a row</b> for its details and, where it makes sense, an action: <b>Prepare next</b> moves it to the front (for one waiting on space: <b>Prepare first when there's room</b>), <b>Try again</b> after a problem, <b>Keep as it is</b> takes it out of the queue.</li>
+      <li><b>Check now</b> at the bottom asks Kodi to look at Drive again; the page fills in as it finds things, so you never stare at a blank box.</li>
+    </ul>
+  </div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:16px">
+  <h2>Where it lives and how it maps to Kodi</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Piece</th><th>Where</th><th>Source of truth</th></tr></thead>
+    <tbody>
+      <tr><td>Entry</td><td>Settings › Library › Kodi and AirPlay › <b>Library status</b> (replaces "Check library for conversion")</td><td>settings_page.LIBRARY row 9457</td></tr>
+      <tr><td>Ready / waiting / kept</td><td>Grouped list rows with poster, title, one status line</td><td>prepare_downloads state: library check + jobs (ready, waiting, space, failed, blocked)</td></tr>
+      <tr><td>Preparing now</td><td>Ring tile with poster, step and %, pause</td><td>prepare_downloads current (same as the Activity sheet's row)</td></tr>
+      <tr><td>Downloading</td><td>Elementum downloads and Drive uploads not yet in the library</td><td>notices.downloads / uploads (same as Notifications)</td></tr>
+      <tr><td>Posters</td><td>TMDb, cached</td><td>drivelibrary.artwork (as the Library and the pill)</td></tr>
+      <tr><td>Actions</td><td>Prepare next · Try again · Keep as it is</td><td>new queue fields: priority, retry now, kept by owner</td></tr>
+    </tbody>
+  </table></div>
+</section>
+</div>
+
+<script>
+(function(){
+  const C={blue:'#0A84FF',green:'#30D158',orange:'#FF9F0A',purple:'#BF5AF2',grey:'#8E8E93',red:'#FF453A'};
+  const P=[['#23324d','#0b0f18'],['#5b2a2a','#1a0f12'],['#3a6ea5','#c7a46a'],['#2c3a30','#0c1210'],['#4a3b5c','#120c18'],['#6b4a1f','#1b120a'],['#1f4b5a','#081418'],['#5a1f3a','#160810']];
+  const ring=(pct,tint,size=52,r=24,w=3.5)=>{const c=2*Math.PI*r;return `<svg viewBox="0 0 ${size} ${size}"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="${w}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${tint}" stroke-width="${w}" stroke-linecap="round" stroke-dasharray="${c*pct/100} ${c}"/></svg>`;};
+  const poster=i=>`<span class="poster" style="--c1:${P[i%P.length][0]};--c2:${P[i%P.length][1]}"></span>`;
+  const check=`<svg class="check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="${C.green}"/><path d="m7 12.5 3.2 3.2L17 9" fill="none" stroke="#000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const chev=`<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><path d="m9 5 7 7-7 7"/></svg>`;
+  const pauseBtn=`<span class="icon-btn" role="button" aria-label="Pause"><svg viewBox="0 0 24 24" style="width:34px;height:34px"><circle cx="12" cy="12" r="12" fill="rgba(255,255,255,.14)"/><rect x="8.3" y="7" width="2.6" height="10" rx=".8" fill="#fff"/><rect x="13.1" y="7" width="2.6" height="10" rx=".8" fill="#fff"/></svg></span>`;
+
+  const D={
+    preparing:[{t:'Lanterns · S1 E1',s:'Step 3 of 3 · Preparing audio · 39%',pct:39,i:0}],
+    downloading:[{t:'Interstellar (2014)',s:'Downloading · 42% · 20.9 MB/s · 5 min',pct:42,i:1,fill:C.blue},
+                 {t:'Fall (2022) · 4K',s:'Uploading to Google Drive · 71%',pct:71,i:2,fill:C.green}],
+    waiting:[{t:'The Dark Knight (2008)',s:'Next · 2160p · 21.4 GB',i:3},
+             {t:'Lanterns · S1 E2',s:'2nd · 2160p · 4.1 GB',i:0},
+             {t:'Dune (2021)',s:'Needs 36 GB free · 31 GB free now',i:4,warn:true},
+             {t:'Heat (1995)',s:'Will try again in 8 min · Drive did not answer',i:5,warn:true}],
+    ready:[{t:'Buddy (2026)',s:'2160p HDR · 14.2 GB · AAC 5.1',i:6},{t:'Scary Movie (2000)',s:'1080p · 4.4 GB · AAC stereo',i:1},
+           {t:'Fall (2022)',s:'2160p HDR · 18.9 GB · AAC 5.1',i:2},{t:'Lanterns · S1 E3',s:'2160p · 3.9 GB',i:0}],
+    kept:[{t:'Inception (2010)',s:'Kept as it is · picture subtitles cannot go into MP4',i:7}]
+  };
+  const counts={ready:18,todo:7,downloading:2,kept:1};const total=counts.ready+counts.todo+counts.kept;
+
+  function row(r,kind){
+    if(kind==='preparing')return `<button class="lrow"><span class="ringtile">${ring(r.pct,C.purple)}<span class="art" style="--c1:${P[r.i][0]};--c2:${P[r.i][1]}"></span></span><span class="txt"><span class="t1">${r.t}</span><span class="t2">${r.s}</span></span>${pauseBtn}</button>`;
+    if(kind==='downloading')return `<button class="lrow">${poster(r.i)}<span class="txt"><span class="t1">${r.t}</span><span class="t2">${r.s}</span><div class="bar" style="--fill:${r.fill}"><i style="width:${r.pct}%"></i></div></span>${chev}</button>`;
+    if(kind==='ready')return `<button class="lrow">${poster(r.i)}<span class="txt"><span class="t1">${r.t}</span><span class="t2">${r.s}</span></span>${check}</button>`;
+    return `<button class="lrow">${poster(r.i)}<span class="txt"><span class="t1">${r.t}</span><span class="t2 ${r.warn?'warn':''}">${r.s}</span></span>${chev}</button>`;
+  }
+  function sec(title,right,rows,kind,more){
+    return `<div class="sec"><span>${title}</span><span>${right||''}</span></div><div class="group">${rows.map(r=>row(r,kind)).join('')}</div>${more?`<div class="more">${more}</div>`:''}`;
+  }
+  const head=`<div class="status"><span>9:41</span><span>●●● 100%</span></div><div class="island"></div>`;
+  const back=`<div class="navrow"><span class="icon-btn" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4 7 12l8 8"/></svg></span><span class="icon-btn" aria-label="Check now"><svg viewBox="0 0 24 24" fill="none" stroke="#4FA8FF" stroke-width="2.4" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg></span></div>`;
+  const pct=Math.round(100*counts.ready/total);
+  const summary=`<div class="summary"><span class="big-ring">${ring(pct,C.green,72,32,6)}<b>${pct}%</b></span><span class="txt"><span class="t1">${counts.ready} of ${total} ready</span>
+    <span class="legend"><span><i style="background:${C.green}"></i>${counts.ready} ready</span><span><i style="background:${C.purple}"></i>${counts.todo} to do</span><span><i style="background:${C.blue}"></i>${counts.downloading} downloading</span><span><i style="background:${C.grey}"></i>${counts.kept} kept</span></span></span></div>
+    <div class="space"><div class="line"><span>Phone space</span><b>31 GB free</b></div>
+    <div class="meter" role="img" aria-label="Kodi uses 19 GB for the movie it is preparing; 5 GB is kept free; 31 GB free"><i style="width:7%;background:${C.purple}"></i><i style="width:2%;background:${C.grey}"></i><i style="flex:1;background:transparent"></i></div>
+    <div class="line"><span>Preparing now uses 19 GB · Kodi always leaves you 5 GB</span></div></div>`;
+  const seg=on=>`<div class="seg" role="tablist">${['All','Ready','To do','Downloading'].map(x=>`<button role="tab" class="${x===on?'on':''}" aria-selected="${x===on}">${x}</button>`).join('')}</div>`;
+  function render(filter){
+    let body='';
+    if(filter==='All'||filter==='To do')body+=sec('Preparing now','1',D.preparing,'preparing');
+    if(filter==='All'||filter==='Downloading')body+=sec('Downloading','2',D.downloading,'downloading');
+    if(filter==='All'||filter==='To do')body+=sec('Waiting',counts.todo-1+' in order',D.waiting,'waiting',filter==='To do'?'Show all 6':'');
+    if(filter==='All'||filter==='Ready')body+=sec('Ready for Kodi and AirPlay',String(counts.ready),D.ready,'ready',filter==='Ready'?'':'Show all 18');
+    if(filter==='All'||filter==='To do')body+=sec('Kept as it is','1',D.kept,'kept');
+    const main=document.getElementById('main');
+    main.innerHTML=head+`<div class="scroll">${back}<div class="page-title">Library status</div><div class="page-sub">Kodi Downloads on Google Drive · checked 2 min ago</div>${summary}${seg(filter)}${body}
+      <button class="capsule secondary">Check now</button><div class="foot">Kodi prepares one video at a time while nothing is playing, streaming it from Google Drive. Videos that need more phone space than is free wait until there is room.</div></div><div class="home-ind"></div>`;
+    main.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>render(b.textContent)));
+  }
+  render('All');
+
+  // detail: a waiting video that needs space
+  document.getElementById('detail').innerHTML=head+`<div class="scroll" style="opacity:.35">${back}<div class="page-title">Library status</div><div class="page-sub">Kodi Downloads on Google Drive · checked 2 min ago</div>${summary}</div>
+    <div class="dim"></div><div class="sheet" role="dialog" aria-label="Dune (2021)"><div class="grabber"></div>
+    <div class="sheet-head">${poster(4).replace('class="poster"','class="poster" style="--c1:#4a3b5c;--c2:#120c18"')}<span class="txt"><h4>Dune (2021)</h4><span class="t2 warn" style="white-space:normal">Waiting for phone space</span><span class="t2">2160p HDR · Dolby Atmos</span></span>
+    <span class="icon-btn" aria-label="Close" style="margin-left:auto"><svg viewBox="0 0 24 24" style="width:34px;height:34px"><circle cx="12" cy="12" r="12" fill="rgba(255,255,255,.14)"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></span></div>
+    <div class="facts"><div class="fact"><span>On Google Drive</span><span>30.1 GB · MKV</span></div><div class="fact"><span>Needs free</span><span>36 GB, incl. 5 GB kept for you</span></div>
+    <div class="fact"><span>Free now</span><span>31 GB</span></div><div class="fact"><span>To prepare</span><span>Picture copied · audio to AAC 5.1</span></div></div>
+    <button class="capsule primary">Prepare first when there's room</button><button class="capsule danger" style="margin-top:10px">Keep as it is</button></div><div class="home-ind"></div>`;
+
+  function fit(){document.querySelectorAll('.phone-slot').forEach(slot=>{const avail=Math.min(slot.parentElement.clientWidth,422);const k=Math.min(1,Math.max(.5,(avail-20)/402))*(window.innerWidth>900?0.86:1);slot.style.setProperty('--k',k.toFixed(3));});}
+  window.addEventListener('resize',fit);fit();
+})();
+</script>
