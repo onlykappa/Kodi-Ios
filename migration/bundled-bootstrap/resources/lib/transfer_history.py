@@ -360,22 +360,53 @@ def write_graph(folder, counter, png):
 
 
 class GraphCache:
-    """A page's plots are repainted only when that job's point count or last sample time changes."""
-    def __init__(self, namespace):
-        self.namespace=namespace
-        self.entries={}
-        self.counter=0
+    """A page's plots, repainted only when that job has new points and at most every REDRAW seconds (build 193,
+    owner: drawing costs the conversion CPU). Images live in one folder per job; folders of jobs no longer shown and
+    the loose files of older builds are deleted, so nothing piles up."""
+    REDRAW = 10.0
+    KEEP = 60.0          # a job not drawn for this long gives its folder back
+
+    def __init__(self, namespace, clock=time.monotonic):
+        self.namespace = namespace
+        self.clock = clock
+        self.entries = {}      # identity -> (signature, path, drawn_at, used_at, stream)
+        self.counter = 0
+        self.tidied = set()
+
+    def _tidy(self, folder, keep):
+        import shutil
+        try:
+            names = os.listdir(folder)
+        except OSError:
+            return
+        for name in names:
+            path = os.path.join(folder, name)
+            if name.startswith(self.namespace + '-') and name not in keep and os.path.isdir(path):
+                shutil.rmtree(path, ignore_errors=True)
+            elif folder not in self.tidied and name.startswith('graph_') and name.endswith(('.png', '.tmp')):
+                try:
+                    os.remove(path)   # build-192 pages wrote loose graph_N.png here
+                except OSError:
+                    pass
+        self.tidied.add(folder)
 
     def image(self, identity, points, colour, folder, prefix, **options):
-        if not points:return ''
-        identity=tuple(identity)
-        signature=(len(points),points[-1][0])
-        previous=self.entries.get(identity)
-        if previous and previous[0]==signature:return previous[1]
+        if not points:
+            return ''
+        now = self.clock()
+        identity = tuple(identity)
+        signature = (len(points), points[-1][0])
+        previous = self.entries.get(identity)
+        if previous and (previous[0] == signature or now - previous[2] < self.REDRAW):
+            self.entries[identity] = previous[:3] + (now,) + previous[4:]
+            return previous[1]
         import hashlib
-        stream=self.namespace+'-'+hashlib.sha256(repr(identity).encode()).hexdigest()[:12]
-        self.counter+=1
-        name=write_graph(os.path.join(folder,stream),self.counter,render(points,colour,**options))
-        path=prefix.rstrip('/')+'/'+stream+'/'+name
-        self.entries[identity]=(signature,path)
+        stream = self.namespace + '-' + hashlib.sha256(repr(identity).encode()).hexdigest()[:12]
+        self.counter += 1
+        name = write_graph(os.path.join(folder, stream), self.counter, render(points, colour, **options))
+        path = prefix.rstrip('/') + '/' + stream + '/' + name
+        self.entries[identity] = (signature, path, now, now, stream)
+        for key in [k for k, e in self.entries.items() if now - e[3] > self.KEEP]:
+            del self.entries[key]
+        self._tidy(folder, {e[4] for e in self.entries.values()})
         return path

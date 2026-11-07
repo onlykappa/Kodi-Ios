@@ -345,22 +345,31 @@ class ReviewFindings(unittest.TestCase):
                 with patch.dict(sys.modules,fake.modules),patch.object(ws,'load',return_value=m):library_status.run()
                 self.assertEqual(seen,[(action,[True]*(2 if in_sheet else 1))])
 
-    def test_7_plot_cache_reuses_files_until_count_or_last_time_changes(self):
+    def test_7_plot_cache_redraws_at_most_every_10_s_and_tidies(self):
+        # Owner (build 193 review): redraw only with new points and at most every 10 s; no graph images pile up.
         from unittest.mock import patch
         for namespace in ('item','spark','transfers'):
             with self.subTest(namespace=namespace),tempfile.TemporaryDirectory() as folder,patch.object(th,'render',return_value=b'png') as render:
-                cache=th.GraphCache(namespace);key=ws.job_key(self.work())
+                clock=[100.0];cache=th.GraphCache(namespace,clock=lambda:clock[0]);key=ws.job_key(self.work())
+                for old in ('graph_3.png',):open(os.path.join(folder,old),'wb').close()        # a build-192 loose file
+                os.makedirs(os.path.join(folder,namespace+'-oldjob'))                          # an earlier opening's job
                 points=[[1,MB],[2,2*MB]]
                 image=cache.image(key,points,ws.PURPLE,folder,'special://plot',width=40,height=20)
-                for _ in range(5):self.assertEqual(cache.image(key,points,ws.GREY,folder,'special://plot',now=1000),image)
+                self.assertEqual(sorted(os.listdir(folder)),[image.split('/')[-2]])           # both old ones gone
+                for _ in range(5):self.assertEqual(cache.image(key,points,ws.GREY,folder,'special://plot'),image)
                 self.assertEqual(render.call_count,1)
-                points.append([3,3*MB]);updated=cache.image(key,points,ws.PURPLE,folder,'special://plot')
+                points.append([3,3*MB]);clock[0]+=2
+                self.assertEqual(cache.image(key,points,ws.PURPLE,folder,'special://plot'),image)   # new point, too soon
+                self.assertEqual(render.call_count,1)
+                clock[0]+=10;updated=cache.image(key,points,ws.PURPLE,folder,'special://plot')
                 self.assertNotEqual(updated,image);self.assertEqual(render.call_count,2)
-                points[-1][0]=4
-                cache.image(key,points,ws.PURPLE,folder,'special://plot');self.assertEqual(render.call_count,3)
+                clock[0]+=10;cache.image(key,points,ws.PURPLE,folder,'special://plot');self.assertEqual(render.call_count,2)  # nothing new
                 other=ws.job_key(self.work(id='other'))
-                cache.image(other,points,ws.PURPLE,folder,'special://plot');self.assertEqual(render.call_count,4)
-                cache.image(key,points,ws.PURPLE,folder,'special://plot');self.assertEqual(render.call_count,4)
+                cache.image(other,points,ws.PURPLE,folder,'special://plot');self.assertEqual(render.call_count,3)
+                self.assertEqual(len(os.listdir(folder)),2)
+                clock[0]+=th.GraphCache.KEEP+1;cache.image(other,points+[[9,MB]],ws.PURPLE,folder,'special://plot')
+                self.assertEqual(len(os.listdir(folder)),1)                                     # the first job's folder went
+                cache.image(key,points,ws.PURPLE,folder,'special://plot');self.assertEqual(render.call_count,5)   # shown again: drawn again
 
     def test_7_all_three_page_graphs_use_the_cache_on_repeated_refresh(self):
         import test_library_status as fixture
