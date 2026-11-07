@@ -48,3 +48,18 @@ converting, and Transfers said "Nothing is moving", all at once.
 - A hung upload piece is noticed only after its timeout (45 s + 1 s per 128 KiB: 301 s for 32 MB). A progress-based
   stall check is the next step (docs/PROMPT-ALWAYS-RUNNING.md).
 - Whether a re-encode's checkpoint was dropped at 13:09:56 cannot be told from the log (the held offset is not logged).
+
+## Second log (same session, 13:49 to 14:16)
+- Cause 1 again: Scary Movie's own `prepare: fragments …` line (13:55:52) held it; the 13:56:37 snapshot says "Paused while
+  a video plays", 13:56:51 "last read 58 s ago", and uploads fell to 64 MB that minute. Fixed by `airplay.airplay_lines`.
+- **New: Fall 2's faster start failed** at 13:55:08, 22 % after 26 min: `MP4 packet: Invalid argument` (the converter's MP4
+  writer refused a packet, `kr_prepare.c:1012`; most likely a time stamp in the older prepared file). A retry starts at 0 %
+  and would fail at the same packet, with waits growing to an hour. Fix (Python): a re-pack that fails on a converter
+  writing error stops and stays as it is (it plays); one "Kept as it is" notice (`prepare_cloud.REPACK_STOPS`). The
+  converter itself is unchanged: finding the packet needs a converter log line with its time stamps (own release).
+- Speed: the total upload to Drive is flat at 4.0-4.5 MB/s (about 32-36 Mbit/s) whether one or two uploads run; the
+  AllDebrid copy reads at 15-25 MB/s but sends 1.5-2.5 MB/s because the re-pack shares the same upload. The line's upload
+  is the limit.
+- Transfers 14:16:09-18: seven taps on "Also running" (9721), each handled (the graph switches); the approved page
+  replaces that row with chips.
+- TMDb Helper's "GetDirectory - Error" lines (log_library, log_tagger, timer_report) are its own missing log folders: harmless.

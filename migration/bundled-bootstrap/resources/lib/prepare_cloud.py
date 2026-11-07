@@ -12,6 +12,10 @@ import diagnostics
 import resume_store
 
 
+# A re-pack (faster start) that fails on one of these converter errors would fail the same way every time.
+REPACK_STOPS=('MP4 packet','Picture subtitle packet','Subtitle decode','Subtitle encode')
+
+
 def process_one(q, keep_going):
     # Cleanup is independent of jobs: a library rescan can remove completed or superseded jobs.
     # Journal before deleting, and retry 404 safely if a process exited after Drive acknowledged deletion.
@@ -250,6 +254,14 @@ def process_one(q, keep_going):
         q.log('preparation: failed for %s: %s; phase=%s; video=%s'%(drivelibrary.display_title(item['name']),text,(q.state.get('current') or {}).get('stage','opening'),json.dumps(job.get('probe') or {},sort_keys=True)))
         if 'source changed' in text:job['status']='superseded';q.state['last_scan']=0;clear_temps();resume_store.clear(q.profile,slot)
         elif 'tracks MP4 cannot preserve' in text or 'without changing HDR' in text or 'needs RPU remapping' in text:job['blocked']=True
+        elif job.get('repack') and any(word in text for word in REPACK_STOPS):
+            # Build 193 (build-192 log 13:55:08: Fall 2's faster start failed at 22 % on "MP4 packet: Invalid argument" after
+            # 26 min): the converter refuses the same piece of an older file every time, so each retry would start from
+            # 0 % and fail there again, for ever. The movie is Ready and plays; it stays as it is.
+            job['blocked']=True;job['repack_failed']=True;clear_temps();resume_store.clear(q.profile,slot)
+            q.notify('info','Kept as it is',drivelibrary.display_title(item['name'])+" still plays in Kodi and on AirPlay; it couldn't be made to start faster.")
+            import transfer_history;transfer_history.failed(q.profile,'conv',item['name'],"couldn't be made to start faster; it still plays",q.clock())
+            job['error']=text;return False
         if job.get('error')!=text:
             q.notify('problem','Video preparation paused',drivelibrary.display_title(item['name'])+': '+text[:200])
             # Transfers › History: once per video and reason, like the notification (not a source changed meanwhile).

@@ -194,6 +194,22 @@ class Queue(unittest.TestCase):
   self.assertTrue(self.q.state['jobs']['slot']['blocked'])
   self.assertFalse(self.q.process_one())
   self.assertEqual(self.d.files['source']['data'],b'original')
+ def test_failed_faster_start_is_not_retried_for_ever(self):
+  # Build-192 log 13:55:08: Fall 2's re-pack failed at 22 % on "MP4 packet: Invalid argument"; each retry restarts at 0 %.
+  notes=[];self.q.notify=lambda kind,title,text:notes.append((kind,title,text))
+  def refused(*args,**kwargs):raise RuntimeError('MP4 packet: Invalid argument')
+  self.n.convert_to=refused
+  self.q.state['jobs']['slot']['repack']=True
+  self.assertFalse(self.q.process_one())
+  job=self.q.state['jobs']['slot'];self.assertTrue(job['blocked']);self.assertTrue(job['repack_failed'])
+  self.assertEqual(notes,[('info','Kept as it is',"Film still plays in Kodi and on AirPlay; it couldn't be made to start faster.")])
+  self.assertFalse(self.q.process_one());self.assertEqual(len(notes),1)          # not tried again
+  self.assertEqual(self.d.files['source']['data'],b'original')
+ def test_same_error_on_a_first_conversion_is_retried(self):
+  def refused(*args,**kwargs):raise RuntimeError('MP4 packet: Invalid argument')
+  self.n.convert_to=refused
+  self.assertFalse(self.q.process_one());job=self.q.state['jobs']['slot']
+  self.assertFalse(job.get('blocked'));self.assertGreater(job['retry_after'],0)   # a movie that is not ready yet keeps trying
  def test_end_to_end_queue_writes_no_local_media_and_marks_ready(self):
   with patch.object(prep.phone_space,'free',return_value=0):self.assertTrue(self.q.process_one())
   # Build 181: uploaded once. The prepared file takes the original's place; the original goes to the bin.
