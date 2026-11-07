@@ -118,3 +118,11 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
   "The write operation timed out" at exactly ~45 s. Python's socket timeout limits the whole sendall (3.5+), so a 32 MB
   piece needed 0.73 MB/s; the effective rate was ~0.1 MB/s. driveupload.request_timeout: 45 s + 1 s per 128 KiB of
   body for uploads (32 MB → 301 s); read-only requests unchanged. Expect ~0.4 MB/s on the owner's line (~4x).
+
+## Build 190 — KodiAirPlay r31 + resume rework (docs/AUDIT-CONVERSION.md)
+(owner, build-189: Interstellar "starting" for 5 min; "do a full rundown audit and tests on this conversion")
+- Read-back check walked every fragment (no mfra use, validate without network options): fixed in r31.
+- Resume: copies skip what Drive has past the mark (byte-identical, r31 first-packet move); re-encodes keep the movie in
+  32 MB files until Drive has them and save every mark at once; MARK_CAP 256 MB.
+- New end-to-end test migration/airplay-ios/remux/tests/e2e_conversion.py, run in CI host-tests (airplay-remux.yml).
+  Local: e2e 200/0, native 2,097/0.
