@@ -89,7 +89,7 @@ class PageTests(unittest.TestCase):
  def test_layout_ids_match_controller(self):
   root=ET.fromstring(portrait.notices_page().encode())
   ids={int(c.get('id')) for c in root.iter('control') if c.get('id')}
-  need={9001,9002,9101,9102,9103,9300,9430}|{9400+n for n in range(1,page.SLOTS+1)}|{9410+n for n in range(1,page.SLOTS+1)}|{9420+n for n in range(1,page.SLOTS+1)}|{9500+n for n in range(1,page.ROWS+1)}
+  need={9001,9002,9101,9102,9103,9104,9300,9432,9433,9440}|set(range(9436,9440))|set(range(9460,9466))|{9500+n for n in range(1,page.ROWS+1)}
   self.assertTrue(need<=ids,need-ids)
   self.assertEqual((portrait.NOTICE_SLOTS,portrait.NOTICE_ROWS),(page.SLOTS,page.ROWS))
  def test_card_and_message_properties(self):
@@ -145,7 +145,7 @@ class OverlapTests(unittest.TestCase):
   xml=portrait.notices_page()
   self.assertNotIn('then off the phone',xml);self.assertNotIn('source resolution',xml)
   for pre in ('up.','prepare.'):
-   for key in ('title','summary','line'):self.assertIn('Window().Property(%s%s)'%(pre,key),xml)
+   for key in ('title','line'):self.assertIn('Window().Property(%s%s)'%(pre,key),xml)
   props=page.card_properties([],[{'title':'Fall (2022)','folder':'Movies','progress':5,'line':'5%'}])
   self.assertEqual(props['up.summary'],'Movies · then off the phone')
   self.assertEqual(notices.drivelibrary.display_title('Lanterns.S01E01.Pilot.2160p.10bit.WEB-DL.mkv'),'Lanterns · S1 E1')

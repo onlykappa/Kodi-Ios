@@ -8,8 +8,12 @@ window shrunk into the middle of the portrait screen, so nothing becomes unreach
 The same module builds the folder into the IPA (scripts/build_customized_ipa.py) and, on the phone,
 refreshes the rows from the owner's widget lists and reloads the skin when the phone rotates.
 """
+import sys
 import hashlib,json,os,re,struct,zlib,xml.etree.ElementTree as ET
 import importlib.util as _iu
+for _name in ('status_ui','notifications_skin'):
+ _shared=_iu.spec_from_file_location(_name,os.path.join(os.path.dirname(os.path.abspath(__file__)),_name+'.py'))
+ _module=_iu.module_from_spec(_shared);sys.modules[_name]=_module;_shared.loader.exec_module(_module)
 _spec=_iu.spec_from_file_location('player_osd',os.path.join(os.path.dirname(os.path.abspath(__file__)),'player_osd.py'))
 player_osd=_iu.module_from_spec(_spec);_spec.loader.exec_module(player_osd)
 _spec=_iu.spec_from_file_location('settings_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'settings_page.py'))
@@ -332,16 +336,21 @@ def header_button(id,x,y,glyph,action,extra=''):
  off=(HDR-HDR_GLYPH)//2
  return pill_button(id,x,y,HDR,HDR,'',[('',action)],'glass','',extra)[:-len('</control>')]+icon(off,off,HDR_GLYPH,glyph)+'</control>'
 def bell(x,y,extra=''):
- """Bell: red count of unread messages, a thin blue arc turning around it while something runs
- (the bootstrap service keeps Notices.Unread and Notices.Active on the Home window)."""
- unread='Window(Home).Property(Notices.Unread)'
- return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+
-  image(-12,-12,132,132,MEDIA+'ring_arc.png',ACCENT,'<visible>!String.IsEmpty(Window(Home).Property(Notices.Active))</visible>'
-   '<animation effect="rotate" end="-360" center="auto" time="1200" loop="true" reversible="false" condition="true">Conditional</animation>')+
-  header_button(9207,0,0,'bell.png',NOTICES,extra)+
-  '<control type="group"><left>66</left><top>-8</top><visible>!String.IsEmpty(%s) + !String.IsEqual(%s,0)</visible>'%(unread,unread)+
-  image(0,0,56,56,MEDIA+'dot.png','FF000000')+image(4,4,48,48,MEDIA+'dot.png','FFFF453A')+
-  label(4,4,48,48,'$INFO[%s]'%unread,'p_foot_b',WHITE,'center','<aligny>center</aligny>')+'</control></control>')
+ """Real model percentage; needs-you is the only red badge. No looping arc."""
+ active='!String.IsEmpty(Window(Home).Property(Notices.Active))'
+ pct='Window(Home).Property(Notices.Pct)'
+ rings=''
+ for n in range(21):
+  cond=active+' + !Integer.IsGreater(%s,%d)'%(pct,n*5+2)
+  if n:cond+=' + Integer.IsGreater(%s,%d)'%(pct,n*5-3)
+  rings+=image(-10,-10,128,128,MEDIA+'ring_%02d.png'%n,'$INFO[Window(Home).Property(Notices.Tint)]','<visible>'+cond+'</visible>')
+ needs='!String.IsEmpty(Window(Home).Property(Notices.Needs))'
+ badge=''
+ for key,tint,cond in (('Count','FF0A84FF',active+' + !'+needs),('Needs','FFFF453A',needs)):
+  badge+='<control type="group"><left>70</left><top>-6</top><visible>'+cond+'</visible>'+image(0,0,50,50,MEDIA+'dot.png',tint)+label(0,0,50,50,'$INFO[Window(Home).Property(Notices.%s)]'%key,'p_cap',WHITE,'center','<scroll>false</scroll>')+'</control>'
+ # The invisible hit target is 118, while the visible bell remains 24 pt.
+ return '<control type="group"><left>%d</left><top>%d</top>'%(x,y)+rings+icon(23,23,62,'bell.png')+'<control type="button" id="9207"><left>-5</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><onclick>'+NOTICES+'</onclick>'+extra+'</control>'+badge+'</control>'
+
 
 def gear(x,y,extra=''):
  """Gear in place of the profile picture: opens Settings (Accounts is its first row). A dot while add-on updates wait."""
@@ -1168,73 +1177,9 @@ def deck_page(original=''):
 NOTICE_SLOTS=4;NOTICE_ROWS=15
 NOTICE_FILTERS=(('all','All'),('general','General'),('downloads','Downloads'),('problems','Problems'))   # buttons 9101-9104, notifications.FILTER_KEYS
 def notices_page():
- """Notification center (owner-approved mockup): live downloads with progress bars, the Google Drive upload,
- then earlier messages. notifications.py fills it through window properties and the progress controls."""
- P=lambda name:'$INFO[Window().Property(%s)]'%name
- has=lambda name:'!String.IsEmpty(Window().Property(%s))'%name
- w=WIDTH-2*SIDE
- def section(text,cond,extra=''):
-  return ('<control type="group"><width>%d</width><height>96</height><visible>%s</visible>'%(WIDTH,cond)+
-   label(SIDE,30,w-260,60,text,'p_foot_b',GREY)+(label(SIDE+w-240,30,240,60,extra,'p_foot',GREY,'right') if extra else '')+'</control>')
- def card(n):
-  h=350;pre='dl.%d.'%n   # Pause/Cancel are 124 high (46 pt): touch areas of at least 44 pt (APPLE-UI-POLICY 4.5)
-  return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(WIDTH,h+24,has(pre+'title'))+
-   surface(SIDE-6,0,w+12,h,'round.png',SURFACE,32)+
-   # Owner: tapping a transfer card opens the Transfers page (speed graph); Pause/Cancel are drawn on top of this.
-   '<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus /></control>'%(9435+n,SIDE-6,w+12,h)+
-   surface(SIDE+24,26,130,196,'round_s.png','FF3A3A3C',20)+icon(SIDE+59,94,60,'download.png',GREY,'<visible>!%s</visible>'%has(pre+'poster'))+
-   image(SIDE+24,26,130,196,P(pre+'poster'),extra='<aspectratio>scale</aspectratio><visible>%s</visible>'%has(pre+'poster'))+
-   label(SIDE+184,22,w-210,64,P(pre+'title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
-   '<control type="progress" id="%d"><left>%d</left><top>110</top><width>%d</width><height>14</height>'
-   '<texturebg border="7" colordiffuse="52787880">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="FF0A84FF">%sdot.png</midtexture><righttexture /></control>'%(9400+n,SIDE+184,w-210,MEDIA,MEDIA)+
-   label(SIDE+184,136,w-210,48,P(pre+'line')+'$INFO[Window().Property(%sspeed),  ·  ,]'%pre,'p_cap',GREY)+
-   pill_button(9410+n,SIDE+184,202,240,124,P(pre+'pausetext'),[('','noop')],'glass')+
-   pill_button(9420+n,SIDE+184+260,202,240,124,'[COLOR FFFF453A]Cancel[/COLOR]',[('','noop')],'glass')+'</control>')
- def transfer(pre,progress_id,glyph,tint,tile):
-  """Upload/preparation card: title, summary, bar, status. One label per line, each truncating (ISSUE-101)."""
-  return ('<control type="group"><width>%d</width><height>244</height><visible>%s</visible>'%(WIDTH,has(pre+'title'))+
-   surface(SIDE-6,0,w+12,220,'round.png',SURFACE,32)+
-   '<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>220</height><label></label><texturefocus colordiffuse="14FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>'%(progress_id+2,SIDE-6,w+12,MEDIA)+
-   surface(SIDE+24,26,130,168,'round_s.png',tile,20)+icon(SIDE+59,80,60,glyph,tint,'<visible>![%s] + ![%s]</visible>'%(has(pre+'indeterminate'),has(pre+'poster')))+
-   image(SIDE+59,80,60,60,MEDIA+'ring_06.png',tint,'<visible>%s</visible><animation effect="rotate" end="-360" center="auto" time="1100" loop="true" condition="true">Conditional</animation>'%has(pre+'indeterminate'))+
-   image(SIDE+24,26,130,168,P(pre+'poster'),extra='<aspectratio>scale</aspectratio><visible>%s</visible>'%has(pre+'poster'))+
-   label(SIDE+184,20,w-210,60,P(pre+'title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
-   label(SIDE+184,80,w-210,46,P(pre+'summary'),'p_cap',GREY)+
-   '<control type="progress" id="%d"><left>%d</left><top>134</top><width>%d</width><height>14</height>'
-   '<texturebg border="7" colordiffuse="52787880">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="%s">%sdot.png</midtexture><righttexture /></control>'%(progress_id,SIDE+184,w-210,MEDIA,tint,MEDIA)+
-   label(SIDE+184,158,w-210,46,P(pre+'line'),'p_cap',GREY)+'</control>')
- def row(n):
-  pre='msg.%d.'%n;h=170
-  return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(WIDTH,h+14,has(pre+'title'))+
-   surface(SIDE-6,0,w+12,h,'round_s.png',SURFACE,20)+
-   '<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><texturefocus colordiffuse="14FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>'%(9500+n,SIDE-6,w+12,h,MEDIA)+
-   image(SIDE+8,h//2-8,16,16,MEDIA+'dot.png','FF0A84FF','<visible>%s</visible>'%has(pre+'unread'))+
-   surface(SIDE+36,30,86,86,'round_s.png',P(pre+'tint'),20)+icon(SIDE+56,50,46,ICONS+P(pre+'icon'),WHITE)+
-   label(SIDE+150,22,w-300,58,P(pre+'title'),'p_foot_b',WHITE,'left','<scroll>false</scroll>')+
-   label(SIDE+150,80,w-190,70,P(pre+'text'),'p_cap',GREY,'left','<wrapmultiline>true</wrapmultiline>')+
-   label(SIDE+w-140,22,120,58,P(pre+'ago'),'p_cap',GREY,'right')+'</control>')
- filters=''.join('<control type="group"><left>%d</left><top>0</top>'%(i*w//len(NOTICE_FILTERS))+
-   image(4,4,w//len(NOTICE_FILTERS)-8,80,MEDIA+'pill_96.png','FF636366','<visible>String.IsEqual(Window().Property(filter),%s)</visible>'%key,border=40)+
-   '<control type="button" id="%d"><top>-15</top><width>%d</width><height>118</height><label>%s</label><font>p_foot_b</font><textoffsetx>0</textoffsetx><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
-   '<align>center</align><aligny>center</aligny><texturefocus /><texturenofocus /></control></control>'%(9101+i,w//len(NOTICE_FILTERS),text,GREY,WHITE)
-   for i,(key,text) in enumerate(NOTICE_FILTERS))
- body=('<controls>'+backdrop()+
-  nav_button(9001,SIDE,36,'chevron-left.png','Close','<ondown>9101</ondown>')+
-  '<control type="button" id="9002"><left>%d</left><top>31</top><width>260</width><height>118</height><label>Clear All</label><font>p_body</font>'
-  '<textcolor>%s</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>right</align><aligny>center</aligny><texturefocus /><texturenofocus /></control>'%(WIDTH-SIDE-260,ACCENT)+
-  label(SIDE,160,w,110,'Notifications','p_large')+
-  '<control type="group"><left>%d</left><top>290</top>'%SIDE+surface(0,0,w,88,'pill_96.png',SURFACE,44)+filters+'</control>'+
-  '<control type="grouplist" id="9300"><left>0</left><top>400</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%WIDTH+
-  section('Downloading',has('has.dl'),P('dl.summary'))+''.join(card(n) for n in range(1,NOTICE_SLOTS+1))+
-  section('Uploading to Google Drive',has('has.up'))+transfer('up.',9430,'cloud-arrow-up.png',GREEN,'FF1F3D2B')+
-  section('Preparing for Kodi and AirPlay',has('has.prepare'))+
-  transfer('prepare.',9431,'cloud-arrow-up.png',GREEN,'FF1F3D2B')+
-  section('Earlier',has('has.msg'))+''.join(row(n) for n in range(1,NOTICE_ROWS+1))+
-  '<control type="group"><width>%d</width><height>300</height><visible>%s</visible>'%(WIDTH,has('empty'))+
-  label(SIDE,80,w,80,"You're all caught up",'p_h3',GREY,'center')+'</control>'+
-  '<control type="image"><height>200</height><texture /></control></control></controls>')
- return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9101</defaultcontrol>'
-         '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(MARKER,body)
+ import notifications_skin
+ return notifications_skin.page(type('PortraitTokens',(),globals()))
+
 
 def shrink(data,name=''):
  root=ET.fromstring(data)
@@ -1454,7 +1399,7 @@ def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__),Path(rows_page.__file__)):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py')):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())

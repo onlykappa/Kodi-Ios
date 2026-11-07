@@ -126,8 +126,8 @@ class Pages(unittest.TestCase):
   state['jobs']['k']['source']['id']='x'
   row=prepare_downloads.library_view(state,now=lambda:NOW)['rows']['preparing'][0]
   self.assertIn('Slower while AirPlay plays',row['sub'])
-  for name in ('library_status.py',):self.assertIn('work_state.align(prepare_downloads.snapshot(profile),work_state.load(profile))',(BOOT/name).read_text())
-  self.assertIn('work_state.align(prepare_downloads.snapshot(profile), work_state.load(profile, now))',(LIB/'tool_windows.py').read_text())
+  for name in ('library_status.py',):self.assertIn('work_state.align(prepare_downloads.snapshot(profile),model)',(BOOT/name).read_text())
+  self.assertIn('work_state.align(prepare_downloads.snapshot(profile), model)',(LIB/'tool_windows.py').read_text())
  def test_notifications_cards(self):
   spec=importlib.util.spec_from_file_location('notifications_ws',BOOT/'notifications.py');n=importlib.util.module_from_spec(spec);spec.loader.exec_module(n)
   card,up=n.model_cards(ws.build({'prep':conv(),'slow':'video'},NOW),'id1')

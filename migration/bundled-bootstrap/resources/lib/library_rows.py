@@ -11,11 +11,11 @@ SECTIONS = (('preparing', 'Preparing now'), ('downloading', 'Downloading'), ('wa
 FOLDERS = (('waiting', 'Waiting', 'clock-rotate-left.png', 'FFBF5AF2'), ('ready', 'Ready for Kodi and AirPlay', 'circle-check.png', 'FF30D158'),
            ('kept', 'Kept as it is', 'folder.png', 'FF8E8E93'))
 SHOWN = {'ready': ('ready',), 'waiting': ('waiting',), 'kept': ('kept',),
-         'todo': ('preparing', 'waiting', 'kept'), 'downloading': ('downloading',)}
+         'working': ('preparing', 'downloading'), 'todo': ('preparing', 'waiting', 'kept'), 'downloading': ('downloading',)}
 TITLES = {'all': 'Library status', 'ready': 'Ready', 'waiting': 'Waiting', 'kept': 'Kept as it is', 'todo': 'To do',
           'downloading': 'Downloading'}
 DOT = '[COLOR %s]●[/COLOR]'
-NOTE = 'Kodi prepares one video at a time from Google Drive while nothing plays.'
+NOTE = 'Kodi prepares one video at a time; it slows down while a video plays.'
 
 
 def ring_name(pct):
@@ -50,22 +50,18 @@ def list_items(view, filter_key='all'):
     """[{kind: row|folder|foot, label, label2, props}] for list 9300, in order. One layout draws them all (Kodi's
     conditional item layouts follow global conditions, not each item, so the kind is a property its parts show by)."""
     rows = view['rows']
-    if filter_key == 'all':
-        active = _positions([_video(r) for key in ('preparing', 'downloading') for r in rows[key]])
-        folders = _positions([{'kind': 'folder', 'label': title, 'label2': _folder_line(key, rows[key]),
-                               'props': {'kind': 'folder', 'folder': key, 'icon': glyph, 'tint': tint, 'count': str(len(rows[key]))}}
-                              for key, title, glyph, tint in FOLDERS if rows[key]])
-        out = active + folders
-        if not out:
-            out = [{'kind': 'foot', 'label': 'Nothing here yet. Check now (top right) to look at Google Drive › Kodi Downloads again.'}]
-        else:
-            out.append({'kind': 'foot', 'label': NOTE})
-    else:
-        out = _positions([_video(r) for key in SHOWN.get(filter_key, ()) for r in rows[key]])
-        if not out:
-            empty = {'ready': 'Nothing is ready yet.', 'todo': 'Nothing left to prepare.', 'waiting': 'Nothing is waiting.',
-                     'kept': 'Nothing is kept as it is.', 'downloading': 'Nothing is downloading.'}.get(filter_key, 'Nothing here yet.')
-            out = [{'kind': 'foot', 'label': empty}]
+    keys = ('downloading','waiting','ready','kept') if filter_key == 'all' else SHOWN.get(filter_key, ())
+    out = []
+    headings = dict(SECTIONS, preparing='WORKING ON NOW', downloading='DOWNLOADING TO GOOGLE DRIVE', waiting='UP NEXT')
+    for key in keys:
+        for n,r in enumerate(rows[key]):
+            v = _video(r)
+            v['props']['section'] = headings[key].upper() if n == 0 else ''
+            v['props']['pos'] = 'only' if len(rows[key])==1 else 'first' if n==0 else 'last' if n==len(rows[key])-1 else 'mid'
+            v['props']['number'] = str(n+1) if key == 'waiting' else ''
+            if key == 'kept' and 'Being replaced' in r.get('sub',''):
+                v['label2'] = 'Being replaced by the new download above'
+            out.append(v)
     for item in out:
         item.setdefault('props', {'kind': item['kind']})
         item['props'].setdefault('kind', item['kind'])
@@ -74,13 +70,23 @@ def list_items(view, filter_key='all'):
 
 def page_properties(view, checking=False):
     """Window properties for the page's top: subtitle, ring, headline and legend."""
-    legend = '  '.join('%s %d %s' % (DOT % colour, n, word) for colour, n, word in (
-        ('FF30D158', view['ready'], 'ready'), ('FFBF5AF2', view['todo'], 'to do'),
-        ('FF0A84FF', view['downloading'], 'downloading'), ('FF8E8E93', view['kept'], 'kept')))
-    return {'sub': 'Kodi Downloads on Google Drive · ' + ('checking now…' if checking else view['checked']),
-            'ring': ring_name(view['pct']), 'pct': str(view['pct']),
-            'headline': '%d of %d ready' % (view['ready'], view['total']) if view['total'] else 'Not checked yet',
-            'legend': legend}
+    rows = view['rows']
+    counts = {'ready': view['ready'], 'working': len(rows['preparing'])+len(rows['downloading']),
+              'next': len(rows['waiting']), 'kept': view['kept']}
+    total = sum(counts.values())
+    eta = sum(float(r.get('eta_s') or 0) for group in rows.values() for r in group)
+    props = {'sub': 'Kodi Downloads on Google Drive · '+('checking now…' if checking else view['checked']),
+             'headline': '%d of %d ready'%(view['ready'],view['total']) if view['total'] else 'Not checked yet',
+             'ring': ring_name(view['pct']), 'pct': str(view['pct']), 'legend': ''}
+    import work_state
+    remaining=work_state.remaining_text(view.get('model')) if 'model' in view else ('about '+minutes_text(eta) if eta else '')
+    props['remaining']=remaining+' to go' if remaining else ''
+    cumulative=0
+    for key,n in counts.items():
+        cumulative+=n
+        props['count.'+key]=str(n)
+        props['summary.'+key]=str(100*cumulative/max(1,total))
+    return props
 
 
 def short_eta(text):
@@ -150,7 +156,7 @@ def details(row, view):
     size = row.get('size') or 0
     on_drive = ('On Google Drive', '%.1f GB' % (size / GB)) if size else None
     folder = ('Folder', row.get('folder') or 'Kodi Downloads') if row.get('folder') else None
-    state = row['state']
+    state = 'ready' if row.get('ready_now') else row['state']
     sheet = {'title': row['title'], 'quality': '', 'facts': [], 'actions': [], 'tone': 'plain', 'status': row.get('sub', ''),
              'bar': '', 'bar_tint': ''}
     # Build 177 (owner-approved movie sheet): a live speed card for anything moving, and rows that each answer one
@@ -159,13 +165,11 @@ def details(row, view):
     sheet['step'] = str(row.get('step') or '')
     if state == 'ready':
         probe = row.get('probe') or {}
-        took = (row['completed'] - row['started_at']) if row.get('completed') and row.get('started_at') else 0
-        made = ' · '.join(x for x in (day_text(row.get('completed')), 'took %s' % minutes_text(took) if took > 0 else '') if x)
         sheet.update(status='Ready on iPhone and Apple TV', tone='ok', quality='Seeks straight away over AirPlay',
-                     facts=[f for f in (('Picture', picture_text(probe, kept=False) or row.get('sub', '')),
-                                        ('Size', '%.1f GB' % (size / GB)) if size else None,
-                                        ('Folder', 'Kodi Downloads › ' + row['folder']) if row.get('folder') else None,
-                                        ('Made ready', made) if made else None) if f],
+                     facts=[f for f in (('Kodi', 'Opens in about 1 s' if not row.get('repack') else 'Ready to play'),
+                                        ('AirPlay', 'Ready, seeks instantly'),
+                                        ('Picture', picture_text(probe, kept=False) or row.get('sub', '')),
+                                        ('Sound and subtitles', probe.get('audio_description') or 'See playback options')) if f],
                      actions=[('Play', 'play'), ('Play on TV', 'tv')])
     elif state == 'preparing':
         pct = row.get('pct', 0)
@@ -216,6 +220,23 @@ def details(row, view):
     if row.get('reencode') and state in ('waiting', 'space', 'problem', 'preparing'):
         sheet['actions'] = ([QUICKER] + [a for a in sheet['actions'] if a[1] != 'next'])[:3]
         sheet['facts'] = sheet['facts'][:FACTS - 1] + [('Why it is slow', 'AV1 is re-encoded on the phone; HEVC and H.264 are only repackaged')]
+    model = view.get('model')
+    import work_state
+    live = next((j for j in (model or {}).get('jobs',[]) if j.get('id') == row.get('id') or j.get('title') == row.get('title')), None)
+    if live:
+        sheet.update(status=live['line'], step=live['step'], bar=str(live.get('pct') or 0), bar_tint=live['tint_now'],
+                     card='conv' if live['kind'] in ('conv','repack') else 'up' if live['kind'] in ('copy','upload') else 'down',
+                     actions=[('Play','play'), ('Resume' if live['state']=='paused_by_you' else 'Pause','toggle')])
+    probe = row.get('probe') or {}
+    sheet['quality'] = ' · '.join(x for x in (picture_text(probe), str(probe.get('codec') or '').upper(), '%.1f GB'%(size/GB) if size else '') if x)
+    sheet['sentence'] = ('Already plays in Kodi and AirPlay; this makes it open faster.' if live['kind']=='repack' else 'Play on this iPhone while Kodi gets it ready for AirPlay.') if live else ''
+    ready = state == 'ready'
+    sheet['steps'] = [('Downloaded', 'FF30D158'), ('On Drive' if state not in ('downloading','uploading') else 'On Drive…',
+                      'FF30D158' if state not in ('downloading','uploading') else DOWN),
+                     ('Ready' if ready else ((live or {}).get('step') or sheet['step'] or sheet['status']) + (' · %d%%'%float(live.get('pct') or 0) if live and not live.get('indeterminate') else ''),
+                      'FF30D158' if ready else (live or {}).get('tint_now') or CONV)]
+    sheet['live'] = live
+    sheet['need'] = ((model or {}).get('needs') or [{}])[0]
     sheet['facts'] = sheet['facts'][:FACTS]
     return sheet
 
@@ -240,3 +261,37 @@ def card(history, kind, title, now, step=''):
     return ({'card.now': th.mb(rate) if rate > 0 else 'Starting…', 'card.peak': th.mb(job.get('peak')),
              'card.avg': th.mb(job.get('sum', 0) / max(1, job.get('n', 1))), 'card.left': left or '–',
              'card.from': th.ago(now - job['start']).replace('just now', 'a moment ago')}, pts)
+
+
+def with_model(view, model):
+    """Metadata stays in the library; only work_state decides current jobs and queue order."""
+    import work_state
+    rows=view['rows']
+    lookup={r['id']:r for rr in rows.values() for r in rr}
+    by_title={r['title']:r for r in lookup.values()}
+    rows['preparing']=[];rows['downloading']=[]
+    active_ids=set()
+    for j in (model or {}).get('jobs') or []:
+        if j['kind']=='check':continue
+        base=lookup.get(j.get('id')) or by_title.get(j['title']) or {}
+        state='preparing' if j['kind'] in ('conv','repack') else 'downloading' if j['kind']=='down' else 'uploading'
+        r=dict(base,**{k:v for k,v in j.items() if k not in ('state',)})
+        r.update(id=base.get('id') or j.get('id') or 'up',state=state,sub=j['line'],step=j['step'],size=base.get('size') or j.get('total') or 0)
+        rows['preparing' if state=='preparing' else 'downloading'].append(r)
+        active_ids.add(r['id'])
+    # A ready faster-start job may run; it appears once in the summary.
+    for key in ('ready','kept'):
+        rows[key]=[r for r in rows[key] if r['id'] not in active_ids]
+    waiting=[]
+    for j in (model or {}).get('next') or []:
+        base=lookup.get(j['id']) or by_title.get(j['title']) or {}
+        waiting.append(dict(base,**j,state=base.get('state') if base.get('state') in ('space','problem') else 'waiting',ready_now=base.get('state')=='ready',repack=j['what']=='faster start',sub=base.get('sub','') if base.get('state') in ('space','problem') else ('Ready now · ' if base.get('state')=='ready' else '')+j['what']+' · %.1f GB'%(float(j.get('size') or 0)/GB)))
+    # Retain actionable problems and phone-space explanations, but never invent queued jobs.
+    rows['waiting']=waiting+[r for r in rows['waiting'] if r['state']!='waiting' and r['id'] not in active_ids and r['id'] not in {j['id'] for j in waiting}]
+    queued_ids={j['id'] for j in waiting}
+    rows['ready']=[r for r in rows['ready'] if r['id'] not in queued_ids]
+    view.update(model=model,ready=len(rows['ready']),kept=len(rows['kept']),todo=len(rows['preparing'])+len(rows['waiting']),
+                downloading=len(rows['downloading']))
+    view['total']=sum(len(rr) for rr in rows.values())
+    view['pct']=round(100*view['ready']/max(1,view['total']))
+    return view

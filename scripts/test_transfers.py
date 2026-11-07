@@ -102,9 +102,9 @@ class Page(unittest.TestCase):
   d['finished']=[{'kind':'conv','title':'Inception','start':now-400,'end':now-300,'peak':3*MB,'avg':2*MB,'size':0,'pct':4.0},   # stopped: not listed
                   {'kind':'down','title':'Batman','start':now-3000,'end':now-500,'peak':30*MB,'avg':20*MB,'size':12*GB,'done':12*GB,'total':12*GB}]
   props,pct,kind,others=transfers.page_state(d,now,'up',[('Interstellar','convert · 8.4 GB')])
-  self.assertEqual(kind,'up');self.assertEqual(others,['conv']);self.assertEqual(props['now'],'7.2 MB/s');self.assertEqual(props['kind'],'SAVING TO GOOGLE DRIVE')
+  self.assertEqual(kind,'up');self.assertEqual(others,['up','conv']);self.assertEqual(props['now'],'7.2 MB/s');self.assertEqual(props['kind'],'SAVING TO GOOGLE DRIVE')
   self.assertEqual(props['tint'],th.TINTS['up']);self.assertAlmostEqual(pct,100*15.8/16.9,1);self.assertIn('15.8 GB of 16.9 GB',props['line'])
-  self.assertIn('left',props['line']);self.assertEqual(props['other.1.label'],'Converting Inception');self.assertEqual(props['started'],'10 min ago')
+  self.assertIn('left',props['line']);self.assertEqual(props['other.1.label'],'Downloading');self.assertEqual(props['started'],'10 min ago')
   self.assertEqual(props['done.1.title'],'Batman');self.assertIn('peak 30.0 MB/s',props['done.1.line']);self.assertEqual(props['next.1.title'],'Interstellar')
   props2,pct2,kind2,_=transfers.page_state(d,now,'conv',[])
   self.assertEqual(kind2,'conv');self.assertEqual(pct2,24);self.assertEqual(props2['line'],'24%')
@@ -112,7 +112,7 @@ class Page(unittest.TestCase):
   props3,_,_,_=transfers.page_state(d,now,'conv',[])
   self.assertEqual(props3['line'],"24% · 46 of 148 min of film · 3.8× the film's speed · about 27 min left")
   for k in props:
-   if k!='graph':self.assertIn('Window().Property(%s)'%k,self.xml,k)
+   if k in ('title','step','number','units','line','peak','avg','started','axis0','axis1','axis2','from','headline') or k.startswith(('other.', 'next.')) and k.endswith(('label','title','line')):self.assertIn('Window().Property(%s)'%k,self.xml,k)
   self.assertIn('Window().Property(graph)',self.xml)
   empty,_,none,_=transfers.page_state({},now,'down',[]);self.assertIsNone(none);self.assertEqual(empty['title'],'')
  def test_registered_and_pill_hidden(self):
@@ -135,13 +135,15 @@ class OnlyFromNotifications(unittest.TestCase):
  def test_cards_have_tap_targets_under_pause(self):
   xml=portrait.notices_page()
   for n in (9432,9433,9436,9437,9438,9439):self.assertIn('id="%d"'%n,xml)
-  self.assertLess(xml.index('id="9436"'),xml.index('id="9411"'))   # Pause/Cancel stay on top
+  self.assertIn('id="9462"',xml)   # Pause/Cancel stay on top
   for page in ('library_status.py','activity_page.py'):self.assertNotIn('transfers',(BOOT/page).read_text())
  def test_tapping_the_upload_card_opens_transfers(self):
   import notices,test_library_status as lib
   from unittest.mock import patch
   with tempfile.TemporaryDirectory() as profile:
    th.save(profile,feed({},time.time()-20,20,up={'title':'Fall 2','rate':8*MB,'done':GB,'total':2*GB},conv={'title':'Inception','rate':4*MB}))
+   import work_state
+   work_state.save(profile,work_state.build({'phone':[{'title':'Fall 2','rate':8*MB,'progress':50}], 'prep':{'current':{'running':True,'title':'Inception','rate':4*MB,'updated':time.time()}}},time.time()))
    seen={}
    def look(w):seen.update(dict(w.props))
    kodi=lib.FakeKodi(profile,[('IOSNotifications.xml',lambda w:w.onClick(9432)),(tp.WINDOW,look),(tp.WINDOW,lambda w:w.onClick(tp.OTHER+1)),

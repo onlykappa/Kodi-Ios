@@ -18,26 +18,37 @@ def live(history,model):
  kinds={MODEL_KIND[j['kind']] for j in model.get('jobs') or [] if j.get('kind') in MODEL_KIND and j.get('state')!=work_state.STALE_STATE}
  return dict(history,jobs={k:v for k,v in (history.get('jobs') or {}).items() if k in kinds})
 
-def model_job(model,kind):
- import work_state
+def model_entries(model):
+ """Every published job has its own chip, including simultaneous jobs of the same kind."""
+ counts={}
+ out=[]
  for j in (model or {}).get('jobs') or []:
-  if MODEL_KIND.get(j.get('kind'))==kind:return j
- return None
+  base=MODEL_KIND.get(j.get('kind'))
+  if not base:continue
+  counts[base]=counts.get(base,0)+1
+  key=base if counts[base]==1 else '%s.%d'%(base,counts[base])
+  out.append((key,j))
+ return out
+
+def model_job(model,kind):
+ return next((j for key,j in model_entries(model) if key==kind),None)
+
 
 def page_state(history,now,wanted,queued,model=None):
  """(window properties, bar percent, shown kind, the other running kinds) for one refresh (pure: tested without Kodi).
  model: the status model (work_state.load); it decides what runs, its words and the empty state's words."""
  history=live(history,model)
- kind=th.pick(history,wanted,now)
- if kind is None and model is not None:
-  # The model has a job the history has not sampled yet (or a paused one): show it, with the model's line.
-  for j in model.get('jobs') or []:
-   k=MODEL_KIND.get(j.get('kind'))
-   if k and j.get('state')!='stale':
-    jobs=dict(history.get('jobs') or {});jobs[k]={'kind':k,'title':j['title'],'start':now,'last':now,'peak':0.0,'sum':0.0,'n':0,
-                                                  'points':[],'pct':j.get('pct'),'done':j.get('sent') or 0,'total':j.get('total') or 0}
-    history=dict(history,jobs=jobs);kind=k;break
- props={k:'' for k in ('kind','tint','title','now','peak','avg','started','from','line','graph')}
+ if model is not None:
+  jobs={}
+  for k,j in model_entries(model):
+   old=(history.get('jobs') or {}).get(k,{})
+   if old.get('title')!=j['title']:old={}
+   jobs[k]=dict(old,kind=k,title=j['title'],start=old.get('start',now),last=now,
+                pct=j.get('pct'),done=j.get('sent') or 0,total=j.get('total') or 0)
+  history=dict(history,jobs=jobs)
+ kind=(wanted if wanted in history.get('jobs',{}) else next(iter(history.get('jobs',{})),None)) if model is not None else th.pick(history,wanted,now)
+ base=(kind or '').split('.')[0]
+ props={k:'' for k in ('kind','tint','title','now','peak','avg','started','from','line','graph','number','units','step','axis0','axis1','axis2')}
  pct=0.0;others=[]
  if kind:
   job=history['jobs'][kind]
@@ -56,21 +67,33 @@ def page_state(history,now,wanted,queued,model=None):
   left=_left(kind,job,rate,pct,now)
   if left:line=' · '.join(x for x in (line,left) if x)
   m=model_job(model,kind)
-  if m is not None and m.get('state')!='running':
+  if m is not None:
    # Slowed, paused by you or waiting for the network: the model's own words (never "Starting…" or a stale speed).
-   line=' · '.join(x for x in ('%d%%'%pct if pct>=1 else '',m['line']) if x);rate=rate if m.get('state')=='slowed' else 0.0
-  props.update(kind=th.LABELS[kind].upper(),tint=th.TINTS[kind],title=job['title'],
+   line=m['line'];rate=float(m.get('rate') or 0);pct=float(m.get('pct') or 0)
+  props.update(kind=th.LABELS[base].upper(),tint=th.TINTS[base],title=job['title'],
                now=th.mb(rate) if rate>0 else ((m or {}).get('line') if m is not None and m.get('state')!='running' else 'Starting…'),
                peak=th.mb(job.get('peak')),
                avg=th.mb(job.get('sum',0)/max(1,job.get('n',1))),started=th.ago(now-job['start']),line=line)
   props['from']=th.ago(now-job['start']).replace('just now','a moment ago')
-  others=[k for k in th.running(history,now) if k!=kind]
+  props['tint']=(m or {}).get('tint_now') or props['tint']
+  props['step']=((m or {}).get('step') or th.LABELS[base]) + (' · %d%%'%pct if not (m or {}).get('indeterminate') else '')
+  props['number']='%.1f'%(rate/1048576.) if rate else '–'
+  props['units']='MB/s'+(' · '+_left(kind,job,rate,pct,now) if model is None else '')
+  if m and m.get('eta_s'):
+   import prepare_downloads
+   props['units']='MB/s · '+prepare_downloads.eta_text(m['eta_s']).replace('about ','')
+  props.update(th.graph_labels(pts,job['start'],now))
+  props['peak']=th.mb(job.get('peak'))
+  others=list(history.get('jobs') or {})
+ props['headline']=(model or {}).get('headline','')
  for n in range(1,tp.OTHERS+1):
   k=others[n-1] if n<=len(others) else ''
   j=(history.get('jobs') or {}).get(k,{})
-  props['other.%d.label'%n]=('%s %s'%(th.LABELS[k],j.get('title',''))) if k else ''
-  props['other.%d.tint'%n]=th.TINTS.get(k,'')
-  props['other.%d.rate'%n]=th.mb((j.get('points') or [[0,0]])[-1][1]) if k else ''
+  props['other.%d.label'%n]=('Converting' if k.startswith('conv') else 'Downloading') if k else ''
+  props['other.%d.tint'%n]=(model_job(model,k) or {}).get('tint_now') or th.TINTS.get(k,'')
+  props['other.%d.rate'%n]=''
+ if model is not None:
+  queued=[(j['title'],'%s · %.1f GB'%(j['what'],float(j.get('size') or 0)/GB)) for j in model.get('next') or []]
  # Owner (build 176): "it says finished? but its clearly not finished": stopped attempts stay in History only.
  finished=[f for f in history.get('finished') or [] if now-f.get('end',0)<24*3600 and th.outcome(f)=='done']
  for n in range(1,tp.DONE+1):
@@ -86,10 +109,10 @@ def page_state(history,now,wanted,queued,model=None):
   props['next.%d.title'%n],props['next.%d.line'%n]=r
  # "Nothing is moving" only when nothing runs, waits or needs you (owner, build 192: it said so while converting).
  import work_state
- mode=(model or {}).get('mode',work_state.IDLE) if model is not None else work_state.IDLE
- props['empty.title']='Nothing is moving right now' if mode==work_state.IDLE else (model.get('headline') or 'Updating…')[:1].upper()+(model.get('headline') or 'Updating…')[1:]
+ mode=(model or {}).get('mode',work_state.STALE_STATE)
+ props['empty.title']='Nothing is moving right now' if mode==work_state.IDLE else ((model or {}).get('headline') or 'Updating…')[:1].upper()+((model or {}).get('headline') or 'Updating…')[1:]
  props['empty.text']=('Downloads, Drive copies and conversions show here while they run.' if mode==work_state.IDLE else
-                      ((model.get('needs') or [{}])[0].get('text') or model.get('wait') or 'The next one starts on its own.'))
+                      (((model or {}).get('needs') or [{}])[0].get('text') or (model or {}).get('wait') or 'The next one starts on its own.'))
  return props,pct,kind,others
 
 def film_text(done,total):
@@ -142,14 +165,15 @@ def run(args=()):
   def refresh(self):
    with self.lock:
     now=time.time();history=th.load(profile)
-    try:nexts=queue_lists(profile,now)
-    except Exception:nexts=[]
+    nexts=[]   # queue order and words come from the same published snapshot as the jobs
     import work_state
-    props,pct,kind,self.others=page_state(history,now,self.wanted,nexts,work_state.load(profile,now))
+    model=work_state.load(profile,now) or {'mode':'stale','headline':'Updating…','jobs':[],'next':[]}
+    props,pct,kind,self.others=page_state(history,now,self.wanted,nexts,model)
     if kind:
-     job=history['jobs'].get(kind) or {}
+     job=(history.get('jobs') or {}).get(kind) or {}
+     if job.get('title')!=props['title']:job={}
      self.counter+=1
-     props['graph']='special://skin/extras/portrait/graph/'+th.write_graph(folder,self.counter,th.render(job.get('points') or [],th.TINTS[kind],start=job.get('start',now),now=now))
+     props['graph']='special://skin/extras/portrait/graph/'+th.write_graph(folder,self.counter,th.render(job.get('points') or [],props['tint'],width=832,height=320,scale=th.device_scale(),start=job.get('start',now),now=now))
     for k,v in props.items():self.setProperty(k,v)
     try:self.getControl(tp.BAR).setPercent(float(pct))
     except Exception:pass

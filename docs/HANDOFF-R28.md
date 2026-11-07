@@ -195,7 +195,7 @@ KodiAirPlay r33 (source 53c7968, CI run 42410566627, published by airplay-ios ru
   endpoint). Every retry and failure is logged ("Kodi iOS AllDebrid: …"). Focus chatter is no longer picked as a
   message's "What happened". scripts/test_alldebrid_busy.py.
 
-## Next build (193, not built: owner collecting more bugs; do not push until asked)
+## Next build (193, source implementation complete; not built)
 (owner, build-192 log: "Google Drive upload paused · Drive sign-in refresh: HTTP 429")
 - The sign-in server's refresh answered 400 from Kodi's start (Google refused the saved sign-in: re-sign-in needed;
   likely the OAuth app is in Testing, whose refresh tokens Google ends after 7 days). Two threads then asked again
@@ -208,7 +208,7 @@ change up the layouts")
   never shows (in-progress lists Continue Watching replaces, menus such as Video add-ons) are listed last, faded, with
   why. Counts are rows on the page. ▲ ▼ on every row at all times (they move among Home's rows); Edit adds delete.
 
-(build-193 roadmap Phases 1-3, 2026-11-07; Phase 4 pages wait for the owner's go-ahead; not built)
+(build-193 roadmap Phases 1-3, completed 2026-11-07; Phase 4/5 authorized by the owner and implemented below; not built)
 - Phase 1: docs/LOG-REVIEW-192.md (two audits of the build-192 log). Main cause: the converter's own `prepare:` log lines
   counted as AirPlay playing and held every worker 90 s ("Paused while a video plays" seven times; no video played).
 - Phase 3: `slowdown.py`: nothing waits for playback; a video plays → 35 % share, AirPlay → 25 % (8 % for 60 s after a
@@ -218,3 +218,17 @@ change up the layouts")
   Library status and the Queue (`align`), Notifications (`model_cards`), Transfers (`page_state(model=…)`) and the bell
   (`notices.badge`) read it. Needs-you: Drive sign-in refused, no AllDebrid key. Waiting: Drive busy, AllDebrid retry.
 - Python only (KodiAirPlay r33 unchanged). Tests: test_slowdown.py, test_work_state.py; all scripts/test_*.py pass.
+
+
+(build-193 roadmap Phases 4–5, 2026-11-07; owner authorized source implementation and branch push, never a build)
+- All ten Phase 4 source items are implemented: the nine approved boards now compose shared model-owned cards,
+  three-step sheets, summary counts, per-job chips, graph labels, bell states, Queue and unfinished-first History.
+  Full item matrix, files/architecture, validation changes, known mockup differences and iPhone checks:
+  [BUILD-193-UI-HANDOVER.md](BUILD-193-UI-HANDOVER.md).
+- Only `claude/trusting-euler-kgug98` was used. Draft PR #16 remains based on `main`. Every new commit uses `[skip ci]`.
+  No converter or native pin changes (KodiAirPlay r33), no app/IPA build, release or merge.
+- Visual verification is **PENDING**: no installed desktop Kodi rig. Approved HTML is evidence class **mockup**;
+  actual **device** evidence must come from the owner's iPhone. Host XML/pixel tests do not prove appearance.
+- Validation: **80/80** `scripts/test_*.py` passed (only `test_drive_runtime.py` excluded); final focused
+  `test_build193_pages.py` passes 14 tests. `check_project.py` and `check_ui_guidance.py` both pass, with zero issues.
+  Updated old layout pins follow the approved boards; no test was removed or weakened to hide a failure.

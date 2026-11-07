@@ -138,29 +138,31 @@ def run():
   def refresh(self):
    with self.lock:
     show_live=self.filter in ('all','downloads')
-    self.downloads=notices.downloads() if show_live else [];ups=notices.uploads(profile) if show_live else []
-    props=card_properties(self.downloads,ups)
-    # Build 193: the conversion and Drive cards say what the status model says (every page reads the same).
     import work_state
-    model=work_state.load(profile)
-    current,up_line=model_cards(model,prepare_downloads.running_id(prepare_downloads.load(profile))) if show_live else ({},'')
-    if ups and up_line:props['up.line']=up_line
-    self.set_all(props)
-    preparing=[current] if current else []
+    model=work_state.load(profile) if show_live else None
+    jobs=(model or {}).get('jobs') or []
+    def card(j):
+     return dict(j,progress=j.get('pct') or 0,paused=j.get('state')=='paused_by_you')
+    self.downloads=[card(j) for j in jobs if j['kind']=='down']
+    ups=[card(j) for j in jobs if j['kind'] in ('copy','upload')]
+    conv=work_state.job(model,'conv')
+    current=card(conv) if conv else {}
     self.ups,self.current=ups,current
-    self.setProperty('has.prepare','true' if preparing else '')
-    self.setProperty('prepare.indeterminate','1' if current.get('indeterminate') else '')
-    for key in ('title','line'):self.setProperty('prepare.'+key,str(current.get(key,'')))
-    queued=current.get('queued',0)
-    self.setProperty('prepare.summary',('Download → Drive → Prepare'+(' · %d remaining'%queued if queued else '')) if preparing else '')
-    self.percent(9431,current.get('progress',0))
-    for n in range(1,SLOTS+1):
-     if n<=len(self.downloads):self.percent(9400+n,self.downloads[n-1]['progress'])
-    if ups:self.percent(9430,ups[0]['progress'])
-    self.artnames=[d.get('title','') for d in self.downloads]+[u.get('title','') for u in ups]+[current.get('title','')]
+    self.setProperty('live','true' if jobs else '')
+    self.setProperty('has.prepare','true' if current else '')
+    self.setProperty('has.dl','true' if self.downloads else '')
+    self.setProperty('has.up','true' if ups else '')
     cache=drivelibrary.load_json(transfer_artwork.cache_path(profile),{})
-    for pre,name in [('dl.%d.'%(n+1),d.get('title','')) for n,d in enumerate(self.downloads[:SLOTS])]+[('up.',ups[0].get('title','') if ups else ''),('prepare.',current.get('title',''))]:
-     self.setProperty(pre+'poster',transfer_artwork.describe(name,cache)['poster'] if name else '')
+    pairs=[('dl.%d.'%(n+1),self.downloads[n] if n<len(self.downloads) else {}) for n in range(SLOTS)]
+    pairs += [('up.',ups[0] if ups else {}),('prepare.',current)]
+    self.artnames=[j.get('name') or j['title'] for j in jobs]
+    for pre,j in pairs:
+     for key in ('title','line'):self.setProperty(pre+key,str(j.get(key,'')))
+     self.setProperty(pre+'pct',str(j.get('pct') or 0))
+     self.setProperty(pre+'tint',j.get('tint_now',''))
+     self.setProperty(pre+'poster',transfer_artwork.describe(j.get('name') or j.get('title',''),cache)['poster'] if j else '')
+    titles=[j['title'] for j in (model or {}).get('next') or []]
+    self.setProperty('next.link',('Up next: '+', then '.join(titles[:2])+' · Library status') if titles else '')
     self.update_empty()
   def percent(self,control,value):
    try:self.getControl(control).setPercent(float(value))
@@ -236,6 +238,12 @@ def run():
     else:return
     if not notices.engine_action(command,d['id']):xbmcgui.Dialog().notification('Elementum','The download engine did not answer',xbmcgui.NOTIFICATION_WARNING,3000)
     self.refresh()
+   elif control==9440:
+    import library_status;library_status.run()
+   elif 9460<=control<=9465:
+    if control==9460:self.long_press('conv',0)
+    elif control==9461:self.long_press('up',0)
+    else:self.long_press('down',control-9462)
    elif control in (9432,9433) or 9436<=control<=9435+SLOTS:
     # Owner: the speed graph shows only when a transfer card is tapped.
     import transfers;transfers.run(['up' if control==9432 else 'conv' if control==9433 else 'down'])

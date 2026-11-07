@@ -129,7 +129,7 @@ class SpeedEverywhere(unittest.TestCase):
   early=library_rows.details(dict(row,pct=0,film_done=None,film_total=None,pace=None,eta_s=0,out_total=0,probe=None),{'free':0})
   self.assertEqual(dict(early['facts'])['Done so far'],'starting');self.assertEqual(dict(early['facts'])['Ready around'],'working it out')
   self.assertEqual(early['bar'],'');self.assertNotIn('Pace',dict(early['facts']))
-  self.assertIn('<control type="progress" id="9210">',(LIB/'library_page.py').read_text())
+  self.assertIn("sheet['steps']",(LIB/'library_rows.py').read_text())
  def test_ready_sheet(self):
   import library_rows,time
   now=time.time()
@@ -137,7 +137,7 @@ class SpeedEverywhere(unittest.TestCase):
        'completed':now-60,'started_at':now-60-41*60}
   s=library_rows.details(row,{'free':0});facts=dict(s['facts'])
   self.assertEqual(s['actions'],[('Play','play'),('Play on TV','tv')]);self.assertEqual(s['card'],'')
-  self.assertEqual(facts['Picture'],'4K HDR');self.assertEqual(facts['Made ready'],'Today · took 41 min');self.assertEqual(facts['Size'],'16.9 GB')
+  self.assertEqual(facts['Picture'],'4K HDR');self.assertEqual(facts['Kodi'],'Opens in about 1 s');self.assertEqual(facts['AirPlay'],'Ready, seeks instantly')
  def test_live_card(self):
   import library_rows,transfer_history as th
   d={}
@@ -147,7 +147,7 @@ class SpeedEverywhere(unittest.TestCase):
   props,pts=library_rows.card(d,'conv','Interstellar (2014)',1060);self.assertEqual((props['card.now'],pts),('starting',[]))
  def test_cloud_progress_records_speed_and_folder_icons_resolve(self):
   self.assertIn("detail=prep.speed_text(*speed),eta=eta,eta_s=eta_s",(LIB/'prepare_cloud.py').read_text())
-  self.assertIn("p.ICONS + '$INFO[ListItem.Property(icon)]'",(LIB/'library_page.py').read_text())
+  self.assertIn('circle-check.png',(LIB/'library_page.py').read_text())
 
 class Build175Log(unittest.TestCase):
  """Build-175 log: per 30 s of Inception the video took 37 s on the phone's hardware and each of its two audio tracks

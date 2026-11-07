@@ -968,10 +968,22 @@ Status: OPEN; findings only, no code changed. Evidence class: **desktop Kodi rig
 
 ## ISSUE-118 — Pages disagree; "Paused while a video plays" with nothing playing; work stops for playback (build 192)
 
-Status: IN SOURCE on PR #16 (build 193 Phases 1-3, not built); device check pending.
+Status: IN SOURCE on PR #16 (build 193 Phases 1–5, not built); visual and device checks pending.
 - Owner (build 192): "Notification center isn't linked with Library status properly or it is just SUPER SLOW … it still says paused as a video plays and it seems to be converting … if I click on it it says nothing is moving … stuff should ALWAYS be moving even if an AirPlay movie is playing, just slower."
 - Root causes (full review with log lines and file:line: docs/LOG-REVIEW-192.md): (1) the converter's own `prepare: …` lines went through the AirPlay log and `airplay.activity` took them as AirPlay playing for 90 s, which held the conversion, its Drive reads and uploads and the AllDebrid copy, and made the queue wait 120 s; (2) `prepare_cloud.waiting()` always said "a video plays"; (3) a stopped job and a failed library check kept running words; (4) each page used its own freshness clock (1, 15, 30, 60 s, none).
 - Fix: only the AirPlay server's and Apple's player's lines mark AirPlay (`airplay.airplay_lines`); playback never holds work any more, it slows it to a share of the line and CPU (`slowdown.py`: video 35 %, AirPlay 25 %, 8 % for 60 s after a TV read slower than 1.5 s; used by the converter pace, Drive reads, upload pieces, phone uploads and AllDebrid copies); the owner's Pause stays a real pause and now says "Paused by you"; one status model (`work_state.py`, written every 2 s, older than 6 s never shown as running, the reason stored with the state) read by Library status, the Queue, Notifications, Transfers and the bell; a failed check clears its card; AllDebrid progress carries its time, tries reset after a piece goes up, a retry says "trying again in N min".
 - Retest: all scripts/test_*.py, check_project, check_ui_guidance (local). Device: needs a build-193 log with a video and with AirPlay playing during a conversion.
 - Second log (13:49-14:16): Fall 2's faster start failed on "MP4 packet: Invalid argument" at 22 %; a re-pack that fails on a converter writing error now stays as it is (it plays) instead of restarting from 0 % for ever (`prepare_cloud.REPACK_STOPS`; `test_drive_prepare` 2 tests). Converter cause not yet found (needs time stamps in its log).
 - Regression: `test_slowdown` (10), `test_work_state` (20); old pins updated in test_airplay_room, test_conversion_speed, test_hold_menu, test_notices, test_prepare_downloads.
+
+
+### ISSUE-118 — Phase 4/5 follow-through (2026-11-07)
+- The approved nine boards are implemented in portrait XML; working cards and graph labels are shared, all live
+  wording comes from `work_state`, and unread messages no longer create a red bell badge. Full source matrix and
+  remaining evidence requirements: [BUILD-193-UI-HANDOVER.md](BUILD-193-UI-HANDOVER.md).
+- Validation found standalone import/texture/XML defects and an inherited Queue label overlap; fixed with
+  generated-XML/asset checks. A queued ready faster-start movie was initially counted twice and dropped by the
+  Queue's eligibility filter: it now occupies one summary category, remains reorderable and keeps Play actions.
+  Regression: `test_build193_pages.test_queued_faster_start_is_counted_once_and_keeps_play`.
+- All initial failures were diagnosed and retested. Visual verification remains PENDING without a Kodi rig;
+  build-193 iPhone results are still required. No converter change or device-success claim.

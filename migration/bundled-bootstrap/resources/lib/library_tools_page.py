@@ -67,9 +67,9 @@ def _card_row(p, key, tint=None, right=0, extra=''):
     S, W, w = p.SIDE, p.WIDTH, p.WIDTH - 2 * p.SIDE
     text_w = w - 48 - right
     if tint:
-        sub = p.label(S + 24, 78, text_w, 50, _P(key + 'sub'), 'p_pill_s', tint, 'left', NOLABEL)
+        sub = p.label(S + 24, 84, text_w, 50, _P(key + 'sub'), 'p_pill_s', tint, 'left', NOLABEL)
     else:
-        sub = ''.join(p.label(S + 24, 78, text_w, 50, _P(key + 'sub'), 'p_pill_s', colour, 'left',
+        sub = ''.join(p.label(S + 24, 84, text_w, 50, _P(key + 'sub'), 'p_pill_s', colour, 'left',
                               NOLABEL + '<visible>%s</visible>' % cond)
                       for colour, cond in ((p.GREEN, _is(key + 'tone', 'ok')), (p.GREY, '!' + _is(key + 'tone', 'ok'))))
     return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>' % (W, ROW + 12, _has(key + 'title')) +
@@ -89,59 +89,63 @@ def _arrow(p, id, x, glyph, key):
             '<enable>%s</enable></control></control>' % (id, HIT, HIT, _has(key)))
 
 
-def queue_page(p):
-    S, W, w = p.SIDE, p.WIDTH, p.WIDTH - 2 * p.SIDE
+RETRY = 9890
+QPREV, QNEXT, HPREV, HNEXT = 9841, 9842, 9905, 9906
 
-    def line(n):
-        key = 'line.%d.' % n
-        arrows = _arrow(p, UP + n, S + w - 2 * HIT - 20, 'arrow_up.png', key + 'up') + _arrow(p, DOWN + n, S + w - HIT - 6, 'arrow_down.png', key + 'down')
-        return _card_row(p, key, p.GREY, 2 * HIT + 30, '<control type="group"><left>0</left><top>0</top>%s</control>' % arrows)
-    listing = ('<control type="grouplist" id="%d"><left>0</left><top>340</top><width>%d</width><bottom>0</bottom>'
-               '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>' % (LIST, W) +
-               _section(p, 'Converting now', _has('now.title')) + _card_row(p, 'now.', PURPLE) +
-               _section(p, 'Up next', _has('line.1.title'), _P('line.count')) + ''.join(line(n) for n in range(1, QUEUE_SLOTS + 1)) +
-               _foot(p, _P('line.more'), _has('line.more'), 100) +
-               _section(p, 'Waiting for something', _has('held.1.title')) +
-               ''.join(_card_row(p, 'held.%d.' % n, ORANGE) for n in range(1, HELD_SLOTS + 1)) +
-               _section(p, 'Downloading to Google Drive', _has('drive.1.title')) +
-               ''.join(_card_row(p, 'drive.%d.' % n) for n in range(1, DRIVE_SLOTS + 1)) +
-               _foot(p, _P('empty'), _has('empty'), 200) +
-               _foot(p, 'Moving a video to the top makes it next; the one converting now finishes first. '
-                        '"Keep as it is" is in each video\'s sheet on Library status.', '', 220) + '</control>')
-    return _window(p, 'library queue', BACK, _head(p, 'Queue', 'Converts one video at a time, top first') + listing)
+
+def queue_page(p):
+    import status_ui as u
+    S,W,w=p.SIDE,p.WIDTH,p.WIDTH-2*p.SIDE
+    now=p.surface(S,0,w,230,'round.png',p.SURFACE,p.RADIUS)
+    now+=u.text(p,S+30,20,w-190,60,_P('now.title'),'p_pill')+u.text(p,S+w-150,20,120,60,_P('now.percent'),'p_foot_b',PURPLE,'right')
+    now+=u.bar(p,S+30,100,w-60,'now.')+u.text(p,S+30,138,w-60,56,_P('now.sub'),'p_cap',p.GREY)
+    rows=u.section(p,'WORKING ON NOW',_has('now.title'))+u.group(p,250,now,_has('now.title'))
+    rows+=u.section(p,'UP NEXT',_has('line.1.title'))
+    for n in range(1,QUEUE_SLOTS+1):
+        key='line.%d.'%n
+        body=p.surface(S,0,w,180,'round.png',p.SURFACE,p.RADIUS)
+        body+=p.surface(S+30,50,76,76,'dot.png',u.BLUE)+u.text(p,S+30,50,76,76,str(n),'p_cap',p.WHITE,'center')
+        body+=u.text(p,S+136,20,w-420,60,_P(key+'title'),'p_pill')+u.text(p,S+136,86,w-420,50,_P(key+'sub'),'p_cap',p.GREY)
+        body+=_arrow(p,UP+n,S+w-2*HIT-20,'arrow_up.png',key+'up')+_arrow(p,DOWN+n,S+w-HIT-6,'arrow_down.png',key+'down')
+        rows+=u.group(p,190,body,_has(key+'title'))
+    rows+=u.group(p,100,u.text(p,S,20,w,60,_P('line.more'),'p_cap',p.GREY),_has('line.more'))
+    rows+=u.section(p,'WAITING',_has('held.1.title'))
+    rows+=''.join(_card_row(p,'held.%d.'%n,p.GREY) for n in range(1,HELD_SLOTS+1))
+    rows+=u.section(p,'DOWNLOADING TO GOOGLE DRIVE',_has('drive.1.title'))
+    rows+=''.join(_card_row(p,'drive.%d.'%n,p.GREY) for n in range(1,DRIVE_SLOTS+1))
+    rows+=u.group(p,124,u.tap(p,QPREV,S,0,w//2,118,'Previous')+u.tap(p,QNEXT,S+w//2,0,w//2,118,'More'),_has('pages'))
+    rows+=u.group(p,160,u.text(p,S+10,20,w-20,50,'Moving a video to the top makes it next.','p_cap',p.GREY)+
+                  u.text(p,S+10,78,w-20,50,'Faster-start jobs are Ready; they wait behind new movies.','p_cap',p.GREY))
+    rows+=u.group(p,100,u.text(p,S,0,w,60,_P('empty'),'p_cap',p.GREY),_has('empty'))
+    listing='<control type="grouplist" id="9300"><top>340</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><usecontrolcoords>true</usecontrolcoords>%s</control>'%(W,rows)
+    return _window(p,'library queue',BACK,_head(p,'Queue',_P('subtitle'))+listing)
 
 
 def history_page(p):
-    S, W, M, w = p.SIDE, p.WIDTH, p.MEDIA, p.WIDTH - 2 * p.SIDE
-    n = len(DAYS)
-    switch = ('<control type="group"><left>%d</left><top>340</top>' % S + p.surface(0, 0, w, 88, 'pill_96.png', p.SURFACE, 44) +
-              ''.join('<control type="group"><left>%d</left><top>0</top>' % (i * w // n) +
-                      p.image(4, 4, w // n - 8, 80, M + 'pill_96.png', 'FF636366', '<visible>%s</visible>' % _is('day', key), border=40) +
-                      '<control type="button" id="%d"><top>-15</top><width>%d</width><height>%d</height><label>%s</label><font>p_foot_b</font>'
-                      '<textoffsetx>0</textoffsetx><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align>'
-                      '<aligny>center</aligny><texturefocus /><texturenofocus /></control></control>'
-                      % (DAY + 1 + i, w // n, HIT, text, p.GREY, p.WHITE) for i, (key, text) in enumerate(DAYS)) +
-              '</control>')
-    week = ('<control type="group"><left>%d</left><top>460</top>' % S + p.surface(-6, 0, w + 12, 200, 'round.png', p.SURFACE, 32) +
-            p.label(24, 20, w - 48, 44, 'Last 7 days', 'p_cap', p.GREY, 'left', NOLABEL) +
-            p.label(24, 62, w - 48, 80, _P('week.total'), 'p_h2', p.WHITE, 'left', NOLABEL) +
-            p.label(24, 140, w - 48, 44, _P('week.line'), 'p_cap', p.GREY, 'left', NOLABEL) + '</control>')
-
-    def entry(k):
-        key = 'h.%d.' % k
-        return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>' % (W, ROW, _has(key + 'title')) +
-                p.label(S + 12, 18, w - 24, 58, _P(key + 'title'), 'p_pill', p.WHITE, 'left', NOLABEL) +
-                p.label(S + 12, 78, w - 24, 50, _P(key + 'result'), 'p_pill_s', p.GREEN, 'left', NOLABEL + '<visible>%s</visible>' % _is(key + 'tone', 'ok')) +
-                p.label(S + 12, 78, w - 24, 50, _P(key + 'result'), 'p_pill_s', RED, 'left', NOLABEL + '<visible>%s</visible>' % _is(key + 'tone', 'bad')) +
-                p.label(S + 12, 78, w - 24, 50, _P(key + 'result'), 'p_pill_s', p.GREY, 'left', NOLABEL + '<visible>%s</visible>' % _is(key + 'tone', 'plain')) +
-                p.label(S + 12, 78, w - 24, 50, _P(key + 'line'), 'p_cap', p.GREY, 'right', NOLABEL) +
-                p.image(S + 12, ROW - 2, w - 24, 2, M + 'white.png', p.SEP) + '</control>')
-    listing = ('<control type="grouplist" id="%d"><left>0</left><top>690</top><width>%d</width><bottom>0</bottom>'
-               '<orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>' % (LIST, W) +
-               ''.join(entry(k) for k in range(1, HISTORY_SLOTS + 1)) + _foot(p, _P('more'), _has('more'), 100) +
-               _foot(p, _P('empty'), _has('empty'), 160) +
-               _foot(p, 'Kept for 30 days. Speeds are measured on the phone.', '', 140) + '</control>')
-    return _window(p, 'transfer history', DAY + 1, _head(p, 'History', 'What finished, how long it took and how fast') + switch + week + listing)
+    import status_ui as u
+    S,W,w=p.SIDE,p.WIDTH,p.WIDTH-2*p.SIDE
+    switch=''
+    for i,(key,title) in enumerate(DAYS):
+        switch+=p.surface(S+i*w//3,304,w//3-4,110,'round.png',p.SURFACE2,p.RADIUS,'<visible>%s</visible>'%_is('day',key))
+        switch+=u.tap(p,DAY+1+i,S+i*w//3,300,w//3,118,title)
+    rows=''
+    # Separate sections keep unfinished attempts first, regardless of their time.
+    for tone,title in (('unfinished',"DIDN'T FINISH"),('finished','FINISHED')):
+        rows+=u.section(p,title,_has(tone))
+        for n in range(1,HISTORY_SLOTS+1):
+            key='h.%d.'%n;bad=tone=='unfinished'
+            body=p.surface(S,0,w,290 if bad else 170,'round.png',p.SURFACE,p.RADIUS)
+            body+=p.icon(S+30,34,60,'circle-xmark.png' if bad else 'circle-check.png',RED if bad else p.GREEN)
+            body+=u.text(p,S+120,22,w-350,60,_P(key+'title'),'p_pill')
+            body+=u.text(p,S+w-200,22,170,60,_P(key+'when'),'p_cap',p.GREY,'right')
+            body+=u.text(p,S+120,90,w-150,54,_P(key+'result'),'p_cap',p.GREY)
+            if bad:
+                body+=p.pill_button(RETRY+n,S+120,160,300,124,'Try again',[('','noop')],'glass',extra=u.NOS+'<visible>%s</visible>'%_has(key+'retry'))
+            rows+=u.group(p,310 if bad else 180,body,_has(key+'title')+' + '+_is(key+'section',tone))
+    rows+=u.group(p,124,u.tap(p,HPREV,S,0,w//2,118,'Previous')+u.tap(p,HNEXT,S+w//2,0,w//2,118,'More'),_has('pages'))
+    rows+=u.group(p,160,u.text(p,S,40,w,70,_P('empty'),'p_foot',p.GREY),_has('empty'))
+    listing='<control type="grouplist" id="9300"><top>440</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><usecontrolcoords>true</usecontrolcoords>%s</control>'%(W,rows)
+    return _window(p,'transfer history',BACK,_head(p,'History','')+switch+listing)
 
 
 def airplay_page(p):

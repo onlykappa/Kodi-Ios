@@ -265,45 +265,77 @@ def smoothed(points, window=SMOOTH):
     return out
 
 
-def render(points, colour, width=W, height=H, start=None, now=None):
-    """PNG bytes: the job's speed as one smoothed line over a fading fill, with faint guide lines."""
-    rgb = tuple(int(colour[i:i + 2], 16) for i in (2, 4, 6)) if isinstance(colour, str) else colour
+def device_scale():
+    """Physical output pixels per portrait unit; host tests default to one."""
+    try:
+        import xbmc
+        return max(.5, min(3., float(xbmc.getInfoLabel('System.ScreenWidth')) / 1080))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return 1.
+
+
+def graph_labels(points, start=None, now=None):
     points = smoothed(points)
-    top = max([p[1] for p in points] + [1.0]) * 1.25
+    top = max([p[1] for p in points] + [1.]) * 1.25 / 1048576
+    return {'axis0': '%.1f' % top, 'axis1': '%.1f' % (top / 2), 'axis2': '0',
+            'peak': mb(max([p[1] for p in points] + [0.])),
+            'from': time.strftime('%H:%M', time.localtime(start if start is not None else points[0][0])) if points or start is not None else ''}
+
+
+def render(points, colour, width=W, height=H, start=None, now=None, scale=1., line_pt=2.5, guides=True):
+    """Display size × device scale; rounded 2.5 pt stroke with 4× edge supersampling.
+
+    Fill interiors are exact; only boundary pixels need subpixel samples. This keeps
+    the pure-Python renderer cheap enough for Kodi's two-second refresh, without PIL.
+    No words are baked into the raster (graph_labels supplies Kodi labels).
+    """
+    import math
+    width, height = max(1, round(width * scale)), max(1, round(height * scale))
+    rgb = tuple(int(colour[i:i+2],16) for i in (2,4,6)) if isinstance(colour,str) else colour
+    points = smoothed(points)
     px = bytearray(width * height * 4)
     if not points:
-        return _png(px, width, height)
+        return _png(px,width,height)
+    top = max([p[1] for p in points] + [1.]) * 1.25
+    radius = max(.75, line_pt * 2.687 * scale / 2)
+    pad = radius + 2
     t0 = points[0][0] if start is None else start
-    t1 = max(points[-1][0] if now is None else now, t0 + 1)
-
-    def put(x, y, c, a):
-        if 0 <= x < width and 0 <= y < height:
-            i = (y * width + x) * 4
-            px[i:i + 4] = bytes((c[0], c[1], c[2], a))
-
-    def ypos(v):
-        return int(round((height - 3) - (v / top) * (height - 12)))
-    xy = [(int(round((p[0] - t0) / (t1 - t0) * (width - 4))) + 2, ypos(p[1])) for p in points]
-    if len(xy) == 1:
-        xy = [(2, xy[0][1]), (width - 3, xy[0][1])]
-    line = {}
-    for (x0, y0), (x1, y1) in zip(xy, xy[1:]):
-        steps = max(abs(x1 - x0), abs(y1 - y0), 1)
-        for s in range(steps + 1):
-            x = x0 + (x1 - x0) * s // steps
-            y = y0 + (y1 - y0) * s // steps
-            line[x] = min(line.get(x, height), y)
-            for dy in (-1, 0, 1):
-                put(x, y + dy, rgb, 255)
-    for x, y in line.items():   # fill fades towards the bottom
-        for yy in range(y + 2, height):
-            put(x, yy, rgb, int(110 * (1 - (yy - y) / float(height - y + 1))))
-    for g in (0.25, 0.5, 0.75):   # faint guide lines, under the fill
-        gy = int(round((height - 3) - g * (height - 12)))
-        for x in range(width):
-            if px[(gy * width + x) * 4 + 3] == 0:
-                put(x, gy, (255, 255, 255), 28)
-    return _png(px, width, height)
+    t1 = max(points[-1][0] if now is None else now, t0+1)
+    xy = [(max(pad,min(width-pad,(p[0]-t0)/(t1-t0)*(width-2*pad)+pad)),
+           height-pad-max(0,p[1])/top*(height-2*pad)) for p in points]
+    if len(xy)==1: xy = [(pad,xy[0][1]),(width-pad,xy[0][1])]
+    def put(x,y,c,a):
+        if 0<=x<width and 0<=y<height:
+            i=(y*width+x)*4; px[i:i+4]=bytes((*c,max(0,min(255,round(a)))))
+    if guides:
+        for g in (.25,.5,.75):
+            y=round(pad+g*(height-2*pad))
+            for x in range(width): put(x,y,(255,255,255),22)
+    # Monotonic time samples: one segment per column, supersample the rounded stroke.
+    seg=0
+    for x in range(max(0,math.floor(xy[0][0]-radius)),min(width,math.ceil(xy[-1][0]+radius)+1)):
+        while seg<len(xy)-2 and x>xy[seg+1][0]: seg+=1
+        ax,ay=xy[seg]; bx,by=xy[seg+1]; dx,dy=bx-ax,by-ay
+        length=max(1e-9,dx*dx+dy*dy)
+        at=ay+(by-ay)*max(0,min(1,(x+.5-ax)/max(1e-9,dx)))
+        if xy[0][0]<=x<=xy[-1][0]:
+            for y in range(max(0,math.ceil(at)),height):
+                put(x,y,rgb,90*max(0,1-(y-at)/max(1,height-at)))
+        reach=radius*(1+abs(dy)/max(1,abs(dx)))+2
+        for y in range(max(0,math.floor(at-reach)),min(height,math.ceil(at+reach)+1)):
+            hits=0
+            for sy in (.125,.375,.625,.875):
+                for sx in (.125,.375,.625,.875):
+                    t=max(0,min(1,((x+sx-ax)*dx+(y+sy-ay)*dy)/length))
+                    hits+=((x+sx-ax-t*dx)**2+(y+sy-ay-t*dy)**2<=radius**2)
+            if hits: put(x,y,rgb,255*hits/16)
+    # Now marker, with the same edge sampling.
+    cx,cy=xy[-1]; dot=radius*1.65
+    for y in range(max(0,int(cy-dot-1)),min(height,int(cy+dot+2))):
+        for x in range(max(0,int(cx-dot-1)),min(width,int(cx+dot+2))):
+            hits=sum((x+sx-cx)**2+(y+sy-cy)**2<=dot**2 for sx in (.125,.375,.625,.875) for sy in (.125,.375,.625,.875))
+            if hits: put(x,y,rgb,255*hits/16)
+    return _png(px,width,height)
 
 
 def _png(px, width, height):

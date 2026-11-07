@@ -34,17 +34,16 @@ def snapshot(profile,downloads,uploads):
  # Choices not yet applied by the service show at once (it applies them before its next video).
  import work_state
  # Build 193: "preparing" and its words come from the status model, as on every other page and the bell.
- state=work_state.align(prepare_downloads.snapshot(profile),work_state.load(profile))
+ model=work_state.load(profile)
+ state=work_state.align(prepare_downloads.snapshot(profile),model)
  state=prepare_downloads.apply_to(state,prepare_downloads.pending_requests(profile),time.time())
  work=prepare_downloads.location(profile).parent/'preparing-videos'
  import phone_space
  try:free=phone_space.free(str(work if work.exists() else work.parent))
  except OSError:free=None
- try:down=downloads() or []
- except Exception:down=[]
- try:up=uploads() or []
- except Exception:up=[]
- return state,prepare_downloads.library_view(state,down,up,free,folder_size(work) if work.exists() else 0)
+ view=prepare_downloads.library_view(state,[],[],free,folder_size(work) if work.exists() else 0)
+ view=library_rows.with_model(view,model)
+ return state,view
 
 def run(args=()):
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
@@ -85,18 +84,21 @@ def run(args=()):
     try:self.setFocusId(9200)
     except Exception:pass
    # Build 177: a moving movie's sheet stays live (speed card, graph, rows) every 2 s while open.
-   if self.sheet.get('card'):threading.Thread(target=self.loop,daemon=True).start()
+   if self.fresh:threading.Thread(target=self.loop,daemon=True).start()
   def show(self,s):
-   for k in ('title','status','tone','quality'):self.setProperty(k,s[k])
+   for k in ('title','status','tone','quality','sentence'):self.setProperty(k,s.get(k,''))
+   for n,(label,tint) in enumerate(s.get('steps',[])):
+    self.setProperty('step%d.label'%n,label);self.setProperty('step%d.tint'%n,tint)
+    self.setProperty('step%d.pct'%n,str((100 if self.row['state']=='ready' else float(s.get('bar') or 0)) if n==2 else 100))
+   for k in ('title','text','button'):self.setProperty('need.'+k,s.get('need',{}).get(k,''))
    self.setProperty('poster',poster(self.row))
    self.setProperty('card',s.get('card',''))
    self.setProperty('bar',s.get('bar',''));self.setProperty('bar.tint',s.get('bar_tint',''))
-   try:self.getControl(9210).setPercent(float(s.get('bar') or 0))
-   except Exception:pass
    self.setProperty('facts.n',str(len(s['facts'])))
    for n in range(library_rows.FACTS):
     label,value=s['facts'][n] if n<len(s['facts']) else ('','')
     self.setProperty('fact%d.label'%n,label);self.setProperty('fact%d.value'%n,value)
+    self.setProperty('fact%d.tint'%n,'FF30D158' if s.get('tone')=='ok' and n<2 else 'FFFFFFFF')
    for n in range(3):
     label,action=s['actions'][n] if n<len(s['actions']) else ('','')
     self.setProperty('action%d.label'%(n+1),label)
@@ -105,12 +107,23 @@ def run(args=()):
    if s.get('card'):self.speed(s)
   def speed(self,s):
    import transfer_history
-   props,points=library_rows.card(transfer_history.load(profile),s['card'],s['title'],time.time(),s.get('step',''))
+   history=transfer_history.load(profile)
+   j=(history.get('jobs') or {}).get(s['card']) or {}
+   points=j.get('points') or [] if j.get('title')==s['title'] else []
+   live=s.get('live') or {}
+   rate=float(live.get('rate') or 0)
+   props={'card.now':transfer_history.mb(rate) if live.get('state') in ('running','slowed') else live.get('line','Updating…'),
+          'card.avg':transfer_history.mb(j.get('sum',0)/max(1,j.get('n',1))),
+          'card.left':prepare_downloads.eta_text(live.get('eta_s')) if live.get('eta_s') else '',
+          'card.done':('%.1f of %.1f GB'%(float(j.get('done') or 0)/library_rows.GB,float(self.row['size'])/library_rows.GB)) if self.row.get('size') and j.get('done') else str(s.get('bar') or '0')+'%',
+          'card.started':time.strftime('%H:%M',time.localtime(j['start'])) if j.get('start') else '–'}
+   for k,v in transfer_history.graph_labels(points,j.get('start')).items():props['card.'+k]=v
+   props['card.peak']=transfer_history.mb(j.get('peak'))
    if len(points)>1:
     self.counter+=1
     folder=os.path.join(xbmcvfs.translatePath('special://skin/'),'extras','portrait','graph')
     props['card.graph']='special://skin/extras/portrait/graph/'+transfer_history.write_graph(folder,self.counter,
-      transfer_history.render(points,library_rows.CONV if s['card']=='conv' else library_rows.DOWN,start=points[0][0],now=time.time()))
+      transfer_history.render(points,live.get('tint_now') or library_rows.DOWN,width=832,height=240,scale=transfer_history.device_scale(),start=points[0][0],now=time.time()))
    else:props['card.graph']=''
    for k,v in props.items():self.setProperty(k,v)
   def loop(self):
@@ -119,12 +132,16 @@ def run(args=()):
     try:
      fresh=self.fresh() if self.fresh else None
      if fresh:self.sheet,self.row=fresh
+     elif self.fresh:
+      self.sheet=dict(self.sheet,live={'state':'stale','line':'Updating…'},status='Updating…',actions=[])
      self.show(self.sheet)
     except Exception as error:xbmc.log('Library status sheet: %s: %s'%(type(error).__name__,error),xbmc.LOGWARNING)
   def onAction(self,action):
    if action.getId() in BACK:self.finish()
   def onClick(self,control):
-   if control in (9201,9202,9203) and len(self.sheet['actions'])>control-9201:
+   if control==9004 and self.sheet.get('need',{}).get('action'):
+    xbmc.executebuiltin(self.sheet['need']['action'])
+   elif control in (9201,9202,9203) and len(self.sheet['actions'])>control-9201:
     self.chosen=self.sheet['actions'][control-9201];self.finish()
    elif control in (9200,9099):self.finish()
   def finish(self):
@@ -132,7 +149,7 @@ def run(args=()):
 
  class Page(xbmcgui.WindowXMLDialog):
   def onInit(self):
-   self.filter=getattr(self,'filter','all');self.checking=0;self.shown=None;self.view=None
+   self.offset=0;self.counter=0;self.filter=getattr(self,'filter','all');self.checking=0;self.shown=None;self.view=None
    self.stop=threading.Event();self.busy=threading.Lock()
    self.setProperty('filter',self.filter);self.setProperty('title',library_rows.TITLES.get(self.filter,'Library status'))
    self.refresh(force=True)
@@ -152,33 +169,37 @@ def run(args=()):
     props=library_rows.page_properties(view,bool(self.checking))
     for k,v in props.items():self.setProperty(k,v)
     items=library_rows.list_items(view,self.filter)
-    shape=[(i['kind'],i['props'].get('id',''),i['props'].get('state',''),i['label']) for i in items]
-    listing=self.getControl(library_page.LIST)
-    if force or shape!=self.shown:
-     keep=listing.getSelectedPosition() if self.shown is not None and not force else 0
-     made=[]
-     for i in items:
-      li=xbmcgui.ListItem(i['label'],i.get('label2',''))
-      for k,v in i['props'].items():li.setProperty(k,str(v))
-      if i['kind']=='row':li.setArt({'poster':poster(i['row'])})
-      made.append(li)
-     listing.reset();listing.addItems(made)
-     if made:listing.selectItem(max(0,min(keep,len(made)-1)))
-     self.shown=shape;self.items=items
-    else:
-     # Same rows: only percentages, lines and posters change, without moving the selection.
-     for n,i in enumerate(items):
-      li=listing.getListItem(n)
-      li.setLabel2(i.get('label2',''))
-      for k in ('pct','ring','warn'):
-       if k in i['props']:li.setProperty(k,str(i['props'][k]))
-      if i['kind']=='row' and not li.getArt('poster'):
-       art=poster(i['row'])
-       if art:li.setArt({'poster':art})
-     self.items=items
+    self.items=items
+    self.offset=min(self.offset,max(0,(len(items)-1)//library_page.SLOTS*library_page.SLOTS))
+    self.setProperty('pages','true' if len(items)>library_page.SLOTS else '')
+    self.setProperty('empty','' if items else 'No downloaded videos here yet.')
+    model=view.get('model') or {}
+    self.setProperty('queue','true' if model.get('next') else '')
+    for k in ('title','text','button'):self.setProperty('need.'+k,(model.get('needs') or [{}])[0].get(k,''))
+    import work_state
+    conv=work_state.job(model,'conv') or {}
+    for k in ('title','line','step','state','tint_now'):self.setProperty('work.'+('tint' if k=='tint_now' else k),str(conv.get(k,'')))
+    self.setProperty('work.metrics',work_state.metrics_line(conv))
+    self.setProperty('work.ring',library_rows.ring_name(conv.get('pct')))
+    self.setProperty('work.percent','' if conv.get('indeterminate') else '%d%%'%float(conv.get('pct') or 0))
+    self.setProperty('work.poster',poster(conv))
+    self.setProperty('work.graph','')
+    if conv:
+     import transfer_history as th
+     j=(th.load(profile).get('jobs') or {}).get('conv') or {}
+     if j.get('title')==conv.get('title') and j.get('points'):
+      self.counter+=1;folder=os.path.join(xbmcvfs.translatePath('special://skin/'),'extras','portrait','spark')
+      self.setProperty('work.graph','special://skin/extras/portrait/spark/'+th.write_graph(folder,self.counter,
+       th.render(j['points'],conv['tint_now'],360,80,scale=th.device_scale(),guides=False)))
+    for n in range(library_page.SLOTS):
+     i=items[self.offset+n] if self.offset+n<len(items) else {}
+     r=i.get('row',{});props=i.get('props',{})
+     values=dict(title=i.get('label',''),sub=i.get('label2',''),section=props.get('section',''),number=props.get('number',''),
+                 state=props.get('state',''),pos=props.get('pos','only'),pct=str(r.get('pct') or 0),tint=r.get('tint_now') or library_rows.DOWN,poster=poster(r) if r else '')
+     for k,v in values.items():self.setProperty('row.%d.%s'%(n,k),v)
   def set_filter(self,key):
    # A folder (Waiting, Ready, Kept) or a filter: the page's title says which; Back returns to All.
-   self.filter=key;self.setProperty('filter',key);self.setProperty('title',library_rows.TITLES.get(key,'Library status'))
+   self.offset=0;self.filter=key;self.setProperty('filter',key);self.setProperty('title',library_rows.TITLES.get(key,'Library status'))
    self.refresh(force=True)
   def finish(self):
    self.stop.set();self.close()
@@ -194,7 +215,18 @@ def run(args=()):
     # Waiting › Edit order: the Queue page (▲ ▼); this page shows the new order when it comes back.
     tool_windows.open_queue(profile);self.refresh(force=True)
    elif FILTER_BASE<=control<FILTER_BASE+len(library_page.FILTERS):self.set_filter(library_page.FILTERS[control-FILTER_BASE][0])
-   elif control==library_page.LIST:self.open_row(self.getControl(library_page.LIST).getSelectedPosition())
+   elif control==library_page.NEED:
+    need=((self.view.get('model') or {}).get('needs') or [{}])[0]
+    if need.get('action'):xbmc.executebuiltin(need['action'])
+   elif control==library_page.WORK:
+    import work_state
+    conv=work_state.job(self.view.get('model'),'conv')
+    if conv:
+     row=next((r for r in self.view['rows']['preparing'] if r['title']==conv['title']),None)
+     if row:self.open_item({'kind':'row','row':row})
+   elif control in (library_page.MORE,library_page.PREVIOUS):
+    self.offset=max(0,self.offset+(library_page.SLOTS if control==library_page.MORE else -library_page.SLOTS));self.refresh()
+   elif library_page.SLOT<=control<library_page.SLOT+library_page.SLOTS:self.open_row(self.offset+control-library_page.SLOT)
   def check(self):
    if not addon.getSettingBool('prepare_downloads'):
     if not dialog.yesno('Library status','Preparing videos for Kodi and AirPlay is turned off. Turn it on and check now?',
@@ -204,7 +236,8 @@ def run(args=()):
   def open_row(self,position):
    items=getattr(self,'items',[])
    if not 0<=position<len(items):return
-   item=items[position]
+   self.open_item(items[position])
+  def open_item(self,item):
    if item['kind']=='folder':self.set_filter(item['props']['folder']);return
    if item['kind']!='row':return
    try:sheet=Details(library_page.ITEM,here,'Default','1080i')
@@ -217,6 +250,8 @@ def run(args=()):
     for rows in view['rows'].values():
      for r in rows:
       if r.get('id')==wanted.get('id') and r.get('title')==wanted.get('title'):return library_rows.details(r,view),r
+    matches=[r for group in view['rows'].values() for r in group if r.get('title')==wanted.get('title')]
+    if len(matches)==1:return library_rows.details(matches[0],view),matches[0]
     return None
    sheet.setup(library_rows.details(item['row'],self.view),item['row'],fresh)
    sheet.doModal()
@@ -225,6 +260,10 @@ def run(args=()):
    del sheet
    if chosen and chosen[1] in ('play','tv'):
     play(item['row'],chosen[1]=='tv');return
+   if chosen and chosen[1]=='toggle':
+    import transfer_control
+    kind=library_rows.details(item['row'],self.view).get('card') or 'conv'
+    transfer_control.set_paused(profile,kind,not transfer_control.paused(profile,kind));self.refresh(force=True);return
    if chosen and chosen[1]=='quicker':
     find_quicker(item['row']);return
    if chosen and chosen[1]=='now':

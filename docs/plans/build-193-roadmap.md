@@ -121,3 +121,11 @@ tap target ≥ 118 units; text never below 30 units (`p_cap`); one line per text
   report visual verification as pending, and say which evidence class each screenshot is.
 - Update `docs/HANDOFF-R28.md` ("Next build (193)"), commit with `[skip ci]`, push to the branch, update PR #16's
   description. Do not build until the owner asks.
+
+
+## Execution hand-over (2026-11-07)
+
+Phases 1–3 were already complete in ab5ce91/ecfbecc. The owner's subsequent request authorized Phase 4 items 1–10
+and Phase 5 source work, tests, documentation, draft PR description and branch push. Source status: all ten items
+implemented. See [BUILD-193-UI-HANDOVER.md](../BUILD-193-UI-HANDOVER.md) for the matrix and evidence limits.
+Visual verification and iPhone checks remain **PENDING**. No build, release, IPA publication or merge is authorized.

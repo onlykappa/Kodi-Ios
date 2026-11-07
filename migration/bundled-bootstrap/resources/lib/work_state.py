@@ -387,3 +387,36 @@ def align(prep_state, state):
     else:
         current['running'] = False
     return dict(prep_state, current=current)
+
+
+def remaining_text(state):
+    """One queue estimate for the summary and Queue, from the published model only.
+
+    Sequential preparation uses the current read rate for the queued source sizes;
+    parallel copies contribute their remaining time via max, not by double counting.
+    No estimate while paused, stale, waiting, or before the rate is measured.
+    """
+    if not state or state.get('mode') not in MOVING:
+        return ''
+    conv = job(state, 'conv')
+    nexts = state.get('next') or []
+    seconds = float((conv or {}).get('eta_s') or 0)
+    rate = float((conv or {}).get('rate') or 0)
+    if nexts:
+        if rate <= 0 or any(not j.get('size') for j in nexts):
+            return ''
+        seconds += sum(float(j['size']) / rate for j in nexts)
+    seconds = max([seconds] + [float(j.get('eta_s') or 0) for j in state.get('jobs') or []])
+    if seconds <= 0:
+        return ''
+    m = max(1, int(seconds // 60))
+    return 'about ' + ('%d min' % m if m < 60 else '%d h%s' % (m // 60, ' %d min' % (m % 60) if m % 60 else ''))
+
+
+def metrics_line(job):
+    """Library's sparkline caption; the step already has its own line above it."""
+    if not job:
+        return ''
+    if job.get('state') != RUNNING:
+        return job['line']
+    return ' · '.join(x for x in (speed(job.get('rate')), left(job.get('eta_s'))) if x) or job['line']

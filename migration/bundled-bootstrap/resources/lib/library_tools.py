@@ -45,7 +45,7 @@ def queue_view(view, debrid_jobs=(), now=None):
     line = [r for r in waiting if r['state'] == 'waiting']
     out = []
     for n, r in enumerate(line):
-        out.append({'id': r['id'], 'name': r.get('name', ''), 'title': '%d. %s' % (n + 1, r['title']),
+        out.append({'id': r['id'], 'name': r.get('name', ''), 'title': r['title'],
                     'sub': ' · '.join(r['sub'].split(' · ')[1:]) or r['sub'],
                     'up': 'true' if n else '', 'down': 'true' if n < len(line) - 1 else ''})
     held = [{'id': r['id'], 'name': r.get('name', ''), 'title': r['title'], 'sub': r['sub']} for r in waiting if r['state'] != 'waiting']
@@ -67,7 +67,20 @@ def queue_view(view, debrid_jobs=(), now=None):
         else:
             drive.append({'title': title, 'sub': 'Waiting · AllDebrid has it ready' if status == 'copying' else 'Waiting for AllDebrid',
                           'tone': 'plain'})
-    return {'now': now_row, 'line': out, 'held': held, 'drive': drive}
+    model = view.get('model')
+    if model is not None:
+        import work_state
+        c=work_state.job(model,'conv')
+        now_row=dict(c,sub=c['line'],percent='%d%%'%float(c.get('pct') or 0),tint=c['tint_now']) if c else None
+        eligible={r['id'] for r in rows.get('waiting') or [] if r['state']=='waiting'}
+        nexts=[j for j in model.get('next') or [] if j['id'] in eligible]
+        out=[dict(j,sub=j['what']+' · '+size_text(j.get('size')), up='true' if n else '',
+                  down='true' if n<len(nexts)-1 else '') for n,j in enumerate(nexts)]
+        drive=[dict(j,sub=j['line']) for j in model.get('jobs') or [] if j['kind'] in ('copy','upload','down')]
+    import work_state
+    estimate=work_state.remaining_text(model)
+    return {'now': now_row, 'line': out, 'held': held, 'drive': drive,
+            'subtitle':'One at a time, top first'+(' · '+estimate if estimate else '')}
 
 
 def _eta(seconds):
@@ -90,9 +103,11 @@ def debrid_jobs(state):
 
 def queue_properties(q):
     """Window properties for the Queue page (every slot set, empty when unused)."""
-    props = {'now.title': '', 'now.sub': ''}
+    props = {'now.title': '', 'now.sub': '', 'now.pct':'0', 'now.percent':'', 'now.tint':'FFBF5AF2', 'subtitle':q.get('subtitle','One at a time, top first')}
     if q['now']:
         props.update({'now.title': q['now']['title'], 'now.sub': q['now']['sub']})
+    if q['now']:
+        for k in ('pct','percent','tint'):props['now.'+k]=str(q['now'].get(k,''))
     for n in range(1, QUEUE_SLOTS + 1):
         r = q['line'][n - 1] if n <= len(q['line']) else {}
         for k in ('title', 'sub', 'up', 'down'):
@@ -190,6 +205,7 @@ def history_view(finished, failures, now, day='today'):
         busiest = 'Busiest: %s · %s' % ('today' if when == today else 'yesterday' if when == today - 86400 else time.strftime('%A', time.localtime(when)),
                                         size_text(per_day[when]))
     done = [e for e in week if e['tone'] == 'ok']
+    rows.sort(key=lambda e:(e['tone']=='ok',-e['end']))
     return {'rows': rows, 'total': size_text(sum(e['size'] for e in done)), 'count': len(done),
             'failed': len([e for e in week if e['tone'] == 'bad']), 'busiest': busiest}
 
@@ -198,12 +214,17 @@ def history_properties(h, day):
     props = {'day': day, 'week.total': h['total'],
              'week.line': ' · '.join(x for x in ('%d finished' % h['count'], '%d failed' % h['failed'] if h['failed'] else '', h['busiest']) if x),
              'empty': '' if h['rows'] else {'today': 'Nothing finished today yet.', 'yesterday': 'Nothing finished yesterday.'}.get(day, 'Nothing in the last 7 days.')}
+    props['unfinished']='true' if any(e['tone']!='ok' for e in h['rows']) else ''
+    props['finished']='true' if any(e['tone']=='ok' for e in h['rows']) else ''
     for n in range(1, HISTORY_SLOTS + 1):
         e = h['rows'][n - 1] if n <= len(h['rows']) else {}
         props['h.%d.title' % n] = e.get('title', '')
         when = time.strftime('%a' if day == 'week' else '%H:%M', time.localtime(e['end'])) if e else ''
         props['h.%d.line' % n] = ' · '.join(x for x in (e.get('line', ''), when) if x)
-        props['h.%d.result' % n] = e.get('result', '')
+        props['h.%d.when' % n] = when
+        props['h.%d.section' % n] = 'finished' if e.get('tone')=='ok' else 'unfinished'
+        props['h.%d.retry' % n] = 'true' if e.get('retry') else ''
+        props['h.%d.result' % n] = ' · '.join(x for x in (e.get('result',''),e.get('line','') if e.get('tone')=='ok' else '') if x)
         props['h.%d.tone' % n] = e.get('tone', '')
     props['more'] = 'and %d more' % (len(h['rows']) - HISTORY_SLOTS) if len(h['rows']) > HISTORY_SLOTS else ''
     return props
