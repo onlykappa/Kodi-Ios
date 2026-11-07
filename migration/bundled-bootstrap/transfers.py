@@ -29,7 +29,8 @@ def page_state(history,now,wanted,queued):
    line='%s of %s'%(th.size(done),th.size(total)) if total else ''
   left=_left(kind,job,rate,pct,now)
   if left:line=' · '.join(x for x in (line,left) if x)
-  props.update(kind=th.LABELS[kind].upper(),tint=th.TINTS[kind],title=job['title'],now=th.mb(rate),peak=th.mb(job.get('peak')),
+  props.update(kind=th.LABELS[kind].upper(),tint=th.TINTS[kind],title=job['title'],now=th.mb(rate) if rate>0 else 'Starting…',
+               peak=th.mb(job.get('peak')),
                avg=th.mb(job.get('sum',0)/max(1,job.get('n',1))),started=th.ago(now-job['start']),line=line)
   props['from']=th.ago(now-job['start']).replace('just now','a moment ago')
   others=[k for k in th.running(history,now) if k!=kind]

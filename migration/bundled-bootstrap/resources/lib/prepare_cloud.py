@@ -59,7 +59,9 @@ def process_one(q, keep_going):
             if f>0.01 and attempt['convert_start'] and now>attempt['convert_start']:
                 current['pace']=f*duration/(now-attempt['convert_start'])
                 current['out_total']=int(sink.sent/f) if sink.sent else 0
-            current['rate']=up   # what the graphs show while converting: the movie going up to Drive
+            # What the graphs show while converting: the movie going up to Drive, or, before the first piece is up
+            # (build-178: Transfers said 0.0 MB/s in the first minute), how fast the converter makes it.
+            current['rate']=up or sink.made_rate()
         q.state['current']=current
         q.commit()
     def clear_temps():

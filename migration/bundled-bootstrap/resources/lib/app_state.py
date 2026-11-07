@@ -59,7 +59,9 @@ class Pace(object):
     calling thread stays at about BACKGROUND_SHARE of a core."""
     def __init__(self, on_screen=foreground, cpu_clock=None, clock=time.monotonic, sleep=time.sleep):
         self.on_screen = on_screen
-        self.cpu_clock = cpu_clock or getattr(time, 'thread_time', time.process_time)
+        # r25: the whole app's CPU time, not this thread's: off screen the picture may be decoded on the CPU by
+        # several decoder threads (VideoToolbox refused, build-178 log), and iOS judges the app, not one thread.
+        self.cpu_clock = cpu_clock or time.process_time
         self.clock = clock
         self.sleep = sleep
         self.window = [clock(), self.cpu_clock()]

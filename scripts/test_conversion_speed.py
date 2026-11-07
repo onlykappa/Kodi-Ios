@@ -217,4 +217,46 @@ class AV1Speed(unittest.TestCase):
   t=(ROOT/'migration/airplay-ios/remux/tests/test_remux.c').read_text()
   self.assertIn('setenv("KR_PREP_LANES","2",1);',t)
 
+class Build178Log(unittest.TestCase):
+ """Build-178 log: ~2.5x real time; at 15:59 Kodi left the screen, VideoToolbox refused a unit and that lane stayed
+ on the CPU (0.75x); Transfers showed 0.0 MB/s before the first 32 MB piece was up. Owner: keep our audio only."""
+ def test_hardware_decoding_is_asked_again_each_unit(self):
+  c=(ROOT/'migration/airplay-ios/remux/src/kr_video.c').read_text()
+  self.assertIn('v->want_hw = v->hw != NULL;',c)
+  block=c[c.index('if (v->offline && v->want_hw && !v->hw) {'):c.index('seek_before(v, start);\n    avcodec_flush_buffers(v->dec);')]
+  self.assertIn('open_decoder(v, 1, e2, sizeof e2) < 0 && open_decoder(v, 0, err, errlen) < 0',block)
+  self.assertIn('hdr_pass_broken = 0;',block)
+ def test_audio_language_rule_and_export(self):
+  c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
+  self.assertIn('if(p->codec_type==AVMEDIA_TYPE_AUDIO && !keep_audio(original,i))continue;',c)
+  self.assertIn('(p->codec_type==AVMEDIA_TYPE_AUDIO && keep_audio(original,i))',c)   # verify counts the same tracks
+  b=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn('_kodi_airplay_prepare_audio_languages',b);self.assertIn("== 19 ]]",b)
+ def test_language_codes(self):
+  self.assertEqual(prep.audio_languages('English','resource.language.en_gb'),'en,eng')
+  self.assertEqual(prep.audio_languages('original','resource.language.de_de'),'de,ger,deu')
+  self.assertEqual(prep.audio_languages('mediadefault','resource.language.en_us'),'en,eng')
+  self.assertEqual(prep.audio_languages('','resource.language.xx_yy'),'')
+ def test_native_passes_languages(self):
+  calls=[]
+  class F:
+   def __init__(s):s.argtypes=None;s.restype=None
+   def __call__(s,v):calls.append(v)
+  n=prep.Native.__new__(prep.Native);n.filters_audio=True;n.lib=type('L',(),{'kodi_airplay_prepare_audio_languages':F()})()
+  n.set_audio_languages('en,eng');self.assertEqual(calls,[b'en,eng'])
+  self.assertIn('native.set_audio_languages(languages)',(ROOT/'migration/bundled-bootstrap/service.py').read_text())
+ def test_background_pace_counts_the_whole_app(self):
+  import app_state
+  self.assertIs(app_state.Pace(on_screen=lambda:False).cpu_clock,app_state.time.process_time)
+ def test_starting_instead_of_zero(self):
+  sys.path.insert(0,str(ROOT/'migration/bundled-bootstrap'));import transfers,transfer_history as th,library_rows,time as _t
+  now=_t.time();d=th.track({},now,{'conv':{'title':'Inception (2010)','rate':0}})
+  self.assertEqual(transfers.page_state(d,now,'conv',[])[0]['now'],'Starting…')
+  self.assertEqual(library_rows.card(d,'conv','Inception (2010)',now)[0]['card.now'],'Starting…')
+  import drive_prepare
+  t=[0.0];sink=drive_prepare.Sink(None,'p','x',lambda:True,background=False,clock=lambda:t[0])
+  sink.tracks[0]=dict(url='u',offset=0,buffer=bytearray(),md5=__import__('hashlib').md5(),name='x',chunk=1<<40)
+  for i in range(6):t[0]=i*1.0;sink.write(0,'.mp4',b'x'*1000)
+  self.assertAlmostEqual(sink.made_rate(),1000.0)
+
 if __name__=='__main__':unittest.main()

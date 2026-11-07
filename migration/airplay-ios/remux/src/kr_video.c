@@ -45,6 +45,7 @@ struct kr_video {
     AVBufferRef *hw;          // VideoToolbox device, NULL for software decoding
     int ow, oh;               // output size
     int offline,keep_hdr;
+    int want_hw;              // r25: VideoToolbox decoded this picture once: try it again at each preparation unit
     char route[64];           // r20: how the last segment was made (hardware HDR / GPU / CPU + decoder), for the log
     AVRational fps;           // source frame rate (for the encoder's framerate hint)
     kr_color *sws;
@@ -213,6 +214,7 @@ kr_video *kr_video_open(gm_source src, int index, char *err, int errlen) {
     }
     if (!kr_video_available()) { seterr(err, errlen, "no H.264 encoder in this build", 0); goto fail; }
     if (open_decoder(v, 1, err, errlen) < 0 && open_decoder(v, 0, err, errlen) < 0) goto fail;
+    v->want_hw = v->hw != NULL;
     AVStream *st = v->in->streams[index];
     kr_video_output_size(st->codecpar->width, st->codecpar->height, &v->ow, &v->oh);
     v->fps = st->avg_frame_rate.num > 0 && st->avg_frame_rate.den > 0 ? st->avg_frame_rate : st->r_frame_rate;
@@ -729,6 +731,15 @@ static int produce(kr_video *v, double start, double end, gm_buf *out, char *err
         if(v->in->pb){v->in->pb->error=0;v->in->pb->eof_reached=0;}
     }
     if (v->subs && v->sub_index >= 0) sub_lookback(v, start);
+    // r25 (build-176/178 logs: Kodi left the screen, VideoToolbox refused one unit, that lane decoded on the CPU at
+    // 0.75x for the rest of the movie): a preparation unit asks for the hardware decoder again whenever it was lost.
+    if (v->offline && v->want_hw && !v->hw) {
+        char e2[128] = "";
+        if (open_decoder(v, 1, e2, sizeof e2) < 0 && open_decoder(v, 0, err, errlen) < 0) goto out;
+#ifdef KR_GPU
+        if (v->hw) { hdr_pass_broken = 0; kr_remux_note("prepare: hardware decoding is back"); }
+#endif
+    }
     seek_before(v, start);
     avcodec_flush_buffers(v->dec);
     while (!done && !eof) {

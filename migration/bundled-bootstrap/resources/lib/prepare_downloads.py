@@ -148,10 +148,17 @@ class Native:
   lib.kodi_airplay_prepare.restype=ctypes.c_int
   # r15: Blu-ray picture subtitles (PGS) are kept in .sup files beside the prepared MP4 instead of the file being
   # refused (owner, build 160: Interstellar); the queue saves them next to the video on Drive before replacing it.
+  # r25 (owner, build 178): only "our audio, and the original if different" goes into the prepared file.
+  self.filters_audio=hasattr(lib,'kodi_airplay_prepare_audio_languages')
+  if self.filters_audio:
+   lib.kodi_airplay_prepare_audio_languages.argtypes=[ctypes.c_char_p];lib.kodi_airplay_prepare_audio_languages.restype=None
   self.keeps_image_subs=hasattr(lib,'kodi_airplay_prepare_keep_image_subs')
   if self.keeps_image_subs:
    lib.kodi_airplay_prepare_keep_image_subs.argtypes=[ctypes.c_int];lib.kodi_airplay_prepare_keep_image_subs.restype=None
    lib.kodi_airplay_prepare_keep_image_subs(1)
+ def set_audio_languages(self,codes):
+  """Keep the first (original) audio track and these language tags ('' keeps every track)."""
+  if self.filters_audio:self.lib.kodi_airplay_prepare_audio_languages(str(codes or '').encode())
  def probe(self,path):
   out=ctypes.create_string_buffer(1024)
   if hasattr(self.lib,'kodi_airplay_probe_ex'):
@@ -422,6 +429,26 @@ def plain(reason):
  return text.split(';')[0].strip() or 'a problem'
 
 def ordinal(n):return '%d%s'%(n,'th' if 10<=n%100<=20 else {1:'st',2:'nd',3:'rd'}.get(n%10,'th'))
+
+# ISO 639-1 → the 639-2 tags films use (both forms are matched; B and T codes where they differ).
+LANGUAGE_TAGS={'en':'eng','es':'spa','fr':'fre,fra','de':'ger,deu','it':'ita','pt':'por','nl':'dut,nld','sv':'swe','da':'dan',
+ 'no':'nor,nob,nno','fi':'fin','pl':'pol','cs':'cze,ces','ru':'rus','uk':'ukr','tr':'tur','el':'gre,ell','he':'heb','ar':'ara',
+ 'hi':'hin','ja':'jpn','ko':'kor','zh':'chi,zho','th':'tha','vi':'vie','id':'ind','ms':'may,msa','hu':'hun','ro':'rum,ron'}
+LANGUAGE_NAMES={'english':'en','spanish':'es','french':'fr','german':'de','italian':'it','portuguese':'pt','dutch':'nl',
+ 'swedish':'sv','danish':'da','norwegian':'no','finnish':'fi','polish':'pl','czech':'cs','russian':'ru','ukrainian':'uk',
+ 'turkish':'tr','greek':'el','hebrew':'he','arabic':'ar','hindi':'hi','japanese':'ja','korean':'ko','chinese':'zh',
+ 'thai':'th','vietnamese':'vi','indonesian':'id','malay':'ms','hungarian':'hu','romanian':'ro'}
+
+def audio_languages(audio_setting,ui_language):
+ """'en,eng' for the audio the owner wants kept (Kodi's audio language, or Kodi's own language when that is
+ 'original' / 'default'); the native rule always keeps the original (first) track too. '' when unknown."""
+ value=str(audio_setting or '').strip().lower()
+ code=LANGUAGE_NAMES.get(value) or (value if value in LANGUAGE_TAGS else '')
+ if not code:
+  ui=str(ui_language or '').lower().replace('resource.language.','')
+  code=ui.split('_')[0].split('-')[0] if ui else ''
+ if code not in LANGUAGE_TAGS:return ''
+ return ','.join([code]+LANGUAGE_TAGS[code].split(','))
 
 RESCAN='airplay-preparation-rescan'
 def request_check(profile):

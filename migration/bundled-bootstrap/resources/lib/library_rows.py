@@ -227,6 +227,6 @@ def card(history, kind, title, now):
     elif rate and job.get('total'):
         import prepare_downloads
         left = short_eta(prepare_downloads.eta_text((float(job['total']) - float(job.get('done') or 0)) / rate))
-    return ({'card.now': th.mb(rate), 'card.peak': th.mb(job.get('peak')),
+    return ({'card.now': th.mb(rate) if rate > 0 else 'Starting…', 'card.peak': th.mb(job.get('peak')),
              'card.avg': th.mb(job.get('sum', 0) / max(1, job.get('n', 1))), 'card.left': left or '–',
              'card.from': th.ago(now - job['start']).replace('just now', 'a moment ago')}, pts)

@@ -4,6 +4,7 @@
 #include "kr_prepare.h"
 #include "kr_remux.h"
 #include <time.h>
+#include <string.h>
 #include "kr_video.h"
 #include "kr_audio.h"
 #include "kr_source.h"
@@ -32,6 +33,27 @@
 // save the .sup files never loses them.
 static int keep_image_subs=0;
 void kodi_airplay_prepare_keep_image_subs(int on) { keep_image_subs=on!=0; }
+// r25 (owner, build 178: "keep our audio only and original if different"): a comma list of language tags
+// ("en,eng"). With it, an audio track is kept when it is the file's first audio track (the original) or its language
+// tag is in the list; empty (the default) keeps every track. Preparation and verification use the same rule.
+static char audio_languages[256]="";
+void kodi_airplay_prepare_audio_languages(const char *list) {
+    snprintf(audio_languages,sizeof audio_languages,",%s,",list && *list?list:"");
+    for(char *c=audio_languages;*c;c++)if(*c>='A' && *c<='Z')*c=(char)(*c|32);
+    if(!strcmp(audio_languages,",,"))audio_languages[0]=0;
+}
+static int first_audio(AVFormatContext *f) {
+    for(unsigned i=0;i<f->nb_streams;i++)if(f->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_AUDIO)return (int)i;
+    return -1;
+}
+static int keep_audio(AVFormatContext *f,unsigned i) {
+    if(!audio_languages[0] || (int)i==first_audio(f))return 1;
+    AVDictionaryEntry *l=av_dict_get(f->streams[i]->metadata,"language",NULL,0);
+    if(!l || !l->value[0])return 0;
+    char tag[40];snprintf(tag,sizeof tag,",%s,",l->value);
+    for(char *c=tag;*c;c++)if(*c>='A' && *c<='Z')*c=(char)(*c|32);
+    return strstr(audio_languages,tag)!=NULL;
+}
 static int video_index(AVFormatContext *f) {
     for (unsigned i=0;i<f->nb_streams;i++)
         if(f->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_VIDEO &&
@@ -444,6 +466,7 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
     for(unsigned i=0;i<original->nb_streams;i++) {
         AVStream *src=original->streams[i];AVCodecParameters *p=src->codecpar;
         if((int)i!=vi && p->codec_type!=AVMEDIA_TYPE_AUDIO && p->codec_type!=AVMEDIA_TYPE_SUBTITLE)continue;
+        if(p->codec_type==AVMEDIA_TYPE_AUDIO && !keep_audio(original,i))continue;   // r25: other languages left out
         if(sidecar_sub(p)) {
             // Its own .sup file, packets copied as they are (written as .partial, renamed with the MP4).
             char lang[9]="und";AVDictionaryEntry *l=av_dict_get(src->metadata,"language",NULL,0);
@@ -606,7 +629,7 @@ int kodi_airplay_verify(const char *input,const char *output,char *err,int en) {
     int vi=video_index(original);
     for(unsigned i=0;i<original->nb_streams;i++){
         AVCodecParameters *p=original->streams[i]->codecpar;
-        if((int)i==vi || p->codec_type==AVMEDIA_TYPE_AUDIO ||
+        if((int)i==vi || (p->codec_type==AVMEDIA_TYPE_AUDIO && keep_audio(original,i)) ||
            (p->codec_type==AVMEDIA_TYPE_SUBTITLE && text_sub(p->codec_id)))mapped++;
     }
     r=validate(output,original,mapped,err,en);

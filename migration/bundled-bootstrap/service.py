@@ -308,6 +308,13 @@ def drive_uploads(monitor,home,profile):
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
   if not path:raise RuntimeError('AirPlay preparation framework is missing')
   native=prepare_downloads.Native(airplay.load(path))
+  # r25 (owner, build 178): "keep our audio only and original if different": Kodi's audio language (or Kodi's own).
+  def setting(name):
+   try:return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Settings.GetSettingValue','params':{'setting':name}}))).get('result',{}).get('value','')
+   except Exception:return ''
+  languages=prepare_downloads.audio_languages(setting('locale.audiolanguage'),setting('locale.language'))
+  native.set_audio_languages(languages)
+  xbmc.log('Kodi iOS preparation: audio kept: the original track%s'%(' and '+languages if languages else ' and every other one'),xbmc.LOGINFO)
   diagnostics.event(log,'preparation','capabilities',streams=native.streams,hdr=native.hdr,outputs=native.outputs,image_subtitles=native.keeps_image_subs)
   # KodiAirPlay r14 reads the Drive file through this loopback stream: no downloaded copy on the phone.
   stream=None

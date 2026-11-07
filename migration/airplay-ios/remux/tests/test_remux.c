@@ -1440,6 +1440,26 @@ static void test_hdr_preparation(const char *work,const char *http_base) {
     kr_video_set_hdr_encoder(NULL);
 }
 
+// r25: only the original (first) audio track and the chosen languages are kept; verification uses the same rule.
+static int audio_tracks(const char *path) {
+    AVFormatContext *f=NULL;int n=-1;
+    if(avformat_open_input(&f,path,NULL,NULL)==0){avformat_find_stream_info(f,NULL);n=0;
+        for(unsigned i=0;i<f->nb_streams;i++)if(f->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_AUDIO)n++;avformat_close_input(&f);}
+    return n;
+}
+static void test_audio_languages(const char *work) {
+    char input[1024],output[1024],err[512]="";
+    snprintf(input,sizeof input,"%s/h264_ac3_dts_srt.mkv",fixture_dir);snprintf(output,sizeof output,"%s/languages.mp4",work);
+    kodi_airplay_prepare_audio_languages("spa,es");   // neither track is Spanish (untagged): the first one stays
+    unlink(output);int r=kodi_airplay_prepare(input,output,NULL,NULL,err,sizeof err);
+    CHECK(r==0,"prepare with an audio language list: %s",err);
+    if(!r){CHECK(audio_tracks(output)==1,"only the original audio track kept (%d)",audio_tracks(output));
+           CHECK(kodi_airplay_verify(input,output,err,sizeof err)==0,"verification follows the same audio rule: %s",err);}
+    kodi_airplay_prepare_audio_languages("");
+    unlink(output);r=kodi_airplay_prepare(input,output,NULL,NULL,err,sizeof err);
+    CHECK(r==0 && audio_tracks(output)==2,"no list keeps every audio track (%d)",audio_tracks(output));
+}
+
 static void test_preparation(const char *work) {
     const char *files[]={"h264_aac_srt.mkv","hevc_ac3_ass.mkv","h264_ac3_dts_srt.mkv","hevc_4k.mkv","dovi.mkv","long_seek.mkv"};
     for(unsigned i=0;i<sizeof files/sizeof files[0];i++) {
@@ -1579,7 +1599,7 @@ int main(int argc, char **argv) {
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
     mkdir(work, 0755);
     if (argc > 3 && !strcmp(argv[3], "--prepare-only")) {
-        test_preparation(work);test_preparation_http(argv[2],work);test_preparation_stream(work,argv[2]);test_hdr_preparation(work,argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+        test_preparation(work);test_audio_languages(work);test_preparation_http(argv[2],work);test_preparation_stream(work,argv[2]);test_hdr_preparation(work,argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
     if (argc > 3 && !strcmp(argv[3], "--dovi-only")) {
         kr_video_set_encoder("mpeg4");test_dovi_render(work);
@@ -1593,7 +1613,7 @@ int main(int argc, char **argv) {
         printf("%d checks, %d failed\n", checks, failures);
         return failures ? 1 : 0;
     }
-    test_preparation(work);
+    test_preparation(work);test_audio_languages(work);
     if (argc > 2){test_preparation_http(argv[2], work);test_preparation_stream(work,argv[2]);test_hdr_preparation(work,argv[2]);}
     fixture fx[] = {
         { "h264_aac_srt.mkv", "avc1.42C0", "mp4a.40.2", 1, 1, 0, 0, "Hello from SRT" },

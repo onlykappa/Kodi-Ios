@@ -37,10 +37,18 @@ class Sink:
         self.closed = False
         self.sent = 0            # bytes Drive has confirmed for the movie
         self.marks = []          # (time, sent) over the last 20 s, for the upload speed
+        self.made = 0            # bytes of the movie the converter has handed over
+        self.made_marks = []     # (time, made): how fast the converter makes the movie (shown before any upload)
 
     def rate(self):
         """How fast the movie goes up to Drive (bytes per second over the last ~20 s)."""
         marks = list(self.marks)
+        if len(marks) < 2 or marks[-1][0] - marks[0][0] < 1:return 0.0
+        return (marks[-1][1] - marks[0][1]) / (marks[-1][0] - marks[0][0])
+
+    def made_rate(self):
+        """How fast the converter hands over the movie (bytes per second over the last ~20 s)."""
+        marks = list(self.made_marks)
         if len(marks) < 2 or marks[-1][0] - marks[0][0] < 1:return 0.0
         return (marks[-1][1] - marks[0][1]) / (marks[-1][0] - marks[0][0])
 
@@ -97,6 +105,12 @@ class Sink:
                 t['thread'].start()
         t = self.tracks[track]
         if t.get('queue') is not None:self._raise(t)
+        if track == 0:
+            self.made += len(data)
+            now = self.clock()
+            if not self.made_marks or now - self.made_marks[-1][0] >= 0.5:
+                self.made_marks.append((now, self.made))
+                self.made_marks[:] = [m for m in self.made_marks if now - m[0] <= 20]
         t['md5'].update(data)
         t['buffer'].extend(data)
         # Keep the last chunk until generation succeeds: cancellation cannot commit a truncated movie.
