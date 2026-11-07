@@ -380,18 +380,17 @@ def play_on_tv():
 # holds on the 2340-wide layout too. Progress 10 stays (Kodi drives it), never drawn.
 BUSY='DialogBusy.xml'
 def busy_dialog(marker,font,media='special://skin/extras/portrait/'):
- w,h,ring=380,124,76;pad=(h-ring)//2
- spin='<animation effect="rotate" end="-360" center="auto" time="1200" loop="true" reversible="false" condition="true">Conditional</animation>'
- return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: Kodi busy dialog as a centred pill -->\n<window><zorder>1000</zorder><controls>'
+ # Build 192 (owner: "we can remove the loading… and just have a clean loading circle in the center"): the open ring
+ # alone, spinning in the middle of the screen; no pill, no words. (font is kept for the callers; nothing uses it.)
+ ring=96
+ spin='<animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation>'
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: Kodi busy dialog as a centred spinning ring -->\n<window><zorder>1000</zorder><controls>'
   '<control type="group"><centerleft>50%%</centerleft><centertop>50%%</centertop><width>%d</width><height>%d</height>'
   '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
-  '<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture border="%d" colordiffuse="FFFFFFFF">%spill_glass_124.png</texture></control>'
-  '<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texture colordiffuse="FFFFFFFF">%sring.png</texture>%s</control>'
-  '<control type="label"><left>%d</left><top>0</top><width>%d</width><height>%d</height><font>%s</font><textcolor>FFFFFFFF</textcolor>'
-  '<align>left</align><aligny>center</aligny><label>Loading…</label></control></control>'
+  '<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture colordiffuse="FFFFFFFF">%sring.png</texture>%s</control></control>'
   '<control type="group"><left>-4000</left><top>-4000</top><width>10</width><height>10</height><visible>false</visible>'
   '<control type="progress" id="10"><width>10</width><height>10</height><texturebg /><lefttexture /><midtexture /><righttexture /></control></control>'
-  '</controls></window>\n')%(marker,w,h,w,h,h//2,media,pad,pad,ring,ring,media,spin,pad+ring+24,w-pad-ring-24-pad,h,font)
+  '</controls></window>\n')%(marker,ring,ring,ring,ring,media,spin)
 
 HANDMADE={'DialogConfirm.xml','DialogTextViewer.xml','DialogSettings.xml','AddonBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml',BUSY}
 

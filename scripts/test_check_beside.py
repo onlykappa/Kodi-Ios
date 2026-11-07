@@ -55,7 +55,7 @@ class ShowsWhatItDoes(unittest.TestCase):
   self.assertEqual(resume_store.mark_seconds(''),0.0)
   cloud=(LIB/'prepare_cloud.py').read_text()
   self.assertIn("converted=[min(80,80*resume_store.mark_seconds(checkpoint['mark'])/duration) if checkpoint and duration else 0]",cloud)
-  self.assertIn("progress('Converting',converted[0])",cloud);self.assertNotIn("progress('Converting and saving to Drive'",cloud)
+  self.assertIn("doing='Making it start faster' if job.get('repack') else 'Converting'",cloud);self.assertNotIn("progress('Converting and saving to Drive'",cloud)
   self.assertIn("library_rows.card(transfer_history.load(profile),s['card'],s['title'],time.time(),s.get('step',''))",(BOOT/'library_status.py').read_text())
  def test_drive_reads_are_logged_while_converting(self):
   svc=(BOOT/'service.py').read_text()

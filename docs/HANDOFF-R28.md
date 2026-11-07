@@ -144,3 +144,14 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
   place in the film, the sheet's "Right now" names the step instead of "starting", and Drive read speed / last read /
   error are logged every minute while converting (service.py check_beside) — the next log will show the cause.
 - "Converting and saving to Drive" → "Converting" (owner). Library status / sheet default focus on controls that exist.
+(owner, build-191 log 18b7b4b0: Interstellar "takes forever" to open; Library › Movies "takes a few seconds" with
+"kodi ios something" over the page; a clean loading circle)
+- Interstellar: Kodi's demuxer took 30 s (11:11:06 → 11:11:37) walking the r31-layout fragments. PROFILE is now
+  source-resolution-mp4-v2; v1 still counts as ready (plays, AirPlay) and is queued as a 'repack' job after all others
+  ("Making it start faster": a straight remux into r32's layout, uploaded again, original binned).
+- Movies tab: the Drive listing cache lasted 5 min and invalidate_library deleted it, so most opens listed Drive live
+  while Kodi showed the add-on's progress box ("Kodi iOS Watch Options"). Now the page shows the saved list
+  (listing(stale_ok=True)), invalidate marks it stale, and service.library_lists refreshes stale lists every 10 s.
+  The page logs "Kodi iOS Library: <type> page in N s".
+- DialogBusy: just the spinning ring in the centre (no pill, no "Loading…").
+- Local: e2e 199/0 (adds the repack scenario), native 3,143/0, all scripts/test_*.py.

@@ -308,6 +308,18 @@ def drive_uploads(monitor,home,profile):
    except Exception as error:
     diagnostics.log_exception(xbmc,'alldebrid_to_drive',error);delay=60
  threading.Thread(target=debrid_loop,daemon=True).start()
+ # Build 192 (owner: Library › Movies "takes a few seconds"): the page shows the saved Drive lists at once; they are
+ # listed again here when older than 5 minutes or marked stale after an upload or a conversion.
+ def library_lists():
+  import drivelibrary
+  state_dir=str(profile/'addon_data/service.kodi.ios.bootstrap')
+  while not monitor.waitForAbort(10):
+   try:
+    if not accounts.get_accounts():continue
+    done=drivelibrary.refresh_stale(state_dir)
+    if done:log('Library lists refreshed from Google Drive: %s'%', '.join(done))
+   except Exception as error:diagnostics.log_exception(xbmc,'library_lists',error)
+ threading.Thread(target=library_lists,daemon=True).start()
  idle=lambda:not monitor.abortRequested() and not xbmc.Player().isPlayingVideo() and not airplay_busy()
  log=lambda message:xbmc.log('Kodi iOS '+diagnostics.redact(message),xbmc.LOGINFO)
  import library_scan,prepare_downloads

@@ -50,8 +50,17 @@ def confirmed(drive,item_id,size,digest):
  return not meta.get('trashed',False) and int(meta.get('size',-1))==size and meta.get('md5Checksum','').lower()==digest.lower()
 
 def invalidate_library(state_dir):
- try:os.remove(os.path.join(state_dir,'drive-library.json'))
- except FileNotFoundError:pass
+ # Build 192: the saved Library lists are marked stale (kept for the page to show at once) and the service lists Drive
+ # again within seconds (drivelibrary.refresh_stale); they used to be deleted, so the next open waited for Drive.
+ path=os.path.join(state_dir,'drive-library.json')
+ try:
+  with open(path,encoding='utf-8') as f:cache=json.load(f)
+  for hit in cache.values():
+   if isinstance(hit,dict):hit['time']=0
+  tmp=path+'.tmp'
+  with open(tmp,'w',encoding='utf-8') as f:json.dump(cache,f)
+  os.replace(tmp,path)
+ except (OSError,ValueError,AttributeError):pass
  # Both automatic and manual uploads ask the idle preparation worker for a fresh scan.
  os.makedirs(state_dir,exist_ok=True)
  with open(os.path.join(state_dir,'airplay-preparation-rescan'),'a'):pass

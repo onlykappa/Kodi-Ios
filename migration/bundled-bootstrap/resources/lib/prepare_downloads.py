@@ -8,7 +8,11 @@ import ctypes,hashlib,json,os,re,shutil,threading,time,urllib.error,urllib.parse
 from pathlib import Path
 import app_state,driveupload,drivelibrary,library_scan,phone_space
 
-PROFILE='source-resolution-mp4-v1'
+# Build 192 (owner: a converted Interstellar "takes forever" to open): v2 = KodiAirPlay r32's layout (interleaved, ~64 MB
+# fragments: Kodi opens it in seconds). v1 movies still play and AirPlay as before; they are re-packed in the background
+# after everything else (repack_due), a straight copy into the new layout.
+PROFILE='source-resolution-mp4-v2'
+OLD_PROFILES=('source-resolution-mp4-v1',)
 PROPERTY='kodiAirPlayProfile'
 CHECKSUM_PROPERTY='kodiAirPlayMD5'
 FILE='airplay-preparation.json'
@@ -86,7 +90,10 @@ def load(profile):return drivelibrary.load_json(str(location(profile)),{'jobs':{
 def save(profile,state):drivelibrary.save_json(str(location(profile)),state)
 def ready(item):
  props=item.get('appProperties') or {}
- return bool(item.get('md5Checksum')) and props.get(PROPERTY)==PROFILE and props.get(CHECKSUM_PROPERTY)==item['md5Checksum'].lower()
+ return bool(item.get('md5Checksum')) and props.get(PROPERTY) in (PROFILE,)+OLD_PROFILES and props.get(CHECKSUM_PROPERTY)==item['md5Checksum'].lower()
+def repack_due(item):
+ """Prepared in an older layout: plays, but Kodi opens it slowly; it is re-packed when nothing else waits."""
+ return ready(item) and (item.get('appProperties') or {}).get(PROPERTY)!=PROFILE
 def metadata(drive,item_id):
  status,headers,body=drive.call('GET',driveupload.API+'/'+urllib.parse.quote(str(item_id),safe='')+'?fields=id,name,size,md5Checksum,version,mimeType,appProperties,trashed,parents')
  if status!=200:raise RuntimeError('Drive file check: HTTP %d'%status)
@@ -404,7 +411,7 @@ def order_key(slot,job):
  # Build 188 (owner, build-187 log: Interstellar was converted and uploaded overnight, its last check on Drive timed out,
  # and the check then waited behind the next movie's hours of conversion): a movie that only needs checking goes first.
  checked_only=bool((job.get('cloud_output') or {}).get('0'))
- return (-job.get('priority',0),0 if checked_only else 1,1 if slow(job) else 0,slot)
+ return (-job.get('priority',0),1 if job.get('repack') else 0,0 if checked_only else 1,1 if slow(job) else 0,slot)
 
 def queue_order(state,now=None):
  """The ids of the videos waiting in line, in the order they will be prepared (Library status › Waiting, the Queue)."""
@@ -637,7 +644,13 @@ class Queue:
    slot=key(item);seen.add(slot)
    recovering=[old for old,job in self.state['jobs'].items() if job['source']['id']==item['id'] and job.get('status')=='committing']
    if recovering:seen.update(recovering);continue
-   if ready(item):counts['ready']+=1;entries.append(entry(item,'ready'));continue
+   if ready(item):
+    counts['ready']+=1;entries.append(entry(item,'ready'))
+    if repack_due(item):
+     with self.lock:
+      if slot not in self.state['jobs'] or identity(self.state['jobs'][slot]['source'])!=identity(item):
+       self.state['jobs'][slot]={'source':item,'status':'waiting','attempts':0,'retry_after':0,'repack':True}
+    continue
    entries.append(entry(item,'todo'))
    with self.lock:
     if item['id']==converting:continue   # the movie being converted keeps its job as it is

@@ -141,9 +141,10 @@ class Pages(unittest.TestCase):
    self.assertIsNone(root.find('visible'),rel);self.assertEqual([c for c in root.iter('control') if c.get('type') in ('button','list')],[],rel)
    pill=root.find('controls/control[@type="group"]')
    self.assertEqual((pill.findtext('centerleft'),pill.findtext('centertop')),('50%','50%'),rel);self.assertIsNone(pill.find('left'),rel)
-   self.assertIn('pill_glass_124.png',xml);self.assertIn('ring.png',xml)
+   # Build 192 (owner): a clean spinning circle in the centre, no pill and no "Loading…".
+   self.assertNotIn('pill_glass_124.png',xml);self.assertNotIn('Loading',xml);self.assertIsNone(pill.find('control[@type="label"]'),rel)
    ring=[c for c in pill.iter('control') if 'ring.png' in (c.findtext('texture') or '')][0]
-   self.assertEqual(ring.find('animation').get('effect'),'rotate');self.assertEqual(pill.find('control[@type="label"]').findtext('font'),font,rel)
+   self.assertEqual(ring.find('animation').get('effect'),'rotate')
    # Kodi's progress 10 stays for Kodi, inside a group that is never drawn.
    hidden=[g for g in root.iter('control') if g.get('type')=='group' and g.findtext('visible')=='false'][0]
    self.assertEqual([c.get('id') for c in hidden.iter('control') if c.get('id')],['10'],rel)

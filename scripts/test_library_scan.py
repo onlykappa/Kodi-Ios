@@ -33,9 +33,10 @@ class ScanTests(unittest.TestCase):
   path=self.root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data);os.utime(path,(time.time()-1000,)*2);return path
  def run_scan(self,paths,remote=(),**kwargs):return scan.scan([str(p) for p in paths],self.drive,str(self.state),remote=remote,**kwargs)
  def test_missing_movie_is_uploaded_verified_then_removed(self):
-  path=self.file();cache=self.state/'drive-library.json';cache.parent.mkdir();cache.write_text('{}')
+  path=self.file();cache=self.state/'drive-library.json';cache.parent.mkdir();cache.write_text('{"movie:":{"time":99,"entries":[],"driveid":"d"}}')
   result=self.run_scan([path]);self.assertEqual((result['uploaded'],result['deleted'],result['failed']),(1,1,0))
-  self.assertFalse(path.exists());self.assertFalse(cache.exists());self.assertEqual(self.drive.parts,['Kodi Downloads','Movies'])
+  # Build 192: the saved Library list is kept (the page shows it at once) and marked stale for the service to refresh.
+  self.assertFalse(path.exists());self.assertEqual(json.loads(cache.read_text())['movie:']['time'],0);self.assertEqual(self.drive.parts,['Kodi Downloads','Movies'])
   self.assertIn('uploaded-0',self.drive.checked)
  def test_identical_bytes_with_different_name_remove_duplicate_without_upload(self):
   path=self.file();remote=self.drive.duplicate(path)

@@ -270,6 +270,35 @@ def scenario(lib_path, fixtures, name, interrupt_at=None, expire=False, corrupt=
         shutil.rmtree(profile, ignore_errors=True)
 
 
+def repack_scenario(lib_path, fixtures, name):
+    """Build 192: a movie prepared in the older layout (profile v1) is re-packed into r32's layout, and stays playable."""
+    servers = [];drive, port = setup(fixtures, name, servers);profile = tempfile.mkdtemp();lines = []
+    try:
+        lib = ctypes.CDLL(lib_path);lib.kodi_airplay_prepare_keep_image_subs(1)
+        q = queue(profile, drive, port, prep.Native(lib), lines)
+        check(run_until_done(q), 'repack %s: the first conversion finished' % name)
+        first = prepared_file(drive)
+        if not first:return
+        # The same movie as an older build left it: in the movie folder, marked v1.
+        data = first['data'];md5 = hashlib.md5(data).hexdigest()
+        for key in list(drive.files):
+            if key not in ('movies',):drive.files.pop(key)
+        drive.add('source', name.rsplit('.', 1)[0] + '.mp4', data)
+        drive.files['source']['appProperties'] = {prep.PROPERTY: 'source-resolution-mp4-v1', prep.CHECKSUM_PROPERTY: md5}
+        old = prep.metadata(driveupload.Drive(lambda: 'token', driveupload.sender(None)), 'source')
+        check(prep.ready(old) and prep.repack_due(old), 'repack %s: an older conversion still counts as ready, and is due a re-pack' % name)
+        profile2 = tempfile.mkdtemp();q = prep.Queue(profile2, driveupload.Drive(lambda: 'token', driveupload.sender(None)), prep.Native(lib), stream=Stream(port), log=lines.append)
+        q.state['jobs'] = {prep.key(old): {'source': old, 'status': 'waiting', 'repack': True}};q.commit()
+        check(run_until_done(q), 'repack %s: re-packed%s' % (name, '' if q.state['jobs'] else ''))
+        out = prepared_file(drive)
+        check(out is not None and out['appProperties'].get(prep.PROPERTY) == prep.PROFILE, 'repack %s: the new file is marked %s' % (name, prep.PROFILE))
+        check(drive.files['source']['trashed'], 'repack %s: the older file went to the bin' % name)
+    except Exception:
+        traceback.print_exc();check(False, 'repack %s: raised' % name)
+    finally:
+        for srv in servers:srv.shutdown()
+
+
 def main():
     lib_path, fixtures = sys.argv[1], sys.argv[2]
     only = set(sys.argv[3:])
@@ -320,6 +349,8 @@ def main():
             drive_prepare.MARK_CAP = 1024 * 1024
             scenario(lib_path, fixtures, 'resume_av1_hdr_big.mkv', hdr=True, interrupt_at=int(LAST_SIZE[0] * 0.75) // (256 * 1024) * (256 * 1024), expire=True)
         finally:drive_prepare.MAIN_CHUNK = drive_prepare.CHUNK = 1024 * 1024;drive_prepare.MARK_CAP = 3 * 1024 * 1024
+    if want('repack'):
+        repack_scenario(lib_path, fixtures, 'long_pgs.mkv')
     if want('slow'):
         # A slow line: pieces take longer than the 45 s base limit would allow if it were not scaled (here 2 s base).
         old = driveupload.STALL;driveupload.STALL = 2

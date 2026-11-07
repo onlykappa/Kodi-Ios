@@ -100,7 +100,7 @@ def process_one(q, keep_going):
             drive_prepare.bin(q.drive,item['id'])
             return finished(prep.metadata(q.drive,job['promoted']))
         current = prep.metadata(q.drive,item['id'])
-        if prep.ready(current):
+        if prep.ready(current) and not prep.repack_due(current):
             job['status']='done';clear_temps();q.commit();return True
         main = outputs.get('0')
         completed = bool(main and int(current['size']) == int(main['size']) and current['md5Checksum'].lower() == main['md5Checksum'].lower())
@@ -149,11 +149,12 @@ def process_one(q, keep_going):
                 def converted_progress(stage,n,t):
                     if stage==4:   # r32: lining up after Kodi was closed
                         progress('Finding where it left off',converted[0]);return
+                    doing='Making it start faster' if job.get('repack') else 'Converting'
                     if attempt['convert_start'] is None:attempt['convert_start']=q.clock()
                     if stage in (0,2) and t:attempt['fraction']=max(attempt['fraction'],min(1.0,float(n)/t))
                     value=80 if stage==3 else (min(80,80*n/t) if t else converted[0])
                     converted[0]=max(converted[0],value)
-                    progress('Converting',converted[0])   # build 192 (owner): shorter, more fits on the page
+                    progress(doing,converted[0])   # build 192 (owner): shorter, more fits on the page
                 try:
                     try:
                         q.native.convert_to(source,sink,keep_going,
