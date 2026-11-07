@@ -314,7 +314,9 @@ def drive_uploads(monitor,home,profile):
    except Exception:return ''
   languages=prepare_downloads.audio_languages(setting('locale.audiolanguage'),setting('locale.language'))
   native.set_audio_languages(languages)
-  xbmc.log('Kodi iOS preparation: audio kept: the original track%s'%(' and '+languages if languages else ' and every other one'),xbmc.LOGINFO)
+  # Owner (build 180): "only keep english subtitles": the same language for subtitles (and untagged ones).
+  native.set_subtitle_languages(languages)
+  xbmc.log('Kodi iOS preparation: audio kept: the original track%s; subtitles kept: %s'%(' and '+languages if languages else ' and every other one',languages or 'all'),xbmc.LOGINFO)
   diagnostics.event(log,'preparation','capabilities',streams=native.streams,hdr=native.hdr,outputs=native.outputs,image_subtitles=native.keeps_image_subs)
   # KodiAirPlay r14 reads the Drive file through this loopback stream: no downloaded copy on the phone.
   stream=None

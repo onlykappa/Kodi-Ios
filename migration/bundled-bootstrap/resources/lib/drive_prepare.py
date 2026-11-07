@@ -59,8 +59,8 @@ class Sink:
         self.marks.append((now, self.sent))
         self.marks[:] = [m for m in self.marks if now - m[0] <= 20]
 
-    def _uploader(self, t):
-        """The movie's pieces, in order, to Drive. Errors are kept and raised in the converter's thread."""
+    def _uploader(self, t, track=0):
+        """A track's pieces, in order, to Drive. Errors are kept and raised in the converter's thread."""
         wire = t['wire']
         while True:
             try:piece = t['queue'].get(timeout=0.5)
@@ -71,7 +71,7 @@ class Sink:
             try:
                 wire['buffer'].extend(piece)
                 self._send(wire, len(piece), final=False, sleep=self.sleep)
-                self._confirmed(wire, 0)
+                self._confirmed(wire, track)
             except BaseException as error:
                 t['error'] = error
                 return
@@ -95,13 +95,16 @@ class Sink:
                 {'Content-Type':'application/json', 'X-Upload-Content-Type':'video/mp4' if track == 0 else 'application/octet-stream'})
             url = headers.get('Location') or headers.get('location')
             if status != 200 or not url:raise RuntimeError('Preparation upload start: HTTP %d' % status)
+            # Build 181 (build-180 log: Interstellar's subtitle files went up 256 KB at a time in the converter's own
+            # thread, 100 of its first 180 s): subtitle files go up on their own thread too, 8 MB at a time.
             self.tracks[track] = dict(url=url, offset=0, buffer=bytearray(), md5=hashlib.md5(), name=name,
-                                      chunk=(MAIN_CHUNK if self.background else CHUNK) if track == 0 else 256*1024)
-            if track == 0 and self.background:
-                t = self.tracks[0]
+                                      chunk=(MAIN_CHUNK if track == 0 else CHUNK) if self.background else
+                                      (CHUNK if track == 0 else 256*1024))
+            if self.background:
+                t = self.tracks[track]
                 t['wire'] = dict(url=url, offset=0, buffer=bytearray())
                 t['queue'] = queue.Queue(maxsize=AHEAD)
-                t['thread'] = threading.Thread(target=self._uploader, args=(t,), daemon=True)
+                t['thread'] = threading.Thread(target=self._uploader, args=(t, track), daemon=True)
                 t['thread'].start()
         t = self.tracks[track]
         if t.get('queue') is not None:self._raise(t)
@@ -187,6 +190,39 @@ class Sink:
             self.on_file(str(track),t['result'])
         if 0 not in self.tracks:raise RuntimeError('Preparation produced no video')
         return {str(k):t['result'] for k,t in self.tracks.items()}
+
+
+def promote(drive, source, prepared, folder, staging):
+    """Build 181 (owner: "we need to upload once not twice"): the verified staged movie takes the original's place.
+    It moves from .Preparation into the movie's folder under the original's name (.mp4), with the preparation marker;
+    then bin() sends the original to Drive's bin. replace() used to upload the whole movie a second time into the
+    original's file ID. Safe to call again after a restart: a staged file already moved is only renamed/marked."""
+    import prepare_downloads as prep
+    status, _, body = drive.call('GET', driveupload.API + '/' + urllib.parse.quote(str(prepared['id']), safe='') +
+                                 '?fields=id,name,size,md5Checksum,appProperties,parents')
+    if status != 200:raise RuntimeError('Prepared Drive file check: HTTP %d' % status)
+    staged = json.loads(body)
+    digest = prepared['md5Checksum'].lower()
+    if int(staged.get('size') or -1) != int(prepared['size']) or str(staged.get('md5Checksum', '')).lower() != digest:
+        raise RuntimeError('Prepared Drive file checksum differs; original retained')
+    props = dict(staged.get('appProperties') or {})
+    props.update({prep.PROPERTY: prep.PROFILE, prep.CHECKSUM_PROPERTY: digest})
+    move = ''
+    if folder not in (staged.get('parents') or []):
+        move = '&addParents=' + urllib.parse.quote(folder, safe='') + '&removeParents=' + urllib.parse.quote(staging, safe='')
+    status, _, body = drive.call('PATCH', driveupload.API + '/' + urllib.parse.quote(str(prepared['id']), safe='') +
+                                 '?fields=id,name,size,md5Checksum,appProperties,parents,version' + move,
+                                 json.dumps({'name': source['name'].rsplit('.', 1)[0] + '.mp4', 'appProperties': props}).encode(),
+                                 {'Content-Type': 'application/json'})
+    if status != 200:raise RuntimeError('Prepared file move: HTTP %d' % status)
+    return json.loads(body)
+
+
+def bin(drive, item_id):
+    """Send the original to Drive's bin (Drive empties it after 30 days); already gone is fine."""
+    status, _, _ = drive.call('PATCH', driveupload.API + '/' + urllib.parse.quote(str(item_id), safe=''),
+                              json.dumps({'trashed': True}).encode(), {'Content-Type': 'application/json'})
+    if status not in (200, 404):raise RuntimeError('Original to the bin: HTTP %d' % status)
 
 
 def replace(drive, source, prepared, session, commit, keep_going, open_at, progress):

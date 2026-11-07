@@ -25,7 +25,7 @@ CHUNK = 1024 * 1024
 # read in BLOCK pieces, each fetched once and kept for KEEP blocks, so the other tracks read it from memory; the next
 # block is fetched while one is being read.
 BLOCK = 8 * 1024 * 1024
-KEEP = 12            # 96 MB: comfortably more than the ~30-40 MB of file one 30-second unit spans in a 4K movie
+KEEP = 24            # 192 MB (build 181: two video lanes and the audio drift apart; build-176 read 3x the film)
 SPAN = re.compile(r'bytes (\d+)-(\d+)/(\d+)')
 
 

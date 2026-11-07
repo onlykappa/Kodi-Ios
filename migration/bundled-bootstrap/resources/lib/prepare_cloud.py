@@ -79,9 +79,24 @@ def process_one(q, keep_going):
     q.native.keep_going=keep_going
     outputs = job.setdefault('cloud_output',{})
     temp_id = None
+    def finished(new):
+        # Build 181: the prepared movie is a new Drive file (same folder and name, .mp4); the original is in the bin.
+        main=dict(outputs.get('0') or {},moved=True)
+        job['cloud_output']={'0':main};job['status']='done';job['completed']=q.clock();job['prepared_id']=new['id']
+        q.commit();clear_temps()
+        try:
+            import debrid_drive;debrid_drive.renamed(q.profile,item['id'],new['id'])   # "download and watch" plays the new one
+        except Exception as error:q.log('preparation: watch list not updated: %s'%error)
+        driveupload.invalidate_library(str(prep.location(q.profile).parent));prep.request_check(q.profile)
+        q.state.pop('current',None);q.commit()
+        q.notify('info','Ready for Kodi and AirPlay',drivelibrary.display_title(item['name']));return True
     try:
         q.log('preparation: %s — opening Drive file'%drivelibrary.display_title(item['name']))
         progress('Reading from Google Drive',None)
+        if job.get('promoted'):
+            # Stopped after the prepared file took the original's place: send the original to the bin and finish.
+            drive_prepare.bin(q.drive,item['id'])
+            return finished(prep.metadata(q.drive,job['promoted']))
         current = prep.metadata(q.drive,item['id'])
         if prep.ready(current):
             job['status']='done';clear_temps();q.commit();return True
@@ -153,6 +168,15 @@ def process_one(q, keep_going):
                 if status!=200:raise RuntimeError('Subtitle save: HTTP %d'%status)
                 side['moved']=True;q.commit()
             job['status']='committing';q.commit()
+            if not (job.get('cloud_replace') or {}).get('url'):
+                # Build 181 (owner: "upload once not twice"): the prepared file takes the original's place; no copy.
+                if not parents:raise RuntimeError('Drive did not describe the video folder')
+                progress('Putting it in place on Google Drive',95)
+                new=drive_prepare.promote(q.drive,item,main,parents[0],q.drive.folder([driveupload.TOP,'.Preparation']))
+                job['promoted']=new['id'];q.commit()
+                drive_prepare.bin(q.drive,item['id'])
+                return finished(new)
+            # A replacement started by an older build: finish it the old way.
             def open_at(offset):
                 return urllib.request.urlopen(urllib.request.Request(target,headers={'Range':'bytes=%d-'%offset}),timeout=60)
             current=drive_prepare.replace(q.drive,item,main,job.setdefault('cloud_replace',{}),q.commit,keep_going,open_at,

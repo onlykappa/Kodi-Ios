@@ -8,7 +8,7 @@ UPLOAD='https://www.googleapis.com/upload/drive/v3/files'
 FOLDER='application/vnd.google-apps.folder'
 VIDEO=('.mkv','.mp4','.m4v','.avi','.mov','.webm','.ts','.m2ts','.mts','.wmv','.mpg','.mpeg','.srt')
 PARTIAL=re.compile(r'(?:^|[._ -])(?:sample|partial|incomplete|downloading)(?:[._ -]|$)|\.(?:part|tmp|download)(?:\.|$)',re.I)
-CHUNK=16*1024*1024  # a multiple of 256 KiB, as Drive requires
+CHUNK=32*1024*1024  # a multiple of 256 KiB, as Drive requires (build 181: 32 MB, less time lost between pieces)
 TOP='Kodi Downloads'
 
 class Stop(Exception):pass
@@ -190,17 +190,26 @@ class Drive(object):
    location=headers.get('Location') or headers.get('location')
    if status!=200 or not location:raise RuntimeError('Drive upload start: HTTP %s'%status)
    session.clear();session.update(url=location,size=size);save();offset=0
-  source=open_at(offset)
+  import concurrent.futures
+  source=[open_at(offset)]
+  def read(at):
+   chunk=b'';began=time.monotonic()
+   while len(chunk)<CHUNK and at+len(chunk)<size:
+    data=source[0].read(min(CHUNK-len(chunk),1024*1024))
+    if not data:break
+    chunk+=data
+   return chunk,time.monotonic()-began
+  # Build 181 (owner: "whatever that will make uploading and downloading quicker"): the next piece downloads from
+  # the source while this one goes up to Drive (they used to take turns).
+  ahead=concurrent.futures.ThreadPoolExecutor(max_workers=1);coming=None
   try:
    while offset<size:
     if not keep_going():raise Stop()
-    chunk=b'';began=time.monotonic()
-    while len(chunk)<CHUNK and offset+len(chunk)<size:
-     data=source.read(min(CHUNK-len(chunk),1024*1024))
-     if not data:break
-     chunk+=data
+    if coming is not None:chunk,read_s=coming.result();coming=None
+    else:chunk,read_s=read(offset)
     if not chunk:raise RuntimeError('The download stopped before the end; it will carry on')
-    end=offset+len(chunk)-1;read_s=time.monotonic()-began;began=time.monotonic()
+    end=offset+len(chunk)-1;began=time.monotonic()
+    if end+1<size:coming=ahead.submit(read,end+1)
     status,headers,body=self.call('PUT',session['url'],chunk,{'Content-Range':'bytes %d-%d/%d'%(offset,end,size)})
     # Owner (build 168): 0.2 MB/s. Which side is slow, the source (AllDebrid) or Google Drive, for the next log.
     put_s=time.monotonic()-began;mb=len(chunk)/1048576.0
@@ -209,13 +218,21 @@ class Drive(object):
     if status in (200,201):progress(size,size);return json.loads(body or b'{}')
     if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
     confirmed=_next_offset(headers)
-    if confirmed!=end+1:   # Drive kept less than sent: read again from where it got to
-     try:source.close()
+    if confirmed!=end+1:   # Drive kept less than sent: drop what was read ahead and read again from where it got to
+     if coming is not None:
+      try:coming.result()
+      except Exception:pass
+      coming=None
+     try:source[0].close()
      except Exception:pass
-     source=open_at(confirmed)
+     source[0]=open_at(confirmed)
     offset=confirmed;save();progress(offset,size)
   finally:
-   try:source.close()
+   if coming is not None:
+    try:coming.result()
+    except Exception:pass
+   ahead.shutdown(wait=False)
+   try:source[0].close()
    except Exception:pass
   raise RuntimeError('Drive did not confirm the upload')
  def _done(self,path,sessions,save,body):

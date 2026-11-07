@@ -10,6 +10,7 @@ import driveupload
 class Drive:
  def __init__(self):
   self.files={'source':dict(id='source',name='Film.2160p.mkv',data=b'original',version='1',parents=['movies'],appProperties={})}
+  self.second_upload=False
   self.sessions={};self.calls=[];self.number=0;self.corrupt=False;self.fail=False
  def folder(self,parts):return 'staging'
  def meta(self,key):
@@ -21,9 +22,10 @@ class Drive:
    key=url.split('/files/')[1].split('?')[0]
    return 200,{'ETag':self.files[key]['version']},json.dumps(self.meta(key)).encode()
   if method=='POST' or (method=='PATCH' and 'uploadType=resumable' in url):
+   if method=='PATCH':self.second_upload=True
    self.number+=1;session='https://upload.example/%d'%self.number
    target=None if method=='POST' else url.split('/files/')[1].split('?')[0]
-   self.sessions[session]=dict(target=target,meta=json.loads(body),data=b'')
+   self.sessions[session]=dict(target=target,meta=dict(json.loads(body),parents=json.loads(body).get('parents',['staging'])),data=b'')
    return 200,{'Location':session},b''
   if method=='PUT':
    s=self.sessions[url];cr=headers['Content-Range']
@@ -47,7 +49,14 @@ class Drive:
    if key not in self.files:return 404,{},b''
    del self.files[key];return 204,{},b''
   if method=='PATCH':
-   key=url.split('/files/')[1].split('?')[0];self.files[key].update(json.loads(body));return 200,{},b'{}'
+   key=url.split('/files/')[1].split('?')[0]
+   if key not in self.files:return 404,{},b''
+   query=dict(urllib.parse.parse_qsl(url.split('?',1)[1])) if '?' in url else {}
+   f=self.files[key];change=json.loads(body)
+   if 'appProperties' in change:f['appProperties']=dict(f.get('appProperties') or {},**change.pop('appProperties'))
+   f.update(change)
+   if query.get('addParents'):f['parents']=[x for x in f.get('parents',[]) if x!=query.get('removeParents')]+[query['addParents']]
+   return 200,{},json.dumps(self.meta(key)).encode()
   raise AssertionError((method,url))
  def open_at(self,key,offset):
   data=self.files[key]['data'];r=io.BytesIO(data[offset:]);r.status=206;r.headers={'Content-Range':'bytes %d-%d/%d'%(offset,len(data)-1,len(data))};return r
@@ -187,9 +196,13 @@ class Queue(unittest.TestCase):
   self.assertEqual(self.d.files['source']['data'],b'original')
  def test_end_to_end_queue_writes_no_local_media_and_marks_ready(self):
   with patch.object(prep.phone_space,'free',return_value=0):self.assertTrue(self.q.process_one())
-  self.assertEqual(self.d.files['source']['data'],b'prepared video');self.assertTrue(prep.ready(self.d.meta('source')))
-  self.assertEqual(list(self.q.work.iterdir()),[]);self.assertNotIn('temp-1',self.d.files)
-  self.assertEqual([c[1].split('/files/')[1] for c in self.d.calls if c[0]=='DELETE'],['temp-1'])
+  # Build 181: uploaded once. The prepared file takes the original's place; the original goes to the bin.
+  new=self.d.meta('temp-1')
+  self.assertEqual(self.d.files['temp-1']['data'],b'prepared video');self.assertTrue(prep.ready(new))
+  self.assertEqual((new['name'],new['parents']),('Film.2160p.mp4',['movies']))
+  self.assertTrue(self.d.files['source'].get('trashed'));self.assertEqual(self.d.files['source']['data'],b'original')
+  self.assertFalse(self.d.second_upload);self.assertEqual([c for c in self.d.calls if c[0]=='DELETE'],[])
+  self.assertEqual(self.q.state['jobs']['slot']['prepared_id'],'temp-1');self.assertEqual(list(self.q.work.iterdir()),[])
  def test_cancel_keeps_original_and_retry_restarts_generation(self):
   self.n.fail=True;self.assertFalse(self.q.process_one());self.assertEqual(self.d.files['source']['data'],b'original')
   self.n.fail=False;self.assertTrue(self.q.process_one());self.assertEqual(self.n.calls,2)
@@ -208,25 +221,30 @@ class Queue(unittest.TestCase):
   self.q.state['jobs']['slot']['retry_after']=0
   self.assertTrue(self.q.process_one());self.assertEqual(self.n.calls,1)
 
- def test_cleanup_failure_retries_without_reencoding_or_deleting_original(self):
+ def test_bin_failure_finishes_on_the_next_pass_without_reencoding(self):
   call=self.d.call;fail=[True]
-  def failing(method,*args,**kwargs):
-   if method=='DELETE' and fail[0]:fail[0]=False;return 500,{},b''
-   return call(method,*args,**kwargs)
-  with patch.object(self.d,'call',side_effect=failing):self.assertTrue(self.q.process_one())
-  self.assertTrue(prep.ready(self.d.meta('source')));self.assertIn('temp-1',self.d.files)
-  self.assertFalse(self.q.process_one());self.assertNotIn('temp-1',self.d.files);self.assertEqual(self.n.calls,1)
-  self.assertIn('source',self.d.files)
+  def failing(method,url,body=None,headers=None):
+   if method=='PATCH' and body and b'trashed' in body and fail[0]:fail[0]=False;return 500,{},b''
+   return call(method,url,body,headers)
+  with patch.object(self.d,'call',side_effect=failing):self.assertFalse(self.q.process_one())
+  job=self.q.state['jobs']['slot'];self.assertEqual(job['promoted'],'temp-1');self.assertTrue(prep.ready(self.d.meta('temp-1')))
+  job['retry_after']=0
+  self.assertTrue(self.q.process_one());self.assertTrue(self.d.files['source'].get('trashed'));self.assertEqual(self.n.calls,1)
+  self.assertIn('temp-1',self.d.files)
 
- def test_cleanup_journal_survives_restart_and_library_rescan(self):
-  with patch.object(dp,'discard',side_effect=SystemExit('simulated process exit')):
+ def test_exit_after_the_move_survives_restart(self):
+  with patch.object(dp,'bin',side_effect=SystemExit('simulated process exit')):
    with self.assertRaises(SystemExit):self.q.process_one()
-  self.assertTrue(prep.ready(self.d.meta('source')));self.assertIn('temp-1',self.d.files)
+  self.assertTrue(prep.ready(self.d.meta('temp-1')));self.assertFalse(self.d.files['source'].get('trashed'))
   q=prep.Queue(self.tmp.name,self.d,self.n,stream=Stream())
-  with patch.object(prep.library_scan,'remote_files',return_value=[self.d.meta('source')]):q.scan(force=True)
-  self.assertNotIn('slot',q.state['jobs'])
-  self.assertFalse(q.process_one());self.assertNotIn('temp-1',self.d.files)
-  self.assertEqual(q.state['staging_cleanup'],[]);self.assertEqual(self.n.calls,1)
+  self.assertTrue(q.process_one());self.assertTrue(self.d.files['source'].get('trashed'))
+  self.assertEqual(q.state['jobs']['slot']['status'],'done');self.assertEqual(self.n.calls,1);self.assertFalse(self.d.second_upload)
+
+ def test_watch_request_follows_the_new_file(self):
+  import debrid_drive
+  debrid_drive.save(self.tmp.name,{'jobs':[{'hash':'h','files':[{'drive_id':'source','done':True}]}]})
+  with patch.object(prep.phone_space,'free',return_value=0):self.assertTrue(self.q.process_one())
+  self.assertEqual(debrid_drive.load(self.tmp.name)['jobs'][0]['files'][0]['drive_id'],'temp-1')
 
  def test_changed_source_rescan_journals_unused_output_before_removing_its_job(self):
   self.n.verify=lambda *args:(_ for _ in ()).throw(OSError('network'))

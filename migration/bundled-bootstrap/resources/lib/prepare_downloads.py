@@ -152,6 +152,9 @@ class Native:
   self.tells_background=hasattr(lib,'kodi_airplay_prepare_background')
   if self.tells_background:
    lib.kodi_airplay_prepare_background.argtypes=[ctypes.c_int];lib.kodi_airplay_prepare_background.restype=None
+  self.filters_subtitles=hasattr(lib,'kodi_airplay_prepare_subtitle_languages')
+  if self.filters_subtitles:
+   lib.kodi_airplay_prepare_subtitle_languages.argtypes=[ctypes.c_char_p];lib.kodi_airplay_prepare_subtitle_languages.restype=None
   self.filters_audio=hasattr(lib,'kodi_airplay_prepare_audio_languages')
   if self.filters_audio:
    lib.kodi_airplay_prepare_audio_languages.argtypes=[ctypes.c_char_p];lib.kodi_airplay_prepare_audio_languages.restype=None
@@ -159,6 +162,9 @@ class Native:
   if self.keeps_image_subs:
    lib.kodi_airplay_prepare_keep_image_subs.argtypes=[ctypes.c_int];lib.kodi_airplay_prepare_keep_image_subs.restype=None
    lib.kodi_airplay_prepare_keep_image_subs(1)
+ def set_subtitle_languages(self,codes):
+  """Keep subtitles in these language tags (and untagged ones); '' keeps every subtitle (owner, build 180)."""
+  if getattr(self,'filters_subtitles',False):self.lib.kodi_airplay_prepare_subtitle_languages(str(codes or '').encode())
  def set_audio_languages(self,codes):
   """Keep the first (original) audio track and these language tags ('' keeps every track)."""
   if self.filters_audio:self.lib.kodi_airplay_prepare_audio_languages(str(codes or '').encode())
@@ -384,6 +390,7 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
  """Settings › Library › Library status: counts, phone space and the rows of each section, in plain words."""
  library=state.get('library') or {};jobs={j['source']['id']:j for j in (state.get('jobs') or {}).values()}
  slots={j['source']['id']:slot for slot,j in (state.get('jobs') or {}).items()}
+ prepared={j['prepared_id']:j for j in (state.get('jobs') or {}).values() if j.get('prepared_id')}
  current=state.get('current') or {};rows={'preparing':[],'downloading':[],'waiting':[],'ready':[],'kept':[]}
  title=lambda name:drivelibrary.display_title(name)
  for d in downloads:
@@ -401,6 +408,8 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
  for e in library.get('items') or []:
   job=jobs.get(e['id']);base={'id':e['id'],'title':title(e['name']),'name':e['name'],'folder':e['folder'],'size':e['size']}
   if e['state']=='ready':
+   # Build 181: a prepared movie is a new Drive file; its job is found by the id it was given.
+   job=job or prepared.get(e['id'])
    done=job if job and job.get('status')=='done' else {}
    rows['ready'].append(dict(base,state='ready',sub=quality_text(e['name'],e['size']),probe=done.get('probe'),
     completed=done.get('completed'),started_at=done.get('started_at')));continue

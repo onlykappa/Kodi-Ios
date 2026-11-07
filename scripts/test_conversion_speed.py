@@ -232,7 +232,7 @@ class Build178Log(unittest.TestCase):
   self.assertIn('if(p->codec_type==AVMEDIA_TYPE_AUDIO && !keep_audio(original,i))continue;',c)
   self.assertIn('(p->codec_type==AVMEDIA_TYPE_AUDIO && keep_audio(original,i))',c)   # verify counts the same tracks
   b=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
-  self.assertIn('_kodi_airplay_prepare_audio_languages',b);self.assertIn("== 20 ]]",b)
+  self.assertIn('_kodi_airplay_prepare_audio_languages',b);self.assertIn("== 21 ]]",b)
  def test_language_codes(self):
   self.assertEqual(prep.audio_languages('English','resource.language.en_gb'),'en,eng')
   self.assertEqual(prep.audio_languages('original','resource.language.de_de'),'de,ger,deu')
@@ -303,5 +303,26 @@ class StartNow(unittest.TestCase):
   state=prep.load(self.tmp.name)
   prep.apply_to(state,[{'action':'next','id':'inc'},{'action':'now','id':'int'}],5000)
   self.assertGreater(state['jobs']['b']['priority'],state['jobs']['a']['priority'])
+
+class Build180Log(unittest.TestCase):
+ """Build-180 log: Interstellar (HEVC 4K, copied) slow: subtitle files went up 256 KB at a time in the converter's
+ thread, and every movie went up to Drive twice (staged, then copied into the original's ID). Owner: upload once,
+ English subtitles only, everything else as fast as it can go."""
+ def test_subtitle_rule_and_export(self):
+  c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
+  self.assertIn('if(p->codec_type==AVMEDIA_TYPE_SUBTITLE && !keep_subtitle(original,i))continue;',c)
+  self.assertIn('text_sub(p->codec_id) && keep_subtitle(original,i)))mapped++;',c)   # verify counts the same
+  self.assertIn('_kodi_airplay_prepare_subtitle_languages',(ROOT/'migration/airplay-ios/build-airplay.sh').read_text())
+  self.assertIn('native.set_subtitle_languages(languages)',(ROOT/'migration/bundled-bootstrap/service.py').read_text())
+ def test_subtitle_files_go_up_in_the_background(self):
+  import drive_prepare
+  self.assertIn("t['thread'] = threading.Thread(target=self._uploader, args=(t, track), daemon=True)",(LIB/'drive_prepare.py').read_text())
+ def test_promoted_not_copied(self):
+  c=(LIB/'prepare_cloud.py').read_text()
+  self.assertIn('new=drive_prepare.promote(q.drive,item,main,parents[0],',c);self.assertIn('drive_prepare.bin(q.drive,item[\'id\'])',c)
+ def test_copies_read_ahead_and_bigger_pieces(self):
+  import driveupload,drive_stream
+  self.assertEqual(driveupload.CHUNK,32*1024*1024);self.assertEqual(drive_stream.KEEP,24)
+  self.assertIn('if end+1<size:coming=ahead.submit(read,end+1)',(LIB/'driveupload.py').read_text())
 
 if __name__=='__main__':unittest.main()

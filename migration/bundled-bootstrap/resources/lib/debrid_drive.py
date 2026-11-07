@@ -272,6 +272,23 @@ def uploads(profile):
     return [current]
 
 
+def renamed(profile, old_id, new_id):
+    """A prepared movie took the original's place under a new Drive id (build 181): a waiting "download and watch"
+    plays the new file."""
+    if not old_id or old_id == new_id:
+        return False
+    state = load(profile)
+    changed = False
+    for job in state.get('jobs', []):
+        for f in job.get('files', []):
+            if f.get('drive_id') == old_id:
+                f['drive_id'] = new_id
+                changed = True
+    if changed:
+        save(profile, state)
+    return changed
+
+
 def next_watch(profile,is_ready,playing=False,now=None):
     """Only the oldest outstanding watch request may play, and only after preparation.
     Mark before playback so a restart does not unexpectedly replay an already-opened movie.

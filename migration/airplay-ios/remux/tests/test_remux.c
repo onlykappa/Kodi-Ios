@@ -1466,6 +1466,12 @@ static int audio_tracks(const char *path) {
         for(unsigned i=0;i<f->nb_streams;i++)if(f->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_AUDIO)n++;avformat_close_input(&f);}
     return n;
 }
+static int subtitle_tracks(const char *path) {
+    AVFormatContext *f=NULL;int n=-1;
+    if(avformat_open_input(&f,path,NULL,NULL)==0){avformat_find_stream_info(f,NULL);n=0;
+        for(unsigned i=0;i<f->nb_streams;i++)if(f->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_SUBTITLE)n++;avformat_close_input(&f);}
+    return n;
+}
 static void test_audio_languages(const char *work) {
     char input[1024],output[1024],err[512]="";
     snprintf(input,sizeof input,"%s/h264_ac3_dts_srt.mkv",fixture_dir);snprintf(output,sizeof output,"%s/languages.mp4",work);
@@ -1477,6 +1483,16 @@ static void test_audio_languages(const char *work) {
     kodi_airplay_prepare_audio_languages("");
     unlink(output);r=kodi_airplay_prepare(input,output,NULL,NULL,err,sizeof err);
     CHECK(r==0 && audio_tracks(output)==2,"no list keeps every audio track (%d)",audio_tracks(output));
+    // r27: subtitles by language: h264_aac_srt.mkv has an English text subtitle.
+    char subs_in[1024];snprintf(subs_in,sizeof subs_in,"%s/h264_aac_srt.mkv",fixture_dir);
+    kodi_airplay_prepare_subtitle_languages("spa,es");
+    unlink(output);r=kodi_airplay_prepare(subs_in,output,NULL,NULL,err,sizeof err);
+    CHECK(r==0 && subtitle_tracks(output)==0,"another language's subtitle left out (%d): %s",subtitle_tracks(output),err);
+    if(!r)CHECK(kodi_airplay_verify(subs_in,output,err,sizeof err)==0,"verification follows the same subtitle rule: %s",err);
+    kodi_airplay_prepare_subtitle_languages("en,eng");
+    unlink(output);r=kodi_airplay_prepare(subs_in,output,NULL,NULL,err,sizeof err);
+    CHECK(r==0 && subtitle_tracks(output)==1,"the chosen language's subtitle kept (%d): %s",subtitle_tracks(output),err);
+    kodi_airplay_prepare_subtitle_languages("");
 }
 
 static void test_preparation(const char *work) {

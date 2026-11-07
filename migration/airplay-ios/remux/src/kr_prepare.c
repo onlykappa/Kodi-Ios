@@ -44,6 +44,23 @@ void kodi_airplay_prepare_audio_languages(const char *list) {
     for(char *c=audio_languages;*c;c++)if(*c>='A' && *c<='Z')*c=(char)(*c|32);
     if(!strcmp(audio_languages,",,"))audio_languages[0]=0;
 }
+// r27 (owner, build 180: "only keep english subtitles"; Interstellar's Blu-ray picture subtitles in many languages
+// held its conversion up): the same kind of list for subtitles. A subtitle track is kept when its language tag is in
+// the list or it has none; empty keeps them all.
+static char subtitle_languages[256]="";
+void kodi_airplay_prepare_subtitle_languages(const char *list) {
+    snprintf(subtitle_languages,sizeof subtitle_languages,",%s,",list && *list?list:"");
+    for(char *c=subtitle_languages;*c;c++)if(*c>='A' && *c<='Z')*c=(char)(*c|32);
+    if(!strcmp(subtitle_languages,",,"))subtitle_languages[0]=0;
+}
+static int keep_subtitle(AVFormatContext *f,unsigned i) {
+    if(!subtitle_languages[0])return 1;
+    AVDictionaryEntry *l=av_dict_get(f->streams[i]->metadata,"language",NULL,0);
+    if(!l || !l->value[0] || !strcmp(l->value,"und"))return 1;
+    char tag[40];snprintf(tag,sizeof tag,",%s,",l->value);
+    for(char *c=tag;*c;c++)if(*c>='A' && *c<='Z')*c=(char)(*c|32);
+    return strstr(subtitle_languages,tag)!=NULL;
+}
 static int first_audio(AVFormatContext *f) {
     for(unsigned i=0;i<f->nb_streams;i++)if(f->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_AUDIO)return (int)i;
     return -1;
@@ -137,9 +154,9 @@ static int probe(const char *input,char *json,int size,kr_prepare_progress cb,vo
     double audio_work=0,duration=f->duration>0?(double)f->duration/AV_TIME_BASE:0;int pgs=0,other_image=0,extra_video=0;
     for(unsigned i=0;i<f->nb_streams;i++) {
         AVCodecParameters *a=f->streams[i]->codecpar;
-        if(a->codec_type==AVMEDIA_TYPE_AUDIO && a->codec_id!=AV_CODEC_ID_AAC)
+        if(a->codec_type==AVMEDIA_TYPE_AUDIO && a->codec_id!=AV_CODEC_ID_AAC && keep_audio(f,i))
             audio_work+=duration*(a->ch_layout.nb_channels>=6?384000:160000)/8;
-        if(a->codec_type==AVMEDIA_TYPE_SUBTITLE && !text_sub(a->codec_id)){if(a->codec_id==AV_CODEC_ID_HDMV_PGS_SUBTITLE)pgs++;else other_image++;}
+        if(a->codec_type==AVMEDIA_TYPE_SUBTITLE && !text_sub(a->codec_id) && keep_subtitle(f,i)){if(a->codec_id==AV_CODEC_ID_HDMV_PGS_SUBTITLE)pgs++;else other_image++;}
         if(a->codec_type==AVMEDIA_TYPE_VIDEO && (int)i!=v && !(f->streams[i]->disposition&AV_DISPOSITION_ATTACHED_PIC))extra_video++;
     }
     // r15: the codec and the tracks that decide whether and how a file can be prepared, for the owner's status page.
@@ -526,7 +543,7 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
     // Never silently discard image subtitles or alternate video tracks during an in-place replacement.
     for(unsigned i=0;i<original->nb_streams;i++) {
         AVCodecParameters *p=original->streams[i]->codecpar;
-        if((p->codec_type==AVMEDIA_TYPE_SUBTITLE && !text_sub(p->codec_id) && !sidecar_sub(p)) ||
+        if((p->codec_type==AVMEDIA_TYPE_SUBTITLE && keep_subtitle(original,i) && !text_sub(p->codec_id) && !sidecar_sub(p)) ||
            (p->codec_type==AVMEDIA_TYPE_VIDEO && i!=(unsigned)vi && !(original->streams[i]->disposition&AV_DISPOSITION_ATTACHED_PIC))) {
             fail(err,en,"This file has tracks MP4 cannot preserve; original retained",0);goto end;
         }
@@ -538,6 +555,7 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
         AVStream *src=original->streams[i];AVCodecParameters *p=src->codecpar;
         if((int)i!=vi && p->codec_type!=AVMEDIA_TYPE_AUDIO && p->codec_type!=AVMEDIA_TYPE_SUBTITLE)continue;
         if(p->codec_type==AVMEDIA_TYPE_AUDIO && !keep_audio(original,i))continue;   // r25: other languages left out
+        if(p->codec_type==AVMEDIA_TYPE_SUBTITLE && !keep_subtitle(original,i))continue;   // r27: other languages left out
         if(sidecar_sub(p)) {
             // Its own .sup file, packets copied as they are (written as .partial, renamed with the MP4).
             char lang[9]="und";AVDictionaryEntry *l=av_dict_get(src->metadata,"language",NULL,0);
@@ -701,7 +719,7 @@ int kodi_airplay_verify(const char *input,const char *output,char *err,int en) {
     for(unsigned i=0;i<original->nb_streams;i++){
         AVCodecParameters *p=original->streams[i]->codecpar;
         if((int)i==vi || (p->codec_type==AVMEDIA_TYPE_AUDIO && keep_audio(original,i)) ||
-           (p->codec_type==AVMEDIA_TYPE_SUBTITLE && text_sub(p->codec_id)))mapped++;
+           (p->codec_type==AVMEDIA_TYPE_SUBTITLE && text_sub(p->codec_id) && keep_subtitle(original,i)))mapped++;
     }
     r=validate(output,original,mapped,err,en);
 end:avformat_close_input(&original);return r;
