@@ -380,6 +380,13 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
 # retried. The socket timeout is per send/receive, so 45 s means 45 s with nothing moving; the piece is then retried
 # on a new connection (the resumable session asks Drive what it kept first).
 STALL=45
+# Build 189 (owner, build-187 log: Fall 2 at ~0.1 MB/s, 399 of 649 big pieces "timed out"): Python's socket timeout is
+# the limit for the whole upload request, not for a pause in it, so a 32 MB piece had to finish in 45 s (0.73 MB/s)
+# and on the owner's ~0.43 MB/s line nearly every one was cut off and sent again. The limit now grows with the piece:
+# 45 s plus one second per SLOW_RATE bytes.
+SLOW_RATE=128*1024
+def request_timeout(timeout,body):
+ return timeout+(len(body)/SLOW_RATE if body else 0)
 def sender(context,timeout=STALL,log=lambda message:None):
  """HTTP for Drive with the given TLS context; returns (status, headers, body) without following redirects."""
  import diagnostics
@@ -393,7 +400,7 @@ def sender(context,timeout=STALL,log=lambda message:None):
    begun=time.monotonic()
    fields=dict(method=method,host=urllib.parse.urlsplit(url).hostname,attempt=attempt+1,request_bytes=len(body) if body else 0)
    try:
-    with opener.open(request,timeout=min(timeout,30) if safe else timeout) as r:
+    with opener.open(request,timeout=min(timeout,30) if safe else request_timeout(timeout,body)) as r:
      answer=r.read();elapsed=round(time.monotonic()-begun,3)
      if elapsed>=10 or (body and len(body)>=256*1024):diagnostics.event(log,'drive_http','response',status=r.status,elapsed_s=elapsed,response_bytes=len(answer),**fields)
      return r.status,dict(r.headers),answer

@@ -111,3 +111,10 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
 - docs/PROMPT-ALWAYS-RUNNING.md: the owner's prompt for the "works whenever Kodi is open" project (measure first:
   lifecycle / network path / per-piece upload gaps; then URLSession background uploads, progress-based stalls, audio
   session, AirPlay while locked, Elementum sockets).
+
+## Build 189 (Python only)
+(owner: "why is fall 2 so so slow")
+- Build-187 log, every drive_http event over 8 MB: 250 pieces went through at a median 0.43 MB/s, 399 failed with
+  "The write operation timed out" at exactly ~45 s. Python's socket timeout limits the whole sendall (3.5+), so a 32 MB
+  piece needed 0.73 MB/s; the effective rate was ~0.1 MB/s. driveupload.request_timeout: 45 s + 1 s per 128 KiB of
+  body for uploads (32 MB → 301 s); read-only requests unchanged. Expect ~0.4 MB/s on the owner's line (~4x).
