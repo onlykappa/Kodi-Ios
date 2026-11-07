@@ -857,10 +857,14 @@ def cards(profile,now=time.time):
  current=dict(current)
  if not current:
   job=waiting[0];current={'title':job['source']['name'],'stage':job.get('error') or 'Queued','progress':0,'running':False}
+ # The video a long press › Cancel conversion keeps as it is: the one running, else the next in line.
+ current['id']=running_id(state) or (str(waiting[0]['source'].get('id','')) if waiting else '')
  fresh=current.get('running') and now()-current.get('updated',0)<60   # a 32 MB upload can quiet progress (build 181)
  current['running']=bool(fresh)
  # One fact per line (ISSUE-101): the count lives in the card's summary, the line says what is happening now.
  current['title']=drivelibrary.display_title(current.get('title',''))
  current['queued']=len(waiting)
  current['line']=current.get('stage','Queued')+live_line(current)
+ import transfer_control
+ if transfer_control.paused(profile,'conv'):current.update(line='Paused by you · hold this card to resume',paused=True,indeterminate=False)
  return [current]

@@ -219,10 +219,12 @@ def uploads(profile):
  now=state.get('current') if isinstance(state,dict) else None
  if now and now.get('total'):
   progress=100.0*now.get('sent',0)/now['total']
-  out.append({'title':drivelibrary.display_title(now.get('name','')),'folder':now.get('folder',''),'progress':progress,
+  out.append({'title':drivelibrary.display_title(now.get('name','')),'folder':now.get('folder',''),'progress':progress,'source':'phone',
               'line':'%d%%  ·  %s of %s'%(progress,size_text(now.get('sent',0)),size_text(now['total']))})
  try:
   import debrid_drive
+  jobs=[j for j in debrid_drive.load(profile).get('jobs',[]) if j.get('status') not in ('done','failed')]
+  copy_hash=jobs[0].get('hash','') if jobs else ''   # the job debrid_drive.step works on (long press › Cancel)
   for d in debrid_drive.uploads(profile):
    progress=100.0*d.get('sent',0)/d['total']
    import prepare_downloads
@@ -234,7 +236,7 @@ def uploads(profile):
     line='  ·  '.join(x for x in ('%d%%'%progress,'%s of %s'%(size_text(d.get('sent',0)),size_text(d['total'])),speed,eta) if x)
     short=' · '.join(x for x in ('%d%%'%progress,speed,eta) if x)
    out.append({'title':drivelibrary.display_title(d.get('name','')),'folder':d.get('folder',''),'progress':progress,'line':line,
-               'short':short,'sent':d.get('sent',0),'total':d['total'],'rate':rate,'eta':eta,'stage':d.get('stage','')})
+               'short':short,'source':'debrid','hash':copy_hash,'sent':d.get('sent',0),'total':d['total'],'rate':rate,'eta':eta,'stage':d.get('stage','')})
  except Exception as error:_quiet('notices:debrid',error)
  return out
 

@@ -14,7 +14,7 @@ if __name__=='__main__' and not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
 from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,elementum_upload_cap,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
-import activity,signin_server,airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready,diagnostics
+import activity,signin_server,airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready,diagnostics,transfer_control
 _IMPORT_SECONDS=time.monotonic()-_IMPORT_STARTED
 
 def run():
@@ -294,7 +294,9 @@ def drive_uploads(monitor,home,profile):
      driveupload.invalidate_library(str(profile/'addon_data/service.kodi.ios.bootstrap'))
      prepare_downloads.request_check(profile)   # preparation for Kodi and AirPlay picks it up from Drive
     delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text:notices.add(profile,kind,title,text),
-                            keep_going=lambda:not monitor.abortRequested(),on_done=done) or 20
+                            keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up'),on_done=done,
+                            cancelled=lambda:transfer_control.cancelled_copies(profile),
+                            forget=lambda h:transfer_control.clear_cancelled(profile,h)) or 20
    except alldebrid.Problem as problem:
     diagnostics.log_exception(xbmc,'alldebrid_to_drive',problem)
     notices.add(profile,'problem',"Couldn't download to Google Drive",str(problem));delay=300
@@ -347,7 +349,8 @@ def drive_uploads(monitor,home,profile):
    with driveupload.transfer_lock(state_dir):
     count=0
     if (waiting or seeding) and xbmcaddon.Addon().getSettingBool('drive_upload'):
-     count=driveupload.run_once(root,drive,state,log,idle,xbmcaddon.Addon().getSettingBool('drive_upload_delete'),
+     uploading=lambda:idle() and not transfer_control.paused(profile,'up')   # long press › Pause uploads
+     count=driveupload.run_once(root,drive,state,log,uploading,xbmcaddon.Addon().getSettingBool('drive_upload_delete'),
                               lambda:driveupload.invalidate_library(state_dir),seeding,driveupload.remove_torrent,
                               remote=lambda:library_scan.remote_files(drive,idle),pace=1,
                               notify=lambda title,text:notices.add(profile,'drive',title,text))
@@ -365,11 +368,13 @@ def drive_uploads(monitor,home,profile):
       # A video playing holds the conversion where it is instead of stopping it (owner, build 175: a storage-free
       # conversion cannot resume, so each video played restarted the movie from 0%). Closing Kodi, Prepare next / Keep
       # as it is and turning preparation off still stop it.
-      preparation.paused=lambda:(not monitor.abortRequested() and xbmc.Player().isPlayingVideo() and
+      # Long press › Pause converting (build 186) is the same hold, for as long as the owner wants.
+      preparation.paused=lambda:(not monitor.abortRequested() and (xbmc.Player().isPlayingVideo() or transfer_control.paused(profile,'conv')) and
                                  xbmcaddon.Addon().getSettingBool('prepare_downloads') and not prepare_downloads.interrupts(profile))
       # The upload pieces and the Drive read-ahead wait too, so a video (or AirPlay) gets the whole line.
       if preparation.stream:preparation.stream.hold=preparation.paused
-      if preparation.process_one(converting):delay=2
+      if transfer_control.paused(profile,'conv') and not (prepare_downloads.load(profile).get('current') or {}).get('running'):delay=30
+      elif preparation.process_one(converting):delay=2
       else:delay=30
      preparation.runtime=None
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))

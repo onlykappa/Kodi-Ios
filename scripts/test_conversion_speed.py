@@ -196,7 +196,7 @@ class Build175Log(unittest.TestCase):
     native.convert_to('src',None,lambda:False,lambda *a:None,paused=lambda:False)
  def test_the_service_and_upload_wait_through_playback(self):
   svc=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
-  self.assertIn('preparation.paused=lambda:(not monitor.abortRequested() and xbmc.Player().isPlayingVideo()',svc)
+  self.assertIn("preparation.paused=lambda:(not monitor.abortRequested() and (xbmc.Player().isPlayingVideo() or transfer_control.paused(profile,'conv'))",svc)
   cloud=(LIB/'prepare_cloud.py').read_text()
   self.assertIn('drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=paused)',cloud)
   self.assertIn('converted_progress,paused,waiting)',cloud)

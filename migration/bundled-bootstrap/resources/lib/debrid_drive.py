@@ -165,10 +165,19 @@ def active(profile):
 
 
 def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=default_open, keep_going=lambda: True,
-         clock=time.time, on_done=lambda job: None):
+         clock=time.time, on_done=lambda job: None, cancelled=lambda: set(), forget=lambda info_hash: None):
     """Move the oldest unfinished job on by one step. Returns seconds until the next step is worth trying
-    (None when nothing is queued)."""
+    (None when nothing is queued). cancelled(): info hashes the owner cancelled (long press in Notifications);
+    those jobs end as failed with 'Cancelled' and forget(hash) clears each request."""
     state = load(profile)
+    drop = {str(h).lower() for h in cancelled()}
+    for job in state['jobs']:
+        if job['status'] not in ('done', 'failed') and str(job.get('hash', '')).lower() in drop:
+            job.update(status='failed', error='Cancelled', finished=clock())
+            state.pop('current', None)
+            save(profile, state)
+            transfer_history.failed(profile, 'up', job.get('title') or job['name'], 'cancelled by you', clock())
+            forget(job['hash'])
     jobs = [j for j in state['jobs'] if j['status'] not in ('done', 'failed')]
     if not jobs:
         if state.pop('current', None) is not None:
@@ -226,8 +235,10 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     state['current'] = {'name': title, 'folder': parts[-1], 'sent': sent, 'total': total, 'stage': 'copying',
                                         'rate': rate, 'eta_s': (total - sent) / rate if rate else 0}
                     commit()
+                hash_ = str(job['hash']).lower()
+                going = lambda: keep_going() and hash_ not in {str(h).lower() for h in cancelled()}
                 result = drive.upload_stream(lambda offset: open_url(url, offset), size, name, parent, entry['session'],
-                                             commit, keep_going, progress)
+                                             commit, going, progress)
                 if int(result.get('size') or size) != size:
                     raise RuntimeError('Google Drive has a different size for %s' % name)
                 entry.update(done=True, drive_id=result.get('id', ''), drive_name=name)
