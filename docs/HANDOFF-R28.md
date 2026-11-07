@@ -59,3 +59,17 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
   Next: CI, pin r29, publish, build (184). Then owner tests AirPlay; then optional "gentle mode" during AirPlay only
   (keep converting with 1 lane, no read-ahead, upload capped ~50%) — owner agreed to step 1 first.
 - Resume design: docs/RESUME-DESIGN.md (not started).
+
+## Build 185 (owner, build-184 log: AirPlay works; conversion slow and inconsistent for hours)
+- Diagnosis from the log: converter ~2.5-3x real time on screen; the Drive upload stalled (32 MB piece hung 120 s,
+  timed out) and the converter waited on the 2-piece queue; Kodi start restarted Inception from 0; playback paused it;
+  off screen the picture decodes on the CPU (iOS refuses VideoToolbox off screen).
+- 55b7309: stall retry after 45 s (driveupload.STALL), AHEAD 4, Elementum max_upload_rate 1024 KB/s when unlimited.
+- 74f6129: background CPU share 0.7 (iOS ends background apps over ~80% of a core for a minute).
+- 3154fd0: "Find a version without converting" (Library status sheet for re-encode movies → download.py replace=1 with
+  Home property KodiIOS.AvoidAV1 "<quality>|<time>"; deck_picker shows only non-AV1 at that quality); AV1 links last
+  and labelled in every picker; unique() keeps the copy that needs no re-encoding.
+- Resume after Kodi closes: NOT in 185. docs/RESUME-DESIGN.md. Open question found while starting: the mfra rebuilt
+  from parsed moofs must use movenc's tfra time (start_dts + tfdt + cts), and start_dts per track is not in the
+  stream; options: write edts-free output (start at 0) or keep movenc's tfra entries by parsing each session's
+  trailer. Do it as its own native release (r30) with a stop/resume host test.
