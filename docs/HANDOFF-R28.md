@@ -119,7 +119,7 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
   piece needed 0.73 MB/s; the effective rate was ~0.1 MB/s. driveupload.request_timeout: 45 s + 1 s per 128 KiB of
   body for uploads (32 MB → 301 s); read-only requests unchanged. Expect ~0.4 MB/s on the owner's line (~4x).
 
-## Build 190 — KodiAirPlay r31 + resume rework (docs/AUDIT-CONVERSION.md)
+## Build 190 — verified (IPA sha 071e5efd…, build.json eb616e9, AirPlay binary = r31 60dbeed8…). KodiAirPlay r31 + resume rework (docs/AUDIT-CONVERSION.md)
 (owner, build-189: Interstellar "starting" for 5 min; "do a full rundown audit and tests on this conversion")
 - Read-back check walked every fragment (no mfra use, validate without network options): fixed in r31.
 - Resume: copies skip what Drive has past the mark (byte-identical, r31 first-packet move); re-encodes keep the movie in
