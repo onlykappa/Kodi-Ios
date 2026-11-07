@@ -107,3 +107,16 @@ Owner explicitly requests: "merge pr 8 so we can start fresh and push me ipa for
 ## DEC-028 — Duplicates: the extra copy is deleted; check before downloading
 
 Owner (2026-11-05), on "Lanterns" and "Lanterns (2026)" each holding S1 E1: "it should be deleted", and yes to a duplicate check before Elementum downloads. The extra copy is removed only after the kept copy is confirmed on Drive. Drive copies go to Drive's Trash (restorable for 30 days), never a permanent delete. Phone copies are removed under the existing "remove phone copies after upload" setting. Copies with different named years are never treated as duplicates. Details: ISSUE-103. No merge or release implied.
+
+## DEC-026 — Permanent Apple UI guidance for agents (PR #11)
+
+Owner asked (2026-11-05) to permanently integrate Apple UI design resources so every agent consults them for UI work, and to evaluate nine named candidate repositories rather than install them all. Selected and vendored unchanged at pinned commits: `apple-hig` (justinwetch/HIGAgentSkills 2206ff9…, MIT; source-reviewed HIG distillation) and `apple-liquid-glass` (DanielJamesTronca/apple-liquid-glass-skill 324b668…, MIT; native UIKit glass only). skin.apptv (Apache-2.0, 695b739…) is a pinned Kodi technique reference, not vendored. Deferred: both SwiftUI skills (no SwiftUI here) and MobileBuildMCP (macOS/Xcode/Node tooling). Rejected: apple-design-skill (redundant, unreviewed synthesis, web focus), swiftui-microinteractions (SwiftUI-only), skin.tvOS-X (2016, CC BY-SA). Canonical policy: docs/design/APPLE-UI-POLICY.md, referenced from new root AGENTS.md and CLAUDE.md; provenance and update procedure: docs/design/apple-ui-resources.md; integrity check: scripts/check_ui_guidance.py. The UI architecture is unchanged (Kodi skin XML plus the native KodiGlassBar); Kodi-drawn translucency is not Liquid Glass. No UI redesign, merge or release is implied. The owner then supplied two desktop Kodi rig renders of the unmerged PR #9 activity pill and sheet (not device; build-151 lacks the pill); they are recorded in the policy (§4) as the reference look, and their defects are in ISSUE-102. The images themselves are not committed because they contain film artwork.
+
+## DEC-027 — Activity design approved: rings, two blues, Close
+
+Owner reviewed the round-4 mockups (2026-11-05: "this looks great. I like ur sheet … Lock it in") and approved:
+- progress rings around the app tile in both the pill and the sheet (replacing the sheet's bars and the pill's corner badge);
+- blue by role: `0A84FF` for fills, `4FA8FF` for blue text;
+- Close (✕) for status-only sheets.
+
+Recorded in docs/design/APPLE-UI-POLICY.md §4.3 and §4.7. The owner declined a test build of PR #10's Notifications fix for now ("not yet pr 10 is different then ui stuff"). Next: implement the approved design on PR #9. No merge or release implied.
