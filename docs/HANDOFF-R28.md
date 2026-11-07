@@ -88,13 +88,14 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
   (cast.send_airplay marks it, airplay.relay refreshes it from Apple's player log lines, closed/stopped clears it,
   90 s expiry); while set, AllDebrid copies, Drive uploads, preparation (hold) and the library scan wait. A timeout at
   the start is retried once (cast.retry_airplay).
-- Resume after Kodi closes (r30): native work in progress, NOT in 186. Design settled and coded, saved as docs/R30-RESUME-WIP.md (a diff; not built):
-  av_write_frame + flush per packet so each fragment = packets between two fragment starts; sink parses moofs,
-  rewrites tfdt onto run-1 timeline, builds its own mfra (+skip_trailer; tfra time = start_dts(first dts + FFmpeg's
-  make-non-negative shift) + tfdt + first cts); marks via write(-1,"mark",text) at fragments starting on a video
-  keyframe (re-encoded picture: unit start); kodi_airplay_prepare_resume seeks each input to its recorded next
-  packet (original: pos/stream/dts; generated: unit containing the time, then exact dts). Host test
-  test_preparation_resume (straight run vs run from a middle mark, byte-identical for copied tracks). Next: run the
-  host test locally (FFmpeg 8.1.1 host builds fine from git clones; codeload/ffmpeg.org are blocked), then the
-  Python side (Sink sends only up to the latest mark rounded to 256 KiB, checkpoint after Drive confirms, sidecars
-  spooled locally), CI, pin r30.
+- Build 186 = run 42339610759 (Python only, the items above).
+
+## Build 187 — resume after Kodi closes (KodiAirPlay r30)
+- 5f1475b: native marks + kodi_airplay_prepare_resume (design in docs/RESUME-DESIGN.md, findings there): av_write_frame
+  + flush per packet, own mfra (+skip_trailer), tfdt rebased, inputs restarted at their recorded next packets.
+  Local FFmpeg 8.1.1 host run: 2087 checks, 0 failed (test_preparation_resume: copied tracks join byte for byte,
+  PGS sidecars carry on, AV1 HDR -> HEVC + AC-3 -> AAC joined movie validates, a foreign mark is refused).
+- Python: drive_prepare.Sink pieces end at floor256K(latest mark) (MARK_CAP 96 MB: past it the movie goes up anyway),
+  checkpoint after Drive confirms (resume_store.py: preparation-resume/<slot>.json, <slot>.side<track>), sidecars
+  spooled and uploaded at finish, md5 skipped on a resumed run (Drive md5 + verify decide), ResumeFailed -> start again.
+  Tests: scripts/test_resume.py. Exports 23 (build-airplay.sh).
