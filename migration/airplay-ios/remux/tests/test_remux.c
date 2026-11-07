@@ -1437,6 +1437,25 @@ static void test_hdr_preparation(const char *work,const char *http_base) {
             CHECK(strstr(notes,", lane 1") && (strstr(notes,", lane 2") || !strstr(notes,"video 2/")),"units name their lane: %.300s",notes);
         }
     }
+    // r26: a unit that hangs (Kodi left the screen mid-unit on the phone) is made again by a fresh lane.
+    {
+        char input[1024],output[1024],base[1024],err[512]="",after[1024]="";int calls=0;
+        snprintf(input,sizeof input,"%s/av1_hdr10.mkv",http_base);snprintf(base,sizeof base,"%s/hdr-stall",work);
+        snprintf(output,sizeof output,"%s.mp4",base);test_prepare_sink sink={0};sink.base=base;
+        setenv("KR_PREP_LANES","2",1);setenv("KR_PREP_STALL_UNIT","0",1);setenv("KR_PREP_STALL_S","3",1);
+        {char drain[16384];while(kr_remux_log(drain,sizeof drain)>0){}}
+        int r=kodi_airplay_prepare_to(input,preparation_write,&sink,preparation_progress,&calls,err,sizeof err);
+        unsetenv("KR_PREP_LANES");unsetenv("KR_PREP_STALL_UNIT");unsetenv("KR_PREP_STALL_S");
+        for(int n=0;n<65;n++)if(sink.files[n])fclose(sink.files[n]);
+        static char notes[65536];int noted=0,got;notes[0]=0;
+        while(noted<(int)sizeof notes-1 && (got=kr_remux_log(notes+noted,(int)sizeof notes-noted))>0)noted+=got;
+        CHECK(r==0,"conversion with a stuck unit finishes: %s",err);
+        CHECK(strstr(notes,"made no progress for 3 s; making it again")!=NULL,"the stuck unit is made again: %.300s",notes);
+        if(!r) {
+            CHECK(kodi_airplay_probe(output,after,sizeof after)==0 && strstr(after,"\"ready\":true"),"remade output ready: %s",after);
+            CHECK(kodi_airplay_verify(input,output,err,sizeof err)==0,"remade output keeps duration and index: %s",err);
+        }
+    }
     kr_video_set_hdr_encoder(NULL);
 }
 

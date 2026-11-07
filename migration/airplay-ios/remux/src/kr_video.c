@@ -46,6 +46,8 @@ struct kr_video {
     int ow, oh;               // output size
     int offline,keep_hdr;
     int want_hw;              // r25: VideoToolbox decoded this picture once: try it again at each preparation unit
+    int soft_next;            // r26: make the next preparation unit with the CPU decoder (a remade, stuck unit)
+    atomic_long frames;       // r26: pictures decoded so far: a unit that stops moving is remade (kr_prepare)
     char route[64];           // r20: how the last segment was made (hardware HDR / GPU / CPU + decoder), for the log
     AVRational fps;           // source frame rate (for the encoder's framerate hint)
     kr_color *sws;
@@ -236,6 +238,13 @@ void kr_video_keep_resolution(kr_video *v) {
 }
 int kr_video_height(const kr_video *v) { return v ? v->oh : 0; }
 int kr_video_hw_decode(const kr_video *v) { return v && v->hw ? 1 : 0; }
+// r26 (build-178 log: Kodi left the screen mid-unit and that VideoToolbox unit never finished, so the whole conversion
+// waited for 20 minutes): kr_prepare watches each unit's decoded pictures and remakes a stuck one; while Kodi is off
+// screen (the add-on says so) preparation units decode on the CPU, and on the hardware again once it is back.
+static atomic_int prepare_background;
+void kr_video_set_background(int on) { atomic_store(&prepare_background, on != 0); }
+long kr_video_frames(kr_video *v) { return v ? atomic_load(&v->frames) : 0; }
+void kr_video_software_next(kr_video *v) { if (v) v->soft_next = 1; }
 const char *kr_video_path(const kr_video *v) {
     return !v || v->last_path < 0 ? "none yet" : v->last_path ? "GPU transfer (VTPixelTransferSession)" : v->last_hdr ? "CPU HDR tone/gamut mapping" : "CPU (libswscale)";
 }
@@ -733,12 +742,18 @@ static int produce(kr_video *v, double start, double end, gm_buf *out, char *err
     if (v->subs && v->sub_index >= 0) sub_lookback(v, start);
     // r25 (build-176/178 logs: Kodi left the screen, VideoToolbox refused one unit, that lane decoded on the CPU at
     // 0.75x for the rest of the movie): a preparation unit asks for the hardware decoder again whenever it was lost.
-    if (v->offline && v->want_hw && !v->hw) {
-        char e2[128] = "";
-        if (open_decoder(v, 1, e2, sizeof e2) < 0 && open_decoder(v, 0, err, errlen) < 0) goto out;
+    if (v->offline) {
+        int software = atomic_load(&prepare_background) || v->soft_next;
+        v->soft_next = 0;
+        if (software && v->hw) {
+            if (open_decoder(v, 0, err, errlen) < 0) goto out;
+        } else if (!software && v->want_hw && !v->hw) {
+            char e2[128] = "";
+            if (open_decoder(v, 1, e2, sizeof e2) < 0 && open_decoder(v, 0, err, errlen) < 0) goto out;
 #ifdef KR_GPU
-        if (v->hw) { hdr_pass_broken = 0; kr_remux_note("prepare: hardware decoding is back"); }
+            if (v->hw) { hdr_pass_broken = 0; kr_remux_note("prepare: hardware decoding is back"); }
 #endif
+        }
     }
     seek_before(v, start);
     avcodec_flush_buffers(v->dec);
@@ -767,6 +782,7 @@ static int produce(kr_video *v, double start, double end, gm_buf *out, char *err
         }
         int received;
         while ((received = avcodec_receive_frame(v->dec, fr)) == 0) {
+            atomic_fetch_add(&v->frames, 1);
             // Hardware frames do not always repeat the stream's color tags.
             if (fr->color_trc == AVCOL_TRC_UNSPECIFIED) fr->color_trc = st->codecpar->color_trc;
             if (fr->color_primaries == AVCOL_PRI_UNSPECIFIED) fr->color_primaries = st->codecpar->color_primaries;

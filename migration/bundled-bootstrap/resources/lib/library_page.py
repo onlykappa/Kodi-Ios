@@ -190,10 +190,13 @@ def item_sheet(p):
     status = ''.join(p.label(S + 230, top + 160, w - 230, 56, P('status'), 'p_pill_s', colour or p.GREY, 'left',
                              nos + '<visible>String.IsEqual(Window().Property(tone),%s)</visible>' % tone) for tone, colour in TONES)
     close = p.close_button(9200, W - S - HIT + 13, top + 40, navigation='<ondown>9201</ondown>')
+    # Build 179 (owner): a waiting movie has three: Start converting now, Prepare next, Keep as it is (red).
     buttons = (p.pill_button(9201, S, top + 1010, w, 124, P('action1.label'), [('', 'noop')], 'primary', '',
                              '<visible>%s</visible><onup>9200</onup><ondown>9202</ondown>' % has('action1.label')) +
                p.pill_button(9202, S, top + 1150, w, 124, '[COLOR %s]%s[/COLOR]' % (P('action2.colour'), P('action2.label')), [('', 'noop')], 'glass', '',
-                             '<visible>%s</visible><onup>9201</onup>' % has('action2.label')))
+                             '<visible>%s</visible><onup>9201</onup><ondown>9203</ondown>' % has('action2.label')) +
+               p.pill_button(9203, S, top + 1290, w, 124, '[COLOR %s]%s[/COLOR]' % (P('action3.colour'), P('action3.label')), [('', 'noop')], 'glass', '',
+                             '<visible>%s</visible><onup>9202</onup>' % has('action3.label')))
     body = ('<control type="button" id="9099"><width>%d</width><height>%d</height><texturefocus colordiffuse="80000000">%swhite.png</texturefocus>'
             '<texturenofocus colordiffuse="80000000">%swhite.png</texturenofocus><onclick>Close</onclick></control>' % (W, p.HEIGHT, M, M) +
             '<control type="group">'

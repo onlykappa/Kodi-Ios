@@ -47,7 +47,7 @@ class QueueOrder(unittest.TestCase):
   with tempfile.TemporaryDirectory() as p:
    for a,i in (('up','w4'),('up','w4'),('down','w1'),('keep','w3'),('next','w3')):prep.request(p,a,i)
    self.assertEqual([(r['action'],r['id']) for r in prep.pending_requests(p)],[('up','w4'),('up','w4'),('down','w1'),('next','w3')])
-   self.assertTrue(prep.interrupts(p))   # 'next' still does
+   self.assertFalse(prep.interrupts(p))   # build 179: only 'now' (or keeping the running one) stops it
   with tempfile.TemporaryDirectory() as p:
    for a,i in (('up','w4'),('down','w1')):prep.request(p,a,i)
    self.assertFalse(prep.interrupts(p))

@@ -4,7 +4,7 @@ The service scans app-managed Movies/TV Shows at startup and after uploads. Work
 the uploader/scanner, paused during playback, and checkpointed. Source bytes stay on Drive until a
 validated result is uploaded in place. Native r16 streams both input and output; no media working files. No permanent AirPlay variant, source-ID switch or extra folder.
 """
-import ctypes,hashlib,json,os,re,shutil,time,urllib.error,urllib.parse,urllib.request
+import ctypes,hashlib,json,os,re,shutil,threading,time,urllib.error,urllib.parse,urllib.request
 from pathlib import Path
 import app_state,driveupload,drivelibrary,library_scan,phone_space
 
@@ -149,6 +149,9 @@ class Native:
   # r15: Blu-ray picture subtitles (PGS) are kept in .sup files beside the prepared MP4 instead of the file being
   # refused (owner, build 160: Interstellar); the queue saves them next to the video on Drive before replacing it.
   # r25 (owner, build 178): only "our audio, and the original if different" goes into the prepared file.
+  self.tells_background=hasattr(lib,'kodi_airplay_prepare_background')
+  if self.tells_background:
+   lib.kodi_airplay_prepare_background.argtypes=[ctypes.c_int];lib.kodi_airplay_prepare_background.restype=None
   self.filters_audio=hasattr(lib,'kodi_airplay_prepare_audio_languages')
   if self.filters_audio:
    lib.kodi_airplay_prepare_audio_languages.argtypes=[ctypes.c_char_p];lib.kodi_airplay_prepare_audio_languages.restype=None
@@ -202,7 +205,20 @@ class Native:
     progress(stage,done,total);return 1
    except Exception as ex:errors.append(ex);return 0
   writer=WRITE(write);callback=CALLBACK(update)
-  r=self.lib.kodi_airplay_prepare_to(os.fsencode(source),writer,None,callback,None,error,len(error))
+  # r26 (build-178 log: a VideoToolbox unit hung when Kodi left the screen): the converter is told every 2 s whether
+  # Kodi is on screen, from its own thread (the muxer's callbacks stop while it waits for a unit).
+  done=threading.Event()
+  def screen():
+   last=None
+   while not done.is_set():
+    try:
+     off=not app_state.foreground()
+     if off!=last and self.tells_background:self.lib.kodi_airplay_prepare_background(int(off));last=off
+    except Exception:pass
+    done.wait(2)
+  threading.Thread(target=screen,daemon=True).start()
+  try:r=self.lib.kodi_airplay_prepare_to(os.fsencode(source),writer,None,callback,None,error,len(error))
+  finally:done.set()
   if errors:raise errors[0]
   if not keep_going() or r==-2:raise driveupload.Stop('Preparation paused')
   if r:raise RuntimeError(error.value.decode('utf-8','replace') or 'Preparation failed; original retained')
@@ -331,6 +347,9 @@ def apply_to(state,requests,now):
   job=jobs.get(str(request.get('id')));action=request.get('action')
   if not job:continue
   if action=='next':job['priority']=now
+  # Owner (build 178): "start conversion now ... will override any current conversions": first in line, and
+  # interrupts() stops the running one for it.
+  elif action=='now':job['priority']=now+10**9;job.update(retry_after=0);job.pop('kept',None)
   elif action=='retry':job.update(retry_after=0,attempts=0);job.pop('error',None);job['status']='waiting'
   elif action=='keep':job['kept']=True
   elif action=='prepare':job.pop('kept',None)
@@ -456,12 +475,25 @@ def request_check(profile):
  marker=location(profile).parent/RESCAN;marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(str(time.time()))
 def check_requested(profile):return (location(profile).parent/RESCAN).exists()
 
+def running_id(state):
+ """The Drive id of the video being converted now, or ''."""
+ current=state.get('current') or {}
+ if not current.get('running'):return ''
+ for job in (state.get('jobs') or {}).values():
+  name=(job.get('source') or {}).get('name','')
+  if current.get('title') in (name,drivelibrary.display_title(name)):return str(job['source'].get('id',''))
+ return ''
+
 def interrupts(profile):
- """Whether the running conversion must stop now. Only the owner's own choice does (Prepare next on another video,
- Keep as it is): a storage-free conversion cannot resume, so stopping it throws its work away. A library check (a
- finished AllDebrid copy, the refresh button) waits for the conversion instead (build-170 log: Inception went back
- to 0% when the Fall 2 copy finished)."""
- return any(r.get('action') in ('next','keep') for r in pending_requests(profile))
+ """Whether the running conversion must stop now. Only the owner's own choice does: Start converting now on another
+ video, or Keep as it is on the one running (a storage-free conversion cannot resume, so stopping it throws its work
+ away). Prepare next waits for it (build 178: the owner asked for a separate "start now"). A library check (a
+ finished AllDebrid copy, the refresh button) waits too (build-170 log: Inception went back to 0%)."""
+ asked=pending_requests(profile)
+ if not asked:return False
+ running=running_id(load(profile))
+ return any((r.get('action')=='now' and str(r.get('id'))!=running) or (r.get('action')=='keep' and (not running or str(r.get('id'))==running))
+            for r in asked)
 
 def summary(state,now=time.time):
  """Plain-words status for Settings › Library › Check library for conversion."""

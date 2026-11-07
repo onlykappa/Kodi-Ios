@@ -84,7 +84,7 @@ class Switch(unittest.TestCase):
 class Native(unittest.TestCase):
  def test_build_exports_and_ffmpeg_writer(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
-  self.assertIn('_kodi_airplay_prepare_keep_image_subs',build);self.assertRegex(build,r'== 1[3-9] \]\]')   # r15 added it; later releases export more
+  self.assertIn('_kodi_airplay_prepare_keep_image_subs',build);self.assertRegex(build,r'== (1[3-9]|2[0-9]) \]\]')   # r15 added it; later releases export more
   self.assertIn('--enable-muxer=sup',(ROOT/'migration/airplay-ios/build-remux-ffmpeg.sh').read_text())
   self.assertIn("assert b'_kodi_airplay_prepare_keep_image_subs' in binary",(ROOT/'.github/workflows/airplay-ios.yml').read_text())
   c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()

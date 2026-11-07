@@ -184,7 +184,8 @@ class Integration(unittest.TestCase):
   with tempfile.TemporaryDirectory() as p:
    prep.request_check(p);self.assertFalse(prep.interrupts(p))           # a check waits for the conversion
    prep.request(p,'retry','x');self.assertFalse(prep.interrupts(p))
-   prep.request(p,'next','y');self.assertTrue(prep.interrupts(p))       # Prepare next on another video
+   prep.request(p,'next','y');self.assertFalse(prep.interrupts(p))      # build 179: Prepare next waits its turn
+   prep.request(p,'now','y');self.assertTrue(prep.interrupts(p))        # Start converting now does not
  def test_service_scans_on_boot_and_after_uploads_and_settings_enable_it(self):
   service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertIn('preparation.scan(can_prepare,force=bool(count))',service);self.assertIn('preparation.process_one(converting)',service)

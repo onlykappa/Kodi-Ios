@@ -53,6 +53,9 @@ double kr_video_subtitle_scan_end(const kr_video *v);
 int kr_video_width(const kr_video *v);   // output size
 int kr_video_height(const kr_video *v);
 int kr_video_hw_decode(const kr_video *v);  // 1 when VideoToolbox decodes
+void kr_video_set_background(int on);       // r26: Kodi is off screen: preparation units decode on the CPU
+long kr_video_frames(kr_video *v);          // r26: pictures decoded so far (stuck-unit watch)
+void kr_video_software_next(kr_video *v);   // r26: the next unit decodes on the CPU (a remade unit)
 // r11: how the last segment's frames were scaled/converted (log): GPU transfer or CPU (libswscale).
 const char *kr_video_path(const kr_video *v);
 // fMP4 init (ftyp+moov) or media segment (moof+mdat) i of the planned grid of `s` (absolute tfdt).

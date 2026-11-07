@@ -155,11 +155,11 @@ class Build175Log(unittest.TestCase):
  movie from 0% (owner: "this needs to be fixed for ... All movies")."""
  def test_tracks_are_made_at_the_same_time(self):
   c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
-  self.assertIn('pthread_create(&g->lanes[i].thread,NULL,generated_work,job)',c)
-  self.assertIn('pthread_join(l->thread,NULL)',c.split('static void generated_close')[1][:700])
+  self.assertIn('pthread_create(&l->thread,NULL,generated_work,l)',c)
+  self.assertIn('if(l->started)pthread_join(l->thread,NULL);',c.split('static void generated_close')[1][:900])
   read=c.split('static int generated_read(')[1].split('static void generated_close')[0]
   self.assertNotIn('kr_video_unit',read);self.assertNotIn('kr_audio_unit',read)   # only the worker makes units
-  self.assertIn('kr_video_unit',c.split('static void *generated_work(')[1][:1600])
+  self.assertIn('kr_video_unit',c.split('static void *generated_work(')[1][:2000])
  def test_drive_is_read_once_in_blocks(self):
   s=(LIB/'drive_stream.py').read_text()
   self.assertIn('class _Blocks',s);self.assertIn('stream.blocks.ahead(item, index + 1)',s)
@@ -210,10 +210,10 @@ class AV1Speed(unittest.TestCase):
   self.assertIn('if(v->offline)av_opt_set_int(c->priv_data,"prio_speed",1,0);',hevc)
  def test_two_lanes_in_order(self):
   c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
-  self.assertIn('#define VIDEO_LANES 2',c);self.assertIn('if(!i && kr_video_hw_decode(l->video))g->nlanes=VIDEO_LANES;',c)
-  self.assertIn('generated_lane *l=&g->lanes[g->segment%g->nlanes];',c)
+  self.assertIn('#define VIDEO_LANES 2',c);self.assertIn('if(kr_video_hw_decode(first->video))g->nlanes=VIDEO_LANES;',c)
+  self.assertIn('int li=g->segment%g->nlanes;generated_lane *l=g->lanes[li];',c)
   self.assertIn('if(r>=0 && l->next_segment!=g->segment)r=-1;',c)
-  self.assertIn('for(int segment=index;;segment+=g->nlanes)',c)
+  self.assertIn('for(int segment=l->first;;segment+=l->stride)',c)
   t=(ROOT/'migration/airplay-ios/remux/tests/test_remux.c').read_text()
   self.assertIn('setenv("KR_PREP_LANES","2",1);',t)
 
@@ -223,7 +223,8 @@ class Build178Log(unittest.TestCase):
  def test_hardware_decoding_is_asked_again_each_unit(self):
   c=(ROOT/'migration/airplay-ios/remux/src/kr_video.c').read_text()
   self.assertIn('v->want_hw = v->hw != NULL;',c)
-  block=c[c.index('if (v->offline && v->want_hw && !v->hw) {'):c.index('seek_before(v, start);\n    avcodec_flush_buffers(v->dec);')]
+  block=c[c.index('if (v->offline) {'):c.index('seek_before(v, start);\n    avcodec_flush_buffers(v->dec);')]
+  self.assertIn('} else if (!software && v->want_hw && !v->hw) {',block)
   self.assertIn('open_decoder(v, 1, e2, sizeof e2) < 0 && open_decoder(v, 0, err, errlen) < 0',block)
   self.assertIn('hdr_pass_broken = 0;',block)
  def test_audio_language_rule_and_export(self):
@@ -231,7 +232,7 @@ class Build178Log(unittest.TestCase):
   self.assertIn('if(p->codec_type==AVMEDIA_TYPE_AUDIO && !keep_audio(original,i))continue;',c)
   self.assertIn('(p->codec_type==AVMEDIA_TYPE_AUDIO && keep_audio(original,i))',c)   # verify counts the same tracks
   b=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
-  self.assertIn('_kodi_airplay_prepare_audio_languages',b);self.assertIn("== 19 ]]",b)
+  self.assertIn('_kodi_airplay_prepare_audio_languages',b);self.assertIn("== 20 ]]",b)
  def test_language_codes(self):
   self.assertEqual(prep.audio_languages('English','resource.language.en_gb'),'en,eng')
   self.assertEqual(prep.audio_languages('original','resource.language.de_de'),'de,ger,deu')
@@ -258,5 +259,49 @@ class Build178Log(unittest.TestCase):
   sink.tracks[0]=dict(url='u',offset=0,buffer=bytearray(),md5=__import__('hashlib').md5(),name='x',chunk=1<<40)
   for i in range(6):t[0]=i*1.0;sink.write(0,'.mp4',b'x'*1000)
   self.assertAlmostEqual(sink.made_rate(),1000.0)
+
+class Build178Freeze(unittest.TestCase):
+ """Build-178 log, 15:59 to 16:19: a VideoToolbox unit started at 15:59:00 never finished after Kodi left the screen at
+ 15:59:05; the muxer waited for it in order, so nothing was read, made or uploaded for 20 min, even back on screen."""
+ def test_a_stuck_unit_is_made_again(self):
+  c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
+  read=c[c.index('static int generated_read('):c.index('static void generated_close(')]
+  self.assertIn('pthread_cond_timedwait(&h->cond,&h->lock,&until);',read)
+  self.assertIn('if(t-g->seen_at[li]<stall_seconds())continue;',read)
+  self.assertIn('l->dead=1;h->abandoned++;',read);self.assertIn('kr_video_software_next(fresh->video);',read)
+  self.assertIn('#define STALL_S 90',c)
+  close=c[c.index('static void generated_close('):c.index('static int generated_open(')]
+  self.assertIn('if(!keep){pthread_mutex_destroy(&h->lock);',close)   # a stuck lane keeps the hub alive
+  t=(ROOT/'migration/airplay-ios/remux/tests/test_remux.c').read_text()
+  self.assertIn('setenv("KR_PREP_STALL_UNIT","0",1);',t);self.assertIn('made no progress for 3 s; making it again',t)
+ def test_background_decodes_on_the_cpu_and_the_add_on_says_when(self):
+  v=(ROOT/'migration/airplay-ios/remux/src/kr_video.c').read_text()
+  self.assertIn('int software = atomic_load(&prepare_background) || v->soft_next;',v)
+  self.assertIn('atomic_fetch_add(&v->frames, 1);',v)
+  p=(LIB/'prepare_downloads.py').read_text()
+  self.assertIn('self.lib.kodi_airplay_prepare_background(int(off))',p)
+  self.assertIn('_kodi_airplay_prepare_background',(ROOT/'migration/airplay-ios/build-airplay.sh').read_text())
+
+class StartNow(unittest.TestCase):
+ """Owner (build 178): a third choice, "Start converting now", that overrides the conversion running."""
+ def setUp(self):
+  import tempfile
+  self.tmp=tempfile.TemporaryDirectory();p=self.tmp.name
+  prep.save(p,{'jobs':{'a':{'source':{'id':'inc','name':'Inception.2010.mkv'},'status':'waiting'},
+                       'b':{'source':{'id':'int','name':'Interstellar.2014.mkv'},'status':'waiting'}},
+               'current':{'title':'Inception.2010.mkv','running':True}})
+ def tearDown(self):self.tmp.cleanup()
+ def test_only_start_now_or_keeping_the_running_one_stops_it(self):
+  p=self.tmp.name
+  self.assertEqual(prep.running_id(prep.load(p)),'inc')
+  prep.request(p,'next','int');self.assertFalse(prep.interrupts(p))   # Prepare next waits its turn
+  prep.request(p,'keep','int');self.assertFalse(prep.interrupts(p))   # keeping another one does not stop this one
+  prep.request(p,'now','int');self.assertTrue(prep.interrupts(p))
+ def test_keep_on_the_running_one_stops_it(self):
+  p=self.tmp.name;prep.request(p,'keep','inc');self.assertTrue(prep.interrupts(p))
+ def test_start_now_goes_first(self):
+  state=prep.load(self.tmp.name)
+  prep.apply_to(state,[{'action':'next','id':'inc'},{'action':'now','id':'int'}],5000)
+  self.assertGreater(state['jobs']['b']['priority'],state['jobs']['a']['priority'])
 
 if __name__=='__main__':unittest.main()

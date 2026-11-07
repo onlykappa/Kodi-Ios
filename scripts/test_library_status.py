@@ -94,7 +94,7 @@ class Rows(unittest.TestCase):
  def test_details_actions(self):
   by={r['id']:r for k in self.view['rows'].values() for r in k}
   actions=lambda n:[a for _,a in rows.details(by[n],self.view)['actions']]
-  self.assertEqual(actions('w1'),['next','keep']);self.assertEqual(actions('s1'),['next','keep'])
+  self.assertEqual(actions('w1'),['now','next','keep']);self.assertEqual(actions('s1'),['next','keep'])
   self.assertEqual(actions('f1'),['retry','keep']);self.assertEqual(actions('k2'),['prepare']);self.assertEqual(actions('k1'),[])
   # Build 177 (approved): a ready movie can be played from its sheet.
   self.assertEqual(actions('r1'),['play','tv']);self.assertEqual(rows.details(by['r1'],self.view)['tone'],'ok')
@@ -302,9 +302,10 @@ class TapEveryButton(unittest.TestCase):
   seen=[]
   sheet={}
   kodi=self.run_page([(library_page.WINDOW,tap_row('w1')),
-                      (library_page.ITEM,lambda w:sheet.update(dict(w.props))),(library_page.ITEM,tap(9201)),
+                      (library_page.ITEM,lambda w:sheet.update(dict(w.props))),(library_page.ITEM,tap(9202)),
                       (library_page.WINDOW,lambda w:seen.append(self.page_rows(w))),(library_page.WINDOW,tap(library_page.BACK))])
-  self.assertEqual((sheet['action1.label'],sheet['action2.label']),('Prepare next','Keep as it is'))
+  self.assertEqual((sheet['action1.label'],sheet['action2.label'],sheet['action3.label']),('Start converting now','Prepare next','Keep as it is'))
+  self.assertEqual((sheet['action2.colour'],sheet['action3.colour']),('FFFFFFFF','FFFF453A'))
   self.assertEqual(prep.pending_requests(self.profile),[{'action':'next','id':'w1'}])
   waiting=[r for r in seen[0] if r[1]=='waiting'];self.assertEqual(waiting[0][0],'w1');self.assertTrue(waiting[0][2].startswith('Next'))
   self.assertIn(('note','Prepare next: Fall (2022)'),kodi.notes)
@@ -313,7 +314,7 @@ class TapEveryButton(unittest.TestCase):
  def test_keep_moves_it_to_kept_and_prepare_after_all_brings_it_back(self):
   seen=[]
   snap=lambda w:seen.append({i:s for i,s,_ in self.page_rows(w)})
-  self.run_page([(library_page.WINDOW,tap(9103)),(library_page.WINDOW,tap_row('w2')),(library_page.ITEM,tap(9202)),(library_page.WINDOW,snap),
+  self.run_page([(library_page.WINDOW,tap(9103)),(library_page.WINDOW,tap_row('w2')),(library_page.ITEM,tap(9203)),(library_page.WINDOW,snap),
                  (library_page.WINDOW,tap_row('w2')),(library_page.ITEM,tap(9201)),(library_page.WINDOW,snap),
                  (library_page.WINDOW,tap(library_page.BACK))])
   self.assertEqual(seen[0]['w2'],'kept');self.assertEqual(seen[1]['w2'],'waiting')
@@ -331,7 +332,7 @@ class TapEveryButton(unittest.TestCase):
   self.assertEqual(sheets[0].props['action2.colour'],'FFFFFFFF')
   self.assertEqual(prep.pending_requests(self.profile),[])
  def test_action_with_preparation_off_asks_to_turn_it_on(self):
-  kodi=self.run_page([(library_page.WINDOW,tap_row('w1')),(library_page.ITEM,tap(9201)),(library_page.WINDOW,tap(library_page.BACK))],
+  kodi=self.run_page([(library_page.WINDOW,tap_row('w1')),(library_page.ITEM,tap(9202)),(library_page.WINDOW,tap(library_page.BACK))],
                      settings={'prepare_downloads':False},answer=True)
   self.assertTrue(kodi.settings['prepare_downloads']);self.assertEqual(prep.pending_requests(self.profile),[{'action':'next','id':'w1'}])
  def test_service_wakes_for_a_choice(self):

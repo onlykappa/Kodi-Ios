@@ -88,12 +88,11 @@ def run(args=()):
    for n in range(library_rows.FACTS):
     label,value=s['facts'][n] if n<len(s['facts']) else ('','')
     self.setProperty('fact%d.label'%n,label);self.setProperty('fact%d.value'%n,value)
-   for n in range(2):
+   for n in range(3):
     label,action=s['actions'][n] if n<len(s['actions']) else ('','')
     self.setProperty('action%d.label'%(n+1),label)
-   # "Keep as it is" stays red (it gives up on preparing); Play on TV is an ordinary button.
-   second=s['actions'][1][1] if len(s['actions'])>1 else ''
-   self.setProperty('action2.colour','FFFF453A' if second in ('keep','') else 'FFFFFFFF')
+    # "Keep as it is" stays red (it gives up on preparing); the others are ordinary buttons.
+    if n:self.setProperty('action%d.colour'%(n+1),'FFFF453A' if action in ('keep','') else 'FFFFFFFF')
    if s.get('card'):self.speed(s)
   def speed(self,s):
    import transfer_history
@@ -116,7 +115,7 @@ def run(args=()):
   def onAction(self,action):
    if action.getId() in BACK:self.finish()
   def onClick(self,control):
-   if control in (9201,9202) and len(self.sheet['actions'])>control-9201:
+   if control in (9201,9202,9203) and len(self.sheet['actions'])>control-9201:
     self.chosen=self.sheet['actions'][control-9201];self.finish()
    elif control in (9200,9099):self.finish()
   def finish(self):
@@ -217,6 +216,13 @@ def run(args=()):
    del sheet
    if chosen and chosen[1] in ('play','tv'):
     play(item['row'],chosen[1]=='tv');return
+   if chosen and chosen[1]=='now':
+    # Owner (build 178): start this one now, over the one converting (which starts over later: no resume yet).
+    state=prepare_downloads.load(profile);running=prepare_downloads.running_id(state)
+    if running and running!=str(item['row']['id']):
+     title=prepare_downloads.drivelibrary.display_title((state.get('current') or {}).get('title',''))
+     if not dialog.yesno('Start converting now','Start %s now? %s stops and starts again from the beginning later.'%(item['row']['title'],title),
+                         nolabel='Cancel',yeslabel='Start now'):return
    if chosen:
     label,action=chosen
     if not addon.getSettingBool('prepare_downloads'):

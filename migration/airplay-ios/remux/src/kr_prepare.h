@@ -14,7 +14,8 @@ int kodi_airplay_prepare_hdr(void);
 // r15: 1 keeps each Blu-ray picture subtitle (PGS) track in output.sub<track>.<language>[.forced].sup beside the MP4
 // instead of refusing the file; 0 (default) refuses it, so they are never silently dropped.
 void kodi_airplay_prepare_keep_image_subs(int on);
-void kodi_airplay_prepare_audio_languages(const char *list);   // r25: "en,eng" keeps the first audio + these
+void kodi_airplay_prepare_audio_languages(const char *list);
+void kodi_airplay_prepare_background(int on);   // r26: Kodi off screen: preparation decodes on the CPU   // r25: "en,eng" keeps the first audio + these
 // Writes output.partial then validates and atomically renames it to output. Input is never modified.
 // progress stages: 0 video, 1 audio, 2 packaging, 3 verification. Return 0 success, -2 paused, -1 failure.
 int kodi_airplay_prepare(const char *input, const char *output, kr_prepare_progress progress,

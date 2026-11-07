@@ -192,7 +192,7 @@ def details(row, view):
     elif state == 'waiting':
         sheet.update(status=row.get('sub', '').split(' · ')[0], quality=' · '.join(row.get('sub', '').split(' · ')[1:]),
                      facts=[f for f in (on_drive, folder) if f],
-                     actions=[('Prepare next', 'next'), ('Keep as it is', 'keep')])
+                     actions=[('Start converting now', 'now'), ('Prepare next', 'next'), ('Keep as it is', 'keep')])
     elif state == 'space':
         free = view.get('free') or 0
         sheet.update(status='Waiting for phone space', tone='warn',
