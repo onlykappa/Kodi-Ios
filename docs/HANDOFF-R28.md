@@ -60,7 +60,8 @@ r28: pinned in `migration/airplay-ios/source-lock.json` (sha 34b0d61b…, CI run
   (keep converting with 1 lane, no read-ahead, upload capped ~50%) — owner agreed to step 1 first.
 - Resume design: docs/RESUME-DESIGN.md (not started).
 
-## Build 185 (owner, build-184 log: AirPlay works; conversion slow and inconsistent for hours)
+## Build 185 — verified (IPA sha 4721fe31…, build.json 1e8cc12, airplay r29 unchanged, find_quicker / STALL / deck_picker AVOID inside). Owner testing
+(owner, build-184 log: AirPlay works; conversion slow and inconsistent for hours)
 - Diagnosis from the log: converter ~2.5-3x real time on screen; the Drive upload stalled (32 MB piece hung 120 s,
   timed out) and the converter waited on the 2-piece queue; Kodi start restarted Inception from 0; playback paused it;
   off screen the picture decodes on the CPU (iOS refuses VideoToolbox off screen).
