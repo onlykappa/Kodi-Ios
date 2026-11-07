@@ -180,11 +180,18 @@ class Download(unittest.TestCase):
   with self.assertRaisesRegex(RuntimeError,'size changed'):self.run_download(self.response(self.data+b'extra'))
 
 class Integration(unittest.TestCase):
+ def test_only_the_owners_choice_stops_a_conversion(self):
+  with tempfile.TemporaryDirectory() as p:
+   prep.request_check(p);self.assertFalse(prep.interrupts(p))           # a check waits for the conversion
+   prep.request(p,'retry','x');self.assertFalse(prep.interrupts(p))
+   prep.request(p,'next','y');self.assertFalse(prep.interrupts(p))      # build 179: Prepare next waits its turn
+   prep.request(p,'now','y');self.assertTrue(prep.interrupts(p))        # Start converting now does not
  def test_service_scans_on_boot_and_after_uploads_and_settings_enable_it(self):
   service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertIn('preparation.scan(can_prepare,force=bool(count))',service);self.assertIn('preparation.process_one(converting)',service)
-  # A requested check pauses the current conversion and brings the loop back within seconds.
-  self.assertIn('not prepare_downloads.check_requested(profile)',service);self.assertIn('if prepare_downloads.check_requested(profile) or prepare_downloads.pending_requests(profile):delay=5',service)
+  # A requested check no longer stops the running conversion (build-170 log); only Prepare next / Keep do.
+  self.assertIn('converting=lambda:can_prepare() and not prepare_downloads.interrupts(profile)',service)
+  self.assertNotIn('not prepare_downloads.check_requested(profile)',service);self.assertIn('if prepare_downloads.check_requested(profile) or prepare_downloads.pending_requests(profile):delay=5',service)
   import xml.etree.ElementTree as ET
   setting=ET.parse(ROOT/'migration/bundled-bootstrap/resources/settings.xml').find(".//setting[@id='prepare_downloads']")
   self.assertEqual(setting.findtext('default'),'true')
@@ -258,6 +265,7 @@ class OneCopyEach(unittest.TestCase):
 class LibraryCheck(unittest.TestCase):
  """Owner (build 156): no movies were being converted; add Settings › Library › Check library for conversion."""
  def setUp(self):
+  space=patch.object(prep.phone_space,'free',return_value=10**15);space.start();self.addCleanup(space.stop)
   self.tmp=tempfile.TemporaryDirectory();self.shelf=Shelf()
   self.queue=prep.Queue(self.tmp.name,self.shelf,Native(),clock=lambda:1000)
  def tearDown(self):self.tmp.cleanup()
@@ -350,6 +358,9 @@ class NeverRunsOutOfSpace(unittest.TestCase):
   self.assertEqual(len([n for n in self.notes if n[1]=='Video preparation paused']),1)
   self.assertIn('Small (2021)',self.notes[-1][2])
 
+def drive_stream_block():
+ import drive_stream;return drive_stream.BLOCK
+
 class StreamFromDrive(unittest.TestCase):
  """Owner (build 157): "my storage can't handle large scale downloads". KodiAirPlay r14 reads the Drive file through a
  loopback stream; the movie is never downloaded to the phone first."""
@@ -379,7 +390,45 @@ class StreamFromDrive(unittest.TestCase):
   url=self.stream.url('file-1');self.assertTrue(url.startswith('http://127.0.0.1:'))
   status,headers,body=self.get(url,'bytes=1000-1999')
   self.assertEqual((status,body),(206,self.DATA[1000:2000]));self.assertEqual(headers['Content-Range'],'bytes 1000-1999/%d'%len(self.DATA))
-  self.assertIn('/files/file-1?alt=media',self.seen[0][0]);self.assertEqual(self.seen[0][1:],('Bearer tok','bytes=1000-1999'))
+  self.assertIn('/files/file-1?alt=media',self.seen[0][0]);self.assertEqual(self.seen[0][1:],('Bearer tok','bytes=0-%d'%(drive_stream_block()-1)))
+ def test_tracks_share_one_read_of_drive(self):
+  """Build 175 log: Inception's video and two audio tracks each read the whole file from Drive, in 1 MiB requests
+  (37 s + 23 s + 23 s per 30 s of film). Readers of the same region now share one fetch per block."""
+  url=self.stream.url('file-1')
+  for rng in ('bytes=0-1048575','bytes=0-1048575','bytes=4096-8191','bytes=500000-'):
+   status,_,body=self.get(url,rng);a=int(rng[6:].split('-')[0]);b=rng.split('-')[1]
+   self.assertEqual(body,self.DATA[a:int(b)+1] if b else self.DATA[a:])
+  self.assertEqual(len(self.seen),1);self.assertEqual(self.stream.stats()['read_bytes'],len(self.DATA))
+  status,headers,_=self.get(url,'bytes=%d-'%(len(self.DATA)+5));self.assertEqual(status,416)
+  status,_,body=self.get(url,'bytes=-100');self.assertEqual((status,body),(206,self.DATA[-100:]))
+ def test_blocks_cross_and_the_next_one_comes_ahead(self):
+  import drive_stream,threading,time
+  big=bytes(range(256))*(3*drive_stream.BLOCK//256+1000);seen=[]
+  class Up:
+   def __init__(s,a,b):s.body=io.BytesIO(big[a:b+1]);s.status=206;s.headers={'Content-Range':'bytes %d-%d/%d'%(a,b,len(big))}
+   def read(s,n):return s.body.read(n)
+   def close(s):pass
+  def open_url(request,timeout):
+   a,b=request.get_header('Range')[6:].split('-');a,b=int(a),min(int(b),len(big)-1);seen.append(a);return Up(a,b)
+  stream=drive_stream.DriveStream(lambda:'t',open_url=open_url);self.addCleanup(stream.close)
+  url=stream.url('f');B=drive_stream.BLOCK
+  status,_,body=self.get(url,'bytes=%d-%d'%(B-10,B+9));self.assertEqual(body,big[B-10:B+10])
+  for _ in range(100):
+   if 3*B in seen:break
+   time.sleep(0.02)
+  # Blocks 2 and 3 (the last) were fetched ahead while block 1 was read; nothing past the end (build 182).
+  self.assertEqual(sorted(seen),[0,B,2*B,3*B])
+  stream.forget('f');self.assertEqual(len(stream.blocks.data),0)
+ def test_one_fetch_when_readers_ask_at_once(self):
+  import drive_stream,threading,time
+  calls=[]
+  def slow(item,a,b):calls.append(a);time.sleep(0.2);return b'x'*10,10
+  blocks=drive_stream._Blocks(slow);out=[]
+  ts=[threading.Thread(target=lambda:out.append(blocks.get('f',0))) for _ in range(3)]
+  [t.start() for t in ts];[t.join() for t in ts]
+  self.assertEqual((calls,out),([0],[b'x'*10]*3))
+  for n in range(drive_stream.KEEP+3):blocks.data[('g',n)]=b''
+  blocks.fetch=lambda item,a,b:(b'',1);blocks.get('h',0);self.assertLessEqual(len(blocks.data),drive_stream.KEEP)
  def test_whole_file_answers_200_with_its_length(self):
   status,headers,body=self.get(self.stream.url('file-1'))
   self.assertEqual((status,len(body),headers['Content-Length']),(200,len(self.DATA),str(len(self.DATA))));self.assertEqual(body,self.DATA)
@@ -389,6 +438,17 @@ class StreamFromDrive(unittest.TestCase):
   self.assertEqual(self.get(url.replace(self.stream.secret,'guess'))[0],404)
   self.stream.forget('file-1');self.assertEqual(self.get(url)[0],404);self.assertEqual(len(self.seen),0)
  def test_drive_errors_pass_through(self):self.assertEqual(self.get(self.stream.url('missing'))[0],404)
+ def test_transient_media_open_retries_without_a_partial_local_copy(self):
+  import urllib.error
+  original=self.stream.open_url;calls=[]
+  def flaky(request,timeout):
+   calls.append(timeout)
+   if len(calls)<3:raise urllib.error.URLError(TimeoutError())
+   return original(request,timeout)
+  self.stream.open_url=flaky
+  status,headers,body=self.get(self.stream.url('file-1'))
+  self.assertEqual(status,200);self.assertTrue(body);self.assertEqual(calls,[20,20,20])
+  self.assertEqual(self.stream.stats()['read_error'],'')
  def test_queue_streams_instead_of_downloading(self):
   class StreamingNative(Native):
    streams=True

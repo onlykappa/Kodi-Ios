@@ -154,7 +154,7 @@ class ApprovedDesign(unittest.TestCase):
  def test_pill_pause_tap_area_is_44_pt(self):
   taps=activity_skin.tap_controls(portrait,'Home.xml');self.assertIn('<width>118</width><height>118</height>',taps.split('id="9792"')[1])
  def test_close_not_done(self):
-  xml=activity_skin.sheet(portrait);self.assertNotIn('>Done<',xml);self.assertIn('xmark.png',xml.split('id="9600"')[0][-900:]+xml.split('id="9600"')[1][:200])
+  xml=activity_skin.sheet(portrait);self.assertNotIn('>Done<',xml);self.assertIn('close_cross.png',xml.split('id="9600"')[0][-900:]+xml.split('id="9600"')[1][:200])   # the shared close button (build 173)
  def test_ring_around_the_tile_in_pill_and_sheet(self):
   for root in (self.pill,self.sheet):
    textures=[t.text for t in root.iter('texture')]

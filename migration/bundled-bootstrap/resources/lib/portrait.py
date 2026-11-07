@@ -22,6 +22,12 @@ _spec=_iu.spec_from_file_location('library_page',os.path.join(os.path.dirname(os
 library_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_page)
 _spec=_iu.spec_from_file_location('notice_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'notice_page.py'))
 notice_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(notice_page)
+_spec=_iu.spec_from_file_location('transfers_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'transfers_page.py'))
+transfers_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(transfers_page)
+_spec=_iu.spec_from_file_location('library_tools_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_tools_page.py'))
+library_tools_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_tools_page)
+_spec=_iu.spec_from_file_location('rows_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'rows_page.py'))
+rows_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(rows_page)
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -154,8 +160,81 @@ def ring(size,stroke):
   return (255,255,255,int(255*max(outer-inner,0)*(0 if 230<angle<320 else 1)))
  return png(size,size,pixel)
 
+def shape(size,inside,samples=4):
+ """Anti-aliased white glyph: inside(u,v) on a 24x24 design grid (the mockups' SVG viewBox), supersampled."""
+ k=24/size;n=samples*samples
+ def pixel(x,y):
+  hits=sum(1 for i in range(samples) for j in range(samples) if inside((x+(i+.5)/samples)*k,(y+(j+.5)/samples)*k))
+  return (255,255,255,int(255*hits/n))
+ return png(size,size,pixel)
+
+ROUND=0.9   # corner radius of the gear's teeth on the 24 grid
+def gear_outline(teeth=8,tip=10.4,root=8.1,tip_half=10,base_half=17,steps=6):
+ """Header gear (owner-approved, round 5, then "cleaned up"): tapered teeth with rounded tips and curved gaps
+ around a centred hole, like SF Symbols' gearshape.fill. The polygon is drawn ROUND inside the final edge; the
+ rounding (a ROUND-wide margin, round joins) brings it back out. Shared with header-buttons-mockups.html."""
+ import math
+ pts=[];t_r=tip-ROUND;b_r=root-ROUND
+ at=lambda r,deg:(12+r*math.sin(math.radians(deg)),12-r*math.cos(math.radians(deg)))
+ step=360/teeth
+ for i in range(teeth):
+  c=i*step
+  pts+=[at(b_r,c-base_half),at(t_r,c-tip_half),at(t_r,c+tip_half),at(b_r,c+base_half)]
+  pts+=[at(b_r,c+base_half+(step-2*base_half)*k/steps) for k in range(1,steps)]
+ return pts
+GEAR=gear_outline();GEAR_HOLE=3.7
+def gear_inside(u,v,pts=GEAR):
+ import math
+ r=math.hypot(u-12,v-12)
+ if r<GEAR_HOLE:return False
+ # Only the band of the teeth needs the polygon test (tests drew the texture slowly: 268 s for test_portrait).
+ if pts is GEAR and r<8.1-ROUND-0.05:return True
+ if pts is GEAR and r>10.4+0.05:return False
+ inside=False;near=False;n=len(pts)
+ for i in range(n):
+  (x1,y1),(x2,y2)=pts[i],pts[(i+1)%n]
+  if (y1>v)!=(y2>v) and u<x1+(v-y1)*(x2-x1)/(y2-y1):inside=not inside
+  dx,dy=x2-x1,y2-y1;t=max(0,min(1,((u-x1)*dx+(v-y1)*dy)/(dx*dx+dy*dy)))
+  if math.hypot(u-x1-t*dx,v-y1-t*dy)<=ROUND:near=True
+ return inside or near
+def gear_svg():
+ """The same gear as an SVG symbol body for the mockups (fill plus a round-joined stroke of 2 x ROUND)."""
+ d='M'+' L'.join('%.2f %.2f'%pt for pt in GEAR)+'Z'
+ h=GEAR_HOLE+ROUND
+ return ('<path d="%s M12 %.2f a%.2f %.2f 0 1 0 0.01 0Z" fill="currentColor" fill-rule="evenodd" stroke="currentColor" '
+         'stroke-width="%.1f" stroke-linejoin="round"/>')%(d,12-h,h,h,2*ROUND)
+
+def refresh_inside(u,v):
+ """arrow.clockwise: an open circle (r 7.7, stroke 2.4) with its arrowhead at the top right."""
+ import math
+ dx,dy=u-11.9,v-12.4;r=math.hypot(dx,dy);a=math.degrees(math.atan2(dy,dx))%360
+ if abs(r-7.7)<=1.2 and not (a>318 or a<6):return True
+ def seg(ax,ay,bx,by):
+  px,py=bx-ax,by-ay;t=max(0,min(1,((u-ax)*px+(v-ay)*py)/(px*px+py*py)))
+  return math.hypot(u-ax-t*px,v-ay-t*py)<=1.2
+ return seg(18.6,2.8,18.6,7.4) or seg(18.6,7.4,14.0,7.4)
+
+def arc(size,stroke,degrees):
+ """Thin open ring for the busy bell (round 5): degrees of arc, round ends, spun by the skin."""
+ import math
+ c=size/2;rr=c-stroke/2-1
+ def inside(u,v):
+  x,y=u*size/24,v*size/24;dx,dy=x-c,y-c;r=math.hypot(dx,dy);a=math.degrees(math.atan2(dy,dx))%360
+  if abs(r-rr)<=stroke/2 and a<=degrees:return True
+  for e in (0,degrees):
+   ex,ey=c+rr*math.cos(math.radians(e)),c+rr*math.sin(math.radians(e))
+   if math.hypot(x-ex,y-ey)<=stroke/2:return True
+  return False
+ return shape(size,inside,3)
+
+_GLYPHS={}
+def header_glyphs():
+ """The round-5 header textures, drawn once per process (supersampled, so not cheap)."""
+ if not _GLYPHS:_GLYPHS.update({'ring_arc.png':arc(132,5,150),'hdr_gear.png':shape(96,gear_inside),'hdr_refresh.png':shape(96,refresh_inside)})
+ return _GLYPHS
+
 def textures():
- return {'round.png':rounded(96,96,32),'round_s.png':rounded(64,64,26),'glass_card.png':glass(160,44,(44,44,46,245),(255,255,255,26)),
+ return {**header_glyphs(),'round.png':rounded(96,96,32),'round_s.png':rounded(64,64,26),'glass_card.png':glass(160,44,(44,44,46,245),(255,255,255,26)),
          'fade_down.png':fade(lambda t:(1-t)**1.6*0.85),'fade_up.png':fade(lambda t:t**1.5),
          'hero_fade.png':fade(lambda t:0 if t<0.3 else ((t-0.3)/0.7)**1.25),
          'poster_mask.png':rounded(POSTER[0],POSTER[1],RADIUS),'card_mask.png':rounded(CARD[0],CARD[1],RADIUS),
@@ -182,6 +261,32 @@ def image(x,y,w,h,texture,color=WHITE,extra='',aspect='',diffuse='',border='',ba
          '<texture%s%s%s colordiffuse="%s">%s</texture>%s</control>')%(
   x,y,w,h,('<aspectratio%s</aspectratio>'%aspect) if aspect else '',
   ' background="true"' if background else '',' diffuse="%s"'%diffuse if diffuse else '',' border="%s"'%border if border else '',color,texture,extra)
+def close_cross():
+ # SF-style rounded X, without the large transparent margins of the icon-pack glyph.
+ import math
+ def distance(x,y,ax,ay,bx,by):
+  t=max(0,min(1,((x-ax)*(bx-ax)+(y-ay)*(by-ay))/((bx-ax)**2+(by-ay)**2)))
+  return math.hypot(x-ax-t*(bx-ax),y-ay-t*(by-ay))
+ # 128 px with ends at 18..110 (owner: "cleaner larger x"), so it stays sharp at any button size.
+ return png(128,128,lambda x,y:(255,255,255,int(255*max(0,min(1,7.5-min(distance(x+.5,y+.5,18,18,110,110),distance(x+.5,y+.5,18,110,110,18)))))))
+
+def close_disc():
+ """A smooth 128 px circle for close buttons (dot.png is 24 px and its edge went soft when scaled up)."""
+ return png(128,128,lambda x,y:(255,255,255,int(255*coverage(x,y,128,128,64))))
+
+CLOSE_DISC=104;CLOSE_GLYPH=52
+def close_button(id,x,y,extra='',navigation='',size=118):
+ """The one close (×) button of every sheet (owner, build 173: "cleaner larger x and cleaner circle"): a `size`
+ touch area, a smooth CLOSE_DISC circle and a CLOSE_GLYPH cross centred in it; the circle brightens while focused."""
+ d=(size-CLOSE_DISC)//2;g=(size-CLOSE_GLYPH)//2
+ return ('<control type="group"><left>%s</left><top>%s</top><width>%d</width><height>%d</height>%s'%(x,y,size,size,extra)+
+  image(d,d,CLOSE_DISC,CLOSE_DISC,MEDIA+'close_disc.png','2EFFFFFF')+
+  image(d,d,CLOSE_DISC,CLOSE_DISC,MEDIA+'close_disc.png','24FFFFFF','<visible>Control.HasFocus(%d)</visible>'%id)+
+  image(g,g,CLOSE_GLYPH,CLOSE_GLYPH,MEDIA+'close_cross.png',WHITE)+
+  '<control type="button" id="%d"><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus />%s</control>'%(id,size,size,navigation)+
+  '</control>')
+
+
 def icon(x,y,size,name,color=WHITE,extra=''):return image(x,y,size,size,name if ('://' in name or name.startswith('$')) else ICONS+name,color,extra,'>keep')
 def label(x,y,w,h,text,font,color=WHITE,align='left',extra=''):
  return ('<control type="label"><left>%s</left><top>%s</top><width>%s</width><height>%s</height><font>%s</font>'
@@ -220,17 +325,61 @@ def nav_button(id,x,y,glyph,actions,extra='',visible=''):
   icon(c-NAV_GLYPH//2,c-NAV_GLYPH//2,NAV_GLYPH,glyph,WHITE,dim)+'</control>')
 
 NOTICES='RunScript(service.kodi.ios.bootstrap,notifications)'
+SETTINGS='ActivateWindow(settings)'
+HDR=108;HDR_GAP=24;HDR_GLYPH=46   # header buttons (owner-approved round 5, option A): 40 pt glass circles; button glyphs 46 (APPLE-UI-POLICY §5.5)
+def header_button(id,x,y,glyph,action,extra=''):
+ """Glass header circle with a centred glyph (bell, gear, refresh); glyph is an icons/ name or a full path."""
+ off=(HDR-HDR_GLYPH)//2
+ return pill_button(id,x,y,HDR,HDR,'',[('',action)],'glass','',extra)[:-len('</control>')]+icon(off,off,HDR_GLYPH,glyph)+'</control>'
 def bell(x,y,extra=''):
- """Bell beside the profile circle: red count of unread messages, blue ring while a download runs
+ """Bell: red count of unread messages, a thin blue arc turning around it while something runs
  (the bootstrap service keeps Notices.Unread and Notices.Active on the Home window)."""
  unread='Window(Home).Property(Notices.Unread)'
  return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+
-  image(-12,-12,132,132,MEDIA+'ring.png',ACCENT,'<visible>!String.IsEmpty(Window(Home).Property(Notices.Active))</visible>'
-   '<animation effect="rotate" end="-360" center="auto" time="1600" loop="true" reversible="false" condition="true">Conditional</animation>')+
-  circle_button(9207,0,0,108,'bell.png',NOTICES,extra)+
-  '<control type="group"><left>62</left><top>-10</top><visible>!String.IsEmpty(%s) + !String.IsEqual(%s,0)</visible>'%(unread,unread)+
-  image(0,0,60,60,MEDIA+'dot.png','FF000000')+image(5,5,50,50,MEDIA+'dot.png','FFFF453A')+
-  label(5,5,50,50,'$INFO[%s]'%unread,'p_foot_b',WHITE,'center','<aligny>center</aligny>')+'</control></control>')
+  image(-12,-12,132,132,MEDIA+'ring_arc.png',ACCENT,'<visible>!String.IsEmpty(Window(Home).Property(Notices.Active))</visible>'
+   '<animation effect="rotate" end="-360" center="auto" time="1200" loop="true" reversible="false" condition="true">Conditional</animation>')+
+  header_button(9207,0,0,'bell.png',NOTICES,extra)+
+  '<control type="group"><left>66</left><top>-8</top><visible>!String.IsEmpty(%s) + !String.IsEqual(%s,0)</visible>'%(unread,unread)+
+  image(0,0,56,56,MEDIA+'dot.png','FF000000')+image(4,4,48,48,MEDIA+'dot.png','FFFF453A')+
+  label(4,4,48,48,'$INFO[%s]'%unread,'p_foot_b',WHITE,'center','<aligny>center</aligny>')+'</control></control>')
+
+def gear(x,y,extra=''):
+ """Gear in place of the profile picture: opens Settings (Accounts is its first row). A dot while add-on updates wait."""
+ updates='!String.IsEmpty(System.AddonUpdateCount) + !String.IsEqual(System.AddonUpdateCount,0)'
+ return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+
+  header_button(9206,0,0,MEDIA+'hdr_gear.png',SETTINGS,extra)+
+  '<control type="group"><left>78</left><top>-4</top><visible>%s</visible>'%updates+
+  image(0,0,36,36,MEDIA+'dot.png','FF000000')+image(4,4,28,28,MEDIA+'dot.png','FFFF453A')+'</control></control>')
+
+REFRESHING='Window(Home).Property(Portrait.Refreshing)'
+def refresh_rows_action(tab):return 'RunScript(service.kodi.ios.bootstrap,refresh_rows,tab=%s)'%tab
+def refresh_button(x,y,tab,extra=''):
+ """Refresh on Home, Movies and TV: every TMDb Helper row and the hero show the next page of their list
+ (refresh_rows.py). The arrow spins while the rows load, then a tick for a moment."""
+ busy='String.IsEqual(%s,%s)'%(REFRESHING,tab);done='String.IsEqual(%s,done.%s)'%(REFRESHING,tab)
+ off=(HDR-HDR_GLYPH)//2
+ return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+
+  pill_button(9208,0,0,HDR,HDR,'',[('!'+busy,refresh_rows_action(tab))],'glass','',extra)+
+  '<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><visible>!%s</visible>'%(off,off,HDR_GLYPH,HDR_GLYPH,done)+
+  '<animation effect="rotate" end="-360" center="auto" time="900" loop="true" reversible="false" condition="%s">Conditional</animation>'%busy+
+  icon(0,0,HDR_GLYPH,MEDIA+'hdr_refresh.png')+'</control>'+
+  icon(off,off,HDR_GLYPH,'circle-check.png',GREEN,'<visible>%s</visible>'%done)+'</control>')
+
+def refreshed_toast(tab,title):
+ """'New picks on Home': under the header for a moment after a refresh."""
+ done='String.IsEqual(%s,done.%s)'%(REFRESHING,tab);w=560;h=96
+ return ('<control type="group"><left>%d</left><top>184</top><width>%d</width><height>%d</height><visible>%s</visible>'%((WIDTH-w)//2,w,h,done)+
+  '<animation effect="fade" time="180">VisibleChange</animation><animation effect="slide" start="0,-30" end="0,0" time="220" tween="cubic" easing="out">Visible</animation>'+
+  surface(0,0,w,h,'glass_96.png',WHITE,48)+icon(40,(h-44)//2,44,'circle-check.png',GREEN)+
+  label(100,0,w-130,h,'New picks on %s'%title,'p_foot_b',WHITE,'left')+'</control>')
+
+def header_buttons(y,tab=None,down=''):
+ """Right side of a large-title header: [refresh] bell gear, with left/right moves between them."""
+ gx=WIDTH-SIDE-HDR;bx=gx-HDR_GAP-HDR;rx=bx-HDR_GAP-HDR
+ xml=bell(bx,y,down+'<onright>9206</onright>'+('<onleft>9208</onleft>' if tab else ''))+gear(gx,y,down+'<onleft>9207</onleft>')
+ if tab:xml=refresh_button(rx,y,tab,down+'<onright>9207</onright>')+xml
+ return xml
+def header_width(tab=None):return WIDTH-2*SIDE-(3 if tab else 2)*(HDR+HDR_GAP)
 
 def window(original,body,default,extra_root=''):
  # Pages with the tab bar forget the title of the last category or library page.
@@ -290,6 +439,8 @@ def tabbar(active):
 def usable(widget):
  path=str(widget.get('path') or '')
  if not path or path.startswith(('RunScript(','ActivateWindow(','library://','$','${')):return False
+ # Turned off in Settings › Customisation › Tabs & Rows (rows_editor.set_on): keeps its place, not shown.
+ if str(widget.get('disabled') or '').lower() in ('true','1'):return False
  # An add-on's root folder is a menu, not a row of titles.
  if path.startswith('plugin://') and '?' not in path:return False
  return True
@@ -303,13 +454,53 @@ def load_widgets(profile,lists):
   rows+=[w for w in data if isinstance(w,dict) and usable(w)]
  return rows
 
+# Poster Badges (Settings › Customisation › Poster Badges): Fuse's own indicator settings, drawn on our posters and
+# episode rows. One badge at the top right (the first that applies: watched, Trakt watchlist, Trakt favourite,
+# collection, in the library), episodes left at the top left, the progress bar and the movie's version along the bottom.
+BADGE={'watched':'!Skin.HasSetting(Indicator.DisableWatched) + [ListItem.IsPlayed | String.IsEqual(ListItem.Overlay,OverlayWatched.png)]',
+ 'watchlist':'Skin.HasSetting(Indicator.TraktWatchlist) + !String.IsEmpty(ListItem.Property(watchlist_rank))',
+ 'favourite':'Skin.HasSetting(Indicator.TraktFavourites) + !String.IsEmpty(ListItem.Property(favorites_rank))',
+ 'collection':'!Skin.HasSetting(Indicator.DisableCollection) + ListItem.IsCollection',
+ 'library':'!Skin.HasSetting(Indicator.DisableLibrary) + !String.IsEmpty(ListItem.DBID) + !String.IsEmpty(ListItem.Property(Item.Info))',
+ 'episodes':'!Skin.HasSetting(Indicator.DisableEpisodes) + String.IsEqual(ListItem.DBType,tvshow) + !String.IsEmpty(ListItem.Property(UnWatchedEpisodes))'
+            ' + !Integer.IsEqual(ListItem.Property(UnWatchedEpisodes),0) + [!Integer.IsEqual(ListItem.Property(WatchedEpisodes),0) | Skin.HasSetting(Indicator.EnableUnwatchedCount)]',
+ 'progress':'!Skin.HasSetting(Indicator.DisableProgress) + !ListItem.IsCollection + ListItem.IsResumable',
+ 'version':'Skin.HasSetting(Indicator.MovieVersionBanner) + String.IsEqual(ListItem.DBType,movie) + ListItem.HasVideoVersions + !String.IsEmpty(ListItem.VideoVersionName)',
+ 'episode_type':'Skin.HasSetting(Indicator.EpisodeTypeBanner) + !String.IsEmpty(ListItem.Property(episode_type))'}
+CORNER=(('watched','circle-check.png',GREEN),('watchlist','bookmark.png','FFED1C24'),('favourite','heart.png','FFED1C24'),
+        ('collection','layer-group.png',WHITE),('library','hard-drive.png',WHITE))
+EPISODE_TYPES=(('series_premiere','Series Premiere'),('season_premiere','Season Premiere'),('mid_season_premiere','Mid-season Premiere'),
+               ('series_finale','Series Finale'),('season_finale','Season Finale'),('mid_season_finale','Mid-season Finale'))
+def progress_bar(x,y,w,info='ListItem.PercentPlayed',visible=''):
+ return ('<control type="progress"><left>%d</left><top>%d</top><width>%d</width><height>10</height><info>%s</info>%s'
+  '<texturebg border="5" colordiffuse="59FFFFFF">%spill_96.png</texturebg><midtexture border="5" colordiffuse="FFFFFFFF">%spill_96.png</midtexture>'
+  '<lefttexture /><righttexture /><overlaytexture /></control>')%(x,y,w,info,'<visible>%s</visible>'%visible if visible else '',MEDIA,MEDIA)
+def poster_badges(w,h):
+ xml='';shown=[]
+ for key,glyph,color in CORNER:
+  cond=' + '.join(['[%s]'%BADGE[key]]+['![%s]'%BADGE[k] for k in shown]);shown.append(key)
+  xml+=('<control type="group"><left>%d</left><top>14</top><visible>%s</visible>'%(w-70,cond)+
+        image(0,0,56,56,MEDIA+'avatar_s.png','B3000000')+icon(10,10,36,glyph,color)+'</control>')
+ xml+=('<control type="group"><left>14</left><top>14</top><visible>%s</visible>'%BADGE['episodes']+
+       image(0,0,72,56,MEDIA+'pill_56.png','E60A84FF',border=28)+label(0,0,72,56,'$INFO[ListItem.Property(UnWatchedEpisodes)]','p_foot_b',WHITE,'center')+'</control>')
+ xml+=image(0,h-110,w,110,MEDIA+'fade_up.png','B3FFFFFF',diffuse=MEDIA+'poster_mask.png',extra='<visible>[%s] | [%s]</visible>'%(BADGE['progress'],BADGE['version']))
+ xml+=label(20,h-84,w-40,44,'$INFO[ListItem.VideoVersionName]','p_cap',WHITE,'left','<visible>%s</visible>'%BADGE['version'])
+ xml+=progress_bar(20,h-30,w-40,visible=BADGE['progress'])
+ return xml
+def episode_badges(x,y,w,h):
+ types=''.join(label(20,14,w-40,44,'[B]%s[/B]'%text,'p_cap',WHITE,'left','<visible>String.IsEqual(ListItem.Property(episode_type),%s)</visible>'%key) for key,text in EPISODE_TYPES)
+ return ('<control type="group"><left>%d</left><top>%d</top>'%(x,y)+
+  '<control type="group"><visible>%s</visible>%s</control>'%(BADGE['episode_type'],types)+
+  '<control type="group"><left>%d</left><top>14</top><visible>%s</visible>'%(w-70,BADGE['watched'])+image(0,0,56,56,MEDIA+'avatar_s.png','B3000000')+icon(10,10,36,'circle-check.png',GREEN)+'</control>'+
+  progress_bar(20,h-30,w-40,visible='!Skin.HasSetting(Indicator.DisableProgress) + ListItem.IsResumable')+'</control>')
+
 def poster_item(focused):
  w,h=POSTER
  zoom='<animation effect="zoom" start="100" end="104" time="160" center="auto" tween="cubic" easing="out">Focus</animation>' if focused else ''
  return ('<control type="group"><left>%d</left><top>14</top>%s'%(SIDE,zoom)+
   image(0,0,w,h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
   label(20,h-170,w-40,150,'$INFO[ListItem.Label]','p_foot_b',WHITE,'left','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(poster))</visible>')+
-  image(0,0,w,h,'$INFO[ListItem.Art(poster)]',WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+'</control>')
+  image(0,0,w,h,'$INFO[ListItem.Art(poster)]',WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+poster_badges(w,h)+'</control>')
 
 CARD_NO_ART='String.IsEmpty(ListItem.Art(landscape)) + String.IsEmpty(ListItem.Art(fanart)) + String.IsEmpty(ListItem.Art(thumb))'
 
@@ -343,18 +534,43 @@ WATCH_ON='System.AddonIsEnabled(plugin.video.kodi.ios.watch)'
 def cache_key(path):return 'r'+hashlib.sha1(str(path).encode('utf-8')).hexdigest()[:15]
 def spotlight_path(spotlight):return 'Skin.String(HomeSwitcher.%s.Spotlight.Path)'%spotlight
 
-def cached_content(name,path,variables,spotlight=None):
+# Refresh on Home, Movies and TV (round 5): each tab has a page number, Skin.String(Portrait.Page.<tab>), empty for
+# the first page. Its TMDb Helper rows and hero load that page (TMDb Helper's own `page` parameter); Continue Watching,
+# Up Next and library rows never change. refresh_rows.py moves it on; copies keep their key without the page.
+PAGE_STRING='Portrait.Page.%s'
+PAGES=5   # then back to the first page
+PAGED=re.compile(r'[&?]page=\d+$')
+def page_of(tab):return 'Skin.String(%s)'%(PAGE_STRING%tab)
+def unpaged(path):return PAGED.sub('',str(path or ''))
+def paged(path,page):
+ """path showing that page of its list (TMDb Helper only; page 1 or none: the plain path)."""
+ path=unpaged(path)
+ if not str(page or '').isdigit() or int(page)<=1 or not path.startswith(CACHEABLE):return path
+ return '%s%spage=%d'%(path,'&' if '?' in path else '?',int(page))
+def next_page(current):
+ """The page the refresh button shows next: 2, 3 ... PAGES, then the first again."""
+ n=int(current) if str(current or '').isdigit() else 1
+ return 1 if n>=PAGES else n+1
+
+def cached_content(name,path,variables,spotlight=None,tab=None):
  """Container content for a hub row (path) or hero (spotlight id): a variable in Includes.xml choosing the cached
- route when its flag is on, else the live path. Other rows (Continue Watching, library) keep their path as is."""
+ route when its flag is on, else the live path (at the tab's page, when the refresh button moved it on). Other rows
+ (Continue Watching, library) keep their path as is."""
  if variables is None or (spotlight is None and not str(path).startswith(CACHEABLE)):return e(path)
  if spotlight is None:
   key=cache_key(path);on='Skin.HasSetting(%s%s)'%(CACHE_FLAG,key)
+  tmdb=''
  else:
   # The flag holds the path the copy was made from: a spotlight changed in the skin settings goes live at once.
   key='hero.'+str(spotlight).lower();flag='Skin.String(%s%s)'%(CACHE_FLAG,key)
   on='!String.IsEmpty(%s) + String.IsEqual(%s,%s)'%(flag,flag,spotlight_path(spotlight))
- variables[name]='<variable name="%s"><value condition="%s + %s">%s</value><value>%s</value></variable>'%(
-  name,e(on),WATCH_ON,e(CACHE_ROUTE+key),e(path))
+  tmdb=' + String.StartsWith(%s,%s)'%(spotlight_path(spotlight),CACHEABLE[0])
+ page=''
+ if tab:
+  # Another page while its copy is being made: the live list at that page.
+  page='<value condition="%s">%s</value>'%(e('!String.IsEmpty(%s)%s'%(page_of(tab),tmdb)),e('%s&page=$INFO[%s]'%(path,page_of(tab))))
+ variables[name]='<variable name="%s"><value condition="%s + %s">%s</value>%s<value>%s</value></variable>'%(
+  name,e(on),WATCH_ON,e(CACHE_ROUTE+key),page,e(path))
  return '$VAR[%s]'%name
 
 def row(index,widget,last,tab='home',variables=None):
@@ -370,7 +586,7 @@ def row(index,widget,last,tab='home',variables=None):
    '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
    '<content target="%s">%s</content></control>'
    )%(id,WIDTH,h,'<ondown>9201</ondown>' if last else '',visible,w+GAP,h,item(False),w+GAP,h,item(True),
-      e(widget.get('target') or 'videos'),cached_content('Portrait_Cache_Row_%s_%d'%(tab,index),widget['path'],variables)))
+      e(widget.get('target') or 'videos'),cached_content('Portrait_Cache_Row_%s_%d'%(tab,index),widget['path'],variables,tab=tab)))
 
 def hero(spotlight,title,tab='home',variables=None):
  """Full-bleed hero: the hub's spotlight titles (swipe sideways), logo, genre line, Play and Info, page dots."""
@@ -395,11 +611,10 @@ def hero(spotlight,title,tab='home',variables=None):
   '<control type="grouplist"><left>0</left><top>%d</top><width>%d</width><height>20</height><orientation>horizontal</orientation><align>center</align><itemgap>0</itemgap>%s</control>'
   '</control>'
   )%(WIDTH,HERO,WIDTH,HERO,WIDTH,HERO,art,WIDTH,HERO,art,
-     cached_content('Portrait_Cache_Hero_%s'%tab,'$INFO[%s]'%spotlight_path(spotlight),variables,spotlight),
+     cached_content('Portrait_Cache_Hero_%s'%tab,'$INFO[%s]'%spotlight_path(spotlight),variables,spotlight,tab),
      image(0,0,WIDTH,HERO,MEDIA+'hero_fade.png'),image(0,0,WIDTH,420,MEDIA+'fade_down.png'),
-     label(SIDE,40,WIDTH-2*SIDE-270,120,title,'p_large'),
-     bell(WIDTH-SIDE-240,46,'<ondown>4000</ondown><onright>9206</onright>')+
-     circle_button(9206,WIDTH-SIDE-108,46,108,'circle-user.png','ActivateWindow(1170)','<ondown>4000</ondown><onleft>9207</onleft>'),
+     label(SIDE,40,header_width(tab),120,title,'p_large'),
+     header_buttons(46,tab,'<ondown>4000</ondown>')+refreshed_toast(tab,title),
      HERO-560,WIDTH-240,info,
      label(SIDE,HERO-560,WIDTH-2*SIDE,250,'$INFO[%s.Label]'%info,'p_title',WHITE,'center','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(%s.Art(clearlogo))</visible>'%info),
      label(SIDE,HERO-296,WIDTH-2*SIDE,56,meta,'p_foot',GREY,'center'),
@@ -418,7 +633,7 @@ def in_progress(widget):
 
 SHIFTED=re.compile(r'(?<=id=")(\d+)(?=")|(?<=>)(\d+)(?=<)|(?<=\()(\d+)(?=[,)])')
 def shift(xml,offset):
- """Move one hub's control ids (4000s hero, 5000s rows, 9200s tab bar, 9206/9207 header) out of the others' way."""
+ """Move one hub's control ids (4000s hero, 5000s rows, 9200s tab bar, 9206-9208 header) out of the others' way."""
  def move(m):
   n=int(m.group(0))
   return str(n+offset) if offset and (4000<=n<4200 or 5000<=n<6000 or 9200<=n<9210) else m.group(0)
@@ -453,9 +668,8 @@ def forward_window(original,tab):
                '<onload>SetProperty(%s,%s,home)</onload><onload>ReplaceWindow(Home)</onload>'%(TAB_PROPERTY,tab))
 
 def page_header(title):
- """Large title on black with the profile circle (More), as on the Apple TV app's Library and Search."""
- return (label(SIDE,40,WIDTH-2*SIDE-270,120,title,'p_large')+bell(WIDTH-SIDE-240,46)+
-         circle_button(9206,WIDTH-SIDE-108,46,108,'circle-user.png','ActivateWindow(1170)'))
+ """Large title on black with the bell and gear (Settings), as on the Apple TV app's Library and Search."""
+ return label(SIDE,40,header_width(),120,title,'p_large')+header_buttons(46)
 
 def clicks(actions):return ''.join('<onclick>%s</onclick>'%e(a) for a in actions.split('\x00'))
 
@@ -653,6 +867,7 @@ def episode_item(focused):
  return ('<control type="group"><visible>String.IsEqual(ListItem.DBType,episode)</visible>'+bg+image(SIDE,18,thumb_w,thumb_h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'thumb_mask.png')+
   image(SIDE,18,thumb_w,thumb_h,'$VAR[Portrait_Thumb]',WHITE,'','>scale',MEDIA+'thumb_mask.png',background=True)+
   image(SIDE+thumb_w//2-48,18+thumb_h//2-48,96,96,MEDIA+'glass_96.png')+icon(SIDE+thumb_w//2-18,18+thumb_h//2-20,40,MEDIA+'play.png')+
+  episode_badges(SIDE,18,thumb_w,thumb_h)+
   label(SIDE+thumb_w+30,40,WIDTH-2*SIDE-thumb_w-30,110,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_h3',WHITE,'left','<wrapmultiline>true</wrapmultiline>')+
   label(SIDE+thumb_w+30,154,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]','p_cap',GREY)+
   label(SIDE,thumb_h+40,WIDTH-2*SIDE,56,'$INFO[ListItem.Plot]','p_cap',GREY,'left','<scroll>false</scroll>')+'</control>')
@@ -693,19 +908,27 @@ def video_nav(original):
  return window(original,body,'50','<views>50,51,52,53</views>')
 
 GRID='Container.Content(movies) | Container.Content(tvshows)'
+GRID_LARGE='String.IsEqual(Skin.String(Portrait.Grid),large)'   # Settings › Customisation › View Types
 def grid():
- """Movies and shows (Library, categories, search results): a three-column poster grid."""
- cols=3;gap=24;w=(WIDTH-2*SIDE-(cols-1)*gap)//cols;h=w*3//2;left=(WIDTH-cols*w-(cols-1)*gap)//2
- item=lambda focused:('<control type="group"><left>0</left><top>0</top>%s'%('<animation effect="zoom" start="100" end="104" time="160" center="auto">Focus</animation>' if focused else '')+
-  image(0,0,w,h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
-  label(20,h-170,w-40,150,'$INFO[ListItem.Label]','p_foot_b',WHITE,'left','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(poster))</visible>')+
-  image(0,0,w,h,'$INFO[ListItem.Art(poster)]',WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+
-  image(w-58,14,44,44,ICONS+'circle-check.png',GREEN,'<visible>ListItem.IsPlayed</visible>')+'</control>')
+ """Movies and shows (Library, categories, search results): a poster grid, three across (or two, View Types)."""
+ gap=24
+ def size(cols):
+  w=(WIDTH-2*SIDE-(cols-1)*gap)//cols;return w,w*3//2
+ def item(focused,w,h):
+  return ('<control type="group"><left>0</left><top>0</top>%s'%('<animation effect="zoom" start="100" end="104" time="160" center="auto">Focus</animation>' if focused else '')+
+   image(0,0,w,h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
+   label(20,h-170,w-40,150,'$INFO[ListItem.Label]','p_foot_b',WHITE,'left','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(poster))</visible>')+
+   image(0,0,w,h,'$INFO[ListItem.Art(poster)]',WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+
+   poster_badges(w,h)+'</control>')
+ (w3,h3),(w2,h2)=size(3),size(2);left=SIDE
+ layouts=''
+ for cond,(w,h) in (('',(w3,h3)),(GRID_LARGE,(w2,h2))):
+  c=' condition="%s"'%cond if cond else ''
+  layouts+=('<itemlayout width="%d" height="%d"%s>%s</itemlayout><focusedlayout width="%d" height="%d"%s>%s</focusedlayout>'
+            %(w+gap,h+gap,c,item(False,w,h),w+gap,h+gap,c,item(True,w,h)))
  return (label(SIDE,180,WIDTH-2*SIDE,110,'$VAR[Portrait_Page_Title]','p_title',WHITE,'left','<visible>%s</visible>'%GRID)+
   ('<control type="panel" id="53"><left>%d</left><top>320</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><onup>9001</onup>'
-   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
-   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout></control>'
-   )%(left,WIDTH-left,GRID,w+gap,h+gap,item(False),w+gap,h+gap,item(True)))
+   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>%s</control>')%(left,WIDTH-left,GRID,layouts))
 
 SHOW_VARS=('<variable name="Portrait_Show_Art"><value condition="!String.IsEmpty(ListItem.Art(tvshow.fanart))">$INFO[ListItem.Art(tvshow.fanart)]</value>'
            '<value condition="!String.IsEmpty(ListItem.Art(fanart))">$INFO[ListItem.Art(fanart)]</value><value>$INFO[Container.Art(fanart)]</value></variable>'
@@ -721,6 +944,45 @@ SHOW_VARS+=''.join('<variable name="Portrait_Show_%s"><value condition="%s + !St
  (name,DOWNLOADED_SHOW,name,name,label) for name,label in (('Plot','Plot'),('Year','Year'),('Rating','Rating'),('Genres','Genre')))
 SHOW_VARS+='<variable name="Portrait_Show_Play_Label"><value condition="%s + Container.Content(seasons) + !String.IsEmpty(Container(50).ListItem.Property(KodiIOS.PlayLabel))">$INFO[Container(50).ListItem.Property(KodiIOS.PlayLabel)]</value><value condition="%s">$INFO[Container.Property(KodiIOS.PlayLabel)]</value><value>Play $INFO[Container(50).ListItem.Label]</value></variable>'%(DOWNLOADED_SHOW,DOWNLOADED_SHOW)
 
+# Settings › Customisation › Info Page: rows under the plot, from TMDb Helper, each behind Fuse's own switch
+# (settings_page.INFO). (key, title, TMDb Helper info, setting, only for, landscape thumbnails)
+INFO_ROWS=(('cast','Starring','cast','VideoInfo.Widgets.DisableStarring','',False),
+           ('crew','Crew','crew','VideoInfo.Widgets.DisableCrew','',False),
+           ('seasons','Seasons','seasons','VideoInfo.Widgets.DisableSeasons','tvshow',False),
+           ('collection','Collection','collection','VideoInfo.Widgets.DisableCollection','movie',False),
+           ('similar','More Like This','recommendations','VideoInfo.Widgets.DisableRecommendations','',False),
+           ('videos','Videos & Trailers','videos','VideoInfo.Widgets.DisableVideos','',True))
+INFO_ID=5101
+INFO_KIND='[String.IsEqual(ListItem.DBType,movie) | String.IsEqual(ListItem.DBType,tvshow)]'
+def info_variables():
+ tmdb='plugin://plugin.video.themoviedb.helper/?info=%s&'
+ query=('<variable name="Portrait_Info_Query">'
+  '<value condition="String.IsEqual(ListItem.DBType,tvshow) + !String.IsEmpty(ListItem.UniqueID(tmdb))">tmdb_type=tv&amp;tmdb_id=$INFO[ListItem.UniqueID(tmdb)]</value>'
+  '<value condition="String.IsEqual(ListItem.DBType,tvshow)">tmdb_type=tv&amp;query=$INFO[ListItem.Title]&amp;year=$INFO[ListItem.Year]</value>'
+  '<value condition="!String.IsEmpty(ListItem.UniqueID(tmdb))">tmdb_type=movie&amp;tmdb_id=$INFO[ListItem.UniqueID(tmdb)]</value>'
+  '<value>tmdb_type=movie&amp;query=$INFO[ListItem.Title]&amp;year=$INFO[ListItem.Year]</value></variable>')
+ rows=''
+ for key,_,info,setting,only,_ in INFO_ROWS:
+  cond='!Skin.HasSetting(%s) + %s + System.HasAddon(plugin.video.themoviedb.helper)'%(setting,'String.IsEqual(ListItem.DBType,%s)'%only if only else INFO_KIND)
+  # Empty while the switch is off, so a section that is off never asks TMDb Helper for anything.
+  rows+='<variable name="Portrait_Info_%s"><value condition="%s">%s$VAR[Portrait_Info_Query]</value><value></value></variable>'%(key,e(cond),e(tmdb%info))
+ return query+rows
+def info_row(n,key,title,landscape):
+ id=INFO_ID+n;w,h=(400,225) if landscape else (220,330)
+ def item(focused):
+  zoom='<animation effect="zoom" start="100" end="104" time="160" center="auto">Focus</animation>' if focused else ''
+  return ('<control type="group"><left>%d</left><top>10</top>%s'%(SIDE,zoom)+
+   image(0,0,w,h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+('thumb_mask.png' if landscape else 'poster_mask.png'))+
+   image(0,0,w,h,'$INFO[ListItem.Art(%s)]'%('thumb' if landscape else 'poster'),WHITE,'','>scale',MEDIA+('thumb_mask.png' if landscape else 'poster_mask.png'),background=True)+
+   ('' if landscape else image(0,0,w,h,'$INFO[ListItem.Art(thumb)]',WHITE,'<visible>String.IsEmpty(ListItem.Art(poster))</visible>','>scale',MEDIA+'poster_mask.png',background=True))+
+   label(0,h+10,w,44,'$INFO[ListItem.Label]','p_cap',WHITE)+label(0,h+52,w,40,'$INFO[ListItem.Label2]','p_cap',GREY)+'</control>')
+ shown='Integer.IsGreater(Container(%d).NumItems,0) | Container(%d).IsUpdating'%(id,id)
+ return (label(SIDE,0,WIDTH-2*SIDE,110,title,'p_h3',WHITE,'left','<aligny>bottom</aligny><visible>%s</visible>'%shown)+
+  ('<control type="list" id="%d"><left>0</left><width>%d</width><height>%d</height><orientation>horizontal</orientation>'
+   '<scrolltime tween="cubic" easing="out">300</scrolltime><visible allowhiddenfocus="true">%s</visible>'
+   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
+   '<content target="videos">$VAR[Portrait_Info_%s]</content></control>')%(id,WIDTH,h+110,shown,w+GAP,h+110,item(False),w+GAP,h+110,item(True),key))
+
 def video_info(original):
  art_h=1150;w=WIDTH-2*SIDE
  body=('<controls>'+backdrop()+
@@ -731,8 +993,13 @@ def video_info(original):
   label(SIDE,906,w,52,'[COLOR %s]$INFO[ListItem.Rating,★ ]  [/COLOR]$INFO[ListItem.Year]$INFO[ListItem.Genre,  ·  ]$INFO[ListItem.Duration(mins),  ·  ,m]$INFO[ListItem.MPAA,  ·  ]'%GREEN,'p_foot',GREY,'center')+
   pill_button(8,SIDE,990,w,124,'Play',[],'primary',MEDIA+'play.png','<visible>!String.IsEqual(ListItem.DBType,tvshow)</visible>')+
   pill_button(9010,SIDE,990,w,124,'Episodes',[('','Close'),('','ActivateWindow(Videos,$ESCINFO[ListItem.FolderPath],return)')],'primary','tv.png','<visible>String.IsEqual(ListItem.DBType,tvshow)</visible>')+
-  '<control type="textbox" id="4"><left>%d</left><top>1150</top><width>%d</width><height>620</height><font>p_sub</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label></control>'%(SIDE,w,GREY)+
-  label(SIDE,1790,w,48,'$INFO[ListItem.Director,Director: ]','p_cap',DIM)+
+  # The plot, then the Info Page rows (Settings › Customisation › Info Page), scrolling under the buttons.
+  '<control type="grouplist" id="5100"><left>0</left><top>1150</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+  '<itemgap>10</itemgap><usecontrolcoords>true</usecontrolcoords><onup>8</onup>'%WIDTH+
+  '<control type="textbox" id="4"><left>%d</left><width>%d</width><height>420</height><font>p_sub</font><textcolor>%s</textcolor><label>$INFO[ListItem.Plot]</label></control>'%(SIDE,w,GREY)+
+  label(SIDE,0,w,60,'$INFO[ListItem.Director,Director: ]','p_cap',DIM)+
+  ''.join(info_row(n,key,title,land) for n,(key,title,_,_,_,land) in enumerate(INFO_ROWS))+
+  '<control type="image"><height>200</height><texture /></control></control>'+
   circle_button(9001,SIDE,36,108,'xmark.png','Close')+'</controls>')
  return window(original,body,'8')
 
@@ -913,7 +1180,10 @@ def notices_page():
   h=350;pre='dl.%d.'%n   # Pause/Cancel are 124 high (46 pt): touch areas of at least 44 pt (APPLE-UI-POLICY 4.5)
   return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(WIDTH,h+24,has(pre+'title'))+
    surface(SIDE-6,0,w+12,h,'round.png',SURFACE,32)+
-   surface(SIDE+24,26,130,196,'round_s.png','FF3A3A3C',20)+icon(SIDE+59,94,60,'download.png',GREY)+
+   # Owner: tapping a transfer card opens the Transfers page (speed graph); Pause/Cancel are drawn on top of this.
+   '<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus /></control>'%(9435+n,SIDE-6,w+12,h)+
+   surface(SIDE+24,26,130,196,'round_s.png','FF3A3A3C',20)+icon(SIDE+59,94,60,'download.png',GREY,'<visible>!%s</visible>'%has(pre+'poster'))+
+   image(SIDE+24,26,130,196,P(pre+'poster'),extra='<aspectratio>scale</aspectratio><visible>%s</visible>'%has(pre+'poster'))+
    label(SIDE+184,22,w-210,64,P(pre+'title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
    '<control type="progress" id="%d"><left>%d</left><top>110</top><width>%d</width><height>14</height>'
    '<texturebg border="7" colordiffuse="52787880">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="FF0A84FF">%sdot.png</midtexture><righttexture /></control>'%(9400+n,SIDE+184,w-210,MEDIA,MEDIA)+
@@ -924,7 +1194,10 @@ def notices_page():
   """Upload/preparation card: title, summary, bar, status. One label per line, each truncating (ISSUE-101)."""
   return ('<control type="group"><width>%d</width><height>244</height><visible>%s</visible>'%(WIDTH,has(pre+'title'))+
    surface(SIDE-6,0,w+12,220,'round.png',SURFACE,32)+
-   surface(SIDE+24,26,130,168,'round_s.png',tile,20)+icon(SIDE+59,80,60,glyph,tint)+
+   '<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>220</height><label></label><texturefocus colordiffuse="14FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>'%(progress_id+2,SIDE-6,w+12,MEDIA)+
+   surface(SIDE+24,26,130,168,'round_s.png',tile,20)+icon(SIDE+59,80,60,glyph,tint,'<visible>![%s] + ![%s]</visible>'%(has(pre+'indeterminate'),has(pre+'poster')))+
+   image(SIDE+59,80,60,60,MEDIA+'ring_06.png',tint,'<visible>%s</visible><animation effect="rotate" end="-360" center="auto" time="1100" loop="true" condition="true">Conditional</animation>'%has(pre+'indeterminate'))+
+   image(SIDE+24,26,130,168,P(pre+'poster'),extra='<aspectratio>scale</aspectratio><visible>%s</visible>'%has(pre+'poster'))+
    label(SIDE+184,20,w-210,60,P(pre+'title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
    label(SIDE+184,80,w-210,46,P(pre+'summary'),'p_cap',GREY)+
    '<control type="progress" id="%d"><left>%d</left><top>134</top><width>%d</width><height>14</height>'
@@ -942,7 +1215,7 @@ def notices_page():
    label(SIDE+w-140,22,120,58,P(pre+'ago'),'p_cap',GREY,'right')+'</control>')
  filters=''.join('<control type="group"><left>%d</left><top>0</top>'%(i*w//len(NOTICE_FILTERS))+
    image(4,4,w//len(NOTICE_FILTERS)-8,80,MEDIA+'pill_96.png','FF636366','<visible>String.IsEqual(Window().Property(filter),%s)</visible>'%key,border=40)+
-   '<control type="button" id="%d"><top>-15</top><width>%d</width><height>118</height><label>%s</label><font>p_foot_b</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
+   '<control type="button" id="%d"><top>-15</top><width>%d</width><height>118</height><label>%s</label><font>p_foot_b</font><textoffsetx>0</textoffsetx><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
    '<align>center</align><aligny>center</aligny><texturefocus /><texturenofocus /></control></control>'%(9101+i,w//len(NOTICE_FILTERS),text,GREY,WHITE)
    for i,(key,text) in enumerate(NOTICE_FILTERS))
  body=('<controls>'+backdrop()+
@@ -1030,7 +1303,7 @@ def with_variables(xml):return xml
 
 def variable_block(row_variables=None):
  rows=''.join(v for _,v in sorted((row_variables or {}).items()))
- return VARIABLES+SHOW_VARS+ctx_variables()+rows
+ return VARIABLES+SHOW_VARS+ctx_variables()+info_variables()+rows
 
 def includes(row_variables=None):
  # Kodi reads variables only from includes; Fuse's own includes still come from 1080i.
@@ -1099,6 +1372,7 @@ def portrait_files(skin,profile):
  # Settings home, Customisation and Accounts in the iOS Settings style (settings_page.py).
  import types
  files.update(settings_page.files(types.SimpleNamespace(**globals()),read))
+ files['extras/portrait/close_cross.png']=close_cross();files['extras/portrait/close_disc.png']=close_disc()
  # Round 2: shared dialogs, Add-ons, Event Log, System Info, File Manager, Umbrella's getting-ready, Play on TV.
  files.update(pages.files(types.SimpleNamespace(**globals()),read))
  # The activity pill in place of Kodi's background progress box, which is never drawn (activity_skin.py).
@@ -1107,12 +1381,21 @@ def portrait_files(skin,profile):
  files.update(library_page.files(ns))
  # Notifications › a message's details with its part of kodi.log (notice_page.py).
  files.update(notice_page.files(ns))
+ # The Transfers page (speed graph), opened from a transfer card in Notifications (transfers_page.py).
+ files.update(transfers_page.files(ns))
+ # Library tools: Queue, Phone space, History and AirPlay check (library_tools_page.py).
+ files.update(library_tools_page.files(ns))
+ # Settings › Customisation › Tabs & Rows › a tab (rows_page.py, filled by customise_rows.py).
+ files.update(rows_page.files(ns))
  for rel in list(files):
   if rel.startswith(FOLDER+'/'):files[rel]=activity_skin.inject(ns,rel[len(FOLDER)+1:],files[rel])
  # Fullscreen video is landscape: the Apple TV-style controls go into the landscape folder.
  files['1080i/VideoOSD.xml']=player_osd.window().encode()
  # Fuse's seek bar flashed up at every video start (buffering, the resume jump): ours shows only while seeking.
  if (source/'DialogSeekBar.xml').exists():files['1080i/DialogSeekBar.xml']=player_osd.seekbar_window().encode()
+ # Fuse's info over the video, clear of the Dynamic Island on either side (player_osd.safe_inset).
+ for name in player_osd.INSET:
+  if read(name):files['1080i/'+name]=player_osd.safe_inset(read(name),name in player_osd.HIDE_UNDER_OSD).encode()
  return files
 
 SPLASH=('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: Fuse startup splash, never shown -->\n'
@@ -1164,14 +1447,14 @@ def refresh(skin,profile):
 
 # Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
 # inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml'}   # + activity_skin.py
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + activity_skin.py, pages.BUSY, player_osd.INSET
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),Path(pages.__file__),Path(ios_tabs.__file__)):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__),Path(rows_page.__file__)):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())
@@ -1293,13 +1576,26 @@ def bounded(fetch,timeout=FETCH_TIMEOUT):
   if 'error' in box:raise box['error']
   return box.get('result')
  return call
-def cache_lists(profile,spotlight):
- """({spotlight id: path}, [row paths]) the three hubs show, Home first (as hub_files and hub_body build them)."""
+def cache_lists(profile,spotlight,page=lambda tab:''):
+ """({spotlight id: path}, [row paths]) the three hubs show, Home first (as hub_files and hub_body build them), each at
+ the page its tab shows (page(tab): Skin.String(Portrait.Page.<tab>)); the copies' keys leave the page out."""
  spots={};rows=[]
  for name,(title,lists,tab,resume) in sorted(HUBS.items(),key=lambda h:HUB_TABS.index(h[1][2])):
-  spots[SPOTLIGHT[name]]=spotlight(SPOTLIGHT[name])
-  rows+=[w['path'] for w in load_widgets(profile,lists) if not in_progress(w)]
+  n=page(tab)
+  spots[SPOTLIGHT[name]]=paged(spotlight(SPOTLIGHT[name]),n)
+  rows+=[paged(w['path'],n) for w in load_widgets(profile,lists) if not in_progress(w)]
  return spots,rows
+
+def tab_lists(profile,tab):
+ """(cache keys, container ids) of one hub's TMDb Helper rows and hero: what refresh_rows turns live and waits for."""
+ for name,(title,lists,hub_tab,resume) in HUBS.items():
+  if hub_tab!=tab:continue
+  widgets=[w for w in load_widgets(profile,lists) if not in_progress(w)]
+  keys=['hero.'+str(SPOTLIGHT[name]).lower()]+[cache_key(w['path']) for w in widgets if str(w['path']).startswith(CACHEABLE)]
+  # Row ids as hub_body numbers them: Continue Watching is 5001, the widgets follow; all shifted by the hub's offset.
+  ids=[4000+HUB_OFFSET[tab]]+[5002+i+HUB_OFFSET[tab] for i,w in enumerate(widgets) if str(w['path']).startswith(CACHEABLE)]
+  return keys,ids
+ return [],[]
 
 def listing_cache(cache,store,flags,lists,fetch,wait,busy,log,clock=None):
  """Background thread (run_service). At once: flags whose copy is gone go off, so those rows load TMDb Helper again.
@@ -1326,6 +1622,16 @@ def listing_cache(cache,store,flags,lists,fetch,wait,busy,log,clock=None):
   # Rows keep whatever their flags say: good copies stay served, the others stay live.
   log('stopped: %r'%error)
 
+def refresh_listing(skin,folder=None):
+ """Read the portrait folder through Kodi once after writing it. Kodi answers "does this window file exist" from its
+ directory cache when the folder was listed before (CFile::Exists -> g_directoryCache), so a page added while Kodi
+ runs was "missing" until the next start (build 173: IOSTransfers.xml, "XML File for Window is missing"). A plain
+ listing replaces the cached copy."""
+ try:
+  import xbmcvfs
+  xbmcvfs.listdir(os.path.join(str(skin),folder or FOLDER)+'/')
+ except Exception:pass
+
 def refresh_skin(xbmc,invoke,skin,profile):
  """Bring the portrait folder up to date and reload the skin when a change needs it; returns the changed paths."""
  import time
@@ -1344,6 +1650,7 @@ def refresh_skin(xbmc,invoke,skin,profile):
  # wait-for-widgets loop (its script ran again every half second for up to a minute while rows loaded).
  for setting,on in (('Startup.EnableHubPreloading',False),('Startup.DisableWaitForLoad',True)):
   if bool(xbmc.getCondVisibility('Skin.HasSetting(%s)'%setting))!=on:invoke(('Skin.SetBool(%s)' if on else 'Skin.Reset(%s)')%setting)
+ if changed:refresh_listing(skin)
  reload=bool(changed) and needs_reload(changed,xbmc.getCondVisibility)
  listed=(' ('+', '.join(c for c in changed if not c.startswith('extras/'))[:300]+')') if changed else ''
  xbmc.log('Kodi iOS portrait files checked in %s: %d updated%s%s (%.3fs)'%(skin,len(changed),listed,
@@ -1408,7 +1715,7 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
   threading.Thread(target=listing_cache,daemon=True,kwargs=dict(
    cache=cache,store=cache.Store(xbmcvfs.translatePath(cache.FOLDER)),
    flags=cache.Flags(xbmc.getCondVisibility,xbmc.getInfoLabel,xbmc.executebuiltin),
-   lists=lambda:cache.targets(*cache_lists(profile,lambda s:xbmc.getInfoLabel(spotlight_path(s)))),fetch=bounded(fetch),
+   lists=lambda:cache.targets(*cache_lists(profile,lambda s:xbmc.getInfoLabel(spotlight_path(s)),lambda tab:xbmc.getInfoLabel(page_of(tab)))),fetch=bounded(fetch),
    wait=monitor.waitForAbort,busy=lambda:xbmc.getSkinDir()!=fuse or xbmc.getCondVisibility('Player.HasVideo'),
    log=lambda text:xbmc.log('Kodi iOS listing cache: '+text,xbmc.LOGINFO))).start()
  except Exception as error:xbmc.log('Kodi iOS listing cache unavailable: %s'%error,xbmc.LOGWARNING)

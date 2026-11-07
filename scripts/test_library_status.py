@@ -89,17 +89,17 @@ class Rows(unittest.TestCase):
   self.assertEqual((rows.ring_name(0),rows.ring_name(39),rows.ring_name(100),rows.ring_name(None)),('ring_00.png','ring_08.png','ring_20.png','ring_00.png'))
  def test_page_top(self):
   props=rows.page_properties(self.view)
-  self.assertEqual(props['headline'],'10 of 18 ready');self.assertEqual(props['free'],'40 GB free')
-  self.assertIn('Preparing now uses 2 GB',props['space']);self.assertIn('5 GB',props['space'])
-  self.assertEqual(props['space_pct'],'4');self.assertIn('checking now',rows.page_properties(self.view,True)['sub'])
+  self.assertEqual(props['headline'],'10 of 18 ready');self.assertNotIn('space',props)   # owner, build 173: no phone space card
+  self.assertIn('checking now',rows.page_properties(self.view,True)['sub'])
  def test_details_actions(self):
   by={r['id']:r for k in self.view['rows'].values() for r in k}
   actions=lambda n:[a for _,a in rows.details(by[n],self.view)['actions']]
-  self.assertEqual(actions('w1'),['next','keep']);self.assertEqual(actions('s1'),['next','keep'])
+  self.assertEqual(actions('w1'),['now','next','keep']);self.assertEqual(actions('s1'),['next','keep'])
   self.assertEqual(actions('f1'),['retry','keep']);self.assertEqual(actions('k2'),['prepare']);self.assertEqual(actions('k1'),[])
-  self.assertEqual(actions('r1'),[]);self.assertEqual(rows.details(by['r1'],self.view)['tone'],'ok')
+  # Build 177 (approved): a ready movie can be played from its sheet.
+  self.assertEqual(actions('r1'),['play','tv']);self.assertEqual(rows.details(by['r1'],self.view)['tone'],'ok')
   space=rows.details(by['s1'],self.view);self.assertEqual(space['tone'],'warn')
-  self.assertIn(('Free now','40 GB'),space['facts']);self.assertTrue(all(len(rows.details(r,self.view)['facts'])<=4 for r in by.values()))
+  self.assertIn(('Free now','40 GB'),space['facts']);self.assertTrue(all(len(rows.details(r,self.view)['facts'])<=rows.FACTS for r in by.values()))
 
 class Requests(unittest.TestCase):
  def setUp(self):
@@ -134,16 +134,16 @@ class Skin(unittest.TestCase):
      self.assertGreaterEqual(float(c.findtext('height') or 0),library_page.HIT,c.get('id'))
  def test_ids_the_controller_uses(self):
   ids={c.get('id') for c in self.pagex.iter('control')}
-  for n in (library_page.LIST,library_page.BACK,library_page.CHECK,library_page.SPACE,9101,9102,9103,9104):self.assertIn(str(n),ids)
+  for n in (library_page.LIST,library_page.BACK,library_page.CHECK,library_page.EDIT,9101,9102,9103,9104):self.assertIn(str(n),ids)
   ids={c.get('id') for c in self.sheetx.iter('control')}
   for n in (9200,9201,9202,9099):self.assertIn(str(n),ids)
  def test_properties_the_controller_sets(self):
   for k in rows.page_properties(prep.library_view({})):
-   if k!='space_pct':self.assertIn('Window().Property(%s)'%k,self.page,k)
+   self.assertIn('Window().Property(%s)'%k,self.page,k)
   for k in ('title','status','tone','quality','poster','fact3.value','action2.label'):self.assertIn('Window().Property(%s)'%k,self.sheet,k)
   for k in ('kind','pos','state','ring','pct','warn'):self.assertIn('ListItem.Property(%s)'%k,self.page,k)
  def test_status_sheet_closes_with_a_cross(self):
-  self.assertIn('xmark.png',self.sheet);self.assertNotIn('>Done<',self.sheet)
+  self.assertIn('close_cross.png',self.sheet);self.assertNotIn('>Done<',self.sheet)
  def test_pill_stays_off_this_page(self):
   skin=(LIB/'activity_skin.py').read_text()
   self.assertIn('IOSLibraryStatus.xml',skin);self.assertIn('IOSLibraryItem.xml',skin)
@@ -302,9 +302,10 @@ class TapEveryButton(unittest.TestCase):
   seen=[]
   sheet={}
   kodi=self.run_page([(library_page.WINDOW,tap_row('w1')),
-                      (library_page.ITEM,lambda w:sheet.update(dict(w.props))),(library_page.ITEM,tap(9201)),
+                      (library_page.ITEM,lambda w:sheet.update(dict(w.props))),(library_page.ITEM,tap(9202)),
                       (library_page.WINDOW,lambda w:seen.append(self.page_rows(w))),(library_page.WINDOW,tap(library_page.BACK))])
-  self.assertEqual((sheet['action1.label'],sheet['action2.label']),('Prepare next','Keep as it is'))
+  self.assertEqual((sheet['action1.label'],sheet['action2.label'],sheet['action3.label']),('Start converting now','Prepare next','Keep as it is'))
+  self.assertEqual((sheet['action2.colour'],sheet['action3.colour']),('FFFFFFFF','FFFF453A'))
   self.assertEqual(prep.pending_requests(self.profile),[{'action':'next','id':'w1'}])
   waiting=[r for r in seen[0] if r[1]=='waiting'];self.assertEqual(waiting[0][0],'w1');self.assertTrue(waiting[0][2].startswith('Next'))
   self.assertIn(('note','Prepare next: Fall (2022)'),kodi.notes)
@@ -313,7 +314,7 @@ class TapEveryButton(unittest.TestCase):
  def test_keep_moves_it_to_kept_and_prepare_after_all_brings_it_back(self):
   seen=[]
   snap=lambda w:seen.append({i:s for i,s,_ in self.page_rows(w)})
-  self.run_page([(library_page.WINDOW,tap(9103)),(library_page.WINDOW,tap_row('w2')),(library_page.ITEM,tap(9202)),(library_page.WINDOW,snap),
+  self.run_page([(library_page.WINDOW,tap(9103)),(library_page.WINDOW,tap_row('w2')),(library_page.ITEM,tap(9203)),(library_page.WINDOW,snap),
                  (library_page.WINDOW,tap_row('w2')),(library_page.ITEM,tap(9201)),(library_page.WINDOW,snap),
                  (library_page.WINDOW,tap(library_page.BACK))])
   self.assertEqual(seen[0]['w2'],'kept');self.assertEqual(seen[1]['w2'],'waiting')
@@ -321,15 +322,17 @@ class TapEveryButton(unittest.TestCase):
   self.run_page([(library_page.WINDOW,tap_row('f1')),(library_page.ITEM,tap(9201)),(library_page.WINDOW,tap(library_page.BACK))])
   self.assertEqual(prep.pending_requests(self.profile),[{'action':'retry','id':'f1'}])
  def test_close_buttons_and_no_action_sheets(self):
-  kodi=self.run_page([(library_page.WINDOW,tap_row('r1')),(library_page.ITEM,tap(9201)),(library_page.ITEM,tap(9200)),
+  kodi=self.run_page([(library_page.WINDOW,tap_row('r1')),(library_page.ITEM,tap(9200)),
                       (library_page.WINDOW,tap_row('k1')),(library_page.ITEM,tap(9099)),
                       (library_page.WINDOW,lambda w:w.onAction(type('A',(),{'getId':lambda self:92})())),
                       (library_page.WINDOW,lambda w:w.onAction(type('A',(),{'getId':lambda self:92})())) ])
   sheets=[w for w in kodi.windows if w.xml==library_page.ITEM]
-  self.assertTrue(all(w.closed for w in sheets));self.assertEqual(sheets[0].focus,9200);self.assertTrue(kodi.windows[0].closed)
+  self.assertTrue(all(w.closed for w in sheets));self.assertTrue(kodi.windows[0].closed)
+  self.assertEqual((sheets[0].props['action1.label'],sheets[0].props['action2.label']),('Play','Play on TV'))
+  self.assertEqual(sheets[0].props['action2.colour'],'FFFFFFFF')
   self.assertEqual(prep.pending_requests(self.profile),[])
  def test_action_with_preparation_off_asks_to_turn_it_on(self):
-  kodi=self.run_page([(library_page.WINDOW,tap_row('w1')),(library_page.ITEM,tap(9201)),(library_page.WINDOW,tap(library_page.BACK))],
+  kodi=self.run_page([(library_page.WINDOW,tap_row('w1')),(library_page.ITEM,tap(9202)),(library_page.WINDOW,tap(library_page.BACK))],
                      settings={'prepare_downloads':False},answer=True)
   self.assertTrue(kodi.settings['prepare_downloads']);self.assertEqual(prep.pending_requests(self.profile),[{'action':'next','id':'w1'}])
  def test_service_wakes_for_a_choice(self):
@@ -351,31 +354,6 @@ class PhoneSpace(unittest.TestCase):
   self.assertEqual(sorted(d.name for d in q.work.iterdir()),['paused','saving','wait'])
  def test_tidy_runs_before_every_video(self):
   self.assertIn('self.apply_requests();self.tidy()',(LIB/'prepare_downloads.py').read_text())
- def test_usage_counts_each_file_once(self):
-  status=load('library_status_usage',BOOT/'library_status.py')
-  (self.root/'a/b').mkdir(parents=True);(self.root/'a/x').write_bytes(b'1'*300);(self.root/'a/b/y').write_bytes(b'2'*200)
-  self.assertEqual(status.usage([('inner',self.root/'a/b'),('outer',self.root/'a'),('again',self.root/'a/b'),('none',self.root/'nope')]),
-                   {'inner':200,'outer':500})
- def test_usage_line(self):
-  self.assertEqual(rows.usage_text({'Elementum downloads':6*GB,'artwork':1*GB,'preparing':0.5*GB,'temporary files':1}),
-                   'Kodi uses 7.5 GB · Elementum downloads 6.0 GB · artwork 1.0 GB')
-  props=rows.page_properties(prep.library_view({},free=10*GB),usage={'artwork':10*GB})
-  self.assertEqual((props['space_pct'],props['space']),('50','Kodi uses 10.0 GB · artwork 10.0 GB'))
- def test_page_shows_what_kodi_uses(self):
-  page=TapEveryButton('test_page_opens_filled');page.setUp()
-  try:
-   art=Path(page.profile)/'Thumbnails';art.mkdir();(art/'a.jpg').write_bytes(b'x'*(GB//5))
-   import time
-   seen={}
-   def wait(w):
-    for _ in range(100):
-     if 'Kodi uses' in w.getProperty('space'):break
-     time.sleep(0.02)
-    seen['space']=w.getProperty('space')
-   page.run_page([(library_page.WINDOW,wait),(library_page.WINDOW,tap(library_page.BACK))])
-   self.assertIn('artwork 0.2 GB',seen['space'])
-  finally:page.tearDown()
-
 class EveryScriptNamesItsAddon(unittest.TestCase):
  def test_no_bare_addon_in_runscript_pages(self):
   import re
@@ -420,5 +398,60 @@ class SpaceAsTheIPhoneCountsIt(unittest.TestCase):
   row=view['rows']['waiting'][0];self.assertEqual(row['state'],'space')
   facts=dict(rows.details(row,view)['facts'])
   self.assertEqual(facts['Free now'],'49 GB');self.assertTrue(facts['Why'].startswith('Its picture (AV1 10-bit)'))
+
+
+class RoundPosterInTheRing(unittest.TestCase):
+ """Owner (build 170): the square poster did not fit in the preparing ring."""
+ def test_poster_is_a_circle_inside_the_ring(self):
+  src=(LIB/'library_page.py').read_text()
+  ring=src[src.index("ring = ("):src.index("text_w = w - 160 - 130")]
+  self.assertNotIn('tile108.png',ring);self.assertEqual(ring.count("M + 'knob.png'"),2)
+
+class FindAVersionWithoutConverting(unittest.TestCase):
+ def test_sheet_offers_it_for_reencodes_only(self):
+  base={'id':'a','title':'Inception (2010)','name':'Inception.2010.2160p.AV1.mkv','size':9*GB,'state':'waiting','sub':'Next · 2160p'}
+  sheet=rows.details(dict(base,reencode=True),{'free':0})
+  self.assertEqual(sheet['actions'][0],('Find a version without converting','quicker'));self.assertNotIn('next',[a[1] for a in sheet['actions']])
+  self.assertLessEqual(len(sheet['actions']),3)
+  self.assertNotIn('quicker',[a[1] for a in rows.details(dict(base,reencode=False),{'free':0})['actions']])
+ def test_reencode_from_probe_or_name(self):
+  self.assertTrue(prep.needs_reencode({'probe':{'copy_video':False}},'x.mkv'));self.assertFalse(prep.needs_reencode({'probe':{'copy_video':True}},'x.AV1.mkv'))
+  self.assertTrue(prep.needs_reencode(None,'Inception.2010.2160p.WEB-DL.AV1.mkv'));self.assertFalse(prep.needs_reencode(None,'Movie.2010.2160p.x265.mkv'))
+ def test_the_copy_without_conversion_is_kept(self):
+  src=(LIB/'prepare_downloads.py').read_text()
+  self.assertIn("rank=lambda item:(ready(item),not needs_reencode(None,item.get('name','')),started.get(item['id'],0),",src)
+ def test_wiring(self):
+  st=(BOOT/'library_status.py').read_text()
+  self.assertIn("xbmcgui.Window(10000).setProperty('KodiIOS.AvoidAV1'",st);self.assertIn("RunScript(service.kodi.ios.bootstrap,download,%s)",st)
+  self.assertIn("if args.get('replace')=='1':return None",(BOOT/'download.py').read_text())
+  status=load('library_status_q',BOOT/'library_status.py')
+  self.assertEqual([status.quality_key(h) for h in (2160,1080,720,0)],['4k','1080p','720p',''])
+
+class ReplacementStopsTheConversion(unittest.TestCase):
+ """Owner (build 185): the button worked but Inception kept converting; "it needs to end the conversion and begin
+ the downloading automatically"."""
+ def test_replace_stops_now_and_says_so(self):
+  with tempfile.TemporaryDirectory() as p:
+   state=library_state();prep.save(p,state)
+   prep.request(p,'replace','p1')                 # p1 is converting in library_state()
+   self.assertTrue(prep.interrupts(p))
+   s=prep.apply_to(prep.load(p),prep.pending_requests(p),1000)
+   job=[j for j in s['jobs'].values() if j['source']['id']=='p1'][0]
+   self.assertTrue(job['kept']);self.assertEqual(job['replacing'],1000)
+   s.pop('current',None)
+   view=prep.library_view(s,now=lambda:1000)
+   row=[r for r in view['rows']['kept'] if r['id']=='p1'][0]
+   self.assertEqual(row['sub'],'Being replaced · a version without conversion is downloading')
+ def test_the_pick_hands_over_once(self):
+  import elementum_cloud
+  class W:
+   def __init__(s,v):s.v=v
+   def getProperty(s,k):return s.v
+   def clearProperty(s,k):s.v=''
+  w=W('abc|1000');self.assertEqual(elementum_cloud.replacing(w,now=1100),'abc');self.assertEqual(w.v,'')
+  self.assertEqual(elementum_cloud.replacing(W('abc|1000'),now=1000+16*60),'')
+  src=(LIB/'elementum_cloud.py').read_text()
+  self.assertIn("prepare_downloads.request(profile, 'replace', replaced)",src)
+  self.assertIn("setProperty('KodiIOS.Replacing'",(BOOT/'library_status.py').read_text())
 
 if __name__=='__main__':unittest.main()

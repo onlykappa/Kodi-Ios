@@ -7,7 +7,7 @@ Check now (top right) asks the service to look at Google Drive again; a row open
 service applies on its next pass (prepare_downloads.request)."""
 import os,shutil,sys,threading,time
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
-import library_page,library_rows,prepare_downloads
+import library_page,library_rows,prepare_downloads,tool_windows
 
 BACK=(9,10,92,110)
 # By id: a script started through RunScript(service.kodi.ios.bootstrap,...) runs via default.py's runpy, and Kodi
@@ -23,37 +23,16 @@ def folder_size(path):
    except OSError:pass
  return total
 
-def usage(places):
- """{what: bytes} for [(what, path)], each file counted once (a folder inside an earlier one is not counted again)."""
- out={};seen=[]
- for what,path in places:
-  try:real=os.path.realpath(str(path))
-  except (OSError,ValueError):continue
-  if not real or not os.path.isdir(real) or any(real==s or real.startswith(s+os.sep) for s in seen):continue
-  seen.append(real)
-  size=folder_size(real)
-  if size:out[what]=out.get(what,0)+size
- return out
-
-def places(profile,home,elementum_path=''):
- """Where Kodi keeps things on the phone, in the order they are counted (the most specific first)."""
- import updates
- data=os.path.join(profile,'addon_data')
- kept=updates.updates_folder(home)
- return [('preparing',str(prepare_downloads.location(profile).parent/'preparing-videos')),
-         ('Elementum downloads',elementum_path or str(kept.with_name('Elementum Downloads'))),
-         ('Elementum downloads',str(kept.with_name('Elementum Downloads'))),
-         ('Elementum',os.path.join(data,'plugin.video.elementum')),
-         ('videos on this iPhone',str(kept.with_name('Kodi Downloads'))),
-         ('artwork',os.path.join(profile,'Thumbnails')),
-         ('temporary files',os.path.join(home,'temp')),
-         ('add-on downloads',os.path.join(home,'addons','packages')),
-         ('add-on data',data)]
+def quality_key(height):
+ """drivelibrary.quality (2160, 1080...) as the source picker names it ('4k', '1080p'...); '' when unknown."""
+ try:height=int(height or 0)
+ except (TypeError,ValueError):return ''
+ return '4k' if height>=2000 else '1440p' if height>=1400 else '1080p' if height>=1000 else '720p' if height>=700 else '480p' if height>=400 else ''
 
 def snapshot(profile,downloads,uploads):
  """library_view() for the page right now (never raises: an empty library on any error)."""
  # Choices not yet applied by the service show at once (it applies them before its next video).
- state=prepare_downloads.apply_to(prepare_downloads.load(profile),prepare_downloads.pending_requests(profile),time.time())
+ state=prepare_downloads.apply_to(prepare_downloads.snapshot(profile),prepare_downloads.pending_requests(profile),time.time())
  work=prepare_downloads.location(profile).parent/'preparing-videos'
  import phone_space
  try:free=phone_space.free(str(work if work.exists() else work.parent))
@@ -66,7 +45,7 @@ def snapshot(profile,downloads,uploads):
 
 def run(args=()):
  import xbmc,xbmcaddon,xbmcgui,xbmcvfs
- import drivelibrary,notices
+ import drivelibrary,notices,transfer_artwork
  profile=xbmcvfs.translatePath('special://profile/');addon=xbmcaddon.Addon(ADDON);dialog=xbmcgui.Dialog()
  here=os.path.dirname(os.path.abspath(__file__))
  # Posters as in the Library: TMDb with TMDb Helper's key, cached; looked up in the background, one at a time.
@@ -76,9 +55,11 @@ def run(args=()):
  import urllib.request
  def get(url):
   with urllib.request.urlopen(url,timeout=8) as response:return response.read(1024*1024)
- cache={};posters={};asked=set();lock=threading.Lock()
+ cache=drivelibrary.load_json(transfer_artwork.cache_path(profile),{});posters={};asked=set();lock=threading.Lock()
  def poster(row):
   name=row.get('name') or row.get('title') or ''
+  cached=transfer_artwork.describe(name,cache)['poster']
+  if cached:return cached
   if name in posters or not key:return posters.get(name,'')
   with lock:
    if name in asked:return ''
@@ -92,26 +73,59 @@ def run(args=()):
   return ''
 
  class Details(xbmcgui.WindowXMLDialog):
-  def setup(self,sheet,row):
-   self.sheet,self.row,self.chosen=sheet,row,None
+  def setup(self,sheet,row,fresh=None):
+   self.sheet,self.row,self.chosen,self.fresh=sheet,row,None,fresh
   def onInit(self):
-   s=self.sheet
-   for k in ('title','status','tone','quality'):self.setProperty(k,s[k])
-   self.setProperty('poster',poster(self.row))
-   for n in range(4):
-    label,value=s['facts'][n] if n<len(s['facts']) else ('','')
-    self.setProperty('fact%d.label'%n,label);self.setProperty('fact%d.value'%n,value)
-   for n in range(2):
-    self.setProperty('action%d.label'%(n+1),s['actions'][n][0] if n<len(s['actions']) else '')
-   if not s['actions']:
+   self.stop=threading.Event();self.counter=0
+   self.show(self.sheet)
+   if not self.sheet['actions']:
     try:self.setFocusId(9200)
     except Exception:pass
+   # Build 177: a moving movie's sheet stays live (speed card, graph, rows) every 2 s while open.
+   if self.sheet.get('card'):threading.Thread(target=self.loop,daemon=True).start()
+  def show(self,s):
+   for k in ('title','status','tone','quality'):self.setProperty(k,s[k])
+   self.setProperty('poster',poster(self.row))
+   self.setProperty('card',s.get('card',''))
+   self.setProperty('bar',s.get('bar',''));self.setProperty('bar.tint',s.get('bar_tint',''))
+   try:self.getControl(9210).setPercent(float(s.get('bar') or 0))
+   except Exception:pass
+   self.setProperty('facts.n',str(len(s['facts'])))
+   for n in range(library_rows.FACTS):
+    label,value=s['facts'][n] if n<len(s['facts']) else ('','')
+    self.setProperty('fact%d.label'%n,label);self.setProperty('fact%d.value'%n,value)
+   for n in range(3):
+    label,action=s['actions'][n] if n<len(s['actions']) else ('','')
+    self.setProperty('action%d.label'%(n+1),label)
+    # "Keep as it is" stays red (it gives up on preparing); the others are ordinary buttons.
+    if n:self.setProperty('action%d.colour'%(n+1),'FFFF453A' if action in ('keep','') else 'FFFFFFFF')
+   if s.get('card'):self.speed(s)
+  def speed(self,s):
+   import transfer_history
+   props,points=library_rows.card(transfer_history.load(profile),s['card'],s['title'],time.time(),s.get('step',''))
+   if len(points)>1:
+    self.counter+=1
+    folder=os.path.join(xbmcvfs.translatePath('special://skin/'),'extras','portrait','graph')
+    props['card.graph']='special://skin/extras/portrait/graph/'+transfer_history.write_graph(folder,self.counter,
+      transfer_history.render(points,library_rows.CONV if s['card']=='conv' else library_rows.DOWN,start=points[0][0],now=time.time()))
+   else:props['card.graph']=''
+   for k,v in props.items():self.setProperty(k,v)
+  def loop(self):
+   monitor=xbmc.Monitor()
+   while not self.stop.is_set() and not monitor.waitForAbort(2):
+    try:
+     fresh=self.fresh() if self.fresh else None
+     if fresh:self.sheet,self.row=fresh
+     self.show(self.sheet)
+    except Exception as error:xbmc.log('Library status sheet: %s: %s'%(type(error).__name__,error),xbmc.LOGWARNING)
   def onAction(self,action):
-   if action.getId() in BACK:self.close()
+   if action.getId() in BACK:self.finish()
   def onClick(self,control):
-   if control in (9201,9202) and len(self.sheet['actions'])>control-9201:
-    self.chosen=self.sheet['actions'][control-9201];self.close()
-   elif control in (9200,9099):self.close()
+   if control in (9201,9202,9203) and len(self.sheet['actions'])>control-9201:
+    self.chosen=self.sheet['actions'][control-9201];self.finish()
+   elif control in (9200,9099):self.finish()
+  def finish(self):
+   self.stop.set();self.close()
 
  class Page(xbmcgui.WindowXMLDialog):
   def onInit(self):
@@ -120,17 +134,6 @@ def run(args=()):
    self.setProperty('filter',self.filter);self.setProperty('title',library_rows.TITLES.get(self.filter,'Library status'))
    self.refresh(force=True)
    threading.Thread(target=self.loop,daemon=True).start()
-   self.measure()
-  def measure(self):
-   """What Kodi keeps on the phone, for the Phone space card (in the background: walking the folders takes a while)."""
-   def run():
-    try:
-     try:engine=xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.elementum').getSetting('download_path') or '')
-     except Exception:engine=''
-     self.used=usage(places(profile,xbmcvfs.translatePath('special://home/'),engine))
-     if not self.stop.is_set():self.refresh()
-    except Exception as error:xbmc.log('Library status: phone space not measured: %s'%error,xbmc.LOGWARNING)
-   threading.Thread(target=run,daemon=True).start()
   def loop(self):
    monitor=xbmc.Monitor()
    while not self.stop.is_set() and not monitor.waitForAbort(2):
@@ -143,10 +146,8 @@ def run(args=()):
     if self.checking and (state.get('library') or {}).get('checked',0)>=self.checking:self.checking=0
     if self.checking and time.time()-self.checking>300:self.checking=0
     self.view=view
-    props=library_rows.page_properties(view,bool(self.checking),getattr(self,'used',None))
+    props=library_rows.page_properties(view,bool(self.checking))
     for k,v in props.items():self.setProperty(k,v)
-    try:self.getControl(library_page.SPACE).setPercent(float(props['space_pct']))
-    except Exception:pass
     items=library_rows.list_items(view,self.filter)
     shape=[(i['kind'],i['props'].get('id',''),i['props'].get('state',''),i['label']) for i in items]
     listing=self.getControl(library_page.LIST)
@@ -186,6 +187,9 @@ def run(args=()):
   def onClick(self,control):
    if control==library_page.BACK:self.go_back()
    elif control==library_page.CHECK:self.check()
+   elif control==library_page.EDIT:
+    # Waiting › Edit order: the Queue page (▲ ▼); this page shows the new order when it comes back.
+    tool_windows.open_queue(profile);self.refresh(force=True)
    elif FILTER_BASE<=control<FILTER_BASE+len(library_page.FILTERS):self.set_filter(library_page.FILTERS[control-FILTER_BASE][0])
    elif control==library_page.LIST:self.open_row(self.getControl(library_page.LIST).getSelectedPosition())
   def check(self):
@@ -193,17 +197,40 @@ def run(args=()):
     if not dialog.yesno('Library status','Preparing videos for Kodi and AirPlay is turned off. Turn it on and check now?',
                         nolabel='Cancel',yeslabel='Turn on'):return
     addon.setSettingBool('prepare_downloads',True)
-   self.checking=time.time();prepare_downloads.request_check(profile);self.refresh();self.measure()
+   self.checking=time.time();prepare_downloads.request_check(profile);self.refresh()
   def open_row(self,position):
    items=getattr(self,'items',[])
    if not 0<=position<len(items):return
    item=items[position]
    if item['kind']=='folder':self.set_filter(item['props']['folder']);return
    if item['kind']!='row':return
-   sheet=Details(library_page.ITEM,here,'Default','1080i')
-   sheet.setup(library_rows.details(item['row'],self.view),item['row'])
+   try:sheet=Details(library_page.ITEM,here,'Default','1080i')
+   except RuntimeError:
+    xbmcvfs.listdir(os.path.join(xbmcvfs.translatePath('special://skin/'),'portrait')+'/')   # a page added while Kodi runs (build 173)
+    sheet=Details(library_page.ITEM,here,'Default','1080i')
+   wanted=item['row']
+   def fresh():
+    _,view=snapshot(profile,notices.downloads,lambda:notices.uploads(profile))
+    for rows in view['rows'].values():
+     for r in rows:
+      if r.get('id')==wanted.get('id') and r.get('title')==wanted.get('title'):return library_rows.details(r,view),r
+    return None
+   sheet.setup(library_rows.details(item['row'],self.view),item['row'],fresh)
    sheet.doModal()
-   chosen=sheet.chosen;del sheet
+   chosen=sheet.chosen
+   if hasattr(sheet,'stop'):sheet.stop.set()
+   del sheet
+   if chosen and chosen[1] in ('play','tv'):
+    play(item['row'],chosen[1]=='tv');return
+   if chosen and chosen[1]=='quicker':
+    find_quicker(item['row']);return
+   if chosen and chosen[1]=='now':
+    # Owner (build 178): start this one now, over the one converting (which starts over later: no resume yet).
+    state=prepare_downloads.load(profile);running=prepare_downloads.running_id(state)
+    if running and running!=str(item['row']['id']):
+     title=prepare_downloads.drivelibrary.display_title((state.get('current') or {}).get('title',''))
+     if not dialog.yesno('Start converting now','Start %s now? %s stops and starts again from the beginning later.'%(item['row']['title'],title),
+                         nolabel='Cancel',yeslabel='Start now'):return
    if chosen:
     label,action=chosen
     if not addon.getSettingBool('prepare_downloads'):
@@ -214,6 +241,43 @@ def run(args=()):
     dialog.notification('Library status','%s: %s'%(label,item['row']['title']),xbmcgui.NOTIFICATION_INFO,2500)
     self.refresh(force=True)
 
+ def find_quicker(row):
+  """Library status › a movie that must be re-encoded › "Find a version without converting": Elementum's sources for
+  the same movie or episode, only those that need no conversion, at the same quality (deck_picker.avoid_request). The
+  new copy goes to Drive the usual way; the library keeps it and sends the AV1 copy to the bin (Queue.unique)."""
+  try:
+   info=drivelibrary.parse(row.get('name') or '')
+   found=drivelibrary.artwork('tv' if info['season'] else 'movie',info['title'],info['year'],key,cache,get) if key else {}
+  except Exception as error:
+   xbmc.log('Library status: TMDb lookup failed: %s'%error,xbmc.LOGWARNING);info,found={},{}
+  tmdb=str((found or {}).get('tmdb_id') or '')
+  if not tmdb:
+   dialog.ok('Find a version without converting','TMDb did not recognise "%s", so its other versions cannot be looked up.'%row.get('title',''));return
+  quality=quality_key(drivelibrary.quality(row.get('name') or ''))
+  xbmcgui.Window(10000).setProperty('KodiIOS.AvoidAV1','%s|%d'%(quality,int(time.time())))
+  # Owner (build 185): once a replacement is picked, this one stops converting (elementum_cloud → 'replace').
+  xbmcgui.Window(10000).setProperty('KodiIOS.Replacing','%s|%d'%(row.get('id',''),int(time.time())))
+  if info.get('season'):
+   args='kind=episode,tvshow.tmdb_id=%s,season=%s,episode=%s,replace=1'%(tmdb,info['season'],info.get('episode') or '')
+  else:args='kind=movie,tmdb=%s,replace=1'%tmdb
+  xbmc.log('Library status: looking for a version of %s without conversion (%s)'%(row.get('title',''),quality or 'any quality'),xbmc.LOGINFO)
+  xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,download,%s)'%args)
+
+ def play(row,tv):
+  """A ready movie's sheet: Play (Kodi plays it from Drive) or Play on TV (the same, then the AirPlay picker)."""
+  import navigation
+  try:_,driveid=drivelibrary.client()
+  except Exception:driveid=None
+  if not driveid:dialog.notification('Library status','Sign in to Google Drive first',xbmcgui.NOTIFICATION_WARNING,3000);return
+  page.finish()
+  xbmc.executebuiltin('PlayMedia(%s)'%drivelibrary.play_url(driveid,row['id']))
+  if tv:
+   def picker():
+    monitor=xbmc.Monitor()
+    for _ in range(40):   # up to 20 s for playback to start, then Play on TV opens over it
+     if xbmc.Player().isPlayingVideo():xbmc.executebuiltin(navigation.CAST_SCRIPT);return
+     if monitor.waitForAbort(0.5):return
+   threading.Thread(target=picker,daemon=True).start()
  page=Page(library_page.WINDOW,here,'Default','1080i')
  page.doModal()
  if hasattr(page,'stop'):page.stop.set()

@@ -5,10 +5,16 @@ Top left: close and Play on TV (AirPlay icon). Centre: back 10 s, play/pause, fo
 speed / audio / subtitles, the progress bar with time left, then Info and Continue Watching (the in-progress
 row). No volume control. Fuse's seek bar is replaced by seekbar_window(), shown only while the owner seeks.
 """
+import re
 from xml.sax.saxutils import escape
+import xml.etree.ElementTree as ET
 
 MARKER='Kodi-iOS player controls r4'
 EDGE=150   # from the screen edges: rounded corners and the Dynamic Island (about 56 pt on an iPhone 16 Pro)
+# Build 191 (owner, landscape video: "the words get cut off by the camera island ... need to move over to the right"):
+# nothing that is read or tapped starts closer than SAFE to either side (the island is on the left or the right,
+# whichever way the phone turns): 140 units of 2340 = 59 pt of 874, the iPhone's landscape safe-area inset.
+SAFE=140
 ICONS='special://skin/extras/icons/'
 MEDIA='special://skin/extras/portrait/'
 BOOT='special://xbmc/addons/service.kodi.ios.bootstrap/'
@@ -70,6 +76,15 @@ def group(anchor,width,body,extra=''):
         'left':'<left>0</left><width>%d</width>'%width}[anchor]
  return '<control type="group">%s%s%s</control>'%(where,extra,body)
 
+# Settings › Customisation › Video Controls › Hide Controls After (Fuse's OSD_Timeout, in seconds): the controls close
+# that long after they open or after the last tap, unless paused or Continue Watching is open. Empty = never.
+TIMEOUT='Skin.String(OSD_Timeout)'
+ARM_WHEN='!String.IsEmpty(%s) + !Player.Paused + !Skin.HasSetting(ios_osd_continue)'%TIMEOUT
+ARM=('CancelAlarm(osd_timeout,true)','AlarmClock(osd_timeout,Dialog.Close(videoosd),$INFO[%s,00:,],silent)'%TIMEOUT)
+def rearm(xml):
+ tags=''.join('<onclick condition="%s">%s</onclick>'%(e(ARM_WHEN),e(a)) for a in ARM)
+ return re.sub(r'(<control type="button" id="\d+">)',lambda m:m.group(1)+tags,xml)
+
 def window():
  """Layout from the owner's reference (Apple TV player, landscape): back top left; AirPlay / audio / subtitles /
  speed top right; back 10, play-pause, forward 10 in the centre; the title, a thin bar with a white knob and the
@@ -78,10 +93,10 @@ def window():
  covers the whole screen during video (Kodi app r18, no safe-area box), so the margins keep the controls clear of the
  rounded corners and the Dynamic Island."""
  left=EDGE;top=110
- back=tap(7101,left+60,top,150,'chevron-left.png','PlayerControl(Stop)','<onright>7121</onright><ondown>7112</ondown>',104)
+ back=tap(7101,left+75,top,150,'chevron-left.png','PlayerControl(Stop)','<onright>7121</onright><ondown>7112</ondown>',104)
  # Right group, 900 wide: speed, audio, subtitles, AirPlay from left to right, the last 90 in from the edge.
  rw=900;rx=rw-EDGE
- icons=''.join(tap(id,rx-60-i*180,top,150,icon,action,nav,74 if icon.endswith('airplay.png') else 96) for i,(id,icon,action,nav) in enumerate([
+ icons=''.join(tap(id,rx-75-i*180,top,150,icon,action,nav,74 if icon.endswith('airplay.png') else 96) for i,(id,icon,action,nav) in enumerate([
    (7102,MEDIA+'airplay.png',CAST,'<onleft>7123</onleft><ondown>7112</ondown>'),
    (7123,'closed-captioning.png','ActivateWindow(osdsubtitlesettings)','<onleft>7122</onleft><onright>7102</onright><ondown>7112</ondown>'),
    (7122,'file-waveform.png','ActivateWindow(osdaudiosettings)','<onleft>7121</onleft><onright>7123</onright><ondown>7112</ondown>'),
@@ -122,7 +137,7 @@ def window():
   '<animation effect="fade" start="0" end="100" time="200">Visible</animation>'+
   label(left,520,1200,60,'Continue Watching','font_head_bold')+
   label(left,590,1400,60,'Nothing in progress yet','font_main','99FFFFFF','left','<visible>Integer.IsEqual(Container(7201).NumItems,0) + !Container(7201).IsUpdating</visible>')+
-  '<control type="list" id="7201"><left>%d</left><right>0</right><top>590</top><height>270</height><orientation>horizontal</orientation>'%left+
+  '<control type="list" id="7201"><left>%d</left><right>%d</right><top>590</top><height>270</height><orientation>horizontal</orientation>'%(left,left)+
   '<ondown>7131</ondown><onup>7101</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
   '<itemlayout width="420" height="270">%s</itemlayout><focusedlayout width="420" height="270">%s</focusedlayout>'
   '<content target="videos">$INFO[Skin.String(ios_osd_continue_path)]</content></control></control>')%(card(False),card(True))
@@ -132,7 +147,8 @@ def window():
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window>\n<defaultcontrol always="true">7112</defaultcontrol>'
   '<animation effect="fade" start="0" end="100" time="150">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
   '<onunload>Skin.Reset(ios_osd_continue)</onunload><onunload>Skin.Reset(ios_osd_continue_path)</onunload><onunload>CancelAlarm(osd_timeout,true)</onunload>'
-  '<controls>%s%s%s%s%s%s%s</controls>\n</window>\n')%(MARKER,shade,head,centre,title,bar,row,panel)
+  +''.join('<onload condition="%s">%s</onload>'%(e(ARM_WHEN),e(a)) for a in ARM)+
+  '<controls>%s</controls>\n</window>\n')%(MARKER,rearm(shade+head+centre+title+bar+row+panel))
 
 # r4: never shown. The owner does not want a bar besides the controls' own ("the old one still appears"): the
 # window stays because Kodi opens it while seeking and moves its progress control (401).
@@ -158,6 +174,30 @@ def hide_seekbar(original):
  head,sep,rest=original.partition('<window>')
  if not sep:return original
  return head+sep+'\n    '+cond+rest
+
+# Build 191 (owner screenshot): Fuse's own info over the video (Custom_1152, at the start and on pause: title,
+# "4K • 1 hr 37 mins", plot, "Ends at"; Custom_1153, the same over the controls; VideoFullScreen's info lines)
+# starts 80 units from the edge, under the Dynamic Island. Their controls go into one group inset SAFE from both
+# sides; the safe-area frame (navigation.FRAME) stays outside it, or its black bars would cover the video's edges.
+INSET=('VideoFullScreen.xml','Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml')
+INSET_MARKER='Kodi-iOS player controls: safe-area inset'   # navigation.patch_skin leaves files with this alone
+
+# Build 192 (quick win): Fuse's info over the video repeated the title our controls already show, so it hides while
+# the controls are up.
+HIDE_UNDER_OSD=('Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml')
+def safe_inset(original,hide_under_osd=False):
+ """Fuse's landscape window with everything in <controls> moved into a group SAFE in from the left and right."""
+ if not original or INSET_MARKER in original:return original
+ root=ET.fromstring(original);controls=root.find('controls')
+ if root.tag!='window' or controls is None:return original
+ group=ET.Element('control',{'type':'group'})
+ for key,value in (('description',INSET_MARKER),('left',SAFE),('right',SAFE),('top',0),('bottom',0)):ET.SubElement(group,key).text=str(value)
+ if hide_under_osd:ET.SubElement(group,'visible').text='!Window.IsVisible(videoosd)'
+ for child in list(controls):
+  if child.tag=='control' and child.get('id')=='98400':continue
+  controls.remove(child);group.append(child)
+ controls.insert(0,group)
+ return '<?xml version="1.0" encoding="UTF-8"?>\n'+ET.tostring(root,encoding='unicode')+'\n'
 
 def airplay_png(png,size=96):
  """AirPlay glyph: a screen outline open at the bottom, with a triangle rising into it. png: portrait.png."""

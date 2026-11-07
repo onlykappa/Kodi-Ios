@@ -1,5 +1,6 @@
 """Apple's AirPlay button over Kodi, from Kodi.app/Frameworks/KodiAirPlay.framework (migration/airplay-ios)."""
 import os
+import diagnostics
 # Full-screen video or music only: on Fuse's menus the top-right corner holds the clock and the gear.
 PLAYING='Player.HasMedia + [Window.IsActive(fullscreenvideo) | Window.IsActive(visualisation)]'
 
@@ -26,6 +27,7 @@ def load(path):
  # r10: the subtitles burned into the picture a TV gets converted (Kodi's current choice, set before playing).
  if hasattr(lib,'kodi_airplay_subtitles'):lib.kodi_airplay_subtitles.argtypes=[ctypes.c_int,ctypes.c_char_p,ctypes.c_char_p];lib.kodi_airplay_subtitles.restype=None
  if hasattr(lib,'kodi_background_keep'):lib.kodi_background_keep.argtypes=[ctypes.c_int];lib.kodi_background_keep.restype=None
+ if hasattr(lib,'kodi_background_state'):lib.kodi_background_state.argtypes=[];lib.kodi_background_state.restype=ctypes.c_int
  return lib
 
 def converts(lib):
@@ -116,11 +118,33 @@ def log_lines(lib,size=16384,rounds=8):
   lines+=[line for line in buffer.value.decode('utf-8','replace').split('\n') if line]
  return lines
 
-def relay(lib,write,wait,every=5):
- """Writes the framework's AirPlay log into kodi.log every few seconds until wait(seconds) reports Kodi is closing."""
+# Owner (build 185 log: "airplay stops out of nowhere"): the TV's first read of the movie took 12 s and the next ones
+# 19 s while an AllDebrid copy went up to Drive, so Apple's player timed out. While AirPlay plays (this window property
+# holds the time it was last seen working), the copies, the uploads and the conversion wait.
+BUSY='KodiIOS.AirPlay'
+BUSY_FOR=90   # seconds after its last log line; Apple's player logs its requests and a heartbeat while it plays
+ENDED=('player: closed','player: stopped')
+def mark_busy(window,now):window.setProperty(BUSY,'%.0f'%now)
+def clear_busy(window):window.setProperty(BUSY,'')
+def busy(window,now):
+ try:return now-float(window.getProperty(BUSY) or 0)<BUSY_FOR
+ except (TypeError,ValueError):return False
+def activity(lines,window,now):
+ """relay's keep: a line from Apple's player keeps AirPlay marked busy; closed / stopped ends it."""
+ if not lines:return
+ if any(end in line for line in lines for end in ENDED) and not any('start:' in line for line in lines):clear_busy(window)
+ else:mark_busy(window,now)
+
+def relay(lib,write,wait,every=5,keep=None):
+ """Writes the framework's AirPlay log into kodi.log every few seconds until wait(seconds) reports Kodi is closing.
+ keep(lines): also hands them on (library_tools.note_airplay keeps the last Play on TV for the AirPlay check)."""
  if not hasattr(lib,'kodi_airplay_log'):return
  while True:
-  for line in log_lines(lib):write('Kodi iOS AirPlay: '+line)
+  lines=[diagnostics.redact(line) for line in log_lines(lib)]
+  for line in lines:write('Kodi iOS AirPlay: '+line)
+  if lines and keep:
+   try:keep(lines)
+   except Exception:pass
   if wait(every):break
 
 def watch(lib,playing,wait):

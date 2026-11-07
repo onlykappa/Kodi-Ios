@@ -45,12 +45,17 @@ int kr_video_pick_stream(gm_stream *s);
 kr_video *kr_video_open(gm_source src, int index, char *err, int errlen);
 // Offline preparation only: keep the selected source's dimensions (never the live 1080p limit).
 void kr_video_keep_resolution(kr_video *v);
+// Host tests may select libx265; the shipped iOS build uses Apple HEVC VideoToolbox.
+void kr_video_set_hdr_encoder(const char *name);
 void kr_video_subtitle_language(kr_video *v, const char *lang);
 // Last embedded subtitle preroll's observed end time, or -1 when no scan was needed.
 double kr_video_subtitle_scan_end(const kr_video *v);
 int kr_video_width(const kr_video *v);   // output size
 int kr_video_height(const kr_video *v);
 int kr_video_hw_decode(const kr_video *v);  // 1 when VideoToolbox decodes
+void kr_video_set_background(int on);       // r26: Kodi is off screen: preparation units decode on the CPU
+long kr_video_frames(kr_video *v);          // r26: pictures decoded so far (stuck-unit watch)
+void kr_video_software_next(kr_video *v);   // r26: the next unit decodes on the CPU (a remade unit)
 // r11: how the last segment's frames were scaled/converted (log): GPU transfer or CPU (libswscale).
 const char *kr_video_path(const kr_video *v);
 // fMP4 init (ftyp+moov) or media segment (moof+mdat) i of the planned grid of `s` (absolute tfdt).
@@ -73,4 +78,6 @@ int kr_video_burn(kr_video *v, int sub_index, const char *file, char *err, int e
 int kr_video_burning(const kr_video *v);
 int kr_video_burn_events(const kr_video *v);  // subtitle events loaded so far (tests, log)
 long kr_video_burn_drawn(const kr_video *v);  // r11: converted frames with a subtitle drawn on them so far
+// r20: how the last segment was made, for the preparation log.
+const char *kr_video_route(kr_video *v);
 #endif

@@ -150,6 +150,46 @@ class PortraitTests(unittest.TestCase):
   self.assertTrue(files['extras/portrait/airplay.png'].startswith(b'\x89PNG'))
   nav=importlib.util.spec_from_file_location('nav',ROOT/'migration/bundled-bootstrap/resources/lib/navigation.py');n=importlib.util.module_from_spec(nav);nav.loader.exec_module(n)
   self.assertEqual(n.patch_osd(files['1080i/VideoOSD.xml'],'VideoOSD.xml'),files['1080i/VideoOSD.xml'])
+ def test_landscape_video_text_clear_of_the_dynamic_island(self):
+  # Build 191 (owner): over landscape video the title, "4K • 1 hr 37 mins", plot and "Ends at" (Fuse's info overlay)
+  # and the back chevron sat under the camera island. The island can be on either side: SAFE from both edges.
+  SAFE=portrait.player_osd.SAFE;self.assertGreaterEqual(SAFE,140)
+  fuse=('<?xml version="1.0" encoding="UTF-8"?>\n<window type="dialog" id="1152"><visible>$EXP[Exp_OSD_QuickInfo]</visible><controls>'
+        '<control type="group"><include content="OSD_Progress_Details_Extended"><param name="align">bottom</param></include>'
+        '<control type="grouplist"><left>40</left><bottom>40</bottom><control type="label"><left>40</left><label>$INFO[VideoPlayer.Title]</label></control></control></control>'
+        '</controls></window>\n')
+  skin=Path(self.tmp.name)/'video'/'skin.arctic.fuse.3';(skin/'1080i').mkdir(parents=True);(skin/'addon.xml').write_text(ADDON)
+  for name,data in {'Font.xml':FONT,'Includes.xml':'<includes />','Home.xml':'<window><controls /></window>','VideoOSD.xml':'<window><controls /></window>'}.items():(skin/'1080i'/name).write_text(data)
+  for name in portrait.player_osd.INSET:(skin/'1080i'/name).write_text(fuse)
+  nav=importlib.util.spec_from_file_location('nav3',ROOT/'migration/bundled-bootstrap/resources/lib/navigation.py');n=importlib.util.module_from_spec(nav);nav.loader.exec_module(n)
+  n.patch_skin(skin);portrait.build(skin,self.profile)
+  for _ in range(2):self.assertEqual(n.patch_skin(skin),[]);self.assertEqual(portrait.refresh(skin,self.profile),[])
+  for name in portrait.player_osd.INSET:
+   self.assertIn(name,portrait.OWN_1080I);self.assertFalse((skin/'portrait'/name).exists(),name)
+   root=ET.parse(skin/'1080i'/name).getroot();top=list(root.find('controls'))
+   inset=top[0];self.assertEqual((inset.findtext('left'),inset.findtext('right')),(str(SAFE),str(SAFE)),name)
+   # Everything Fuse drew is inside the inset; only the safe-area frame (black bars outside the screen) is not.
+   self.assertEqual([c.get('id') for c in top[1:]],['98400'],name);self.assertEqual(len(list(inset.iter('include'))),1,name)
+   self.assertEqual(root.findtext('visible'),'$EXP[Exp_OSD_QuickInfo]')
+  # Our controls: each piece pinned left or right stays SAFE from that edge; the right-hand group keeps SAFE inside.
+  osd=ET.parse(skin/'1080i/VideoOSD.xml').getroot()
+  def pinned(node):
+   if any(node.find(k) is not None for k in ('left','right','centerleft')):yield node
+   else:
+    for child in node.findall('control'):yield from pinned(child)
+  checked=0
+  for c in [p for top in osd.find('controls').findall('control') for p in pinned(top)]:
+   if c.find('centerleft') is not None:continue
+   if c.get('type')=='image' and any(t in (c.findtext('texture') or '') for t in ('white.png','fade_')):continue   # shades over the video
+   if c.findtext('right')=='0' and c.findtext('width'):
+    w=int(c.findtext('width'))
+    for d in c.iter('control'):
+     if d is not c and (d.findtext('left') or '').isdigit():self.assertLessEqual(int(d.findtext('left'))+int(d.findtext('width')),w-SAFE,ET.tostring(d)[:160]);checked+=1
+    continue
+   for edge in ('left','right'):
+    v=c.findtext(edge)
+    if v is not None and v.lstrip('-').isdigit():self.assertGreaterEqual(int(v),SAFE,(edge,ET.tostring(c)[:160]));checked+=1
+  self.assertGreater(checked,10)
  def test_buttons_run_pages_by_addon_id(self):
   # "Script invoked without an addon" (ISSUE-071): every RunScript of the setup add-on in the generated files names
   # the add-on and a page default.py knows, and that page exists.

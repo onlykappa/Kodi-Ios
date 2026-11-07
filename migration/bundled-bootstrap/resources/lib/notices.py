@@ -67,7 +67,9 @@ def ingest(profile):
 # Kodi starts a new kodi.log at every launch, so the lines are copied next to the message as soon as it arrives.
 import re
 LOG_LINE=re.compile(r'^\ufeff?(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\.(\d{3}) T:\d+\s+(\w+) <[^>]*>: ?(.*)$')
-NOISE=('[GIN]','JSONRPC Server:','Touch at ','Tap at ','Click at ')
+# Kodi's 'has been asked to focus, but it can't' is skin navigation (a hidden control), never the cause of a message
+# (owner, build 191: an AllDebrid failure showed one as "What happened").
+NOISE=('[GIN]','JSONRPC Server:','Touch at ','Tap at ','Click at ','has been asked to focus, but it can')
 ANSI=re.compile(r'\x1b?\[\d+(?:;\d+)*m')
 TROUBLE=re.compile(r'\b(fail\w*|errors?|paused|skipped|refused|unavailable|cannot|could not|denied|missing|timed out)\b')
 def logs(profile):return Path(profile)/'addon_data/service.kodi.ios.bootstrap/notice-logs'
@@ -107,6 +109,7 @@ def excerpt(records,when,title='',before=90,after=1,limit=30):
  def wanted(r):
   if not when-before<=r['time']<=when+after or any(n in r['text'] for n in NOISE):return False
   low=r['text'].lower()
+  if 'preparation' in words and not ('preparation' in low or 'prepare_cloud.py' in str(r.get('more','')) or 'prepare_downloads.py' in str(r.get('more',''))):return False
   if r['level'] in ('error','fatal'):return not (low.startswith('exception:') and not r['more'])
   if any(n in low for n in ROUTINE):return False
   inner=re.search(r'\b(INFO|NOTI|DEBU|WARN|ERRO|FATA)\b',r['text'])
@@ -204,6 +207,7 @@ def downloads(get=None):
   size=float(t.get('size_bytes') or 0);rate=float(t.get('download_rate') or 0)*1024  # engine reports KB/s
   done=size*progress/100;paused=status.lower()=='paused'
   out.append({'id':t.get('id',''),'title':drivelibrary.display_title(t.get('name','')),'progress':progress,'paused':paused,
+              'sent':done,'total':size,'rate':0 if paused else rate,'eta_s':(size-done)/rate if rate>0 and not paused else 0,
               'line':'%d%%  ·  %s of %s'%(progress,size_text(done),size_text(size)),
               'speed':'Paused' if paused else ('%.1f MB/s  ·  %s'%(rate/1024**2,eta_text((size-done)/rate)) if rate>0 else 'Waiting for peers')})
  return out
@@ -217,15 +221,24 @@ def uploads(profile):
  now=state.get('current') if isinstance(state,dict) else None
  if now and now.get('total'):
   progress=100.0*now.get('sent',0)/now['total']
-  out.append({'title':drivelibrary.display_title(now.get('name','')),'folder':now.get('folder',''),'progress':progress,
+  out.append({'title':drivelibrary.display_title(now.get('name','')),'folder':now.get('folder',''),'progress':progress,'source':'phone',
               'line':'%d%%  ·  %s of %s'%(progress,size_text(now.get('sent',0)),size_text(now['total']))})
  try:
   import debrid_drive
+  jobs=[j for j in debrid_drive.load(profile).get('jobs',[]) if j.get('status') not in ('done','failed')]
+  copy_hash=jobs[0].get('hash','') if jobs else ''   # the job debrid_drive.step works on (long press › Cancel)
   for d in debrid_drive.uploads(profile):
    progress=100.0*d.get('sent',0)/d['total']
-   line=('AllDebrid is fetching it · %d%%'%progress if d.get('stage')=='fetching'
-         else '%d%%  ·  %s of %s, straight to Google Drive'%(progress,size_text(d.get('sent',0)),size_text(d['total'])))
-   out.append({'title':drivelibrary.display_title(d.get('name','')),'folder':d.get('folder',''),'progress':progress,'line':line})
+   import prepare_downloads
+   rate=float(d.get('rate') or 0);eta=prepare_downloads.eta_text(d.get('eta_s') or 0)
+   speed='%.1f MB/s'%(rate/1024**2) if rate else ''
+   if d.get('stage')=='fetching':
+    line='AllDebrid is fetching it · %d%%'%progress;short=line
+   else:
+    line='  ·  '.join(x for x in ('%d%%'%progress,'%s of %s'%(size_text(d.get('sent',0)),size_text(d['total'])),speed,eta) if x)
+    short=' · '.join(x for x in ('%d%%'%progress,speed,eta) if x)
+   out.append({'title':drivelibrary.display_title(d.get('name','')),'folder':d.get('folder',''),'progress':progress,'line':line,
+               'short':short,'source':'debrid','hash':copy_hash,'sent':d.get('sent',0),'total':d['total'],'rate':rate,'eta':eta,'stage':d.get('stage','')})
  except Exception as error:_quiet('notices:debrid',error)
  return out
 

@@ -15,8 +15,7 @@ SHOWN = {'ready': ('ready',), 'waiting': ('waiting',), 'kept': ('kept',),
 TITLES = {'all': 'Library status', 'ready': 'Ready', 'waiting': 'Waiting', 'kept': 'Kept as it is', 'todo': 'To do',
           'downloading': 'Downloading'}
 DOT = '[COLOR %s]●[/COLOR]'
-NOTE = ('Kodi prepares one video at a time while nothing is playing, reading it from Google Drive. A video that needs '
-        'more phone space than is free waits until there is room.')
+NOTE = 'Kodi prepares one video at a time from Google Drive while nothing plays.'
 
 
 def ring_name(pct):
@@ -73,33 +72,76 @@ def list_items(view, filter_key='all'):
     return out
 
 
-def usage_text(usage):
-    """'Kodi uses 9.8 GB · Elementum downloads 6.1 GB · artwork 1.2 GB' from {name: bytes} (largest two named)."""
-    total = sum(usage.values())
-    big = [(n, b) for n, b in sorted(usage.items(), key=lambda kv: -kv[1]) if b >= 0.1 * GB][:2]
-    return ' · '.join(['Kodi uses %.1f GB' % (total / GB)] + ['%s %.1f GB' % (n, b / GB) for n, b in big])
-
-
-def page_properties(view, checking=False, usage=None):
-    """Window properties for the page's top: subtitle, ring, headline, legend and phone space. usage: {what: bytes}
-    Kodi keeps on the phone (library_status measures it), or None while it is being measured."""
-    free, working = view.get('free'), view.get('working') or 0
+def page_properties(view, checking=False):
+    """Window properties for the page's top: subtitle, ring, headline and legend."""
     legend = '  '.join('%s %d %s' % (DOT % colour, n, word) for colour, n, word in (
         ('FF30D158', view['ready'], 'ready'), ('FFBF5AF2', view['todo'], 'to do'),
         ('FF0A84FF', view['downloading'], 'downloading'), ('FF8E8E93', view['kept'], 'kept')))
-    space = 'Kodi always leaves you 5 GB'
-    if working >= 0.1 * GB:
-        space = 'Preparing now uses %.0f GB · %s' % (working / GB, space)
-    props = {'sub': 'Kodi Downloads on Google Drive · ' + ('checking now…' if checking else view['checked']),
+    return {'sub': 'Kodi Downloads on Google Drive · ' + ('checking now…' if checking else view['checked']),
             'ring': ring_name(view['pct']), 'pct': str(view['pct']),
             'headline': '%d of %d ready' % (view['ready'], view['total']) if view['total'] else 'Not checked yet',
-            'legend': legend, 'free': '' if free is None else '%.0f GB free' % (free / GB), 'space': space,
-            'space_pct': '0' if not free else str(int(100 * working / (working + free)))}
-    if usage:
-        used = sum(usage.values())
-        props['space'] = usage_text(usage)
-        props['space_pct'] = '0' if not free else str(int(100 * used / (used + free)))
-    return props
+            'legend': legend}
+
+
+def short_eta(text):
+    """'about 25 min left' as 'about 25 min' (the fact is already called Time left)."""
+    text = str(text or '')
+    return text[:-5] if text.endswith(' left') else text
+
+
+CONV, DOWN = 'FFBF5AF2', 'FF0A84FF'
+FACTS = 5
+
+
+def film_text(done, total):
+    """'46 of 148 min of the film' ('' while the film's length is unknown)."""
+    try:
+        done, total = float(done or 0), float(total or 0)
+    except (TypeError, ValueError):
+        return ''
+    return '%d of %d min of the film' % (done // 60, round(total / 60)) if total > 0 else ''
+
+
+def clock_text(seconds, now=None):
+    """'4:35 PM' when something `seconds` from now ends ('' when unknown or more than a day away)."""
+    import time as _time
+    try:
+        seconds = float(seconds or 0)
+    except (TypeError, ValueError):
+        return ''
+    if seconds <= 0 or seconds > 86400:
+        return ''
+    t = _time.localtime((_time.time() if now is None else now) + seconds)
+    return _time.strftime('%I:%M %p', t).lstrip('0')
+
+
+def day_text(when, now=None):
+    """'Today', 'Yesterday' or '6 Nov' ('' when unknown)."""
+    import time as _time
+    if not when:
+        return ''
+    now = _time.time() if now is None else now
+    a, b = _time.localtime(when), _time.localtime(now)
+    days = (_time.mktime(b[:3] + (0, 0, 0, 0, 0, -1)) - _time.mktime(a[:3] + (0, 0, 0, 0, 0, -1))) // 86400
+    return 'Today' if days == 0 else 'Yesterday' if days == 1 else '%d %s' % (a.tm_mday, _time.strftime('%b', a))
+
+
+def minutes_text(seconds):
+    m = int(max(0, seconds) // 60)
+    return 'under a minute' if m < 1 else '%d min' % m if m < 60 else '%d h %d min' % (m // 60, m % 60)
+
+
+def picture_text(probe, kept=False):
+    """'4K HDR', 'HD' ... from the native probe; kept=True adds ', kept as 4K HDR' (the picture is not made smaller)."""
+    if not probe:
+        return ''
+    w = int(probe.get('width') or 0)
+    res = '4K' if w >= 3000 else 'HD' if w >= 1200 else 'SD' if w else ''
+    what = ' '.join(x for x in (res, 'HDR' if probe.get('hdr') else '') if x)
+    return '%s, kept as %s' % (what, what) if kept and what else what
+
+
+QUICKER = ('Find a version without converting', 'quicker')
 
 
 def details(row, view):
@@ -109,18 +151,52 @@ def details(row, view):
     on_drive = ('On Google Drive', '%.1f GB' % (size / GB)) if size else None
     folder = ('Folder', row.get('folder') or 'Kodi Downloads') if row.get('folder') else None
     state = row['state']
-    sheet = {'title': row['title'], 'quality': '', 'facts': [], 'actions': [], 'tone': 'plain', 'status': row.get('sub', '')}
+    sheet = {'title': row['title'], 'quality': '', 'facts': [], 'actions': [], 'tone': 'plain', 'status': row.get('sub', ''),
+             'bar': '', 'bar_tint': ''}
+    # Build 177 (owner-approved movie sheet): a live speed card for anything moving, and rows that each answer one
+    # question. "On Google Drive" (the original's size) and "Speed: 1.8 GB read" are gone (owner: they "dont make sense").
+    sheet['card'] = ''
+    sheet['step'] = str(row.get('step') or '')
     if state == 'ready':
-        sheet.update(status='Ready for Kodi and AirPlay', tone='ok', quality=row.get('sub', ''),
-                     facts=[f for f in (on_drive, folder, ('Plays', 'on this iPhone and over AirPlay, seeking straight away')) if f])
+        probe = row.get('probe') or {}
+        took = (row['completed'] - row['started_at']) if row.get('completed') and row.get('started_at') else 0
+        made = ' · '.join(x for x in (day_text(row.get('completed')), 'took %s' % minutes_text(took) if took > 0 else '') if x)
+        sheet.update(status='Ready on iPhone and Apple TV', tone='ok', quality='Seeks straight away over AirPlay',
+                     facts=[f for f in (('Picture', picture_text(probe, kept=False) or row.get('sub', '')),
+                                        ('Size', '%.1f GB' % (size / GB)) if size else None,
+                                        ('Folder', 'Kodi Downloads › ' + row['folder']) if row.get('folder') else None,
+                                        ('Made ready', made) if made else None) if f],
+                     actions=[('Play', 'play'), ('Play on TV', 'tv')])
     elif state == 'preparing':
-        sheet.update(status='Preparing now · %s%%' % row.get('pct', 0), facts=[f for f in (on_drive, ('Step', row.get('sub', ''))) if f])
+        pct = row.get('pct', 0)
+        out_total = row.get('out_total') or 0
+        sheet.update(status='Converting for Apple TV' + (' · %s%%' % pct if pct and not row.get('indeterminate') else ''),
+                     tone='conv', quality='Plays on iPhone already · TV after this', card='conv',
+                     facts=[f for f in (('Done so far', film_text(row.get('film_done'), row.get('film_total')) or 'starting'),
+                                        ('Ready around', clock_text(row.get('eta_s')) or 'working it out'),
+                                        ('Pace', '%.1f× faster than the film plays' % float(row['pace'])) if row.get('pace') else None,
+                                        ('Picture', picture_text(row.get('probe'), kept=True)) if row.get('probe') else None,
+                                        ('Size', '%.1f GB now' % (size / GB) + (' · about %.1f GB after' % (out_total / GB) if out_total else ''))
+                                        if size else None) if f])
+        if pct and not row.get('indeterminate'):
+            sheet.update(bar=str(pct), bar_tint=CONV)
     elif state in ('downloading', 'uploading'):
-        sheet.update(status=row.get('sub', ''), facts=[('Progress', '%s%%' % row.get('pct', 0))])
+        sent, total = row.get('sent') or 0, row.get('total') or 0
+        fetching = row.get('stage') == 'fetching'
+        debrid = state == 'uploading'
+        sheet.update(status=('AllDebrid is fetching it' if fetching else 'Downloading') + ' · %s%%' % row.get('pct', 0),
+                     tone='down', quality='Straight to Google Drive, not the phone' if debrid else 'To this iPhone, then to Google Drive',
+                     card='up' if debrid else 'down',
+                     facts=[f for f in (('Downloaded', '%.1f of %.1f GB' % (sent / GB, total / GB)) if total and not fetching else None,
+                                        ('Done around', clock_text(row.get('eta_s')) or 'working it out'),
+                                        ('Through', 'AllDebrid' if debrid else 'Elementum (torrent)'),
+                                        ('Saving to', 'Drive › Kodi Downloads' + (' › ' + row['folder'] if row.get('folder') else '')),
+                                        ('After that', 'Converted for Apple TV if it needs it')) if f])
+        sheet.update(bar=str(row.get('pct', 0)), bar_tint=DOWN)
     elif state == 'waiting':
         sheet.update(status=row.get('sub', '').split(' · ')[0], quality=' · '.join(row.get('sub', '').split(' · ')[1:]),
                      facts=[f for f in (on_drive, folder) if f],
-                     actions=[('Prepare next', 'next'), ('Keep as it is', 'keep')])
+                     actions=[('Start converting now', 'now'), ('Prepare next', 'next'), ('Keep as it is', 'keep')])
     elif state == 'space':
         free = view.get('free') or 0
         sheet.update(status='Waiting for phone space', tone='warn',
@@ -136,5 +212,31 @@ def details(row, view):
         sheet.update(status='Kept as it is', facts=[f for f in (on_drive, ('Why', row.get('sub', '').replace('Kept as it is · ', ''))) if f])
         if row.get('owner'):
             sheet['actions'] = [('Prepare it after all', 'prepare')]
-    sheet['facts'] = sheet['facts'][:4]
+    # Owner (build 184): a movie that must be re-encoded (AV1) can be swapped for a version that is only repackaged.
+    if row.get('reencode') and state in ('waiting', 'space', 'problem', 'preparing'):
+        sheet['actions'] = ([QUICKER] + [a for a in sheet['actions'] if a[1] != 'next'])[:3]
+        sheet['facts'] = sheet['facts'][:FACTS - 1] + [('Why it is slow', 'AV1 is re-encoded on the phone; HEVC and H.264 are only repackaged')]
+    sheet['facts'] = sheet['facts'][:FACTS]
     return sheet
+
+
+def card(history, kind, title, now, step=''):
+    """The live speed card of a movie's sheet (build 177): window properties and the points to paint, from
+    transfer_history's job of that kind when it is this movie's. ({}, []) when there is none yet ("Measuring…").
+    step: what the movie is doing now; shown instead of "starting" while nothing moves yet (build 192, owner:
+    "seems to just be stuck on starting ... its not showing me what its doing")."""
+    import transfer_history as th
+    job = (history.get('jobs') or {}).get(kind)
+    if not job or job.get('title') != title or now - job.get('last', 0) > 15:
+        return {'card.now': step or 'starting', 'card.peak': '–', 'card.avg': '–', 'card.left': '–', 'card.from': ''}, []
+    pts = job.get('points') or []
+    rate = pts[-1][1] if pts else 0.0
+    left = ''
+    if kind == 'conv':
+        left = short_eta((job.get('extra') or {}).get('eta'))
+    elif rate and job.get('total'):
+        import prepare_downloads
+        left = short_eta(prepare_downloads.eta_text((float(job['total']) - float(job.get('done') or 0)) / rate))
+    return ({'card.now': th.mb(rate) if rate > 0 else 'Starting…', 'card.peak': th.mb(job.get('peak')),
+             'card.avg': th.mb(job.get('sum', 0) / max(1, job.get('n', 1))), 'card.left': left or '–',
+             'card.from': th.ago(now - job['start']).replace('just now', 'a moment ago')}, pts)

@@ -8,7 +8,7 @@ UPLOAD='https://www.googleapis.com/upload/drive/v3/files'
 FOLDER='application/vnd.google-apps.folder'
 VIDEO=('.mkv','.mp4','.m4v','.avi','.mov','.webm','.ts','.m2ts','.mts','.wmv','.mpg','.mpeg','.srt')
 PARTIAL=re.compile(r'(?:^|[._ -])(?:sample|partial|incomplete|downloading)(?:[._ -]|$)|\.(?:part|tmp|download)(?:\.|$)',re.I)
-CHUNK=16*1024*1024  # a multiple of 256 KiB, as Drive requires
+CHUNK=32*1024*1024  # a multiple of 256 KiB, as Drive requires (build 181: 32 MB, less time lost between pieces)
 TOP='Kodi Downloads'
 
 class Stop(Exception):pass
@@ -50,8 +50,17 @@ def confirmed(drive,item_id,size,digest):
  return not meta.get('trashed',False) and int(meta.get('size',-1))==size and meta.get('md5Checksum','').lower()==digest.lower()
 
 def invalidate_library(state_dir):
- try:os.remove(os.path.join(state_dir,'drive-library.json'))
- except FileNotFoundError:pass
+ # Build 192: the saved Library lists are marked stale (kept for the page to show at once) and the service lists Drive
+ # again within seconds (drivelibrary.refresh_stale); they used to be deleted, so the next open waited for Drive.
+ path=os.path.join(state_dir,'drive-library.json')
+ try:
+  with open(path,encoding='utf-8') as f:cache=json.load(f)
+  for hit in cache.values():
+   if isinstance(hit,dict):hit['time']=0
+  tmp=path+'.tmp'
+  with open(tmp,'w',encoding='utf-8') as f:json.dump(cache,f)
+  os.replace(tmp,path)
+ except (OSError,ValueError,AttributeError):pass
  # Both automatic and manual uploads ask the idle preparation worker for a fresh scan.
  os.makedirs(state_dir,exist_ok=True)
  with open(os.path.join(state_dir,'airplay-preparation-rescan'),'a'):pass
@@ -190,33 +199,59 @@ class Drive(object):
    location=headers.get('Location') or headers.get('location')
    if status!=200 or not location:raise RuntimeError('Drive upload start: HTTP %s'%status)
    session.clear();session.update(url=location,size=size);save();offset=0
-  source=open_at(offset)
+  import concurrent.futures
+  source=[open_at(offset)]
+  def read(at):
+   chunk=b'';began=time.monotonic()
+   while len(chunk)<CHUNK and at+len(chunk)<size:
+    data=source[0].read(min(CHUNK-len(chunk),1024*1024))
+    if not data:break
+    chunk+=data
+   return chunk,time.monotonic()-began
+  # Build 181 (owner: "whatever that will make uploading and downloading quicker"): the next piece downloads from
+  # the source while this one goes up to Drive (they used to take turns).
+  ahead=concurrent.futures.ThreadPoolExecutor(max_workers=1);coming=None
   try:
    while offset<size:
     if not keep_going():raise Stop()
-    chunk=b''
-    while len(chunk)<CHUNK and offset+len(chunk)<size:
-     data=source.read(min(CHUNK-len(chunk),1024*1024))
-     if not data:break
-     chunk+=data
+    if coming is not None:chunk,read_s=coming.result();coming=None
+    else:chunk,read_s=read(offset)
     if not chunk:raise RuntimeError('The download stopped before the end; it will carry on')
-    end=offset+len(chunk)-1
+    end=offset+len(chunk)-1;began=time.monotonic()
+    if end+1<size:coming=ahead.submit(read,end+1)
     status,headers,body=self.call('PUT',session['url'],chunk,{'Content-Range':'bytes %d-%d/%d'%(offset,end,size)})
+    # Owner (build 168): 0.2 MB/s. Which side is slow, the source (AllDebrid) or Google Drive, for the next log.
+    put_s=time.monotonic()-began;mb=len(chunk)/1048576.0
+    _note('Drive copy: %.1f MB read in %.1f s (%.2f MB/s from the source), sent in %.1f s (%.2f MB/s to Google Drive), %.1f%% done'%(
+     mb,read_s,mb/max(read_s,.001),put_s,mb/max(put_s,.001),100.0*(end+1)/size))
     if status in (200,201):progress(size,size);return json.loads(body or b'{}')
     if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
     confirmed=_next_offset(headers)
-    if confirmed!=end+1:   # Drive kept less than sent: read again from where it got to
-     try:source.close()
+    if confirmed!=end+1:   # Drive kept less than sent: drop what was read ahead and read again from where it got to
+     if coming is not None:
+      try:coming.result()
+      except Exception:pass
+      coming=None
+     try:source[0].close()
      except Exception:pass
-     source=open_at(confirmed)
+     source[0]=open_at(confirmed)
     offset=confirmed;save();progress(offset,size)
   finally:
-   try:source.close()
+   if coming is not None:
+    try:coming.result()
+    except Exception:pass
+   ahead.shutdown(wait=False)
+   try:source[0].close()
    except Exception:pass
   raise RuntimeError('Drive did not confirm the upload')
  def _done(self,path,sessions,save,body):
   sessions.pop(path,None);save()
   return json.loads(body or b'{}')
+
+def _note(message):
+ try:
+  import xbmc;xbmc.log('Kodi iOS '+message,xbmc.LOGINFO)
+ except Exception:pass
 
 def _next_offset(headers):
  value=headers.get('Range') or headers.get('range') or ''
@@ -350,16 +385,42 @@ def run_once(root,drive,state_path,log,keep_going=lambda:True,delete_after=True,
    while os.path.basename(folder) not in ('Movies','TV Shows') and not os.listdir(folder):os.rmdir(folder);folder=os.path.dirname(folder)
  return count
 
-def sender(context,timeout=120):
+# Build-184 log: a 32 MB piece hung with no progress for 120 s ("The write operation timed out") and only then was
+# retried. The socket timeout is per send/receive, so 45 s means 45 s with nothing moving; the piece is then retried
+# on a new connection (the resumable session asks Drive what it kept first).
+STALL=45
+# Build 189 (owner, build-187 log: Fall 2 at ~0.1 MB/s, 399 of 649 big pieces "timed out"): Python's socket timeout is
+# the limit for the whole upload request, not for a pause in it, so a 32 MB piece had to finish in 45 s (0.73 MB/s)
+# and on the owner's ~0.43 MB/s line nearly every one was cut off and sent again. The limit now grows with the piece:
+# 45 s plus one second per SLOW_RATE bytes.
+SLOW_RATE=128*1024
+def request_timeout(timeout,body):
+ return timeout+(len(body)/SLOW_RATE if body else 0)
+def sender(context,timeout=STALL,log=lambda message:None):
  """HTTP for Drive with the given TLS context; returns (status, headers, body) without following redirects."""
+ import diagnostics
  class NoRedirect(urllib.request.HTTPRedirectHandler):
   def redirect_request(self,*args,**kwargs):return None
  opener=urllib.request.build_opener(NoRedirect,urllib.request.HTTPSHandler(context=context))
  def send(method,url,body,headers):
   request=urllib.request.Request(url,data=body,headers=dict(headers,**{'User-Agent':'Kodi iOS Drive upload'}),method=method)
-  try:
-   with opener.open(request,timeout=timeout) as r:return r.status,dict(r.headers),r.read()
-  except urllib.error.HTTPError as e:return e.code,dict(e.headers or {}),e.read()
+  safe=method in ('GET','HEAD','DELETE')
+  for attempt in range(3 if safe else 1):
+   begun=time.monotonic()
+   fields=dict(method=method,host=urllib.parse.urlsplit(url).hostname,attempt=attempt+1,request_bytes=len(body) if body else 0)
+   try:
+    with opener.open(request,timeout=min(timeout,30) if safe else request_timeout(timeout,body)) as r:
+     answer=r.read();elapsed=round(time.monotonic()-begun,3)
+     if elapsed>=10 or (body and len(body)>=256*1024):diagnostics.event(log,'drive_http','response',status=r.status,elapsed_s=elapsed,response_bytes=len(answer),**fields)
+     return r.status,dict(r.headers),answer
+   except urllib.error.HTTPError as e:
+    diagnostics.event(log,'drive_http','http_error',status=e.code,elapsed_s=round(time.monotonic()-begun,3),retry=safe and e.code in (429,500,502,503,504) and attempt<2,**fields)
+    if not safe or e.code not in (429,500,502,503,504) or attempt==2:return e.code,dict(e.headers or {}),e.read()
+    e.close()
+   except (urllib.error.URLError,TimeoutError) as e:
+    diagnostics.exception(log,'drive_http',e,elapsed_s=round(time.monotonic()-begun,3),retry=safe and attempt<2 and 'CERTIFICATE_VERIFY_FAILED' not in str(e),**fields)
+    if not safe or attempt==2 or 'CERTIFICATE_VERIFY_FAILED' in str(e):raise
+   time.sleep(.5*2**attempt)
  return send
 
 def token_source(accounts,save_account,refresh,now=time.time):

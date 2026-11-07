@@ -8,6 +8,8 @@
 #include "kr_audio.h"  // kr_first_moof
 #include "kr_color.h"
 #include "kr_subs.h"   // r10: burned-in subtitles
+#include "kr_remux.h"  // r22: kr_remux_note
+#include <time.h>
 #include <math.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -42,7 +44,11 @@ struct kr_video {
     AVCodecContext *dec;
     AVBufferRef *hw;          // VideoToolbox device, NULL for software decoding
     int ow, oh;               // output size
-    int offline;
+    int offline,keep_hdr;
+    int want_hw;              // r25: VideoToolbox decoded this picture once: try it again at each preparation unit
+    int soft_next;            // r26: make the next preparation unit with the CPU decoder (a remade, stuck unit)
+    atomic_long frames;       // r26: pictures decoded so far: a unit that stops moving is remade (kr_prepare)
+    char route[64];           // r20: how the last segment was made (hardware HDR / GPU / CPU + decoder), for the log
     AVRational fps;           // source frame rate (for the encoder's framerate hint)
     kr_color *sws;
 #ifdef KR_GPU
@@ -63,6 +69,8 @@ struct kr_video {
 };
 
 static const char *encoder_name;
+static const char *hdr_encoder_name;
+void kr_video_set_hdr_encoder(const char *name){hdr_encoder_name=name && *name?name:NULL;}
 
 void kr_video_set_encoder(const char *name) { encoder_name = name && *name ? name : NULL; }
 const char *kr_video_encoder(void) { return encoder_name ? encoder_name : "h264_videotoolbox"; }
@@ -147,6 +155,11 @@ static enum AVPixelFormat pick_format(AVCodecContext *c, const enum AVPixelForma
 
 static int open_decoder(kr_video *v, int hw, char *err, int errlen) {
     AVStream *st = v->in->streams[v->index];
+    const AVPixFmtDescriptor *description=av_pix_fmt_desc_get(st->codecpar->format);
+    // iPhone hardware does not decode High10 H.264 or >10-bit/4:2:2 HEVC. Select the software
+    // decoder up front instead of accepting a hardware context that fails at its first packet.
+    if(hw && description && (description->log2_chroma_w!=1 || description->log2_chroma_h!=1 ||
+       description->comp[0].depth>(st->codecpar->codec_id==AV_CODEC_ID_H264?8:10)))hw=0;
     const AVCodec *dec = avcodec_find_decoder(st->codecpar->codec_id);
     if (st->codecpar->codec_id == AV_CODEC_ID_AV1) {
 #ifdef KR_GPU
@@ -203,6 +216,7 @@ kr_video *kr_video_open(gm_source src, int index, char *err, int errlen) {
     }
     if (!kr_video_available()) { seterr(err, errlen, "no H.264 encoder in this build", 0); goto fail; }
     if (open_decoder(v, 1, err, errlen) < 0 && open_decoder(v, 0, err, errlen) < 0) goto fail;
+    v->want_hw = v->hw != NULL;
     AVStream *st = v->in->streams[index];
     kr_video_output_size(st->codecpar->width, st->codecpar->height, &v->ow, &v->oh);
     v->fps = st->avg_frame_rate.num > 0 && st->avg_frame_rate.den > 0 ? st->avg_frame_rate : st->r_frame_rate;
@@ -220,9 +234,17 @@ void kr_video_keep_resolution(kr_video *v) {
     if (!v) return;
     AVCodecParameters *p=v->in->streams[v->index]->codecpar;
     v->ow=p->width;v->oh=p->height;v->offline=1;
+    v->keep_hdr=p->color_trc==AVCOL_TRC_SMPTE2084 || p->color_trc==AVCOL_TRC_ARIB_STD_B67;
 }
 int kr_video_height(const kr_video *v) { return v ? v->oh : 0; }
 int kr_video_hw_decode(const kr_video *v) { return v && v->hw ? 1 : 0; }
+// r26 (build-178 log: Kodi left the screen mid-unit and that VideoToolbox unit never finished, so the whole conversion
+// waited for 20 minutes): kr_prepare watches each unit's decoded pictures and remakes a stuck one; while Kodi is off
+// screen (the add-on says so) preparation units decode on the CPU, and on the hardware again once it is back.
+static atomic_int prepare_background;
+void kr_video_set_background(int on) { atomic_store(&prepare_background, on != 0); }
+long kr_video_frames(kr_video *v) { return v ? atomic_load(&v->frames) : 0; }
+void kr_video_software_next(kr_video *v) { if (v) v->soft_next = 1; }
 const char *kr_video_path(const kr_video *v) {
     return !v || v->last_path < 0 ? "none yet" : v->last_path ? "GPU transfer (VTPixelTransferSession)" : v->last_hdr ? "CPU HDR tone/gamut mapping" : "CPU (libswscale)";
 }
@@ -319,12 +341,31 @@ typedef struct {
     int64_t last_pts;         // the latest source pts sent (frames must increase)
     AVFrame *conv;
     int gpu;                  // r9: the encoder takes VideoToolbox frames scaled on the GPU
+    int hdr_pass;             // r18: HDR kept at its size: the decoder's 10-bit hardware frames go straight to the encoder
+    AVBufferRef *pass_frames; // their hardware frames context (borrowed from the first frame)
+    double began, noted;      // r22: preparation only, when the first frame went in and the last progress note
 } job;
+
+// r18 (owner, build 168: Inception, AV1 10-bit HDR 4K, stayed at 0% on an iPhone 16 Pro): the GPU path skipped HDR,
+// so every 4K 10-bit frame was copied out of the hardware decoder, colour-processed on the CPU and copied back into
+// the hardware HEVC encoder. When HDR is kept at the source size nothing needs changing: the decoder's P010 frame
+// (AV1/HEVC via VideoToolbox) goes to hevc_videotoolbox Main10 as it is. If the phone refuses that once, the CPU path
+// is used for the rest of the session.
+static int hdr_pass_broken = 0;
+int kr_video_hdr_passthrough(void) { return !hdr_pass_broken; }
+const char *kr_video_route(kr_video *v) { return v && v->route[0] ? v->route : "not started"; }
+#ifdef KR_GPU
+static int hdr_passable(kr_video *v, AVFrame *fr) {
+    if (fr->format != AV_PIX_FMT_VIDEOTOOLBOX || !fr->hw_frames_ctx || fr->width != v->ow || fr->height != v->oh) return 0;
+    const AVHWFramesContext *frames = (const AVHWFramesContext *)fr->hw_frames_ctx->data;
+    return frames && frames->sw_format == AV_PIX_FMT_P010;
+}
+#endif
 
 static int open_encoder(job *j, char *err, int errlen) {
     kr_video *v = j->v;
-    const AVCodec *codec = avcodec_find_encoder_by_name(kr_video_encoder());
-    if (!codec) { seterr(err, errlen, "no H.264 encoder in this build", 0); return -1; }
+    const AVCodec *codec = avcodec_find_encoder_by_name(v->keep_hdr?(hdr_encoder_name?hdr_encoder_name:"hevc_videotoolbox"):kr_video_encoder());
+    if (!codec) { seterr(err, errlen, v->keep_hdr?"10-bit HEVC HDR encoder unavailable":"no H.264 encoder in this build", 0); return -1; }
     AVCodecContext *c = j->enc = avcodec_alloc_context3(codec);
     if (!c) { seterr(err, errlen, "out of memory", 0); return -1; }
     c->width = v->ow; c->height = v->oh;
@@ -340,6 +381,19 @@ static int open_encoder(job *j, char *err, int errlen) {
         c->pix_fmt = nv12 ? AV_PIX_FMT_NV12 : i420 ? AV_PIX_FMT_YUV420P : fmts[0];
     }
     }
+    if(v->keep_hdr) {
+        const enum AVPixelFormat *formats=NULL;int count=0,p010=0,planar=0;
+        if(avcodec_get_supported_config(NULL,codec,AV_CODEC_CONFIG_PIX_FORMAT,0,(const void**)&formats,&count)>=0)
+            for(int i=0;i<count;i++){p010|=formats[i]==AV_PIX_FMT_P010LE;planar|=formats[i]==AV_PIX_FMT_YUV420P10LE;}
+        if(!p010 && !planar){seterr(err,errlen,"encoder cannot preserve 10-bit HDR",0);return -1;}
+        c->pix_fmt=p010?AV_PIX_FMT_P010LE:AV_PIX_FMT_YUV420P10LE;
+        c->profile=AV_PROFILE_HEVC_MAIN_10;
+        if(j->hdr_pass && j->pass_frames) {   // r18: hardware frames in, as they came from the decoder
+            c->pix_fmt=AV_PIX_FMT_VIDEOTOOLBOX;c->sw_pix_fmt=AV_PIX_FMT_P010LE;
+            c->hw_frames_ctx=av_buffer_ref(j->pass_frames);
+            if(!c->hw_frames_ctx){seterr(err,errlen,"out of memory",0);return -1;}
+        }
+    }
     c->time_base = av_inv_q(v->fps);
     c->framerate = v->fps;
     c->sample_aspect_ratio = (AVRational){ 1, 1 };
@@ -351,6 +405,13 @@ static int open_encoder(job *j, char *err, int errlen) {
     c->max_b_frames = 0;       // pts == dts, closed GOP
     c->color_range = AVCOL_RANGE_MPEG;
     c->color_primaries = AVCOL_PRI_BT709; c->color_trc = AVCOL_TRC_BT709; c->colorspace = AVCOL_SPC_BT709;
+    if(v->keep_hdr) {
+        AVCodecParameters *p=v->in->streams[v->index]->codecpar;
+        c->color_range=p->color_range==AVCOL_RANGE_UNSPECIFIED?AVCOL_RANGE_MPEG:p->color_range;
+        c->color_primaries=p->color_primaries==AVCOL_PRI_UNSPECIFIED?AVCOL_PRI_BT2020:p->color_primaries;
+        c->color_trc=p->color_trc;
+        c->colorspace=p->color_space==AVCOL_SPC_UNSPECIFIED?AVCOL_SPC_BT2020_NCL:p->color_space;
+    }
     c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;  // closed GOP by construction: one IDR first, no B-frames
     if (!strcmp(codec->name, "h264_videotoolbox")) {
         c->profile = AV_PROFILE_H264_HIGH;
@@ -359,6 +420,18 @@ static int open_encoder(job *j, char *err, int errlen) {
         av_opt_set_int(c->priv_data, "realtime", 1, 0);      // speed over size: segments are made while the TV waits
         av_opt_set_int(c->priv_data, "prio_speed", 1, 0);    // r9: favour encoding speed
         av_opt_set_int(c->priv_data, "allow_sw", 0, 0);      // the hardware encoder only (battery)
+    }
+    if(!strcmp(codec->name,"hevc_videotoolbox")) {
+        av_opt_set(c->priv_data,"profile","main10",0);
+        av_opt_set_int(c->priv_data,"allow_sw",1,0);
+        av_opt_set_int(c->priv_data,"realtime",0,0);
+        // r24 (owner: AV1 re-encodes "ridiculous"): speed over quality, as the H.264 path always had; at the fixed
+        // ~20 Mbit/s a 4K picture gets here the difference is not visible, the time is.
+        if(v->offline)av_opt_set_int(c->priv_data,"prio_speed",1,0);
+    }
+    if(!strcmp(codec->name,"libx265")) {
+        av_opt_set(c->priv_data,"preset","ultrafast",0);
+        av_opt_set(c->priv_data,"x265-params","pools=1:frame-threads=1:log-level=error:repeat-headers=1",0);
     }
     int r = avcodec_open2(c, codec, NULL);
     if (r < 0) { seterr(err, errlen, "encoder", r); return -1; }
@@ -370,6 +443,7 @@ static int open_encoder(job *j, char *err, int errlen) {
     if (!os || !j->io) { if (!j->io) av_free(iob); seterr(err, errlen, "muxer", 0); return -1; }
     avcodec_parameters_from_context(os->codecpar, c);
     if (c->codec_id == AV_CODEC_ID_H264) os->codecpar->codec_tag = MKTAG('a', 'v', 'c', '1');
+    if (c->codec_id == AV_CODEC_ID_HEVC) os->codecpar->codec_tag = MKTAG('h','v','c','1');
     os->time_base = j->tb;
     os->avg_frame_rate = v->fps;
     j->oc->pb = j->io;
@@ -432,7 +506,7 @@ static int convert(job *j, AVFrame *src, char *err, int errlen) {
     if (v->dovi_profile5 && !av_frame_get_side_data(src, AV_FRAME_DATA_DOVI_METADATA)) {
         seterr(err, errlen, "Dolby Vision frame is missing RPU metadata", 0); return -1;
     }
-    int r = kr_color_convert(&v->sws, j->conv, src);
+    int r = v->keep_hdr?kr_color_preserve(&v->sws,j->conv,src):kr_color_convert(&v->sws, j->conv, src);
     if (r < 0) { seterr(err, errlen, "tone/gamut conversion", r); return -1; }
     return 0;
 }
@@ -494,12 +568,33 @@ static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen)
     AVFrame *tmp = NULL;
     int r;
 #ifdef KR_GPU
+    if (!j->enc) j->hdr_pass = !hdr_pass_broken && j->v->keep_hdr && !j->v->subs && !j->v->dovi_profile5 && hdr_passable(j->v, fr);
+    if (j->hdr_pass) {
+        if (hdr_passable(j->v, fr)) {
+            if (!j->enc) {
+                j->pass_frames = fr->hw_frames_ctx;
+                if (open_encoder(j, err, errlen) < 0) {   // this phone's encoder will not take them: CPU path from now on
+                    hdr_pass_broken = 1; j->hdr_pass = 0; j->pass_frames = NULL;
+                    avcodec_free_context(&j->enc);
+                    if (err && errlen > 0) *err = 0;
+                    goto cpu;
+                }
+            }
+            if (j->sent == 0) snprintf(j->v->route, sizeof j->v->route, "hardware HDR (%s decoder to %s)", j->v->dec->codec->name, j->enc->codec->name);
+            j->conv = av_frame_clone(fr);   // HDR tags and mastering metadata travel with the frame
+            if (!j->conv) { seterr(err, errlen, "out of memory", 0); return -1; }
+            goto send;
+        }
+        if (j->enc) { seterr(err, errlen, "HDR hardware frames", 0); return -1; }
+        j->hdr_pass = 0;
+    }
     if (!j->enc) j->gpu = fr->format == AV_PIX_FMT_VIDEOTOOLBOX && !j->v->gpu_off && !j->v->dovi_profile5 && !kr_color_is_hdr(fr);
     if (j->gpu) {
         AVFrame *g = NULL;
         if (gpu_scale(j->v, fr, &g) == 0) {
             if (!j->enc && open_encoder(j, err, errlen) < 0) { av_frame_free(&g); return -1; }
             j->conv = g;
+            if (j->sent == 0) snprintf(j->v->route, sizeof j->v->route, "GPU path (%s decoder to %s)", j->v->dec->codec->name, j->enc->codec->name);
             if (j->v->subs) {  // r10: drawn into the encoder's own NV12 buffer (CPU, base address locked)
                 CVPixelBufferRef pb = (CVPixelBufferRef)g->data[3];
                 if (CVPixelBufferLockBaseAddress(pb, 0) == kCVReturnSuccess) {
@@ -516,6 +611,7 @@ static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen)
         if (j->enc) { seterr(err, errlen, "GPU scaling", 0); return -1; }
         j->gpu = 0;
     }
+cpu:
 #endif
     if (fr->format == AV_PIX_FMT_VIDEOTOOLBOX) {  // a hardware frame: copy it down (NV12 or P010)
         tmp = av_frame_alloc();
@@ -527,6 +623,8 @@ static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen)
     r = convert(j, sw, err, errlen);
     av_frame_free(&tmp);
     if (r < 0) return -1;
+    if (j->sent == 0) snprintf(j->v->route, sizeof j->v->route, "CPU path (%s decoder%s, %s)", j->v->dec->codec->name,
+                               fr->format == AV_PIX_FMT_VIDEOTOOLBOX ? " in hardware" : "", j->enc->codec->name);
     if (j->v->subs && kr_subs_blend(j->v->subs, frame_ms(j, pts), j->conv->data, j->conv->linesize, j->v->ow, j->v->oh,
                                   j->conv->format == AV_PIX_FMT_NV12) < 0) {
         seterr(err, errlen, "subtitle input/render", 0); return -1;
@@ -538,8 +636,26 @@ send:
     j->conv->pts = j->sent;
     j->last_pts = pts;
     j->conv->pict_type = j->sent == 0 ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
-    if ((r = avcodec_send_frame(j->enc, j->conv)) < 0) { seterr(err, errlen, "encode", r); return -1; }
+    if ((r = avcodec_send_frame(j->enc, j->conv)) < 0) {
+        if (j->hdr_pass) hdr_pass_broken = 1;   // the next attempt takes the CPU path
+        seterr(err, errlen, "encode", r); return -1;
+    }
     j->sent++;
+    // r22 (owner, build 174: Inception's first 30-second unit had not finished after 10 minutes, and the log said
+    // nothing): during preparation, the route at the first frame and the frame rate every 20 s, so a slow or stuck
+    // unit shows which path it is on. Live AirPlay segments stay quiet.
+    if (j->v->offline) {
+        struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
+        double now = (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+        if (j->sent == 1) {
+            j->began = j->noted = now;
+            kr_remux_note("prepare: unit started via %s", j->v->route);
+        } else if (now - j->noted >= 20) {
+            j->noted = now;
+            kr_remux_note("prepare: %d frames in %.0f s (%.2f fps) via %s", j->sent, now - j->began,
+                          now > j->began ? j->sent / (now - j->began) : 0, j->v->route);
+        }
+    }
     // The encoder keeps its own reference only if it needs one; a fresh buffer next time keeps this frame intact.
     av_frame_unref(j->conv); av_frame_free(&j->conv);
     return take_packets(j, 0) < 0 ? (seterr(err, errlen, "mux", 0), -1) : 0;
@@ -624,6 +740,21 @@ static int produce(kr_video *v, double start, double end, gm_buf *out, char *err
         if(v->in->pb){v->in->pb->error=0;v->in->pb->eof_reached=0;}
     }
     if (v->subs && v->sub_index >= 0) sub_lookback(v, start);
+    // r25 (build-176/178 logs: Kodi left the screen, VideoToolbox refused one unit, that lane decoded on the CPU at
+    // 0.75x for the rest of the movie): a preparation unit asks for the hardware decoder again whenever it was lost.
+    if (v->offline) {
+        int software = atomic_load(&prepare_background) || v->soft_next;
+        v->soft_next = 0;
+        if (software && v->hw) {
+            if (open_decoder(v, 0, err, errlen) < 0) goto out;
+        } else if (!software && v->want_hw && !v->hw) {
+            char e2[128] = "";
+            if (open_decoder(v, 1, e2, sizeof e2) < 0 && open_decoder(v, 0, err, errlen) < 0) goto out;
+#ifdef KR_GPU
+            if (v->hw) { hdr_pass_broken = 0; kr_remux_note("prepare: hardware decoding is back"); }
+#endif
+        }
+    }
     seek_before(v, start);
     avcodec_flush_buffers(v->dec);
     while (!done && !eof) {
@@ -651,6 +782,7 @@ static int produce(kr_video *v, double start, double end, gm_buf *out, char *err
         }
         int received;
         while ((received = avcodec_receive_frame(v->dec, fr)) == 0) {
+            atomic_fetch_add(&v->frames, 1);
             // Hardware frames do not always repeat the stream's color tags.
             if (fr->color_trc == AVCOL_TRC_UNSPECIFIED) fr->color_trc = st->codecpar->color_trc;
             if (fr->color_primaries == AVCOL_PRI_UNSPECIFIED) fr->color_primaries = st->codecpar->color_primaries;

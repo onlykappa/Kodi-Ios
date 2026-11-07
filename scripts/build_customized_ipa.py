@@ -293,6 +293,20 @@ ELEMENTUM_PATCHES=[('resources/site-packages/elementum/daemon.py',b'def get_elem
  ('resources/site-packages/elementum/service.py',b'    if not ONLY_CLIENT and PLATFORM["fork"]:',b'    if not ONLY_CLIENT and (PLATFORM["fork"] or PLATFORM.get("os") == "ios"):'),
  ('resources/site-packages/elementum/osarch.py',b'    if global_platform:\n',b'    if xbmc.getCondVisibility("System.Platform.IOS"):\n        ret.update(os="ios", arch="arm64", fork=False)\n        return ret\n\n    if global_platform:\n')]
 
+# Inspect initial /play requests AND source-picker redirects before either reaches the local downloader.
+ELEMENTUM_CLOUD=b"""def _kodi_cloud(url):
+    import sys
+    from xbmcvfs import translatePath
+    lib=translatePath('special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib')
+    if lib not in sys.path:sys.path.insert(0,lib)
+    import elementum_cloud
+    return elementum_cloud.route(url)
+
+"""
+ELEMENTUM_PATCHES += [
+ ('resources/site-packages/elementum/navigation.py',b'def _json(url):\n',ELEMENTUM_CLOUD+b'def _json(url):\n    if _kodi_cloud(url):return None\n'),
+ ('resources/site-packages/elementum/navigation.py',b'        if response.code == 300:\n',b'        if location and _kodi_cloud(location):return None\n        if response.code == 300:\n')]
+
 # Kodi-iOS source check (service.kodi.ios.bootstrap/resources/lib/source_match.py) inside Burst, where every provider's
 # results arrive: a torrent of another title ("Fall" 2026 for "Fall" 2022) never reaches Elementum, so its dialog, its
 # auto-pick ("silent") plays and downloads only get the title asked for. Burst 0.0.99 (migration/elementum-ios/source-lock.json).
@@ -474,6 +488,20 @@ def add_elementum(inputs,target,addonroot):
  return {'addons':[ELEMENTUM,BURST]+[d.name for d in modules]+[a.stem for a in apps],'framework':'Frameworks/elementum.framework','frameworks':extra,'deck_picker':deck_picker,'burst_patches':burst_patches,'framework_sha256':digest(binary.read_bytes()),
          'patches':[{'path':'addons/'+ELEMENTUM+'/'+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]}
 
+def build_identity():
+ """Public provenance in every IPA; diagnostic logs report the installed build, not the newest release."""
+ import datetime
+ frameworks={}
+ for name in ('airplay','glassbar','ios-portrait'):
+  path=ROOT/'migration'/({'airplay':'airplay-ios','glassbar':'glassbar-ios'}.get(name,name))/'source-lock.json'
+  lock=json.loads(path.read_text())
+  asset=lock.get('framework_release') or lock.get('executable_release') or {}
+  frameworks[name]={k:asset[k] for k in ('tag','sha256') if k in asset}
+ return {'build':int(os.environ.get('GITHUB_RUN_NUMBER') or 0),'commit':os.environ.get('GITHUB_SHA',''),
+         'source_ref':os.environ.get('GITHUB_HEAD_REF') or os.environ.get('GITHUB_REF_NAME',''),
+         'workflow_run':os.environ.get('GITHUB_RUN_ID',''),'workflow_attempt':os.environ.get('GITHUB_RUN_ATTEMPT',''),
+         'built_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'frameworks':frameworks}
+
 def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
  validate_staging(app,work)
  manifest,addons,config=validate_bundle(bundle,expected)
@@ -492,7 +520,7 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
  bootstrap=addonroot/BOOT;shutil.copytree(ROOT/'migration/bundled-bootstrap',bootstrap,dirs_exist_ok=True)  # the Deck page (add_deck_picker) may already be in it
  profile_addons=add_profile_addons(elementum,bootstrap) if elementum else []
  # The in-app updater compares this with the build-N release tags.
- (bootstrap/'build.json').write_text(json.dumps({'build':int(os.environ.get('GITHUB_RUN_NUMBER') or 0),'commit':os.environ.get('GITHUB_SHA','')[:12]})+'\n')
+ (bootstrap/'build.json').write_text(json.dumps(build_identity(),sort_keys=True)+'\n')
  seed=bootstrap/'seed';seed.mkdir();entries=[]
  for name,data in sorted(config.items()):
   relative=name[len('userdata/'):]

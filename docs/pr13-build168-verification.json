@@ -1,0 +1,39 @@
+{
+  "build": 168,
+  "source_commit": "d6facecc6fd758c1abba9ea1aaaa1ca0bfe6df8d",
+  "sha256": "d269123c20489a775bec8c655a9cac925112855b7f3fb34af3e3f5c6da8abdbe",
+  "runtime_sources_and_bytecode": 63,
+  "native_frameworks_verified": [
+    "KodiAirPlay r17",
+    "KodiGlassBar r6"
+  ],
+  "elementum_routes_verified": true,
+  "build_metadata": {
+    "build": 168,
+    "built_at": "2026-11-06T12:09:16.247031+00:00",
+    "commit": "d6facecc6fd758c1abba9ea1aaaa1ca0bfe6df8d",
+    "frameworks": {
+      "airplay": {
+        "sha256": "3af44780a1944d8f588740c81024381677e12b9a0da08cc325eb4a6c11ef08f6",
+        "tag": "kodi-airplay-r17"
+      },
+      "glassbar": {
+        "sha256": "ecc883d2fe159e9aa08653a3130efe4003c3d40c4882222494dbb82f960bf16e",
+        "tag": "kodi-glassbar-r6"
+      },
+      "ios-portrait": {
+        "sha256": "9fa9ad78f8613bf4ce4b369eb19e46bfe5a99bc934f568d16dd0953c946fb7fd",
+        "tag": "kodi-ios-portrait-r23"
+      }
+    },
+    "source_ref": "fix/elementum-cloud-164",
+    "workflow_attempt": "1",
+    "workflow_run": "42214904299"
+  },
+  "python_suites": 49,
+  "python_tests": 813,
+  "native_checks": 1890,
+  "workflow_run": 42214904299,
+  "release": "https://github.com/onlykappa/Kodi-Ios/releases/tag/build-168",
+  "physical_device_validation": "pending"
+}

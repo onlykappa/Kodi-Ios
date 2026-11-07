@@ -11,10 +11,10 @@ if __name__=='__main__' and not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
   import native_ui
   threading.Thread(target=native_ui.run,args=(xbmc,xbmcvfs,xbmc.Monitor()),daemon=True).start()
   _EARLY_UI_STARTED=True
-from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
+from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,elementum_upload_cap,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
-import activity,signin_server,airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready
+import activity,signin_server,airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready,diagnostics,transfer_control
 _IMPORT_SECONDS=time.monotonic()-_IMPORT_STARTED
 
 def run():
@@ -24,9 +24,17 @@ def run():
  xbmc.log('Kodi iOS startup: bootstrap entered (imports %.3fs)'%_IMPORT_SECONDS,xbmc.LOGINFO)
  monitor=xbmc.Monitor()
  root=Path(__file__).resolve().parent;profile=Path(xbmcvfs.translatePath('special://profile/')).resolve()
+ diagnostics.configure(root,profile)
+ diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'startup','installed_build',
+  kodi=xbmc.getInfoLabel('System.BuildVersion'),os=xbmc.getInfoLabel('System.OSVersion'),python=sys.version.split()[0])
  window=xbmcgui.Window(10000);state={'stage':'prepare'};generated=False
  # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).
  window.setProperty('KodiIOS.Build',updates.installed_build(root))
+ def diagnostic_settings():
+  addon=xbmcaddon.Addon()
+  return {key:addon.getSettingBool(key) for key in ('background_transfers','drive_upload','prepare_downloads','airplay_button')}
+ threading.Thread(target=diagnostics.watch,args=(profile,lambda message:xbmc.log(message,xbmc.LOGINFO),monitor.waitForAbort),
+  kwargs={'settings':diagnostic_settings},daemon=True).start()
  def stage(value):
   state['stage']=value
   xbmc.log('Kodi iOS startup: %s +%.3fs'%(value,time.monotonic()-begun),xbmc.LOGINFO)
@@ -98,19 +106,20 @@ def run():
    if xbmc.getCondVisibility('System.HasAddon(plugin.video.umbrella)') and xbmc.getCondVisibility('System.HasAddon(script.module.cocoscrapers)'):
     umbrella=xbmcaddon.Addon('plugin.video.umbrella')
     if umbrella_defaults(umbrella.getSetting,umbrella.setSetting):xbmc.log('Kodi iOS setup set Umbrella to CocoScrapers',xbmc.LOGINFO)
-  except Exception as error:xbmc.log('Kodi iOS scraper setup skipped: '+type(error).__name__,xbmc.LOGWARNING)
+  except Exception as error:xbmc.log('Kodi iOS scraper setup skipped: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
   if xbmc.getCondVisibility('System.AddonIsEnabled(plugin.video.elementum)'):
    try:
     engine=xbmcaddon.Addon('plugin.video.elementum')
     folder=elementum_defaults(updates.updates_folder(home).with_name('Elementum Downloads'),engine.getSetting,engine.setSetting)
     if folder:xbmc.log('Kodi iOS setup set Elementum downloads to '+folder,xbmc.LOGINFO)
-   except Exception as error:xbmc.log('Kodi iOS Elementum defaults skipped: '+type(error).__name__,xbmc.LOGWARNING)
+    if elementum_upload_cap(engine.getSetting,engine.setSetting):xbmc.log('Kodi iOS setup capped Elementum torrent upload at 1 MB/s',xbmc.LOGINFO)
+   except Exception as error:xbmc.log('Kodi iOS Elementum defaults skipped: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
   # Once per phone: folders the Deck config expects, phone-useless network discovery off (ISSUE-070).
   try:
    engine=xbmcaddon.Addon('plugin.video.elementum') if xbmc.getCondVisibility('System.HasAddon(plugin.video.elementum)') else None
    done=phone_housekeeping(profile,(engine.getSetting,engine.setSetting) if engine else None,api)
    if done:xbmc.log('Kodi iOS setup housekeeping: '+', '.join(done),xbmc.LOGINFO)
-  except Exception as error:xbmc.log('Kodi iOS housekeeping skipped: '+type(error).__name__,xbmc.LOGWARNING)
+  except Exception as error:xbmc.log('Kodi iOS housekeeping skipped: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
   # Elementum videos you choose to keep land in Files › On My iPhone › Kodi › Kodi Downloads › Movies / TV Shows.
   # Umbrella only streams.
   try:
@@ -121,7 +130,7 @@ def run():
    if xbmc.getCondVisibility('System.HasAddon(plugin.video.umbrella)'):
     umbrella=xbmcaddon.Addon('plugin.video.umbrella')
     if umbrella_streaming_only(folders,umbrella.getSetting,umbrella.setSetting):xbmc.log('Kodi iOS setup set Umbrella back to streaming only',xbmc.LOGINFO)
-  except Exception as error:xbmc.log('Kodi iOS download folders skipped: '+type(error).__name__,xbmc.LOGWARNING)
+  except Exception as error:xbmc.log('Kodi iOS download folders skipped: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
   if result=='IN PROGRESS':
    restore(profile,api);xbmcgui.Dialog().ok('Setup interrupted','Original files restored. Estuary remains available. Record this failure before retrying.')
   elif not generated and xbmc.getSkinDir()==FUSE:
@@ -134,6 +143,7 @@ def run():
    ready.parent.mkdir(parents=True,exist_ok=True);ready.write_text(json.dumps({'revision':REVISION,'host_contract_only':True,'device_verified':False})+'\n')
   stage('complete')
  except Exception as error:
+  diagnostics.log_exception(xbmc,'startup',error,stage=state['stage'])
   receipt=failure(error,state['stage']);dest=profile/'addon_data/service.kodi.ios.bootstrap/startup-error.json'
   dest.parent.mkdir(parents=True,exist_ok=True);dest.write_text(json.dumps(receipt,indent=2)+'\n')
   xbmc.log('Kodi iOS setup failed: '+json.dumps(receipt),xbmc.LOGERROR)
@@ -150,15 +160,23 @@ def run():
   def later():
    if xbmc.getSkinDir()!=FUSE or monitor.waitForAbort(10):return
    try:calibration.reset_once(profile,lambda command:xbmc.executebuiltin(command),xbmc.getCondVisibility,monitor.waitForAbort)
-   except Exception as error:xbmc.log('Kodi iOS calibration reset skipped: '+type(error).__name__,xbmc.LOGWARNING)
+   except Exception as error:xbmc.log('Kodi iOS calibration reset skipped: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
    try:
     if xbmcaddon.Addon().getSettingBool('check_on_start'):updates.run(check_only=True)
-   except Exception as error:xbmc.log('Kodi iOS update check skipped: '+type(error).__name__,xbmc.LOGWARNING)
+   except Exception as error:xbmc.log('Kodi iOS update check skipped: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
   threading.Thread(target=later,daemon=True).start()
  # The bell in the hub headers: unread messages and whether a download or Drive upload runs. Each message also gets
  # its part of kodi.log, shown when it is tapped.
  threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),
   kwargs={'log_path':os.path.join(xbmcvfs.translatePath('special://logpath/'),'kodi.log')},daemon=True).start()
+ # The Transfers page's speed history (transfer_history): what each running job does, every 2 s, for its graph.
+ def transfer_rates():
+  import transfer_history,debrid_drive,prepare_downloads
+  try:torrents=notices.torrent_list()
+  except Exception:torrents=[]
+  return transfer_history.activity(torrents,debrid_drive.load(profile).get('current'),prepare_downloads.load(profile).get('current'))
+ import transfer_history
+ threading.Thread(target=transfer_history.watch,args=(profile,transfer_rates,monitor.waitForAbort),daemon=True).start()
  # A torrent whose real name turns out to be another film (owner, build 156: Fall 2022 → Fall.2.Deadpoint.2026) is
  # stopped once Elementum knows its name, and explained in Notifications.
  import source_guard
@@ -190,39 +208,48 @@ def run():
  try:
   if xbmcaddon.Addon().getSettingBool('drive_upload') or xbmcaddon.Addon().getSettingBool('prepare_downloads'):
    threading.Thread(target=drive_uploads,args=(monitor,home,profile),daemon=True).start()
- except Exception as error:xbmc.log('Kodi iOS Drive upload unavailable: '+type(error).__name__,xbmc.LOGWARNING)
+ except Exception as error:xbmc.log('Kodi iOS Drive upload unavailable: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
  # Downloads and Drive uploads keep going when Kodi leaves the screen (KodiAirPlay r3 plays silence meanwhile).
  try:
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
   lib=airplay.load(path) if path else None
-  if lib is not None and hasattr(lib,'kodi_background_keep') and xbmcaddon.Addon().getSettingBool('background_transfers'):
+  if lib is not None and hasattr(lib,'kodi_background_keep'):
    kept=str(updates.updates_folder(home).with_name('Kodi Downloads'))
    def why():
+    if not xbmcaddon.Addon().getSettingBool('background_transfers'):return ''
     if xbmc.Player().isPlayingAudio():return ''  # Kodi's own music keeps it running; the silence would make it mixable
+    # Build 188 (owner: "airplay also stops if my screen turns off"): the TV reads the movie from Kodi's own server,
+    # so Kodi stays awake while AirPlay plays, even with nothing else to do.
+    if airplay.busy(xbmcgui.Window(10000),time.time()):return 'AirPlay'
     uploading=xbmcaddon.Addon().getSettingBool('drive_upload') and xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)')
-    import prepare_downloads
-    preparing=any(card.get('running') for card in prepare_downloads.cards(profile))
+    import prepare_downloads,preparation_runtime,debrid_drive
+    if debrid_drive.active(profile):return 'AllDebrid download or Drive transfer'
+    preparing=xbmcaddon.Addon().getSettingBool('prepare_downloads') and (preparation_runtime.active() or preparation_runtime.pending(prepare_downloads.load(profile)))
     return ('video preparation' if preparing else background.reason(notices.downloads(),notices.uploads(profile),uploading and background.videos_waiting(kept)))
-   threading.Thread(target=background.watch,args=(lib.kodi_background_keep,why,monitor.waitForAbort,lambda m:xbmc.log(m,xbmc.LOGINFO)),daemon=True).start()
- except Exception as error:xbmc.log('Kodi iOS background transfers unavailable: '+type(error).__name__,xbmc.LOGWARNING)
+   threading.Thread(target=background.watch,args=(lib.kodi_background_keep,why,monitor.waitForAbort,lambda m:xbmc.log(m,xbmc.LOGINFO)),kwargs={'status':getattr(lib,'kodi_background_state',lambda:0)},daemon=True).start()
+ except Exception as error:xbmc.log('Kodi iOS background transfers unavailable: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
  # r6: the AirPlay stream's requests, CODECS and Apple's player events into kodi.log (owner build-133: sound only).
  try:
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
   lib=airplay.load(path) if path else None
   if lib is not None and hasattr(lib,'kodi_airplay_log'):
-   threading.Thread(target=airplay.relay,args=(lib,lambda m:xbmc.log(m,xbmc.LOGINFO),monitor.waitForAbort),daemon=True).start()
- except Exception as error:xbmc.log('Kodi iOS AirPlay log unavailable: '+type(error).__name__,xbmc.LOGWARNING)
+   import library_tools
+   threading.Thread(target=airplay.relay,args=(lib,lambda m:xbmc.log(m,xbmc.LOGINFO),monitor.waitForAbort),
+                    kwargs={'keep':lambda lines:(library_tools.note_airplay(profile,lines),airplay.activity(lines,xbmcgui.Window(10000),time.time()))},daemon=True).start()
+ except Exception as error:xbmc.log('Kodi iOS AirPlay log unavailable: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
  # Stays running for the rest of the session: Apple's AirPlay button in the top-right corner during playback.
  try:
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
   if path and xbmcaddon.Addon().getSettingBool('airplay_button'):
    airplay.watch(airplay.load(path),lambda:xbmc.getCondVisibility(airplay.PLAYING),monitor.waitForAbort)
- except Exception as error:xbmc.log('Kodi iOS AirPlay button unavailable: '+type(error).__name__,xbmc.LOGWARNING)
+ except Exception as error:xbmc.log('Kodi iOS AirPlay button unavailable: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
  while not monitor.waitForAbort(60):pass
 
 def drive_uploads(monitor,home,profile):
  """Idle-only download → upload → one-file preparation. Startup scan and new uploads share one queue/lock."""
  import urllib.parse,urllib.request,xbmc,xbmcaddon,xbmcgui,xbmcvfs
+ # Build 186: AirPlay playing holds the AllDebrid copies, the uploads and the conversion (airplay.BUSY).
+ airplay_busy=lambda:airplay.busy(xbmcgui.Window(10000),time.time())
  if not xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)'):return
  common=xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
  if common not in sys.path:sys.path.append(common)
@@ -231,7 +258,7 @@ def drive_uploads(monitor,home,profile):
  drive_addon=xbmcaddon.Addon('plugin.googledrive')
  if signin_server.migrate(drive_addon):xbmc.log('Kodi iOS Drive: sign-in server set to the owner worker',xbmc.LOGINFO)
  accounts=AccountManager(xbmcvfs.translatePath(drive_addon.getAddonInfo('profile')))
- send=driveupload.sender(tls_context())
+ send=driveupload.sender(tls_context(),log=lambda message:xbmc.log(message,xbmc.LOGINFO))
  def refresh(refresh_token):
   server=signin_server.server(drive_addon.getSetting('sign-in-server'))
   body=urllib.parse.urlencode({'provider':'googledrive','refresh_token':refresh_token}).encode()
@@ -256,27 +283,62 @@ def drive_uploads(monitor,home,profile):
     try:
      for tid in debrid_drive.adopt(profile,notices.torrent_list(),xbmc.Player().isPlayingVideo()):
       driveupload.remove_torrent(tid);xbmc.log('Kodi iOS AllDebrid to Drive: took %s from Elementum'%tid,xbmc.LOGINFO)
-    except Exception as error:xbmc.log('Kodi iOS AllDebrid to Drive: Elementum list unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
+    except Exception as error:xbmc.log('Kodi iOS AllDebrid to Drive: Elementum list unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
+   try:
+    def ready_to_watch(item_id):return prepare_downloads.ready(prepare_downloads.metadata(drive,item_id))
+    item_id=debrid_drive.next_watch(profile,ready_to_watch,xbmc.Player().isPlayingVideo())
+    if item_id:
+     import drivelibrary
+     found=accounts.get_accounts();account=next(iter(found.values()))
+     drives=account.get('drives') or [];driveid=(drives[0].get('id') if drives else None) or account.get('id')
+     xbmc.executebuiltin('PlayMedia(%s)'%drivelibrary.play_url(driveid,item_id))
+   except Exception as error:xbmc.log('Kodi iOS watch after preparation: %s'%type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
    if not debrid_drive.active(profile) or not accounts.get_accounts():continue
    try:
     def done(job):
      driveupload.invalidate_library(str(profile/'addon_data/service.kodi.ios.bootstrap'))
      prepare_downloads.request_check(profile)   # preparation for Kodi and AirPlay picks it up from Drive
     delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text:notices.add(profile,kind,title,text),
-                            keep_going=lambda:not monitor.abortRequested(),on_done=done) or 20
+                            keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up') and not airplay_busy(),on_done=done,
+                            cancelled=lambda:transfer_control.cancelled_copies(profile),
+                            forget=lambda h:transfer_control.clear_cancelled(profile,h),
+                            log=lambda text:xbmc.log('Kodi iOS AllDebrid: '+text,xbmc.LOGWARNING)) or 20
    except alldebrid.Problem as problem:
+    diagnostics.log_exception(xbmc,'alldebrid_to_drive',problem)
     notices.add(profile,'problem',"Couldn't download to Google Drive",str(problem));delay=300
    except Exception as error:
-    xbmc.log('Kodi iOS AllDebrid to Drive paused: %s %s'%(type(error).__name__,error),xbmc.LOGWARNING);delay=60
+    diagnostics.log_exception(xbmc,'alldebrid_to_drive',error);delay=60
  threading.Thread(target=debrid_loop,daemon=True).start()
- idle=lambda:not monitor.abortRequested() and not xbmc.Player().isPlayingVideo()
- log=lambda message:xbmc.log('Kodi iOS '+message,xbmc.LOGINFO)
+ # Build 192 (owner: Library › Movies "takes a few seconds"): the page shows the saved Drive lists at once; they are
+ # listed again here when older than 5 minutes or marked stale after an upload or a conversion.
+ def library_lists():
+  import drivelibrary
+  state_dir=str(profile/'addon_data/service.kodi.ios.bootstrap')
+  while not monitor.waitForAbort(10):
+   try:
+    if not accounts.get_accounts():continue
+    done=drivelibrary.refresh_stale(state_dir)
+    if done:log('Library lists refreshed from Google Drive: %s'%', '.join(done))
+   except Exception as error:diagnostics.log_exception(xbmc,'library_lists',error)
+ threading.Thread(target=library_lists,daemon=True).start()
+ idle=lambda:not monitor.abortRequested() and not xbmc.Player().isPlayingVideo() and not airplay_busy()
+ log=lambda message:xbmc.log('Kodi iOS '+diagnostics.redact(message),xbmc.LOGINFO)
  import library_scan,prepare_downloads
  preparation=None
  def preparation_queue():
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
   if not path:raise RuntimeError('AirPlay preparation framework is missing')
   native=prepare_downloads.Native(airplay.load(path))
+  # r25 (owner, build 178): "keep our audio only and original if different": Kodi's audio language (or Kodi's own).
+  def setting(name):
+   try:return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Settings.GetSettingValue','params':{'setting':name}}))).get('result',{}).get('value','')
+   except Exception:return ''
+  languages=prepare_downloads.audio_languages(setting('locale.audiolanguage'),setting('locale.language'))
+  native.set_audio_languages(languages)
+  # Owner (build 180): "only keep english subtitles": the same language for subtitles (and untagged ones).
+  native.set_subtitle_languages(languages)
+  xbmc.log('Kodi iOS preparation: audio kept: the original track%s; subtitles kept: %s'%(' and '+languages if languages else ' and every other one',languages or 'all'),xbmc.LOGINFO)
+  diagnostics.event(log,'preparation','capabilities',streams=native.streams,hdr=native.hdr,outputs=native.outputs,image_subtitles=native.keeps_image_subs)
   # KodiAirPlay r14 reads the Drive file through this loopback stream: no downloaded copy on the phone.
   stream=None
   if native.streams:
@@ -285,7 +347,7 @@ def drive_uploads(monitor,home,profile):
    xbmc.log('Kodi iOS preparation: streaming from Google Drive (no downloaded copy)',xbmc.LOGINFO)
   return prepare_downloads.Queue(profile,drive,native,
     download_file=lambda *args:prepare_downloads.download(*args,context=tls_context()),
-    notify=lambda kind,title,text:notices.add(profile,kind,title,text),stream=stream)
+    notify=lambda kind,title,text:notices.add(profile,kind,title,text),stream=stream,log=log)
  # First pass 30 s after start (owner, build 145: the Library was opened, and left, before the old 120 s first pass).
  delay=5
  while not monitor.waitForAbort(delay):
@@ -305,24 +367,65 @@ def drive_uploads(monitor,home,profile):
    with driveupload.transfer_lock(state_dir):
     count=0
     if (waiting or seeding) and xbmcaddon.Addon().getSettingBool('drive_upload'):
-     count=driveupload.run_once(root,drive,state,log,idle,xbmcaddon.Addon().getSettingBool('drive_upload_delete'),
+     uploading=lambda:idle() and not transfer_control.paused(profile,'up') and not airplay_busy()   # long press › Pause uploads
+     count=driveupload.run_once(root,drive,state,log,uploading,xbmcaddon.Addon().getSettingBool('drive_upload_delete'),
                               lambda:driveupload.invalidate_library(state_dir),seeding,driveupload.remove_torrent,
                               remote=lambda:library_scan.remote_files(drive,idle),pace=1,
                               notify=lambda title,text:notices.add(profile,'drive',title,text))
     if xbmcaddon.Addon().getSettingBool('prepare_downloads'):
-     if preparation is None:preparation=preparation_queue()
+     if preparation is None:
+      preparation=preparation_queue()
+      # Build 191 (owner: "If i press refresh in the library status it doesnt do anything"): a check asked for while a
+      # movie converts (hours) runs beside it instead of waiting for the movie to finish.
+      def check_beside(q):
+       seen={'at':time.time(),'bytes':None}
+       while not monitor.waitForAbort(5):
+        # Build 192 (owner: Fall 2 "stuck on starting / 67%"; the log could not show whether Drive was being read): once a
+        # minute while a movie converts, how much was read from Drive, how long since the last read, and the last error.
+        try:
+         if q.busy and q.stream and time.time()-seen['at']>=60:
+          stats=q.stream.stats();got=int(stats.get('read_bytes') or 0);now=time.time()
+          if seen['bytes'] is not None:
+           since=now-float(stats.get('last_read') or 0) if stats.get('last_read') else -1
+           log('preparation: Drive reads: %.1f MB in %.0f s (%.2f MB/s), last read %s ago%s'%((got-seen['bytes'])/1048576.0,now-seen['at'],
+               (got-seen['bytes'])/1048576.0/max(1,now-seen['at']),'%.0f s'%since if since>=0 else 'never',
+               '; problem: '+str(stats.get('read_error')) if stats.get('read_error') else ''))
+          seen.update(at=now,bytes=got)
+        except Exception as error:diagnostics.log_exception(xbmc,'library_check',error)
+        try:
+         if q.busy and prepare_downloads.check_requested(profile):
+          q.scan(lambda:not monitor.abortRequested(),force=True,beside=True)
+        except driveupload.Stop:pass
+        except Exception as error:diagnostics.log_exception(xbmc,'library_check',error)
+      threading.Thread(target=check_beside,args=(preparation,),daemon=True).start()
      can_prepare=lambda:idle() and xbmcaddon.Addon().getSettingBool('prepare_downloads')
-     preparation.scan(can_prepare,force=bool(count))
-     # Settings › Library › Check library for conversion: the current video pauses (it resumes where it was) so
-     # the check runs within seconds instead of after a long conversion.
-     converting=lambda:can_prepare() and not prepare_downloads.check_requested(profile)
-     if preparation.process_one(converting):delay=2
-     else:delay=30
+     import preparation_runtime
+     with preparation_runtime.Lease(profile,stats=preparation.stream.stats if preparation.stream else lambda:{}) as runtime:
+      preparation.runtime=runtime
+      preparation.scan(can_prepare,force=bool(count))
+      # Build 169 made preparation wait for AllDebrid copies; with copies at 6-8 MB/s (build-169 log) both run at once
+      # again, so conversion never sits paused behind an hour-long download.
+      # A check no longer stops it (build-170 log: each stop restarted Inception from 0%); it runs when this one ends.
+      converting=lambda:can_prepare() and not prepare_downloads.interrupts(profile)
+      # A video playing holds the conversion where it is instead of stopping it (owner, build 175: a storage-free
+      # conversion cannot resume, so each video played restarted the movie from 0%). Closing Kodi, Prepare next / Keep
+      # as it is and turning preparation off still stop it.
+      # Long press › Pause converting (build 186) is the same hold, for as long as the owner wants.
+      preparation.paused=lambda:(not monitor.abortRequested() and (xbmc.Player().isPlayingVideo() or transfer_control.paused(profile,'conv') or airplay_busy()) and
+                                 xbmcaddon.Addon().getSettingBool('prepare_downloads') and not prepare_downloads.interrupts(profile))
+      # The upload pieces and the Drive read-ahead wait too, so a video (or AirPlay) gets the whole line.
+      if preparation.stream:preparation.stream.hold=preparation.paused
+      if transfer_control.paused(profile,'conv') and not (prepare_downloads.load(profile).get('current') or {}).get('running'):delay=30
+      else:
+       preparation.busy=True
+       try:delay=2 if preparation.process_one(converting) else 30
+       finally:preparation.busy=False
+     preparation.runtime=None
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))
   except driveupload.Stop:pass
   except Exception as error:
-   xbmc.log('Kodi iOS Drive upload paused: %s %s'%(type(error).__name__,error),xbmc.LOGWARNING)
-   notices.add(profile,'problem','Google Drive upload paused',str(error)[:160])
+   diagnostics.log_exception(xbmc,'drive_upload',error)
+   notices.add(profile,'problem','Google Drive upload paused',diagnostics.redact(error)[:160])
   # A check or a Library status choice (prepare next, try again, keep) is picked up within seconds.
   if prepare_downloads.check_requested(profile) or prepare_downloads.pending_requests(profile):delay=5
 if __name__=='__main__':run()

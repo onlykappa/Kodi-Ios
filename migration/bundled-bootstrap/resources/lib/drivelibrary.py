@@ -336,12 +336,15 @@ def client():
   return json.loads(answer)
  return driveupload.Drive(driveupload.token_source(accounts.get_accounts,accounts.save_account,refresh),send),driveid
 
-def listing(kind,state_dir,folder=None,now=time.time,strict=False,fresh=False):
- """Drive entries for the Library page (cached LISTING_TTL seconds): movies, shows, or one show's episodes."""
+def listing(kind,state_dir,folder=None,now=time.time,strict=False,fresh=False,stale_ok=False):
+ """Drive entries for the Library page (cached LISTING_TTL seconds): movies, shows, or one show's episodes.
+ stale_ok: return the saved list whatever its age (build 192, owner: "pressing movies under library takes a few
+ seconds"; each open after 5 minutes, or after any upload, listed Drive live while Kodi showed its progress box). The
+ service keeps the saved lists fresh (refresh_stale), so the page opens at once."""
  cache_path=os.path.join(state_dir,'drive-library.json');cache=load_json(cache_path,{})
  slot='%s:%s'%(kind,folder or '')
  hit=cache.get(slot)
- if not fresh and hit and now()-hit.get('time',0)<LISTING_TTL:return hit['entries'],hit['driveid']
+ if not fresh and hit and (stale_ok or now()-hit.get('time',0)<LISTING_TTL):return hit['entries'],hit['driveid']
  drive,driveid=client()
  if not drive:return [],None
  if folder:entries=episodes(videos(drive,folder))
@@ -353,6 +356,19 @@ def listing(kind,state_dir,folder=None,now=time.time,strict=False,fresh=False):
   entries.sort(key=lambda entry:(entry['title'].casefold(),entry['year']))
  cache[slot]={'time':now(),'entries':entries,'driveid':driveid};save_json(cache_path,cache)
  return entries,driveid
+
+def refresh_stale(state_dir,now=time.time,ttl=LISTING_TTL):
+ """Build 192: the service's part of stale_ok: every saved list older than ttl (or marked stale by
+ driveupload.invalidate_library) is listed again; movies and shows are always kept. Returns the slots refreshed."""
+ cache=load_json(os.path.join(state_dir,'drive-library.json'),{})
+ slots=set(cache)|{'movie:','tv:'}
+ done=[]
+ for slot in sorted(slots):
+  hit=cache.get(slot) or {}
+  if now()-hit.get('time',0)<ttl:continue
+  kind,folder=slot.split(':',1)
+  listing(kind,state_dir,folder or None,now=now,strict=True,fresh=True);done.append(slot)
+ return done
 
 def completed_copy(kind,title,year,season,episode,state_dir):
  """Match a kept download by title/year or show/episode, without art lookups or source scraping. Local phone

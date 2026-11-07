@@ -23,10 +23,10 @@ def videos_waiting(root):
    if any(not f.startswith('.') and f.lower().endswith(('.mkv','.mp4','.m4v','.avi','.mov','.webm','.ts')) for f in files):return True
  return False
 
-def watch(keep,why,wait,log=lambda message:None,every=5):
+def watch(keep,why,wait,log=lambda message:None,every=1,status=lambda:0):
  """Tell the framework every few seconds whether Kodi must stay awake; keep(0) when Kodi closes."""
- last=None
- while not wait(every):
+ last=None;last_status=None
+ while True:
   try:now=why()
   except Exception:now=''
   # Asked again on every tick while awake: the framework restarts the silence if something stopped it.
@@ -34,4 +34,11 @@ def watch(keep,why,wait,log=lambda message:None,every=5):
   if bool(now)!=last:
    last=bool(now)
    log('Kodi iOS background: '+('stays awake for '+now if now else 'may sleep (no download or upload)'))
+  observed=status()
+  if observed!=last_status:
+   last_status=observed
+   if observed==-1:log('Kodi iOS background: silent audio failed to start; work may pause until Kodi is foregrounded')
+   elif observed==-2:log('Kodi iOS background: audio interrupted by iOS; work will resume when allowed')
+   elif observed==2:log('Kodi iOS background: silent audio running for queued work')
+  if wait(every):break
  if last:keep(0)

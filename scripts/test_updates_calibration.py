@@ -1,6 +1,7 @@
-import importlib.util,json,tempfile,unittest
+import importlib.util,sys,json,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'migration/bundled-bootstrap/resources/lib'))
 def load(name):
  spec=importlib.util.spec_from_file_location(name,ROOT/'migration/bundled-bootstrap/resources/lib'/(name+'.py'));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 updates=load('updates');calibration=load('calibration');bootstrap=load('bootstrap')

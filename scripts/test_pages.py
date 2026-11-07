@@ -60,6 +60,11 @@ class PlayOnTV(unittest.TestCase):
   backs=[v.text for v in root.iter('visible') if v.text and 'Property(count)' in v.text]
   self.assertEqual(len(backs),castui.ROWS+1)
 
+# Fuse 3.4.8's DialogBusy: its Kodi logo in a white circle with a spinning arc, bottom right of a 1920x1080 screen.
+FUSE_BUSY=('<window><zorder>1000</zorder><controls><include content="Furniture_Busy"><param name="hasspinner">true</param>'
+           '<param name="icon">special://skin/extras/icons/kodi.png</param><param name="haslabel">false</param></include>'
+           '<control type="progress" id="10"><include>Object_Hidden_Button_Definition</include></control></controls></window>')
+
 class Pages(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
@@ -70,6 +75,7 @@ class Pages(unittest.TestCase):
                'DialogTextViewer.xml','DialogSettings.xml','Home.xml','VideoOSD.xml','DialogSeekBar.xml','Settings.xml'):
    (skin/'1080i'/name).write_text('<fonts><fontset id="Default" /></fonts>' if name=='Font.xml' else '<includes />' if name=='Includes.xml'
                                  else plain.replace('<window>','<window><views>50</views>') if name in ('AddonBrowser.xml','EventLog.xml') else plain)
+  (skin/'1080i/DialogBusy.xml').write_text(FUSE_BUSY)
   cls.profile=Path(cls.tmp.name)/'profile';cls.profile.mkdir()
   navigation.patch_skin(skin);portrait.build(skin,cls.profile);cls.skin=skin
  @classmethod
@@ -124,6 +130,28 @@ class Pages(unittest.TestCase):
   for name in names:
    ids=collections.Counter(c.get('id') for c in ET.parse(self.skin/'portrait'/name).getroot().iter('control') if c.get('id'))
    self.assertEqual({k:v for k,v in ids.items() if v>1},{},name)
+ def test_busy_is_the_same_centred_pill_in_both_folders(self):
+  # Build 191 (owner): Fuse's busy logo, shrunk into portrait, sat as a white Kodi badge on a Library poster's corner,
+  # and over landscape video its spinner showed instead of the pill loader.
+  shapes=[]
+  for rel,font in (('portrait/DialogBusy.xml','p_pill'),('1080i/DialogBusy.xml','font_main_bold')):
+   xml=(self.skin/rel).read_text(encoding='utf-8');root=ET.fromstring(xml)
+   for stock in ('kodi.png','Furniture_Busy','provider_circle','loading-spinner','landscape window'):self.assertNotIn(stock,xml,rel)
+   # No window <visible>: Kodi would open a dialog with one by itself. Nothing to tap or focus.
+   self.assertIsNone(root.find('visible'),rel);self.assertEqual([c for c in root.iter('control') if c.get('type') in ('button','list')],[],rel)
+   pill=root.find('controls/control[@type="group"]')
+   self.assertEqual((pill.findtext('centerleft'),pill.findtext('centertop')),('50%','50%'),rel);self.assertIsNone(pill.find('left'),rel)
+   # Build 192 (owner): a clean spinning circle in the centre, no pill and no "Loading…".
+   self.assertNotIn('pill_glass_124.png',xml);self.assertNotIn('Loading',xml);self.assertIsNone(pill.find('control[@type="label"]'),rel)
+   ring=[c for c in pill.iter('control') if 'ring.png' in (c.findtext('texture') or '')][0]
+   self.assertEqual(ring.find('animation').get('effect'),'rotate')
+   # Kodi's progress 10 stays for Kodi, inside a group that is never drawn.
+   hidden=[g for g in root.iter('control') if g.get('type')=='group' and g.findtext('visible')=='false'][0]
+   self.assertEqual([c.get('id') for c in hidden.iter('control') if c.get('id')],['10'],rel)
+   shapes.append([(c.get('type'),c.findtext('left'),c.findtext('top'),c.findtext('width'),c.findtext('height')) for c in pill.iter('control')])
+  self.assertEqual(shapes[0],shapes[1])
+  self.assertIn('DialogBusy.xml',portrait.OWN_1080I);self.assertIn('DialogBusy.xml',portrait.LOADED_AT_START)
+  self.assertIn('Kodi-iOS player controls',(self.skin/'1080i/DialogBusy.xml').read_text(encoding='utf-8'))
  def test_shared_textures(self):
   for name in ('alert.png','sheet_l.png'):self.assertTrue((self.skin/'extras/portrait'/name).read_bytes().startswith(b'\x89PNG'))
 

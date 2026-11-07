@@ -139,6 +139,42 @@ def codec(item):
     return u''
 
 
+# Kodi-iOS (owner, build 184: "find the same quality in a different source that won't require conversion"): AV1 has to
+# be re-encoded on the phone before Kodi and AirPlay can use it (an hour or more); HEVC / H.264 are only repackaged.
+# AV1 links go after the others and say so. Library status › a movie › "Find a version without converting" sets
+# Window(Home).Property(KodiIOS.AvoidAV1) to "<quality>|<time>": then only other codecs at that quality are offered.
+AVOID_PROPERTY = 'KodiIOS.AvoidAV1'
+AVOID_FOR = 15 * 60
+
+
+def slow_to_prepare(item):
+    return codec(item) == u'AV1'
+
+
+def avoid_request(now=None, read=None):
+    """(quality or '') while a 'without converting' search is wanted, else None."""
+    try:
+        if read is None:
+            import xbmcgui
+            read = lambda: xbmcgui.Window(10000).getProperty(AVOID_PROPERTY)
+        raw = read() or ''
+        quality, _, at = raw.partition('|')
+        import time
+        now = time.time() if now is None else now
+        if not at or now - float(at) > AVOID_FOR:
+            return None
+        return quality
+    except Exception:
+        return None
+
+
+def without_conversion(kept, quality):
+    """The links that need no conversion, at `quality` when there are any there; [] when there are none."""
+    quick = [i for i in kept if not slow_to_prepare(i)]
+    same = [i for i in quick if i['quality'] == quality]
+    return same or quick
+
+
 def is_bad(item):
     """Cam/telesync copies and AI-upscaled / frame-interpolated releases."""
     b = _blob(_all(item))
@@ -255,6 +291,8 @@ def pick(items, top_n=TOP_N):
     good = [i for i in items if not is_bad(i) and i['seeds'] > 0]
     # Kodi-iOS: disc copies and huge files after the versions a phone streams well (still offered).
     good = [i for i in good if not too_heavy(i)] + [i for i in good if too_heavy(i)]
+    # Kodi-iOS: AV1 after the codecs that need no conversion on the phone (stable: Elementum's order otherwise).
+    good = [i for i in good if not slow_to_prepare(i)] + [i for i in good if slow_to_prepare(i)]
     good_ids = set(id(i) for i in good)
     rest = [i for i in items if id(i) not in good_ids]
     ranked = good + rest                                   # dead / bad copies only if nothing better
@@ -309,7 +347,8 @@ def build_rows(shown, total_label=u''):
         if st:
             head = head + DOT + st
         rows.append({'headline': head, 'tags': DOT.join(tag_list(it)), 'meta': meta_text(it),
-                     'badge': u'MAY STUTTER' if too_heavy(it) else b.get(n, u''), 'icon': it['icon']})
+                     'badge': u'MAY STUTTER' if too_heavy(it) else u'AV1 \u00b7 SLOW TO PREPARE' if slow_to_prepare(it)
+                     else b.get(n, u''), 'icon': it['icon']})
     return rows
 
 
@@ -607,6 +646,19 @@ def run(title, items, top_n=TOP_N, expect=None):
         kept, hidden = parsed, []
         if sm is not None:
             sm.log(u'Choose a version: %d links for "%s" not checked (the title being played is not known)' % (len(parsed), title))
+    # Library status › "Find a version without converting": only links that need no conversion, at the same quality.
+    wanted = avoid_request()
+    if wanted is not None:
+        quick = without_conversion(kept, wanted)
+        if quick:
+            shown = pick(quick, top_n)
+            rows = build_rows(shown)
+            for row in rows:
+                row['badge'] = u'NO CONVERSION NEEDED'
+            sel = choose_source(title, rows, quality_label(shown[0]['quality']), count_label(len(shown), len(dedupe(quick))))
+            if sel is None or sel < 0 or sel >= len(shown):
+                return -1
+            return shown[sel]['idx']
     # Continue Watching: the same version as last time, without asking, when it is still in the list.
     same = find_same(kept, resume_wanted())
     if same is not None:

@@ -16,7 +16,7 @@ class SettingsSearch(unittest.TestCase):
  def test_page_rows_are_indexed_with_their_actions(self):
   entries=search.page_entries(sp)
   self.assertIn(('Player','Settings','ActivateWindow(playersettings)'),entries)
-  self.assertTrue(any(l=='Widgets' and w.startswith('Customisation') for l,w,_ in entries))
+  self.assertTrue(any(l=='Tabs & Rows' and w.startswith('Customisation') for l,w,_ in entries))
  def test_kodi_settings_open_their_section_at_the_category(self):
   entries=search.kodi_entries(KODI,NAMES.get)
   self.assertIn(('Play next video automatically','Player · Videos','ActivateWindow(playersettings,videoplayer)'),entries)
@@ -39,5 +39,19 @@ class SettingsSearch(unittest.TestCase):
   path,argv=default.target(['service.kodi.ios.bootstrap','library_scan'])
   self.assertEqual(Path(path),BOOT/'library_scan.py');self.assertEqual(argv,[path])
   self.assertIn(('Refresh Library','Library · Library',sp.LIBRARY_REFRESH),search.search(search.page_entries(sp),'refresh library'))
+
+
+class NeverAnInvisibleDialog(unittest.TestCase):
+ """Owner (build 168 log): "Control 9160 in window 13000 has been asked to focus, but it can't" - the search page was
+ hidden until something was typed, yet sat over Settings: taps went nowhere and Back was hidden."""
+ def test_page_always_shown_and_lists_settings_before_typing(self):
+  import importlib.util,types
+  root=Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap'
+  src=(root/'resources/lib/settings_page.py').read_text()
+  body=src[src.index('def search_window(p):'):src.index('def account_row(')]
+  self.assertIn("visible='true'",body);self.assertNotIn("String.IsEmpty(Window(Home).Property(Settings.Search.Query))'",body.split("visible=")[1][:80])
+  ctl=(root/'settings_search.py').read_text()
+  self.assertIn("settings_search.search(entries,query) if query else [e for e in entries if e[1]=='Settings']",ctl)
+  self.assertIn('self.setFocusId(9160)',ctl)
 
 if __name__=='__main__':unittest.main()
