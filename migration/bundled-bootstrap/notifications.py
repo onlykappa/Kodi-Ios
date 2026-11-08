@@ -50,6 +50,18 @@ def model_cards(state,running_id=''):
  if card:card['queued']=len((state or {}).get('next') or [])
  return card,(copy['line'] if copy else '')
 
+def next_text(titles,room=60):   # Kodi cuts the line short of the link (notifications_skin.LINK_W)
+ """Board 5: 'Up next: Scary Movie, then Fall 2 Deadpoint ·' with the titles cut short, so the Library status link
+ after it always shows."""
+ if not titles:return ''
+ import re
+ cut=lambda t,n:t if len(t)<=n else t[:max(1,n-1)].rstrip()+'…'
+ shown=[re.sub(r'\s*\((19|20)\d\d\)$','',t) for t in titles[:2]]
+ budget=max(8*len(shown),room-len('Up next: ')-(len(', then ') if len(shown)>1 else 0))
+ # Each title gets an even share; room one title does not need goes to the other.
+ share=budget//len(shown);spare=sum(max(0,share-len(t)) for t in shown)
+ return 'Up next: '+', then '.join(cut(t,share+spare) for t in shown)+' ·'
+
 def message_properties(items,filter_key,now=None):
  """Window properties for the Earlier rows under the chosen filter, and the empty state."""
  kinds=notices.FILTERS.get(filter_key,notices.KINDS);shown=[i for i in items if i.get('kind','info') in kinds][:ROWS]
@@ -57,8 +69,11 @@ def message_properties(items,filter_key,now=None):
  for n in range(1,ROWS+1):
   i=shown[n-1] if n<=len(shown) else {}
   glyph,tint=ICON.get(i.get('kind'),ICON['info']) if i else ('','')
+  # Build 194 (board 5): one grouped card; the tile is the kind's colour at 18 %, its glyph the full colour.
+  pos='' if not i else 'only' if len(shown)==1 else 'first' if n==1 else 'last' if n==len(shown) else 'mid'
   props.update({'msg.%d.title'%n:i.get('title',''),'msg.%d.text'%n:i.get('text',''),'msg.%d.ago'%n:notices.ago(i['time'],now) if i else '',
-                'msg.%d.icon'%n:glyph,'msg.%d.tint'%n:tint,'msg.%d.unread'%n:'true' if i and not i.get('was_read') else ''})
+                'msg.%d.icon'%n:glyph,'msg.%d.tint'%n:('2E'+tint[2:]) if tint else '','msg.%d.glyph'%n:('FF'+tint[2:]) if tint else '',
+                'msg.%d.pos'%n:pos,'msg.%d.unread'%n:'true' if i and not i.get('was_read') else ''})
  return props,shown
 
 KIND_WORDS={'download':'Downloads','drive':'Google Drive','problem':'Problem','update':'Update','info':'Kodi iOS','general':'General'}
@@ -162,13 +177,17 @@ def run():
     pairs=[('dl.%d.'%(n+1),self.downloads[n] if n<len(self.downloads) else {}) for n in range(SLOTS)]
     pairs += [('up.',ups[0] if ups else {}),('prepare.',current)]
     self.artnames=[j.get('name') or j['title'] for j in jobs]
+    import notifications_skin
+    bars={'prepare.':notifications_skin.BARS,'up.':notifications_skin.BARS+1}
+    bars.update({'dl.%d.'%k:notifications_skin.BARS+1+k for k in range(1,SLOTS+1)})
     for pre,j in pairs:
      for key in ('title','line'):self.setProperty(pre+key,str(j.get(key,'')))
      self.setProperty(pre+'pct',str(j.get('pct') or 0))
-     self.setProperty(pre+'tint',j.get('tint_now',''))
+     if pre in bars:self.percent(bars[pre],j.get('pct') or 0)
+     self.setProperty(pre+'tint',j.get('tint','') if j.get('state')=='slowed' else j.get('tint_now',''))   # board 5: slowed still moves
      self.setProperty(pre+'poster',transfer_artwork.describe(j.get('name') or j.get('title',''),cache)['poster'] if j else '')
     titles=[j['title'] for j in (model or {}).get('next') or []]
-    self.setProperty('next.link',('Up next: '+', then '.join(titles[:2])+' · Library status') if titles else '')
+    self.setProperty('next.text',next_text(titles))
     self.update_empty()
   def percent(self,control,value):
    try:self.getControl(control).setPercent(float(value))

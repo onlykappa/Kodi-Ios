@@ -76,7 +76,9 @@ class QueueView(unittest.TestCase):
   self.assertEqual(props['line.count'],'4 videos');self.assertEqual(props['line.5.title'],'');self.assertEqual(props['empty'],'')
   xml=ltp.queue_page(portrait)
   for k in props:
-   if k!='line.count' and not k.endswith('.tone'):self.assertIn('Window().Property(%s)'%k,xml,k)
+   # now.pct fills the running job's bar through Control.setPercent (tool_windows: Kodi leaves a property-bound bar empty).
+   if k not in ('line.count','now.pct') and not k.endswith('.tone'):self.assertIn('Window().Property(%s)'%k,xml,k)
+  self.assertIn('id="%d"'%ltp.QBAR,xml);self.assertIn('setPercent',(LIB/'tool_windows.py').read_text())
   self.assertEqual(lt.queue_properties(lt.queue_view({'rows':{}}))['empty'],'Nothing is waiting to be converted.')
  def test_more_than_fit(self):
   line=[{'id':str(n),'title':'T%d'%n,'state':'waiting','sub':'x · y'} for n in range(13)]
@@ -133,7 +135,7 @@ class History(unittest.TestCase):
             {'kind':'up','title':'The Batman','reason':'AllDebrid could not fetch it','time':today-3*86400}]
   h=lt.history_view(finished,failures,now,'today')
   self.assertEqual([(r['title'],r['tone']) for r in h['rows']],[('Inception (2010)','bad'),('Fall 2','ok')])
-  self.assertEqual(h['rows'][0]['line'],'after 30 min');self.assertEqual(h['rows'][1]['line'],'16.9 GB · 37 min · 7.8 MB/s')
+  self.assertEqual(h['rows'][0]['line'],'after 30 min');self.assertEqual(h['rows'][1]['line'],'16.9 GB in 37 min')   # board 8
   self.assertEqual(h['rows'][1]['result'],'On Google Drive');self.assertEqual((h['count'],h['failed'],h['total']),(2,2,'20.9 GB'))
   self.assertEqual(h['busiest'],'Busiest: today · 16.9 GB')
   self.assertEqual([r['title'] for r in lt.history_view(finished,failures,now,'yesterday')['rows']],['Scarface'])
@@ -303,7 +305,7 @@ class TapEveryButton(unittest.TestCase):
                                  (ltp.HISTORY,ls.tap(ltp.BACK)),(tp.WINDOW,ls.tap(tp.BACK))])
   kodi.modules['xbmcvfs'].listdir=lambda p:([],[])
   with patch.dict(sys.modules,kodi.modules):load('transfers_tools',BOOT/'transfers.py').run(['up'])
-  self.assertEqual(seen[0],('Inception (2010)','On Google Drive · 1.0 GB · 9 min · 1.0 MB/s'));self.assertEqual(seen[1],('yesterday','Nothing finished yesterday.'))
+  self.assertEqual(seen[0],('Inception (2010)','On Google Drive · 1.0 GB in 9 min'));self.assertEqual(seen[1],('yesterday','Nothing finished yesterday.'))
   self.assertTrue(all(w.closed for w in kodi.windows))
  def test_airplay_check_from_a_notification(self):
   import notices

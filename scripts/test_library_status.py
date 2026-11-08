@@ -70,8 +70,9 @@ class Rows(unittest.TestCase):
  def test_every_item_is_one_height_in_one_layout(self):
   xml=library_page.page(portrait)
   self.assertIn('<control type="grouplist" id="9300">',xml)
-  self.assertIn('Window().Property(row.0.title)',xml)
-  self.assertIn('Window().Property(row.0.section)',xml)
+  # Build 194 (boards 1 and 2): one pool of rows per section, each section one grouped card.
+  for key in ('down','next','kept','ready'):self.assertIn('Window().Property(%s.0.title)'%key,xml)
+  self.assertIn('Window().Property(next.0.number)',xml)
  def test_positions_round_the_group(self):
   waiting=[i['props']['pos'] for i in rows.list_items(self.view,'waiting')]
   self.assertEqual((waiting[0],waiting[-1]),('first','last'));self.assertTrue(all(p=='mid' for p in waiting[1:-1]))
@@ -134,10 +135,10 @@ class Skin(unittest.TestCase):
  def test_properties_the_controller_sets(self):
   for k in ('sub','headline','count.ready','count.working','count.next','count.kept'):
    self.assertIn('Window().Property(%s)'%k,self.page,k)
-  for k in ('title','quality','poster','fact3.value','action2.label','step2.label','card.now'):
+  for k in ('title','quality','poster','fact3.value','action2.label','step2.label','card.num','card.unit','card.left','card.wait'):
    self.assertIn('Window().Property(%s)'%k,self.sheet,k)
-  for k in ('state','pct','title','sub','number','section'):
-   self.assertIn('Window().Property(row.0.%s)'%k,self.page,k)
+  for k in ('title','sub','number','pos'):
+   self.assertIn('Window().Property(next.0.%s)'%k,self.page,k)
  def test_status_sheet_closes_with_a_cross(self):
   self.assertIn('close_cross.png',self.sheet);self.assertTrue(all(c.findtext('label')!='Done' for c in self.sheetx.iter('control') if c.get('type')=='button'))
  def test_pill_stays_off_this_page(self):
@@ -145,7 +146,9 @@ class Skin(unittest.TestCase):
   self.assertIn('IOSLibraryStatus.xml',skin);self.assertIn('IOSLibraryItem.xml',skin)
  def test_registered_in_the_skin(self):
   files=library_page.files(portrait)
-  self.assertEqual(sorted(Path(k).name for k in files),['IOSLibraryItem.xml','IOSLibraryStatus.xml'])
+  self.assertEqual(sorted(Path(k).name for k in files if k.endswith('.xml')),['IOSLibraryItem.xml','IOSLibraryStatus.xml'])
+  # Build 194: the rounded shapes the approved boards use (status_ui.textures), drawn by the generator.
+  self.assertTrue({'r27.png','pill16.png','poster27.png'}<=set(Path(k).name for k in files))
   self.assertIn('library_page.files(ns)',(LIB/'portrait.py').read_text())
 
 class Wiring(unittest.TestCase):
@@ -224,18 +227,18 @@ class FakeKodi:
   self.modules={'xbmc':xbmc,'xbmcgui':gui,'xbmcaddon':addon,'xbmcvfs':vfs}
 
 def tap(control):return lambda w:w.onClick(control)
+def tap_first(w):w.onClick(w.control_for(w.items[0]))
 def tap_row(ident):
  def go(w):
   if w.filter!='all':w.set_filter('all')
   ids=[i['props'].get('id') for i in w.items]
   index=ids.index(ident)
-  w.offset=index//library_page.SLOTS*library_page.SLOTS
-  w.onClick(library_page.SLOT+index%library_page.SLOTS)
+  w.onClick(w.control_for(w.items[index]))
  return go
 def tap_kind(kind):
  def go(w):
   index=next(n for n,i in enumerate(w.items) if i['kind']==kind)
-  w.onClick(library_page.SLOT+index)
+  w.onClick(w.control_for(w.items[index]))
  return go
 
 class TapEveryButton(unittest.TestCase):

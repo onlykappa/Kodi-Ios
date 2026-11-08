@@ -274,12 +274,40 @@ def device_scale():
         return 1.
 
 
+def _axis(value):
+    """'6', '4.5', '0.8': the graph's right-hand axis numbers (MB/s)."""
+    return ('%.1f' % value).rstrip('0').rstrip('.') if value < 10 else '%d' % round(value)
+
+
+def axis_top(points):
+    """The graph's top value (bytes/s): a round number so the three guide lines read 6 / 4 / 2 (board 3)."""
+    import math
+    peak = max([p[1] for p in points] + [1.]) * 1.25 / 1048576
+    step = peak / 4
+    mag = 10 ** math.floor(math.log10(step)) if step > 0 else 1
+    nice = next(m * mag for m in (1, 2, 2.5, 5, 10) if m * mag >= step)
+    return nice * 4 * 1048576
+
+
+def ago_text(seconds):
+    """'10 min ago', '1 h 5 min ago' for the graph's left time."""
+    minutes = max(1, int(round(seconds / 60.)))
+    return ('%d min ago' % minutes) if minutes < 60 else ('%d h %d min ago' % divmod(minutes, 60)).replace(' 0 min', '')
+
+
 def graph_labels(points, start=None, now=None):
+    """Kodi labels for a graph (board 3/4): the MB/s value at each of the three guide lines (top to bottom), the start
+    time in the phone's clock style, the peak in MB/s and where it is along the plot (0..1)."""
     points = smoothed(points)
-    top = max([p[1] for p in points] + [1.]) * 1.25 / 1048576
-    return {'axis0': '%.1f' % top, 'axis1': '%.1f' % (top / 2), 'axis2': '0',
-            'peak': mb(max([p[1] for p in points] + [0.])),
-            'from': time.strftime('%H:%M', time.localtime(start if start is not None else points[0][0])) if points or start is not None else ''}
+    top = axis_top(points) / 1048576
+    peak = max(points, key=lambda p: p[1]) if points else None
+    t0 = start if start is not None else (points[0][0] if points else 0)
+    t1 = max((now if now is not None else (points[-1][0] if points else t0)), t0 + 1)
+    when = time.localtime(t0) if points or start is not None else None
+    return {'axis0': _axis(top * .75), 'axis1': _axis(top * .5), 'axis2': _axis(top * .25),
+            'peak': '%.1f' % (peak[1] / 1048576) if peak else '',
+            'peak_x': (peak[0] - t0) / (t1 - t0) if peak else 0.,
+            'from': ago_text(t1 - t0) if when else ''}
 
 
 def render(points, colour, width=W, height=H, start=None, now=None, scale=1., line_pt=2.5, guides=True):
@@ -296,12 +324,13 @@ def render(points, colour, width=W, height=H, start=None, now=None, scale=1., li
     px = bytearray(width * height * 4)
     if not points:
         return _png(px,width,height)
-    top = max([p[1] for p in points] + [1.]) * 1.25
+    top = axis_top(points) if guides else max([p[1] for p in points] + [1.]) * 1.25
     radius = max(.75, line_pt * 2.687 * scale / 2)
     pad = radius + 2
     t0 = points[0][0] if start is None else start
     t1 = max(points[-1][0] if now is None else now, t0+1)
-    xy = [(max(pad,min(width-pad,(p[0]-t0)/(t1-t0)*(width-2*pad)+pad)),
+    padx = max(pad, 9 * 2.687 * scale + 1) if guides else pad    # room for the now dot's halo (board 3)
+    xy = [(max(padx,min(width-padx,(p[0]-t0)/(t1-t0)*(width-2*padx)+padx)),
            height-pad-max(0,p[1])/top*(height-2*pad)) for p in points]
     if len(xy)==1: xy = [(pad,xy[0][1]),(width-pad,xy[0][1])]
     def put(x,y,c,a):
@@ -329,12 +358,31 @@ def render(points, colour, width=W, height=H, start=None, now=None, scale=1., li
                     t=max(0,min(1,((x+sx-ax)*dx+(y+sy-ay)*dy)/length))
                     hits+=((x+sx-ax-t*dx)**2+(y+sy-ay-t*dy)**2<=radius**2)
             if hits: put(x,y,rgb,255*hits/16)
+    # Peak marker (board 3): a faint dashed line from the highest point down to the base.
+    if guides and len(xy) > 2:
+        k = max(range(len(points)), key=lambda i: points[i][1])
+        mx, my = round(xy[k][0]), xy[k][1]
+        dash = max(3, round(3 * 2.687 * scale))
+        for y in range(max(0, round(my + radius * 2)), height):
+            if (y // dash) % 2 == 0:
+                put(mx, y, (235, 235, 245), 64)
     # Now marker, with the same edge sampling.
     cx,cy=xy[-1]; dot=radius*1.65
     for y in range(max(0,int(cy-dot-1)),min(height,int(cy+dot+2))):
         for x in range(max(0,int(cx-dot-1)),min(width,int(cx+dot+2))):
             hits=sum((x+sx-cx)**2+(y+sy-cy)**2<=dot**2 for sx in (.125,.375,.625,.875) for sy in (.125,.375,.625,.875))
             if hits: put(x,y,rgb,255*hits/16)
+    # A white "now" dot with a soft halo (board 3/4), over the line's colour.
+    if guides:
+        dot = 5 * 2.687 * scale          # board 3: a 5 pt white dot with a 9 pt halo
+        halo = 9 * 2.687 * scale
+        for y in range(max(0,int(cy-halo-1)),min(height,int(cy+halo+2))):
+            for x in range(max(0,int(cx-halo-1)),min(width,int(cx+halo+2))):
+                d2=(x+.5-cx)**2+(y+.5-cy)**2
+                if d2<=dot**2: put(x,y,(255,255,255),255)
+                elif d2<=halo**2:
+                    i=(y*width+x)*4
+                    if px[i+3]<46: put(x,y,(255,255,255),46)
     return _png(px,width,height)
 
 

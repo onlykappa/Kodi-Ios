@@ -68,6 +68,68 @@ def list_items(view, filter_key='all'):
     return out
 
 
+POOL_OF = {'downloading': 'down', 'uploading': 'down', 'ready': 'ready', 'kept': 'kept'}
+
+
+def pools(items):
+    """Build 194: list_items() split into the page's row groups (library_page.POOLS): {'down'|'next'|'kept'|'ready': [item]},
+    each with its card position ('only', 'first', 'mid', 'last') and, for Up next, its number."""
+    out = {}
+    for item in items:
+        if item.get('kind') != 'row':
+            continue
+        state = item['props'].get('state', '')
+        if state == 'preparing':
+            continue
+        out.setdefault(POOL_OF.get(state, 'next'), []).append(dict(item, props=dict(item['props'])))
+    for key, rows in out.items():
+        for n, item in enumerate(rows):
+            item['props']['pos'] = 'only' if len(rows) == 1 else 'first' if n == 0 else 'last' if n == len(rows) - 1 else 'mid'
+            item['props']['number'] = str(n + 1) if key == 'next' else ''
+            if key == 'ready':
+                item['label2'] = ready_quality(item.get('row') or {})
+            elif item.get('label2'):
+                item['label2'] = item['label2'][:1].upper() + item['label2'][1:]
+    return out
+
+
+def ready_quality(row):
+    """Board 1's right-hand note on a ready row ('4K HDR', '1080p'): the picture only, never the size."""
+    sub = str(row.get('sub') or '')
+    first = sub.split(' · ')[0] if sub else ''
+    return {'2160p': '4K', '4k': '4K'}.get(first.lower(), first) if first and not first.endswith('GB') else ''
+
+
+def speed_left(job):
+    """('4.8 MB/s', '· 6 min left') for the working card's second row; ('', '') with no measured speed yet."""
+    import work_state
+    if not job or job.get('state') not in work_state.MOVING or float(job.get('rate') or 0) <= 0:
+        return '', ''
+    left = work_state.left(job.get('eta_s')) if job.get('eta_s') else ''
+    return work_state.speed(job.get('rate')), ('· ' + left) if left else ''
+
+
+def segments(counts, width, gap):
+    """[(x, w)] for the summary bar's four segments (ready, working, up next, kept), sized by count with `gap` units
+    between the ones that show; zero-count segments get width 0."""
+    shown = [c for c in counts if c > 0]
+    total = sum(shown)
+    if not total:
+        return [(0, 0)] * len(counts)
+    room = width - gap * (len(shown) - 1)
+    out, x, used = [], 0, 0
+    last = max(i for i, c in enumerate(counts) if c > 0)
+    for i, c in enumerate(counts):
+        if c <= 0:
+            out.append((x, 0))
+            continue
+        w = room - used if i == last else max(8, int(round(room * c / float(total))))
+        out.append((x, w))
+        x += w + gap
+        used += w
+    return out
+
+
 def page_properties(view, checking=False):
     """Window properties for the page's top: subtitle, ring, headline and legend."""
     rows = view['rows']
@@ -244,17 +306,61 @@ def details(row, view):
                      card='conv' if live['kind'] in ('conv','repack') else 'up' if live['kind'] in ('copy','upload') else 'down',
                      actions=actions)
     probe = row.get('probe') or {}
-    sheet['quality'] = ' · '.join(x for x in (picture_text(probe), str(probe.get('codec') or '').upper(), '%.1f GB'%(size/GB) if size else '') if x)
-    sheet['sentence'] = ('Already plays in Kodi and AirPlay; this makes it open faster.' if live['kind']=='repack' else 'Play on this iPhone while Kodi gets it ready for AirPlay.') if live and live['kind'] in ('conv','repack') else ''
+    picture, codec = picture_text(probe), str(probe.get('codec') or '').upper()
+    if not picture or not codec:
+        guess_picture, guess_codec = name_quality(row.get('name') or row.get('title') or '')
+        picture, codec = picture or guess_picture, codec or guess_codec
+    sheet['quality'] = ' · '.join(x for x in (picture, codec, '%.1f GB'%(size/GB) if size else '') if x)
+    sheet['sentence'] = ('It already plays in Kodi and on AirPlay. This rearranges it so it opens in a second or two; the picture and sound stay the same.' if live['kind']=='repack' else 'Play on this iPhone while Kodi gets it ready for AirPlay.') if live and live['kind'] in ('conv','repack') else ''
     ready = state == 'ready'
     sheet['steps'] = [('Downloaded', 'FF30D158'), ('On Drive' if state not in ('downloading','uploading') else 'On Drive…',
                       'FF30D158' if state not in ('downloading','uploading') else DOWN),
-                     ('Ready' if ready else ((live or {}).get('step') or sheet['step'] or sheet['status']) + (' · %d%%'%float(live.get('pct') or 0) if live and not live.get('indeterminate') else ''),
+                     ('Ready' if ready else SHORT_STEP.get((live or {}).get('step') or sheet['step'] or sheet['status'], (live or {}).get('step') or sheet['step'] or sheet['status']) + (' · %d%%'%float(live.get('pct') or 0) if live and not live.get('indeterminate') else ''),
                       'FF30D158' if ready else (live or {}).get('tint_now') or CONV)]
     sheet['live'] = live
     sheet['need'] = ((model or {}).get('needs') or [{}])[0]
     sheet['facts'] = sheet['facts'][:FACTS]
     return sheet
+
+
+SHORT_STEP = {'Making it start faster': 'Faster start'}
+
+
+def clock12(when):
+    """'1:13 PM' (board 3's Started, the phone's clock style)."""
+    import time
+    t = time.localtime(when)
+    return '%d:%02d %s' % ((t.tm_hour % 12) or 12, t.tm_min, 'AM' if t.tm_hour < 12 else 'PM')
+
+
+def speed_card_text(live, history_job, size=0, bar=0):
+    """Board 3's speed card words: the number and its unit apart ('4.8', 'MB/s'), time left, Average, Done, Started.
+    No speed measured yet: no number (never '0.0 MB/s'); the graph area then says what it is doing."""
+    import transfer_history as th
+    live, j = live or {}, history_job or {}
+    rate = float(live.get('rate') or 0)
+    moving = live.get('state') in ('running', 'slowed') and rate > 0
+    num, unit = (th.mb(rate).split(' ', 1) + [''])[:2] if moving else ('—', '')
+    import prepare_downloads
+    avg = j.get('sum', 0) / max(1, j.get('n', 1)) if j.get('n') else 0
+    done = float(j.get('done') or 0)
+    return {'card.num': num, 'card.unit': unit,
+            'card.left': prepare_downloads.eta_text(live.get('eta_s')).replace('about ', '') if moving and live.get('eta_s') else '',
+            'card.avg': th.mb(avg) if avg > 0 else '—',
+            'card.done': ('%.1f of %.1f GB' % (done / GB, float(size) / GB)) if size and done else '%d%%' % int(float(bar or 0)),
+            'card.started': clock12(j['start']) if j.get('start') else '—'}   # board 3's third step label
+
+
+def name_quality(name):
+    """('4K HDR', 'HEVC') guessed from a release name when the movie has no probe yet (board 3: '4K · HEVC · 2.8 GB')."""
+    import re
+    n = str(name or '').lower()
+    picture = '4K' if re.search(r'2160p|\b4k\b|uhd', n) else '1080p' if '1080p' in n else '720p' if '720p' in n else ''
+    if picture and re.search(r'\bhdr|dolby.?vision|\bdv\b', n):
+        picture += ' HDR'
+    codec = ('AV1' if re.search(r'\bav1\b', n) else 'HEVC' if re.search(r'x265|hevc|h\.?265', n) else
+             'H.264' if re.search(r'x264|h\.?264|avc', n) else '')
+    return picture, codec
 
 
 def card(history, kind, title, now, step=''):

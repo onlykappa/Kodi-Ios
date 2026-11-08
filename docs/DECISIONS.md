@@ -120,3 +120,21 @@ Owner reviewed the round-4 mockups (2026-11-05: "this looks great. I like ur she
 - Close (✕) for status-only sheets.
 
 Recorded in docs/design/APPLE-UI-POLICY.md §4.3 and §4.7. The owner declined a test build of PR #10's Notifications fix for now ("not yet pr 10 is different then ui stuff"). Next: implement the approved design on PR #9. No merge or release implied.
+
+## DEC-029 — Build 194: the approved boards are the measured specification (2026-11-08)
+
+Owner, after build 193 on the iPhone: "this looks nothing like the mocs i approved", with a fix prompt naming the
+approved boards in `docs/design/library-status-mockups-r1.html` as the specification ("look EXACTLY like the
+owner-approved mockups"). Decisions taken in this pass, each citing that approved mockup:
+- New generated textures at the boards' radii (`status_ui.textures`, never committed): `r27.png` (10 pt tiles and
+  segmented controls), `r21.png` (selected segment), `pill21/16/11.png` (8 pt summary bar, 6 pt card bars, 4 pt step
+  bars), `poster27/21/16.png` (rounded posters 64 × 96, 52 × 78 and 40 × 60 pt), `pill_134.png` (50 pt Play/Pause
+  capsules, boards 3 and 9). Cards use the existing 16 pt `row_*` textures.
+- Board 5 drops the "•••" buttons on the running cards (owner: "remove •••"). Long press on a card still opens
+  Pause / Cancel, and the on-screen alternative the policy (§ gestures) requires is the job's row in Library status,
+  whose sheet carries Pause and Cancel; the Notifications page links there ("Library status").
+- While AirPlay or a video slows a job (still moving), its ring and bars keep the job's colour as boards 2 and 5 show;
+  grey stays for paused, stale and the slowed bell (board 6).
+- Multi-line text (board 2's sign-in sentence, board 3's sentence, board 7's note) is a Kodi textbox
+  (`status_ui.paragraph`); every one-line run stays a label with scroll off and "…".
+No build, release or merge implied; device review pending (ISSUE-119).

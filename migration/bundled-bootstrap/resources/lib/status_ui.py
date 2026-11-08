@@ -1,6 +1,52 @@
 """Shared Kodi controls for the build-193 boards. All coordinates are portrait units."""
 PURPLE, BLUE, TRACK = 'FFBF5AF2', 'FF0A84FF', 'FF3A3A3C'
+ORANGE, SEG_GREY, SURF2 = 'FFFF9F0A', 'FF636366', 'FF2C2C2E'
 HIT = 118
+# Build 194 (owner: "it needs to look exactly like the mocks I approved"): sizes come from
+# docs/design/build-193-measurements.md (pt x 2.687). Cards: 16 pt radius (43 units, the row_* textures), 14 pt padding
+# (38 units), 14 pt between blocks (38 units).
+PAD, GAP, CARD_R = 38, 38, 43
+
+
+def textures(p):
+    """Extra rounded textures at the approved mockups' radii (portrait textures are generated, never committed)."""
+    return {'r27.png': p.rounded(64, 64, 27), 'r21.png': p.rounded(48, 48, 21), 'pill21.png': p.rounded(48, 21, 10.5),
+            'pill16.png': p.rounded(40, 16, 8), 'pill11.png': p.rounded(30, 11, 5.5), 'poster21.png': p.rounded(140, 210, 21),
+            'poster27.png': p.rounded(172, 258, 27), 'poster16.png': p.rounded(108, 161, 16),
+            'pill_134.png': p.rounded(134, 134, 67)}   # board 3/9's 50 pt Play / Pause capsules
+
+
+def card(p, x, y, w, h, color=None, extra=''):
+    """A grouped card: SURFACE, 16 pt radius."""
+    return p.image(x, y, w, h, p.MEDIA + 'row_only.png', color or p.SURFACE, extra, border=43)
+
+
+def row_back(p, key, w, h, x=None, color=None):
+    """A row inside one grouped card: rounded ends only for the first/last row, a hairline above every row but the first."""
+    x = p.SIDE if x is None else x
+    out = ''.join(p.image(x, 0, w, h, p.MEDIA + tex, color or p.SURFACE,
+                          '<visible>String.IsEqual(Window().Property(%spos),%s)</visible>' % (key, pos), border=43 if pos != 'mid' else '')
+                  for pos, tex in (('only', 'row_only.png'), ('first', 'row_first.png'), ('mid', 'white.png'), ('last', 'row_last.png')))
+    return out + p.image(x, 0, w, 3, p.MEDIA + 'white.png', '1FEBEBF5',
+                         '<visible>String.IsEqual(Window().Property(%spos),mid) | String.IsEqual(Window().Property(%spos),last)</visible>' % (key, key))
+
+
+def id_bar(p, ident, x, y, w, h, tint, track=TRACK, texture='white.png', border=''):
+    """A progress bar the page's script fills (Control.setPercent): Kodi's progress control cannot read a percentage from
+    a window property (build 193 on the phone and in the Kodi 21.3 rig: such bars stayed empty)."""
+    b = ' border="%s"' % border if border != '' else ''
+    return ('<control type="progress" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
+            '<texturebg%s colordiffuse="%s">%s%s</texturebg><lefttexture /><midtexture%s colordiffuse="%s">%s%s</midtexture>'
+            '<righttexture /><overlaytexture /></control>') % (ident, x, y, w, h, b, track, p.MEDIA, texture, b, tint, p.MEDIA, texture)
+
+
+def link(p, ident, x, y, w, h, title, align='right', font='p_sub'):
+    """A borderless blue text button (ACCENT text), at least 118 units tall."""
+    return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><label>%s</label>'
+            '<font>%s</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>%s</align><aligny>center</aligny>'
+            '<textoffsetx>0</textoffsetx><scroll>false</scroll><texturefocus /><texturenofocus />'
+            '<animation effect="fade" start="100" end="70" time="0" condition="Control.HasFocus(%d)">Conditional</animation></control>') % (
+                ident, x, y, w, h, p.e(title), font, p.ACCENT, p.ACCENT, align, ident)
 NOS = '<scroll>false</scroll>'
 P = lambda k: '$INFO[Window().Property(%s)]' % k
 has = lambda k: '!String.IsEmpty(Window().Property(%s))' % k
@@ -65,7 +111,7 @@ def needs(p, key='need.', ident=9004, elevated=False):
     S,w=p.SIDE,p.WIDTH-2*p.SIDE
     body=p.surface(S,0,w,290,'round.png',p.SURFACE2 if elevated else p.SURFACE,p.RADIUS)
     body+=p.surface(S+30,30,80,80,'round_s.png','33FF9F0A',p.RADIUS)
-    body+=p.icon(S+46,46,48,'triangle-exclamation.png','FFFF9F0A')
+    body+=glyph(p,S+46,46,48,'triangle-exclamation.png','FFFF9F0A')
     body+=text(p,S+140,22,w-170,56,P(key+'title'),'p_foot_b')
     body+=text(p,S+140,84,w-170,50,P(key+'text'),'p_cap',p.GREY)
     body+=p.pill_button(ident,S+140,154,300,124,P(key+'button'),[('','noop')],'primary',extra=NOS)
@@ -80,3 +126,23 @@ def graph(p, key, x, y, w, h):
             ''.join(text(p,x,y+44+i*(h-140)//2,65,40,P(key+'axis%d'%i),'p_cap',p.GREY) for i in range(3))+
             text(p,x+70,y+h-48,(w-80)//2,40,P(key+'from'),'p_cap',p.GREY)+
             text(p,x+70+(w-80)//2,y+h-48,(w-80)//2,40,'now','p_cap',p.GREY,'right'))
+
+
+def paragraph(p, x, y, w, h, text, font='p_sub', color=None, align='left'):
+    """Build 194: a few lines of plain text (board 2's sign-in card, board 3's sentence, board 7's note) as a Kodi
+    textbox, which wraps by itself; one-line text stays a label with scroll off and "…"."""
+    return ('<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><font>%s</font>'
+            '<textcolor>%s</textcolor><align>%s</align><autoscroll>false</autoscroll><label>%s</label></control>'
+            % (x, y, w, h, font, color or p.GREY, align, text))
+
+
+def glyph(p, x, y, size, name, color, extra=''):
+    """An icon whose drawn shape is `size` units across with its top-left at x, y (board 1, 2, 5 and 8 sizes). The
+    icon PNGs keep the shape in the middle half of their 128 px canvas, so the image is drawn at twice the size
+    around the same centre."""
+    return p.icon(x - size // 2, y - size // 2, size * 2, name, color, extra)
+
+
+def neg(cond):
+    """The opposite of a Kodi visibility condition. Kodi reads "!!X" as "!X", so "!" + has(x) would not mean empty."""
+    return cond[1:] if cond.startswith('!') and '+' not in cond and '|' not in cond else '!' + cond if '+' not in cond and '|' not in cond else '![%s]' % cond

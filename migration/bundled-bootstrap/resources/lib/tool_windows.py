@@ -102,8 +102,13 @@ def open_queue(profile=None):
                 self.line = q['line'][self.offset:self.offset+page.QUEUE_SLOTS]
                 self.setProperty('pages','true' if total>page.QUEUE_SLOTS else '')
                 q=dict(q,line=self.line)
-                for k, v in lt.queue_properties(q).items():
+                props = lt.queue_properties(q)
+                for k, v in props.items():
                     self.setProperty(k, v)
+                try:   # build 194: Kodi cannot size a progress bar from a window property
+                    self.getControl(page.QBAR).setPercent(float(props.get('now.pct') or 0))
+                except Exception:
+                    pass
 
         def onAction(self, action):
             if action.getId() in BACK:

@@ -339,14 +339,18 @@ def bell(x,y,extra=''):
  """Real model percentage; needs-you is the only red badge. No looping arc."""
  active='!String.IsEmpty(Window(Home).Property(Notices.Active))'
  pct='Window(Home).Property(Notices.Pct)'
- rings=''
+ # Board 6: the ring sits on a grey track (#3A3A3C) while something moves.
+ rings=image(-10,-10,128,128,MEDIA+'ring_20.png','FF3A3A3C','<visible>'+active+'</visible>')
  for n in range(21):
   cond=active+' + !Integer.IsGreater(%s,%d)'%(pct,n*5+2)
   if n:cond+=' + Integer.IsGreater(%s,%d)'%(pct,n*5-3)
   rings+=image(-10,-10,128,128,MEDIA+'ring_%02d.png'%n,'$INFO[Window(Home).Property(Notices.Tint)]','<visible>'+cond+'</visible>')
  needs='!String.IsEmpty(Window(Home).Property(Notices.Needs))'
  badge=''
- for key,tint,cond in (('Count','FF0A84FF',active+' + !'+needs),('Needs','FFFF453A',needs)):
+ # Build 194: the blue count only when something runs, there is a count and nothing needs the owner (the old
+ # condition read "!!String.IsEmpty(...)" and drew an empty blue badge while slowed).
+ count='!String.IsEmpty(Window(Home).Property(Notices.Count))'
+ for key,tint,cond in (('Count','FF0A84FF',active+' + '+count+' + String.IsEmpty(Window(Home).Property(Notices.Needs))'),('Needs','FFFF453A',needs)):
   badge+='<control type="group"><left>70</left><top>-6</top><visible>'+cond+'</visible>'+image(0,0,50,50,MEDIA+'dot.png',tint)+label(0,0,50,50,'$INFO[Window(Home).Property(Notices.%s)]'%key,'p_cap',WHITE,'center','<scroll>false</scroll>')+'</control>'
  # The invisible hit target is 118, while the visible bell remains 24 pt.
  return '<control type="group"><left>%d</left><top>%d</top>'%(x,y)+rings+icon(23,23,62,'bell.png')+'<control type="button" id="9207"><left>-5</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><onclick>'+NOTICES+'</onclick>'+extra+'</control>'+badge+'</control>'

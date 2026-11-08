@@ -57,7 +57,7 @@ def page_state(history,now,wanted,queued,model=None,first_seen=None):
   history=dict(history,jobs=jobs)
  kind=(wanted if wanted in history.get('jobs',{}) else next(iter(history.get('jobs',{})),None)) if model is not None else th.pick(history,wanted,now)
  base=(kind or '').split('.')[0]
- props={k:'' for k in ('kind','tint','title','now','peak','avg','started','from','line','graph','number','units','step','axis0','axis1','axis2')}
+ props={k:'' for k in ('kind','tint','title','now','peak','avg','started','from','line','graph','number','units','step','axis0','axis1','axis2','wait')}
  pct=0.0;others=[]
  if kind:
   job=history['jobs'][kind]
@@ -91,8 +91,11 @@ def page_state(history,now,wanted,queued,model=None,first_seen=None):
   if m and m.get('eta_s'):
    import prepare_downloads
    props['units']='MB/s · '+prepare_downloads.eta_text(m['eta_s']).replace('about ','')
-  props.update(th.graph_labels(pts,job['start'],now))
+  props.update({k:v for k,v in th.graph_labels(pts,job['start'],now).items() if isinstance(v,str)})
   props['peak']=th.mb(job.get('peak'))
+  import library_rows
+  props['started']=library_rows.clock12(job['start'])
+  props['wait']='' if len(pts)>1 and any(pt[1]>0 for pt in pts) else ((m or {}).get('step') or 'Measuring…')
   others=list(history.get('jobs') or {})
  props['headline']=(model or {}).get('headline','')
  for n in range(1,tp.OTHERS+1):
@@ -101,6 +104,7 @@ def page_state(history,now,wanted,queued,model=None,first_seen=None):
   props['other.%d.label'%n]=('Converting' if k.startswith('conv') else 'Downloading') if k else ''
   props['other.%d.tint'%n]=(model_job(model,k) or {}).get('tint_now') or th.TINTS.get(k,'')
   props['other.%d.rate'%n]=''
+  props['other.%d.on'%n]='true' if k and k==kind else ''
  if model is not None:
   queued=[(j['title'],'%s · %.1f GB'%(j['what'],float(j.get('size') or 0)/GB)) for j in model.get('next') or []]
  # Owner (build 176): "it says finished? but its clearly not finished": stopped attempts stay in History only.
@@ -116,6 +120,8 @@ def page_state(history,now,wanted,queued,model=None,first_seen=None):
  for n in range(1,tp.NEXT+1):
   r=queued[n-1] if n<=len(queued) else ('','')
   props['next.%d.title'%n],props['next.%d.line'%n]=r
+  shown=min(len(queued),tp.NEXT)
+  props['next.%d.pos'%n]='' if n>shown else 'only' if shown==1 else 'first' if n==1 else 'last' if n==shown else 'mid'
  # "Nothing is moving" only when nothing runs, waits or needs you (owner, build 192: it said so while converting).
  import work_state
  mode=(model or {}).get('mode',work_state.STALE_STATE)
@@ -181,9 +187,11 @@ def run(args=()):
     if kind:
      job=(history.get('jobs') or {}).get(kind) or (history.get('jobs') or {}).get(kind.split('.')[0]) or {}
      if job.get('title')!=props['title']:job={}
-     props['graph']=self.graphs.image(work_state.job_key(model_job(model,kind)),job.get('points') or [],
-      props['tint'],folder,'special://skin/extras/portrait/graph',width=832,height=320,scale=th.device_scale(),
-      start=job.get('start'),now=(job.get('points') or [[now]])[-1][0])
+     pts=job.get('points') or []
+     # Build 194: no flat zero graph while nothing is measured yet; the card says what it is doing instead (props['wait']).
+     props['graph']=self.graphs.image(work_state.job_key(model_job(model,kind)),pts,
+      props['tint'],folder,'special://skin/extras/portrait/graph',width=tp.PLOT[2],height=tp.PLOT[3],scale=th.device_scale(),
+      start=job.get('start'),now=(pts or [[now]])[-1][0]) if not props.get('wait') else ''
     for k,v in props.items():self.setProperty(k,v)
     try:self.getControl(tp.BAR).setPercent(float(pct))
     except Exception:pass

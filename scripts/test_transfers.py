@@ -75,7 +75,8 @@ class Graph(unittest.TestCase):
   job=d['jobs']['up'];w,h,rows=decode(th.render(job['points'],th.TINTS['up'],start=job['start'],now=1300))
   self.assertEqual((w,h),(th.W,th.H))
   colours={bytes(r[x*4:x*4+3]) for r in rows for x in range(w) if r[x*4+3]==255}
-  self.assertEqual(colours,{bytes(GREEN)})   # only the job's line is solid: no other jobs, no limit line
+  # Only the job's line is solid (no other jobs, no limit line), plus board 3/4's white "now" dot.
+  self.assertEqual(colours,{bytes(GREEN),b'\xff\xff\xff'})
   self.assertTrue(any(r[3] for r in rows))
  def test_empty_and_single_point(self):
   decode(th.render([],th.TINTS['down']));decode(th.render([[5,MB,1]],th.TINTS['down']))
@@ -104,7 +105,7 @@ class Page(unittest.TestCase):
   props,pct,kind,others=transfers.page_state(d,now,'up',[('Interstellar','convert · 8.4 GB')])
   self.assertEqual(kind,'up');self.assertEqual(others,['up','conv']);self.assertEqual(props['now'],'7.2 MB/s');self.assertEqual(props['kind'],'SAVING TO GOOGLE DRIVE')
   self.assertEqual(props['tint'],th.TINTS['up']);self.assertAlmostEqual(pct,100*15.8/16.9,1);self.assertIn('15.8 GB of 16.9 GB',props['line'])
-  self.assertIn('left',props['line']);self.assertEqual(props['other.1.label'],'Downloading');self.assertEqual(props['started'],'10 min ago')
+  self.assertIn('left',props['line']);self.assertEqual(props['other.1.label'],'Downloading');self.assertRegex(props['started'],r'^\d{1,2}:\d\d [AP]M$')   # board 4: "Started 1:13 PM"
   self.assertEqual(props['done.1.title'],'Batman');self.assertIn('peak 30.0 MB/s',props['done.1.line']);self.assertEqual(props['next.1.title'],'Interstellar')
   props2,pct2,kind2,_=transfers.page_state(d,now,'conv',[])
   self.assertEqual(kind2,'conv');self.assertEqual(pct2,24);self.assertEqual(props2['line'],'24%')
@@ -112,7 +113,8 @@ class Page(unittest.TestCase):
   props3,_,_,_=transfers.page_state(d,now,'conv',[])
   self.assertEqual(props3['line'],"24% · 46 of 148 min of film · 3.8× the film's speed · about 27 min left")
   for k in props:
-   if k in ('title','step','number','units','line','peak','avg','started','axis0','axis1','axis2','from','headline') or k.startswith(('other.', 'next.')) and k.endswith(('label','title','line')):self.assertIn('Window().Property(%s)'%k,self.xml,k)
+   # Board 4: the time left rides with the unit ("MB/s · 6 min left"); 'line' stays for the notification card.
+   if k in ('title','step','number','units','peak','avg','started','axis0','axis1','axis2','from','headline') or k.startswith(('other.', 'next.')) and k.endswith(('label','title','line')):self.assertIn('Window().Property(%s)'%k,self.xml,k)
   self.assertIn('Window().Property(graph)',self.xml)
   empty,_,none,_=transfers.page_state({},now,'down',[]);self.assertIsNone(none);self.assertEqual(empty['title'],'')
  def test_registered_and_pill_hidden(self):
@@ -135,7 +137,8 @@ class OnlyFromNotifications(unittest.TestCase):
  def test_cards_have_tap_targets_under_pause(self):
   xml=portrait.notices_page()
   for n in (9432,9433,9436,9437,9438,9439):self.assertIn('id="%d"'%n,xml)
-  self.assertIn('id="9462"',xml)   # Pause/Cancel stay on top
+  # Board 5 drops the "•••" buttons: Pause/Cancel stay on a long press of the card (notifications.long_press).
+  self.assertNotIn('id="9462"',xml);self.assertIn('if self.long_press(*card)',(BOOT/'notifications.py').read_text())
   for page in ('library_status.py','activity_page.py'):self.assertNotIn('transfers',(BOOT/page).read_text())
  def test_tapping_the_upload_card_opens_transfers(self):
   import notices,test_library_status as lib

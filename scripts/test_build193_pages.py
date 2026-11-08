@@ -56,7 +56,9 @@ class XML(unittest.TestCase):
                         self.assertGreaterEqual(float(c.findtext('width') or 0),118,c.get('id'))
                         self.assertGreaterEqual(float(c.findtext('height') or 0),118,c.get('id'))
                     if c.get('type')=='label':
-                        self.assertGreater(float(c.findtext('width') or 0),0)
+                        # 'auto' only inside a horizontal grouplist ("4.8" + "MB/s", a line + its accent link).
+                        width=c.findtext('width') or '0'
+                        self.assertTrue(width=='auto' or float(width)>0,c.findtext('label'))
                         self.assertGreaterEqual(sizes[c.findtext('font')],30)
                         self.assertEqual(c.findtext('scroll'),'false',c.findtext('label'))
                         self.assertIsNone(c.find('wrapmultiline'))
@@ -72,7 +74,7 @@ class XML(unittest.TestCase):
 
     def test_shared_card_and_movie_steps_graph_labels(self):
         for xml in (lp.page(p),p.notices_page()):
-            self.assertIn('poster_mask.png',xml)
+            self.assertRegex(xml,r'poster(16|21|27)\.png')   # board 1/5 rounded posters (status_ui.textures)
             self.assertIn('chevron-right.png',xml)
         sheet=lp.item_sheet(p)
         for n in range(3):self.assertIn('Window().Property(step%d.label)'%n,sheet)
@@ -106,7 +108,7 @@ class Bell(unittest.TestCase):
         self.assertNotIn('Notices.Unread',xml);self.assertNotIn('rotate',xml)
         self.assertIn('Notices.Pct',xml);self.assertIn('Notices.Tint',xml)
         self.assertIn('Notices.Needs',xml)
-        self.assertEqual(xml.count('ring_'),21)
+        self.assertEqual(xml.count('ring_'),22)   # 21 progress steps + board 6's grey track ring
 
 
 class Graph(unittest.TestCase):
@@ -118,7 +120,9 @@ class Graph(unittest.TestCase):
         # Stroke edge samples (multiples of 1/16), beyond the 90-alpha fill.
         self.assertTrue(any(90<a<255 for a in alphas))
         self.assertIn(255,alphas)
-        self.assertEqual(th.graph_labels(pts)['axis2'],'0')
+        # Board 3/4: the right-hand axis reads round guide values (top 6 → 6 / 4 / 2), never a zero line.
+        labels=th.graph_labels(pts)
+        self.assertEqual((labels['axis0'],labels['axis1'],labels['axis2']),('6','4','2'))
         sw,sh,_=decode(th.render(pts,ws.PURPLE,180,64,guides=False))
         self.assertEqual((sw,sh),(180,64))
 
@@ -269,7 +273,7 @@ class ReviewFindings(unittest.TestCase):
             with self.subTest(state=state),tempfile.TemporaryDirectory() as profile:
                 j=self.work('down',id='torrent-id',state=state)
                 m=dict(model(),jobs=[j],next=[])
-                script=[(lp.WINDOW,fixture.tap(lp.SLOT)),(lp.ITEM,fixture.tap(9201)),(lp.WINDOW,fixture.tap(lp.BACK))]
+                script=[(lp.WINDOW,fixture.tap_first),(lp.ITEM,fixture.tap(9201)),(lp.WINDOW,fixture.tap(lp.BACK))]
                 with patch.object(notices,'engine_action',return_value=True) as engine,patch.object(tc,'set_paused') as flags:
                     self.run_library(profile,m,script)
                 engine.assert_called_once_with(command,'torrent-id');flags.assert_not_called()
@@ -292,7 +296,7 @@ class ReviewFindings(unittest.TestCase):
             with self.subTest(cancel=kind),tempfile.TemporaryDirectory() as profile:
                 j=self.work(kind,id='torrent')
                 m=dict(model(),jobs=[j],next=[])
-                script=[(lp.WINDOW,fixture.tap(lp.SLOT)),(lp.ITEM,fixture.tap(9202)),(lp.WINDOW,fixture.tap(lp.BACK))]
+                script=[(lp.WINDOW,fixture.tap_first),(lp.ITEM,fixture.tap(9202)),(lp.WINDOW,fixture.tap(lp.BACK))]
                 with patch.object(notices,'engine_action',return_value=True) as engine:
                     self.run_library(profile,m,script)
                 if kind=='down':engine.assert_called_once_with('cancel','torrent')
@@ -390,14 +394,14 @@ class ReviewFindings(unittest.TestCase):
     def test_8_missing_history_keeps_first_seen_time_per_job(self):
         j=self.work('copy',id=None);m=dict(model(),jobs=[j],next=[]);seen={}
         props=transfers.page_state({},1000,'up',[],m,seen)[0]
-        self.assertEqual(props['started'],'just now')
+        self.assertEqual(props['started'],lr.clock12(1000))   # board 4: "Started 1:13 PM"
         props=transfers.page_state({},1200,'up',[],m,seen)[0]
-        self.assertEqual(props['started'],'3 min ago')
+        self.assertEqual(props['started'],lr.clock12(1000))
         history={'jobs':{'up':{'title':j['title'],'start':950,'last':1200,'points':[]}}}
         transfers.page_state(history,1200,'up',[],m,seen)
-        self.assertEqual(transfers.page_state({},1250,'up',[],m,seen)[0]['started'],'5 min ago')
+        self.assertEqual(transfers.page_state({},1250,'up',[],m,seen)[0]['started'],lr.clock12(950))   # the history's own start wins
         transfers.page_state({},1300,'up',[],dict(m,jobs=[]),seen)
-        self.assertEqual(transfers.page_state({},1400,'up',[],m,seen)[0]['started'],'just now')
+        self.assertEqual(transfers.page_state({},1400,'up',[],m,seen)[0]['started'],lr.clock12(1400))
 
     def test_8_stopped_faster_start_has_no_ineffective_history_retry(self):
         import prepare_downloads as prep
@@ -413,6 +417,117 @@ class ReviewFindings(unittest.TestCase):
             self.assertTrue(prep.load(profile)['jobs']['slot']['blocked'])
             job.pop('blocked');job.pop('repack_failed');prep.save(profile,{'jobs':{'slot':job}})
             self.assertEqual(tool_windows.retry_target(profile,entry),('conv','failed-id'))
+
+
+PT=2.687   # portrait units per mockup pt (docs/design/build-193-measurements.md)
+
+
+def near(test,value,pt,what,tol=4):
+    test.assertLessEqual(abs(float(value)-pt*PT),tol,'%s: %s units, mockup %s pt = %.0f units'%(what,value,pt,pt*PT))
+
+
+def control(xml,ident):
+    return next(c for c in ET.fromstring(xml).iter('control') if c.get('id')==str(ident))
+
+
+class Board194(unittest.TestCase):
+    """Build 194: the generated pages measured against the approved mockups (docs/design/build-193-measurements.md).
+    Structural evidence only; the desktop Kodi rig and the iPhone are separate evidence classes."""
+
+    def test_board1_sizes_match_the_measurements(self):
+        near(self,lp.BAR_Y,421-377,'summary bar top in its card');near(self,lp.BAR_H,8,'summary bar height')
+        near(self,lp.BAR_GAP,3,'gap between bar segments')
+        rows={key:h for key,_,_,h in lp.POOLS}
+        near(self,rows['next'],60,'Up next row');near(self,rows['ready'],52,'Ready row')
+        near(self,ui.CARD_R,16,'card radius');near(self,ui.PAD,14,'card padding');near(self,p.SIDE,20,'side margin')
+        xml=lp.page(p)
+        for n in (9101,9102,9103,9104):
+            c=control(xml,n);near(self,c.findtext('height'),56,'count button %d height'%n)
+        self.assertIn('Window().Property(next.0.number)',xml)
+        self.assertIn('FF4FA8FF',xml)   # accent text: refresh glyph, Edit order, Up next numbers
+
+    def test_board1_segmented_bar(self):
+        segs=lr.segments([8,1,2,1],lp.BAR_W,lp.BAR_GAP)
+        self.assertEqual(segs[0][0],0);self.assertEqual(sum(w for _,w in segs)+3*lp.BAR_GAP,lp.BAR_W)
+        self.assertEqual([round(w/float(segs[1][1])) for _,w in segs],[8,1,2,1])
+        for (x,w),(nx,_) in zip(segs,segs[1:]):self.assertEqual(nx,x+w+lp.BAR_GAP)
+        segs=lr.segments([5,0,0,1],lp.BAR_W,lp.BAR_GAP)   # a missing state leaves no gap
+        self.assertEqual(segs[1][1],0);self.assertEqual(segs[0][1]+lp.BAR_GAP+segs[3][1],lp.BAR_W)
+        self.assertEqual(lr.segments([0,0,0,0],lp.BAR_W,lp.BAR_GAP),[(0,0)]*4)
+        xml=lp.page(p)
+        for n,tint in enumerate(('FF30D158','FFBF5AF2','FF0A84FF','FF636366')):
+            c=control(xml,lp.SEGMENTS+n);self.assertEqual(c.find('texture').get('colordiffuse'),tint)
+
+    def test_board1_working_card_never_repeats_the_step(self):
+        live=dict(model()['jobs'][0])
+        self.assertEqual(lr.speed_left(live),('4.8 MB/s','· 6 min left'))
+        self.assertEqual(lr.speed_left(dict(live,rate=0)),('',''))
+        self.assertEqual(lr.speed_left(dict(live,state='stale')),('',''))
+
+    def test_board3_sheet_sizes(self):
+        sheet=lp.item_sheet(p)
+        play,pause=control(sheet,9201),control(sheet,9202)
+        for c in (play,pause):near(self,c.findtext('height'),50,'sheet button height');near(self,c.findtext('width'),176,'sheet button width')
+        near(self,int(pause.findtext('left'))-int(play.findtext('left'))-int(play.findtext('width')),10,'gap between Play and Pause')
+        self.assertIn('<width>172</width><height>258</height>',sheet)   # poster 64 x 96 pt
+        self.assertIn('close_disc.png',sheet);self.assertIn('poster27.png',sheet)
+
+    def test_board3_step_bars_are_full_when_done(self):
+        import test_library_status as fixture
+        r=ReviewFindings();seen={}
+        j=r.work('conv',id='film',pct=42,bar=42)
+        m=dict(model(),jobs=[j],next=[])
+        grab=lambda w:seen.update({n:w.controls[lp.STEP_BARS+n].percent for n in range(3) if lp.STEP_BARS+n in w.controls})
+        with tempfile.TemporaryDirectory() as profile:
+            r.run_library(profile,m,[(lp.WINDOW,lambda w:w.refresh()),(lp.WINDOW,fixture.tap(lp.WORK)),(lp.ITEM,grab),
+                                     (lp.ITEM,fixture.tap(9200)),(lp.WINDOW,fixture.tap(lp.BACK))])
+        self.assertEqual(len(seen),3,seen)
+        self.assertEqual((seen[0],seen[1]),(100,100))   # Downloaded and On Drive: full green bars
+        self.assertGreater(seen[2],0);self.assertLess(seen[2],100)
+
+    def test_board3_graph_placeholder_when_nothing_is_measured(self):
+        idle=lr.speed_card_text({'state':'running','rate':0},{})
+        self.assertEqual((idle['card.num'],idle['card.unit'],idle['card.left']),('—','',''))
+        live=lr.speed_card_text({'state':'running','rate':4.8*MB,'eta_s':360},{'start':1000,'sum':8*4.8*MB,'n':8})
+        self.assertEqual((live['card.num'],live['card.unit'],live['card.left'],live['card.avg']),('4.8','MB/s','6 min left','4.8 MB/s'))
+        self.assertEqual(live['card.started'],lr.clock12(1000))
+        src=(BOOT/'library_status.py').read_text()
+        self.assertIn("ok=len(points)>1 and any(pt[1]>0 for pt in points)",src)
+        self.assertIn("props['card.wait']='' if ok else",src)
+        self.assertIn('Window().Property(card.wait)',lp.item_sheet(p))
+        self.assertIn('Window().Property(wait)',tp.page(p))
+
+    def test_board5_card_link_and_rows(self):
+        xml=p.notices_page()
+        self.assertNotIn('•••',xml);self.assertNotIn('ellipsis',xml)
+        self.assertIn('chevron-right.png',xml)
+        # The accent link has no visibility of its own: whenever the Up next line shows, "Library status" shows.
+        link=next(c for c in ET.fromstring(xml).iter('control') if c.findtext('label')=='Library status')
+        self.assertIsNone(link.find('visible'));self.assertEqual(link.findtext('textcolor'),p.ACCENT)
+        long=['A Very Long Movie Title That Goes On And On (2026)','Another Extremely Long Title For Testing (2025)']
+        text=notifications.next_text(long)
+        self.assertTrue(text.startswith('Up next: A Very'));self.assertLessEqual(len(text),62);self.assertIn('…',text)
+        self.assertEqual(notifications.next_text(['Scary Movie (2026)','Fall 2 Deadpoint (2026)']),'Up next: Scary Movie, then Fall 2 Deadpoint ·')
+        for n in (1,2):self.assertIn('Window().Property(msg.%d.tint)'%n,xml);self.assertIn('Window().Property(msg.%d.glyph)'%n,xml)
+
+    def test_board6_bell_rings(self):
+        xml=p.bell(0,0)
+        self.assertIn('FF3A3A3C',xml)   # the grey track under the progress ring
+        self.assertIn('!String.IsEmpty(Window(Home).Property(Notices.Count))',xml);self.assertNotIn('!!String.IsEmpty',xml)   # the blue count shows
+
+    def test_no_double_negation_anywhere(self):
+        for name,xml in XML().pages().items():self.assertNotIn('!!',xml,name)
+        self.assertNotIn('!!',p.bell(0,0))
+
+    def test_board8_card_fits_its_content(self):
+        xml=ltp.history_page(p)
+        self.assertIn('String.IsEmpty(Window().Property(h.1.retry))',xml)   # no empty space under the reason
+        self.assertIn('circle-exclamation.png',xml);self.assertIn('<width>118</width><height>118</height>',xml)   # 22 pt marks
+
+    def test_board7_numbers_are_numbers(self):
+        xml=ltp.queue_page(p)
+        self.assertIn('$NUMBER[',xml)   # a bare "1" label is read as a localized string id by Kodi
+        self.assertIn('id="%d"'%ltp.QBAR,xml)
 
 
 if __name__=='__main__':unittest.main()

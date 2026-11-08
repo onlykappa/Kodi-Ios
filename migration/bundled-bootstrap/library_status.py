@@ -8,6 +8,7 @@ service applies on its next pass (prepare_downloads.request)."""
 import os,shutil,sys,threading,time
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
 import library_page,library_rows,prepare_downloads,tool_windows,transfer_history
+p_side=54   # portrait.SIDE: the summary card's left edge
 
 BACK=(9,10,92,110)
 # By id: a script started through RunScript(service.kodi.ios.bootstrap,...) runs via default.py's runpy, and Kodi
@@ -90,7 +91,10 @@ def run(args=()):
    for k in ('title','status','tone','quality','sentence'):self.setProperty(k,s.get(k,''))
    for n,(label,tint) in enumerate(s.get('steps',[])):
     self.setProperty('step%d.label'%n,label);self.setProperty('step%d.tint'%n,tint)
-    self.setProperty('step%d.pct'%n,str((100 if self.row['state']=='ready' else float(s.get('bar') or 0)) if n==2 else 100))
+    pct=(100 if self.row['state']=='ready' else float(s.get('bar') or 0)) if n==2 else (100 if tint=='FF30D158' else 50)
+    # Build 194: Kodi cannot size a progress bar from a window property, so the script sets each step bar.
+    try:self.getControl(library_page.STEP_BARS+n).setPercent(pct)
+    except Exception:pass
    for k in ('title','text','button'):self.setProperty('need.'+k,s.get('need',{}).get(k,''))
    self.setProperty('poster',poster(self.row))
    self.setProperty('card',s.get('card',''))
@@ -113,18 +117,25 @@ def run(args=()):
    points=j.get('points') or [] if j.get('title')==s['title'] else []
    live=s.get('live') or {}
    rate=float(live.get('rate') or 0)
-   props={'card.now':transfer_history.mb(rate) if live.get('state') in ('running','slowed') else live.get('line','Updating…'),
-          'card.avg':transfer_history.mb(j.get('sum',0)/max(1,j.get('n',1))),
-          'card.left':prepare_downloads.eta_text(live.get('eta_s')) if live.get('eta_s') else '',
-          'card.done':('%.1f of %.1f GB'%(float(j.get('done') or 0)/library_rows.GB,float(self.row['size'])/library_rows.GB)) if self.row.get('size') and j.get('done') else str(s.get('bar') or '0')+'%',
-          'card.started':time.strftime('%H:%M',time.localtime(j['start'])) if j.get('start') else '–'}
-   for k,v in transfer_history.graph_labels(points,j.get('start')).items():props['card.'+k]=v
-   props['card.peak']=transfer_history.mb(j.get('peak'))
+   moving=live.get('state') in ('running','slowed') and rate>0
+   props=dict(library_rows.speed_card_text(live,j,self.row.get('size'),s.get('bar')))
+   ok=len(points)>1 and any(pt[1]>0 for pt in points)
    import work_state
    folder=os.path.join(xbmcvfs.translatePath('special://skin/'),'extras','portrait','graph')
-   props['card.graph']=self.graphs.image(work_state.job_key(live),points if len(points)>1 else [],
+   props['card.graph']=self.graphs.image(work_state.job_key(live),points,
       live.get('tint_now') or library_rows.DOWN,folder,'special://skin/extras/portrait/graph',
-      width=832,height=240,scale=transfer_history.device_scale(),start=j.get('start'),now=points[-1][0] if points else None)
+      width=library_page.PLOT_W,height=library_page.GRAPH[3]-54,scale=transfer_history.device_scale(),start=j.get('start'),
+      now=points[-1][0] if points else None) if ok else ''
+   # No graph yet: the step while it moves, else the model's own line (a stale state reads 'Updating…').
+   props['card.wait']='' if ok else ((live.get('step') or 'Measuring…') if live.get('state') in ('running','slowed') else live.get('line','Updating…'))
+   if ok:
+    labels=transfer_history.graph_labels(points,j.get('start'))
+    for k,v in labels.items():
+     if isinstance(v,str):props['card.'+k]=v
+    try:
+     gx,gy,gw,gh=library_page.GRAPH
+     self.getControl(library_page.PEAK).setPosition(int(54+gx+min(library_page.PLOT_W-300,max(0,labels['peak_x']*library_page.PLOT_W+8))),gy+round((gh-54)*.2)-52)
+    except Exception:pass
    for k,v in props.items():self.setProperty(k,v)
   def loop(self):
    monitor=xbmc.Monitor()
@@ -170,15 +181,20 @@ def run(args=()):
     for k,v in props.items():self.setProperty(k,v)
     items=library_rows.list_items(view,self.filter)
     self.items=items
-    self.offset=min(self.offset,max(0,(len(items)-1)//library_page.SLOTS*library_page.SLOTS))
-    self.setProperty('pages','true' if len(items)>library_page.SLOTS else '')
-    self.setProperty('empty','' if items else 'No downloaded videos here yet.')
+    # Build 194: one pool of rows per section (library_page.POOLS), as the approved boards draw them.
+    pools=library_rows.pools(items)
+    self.pools=pools
+    self.setProperty('empty','' if items or (view.get('model') or {}).get('jobs') else 'No downloaded videos here yet.')
     model=view.get('model') or {}
     self.setProperty('queue','true' if model.get('next') else '')
     for k in ('title','text','button'):self.setProperty('need.'+k,(model.get('needs') or [{}])[0].get(k,''))
     import work_state
     conv=work_state.job(model,'conv') or {}
-    for k in ('title','line','step','state','tint_now'):self.setProperty('work.'+('tint' if k=='tint_now' else k),str(conv.get(k,'')))
+    for k in ('title','line','step','state'):self.setProperty('work.'+k,str(conv.get(k,'')))
+    # Board 2: slowed by AirPlay still moves, so the ring keeps the job's colour; paused or stale turns it grey.
+    self.setProperty('work.tint',str(conv.get('tint') if conv.get('state')=='slowed' else conv.get('tint_now','')))
+    speed,left=library_rows.speed_left(conv)
+    self.setProperty('work.speed',speed);self.setProperty('work.left',left)
     self.setProperty('work.metrics',work_state.metrics_line(conv))
     self.setProperty('work.ring',library_rows.ring_name(conv.get('pct')))
     self.setProperty('work.percent','' if conv.get('indeterminate') else '%d%%'%float(conv.get('pct') or 0))
@@ -187,17 +203,30 @@ def run(args=()):
     if conv:
      import transfer_history as th
      j=(th.load(profile).get('jobs') or {}).get('conv') or {}
-     if j.get('title')==conv.get('title') and j.get('points'):
+     if j.get('title')==conv.get('title') and len(j.get('points') or [])>1:
       folder=os.path.join(xbmcvfs.translatePath('special://skin/'),'extras','portrait','spark')
       graph=self.graphs.image(work_state.job_key(conv),j['points'],conv['tint_now'],folder,
-       'special://skin/extras/portrait/spark',width=360,height=80,scale=th.device_scale(),guides=False)
+       'special://skin/extras/portrait/spark',width=438,height=81,scale=th.device_scale(),guides=False)
     self.setProperty('work.graph',graph)
-    for n in range(library_page.SLOTS):
-     i=items[self.offset+n] if self.offset+n<len(items) else {}
-     r=i.get('row',{});props=i.get('props',{})
-     values=dict(title=i.get('label',''),sub=i.get('label2',''),section=props.get('section',''),number=props.get('number',''),
-                 state=props.get('state',''),pos=props.get('pos','only'),pct=str(r.get('pct') or 0),tint=r.get('tint_now') or library_rows.DOWN,poster=poster(r) if r else '')
-     for k,v in values.items():self.setProperty('row.%d.%s'%(n,k),v)
+    for key,base,slots,_ in library_page.POOLS:
+     rows=pools.get(key,[])
+     for n in range(slots):
+      i=rows[n] if n<len(rows) else {}
+      r=i.get('row',{});iprops=i.get('props',{})
+      values=dict(title=i.get('label',''),sub=i.get('label2',''),number=iprops.get('number',''),state=iprops.get('state',''),
+                  pos=iprops.get('pos','only'),off=iprops.get('off',''),pct='%d%%'%int(r.get('pct') or 0) if key=='down' and i else '',
+                  poster=poster(r) if r and key=='down' else '')
+      for k,v in values.items():self.setProperty('%s.%d.%s'%(key,n,k),v)
+      if key=='down':
+       try:self.getControl(library_page.DOWN_BARS+n).setPercent(float(r.get('pct') or 0))
+       except Exception:pass
+    # The segmented summary bar: one segment per count, 8-unit gaps (Kodi cannot size these from a property).
+    for n,(x,width) in enumerate(library_rows.segments([int(props.get('count.'+k) or 0) for k in ('ready','working','next','kept')],
+                                                      library_page.BAR_W,library_page.BAR_GAP)):
+     try:
+      c=self.getControl(library_page.SEGMENTS+n);c.setPosition(p_side+library_page.BAR_X+x,library_page.BAR_Y);c.setWidth(max(0,width))
+      c.setVisible(width>0)
+     except Exception:pass
   def set_filter(self,key):
    # A folder (Waiting, Ready, Kept) or a filter: the page's title says which; Back returns to All.
    self.offset=0;self.filter=key;self.setProperty('filter',key);self.setProperty('title',library_rows.TITLES.get(key,'Library status'))
@@ -205,7 +234,7 @@ def run(args=()):
   def finish(self):
    self.stop.set();self.close()
   def go_back(self):
-   if self.filter!='all':self.set_filter('all')
+   if getattr(self,'filter','all')!='all':self.set_filter('all')
    else:self.finish()
   def onAction(self,action):
    if action.getId() in BACK:self.go_back()
@@ -219,15 +248,25 @@ def run(args=()):
    elif control==library_page.NEED:
     need=((self.view.get('model') or {}).get('needs') or [{}])[0]
     if need.get('action'):self.finish();xbmc.executebuiltin(need['action'])
-   elif control==library_page.WORK:
+   elif control in (library_page.WORK,library_page.WORK+100):
     import work_state
     conv=work_state.job(self.view.get('model'),'conv')
     if conv:
      row=next((r for r in self.view['rows']['preparing'] if r['title']==conv['title']),None)
      if row:self.open_item({'kind':'row','row':row})
-   elif control in (library_page.MORE,library_page.PREVIOUS):
-    self.offset=max(0,self.offset+(library_page.SLOTS if control==library_page.MORE else -library_page.SLOTS));self.refresh()
-   elif library_page.SLOT<=control<library_page.SLOT+library_page.SLOTS:self.open_row(self.offset+control-library_page.SLOT)
+   else:
+    for key,base,slots,_ in library_page.POOLS:
+     if base<=control<base+slots:
+      rows=getattr(self,'pools',{}).get(key,[])
+      if control-base<len(rows):self.open_item(rows[control-base])
+      break
+  def control_for(self,item):
+   """The button id that opens this row (its section's pool, library_page.POOLS)."""
+   key=lambda i:(i.get('props',{}).get('id'),i.get('title'))
+   for name,base,slots,_ in library_page.POOLS:
+    rows=[key(r) for r in getattr(self,'pools',{}).get(name,[])]
+    if key(item) in rows and rows.index(key(item))<slots:return base+rows.index(key(item))
+   return library_page.WORK if item.get('props',{}).get('state')=='preparing' else None
   def check(self):
    if not addon.getSettingBool('prepare_downloads'):
     if not dialog.yesno('Library status','Preparing videos for Kodi and AirPlay is turned off. Turn it on and check now?',

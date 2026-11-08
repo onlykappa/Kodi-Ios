@@ -199,7 +199,9 @@ class Integration(unittest.TestCase):
   source=(ROOT/'migration/bundled-bootstrap/notifications.py').read_text();self.assertIn('model=work_state.load(profile)',source);self.assertIn("j['kind'] in ('copy','upload')",source)   # build 193: the status model
   self.assertIn("self.setProperty(pre+'pct',str(j.get('pct') or 0))",source)
   import portrait
-  self.assertIn('Window().Property(prepare.pct)',portrait.notices_page())
+  # Build 194: the card's bar has an id and is filled with setPercent (a property-bound bar stays empty in Kodi 21).
+  import notifications_skin
+  self.assertIn('id="%d"'%notifications_skin.BARS,portrait.notices_page());self.assertIn('.setPercent(',source)
  def test_framework_exports_probe_and_preparation(self):
   source=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn('_kodi_airplay_prepare\\n_kodi_airplay_probe\\n',source)

@@ -1003,3 +1003,29 @@ Status: IN SOURCE on PR #16 (build 193 Phases 1–5, not built); visual and devi
   verification remains with the owner; the desktop rig is not being used as acceptance evidence.
 - Retest: **80/80 test scripts passed** (only `test_drive_runtime.py` excluded); the page suite passes **24 tests**.
   `check_project.py` and `check_ui_guidance.py` both pass with zero issues/problems. No app/IPA build was run.
+
+## ISSUE-119 — Build-193 pages look nothing like the approved mockups (device screenshots, 2026-11-08)
+
+Status: FIXED IN SOURCE on PR #16 (build 194, not built); checked in the desktop Kodi 21.3 rig; iPhone check pending.
+- Owner (build 193 on the iPhone): "this looks nothing like the mocs i approved". Empty bars, a filter row and a
+  ring instead of the summary card, posters in Up next, "•••" on the cards, a clipped "Library status" link, the step
+  repeated under the title, a flat zero graph, half-size icons and a red bell count that never showed.
+- Root causes, found by rendering every page in a real Kodi 21.3 build (desktop rig, Xvfb, 603 × 1167):
+  (1) a `<control type="progress">` bound to `Window().Property(x)` stays empty in Kodi 21; bars now have ids and are
+  set with `setPercent` (`status_ui.id_bar`, summary segments with `setWidth`/`setPosition`);
+  (2) a label whose text is only a number ("1") is read as a localized string id; the Queue uses `$NUMBER[n]`;
+  (3) Kodi reads `!!X` as `!X`, so `'!' + has(x)` inverted conditions (the bell's count badge never showed, History's
+  retry card); `status_ui.neg()` writes the opposite of a condition;
+  (4) the icon PNGs keep their shape in the middle half of the 128 px canvas, so a 59-unit icon drew a 30-unit
+  shape; `status_ui.glyph()` draws at twice the size around the same centre;
+  (5) the generators were written from the roadmap text, not measured against the boards.
+- Fix: every board measured with Playwright (`docs/design/build-193-measurements.md`) and rebuilt to it; details per
+  board in [BUILD-193-UI-HANDOVER.md](BUILD-193-UI-HANDOVER.md) ("Build 194 visual pass"). No change to
+  `work_state.py`, `slowdown.py` or the converter.
+- Regression: `test_build193_pages.Board194` (11 tests: sizes against the measurement table within 4 units, segment
+  widths and colours, the step bars at 100 % when done, the graph placeholder at rate 0, no "•••", the always-visible
+  link, the bell's grey track and count, `$NUMBER`, no `!!` on any page, History card heights); old pins updated in
+  test_library_status, test_library_tools, test_notices, test_transfers, test_prepare_downloads, test_check_beside.
+- Retest: 80/80 test scripts (only `test_drive_runtime.py` excluded), `check_project.py` and `check_ui_guidance.py`
+  pass. Known leftover outside these boards: the landscape AirPlay sheet (`library_tools_page.airplay_sheet`) still
+  has one `!!` condition; it is pinned to its earlier source by a test and was left unchanged.

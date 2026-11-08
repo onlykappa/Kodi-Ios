@@ -89,9 +89,12 @@ class PageTests(unittest.TestCase):
  def test_layout_ids_match_controller(self):
   root=ET.fromstring(portrait.notices_page().encode())
   ids={int(c.get('id')) for c in root.iter('control') if c.get('id')}
-  need={9001,9002,9101,9102,9103,9104,9300,9432,9433,9440}|set(range(9436,9440))|set(range(9460,9466))|{9500+n for n in range(1,page.ROWS+1)}
+  need={9001,9002,9101,9102,9103,9104,9300,9432,9433,9440}|set(range(9436,9440))|{9500+n for n in range(1,page.ROWS+1)}
   self.assertTrue(need<=ids,need-ids)
   self.assertEqual((portrait.NOTICE_SLOTS,portrait.NOTICE_ROWS),(page.SLOTS,page.ROWS))
+  # Board 5: the running cards have no "•••"; a long press on the card still opens Pause / Cancel (onAction).
+  self.assertNotIn('•••',portrait.notices_page());self.assertNotIn('ellipsis',portrait.notices_page())
+  self.assertIn('if self.long_press(*card)',(BOOT/'notifications.py').read_text())
  def test_card_and_message_properties(self):
   props=page.card_properties(notices.downloads(lambda url:json.dumps(TORRENTS)),[])
   self.assertEqual((props['has.dl'],props['dl.1.pausetext'],props['dl.2.pausetext'],props['dl.3.title'],props['dl.summary']),('true','Pause','Resume','','1 active'))
@@ -110,6 +113,9 @@ class PageTests(unittest.TestCase):
 def label_boxes(group):
  """(left, top, right, bottom, text) for each label directly inside a group."""
  out=[]
+ # A grouplist lays its children out one after another (build 194: "4.8" + "MB/s", a grey line + an accent link),
+ # so their own left/top/width ("auto") are not boxes on the page.
+ if group.get('type')=='grouplist':return out
  for c in group.findall('control'):
   if c.get('type')!='label':continue
   num=lambda tag:float(c.findtext(tag) or 0)

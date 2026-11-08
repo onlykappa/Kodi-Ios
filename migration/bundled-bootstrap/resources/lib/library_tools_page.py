@@ -71,7 +71,7 @@ def _card_row(p, key, tint=None, right=0, extra=''):
     else:
         sub = ''.join(p.label(S + 24, 84, text_w, 50, _P(key + 'sub'), 'p_pill_s', colour, 'left',
                               NOLABEL + '<visible>%s</visible>' % cond)
-                      for colour, cond in ((p.GREEN, _is(key + 'tone', 'ok')), (p.GREY, '!' + _is(key + 'tone', 'ok'))))
+                      for colour, cond in ((p.GREEN, _is(key + 'tone', 'ok')), (p.GREY, u.neg(_is(key + 'tone', 'ok')))))
     return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>' % (W, ROW + 12, _has(key + 'title')) +
             p.surface(S - 6, 0, w + 12, ROW, 'round.png', p.SURFACE, 32) +
             p.label(S + 24, 22, text_w, 58, _P(key + 'title'), 'p_pill', p.WHITE, 'left', NOLABEL) + sub + extra + '</control>')
@@ -84,7 +84,7 @@ def _arrow(p, id, x, glyph, key):
             p.image(7, 7, 104, 104, p.MEDIA + 'close_disc.png', '24FFFFFF', '<visible>Control.HasFocus(%d)</visible>' % id) +
             # Owner (build 173): "arrows ... can be larger" and centred: the chevron is drawn centred in its own texture.
             p.image(25, 25, 68, 68, p.MEDIA + glyph, p.WHITE, '<visible>%s</visible>' % _has(key)) +
-            p.image(25, 25, 68, 68, p.MEDIA + glyph, p.DIM, '<visible>!%s</visible>' % _has(key)) +
+            p.image(25, 25, 68, 68, p.MEDIA + glyph, p.DIM, '<visible>%s</visible>' % u.neg(_has(key))) +
             '<control type="button" id="%d"><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus />'
             '<enable>%s</enable></control></control>' % (id, HIT, HIT, _has(key)))
 
@@ -93,59 +93,91 @@ RETRY = 9890
 QPREV, QNEXT, HPREV, HNEXT = 9841, 9842, 9905, 9906
 
 
+QBAR = 9850     # the Queue's running-job bar (tool_windows sets it)
+
+
+def _round_arrow(p, u, ident, x, y, glyph, key):
+    """Board 7: a 44 pt round button, filled #2C2C2E when it can move the row, empty and dim at the end of the line."""
+    on = _has(key)
+    return ('<control type="group"><left>%d</left><top>%d</top>' % (x, y) +
+            p.image(0, 0, 118, 118, p.MEDIA + 'avatar_s.png', u.SURF2, '<visible>%s</visible>' % on) +
+            p.image(0, 0, 118, 118, p.MEDIA + 'avatar_s.png', '1FFFFFFF', '<visible>Control.HasFocus(%d)</visible>' % ident) +
+            p.image(36, 36, 46, 46, p.MEDIA + glyph, p.WHITE, '<visible>%s</visible>' % on) +
+            p.image(36, 36, 46, 46, p.MEDIA + glyph, '4DEBEBF5', '<visible>%s</visible>' % u.neg(on)) +
+            '<control type="button" id="%d"><width>118</width><height>118</height><label></label><texturefocus /><texturenofocus />'
+            '<enable>%s</enable></control></control>' % (ident, on))
+
+
 def queue_page(p):
+    """Board 7 (build 194: laid out from docs/design/build-193-measurements.md)."""
     import status_ui as u
-    S,W,w=p.SIDE,p.WIDTH,p.WIDTH-2*p.SIDE
-    now=p.surface(S,0,w,230,'round.png',p.SURFACE,p.RADIUS)
-    now+=u.text(p,S+30,20,w-190,60,_P('now.title'),'p_pill')+u.text(p,S+w-150,20,120,60,_P('now.percent'),'p_foot_b',PURPLE,'right')
-    now+=u.bar(p,S+30,100,w-60,'now.')+u.text(p,S+30,138,w-60,56,_P('now.sub'),'p_cap',p.GREY)
-    rows=u.section(p,'WORKING ON NOW',_has('now.title'))+u.group(p,250,now,_has('now.title'))
-    rows+=u.section(p,'UP NEXT',_has('line.1.title'))
-    for n in range(1,QUEUE_SLOTS+1):
-        key='line.%d.'%n
-        body=p.surface(S,0,w,180,'round.png',p.SURFACE,p.RADIUS)
-        body+=p.surface(S+30,50,76,76,'dot.png',u.BLUE)+u.text(p,S+30,50,76,76,str(n),'p_cap',p.WHITE,'center')
-        body+=u.text(p,S+136,20,w-420,60,_P(key+'title'),'p_pill')+u.text(p,S+136,86,w-420,50,_P(key+'sub'),'p_cap',p.GREY)
-        body+=_arrow(p,UP+n,S+w-2*HIT-20,'arrow_up.png',key+'up')+_arrow(p,DOWN+n,S+w-HIT-6,'arrow_down.png',key+'down')
-        rows+=u.group(p,190,body,_has(key+'title'))
-    rows+=u.group(p,100,u.text(p,S,20,w,60,_P('line.more'),'p_cap',p.GREY),_has('line.more'))
-    rows+=u.section(p,'WAITING',_has('held.1.title'))
-    rows+=''.join(_card_row(p,'held.%d.'%n,p.GREY) for n in range(1,HELD_SLOTS+1))
-    rows+=u.section(p,'DOWNLOADING TO GOOGLE DRIVE',_has('drive.1.title'))
-    rows+=''.join(_card_row(p,'drive.%d.'%n,p.GREY) for n in range(1,DRIVE_SLOTS+1))
-    rows+=u.group(p,124,u.tap(p,QPREV,S,0,w//2,118,'Previous')+u.tap(p,QNEXT,S+w//2,0,w//2,118,'More'),_has('pages'))
-    rows+=u.group(p,160,u.text(p,S+10,20,w-20,50,'Moving a video to the top makes it next.','p_cap',p.GREY)+
-                  u.text(p,S+10,78,w-20,50,'Faster-start jobs are Ready; they wait behind new movies.','p_cap',p.GREY))
-    rows+=u.group(p,100,u.text(p,S,0,w,60,_P('empty'),'p_cap',p.GREY),_has('empty'))
-    listing='<control type="grouplist" id="9300"><top>340</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><usecontrolcoords>true</usecontrolcoords>%s</control>'%(W,rows)
-    return _window(p,'library queue',BACK,_head(p,'Queue',_P('subtitle'))+listing)
+    S, W, w = p.SIDE, p.WIDTH, p.WIDTH - 2 * p.SIDE
+    header = lambda title, cond, h: u.group(p, h, u.text(p, S + 10, 0, w - 20, 62, title, 'p_pill', p.GREY), cond)
+    now = u.card(p, S, 0, w, 215)
+    now += u.text(p, S + 38, 32, w - 230, 54, _P('now.title'), 'p_h3') + u.text(p, S + w - 188, 32, 150, 54, _P('now.percent'), 'p_pill', PURPLE, 'right')
+    now += u.id_bar(p, QBAR, S + 38, 107, w - 76, 11, _P('now.tint'), texture='pill11.png', border=5)
+    now += u.text(p, S + 38, 140, w - 76, 43, _P('now.sub'), 'p_foot', p.GREY)
+    rows = header('WORKING ON NOW', _has('now.title'), 99) + u.group(p, 215 + 38, now, _has('now.title'))
+    rows += header('UP NEXT', _has('line.1.title'), 105)
+    for n in range(1, QUEUE_SLOTS + 1):
+        key = 'line.%d.' % n
+        later = _is(key + 'later', 'true')
+        b = u.row_back(p, key, w, 174)
+        b += p.image(S + 38, 48, 75, 75, p.MEDIA + 'avatar_s.png', '2E0A84FF', '<visible>%s</visible>' % u.neg(later))
+        b += p.image(S + 38, 48, 75, 75, p.MEDIA + 'avatar_s.png', u.SURF2, '<visible>%s</visible>' % later)
+        b += '<control type="group"><visible>%s</visible>%s</control>' % (u.neg(later), u.text(p, S + 38, 48, 75, 75, '$NUMBER[%d]' % n, 'p_foot_b', p.ACCENT, 'center'))
+        b += '<control type="group"><visible>%s</visible>%s</control>' % (later, u.text(p, S + 38, 48, 75, 75, '$NUMBER[%d]' % n, 'p_foot_b', p.GREY, 'center'))
+        b += u.text(p, S + 140, 38, w - 140 - 300, 54, _P(key + 'title'), 'p_body') + u.text(p, S + 140, 94, w - 140 - 300, 43, _P(key + 'sub'), 'p_foot', p.GREY)
+        b += _round_arrow(p, u, UP + n, S + w - 290, 28, 'arrow_up.png', key + 'up') + _round_arrow(p, u, DOWN + n, S + w - 145, 28, 'arrow_down.png', key + 'down')
+        rows += u.group(p, 174, b, _has(key + 'title'))
+    rows += u.group(p, 38, '', _has('line.1.title'))
+    rows += u.group(p, 100, u.text(p, S, 0, w, 60, _P('line.more'), 'p_foot', p.GREY), _has('line.more'))
+    rows += header('WAITING', _has('held.1.title'), 105)
+    rows += ''.join(_card_row(p, 'held.%d.' % n, p.GREY) for n in range(1, HELD_SLOTS + 1))
+    rows += header('DOWNLOADING TO GOOGLE DRIVE', _has('drive.1.title'), 105)
+    rows += ''.join(_card_row(p, 'drive.%d.' % n, p.GREY) for n in range(1, DRIVE_SLOTS + 1))
+    rows += u.group(p, 160, u.paragraph(p, S + 10, 0, w - 20, 150, 'Moving a video to the top makes it next. Faster-start jobs are already Ready, so they wait behind new movies on their own.', 'p_foot'))
+    rows += u.group(p, 100, u.text(p, S, 0, w, 60, _P('empty'), 'p_foot', p.GREY), _has('empty'))
+    rows += u.group(p, 200, '')
+    listing = ('<control type="grouplist" id="9300"><top>365</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+               '<usecontrolcoords>true</usecontrolcoords>%s</control>') % (W, rows)
+    return _window(p, 'library queue', BACK, _head(p, 'Queue', _P('subtitle')) + listing)
 
 
 def history_page(p):
+    """Board 8 (build 194): the day switch is the same segmented control as Notifications; unfinished attempts first."""
     import status_ui as u
-    S,W,w=p.SIDE,p.WIDTH,p.WIDTH-2*p.SIDE
-    switch=''
-    for i,(key,title) in enumerate(DAYS):
-        switch+=p.surface(S+i*w//3,304,w//3-4,110,'round.png',p.SURFACE2,p.RADIUS,'<visible>%s</visible>'%_is('day',key))
-        switch+=u.tap(p,DAY+1+i,S+i*w//3,300,w//3,118,title)
-    rows=''
-    # Separate sections keep unfinished attempts first, regardless of their time.
-    for tone,title in (('unfinished',"DIDN'T FINISH"),('finished','FINISHED')):
-        rows+=u.section(p,title,_has(tone))
-        for n in range(1,HISTORY_SLOTS+1):
-            key='h.%d.'%n;bad=tone=='unfinished'
-            body=p.surface(S,0,w,290 if bad else 170,'round.png',p.SURFACE,p.RADIUS)
-            body+=p.icon(S+30,34,60,'circle-xmark.png' if bad else 'circle-check.png',RED if bad else p.GREEN)
-            body+=u.text(p,S+120,22,w-350,60,_P(key+'title'),'p_pill')
-            body+=u.text(p,S+w-200,22,170,60,_P(key+'when'),'p_cap',p.GREY,'right')
-            body+=u.text(p,S+120,90,w-150,54,_P(key+'result'),'p_cap',p.GREY)
-            if bad:
-                body+=p.pill_button(RETRY+n,S+120,160,300,124,'Try again',[('','noop')],'glass',extra=u.NOS+'<visible>%s</visible>'%_has(key+'retry'))
-            rows+=u.group(p,310 if bad else 180,body,_has(key+'title')+' + '+_is(key+'section',tone))
-    rows+=u.group(p,124,u.tap(p,HPREV,S,0,w//2,118,'Previous')+u.tap(p,HNEXT,S+w//2,0,w//2,118,'More'),_has('pages'))
-    rows+=u.group(p,160,u.text(p,S,40,w,70,_P('empty'),'p_foot',p.GREY),_has('empty'))
-    listing='<control type="grouplist" id="9300"><top>440</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><usecontrolcoords>true</usecontrolcoords>%s</control>'%(W,rows)
-    return _window(p,'transfer history',BACK,_head(p,'History','')+switch+listing)
+    import notifications_skin
+    S, W, w = p.SIDE, p.WIDTH, p.WIDTH - 2 * p.SIDE
+    switch = notifications_skin.segmented(p, DAYS, prop='day', base=DAY + 1)
+    header = lambda title, cond, h: u.group(p, h, u.text(p, S + 10, 0, w - 20, 62, title, 'p_pill', p.GREY), cond)
+    rows = header("DIDN'T FINISH", _has('unfinished'), 99)
+    for n in range(1, HISTORY_SLOTS + 1):
+        key = 'h.%d.' % n
+        b = u.glyph(p, S + 38, 32, 59, 'circle-exclamation.png', RED)
+        b += u.text(p, S + 129, 32, w - 129 - 230, 54, _P(key + 'title'), 'p_body') + u.text(p, S + w - 230, 32, 192, 54, _P(key + 'when'), 'p_foot', p.GREY, 'right')
+        b += u.text(p, S + 129, 91, w - 167, 43, _P(key + 'result'), 'p_foot', p.GREY)
+        shown = _has(key + 'title') + ' + ' + _is(key + 'section', 'unfinished')
+        # Board 8: the card holds "Try again" only when it can be retried; otherwise it ends under the reason.
+        retry = (p.image(S + 129, 161, 269, 97, p.MEDIA + 'pill_96.png', u.SURF2, border=48) +
+                 u.link(p, RETRY + n, S + 129, 151, 269, 118, 'Try again', 'center', 'p_pill'))
+        rows += u.group(p, 290 + 21, u.card(p, S, 0, w, 290) + b + retry, shown + ' + ' + _has(key + 'retry'))
+        rows += u.group(p, 172 + 21, u.card(p, S, 0, w, 172) + b, shown + ' + String.IsEmpty(Window().Property(%sretry))' % key)
+    rows += u.group(p, 17, '', _has('unfinished'))
+    rows += header('FINISHED', _has('finished'), 105)
+    for n in range(1, HISTORY_SLOTS + 1):
+        key = 'h.%d.' % n
+        b = u.row_back(p, key, w, 163)
+        b += u.glyph(p, S + 38, 48, 59, 'circle-check.png', p.GREEN)
+        b += u.text(p, S + 129, 32, w - 129 - 230, 54, _P(key + 'title'), 'p_body') + u.text(p, S + w - 230, 32, 192, 54, _P(key + 'when'), 'p_foot', p.GREY, 'right')
+        b += u.text(p, S + 129, 89, w - 167, 43, _P(key + 'result'), 'p_foot', p.GREY)
+        rows += u.group(p, 163, b, _has(key + 'title') + ' + ' + _is(key + 'section', 'finished'))
+    rows += u.group(p, 124, u.tap(p, HPREV, S, 0, w // 2, 118, 'Previous') + u.tap(p, HNEXT, S + w // 2, 0, w // 2, 118, 'More'), _has('pages'))
+    rows += u.group(p, 160, u.text(p, S, 40, w, 70, _P('empty'), 'p_foot', p.GREY), _has('empty'))
+    rows += u.group(p, 200, '')
+    listing = ('<control type="grouplist" id="9300"><top>443</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+               '<usecontrolcoords>true</usecontrolcoords>%s</control>') % (W, rows)
+    return _window(p, 'transfer history', BACK, _head(p, 'History', '') + switch + listing)
 
 
 def airplay_page(p):

@@ -112,6 +112,11 @@ def queue_properties(q):
         r = q['line'][n - 1] if n <= len(q['line']) else {}
         for k in ('title', 'sub', 'up', 'down'):
             props['line.%d.%s' % (n, k)] = r.get(k, '')
+        props['line.%d.sub' % n] = props['line.%d.sub' % n][:1].upper() + props['line.%d.sub' % n][1:]
+        # Build 194 (board 7): one grouped card; a faster-start job (already Ready) has a grey number.
+        shown = min(len(q['line']), QUEUE_SLOTS)
+        props['line.%d.pos' % n] = '' if n > shown else 'only' if shown == 1 else 'first' if n == 1 else 'last' if n == shown else 'mid'
+        props['line.%d.later' % n] = 'true' if r and 'faster start' in str(r.get('sub', '')).lower() else ''
     more = len(q['line']) - QUEUE_SLOTS
     props['line.more'] = ('and %d more below: move one up to see it' % more) if more > 0 else ''
     props['line.count'] = '%d video%s' % (len(q['line']), '' if len(q['line']) == 1 else 's') if q['line'] else ''
@@ -173,8 +178,9 @@ def history_entries(finished, failures):
                         'result': ('Stopped %s' % how).strip() if state == 'stopped' else 'Ended',
                         'line': ' · '.join(x for x in (_took(f['end'] - f['start']), _speed(f.get('avg'))) if x), 'size': 0})
             continue
-        line = ' · '.join(x for x in (size_text(f['size']) if f.get('size') else '', _took(f['end'] - f['start']),
-                                      _speed(f.get('avg'))) if x)
+        # Board 8: "52 GB in 41 min" (the speed is on the Transfers page).
+        took = _took(f['end'] - f['start'])
+        line = ('%s in %s' % (size_text(f['size']), took) if took else size_text(f['size'])) if f.get('size') else took
         out.append({'title': f['title'], 'kind': f['kind'], 'end': f['end'], 'tone': 'ok', 'result': RESULT.get(f['kind'], 'Done'),
                     'line': line, 'size': float(f.get('size') or 0)})
     for x in fails:
@@ -219,13 +225,18 @@ def history_properties(h, day):
     for n in range(1, HISTORY_SLOTS + 1):
         e = h['rows'][n - 1] if n <= len(h['rows']) else {}
         props['h.%d.title' % n] = e.get('title', '')
-        when = time.strftime('%a' if day == 'week' else '%H:%M', time.localtime(e['end'])) if e else ''
+        t = time.localtime(e['end']) if e else None
+        when = (time.strftime('%a', t) if day == 'week' else '%d:%02d %s' % ((t.tm_hour % 12) or 12, t.tm_min, 'AM' if t.tm_hour < 12 else 'PM')) if e else ''
         props['h.%d.line' % n] = ' · '.join(x for x in (e.get('line', ''), when) if x)
         props['h.%d.when' % n] = when
         props['h.%d.section' % n] = 'finished' if e.get('tone')=='ok' else 'unfinished'
         props['h.%d.retry' % n] = 'true' if e.get('retry') else ''
         props['h.%d.result' % n] = ' · '.join(x for x in (e.get('result',''),e.get('line','') if e.get('tone')=='ok' else '') if x)
         props['h.%d.tone' % n] = e.get('tone', '')
+        # Build 194 (board 8): finished rows share one grouped card.
+        same = [x for x in h['rows'][:HISTORY_SLOTS] if (x.get('tone') == 'ok') == (e.get('tone') == 'ok')] if e else []
+        i = next((k for k, x in enumerate(same) if x is e), 0)
+        props['h.%d.pos' % n] = '' if not e else 'only' if len(same) == 1 else 'first' if i == 0 else 'last' if i == len(same) - 1 else 'mid'
     props['more'] = 'and %d more' % (len(h['rows']) - HISTORY_SLOTS) if len(h['rows']) > HISTORY_SLOTS else ''
     return props
 
