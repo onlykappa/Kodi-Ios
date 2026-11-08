@@ -4,12 +4,12 @@
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
   "build_tag": "kodi-ios-portrait-r24",
-  "staged_patch_note": "r24 (not yet pinned): CDVDDemuxFFmpeg opens MP4/MOV with use_mfra_for=pts, so a prepared fragmented movie opens by its index instead of reading every fragment header over Drive (build-194 log: 30 s). Pin executable_release to r24 only after CI and a device check.",
+  "staged_patch_note": "r24 pinned (run 42436771730, executable 02d5357a\u2026): CDVDDemuxFFmpeg opens MP4/MOV with use_mfra_for=pts so prepared movies open by their index (build-194 log: 30 s). Device check pending.",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
-    "tag": "kodi-ios-portrait-r23",
+    "tag": "kodi-ios-portrait-r24",
     "asset": "Kodi-portrait-executable.zip",
-    "sha256": "9fa9ad78f8613bf4ce4b369eb19e46bfe5a99bc934f568d16dd0953c946fb7fd"
+    "sha256": "efdc2f0e2f5f1d388650bed8c311fc08f9d95a599af0854b2c444292f9d78208"
   },
   "build_note": "r23: includes the r22 native navigation/audio fixes plus whole-page show scrolling and downloaded-show parent-row suppression. Native run 42078285510 succeeded; release executable matches CI artifact byte-for-byte, binary SHA256, patch SHA256 and pinned upstream commit verified before pinning. Owner requested fresh test IPA.",
   "previous_executable_release": {
