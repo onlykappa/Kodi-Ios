@@ -201,7 +201,7 @@ class Integration(unittest.TestCase):
   import portrait
   # Build 194: the card's bar has an id and is filled with setPercent (a property-bound bar stays empty in Kodi 21).
   import notifications_skin
-  self.assertIn('id="%d"'%notifications_skin.BARS,portrait.notices_page());self.assertIn('.setPercent(',source)
+  self.assertIn('id="%d"'%notifications_skin.BARS,portrait.notices_page());self.assertIn('self.guard.percent(control',source)   # ISSUE-123: only while the page is open
  def test_framework_exports_probe_and_preparation(self):
   source=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn('_kodi_airplay_prepare\\n_kodi_airplay_probe\\n',source)
