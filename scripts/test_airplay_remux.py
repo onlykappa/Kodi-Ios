@@ -148,10 +148,10 @@ class AirPlayLog(unittest.TestCase):
    self.assertIn(needle,build)
   lock=__import__('json').loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())
   import re
-  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r39')
+  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r40')
   self.assertRegex(lock['framework_release']['sha256'],r'^(PENDING-set-after-publish|[0-9a-f]{64})$')
-  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r38')
-  self.assertEqual(lock['previous']['sha256'],'598cb990192fb7a60f2f310222339b7c4db5ab4a113027d266cbb511cd0b782e')
+  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r39')
+  self.assertEqual(lock['previous']['sha256'],'60379f9b5c0cf1ae0b95925a05106abe9ecf20e2f0e094370bd1035d00efd76e')
 
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):
