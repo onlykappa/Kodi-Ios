@@ -40,7 +40,7 @@ class Rule(Reset):
   g=slowdown.Gate(why=lambda:'airplay',sleep=slept.append);self.assertAlmostEqual(g.after(1.0),3.0)
   self.assertAlmostEqual(sum(slept),3.0);self.assertTrue(all(s<=1.0 for s in slept))
   slept.clear();going=[True,False]
-  g=slowdown.Gate(why=lambda:'video',sleep=slept.append,keep_going=lambda:going.pop(0) if going else False)
+  g=slowdown.Gate(why=lambda:'airplay',sleep=slept.append,keep_going=lambda:going.pop(0) if going else False)
   g.after(2.0);self.assertEqual(len(slept),1)    # Pause / Stop pressed during the rest: it ends at once
 
 class AirPlayNotStutter(Reset):
@@ -110,27 +110,36 @@ class DownloadCap(unittest.TestCase):
   slept=[];seq=list(whys)
   why=lambda:seq.pop(0) if len(seq)>1 else seq[0]
   return slowdown.Gate(why=why,sleep=slept.append),slept
- def test_a_download_keeps_under_the_cap_while_a_video_plays(self):
-  g,slept=self.gate(['video'])
+ def test_a_download_keeps_under_the_cap_while_airplay_plays(self):
+  g,slept=self.gate(['airplay'])
   rested=g.after(0.08,1024*1024,download=True)   # 1 MB read in 0.08 s = 12.5 MB/s
   self.assertAlmostEqual(rested,1.0-0.08,places=2)    # held to 1 MB/s
   self.assertAlmostEqual(sum(slept),rested,places=2)
- def test_uploads_keep_the_time_share(self):
-  g,_=self.gate(['video']);self.assertAlmostEqual(g.after(1.0),1.0/0.35-1.0,places=2)
- def test_every_worker_waits_while_kodi_buffers(self):
-  # Build 208 (log 34cd7aac): an upload sent 8-28 MB/s while a seek buffered for 90 s.
-  g,slept=self.gate(['buffering']*5+['video'])
-  g.after(1.0)
-  self.assertGreaterEqual(slept.count(0.5),3)
- def test_uploads_are_capped_while_a_video_plays(self):
+ def test_uploads_keep_the_time_share_under_airplay(self):
+  g,_=self.gate(['airplay']);self.assertAlmostEqual(g.after(1.0),1.0/0.25-1.0,places=2)
+ def test_uploads_are_capped_under_airplay(self):
   text=(LIB/'driveupload.py').read_text()
   self.assertIn('gate.after(time.monotonic()-began,len(chunk),download=True)',text)
   self.assertIn('gate.after(put_s,len(chunk),download=True)',text)
-  g,_=self.gate(['video']);self.assertAlmostEqual(g.after(1.0,32*1024*1024,download=True),31.0,places=2)
- def test_a_download_waits_while_kodi_buffers(self):
-  g,slept=self.gate(['buffering']*5+['video'])
-  g.after(0.08,1024*1024,download=True)
-  self.assertGreaterEqual(slept.count(0.5),3)   # waited in 0.5 s steps until the buffer was full
+  g,_=self.gate(['airplay']);self.assertAlmostEqual(g.after(1.0,32*1024*1024,download=True),31.0,places=2)
+ def test_every_worker_waits_while_kodi_plays_or_buffers(self):
+  # Build 208 (owner, build 207: seeking froze for 100 s while an upload, a copy and the converter ran): while Kodi
+  # plays a video (Umbrella stream, Drive download, anything) all background work waits until it stops.
+  for whys in (['buffering']*5+[''],['video']*3+['buffering']*2+['']):
+   g,slept=self.gate(whys)
+   g.after(1.0);self.assertEqual(slept,[1.0]*4)
+   g,slept=self.gate(whys)
+   g.after(0.08,1024*1024,download=True);self.assertEqual(slept,[1.0]*4)
+ def test_a_stop_ends_the_wait(self):
+  going=[True,False];slept=[]
+  g=slowdown.Gate(why=lambda:'video',sleep=slept.append,keep_going=lambda:going.pop(0) if going else False)
+  g.after(2.0);self.assertEqual(slept,[1.0])
+ def test_the_converter_and_its_reads_hold_while_kodi_plays(self):
+  self.assertIn("hold=lambda:paused() or __import__('slowdown').holding()",(LIB/'prepare_cloud.py').read_text())
+  self.assertIn('preparation.stream.hold=lambda:preparation.paused() or slowdown.holding()',(BOOT/'service.py').read_text())
+  slowdown.configure(lambda:'video');slowdown._state['at']=-10;self.assertTrue(slowdown.holding())
+  slowdown.configure(lambda:'airplay');slowdown._state['at']=-10;self.assertFalse(slowdown.holding())
+  slowdown.configure(lambda:'');slowdown._state['at']=-10
  def test_full_speed_when_nothing_plays(self):
   g,slept=self.gate(['']);self.assertEqual(g.after(0.08,1024*1024,download=True),0.0);self.assertEqual(slept,[])
  def test_the_service_reports_buffering(self):

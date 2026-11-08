@@ -136,7 +136,7 @@ def process_one(q, keep_going):
                 # A video playing pauses the conversion where it is (owner, build 175): the upload session waits too.
                 paused=getattr(q,'paused',None) or (lambda:False)
                 identity=prep.identity(item)
-                sink=drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=paused,
+                sink=drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=lambda:paused() or __import__('slowdown').holding(),
                     spool=str(resume_store.folder(q.profile)) if resumes else None,checkpoint=checkpoint,
                     keep_pieces=resumes and not (job.get('probe') or {}).get('copy_video'),
                     on_checkpoint=lambda cp:resume_store.save(q.profile,slot,identity,cp))

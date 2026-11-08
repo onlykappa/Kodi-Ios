@@ -440,7 +440,7 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
 - Verified in the downloaded IPA: build.json build 205 / commit d317d12 / airplay r40 9a3415cd…; rows_editor has the
   new lists and slot_of; portrait.refresh_rows is used by customise_rows.
 
-## Build 208 — ISSUE-136: all background work waits while Kodi buffers; uploads capped while a video plays
+## Build 208 — ISSUE-136: all background work (uploads, copies, conversion) waits while Kodi plays or buffers a video; AirPlay unchanged
 
 ## Build 207 — verified (release build-207, IPA sha256 f5a94ad5…, commit d4fd6d6; AirPlay r40). Owner testing (ISSUE-135)
 

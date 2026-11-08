@@ -444,7 +444,7 @@ def drive_uploads(monitor,home,profile):
       preparation.paused=lambda:(not monitor.abortRequested() and transfer_control.paused(profile,'conv') and
                                  xbmcaddon.Addon().getSettingBool('prepare_downloads') and not prepare_downloads.interrupts(profile))
       # The upload pieces and the Drive read-ahead wait too while paused by the owner.
-      if preparation.stream:preparation.stream.hold=preparation.paused
+      if preparation.stream:preparation.stream.hold=lambda:preparation.paused() or slowdown.holding()   # build 208: no read-ahead while Kodi plays
       if transfer_control.paused(profile,'conv') and not (prepare_downloads.load(profile).get('current') or {}).get('running'):delay=30
       else:
        preparation.busy=True

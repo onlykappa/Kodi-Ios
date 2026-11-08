@@ -22,6 +22,7 @@ SHARE = {'video': 0.35, 'airplay': 0.25, 'buffering': 0.05}
 # 32 MB in 2.4 s, 13 MB/s, while the episode played). Downloads get a speed cap while something plays, and none at all
 # while Kodi buffers (after a seek, a stall): they wait until its buffer is full again. Uploads keep the time share.
 CAP = {'video': 1.0 * 1024 * 1024, 'airplay': 1.0 * 1024 * 1024, 'buffering': 0.0}   # bytes/s for background downloads
+HOLD = ('video', 'buffering')   # build 208: Kodi playing a video holds all background work (AirPlay only slows it)
 BUFFER_WAIT = 30.0        # the longest one wait for Kodi's buffer (then a cap of 0.25 MB/s for that piece)
 STRAINED = 0.08           # share while the TV's reads are slow
 STRAIN_MS = 1500          # one TV read slower than this (for a sizeable range) counts as strain
@@ -93,6 +94,11 @@ def watch(wait, every=1.0, log=lambda message: None):
             _state['watched'] = False
 
 
+def holding():
+    """True while Kodi itself plays a video (or buffers one): background work waits until it stops."""
+    return reason() in HOLD
+
+
 def strained(now=None):
     return (time.time() if now is None else now) < _state['strain_until']
 
@@ -145,6 +151,17 @@ class Gate(object):
         """Rest after a piece of work. A download (nbytes read in `seconds`) also keeps under CAP while something plays,
         and waits while Kodi buffers."""
         why = self.why()
+        # Build 208 (owner, build 207: "completely freezing is unacceptable ... umbrella streams downloaded movies and
+        # shows everywhere everything needs to be smooth"): while Kodi plays a video every worker waits until it
+        # stops (an upload, an AllDebrid copy and the converter shared the phone with a 4K episode and its seek froze
+        # for 100 s). AirPlay keeps the build-193 rule (slower, never stopped): the TV plays, not the phone.
+        if why in HOLD:
+            waited = 0.0
+            while self.keep_going() and self.why() in HOLD:
+                self.sleep(1.0)
+                waited += 1.0
+            self.rested += waited
+            return waited
         # Build 208 (owner, build 207: seeking a downloaded episode "froze the app ... did nothing for 30 seconds"; log
         # 34cd7aac: a phone-to-Drive upload kept sending 8-28 MB/s and preparation kept reading Drive while Kodi
         # buffered from 15:07:09 to 15:08:38). Every worker waits while Kodi buffers, not only downloads, and uploads

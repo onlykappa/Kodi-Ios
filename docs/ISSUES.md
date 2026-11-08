@@ -1352,7 +1352,7 @@ Status: FIXED IN SOURCE (Python; not built). Device test pending.
 - Regression: test_slowdown.Watched (3), test_transfers.SeasonEpisodeSpeeds, test_debrid_drive
   (speed between slow pieces), test_build193_pages (guard without getId).
 
-## ISSUE-136 — Build 207: seeking a downloaded episode froze for ~90 s (2026-11-08)
+## ISSUE-136 — Build 207: seeking a downloaded episode froze the app for ~100 s (2026-11-08)
 
 Status: FIXED IN SOURCE (build 208); device test pending.
 - Owner (build 207, log 34cd7aac, Lanterns S01E01 from Drive): dragging the bar "did nothing for 30 seconds then it
@@ -1361,6 +1361,15 @@ Status: FIXED IN SOURCE (build 208); device test pending.
   phone-to-Drive upload kept sending 8-28 MB/s and preparation read Drive. Build 206's wait-while-buffering and cap
   applied to downloads only; uploads and the converter only took a share of the time, and a full-speed upload
   starves the video's download on the shared Wi-Fi.
-- Fix: `slowdown.Gate.after` waits while Kodi buffers for every worker; Drive uploads and AllDebrid sends pass their
-  bytes and keep under the same 1 MB/s cap while a video plays.
-- Regression: test_slowdown.DownloadCap (every worker waits while buffering; uploads capped).
+- Owner (after the first patch): "it never buffered and never loaded it just froze ... completely freezing is
+  unacceptable and the bar needs to move smoothly ... umbrella streams downloaded movies and shows everywhere". The
+  log agrees: no input was handled and no Python thread logged from 15:07:09 to 15:08:53, while the converter, a Drive
+  upload and an AllDebrid copy all ran beside a 4K HEVC episode.
+- Fix (decision, owner's words above take priority over build 193's "always moving"): while Kodi itself plays or
+  buffers a video, from any source, every background worker waits until it stops: `slowdown.Gate.after` holds
+  uploads and AllDebrid copies, the converter holds through the owner's Pause path (`Sink.hold`, prepare_cloud) and
+  the Drive read-ahead stops (`DriveStream.hold`). AirPlay keeps build 193's rule (slower, never stopped; the TV plays).
+  Uploads also pass their bytes, so they keep the 1 MB/s cap during AirPlay.
+- Not proven: whether the freeze needs more than this (the log has no player lines in the gap). Device test pending.
+- Regression: test_slowdown.DownloadCap (holds while Kodi plays or buffers, AirPlay cap and share, converter hold
+  wiring), test_conversion_speed (hold wiring).

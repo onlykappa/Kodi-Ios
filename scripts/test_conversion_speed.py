@@ -200,7 +200,7 @@ class Build175Log(unittest.TestCase):
   self.assertIn("preparation.paused=lambda:(not monitor.abortRequested() and transfer_control.paused(profile,'conv') and",svc)
   self.assertNotIn('isPlayingVideo() or transfer_control',svc)
   cloud=(LIB/'prepare_cloud.py').read_text()
-  self.assertIn('drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=paused,',cloud)
+  self.assertIn("drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=lambda:paused() or __import__('slowdown').holding(),",cloud)
   self.assertIn('converted_progress,paused,waiting,resume=',cloud)
 
 class AV1Speed(unittest.TestCase):
@@ -370,12 +370,12 @@ class AirPlayGetsTheLine(unittest.TestCase):
   clock.sleep(1.3);self.assertEqual(sent,[])          # held while the video plays
   state['hold']=False;clock.sleep(1.5);self.assertEqual(sent,[10])
   sink.closed=True;th.join(3)
-  self.assertIn('hold=paused',(LIB/'prepare_cloud.py').read_text())
+  self.assertIn('hold=lambda:paused() or',(LIB/'prepare_cloud.py').read_text())
  def test_read_ahead_while_a_video_plays(self):
   # Build 193: one block ahead while a video or AirPlay plays (slowed, never stopped); none only when the owner paused.
   s=(LIB/'drive_stream.py').read_text()
   self.assertIn('for step in range(1, 0 if stream.hold() else (1 if slowdown.reason() else READ_AHEAD) + 1):',s)
-  self.assertIn('if preparation.stream:preparation.stream.hold=preparation.paused',(ROOT/'migration/bundled-bootstrap/service.py').read_text())
+  self.assertIn('if preparation.stream:preparation.stream.hold=lambda:preparation.paused() or slowdown.holding()',(ROOT/'migration/bundled-bootstrap/service.py').read_text())
 
 class PreparedAirPlayServer(unittest.TestCase):
  """Build-181 log: every range AVPlayer asked for opened a new connection to Drive (1-6 s each): "Cannot Complete
