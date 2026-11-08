@@ -419,7 +419,16 @@ def sender(context,timeout=STALL,log=lambda message:None):
      if elapsed>=10 or (body and len(body)>=256*1024):diagnostics.event(log,'drive_http','response',status=r.status,elapsed_s=elapsed,response_bytes=len(answer),**fields)
      return r.status,dict(r.headers),answer
    except urllib.error.HTTPError as e:
-    diagnostics.event(log,'drive_http','http_error',status=e.code,elapsed_s=round(time.monotonic()-begun,3),retry=safe and e.code in (429,500,502,503,504) and attempt<2,**fields)
+    elapsed=round(time.monotonic()-begun,3)
+    if e.code==308 and method=='PUT':
+     # Build 197 (owner's build-196 log): 308 is Drive's normal "piece kept, send the next" for a resumable upload,
+     # not an error. Say so, with the piece's speed, so a slow line reads as slow and not as failing.
+     rate=(len(body)/1048576/elapsed) if body and elapsed>0 else 0
+     if body and len(body)>=256*1024:
+      log('Drive upload: %.1f MB piece in %.0f s (%.2f MB/s)'%(len(body)/1048576,elapsed,rate))
+      diagnostics.event(log,'drive_http','piece',status=308,elapsed_s=elapsed,mb_s=round(rate,2),**fields)
+    else:
+     diagnostics.event(log,'drive_http','http_error',status=e.code,elapsed_s=elapsed,retry=safe and e.code in (429,500,502,503,504) and attempt<2,**fields)
     if not safe or e.code not in (429,500,502,503,504) or attempt==2:return e.code,dict(e.headers or {}),e.read()
     e.close()
    except (urllib.error.URLError,TimeoutError) as e:
