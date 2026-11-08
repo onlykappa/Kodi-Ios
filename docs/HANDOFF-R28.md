@@ -291,3 +291,23 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
   starting the IPA workflow. r33 is preserved as previous. No merge authorized.
 - Preflight also corrected the existing r24 pin from ZIP checksum to the verified executable checksum (ISSUE-121).
   The Kodi version/tag remains r24. Native and host evidence still does not prove device playback.
+
+## Build 196 — published and verified (owner-approved, device retest pending)
+
+- [Installable IPA](https://github.com/onlykappa/Kodi-Ios/releases/download/build-196/Kodi-iOS-Customized-Touch-r10.ipa),
+  [release](https://github.com/onlykappa/Kodi-Ios/releases/tag/build-196),
+  [successful build 42442484724](https://github.com/onlykappa/Kodi-Ios/actions/runs/42442484724).
+  Built from `a2b9b8b` on this branch; no merge. IPA SHA256 `40dc7d15…`, 620,333,330 bytes.
+- r34 [publication 42442400925](https://github.com/onlykappa/Kodi-Ios/actions/runs/42442400925) succeeded.
+  Downloaded release ZIP equals the tested candidate byte-for-byte, with the immutable tag targeting `1ea6307`.
+- Downloaded the actual IPA and checked ZIP integrity, GitHub's asset digest, source/build identity, r34/r24/r6
+  pins, the Local Network purpose string and Settings script. AirPlay r34 and the corrected Kodi r24 executable
+  match their verified release binaries after signature removal. Full checksums/evidence:
+  [airplay-r34-delivery.json](../reports/airplay-r34-delivery.json).
+- Final repeat of **82/82** test scripts passes (only `test_drive_runtime.py` excluded). One unchanged upload timing
+  test measured 1.2217 s against a 1 s threshold under host load; all 26 tests passed on the unchanged focused rerun.
+  No worker/test threshold was changed. Project/UI guidance checks pass. Native: 3,107 checks and 199 end-to-end
+  checks, zero failures; 13 Python network regressions and the r24 archive-vs-executable regression also pass.
+- Owner: install the IPA as an update with the sideloader, allow Local Network when prompted, test a ready movie,
+  two quick Play on TV presses, Cancel, and the 15-second recovery/Settings button with an unreachable TV. Capture
+  the new log if it still fails. Only the iPhone can establish that playback works; this delivery is host-verified.

@@ -3,6 +3,10 @@
 Source follow-up on `claude/trusting-euler-kgug98`, PR #16. The initial source pass ran no build/release.
 The owner subsequently approved native r34 verification/release and explicitly chose an installable iPhone IPA;
 current delivery evidence is in [airplay-r34-delivery.json](../reports/airplay-r34-delivery.json).
+**Delivered:** r34 is released/pinned and included in the verified
+[build-196 IPA](https://github.com/onlykappa/Kodi-Ios/releases/download/build-196/Kodi-iOS-Customized-Touch-r10.ipa).
+Native verification passed 3,107 host checks and 199 end-to-end checks. The initial source-only boundary below is
+historical; the owner approved this subsequent delivery. Actual iPhone playback still needs a retest.
 The owner's supplied `kodi.log` stays outside Git. Times below are the log's local times on 2026-11-07;
 the review/fix date is 2026-11-08. Build identity in the log: build 194, source `8e0a8a1`, KodiAirPlay r33.
 

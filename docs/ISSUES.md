@@ -1055,6 +1055,13 @@ build/release/pinning await owner approval. Released KodiAirPlay r33 remains pin
   Added compiled host regressions for non-draining network snapshots, reported listener/endpoint, and excluding
   phone/loopback requests from TV evidence. Preflight found that only `127.0.0.1` was excluded; the whole `127/8`
   range is now excluded and phone User-Agent checks ignore case. Candidate CI must pass before r34 is pinned.
+- Delivered in **build 196** after owner approval: native run 42441688126 passed 3,107 checks and 199 end-to-end
+  checks with zero failures; r34 publication 42442400925 and IPA run 42442484724 succeeded. Release equals the
+  candidate; the downloaded IPA's purpose string, identity and normalized r34/r24 binaries are verified.
+  [Delivery evidence](../reports/airplay-r34-delivery.json). Device playback retest remains pending.
+- Final 82-script sweep had one scheduling-sensitive `test_drive_prepare.BackgroundUpload` timing failure
+  (1.2217 s against 1.0 s). All 26 tests passed unchanged on focused rerun; no worker code or timing threshold was
+  altered. All other scripts passed; `test_drive_runtime.py` remained excluded as requested.
 
 ## ISSUE-121 — Kodi r24 pin used the archive hash instead of the executable hash
 
@@ -1066,3 +1073,5 @@ Status: FIXED; verified against the immutable `kodi-ios-portrait-r24` release be
   `02d5357af48bbf991efddc9ed5babecf06e19b826c5c648cf335c7073d767a80`. Corrected only the checksum; r24 is unchanged.
 - Regression: `test_glassbar.IpaTests.test_executable_pin_checks_the_binary_inside_the_zip` accepts the binary pin
   and rejects the archive pin. The repository's exact pin assertion now checks that verified binary digest.
+- Build 196 successfully fetched r24 using the corrected pin. Its downloaded executable equals the verified r24
+  release after signature removal; the app's build identity records the corrected `02d5357a…` binary checksum.
