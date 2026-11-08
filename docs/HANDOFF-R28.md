@@ -431,3 +431,11 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
   145f122f… identical to the candidate's; cast.py and airplay.py use kodi_airplay_serve; rows_editor has empty_rows.
 - Owner to check: Apple TV; the TCL over AirPlay; the TCL as a Roku with Media Assistant; Customisation counts;
   the Trakt rows on Home.
+
+## Build 205 — verified (release build-205, IPA sha256 78ab48be…, commit d317d12; AirPlay r40). Owner testing
+
+- **ISSUE-131**: Add Row offers TMDb and Trakt trending, Now Playing and Airing Today; new rows go at the bottom and
+  the page moves to them; a row change rebuilds only the hub files (0.06 s in the rig instead of 4.7 s).
+- Everything in build 204 (any-TV routes, Customisation counts), AirPlay r40 unchanged.
+- Verified in the downloaded IPA: build.json build 205 / commit d317d12 / airplay r40 9a3415cd…; rows_editor has the
+  new lists and slot_of; portrait.refresh_rows is used by customise_rows.
