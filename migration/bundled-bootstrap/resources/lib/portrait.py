@@ -1599,7 +1599,9 @@ def refresh_skin(xbmc,invoke,skin,profile):
  # wait-for-widgets loop (its script ran again every half second for up to a minute while rows loaded).
  for setting,on in (('Startup.EnableHubPreloading',False),('Startup.DisableWaitForLoad',True)):
   if bool(xbmc.getCondVisibility('Skin.HasSetting(%s)'%setting))!=on:invoke(('Skin.SetBool(%s)' if on else 'Skin.Reset(%s)')%setting)
- if changed:refresh_listing(skin)
+ # Build 200: IOSAirPlayFlow.xml (1080i) was written after Kodi listed 1080i, so the Play on TV card was "missing" and
+ # Kodi's plain dialogs showed instead. Re-list every folder a file was written to, not only portrait.
+ for folder in sorted({c.split('/')[0] for c in changed if '/' in c} or ({FOLDER} if changed else set())):refresh_listing(skin,folder)
  reload=bool(changed) and needs_reload(changed,xbmc.getCondVisibility)
  listed=(' ('+', '.join(c for c in changed if not c.startswith('extras/'))[:300]+')') if changed else ''
  xbmc.log('Kodi iOS portrait files checked in %s: %d updated%s%s (%.3fs)'%(skin,len(changed),listed,

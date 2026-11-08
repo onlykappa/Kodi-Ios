@@ -309,5 +309,18 @@ class SoundOnlyRestart(unittest.TestCase):
   self.assertIn("if (!preparedLink && wasOn && !external",build)
   remux=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
   self.assertIn('if(!compat && kr_prepare_ready(prepared)',remux)
+ def test_the_old_items_failure_does_not_cancel_the_restart(self):
+  # Build 200 log: the r36 restart began, but routeWatch reported the old item's failure in the same tick, so Kodi
+  # showed "AirPlay couldn't play this" and closed the player ("start result -1: AirPlay canceled").
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn('static atomic_int compatBusy;',build)
+  self.assertIn('compatTried = YES; restarting = YES; atomic_store(&compatBusy,1);',build)
+  self.assertIn('restarting = NO; atomic_store(&compatBusy,0);',build)
+  self.assertIn('failedSeen=failed && !atomic_load(&compatBusy) ? failedSeen+1 : 0;',build)
+  self.assertIn('if(failedSeen>=3)playbackStateFor(generation,-1,0);',build)
+  self.assertIn('openFailedSeen = openFailed && !atomic_load(&compatBusy) ? openFailedSeen + 1 : 0;',build)
+  self.assertIn('} else if (openFailedSeen >= 3) {',build)
+  self.assertIn('if(atomic_load(&compatBusy))return;   // r37',build)
+  self.assertNotIn('if(item.status==AVPlayerItemStatusFailed || player.status==AVPlayerStatusFailed)playbackStateFor(generation,-1,0);',build)
 
 if __name__=='__main__':unittest.main()

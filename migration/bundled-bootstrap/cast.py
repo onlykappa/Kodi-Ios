@@ -154,7 +154,14 @@ class FlowUI:
   self.win=None;self.box=None;self.skipped=()
   try:
    home=os.path.dirname(os.path.abspath(__file__))
-   self.win=airplay_flow.make(xbmc,xbmcgui)(airplay_flow.WINDOW,home,'Default','1080i')
+   Flow=airplay_flow.make(xbmc,xbmcgui)
+   try:self.win=Flow(airplay_flow.WINDOW,home,'Default','1080i')
+   except RuntimeError:
+    # Build 200 log: written at start-up after Kodi listed the skin, the card was "XML File for Window is missing"
+    # (Kodi's directory cache, as for Transfers in build 173). Re-read the landscape folder and try once more.
+    import xbmcvfs
+    xbmcvfs.listdir(os.path.join(xbmcvfs.translatePath('special://skin/'),'1080i')+'/')
+    self.win=Flow(airplay_flow.WINDOW,home,'Default','1080i')
   except Exception as error:
    self.win=None;xbmc.log('Kodi iOS Play on TV: card unavailable (%s), using Kodi\'s dialogs'%type(error).__name__,getattr(xbmc,'LOGWARNING',2))
  def show(self,stage,skipped=()):

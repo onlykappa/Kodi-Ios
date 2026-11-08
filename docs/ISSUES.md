@@ -1133,3 +1133,24 @@ Status: FIXED IN SOURCE (native r36 candidate pending); device retest pending.
   restart is not cut off as "unreachable"; the card says "Converting the picture for your TV".
 - Regression: `test_remux.c` (compat start of a prepared file is converted HLS, then as-is again);
   `test_play_on_tv_network.SoundOnlyRestart` (3). Native compile and host/E2E: candidate CI.
+
+## ISSUE-125 — Build 200: Kodi's plain dialogs instead of the Play on TV card, and the H.264 restart cancelled (2026-11-08)
+
+Status: FIXED IN SOURCE (card: Python; restart: native r37 candidate pending); device retest pending.
+- Owner (build 200, photo of Kodi's OK dialog): "didnt work and doesnt look pretty", "none of the new cards ported".
+- Cause 1 (the card): `EXCEPTION: XML File for Window is missing`, then "card unavailable (RuntimeError), using Kodi's
+  dialogs". The start-up refresh wrote `1080i/IOSAirPlayFlow.xml` after Kodi had listed `1080i`, and Kodi answers
+  "does this window file exist" from its directory cache (as for Transfers, build 173). `portrait.refresh_skin`
+  re-listed only the portrait folder. Reproduced in the desktop Kodi rig: the same exception before a re-list, the card
+  opens after one.
+- Fix 1: `refresh_skin` re-lists every folder it wrote a file to (1080i included); `cast.FlowUI` re-lists `1080i`
+  and tries once more on RuntimeError.
+- Cause 2 (sound only again): r36 began its H.264 restart ("the TV took the sound only … restarting in compat mode"),
+  but in the same second `airplayWatch` logged "could not open the stream" (-11819) and set the state to -1. Python
+  showed "failed" (its reason was the restart's own note "Converting the picture for this TV…") and closed the player,
+  so the restart was cancelled ("start result -1: AirPlay canceled").
+- Fix 2 (r37 source): `compatBusy` is set while a restart runs. `airplayWatch`, `routeWatch` and the failed-to-play
+  observer ignore the old item's failure while it is set, and a failure counts only after 1.5 s, so the 1 s player
+  timer can start the restart first.
+- Regression: `test_transfers.NewPageFound` (2 new), `test_play_on_tv_network.SoundOnlyRestart` (old item's failure).
+  Native compile and host/E2E: candidate CI.

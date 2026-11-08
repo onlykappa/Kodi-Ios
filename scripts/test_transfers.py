@@ -128,7 +128,19 @@ class NewPageFound(unittest.TestCase):
   seen=[];fake=types.SimpleNamespace(listdir=lambda path:seen.append(path) or ([],[]))
   with patch.dict(sys.modules,{'xbmcvfs':fake}):portrait.refresh_listing('/skin')
   self.assertEqual(seen,['/skin/portrait/'])
-  self.assertIn(' if changed:refresh_listing(skin)',(LIB/'portrait.py').read_text())
+  self.assertIn("{c.split('/')[0] for c in changed if '/' in c}",(LIB/'portrait.py').read_text())
+ def test_every_written_folder_is_read_again(self):
+  # Build 200: IOSAirPlayFlow.xml is in 1080i; only portrait was re-listed, so the Play on TV card was "missing".
+  import types
+  from unittest.mock import patch
+  seen=[];fake=types.SimpleNamespace(listdir=lambda path:seen.append(path) or ([],[]))
+  with patch.dict(sys.modules,{'xbmcvfs':fake}):portrait.refresh_listing('/skin','1080i')
+  self.assertEqual(seen,['/skin/1080i/'])
+  text=(LIB/'portrait.py').read_text();self.assertIn('refresh_listing(skin,folder)',text)
+ def test_play_on_tv_card_retries_once_after_refreshing(self):
+  text=(BOOT/'cast.py').read_text()
+  self.assertIn("Flow=airplay_flow.make(xbmc,xbmcgui)",text)
+  self.assertIn("xbmcvfs.listdir(os.path.join(xbmcvfs.translatePath('special://skin/'),'1080i')+'/')",text)
  def test_transfers_retries_once_after_refreshing(self):
   text=(BOOT/'transfers.py').read_text()
   self.assertIn("except RuntimeError:",text);self.assertIn("xbmcvfs.listdir(os.path.join(skin,'portrait')+'/')",text)

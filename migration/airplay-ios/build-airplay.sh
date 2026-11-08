@@ -184,6 +184,9 @@ static char *remuxSource;
 static atomic_uint playGeneration;
 static atomic_uint remuxTicket;
 static atomic_int playbackActive;
+// r37 (owner's build-200 log): an H.264 restart for a TV that took the sound only is starting; the old item's failure
+// must not reach Kodi as the outcome (it closed the player and cancelled the restart half a second in).
+static atomic_int compatBusy;
 // A generation check and its native reservation/cancel are one operation, including compat restarts.
 static os_unfair_lock ownershipLock = OS_UNFAIR_LOCK_INIT;
 static NSTimer *routeWatch;
@@ -394,6 +397,7 @@ static void watchPlayback(AVPlayer *player,AVPlayerItem *item,unsigned generatio
         object:item queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
         AVPlayer *current=weakPlayer;
         if(!current || current.currentItem!=note.object)return;
+        if(atomic_load(&compatBusy))return;   // r37: the H.264 restart replaces this item
         BOOL wasReady=atomic_load(&airplayState)==1;
         if(!playbackStateFor(generation,-1,0))return;
         const char *m = kr_remux_message();
@@ -421,15 +425,20 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
         watchPlayback(player,player.currentItem,generation);
         [airplayWatch invalidate];
         // r3: Apple's player opens MP4/MOV/HLS only (no MKV) and needs the link to answer on the Wi-Fi address.
+        __block int openFailedSeen=0;
         airplayWatch = [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *timer) {
             if(generation!=atomic_load(&playGeneration)){[timer invalidate];return;}
             AVPlayerItem *item = player.currentItem;
+            // r37 (owner's build-200 log): "could not open the stream" set -1 in the same second the H.264 restart began,
+            // so Kodi closed the player and cancelled it. A failure counts after 1.5 s and never while a restart runs.
+            BOOL openFailed = item.status == AVPlayerItemStatusFailed || player.status == AVPlayerStatusFailed;
+            openFailedSeen = openFailed && !atomic_load(&compatBusy) ? openFailedSeen + 1 : 0;
             if (item.status == AVPlayerItemStatusReadyToPlay) {
                 playerNote(@"ready, presentation %@, %lu tracks, external %d", sizeText(item.presentationSize),
                            (unsigned long)item.tracks.count, player.externalPlaybackActive);
                 playbackStateFor(generation,1,1);
                 [timer invalidate];
-            } else if (item.status == AVPlayerItemStatusFailed || player.status == AVPlayerStatusFailed) {
+            } else if (openFailedSeen >= 3) {
                 playerNote(@"could not open the stream: %@", item.error ?: player.error);
                 playbackStateFor(generation,-1,0);
                 [timer invalidate];
@@ -456,7 +465,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 if(source){restartTicket=kr_remux_begin(1);atomic_store(&remuxTicket,restartTicket);}
                 os_unfair_lock_unlock(&ownershipLock);
                 if (!source) return NO;
-                compatTried = YES; restarting = YES;
+                compatTried = YES; restarting = YES; atomic_store(&compatBusy,1);
                 double at = CMTimeGetSeconds(player.currentTime);
                 if (!isfinite(at) || at < 0) at = 0;
                 playerNote(@"restarting in compat mode (picture converted to H.264) at %.1f s", at);
@@ -470,7 +479,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                     NSString *link = r == KR_READY ? @(playlist) : nil;
                     dispatch_async(dispatch_get_main_queue(), ^{
                         if(generation!=atomic_load(&playGeneration))return;
-                        restarting = NO;
+                        restarting = NO; atomic_store(&compatBusy,0);
                         NSURL *address = link ? [NSURL URLWithString:link] : nil;
                         if (!address) {
                             const char *m = kr_remux_message();
@@ -604,10 +613,14 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
         while (top.presentedViewController) top = top.presentedViewController;
         [top presentViewController:holder animated:YES completion:^{
             if(generation!=atomic_load(&playGeneration))return;
+            __block int failedSeen=0;
             routeWatch=[NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *timer) {
                 if(generation!=atomic_load(&playGeneration)){[timer invalidate];return;}
                 AVPlayerItem *item=player.currentItem;
-                if(item.status==AVPlayerItemStatusFailed || player.status==AVPlayerStatusFailed)playbackStateFor(generation,-1,0);
+                BOOL failed=item.status==AVPlayerItemStatusFailed || player.status==AVPlayerStatusFailed;
+                failedSeen=failed && !atomic_load(&compatBusy) ? failedSeen+1 : 0;
+                // r37: a failure is final after 1.5 s, so the player's 1 s timer can first restart with the H.264 picture.
+                if(failedSeen>=3)playbackStateFor(generation,-1,0);
                 else if(atomic_load(&airplayState)>=0 && player.timeControlStatus==AVPlayerTimeControlStatusPlaying && player.rate>0) {
                     BOOL resuming=!atomic_load(&playbackActive);
                     if(playbackStateFor(generation,1,1) && resuming) {
@@ -635,7 +648,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
 __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, const char *title) {
     os_unfair_lock_lock(&ownershipLock);
     unsigned generation=atomic_fetch_add(&playGeneration,1)+1;
-    atomic_store(&playbackActive,0);
+    atomic_store(&playbackActive,0);atomic_store(&compatBusy,0);
     NSString *link = url ? [NSString stringWithUTF8String:url] : nil;
     NSString *name = title ? [NSString stringWithUTF8String:title] : @"";
     atomic_store(&airplayState, 0); // before returning, so a caller polling kodi_airplay_state() never sees the last result
