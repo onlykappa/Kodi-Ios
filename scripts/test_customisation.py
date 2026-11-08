@@ -178,12 +178,13 @@ class RowsScript(unittest.TestCase):
   self.assertEqual((e.rows[1]['label'],e.rows[1]['widget_style'],e.rows[1]['disabled']),('New name','Poster','true'))
   self.assertFalse(e.back());self.assertEqual(e.props()['page'],'')
  def test_add_from_the_list_and_from_an_addon(self):
-  # Owner (build 202: "when i press add and nothing is added"): a new row goes first, under Continue Watching.
-  e=self.editor(0);e.click(self.page.ADD);self.assertEqual(e.rows[0]['label'],'Trending Movies')
-  self.assertEqual(e.props()['row.1.title'],'Trending Movies');self.assertEqual(e.props()['row.1.off'],'')   # not judged empty yet
-  self.assertEqual(e.ui.note,'Added under Continue Watching')
+  # Owner (build 204): a new row goes at the bottom of the rows Home shows, and the page moves to it (build 202:
+  # "when i press add and nothing is added").
+  e=self.editor(0);e.click(self.page.ADD);self.assertEqual([r['label'] for r in e.rows],['A','B','Trending Movies'])
+  self.assertEqual(e.props()['row.3.title'],'Trending Movies');self.assertEqual(e.props()['row.3.off'],'')   # not judged empty yet
+  self.assertEqual(e.focus,self.page.ROW_BASE+3);self.assertEqual(e.ui.note,'Added "Trending Movies" at the bottom of Home')
   e=self.editor(len(self.script.re_.CATALOGUE['home']),'plugin://plugin.video.umbrella/movies/','Umbrella Movies')
-  e.click(self.page.ADD);self.assertEqual((e.rows[0]['label'],e.rows[0]['path']),('Umbrella Movies','plugin://plugin.video.umbrella/movies/'))
+  e.click(self.page.ADD);self.assertEqual((e.rows[-1]['label'],e.rows[-1]['path']),('Umbrella Movies','plugin://plugin.video.umbrella/movies/'))
   e=self.editor(-1);before=len(e.rows);e.click(self.page.ADD);self.assertEqual(len(e.rows),before);self.assertEqual(before,4)
  def test_count_matches_what_home_shows(self):
   # Owner (build 202): "Customization still says i have 15 rows on home ... i only have 7 rows". Home hides a row with
@@ -214,6 +215,27 @@ class RowsScript(unittest.TestCase):
   count=self.script.re_.folder_counter(rpc)
   self.assertEqual(count('videodb://movies/titles/'),12);self.assertEqual(asked[0]['params']['limits'],{'start':0,'end':1})
   self.assertIsNone(count('plugin://plugin.video.umbrella/?a=1'));self.assertEqual(len(asked),1)
+ def test_add_row_offers_trending_and_now_playing(self):
+  # Owner (build 204): "I want trending movies to be a option and trending shows, and Now Playing under movies".
+  c=self.script.re_.CATALOGUE;names=lambda k:[n for n,_ in c[k]]
+  for name in ('Trending Movies','Trending Shows','Trakt Trending Movies','Trakt Trending Shows'):self.assertIn(name,names('home'))
+  self.assertEqual(names('movies')[:3],['Trending Movies','Trakt Trending Movies','Now Playing'])
+  self.assertEqual(names('tv')[:3],['Trending Shows','Trakt Trending Shows','Airing Today'])
+  self.assertEqual(dict(c['movies'])['Now Playing'],'plugin://plugin.video.themoviedb.helper/?info=now_playing&tmdb_type=movie')
+  self.assertTrue(all(p for _,p in c['home']))
+  rows=[{'label':'A','path':'plugin://a/?x'},{'label':'Menu','path':'plugin://b'}]
+  self.assertEqual([r['label'] for r in self.script.re_.add(rows,'N','plugin://n/?y')],['A','N','Menu'])   # before rows Home never shows
+ def test_row_files_match_the_full_build(self):
+  # Build 204 (owner: "ensure its quick"): after a row change only the hub files are rebuilt; they must be exactly what
+  # the full refresh makes, or Home would differ from the next start's.
+  import os
+  skin=os.environ.get('KODI_RIG_SKIN','/root/.cache/kodi-rig-test/home/.kodi/addons/skin.arctic.fuse.3')
+  if not os.path.isdir(skin):self.skipTest('no Fuse copy (desktop Kodi rig) on this machine')
+  self.script.re_.save(self.p,'homewidgets',[{'label':'Trending Movies','path':self.script.re_.TMDB%('trending_week','movie')}])
+  full=portrait.portrait_files(skin,self.p);rows=portrait.row_files(skin,self.p)
+  self.assertTrue({'portrait/Home.xml','portrait/Includes.xml','1080i/'+portrait.LANDSCAPE_VARS}<=set(rows))
+  for rel,data in rows.items():self.assertEqual(data,full[rel],rel)
+  self.assertIn(b'Trending Movies',rows['portrait/Home.xml'])
  def test_restore(self):
   e=self.editor(True);e.click(self.page.EDIT);e.click(self.page.REMOVE+1)
   e=self.editor(True);e.click(self.page.RESTORE);self.assertEqual([r['label'] for r in e.rows],['A','B'])

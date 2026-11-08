@@ -1251,3 +1251,21 @@ Status: FIXED IN SOURCE (Python; build 204); device retest pending.
   the Customisation counts use the same rule. Add puts the new row first, under Continue Watching, and says so.
 - Regression: `test_customisation.RowsScript` (count, empty marks, no-copy case, folder counter, Add first). Desktop
   Kodi rig: page renders, text fits (screenshot not committed).
+
+## ISSUE-131 — Tabs & Rows: trending lists to add, rows added at the bottom, and a 4.7 s wait after every change (2026-11-08)
+
+Status: FIXED IN SOURCE (Python; desktop Kodi rig verified); device retest pending.
+- Owner (build 204): "I want trending movies to be a option and trending shows, and Now Playing under movies ... I do
+  like the home how it is but make it so i can add the rows i want ... add a row and see if it populates correctly at
+  the bottom and switch rows around ... ensure its quick".
+- Add Row lists: Home: Trending Movies, Trending Shows, Trakt Trending Movies/Shows, Now Playing, Airing Today,
+  Popular, Recommended (Trakt), Recently Added; Movies: Trending Movies, Trakt Trending Movies, Now Playing first;
+  TV: Trending Shows, Trakt Trending Shows, Airing Today first. Home's own rows are unchanged.
+- A new row goes last among the rows Home shows (ISSUE-130 had put it first) and the page moves its focus to it.
+- Speed: closing the page ran the full portrait refresh (every texture drawn in Python): 4.7 s in the rig before Home
+  changed. `portrait.refresh_rows` rewrites only the hub files (`row_files`, identical to the full build's; a test
+  compares them) and brings the start-up marker up to date: 0.055-0.063 s in the rig.
+- Desktop Kodi rig (real UI, SendClick): Add → Trending Movies landed at the bottom of Home with 21 titles; moved up
+  three places and the rows around it kept their titles (21 each); Netflix Original Movies moved to the top; TV:
+  Trending Shows added at the bottom with 21 titles. The rig's lists were put back afterwards.
+- Regression: `test_customisation` (Add Row lists, add position and focus, row_files = full build).

@@ -15,19 +15,25 @@ DEFAULTS='addon_data/service.kodi.ios.bootstrap/rows-default/%s.json'
 TABS=(('home','Home','homewidgets'),('movies','Movies','1102widgets'),('tv','TV Shows','1101widgets'))
 STYLES=(('Poster','Poster'),('','Landscape'))   # widget_style value, name (portrait.row draws these two)
 TMDB='plugin://plugin.video.themoviedb.helper/?info=%s&tmdb_type=%s'
-# Add Row: ready-made rows (label, path), per tab; then "From an add-on…".
+# Add Row: ready-made rows (label, path), per tab; then "From an add-on or folder…". Owner (build 204): "I want trending
+# movies to be a option and trending shows, and Now Playing under movies". TMDb trending is this week's buzz across
+# every service; Trakt trending is what Trakt members are watching now (needs no sign-in); Recommended needs Trakt.
 CATALOGUE={
- 'movie':[('Trending Movies',TMDB%('trending_week','movie')),('Popular Movies',TMDB%('popular','movie')),
-          ('Top Rated Movies',TMDB%('top_rated','movie')),('Now Playing',TMDB%('now_playing','movie')),
-          ('Upcoming Movies',TMDB%('upcoming','movie')),('Recommended For You',TMDB%('trakt_becauseyouwatched','movie')),
-          ('Your Trakt Watchlist',TMDB%('trakt_watchlist','movie')),('My Movie Library','videodb://movies/titles/'),
-          ('Recently Added Movies','videodb://recentlyaddedmovies/')],
- 'tv':[('Trending Shows',TMDB%('trending_week','tv')),('Popular Shows',TMDB%('popular','tv')),
-       ('Top Rated Shows',TMDB%('top_rated','tv')),('Airing Today',TMDB%('airing_today','tv')),
-       ('Recommended For You',TMDB%('trakt_becauseyouwatched','tv')),('Your Trakt Watchlist',TMDB%('trakt_watchlist','tv')),
-       ('My TV Library','videodb://tvshows/titles/'),('Recently Added Episodes','videodb://recentlyaddedepisodes/')],
+ 'movie':[('Trending Movies',TMDB%('trending_week','movie')),('Trakt Trending Movies',TMDB%('trakt_trending','movie')),
+          ('Now Playing',TMDB%('now_playing','movie')),('Upcoming Movies',TMDB%('upcoming','movie')),
+          ('Popular Movies',TMDB%('popular','movie')),('Top Rated Movies',TMDB%('top_rated','movie')),
+          ('Recommended Movies For You',TMDB%('trakt_becauseyouwatched','movie')),('Your Trakt Movie Watchlist',TMDB%('trakt_watchlist','movie')),
+          ('My Movie Library','videodb://movies/titles/'),('Recently Added Movies','videodb://recentlyaddedmovies/')],
+ 'tv':[('Trending Shows',TMDB%('trending_week','tv')),('Trakt Trending Shows',TMDB%('trakt_trending','tv')),
+       ('Airing Today',TMDB%('airing_today','tv')),('Popular Shows',TMDB%('popular','tv')),
+       ('Top Rated Shows',TMDB%('top_rated','tv')),('Recommended Shows For You',TMDB%('trakt_becauseyouwatched','tv')),
+       ('Your Trakt Show Watchlist',TMDB%('trakt_watchlist','tv')),('My TV Library','videodb://tvshows/titles/'),
+       ('Recently Added Episodes','videodb://recentlyaddedepisodes/')],
 }
-CATALOGUE['home']=CATALOGUE['movie'][:3]+CATALOGUE['tv'][:3]+[CATALOGUE['movie'][5],CATALOGUE['tv'][4]]
+_m,_t=dict(CATALOGUE['movie']),dict(CATALOGUE['tv'])
+CATALOGUE['home']=[(n,_m.get(n) or _t.get(n)) for n in ('Trending Movies','Trending Shows','Trakt Trending Movies','Trakt Trending Shows',
+                   'Now Playing','Airing Today','Popular Movies','Popular Shows','Recommended Movies For You','Recommended Shows For You',
+                   'Recently Added Movies','Recently Added Episodes')]
 CATALOGUE['movies']=CATALOGUE.pop('movie')
 
 def tab(key):
@@ -84,9 +90,15 @@ def set_style(rows,i,style):
  else:row.pop('widget_style',None)
  rows[i]=row;return rows
 def add(rows,label,path):
- """Owner (build 202: "when i press add and nothing is added"): a new row went to the bottom of a long list, out of
- sight on the page and on Home. It now goes first, right under Continue Watching."""
- return [{'label':label,'path':path,'icon':'special://skin/extras/icons/folder.png','target':'videos','widget_style':'Poster'}]+list(rows)
+ """A new row goes last among the rows Home shows (owner, build 204: "add a row and see if it populates correctly at
+ the bottom"), before rows Home never shows; the page then moves to it (build 202: "nothing is added")."""
+ new={'label':label,'path':path,'icon':'special://skin/extras/icons/folder.png','target':'videos','widget_style':'Poster'}
+ shown=[i for i,r in enumerate(rows) if not why_not_shown(r)]
+ at=shown[-1]+1 if shown else 0
+ return list(rows[:at])+[new]+list(rows[at:])
+def slot_of(rows,i):
+ """The page's slot (1-based) showing row i (view order)."""
+ return view(rows).index(i)+1
 
 # Owner (build 202: "Customization still says i have 15 rows on home ... i only have 7 rows"): Home hides a row that has
 # nothing to show (portrait.row: visible while its list has items), e.g. Trakt rows without a Trakt sign-in or an empty

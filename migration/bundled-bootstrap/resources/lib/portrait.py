@@ -1347,6 +1347,36 @@ def portrait_files(skin,profile):
   if read(name):files['1080i/'+name]=player_osd.safe_inset(read(name),name in player_osd.HIDE_UNDER_OSD).encode()
  return files
 
+def row_files(skin,profile):
+ """Only the files the widget lists feed: the hubs (Home, Movies, TV) and their row variables, exactly as
+ portrait_files makes them (scripts/test_customisation.py compares the two)."""
+ import types
+ row_variables={};files={}
+ for name,data in hub_files(skin,profile,row_variables).items():files[FOLDER+'/'+name]=data
+ files[FOLDER+'/Includes.xml']=includes(row_variables)
+ files['1080i/'+LANDSCAPE_VARS]=landscape_variables(row_variables)
+ ns=types.SimpleNamespace(**globals())
+ for rel in list(files):
+  if rel.startswith(FOLDER+'/'):files[rel]=activity_skin.inject(ns,rel[len(FOLDER)+1:],files[rel])
+ return files
+
+def refresh_rows(xbmc,invoke,skin,profile):
+ """After Settings › Customisation › Tabs & Rows (owner, build 204: "ensure its quick"): the full refresh redrew every
+ texture in Python (about 4.7 s in the desktop rig before Home showed the change); a row change only rewrites the
+ hub files. The start-up marker is brought up to date so the next start does not rebuild everything."""
+ import time
+ started=time.monotonic()
+ changed=write(skin,row_files(skin,profile))
+ for folder in sorted({c.split('/')[0] for c in changed if '/' in c}):refresh_listing(skin,folder)
+ try:
+  marker=Path(profile)/INPUTS;marker.parent.mkdir(parents=True,exist_ok=True)
+  marker.write_text(json.dumps({'inputs':fingerprint(skin,profile)})+'\n')
+ except OSError:pass
+ reload=bool(changed) and needs_reload(changed,xbmc.getCondVisibility)
+ if reload and is_portrait(xbmc.getInfoLabel):invoke('ReloadSkin()')
+ xbmc.log('Kodi iOS rows: %d hub files updated%s (%.3fs)'%(len(changed),'; skin reloaded' if reload else '',time.monotonic()-started),xbmc.LOGINFO)
+ return changed
+
 SPLASH=('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: Fuse startup splash, never shown -->\n'
         '<window type="dialog" id="1198"><visible>false</visible><controls /></window>\n'%MARKER).encode()
 

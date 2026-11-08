@@ -20,7 +20,7 @@ class Editor:
  """The page's state and what each tap does (no Kodi calls: `ui` asks the questions, tests pass a fake)."""
  def __init__(self,profile,tab,ui,count_folder=None):
   self.profile=profile;self.key,self.name,self.list=re_.tab(tab);self.ui=ui;self.count_folder=count_folder
-  self.rows=re_.load(profile,self.list);self.editing=False;self.current=None;self.changed=False;self.fresh=set()
+  self.rows=re_.load(profile,self.list);self.editing=False;self.current=None;self.changed=False;self.fresh=set();self.focus=None
   self.look()
  def look(self):
   # Which rows Home hides because they have nothing to show (rows_editor.empty_rows); new rows are not judged yet.
@@ -83,8 +83,9 @@ class Editor:
    if not path:return
    label=self.ui.text('Name',os.path.basename(path.rstrip('/')) or 'New Row')
    if not label:return
-  rows=re_.add(self.rows,label,path);self._set(rows,fresh=rows[0])
-  self.ui.notify('Added under Continue Watching')
+  rows=re_.add(self.rows,label,path);at=next(i for i,r in enumerate(rows) if r.get('path')==path and r.get('label')==label and r not in self.rows)
+  self._set(rows,fresh=rows[at]);self.focus=page.ROW_BASE+re_.slot_of(self.rows,at)
+  self.ui.notify('Added "%s" at the bottom of %s'%(label,self.name))
 
 class KodiUI:
  def __init__(self):
@@ -115,13 +116,18 @@ def run(args):
   def onClick(self,control):
    if control==page.BACK:self.go_back();return
    was=editor.current;editor.click(control);self.show_state()
-   if editor.current!=was:self.setFocusId(page.BACK)
+   if editor.focus:
+    # The new row: the list scrolls to it, so it is plain to see where it went.
+    target,editor.focus=editor.focus,None
+    try:self.setFocusId(target)
+    except Exception:pass
+   elif editor.current!=was:self.setFocusId(page.BACK)
  tool_windows.show(Rows,page.NAME)
  if editor.changed:
   import importlib.util
   spec=importlib.util.spec_from_file_location('portrait_rows',os.path.join(HERE,'resources','lib','portrait.py'))
   portrait=importlib.util.module_from_spec(spec);spec.loader.exec_module(portrait)
-  portrait.refresh_skin(xbmc,xbmc.executebuiltin,xbmcvfs.translatePath('special://skin/'),profile)
+  portrait.refresh_rows(xbmc,xbmc.executebuiltin,xbmcvfs.translatePath('special://skin/'),profile)   # build 204: only the hub files
   xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,customise_counts)')
 
 if __name__=='__main__':run(sys.argv[1:])
