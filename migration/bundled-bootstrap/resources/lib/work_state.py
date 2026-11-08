@@ -34,7 +34,7 @@ PURPLE, BLUE, GREY = 'FFBF5AF2', 'FF0A84FF', 'FF8E8E93'
 RUNNING, SLOWED, PAUSED, NEEDS, NETWORK, QUEUED, IDLE, STALE_STATE = (
     'running', 'slowed', 'paused_by_you', 'needs_you', 'waiting_network', 'queued', 'idle', 'stale')
 MOVING = (RUNNING, SLOWED)
-SLOW_WORDS = {'airplay': 'Slower while AirPlay plays', 'video': 'Slower while a video plays'}
+SLOW_WORDS = {'airplay': 'Slower while AirPlay plays', 'video': 'Slower while a video plays', 'buffering': 'Waiting while the video buffers'}
 STEP = {'conv': 'Converting', 'repack': 'Making it start faster', 'copy': 'AllDebrid → Drive',
         'upload': 'Uploading to Google Drive', 'down': 'Downloading', 'check': 'Checking Google Drive'}
 NEEDS_TEXT = {
@@ -170,6 +170,34 @@ def _conversion(prep, runtime, now):
             'held': bool(current.get('paused'))}
 
 
+def episode_label(name):
+    """'S01E03' from a file name (or '1x03'), else the cleaned file name."""
+    import re
+    base = str(name or '').rsplit('/', 1)[-1]
+    m = re.search(r'(?i)\bS(\d{1,2})[ ._-]?E(\d{1,3})\b', base) or re.search(r'\b(\d{1,2})x(\d{2,3})\b', base)
+    return 'S%02dE%02d' % (int(m.group(1)), int(m.group(2))) if m else _title(base.rsplit('.', 1)[0])
+
+
+def _copy_next(debrid):
+    """What the AllDebrid → Drive copy does after the file it copies now (owner, build 205: a whole season showed as
+    one download): the season's other episodes, then the other jobs, [{'kind', 'title', 'line'}] in that order."""
+    jobs = [j for j in (debrid or {}).get('jobs') or [] if j.get('status') not in ('done', 'failed')]
+    out = []
+    for n, job in enumerate(jobs):
+        title = _title(job.get('title') or job.get('name') or '')
+        pending = [f for f in job.get('files') or [] if not f.get('done')]
+        if n == 0:
+            pending = pending[1:]   # the first one left is the one copying now
+        if pending:
+            for f in pending:
+                out.append({'kind': 'copy', 'title': '%s · %s' % (title, episode_label(f.get('path'))),
+                            'line': 'Waiting · %s' % STEP['copy']})
+        elif n:
+            out.append({'kind': 'copy', 'title': title,
+                        'line': 'Waiting for AllDebrid' if job.get('status') in ('new', 'fetching') else 'Waiting · %s' % STEP['copy']})
+    return out
+
+
 def _copy(debrid, now):
     """The AllDebrid → Drive copy, or None."""
     current = (debrid or {}).get('current') or {}
@@ -181,9 +209,13 @@ def _copy(debrid, now):
     retry = float(job.get('retry_at') or 0)
     if current.get('stage') == 'copying' and current.get('total'):
         sent, total = float(current.get('sent') or 0), float(current.get('total') or 0)
+        count = int(current.get('count') or 0)
+        if count > 1:   # one file of a season: name the episode, count the season
+            title = '%s · %s' % (title, episode_label(current.get('file')))
         updated = current.get('updated')
         quiet = updated is not None and now - float(updated) > COPY_QUIET
-        out = {'kind': 'copy', 'title': title, 'name': current.get('name', ''), 'step': STEP['copy'], 'pct': int(100 * sent / total),
+        step = '%s · %d of %d' % (STEP['copy'], int(current.get('index') or 1), count) if count > 1 else STEP['copy']
+        out = {'kind': 'copy', 'title': title, 'name': current.get('name', ''), 'step': step, 'pct': int(100 * sent / total),
                'indeterminate': False, 'rate': 0.0 if quiet else float(current.get('rate') or 0),
                'eta_s': 0 if quiet else float(current.get('eta_s') or 0), 'tint': BLUE, 'sent': sent, 'total': total,
                'hash': job.get('hash', ''), 'folder': current.get('folder', '')}
@@ -280,9 +312,11 @@ def build(inp, now):
         w = min(waits, key=lambda x: x['until'])
         wait_text = '%s · %s' % (w.get('why') or 'Waiting for the network', retry_text(w['until'], now))
     lead = (moving or jobs or [None])[0]
+    drive_next = _copy_next(inp.get('debrid'))
     return {'at': now, 'mode': mode, 'slow': slow, 'slow_words': SLOW_WORDS.get(slow, ''), 'jobs': jobs, 'next': nexts,
+            'drive_next': drive_next,
             'needs': needs, 'wait': wait_text,
-            'running': len(moving), 'headline': headline(mode, jobs, nexts, needs, wait_text, slow),
+            'running': len(moving), 'headline': headline(mode, jobs, nexts + drive_next, needs, wait_text, slow),
             'bell': {'state': mode, 'pct': lead['pct'] if lead and lead['state'] in MOVING else 0,
                      'tint': (GREY if mode == SLOWED else lead['tint']) if lead and mode in MOVING else '',
                      'count': len(moving), 'needs': len(needs)}}

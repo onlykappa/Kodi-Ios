@@ -454,4 +454,23 @@ class ResolutionChoice(unittest.TestCase):
    self.assertFalse(portrait.add_resolutions(addon));self.assertEqual(addon.read_text(),text)
   self.assertIn("if add_resolutions(Path(skin)/'addon.xml'):",Path(portrait.__file__).read_text())   # every start
 
+class BufferingPill(unittest.TestCase):
+ """Build 206 (owner, build 205: "have it show like a buffer percentage so i know its working"). The desktop Kodi rig
+ showed the pill over a playing video (forced visible): "Buffering 99%" between the centre controls and the title."""
+ def test_its_own_dialog_shows_while_kodi_buffers(self):
+  osd=portrait.player_osd;xml=osd.buffering_window()
+  root=ET.fromstring(xml.split('\n',2)[2]);self.assertEqual((root.get('type'),root.get('id')),('dialog','1156'))
+  self.assertEqual(root.findtext('visible'),'Player.Caching + Window.IsActive(fullscreenvideo)')
+  self.assertIn('Buffering $INFO[Player.CacheLevel]%',xml)
+  group=root.find('controls/control');top=int(group.findtext('top'));h=int(group.findtext('height'))
+  self.assertGreater(top,520+130);self.assertLess(top+h,770)   # clear of the play button and the title (VideoOSD)
+  self.assertIn('Custom_1156_Buffering.xml',portrait.OWN_1080I);self.assertIn('Custom_1156_Buffering.xml',portrait.VIDEO_ONLY)
+ def test_kodi_cache_is_tuned_once(self):
+  calls=[]
+  class X:
+   def executeJSONRPC(self,text):calls.append(json.loads(text)['params']);return '{}'
+  with tempfile.TemporaryDirectory() as d:
+   self.assertTrue(portrait.tune_cache(X(),d));self.assertFalse(portrait.tune_cache(X(),d))
+  self.assertEqual(calls,[{'setting':'filecache.memorysize','value':96},{'setting':'filecache.readfactor','value':1000}])
+
 if __name__=='__main__':unittest.main()

@@ -167,7 +167,7 @@ def run():
   threading.Thread(target=later,daemon=True).start()
  import slowdown
  playback_lib=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
- slowdown.configure(lambda:'airplay' if airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time()) else ('video' if xbmc.getCondVisibility('Player.HasVideo') else ''))
+ slowdown.configure(lambda:'airplay' if airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time()) else ('buffering' if xbmc.getCondVisibility('Player.Caching') else 'video' if xbmc.getCondVisibility('Player.HasVideo') else ''))
  # The bell in the hub headers: unread messages and whether a download or Drive upload runs. Each message also gets
  # its part of kodi.log, shown when it is tapped.
  threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),
@@ -270,7 +270,7 @@ def drive_uploads(monitor,home,profile):
  playback_lib=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
  airplay_busy=lambda:airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time())
  import slowdown
- slowdown.configure(lambda:'airplay' if airplay_busy() else ('video' if xbmc.getCondVisibility('Player.HasVideo') else ''))
+ slowdown.configure(lambda:'airplay' if airplay_busy() else ('buffering' if xbmc.getCondVisibility('Player.Caching') else 'video' if xbmc.getCondVisibility('Player.HasVideo') else ''))
  if not xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)'):return
  common=xbmcvfs.translatePath(xbmcaddon.Addon('script.module.clouddrive.common').getAddonInfo('path'))
  if common not in sys.path:sys.path.append(common)

@@ -77,6 +77,8 @@ def queue_view(view, debrid_jobs=(), now=None):
         out=[dict(j,sub=j['what']+' · '+size_text(j.get('size')), up='true' if n else '',
                   down='true' if n<len(nexts)-1 else '') for n,j in enumerate(nexts)]
         drive=[dict(j,sub=j['line']) for j in model.get('jobs') or [] if j['kind'] in ('copy','upload','down')]
+        # Build 205: the season's other episodes and the other AllDebrid jobs, in the order they will go.
+        drive+=[dict(j,sub=j['line'],tone='plain') for j in model.get('drive_next') or []]
     import work_state
     estimate=work_state.remaining_text(model)
     return {'now': now_row, 'line': out, 'held': held, 'drive': drive,

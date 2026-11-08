@@ -252,7 +252,8 @@ class DriveStream(object):
                     except Exception:
                         pass
                 self.last_problem = ''
-                self.gate.after(time.monotonic() - began)   # build 193: a share of the line while a video plays
+                # Build 193: a share of the line while a video plays; build 206: under its download cap.
+                self.gate.after(time.monotonic() - began, sum(len(x) for x in parts), download=True)
                 return b''.join(parts), total
             except urllib.error.HTTPError as error:
                 if error.code not in (429, 500, 502, 503, 504) or attempt == 2:

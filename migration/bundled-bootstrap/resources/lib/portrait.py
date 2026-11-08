@@ -104,7 +104,7 @@ HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{'Includes_Portrait.xml',SEARCH_FILE,'Star
 SKIP_WRAP={'VideoFullScreen.xml','VideoOSD.xml','MusicVisualisation.xml','SlideShow.xml','Pointer.xml'}
 # Shown only over landscape playback: no portrait copy, so Kodi always loads them from 1080i with landscape
 # coordinates (it picks a window's folder when it loads it, and these load while the phone is still upright).
-VIDEO_ONLY={'DialogSeekBar.xml','DialogFullScreenInfo.xml','DialogSubtitles.xml','VideoOSDBookmarks.xml','DialogPVRChannelsOSD.xml',
+VIDEO_ONLY={'DialogSeekBar.xml','Custom_1156_Buffering.xml','DialogFullScreenInfo.xml','DialogSubtitles.xml','VideoOSDBookmarks.xml','DialogPVRChannelsOSD.xml',
             'GameOSD.xml','MusicOSD.xml','Custom_1140_OSD_Playlist.xml','Custom_1141_OSD_Cast.xml','Custom_1142_OSD_MusicTracks.xml',
             'Custom_1143_OSD_NextOverlay.xml','Custom_1145_OSD_InfoPanel.xml','Custom_1146_OSD_AudioStreams.xml',
             'Custom_1147_OSD_SubtitleStreams.xml','Custom_1148_OSD_VideoStreams.xml','Custom_1151_OSD_MusicInfoOverlay.xml',
@@ -1345,6 +1345,8 @@ def portrait_files(skin,profile):
  # Fuse's info over the video, clear of the Dynamic Island on either side (player_osd.safe_inset).
  for name in player_osd.INSET:
   if read(name):files['1080i/'+name]=player_osd.safe_inset(read(name),name in player_osd.HIDE_UNDER_OSD).encode()
+ # Build 206: "Buffering 45%" over the video while Kodi fills its buffer.
+ files['1080i/'+player_osd.BUFFER_WINDOW]=player_osd.buffering_window().encode()
  return files
 
 def row_files(skin,profile):
@@ -1426,7 +1428,7 @@ def refresh(skin,profile):
 
 # Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
 # inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml','IOSAirPlayFlow.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + activity_skin.py, pages.BUSY, player_osd.INSET
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','Custom_1156_Buffering.xml','IOSPlayOnTV.xml','IOSAirPlayFlow.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + activity_skin.py, pages.BUSY, player_osd.INSET
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
@@ -1641,8 +1643,22 @@ def refresh_skin(xbmc,invoke,skin,profile):
   # Once: no ".." rows, so a show page opens on its first season (the owner can turn it back on in Settings).
   xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Settings.SetSettingValue','params':{'setting':'filelists.showparentdiritems','value':False}}))
   marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(json.dumps({'revision':REVISION})+'\n')
+ tune_cache(xbmc,profile)
  if reload and is_portrait(xbmc.getInfoLabel):invoke('ReloadSkin()')
  return changed
+
+# Build 206 (owner, build 205: seeking an Umbrella episode "nearly broke the app ... I need fluid seeking"): Kodi read
+# ahead 20 MB of a stream at up to 4x its bitrate; after a seek that refill is the wait. 96 MB (Kodi keeps about three
+# times this in RAM) at up to 10x refills a seek far sooner. Set once, so the owner can still change them in Kodi.
+CACHE={'filecache.memorysize':96,'filecache.readfactor':1000}
+CACHE_MARKER='addon_data/service.kodi.ios.bootstrap/cache-206.json'
+def tune_cache(xbmc,profile):
+ marker=Path(profile)/CACHE_MARKER
+ if marker.exists():return False
+ for setting,value in CACHE.items():
+  xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Settings.SetSettingValue','params':{'setting':setting,'value':value}}))
+ marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(json.dumps(CACHE)+'\n')
+ return True
 
 def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',ready=None,native_ui_started=False):
  """Started by the bootstrap service as soon as it starts. The tab bar, Continue Watching and the focused-item details

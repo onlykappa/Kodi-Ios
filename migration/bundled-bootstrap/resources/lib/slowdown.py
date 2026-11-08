@@ -16,13 +16,19 @@ import re
 import threading
 import time
 
-SHARE = {'video': 0.35, 'airplay': 0.25}
+SHARE = {'video': 0.35, 'airplay': 0.25, 'buffering': 0.05}
+# Build 206 (owner, build 205: seeking an Umbrella episode "completely nearly broke the app ... it should use download
+# speeds"): a share of the time still let a background read take the whole line in bursts (an AllDebrid copy read
+# 32 MB in 2.4 s, 13 MB/s, while the episode played). Downloads get a speed cap while something plays, and none at all
+# while Kodi buffers (after a seek, a stall): they wait until its buffer is full again. Uploads keep the time share.
+CAP = {'video': 1.0 * 1024 * 1024, 'airplay': 1.0 * 1024 * 1024, 'buffering': 0.0}   # bytes/s for background downloads
+BUFFER_WAIT = 30.0        # the longest one wait for Kodi's buffer (then a cap of 0.25 MB/s for that piece)
 STRAINED = 0.08           # share while the TV's reads are slow
 STRAIN_MS = 1500          # one TV read slower than this (for a sizeable range) counts as strain
 STRAIN_BYTES = 256 * 1024
 STRAIN_HOLD = 60
 MAX_REST = 8.0            # never rest longer than this at once (a Stop or Pause is noticed within it)
-WORDS = {'airplay': 'Slower while AirPlay plays', 'video': 'Slower while a video plays'}
+WORDS = {'airplay': 'Slower while AirPlay plays', 'video': 'Slower while a video plays', 'buffering': 'Waiting while the video buffers'}
 SERVED = re.compile(r'^(?:GET|HEAD) /\S+ (?:bytes=\S+ )?(\d{3}) (\d+) B (\d+) ms')
 
 _lock = threading.Lock()
@@ -30,7 +36,7 @@ _state = {'reason': lambda: '', 'cached': '', 'at': -10.0, 'strain_until': 0.0}
 
 
 def configure(reason):
-    """reason() -> 'airplay' | 'video' | ''. Called once by the service."""
+    """reason() -> 'airplay' | 'buffering' | 'video' | ''. Called once by the service."""
     with _lock:
         _state.update(reason=reason, at=-10.0)
 
@@ -96,9 +102,23 @@ class Gate(object):
         self.now = now
         self.rested = 0.0
 
-    def after(self, seconds):
+    def after(self, seconds, nbytes=0, download=False):
+        """Rest after a piece of work. A download (nbytes read in `seconds`) also keeps under CAP while something plays,
+        and waits while Kodi buffers."""
         why = self.why()
+        if download and why == 'buffering':
+            waited = 0.0
+            while waited < BUFFER_WAIT and self.keep_going() and self.why() == 'buffering':
+                self.sleep(0.5)
+                waited += 0.5
+            self.rested += waited
+            why = self.why()
+            if why == 'buffering':
+                why = 'video'
         wait = rest_for(seconds, share(why, self.now() if self.now else None))
+        cap = CAP.get(why) if download else None
+        if cap and nbytes > 0:
+            wait = max(wait, min(4 * MAX_REST, nbytes / cap - seconds))
         left = wait
         while left > 0 and self.keep_going():
             step = min(1.0, left)

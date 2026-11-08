@@ -195,4 +195,31 @@ class Workers(unittest.TestCase):
    self.assertTrue(any(c.get('updated')==NOW for c in seen))
    j=debrid_drive.load(p)['jobs'][0];self.assertEqual(j['status'],'done');self.assertEqual(j.get('tries'),0)
 
+class SeasonQueue(unittest.TestCase):
+ """Owner (build 205): "i went to download a entire season and it seems only 1 thing is downloading? it should show a
+ que of the episodes". The log: one AllDebrid job for the whole Lanterns season pack (8.4 GB)."""
+ def debrid(self):
+  files=[{'path':'Lanterns.S01E%02d.1080p.mkv'%n,'size':1,'done':n<3} for n in range(1,11)]
+  return {'jobs':[{'status':'copying','title':'Lanterns','name':'Lanterns.S01','files':files,'hash':'h'},
+                  {'status':'new','title':'Dune (2021)','name':'Dune','files':[],'hash':'k'}],
+          'current':{'name':'Lanterns','stage':'copying','sent':5,'total':10,'updated':100.0,'file':'Lanterns.S01E03.1080p.mkv','index':3,'count':10}}
+ def test_the_copy_names_its_episode_and_counts_the_season(self):
+  model=ws.build({'debrid':self.debrid()},100.0)
+  copy=[j for j in model['jobs'] if j['kind']=='copy'][0]
+  self.assertEqual(copy['title'],'Lanterns · S01E03');self.assertTrue(copy['line'].startswith('AllDebrid → Drive · 3 of 10'))
+ def test_the_rest_of_the_season_waits_in_order_then_the_other_jobs(self):
+  model=ws.build({'debrid':self.debrid()},100.0)
+  titles=[j['title'] for j in model['drive_next']]
+  self.assertEqual(titles[:2],['Lanterns · S01E04','Lanterns · S01E05']);self.assertEqual(titles[6],'Lanterns · S01E10')
+  self.assertEqual(titles[-1],'Dune (2021)');self.assertEqual(len(titles),8)
+  self.assertEqual(model['running'],1);self.assertIn('8 up next',model['headline'])
+  import library_tools
+  q=library_tools.queue_view({'rows':{},'model':model})
+  self.assertEqual([r['title'] for r in q['drive']][:3],['Lanterns · S01E03','Lanterns · S01E04','Lanterns · S01E05'])
+ def test_episode_labels(self):
+  self.assertEqual(ws.episode_label('Show.S1E7.mkv'),'S01E07');self.assertEqual(ws.episode_label('folder/show 2x05.mp4'),'S02E05')
+ def test_debrid_drive_records_which_file(self):
+  text=(LIB/'debrid_drive.py').read_text()
+  self.assertIn("'file': name, 'index': job['files'].index(entry) + 1, 'count': len(job['files'])",text)
+
 if __name__=='__main__':unittest.main()

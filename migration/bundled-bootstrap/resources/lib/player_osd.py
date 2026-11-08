@@ -199,6 +199,25 @@ def safe_inset(original,hide_under_osd=False):
  controls.insert(0,group)
  return '<?xml version="1.0" encoding="UTF-8"?>\n'+ET.tostring(root,encoding='unicode')+'\n'
 
+BUFFER_MARKER='Kodi-iOS player controls: buffering pill'   # navigation.patch_skin leaves these alone
+BUFFER_WINDOW='Custom_1156_Buffering.xml'
+def buffering_window():
+ """Build 206 (owner, build 205: "i completely understand if it needs to buffer but have it show like a buffer
+ percentage so i know its working"): while Kodi fills its buffer (after a seek, a stall) a pill between the centre
+ controls and the title: the spinning ring and "Buffering 45%" (Player.CacheLevel). Its own dialog (as Fuse's info
+ over the video), which Kodi opens and closes on its visible condition. Nearly opaque: Kodi cannot blur."""
+ w,h=460,84
+ spin='<animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation>'
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window type="dialog" id="1156"><zorder>2</zorder>'
+  '<visible>Player.Caching + Window.IsActive(fullscreenvideo)</visible>'
+  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
+  '<controls><control type="group"><centerleft>50%%</centerleft><top>668</top><width>%d</width><height>%d</height>'
+  '<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture border="42" colordiffuse="EB2C2C2E">%sround.png</texture></control>'
+  '<control type="image"><left>26</left><top>18</top><width>48</width><height>48</height><texture colordiffuse="FFFFFFFF">%sring.png</texture>%s</control>'
+  '<control type="label"><left>92</left><top>0</top><width>%d</width><height>%d</height><font>font_midi</font><textcolor>FFFFFFFF</textcolor>'
+  '<align>left</align><aligny>center</aligny><scroll>false</scroll><label>Buffering $INFO[Player.CacheLevel]%%</label></control>'
+  '</control></controls></window>\n')%(BUFFER_MARKER,w,h,w,h,MEDIA,MEDIA,spin,w-92-26,h)
+
 def airplay_png(png,size=96):
  """AirPlay glyph: a screen outline open at the bottom, with a triangle rising into it. png: portrait.png."""
  s=size/96.0

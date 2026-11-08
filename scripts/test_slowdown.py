@@ -79,7 +79,7 @@ class Workers(Reset):
  def test_every_worker_uses_the_gate(self):
   self.assertIn('self.gate.after(time.monotonic() - began)',(LIB/'drive_prepare.py').read_text())
   stream=(LIB/'drive_stream.py').read_text()
-  self.assertIn('self.gate.after(time.monotonic() - began)',stream)
+  self.assertIn('self.gate.after(time.monotonic() - began, sum(len(x) for x in parts), download=True)',stream)
   self.assertIn('(1 if slowdown.reason() else READ_AHEAD)',stream)
   up=(LIB/'driveupload.py').read_text()
   self.assertEqual(up.count('slowdown.Gate(keep_going=keep_going)'),2)   # phone uploads and AllDebrid copies
@@ -101,5 +101,31 @@ class Workers(Reset):
   cloud=(LIB/'prepare_cloud.py').read_text()
   self.assertIn("q.runtime.phase('Paused by you',False,item['name'])",cloud)
   self.assertNotIn("phase('Paused while a video plays'",cloud)
+
+class DownloadCap(unittest.TestCase):
+ """Build 206 (owner, build 205: seeking an Umbrella episode "nearly broke the app ... it should use download speeds"):
+ an AllDebrid copy read 32 MB in 2.4 s while the episode played. Downloads keep under CAP while something plays and
+ wait while Kodi buffers; uploads keep the time share."""
+ def gate(self,whys):
+  slept=[];seq=list(whys)
+  why=lambda:seq.pop(0) if len(seq)>1 else seq[0]
+  return slowdown.Gate(why=why,sleep=slept.append),slept
+ def test_a_download_keeps_under_the_cap_while_a_video_plays(self):
+  g,slept=self.gate(['video'])
+  rested=g.after(0.08,1024*1024,download=True)   # 1 MB read in 0.08 s = 12.5 MB/s
+  self.assertAlmostEqual(rested,1.0-0.08,places=2)    # held to 1 MB/s
+  self.assertAlmostEqual(sum(slept),rested,places=2)
+ def test_uploads_keep_the_time_share(self):
+  g,_=self.gate(['video']);self.assertAlmostEqual(g.after(1.0),1.0/0.35-1.0,places=2)
+ def test_a_download_waits_while_kodi_buffers(self):
+  g,slept=self.gate(['buffering']*5+['video'])
+  g.after(0.08,1024*1024,download=True)
+  self.assertGreaterEqual(slept.count(0.5),3)   # waited in 0.5 s steps until the buffer was full
+ def test_full_speed_when_nothing_plays(self):
+  g,slept=self.gate(['']);self.assertEqual(g.after(0.08,1024*1024,download=True),0.0);self.assertEqual(slept,[])
+ def test_the_service_reports_buffering(self):
+  text=(BOOT/'service.py').read_text()
+  self.assertEqual(text.count("'buffering' if xbmc.getCondVisibility('Player.Caching') else 'video'"),2)
+  self.assertIn("reader_gate.after(time.monotonic()-piece,len(data),download=True)",(LIB/'driveupload.py').read_text())
 
 if __name__=='__main__':unittest.main()

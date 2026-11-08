@@ -234,8 +234,11 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     rate = (marks[-1][1] - marks[0][1]) / span if span >= 1 else 0.0
                     # Build 193 (build-192 log): progress carries its time, so a hung piece is never shown as moving,
                     # and a piece that went up resets the tries (six AllDebrid 500s made a later timeout wait 210 s).
+                    # Owner (build 205: "i went to download a entire season and it seems only 1 thing is downloading"):
+                    # which file of the job this is, so the pages name the episode and count the season.
                     state['current'] = {'name': title, 'folder': parts[-1], 'sent': sent, 'total': total, 'stage': 'copying',
-                                        'rate': rate, 'eta_s': (total - sent) / rate if rate else 0, 'updated': now}
+                                        'rate': rate, 'eta_s': (total - sent) / rate if rate else 0, 'updated': now,
+                                        'file': name, 'index': job['files'].index(entry) + 1, 'count': len(job['files'])}
                     if job.get('tries') and sent > (marks[0][1] if len(marks) > 1 else 0):
                         job['tries'] = 0
                         job.pop('error', None)

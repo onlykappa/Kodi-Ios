@@ -204,12 +204,16 @@ class Drive(object):
    session.clear();session.update(url=location,size=size);save();offset=0
   import concurrent.futures
   source=[open_at(offset)]
+  import slowdown as _slow;reader_gate=_slow.Gate(keep_going=keep_going)
   def read(at):
    chunk=b'';began=time.monotonic()
    while len(chunk)<CHUNK and at+len(chunk)<size:
+    piece=time.monotonic()
     data=source[0].read(min(CHUNK-len(chunk),1024*1024))
     if not data:break
     chunk+=data
+    # Build 206: a download under the playing video's cap (and none while Kodi buffers), 1 MB at a time.
+    reader_gate.after(time.monotonic()-piece,len(data),download=True)
    return chunk,time.monotonic()-began
   # Build 181 (owner: "whatever that will make uploading and downloading quicker"): the next piece downloads from
   # the source while this one goes up to Drive (they used to take turns).
