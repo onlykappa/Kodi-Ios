@@ -418,3 +418,16 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
   Roku OS 11.5 (home-assistant/core#83819); Rokus without AirPlay can use the free Media Assistant channel via ECP
   launch; Chromecast/DLNA should get the phone's prepared playlist instead of the Drive link. Roku is not a DLNA
   renderer.
+
+## Build 204 — verified (release build-204, IPA sha256 28a37188…, commit 98eb3f2; AirPlay r40). Owner testing
+
+- **ISSUE-129** (any TV on the Wi-Fi): `kodi_airplay_serve` (r40) gives Roku (Media Assistant, channel 782875),
+  Chromecast and DLNA TVs the phone's playlist / prepared MP4 instead of Kodi's 127.0.0.1 link.
+- **ISSUE-130** (Customisation): rows marked and counted as Home shows them; Add puts the row first.
+- Includes builds 202-203 (prepared HLS, start/resume position, subtitles). Owner linked Trakt in TMDb Helper
+  ("Trakt authenticated successfully!", 10:10:53 phone time); Elementum's own Trakt link is still off.
+- **AirPlay r40**: candidate run 42506835029 (source 8e160ce) green; published 18:03 UTC; digest 9a3415cd… = pin.
+- Verified in the downloaded IPA: build.json build 204 / commit 98eb3f2 / airplay r40 9a3415cd…; KodiAirPlay binary
+  145f122f… identical to the candidate's; cast.py and airplay.py use kodi_airplay_serve; rows_editor has empty_rows.
+- Owner to check: Apple TV; the TCL over AirPlay; the TCL as a Roku with Media Assistant; Customisation counts;
+  the Trakt rows on Home.
