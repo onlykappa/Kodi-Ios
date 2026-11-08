@@ -325,3 +325,15 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
 - The owner authorized a new native release and installable IPA. Verify the candidate first, then pin/release
   the actual r35 artifact and build the IPA; r34 stays pinned until the candidate passes. No merge. Screen-lock
   behavior and successful TV playback remain **PENDING** on the owner's iPhone.
+- Source is pushed in `9976d705e60b92d6094cf124018a95735cbd9722`. Candidate verification:
+  [42448621268](https://github.com/onlykappa/Kodi-Ios/actions/runs/42448621268), dispatched explicitly on this
+  branch. The iPhoneOS framework compilation has passed; host/E2E checks are still running at this checkpoint.
+  The full 82-script Python sweep is also running (only `test_drive_runtime.py` excluded). It found an old
+  23-export source assertion in `test_conversion_speed.py`; updated to the actual 26-export ABI and all 48 tests
+  pass on focused rerun. Project/UI guidance and shell syntax checks pass. No r35 pin/release or new IPA yet.
+- Resume delivery: wait for **both** native jobs and all Python scripts; download and independently verify the
+  candidate ZIP/hash/ARM64/26 exports. Only then pin r35 with the real digest, source `9976d70` and run above,
+  preserving r34 as previous; update exact-pin tests. Push with `[skip ci]`, publish through `airplay-ios.yml`
+  with `publish_verified_candidate=true` (publish the tested candidate without rebuilding), verify release bytes,
+  then dispatch `import-review.yml` on this branch for the authorized IPA. Download/verify the actual IPA's
+  identity, audio background mode and native binaries; record full delivery results and update PR #16.
