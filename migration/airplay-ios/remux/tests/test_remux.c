@@ -215,7 +215,7 @@ static void test_prepared_indexed_open(const char *http_base,const char *work) {
     reply reset=http_get_raw(upstream,"/__stats/reset",NULL);free(reset.body);
     snprintf(url,sizeof url,"%s/indexed/out/airplay-indexed.mp4",http_base);
     double at=mono_ms();result=kr_remux_start(url,0,0,playlist,sizeof playlist);
-    CHECK(result==KR_READY && strstr(playlist,"/prepared.m3u8"),"prepared MP4 opens through indexed byte-range path: %s",kr_remux_message());
+    CHECK(result==KR_READY && strstr(playlist,"/prepared."),"prepared MP4 opens through indexed byte-range path: %s",kr_remux_message());
     reply stats=http_get_raw(upstream,"/__stats",NULL);
     int requests=999;long long bytes=0;
     if(stats.body){char *p=strstr(stats.body,"\"requests\":");if(p)requests=atoi(p+11);p=strstr(stats.body,"\"bytes\":");if(p)bytes=atoll(p+8);}
@@ -1422,6 +1422,43 @@ static int preparation_write(int track,const char *suffix,const uint8_t *data,in
     if(!sink->files[track]){char path[2048];snprintf(path,sizeof path,"%s%s",sink->base,suffix);sink->files[track]=fopen(path,"wb");}
     return sink->files[track] && fwrite(data,1,(size_t)size,sink->files[track])==(size_t)size;
 }
+// r38 (owner's build-201 Apple TV log): Apple's player reads every fragment of a progressive fragmented MP4; a prepared
+// (fragmented, indexed) movie is offered as HLS byte ranges over the same file, taken from its mfra.
+static void check_prepared_hls(const char *file,const char *what) {
+    char url[1200],playlist[512]="";snprintf(url,sizeof url,"file:%s",file);
+    int st=kr_remux_start(url,0,0,playlist,sizeof playlist);
+    CHECK(st==KR_READY && strstr(playlist,"/prepared.m3u8"),"%s: a fragmented prepared movie is offered as HLS (%s %s)",what,playlist,kr_remux_message());
+    if(st!=KR_READY || !strstr(playlist,"/prepared.m3u8")){kr_remux_stop();return;}
+    int port=kr_remux_port();
+    reply master=http_get(port,playlist,NULL);
+    CHECK(master.status==200 && master.body && strstr(master.body,"#EXT-X-STREAM-INF:") && strstr(master.body,"CODECS=\"") && strstr(master.body,"/prepared-media.m3u8"),
+          "%s: master playlist: %.300s",what,master.body?master.body:"");
+    char media_url[600],mp4_url[600];
+    snprintf(media_url,sizeof media_url,"%s",playlist);strcpy(strstr(media_url,"/prepared.m3u8"),"/prepared-media.m3u8");
+    snprintf(mp4_url,sizeof mp4_url,"%s",playlist);strcpy(strstr(mp4_url,"/prepared.m3u8"),"/prepared.mp4");
+    reply media=http_get(port,media_url,NULL);
+    long long map_len=-1,seg_len=-1,seg_at=-1,last_len=-1,last_at=-1;int segments=0;
+    if(media.body){char *p=strstr(media.body,"BYTERANGE=\"");if(p)sscanf(p+11,"%lld@",&map_len);
+        p=strstr(media.body,"#EXT-X-BYTERANGE:");if(p)sscanf(p+17,"%lld@%lld",&seg_len,&seg_at);
+        for(p=media.body;(p=strstr(p,"#EXT-X-BYTERANGE:"));p++){segments++;sscanf(p+17,"%lld@%lld",&last_len,&last_at);}}
+    CHECK(media.status==200 && media.body && strstr(media.body,"#EXT-X-ENDLIST") && map_len>0 && seg_at==map_len && seg_len>0 && segments>=1,
+          "%s: media playlist: init %lld bytes, first fragment %lld@%lld, %d fragments",what,map_len,seg_len,seg_at,segments);
+    if(map_len>0 && seg_at>0 && last_at>0) {
+        char want[64];snprintf(want,sizeof want,"bytes=%lld-%lld",seg_at,seg_at+15);
+        reply first=http_get(port,mp4_url,want);
+        CHECK(first.status==206 && first.len==16 && first.body && !memcmp(first.body+4,"moof",4),"%s: the first byte range is a fragment (moof)",what);free(first.body);
+        snprintf(want,sizeof want,"bytes=%lld-%lld",last_at,last_at+15);
+        reply last=http_get(port,mp4_url,want);
+        CHECK(last.status==206 && last.len==16 && last.body && !memcmp(last.body+4,"moof",4),"%s: the last byte range is a fragment (moof)",what);free(last.body);
+        snprintf(want,sizeof want,"bytes=%lld-%lld",last_at+last_len,last_at+last_len+15);
+        reply after=http_get(port,mp4_url,want);
+        CHECK(after.status==206 && after.body && !memcmp(after.body+4,"mfra",4),"%s: the last fragment ends where the index starts",what);free(after.body);
+        snprintf(want,sizeof want,"bytes=0-%lld",map_len-1);
+        reply init=http_get(port,mp4_url,want);
+        CHECK(init.status==206 && init.len==map_len && init.body && !memcmp(init.body+4,"ftyp",4) && memmem(init.body,(size_t)init.len,"moov",4),"%s: the init range is ftyp+moov",what);free(init.body);
+    }
+    free(master.body);free(media.body);kr_remux_stop();
+}
 static void test_preparation_stream(const char *work,const char *http_base) {
     const char *files[]={"h264_aac_srt.mkv","hevc_ac3_ass.mkv","h264_ac3_dts_srt.mkv","hevc_4k.mkv","dovi.mkv","long_seek.mkv","h264_pgs.mkv"};
     kodi_airplay_prepare_keep_image_subs(1);
@@ -1441,6 +1478,7 @@ static void test_preparation_stream(const char *work,const char *http_base) {
         uint8_t a[16],b[16];int aw,ah,an,bw,bh,bn;char local[1100];snprintf(local,sizeof local,"%s/%s",fixture_dir,files[i]);
         CHECK(video_digest(local,a,&aw,&ah,&an)==0 && video_digest(output,b,&bw,&bh,&bn)==0 && !memcmp(a,b,16),"streaming preserves original H.264/HEVC packets for %s",files[i]);
         CHECK(kodi_airplay_probe(output,json,sizeof json)==0 && strstr(json,"\"ready\":true"),"streamed output is prepared: %s",json);
+        if(!strcmp(files[i],"hevc_4k.mkv") || !strcmp(files[i],"long_seek.mkv"))check_prepared_hls(output,files[i]);
         {uint8_t header[65536];FILE *file=fopen(output,"rb");size_t length=file?fread(header,1,sizeof header,file):0;if(file)fclose(file);int duration=0;
          for(size_t n=4;n+24<length;n++)if(!memcmp(header+n,"mvhd",4) && header[n+4]==0){duration=AV_RB32(header+n+20)>0;break;}
          CHECK(duration,"streamed MP4 advertises a finite nonzero movie duration in its init: %s",files[i]);}
@@ -1701,29 +1739,10 @@ static void test_preparation(const char *work) {
         CHECK(an==bn,"all selected video/audio/text tracks preserved (%d -> %d)",an,bn);
         CHECK(!memcmp(a,b,16),"H.264/HEVC video packets preserved without quality loss: %s",files[i]);
         snprintf(url,sizeof url,"file:%s",output);
-        CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared.m3u8"),"prepared file uses indexed byte-range seeking without live conversion");
+        CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared."),"prepared file uses indexed byte-range seeking without live conversion");
         int port=kr_remux_port();
-        // r38: Apple's player reads every fragment of a progressive fragmented MP4 (owner's build-201 Apple TV log); it
-        // gets HLS byte ranges over the same file from its fragment index instead.
-        reply master=http_get(port,playlist,NULL);
-        CHECK(master.status==200 && master.body && strstr(master.body,"#EXT-X-STREAM-INF:") && strstr(master.body,"CODECS=\"") && strstr(master.body,"/prepared-media.m3u8"),
-              "prepared master playlist: %s",master.body?master.body:"");
-        char media_url[600];snprintf(media_url,sizeof media_url,"%s",playlist);strcpy(strstr(media_url,"/prepared.m3u8"),"/prepared-media.m3u8");
-        reply media=http_get(port,media_url,NULL);
-        long long map_len=-1,seg_len=-1,seg_at=-1;int segments=0;
-        if(media.body){char *p=strstr(media.body,"BYTERANGE=\"");if(p)sscanf(p+11,"%lld@",&map_len);
-            p=strstr(media.body,"#EXT-X-BYTERANGE:");if(p)sscanf(p+17,"%lld@%lld",&seg_len,&seg_at);
-            for(p=media.body;(p=strstr(p,"#EXTINF:"));p++)segments++;}
-        CHECK(media.status==200 && media.body && strstr(media.body,"#EXT-X-ENDLIST") && map_len>0 && seg_at==map_len && seg_len>0 && segments>=1,
-              "prepared media playlist: init %lld bytes, first fragment %lld@%lld, %d fragments",map_len,seg_len,seg_at,segments);
-        char mp4_url[600];snprintf(mp4_url,sizeof mp4_url,"%s",playlist);strcpy(strstr(mp4_url,"/prepared.m3u8"),"/prepared.mp4");
-        char want[64];snprintf(want,sizeof want,"bytes=%lld-%lld",seg_at,seg_at+15);
-        reply first=http_get(port,mp4_url,want);
-        CHECK(first.status==206 && first.len==16 && !memcmp(first.body+4,"moof",4),"the first byte range is a whole fragment (moof)");
-        snprintf(want,sizeof want,"bytes=0-%lld",map_len-1);
-        reply init=http_get(port,mp4_url,want);
-        CHECK(init.status==206 && init.len==map_len && !memcmp(init.body+4,"ftyp",4) && memmem(init.body,(size_t)init.len,"moov",4),"the init range is ftyp+moov");
-        free(master.body);free(media.body);free(first.body);free(init.body);
+        char mp4_url[600];snprintf(mp4_url,sizeof mp4_url,"%s",playlist);
+        {char *dot=strstr(mp4_url,"/prepared.m3u8");if(dot)strcpy(dot,"/prepared.mp4");}
         reply bytes=http_get(port,mp4_url,"bytes=0-127");
         CHECK(bytes.status==206 && bytes.len==128 && !memcmp(bytes.body+4,"ftyp",4),"prepared MP4 ranges return exact bytes");free(bytes.body);
         bytes=http_get(port,mp4_url,"bytes=-128");CHECK(bytes.status==206 && bytes.len==128,"prepared MP4 suffix range");free(bytes.body);
@@ -1736,7 +1755,7 @@ static void test_preparation(const char *work) {
         CHECK(kr_remux_start(url,0,1,playlist,sizeof playlist)==KR_READY && !strstr(playlist,"/prepared.") && kr_remux_compat()==1,
               "prepared file restarts in compat mode as converted HLS: %s %s",playlist,kr_remux_message());
         kr_remux_stop();kr_video_set_encoder(encoder);
-        CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared.m3u8"),"prepared file is served as it is again afterwards");
+        CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared."),"prepared file is served as it is again afterwards");
         port=kr_remux_port();
         int idle_fd=socket(AF_INET,SOCK_STREAM,0);struct sockaddr_in idle_address={0};
         idle_address.sin_family=AF_INET;idle_address.sin_port=htons((uint16_t)port);idle_address.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
