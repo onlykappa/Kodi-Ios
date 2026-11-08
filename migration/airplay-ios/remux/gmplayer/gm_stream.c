@@ -483,7 +483,13 @@ gm_stream *gm_stream_open(gm_source src, double target_seg_sec,
     s->in->probesize = 2 * 1024 * 1024;       // 2 MiB (enough for codecpar; keeps OPEN fast)
     s->in->max_analyze_duration = 2 * AV_TIME_BASE;  // 2 s
 
-    int ret = avformat_open_input(&s->in, NULL, NULL, NULL);
+    // Prepared fragmented MP4s carry a final mfra index. Without it MOV walks fragment headers across the
+    // remote file before it can report ready (owner build 196: 129 seconds). DTS/PTS index conversion is
+    // already provided by the pinned FFmpeg patch; non-MOV demuxers ignore this private MOV option.
+    AVDictionary *open_options=NULL;
+    av_dict_set(&open_options,"use_mfra_for","pts",0);
+    int ret = avformat_open_input(&s->in, NULL, NULL, &open_options);
+    av_dict_free(&open_options);
     if (ret < 0) { set_err(err, errlen, "open input", ret); gm_stream_close(s); return NULL; }
     ret = avformat_find_stream_info(s->in, NULL);
     if (ret < 0) { set_err(err, errlen, "find stream info", ret); gm_stream_close(s); return NULL; }

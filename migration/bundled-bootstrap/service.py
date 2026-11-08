@@ -166,7 +166,8 @@ def run():
    except Exception as error:xbmc.log('Kodi iOS update check skipped: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
   threading.Thread(target=later,daemon=True).start()
  import slowdown
- slowdown.configure(lambda:'airplay' if airplay.busy(xbmcgui.Window(10000),time.time()) else ('video' if xbmc.getCondVisibility('Player.HasVideo') else ''))
+ playback_lib=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
+ slowdown.configure(lambda:'airplay' if airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time()) else ('video' if xbmc.getCondVisibility('Player.HasVideo') else ''))
  # The bell in the hub headers: unread messages and whether a download or Drive upload runs. Each message also gets
  # its part of kodi.log, shown when it is tapped.
  threading.Thread(target=notices.publish,args=(window,profile,monitor.waitForAbort,lambda:xbmc.Player().isPlayingVideo()),
@@ -225,15 +226,16 @@ def run():
  # Downloads and Drive uploads keep going when Kodi leaves the screen (KodiAirPlay r3 plays silence meanwhile).
  try:
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
-  lib=airplay.load(path) if path else None
+  lib=airplay.cached_load(path)
   if lib is not None and hasattr(lib,'kodi_background_keep'):
    kept=str(updates.updates_folder(home).with_name('Kodi Downloads'))
    def why():
+    # AirPlay playback has its own lifetime, even when background downloads are switched off.
+    if airplay.playback_active(lib,xbmcgui.Window(10000),time.time()):return 'AirPlay'
     if not xbmcaddon.Addon().getSettingBool('background_transfers'):return ''
     if xbmc.Player().isPlayingAudio():return ''  # Kodi's own music keeps it running; the silence would make it mixable
     # Build 188 (owner: "airplay also stops if my screen turns off"): the TV reads the movie from Kodi's own server,
     # so Kodi stays awake while AirPlay plays, even with nothing else to do.
-    if airplay.busy(xbmcgui.Window(10000),time.time()):return 'AirPlay'
     uploading=xbmcaddon.Addon().getSettingBool('drive_upload') and xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)')
     import prepare_downloads,preparation_runtime,debrid_drive
     if debrid_drive.active(profile):return 'AllDebrid download or Drive transfer'
@@ -244,7 +246,7 @@ def run():
  # r6: the AirPlay stream's requests, CODECS and Apple's player events into kodi.log (owner build-133: sound only).
  try:
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
-  lib=airplay.load(path) if path else None
+  lib=airplay.cached_load(path)
   if lib is not None and hasattr(lib,'kodi_airplay_log'):
    import library_tools
    threading.Thread(target=airplay.relay,args=(lib,lambda m:xbmc.log(m,xbmc.LOGINFO),monitor.waitForAbort),
@@ -254,7 +256,7 @@ def run():
  try:
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
   if path and xbmcaddon.Addon().getSettingBool('airplay_button'):
-   airplay.watch(airplay.load(path),lambda:xbmc.getCondVisibility(airplay.PLAYING),monitor.waitForAbort)
+   airplay.watch(airplay.cached_load(path),lambda:xbmc.getCondVisibility(airplay.PLAYING),monitor.waitForAbort)
  except Exception as error:xbmc.log('Kodi iOS AirPlay button unavailable: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
  while not monitor.waitForAbort(60):pass
 
@@ -265,7 +267,8 @@ def drive_uploads(monitor,home,profile):
  # Build 186 held the AllDebrid copies, the uploads and the conversion while AirPlay played. Build 193 (owner: "stuff
  # should ALWAYS be moving even if an AirPlay movie is playing, just slower"): nothing waits for playback any more; every
  # worker slows to a share of the line and the CPU (slowdown.py). Only the owner's Pause still holds.
- airplay_busy=lambda:airplay.busy(xbmcgui.Window(10000),time.time())
+ playback_lib=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
+ airplay_busy=lambda:airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time())
  import slowdown
  slowdown.configure(lambda:'airplay' if airplay_busy() else ('video' if xbmc.getCondVisibility('Player.HasVideo') else ''))
  if not xbmc.getCondVisibility('System.HasAddon(plugin.googledrive)'):return

@@ -168,23 +168,49 @@ def retry_airplay(outcome,why):
  """Build 186: one more try when Apple's player gave up waiting for the first reads (a busy line), not otherwise."""
  return outcome=='failed' and 'timed out' in str(why or '').lower()
 
-def airplay_outcome(state,wait,timeout=25,network=None):
- """Poll Apple's player (state(): 1 has the stream, -1 failed, 0 not yet) for up to `timeout` seconds; wait(s)
- sleeps and returns True if Kodi is closing/canceled. A local stream needs a TV request within 15 seconds.
- network() supplies non-draining connection evidence; returns 'playing', 'failed', 'aborted' or 'unreachable'."""
- waited=0.0
- while waited<timeout:
+AIRPLAY_STARTUP=60
+AIRPLAY_SELECTION=120
+AIRPLAY_CONNECT=15
+AIRPLAY_WORDS={'opening':'Opening the video for AirPlay…',
+               'waiting_tv':'Choose your TV in the AirPlay list…',
+               'connecting':'Connecting to the TV…'}
+
+def airplay_outcome(state,wait,timeout=25,network=None,stage=None):
+ """Separate file opening, the owner's TV choice and the actual connection. Each phase has its own bound.
+ A TV cannot fetch an unopened file: only a started connection may return 'unreachable'."""
+ waited=0.0;phase_begun={};shown=None;had_phase=False
+ while True:
   net=network() if network else None
-  local=net and net.get('expected')
-  reached=net and net.get('tv_requests',0)>0
-  if local and not reached and max(net.get('start_age_s',-1),net.get('listen_age_s',-1))>=15:return 'unreachable'
+  local=bool(net and net.get('expected'))
+  reached=bool(net and net.get('tv_requests',0)>0)
+  phase=(net or {}).get('phase','')
   now=state()
-  # The phone's own AVPlayer becoming ready does not prove that the TV can fetch our stream.
-  if now==1 and (not local or reached):return 'playing'
-  if now<0:return 'failed'
+  if phase=='canceled':return 'aborted'
+  if phase=='idle' and had_phase and now==0:return 'aborted'
+  had_phase=had_phase or phase not in ('','idle')
+  if now<0 or phase=='failed':return 'failed'
+  choosing=phase=='waiting_tv'
+  preparing=phase in ('opening','inspecting','ready')
+  if now==1 and (reached or (not local and not choosing and not preparing)):return 'playing'
+  if choosing:
+   group='waiting_tv';age_key='player_age_s';limit=AIRPLAY_SELECTION;expired='selection_timeout'
+  elif local or preparing:
+   if phase in ('connecting','playing') or (not phase and net.get('listen_age_s',-1)>=0):
+    group='connecting';age_key='connect_age_s' if phase else 'listen_age_s'
+    limit=timeout if reached else AIRPLAY_CONNECT;expired='failed' if reached else 'unreachable'
+   else:
+    group='opening';age_key='start_age_s';limit=AIRPLAY_STARTUP;expired='startup_timeout'
+  else:
+   group='connecting';age_key='';limit=timeout;expired='failed'
+  entered=phase_begun.setdefault(group,waited)
+  # The local elapsed fallback prevents a broken/reset native clock from keeping a phase alive forever.
+  age=max(waited-entered,float((net or {}).get(age_key,-1)))
+  if age>=limit:return expired
+  if group!=shown:
+   shown=group
+   if stage:stage(group,AIRPLAY_WORDS[group])
   if wait(0.5):return 'aborted'
   waited+=0.5
- return 'failed'
 
 def media_type(url):
  path=urllib.parse.urlsplit(url).path.lower()

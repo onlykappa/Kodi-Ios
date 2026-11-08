@@ -1,5 +1,5 @@
 """Apple's AirPlay button over Kodi, from Kodi.app/Frameworks/KodiAirPlay.framework (migration/airplay-ios)."""
-import json,os,re,time
+import json,os,re,threading,time
 import diagnostics
 # Full-screen video or music only: on Fuse's menus the top-right corner holds the clock and the gear.
 PLAYING='Player.HasMedia + [Window.IsActive(fullscreenvideo) | Window.IsActive(visualisation)]'
@@ -27,6 +27,7 @@ def load(path):
  # r34: non-draining network evidence (the service and a script both read it), and the app's Settings link.
  if hasattr(lib,'kodi_airplay_network'):lib.kodi_airplay_network.argtypes=[ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_network.restype=ctypes.c_int
  if hasattr(lib,'kodi_airplay_settings'):lib.kodi_airplay_settings.argtypes=[];lib.kodi_airplay_settings.restype=None
+ if hasattr(lib,'kodi_airplay_active'):lib.kodi_airplay_active.argtypes=[];lib.kodi_airplay_active.restype=ctypes.c_int
  # r10: the subtitles burned into the picture a TV gets converted (Kodi's current choice, set before playing).
  if hasattr(lib,'kodi_airplay_subtitles'):lib.kodi_airplay_subtitles.argtypes=[ctypes.c_int,ctypes.c_char_p,ctypes.c_char_p];lib.kodi_airplay_subtitles.restype=None
  if hasattr(lib,'kodi_background_keep'):lib.kodi_background_keep.argtypes=[ctypes.c_int];lib.kodi_background_keep.restype=None
@@ -36,6 +37,18 @@ def load(path):
 def converts(lib):
  """r5 frameworks convert MKV, AVI, WebM and MPEG-TS for AirPlay on the phone."""
  return hasattr(lib,'kodi_airplay_message')
+
+_libraries={}
+_libraries_lock=threading.Lock()
+
+def cached_load(path):
+ """The service's polling callbacks share one loaded handle; a missing framework keeps the legacy fallback."""
+ if not path:return None
+ with _libraries_lock:
+  if path not in _libraries:
+   try:_libraries[path]=load(path)
+   except OSError:_libraries[path]=None
+  return _libraries[path]
 
 def message(lib):
  """The framework's reason AirPlay could not play the last stream ('' when none or an older framework)."""
@@ -141,6 +154,7 @@ def network(lib,window,now=None):
   lib.kodi_airplay_network(buffer,len(buffer))
   try:
    net=json.loads(buffer.value.decode('utf-8'))
+   if not isinstance(net,dict):return None
    if net.get('expected') and started:net['start_age_s']=max(net.get('start_age_s',-1),now-started)
    return net
   except (ValueError,UnicodeError):return None
@@ -166,6 +180,11 @@ def clear_busy(window):window.setProperty(BUSY,'')
 def busy(window,now):
  try:return now-float(window.getProperty(BUSY) or 0)<BUSY_FOR
  except (TypeError,ValueError):return False
+
+def playback_active(lib,window=None,now=None):
+ """Native ownership survives lock/background and does not depend on log-flush timing or download preferences."""
+ if hasattr(lib,'kodi_airplay_active'):return bool(lib.kodi_airplay_active())
+ return busy(window,time.time() if now is None else now) if window is not None else False
 # Build 193 (build-192 log, 13:10-13:30): the converter writes its own 'prepare: …' lines to the same log; they counted as
 # AirPlay playing and held every worker for 90 s ("Paused while a video plays" with nothing playing). Only the AirPlay
 # server's and Apple's player's lines count now.

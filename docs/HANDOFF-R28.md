@@ -311,3 +311,17 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
 - Owner: install the IPA as an update with the sideloader, allow Local Network when prompted, test a ready movie,
   two quick Play on TV presses, Cancel, and the 15-second recovery/Settings button with an unreachable TV. Capture
   the new log if it still fails. Only the iPhone can establish that playback works; this delivery is host-verified.
+
+## Build 196 device follow-up — r35 candidate (owner-approved new IPA)
+
+- [Device log analysis](LOG-REVIEW-196.md), ISSUE-122: the old watchdog reported a LAN failure at 15 seconds;
+  the listener appeared about 129 seconds after first startup. Local Network was enabled. No TV request occurred.
+- Fix the actual startup path: indexed fragmented-MP4 opening, cancellable initial HTTP headers, bounded native
+  startup, pre-reserved tickets and stale-work/cleanup protection. TV selection and its connection have separate
+  deadlines. Opening a slow source never becomes a permission warning.
+- Screen-locked playback: AVPlayer retains Playback/MoviePlayback, continues-if-possible background policy and
+  the IPA's audio background mode. Native active ownership overrides an expired log lease and background-download
+  preference; download silence cannot replace the player's audio session. Natural end/failure/close release it.
+- The owner authorized a new native release and installable IPA. Verify the candidate first, then pin/release
+  the actual r35 artifact and build the IPA; r34 stays pinned until the candidate passes. No merge. Screen-lock
+  behavior and successful TV playback remain **PENDING** on the owner's iPhone.

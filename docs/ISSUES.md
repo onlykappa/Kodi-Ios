@@ -1075,3 +1075,23 @@ Status: FIXED; verified against the immutable `kodi-ios-portrait-r24` release be
   and rejects the archive pin. The repository's exact pin assertion now checks that verified binary digest.
 - Build 196 successfully fetched r24 using the corrected pin. Its downloaded executable equals the verified r24
   release after signature removal; the app's build identity records the corrected `02d5357a…` binary checksum.
+
+## ISSUE-122 — Build 196 declares the TV unreachable before the stream opens; screen-lock lifetime is fragile
+
+Status: FIXED IN SOURCE, native candidate verification and device retest pending on PR #16.
+
+- Device evidence: two attempts expire at 15 seconds, but the first listener appears about 129 seconds after
+  startup. No TV request or successful playback appears. Local Network is enabled. Full timeline and limits:
+  [LOG-REVIEW-196.md](LOG-REVIEW-196.md).
+- Root cause: one startup/connection deadline and queued cancellation behind blocking source I/O. AirPlay's
+  fragmented-MP4 opener also missed the index option already present in preparation/Kodi r24. Background lifetime
+  depended on a diagnostic lease and the download preference; the silent download helper could replace the
+  player's audio session. The log proves startup ordering, not the result of the screen-lock fix.
+- Fix: indexed opening, interruptible initial HTTP open, 45-second native startup bound, reserved session tickets,
+  scoped immediate cancellation, separate TV-choice/connection clocks, no automatic retry, and native playback
+  ownership independent of logs/download settings. Preserve the playback/movie audio session and audio background
+  mode through screen lock; clear active on completion/failure/close and allow legitimate replay.
+- Regression: Python controller/network/lifetime tests; compiled native cancellation, stale work/cleanup and
+  indexed-request/byte bounds; staged IPA preserves existing background modes and adds audio. Old source API pins
+  now assert the ticket implementation. Candidate build/release, complete suite and iPhone results follow below.
+- Owner explicitly requested a new build and screen-locked playback; native r35 release and IPA are authorized.

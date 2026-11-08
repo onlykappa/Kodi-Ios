@@ -182,7 +182,27 @@ static void playerNote(NSString *format, ...) {
 static char *remuxSource;
 // r34: a canceled source probe must never present a late player over a newer attempt.
 static atomic_uint playGeneration;
+static atomic_uint remuxTicket;
+static atomic_int playbackActive;
+// A generation check and its native reservation/cancel are one operation, including compat restarts.
+static os_unfair_lock ownershipLock = OS_UNFAIR_LOCK_INIT;
+static NSTimer *routeWatch;
+static NSMutableArray<id> *playbackObservers;
 static const NSInteger convertingTag = 7707;
+static void keepUpdate(void);
+
+static BOOL playbackStateFor(unsigned generation,int state,int active) {
+    os_unfair_lock_lock(&ownershipLock);
+    BOOL owned=generation==atomic_load(&playGeneration);
+    if(owned){atomic_store(&airplayState,state);atomic_store(&playbackActive,active);}
+    os_unfair_lock_unlock(&ownershipLock);
+    return owned;
+}
+
+static void clearPlaybackObservers(void) {
+    for(id observer in playbackObservers)[NSNotificationCenter.defaultCenter removeObserver:observer];
+    [playbackObservers removeAllObjects];
+}
 
 static void showConverting(BOOL on) {
     UIView *host = airplayHolderView();
@@ -217,13 +237,36 @@ static dispatch_queue_t remuxQueue(void) {
     return queue;
 }
 
-static void stopRemux(void) {
-    // Start and stop stay ordered even when a canceled source probe finishes after the next press.
-    dispatch_async(remuxQueue(), ^{ kr_remux_stop(); });
+static void stopRemuxFor(unsigned ticket) {
+    if(!ticket)return;
+    // Interrupt now, before queued cleanup. A blocked open must not hold Cancel behind itself.
+    os_unfair_lock_lock(&ownershipLock);
+    if(ticket==atomic_load(&remuxTicket))kr_remux_cancel(ticket);
+    os_unfair_lock_unlock(&ownershipLock);
+    dispatch_async(remuxQueue(), ^{ kr_remux_stop_for(ticket); });
 }
 
-@interface KodiAirPlayHolder : UIViewController
+static BOOL retirePlaybackFor(unsigned generation) {
+    os_unfair_lock_lock(&ownershipLock);
+    BOOL owned=generation==atomic_load(&playGeneration);
+    unsigned ticket=owned ? atomic_load(&remuxTicket) : 0;
+    if(owned){atomic_fetch_add(&playGeneration,1);atomic_store(&playbackActive,0);atomic_store(&airplayState,0);}
+    os_unfair_lock_unlock(&ownershipLock);
+    if(owned)stopRemuxFor(ticket);
+    return owned;
+}
+
+static BOOL tvRoute(AVPlayer *player) {
+    if(player.externalPlaybackActive)return YES;
+    for(AVAudioSessionPortDescription *output in AVAudioSession.sharedInstance.currentRoute.outputs)
+        if([output.portType isEqualToString:AVAudioSessionPortAirPlay])return YES;
+    return NO;
+}
+
+@interface KodiAirPlayHolder : UIViewController <AVRoutePickerViewDelegate>
 @property (nonatomic, weak) UIButton *closeButton;
+@property (nonatomic) unsigned generation;
+@property (nonatomic) unsigned ticket;
 @end
 
 // r8: the holder follows the screen. r4 pinned the orientation Kodi had when Apple's player opened; Kodi then stopped
@@ -275,15 +318,21 @@ static void stopRemux(void) {
     self.closeButton = close;
 }
 - (void)closeTapped {
+    if(self.generation!=atomic_load(&playGeneration))return;
     [airplayController.player pause];
     [self dismissViewControllerAnimated:YES completion:nil];
 }
+- (void)routePickerViewDidEndPresentingRoutes:(AVRoutePickerView *)view {
+    if(self.generation==atomic_load(&playGeneration))kr_remux_player(self.ticket,tvRoute(airplayController.player));
+}
 - (void)viewDidDisappear:(BOOL)animated {
     [super viewDidDisappear:animated];
-    if (self.isBeingDismissed || self.presentingViewController == nil) {
+    if ((self.isBeingDismissed || self.presentingViewController == nil) && retirePlaybackFor(self.generation)) {
+        [routeWatch invalidate];routeWatch=nil;
+        [airplayWatch invalidate];airplayWatch=nil;
         [stallWatch invalidate]; stallWatch = nil;
+        clearPlaybackObservers();
         playerNote(@"closed at %.1f s", CMTimeGetSeconds(airplayController.player.currentTime));
-        stopRemux();  // r5: playback stopped: the server, its sockets and the source connections go too
         // Twice: once now, once after any rotation iOS still runs has settled.
         healKodi();
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ healKodi(); });
@@ -330,38 +379,59 @@ static void showNoPicture(BOOL hevc) {
 }
 
 // r5/r7: Apple's player failing on the converted stream: the remuxer's reason when it has one.
-static void watchFailures(AVPlayerItem *item) {
-    [[NSNotificationCenter defaultCenter] addObserverForName:AVPlayerItemFailedToPlayToEndTimeNotification
+static void watchPlayback(AVPlayer *player,AVPlayerItem *item,unsigned generation) {
+    clearPlaybackObservers();
+    if(!playbackObservers)playbackObservers=[NSMutableArray array];
+    __weak AVPlayer *weakPlayer=player;
+    id ended=[[NSNotificationCenter defaultCenter] addObserverForName:AVPlayerItemDidPlayToEndTimeNotification
         object:item queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
-        if (airplayController.player.currentItem != note.object) return;  // the item replaced by the compat restart
+        AVPlayer *current=weakPlayer;
+        if(!current || current.currentItem!=note.object)return;
+        if(playbackStateFor(generation,0,0))playerNote(@"finished");
+    }];
+    [playbackObservers addObject:ended];
+    id failed=[[NSNotificationCenter defaultCenter] addObserverForName:AVPlayerItemFailedToPlayToEndTimeNotification
+        object:item queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
+        AVPlayer *current=weakPlayer;
+        if(!current || current.currentItem!=note.object)return;
+        BOOL wasReady=atomic_load(&airplayState)==1;
+        if(!playbackStateFor(generation,-1,0))return;
         const char *m = kr_remux_message();
         NSError *e = note.userInfo[AVPlayerItemFailedToPlayToEndTimeErrorKey];
-        showProblem(m && *m ? @(m) : (e.localizedDescription ?: @"The converted stream stopped."));
+        if(wasReady)showProblem(m && *m ? @(m) : (e.localizedDescription ?: @"The stream stopped."));
     }];
+    [playbackObservers addObject:failed];
 }
 
-static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsigned generation) {
+static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsigned generation, unsigned ticket) {
     dispatch_async(dispatch_get_main_queue(), ^{
         if (generation != atomic_load(&playGeneration)) return;
         NSURL *address = link ? [NSURL URLWithString:link] : nil;
-        if (!address) atomic_store(&airplayState, -1);
+        if (!address) playbackStateFor(generation,-1,0);
         UIViewController *root = kodiWindow().rootViewController;
         if (!address || !root) return;
         [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback mode:AVAudioSessionModeMoviePlayback options:0 error:nil];
         [[AVAudioSession sharedInstance] setActive:YES error:nil];
         AVPlayer *player = [AVPlayer playerWithURL:address];
+        if (@available(iOS 15.0, *)) player.audiovisualBackgroundPlaybackPolicy=AVPlayerAudiovisualBackgroundPlaybackPolicyContinuesIfPossible;
+        if(!playbackStateFor(generation,0,1))return;
+        keepUpdate();
+        [routeWatch invalidate];
+        routeWatch=nil;
+        watchPlayback(player,player.currentItem,generation);
         [airplayWatch invalidate];
         // r3: Apple's player opens MP4/MOV/HLS only (no MKV) and needs the link to answer on the Wi-Fi address.
         airplayWatch = [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *timer) {
+            if(generation!=atomic_load(&playGeneration)){[timer invalidate];return;}
             AVPlayerItem *item = player.currentItem;
             if (item.status == AVPlayerItemStatusReadyToPlay) {
                 playerNote(@"ready, presentation %@, %lu tracks, external %d", sizeText(item.presentationSize),
                            (unsigned long)item.tracks.count, player.externalPlaybackActive);
-                atomic_store(&airplayState, 1);
+                playbackStateFor(generation,1,1);
                 [timer invalidate];
             } else if (item.status == AVPlayerItemStatusFailed || player.status == AVPlayerStatusFailed) {
                 playerNote(@"could not open the stream: %@", item.error ?: player.error);
-                atomic_store(&airplayState, -1);
+                playbackStateFor(generation,-1,0);
                 [timer invalidate];
             }
         }];
@@ -375,9 +445,13 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
             // (already tried, or no source to restart).
             BOOL (^restartCompat)(BOOL) = ^BOOL(BOOL hevc) {
                 char *source = NULL;
+                unsigned restartTicket=0;
+                os_unfair_lock_lock(&ownershipLock);
                 os_unfair_lock_lock(&noteLock);
-                if (!compatTried && remuxSource) source = strdup(remuxSource);
+                if(generation==atomic_load(&playGeneration) && !compatTried && remuxSource)source=strdup(remuxSource);
                 os_unfair_lock_unlock(&noteLock);
+                if(source){restartTicket=kr_remux_begin(1);atomic_store(&remuxTicket,restartTicket);}
+                os_unfair_lock_unlock(&ownershipLock);
                 if (!source) return NO;
                 compatTried = YES; restarting = YES;
                 double at = CMTimeGetSeconds(player.currentTime);
@@ -386,11 +460,13 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 setNote(@"Converting the picture for this TV\u2026");
                 showConverting(YES);
                 dispatch_async(remuxQueue(), ^{
+                    if(generation!=atomic_load(&playGeneration) || restartTicket!=atomic_load(&remuxTicket)){free(source);return;}
                     char playlist[512] = "";
-                    int r = kr_remux_start(source, 1, 1, playlist, sizeof playlist);
+                    int r = kr_remux_start_for(restartTicket,source, 1, 1, playlist, sizeof playlist);
                     free(source);
                     NSString *link = r == KR_READY ? @(playlist) : nil;
                     dispatch_async(dispatch_get_main_queue(), ^{
+                        if(generation!=atomic_load(&playGeneration))return;
                         restarting = NO;
                         NSURL *address = link ? [NSURL URLWithString:link] : nil;
                         if (!address) {
@@ -401,8 +477,10 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                             return;
                         }
                         AVPlayerItem *next = [AVPlayerItem playerItemWithURL:address];
-                        watchFailures(next);
+                        watchPlayback(player,next,generation);
                         [player replaceCurrentItemWithPlayerItem:next];
+                        airplayHolder.ticket=restartTicket;
+                        kr_remux_player(restartTicket,tvRoute(player));
                         [player play];
                         resumeAt = at; errorsSeen = 0; waiting = 0; warned = NO;
                         externalTicks = 0; video0 = kr_remux_served(1); audio0 = kr_remux_served(0);
@@ -412,6 +490,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 return YES;
             };
             stallWatch = [NSTimer scheduledTimerWithTimeInterval:1.0 repeats:YES block:^(NSTimer *timer) {
+                if(generation!=atomic_load(&playGeneration)){[timer invalidate];return;}
                 AVPlayerItem *item = player.currentItem;
                 ticks++;
                 if (restarting) return;  // r7: the compat session is starting
@@ -476,7 +555,6 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 const char *m = kr_remux_message();
                 if (waiting >= 20 && m && *m) { showProblem(@(m)); [timer invalidate]; }
             }];
-            watchFailures(player.currentItem);
         }
         player.allowsExternalPlayback = YES;
         player.usesExternalPlaybackWhileExternalScreenIsActive = YES;
@@ -488,6 +566,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
         airplayController.entersFullScreenWhenPlaybackBegins = NO;
         // r4: inside a holder over Kodi rather than in place of it; r8: the holder follows the screen's orientation.
         KodiAirPlayHolder *holder = [[KodiAirPlayHolder alloc] init];
+        holder.generation=generation;holder.ticket=ticket;
         holder.modalPresentationStyle = UIModalPresentationOverFullScreen;
         [holder addChildViewController:airplayController];
         airplayController.view.frame = holder.view.bounds;
@@ -499,9 +578,26 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
         UIViewController *top = root;
         while (top.presentedViewController) top = top.presentedViewController;
         [top presentViewController:holder animated:YES completion:^{
+            if(generation!=atomic_load(&playGeneration))return;
+            routeWatch=[NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *timer) {
+                if(generation!=atomic_load(&playGeneration)){[timer invalidate];return;}
+                AVPlayerItem *item=player.currentItem;
+                if(item.status==AVPlayerItemStatusFailed || player.status==AVPlayerStatusFailed)playbackStateFor(generation,-1,0);
+                else if(atomic_load(&airplayState)>=0 && player.timeControlStatus==AVPlayerTimeControlStatusPlaying && player.rate>0) {
+                    BOOL resuming=!atomic_load(&playbackActive);
+                    if(playbackStateFor(generation,1,1) && resuming) {
+                        [AVAudioSession.sharedInstance setCategory:AVAudioSessionCategoryPlayback mode:AVAudioSessionModeMoviePlayback options:0 error:nil];
+                        [AVAudioSession.sharedInstance setActive:YES error:nil];
+                        keepUpdate();
+                    }
+                }
+                kr_remux_player(holder.ticket,tvRoute(player));
+            }];
+            kr_remux_player(ticket,tvRoute(player));
             [player play];
             AVRoutePickerView *sheet = [[AVRoutePickerView alloc] initWithFrame:CGRectMake(0, 0, 1, 1)];
             sheet.prioritizesVideoDevices = YES;
+            sheet.delegate=holder;
             [holder.view addSubview:sheet];
             openSheet(sheet);
         }];
@@ -512,31 +608,36 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
 // Kodi is in the background (playback audio session). Apple's player handles MP4/MOV/HLS; r5 converts MKV, AVI,
 // WebM and MPEG-TS on the phone first (and links whose bytes turn out not to be MP4).
 __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, const char *title) {
+    os_unfair_lock_lock(&ownershipLock);
     unsigned generation=atomic_fetch_add(&playGeneration,1)+1;
-    kr_remux_network_begin(1);
+    atomic_store(&playbackActive,0);
     NSString *link = url ? [NSString stringWithUTF8String:url] : nil;
     NSString *name = title ? [NSString stringWithUTF8String:title] : @"";
     atomic_store(&airplayState, 0); // before returning, so a caller polling kodi_airplay_state() never sees the last result
     setNote(nil);
     BOOL direct = !link || kr_remux_kind(url) == KR_DIRECT;
+    unsigned previous=atomic_load(&remuxTicket);
+    unsigned ticket=kr_remux_begin(direct ? 0 : 1);atomic_store(&remuxTicket,ticket);
     os_unfair_lock_lock(&noteLock);  // Python calls from its own thread; the player's timer reads it on the main thread
     free(remuxSource); remuxSource = direct ? NULL : strdup(url);
     os_unfair_lock_unlock(&noteLock);
-    if (direct) { kr_remux_network_begin(0); stopRemux(); presentPlayer(link, name, NO, generation); return; }
+    os_unfair_lock_unlock(&ownershipLock);
+    if (direct) { stopRemuxFor(previous); presentPlayer(link, name, NO, generation,ticket); return; }
     char *copy = strdup(url);
     dispatch_async(remuxQueue(), ^{
+        if(generation!=atomic_load(&playGeneration)){free(copy);return;}
         char playlist[512] = "";
-        int r = kr_remux_start(copy, 1, 0, playlist, sizeof playlist);
+        int r = kr_remux_start_for(ticket,copy, 1, 0, playlist, sizeof playlist);
         free(copy);
         if (generation != atomic_load(&playGeneration)) return;
-        if (r == KR_READY) { playerNote(@"stream ready (see server endpoint)"); presentPlayer(@(playlist), name, YES, generation); }
-        else if (r == KR_NOT_NEEDED) presentPlayer(link, name, NO, generation);
+        if (r == KR_READY) { playerNote(@"stream ready (see server endpoint)"); presentPlayer(@(playlist), name, YES, generation,ticket); }
+        else if (r == KR_NOT_NEEDED) presentPlayer(link, name, NO, generation,ticket);
         else {
             const char *m = kr_remux_message();
             NSString *why = m && *m ? @(m) : @"AirPlay could not convert this video.";
             setNote(why);
             NSLog(@"KodiAirPlay: %@", why);
-            atomic_store(&airplayState, -1);
+            playbackStateFor(generation,-1,0);
         }
     });
 }
@@ -582,6 +683,8 @@ __attribute__((visibility("default"))) int kodi_airplay_state(void) {
     return atomic_load(&airplayState);
 }
 
+__attribute__((visibility("default"))) int kodi_airplay_active(void) { return atomic_load(&playbackActive); }
+
 __attribute__((visibility("default"))) int kodi_airplay_network(char *buf, int len) {
     return kr_remux_network(buf,len);
 }
@@ -590,25 +693,31 @@ __attribute__((visibility("default"))) void kodi_airplay_settings(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
         NSURL *url=[NSURL URLWithString:UIApplicationOpenSettingsURLString];
         [UIApplication.sharedApplication openURL:url options:@{} completionHandler:^(BOOL opened) {
-            playerNote(@"app Settings %@",opened ? @"opened" : @"could not open");
+            NSLog(@"KodiAirPlay: app Settings %@",opened ? @"opened" : @"could not open");
         }];
     });
 }
 
 // r3: closes Apple's player (after it failed, so Kodi can carry on).
 __attribute__((visibility("default"))) void kodi_airplay_close(void) {
+    os_unfair_lock_lock(&ownershipLock);
     unsigned generation=atomic_fetch_add(&playGeneration,1)+1;
+    unsigned ticket=atomic_load(&remuxTicket);
+    atomic_store(&playbackActive,0);
+    atomic_store(&airplayState,0);
+    os_unfair_lock_unlock(&ownershipLock);
+    stopRemuxFor(ticket);
     dispatch_async(dispatch_get_main_queue(), ^{
         if (generation != atomic_load(&playGeneration)) return;
         [airplayWatch invalidate];
         airplayWatch = nil;
         [stallWatch invalidate]; stallWatch = nil;
-        stopRemux();
+        [routeWatch invalidate];routeWatch=nil;
+        clearPlaybackObservers();
         [airplayController.player pause];
         [airplayHolder dismissViewControllerAnimated:YES completion:nil];
         airplayHolder = nil;
         airplayController = nil;
-        atomic_store(&airplayState, 0);
     });
 }
 
@@ -638,6 +747,11 @@ static NSData *silence(void) {
 static void keepUpdate(void) {
     // Main thread only.
     AVAudioSession *session = AVAudioSession.sharedInstance;
+    if(atomic_load(&playbackActive)) {
+        // AVPlayer's playback/movie session owns AirPlay through lock/background. A download's silent-audio
+        // helper must never replace it with a mixable/default session or restore a previous category over it.
+        [keepPlayer stop];keepSaved=NO;atomic_store(&keepState,3);return;
+    }
     if(keepInterrupted){atomic_store(&keepState,-2);return;}
     const BOOL run = keepWanted && keepInBackground;
     if(!keepInBackground)atomic_store(&keepState,keepWanted?1:0);
@@ -685,6 +799,10 @@ __attribute__((visibility("default"))) void kodi_background_keep(int on) {
                 } else if ([note.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue] == AVAudioSessionInterruptionTypeEnded) {
                     keepInterrupted=NO;
                     [keepPlayer stop];
+                    if(atomic_load(&playbackActive) && ([note.userInfo[AVAudioSessionInterruptionOptionKey] unsignedIntegerValue]&AVAudioSessionInterruptionOptionShouldResume)) {
+                        [AVAudioSession.sharedInstance setActive:YES error:nil];
+                        [airplayController.player play];
+                    }
                     keepUpdate();
                 }
             }];
@@ -718,7 +836,7 @@ for c in "$REMUX"/src/*.c "$REMUX"/gmplayer/*.c; do
 done
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
 printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n' > "$WORK/exports"
-printf '_kodi_airplay_network\n_kodi_airplay_settings\n' >> "$WORK/exports"
+printf '_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n' >> "$WORK/exports"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
   -framework VideoToolbox -framework CoreVideo -framework CoreText \
@@ -746,10 +864,10 @@ cat > "$FW/Info.plist" <<PLIST
 <key>MinimumOSVersion</key><string>$MIN_IOS</string>
 </dict></plist>
 PLIST
-nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message|log|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume)|background_(keep|state))$'
+nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume)|background_(keep|state))$'
 # r14: prepare_streams is what tells the setup add-on it may stream from Drive instead of downloading first.
 # r15: prepare_keep_image_subs keeps Blu-ray picture subtitles in .sup files beside the MP4 (Interstellar, build 160).
-[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume)|background_(keep|state))$')" == 23 ]] || { echo 'missing exports' >&2; exit 1; }
+[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume)|background_(keep|state))$')" == 26 ]] || { echo 'missing exports' >&2; exit 1; }
 ! nm -gU "$FW/KodiAirPlay" | grep -E ' _(av|avformat|avcodec|swr|sws|kr|gm|ass|FT|hb|fribidi)_' || { echo 'FFmpeg symbols exported: they would clash with Kodi (libass too)' >&2; exit 1; }
 # r10: libass and the burn-in path are linked in (private).
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _(ass_render_frame|kr_subs_blend|kr_video_burn|kr_remux_set_subtitles|hb_shape|FT_Init_FreeType|fribidi_get_par_embedding_levels_ex)$')" == 7 ]] || { echo 'r10 libass burn-in missing' >&2; exit 1; }

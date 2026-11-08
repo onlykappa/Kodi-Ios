@@ -63,12 +63,13 @@ static int open_at(kr_source *s, int64_t offset) {
     return r;
 }
 
-kr_source *kr_source_open(const char *url, int timeout_s, char *err, int errlen) {
+kr_source *kr_source_open_interruptible(const char *url, int timeout_s, int (*interrupt)(void *), void *context, char *err, int errlen) {
     if (!url) return NULL;
     kr_source *s = calloc(1, sizeof *s);
     if (!s) return NULL;
     s->url = strdup(url);
     s->timeout_s = timeout_s > 0 ? timeout_s : 30;
+    s->extra_interrupt=interrupt;s->interrupt_context=context;
     if (!s->url) { free(s); return NULL; }
     atomic_store(&s->deadline_ns, io_clock() + (int64_t)s->timeout_s * 1000000000LL);
     int r = open_at(s, 0);
@@ -82,6 +83,10 @@ kr_source *kr_source_open(const char *url, int timeout_s, char *err, int errlen)
         return NULL;
     }
     return s;
+}
+
+kr_source *kr_source_open(const char *url, int timeout_s, char *err, int errlen) {
+    return kr_source_open_interruptible(url,timeout_s,NULL,NULL,err,errlen);
 }
 
 int64_t kr_source_size(kr_source *s) { return s && s->io ? avio_size(s->io) : -1; }

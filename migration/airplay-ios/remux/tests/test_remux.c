@@ -42,6 +42,7 @@ typedef struct { int status; char *body; size_t len; char head[1024]; } reply;
 
 static char prefix_path[96];
 static const char *test_ua = "test_remux/1";  // r8: the User-Agent of the requests (receivers are told apart by it)
+static double mono_ms(void);
 static reply http_get_raw(int port, const char *path, const char *range);
 static reply http_get(int port, const char *path, const char *range) {
     char full[512];
@@ -176,6 +177,51 @@ static void test_network_evidence(void) {
     kr_remux_network_begin(0);
     kr_remux_network(snapshot,sizeof snapshot);
     CHECK(strstr(snapshot,"\"expected\":0"),"direct playback has no local-server deadline");
+}
+
+typedef struct {unsigned ticket;char url[1200];char playlist[512];int result;} startup_job;
+static void *run_startup(void *opaque) {
+    startup_job *j=opaque;j->result=kr_remux_start_for(j->ticket,j->url,0,0,j->playlist,sizeof j->playlist);return NULL;
+}
+static void test_startup_cancel(const char *http_base) {
+    startup_job j={0};j.ticket=kr_remux_begin(0);
+    snprintf(j.url,sizeof j.url,"%s/open-stall/h264_aac_srt.mkv",http_base);
+    pthread_t worker;pthread_create(&worker,NULL,run_startup,&j);usleep(250000);
+    double at=mono_ms();kr_remux_cancel(j.ticket);pthread_join(worker,NULL);
+    CHECK(j.result==KR_FAILED && mono_ms()-at<3000,"cancel interrupts initial HTTP open instead of waiting for 8s headers (%.0f ms)",mono_ms()-at);
+    unsigned canceled=kr_remux_begin(0);kr_remux_cancel(canceled);
+    at=mono_ms();int result=kr_remux_start_for(canceled,j.url,0,0,j.playlist,sizeof j.playlist);
+    CHECK(result==KR_FAILED && !j.playlist[0] && mono_ms()-at<1000,"canceled queued job never opens a source");
+    unsigned fresh=kr_remux_begin(0);snprintf(j.url,sizeof j.url,"%s/h264_aac_srt.mkv",http_base);
+    CHECK(kr_remux_start_for(fresh,j.url,0,0,j.playlist,sizeof j.playlist)==KR_READY,"next attempt starts after cancellation");
+    int port=kr_remux_port();kr_remux_stop_for(j.ticket);kr_remux_cancel(j.ticket);
+    CHECK(kr_remux_state()==KR_READY && kr_remux_port()==port,"stale cancellation/cleanup never destroys the next attempt");
+    char snapshot[1024];kr_remux_network(snapshot,sizeof snapshot);
+    CHECK(strstr(snapshot,"\"phase\":\"ready\"") && strstr(snapshot,"\"connect_age_s\":-1"),"listening is not yet a TV connection: %s",snapshot);
+    kr_remux_player(fresh,0);kr_remux_network(snapshot,sizeof snapshot);
+    CHECK(strstr(snapshot,"\"phase\":\"waiting_tv\"") && strstr(snapshot,"\"connect_age_s\":-1"),"choosing the TV does not consume its connection deadline");
+    kr_remux_player(fresh,1);kr_remux_network(snapshot,sizeof snapshot);
+    CHECK(strstr(snapshot,"\"phase\":\"connecting\"") && !strstr(snapshot,"\"connect_age_s\":-1"),"connection clock starts at route selection");
+    kr_remux_stop();
+}
+
+static void test_prepared_indexed_open(const char *http_base,const char *work) {
+    char input[1200],output[1200],url[1400],error[512]="",playlist[512];
+    snprintf(input,sizeof input,"%s/long_big.mkv",fixture_dir);
+    snprintf(output,sizeof output,"%s/airplay-indexed.mp4",work);unlink(output);
+    int result=kodi_airplay_prepare(input,output,NULL,NULL,error,sizeof error);
+    CHECK(result==0,"large indexed AirPlay fixture prepares: %s",error);if(result)return;
+    int upstream=0;sscanf(http_base,"http://127.0.0.1:%d",&upstream);
+    reply reset=http_get_raw(upstream,"/__stats/reset",NULL);free(reset.body);
+    snprintf(url,sizeof url,"%s/indexed/out/airplay-indexed.mp4",http_base);
+    double at=mono_ms();result=kr_remux_start(url,0,0,playlist,sizeof playlist);
+    CHECK(result==KR_READY && strstr(playlist,"/prepared.mp4"),"prepared MP4 opens through indexed byte-range path: %s",kr_remux_message());
+    reply stats=http_get_raw(upstream,"/__stats",NULL);
+    int requests=999;long long bytes=0;
+    if(stats.body){char *p=strstr(stats.body,"\"requests\":");if(p)requests=atoi(p+11);p=strstr(stats.body,"\"bytes\":");if(p)bytes=atoll(p+8);}
+    CHECK(requests<=12 && bytes<12LL*1024*1024,"indexed open bounds remote requests/bytes (requests=%d bytes=%lld)",requests,bytes);
+    printf("  indexed prepared AirPlay open: %d remote requests, %lld bytes, %.0f ms\n",requests,bytes,mono_ms()-at);
+    free(stats.body);kr_remux_stop();unlink(output);
 }
 
 static void test_file(const char *url, const fixture *fx, const char *work) {
@@ -1796,7 +1842,7 @@ int main(int argc, char **argv) {
         return failures ? 1 : 0;
     }
     test_preparation(work);test_audio_languages(work);
-    if (argc > 2){test_preparation_http(argv[2], work);test_preparation_stream(work,argv[2]);test_hdr_preparation(work,argv[2]);test_preparation_resume(work,argv[2]);}
+    if (argc > 2){test_startup_cancel(argv[2]);test_prepared_indexed_open(argv[2],work);test_preparation_http(argv[2], work);test_preparation_stream(work,argv[2]);test_hdr_preparation(work,argv[2]);test_preparation_resume(work,argv[2]);}
     fixture fx[] = {
         { "h264_aac_srt.mkv", "avc1.42C0", "mp4a.40.2", 1, 1, 0, 0, "Hello from SRT" },
         { "hevc_ac3_ass.mkv", "hvc1.2.4.L", "ac-3", 1, 1, 1, 0, "Hello from ASS" },

@@ -25,6 +25,12 @@ enum { KR_IDLE = 0, KR_STARTING = 1, KR_READY = 2, KR_FAILED = -1, KR_NOT_NEEDED
 // are served as usual and the segment grid is the same, so a position carries over. A file whose video AirPlay cannot
 // carry at all (VP9, MPEG-2...) switches to compat by itself when the converter is available.
 int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen);
+// r35: reserve before queuing work; canceled queued attempts never open the source. Cancel is nonblocking.
+unsigned kr_remux_begin(int lan);
+int kr_remux_start_for(unsigned ticket, const char *url, int lan, int compat, char *out, int outlen);
+void kr_remux_cancel(unsigned ticket); // 0 cancels whichever request currently owns the session
+void kr_remux_stop_for(unsigned ticket); // cleanup cannot destroy a newer request
+void kr_remux_player(unsigned ticket, int route_selected);
 // r7: 1 when the running session converts the picture (compat), 0 otherwise.
 int kr_remux_compat(void);
 int kr_remux_state(void);

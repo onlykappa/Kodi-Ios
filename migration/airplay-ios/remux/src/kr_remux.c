@@ -60,6 +60,8 @@ static struct {
     pthread_mutex_t lock;     // session start/stop
     pthread_mutex_t gm_lock;  // gm_stream is single-threaded
     atomic_int state;
+    atomic_uint ticket;
+    atomic_llong startup_deadline_ms;
     char message[256];
     char url[4096];
     kr_source *src;
@@ -131,12 +133,17 @@ static struct {
     unsigned long written, read;  // line counters; written - read lines are waiting
     char agents[4][160];
 } L = { .lock = PTHREAD_MUTEX_INITIALIZER };
+static atomic_uint request_ticket;
+static pthread_mutex_t ticket_lock=PTHREAD_MUTEX_INITIALIZER;
+static void abort_sources(void);
 
 // r34: readable without draining the shared log or waiting for source I/O under S.lock.
 static struct {
     pthread_mutex_t lock;
-    double start_ms, listen_ms, first_tv_ms;
+    double start_ms, listen_ms, first_tv_ms, player_ms, connect_ms;
     int expected, port, tv_requests;
+    unsigned ticket;
+    const char *phase;
     char host[64];
 } N = { .lock = PTHREAD_MUTEX_INITIALIZER };
 
@@ -149,17 +156,62 @@ int kr_remux_network(char *buf, int len) {
     if (!buf || len <= 0) return 0;
     double now = now_ms();
     pthread_mutex_lock(&N.lock);
-    snprintf(buf, (size_t)len, "{\"expected\":%d,\"host\":\"%s\",\"port\":%d,\"start_age_s\":%.3f,\"listen_age_s\":%.3f,\"tv_requests\":%d,\"first_tv_s\":%.3f}",
+    snprintf(buf, (size_t)len, "{\"expected\":%d,\"host\":\"%s\",\"port\":%d,\"start_age_s\":%.3f,\"listen_age_s\":%.3f,\"tv_requests\":%d,\"first_tv_s\":%.3f,\"phase\":\"%s\",\"ticket\":%u,\"player_age_s\":%.3f,\"connect_age_s\":%.3f}",
              N.expected, N.host, N.port, N.start_ms ? (now-N.start_ms)/1000.0 : -1.0, N.listen_ms ? (now-N.listen_ms)/1000.0 : -1.0,
-             N.tv_requests, N.first_tv_ms ? (N.first_tv_ms-N.start_ms)/1000.0 : -1.0);
+             N.tv_requests, N.first_tv_ms ? (N.first_tv_ms-N.start_ms)/1000.0 : -1.0,N.phase ? N.phase : "idle",N.ticket,
+             N.player_ms ? (now-N.player_ms)/1000.0 : -1.0,N.connect_ms ? (now-N.connect_ms)/1000.0 : -1.0);
     pthread_mutex_unlock(&N.lock);
     return (int)strlen(buf);
 }
 
-void kr_remux_network_begin(int lan) {
+static void network_begin_for(int lan,unsigned ticket) {
     pthread_mutex_lock(&N.lock);
-    N.start_ms=now_ms();N.listen_ms=N.first_tv_ms=0;N.tv_requests=N.port=0;N.host[0]=0;N.expected=lan;
+    if(ticket==atomic_load(&request_ticket)) {
+        N.start_ms=now_ms();N.listen_ms=N.first_tv_ms=N.player_ms=N.connect_ms=0;N.tv_requests=N.port=0;
+        N.host[0]=0;N.expected=lan;N.ticket=ticket;N.phase="opening";
+    }
     pthread_mutex_unlock(&N.lock);
+}
+
+void kr_remux_network_begin(int lan) { network_begin_for(lan,atomic_load(&request_ticket)); }
+
+static void phase_for(unsigned ticket,const char *phase) {
+    pthread_mutex_lock(&N.lock);
+    if(N.ticket==ticket && ticket==atomic_load(&request_ticket)) N.phase=phase;
+    pthread_mutex_unlock(&N.lock);
+}
+
+void kr_remux_player(unsigned ticket,int route_selected) {
+    pthread_mutex_lock(&N.lock);
+    if(N.ticket==ticket && ticket==atomic_load(&request_ticket) &&
+       ((!N.expected && N.phase && !strcmp(N.phase,"opening")) ||
+        (N.phase && (!strcmp(N.phase,"ready") || !strcmp(N.phase,"waiting_tv") ||
+                     !strcmp(N.phase,"connecting") || !strcmp(N.phase,"playing"))))) {
+        if(!N.player_ms)N.player_ms=now_ms();
+        if(route_selected && !N.connect_ms)N.connect_ms=now_ms();
+        N.phase=N.tv_requests ? "playing" : N.connect_ms ? "connecting" : "waiting_tv";
+    }
+    pthread_mutex_unlock(&N.lock);
+}
+
+unsigned kr_remux_begin(int lan) {
+    pthread_mutex_lock(&ticket_lock);
+    unsigned ticket=atomic_fetch_add(&request_ticket,1)+1;
+    abort_sources();network_begin_for(lan,ticket);
+    pthread_mutex_unlock(&ticket_lock);
+    return ticket;
+}
+
+void kr_remux_cancel(unsigned ticket) {
+    pthread_mutex_lock(&ticket_lock);
+    unsigned current=atomic_load(&request_ticket);
+    if(!ticket || ticket==current) {
+        atomic_fetch_add(&request_ticket,1);abort_sources();
+        pthread_mutex_lock(&N.lock);
+        if(N.ticket==current){N.phase="canceled";N.expected=0;}
+        pthread_mutex_unlock(&N.lock);
+    }
+    pthread_mutex_unlock(&ticket_lock);
 }
 
 int kr_remux_external_peer(const char *peer, const char *host, const char *agent) {
@@ -306,6 +358,26 @@ static int track_route(int index) { return index >= 0 && index < MAX_TRACKS ? S.
 // r8: the connections and the converter that teardown aborts are published under src_lock (a leaf lock), so a stop
 // never misses one that a request or a background job is opening at that moment: it is aborted as it is published.
 static pthread_mutex_t src_lock = PTHREAD_MUTEX_INITIALIZER;
+static kr_source *prepared_source; // published separately: PC.lock can be held during an upstream read
+
+static void abort_sources(void) {
+    pthread_mutex_lock(&src_lock);
+    atomic_store(&S.stopping,1);
+    if(S.src)kr_source_abort(S.src);
+    if(S.asrc)kr_source_abort(S.asrc);
+    if(S.ssrc)kr_source_abort(S.ssrc);
+    if(S.vsrc)kr_source_abort(S.vsrc);
+    if(prepared_source)kr_source_abort(prepared_source);
+    for(int i=0;i<S.nbridges;i++)if(S.bridges[i].src)kr_source_abort(S.bridges[i].src);
+    if(S.video)kr_video_abort(S.video);
+    pthread_mutex_unlock(&src_lock);
+}
+
+static int source_interrupted(void *opaque) {
+    unsigned ticket=(unsigned)(uintptr_t)opaque;
+    long long deadline=atomic_load(&S.startup_deadline_ms);
+    return ticket!=atomic_load(&request_ticket) || atomic_load(&S.stopping) || (deadline && now_ms()>=deadline);
+}
 
 static void publish_source(kr_source **slot, kr_source *s) {
     pthread_mutex_lock(&src_lock);
@@ -318,7 +390,7 @@ static void publish_source(kr_source **slot, kr_source *s) {
 static kr_audio *bridge_audio(bridge *b, char *err, int errlen) {
     if (b->audio) return b->audio;
     if (atomic_load(&S.stopping)) { snprintf(err, (size_t)errlen, "stopping"); return NULL; }
-    kr_source *src = kr_source_open(S.url, 30, err, errlen);
+    kr_source *src = kr_source_open_interruptible(S.url,30,source_interrupted,(void *)(uintptr_t)atomic_load(&S.ticket),err,errlen);
     if (!src) return NULL;
     publish_source(&b->src, src);
     b->audio = kr_audio_open(kr_source_gm(src), b->index, err, errlen);
@@ -332,7 +404,7 @@ static int video_read_interrupted(void *opaque) { return kr_video_interrupted(op
 static kr_video *session_video(char *err, int errlen) {
     if (S.video) return S.video;
     if (atomic_load(&S.stopping)) { snprintf(err, (size_t)errlen, "stopping"); return NULL; }
-    kr_source *src = kr_source_open(S.url, 30, err, errlen);
+    kr_source *src = kr_source_open_interruptible(S.url,30,source_interrupted,(void *)(uintptr_t)atomic_load(&S.ticket),err,errlen);
     if (!src) return NULL;
     publish_source(&S.vsrc, src);
     kr_video *v = kr_video_open(kr_source_gm(src), S.vindex, err, errlen);
@@ -361,7 +433,7 @@ static kr_video *session_video(char *err, int errlen) {
 static gm_stream *audio_demuxer(void) {
     if (S.agm || S.agm_failed || atomic_load(&S.stopping)) return S.agm;
     char err[256] = "";
-    publish_source(&S.asrc, kr_source_open(S.url, 30, err, sizeof err));
+    publish_source(&S.asrc, kr_source_open_interruptible(S.url,30,source_interrupted,(void *)(uintptr_t)atomic_load(&S.ticket),err,sizeof err));
     if (S.asrc) S.agm = gm_stream_open(kr_source_gm(S.asrc), SEG_SECONDS, err, sizeof err);
     if (S.agm && gm_stream_adopt_plan(S.agm, S.gm) != 0) { gm_stream_close(S.agm); S.agm = NULL; snprintf(err, sizeof err, "different streams"); }
     if (S.agm && atomic_load(&S.stopping)) { gm_stream_close(S.agm); S.agm = NULL; }
@@ -379,7 +451,7 @@ static gm_stream *audio_demuxer(void) {
 static gm_stream *subs_demuxer(void) {
     if (S.sgm || S.sgm_failed || atomic_load(&S.stopping)) return S.sgm;
     char err[256] = "";
-    publish_source(&S.ssrc, kr_source_open(S.url, 8, err, sizeof err));
+    publish_source(&S.ssrc, kr_source_open_interruptible(S.url,8,source_interrupted,(void *)(uintptr_t)atomic_load(&S.ticket),err,sizeof err));
     if (S.ssrc) S.sgm = gm_stream_open(kr_source_gm(S.ssrc), SEG_SECONDS, err, sizeof err);
     if (S.sgm && gm_stream_adopt_plan(S.sgm, S.gm) != 0) { gm_stream_close(S.sgm); S.sgm = NULL; snprintf(err, sizeof err, "different streams"); }
     if (S.sgm && atomic_load(&S.stopping)) { gm_stream_close(S.sgm); S.sgm = NULL; }
@@ -773,7 +845,6 @@ static int phone_player(const char *ua) {
 }
 
 
-static int preparation_stopping(void *unused) { (void)unused;return atomic_load(&S.stopping); }
 // r29 (owner, build-181 log: AirPlay of a prepared movie failed with "Cannot Complete Action"): every range AVPlayer
 // asked for opened a new connection to the source (Kodi's Drive link), 1-6 s each, so it gave up after 17 s. A prepared
 // session now reads through one kept-open source and a small block cache: blocks of PC_BLOCK, PC_N kept (least recently
@@ -785,6 +856,7 @@ static struct {
 } PC = {PTHREAD_MUTEX_INITIALIZER};
 static void prepared_cache_clear(void) {
     pthread_mutex_lock(&PC.lock);
+    publish_source(&prepared_source,NULL);
     kr_source_close(PC.src);PC.src=NULL;
     for(int i=0;i<PC_N;i++){free(PC.data[i]);PC.data[i]=NULL;PC.at[i]=-1;PC.len[i]=0;PC.used[i]=0;}
     PC.clock=0;pthread_mutex_unlock(&PC.lock);
@@ -796,9 +868,9 @@ static int prepared_read(int64_t offset,uint8_t *buf,int want,char *error,int er
     for(int i=0;i<PC_N;i++)if(PC.data[i] && PC.at[i]==block){slot=i;break;}
     if(slot<0) {
         if(!PC.src) {
-            PC.src=kr_source_open(S.url,15,error,errlen);
+            PC.src=kr_source_open_interruptible(S.url,15,source_interrupted,(void *)(uintptr_t)atomic_load(&S.ticket),error,errlen);
             if(!PC.src)goto end;
-            kr_source_set_interrupt(PC.src,preparation_stopping,NULL);
+            publish_source(&prepared_source,PC.src);
         }
         slot=0;for(int i=1;i<PC_N;i++)if(!PC.data[i] || (PC.data[slot] && PC.used[i]<PC.used[slot]))slot=i;
         if(!PC.data[slot] && !(PC.data[slot]=malloc(PC_BLOCK)))goto end;
@@ -809,7 +881,7 @@ static int prepared_read(int64_t offset,uint8_t *buf,int want,char *error,int er
             if(got<=0)break;
             filled+=got;
         }
-        if(filled<=0){kr_source_close(PC.src);PC.src=NULL;goto end;}   // a fresh connection next time
+        if(filled<=0){publish_source(&prepared_source,NULL);kr_source_close(PC.src);PC.src=NULL;goto end;}
         PC.at[slot]=block;PC.len[slot]=filled;
     }
     PC.used[slot]=++PC.clock;
@@ -1010,9 +1082,11 @@ static void *connection(void *arg) {
         double t0 = now_ms();
         // Before serve(): a slow source must not make an arrived TV request look like a network failure.
         pthread_mutex_lock(&N.lock);
-        int tv=ok && N.expected && kr_remux_external_peer(peer_ip,N.host,agent);
+        int tv=ok && N.expected && N.ticket==atomic_load(&S.ticket) && N.ticket==atomic_load(&request_ticket) &&
+               kr_remux_external_peer(peer_ip,N.host,agent);
         if(tv) {
             N.tv_requests++;
+            N.phase="playing";
             if(!N.first_tv_ms) {
                 N.first_tv_ms=now_ms();
                 log_line("network: first TV request peer=%s after %.0f ms from start",peer_ip,N.first_tv_ms-N.start_ms);
@@ -1074,7 +1148,11 @@ static int listen_on(int lan, int *port) {
         if (bind(fd, (struct sockaddr *)&a, sizeof a) == 0 && listen(fd, 32) == 0 &&
             getsockname(fd, (struct sockaddr *)&a, &len) == 0) {
             *port = ntohs(a.sin_port);
-            pthread_mutex_lock(&N.lock);N.port=*port;N.listen_ms=now_ms();pthread_mutex_unlock(&N.lock);
+            pthread_mutex_lock(&N.lock);
+            if(N.ticket==atomic_load(&S.ticket) && N.ticket==atomic_load(&request_ticket)) {
+                N.port=*port;N.listen_ms=now_ms();
+            }
+            pthread_mutex_unlock(&N.lock);
             log_line("server: listening bind=%s port=%d result=ok",lan ? "0.0.0.0" : "127.0.0.1",*port);
             return fd;
         }
@@ -1085,16 +1163,7 @@ static int listen_on(int lan, int *port) {
 }
 
 static void teardown_locked(void) {
-    pthread_mutex_lock(&src_lock);  // r8: what is being opened right now is aborted when it is published
-    atomic_store(&S.stopping, 1);
-    if (S.src) kr_source_abort(S.src);
-    if (S.asrc) kr_source_abort(S.asrc);
-    if (S.ssrc) kr_source_abort(S.ssrc);
-    for (int i = 0; i < S.nbridges; i++) if (S.bridges[i].src) kr_source_abort(S.bridges[i].src);
-    // r7: a conversion in progress stops at its next packet (no transcoding once the server stops).
-    if (S.video) kr_video_abort(S.video);
-    if (S.vsrc) kr_source_abort(S.vsrc);
-    pthread_mutex_unlock(&src_lock);
+    abort_sources();
     if (S.listen_fd >= 0) {
         shutdown(S.listen_fd, SHUT_RDWR); close(S.listen_fd); S.listen_fd = -1;
         pthread_join(S.accept_thread, NULL);
@@ -1120,7 +1189,7 @@ static void teardown_locked(void) {
     pthread_mutex_unlock(&S.sgm_lock);
     pthread_mutex_lock(&S.gm_lock);
     if (S.gm) { gm_stream_close(S.gm); S.gm = NULL; }
-    if (S.src) { kr_source_close(S.src); S.src = NULL; }
+    kr_source *source=S.src;publish_source(&S.src,NULL);kr_source_close(source);
     pthread_mutex_unlock(&S.gm_lock);
     for (int i = 0; i < S.nbridges; i++) {
         pthread_mutex_lock(&S.bridges[i].lock);
@@ -1131,7 +1200,7 @@ static void teardown_locked(void) {
         pthread_mutex_unlock(&S.bridges[i].lock);
         pthread_mutex_destroy(&S.bridges[i].lock);
     }
-    S.nbridges = 0; S.port = 0;
+    pthread_mutex_lock(&src_lock);S.nbridges = 0;pthread_mutex_unlock(&src_lock);S.port = 0;
     pthread_mutex_lock(&S.vlock);  // a request still converting has finished or given up (abort above)
     pthread_mutex_lock(&src_lock);
     kr_video *video = S.video; kr_source *vsrc = S.vsrc;
@@ -1149,13 +1218,17 @@ static void teardown_locked(void) {
     cache_clear();
 }
 
-void kr_remux_stop(void) {
+void kr_remux_stop_for(unsigned ticket) {
     pthread_mutex_lock(&S.lock);
-    teardown_locked();
-    atomic_store(&S.state, KR_IDLE);
-    set_message("");
+    if(!ticket || ticket==atomic_load(&S.ticket)) {
+        teardown_locked();
+        atomic_store(&S.state, KR_IDLE);
+        set_message("");
+    }
     pthread_mutex_unlock(&S.lock);
 }
+
+void kr_remux_stop(void) { kr_remux_cancel(0);kr_remux_stop_for(0); }
 
 static int needs_video_conversion(const AVCodecParameters *cp) {
     if (cp->codec_id != AV_CODEC_ID_H264 && cp->codec_id != AV_CODEC_ID_HEVC) return 0;
@@ -1166,11 +1239,16 @@ static int needs_video_conversion(const AVCodecParameters *cp) {
     return cp->codec_id == AV_CODEC_ID_HEVC && cp->profile > AV_PROFILE_HEVC_MAIN_STILL_PICTURE;
 }
 
-int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) {
+int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, char *out, int outlen) {
+    if(out && outlen>0)*out=0;
     pthread_mutex_lock(&S.lock);
+    if(ticket!=atomic_load(&request_ticket)){pthread_mutex_unlock(&S.lock);return KR_FAILED;}
     teardown_locked();
-    kr_remux_network_begin(lan);
+    if(ticket!=atomic_load(&request_ticket)){pthread_mutex_unlock(&S.lock);return KR_FAILED;}
+    atomic_store(&S.ticket,ticket);
+    network_begin_for(lan,ticket);
     atomic_store(&S.stopping, 0);
+    atomic_store(&S.startup_deadline_ms,(long long)(now_ms()+45000));
     atomic_store(&S.served_video, 0); atomic_store(&S.served_audio, 0); S.vcodec[0] = 0;
     atomic_store(&S.compat_clients, 0); atomic_store(&S.prefetched, 0);
     atomic_store(&S.served_ext_video, 0); atomic_store(&S.served_ext_audio, 0);
@@ -1182,7 +1260,9 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
     snprintf(S.url, sizeof S.url, "%s", url ? url : "");
     pthread_mutex_lock(&L.lock); memset(L.agents, 0, sizeof L.agents); pthread_mutex_unlock(&L.lock);
     log_line("start: %.*s", (int)(strcspn(S.url, "?") < 200 ? strcspn(S.url, "?") : 200), S.url);  // no query (tokens)
-    S.src = kr_source_open(S.url, 30, err, sizeof err);
+    double source_at=now_ms();
+    publish_source(&S.src,kr_source_open_interruptible(S.url,30,source_interrupted,(void *)(uintptr_t)ticket,err,sizeof err));
+    log_line("startup: source opened after %.0f ms (attempt %u)",now_ms()-source_at,ticket);
     if (!S.src) { char m[300]; snprintf(m, sizeof m, "AirPlay: %s.", err); set_message(m); goto done; }
     {   // Adaptive playlists remain native. File containers, including MP4/MOV, must reach codec/receiver routing.
         uint8_t pad[4096] = {0};
@@ -1190,7 +1270,11 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
         int bom = n >= 3 && pad[0] == 0xef && pad[1] == 0xbb && pad[2] == 0xbf ? 3 : 0;
         if (n >= bom + 7 && !memcmp(pad + bom, "#EXTM3U", 7)) { result = KR_NOT_NEEDED; goto done; }
     }
+    phase_for(ticket,"inspecting");
+    double inspect_at=now_ms();
     S.gm = gm_stream_open(kr_source_gm(S.src), SEG_SECONDS, err, sizeof err);
+    log_line("startup: indexed inspection finished after %.0f ms (attempt %u)",now_ms()-inspect_at,ticket);
+    if(source_interrupted((void *)(uintptr_t)ticket))goto done;
     if (!S.gm) {
         char m[300];
         snprintf(m, sizeof m, "AirPlay cannot play this file: %s.", *err ? err : "the video is not H.264 or HEVC");
@@ -1209,7 +1293,9 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
         if(S.listen_fd<0){set_message("AirPlay file server could not start.");goto done;}
         random_token(S.token,sizeof S.token);
         snprintf(S.base,sizeof S.base,"http://%s:%d/%s",host,S.port,S.token);
-        pthread_mutex_lock(&N.lock);snprintf(N.host,sizeof N.host,"%s",host);pthread_mutex_unlock(&N.lock);
+        pthread_mutex_lock(&N.lock);
+        if(N.ticket==ticket && ticket==atomic_load(&request_ticket))snprintf(N.host,sizeof N.host,"%s",host);
+        pthread_mutex_unlock(&N.lock);
         log_line("server: endpoint=%s:%d/[token]/prepared.mp4",host,S.port);
         kr_hls_video_codec(S.gm,S.vcodec,sizeof S.vcodec);
         if(pthread_create(&S.accept_thread,NULL,accept_loop,NULL)){close(S.listen_fd);S.listen_fd=-1;goto done;}
@@ -1236,8 +1322,10 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
         if (route) playable_audio++;
         if (t.src_index >= 0 && t.src_index < MAX_TRACKS) S.routes[t.src_index] = route;
         if (route == KR_AUDIO_AAC && t.src_index < MAX_TRACKS) {
+            pthread_mutex_lock(&src_lock);
             bridge *b = &S.bridges[S.nbridges++];
             memset(b, 0, sizeof *b); b->index = t.src_index; pthread_mutex_init(&b->lock, NULL);
+            pthread_mutex_unlock(&src_lock);
         }
     }
     // r7: compat mode converts the picture. Asked for (the TV played sound only), or needed: the file's video is not
@@ -1298,7 +1386,9 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
     if (S.listen_fd < 0) { set_message("AirPlay: could not start the local streaming server."); goto done; }
     random_token(S.token, sizeof S.token);
     snprintf(S.base, sizeof S.base, "http://%s:%d/%s", host, S.port, S.token);
-    pthread_mutex_lock(&N.lock);snprintf(N.host,sizeof N.host,"%s",host);pthread_mutex_unlock(&N.lock);
+    pthread_mutex_lock(&N.lock);
+    if(N.ticket==ticket && ticket==atomic_load(&request_ticket))snprintf(N.host,sizeof N.host,"%s",host);
+    pthread_mutex_unlock(&N.lock);
     log_line("server: endpoint=%s:%d/[token]/master.m3u8",host,S.port);
     if (pthread_create(&S.accept_thread, NULL, accept_loop, NULL) != 0) {
         close(S.listen_fd); S.listen_fd = -1;
@@ -1335,10 +1425,21 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
     }
     result = KR_READY;
 done:
-    if(result!=KR_READY) { pthread_mutex_lock(&N.lock);N.expected=0;pthread_mutex_unlock(&N.lock); }
+    if(source_interrupted((void *)(uintptr_t)ticket)) {
+        result=KR_FAILED;
+        set_message(ticket!=atomic_load(&request_ticket) ? "AirPlay canceled." : "The video took too long to open for AirPlay. Try again.");
+    }
+    atomic_store(&S.startup_deadline_ms,0);
+    if(result==KR_READY || result==KR_NOT_NEEDED)phase_for(ticket,"ready");
+    else if(ticket==atomic_load(&request_ticket))phase_for(ticket,"failed");
+    if(result!=KR_READY) { pthread_mutex_lock(&N.lock);if(N.ticket==ticket)N.expected=0;pthread_mutex_unlock(&N.lock); }
     if (result != KR_READY) { log_line("start result %d: %s", result, S.message); teardown_locked(); }
     atomic_store(&S.state, result);
     pthread_mutex_unlock(&S.lock);
     return result;
+}
+
+int kr_remux_start(const char *url,int lan,int compat,char *out,int outlen) {
+    return kr_remux_start_for(kr_remux_begin(lan),url,lan,compat,out,outlen);
 }
 void kr_remux_set_prefetch(int on) { atomic_store(&pf_on, on != 0); }

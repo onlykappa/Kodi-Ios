@@ -72,7 +72,7 @@ class KodiStaysPaused(unittest.TestCase):
   # Owner build-136 log: player.stop() right after "playing" rotated the app and the TV dropped the session.
   source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
   body=source[source.index('def send_airplay('):source.index('def send(xbmc')]
-  playing=body[body.index("if outcome=='playing':"):body.index("lib.kodi_airplay_close();airplay.clear_busy(home)")]
+  playing=body[body.rindex("if outcome=='playing':"):body.rindex("lib.kodi_airplay_close();airplay.clear_busy(home)")]
   self.assertNotIn('player.stop()',playing);self.assertIn('player.pause()',playing)
 
 class RokuFallsBackToAirPlay(unittest.TestCase):
@@ -98,10 +98,32 @@ class Framework(unittest.TestCase):
   self.assertIn('airplay.message(lib)',source)
  def test_framework_exports_and_stops_the_server(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
-  for needle in ('kodi_airplay_message','kr_remux_start(copy, 1,','kr_remux_kind(url) == KR_DIRECT','stopRemux();','exported_symbols_list',
+  for needle in ('kodi_airplay_message','kr_remux_start_for(ticket,copy, 1,','kr_remux_kind(url) == KR_DIRECT','retirePlaybackFor(self.generation)','exported_symbols_list',
                  'FFmpeg symbols exported','showProblem(','THIRD-PARTY-NOTICES'):
    self.assertIn(needle,build)
-  self.assertGreaterEqual(build.count('stopRemux();'),3)  # new direct play, Apple's player dismissed, kodi_airplay_close
+  self.assertGreaterEqual(build.count('stopRemuxFor('),4)  # wrapper, new direct play and explicit close
+  stop=build[build.index('static void stopRemuxFor('):build.index('static BOOL tvRoute(')]
+  self.assertLess(stop.index('kr_remux_cancel(ticket)'),stop.index('dispatch_async(remuxQueue()'))
+
+ def test_native_ownership_and_screen_lock_lifetime(self):
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  restart=build[build.index('BOOL (^restartCompat)'):build.index('return YES;',build.index('BOOL (^restartCompat)'))]
+  self.assertLess(restart.index('kr_remux_begin(1)'),restart.index('dispatch_async(remuxQueue()'))
+  self.assertIn('os_unfair_lock_lock(&ownershipLock)',restart)
+  presentation=build[build.index('[top presentViewController:holder animated:YES completion:'):]
+  self.assertIn('routeWatch=[NSTimer',presentation)
+  self.assertIn('kr_remux_player(holder.ticket',presentation)
+  self.assertIn('atomic_load(&airplayState)>=0 && player.timeControlStatus',presentation)
+  observer=build[build.index('static void watchPlayback('):build.index('static void presentPlayer(')]
+  for needle in ('AVPlayerItemDidPlayToEndTimeNotification','AVPlayerItemFailedToPlayToEndTimeNotification',
+                 '__weak AVPlayer','current.currentItem!=note.object','playbackStateFor(generation,0,0)',
+                 'playbackStateFor(generation,-1,0)'):
+   self.assertIn(needle,observer)
+  self.assertIn('AVPlayerAudiovisualBackgroundPlaybackPolicyContinuesIfPossible',build)
+  keep=build[build.index('static void keepUpdate(void) {'):]
+  owned=keep[:keep.index('const BOOL run')]
+  self.assertIn('atomic_load(&playbackActive)',owned)
+  self.assertIn('[keepPlayer stop]',owned)
 
 class AirPlayLog(unittest.TestCase):
  def test_old_framework_has_no_log(self):
@@ -134,7 +156,7 @@ class AirPlayLog(unittest.TestCase):
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
-  for needle in ('kr_remux_start(copy, 1, 0,','kr_remux_start(source, 1, 1,','compatTried','Converting the picture for this TV',
+  for needle in ('kr_remux_start_for(ticket,copy, 1, 0,','kr_remux_start_for(restartTicket,source, 1, 1,','compatTried','Converting the picture for this TV',
                  'replaceCurrentItemWithPlayerItem','seekToTime:','showNoPicture(hevc)','kr_remux_compat()',
                  '-framework VideoToolbox','-framework CoreVideo','libswscale.a','h264_videotoolbox'):
    self.assertIn(needle,build)
@@ -182,7 +204,7 @@ class PerReceiver(unittest.TestCase):
    self.assertIn(needle,build)
   self.assertNotIn('holder.mask',build)
   self.assertIn('r8:',build.split('set -euo pipefail')[0])
-  self.assertEqual(build.count('kr_remux_start(source, 1, 1,'),1)  # one restart path for both triggers
+  self.assertEqual(build.count('kr_remux_start_for(restartTicket,source, 1, 1,'),1)  # one guarded restart path
 
 
 class R9Speed(unittest.TestCase):

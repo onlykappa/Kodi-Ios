@@ -30,7 +30,7 @@ class Busy(unittest.TestCase):
 class Wiring(unittest.TestCase):
  def test_service_holds_and_cast_marks(self):
   svc=(BOOT/'service.py').read_text();send=(BOOT/'cast.py').read_text()
-  self.assertIn('airplay_busy=lambda:airplay.busy(xbmcgui.Window(10000),time.time())',svc)
+  self.assertIn('airplay_busy=lambda:airplay.playback_active(playback_lib,xbmcgui.Window(10000),time.time())',svc)
   # Build 193: AirPlay no longer holds anything; it slows the work (slowdown.py). Only the owner's Pause holds.
   self.assertIn("keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up'),on_done=done",svc)
   self.assertIn("uploading=lambda:idle() and not transfer_control.paused(profile,'up')   #",svc)
@@ -38,9 +38,9 @@ class Wiring(unittest.TestCase):
   self.assertNotIn("or airplay_busy())",svc)
   self.assertIn('airplay.activity(lines,xbmcgui.Window(10000),time.time())',svc)
   self.assertIn('airplay.mark_busy(home,time.time())',send);self.assertIn('lib.kodi_airplay_close();airplay.clear_busy(home)',send)
-  self.assertIn("if cast.retry_airplay(outcome,why) and not (net and net.get('expected') and not net.get('tv_requests')):",send)
+  self.assertNotIn('cast.retry_airplay(outcome,why)',send)  # an old attempt must not silently start another session
   # Build 188: Kodi stays awake while AirPlay plays (the TV reads from Kodi's server), before the music exception ends
-  self.assertIn("if airplay.busy(xbmcgui.Window(10000),time.time()):return 'AirPlay'",svc)
+  self.assertIn("if airplay.playback_active(lib,xbmcgui.Window(10000),time.time()):return 'AirPlay'",svc)
   self.assertLess(send.index('airplay.mark_busy(home,time.time())'),send.index('lib.kodi_airplay_play(source'))
   self.assertLess(send.index('lib.kodi_airplay_play(source'),send.index('cast.airplay_outcome('))
 

@@ -54,13 +54,14 @@ class BundleTests(unittest.TestCase):
  def tearDown(self):self.tmp.cleanup()
  def test_airplay_local_network_purpose_is_in_the_staged_app_only(self):
   import plistlib
-  original={'CFBundleIdentifier':'org.fixture.kodi','NSBonjourServices':['_fixture._tcp']}
+  original={'CFBundleIdentifier':'org.fixture.kodi','NSBonjourServices':['_fixture._tcp'],'UIBackgroundModes':['fetch']}
   (self.app/'Info.plist').write_bytes(plistlib.dumps(original))
   app,_=prepare(self.app,self.bundle,self.sha,self.root/'work')
   info=plistlib.loads((app/'Info.plist').read_bytes())
   self.assertEqual(info['NSLocalNetworkUsageDescription'],'Kodi streams the video from this iPhone to your TV over Wi-Fi.')
   self.assertEqual(info['CFBundleIdentifier'],original['CFBundleIdentifier'])
   self.assertEqual(info['NSBonjourServices'],original['NSBonjourServices'])
+  self.assertEqual(info['UIBackgroundModes'],['fetch','audio'])
   self.assertEqual(plistlib.loads((self.app/'Info.plist').read_bytes()),original)
  def test_drive_requests_get_timeout_and_certifi_context(self):
   base=self.root/'addons'/DRIVE_COMMON

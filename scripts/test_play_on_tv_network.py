@@ -20,36 +20,46 @@ class Window:
  def clearProperty(self,key):self.props.pop(key,None)
 
 class ConnectionTests(unittest.TestCase):
- def exercise(self,profile,received=None,cancel=None,legacy=False,failed=False):
-  window=Window();clock=[1000.0];paused=[False];closed=[];messages=[];logs=[];notes=[];plays=[]
+ def exercise(self,profile,received=None,cancel=None,legacy=False,failed=False,startup=0,choosing=0,raise_log=False,error_message=''):
+  window=Window();clock=[1000.0];paused=[False];closed=[];messages=[];logs=[];notes=[];plays=[];progress_words=[]
   def wait(seconds):clock[0]+=seconds;return False
-  progress=types.SimpleNamespace(create=lambda *a:None,update=lambda *a:None,close=lambda:closed.append('progress'),
+  progress=types.SimpleNamespace(create=lambda *a:progress_words.append(a[-1]),update=lambda *a:progress_words.append(a[-1]) if len(a)>1 else None,close=lambda:closed.append('progress'),
                                  iscanceled=lambda:cancel is not None and clock[0]-1000>=cancel)
   player=types.SimpleNamespace(pause=lambda:paused.__setitem__(0,not paused[0]))
   xbmc=types.SimpleNamespace(LOGINFO=1,log=lambda m,*a:logs.append(m),getCondVisibility=lambda c:paused[0],Monitor=lambda:types.SimpleNamespace(waitForAbort=wait))
   gui=types.SimpleNamespace(Window=lambda n:window,DialogProgress=lambda:progress)
   vfs=types.SimpleNamespace(translatePath=lambda p:profile)
   def native_log(buffer,size):
+   if raise_log:raise RuntimeError('fixture log failure')
    lines=[]
    if not plays:return 0
-   if not getattr(native_log,'prepared',False):lines.append('prepared: source-resolution MP4 byte ranges');native_log.prepared=True
+   if clock[0]-1000>=startup and not getattr(native_log,'prepared',False):lines.append('prepared: source-resolution MP4 byte ranges');native_log.prepared=True
    if received is not None and clock[0]-1000>=received and not getattr(native_log,'tv',False):
     lines.append('client: AirPlay/1 (Apple TV; fixture)');native_log.tv=True
    if failed and clock[0]-1000>=2:lines.append('player: could not open the stream: Code=-1004 "Could not connect to the server"')
    buffer.value='\n'.join(lines).encode();return len(buffer.value)
   def network(buffer,size):
-   buffer.value=json.dumps({'expected':True,'host':'192.0.2.10','port':12345,'listen_age_s':clock[0]-1000,
-                            'tv_requests':int(received is not None and clock[0]-1000>=received)}).encode();return len(buffer.value)
+   elapsed=clock[0]-1000;ready=elapsed>=startup;selected=elapsed>=startup+choosing
+   reached=received is not None and elapsed>=received
+   phase='opening' if not ready else 'waiting_tv' if not selected else 'playing' if reached else 'connecting'
+   buffer.value=json.dumps({'expected':True,'phase':phase,'host':'192.0.2.10' if ready else '', 'port':12345 if ready else 0,
+                            'start_age_s':elapsed,'listen_age_s':elapsed-startup if ready else -1,
+                            'player_age_s':elapsed-startup if ready else -1,'connect_age_s':elapsed-startup-choosing if selected else -1,
+                            'tv_requests':int(reached)}).encode();return len(buffer.value)
+  def message(buffer,size):buffer.value=error_message.encode();return len(buffer.value)
   lib=types.SimpleNamespace(kodi_airplay_play=lambda *a:plays.append(a),kodi_airplay_close=lambda:closed.append('native'),
-                            kodi_airplay_state=lambda:-1 if failed and clock[0]-1000>=2 else 1,
-                            kodi_airplay_message=lambda b,n:0,kodi_airplay_log=native_log)
+                            kodi_airplay_state=lambda:-1 if failed and clock[0]-1000>=2 else int(clock[0]-1000>=startup),
+                            kodi_airplay_message=message,kodi_airplay_log=native_log)
   if not legacy:lib.kodi_airplay_network=network
   dialog=types.SimpleNamespace(ok=lambda *a:messages.append(a))
   with patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':gui,'xbmcvfs':vfs}),patch.object(airplay,'load',return_value=lib),\
        patch.object(airplay,'send_subtitles',return_value=None),patch.object(controller.notices,'note',side_effect=lambda *a:notes.append(a)),\
        patch.object(airplay.time,'time',side_effect=lambda:clock[0]):
-   controller.send_airplay(xbmc,dialog,player,'fixture','http://192.0.2.10/file.mp4','Fixture','http://127.0.0.1/file.mp4')
-  return types.SimpleNamespace(elapsed=clock[0]-1000,window=window,paused=paused[0],closed=closed,messages=messages,logs=logs,notes=notes,plays=plays)
+   if raise_log:
+    with self.assertRaisesRegex(RuntimeError,'fixture log failure'):
+     controller.send_airplay(xbmc,dialog,player,'fixture','http://192.0.2.10/file.mp4','Fixture','http://127.0.0.1/file.mp4')
+   else:controller.send_airplay(xbmc,dialog,player,'fixture','http://192.0.2.10/file.mp4','Fixture','http://127.0.0.1/file.mp4')
+  return types.SimpleNamespace(elapsed=clock[0]-1000,window=window,paused=paused[0],closed=closed,messages=messages,logs=logs,notes=notes,plays=plays,progress_words=progress_words)
 
  def test_no_tv_request_stops_at_15_seconds_even_if_the_phone_is_ready(self):
   with tempfile.TemporaryDirectory() as profile:
@@ -96,21 +106,71 @@ class ConnectionTests(unittest.TestCase):
    self.assertEqual(out.messages[-1][1],ws.NEEDS_TEXT['airplay_network']['text'])
    ws.need('airplay_network',False,profile)
 
- def test_start_deadline_does_not_wait_for_source_probing_or_a_listen_log(self):
+ def test_start_deadline_reports_startup_instead_of_unreachable(self):
   elapsed=[0.0]
   def wait(seconds):elapsed[0]+=seconds;return False
   outcome=cast.airplay_outcome(lambda:0,wait,60,network=lambda:{'expected':True,'start_age_s':elapsed[0],'listen_age_s':-1,'tv_requests':0})
-  self.assertEqual((outcome,elapsed[0]),('unreachable',15))
+  self.assertEqual((outcome,elapsed[0]),('startup_timeout',60))
   window=Window();window.setProperty(airplay.STARTED,'1000')
   def snapshot(buffer,size):buffer.value=b'{"expected":1,"start_age_s":0,"tv_requests":0}';return len(buffer.value)
   net=airplay.network(types.SimpleNamespace(kodi_airplay_network=snapshot),window,1015)
   self.assertEqual(net['start_age_s'],15)  # a queued/restarted native probe cannot reset the caller's deadline
+
+ def test_build196_slow_source_is_never_described_as_a_lan_permission_failure(self):
+  with tempfile.TemporaryDirectory() as profile:
+   out=self.exercise(profile,startup=129)
+   self.assertEqual(out.elapsed,60);self.assertEqual(len(out.plays),1)
+   self.assertEqual(out.messages[-1][1],'The video took too long to open for AirPlay. Try again.')
+   self.assertFalse(ws.flags(profile)['needs']);self.assertFalse(out.paused)
+   self.assertIn('native',out.closed)
+
+ def test_file_opening_and_tv_selection_do_not_spend_the_connection_deadline(self):
+  with tempfile.TemporaryDirectory() as profile:
+   out=self.exercise(profile,startup=40,choosing=35,received=82)
+   self.assertEqual(out.elapsed,82);self.assertNotIn('native',out.closed);self.assertTrue(out.paused)
+   self.assertEqual(out.progress_words[:3],[cast.AIRPLAY_WORDS['opening'],cast.AIRPLAY_WORDS['opening'],cast.AIRPLAY_WORDS['waiting_tv']])
+   self.assertIn(cast.AIRPLAY_WORDS['connecting'],out.progress_words)
+   self.assertFalse(out.messages);self.assertFalse(ws.flags(profile)['needs'])
+
+ def test_no_request_after_actual_selection_gets_15_seconds_of_connection_time(self):
+  with tempfile.TemporaryDirectory() as profile:
+   out=self.exercise(profile,startup=20,choosing=35)
+   self.assertEqual(out.elapsed,70)
+   self.assertEqual(out.messages[-1][1],ws.NEEDS_TEXT['airplay_network']['text'])
+   ws.need('airplay_network',False,profile)
+
+ def test_no_tv_selected_gets_its_own_bounded_quiet_recovery(self):
+  with tempfile.TemporaryDirectory() as profile:
+   out=self.exercise(profile,startup=5,choosing=200)
+   self.assertEqual(out.elapsed,125)
+   self.assertIn('No TV was selected',out.messages[-1][1])
+   self.assertFalse(ws.flags(profile)['needs']);self.assertFalse(out.paused)
+
+ def test_source_connection_error_before_listener_is_not_a_tv_connection_error(self):
+  with tempfile.TemporaryDirectory() as profile:
+   out=self.exercise(profile,startup=40,failed=True,error_message='The video source timed out.')
+   self.assertEqual(out.elapsed,2);self.assertEqual(len(out.plays),1)
+   self.assertNotIn('Local Network',out.messages[-1][1]);self.assertFalse(ws.flags(profile)['needs'])
+
+ def test_controller_errors_also_close_native_and_resume_kodi(self):
+  with tempfile.TemporaryDirectory() as profile:
+   out=self.exercise(profile,raise_log=True)
+   self.assertEqual(out.closed,['native','progress']);self.assertFalse(out.paused)
 
  def test_direct_hls_uses_the_player_without_a_local_server_deadline(self):
   self.assertEqual(cast.airplay_outcome(lambda:1,lambda s:False,network=lambda:{'expected':False}),'playing')
   window=Window();window.setProperty(airplay.STARTED,'1000')
   airplay.activity(['start result 3:'],window,1001)
   self.assertFalse(airplay.network(object(),window,1002)['expected'])
+
+ def test_modern_hls_keeps_the_guard_while_the_owner_chooses_a_tv(self):
+  elapsed=[0.0]
+  def wait(seconds):elapsed[0]+=seconds;return False
+  def network():
+   return {'expected':False,'phase':'waiting_tv' if elapsed[0]<35 else 'playing',
+           'player_age_s':elapsed[0],'connect_age_s':-1 if elapsed[0]<35 else elapsed[0]-35}
+  self.assertEqual(cast.airplay_outcome(lambda:1,wait,25,network=network),'playing')
+  self.assertEqual(elapsed[0],35)
 
 class LockTests(unittest.TestCase):
  def test_lock_is_shared_by_processes_and_does_not_expire_during_a_slow_picker(self):
@@ -142,6 +202,51 @@ class LockTests(unittest.TestCase):
    with self.assertRaises(RuntimeError):
     with cast.session_lock(profile):raise RuntimeError('fixture')
    with cast.session_lock(profile) as owned:self.assertTrue(owned)
+
+class PlaybackLifetimeTests(unittest.TestCase):
+ def test_native_playback_ownership_survives_expired_log_lease(self):
+  window=Window();window.setProperty(airplay.BUSY,'1000')
+  lib=types.SimpleNamespace(kodi_airplay_active=lambda:1)
+  self.assertTrue(airplay.playback_active(lib,window,100000))
+  window.setProperty(airplay.BUSY,'100000')
+  lib.kodi_airplay_active=lambda:0
+  self.assertFalse(airplay.playback_active(lib,window,100001))  # stopped playback beats a fresh old log
+  self.assertTrue(airplay.playback_active(object(),window,100001))
+  self.assertFalse(airplay.playback_active(object(),window,100100))
+
+ def test_service_keeps_airplay_alive_with_downloads_disabled_and_screen_locked(self):
+  import ast
+  tree=ast.parse((BOOT/'service.py').read_text())
+  why=next(n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='why')
+  active=[1];window=Window();window.setProperty(airplay.BUSY,'1000')
+  lib=types.SimpleNamespace(kodi_airplay_active=lambda:active[0])
+  env={'airplay':airplay,'lib':lib,'time':types.SimpleNamespace(time=lambda:100000),
+       'xbmcgui':types.SimpleNamespace(Window=lambda n:window),
+       'xbmcaddon':types.SimpleNamespace(Addon=lambda:types.SimpleNamespace(getSettingBool=lambda k:False)),
+       'xbmc':types.SimpleNamespace(Player=lambda:types.SimpleNamespace(isPlayingAudio=lambda:True))}
+  exec(compile(ast.Module(body=[why],type_ignores=[]),'service-background-why','exec'),env)
+  self.assertEqual(env['why'](),'AirPlay')
+  active[0]=0
+  self.assertEqual(env['why'](),'')
+  import background
+  calls=[];ticks=[]
+  def wait(seconds):
+   ticks.append(seconds)
+   if len(ticks)==2:active[0]=0
+   return len(ticks)>=3
+  active[0]=1
+  background.watch(calls.append,env['why'],wait)
+  self.assertEqual(calls,[1,1,0])
+
+ def test_service_pollers_reuse_one_native_handle(self):
+  lib=types.SimpleNamespace(kodi_airplay_active=lambda:1)
+  with patch.dict(airplay._libraries,clear=True),patch.object(airplay,'load',return_value=lib) as loader:
+   self.assertIs(airplay.cached_load('fixture'),lib)
+   for _ in range(5):self.assertTrue(airplay.playback_active(airplay.cached_load('fixture')))
+   loader.assert_called_once_with('fixture')
+  with patch.dict(airplay._libraries,clear=True),patch.object(airplay,'load',side_effect=OSError('fixture')) as loader:
+   self.assertIsNone(airplay.cached_load('missing'));self.assertIsNone(airplay.cached_load('missing'))
+   loader.assert_called_once_with('missing')
 
 class DiagnosticsTests(unittest.TestCase):
  def test_server_authority_survives_but_tokens_queries_and_source_links_do_not(self):

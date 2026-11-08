@@ -510,6 +510,9 @@ def allow_local_network(app):
  path=Path(app)/'Info.plist'
  info=plistlib.loads(path.read_bytes()) if path.exists() else {}
  info['NSLocalNetworkUsageDescription']=LOCAL_NETWORK_PURPOSE
+ modes=list(info.get('UIBackgroundModes') or [])
+ if 'audio' not in modes:modes.append('audio')
+ info['UIBackgroundModes']=modes
  path.write_bytes(plistlib.dumps(info,fmt=plistlib.FMT_BINARY))
 
 def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):

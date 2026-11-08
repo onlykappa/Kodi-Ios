@@ -34,7 +34,7 @@ class Feedback(unittest.TestCase):
  def test_connecting_shows_at_once_with_cancel_and_kodi_carries_on(self):
   src=(BOOT/'cast.py').read_text()
   body=src[src.index('def send_airplay('):src.index('def send(xbmc')]
-  self.assertLess(body.index("progress.create('Play on TV','Connecting to the TV"),body.index('lib.kodi_airplay_play(source'))
+  self.assertLess(body.index("progress.create('Play on TV',cast.AIRPLAY_WORDS"),body.index('lib.kodi_airplay_play(source'))
   self.assertIn('return progress.iscanceled() or monitor.waitForAbort(seconds)',body)
   self.assertIn('finally:progress.close()',body)
   self.assertLess(body.index("if xbmc.getCondVisibility('Player.Paused'):player.pause()   # Kodi carries on"),body.index("if outcome=='aborted':return"))
