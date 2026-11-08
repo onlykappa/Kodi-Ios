@@ -439,3 +439,14 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
 - Everything in build 204 (any-TV routes, Customisation counts), AirPlay r40 unchanged.
 - Verified in the downloaded IPA: build.json build 205 / commit d317d12 / airplay r40 9a3415cd…; rows_editor has the
   new lists and slot_of; portrait.refresh_rows is used by customise_rows.
+
+## Build 206 — verified (release build-206, IPA sha256 538b4a70…, commit 789de12; AirPlay r40). Owner testing
+
+- ISSUE-132 (seeking: download cap while playing, wait while Kodi buffers, 96 MB / 10x cache, Buffering NN% pill;
+  season queue per episode), ISSUE-133 (FULL SEASON / EPISODE N ONLY versions, one-episode season notice, Next
+  Episode button), ISSUE-134 (the rest of a season follows the first quality pick).
+- Verified in the downloaded IPA: build.json build 206 / commit 789de12 / airplay r40; next_episode.py;
+  download.rest_of_season; deck_picker.auto_choose and source_match.coverage in Elementum's site-packages;
+  slowdown.CAP; portrait generates Custom_1156_Buffering.xml.
+- Owner to check: Lanterns › Download Season 1 (FULL SEASON first; else "Get them"); seeking while a download runs;
+  Buffering %; Next Episode; the queue listing episodes.
