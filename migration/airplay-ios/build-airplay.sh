@@ -471,7 +471,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
             __block NSUInteger errorsSeen = 0;
             // r36: a prepared movie may restart once in compat mode too, but only when the TV takes the sound only (below);
             // the older segment-based triggers stay off for it (it has no segments).
-            const BOOL preparedLink = [link hasSuffix:@"/prepared.mp4"];
+            const BOOL preparedLink = [link hasSuffix:@"/prepared.mp4"] || [link hasSuffix:@"/prepared.m3u8"];   // r38: HLS over the prepared file
             __block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO;
             __block double resumeAt = -1;
             // r7: once per stream: restart with the picture converted to H.264 at the same position. NO when it cannot

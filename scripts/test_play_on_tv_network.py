@@ -368,4 +368,19 @@ class SlowSource(unittest.TestCase):
   self.assertNotIn('centerYAnchor',conv)
   self.assertIn('pill.userInteractionEnabled = NO;',conv)
 
+class PreparedAsHls(unittest.TestCase):
+ """r38 (owner's build-201 Apple TV log: black screen, the Apple TV never asked for anything): Apple's player walked the
+ prepared MP4 fragment by fragment; it now gets HLS byte ranges over the same file from the file's fragment index."""
+ def test_the_log_keeps_the_new_routes(self):
+  self.assertEqual(airplay.log_text('server: endpoint http://10.0.0.247:50516/abc123/prepared.m3u8'),'server: endpoint 10.0.0.247:50516/[token]/prepared.m3u8')
+  self.assertEqual(airplay.log_text('GET http://10.0.0.247:1/abc/prepared-media.m3u8'),'GET 10.0.0.247:1/[token]/prepared-media.m3u8')
+ def test_native_serves_playlists_from_the_fragment_index(self):
+  remux=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
+  self.assertIn('static int prepared_playlists(void) {',remux)
+  self.assertIn('#EXT-X-MAP:URI=\\"%s/prepared.mp4\\",BYTERANGE=\\"%lld@0\\"',remux)
+  self.assertIn('#EXT-X-BYTERANGE:%lld@%lld',remux)
+  self.assertIn('snprintf(out,(size_t)outlen,"%s/prepared.%s",S.base,S.prepared_master?"m3u8":"mp4");',remux)
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn('[link hasSuffix:@"/prepared.m3u8"]',build)
+
 if __name__=='__main__':unittest.main()

@@ -1175,3 +1175,25 @@ Status: FIXED IN SOURCE (Python card; native r38 candidate, not published or bui
 - Not fixable in code: converting a 4K movie streamed live from Drive needs about 3 MB/s. A downloaded movie, or an
   HEVC-capable receiver such as the owner's Apple TV (the prepared file plays as-is), avoids it.
 - Regression: `test_play_on_tv_network.SlowSource` (7). Desktop Kodi rig: the card renders (3 lines, fits).
+
+## ISSUE-127 — Apple TV: black screen, the Apple TV never asked for the movie (build 201, 2026-11-08)
+
+Status: FIXED IN SOURCE (native r38 candidate pending); device retest pending.
+- Owner: "it just gives me a black screen on my phone and nothing changes on the tv" (photo: Apple's player, black,
+  only its close button). Log: the prepared movie (7.1 GB, 22 s fragments, 24.7 Mbit/s) opened in 0.26 s and its
+  index in 0.8 s; then only the iPhone's own player (AppleCoreMedia) read prepared.mp4, in open ranges at 73, 112, 136,
+  168, 214 ... 592 MB, 0.4-3.9 MB each, 3-7 s apart. The Apple TV made no request; the player never became ready.
+- Root cause: given a progressive fragmented MP4, AVFoundation walks every fragment header (moof) before it plays; it
+  does not use the fragment index at the end (mfra). Across about 400 fragments of a Drive file that would take
+  half an hour. The same was measured by karbassi/undertone#8 ("AVFoundation reads the whole fragmented MP4
+  regardless"); their fix, like Beamly #11 and Pley #83 for HEVC/HDR, is fMP4 HLS. This probably also explains the
+  "sound only" starts of ISSUE-124 (external playback never started because the item was never ready).
+- Fix (r38): at start the server reads the prepared file's mfra (two small reads) and serves `prepared.m3u8` (one
+  variant: CODECS from the hvcC/avcC and every copied audio codec, RESOLUTION, FRAME-RATE, VIDEO-RANGE PQ/HLG/SDR,
+  BANDWIDTH = the largest fragment's rate) and `prepared-media.m3u8` (EXT-X-MAP = ftyp+moov byte range, one
+  EXT-X-BYTERANGE per fragment, ENDLIST). Apple's player and the TV fetch only the fragments that play. Without a
+  usable index the MP4 itself is served as before.
+- Open: the movie's audio tracks are muxed in each fragment, so the TV plays the file's first audio track; picking
+  another needs separate renditions. 4K streamed from Drive still needs about 3 MB/s from Drive.
+- Regression: test_remux.c (master and media playlists, first range is a moof, init range is ftyp+moov);
+  `test_play_on_tv_network.PreparedAsHls`. Device: owner's Apple TV.

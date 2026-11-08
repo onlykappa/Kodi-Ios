@@ -33,6 +33,9 @@
 #include <libavcodec/avcodec.h>
 #include <libavutil/dovi_meta.h>
 #include <libavutil/pixdesc.h>
+#include <libavutil/bprint.h>
+#include <libavutil/intreadwrite.h>
+#include <math.h>
 
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0
@@ -79,6 +82,7 @@ static struct {
     int compat;       // r7: /video/ is the picture converted to H.264 (kr_video), not copied
     int prepared;
     int64_t prepared_size;
+    char *prepared_master, *prepared_media;  // r38: HLS byte-range playlists over the prepared file (NULL: plain MP4)
     int vindex;       // r7: the source video stream converted in compat mode
     kr_source *vsrc;  // r7: the converter's own connection to the source, opened on first use
     kr_video *video;
@@ -933,6 +937,8 @@ static void serve_prepared(int fd,int head,const char *range,const char *agent) 
 static void serve(int fd, const char *method, const char *path, const char *range, const char *agent) {
     int head = !strcmp(method, "HEAD");
     if(S.prepared) {
+        const char *list=!strcmp(path,"/prepared.m3u8")?S.prepared_master:!strcmp(path,"/prepared-media.m3u8")?S.prepared_media:NULL;
+        if(list){respond(fd,head,NULL,"application/vnd.apple.mpegurl",(const uint8_t *)list,strlen(list));return;}
         if(strcmp(path,"/prepared.mp4")){fail(fd,404,"Not Found");return;}
         serve_prepared(fd,head,range,agent);return;
     }
@@ -1210,6 +1216,7 @@ static void teardown_locked(void) {
     kr_source_close(vsrc);
     pthread_mutex_unlock(&S.vlock);
     S.compat = 0; S.vindex = -1; S.compat_ok = 0;S.prepared=0;S.prepared_size=0;
+    free(S.prepared_master);S.prepared_master=NULL;free(S.prepared_media);S.prepared_media=NULL;
     prepared_cache_clear();   // r29
     atomic_store(&S.vlogged, 0);
     free(S.master_copy); S.master_copy = NULL;
@@ -1237,6 +1244,97 @@ static int needs_video_conversion(const AVCodecParameters *cp) {
     if (cp->bits_per_raw_sample > depth || (pf && (pf->comp[0].depth > depth || pf->log2_chroma_w != 1 || pf->log2_chroma_h != 1))) return 1;
     if (cp->codec_id == AV_CODEC_ID_H264 && cp->profile >= 0 && (cp->profile & ~AV_PROFILE_H264_CONSTRAINED) > AV_PROFILE_H264_HIGH) return 1;
     return cp->codec_id == AV_CODEC_ID_HEVC && cp->profile > AV_PROFILE_HEVC_MAIN_STILL_PICTURE;
+}
+
+// r38 (owner's build-201 log, Apple TV): given prepared.mp4 itself, Apple's player walked the 7 GB file fragment by
+// fragment (ranges at 73 MB, 112 MB, 136 MB... each a new Drive read of 3-6 s), never became ready and never handed the
+// movie to the Apple TV: a black screen. AVFoundation reads every moof of a progressive fragmented MP4 (it does not use
+// the mfra index; karbassi/undertone#8 measured the same). The same bytes as HLS: the init (ftyp+moov) as EXT-X-MAP and
+// one EXT-X-BYTERANGE per fragment (moof+mdat), taken from the file's own fragment index (the mfra kr_prepare writes).
+// Apple's player and the TV then fetch only what plays. 0 on success; the plain MP4 stays the fallback.
+static int prepared_read_all(int64_t at,uint8_t *buf,int len) {
+    char e[64];int done=0;
+    while(done<len){int got=prepared_read(at+done,buf+done,len-done,e,sizeof e);if(got<=0)return -1;done+=got;}
+    return 0;
+}
+typedef struct {int64_t time,offset;} prep_frag;
+static int prepared_playlists(void) {
+    AVFormatContext *f=gm_stream_format_context(S.gm);
+    int v=gm_stream_selected_video(S.gm);
+    if(!f || v<0 || v>=(int)f->nb_streams || S.prepared_size<64)return -1;
+    AVStream *st=f->streams[v];
+    if(st->time_base.num<=0 || st->time_base.den<=0)return -1;
+    uint8_t tail[16];
+    if(prepared_read_all(S.prepared_size-16,tail,16) || memcmp(tail+4,"mfro",4))return -1;
+    uint32_t mfra_size=AV_RB32(tail+12);
+    if(mfra_size<16 || mfra_size>16*1024*1024 || (int64_t)mfra_size>S.prepared_size)return -1;
+    int64_t mfra_at=S.prepared_size-mfra_size;
+    uint8_t *m=malloc(mfra_size);if(!m)return -1;
+    prep_frag *fr=NULL;int n=0,cap=0,ok=-1;char *media=NULL,*master=NULL;
+    if(prepared_read_all(mfra_at,m,(int)mfra_size) || memcmp(m+4,"mfra",4))goto end;
+    for(uint32_t at=8;at+8<=mfra_size;) {
+        uint32_t size=AV_RB32(m+at);
+        if(size<8 || at+size>mfra_size)break;
+        if(!memcmp(m+at+4,"tfra",4) && size>=24 && (int)AV_RB32(m+at+12)==st->id) {
+            int version=m[at+8];uint32_t lengths=AV_RB32(m+at+16),count=AV_RB32(m+at+20);
+            int skip=(int)(((lengths>>4)&3)+((lengths>>2)&3)+(lengths&3)+3),entry=(version==1?16:8)+skip;
+            if((uint64_t)24+(uint64_t)count*(uint64_t)entry>size)goto end;
+            for(uint32_t i=0;i<count;i++) {
+                const uint8_t *e=m+at+24+i*(uint32_t)entry;
+                int64_t t=version==1?(int64_t)AV_RB64(e):AV_RB32(e),o=version==1?(int64_t)AV_RB64(e+8):AV_RB32(e+4);
+                if(n && (o<=fr[n-1].offset || t<fr[n-1].time))goto end;   // the index must run forward
+                if(n==cap){cap=cap?cap*2:512;prep_frag *g=realloc(fr,sizeof *g*(size_t)cap);if(!g)goto end;fr=g;}
+                fr[n++]=(prep_frag){t,o};
+            }
+        }
+        at+=size;
+    }
+    if(n<1 || fr[0].offset<16 || fr[n-1].offset>=mfra_at)goto end;
+    double tb=av_q2d(st->time_base),total=gm_stream_duration(S.gm);
+    double end_time=total>0?total+(double)fr[0].time*tb:0;
+    if(st->duration>0 && st->duration!=AV_NOPTS_VALUE)end_time=(double)(st->duration+fr[0].time)*tb;
+    double longest=0,peak=0;
+    AVBPrint b;av_bprint_init(&b,0,AV_BPRINT_SIZE_UNLIMITED);
+    for(int i=0;i<n;i++) {
+        double d=(i+1<n?(double)(fr[i+1].time-fr[i].time)*tb:end_time-(double)fr[i].time*tb);
+        if(d<=0)d=0.04;
+        int64_t len=(i+1<n?fr[i+1].offset:mfra_at)-fr[i].offset;
+        if(d>longest)longest=d;
+        if(d>=1 && (double)len*8/d>peak)peak=(double)len*8/d;
+        av_bprintf(&b,"#EXTINF:%.3f,\n#EXT-X-BYTERANGE:%lld@%lld\n%s/prepared.mp4\n",d,(long long)len,(long long)fr[i].offset,S.base);
+    }
+    AVBPrint h;av_bprint_init(&h,0,AV_BPRINT_SIZE_UNLIMITED);
+    av_bprintf(&h,"#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:%d\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-INDEPENDENT-SEGMENTS\n"
+               "#EXT-X-MAP:URI=\"%s/prepared.mp4\",BYTERANGE=\"%lld@0\"\n%s#EXT-X-ENDLIST\n",(int)ceil(longest),S.base,(long long)fr[0].offset,b.str);
+    av_bprint_finalize(&b,NULL);
+    if(av_bprint_finalize(&h,&media)<0 || !media)goto end;
+    // Muxed segments: CODECS lists the picture and every audio codec in the file; no separate renditions.
+    char tokens[128]="";
+    int tracks=gm_stream_track_count(S.gm);gm_track_info t;
+    for(int i=0;i<tracks;i++) {
+        if(gm_stream_track_info(S.gm,i,&t)!=0 || t.kind!=GM_TRACK_AUDIO || kr_audio_route(&t)!=KR_AUDIO_COPY)continue;
+        const char *tok=kr_audio_token(&t);
+        if(tok && *tok && !strstr(tokens,tok) && strlen(tokens)+strlen(tok)+2<sizeof tokens){strcat(tokens,",");strcat(tokens,tok);}
+    }
+    double fps=0;AVRational r=st->avg_frame_rate.num>0 && st->avg_frame_rate.den>0?st->avg_frame_rate:st->r_frame_rate;
+    if(r.num>0 && r.den>0)fps=av_q2d(r);
+    gm_color_info c;const char *range="SDR";
+    if(gm_stream_color_info(S.gm,&c)==0 && gm_stream_is_hdr(S.gm))range=c.transfer==18?"HLG":"PQ";
+    double average=end_time>0?(double)(mfra_at-fr[0].offset)*8/(end_time-(double)fr[0].time*tb):0;
+    AVBPrint x;av_bprint_init(&x,0,AV_BPRINT_SIZE_UNLIMITED);
+    av_bprintf(&x,"#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n#EXT-X-STREAM-INF:BANDWIDTH=%ld",(long)fmax(peak,average>0?average:8e6));
+    if(average>0)av_bprintf(&x,",AVERAGE-BANDWIDTH=%ld",(long)average);
+    av_bprintf(&x,",CODECS=\"%s%s\"",S.vcodec,tokens);
+    if(st->codecpar->width>0 && st->codecpar->height>0)av_bprintf(&x,",RESOLUTION=%dx%d",st->codecpar->width,st->codecpar->height);
+    if(fps>0)av_bprintf(&x,",FRAME-RATE=%.3f",fps);
+    av_bprintf(&x,",VIDEO-RANGE=%s\n%s/prepared-media.m3u8\n",range,S.base);
+    if(av_bprint_finalize(&x,&master)<0 || !master)goto end;
+    log_line("prepared: HLS over the file's %d fragments (byte ranges, longest %.1f s, peak %.1f Mbit/s, %s, %s%s)",n,longest,peak/1e6,range,S.vcodec,tokens);
+    S.prepared_master=master;S.prepared_media=media;master=media=NULL;ok=0;
+end:
+    if(ok)log_line("prepared: no usable fragment index; Apple's player gets the MP4 itself");
+    free(m);free(fr);av_free(media);av_free(master);
+    return ok;
 }
 
 int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, char *out, int outlen) {
@@ -1301,8 +1399,9 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
         pthread_mutex_unlock(&N.lock);
         log_line("server: endpoint=%s:%d/[token]/prepared.mp4",host,S.port);
         kr_hls_video_codec(S.gm,S.vcodec,sizeof S.vcodec);
+        prepared_playlists();
         if(pthread_create(&S.accept_thread,NULL,accept_loop,NULL)){close(S.listen_fd);S.listen_fd=-1;goto done;}
-        if(out && outlen>0)snprintf(out,(size_t)outlen,"%s/prepared.mp4",S.base);
+        if(out && outlen>0)snprintf(out,(size_t)outlen,"%s/prepared.%s",S.base,S.prepared_master?"m3u8":"mp4");
         log_line("prepared: source-resolution MP4 byte ranges; no live conversion, subtitle burn or prefetch queue");
         result=KR_READY;goto done;
     }

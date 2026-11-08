@@ -215,7 +215,7 @@ static void test_prepared_indexed_open(const char *http_base,const char *work) {
     reply reset=http_get_raw(upstream,"/__stats/reset",NULL);free(reset.body);
     snprintf(url,sizeof url,"%s/indexed/out/airplay-indexed.mp4",http_base);
     double at=mono_ms();result=kr_remux_start(url,0,0,playlist,sizeof playlist);
-    CHECK(result==KR_READY && strstr(playlist,"/prepared.mp4"),"prepared MP4 opens through indexed byte-range path: %s",kr_remux_message());
+    CHECK(result==KR_READY && strstr(playlist,"/prepared.m3u8"),"prepared MP4 opens through indexed byte-range path: %s",kr_remux_message());
     reply stats=http_get_raw(upstream,"/__stats",NULL);
     int requests=999;long long bytes=0;
     if(stats.body){char *p=strstr(stats.body,"\"requests\":");if(p)requests=atoi(p+11);p=strstr(stats.body,"\"bytes\":");if(p)bytes=atoll(p+8);}
@@ -1701,21 +1701,42 @@ static void test_preparation(const char *work) {
         CHECK(an==bn,"all selected video/audio/text tracks preserved (%d -> %d)",an,bn);
         CHECK(!memcmp(a,b,16),"H.264/HEVC video packets preserved without quality loss: %s",files[i]);
         snprintf(url,sizeof url,"file:%s",output);
-        CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared.mp4"),"prepared file uses indexed byte-range seeking without live conversion");
+        CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared.m3u8"),"prepared file uses indexed byte-range seeking without live conversion");
         int port=kr_remux_port();
-        reply bytes=http_get(port,playlist,"bytes=0-127");
+        // r38: Apple's player reads every fragment of a progressive fragmented MP4 (owner's build-201 Apple TV log); it
+        // gets HLS byte ranges over the same file from its fragment index instead.
+        reply master=http_get(port,playlist,NULL);
+        CHECK(master.status==200 && master.body && strstr(master.body,"#EXT-X-STREAM-INF:") && strstr(master.body,"CODECS=\"") && strstr(master.body,"/prepared-media.m3u8"),
+              "prepared master playlist: %s",master.body?master.body:"");
+        char media_url[600];snprintf(media_url,sizeof media_url,"%s",playlist);strcpy(strstr(media_url,"/prepared.m3u8"),"/prepared-media.m3u8");
+        reply media=http_get(port,media_url,NULL);
+        long long map_len=-1,seg_len=-1,seg_at=-1;int segments=0;
+        if(media.body){char *p=strstr(media.body,"BYTERANGE=\"");if(p)sscanf(p+11,"%lld@",&map_len);
+            p=strstr(media.body,"#EXT-X-BYTERANGE:");if(p)sscanf(p+17,"%lld@%lld",&seg_len,&seg_at);
+            for(p=media.body;(p=strstr(p,"#EXTINF:"));p++)segments++;}
+        CHECK(media.status==200 && media.body && strstr(media.body,"#EXT-X-ENDLIST") && map_len>0 && seg_at==map_len && seg_len>0 && segments>=1,
+              "prepared media playlist: init %lld bytes, first fragment %lld@%lld, %d fragments",map_len,seg_len,seg_at,segments);
+        char mp4_url[600];snprintf(mp4_url,sizeof mp4_url,"%s",playlist);strcpy(strstr(mp4_url,"/prepared.m3u8"),"/prepared.mp4");
+        char want[64];snprintf(want,sizeof want,"bytes=%lld-%lld",seg_at,seg_at+15);
+        reply first=http_get(port,mp4_url,want);
+        CHECK(first.status==206 && first.len==16 && !memcmp(first.body+4,"moof",4),"the first byte range is a whole fragment (moof)");
+        snprintf(want,sizeof want,"bytes=0-%lld",map_len-1);
+        reply init=http_get(port,mp4_url,want);
+        CHECK(init.status==206 && init.len==map_len && !memcmp(init.body+4,"ftyp",4) && memmem(init.body,(size_t)init.len,"moov",4),"the init range is ftyp+moov");
+        free(master.body);free(media.body);free(first.body);free(init.body);
+        reply bytes=http_get(port,mp4_url,"bytes=0-127");
         CHECK(bytes.status==206 && bytes.len==128 && !memcmp(bytes.body+4,"ftyp",4),"prepared MP4 ranges return exact bytes");free(bytes.body);
-        bytes=http_get(port,playlist,"bytes=-128");CHECK(bytes.status==206 && bytes.len==128,"prepared MP4 suffix range");free(bytes.body);
-        bytes=http_get(port,playlist,"bytes=10-2");CHECK(bytes.status==416,"prepared MP4 rejects invalid range");free(bytes.body);
+        bytes=http_get(port,mp4_url,"bytes=-128");CHECK(bytes.status==206 && bytes.len==128,"prepared MP4 suffix range");free(bytes.body);
+        bytes=http_get(port,mp4_url,"bytes=10-2");CHECK(bytes.status==416,"prepared MP4 rejects invalid range");free(bytes.body);
         CHECK(kr_remux_compat()==0 && kr_remux_prefetched()==0,"prepared playback never converts/prefetches segments");
         kr_remux_stop();
         // r36: a TV that takes only the sound of a prepared movie gets the converted H.264 picture on the compat restart
         // (mpeg4 stands in for the iPhone's H.264 encoder on the host, as in the other compat tests).
         const char *encoder=kr_video_encoder();kr_video_set_encoder("mpeg4");
-        CHECK(kr_remux_start(url,0,1,playlist,sizeof playlist)==KR_READY && !strstr(playlist,"/prepared.mp4") && kr_remux_compat()==1,
+        CHECK(kr_remux_start(url,0,1,playlist,sizeof playlist)==KR_READY && !strstr(playlist,"/prepared.") && kr_remux_compat()==1,
               "prepared file restarts in compat mode as converted HLS: %s %s",playlist,kr_remux_message());
         kr_remux_stop();kr_video_set_encoder(encoder);
-        CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared.mp4"),"prepared file is served as it is again afterwards");
+        CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared.m3u8"),"prepared file is served as it is again afterwards");
         port=kr_remux_port();
         int idle_fd=socket(AF_INET,SOCK_STREAM,0);struct sockaddr_in idle_address={0};
         idle_address.sin_family=AF_INET;idle_address.sin_port=htons((uint16_t)port);idle_address.sin_addr.s_addr=htonl(INADDR_LOOPBACK);

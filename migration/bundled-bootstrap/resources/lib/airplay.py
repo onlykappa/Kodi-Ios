@@ -169,7 +169,7 @@ def log_text(line):
   from urllib.parse import urlsplit
   try:
    p=urlsplit(match.group(0));route=p.path.rsplit('/',1)[-1]
-   if route in ('prepared.mp4','master.m3u8') and p.port:
+   if route in ('prepared.mp4','prepared.m3u8','prepared-media.m3u8','master.m3u8') and p.port:
     return '%s:%d/[token]/%s'%(p.hostname,p.port,route)
   except ValueError:pass
   return '[URL redacted]'
