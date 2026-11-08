@@ -385,3 +385,20 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
   written folder.
 - Owner to check: Play on TV shows the new card (not Kodi's OK dialog); to the TCL Roku TV, sound first, then
   "Converting the picture for your TV", then the picture.
+
+## Build 202 — verified (release build-202, IPA sha256 1c26f482…, commit 1057ad8; AirPlay r38). Owner testing
+
+- **ISSUE-127** (build 201, Apple TV black screen): Apple's player walked the prepared fragmented MP4 fragment by
+  fragment and never became ready. r38 serves prepared movies as HLS byte ranges from the file's own fragment index
+  (`prepared.m3u8`, `prepared-media.m3u8`); files without an index keep the plain MP4.
+- **ISSUE-126** (build 201, TCL): Kodi watches 45 s after "playing"; a stop goes to Kodi's slow-internet card (no
+  pause button, uploads keep running) instead of Apple's bare alert; the converting text is a pill at the top.
+- **AirPlay r38**: candidate run 42500369872 (source 361a9d9) green, 3,143 host checks plus end-to-end (the new
+  checks: streamed prepared movies come out as HLS, the first and last ranges are moofs, the last ends at the mfra,
+  the init is ftyp+moov). Two earlier r38 candidates failed (CACurrentMediaTime needs QuartzCore, not linked; an
+  unchecked strstr in the new test on a faststart fixture). Published by run 42501396321; release digest 598cb990… =
+  the pin.
+- Verified in the downloaded IPA: build.json build 202 / commit 1057ad8 / airplay r38 598cb990…; KodiAirPlay binary
+  0411ba79… identical to the candidate's; cast.py has airplay_settle; airplay_flow has slow_source.
+- Owner to check: (1) Apple TV with a prepared movie: starts within seconds in 4K/HDR; (2) TCL TV: converting pill at
+  the top, then the picture or the slow-internet card; send logs either way.
