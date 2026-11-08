@@ -359,3 +359,15 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
   with `_kodi_airplay_active` and `_kodi_airplay_settings`; airplay_flow.py, live_window.py and the new cast.py present.
 - Owner to check on the iPhone: Play on TV steps and the problem buttons (Try again, Pause uploads and try again, Open
   Settings), AirPlay playback and screen lock, the live pages after an update (no crash), the nine boards.
+
+## Build 200 — verified (run 42452868611, release build-200, IPA sha256 829234f6…, commit 68d2e26; AirPlay r36). Owner testing
+
+- **AirPlay r36** (ISSUE-124): candidate run 42452271611 (source 46b199f) passed the framework, host and end-to-end
+  jobs (the first run 42451808459 failed only the new host check, which needed the mpeg4 stand-in encoder);
+  published by run 42452830779; release digest 10285d76… equals the pin. A TV that takes only the sound of a prepared
+  movie (the owner's TCL Roku TV with HEVC) gets the picture converted to H.264 after 4 s.
+- Verified in the downloaded IPA: build.json build 200 / commit 68d2e26 / run 42452868611; KodiAirPlay binary
+  4f377156… with the sound-only fallback; cast.py resets the deadlines after the restart; the card's "Converting the
+  picture for your TV"; live_window.py present. Everything in build 199 is included.
+- Owner to check: Play on TV to the TCL Roku TV shows the picture (expect the converting step after ~4 s of sound);
+  the Play on TV card; screen lock; the live pages after an update.
