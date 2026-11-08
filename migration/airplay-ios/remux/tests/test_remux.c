@@ -1709,10 +1709,12 @@ static void test_preparation(const char *work) {
         bytes=http_get(port,playlist,"bytes=10-2");CHECK(bytes.status==416,"prepared MP4 rejects invalid range");free(bytes.body);
         CHECK(kr_remux_compat()==0 && kr_remux_prefetched()==0,"prepared playback never converts/prefetches segments");
         kr_remux_stop();
-        // r36: a TV that takes only the sound of a prepared movie gets the converted H.264 picture on the compat restart.
+        // r36: a TV that takes only the sound of a prepared movie gets the converted H.264 picture on the compat restart
+        // (mpeg4 stands in for the iPhone's H.264 encoder on the host, as in the other compat tests).
+        const char *encoder=kr_video_encoder();kr_video_set_encoder("mpeg4");
         CHECK(kr_remux_start(url,0,1,playlist,sizeof playlist)==KR_READY && !strstr(playlist,"/prepared.mp4") && kr_remux_compat()==1,
               "prepared file restarts in compat mode as converted HLS: %s %s",playlist,kr_remux_message());
-        kr_remux_stop();
+        kr_remux_stop();kr_video_set_encoder(encoder);
         CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared.mp4"),"prepared file is served as it is again afterwards");
         port=kr_remux_port();
         int idle_fd=socket(AF_INET,SOCK_STREAM,0);struct sockaddr_in idle_address={0};
