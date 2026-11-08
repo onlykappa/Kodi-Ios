@@ -162,6 +162,15 @@ void kr_remux_network_begin(int lan) {
     pthread_mutex_unlock(&N.lock);
 }
 
+int kr_remux_external_peer(const char *peer, const char *host, const char *agent) {
+    struct in_addr address;
+    if (!peer || inet_pton(AF_INET,peer,&address)!=1 || !address.s_addr ||
+        (ntohl(address.s_addr)>>24)==127 || (host && !strcmp(peer,host))) return 0;
+    for (const char *p=agent;p && *p;p++)
+        if(!strncasecmp(p,"iPhone",6) || !strncasecmp(p,"iPad",4)) return 0;
+    return 1;
+}
+
 static void log_line(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void log_line(const char *fmt, ...) {
     char line[LOG_WIDTH];
@@ -1001,8 +1010,7 @@ static void *connection(void *arg) {
         double t0 = now_ms();
         // Before serve(): a slow source must not make an arrived TV request look like a network failure.
         pthread_mutex_lock(&N.lock);
-        int tv=ok && N.expected && strcmp(peer_ip,"127.0.0.1") && strcmp(peer_ip,N.host) &&
-               !(strstr(agent,"iPhone") || strstr(agent,"iPad"));
+        int tv=ok && N.expected && kr_remux_external_peer(peer_ip,N.host,agent);
         if(tv) {
             N.tv_requests++;
             if(!N.first_tv_ms) {

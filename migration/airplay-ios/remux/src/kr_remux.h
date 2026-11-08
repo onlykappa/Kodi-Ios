@@ -39,6 +39,8 @@ int kr_remux_log(char *buf, int len);
 // r34: non-draining LAN/listen/first-TV-request diagnostics, including while source probing is blocked.
 void kr_remux_network_begin(int lan);
 int kr_remux_network(char *buf, int len);
+// Exclude every loopback address, the phone's LAN address and its own player from TV evidence.
+int kr_remux_external_peer(const char *peer, const char *host, const char *agent);
 // r6: media segments sent this session, video (1) or audio (0). A receiver that takes audio segments but never a
 // video one is playing sound only (an AirPlay TV that cannot decode the video codec).
 int kr_remux_served(int video);

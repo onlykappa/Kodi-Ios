@@ -1051,3 +1051,7 @@ build/release/pinning await owner approval. Released KodiAirPlay r33 remains pin
 - Retest: **82/82 test scripts pass** after that correction/retest (only `test_drive_runtime.py` excluded).
   `check_project.py`, `check_ui_guidance.py`, shell syntax and diff checks pass. Native r34 runtime tests and
   iPhone playback remain pending; no app/native build, release or merge was run in this pass.
+- Owner subsequently approved native verification/release and explicitly requested an installable iPhone IPA.
+  Added compiled host regressions for non-draining network snapshots, reported listener/endpoint, and excluding
+  phone/loopback requests from TV evidence. Preflight found that only `127.0.0.1` was excluded; the whole `127/8`
+  range is now excluded and phone User-Agent checks ignore case. Candidate CI must pass before r34 is pinned.

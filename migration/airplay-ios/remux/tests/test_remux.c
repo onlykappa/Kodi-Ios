@@ -156,6 +156,28 @@ static void test_kind(void) {
 
 typedef struct { const char *file; const char *video; const char *audio_tokens; int audio_tracks, subs, hdr, bridged; const char *sub_text; double offset; int lan; } fixture;
 
+static void test_network_evidence(void) {
+    CHECK(!kr_remux_external_peer("127.0.0.1","192.0.2.10","AirPlay/1"),"loopback is not a TV");
+    CHECK(!kr_remux_external_peer("127.0.0.2","192.0.2.10","AirPlay/1"),"the whole loopback range is excluded");
+    CHECK(!kr_remux_external_peer("192.0.2.10","192.0.2.10","AppleCoreMedia/1"),"phone's own LAN address is excluded");
+    CHECK(!kr_remux_external_peer("192.0.2.20","192.0.2.10","AppleCoreMedia (iPhone)"),"phone player is excluded");
+    CHECK(!kr_remux_external_peer("192.0.2.20","192.0.2.10","AppleCoreMedia (IPAD)"),"phone user agents ignore case");
+    CHECK(!kr_remux_external_peer("unknown","192.0.2.10","AirPlay/1"),"failed peer lookup is not TV evidence");
+    CHECK(kr_remux_external_peer("192.0.2.20","192.0.2.10","AppleCoreMedia (Apple TV)"),"an Apple TV counts");
+    CHECK(kr_remux_external_peer("192.0.2.20","192.0.2.10","MFi_AirPlay_Device"),"a third-party TV counts");
+    char snapshot[1024],again[1024],log[1024];
+    kr_remux_network_begin(1);
+    CHECK(kr_remux_network(snapshot,sizeof snapshot)>0 && strstr(snapshot,"\"expected\":1") &&
+          strstr(snapshot,"\"tv_requests\":0") && strstr(snapshot,"\"first_tv_s\":-1"),"new session resets TV evidence: %s",snapshot);
+    kr_remux_network(again,sizeof again);
+    CHECK(strstr(again,"\"tv_requests\":0"),"reading a snapshot does not consume it");
+    kr_remux_note("network-test: marker");kr_remux_network(snapshot,sizeof snapshot);
+    CHECK(kr_remux_log(log,sizeof log)>0 && strstr(log,"network-test: marker"),"network snapshot never drains logs");
+    kr_remux_network_begin(0);
+    kr_remux_network(snapshot,sizeof snapshot);
+    CHECK(strstr(snapshot,"\"expected\":0"),"direct playback has no local-server deadline");
+}
+
 static void test_file(const char *url, const fixture *fx, const char *work) {
     start_offset = fx->offset;
     char m3u8[256];
@@ -170,8 +192,14 @@ static void test_file(const char *url, const fixture *fx, const char *work) {
     CHECK(st == KR_READY, "%s: start %d (%s)", fx->file, st, kr_remux_message());
     if (st != KR_READY) return;
     int port = kr_remux_port();
+    char network[1024],port_field[32];
+    kr_remux_network(network,sizeof network);snprintf(port_field,sizeof port_field,"\"port\":%d",port);
+    CHECK(strstr(network,port_field) && strstr(log,"server: listening bind=") && strstr(log,"server: endpoint="),
+          "%s: actual listener/endpoint is reported without a token",fx->file);
     CHECK(port > 0 && strstr(m3u8, "/master.m3u8") && (fx->lan || strstr(m3u8, "http://127.0.0.1:")), "playlist url %s", m3u8);
     reply master = http_get(port, "/master.m3u8", NULL);
+    kr_remux_network(network,sizeof network);
+    CHECK(strstr(network,"\"tv_requests\":0"),"phone's loopback fetch never satisfies the TV watchdog");
     CHECK(master.status == 200 && strstr(master.head, "application/vnd.apple.mpegurl"), "master status");
     const char *pl = master.body ? master.body : "";
     CHECK(!strncmp(pl, "#EXTM3U\n#EXT-X-VERSION:7\n", 25), "%s master header", fx->file);
@@ -1746,7 +1774,7 @@ int main(int argc, char **argv) {
         printf("%d checks, %d failed\n", checks, failures);
         return failures ? 1 : 0;
     }
-    test_kind();
+    test_kind();test_network_evidence();
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
     mkdir(work, 0755);
     if (argc > 3 && !strcmp(argv[3], "--prepare-only")) {
