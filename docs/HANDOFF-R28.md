@@ -278,3 +278,16 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
   staged-plist regression pass. Fixed the pre-existing stale r23 pin assertion to match this branch's r24 pin and
   retested all 27 GlassBar tests. Project/UI guidance, shell syntax and diff checks pass. Device review is pending;
   the supplied log is device failure evidence, not proof of a successful fix. No new layout or rig work in this pass.
+
+## Owner-approved native delivery — r34 (2026-11-08)
+
+- Owner approved the native release and explicitly chose an installable iPhone IPA. Candidate run
+  [42441688126](https://github.com/onlykappa/Kodi-Ios/actions/runs/42441688126), source `1ea6307`, passed:
+  iPhoneOS framework compilation, **3,107 host checks / zero failures**, end-to-end conversion / zero failures.
+- Downloaded the candidate, verified GitHub's artifact digest, ZIP integrity, ARM64, all 25 ABI exports and no
+  exported FFmpeg/libass internals. Real framework ZIP SHA256 `1831b9ea…`, binary `c4d4e932…`; detailed evidence:
+  [airplay-r34-delivery.json](../reports/airplay-r34-delivery.json). Pin updated to this candidate; publish it via
+  `airplay-ios.yml` with `publish_verified_candidate=true`, then verify the release equals the candidate before
+  starting the IPA workflow. r33 is preserved as previous. No merge authorized.
+- Preflight also corrected the existing r24 pin from ZIP checksum to the verified executable checksum (ISSUE-121).
+  The Kodi version/tag remains r24. Native and host evidence still does not prove device playback.

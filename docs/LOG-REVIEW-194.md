@@ -1,6 +1,8 @@
 # Build 194: prepared movies fail to start with AirPlay
 
-Source follow-up on `claude/trusting-euler-kgug98`, PR #16. No build or release authorized for this pass.
+Source follow-up on `claude/trusting-euler-kgug98`, PR #16. The initial source pass ran no build/release.
+The owner subsequently approved native r34 verification/release and explicitly chose an installable iPhone IPA;
+current delivery evidence is in [airplay-r34-delivery.json](../reports/airplay-r34-delivery.json).
 The owner's supplied `kodi.log` stays outside Git. Times below are the log's local times on 2026-11-07;
 the review/fix date is 2026-11-08. Build identity in the log: build 194, source `8e0a8a1`, KodiAirPlay r33.
 
