@@ -30,6 +30,8 @@ def load(path):
  if hasattr(lib,'kodi_airplay_active'):lib.kodi_airplay_active.argtypes=[];lib.kodi_airplay_active.restype=ctypes.c_int
  # r10: the subtitles burned into the picture a TV gets converted (Kodi's current choice, set before playing).
  if hasattr(lib,'kodi_airplay_subtitles'):lib.kodi_airplay_subtitles.argtypes=[ctypes.c_int,ctypes.c_char_p,ctypes.c_char_p];lib.kodi_airplay_subtitles.restype=None
+ # r39: where Kodi was, so the TV starts there (set before playing).
+ if hasattr(lib,'kodi_airplay_start_at'):lib.kodi_airplay_start_at.argtypes=[ctypes.c_double];lib.kodi_airplay_start_at.restype=None
  if hasattr(lib,'kodi_background_keep'):lib.kodi_background_keep.argtypes=[ctypes.c_int];lib.kodi_background_keep.restype=None
  if hasattr(lib,'kodi_background_state'):lib.kodi_background_state.argtypes=[];lib.kodi_background_state.restype=ctypes.c_int
  return lib
@@ -206,6 +208,30 @@ def activity(lines,window,now):
  except Exception:pass
  if any(end in line for line in lines for end in ENDED) and not any('start:' in line for line in lines):clear_busy(window)
  else:mark_busy(window,now)
+ at=closed_at(lines)
+ if at is not None:back_to_kodi(at)
+
+def closed_at(lines):
+ """r39: the position Apple's player had when it closed ("player: closed at 246.9 s"), or None."""
+ found=None
+ for line in lines or ():
+  m=re.search(r'player: closed at ([\d.]+) s',line)
+  if m:found=float(m.group(1))
+ return found
+
+def back_to_kodi(at,player=None,log=None):
+ """r39 (owner, build 202: "if i stop airplay it restarts the movie"): Kodi's paused video moves to where the TV
+ was. Nothing under 5 s (a start that never played) and nothing when Kodi has no video open."""
+ if at<5:return False
+ try:
+  if player is None or log is None:
+   import xbmc
+   player=player or xbmc.Player();log=log or (lambda m:xbmc.log(m,xbmc.LOGINFO))
+  if not player.isPlayingVideo():return False
+  player.seekTime(at)
+  log('Kodi iOS Play on TV: Kodi continues at %.1f s, where the TV was'%at)
+  return True
+ except Exception:return False
 
 def relay(lib,write,wait,every=5,keep=None):
  """Writes the framework's AirPlay log into kodi.log every few seconds until wait(seconds) reports Kodi is closing.

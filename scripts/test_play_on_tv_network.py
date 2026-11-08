@@ -383,4 +383,32 @@ class PreparedAsHls(unittest.TestCase):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn('[link hasSuffix:@"/prepared.m3u8"]',build)
 
+class AfterAirPlay(unittest.TestCase):
+ """r39 (owner, build 202: "if i stop airplay it restarts the movie ... And subtitles didnt work"): the TV starts
+ where Kodi was, Kodi continues where the TV was, and the file's text subtitles go as WebVTT renditions."""
+ def test_closed_at_is_read_from_the_player_line(self):
+  self.assertEqual(airplay.closed_at(['player: 120s: at 210.4 s','player: closed at 246.9 s']),246.9)
+  self.assertIsNone(airplay.closed_at(['player: stopped: x']))
+ def test_kodi_seeks_to_where_the_tv_was(self):
+  seen=[]
+  class Player:
+   def isPlayingVideo(self):return True
+   def seekTime(self,t):seen.append(t)
+  self.assertTrue(airplay.back_to_kodi(246.9,Player(),log=lambda m:None));self.assertEqual(seen,[246.9])
+  self.assertFalse(airplay.back_to_kodi(0.0,Player(),log=lambda m:None));self.assertEqual(seen,[246.9])
+  class Idle(Player):
+   def isPlayingVideo(self):return False
+  self.assertFalse(airplay.back_to_kodi(300,Idle(),log=lambda m:None))
+ def test_the_tv_starts_where_kodi_is(self):
+  text=(BOOT/'cast.py').read_text()
+  self.assertLess(text.index('lib.kodi_airplay_start_at(float(player.getTime()))'),text.index("lib.kodi_airplay_play(source.encode('utf-8')"))
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn('void kodi_airplay_start_at(double seconds)',build);self.assertIn('_kodi_airplay_start_at\\n',build)
+  self.assertIn('const double startAt = atomic_exchange(&pendingStart, 0.0);',build)
+  self.assertIn('[item selectMediaOption:legible.defaultOption inMediaSelectionGroup:legible];',build)
+ def test_prepared_playlists_offer_text_subtitles(self):
+  remux=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
+  self.assertIn('if(strncmp(path,"/subs/",6)){fail(fd,404,"Not Found");return;}',remux)
+  self.assertIn('#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\\"subs\\"',remux)
+
 if __name__=='__main__':unittest.main()

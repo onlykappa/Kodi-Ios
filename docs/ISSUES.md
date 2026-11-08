@@ -1197,3 +1197,20 @@ Status: FIXED IN SOURCE (native r38 candidate pending); device retest pending.
   another needs separate renditions. 4K streamed from Drive still needs about 3 MB/s from Drive.
 - Regression: test_remux.c (master and media playlists, first range is a moof, init range is ftyp+moov);
   `test_play_on_tv_network.PreparedAsHls`. Device: owner's Apple TV.
+
+## ISSUE-128 — Build 202: AirPlay works on the Apple TV; stopping it went back to the start; no subtitles (2026-11-08)
+
+Status: FIXED IN SOURCE (native r39 candidate pending); device retest pending.
+- Owner: "IT WORKED ... if i stop airplay it restarts the movie it seems or goes back to where it started airplaying?
+  And subtitles didnt work". Log: prepared HLS over 141 fragments; the Apple TV (10.0.0.40) asked 3.3 s after start
+  and played; the player started at 0.0 s although Kodi was further in, and "closed at 246.9 s" left Kodi where it
+  had paused. Subtitles: Kodi's choice -2 (the file's default); the prepared file's English text subtitles ride in
+  the fragments as mov_text, which HLS ignores.
+- Fix (r39): `kodi_airplay_start_at(seconds)` (new export, 27 checked) is set from Kodi's position before
+  `kodi_airplay_play`; the native player seeks there once ready. `airplay.activity` (both readers of the native log)
+  moves Kodi's paused video to "closed at X s" (`airplay.back_to_kodi`, nothing under 5 s). The prepared master
+  lists the file's text subtitles as WebVTT renditions (the converted path's /subs/ playlists and cue files), the
+  one Kodi shows (else forced/default/first) as DEFAULT; the native player selects the DEFAULT legible option.
+- Not covered: image subtitles (PGS, kept beside the movie as .sup) and external subtitle files over AirPlay.
+- Regression: test_remux.c (h264_aac_srt prepared: SUBTITLES group with DEFAULT=YES, playlist and WEBVTT cue file);
+  `test_play_on_tv_network.AfterAirPlay` (4).

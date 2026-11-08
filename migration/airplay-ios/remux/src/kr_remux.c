@@ -939,8 +939,8 @@ static void serve(int fd, const char *method, const char *path, const char *rang
     if(S.prepared) {
         const char *list=!strcmp(path,"/prepared.m3u8")?S.prepared_master:!strcmp(path,"/prepared-media.m3u8")?S.prepared_media:NULL;
         if(list){respond(fd,head,NULL,"application/vnd.apple.mpegurl",(const uint8_t *)list,strlen(list));return;}
-        if(strcmp(path,"/prepared.mp4")){fail(fd,404,"Not Found");return;}
-        serve_prepared(fd,head,range,agent);return;
+        if(!strcmp(path,"/prepared.mp4")){serve_prepared(fd,head,range,agent);return;}
+        if(strncmp(path,"/subs/",6)){fail(fd,404,"Not Found");return;}   // r38: WebVTT renditions, below
     }
     char err[256] = "";
     gm_buf buf = {0};
@@ -1321,13 +1321,39 @@ static int prepared_playlists(void) {
     gm_color_info c;const char *range="SDR";
     if(gm_stream_color_info(S.gm,&c)==0 && gm_stream_is_hdr(S.gm))range=c.transfer==18?"HLG":"PQ";
     double average=end_time>0?(double)(mfra_at-fr[0].offset)*8/(end_time-(double)fr[0].time*tb):0;
+    // r39 (owner, build 202: "subtitles didnt work"): the file's text subtitles (mov_text) ride in the fragments, which
+    // HLS ignores; they go as WebVTT renditions (the converted path's /subs/ playlists and cue files). The one Kodi
+    // shows (else the file's forced/default) is DEFAULT, and the native player selects it.
+    AVBPrint subs;av_bprint_init(&subs,0,AV_BPRINT_SIZE_UNLIMITED);int nsub=0;
+    {
+        pthread_mutex_lock(&SUBS.lock);int ord=SUBS.ordinal;char lang[16];snprintf(lang,sizeof lang,"%s",SUBS.lang);pthread_mutex_unlock(&SUBS.lock);
+        int pick=ord==-1?-1:kr_subs_pick(f,ord,lang),first=-1;
+        for(int i=0;i<tracks;i++)if(gm_stream_track_info(S.gm,i,&t)==0 && t.kind==GM_TRACK_SUBTITLE && t.is_text_sub){first=t.src_index;break;}
+        if(pick<0 && ord!=-1)pick=first;
+        char used[16][100];
+        for(int i=0;i<tracks && nsub<16;i++) {
+            if(gm_stream_track_info(S.gm,i,&t)!=0 || t.kind!=GM_TRACK_SUBTITLE || !t.is_text_sub)continue;
+            char name[100];const char *code=kr_language(t.language);
+            if(t.title[0])snprintf(name,sizeof name,"%.80s",t.title);else if(*code)snprintf(name,sizeof name,"%s",t.language);else snprintf(name,sizeof name,"Subtitles %d",nsub+1);
+            for(char *c=name;*c;c++)if(*c=='"' || *c=='\n' || *c=='\r')*c='\'';
+            for(int k=0;k<nsub;k++)if(!strcmp(used[k],name)){char tmp[100];snprintf(tmp,sizeof tmp,"%.80s #%d",name,nsub+1);snprintf(name,sizeof name,"%s",tmp);break;}
+            snprintf(used[nsub++],sizeof used[0],"%s",name);
+            av_bprintf(&subs,"#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",NAME=\"%s\"",name);
+            if(*code)av_bprintf(&subs,",LANGUAGE=\"%s\"",code);
+            av_bprintf(&subs,",DEFAULT=%s,AUTOSELECT=YES,FORCED=NO,URI=\"%s/subs/%d/index.m3u8\"\n",t.src_index==pick?"YES":"NO",S.base,t.src_index);
+        }
+        if(nsub)log_line("prepared: %d text subtitle track(s) as WebVTT%s",nsub,pick>=0?", Kodi's on":"");
+    }
     AVBPrint x;av_bprint_init(&x,0,AV_BPRINT_SIZE_UNLIMITED);
-    av_bprintf(&x,"#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n#EXT-X-STREAM-INF:BANDWIDTH=%ld",(long)fmax(peak,average>0?average:8e6));
+    // The renditions go before the variant that names their group.
+    av_bprintf(&x,"#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n%s#EXT-X-STREAM-INF:BANDWIDTH=%ld",subs.str,(long)fmax(peak,average>0?average:8e6));
     if(average>0)av_bprintf(&x,",AVERAGE-BANDWIDTH=%ld",(long)average);
     av_bprintf(&x,",CODECS=\"%s%s\"",S.vcodec,tokens);
     if(st->codecpar->width>0 && st->codecpar->height>0)av_bprintf(&x,",RESOLUTION=%dx%d",st->codecpar->width,st->codecpar->height);
     if(fps>0)av_bprintf(&x,",FRAME-RATE=%.3f",fps);
+    if(nsub)av_bprintf(&x,",SUBTITLES=\"subs\"");
     av_bprintf(&x,",VIDEO-RANGE=%s\n%s/prepared-media.m3u8\n",range,S.base);
+    av_bprint_finalize(&subs,NULL);
     if(av_bprint_finalize(&x,&master)<0 || !master)goto end;
     log_line("prepared: HLS over the file's %d fragments (byte ranges, longest %.1f s, peak %.1f Mbit/s, %s, %s%s)",n,longest,peak/1e6,range,S.vcodec,tokens);
     S.prepared_master=master;S.prepared_media=media;master=media=NULL;ok=0;

@@ -260,6 +260,10 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
   ui.stage(phase)
   diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','phase',phase=phase)
  try:
+  # r39: the TV starts where Kodi is (the native side seeks once the stream is ready).
+  if hasattr(lib,'kodi_airplay_start_at'):
+   try:lib.kodi_airplay_start_at(float(player.getTime()))
+   except Exception:lib.kodi_airplay_start_at(0.0)
   lib.kodi_airplay_play(source.encode('utf-8'),(title or '').encode('utf-8'))
   outcome=cast.airplay_outcome(lib.kodi_airplay_state,wait,60 if converting else 25,network=network,stage=stage)
   why=airplay.message(lib)

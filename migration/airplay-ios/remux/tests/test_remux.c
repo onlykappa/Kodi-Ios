@@ -1424,7 +1424,7 @@ static int preparation_write(int track,const char *suffix,const uint8_t *data,in
 }
 // r38 (owner's build-201 Apple TV log): Apple's player reads every fragment of a progressive fragmented MP4; a prepared
 // (fragmented, indexed) movie is offered as HLS byte ranges over the same file, taken from its mfra.
-static void check_prepared_hls(const char *file,const char *what) {
+static void check_prepared_hls(const char *file,const char *what,int want_subs) {
     char url[1200],playlist[512]="";snprintf(url,sizeof url,"file:%s",file);
     int st=kr_remux_start(url,0,0,playlist,sizeof playlist);
     CHECK(st==KR_READY && strstr(playlist,"/prepared.m3u8"),"%s: a fragmented prepared movie is offered as HLS (%s %s)",what,playlist,kr_remux_message());
@@ -1457,6 +1457,19 @@ static void check_prepared_hls(const char *file,const char *what) {
         reply init=http_get(port,mp4_url,want);
         CHECK(init.status==206 && init.len==map_len && init.body && !memcmp(init.body+4,"ftyp",4) && memmem(init.body,(size_t)init.len,"moov",4),"%s: the init range is ftyp+moov",what);free(init.body);
     }
+    // r39 (owner, build 202: "subtitles didnt work"): text subtitles as WebVTT renditions, the default one on.
+    if(want_subs) {
+        char *u=master.body?strstr(master.body,"TYPE=SUBTITLES"):NULL;char sub_url[600]="";
+        if(u && (u=strstr(u,"URI=\""))){u+=5;size_t n=strcspn(u,"\"");if(n<sizeof sub_url){memcpy(sub_url,u,n);sub_url[n]=0;}}
+        CHECK(u && strstr(master.body,"DEFAULT=YES") && strstr(master.body,"SUBTITLES=\"subs\""),"%s: text subtitles offered as a WebVTT group: %.400s",what,master.body?master.body:"");
+        if(*sub_url) {
+            reply list=http_get(port,sub_url,NULL);char seg[600]="";
+            if(list.body){char *q=strstr(list.body,"#EXTINF:");if(q && (q=strchr(q,'\n'))){q++;size_t n=strcspn(q,"\n");if(n<sizeof seg){memcpy(seg,q,n);seg[n]=0;}}}
+            CHECK(list.status==200 && *seg,"%s: subtitle playlist: %.200s",what,list.body?list.body:"");
+            if(*seg){reply cue=http_get(port,seg,NULL);CHECK(cue.status==200 && cue.body && !strncmp(cue.body,"WEBVTT",6),"%s: subtitle cue file is WebVTT",what);free(cue.body);}
+            free(list.body);
+        }
+    }
     free(master.body);free(media.body);kr_remux_stop();
 }
 static void test_preparation_stream(const char *work,const char *http_base) {
@@ -1478,7 +1491,8 @@ static void test_preparation_stream(const char *work,const char *http_base) {
         uint8_t a[16],b[16];int aw,ah,an,bw,bh,bn;char local[1100];snprintf(local,sizeof local,"%s/%s",fixture_dir,files[i]);
         CHECK(video_digest(local,a,&aw,&ah,&an)==0 && video_digest(output,b,&bw,&bh,&bn)==0 && !memcmp(a,b,16),"streaming preserves original H.264/HEVC packets for %s",files[i]);
         CHECK(kodi_airplay_probe(output,json,sizeof json)==0 && strstr(json,"\"ready\":true"),"streamed output is prepared: %s",json);
-        if(!strcmp(files[i],"hevc_4k.mkv") || !strcmp(files[i],"long_seek.mkv"))check_prepared_hls(output,files[i]);
+        if(!strcmp(files[i],"hevc_4k.mkv") || !strcmp(files[i],"long_seek.mkv") || !strcmp(files[i],"h264_aac_srt.mkv"))
+            check_prepared_hls(output,files[i],!strcmp(files[i],"h264_aac_srt.mkv"));
         {uint8_t header[65536];FILE *file=fopen(output,"rb");size_t length=file?fread(header,1,sizeof header,file):0;if(file)fclose(file);int duration=0;
          for(size_t n=4;n+24<length;n++)if(!memcmp(header+n,"mvhd",4) && header[n+4]==0){duration=AV_RB32(header+n+20)>0;break;}
          CHECK(duration,"streamed MP4 advertises a finite nonzero movie duration in its init: %s",files[i]);}

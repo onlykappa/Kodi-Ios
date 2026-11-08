@@ -190,6 +190,9 @@ static atomic_int compatBusy;
 // r38 (owner's build-201 log): Kodi's Play on TV card watches the start by polling kodi_airplay_state(). While it does,
 // a problem goes to that card (state -1) instead of Apple's "AirPlay stopped" alert, which hid what went wrong.
 static _Atomic double kodiPolledAt;
+// r39 (owner, build 202: "if i stop airplay it restarts the movie"): where Kodi was, so the TV starts there
+// (kodi_airplay_start_at before kodi_airplay_play; taken by the next player).
+static _Atomic double pendingStart;
 // A generation check and its native reservation/cancel are one operation, including compat restarts.
 static os_unfair_lock ownershipLock = OS_UNFAIR_LOCK_INIT;
 static NSTimer *routeWatch;
@@ -439,6 +442,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
         [[AVAudioSession sharedInstance] setActive:YES error:nil];
         AVPlayer *player = [AVPlayer playerWithURL:address];
         if (@available(iOS 15.0, *)) player.audiovisualBackgroundPlaybackPolicy=AVPlayerAudiovisualBackgroundPlaybackPolicyContinuesIfPossible;
+        const double startAt = atomic_exchange(&pendingStart, 0.0);
         if(!playbackStateFor(generation,0,1))return;
         keepUpdate();
         [routeWatch invalidate];
@@ -457,6 +461,26 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
             if (item.status == AVPlayerItemStatusReadyToPlay) {
                 playerNote(@"ready, presentation %@, %lu tracks, external %d", sizeText(item.presentationSize),
                            (unsigned long)item.tracks.count, player.externalPlaybackActive);
+                // r39: start where Kodi was, and show the subtitle the stream marks DEFAULT (the one Kodi showed).
+                if (startAt > 1 && isfinite(startAt)) {
+                    playerNote(@"starting at %.1f s (where Kodi was)", startAt);
+                    [player seekToTime:CMTimeMakeWithSeconds(startAt, 600) toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
+                }
+                void (^pick)(AVMediaSelectionGroup *) = ^(AVMediaSelectionGroup *legible) {
+                    if (!legible.defaultOption) return;
+                    [item selectMediaOption:legible.defaultOption inMediaSelectionGroup:legible];
+                    playerNote(@"subtitles on: %@", legible.defaultOption.displayName ?: @"");
+                };
+                if (@available(iOS 15.0, *)) {
+                    [item.asset loadMediaSelectionGroupForMediaCharacteristic:AVMediaCharacteristicLegible completionHandler:^(AVMediaSelectionGroup *legible, NSError *error) {
+                        dispatch_async(dispatch_get_main_queue(), ^{ if (generation == atomic_load(&playGeneration)) pick(legible); });
+                    }];
+                } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+                    pick([item.asset mediaSelectionGroupForMediaCharacteristic:AVMediaCharacteristicLegible]);
+#pragma clang diagnostic pop
+                }
                 playbackStateFor(generation,1,1);
                 [timer invalidate];
             } else if (openFailedSeen >= 3) {
@@ -708,6 +732,11 @@ __attribute__((visibility("default"))) void kodi_airplay_subtitles(int ordinal, 
     kr_remux_set_subtitles(ordinal, file, lang);
 }
 
+// r39: Kodi's position in seconds; the next kodi_airplay_play starts the TV there (0: from the start).
+__attribute__((visibility("default"))) void kodi_airplay_start_at(double seconds) {
+    atomic_store(&pendingStart, isfinite(seconds) && seconds > 0 ? seconds : 0.0);
+}
+
 // r5: why AirPlay could not play the last stream ("" when it could). Returns the length written.
 __attribute__((visibility("default"))) int kodi_airplay_message(char *buf, int len) {
     if (!buf || len <= 0) return 0;
@@ -895,7 +924,7 @@ for c in "$REMUX"/src/*.c "$REMUX"/gmplayer/*.c; do
   o="$WORK/$(basename "${c%.c}").o"; "${CC_IOS[@]}" -c "$c" -o "$o"; OBJS+=("$o")
 done
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
-printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n' > "$WORK/exports"
+printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n' > "$WORK/exports"
 printf '_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n' >> "$WORK/exports"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
@@ -927,7 +956,7 @@ PLIST
 nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume)|background_(keep|state))$'
 # r14: prepare_streams is what tells the setup add-on it may stream from Drive instead of downloading first.
 # r15: prepare_keep_image_subs keeps Blu-ray picture subtitles in .sup files beside the MP4 (Interstellar, build 160).
-[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume)|background_(keep|state))$')" == 26 ]] || { echo 'missing exports' >&2; exit 1; }
+[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume|start_at)|background_(keep|state))$')" == 27 ]] || { echo 'missing exports' >&2; exit 1; }
 ! nm -gU "$FW/KodiAirPlay" | grep -E ' _(av|avformat|avcodec|swr|sws|kr|gm|ass|FT|hb|fribidi)_' || { echo 'FFmpeg symbols exported: they would clash with Kodi (libass too)' >&2; exit 1; }
 # r10: libass and the burn-in path are linked in (private).
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _(ass_render_frame|kr_subs_blend|kr_video_burn|kr_remux_set_subtitles|hb_shape|FT_Init_FreeType|fribidi_get_par_embedding_levels_ex)$')" == 7 ]] || { echo 'r10 libass burn-in missing' >&2; exit 1; }
