@@ -356,11 +356,44 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
    notices.note('info','Uploads paused for AirPlay','Resume them in Library status when the movie is over.')
   return send_airplay(xbmc,dialog,player,library,url,title,playing)
 
+def tv_link(xbmc,library,url,playing,kind):
+ """r40 (owner, build 203: "work on any tv thats connected to the same wifi"): the link a TV's own player opens. Kodi's
+ link for Drive and Elementum answers on the phone only (127.0.0.1), so the phone's server serves the TV the same
+ playlist the Apple TV gets (prepared movies as byte ranges, other files remuxed) on the Wi-Fi address. DLNA TVs get
+ the prepared MP4 itself (few take HLS). Returns (link, served); served None: the server is unavailable, Kodi's link
+ is kept."""
+ if not library:return url,None
+ try:
+  import ctypes
+  lib=airplay.load(library)
+  if not hasattr(lib,'kodi_airplay_serve'):return url,None
+  try:lib.kodi_airplay_close()
+  except Exception:pass
+  out=ctypes.create_string_buffer(512)
+  xbmc.executebuiltin('ActivateWindow(busydialognocancel)')
+  try:r=lib.kodi_airplay_serve(cast.phone_source(playing,url).encode('utf-8'),0,out,len(out))
+  finally:xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
+  for line in airplay.log_lines(lib):xbmc.log('Kodi iOS AirPlay: '+airplay.log_text(line),xbmc.LOGINFO)
+  if r==2 and out.value:
+   link=out.value.decode('utf-8')
+   if kind=='dlna' and link.endswith('/prepared.m3u8'):link=link[:-len('.m3u8')]+'.mp4'
+   xbmc.log('Kodi iOS Play on TV: %s gets the phone\'s %s'%(kind,link.rsplit('/',1)[-1]),xbmc.LOGINFO)
+   return link,True
+  if r==3:return url,False
+  xbmc.log('Kodi iOS Play on TV: phone server unavailable (%d: %s); Kodi\'s link goes to the TV'%(r,airplay.message(lib)),xbmc.LOGWARNING)
+ except Exception as error:diagnostics.log_exception(xbmc,'tv_link',error,receiver=kind)
+ return url,None
+
 def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
+ served=None
+ if tv['kind'] in ('roku','dlna','chromecast'):
+  try:start=float(player.getTime())
+  except Exception:start=0
+  url,served=tv_link(xbmc,library,url,playing,tv['kind'])
  try:
   if tv['kind']=='roku':xbmc.log('Kodi iOS Play on TV: Roku took the link via '+cast.roku_play(tv['host'],url,title,cast.http_post),xbmc.LOGINFO)
   elif tv['kind']=='dlna':cast.dlna_play(tv['control'],url,title,cast.http_post_body)
-  elif tv['kind']=='chromecast':cast.chromecast_play(tv['host'],url,title)
+  elif tv['kind']=='chromecast':cast.chromecast_play(tv['host'],url,title,start=start)
   else:send_airplay(xbmc,dialog,player,library,url,title,playing);return
  except cast.TVRefused as error:
   diagnostics.log_exception(xbmc,'play_on_tv',error,receiver=tv['kind'])
@@ -376,6 +409,10 @@ def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
   notices.note('problem',"Play on TV couldn't start",tv['name']+' did not accept the video. Make sure the TV is on.')
   dialog.ok('Play on TV',tv['name']+' did not accept the video. Make sure the TV is on, then try again.');return
  player.stop();notices.note('info','Playing on '+tv['name'],title or '')
- if needs_phone:dialog.ok('Play on TV','Playing on '+tv['name']+'. This stream comes from Elementum on the phone: keep Kodi open and on Wi-Fi.')
+ if served:
+  import time,xbmcgui
+  airplay.mark_busy(xbmcgui.Window(10000),time.time())
+  xbmcgui.Dialog().notification('Playing on '+tv['name'],'From this iPhone: keep Kodi open and on Wi-Fi.',xbmcgui.NOTIFICATION_INFO,6000)
+ elif needs_phone:dialog.ok('Play on TV','Playing on '+tv['name']+'. This stream comes from Elementum on the phone: keep Kodi open and on Wi-Fi.')
 
 if __name__=='__main__':run()

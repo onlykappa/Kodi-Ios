@@ -40,6 +40,20 @@ def launch_url(roku,url,title='',command='input'):
  if ext:query['videoFormat']=ext.group(1)
  return 'http://%s:%d/%s/15985?%s'%(roku,PORT,command,urllib.parse.urlencode(query,quote_via=urllib.parse.quote))
 
+# r40 (owner, build 203: "work on any tv thats connected to the same wifi"): Roku locked "Play on Roku" (15985) in Roku
+# OS 11.5 (home-assistant/core#83819: it opens and exits at once). The free "Media Assistant" channel
+# (MedievalApple/Media-Assistant, Channel Store id 782875) took its place: /launch/782875 (or /input while it runs)
+# with u = the link, t = v (video), videoName, videoFormat (hls / mp4 / mkv; empty: Roku guesses).
+MEDIA_ASSISTANT='782875'
+
+def assistant_url(roku,url,title='',command='launch'):
+ path=urllib.parse.urlsplit(url).path.lower()
+ fmt='hls' if path.endswith('.m3u8') else (re.search(r'\.([a-z0-9]{2,4})$',path) or [None,''])[1]
+ query={'u':url,'t':'v','videoName':title or 'Kodi'}
+ if fmt:query['videoFormat']=fmt
+ where='launch/'+MEDIA_ASSISTANT if command=='launch' else 'input'
+ return 'http://%s:%d/%s?%s'%(roku,PORT,where,urllib.parse.urlencode(query,quote_via=urllib.parse.quote))
+
 class TVRefused(Exception):
  """The TV answered but would not play; str() is what to tell the owner."""
 
@@ -49,16 +63,18 @@ def roku_reason(errors):
   return ('The Roku refused the request (403). On the Roku: Settings › System › Advanced system settings › '
           'Control by mobile apps › Network access: Permissive, then try again.')
  if codes and all(c==404 for c in codes):
-  return ('This Roku has no "Play on Roku" receiver (404). If the TV has AirPlay (Settings › Apple AirPlay and '
-          'HomeKit), choose "Apple TV / AirPlay TV" instead.')
+  return ('This Roku has no player Play on TV can use (404). Add the free "Media Assistant" channel from the Roku '
+          'Channel Store, then try again. A Roku TV with AirPlay (Settings › Apple AirPlay and HomeKit) can also use '
+          '"Apple TV / AirPlay TV".')
  if not codes:return 'The Roku did not answer (%s). Make sure it is on and on this Wi-Fi.'%', '.join(sorted(set(map(str,errors))))
  return 'The Roku answered %s.'%', '.join(map(str,errors))
 
 def roku_play(host,url,title,post):
- """Hand the link to the Roku, trying both ways in. Returns the one it took; raises TVRefused with the reason."""
+ """Hand the link to the Roku: Media Assistant first (r40), then the old "Play on Roku" both ways in. Returns the way
+ it took ('media-assistant', 'input', 'launch'); raises TVRefused with the reason."""
  errors=[]
- for command in ('input','launch'):
-  try:post(launch_url(host,url,title,command));return command
+ for command,link in (('media-assistant',assistant_url(host,url,title)),('input',launch_url(host,url,title,'input')),('launch',launch_url(host,url,title,'launch'))):
+  try:post(link);return command
   except urllib.error.HTTPError as error:errors.append(error.code)
   except OSError as error:errors.append(type(error).__name__)
  raise TVRefused(roku_reason(errors))
@@ -360,7 +376,7 @@ def chromecast_name(host,get):
  try:return json.loads(get('http://%s:8008/setup/eureka_info?params=name'%host,2)).get('name') or 'Chromecast'
  except Exception:return None
 
-def chromecast_play(host,url,title,connect=None,timeout=20):
+def chromecast_play(host,url,title,connect=None,timeout=20,start=0):
  sock=(connect or _cast_socket)(host)
  send=lambda dst,ns,payload:sock.sendall(cast_frame('sender-0',dst,ns,payload))
  def read():
@@ -377,7 +393,7 @@ def chromecast_play(host,url,title,connect=None,timeout=20):
      if app.get('appId')==MEDIA_RECEIVER and app.get('transportId'):
       transport=app['transportId']
       send(transport,'urn:x-cast:com.google.cast.tp.connection',{'type':'CONNECT'})
-      send(transport,'urn:x-cast:com.google.cast.media',{'type':'LOAD','requestId':2,'autoplay':True,'currentTime':0,
+      send(transport,'urn:x-cast:com.google.cast.media',{'type':'LOAD','requestId':2,'autoplay':True,'currentTime':max(0,float(start or 0)),
            'media':{'contentId':url,'streamType':'BUFFERED','contentType':'video/mp4' if media_type(url)=='video/x-matroska' else media_type(url),
                     'metadata':{'metadataType':0,'title':title or 'Kodi'}}})
    elif payload.get('type') in {'LOAD_FAILED','LOAD_CANCELLED','INVALID_REQUEST','LAUNCH_ERROR'}:

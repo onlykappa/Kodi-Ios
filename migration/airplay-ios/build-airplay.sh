@@ -732,6 +732,28 @@ __attribute__((visibility("default"))) void kodi_airplay_subtitles(int ordinal, 
     kr_remux_set_subtitles(ordinal, file, lang);
 }
 
+// r40 (owner, build 203: "work on any tv thats connected to the same wifi"): the phone's server for a TV that plays
+// links itself (Roku with Media Assistant, Chromecast / Google TV, DLNA): the same playlist the Apple TV gets
+// (prepared movies as byte ranges, other files remuxed), on the Wi-Fi address, without Apple's player. Drive's and
+// Elementum's own helpers answer on 127.0.0.1 only, so a TV could never open Kodi's link. Blocks while the source
+// opens (a few seconds); returns KR_READY with the link in out, KR_NOT_NEEDED (an HLS source: use it as it is) or
+// KR_FAILED (kodi_airplay_message says why). compat 1: the picture as H.264 (for a TV without HEVC). The server
+// runs until kodi_airplay_close or the next play/serve.
+__attribute__((visibility("default"))) int kodi_airplay_serve(const char *url, int compat, char *out, int outlen) {
+    if (out && outlen > 0) *out = 0;
+    if (!url || !*url) return KR_FAILED;
+    os_unfair_lock_lock(&ownershipLock);
+    atomic_fetch_add(&playGeneration,1);   // an open Apple player from an earlier AirPlay stops counting
+    atomic_store(&playbackActive,0);atomic_store(&compatBusy,0);atomic_store(&airplayState,0);
+    unsigned ticket=kr_remux_begin(1);atomic_store(&remuxTicket,ticket);
+    os_unfair_lock_lock(&noteLock);free(remuxSource);remuxSource=NULL;os_unfair_lock_unlock(&noteLock);
+    os_unfair_lock_unlock(&ownershipLock);
+    setNote(nil);
+    int r = kr_remux_start_for(ticket, url, 1, compat ? 1 : 0, out, outlen);
+    playerNote(@"served for a TV's own player: result %d", r);
+    return r;
+}
+
 // r39: Kodi's position in seconds; the next kodi_airplay_play starts the TV there (0: from the start).
 __attribute__((visibility("default"))) void kodi_airplay_start_at(double seconds) {
     atomic_store(&pendingStart, isfinite(seconds) && seconds > 0 ? seconds : 0.0);
@@ -924,7 +946,7 @@ for c in "$REMUX"/src/*.c "$REMUX"/gmplayer/*.c; do
   o="$WORK/$(basename "${c%.c}").o"; "${CC_IOS[@]}" -c "$c" -o "$o"; OBJS+=("$o")
 done
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
-printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n' > "$WORK/exports"
+printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n_kodi_airplay_serve\n' > "$WORK/exports"
 printf '_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n' >> "$WORK/exports"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
@@ -956,7 +978,7 @@ PLIST
 nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume)|background_(keep|state))$'
 # r14: prepare_streams is what tells the setup add-on it may stream from Drive instead of downloading first.
 # r15: prepare_keep_image_subs keeps Blu-ray picture subtitles in .sup files beside the MP4 (Interstellar, build 160).
-[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume|start_at)|background_(keep|state))$')" == 27 ]] || { echo 'missing exports' >&2; exit 1; }
+[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume|start_at|serve)|background_(keep|state))$')" == 28 ]] || { echo 'missing exports' >&2; exit 1; }
 ! nm -gU "$FW/KodiAirPlay" | grep -E ' _(av|avformat|avcodec|swr|sws|kr|gm|ass|FT|hb|fribidi)_' || { echo 'FFmpeg symbols exported: they would clash with Kodi (libass too)' >&2; exit 1; }
 # r10: libass and the burn-in path are linked in (private).
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _(ass_render_frame|kr_subs_blend|kr_video_burn|kr_remux_set_subtitles|hb_shape|FT_Init_FreeType|fribidi_get_par_embedding_levels_ex)$')" == 7 ]] || { echo 'r10 libass burn-in missing' >&2; exit 1; }

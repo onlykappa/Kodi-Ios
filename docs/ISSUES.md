@@ -1214,3 +1214,23 @@ Status: FIXED IN SOURCE (native r39 candidate pending); device retest pending.
 - Not covered: image subtitles (PGS, kept beside the movie as .sup) and external subtitle files over AirPlay.
 - Regression: test_remux.c (h264_aac_srt prepared: SUBTITLES group with DEFAULT=YES, playlist and WEBVTT cue file);
   `test_play_on_tv_network.AfterAirPlay` (4).
+
+## ISSUE-129 — Play on TV for any TV on the Wi-Fi: Roku, Chromecast and DLNA got a link they could not open (2026-11-08)
+
+Status: FIXED IN SOURCE (native r40 candidate pending; build 204); device test pending.
+- Owner (build 203): "ideally i want it to work on any tv thats connected to the same wifi". Research:
+  Roku locked "Play on Roku" (channel 15985) in Roku OS 11.5 (home-assistant/core#83819: it opens and exits), which is
+  why this TCL Roku TV answered 404 (build 138); Home Assistant moved to the free Media Assistant channel
+  (MedievalApple/Media-Assistant, Channel Store id 782875: /launch/782875 or /input with u, t=v, videoName,
+  videoFormat). Roku is not a DLNA renderer. No maintained iOS library covers every TV; every caster combines
+  AirPlay, Cast, DLNA and Roku ECP, as Play on TV already does.
+- Root cause for the non-AirPlay TVs: they were sent Kodi's link with the phone's address; Drive's and Elementum's
+  helpers answer on 127.0.0.1 only, so the TV could never open it, and Drive links need the phone anyway.
+- Fix (r40): `kodi_airplay_serve(url, compat, out)` (export 28) starts the phone's server on the Wi-Fi address without
+  Apple's player and returns its link: prepared movies as the byte-range HLS (ISSUE-127), other files remuxed.
+  Play on TV (`cast.tv_link`) gives Roku and Chromecast that playlist, DLNA the prepared MP4 itself; an HLS source
+  or an unavailable server keeps Kodi's link. Roku: Media Assistant first, then the old channel; a 404 says to add
+  Media Assistant (or use AirPlay on a Roku TV). Chromecast starts at Kodi's position. Kodi must stay open (the
+  phone serves the movie).
+- Open: TVs without HEVC get the picture as it is (compat 0); a per-TV H.264 choice needs each TV's capabilities.
+- Regression: `test_play_on_tv_network.AnyTv` (4), `test_updates_calibration` (Media Assistant URL, order, 404 text).

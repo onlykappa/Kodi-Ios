@@ -78,13 +78,21 @@ class PlayOnTV(unittest.TestCase):
    def post(url):sent.append(url.split('/')[3]);raise urllib.error.HTTPError(url,code,'no',{},None)
    return post
   with self.assertRaises(cast.TVRefused) as ctx:cast.roku_play('192.168.1.20','https://cdn.example/a.mp4','A',refuse(403))
-  self.assertEqual(sent,['input','launch']);self.assertIn('Permissive',str(ctx.exception))
+  # r40: Media Assistant (Roku OS 11.5 locked "Play on Roku"), then the old channel both ways in.
+  self.assertEqual(sent,['launch','input','launch']);self.assertIn('Permissive',str(ctx.exception))
   with self.assertRaises(cast.TVRefused) as ctx:cast.roku_play('192.168.1.20','https://cdn.example/a.mp4','A',refuse(404))
-  self.assertIn('AirPlay',str(ctx.exception))
+  self.assertIn('AirPlay',str(ctx.exception));self.assertIn('Media Assistant',str(ctx.exception))
   def flaky(url):
-   if '/input/' in url:raise urllib.error.HTTPError(url,404,'no',{},None)
+   if '/launch/782875' in url or '/input/' in url:raise urllib.error.HTTPError(url,404,'no',{},None)
    return 200
   self.assertEqual(cast.roku_play('192.168.1.20','https://cdn.example/a.mp4','A',flaky),'launch')
+  self.assertEqual(cast.roku_play('192.168.1.20','https://cdn.example/a.mp4','A',lambda url:200),'media-assistant')
+ def test_media_assistant_request(self):
+  cast=load('cast')
+  url=cast.assistant_url('192.168.1.20','http://192.168.1.24:5000/tok/prepared.m3u8','Inception')
+  self.assertTrue(url.startswith('http://192.168.1.20:8060/launch/782875?u=http%3A%2F%2F192.168.1.24%3A5000%2Ftok%2Fprepared.m3u8&t=v'),url)
+  self.assertIn('videoName=Inception',url);self.assertIn('videoFormat=hls',url)
+  self.assertIn(':8060/input?u=',cast.assistant_url('192.168.1.20','http://h/a.mp4','A','input'))
   def down(url):raise TimeoutError()
   with self.assertRaises(cast.TVRefused) as ctx:cast.roku_play('192.168.1.20','https://cdn.example/a.mp4','A',down)
   self.assertIn('did not answer',str(ctx.exception))

@@ -411,4 +411,35 @@ class AfterAirPlay(unittest.TestCase):
   self.assertIn('if(strncmp(path,"/subs/",6)){fail(fd,404,"Not Found");return;}',remux)
   self.assertIn('#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\\"subs\\"',remux)
 
+class AnyTv(unittest.TestCase):
+ """r40 (owner, build 203: "work on any tv thats connected to the same wifi"): Roku (Media Assistant), Chromecast and
+ DLNA TVs get the phone's own server, not Kodi's link (Drive and Elementum answer on 127.0.0.1 only)."""
+ def lib(self,result,link):
+  calls=[]
+  def serve(source,compat,out,size):calls.append((source,compat));out.value=link.encode();return result
+  return calls,types.SimpleNamespace(kodi_airplay_serve=serve,kodi_airplay_close=lambda:calls.append('close'),
+                                     kodi_airplay_log=lambda b,n:0,kodi_airplay_message=lambda b,n:0)
+ def run_link(self,result,link,kind):
+  controller=load('cast_controller',BOOT/'cast.py')
+  calls,lib=self.lib(result,link);logs=[]
+  xbmc=types.SimpleNamespace(log=lambda m,l=0:logs.append(m),executebuiltin=lambda c:None,LOGINFO=1,LOGWARNING=2)
+  with patch.object(controller.airplay,'load',return_value=lib):
+   out=controller.tv_link(xbmc,'lib','http://192.168.1.24:1234/drive','http://127.0.0.1:1234/drive',kind)
+  return out,calls
+ def test_roku_gets_the_phones_playlist(self):
+  (link,served),calls=self.run_link(2,'http://192.168.1.24:5000/t/prepared.m3u8','roku')
+  self.assertEqual((link,served),('http://192.168.1.24:5000/t/prepared.m3u8',True))
+  self.assertEqual(calls,['close',(b'http://127.0.0.1:1234/drive',0)])   # the phone reads Kodi's own link
+ def test_dlna_gets_the_prepared_mp4(self):
+  (link,served),_=self.run_link(2,'http://192.168.1.24:5000/t/prepared.m3u8','dlna')
+  self.assertEqual(link,'http://192.168.1.24:5000/t/prepared.mp4')
+ def test_hls_sources_and_failures_keep_kodis_link(self):
+  self.assertEqual(self.run_link(3,'','chromecast')[0],('http://192.168.1.24:1234/drive',False))
+  self.assertEqual(self.run_link(-1,'','roku')[0],('http://192.168.1.24:1234/drive',None))
+ def test_native_serve_export(self):
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn('int kodi_airplay_serve(const char *url, int compat, char *out, int outlen)',build)
+  self.assertIn('kr_remux_start_for(ticket, url, 1, compat ? 1 : 0, out, outlen)',build)
+  self.assertIn('_kodi_airplay_serve\\n',build);self.assertIn("== 28 ]]",build)
+
 if __name__=='__main__':unittest.main()
