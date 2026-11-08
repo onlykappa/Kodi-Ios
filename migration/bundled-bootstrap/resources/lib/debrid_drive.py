@@ -256,7 +256,16 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             job['finished'] = clock()
             state.pop('current', None)
             commit()
-            notify('drive', 'Saved to Google Drive', '%s · straight from AllDebrid, nothing kept on the phone' % title)
+            files = job.get('files') or []
+            if job['kind'] not in ('movie', 'episode') and len(files) == 1:
+                # Owner (build 205): "i pressed full season" and the version picked held episode 1 alone. Say so.
+                import work_state
+                notify('problem', 'Only one episode was in that download',
+                       '%s · %s is in Google Drive; the version you picked had no other episodes. Pick a FULL SEASON '
+                       'version for the rest.' % (title, work_state.episode_label(files[0].get('drive_name') or files[0].get('path'))))
+            else:
+                notify('drive', 'Saved to Google Drive', '%s%s · straight from AllDebrid, nothing kept on the phone'
+                       % (title, ' · %d episodes' % len(files) if len(files) > 1 else ''))
             on_done(job)
             return 1
     except driveupload.Stop:

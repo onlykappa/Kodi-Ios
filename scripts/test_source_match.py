@@ -398,4 +398,23 @@ class WhatTheTorrentReallyIs(unittest.TestCase):
   service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertIn('target=source_guard.run,args=(window,notices.torrent_list,driveupload.remove_torrent,',service)
 
+class SeasonCoverage(unittest.TestCase):
+ """Owner (build 205): "i pressed full season" for Lanterns season 1 and got S01E01 alone (an 8.4 GB 4K episode):
+ a season search lists single episodes too. The version page lists full seasons first and says which is which."""
+ exp=sm.expected('season',['Lanterns'],season=1)
+ def test_packs_and_single_episodes(self):
+  c=lambda n:sm.coverage(n,self.exp)
+  self.assertEqual(c('Lanterns.S01.2160p.WEB-DL.DDP5.1.HEVC'),'')
+  self.assertEqual(c('Lanterns Season 1 Complete 1080p'),'')
+  self.assertEqual(c('Lanterns.S01E01.2160p.HMAX.WEB-DL.DV.HDR.HEVC'),'Episode 1 only')
+  self.assertEqual(c('Lanterns.S01E01-E03.1080p'),'Episodes 1-3 only')
+  self.assertIsNone(sm.coverage('Lanterns.S01E01.1080p',sm.expected('episode',['Lanterns'],season=1,episode=1)))
+ def test_the_page_lists_full_seasons_first_and_labels_them(self):
+  base=lambda idx,name,size,cover:dict(idx=idx,quality='4k',seeds=90 if idx==0 else 20,peers=0,size=size,tags_text='',name=name,providers=['x'],icon='',multi=False,coverage=cover)
+  items=[base(0,'Lanterns.S01E01.2160p.WEB-DL.HEVC',8.4,'Episode 1 only'),base(1,'Lanterns.S01.2160p.WEB-DL.HEVC',40.0,'')]
+  shown=dp.pick([dict(i) for i in items])
+  self.assertEqual([i['idx'] for i in shown],[1,0])
+  rows=dp.build_rows(shown)
+  self.assertEqual([r['badge'] for r in rows],['FULL SEASON','EPISODE 1 ONLY'])
+
 if __name__=='__main__':unittest.main()

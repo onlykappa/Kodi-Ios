@@ -372,6 +372,24 @@ def _check_one(name, exp, keys):
     return False, (reasons[0] if reasons else u'wrong title')
 
 
+def coverage(name, exp):
+    """For a season download (a show, a season, no episode): u'' for a release that holds the season (a pack, a range
+    of seasons, a complete series) and u'Episode 3 only' / u'Episodes 1-4 only' for one that holds a few episodes.
+    Owner (build 205): "i pressed full season" and got Lanterns S01E01 alone: a season search lists single episodes
+    too, and nothing said so. None when this is not a season download or the name says nothing."""
+    exp = exp or {}
+    if exp.get('kind') == 'movie' or exp.get('episode') or exp.get('season') is None:
+        return None
+    found, _ = interpretations(name, all_keys(exp), exp.get('kind') == 'anime')
+    for info in found:
+        if info['seasons'] or info['complete'] or (info['season'] is not None and not info['episodes']):
+            return u''
+        if info['episodes']:
+            a, b = info['episodes']
+            return u'Episode %d only' % a if a == b else u'Episodes %d-%d only' % (a, b)
+    return None
+
+
 def check(name, exp, result=None):
     """(True, '') when the release name is the expected title, else (False, reason)."""
     if not exp or not exp.get('titles'):

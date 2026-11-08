@@ -20,6 +20,8 @@ MEDIA='special://skin/extras/portrait/'
 BOOT='special://xbmc/addons/service.kodi.ios.bootstrap/'
 CAST='RunScript(service.kodi.ios.bootstrap,cast)'
 SPEED='RunScript(service.kodi.ios.bootstrap,speed)'
+NEXT_EPISODE='RunScript(service.kodi.ios.bootstrap,next_episode)'
+EPISODE='!String.IsEmpty(VideoPlayer.TVShowTitle) + !String.IsEmpty(VideoPlayer.Episode)'
 CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type=all'
 INFO='$VAR[Action_OSD_WikiInfo]'
 # The row's list is only fetched once Continue Watching is tapped (its path is empty until then), so opening the
@@ -94,6 +96,11 @@ def window():
  rounded corners and the Dynamic Island."""
  left=EDGE;top=110
  back=tap(7101,left+75,top,150,'chevron-left.png','PlayerControl(Stop)','<onright>7121</onright><ondown>7112</ondown>',104)
+ # Build 206 (owner, build 205: "i want a button at the top to watch next episode"): next to back, only for episodes
+ # (the top right holds the four icons; a centred button would meet them on the 16:9 layout).
+ back+=('<control type="group"><visible>%s</visible>'%EPISODE+
+        text_button(7103,left+170,top-75,420,150,'Next Episode  ›',[NEXT_EPISODE],'<onleft>7101</onleft><onright>7121</onright><ondown>7112</ondown>')+
+        '</control>')
  # Right group, 900 wide: speed, audio, subtitles, AirPlay from left to right, the last 90 in from the edge.
  rw=900;rx=rw-EDGE
  icons=''.join(tap(id,rx-75-i*180,top,150,icon,action,nav,74 if icon.endswith('airplay.png') else 96) for i,(id,icon,action,nav) in enumerate([

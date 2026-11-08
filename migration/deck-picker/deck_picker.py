@@ -297,7 +297,7 @@ def pick(items, top_n=TOP_N):
     rest = [i for i in items if id(i) not in good_ids]
     ranked = good + rest                                   # dead / bad copies only if nothing better
     if len(ranked) <= top_n:
-        return ranked
+        return sorted(ranked, key=lambda it: 1 if it.get('coverage') else 0)   # Kodi-iOS: full seasons first (stable)
     chosen, seen = [], set()
     for it in ranked:
         key = (source_type(it), codec(it))
@@ -312,7 +312,7 @@ def pick(items, top_n=TOP_N):
         if not any(it is c for c in chosen):
             chosen.append(it)
     order = {id(it): n for n, it in enumerate(ranked)}
-    return sorted(chosen, key=lambda it: order[id(it)])
+    return sorted(chosen, key=lambda it: (1 if it.get('coverage') else 0, order[id(it)]))   # Kodi-iOS: full seasons first
 
 
 def group_by_quality(parsed):
@@ -346,8 +346,10 @@ def build_rows(shown, total_label=u''):
         st = source_type(it)
         if st:
             head = head + DOT + st
+        cover = it.get('coverage')
         rows.append({'headline': head, 'tags': DOT.join(tag_list(it)), 'meta': meta_text(it),
-                     'badge': u'MAY STUTTER' if too_heavy(it) else u'AV1 \u00b7 SLOW TO PREPARE' if slow_to_prepare(it)
+                     'badge': cover.upper() if cover else u'FULL SEASON' if cover == u'' else
+                     u'MAY STUTTER' if too_heavy(it) else u'AV1 \u00b7 SLOW TO PREPARE' if slow_to_prepare(it)
                      else b.get(n, u''), 'icon': it['icon']})
     return rows
 
@@ -642,6 +644,13 @@ def run(title, items, top_n=TOP_N, expect=None):
     if sm is not None and exp:
         kept, hidden = sm.split(parsed, exp, name=lambda p: p['name'], result=lambda p: None)
         sm.report('Choose a version', exp, kept, hidden, name=lambda p: p['name'])
+        # Kodi-iOS (owner, build 205: "i pressed full season" and got episode 1 alone): for a season download, full
+        # seasons first and every row says which it is.
+        if hasattr(sm, 'coverage'):
+            for p in kept:
+                p['coverage'] = sm.coverage(p['name'], exp)
+            if any(p['coverage'] is not None for p in kept):
+                kept = [p for p in kept if p['coverage'] == u''] + [p for p in kept if p['coverage'] != u'']
     else:
         kept, hidden = parsed, []
         if sm is not None:

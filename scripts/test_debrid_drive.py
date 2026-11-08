@@ -99,6 +99,15 @@ class Queue(unittest.TestCase):
   self.assertEqual(job['status'],'done');self.assertEqual(drive.data,b'abc');self.assertEqual(drive.folders_made,[['Kodi Downloads','Movies']])
   self.assertIn(('drive','Saved to Google Drive'),self.notes);self.assertEqual(len(self.done),1)
   self.assertFalse(debrid_drive.active(self.p));self.assertEqual(debrid_drive.uploads(self.p),[])
+ def test_a_season_download_with_one_episode_says_so(self):
+  # Owner (build 205): "i pressed full season" and the Lanterns version picked held S01E01 alone (8.4 GB).
+  class One(FakeAPI):
+   def files(self,m):return [('Lanterns/Lanterns.S01E01.2160p.mkv',3,'L')]
+   def unlock(self,l):return 'https://x/f','Lanterns.S01E01.2160p.mkv',3
+  debrid_drive.queue(self.p,{'id':H,'name':'Lanterns.S01E01.2160p'},'season','Lanterns',season='1')
+  self.run_all(One(),FakeDrive())
+  self.assertIn(('problem','Only one episode was in that download'),self.notes)
+  self.assertNotIn(('drive','Saved to Google Drive'),self.notes)
  def test_waits_while_alldebrid_fetches(self):
   debrid_drive.queue(self.p,{'id':H},'movie','Fall (2022)')
   api=FakeAPI(ready=False,status=(1,0.25,'Downloading'))

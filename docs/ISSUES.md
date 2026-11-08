@@ -1269,3 +1269,35 @@ Status: FIXED IN SOURCE (Python; desktop Kodi rig verified); device retest pendi
   three places and the rows around it kept their titles (21 each); Netflix Original Movies moved to the top; TV:
   Trending Shows added at the bottom with 21 titles. The rig's lists were put back afterwards.
 - Regression: `test_customisation` (Add Row lists, add position and focus, row_files = full build).
+
+## ISSUE-132 — Build 205: seeking nearly froze the app; one season showed as one download; no buffering progress (2026-11-08)
+
+Status: FIXED IN SOURCE (Python; build 206); device retest pending.
+- Owner: seeking an Umbrella episode (Dragon Ball Super: Beerus, H.264 + E-AC3 + ASS) "completely nearly broke the
+  app ... have it show like a buffer percentage ... it should use download speeds"; "i went to download a entire
+  season and it seems only 1 thing is downloading".
+- Log: `AddVideoPicture - timeout waiting for render` at 11:25:20 and :26 while an AllDebrid → Drive copy read 32 MB in
+  2.4 s (13 MB/s) during playback (slowdown gave background work 35% of the time but each read ran at line speed);
+  Kodi's cache was 20 MB at 4x.
+- Fix: background downloads (AllDebrid copy reads, preparation's Drive reads) keep under 1 MB/s while a video or
+  AirPlay plays and wait while Kodi buffers (`slowdown` reason 'buffering' from Player.Caching); uploads keep the
+  time share. Kodi's cache set once to 96 MB at 10x (`portrait.tune_cache`). "Buffering 45%" pill
+  (`Custom_1156_Buffering.xml`, Player.CacheLevel) between the centre controls and the title; rendered in the desktop
+  Kodi rig (forced visible: "Buffering 99%"). A video window control was not drawn in the rig, hence its own dialog.
+- Season queue: the copy names its episode and "N of M"; the season's other episodes and the other AllDebrid jobs are
+  listed as up next (`work_state.drive_next`, Queue page).
+- Regression: test_slowdown.DownloadCap (5), test_work_state.SeasonQueue (4), test_portrait.BufferingPill (2).
+
+## ISSUE-133 — "I pressed full season" (Lanterns) and got episode 1 only; Next Episode button (2026-11-08)
+
+Status: FIXED IN SOURCE (Python; build 206); device retest pending.
+- Log: Elementum's season download (/show/95350/season/1/download) used the version picked from 29 results of
+  "lanterns season 1"; it held one 8.4 GB file, S01E01 (4K HEVC HDR), which was copied, listed and prepared. A season
+  search lists single-episode releases too and the version page did not say which was which.
+- Fix: `source_match.coverage` tells a season pack from "Episode 1 only"; the version page lists full seasons first with
+  a FULL SEASON / EPISODE N ONLY badge. A season download that held one episode ends with "Only one episode was in
+  that download" instead of "Saved to Google Drive".
+- Next Episode (owner: "i want a button at the top to watch next episode"): top left beside back, episodes only;
+  `next_episode.py` plays the playlist's next item, else TMDb Helper's play for the same show and episode + 1 (by the
+  show's TMDb id when tagged, else its title). Not yet seen in the rig (the owner stopped that run).
+- Regression: test_source_match.SeasonCoverage (2), test_debrid_drive (one-episode season), test_next_episode (4).
