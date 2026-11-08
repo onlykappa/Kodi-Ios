@@ -402,3 +402,19 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
   0411ba79… identical to the candidate's; cast.py has airplay_settle; airplay_flow has slow_source.
 - Owner to check: (1) Apple TV with a prepared movie: starts within seconds in 4K/HDR; (2) TCL TV: converting pill at
   the top, then the picture or the slow-internet card; send logs either way.
+
+## Build 203 — verified (release build-203, IPA sha256 6fd2b0d1…, commit 66084d1; AirPlay r39). Owner testing
+
+- **ISSUE-128** (build 202 worked on the Apple TV): the TV starts where Kodi was (`kodi_airplay_start_at`), Kodi
+  continues where the TV stopped (`airplay.back_to_kodi`), prepared movies' text subtitles go as WebVTT renditions
+  with Kodi's one selected.
+- **AirPlay r39**: candidate run 42504243855 (source a13154a) green (the first r39 candidate failed one new check: the
+  test inherited "subtitles off" from an earlier test). Published by run 42505585480; release digest 60379f9b… = pin.
+- Verified in the downloaded IPA: build.json build 203 / commit 66084d1 / airplay r39 60379f9b…; KodiAirPlay binary
+  a368da87… identical to the candidate's; airplay.py has back_to_kodi.
+- Owner to check: Apple TV (start position, Kodi position after stopping, subtitles); TCL Roku TV with a prepared
+  movie (the earlier "sound only" was probably ISSUE-127's fragment walk, so HEVC may now play).
+- Next (build 204, owner: "work on any TV on the same Wi-Fi"): Roku's Play on Roku channel (15985) was locked in
+  Roku OS 11.5 (home-assistant/core#83819); Rokus without AirPlay can use the free Media Assistant channel via ECP
+  launch; Chromecast/DLNA should get the phone's prepared playlist instead of the Drive link. Roku is not a DLNA
+  renderer.
