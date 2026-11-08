@@ -440,13 +440,14 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
 - Verified in the downloaded IPA: build.json build 205 / commit d317d12 / airplay r40 9a3415cd…; rows_editor has the
   new lists and slot_of; portrait.refresh_rows is used by customise_rows.
 
-## Build 207 — in source, not built (ISSUE-135)
+## Build 207 — verified (release build-207, IPA sha256 f5a94ad5…, commit d4fd6d6; AirPlay r40). Owner testing (ISSUE-135)
 
 - Season copy speed: build 206's per-MB download gate asked Kodi's GUI each time and waited on its lock in the
   background (1.3 MB/s instead of 13-16). `slowdown.watch` now asks once a second on its own thread; workers only read.
 - Transfers / Library status: per-episode history title (graph, Peak, Average); speed window keeps the previous piece;
   `live_window.Guard` works on Kodi 21 (no `getId()`) and keeps its wrapper alive (rig crash fixed). Rig-checked.
-- Needs owner approval before building.
+- Built with owner approval; IPA checked: build.json 207 / d4fd6d6, frameworks airplay 9a3415cd, glassbar ecc883d2,
+  ios-portrait 02d5357a; the new slowdown, live_window and transfer_history code is inside.
 
 ## Build 206 — verified (release build-206, IPA sha256 538b4a70…, commit 789de12; AirPlay r40). Owner testing
 
