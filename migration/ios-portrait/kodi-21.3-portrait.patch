@@ -1619,3 +1619,20 @@ diff --git a/xbmc/windows/GUIMediaWindow.cpp b/xbmc/windows/GUIMediaWindow.cpp
 
    if (!bHideParent)
    {
+diff --git a/xbmc/cores/VideoPlayer/DVDDemuxers/DVDDemuxFFmpeg.cpp b/xbmc/cores/VideoPlayer/DVDDemuxers/DVDDemuxFFmpeg.cpp
+--- a/xbmc/cores/VideoPlayer/DVDDemuxers/DVDDemuxFFmpeg.cpp
++++ b/xbmc/cores/VideoPlayer/DVDDemuxers/DVDDemuxFFmpeg.cpp
+@@ -484,6 +484,13 @@ bool CDVDDemuxFFmpeg::Open(const std::shared_ptr<CDVDInputStream>& pInput, bool
+       CLog::Log(LOGDEBUG, "{} - setting usetoc to 0 for accurate VBR MP3 seek", __FUNCTION__);
+       av_dict_set(&options, "usetoc", "0", 0);
+     }
++    // Kodi iOS r24 (build-194 log: a prepared movie took 30 s to open): open fragmented MP4 by its mfra index,
++    // as KodiAirPlay's own opener does, instead of reading every fragment header over Google Drive.
++    if (iformat->name && strstr(iformat->name, "mov"))
++    {
++      CLog::Log(LOGINFO, "{} - opening MP4 by its fragment index (use_mfra_for pts)", __FUNCTION__);
++      av_dict_set(&options, "use_mfra_for", "pts", 0);
++    }
+ 
+     if (StringUtils::StartsWith(content, "audio/l16"))
+     {

@@ -3,8 +3,8 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
-  "build_tag": "kodi-ios-portrait-r23",
-  "staged_patch_note": "Whole-page show scrolling and downloaded-show parent-row suppression are included in the verified r23 executable. Owner reports scrolling is fine; acceptance of the newly packaged IPA remains pending.",
+  "build_tag": "kodi-ios-portrait-r24",
+  "staged_patch_note": "r24 (not yet pinned): CDVDDemuxFFmpeg opens MP4/MOV with use_mfra_for=pts, so a prepared fragmented movie opens by its index instead of reading every fragment header over Drive (build-194 log: 30 s). Pin executable_release to r24 only after CI and a device check.",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
     "tag": "kodi-ios-portrait-r23",

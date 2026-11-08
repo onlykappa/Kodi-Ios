@@ -250,3 +250,13 @@ change up the layouts")
 ## Build 193 — built (run 42427536454, release build-193, IPA sha256 5de60540…, commit 11599d0; AirPlay lock r33 unchanged). Owner testing
 Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), Phase 4 pages (Codex 317e128 + review fixes
 5df3e24), graphs redraw at most every 10 s with old graph folders deleted (11599d0). Visual check: device only (no rig).
+
+## Next: Kodi r24 (prepared movies open by their index) -> build 195
+(owner, build-194 log: Fall (2022) took ~40 s to open; "Creating Demuxer" -> "Opening stream" = 30.3 s and 30.7 s)
+- Cause: Kodi's FFmpeg mov demuxer walks every fragment header over Google Drive; KodiAirPlay's own opener uses
+  use_mfra_for=pts (kr_prepare.c:139). Fix: kodi-21.3-portrait.patch, CDVDDemuxFFmpeg::Open (Kodi I/O path) sets
+  use_mfra_for=pts for mov/mp4 (logs "opening MP4 by its fragment index"). build_tag = kodi-ios-portrait-r24.
+- Steps: kodi-ios-portrait.yml run on this branch publishes release kodi-ios-portrait-r24 -> set source-lock
+  executable_release (tag r24, sha256 of Kodi-portrait-executable.zip) -> import-review.yml = build 195.
+- Check on the phone: Fall opens in a few seconds (log line above), seeking/resume right, MKV unaffected.
+  Evidence for the option so far: KodiAirPlay's FFmpeg 8.1.1 (1,305 reads -> 14); Kodi bundles its own FFmpeg: unproven there.
