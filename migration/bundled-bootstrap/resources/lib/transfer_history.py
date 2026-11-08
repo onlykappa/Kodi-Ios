@@ -87,7 +87,14 @@ def activity(torrents, debrid_current, prep_current):
                        'total': size}
     d = debrid_current or {}
     if d.get('stage') == 'copying' and d.get('total'):
-        out['up'] = {'title': _title(d.get('name', '')), 'rate': float(d.get('rate') or 0),
+        title = _title(d.get('name', ''))
+        # Build 207 (owner, build-206 Transfers: "Lanterns · S01E02 ... Peak 0.0 MB/s, Average 0.0 MB/s", no graph): one
+        # file of a season is titled per episode on the pages (work_state._copy); the history used the show's title, so
+        # the pages never found its speeds. Same title here: each episode has its own graph, peak and average.
+        if int(d.get('count') or 0) > 1:
+            import work_state
+            title = '%s · %s' % (title, work_state.episode_label(d.get('file')))
+        out['up'] = {'title': title, 'rate': float(d.get('rate') or 0),
                      'done': float(d.get('sent') or 0), 'total': float(d.get('total') or 0)}
     c = prep_current or {}
     # The library check also shows in the queue's 'current' ("Movies and shows", "Checking video 3 of 9"): not a

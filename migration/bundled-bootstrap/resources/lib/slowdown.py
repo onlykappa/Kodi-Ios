@@ -32,7 +32,7 @@ WORDS = {'airplay': 'Slower while AirPlay plays', 'video': 'Slower while a video
 SERVED = re.compile(r'^(?:GET|HEAD) /\S+ (?:bytes=\S+ )?(\d{3}) (\d+) B (\d+) ms')
 
 _lock = threading.Lock()
-_state = {'reason': lambda: '', 'cached': '', 'at': -10.0, 'strain_until': 0.0}
+_state = {'reason': lambda: '', 'cached': '', 'at': -10.0, 'strain_until': 0.0, 'watched': False}
 
 
 def configure(reason):
@@ -41,17 +41,56 @@ def configure(reason):
         _state.update(reason=reason, at=-10.0)
 
 
+def _ask():
+    try:
+        value = _state['reason']() or ''
+    except Exception:
+        value = ''
+    return value if value in SHARE else ''
+
+
 def reason(clock=time.monotonic):
-    """Why work is slowed now ('' when it runs at full speed), checked at most once a second."""
+    """Why work is slowed now ('' when it runs at full speed), checked at most once a second.
+
+    Build 207 (build-206 log d85fe349: a season copy read AllDebrid at 1.3 MB/s with nothing playing, 13-16 MB/s in
+    build 205): build 206 asks this after every 1 MB a download reads, and the answer comes from Kodi's GUI
+    (Player.HasVideo, Player.Caching). In the background that call waits for Kodi's GUI lock, so each MB waited for
+    it. Once watch() runs (the service starts it) the workers only read the value it keeps; nothing they call waits
+    for Kodi."""
+    with _lock:
+        if _state['watched']:
+            return _state['cached']
     now = clock()
     with _lock:
-        if now - _state['at'] >= 1.0:
-            try:
-                value = _state['reason']() or ''
-            except Exception:
-                value = ''
-            _state.update(cached=value if value in SHARE else '', at=now)
-        return _state['cached']
+        if now - _state['at'] < 1.0:
+            return _state['cached']
+        _state['at'] = now
+    value = _ask()
+    with _lock:
+        _state['cached'] = value
+        return value
+
+
+def watch(wait, every=1.0, log=lambda message: None):
+    """The service's thread: asks reason() once a second so workers never do. wait(seconds) is True to stop.
+    Each change is logged, so a slow download in a log says whether it was slowed on purpose."""
+    with _lock:
+        _state['watched'] = True
+    last = None
+    try:
+        while True:
+            value = _ask()
+            with _lock:
+                _state.update(cached=value, at=time.monotonic())
+            if value != last:
+                if last is not None or value:
+                    log('Kodi iOS slowdown: ' + (WORDS.get(value, value) if value else 'full speed'))
+                last = value
+            if wait(every):
+                break
+    finally:
+        with _lock:
+            _state['watched'] = False
 
 
 def strained(now=None):

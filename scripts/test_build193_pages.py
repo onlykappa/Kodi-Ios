@@ -556,6 +556,39 @@ class Board194(unittest.TestCase):
                     if call in line:self.assertTrue('guard' in line or line.strip().startswith('c.'),(name,line))
             self.assertNotIn('self.stop.set();self.close()',src)
 
+    def test_guard_finds_the_window_without_getid(self):
+        # Build 207 (owner, build-206 Transfers: "46%" with the bar at the start): Kodi 21's script windows have no
+        # getId(); the guard always thought the page was closed and never set a bar. The rig then showed that a control
+        # from a wrapper freed at once crashes setPercent (gdb), so the wrapper lives until the change is over.
+        import types
+        import live_window
+        from unittest.mock import patch
+        props={};calls=[];alive=[]
+        class Bar:
+            def __init__(self,owner):self.owner=owner
+            def setPercent(self,v):alive.append(not self.owner.freed);calls.append(v)
+        class Wrapper:
+            def __init__(self,ident):
+                if ident not in (13004,10000):raise RuntimeError('Window id does not exist')
+                self.ident=ident;self.freed=False
+            def getProperty(self,k):return props.get((self.ident,k),'')
+            def getControl(self,n):return Bar(self)
+            def __del__(self):self.freed=True
+        class Page:   # a WindowXMLDialog as Kodi 21 has it: properties, no getId()
+            def setProperty(self,k,v):props[(13004,k)]=v
+            def close(self):pass
+        fake=types.ModuleType('xbmc');fake.getCondVisibility=lambda c:c=='Window.IsActive(13004)'
+        gui=types.ModuleType('xbmcgui');gui.Window=Wrapper
+        gui.getCurrentWindowDialogId=lambda:13004;gui.getCurrentWindowId=lambda:10000
+        with patch.dict(sys.modules,{'xbmc':fake,'xbmcgui':gui}):
+            guard=live_window.Guard(Page())
+            self.assertEqual(guard.ident,13004)
+            self.assertTrue(guard.percent(9711,46))
+            gui.getCurrentWindowDialogId=lambda:10000;gui.getCurrentWindowId=lambda:10000   # Home on top, not this page
+            other=live_window.Guard(Page())
+            self.assertIsNone(other.ident);self.assertFalse(other.percent(9711,10))   # never another window's control
+        self.assertEqual(calls,[46.0]);self.assertEqual(alive,[True])
+
     def test_board7_numbers_are_numbers(self):
         xml=ltp.queue_page(p)
         self.assertIn('$NUMBER[',xml)   # a bare "1" label is read as a localized string id by Kodi

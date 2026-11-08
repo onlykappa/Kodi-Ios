@@ -192,4 +192,22 @@ class NeverNothingWhileConverting(unittest.TestCase):
   import prepare_downloads as prep
   self.assertIn("now()-current.get('updated',0)<60",(LIB/'prepare_downloads.py').read_text())
 
+class SeasonEpisodeSpeeds(unittest.TestCase):
+ """Build 207 (owner, build-206 Transfers screenshot: "Lanterns · S01E02 ... 46%", Peak and Average 0.0 MB/s, no
+ graph): the history titled the copy by its show, the page by its episode, so the page dropped the speeds."""
+ def test_history_and_page_name_the_same_episode(self):
+  import work_state,transfers
+  now=time.time();d={}
+  for i in range(0,60,2):
+   cur={'name':'Lanterns','stage':'copying','sent':(1400+i)*MB,'total':3000*MB,'rate':1.6*MB,'updated':now-60+i,
+        'file':'Lanterns.S01E02.2160p.WEB.mkv','index':2,'count':8}
+   th.track(d,now-60+i,th.activity([],cur,{}))
+  debrid={'current':cur,'jobs':[{'title':'Lanterns','status':'copying','hash':'01226f96'}]}
+  model=work_state.build({'debrid':debrid},now)
+  props,pct,kind,_=transfers.page_state(d,now,'up',[],model,{})
+  self.assertEqual(props['title'],'Lanterns · S01E02')
+  self.assertEqual(props['peak'],'1.6 MB/s');self.assertEqual(props['avg'],'1.6 MB/s')
+  self.assertEqual(props['wait'],'')                     # the graph shows
+  self.assertEqual(int(pct),48)
+
 if __name__=='__main__':unittest.main()

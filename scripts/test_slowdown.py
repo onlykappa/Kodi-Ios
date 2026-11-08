@@ -128,4 +128,40 @@ class DownloadCap(unittest.TestCase):
   self.assertEqual(text.count("'buffering' if xbmc.getCondVisibility('Player.Caching') else 'video'"),2)
   self.assertIn("reader_gate.after(time.monotonic()-piece,len(data),download=True)",(LIB/'driveupload.py').read_text())
 
+class Watched(Reset):
+ """Build 207 (build-206 log d85fe349): 1.3 MB/s from AllDebrid with nothing playing, 13-16 MB/s in build 205. The
+ download asked Kodi's GUI (Player.HasVideo) after every 1 MB; in the background that waits for the GUI lock."""
+ def tearDown(self):
+  if hasattr(self,'t'):self.stop.set();self.t.join(2)
+  super().tearDown()
+ def start(self,fn):
+  self.stop=threading.Event();self.lines=[]
+  slowdown.configure(fn)
+  self.t=threading.Thread(target=slowdown.watch,args=(lambda s:self.stop.wait(0.02),),kwargs={'log':self.lines.append},daemon=True)
+  self.t.start()
+  deadline=time.monotonic()+2
+  while not slowdown._state['watched'] and time.monotonic()<deadline:time.sleep(0.01)
+ def test_workers_never_ask_kodi(self):
+  calls=[];me=threading.current_thread()
+  def slow():
+   calls.append(threading.current_thread());time.sleep(0.05);return ''
+  self.start(slow)
+  gate=slowdown.Gate(sleep=lambda s:None)
+  began=time.monotonic()
+  for _ in range(200):gate.after(0.01,1024*1024,download=True)   # 200 MB read with nothing playing
+  self.assertLess(time.monotonic()-began,0.5)
+  self.assertEqual(gate.rested,0.0)
+  self.assertNotIn(me,calls)                                       # only the watcher asked
+ def test_watcher_follows_playback_and_logs_it(self):
+  now={'v':''}
+  self.start(lambda:now['v'])
+  now['v']='video';time.sleep(0.15)
+  self.assertEqual(slowdown.reason(),'video')
+  now['v']='';time.sleep(0.15)
+  self.assertEqual(slowdown.reason(),'')
+  self.assertEqual(self.lines,['Kodi iOS slowdown: Slower while a video plays','Kodi iOS slowdown: full speed'])
+ def test_service_starts_the_watcher(self):
+  svc=(BOOT/'service.py').read_text()
+  self.assertIn('target=slowdown.watch',svc)
+
 if __name__=='__main__':unittest.main()

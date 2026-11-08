@@ -108,6 +108,22 @@ class Queue(unittest.TestCase):
   self.run_all(One(),FakeDrive())
   self.assertIn(('problem','Only one episode was in that download'),self.notes)
   self.assertNotIn(('drive','Saved to Google Drive'),self.notes)
+ def test_speed_between_slow_pieces(self):
+  # Build 207 (build-206 log): 32 MB pieces 20-30 s apart; the 20 s window held one mark and every page read 0 MB/s.
+  t={'now':1000.0};seen=[];p=self.p
+  class Slow(FakeDrive):
+   def upload_stream(self,open_at,size,name,parent,session,save,keep_going=lambda:True,progress=lambda s,t:None):
+    for n in range(1,4):
+     t['now']+=25;progress(n*32*1048576,size);seen.append(debrid_drive.load(p)['current']['rate'])
+    return {'id':'d','size':str(size)}
+  class Big(FakeAPI):
+   def files(self,m):return [('Fall/Fall.2022.2160p.mkv',10**10,'L')]
+   def unlock(self,l):return 'https://x/f','Fall.2022.2160p.mkv',10**10
+  debrid_drive.queue(self.p,{'id':H,'name':'Fall.2022.2160p'},'movie','Fall (2022)')
+  for _ in range(5):
+   if debrid_drive.step(self.p,Big(),Slow(),clock=lambda:t['now']) is None or len(seen)>=3:break
+  self.assertEqual(seen[0],0.0)
+  self.assertAlmostEqual(seen[1],32*1048576/25.0);self.assertAlmostEqual(seen[2],32*1048576/25.0)
  def test_waits_while_alldebrid_fetches(self):
   debrid_drive.queue(self.p,{'id':H},'movie','Fall (2022)')
   api=FakeAPI(ready=False,status=(1,0.25,'Downloading'))

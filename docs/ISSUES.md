@@ -1318,3 +1318,36 @@ Status: BUILT IN SOURCE (Python; build 206); device test pending.
   first answer to "Save to Google Drive" (never playing an episode Drive already has). One summary notice: "Lanterns
   season 1: 8 episodes queued in 4K · E04 in 1080p · not found yet: E05".
 - Regression: test_auto_season (6); test_elementum_cloud, test_deck_picker, test_source_match unchanged and passing.
+
+## ISSUE-135 — Build 206: season copy read AllDebrid at 1.3 MB/s; Transfers stuck bar, no graph, Peak 0.0 (2026-11-08)
+
+Status: FIXED IN SOURCE (Python; not built). Device test pending.
+- Owner (build 206, log d85fe349 + Transfers screenshot "Lanterns · S01E02 · 2 of 8 · 46%", bar at the start, Peak and
+  Average 0.0 MB/s, no graph): "downloads should be based of download speed? im wondering why its going so slow".
+- Cause 1 (speed): build 206 added `slowdown.Gate.after(..., download=True)` after every 1 MB the copy reads. Each call
+  re-asked `slowdown.reason()`, whose answer comes from Kodi's GUI (`getCondVisibility('Player.Caching' /
+  'Player.HasVideo')`). In the background that call waits for Kodi's GUI lock. Log: the first two pieces (app on screen)
+  read at 9.3 and 15 MB/s; from 13:10:25 ("silent audio running", app in the background) every 32 MB piece took 16-33 s
+  (1.0-2.0 MB/s, average 19.9 s) with nothing playing, no slowdown words and Drive PUTs at 20-25 MB/s. Build 205 (logs
+  a747e2ef, 15d60fb0) read 13-16 MB/s in the background, on the same path minus the per-MB gate.
+- Fix 1: `slowdown.watch` (started by the service) asks Kodi once a second on its own thread; `reason()` only reads its
+  answer, so no worker ever waits for Kodi. Each change is logged ("Kodi iOS slowdown: Slower while a video plays" /
+  "full speed"), so a slow copy in a future log shows whether it was slowed on purpose. The cap during playback stays.
+- Cause 2 (no graph, Peak/Average 0.0): the history titled the copy by its show ("Lanterns"), the pages by the episode
+  ("Lanterns · S01E02"), so Transfers and the Library status sheet dropped its speeds. And the copy's speed window
+  (20 s) held one mark when pieces came more than 20 s apart, so the rate read 0.
+- Fix 2: `transfer_history.activity` uses the same per-episode title; the copy's speed window always keeps the piece
+  before.
+- Cause 3 (bar at the start): `live_window.Guard` (ISSUE-123) asked `self.window.getId()`. Kodi 21's script windows
+  have no getId() (only Action has), so `open()` was always False and no script-set bar, width or position on
+  Transfers, Library status, its sheet, Notifications or the tool pages was ever changed. ISSUE-123's unit test used a
+  fake window that had getId(). Once the guard worked, the rig crashed (gdb: SIGSEGV in
+  `ControlProgress_setPercent`): the control came from an `xbmcgui.Window(id)` wrapper freed at once.
+- Fix 3: the guard finds its window id from `getCurrentWindowDialogId()` / `getCurrentWindowId()`, confirmed by a marker
+  property set on the page itself (never another window's controls), and keeps one fresh wrapper alive for the whole
+  change. Desktop Kodi rig: Transfers bar at 38% (scenario 38%), Library status row bar and segmented bar filled;
+  ReloadSkin with each page open and five open/Back cycles: no crash, no SIGSEGV under gdb.
+- Not fixed, same mistake: `cast.py` `shown()` also calls `self.win.getId()`, so it is always False and the cast sheet is
+  shown again on each question. Harmless so far; left for a separate change.
+- Regression: test_slowdown.Watched (3), test_transfers.SeasonEpisodeSpeeds, test_debrid_drive
+  (speed between slow pieces), test_build193_pages (guard without getId).

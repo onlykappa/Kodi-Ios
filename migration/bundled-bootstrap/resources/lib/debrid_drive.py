@@ -229,7 +229,10 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     # Owner (build 170): the speed and the time left, measured over the last ~20 s.
                     now = clock()
                     marks.append((now, sent))
-                    marks[:] = [m for m in marks if now - m[0] <= 20] or [(now, sent)]
+                    # Build 207 (build-206 log: pieces 20-30 s apart): the window always keeps the piece before, or a
+                    # slow copy read 0 MB/s on every page between pieces (no graph, Peak and Average 0.0).
+                    recent = [m for m in marks if now - m[0] <= 20]
+                    marks[:] = recent if len(recent) > 1 else marks[-2:]
                     span = marks[-1][0] - marks[0][0]
                     rate = (marks[-1][1] - marks[0][1]) / span if span >= 1 else 0.0
                     # Build 193 (build-192 log): progress carries its time, so a hung piece is never shown as moving,
