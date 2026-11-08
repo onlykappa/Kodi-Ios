@@ -34,14 +34,15 @@ class Feedback(unittest.TestCase):
  def test_connecting_shows_at_once_with_cancel_and_kodi_carries_on(self):
   src=(BOOT/'cast.py').read_text()
   body=src[src.index('def send_airplay('):src.index('def send(xbmc')]
-  self.assertLess(body.index("progress.create('Play on TV',cast.AIRPLAY_WORDS"),body.index('lib.kodi_airplay_play(source'))
-  self.assertIn('return progress.iscanceled() or monitor.waitForAbort(seconds)',body)
-  self.assertIn('finally:progress.close()',body)
-  self.assertLess(body.index("if xbmc.getCondVisibility('Player.Paused'):player.pause()   # Kodi carries on"),body.index("if outcome=='aborted':return"))
+  # Owner-approved Play on TV card (airplay_flow, 2026-11-08): shown before the play starts, with Cancel.
+  self.assertLess(body.index("ui.show('opening' if converting else 'connecting'"),body.index('lib.kodi_airplay_play(source'))
+  self.assertIn('return ui.canceled() or monitor.waitForAbort(seconds)',body)
+  self.assertIn("if outcome=='aborted':ui.close();return",body)
+  self.assertLess(body.index("if xbmc.getCondVisibility('Player.Paused'):player.pause()   # Kodi carries on"),body.index("if outcome=='aborted':ui.close();return"))
  def test_a_converting_framework_never_blames_the_format(self):
   src=(BOOT/'cast.py').read_text()
   body=src[src.index('def send_airplay('):src.index('def send(xbmc')]
-  tail=body[body.index("if outcome=='aborted':return"):]
+  tail=body[body.index("if outcome=='aborted':ui.close();return"):]
   self.assertLess(tail.index('elif converting:'),tail.index('cast.MIRRORING'))
   self.assertIn('cast.NOT_STARTED%problem',tail)
 

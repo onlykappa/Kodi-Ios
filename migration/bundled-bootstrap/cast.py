@@ -145,6 +145,50 @@ def pick_dialogs(xbmc,xbmcgui,dialog,extra,found,done,last):
  pick=dialog.select('Play on which TV?',[t['name']+'  ·  '+KINDS[t['kind']] for t in tvs])
  return tvs[pick] if pick>=0 else None
 
+class FlowUI:
+ """Play on TV's card over the video (owner-approved boards, airplay_flow.py); Kodi's own progress box and alerts
+ only if that window cannot load."""
+ def __init__(self,xbmc,xbmcgui,dialog,title):
+  import airplay_flow
+  self.xbmc,self.xbmcgui,self.dialog,self.title,self.flow=xbmc,xbmcgui,dialog,title or '',airplay_flow
+  self.win=None;self.box=None;self.skipped=()
+  try:
+   home=os.path.dirname(os.path.abspath(__file__))
+   self.win=airplay_flow.make(xbmc,xbmcgui)(airplay_flow.WINDOW,home,'Default','1080i')
+  except Exception as error:
+   self.win=None;xbmc.log('Kodi iOS Play on TV: card unavailable (%s), using Kodi\'s dialogs'%type(error).__name__,getattr(xbmc,'LOGWARNING',2))
+ def show(self,stage,skipped=()):
+  self.skipped=skipped
+  if self.win is not None:
+   self.win.apply(self.flow.stage_view(stage,self.title,skipped=skipped));self.win.show();self.win.apply({'bar':self.win.props.get('bar','0')})
+  else:
+   self.box=self.xbmcgui.DialogProgress();self.box.create('Play on TV',cast.AIRPLAY_WORDS[stage])
+ def stage(self,stage):
+  if self.win is not None:self.win.apply(self.flow.stage_view(stage,self.title,skipped=self.skipped))
+  elif self.box:self.box.update(0,cast.AIRPLAY_WORDS.get(stage,''))
+ def canceled(self):
+  if self.win is not None:return self.win.canceled()
+  return bool(self.box and self.box.iscanceled())
+ def ask(self,props,monitor):
+  """Show a problem and wait for its button: 'retry', 'pause_retry', 'settings', 'watch' or 'cancel'."""
+  if self.win is not None:
+   self.win.chosen='';self.win.apply(props)
+   if not self.shown():self.win.show()
+   return self.win.choice(monitor)
+  # Kodi's plain alert cannot show the checklist or the buttons: the whole advice in one sentence.
+  self.close();self.dialog.ok('Play on TV',props.get('plain') or '%s. %s'%(props['title'],props.get('text','')));return 'watch'
+ def shown(self):
+  try:return bool(self.xbmc.getCondVisibility('Window.IsActive(%d)'%self.win.getId()))
+  except Exception:return False
+ def close(self):
+  if self.win is not None:
+   try:self.win.finish()
+   except Exception:pass
+  if self.box:
+   try:self.box.close()
+   except Exception:pass
+   self.box=None
+
 def send_airplay(xbmc,dialog,player,library,url,title,playing):
  """ISSUE-079: Apple's player for MP4/HLS (Kodi waits paused and carries on if it cannot open the stream);
  ISSUE-083: KodiAirPlay r5 converts MKV/AVI/WebM/TS on the phone first. Screen Mirroring steps for the rest, with
@@ -153,7 +197,8 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
  converting=airplay.converts(lib)
  if not cast.apple_playable(url,playing,converts=converting):
   xbmc.log('Kodi iOS Play on TV: %s cannot go through Apple\'s player; Screen Mirroring steps shown'%cast.format_name(url,playing),xbmc.LOGINFO)
-  dialog.ok('Play on TV',cast.MIRRORING%cast.format_name(url,playing));return
+  import xbmcgui,airplay_flow
+  ui=FlowUI(xbmc,xbmcgui,dialog,title);ui.ask(airplay_flow.problem_view('mirroring',title,cast.MIRRORING%cast.format_name(url,playing)),xbmc.Monitor());ui.close();return
  if not hasattr(lib,'kodi_airplay_state'):
   player.stop();xbmc.sleep(500);lib.kodi_airplay_play(url.encode('utf-8'),(title or '').encode('utf-8'));return
  if not xbmc.getCondVisibility('Player.Paused'):player.pause()
@@ -176,8 +221,9 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
  import time,xbmcgui
  # Build 186 (owner: "airplay stops out of nowhere"): the copies, uploads and conversion step aside from now on.
  home=xbmcgui.Window(10000);airplay.mark_busy(home,time.time())
- # Something on screen at once while the TV connects (it can take a while), with Cancel.
- progress=xbmcgui.DialogProgress();progress.create('Play on TV',cast.AIRPLAY_WORDS['opening' if converting else 'connecting'])
+ # Owner-approved card (airplay_flow): the steps at once, with Cancel. A direct link has nothing to open first.
+ ui=FlowUI(xbmc,xbmcgui,dialog,title)
+ ui.show('opening' if converting else 'connecting',() if converting else ('opening','waiting_tv'))
  # Reset evidence before starting; the service may drain native log lines before this script sees them.
  for key in (airplay.STARTED,airplay.LISTENING,airplay.TV_REQUEST):home.clearProperty(key)
  if converting and cast.format_name(source)!='M3U8':home.setProperty(airplay.STARTED,str(time.time()))
@@ -198,10 +244,10 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
    diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','endpoint',host=endpoint[0],port=endpoint[1])
   return net
  def wait(seconds):
-  started[0]+=seconds;airplay.mark_busy(home,time.time());progress.update(0)
-  return progress.iscanceled() or monitor.waitForAbort(seconds)
+  started[0]+=seconds;airplay.mark_busy(home,time.time())
+  return ui.canceled() or monitor.waitForAbort(seconds)
  def stage(phase,words):
-  progress.update(0,words)
+  ui.stage(phase)
   diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','phase',phase=phase)
  try:
   lib.kodi_airplay_play(source.encode('utf-8'),(title or '').encode('utf-8'))
@@ -218,10 +264,10 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
    import work_state;work_state.need('airplay_network',False,profile)
  except Exception:
   # A logging/controller exception must not strand the native source or Kodi's paused video.
-  lib.kodi_airplay_close();airplay.clear_busy(home)
+  lib.kodi_airplay_close();ui.close();airplay.clear_busy(home)
   if xbmc.getCondVisibility('Player.Paused'):player.pause()
   raise
- finally:progress.close()
+ if ui.win is None:ui.close()   # Kodi's own progress box goes before its alert; the card stays for boards 5 and 6
  # r6: the stream's variant line (CODECS), the receiver's requests and Apple's player events so far; the service
  # keeps relaying the rest while it plays (airplay.relay).
  remaining=[airplay.log_text(line) for line in airplay.log_lines(lib)]
@@ -238,26 +284,43 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
   if not xbmc.getCondVisibility('Player.Paused'):player.pause()
   if profile:
    import work_state;work_state.need('airplay_network',False,profile)
-  notices.note('info','Playing with AirPlay',title or '');return
+  ui.close();notices.note('info','Playing with AirPlay',title or '');return
  lib.kodi_airplay_close();airplay.clear_busy(home)
  if xbmc.getCondVisibility('Player.Paused'):player.pause()   # Kodi carries on (also after Cancel)
- if outcome=='aborted':return
+ if outcome=='aborted':ui.close();return
+ # Owner-approved boards 5 and 6: what happened, and buttons that fix it, on the same card.
+ import airplay_flow
  if outcome=='startup_timeout':
-  text='The video took too long to open for AirPlay. Try again.'
-  notices.note('problem',"AirPlay didn't start",text);dialog.ok('Play on TV',text);return
- if outcome=='selection_timeout':
-  dialog.ok('Play on TV','No TV was selected. Open Play on TV and choose a TV from the AirPlay list.');return
- if outcome=='unreachable':
+  busy=''
+  if profile:
+   try:import work_state;busy=airplay_flow.busy_words(work_state.load(profile))
+   except Exception:busy=''
+  props=airplay_flow.problem_view('startup_timeout',title,busy=busy)
+  notices.note('problem',"AirPlay didn't start",props['text'])
+ elif outcome=='selection_timeout':props=airplay_flow.problem_view('selection_timeout',title)
+ elif outcome=='unreachable':
   import work_state
   if profile:work_state.need('airplay_network',True,profile)
-  text=work_state.NEEDS_TEXT['airplay_network']['text']
-  notices.note('problem',"Your TV couldn't reach this iPhone",text);dialog.ok('Play on TV',text);return
- if why:notices.note('problem',"AirPlay couldn't play this",why);dialog.ok('Play on TV',cast.CONVERT_FAILED%why)
+  props=airplay_flow.problem_view('unreachable',title,settings=hasattr(lib,'kodi_airplay_settings'))
+  props['plain']=work_state.NEEDS_TEXT['airplay_network']['text']
+  notices.note('problem',"Your TV couldn't reach this iPhone",work_state.NEEDS_TEXT['airplay_network']['text'])
+ elif why:
+  notices.note('problem',"AirPlay couldn't play this",why);props=airplay_flow.problem_view('failed',title,cast.CONVERT_FAILED%why)
  elif converting:
   # The format was fine (this framework plays or converts it): Apple's player or the TV did not start.
   problem=cast.player_problem(lines) or 'the TV did not answer'
-  notices.note('problem',"AirPlay didn't start",problem);dialog.ok('Play on TV',cast.NOT_STARTED%problem)
- else:dialog.ok('Play on TV',cast.MIRRORING%cast.format_name(url,playing))
+  notices.note('problem',"AirPlay didn't start",problem);props=airplay_flow.problem_view('failed',title,cast.NOT_STARTED%problem)
+ else:props=airplay_flow.problem_view('mirroring',title,cast.MIRRORING%cast.format_name(url,playing))
+ action=ui.ask(props,monitor);ui.close()
+ diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','choice',outcome=outcome,action=action)
+ if action=='settings' and hasattr(lib,'kodi_airplay_settings'):lib.kodi_airplay_settings()
+ elif action in ('retry','pause_retry'):
+  if action=='pause_retry' and profile:
+   # The owner's own Pause (transfer_control), so it stays paused until resumed in Library status.
+   import transfer_control
+   for kind in transfer_control.KINDS:transfer_control.set_paused(profile,kind,True)
+   notices.note('info','Uploads paused for AirPlay','Resume them in Library status when the movie is over.')
+  return send_airplay(xbmc,dialog,player,library,url,title,playing)
 
 def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
  try:

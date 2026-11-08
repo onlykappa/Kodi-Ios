@@ -303,6 +303,12 @@ def image_bg(p,texture):
          '<texture background="true" colordiffuse="B3FFFFFF">%s</texture></control>')%(p.WIDTH,p.HEIGHT,texture)
 
 # --- Play on TV (landscape, over video) -------------------------------------------------------------------
+def _airplay_flow():
+ """airplay_flow.py beside this file (pages.py is also loaded by path, without resources/lib on sys.path)."""
+ import importlib.util,os
+ spec=importlib.util.spec_from_file_location('airplay_flow',os.path.join(os.path.dirname(os.path.abspath(__file__)),'airplay_flow.py'))
+ module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+
 def close_button_1080(id,x,y,extra='',size=100):
  """close_button (portrait.py) for the landscape sheets (Play on TV, AirPlay check), on Fuse's 1920x1080 canvas."""
  disc=int(size*104/118);g=int(size*52/118);d=(size-disc)//2;o=(size-g)//2
@@ -457,6 +463,7 @@ def files(p,read):
       p.FOLDER+'/FileManager.xml':file_manager(p,read('FileManager.xml')),
       p.FOLDER+'/source_progress.xml':umbrella_ready(p),
       '1080i/IOSPlayOnTV.xml':play_on_tv(),
+      '1080i/IOSAirPlayFlow.xml':_airplay_flow().page(close_button_1080),   # owner-approved Play on TV boards (2026-11-08)
       p.FOLDER+'/'+BUSY:busy_dialog(p.MARKER,'p_pill'),
       '1080i/'+BUSY:busy_dialog('Kodi-iOS player controls: busy pill','font_main_bold'),
       p.FOLDER+'/'+NOTIFY:notification_dialog(p.MARKER,p.SIDE,150,p.WIDTH-2*p.SIDE,'p_foot_b','p_foot'),

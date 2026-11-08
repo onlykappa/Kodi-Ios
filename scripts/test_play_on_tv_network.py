@@ -120,7 +120,8 @@ class ConnectionTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as profile:
    out=self.exercise(profile,startup=129)
    self.assertEqual(out.elapsed,60);self.assertEqual(len(out.plays),1)
-   self.assertEqual(out.messages[-1][1],'The video took too long to open for AirPlay. Try again.')
+   # Owner-approved board 5 (2026-11-08): what happened, never a network or permission problem.
+   self.assertIn('took too long to open',out.messages[-1][1]);self.assertNotIn('Local Network',out.messages[-1][1])
    self.assertFalse(ws.flags(profile)['needs']);self.assertFalse(out.paused)
    self.assertIn('native',out.closed)
 
@@ -143,7 +144,7 @@ class ConnectionTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as profile:
    out=self.exercise(profile,startup=5,choosing=200)
    self.assertEqual(out.elapsed,125)
-   self.assertIn('No TV was selected',out.messages[-1][1])
+   self.assertIn('No TV was chosen',out.messages[-1][1])   # owner-approved Play on TV wording (2026-11-08)
    self.assertFalse(ws.flags(profile)['needs']);self.assertFalse(out.paused)
 
  def test_source_connection_error_before_listener_is_not_a_tv_connection_error(self):

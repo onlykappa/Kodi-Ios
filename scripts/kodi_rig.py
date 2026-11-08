@@ -42,7 +42,9 @@ ADDONS, FUSE, HOME = RIG / 'addons', RIG / 'fuse-skin', RIG / 'home'
 PROFILE = HOME / '.kodi/userdata'
 SHOTS, SIDE, MOCK = RIG / 'shots', RIG / 'side', RIG / 'mockup'
 BUILTINS = RIG / 'builtins.txt'
-DISPLAY, SIZE, RPC = ':5', '603x1167', 'http://127.0.0.1:8089/jsonrpc'
+DISPLAY, RPC = ':5', 'http://127.0.0.1:8089/jsonrpc'
+# 603x1167: the iPhone 16 Pro portrait safe area at 1.5x; 1311x603 renders the landscape (1080i) windows over video.
+SIZE = os.environ.get('KODI_RIG_SIZE', '603x1167')
 BOOT_ID, FUSE_ID = 'service.kodi.ios.bootstrap', 'skin.arctic.fuse.3'
 REPO_URL = 'https://github.com/onlykappa/Kodi-Ios'
 KODI_TAG = '21.3-Omega'

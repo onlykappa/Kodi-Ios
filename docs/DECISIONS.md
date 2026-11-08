@@ -138,3 +138,18 @@ owner-approved mockups"). Decisions taken in this pass, each citing that approve
 - Multi-line text (board 2's sign-in sentence, board 3's sentence, board 7's note) is a Kodi textbox
   (`status_ui.paragraph`); every one-line run stays a label with scroll off and "…".
 No build, release or merge implied; device review pending (ISSUE-119).
+
+## DEC-030 — Play on TV becomes one card over the video (owner-approved mockups, 2026-11-08)
+
+Owner, on Kodi's generic "Connecting to the TV…" progress box and "Your TV couldn't reach this iPhone" OK alert:
+"can we get a moc up of a better pages for this? these are uglyy". Six boards were made
+(https://claude.ai/artifact/6rg8jopnvJRVKRUotRgNZM); the owner approved all ("i approve all mocs").
+- One landscape card (`resources/lib/airplay_flow.py`, `1080i/IOSAirPlayFlow.xml`) from Play on TV until the TV plays:
+  three steps (open the movie, choose your TV, connect and play), a bar, and Cancel. Problems stay on the same card with
+  plain words and buttons that act: Try again, Pause uploads and try again (the owner's own Pause), Open Settings
+  (KodiAirPlay r34+), Keep watching here / Cancel. A slow open is never described as a network or permission problem.
+- Kodi's own progress box and alert remain only as a fallback when the card cannot load.
+- Board 4 (the phone as a remote while the TV plays: pause, ±10 s, Play on iPhone, Stop) needs native pause/seek in
+  KodiAirPlay; it is not built yet.
+- Surfaces: the solid 16 pt card texture (`row_only.png`, SURFACE2), not the translucent sheet texture (policy §2: text
+  cards ≥ ~90 % opaque). Desktop Kodi rig renders checked; device review pending.
