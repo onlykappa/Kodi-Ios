@@ -269,7 +269,7 @@ class DiagnosticsTests(unittest.TestCase):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn('_kodi_airplay_network\\n_kodi_airplay_settings\\n',build)
   self.assertIn('generation != atomic_load(&playGeneration)',build)
-  self.assertEqual(json.loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())['framework_release']['tag'],'kodi-airplay-r37')
+  self.assertEqual(json.loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())['framework_release']['tag'],'kodi-airplay-r38')
 
  def test_settings_bridge_and_fallback(self):
   settings=load('airplay_settings_test',BOOT/'airplay_settings.py')
