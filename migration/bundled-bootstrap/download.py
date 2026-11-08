@@ -89,9 +89,14 @@ def run():
     chosen=[i for i in chosen if not owned[i]]
     if not chosen:return
    episodes=[choices[i][0] for i in chosen]
-   for e in episodes:
-    if xbmc.Monitor().abortRequested():return
-    start('episode',e)
+   # Build 206: the first is picked by hand; the others follow that pick (rest_of_season), one question.
+   home=xbmcgui.Window(10000);home.clearProperty(SEASON_PICK)
+   start('episode',episodes[0])
+   if len(episodes)>1:
+    try:pick=json.loads(home.getProperty(SEASON_PICK) or 'null')
+    except ValueError:pick=None
+    if pick:home.setProperty(SEASON_PICK,json.dumps(dict(pick,coverage='Episode %d only'%episodes[0])))
+    rest_of_season(xbmc,xbmcgui,dialog,home,title,season,episodes,set(),lambda n:start('episode',n))
    return
   # Whole season: say first how much of it is already downloaded (a failed listing never blocks the download).
   try:
@@ -100,11 +105,79 @@ def run():
     'directory':dl.season_path(tmdb,season),'media':'video','properties':['episode','title']}})))
    numbers=[n for n,label in dl.episode_choices(answer.get('result',{}).get('files'))]
   except Exception:numbers=[]
-  question=dl.season_question(season,sum(1 for n in numbers if check('episode',season,n)),len(numbers)) if numbers else None
+  owned={n for n in numbers if check('episode',season,n)}
+  question=dl.season_question(season,len(owned),len(numbers)) if numbers else None
   if question and not dialog.yesno(question[0],question[1],nolabel='Cancel',yeslabel='Download'):return
+  home=xbmcgui.Window(10000);home.clearProperty(SEASON_PICK)
   start('season')
+  rest_of_season(xbmc,xbmcgui,dialog,home,title,season,numbers,owned,lambda n:start('episode',n))
   return
  start(kind,episode)
+
+QUALITY_NAMES={'4k':'4K','1440p':'1440p','1080p':'1080p','720p':'720p','480p':'480p','sd':'SD'}
+def quality_name(q):return QUALITY_NAMES.get(str(q or '').lower(),str(q or 'SD').upper())
+SEASON_PICK='KodiIOS.SeasonPick';AUTO_PICK='KodiIOS.AutoPick';AUTO_RESULT='KodiIOS.AutoPick.Result'
+AUTO_SECONDS=300   # one episode's search and queueing; renewed for each
+
+def covered(coverage):
+ """The episodes an "Episode 3 only" / "Episodes 1-4 only" version holds (deck_picker / source_match.coverage)."""
+ import re
+ m=re.match(r'Episodes? (\d+)(?:-(\d+))? only',coverage or '')
+ return set(range(int(m.group(1)),int(m.group(2) or m.group(1))+1)) if m else set()
+
+def missing_episodes(numbers,owned,pick):
+ """The season's episodes still to get after the version picked: none when it was a full season (coverage '') or
+ unknown; otherwise every listed episode that is neither in that version nor already downloaded."""
+ if not pick or pick.get('coverage') in (None,''):return []
+ have=covered(pick['coverage'])|set(owned)
+ return [n for n in numbers if n not in have]
+
+def summary(title,season,results,quality):
+ """'Lanterns season 1: 8 episodes queued in 4K' and what came at another quality or was not found."""
+ got=[n for n,r in results if r.get('found')]
+ other=['E%02d in %s'%(n,quality_name(r['quality'])) for n,r in results if r.get('found') and r.get('quality')!=quality]
+ lost=['E%02d'%n for n,r in results if not r.get('found')]
+ text='%d episode%s queued in %s'%(len(got),'' if len(got)==1 else 's',quality_name(quality))
+ if other:text+=' · '+', '.join(other)
+ if lost:text+=' · not found yet: '+', '.join(lost)
+ return '%s season %s'%(title,season),text
+
+def rest_of_season(xbmc,xbmcgui,dialog,home,title,season,numbers,owned,start_episode,now=None):
+ """Owner (build 205): "cant it automatically pick sources based off my first quality pick?". When the version
+ picked for a season held some episodes only, the others are found and queued one by one in the same quality
+ (deck_picker.auto_choose picks; elementum_cloud queues without asking again)."""
+ import json,time
+ try:pick=json.loads(home.getProperty(SEASON_PICK) or 'null')
+ except ValueError:pick=None
+ home.clearProperty(SEASON_PICK)
+ rest=missing_episodes(numbers,owned,pick)
+ if not rest:return []
+ label='%s%s'%(quality_name(pick['quality']),' · '+pick['hdr'] if pick.get('hdr') else '')
+ if not dialog.yesno('Rest of season %s'%season,'That version held %s. Get the other %d episode%s automatically in the same quality (%s)?'%(
+   pick['coverage'][0].lower()+pick['coverage'][1:],len(rest),'' if len(rest)==1 else 's',label),nolabel='Not now',yeslabel='Get them'):return []
+ try:mode=int(home.getProperty('KodiIOS.LastSaveMode') or 0)
+ except ValueError:mode=0
+ progress=xbmcgui.DialogProgress();progress.create('Rest of season %s'%season,'Finding versions…')
+ results=[]
+ try:
+  for k,n in enumerate(rest):
+   if progress.iscanceled() or xbmc.Monitor().abortRequested():break
+   progress.update(int(100*k/len(rest)),'Finding %s · S%02dE%02d (%d of %d)'%(title,int(season),n,k+1,len(rest)))
+   home.clearProperty(AUTO_RESULT)
+   home.setProperty(AUTO_PICK,json.dumps({'profile':pick,'mode':mode,'until':(now or time.time())+AUTO_SECONDS}))
+   try:start_episode(n)
+   except Exception as error:xbmc.log('Kodi iOS download: S%sE%s automatic: %s'%(season,n,error),xbmc.LOGWARNING)
+   try:result=json.loads(home.getProperty(AUTO_RESULT) or '{}')
+   except ValueError:result={}
+   results.append((n,result))
+   xbmc.log('Kodi iOS download: S%sE%s automatic: %s'%(season,n,result.get('name') or 'nothing found'),xbmc.LOGINFO)
+ finally:
+  home.clearProperty(AUTO_PICK);progress.close()
+ if results:
+  heading,text=summary(title,season,results,pick['quality'])
+  notices.note('download',heading,text)
+  dialog.notification(heading,text,xbmcgui.NOTIFICATION_INFO,6000)
+ return results
 
 def main():
  # Owner (build-127): after picking episodes nothing happened. Every step is logged and a failure is shown, never

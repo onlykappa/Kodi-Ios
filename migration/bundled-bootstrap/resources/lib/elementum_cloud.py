@@ -111,13 +111,20 @@ def route(url):
         accounts = AccountManager(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.googledrive').getAddonInfo('profile')))
         if not accounts.get_accounts():raise RuntimeError('Sign in to Google Drive first.')
         profile = xbmcvfs.translatePath('special://profile/')
+        try:home = xbmcgui.Window(10000)
+        except Exception:home = None
+        auto = auto_season(home) if home is not None else None   # build 206: the rest of a season, without asking again
         existing = existing_url(profile,choice)
         if existing:
+            if auto is not None:return True          # already in Drive: nothing to do for this episode
             import xbmc
             xbmc.executebuiltin('PlayMedia(%s)'%existing)
             return True
-        mode = dialog.select('Save to Google Drive', ['Download only', 'Download and watch after preparation'])
+        mode = auto.get('mode', 0) if auto is not None else dialog.select('Save to Google Drive', ['Download only', 'Download and watch after preparation'])
         if mode < 0:return True
+        if auto is None and home is not None:
+            try:home.setProperty('KodiIOS.LastSaveMode', str(mode))   # the rest of a season reuses it
+            except Exception:pass
         name = choice['name'] or choice['hash']
         info = drivelibrary.parse(name)
         kind = 'episode' if choice.get('episode') else ('season' if choice.get('season') else debrid_drive.kind_of(name))
@@ -131,15 +138,29 @@ def route(url):
             # bin once this copy is on Drive (owner, build 185: "it needs to end the conversion and begin the download").
             import prepare_downloads
             prepare_downloads.request(profile, 'replace', replaced)
-        notices.note('download', 'Queued for Google Drive', '%s · %s' % (job['title'],
-                     'will play after preparation' if mode == 1 else 'AllDebrid → Drive → Prepare'))
-        dialog.notification('Download', 'Queued for Google Drive', xbmcgui.NOTIFICATION_INFO, 4000)
+        if auto is None:
+            notices.note('download', 'Queued for Google Drive', '%s · %s' % (job['title'],
+                         'will play after preparation' if mode == 1 else 'AllDebrid → Drive → Prepare'))
+            dialog.notification('Download', 'Queued for Google Drive', xbmcgui.NOTIFICATION_INFO, 4000)
     except Exception as error:
         # Transport errors can contain signed URLs. Only our own plain errors are displayed.
         message = str(error) if isinstance(error, (ValueError, RuntimeError)) else 'Could not queue this torrent (%s).' % type(error).__name__
         if 'http://' in message or 'https://' in message:message = 'Could not read the selected torrent metadata.'
         dialog.ok('Download to Google Drive', message)
     return True
+
+
+def auto_season(window, now=None):
+    """download.py's automatic season request (deck_picker.AUTO_PICK) while it lasts, else None."""
+    import json, time
+    try:
+        raw = window.getProperty('KodiIOS.AutoPick')
+        wanted = json.loads(raw) if raw else None
+        if wanted and float(wanted.get('until', 0)) >= (time.time() if now is None else now):
+            return wanted
+    except Exception:
+        pass
+    return None
 
 
 REPLACING = 'KodiIOS.Replacing'

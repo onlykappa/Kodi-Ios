@@ -1301,3 +1301,20 @@ Status: FIXED IN SOURCE (Python; build 206); device retest pending.
   `next_episode.py` plays the playlist's next item, else TMDb Helper's play for the same show and episode + 1 (by the
   show's TMDb id when tagged, else its title). Not yet seen in the rig (the owner stopped that run).
 - Regression: test_source_match.SeasonCoverage (2), test_debrid_drive (one-episode season), test_next_episode (4).
+
+## ISSUE-134 — Whole seasons: the other episodes follow the first quality pick (2026-11-08)
+
+Status: BUILT IN SOURCE (Python; build 206); device test pending.
+- Owner (build 205): "cant it automatically pick sources based off my first quality pick? like if i pick 4K hd, then it
+  can find compatible sources for each episode of that show automatically? ... i want shows to be able to be easily
+  downloaded".
+- How: the version picked for a season (or the first of several ticked episodes) is kept as a profile (quality, HDR
+  kind, codec, source type, size, what it held: `deck_picker.profile`, Home property KodiIOS.SeasonPick). When that
+  version was a full season nothing more happens. When it held some episodes only, one question ("Get the other N
+  episodes automatically in the same quality (4K · HDR10)?") and then `download.rest_of_season` starts Elementum's
+  download of each listed episode not yet owned, one by one with a cancellable progress bar, with KodiIOS.AutoPick
+  set: the version page picks by itself (`deck_picker.auto_choose`: same quality, else the nearest lower; the same HDR
+  kind and codec; no AV1 when avoidable; seeds; the nearest size) and `elementum_cloud.route` queues it with the
+  first answer to "Save to Google Drive" (never playing an episode Drive already has). One summary notice: "Lanterns
+  season 1: 8 episodes queued in 4K · E04 in 1080p · not found yet: E05".
+- Regression: test_auto_season (6); test_elementum_cloud, test_deck_picker, test_source_match unchanged and passing.

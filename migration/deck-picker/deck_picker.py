@@ -521,8 +521,82 @@ def find_same(parsed, wanted):
     return ([p for p in same if p['quality'] == wanted.get('quality')] or same)[0]
 
 
+# ---------------------------------------------------------------------------------
+# Kodi-iOS (owner, build 205: "cant it automatically pick sources based off my first quality pick? ... find
+# compatible sources for each episode of that show automatically"): the version picked for a season download is
+# kept as a profile (SEASON_PICK); download.py then asks for each other episode with AUTO_PICK and this page picks
+# the closest version itself, without showing (AUTO_RESULT says what it took).
+# ---------------------------------------------------------------------------------
+SEASON_PICK = 'KodiIOS.SeasonPick'
+AUTO_PICK = 'KodiIOS.AutoPick'
+AUTO_RESULT = 'KodiIOS.AutoPick.Result'
+_CONTEXT = {'exp': None}
+HDR_TAGS = (u'Dolby Vision', u'HDR10+', u'HDR10', u'HDR')
+
+
+def profile(item):
+    """What made the first pick: quality, HDR kind, codec, source type, size (GB) and how much of the season it held."""
+    tags = tag_list(item)
+    return {'quality': item['quality'], 'hdr': next((t for t in tags if t in HDR_TAGS), u''), 'codec': codec(item),
+            'source': source_type(item), 'size': round(item['size'], 2), 'coverage': item.get('coverage')}
+
+
+def _home():
+    from kodi_six import xbmcgui
+    return xbmcgui.Window(10000)
+
+
+def _note_pick(item, home=None):
+    exp = _CONTEXT.get('exp') or {}
+    if exp.get('kind') == 'movie' or exp.get('season') is None:   # a season or one of its episodes
+        return
+    try:
+        import json
+        import time
+        (home or _home()).setProperty(SEASON_PICK, json.dumps(dict(profile(item), time=time.time())))
+    except Exception:
+        pass
+
+
+def auto_request(home=None, now=None):
+    """download.py's request to pick by itself ({'profile', 'until'}), or None."""
+    import json
+    import time
+    try:
+        raw = (home or _home()).getProperty(AUTO_PICK)
+        wanted = json.loads(raw) if raw else None
+        if wanted and float(wanted.get('until', 0)) >= (now if now is not None else time.time()):
+            return wanted
+    except Exception:
+        pass
+    return None
+
+
+def auto_choose(kept, want):
+    """The version closest to the first pick: its quality (else the nearest lower, then higher), its HDR kind and
+    codec, never AV1 when avoidable, seeds, then the size nearest the first pick's. None when nothing has seeds."""
+    if not kept:
+        return None
+    order = {q: n for n, q in enumerate(QUALITY_ORDER)}
+    target = order.get(want.get('quality'), 2)
+    size = float(want.get('size') or 0)
+    if want.get('coverage') == u'' and size:
+        size = 0.0                                      # a pack's size says nothing about one episode's
+
+    def score(it):
+        q = order.get(it['quality'], 9)
+        distance = (q - target) * 2 if q >= target else (target - q) * 2 + 1      # lower quality before higher
+        tags = tag_list(it)
+        hdr = next((t for t in tags if t in HDR_TAGS), u'')
+        return (is_bad(it), it['seeds'] <= 0, distance, hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
+                slow_to_prepare(it), too_heavy(it), abs(it['size'] - size) if size else 0, -it['seeds'])
+    best = min(dedupe(kept), key=score)
+    return None if best['seeds'] <= 0 else best
+
+
 def remember(item, title, path=None, now=None):
     """Save the version picked for the title the watch menu has just started, for Continue Watching."""
+    _note_pick(item)
     import json
     import os
     import time
@@ -641,6 +715,7 @@ def run(title, items, top_n=TOP_N, expect=None):
         return None
     sm = _matcher()
     exp = expect if expect is not None else identity(title, sm)
+    _CONTEXT['exp'] = exp
     if sm is not None and exp:
         kept, hidden = sm.split(parsed, exp, name=lambda p: p['name'], result=lambda p: None)
         sm.report('Choose a version', exp, kept, hidden, name=lambda p: p['name'])
@@ -655,6 +730,19 @@ def run(title, items, top_n=TOP_N, expect=None):
         kept, hidden = parsed, []
         if sm is not None:
             sm.log(u'Choose a version: %d links for "%s" not checked (the title being played is not known)' % (len(parsed), title))
+    # Kodi-iOS: the rest of a season, picked here without asking (download.py's AUTO_PICK).
+    auto = auto_request()
+    if auto is not None and exp and exp.get('episode'):
+        best = auto_choose(kept, auto.get('profile') or {})
+        try:
+            import json
+            _home().setProperty(AUTO_RESULT, json.dumps({'episode': exp.get('episode'), 'found': bool(best),
+                                                         'quality': best['quality'] if best else u'', 'name': best['name'] if best else u''}))
+        except Exception:
+            pass
+        if sm is not None:
+            sm.log(u'Choose a version (automatic): %s: %s' % (exp.get('label') or title, best['name'] if best else u'nothing with seeds'))
+        return best['idx'] if best else -1
     # Library status › "Find a version without converting": only links that need no conversion, at the same quality.
     wanted = avoid_request()
     if wanted is not None:
