@@ -143,6 +143,8 @@ def run():
    # The blue dot marks what was new when the page opened; everything counts as read from now on.
    self.items=[dict(i,was_read=i.get('read',False)) for i in items];notices.mark_all_read(profile)
    xbmcgui.Window(10000).setProperty('Notices.Unread','')
+   import live_window
+   self.guard=live_window.Guard(self)   # ISSUE-123: controls only while this page is open
    self.filter='all';self.shown=[];self.downloads=[];self.lock=threading.Lock();self.stop=threading.Event()
    self.attempted=set()
    try:self.artkey=drivelibrary.tmdb_key(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.themoviedb.helper').getAddonInfo('path')))
@@ -190,8 +192,7 @@ def run():
     self.setProperty('next.text',next_text(titles))
     self.update_empty()
   def percent(self,control,value):
-   try:self.getControl(control).setPercent(float(value))
-   except Exception as error:_quiet('notifications:70',error)
+   self.guard.percent(control,value or 0)
   def loop(self):
    monitor=xbmc.Monitor()
    while not self.stop.is_set() and not monitor.waitForAbort(1):
@@ -247,7 +248,7 @@ def run():
      prepare_downloads.request(profile,'keep',item['id'])
    self.refresh()
   def finish(self):
-   self.stop.set();self.close()
+   self.stop.set();self.guard.close()
   def onClick(self,control):
    if control==9001:self.finish()
    elif control==9002:

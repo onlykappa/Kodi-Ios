@@ -1095,3 +1095,21 @@ Status: FIXED IN SOURCE, native candidate verification and device retest pending
   indexed-request/byte bounds; staged IPA preserves existing background modes and adds audio. Old source API pins
   now assert the ticket implementation. Candidate build/release, complete suite and iPhone results follow below.
 - Owner explicitly requested a new build and screen-locked playback; native r35 release and IPA are authorized.
+
+## ISSUE-123 — Build 194 crashes Kodi when a live page's controls are freed (desktop Kodi rig, 2026-11-08)
+
+Status: FIXED IN SOURCE (not built). **Build 194 must not be installed.**
+- Found while running the new rig from scratch: two segfaults in a Python thread, in
+  `CGUIProgressControl::SetPercentage` and `Control::setWidth` (addr2line on the rig's kodi-x11).
+- Root cause: build 194's pages set bars, segment widths and positions from their 2 s refresh threads. xbmcgui caches
+  the Control objects it hands out; Kodi frees a script window's controls when the window closes (WindowXML loads every
+  time) and when the skin reloads (Fuse rebuilds its menus on a first start or after an update) while the page stays
+  open. The next refresh wrote into freed memory. Reproduced: open Library status, `ReloadSkin()` — crash on cycle 0.
+  Notifications' and Transfers' single setPercent (since earlier builds) had the same latent risk.
+- Fix: `resources/lib/live_window.Guard` — control changes run only while `Window.IsActive(id)` (false as soon as a
+  window starts closing), under a lock the page's own close also takes, and each control is looked up afresh through a
+  new `xbmcgui.Window(id)` wrapper instead of the cached one. Used by Library status, its sheet, Notifications,
+  Transfers and the Queue.
+- Retest in the rig: 20 open → ReloadSkin → close cycles over the four live pages, no crash (build 194 code: crash on
+  the first). Regression: `test_build193_pages.Board194.test_issue120_controls_only_while_the_window_is_open`; the
+  fake Kodi in test_library_status now refuses a control used after its window closed.

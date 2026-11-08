@@ -80,6 +80,8 @@ def run(args=()):
    self.sheet,self.row,self.chosen,self.fresh=sheet,row,None,fresh
    self.recovery=''
   def onInit(self):
+   import live_window
+   self.guard=live_window.Guard(self)   # ISSUE-123: controls only while this sheet is open
    self.stop=threading.Event();self.graphs=transfer_history.GraphCache('item')
    self.show(self.sheet)
    if not self.sheet['actions']:
@@ -93,8 +95,7 @@ def run(args=()):
     self.setProperty('step%d.label'%n,label);self.setProperty('step%d.tint'%n,tint)
     pct=(100 if self.row['state']=='ready' else float(s.get('bar') or 0)) if n==2 else (100 if tint=='FF30D158' else 50)
     # Build 194: Kodi cannot size a progress bar from a window property, so the script sets each step bar.
-    try:self.getControl(library_page.STEP_BARS+n).setPercent(pct)
-    except Exception:pass
+    self.guard.percent(library_page.STEP_BARS+n,pct)
    for k in ('title','text','button'):self.setProperty('need.'+k,s.get('need',{}).get(k,''))
    self.setProperty('poster',poster(self.row))
    self.setProperty('card',s.get('card',''))
@@ -132,10 +133,9 @@ def run(args=()):
     labels=transfer_history.graph_labels(points,j.get('start'))
     for k,v in labels.items():
      if isinstance(v,str):props['card.'+k]=v
-    try:
-     gx,gy,gw,gh=library_page.GRAPH
-     self.getControl(library_page.PEAK).setPosition(int(54+gx+min(library_page.PLOT_W-300,max(0,labels['peak_x']*library_page.PLOT_W+8))),gy+round((gh-54)*.2)-52)
-    except Exception:pass
+    gx,gy,gw,gh=library_page.GRAPH
+    x=int(54+gx+min(library_page.PLOT_W-300,max(0,labels['peak_x']*library_page.PLOT_W+8)))
+    self.guard.run(lambda:self.guard.control(library_page.PEAK).setPosition(x,gy+round((gh-54)*.2)-52))
    for k,v in props.items():self.setProperty(k,v)
   def loop(self):
    monitor=xbmc.Monitor()
@@ -156,10 +156,12 @@ def run(args=()):
     self.chosen=self.sheet['actions'][control-9201];self.finish()
    elif control in (9200,9099):self.finish()
   def finish(self):
-   self.stop.set();self.close()
+   self.stop.set();self.guard.close()
 
  class Page(xbmcgui.WindowXMLDialog):
   def onInit(self):
+   import live_window
+   self.guard=live_window.Guard(self)   # ISSUE-123: controls only while this page is open
    self.offset=0;self.graphs=transfer_history.GraphCache('spark');self.filter=getattr(self,'filter','all');self.checking=0;self.shown=None;self.view=None
    self.stop=threading.Event();self.busy=threading.Lock()
    self.setProperty('filter',self.filter);self.setProperty('title',library_rows.TITLES.get(self.filter,'Library status'))
@@ -218,21 +220,20 @@ def run(args=()):
                   poster=poster(r) if r and key=='down' else '')
       for k,v in values.items():self.setProperty('%s.%d.%s'%(key,n,k),v)
       if key=='down':
-       try:self.getControl(library_page.DOWN_BARS+n).setPercent(float(r.get('pct') or 0))
-       except Exception:pass
+       self.guard.percent(library_page.DOWN_BARS+n,r.get('pct') or 0)
     # The segmented summary bar: one segment per count, 8-unit gaps (Kodi cannot size these from a property).
     for n,(x,width) in enumerate(library_rows.segments([int(props.get('count.'+k) or 0) for k in ('ready','working','next','kept')],
                                                       library_page.BAR_W,library_page.BAR_GAP)):
-     try:
-      c=self.getControl(library_page.SEGMENTS+n);c.setPosition(p_side+library_page.BAR_X+x,library_page.BAR_Y);c.setWidth(max(0,width))
+     def segment(n=n,x=x,width=width):
+      c=self.guard.control(library_page.SEGMENTS+n);c.setPosition(p_side+library_page.BAR_X+x,library_page.BAR_Y);c.setWidth(max(0,width))
       c.setVisible(width>0)
-     except Exception:pass
+     self.guard.run(segment)
   def set_filter(self,key):
    # A folder (Waiting, Ready, Kept) or a filter: the page's title says which; Back returns to All.
    self.offset=0;self.filter=key;self.setProperty('filter',key);self.setProperty('title',library_rows.TITLES.get(key,'Library status'))
    self.refresh(force=True)
   def finish(self):
-   self.stop.set();self.close()
+   self.stop.set();self.guard.close()
   def go_back(self):
    if getattr(self,'filter','all')!='all':self.set_filter('all')
    else:self.finish()

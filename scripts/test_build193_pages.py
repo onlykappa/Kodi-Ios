@@ -524,6 +524,38 @@ class Board194(unittest.TestCase):
         self.assertIn('String.IsEmpty(Window().Property(h.1.retry))',xml)   # no empty space under the reason
         self.assertIn('circle-exclamation.png',xml);self.assertIn('<width>118</width><height>118</height>',xml)   # 22 pt marks
 
+    def test_issue123_controls_only_while_the_window_is_open(self):
+        # Kodi frees a closed script window's controls; setPercent on one crashed Kodi in the desktop rig.
+        import types
+        import live_window
+        from unittest.mock import patch
+        calls,state=[],{'active':True}
+        class Bar:
+            def setPercent(self,v):calls.append(v)
+        class Window:
+            def __init__(self,ident=None):pass
+            def getId(self):return 13001
+            def getControl(self,n):return Bar()
+            def close(self):state['active']=False
+        fake=types.ModuleType('xbmc');fake.getCondVisibility=lambda c:state['active'] and c=='Window.IsActive(13001)'
+        gui=types.ModuleType('xbmcgui');gui.Window=Window   # Guard.control: a fresh wrapper, never a stale cached control
+        with patch.dict(sys.modules,{'xbmc':fake,'xbmcgui':gui}):
+            guard=live_window.Guard(Window())
+            self.assertTrue(guard.percent(1,40))
+            state['active']=False                       # closing (Dialog.Close, the tab bar, a skin Close)
+            self.assertFalse(guard.percent(1,50))
+            state['active']=True
+            guard.close()                               # the page's own close: never touched again
+            self.assertFalse(guard.percent(1,60))
+        self.assertEqual(calls,[40.0])
+        # No controller changes a control any other way from its refresh thread.
+        for name in ('library_status.py','notifications.py','transfers.py','resources/lib/tool_windows.py'):
+            src=(BOOT/name).read_text()
+            for call in ('.setPercent(','.setWidth(','.setPosition(','.setVisible('):
+                for line in src.splitlines():
+                    if call in line:self.assertTrue('guard' in line or line.strip().startswith('c.'),(name,line))
+            self.assertNotIn('self.stop.set();self.close()',src)
+
     def test_board7_numbers_are_numbers(self):
         xml=ltp.queue_page(p)
         self.assertIn('$NUMBER[',xml)   # a bare "1" label is read as a localized string id by Kodi

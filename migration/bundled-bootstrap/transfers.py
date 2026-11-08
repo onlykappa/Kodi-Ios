@@ -170,6 +170,8 @@ def run(args=()):
  here=os.path.dirname(os.path.abspath(__file__))
  class Page(xbmcgui.WindowXMLDialog):
   def onInit(self):
+   import live_window
+   self.guard=live_window.Guard(self)   # ISSUE-123: controls only while this page is open
    self.wanted=wanted;self.others=[];self.first_seen={};self.graphs=th.GraphCache('transfers');self.stop=threading.Event();self.lock=threading.Lock()
    self.refresh();threading.Thread(target=self.loop,daemon=True).start()
   def loop(self):
@@ -193,8 +195,7 @@ def run(args=()):
       props['tint'],folder,'special://skin/extras/portrait/graph',width=tp.PLOT[2],height=tp.PLOT[3],scale=th.device_scale(),
       start=job.get('start'),now=(pts or [[now]])[-1][0]) if not props.get('wait') else ''
     for k,v in props.items():self.setProperty(k,v)
-    try:self.getControl(tp.BAR).setPercent(float(pct))
-    except Exception:pass
+    self.guard.percent(tp.BAR,pct or 0)
   def onAction(self,action):
    if action.getId() in BACK:self.finish()
   def onClick(self,control):
@@ -204,7 +205,7 @@ def run(args=()):
    elif tp.OTHER<control<=tp.OTHER+tp.OTHERS and control-tp.OTHER<=len(self.others):
     self.wanted=self.others[control-tp.OTHER-1];self.refresh()
   def finish(self):
-   self.stop.set();self.close()
+   self.stop.set();self.guard.close()
  skin=xbmcvfs.translatePath('special://skin/')
  try:page=Page(tp.WINDOW,here,'Default','1080i')
  except RuntimeError:

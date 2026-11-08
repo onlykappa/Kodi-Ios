@@ -99,9 +99,15 @@ def fetch(url, dest):
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists() and dest.stat().st_size:
         return dest
-    sh(['curl', '-sSfL', '--retry', '3', '-o', str(dest) + '.part', url])
-    os.replace(str(dest) + '.part', dest)
-    return dest
+    # Large files (the IPA is ~200 MB) can be cut off by a proxy: resume where the last try stopped.
+    for attempt in range(6):
+        result = subprocess.run(['curl', '-sSfL', '--retry', '3', '-C', '-', '-o', str(dest) + '.part', url])
+        if result.returncode == 0:
+            os.replace(str(dest) + '.part', dest)
+            return dest
+        print('download stopped (curl %d), resuming' % result.returncode, flush=True)
+        time.sleep(2 ** attempt)
+    raise SystemExit('could not download ' + url)
 
 
 # --- setup ---------------------------------------------------------------------------------------------------------
@@ -271,21 +277,48 @@ def start(_args):
             wait(1)
     else:
         raise SystemExit('Kodi did not answer JSON-RPC; see %s and %s' % (RIG / 'kodi-stdout.log', HOME / '.kodi/temp/kodi.log'))
-    # A fresh profile asks before enabling add-ons it finds on disk; the rig enables them here instead.
+    # A fresh profile asks before enabling add-ons it finds on disk and falls back to Estuary; the rig enables them
+    # over JSON-RPC, and on that first run writes the profile again and restarts so Kodi opens with Fuse.
     for addon in [p.name for p in ADDONS.iterdir()] + [FUSE_ID]:
         try:
             rpc('Addons.SetAddonEnabled', {'addonid': addon, 'enabled': True})
         except Exception:
             pass
+    marker = HOME / '.rig-addons-enabled'
+    if not marker.exists():
+        if getattr(_args, 'retried', False):
+            raise SystemExit('Kodi did not keep the add-ons enabled; see %s' % (HOME / '.kodi/temp/kodi.log'))
+        print('first start of this profile: add-ons enabled, restarting with', FUSE_ID, flush=True)
+        wait(3)
+        stop(_args)
+        prepare(_args)
+        marker.write_text('add-ons enabled over JSON-RPC\n')
+        return start(argparse.Namespace(retried=True))
     print('started: DISPLAY', DISPLAY, SIZE)
 
 
+def _gone(pattern, seconds=10):
+    """Wait until no process matches; then force it. A new Kodi attached to a Xvfb that is still shutting down dies
+    with it, so start() must never race the previous stop()."""
+    for _ in range(seconds * 2):
+        if subprocess.call(['pgrep', '-f', pattern], stdout=subprocess.DEVNULL) != 0:
+            return
+        wait(0.5)
+    subprocess.call(['pkill', '-9', '-f', pattern])
+    wait(1)
+
+
 def stop(_args):
-    subprocess.call(['pkill', '-f', str(BUILD / 'kodi-x11')])
     subprocess.call(['pkill', '-f', 'kodi_rig_scenarios.py'])
-    wait(4)
-    subprocess.call(['pkill', '-9', '-f', str(BUILD / 'kodi-x11')])
+    subprocess.call(['pkill', '-f', str(BUILD / 'kodi-x11')])
+    _gone(str(BUILD / 'kodi-x11'))
     subprocess.call(['pkill', '-f', 'Xvfb ' + DISPLAY])
+    _gone('Xvfb ' + DISPLAY)
+    for lock in (Path('/tmp/.X%s-lock' % DISPLAY[1:]), Path('/tmp/.X11-unix/X%s' % DISPLAY[1:])):
+        try:
+            lock.unlink()
+        except OSError:
+            pass
 
 
 def restart(args):

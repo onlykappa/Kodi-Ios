@@ -180,6 +180,12 @@ class FakeKodi:
   class Monitor:
    def waitForAbort(self,t=0):return True    # the refresh loop ends at once; the test refreshes by tapping
   xbmc.Monitor=Monitor
+  def visible(condition):
+   # Window.IsActive(N): window N (its index here) is open; live_window.Guard asks before touching controls.
+   import re
+   m=re.match(r'Window\.IsActive\((\d+)\)$',condition)
+   return bool(m) and int(m.group(1))<len(kodi.windows) and not kodi.windows[int(m.group(1))].closed
+  xbmc.getCondVisibility=visible
   gui=types.ModuleType('xbmcgui');gui.NOTIFICATION_INFO='info';gui.NOTIFICATION_WARNING='warn'
   class ListItem:
    def __init__(self,label='',label2=''):self.label,self.label2,self.props,self.art=label,label2,{},{}
@@ -197,10 +203,15 @@ class FakeKodi:
    def getListItem(self,n):return self.items[n]
    def setPercent(self,v):self.percent=v
   class Window:
-   def __init__(self,xml,*rest):self.xml=xml;self.props={};self.controls={};self.closed=False;self.focus=None;kodi.windows.append(self)
+   def __init__(self,xml,*rest):
+    self.xml=xml;self.props={};self.controls={};self.closed=False;self.focus=None;kodi.windows.append(self)
    def setProperty(self,k,v):self.props[k]=v
    def getProperty(self,k):return self.props.get(k,'')
-   def getControl(self,n):return self.controls.setdefault(n,Control())
+   def getId(self):return kodi.windows.index(self)
+   def getControl(self,n):
+    # Kodi frees a closed window's controls; using one then crashes Kodi (ISSUE-123), so the fake refuses loudly.
+    assert not self.closed,'control %d used after its window closed'%n
+    return self.controls.setdefault(n,Control())
    def setFocusId(self,n):self.focus=n
    def close(self):self.closed=True
    def doModal(self):
@@ -213,6 +224,12 @@ class FakeKodi:
    def yesno(self,*a,**k):kodi.notes.append(('yesno',a[1]));return kodi.answer
    def notification(self,title,text,*a):kodi.notes.append(('note',text))
   gui.ListItem,gui.WindowXMLDialog,gui.Dialog=ListItem,Window,Dialog
+  def existing(ident):
+   # xbmcgui.Window(id): a wrapper on a window Kodi already has (one of this run's windows, or Home's properties)
+   if 0<=ident<len(kodi.windows):return kodi.windows[ident]
+   home=Window.__new__(Window);home.props,home.controls,home.closed=kodi.props_home if hasattr(kodi,'props_home') else {},{},False
+   return home
+  gui.Window=existing
   addon=types.ModuleType('xbmcaddon')
   class Addon:
    def __init__(self,name=None):

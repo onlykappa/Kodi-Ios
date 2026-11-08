@@ -78,7 +78,7 @@ class QueueView(unittest.TestCase):
   for k in props:
    # now.pct fills the running job's bar through Control.setPercent (tool_windows: Kodi leaves a property-bound bar empty).
    if k not in ('line.count','now.pct') and not k.endswith('.tone'):self.assertIn('Window().Property(%s)'%k,xml,k)
-  self.assertIn('id="%d"'%ltp.QBAR,xml);self.assertIn('setPercent',(LIB/'tool_windows.py').read_text())
+  self.assertIn('id="%d"'%ltp.QBAR,xml);self.assertIn('self.guard.percent(page.QBAR',(LIB/'tool_windows.py').read_text())
   self.assertEqual(lt.queue_properties(lt.queue_view({'rows':{}}))['empty'],'Nothing is waiting to be converted.')
  def test_more_than_fit(self):
   line=[{'id':str(n),'title':'T%d'%n,'state':'waiting','sub':'x · y'} for n in range(13)]

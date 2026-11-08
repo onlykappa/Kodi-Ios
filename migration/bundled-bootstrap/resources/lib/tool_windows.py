@@ -79,6 +79,8 @@ def open_queue(profile=None):
 
     class Queue(xbmcgui.WindowXMLDialog):
         def onInit(self):
+            import live_window
+            self.guard = live_window.Guard(self)   # ISSUE-123: controls only while this page is open
             self.stop = threading.Event()
             self.lock = threading.Lock()
             self.offset=0
@@ -105,10 +107,8 @@ def open_queue(profile=None):
                 props = lt.queue_properties(q)
                 for k, v in props.items():
                     self.setProperty(k, v)
-                try:   # build 194: Kodi cannot size a progress bar from a window property
-                    self.getControl(page.QBAR).setPercent(float(props.get('now.pct') or 0))
-                except Exception:
-                    pass
+                # Kodi cannot size a progress bar from a window property; set it only while the page is open.
+                self.guard.percent(page.QBAR, props.get('now.pct') or 0)
 
         def onAction(self, action):
             if action.getId() in BACK:
@@ -116,7 +116,7 @@ def open_queue(profile=None):
 
         def finish(self):
             self.stop.set()
-            self.close()
+            self.guard.close()
 
         def onClick(self, control):
             if control == page.BACK:
