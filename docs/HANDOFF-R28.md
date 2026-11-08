@@ -260,3 +260,21 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
   executable_release (tag r24, sha256 of Kodi-portrait-executable.zip) -> import-review.yml = build 195.
 - Check on the phone: Fall opens in a few seconds (log line above), seeking/resume right, MKV unaffected.
   Evidence for the option so far: KodiAirPlay's FFmpeg 8.1.1 (1,305 reads -> 14); Kodi bundles its own FFmpeg: unproven there.
+## Build-194 log follow-up — Play on TV, source only (2026-11-08)
+
+- Owner's ready movies repeatedly fail with AVPlayer -1004 and no server request evidence. Analysis, exact log
+  references, delivery boundary and iPhone steps: [LOG-REVIEW-194.md](LOG-REVIEW-194.md), ISSUE-120.
+- Python/plist: Local Network purpose string, lock acquired before discovery/picker, 15-second first-TV-request
+  deadline, no unreachable retry, Kodi resume, and a persistent `work_state` needs-you card with Settings action.
+  r33 falls back to shared native log evidence and manual Settings instructions.
+- Native **r34 source is staged, not built or released**: en0-only iOS LAN address, served host/port, listen result,
+  accepted peers/early token-redacted requests, first-TV-request timing and a non-draining network API; ordered
+  starts/stops and canceled-generation protection; `UIApplicationOpenSettingsURLString` bridge.
+- **Do not treat source changes as delivered in r33.** After owner approval, run native host/CI verification,
+  build/release r34 and verify its real asset before changing `migration/airplay-ios/source-lock.json` in another
+  `[skip ci]` commit. No r34 pin/hash was fabricated. Both existing AirPlay r33 and Kodi r24 pins are unchanged.
+  An app/IPA build or release still needs the owner's go-ahead.
+- Validation: **82/82** test scripts pass, excluding `test_drive_runtime.py`; 13 new AirPlay network tests and the
+  staged-plist regression pass. Fixed the pre-existing stale r23 pin assertion to match this branch's r24 pin and
+  retested all 27 GlassBar tests. Project/UI guidance, shell syntax and diff checks pass. Device review is pending;
+  the supplied log is device failure evidence, not proof of a successful fix. No new layout or rig work in this pass.

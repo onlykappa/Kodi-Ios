@@ -44,6 +44,9 @@ NEEDS_TEXT = {
     'alldebrid_key': {'title': 'Add your AllDebrid key',
                       'text': 'Downloads to Google Drive wait until Umbrella has your AllDebrid key.',
                       'button': 'Open Umbrella', 'action': 'Addon.OpenSettings(plugin.video.umbrella)'},
+    'airplay_network': {'title': "Your TV couldn't reach this iPhone",
+                       'text': "Your TV couldn't reach this iPhone. Check Settings › Privacy & Security › Local Network › Kodi, and that the TV and iPhone are on the same Wi-Fi.",
+                       'button': 'Open Settings', 'action': 'RunScript(service.kodi.ios.bootstrap,airplay_settings)'},
 }
 
 # What the service knows that no file says (set from service.py's loops; one Kodi process).
@@ -51,13 +54,22 @@ _flags_lock = threading.Lock()
 _flags = {'needs': {}, 'network': {}}
 
 
-def need(key, on=True):
+def need(key, on=True, profile=None):
     """Mark (or clear) something only the owner can fix (a NEEDS_TEXT key)."""
     with _flags_lock:
         if on and key in NEEDS_TEXT:
             _flags['needs'][key] = dict(NEEDS_TEXT[key])
         else:
             _flags['needs'].pop(key, None)
+    if profile is not None and key in NEEDS_TEXT:
+        # Kodi scripts and the service have separate Python interpreters. One marker per key avoids lost updates.
+        path=os.path.join(str(profile),'addon_data','service.kodi.ios.bootstrap','needs',key)
+        if on:
+            os.makedirs(os.path.dirname(path),exist_ok=True)
+            with open(path,'w',encoding='utf-8') as f:f.write('1')
+        else:
+            try:os.unlink(path)
+            except FileNotFoundError:pass
 
 
 def network(key, until=0.0, why=''):
@@ -69,9 +81,14 @@ def network(key, until=0.0, why=''):
             _flags['network'].pop(key, None)
 
 
-def flags():
+def flags(profile=None):
     with _flags_lock:
-        return {'needs': [dict(v, key=k) for k, v in sorted(_flags['needs'].items())],
+        needs=dict(_flags['needs'])
+        if profile is not None:
+            for key in NEEDS_TEXT:
+                if os.path.isfile(os.path.join(str(profile),'addon_data','service.kodi.ios.bootstrap','needs',key)):
+                    needs[key]=NEEDS_TEXT[key]
+        return {'needs': [dict(v, key=k) for k, v in sorted(needs.items())],
                 'network': [dict(v, key=k) for k, v in sorted(_flags['network'].items())]}
 
 

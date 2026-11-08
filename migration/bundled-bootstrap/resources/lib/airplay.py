@@ -1,5 +1,5 @@
 """Apple's AirPlay button over Kodi, from Kodi.app/Frameworks/KodiAirPlay.framework (migration/airplay-ios)."""
-import os
+import json,os,re,time
 import diagnostics
 # Full-screen video or music only: on Fuse's menus the top-right corner holds the clock and the gear.
 PLAYING='Player.HasMedia + [Window.IsActive(fullscreenvideo) | Window.IsActive(visualisation)]'
@@ -24,6 +24,9 @@ def load(path):
  if hasattr(lib,'kodi_airplay_message'):lib.kodi_airplay_message.argtypes=[ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_message.restype=ctypes.c_int
  # r6: what the AirPlay stream did (requests, CODECS, Apple's player events), for kodi.log.
  if hasattr(lib,'kodi_airplay_log'):lib.kodi_airplay_log.argtypes=[ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_log.restype=ctypes.c_int
+ # r34: non-draining network evidence (the service and a script both read it), and the app's Settings link.
+ if hasattr(lib,'kodi_airplay_network'):lib.kodi_airplay_network.argtypes=[ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_network.restype=ctypes.c_int
+ if hasattr(lib,'kodi_airplay_settings'):lib.kodi_airplay_settings.argtypes=[];lib.kodi_airplay_settings.restype=None
  # r10: the subtitles burned into the picture a TV gets converted (Kodi's current choice, set before playing).
  if hasattr(lib,'kodi_airplay_subtitles'):lib.kodi_airplay_subtitles.argtypes=[ctypes.c_int,ctypes.c_char_p,ctypes.c_char_p];lib.kodi_airplay_subtitles.restype=None
  if hasattr(lib,'kodi_background_keep'):lib.kodi_background_keep.argtypes=[ctypes.c_int];lib.kodi_background_keep.restype=None
@@ -123,6 +126,40 @@ def log_lines(lib,size=16384,rounds=8):
 # holds the time it was last seen working), the copies, the uploads and the conversion wait (build 193: they slow down instead).
 BUSY='KodiIOS.AirPlay'   # build 193: work slows down while it is set (slowdown.py); it no longer waits
 BUSY_FOR=90   # seconds after its last log line; Apple's player logs its requests and a heartbeat while it plays
+LISTENING='KodiIOS.AirPlay.Listening'
+TV_REQUEST='KodiIOS.AirPlay.TVRequest'
+STARTED='KodiIOS.AirPlay.Started'
+
+def network(lib,window,now=None):
+ """r34 is authoritative; r33 falls back to shared log evidence, including when the service drained it."""
+ now=time.time() if now is None else now
+ try:started=float(window.getProperty(STARTED))
+ except (TypeError,ValueError):started=0
+ if hasattr(lib,'kodi_airplay_network'):
+  import ctypes
+  buffer=ctypes.create_string_buffer(1024)
+  lib.kodi_airplay_network(buffer,len(buffer))
+  try:
+   net=json.loads(buffer.value.decode('utf-8'))
+   if net.get('expected') and started:net['start_age_s']=max(net.get('start_age_s',-1),now-started)
+   return net
+  except (ValueError,UnicodeError):return None
+ try:begun=float(window.getProperty(LISTENING))
+ except (TypeError,ValueError):begun=0
+ return {'expected':bool(begun or started),'start_age_s':now-started if started else -1,'listen_age_s':now-begun if begun else -1,
+         'tv_requests':int(bool(window.getProperty(TV_REQUEST))),'legacy':True}
+
+def log_text(line):
+ """Keep only the streaming server's authority and public route; never a token or source URL."""
+ def stream(match):
+  from urllib.parse import urlsplit
+  try:
+   p=urlsplit(match.group(0));route=p.path.rsplit('/',1)[-1]
+   if route in ('prepared.mp4','master.m3u8') and p.port:
+    return '%s:%d/[token]/%s'%(p.hostname,p.port,route)
+  except ValueError:pass
+  return '[URL redacted]'
+ return diagnostics.redact(re.sub(r'https?://[^\s\"\']+',stream,str(line)))
 ENDED=('player: closed','player: stopped')
 def mark_busy(window,now):window.setProperty(BUSY,'%.0f'%now)
 def clear_busy(window):window.setProperty(BUSY,'')
@@ -139,6 +176,12 @@ def activity(lines,window,now):
  it. A slow read of the movie by the TV slows the background work further (slowdown.note_served)."""
  lines=airplay_lines(lines)
  if not lines:return
+ if any(l.startswith('start result 3:') for l in lines):  # r33 found an HLS source; no phone server is needed
+  window.clearProperty(STARTED);window.clearProperty(LISTENING)
+ if any(l.startswith(('prepared:','master:','server: listening')) for l in lines) and not window.getProperty(LISTENING):
+  window.setProperty(LISTENING,str(now))
+ if any(l.startswith('client:') and any(t in l.lower() for t in ('mfi_airplay_device','apple tv','appletv')) for l in lines):
+  window.setProperty(TV_REQUEST,str(now))
  try:
   import slowdown;slowdown.note_served(lines,now)
  except Exception:pass
@@ -150,7 +193,7 @@ def relay(lib,write,wait,every=5,keep=None):
  keep(lines): also hands them on (library_tools.note_airplay keeps the last Play on TV for the AirPlay check)."""
  if not hasattr(lib,'kodi_airplay_log'):return
  while True:
-  lines=[diagnostics.redact(line) for line in log_lines(lib)]
+  lines=[log_text(line) for line in log_lines(lib)]
   for line in lines:write('Kodi iOS AirPlay: '+line)
   if lines and keep:
    try:keep(lines)

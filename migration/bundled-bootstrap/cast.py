@@ -44,15 +44,20 @@ def properties(tvs,searching,subtitle,note):
  return props
 
 def run():
+ import time,xbmc,xbmcgui,xbmcvfs
+ home=xbmcgui.Window(10000)
+ with cast.session_lock(xbmcvfs.translatePath('special://profile/')) as owned:
+  if not owned:
+   xbmc.log('Kodi iOS Play on TV: already starting; second press ignored',xbmc.LOGINFO)
+   xbmcgui.Dialog().notification('Play on TV','Still connecting to the TV…',xbmcgui.NOTIFICATION_INFO,3000);return
+  home.setProperty(cast.BUSY,str(time.time()))
+  try:run_owned()
+  finally:home.clearProperty(cast.BUSY)
+
+def run_owned():
  import threading,time,xbmc,xbmcaddon,xbmcgui,xbmcvfs
  xbmc.log('Kodi iOS Play on TV: opened',xbmc.LOGINFO)
  dialog=xbmcgui.Dialog();addon=xbmcaddon.Addon('service.kodi.ios.bootstrap');player=xbmc.Player()
- # Owner (build 160): "i like have to press it twice". A second press started a second AirPlay session that shut the
- # first one's stream (and the first, failing, shut the second's). One at a time; the second press is told.
- home=xbmcgui.Window(10000)
- if cast.busy(home.getProperty(cast.BUSY),time.time()):
-  xbmc.log('Kodi iOS Play on TV: already starting; second press ignored',xbmc.LOGINFO)
-  dialog.notification('Play on TV','Still connecting to the TV…',xbmcgui.NOTIFICATION_INFO,3000);return
  if not player.isPlayingVideo():dialog.ok('Play on TV','Start a video first.');return
  phone=cast.phone_address()
  url,needs_phone=cast.stream_url(player.getPlayingFile(),phone)
@@ -85,9 +90,7 @@ def run():
  if tv=='fallback':tv=pick_dialogs(xbmc,xbmcgui,dialog,extra,found,done,last)
  if not tv:return
  addon.setSettingString('last_tv',tv['kind']+'|'+tv['host'])
- home.setProperty(cast.BUSY,str(time.time()))
- try:send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing)
- finally:home.clearProperty(cast.BUSY)
+ send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing)
 
 def pick_sheet(xbmc,xbmcgui,home,title,note,extra,found,done,last):
  """The TV picked in the sheet, None when closed (or This iPhone), 'fallback' when the sheet cannot load."""
@@ -173,32 +176,59 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
  import time,xbmcgui
  # Build 186 (owner: "airplay stops out of nowhere"): the copies, uploads and conversion step aside from now on.
  home=xbmcgui.Window(10000);airplay.mark_busy(home,time.time())
- lib.kodi_airplay_play(source.encode('utf-8'),(title or '').encode('utf-8'))
  # Something on screen at once while the TV connects (it can take a while), with Cancel.
- progress=xbmcgui.DialogProgress();progress.create('Play on TV','Connecting to the TV… This can take up to a minute.')
+ progress=xbmcgui.DialogProgress();progress.create('Play on TV','Connecting to the TV…')
+ # Reset evidence before starting; the service may drain native log lines before this script sees them.
+ for key in (airplay.STARTED,airplay.LISTENING,airplay.TV_REQUEST):home.clearProperty(key)
+ if converting and cast.format_name(source)!='M3U8':home.setProperty(airplay.STARTED,str(time.time()))
+ lib.kodi_airplay_play(source.encode('utf-8'),(title or '').encode('utf-8'))
  started=[0.0];monitor=xbmc.Monitor()
+ lines=[];endpoint=None
+ def network():
+  nonlocal endpoint
+  new=[airplay.log_text(line) for line in airplay.log_lines(lib)]
+  lines.extend(new)
+  for line in new:xbmc.log('Kodi iOS AirPlay: '+line,xbmc.LOGINFO)
+  airplay.activity(new,home,time.time())
+  if profile and new:
+   try:library_tools.note_airplay(profile,new)
+   except Exception as error:diagnostics.log_exception(xbmc,'airplay_record',error)
+  net=airplay.network(lib,home) if converting else None
+  if net and net.get('host') and net.get('port') and endpoint!=(net['host'],net['port']):
+   endpoint=(net['host'],net['port'])
+   diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','endpoint',host=endpoint[0],port=endpoint[1])
+  return net
  def wait(seconds):
   started[0]+=seconds;airplay.mark_busy(home,time.time());progress.update(min(95,int(started[0]*100/(60 if converting else 25))))
   return progress.iscanceled() or monitor.waitForAbort(seconds)
  # Converting first reads the start of the file (over Elementum or Drive): allow longer than a direct link.
  try:
-  outcome=cast.airplay_outcome(lib.kodi_airplay_state,wait,60 if converting else 25)
+  outcome=cast.airplay_outcome(lib.kodi_airplay_state,wait,60 if converting else 25,network=network)
   why=airplay.message(lib)
-  if cast.retry_airplay(outcome,why):
-   # The first reads timed out while other transfers had the line; they are held now, so try once more.
+  net=network()
+  if profile and outcome=='failed':
+   # The service can have consumed the player's failure line first.
+   for line in library_tools.load_airplay(profile).get('lines') or []:
+    if line not in lines:lines.append(line)
+  if outcome=='failed' and net and net.get('expected') and not net.get('tv_requests') and cast.player_problem(lines)=='the TV could not connect to the phone':outcome='unreachable'
+  if cast.retry_airplay(outcome,why) and not (net and net.get('expected') and not net.get('tv_requests')):
+   # A receiver that did connect may retry a source-read timeout once. No retry for an unreachable phone.
    xbmc.log('Kodi iOS Play on TV: Apple\'s player timed out (%s); trying once more'%why,xbmc.LOGINFO)
    progress.update(5,'The TV took too long to answer. Trying again…')
    lib.kodi_airplay_close();monitor.waitForAbort(2)
+   for key in (airplay.LISTENING,airplay.TV_REQUEST):home.clearProperty(key)
+   home.setProperty(airplay.STARTED,str(time.time()))
    lib.kodi_airplay_play(source.encode('utf-8'),(title or '').encode('utf-8'))
-   outcome=cast.airplay_outcome(lib.kodi_airplay_state,wait,60 if converting else 25)
+   outcome=cast.airplay_outcome(lib.kodi_airplay_state,wait,60 if converting else 25,network=network)
    why=airplay.message(lib)
  finally:progress.close()
  # r6: the stream's variant line (CODECS), the receiver's requests and Apple's player events so far; the service
  # keeps relaying the rest while it plays (airplay.relay).
- lines=list(airplay.log_lines(lib))
- for line in lines:xbmc.log('Kodi iOS AirPlay: '+diagnostics.redact(line),xbmc.LOGINFO)
+ remaining=[airplay.log_text(line) for line in airplay.log_lines(lib)]
+ lines.extend(remaining)
+ for line in remaining:xbmc.log('Kodi iOS AirPlay: '+line,xbmc.LOGINFO)
  if profile:
-  try:library_tools.note_airplay(profile,[diagnostics.redact(line) for line in lines])
+  try:library_tools.note_airplay(profile,remaining)
   except Exception:pass
  diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','outcome',outcome=outcome,elapsed_s=round(started[0],2),reason=why)
  if outcome=='playing':
@@ -206,10 +236,17 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
   # Apple's player; the TV then hung up on the video and audio segments and AirPlay switched off 4 s later. Kodi's
   # video stays paused in landscape while AirPlay plays; closing Apple's player returns to it.
   if not xbmc.getCondVisibility('Player.Paused'):player.pause()
+  if profile:
+   import work_state;work_state.need('airplay_network',False,profile)
   notices.note('info','Playing with AirPlay',title or '');return
  lib.kodi_airplay_close();airplay.clear_busy(home)
  if xbmc.getCondVisibility('Player.Paused'):player.pause()   # Kodi carries on (also after Cancel)
  if outcome=='aborted':return
+ if outcome=='unreachable':
+  import work_state
+  if profile:work_state.need('airplay_network',True,profile)
+  text=work_state.NEEDS_TEXT['airplay_network']['text']
+  notices.note('problem',"Your TV couldn't reach this iPhone",text);dialog.ok('Play on TV',text);return
  if why:notices.note('problem',"AirPlay couldn't play this",why);dialog.ok('Play on TV',cast.CONVERT_FAILED%why)
  elif converting:
   # The format was fine (this framework plays or converts it): Apple's player or the TV did not start.

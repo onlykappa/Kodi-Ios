@@ -1,5 +1,5 @@
 """Bundle the validated configuration in an isolated official app; no native patching."""
-import argparse,contextlib,hashlib,io,json,os,shutil,subprocess,xml.etree.ElementTree as ET,zipfile
+import argparse,contextlib,hashlib,io,json,os,plistlib,shutil,subprocess,xml.etree.ElementTree as ET,zipfile
 from pathlib import Path
 from build_unsigned_ipa import build as unsigned,validate_staging
 import ios_portrait
@@ -502,10 +502,21 @@ def build_identity():
          'workflow_run':os.environ.get('GITHUB_RUN_ID',''),'workflow_attempt':os.environ.get('GITHUB_RUN_ATTEMPT',''),
          'built_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'frameworks':frameworks}
 
+LOCAL_NETWORK_PURPOSE='Kodi streams the video from this iPhone to your TV over Wi-Fi.'
+
+def allow_local_network(app):
+ # Direct unicast TV discovery triggers the permission request; no Bonjour types are browsed or advertised.
+ # Preserve upstream service declarations and every other plist key.
+ path=Path(app)/'Info.plist'
+ info=plistlib.loads(path.read_bytes()) if path.exists() else {}
+ info['NSLocalNetworkUsageDescription']=LOCAL_NETWORK_PURPOSE
+ path.write_bytes(plistlib.dumps(info,fmt=plistlib.FMT_BINARY))
+
 def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
  validate_staging(app,work)
  manifest,addons,config=validate_bundle(bundle,expected)
  target=work/'Kodi.app';shutil.copytree(app,target,symlinks=True)
+ allow_local_network(target)
  manifests=list(target.rglob('system/addon-manifest.xml'));assert len(manifests)==1,'Unique Kodi system manifest required'
  system=manifests[0];base=system.parent.parent;addonroot=base/'addons';assert addonroot.is_dir()
  # special://xbmc/system/advancedsettings.xml: Kodi's splash off on every install (ios_portrait.disable_splash).

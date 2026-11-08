@@ -1029,3 +1029,25 @@ Status: FIXED IN SOURCE on PR #16 (build 194, not built); checked in the desktop
 - Retest: 80/80 test scripts (only `test_drive_runtime.py` excluded), `check_project.py` and `check_ui_guidance.py`
   pass. Known leftover outside these boards: the landscape AirPlay sheet (`library_tools_page.airplay_sheet`) still
   has one `!!` condition; it is pinned to its earlier source by a test and was left unchanged.
+
+## ISSUE-120 — Ready movies cannot connect over AirPlay (build-194 device log)
+
+Status: FIXED IN SOURCE / DEVICE RETEST PENDING on PR #16. Native r34 diagnostics are staged in source;
+build/release/pinning await owner approval. Released KodiAirPlay r33 remains pinned.
+
+- Evidence: owner log 18:11–18:15, repeated AVPlayer -1004, zero server `GET /…`/receiver `client:` lines;
+  Play on TV opened twice at 18:12:45 and 18:12:50. Full sanitized analysis:
+  [LOG-REVIEW-194.md](LOG-REVIEW-194.md). Raw log stays outside Git.
+- Root causes found in source: missing Local Network purpose declaration; picker check/set race; no first-request
+  deadline; source URLs mistaken for server diagnostics; incoming accepts/early requests not recorded. The log
+  does not prove permission denial: Apple's TN3179 exempts incoming TCP, while unicast TV discovery needs access.
+- Fix: stage the purpose string; hold a process-shared lock before the picker; stop an unreachable attempt at
+  15 seconds without retry; resume Kodi and persist a needs-you recovery card across script/service interpreters.
+  r33 uses shared request-log evidence. r34 source adds strict en0 selection, endpoint/listen/peer/request/timing
+  diagnostics with a non-draining API, ordered native session work, cancellation generations and app Settings.
+- Regression: 13 tests in `test_play_on_tv_network.py`, plus the staged-plist test in `test_customized_ipa.py`.
+  Updated old lock/progress/retry assertions to the corrected behavior. The full sweep also found a pre-existing
+  r23 tag/hash assertion after this branch had pinned r24; updated the exact assertion without changing the pin.
+- Retest: **82/82 test scripts pass** after that correction/retest (only `test_drive_runtime.py` excluded).
+  `check_project.py`, `check_ui_guidance.py`, shell syntax and diff checks pass. Native r34 runtime tests and
+  iPhone playback remain pending; no app/native build, release or merge was run in this pass.

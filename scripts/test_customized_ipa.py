@@ -52,6 +52,16 @@ class BundleTests(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name);self.app=self.root/'original/Kodi.app';base=self.app/'AppData/AppHome';(base/'system').mkdir(parents=True);(base/'addons').mkdir();(base/'system/addon-manifest.xml').write_text('<addons><addon>xbmc.python</addon></addons>');self.bundle=self.root/'bundle.zip';self.sha=make_bundle(self.bundle)
  def tearDown(self):self.tmp.cleanup()
+ def test_airplay_local_network_purpose_is_in_the_staged_app_only(self):
+  import plistlib
+  original={'CFBundleIdentifier':'org.fixture.kodi','NSBonjourServices':['_fixture._tcp']}
+  (self.app/'Info.plist').write_bytes(plistlib.dumps(original))
+  app,_=prepare(self.app,self.bundle,self.sha,self.root/'work')
+  info=plistlib.loads((app/'Info.plist').read_bytes())
+  self.assertEqual(info['NSLocalNetworkUsageDescription'],'Kodi streams the video from this iPhone to your TV over Wi-Fi.')
+  self.assertEqual(info['CFBundleIdentifier'],original['CFBundleIdentifier'])
+  self.assertEqual(info['NSBonjourServices'],original['NSBonjourServices'])
+  self.assertEqual(plistlib.loads((self.app/'Info.plist').read_bytes()),original)
  def test_drive_requests_get_timeout_and_certifi_context(self):
   base=self.root/'addons'/DRIVE_COMMON
   for name,before,_ in DRIVE_PATCHES:

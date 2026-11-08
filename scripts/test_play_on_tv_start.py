@@ -26,15 +26,15 @@ class OneAtATime(unittest.TestCase):
  def test_the_page_guards_and_always_releases(self):
   src=(BOOT/'cast.py').read_text()
   run=src[src.index('def run():'):src.index('def pick_sheet(')]
-  self.assertLess(run.index('cast.busy(home.getProperty(cast.BUSY),time.time())'),run.index('cast.phone_address()'))
-  self.assertIn("home.setProperty(cast.BUSY,str(time.time()))\n try:send(",run)
+  self.assertLess(run.index('with cast.session_lock('),run.index('run_owned()'))
+  self.assertIn("home.setProperty(cast.BUSY,str(time.time()))\n  try:run_owned()",run)
   self.assertIn("finally:home.clearProperty(cast.BUSY)",run)
 
 class Feedback(unittest.TestCase):
  def test_connecting_shows_at_once_with_cancel_and_kodi_carries_on(self):
   src=(BOOT/'cast.py').read_text()
   body=src[src.index('def send_airplay('):src.index('def send(xbmc')]
-  self.assertLess(body.index('lib.kodi_airplay_play(source'),body.index("progress.create('Play on TV','Connecting to the TV"))
+  self.assertLess(body.index("progress.create('Play on TV','Connecting to the TV"),body.index('lib.kodi_airplay_play(source'))
   self.assertIn('return progress.iscanceled() or monitor.waitForAbort(seconds)',body)
   self.assertIn('finally:progress.close()',body)
   self.assertLess(body.index("if xbmc.getCondVisibility('Player.Paused'):player.pause()   # Kodi carries on"),body.index("if outcome=='aborted':return"))

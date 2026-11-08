@@ -3,7 +3,7 @@ smart TVs (AVTransport), and Chromecast / Google TV (Cast protocol, Default Medi
 link itself, so the phone can sleep or switch apps. A link served by the phone (Elementum's local engine) is
 rewritten to the phone's Wi-Fi address and only plays while Kodi keeps running. AirPlay goes through Apple's
 player in KodiAirPlay.framework (see airplay.py)."""
-import concurrent.futures,json,re,socket,ssl,struct,time,urllib.error,urllib.parse,urllib.request
+import concurrent.futures,contextlib,json,os,re,socket,ssl,struct,time,urllib.error,urllib.parse,urllib.request
 from xml.sax.saxutils import escape
 PORT=8060
 LOCAL={'127.0.0.1','localhost','::1','0.0.0.0'}
@@ -139,6 +139,19 @@ def player_problem(lines):
  return ''
 
 BUSY='KodiIOS.PlayOnTV'   # Home window property while Play on TV is starting (a second press waits for it)
+
+@contextlib.contextmanager
+def session_lock(profile):
+ """Kernel-owned lock across Kodi's separate script interpreters; a crashed script releases it too."""
+ import fcntl
+ folder=os.path.join(str(profile),'addon_data','service.kodi.ios.bootstrap')
+ os.makedirs(folder,exist_ok=True)
+ with open(os.path.join(folder,'play-on-tv.lock'),'a') as lock:
+  try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+  except BlockingIOError:yield False;return
+  try:yield True
+  finally:fcntl.flock(lock,fcntl.LOCK_UN)
+
 def busy(value,now,window=90):
  """Whether Play on TV is already starting: the property holds when it began (seconds)."""
  try:return now-float(value)<window
@@ -155,13 +168,19 @@ def retry_airplay(outcome,why):
  """Build 186: one more try when Apple's player gave up waiting for the first reads (a busy line), not otherwise."""
  return outcome=='failed' and 'timed out' in str(why or '').lower()
 
-def airplay_outcome(state,wait,timeout=25):
+def airplay_outcome(state,wait,timeout=25,network=None):
  """Poll Apple's player (state(): 1 has the stream, -1 failed, 0 not yet) for up to `timeout` seconds; wait(s)
- sleeps and returns True if Kodi is closing. Returns 'playing', 'failed' or 'aborted'."""
+ sleeps and returns True if Kodi is closing/canceled. A local stream needs a TV request within 15 seconds.
+ network() supplies non-draining connection evidence; returns 'playing', 'failed', 'aborted' or 'unreachable'."""
  waited=0.0
  while waited<timeout:
+  net=network() if network else None
+  local=net and net.get('expected')
+  reached=net and net.get('tv_requests',0)>0
+  if local and not reached and max(net.get('start_age_s',-1),net.get('listen_age_s',-1))>=15:return 'unreachable'
   now=state()
-  if now==1:return 'playing'
+  # The phone's own AVPlayer becoming ready does not prove that the TV can fetch our stream.
+  if now==1 and (not local or reached):return 'playing'
   if now<0:return 'failed'
   if wait(0.5):return 'aborted'
   waited+=0.5

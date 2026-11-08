@@ -132,9 +132,34 @@ static struct {
     char agents[4][160];
 } L = { .lock = PTHREAD_MUTEX_INITIALIZER };
 
+// r34: readable without draining the shared log or waiting for source I/O under S.lock.
+static struct {
+    pthread_mutex_t lock;
+    double start_ms, listen_ms, first_tv_ms;
+    int expected, port, tv_requests;
+    char host[64];
+} N = { .lock = PTHREAD_MUTEX_INITIALIZER };
+
 static double now_ms(void) {
     struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t);
     return t.tv_sec * 1000.0 + t.tv_nsec / 1e6;
+}
+
+int kr_remux_network(char *buf, int len) {
+    if (!buf || len <= 0) return 0;
+    double now = now_ms();
+    pthread_mutex_lock(&N.lock);
+    snprintf(buf, (size_t)len, "{\"expected\":%d,\"host\":\"%s\",\"port\":%d,\"start_age_s\":%.3f,\"listen_age_s\":%.3f,\"tv_requests\":%d,\"first_tv_s\":%.3f}",
+             N.expected, N.host, N.port, N.start_ms ? (now-N.start_ms)/1000.0 : -1.0, N.listen_ms ? (now-N.listen_ms)/1000.0 : -1.0,
+             N.tv_requests, N.first_tv_ms ? (N.first_tv_ms-N.start_ms)/1000.0 : -1.0);
+    pthread_mutex_unlock(&N.lock);
+    return (int)strlen(buf);
+}
+
+void kr_remux_network_begin(int lan) {
+    pthread_mutex_lock(&N.lock);
+    N.start_ms=now_ms();N.listen_ms=N.first_tv_ms=0;N.tv_requests=N.port=0;N.host[0]=0;N.expected=lan;
+    pthread_mutex_unlock(&N.lock);
 }
 
 static void log_line(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
@@ -920,14 +945,18 @@ int kr_remux_prefetched(void) { return atomic_load(&S.prefetched); }
 // The phone's Wi-Fi IPv4 address (en0 on iOS; the first up, non-loopback IPv4 elsewhere).
 static int lan_address(char *out, size_t len) {
     struct ifaddrs *list = NULL, *best = NULL;
-    if (getifaddrs(&list) != 0) return -1;
+    if (getifaddrs(&list) != 0) { log_line("network: getifaddrs failed errno=%d",errno); return -1; }
     for (struct ifaddrs *i = list; i; i = i->ifa_next) {
         if (!i->ifa_addr || i->ifa_addr->sa_family != AF_INET || !(i->ifa_flags & IFF_UP) || (i->ifa_flags & IFF_LOOPBACK)) continue;
         if (!strcmp(i->ifa_name, "en0")) { best = i; break; }
-        if (!best) best = i;
+#ifndef __APPLE__
+        if (!best) best = i;  // host tests: iOS must never advertise a cellular/VPN address as Wi-Fi
+#endif
     }
     int r = -1;
     if (best && inet_ntop(AF_INET, &((struct sockaddr_in *)best->ifa_addr)->sin_addr, out, (socklen_t)len)) r = 0;
+    if (!r) log_line("network: interface=%s IPv4=%s",best->ifa_name,out);
+    else log_line("network: no usable Wi-Fi en0 IPv4");
     freeifaddrs(list);
     return r;
 }
@@ -950,8 +979,17 @@ static void *connection(void *arg) {
         if (strstr(req, "\r\n\r\n")) break;
     }
     req[got] = 0;
-    char method[8] = "", path[1024] = "";
-    if (sscanf(req, "%7s %1023s", method, path) == 2 && (!strcmp(method, "GET") || !strcmp(method, "HEAD"))) {
+    struct sockaddr_in peer={0};socklen_t peerlen=sizeof peer;char peer_ip[INET_ADDRSTRLEN]="unknown";
+    if (!getpeername(fd,(struct sockaddr *)&peer,&peerlen)) inet_ntop(AF_INET,&peer.sin_addr,peer_ip,sizeof peer_ip);
+    char method[8] = "", path[1024] = "", version[16]="";
+    int parsed=sscanf(req, "%7s %1023s %15s", method, path, version);
+    char *q = strchr(path, '?'); if (q) *q = 0;
+    size_t tl = strlen(S.token);
+    int ok = path[0] == '/' && !strncmp(path + 1, S.token, tl) && path[1 + tl] == '/';
+    if(parsed>=2) log_line("request: peer=%s %s /[token]%s %s",peer_ip,method,
+                          ok ? path+1+tl : "/[unrecognized]",!strncmp(version,"HTTP/",5) ? version : "[no HTTP version]");
+    else if(got) log_line("request: peer=%s [malformed request line]",peer_ip);
+    if (parsed >= 2 && (!strcmp(method, "GET") || !strcmp(method, "HEAD"))) {
         char range[128] = "", agent[160] = "", *h = req;
         while ((h = strstr(h, "\r\n")) != NULL) {
             h += 2;
@@ -959,11 +997,20 @@ static void *connection(void *arg) {
             else if (!strncasecmp(h, "User-Agent:", 11)) sscanf(h + 11, " %159[^\r\n]", agent);
         }
         log_agent(agent);
-        char *q = strchr(path, '?'); if (q) *q = 0;
-        size_t tl = strlen(S.token);
         t_status = 0; t_bytes = 0; t_err[0] = 0;
         double t0 = now_ms();
-        int ok = path[0] == '/' && !strncmp(path + 1, S.token, tl) && path[1 + tl] == '/';
+        // Before serve(): a slow source must not make an arrived TV request look like a network failure.
+        pthread_mutex_lock(&N.lock);
+        int tv=ok && N.expected && strcmp(peer_ip,"127.0.0.1") && strcmp(peer_ip,N.host) &&
+               !(strstr(agent,"iPhone") || strstr(agent,"iPad"));
+        if(tv) {
+            N.tv_requests++;
+            if(!N.first_tv_ms) {
+                N.first_tv_ms=now_ms();
+                log_line("network: first TV request peer=%s after %.0f ms from start",peer_ip,N.first_tv_ms-N.start_ms);
+            }
+        }
+        pthread_mutex_unlock(&N.lock);
         if (ok) serve(fd, method, path + 1 + tl, *range ? range : NULL, agent);
         else fail(fd, 404, "Not Found");
         // "GET /video/seg3.m4s 200 1834567 B 412 ms"
@@ -978,8 +1025,11 @@ static void *connection(void *arg) {
 static void *accept_loop(void *unused) {
     (void)unused;
     while (!atomic_load(&S.stopping)) {
-        int fd = accept(S.listen_fd, NULL, NULL);
+        struct sockaddr_in peer={0};socklen_t len=sizeof peer;
+        int fd = accept(S.listen_fd, (struct sockaddr *)&peer, &len);
         if (fd < 0) { if (errno == EINTR) continue; break; }
+        char ip[INET_ADDRSTRLEN]="unknown";inet_ntop(AF_INET,&peer.sin_addr,ip,sizeof ip);
+        log_line("accept: peer=%s:%d",ip,ntohs(peer.sin_port));
         if (atomic_load(&S.stopping)) { close(fd); break; }
         int slot=-1;
         pthread_mutex_lock(&CLIENTS.lock);
@@ -1004,17 +1054,23 @@ static void *accept_loop(void *unused) {
     return NULL;
 }
 
-// Binds 127.0.0.1 on a port the system picks; tries again a few times if that fails.
+// Binds all interfaces for AirPlay, loopback for phone playback, on a system-selected port.
 static int listen_on(int lan, int *port) {
     for (int attempt = 0; attempt < 5; attempt++) {
         int fd = socket(AF_INET, SOCK_STREAM, 0);
-        if (fd < 0) continue;
+        if (fd < 0) { log_line("server: socket failed errno=%d",errno); continue; }
         int one = 1; setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
         struct sockaddr_in a = { 0 };
         a.sin_family = AF_INET; a.sin_addr.s_addr = htonl(lan ? INADDR_ANY : INADDR_LOOPBACK); a.sin_port = 0;
         socklen_t len = sizeof a;
         if (bind(fd, (struct sockaddr *)&a, sizeof a) == 0 && listen(fd, 32) == 0 &&
-            getsockname(fd, (struct sockaddr *)&a, &len) == 0) { *port = ntohs(a.sin_port); return fd; }
+            getsockname(fd, (struct sockaddr *)&a, &len) == 0) {
+            *port = ntohs(a.sin_port);
+            pthread_mutex_lock(&N.lock);N.port=*port;N.listen_ms=now_ms();pthread_mutex_unlock(&N.lock);
+            log_line("server: listening bind=%s port=%d result=ok",lan ? "0.0.0.0" : "127.0.0.1",*port);
+            return fd;
+        }
+        log_line("server: listen attempt=%d bind=%s failed errno=%d",attempt+1,lan ? "0.0.0.0" : "127.0.0.1",errno);
         close(fd);
     }
     return -1;
@@ -1105,6 +1161,7 @@ static int needs_video_conversion(const AVCodecParameters *cp) {
 int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) {
     pthread_mutex_lock(&S.lock);
     teardown_locked();
+    kr_remux_network_begin(lan);
     atomic_store(&S.stopping, 0);
     atomic_store(&S.served_video, 0); atomic_store(&S.served_audio, 0); S.vcodec[0] = 0;
     atomic_store(&S.compat_clients, 0); atomic_store(&S.prefetched, 0);
@@ -1115,9 +1172,9 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
     char err[256] = "";
     int result = KR_FAILED;
     snprintf(S.url, sizeof S.url, "%s", url ? url : "");
-    S.src = kr_source_open(S.url, 30, err, sizeof err);
     pthread_mutex_lock(&L.lock); memset(L.agents, 0, sizeof L.agents); pthread_mutex_unlock(&L.lock);
     log_line("start: %.*s", (int)(strcspn(S.url, "?") < 200 ? strcspn(S.url, "?") : 200), S.url);  // no query (tokens)
+    S.src = kr_source_open(S.url, 30, err, sizeof err);
     if (!S.src) { char m[300]; snprintf(m, sizeof m, "AirPlay: %s.", err); set_message(m); goto done; }
     {   // Adaptive playlists remain native. File containers, including MP4/MOV, must reach codec/receiver routing.
         uint8_t pad[4096] = {0};
@@ -1144,6 +1201,8 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
         if(S.listen_fd<0){set_message("AirPlay file server could not start.");goto done;}
         random_token(S.token,sizeof S.token);
         snprintf(S.base,sizeof S.base,"http://%s:%d/%s",host,S.port,S.token);
+        pthread_mutex_lock(&N.lock);snprintf(N.host,sizeof N.host,"%s",host);pthread_mutex_unlock(&N.lock);
+        log_line("server: endpoint=%s:%d/[token]/prepared.mp4",host,S.port);
         kr_hls_video_codec(S.gm,S.vcodec,sizeof S.vcodec);
         if(pthread_create(&S.accept_thread,NULL,accept_loop,NULL)){close(S.listen_fd);S.listen_fd=-1;goto done;}
         if(out && outlen>0)snprintf(out,(size_t)outlen,"%s/prepared.mp4",S.base);
@@ -1231,6 +1290,8 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
     if (S.listen_fd < 0) { set_message("AirPlay: could not start the local streaming server."); goto done; }
     random_token(S.token, sizeof S.token);
     snprintf(S.base, sizeof S.base, "http://%s:%d/%s", host, S.port, S.token);
+    pthread_mutex_lock(&N.lock);snprintf(N.host,sizeof N.host,"%s",host);pthread_mutex_unlock(&N.lock);
+    log_line("server: endpoint=%s:%d/[token]/master.m3u8",host,S.port);
     if (pthread_create(&S.accept_thread, NULL, accept_loop, NULL) != 0) {
         close(S.listen_fd); S.listen_fd = -1;
         set_message("AirPlay: could not start the local streaming server."); goto done;
@@ -1266,6 +1327,7 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen) 
     }
     result = KR_READY;
 done:
+    if(result!=KR_READY) { pthread_mutex_lock(&N.lock);N.expected=0;pthread_mutex_unlock(&N.lock); }
     if (result != KR_READY) { log_line("start result %d: %s", result, S.message); teardown_locked(); }
     atomic_store(&S.state, result);
     pthread_mutex_unlock(&S.lock);
