@@ -246,3 +246,7 @@ change up the layouts")
   desktop rig work was stopped and no uncommitted rig layout changes are included.
 - Follow-up validation: **80/80 test scripts passed**, excluding only `test_drive_runtime.py`.
   `test_build193_pages.py` passes **24 tests**; `check_project.py` and `check_ui_guidance.py` pass with zero issues.
+
+## Build 193 — built (run 42427536454, release build-193, IPA sha256 5de60540…, commit 11599d0; AirPlay lock r33 unchanged). Owner testing
+Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), Phase 4 pages (Codex 317e128 + review fixes
+5df3e24), graphs redraw at most every 10 s with old graph folders deleted (11599d0). Visual check: device only (no rig).
