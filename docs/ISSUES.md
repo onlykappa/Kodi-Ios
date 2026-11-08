@@ -1154,3 +1154,24 @@ Status: FIXED IN SOURCE (card: Python; restart: native r37 candidate pending); d
   timer can start the restart first.
 - Regression: `test_transfers.NewPageFound` (2 new), `test_play_on_tv_network.SoundOnlyRestart` (old item's failure).
   Native compile and host/E2E: candidate CI.
+
+## ISSUE-126 — Build 201: the TV took the H.264 picture, then stopped (phone reading Drive too slowly); bare Apple alert (2026-11-08)
+
+Status: FIXED IN SOURCE (Python card; native r38 candidate, not published or built: owner tests the Apple TV first).
+- Owner (build 201, two photos): "did not work … It didnt even play audio". Apple's "AirPlay stopped: The operation could
+  not be completed"; earlier, "Converting the picture for this TV…" written across Apple's skip-10 s buttons.
+- Log: the card loaded and the r37 restart held (ISSUE-125 fixed). The TCL TV (MFi AirPlay, 192.168.1.8) took the
+  H.264 master for the first time and asked for video segment 0. Converting it needed the movie from Drive: "segment 0
+  stopped after 21817 ms, source I/O 20689 ms". The TV gave up after 10 s. The 4K movie is 24.7 Mbit/s (about 3 MB/s);
+  Drive delivered about 0.9 MB/s; Kodi's own playback had stalled before Play on TV; a Drive upload ran at 0.20 MB/s.
+  The sound waits for the picture, so nothing played. Python had already reported "playing" (on the TV's first
+  request) and closed its card, so Apple's alert was all the owner saw.
+- Fix: Kodi keeps watching for 45 s after "playing" (`cast.airplay_settle`). While Kodi polls `kodi_airplay_state`,
+  native r38 leaves a stop to Kodi's card instead of Apple's alert. After the close, `cast.slow_source` reads the
+  waits (requests or source reads of 5 s or more, or a near-empty served range) and shows the slow-internet card
+  (`airplay_flow` kind `slow_source`, wifi icon, Try again / Keep watching here). The owner wants uploads to keep
+  working in the background, so this card has no pause button and nothing is paused. The converting text is now a
+  pill at the top, clear of Apple's controls.
+- Not fixable in code: converting a 4K movie streamed live from Drive needs about 3 MB/s. A downloaded movie, or an
+  HEVC-capable receiver such as the owner's Apple TV (the prepared file plays as-is), avoids it.
+- Regression: `test_play_on_tv_network.SlowSource` (7). Desktop Kodi rig: the card renders (3 lines, fits).

@@ -187,6 +187,9 @@ static atomic_int playbackActive;
 // r37 (owner's build-200 log): an H.264 restart for a TV that took the sound only is starting; the old item's failure
 // must not reach Kodi as the outcome (it closed the player and cancelled the restart half a second in).
 static atomic_int compatBusy;
+// r38 (owner's build-201 log): Kodi's Play on TV card watches the start by polling kodi_airplay_state(). While it does,
+// a problem goes to that card (state -1) instead of Apple's "AirPlay stopped" alert, which hid what went wrong.
+static _Atomic double kodiPolledAt;
 // A generation check and its native reservation/cancel are one operation, including compat restarts.
 static os_unfair_lock ownershipLock = OS_UNFAIR_LOCK_INIT;
 static NSTimer *routeWatch;
@@ -212,23 +215,35 @@ static void showConverting(BOOL on) {
     UIView *old = [host viewWithTag:convertingTag];
     if (!on) { [old removeFromSuperview]; return; }
     if (old || !host) return;
+    // r38 (owner's build-201 photo): centred, the text ran across Apple's skip-10 s buttons. A pill at the top,
+    // between Apple's top-left and top-right buttons, clear of the centre and bottom controls.
+    UIView *pill = [[UIView alloc] init];
+    pill.tag = convertingTag;
+    pill.backgroundColor = [UIColor colorWithWhite:0.17 alpha:0.92];
+    pill.layer.cornerRadius = 18;
+    pill.userInteractionEnabled = NO;
+    pill.translatesAutoresizingMaskIntoConstraints = NO;
     UILabel *label = [[UILabel alloc] init];
-    label.tag = convertingTag;
     label.text = @"Converting the picture for this TV\u2026";
     label.textColor = UIColor.whiteColor;
-    label.backgroundColor = [UIColor colorWithWhite:0 alpha:0.7];
+    label.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+    label.adjustsFontForContentSizeCategory = YES;
     label.textAlignment = NSTextAlignmentCenter;
     label.numberOfLines = 0;
-    label.layer.cornerRadius = 10;
-    label.clipsToBounds = YES;
     label.translatesAutoresizingMaskIntoConstraints = NO;
-    [host addSubview:label];
+    [pill addSubview:label];
+    [host addSubview:pill];
+    UILayoutGuide *safe = host.safeAreaLayoutGuide;
     [NSLayoutConstraint activateConstraints:@[
-        [label.centerXAnchor constraintEqualToAnchor:host.centerXAnchor],
-        [label.centerYAnchor constraintEqualToAnchor:host.centerYAnchor],
-        [label.widthAnchor constraintLessThanOrEqualToAnchor:host.widthAnchor constant:-40],
-        [label.widthAnchor constraintGreaterThanOrEqualToConstant:260],
-        [label.heightAnchor constraintGreaterThanOrEqualToConstant:56],
+        [label.leadingAnchor constraintEqualToAnchor:pill.leadingAnchor constant:16],
+        [label.trailingAnchor constraintEqualToAnchor:pill.trailingAnchor constant:-16],
+        [label.topAnchor constraintEqualToAnchor:pill.topAnchor constant:8],
+        [label.bottomAnchor constraintEqualToAnchor:pill.bottomAnchor constant:-8],
+        [pill.centerXAnchor constraintEqualToAnchor:safe.centerXAnchor],
+        [pill.topAnchor constraintEqualToAnchor:safe.topAnchor constant:12],
+        [pill.leadingAnchor constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor constant:120],
+        [pill.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-120],
+        [pill.heightAnchor constraintGreaterThanOrEqualToConstant:36],
     ]];
 }
 
@@ -352,6 +367,12 @@ static UIView *airplayHolderView(void) { return airplayHolder.view; }
 static void showProblem(NSString *text) {
     setNote(text);
     playerNote(@"stopped: %@", text);
+    if (CACurrentMediaTime() - atomic_load(&kodiPolledAt) < 2.0) {
+        // r38: Kodi is watching: its card says what happened (and closes this player); no second alert here.
+        playerNote(@"problem left to Kodi's card");
+        playbackStateFor(atomic_load(&playGeneration), -1, 0);
+        return;
+    }
     if (!airplayHolder || airplayHolder.presentedViewController) return;
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"AirPlay stopped" message:text
                                                             preferredStyle:UIAlertControllerStyleAlert];
@@ -718,6 +739,7 @@ __attribute__((visibility("default"))) int kodi_airplay_log(char *buf, int len) 
 
 // r3: 1 once Apple's player has the stream, -1 if it could not open it, 0 before either (or when idle).
 __attribute__((visibility("default"))) int kodi_airplay_state(void) {
+    atomic_store(&kodiPolledAt, CACurrentMediaTime());
     return atomic_load(&airplayState);
 }
 

@@ -138,6 +138,33 @@ def player_problem(lines):
    return line.split(':',2)[-1].strip()[:120]
  return ''
 
+SLOW_MS=5000
+SLOW_PATTERNS=(r'waited (\d+) ms',r'source I/O (\d+) ms')
+
+def slow_source(lines):
+ """Owner's build-201 log: the TV asked for the picture, but the phone needed 20.7 s to read the movie from Google
+ Drive for one segment and the TV gave up. True when KodiAirPlay's lines show the phone waiting on the movie itself:
+ a request or a source read taking 5 s or more, or a served range that moved under 1 MB in 5 s or more (a TV reading
+ a prepared file keeps one range open for seconds, so only a near-empty one counts)."""
+ for line in lines or ():
+  for pattern in SLOW_PATTERNS:
+   m=re.search(pattern,line)
+   if m and int(m.group(1))>=SLOW_MS:return True
+  m=re.search(r'^GET /\S+ (?:bytes=\S+ )?-?\d+ (\d+) B (\d+) ms',line)
+  if m and int(m.group(1))<1048576 and int(m.group(2))>=SLOW_MS:return True
+ return False
+
+def airplay_settle(state,wait,network=None,seconds=45):
+ """After 'playing': keep watching Apple's player for a while (r38: while Kodi polls, the native side leaves its
+ problems to Kodi's card instead of Apple's alert). 'failed' when it stops, else 'playing'."""
+ waited=0.0
+ while waited<seconds:
+  if network:network()
+  if state()<0:return 'failed'
+  if wait(0.5):return 'playing'
+  waited+=0.5
+ return 'playing'
+
 BUSY='KodiIOS.PlayOnTV'   # Home window property while Play on TV is starting (a second press waits for it)
 
 @contextlib.contextmanager

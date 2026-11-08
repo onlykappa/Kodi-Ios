@@ -90,7 +90,7 @@ class ConnectionTests(unittest.TestCase):
    with self.subTest(legacy=legacy),tempfile.TemporaryDirectory() as profile:
     ws.need('airplay_network',True,profile)
     out=self.exercise(profile,received=6,legacy=legacy)
-    self.assertEqual(out.elapsed,6);self.assertNotIn('native',out.closed);self.assertTrue(out.paused)
+    self.assertEqual(out.elapsed,6+45);self.assertNotIn('native',out.closed);self.assertTrue(out.paused)   # r38: + Kodi watching 45 s after "playing"
     self.assertEqual(out.messages,[]);self.assertEqual(ws.flags(profile)['needs'],[])
 
  def test_cancel_resumes_kodi_without_creating_a_permission_warning(self):
@@ -128,7 +128,7 @@ class ConnectionTests(unittest.TestCase):
  def test_file_opening_and_tv_selection_do_not_spend_the_connection_deadline(self):
   with tempfile.TemporaryDirectory() as profile:
    out=self.exercise(profile,startup=40,choosing=35,received=82)
-   self.assertEqual(out.elapsed,82);self.assertNotIn('native',out.closed);self.assertTrue(out.paused)
+   self.assertEqual(out.elapsed,82+45);self.assertNotIn('native',out.closed);self.assertTrue(out.paused)   # r38: + Kodi watching 45 s after "playing"
    self.assertEqual(out.progress_words[:3],[cast.AIRPLAY_WORDS['opening'],cast.AIRPLAY_WORDS['opening'],cast.AIRPLAY_WORDS['waiting_tv']])
    self.assertIn(cast.AIRPLAY_WORDS['connecting'],out.progress_words)
    self.assertFalse(out.messages);self.assertFalse(ws.flags(profile)['needs'])
@@ -150,7 +150,7 @@ class ConnectionTests(unittest.TestCase):
  def test_source_connection_error_before_listener_is_not_a_tv_connection_error(self):
   with tempfile.TemporaryDirectory() as profile:
    out=self.exercise(profile,startup=40,failed=True,error_message='The video source timed out.')
-   self.assertEqual(out.elapsed,2);self.assertEqual(len(out.plays),1)
+   self.assertEqual(out.elapsed,2+2);self.assertEqual(len(out.plays),1)   # r38: + 2 s reading the close's log lines
    self.assertNotIn('Local Network',out.messages[-1][1]);self.assertFalse(ws.flags(profile)['needs'])
 
  def test_controller_errors_also_close_native_and_resume_kodi(self):
@@ -322,5 +322,50 @@ class SoundOnlyRestart(unittest.TestCase):
   self.assertIn('} else if (openFailedSeen >= 3) {',build)
   self.assertIn('if(atomic_load(&compatBusy))return;   // r37',build)
   self.assertNotIn('if(item.status==AVPlayerItemStatusFailed || player.status==AVPlayerStatusFailed)playbackStateFor(generation,-1,0);',build)
+
+class SlowSource(unittest.TestCase):
+ """r38 (owner's build-201 log and photos): the TV took the H.264 stream, the phone needed 20.7 s to read one segment
+ from Drive, the TV stopped 13 s after connecting and Apple's bare "AirPlay stopped" alert showed. Kodi now keeps
+ watching after "playing" and shows the slow-internet card; uploads are not paused (owner)."""
+ LOG=['GET /audio/1/seg0.m4s 200 291200 B 4184 ms','compat: segment 0 stopped after 21817 ms, source I/O 20689 ms',
+      'request: converted video segment 0 waited 17876 ms, production 0 ms, result -1']
+ def test_the_build_201_log_reads_as_a_slow_source(self):
+  self.assertTrue(cast.slow_source(self.LOG))
+  self.assertTrue(cast.slow_source(['GET /prepared.mp4 bytes=0-1 -206 0 B 8950 ms']))
+ def test_normal_reads_are_not_slow(self):
+  for line in ('GET /prepared.mp4 bytes=73859072-7098056596 -206 1703936 B 6984 ms','request: audio segment 0 waited 3771 ms, production 0 ms, result 0',
+               'GET /audio/1/seg0.m4s 200 291200 B 4184 ms','startup: source opened after 8371 ms (attempt 2)'):
+   self.assertFalse(cast.slow_source([line]),line)
+ def test_settle_reports_a_stop_and_lets_a_good_start_go(self):
+  t=[0.0]
+  def wait(s):t[0]+=s;return False
+  self.assertEqual(cast.airplay_settle(lambda:-1 if t[0]>=13 else 1,wait,seconds=45),'failed');self.assertEqual(t[0],13)
+  t[0]=0.0;self.assertEqual(cast.airplay_settle(lambda:1,wait,seconds=45),'playing');self.assertEqual(t[0],45)
+  self.assertEqual(cast.airplay_settle(lambda:1,lambda s:True,seconds=45),'playing')
+ def test_the_card_has_no_pause_button(self):
+  import airplay_flow
+  v=airplay_flow.problem_view('slow_source','Movie',busy='Interstellar is uploading to Google Drive at 0.2 MB/s')
+  self.assertEqual(v['title'],'Your internet is too slow for this movie');self.assertEqual(v['icon'],'wifi.png')
+  self.assertIn('Interstellar is uploading to Google Drive at 0.2 MB/s at the same time.',v['text'])
+  self.assertEqual((v['b1.action'],v['b2.action'],v['link.action']),('retry','','watch'))
+  self.assertNotIn('pause',json.dumps(v).lower())
+ def test_play_on_tv_watches_after_playing(self):
+  text=(BOOT/'cast.py').read_text()
+  self.assertIn("if cast.airplay_settle(lib.kodi_airplay_state,lambda s:monitor.waitForAbort(s),network)=='playing':return",text)
+  self.assertIn("if cast.slow_source(lines):outcome='slow_source'",text)
+  self.assertIn("props=airplay_flow.problem_view('slow_source',title,busy=busy)",text)
+  self.assertLess(text.index("elif outcome=='slow_source'"),text.index(' elif why:'))
+ def test_native_leaves_problems_to_kodi_while_it_watches(self):
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn('atomic_store(&kodiPolledAt, CACurrentMediaTime());',build)
+  problem=build[build.index('static void showProblem('):build.index('UIAlertController *alert',build.index('static void showProblem('))]
+  self.assertIn('if (CACurrentMediaTime() - atomic_load(&kodiPolledAt) < 2.0) {',problem)
+  self.assertIn('playbackStateFor(atomic_load(&playGeneration), -1, 0);',problem)
+ def test_converting_text_sits_at_the_top_clear_of_the_buttons(self):
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  conv=build[build.index('static void showConverting('):build.index('static NSString *sizeText(')]
+  self.assertIn('[pill.topAnchor constraintEqualToAnchor:safe.topAnchor constant:12]',conv)
+  self.assertNotIn('centerYAnchor',conv)
+  self.assertIn('pill.userInteractionEnabled = NO;',conv)
 
 if __name__=='__main__':unittest.main()

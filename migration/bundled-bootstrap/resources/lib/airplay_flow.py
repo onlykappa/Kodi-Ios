@@ -57,8 +57,8 @@ def busy_words(model):
 
 
 def problem_view(kind, title='', reason='', busy='', settings=False):
-    """Window properties for a problem (boards 5 and 6). kind: startup_timeout, unreachable, selection_timeout, failed,
-    mirroring. Buttons carry their action in '<b>.action'."""
+    """Window properties for a problem (boards 5 and 6). kind: startup_timeout, slow_source, unreachable, selection_timeout,
+    failed, mirroring. Buttons carry their action in '<b>.action'."""
     props = {'mode': 'problem', 'sub': title, 'foot': '', 'bar': '0', 'cancel.label': '', 'check1': '', 'check1.note': '',
              'check2': '', 'b1.label': '', 'b2.label': '', 'b3.label': '', 'link.label': '',
              'b1.action': '', 'b2.action': '', 'b3.action': '', 'link.action': ''}
@@ -86,6 +86,12 @@ def problem_view(kind, title='', reason='', busy='', settings=False):
             buttons(('Open Settings', 'settings'), ('Try again', 'retry'), ('Cancel', 'watch'))
         else:
             buttons(('Try again', 'retry'), ('Cancel', 'watch'))
+    elif kind == 'slow_source':
+        # r38 (owner, build 201: "port the wifi card"; uploads keep going in the background, so no pause button).
+        props.update(title='Your internet is too slow for this movie', icon='wifi.png')
+        props['text'] = ("The TV connected, but this iPhone couldn't get the movie from Google Drive fast enough to keep "
+                         "it playing.%s A downloaded movie doesn't need the internet." % (' %s at the same time.' % busy if busy else ''))
+        buttons(('Try again', 'retry'), link=('Keep watching here', 'watch'))
     elif kind == 'selection_timeout':
         props.update(title='No TV was chosen', icon='tv.png', text='Choose a TV in the AirPlay list to play there.')
         buttons(('Try again', 'retry'), link=('Keep watching here', 'watch'))

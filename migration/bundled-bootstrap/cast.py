@@ -294,8 +294,20 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
   if not xbmc.getCondVisibility('Player.Paused'):player.pause()
   if profile:
    import work_state;work_state.need('airplay_network',False,profile)
-  ui.close();notices.note('info','Playing with AirPlay',title or '');return
+  ui.close();notices.note('info','Playing with AirPlay',title or '')
+  # r38 (owner's build-201 log): the TV connected, then stopped 13 s later because the phone could not read the movie
+  # from Drive fast enough, and Apple's bare "AirPlay stopped" alert said nothing useful. Kodi keeps watching for a
+  # while; the native side then leaves a stop to this card.
+  if cast.airplay_settle(lib.kodi_airplay_state,lambda s:monitor.waitForAbort(s),network)=='playing':return
+  outcome='failed';why=airplay.message(lib);ui=FlowUI(xbmc,xbmcgui,dialog,title)
+  diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','outcome',outcome='stopped',reason=why)
  lib.kodi_airplay_close();airplay.clear_busy(home)
+ if outcome=='failed':
+  # The waits for the movie are logged when its requests end, i.e. after the close above.
+  for _ in range(4):
+   if monitor.waitForAbort(0.5):break
+   network()
+  if cast.slow_source(lines):outcome='slow_source'
  if xbmc.getCondVisibility('Player.Paused'):player.pause()   # Kodi carries on (also after Cancel)
  if outcome=='aborted':ui.close();return
  # Owner-approved boards 5 and 6: what happened, and buttons that fix it, on the same card.
@@ -307,6 +319,14 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
    except Exception:busy=''
   props=airplay_flow.problem_view('startup_timeout',title,busy=busy)
   notices.note('problem',"AirPlay didn't start",props['text'])
+ elif outcome=='slow_source':
+  busy=''
+  if profile:
+   try:import work_state;busy=airplay_flow.busy_words(work_state.load(profile))
+   except Exception:busy=''
+  props=airplay_flow.problem_view('slow_source',title,busy=busy)
+  props['plain']=props['text']
+  notices.note('problem','Your internet is too slow for this movie',props['text'])
  elif outcome=='selection_timeout':props=airplay_flow.problem_view('selection_timeout',title)
  elif outcome=='unreachable':
   import work_state
