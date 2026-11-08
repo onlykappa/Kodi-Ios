@@ -342,3 +342,20 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
   iPhoneOS binary and all 26 exports verified. Candidate/provisional delivery evidence is preserved in
   [airplay-r35-delivery.json](../reports/airplay-r35-delivery.json). Compiled host/E2E verification is still pending;
   the report explicitly records that pending state and does not claim publication or device success.
+
+## Build 199 — verified (run 42450976942, release build-199, IPA sha256 6794810f…, commit 2a95041; AirPlay r35). Owner testing
+
+- **AirPlay r35** pinned from candidate run 42448621268 (source 9976d70; archive 0a61e958…, binary 2a0dbdcd…) and
+  published without rebuilding (run 42449531141). Owner's build-196 log: Play on TV gave "unreachable" after exactly
+  15.0 s with no server line while the phone was still opening the movie (ISSUE-122); r35 opens by the index and gives
+  opening, TV choice and connection their own deadlines.
+- **Play on TV card** (DEC-030, owner-approved boards 1-3, 5, 6): `airplay_flow.py`, `1080i/IOSAirPlayFlow.xml`. Board 4
+  (remote while the TV plays) needs native pause/seek: not built.
+- **ISSUE-123** live pages change controls only while open (the build-194 crash on a skin reload), Drive upload pieces
+  logged with their speed (no false http_error), the desktop Kodi rig (`scripts/kodi_rig.py`, docs/design/KODI-RIG.md).
+- Build 197 failed at its test gate on one stale assertion (fixed in 2d76c28); build 198 (2d76c28) is green but has no
+  Play on TV card; 199 supersedes it.
+- Verified in the downloaded IPA: build.json build 199 / commit 2a95041 / run 42450976942; KodiAirPlay binary 2a0dbdcd…
+  with `_kodi_airplay_active` and `_kodi_airplay_settings`; airplay_flow.py, live_window.py and the new cast.py present.
+- Owner to check on the iPhone: Play on TV steps and the problem buttons (Try again, Pause uploads and try again, Open
+  Settings), AirPlay playback and screen lock, the live pages after an update (no crash), the nine boards.
