@@ -367,7 +367,7 @@ static UIView *airplayHolderView(void) { return airplayHolder.view; }
 static void showProblem(NSString *text) {
     setNote(text);
     playerNote(@"stopped: %@", text);
-    if (CACurrentMediaTime() - atomic_load(&kodiPolledAt) < 2.0) {
+    if (NSProcessInfo.processInfo.systemUptime - atomic_load(&kodiPolledAt) < 2.0) {
         // r38: Kodi is watching: its card says what happened (and closes this player); no second alert here.
         playerNote(@"problem left to Kodi's card");
         playbackStateFor(atomic_load(&playGeneration), -1, 0);
@@ -739,7 +739,7 @@ __attribute__((visibility("default"))) int kodi_airplay_log(char *buf, int len) 
 
 // r3: 1 once Apple's player has the stream, -1 if it could not open it, 0 before either (or when idle).
 __attribute__((visibility("default"))) int kodi_airplay_state(void) {
-    atomic_store(&kodiPolledAt, CACurrentMediaTime());
+    atomic_store(&kodiPolledAt, NSProcessInfo.processInfo.systemUptime);
     return atomic_load(&airplayState);
 }
 

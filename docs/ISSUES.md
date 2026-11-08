@@ -1167,7 +1167,7 @@ Status: FIXED IN SOURCE (Python card; native r38 candidate, not published or bui
   The sound waits for the picture, so nothing played. Python had already reported "playing" (on the TV's first
   request) and closed its card, so Apple's alert was all the owner saw.
 - Fix: Kodi keeps watching for 45 s after "playing" (`cast.airplay_settle`). While Kodi polls `kodi_airplay_state`,
-  native r38 leaves a stop to Kodi's card instead of Apple's alert. After the close, `cast.slow_source` reads the
+  native r38 (clock: NSProcessInfo systemUptime; QuartzCore is not linked) leaves a stop to Kodi's card instead of Apple's alert. After the close, `cast.slow_source` reads the
   waits (requests or source reads of 5 s or more, or a near-empty served range) and shows the slow-internet card
   (`airplay_flow` kind `slow_source`, wifi icon, Try again / Keep watching here). The owner wants uploads to keep
   working in the background, so this card has no pause button and nothing is paused. The converting text is now a

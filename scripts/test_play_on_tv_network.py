@@ -357,9 +357,9 @@ class SlowSource(unittest.TestCase):
   self.assertLess(text.index("elif outcome=='slow_source'"),text.index(' elif why:'))
  def test_native_leaves_problems_to_kodi_while_it_watches(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
-  self.assertIn('atomic_store(&kodiPolledAt, CACurrentMediaTime());',build)
+  self.assertIn('atomic_store(&kodiPolledAt, NSProcessInfo.processInfo.systemUptime);',build)
   problem=build[build.index('static void showProblem('):build.index('UIAlertController *alert',build.index('static void showProblem('))]
-  self.assertIn('if (CACurrentMediaTime() - atomic_load(&kodiPolledAt) < 2.0) {',problem)
+  self.assertIn('if (NSProcessInfo.processInfo.systemUptime - atomic_load(&kodiPolledAt) < 2.0) {',problem)
   self.assertIn('playbackStateFor(atomic_load(&playGeneration), -1, 0);',problem)
  def test_converting_text_sits_at_the_top_clear_of_the_buttons(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
