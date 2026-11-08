@@ -282,8 +282,9 @@ For every UI change:
 4. **Check** structure and regressions: `python3 -B scripts/check_project.py`, `python3 -B scripts/check_ui_guidance.py`,
    and the relevant suites (`test_portrait.py`, `test_pages.py`, `test_settings_page.py`, `test_notices.py`,
    `test_glassbar.py`, `test_native_ui.py`, and `test_activity.py` once PR #9 lands).
-5. **Render and look:** capture screenshots where the environment allows it (Kodi rig: `scripts/portrait_rig.py`
-   at 603 × 1167; browser for mockups). Inspect them for overlap, truncation, contrast, hit areas and alignment.
+5. **Render and look:** render the changed pages in the desktop Kodi rig, `scripts/kodi_rig.py` (guide:
+   [KODI-RIG.md](KODI-RIG.md); `boards` renders every approved board next to its mockup), and mockups in a browser.
+   Inspect them for overlap, truncation, contrast, hit areas and alignment. Keep the screenshots out of Git.
 6. **Fix and repeat** steps 4–5 until clean.
 7. **Report** what was verified, with which evidence class (§9), and what still needs review on the iPhone.
 
@@ -309,7 +310,7 @@ consolidating to adding a third.
 | Class | What it is | Proves | Does not prove |
 |---|---|---|---|
 | **Mockup** | HTML in `docs/design/` rendered in a browser | intended look | anything about Kodi |
-| **Desktop Kodi rig** | Kodi 21.x on Linux/Xvfb (`portrait_rig.py`) | real Kodi layout, text fit, focus | touch, safe areas, rotation, native views, iOS fonts or scaling |
+| **Desktop Kodi rig** | Kodi 21.x on Linux/Xvfb (`kodi_rig.py`, `portrait_rig.py`) | real Kodi layout, text fit, focus | touch, safe areas, rotation, native views, iOS fonts or scaling |
 | **iOS Simulator** | not available here (DEC-015) | — | — |
 | **Device** | owner's iPhone 16 Pro screenshots or video | the actual result | other devices |
 
