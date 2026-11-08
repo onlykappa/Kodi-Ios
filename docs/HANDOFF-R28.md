@@ -371,3 +371,17 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
   picture for your TV"; live_window.py present. Everything in build 199 is included.
 - Owner to check: Play on TV to the TCL Roku TV shows the picture (expect the converting step after ~4 s of sound);
   the Play on TV card; screen lock; the live pages after an update.
+
+## Build 201 — verified (run 42494735003, release build-201, IPA sha256 8ad43633…, commit 5c39256; AirPlay r37). Owner testing
+
+- **ISSUE-125** (build 200 on the phone): the Play on TV card was never loaded (Kodi's directory cache: "XML File for
+  Window is missing"), and r36's H.264 restart was cancelled by an immediate "could not open the stream" -1.
+  Python: `portrait.refresh_skin` re-lists every written folder; `cast.FlowUI` retries once after re-listing 1080i
+  (reproduced and confirmed in the desktop Kodi rig). Native r37: `compatBusy` and a 1.5 s failure grace.
+- **AirPlay r37**: candidate run 42456369892 (source fb7c714) green; published by run 42494696805; release digest
+  c1448149… equals the pin.
+- Verified in the downloaded IPA: build.json build 201 / commit 5c39256 / run 42494735003 / airplay r37 c1448149…;
+  KodiAirPlay binary 6b3a7327… identical to the candidate's; cast.py has the card retry; portrait.py re-lists every
+  written folder.
+- Owner to check: Play on TV shows the new card (not Kodi's OK dialog); to the TCL Roku TV, sound first, then
+  "Converting the picture for your TV", then the picture.
