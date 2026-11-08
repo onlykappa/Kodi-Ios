@@ -1351,3 +1351,16 @@ Status: FIXED IN SOURCE (Python; not built). Device test pending.
   shown again on each question. Harmless so far; left for a separate change.
 - Regression: test_slowdown.Watched (3), test_transfers.SeasonEpisodeSpeeds, test_debrid_drive
   (speed between slow pieces), test_build193_pages (guard without getId).
+
+## ISSUE-136 — Build 207: seeking a downloaded episode froze for ~90 s (2026-11-08)
+
+Status: FIXED IN SOURCE (build 208); device test pending.
+- Owner (build 207, log 34cd7aac, Lanterns S01E01 from Drive): dragging the bar "did nothing for 30 seconds then it
+  moved but still froze up".
+- Cause: Kodi buffered from 15:07:09 ("Kodi iOS slowdown: Waiting while the video buffers") until ~15:08:38 while a
+  phone-to-Drive upload kept sending 8-28 MB/s and preparation read Drive. Build 206's wait-while-buffering and cap
+  applied to downloads only; uploads and the converter only took a share of the time, and a full-speed upload
+  starves the video's download on the shared Wi-Fi.
+- Fix: `slowdown.Gate.after` waits while Kodi buffers for every worker; Drive uploads and AllDebrid sends pass their
+  bytes and keep under the same 1 MB/s cap while a video plays.
+- Regression: test_slowdown.DownloadCap (every worker waits while buffering; uploads capped).

@@ -145,7 +145,11 @@ class Gate(object):
         """Rest after a piece of work. A download (nbytes read in `seconds`) also keeps under CAP while something plays,
         and waits while Kodi buffers."""
         why = self.why()
-        if download and why == 'buffering':
+        # Build 208 (owner, build 207: seeking a downloaded episode "froze the app ... did nothing for 30 seconds"; log
+        # 34cd7aac: a phone-to-Drive upload kept sending 8-28 MB/s and preparation kept reading Drive while Kodi
+        # buffered from 15:07:09 to 15:08:38). Every worker waits while Kodi buffers, not only downloads, and uploads
+        # (download=True with the bytes sent) keep under the same cap while something plays: Wi-Fi is shared both ways.
+        if why == 'buffering':
             waited = 0.0
             while waited < BUFFER_WAIT and self.keep_going() and self.why() == 'buffering':
                 self.sleep(0.5)

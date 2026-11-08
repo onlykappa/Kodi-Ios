@@ -83,7 +83,7 @@ class Workers(Reset):
   self.assertIn('(1 if slowdown.reason() else READ_AHEAD)',stream)
   up=(LIB/'driveupload.py').read_text()
   self.assertEqual(up.count('slowdown.Gate(keep_going=keep_going)'),2)   # phone uploads and AllDebrid copies
-  self.assertIn('gate.after(put_s)',up)
+  self.assertIn('gate.after(put_s,len(chunk),download=True)',up)
   self.assertIn('pause = max(pause, self.slow(wall))',(LIB/'app_state.py').read_text())
  def test_sink_hold_is_only_the_owners_pause(self):
   import drive_prepare
@@ -117,6 +117,16 @@ class DownloadCap(unittest.TestCase):
   self.assertAlmostEqual(sum(slept),rested,places=2)
  def test_uploads_keep_the_time_share(self):
   g,_=self.gate(['video']);self.assertAlmostEqual(g.after(1.0),1.0/0.35-1.0,places=2)
+ def test_every_worker_waits_while_kodi_buffers(self):
+  # Build 208 (log 34cd7aac): an upload sent 8-28 MB/s while a seek buffered for 90 s.
+  g,slept=self.gate(['buffering']*5+['video'])
+  g.after(1.0)
+  self.assertGreaterEqual(slept.count(0.5),3)
+ def test_uploads_are_capped_while_a_video_plays(self):
+  text=(LIB/'driveupload.py').read_text()
+  self.assertIn('gate.after(time.monotonic()-began,len(chunk),download=True)',text)
+  self.assertIn('gate.after(put_s,len(chunk),download=True)',text)
+  g,_=self.gate(['video']);self.assertAlmostEqual(g.after(1.0,32*1024*1024,download=True),31.0,places=2)
  def test_a_download_waits_while_kodi_buffers(self):
   g,slept=self.gate(['buffering']*5+['video'])
   g.after(0.08,1024*1024,download=True)
