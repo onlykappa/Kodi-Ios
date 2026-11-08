@@ -337,3 +337,8 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
   with `publish_verified_candidate=true` (publish the tested candidate without rebuilding), verify release bytes,
   then dispatch `import-review.yml` on this branch for the authorized IPA. Download/verify the actual IPA's
   identity, audio background mode and native binaries; record full delivery results and update PR #16.
+- Python sweep finished: **82/82 scripts pass after the corrected ABI assertion**, only `test_drive_runtime.py`
+  excluded. Both guidance/project checks pass. Downloaded candidate matches GitHub's artifact digest; ZIP, ARM64
+  iPhoneOS binary and all 26 exports verified. Candidate/provisional delivery evidence is preserved in
+  [airplay-r35-delivery.json](../reports/airplay-r35-delivery.json). Compiled host/E2E verification is still pending;
+  the report explicitly records that pending state and does not claim publication or device success.
