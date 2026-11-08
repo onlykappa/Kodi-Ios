@@ -1426,6 +1426,7 @@ static int preparation_write(int track,const char *suffix,const uint8_t *data,in
 // (fragmented, indexed) movie is offered as HLS byte ranges over the same file, taken from its mfra.
 static void check_prepared_hls(const char *file,const char *what,int want_subs) {
     char url[1200],playlist[512]="";snprintf(url,sizeof url,"file:%s",file);
+    kr_remux_set_subtitles(-2,"","");   // as Kodi reports in the owner's build-202 log: on, the file's default
     int st=kr_remux_start(url,0,0,playlist,sizeof playlist);
     CHECK(st==KR_READY && strstr(playlist,"/prepared.m3u8"),"%s: a fragmented prepared movie is offered as HLS (%s %s)",what,playlist,kr_remux_message());
     if(st!=KR_READY || !strstr(playlist,"/prepared.m3u8")){kr_remux_stop();return;}
