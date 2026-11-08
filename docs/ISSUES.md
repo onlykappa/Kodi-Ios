@@ -1055,3 +1055,14 @@ build/release/pinning await owner approval. Released KodiAirPlay r33 remains pin
   Added compiled host regressions for non-draining network snapshots, reported listener/endpoint, and excluding
   phone/loopback requests from TV evidence. Preflight found that only `127.0.0.1` was excluded; the whole `127/8`
   range is now excluded and phone User-Agent checks ignore case. Candidate CI must pass before r34 is pinned.
+
+## ISSUE-121 — Kodi r24 pin used the archive hash instead of the executable hash
+
+Status: FIXED; verified against the immutable `kodi-ios-portrait-r24` release before the next IPA build.
+- Preflight for the owner's approved AirPlay IPA found `executable_release.sha256` contained the ZIP's hash
+  (`efdc2f0e…`), while `ios_portrait.fetch` verifies the unpacked `Kodi` executable. Build 195 had failed earlier
+  at the stale r23 test assertion, before it reached this fetch; the wrong pin would block the next build too.
+- Downloaded the r24 release, checked ZIP integrity and its GitHub asset digest, then hashed `Kodi` inside it:
+  `02d5357af48bbf991efddc9ed5babecf06e19b826c5c648cf335c7073d767a80`. Corrected only the checksum; r24 is unchanged.
+- Regression: `test_glassbar.IpaTests.test_executable_pin_checks_the_binary_inside_the_zip` accepts the binary pin
+  and rejects the archive pin. The repository's exact pin assertion now checks that verified binary digest.

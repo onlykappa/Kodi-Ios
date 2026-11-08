@@ -9,7 +9,7 @@
   "executable_release": {
     "tag": "kodi-ios-portrait-r24",
     "asset": "Kodi-portrait-executable.zip",
-    "sha256": "efdc2f0e2f5f1d388650bed8c311fc08f9d95a599af0854b2c444292f9d78208"
+    "sha256": "02d5357af48bbf991efddc9ed5babecf06e19b826c5c648cf335c7073d767a80"
   },
   "build_note": "r23: includes the r22 native navigation/audio fixes plus whole-page show scrolling and downloaded-show parent-row suppression. Native run 42078285510 succeeded; release executable matches CI artifact byte-for-byte, binary SHA256, patch SHA256 and pinned upstream commit verified before pinning. Owner requested fresh test IPA.",
   "previous_executable_release": {

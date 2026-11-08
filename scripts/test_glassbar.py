@@ -139,6 +139,17 @@ class IpaTests(unittest.TestCase):
    self.assertEqual(ios_portrait.fetch(Path(tmp)/'out',get=lambda url:data),['KodiGlassBar'])
    self.locks(tmp,'0'*64)
    with self.assertRaises(AssertionError):ios_portrait.fetch(Path(tmp)/'out2',get=lambda url:data)
+ def test_executable_pin_checks_the_binary_inside_the_zip(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   binary=b'fixture Kodi executable';buf=io.BytesIO()
+   with zipfile.ZipFile(buf,'w') as z:z.writestr('Kodi',binary)
+   archive=buf.getvalue()
+   self.locks(tmp,'',ios_portrait.sha(binary))
+   self.assertEqual(ios_portrait.fetch(Path(tmp)/'out',get=lambda url:archive),['Kodi'])
+   self.assertEqual((Path(tmp)/'out/Kodi').read_bytes(),binary)
+   self.locks(tmp,'',ios_portrait.sha(archive))
+   with self.assertRaisesRegex(AssertionError,'Portrait executable digest mismatch'):
+    ios_portrait.fetch(Path(tmp)/'out2',get=lambda url:archive)
  def test_repository_pins_the_published_framework(self):
   lock=json.loads((ROOT/'migration/glassbar-ios/source-lock.json').read_text())['framework_release']
   self.assertEqual(len(lock['sha256']),64)
@@ -227,7 +238,7 @@ class NativeOwnerTests(unittest.TestCase):
   self.assertNotIn('build_status',bar)
   exe=json.loads((ROOT/'migration/ios-portrait/source-lock.json').read_text())
   self.assertEqual(exe['executable_release']['tag'],'kodi-ios-portrait-r24')
-  self.assertEqual(exe['executable_release']['sha256'],'efdc2f0e2f5f1d388650bed8c311fc08f9d95a599af0854b2c444292f9d78208')
+  self.assertEqual(exe['executable_release']['sha256'],'02d5357af48bbf991efddc9ed5babecf06e19b826c5c648cf335c7073d767a80')
   self.assertEqual(exe['previous_executable_release']['tag'],'kodi-ios-portrait-r22')
   self.assertNotIn('build_status',exe)
   self.assertEqual(exe['previous_executable_release']['sha256'],'1b30b81921b27416113c362fd1443f4f88d2ecd64087f9b8491ba04628a17172')
