@@ -282,4 +282,32 @@ class DiagnosticsTests(unittest.TestCase):
     with patch.dict(sys.modules,modules),patch.object(airplay,'library_path',return_value='fixture'),patch.object(airplay,'load',return_value=lib):settings.run()
     self.assertEqual(bool(opened),available);self.assertEqual(bool(instructions),not available)
 
+
+class SoundOnlyRestart(unittest.TestCase):
+ """r36 (owner's build-198 log: a TCL Roku TV took the sound of a prepared HEVC movie only): the native player restarts
+ with the H.264 picture and opens again; the TV choice and connection deadlines start over instead of expiring."""
+ def test_a_restart_gets_fresh_connection_time(self):
+  t=[0.0];phases=[]
+  def net():
+   # 0-4 s opening, 4-10 s connecting with no TV request (sound only), 10-20 s opening again (compat), then
+   # connecting from 20 s, and the TV fetches at 32 s: 12 s after the restart's connect, 28 s after the first one.
+   at=t[0]
+   phase='opening' if at<4 else 'connecting' if at<10 else 'opening' if at<20 else 'connecting'
+   return {'expected':True,'phase':phase,'tv_requests':1 if at>=32 else 0}
+  def wait(s):t[0]+=s;return False
+  outcome=cast.airplay_outcome(lambda:1 if t[0]>=32 else 0,wait,60,network=net,stage=lambda g,w:phases.append(g))
+  self.assertEqual(outcome,'playing')
+  self.assertEqual(phases,['opening','connecting','opening','connecting'])
+ def test_the_card_says_the_picture_is_being_converted(self):
+  import airplay_flow
+  v=airplay_flow.stage_view('opening','Movie',converting=True)
+  self.assertEqual(v['title'],'Converting the picture for your TV');self.assertEqual(v['step0.label'],'Converting the picture to H.264')
+ def test_native_restarts_prepared_movies_once_when_the_tv_takes_the_sound_only(self):
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn("soundOnlyTicks = (!external && tvRoute(player)) ? soundOnlyTicks + 1 : 0;",build)
+  self.assertIn("__block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO;",build)
+  self.assertIn("if (!preparedLink && wasOn && !external",build)
+  remux=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
+  self.assertIn('if(!compat && kr_prepare_ready(prepared)',remux)
+
 if __name__=='__main__':unittest.main()

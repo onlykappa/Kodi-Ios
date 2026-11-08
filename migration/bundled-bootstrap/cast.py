@@ -164,7 +164,10 @@ class FlowUI:
   else:
    self.box=self.xbmcgui.DialogProgress();self.box.create('Play on TV',cast.AIRPLAY_WORDS[stage])
  def stage(self,stage):
-  if self.win is not None:self.win.apply(self.flow.stage_view(stage,self.title,skipped=self.skipped))
+  # Back to opening after the TV was reached: the native player restarted with the H.264 picture (r36).
+  self.converting=getattr(self,'converting',False) or (stage=='opening' and getattr(self,'last','') in ('waiting_tv','connecting'))
+  self.last=stage
+  if self.win is not None:self.win.apply(self.flow.stage_view(stage,self.title,skipped=self.skipped,converting=self.converting))
   elif self.box:self.box.update(0,cast.AIRPLAY_WORDS.get(stage,''))
  def canceled(self):
   if self.win is not None:return self.win.canceled()

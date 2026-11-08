@@ -1708,6 +1708,13 @@ static void test_preparation(const char *work) {
         bytes=http_get(port,playlist,"bytes=-128");CHECK(bytes.status==206 && bytes.len==128,"prepared MP4 suffix range");free(bytes.body);
         bytes=http_get(port,playlist,"bytes=10-2");CHECK(bytes.status==416,"prepared MP4 rejects invalid range");free(bytes.body);
         CHECK(kr_remux_compat()==0 && kr_remux_prefetched()==0,"prepared playback never converts/prefetches segments");
+        kr_remux_stop();
+        // r36: a TV that takes only the sound of a prepared movie gets the converted H.264 picture on the compat restart.
+        CHECK(kr_remux_start(url,0,1,playlist,sizeof playlist)==KR_READY && !strstr(playlist,"/prepared.mp4") && kr_remux_compat()==1,
+              "prepared file restarts in compat mode as converted HLS: %s %s",playlist,kr_remux_message());
+        kr_remux_stop();
+        CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared.mp4"),"prepared file is served as it is again afterwards");
+        port=kr_remux_port();
         int idle_fd=socket(AF_INET,SOCK_STREAM,0);struct sockaddr_in idle_address={0};
         idle_address.sin_family=AF_INET;idle_address.sin_port=htons((uint16_t)port);idle_address.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
         CHECK(connect(idle_fd,(struct sockaddr *)&idle_address,sizeof idle_address)==0,"connect idle seek client");usleep(20000);

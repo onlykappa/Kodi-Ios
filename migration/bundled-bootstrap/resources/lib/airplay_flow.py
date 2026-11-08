@@ -25,7 +25,7 @@ FOOT = {'opening': 'Usually a few seconds. Your downloads keep going, slower.',
 TITLES = {'opening': 'Play on TV', 'waiting_tv': 'Choose your TV', 'connecting': 'Connecting to your TV'}
 
 
-def stage_view(stage, title='', quality='', skipped=()):
+def stage_view(stage, title='', quality='', skipped=(), converting=False):
     """Window properties for a running stage. `skipped`: stages this attempt never needs (a direct link opens nothing)."""
     stage = stage if stage in STAGES else 'opening'
     now = STAGES.index(stage)
@@ -39,6 +39,10 @@ def stage_view(stage, title='', quality='', skipped=()):
             note = ''
         props.update({'step%d.state' % n: state, 'step%d.label' % n: label, 'step%d.note' % n: note,
                       'step%d.number' % n: str(n + 1) if state == 'todo' else ''})
+    if converting and stage == 'opening':
+        # r36: the TV took the sound only; the picture is being converted to H.264 for it.
+        props.update({'title': 'Converting the picture for your TV', 'step0.label': 'Converting the picture to H.264',
+                      'step0.note': 'your TV cannot show it as it is', 'foot': 'Kodi keeps playing here until the TV starts.'})
     return props
 
 

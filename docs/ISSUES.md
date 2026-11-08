@@ -1113,3 +1113,23 @@ Status: FIXED IN SOURCE (not built). **Build 194 must not be installed.**
 - Retest in the rig: 20 open → ReloadSkin → close cycles over the four live pages, no crash (build 194 code: crash on
   the first). Regression: `test_build193_pages.Board194.test_issue120_controls_only_while_the_window_is_open`; the
   fake Kodi in test_library_status now refuses a control used after its window closed.
+
+## ISSUE-124 — AirPlay plays only the sound of a prepared HEVC movie on a TCL Roku TV (build 198, 2026-11-08)
+
+Status: FIXED IN SOURCE (native r36 candidate pending); device retest pending.
+- Owner: "airplay is connecting to tv but it says action cant be completed and only audio plays on my tv" (photo: a
+  music note on the TCL TV). Log (build 198, AirPlay r35): the movie opened in 0.4 s and was inspected by its index in
+  1 s (r35 works); every request to the phone's server came from the iPhone itself (AppleCoreMedia, 192.168.1.24);
+  the player reported `presentation 0x0, external 0`, then -11819 "Cannot Complete Action".
+- Root cause: iOS gave the TV the AirPlay route as sound only: this third-party receiver cannot take the prepared
+  4K HEVC picture (already noted in ISSUE-116 and HANDOFF-PROGRESS: "The TCL Roku TV may play only the sound of HEVC";
+  build-136-era logs needed H.264 for it). The H.264 compat restart existed for live HLS only: `build-airplay.sh`
+  disabled it for `/prepared.mp4`, no trigger covered "external playback never starts", and `kr_remux.c` served the
+  prepared file again even in compat mode.
+- Fix (r36 source): `kr_remux.c` converts a prepared file in compat mode; the player restarts once with the H.264
+  picture when the TV is on an AirPlay route but external playback has not started for 4 s (or Apple's player fails
+  that way), unless the picture is already H.264. Prepared movies keep the fast as-is path for TVs that take them.
+  Python: going back to opening restarts the TV-choice and connection clocks (`cast.airplay_outcome`), so the
+  restart is not cut off as "unreachable"; the card says "Converting the picture for your TV".
+- Regression: `test_remux.c` (compat start of a prepared file is converted HLS, then as-is again);
+  `test_play_on_tv_network.SoundOnlyRestart` (3). Native compile and host/E2E: candidate CI.

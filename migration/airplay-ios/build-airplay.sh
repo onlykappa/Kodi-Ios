@@ -437,9 +437,12 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
         }];
         [stallWatch invalidate]; stallWatch = nil;
         if (converted) {
-            __block int waiting = 0, ticks = 0, externalTicks = 0, video0 = 0, audio0 = 0, external = 0;
+            __block int waiting = 0, ticks = 0, externalTicks = 0, video0 = 0, audio0 = 0, external = 0, soundOnlyTicks = 0;
             __block NSUInteger errorsSeen = 0;
-            __block BOOL warned = NO, compatTried = kr_remux_compat() != 0 || [link hasSuffix:@"/prepared.mp4"], restarting = NO;
+            // r36: a prepared movie may restart once in compat mode too, but only when the TV takes the sound only (below);
+            // the older segment-based triggers stay off for it (it has no segments).
+            const BOOL preparedLink = [link hasSuffix:@"/prepared.mp4"];
+            __block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO;
             __block double resumeAt = -1;
             // r7: once per stream: restart with the picture converted to H.264 at the same position. NO when it cannot
             // (already tried, or no source to restart).
@@ -517,7 +520,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                     // the HEVC master and init, hung up on the segments, AirPlay off ~10 s later): restart once with
                     // the picture converted instead of waiting for r7's 30 s of sound only. Only when the TV never had
                     // the converted picture (a receiver the remuxer did not recognise) and the video is not H.264.
-                    if (wasOn && !external && lasted <= 20 && !compatTried && kr_remux_served_external(1) == 0) {
+                    if (!preparedLink && wasOn && !external && lasted <= 20 && !compatTried && kr_remux_served_external(1) == 0) {
                         const char *codec = kr_remux_video_codec();
                         BOOL hevc = codec && (!strncmp(codec, "hvc1", 4) || !strncmp(codec, "hev1", 4));
                         if (kr_remux_compat_clients() > 0)
@@ -531,6 +534,19 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                     }
                 }
                 if (external) externalTicks++;
+                // r36 (owner's build-198 log and photo: a TCL Roku TV showed a music note; the player reported external 0
+                // and every request came from the phone itself): a TV that cannot take this picture (third-party AirPlay,
+                // HEVC) gets the AirPlay route as sound only and never fetches the video. Restart once with the H.264
+                // picture; a TV that takes the video turns external playback on within a second or two.
+                soundOnlyTicks = (!external && tvRoute(player)) ? soundOnlyTicks + 1 : 0;
+                if (!compatTried && soundOnlyTicks >= 4) {
+                    const char *codec = kr_remux_video_codec();
+                    BOOL hevc = codec && (!strncmp(codec, "hvc1", 4) || !strncmp(codec, "hev1", 4));
+                    if (!(codec && !strncmp(codec, "avc1", 4))) {
+                        playerNote(@"the TV took the sound only (%s, no external playback): converting the picture", codec ? codec : "");
+                        if (restartCompat(hevc)) return;
+                    }
+                }
                 if (ticks == 5 || ticks == 15 || ticks % 60 == 0)
                     playerNote(@"%ds: at %.1f s, rate %.1f, presentation %@, external %d, segments served video %d audio %d",
                                ticks, CMTimeGetSeconds(player.currentTime), player.rate, sizeText(item.presentationSize),
@@ -547,6 +563,15 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                     showNoPicture(hevc);
                 }
                 if (item.status == AVPlayerItemStatusFailed) {
+                    // r36: Apple's player gave up ("Cannot Complete Action") while the TV only had the sound: convert the
+                    // picture once before reporting a problem.
+                    if (!compatTried && !external && tvRoute(player)) {
+                        const char *codec = kr_remux_video_codec();
+                        if (!(codec && !strncmp(codec, "avc1", 4))) {
+                            playerNote(@"the player failed while the TV had the sound only (%s): converting the picture", codec ? codec : "");
+                            if (restartCompat(codec && (!strncmp(codec, "hvc1", 4) || !strncmp(codec, "hev1", 4)))) return;
+                        }
+                    }
                     const char *m = kr_remux_message();
                     showProblem(m && *m ? @(m) : (player.currentItem.error.localizedDescription ?: @"The TV could not play the converted stream."));
                     [timer invalidate]; return;

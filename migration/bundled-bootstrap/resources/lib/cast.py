@@ -175,6 +175,8 @@ AIRPLAY_WORDS={'opening':'Opening the video for AirPlay…',
                'waiting_tv':'Choose your TV in the AirPlay list…',
                'connecting':'Connecting to the TV…'}
 
+PHASES=('opening','waiting_tv','connecting')
+
 def airplay_outcome(state,wait,timeout=25,network=None,stage=None):
  """Separate file opening, the owner's TV choice and the actual connection. Each phase has its own bound.
  A TV cannot fetch an unopened file: only a started connection may return 'unreachable'."""
@@ -202,6 +204,11 @@ def airplay_outcome(state,wait,timeout=25,network=None,stage=None):
     group='opening';age_key='start_age_s';limit=AIRPLAY_STARTUP;expired='startup_timeout'
   else:
    group='connecting';age_key='';limit=timeout;expired='failed'
+  # r36: the player restarted with the H.264 picture (a TV that took the sound only) and is opening again: its TV choice
+  # and connection get their own time again, counted from now, not from the first attempt's.
+  if shown in PHASES and group in PHASES and PHASES.index(group)<PHASES.index(shown):
+   for later in PHASES[PHASES.index(group)+1:]:phase_begun.pop(later,None)
+   if group=='opening':phase_begun[group]=waited
   entered=phase_begun.setdefault(group,waited)
   # The local elapsed fallback prevents a broken/reset native clock from keeping a phase alive forever.
   age=max(waited-entered,float((net or {}).get(age_key,-1)))

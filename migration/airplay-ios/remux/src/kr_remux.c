@@ -1283,8 +1283,11 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
     }
     // Fully prepared, indexed MP4: AVPlayer seeks the one Drive file directly. In particular do not
     // assume all third-party receivers require 1080p H.264, or burn subtitles/transcode after a seek.
+    // r36 (owner's build-198 log and photo: a TCL Roku TV showed a music note and played only the sound of a
+    // prepared HEVC movie): when the player asks again in compat mode, that TV cannot take this picture, so the
+    // prepared file goes through the H.264 conversion like any other source instead of being served again as it is.
     AVFormatContext *prepared=gm_stream_format_context(S.gm);
-    if(kr_prepare_ready(prepared) && av_dict_get(prepared->metadata,"kodi_airplay_prepared",NULL,0)) {
+    if(!compat && kr_prepare_ready(prepared) && av_dict_get(prepared->metadata,"kodi_airplay_prepared",NULL,0)) {
         char host[64]="127.0.0.1";
         if(lan && lan_address(host,sizeof host)){set_message("AirPlay needs Wi-Fi.");goto done;}
         S.prepared_size=kr_source_size(S.src);
