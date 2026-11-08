@@ -1234,3 +1234,20 @@ Status: FIXED IN SOURCE (native r40 candidate pending; build 204); device test p
   phone serves the movie).
 - Open: TVs without HEVC get the picture as it is (compat 0); a per-TV H.264 choice needs each TV's capabilities.
 - Regression: `test_play_on_tv_network.AnyTv` (4), `test_updates_calibration` (Media Assistant URL, order, 404 text).
+
+## ISSUE-130 — Customisation said 15 rows on Home (7 showed) and Add seemed to do nothing (build 202, 2026-11-08)
+
+Status: FIXED IN SOURCE (Python; build 204); device retest pending.
+- Owner (screenshot of Tabs & Rows › Home, "15 rows on the page"): "i only have 7 rows ... when i press add and
+  nothing is added ... this applies to all, home movies and tv". The editor and Home read the same Skin Variables
+  lists (rows_editor.NODES = portrait.NODES), so changes did reach Home; but Home hides a row while its list is empty
+  (portrait.row: visible while NumItems > 0), e.g. Trakt rows without a Trakt sign-in (the desktop Kodi rig shows the
+  Trakt 401) and empty library rows, while the page counted every row that could show. Add appended the new row
+  after all the others, below the fold on the page and at the very end of Home.
+- Fix: `rows_editor.empty_rows` judges each row as Home does: TMDb Helper rows by the service's listing copy (it keeps
+  one for every list with items; without any copy, nothing is judged), library rows by a one-item JSON-RPC
+  Files.GetDirectory (`folder_counter`), add-on rows not at all. Empty rows are faded with "Empty now · hidden on Home"
+  or "Empty · sign in to Trakt", and the header counts only what shows ("10 rows on the page · 2 empty right now");
+  the Customisation counts use the same rule. Add puts the new row first, under Continue Watching, and says so.
+- Regression: `test_customisation.RowsScript` (count, empty marks, no-copy case, folder counter, Add first). Desktop
+  Kodi rig: page renders, text fits (screenshot not committed).

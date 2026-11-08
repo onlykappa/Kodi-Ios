@@ -178,10 +178,42 @@ class RowsScript(unittest.TestCase):
   self.assertEqual((e.rows[1]['label'],e.rows[1]['widget_style'],e.rows[1]['disabled']),('New name','Poster','true'))
   self.assertFalse(e.back());self.assertEqual(e.props()['page'],'')
  def test_add_from_the_list_and_from_an_addon(self):
-  e=self.editor(0);e.click(self.page.ADD);self.assertEqual(e.rows[-1]['label'],'Trending Movies')
+  # Owner (build 202: "when i press add and nothing is added"): a new row goes first, under Continue Watching.
+  e=self.editor(0);e.click(self.page.ADD);self.assertEqual(e.rows[0]['label'],'Trending Movies')
+  self.assertEqual(e.props()['row.1.title'],'Trending Movies');self.assertEqual(e.props()['row.1.off'],'')   # not judged empty yet
+  self.assertEqual(e.ui.note,'Added under Continue Watching')
   e=self.editor(len(self.script.re_.CATALOGUE['home']),'plugin://plugin.video.umbrella/movies/','Umbrella Movies')
-  e.click(self.page.ADD);self.assertEqual((e.rows[-1]['label'],e.rows[-1]['path']),('Umbrella Movies','plugin://plugin.video.umbrella/movies/'))
+  e.click(self.page.ADD);self.assertEqual((e.rows[0]['label'],e.rows[0]['path']),('Umbrella Movies','plugin://plugin.video.umbrella/movies/'))
   e=self.editor(-1);before=len(e.rows);e.click(self.page.ADD);self.assertEqual(len(e.rows),before);self.assertEqual(before,4)
+ def test_count_matches_what_home_shows(self):
+  # Owner (build 202): "Customization still says i have 15 rows on home ... i only have 7 rows". Home hides a row with
+  # nothing to show; the page counts and marks only what Home really shows.
+  import json
+  re_=self.script.re_
+  tmdb='plugin://plugin.video.themoviedb.helper/?info=%s&tmdb_type=movie'
+  rows=[{'label':'Trending','path':tmdb%'trending_week'},{'label':'Trakt For You','path':tmdb%'trakt_becauseyouwatched'},
+        {'label':'Recent','path':'videodb://recentlyaddedmovies/'},{'label':'Library','path':'videodb://movies/titles/'},
+        {'label':'Umbrella','path':'plugin://plugin.video.umbrella/?a=1'}]
+  re_.save(self.p,'homewidgets',rows)
+  copy=Path(self.p)/(re_.LISTINGS%re_.copy_key(tmdb%'trending_week'));copy.parent.mkdir(parents=True,exist_ok=True)
+  copy.write_text(json.dumps({'items':[{'path':'x'}]}))   # the service keeps copies of lists that have items
+  counts={'videodb://recentlyaddedmovies/':0,'videodb://movies/titles/':40}
+  e=self.script.Editor(self.p,'home',self.UI([]),counts.get)
+  self.assertEqual(e.empty,{1,2})
+  props=e.props()
+  self.assertEqual(props['count'],'4 rows on the page · 2 empty right now')   # CW, Trending, Library, Umbrella
+  self.assertEqual(props['row.2.sub'],'Empty · sign in to Trakt');self.assertEqual(props['row.2.off'],'true')
+  self.assertEqual(props['row.3.sub'],'Empty now · hidden on Home')
+  self.assertEqual(re_.count(self.p,'homewidgets',counts.get),4)
+  copy.unlink()   # no copies at all (first start, or the rig): TMDb rows are not judged, library rows still are
+  self.assertEqual(re_.empty_rows(self.p,re_.load(self.p,'homewidgets'),counts.get),{2})
+ def test_folder_counter_asks_kodi_for_one_item(self):
+  import json
+  asked=[]
+  def rpc(text):asked.append(json.loads(text));return json.dumps({'result':{'files':[{}],'limits':{'start':0,'end':1,'total':12}}})
+  count=self.script.re_.folder_counter(rpc)
+  self.assertEqual(count('videodb://movies/titles/'),12);self.assertEqual(asked[0]['params']['limits'],{'start':0,'end':1})
+  self.assertIsNone(count('plugin://plugin.video.umbrella/?a=1'));self.assertEqual(len(asked),1)
  def test_restore(self):
   e=self.editor(True);e.click(self.page.EDIT);e.click(self.page.REMOVE+1)
   e=self.editor(True);e.click(self.page.RESTORE);self.assertEqual([r['label'] for r in e.rows],['A','B'])

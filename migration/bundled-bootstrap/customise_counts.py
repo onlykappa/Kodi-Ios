@@ -11,19 +11,19 @@ def module(name):
 
 def rules():return module('settings_page').count_rules()
 
-def values(rules,visible,profile=None,settings=None,rows=None):
+def values(rules,visible,profile=None,settings=None,rows=None,count_folder=None):
  """{property: text}: switches on per page; with a profile, rows that show per tab and in all; the view type."""
  out={'custom.'+key:'%d on'%sum(1 for c in conds if visible(c)) for key,conds in rules.items()}
  if profile is not None and rows is not None:
   total=0
   for key,_,lst in rows.TABS:
-   n=rows.count(profile,lst);total+=n;out['custom.rows.'+key]=rows.plural(n)
+   n=rows.count(profile,lst,count_folder);total+=n;out['custom.rows.'+key]=rows.plural(n)
   out['custom.rows']=rows.plural(total)
  if settings is not None:out['custom.views']=settings.view_name(visible)
  return out
 
 if __name__=='__main__':
  import xbmc,xbmcgui,xbmcvfs
- window=xbmcgui.Window(10004);settings=module('settings_page')
- for key,text in values(settings.count_rules(),xbmc.getCondVisibility,xbmcvfs.translatePath('special://profile/'),settings,module('rows_editor')).items():
+ window=xbmcgui.Window(10004);settings=module('settings_page');editor=module('rows_editor')
+ for key,text in values(settings.count_rules(),xbmc.getCondVisibility,xbmcvfs.translatePath('special://profile/'),settings,editor,editor.folder_counter(xbmc.executeJSONRPC)).items():
   window.setProperty(key,text)

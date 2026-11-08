@@ -18,11 +18,15 @@ def tab_from(args):
 
 class Editor:
  """The page's state and what each tap does (no Kodi calls: `ui` asks the questions, tests pass a fake)."""
- def __init__(self,profile,tab,ui):
-  self.profile=profile;self.key,self.name,self.list=re_.tab(tab);self.ui=ui
-  self.rows=re_.load(profile,self.list);self.editing=False;self.current=None;self.changed=False
+ def __init__(self,profile,tab,ui,count_folder=None):
+  self.profile=profile;self.key,self.name,self.list=re_.tab(tab);self.ui=ui;self.count_folder=count_folder
+  self.rows=re_.load(profile,self.list);self.editing=False;self.current=None;self.changed=False;self.fresh=set()
+  self.look()
+ def look(self):
+  # Which rows Home hides because they have nothing to show (rows_editor.empty_rows); new rows are not judged yet.
+  self.empty=re_.empty_rows(self.profile,self.rows,self.count_folder,self.fresh)
  def props(self):
-  out=re_.properties(self.rows,page.SLOTS)
+  out=re_.properties(self.rows,page.SLOTS,self.empty)
   out.update({'title':self.name if self.current is None else (self.rows[self.current].get('label') or 'Row'),
               'sub':out['count'] if self.current is None else 'On %s'%self.name,
               'edit_label':'Done' if self.editing else 'Edit','editing':'true' if self.editing else '',
@@ -30,8 +34,12 @@ class Editor:
   out.update(re_.row_properties(self.rows[self.current]) if self.current is not None else
              {k:'' for k in ('one.title','one.on','one.style','one.source','one.path')})
   return out
- def _set(self,rows):
+ def _set(self,rows,fresh=None):
+  # Rows keep their 'fresh' mark through moves and deletes (by identity, as the list is rebuilt each time).
+  marked=[self.rows[i] for i in self.fresh if i<len(self.rows)]+([fresh] if fresh else [])
   self.rows=rows;self.changed=True;re_.save(self.profile,self.list,rows)
+  self.fresh={i for i,r in enumerate(rows) if any(r is m for m in marked)}
+  self.look()
  def back(self):
   """True when the page should close."""
   if self.current is not None:self.current=None;return False
@@ -75,7 +83,8 @@ class Editor:
    if not path:return
    label=self.ui.text('Name',os.path.basename(path.rstrip('/')) or 'New Row')
    if not label:return
-  self._set(re_.add(self.rows,label,path))
+  rows=re_.add(self.rows,label,path);self._set(rows,fresh=rows[0])
+  self.ui.notify('Added under Continue Watching')
 
 class KodiUI:
  def __init__(self):
@@ -92,7 +101,7 @@ def run(args):
  import xbmc,xbmcgui,xbmcvfs
  import tool_windows
  profile=xbmcvfs.translatePath('special://profile/')
- editor=Editor(profile,tab_from(args),KodiUI())
+ editor=Editor(profile,tab_from(args),KodiUI(),re_.folder_counter(xbmc.executeJSONRPC))
 
  class Rows(xbmcgui.WindowXMLDialog):
   def onInit(self):self.show_state()
