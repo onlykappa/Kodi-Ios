@@ -1751,3 +1751,17 @@ conversion and actual Roku/caption acceptance remain pending.
 The precommit scanner blocked a generated Python bytecode file from the private native-artifact inspection
 (import run without `-B`). Removed that generated file, reran with bytecode disabled, and rescanned before commit.
 No binary, media or private account data was committed.
+
+
+Packaging checks: the initial customized-IPA unit run failed its Python 3.11 bytecode check because only 3.12 was
+installed locally. Installed an isolated managed Python 3.11 under private scratch storage; all 11 customized-IPA
+checks then passed, alongside 7 unsigned-IPA and 11 foundation checks. No packaging requirement was relaxed.
+The corrected candidate is run 42695837108 from source 0a5ad576ad757233384532186a105a096a8517fc; its framework
+compile passes and full host/E2E checks remain pending at this checkpoint.
+
+Follow-up status regression: a resumed transfer used its last pre-pause byte acknowledgement to calculate silence,
+briefly labeling the playback hold as a network delay. Status now uses the latest explicit phase transition for
+that timer while retaining Drive-confirmed percentage; 27 state tests pass, including a real subsequent stall.
+The glass-bar contract test also matched a literal space on an otherwise blank patch context line. Aligning it
+with the whitespace-clean native patch retains the surrounding frame-loop code assertion and updates verified
+r25/previous-r24 release expectations; no native behavior change is required.

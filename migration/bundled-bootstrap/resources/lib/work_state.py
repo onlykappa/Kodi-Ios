@@ -213,9 +213,11 @@ def _copy(debrid, now):
         if count > 1:   # one file of a season: name the episode, count the season
             title = '%s · %s' % (title, episode_label(current.get('file')))
         updated = current.get('updated')
+        phase=current.get('phase','')
+        if phase in ('reading','uploading','paused_playback') and current.get('phase_at') is not None:
+            updated=max(float(updated or 0),float(current['phase_at']))
         quiet = updated is not None and now - float(updated) > COPY_QUIET
         step = '%s · %d of %d' % (STEP['copy'], int(current.get('index') or 1), count) if count > 1 else STEP['copy']
-        phase=current.get('phase','')
         words={'reading':'Reading download','uploading':'Uploading to Google Drive','paused_playback':'Paused for playback'}
         if phase in words:step=words[phase]+(' · %d of %d'%(int(current.get('index') or 1),count) if count>1 else '')
         out = {'kind': 'copy', 'title': title, 'name': current.get('name', ''), 'step': step, 'pct': int(100 * sent / total),

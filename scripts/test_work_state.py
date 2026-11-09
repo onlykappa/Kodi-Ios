@@ -35,6 +35,15 @@ class Words(unittest.TestCase):
    row=ws.build({'debrid':source,'slow':slow},NOW)['jobs'][0]
    self.assertEqual(row['state'],ws.NETWORK)
    self.assertIn('trying again in 2 min',row['line'])
+ def test_resuming_after_playback_does_not_count_the_hold_as_network_silence(self):
+  source={'jobs':[{'title':'Movie','status':'copying'}],
+          'current':{'name':'Movie','stage':'copying','sent':2,'total':10,'updated':NOW-600,
+                     'phase':'reading','phase_at':NOW-1,'rate':0}}
+  row=ws.build({'debrid':source},NOW)['jobs'][0]
+  self.assertEqual(row['state'],ws.RUNNING);self.assertEqual(row['pct'],20)
+  self.assertIn('Reading download',row['line'])
+  row=ws.build({'debrid':source},NOW+130)['jobs'][0]
+  self.assertEqual(row['state'],ws.NETWORK);self.assertIn('Waiting for download',row['line'])
  def test_running(self):
   s=ws.build({'prep':conv()},NOW);j=s['jobs'][0]
   self.assertEqual((s['mode'],j['state'],j['kind']),('running','running','conv'))

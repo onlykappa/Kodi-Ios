@@ -211,7 +211,7 @@ class NativeOwnerTests(unittest.TestCase):
   self.assertIn('"KodiGlassBar.framework", "KodiGlassBar"',block);self.assertIn('CUtil::GetFrameworksPath()',block)
   self.assertIn('claim(1);',block)
   # In CApplication::Process after the messages are handled and the stop check, on Kodi's application thread.
-  self.assertIn(' if (m_bStop) return; //we\'re done, everything has been unloaded\n \n+#if defined(TARGET_DARWIN_IOS)\n+  // Kodi-iOS r22',block)
+  self.assertIn(' if (m_bStop) return; //we\'re done, everything has been unloaded\n\n+#if defined(TARGET_DARWIN_IOS)\n+  // Kodi-iOS r22',block)
   self.assertIn('+  KodiIOSGlassBarTick();',block)
  def test_native_rules_match_the_python_controller(self):
   block=self.native_block()
@@ -230,18 +230,18 @@ class NativeOwnerTests(unittest.TestCase):
     elif action.startswith('SetFocus('):self.assertIn('"SetFocus(" + std::to_string(4000 + 10000 * tapped) + ")"',block);self.assertIn(action,['SetFocus(%d)'%(4000+10000*i) for i in range(3)])
     else:self.assertIn('"%s"'%action,block)
     if condition:self.assertIn('info.EvaluateBool("%s", context)'%condition,block)
- def test_locks_pin_r6_and_r24(self):
+ def test_locks_pin_r6_and_r25(self):
   bar=json.loads((ROOT/'migration/glassbar-ios/source-lock.json').read_text())
   self.assertEqual(bar['framework_release']['tag'],'kodi-glassbar-r6')
   self.assertRegex(bar['framework_release']['sha256'],r'^[0-9a-f]{64}$')
   self.assertEqual(bar['previous']['tag'],'kodi-glassbar-r5')
   self.assertNotIn('build_status',bar)
   exe=json.loads((ROOT/'migration/ios-portrait/source-lock.json').read_text())
-  self.assertEqual(exe['executable_release']['tag'],'kodi-ios-portrait-r24')
-  self.assertEqual(exe['executable_release']['sha256'],'02d5357af48bbf991efddc9ed5babecf06e19b826c5c648cf335c7073d767a80')
-  self.assertEqual(exe['previous_executable_release']['tag'],'kodi-ios-portrait-r22')
+  self.assertEqual(exe['executable_release']['tag'],'kodi-ios-portrait-r25')
+  self.assertEqual(exe['executable_release']['sha256'],'fe7844edf12bb16c2f6315d492eb494d21e5c6ce0375a88027a8dd9170237af4')
+  self.assertEqual(exe['previous_executable_release']['tag'],'kodi-ios-portrait-r24')
   self.assertNotIn('build_status',exe)
-  self.assertEqual(exe['previous_executable_release']['sha256'],'1b30b81921b27416113c362fd1443f4f88d2ecd64087f9b8491ba04628a17172')
+  self.assertEqual(exe['previous_executable_release']['sha256'],'02d5357af48bbf991efddc9ed5babecf06e19b826c5c648cf335c7073d767a80')
   workflow=(ROOT/'.github/workflows/glassbar-ios.yml').read_text()
   self.assertIn("d.get('build_tag') or d['framework_release']['tag']",workflow)
 
