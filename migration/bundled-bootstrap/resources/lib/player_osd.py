@@ -119,7 +119,10 @@ def window():
   '<onclick>PlayerControl(Play)</onclick><onleft>7111</onleft><onright>7113</onright><onup>7101</onup><ondown>7131</ondown></control>'%(cx-130,cy-130)+
   glyph(cx+10,cy,150,'play.png','<visible>Player.Paused | Player.Forwarding | Player.Rewinding</visible>')+
   glyph(cx,cy,140,'pause.png','<visible>!Player.Paused + !Player.Forwarding + !Player.Rewinding</visible>')+
-  tap(7113,cx+gap,cy,240,'rotate-right.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',160)+ten(cx+gap),
+  tap(7113,cx+gap,cy,240,'rotate-right.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',160)+ten(cx+gap)+
+  # Build 210: the buffer percentage lives here, in the controls already on screen while seeking. Its own dialog
+  # (Custom_1156) froze Kodi's main thread each time it opened (logs 34cd7aac 15:07:09, 3efdc5ca 15:53:08).
+  label(cx-300,cy+150,600,64,'Buffering $INFO[Player.CacheLevel]%','font_main_bold','FFFFFFFF','center','<visible>Player.Caching</visible>'),
   '<visible>!%s</visible>'%PANEL)
  # Title: the film, or the show and the episode.
  title=('<control type="label"><left>%d</left><right>%d</right><top>770</top><height>90</height><font>font_title_midi</font>'
@@ -216,7 +219,7 @@ def buffering_window():
  w,h=460,84
  spin='<animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation>'
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window type="dialog" id="1156"><zorder>2</zorder>'
-  '<visible>Player.Caching + Window.IsActive(fullscreenvideo)</visible>'
+  '<visible>false</visible>'   # build 210: never opens (it froze Kodi); the OSD shows the percentage
   '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
   '<controls><control type="group"><centerleft>50%%</centerleft><top>668</top><width>%d</width><height>%d</height>'
   '<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture border="42" colordiffuse="EB2C2C2E">%sround.png</texture></control>'

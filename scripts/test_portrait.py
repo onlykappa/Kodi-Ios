@@ -457,14 +457,13 @@ class ResolutionChoice(unittest.TestCase):
 class BufferingPill(unittest.TestCase):
  """Build 206 (owner, build 205: "have it show like a buffer percentage so i know its working"). The desktop Kodi rig
  showed the pill over a playing video (forced visible): "Buffering 99%" between the centre controls and the title."""
- def test_its_own_dialog_shows_while_kodi_buffers(self):
+ def test_the_percentage_is_in_the_controls_and_the_dialog_never_opens(self):
+  # Build 210 (logs 34cd7aac 15:07:09, 3efdc5ca 15:53:08): Kodi's main thread stopped each time the pill's own dialog
+  # opened (33 s and 100 s, taps queued). The percentage moved into the video controls; the dialog stays, never shown.
   osd=portrait.player_osd;xml=osd.buffering_window()
-  root=ET.fromstring(xml.split('\n',2)[2]);self.assertEqual((root.get('type'),root.get('id')),('dialog','1156'))
-  self.assertEqual(root.findtext('visible'),'Player.Caching + Window.IsActive(fullscreenvideo)')
-  self.assertIn('Buffering $INFO[Player.CacheLevel]%',xml)
-  group=root.find('controls/control');top=int(group.findtext('top'));h=int(group.findtext('height'))
-  self.assertGreater(top,520+130);self.assertLess(top+h,770)   # clear of the play button and the title (VideoOSD)
-  self.assertIn('Custom_1156_Buffering.xml',portrait.OWN_1080I);self.assertIn('Custom_1156_Buffering.xml',portrait.VIDEO_ONLY)
+  root=ET.fromstring(xml.split('\n',2)[2]);self.assertEqual(root.findtext('visible'),'false')
+  src=open(osd.__file__,encoding='utf-8').read()
+  self.assertIn("'Buffering $INFO[Player.CacheLevel]%','font_main_bold','FFFFFFFF','center','<visible>Player.Caching</visible>'",src)
  def test_kodi_cache_is_tuned_once(self):
   calls=[]
   class X:

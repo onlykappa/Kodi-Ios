@@ -1373,3 +1373,15 @@ Status: FIXED IN SOURCE (build 208); device test pending.
 - Not proven: whether the freeze needs more than this (the log has no player lines in the gap). Device test pending.
 - Regression: test_slowdown.DownloadCap (holds while Kodi plays or buffers, AirPlay cap and share, converter hold
   wiring), test_conversion_speed (hold wiring).
+
+## ISSUE-137 — The "Buffering NN%" dialog froze Kodi's main thread (2026-11-09)
+
+Status: FIXED IN SOURCE (build 210); device test pending.
+- Owner (build 209, log 3efdc5ca): "still laggy not smooth at all".
+- Evidence: in both freeze logs Kodi's main thread logs nothing from the moment it loads `Custom_1156_Buffering.xml`
+  (build 206's buffering pill, its own dialog opened on `Player.Caching`) until it closes: 34cd7aac 15:07:09 →
+  15:08:53, 3efdc5ca 15:53:08 → 15:53:41; every tap in between is handled in one burst afterwards. Background work
+  was already held in 209 (ISSUE-136), so it was not the cause this time. Exact mechanism inside Kodi not proven.
+- Fix: the dialog stays in the skin but never opens (`<visible>false</visible>`, so an old copy cannot come back); the
+  same "Buffering NN%" text is a label in the video controls, under the play button, visible on Player.Caching.
+- Regression: test_portrait.BufferingPill.
