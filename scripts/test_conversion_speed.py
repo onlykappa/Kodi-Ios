@@ -384,7 +384,10 @@ class PreparedAirPlayServer(unittest.TestCase):
   c=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
   serve=c.split('static void serve_prepared(')[1].split('\n}\n')[0]
   self.assertNotIn('kr_source_open',serve);self.assertIn('prepared_read(first,buffer,want,error,sizeof error)',serve)
-  self.assertIn('#define PC_BLOCK (4 * 1024 * 1024)',c);self.assertEqual(c.count('prepared_cache_clear();'),2)
+  self.assertIn('kr_source_cached_read(S.src,offset,buf,want)',c)
+  source=(ROOT/'migration/airplay-ios/remux/src/kr_source.c').read_text()
+  self.assertIn('#define SOURCE_BLOCK (128 * 1024)',source);self.assertIn('source_cache *cache;',source)
+  self.assertEqual(c.count('prepared_cache_clear();'),2)
 
 class UploadStalls(unittest.TestCase):
  """Build-184 log: a 32 MB piece hung 120 s with nothing moving before it was retried, and with only 2 pieces allowed

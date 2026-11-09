@@ -1510,7 +1510,7 @@ The private build-213 log (two movies, Media Assistant and AirPlay) provides con
 
 Repair:
 
-1. Per-movie shared byte cache (128 KiB blocks, 64 MiB maximum, first block retained), with independent cursors,
+1. Per-movie shared byte cache (128 KiB blocks, 128 MiB maximum, first block retained), with independent cursors,
    cancellation and connections. Duplicate in-flight reads share a fill; cached prefixes bypass missing-block I/O.
    Cache locks never span network reads. Partial blocks extend on demand; premature EOF reconnects at the missing
    offset within one timeout budget. The cache is released with the session, never shared across movie versions.
@@ -1549,3 +1549,20 @@ streaming regression passes 117 checks, including all these failures; the expand
 Recommendations and acceptance steps: docs/ROKU-STREAMING.md. Device startup, sustained playback, sound, HDR and
 forward/backward seeks remain unverified until the owner tests the resulting IPA. The log proves contact with the
 TV; it cannot establish a Wi-Fi throughput problem. Main is unchanged.
+
+
+ISSUE-139 follow-up found during final review: a generated 32-second movie with a 30-second GOP advertised six
+six-second windows, but segment 0 carried about 30 seconds and later requests repeated the same tail. The prepared
+file's fragment lengths in the owner log do not by themselves prove its GOP structure, but the existing source
+path cannot safely assume a short keyframe interval. For indexed MP4s, Roku now takes real random-access boundaries
+from the complete mfra index; video and audio use the same truthful plan. Old long-GOP files retain longer windows
+and their original 4K picture. The output and byte caches are bounded at 128 MiB each to retain an old prepared
+unit without discarding it before launch. Copy demuxers discard other tracks to avoid duplicate 4K reads for audio.
+New preparation uses two-second encoder keyframes and aims at six-second fragments, retaining the existing file ID,
+resolution and HDR policy. This does not require downloading/replacing old Drive movies to use the repaired route.
+The long-GOP regression decodes the complete picture and checks every frame once, plus the audio timeline.
+
+The first long-GOP test used FFmpeg's raw empty-moov output, whose zero init duration hid the final two seconds;
+the fixture now carries the finite init duration written by the real preparation path. The corrected regression
+passes all 141 streaming checks. The older r32 assertion requiring only 1–3 large fragments in a 65-second file
+was updated to require about eleven six-second fragments, with its sample-interleaving check retained.

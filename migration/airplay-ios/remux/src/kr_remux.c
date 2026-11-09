@@ -50,7 +50,7 @@ enum { R_VCOPY = 0, R_VCOMPAT = 1, R_AUDIO = 2, NREND = R_AUDIO + MAX_TRACKS };
 #define PF_WORKERS 3    // background producers (r11: video, audio and a spare, so audio never queues behind video)
 #define PF_QUEUE 32
 #define CACHE_SLOTS 24
-#define CACHE_BYTES (64u << 20)  // made and recently served media segments (inits are kept apart, a few KB each)
+#define CACHE_BYTES (128u << 20) // also retains an older prepared movie's up-to-96-MiB random-access unit
 
 typedef struct {
     kr_source *src;
@@ -771,7 +771,9 @@ static void prefetch_focus(int rend, int seg) {
 static void prefetch_after(int rend, int seg) {
     pthread_mutex_lock(&P.lock);
     if (P.started && atomic_load(&pf_on)) {
-        for (int k = 1; k <= PF_DEPTH(rend); k++) push_locked(rend, seg + k);
+        int depth=PF_DEPTH(rend);
+        if(S.gm && gm_stream_segment_duration(S.gm,seg)>SEG_SECONDS*2)depth=1;
+        for (int k = 1; k <= depth; k++) push_locked(rend, seg + k);
         pthread_cond_broadcast(&P.cond);
     }
     pthread_mutex_unlock(&P.lock);
@@ -1313,7 +1315,7 @@ static int prepared_read_all(int64_t at,uint8_t *buf,int len) {
     return 0;
 }
 typedef struct {int64_t time,offset;} prep_frag;
-static int prepared_playlists(void) {
+static int prepared_playlists(int align_plan) {
     AVFormatContext *f=gm_stream_format_context(S.gm);
     int v=gm_stream_selected_video(S.gm);
     if(!f || v<0 || v>=(int)f->nb_streams || S.prepared_size<64)return -1;
@@ -1346,6 +1348,13 @@ static int prepared_playlists(void) {
     }
     if(n<1 || fr[0].offset<16 || fr[n-1].offset>=mfra_at)goto end;
     double tb=av_q2d(st->time_base),total=gm_stream_duration(S.gm);
+    if(align_plan) {
+        double *times=malloc((size_t)n*sizeof *times);if(!times)goto end;
+        for(int i=0;i<n;i++)times[i]=(double)fr[i].time*tb;
+        ok=gm_stream_plan_keyframes(S.gm,times,n);free(times);
+        if(!ok)log_line("segmented: using %d indexed random-access windows; old long-GOP movies retain their real durations",gm_stream_segment_count(S.gm));
+        goto end;
+    }
     double end_time=total>0?total+(double)fr[0].time*tb:0;
     if(st->duration>0 && st->duration!=AV_NOPTS_VALUE)end_time=(double)(st->duration+fr[0].time)*tb;
     double longest=0,peak=0;
@@ -1413,7 +1422,7 @@ static int prepared_playlists(void) {
     log_line("prepared: HLS over the file's %d fragments (byte ranges, longest %.1f s, peak %.1f Mbit/s, %s, %s%s)",n,longest,peak/1e6,range,S.vcodec,tokens);
     S.prepared_master=master;S.prepared_media=media;master=media=NULL;ok=0;
 end:
-    if(ok)log_line("prepared: no usable fragment index; Apple's player gets the MP4 itself");
+    if(ok && !align_plan)log_line("prepared: no usable fragment index; Apple's player gets the MP4 itself");
     free(m);free(fr);av_free(media);av_free(master);
     return ok;
 }
@@ -1475,6 +1484,12 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
         log_line("segmented: a TV's own player gets 6-s segments with the audio apart (picture copied)");
     }
     AVFormatContext *prepared=gm_stream_format_context(S.gm);
+    if(segmented && prepared && prepared->iformat && strstr(prepared->iformat->name,"mov")) {
+        S.prepared_size=kr_source_size(S.src);
+        // Copying cannot create keyframes. A uniform six-second grid repeats/skips pictures when the source
+        // has 30-second GOPs. Its complete fragment index supplies real, independently decodable boundaries.
+        prepared_playlists(1);
+    }
     if(!compat && !segmented && kr_prepare_ready(prepared) && av_dict_get(prepared->metadata,"kodi_airplay_prepared",NULL,0)) {
         char host[64]="127.0.0.1";
         if(lan && lan_address(host,sizeof host)){set_message("AirPlay needs Wi-Fi.");goto done;}
@@ -1489,7 +1504,7 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
         pthread_mutex_unlock(&N.lock);
         log_line("server: endpoint=%s:%d/[token]/prepared.mp4",host,S.port);
         kr_hls_video_codec(S.gm,S.vcodec,sizeof S.vcodec);
-        prepared_playlists();
+        prepared_playlists(0);
         prepared_warm_start(ticket);   // r41: the init and the first fragment's start, before the TV asks
         if(pthread_create(&S.accept_thread,NULL,accept_loop,NULL)){close(S.listen_fd);S.listen_fd=-1;goto done;}
         if(out && outlen>0)snprintf(out,(size_t)outlen,"%s/prepared.%s",S.base,S.prepared_master?"m3u8":"mp4");

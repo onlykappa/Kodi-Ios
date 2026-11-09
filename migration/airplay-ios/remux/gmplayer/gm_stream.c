@@ -333,6 +333,9 @@ static int produce_sel(gm_stream *s, double seg_start, double seg_end,
     if (ret < 0) { set_err(err, errlen, "write_header", ret); close_output(oc, avio, octx); return ret; }
 
     int seek_stream = sel.vid_src >= 0 ? sel.vid_src : (sel.all_audio ? s->audio_in : sel.aud_src);
+    // Independent rendition cursors need only their selected packets. In MOV this avoids fetching a whole
+    // 4K video payload again just to extract its much smaller audio track.
+    for(unsigned i=0;i<s->in->nb_streams;i++)s->in->streams[i]->discard=s->out_index[i]>=0?AVDISCARD_DEFAULT:AVDISCARD_ALL;
     AVStream *sst = s->in->streams[seek_stream];
     int64_t seek_ts = (int64_t)(seg_start / av_q2d(sst->time_base) + 0.5);
     ret = av_seek_frame(s->in, seek_stream, seek_ts, AVSEEK_FLAG_BACKWARD);
@@ -1072,6 +1075,14 @@ static int metadata_edit(gm_stream *s,int src,AVFormatContext *oc,gm_buf *out) {
     AV_WB32(edit+20,1);AV_WB32(edit+28,(uint32_t)lead_ticks);AV_WB32(edit+32,0x00010000);
     AV_WB32(out->data+moov,AV_RB32(out->data+moov)+36);AV_WB32(out->data+trak,track_size+36);
     out->len+=36;return 0;
+}
+
+int gm_stream_plan_keyframes(gm_stream *s,const double *times,int count) {
+    if(!s || !times || count<1)return -1;
+    int n=gm_plan_segments(times,count,s->duration,s->target_seg_sec,s->seg_starts,GM_MAX_SEGS);
+    if(n<1)return -1;
+    s->n_seg=n;for(int i=0;i<n;i++)s->seg_real_end[i]=-1;
+    return 0;
 }
 
 int gm_stream_track_init(gm_stream *s,int src,gm_buf *out,char *err,int errlen) {

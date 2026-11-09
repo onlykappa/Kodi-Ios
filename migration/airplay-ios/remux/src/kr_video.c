@@ -414,6 +414,7 @@ static int open_encoder(job *j, char *err, int errlen) {
     c->rc_max_rate = c->bit_rate * 3 / 2;
     c->rc_buffer_size = (int)c->bit_rate * 2;
     c->gop_size = 100000;      // one keyframe: the first frame of the segment
+    if(v->offline)c->gop_size=(int)fmax(1,round(av_q2d(v->fps)*2)); // future prepared movies seek/chunk every ~2 s
     c->max_b_frames = 0;       // pts == dts, closed GOP
     c->color_range = AVCOL_RANGE_MPEG;
     c->color_primaries = AVCOL_PRI_BT709; c->color_trc = AVCOL_TRC_BT709; c->colorspace = AVCOL_SPC_BT709;

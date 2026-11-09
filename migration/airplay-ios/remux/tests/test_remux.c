@@ -1705,15 +1705,15 @@ static long long bytes_to_open(const char *path) {
 static void test_preparation_resume(const char *work,const char *http_base) {
     struct {const char *file;int same;} cases[]={{"long_seek.mkv",1},{"long_pgs.mkv",1},{"h264_ac3_dts_srt.mkv",0},{"resume_av1_hdr.mkv",0}};
     kodi_airplay_prepare_keep_image_subs(1);kr_video_set_encoder("mpeg4");kodi_airplay_prepare_marks(1);
-    // r32: fragments are sized from the bitrate (6-60 s); for the short films here keep 6 s so each has several marks.
-    {   // ... but first: a real-sized conversion has few, large fragments with interleaved samples (Kodi reads them
-        // straight through; it opens a file by reading every fragment header).
+    // The indexed Kodi opener no longer walks all fragment headers. New files can use TV-sized chunks while
+    // retaining the interleaving and resume marks that keep Drive reads efficient.
+    {
         char input[1024],err[512]="";int calls=0;resume_sink one={0};
         snprintf(input,sizeof input,"%s/long_pgs.mkv",http_base);   // picture + sound, 65 s at a low bitrate
         CHECK(kodi_airplay_prepare_to(input,resume_write,&one,preparation_progress,&calls,err,sizeof err)==0,"r32: sized conversion: %s",err);
         int moofs=0,truns=0;for(size_t at=0;at+8<=one.len[0];){uint32_t n=AV_RB32(one.data[0]+at);if(n<8)break;
             if(!memcmp(one.data[0]+at+4,"moof",4)){moofs++;for(size_t k=at;k+4<at+n;k++)truns+=!memcmp(one.data[0]+k,"trun",4);}at+=n;}
-        CHECK(moofs>=1 && moofs<=3,"r32: a 65 s low-bitrate film has one or two fragments of up to 60 s (%d), not one per keyframe",moofs);
+        CHECK(moofs>=10 && moofs<=12,"TV preparation: a 65 s movie has about eleven six-second fragments (%d)",moofs);
         CHECK(truns>moofs*2,"r32: samples are interleaved inside fragments (%d runs in %d fragments)",truns,moofs);
         resume_free(&one);
     }
@@ -1939,6 +1939,21 @@ static void test_preparation_http(const char *http_base,const char *work) {
           "preparation never reads a non-loopback URL: %s",err);
 }
 
+static void test_long_gop_roku(const char *base,const char *work) {
+    char url[512],list[512],out[1024];snprintf(url,sizeof url,"%s/long-gop.mp4",base);
+    kr_remux_set_prefetch(0);
+    CHECK(start_session(url,KR_COMPAT_SEGMENTED,list,sizeof list)==KR_READY,"long-GOP indexed Roku opens: %s",kr_remux_message());
+    int port=kr_remux_port();reply video=http_get(port,"/video/index.m3u8",NULL);
+    double total=0,maxd=0;int target=0;int n=playlist_segments(video.body?video.body:"",&total,&maxd,&target);
+    CHECK(n==1 && total>31 && total<33 && target>=32,"source has a 30-s GOP: advertise its real window, never duplicate six-second tail segments (%d, %.3f)",n,total);
+    snprintf(out,sizeof out,"%s/long-gop-roku-video.mp4",work);start_offset=0;
+    check_rendition(port,"/video",n,32,out,0);int keys=0;
+    CHECK(decode_count(out,&keys)==768,"long-GOP Roku copy contains every frame exactly once");
+    snprintf(out,sizeof out,"%s/long-gop-roku-audio.mp4",work);
+    check_rendition(port,"/audio/1",n,32,out,1);
+    free(video.body);kr_remux_stop();kr_remux_set_prefetch(1);
+}
+
 typedef struct {kr_video *video;long frames;int count,len;} init_watch;
 static void observe_init(void *ctx,const uint8_t *data,int len) {
     init_watch *watch=ctx;watch->count++;watch->frames=kr_video_frames(watch->video);watch->len=len;
@@ -2015,7 +2030,7 @@ int main(int argc, char **argv) {
     if(argc>3 && !strcmp(argv[3],"--streaming-only")) {
         char url[1024],h264[1024];kr_video_set_encoder("mpeg4");
         snprintf(url,sizeof url,"file:%s/hevc_ac3_ass.mkv",fixture_dir);snprintf(h264,sizeof h264,"file:%s/h264_aac_srt.mkv",fixture_dir);
-        test_receivers(url,h264,work);
+        test_receivers(url,h264,work);test_long_gop_roku(argv[2],work);
         snprintf(url,sizeof url,"file:%s/flv_mp3.flv",fixture_dir);test_extra_format(url,"flv_mp3.flv",work,1);
         snprintf(url,sizeof url,"%s/hevc_ac3_ass.mkv",argv[2]);test_compat(url,"hevc-http-regression",1,0,"ac-3",work);
         printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
@@ -2121,7 +2136,7 @@ int main(int argc, char **argv) {
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
-        test_latency(argv[2]);test_startup_repairs(argv[2]);
+        test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);
         printf("-- overlapping converted seek requests\n"); fflush(stdout);
         test_seek_overlap(argv[2]);
     }

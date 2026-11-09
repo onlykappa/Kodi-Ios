@@ -942,17 +942,16 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
         // original MKV started at once): each fragment held all its picture, then all its sound, so Kodi's player
         // jumped back and forth inside every fragment, each jump a new Drive request; and it opens a file by reading
         // every fragment header (~1,700 for Interstellar). Samples are now interleaved inside fragments (12 at a time,
-        // like an MKV), and fragments hold about FRAG_BYTES of the movie (6-60 s, from its bitrate) instead of starting
-        // at every keyframe, at most FRAG_MAX bytes in memory.
-        const int64_t FRAG_BYTES=64LL*1024*1024,FRAG_MAX=96LL*1024*1024;
+        // like an MKV). The indexed opener now avoids a whole-file fragment scan, so keep new fragments near
+        // six seconds for TV startup/seeks rather than accumulating up to a minute of media. Preserve the bound.
+        const int64_t FRAG_MAX=96LL*1024*1024;
         int64_t rate=original->bit_rate>0?original->bit_rate:0;
         if(!rate && original->pb && original->duration>0){int64_t size=avio_size(original->pb);if(size>0)rate=(int64_t)(size*8.0/((double)original->duration/AV_TIME_BASE));}
-        double seconds=rate>0?FRAG_BYTES*8.0/(double)rate:6.0;
-        if(seconds<6)seconds=6;if(seconds>60)seconds=60;
+        double seconds=6.0;
         const char *forced=getenv("KR_PREP_FRAG_S");   // host tests: short test films keep several marks
         if(forced && atof(forced)>0)seconds=atof(forced);
         av_dict_set_int(&opts,"min_frag_duration",(int64_t)(seconds*1e6),0);
-        av_dict_set_int(&opts,"frag_duration",(int64_t)(seconds*2e6),0);
+        // Keyframe boundaries only; a hard duration cut could start the next fragment mid-GOP.
         av_dict_set_int(&opts,"frag_size",FRAG_MAX,0);
         av_dict_set(&opts,"frag_interleave","12",0);
         kr_remux_note("prepare: fragments of about %.0f s (source %.1f Mbit/s), samples interleaved",seconds,rate/1e6);

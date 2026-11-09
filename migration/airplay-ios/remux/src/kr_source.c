@@ -13,7 +13,7 @@
 // One cache per opened movie, shared by independent video/audio/subtitle cursors. Metadata is locked only
 // for lookup/copy/publication; a slow Drive read never holds the cache mutex. Block zero stays resident.
 #define SOURCE_BLOCK (128 * 1024)
-#define SOURCE_SLOTS 512
+#define SOURCE_SLOTS 1024
 typedef struct {
     int64_t at;
     uint8_t *data;

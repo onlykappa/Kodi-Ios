@@ -186,6 +186,8 @@ struct AVFormatContext *gm_stream_format_context(gm_stream *s);
 int gm_stream_track_unit(gm_stream *s, int src, int i, gm_buf *out, int *moov_end, char *err, int errlen);
 // Header from already-probed codec parameters; no source reads or segment production. Serialize with producers.
 int gm_stream_track_init(gm_stream *s, int src, gm_buf *out, char *err, int errlen);
+// Replace an estimated grid with known random-access timestamps (e.g. a prepared MP4's complete mfra).
+int gm_stream_plan_keyframes(gm_stream *s, const double *times, int count);
 
 /// Kodi iOS addition (r8): `dst`, the same file opened again (a second demuxer), takes `src`'s segment plan so both
 /// cut the same grid. Returns 0, or -1 when the two do not have the same streams.

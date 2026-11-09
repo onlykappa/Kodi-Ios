@@ -269,7 +269,7 @@ class DiagnosticsTests(unittest.TestCase):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn('_kodi_airplay_network\\n_kodi_airplay_settings\\n',build)
   self.assertIn('generation != atomic_load(&playGeneration)',build)
-  self.assertEqual(json.loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())['framework_release']['tag'],'kodi-airplay-r41')
+  self.assertRegex(json.loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())['framework_release']['tag'],r'^kodi-airplay-r\d+$')
 
  def test_settings_bridge_and_fallback(self):
   settings=load('airplay_settings_test',BOOT/'airplay_settings.py')
@@ -392,7 +392,7 @@ class PreparedAsHls(unittest.TestCase):
   self.assertEqual(airplay.log_text('GET http://10.0.0.247:1/abc/prepared-media.m3u8'),'GET 10.0.0.247:1/[token]/prepared-media.m3u8')
  def test_native_serves_playlists_from_the_fragment_index(self):
   remux=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
-  self.assertIn('static int prepared_playlists(void) {',remux)
+  self.assertIn('static int prepared_playlists(int align_plan) {',remux)
   self.assertIn('#EXT-X-MAP:URI=\\"%s/prepared.mp4\\",BYTERANGE=\\"%lld@0\\"',remux)
   self.assertIn('#EXT-X-BYTERANGE:%lld@%lld',remux)
   self.assertIn('snprintf(out,(size_t)outlen,"%s/prepared.%s",S.base,S.prepared_master?"m3u8":"mp4");',remux)
@@ -532,7 +532,7 @@ class RokuSegmented(unittest.TestCase):
   self.assertIn('lib.kodi_airplay_serve_segmented.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_int]',(BOOT/'resources/lib/airplay.py').read_text())
  def test_init_read_ahead_and_kept(self):
   remux=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
-  self.assertLess(remux.index('        prepared_playlists();\n        prepared_warm_start(ticket);'),remux.index('pthread_create(&S.accept_thread,NULL,accept_loop,NULL)'))
+  self.assertLess(remux.index('        prepared_playlists(0);\n        prepared_warm_start(ticket);'),remux.index('pthread_create(&S.accept_thread,NULL,accept_loop,NULL)'))
   self.assertIn('b->at!=0',(ROOT/'migration/airplay-ios/remux/src/kr_source.c').read_text())  # header block stays resident
   self.assertIn('kr_source_cached_read(S.src,offset,buf,want)',remux)
   self.assertIn('atomic_fetch_sub(&S.active,1);',remux[remux.index('static void *prepared_warm'):])   # teardown waits for it

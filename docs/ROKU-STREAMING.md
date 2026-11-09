@@ -4,7 +4,9 @@ Use Play on TV → the Roku / Media Assistant route first for a 4K movie. Kodi f
 separate video/audio HLS renditions to the TV. Compatible H.264/HEVC video keeps its resolution and encoded picture;
 there is no required local download, separate media server, or Apple TV box.
 
-The first segment is buffered before launching Media Assistant. A slow first read can therefore keep Kodi opening
+The first segment is buffered before launching Media Assistant. Older prepared movies can have longer keyframe
+windows; those are advertised with their real durations, so opening one can take longer. New preparations aim at
+six-second fragments with frequent keyframes. A slow first read can therefore keep Kodi opening
 the movie for a while; the TV is launched once video and audio are available. After launch, playlist access alone
 is not success: Kodi waits for video delivery before stopping its own player. Keep Kodi open on the iPhone while
 using Media Assistant; it is the streaming server. Existing background work slows during casting.
@@ -33,6 +35,13 @@ Practical recommendations:
   travels from Drive to the phone and then across the local network to Roku; “downloaded” in the Drive workflow
   does not by itself mean those bytes are already on the iPhone. No workflow change is required for this repair.
 
-References reviewed: [Roku streaming specifications](https://developer.roku.com/dev/docs/media/streaming-specifications.md),
-[Roku HLS/DASH guidance](https://developer.roku.com/dev/docs/developer-program/media-playback/streaming.md),
+References reviewed: [Roku media documentation](https://developer.roku.com/dev/docs/media) and
 [Apple AirPlay guidance](https://developer.apple.com/design/human-interface-guidelines/airplay).
+
+
+Wi-Fi is the local iPhone-to-Roku link; it can work without an internet connection when the complete movie is
+available to Kodi offline. The installed Drive playback helper caches resolved URLs, then requests authenticated
+Google media byte ranges. Its URL cache is not a complete offline movie. A Google Drive app's offline storage is
+also separate from Kodi's sandbox. If playback with Wi-Fi off uses mobile data, it still has internet access.
+A direct Roku download requires a TV-readable URL and compatible media/authentication. Private Drive URLs need the
+Google credentials handled by the phone's bridge; account permissions and file visibility are unchanged.

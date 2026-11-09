@@ -16,6 +16,29 @@ if [[ ! -f "$WORK/fixtures/dvd.idx" || ! -f "$WORK/fixtures/dvd.sub" ]]; then
   python3 -B "$HERE/make_pgs.py" "$WORK/fixtures/dvd.idx" --vobsub
 fi
 ASS="$(cd "${3:-$FF/../asshost}" && pwd)"
+if [[ ! -f "$WORK/fixtures/long-gop.mp4" ]]; then
+  ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=128x72:rate=24:duration=32' \
+    -f lavfi -i 'sine=frequency=440:duration=32' -c:v libx264 -preset ultrafast -g 720 -sc_threshold 0 \
+    -c:a aac -b:a 64k -movflags empty_moov+default_base_moof+frag_keyframe -min_frag_duration 30000000 "$WORK/fixtures/long-gop.mp4"
+fi
+# Match the prepared writer's finite init duration (FFmpeg empty_moov alone leaves these fields zero).
+python3 -B - "$WORK/fixtures/long-gop.mp4" <<'PY'
+import struct,sys
+from pathlib import Path
+p=Path(sys.argv[1]);data=bytearray(p.read_bytes())
+def walk(start,end):
+    at=start
+    while at+8<=end:
+        size,kind=struct.unpack_from('>I4s',data,at)
+        if size<8 or at+size>end:break
+        if kind in (b'moov',b'trak',b'mdia'):walk(at+8,at+size)
+        if kind in (b'mvhd',b'mdhd') and data[at+8]==0:
+            scale=struct.unpack_from('>I',data,at+20)[0]
+            struct.pack_into('>I',data,at+24,round(32.023*scale))
+        if kind==b'tkhd' and data[at+8]==0:struct.pack_into('>I',data,at+28,32023)
+        at+=size
+walk(0,len(data));p.write_bytes(data)
+PY
 if [[ ! -f "$WORK/fixtures/dovi.mkv" ]]; then
   python3 -B "$HERE/make_dovi.py" "$WORK/fixtures/dovi.mkv"
 fi
