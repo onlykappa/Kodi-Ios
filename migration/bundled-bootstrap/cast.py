@@ -330,7 +330,7 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
    except Exception:busy=''
   props=airplay_flow.problem_view('slow_source',title,busy=busy)
   props['plain']=props['text']
-  notices.note('problem','Your internet is too slow for this movie',props['text'])
+  notices.note('problem',props['title'],props['text'])
  elif outcome=='selection_timeout':props=airplay_flow.problem_view('selection_timeout',title)
  elif outcome=='unreachable':
   import work_state
@@ -369,6 +369,9 @@ def tv_link(xbmc,library,url,playing,kind):
   if not hasattr(lib,'kodi_airplay_serve'):return url,None
   try:lib.kodi_airplay_close()
   except Exception:pass
+  try:
+   import time,xbmcgui;airplay.mark_serve(xbmcgui.Window(10000),time.time())
+  except Exception:pass
   out=ctypes.create_string_buffer(512)
   xbmc.executebuiltin('ActivateWindow(busydialognocancel)')
   source=cast.phone_source(playing,url).encode('utf-8')
@@ -395,17 +398,31 @@ def tv_link(xbmc,library,url,playing,kind):
  return url,None
 
 def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
- served=None
+ original_url=url;served=None;paused_here=False
+ def restore_phone():
+  if paused_here and xbmc.getCondVisibility('Player.Paused'):player.pause()
  if tv['kind'] in ('roku','dlna','chromecast'):
   try:start=float(player.getTime())
   except Exception:start=0
+  if library:
+   paused_here=not xbmc.getCondVisibility('Player.Paused')
+   if paused_here:player.pause()
   url,served=tv_link(xbmc,library,url,playing,tv['kind'])
+  if served is None and needs_phone and library:
+   try:
+    lib=airplay.load(library);why=airplay.message(lib);lib.kodi_airplay_close()
+    import xbmcgui;airplay.clear_serve(xbmcgui.Window(10000))
+   except Exception:why=''
+   restore_phone()
+   text=why or 'The movie could not be prepared for the TV. Try again.'
+   notices.note('problem',"Play on TV couldn't start",text);dialog.ok('Play on TV',text);return
  try:
   if tv['kind']=='roku':xbmc.log('Kodi iOS Play on TV: Roku took the link via '+cast.roku_play(tv['host'],url,title,cast.http_post),xbmc.LOGINFO)
   elif tv['kind']=='dlna':cast.dlna_play(tv['control'],url,title,cast.http_post_body)
   elif tv['kind']=='chromecast':cast.chromecast_play(tv['host'],url,title,start=start)
   else:send_airplay(xbmc,dialog,player,library,url,title,playing);return
  except cast.TVRefused as error:
+  restore_phone()
   diagnostics.log_exception(xbmc,'play_on_tv',error,receiver=tv['kind'])
   # Owner (build-138): a Roku TV without "Play on Roku" (404) goes straight to AirPlay (Roku TVs have AirPlay built
   # in) instead of a message; Apple's device sheet then lists that TV.
@@ -415,14 +432,35 @@ def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
   notices.note('problem',"Play on TV couldn't start",tv['name']+': '+str(error))
   dialog.ok('Play on TV',tv['name']+': '+str(error));return
  except Exception as error:
+  restore_phone()
   diagnostics.log_exception(xbmc,'play_on_tv',error,receiver=tv['kind'])
   notices.note('problem',"Play on TV couldn't start",tv['name']+' did not accept the video. Make sure the TV is on.')
   dialog.ok('Play on TV',tv['name']+' did not accept the video. Make sure the TV is on, then try again.');return
- player.stop();notices.note('info','Playing on '+tv['name'],title or '')
+ if served:
+  import time,xbmcgui
+  lib=airplay.load(library);home=xbmcgui.Window(10000);monitor=xbmc.Monitor()
+  ui=FlowUI(xbmc,xbmcgui,dialog,title);ui.show('connecting',('opening','waiting_tv'))
+  def network():
+   lines=[airplay.log_text(line) for line in airplay.log_lines(lib)]
+   for line in lines:xbmc.log('Kodi iOS AirPlay: '+line,xbmc.LOGINFO)
+   airplay.activity(lines,home,time.time());airplay.mark_serve(home,time.time())
+   return airplay.network(lib,home)
+  outcome=cast.receiver_outcome(network,lambda s:ui.canceled() or monitor.waitForAbort(s))
+  ui.close()
+  if outcome!='playing':
+   why=airplay.message(lib);lib.kodi_airplay_close();airplay.clear_busy(home);airplay.clear_serve(home)
+   restore_phone()
+   if outcome=='aborted':return
+   props=__import__('airplay_flow').problem_view(outcome,title,why or 'The TV connected, but the video did not start.')
+   notices.note('problem',props['title'],props['text'])
+   ui=FlowUI(xbmc,xbmcgui,dialog,title);choice=ui.ask(props,monitor);ui.close()
+   if choice=='retry':send(xbmc,dialog,player,library,tv,original_url,title,needs_phone,playing)
+   return
+ player.stop();notices.note('info',('Streaming to ' if served else 'Sent to ')+tv['name'],title or '')
  if served:
   import time,xbmcgui
   airplay.mark_busy(xbmcgui.Window(10000),time.time())
-  xbmcgui.Dialog().notification('Playing on '+tv['name'],'From this iPhone: keep Kodi open and on Wi-Fi.',xbmcgui.NOTIFICATION_INFO,6000)
+  xbmcgui.Dialog().notification('Streaming to '+tv['name'],'From this iPhone: keep Kodi open and on Wi-Fi.',xbmcgui.NOTIFICATION_INFO,6000)
  elif needs_phone:dialog.ok('Play on TV','Playing on '+tv['name']+'. This stream comes from Elementum on the phone: keep Kodi open and on Wi-Fi.')
 
 if __name__=='__main__':run()

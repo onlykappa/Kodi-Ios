@@ -37,6 +37,11 @@ if [[ ! -f "$WORK/fixtures/long_big.mkv" ]]; then
   ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=640x360:rate=10:duration=1300' -f lavfi -i 'sine=frequency=440:duration=1300' \
     -c:v libx264 -preset ultrafast -g 20 -b:v 600k -c:a aac -b:a 64k "$WORK/fixtures/long_big.mkv"
 fi
+# A cue seek far into a large movie must obey the whole-request subtitle deadline.
+if [[ ! -f "$WORK/fixtures/long_sub.mkv" ]]; then
+  ffmpeg -hide_banner -loglevel error -y -i "$WORK/fixtures/long_big.mkv" -i "$WORK/fixtures/subs.srt" \
+    -map 0:v -map 0:a -map 1:s -c copy "$WORK/fixtures/long_sub.mkv"
+fi
 if [[ ! -f "$WORK/fixtures/resume_av1_hdr_big.mkv" ]]; then
   ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=640x360:rate=24:duration=95' -f lavfi -i 'sine=frequency=440:duration=95' \
     -vf 'format=yuv420p10le,setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc' -c:v libaom-av1 -cpu-used 8 -crf 30 -row-mt 1 -threads 4 -g 24 \

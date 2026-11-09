@@ -31,6 +31,9 @@ int kr_remux_start(const char *url, int lan, int compat, char *out, int outlen);
 // r35: reserve before queuing work; canceled queued attempts never open the source. Cancel is nonblocking.
 unsigned kr_remux_begin(int lan);
 int kr_remux_start_for(unsigned ticket, const char *url, int lan, int compat, char *out, int outlen);
+// Buffer the first requested video/audio segment before launching a receiver with a short media timeout.
+// Bounded/cancelable; serializes with start/stop. Prepared files retain their byte-range path.
+int kr_remux_prime_for(unsigned ticket, double seconds);
 void kr_remux_cancel(unsigned ticket); // 0 cancels whichever request currently owns the session
 void kr_remux_stop_for(unsigned ticket); // cleanup cannot destroy a newer request
 void kr_remux_player(unsigned ticket, int route_selected);

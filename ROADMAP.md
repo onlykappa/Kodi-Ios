@@ -267,3 +267,11 @@ Owner authorized a new test build. Existing r41 candidate delivered as build 213
 main was not merged. Packaging and downloaded-IPA verification passed; see docs/PROGRESS.md and
 reports/roku-drive-test-delivery.json. P4-005/P4-006 and task counts are unchanged: actual Drive/Roku startup,
 sustained 4K playback and seeking still require owner evidence. The cold prepared-file cache limitation stays open.
+
+
+## Build-213 Roku failure and repair — 2026-11-09
+
+The owner reports both routes still fail and authorizes repairs and a new test IPA. ISSUE-139 tracks startup lane
+waits, shared Drive reads, subtitle deadlines, false success/slow-internet diagnoses and resume ownership. Candidate
+validation and delivery continue on PR #16, retaining the Drive workflow. Existing device task states and counts
+remain unchanged; actual Roku playback is still an acceptance gate. See docs/PROGRESS.md and docs/ROKU-STREAMING.md.

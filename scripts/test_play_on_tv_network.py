@@ -331,7 +331,22 @@ class SlowSource(unittest.TestCase):
       'request: converted video segment 0 waited 17876 ms, production 0 ms, result -1']
  def test_the_build_201_log_reads_as_a_slow_source(self):
   self.assertTrue(cast.slow_source(self.LOG))
-  self.assertTrue(cast.slow_source(['GET /prepared.mp4 bytes=0-1 -206 0 B 8950 ms']))
+  self.assertFalse(cast.slow_source(['GET /prepared.mp4 bytes=0-1 -206 0 B 8950 ms']))
+ def test_build213_queue_waits_and_teardown_are_not_upstream_measurements(self):
+  for line in ('request: video segment -1 waited 45345 ms, production 0 ms, result 0',
+               'GET /video/init.mp4 500 0 B 12157 ms: session stopped',
+               'GET /video/init.mp4 200 3222 B 45345 ms'):
+   self.assertFalse(cast.slow_source([line]),line)
+ def test_playlist_and_audio_do_not_claim_video_playback(self):
+  net={'expected':1,'tv_requests':3,'tv_media':1,'tv_video':0,'phase':'connecting'}
+  self.assertEqual(cast.airplay_outcome(lambda:1,lambda _:False,timeout=2,network=lambda:net),'failed')
+  self.assertEqual(cast.receiver_outcome(lambda:net,lambda _:False,timeout=2),'failed')
+  net['tv_video']=1
+  self.assertEqual(cast.airplay_outcome(lambda:1,lambda _:False,network=lambda:net),'playing')
+  self.assertEqual(cast.receiver_outcome(lambda:net,lambda _:False),'playing')
+ def test_roku_never_waits_forever_for_a_disconnected_tv(self):
+  self.assertEqual(cast.receiver_outcome(lambda:{'tv_requests':0},lambda _:False),'unreachable')
+  self.assertEqual(cast.receiver_outcome(lambda:{},lambda _:True),'aborted')
  def test_normal_reads_are_not_slow(self):
   for line in ('GET /prepared.mp4 bytes=73859072-7098056596 -206 1703936 B 6984 ms','request: audio segment 0 waited 3771 ms, production 0 ms, result 0',
                'GET /audio/1/seg0.m4s 200 291200 B 4184 ms','startup: source opened after 8371 ms (attempt 2)'):
@@ -345,7 +360,8 @@ class SlowSource(unittest.TestCase):
  def test_the_card_has_no_pause_button(self):
   import airplay_flow
   v=airplay_flow.problem_view('slow_source','Movie',busy='Interstellar is uploading to Google Drive at 0.2 MB/s')
-  self.assertEqual(v['title'],'Your internet is too slow for this movie');self.assertEqual(v['icon'],'wifi.png')
+  self.assertEqual(v['title'],'The movie took too long to load');self.assertEqual(v['icon'],'wifi.png')
+  self.assertNotIn('downloaded movie',v['text']);self.assertNotIn('internet is too slow',v['text'])
   self.assertIn('Interstellar is uploading to Google Drive at 0.2 MB/s at the same time.',v['text'])
   self.assertEqual((v['b1.action'],v['b2.action'],v['link.action']),('retry','','watch'))
   self.assertNotIn('pause',json.dumps(v).lower())
@@ -442,6 +458,41 @@ class AnyTv(unittest.TestCase):
   self.assertIn('kr_remux_start_for(ticket, url, 1, compat ? 1 : 0, out, outlen)',build)
   self.assertIn('_kodi_airplay_serve\\n',build);self.assertIn("== 29 ]]",build)
 
+class RokuHandoff(unittest.TestCase):
+ def phone(self,paused=False):
+  state=[paused];events=[]
+  def pause():state[0]=not state[0];events.append('pause' if state[0] else 'resume')
+  player=types.SimpleNamespace(getTime=lambda:0,pause=pause,stop=lambda:events.append('stop'))
+  xbmc=types.SimpleNamespace(getCondVisibility=lambda _:state[0],log=lambda *a:None,LOGINFO=1,LOGWARNING=2,
+                           Monitor=lambda:types.SimpleNamespace(waitForAbort=lambda _:False))
+  return state,events,player,xbmc
+ def test_failed_preparation_restores_phone_and_never_launches_roku(self):
+  for was_paused in (False,True):
+   state,events,player,xbmc=self.phone(was_paused)
+   def prepare(*args):
+    self.assertTrue(state[0]);events.append('buffer');return ('source',None)
+   lib=types.SimpleNamespace(kodi_airplay_close=lambda:events.append('close'))
+   dialog=types.SimpleNamespace(ok=lambda *a:events.append('problem'))
+   gui=types.SimpleNamespace(Window=lambda _:Window())
+   with patch.object(controller,'tv_link',side_effect=prepare),patch.object(airplay,'load',return_value=lib),\
+        patch.object(airplay,'message',return_value='Read timed out'),patch.object(controller.notices,'note'),\
+        patch.object(cast,'roku_play') as launch,patch.dict(sys.modules,{'xbmcgui':gui}):
+    controller.send(xbmc,dialog,player,'lib',{'kind':'roku','host':'tv','name':'Roku'},'source','Movie',True)
+   launch.assert_not_called();self.assertEqual(state[0],was_paused)
+   self.assertEqual(events,['buffer','close','problem'] if was_paused else ['pause','buffer','close','resume','problem'])
+ def test_cancel_before_video_returns_to_phone(self):
+  state,events,player,xbmc=self.phone()
+  lib=types.SimpleNamespace(kodi_airplay_close=lambda:events.append('close'))
+  gui=types.SimpleNamespace(Window=lambda _:Window())
+  ui=types.SimpleNamespace(show=lambda *a:None,canceled=lambda:True,close=lambda:None)
+  with patch.object(controller,'tv_link',return_value=('tv-link',True)),patch.object(airplay,'load',return_value=lib),\
+       patch.object(airplay,'message',return_value=''),patch.object(airplay,'log_lines',return_value=[]),\
+       patch.object(airplay,'network',return_value={'tv_requests':2,'tv_video':0}),\
+       patch.object(controller,'FlowUI',return_value=ui),patch.object(cast,'roku_play',return_value='Media Assistant'),\
+       patch.object(controller.notices,'note'),patch.dict(sys.modules,{'xbmcgui':gui}):
+   controller.send(xbmc,object(),player,'lib',{'kind':'roku','host':'tv','name':'Roku'},'source','Movie',True)
+  self.assertFalse(state[0]);self.assertEqual(events,['pause','close','resume'])
+
 class RokuSegmented(unittest.TestCase):
  """ISSUE-138 (owner's build-209/211 logs): a Roku read the prepared playlists and the 3.7 KB init (7.8 s), then
  nothing; Roku's AirPlay read prepared.m3u8 only and Apple's player stopped. Roku's streaming specifications: CMAF HLS
@@ -482,7 +533,8 @@ class RokuSegmented(unittest.TestCase):
  def test_init_read_ahead_and_kept(self):
   remux=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
   self.assertLess(remux.index('        prepared_playlists();\n        prepared_warm_start(ticket);'),remux.index('pthread_create(&S.accept_thread,NULL,accept_loop,NULL)'))
-  self.assertIn('if(PC.at[i]==0)continue;',remux)        # block 0 (the init) is never evicted
+  self.assertIn('b->at!=0',(ROOT/'migration/airplay-ios/remux/src/kr_source.c').read_text())  # header block stays resident
+  self.assertIn('kr_source_cached_read(S.src,offset,buf,want)',remux)
   self.assertIn('atomic_fetch_sub(&S.active,1);',remux[remux.index('static void *prepared_warm'):])   # teardown waits for it
  def test_airplay_rejection_of_the_prepared_playlist_converts_once(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()

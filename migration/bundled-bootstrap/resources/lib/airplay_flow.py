@@ -88,9 +88,9 @@ def problem_view(kind, title='', reason='', busy='', settings=False):
             buttons(('Try again', 'retry'), ('Cancel', 'watch'))
     elif kind == 'slow_source':
         # r38 (owner, build 201: "port the wifi card"; uploads keep going in the background, so no pause button).
-        props.update(title='Your internet is too slow for this movie', icon='wifi.png')
-        props['text'] = ("The TV connected, but this iPhone couldn't get the movie from Google Drive fast enough to keep "
-                         "it playing.%s A downloaded movie doesn't need the internet." % (' %s at the same time.' % busy if busy else ''))
+        props.update(title='The movie took too long to load', icon='wifi.png')
+        props['text'] = ("The TV connected, but reading the movie from Drive took too long for playback to start.%s "
+                         "Try again to reconnect to the movie." % (' %s at the same time.' % busy if busy else ''))
         buttons(('Try again', 'retry'), link=('Keep watching here', 'watch'))
     elif kind == 'selection_timeout':
         props.update(title='No TV was chosen', icon='tv.png', text='Choose a TV in the AirPlay list to play there.')

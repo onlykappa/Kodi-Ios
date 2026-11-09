@@ -1388,9 +1388,9 @@ Status: FIXED IN SOURCE (build 210); device test pending.
 
 ## ISSUE-138 — Roku: reaches the TV, then fails (2026-11-09)
 
-Status: R41 CANDIDATE BUILT AND DELIVERED in test build 213 (2026-11-09); Roku playback remains unverified and needs
-the owner's TV. Native run 42547843379 and IPA run 42550189064 passed. Delivery receipt:
-`reports/roku-drive-test-delivery.json`. The cold-cache block-fill limitation below remains open.
+Status: R41 FAILED ON THE OWNER'S ROKU in build 213 (2026-11-09). Both Media Assistant and AirPlay still failed
+for two movies. Native run 42547843379 and IPA run 42550189064 proved the build, not playback. Delivery receipt:
+`reports/roku-drive-test-delivery.json`. The follow-up repair and evidence are tracked in ISSUE-139 below.
 - Owner (build 209, log 1430bbc1, Roku without the Apple TV): "it reaches tv but fails"; Media Assistant shows a black
   screen with the title and time, then "wifi issues on my phone".
 - Media Assistant route (16:55:44): the Roku (Roku/DVP-15.3) took the link and read prepared.m3u8, prepared-media.m3u8
@@ -1483,3 +1483,69 @@ Owner's TV must verify:
 3. The time of the first init and segment requests.
 4. What the Roku screen says if it still fails.
 5. The Roku's model, from Settings › System › About.
+
+
+## ISSUE-139 — Build 213: Drive startup stalls and false slow-internet diagnosis (2026-11-09)
+
+Status: implementation under validation on PR #16; device acceptance pending. Owner authorizes repairs and a new test
+build in the current request. Keep the existing Drive library and file identities; no required local download.
+
+The private build-213 log (two movies, Media Assistant and AirPlay) provides concrete failures:
+
+- Media Assistant's tiny audio/video init responses took 17.5/26.0 seconds for one movie and 23.0/45.3 seconds for
+  the other. The log attributes the delay to waiting for a production lane, with zero production in the request.
+  `get_part` took the segment lane and `make_part` generated the whole first segment before splitting its init.
+- A prepared-file request for 128 KiB waited 18.3 seconds while warming the first 8 MiB held the same 4 MiB cache
+  lock. Cached prefixes could not bypass warming, and a partial block was marked present without a refill path.
+- Separate video/audio/subtitle sources fetched/probed the same Drive bytes independently. The converted-video
+  path records actual source I/O of 12.7–13.8 seconds; queue waits alone do not identify its cause or Wi-Fi speed.
+- A subtitle response took 43 seconds. The existing 1.5-second limit covered only waiting for its mutex;
+  opening/probing/reading afterward had no whole-request deadline.
+- The slow-source classifier treated any five-second lane wait or near-empty canceled HTTP response as slow
+  internet. A successful playlist fetch also counted as playing before any video media had reached the TV.
+- The initial resume timer and compatibility restart both sought on a replacement item (requested position versus
+  0.0 seconds). Prepared-file delivery counters were updated only after an entire long range finished.
+- Roku was launched before the asynchronous first-segment producer finished, leaving its own timeout to absorb
+  the Drive startup delay. A launch acknowledgement also stopped Kodi and reported success immediately.
+
+Repair:
+
+1. Per-movie shared byte cache (128 KiB blocks, 64 MiB maximum, first block retained), with independent cursors,
+   cancellation and connections. Duplicate in-flight reads share a fill; cached prefixes bypass missing-block I/O.
+   Cache locks never span network reads. Partial blocks extend on demand; premature EOF reconnects at the missing
+   offset within one timeout budget. The cache is released with the session, never shared across movie versions.
+2. Copy-track init headers are built from probed codec metadata before producers start. Converted-video headers
+   publish after the first encoded packet; an init waiter can take them while the full media producer continues.
+   AC-3/E-AC-3 retain their first-packet parser path when their codec configuration cannot be synthesized safely.
+3. Prepared reads request only the needed bytes, share the source cache, and use one kept-open foreground cursor.
+   Warming uses another cursor and at most 1 MiB, so it cannot own the foreground connection or a 4 MiB lock.
+4. Before launching Roku, buffer the first video and default audio segment. Native segmented AirPlay and its
+   compatibility restart buffer the actual requested resume segment. Preparation remains bounded and cancelable;
+   subsequent segments use existing prefetch. Compatible 4K HEVC is copied by the Roku path.
+5. Optional subtitle opening, probing, reading and lane waiting share a 1.5-second deadline. An expired demuxer is
+   retired; media lanes continue, and later cues can retry using the session cache.
+6. Network snapshots distinguish TV requests, delivered media and delivered video. Playlists and audio alone
+   remain connecting. Prepared-video counters update during delivery. Media Assistant waits for video before
+   stopping Kodi; failure restores playback and never launches a known-unavailable phone stream.
+7. Slow-source classification requires measured source I/O. The card reports a movie-loading timeout, without
+   asserting slow internet or recommending local files. One timer owns the replacement item's resume seek. Kodi pauses its own playback before buffering a TV
+   handoff and resumes it on failure/cancel; background work slows from the start of buffering.
+
+Regression protection: native shared-read/stall/cancellation/partial-refill and no-media-read init tests; real
+converted init callback timing; startup priming at a resume position; bounded distant subtitle request; existing
+packet/frame/timestamp/seek/shutdown suite. Python regressions cover playlist/audio-only false readiness, launch
+monitor bounds, and queue/cancellation false source diagnoses. Full validation and build receipts are recorded in
+PROGRESS when completed. An early local harness run hit a shell parse error because its script changed while it was
+running; rerun from stable files is required. The first new startup test also omitted the session token prefix and
+received HTTP 404; its request setup was corrected before retesting. Neither is device evidence. The full host run then exposed a 167 ms copy/converted timestamp mismatch in
+metadata-only init headers (the normal delayed header carries a decode-lead edit list) and incorrect buffered HTTP
+seeks after opening a clone at a nonzero offset (the protocol and AVIO cursors started at different positions).
+Added the matching metadata-derived edit list and synchronized the AVIO cursor; regression tests retain both
+cases. Early init also exposed an FLV rewind failure after canceling the initial segment: a failed seek to zero left
+no frames. The converter now reopens once for an empty rewind and uses its buffered beginning. The targeted
+streaming regression passes 117 checks, including all these failures; the expanded source and startup sets pass
+39 and 13 checks. Full-suite and iPhoneOS candidate validation still must pass before framework publication.
+
+Recommendations and acceptance steps: docs/ROKU-STREAMING.md. Device startup, sustained playback, sound, HDR and
+forward/backward seeks remain unverified until the owner tests the resulting IPA. The log proves contact with the
+TV; it cannot establish a Wi-Fi throughput problem. Main is unchanged.

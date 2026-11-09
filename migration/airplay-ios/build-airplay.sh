@@ -447,6 +447,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
         AVPlayer *player = [AVPlayer playerWithURL:address];
         if (@available(iOS 15.0, *)) player.audiovisualBackgroundPlaybackPolicy=AVPlayerAudiovisualBackgroundPlaybackPolicyContinuesIfPossible;
         const double startAt = atomic_exchange(&pendingStart, 0.0);
+        __block BOOL initialSeekAllowed = YES;
         if(!playbackStateFor(generation,0,1))return;
         keepUpdate();
         [routeWatch invalidate];
@@ -466,7 +467,8 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 playerNote(@"ready, presentation %@, %lu tracks, external %d", sizeText(item.presentationSize),
                            (unsigned long)item.tracks.count, player.externalPlaybackActive);
                 // r39: start where Kodi was, and show the subtitle the stream marks DEFAULT (the one Kodi showed).
-                if (startAt > 1 && isfinite(startAt)) {
+                if (initialSeekAllowed && startAt > 1 && isfinite(startAt)) {
+                    initialSeekAllowed = NO;
                     playerNote(@"starting at %.1f s (where Kodi was)", startAt);
                     [player seekToTime:CMTimeMakeWithSeconds(startAt, 600) toleranceBefore:kCMTimeZero toleranceAfter:kCMTimeZero];
                 }
@@ -517,6 +519,10 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 compatTried = YES; restarting = YES; atomic_store(&compatBusy,1);
                 double at = CMTimeGetSeconds(player.currentTime);
                 if (!isfinite(at) || at < 0) at = 0;
+                // ReadyToPlay may have fired before the initial seek completed. Preserve Kodi's requested
+                // position, and give the replacement timer sole ownership of the seek on the new item.
+                if (at < 1 && isfinite(startAt) && startAt > 1) at = startAt;
+                initialSeekAllowed = NO;
                 playerNote(@"restarting in compat mode (picture converted to H.264) at %.1f s", at);
                 setNote(@"Converting the picture for this TV\u2026");
                 showConverting(YES);
@@ -524,6 +530,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                     if(generation!=atomic_load(&playGeneration) || restartTicket!=atomic_load(&remuxTicket)){free(source);return;}
                     char playlist[512] = "";
                     int r = kr_remux_start_for(restartTicket,source, 1, 1, playlist, sizeof playlist);
+                    if(r==KR_READY)r=kr_remux_prime_for(restartTicket,at);
                     free(source);
                     NSString *link = r == KR_READY ? @(playlist) : nil;
                     dispatch_async(dispatch_get_main_queue(), ^{
@@ -725,6 +732,7 @@ __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, c
         if(generation!=atomic_load(&playGeneration)){free(copy);return;}
         char playlist[512] = "";
         int r = kr_remux_start_for(ticket,copy, 1, 0, playlist, sizeof playlist);
+        if(r==KR_READY)r=kr_remux_prime_for(ticket,atomic_load(&pendingStart));
         free(copy);
         if (generation != atomic_load(&playGeneration)) return;
         if (r == KR_READY) { playerNote(@"stream ready (see server endpoint)"); presentPlayer(@(playlist), name, YES, generation,ticket); }
@@ -784,6 +792,8 @@ __attribute__((visibility("default"))) int kodi_airplay_serve_segmented(const ch
     os_unfair_lock_unlock(&ownershipLock);
     setNote(nil);
     int r = kr_remux_start_for(ticket, url, 1, KR_COMPAT_SEGMENTED, out, outlen);
+    if(r==KR_READY)r=kr_remux_prime_for(ticket,0);
+    if(r!=KR_READY && out && outlen>0)*out=0;
     playerNote(@"served in segments for a TV's own player: result %d", r);
     return r;
 }

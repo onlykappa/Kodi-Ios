@@ -1,5 +1,22 @@
 # Persistent progress
 
+## Build-213 Roku repair — 2026-11-09
+
+The owner's new log confirms r41 failed for two movies over both Media Assistant and AirPlay. The owner explicitly
+requests repairs and a test build, retaining the current Drive workflow. ISSUE-139 records the log evidence and
+root causes; ISSUE-138 is now marked failed on the owner's device rather than merely pending.
+
+Implemented shared cached Drive reads, independent fast init delivery, first-segment buffering before receiver
+launch, a whole-request subtitle deadline, video-delivery readiness, prepared-range progress counters, resume
+ownership and factual timeout wording. Media Assistant retains compatible 4K; native compatibility conversion may
+use 1080p SDR. Recommendations and acceptance steps: [ROKU-STREAMING.md](ROKU-STREAMING.md).
+
+Focused validation: 39 source/init checks, 13 startup/early-header/subtitle checks and 117 focused streaming checks pass; 100 Python casting/UI
+checks and the project/UI guidance checks pass. Full native decoding/seek regression and iPhoneOS candidate CI
+are next. The desktop rig cannot start in this workspace because its Kodi binary is absent; existing card layout
+is reused, with device visual review pending. Native publication, IPA packaging and device acceptance are not yet
+complete. Work stays on PR #16's feature branch; main is unchanged.
+
 ## Roku from Drive: test build 213 — 2026-11-09
 
 Owner explicitly requested a test build in the current session. Packaged the existing r41 candidate from

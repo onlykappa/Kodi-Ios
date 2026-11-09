@@ -1038,6 +1038,68 @@ AVFormatContext *gm_stream_format_context(gm_stream *s) { return s ? s->in : NUL
 // Kodi iOS addition (r8, not upstream): one single-track unit (ftyp+moov+moof+mdat) over segment i, the init/media
 // split in *moov_end, so the server caches the init and the media segment from one pass (the init request no longer
 // muxes segment 0 a second time). Same windows and output as gm_stream_video_segment / gm_stream_audio_segment.
+// Match delay_moov's edit list without reading media: gm_ts leads video DTS by a fixed number of frames.
+// Omitting this edit shifts copied video by that lead (about 167 ms), breaking alignment with converted video.
+static int metadata_edit(gm_stream *s,int src,AVFormatContext *oc,gm_buf *out) {
+    AVStream *input=s->in->streams[src],*output=oc->streams[0];int64_t lead_ticks=0;
+    if(input->codecpar->codec_type==AVMEDIA_TYPE_VIDEO) {
+        AVRational fps=input->avg_frame_rate;if(fps.num<=0 || fps.den<=0)fps=input->r_frame_rate;
+        if(fps.num<=0 || fps.den<=0)return -1;
+        int lead=(input->codecpar->video_delay>0?input->codecpar->video_delay:1)+2;if(lead>16)lead=16;
+        int64_t num=(int64_t)lead*fps.den*output->time_base.den,den=(int64_t)fps.num*output->time_base.num;
+        lead_ticks=(num+den-1)/den;if(lead_ticks>INT32_MAX)return -1;
+    }
+    int moov=-1,trak=-1;
+    for(int at=0;at+8<=out->len;) {
+        uint32_t n=AV_RB32(out->data+at);if(n<8 || n>(uint32_t)(out->len-at))return -1;
+        if(!memcmp(out->data+at+4,"moov",4)){moov=at;break;}at+=(int)n;
+    }
+    if(moov<0)return -1;
+    int limit=moov+(int)AV_RB32(out->data+moov);
+    for(int at=moov+8;at+8<=limit;) {
+        uint32_t n=AV_RB32(out->data+at);if(n<8 || n>(uint32_t)(limit-at))return -1;
+        if(!memcmp(out->data+at+4,"trak",4)){trak=at;break;}at+=(int)n;
+    }
+    if(trak<0)return -1;
+    int track_size=(int)AV_RB32(out->data+trak);
+    if(box_end_offset(out->data+trak+8,track_size-8,"edts")>=0)return 0;
+    int tkhd=box_end_offset(out->data+trak+8,track_size-8,"tkhd");if(tkhd<0)return -1;
+    int at=trak+8+tkhd;
+    if(buf_ensure(out,out->len+36)<0)return -1;
+    memmove(out->data+at+36,out->data+at,(size_t)(out->len-at));
+    uint8_t *edit=out->data+at;memset(edit,0,36);
+    AV_WB32(edit,36);memcpy(edit+4,"edts",4);AV_WB32(edit+8,28);memcpy(edit+12,"elst",4);
+    AV_WB32(edit+20,1);AV_WB32(edit+28,(uint32_t)lead_ticks);AV_WB32(edit+32,0x00010000);
+    AV_WB32(out->data+moov,AV_RB32(out->data+moov)+36);AV_WB32(out->data+trak,track_size+36);
+    out->len+=36;return 0;
+}
+
+int gm_stream_track_init(gm_stream *s,int src,gm_buf *out,char *err,int errlen) {
+    if(!s || !out || src<0 || src>=(int)s->in->nb_streams)return -1;
+    AVCodecParameters *p=s->in->streams[src]->codecpar;
+    // AC-3/E-AC-3 need the muxer's first-packet parser; keep their existing delayed-header path.
+    if(p->codec_id==AV_CODEC_ID_AC3 || p->codec_id==AV_CODEC_ID_EAC3 || p->extradata_size<=0)return -1;
+    gm_sel sel={p->codec_type==AVMEDIA_TYPE_VIDEO?src:-1,p->codec_type==AVMEDIA_TYPE_AUDIO?src:-1,0};
+    if(sel.vid_src<0 && sel.aud_src<0)return -1;
+    AVFormatContext *oc=NULL;AVIOContext *io=NULL;out_ctx *ctx=NULL;int v,a;
+    out->len=0;
+    int r=open_output(s,out,0,sel,&oc,&io,&ctx,&v,&a,err,errlen);
+    if(r<0)return r;
+    AVDictionary *opts=NULL;
+    av_dict_set(&opts,"movflags","frag_keyframe+empty_moov+default_base_moof+frag_discont",0);
+    r=avformat_write_header(oc,&opts);av_dict_free(&opts);avio_flush(io);
+    if(r>=0 && metadata_edit(s,src,oc,out)<0)r=-1;
+    int moov=0;
+    for(int at=0;at+8<=out->len;) {
+        uint32_t size=((uint32_t)out->data[at]<<24)|((uint32_t)out->data[at+1]<<16)|((uint32_t)out->data[at+2]<<8)|out->data[at+3];
+        if(size<8 || size>(uint32_t)(out->len-at))break;
+        if(!memcmp(out->data+at+4,"moov",4))moov=1;
+        at+=(int)size;
+    }
+    if(r>=0 && !moov)r=-1;
+    close_output(oc,io,ctx);return r<0?r:0;
+}
+
 int gm_stream_track_unit(gm_stream *s, int src, int i, gm_buf *out, int *moov_end, char *err, int errlen) {
     if (!s || !out || !moov_end || i < 0 || i >= s->n_seg || src < 0 || src >= (int)s->in->nb_streams) {
         set_err(err, errlen, "bad segment index", 0); return -1;

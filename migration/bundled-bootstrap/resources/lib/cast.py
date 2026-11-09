@@ -155,19 +155,16 @@ def player_problem(lines):
  return ''
 
 SLOW_MS=5000
-SLOW_PATTERNS=(r'waited (\d+) ms',r'source I/O (\d+) ms')
+SLOW_PATTERNS=(r'source I/O (\d+) ms',)
 
 def slow_source(lines):
- """Owner's build-201 log: the TV asked for the picture, but the phone needed 20.7 s to read the movie from Google
- Drive for one segment and the TV gave up. True when KodiAirPlay's lines show the phone waiting on the movie itself:
- a request or a source read taking 5 s or more, or a served range that moved under 1 MB in 5 s or more (a TV reading
- a prepared file keeps one range open for seconds, so only a near-empty one counts)."""
+ """Only measured upstream read time is source evidence. Lane waits, client disconnects, canceled requests
+ and socket response times cannot distinguish Drive from preparation or receiver/network delays."""
  for line in lines or ():
+  if 'session stopped' in line or 'cancelled' in line or 'canceled' in line:continue
   for pattern in SLOW_PATTERNS:
    m=re.search(pattern,line)
    if m and int(m.group(1))>=SLOW_MS:return True
-  m=re.search(r'^GET /\S+ (?:bytes=\S+ )?-?\d+ (\d+) B (\d+) ms',line)
-  if m and int(m.group(1))<1048576 and int(m.group(2))>=SLOW_MS:return True
  return False
 
 def airplay_settle(state,wait,network=None,seconds=45):
@@ -220,6 +217,18 @@ AIRPLAY_WORDS={'opening':'Opening the video for AirPlay…',
 
 PHASES=('opening','waiting_tv','connecting')
 
+def receiver_outcome(network,wait,timeout=60):
+ """A Roku launch acknowledgement is not playback. Wait for video delivery; playlists/audio alone do not count."""
+ elapsed=0.0
+ while elapsed<timeout:
+  net=network() or {}
+  if net.get('tv_video',0)>0:return 'playing'
+  if net.get('phase') in ('failed','canceled'):return 'failed'
+  if elapsed>=AIRPLAY_CONNECT and not net.get('tv_requests',0):return 'unreachable'
+  if wait(0.5):return 'aborted'
+  elapsed+=0.5
+ return 'failed'
+
 def airplay_outcome(state,wait,timeout=25,network=None,stage=None):
  """Separate file opening, the owner's TV choice and the actual connection. Each phase has its own bound.
  A TV cannot fetch an unopened file: only a started connection may return 'unreachable'."""
@@ -236,7 +245,8 @@ def airplay_outcome(state,wait,timeout=25,network=None,stage=None):
   if now<0 or phase=='failed':return 'failed'
   choosing=phase=='waiting_tv'
   preparing=phase in ('opening','inspecting','ready')
-  if now==1 and (reached or (not local and not choosing and not preparing)):return 'playing'
+  delivered=bool(net and net.get('tv_video',net.get('tv_requests',0))>0)
+  if now==1 and (delivered or (not local and not choosing and not preparing)):return 'playing'
   if choosing:
    group='waiting_tv';age_key='player_age_s';limit=AIRPLAY_SELECTION;expired='selection_timeout'
   elif local or preparing:

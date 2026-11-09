@@ -63,7 +63,11 @@ kr_audio *kr_audio_open(gm_source src, int index, char *err, int errlen) {
     a->in = avformat_alloc_context();
     if (!io || !a->in) { seterr(err, errlen, "out of memory", 0); av_free(iob); goto fail; }
     a->in->pb = io;
-    int r = avformat_open_input(&a->in, NULL, NULL, NULL);
+    a->in->probesize=2*1024*1024;a->in->max_analyze_duration=2*AV_TIME_BASE;
+    AVDictionary *opts=NULL;
+    av_dict_set(&opts,"use_mfra_for","pts",0);
+    av_dict_set(&opts,"skip_estimate_duration_from_pts","1",0);
+    int r = avformat_open_input(&a->in, NULL, NULL, &opts);av_dict_free(&opts);
     if (r < 0) { seterr(err, errlen, "open", r); a->in = NULL; avio_context_free(&io); goto fail; }
     if ((r = avformat_find_stream_info(a->in, NULL)) < 0) { seterr(err, errlen, "probe", r); goto fail; }
     if (index < 0 || index >= (int)a->in->nb_streams || a->in->streams[index]->codecpar->codec_type != AVMEDIA_TYPE_AUDIO) {
