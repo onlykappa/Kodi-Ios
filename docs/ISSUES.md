@@ -1781,3 +1781,12 @@ c3f0560c3731f53408a9e7c202b7108ef472272e72c873042e7b400bc1c79e2c and retained th
 as `archive_sha256`. The binary still equals the successful native CI artifact; no native rebuild or behavior
 change is needed. Validate through the actual portrait fetch helper before retrying packaging. No build-215 IPA
 was published. This was a pinning mistake, not an upstream download or runtime streaming failure.
+
+
+ISSUE-142 delivery/retest: the actual portrait fetch helper accepted the corrected r25 binary digest and published
+r6 glass bar; all 28 glass-bar contract tests passed. Packaging run 42698801783 then passed every stage and
+published build 216 from fd6ef1cdc7ca26397d1cfea0c0486bb270490417. The downloaded public asset matched SHA256,
+ZIP integrity, exact verified r43 framework and r25 executable after signature removal, current casting/transfer
+helpers, Python 3.11 bytecode, seek markers and 154 unsigned/unencrypted ARM64 images. Delivery receipt is
+reports/streaming-recommendations-delivery.json. Native/software gates are complete; actual iPhone/Roku smoothness,
+caption rendering, sound and visual acceptance remain pending. No live Drive account access or main merge.

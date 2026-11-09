@@ -1,5 +1,23 @@
 # Persistent progress
 
+## Build 216: recommendations and repairs delivered — 2026-11-09
+
+[Download test IPA 216](https://github.com/onlykappa/Kodi-Ios/releases/download/build-216/Kodi-iOS-Customized-Touch-r10.ipa).
+Packaged from fd6ef1cdc7ca26397d1cfea0c0486bb270490417 by successful run 42698801783. Includes verified AirPlay
+r43 (3,319 host checks, zero failures, E2E recovery and ARM64 compile) and Kodi r25 (touch drag/seek diagnostics).
+The downloaded 620,454,027-byte IPA matches asset SHA256 df65bccbbc3d22ca09d65b17309f58014911f810ce9818406ecdb2ce96c1ef93,
+passes ZIP integrity, and embeds the exact verified framework/executable after signature removal. Current helper
+sources, Python 3.11 bytecode, diagnostics and 154 unsigned/unencrypted ARM64 images verified.
+Receipt: [reports/streaming-recommendations-delivery.json](../reports/streaming-recommendations-delivery.json).
+
+Install as an update, keep the existing Drive setup, and test Media Assistant first with captions enabled in Kodi
+and Roku. Check five minutes of playback, forward/backward seeks, then native AirPlay separately. Compatible
+4K HEVC stays copied; Roku H.264/compatibility conversion can use 1080p SDR. Actual fluidity, captions, sound and
+visual/device acceptance remain pending. The UI policy was read and existing controls/layouts reused. The local
+software reference was slower than real time, retained in its report; it does not measure iPhone hardware speed.
+Main and device phase counts are unchanged. Build 215 stopped on an incorrectly typed digest pin; the corrected
+binary pin passed the actual fetch contract before this successful build. ISSUE-142 preserves all failures.
+
 ## Owner-approved recommendations: implementation and IPA — 2026-11-09
 
 All five recommendations are implemented: explicit receiver capability routing and one compatibility retry,
@@ -11,7 +29,7 @@ The UI guidance and project scans pass. Existing layouts and controls are reused
 rig confirms no Kodi binary is installed, so visual/device review remains pending. No desktop rebuild was started.
 ISSUE-142 retains both native fixture failures and their diagnoses. Corrected native run 42695837108 passed
 3,319 checks, zero failures, end-to-end conversion/recovery and the iPhoneOS framework compile. The candidate is
-pinned as r43 alongside verified Kodi r25. Publication and test IPA packaging follow. Main is unchanged.
+pinned as r43 alongside verified Kodi r25. Verified test IPA 216 is delivered above. Main is unchanged.
 
 ## Public 4K movie check — 2026-11-09
 

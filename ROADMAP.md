@@ -311,3 +311,9 @@ no phase counts or main merge changed.
 read-ahead and obsolete-read cancellation, adaptive resumable upload chunks, existing-row transfer phases and
 native seek diagnostics are implemented for the next test IPA. See ISSUE-142 and PROGRESS for validation/build
 status. Device acceptance and phase counts remain unchanged; no main merge is authorized.
+
+
+2026-11-09 delivery: owner-approved recommendations and repairs are pushed and included in verified test IPA 216
+(run 42698801783), with AirPlay r43 and Kodi r25. Native checks/recovery, packaging and downloaded-asset validation
+pass; see reports/streaming-recommendations-delivery.json and ISSUE-142. iPhone/Roku/visual acceptance remains
+pending and existing phase counts are unchanged. Main was not merged.
