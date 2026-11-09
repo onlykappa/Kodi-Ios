@@ -14,7 +14,7 @@ class Scheduling(unittest.TestCase):
  def queue(self):
   q=prep.Queue(self.profile,object(),object());q.scan=lambda *a,**k:None
   return q
- def service_pass(self,q,uploads=False):
+ def service_pass(self,q,uploads=False,signed_in=True):
   tree=ast.parse((ROOT/'migration/bundled-bootstrap/service.py').read_text())
   fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='drive_uploads')
   loop=next(n for n in fn.body if isinstance(n,ast.While))
@@ -26,7 +26,7 @@ class Scheduling(unittest.TestCase):
   mods={'xbmcaddon':types.SimpleNamespace(Addon=lambda *a:addon)}
   env=dict(profile=self.profile,root=str(self.profile/'phone'),state=str(self.profile/'uploads.json'),
            delay=5,last_schedule=None,preparation=q,monitor=types.SimpleNamespace(waitForAbort=wait,abortRequested=lambda:False),
-           accounts=types.SimpleNamespace(get_accounts=lambda:{'test':{}}),idle=lambda:True,log=logs.append,drive=object(),
+           accounts=types.SimpleNamespace(get_accounts=lambda:{'test':{}} if signed_in else {}),idle=lambda:True,log=logs.append,drive=object(),
            xbmcaddon=mods['xbmcaddon'],xbmcvfs=types.SimpleNamespace(translatePath=lambda p:''),
            urllib=__import__('urllib'),json=json,driveupload=driveupload,prepare_downloads=prep,transfer_control=control,
            diagnostics=diagnostics,work_state=work_state,drive_uploads=types.SimpleNamespace(told_signed_out=False),notices=types.SimpleNamespace(add=lambda *a:None))
@@ -43,6 +43,14 @@ class Scheduling(unittest.TestCase):
  def test_idle_upload_runs_then_the_existing_conversion_starts(self):
   calls,_,_=self.service_pass(self.queue(),uploads=True)
   self.assertEqual(calls,['uploaded','started'])
+ def test_missing_account_explains_idle_work_without_touching_the_queue(self):
+  calls,_,logs=self.service_pass(self.queue(),signed_in=False)
+  self.assertEqual(calls,[]);self.assertTrue(any('drive_account_missing' in line for line in logs))
+ def test_a_busy_upload_lock_is_reported_and_retried_automatically(self):
+  with driveupload.transfer_lock(str(prep.location(self.profile).parent)):
+   calls,waits,logs=self.service_pass(self.queue())
+  self.assertEqual(calls,[]);self.assertEqual(waits,[5,20])
+  self.assertTrue(any('transfer_lock_busy' in line for line in logs))
  def test_saved_pause_without_an_explicit_start_is_respected_and_logged(self):
   control.set_paused(self.profile,'conv',True)
   calls,_,logs=self.service_pass(self.queue());self.assertEqual(calls,[])

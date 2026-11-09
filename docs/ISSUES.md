@@ -1847,3 +1847,13 @@ those platform stubs and made default tests apply the window patch too; all 32 s
 The first scheduler harness missed the service function-attribute stub, and the initial diagnostic request counter
 used a dict-only reader for a JSON list. Added the function stub and explicitly counted list requests; the
 scheduler/control diagnostics tests now pass. Full native rebuild and IPA validation follow.
+
+
+ISSUE-143 scheduler coverage now executes the actual service loop with isolated queue/control files. Ten tests
+pass: automatic idle conversion, upload followed by conversion, old/new Start now, preserving unrelated upload
+pauses, invalid/blocked requests, honoring explicit conversion pause, retry eligibility, missing account, busy
+transfer lock and privacy-safe control counters. Silent missing-account/lock skips now emit a scheduler reason.
+Focused existing suites also pass: preparation 59, runtime 4, diagnostics 14, slowdown 21, library status 48,
+status model 27, pages 37, direct downloads 24 and uploads 23. Portrait suite is still running at this checkpoint.
+Native r26 run 42705743785 from 403bd10e683e8054c6437a1883895d662f80d1d9 is building; the previous failed
+harness run remains recorded above. No app layout, styling, Drive library, credentials or main branch changes.

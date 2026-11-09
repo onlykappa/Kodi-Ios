@@ -1,0 +1,50 @@
+{
+  "date": "2026-11-09",
+  "issue": "ISSUE-143",
+  "status": "IMPLEMENTED_NATIVE_BUILD_PENDING",
+  "native_run": 42705743785,
+  "native_source_commit": "403bd10e683e8054c6437a1883895d662f80d1d9",
+  "seek_regression": {
+    "compiled_real_methods": [
+      "CGUISliderControl::OnMouseEvent",
+      "CGUISliderControl::SetFromPosition",
+      "CGUISliderControl::SendClick",
+      "CGUIWindow::OnMouseAction",
+      "CGenericTouchActionHandler::OnTouchGestureEnd"
+    ],
+    "scenarios": 32,
+    "passed": true,
+    "previous_r25_fails_same_test": true,
+    "platform_rendering_dependencies_stubbed": true
+  },
+  "scheduler_tests": {
+    "cases": 10,
+    "passed": true,
+    "actual_service_loop_executed": true,
+    "isolated_synthetic_queue_and_controls": true
+  },
+  "existing_python_suites": {
+    "preparation": 59,
+    "runtime": 4,
+    "diagnostics": 14,
+    "slowdown": 21,
+    "library_status": 48,
+    "work_state": 27,
+    "pages": 37,
+    "debrid": 24,
+    "drive_upload": 23
+  },
+  "automatic_start": {
+    "startup_seconds": 5,
+    "idle_poll_seconds": 20,
+    "pending_command_seconds": 5,
+    "explicit_pause_and_retry_backoff_respected": true,
+    "old_pending_start_requests_recovered": true
+  },
+  "old_device_idle_gate": "not conclusively known; old capture lacks pause flags",
+  "ui_policy_read": true,
+  "layout_changed": false,
+  "device_tested": false,
+  "live_drive_accessed": false,
+  "main_merged": false
+}

@@ -375,11 +375,16 @@ def drive_uploads(monitor,home,profile):
   return prepare_downloads.Queue(profile,drive,native,
     download_file=lambda *args:prepare_downloads.download(*args,context=tls_context()),
     notify=lambda kind,title,text:notices.add(profile,kind,title,text),stream=stream,log=log)
- # First pass 30 s after start (owner, build 145: the Library was opened, and left, before the old 120 s first pass).
+ # Start automatically after 5 s; discover new idle work within 20 s without opening Library status.
  delay=5;last_schedule=None
  while not monitor.waitForAbort(delay):
   delay=20
-  if not idle() or not accounts.get_accounts():continue
+  if not idle():continue
+  if not accounts.get_accounts():
+   schedule={'reason':'drive_account_missing'}
+   if schedule!=last_schedule:
+    diagnostics.event(log,'preparation','scheduler',**schedule);last_schedule=schedule
+   continue
   # Finished torrents still seeding in Elementum's folder go to Drive too (owner: nothing should stay on the phone).
   seeding=[]
   try:
@@ -457,7 +462,11 @@ def drive_uploads(monitor,home,profile):
        finally:preparation.busy=False
      preparation.runtime=None
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))
-  except driveupload.Stop:pass
+  except driveupload.Stop as error:
+   schedule={'reason':'transfer_lock_busy' if str(error)=='A Drive transfer is already running' else 'stop_requested',
+             'conversion_paused':transfer_control.paused(profile,'conv'),'uploads_paused':transfer_control.paused(profile,'up')}
+   if schedule!=last_schedule:
+    diagnostics.event(log,'preparation','scheduler',**schedule);last_schedule=schedule
   except driveupload.SignedOut as error:
    # Once per refused sign-in, then quiet until the owner signs in again (no new refresh is tried meanwhile).
    if not getattr(drive_uploads,'told_signed_out',False):
