@@ -1,0 +1,55 @@
+{
+  "source_url": "https://download.blender.org/demo/movies/BBB/bbb_sunflower_2160p_30fps_normal.mp4.zip",
+  "evidence": "host streaming pipeline, not Kodi GUI or iPhone/Roku",
+  "source_codec": "4K h264 above Roku H264 limits",
+  "host_encoder": "MPEG4 reference encoder; iOS uses H264 VideoToolbox",
+  "startup_seconds": 0.732,
+  "segments": 106,
+  "seeks": [
+    {
+      "segment": 0,
+      "bytes": 3409618,
+      "fetch_seconds": 31.433,
+      "packets": 178,
+      "first_pts": "0.066667",
+      "keyframe": true,
+      "resolution": "1920x1080",
+      "monotonic_dts": true
+    },
+    {
+      "segment": 53,
+      "bytes": 5283741,
+      "fetch_seconds": 44.672,
+      "packets": 180,
+      "first_pts": "318.000000",
+      "keyframe": true,
+      "resolution": "1920x1080",
+      "monotonic_dts": true
+    },
+    {
+      "segment": 2,
+      "bytes": 5294887,
+      "fetch_seconds": 132.73,
+      "packets": 180,
+      "first_pts": "12.000000",
+      "keyframe": true,
+      "resolution": "1920x1080",
+      "monotonic_dts": true
+    },
+    {
+      "segment": 0,
+      "bytes": 3409618,
+      "fetch_seconds": 0.049,
+      "packets": 178,
+      "first_pts": "0.066667",
+      "keyframe": true,
+      "resolution": "1920x1080",
+      "monotonic_dts": true
+    }
+  ],
+  "passed": true,
+  "first_frame_decodes_passed": 3,
+  "limitations": "Host software reference has no x86 assembly; 31\u2013133 s cold requests are not real-time. iOS hardware conversion and actual Roku playback remain unverified. Startup timing excludes first-media priming.",
+  "realtime_performance_passed": false,
+  "phone_hardware_tested": false
+}

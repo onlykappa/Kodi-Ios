@@ -1835,10 +1835,12 @@ static void test_preparation(const char *work) {
         CHECK(kr_remux_start(url,0,1,playlist,sizeof playlist)==KR_READY && !strstr(playlist,"/prepared.") && kr_remux_compat()==1,
               "prepared file restarts in compat mode as converted HLS: %s %s",playlist,kr_remux_message());
         kr_remux_stop();kr_video_set_encoder(encoder);
-        // r41 (ISSUE-138): a Roku's own player gets the prepared movie remuxed: picture copied (no conversion), the
-        // regular 6-s segment playlists, no byte ranges over the muxed fragments.
-        CHECK(kr_remux_start(url,0,KR_COMPAT_SEGMENTED,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/master.m3u8") && kr_remux_compat()==0,
-              "segmented: a prepared file is remuxed for a Roku, picture copied: %s %s",playlist,kr_remux_message());
+        // Roku copies sources within its codec limits. The synthetic DoVi fixture advertises HEVC level 255,
+        // so it must take the conversion route even though the prepared-file path can serve its bytes unchanged.
+        int receiver_convert=!strcmp(files[i],"dovi.mkv");
+        kr_video_set_encoder("mpeg4"); // host reference for the iPhone's H.264 encoder
+        CHECK(kr_remux_start(url,0,KR_COMPAT_SEGMENTED,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/master.m3u8") && kr_remux_compat()==receiver_convert,
+              "segmented: prepared %s follows Roku codec limits (convert %d): %s %s",files[i],receiver_convert,playlist,kr_remux_message());
         {
             int sport=kr_remux_port();reply m=http_get(sport,playlist,NULL);
             char vurl[600]="";snprintf(vurl,sizeof vurl,"%s",playlist);char *mm=strstr(vurl,"/master.m3u8");if(mm)strcpy(mm,"/video/index.m3u8");
@@ -1849,7 +1851,7 @@ static void test_preparation(const char *work) {
             CHECK(v.status==200 && v.body && !strstr(v.body,"BYTERANGE") && target>0 && target<=12,"segmented: segments of at most 12 s (target %d)",target);
             free(m.body);free(v.body);
         }
-        kr_remux_stop();
+        kr_remux_stop();kr_video_set_encoder(encoder);
         CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared."),"prepared file is served as it is again afterwards");
         {   // r41: the start of the file is read ahead as soon as the playlists exist
             char warm[16384]="";int seen=0;

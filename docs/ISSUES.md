@@ -1736,3 +1736,18 @@ cases. Compatibility preparation itself is inside the exception handler so an in
 phone playback. A CLI artifact download was rejected by the artifact storage endpoint; the GitHub connector
 successfully fetched the same candidate archive, which was downloaded and SHA256 checked locally. No release
 pin is accepted until the full native suite passes.
+
+
+ISSUE-142 full candidate run 42694006257: framework compilation passed; host suite failed 3 of 3,319 checks
+(all one legacy prepared-file test), so no framework release or IPA was published from it. The synthetic DoVi
+fixture has HEVC level 255. The new documented Roku codec limit correctly requires conversion, while the old test
+required copy mode and had restored the unavailable host H.264 encoder. Update that test to require conversion
+for this invalid-level fixture, retaining packet-copy assertions for the compatible sources including 4K HEVC,
+and use the same MPEG4 host reference encoder as other conversion tests. Full native retest follows.
+The public 4K H.264 test produced valid 1080p seek output and three decoded samples, but cold Linux software
+conversion took 31–133 s, which fails real-time performance. This is retained in its report; iPhone hardware
+conversion and actual Roku/caption acceptance remain pending.
+
+The precommit scanner blocked a generated Python bytecode file from the private native-artifact inspection
+(import run without `-B`). Removed that generated file, reran with bytecode disabled, and rescanned before commit.
+No binary, media or private account data was committed.

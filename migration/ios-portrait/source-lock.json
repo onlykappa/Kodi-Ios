@@ -4,17 +4,20 @@
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
   "build_tag": "kodi-ios-portrait-r25",
-  "staged_patch_note": "r25 candidate: touch drag seek ownership, gesture/seek submission timing and first decoded-frame queue timing. Native build/device acceptance pending.",
+  "staged_patch_note": "r25 verified native build includes touch drag seek ownership, gesture/seek submission timing and first decoded-picture queue timing. Device acceptance pending.",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
+    "tag": "kodi-ios-portrait-r25",
+    "asset": "Kodi-portrait-executable.zip",
+    "sha256": "fe7844edf12bb16c2f6315d492eb494d21e5c6ce0375a88027a8dd9170237af4"
+  },
+  "build_note": "r25: native run 42692028826 passed executable compilation and publication from db5e554d4d6cf514d127609b1c1396475a95363c. Release executable equals the CI artifact; binary and patch SHA256 and pinned Kodi upstream commit verified. Includes the touch seek repair plus diagnostic timings; actual display and iPhone/Roku acceptance pending.",
+  "previous_executable_release": {
     "tag": "kodi-ios-portrait-r24",
     "asset": "Kodi-portrait-executable.zip",
     "sha256": "02d5357af48bbf991efddc9ed5babecf06e19b826c5c648cf335c7073d767a80"
   },
-  "build_note": "r23: includes the r22 native navigation/audio fixes plus whole-page show scrolling and downloaded-show parent-row suppression. Native run 42078285510 succeeded; release executable matches CI artifact byte-for-byte, binary SHA256, patch SHA256 and pinned upstream commit verified before pinning. Owner requested fresh test IPA.",
-  "previous_executable_release": {
-    "tag": "kodi-ios-portrait-r22",
-    "asset": "Kodi-portrait-executable.zip",
-    "sha256": "1b30b81921b27416113c362fd1443f4f88d2ecd64087f9b8491ba04628a17172"
-  }
+  "verified_run": 42692028826,
+  "source_commit": "db5e554d4d6cf514d127609b1c1396475a95363c",
+  "patch_sha256": "4302ac8684103345f806ec46a509e9f624e1374a51176afd0f4ab7ee4dcbc56e"
 }
