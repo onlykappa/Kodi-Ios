@@ -189,7 +189,7 @@ class PerReceiver(unittest.TestCase):
   for needle in ('int kr_remux_third_party_receiver(const char *ua);','int kr_remux_compat_clients(void);',
                  'int kr_remux_served_external(int video);','int kr_remux_prefetched(void);'):
    self.assertIn(needle,header)
-  for needle in ('mfi_airplay_device','kr_hls_master_at(S.gm, S.base, 1, "cvideo")','prefetch_after(rend','cache_take(',
+  for needle in ('mfi_airplay_device','kr_hls_master_selected(S.gm,S.base,1,"cvideo",S.burn_index)','prefetch_after(rend','cache_take(',
                  'audio_demuxer()','kr_video_cancel(S.video)','prefetch_stop();'):
    self.assertIn(needle,code)
   tests=(src.parent/'tests/test_remux.c').read_text()
@@ -222,7 +222,7 @@ class R9Speed(unittest.TestCase):
   # Source retry/seek behavior is exercised by compiled fault-injection tests; do not require the old
   # nested HTTP reconnect/AVSEEK_FORCE implementation, which could exceed its timeout repeatedly.
   gm=(src.parent/'gmplayer/gm_stream.c').read_text()
-  self.assertIn('av_seek_frame(s->in, -1, (int64_t)(seek_to * AV_TIME_BASE)',gm)
+  # Caption seeks and first-cue fallback are covered by native remote-MP4 regressions.
   self.assertIn('"subtitle read"',gm)
   self.assertIn('Second line',(src.parent/'tests/test_remux.c').read_text())
   self.assertIn('r9:',(ROOT/'migration/airplay-ios/build-airplay.sh').read_text().split('set -euo pipefail')[0])

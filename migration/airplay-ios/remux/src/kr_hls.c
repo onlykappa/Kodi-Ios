@@ -113,6 +113,10 @@ static int name_taken(char names[][160], int count, const char *name) {
 char *kr_hls_master(gm_stream *s, const char *base, int compat) { return kr_hls_master_at(s, base, compat, "video"); }
 
 char *kr_hls_master_at(gm_stream *s, const char *base, int compat, const char *video_dir) {
+    return kr_hls_master_selected(s,base,compat,video_dir,-1);
+}
+
+char *kr_hls_master_selected(gm_stream *s,const char *base,int compat,const char *video_dir,int subtitle) {
     sb b = {0};
     sb_add(&b, "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n");
     int n = gm_stream_track_count(s), sel = gm_stream_selected_audio(s), nau = 0, nsub = 0, deflt = -1;
@@ -147,7 +151,8 @@ char *kr_hls_master_at(gm_stream *s, const char *base, int compat, const char *v
         strcpy(names[nau + nsub++], name);
         sb_add(&b, "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",NAME=\"%s\"", name);
         if (*kr_language(t.language)) sb_add(&b, ",LANGUAGE=\"%s\"", kr_language(t.language));
-        sb_add(&b, ",DEFAULT=NO,AUTOSELECT=NO,FORCED=NO,URI=\"%s/subs/%d/index.m3u8\"\n", base, t.src_index);
+        sb_add(&b, ",DEFAULT=%s,AUTOSELECT=%s,FORCED=NO,URI=\"%s/subs/%d/index.m3u8\"\n",
+               t.src_index==subtitle?"YES":"NO",t.src_index==subtitle?"YES":"NO",base,t.src_index);
     }
     char vcodec[64]; kr_hls_video_codec(s, vcodec, sizeof vcodec);
     AVFormatContext *f = gm_stream_format_context(s);
@@ -162,7 +167,7 @@ char *kr_hls_master_at(gm_stream *s, const char *base, int compat, const char *v
     if (v >= 0 && f && v < (int)f->nb_streams) {
         AVStream *st = f->streams[v];
         w = st->codecpar->width; h = st->codecpar->height;
-        AVRational r = st->avg_frame_rate.num > 0 && st->avg_frame_rate.den > 0 ? st->avg_frame_rate : st->r_frame_rate;
+        AVRational r = av_guess_frame_rate(f,st,NULL);
         if (r.num > 0 && r.den > 0) fps = av_q2d(r);
     }
     if (compat) {

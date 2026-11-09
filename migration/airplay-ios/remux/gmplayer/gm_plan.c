@@ -19,7 +19,7 @@ int gm_plan_segments(const double *kf_times, int n_kf,
         double t = kf_times[i];
         // Ignore out-of-order / duplicate times defensively.
         if (t <= seg_start) continue;
-        if (t - seg_start >= target_sec) {
+        if (t - seg_start + 1e-6 >= target_sec) {
             // Don't create a tiny tail segment: if the remaining media after this
             // keyframe is less than half the target, let the current segment
             // absorb it (avoids a sub-second final segment).

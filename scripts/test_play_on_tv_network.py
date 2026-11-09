@@ -347,6 +347,26 @@ class SlowSource(unittest.TestCase):
  def test_roku_never_waits_forever_for_a_disconnected_tv(self):
   self.assertEqual(cast.receiver_outcome(lambda:{'tv_requests':0},lambda _:False),'unreachable')
   self.assertEqual(cast.receiver_outcome(lambda:{},lambda _:True),'aborted')
+ def test_receiver_feedback_distinguishes_delivery_from_playback(self):
+  net={'tv_requests':5,'tv_video':1,'receiver_state':'buffering'}
+  self.assertEqual(cast.receiver_outcome(lambda:net,lambda _:False,timeout=1),'failed')
+  net['receiver_state']='play'
+  self.assertEqual(cast.receiver_outcome(lambda:net,lambda _:False),'playing')
+  net['receiver_error']=True
+  self.assertEqual(cast.receiver_outcome(lambda:net,lambda _:False),'failed')
+
+class RokuFeedback(unittest.TestCase):
+ def test_player_snapshot_and_privacy(self):
+  sample=b'<player error="false" state="play"><plugin id="782875" name="private title"/><format audio="aac" video="hevc" video_res="3840x2160" captions="webvtt"/><position>6916 ms</position><url>private-url</url></player>'
+  status=cast.roku_player('tv',lambda url,timeout:sample)
+  self.assertEqual(status,{'state':'play','error':False,'player_id':'782875','position_ms':6916,'audio':'aac','video':'hevc','video_res':'3840x2160','captions':'webvtt'})
+  self.assertEqual(cast.roku_player('tv',lambda *a:b'<player'),{})
+  self.assertEqual(cast.roku_player('tv',lambda *a:b'x'*40000),{})
+ def test_unavailable_feedback_is_optional_and_model_has_no_device_ids(self):
+  def blocked(*a):raise OSError('unavailable')
+  self.assertEqual(cast.roku_player('tv',blocked),{})
+  status=cast.roku_model('tv',lambda *a:b'<device-info><model-number>4800X</model-number><serial-number>private-serial</serial-number><wifi-mac>private-mac</wifi-mac></device-info>')
+  self.assertEqual(status['model-number'],'4800X');self.assertNotIn('private',str(status))
  def test_normal_reads_are_not_slow(self):
   for line in ('GET /prepared.mp4 bytes=73859072-7098056596 -206 1703936 B 6984 ms','request: audio segment 0 waited 3771 ms, production 0 ms, result 0',
                'GET /audio/1/seg0.m4s 200 291200 B 4184 ms','startup: source opened after 8371 ms (attempt 2)'):
@@ -459,6 +479,9 @@ class AnyTv(unittest.TestCase):
   self.assertIn('_kodi_airplay_serve\\n',build);self.assertIn("== 29 ]]",build)
 
 class RokuHandoff(unittest.TestCase):
+ def setUp(self):
+  for name in ('roku_model','roku_player'):
+   mock=patch.object(cast,name,return_value={});mock.start();self.addCleanup(mock.stop)
  def phone(self,paused=False):
   state=[paused];events=[]
   def pause():state[0]=not state[0];events.append('pause' if state[0] else 'resume')
@@ -521,6 +544,12 @@ class RokuSegmented(unittest.TestCase):
    self.assertEqual(self.link(kind)[1],[('serve',b'http://127.0.0.1:1234/drive',0)])
   (link,_),calls=self.link('roku',segmented=False)
   self.assertEqual((link,calls),('http://192.168.1.24:5000/t/prepared.m3u8',[('serve',b'http://127.0.0.1:1234/drive',0)]))
+ def test_tv_server_receives_the_current_subtitle_choice(self):
+  calls,lib=self.lib();gui=types.SimpleNamespace(Window=lambda _:Window());vfs=types.SimpleNamespace()
+  xbmc=types.SimpleNamespace(log=lambda *a:None,executebuiltin=lambda *a:None,LOGINFO=1,LOGWARNING=2)
+  with patch.object(controller.airplay,'load',return_value=lib),patch.object(controller.airplay,'send_subtitles',return_value=(0,'','eng')) as choose,patch.dict(sys.modules,{'xbmcvfs':vfs,'xbmcgui':gui}):
+   link,served=controller.tv_link(xbmc,'lib','http://tv/source','http://127.0.0.1/source','roku')
+  choose.assert_called_once();self.assertTrue(served);self.assertIn('/master.m3u8',link)
  def test_native_segmented_mode(self):
   remux=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
   self.assertIn('enum { KR_COMPAT_SEGMENTED = 2 };',(ROOT/'migration/airplay-ios/remux/src/kr_remux.h').read_text())

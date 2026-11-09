@@ -291,3 +291,10 @@ The owner-authorized r42 repair is delivered on PR #16 as build 214. Native CI 4
 passed, and the downloaded archive/framework/Python code/ARM64 binaries were verified. Receipt:
 reports/roku-drive-test-delivery-r42.json. Retained-4K Media Assistant and native AirPlay still need the owner's
 actual device tests; task counts and pending device states remain unchanged. Main is unchanged.
+
+
+## Build 214 owner retest and follow-up — 2026-11-09
+
+The owner reports Media Assistant/captions still fail. ISSUE-140 and reports/roku-build214-retest.json record
+reproduced packaging, partial-delivery and caption bugs, host repairs and passing focused tests. Native CI and
+new IPA delivery are pending. Actual Roku acceptance remains open; task counts and main are unchanged.

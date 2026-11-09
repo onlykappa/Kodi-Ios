@@ -1,5 +1,24 @@
 # Persistent progress
 
+## Build 214 owner retest: concrete Roku/caption repairs — 2026-11-09
+
+The owner reports build 214 still fails on Media Assistant and has no captions; Apple TV works. ISSUE-140 records
+four reproduced sender bugs and their repairs. Coalesced storage fragments now expose internal keyframes to the
+Roku streaming plan without changing Drive files or 4K picture; partial segment writes report progress; captions
+seek/read only their track; and the TV server receives Kodi's actual caption selection. Optional safe Roku ECP
+feedback records receiver state/model and distinguishes buffering/error from delivered bytes.
+
+Before: 46 regression checks, four failures. After: 102 checks, zero failed, including decoding all 768 video frames
+exactly once, caption forward/backward seeks, partial delivery and corrupt-header rejection. Local streaming (141),
+startup (13) and Python (142) checks also passed. Native CI and a new IPA follow. This is a repair candidate,
+not a real Roku playback pass. See [receipt](../reports/roku-build214-retest.json) and ISSUE-140. Main and device
+roadmap counts are unchanged.
+
+An additional signed-CTS/B-frame fixture exposed a FFmpeg MOV timestamp sign error, per-fragment presentation
+offset resets and average-frame-rate decode drift. The patch keeps signed offsets signed, uses TFDT for actual
+decode time while MFRA locates fragments, and uses one presentation offset plus the nominal frame rate. All 768
+frames in that fixture now decode once, too. The FFmpeg patch and relink notice ship with the framework.
+
 ## Roku/Drive build 214 delivered — 2026-11-09
 
 [Download test build 214](https://github.com/onlykappa/Kodi-Ios/releases/download/build-214/Kodi-iOS-Customized-Touch-r10.ipa).

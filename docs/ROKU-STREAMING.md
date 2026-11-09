@@ -4,11 +4,17 @@ Use Play on TV → the Roku / Media Assistant route first for a 4K movie. Kodi f
 separate video/audio HLS renditions to the TV. Compatible H.264/HEVC video keeps its resolution and encoded picture;
 there is no required local download, separate media server, or Apple TV box.
 
-The first segment is buffered before launching Media Assistant. Older prepared movies can have longer keyframe
-windows; those are advertised with their real durations, so opening one can take longer. Newly converted video uses frequent keyframes; the saved file retains coalesced fragments for efficient Kodi reads. A slow first read can therefore keep Kodi opening
-the movie for a while; the TV is launched once video and audio are available. After launch, playlist access alone
-is not success: Kodi waits for video delivery before stopping its own player. Keep Kodi open on the iPhone while
-using Media Assistant; it is the streaming server. Existing background work slows during casting.
+The first segment is buffered before launching Media Assistant. The Roku path inspects keyframes inside the
+existing storage fragments, then streams separate video/audio segments around six seconds. The saved file retains
+its coalesced fragment layout for efficient normal Kodi reads. A genuinely long video GOP can still need a longer
+window; its duration is advertised truthfully. After launch, playlist access alone is not success: Kodi waits for
+video delivery and, where available, Roku playback feedback before stopping its own player. Keep Kodi open on the
+iPhone while using Media Assistant; it is the streaming server. Existing background work slows during casting.
+
+Kodi forwards the enabled text subtitle to Media Assistant's HLS playlist. Captions use their own track's index
+and avoid downloading 4K video merely to read a cue. On Roku, press ✱ during playback and set Closed captions to
+On always if you want them visible; the TV's caption setting still applies. Image-only subtitle tracks cannot be
+sent as selectable WebVTT without conversion; the native compatibility path can burn supported captions in.
 
 Roku's built-in AirPlay remains an alternative. The prepared-file path uses progressive byte ranges; a rejected
 stream can restart once as H.264 with separate audio. That compatibility conversion is limited to 1080p SDR, so
@@ -35,7 +41,10 @@ Practical recommendations:
   does not by itself mean those bytes are already on the iPhone. No workflow change is required for this repair.
 
 References reviewed: [Roku media documentation](https://developer.roku.com/dev/docs/media) and
-[Apple AirPlay guidance](https://developer.apple.com/design/human-interface-guidelines/airplay).
+[Apple AirPlay guidance](https://developer.apple.com/design/human-interface-guidelines/airplay),
+[Media Assistant](https://github.com/MedievalApple/Media-Assistant/blob/main/README.md),
+[Roku captions](https://developer.roku.com/dev/docs/closed-caption) and
+[Roku ECP playback feedback](https://developer.roku.com/dev/docs/external-control-api).
 
 
 Wi-Fi is the local iPhone-to-Roku link; it can work without an internet connection when the complete movie is

@@ -1590,3 +1590,61 @@ SHA256 is 7decfff5fa03b593844e940d02f7e5e7a3ba4e4d28814ddaf7dc220cba44ad46; its 
 sources/3.11 bytecode and 154 unsigned, unencrypted ARM64 images were verified. Receipt:
 reports/roku-drive-test-delivery-r42.json. The owner must still check real TV startup, sustained picture/sound and
 seeks. This delivery does not mark device behavior as passing.
+
+
+## ISSUE-140 — Build 214: coalesced fragments, partial delivery and missing captions (2026-11-09)
+
+Status: owner's device retest failed; host repair candidate implemented, native CI and new test IPA pending.
+The latest owner-provided log identifies build 214/r42. Media Assistant takes the link and Roku reads both
+playlists and both init headers immediately; Wi-Fi discovery/connection succeeded. Its segment responses then
+show cancellations and zero-byte totals. Those totals are unreliable: `respond` recorded bytes/counters only
+when the entire body finished, so a canceled large response erased its delivered prefix. They do not establish
+zero network transfer or establish a decoded picture. Apple TV's subsequent native AirPlay requests are visible;
+this log does not establish a successful attempt through Roku's built-in AirPlay receiver.
+
+Root causes and repairs:
+
+- The prepared writer coalesces several GOPs into large storage fragments. The r42 plan used only each fragment's
+  first indexed sample, so even frequent-keyframe movies became 30–70-second HLS segments. A bounded four-cursor
+  metadata scan now reads moof sample durations/flags/CTS offsets, gathers the complete keyframe timeline and
+  chooses actual boundaries around six seconds. It leaves the saved file, Drive workflow, resolution and encoded
+  picture alone. Invalid metadata falls back without publishing a partial plan; true long GOPs still need longer
+  windows. The saved-file fragment layout stays coalesced for efficient normal Kodi playback.
+- Segment sends now report actual partial bytes and media progress while writing, preserving cancellation evidence.
+  Headers, HEAD and one-byte range probes do not count as delivered picture. Optional Roku ECP feedback adds actual
+  play/buffering/error state when available. Unsupported feedback remains optional. Model and playback logs contain
+  an explicit safe field list, excluding media URLs, serials, MACs and account state.
+- Caption requests used the video seek index, read every stream, then filtered packets. The 1.5-second deadline
+  repeatedly produced eight-byte empty WebVTT responses. The dedicated caption demuxer now discards video/audio
+  before reading and seeks its own subtitle index. If a backward seek before the first indexed cue fails, a forward
+  seek recovers that cue instead of retaining the probe's later buffered position. This keeps overlap cues and
+  forward/backward caption seeks. Media Assistant also receives Kodi's current subtitle choice; its master now
+  marks that text rendition as default. Roku's caption visibility setting still applies.
+
+Research: Roku's streaming/closed-caption/ECP specifications, Media Assistant's published deeplink parameters,
+Home Assistant's Roku media path and KSPlayer's AirPlay picker were reviewed. The existing AVPlayer/AVRoutePicker
+approach matches those native AirPlay patterns. No third-party player/UI code was imported. Receiver projects are
+not drop-in sender/packaging repairs; the concrete fixes above address the observed sender failures.
+
+Regression protection: a private generated 32-second, constant-bitrate MP4 has coalesced storage, internal two-second
+GOPs and text captions. Before changes: 46 checks, four failures (oversized HLS window, missing partial delivery,
+zero-byte cancellation log and lost captions). After changes plus selection, seek and malformed-header checks:
+102 checks, zero failed. The copied movie decodes every one of 768 frames exactly once. Additional local checks:
+141 streaming, 13 startup and 142 Python checks passed. The initial caption test used a master-only path helper and
+was corrected to strip either playlist filename before confirming the real deadline failure. The first code compile
+needed a forward declaration for the moved sender helper. A mistakenly named Python test path was corrected to
+`test_play_on_tv_start.py`. The first project scan rejected the two new native source files; their exact paths are
+now allowlisted, retaining all other scanner rules. These setup failures are not hidden as passing device tests.
+
+Receipt: reports/roku-build214-retest.json. Native CI/new IPA and real phone/Roku acceptance remain pending.
+
+Additional regression finding (synthetic evidence, not inferred from the owner's raw movie): a B-frame fixture
+using signed composition offsets initially returned HTTP 500 for later segments. FFmpeg 8.1.1's `mov_read_trun`
+read version-1 offsets as unsigned during MFRA-to-DTS arithmetic. The shipped LGPL patch sign-extends these offsets
+and prefers explicit TFDT for actual sample decode timestamps, retaining MFRA for fragment lookup. The first local
+patch rebuild needed a PRId64 string correction; the final patch reverse dry-run passed. A remaining first-cue
+presentation offset was corrected to one stream-wide offset instead of re-anchoring each fragment to TFRA. Finally,
+the container average rate made decode ladders overlap and MOV marked opening keyframes as discard; the nominal
+rate selected by `av_guess_frame_rate` keeps those boundaries monotonic. The expanded 102-check suite now decodes
+all 768 B-frames as well as the original 768-frame fixture exactly once, with no failed segment requests. Existing
+static tests were updated for the selected-subtitle master and functional native caption-seek coverage.

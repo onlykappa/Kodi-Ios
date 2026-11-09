@@ -369,6 +369,13 @@ def tv_link(xbmc,library,url,playing,kind):
   if not hasattr(lib,'kodi_airplay_serve'):return url,None
   try:lib.kodi_airplay_close()
   except Exception:pass
+  # The TV's own player needs the same current choice as native AirPlay. Otherwise this path inherits
+  # a previous AirPlay session's choice (or the initial automatic/off value), losing selected captions.
+  try:
+   import time,xbmcvfs
+   subs=airplay.send_subtitles(lib,xbmc,xbmcvfs,time.time())
+   if subs is not None:xbmc.log('Kodi iOS Play on TV: TV subtitles %s'%('off' if subs[0]==-1 else 'selected'),xbmc.LOGINFO)
+  except Exception as error:diagnostics.log_exception(xbmc,'tv_subtitles',error)
   try:
    import time,xbmcgui;airplay.mark_serve(xbmcgui.Window(10000),time.time())
   except Exception:pass
@@ -378,7 +385,7 @@ def tv_link(xbmc,library,url,playing,kind):
   # r41 (ISSUE-138, owner's build-209 log: a Roku read the prepared playlists and the init, then nothing): Roku's own
   # player does not take HLS whose fragments carry audio and video together, and wants 4-6 s chunks (Roku's streaming
   # specifications); the prepared playlist has both in fragments of up to 70 s. A Roku gets the movie remuxed
-  # (picture copied, 6-s segments, audio apart) when the framework can; an older one keeps the prepared playlist.
+  # (picture copied, keyframe-aligned segments, audio apart) when the framework can; an older one keeps the prepared playlist.
   segmented=kind=='roku' and hasattr(lib,'kodi_airplay_serve_segmented')
   try:r=lib.kodi_airplay_serve_segmented(source,out,len(out)) if segmented else lib.kodi_airplay_serve(source,0,out,len(out))
   finally:xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
@@ -407,6 +414,9 @@ def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
   if library:
    paused_here=not xbmc.getCondVisibility('Player.Paused')
    if paused_here:player.pause()
+  if tv['kind']=='roku':
+   model=cast.roku_model(tv['host'],cast.http_get)
+   if model:diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'cast','roku_model',**model)
   url,served=tv_link(xbmc,library,url,playing,tv['kind'])
   if served is None and needs_phone and library:
    try:
@@ -440,11 +450,22 @@ def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
   import time,xbmcgui
   lib=airplay.load(library);home=xbmcgui.Window(10000);monitor=xbmc.Monitor()
   ui=FlowUI(xbmc,xbmcgui,dialog,title);ui.show('connecting',('opening','waiting_tv'))
+  receiver={'next':0,'status':{},'logged':None}
   def network():
    lines=[airplay.log_text(line) for line in airplay.log_lines(lib)]
    for line in lines:xbmc.log('Kodi iOS AirPlay: '+line,xbmc.LOGINFO)
    airplay.activity(lines,home,time.time());airplay.mark_serve(home,time.time())
-   return airplay.network(lib,home)
+   net=airplay.network(lib,home) or {}
+   if tv['kind']=='roku':
+    if time.monotonic()>=receiver['next']:
+     receiver['status']=cast.roku_player(tv['host'],cast.http_get);receiver['next']=time.monotonic()+2
+     if receiver['status']!=receiver['logged']:
+      diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'cast','roku_player',**receiver['status'])
+      receiver['logged']=receiver['status']
+    status=receiver['status']
+    if status.get('player_id') in (cast.MEDIA_ASSISTANT,'15985'):
+     net['receiver_state']=status.get('state');net['receiver_error']=status.get('error',False)
+   return net
   outcome=cast.receiver_outcome(network,lambda s:ui.canceled() or monitor.waitForAbort(s))
   ui.close()
   if outcome!='playing':

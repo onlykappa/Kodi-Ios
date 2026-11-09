@@ -11,6 +11,7 @@
 #include "../src/kr_hls.h"
 #include "../src/kr_audio.h"
 #include "../src/kr_source.h"
+#include "../src/kr_mp4.h"
 #include "../src/kr_video.h"
 #include "../src/kr_color.h"
 #include "../src/kr_dovi.h"
@@ -712,7 +713,7 @@ static int start_session(const char *url, int compat, char *m3u8, size_t len) {
     int st = kr_remux_start(url, 0, compat, m3u8, (int)len);
     if (st == KR_READY) {
         snprintf(prefix_path, sizeof prefix_path, "%s", strchr(strstr(m3u8, "://") + 3, '/'));
-        char *cut = strstr(prefix_path, "/master.m3u8"); if (cut) *cut = 0;
+        char *cut = strrchr(prefix_path, '/'); if (cut) *cut = 0;
     }
     return st;
 }
@@ -1955,6 +1956,80 @@ static void test_long_gop_roku(const char *base,const char *work) {
 }
 
 typedef struct {kr_video *video;long frames;int count,len;} init_watch;
+static void test_roku214(const char *base,const char *work) {
+    char url[1024],list[512],out[1024],log[16384];
+    kr_remux_set_prefetch(0);kr_remux_set_subtitles(0,NULL,"eng");
+    snprintf(url,sizeof url,"file:%s/coalesced.mp4",fixture_dir);
+    CHECK(start_session(url,KR_COMPAT_SEGMENTED,list,sizeof list)==KR_READY,"coalesced prepared movie opens for Roku: %s",kr_remux_message());
+    int port=kr_remux_port();reply master=http_get(port,"/master.m3u8",NULL);
+    const char *subs=strstr(master.body,"TYPE=SUBTITLES");
+    CHECK(subs && strstr(subs,"DEFAULT=YES,AUTOSELECT=YES,FORCED=NO"),"Roku receives Kodi's enabled caption track as the default");free(master.body);
+    reply pl=http_get(port,"/video/index.m3u8",NULL);
+    double total,maxd;int target;int n=playlist_segments(pl.body,&total,&maxd,&target);
+    CHECK(n>=4 && maxd<=8.1 && fabs(total-32)<.2,"Roku uses internal keyframes, not 30-second storage fragments (%d segments, max %.3f)",n,maxd);
+    snprintf(out,sizeof out,"%s/coalesced-roku.mp4",work);check_rendition(port,"/video",n,32,out,0);
+    int keys=0;CHECK(decode_count(out,&keys)==768,"coalesced Roku copy keeps all 768 frames exactly once");
+    free(pl.body);kr_remux_stop();kr_remux_set_subtitles(-1,NULL,NULL);
+
+    snprintf(url,sizeof url,"file:%s/coalesced-b.mp4",fixture_dir);
+    CHECK(start_session(url,KR_COMPAT_SEGMENTED,list,sizeof list)==KR_READY,"coalesced B-frame movie opens");port=kr_remux_port();
+    pl=http_get(port,"/video/index.m3u8",NULL);n=playlist_segments(pl.body,&total,&maxd,&target);
+    CHECK(n>=4 && maxd<=8.1,"composition offsets preserve short actual-keyframe windows");free(pl.body);
+    snprintf(out,sizeof out,"%s/coalesced-b-roku.mp4",work);check_rendition(port,"/video",n,32,out,0);
+    int bf_frames=decode_count(out,&keys);
+    CHECK(bf_frames==768,"signed composition offsets keep every B-frame exactly once (%d decoded)",bf_frames);
+    snprintf(out,sizeof out,"%s/coalesced-b-audio.mp4",work);check_rendition(port,"/audio/1",n,32,out,1);kr_remux_stop();
+
+    snprintf(url,sizeof url,"file:%s/coalesced.mp4",fixture_dir);
+    CHECK(start_session(url,KR_COMPAT_SEGMENTED,list,sizeof list)==KR_READY,"backpressured Roku session opens");port=kr_remux_port();
+    master=http_get(port,"/master.m3u8",NULL);subs=strstr(master.body,"TYPE=SUBTITLES");
+    CHECK(subs && strstr(subs,"DEFAULT=NO,AUTOSELECT=NO,FORCED=NO"),"Kodi's captions-off choice is respected");free(master.body);
+    reply probe=http_get(port,"/video/seg0.m4s","bytes=0-0");free(probe.body);
+    CHECK(kr_remux_served_external(1)==0,"a one-byte range probe is not delivered picture");
+    int fd=socket(AF_INET,SOCK_STREAM,0),window=4096;
+    setsockopt(fd,SOL_SOCKET,SO_RCVBUF,&window,sizeof window);
+    struct timeval timeout={5,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof timeout);
+    struct sockaddr_in addr={.sin_family=AF_INET,.sin_port=htons((uint16_t)port),.sin_addr.s_addr=htonl(INADDR_LOOPBACK)};
+    CHECK(connect(fd,(struct sockaddr *)&addr,sizeof addr)==0,"slow receiver connects");
+    char request[512];int len=snprintf(request,sizeof request,"GET %s/video/seg0.m4s HTTP/1.1\r\nHost: 127.0.0.1\r\nUser-Agent: Roku/DVP-16.0\r\n\r\n",prefix_path);
+    send(fd,request,(size_t)len,0);
+    char block[8192];int bytes=0;
+    while(bytes<131072){int got=(int)recv(fd,block,sizeof block,0);if(got<=0)break;bytes+=got;}
+    CHECK(bytes>=131072,"slow receiver reads a media prefix (%d bytes)",bytes);
+    usleep(100000);
+    CHECK(kr_remux_served_external(1)>0,"partial video delivery is visible before the whole segment finishes");
+    struct linger reset={1,0};setsockopt(fd,SOL_SOCKET,SO_LINGER,&reset,sizeof reset);close(fd);usleep(100000);
+    kr_remux_log(log,sizeof log);
+    CHECK(strstr(log,"/video/seg0.m4s -200") && !strstr(log,"/video/seg0.m4s -200 0 B"),"canceled response retains delivered byte count: %.2000s",log);
+    kr_remux_stop();
+
+    snprintf(url,sizeof url,"%s/slow/coalesced.mp4",base);
+    CHECK(start_session(url,0,list,sizeof list)==KR_READY,"remote prepared subtitle session opens");
+    double at=mono_ms();reply cue=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
+    CHECK(cue.status==200 && cue.body && strstr(cue.body,"Hello from SRT"),"remote MP4 captions survive the request deadline (%.0f ms): %.200s",mono_ms()-at,cue.body?cue.body:"");
+    free(cue.body);cue=http_get(kr_remux_port(),"/subs/2/seg1.vtt",NULL);
+    CHECK(cue.body && strstr(cue.body,"Second line"),"later caption survives a subtitle-track seek");free(cue.body);
+    cue=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
+    CHECK(cue.body && strstr(cue.body,"Hello from SRT"),"caption seek back keeps the first cue");free(cue.body);
+    kr_remux_stop();kr_remux_set_prefetch(1);
+
+    // An untrusted sample count must fail within its header bounds, preserving the caller's fallback plan.
+    snprintf(url,sizeof url,"%s/coalesced.mp4",fixture_dir);FILE *input=fopen(url,"rb");uint8_t h[8];uint8_t *moof=NULL;uint32_t size=0;
+    while(input && fread(h,1,8,input)==8){size=AV_RB32(h);if(size<8)break;if(!memcmp(h+4,"moof",4)){moof=malloc(size);memcpy(moof,h,8);if(fread(moof+8,1,size-8,input)!=size-8){free(moof);moof=NULL;}break;}if(fseeko(input,(off_t)size-8,SEEK_CUR))break;}
+    if(input)fclose(input);
+    CHECK(moof!=NULL,"metadata-only corruption fixture has a moof");
+    if(moof){
+        uint8_t *trun=memmem(moof,size,"trun",4);CHECK(trun && (size_t)(trun-moof)+12<size,"sample metadata has a trun");
+        if(trun && (size_t)(trun-moof)+12<size){
+            AV_WB32(trun+8,UINT32_MAX);snprintf(out,sizeof out,"%s/bad-moof",work);FILE *f=fopen(out,"wb");fwrite(moof,1,size,f);fclose(f);
+            char err[128];snprintf(url,sizeof url,"file:%s",out);kr_source *source=kr_source_open(url,2,err,sizeof err);
+            kr_mp4_fragment fr={0,0};double *times=NULL;int nk=0;
+            CHECK(source && kr_mp4_keyframes(source,&fr,1,1,1.0/12288,0,NULL,NULL,&times,&nk)<0 && !times && !nk,"corrupt sample count is rejected without publishing a partial keyframe plan");
+            kr_source_close(source);free(times);
+        }free(moof);
+    }
+}
+
 static void observe_init(void *ctx,const uint8_t *data,int len) {
     init_watch *watch=ctx;watch->count++;watch->frames=kr_video_frames(watch->video);watch->len=len;
     CHECK(len>16 && !memcmp(data+4,"ftyp",4) && memmem(data,(size_t)len,"moov",4),"early converted header contains real codec configuration");
@@ -2027,6 +2102,9 @@ int main(int argc, char **argv) {
     test_kind();test_network_evidence();
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
     mkdir(work, 0755);
+    if(argc>3 && !strcmp(argv[3],"--roku214-only")) {
+        test_roku214(argv[2],work);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+    }
     if(argc>3 && !strcmp(argv[3],"--streaming-only")) {
         char url[1024],h264[1024];kr_video_set_encoder("mpeg4");
         snprintf(url,sizeof url,"file:%s/hevc_ac3_ass.mkv",fixture_dir);snprintf(h264,sizeof h264,"file:%s/h264_aac_srt.mkv",fixture_dir);
@@ -2136,7 +2214,7 @@ int main(int argc, char **argv) {
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
-        test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);
+        test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);
         printf("-- overlapping converted seek requests\n"); fflush(stdout);
         test_seek_overlap(argv[2]);
     }

@@ -16,6 +16,22 @@ if [[ ! -f "$WORK/fixtures/dvd.idx" || ! -f "$WORK/fixtures/dvd.sub" ]]; then
   python3 -B "$HERE/make_pgs.py" "$WORK/fixtures/dvd.idx" --vobsub
 fi
 ASS="$(cd "${3:-$FF/../asshost}" && pwd)"
+if [[ ! -f "$WORK/fixtures/coalesced.mp4" ]]; then
+  # A prepared movie's storage fragment can contain many short GOPs. Filler makes socket backpressure and
+  # caption reads realistic without a large picture or expensive encoder. Keep this fixture private.
+  ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=128x72:rate=24:duration=32' \
+    -f lavfi -i 'sine=frequency=440:duration=32' -i "$WORK/fixtures/subs.srt" \
+    -map 0:v -map 1:a -map 2:s -c:v libx264 -preset ultrafast -g 48 -sc_threshold 0 \
+    -b:v 8M -minrate 8M -maxrate 8M -bufsize 8M -x264-params nal-hrd=cbr \
+    -c:a aac -b:a 64k -c:s mov_text -metadata kodi_airplay_prepared=1 \
+    -movflags empty_moov+default_base_moof+frag_keyframe+use_metadata_tags -min_frag_duration 30000000 "$WORK/fixtures/coalesced.mp4"
+fi
+if [[ ! -f "$WORK/fixtures/coalesced-b.mp4" ]]; then
+  ffmpeg -hide_banner -loglevel error -y -i "$WORK/fixtures/coalesced.mp4" -map 0 \
+    -c:v libx264 -preset veryfast -g 48 -bf 3 -sc_threshold 0 -c:a copy -c:s copy \
+    -metadata kodi_airplay_prepared=1 -movflags empty_moov+default_base_moof+frag_keyframe+use_metadata_tags+negative_cts_offsets \
+    -min_frag_duration 10000000 "$WORK/fixtures/coalesced-b.mp4"
+fi
 if [[ ! -f "$WORK/fixtures/long-gop.mp4" ]]; then
   ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=128x72:rate=24:duration=32' \
     -f lavfi -i 'sine=frequency=440:duration=32' -c:v libx264 -preset ultrafast -g 720 -sc_threshold 0 \
@@ -38,6 +54,10 @@ def walk(start,end):
         if kind==b'tkhd' and data[at+8]==0:struct.pack_into('>I',data,at+28,32023)
         at+=size
 walk(0,len(data));p.write_bytes(data)
+if p.name=='long-gop.mp4':
+    for name in ('coalesced.mp4','coalesced-b.mp4'):
+        other=p.with_name(name)
+        data=bytearray(other.read_bytes());walk(0,len(data));other.write_bytes(data)
 PY
 if [[ ! -f "$WORK/fixtures/dovi.mkv" ]]; then
   python3 -B "$HERE/make_dovi.py" "$WORK/fixtures/dovi.mkv"

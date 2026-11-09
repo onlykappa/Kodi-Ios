@@ -304,7 +304,9 @@ static void ts_init_for(gm_stream *s, AVFormatContext *oc, int vout, gm_ts_state
         int64_t fn = 0, fd = 0, lead = 0;
         if (k == vout && s->video_in >= 0) {
             AVStream *iv = s->in->streams[s->video_in];
-            AVRational fr = iv->avg_frame_rate;
+            // Fragment/edit padding can bias avg_frame_rate. Using it for the decode ladder makes
+            // adjacent CFR segments overlap and MOV marks their opening keyframes for discard.
+            AVRational fr = av_guess_frame_rate(s->in,iv,NULL);
             if (fr.num <= 0 || fr.den <= 0) fr = iv->r_frame_rate;
             if (fr.num > 0 && fr.den > 0) { fn = fr.num; fd = fr.den; }
             int vd = iv->codecpar->video_delay;
@@ -761,7 +763,7 @@ int gm_stream_track_info(const gm_stream *s, int i, gm_track_info *out) {
     out->width = (par->codec_type == AVMEDIA_TYPE_VIDEO) ? par->width : 0;
     out->height = (par->codec_type == AVMEDIA_TYPE_VIDEO) ? par->height : 0;
     if (par->codec_type == AVMEDIA_TYPE_VIDEO) {
-        AVRational fr = st->avg_frame_rate;
+        AVRational fr = av_guess_frame_rate(s->in,st,NULL);
         if (fr.num <= 0 || fr.den <= 0) fr = st->r_frame_rate;
         if (fr.num > 0 && fr.den > 0) { out->fps_num = fr.num; out->fps_den = fr.den; }
     }
@@ -965,12 +967,19 @@ int gm_stream_subtitle_segment(gm_stream *s, int src, int i, gm_buf *out, char *
     AVCodecContext *dec = open_sub_decoder(s, src);
     if (!dec) { set_err(err, errlen, "open sub decoder", 0); return -1; }
 
-    // Seek a little before the segment so a cue that STARTED earlier but is still on
-    // screen at seg_start is decoded and emitted (overlap rule).
-    // Kodi iOS r9: 10 s back, not 30 (a 4K remux reads every stream's bytes on the way: 30 s was ~70 MB per cue
-    // file over Drive), on the default (video) stream, whose index the container always has.
-    double seek_to = seg_start > 10.0 ? seg_start - 10.0 : 0.0;
-    av_seek_frame(s->in, -1, (int64_t)(seek_to * AV_TIME_BASE), AVSEEK_FLAG_BACKWARD);
+    // MOV's subtitle samples have their own timestamps and index. Seek that track backwards so a cue
+    // spanning this boundary survives, and discard all picture/audio packets before any read. Seeking the
+    // video and filtering after av_read_frame downloaded megabytes of 4K for each tiny caption file.
+    for(unsigned k=0;k<s->in->nb_streams;k++)s->in->streams[k]->discard=(int)k==src?AVDISCARD_DEFAULT:AVDISCARD_ALL;
+    int64_t seek_ts=(int64_t)(seg_start/av_q2d(ist->time_base));
+    int seek=av_seek_frame(s->in,src,seek_ts,AVSEEK_FLAG_BACKWARD);
+    // Before a track's first indexed cue there is no backward entry. Seek to its first later sample,
+    // rather than retaining the probe's buffered position (which can already be past the first cue).
+    if(seek<0)seek=av_seek_frame(s->in,src,seek_ts,0);
+    if(seek<0) {
+        double seek_to=seg_start>10?seg_start-10:0;
+        av_seek_frame(s->in,-1,(int64_t)(seek_to*AV_TIME_BASE),AVSEEK_FLAG_BACKWARD);
+    }
 
     AVPacket *pkt = av_packet_alloc();
     AVSubtitle sub;
@@ -1046,7 +1055,7 @@ AVFormatContext *gm_stream_format_context(gm_stream *s) { return s ? s->in : NUL
 static int metadata_edit(gm_stream *s,int src,AVFormatContext *oc,gm_buf *out) {
     AVStream *input=s->in->streams[src],*output=oc->streams[0];int64_t lead_ticks=0;
     if(input->codecpar->codec_type==AVMEDIA_TYPE_VIDEO) {
-        AVRational fps=input->avg_frame_rate;if(fps.num<=0 || fps.den<=0)fps=input->r_frame_rate;
+        AVRational fps=av_guess_frame_rate(s->in,input,NULL);if(fps.num<=0 || fps.den<=0)fps=input->avg_frame_rate;
         if(fps.num<=0 || fps.den<=0)return -1;
         int lead=(input->codecpar->video_delay>0?input->codecpar->video_delay:1)+2;if(lead>16)lead=16;
         int64_t num=(int64_t)lead*fps.den*output->time_base.den,den=(int64_t)fps.num*output->time_base.num;

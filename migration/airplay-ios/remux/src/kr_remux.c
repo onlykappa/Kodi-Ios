@@ -11,6 +11,7 @@
 #include "kr_video.h"
 #include "kr_subs.h"
 #include "kr_prepare.h"
+#include "kr_mp4.h"
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
@@ -319,6 +320,7 @@ int kr_remux_compat(void) { return atomic_load(&S.state) == KR_READY ? S.compat 
 int kr_remux_port(void) { return atomic_load(&S.state) == KR_READY ? S.port : 0; }
 
 // ── HTTP ───────────────────────────────────────────────────────────────────────
+static int phone_player(const char *ua);
 static int send_all(int fd, const void *p, size_t n) {
     const char *c = p;
     while (n) {
@@ -330,7 +332,8 @@ static int send_all(int fd, const void *p, size_t n) {
     return 0;
 }
 
-static void respond(int fd, int head, const char *range, const char *type, const uint8_t *body, size_t len) {
+static void respond_body(int fd, int head, const char *range, const char *type, const uint8_t *body, size_t len,
+                         int media,int video,const char *agent) {
     char h[512];
     size_t from = 0, to = len ? len - 1 : 0;
     int partial = 0;
@@ -349,7 +352,26 @@ static void respond(int fd, int head, const char *range, const char *type, const
         : snprintf(h, sizeof h, "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %zu\r\nAccept-Ranges: bytes\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n", type, n_body);
     t_status = partial ? 206 : 200;
     if (send_all(fd, h, (size_t)n) != 0) { t_status = -t_status; return; }
-    if (!head && n_body) { if (send_all(fd, body + from, n_body) == 0) t_bytes = n_body; else t_status = -t_status; }
+    if (!head && n_body) {
+        size_t sent=0;int counted=0;
+        while(sent<n_body) {
+            size_t chunk=n_body-sent;if(chunk>65536)chunk=65536;
+            ssize_t wrote=send(fd,body+from+sent,chunk,MSG_NOSIGNAL);
+            if(wrote<0 && errno==EINTR)continue;
+            if(wrote<=0){t_status=-t_status;snprintf(t_err,sizeof t_err,"Receiver write failed (%d)",errno);break;}
+            sent+=(size_t)wrote;t_bytes+=(size_t)wrote;
+            // A large segment may take longer than the connection sheet's whole deadline. Progress is
+            // real delivery, even when a seek cancels the rest; headers/HEAD responses never count.
+            if(media && !counted && (sent>=65536 || (sent==n_body && from==0 && n_body==len))) {
+                counted=1;media_sent(video);
+                atomic_fetch_add(video?&S.served_video:&S.served_audio,1);
+                if(!phone_player(agent))atomic_fetch_add(video?&S.served_ext_video:&S.served_ext_audio,1);
+            }
+        }
+    }
+}
+static void respond(int fd,int head,const char *range,const char *type,const uint8_t *body,size_t len) {
+    respond_body(fd,head,range,type,body,len,0,0,NULL);
 }
 
 static void fail(int fd, int code, const char *why) {
@@ -1055,12 +1077,7 @@ static void serve(int fd, const char *method, const char *path, const char *rang
     } else { fail(fd, 404, "Not Found"); return; }
 
     if (r == 0) {
-        respond(fd, head, range, "video/mp4", buf.data, (size_t)buf.len);
-        if (seg >= 0 && t_status > 0) {
-            int audio = path[1] == 'a';
-            atomic_fetch_add(audio ? &S.served_audio : &S.served_video, 1);
-            if (!phone_player(agent)) atomic_fetch_add(audio ? &S.served_ext_audio : &S.served_ext_video, 1);
-        }
+        respond_body(fd,head,range,"video/mp4",buf.data,(size_t)buf.len,seg>=0,path[1]!='a',agent);
         if (rend >= 0 && !head) prefetch_after(rend, seg < 0 ? 0 : seg);
     }
     else {
@@ -1314,7 +1331,7 @@ static int prepared_read_all(int64_t at,uint8_t *buf,int len) {
     while(done<len){int got=prepared_read(at+done,buf+done,len-done,e,sizeof e);if(got<=0)return -1;done+=got;}
     return 0;
 }
-typedef struct {int64_t time,offset;} prep_frag;
+typedef kr_mp4_fragment prep_frag;
 static int prepared_playlists(int align_plan) {
     AVFormatContext *f=gm_stream_format_context(S.gm);
     int v=gm_stream_selected_video(S.gm);
@@ -1349,10 +1366,20 @@ static int prepared_playlists(int align_plan) {
     if(n<1 || fr[0].offset<16 || fr[n-1].offset>=mfra_at)goto end;
     double tb=av_q2d(st->time_base),total=gm_stream_duration(S.gm);
     if(align_plan) {
-        double *times=malloc((size_t)n*sizeof *times);if(!times)goto end;
-        for(int i=0;i<n;i++)times[i]=(double)fr[i].time*tb;
-        ok=gm_stream_plan_keyframes(S.gm,times,n);free(times);
-        if(!ok)log_line("segmented: using %d indexed random-access windows; old long-GOP movies retain their real durations",gm_stream_segment_count(S.gm));
+        // Storage fragments deliberately coalesce many GOPs for efficient Kodi reads. Their first-sample
+        // mfra entries are not a complete keyframe index. Inspect only moof sample metadata in parallel,
+        // then choose actual keyframes around six seconds without changing the stored file or 4K picture.
+        double *times=NULL;int keys=0;double began=now_ms();
+        double first_time=st->start_time!=AV_NOPTS_VALUE?(double)st->start_time*tb:(double)fr[0].time*tb;
+        if(kr_mp4_keyframes(S.src,fr,n,st->id,tb,first_time,source_interrupted,(void *)(uintptr_t)atomic_load(&S.ticket),&times,&keys)==0) {
+            ok=gm_stream_plan_keyframes(S.gm,times,keys);free(times);
+            if(!ok)log_line("segmented: %d keyframes inside %d storage fragments give %d streaming segments (metadata %.0f ms)",keys,n,gm_stream_segment_count(S.gm),now_ms()-began);
+        } else if(!source_interrupted((void *)(uintptr_t)atomic_load(&S.ticket))) {
+            times=malloc((size_t)n*sizeof *times);if(!times)goto end;
+            for(int i=0;i<n;i++)times[i]=(double)fr[i].time*tb;
+            ok=gm_stream_plan_keyframes(S.gm,times,n);free(times);
+            if(!ok)log_line("segmented: sample metadata unavailable; using %d indexed random-access windows",gm_stream_segment_count(S.gm));
+        }
         goto end;
     }
     double end_time=total>0?total+(double)fr[0].time*tb:0;
@@ -1481,7 +1508,7 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
     const int segmented = compat == KR_COMPAT_SEGMENTED;
     if (segmented) {
         compat = 0;
-        log_line("segmented: a TV's own player gets 6-s segments with the audio apart (picture copied)");
+        log_line("segmented: targeting six-second keyframe-aligned segments, separate audio, picture copied");
     }
     AVFormatContext *prepared=gm_stream_format_context(S.gm);
     if(segmented && prepared && prepared->iformat && strstr(prepared->iformat->name,"mov")) {
@@ -1604,8 +1631,8 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
     }
     if (out && outlen > 0) snprintf(out, (size_t)outlen, "%s/master.m3u8", S.base);
     // r8: the playlists are fixed for the session: made once here, served without touching the demuxer.
-    S.master_copy = kr_hls_master(S.gm, S.base, S.compat);
-    if (S.compat_ok) S.master_compat = kr_hls_master_at(S.gm, S.base, 1, "cvideo");
+    S.master_copy = kr_hls_master_selected(S.gm,S.base,S.compat,"video",S.burn_index);
+    if (S.compat_ok) S.master_compat = kr_hls_master_selected(S.gm,S.base,1,"cvideo",S.burn_index);
     if (!S.master_copy || (S.compat_ok && !S.master_compat)) { set_message("AirPlay: out of memory."); goto done; }
     if (S.burn_index >= 0 || S.burn_file[0]) {  // r11: burned in: no WebVTT rendition for the converted picture
         strip_subtitles(S.master_compat);

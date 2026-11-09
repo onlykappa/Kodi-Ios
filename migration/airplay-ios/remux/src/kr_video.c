@@ -234,7 +234,7 @@ kr_video *kr_video_open(gm_source src, int index, char *err, int errlen) {
     v->want_hw = v->hw != NULL;
     AVStream *st = v->in->streams[index];
     kr_video_output_size(st->codecpar->width, st->codecpar->height, &v->ow, &v->oh);
-    v->fps = st->avg_frame_rate.num > 0 && st->avg_frame_rate.den > 0 ? st->avg_frame_rate : st->r_frame_rate;
+    v->fps = av_guess_frame_rate(v->in,st,NULL);
     if (v->fps.num <= 0 || v->fps.den <= 0) v->fps = (AVRational){ 24000, 1001 };
     av_reduce(&v->fps.num, &v->fps.den, v->fps.num, v->fps.den, 60000);
     for (unsigned i = 0; i < v->in->nb_streams; i++) v->in->streams[i]->discard = i == (unsigned)index ? AVDISCARD_DEFAULT : AVDISCARD_ALL;

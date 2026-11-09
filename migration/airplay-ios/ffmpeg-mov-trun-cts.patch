@@ -1,0 +1,61 @@
+--- a/libavformat/mov.c
++++ b/libavformat/mov.c
+@@ -5810,7 +5810,7 @@
+     int64_t dts, pts = AV_NOPTS_VALUE;
+     int data_offset = 0;
+     unsigned entries, first_sample_flags = frag->flags;
+-    int flags, distance, i;
++    int version, flags, distance, i;
+     int64_t prev_dts = AV_NOPTS_VALUE;
+     int next_frag_index = -1, index_entry_pos;
+     size_t requested_size;
+@@ -5856,7 +5856,7 @@
+     }
+     av_assert0(index_entry_pos <= sti->nb_index_entries);
+ 
+-    avio_r8(pb); /* version */
++    version = avio_r8(pb);
+     flags = avio_rb24(pb);
+     entries = avio_rb32(pb);
+     av_log(c->fc, AV_LOG_TRACE, "flags 0x%x entries %u\n", flags, entries);
+@@ -5870,6 +5870,9 @@
+     if (frag_stream_info) {
+         if (frag_stream_info->next_trun_dts != AV_NOPTS_VALUE) {
+             dts = frag_stream_info->next_trun_dts - sc->time_offset;
++        } else if (frag_stream_info->tfdt_dts != AV_NOPTS_VALUE && c->use_tfdt) {
++            /* Kodi iOS: MFRA locates fragments; TFDT owns their actual decode timeline. */
++            dts = frag_stream_info->tfdt_dts - sc->time_offset;
+         } else if (frag_stream_info->first_tfra_pts != AV_NOPTS_VALUE &&
+             c->use_mfra_for == FF_MOV_FLAG_MFRA_PTS) {
+             pts = frag_stream_info->first_tfra_pts;
+@@ -5982,14 +5985,19 @@
+         unsigned sample_size = frag->size;
+         int sample_flags = i ? frag->flags : first_sample_flags;
+         unsigned sample_duration = frag->duration;
+-        unsigned ctts_duration = 0;
++        int64_t ctts_duration = 0;
+         int keyframe = 0;
+         int index_entry_flags = 0;
+ 
+         if (flags & MOV_TRUN_SAMPLE_DURATION) sample_duration = avio_rb32(pb);
+         if (flags & MOV_TRUN_SAMPLE_SIZE)     sample_size     = avio_rb32(pb);
+         if (flags & MOV_TRUN_SAMPLE_FLAGS)    sample_flags    = avio_rb32(pb);
+-        if (flags & MOV_TRUN_SAMPLE_CTS)      ctts_duration   = avio_rb32(pb);
++        if (flags & MOV_TRUN_SAMPLE_CTS) {
++            ctts_duration = avio_rb32(pb);
++            /* Kodi iOS: keep signed version-1 offsets signed in MFRA PTS arithmetic. */
++            if (version == 1)
++                ctts_duration = (int32_t)ctts_duration;
++        }
+ 
+         mov_update_dts_shift(sc, ctts_duration, c->fc);
+         if (pts != AV_NOPTS_VALUE) {
+@@ -6001,7 +6009,7 @@
+             }
+             av_log(c->fc, AV_LOG_DEBUG,
+                    "pts %"PRId64" calculated dts %"PRId64
+-                   " sc->dts_shift %d ctts.duration %d"
++                   " sc->dts_shift %d ctts.duration %"PRId64
+                    " sc->time_offset %"PRId64
+                    " flags & MOV_TRUN_SAMPLE_CTS %d\n",
+                    pts, dts,

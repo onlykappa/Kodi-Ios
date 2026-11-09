@@ -107,6 +107,36 @@ def find_rokus(phone_ip,get,workers=64):
 def http_get(url,timeout):
  with urllib.request.urlopen(url,timeout=timeout) as r:return r.read()
 
+def roku_player(host,get):
+ """Optional ECP feedback. Return only playback fields; exclude URLs, serials and account identifiers."""
+ try:
+  from xml.etree import ElementTree
+  data=get('http://%s:%d/query/media-player'%(host,PORT),1)
+  if len(data)>32768:return {}
+  player=ElementTree.fromstring(data)
+  if player.tag!='player':return {}
+  if not player.get('state') and player.get('error','false').lower()!='true':return {}
+  plugin=player.find('plugin');fmt=player.find('format')
+  position=re.match(r'\s*(\d+)',player.findtext('position') or '')
+  out={'state':player.get('state','')[:40],'error':player.get('error','false').lower()=='true',
+       'player_id':plugin.get('id','')[:40] if plugin is not None else ''}
+  if position:out['position_ms']=int(position.group(1))
+  if fmt is not None:
+   out.update({key:fmt.get(key,'')[:80] for key in ('video','audio','video_res','captions')})
+  return out
+ except (OSError,ValueError,ElementTree.ParseError):return {}
+
+def roku_model(host,get):
+ """Safe capability evidence for the next device log; no serial, MAC, device name or account state."""
+ try:
+  from xml.etree import ElementTree
+  data=get('http://%s:%d/query/device-info'%(host,PORT),1)
+  if len(data)>32768:return {}
+  root=ElementTree.fromstring(data)
+  if root.tag!='device-info':return {}
+  return {key:(root.findtext(key) or '')[:80] for key in ('model-number','model-name','software-version','supports-4k','max-resolution')}
+ except (OSError,ValueError,ElementTree.ParseError):return {}
+
 def http_post(url,timeout=5):
  with urllib.request.urlopen(urllib.request.Request(url,data=b'',method='POST'),timeout=timeout) as r:return r.status
 
@@ -221,10 +251,14 @@ def receiver_outcome(network,wait,timeout=60):
  """A Roku launch acknowledgement is not playback. Wait for video delivery; playlists/audio alone do not count."""
  elapsed=0.0
  while elapsed<timeout:
+  began=time.monotonic()
   net=network() or {}
-  if net.get('tv_video',0)>0:return 'playing'
+  if net.get('receiver_error'):return 'failed'
+  # Where ECP feedback is available, delivered bytes alone do not establish a decoded picture.
+  if net.get('tv_video',0)>0 and net.get('receiver_state') in (None,'play','playing'):return 'playing'
   if net.get('phase') in ('failed','canceled'):return 'failed'
   if elapsed>=AIRPLAY_CONNECT and not net.get('tv_requests',0):return 'unreachable'
+  elapsed+=max(0,time.monotonic()-began)
   if wait(0.5):return 'aborted'
   elapsed+=0.5
  return 'failed'
