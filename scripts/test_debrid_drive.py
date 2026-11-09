@@ -3,6 +3,7 @@ chose AllDebrid straight to Drive. alldebrid (client, pick), driveupload.upload_
 and the wiring in download.py, service.py and notices.py."""
 import io,json,sys,tempfile,unittest
 from pathlib import Path
+from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1];BOOT=ROOT/'migration/bundled-bootstrap';LIB=BOOT/'resources/lib'
 sys.dont_write_bytecode=True
 sys.path.insert(0,str(LIB))
@@ -77,6 +78,21 @@ class Stream(unittest.TestCase):
   self.assertEqual(self.opened,[512*1024]);self.assertEqual(drive.data,self.blob)
  def test_stop_when_asked(self):
   with self.assertRaises(driveupload.Stop):FakeDrive().upload_stream(self.open_at,len(self.blob),'x','p',{},lambda:None,keep_going=lambda:False)
+ def test_confirmed_progress_precedes_throttle_and_completion_does_not_wait(self):
+  import slowdown
+  drive=FakeDrive();seen=[];calls=[]
+  class Gate:
+   def after(inner,seconds,nbytes=0,download=False):
+    calls.append(len(drive.data))
+    self.assertEqual(seen[-1],len(drive.data))
+    self.assertLess(len(drive.data),len(self.blob))
+  with patch.object(slowdown,'Gate',side_effect=[type('Reader',(),{'after':lambda *a,**k:None})(),Gate()]):
+   drive.upload_stream(self.open_at,len(self.blob),'x','p',{},lambda:None,progress=lambda sent,total:seen.append(sent))
+  self.assertEqual(seen[-1],len(self.blob));self.assertEqual(len(calls),drive.puts-1)
+ def test_large_stream_reports_eight_megabyte_checkpoints(self):
+  driveupload.CHUNK=32*1024*1024;self.blob=b'z'*(17*1024*1024);seen=[];drive=FakeDrive()
+  drive.upload_stream(self.open_at,len(self.blob),'x','p',{},lambda:None,progress=lambda sent,total:seen.append(sent))
+  self.assertEqual(seen,[8*1024*1024,16*1024*1024,17*1024*1024]);self.assertEqual(drive.data,self.blob)
 
 class FakeAPI:
  def __init__(self,ready=True,status=(4,1.0,'Ready')):self.ready=ready;self.st=status;self.added=[]

@@ -180,10 +180,10 @@ class Drive(object):
     f.seek(offset);chunk=f.read(CHUNK);end=offset+len(chunk)-1
     began=time.monotonic()
     status,headers,body=self.call('PUT',session['url'],chunk,{'Content-Range':'bytes %d-%d/%d'%(offset,end,size)})
-    gate.after(time.monotonic()-began,len(chunk),download=True)   # build 208: capped while a video plays, waits while it buffers
     if status in (200,201):return self._done(path,sessions,save,body)
     if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
     offset=_next_offset(headers);progress(offset,size)
+    gate.after(time.monotonic()-began,len(chunk),download=True)
   raise RuntimeError('Drive did not confirm the upload')
  def upload_stream(self,open_at,size,name,parent,session,save,keep_going=lambda:True,progress=lambda done,total:None):
   """Resumable upload of a web file straight into Drive, CHUNK at a time: nothing is written to the phone (owner,
@@ -205,16 +205,19 @@ class Drive(object):
   import concurrent.futures
   source=[open_at(offset)]
   import slowdown as _slow;reader_gate=_slow.Gate(keep_going=keep_going)
+  # Bound feedback latency and RAM while retaining one-piece read-ahead. Local-file uploads keep CHUNK.
+  stream_chunk=min(CHUNK,8*1024*1024)
   def read(at):
-   chunk=b'';began=time.monotonic()
-   while len(chunk)<CHUNK and at+len(chunk)<size:
+   chunk=bytearray();began=time.monotonic()
+   while len(chunk)<stream_chunk and at+len(chunk)<size:
+    if not keep_going():raise Stop()
     piece=time.monotonic()
-    data=source[0].read(min(CHUNK-len(chunk),1024*1024))
+    data=source[0].read(min(stream_chunk-len(chunk),1024*1024))
     if not data:break
-    chunk+=data
+    chunk.extend(data)
     # Build 206: a download under the playing video's cap (and none while Kodi buffers), 1 MB at a time.
     reader_gate.after(time.monotonic()-piece,len(data),download=True)
-   return chunk,time.monotonic()-began
+   return bytes(chunk),time.monotonic()-began
   # Build 181 (owner: "whatever that will make uploading and downloading quicker"): the next piece downloads from
   # the source while this one goes up to Drive (they used to take turns).
   ahead=concurrent.futures.ThreadPoolExecutor(max_workers=1);coming=None
@@ -230,7 +233,6 @@ class Drive(object):
     status,headers,body=self.call('PUT',session['url'],chunk,{'Content-Range':'bytes %d-%d/%d'%(offset,end,size)})
     # Owner (build 168): 0.2 MB/s. Which side is slow, the source (AllDebrid) or Google Drive, for the next log.
     put_s=time.monotonic()-began;mb=len(chunk)/1048576.0
-    gate.after(put_s,len(chunk),download=True)   # build 208: the send is capped too while a video plays
     _note('Drive copy: %.1f MB read in %.1f s (%.2f MB/s from the source), sent in %.1f s (%.2f MB/s to Google Drive), %.1f%% done'%(
      mb,read_s,mb/max(read_s,.001),put_s,mb/max(put_s,.001),100.0*(end+1)/size))
     if status in (200,201):progress(size,size);return json.loads(body or b'{}')
@@ -245,6 +247,7 @@ class Drive(object):
      except Exception:pass
      source[0]=open_at(confirmed)
     offset=confirmed;save();progress(offset,size)
+    gate.after(put_s,len(chunk),download=True)
   finally:
    if coming is not None:
     try:coming.result()

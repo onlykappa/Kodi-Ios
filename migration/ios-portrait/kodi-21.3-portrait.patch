@@ -1636,3 +1636,30 @@ diff --git a/xbmc/cores/VideoPlayer/DVDDemuxers/DVDDemuxFFmpeg.cpp b/xbmc/cores/
  
      if (StringUtils::StartsWith(content, "audio/l16"))
      {
+
+diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
+--- a/xbmc/guilib/GUISliderControl.cpp
++++ b/xbmc/guilib/GUISliderControl.cpp
+@@ -729,17 +729,22 @@
+   }
+   else if (event.m_id == ACTION_GESTURE_BEGIN)
+   { // grab exclusive access
++    m_dragging = true;
+     CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, GetID(), GetParentID());
+     SendWindowMessage(msg);
+     return EVENT_RESULT_HANDLED;
+   }
+   else if (event.m_id == ACTION_GESTURE_PAN)
+   { // do the drag
++    m_dragging = true;
+     SetFromPosition(point);
+     return EVENT_RESULT_HANDLED;
+   }
+   else if (event.m_id == ACTION_GESTURE_END || event.m_id == ACTION_GESTURE_ABORT)
+   { // release exclusive access
++    // Seek once on release; cancellation restores the current playback position on the next Process.
++    if (event.m_id == ACTION_GESTURE_END)
++      SetFromPosition(point);
+     CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, 0, GetParentID());
+     SendWindowMessage(msg);
+     return EVENT_RESULT_HANDLED;

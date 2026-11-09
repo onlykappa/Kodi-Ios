@@ -1,5 +1,13 @@
 # Persistent progress
 
+## Touch seeking and download progress repairs — 2026-11-09
+
+ISSUE-141 records the new log review, native touch-slider fix and streamed-upload repairs. A compiled 100-move
+gesture sequence now commits one seek on release; 47 download/upload tests passed. Streamed Drive copies use
+8 MiB checkpoints, preserve read-ahead/resume, and commit success before playback throttling. These changes need
+a new native build and actual iPhone test; no device pass is claimed. The Roku/caption candidate is source
+`99fa9bd`; native CI 42685265901 is running, with the framework compile passed at this checkpoint.
+
 ## Build 214 owner retest: concrete Roku/caption repairs — 2026-11-09
 
 The owner reports build 214 still fails on Media Assistant and has no captions; Apple TV works. ISSUE-140 records

@@ -298,3 +298,10 @@ actual device tests; task counts and pending device states remain unchanged. Mai
 The owner reports Media Assistant/captions still fail. ISSUE-140 and reports/roku-build214-retest.json record
 reproduced packaging, partial-delivery and caption bugs, host repairs and passing focused tests. Native CI and
 new IPA delivery are pending. Actual Roku acceptance remains open; task counts and main are unchanged.
+
+
+## Touch seeking and download follow-up — 2026-11-09
+
+ISSUE-141: native touch drag/seek ownership and streamed-upload progress/completion repairs implemented.
+Compiled handler harness and 47 upload/download tests pass. Native delivery/device acceptance remain pending;
+no phase counts or main merge changed.

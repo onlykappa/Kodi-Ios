@@ -1648,3 +1648,38 @@ the container average rate made decode ladders overlap and MOV marked opening ke
 rate selected by `av_guess_frame_rate` keeps those boundaries monotonic. The expanded 102-check suite now decodes
 all 768 B-frames as well as the original 768-frame fixture exactly once, with no failed segment requests. Existing
 static tests were updated for the selected-subtitle master and functional native caption-seek coverage.
+
+
+## ISSUE-141 — Touch seeking and apparent download stalls, build 214 (2026-11-09)
+
+Owner supplies a new private log and the player-bar screenshot. The supplied log ends during Settings/Library
+navigation; it does not record the actual playback/drag gesture. The native slider bug was established from
+Kodi 21.3 source and a compiled handler harness, not inferred as a measured device frame rate.
+
+Touch root cause: GUISliderControl's mouse-drag branch marks `m_dragging`, but the touch gesture branch did not.
+Consequently every PAN ran the seek action and Process kept replacing the thumb with Player.Progress. The native
+patch marks touch BEGIN/PAN as dragging, commits the seek once on END, and restores playback progress after ABORT.
+A compiled harness using the actual handler reproduced failure before the patch and passed after it: 100 PAN
+moves, no intermediate seek, one seek on release, cancellation and mouse-click behavior. The patch applies cleanly
+to the pinned upstream slider source. Actual iPhone touch smoothness and a new native build remain unverified.
+No player layout or artwork changes are made.
+
+Download evidence: AllDebrid-to-phone reads varied from about 1.1–11.9 seconds per 32 MiB; Google Drive PUTs took
+about 8.3–31.4 seconds. HTTP 308 means Drive accepted a resumable-upload piece, not a failed download. Progress
+updated only after a whole 32 MiB upload, so the bar stayed still for those intervals. The streamer now uses at
+most 8 MiB per piece, preserving the existing one-piece read-ahead and resume checks. A bytearray avoids repeated
+copying of an ever-growing immutable buffer. Source reads check cancellation between 1 MiB reads.
+
+A second confirmed bug put the playback throttle before processing successful upload responses. An upload that
+had already finished could wait through playback before being marked done. Confirmed offsets and final success
+are now processed before throttling the next piece, for both streamed and local uploads. Existing intentional
+playback pauses and buffering protection remain; this is not a claim that real network slowdowns disappeared.
+
+Validation: 22 AllDebrid/streaming tests, 23 upload tests and two HTTP-piece tests passed, including resumed bytes,
+8 MiB progress checkpoints, progress-before-throttle and no throttle after completed upload. The first new test
+run lacked the mock patch import, now corrected. A patch-check command initially used a not-yet-created working
+directory; rerunning after creating it passed. Raw logs/media stay outside Git. Actual-device retest is pending.
+
+An owner-attached episode can be used as a private rig fixture for decode, timeline and seeking tests. Keep it
+outside Git, use its existing path in the rig and compare with synthetic fixtures. Desktop rig results cannot
+establish iPhone gesture dispatch, networking or background behavior. No episode was attached in this turn.
