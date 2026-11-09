@@ -34,6 +34,8 @@ def load(path):
  if hasattr(lib,'kodi_airplay_start_at'):lib.kodi_airplay_start_at.argtypes=[ctypes.c_double];lib.kodi_airplay_start_at.restype=None
  # r40: the phone's server for a TV's own player (Roku, Chromecast, DLNA); blocks while the source opens.
  if hasattr(lib,'kodi_airplay_serve'):lib.kodi_airplay_serve.argtypes=[ctypes.c_char_p,ctypes.c_int,ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_serve.restype=ctypes.c_int
+ if hasattr(lib,'kodi_airplay_serve_segmented'):   # r41: a Roku's own player gets the movie remuxed in 6-s segments
+  lib.kodi_airplay_serve_segmented.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_serve_segmented.restype=ctypes.c_int
  if hasattr(lib,'kodi_background_keep'):lib.kodi_background_keep.argtypes=[ctypes.c_int];lib.kodi_background_keep.restype=None
  if hasattr(lib,'kodi_background_state'):lib.kodi_background_state.argtypes=[];lib.kodi_background_state.restype=ctypes.c_int
  return lib

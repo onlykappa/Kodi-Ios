@@ -1770,7 +1770,27 @@ static void test_preparation(const char *work) {
         CHECK(kr_remux_start(url,0,1,playlist,sizeof playlist)==KR_READY && !strstr(playlist,"/prepared.") && kr_remux_compat()==1,
               "prepared file restarts in compat mode as converted HLS: %s %s",playlist,kr_remux_message());
         kr_remux_stop();kr_video_set_encoder(encoder);
+        // r41 (ISSUE-138): a Roku's own player gets the prepared movie remuxed: picture copied (no conversion), the
+        // regular 6-s segment playlists, no byte ranges over the muxed fragments.
+        CHECK(kr_remux_start(url,0,KR_COMPAT_SEGMENTED,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/master.m3u8") && kr_remux_compat()==0,
+              "segmented: a prepared file is remuxed for a Roku, picture copied: %s %s",playlist,kr_remux_message());
+        {
+            int sport=kr_remux_port();reply m=http_get(sport,playlist,NULL);
+            char vurl[600]="";snprintf(vurl,sizeof vurl,"%s",playlist);char *mm=strstr(vurl,"/master.m3u8");if(mm)strcpy(mm,"/video/index.m3u8");
+            reply v=http_get(sport,vurl,NULL);int target=-1;
+            if(v.body){char *t=strstr(v.body,"#EXT-X-TARGETDURATION:");if(t)target=atoi(t+22);}
+            CHECK(m.status==200 && m.body && !strstr(m.body,"/prepared") && strstr(m.body,"/video/index.m3u8") &&
+                  (!strstr(m.body,"TYPE=AUDIO") || strstr(m.body,"AUDIO=\"aud\"")),"segmented: master names the remuxed video (and audio apart): %.300s",m.body?m.body:"");
+            CHECK(v.status==200 && v.body && !strstr(v.body,"BYTERANGE") && target>0 && target<=12,"segmented: segments of at most 12 s (target %d)",target);
+            free(m.body);free(v.body);
+        }
+        kr_remux_stop();
         CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared."),"prepared file is served as it is again afterwards");
+        {   // r41: the start of the file is read ahead as soon as the playlists exist
+            char warm[16384]="";int seen=0;
+            for(int k=0;k<100 && !seen;k++){usleep(20000);int n=kr_remux_log(warm,sizeof warm);if(n>0 && strstr(warm,"prepared: first "))seen=1;}
+            CHECK(seen,"prepared: the init and first fragment are read ahead into memory");
+        }
         port=kr_remux_port();
         int idle_fd=socket(AF_INET,SOCK_STREAM,0);struct sockaddr_in idle_address={0};
         idle_address.sin_family=AF_INET;idle_address.sin_port=htons((uint16_t)port);idle_address.sin_addr.s_addr=htonl(INADDR_LOOPBACK);

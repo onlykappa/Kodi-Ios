@@ -371,7 +371,13 @@ def tv_link(xbmc,library,url,playing,kind):
   except Exception:pass
   out=ctypes.create_string_buffer(512)
   xbmc.executebuiltin('ActivateWindow(busydialognocancel)')
-  try:r=lib.kodi_airplay_serve(cast.phone_source(playing,url).encode('utf-8'),0,out,len(out))
+  source=cast.phone_source(playing,url).encode('utf-8')
+  # r41 (ISSUE-138, owner's build-209 log: a Roku read the prepared playlists and the init, then nothing): Roku's own
+  # player does not take HLS whose fragments carry audio and video together, and wants 4-6 s chunks (Roku's streaming
+  # specifications); the prepared playlist has both in fragments of up to 70 s. A Roku gets the movie remuxed
+  # (picture copied, 6-s segments, audio apart) when the framework can; an older one keeps the prepared playlist.
+  segmented=kind=='roku' and hasattr(lib,'kodi_airplay_serve_segmented')
+  try:r=lib.kodi_airplay_serve_segmented(source,out,len(out)) if segmented else lib.kodi_airplay_serve(source,0,out,len(out))
   finally:xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
   for line in airplay.log_lines(lib):xbmc.log('Kodi iOS AirPlay: '+airplay.log_text(line),xbmc.LOGINFO)
   if r==2 and out.value:

@@ -54,6 +54,10 @@
 # r14: one-file preparation reads its source from the phone's loopback (http://127.0.0.1, the setup add-on streaming
 # the Drive file) instead of a downloaded copy, so a movie needs its prepared size on the phone, not twice that
 # (owner, build 157). Loopback only; kodi_airplay_prepare_streams() tells the add-on this build can do it.
+# r41 (ISSUE-138, Roku): kodi_airplay_serve_segmented (export 29) gives a Roku's own player (Media Assistant) a
+# prepared movie remuxed (picture copied, 6-s segments, audio apart) instead of the muxed byte-range playlist; the
+# start of a prepared file is read ahead into the cache (and kept there) as soon as its playlists exist; a TV's AirPlay
+# that turns the prepared playlist down before any fragment gets the converted stream once.
 # Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh, REMUX_LIBASS=DIR
 # one of build-libass.sh ios)
 set -euo pipefail
@@ -496,7 +500,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
             // r36: a prepared movie may restart once in compat mode too, but only when the TV takes the sound only (below);
             // the older segment-based triggers stay off for it (it has no segments).
             const BOOL preparedLink = [link hasSuffix:@"/prepared.mp4"] || [link hasSuffix:@"/prepared.m3u8"];   // r38: HLS over the prepared file
-            __block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO;
+            __block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO, everExternal = NO;
             __block double resumeAt = -1;
             // r7: once per stream: restart with the picture converted to H.264 at the same position. NO when it cannot
             // (already tried, or no source to restart).
@@ -568,6 +572,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                 if (player.externalPlaybackActive != external) {
                     int wasOn = external, lasted = externalTicks;
                     external = player.externalPlaybackActive;
+                    if (external) everExternal = YES;   // r41: the TV had the route, even if it is off again by the failure
                     playerNote(@"external playback %@", external ? @"on (the TV fetches the stream)" : @"off");
                     externalTicks = 0; video0 = kr_remux_served(1); audio0 = kr_remux_served(0);
                     // r8: the TV gave up within seconds without one video segment (owner build-136: a TCL Roku TV read
@@ -625,6 +630,15 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                             playerNote(@"the player failed while the TV had the sound only (%s): converting the picture", codec ? codec : "");
                             if (restartCompat(codec && (!strncmp(codec, "hvc1", 4) || !strncmp(codec, "hev1", 4)))) return;
                         }
+                    }
+                    // r41 (ISSUE-138, owner's build-211 log: a Roku TV's AirPlay read prepared.m3u8 and nothing else; the
+                    // player stopped 0.5 s later, "The operation could not be completed"): a third-party receiver that
+                    // turns down the prepared playlist (fragments with audio and video together, up to 70 s, HEVC) gets
+                    // the converted stream once: demuxed 6-s segments, H.264, the one this TV took in builds 138 and 201.
+                    if (!compatTried && preparedLink && everExternal && kr_remux_served_external(1) == 0) {
+                        const char *codec = kr_remux_video_codec();
+                        playerNote(@"the TV turned down the prepared playlist (%s) before any fragment: converting the picture", codec ? codec : "");
+                        if (restartCompat(codec && (!strncmp(codec, "hvc1", 4) || !strncmp(codec, "hev1", 4)))) return;
                     }
                     const char *m = kr_remux_message();
                     showProblem(m && *m ? @(m) : (player.currentItem.error.localizedDescription ?: @"The TV could not play the converted stream."));
@@ -751,6 +765,26 @@ __attribute__((visibility("default"))) int kodi_airplay_serve(const char *url, i
     setNote(nil);
     int r = kr_remux_start_for(ticket, url, 1, compat ? 1 : 0, out, outlen);
     playerNote(@"served for a TV's own player: result %d", r);
+    return r;
+}
+
+// r41 (ISSUE-138, owner's build-209 log: a Roku with Media Assistant read the prepared playlists and the init, then
+// nothing): the same server for a Roku's own player, but a prepared movie is remuxed instead of served as-is: the
+// picture copied (no conversion), 6-s segments, the audio as its own rendition. Roku's streaming specifications do
+// not support CMAF HLS with audio and video muxed together and recommend 4-6 s chunks; the prepared fragments carry
+// both and run up to 70 s. Same results as kodi_airplay_serve.
+__attribute__((visibility("default"))) int kodi_airplay_serve_segmented(const char *url, char *out, int outlen) {
+    if (out && outlen > 0) *out = 0;
+    if (!url || !*url) return KR_FAILED;
+    os_unfair_lock_lock(&ownershipLock);
+    atomic_fetch_add(&playGeneration,1);
+    atomic_store(&playbackActive,0);atomic_store(&compatBusy,0);atomic_store(&airplayState,0);
+    unsigned ticket=kr_remux_begin(1);atomic_store(&remuxTicket,ticket);
+    os_unfair_lock_lock(&noteLock);free(remuxSource);remuxSource=NULL;os_unfair_lock_unlock(&noteLock);
+    os_unfair_lock_unlock(&ownershipLock);
+    setNote(nil);
+    int r = kr_remux_start_for(ticket, url, 1, KR_COMPAT_SEGMENTED, out, outlen);
+    playerNote(@"served in segments for a TV's own player: result %d", r);
     return r;
 }
 
@@ -946,7 +980,7 @@ for c in "$REMUX"/src/*.c "$REMUX"/gmplayer/*.c; do
   o="$WORK/$(basename "${c%.c}").o"; "${CC_IOS[@]}" -c "$c" -o "$o"; OBJS+=("$o")
 done
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
-printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n_kodi_airplay_serve\n' > "$WORK/exports"
+printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n_kodi_airplay_serve\n_kodi_airplay_serve_segmented\n' > "$WORK/exports"
 printf '_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n' >> "$WORK/exports"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
@@ -978,7 +1012,7 @@ PLIST
 nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume)|background_(keep|state))$'
 # r14: prepare_streams is what tells the setup add-on it may stream from Drive instead of downloading first.
 # r15: prepare_keep_image_subs keeps Blu-ray picture subtitles in .sup files beside the MP4 (Interstellar, build 160).
-[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume|start_at|serve)|background_(keep|state))$')" == 28 ]] || { echo 'missing exports' >&2; exit 1; }
+[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume|start_at|serve|serve_segmented)|background_(keep|state))$')" == 29 ]] || { echo 'missing exports' >&2; exit 1; }
 ! nm -gU "$FW/KodiAirPlay" | grep -E ' _(av|avformat|avcodec|swr|sws|kr|gm|ass|FT|hb|fribidi)_' || { echo 'FFmpeg symbols exported: they would clash with Kodi (libass too)' >&2; exit 1; }
 # r10: libass and the burn-in path are linked in (private).
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _(ass_render_frame|kr_subs_blend|kr_video_burn|kr_remux_set_subtitles|hb_shape|FT_Init_FreeType|fribidi_get_par_embedding_levels_ex)$')" == 7 ]] || { echo 'r10 libass burn-in missing' >&2; exit 1; }

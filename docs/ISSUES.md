@@ -1388,16 +1388,96 @@ Status: FIXED IN SOURCE (build 210); device test pending.
 
 ## ISSUE-138 — Roku: reaches the TV, then fails (2026-11-09)
 
-Status: PARTLY FIXED IN SOURCE (not built); Roku playback not working yet.
-- Owner (build 209, log 1430bbc1, Roku without the Apple TV): "it reaches tv but fails".
+Status: FIXED IN SOURCE (native r41 candidate, not built or published; Python uses it once it is in a build). Roku
+playback not verified: needs the owner's TV.
+- Owner (build 209, log 1430bbc1, Roku without the Apple TV): "it reaches tv but fails"; Media Assistant shows a black
+  screen with the title and time, then "wifi issues on my phone".
 - Media Assistant route (16:55:44): the Roku (Roku/DVP-15.3) took the link and read prepared.m3u8, prepared-media.m3u8
   and the MP4's first 3,764 bytes (the init), which took 7,816 ms to serve; it asked for nothing more.
-- Roku's own AirPlay (16:57:14, client "AirPlay/2.0 MFi_AirPlay_Device"): read prepared.m3u8 only, then Apple's
-  player stopped "The operation could not be completed" 0.5 s later.
-- Fixed: a TV fed by the phone's server did not count as playing ("slowdown: full speed" at 16:55:46), so uploads and
-  copies ran beside it. `airplay.mark_serve` (set by Play on TV, kept by the server's GET lines) now slows them as for
-  AirPlay.
-- Open: why the Roku stops after the init. Candidates: the 7.8 s first read (the phone's server reading Drive), the
-  HEVC Main 10 video (hvc1.2.4) on this Roku model, or byte-range fMP4 HLS. Next evidence needed: what the Roku
-  screen says, and the same test with a 1080p H.264 item.
-- Regression: test_play_on_tv_network.PhoneServedTv.
+- Roku's own AirPlay (build 211, log daaf1c8c, 17:26:06 and 17:26:30; client "AirPlay/2.0 MFi_AirPlay_Device", TV
+  192.168.1.8): read prepared.m3u8 (286 B) only, never the media playlist, then Apple's player stopped "The operation
+  could not be completed" 0.5 s later, with external playback on. No restart was tried: r36's conversion triggers need
+  "no external playback", and r8's is off for prepared links. The phone's own player asked
+  `bytes=0-73921655` (init and first fragment, 74 MB) and got its first 64 KB after 9,902 ms (2,164 ms the second time).
+- Fixed earlier on this branch: a TV fed by the phone's server did not count as playing ("slowdown: full speed" at
+  16:55:46). `airplay.mark_serve` now slows uploads and copies as for AirPlay.
+
+Cause 1: the 7.8 s for 3.7 KB (code). `serve_prepared` reads through `prepared_read`. On a cache miss it fills a whole
+4 MB block (`PC_BLOCK`) from the source before the first byte goes out, while holding the cache lock. The kept-open
+Drive connection was last used for the index reads at the end of the file (`mfro` at size-16, then the `mfra`, in
+`prepared_playlists`), so offset 0 needs a new range request through Kodi's 127.0.0.1 Drive helper and then 4 MB at
+Drive speed. In the build-211 log that speed was low: Drive copy "0.01 MB/s from the source", uploads at 0.16 MB/s,
+and Kodi's own player still reading. 4 MB at 0.5-1 MB/s is 4-8 s. The playlists were never slow (built at start,
+0 ms).
+
+Cause 2: the stream is outside Roku's specifications. These come from Roku's "Streaming specifications" page,
+developer.roku.com/dev/docs/media:
+- **Muxed fMP4 is not supported.** The HLS chunk format row reads "video: TS, CMAF (muxing audio and video not
+  supported for CMAF)". The prepared fragments carry the HEVC and AAC samples together. The master declares
+  `CODECS="hvc1…,mp4a.40.2"` on one variant with no AUDIO group. This is the documented mismatch, for both routes.
+- **The segments are too long.** "Roku recommends media chunk durations between 4 and 6 seconds" and "< 10 seconds for
+  VOD". The prepared fragments run up to 70.2 s, and the first one is 74 MB. A TV that downloads a whole segment
+  before playing waits 40-70 s at Drive speed.
+- **HEVC Main 10 is accepted on 4K Rokus.** HEVC profiles are "main, main 10", levels 4.1/5.0/5.1, and "Roku 4K
+  devices support HEVC up to level 5.1 and bitrates up to 40Mbps". `hvc1.2.4.L150.90` (Main 10, level 5.0) and a
+  15.1 Mbit/s peak are within that on a 4K Roku, but not on a non-4K one. The page lists no codec-string rules
+  (hvc1 versus hev1).
+- **EXT-X-BYTERANGE is not documented.** Roku's "HLS and DASH" page mentions it only for image (thumbnail)
+  playlists. Its support for media segments is unknown, and the fix avoids it.
+- **The master's attributes look fine.** WebVTT in HLS is supported (fragmented, unfragmented and side-loaded), so the
+  SUBTITLES group is not the problem. VIDEO-RANGE is not mentioned (standard HLS; SDR here, and one variant, so the
+  rule "no HDR and non-HDR variants in the same manifest" holds). CODECS: see the muxed point above.
+- **Roku's AirPlay receiver: no Roku documentation found.** Roku publishes no list of what its AirPlay 2 receiver
+  plays. This TV's own history: build 136, demuxed HEVC copy, it read the init then hung up; builds 138/201, demuxed
+  H.264 (converted), it took the master and asked for video segment 0. This time it turned the prepared master down
+  without reading the media playlist. Inference, not proven: the receiver judges the variant line (muxed hvc1+mp4a)
+  and plays H.264 in demuxed HLS.
+- Why the Apple TV plays the same stream: AVPlayer accepts muxed fMP4 byte ranges and long segments, and fetches
+  inside a range progressively (builds 202-204).
+
+Fix (r41 source, smallest change found). Rejected alternatives:
+- A "Roku playlist" of shorter byte ranges is not possible. An fMP4 segment must start at a moof, so a fragment
+  cannot be cut shorter, and its audio and video stay muxed.
+- Giving Roku the progressive MP4 has no Roku documentation for fragmented MP4 with an mfra. It also risks the same
+  fragment walk as ISSUE-127.
+
+The changes:
+1. Media Assistant: `kodi_airplay_serve_segmented(url, out, outlen)` (export 29) starts the server in
+   `KR_COMPAT_SEGMENTED` mode. A prepared movie goes through the ordinary remuxer instead of as-is: picture copied (no
+   conversion, no extra phone work), 6-s segments (`SEG_SECONDS`), audio as its own rendition (`AUDIO="aud"`),
+   WebVTT subtitles, `master.m3u8`. Segment 0 is made ahead at start (existing `prefetch_push`). `cast.tv_link` uses
+   it for kind `roku` when the framework has it; Media Assistant gets `videoFormat=hls`. Chromecast and DLNA, and
+   older frameworks, keep the r40 behaviour.
+2. AirPlay: once external playback has been on and no fragment was served to the TV, Apple's player failing restarts
+   once in compat mode. The `everExternal` flag survives the route dropping in the same second. Compat mode is the
+   existing r36 path: H.264, demuxed, 6 s, the stream this TV took in builds 138 and 201. This needs Drive at about
+   the movie's rate (peak 15.1 Mbit/s, about 1.9 MB/s). Slower, and ISSUE-126's slow-internet card shows.
+3. First bytes in about 1 s: right after the prepared playlists exist, a background thread reads the first 8 MB
+   (blocks 0-1: the init and the start of fragment 1) into the cache. The thread is counted in `S.active` and
+   interrupted by `abort_sources`. It leaves the kept-open Drive connection positioned for the first fragment. Block 0
+   is never evicted, so the init is always in memory. The log line `prepared: first N MB in memory after X ms` shows
+   whether it finished before the TV asked. The playlists were already cached.
+
+Still open:
+- A cold cache miss still waits for a whole 4 MB block. Serving bytes as they arrive would cut it to Drive's
+  first-byte time.
+- The first fragment of the as-is path (up to 74 MB) cannot arrive in 1 s at Drive speed.
+- A non-4K Roku has no HEVC: Media Assistant would need compat 1 (H.264), which needs a way to know the model (ECP
+  `query/device-info`).
+
+Regression:
+- `test_play_on_tv_network.RokuSegmented` (5).
+- Updated: `AnyTv`, `SoundOnlyRestart`, and `test_conversion_speed` (export count 29).
+- `test_remux.c`: segmented start of a prepared file gives master.m3u8, no byte ranges, target ≤ 12 s and audio
+  apart; the read-ahead log line appears.
+- Native: `kr_remux.c` syntax-checked against host FFmpeg headers only. Host and E2E tests and the iOS compile need
+  the candidate CI (not run: [skip ci], no build without approval).
+
+Owner's TV must verify:
+1. Media Assistant with a prepared movie: the picture starts. kodi.log should show `/video/index.m3u8`, `init.mp4`,
+   `seg0.m4s` and audio requests from Roku/DVP, and `prepared:` is gone.
+2. Roku's AirPlay with a prepared movie: "the TV turned down the prepared playlist … converting the picture", then
+   the H.264 picture or the slow-internet card.
+3. The time of the first init and segment requests.
+4. What the Roku screen says if it still fails.
+5. The Roku's model, from Settings › System › About.

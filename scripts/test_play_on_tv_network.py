@@ -305,10 +305,10 @@ class SoundOnlyRestart(unittest.TestCase):
  def test_native_restarts_prepared_movies_once_when_the_tv_takes_the_sound_only(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn("soundOnlyTicks = (!external && tvRoute(player)) ? soundOnlyTicks + 1 : 0;",build)
-  self.assertIn("__block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO;",build)
+  self.assertIn("__block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO, everExternal = NO;",build)
   self.assertIn("if (!preparedLink && wasOn && !external",build)
   remux=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
-  self.assertIn('if(!compat && kr_prepare_ready(prepared)',remux)
+  self.assertIn('if(!compat && !segmented && kr_prepare_ready(prepared)',remux)
  def test_the_old_items_failure_does_not_cancel_the_restart(self):
   # Build 200 log: the r36 restart began, but routeWatch reported the old item's failure in the same tick, so Kodi
   # showed "AirPlay couldn't play this" and closed the player ("start result -1: AirPlay canceled").
@@ -440,7 +440,56 @@ class AnyTv(unittest.TestCase):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn('int kodi_airplay_serve(const char *url, int compat, char *out, int outlen)',build)
   self.assertIn('kr_remux_start_for(ticket, url, 1, compat ? 1 : 0, out, outlen)',build)
-  self.assertIn('_kodi_airplay_serve\\n',build);self.assertIn("== 28 ]]",build)
+  self.assertIn('_kodi_airplay_serve\\n',build);self.assertIn("== 29 ]]",build)
+
+class RokuSegmented(unittest.TestCase):
+ """ISSUE-138 (owner's build-209/211 logs): a Roku read the prepared playlists and the 3.7 KB init (7.8 s), then
+ nothing; Roku's AirPlay read prepared.m3u8 only and Apple's player stopped. Roku's streaming specifications: CMAF HLS
+ with audio and video muxed is not supported, 4-6 s chunks recommended; the prepared fragments are muxed, up to 70 s."""
+ def lib(self,segmented=True):
+  calls=[]
+  def serve(source,compat,out,size):calls.append(('serve',source,compat));out.value=b'http://192.168.1.24:5000/t/prepared.m3u8';return 2
+  def serve_segmented(source,out,size):calls.append(('segmented',source));out.value=b'http://192.168.1.24:5000/t/master.m3u8';return 2
+  ns=types.SimpleNamespace(kodi_airplay_serve=serve,kodi_airplay_close=lambda:None,kodi_airplay_log=lambda b,n:0,kodi_airplay_message=lambda b,n:0)
+  if segmented:ns.kodi_airplay_serve_segmented=serve_segmented
+  return calls,ns
+ def link(self,kind,segmented=True):
+  controller=load('cast_controller',BOOT/'cast.py')
+  calls,lib=self.lib(segmented)
+  xbmc=types.SimpleNamespace(log=lambda m,l=0:None,executebuiltin=lambda c:None,LOGINFO=1,LOGWARNING=2)
+  with patch.object(controller.airplay,'load',return_value=lib):
+   out=controller.tv_link(xbmc,'lib','http://192.168.1.24:1234/drive','http://127.0.0.1:1234/drive',kind)
+  return out,calls
+ def test_roku_gets_the_segmented_stream(self):
+  (link,served),calls=self.link('roku')
+  self.assertEqual((link,served),('http://192.168.1.24:5000/t/master.m3u8',True))
+  self.assertEqual(calls,[('segmented',b'http://127.0.0.1:1234/drive')])
+  self.assertIn('videoFormat=hls',cast.assistant_url('192.168.1.8',link,'Movie'))
+ def test_other_tvs_and_older_frameworks_keep_the_prepared_playlist(self):
+  for kind in ('chromecast','dlna'):
+   self.assertEqual(self.link(kind)[1],[('serve',b'http://127.0.0.1:1234/drive',0)])
+  (link,_),calls=self.link('roku',segmented=False)
+  self.assertEqual((link,calls),('http://192.168.1.24:5000/t/prepared.m3u8',[('serve',b'http://127.0.0.1:1234/drive',0)]))
+ def test_native_segmented_mode(self):
+  remux=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
+  self.assertIn('enum { KR_COMPAT_SEGMENTED = 2 };',(ROOT/'migration/airplay-ios/remux/src/kr_remux.h').read_text())
+  self.assertIn('if(!compat && !segmented && kr_prepare_ready(prepared)',remux)
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn('int kodi_airplay_serve_segmented(const char *url, char *out, int outlen)',build)
+  self.assertIn('kr_remux_start_for(ticket, url, 1, KR_COMPAT_SEGMENTED, out, outlen)',build)
+  self.assertIn('_kodi_airplay_serve_segmented\\n',build);self.assertIn('serve|serve_segmented)',build)
+  self.assertIn('lib.kodi_airplay_serve_segmented.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_int]',(BOOT/'resources/lib/airplay.py').read_text())
+ def test_init_read_ahead_and_kept(self):
+  remux=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
+  self.assertLess(remux.index('        prepared_playlists();\n        prepared_warm_start(ticket);'),remux.index('pthread_create(&S.accept_thread,NULL,accept_loop,NULL)'))
+  self.assertIn('if(PC.at[i]==0)continue;',remux)        # block 0 (the init) is never evicted
+  self.assertIn('atomic_fetch_sub(&S.active,1);',remux[remux.index('static void *prepared_warm'):])   # teardown waits for it
+ def test_airplay_rejection_of_the_prepared_playlist_converts_once(self):
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  self.assertIn('if (!compatTried && preparedLink && everExternal && kr_remux_served_external(1) == 0) {',build)
+  self.assertIn('if (external) everExternal = YES;',build)
+  failed=build.index('preparedLink && everExternal')
+  self.assertLess(failed,build.index('showProblem(m && *m ? @(m)',failed))   # before the problem is reported
 
 class PhoneServedTv(unittest.TestCase):
  """Build 211 (log 1430bbc1): after Play on TV handed a Roku the phone's link, "slowdown: full speed" and the TV's

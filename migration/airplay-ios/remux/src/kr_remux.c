@@ -876,7 +876,14 @@ static int prepared_read(int64_t offset,uint8_t *buf,int want,char *error,int er
             if(!PC.src)goto end;
             publish_source(&prepared_source,PC.src);
         }
-        slot=0;for(int i=1;i<PC_N;i++)if(!PC.data[i] || (PC.data[slot] && PC.used[i]<PC.used[slot]))slot=i;
+        // r41 (ISSUE-138): block 0 (the init, ftyp+moov, and the first fragment's start) is never the one to go: a
+        // TV asks for the init again after a seek or a variant check, and it must not wait for Drive then.
+        slot=-1;for(int i=0;i<PC_N;i++) {
+            if(!PC.data[i]){slot=i;break;}
+            if(PC.at[i]==0)continue;
+            if(slot<0 || PC.used[i]<PC.used[slot])slot=i;
+        }
+        if(slot<0)slot=0;
         if(!PC.data[slot] && !(PC.data[slot]=malloc(PC_BLOCK)))goto end;
         int64_t start=block*PC_BLOCK;int need=(int)FFMIN((int64_t)PC_BLOCK,S.prepared_size-start),filled=0;
         PC.at[slot]=-1;
@@ -893,6 +900,30 @@ static int prepared_read(int64_t offset,uint8_t *buf,int want,char *error,int er
      if(n>0){memcpy(buf,PC.data[slot]+within,(size_t)n);r=n;}}
 end:pthread_mutex_unlock(&PC.lock);
     return r;
+}
+// r41 (ISSUE-138, owner's build-209 log: a Roku's first 3,764 bytes, the init, took 7,816 ms): a cache miss fills a
+// whole 4 MB block from Drive before its first byte goes out, and the connection was left at the end of the file by
+// the index reads (mfro, mfra). The start of the file is read in the background as soon as the playlists exist, so
+// the init and the first fragment's start are in memory when the TV asks (Media Assistant needs 2-5 s to launch;
+// Apple's player asks within a second). Counted in S.active, so teardown waits for it; its read is interrupted with
+// the others (abort_sources).
+#define PC_WARM_BLOCKS 2
+static void *prepared_warm(void *arg) {
+    unsigned ticket=(unsigned)(uintptr_t)arg;double at=now_ms();int blocks=0;
+    for(int k=0;k<PC_WARM_BLOCKS && !atomic_load(&S.stopping) && ticket==atomic_load(&S.ticket);k++) {
+        int64_t offset=(int64_t)k*PC_BLOCK;uint8_t byte;char e[64]="";
+        if(offset>=S.prepared_size || prepared_read(offset,&byte,1,e,sizeof e)<=0)break;
+        blocks++;
+    }
+    if(blocks)log_line("prepared: first %d MB in memory after %.0f ms (init and first fragment)",blocks*PC_BLOCK/(1024*1024),now_ms()-at);
+    else if(!atomic_load(&S.stopping))log_line("prepared: reading the start of the file ahead failed");
+    atomic_fetch_sub(&S.active,1);
+    return NULL;
+}
+static void prepared_warm_start(unsigned ticket) {
+    pthread_t thread;atomic_fetch_add(&S.active,1);
+    if(pthread_create(&thread,NULL,prepared_warm,(void *)(uintptr_t)ticket)){atomic_fetch_sub(&S.active,1);return;}
+    pthread_detach(thread);
 }
 static void serve_prepared(int fd,int head,const char *range,const char *agent) {
     int64_t size=S.prepared_size,first=0,last=size-1;int partial=range!=NULL,valid=size>0;
@@ -1410,8 +1441,17 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
     // r36 (owner's build-198 log and photo: a TCL Roku TV showed a music note and played only the sound of a
     // prepared HEVC movie): when the player asks again in compat mode, that TV cannot take this picture, so the
     // prepared file goes through the H.264 conversion like any other source instead of being served again as it is.
+    // r41 (ISSUE-138): KR_COMPAT_SEGMENTED, for a Roku's own player: the prepared movie goes through the remuxer like
+    // any other file (picture copied, 6-s segments, audio as its own rendition) instead of as-is. Roku's streaming
+    // specifications: CMAF HLS with audio and video muxed together is not supported, chunks of 4-6 s (< 10 s VOD)
+    // are recommended; the prepared file's fragments carry both and run up to 70 s.
+    const int segmented = compat == KR_COMPAT_SEGMENTED;
+    if (segmented) {
+        compat = 0;
+        log_line("segmented: a TV's own player gets 6-s segments with the audio apart (picture copied)");
+    }
     AVFormatContext *prepared=gm_stream_format_context(S.gm);
-    if(!compat && kr_prepare_ready(prepared) && av_dict_get(prepared->metadata,"kodi_airplay_prepared",NULL,0)) {
+    if(!compat && !segmented && kr_prepare_ready(prepared) && av_dict_get(prepared->metadata,"kodi_airplay_prepared",NULL,0)) {
         char host[64]="127.0.0.1";
         if(lan && lan_address(host,sizeof host)){set_message("AirPlay needs Wi-Fi.");goto done;}
         S.prepared_size=kr_source_size(S.src);
@@ -1426,6 +1466,7 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
         log_line("server: endpoint=%s:%d/[token]/prepared.mp4",host,S.port);
         kr_hls_video_codec(S.gm,S.vcodec,sizeof S.vcodec);
         prepared_playlists();
+        prepared_warm_start(ticket);   // r41: the init and the first fragment's start, before the TV asks
         if(pthread_create(&S.accept_thread,NULL,accept_loop,NULL)){close(S.listen_fd);S.listen_fd=-1;goto done;}
         if(out && outlen>0)snprintf(out,(size_t)outlen,"%s/prepared.%s",S.base,S.prepared_master?"m3u8":"mp4");
         log_line("prepared: source-resolution MP4 byte ranges; no live conversion, subtitle burn or prefetch queue");
