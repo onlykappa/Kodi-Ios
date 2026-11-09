@@ -124,6 +124,10 @@ jobs:
           python3 -B scripts/test_notice_log.py
           python3 -B scripts/test_pages.py
           python3 -B scripts/test_airplay_remux.py
+          python3 -B scripts/test_airplay_flow.py
+          python3 -B scripts/test_airplay_room.py
+          python3 -B scripts/test_play_on_tv_start.py
+          python3 -B scripts/test_play_on_tv_network.py
           python3 -B scripts/test_prepare_downloads.py
           python3 -B scripts/test_debrid_drive.py
           python3 -B scripts/test_elementum_cloud.py

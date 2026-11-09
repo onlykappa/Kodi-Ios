@@ -1,5 +1,29 @@
 # Persistent progress
 
+## Verified r42 Roku/Drive candidate — 2026-11-09
+
+Final source `03859028e2fb5abda6888101ba5f8a3cf7a0ab8b` passed
+[native CI 42639212562](https://github.com/onlykappa/Kodi-Ios/actions/runs/42639212562):
+3,231 host checks, zero failures, E2E conversion/resume checks, and the iPhoneOS ARM64 framework compile.
+Sequential Kodi-style playback used 39 upstream requests (budget 60), retaining the efficient saved-file layout.
+The archive for r42 is SHA256 `1f7432be8794997c17b821bb6521fa8aa55349dd0cd5f2c54d56e6b0f5cf661b`.
+Native receipt: [reports/roku-streaming-repair-native.json](../reports/roku-streaming-repair-native.json).
+
+Fixes include shared requested-byte reads, independent init delivery, initial media buffering, truthful
+random-access windows for long-GOP prepared movies, bounded subtitles, resume ownership and video-delivery
+readiness. The error card no longer labels queue waits or canceled requests as slow internet. Existing Drive
+movies remain the source; compatible 4K is copied by Media Assistant. Newly converted video has frequent keyframes;
+the saved-file fragments remain coalesced/interleaved for Kodi efficiency.
+
+Focused Python checks: 100 casting/UI and 48 conversion checks pass; project and UI guidance checks pass.
+The new casting regressions now run in IPA CI. The local non-assembly Linux reference exceeded the software HDR
+cancellation timing budget; tracing isolated the wait to color conversion, while SDR cancellation passed 20/20
+and the accelerated native CI passed its timing check. Actual iPhone HDR/cancellation behavior remains pending.
+The existing card layout is reused; this workspace cannot start the desktop Kodi rig because its binary is absent.
+
+Publishing the verified framework and packaging the test IPA are next. Device picture, sound, sustained playback,
+HDR and seeks still require owner testing. Main is unchanged. See [ROKU-STREAMING.md](ROKU-STREAMING.md).
+
 ## Build-213 Roku repair — 2026-11-09
 
 The owner's new log confirms r41 failed for two movies over both Media Assistant and AirPlay. The owner explicitly

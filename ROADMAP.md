@@ -275,3 +275,11 @@ The owner reports both routes still fail and authorizes repairs and a new test I
 waits, shared Drive reads, subtitle deadlines, false success/slow-internet diagnoses and resume ownership. Candidate
 validation and delivery continue on PR #16, retaining the Drive workflow. Existing device task states and counts
 remain unchanged; actual Roku playback is still an acceptance gate. See docs/PROGRESS.md and docs/ROKU-STREAMING.md.
+
+
+## Roku repair r42 candidate verified — 2026-11-09
+
+Owner-authorized repair source 0385902 passed native run 42639212562: 3,231 host checks, E2E conversion/resume and
+an iPhoneOS framework compile. The r42 framework pin and IPA-CI casting coverage are prepared on PR #16. Test IPA
+publication and artifact verification follow; device task states and counts remain unchanged. See PROGRESS and
+reports/roku-streaming-repair-native.json for evidence and remaining device checks.

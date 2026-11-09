@@ -1487,7 +1487,7 @@ Owner's TV must verify:
 
 ## ISSUE-139 — Build 213: Drive startup stalls and false slow-internet diagnosis (2026-11-09)
 
-Status: implementation under validation on PR #16; device acceptance pending. Owner authorizes repairs and a new test
+Status: final source 0385902 passed native CI 42639212562 (3,231 host checks, E2E and iPhoneOS compile); IPA delivery and device acceptance pending. Owner authorizes repairs and a new test
 build in the current request. Keep the existing Drive library and file identities; no required local download.
 
 The private build-213 log (two movies, Media Assistant and AirPlay) provides concrete failures:
@@ -1579,3 +1579,8 @@ input on tmpfs; cleanup itself completes within milliseconds. This local FFmpeg 
 The cancellation callback cannot interrupt an in-progress scaler call. The native close API remains asynchronous,
 but actual iPhone HDR/cancellation timing still needs device evidence. Added the native demuxer's interrupt callback so its own parse/seek loops
 observe cancellation too; device timing remains unverified. Do not report the slow local timing run as passing.
+
+Final retest: source 0385902, native run 42639212562 passed 3,231 checks and the E2E conversion/resume suite.
+Sequential playback now uses 39 requests (budget 60). The verified r42 pin is recorded in source-lock.json and
+reports/roku-streaming-repair-native.json. The local software-HDR timing limitation remains explicitly recorded;
+SDR cancellation passed 20/20, and accelerated CI passed its cancellation check. Device acceptance is still open.

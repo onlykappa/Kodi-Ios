@@ -1,0 +1,30 @@
+{
+  "status": "NATIVE_CANDIDATE_VERIFIED_IPA_PENDING",
+  "date": "2026-11-09",
+  "source_commit": "03859028e2fb5abda6888101ba5f8a3cf7a0ab8b",
+  "native_candidate_run": 42639212562,
+  "framework_tag": "kodi-airplay-r42",
+  "framework_sha256": "1f7432be8794997c17b821bb6521fa8aa55349dd0cd5f2c54d56e6b0f5cf661b",
+  "host_checks": 3231,
+  "host_failures": 0,
+  "e2e_passed": true,
+  "e2e_failures": 0,
+  "sequential_playback_requests": 39,
+  "sequential_playback_request_limit": 60,
+  "iphoneos_compile_passed": true,
+  "python_checks": {
+    "casting_and_ui": 100,
+    "conversion_speed": 48
+  },
+  "project_check_passed": true,
+  "ui_guidance_check_passed": true,
+  "local_reference_limitations": {
+    "ffmpeg_x86_assembly_enabled": false,
+    "software_hdr_cancel_timing_budget_passed": false,
+    "sdr_cancel_stress_checks": 20,
+    "sdr_cancel_stress_failures": 0
+  },
+  "device_tested": false,
+  "live_drive_accessed": false,
+  "main_merged": false
+}
