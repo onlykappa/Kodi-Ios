@@ -440,6 +440,21 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
 - Verified in the downloaded IPA: build.json build 205 / commit d317d12 / airplay r40 9a3415cd…; rows_editor has the
   new lists and slot_of; portrait.refresh_rows is used by customise_rows.
 
+## Build 212 — verified (release build-212, IPA sha256 dcc94e10…, commit 551f32c; AirPlay r41). Owner testing (ISSUE-138)
+
+- **ISSUE-138** (Roku): Media Assistant gets the prepared movie remuxed (`kodi_airplay_serve_segmented`: picture
+  copied, 6-s segments, audio apart) instead of the muxed byte-range playlist Roku does not support; Roku's AirPlay
+  turning the prepared playlist down converts once to H.264; the first 8 MB of a prepared file are read ahead and
+  the init is kept in memory.
+- **AirPlay r41**: candidate run 42547843379 (source 29b128f) green, 3,177 host checks, 0 failed, plus end-to-end;
+  published by run 42549203217; release digest aea92b57… = the pin.
+- Verified in the downloaded IPA: build.json build 212 / commit 551f32c / run 42549244096 / airplay r41 aea92b57…;
+  KodiAirPlay binary 7c3f2f1e… identical to the candidate's, with `_kodi_airplay_serve_segmented`; cast.py and
+  airplay.py use it.
+- Owner to check: (1) Roku › Media Assistant with a prepared movie: the picture starts; (2) the Roku's AirPlay:
+  "Converting the picture for your TV", then the picture or the slow-internet card; send kodi.log either way, the
+  Roku model, and what the TV screen says if it fails.
+
 ## Build 210 — ISSUE-137: buffering % moved into the video controls; its own dialog (which froze Kodi) never opens
 
 ## Build 208 — ISSUE-136: all background work (uploads, copies, conversion) waits while Kodi plays or buffers a video; AirPlay unchanged
