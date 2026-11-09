@@ -4,7 +4,7 @@ index 1903fec..b1a6b70 100644
 +++ b/tools/depends/Makefile.include.in
 @@ -66,7 +66,9 @@ READELF=@READELF@
  OBJDUMP=@OBJDUMP@
- 
+
  CMAKE=@prefix@/@tool_dir@/bin/cmake -DCMAKE_TOOLCHAIN_FILE=$(PREFIX)/share/Toolchain.cmake -DCMAKE_INSTALL_PREFIX=$(PREFIX)
 -CFLAGS=@platform_cflags@ @platform_includes@ -isystem @prefix@/@deps_dir@/include
 +# Kodi-iOS: clang 15+ turned these old-C warnings into errors; the pinned libraries predate that.
@@ -16,7 +16,7 @@ index 1903fec..b1a6b70 100644
 @@ -99,7 +101,7 @@ READELF_FOR_BUILD=@READELF_FOR_BUILD@
  OBJDUMP_FOR_BUILD=@OBJDUMP_FOR_BUILD@
  CMAKE_FOR_BUILD=@prefix@/@tool_dir@/bin/cmake -DCMAKE_TOOLCHAIN_FILE=$(NATIVEPREFIX)/share/Toolchain-Native.cmake -DCMAKE_INSTALL_PREFIX=$(NATIVEPREFIX)
- 
+
 -NATIVE_CFLAGS=@host_includes@ -I@prefix@/@tool_dir@/include
 +NATIVE_CFLAGS=@host_includes@ -I@prefix@/@tool_dir@/include $(CLANG_COMPAT_CFLAGS)
  NATIVE_LDFLAGS=@host_includes@ -L@prefix@/@tool_dir@/lib
@@ -34,7 +34,7 @@ index 6059b69..23b2766 100644
 +	# Apple SDKs always do (later libpng dropped that test); keep the classic-Mac compilers only.
 +	cd $(PLATFORM); sed -i.orig 's/ || defined(__SC__) || defined(TARGET_OS_MAC)/ || defined(__SC__)/' pngpriv.h
  	cd $(PLATFORM); $(CONFIGURE)
- 
+
  $(LIBDYLIB): $(PLATFORM)
 diff --git a/tools/depends/native/zlib/Makefile b/tools/depends/native/zlib/Makefile
 index be8e481..81b4eee 100644
@@ -48,7 +48,7 @@ index be8e481..81b4eee 100644
 +	# do in stdio.h (zlib 1.3 dropped that test); keep the classic-Mac-only branch.
 +	cd $(PLATFORM); sed -i.orig 's/defined(MACOS) || defined(TARGET_OS_MAC)/defined(MACOS)/' zutil.h
  	cd $(PLATFORM); $(CONFIGURE)
- 
+
  $(LIBDYLIB): $(PLATFORM)
 diff --git a/tools/depends/target/gnutls/Makefile b/tools/depends/target/gnutls/Makefile
 index f60773d..c6d30c5 100644
@@ -64,7 +64,7 @@ index f60773d..c6d30c5 100644
 +endif
  CONFIGURE_OPTIONS+= ac_cv_func_malloc_0_nonnull=yes \
                      ac_cv_func_realloc_0_nonnull=yes
- 
+
 diff --git a/tools/depends/target/libffi/LIBFFI-VERSION b/tools/depends/target/libffi/LIBFFI-VERSION
 index 9d1e722..1c4c61c 100644
 --- a/tools/depends/target/libffi/LIBFFI-VERSION
@@ -92,7 +92,7 @@ index ad0f910..d9594dd 100644
 +	# gas-preprocessor.pl ("invalid CFI advance_loc expression"); clang assembles these .S files itself,
 +	# so the generated Makefile's CCAS drops the preprocessor.
 +	cd $(PLATFORM); sed -i.orig 's|[^ ]*/gas-preprocessor\.pl ||g' Makefile
- 
+
  $(LIBDYLIB): $(PLATFORM)
  	$(MAKE) -j 1 -C $(PLATFORM)
 diff --git a/tools/depends/target/libgcrypt/Makefile b/tools/depends/target/libgcrypt/Makefile
@@ -107,7 +107,7 @@ index bb5a005..264dc72 100644
 +    CONFIGURE_FLAGS+= --disable-asm
    endif
  endif
- 
+
 diff --git a/tools/depends/target/libpng/Makefile b/tools/depends/target/libpng/Makefile
 index eae10a3..6e3c5e7 100644
 --- a/tools/depends/target/libpng/Makefile
@@ -120,7 +120,7 @@ index eae10a3..6e3c5e7 100644
 +	# Apple SDKs always do (later libpng dropped that test); keep the classic-Mac compilers only.
 +	cd $(PLATFORM); sed -i.orig 's/ || defined(__SC__) || defined(TARGET_OS_MAC)/ || defined(__SC__)/' pngpriv.h
  	cd $(PLATFORM)/build; $(CMAKE) $(CMAKE_OPTIONS) ..
- 
+
  .installed-$(PLATFORM): $(PLATFORM)
 diff --git a/tools/depends/target/nettle/Makefile b/tools/depends/target/nettle/Makefile
 index 84f28b0..4504250 100644
@@ -134,16 +134,16 @@ index 84f28b0..4504250 100644
 +ifeq ($(OS),darwin_embedded)
 +  CONFIGURE_FLAGS=--disable-assembler
 +endif
- 
+
  # configuration settings
  CONFIGURE=cp -f $(CONFIG_SUB) $(CONFIG_GUESS) .; \
 diff --git a/xbmc/application/Application.cpp b/xbmc/application/Application.cpp
 --- a/xbmc/application/Application.cpp
 +++ b/xbmc/application/Application.cpp
 @@ -209,6 +209,159 @@
- 
+
  #define MAX_FFWD_SPEED 5
- 
+
 +#if defined(TARGET_DARWIN_IOS)
 +// Kodi-iOS r22: the portrait tab bar (KodiGlassBar.framework r5, migration/glassbar-ios) is shown by Kodi itself.
 +// Python services start ~2-4.5 s after Home on the phone (owner logs, docs/PERFORMANCE.md), so a bar driven from
@@ -303,7 +303,7 @@ diff --git a/xbmc/application/Application.cpp b/xbmc/application/Application.cpp
 @@ -3231,6 +3384,11 @@
    CServiceBroker::GetAppMessenger()->ProcessMessages();
    if (m_bStop) return; //we're done, everything has been unloaded
- 
+
 +#if defined(TARGET_DARWIN_IOS)
 +  // Kodi-iOS r22: the native tab bar follows the page from here, from the first loop after Home opens.
 +  KodiIOSGlassBarTick();
@@ -319,11 +319,11 @@ index bf73f14..4a017af 100644
 @@ -45,6 +45,8 @@
  #include "utils/log.h"
  #include "video/dialogs/GUIDialogFullScreenInfo.h"
- 
+
 +#include <set>
 +
  using namespace KODI::MESSAGING;
- 
+
  CApplicationSkinHandling::CApplicationSkinHandling(IMsgTargetCallback* msgCb,
 @@ -259,6 +261,10 @@ bool CApplicationSkinHandling::LoadCustomWindows()
    // Start from wherever home.xml is
@@ -333,7 +333,7 @@ index bf73f14..4a017af 100644
 +  // 1080i was then parsed in full only to be refused ("id already in use", 40 errors and parses at every start).
 +  // A file name already loaded from an earlier folder is skipped before it is read.
 +  std::set<std::string> loadedFiles;
- 
+
    for (const auto& skinPath : vecSkinPath)
    {
 @@ -275,6 +281,10 @@ bool CApplicationSkinHandling::LoadCustomWindows()
@@ -352,7 +352,7 @@ index bf73f14..4a017af 100644
              continue;
            }
 +          loadedFiles.insert(fileKey);
- 
+
            CGUIWindow* pWindow = nullptr;
            bool hasVisibleCondition = false;
 diff --git a/xbmc/dialogs/GUIDialogKaiToast.cpp b/xbmc/dialogs/GUIDialogKaiToast.cpp
@@ -361,7 +361,7 @@ index 2f8ca00..af8137b 100644
 +++ b/xbmc/dialogs/GUIDialogKaiToast.cpp
 @@ -9,17 +9,67 @@
  #include "GUIDialogKaiToast.h"
- 
+
  #include "ServiceBroker.h"
 +#include "filesystem/SpecialProtocol.h"
  #include "guilib/GUIFadeLabelControl.h"
@@ -370,17 +370,17 @@ index 2f8ca00..af8137b 100644
 +#include "utils/JSONVariantWriter.h"
  #include "utils/TimeUtils.h"
 +#include "utils/Variant.h"
- 
+
 +#include <ctime>
 +#include <fstream>
  #include <mutex>
- 
+
 +#include <sys/stat.h>
 +
  #define POPUP_ICON                400
  #define POPUP_CAPTION_TEXT        401
  #define POPUP_NOTIFICATION_BUTTON 402
- 
+
 +namespace
 +{
 +// iOS portrait build: pop-ups are never shown. Each one is appended as a JSON line to toasts.jsonl in the
@@ -426,11 +426,11 @@ index 2f8ca00..af8137b 100644
 +
  CGUIDialogKaiToast::TOASTQUEUE CGUIDialogKaiToast::m_notifications;
  CCriticalSection CGUIDialogKaiToast::m_critical;
- 
+
 @@ -81,6 +131,9 @@ void CGUIDialogKaiToast::AddToQueue(const std::string& aImageFile, const eMessag
        return; // avoid duplicates in a row.
    }
- 
+
 +  if (KeepForBell(eType, aImageFile, aCaption, aDescription))
 +    return;
 +
@@ -777,7 +777,7 @@ index ebb133d..9017863 100644
 @@ -499,9 +499,20 @@ EVENT_RESULT CGUIWindow::OnMouseAction(const CAction &action)
    CPoint mousePoint(action.GetAmount(0), action.GetAmount(1));
    CServiceBroker::GetWinSystem()->GetGfxContext().InvertFinalCoords(mousePoint.x, mousePoint.y);
- 
+
 +  // Kodi-iOS: a touch pan's distance arrives in screen pixels like its position; convert it the same way, or
 +  // lists move further than the finger (25% on an iPhone in portrait, where the skin is smaller than the screen).
 +  float offsetX = action.GetAmount(2);
@@ -798,9 +798,9 @@ index ebb133d..9017863 100644
    {
      CGUIControl *child = GetControl(m_exclusiveMouseControl);
 @@ -514,7 +525,15 @@ EVENT_RESULT CGUIWindow::OnMouseAction(const CAction &action)
- 
+
    UnfocusFromPoint(mousePoint);
- 
+
 -  return SendMouseEvent(mousePoint, event);
 +  const EVENT_RESULT result = SendMouseEvent(mousePoint, event);
 +  // Kodi-iOS r17: the owner reports the video controls' buttons "not working well". Log every tap (click) with the
@@ -812,7 +812,7 @@ index ebb133d..9017863 100644
 +              result == EVENT_RESULT_UNHANDLED ? "(not handled)" : "(handled)");
 +  return result;
  }
- 
+
  EVENT_RESULT CGUIWindow::OnMouseEvent(const CPoint& point, const MOUSE::CMouseEvent& event)
 @@ -591,7 +610,30 @@ bool CGUIWindow::OnMessage(CGUIMessage& message)
    case GUI_MSG_WINDOW_INIT:
@@ -853,7 +853,7 @@ index 265f2a1..cbd808a 100644
 @@ -85,6 +85,13 @@ bool CGenericTouchActionHandler::OnTouchGestureStart(float x, float y)
    return true;
  }
- 
+
 +bool CGenericTouchActionHandler::OnTouchGestureStart(float x, float y, float movedX, float movedY)
 +{
 +  sendEvent(ACTION_GESTURE_BEGIN, x, y, movedX, movedY);
@@ -870,7 +870,7 @@ index 5cdd404..6dd72ae 100644
 +++ b/xbmc/input/touch/generic/GenericTouchActionHandler.h
 @@ -46,6 +46,11 @@ public:
    bool OnMultiTouchUp(float x, float y, int32_t pointer) override;
- 
+
    bool OnTouchGestureStart(float x, float y) override;
 +  /*!
 +   * \brief Kodi-iOS: start of a drag with the finger's movement so far (offsets of ACTION_GESTURE_BEGIN), so
@@ -896,7 +896,7 @@ index 0d88d1d..9c268d8 100644
 @@ -89,6 +91,21 @@ void AnnounceBridge(ANNOUNCEMENT::AnnouncementFlag flag,
    CVariant nonConstData = data;
    const std::string& msg(message);
- 
+
 +#if defined(TARGET_DARWIN_IOS)
 +  // Kodi-iOS r11: fullscreen video is landscape, the menus portrait. The video stream is often not open yet
 +  // at OnPlay (web streams), so OnAVStart decides; OnStop returns to portrait.
@@ -945,7 +945,7 @@ index 56ecaa5..20a7014 100644
 @@ -77,6 +79,17 @@
    }
  }
- 
+
 +// Kodi-iOS r15: the portrait build rebuilds the framebuffer after every rotation. Doing it in layoutSubviews
 +// (UIKit's main thread) made the main thread take Kodi's EAGL context while Kodi's render thread was drawing
 +// with it, and the GL driver crashed in the next draw (owner's crash reports: glDrawArrays from
@@ -961,9 +961,9 @@ index 56ecaa5..20a7014 100644
  {
    if(framebufferResizeRequested)
 @@ -244,15 +257,10 @@
- 
+
      glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebuffer);
- 
+
 -    if(framebufferHeight > framebufferWidth) {
 -      glViewport(0, 0, framebufferHeight, framebufferWidth);
 -      glScissor(0, 0, framebufferHeight, framebufferWidth);
@@ -1026,17 +1026,17 @@ index a450151..816152c 100644
 +#include "windowing/GraphicContext.h"
 +#include "windowing/ios/WinSystemIOS.h"
  #import "windowing/ios/WinSystemIOS.h"
- 
+
  #import "platform/darwin/NSLogDebugHelpers.h"
 @@ -48,7 +50,9 @@
  #include "TextureCache.h"
  #undef id
- 
+
 +#include <atomic>
  #include <math.h>
 +#import <objc/runtime.h>
  #include <signal.h>
- 
+
  #import <AVFoundation/AVAudioSession.h>
 @@ -129,12 +133,109 @@ public:
    std::unique_ptr<DebugLogSharingPresenter> m_debugLogSharingPresenter;
@@ -1044,11 +1044,11 @@ index a450151..816152c 100644
  - (void)rescheduleNetworkAutoSuspend;
 +- (void)rescueTouches:(UIEvent*)event;
  @end
- 
+
  @interface UIApplication (extended)
  -(void) terminateWithSuccess;
  @end
- 
+
 +// Kodi-iOS r12: in landscape video, taps reached Kodi only on the left of the screen (the portrait width). UIKit
 +// hands a touch to a view only inside the bounds of every view above it; Kodi's window is made with a fixed frame
 +// and autoresizing off, and a window or root view left at the portrait size lets the GL view draw everywhere but
@@ -1151,7 +1151,7 @@ index a450151..816152c 100644
 @@ -203,10 +304,171 @@ public:
  }
  // END OF UIKeyInput protocol
- 
+
 +// Kodi-iOS r11: the menus are portrait only (the skin ships a portrait layout); fullscreen video turns the
 +// picture to landscape. The announcement thread sets s_videoLandscape when a video stream starts or stops, and
 +// the main thread turns the screen to match, retrying every half second until it does.
@@ -1330,7 +1330,7 @@ index a450151..816152c 100644
 +    // so most flicks stopped dead when the finger lifted. Same units as the positions.
 +    velocity.x *= screenScale;
 +    velocity.y *= screenScale;
- 
+
      if( [sender state] == UIGestureRecognizerStateBegan && sender.numberOfTouches )
      {
 @@ -462,7 +729,11 @@ public:
@@ -1345,7 +1345,7 @@ index a450151..816152c 100644
 +              (float)point.x, (float)point.y, (float)(moved.x * screenScale), (float)(moved.y * screenScale));
            touchBeginSignaled = true;
          }
- 
+
 @@ -530,7 +801,32 @@ public:
      CGPoint point = [sender locationOfTouch:0 inView:m_glView];
      point.x *= screenScale;
@@ -1383,7 +1383,7 @@ index a450151..816152c 100644
 @@ -575,7 +871,7 @@ public:
    m_isPlayingBeforeInactive = NO;
    m_bgTask = UIBackgroundTaskInvalid;
- 
+
 -  m_window = [[UIWindow alloc] initWithFrame:frame];
 +  m_window = [[KodiTouchWindow alloc] initWithFrame:frame];
    [m_window setRootViewController:self];
@@ -1392,10 +1392,10 @@ index a450151..816152c 100644
 @@ -589,7 +885,7 @@ public:
                   name: nil
                 object: nil];
- 
+
 -  orientation = UIInterfaceOrientationLandscapeLeft;
 +  orientation = UIInterfaceOrientationPortrait;
- 
+
    [m_window makeKeyAndVisible];
    g_xbmcController = self;
 @@ -600,7 +896,8 @@ public:
@@ -1407,7 +1407,7 @@ index a450151..816152c 100644
 +  self.view = [[KodiTouchRootView alloc] initWithFrame:UIScreen.mainScreen.bounds];
    self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
    self.view.autoresizesSubviews = YES;
- 
+
 @@ -661,6 +958,13 @@ public:
    if ([self respondsToSelector:@selector(setNeedsUpdateOfHomeIndicatorAutoHidden)]) {
      [self performSelector:@selector(setNeedsUpdateOfHomeIndicatorAutoHidden)];
@@ -1427,9 +1427,9 @@ index a450151..816152c 100644
  {
    PRINT_SIGNATURE();
 +  s_viewCovered = YES; // Kodi-iOS r20
- 
+
    [self pauseAnimation];
- 
+
 @@ -712,6 +1017,15 @@ public:
  {
    m_debugLogSharingPresenter = std::make_unique<DebugLogSharingPresenter>();
@@ -1460,13 +1460,13 @@ index a450151..816152c 100644
 +    guiInsets = EdgeInsets{};
      return;
 +  }
- 
+
    auto scale = [m_glView getScreenScale:m_glView.currentScreen];
    guiInsets = EdgeInsets(insets.left * scale, insets.top * scale, insets.right * scale,
 @@ -1045,4 +1366,70 @@ public:
    return [m_glView getCurrentEAGLContext];
  }
- 
+
 +//--------------------------------------------------------------
 +// Kodi-iOS r19: see UIApplication (KodiTouchRescue). Main thread only; takes no Kodi lock.
 +- (void)rescueTouches:(UIEvent*)event
@@ -1548,7 +1548,7 @@ index bf8a8ae..d927130 100644
 +    m_internalTouchscreenResolutionHeight = -1;
 +  }
    bool CanDoWindowed() override { return false; }
- 
+
    void ShowOSMouse(bool show) override {}
 diff --git a/xbmc/cores/AudioEngine/Engines/ActiveAE/ActiveAE.cpp b/xbmc/cores/AudioEngine/Engines/ActiveAE/ActiveAE.cpp
 --- a/xbmc/cores/AudioEngine/Engines/ActiveAE/ActiveAE.cpp
@@ -1633,24 +1633,36 @@ diff --git a/xbmc/cores/VideoPlayer/DVDDemuxers/DVDDemuxFFmpeg.cpp b/xbmc/cores/
 +      CLog::Log(LOGINFO, "{} - opening MP4 by its fragment index (use_mfra_for pts)", __FUNCTION__);
 +      av_dict_set(&options, "use_mfra_for", "pts", 0);
 +    }
- 
+
      if (StringUtils::StartsWith(content, "audio/l16"))
      {
 
 diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
 --- a/xbmc/guilib/GUISliderControl.cpp
 +++ b/xbmc/guilib/GUISliderControl.cpp
-@@ -729,17 +729,22 @@
+@@ -19,6 +19,8 @@
+ #include "input/mouse/MouseStat.h"
+ #include "utils/MathUtils.h"
+ #include "utils/StringUtils.h"
++#include "utils/log.h"
++#include <chrono>
+
+ using namespace KODI;
+
+@@ -729,17 +731,36 @@
    }
    else if (event.m_id == ACTION_GESTURE_BEGIN)
    { // grab exclusive access
 +    m_dragging = true;
++    m_touchSeekAt = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
++    m_touchSeekMoves = 0;
      CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, GetID(), GetParentID());
      SendWindowMessage(msg);
      return EVENT_RESULT_HANDLED;
    }
    else if (event.m_id == ACTION_GESTURE_PAN)
    { // do the drag
++    ++m_touchSeekMoves;
 +    m_dragging = true;
      SetFromPosition(point);
      return EVENT_RESULT_HANDLED;
@@ -1659,7 +1671,74 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
    { // release exclusive access
 +    // Seek once on release; cancellation restores the current playback position on the next Process.
 +    if (event.m_id == ACTION_GESTURE_END)
++    {
++      const auto submitted = std::chrono::steady_clock::now();
 +      SetFromPosition(point);
++      if (m_action && m_action->infoCode == PLAYER_PROGRESS && m_touchSeekAt)
++      {
++        const auto now = std::chrono::steady_clock::now();
++        const auto total = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() - m_touchSeekAt;
++        const auto submit = std::chrono::duration_cast<std::chrono::milliseconds>(now - submitted).count();
++        CLog::Log(LOGINFO, "Kodi iOS seek: touch {} ms, {} moves, submit {} ms", total, m_touchSeekMoves, submit);
++      }
++    }
++    m_touchSeekAt = 0;
      CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, 0, GetParentID());
      SendWindowMessage(msg);
      return EVENT_RESULT_HANDLED;
+diff --git a/xbmc/guilib/GUISliderControl.h b/xbmc/guilib/GUISliderControl.h
+--- a/xbmc/guilib/GUISliderControl.h
++++ b/xbmc/guilib/GUISliderControl.h
+@@ -139,7 +139,9 @@
+   int m_iInfoCode;
+   std::string m_textValue; ///< Allows overriding of the text value to be displayed (parent must update when the slider updates)
+   const SliderAction *m_action; ///< Allows the skin to configure the action of a click on the slider \sa SendClick
+-  bool m_dragging; ///< Whether we're in a (mouse/touch) drag operation or not - some actions are sent only on release.
++  bool m_dragging;
++  long long m_touchSeekAt{0};
++  unsigned int m_touchSeekMoves{0}; ///< Whether we're in a (mouse/touch) drag operation or not - some actions are sent only on release.
+   ORIENTATION m_orientation;
+ };
+
+diff --git a/xbmc/cores/VideoPlayer/VideoPlayerVideo.cpp b/xbmc/cores/VideoPlayer/VideoPlayerVideo.cpp
+--- a/xbmc/cores/VideoPlayer/VideoPlayerVideo.cpp
++++ b/xbmc/cores/VideoPlayer/VideoPlayerVideo.cpp
+@@ -456,6 +456,7 @@
+     else if (pMsg->IsType(CDVDMsg::GENERAL_FLUSH)) // private message sent by (CVideoPlayerVideo::Flush())
+     {
+       bool sync = std::static_pointer_cast<CDVDMsgBool>(pMsg)->m_value;
++      m_seekFrameAt = std::chrono::steady_clock::now();
+       if(m_pVideoCodec)
+         m_pVideoCodec->Reset();
+
+@@ -947,6 +948,12 @@
+     return OUTPUT_DROPPED;
+   }
+
++  if (m_seekFrameAt != std::chrono::steady_clock::time_point{})
++  {
++    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - m_seekFrameAt).count();
++    CLog::Log(LOGINFO, "Kodi iOS seek: first decoded picture queued {} ms after video flush", elapsed);
++    m_seekFrameAt = {};
++  }
+   return OUTPUT_NORMAL;
+ }
+
+diff --git a/xbmc/cores/VideoPlayer/VideoPlayerVideo.h b/xbmc/cores/VideoPlayer/VideoPlayerVideo.h
+--- a/xbmc/cores/VideoPlayer/VideoPlayerVideo.h
++++ b/xbmc/cores/VideoPlayer/VideoPlayerVideo.h
+@@ -7,6 +7,7 @@
+  */
+
+ #pragma once
++#include <chrono>
+
+ #include "DVDClock.h"
+ #include "DVDCodecs/Video/DVDVideoCodec.h"
+@@ -140,5 +141,6 @@
+   CRenderManager& m_renderManager;
+   VideoPicture m_picture;
+
++  std::chrono::steady_clock::time_point m_seekFrameAt{};
+   EOutputState m_outputSate;
+ };

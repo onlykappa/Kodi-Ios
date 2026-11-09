@@ -3,8 +3,8 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
-  "build_tag": "kodi-ios-portrait-r24",
-  "staged_patch_note": "r24 pinned (run 42436771730, executable 02d5357a\u2026): CDVDDemuxFFmpeg opens MP4/MOV with use_mfra_for=pts so prepared movies open by their index (build-194 log: 30 s). Device check pending.",
+  "build_tag": "kodi-ios-portrait-r25",
+  "staged_patch_note": "r25 candidate: touch drag seek ownership, gesture/seek submission timing and first decoded-frame queue timing. Native build/device acceptance pending.",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
     "tag": "kodi-ios-portrait-r24",

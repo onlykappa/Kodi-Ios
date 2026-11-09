@@ -1,5 +1,12 @@
 # Persistent progress
 
+## Owner-approved recommendations: implementation and IPA — 2026-11-09
+
+Owner authorizes all five recommendations plus a new test IPA. Native r25 touch/seek diagnostics are ready for
+compilation; capability-aware routing, buffering, adaptive uploads and clearer stages follow. ISSUE-142 tracks
+work and failures. The earlier AirPlay candidate compiled but one host frame-count assertion failed; a full green
+retest is required. Main remains unchanged.
+
 ## Public 4K movie check — 2026-11-09
 
 At the owner's request, downloaded Blender's public Big Buck Bunny 2160p movie and used this branch's native

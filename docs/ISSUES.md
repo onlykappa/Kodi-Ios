@@ -1691,3 +1691,19 @@ the harness failure. No desktop app is claimed: release/artifact inspection foun
 See reports/public-movie-seek-check.json. The native CI host job remains in package installation, so its full suite
 and new IPA are not represented as passed. No additional desktop Kodi build was started after the owner asked to
 reuse the branch version.
+
+
+## ISSUE-142 — Owner-approved streaming recommendations and test IPA (2026-11-09)
+
+Owner explicitly requests adding the recommended capability checks, buffering/cancellation, adaptive chunks,
+clear transfer stages and seek diagnostics to this IPA and pushing it. Main merge is not authorized. Native r25
+includes the prior touch seek fix plus gesture duration/submission timing and elapsed video-flush-to-first-decoded
+picture queued to the renderer. The latter is queue readiness, not a measured display-vsync event. Host handler
+checks and pinned-file patch application passed; native build and device acceptance follow. Other recommendations
+are in progress. UI policy and its project skill were read before changing visible stages; reuse existing layouts.
+The first diagnostic patch-write helper ran from the fixture directory with a relative repository path; rerunning
+with the absolute repository root passed.
+
+The preceding native run 42685265901 passed the framework compile but failed one of 3,307 host checks: the signed-CTS
+B-frame fixture decoded 769 frames instead of the local expected 768. Investigate source fixture frame count and
+packet preservation before accepting any candidate; do not relabel that run as a full pass.
