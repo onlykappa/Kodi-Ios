@@ -474,15 +474,15 @@ def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
    # One bounded retry after an actual connected-receiver failure. Preserve the caller's phone pause state.
    diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'cast','roku_compatibility_retry')
    lib.kodi_airplay_close()
-   url,served=tv_link(xbmc,library,original_url,playing,'roku',safe=True)
-   if served:
-    try:
+   try:
+    url,served=tv_link(xbmc,library,original_url,playing,'roku',safe=True)
+    if served:
      cast.roku_play(tv['host'],url,title,cast.http_post)
      receiver.update(next=0,status={},logged=None,last_network={})
      ui=FlowUI(xbmc,xbmcgui,dialog,title);ui.show('connecting',('opening','waiting_tv'))
      outcome=cast.receiver_outcome(network,lambda s:ui.canceled() or monitor.waitForAbort(s));ui.close()
-    except Exception as error:
-     diagnostics.log_exception(xbmc,'roku_compatibility_retry',error);outcome='failed'
+   except Exception as error:
+    diagnostics.log_exception(xbmc,'roku_compatibility_retry',error);outcome='failed'
   if outcome!='playing':
    why=airplay.message(lib);lib.kodi_airplay_close();airplay.clear_busy(home);airplay.clear_serve(home)
    restore_phone()

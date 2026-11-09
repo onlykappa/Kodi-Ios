@@ -1,7 +1,8 @@
 # Roku streaming from the existing Drive library
 
 Use Play on TV → the Roku / Media Assistant route first for a 4K movie. Kodi fetches the same Drive file and serves
-separate video/audio HLS renditions to the TV. Compatible H.264/HEVC video keeps its resolution and encoded picture;
+separate video/audio HLS renditions to the TV. HEVC within the Roku codec limits keeps its resolution and encoded picture; H.264 above 1080p is converted,
+because Roku documents H.264 through 1080p even on its 4K models. Other compatible video is copied;
 there is no required local download, separate media server, or Apple TV box.
 
 The first segment is buffered before launching Media Assistant. The Roku path inspects keyframes inside the
@@ -9,7 +10,9 @@ existing storage fragments, then streams separate video/audio segments around si
 its coalesced fragment layout for efficient normal Kodi reads. A genuinely long video GOP can still need a longer
 window; its duration is advertised truthfully. After launch, playlist access alone is not success: Kodi waits for
 video delivery and, where available, Roku playback feedback before stopping its own player. Keep Kodi open on the
-iPhone while using Media Assistant; it is the streaming server. Existing background work slows during casting.
+iPhone while using Media Assistant; it is the streaming server. Existing background work slows during casting. Explicit HD-only receiver capabilities select a 1080p SDR/
+stereo AAC route immediately. Unknown capability data keeps the original route. If a connected Roku fails to
+start video, the sender makes one automatic compatibility retry; it restores phone playback if that also fails.
 
 Kodi forwards the enabled text subtitle to Media Assistant's HLS playlist. Captions use their own track's index
 and avoid downloading 4K video merely to read a cue. On Roku, press ✱ during playback and set Closed captions to
@@ -53,3 +56,12 @@ Google media byte ranges. Its URL cache is not a complete offline movie. A Googl
 also separate from Kodi's sandbox. If playback with Wi-Fi off uses mobile data, it still has internet access.
 A direct Roku download requires a TV-readable URL and compatible media/authentication. Private Drive URLs need the
 Google credentials handled by the phone's bridge; account permissions and file visibility are unchanged.
+
+
+This candidate also targets 12 seconds of read-ahead, growing toward 18 seconds when production is expensive,
+within fixed queue and cache bounds. Seeking drops obsolete work, including in-flight copied-video reads.
+Direct AllDebrid-to-Drive uploads use aligned 1–8 MiB pieces based on observed read/upload times, with one piece
+read ahead. The existing transfer row distinguishes reading the source, uploading to Drive and playback holds;
+only Drive-confirmed bytes advance the percentage. Network retry messages retain priority over playback labels.
+The seek log records gesture duration, submission time and first decoded picture queued after the video flush.
+That queue timing does not measure when the TV or iPhone physically displays the frame.

@@ -535,6 +535,30 @@ class RokuHandoff(unittest.TestCase):
    with patch.object(cast,'receiver_outcome',side_effect=outcome):controller.send(xbmc,object(),player,'lib',{'kind':'roku','host':'tv','name':'Roku'},'source','Movie',True)
   self.assertEqual(links,[False,True]);self.assertEqual(count[0],2);self.assertEqual(events,['pause','close','stop'])
 
+ def test_compatibility_retry_failure_cancel_and_capability_preserve_phone(self):
+  cases=[({},4,'failed',False,[False,True]),({},4,'aborted',False,[False,True]),
+         ({},4,'failed',True,[False,True]),({},0,'failed',False,[False]),
+         ({'supports-4k':'false'},4,'failed',False,[True]),({},4,'raise',False,[False,True])]
+  for model,requests,final,paused,expected in cases:
+   with self.subTest(model=model,requests=requests,final=final,paused=paused):
+    state,events,player,xbmc=self.phone(paused);links=[]
+    def link(*args,**kwargs):
+     links.append(kwargs.get('safe',False))
+     if final=='raise' and len(links)==2:raise RuntimeError('preparation interrupted')
+     return 'tv-link',True
+    lib=types.SimpleNamespace(kodi_airplay_close=lambda:events.append('close'))
+    gui=types.SimpleNamespace(Window=lambda _:Window())
+    ui=types.SimpleNamespace(show=lambda *a:None,canceled=lambda:False,close=lambda:None,ask=lambda *a:'phone')
+    def outcome(network,wait):network();return final if len(links)==2 else 'failed'
+    with patch.object(controller,'tv_link',side_effect=link),patch.object(airplay,'load',return_value=lib),\
+         patch.object(airplay,'message',return_value=''),patch.object(airplay,'log_lines',return_value=[]),\
+         patch.object(airplay,'network',return_value={'tv_requests':requests,'tv_video':0,'phase':'failed'}),\
+         patch.object(controller,'FlowUI',return_value=ui),patch.object(cast,'roku_play',return_value='Media Assistant'),\
+         patch.object(cast,'receiver_outcome',side_effect=outcome),patch.object(cast,'roku_model',return_value=model),\
+         patch.object(controller.notices,'note'),patch.dict(sys.modules,{'xbmcgui':gui}):
+     controller.send(xbmc,object(),player,'lib',{'kind':'roku','host':'tv','name':'Roku'},'source','Movie',True)
+    self.assertEqual(links,expected);self.assertEqual(state[0],paused);self.assertNotIn('stop',events)
+
 class RokuSegmented(unittest.TestCase):
  """ISSUE-138 (owner's build-209/211 logs): a Roku read the prepared playlists and the 3.7 KB init (7.8 s), then
  nothing; Roku's AirPlay read prepared.m3u8 only and Apple's player stopped. Roku's streaming specifications: CMAF HLS

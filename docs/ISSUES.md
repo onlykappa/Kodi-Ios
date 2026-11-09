@@ -1728,3 +1728,11 @@ Python checks pass: casting 61, direct transfer 24, upload 23, status 26, remux 
 portrait 50. UI guidance/project scans pass. The patch checker initially flagged whitespace-only unified-diff
 context; preserving valid empty context lines fixed it, and pinned upstream patch application passes. Existing
 rig start fails because the desktop Kodi binary is absent; visual and iPhone/Roku acceptance remain pending.
+
+
+ISSUE-142 follow-up checks: slow-source latency passed 46 checks; prefetched segments returned in 4.3/1.8 ms.
+Casting now passes 62 tests with additional failed/canceled fallback, HD-only capability and already-paused-phone
+cases. Compatibility preparation itself is inside the exception handler so an interrupted retry also restores
+phone playback. A CLI artifact download was rejected by the artifact storage endpoint; the GitHub connector
+successfully fetched the same candidate archive, which was downloaded and SHA256 checked locally. No release
+pin is accepted until the full native suite passes.
