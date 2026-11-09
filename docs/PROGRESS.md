@@ -6,12 +6,12 @@ All five recommendations are implemented: explicit receiver capability routing a
 bounded adaptive prefetch with cancellation of obsolete copied reads, aligned 1–8 MiB upload chunks, explicit
 read/upload/playback-hold stages, and native seek timing diagnostics. The r25 executable passed native build/publication in run
 42692028826 and its release binary equals the CI artifact. Focused native checks passed (37 recommendation checks and 103 Roku regressions), along with
-62 casting, 24 direct-transfer, 23 upload, 26 status, 29 remux-contract, 41 calibration and 50 portrait checks.
+62 casting, 24 direct-transfer, 23 upload, 27 status, 29 remux-contract, 41 calibration and 50 portrait checks.
 The UI guidance and project scans pass. Existing layouts and controls are reused; starting the existing desktop
 rig confirms no Kodi binary is installed, so visual/device review remains pending. No desktop rebuild was started.
-ISSUE-142 retains both native fixture failures. The second run passed framework compilation but found an older
-prepared-file test requiring copy mode even for the synthetic HEVC level-255 fixture. Its corrected codec-limit
-expectation passed all 330 focused preparation checks; full native CI is rerunning. Main unchanged.
+ISSUE-142 retains both native fixture failures and their diagnoses. Corrected native run 42695837108 passed
+3,319 checks, zero failures, end-to-end conversion/recovery and the iPhoneOS framework compile. The candidate is
+pinned as r43 alongside verified Kodi r25. Publication and test IPA packaging follow. Main is unchanged.
 
 ## Public 4K movie check — 2026-11-09
 

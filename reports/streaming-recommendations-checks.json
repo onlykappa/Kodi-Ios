@@ -1,8 +1,8 @@
 {
   "date": "2026-11-09",
   "evidence": "host tests and native artifact verification; device and visual review pending",
-  "airplay_source_commit": "2843870555bfe9309fd4aaa0f09538592ec3954a",
-  "airplay_candidate_run": 42694006257,
+  "airplay_source_commit": "0a5ad576ad757233384532186a105a096a8517fc",
+  "airplay_candidate_run": 42695837108,
   "focused_native": {
     "roku_regressions": 103,
     "recommendations": 37,
@@ -25,7 +25,7 @@
     },
     "work_state": {
       "passed": true,
-      "tests": 26
+      "tests": 27
     },
     "remux_contract": {
       "passed": true,
@@ -70,6 +70,22 @@
     "test_build193_pages": {
       "passed": true,
       "tests": 37
+    },
+    "glassbar_contract": {
+      "passed": true,
+      "tests": 28
+    },
+    "unsigned_ipa": {
+      "passed": true,
+      "tests": 7
+    },
+    "customized_ipa": {
+      "passed": true,
+      "tests": 11
+    },
+    "foundation": {
+      "passed": true,
+      "tests": 11
     }
   },
   "kodi_executable": {
@@ -93,5 +109,16 @@
     "checks": 3319,
     "failures": 3,
     "reason": "Legacy prepared-copy test requires copy even for synthetic HEVC level 255, above the new Roku limit; corrected test passes focused preparation suite."
+  },
+  "full_native": {
+    "run": 42695837108,
+    "host_checks": 3319,
+    "host_failures": 0,
+    "e2e_passed": true,
+    "e2e_failures": 0,
+    "iphoneos_compile_passed": true,
+    "source_commit": "0a5ad576ad757233384532186a105a096a8517fc",
+    "framework_tag": "kodi-airplay-r43",
+    "archive_sha256": "c1562e136d42d3fe694435b6175bfdac600a08bcdd450946e9e227210d243be8"
   }
 }

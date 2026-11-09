@@ -1765,3 +1765,10 @@ that timer while retaining Drive-confirmed percentage; 27 state tests pass, incl
 The glass-bar contract test also matched a literal space on an otherwise blank patch context line. Aligning it
 with the whitespace-clean native patch retains the surrounding frame-loop code assertion and updates verified
 r25/previous-r24 release expectations; no native behavior change is required.
+
+
+ISSUE-142 verified candidate: run 42695837108 from 0a5ad576ad757233384532186a105a096a8517fc passed all 3,319 host
+checks, end-to-end conversion/interruption/resume/expired-session/slow-source checks (zero failures), and the
+ARM64 iPhoneOS compile. Its candidate archive SHA256 is c1562e136d42d3fe694435b6175bfdac600a08bcdd450946e9e227210d243be8.
+The r25 executable was separately built, released, hash checked and compared exactly with its CI artifact.
+Publication and IPA packaging are authorized by the owner; actual phone/Roku/visual acceptance remains pending.
