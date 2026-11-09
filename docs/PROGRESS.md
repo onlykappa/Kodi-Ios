@@ -1,5 +1,25 @@
 # Persistent progress
 
+## Roku from Drive: test build 213 — 2026-11-09
+
+Owner explicitly requested a test build in the current session. Packaged the existing r41 candidate from
+`551f32c876df6bbabce4148a96ff3f00d6076dcd` on PR #16's feature branch; no main merge or new streaming-source change.
+[Download build 213](https://github.com/onlykappa/Kodi-Ios/releases/download/build-213/Kodi-iOS-Customized-Touch-r10.ipa).
+[IPA workflow 42550189064](https://github.com/onlykappa/Kodi-Ios/actions/runs/42550189064) passed all stages.
+The r41 native candidate run 42547843379 passed 3,177 host checks, the end-to-end conversion checks and the iPhoneOS
+framework compile. Local project checks and 127 focused Python tests passed.
+
+Downloaded IPA: 620,433,205 bytes, SHA256 `fabcb829d99c2f737f7206ecd697b6e3193d79266e1ebad3b8a5a63721175945`,
+equal to the GitHub asset digest. ZIP integrity, build/commit identity, embedded framework equality with the verified
+r41 release after signature removal, Roku segmented route, Python 3.11 bytecode and 154 unsigned, unencrypted ARM64
+images verified. Receipt: [reports/roku-drive-test-delivery.json](../reports/roku-drive-test-delivery.json).
+
+Next: install as an update and play the same 4K movie from the existing Drive library using Media Assistant first,
+then AirPlay; check startup, sustained playback and forward/backward seeking. Media Assistant copies compatible
+4K video; the AirPlay compatibility fallback converts video and can reduce resolution. Cold prepared-file cache
+misses still fill a complete block; r41 changes the Roku route and warms the as-is path, not demand-first reads.
+Device/Drive/Roku acceptance remains pending; no live account or media was accessed. Main is unchanged.
+
 ## One-file source-resolution preparation — 2026-11-05
 
 Owner reports build-151 stops on a long AirPlay seek and requests startup scanning plus a third preparation step after Drive upload. Owner explicitly rejected a separate AirPlay copy and requires the selected resolution: **4K stays 4K; 1080p stays 1080p; preserve compatible HDR**. Implemented on `feature/preconvert-downloads`, draft PR #10; main has not been merged.

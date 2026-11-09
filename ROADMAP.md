@@ -260,3 +260,10 @@ Phase 2 completion means static deliverables, not certified iPhone functionality
 ## Owner decision 2026-11-01 — version 1 on main
 
 The owner authorized merging the iOS work into `main` after the r13 review build (build-111) as version 1 (DEC-024). Task IDs and their states above are unchanged: device tasks still need the owner's evidence. The roadmap is to be reworked from version 1 at the owner's request.
+
+## Roku Drive test delivery — 2026-11-09
+
+Owner authorized a new test build. Existing r41 candidate delivered as build 213 from PR #16's feature branch;
+main was not merged. Packaging and downloaded-IPA verification passed; see docs/PROGRESS.md and
+reports/roku-drive-test-delivery.json. P4-005/P4-006 and task counts are unchanged: actual Drive/Roku startup,
+sustained 4K playback and seeking still require owner evidence. The cold prepared-file cache limitation stays open.

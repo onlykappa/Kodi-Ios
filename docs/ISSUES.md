@@ -1388,8 +1388,9 @@ Status: FIXED IN SOURCE (build 210); device test pending.
 
 ## ISSUE-138 — Roku: reaches the TV, then fails (2026-11-09)
 
-Status: FIXED IN SOURCE (native r41 candidate, not built or published; Python uses it once it is in a build). Roku
-playback not verified: needs the owner's TV.
+Status: R41 CANDIDATE BUILT AND DELIVERED in test build 213 (2026-11-09); Roku playback remains unverified and needs
+the owner's TV. Native run 42547843379 and IPA run 42550189064 passed. Delivery receipt:
+`reports/roku-drive-test-delivery.json`. The cold-cache block-fill limitation below remains open.
 - Owner (build 209, log 1430bbc1, Roku without the Apple TV): "it reaches tv but fails"; Media Assistant shows a black
   screen with the title and time, then "wifi issues on my phone".
 - Media Assistant route (16:55:44): the Roku (Roku/DVP-15.3) took the link and read prepared.m3u8, prepared-media.m3u8
@@ -1470,8 +1471,9 @@ Regression:
 - Updated: `AnyTv`, `SoundOnlyRestart`, and `test_conversion_speed` (export count 29).
 - `test_remux.c`: segmented start of a prepared file gives master.m3u8, no byte ranges, target ≤ 12 s and audio
   apart; the read-ahead log line appears.
-- Native: `kr_remux.c` syntax-checked against host FFmpeg headers only. Host and E2E tests and the iOS compile need
-  the candidate CI (not run: [skip ci], no build without approval).
+- Initial source validation was syntax-only. Subsequently, native candidate CI 42547843379 passed 3,177 host
+  checks, the E2E conversion checks and the iPhoneOS framework compile. The owner then authorized test IPA
+  packaging; build 213 passed the full packaging workflow and downloaded-artifact verification. Device retest pending.
 
 Owner's TV must verify:
 1. Media Assistant with a prepared movie: the picture starts. kodi.log should show `/video/index.m3u8`, `init.mp4`,
