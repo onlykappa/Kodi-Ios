@@ -1487,7 +1487,7 @@ Owner's TV must verify:
 
 ## ISSUE-139 — Build 213: Drive startup stalls and false slow-internet diagnosis (2026-11-09)
 
-Status: final source 0385902 passed native CI 42639212562 (3,231 host checks, E2E and iPhoneOS compile); IPA delivery and device acceptance pending. Owner authorizes repairs and a new test
+Status: REPAIRED TEST CANDIDATE DELIVERED in build 214 with r42. Native CI 42639212562 and IPA CI 42641842437 passed; downloaded artifact verified. Actual iPhone/Roku acceptance remains pending. Owner authorizes repairs and a new test
 build in the current request. Keep the existing Drive library and file identities; no required local download.
 
 The private build-213 log (two movies, Media Assistant and AirPlay) provides concrete failures:
@@ -1558,8 +1558,8 @@ path cannot safely assume a short keyframe interval. For indexed MP4s, Roku now 
 from the complete mfra index; video and audio use the same truthful plan. Old long-GOP files retain longer windows
 and their original 4K picture. The output and byte caches are bounded at 128 MiB each to retain an old prepared
 unit without discarding it before launch. Copy demuxers discard other tracks to avoid duplicate 4K reads for audio.
-Newly converted video uses two-second encoder keyframes, retaining the existing file ID,
-resolution and HDR policy. This does not require downloading/replacing old Drive movies to use the repaired route.
+Newly converted video uses two-second encoder keyframes with the existing preparation workflow, resolution
+and HDR policy. This does not require downloading/replacing old Drive movies to use the repaired route.
 The long-GOP regression decodes the complete picture and checks every frame once, plus the audio timeline.
 
 The first long-GOP test used FFmpeg's raw empty-moov output, whose zero init duration hid the final two seconds;
@@ -1584,3 +1584,9 @@ Final retest: source 0385902, native run 42639212562 passed 3,231 checks and the
 Sequential playback now uses 39 requests (budget 60). The verified r42 pin is recorded in source-lock.json and
 reports/roku-streaming-repair-native.json. The local software-HDR timing limitation remains explicitly recorded;
 SDR cancellation passed 20/20, and accelerated CI passed its cancellation check. Device acceptance is still open.
+
+Delivery retest: build 214 (IPA run 42641842437) passed the app tests and full packaging. The downloaded IPA's
+SHA256 is 7decfff5fa03b593844e940d02f7e5e7a3ba4e4d28814ddaf7dc220cba44ad46; its r42 framework, casting Python
+sources/3.11 bytecode and 154 unsigned, unencrypted ARM64 images were verified. Receipt:
+reports/roku-drive-test-delivery-r42.json. The owner must still check real TV startup, sustained picture/sound and
+seeks. This delivery does not mark device behavior as passing.

@@ -1,5 +1,29 @@
 # Persistent progress
 
+## Roku/Drive build 214 delivered — 2026-11-09
+
+[Download test build 214](https://github.com/onlykappa/Kodi-Ios/releases/download/build-214/Kodi-iOS-Customized-Touch-r10.ipa).
+The owner authorized repairs and a test build, preserving the current Drive workflow.
+[IPA run 42641842437](https://github.com/onlykappa/Kodi-Ios/actions/runs/42641842437) passed all app/casting,
+assembly and packaging gates from `f523dfca7fc9525436024e0b6efeaf9214b64bf5`. It embeds verified r42 source
+`03859028e2fb5abda6888101ba5f8a3cf7a0ab8b`; native run 42639212562 passed 3,231 checks, E2E conversion/resume
+and the iPhoneOS compile. The saved-file playback check used 39 requests (budget 60).
+
+Downloaded IPA: 620,439,230 bytes, SHA256 `7decfff5fa03b593844e940d02f7e5e7a3ba4e4d28814ddaf7dc220cba44ad46`.
+Asset digest, ZIP integrity, build/commit identity, exact r42 framework equality after signature removal, current
+controller/helper sources, Python 3.11 bytecode and 154 unsigned/unencrypted ARM64 images verified.
+Receipt: [reports/roku-drive-test-delivery-r42.json](../reports/roku-drive-test-delivery-r42.json).
+
+Install as an update and reopen Kodi. Test the same two Drive movies, Media Assistant first for retained compatible
+4K, then native AirPlay; check startup, sound, several minutes of playback and forward/backward seeks. AirPlay's
+compatibility conversion can use 1080p SDR. Older prepared movies keep truthful longer random-access windows,
+which can need more initial buffering. See [ROKU-STREAMING.md](ROKU-STREAMING.md) for the local-network/Drive
+explanation and recommendations.
+
+Device acceptance remains open. The local non-assembly software HDR cancellation timing limitation remains in the
+native receipt/ISSUE-139; accelerated native CI passed its timing check. No live Drive account/media was accessed,
+no main merge occurred, and device task counts are unchanged.
+
 ## Verified r42 Roku/Drive candidate — 2026-11-09
 
 Final source `03859028e2fb5abda6888101ba5f8a3cf7a0ab8b` passed

@@ -283,3 +283,11 @@ Owner-authorized repair source 0385902 passed native run 42639212562: 3,231 host
 an iPhoneOS framework compile. The r42 framework pin and IPA-CI casting coverage are prepared on PR #16. Test IPA
 publication and artifact verification follow; device task states and counts remain unchanged. See PROGRESS and
 reports/roku-streaming-repair-native.json for evidence and remaining device checks.
+
+
+## Roku repair test build 214 delivered — 2026-11-09
+
+The owner-authorized r42 repair is delivered on PR #16 as build 214. Native CI 42639212562 and IPA CI 42641842437
+passed, and the downloaded archive/framework/Python code/ARM64 binaries were verified. Receipt:
+reports/roku-drive-test-delivery-r42.json. Retained-4K Media Assistant and native AirPlay still need the owner's
+actual device tests; task counts and pending device states remain unchanged. Main is unchanged.

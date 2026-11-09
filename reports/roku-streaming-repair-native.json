@@ -1,5 +1,5 @@
 {
-  "status": "NATIVE_CANDIDATE_VERIFIED_IPA_PENDING",
+  "status": "NATIVE_CANDIDATE_VERIFIED_TEST_IPA_DELIVERED",
   "date": "2026-11-09",
   "source_commit": "03859028e2fb5abda6888101ba5f8a3cf7a0ab8b",
   "native_candidate_run": 42639212562,
@@ -26,5 +26,6 @@
   },
   "device_tested": false,
   "live_drive_accessed": false,
-  "main_merged": false
+  "main_merged": false,
+  "ipa_receipt": "reports/roku-drive-test-delivery-r42.json"
 }
