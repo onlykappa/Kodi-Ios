@@ -177,6 +177,9 @@ int gm_stream_make_unit(gm_stream *s, int i, gm_buf *out, int *moov_end, char *e
 
 /// Close and free the stream.
 void gm_stream_close(gm_stream *s);
+// Retire buffered partial packets after a canceled speculative read; the next seek starts cleanly.
+void gm_stream_clear_read_error(gm_stream *s);
+int gm_stream_uniform_plan(gm_stream *s);
 
 /// Kodi iOS addition (not upstream): the AVFormatContext behind the stream (struct AVFormatContext *).
 struct AVFormatContext *gm_stream_format_context(gm_stream *s);

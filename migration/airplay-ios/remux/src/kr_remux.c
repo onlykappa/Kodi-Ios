@@ -81,6 +81,7 @@ static struct {
     atomic_int served_ext_video, served_ext_audio;  // r8: to receivers other than the phone's own player
     char vcodec[64];  // r6: the variant's video CODECS value ("hvc1.2.4.L120.90")
     int compat;       // r7: /video/ is the picture converted to H.264 (kr_video), not copied
+    int roku_safe;
     int prepared;
     int64_t prepared_size;
     char *prepared_master, *prepared_media;  // r38: HLS byte-range playlists over the prepared file (NULL: plain MP4)
@@ -432,6 +433,7 @@ static kr_audio *bridge_audio(bridge *b, char *err, int errlen) {
     if (!src) return NULL;
     publish_source(&b->src, src);
     b->audio = kr_audio_open(kr_source_gm(src), b->index, err, errlen);
+    if(b->audio && S.roku_safe)kr_audio_stereo(b->audio);
     if (!b->audio) { publish_source(&b->src, NULL); kr_source_close(src); }
     return b->audio;
 }
@@ -538,16 +540,27 @@ static pthread_mutex_t *lane(int rend) {
 
 // r9: the converted segment being made right now (any thread), -1 when none.
 static atomic_int vc_seg = -1;
+static atomic_int copy_canceled;
+static atomic_llong part_cost_ms[NREND];
+static int copied_read_interrupted(void *ticket) {
+    return atomic_load(&copy_canceled) || source_interrupted(ticket);
+}
 
 // The whole unit (ftyp+moov+moof+mdat) of segment seg of a rendition (its lane's lock held).
-static int produce_unit(int rend, int seg, gm_buf *out, char *err, int errlen) {
+static int produce_unit(int rend, int seg,int ahead, gm_buf *out, char *err, int errlen) {
     int split = 0, r = -1;
     if (atomic_load(&S.stopping)) { snprintf(err, (size_t)errlen, "stopping"); return -1; }
     if (rend == R_VCOPY) {
         int v = gm_stream_selected_video(S.gm);
         if (v < 0) { snprintf(err, (size_t)errlen, "no video track"); return -1; }
         double at=now_ms(),io=kr_source_io_ms(S.src);
+        void *ticket=(void *)(uintptr_t)atomic_load(&S.ticket);
+        if(ahead)kr_source_set_interrupt(S.src,copied_read_interrupted,ticket);
         int result=gm_stream_track_unit(S.gm, v, seg, out, &split, err, errlen);
+        if(ahead) {
+            kr_source_set_interrupt(S.src,source_interrupted,ticket);
+            if(atomic_load(&copy_canceled)){gm_stream_clear_read_error(S.gm);return KR_VIDEO_CANCELLED;}
+        }
         if(now_ms()-at>1000)log_line("copy: video segment %d in %.0f ms, source I/O %.0f ms, result %d",seg,now_ms()-at,kr_source_io_ms(S.src)-io,result);
         return result;
     }
@@ -721,7 +734,9 @@ static void video_init_ready(void *context,const uint8_t *data,int len) {
 // out (optional) gets the init (want_init) or the media segment.
 static int make_part(int rend, int seg, int ahead, int want_init, gm_buf *out, char *err, int errlen) {
     gm_buf u = {0};
-    int r = produce_unit(rend, seg, &u, err, errlen);
+    double started=now_ms();
+    int r = produce_unit(rend, seg,ahead, &u, err, errlen);
+    if(r==0){long long cost=(long long)(now_ms()-started),old=atomic_load(&part_cost_ms[rend]);atomic_store(&part_cost_ms[rend],old?(3*old+cost)/4:cost);}
     if (r == 0) {
         int m = kr_first_moof(u.data, u.len);
         if (m <= 0 || m >= u.len) { snprintf(err, (size_t)errlen, "bad segment split"); r = -1; }
@@ -780,6 +795,11 @@ static void prefetch_focus(int rend, int seg) {
         i++;
     }
     for (int w = 0; w < PF_WORKERS; w++)
+        if(rend==R_VCOPY && P.busy_rend[w]==rend && !near(rend,P.busy_seg[w],seg)) {
+            atomic_store(&copy_canceled,1);
+            log_line("seek: cancel obsolete copied video segment %d for request %d",P.busy_seg[w],seg);
+        }
+    for (int w = 0; w < PF_WORKERS; w++)
         if (rend == R_VCOMPAT && P.busy_rend[w] == rend && !near(rend, P.busy_seg[w], seg)) {
             pthread_mutex_lock(&src_lock);
             if (S.video) kr_video_cancel(S.video);
@@ -793,7 +813,11 @@ static void prefetch_focus(int rend, int seg) {
 static void prefetch_after(int rend, int seg) {
     pthread_mutex_lock(&P.lock);
     if (P.started && atomic_load(&pf_on)) {
-        int depth=PF_DEPTH(rend);
+        int depth=0;double covered=0;
+        double duration=S.gm?gm_stream_segment_duration(S.gm,seg):SEG_SECONDS;
+        double cost=atomic_load(&part_cost_ms[rend])/1000.0;
+        double horizon=rend>=R_AUDIO?12:(duration>0 && cost/duration>.7?18:12);
+        while(depth<PF_DEPTH(rend) && covered<horizon){depth++;covered+=S.gm?gm_stream_segment_duration(S.gm,seg+depth):SEG_SECONDS;if(covered<=0)break;}
         if(S.gm && gm_stream_segment_duration(S.gm,seg)>SEG_SECONDS*2)depth=1;
         for (int k = 1; k <= depth; k++) push_locked(rend, seg + k);
         pthread_cond_broadcast(&P.cond);
@@ -823,6 +847,7 @@ static void *prefetch_worker(void *arg) {
             continue;
         }
         int rend = P.q[pick].rend, seg = P.q[pick].seg;
+        if(rend==R_VCOPY)atomic_store(&copy_canceled,0);
         memmove(P.q + pick, P.q + pick + 1, sizeof P.q[0] * (size_t)(P.n - pick - 1)); P.n--;
         P.busy_rend[me] = rend; P.busy_seg[me] = seg;
         pthread_mutex_unlock(&P.lock);
@@ -830,13 +855,14 @@ static void *prefetch_worker(void *arg) {
             char err[256] = "";
             int r = make_part(rend, seg, 1, 0, NULL, err, sizeof err);
             if (r == 0) atomic_fetch_add(&S.prefetched, 1);
-            else if (!atomic_load(&S.stopping) && !(rend == R_VCOMPAT && r == KR_VIDEO_CANCELLED))
+            else if (!atomic_load(&S.stopping) && r != KR_VIDEO_CANCELLED)
                 log_line("prefetch: %s segment %d: %s", rend == R_VCOPY ? "video" : rend == R_VCOMPAT ? "converted video" : "audio", seg, err);
         }
         pthread_mutex_lock(&P.lock);
         // Clear ownership before another request can acquire the lane. Otherwise a seeker can mistake
         // the new foreground converter for this finished background job and cancel the wrong work.
         P.busy_rend[me] = -1; P.busy_seg[me] = -1;
+        if(rend==R_VCOPY)atomic_store(&copy_canceled,0);
         pthread_mutex_unlock(l);
         pthread_cond_broadcast(&P.cond);
     }
@@ -868,11 +894,11 @@ static void prefetch_stop(void) {
 // background job making the same segment finishes first and the request takes its result).
 static int get_part(int rend, int seg, gm_buf *out, char *err, int errlen) {
     if (seg < -1 || seg >= gm_stream_segment_count(S.gm)) { snprintf(err, (size_t)errlen, "bad segment index"); return -1; }
+    if(seg>=0)prefetch_focus(rend,seg);
     if (cache_take(rend, seg, out)) return 0;
     pthread_mutex_t *l = lane(rend);
     if (!l) { snprintf(err, (size_t)errlen, "no such track"); return -1; }
     atomic_fetch_add(&demand[rend], 1);
-    if (seg >= 0) prefetch_focus(rend, seg);
     // Cancel only a background job identified under P.lock. Concurrent foreground requests (including
     // retries/init reads by the phone and TV) must not cancel each other and turn a seek into HTTP 500.
     double queued = now_ms();
@@ -1466,6 +1492,8 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
     atomic_store(&S.startup_deadline_ms,(long long)(now_ms()+45000));
     atomic_store(&S.served_video, 0); atomic_store(&S.served_audio, 0); S.vcodec[0] = 0;
     atomic_store(&S.compat_clients, 0); atomic_store(&S.prefetched, 0);
+    atomic_store(&copy_canceled,0);S.roku_safe=0;
+    for(int i=0;i<NREND;i++)atomic_store(&part_cost_ms[i],0);
     atomic_store(&S.served_ext_video, 0); atomic_store(&S.served_ext_audio, 0);
     atomic_store(&S.state, KR_STARTING);
     set_message("");
@@ -1505,13 +1533,15 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
     // any other file (picture copied, 6-s segments, audio as its own rendition) instead of as-is. Roku's streaming
     // specifications: CMAF HLS with audio and video muxed together is not supported, chunks of 4-6 s (< 10 s VOD)
     // are recommended; the prepared file's fragments carry both and run up to 70 s.
-    const int segmented = compat == KR_COMPAT_SEGMENTED;
+    const int roku_safe=compat==KR_COMPAT_ROKU_SAFE;
+    S.roku_safe=roku_safe;
+    const int segmented = compat == KR_COMPAT_SEGMENTED || roku_safe;
     if (segmented) {
-        compat = 0;
+        compat = roku_safe?1:0;
         log_line("segmented: targeting six-second keyframe-aligned segments, separate audio, picture copied");
     }
     AVFormatContext *prepared=gm_stream_format_context(S.gm);
-    if(segmented && prepared && prepared->iformat && strstr(prepared->iformat->name,"mov")) {
+    if(segmented && !roku_safe && prepared && prepared->iformat && strstr(prepared->iformat->name,"mov")) {
         S.prepared_size=kr_source_size(S.src);
         // Copying cannot create keyframes. A uniform six-second grid repeats/skips pictures when the source
         // has 30-second GOPs. Its complete fragment index supplies real, independently decodable boundaries.
@@ -1554,6 +1584,7 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
         if (gm_stream_track_info(S.gm, i, &t) != 0 || t.kind != GM_TRACK_AUDIO) continue;
         audio_tracks++;
         int route = kr_audio_route(&t);
+        if(route && roku_safe)route=KR_AUDIO_AAC;
         if (route) playable_audio++;
         if (t.src_index >= 0 && t.src_index < MAX_TRACKS) S.routes[t.src_index] = route;
         if (route == KR_AUDIO_AAC && t.src_index < MAX_TRACKS) {
@@ -1572,6 +1603,13 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
         if (input->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO &&
             !(input->streams[i]->disposition & AV_DISPOSITION_ATTACHED_PIC)) has_video = 1;
     int selected = gm_stream_selected_video(S.gm);
+    if(segmented && !compat && selected>=0) {
+        AVCodecParameters *p=input->streams[selected]->codecpar;
+        if((p->codec_id==AV_CODEC_ID_H264 && (p->width>1920 || p->height>1080 || p->level>42)) ||
+           (p->codec_id==AV_CODEC_ID_HEVC && (p->width>3840 || p->height>2160 || p->level>153))) {
+            compat=1;log_line("compat: source exceeds Roku's documented codec limits; using H.264 up to 1080p");
+        }
+    }
     if (!compat && has_video && (selected < 0 || needs_video_conversion(input->streams[selected]->codecpar))) {
         if (S.vindex < 0) { set_message("AirPlay: this build cannot decode this video's codec."); goto done; }
         if (!kr_video_available()) { set_message("AirPlay: this build cannot convert video (no H.264 encoder)."); goto done; }
@@ -1582,6 +1620,7 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
         if (S.vindex < 0) { set_message("AirPlay: this file has no video that can be converted."); goto done; }
         if (!kr_video_available()) { set_message("AirPlay: this build cannot convert video (no H.264 encoder)."); goto done; }
         S.compat = 1;
+        if(segmented)gm_stream_uniform_plan(S.gm);
     }
     {   // r10: the subtitles to burn into the converted picture (Kodi's choice, else the file's default / forced)
         AVFormatContext *f = gm_stream_format_context(S.gm);
@@ -1631,7 +1670,7 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
     }
     if (out && outlen > 0) snprintf(out, (size_t)outlen, "%s/master.m3u8", S.base);
     // r8: the playlists are fixed for the session: made once here, served without touching the demuxer.
-    S.master_copy = kr_hls_master_selected(S.gm,S.base,S.compat,"video",S.burn_index);
+    S.master_copy = kr_hls_master_receiver(S.gm,S.base,S.compat,"video",S.burn_index,S.roku_safe);
     if (S.compat_ok) S.master_compat = kr_hls_master_selected(S.gm,S.base,1,"cvideo",S.burn_index);
     if (!S.master_copy || (S.compat_ok && !S.master_compat)) { set_message("AirPlay: out of memory."); goto done; }
     if (S.burn_index >= 0 || S.burn_file[0]) {  // r11: burned in: no WebVTT rendition for the converted picture

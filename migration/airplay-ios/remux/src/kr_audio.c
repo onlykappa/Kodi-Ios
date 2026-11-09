@@ -93,6 +93,10 @@ fail:
 }
 
 int kr_audio_channels(const kr_audio *a) { return a ? a->channels : 0; }
+void kr_audio_stereo(kr_audio *a) {
+    if(!a)return;
+    av_channel_layout_uninit(&a->layout);av_channel_layout_default(&a->layout,2);a->channels=2;
+}
 int kr_audio_sample_rate(const kr_audio *a) { return a ? a->rate : 0; }
 
 void kr_audio_close(kr_audio *a) {

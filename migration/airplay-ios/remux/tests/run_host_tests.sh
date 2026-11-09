@@ -28,7 +28,7 @@ if [[ ! -f "$WORK/fixtures/coalesced.mp4" ]]; then
 fi
 if [[ ! -f "$WORK/fixtures/coalesced-b.mp4" ]]; then
   ffmpeg -hide_banner -loglevel error -y -i "$WORK/fixtures/coalesced.mp4" -map 0 \
-    -c:v libx264 -preset veryfast -g 48 -bf 3 -sc_threshold 0 -c:a copy -c:s copy \
+    -c:v libx264 -preset veryfast -g 48 -bf 3 -sc_threshold 0 -fps_mode passthrough -c:a copy -c:s copy \
     -metadata kodi_airplay_prepared=1 -movflags empty_moov+default_base_moof+frag_keyframe+use_metadata_tags+negative_cts_offsets \
     -min_frag_duration 10000000 "$WORK/fixtures/coalesced-b.mp4"
 fi

@@ -356,6 +356,11 @@ class SlowSource(unittest.TestCase):
   self.assertEqual(cast.receiver_outcome(lambda:net,lambda _:False),'failed')
 
 class RokuFeedback(unittest.TestCase):
+ def test_unknown_capability_never_silently_forces_a_downgrade(self):
+  self.assertFalse(cast.roku_needs_compatibility({}))
+  self.assertFalse(cast.roku_needs_compatibility({'supports-4k':'true'}))
+  self.assertTrue(cast.roku_needs_compatibility({'supports-4k':'false'}))
+  self.assertTrue(cast.roku_needs_compatibility({'max-resolution':'1920x1080'}))
  def test_player_snapshot_and_privacy(self):
   sample=b'<player error="false" state="play"><plugin id="782875" name="private title"/><format audio="aac" video="hevc" video_res="3840x2160" captions="webvtt"/><position>6916 ms</position><url>private-url</url></player>'
   status=cast.roku_player('tv',lambda url,timeout:sample)
@@ -475,7 +480,7 @@ class AnyTv(unittest.TestCase):
  def test_native_serve_export(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn('int kodi_airplay_serve(const char *url, int compat, char *out, int outlen)',build)
-  self.assertIn('kr_remux_start_for(ticket, url, 1, compat ? 1 : 0, out, outlen)',build)
+  self.assertIn('compat == KR_COMPAT_ROKU_SAFE ? KR_COMPAT_ROKU_SAFE',build)
   self.assertIn('_kodi_airplay_serve\\n',build);self.assertIn("== 29 ]]",build)
 
 class RokuHandoff(unittest.TestCase):
@@ -515,6 +520,20 @@ class RokuHandoff(unittest.TestCase):
        patch.object(controller.notices,'note'),patch.dict(sys.modules,{'xbmcgui':gui}):
    controller.send(xbmc,object(),player,'lib',{'kind':'roku','host':'tv','name':'Roku'},'source','Movie',True)
   self.assertFalse(state[0]);self.assertEqual(events,['pause','close','resume'])
+ def test_connected_receiver_failure_tries_compatibility_only_once(self):
+  state,events,player,xbmc=self.phone();links=[]
+  def link(*args,**kwargs):links.append(kwargs.get('safe',False));return 'tv-link',True
+  lib=types.SimpleNamespace(kodi_airplay_close=lambda:events.append('close'))
+  gui=types.SimpleNamespace(Window=lambda _:Window(),Dialog=lambda:types.SimpleNamespace(notification=lambda *a:None),NOTIFICATION_INFO=1)
+  ui=types.SimpleNamespace(show=lambda *a:None,canceled=lambda:False,close=lambda:None)
+  with patch.object(controller,'tv_link',side_effect=link),patch.object(airplay,'load',return_value=lib),\
+       patch.object(airplay,'log_lines',return_value=[]),patch.object(airplay,'network',return_value={'tv_requests':4,'tv_video':0,'phase':'failed'}),\
+       patch.object(controller,'FlowUI',return_value=ui),patch.object(cast,'roku_play',return_value='Media Assistant'),\
+       patch.object(controller.notices,'note'),patch.dict(sys.modules,{'xbmcgui':gui}):
+   count=[0]
+   def outcome(network,wait):count[0]+=1;network();return 'failed' if count[0]==1 else 'playing'
+   with patch.object(cast,'receiver_outcome',side_effect=outcome):controller.send(xbmc,object(),player,'lib',{'kind':'roku','host':'tv','name':'Roku'},'source','Movie',True)
+  self.assertEqual(links,[False,True]);self.assertEqual(count[0],2);self.assertEqual(events,['pause','close','stop'])
 
 class RokuSegmented(unittest.TestCase):
  """ISSUE-138 (owner's build-209/211 logs): a Roku read the prepared playlists and the 3.7 KB init (7.8 s), then

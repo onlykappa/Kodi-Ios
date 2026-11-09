@@ -135,7 +135,7 @@ def line(job):
         return job.get('why') or 'Waiting for the network'
     if state == STALE_STATE:
         return 'Updating…'
-    first = job['slow_words'] if state == SLOWED else job['step']
+    first = job['slow_words'] if state == SLOWED and not job.get('phase_detail') else job['step']
     return ' · '.join(x for x in (first, speed(job.get('rate')), left(job.get('eta_s'))) if x)
 
 
@@ -215,14 +215,18 @@ def _copy(debrid, now):
         updated = current.get('updated')
         quiet = updated is not None and now - float(updated) > COPY_QUIET
         step = '%s · %d of %d' % (STEP['copy'], int(current.get('index') or 1), count) if count > 1 else STEP['copy']
+        phase=current.get('phase','')
+        words={'reading':'Reading download','uploading':'Uploading to Google Drive','paused_playback':'Paused for playback'}
+        if phase in words:step=words[phase]+(' · %d of %d'%(int(current.get('index') or 1),count) if count>1 else '')
         out = {'kind': 'copy', 'title': title, 'name': current.get('name', ''), 'step': step, 'pct': int(100 * sent / total),
                'indeterminate': False, 'rate': 0.0 if quiet else float(current.get('rate') or 0),
                'eta_s': 0 if quiet else float(current.get('eta_s') or 0), 'tint': BLUE, 'sent': sent, 'total': total,
-               'hash': job.get('hash', ''), 'folder': current.get('folder', '')}
-        if quiet:
-            out['wait'] = 'Waiting for Google Drive · no answer for %d min' % max(1, int((now - float(updated)) // 60))
+               'hash': job.get('hash', ''), 'folder': current.get('folder', ''),'phase_detail':phase in words,'transfer_phase':phase}
+        if quiet and phase!='paused_playback':
+            out['wait'] = ('Waiting for download' if phase=='reading' else 'Waiting for Google Drive')+' · no answer for %d min' % max(1,int((now-float(updated))//60))
         if job.get('tries') and retry > now:
             out['wait'] = 'Waiting for the network · %s' % retry_text(retry, now)
+        out['playback_held']=phase=='paused_playback' and not (job.get('tries') and retry>now)
         return out
     if current.get('stage') == 'fetching':
         return {'kind': 'copy', 'title': title, 'name': current.get('name', ''), 'step': 'AllDebrid is fetching it',
@@ -279,7 +283,12 @@ def build(inp, now):
         add(conv, held=conv.pop('held', False) or (paused.get('conv') and conv['kind'] != 'check'))
     copy = _copy(inp.get('debrid'), now)
     if copy:
+        playback_held=copy.pop('playback_held',False)
         add(copy, held=bool(paused.get('up')), wait=copy.pop('wait', ''))
+        if (playback_held or slow in ('video','buffering')) and not paused.get('up') and jobs[-1]['state'] != NETWORK:
+            # Preserve the approved slowed-state surface; describe the actual hold in its existing line.
+            text='Pausing for playback' if copy.get('transfer_phase')=='uploading' and not playback_held else 'Paused for playback'
+            jobs[-1].update(line=text,rate=0,eta_s=0)
     for u in inp.get('phone') or ():
         add({'kind': 'upload', 'title': u.get('title', ''), 'name': u.get('title', ''), 'step': STEP['upload'],
              'pct': int(u.get('progress') or 0), 'indeterminate': False, 'rate': float(u.get('rate') or 0), 'eta_s': 0,

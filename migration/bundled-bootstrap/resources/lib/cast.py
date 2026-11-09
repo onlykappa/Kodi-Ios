@@ -137,6 +137,12 @@ def roku_model(host,get):
   return {key:(root.findtext(key) or '')[:80] for key in ('model-number','model-name','software-version','supports-4k','max-resolution')}
  except (OSError,ValueError,ElementTree.ParseError):return {}
 
+def roku_needs_compatibility(model):
+ """Use explicit capability evidence only. Missing fields on older Roku versions mean unknown."""
+ support=str((model or {}).get('supports-4k','')).strip().lower()
+ maximum=str((model or {}).get('max-resolution','')).strip().lower()
+ return support in ('false','0','no') or maximum in ('720p','1080p','1920x1080','1280x720')
+
 def http_post(url,timeout=5):
  with urllib.request.urlopen(urllib.request.Request(url,data=b'',method='POST'),timeout=timeout) as r:return r.status
 

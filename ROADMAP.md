@@ -305,3 +305,9 @@ new IPA delivery are pending. Actual Roku acceptance remains open; task counts a
 ISSUE-141: native touch drag/seek ownership and streamed-upload progress/completion repairs implemented.
 Compiled handler harness and 47 upload/download tests pass. Native delivery/device acceptance remain pending;
 no phase counts or main merge changed.
+
+
+2026-11-09 owner-approved recommendation follow-up: capability routing/one compatibility retry, bounded adaptive
+read-ahead and obsolete-read cancellation, adaptive resumable upload chunks, existing-row transfer phases and
+native seek diagnostics are implemented for the next test IPA. See ISSUE-142 and PROGRESS for validation/build
+status. Device acceptance and phase counts remain unchanged; no main merge is authorized.

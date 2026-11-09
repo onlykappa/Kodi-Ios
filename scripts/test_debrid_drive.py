@@ -61,6 +61,22 @@ class FakeDrive(driveupload.Drive):
  def folder(self,parts):self.folders_made.append(parts);return 'folder-id'
 
 class Stream(unittest.TestCase):
+ def test_chunk_policy_shrinks_aligns_and_recovers_cautiously(self):
+  policy=driveupload.StreamChunks(8*1024*1024)
+  policy.observe(8*1024*1024,1,16)
+  self.assertEqual(policy.current,1536*1024)
+  for _ in range(2):policy.observe(policy.current,.5,1)
+  self.assertEqual(policy.current,1536*1024)
+  policy.observe(policy.current,.5,1);self.assertEqual(policy.current,3*1024*1024)
+  policy.observe(policy.current,120,1);self.assertEqual(policy.current,1024*1024)
+ def test_activity_does_not_claim_unconfirmed_download_bytes(self):
+  import threading
+  thread=threading.get_ident();events=[];drive=FakeDrive()
+  def activity(phase,done,total):
+   self.assertEqual(threading.get_ident(),thread)
+   self.assertLessEqual(done,len(drive.data));events.append(phase)
+  drive.upload_stream(self.open_at,len(self.blob),'x','p',{},lambda:None,activity=activity)
+  self.assertIn('reading',events);self.assertIn('uploading',events)
  def setUp(self):
   self.old=driveupload.CHUNK;driveupload.CHUNK=256*1024
   self.blob=bytes(range(256))*4000   # ~1 MB
@@ -128,7 +144,7 @@ class Queue(unittest.TestCase):
   # Build 207 (build-206 log): 32 MB pieces 20-30 s apart; the 20 s window held one mark and every page read 0 MB/s.
   t={'now':1000.0};seen=[];p=self.p
   class Slow(FakeDrive):
-   def upload_stream(self,open_at,size,name,parent,session,save,keep_going=lambda:True,progress=lambda s,t:None):
+   def upload_stream(self,open_at,size,name,parent,session,save,keep_going=lambda:True,progress=lambda s,t:None,activity=lambda *a:None):
     for n in range(1,4):
      t['now']+=25;progress(n*32*1048576,size);seen.append(debrid_drive.load(p)['current']['rate'])
     return {'id':'d','size':str(size)}

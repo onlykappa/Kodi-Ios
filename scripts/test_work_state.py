@@ -17,6 +17,24 @@ def job(name,status='waiting',repack=False,size=4.3*GB,**extra):
  return dict(source={'id':name,'name':name,'size':int(size)},status=status,repack=repack,**extra)
 
 class Words(unittest.TestCase):
+ def test_copy_stages_are_clear_and_percent_remains_confirmed(self):
+  current={'name':'Movie','stage':'copying','sent':2,'total':10,'rate':0,'updated':NOW-1}
+  source={'jobs':[{'title':'Movie','status':'copying'}],'current':current}
+  for phase,text in [('reading','Reading download'),('uploading','Uploading to Google Drive'),('paused_playback','Paused for playback')]:
+   current['phase']=phase
+   state=ws.build({'debrid':source,'slow':'airplay'},NOW)
+   self.assertIn(text,state['jobs'][0]['line']);self.assertEqual(state['jobs'][0]['pct'],20)
+  current['updated']=NOW-130;current['phase']='reading'
+  self.assertIn('Waiting for download',ws.build({'debrid':source},NOW)['jobs'][0]['line'])
+  current['phase']='paused_playback'
+  self.assertEqual(ws.build({'debrid':source,'slow':'video'},NOW)['jobs'][0]['line'],'Paused for playback')
+ def test_network_retry_survives_playback_status(self):
+  source={'jobs':[{'title':'Movie','status':'copying','tries':1,'retry_at':NOW+120}],
+          'current':{'name':'Movie','sent':2,'total':10,'updated':NOW-1,'phase':'uploading'}}
+  for slow in ('video','buffering'):
+   row=ws.build({'debrid':source,'slow':slow},NOW)['jobs'][0]
+   self.assertEqual(row['state'],ws.NETWORK)
+   self.assertIn('trying again in 2 min',row['line'])
  def test_running(self):
   s=ws.build({'prep':conv()},NOW);j=s['jobs'][0]
   self.assertEqual((s['mode'],j['state'],j['kind']),('running','running','conv'))

@@ -356,7 +356,7 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
    notices.note('info','Uploads paused for AirPlay','Resume them in Library status when the movie is over.')
   return send_airplay(xbmc,dialog,player,library,url,title,playing)
 
-def tv_link(xbmc,library,url,playing,kind):
+def tv_link(xbmc,library,url,playing,kind,safe=False):
  """r40 (owner, build 203: "work on any tv thats connected to the same wifi"): the link a TV's own player opens. Kodi's
  link for Drive and Elementum answers on the phone only (127.0.0.1), so the phone's server serves the TV the same
  playlist the Apple TV gets (prepared movies as byte ranges, other files remuxed) on the Wi-Fi address. DLNA TVs get
@@ -387,7 +387,7 @@ def tv_link(xbmc,library,url,playing,kind):
   # specifications); the prepared playlist has both in fragments of up to 70 s. A Roku gets the movie remuxed
   # (picture copied, keyframe-aligned segments, audio apart) when the framework can; an older one keeps the prepared playlist.
   segmented=kind=='roku' and hasattr(lib,'kodi_airplay_serve_segmented')
-  try:r=lib.kodi_airplay_serve_segmented(source,out,len(out)) if segmented else lib.kodi_airplay_serve(source,0,out,len(out))
+  try:r=lib.kodi_airplay_serve(source,3,out,len(out)) if safe and kind=='roku' else lib.kodi_airplay_serve_segmented(source,out,len(out)) if segmented else lib.kodi_airplay_serve(source,0,out,len(out))
   finally:xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
   for line in airplay.log_lines(lib):xbmc.log('Kodi iOS AirPlay: '+airplay.log_text(line),xbmc.LOGINFO)
   if r==2 and out.value:
@@ -405,7 +405,7 @@ def tv_link(xbmc,library,url,playing,kind):
  return url,None
 
 def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
- original_url=url;served=None;paused_here=False
+ original_url=url;served=None;paused_here=False;safe=False
  def restore_phone():
   if paused_here and xbmc.getCondVisibility('Player.Paused'):player.pause()
  if tv['kind'] in ('roku','dlna','chromecast'):
@@ -417,7 +417,8 @@ def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
   if tv['kind']=='roku':
    model=cast.roku_model(tv['host'],cast.http_get)
    if model:diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'cast','roku_model',**model)
-  url,served=tv_link(xbmc,library,url,playing,tv['kind'])
+   safe=cast.roku_needs_compatibility(model)
+  url,served=tv_link(xbmc,library,url,playing,tv['kind'],safe=True) if safe else tv_link(xbmc,library,url,playing,tv['kind'])
   if served is None and needs_phone and library:
    try:
     lib=airplay.load(library);why=airplay.message(lib);lib.kodi_airplay_close()
@@ -450,7 +451,7 @@ def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
   import time,xbmcgui
   lib=airplay.load(library);home=xbmcgui.Window(10000);monitor=xbmc.Monitor()
   ui=FlowUI(xbmc,xbmcgui,dialog,title);ui.show('connecting',('opening','waiting_tv'))
-  receiver={'next':0,'status':{},'logged':None}
+  receiver={'next':0,'status':{},'logged':None,'last_network':{}}
   def network():
    lines=[airplay.log_text(line) for line in airplay.log_lines(lib)]
    for line in lines:xbmc.log('Kodi iOS AirPlay: '+line,xbmc.LOGINFO)
@@ -465,9 +466,23 @@ def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):
     status=receiver['status']
     if status.get('player_id') in (cast.MEDIA_ASSISTANT,'15985'):
      net['receiver_state']=status.get('state');net['receiver_error']=status.get('error',False)
+   receiver['last_network']=net
    return net
   outcome=cast.receiver_outcome(network,lambda s:ui.canceled() or monitor.waitForAbort(s))
   ui.close()
+  if outcome=='failed' and tv['kind']=='roku' and not safe and receiver['last_network'].get('tv_requests',0)>0:
+   # One bounded retry after an actual connected-receiver failure. Preserve the caller's phone pause state.
+   diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'cast','roku_compatibility_retry')
+   lib.kodi_airplay_close()
+   url,served=tv_link(xbmc,library,original_url,playing,'roku',safe=True)
+   if served:
+    try:
+     cast.roku_play(tv['host'],url,title,cast.http_post)
+     receiver.update(next=0,status={},logged=None,last_network={})
+     ui=FlowUI(xbmc,xbmcgui,dialog,title);ui.show('connecting',('opening','waiting_tv'))
+     outcome=cast.receiver_outcome(network,lambda s:ui.canceled() or monitor.waitForAbort(s));ui.close()
+    except Exception as error:
+     diagnostics.log_exception(xbmc,'roku_compatibility_retry',error);outcome='failed'
   if outcome!='playing':
    why=airplay.message(lib);lib.kodi_airplay_close();airplay.clear_busy(home);airplay.clear_serve(home)
    restore_phone()

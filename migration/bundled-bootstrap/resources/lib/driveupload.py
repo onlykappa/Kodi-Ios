@@ -11,6 +11,21 @@ PARTIAL=re.compile(r'(?:^|[._ -])(?:sample|partial|incomplete|downloading)(?:[._
 CHUNK=32*1024*1024  # a multiple of 256 KiB, as Drive requires (build 181: 32 MB, less time lost between pieces)
 TOP='Kodi Downloads'
 
+class StreamChunks:
+ """Aligned pieces targeting about three seconds, bounded at 1–8 MiB. Growth requires three fast pieces."""
+ def __init__(self,limit=None):
+  self.limit=min(CHUNK if limit is None else limit,8*1024*1024)
+  self.minimum=min(self.limit,1024*1024);self.current=self.limit;self.fast=0
+ def observe(self,size,read_seconds,put_seconds):
+  cost=max(read_seconds,put_seconds,.001)
+  if cost>5:
+   target=int(size*3/cost)//(256*1024)*(256*1024)
+   self.current=max(self.minimum,min(self.current,target));self.fast=0
+  elif cost<2:
+   self.fast+=1
+   if self.fast>=3:self.current=min(self.limit,self.current*2);self.fast=0
+  else:self.fast=0
+
 class Stop(Exception):pass
 
 @contextlib.contextmanager
@@ -185,7 +200,7 @@ class Drive(object):
     offset=_next_offset(headers);progress(offset,size)
     gate.after(time.monotonic()-began,len(chunk),download=True)
   raise RuntimeError('Drive did not confirm the upload')
- def upload_stream(self,open_at,size,name,parent,session,save,keep_going=lambda:True,progress=lambda done,total:None):
+ def upload_stream(self,open_at,size,name,parent,session,save,keep_going=lambda:True,progress=lambda done,total:None,activity=lambda phase,done,total:None):
   """Resumable upload of a web file straight into Drive, CHUNK at a time: nothing is written to the phone (owner,
   build 160: AllDebrid straight to Drive). open_at(offset) -> a readable response from that byte on. `session` is a
   dict kept by the caller ({'url','size'}) so a restart carries on where Drive got to. Returns the Drive file."""
@@ -206,13 +221,13 @@ class Drive(object):
   source=[open_at(offset)]
   import slowdown as _slow;reader_gate=_slow.Gate(keep_going=keep_going)
   # Bound feedback latency and RAM while retaining one-piece read-ahead. Local-file uploads keep CHUNK.
-  stream_chunk=min(CHUNK,8*1024*1024)
-  def read(at):
+  chunks=StreamChunks()
+  def read(at,limit):
    chunk=bytearray();began=time.monotonic()
-   while len(chunk)<stream_chunk and at+len(chunk)<size:
+   while len(chunk)<limit and at+len(chunk)<size:
     if not keep_going():raise Stop()
     piece=time.monotonic()
-    data=source[0].read(min(stream_chunk-len(chunk),1024*1024))
+    data=source[0].read(min(limit-len(chunk),size-at-len(chunk),1024*1024))
     if not data:break
     chunk.extend(data)
     # Build 206: a download under the playing video's cap (and none while Kodi buffers), 1 MB at a time.
@@ -225,14 +240,19 @@ class Drive(object):
   try:
    while offset<size:
     if not keep_going():raise Stop()
-    if coming is not None:chunk,read_s=coming.result();coming=None
-    else:chunk,read_s=read(offset)
+    if coming is not None:
+     if not coming.done():activity('reading',offset,size)
+     chunk,read_s=coming.result();coming=None
+    else:
+     activity('reading',offset,size);chunk,read_s=read(offset,chunks.current)
     if not chunk:raise RuntimeError('The download stopped before the end; it will carry on')
     end=offset+len(chunk)-1;began=time.monotonic()
-    if end+1<size:coming=ahead.submit(read,end+1)
+    if end+1<size:coming=ahead.submit(read,end+1,chunks.current)
+    activity('uploading',offset,size)
     status,headers,body=self.call('PUT',session['url'],chunk,{'Content-Range':'bytes %d-%d/%d'%(offset,end,size)})
     # Owner (build 168): 0.2 MB/s. Which side is slow, the source (AllDebrid) or Google Drive, for the next log.
     put_s=time.monotonic()-began;mb=len(chunk)/1048576.0
+    chunks.observe(len(chunk),read_s,put_s)
     _note('Drive copy: %.1f MB read in %.1f s (%.2f MB/s from the source), sent in %.1f s (%.2f MB/s to Google Drive), %.1f%% done'%(
      mb,read_s,mb/max(read_s,.001),put_s,mb/max(put_s,.001),100.0*(end+1)/size))
     if status in (200,201):progress(size,size);return json.loads(body or b'{}')
@@ -247,6 +267,7 @@ class Drive(object):
      except Exception:pass
      source[0]=open_at(confirmed)
     offset=confirmed;save();progress(offset,size)
+    if _slow.reason() in _slow.HOLD:activity('paused_playback',offset,size)
     gate.after(put_s,len(chunk),download=True)
   finally:
    if coming is not None:

@@ -8,6 +8,7 @@ typedef struct kr_audio kr_audio;
 // Opens its own demuxer over `src` (a second connection: the video demuxer keeps its position) for stream `index`.
 kr_audio *kr_audio_open(gm_source src, int index, char *err, int errlen);
 int kr_audio_channels(const kr_audio *a);
+void kr_audio_stereo(kr_audio *a);
 int kr_audio_sample_rate(const kr_audio *a);
 // fMP4 init (ftyp+moov) or media segment (moof+mdat) i of the planned grid of `s` (absolute tfdt).
 int kr_audio_init(kr_audio *a, gm_stream *s, gm_buf *out, char *err, int errlen);

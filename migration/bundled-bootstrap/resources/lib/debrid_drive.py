@@ -248,8 +248,15 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     commit()
                 hash_ = str(job['hash']).lower()
                 going = lambda: keep_going() and hash_ not in {str(h).lower() for h in cancelled()}
+                def activity(phase,sent,total):
+                    # Called on the owner thread, never the read-ahead thread. Percent remains confirmed bytes.
+                    now=clock();current=state.get('current') or {}
+                    current.update(name=title,folder=parts[-1],file=name,index=job['files'].index(entry)+1,
+                                   count=len(job['files']),sent=sent,total=total,stage='copying',phase=phase,phase_at=now)
+                    if phase=='paused_playback':current.update(rate=0,eta_s=0)
+                    state['current']=current;commit()
                 result = drive.upload_stream(lambda offset: open_url(url, offset), size, name, parent, entry['session'],
-                                             commit, going, progress)
+                                             commit, going, progress,activity=activity)
                 if int(result.get('size') or size) != size:
                     raise RuntimeError('Google Drive has a different size for %s' % name)
                 entry.update(done=True, drive_id=result.get('id', ''), drive_name=name)

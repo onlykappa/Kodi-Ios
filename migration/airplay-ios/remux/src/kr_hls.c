@@ -117,6 +117,9 @@ char *kr_hls_master_at(gm_stream *s, const char *base, int compat, const char *v
 }
 
 char *kr_hls_master_selected(gm_stream *s,const char *base,int compat,const char *video_dir,int subtitle) {
+    return kr_hls_master_receiver(s,base,compat,video_dir,subtitle,0);
+}
+char *kr_hls_master_receiver(gm_stream *s,const char *base,int compat,const char *video_dir,int subtitle,int stereo) {
     sb b = {0};
     sb_add(&b, "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n");
     int n = gm_stream_track_count(s), sel = gm_stream_selected_audio(s), nau = 0, nsub = 0, deflt = -1;
@@ -127,7 +130,7 @@ char *kr_hls_master_selected(gm_stream *s,const char *base,int compat,const char
         if (gm_stream_track_info(s, i, &t) == 0 && kr_audio_route(&t) && (deflt < 0 || t.src_index == sel)) deflt = t.src_index;
     for (int i = 0; i < n && nau < 64; i++) {
         if (gm_stream_track_info(s, i, &t) != 0 || !kr_audio_route(&t)) continue;
-        const char *tok = kr_audio_token(&t);
+        const char *tok = stereo?"mp4a.40.2":kr_audio_token(&t);
         if (!strstr(tokens, tok)) { if (*tokens) strcat(tokens, ","); strncat(tokens, tok, sizeof tokens - strlen(tokens) - 1); }
         char name[160]; rendition_name(&t, nau + 1, name, sizeof name);
         if (kr_audio_route(&t) == KR_AUDIO_AAC) { char tmp[160]; snprintf(tmp, sizeof tmp, "%.120s (AAC)", name); strcpy(name, tmp); }

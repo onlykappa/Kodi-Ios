@@ -771,7 +771,9 @@ __attribute__((visibility("default"))) int kodi_airplay_serve(const char *url, i
     os_unfair_lock_lock(&noteLock);free(remuxSource);remuxSource=NULL;os_unfair_lock_unlock(&noteLock);
     os_unfair_lock_unlock(&ownershipLock);
     setNote(nil);
-    int r = kr_remux_start_for(ticket, url, 1, compat ? 1 : 0, out, outlen);
+    int r = kr_remux_start_for(ticket, url, 1, compat == KR_COMPAT_ROKU_SAFE ? KR_COMPAT_ROKU_SAFE : compat ? 1 : 0, out, outlen);
+    if(r==KR_READY && compat==KR_COMPAT_ROKU_SAFE)r=kr_remux_prime_for(ticket,0);
+    if(r!=KR_READY && out && outlen>0)*out=0;
     playerNote(@"served for a TV's own player: result %d", r);
     return r;
 }

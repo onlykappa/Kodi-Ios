@@ -1707,3 +1707,24 @@ with the absolute repository root passed.
 The preceding native run 42685265901 passed the framework compile but failed one of 3,307 host checks: the signed-CTS
 B-frame fixture decoded 769 frames instead of the local expected 768. Investigate source fixture frame count and
 packet preservation before accepting any candidate; do not relabel that run as a full pass.
+
+
+ISSUE-142 implementation: explicit HD-only Roku capabilities start in H.264 SDR/AAC stereo mode; unknown
+capabilities preserve the existing route. A connected receiver failure gets one compatibility retry, preserving
+phone pause ownership. Native buffering uses a bounded 12–18 s target and cancels obsolete copied-video reads
+on seek, then clears interrupted demux read state before reuse. Upload chunks adapt at 256 KiB boundaries within
+1–8 MiB, retaining one-piece read-ahead and Drive-confirmed resumability. Existing transfer rows name the active
+read/upload/hold stage. A regression test ensures playback labels never hide a real scheduled network retry.
+
+Fixture diagnosis: FFmpeg versions can duplicate a frame under the default output cadence when transcoding
+negative-composition-offset input. The fixture now explicitly passes timestamps through. The assertion compares
+all decoded output frames with actual input frames and the ordered compressed video packet digest, rather than
+a local hardcoded frame count. The digest helper reports track count (not frame count); an initial new comparison
+mistakenly compared the three-track source with the video-only output, corrected before commit. Focused tests
+now pass 103 checks, including signed CTS. Recommendation checks pass 37 checks, including actual stereo audio,
+retaining compatible 4K HEVC and successful decoding after canceling an old copied read. Full native CI is required.
+
+Python checks pass: casting 61, direct transfer 24, upload 23, status 26, remux contract 29, calibration 41 and
+portrait 50. UI guidance/project scans pass. The patch checker initially flagged whitespace-only unified-diff
+context; preserving valid empty context lines fixed it, and pinned upstream patch application passes. Existing
+rig start fails because the desktop Kodi binary is absent; visual and iPhone/Roku acceptance remain pending.

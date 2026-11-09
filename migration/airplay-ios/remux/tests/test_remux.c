@@ -1956,6 +1956,34 @@ static void test_long_gop_roku(const char *base,const char *work) {
 }
 
 typedef struct {kr_video *video;long frames;int count,len;} init_watch;
+static void test_stream_recommendations(const char *base,const char *work) {
+    char source[1024],playlist[512],file[1024],log[16384];
+    kr_video_set_encoder("mpeg4");kr_remux_set_subtitles(-1,NULL,NULL);kr_remux_set_prefetch(0);
+    snprintf(source,sizeof source,"file:%s/hevc_ac3_ass.mkv",fixture_dir);
+    CHECK(start_session(source,KR_COMPAT_ROKU_SAFE,playlist,sizeof playlist)==KR_READY,"safe Roku profile opens: %s",kr_remux_message());
+    CHECK(kr_remux_compat(),"safe profile converts the picture");
+    int port=kr_remux_port();reply master=http_get(port,"/master.m3u8",NULL);
+    CHECK(master.body && strstr(master.body,"avc1.") && strstr(master.body,"mp4a.40.2") && !strstr(master.body,"ac-3") && strstr(master.body,"VIDEO-RANGE=SDR"),"safe profile advertises H.264 SDR and actual stereo AAC");free(master.body);
+    reply init=http_get(port,"/audio/1/init.mp4",NULL),part=http_get(port,"/audio/1/seg0.m4s",NULL);
+    CHECK(init.status==200 && part.status==200,"safe stereo audio init and segment delivered");
+    snprintf(file,sizeof file,"%s/roku-safe-audio.mp4",work);FILE *f=fopen(file,"wb");fwrite(init.body,1,init.len,f);fwrite(part.body,1,part.len,f);fclose(f);free(init.body);free(part.body);
+    AVFormatContext *audio=NULL;int opened=avformat_open_input(&audio,file,NULL,NULL);if(!opened)avformat_find_stream_info(audio,NULL);
+    CHECK(!opened && audio->streams[0]->codecpar->codec_id==AV_CODEC_ID_AAC && audio->streams[0]->codecpar->ch_layout.nb_channels==2,"safe profile actually downmixes to two AAC channels");avformat_close_input(&audio);kr_remux_stop();
+
+    snprintf(source,sizeof source,"file:%s/hevc_4k.mkv",fixture_dir);
+    CHECK(start_session(source,KR_COMPAT_SEGMENTED,playlist,sizeof playlist)==KR_READY,"ordinary 4K Roku profile opens");
+    master=http_get(kr_remux_port(),"/master.m3u8",NULL);
+    CHECK(!kr_remux_compat() && master.body && strstr(master.body,"hvc1.") && strstr(master.body,"RESOLUTION=3840x2160"),"compatible 4K HEVC remains copied");free(master.body);kr_remux_stop();
+
+    kr_remux_set_prefetch(1);snprintf(source,sizeof source,"%s/slow/coalesced.mp4",base);
+    CHECK(start_session(source,KR_COMPAT_SEGMENTED,playlist,sizeof playlist)==KR_READY,"cancelable read-ahead movie opens");
+    usleep(250000);port=kr_remux_port();part=http_get(port,"/video/seg3.m4s",NULL);
+    CHECK(part.status==200 && part.len>65536,"seek succeeds after canceling an obsolete copied read (%d, %zu)",part.status,part.len);
+    kr_remux_log(log,sizeof log);CHECK(strstr(log,"cancel obsolete copied video segment"),"seek records cancellation of obsolete read-ahead");
+    init=http_get(port,"/video/init.mp4",NULL);snprintf(file,sizeof file,"%s/after-canceled-copy.mp4",work);f=fopen(file,"wb");fwrite(init.body,1,init.len,f);fwrite(part.body,1,part.len,f);fclose(f);
+    int keys=0;CHECK(decode_count(file,&keys)>100,"fresh seek segment decodes after canceled source I/O");free(init.body);free(part.body);kr_remux_stop();
+}
+
 static void test_roku214(const char *base,const char *work) {
     char url[1024],list[512],out[1024],log[16384];
     kr_remux_set_prefetch(0);kr_remux_set_subtitles(0,NULL,"eng");
@@ -1976,8 +2004,10 @@ static void test_roku214(const char *base,const char *work) {
     pl=http_get(port,"/video/index.m3u8",NULL);n=playlist_segments(pl.body,&total,&maxd,&target);
     CHECK(n>=4 && maxd<=8.1,"composition offsets preserve short actual-keyframe windows");free(pl.body);
     snprintf(out,sizeof out,"%s/coalesced-b-roku.mp4",work);check_rendition(port,"/video",n,32,out,0);
-    int bf_frames=decode_count(out,&keys);
-    CHECK(bf_frames==768,"signed composition offsets keep every B-frame exactly once (%d decoded)",bf_frames);
+    int bf_frames=decode_count(out,&keys),source_frames=decode_count(url,&keys);
+    CHECK(source_frames>0 && bf_frames==source_frames,"signed composition offsets keep every input B-frame exactly once (%d of %d decoded)",bf_frames,source_frames);
+    uint8_t before[16],after[16];int bw,bh,bn,aw,ah,an;
+    CHECK(video_digest(url,before,&bw,&bh,&bn)==0 && video_digest(out,after,&aw,&ah,&an)==0 && bw==aw && bh==ah && !memcmp(before,after,16),"signed-CTS copy preserves the complete ordered packet digest");
     snprintf(out,sizeof out,"%s/coalesced-b-audio.mp4",work);check_rendition(port,"/audio/1",n,32,out,1);kr_remux_stop();
 
     snprintf(url,sizeof url,"file:%s/coalesced.mp4",fixture_dir);
@@ -2102,6 +2132,9 @@ int main(int argc, char **argv) {
     test_kind();test_network_evidence();
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
     mkdir(work, 0755);
+    if(argc>3 && !strcmp(argv[3],"--recommendations-only")) {
+        test_stream_recommendations(argv[2],work);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+    }
     if(argc>3 && !strcmp(argv[3],"--roku214-only")) {
         test_roku214(argv[2],work);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
@@ -2214,7 +2247,7 @@ int main(int argc, char **argv) {
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
-        test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);
+        test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_stream_recommendations(argv[2],work);
         printf("-- overlapping converted seek requests\n"); fflush(stdout);
         test_seek_overlap(argv[2]);
     }

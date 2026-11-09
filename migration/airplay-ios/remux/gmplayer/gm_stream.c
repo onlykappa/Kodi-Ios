@@ -1043,6 +1043,11 @@ void gm_stream_close(gm_stream *s) {
     if (s->in_avio) { av_free(s->in_avio->buffer); avio_context_free(&s->in_avio); }
     free(s);
 }
+void gm_stream_clear_read_error(gm_stream *s) {
+    if(!s)return;
+    avformat_flush(s->in);
+    if(s->in_avio){s->in_avio->error=0;s->in_avio->eof_reached=0;}
+}
 
 // Kodi iOS addition (not in GMPlayer upstream): the opened source, for the variant's CODECS profile/level.
 AVFormatContext *gm_stream_format_context(gm_stream *s) { return s ? s->in : NULL; }
@@ -1091,6 +1096,13 @@ int gm_stream_plan_keyframes(gm_stream *s,const double *times,int count) {
     int n=gm_plan_segments(times,count,s->duration,s->target_seg_sec,s->seg_starts,GM_MAX_SEGS);
     if(n<1)return -1;
     s->n_seg=n;for(int i=0;i<n;i++)s->seg_real_end[i]=-1;
+    return 0;
+}
+int gm_stream_uniform_plan(gm_stream *s) {
+    if(!s)return -1;
+    int count=gm_plan_uniform(s->duration,s->target_seg_sec,s->seg_starts,GM_MAX_SEGS);
+    if(count<1)return -1;
+    s->n_seg=count;for(int i=0;i<count;i++)s->seg_real_end[i]=-1;
     return 0;
 }
 
