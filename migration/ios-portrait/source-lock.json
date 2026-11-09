@@ -9,7 +9,8 @@
   "executable_release": {
     "tag": "kodi-ios-portrait-r25",
     "asset": "Kodi-portrait-executable.zip",
-    "sha256": "fe7844edf12bb16c2f6315d492eb494d21e5c6ce0375a88027a8dd9170237af4"
+    "sha256": "c3f0560c3731f53408a9e7c202b7108ef472272e72c873042e7b400bc1c79e2c",
+    "archive_sha256": "fe7844edf12bb16c2f6315d492eb494d21e5c6ce0375a88027a8dd9170237af4"
   },
   "build_note": "r25: native run 42692028826 passed executable compilation and publication from db5e554d4d6cf514d127609b1c1396475a95363c. Release executable equals the CI artifact; binary and patch SHA256 and pinned Kodi upstream commit verified. Includes the touch seek repair plus diagnostic timings; actual display and iPhone/Roku acceptance pending.",
   "previous_executable_release": {

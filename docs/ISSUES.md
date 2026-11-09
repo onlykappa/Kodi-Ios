@@ -1772,3 +1772,12 @@ checks, end-to-end conversion/interruption/resume/expired-session/slow-source ch
 ARM64 iPhoneOS compile. Its candidate archive SHA256 is c1562e136d42d3fe694435b6175bfdac600a08bcdd450946e9e227210d243be8.
 The r25 executable was separately built, released, hash checked and compared exactly with its CI artifact.
 Publication and IPA packaging are authorized by the owner; actual phone/Roku/visual acceptance remains pending.
+
+
+ISSUE-142 packaging failure: run 42697763579 (build 215) passed app regression tests and bundle apply/restore,
+then stopped fetching the portrait executable. The new r25 pin mistakenly used the release ZIP hash; the existing
+fetch contract checks the extracted executable hash. Corrected `executable_release.sha256` to verified binary
+c3f0560c3731f53408a9e7c202b7108ef472272e72c873042e7b400bc1c79e2c and retained the archive digest separately
+as `archive_sha256`. The binary still equals the successful native CI artifact; no native rebuild or behavior
+change is needed. Validate through the actual portrait fetch helper before retrying packaging. No build-215 IPA
+was published. This was a pinning mistake, not an upstream download or runtime streaming failure.

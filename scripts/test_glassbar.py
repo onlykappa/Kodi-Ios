@@ -238,7 +238,7 @@ class NativeOwnerTests(unittest.TestCase):
   self.assertNotIn('build_status',bar)
   exe=json.loads((ROOT/'migration/ios-portrait/source-lock.json').read_text())
   self.assertEqual(exe['executable_release']['tag'],'kodi-ios-portrait-r25')
-  self.assertEqual(exe['executable_release']['sha256'],'fe7844edf12bb16c2f6315d492eb494d21e5c6ce0375a88027a8dd9170237af4')
+  self.assertEqual(exe['executable_release']['sha256'],'c3f0560c3731f53408a9e7c202b7108ef472272e72c873042e7b400bc1c79e2c')
   self.assertEqual(exe['previous_executable_release']['tag'],'kodi-ios-portrait-r24')
   self.assertNotIn('build_status',exe)
   self.assertEqual(exe['previous_executable_release']['sha256'],'02d5357af48bbf991efddc9ed5babecf06e19b826c5c648cf335c7073d767a80')
