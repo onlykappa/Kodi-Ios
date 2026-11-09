@@ -1,5 +1,16 @@
 # Persistent progress
 
+## Public 4K movie check — 2026-11-09
+
+At the owner's request, downloaded Blender's public Big Buck Bunny 2160p movie and used this branch's native
+streaming code against a 2 MiB/s HTTP source. Startup and five out-of-order seek requests passed; all retained
+3840×2160, keyframe starts and monotonic decode timestamps. Four unique samples also decoded their first frame.
+Cold fetches took 3.4–19.4 s; repeated segment zero took 5 ms. Receipt: reports/public-movie-seek-check.json.
+The first test attempt used a stopped HTTP stand-in; restarting it and rerunning passed. GitHub release/artifact
+inspection found rig scripts and iOS builds, no prebuilt Linux rig. No desktop Kodi rebuild was started, following
+the owner's preference. These are host pipeline checks, not GUI, iPhone touch or Roku decoding acceptance.
+The native AirPlay candidate framework compiled; its full host CI is still in dependency installation.
+
 ## Touch seeking and download progress repairs — 2026-11-09
 
 ISSUE-141 records the new log review, native touch-slider fix and streamed-upload repairs. A compiled 100-move

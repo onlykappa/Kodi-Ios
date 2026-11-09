@@ -1683,3 +1683,11 @@ directory; rerunning after creating it passed. Raw logs/media stay outside Git. 
 An owner-attached episode can be used as a private rig fixture for decode, timeline and seeking tests. Keep it
 outside Git, use its existing path in the rig and compare with synthetic fixtures. Desktop rig results cannot
 establish iPhone gesture dispatch, networking or background behavior. No episode was attached in this turn.
+
+
+ISSUE-141 follow-up: the public 4K movie host check passed startup, five seek requests and four first-frame decodes.
+The first run could not connect because its private HTTP stand-in had stopped; restarting that stand-in resolved
+the harness failure. No desktop app is claimed: release/artifact inspection found no compatible Linux rig binary.
+See reports/public-movie-seek-check.json. The native CI host job remains in package installation, so its full suite
+and new IPA are not represented as passed. No additional desktop Kodi build was started after the owner asked to
+reuse the branch version.

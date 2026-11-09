@@ -1,0 +1,74 @@
+{
+  "source_url": "https://download.blender.org/demo/movies/BBB/bbb_sunflower_2160p_30fps_normal.mp4.zip",
+  "evidence": "host streaming pipeline, not Kodi GUI or iPhone/Roku",
+  "source_codec": "h264",
+  "startup_seconds": 0.682,
+  "segments": 72,
+  "seeks": [
+    {
+      "segment": 0,
+      "bytes": 4662552,
+      "fetch_seconds": 3.423,
+      "packets": 250,
+      "first_pts": "0.066667",
+      "keyframe": true,
+      "resolution": "3840x2160",
+      "monotonic_dts": true
+    },
+    {
+      "segment": 36,
+      "bytes": 15508536,
+      "fetch_seconds": 19.418,
+      "packets": 385,
+      "first_pts": "323.633333",
+      "keyframe": true,
+      "resolution": "3840x2160",
+      "monotonic_dts": true
+    },
+    {
+      "segment": 2,
+      "bytes": 6649168,
+      "fetch_seconds": 7.345,
+      "packets": 335,
+      "first_pts": "16.300000",
+      "keyframe": true,
+      "resolution": "3840x2160",
+      "monotonic_dts": true
+    },
+    {
+      "segment": 71,
+      "bytes": 2975848,
+      "fetch_seconds": 9.277,
+      "packets": 225,
+      "first_pts": "627.100000",
+      "keyframe": true,
+      "resolution": "3840x2160",
+      "monotonic_dts": true
+    },
+    {
+      "segment": 0,
+      "bytes": 4662552,
+      "fetch_seconds": 0.005,
+      "packets": 250,
+      "first_pts": "0.066667",
+      "keyframe": true,
+      "resolution": "3840x2160",
+      "monotonic_dts": true
+    }
+  ],
+  "passed": true,
+  "first_frame_decode_passed": [
+    "seek-0",
+    "seek-2",
+    "seek-36",
+    "seek-71"
+  ],
+  "status": "PUBLIC_MOVIE_HOST_SEEK_CHECKS_PASSED",
+  "date": "2026-11-09",
+  "source_branch": "claude/trusting-euler-kgug98",
+  "source_commit": "99fa9bdf2942357e07ccb8479ab39ee92d9d4fe0",
+  "desktop_kodi_gui_tested": false,
+  "iphone_tested": false,
+  "roku_tested": false,
+  "private_accounts_used": false
+}
