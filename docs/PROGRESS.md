@@ -1,5 +1,14 @@
 # Persistent progress
 
+## Build 216 owner retest: seek/queue failures reviewed — 2026-11-09
+
+Owner confirms smoother dragging but releasing seeks to the start. Exact pinned Kodi event packing exposes a
+regression in the new release handler: velocity is interpreted as slider position; reproduced 50% → 0%.
+The log/screenshot show seven waiting conversions, zero active, rather than evidence of a hung encoder.
+Start now also has a reproduced conditional bug: a persistent conversion pause prevents request consumption and
+is not cleared by the action. The device pause flag is absent from this log, so the exact queue blocker is still
+unconfirmed. See ISSUE-143. Findings review only; no behavior edits or new IPA. Device acceptance remains open.
+
 ## Build 216: recommendations and repairs delivered — 2026-11-09
 
 [Download test IPA 216](https://github.com/onlykappa/Kodi-Ios/releases/download/build-216/Kodi-iOS-Customized-Touch-r10.ipa).

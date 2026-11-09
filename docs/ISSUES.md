@@ -1790,3 +1790,34 @@ ZIP integrity, exact verified r43 framework and r25 executable after signature r
 helpers, Python 3.11 bytecode, seek markers and 154 unsigned/unencrypted ARM64 images. Delivery receipt is
 reports/streaming-recommendations-delivery.json. Native/software gates are complete; actual iPhone/Roku smoothness,
 caption rendering, sound and visual acceptance remain pending. No live Drive account access or main merge.
+
+
+## ISSUE-143 — Build 216 device retest: seek release resets position; conversion queue idle (2026-11-09)
+
+Owner reports smooth dragging but release jumps to the beginning, seven conversions stay queued, and Start now
+has no effect. This request is a findings review. Raw log and device screenshot remain outside Git.
+
+Confirmed log evidence: build 216 with Kodi r25 and AirPlay r43 is installed. At 13:18:14, 13:19:14, 13:20:14
+and 13:21:14 the preparation state has seven waiting jobs and empty current; no worker heartbeat is present.
+The screenshot independently shows zero Working/seven Up next. Conversion is not observed actively encoding.
+The library refresh and local playback from Drive succeed, with about 23.2 GB free. No Drive authentication,
+network-timeout or out-of-space error establishes those as the cause in this capture. No new TV casting result
+is established by this log.
+
+Confirmed seek regression in the previous slider repair: pinned Kodi GenericTouchActionHandler sends gesture
+END as velocityX/velocityY followed by finger x/y. GUIWindow turns the first two amounts into the point passed
+to the exclusive slider. The new END handler calls SetFromPosition(point), treating velocity as a coordinate;
+a stationary release clamps to zero. A 50%-pan/zero-velocity-release reproduction produces a 0% seek. Four device
+release logs at 13:20:15/19/25/30 and subsequent flushes/sync warnings corroborate the owner report. The prior
+handler harness checked drag ownership and seek count but stubbed coordinates, so it missed the resulting
+position. Future regression protection must exercise real END payload packing and target percentage.
+
+Confirmed conditional Start now bug: the action writes priority/retry state but never clears persistent paused-conv.
+The service skips process_one while that pause exists and no current job is running; request consumption occurs
+inside process_one. Reproduced with actual request/pause files in an isolated synthetic profile: the request stays
+pending and applying it does not clear the pause. The device log does not include the saved pause flag, so this
+is a proven blocking code path and a plausible queue explanation, not a confirmed on-device pause-state diagnosis.
+A future fix should process explicit start requests before the pause skip and retain the intended pause ownership.
+
+Review only: source behavior unchanged; no new IPA published. Device acceptance remains failed/open for these
+symptoms. The new build's prior host/build passes do not override this actual device evidence.
