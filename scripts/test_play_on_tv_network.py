@@ -442,4 +442,25 @@ class AnyTv(unittest.TestCase):
   self.assertIn('kr_remux_start_for(ticket, url, 1, compat ? 1 : 0, out, outlen)',build)
   self.assertIn('_kodi_airplay_serve\\n',build);self.assertIn("== 28 ]]",build)
 
+class PhoneServedTv(unittest.TestCase):
+ """Build 211 (log 1430bbc1): after Play on TV handed a Roku the phone's link, "slowdown: full speed" and the TV's
+ first 3.7 KB took 7.8 s. A TV fed by the phone's server slows the background like AirPlay, while it asks for video."""
+ def test_serve_mark_counts_and_ends(self):
+  class W:
+   def __init__(self):self.p={}
+   def setProperty(self,k,v):self.p[k]=v
+   def getProperty(self,k):return self.p.get(k,'')
+   def clearProperty(self,k):self.p.pop(k,None)
+  class Lib:
+   def kodi_airplay_active(self):return 0
+  w=W();lib=Lib()
+  self.assertFalse(airplay.playback_active(lib,w,1000))
+  airplay.mark_serve(w,1000);self.assertTrue(airplay.playback_active(lib,w,1050))
+  self.assertFalse(airplay.playback_active(lib,w,1000+airplay.BUSY_FOR+1))     # the TV stopped asking
+  airplay.activity(['GET /prepared.mp4 bytes=0-3763 206 3764 B 7816 ms'],w,1200)  # it asks again: kept
+  self.assertFalse(airplay.serve_busy(w,1200))                                  # an expired mark stays expired
+  airplay.mark_serve(w,1300);airplay.activity(['GET /prepared.mp4 206 65536 B 40 ms'],w,1380)
+  self.assertTrue(airplay.playback_active(lib,w,1380+airplay.BUSY_FOR-1))
+  self.assertIn('airplay.mark_serve(xbmcgui.Window(10000),time.time())',(BOOT/'cast.py').read_text())
+
 if __name__=='__main__':unittest.main()

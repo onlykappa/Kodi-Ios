@@ -1385,3 +1385,19 @@ Status: FIXED IN SOURCE (build 210); device test pending.
 - Fix: the dialog stays in the skin but never opens (`<visible>false</visible>`, so an old copy cannot come back); the
   same "Buffering NN%" text is a label in the video controls, under the play button, visible on Player.Caching.
 - Regression: test_portrait.BufferingPill.
+
+## ISSUE-138 — Roku: reaches the TV, then fails (2026-11-09)
+
+Status: PARTLY FIXED IN SOURCE (not built); Roku playback not working yet.
+- Owner (build 209, log 1430bbc1, Roku without the Apple TV): "it reaches tv but fails".
+- Media Assistant route (16:55:44): the Roku (Roku/DVP-15.3) took the link and read prepared.m3u8, prepared-media.m3u8
+  and the MP4's first 3,764 bytes (the init), which took 7,816 ms to serve; it asked for nothing more.
+- Roku's own AirPlay (16:57:14, client "AirPlay/2.0 MFi_AirPlay_Device"): read prepared.m3u8 only, then Apple's
+  player stopped "The operation could not be completed" 0.5 s later.
+- Fixed: a TV fed by the phone's server did not count as playing ("slowdown: full speed" at 16:55:46), so uploads and
+  copies ran beside it. `airplay.mark_serve` (set by Play on TV, kept by the server's GET lines) now slows them as for
+  AirPlay.
+- Open: why the Roku stops after the init. Candidates: the 7.8 s first read (the phone's server reading Drive), the
+  HEVC Main 10 video (hvc1.2.4) on this Roku model, or byte-range fMP4 HLS. Next evidence needed: what the Roku
+  screen says, and the same test with a 1080p H.264 item.
+- Regression: test_play_on_tv_network.PhoneServedTv.

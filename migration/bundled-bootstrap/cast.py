@@ -378,6 +378,10 @@ def tv_link(xbmc,library,url,playing,kind):
    link=out.value.decode('utf-8')
    if kind=='dlna' and link.endswith('/prepared.m3u8'):link=link[:-len('.m3u8')]+'.mp4'
    xbmc.log('Kodi iOS Play on TV: %s gets the phone\'s %s'%(kind,link.rsplit('/',1)[-1]),xbmc.LOGINFO)
+   # Build 211: the background slows while this TV plays from the phone, as for AirPlay.
+   try:
+    import time,xbmcgui;airplay.mark_serve(xbmcgui.Window(10000),time.time())
+   except Exception:pass
    return link,True
   if r==3:return url,False
   xbmc.log('Kodi iOS Play on TV: phone server unavailable (%d: %s); Kodi\'s link goes to the TV'%(r,airplay.message(lib)),xbmc.LOGWARNING)

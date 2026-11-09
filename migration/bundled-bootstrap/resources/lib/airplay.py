@@ -181,14 +181,25 @@ def log_text(line):
 ENDED=('player: closed','player: stopped')
 def mark_busy(window,now):window.setProperty(BUSY,'%.0f'%now)
 def clear_busy(window):window.setProperty(BUSY,'')
+SERVE='KodiIOS.TvServe'   # build 211: set when Play on TV hands a Roku, Chromecast or DLNA TV the phone's link
+def mark_serve(window,now):window.setProperty(SERVE,'%.0f'%now)
+def clear_serve(window):window.setProperty(SERVE,'')
+def serve_busy(window,now):
+ try:return now-float(window.getProperty(SERVE) or 0)<BUSY_FOR
+ except (TypeError,ValueError):return False
 def busy(window,now):
  try:return now-float(window.getProperty(BUSY) or 0)<BUSY_FOR
  except (TypeError,ValueError):return False
 
 def playback_active(lib,window=None,now=None):
  """Native ownership survives lock/background and does not depend on log-flush timing or download preferences."""
- if hasattr(lib,'kodi_airplay_active'):return bool(lib.kodi_airplay_active())
- return busy(window,time.time() if now is None else now) if window is not None else False
+ # Build 211 (log 1430bbc1, Roku via Media Assistant): a TV fed by the phone's server (Roku, Chromecast, DLNA) is
+ # not Apple's player, so kodi_airplay_active() was 0 and the background ran at full speed beside it ("slowdown: full
+ # speed" at 16:55:46; the TV's first 3.7 KB took 7.8 s). The server's own request lines keep the busy mark (relay).
+ now=time.time() if now is None else now
+ serving=serve_busy(window,now) if window is not None else False
+ if hasattr(lib,'kodi_airplay_active'):return bool(lib.kodi_airplay_active()) or serving
+ return (busy(window,now) if window is not None else False) or serving
 # Build 193 (build-192 log, 13:10-13:30): the converter writes its own 'prepare: …' lines to the same log; they counted as
 # AirPlay playing and held every worker for 90 s ("Paused while a video plays" with nothing playing). Only the AirPlay
 # server's and Apple's player's lines count now.
@@ -208,8 +219,11 @@ def activity(lines,window,now):
  try:
   import slowdown;slowdown.note_served(lines,now)
  except Exception:pass
- if any(end in line for line in lines for end in ENDED) and not any('start:' in line for line in lines):clear_busy(window)
- else:mark_busy(window,now)
+ if any(end in line for line in lines for end in ENDED) and not any('start:' in line for line in lines):clear_busy(window);clear_serve(window)
+ else:
+  mark_busy(window,now)
+  # A TV fed by the phone's server keeps its mark while it asks for the video (its GET lines).
+  if serve_busy(window,now) and any(l.startswith(('GET ','HEAD ')) for l in lines):mark_serve(window,now)
  at=closed_at(lines)
  if at is not None:back_to_kodi(at)
 
