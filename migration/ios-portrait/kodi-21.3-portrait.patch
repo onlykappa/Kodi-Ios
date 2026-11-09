@@ -1669,11 +1669,11 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
    }
    else if (event.m_id == ACTION_GESTURE_END || event.m_id == ACTION_GESTURE_ABORT)
    { // release exclusive access
-+    // Seek once on release; cancellation restores the current playback position on the next Process.
++    // Keep the dragged percentage: END carries velocity in point, not the finger coordinates.
 +    if (event.m_id == ACTION_GESTURE_END)
 +    {
 +      const auto submitted = std::chrono::steady_clock::now();
-+      SetFromPosition(point);
++      SendClick();
 +      if (m_action && m_action->infoCode == PLAYER_PROGRESS && m_touchSeekAt)
 +      {
 +        const auto now = std::chrono::steady_clock::now();

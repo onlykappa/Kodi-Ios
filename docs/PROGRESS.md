@@ -1,5 +1,11 @@
 # Persistent progress
 
+## Seek release and automatic-work repairs authorized — 2026-11-09
+
+Owner requests fixes plus a new IPA and automatic background work while idle. Native r26 retains the dragged
+percentage on release; 32 compiled real gesture/slider scenarios pass, while r25 fails the same regression.
+Native build follows. Queue/pause/start diagnostics and scheduling repairs are in progress (ISSUE-143).
+
 ## Build 216 owner retest: seek/queue failures reviewed — 2026-11-09
 
 Owner confirms smoother dragging but releasing seeks to the start. Exact pinned Kodi event packing exposes a

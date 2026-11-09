@@ -1821,3 +1821,14 @@ A future fix should process explicit start requests before the pause skip and re
 
 Review only: source behavior unchanged; no new IPA published. Device acceptance remains failed/open for these
 symptoms. The new build's prior host/build passes do not override this actual device evidence.
+
+
+ISSUE-143 repair authorized: owner requests fixes and a new IPA, then clarifies that eligible downloads/uploads/
+conversions must automatically start while idle. Native r26 commits the already-dragged percentage via SendClick
+on END; no release velocity is interpreted as position. A new compiled test extracts the actual pinned Kodi
+slider methods, generic gesture-END packing and window dispatch, with platform/rendering stubs. All 32 target,
+velocity, scale, cancel and tap scenarios pass; the previous r25 patch fails the same test (target 0 becomes 100
+with a high release velocity). Initial harness compilation lacked two control-ID stub members; adding these
+platform fields fixed compilation without changing tested Kodi methods. The native build runs this test against
+its actual patched source tree, and IPA CI repeats it. Queue/scheduler repairs are in progress; device acceptance
+remains pending and no new build is represented as delivered.
