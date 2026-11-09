@@ -1558,7 +1558,7 @@ path cannot safely assume a short keyframe interval. For indexed MP4s, Roku now 
 from the complete mfra index; video and audio use the same truthful plan. Old long-GOP files retain longer windows
 and their original 4K picture. The output and byte caches are bounded at 128 MiB each to retain an old prepared
 unit without discarding it before launch. Copy demuxers discard other tracks to avoid duplicate 4K reads for audio.
-New preparation uses two-second encoder keyframes and aims at six-second fragments, retaining the existing file ID,
+Newly converted video uses two-second encoder keyframes, retaining the existing file ID,
 resolution and HDR policy. This does not require downloading/replacing old Drive movies to use the repaired route.
 The long-GOP regression decodes the complete picture and checks every frame once, plus the audio timeline.
 
@@ -1566,3 +1566,16 @@ The first long-GOP test used FFmpeg's raw empty-moov output, whose zero init dur
 the fixture now carries the finite init duration written by the real preparation path. The corrected regression
 passes all 141 streaming checks. The older r32 assertion requiring only 1–3 large fragments in a 65-second file
 was updated to require about eleven six-second fragments, with its sample-interleaving check retained.
+
+
+Final-candidate run 42635055257 passed 3,223 native checks and the iPhoneOS compile but failed one E2E performance
+budget: a saved 65-second-style short-fragment layout caused 226 sequential Kodi range requests for long_big.mkv
+(limit 60). Restored the established coalesced/interleaved saved-file layout; Roku still uses truthful random-access
+windows, and new video encodes retain frequent keyframes. This preserves the r32 efficiency requirement instead
+of accepting more Drive requests. The earlier fragment-count assertion is restored with the saved-file layout.
+Local non-assembly FFmpeg also exceeded the 4.5-second HDR-cancellation timing budget in repeated runs; CI's
+accelerated host build passed that check. Further tracing isolates the delay to the first synchronous HDR color conversion (6–7 seconds), including with
+input on tmpfs; cleanup itself completes within milliseconds. This local FFmpeg was built with `--disable-x86asm`.
+The cancellation callback cannot interrupt an in-progress scaler call. The native close API remains asynchronous,
+but actual iPhone HDR/cancellation timing still needs device evidence. Added the native demuxer's interrupt callback so its own parse/seek loops
+observe cancellation too; device timing remains unverified. Do not report the slow local timing run as passing.

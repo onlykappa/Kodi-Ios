@@ -197,6 +197,8 @@ static int open_decoder(kr_video *v, int hw, char *err, int errlen) {
     return 0;
 }
 
+static int demux_interrupted(void *context) { return kr_video_interrupted(context); }
+
 kr_video *kr_video_open(gm_source src, int index, char *err, int errlen) {
     kr_video *v = calloc(1, sizeof *v);
     if (!v) return NULL;
@@ -206,6 +208,7 @@ kr_video *kr_video_open(gm_source src, int index, char *err, int errlen) {
     v->in = avformat_alloc_context();
     if (!io || !v->in) { seterr(err, errlen, "out of memory", 0); av_free(iob); goto fail; }
     v->in->pb = io;
+    v->in->interrupt_callback=(AVIOInterruptCB){demux_interrupted,v};
     v->in->probesize = 2 * 1024 * 1024;
     v->in->max_analyze_duration = 2 * AV_TIME_BASE;
     AVDictionary *input_opts=NULL;

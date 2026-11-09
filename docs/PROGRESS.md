@@ -15,7 +15,7 @@ Focused validation: 39 source/init checks, 13 startup/early-header/subtitle chec
 checks and the project/UI guidance checks pass. The first candidate (4ad5b34, run 42558496051) passed 3,207 native checks, E2E conversion and iPhoneOS compilation;
 its local suite passed 3,114 checks. A later long-GOP fixture exposed repeated/mislabelled copy windows. The final
 repair uses the prepared file's complete random-access index, retains older long windows at source resolution,
-and prepares future files with frequent keyframes/short fragments. Targeted streaming checks now pass 141 checks;
+and gives newly converted video frequent keyframes. The coalesced saved-file layout remains for efficient Kodi reads. Targeted streaming checks now pass 141 checks;
 full validation of this additional source change is in progress. The desktop rig cannot start in this workspace because its Kodi binary is absent; existing card layout
 is reused, with device visual review pending. Native publication, IPA packaging and device acceptance are not yet
 complete. Work stays on PR #16's feature branch; main is unchanged.

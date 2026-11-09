@@ -1705,15 +1705,15 @@ static long long bytes_to_open(const char *path) {
 static void test_preparation_resume(const char *work,const char *http_base) {
     struct {const char *file;int same;} cases[]={{"long_seek.mkv",1},{"long_pgs.mkv",1},{"h264_ac3_dts_srt.mkv",0},{"resume_av1_hdr.mkv",0}};
     kodi_airplay_prepare_keep_image_subs(1);kr_video_set_encoder("mpeg4");kodi_airplay_prepare_marks(1);
-    // The indexed Kodi opener no longer walks all fragment headers. New files can use TV-sized chunks while
-    // retaining the interleaving and resume marks that keep Drive reads efficient.
-    {
+    // r32: fragments are sized from the bitrate (6-60 s); for the short films here keep 6 s so each has several marks.
+    {   // ... but first: a real-sized conversion has few, large fragments with interleaved samples (Kodi reads them
+        // straight through; it opens a file by reading every fragment header).
         char input[1024],err[512]="";int calls=0;resume_sink one={0};
         snprintf(input,sizeof input,"%s/long_pgs.mkv",http_base);   // picture + sound, 65 s at a low bitrate
         CHECK(kodi_airplay_prepare_to(input,resume_write,&one,preparation_progress,&calls,err,sizeof err)==0,"r32: sized conversion: %s",err);
         int moofs=0,truns=0;for(size_t at=0;at+8<=one.len[0];){uint32_t n=AV_RB32(one.data[0]+at);if(n<8)break;
             if(!memcmp(one.data[0]+at+4,"moof",4)){moofs++;for(size_t k=at;k+4<at+n;k++)truns+=!memcmp(one.data[0]+k,"trun",4);}at+=n;}
-        CHECK(moofs>=10 && moofs<=12,"TV preparation: a 65 s movie has about eleven six-second fragments (%d)",moofs);
+        CHECK(moofs>=1 && moofs<=3,"r32: a 65 s low-bitrate film has one or two fragments of up to 60 s (%d), not one per keyframe",moofs);
         CHECK(truns>moofs*2,"r32: samples are interleaved inside fragments (%d runs in %d fragments)",truns,moofs);
         resume_free(&one);
     }

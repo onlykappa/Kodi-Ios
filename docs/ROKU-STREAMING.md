@@ -5,8 +5,7 @@ separate video/audio HLS renditions to the TV. Compatible H.264/HEVC video keeps
 there is no required local download, separate media server, or Apple TV box.
 
 The first segment is buffered before launching Media Assistant. Older prepared movies can have longer keyframe
-windows; those are advertised with their real durations, so opening one can take longer. New preparations aim at
-six-second fragments with frequent keyframes. A slow first read can therefore keep Kodi opening
+windows; those are advertised with their real durations, so opening one can take longer. Newly converted video uses frequent keyframes; the saved file retains coalesced fragments for efficient Kodi reads. A slow first read can therefore keep Kodi opening
 the movie for a while; the TV is launched once video and audio are available. After launch, playlist access alone
 is not success: Kodi waits for video delivery before stopping its own player. Keep Kodi open on the iPhone while
 using Media Assistant; it is the streaming server. Existing background work slows during casting.
