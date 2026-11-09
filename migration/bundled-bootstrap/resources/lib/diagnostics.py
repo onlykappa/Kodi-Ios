@@ -115,6 +115,12 @@ def snapshot(profile,clock=time.time):
   retry=[j.get('retry_after',0) for j in jobs if isinstance(j,dict) and isinstance(j.get('retry_after'),(int,float)) and j['retry_after']>clock()]
   if retry:item.update(waiting_for_retry=len(retry),next_retry_s=max(0,int(min(retry)-clock())))
   result[label]=item
+ try:
+  requests=json.loads((folder/'preparation-requests.json').read_text());request_count=len(requests) if isinstance(requests,list) else 0
+ except (OSError,ValueError):request_count=0
+ result['controls']={'conversion_paused':(folder/'paused-conv').exists(),'uploads_paused':(folder/'paused-up').exists(),
+                     'preparation_requests':request_count,
+                     'library_check_requested':(folder/'airplay-preparation-rescan').exists()}
  runtime=_read(folder/'preparation-runtime.json')
  if runtime:
   result['worker']={k:runtime[k] for k in ('phase','known','read_bytes','last_read','read_error') if k in runtime}

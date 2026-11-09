@@ -1832,3 +1832,18 @@ with a high release velocity). Initial harness compilation lacked two control-ID
 platform fields fixed compilation without changing tested Kodi methods. The native build runs this test against
 its actual patched source tree, and IPA CI repeats it. Queue/scheduler repairs are in progress; device acceptance
 remains pending and no new build is represented as delivered.
+
+
+ISSUE-143 implementation follow-up: Start now resumes only the conversion channel for a valid pending job;
+upload pauses and unrelated queue actions retain their ownership. The service reads saved requests before its
+pause skip, recovering requests left pending by older builds, and checks for new idle work every 20 s instead
+of 120 s (startup remains 5 s, pending commands 5 s, known retry backoff remains respected). Diagnostics now include
+pause flags, request counts and scheduler reasons, without file IDs/names. The old log lacks the pause flag, so
+the exact prior idle gate is not retrospectively established. The new evidence makes that gate observable.
+
+The first r26 native run 42705056711 stopped in the new host regression harness, before native compilation:
+the actual patched GUIWindow also references layout/property helpers that the initial harness omitted. Added
+those platform stubs and made default tests apply the window patch too; all 32 scenarios pass against that path.
+The first scheduler harness missed the service function-attribute stub, and the initial diagnostic request counter
+used a dict-only reader for a JSON list. Added the function stub and explicitly counted list requests; the
+scheduler/control diagnostics tests now pass. Full native rebuild and IPA validation follow.

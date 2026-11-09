@@ -362,12 +362,24 @@ def request(profile,action,item_id):
  if action not in MOVES:pending=[r for r in pending if r.get('id')!=str(item_id) or r.get('action') in MOVES]
  pending.append({'action':action,'id':str(item_id)})
  tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(pending));os.replace(tmp,path)
+ if action=='now':resume_requested(profile,pending)
 
 def pending_requests(profile):
  """What the owner asked for on Library status that the service has not applied yet."""
  try:pending=json.loads((location(profile).parent/REQUESTS).read_text())
  except (OSError,ValueError):return []
  return pending if isinstance(pending,list) else []
+
+def resume_requested(profile,requests=None,state=None):
+ """An explicit valid Start now resumes conversion; queued work alone never overrides the owner's Pause."""
+ requests=pending_requests(profile) if requests is None else requests
+ state=load(profile) if state is None else state
+ eligible={str(j['source']['id']) for j in (state.get('jobs') or {}).values()
+           if j.get('status') not in ('done','superseded') and not j.get('blocked')}
+ if not any(r.get('action')=='now' and str(r.get('id')) in eligible for r in requests):return False
+ import transfer_control
+ transfer_control.set_paused(profile,'conv',False)
+ return True
 
 def apply_to(state,requests,now):
  """Apply owner requests to a queue state (the service for real; the page on a copy, so a tap shows at once).
@@ -739,6 +751,7 @@ class Queue:
   path=location(self.profile).parent/REQUESTS
   if not path.exists():return False
   requests=pending_requests(self.profile)
+  resume_requested(self.profile,requests,self.state)
   path.unlink(missing_ok=True)
   apply_to(self.state,requests,self.clock())
   for job in self.state['jobs'].values():

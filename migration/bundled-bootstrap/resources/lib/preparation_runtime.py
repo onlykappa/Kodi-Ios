@@ -24,6 +24,16 @@ def pending(state):
  return bool(state.get('staging_cleanup')) or any(j.get('status') not in ('done','superseded') and not j.get('blocked') and not j.get('kept')
                                                for j in (state.get('jobs') or {}).values())
 
+def schedule(state,paused=False,now=None):
+ """Explain the worker gate without media names, IDs or credentials."""
+ now=time.time() if now is None else now
+ jobs=[j for j in (state.get('jobs') or {}).values()
+       if j.get('status') not in ('done','superseded') and not j.get('blocked') and not j.get('kept')]
+ eligible=sum(float(j.get('retry_after') or 0)<=now for j in jobs)
+ active=bool((state.get('current') or {}).get('running'))
+ reason='running' if active else 'owner_paused' if paused and jobs else 'ready' if eligible else 'retry_wait' if jobs else 'no_jobs'
+ return {'reason':reason,'queued_jobs':len(jobs),'eligible_jobs':eligible,'owner_paused':bool(paused)}
+
 def problem(error):
  """Useful transport diagnostics without signed URLs, access tokens or request headers."""
  if isinstance(error,urllib.error.URLError):

@@ -376,9 +376,9 @@ def drive_uploads(monitor,home,profile):
     download_file=lambda *args:prepare_downloads.download(*args,context=tls_context()),
     notify=lambda kind,title,text:notices.add(profile,kind,title,text),stream=stream,log=log)
  # First pass 30 s after start (owner, build 145: the Library was opened, and left, before the old 120 s first pass).
- delay=5
+ delay=5;last_schedule=None
  while not monitor.waitForAbort(delay):
-  delay=120
+  delay=20
   if not idle() or not accounts.get_accounts():continue
   # Finished torrents still seeding in Elementum's folder go to Drive too (owner: nothing should stay on the phone).
   seeding=[]
@@ -429,6 +429,11 @@ def drive_uploads(monitor,home,profile):
       threading.Thread(target=check_beside,args=(preparation,),daemon=True).start()
      can_prepare=lambda:idle() and xbmcaddon.Addon().getSettingBool('prepare_downloads')
      import preparation_runtime
+     # Consume explicit starts before the saved-pause gate, including requests written by older builds.
+     preparation.apply_requests()
+     schedule=preparation_runtime.schedule(preparation.state,transfer_control.paused(profile,'conv'))
+     if schedule!=last_schedule:
+      diagnostics.event(log,'preparation','scheduler',**schedule);last_schedule=schedule
      with preparation_runtime.Lease(profile,stats=preparation.stream.stats if preparation.stream else lambda:{}) as runtime:
       preparation.runtime=runtime
       preparation.scan(can_prepare,force=bool(count))
@@ -448,7 +453,7 @@ def drive_uploads(monitor,home,profile):
       if transfer_control.paused(profile,'conv') and not (prepare_downloads.load(profile).get('current') or {}).get('running'):delay=30
       else:
        preparation.busy=True
-       try:delay=2 if preparation.process_one(converting) else 30
+       try:delay=2 if preparation.process_one(converting) else 20
        finally:preparation.busy=False
      preparation.runtime=None
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))

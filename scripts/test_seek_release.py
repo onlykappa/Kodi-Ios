@@ -37,7 +37,7 @@ namespace MathUtils {inline int round_int(double v){return std::lround(v);}inlin
 namespace StringUtils {inline std::string Format(std::string,float p){return std::to_string(p);}}
 std::vector<float> submitted;
 #define SEND_CLICK_MESSAGE(a,b,c) ((void)0)
-struct Context {float scale=1;void SetScalingResolution(int,bool){}void InvertFinalCoords(float& x,float& y){x/=scale;y/=scale;}};
+struct Context {float scale=1;template<class T>void SetScalingResolution(T,bool){}void InvertFinalCoords(float& x,float& y){x/=scale;y/=scale;}};
 struct WindowManager {void SendMessage(CGUIMessage& m){submitted.push_back(std::stof(m.param));}};
 struct GUI {WindowManager manager;WindowManager& GetWindowManager(){return manager;}};
 struct WindowSystem {Context ctx;Context& GetGfxContext(){return ctx;}};
@@ -56,7 +56,9 @@ struct CGUISliderControl:CGUIControl {
  void SetFromPosition(const CPoint&,bool=false);void SendClick();EVENT_RESULT OnMouseEvent(const CPoint&,const MOUSE::CMouseEvent&) override;
 };
 struct CAction {int id;float a[6];int GetID()const{return id;}int GetHoldTime()const{return 0;}float GetAmount(int i)const{return a[i];}};
-struct CGUIWindow {CGUISliderControl* slider;int m_coordsRes=0,m_exclusiveMouseControl=1;bool m_needsScaling=false;
+struct Resolution {int iWidth=2340,iHeight=1080;};struct Property {std::string asString(){return "VideoOSD.xml";}};
+struct CGUIWindow {CGUISliderControl* slider;Resolution m_coordsRes;int m_exclusiveMouseControl=1;bool m_needsScaling=false;
+ Property GetProperty(const char*){return {};}int GetFocusedControlID(){return 1;}
  CGUIControl* GetControl(int){return slider;}void UnfocusFromPoint(CPoint){}EVENT_RESULT SendMouseEvent(CPoint,const MOUSE::CMouseEvent&){return EVENT_RESULT_UNHANDLED;}
  EVENT_RESULT OnMouseAction(const CAction&);
 };
@@ -92,7 +94,7 @@ def main():
    for path in files.values():
     out=tree/'xbmc'/path;out.parent.mkdir(parents=True,exist_ok=True)
     with urllib.request.urlopen('https://raw.githubusercontent.com/xbmc/xbmc/'+commit+'/xbmc/'+path,timeout=30) as r:out.write_bytes(r.read())
-   subprocess.run(['git','apply','--include=xbmc/guilib/GUISliderControl.cpp',str(args.patch.resolve())],cwd=tree,check=True)
+   subprocess.run(['git','apply','--include=xbmc/guilib/GUISliderControl.cpp','--include=xbmc/guilib/GUIWindow.cpp',str(args.patch.resolve())],cwd=tree,check=True)
   text={k:(tree/'xbmc'/v).read_text() for k,v in files.items()}
   methods=[function(text['slider'],s) for s in ('void CGUISliderControl::SendClick()','void CGUISliderControl::SetFromPosition(','EVENT_RESULT CGUISliderControl::OnMouseEvent(')]
   methods += [function(text['window'],'EVENT_RESULT CGUIWindow::OnMouseAction('),function(text['gesture'],'bool CGenericTouchActionHandler::OnTouchGestureEnd(')]
