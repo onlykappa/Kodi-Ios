@@ -3,8 +3,8 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
-  "build_tag": "kodi-ios-portrait-r26",
-  "staged_patch_note": "r26 verified native build: gesture release commits the dragged percentage instead of interpreting velocity as a coordinate. Device retest pending.",
+  "build_tag": "kodi-ios-portrait-r27",
+  "staged_patch_note": "r27 candidate: preserve dragged/pending seek across pointer events and player-info polling; queue the seek outside the touch callback. Verified r26 release stays pinned until candidate compilation/artifact verification.",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
     "tag": "kodi-ios-portrait-r26",

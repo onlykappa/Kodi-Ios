@@ -1640,20 +1640,73 @@ diff --git a/xbmc/cores/VideoPlayer/DVDDemuxers/DVDDemuxFFmpeg.cpp b/xbmc/cores/
 diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
 --- a/xbmc/guilib/GUISliderControl.cpp
 +++ b/xbmc/guilib/GUISliderControl.cpp
-@@ -19,6 +19,8 @@
+@@ -19,6 +19,9 @@
  #include "input/mouse/MouseStat.h"
  #include "utils/MathUtils.h"
  #include "utils/StringUtils.h"
 +#include "utils/log.h"
 +#include <chrono>
-
++#include <cmath>
+ 
  using namespace KODI;
-
-@@ -729,17 +731,36 @@
+ 
+@@ -119,7 +122,22 @@
+   {
+     int val;
+     if (CServiceBroker::GetGUI()->GetInfoManager().GetInt(val, infoCode, INFO::DEFAULT_CONTEXT))
+-      SetIntValue(val);
++    {
++      bool hold = infoCode == PLAYER_PROGRESS && m_dragging;
++      if (infoCode == PLAYER_PROGRESS && m_pendingSeekAt && !m_dragging)
++      {
++        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_pendingSeekAt;
++        const bool landed = std::abs(val - m_pendingSeekPercent) <= 1.0f;
++        hold = !landed && elapsed < 15000;
++        if (!hold)
++        {
++          CLog::Log(LOGINFO, "Kodi iOS seek: requested {:.3f}%, observed {}%, {} after {} ms", m_pendingSeekPercent, val, landed ? "landed" : "timed out", elapsed);
++          m_pendingSeekAt = 0;
++        }
++      }
++      if (!hold)
++        SetIntValue(val);
++    }
+   }
+ 
+   dirty |= guiBackground->SetHeight(m_height);
+@@ -386,7 +404,16 @@
+     std::string action = StringUtils::Format(m_action->formatString, percent);
+     CGUIMessage message(GUI_MSG_EXECUTE, m_controlID, m_parentID);
+     message.SetStringParam(action);
+-    CServiceBroker::GetGUI()->GetWindowManager().SendMessage(message);
++    if (m_action->infoCode == PLAYER_PROGRESS)
++    {
++      m_pendingSeekPercent = percent;
++      m_pendingSeekAt = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
++      // The player may wait for demux acknowledgement. Release the touch callback first.
++      CServiceBroker::GetGUI()->GetWindowManager().SendThreadMessage(message);
++      CLog::Log(LOGINFO, "Kodi iOS seek: requested {:.3f}%", percent);
++    }
++    else
++      CServiceBroker::GetGUI()->GetWindowManager().SendMessage(message);
+   }
+ }
+ 
+@@ -682,7 +709,7 @@
+ 
+ EVENT_RESULT CGUISliderControl::OnMouseEvent(const CPoint& point, const MOUSE::CMouseEvent& event)
+ {
+-  m_dragging = false;
++  // Unrelated pointer movement must not end an active touch drag.
+   if (event.m_id == ACTION_MOUSE_DRAG || event.m_id == ACTION_MOUSE_DRAG_END)
+   {
+     m_dragging = true;
+@@ -729,17 +756,40 @@
    }
    else if (event.m_id == ACTION_GESTURE_BEGIN)
    { // grab exclusive access
 +    m_dragging = true;
++    m_pendingSeekAt = 0;
 +    m_touchSeekAt = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 +    m_touchSeekMoves = 0;
      CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, GetID(), GetParentID());
@@ -1669,6 +1722,7 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
    }
    else if (event.m_id == ACTION_GESTURE_END || event.m_id == ACTION_GESTURE_ABORT)
    { // release exclusive access
++    m_dragging = false;
 +    // Keep the dragged percentage: END carries velocity in point, not the finger coordinates.
 +    if (event.m_id == ACTION_GESTURE_END)
 +    {
@@ -1682,6 +1736,8 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
 +        CLog::Log(LOGINFO, "Kodi iOS seek: touch {} ms, {} moves, submit {} ms", total, m_touchSeekMoves, submit);
 +      }
 +    }
++    if (event.m_id == ACTION_GESTURE_ABORT)
++      m_pendingSeekAt = 0;
 +    m_touchSeekAt = 0;
      CGUIMessage msg(GUI_MSG_EXCLUSIVE_MOUSE, 0, GetParentID());
      SendWindowMessage(msg);
@@ -1689,16 +1745,19 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
 diff --git a/xbmc/guilib/GUISliderControl.h b/xbmc/guilib/GUISliderControl.h
 --- a/xbmc/guilib/GUISliderControl.h
 +++ b/xbmc/guilib/GUISliderControl.h
-@@ -139,7 +139,9 @@
+@@ -139,7 +139,10 @@
    int m_iInfoCode;
    std::string m_textValue; ///< Allows overriding of the text value to be displayed (parent must update when the slider updates)
    const SliderAction *m_action; ///< Allows the skin to configure the action of a click on the slider \sa SendClick
 -  bool m_dragging; ///< Whether we're in a (mouse/touch) drag operation or not - some actions are sent only on release.
 +  bool m_dragging;
 +  long long m_touchSeekAt{0};
-+  unsigned int m_touchSeekMoves{0}; ///< Whether we're in a (mouse/touch) drag operation or not - some actions are sent only on release.
++  unsigned int m_touchSeekMoves{0};
++  long long m_pendingSeekAt{0};
++  float m_pendingSeekPercent{0};
    ORIENTATION m_orientation;
  };
+-
 
 diff --git a/xbmc/cores/VideoPlayer/VideoPlayerVideo.cpp b/xbmc/cores/VideoPlayer/VideoPlayerVideo.cpp
 --- a/xbmc/cores/VideoPlayer/VideoPlayerVideo.cpp

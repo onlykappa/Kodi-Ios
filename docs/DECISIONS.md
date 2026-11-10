@@ -193,3 +193,17 @@ Elementum → AllDebrid → Google Drive flow, verifying actual ownership/inflig
 sources retry later; cancellation is respected. Existing downloaded shows have an explicit Follow new episodes
 only season-menu action; Library settings can turn automatic downloading off. Reuse established Kodi controls
 under the Apple UI policy; device/visual/provider acceptance stays pending. ISSUE-147 remains separate.
+
+## DEC-034 — Build and deliver seek/subtitle/stop diagnostics, including downloaded movie resume (2026-11-10)
+
+Owner approves the three recommendations: seek-position retention, retained/cached subtitle loading and automatic
+unexpected AirPlay stop evidence, and requests “push the ipa please.” This supersedes DEC-033's IPA hold for this
+update and authorizes the required native builds, artifact verification/pins, source push and test IPA publication.
+Owner then adds Continue from for downloaded-library movies; include it with retention. Preserve restart choice,
+existing Drive setup and source-quality policy. No main merge is requested. Device acceptance remains pending.
+
+Native Kodi r27 candidate: retain dragged/pending target across progress refresh and unrelated pointer events;
+queue progress actions outside the touch callback, log target/observed landing and bound stale-target display.
+Expanded real slider/gesture/info-refresh harness passes 45 scenarios. Verified r26 executable remains pinned
+until the new candidate passes native compilation/artifact provenance checks. UI policy/routed HIG guidance read;
+behavior repair only, existing playback controls. AirPlay and downloaded resume repairs follow in this delivery.
