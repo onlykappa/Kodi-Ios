@@ -4,7 +4,12 @@
 
 Owner requests fixes plus a new IPA and automatic background work while idle. Native r26 retains the dragged
 percentage on release; 32 compiled real gesture/slider scenarios pass, while r25 fails the same regression.
-Native build follows. Queue/pause/start diagnostics and scheduling repairs are in progress (ISSUE-143).
+Native r26 build/publication passed in run 42705743785, including the 32 scenarios against the actual native
+tree. Release binary/artifact, archive and patch hashes and the real fetch contract verified. Scheduler fixes and
+diagnostics pass 10 tests, and portrait 50/glass-bar 28 regressions pass. The r26 pin is ready for IPA packaging.
+Start now resumes the conversion channel and recovers old pending requests before pause gating. Eligible idle
+work is checked automatically after 5 s at startup and at most 20 s between idle passes; explicit pauses and
+retry backoff remain respected (ISSUE-143).
 
 ## Build 216 owner retest: seek/queue failures reviewed — 2026-11-09
 

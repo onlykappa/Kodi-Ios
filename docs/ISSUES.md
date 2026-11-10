@@ -1857,3 +1857,13 @@ Focused existing suites also pass: preparation 59, runtime 4, diagnostics 14, sl
 status model 27, pages 37, direct downloads 24 and uploads 23. Portrait suite is still running at this checkpoint.
 Native r26 run 42705743785 from 403bd10e683e8054c6437a1883895d662f80d1d9 is building; the previous failed
 harness run remains recorded above. No app layout, styling, Drive library, credentials or main branch changes.
+
+
+ISSUE-143 native verification (2026-11-10): run 42705743785 from 403bd10e683e8054c6437a1883895d662f80d1d9
+passed all 32 real gesture/slider dispatch scenarios against the patched native tree, then compiled and published
+Kodi r26. The public release executable equals the CI artifact, with binary SHA256
+f4379642605486f9a09f16366e9d2f32279f3ce8c8c0b665a7465a17404678d3. Archive SHA256 is recorded separately as
+d34ea5d0c349906b428a406ebf4a1dc4dfcf4e765223bec4a516d609ed2e220b. Native patch and pinned upstream commit
+also match. The actual portrait fetch helper accepts the new binary pin; glass-bar contract 28, portrait 50,
+scheduler 10 and the other focused suites pass. IPA packaging follows. Owner authorized this test IPA; no main
+merge or device acceptance is implied. AirPlay r43 is reused unchanged.
