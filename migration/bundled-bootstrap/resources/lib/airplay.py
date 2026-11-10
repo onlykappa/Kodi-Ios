@@ -33,6 +33,7 @@ def load(path):
  # r6: what the AirPlay stream did (requests, CODECS, Apple's player events), for kodi.log.
  if hasattr(lib,'kodi_airplay_log'):lib.kodi_airplay_log.argtypes=[ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_log.restype=ctypes.c_int
  # r34: non-draining network evidence (the service and a script both read it), and the app's Settings link.
+ if hasattr(lib,'kodi_airplay_health'):lib.kodi_airplay_health.argtypes=[ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_health.restype=ctypes.c_int
  if hasattr(lib,'kodi_airplay_network'):lib.kodi_airplay_network.argtypes=[ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_network.restype=ctypes.c_int
  if hasattr(lib,'kodi_airplay_settings'):lib.kodi_airplay_settings.argtypes=[];lib.kodi_airplay_settings.restype=None
  if hasattr(lib,'kodi_airplay_active'):lib.kodi_airplay_active.argtypes=[];lib.kodi_airplay_active.restype=ctypes.c_int
@@ -279,3 +280,12 @@ def watch(lib,playing,wait):
   if now!=shown:lib.kodi_airplay_show(int(now));shown=now
   if wait(0.5):break
  if shown:lib.kodi_airplay_show(0)
+
+
+def health(lib):
+ """Safe native player snapshot; absent on older frameworks."""
+ if lib is None or not hasattr(lib,'kodi_airplay_health'):return {}
+ import ctypes
+ buffer=ctypes.create_string_buffer(4096);lib.kodi_airplay_health(buffer,len(buffer))
+ try:return json.loads(buffer.value.decode('utf-8'))
+ except (ValueError,UnicodeError):return {}

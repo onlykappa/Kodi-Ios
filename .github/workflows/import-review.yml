@@ -124,6 +124,8 @@ jobs:
           python3 -B scripts/test_background_queue.py
           python3 -B scripts/test_compatibility_filter.py
           python3 -B scripts/test_episode_watch.py
+          python3 -B scripts/test_airplay_diagnostics.py
+          python3 -B scripts/test_playback_retention.py
           python3 -B scripts/test_fast_open.py
           python3 -B scripts/test_remote_media.py
           python3 -B scripts/test_transfer_efficiency.py

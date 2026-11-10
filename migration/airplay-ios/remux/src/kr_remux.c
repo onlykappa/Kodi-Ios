@@ -492,7 +492,7 @@ static gm_stream *audio_demuxer(void) {
 }
 
 // r11: the subtitle demuxer (sgm_lock held): a third connection, never shared with audio or video. NULL when it cannot
-// open (the request then answers an empty cue file: subtitles never wait on, or hold, a media lane).
+// open. The independent subtitle worker retains completed work; it never holds a media lane.
 static int subtitle_interrupted(void *opaque) {
     long long end=atomic_load(&S.subtitle_deadline_ms);
     return source_interrupted(opaque) || (end && now_ms()>=end);
@@ -500,7 +500,7 @@ static int subtitle_interrupted(void *opaque) {
 static gm_stream *subs_demuxer(void) {
     if (S.sgm || S.sgm_failed || atomic_load(&S.stopping)) return S.sgm;
     char err[256] = "";
-    publish_source(&S.ssrc, kr_source_clone(S.src,2,subtitle_interrupted,(void *)(uintptr_t)atomic_load(&S.ticket)));
+    publish_source(&S.ssrc, kr_source_clone(S.src,30,subtitle_interrupted,(void *)(uintptr_t)atomic_load(&S.ticket)));
     if (S.ssrc) S.sgm = gm_stream_open(kr_source_gm(S.ssrc), SEG_SECONDS, err, sizeof err);
     if (S.sgm && gm_stream_adopt_plan(S.sgm, S.gm) != 0) { gm_stream_close(S.sgm); S.sgm = NULL; snprintf(err, sizeof err, "different streams"); }
     if (S.sgm && atomic_load(&S.stopping)) { gm_stream_close(S.sgm); S.sgm = NULL; }
@@ -508,7 +508,7 @@ static gm_stream *subs_demuxer(void) {
         kr_source *gone = S.ssrc;
         publish_source(&S.ssrc, NULL);
         kr_source_close(gone); S.sgm_failed = 1;
-        if (!atomic_load(&S.stopping)) log_line("subs: no subtitle connection (%s): empty cue files", err);
+        if (!atomic_load(&S.stopping)) log_line("subs: no subtitle connection (%s): retrying later", err);
     }
     return S.sgm;
 }
@@ -734,6 +734,110 @@ static void cache_clear(void) {
     for (int i = 0; i < NREND; i++) { free(C.init[i]); C.init[i] = NULL; C.init_len[i] = 0; }
     C.bytes = 0;
     pthread_mutex_unlock(&C.lock);
+}
+
+// Subtitle I/O survives an HTTP wait timeout. One independent worker owns the demuxer; only successful
+// results (including genuinely cue-free WEBVTT) enter this bounded cache. Failure is never a blank HTTP 200.
+#define SUB_CACHE_SLOTS 16
+#define SUB_CUE_BYTES (256*1024)
+typedef struct { int track,segment,state; unsigned long used; double retry_ms; gm_buf data; } sub_cue;
+static struct {
+    pthread_mutex_t lock; pthread_cond_t changed; pthread_t worker;
+    int running,stop; unsigned long clock; sub_cue cues[SUB_CACHE_SLOTS];
+} SC={.lock=PTHREAD_MUTEX_INITIALIZER,.changed=PTHREAD_COND_INITIALIZER};
+static int subtitle_track(int index) {
+    gm_track_info track;
+    for(int i=0;i<gm_stream_track_count(S.gm);i++)
+        if(!gm_stream_track_info(S.gm,i,&track) && track.src_index==index)
+            return track.kind==GM_TRACK_SUBTITLE && track.is_text_sub;
+    return 0;
+}
+// SC.lock held. Queued/busy entries cannot be evicted out from under readers or the worker.
+static int subtitle_queue(int track,int segment,int demand) {
+    if(!SC.running || SC.stop || segment<0 || segment>=gm_stream_segment_count(S.gm))return -1;
+    int available=-1;
+    for(int i=0;i<SUB_CACHE_SLOTS;i++) {
+        sub_cue *cue=&SC.cues[i];
+        if(cue->state && cue->track==track && cue->segment==segment) {
+            if(cue->state<0 && now_ms()>=cue->retry_ms)cue->state=1;
+            if(demand)cue->used=++SC.clock;
+            pthread_cond_broadcast(&SC.changed);return i;
+        }
+        if(cue->state==0 || cue->state==3 || cue->state<0)
+            if(available<0 || !cue->state || (SC.cues[available].state && cue->used<SC.cues[available].used))available=i;
+    }
+    if(available<0)return -1;
+    sub_cue *cue=&SC.cues[available];free(cue->data.data);
+    *cue=(sub_cue){.track=track,.segment=segment,.state=1,.used=demand?++SC.clock:0};
+    pthread_cond_broadcast(&SC.changed);return available;
+}
+static void *subtitle_worker(void *unused) {
+    (void)unused;
+    for(;;) {
+        pthread_mutex_lock(&SC.lock);int pick=-1;
+        while(!SC.stop) {
+            for(int i=0;i<SUB_CACHE_SLOTS;i++)if(SC.cues[i].state==1 && (pick<0 || SC.cues[i].used>SC.cues[pick].used))pick=i;
+            if(pick>=0)break;
+            pthread_cond_wait(&SC.changed,&SC.lock);
+        }
+        if(SC.stop){pthread_mutex_unlock(&SC.lock);return NULL;}
+        sub_cue *cue=&SC.cues[pick];int track=cue->track,seg=cue->segment;cue->state=2;
+        pthread_mutex_unlock(&SC.lock);
+        gm_buf out={0};char error[256]="";double began=now_ms();int result=-1;
+        pthread_mutex_lock(&S.sgm_lock);
+        atomic_store(&S.subtitle_deadline_ms,(long long)(began+45000));
+        gm_stream *demux=subs_demuxer();
+        if(demux)result=gm_stream_subtitle_segment(demux,track,seg,&out,error,sizeof error);
+        if(now_ms()-began>=45000 || out.len>SUB_CUE_BYTES)result=-1;
+        if(result<0) {
+            gm_stream_close(S.sgm);S.sgm=NULL;
+            kr_source *source=S.ssrc;publish_source(&S.ssrc,NULL);kr_source_close(source);S.sgm_failed=0;
+        }
+        atomic_store(&S.subtitle_deadline_ms,0);pthread_mutex_unlock(&S.sgm_lock);
+        pthread_mutex_lock(&SC.lock);
+        if(!SC.stop && !result) {cue->data=out;out=(gm_buf){0};cue->state=3;}
+        else {cue->state=-1;cue->retry_ms=now_ms()+2000;}
+        pthread_cond_broadcast(&SC.changed);pthread_mutex_unlock(&SC.lock);free(out.data);
+        log_line("subs: stream %d segment %d worker result=%d elapsed_ms=%.0f; %s",track,seg,result,now_ms()-began,
+                 result<0?"retryable failure":"cached");
+    }
+}
+static void subtitle_start(void) {
+    pthread_mutex_lock(&SC.lock);SC.stop=0;
+    if(!SC.running) {SC.running=1;if(pthread_create(&SC.worker,NULL,subtitle_worker,NULL)){SC.running=0;log_line("subs: worker unavailable");}}
+    pthread_mutex_unlock(&SC.lock);
+}
+static void subtitle_stop(void) {
+    pthread_mutex_lock(&SC.lock);SC.stop=1;int running=SC.running;
+    pthread_cond_broadcast(&SC.changed);pthread_mutex_unlock(&SC.lock);
+    if(running)pthread_join(SC.worker,NULL);
+    pthread_mutex_lock(&SC.lock);SC.running=0;
+    for(int i=0;i<SUB_CACHE_SLOTS;i++){free(SC.cues[i].data.data);SC.cues[i]=(sub_cue){0};}
+    pthread_mutex_unlock(&SC.lock);
+}
+static void subtitle_warm(int seg) {
+    pthread_mutex_lock(&SUBS.lock);int ordinal=SUBS.ordinal;pthread_mutex_unlock(&SUBS.lock);
+    if(ordinal==-1)return;
+    int selected=-1,n=0;gm_track_info track;
+    for(int i=0;i<gm_stream_track_count(S.gm);i++)if(!gm_stream_track_info(S.gm,i,&track) && track.kind==GM_TRACK_SUBTITLE) {
+        if(track.is_text_sub && (selected<0 || track.is_default || n==ordinal))selected=track.src_index;
+        if(n++==ordinal)break;
+    }
+    if(selected<0)return;
+    pthread_mutex_lock(&SC.lock);subtitle_queue(selected,seg,1);pthread_mutex_unlock(&SC.lock);
+}
+static int subtitle_part(int track,int seg,gm_buf *out) {
+    if(!subtitle_track(track))return -2;
+    pthread_mutex_lock(&SC.lock);int i=subtitle_queue(track,seg,1),result=-1;
+    struct timespec until;clock_gettime(CLOCK_REALTIME,&until);until.tv_sec+=8;
+    while(i>=0 && !SC.stop && !atomic_load(&S.stopping)) {
+        sub_cue *cue=&SC.cues[i];
+        if(cue->track!=track || cue->segment!=seg)break;
+        if(cue->state==3){result=copy_out(out,cue->data.data,cue->data.len)?0:-1;break;}
+        if(cue->state<0 || pthread_cond_timedwait(&SC.changed,&SC.lock,&until)==ETIMEDOUT)break;
+    }
+    if(!result){subtitle_queue(track,seg+1,0);subtitle_queue(track,seg+2,0);}
+    pthread_mutex_unlock(&SC.lock);return result;
 }
 
 static void video_init_ready(void *context,const uint8_t *data,int len) {
@@ -1080,34 +1184,16 @@ static void serve(int fd, const char *method, const char *path, const char *rang
         rend = (S.compat || cvideo || third) ? R_VCOMPAT : R_VCOPY;
         r = get_part(rend, seg, &buf, err, sizeof err);
     } else if (sscanf(path, "/subs/%d/seg%d.vtt", &idx, &seg) == 2) {
-        // r11: on the subtitle demuxer only (its own connection and lock); busy or unavailable: an empty cue file now
-        // (r10 held the audio lane for 5-13 s per cue file). A client whose picture has them burned in is not offered them.
-        static const char empty[] = "WEBVTT\n\n";
         int burned = (S.burn_index >= 0 || S.burn_file[0]) && (S.compat || cvideo || third);
-        int got = 0;
-        double cue_deadline=now_ms()+1500;
-        if (!burned) for (int k = 0; k < 15 && !atomic_load(&S.stopping); k++) {  // up to ~1.5 s for a cue file in progress
-            if (pthread_mutex_trylock(&S.sgm_lock) == 0) { got = 1; break; }
-            usleep(100000);
-        }
-        r = -1;
-        if (got) {
-            atomic_store(&S.subtitle_deadline_ms,(long long)cue_deadline);
-            gm_stream *g = subs_demuxer();
-            if (g) r = gm_stream_subtitle_segment(g, idx, seg, &buf, err, sizeof err);
-            if(now_ms()>=cue_deadline) {
-                gm_stream_close(S.sgm);S.sgm=NULL;
-                kr_source *gone=S.ssrc;publish_source(&S.ssrc,NULL);kr_source_close(gone);
-                S.sgm_failed=0;r=-1;
-            }
-            atomic_store(&S.subtitle_deadline_ms,0);
-            pthread_mutex_unlock(&S.sgm_lock);
-        }
-        if (r == 0) { respond(fd, head, range, "text/vtt", buf.data, (size_t)buf.len); free(buf.data); return; }
+        if(burned){fail(fd,404,"Subtitles are in the picture");return;}
+        r=subtitle_part(idx,seg,&buf);
+        if(!r){respond(fd,head,range,"text/vtt",buf.data,(size_t)buf.len);free(buf.data);return;}
         free(buf.data);
-        if (got && !burned) log_line("subs: cue file %d of stream %d: %s (empty)", seg, idx, *err ? err : "unavailable");
-        respond(fd, head, range, "text/vtt", (const uint8_t *)empty, sizeof empty - 1);
-        return;
+        if(r==-2 || seg<0 || seg>=gm_stream_segment_count(S.gm)){fail(fd,404,"Not Found");return;}
+        log_line("subs: stream %d segment %d pending or failed; returning retryable 503",idx,seg);
+        static const char retry[]="HTTP/1.1 503 Service Unavailable\r\nRetry-After: 1\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+        t_status=503;snprintf(t_err,sizeof t_err,"Subtitle worker pending or retrying");
+        send_all(fd,retry,sizeof retry-1);return;
     } else if (sscanf(path, "/audio/%d/", &idx) == 1) {
         int init = strstr(path, "/init.mp4") != NULL;
         if (!init && sscanf(path, "/audio/%*d/seg%d.m4s", &seg) != 1) { fail(fd, 404, "Not Found"); return; }
@@ -1291,6 +1377,7 @@ static void teardown_locked(void) {
     pthread_mutex_lock(&CLIENTS.lock);
     for(int i=0;i<CONNECTION_LIMIT;i++)if(CLIENTS.fd[i])shutdown(CLIENTS.fd[i]-1,SHUT_RDWR);
     pthread_mutex_unlock(&CLIENTS.lock);
+    subtitle_stop(); // wake HTTP waiters and join the independent reader before freeing its plan
     prefetch_stop();  // r8: background producers end (their reads fail now) before anything is freed
     while(atomic_load(&S.active)>0)usleep(10000); // sockets and sources are interrupted; never free a live session
     pthread_mutex_lock(&S.agm_lock);
@@ -1731,6 +1818,7 @@ done:
         set_message(ticket!=atomic_load(&request_ticket) ? "AirPlay canceled." : "The video took too long to open for AirPlay. Try again.");
     }
     atomic_store(&S.startup_deadline_ms,0);
+    if(result==KR_READY)subtitle_start();
     if(result==KR_READY || result==KR_NOT_NEEDED)phase_for(ticket,"ready");
     else if(ticket==atomic_load(&request_ticket))phase_for(ticket,"failed");
     if(result!=KR_READY) { pthread_mutex_lock(&N.lock);if(N.ticket==ticket)N.expected=0;pthread_mutex_unlock(&N.lock); }
@@ -1755,7 +1843,7 @@ int kr_remux_prime_for(unsigned ticket,double seconds) {
     pthread_mutex_lock(&S.lock);
     int r=KR_FAILED;
     if(ticket!=atomic_load(&S.ticket) || ticket!=atomic_load(&request_ticket) || atomic_load(&S.state)!=KR_READY)goto done;
-    if(S.prepared){r=KR_READY;goto done;}
+    if(S.prepared){subtitle_warm(gm_stream_time_to_segment(S.gm,seconds));r=KR_READY;goto done;}
     double began=now_ms();phase_for(ticket,"opening");
     atomic_store(&S.startup_deadline_ms,S.startup_end_ms);
     int seg=gm_stream_time_to_segment(S.gm,isfinite(seconds) && seconds>0?seconds:0);
@@ -1786,6 +1874,7 @@ int kr_remux_prime_for(unsigned ticket,double seconds) {
         for(int i=0;i<C.n;i++)if(C.e[i].seg==seg && (C.e[i].rend==video || C.e[i].rend==R_AUDIO+audio))C.e[i].fresh=1;
         pthread_mutex_unlock(&C.lock);
         prefetch_after(video,seg);if(audio>=0)prefetch_after(R_AUDIO+audio,seg);
+        subtitle_warm(seg);
         r=KR_READY;phase_for(ticket,"ready");
         log_line("startup: buffered video and audio at %.1f s (segment %d) in %.0f ms",seconds,seg,now_ms()-began);
     } else if(ticket==atomic_load(&request_ticket)) {

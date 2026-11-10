@@ -2068,6 +2068,25 @@ static void observe_init(void *ctx,const uint8_t *data,int len) {
     init_watch *watch=ctx;watch->count++;watch->frames=kr_video_frames(watch->video);watch->len=len;
     CHECK(len>16 && !memcmp(data+4,"ftyp",4) && memmem(data,(size_t)len,"moov",4),"early converted header contains real codec configuration");
 }
+static void test_subtitle_retention(const char *base) {
+    char source[1024],list[512],log[8192];int origin=0;
+    sscanf(base,"http://127.0.0.1:%d",&origin);kr_remux_set_prefetch(0);kr_remux_set_subtitles(-1,NULL,NULL);
+    snprintf(source,sizeof source,"%s/cue-delay/h264_aac_srt.mkv",base);
+    int opening=start_session(source,0,list,sizeof list);
+    CHECK(opening==KR_READY,"delayed subtitle source opens");if(opening!=KR_READY)return;
+    reply armed=http_get_raw(origin,"/__cue_delay",NULL);CHECK(armed.status==200,"subtitle delay armed after opening");free(armed.body);
+    double began=mono_ms();reply first=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
+    CHECK(first.status==503 && strstr(first.head,"Retry-After: 1"),"slow cue is retryable, not a blank successful caption (%d)",first.status);
+    CHECK(mono_ms()-began<9000,"HTTP wait bounded independently of ongoing subtitle read");free(first.body);
+    reply ready=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
+    CHECK(ready.status==200 && ready.body && strstr(ready.body,"Hello from SRT"),"same in-flight cue eventually serves real text (%d)",ready.status);free(ready.body);
+    began=mono_ms();ready=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
+    CHECK(ready.status==200 && ready.body && strstr(ready.body,"Hello from SRT") && mono_ms()-began<100,"repeated cue is cached");free(ready.body);
+    ready=http_get(kr_remux_port(),"/subs/999/seg0.vtt",NULL);CHECK(ready.status==404,"unknown subtitle stream isn't a successful empty cue");free(ready.body);
+    kr_remux_log(log,sizeof log);CHECK(strstr(log,"returning retryable 503") && strstr(log,"cached"),"logs distinguish unfinished work from completed cue");
+    kr_remux_stop();kr_remux_set_prefetch(1);kr_remux_set_subtitles(-2,NULL,NULL);
+}
+
 static void test_startup_repairs(const char *base) {
     char url[512],list[512],err[256]="",log[8192];
     snprintf(url,sizeof url,"%s/slow/h264_aac_srt.mkv",base);
@@ -2158,6 +2177,9 @@ int main(int argc, char **argv) {
     }
     if(argc>3 && !strcmp(argv[3],"--startup-only")) {
         test_startup_repairs(argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+    }
+    if(argc>3 && !strcmp(argv[3],"--subtitles-only")) {
+        test_subtitle_retention(argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
     test_kind();test_network_evidence();
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
@@ -2277,7 +2299,7 @@ int main(int argc, char **argv) {
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
-        test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_stream_recommendations(argv[2],work);
+        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_stream_recommendations(argv[2],work);
         printf("-- overlapping converted seek requests\n"); fflush(stdout);
         test_seek_overlap(argv[2]);
     }

@@ -9,6 +9,7 @@ RECOVERED=set()
 RECOVER_LOCK=threading.Lock()
 STATS={'requests':0,'bytes':0}
 STATS_LOCK=threading.Lock()
+CUE_DELAY=False
 
 class Handler(http.server.SimpleHTTPRequestHandler):
  def log_message(self,*a):pass
@@ -16,6 +17,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
   try:super().handle()
   except (BrokenPipeError,ConnectionResetError):pass  # expected when the native cancellation test interrupts open
  def send_head(self):
+  global CUE_DELAY
+  if self.path=='/__cue_delay':
+   self.protocol_version='HTTP/1.1';self.close_connection=True
+   with STATS_LOCK:CUE_DELAY=True
+   import io
+   self.send_response(200);self.send_header('Content-Length','2');self.end_headers();return io.BytesIO(b'OK')
+  if self.path.startswith('/cue-delay/'):
+   self.path=self.path[len('/cue-delay'):]
+   with STATS_LOCK:delay=CUE_DELAY;CUE_DELAY=False
+   if delay:time.sleep(10) # only the first read after arming; the demuxer must retain its in-flight work
   self.indexed=False;self.slow=False
   if self.path.startswith('/__stats'):
    with STATS_LOCK:

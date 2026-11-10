@@ -102,6 +102,13 @@ class Broker(unittest.TestCase):
   with patch.object(remote,'Broker',return_value=self.broker),patch.object(self.broker,'close') as close:
    with self.assertRaisesRegex(RuntimeError,'window unavailable'):remote.start(object(),window)
    close.assert_called_once()
+ def test_support_sampler_reads_safe_stats_from_the_service_owned_source(self):
+  _,lease=remote.acquire('https://media.example/episode.mkv',self.home)
+  with urllib.request.urlopen(urllib.request.Request(self.broker.current.media_url,headers={'Range':'bytes=0-99'})) as response:response.read()
+  counters=remote.stats(self.home)
+  self.assertGreater(counters['http_requests'],0);self.assertGreater(counters['cache_misses'],0)
+  self.assertNotIn('media.example',json.dumps(counters));self.assertNotIn(self.broker.ident,json.dumps(counters))
+  lease.close();self.assertEqual(remote.stats(self.home),{})
  def test_service_owned_source_and_explicit_close(self):
   url,lease=remote.acquire('https://media.example/episode.mkv',self.home)
   self.assertTrue(url.startswith('http://127.0.0.1:'));self.assertIsNotNone(lease)

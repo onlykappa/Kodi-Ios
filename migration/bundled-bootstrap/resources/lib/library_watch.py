@@ -76,7 +76,7 @@ def watch(info,busy,refresh,wait,page,drive,state_dir,clock=time.monotonic,every
     except Exception as error:_quiet('library_watch:51',error)  # offline Drive must not hide a newly completed phone download
     cache_seen=os.path.exists(os.path.join(state_dir,'drive-library.json'))
    # Art is cosmetic; only media membership/paths need to refresh the page.
-   progress=progress_signature() if params.get('show') and progress_signature is not None else None
+   progress=progress_signature() if (params.get('show') or kind=='movie') and progress_signature is not None else None
    signature=json.dumps([local,cloud,progress],sort_keys=True)
   except Exception:continue  # preserve the working page during an offline/failed check
   art_changed=False

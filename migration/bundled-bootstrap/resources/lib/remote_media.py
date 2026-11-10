@@ -89,6 +89,8 @@ class Broker:
        broker.current=broker.factory(source);broker.ident=secrets.token_urlsafe(18)
        broker.current.configure_renewal(request.get('renewal'),broker.renew_link)
        answer={'url':broker.current.media_url,'id':broker.ident}
+      elif action=='stats':
+       answer={'stats':broker.current.stats() if broker.current else {}}
       elif action=='status':
        answer={'renewal':broker.current.renewal_state if broker.current and request.get('id')==broker.ident else 'closed'}
        if broker.current and request.get('id')==broker.ident:answer['stats']=broker.current.stats()
@@ -158,3 +160,9 @@ def acquire(source,home):
   if target.scheme!='http' or target.hostname!='127.0.0.1':return source,None
   return answer['url'],Lease(endpoint,answer['id'])
  except Exception:return source,None
+
+
+def stats(window):
+ """Current source counters only, using the service-owned private loopback endpoint."""
+ endpoint=window.getProperty(PROPERTY)
+ return (_call(endpoint,{'action':'stats'}).get('stats') or {}) if endpoint else {}

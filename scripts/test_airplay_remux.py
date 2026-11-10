@@ -216,7 +216,7 @@ class R9Speed(unittest.TestCase):
                  'TARGET_OS_IPHONE','__builtin_available(iOS 16.0, *)','"threads", 0','prio_speed'):
    self.assertIn(needle,video)
   code=(src/'kr_remux.c').read_text()
-  for needle in ('t_err','session stopped','atomic_store(&vc_seg, seg)','pthread_mutex_trylock(&S.sgm_lock)',
+  for needle in ('t_err','session stopped','atomic_store(&vc_seg, seg)','pthread_cond_timedwait(&SC.changed',
                  'if (third || S.compat) prefetch_push(R_VCOMPAT, 0);'):
    self.assertIn(needle,code)
   # Source retry/seek behavior is exercised by compiled fault-injection tests; do not require the old

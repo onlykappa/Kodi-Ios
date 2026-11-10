@@ -12,7 +12,9 @@ HELPER='plugin://plugin.video.themoviedb.helper/'
 LIMIT=40
 FINISHED=0.92
 
-def key(entry):return '%s:%s:%s:%s'%(entry['kind'],entry['tmdb_id'],entry.get('season') or '',entry.get('episode') or '')
+def key(entry):
+ if entry.get('download_key'):return entry['download_key']
+ return '%s:%s:%s:%s'%(entry['kind'],entry['tmdb_id'],entry.get('season') or '',entry.get('episode') or '')
 
 def load(read):
  try:data=json.loads(read(STORE) or '{}')
@@ -62,6 +64,22 @@ def record(player,read,write,now=time.time,choice=None,preserve_player=False):
  data['items'][key(entry)]=entry;data['current']=key(entry);save(data,write)
  return key(entry)
 
+def record_downloaded_movie(params,path,position,total,read,write,now=time.time):
+ """A downloaded movie is tracked even before cached artwork supplies a TMDb ID; never invent a provider ID."""
+ import hashlib
+ from ios_library import show_key
+ data=load(read);title=params.get('title','');year=str(params.get('year') or '')
+ candidates=[(k,e) for k,e in data['items'].items() if e.get('kind')=='movie' and show_key(e.get('title'))==show_key(title)
+             and str(e.get('year') or '')==year]
+ if candidates:item_key,old=max(candidates,key=lambda pair:pair[1].get('played',0))
+ else:
+  tmdb=str(params.get('tmdb_id') or '')
+  old={'kind':'movie','tmdb_id':tmdb if tmdb.isdecimal() else ''}
+  if not old['tmdb_id']:old['download_key']='downloaded:'+hashlib.sha256((show_key(title)+':'+year).encode()).hexdigest()[:24]
+  item_key=key(old)
+ entry=dict(old,title=title,year=year,download_path=path,position=position,total=total,played=now(),playback_source='local')
+ data['items'][item_key]=entry;data['current']=item_key;save(data,write);return item_key
+
 def update(read,write,position,total,now=time.time):
  """Progress of the title the chooser last started (bootstrap service, while video plays)."""
  data=load(read);entry=data['items'].get(data.get('current'))
@@ -80,6 +98,13 @@ def stopped(read,write):
 CONTINUE_FLAG='ios_continue=1'
 
 def play_url(entry):
+ if entry.get('download_key') and entry.get('download_path'):
+  from ios_library import play_route
+  from urllib.parse import parse_qsl,urlsplit,urlunsplit,urlencode
+  route=play_route((entry['download_path'],entry['title'],entry.get('art',{}),
+                   {'mediatype':entry['kind'],'year':entry.get('year',''),'resume':{'position':entry.get('position',0),'total':entry.get('total',0)}},False))
+  parts=urlsplit(route);query=dict(parse_qsl(parts.query));query['ask']='0'
+  return urlunsplit(parts._replace(query=urlencode(query)))
  if entry['kind']=='movie':return HELPER+'?info=play&tmdb_type=movie&tmdb_id='+entry['tmdb_id']+'&'+CONTINUE_FLAG
  return HELPER+'?info=play&tmdb_type=tv&tmdb_id=%s&season=%s&episode=%s&%s'%(entry['tmdb_id'],entry['season'],entry['episode'],CONTINUE_FLAG)
 
@@ -142,6 +167,6 @@ def directory(handle,kind):
   li.setProperty('subtitle','S%s, E%s'%(entry['season'],entry['episode']) if episode else entry.get('year',''))
   li.setProperty('IsPlayable','true')
   # Long press: pick the player and version again (a tap reuses last time's).
-  if entry.get('source')=='phone':li.addContextMenuItems([('Choose source',choose_source_action(entry))])
+  if entry.get('source')=='phone' and entry.get('tmdb_id'):li.addContextMenuItems([('Choose source',choose_source_action(entry))])
   xbmcplugin.addDirectoryItem(handle,entry.get('file') or play_url(entry),li,isFolder=False)
  xbmcplugin.setContent(handle,'videos');xbmcplugin.setPluginCategory(handle,'Continue Watching');xbmcplugin.endOfDirectory(handle)

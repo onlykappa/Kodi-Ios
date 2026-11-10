@@ -204,6 +204,30 @@ static NSMutableArray<id> *playbackObservers;
 static const NSInteger convertingTag = 7707;
 static void keepUpdate(void);
 
+// Safe, non-draining playback evidence. AVPlayer properties are sampled on its main-thread timer;
+// Python reads atomics, never dispatches synchronously to UIKit and never receives signed URLs.
+static _Atomic double healthPosition,healthDuration,healthRate,healthUpdated;
+static atomic_int healthGeneration,healthControl,healthExternal,healthEmpty,healthLikely,healthItem,healthPlayer,healthError,healthDomain,healthReason;
+static void healthSample(AVPlayer *player,unsigned generation) {
+    if(!player || generation!=atomic_load(&playGeneration))return;
+    double pos=CMTimeGetSeconds(player.currentTime),duration=CMTimeGetSeconds(player.currentItem.duration);
+    atomic_store(&healthGeneration,(int)generation);atomic_store(&healthPosition,isfinite(pos)?fmax(0,pos):0);
+    atomic_store(&healthDuration,isfinite(duration)?fmax(0,duration):0);atomic_store(&healthRate,player.rate);
+    atomic_store(&healthControl,(int)player.timeControlStatus);atomic_store(&healthExternal,player.externalPlaybackActive);
+    atomic_store(&healthEmpty,player.currentItem.playbackBufferEmpty);atomic_store(&healthLikely,player.currentItem.playbackLikelyToKeepUp);
+    atomic_store(&healthItem,(int)player.currentItem.status);atomic_store(&healthPlayer,(int)player.status);
+    NSError *error=player.currentItem.error ?: player.error;
+    atomic_store(&healthError,(int)error.code);
+    atomic_store(&healthDomain,[error.domain isEqualToString:NSURLErrorDomain]?1:[error.domain isEqualToString:AVFoundationErrorDomain]?2:error?3:0);
+    atomic_store(&healthUpdated,NSDate.timeIntervalSinceReferenceDate);
+}
+__attribute__((visibility("default"))) int kodi_airplay_health(char *out,int size) {
+    if(!out || size<=0)return 0;
+    snprintf(out,(size_t)size,"{\"generation\":%d,\"state\":%d,\"active\":%d,\"position\":%.3f,\"duration\":%.3f,\"rate\":%.3f,\"time_control\":%d,\"external\":%d,\"buffer_empty\":%d,\"likely_to_keep_up\":%d,\"item_status\":%d,\"player_status\":%d,\"error_code\":%d,\"error_domain\":%d,\"stop_reason\":%d,\"sample_age_s\":%.3f}",
+        atomic_load(&healthGeneration),atomic_load(&airplayState),atomic_load(&playbackActive),atomic_load(&healthPosition),atomic_load(&healthDuration),atomic_load(&healthRate),atomic_load(&healthControl),atomic_load(&healthExternal),atomic_load(&healthEmpty),atomic_load(&healthLikely),atomic_load(&healthItem),atomic_load(&healthPlayer),atomic_load(&healthError),atomic_load(&healthDomain),atomic_load(&healthReason),atomic_load(&healthUpdated)?fmax(0,NSDate.timeIntervalSinceReferenceDate-atomic_load(&healthUpdated)):0);
+    return (int)strlen(out);
+}
+
 static BOOL playbackStateFor(unsigned generation,int state,int active) {
     os_unfair_lock_lock(&ownershipLock);
     BOOL owned=generation==atomic_load(&playGeneration);
@@ -344,6 +368,7 @@ static BOOL tvRoute(AVPlayer *player) {
 }
 - (void)closeTapped {
     if(self.generation!=atomic_load(&playGeneration))return;
+    healthSample(airplayController.player,self.generation);atomic_store(&healthReason,3);
     [airplayController.player pause];
     [self dismissViewControllerAnimated:YES completion:nil];
 }
@@ -357,6 +382,7 @@ static BOOL tvRoute(AVPlayer *player) {
         [airplayWatch invalidate];airplayWatch=nil;
         [stallWatch invalidate]; stallWatch = nil;
         clearPlaybackObservers();
+        if(!atomic_load(&healthReason))atomic_store(&healthReason,3);
         playerNote(@"closed at %.1f s", CMTimeGetSeconds(airplayController.player.currentTime));
         // Twice: once now, once after any rotation iOS still runs has settled.
         healKodi();
@@ -418,7 +444,7 @@ static void watchPlayback(AVPlayer *player,AVPlayerItem *item,unsigned generatio
         object:item queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
         AVPlayer *current=weakPlayer;
         if(!current || current.currentItem!=note.object)return;
-        if(playbackStateFor(generation,0,0))playerNote(@"finished");
+        if(playbackStateFor(generation,0,0)){healthSample(current,generation);atomic_store(&healthReason,1);playerNote(@"finished");}
     }];
     [playbackObservers addObject:ended];
     id failed=[[NSNotificationCenter defaultCenter] addObserverForName:AVPlayerItemFailedToPlayToEndTimeNotification
@@ -428,6 +454,7 @@ static void watchPlayback(AVPlayer *player,AVPlayerItem *item,unsigned generatio
         if(atomic_load(&compatBusy))return;   // r37: the H.264 restart replaces this item
         BOOL wasReady=atomic_load(&airplayState)==1;
         if(!playbackStateFor(generation,-1,0))return;
+        healthSample(current,generation);atomic_store(&healthReason,2);
         const char *m = kr_remux_message();
         NSError *e = note.userInfo[AVPlayerItemFailedToPlayToEndTimeErrorKey];
         if(wasReady)showProblem(m && *m ? @(m) : (e.localizedDescription ?: @"The stream stopped."));
@@ -682,11 +709,12 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
             __block int failedSeen=0;
             routeWatch=[NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *timer) {
                 if(generation!=atomic_load(&playGeneration)){[timer invalidate];return;}
+                healthSample(player,generation);
                 AVPlayerItem *item=player.currentItem;
                 BOOL failed=item.status==AVPlayerItemStatusFailed || player.status==AVPlayerStatusFailed;
                 failedSeen=failed && !atomic_load(&compatBusy) ? failedSeen+1 : 0;
                 // r37: a failure is final after 1.5 s, so the player's 1 s timer can first restart with the H.264 picture.
-                if(failedSeen>=3)playbackStateFor(generation,-1,0);
+                if(failedSeen>=3){if(playbackStateFor(generation,-1,0))atomic_store(&healthReason,2);}
                 else if(atomic_load(&airplayState)>=0 && player.timeControlStatus==AVPlayerTimeControlStatusPlaying && player.rate>0) {
                     BOOL resuming=!atomic_load(&playbackActive);
                     if(playbackStateFor(generation,1,1) && resuming) {
@@ -716,6 +744,9 @@ __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, c
     os_unfair_lock_lock(&ownershipLock);
     unsigned generation=atomic_fetch_add(&playGeneration,1)+1;
     atomic_store(&playbackActive,0);atomic_store(&compatBusy,0);
+    atomic_store(&healthGeneration,(int)generation);atomic_store(&healthReason,0);
+    atomic_store(&healthPosition,0);atomic_store(&healthDuration,0);atomic_store(&healthUpdated,0);
+    atomic_store(&healthExternal,0);atomic_store(&healthError,0);atomic_store(&healthDomain,0);
     NSString *link = url ? [NSString stringWithUTF8String:url] : nil;
     NSString *name = title ? [NSString stringWithUTF8String:title] : @"";
     atomic_store(&airplayState, 0); // before returning, so a caller polling kodi_airplay_state() never sees the last result
@@ -858,6 +889,7 @@ __attribute__((visibility("default"))) void kodi_airplay_settings(void) {
 
 // r3: closes Apple's player (after it failed, so Kodi can carry on).
 __attribute__((visibility("default"))) void kodi_airplay_close(void) {
+    int noReason=0;atomic_compare_exchange_strong(&healthReason,&noReason,3);
     os_unfair_lock_lock(&ownershipLock);
     unsigned generation=atomic_fetch_add(&playGeneration,1)+1;
     unsigned ticket=atomic_load(&remuxTicket);

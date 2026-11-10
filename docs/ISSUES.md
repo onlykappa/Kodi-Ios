@@ -2198,3 +2198,46 @@ UI policy/routed HIG guidance read; existing settings/menu/notification controls
 available, so visual/device and real provider/new-release acceptance are pending. No owner account/media accessed.
 Status: code/host verification ready; held with ISSUE-149 for an eventual authorized native/IPA build. No release,
 push or main merge. The owner should use Follow new episodes only for shows downloaded before this feature.
+
+ISSUE-147 authorized repair follow-up (DEC-034, 2026-11-10): owner requests the three recommendations and a test
+IPA. Slider polling now holds the dragged/pending percentage until reported landing or a bounded 15-second timeout;
+unrelated mouse movement cannot end a drag. Progress actions use SendThreadMessage outside touch dispatch, with
+requested/observed target and timing logs. Expanded actual slider/gesture/info-refresh harness passes 45 scenarios.
+Native Kodi r27 candidate source 780c990 / run 42878755013 compiled and published successfully; artifact verification
+and pinning precede IPA packaging. Patch generation initially introduced context trailing spaces; normalized them,
+reran the harness/project/diff checks and published the corrected source, retaining both source commits.
+
+Subtitle requests now use a bounded independent worker/cache. A request waits up to eight seconds without canceling
+its in-flight read; pending/failed work is retryable HTTP 503 with Retry-After, and only successfully read cues enter
+the cache (including legitimately cue-free intervals). Worker reading has a separate 45-second bound and media
+lanes remain independent. Selected/next cues warm in the background; session cancellation wakes waiters, aborts the
+reader and joins before freeing the plan. A generated-media regression deliberately delays a subtitle read ten
+seconds: first request gets 503, the same work completes with actual text, a repeat hits the cache, invalid track
+gets 404. Eight native checks pass. First compile inserted the worker before helper definitions; moved it behind
+those definitions and recompiled. First delay test's control reply used HTTP/1.0 against a helper expecting 1.1;
+the seven caption checks passed, control-response assertion failed. Fixed the control fixture's protocol/close,
+then all eight passed. One old Python source assertion required the replaced trylock approach; updated it to the
+bounded worker wait; actual delayed native test protects behavior. Full native/CI evidence follows in the report.
+
+Automatic stop evidence samples safe native player/time/buffer/error/route fields, source cache/HTTP counters and
+network progress. A bounded eight-minute local history and three rotating stop files are retained, the useful tail
+is also emitted into kodi.log, and Export diagnostics includes them. A continuous-hour synthetic test verifies
+capture after failure; normal end, explicit close, pause, seek and suspension are distinguished. This adds evidence
+for the previously uncaptured hour-stop; it does not identify that historical failure's cause or guarantee a fix
+for every receiver. No account/media URLs are added to these snapshots. Device and visual acceptance pending.
+
+## ISSUE-151 — Downloaded movies bypass resume history (2026-11-10)
+
+Owner adds: downloaded-library movies start at the beginning instead of offering Continue. Local and Drive movie
+rows bypassed the shared history/resolver, unlike downloaded episode rows; initial zero during opening and paused
+Kodi time during TV playback could also overwrite a saved point. Movie rows now batch actual local/Kodi bookmarks,
+match shared history by title plus year, offer Continue from / Start from beginning / Cancel in existing Kodi select
+controls, resolve the exact completed copy with its chosen offset and register it in shared progress. No TMDb ID
+is fabricated: uncached movies retain a valid downloaded-copy route in Continue Watching. Existing provider/version
+choices remain intact. Provider URLs are never browsed by filesystem RPCs; local copies still require the actual
+completed-movie inventory. Native-library rows keep their existing route. The idle movie page refreshes when the
+history revision changes. Initial near-zero opening samples cannot erase a saved point for twenty seconds; live
+AirPlay position is saved and a bounded handoff guard protects it while Kodi moves from its old paused position.
+Sixteen focused regressions pass; expanded packaging/UI/library/progress checks and device review follow. UI policy
+and routed HIG playback/slider guidance read; existing controls and select menu, no layout/style redesign. Owner
+approved native builds/IPA under DEC-034; no main merge. No owner account or media was accessed.

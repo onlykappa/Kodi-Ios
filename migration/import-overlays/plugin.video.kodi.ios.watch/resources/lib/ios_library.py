@@ -239,6 +239,35 @@ def resume_rows(rows,show,rpc,history):
   out.append((path,label,art,info,folder))
  return out
 
+def movie_resume_rows(rows,rpc,history):
+ """Downloaded movies use the same history across Drive/local copies, with Kodi file bookmarks as fallback."""
+ bookmarks={}
+ for parent in sorted({os.path.dirname(r[0]) for r in rows if os.path.isabs(r[0])}):
+  try:entries=rpc('Files.GetDirectory',{'directory':parent,'media':'video','properties':['resume','playcount','lastplayed']}).get('files') or []
+  except (ValueError,RuntimeError):entries=[]
+  bookmarks.update({e['file']:e for e in entries if e.get('file')})
+ try:entries=rpc('VideoLibrary.GetMovies',{'properties':['file','title','year','resume','lastplayed','playcount']}).get('movies') or []
+ except (ValueError,RuntimeError):entries=[]
+ bookmarks.update({e['file']:e for e in entries if e.get('file')})
+ out=[]
+ for path,label,art,info,folder in rows:
+  if folder or info.get('mediatype')!='movie' or info.get('source') not in ('local','drive'):
+   out.append((path,label,art,info,folder));continue
+  info=dict(info);details=bookmarks.get(path) or {};point=details.get('resume') or {}
+  position,total=seconds(point.get('position')),seconds(point.get('total'));stamp=0
+  try:stamp=time.mktime(time.strptime(details.get('lastplayed') or '','%Y-%m-%d %H:%M:%S'))
+  except (ValueError,TypeError,OverflowError):pass
+  candidates=[e for e in history.get('items',{}).values() if e.get('kind')=='movie' and
+   show_key(e.get('title'))==show_key(label) and str(e.get('year') or '')==str(info.get('year') or '')]
+  if candidates:
+   latest=max(candidates,key=lambda e:e.get('played',0))
+   if latest.get('played',0)>=stamp:position,total=seconds(latest.get('position')),seconds(latest.get('total'))
+   if str(latest.get('tmdb_id','')).isdigit():info['tmdb_id']=latest['tmdb_id']
+  if total and position>=.92*total:position=0
+  info.update(resume={'position':position,'total':total},resume_prompt=True)
+  row=(path,label,art,info,folder);out.append((play_route(row),label,art,info,folder))
+ return out
+
 def seconds(value):
  try:value=float(value or 0)
  except (ValueError,TypeError):return 0
@@ -254,6 +283,7 @@ def play_target(rows):
 def play_route(row):
  path,label,art,info,folder=row
  values={'action':'library_play','path':path,'title':label,'show':info.get('tvshowtitle',''),
+         'kind':info.get('mediatype','episode'),'year':str(info.get('year') or ''),'ask':'1' if info.get('mediatype')=='movie' else '0',
          'season':info.get('season','0'),'episode':info.get('episode','0'),'tmdb_id':info.get('tmdb_id',''),
          'resume':info.get('resume',{}).get('position',0),'total':info.get('resume',{}).get('total',0)}
  return ME+'?'+urllib.parse.urlencode(values)
@@ -290,11 +320,16 @@ def play_downloaded(handle,params):
  drive=url.scheme=='plugin' and url.netloc=='plugin.googledrive' and query.get('action')==['play'] and bool(query.get('item_id'))
  if local:
   from ios_downloaded import completed_files
-  local=os.path.realpath(path) in {os.path.realpath(copy) for copy in completed_files('tv')}
+  local=os.path.realpath(path) in {os.path.realpath(copy) for copy in completed_files('movie' if params.get('kind')=='movie' else 'tv')}
  if not (local or drive):
   xbmcplugin.setResolvedUrl(handle,False,xbmcgui.ListItem());return
  position=seconds(params.get('resume'));total=seconds(params.get('total'))
  if total and position>=0.92*total:position=0
+ if position and params.get('kind')=='movie' and params.get('ask')=='1':
+  stamp='%d:%02d:%02d'%(int(position)//3600,int(position)//60%60,int(position)%60)
+  choice=xbmcgui.Dialog().select(params.get('title') or 'Movie',['Continue from '+stamp,'Start from beginning'])
+  if choice<0:xbmcplugin.setResolvedUrl(handle,False,xbmcgui.ListItem());return
+  if choice==1:position=0
  li=xbmcgui.ListItem(label=params.get('title',''),path=path);li.setProperty('IsPlayable','true')
  li.getVideoInfoTag().setResumePoint(position,total)
  if position:li.setProperty('StartOffset',str(position))
@@ -308,7 +343,9 @@ def play_downloaded(handle,params):
   try:target.write(text)
   finally:target.close()
  try:
-  if str(params.get('tmdb_id','')).isdecimal():
+  if params.get('kind')=='movie':
+   ios_continue.record_downloaded_movie(params,path,position,total,read,write)
+  elif str(params.get('tmdb_id','')).isdecimal():
    player=SimpleNamespace(tmdb_type='tv',tmdb_id=params['tmdb_id'],season=params.get('season','0'),episode=params.get('episode','0'),
                           details=SimpleNamespace(infolabels={'title':params.get('title',''),'tvshowtitle':params.get('show','')},art={}))
    ios_continue.record(player,read,write,choice='local',preserve_player=True)
@@ -392,7 +429,15 @@ def _directory(handle,params):
   xbmcgui.Dialog().notification('Library','Google Drive could not be listed',xbmcgui.NOTIFICATION_WARNING,4000)
  if kind=='tv' and episodes and not show_page:rows=episode_rows(rows,show,lib,art_cache,key,get)
  elif kind=='tv':rows=merge_shows(rows)
- else:rows=merge_movies(rows)
+ else:
+  rows=merge_movies(rows)
+  try:
+   import ios_continue
+   history_file=xbmcvfs.File(ios_continue.STORE)
+   try:history=json.loads(history_file.read() or '{}')
+   finally:history_file.close()
+  except (OSError,ValueError,AttributeError):history={}
+  rows=movie_resume_rows(rows,rpc,history)
  seen=set()
  for name,value in props.items():xbmcplugin.setProperty(handle,name,value)
  for path,label,art,info,is_folder in rows:
@@ -417,7 +462,7 @@ def _directory(handle,params):
    except (TypeError,ValueError):pass
   if info.get('genres'):tag.setGenres(info['genres'])
   resume=info.get('resume') or {}
-  if resume.get('position'):tag.setResumePoint(resume['position'],resume.get('total',0))
+  if resume.get('position') and not info.get('resume_prompt'):tag.setResumePoint(resume['position'],resume.get('total',0))
   if not is_folder:li.setProperty('IsPlayable','true')
   xbmcplugin.addDirectoryItem(handle,path,li,isFolder=is_folder)
  # Always offer refresh, including an empty Library; Kodi ignores this non-media action in playlists.

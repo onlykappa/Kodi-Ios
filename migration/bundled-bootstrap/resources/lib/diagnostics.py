@@ -159,6 +159,9 @@ def export(root,profile,log_folder,destination,clock=time.time):
      source.seek(size-32*1024*1024);source.readline()
      out.write('[Earlier log data omitted: last 32 MiB retained]\n')
     for line in source:out.write(redact(line,limit=0))
+  for name in ('airplay-recent.json','airplay-stop-2.json','airplay-stop-1.json','airplay-stop-latest.json'):
+   report=_read(Path(profile)/'addon_data/service.kodi.ios.bootstrap'/name)
+   if report:out.write('\n=== '+name+' ===\n'+json.dumps(safe(report),sort_keys=True)+'\n')
   out.write('\n=== Current queue summary (no credentials or source URLs) ===\n')
   out.write(json.dumps(snapshot(profile,clock),sort_keys=True)+'\n')
  return dest

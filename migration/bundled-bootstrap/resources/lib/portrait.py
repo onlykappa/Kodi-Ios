@@ -1511,14 +1511,32 @@ def first_feed_publisher(info,log,clock,timeout=60,started=None):
   finished=not pending
  return tick
 
-def progress_tracker(player,continue_module,read,write,clock,every=10):
+def progress_tracker(player,continue_module,read,write,clock,every=10,external=lambda:{}):
  """Continue Watching: save the position of what the chooser started, and drop it once finished."""
- state={'playing':False,'saved':float('-inf'),'position':0,'total':0}
+ state={'playing':False,'saved':float('-inf'),'position':0,'total':0,'started':0,'seed':0,'remote':False,'handoff':False}
  def tick():
   try:
-   if player.isPlayingVideo():
-    state.update(playing=True,position=player.getTime(),total=player.getTotalTime())
-    if clock()-state['saved']>=every:continue_module.update(read,write,state['position'],state['total']);state['saved']=clock()
+   try:remote=external() or {}
+   except Exception:remote={}
+   on_tv=bool(remote.get('active') and remote.get('state')==1 and remote.get('sample_age_s',0)<=15)
+   if on_tv or player.isPlayingVideo():
+    now=clock()
+    if not state['playing']:
+     state.update(playing=True,started=now,seed=0)
+     try:
+      data=continue_module.load(read);entry=data.get('items',{}).get(data.get('current')) or {}
+      state.update(seed=float(entry.get('position') or 0),position=float(entry.get('position') or 0),total=float(entry.get('total') or 0))
+     except (AttributeError,ValueError,TypeError):pass
+    position,total=(remote.get('position',0),remote.get('duration',0)) if on_tv else (player.getTime(),player.getTotalTime())
+    if state['remote'] and not on_tv:state.update(seed=state['position'],started=now,handoff=True)
+    state['remote']=on_tv
+    if state['handoff'] and not on_tv:
+     if abs(position-state['seed'])>10 and now-state['started']<20:return
+     state['handoff']=False
+    # Opening/initial seek can briefly report zero. Do not erase a real resume point during that interval.
+    if state['seed']>=10 and position<10 and now-state['started']<20:return
+    state.update(position=position,total=total)
+    if now-state['saved']>=every:continue_module.update(read,write,state['position'],state['total']);state['saved']=now
    elif state['playing']:
     state['playing']=False;continue_module.update(read,write,state['position'],state['total']);continue_module.stopped(read,write)
   except Exception as error:_quiet('portrait:1179',error)
@@ -1697,7 +1715,10 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
    xbmcvfs.mkdirs(path.rsplit('/',1)[0]);f=xbmcvfs.File(path,'w')
    try:f.write(text)
    finally:f.close()
-  tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic)
+  import airplay
+  try:native_player=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
+  except Exception:native_player=None
+  tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic,external=lambda:airplay.health(native_player))
  except Exception as error:xbmc.log('Kodi iOS continue watching unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  # Listing cache: check the row flags against the copies now, then fill and refresh copies in the background.
  try:
