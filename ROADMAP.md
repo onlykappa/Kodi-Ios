@@ -348,3 +348,10 @@ Packaging retry checkpoint (ISSUE-146): build 218 / 42755096028 failed before pa
 wording assertion. Corrected, 29 routing tests and every subsequent CI test script pass locally; Python 3.11 path
 supplied for bytecode tests as CI does. App sources/pins unchanged. Next: new packaging run, artifact verification
 and owner delivery; 218 was never delivered. Failed attempt retained in ISSUES and checks report.
+
+ISSUE-146 delivery (2026-11-10): test IPA 219 from 2d658de5ede446f9d8170a5c0185b1e5ee3c3efa published by
+successful run 42755715794 and independently downloaded/verified (digest/ZIP, exact r26/r43, 18 sources/Python 3.11
+hashes, 154 unsigned/unencrypted ARM64 images). Receipt: reports/refresh-streaming-delivery.json; download linked
+at the top of PROGRESS. Source/build/delivery complete; owner retests Refresh/Ready count and Umbrella/Roku,
+subtitles/seeking. Build 218's obsolete wording failure stays recorded. Device/visual/provider acceptance and
+phase/task counts remain unchanged; no main merge.

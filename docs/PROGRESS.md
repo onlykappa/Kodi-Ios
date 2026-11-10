@@ -1,5 +1,26 @@
 # Persistent progress
 
+## Build 219: Refresh inspection and streaming recommendations delivered — 2026-11-10
+
+[Download test IPA 219](https://github.com/onlykappa/Kodi-Ios/releases/download/build-219/Kodi-iOS-Customized-Touch-r10.ipa).
+Run 42755715794 passed all test, bundle reapplication/restore, native acquisition, IPA build/validation and publication
+stages from 2d658de5ede446f9d8170a5c0185b1e5ee3c3efa. Includes compatibility-first originals, explicit Refresh
+inspection, adaptive preparation uploads, independent upload/wait progress, and one selected Umbrella/AllDebrid
+link renewal. Existing verified Kodi r26 / AirPlay r43 and seek/scheduler repairs are retained.
+
+Downloaded 620,487,865-byte IPA matches release SHA256
+a9b36d4ef3c8bcdc66a422ffa8e4c30cb83637125f8d893387e7a3dd47af224b, passes ZIP integrity, and embeds exact
+verified native binaries after signature removal. All 18 relevant source helpers and their Python 3.11 source hashes
+match; 154 ARM64 images are unsigned/unencrypted. Receipt: reports/refresh-streaming-delivery.json. Source checks:
+24 focused suites / 545 tests plus 38 remaining packaging test scripts and all CI gates. Failed build 218 is retained
+in ISSUE-146; it produced no IPA. Main and roadmap phase/task counts are unchanged.
+
+Install as an update, open Library status and press Refresh. Allow track inspection to finish; compatible Lanterns
+should stay Ready without conversion/upload. Unknown probes defer while an active conversion uses the same native
+instance. Test Umbrella AirPlay and Roku Media Assistant separately with captions and seeking. UI policy read,
+existing layout/style retained; actual iPhone/Roku/provider and visual acceptance remain pending. No owner media or
+Drive account was accessed during these host tests.
+
 ## Upload, progress, expired-link recovery and Refresh inspection — 2026-11-10
 
 Packaging checkpoint: build 218 / run 42755096028 stopped before IPA creation on an obsolete AirPlay wording

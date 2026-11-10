@@ -1,6 +1,6 @@
 {
   "date": "2026-11-10",
-  "status": "source and remaining packaging gates retested; packaging retry next",
+  "status": "verified IPA 219 delivered for device retest",
   "branch": "claude/trusting-euler-kgug98",
   "pr": 16,
   "owner_scope": "Add the three recommended upload/progress/link-recovery improvements and inspect compatibility when Library status Refresh is pressed; updated test build for another device retest.",
@@ -228,7 +228,7 @@
   "live_media_or_drive_account_accessed": false,
   "native_pins": "verified Kodi r26 and AirPlay r43 unchanged",
   "main_merged": false,
-  "ipa_published": false,
+  "ipa_published": true,
   "diagnosed_test_failures": [
     "Existing asynchronous upload test assumed every HTTP request was 32 MiB. Updated to bounded HTTP pieces with exact byte sum and end-to-end content checks.",
     "Slowdown static assertion predated the foreground cache profile; updated expected profile while retaining runtime background-gate tests.",
@@ -436,5 +436,8 @@
       "failure": "test_airplay_remux required obsolete UI text saying every file converts; updated to current streaming wording",
       "correction_verified_tests": 29
     }
-  ]
+  ],
+  "delivery_receipt": "reports/refresh-streaming-delivery.json",
+  "ipa_source_commit": "2d658de5ede446f9d8170a5c0185b1e5ee3c3efa",
+  "ipa_workflow_run": 42755715794
 }

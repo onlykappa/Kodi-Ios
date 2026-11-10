@@ -2006,3 +2006,13 @@ script locally; all pass after setting the installed KODI_IOS_PYTHON311 path for
 (the first local run omitted that environment variable; CI already supplies it). The app source/pins did not change
 for this CI correction. Exact additional scripts/counts are in the checks report. A new source checkout/build run
 is required; rerunning the immutable failed checkout would retain the old assertion. Build 218 was never delivered.
+
+
+ISSUE-146 delivery: corrected source/test checkout 2d658de5ede446f9d8170a5c0185b1e5ee3c3efa passed every
+workflow stage in run 42755715794 and published IPA 219. Downloaded release digest/ZIP, exact r26/r43 native
+binaries after unsigning, 18 current helper sources and Python 3.11 source hashes, and 154 unsigned/unencrypted
+ARM64 images independently verified. 24 focused suites / 545 tests and 38 remaining packaging test scripts pass;
+all actual CI gates pass. Receipt: reports/refresh-streaming-delivery.json. This closes source/build/delivery work;
+actual iPhone/Roku/provider behavior remains pending owner retest. Build 218 failure is preserved above. No main
+merge or live owner-account/media access occurred. UI status values/text reuse the existing layout; visual review
+remains pending.
