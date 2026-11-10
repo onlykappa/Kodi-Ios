@@ -1,12 +1,34 @@
 # Persistent progress
 
+## Build 217: seek release and automatic-work repairs delivered — 2026-11-10
+
+[Download test IPA 217](https://github.com/onlykappa/Kodi-Ios/releases/download/build-217/Kodi-iOS-Customized-Touch-r10.ipa).
+Packaging run 42732787090 passed from 16daca2621ad1272a84991e4fcb9b5c4cd051c30. Includes verified Kodi r26
+(native run 42705743785) and unchanged AirPlay r43. Gesture release commits the displayed percentage; Start now
+resumes valid queued conversions and recovers requests left pending by older builds before the pause skip.
+Eligible work starts automatically after five seconds at startup and is polled every twenty seconds while idle.
+Explicit pauses and retry delays retain their effect. New logs distinguish pause, retry, account and lock gates.
+The old device log did not establish which saved gate was active, so no retrospective pause-state claim is made.
+
+Validation: 32 compiled real gesture/slider scenarios, 10 actual-service-loop scheduler scenarios, existing focused
+Python suites, the native ARM64 build, actual native fetch contract, and all IPA workflow stages pass. Downloaded
+IPA: 620,457,135 bytes, SHA256 206a63b5e1496130e0dd19e7bb20ef6c9a3f654f469e38979a5dcb122de78749.
+Checksum, ZIP integrity, exact r26 executable/r43 framework after signature removal, current helpers, four changed
+modules' Python 3.11 source hashes, and 154 unsigned/unencrypted ARM64 images verified. Receipt:
+[reports/seek-queue-repair-delivery.json](../reports/seek-queue-repair-delivery.json).
+
+Install as an update and keep Kodi open at the menus for twenty seconds; check queued work starts, drag and release
+at several positions, and try Start now on a queued conversion. Drive setup and layouts are preserved; the UI policy
+was read. Actual iPhone touch, automatic-work behavior and Roku playback/captions remain pending device retest.
+Main and roadmap phase counts are unchanged. ISSUE-143 preserves the prior device failure and harness failure.
+
 ## Seek release and automatic-work repairs authorized — 2026-11-09
 
 Owner requests fixes plus a new IPA and automatic background work while idle. Native r26 retains the dragged
 percentage on release; 32 compiled real gesture/slider scenarios pass, while r25 fails the same regression.
 Native r26 build/publication passed in run 42705743785, including the 32 scenarios against the actual native
 tree. Release binary/artifact, archive and patch hashes and the real fetch contract verified. Scheduler fixes and
-diagnostics pass 10 tests, and portrait 50/glass-bar 28 regressions pass. The r26 pin is ready for IPA packaging.
+diagnostics pass 10 tests, and portrait 50/glass-bar 28 regressions pass. Verified IPA 217 is delivered above.
 Start now resumes the conversion channel and recovers old pending requests before pause gating. Eligible idle
 work is checked automatically after 5 s at startup and at most 20 s between idle passes; explicit pauses and
 retry backoff remain respected (ISSUE-143).

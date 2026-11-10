@@ -317,3 +317,9 @@ status. Device acceptance and phase counts remain unchanged; no main merge is au
 (run 42698801783), with AirPlay r43 and Kodi r25. Native checks/recovery, packaging and downloaded-asset validation
 pass; see reports/streaming-recommendations-delivery.json and ISSUE-142. iPhone/Roku/visual acceptance remains
 pending and existing phase counts are unchanged. Main was not merged.
+
+
+2026-11-10 delivery: owner-approved seek-release and automatic-work repairs are included in verified test IPA 217
+(run 42732787090), with Kodi r26 and retained AirPlay r43. Native gesture dispatch 32, scheduler 10, focused suites,
+packaging and downloaded-asset validation pass. See ISSUE-143 and reports/seek-queue-repair-delivery.json.
+Actual iPhone/Roku acceptance remains pending; existing phase counts are unchanged. Main was not merged.

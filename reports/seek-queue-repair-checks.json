@@ -1,7 +1,7 @@
 {
   "date": "2026-11-09",
   "issue": "ISSUE-143",
-  "status": "NATIVE_VERIFIED_IPA_PACKAGING_PENDING",
+  "status": "VERIFIED_TEST_IPA_DELIVERED_DEVICE_RETEST_PENDING",
   "native_run": 42705743785,
   "native_source_commit": "403bd10e683e8054c6437a1883895d662f80d1d9",
   "seek_regression": {
@@ -59,5 +59,12 @@
     "actual_fetch_contract_passed": true,
     "binary_sha256": "f4379642605486f9a09f16366e9d2f32279f3ce8c8c0b665a7465a17404678d3",
     "archive_sha256": "d34ea5d0c349906b428a406ebf4a1dc4dfcf4e765223bec4a516d609ed2e220b"
+  },
+  "delivery_receipt": "reports/seek-queue-repair-delivery.json",
+  "ipa": {
+    "build": 217,
+    "run": 42732787090,
+    "source_commit": "16daca2621ad1272a84991e4fcb9b5c4cd051c30",
+    "verified": true
   }
 }

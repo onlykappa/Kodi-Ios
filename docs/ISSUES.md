@@ -1867,3 +1867,12 @@ d34ea5d0c349906b428a406ebf4a1dc4dfcf4e765223bec4a516d609ed2e220b. Native patch a
 also match. The actual portrait fetch helper accepts the new binary pin; glass-bar contract 28, portrait 50,
 scheduler 10 and the other focused suites pass. IPA packaging follows. Owner authorized this test IPA; no main
 merge or device acceptance is implied. AirPlay r43 is reused unchanged.
+
+
+ISSUE-143 delivery (2026-11-10): run 42732787090 passed every packaging gate and published build 217 from
+16daca2621ad1272a84991e4fcb9b5c4cd051c30. Downloaded public IPA matches the release digest, ZIP integrity,
+exact verified r26 executable and unchanged r43 framework after signature removal, current scheduler/controller
+helpers, compiled Python 3.11 hashes for all four changed helper modules, and 154 unsigned/unencrypted ARM64
+images. Receipt: reports/seek-queue-repair-delivery.json. The current worktree scan and UI guidance pass.
+This closes the source/build/delivery work, while actual device seek release, automatic background work and
+Roku/caption acceptance stay open. No live Drive credentials/media access or main merge occurred.
