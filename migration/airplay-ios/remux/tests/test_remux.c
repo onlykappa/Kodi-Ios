@@ -1448,10 +1448,10 @@ static void test_burn_select(void) {
             reply seg = get_as(UA_TV, kr_remux_port(), "/cvideo/seg0.m4s");
             CHECK(seg.status == 200 && seg.len > 0, "case %zu: burned segment served (%d)", k, seg.status);
             free(seg.body);
-            // r11: burned in for the TV: no WebVTT rendition in its master, and a /subs request answers at once (empty)
+            // Burned subtitles are already in the picture; the unadvertised text rendition is unavailable.
             CHECK(!strstr(tv.body, "TYPE=SUBTITLES") && !strstr(tv.body, "SUBTITLES=\"subs\""), "case %zu: no subtitles group for the TV", k);
             reply vtt = get_as(UA_TV, kr_remux_port(), "/subs/2/seg0.vtt");
-            CHECK(vtt.status == 200 && vtt.body && !strncmp(vtt.body, "WEBVTT", 6) && !strstr(vtt.body, "Hello"), "case %zu: empty cue file for the TV", k);
+            CHECK(vtt.status == 404, "case %zu: unadvertised burned text rendition unavailable", k);
             free(vtt.body);
         }
         free(tv.body);
@@ -2141,9 +2141,9 @@ static void test_startup_repairs(const char *base) {
     snprintf(url,sizeof url,"%s/stall/long_sub.mkv",base);
     CHECK(start_session(url,0,list,sizeof list)==KR_READY,"subtitle deadline movie opens: %s",kr_remux_message());
     double at=mono_ms();reply cue=http_get(kr_remux_port(),"/subs/2/seg20.vtt",NULL);
-    CHECK(cue.status==200 && cue.body && !strcmp(cue.body,"WEBVTT\n\n") && mono_ms()-at<2300,
-          "optional subtitle bounds opening and reads together (%.0f ms, %d)",mono_ms()-at,cue.status);free(cue.body);
-    kr_remux_stop();kr_remux_set_prefetch(1);
+    CHECK(cue.status==503 && strstr(cue.head,"Retry-After: 1") && mono_ms()-at<9000,
+          "pending subtitle is bounded and retryable (%.0f ms, %d)",mono_ms()-at,cue.status);free(cue.body);
+    at=mono_ms();kr_remux_stop();CHECK(mono_ms()-at<1500,"stopping aborts unfinished subtitle work promptly");kr_remux_set_prefetch(1);
 }
 
 int main(int argc, char **argv) {
