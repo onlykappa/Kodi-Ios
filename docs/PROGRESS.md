@@ -1,5 +1,14 @@
 # Persistent progress
 
+## Supplied old log matches the same short session — 2026-11-10
+
+The new kodi.old.log contains the exact 1,993 lines already reviewed plus 59 shutdown lines (17.764 s). It spans
+21:38:48.457–21:44:14.627, still build 217. Kodi starts orderly shutdown at 21:44:10, three minutes after the
+captured AirPlay player closed; that shutdown does not explain the earlier playback failure. The added tail has
+no crash trace and ends during teardown, not a proven final exit. Continuous-hour playback/stop remains absent.
+Seek/subtitle defects remain confirmed; the hour-stop cause remains unknown. See ISSUE-147/report follow-up.
+Next occurrence: export before closing/restarting Kodi. Review only; no app changes, new build or main merge.
+
 ## New seek/subtitle/AirPlay-stop log reviewed — 2026-11-10
 
 Owner asks to investigate seek release, missing captions and continuous AirPlay stopping after about an hour.

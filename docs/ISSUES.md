@@ -2063,3 +2063,15 @@ avoid a synchronous demux wait in the touch UI path; record requested and landed
 on an independent worker, retain unfinished work and distinguish failure from a genuinely cue-free interval. Native
 rebuild/device retest would be required for a shipped native repair. These are findings/directions, not a claim
 that build 219 fixes them. Device acceptance and main remain unchanged.
+
+
+ISSUE-147 supplied kodi.old.log follow-up (2026-11-10): the new file is the same build-217 session, with all
+1,993 prior lines an exact prefix. It adds 59 lines / 17.764 seconds, ending at 21:44:14.627; total capture length
+326.170 seconds. Added lines show Kodi starting orderly application shutdown at 21:44:10.741 and services exiting.
+The captured AirPlay player had already closed at 21:41:10.298, so this later shutdown is not the initiating cause
+of that earlier AirPlay failure. There is no crash trace in the added tail; the file ends during teardown, so this
+is not proof of final process exit status or an OS-level absence of termination. No hour-long playback/stop is
+present in either file. The seek/caption findings stand; the specific continuous-hour stop cause remains unknown.
+For a future recurrence, export immediately after the actual stop before exiting/restarting Kodi, since rotation
+can replace the needed session. Follow-up recorded in reports/seek-subtitle-stop-review.json. Review only; no app
+source change, new tests/build/IPA, account access or main merge.

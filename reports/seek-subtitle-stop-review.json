@@ -102,5 +102,23 @@
   "app_source_changed": false,
   "new_ipa_published": false,
   "main_merged": false,
-  "device_retest_passed": false
+  "device_retest_passed": false,
+  "old_log_followup": {
+    "date": "2026-11-10",
+    "build": 217,
+    "device_clock_start": "2026-11-09 21:38:48.457",
+    "device_clock_end": "2026-11-09 21:44:14.627",
+    "capture_seconds": 326.17,
+    "lines": 2052,
+    "exact_common_prefix_lines_with_previous_log": 1993,
+    "previous_log_lines": 1993,
+    "additional_lines": 59,
+    "additional_seconds": 17.764,
+    "shutdown_sequence_begins": "21:44:10.741",
+    "airplay_player_already_closed_at": "21:41:10.298",
+    "added_evidence": "An orderly application/service shutdown sequence, with no crash trace in the added tail. The log ends during teardown; this is not proof that the final process exit completed normally.",
+    "continuous_hour_session_present": false,
+    "hour_stop_cause_established": false,
+    "next_capture": "Export immediately after the actual AirPlay stop, before closing/restarting Kodi."
+  }
 }

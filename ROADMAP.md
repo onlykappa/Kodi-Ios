@@ -364,3 +364,9 @@ actual hour-long stop is absent, so exact stop cause is unresolved; need kodi.ol
 reports/seek-subtitle-stop-review.json. Investigation only, no app fix/native build/IPA/merge or device acceptance.
 Next: source repair with expanded refresh/event coverage; inspect actual stop evidence when available. Phase/task
 counts remain unchanged.
+
+ISSUE-147 old-log follow-up (2026-11-10): supplied old log exactly extends the prior 1,993 lines by 59 lines /
+17.764 s of shutdown. It still covers only ~5.4 minutes, build 217, with no continuous-hour failure captured.
+Shutdown begins three minutes after the captured AirPlay close. Existing seek/subtitle findings remain; hour-stop
+attribution stays unresolved. Capture the next actual stop before restart. Report/progress updated; no app/native
+change, build, IPA, main merge or phase/task-count change.
