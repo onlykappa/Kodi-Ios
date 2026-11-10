@@ -379,7 +379,16 @@
     },
     "project_check": "passed",
     "ui_guidance": "passed",
-    "diff_check": "passed"
+    "diff_check": "passed",
+    "post_pin_script_rerun": {
+      "scripts": 52,
+      "all_passed": true,
+      "python": "3.11.17",
+      "scope": "All workflow scripts from native pin checks onward; includes 46 actual gesture scenarios."
+    },
+    "native_ci_check_summaries": [
+      "3336 checks, 0 failed"
+    ]
   },
   "retained_failures": [
     {
@@ -434,6 +443,12 @@
     {
       "kind": "Packaging test interpreter selection",
       "retest": "One post-pin rerun omitted required KODI_IOS_PYTHON311; rerun with existing configured 3.11 interpreter passes 11/11."
+    },
+    {
+      "kind": "IPA 222 pre-packaging pin test",
+      "run": 42886688945,
+      "source_commit": "0a0de03a09112957bb6779b56a7ad97c1b30f63e",
+      "detail": "GlassBar integration test still pinned r26 after verified r28 update. Audit also found old r43/rollback assertions. Update strict tag/digest expectations to verified r28/r44 and their real previous pins; do not disable pin checks. All subsequent packaging scripts rerun and pass. No IPA produced/delivered; missing artifact is secondary."
     }
   ],
   "acceptance": {
@@ -456,8 +471,15 @@
       "result": "success",
       "release_archive_equals_verified_candidate": true
     },
-    "ipa": "pending requested packaging",
-    "main_merged": false
+    "ipa": "retry packaging after strict native pin tests updated",
+    "main_merged": false,
+    "packaging_attempts": [
+      {
+        "build": 222,
+        "run": 42886688945,
+        "outcome": "failed before packaging on obsolete r26 test pin; no IPA delivered"
+      }
+    ]
   },
   "limitation": "Historical continuous-hour stop remains unattributed; this adds retained evidence and does not establish every receiver/provider now works."
 }

@@ -2278,3 +2278,11 @@ and upstream digest checked. AirPlay final 42883448916 passed host/framework/end
 digest/ZIP/new APIs/ARM64, publication 42886188374 succeeded and release archive independently downloaded and
 compared byte-for-byte. Pins r28/r44 now point at these verified immutable releases. IPA packaging is next;
 device/provider/visual behavior remains pending and the historical continuous-hour cause is still unknown.
+
+ISSUE-147/151 packaging retry: build 222 / run 42886688945 stopped before packaging at GlassBar's stale r26
+tag/digest snapshot after the verified r28 pin update; no IPA was produced or delivered. Subsequent audit found
+AirPlay's old r43/previous-release snapshots too. Updated strict expectations to independently verified r28/r44
+and their actual previous pins, rather than weakening/removing the checks. All workflow scripts from GlassBar
+onward rerun under the existing Python 3.11.17 and pass, including 46 actual seek scenarios. Native app sources
+and binaries are unchanged. Missing upload artifact was a secondary consequence of the early test failure.
+Next dispatch a fresh packaging run from these verified test-only corrections; keep 222 in failure history.
