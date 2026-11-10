@@ -1950,3 +1950,48 @@ latency. Earlier run varied to 9 / 1.406 s versus 3 / 0.363 s; report records th
 measurements, not iPhone/Roku acceptance. New suites run in import-review CI. UI guidance and project scanner pass;
 policy read, existing text slots reused, visual/device review pending. Evidence: reports/compatibility-filter-review.json.
 No native source/pin change, new IPA publication, account access or main merge in this patch.
+
+
+## ISSUE-146 — Adaptive preparation uploads, accurate transport status, expired links and explicit Refresh (2026-11-10)
+
+Owner approves the three recommendations and asks Refresh to inspect files before converting an already ready
+episode. Root causes extend ISSUE-144/145: conversion output still issued whole 32 MiB PUTs; upload evidence only
+updated at the end of the producer batch and UI relied on native callbacks; Refresh could only reuse an existing
+probe rather than inspect a previously unknown original; retrying an expired resolved Umbrella URL reused it.
+
+Repairs: preserve 32 MiB producer/on-disk pieces and the independent 256 MiB resume window, while each PUT starts
+at 1 MiB and adapts between 1–8 MiB in 256 KiB multiples. Successful small pieces do not consume the retry budget.
+Partial/lost ACKs query/resume only unconfirmed bytes and every confirmed piece updates speed. Final size/checksum
+verification still protects the original. Finalization now checks upload-thread errors while waiting for queue room.
+
+The independent runtime heartbeat exposes confirmed bytes, upload speed, active request age and transport phase.
+It updates existing progress slots even while the producer waits for queue room or final flushing. Upload waits
+longer than ten seconds say Waiting for Drive, with no invented ETA. Owner pauses and source verification retain
+priority. Library status's explicit Refresh requests actual native inspection over the Drive range stream. Exact
+identity caching survives restart; unknown/changed/failed sources cannot inherit readiness. Active conversion's
+native instance is never probed beside itself: metadata/cache refresh runs beside it and unknown probes remain
+requested until idle. Newer refresh requests and owner-kept/committing files are protected.
+
+Umbrella AllDebrid's recognized unlock method registers selected link, resolved URL, name and size in a RAM-only
+Home property, then the service broker keeps it with that exact source. HTTP 401/403/404/410 gets one unlock through
+the existing account, shared between readers. A new filename/size/range total is rejected; provider headers/ranges
+are preserved and the account credential goes only to the AllDebrid API. No new scrape, torrent, file download or
+account flow. Unrecognized upstream hook shape is left unchanged. Other providers retain their current route.
+Current public upstream blob 181335b6a51ff73575bbcef10935edfa248c30b6 was patched, compiled, executed with stubs
+and checked for idempotence outside Git; actual owner provider access was not used.
+
+Failures/diagnosis/retest: the existing upload concurrency test expected literal 32 MiB HTTP requests; its byte
+integrity/nonblocking checks remain, now asserting bounded requests and exact total. The first adaptive sender
+review caught that an eight-iteration loop would count successful pieces as retries; the revised loop counts
+failures and a >8-piece regression passes. Another review caught finalization's blocking sentinel enqueue after
+an uploader fails; a regression now fails promptly instead. The slowdown source-string test predated the foreground
+cache profile from ISSUE-145; expected wiring now includes it, retaining actual background slowdown tests. A
+heartbeat test's fixed 40 ms wait failed under host load (initial phase observed); it now waits up to one second
+for the actual phase, retaining heartbeat/expiry assertions. All failure records remain; no device pass is implied.
+
+Validation: 24 focused suites / 545 tests pass (report includes exact scripts/counts), scanner and UI guidance pass.
+Native host comparison with 150 ms local request latency produces identical 467,251-byte video segments: direct
+8 requests / 1.255 s, cached 3 / 0.378 s, cached+simulated HTTP expiry 4 / 0.511 s and exactly one API renewal.
+These are generated fixtures/local HTTP/mocked AllDebrid responses, not live provider/iPhone/Roku results. Source:
+reports/refresh-streaming-checks.json. Existing UI layout/style and verified r26/r43 native pins are unchanged.
+Owner requests this updated test build for a retest; IPA packaging follows. Device and visual acceptance remain open.

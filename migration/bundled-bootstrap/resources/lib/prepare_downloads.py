@@ -4,7 +4,7 @@ The service scans app-managed Movies/TV Shows at startup and after uploads. Work
 the uploader/scanner, paused during playback, and checkpointed. Source bytes stay on Drive until a
 validated result is uploaded in place. Native r16 streams both input and output; no media working files. No permanent AirPlay variant, source-ID switch or extra folder.
 """
-import ctypes,hashlib,json,os,re,shutil,threading,time,urllib.error,urllib.parse,urllib.request
+import contextlib,ctypes,fcntl,hashlib,json,os,re,shutil,threading,time,urllib.error,urllib.parse,urllib.request
 from pathlib import Path
 import app_state,driveupload,drivelibrary,library_scan,phone_space
 
@@ -556,9 +556,20 @@ def audio_languages(audio_setting,ui_language):
  return ','.join([code]+LANGUAGE_TAGS[code].split(','))
 
 RESCAN='airplay-preparation-rescan'
-def request_check(profile):
+@contextlib.contextmanager
+def check_request(profile):
+ marker=location(profile).parent/RESCAN;marker.parent.mkdir(parents=True,exist_ok=True)
+ with open(str(marker)+'.lock','a') as guard:
+  fcntl.flock(guard,fcntl.LOCK_EX)
+  try:yield marker
+  finally:fcntl.flock(guard,fcntl.LOCK_UN)
+
+def request_check(profile,inspect=False):
  """Ask the service to check Google Drive › Kodi Downloads now (Settings › Library › Check library for conversion)."""
- marker=location(profile).parent/RESCAN;marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(str(time.time()))
+ # Automatic listing requests must not downgrade a pending explicit file inspection.
+ with check_request(profile) as marker:
+  if inspect:marker.write_text(json.dumps({'inspect':True,'time':time.time()}))
+  elif not marker.exists():marker.write_text(str(time.time()))
 def check_requested(profile):return (location(profile).parent/RESCAN).exists()
 
 def running_id(state):
@@ -673,6 +684,12 @@ class Queue:
  def _scan(self,keep_going,force,beside):
   requested=location(self.profile).parent/'airplay-preparation-rescan'
   if not force and not requested.exists() and self.clock()-self.state.get('last_scan',0)<300:return
+  with check_request(self.profile):
+   try:requested_text=requested.read_text()
+   except OSError:requested_text=''
+  try:inspection=bool(json.loads(requested_text).get('inspect'))
+  except (ValueError,AttributeError):inspection=False
+  self.inspection_pending=False
   status={'title':'Movies and shows','stage':'Checking downloaded videos','progress':0,'queued':0,'running':True,'updated':self.clock()}
   converting=running_id(self.state) if beside else ''
   with self.lock:self.state['checking' if beside else 'current']=status
@@ -701,6 +718,30 @@ class Queue:
      self.stage_cleanup(old);old.update(status='done');old.pop('repack',None)
     continue
    old=self.state['jobs'].get(slot)
+   if item['id']!=converting:
+    with self.lock:
+     if old is None or old.get('status')=='superseded' or identity(old['source'])!=identity(item):
+      if old:self.stage_cleanup(old)
+      old=self.state['jobs'][slot]={'source':item,'status':'waiting','attempts':0,'retry_after':0}
+    # Refresh reads actual track metadata before deciding to queue conversion. Never probe through the same
+    # native instance beside an active conversion or abandon a promotion/owner-kept original.
+    if inspection and not old.get('probe') and not old.get('kept') and not old.get('promoted') and self.stream:
+     if beside:self.inspection_pending=True
+     else:
+      try:
+       status.update(stage='Checking compatibility · '+drivelibrary.display_title(item['name']),updated=self.clock());self.commit()
+       if self.runtime:self.runtime.phase('Checking compatibility',False,item['name'])
+       self.native.keep_going=keep_going
+       probe=self.native.probe(self.stream.url(item['id']))
+       if not keep_going():raise driveupload.Stop('Library check paused')
+       if identity(metadata(self.drive,item['id']))!=identity(item):raise RuntimeError('Drive source changed during inspection')
+       old['probe']=probe;old.pop('inspection_error',None);self.commit()
+      except driveupload.Stop:raise
+      except Exception as error:
+       import preparation_runtime
+       old['inspection_error']=preparation_runtime.problem(error)
+       self.log('preparation: compatibility check will retry (%s)'%type(error).__name__)
+      finally:self.stream.forget(item['id'])
    if old and item['id']!=converting and self.skip_compatible(slot,old,item,old.get('probe')):
     counts['ready']+=1;entries.append(dict(entry(item,'ready'),stream_only=True));continue
    entries.append(entry(item,'todo'))
@@ -717,7 +758,12 @@ class Queue:
    self.state['library']=dict(counts,checked=self.clock(),items=entries)
    self.state['last_scan']=self.clock()
    if not beside:self.state.pop('current',None)
-  self.commit();requested.unlink(missing_ok=True)
+  self.commit()
+  if not self.inspection_pending:
+   with check_request(self.profile):
+    try:
+     if requested.read_text()==requested_text:requested.unlink(missing_ok=True)
+    except FileNotFoundError:pass
  def unique(self,found):
   """One copy per episode or movie (owner, build 152: 'Lanterns' and 'Lanterns (2026)' each held S1 E1, and both
   were queued; the owner then asked for the extra copy to be deleted). Keeps, in order: a copy already prepared, one
@@ -964,10 +1010,7 @@ def snapshot(profile,now=time.time):
  import preparation_runtime
  runtime=preparation_runtime.read(profile,now)
  if runtime and current.get('running'):
-  current['updated']=runtime['updated'];current['indeterminate']=not runtime.get('known')
-  current['stage']=runtime.get('phase') or current.get('stage')
-  if current['indeterminate'] and runtime.get('read_bytes'):current['stage']+=' · %.0f MB read'%(runtime['read_bytes']/1024**2)
-  state['current']=current
+  state['current']=preparation_runtime.current(current,runtime)
  return state
 
 def cards(profile,now=time.time):

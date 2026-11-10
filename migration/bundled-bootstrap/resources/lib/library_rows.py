@@ -257,7 +257,7 @@ def details(row, view):
                                         ('Picture', picture_text(row.get('probe'), kept=True)) if row.get('probe') else None,
                                         ('Size', '%.1f GB now' % (size / GB) + (' · about %.1f GB after' % (out_total / GB) if out_total else ''))
                                         if size else None) if f])
-        if not row.get('probe') and row.get('step') in ('Reading from Google Drive','Inspecting video and track index','Opening conversion tracks'):
+        if not row.get('probe') and row.get('step') in ('Checking compatibility','Reading from Google Drive','Inspecting video and track index','Opening conversion tracks'):
             sheet.update(status='Checking compatibility',quality='Only needed preparation will run')
         if pct and not row.get('indeterminate'):
             sheet.update(bar=str(pct), bar_tint=CONV)

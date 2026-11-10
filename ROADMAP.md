@@ -332,3 +332,14 @@ and unchanged native host streaming comparison pass (identical first segment, fe
 reports/compatibility-filter-review.json and PROGRESS. UI text only; policy checked, device/visual acceptance pending.
 No new IPA, native build or main merge. Next: authorized updated-IPA/device retest of compatible queue skip and
 Umbrella AirPlay/Media Assistant separately. Existing roadmap phase/task completion counts are unchanged.
+
+
+Refresh/recommendations checkpoint (2026-11-10, ISSUE-146): owner approves the three additions and file inspection
+on Library status Refresh for another build/retest. Adaptive 1–8 MiB preparation HTTP uploads preserve 32 MiB
+resume pieces/256 MiB window; independent transport progress reports upload waits; selected Umbrella/AllDebrid
+links renew once; unknown files are inspected before readiness/conversion decisions on explicit Refresh. Exact
+cached identities survive restart; active native work and transactions stay protected. 24 suites / 545 tests,
+project/UI checks and real native host generated-source recovery pass. Evidence: reports/refresh-streaming-checks.json.
+Next: package/verify the requested updated test IPA using unchanged verified Kodi r26/AirPlay r43, then owner tests
+Refresh (ready count/no new Lanterns conversion), upload status, and Umbrella AirPlay/Media Assistant separately.
+Device/visual/provider acceptance and roadmap phase/task counts remain unchanged; no main merge.

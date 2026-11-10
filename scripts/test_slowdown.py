@@ -80,7 +80,7 @@ class Workers(Reset):
   self.assertIn('self.gate.after(time.monotonic() - began)',(LIB/'drive_prepare.py').read_text())
   stream=(LIB/'drive_stream.py').read_text()
   self.assertIn('self.gate.after(time.monotonic() - began, sum(len(x) for x in parts), download=True)',stream)
-  self.assertIn('(1 if slowdown.reason() else READ_AHEAD)',stream)
+  self.assertIn('(2 if stream.playback else 1 if slowdown.reason() else READ_AHEAD)',stream)
   up=(LIB/'driveupload.py').read_text()
   self.assertEqual(up.count('slowdown.Gate(keep_going=keep_going)'),2)   # phone uploads and AllDebrid copies
   self.assertIn('gate.after(put_s,len(chunk),download=True)',up)

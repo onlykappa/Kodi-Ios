@@ -97,12 +97,14 @@ def run():
     for addon in copied:api('Addons.SetAddonEnabled',{'addonid':addon,'enabled':True});xbmc.log('Kodi iOS setup installed '+addon,xbmc.LOGINFO)
    if xbmc.getCondVisibility('System.HasAddon(plugin.video.umbrella)'):
     # Umbrella's sources open on the Deck's "Choose a version" page (again after each Umbrella update).
-    import umbrella_picker
+    import umbrella_picker,umbrella_recovery
     # (Not "window": that name is the Home window, used again when setup finishes.)
     source_window=Path(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.umbrella').getAddonInfo('path')))/'resources/lib/windows/source_results.py'
     if umbrella_picker.umbrella_hook(str(source_window)):xbmc.log('Kodi iOS setup added the Deck source page to Umbrella',xbmc.LOGINFO)
     elif source_window.is_file() and umbrella_picker.HOOK_MARK not in source_window.read_text(encoding='utf-8',errors='replace'):
      xbmc.log('Kodi iOS setup: this Umbrella version has a different source window; its own list stays',xbmc.LOGWARNING)
+    resolver=source_window.parents[1]/'debrid/alldebrid.py'
+    if umbrella_recovery.hook(resolver):xbmc.log('Kodi iOS setup added selected-stream link recovery to Umbrella AllDebrid',xbmc.LOGINFO)
    if xbmc.getCondVisibility('System.HasAddon(plugin.video.umbrella)') and xbmc.getCondVisibility('System.HasAddon(script.module.cocoscrapers)'):
     umbrella=xbmcaddon.Addon('plugin.video.umbrella')
     if umbrella_defaults(umbrella.getSetting,umbrella.setSetting):xbmc.log('Kodi iOS setup set Umbrella to CocoScrapers',xbmc.LOGINFO)
@@ -436,7 +438,7 @@ def drive_uploads(monitor,home,profile):
           seen.update(at=now,bytes=got)
         except Exception as error:diagnostics.log_exception(xbmc,'library_check',error)
         try:
-         if q.busy and prepare_downloads.check_requested(profile):
+         if q.busy and prepare_downloads.check_requested(profile) and not getattr(q,'inspection_pending',False):
           q.scan(lambda:not monitor.abortRequested(),force=True,beside=True)
         except driveupload.Stop:pass
         except Exception as error:diagnostics.log_exception(xbmc,'library_check',error)

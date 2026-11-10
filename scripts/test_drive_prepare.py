@@ -145,7 +145,8 @@ class BackgroundUpload(unittest.TestCase):
   self.assertLess(_t.monotonic()-t0,1.0)   # handed over, not uploaded in this thread (that alone would take 1.5 s)
   result=sink.finish()['0']
   self.assertEqual(d.files[result['id']]['data'],piece*2+b'end')
-  self.assertEqual(puts[:2],[dp.MAIN_CHUNK,dp.MAIN_CHUNK]);self.assertEqual(sink.sent,dp.MAIN_CHUNK*2+3)
+  self.assertTrue(all(0<n<=8*1024*1024 for n in puts))
+  self.assertEqual(sum(puts),dp.MAIN_CHUNK*2+3);self.assertEqual(sink.sent,dp.MAIN_CHUNK*2+3)
  def test_upload_error_reaches_the_converter_and_original_stays(self):
   d=Drive();orig=d.call
   def broken(method,url,body=None,headers=None):

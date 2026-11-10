@@ -5,7 +5,7 @@ loopback control endpoint gives other Kodi interpreters a source URL that surviv
 One source at a time, at most 32 MiB cached, no Drive OAuth or media files.
 """
 import http.server,ipaddress,json,secrets,threading,urllib.error,urllib.parse,urllib.request
-import drive_stream
+import drive_stream,umbrella_recovery
 PROPERTY='KodiIOS.RemoteMedia'
 
 
@@ -23,28 +23,54 @@ class Foreground(drive_stream.DriveStream):
   raw,_,extra=source.partition('|');p=urllib.parse.urlsplit(raw)
   if p.scheme not in ('http','https') or not p.hostname:raise ValueError('Not an HTTP media source')
   self.remote_url=raw
+  self.renew_lock=threading.Lock();self.renewal=None;self.renew_link=None;self.renewed=False;self.renewal_state='unavailable'
   self.remote_headers={k:v for k,v in urllib.parse.parse_qsl(extra,keep_blank_values=True)
                        if k.lower() not in ('host','range','connection','content-length','transfer-encoding')}
   if not any(k.lower()=='user-agent' for k in self.remote_headers):self.remote_headers['User-Agent']='Kodi-iOS-AirPlay/1'
   opener=open_url or (lambda request,timeout:urllib.request.urlopen(request,timeout=timeout,context=context))
   def remote(request,timeout):
    headers=dict(self.remote_headers);headers['Range']=request.get_header('Range')
-   response=opener(urllib.request.Request(self.remote_url,headers=headers),timeout)
+   attempted=self.remote_url
+   try:response=opener(urllib.request.Request(attempted,headers=headers),timeout)
+   except urllib.error.HTTPError as error:
+    if error.code not in (401,403,404,410) or not self._renew(attempted):raise
+    error.close()
+    response=opener(urllib.request.Request(self.remote_url,headers=headers),timeout)
    span=drive_stream.SPAN.match(response.headers.get('Content-Range') or '')
    start=int(headers['Range'][6:].split('-')[0])
    if (getattr(response,'status',None) or response.getcode())==206 and (not span or int(span.group(1))!=start):
     response.close();raise ConnectionError('Stream server returned the wrong byte range')
+   total=self.blocks.sizes.get('media') if hasattr(self,'blocks') else None
+   if span and total and int(span.group(3))!=total:
+    response.close();raise ConnectionError('The refreshed stream is a different file')
    return response
   super().__init__(lambda:'',context=context,open_url=remote,block_size=2*1024*1024,keep=16,playback=True)
   # This is the playing movie, not a background download competing with it.
   self.gate=type('ForegroundGate',(),{'after':lambda *args,**kwargs:None})()
   self.media_url=self.url('media')
 
+ def configure_renewal(self,record,renew):
+  if record and record.get('source')==self.remote_url:
+   self.renewal=record;self.renew_link=renew;self.renewal_state='ready'
+
+ def _renew(self,attempted):
+  with self.renew_lock:
+   if attempted!=self.remote_url:return True  # another reader renewed this source already
+   if self.renewed or not self.renewal or not self.renew_link:return False
+   self.renewed=True;self.renewal_state='refreshing'
+   try:
+    fresh=self.renew_link(self.renewal)
+    if not umbrella_recovery.web(fresh) or fresh==self.remote_url:raise ValueError('No fresh stream link')
+    self.remote_url=fresh;self.renewal_state='refreshed';return True
+   except Exception:
+    self.renewal_state='failed';return False
+
 
 class Broker:
- def __init__(self,context=None,source_factory=None):
+ def __init__(self,context=None,source_factory=None,renew_link=None):
   self.lock=threading.Lock();self.current=None;self.ident='';self.secret=secrets.token_urlsafe(24)
   self.factory=source_factory or (lambda source:Foreground(source,context=context))
+  self.renew_link=renew_link or (lambda record:umbrella_recovery.renew(record,context=context))
   broker=self
   class Handler(http.server.BaseHTTPRequestHandler):
    def log_message(self,*args):pass
@@ -61,7 +87,10 @@ class Broker:
        if not eligible(source):raise ValueError('Not a remote file source')
        if broker.current:broker.current.close()
        broker.current=broker.factory(source);broker.ident=secrets.token_urlsafe(18)
+       broker.current.configure_renewal(request.get('renewal'),broker.renew_link)
        answer={'url':broker.current.media_url,'id':broker.ident}
+      elif action=='status':
+       answer={'renewal':broker.current.renewal_state if broker.current and request.get('id')==broker.ident else 'closed'}
       elif action=='close':
        if request.get('id')==broker.ident:
         if broker.current:broker.current.close()
@@ -90,6 +119,7 @@ def _call(endpoint,payload):
 
 class Lease:
  def __init__(self,endpoint,ident):self.endpoint,self.ident=endpoint,ident
+ def status(self):return _call(self.endpoint,{'action':'status','id':self.ident})
  def close(self):
   if not self.ident:return
   try:_call(self.endpoint,{'action':'close','id':self.ident})
@@ -104,7 +134,7 @@ def acquire(source,home):
   endpoint=home.getProperty(PROPERTY)
   p=urllib.parse.urlsplit(endpoint)
   if p.scheme!='http' or p.hostname!='127.0.0.1' or not p.port:return source,None
-  answer=_call(endpoint,{'action':'open','source':source})
+  answer=_call(endpoint,{'action':'open','source':source,'renewal':umbrella_recovery.selected(source,home)})
   target=urllib.parse.urlsplit(answer['url'])
   if target.scheme!='http' or target.hostname!='127.0.0.1':return source,None
   return answer['url'],Lease(endpoint,answer['id'])

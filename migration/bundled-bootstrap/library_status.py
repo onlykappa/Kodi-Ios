@@ -273,7 +273,7 @@ def run(args=()):
     if not dialog.yesno('Library status','Preparing videos for Kodi and AirPlay is turned off. Turn it on and check now?',
                         nolabel='Cancel',yeslabel='Turn on'):return
     addon.setSettingBool('prepare_downloads',True)
-   self.checking=time.time();prepare_downloads.request_check(profile);self.refresh()
+   self.checking=time.time();prepare_downloads.request_check(profile,inspect=True);self.refresh()
   def open_row(self,position):
    items=getattr(self,'items',[])
    if not 0<=position<len(items):return

@@ -41,6 +41,7 @@ def process_one(q, keep_going):
     # so a restart measured from hours earlier ("about 46 h 28 min", owner screenshot).
     job.pop('eta_mark',None);job['started_at']=q.clock()   # Library status › a ready movie: "took 41 min"
     attempt={'mark':None,'sink':None,'fraction':0.0,'convert_start':None}
+    original_stats=q.runtime.stats if q.runtime else None
     def progress(stage,pct):
         if q.runtime:q.runtime.phase(stage,pct is not None,item['name'])
         if not keep_going():raise driveupload.Stop('Preparation paused')
@@ -98,7 +99,7 @@ def process_one(q, keep_going):
         q.notify('info','Ready for Kodi and AirPlay',drivelibrary.display_title(item['name']));return True
     try:
         q.log('preparation: %s — opening Drive file'%drivelibrary.display_title(item['name']))
-        progress('Reading from Google Drive',None)
+        progress('Checking compatibility',None)
         if job.get('promoted'):
             # Stopped after the prepared file took the original's place: send the original to the bin and finish.
             drive_prepare.bin(q.drive,item['id'])
@@ -145,6 +146,8 @@ def process_one(q, keep_going):
                     keep_pieces=resumes and not (job.get('probe') or {}).get('copy_video'),
                     on_checkpoint=lambda cp:resume_store.save(q.profile,slot,identity,cp))
                 attempt['sink']=sink
+                if q.runtime:
+                    q.runtime.stats=lambda:dict(original_stats() or {},**sink.stats())
                 def waiting():
                     # Build 193: only the owner's Pause holds a conversion now (a video or AirPlay slows it instead),
                     # so the words say so; the reason is stored, never guessed (build-192 log: "Paused while a video
@@ -273,6 +276,7 @@ def process_one(q, keep_going):
                 import transfer_history;transfer_history.failed(q.profile,'conv',item['name'],prep.plain(text),q.clock())
         job['error']=text;return False
     finally:
+        if q.runtime and original_stats is not None:q.runtime.stats=original_stats
         q.stream.forget(item['id'])
         if temp_id:q.stream.forget(temp_id)
         # Build 193 (build-192 log: a stopped Inception kept "Paused while a video plays"): a stopped job says it stopped.

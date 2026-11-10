@@ -212,7 +212,10 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
   return retained
  finally:
   # Native playback outlives this interpreter after the 45-second settle check. The service owns its cache.
-  if lease and not retained:lease.close()
+  if lease:
+   try:diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','source_link',**lease.status())
+   except Exception:pass
+   if not retained:lease.close()
 
 
 def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_override=None):

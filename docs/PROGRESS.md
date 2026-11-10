@@ -1,5 +1,36 @@
 # Persistent progress
 
+## Upload, progress, expired-link recovery and Refresh inspection — 2026-11-10
+
+Owner authorizes all three recommendations in the build and asks Library status Refresh to read files so a ready
+Lanterns episode is not converted again. HTTP preparation uploads now start at 1 MiB, adapt to 1–8 MiB aligned
+pieces, and retain the existing 32 MiB producer/resume pieces plus 256 MiB checkpoint window. Every acknowledged
+HTTP piece refreshes confirmed-byte/speed evidence. A full failed upload queue cannot hang finalization.
+
+Independent heartbeat carries upload bytes, speed and request age while native progress callbacks are blocked.
+Existing UI slots say Checking compatibility, Uploading to Google Drive or Waiting for Drive as appropriate;
+explicit pauses and verification stages remain authoritative. No layout/style changes; UI policy read.
+
+Refresh requests native track inspection of unknown streamed files before conversion is queued. Exact unchanged
+Drive identities reuse saved compatibility after restart; changed files are inspected again. Prepared originals
+stay ready, unknown/failed inspections are never labeled ready, and owner-kept/committing files are protected.
+Beside an active conversion, metadata/cached decisions update immediately and native inspection waits for idle;
+newer/manual requests survive automatic checks and an older scan finishing.
+
+Umbrella/AllDebrid remembers only the selected unlock link in RAM. The existing foreground cache renews that same
+file once on HTTP 401/403/404/410 with the existing account; no new scrape/torrent/download. Concurrent readers
+share one renewal, provider headers persist, and changed filename/size/range totals are refused. The guarded hook
+was compiled and executed against current public upstream code; unknown versions stay untouched.
+
+Validation: 24 focused suites / 545 tests pass, including refresh/compatibility 21, transfer efficiency 9, selected
+link recovery 13, cloud transactions 26 and existing resume/scheduler/casting/status tests. Project scanner and UI
+guidance pass. Unchanged real native host bridge yields the same first video-segment hash in all modes: direct
+8 requests / 1.255 s; cache 3 / 0.378 s; simulated expired link 4 / 0.511 s with exactly one API renewal. Generated
+fixture and mocked unlock API/local HTTP only; no owner media/account access. Host timing is not a Roku/device pass.
+Evidence: reports/refresh-streaming-checks.json; failures and fixes: ISSUE-146. Verified Kodi r26/AirPlay r43 pins
+are reused. Updated test IPA packaging follows for the owner's requested retest; no main merge. Visual and actual
+iPhone/Roku/AllDebrid acceptance remain pending. Previous build 217 does not contain these latest changes.
+
 ## Compatibility-first preparation and separate Umbrella cache repair — 2026-11-10
 
 Owner asks to avoid unnecessary conversion, keeping the working Elementum/Drive workflow, and identifies

@@ -150,7 +150,8 @@ def _title(name):
 
 def _conversion(prep, runtime, now):
     """The conversion (or library check) running now, from the queue's 'current' and the heartbeat, or None."""
-    current = dict((prep or {}).get('current') or {})
+    import preparation_runtime
+    current = preparation_runtime.current((prep or {}).get('current') or {},runtime)
     if not current.get('running') or not current.get('title'):
         return None
     fresh = bool(runtime) or now - float(current.get('updated') or 0) < ALIVE
@@ -159,7 +160,7 @@ def _conversion(prep, runtime, now):
     if current.get('title') == 'Movies and shows' or str(current.get('stage', '')).startswith('Checking'):
         return {'kind': 'check', 'title': 'Google Drive', 'name': '', 'step': STEP['check'], 'pct': int(current.get('progress') or 0),
                 'indeterminate': True, 'rate': 0.0, 'eta_s': 0, 'tint': BLUE}
-    stage = str((runtime or {}).get('phase') if runtime and not runtime.get('known') else current.get('stage') or '')
+    stage = str(current.get('stage') or '')
     stage = stage.replace('Step 3 of 3 · ', '').strip()
     kind = current.get('kind') or ('repack' if stage == STEP['repack'] else 'conv')
     if stage in ('', 'Paused by you', 'Paused while a video plays', 'Stopped', 'Will try again'):

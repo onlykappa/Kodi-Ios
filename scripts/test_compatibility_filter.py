@@ -1,5 +1,5 @@
 """Skip full Drive preparation only after codec inspection; retain original and transaction safety."""
-import copy,sys,tempfile,unittest
+import copy,sys,tempfile,threading,json,unittest
 from pathlib import Path
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1];sys.path[:0]=[str(ROOT/'migration/bundled-bootstrap/resources/lib'),str(ROOT/'scripts')]
@@ -76,4 +76,63 @@ class Filter(unittest.TestCase):
   job=self.q.state['jobs'][self.slot];job['cloud_output']={'0':{'id':'app-temp','moved':False}}
   self.assertTrue(self.q.skip_compatible(self.slot,job,self.item,self.probe))
   self.assertEqual(self.q.state['staging_cleanup'],['app-temp']);self.assertIn('source',self.drive.files)
+ def refresh(self,beside=False):
+  with patch.object(prep.library_scan,'remote_files',return_value=[self.item]):self.q.scan(force=True,beside=beside)
+ def test_refresh_inspects_unknown_lanterns_episode_without_uploading_or_converting(self):
+  self.drive.files['source']['name']='Lanterns.S01E06.2160p.mkv'
+  original=copy.deepcopy(self.drive.files['source']);calls=[]
+  self.native.probe=lambda url:(calls.append(url),dict(self.probe))[1]
+  prep.request_check(self.tmp.name,inspect=True);self.refresh()
+  self.assertEqual(len(calls),1);self.assertEqual(self.q.state['library']['ready'],1)
+  self.assertEqual(self.native.calls,0);self.assertEqual(self.drive.files['source'],original)
+  self.assertFalse(any(method in ('PUT','POST','PATCH') for method,*_ in self.drive.calls))
+  self.assertFalse(self.q.process_one());self.assertFalse(prep.check_requested(self.tmp.name))
+ def test_refresh_after_restart_reuses_the_exact_compatible_file_result(self):
+  prep.request_check(self.tmp.name,inspect=True);self.refresh()
+  self.q=prep.Queue(self.tmp.name,self.drive,self.native,stream=Stream())
+  self.native.probe=lambda url:self.fail('unchanged file was inspected again')
+  prep.request_check(self.tmp.name,inspect=True);self.refresh()
+  self.assertEqual(self.q.state['library']['ready'],1);self.assertFalse(self.q.process_one())
+ def test_refresh_reinspects_changed_version_instead_of_trusting_stale_readiness(self):
+  prep.request_check(self.tmp.name,inspect=True);self.refresh()
+  self.drive.files['source']['version']='2';self.probe.update(copy_video=False,codec='av1')
+  prep.request_check(self.tmp.name,inspect=True);self.refresh()
+  self.assertEqual(self.q.state['library']['ready'],0);self.assertEqual(self.q.state['jobs'][self.slot]['probe']['codec'],'av1')
+ def test_refresh_beside_active_conversion_defers_native_probe_then_inspects_when_idle(self):
+  with patch.object(self.native,'probe',side_effect=AssertionError('native instance is busy')):
+   prep.request_check(self.tmp.name,inspect=True);self.refresh(beside=True)
+  self.assertTrue(self.q.inspection_pending);self.assertTrue(prep.check_requested(self.tmp.name))
+  self.refresh();self.assertEqual(self.q.state['library']['ready'],1);self.assertFalse(prep.check_requested(self.tmp.name))
+ def test_failed_inspection_never_labels_an_unknown_file_ready(self):
+  self.native.probe=lambda url:(_ for _ in ()).throw(TimeoutError())
+  prep.request_check(self.tmp.name,inspect=True);self.refresh()
+  self.assertEqual(self.q.state['library']['ready'],0);self.assertNotIn('probe',self.q.state['jobs'][self.slot])
+  self.assertIn('inspection_error',self.q.state['jobs'][self.slot]);self.assertEqual(self.native.calls,0)
+ def test_source_change_during_probe_does_not_cache_a_false_ready_decision(self):
+  def change(url):self.drive.files['source']['version']='2';return self.probe
+  self.native.probe=change;prep.request_check(self.tmp.name,inspect=True);self.refresh()
+  self.assertEqual(self.q.state['library']['ready'],0);self.assertNotIn('probe',self.q.state['jobs'][self.slot])
+ def test_automatic_requests_do_not_downgrade_manual_inspection(self):
+  prep.request_check(self.tmp.name,inspect=True);prep.request_check(self.tmp.name);self.refresh()
+  self.assertEqual(self.q.state['library']['ready'],1)
+ def test_new_refresh_during_scan_is_not_consumed_by_an_older_scan(self):
+  def refresh_again(url):prep.request_check(self.tmp.name,inspect=True);return self.probe
+  self.native.probe=refresh_again;prep.request_check(self.tmp.name,inspect=True);self.refresh()
+  self.assertTrue(prep.check_requested(self.tmp.name))
+ def test_concurrent_automatic_check_cannot_overwrite_a_manual_refresh(self):
+  entered=threading.Event();continue_auto=threading.Event();manual_done=threading.Event();exists=Path.exists
+  def delayed_exists(path):
+   result=exists(path)
+   if path.name==prep.RESCAN and threading.current_thread().name=='automatic':
+    entered.set();self.assertTrue(continue_auto.wait(2))
+   return result
+  def manual():
+   prep.request_check(self.tmp.name,inspect=True);manual_done.set()
+  with patch.object(Path,'exists',delayed_exists):
+   auto=threading.Thread(target=prep.request_check,args=(self.tmp.name,),name='automatic');auto.start()
+   self.assertTrue(entered.wait(2));refresh=threading.Thread(target=manual);refresh.start()
+   manual_done.wait(.1);continue_auto.set();auto.join(2);refresh.join(2)
+  self.assertFalse(auto.is_alive());self.assertFalse(refresh.is_alive())
+  marker=prep.location(self.tmp.name).parent/prep.RESCAN
+  self.assertTrue(json.loads(marker.read_text())['inspect'])
 if __name__=='__main__':unittest.main()
