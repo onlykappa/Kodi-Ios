@@ -2252,3 +2252,14 @@ its framework but is superseded for that test correction. Python restart asserti
 wrapper reflected; library refresh's old raw-path assertion now checks the exact copy inside the resume route.
 One unrelated upload nonblocking timing check measured 1.074 seconds against a 1-second bound while native/video,
 portrait generation and parallel suites competed; retain the bound and rerun in isolation. No product relaxation.
+
+ISSUE-147 verification follow-up: isolated nonblocking upload test passed unchanged, but full-file reruns measured
+2.729 and 1.116 seconds at the one-second wall-clock assertion. Replace that timing proxy with a deterministic
+blocked-upload event: the producer must finish all three writes while PUT is still deliberately blocked, then
+release the network and verify the exact stored bytes. This strengthens the nonblocking guarantee without changing
+application upload behavior or simply raising the old limit. The full 26-test preparation suite is rerun with it.
+Local full native run (3251 checks) also lacked KR_TEST_FONT, causing 15 text-render failures despite valid cue
+parsing. Use the host runner's documented DejaVu fallback for retest; no iOS font change. Four old burned-text
+checks now assert the intentional unadvertised-track 404 and the old optional-caption timeout check now asserts
+bounded retryable 503 plus prompt cancellation. One prefetch latency assertion ran under concurrent generation
+load and is retained for isolated retest. Original full-run failures are kept in the checks report.

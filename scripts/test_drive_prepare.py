@@ -134,15 +134,28 @@ class Upload(unittest.TestCase):
 class BackgroundUpload(unittest.TestCase):
  """Build 177 (build-176 log: upload busy 270 of 294 s at ~3 MB/s, the converter waiting on each 8 MB piece)."""
  def test_converter_does_not_wait_for_a_slow_upload(self):
-  import time as _t
-  d=Drive();orig=d.call;puts=[]
+  import threading
+  d=Drive();orig=d.call;puts=[];entered=threading.Event();release=threading.Event();done=threading.Event();errors=[]
   def slow(method,url,body=None,headers=None):
-   if method=='PUT' and body:_t.sleep(1.5);puts.append(len(body))   # one piece takes 1.5 s to go up
+   if method=='PUT' and body:
+    entered.set()
+    if not release.wait(10):raise TimeoutError('Test upload was not released')
+    puts.append(len(body))
    return orig(method,url,body,headers)
   d.call=slow;sink=dp.Sink(d,'staging','prepared',lambda:True)
   piece=b'z'*(dp.MAIN_CHUNK)
-  t0=_t.monotonic();sink.write(0,'.mp4',piece);sink.write(0,'.mp4',piece);sink.write(0,'.mp4',b'end')
-  self.assertLess(_t.monotonic()-t0,1.0)   # handed over, not uploaded in this thread (that alone would take 1.5 s)
+  def produce():
+   try:sink.write(0,'.mp4',piece);sink.write(0,'.mp4',piece);sink.write(0,'.mp4',b'end')
+   except BaseException as error:errors.append(error)
+   finally:done.set()
+  producer=threading.Thread(target=produce,daemon=True);producer.start()
+  try:
+   self.assertTrue(entered.wait(5),'background uploader started')
+   self.assertTrue(done.wait(5),'converter returned while the network upload is still blocked')
+   self.assertFalse(errors)
+   self.assertFalse(release.is_set())
+  finally:release.set();producer.join(5)
+  self.assertFalse(producer.is_alive())
   result=sink.finish()['0']
   self.assertEqual(d.files[result['id']]['data'],piece*2+b'end')
   self.assertTrue(all(0<n<=8*1024*1024 for n in puts))
