@@ -1,6 +1,6 @@
 {
   "date": "2026-11-10",
-  "status": "host checks passed; packaging restart after preserving audits across active work",
+  "status": "verified test IPA 221 delivered for device retest",
   "branch": "claude/trusting-euler-kgug98",
   "pr": 16,
   "issue": 148,
@@ -426,5 +426,43 @@
       "conclusion": "cancelled",
       "reason": "Superseded before delivery to preserve Refresh audits across active work/transaction recovery"
     }
-  ]
+  ],
+  "packaging": {
+    "build": 221,
+    "run": 42842353113,
+    "source_commit": "fcae63e0f3dc83a8fb537cbea4d863e3ebfc5b29",
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "real_http_drive_stream_layout_checks": [
+    {
+      "fixture": "h264_aac.mp4",
+      "fast_open": false,
+      "layout_reason": "index_after_media",
+      "upstream_blocks": 1,
+      "bytes_read": 1757496
+    },
+    {
+      "fixture": "stream-prepared-0.mp4",
+      "fast_open": true,
+      "layout_reason": "fragment_index",
+      "upstream_blocks": 1,
+      "bytes_read": 1762152
+    },
+    {
+      "fixture": "resume-joined-0.mp4",
+      "fast_open": true,
+      "layout_reason": "fragment_index",
+      "upstream_blocks": 1,
+      "bytes_read": 1417493
+    },
+    {
+      "fixture": "h264_aac_srt.mkv",
+      "fast_open": false,
+      "layout_reason": "not_mp4",
+      "upstream_blocks": 1,
+      "bytes_read": 1757278
+    }
+  ],
+  "delivery_receipt": "reports/refresh-layout-cache-delivery.json"
 }

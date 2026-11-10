@@ -1,0 +1,107 @@
+{
+  "build": 221,
+  "source_commit": "fcae63e0f3dc83a8fb537cbea4d863e3ebfc5b29",
+  "workflow_run": 42842353113,
+  "framework_tag": "kodi-airplay-r43",
+  "framework_source_commit": "0a5ad576ad757233384532186a105a096a8517fc",
+  "native_candidate_run": 42695837108,
+  "filename": "Kodi-iOS-Customized-Touch-r10.ipa",
+  "bytes": 620497669,
+  "sha256": "701e8147920a6c504890c0331b7e5e37cde26a8890925518946254166d4f7838",
+  "asset_digest_matches": true,
+  "zip_integrity_passed": true,
+  "framework_equals_verified_release_after_signature_removal": true,
+  "latest_controller_helpers_and_python311_bytecode_present": true,
+  "unsigned_unencrypted_arm64_images": 154,
+  "kodi_executable_release": "kodi-ios-portrait-r26",
+  "kodi_executable_equals_verified_release_after_signature_removal": true,
+  "seek_diagnostics_present": true,
+  "audited_source_helpers": 19,
+  "device_tested": false,
+  "live_drive_accessed": false,
+  "date": "2026-11-10",
+  "status": "verified test IPA published for device retest",
+  "url": "https://github.com/onlykappa/Kodi-Ios/releases/download/build-221/Kodi-iOS-Customized-Touch-r10.ipa",
+  "release_url": "https://github.com/onlykappa/Kodi-Ios/releases/tag/build-221",
+  "workflow_url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/42842353113",
+  "workflow_conclusion": "success",
+  "python311_source_hash_matches": 19,
+  "checks_report": "reports/refresh-layout-cache-checks.json",
+  "checks": {
+    "host_suites": 66,
+    "unit_tests": 1174,
+    "existing_slider_host_scenarios": 32,
+    "project_check": true,
+    "ui_guidance_check": true,
+    "diff_check": true
+  },
+  "workflow_steps": [
+    {
+      "name": "Set up job",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "conclusion": "success"
+    },
+    {
+      "name": "Python 3.11 for the bundle bytecode",
+      "conclusion": "success"
+    },
+    {
+      "name": "Test staged import and navigation safety",
+      "conclusion": "success"
+    },
+    {
+      "name": "Acquire public pinned sources and build review ZIP",
+      "conclusion": "success"
+    },
+    {
+      "name": "Apply full bundle twice and restore clean synthetic profile",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "conclusion": "success"
+    },
+    {
+      "name": "Acquire isolated official foundation for customized IPA",
+      "conclusion": "success"
+    },
+    {
+      "name": "Acquire pinned portrait pieces (rotation-aware Kodi executable, Liquid Glass tab bar)",
+      "conclusion": "success"
+    },
+    {
+      "name": "Acquire pinned Elementum client, iPhoneOS engine framework and kodi-six",
+      "conclusion": "success"
+    },
+    {
+      "name": "Build and validate full customized unsigned ARM64 IPA",
+      "conclusion": "success"
+    },
+    {
+      "name": "Publish raw IPA as a prerelease download",
+      "conclusion": "success"
+    },
+    {
+      "name": "Post Python 3.11 for the bundle bytecode",
+      "conclusion": "success"
+    },
+    {
+      "name": "Post Run actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+      "conclusion": "success"
+    },
+    {
+      "name": "Complete job",
+      "conclusion": "success"
+    }
+  ],
+  "device_acceptance": "pending owner iPhone/Roku/actual-provider retest",
+  "separate_open_issues": [
+    "ISSUE-147 seek rollback",
+    "ISSUE-147 subtitle timeout",
+    "continuous-hour stop cause not captured"
+  ],
+  "main_merged": false
+}

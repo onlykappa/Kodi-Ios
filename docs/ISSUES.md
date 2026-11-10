@@ -2120,3 +2120,9 @@ ISSUE-148 follow-up before delivery: final review found the full-audit marker co
 file was actively converting or recovering a transaction. The marker now remains pending through both cases,
 then inspects the resulting file when safe. Two actual-queue regressions cover this. Build-220 packaging was
 superseded and cancellation requested before delivery; its workflow outcome is recorded in the checks report.
+
+ISSUE-148 delivery: verified IPA 221 from fcae63e0f3dc83a8fb537cbea4d863e3ebfc5b29, run 42842353113 success.
+66 suites / 1,174 unit tests plus 32 existing slider scenarios and all CI stages pass. Downloaded IPA checksum/ZIP,
+19 helpers and Python 3.11 source hashes, verified native binaries and 154 unsigned ARM64 images checked.
+See reports/refresh-layout-cache-delivery.json. Source/host repair complete; actual iPhone/Roku/provider and UI
+acceptance remain pending. ISSUE-147 is not included. Main remains unchanged.

@@ -1,5 +1,27 @@
 # Persistent progress
 
+## Verified test IPA 221 delivered — 2026-11-10
+
+[Download IPA 221](https://github.com/onlykappa/Kodi-Ios/releases/download/build-221/Kodi-iOS-Customized-Touch-r10.ipa).
+Source fcae63e0f3dc83a8fb537cbea4d863e3ebfc5b29; successful run 42842353113. Supersedes cancelled build 220
+(no delivery) after the final active-file/transaction audit-request guard. Refresh now re-inspects every eligible
+file for compatibility and faster opening, including cached/prepared files, and queues only missing work.
+Supported picture stays at source quality; faster-open preparation copies it. Already fast files stay unchanged.
+Umbrella's actual service cache registers on Kodi Home instead of the filesystem Path. See ISSUE-148 / DEC-032.
+
+66 host suites / 1,174 unit tests plus 32 existing slider scenarios pass; all CI stages, including bundle
+reapplication/restore, pinned native acquisition, IPA validation and publication, pass. Downloaded IPA is
+620,497,669 bytes, SHA256 701e8147920a6c504890c0331b7e5e37cde26a8890925518946254166d4f7838.
+ZIP integrity, all 19 relevant source helpers and matching Python 3.11 source hashes, exact verified r26/r43 native
+binaries after signature removal and 154 unsigned/unencrypted ARM64 images verified. No native pin change.
+Receipts: reports/refresh-layout-cache-delivery.json and reports/refresh-layout-cache-checks.json.
+
+Install as an update, open Library status and press Refresh; allow the full audit to finish. Already fast files
+should remain ready; compatible files missing layout work should queue faster opening, without video re-encoding.
+Test Umbrella AirPlay and Media Assistant on the actual receiver. UI policy followed; existing fact/status slots
+only, with device/visual acceptance pending. No owner account/media accessed. ISSUE-147 seek/subtitle/hour-stop
+issues remain separate and unrepaired. Main and roadmap task acceptance counts unchanged.
+
 ## Full Refresh audit and Umbrella cache startup repair — 2026-11-10
 
 Owner build-219 log confirms compatible files skip conversion, but faster-open work was also suppressed.

@@ -378,3 +378,7 @@ Full Library status Refresh now audits actual codec and faster-open layout separ
 preparation. Umbrella service cache registration now uses Kodi Home rather than a filesystem Path. See
 reports/refresh-layout-cache-checks.json and docs/PROGRESS.md for verification/delivery. No phase/task acceptance
 counts changed; device/Roku results and ISSUE-147 remain pending. Main is not merged.
+
+Current checkpoint delivery: verified IPA 221 (source fcae63e, run 42842353113 success); see
+reports/refresh-layout-cache-delivery.json. Source/host checks complete; owner iPhone/Roku acceptance pending.
+Build 220 was superseded/cancelled before delivery. No main merge or phase/task completion change.
