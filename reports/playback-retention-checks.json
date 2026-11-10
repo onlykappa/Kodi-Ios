@@ -6,7 +6,7 @@
     "DEC-034",
     "prior ISSUE-149/150 checkpoint included"
   ],
-  "status": "Source/native verification passed; verified framework publication then IPA packaging authorized and pending",
+  "status": "Source and native verification/publication complete; owner-approved test IPA packaging next",
   "authorization": "Owner approves seek retention, subtitle loading, stop evidence and IPA, then adds downloaded-library Continue from. Prior IPA hold superseded; no main merge.",
   "changes": {
     "seek": "Preserve dragged/pending target across pointer events and progress polling; fractional target requires leaving observed baseline; bounded 15-second target retention, asynchronous progress dispatch and requested/observed logs.",
@@ -373,7 +373,9 @@
       "exports_and_features_present": true,
       "zip_integrity": true,
       "host_verification": "passed, including end-to-end conversion",
-      "published": false
+      "published": true,
+      "publication_run": 42886188374,
+      "release_equals_ci_artifact": true
     },
     "project_check": "passed",
     "ui_guidance": "passed",
@@ -449,8 +451,12 @@
       "kodi-ios-portrait-r28",
       "kodi-airplay-r44"
     ],
-    "framework_publication": "pending verified-candidate workflow",
-    "ipa": "pending",
+    "framework_publication": {
+      "run": 42886188374,
+      "result": "success",
+      "release_archive_equals_verified_candidate": true
+    },
+    "ipa": "pending requested packaging",
     "main_merged": false
   },
   "limitation": "Historical continuous-hour stop remains unattributed; this adds retained evidence and does not establish every receiver/provider now works."

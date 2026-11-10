@@ -2272,3 +2272,9 @@ snapshot on normal closes. Kodi r28 artifact/release/upstream/patch/ARM64 verifi
 923131c / 42883448916 passes native host, framework and end-to-end conversion jobs; exact artifact digest/ZIP,
 new exports and ARM64 checked. Pins r28/r44 staged for verified framework publication then requested test IPA.
 Device/provider/visual acceptance and historical hour-stop attribution remain pending. No main merge.
+
+ISSUE-147/151 native publication verified: Kodi r28 release binary equals run 42881626230 artifact; exact patch
+and upstream digest checked. AirPlay final 42883448916 passed host/framework/end-to-end jobs; verified artifact
+digest/ZIP/new APIs/ARM64, publication 42886188374 succeeded and release archive independently downloaded and
+compared byte-for-byte. Pins r28/r44 now point at these verified immutable releases. IPA packaging is next;
+device/provider/visual behavior remains pending and the historical continuous-hour cause is still unknown.
