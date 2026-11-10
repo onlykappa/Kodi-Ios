@@ -47,7 +47,7 @@ struct Texture {float GetXPosition(){return 100;}float GetYPosition(){return 200
 struct CGUIControl {virtual EVENT_RESULT OnMouseEvent(const CPoint&,const MOUSE::CMouseEvent&)=0;CPoint GetRenderPosition(){return {};}float GetXPosition(){return 0;}float GetYPosition(){return 0;}};
 struct SliderAction {int infoCode=PLAYER_PROGRESS;bool fireOnDrag=false;std::string formatString="PlayerControl(SeekPercentage({}))";};
 struct CGUISliderControl:CGUIControl {
- bool m_dragging=false,m_rangeSelection=false;long long m_touchSeekAt=0;unsigned m_touchSeekMoves=0;long long m_pendingSeekAt=0;float m_pendingSeekPercent=0;
+ bool m_dragging=false,m_rangeSelection=false;long long m_touchSeekAt=0;unsigned m_touchSeekMoves=0;long long m_pendingSeekAt=0;float m_pendingSeekPercent=0;int m_pendingSeekFrom=-1;
  int m_controlID=1,m_parentID=2,m_iInfoCode=0;int m_orientation=HORIZONTAL,m_iType=SLIDER_CONTROL_TYPE_PERCENTAGE,m_currentSelector=0,m_iStart=0,m_iEnd=100;
  float m_fStart=0,m_fEnd=100,m_fInterval=1,percent=0;enum{RangeSelectorLower,RangeSelectorUpper};
  SliderAction action;SliderAction* m_action=&action;Texture texture;Texture* m_guiBackground=&texture;
@@ -100,6 +100,9 @@ int main(){int cases=0;
  {CGUISliderControl p;p.percent=50;p.SendClick();p.percent=75;p.SendClick();
   CServiceBroker::GetGUI()->info.value=50;p.Frame();assert(p.m_pendingSeekAt && p.percent==75);
   CServiceBroker::GetGUI()->info.value=75;p.Frame();assert(!p.m_pendingSeekAt && p.percent==75);cases++;}
+ {CGUISliderControl p;CServiceBroker::GetGUI()->info.value=3;p.percent=3.75;p.SendClick();
+  p.Frame();assert(p.m_pendingSeekAt && std::abs(p.percent-3.75)<.01);
+  CServiceBroker::GetGUI()->info.value=4;p.Frame();assert(!p.m_pendingSeekAt && p.percent==4);cases++;}
  assert(threaded>0 && synchronous==0); // progress requests never synchronously call the player from touch dispatch
  {CGUISliderControl p;p.action.infoCode=7;p.percent=20;p.SendClick();assert(synchronous==1 && !p.m_pendingSeekAt);cases++;}
  std::cout<<cases<<" real gesture/slider/info-refresh scenarios passed\n";

@@ -1660,7 +1660,7 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
 +      if (infoCode == PLAYER_PROGRESS && m_pendingSeekAt && !m_dragging)
 +      {
 +        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count() - m_pendingSeekAt;
-+        const bool landed = std::abs(val - m_pendingSeekPercent) <= 1.0f;
++        const bool landed = val != m_pendingSeekFrom && std::abs(val - m_pendingSeekPercent) <= 1.0f;
 +        hold = !landed && elapsed < 15000;
 +        if (!hold)
 +        {
@@ -1674,7 +1674,7 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
    }
 
    dirty |= guiBackground->SetHeight(m_height);
-@@ -386,7 +404,16 @@
+@@ -386,7 +404,18 @@
      std::string action = StringUtils::Format(m_action->formatString, percent);
      CGUIMessage message(GUI_MSG_EXECUTE, m_controlID, m_parentID);
      message.SetStringParam(action);
@@ -1682,6 +1682,8 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
 +    if (m_action->infoCode == PLAYER_PROGRESS)
 +    {
 +      m_pendingSeekPercent = percent;
++      m_pendingSeekFrom = -1;
++      CServiceBroker::GetGUI()->GetInfoManager().GetInt(m_pendingSeekFrom, PLAYER_PROGRESS, INFO::DEFAULT_CONTEXT);
 +      m_pendingSeekAt = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 +      // The player may wait for demux acknowledgement. Release the touch callback first.
 +      CServiceBroker::GetGUI()->GetWindowManager().SendThreadMessage(message);
@@ -1692,7 +1694,7 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
    }
  }
 
-@@ -682,7 +709,7 @@
+@@ -682,7 +711,7 @@
 
  EVENT_RESULT CGUISliderControl::OnMouseEvent(const CPoint& point, const MOUSE::CMouseEvent& event)
  {
@@ -1701,7 +1703,7 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
    if (event.m_id == ACTION_MOUSE_DRAG || event.m_id == ACTION_MOUSE_DRAG_END)
    {
      m_dragging = true;
-@@ -729,17 +756,40 @@
+@@ -729,17 +758,40 @@
    }
    else if (event.m_id == ACTION_GESTURE_BEGIN)
    { // grab exclusive access
@@ -1745,7 +1747,7 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
 diff --git a/xbmc/guilib/GUISliderControl.h b/xbmc/guilib/GUISliderControl.h
 --- a/xbmc/guilib/GUISliderControl.h
 +++ b/xbmc/guilib/GUISliderControl.h
-@@ -139,7 +139,10 @@
+@@ -139,7 +139,11 @@
    int m_iInfoCode;
    std::string m_textValue; ///< Allows overriding of the text value to be displayed (parent must update when the slider updates)
    const SliderAction *m_action; ///< Allows the skin to configure the action of a click on the slider \sa SendClick
@@ -1755,6 +1757,7 @@ diff --git a/xbmc/guilib/GUISliderControl.h b/xbmc/guilib/GUISliderControl.h
 +  unsigned int m_touchSeekMoves{0};
 +  long long m_pendingSeekAt{0};
 +  float m_pendingSeekPercent{0};
++  int m_pendingSeekFrom{-1};
    ORIENTATION m_orientation;
  };
 -
