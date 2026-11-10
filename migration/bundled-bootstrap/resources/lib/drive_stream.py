@@ -34,7 +34,8 @@ SPAN = re.compile(r'bytes (\d+)-(\d+)/(\d+)')
 
 class _Blocks(object):
     """Blocks of Drive files: one upstream fetch per block however many readers want it at once."""
-    def __init__(self, fetch, keep=KEEP):
+    def __init__(self, fetch, keep=KEEP, block_size=BLOCK):
+        self.block_size=block_size
         self.fetch = fetch          # fetch(item, start, end) -> (bytes, total size)
         self.keep = keep
         self.lock = threading.Lock()
@@ -57,7 +58,7 @@ class _Blocks(object):
         else:
             raise TimeoutError('Drive block was not read in time')
         try:
-            body, total = self.fetch(item, index * BLOCK, index * BLOCK + BLOCK - 1)
+            body, total = self.fetch(item, index * self.block_size, index * self.block_size + self.block_size - 1)
             with self.lock:
                 self.data[key] = body
                 self.sizes[item] = total
@@ -80,7 +81,7 @@ class _Blocks(object):
         """Fetch a block in the background unless it is here, on its way, or past the end."""
         with self.lock:
             total = self.sizes.get(item)
-            if (item, index) in self.data or (item, index) in self.pending or total is None or index * BLOCK >= total:
+            if (item, index) in self.data or (item, index) in self.pending or total is None or index * self.block_size >= total:
                 return
 
         def run():
@@ -111,7 +112,7 @@ class _Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 class DriveStream(object):
-    def __init__(self, token, context=None, open_url=None):
+    def __init__(self, token, context=None, open_url=None, block_size=BLOCK, keep=KEEP, playback=False):
         """token() -> a Drive access token (driveupload.Drive.token); open_url(request, timeout) for tests."""
         self.token = token
         self.open_url = open_url or (lambda request, timeout: urllib.request.urlopen(request, timeout=timeout, context=context))
@@ -122,7 +123,8 @@ class DriveStream(object):
         self.last_problem=''
         self.hold = lambda: False   # true while the owner paused converting: no read-ahead then (the service sets it)
         self.gate = slowdown.Gate()   # build 193: a video or AirPlay playing slows the reads to a share of the line
-        self.blocks = _Blocks(self._fetch)
+        self.block_size=block_size;self.playback=playback
+        self.blocks = _Blocks(self._fetch,keep,block_size)
         stream = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -189,7 +191,7 @@ class DriveStream(object):
                 try:
                     position = start
                     while position <= end:
-                        index = position // BLOCK
+                        index = position // stream.block_size
                         try:
                             block = stream.blocks.get(item, index)
                         except Exception as error:
@@ -201,9 +203,9 @@ class DriveStream(object):
                         # the next READ_AHEAD blocks are fetched at once, in parallel, not one after another.
                         # Not while a video plays (build-181 log: AirPlay starved while a conversion read and uploaded).
                         # Build 193: while a video or AirPlay plays, one block ahead instead of none (it slows, never stops).
-                        for step in range(1, 0 if stream.hold() else (1 if slowdown.reason() else READ_AHEAD) + 1):
+                        for step in range(1, 0 if stream.hold() else (2 if stream.playback else 1 if slowdown.reason() else READ_AHEAD) + 1):
                             stream.blocks.ahead(item, index + step)
-                        piece = block[position - index * BLOCK:end - index * BLOCK + 1]
+                        piece = block[position - index * stream.block_size:end - index * stream.block_size + 1]
                         if not piece:
                             self.close_connection = True
                             return

@@ -91,6 +91,19 @@ def save(profile,state):drivelibrary.save_json(str(location(profile)),state)
 def ready(item):
  props=item.get('appProperties') or {}
  return bool(item.get('md5Checksum')) and props.get(PROPERTY) in (PROFILE,)+OLD_PROFILES and props.get(CHECKSUM_PROPERTY)==item['md5Checksum'].lower()
+def streamable_video(probe):
+ """Actual native codec inspection, never a filename guess. The TV bridge handles container/audio on demand."""
+ if not isinstance(probe,dict) or probe.get('copy_video') is not True:return False
+ codec=str(probe.get('codec','')).lower()
+ try:return codec in ('h264','hevc') and int(probe.get('width') or 0)>0 and int(probe.get('height') or 0)>0
+ except (TypeError,ValueError):return False
+
+def playback_ready(profile,item):
+ if ready(item):return True
+ job=(load(profile).get('jobs') or {}).get(key(item)) or {}
+ return bool(job.get('stream_only') and job.get('status')=='done' and streamable_video(job.get('probe'))
+             and job.get('source') and identity(job['source'])==identity(item))
+
 def repack_due(item):
  """Prepared in an older layout: plays, but Kodi opens it slowly; it is re-packed when nothing else waits."""
  return ready(item) and (item.get('appProperties') or {}).get(PROPERTY)!=PROFILE
@@ -475,7 +488,7 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
    job=job or prepared.get(e['id'])
    done=job if job and job.get('status')=='done' else {}
    rows['ready'].append(dict(base,state='ready',sub=quality_text(e['name'],e['size']),probe=done.get('probe'),
-    completed=done.get('completed'),started_at=done.get('started_at')));continue
+    completed=done.get('completed'),started_at=done.get('started_at'),stream_only=bool(e.get('stream_only') or done.get('stream_only'))));continue
   if job and (job.get('blocked') or job.get('kept')):
    why=job.get('error') or 'Kept as it is'
    rows['kept'].append(dict(base,state='kept',owner=bool(job.get('kept')) and not job.get('blocked'),
@@ -615,6 +628,23 @@ class Queue:
     except RuntimeError:   # the converting thread changed a job while it was being written: write it again
      if tries==4:raise
      time.sleep(0.05)
+ def skip_compatible(self,slot,job,item,probe):
+  """Keep the original and stop only app-owned, uncommitted preparation for compatible video."""
+  if not streamable_video(probe) or job.get('status')=='committing' or job.get('promoted') or job.get('kept'):return False
+  if not job.get('source') or identity(job['source'])!=identity(item):return False
+  self.stage_cleanup(job)
+  job.update(status='done',stream_only=True,probe=dict(probe),retry_after=0,attempts=0)
+  for name in ('repack','space','error','blocked','started_at','completed'):job.pop(name,None)
+  import resume_store
+  resume_store.clear(self.profile,slot)
+  library=self.state.get('library') or {}
+  for entry in library.get('items') or []:
+   if entry.get('id')==item['id']:entry['state']='ready';entry['stream_only']=True
+  if library.get('items'):library['ready']=sum(e.get('state')=='ready' for e in library['items'])
+  self.commit()
+  self.log('preparation: compatible video kept unchanged; container/audio handled during playback')
+  return True
+
  def stage_cleanup(self,job):
   """Journal unused app-owned staging files before a job is removed or kept as its original.
   The journal survives library rescans; cloud preparation retries deletion independently of that job."""
@@ -666,11 +696,13 @@ class Queue:
    if recovering:seen.update(recovering);continue
    if ready(item):
     counts['ready']+=1;entries.append(entry(item,'ready'))
-    if repack_due(item):
-     with self.lock:
-      if slot not in self.state['jobs'] or identity(self.state['jobs'][slot]['source'])!=identity(item):
-       self.state['jobs'][slot]={'source':item,'status':'waiting','attempts':0,'retry_after':0,'repack':True}
+    old=self.state['jobs'].get(slot)
+    if old and old.get('repack') and item['id']!=converting:
+     self.stage_cleanup(old);old.update(status='done');old.pop('repack',None)
     continue
+   old=self.state['jobs'].get(slot)
+   if old and item['id']!=converting and self.skip_compatible(slot,old,item,old.get('probe')):
+    counts['ready']+=1;entries.append(dict(entry(item,'ready'),stream_only=True));continue
    entries.append(entry(item,'todo'))
    with self.lock:
     if item['id']==converting:continue   # the movie being converted keeps its job as it is
@@ -867,6 +899,8 @@ class Queue:
     before=self.native.probe(str(source))
     # Kept with the job: the queue and Library status then use the same estimate as this step (work_bytes).
     job['probe']={k:before.get(k) for k in ('copy_video','audio_work_bytes','duration','width','height','codec','bit_depth','pgs_subtitles')}
+    if self.skip_compatible(slot,job,item,before):
+     self.state.pop('current',None);self.commit();shutil.rmtree(folder,ignore_errors=True);return True
     # Never trade the selected 4K/HDR source for the live converter's 1080p fallback.
     if not output.is_file():
      needed=work_bytes(item,before)

@@ -1906,3 +1906,47 @@ independently of native progress. Keep checkpoint windows independently sized: r
 silently reduce MARK_CAP and break large-fragment/re-encode resume. Smaller pieces improve responsiveness and
 recovery, but cannot establish increased uplink bandwidth. No code repair, new IPA, or runtime completion is
 claimed in this review.
+
+
+## ISSUE-145 — Unnecessary Drive preparation and separate Umbrella source-opening timeout (2026-11-10)
+
+Owner wants compatible files kept unchanged, distinguishing this efficiency change from Umbrella's AirPlay bug.
+The supplied latest build-217 log has Umbrella playing H.264 + EAC3 + ASS in MKV; Kodi demux takes 22 s and later
+buffers once. First AirPlay attempt opens the source in 1.954 s, spends 43.045 s inspecting its index and reaches the
+45 s startup deadline. There is no HLS endpoint or TV handoff. Later attempts are cancelled after 2 and 7 s, so they
+are not codec-rejection evidence. A concurrent 32 MiB upload takes 128 s, but the log does not establish contention
+or Wi-Fi as the sole cause. Raw log, source URLs/headers and test media stay outside Git.
+
+Efficiency fix: actual native copy-video/codec inspection now stops full preparation for supported H.264/HEVC
+video before creating an upload sink. Exact ID/checksum/size/version binds local readiness; a changed file must be
+inspected again. The original keeps its ID/content/properties, with no false remote prepared markers. On-demand
+container/audio adaptation still serves playback. Optional automatic repacks of already prepared movies stop.
+Pending app-owned staging is journaled for cleanup; committing/promoted transactions and owner-kept choices are
+protected. Watch-after-download and existing-file reuse recognize inspected originals.
+
+Separate Umbrella candidate: reuse Drive's bounded HTTP byte-range cache for resolved remote MKV/AVI/WebM before
+the existing native bridge opens them. Foreground profile uses 2 MiB blocks, 16 retained blocks, two-block read-ahead
+and no background slowdown gate. Preserve provider headers; do not forward Drive authorization. Loopback control
+and media URLs have random per-launch tokens. The service owns the source through TV playback; secrets/source
+URLs stay in memory. New sources replace old ones; stale leases cannot close new sessions. Existing Drive/Elementum
+loopback and direct MP4/HLS routes remain as before. This reduces repeated remote opens; it does not prove the
+owner's provider or Roku now works.
+
+Failures and corrections: (1) Initial wrapper would close the service source after AirPlay's 45-second settle check
+returned successfully. Code review caught native playback outliving the script. Successful playing handoff now
+retains the source; cancelled/failed/exception paths release it. Runtime tests verify both AirPlay and TV handoff,
+including native exceptions. (2) The conversion-speed suite failed two source-string checks: one omitted the new
+foreground read-ahead profile, and the other predated adaptive direct-copy chunk arguments already in the branch.
+Updated expected wiring while retaining actual range, cache, background slowdown and adaptive upload tests.
+(3) A build-192 wiring check required optional automatic repacks; updated to the newly owner-requested policy.
+An attempted nonexistent test_drive_stream.py invocation also failed; actual range-cache coverage is in
+conversion-speed and the new remote-media suite. No failed attempt is treated as a device regression/pass.
+
+Retest: 17 focused suites, 442 tests pass, including compatibility 12, remote cache/controller 19, casting 62,
+preparation 59, cloud transactions 26, conversion-speed 48, resume 12, scheduler 10, status 48, tools 31 and existing
+library/watch/bootstrap suites. Real unchanged native host bridge streamed a generated H.264 MKV with identical
+first video segment hash both ways: direct 7 upstream requests / 1.080 s; cache 3 / 0.335 s under 150 ms per-request
+latency. Earlier run varied to 9 / 1.406 s versus 3 / 0.363 s; report records the latest repeat. These are host source
+measurements, not iPhone/Roku acceptance. New suites run in import-review CI. UI guidance and project scanner pass;
+policy read, existing text slots reused, visual/device review pending. Evidence: reports/compatibility-filter-review.json.
+No native source/pin change, new IPA publication, account access or main merge in this patch.

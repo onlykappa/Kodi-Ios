@@ -323,3 +323,12 @@ pending and existing phase counts are unchanged. Main was not merged.
 (run 42732787090), with Kodi r26 and retained AirPlay r43. Native gesture dispatch 32, scheduler 10, focused suites,
 packaging and downloaded-asset validation pass. See ISSUE-143 and reports/seek-queue-repair-delivery.json.
 Actual iPhone/Roku acceptance remains pending; existing phase counts are unchanged. Main was not merged.
+
+
+Compatibility-first preparation checkpoint (2026-11-10, ISSUE-145 / DEC-031): supported inspected video keeps its
+original Drive file; no background conversion/re-upload or optional ready-file repack. Umbrella remote file reads
+separately reuse the Drive range-cache engine with a service-owned foreground profile. 17 focused suites / 442 tests
+and unchanged native host streaming comparison pass (identical first segment, fewer upstream reads). Evidence:
+reports/compatibility-filter-review.json and PROGRESS. UI text only; policy checked, device/visual acceptance pending.
+No new IPA, native build or main merge. Next: authorized updated-IPA/device retest of compatible queue skip and
+Umbrella AirPlay/Media Assistant separately. Existing roadmap phase/task completion counts are unchanged.

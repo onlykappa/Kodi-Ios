@@ -76,7 +76,7 @@ def run_owned():
   apple=direct or cast.apple_playable(url,playing,converts=converting)
   extra=[{'kind':'airplay','host':'','name':'Apple TV / AirPlay TV'+('' if apple else '  (Screen Mirroring)')}]
   note+=('AirPlay sends MP4 and HLS; other TVs use their own player.' if direct
-         else 'AirPlay converts this %s video on the phone: keep Kodi open. Other TVs use their own player.'%cast.format_name(url,playing) if apple
+         else 'AirPlay streams from this iPhone: keep Kodi open. Other TVs use their own player.' if apple
          else 'AirPlay shows this %s video through Screen Mirroring; other TVs use their own player.'%cast.format_name(url,playing))
  last=addon.getSettingString('last_tv')
  found={};done=threading.Event()
@@ -200,10 +200,26 @@ class FlowUI:
    self.box=None
 
 def send_airplay(xbmc,dialog,player,library,url,title,playing):
+ lib=airplay.load(library);lease=None;source=None;retained=False
+ import remote_media
+ raw=cast.airplay_source(playing,url,airplay.converts(lib))
+ if airplay.converts(lib) and remote_media.eligible(raw):
+  import xbmcgui
+  source,lease=remote_media.acquire(raw,xbmcgui.Window(10000))
+  diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','source_cache',enabled=bool(lease))
+ try:
+  retained=bool(_send_airplay(xbmc,dialog,player,library,url,title,playing,lib,source))
+  return retained
+ finally:
+  # Native playback outlives this interpreter after the 45-second settle check. The service owns its cache.
+  if lease and not retained:lease.close()
+
+
+def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_override=None):
  """ISSUE-079: Apple's player for MP4/HLS (Kodi waits paused and carries on if it cannot open the stream);
  ISSUE-083: KodiAirPlay r5 converts MKV/AVI/WebM/TS on the phone first. Screen Mirroring steps for the rest, with
  Kodi still playing."""
- lib=airplay.load(library)
+ lib=lib if lib is not None else airplay.load(library)
  converting=airplay.converts(lib)
  if not cast.apple_playable(url,playing,converts=converting):
   xbmc.log('Kodi iOS Play on TV: %s cannot go through Apple\'s player; Screen Mirroring steps shown'%cast.format_name(url,playing),xbmc.LOGINFO)
@@ -214,7 +230,7 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
  if not xbmc.getCondVisibility('Player.Paused'):player.pause()
  # Converting reads the video on the phone itself, so it uses the link Kodi plays (Drive's and Elementum's helpers
  # answer on 127.0.0.1 only: owner build-132 log, "Connection refused" on the Wi-Fi address).
- source=cast.airplay_source(playing,url,converting)
+ source=source_override or cast.airplay_source(playing,url,converting)
  import urllib.parse
  diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','start',format=cast.format_name(playing,url),converts=converting,loopback=urllib.parse.urlsplit(source.split('|',1)[0]).hostname in ('127.0.0.1','localhost','::1'))
  # r10: the subtitle Kodi shows goes to the TV burned into the converted picture (TVs' AirPlay ignores WebVTT).
@@ -302,7 +318,7 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
   # r38 (owner's build-201 log): the TV connected, then stopped 13 s later because the phone could not read the movie
   # from Drive fast enough, and Apple's bare "AirPlay stopped" alert said nothing useful. Kodi keeps watching for a
   # while; the native side then leaves a stop to this card.
-  if cast.airplay_settle(lib.kodi_airplay_state,lambda s:monitor.waitForAbort(s),network)=='playing':return
+  if cast.airplay_settle(lib.kodi_airplay_state,lambda s:monitor.waitForAbort(s),network)=='playing':return True
   outcome='failed';why=airplay.message(lib);ui=FlowUI(xbmc,xbmcgui,dialog,title)
   diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','outcome',outcome='stopped',reason=why)
  lib.kodi_airplay_close();airplay.clear_busy(home)
@@ -354,7 +370,7 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
    import transfer_control
    for kind in transfer_control.KINDS:transfer_control.set_paused(profile,kind,True)
    notices.note('info','Uploads paused for AirPlay','Resume them in Library status when the movie is over.')
-  return send_airplay(xbmc,dialog,player,library,url,title,playing)
+  return _send_airplay(xbmc,dialog,player,library,url,title,playing,lib,source_override)
 
 def tv_link(xbmc,library,url,playing,kind,safe=False):
  """r40 (owner, build 203: "work on any tv thats connected to the same wifi"): the link a TV's own player opens. Kodi's
@@ -363,6 +379,7 @@ def tv_link(xbmc,library,url,playing,kind,safe=False):
  the prepared MP4 itself (few take HLS). Returns (link, served); served None: the server is unavailable, Kodi's link
  is kept."""
  if not library:return url,None
+ source_lease=None
  try:
   import ctypes
   lib=airplay.load(library)
@@ -381,7 +398,13 @@ def tv_link(xbmc,library,url,playing,kind,safe=False):
   except Exception:pass
   out=ctypes.create_string_buffer(512)
   xbmc.executebuiltin('ActivateWindow(busydialognocancel)')
-  source=cast.phone_source(playing,url).encode('utf-8')
+  raw_source=cast.phone_source(playing,url)
+  import remote_media
+  if remote_media.eligible(raw_source):
+   import xbmcgui
+   raw_source,source_lease=remote_media.acquire(raw_source,xbmcgui.Window(10000))
+   diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'cast','source_cache',enabled=bool(source_lease),receiver=kind)
+  source=raw_source.encode('utf-8')
   # r41 (ISSUE-138, owner's build-209 log: a Roku read the prepared playlists and the init, then nothing): Roku's own
   # player does not take HLS whose fragments carry audio and video together, and wants 4-6 s chunks (Roku's streaming
   # specifications); the prepared playlist has both in fragments of up to 70 s. A Roku gets the movie remuxed
@@ -399,9 +422,12 @@ def tv_link(xbmc,library,url,playing,kind,safe=False):
     import time,xbmcgui;airplay.mark_serve(xbmcgui.Window(10000),time.time())
    except Exception:pass
    return link,True
+  if source_lease:source_lease.close()
   if r==3:return url,False
   xbmc.log('Kodi iOS Play on TV: phone server unavailable (%d: %s); Kodi\'s link goes to the TV'%(r,airplay.message(lib)),xbmc.LOGWARNING)
- except Exception as error:diagnostics.log_exception(xbmc,'tv_link',error,receiver=kind)
+ except Exception as error:
+  if source_lease:source_lease.close()
+  diagnostics.log_exception(xbmc,'tv_link',error,receiver=kind)
  return url,None
 
 def send(xbmc,dialog,player,library,tv,url,title,needs_phone,playing=''):

@@ -122,6 +122,8 @@ jobs:
           python3 -B scripts/test_glassbar.py
           python3 -B scripts/test_seek_release.py
           python3 -B scripts/test_background_queue.py
+          python3 -B scripts/test_compatibility_filter.py
+          python3 -B scripts/test_remote_media.py
           python3 -B scripts/test_notices.py
           python3 -B scripts/test_notice_log.py
           python3 -B scripts/test_pages.py

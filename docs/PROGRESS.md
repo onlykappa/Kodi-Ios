@@ -1,5 +1,29 @@
 # Persistent progress
 
+## Compatibility-first preparation and separate Umbrella cache repair — 2026-11-10
+
+Owner asks to avoid unnecessary conversion, keeping the working Elementum/Drive workflow, and identifies
+Umbrella AirPlay as a separate bug. Native inspection now skips background conversion/upload for copy-safe
+H.264/HEVC, keeping the original Drive file and exact-source local readiness. Container/audio adaptation remains
+on demand during playback. Already prepared files no longer get optional automatic repacks. Unknown/unsupported
+video retains preparation, original protection, resumable commit recovery and owner-kept choices.
+
+The latest Umbrella log fails at the 45-second source-opening deadline, with 43.045 seconds in index inspection,
+before TV handoff. Remote MKV/AVI/WebM now reuse Drive's byte-range engine through a service-owned foreground
+cache (2 MiB blocks, 32 MiB retained cache, no background throttle, original provider headers, no Drive OAuth).
+Successful AirPlay/Media Assistant handoff retains it after the UI interpreter exits; failed/cancelled startup closes
+it. Existing loopback Drive/Elementum, MP4 and HLS paths retain their routes. This is a repair candidate, not proof
+of device/provider/receiver success. Native host test with a generated MKV and 150 ms request delay produced an
+identical 467,251-byte first video segment: direct 7 requests / 1.080 s; cache 3 requests / 0.335 s. Counts/timing can
+vary with concurrent read-ahead. No owner's media URL or account was accessed.
+
+Validation: 17 focused suites / 442 tests, UI guidance and project checks pass. Test failures and the newly caught
+cache lifetime bug are preserved in ISSUE-145. Report: reports/compatibility-filter-review.json. Existing status
+wording now says Checking compatibility and Ready to stream; UI policy read, layout/style unchanged. Visual and
+iPhone/Roku acceptance remain pending; desktop rig binary is absent and was not rebuilt. No new native binaries,
+IPA publication or main merge in this source change. Next: owner device retest using an authorized updated IPA;
+verify existing compatible queue drains without Drive uploads, then test Umbrella AirPlay/Media Assistant separately.
+
 ## Build 217 conversion stall review — 2026-11-10
 
 New device log confirms automatic recovery of the saved conversion pause and pending starts. Conversion runs

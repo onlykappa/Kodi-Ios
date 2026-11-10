@@ -153,3 +153,14 @@ Owner, on Kodi's generic "Connecting to the TV…" progress box and "Your TV cou
   KodiAirPlay; it is not built yet.
 - Surfaces: the solid 16 pt card texture (`row_only.png`, SURFACE2), not the translucent sheet texture (policy §2: text
   cards ≥ ~90 % opaque). Desktop Kodi rig renders checked; device review pending.
+
+
+## DEC-031 — Keep compatible original video; prepare only when needed (2026-11-10)
+
+Owner: "only converts formats that are needed" and "the airplay is a separate bug, it works for elementum drive
+downloads so just apply the same logic". Use actual native video codec/copy safety inspection before background
+preparation. Copy-safe H.264/HEVC originals stay on Drive without conversion/re-upload; playback can adapt their
+container/audio on demand. Unknown/unsupported video keeps the existing preparation path. Disable optional
+automatic repacks of already ready files. Readiness is tied to the inspected Drive version/checksum/size/ID;
+transaction recovery and owner-kept choices remain protected. This does not declare MKV universally receiver-native,
+remove runtime subtitle/audio handling, or accept the separate Umbrella/Roku bug as fixed on a device.

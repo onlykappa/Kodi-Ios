@@ -278,6 +278,15 @@ def drive_uploads(monitor,home,profile):
  if common not in sys.path:sys.path.append(common)
  from clouddrive.common.account import AccountManager
  from clouddrive.common.remote.request import tls_context
+ import remote_media
+ try:
+  source_broker=remote_media.Broker(context=tls_context())
+  home.setProperty(remote_media.PROPERTY,source_broker.url)
+  def close_sources():
+   while not monitor.waitForAbort(30):pass
+   source_broker.close()
+  threading.Thread(target=close_sources,daemon=True).start()
+ except Exception as error:diagnostics.log_exception(xbmc,'media_source_bridge',error)
  drive_addon=xbmcaddon.Addon('plugin.googledrive')
  if signin_server.migrate(drive_addon):xbmc.log('Kodi iOS Drive: sign-in server set to the owner worker',xbmc.LOGINFO)
  accounts=AccountManager(xbmcvfs.translatePath(drive_addon.getAddonInfo('profile')))
@@ -310,7 +319,7 @@ def drive_uploads(monitor,home,profile):
       driveupload.remove_torrent(tid);xbmc.log('Kodi iOS AllDebrid to Drive: took %s from Elementum'%tid,xbmc.LOGINFO)
     except Exception as error:xbmc.log('Kodi iOS AllDebrid to Drive: Elementum list unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
    try:
-    def ready_to_watch(item_id):return prepare_downloads.ready(prepare_downloads.metadata(drive,item_id))
+    def ready_to_watch(item_id):return prepare_downloads.playback_ready(profile,prepare_downloads.metadata(drive,item_id))
     item_id=debrid_drive.next_watch(profile,ready_to_watch,xbmc.Player().isPlayingVideo())
     if item_id:
      import drivelibrary

@@ -242,6 +242,10 @@ def details(row, view):
                                         ('Picture', picture_text(probe, kept=False) or row.get('sub', '')),
                                         ('Sound and subtitles', probe.get('audio_description') or 'See playback options')) if f],
                      actions=[('Play', 'play'), ('Play on TV', 'tv')])
+        if row.get('stream_only'):
+            sheet.update(status='Ready to stream',quality='Original file · No background conversion',
+                         facts=[('Picture','Original quality'),('AirPlay','Prepared during playback if needed'),
+                                ('On Google Drive','Original file kept')])
     elif state == 'preparing':
         pct = row.get('pct', 0)
         out_total = row.get('out_total') or 0
@@ -253,6 +257,8 @@ def details(row, view):
                                         ('Picture', picture_text(row.get('probe'), kept=True)) if row.get('probe') else None,
                                         ('Size', '%.1f GB now' % (size / GB) + (' · about %.1f GB after' % (out_total / GB) if out_total else ''))
                                         if size else None) if f])
+        if not row.get('probe') and row.get('step') in ('Reading from Google Drive','Inspecting video and track index','Opening conversion tracks'):
+            sheet.update(status='Checking compatibility',quality='Only needed preparation will run')
         if pct and not row.get('indeterminate'):
             sheet.update(bar=str(pct), bar_tint=CONV)
     elif state in ('downloading', 'uploading'):

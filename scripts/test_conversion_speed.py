@@ -325,7 +325,7 @@ class Build180Log(unittest.TestCase):
  def test_copies_read_ahead_and_bigger_pieces(self):
   import driveupload,drive_stream
   self.assertEqual(driveupload.CHUNK,32*1024*1024);self.assertEqual(drive_stream.KEEP,24)
-  self.assertIn('if end+1<size:coming=ahead.submit(read,end+1)',(LIB/'driveupload.py').read_text())
+  self.assertIn('if end+1<size:coming=ahead.submit(read,end+1,chunks.current)',(LIB/'driveupload.py').read_text())
 
 class Build181Log(unittest.TestCase):
  """Build-181 log: the upload waited for the Drive read 45% of the time; the Home hero came 60 s late."""
@@ -374,7 +374,7 @@ class AirPlayGetsTheLine(unittest.TestCase):
  def test_read_ahead_while_a_video_plays(self):
   # Build 193: one block ahead while a video or AirPlay plays (slowed, never stopped); none only when the owner paused.
   s=(LIB/'drive_stream.py').read_text()
-  self.assertIn('for step in range(1, 0 if stream.hold() else (1 if slowdown.reason() else READ_AHEAD) + 1):',s)
+  self.assertIn('for step in range(1, 0 if stream.hold() else (2 if stream.playback else 1 if slowdown.reason() else READ_AHEAD) + 1):',s)
   self.assertIn('if preparation.stream:preparation.stream.hold=lambda:preparation.paused() or slowdown.holding()',(ROOT/'migration/bundled-bootstrap/service.py').read_text())
 
 class PreparedAirPlayServer(unittest.TestCase):

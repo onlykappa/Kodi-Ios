@@ -104,8 +104,10 @@ def process_one(q, keep_going):
             drive_prepare.bin(q.drive,item['id'])
             return finished(prep.metadata(q.drive,job['promoted']))
         current = prep.metadata(q.drive,item['id'])
-        if prep.ready(current) and not prep.repack_due(current):
+        if prep.ready(current):
             job['status']='done';clear_temps();q.commit();return True
+        if q.skip_compatible(slot,job,current,job.get('probe')):
+            q.state.pop('current',None);q.commit();return True
         main = outputs.get('0')
         completed = bool(main and int(current['size']) == int(main['size']) and current['md5Checksum'].lower() == main['md5Checksum'].lower())
         if not completed:
@@ -129,6 +131,8 @@ def process_one(q, keep_going):
                 else:
                     progress('Inspecting video and track index',None)
                     before=q.native.probe(source);job['probe']=before;q.commit()
+                if q.skip_compatible(slot,job,item,before):
+                    q.state.pop('current',None);q.commit();return True
                 q.log('preparation: %s — codec %s, %sx%s, %s-bit, HDR=%s, copy=%s, audio work=%s'%(drivelibrary.display_title(item['name']),before.get('codec'),before.get('width'),before.get('height'),before.get('bit_depth'),before.get('hdr'),before.get('copy_video'),before.get('audio_work_bytes')))
                 progress('Opening conversion tracks',None)
                 parent=q.drive.folder([driveupload.TOP,'.Preparation'])

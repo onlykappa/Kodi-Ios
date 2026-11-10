@@ -196,6 +196,6 @@ def existing_url(profile,choice):
         drive,driveid=drivelibrary.client()
         if drive and driveid:
             for item in matches:
-                if prep.ready(prep.metadata(drive,item['id'])):return drivelibrary.play_url(driveid,item['id'])
+                if prep.playback_ready(profile,prep.metadata(drive,item['id'])):return drivelibrary.play_url(driveid,item['id'])
     except Exception:pass
     return None

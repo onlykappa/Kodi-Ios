@@ -20,9 +20,9 @@ class Repack(unittest.TestCase):
   self.assertEqual([k for k,_ in sorted(jobs.items(),key=lambda p:prep.order_key(*p))],['n','a','r'])   # Start now still wins
  def test_wiring(self):
   cloud=(LIB/'prepare_cloud.py').read_text();scan=(LIB/'prepare_downloads.py').read_text()
-  self.assertIn("if prep.ready(current) and not prep.repack_due(current):",cloud)
+  self.assertIn("if prep.ready(current):",cloud)
   self.assertIn("doing='Making it start faster' if job.get('repack') else 'Converting'",cloud)
-  self.assertIn("self.state['jobs'][slot]={'source':item,'status':'waiting','attempts':0,'retry_after':0,'repack':True}",scan)
+  self.assertNotIn("'repack':True",scan)
 
 class Lists(unittest.TestCase):
  def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.dir=self.tmp.name
