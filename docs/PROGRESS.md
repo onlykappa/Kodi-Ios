@@ -1,5 +1,14 @@
 # Persistent progress
 
+## Build 217 conversion stall review — 2026-11-10
+
+New device log confirms automatic recovery of the saved conversion pause and pending starts. Conversion runs
+and advances to 7.519% (displayed as 8%), while 32 MiB Drive uploads take 121–146 s at 0.22–0.26 MiB/s. A
+successful acknowledgement occurs eighteen seconds before the log ends. This is slow ongoing work with long
+backpressure stalls; no permanent app freeze is established. The separate conversion uploader still uses fixed
+32 MiB pieces, and its upload waits do not independently update the progress/speed UI. See ISSUE-144. Review
+only; no new code/build. Seek and Roku acceptance remain pending.
+
 ## Build 217: seek release and automatic-work repairs delivered — 2026-11-10
 
 [Download test IPA 217](https://github.com/onlykappa/Kodi-Ios/releases/download/build-217/Kodi-iOS-Customized-Touch-r10.ipa).

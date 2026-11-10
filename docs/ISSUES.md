@@ -1876,3 +1876,33 @@ helpers, compiled Python 3.11 hashes for all four changed helper modules, and 15
 images. Receipt: reports/seek-queue-repair-delivery.json. The current worktree scan and UI guidance pass.
 This closes the source/build/delivery work, while actual device seek release, automatic background work and
 Roku/caption acceptance stay open. No live Drive credentials/media access or main merge occurred.
+
+
+## ISSUE-144 — Build 217: conversion appears frozen behind slow Drive uploads (2026-11-10)
+
+Owner supplies a screenshot rounded to Converting 8% and a new log. Review only; raw log/screenshot stay outside
+Git. The log confirms build 217. At launch conversion_paused=true and 15 pending preparation requests; the service
+clears that pause, consumes the requests, reports seven eligible jobs and automatically opens an episode. This
+provides actual device evidence that the ISSUE-143 pending-start recovery works; it does not accept seek behavior.
+
+Conversion progress advances from 3.024% at 18:57:04 to 5.992%, then 7.519% at 19:02:04 (device log time).
+The worker heartbeat remains fresh (0–1 s), pause flags are false, and no Drive-read error is recorded. Most
+importantly, Drive PUTs continue to succeed: 32 MiB in 145.655 s at 18:58:55, 141.016 s at 19:01:16, and
+121.274 s at 19:03:18, all HTTP 308 acknowledgements (0.22–0.26 MiB/s). The capture ends at 19:03:36, eighteen
+seconds after the last acknowledged piece. This is ongoing work with long stalls, not evidence of a permanent
+app freeze. The upload path is the measured bottleneck; the log does not identify whether the underlying cause
+is local uplink, carrier/router, Drive routing/throttling, or another transport factor.
+
+Source confirms conversion output still uses drive_prepare.Sink MAIN_CHUNK=32 MiB and a bounded four-piece
+queue. The earlier adaptive chunks changed Drive.upload_stream for direct copies, not this separate conversion
+sink. A full output queue blocks the producer, so source reads and converter progress can remain unchanged for
+minutes while a large PUT is in flight. prepare_cloud publishes current/rate from native progress callbacks;
+upload acknowledgement alone does not refresh that UI model. Consequently stale/dash speed fields and the
+unchanged generic Converting label conceal the upload wait. The source video is copied (HEVC 3840x1920, 10-bit,
+copy=True), with audio processing; this log does not establish a slow 4K picture encoder.
+
+Future repair should adapt aligned upload pieces in the conversion sink and expose upload/backpressure metrics
+independently of native progress. Keep checkpoint windows independently sized: reducing MAIN_CHUNK must not
+silently reduce MARK_CAP and break large-fragment/re-encode resume. Smaller pieces improve responsiveness and
+recovery, but cannot establish increased uplink bandwidth. No code repair, new IPA, or runtime completion is
+claimed in this review.
