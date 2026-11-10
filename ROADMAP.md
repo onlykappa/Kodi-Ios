@@ -404,3 +404,11 @@ and 46 real slider/gesture/info-refresh scenarios pass. Verified Kodi r28 run 42
 reports/playback-retention-checks.json and PROGRESS. Owner approves IPA and prior opening-episode/startup changes
 are included. Next publish verified framework, package/independently verify IPA and deliver. No main merge;
 actual iPhone/Roku/provider/visual acceptance and existing roadmap task counts stay unchanged.
+
+Playback retention delivery checkpoint (ISSUE-147/151 / DEC-034, 2026-11-10): verified IPA 223 from f6b4098,
+run 42887751497 success, Kodi r28 / AirPlay r44. Downloaded digest/ZIP/native/source/bytecode/154 unsigned ARM64
+images checked. 1094 Python tests + 46 actual slider cases, native CI 3336 and local 3252 checks plus end-to-end
+conversion pass. Receipt reports/playback-retention-delivery.json; source checks/failures retained separately.
+Failed 222 was not delivered. Next owner device checks: saved downloaded-movie Continue/Start from beginning,
+seek landing, captions and actual AirPlay/Roku; new-episode provider/visual acceptance pending. Historical hour-stop
+cause remains unknown; local/exported evidence added. No main merge or roadmap phase/task-count change.

@@ -2286,3 +2286,12 @@ and their actual previous pins, rather than weakening/removing the checks. All w
 onward rerun under the existing Python 3.11.17 and pass, including 46 actual seek scenarios. Native app sources
 and binaries are unchanged. Missing upload artifact was a secondary consequence of the early test failure.
 Next dispatch a fresh packaging run from these verified test-only corrections; keep 222 in failure history.
+
+ISSUE-147/151 delivered as verified test IPA 223: source f6b40982b97c8d67976e748e98381cfe7fd03759, run
+42887751497 success. All 62 CI Python suites / 1094 tests, 46 actual slider scenarios, native CI 3336 checks plus
+end-to-end conversion and local native 3252 checks pass. Downloaded asset digest/ZIP, exact r28/r44 binaries after
+signature removal, 22 source helpers / 21 matching Python 3.11 hashes and 154 unsigned ARM64 images verified.
+See reports/playback-retention-delivery.json. Failed 222 remains recorded; no app/native change was needed for
+its strict test-pin correction. Historical hour-stop cause remains unknown; automatic evidence is added. Resume
+reuses saved history; a progress point never recorded by old builds cannot be recreated. Device/provider/visual
+acceptance pending, no main merge or roadmap acceptance-count change.

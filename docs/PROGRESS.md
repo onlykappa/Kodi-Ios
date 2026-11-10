@@ -1,23 +1,32 @@
 # Persistent progress
 
-## Playback retention: native releases verified, IPA packaging next — 2026-11-10
+## Verified test IPA 223 delivered — 2026-11-10
 
-Owner approves all three playback recommendations and a test IPA, then adds downloaded movie Continue from.
-DEC-034 supersedes the earlier hold. Source/host/native repair and publication are complete: 62 Python suites /
-1094 tests, 46 actual slider/gesture/info-refresh cases and 3252 full native local checks pass. Final native source
-candidate 923131c / 42883448916 passes host/frame compilation and end-to-end conversion. Kodi r28 from c829a92 /
-42881626230 is verified against artifact, release, patch and pinned upstream source. AirPlay r44's exact candidate
-archive is published by 42886188374 and independently downloaded/compared. Pins r28/r44 now include these repairs;
-prior startup and opening-episode changes are included. Evidence: reports/playback-retention-checks.json.
+[Download IPA 223](https://github.com/onlykappa/Kodi-Ios/releases/download/build-223/Kodi-iOS-Customized-Touch-r10.ipa).
+Owner-approved source f6b40982b97c8d67976e748e98381cfe7fd03759; successful run 42887751497. Includes all three
+playback recommendations, downloaded-movie Continue from/Start from beginning, and the earlier startup/automatic
+new-episode source checkpoint. Kodi r28 and AirPlay r44 are rebuilt, verified and pinned; this includes the native
+repairs, rather than repackaging old r26/r43 binaries. Failed 222 stopped at an old test pin and was never delivered.
 
-Seek target survives polling/pointer events until observed landing or timeout, including fractional baseline cases.
-Subtitle work is retained/cached on an independent reader and unfinished/failed cues are retryable rather than blank
-success. Safe native/player/source/receiver snapshots retain unexpected/early ends and stalls locally and in log
-export. Downloaded movies offer Continue from or Start from beginning, share history without fabricating IDs,
-preserve provider choices, protect opening/handoff progress and save actual TV time. Existing controls only; UI
-policy/HIG checked, device/visual acceptance pending. Historical hour-stop cause remains unknown. No owner media/
-account accessed or main merge. Next: owner-approved IPA packaging, independent asset/bundle/native verification
-and delivery; actual iPhone/Roku/provider/new-episode acceptance and roadmap task counts remain unchanged.
+Seek target survives unrelated pointer events/progress polling until observed landing or a bounded timeout,
+including fractional baseline cases. Subtitle work is retained/cached on an independent reader; unfinished/failed
+cues are retryable rather than blank successful captions. Safe native/player/source/receiver snapshots retain
+unexpected/early ends and stalls locally and in log export. Downloaded movies reuse shared history/bookmarks,
+offer Continue from or Start from beginning, record uncached media without inventing provider IDs, preserve
+provider choices, protect opening/handoff progress and save actual TV time. Existing saved progress is reused;
+progress that old versions never recorded cannot be reconstructed. Existing Kodi controls/select menu only.
+
+Final IPA CI passes 62 Python suites / 1094 tests and 46 actual slider/gesture/info-refresh scenarios. Native CI
+passes 3336 checks plus end-to-end conversion; full local native suite passes 3252 checks with the documented
+host font. Downloaded IPA is 620,552,475 bytes; SHA256
+03a48d7e72560de5e03f1d0690e7d44fb210584fd78b1c374c3358930666366a. ZIP/asset digest, exact independently verified
+r28/r44 binaries after signature removal, new native exports, 22 source helpers, 21 matching Python 3.11 hashes and
+154 unsigned/unencrypted ARM64 images verified. Native artifact/release/upstream/source/patch provenance recorded.
+Receipts: reports/playback-retention-delivery.json and reports/playback-retention-checks.json. PR #16 updated;
+main remains unchanged. No owner media/account accessed. UI policy/HIG followed; actual iPhone/Roku/provider/new-
+episode and visual acceptance remain pending. Historical continuous-hour stop cause remains unknown; this update
+adds retained stop evidence. Install as an update, then test saved library resume/restart, seek landing, captions
+and AirPlay on the receiver. Existing roadmap acceptance counts remain unchanged.
 
 ## Code ready, IPA held: AirPlay startup and followed episodes — 2026-11-10
 

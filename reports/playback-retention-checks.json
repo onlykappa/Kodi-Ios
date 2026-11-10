@@ -6,7 +6,7 @@
     "DEC-034",
     "prior ISSUE-149/150 checkpoint included"
   ],
-  "status": "Source and native verification/publication complete; owner-approved test IPA packaging next",
+  "status": "Verified test IPA 223 published and independently downloaded/checked; actual device acceptance pending",
   "authorization": "Owner approves seek retention, subtitle loading, stop evidence and IPA, then adds downloaded-library Continue from. Prior IPA hold superseded; no main merge.",
   "changes": {
     "seek": "Preserve dragged/pending target across pointer events and progress polling; fractional target requires leaving observed baseline; bounded 15-second target retention, asynchronous progress dispatch and requested/observed logs.",
@@ -388,7 +388,32 @@
     },
     "native_ci_check_summaries": [
       "3336 checks, 0 failed"
-    ]
+    ],
+    "final_ipa_ci_python_suites": 62,
+    "final_ipa_ci_python_tests": 1094,
+    "native_ci_checks": 3336,
+    "downloaded_ipa": {
+      "build": 223,
+      "source_commit": "f6b40982b97c8d67976e748e98381cfe7fd03759",
+      "workflow_run": 42887751497,
+      "filename": "Kodi-iOS-Customized-Touch-r10.ipa",
+      "bytes": 620552475,
+      "sha256": "03a48d7e72560de5e03f1d0690e7d44fb210584fd78b1c374c3358930666366a",
+      "zip_integrity": true,
+      "asset_digest_matches": true,
+      "native_releases": {
+        "Kodi": "kodi-ios-portrait-r28",
+        "AirPlay": "kodi-airplay-r44"
+      },
+      "kodi_equals_verified_release_after_signature_removal": true,
+      "airplay_equals_verified_release_after_signature_removal": true,
+      "new_native_features_and_exports_present": true,
+      "audited_source_helpers": 22,
+      "matching_python311_unchecked_hash_modules": 21,
+      "unsigned_unencrypted_arm64_images": 154,
+      "device_tested": false,
+      "owner_media_or_accounts_accessed": false
+    }
   },
   "retained_failures": [
     {
@@ -471,7 +496,14 @@
       "result": "success",
       "release_archive_equals_verified_candidate": true
     },
-    "ipa": "retry packaging after strict native pin tests updated",
+    "ipa": {
+      "build": 223,
+      "run": 42887751497,
+      "source_commit": "f6b40982b97c8d67976e748e98381cfe7fd03759",
+      "sha256": "03a48d7e72560de5e03f1d0690e7d44fb210584fd78b1c374c3358930666366a",
+      "download_url": "https://github.com/onlykappa/Kodi-Ios/releases/download/build-223/Kodi-iOS-Customized-Touch-r10.ipa",
+      "receipt": "reports/playback-retention-delivery.json"
+    },
     "main_merged": false,
     "packaging_attempts": [
       {
