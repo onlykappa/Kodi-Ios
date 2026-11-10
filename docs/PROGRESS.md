@@ -1,5 +1,33 @@
 # Persistent progress
 
+## Code ready, IPA held: AirPlay startup and followed episodes — 2026-11-10
+
+Owner requests the AirPlay repair/diagnostics and automatic downloads for newly aired episodes, checking on app
+opening rather than continuously; explicitly holds IPA publication. ISSUE-149 / ISSUE-150 / DEC-033 record scope.
+AirPlay source now uses a shared 100-second native startup deadline measured from reservation, with a 5-second
+controller grace advertised by a new optional native API. Legacy frameworks retain their 60-second controller
+behavior. Initial video/audio priming runs in parallel at the actual resume segment, reuses that segment's init,
+and no longer speculatively produces segment zero. Logs separate source codec/profile/depth, audio open/seek/scan,
+HTTP/cache timings, cancellation/deadline evidence and background pause state without source URLs or credentials.
+
+Confirmed TV downloads enroll their canonical show ID and chosen source preferences. A bounded opening/foreground
+pass reads fresh show/season dates, skips future/undated/special/old episodes, checks existing Drive/phone files and
+queue jobs, and uses the existing Elementum → AllDebrid → Drive route for new episodes. Failed sources retry on
+later eligible openings; cancellations are respected. Request IDs prevent stale/background choices from becoming
+manual dialogs or a different episode. Queue writes serialize deduplication and distinguish seasons of one pack.
+Library settings has an automatic-download switch; the existing season menu offers Follow new episodes only for
+already downloaded shows. The Apple UI policy and routed project/HIG guidance were followed; existing controls
+only. No available desktop Kodi binary was found; visual/device acceptance remains pending.
+
+Host verification: 32 Python suites / 742 tests and 211 native checks pass; project/UI/diff checks pass.
+Evidence and retained test failures/retests: reports/airplay-opening-episodes-checks.json. Native streaming,
+startup, cancellation and seeking checks pass against generated media; calendar/provider selection and actual
+queue integration are exercised with synthetic dependencies. No owner account/media accessed. No native iPhone
+framework, IPA, workflow dispatch, release, push or main merge is part of this checkpoint. Pins remain verified
+Kodi r26/AirPlay r43. Before an eventual IPA, rebuild/verify/pin the changed AirPlay framework so these native
+repairs are actually included. Real iPhone/Roku/provider and future-episode acceptance remain pending. ISSUE-147
+seek intent/captions/continuous-hour failure remains separate and unrepaired; roadmap acceptance counts unchanged.
+
 ## Verified test IPA 221 delivered — 2026-11-10
 
 [Download IPA 221](https://github.com/onlykappa/Kodi-Ios/releases/download/build-221/Kodi-iOS-Customized-Touch-r10.ipa).

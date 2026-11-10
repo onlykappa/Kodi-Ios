@@ -177,3 +177,19 @@ compatibility/layout from extension alone. Front-indexed MP4 and valid completed
 Protect owner-kept originals, transaction recovery, current conversion and checkpoints/backoff. A layout audit
 requires access to the Drive bytes (internet if those bytes are cloud-only); it does not download a full local copy.
 Existing UI fact slots report faster opening independently; no layout or native framework change.
+
+## DEC-033 — Repair AirPlay startup and follow newly aired episodes; hold IPA (2026-11-10)
+
+Owner asks to code the reviewed AirPlay fix/log upgrades and add automatic downloads for anticipated episodes,
+preferably checking on app opening, then explicitly says “don't push ipa yet.” This authorizes source changes and
+host validation; no IPA/native release, publication, push or main merge in this checkpoint. AirPlay receives a
+shared bounded startup deadline and parallel target priming, with safe diagnostic measurements. Codec safety
+predicates remain enforced; no unsupported picture is silently declared compatible. Existing native pins remain
+unchanged until a later authorized rebuild/verification/pin step, which must precede an IPA containing this repair.
+
+Confirmed TV downloads follow their canonical show identity and selected source preferences. Check fresh actual
+air dates on launch/foreground, with a cooldown and work caps, rather than continuously scraping. Use the existing
+Elementum → AllDebrid → Google Drive flow, verifying actual ownership/inflight jobs before searching. Failed
+sources retry later; cancellation is respected. Existing downloaded shows have an explicit Follow new episodes
+only season-menu action; Library settings can turn automatic downloading off. Reuse established Kodi controls
+under the Apple UI policy; device/visual/provider acceptance stays pending. ISSUE-147 remains separate.

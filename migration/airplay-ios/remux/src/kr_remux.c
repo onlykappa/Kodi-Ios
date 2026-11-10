@@ -66,6 +66,7 @@ static struct {
     atomic_int state;
     atomic_uint ticket;
     atomic_llong startup_deadline_ms;
+    long long startup_end_ms;
     char message[256];
     char url[4096];
     kr_source *src;
@@ -606,8 +607,18 @@ static int produce_unit(int rend, int seg,int ahead, gm_buf *out, char *err, int
     }
     int idx = rend - R_AUDIO, route = track_route(idx);
     if (route == KR_AUDIO_COPY) {
+        double began=now_ms();
+        if(!S.agm)log_line("audio: opening independent reader for stream=%d segment=%d",idx,seg);
         gm_stream *g = audio_demuxer();
-        if (g) return gm_stream_track_unit(g, idx, seg, out, &split, err, errlen);
+        log_line("audio: copy stream=%d segment=%d reader_open_ms=%.0f independent=%d",idx,seg,now_ms()-began,g!=NULL);
+        kr_source *source=g?S.asrc:S.src;double io=kr_source_io_ms(source),read=now_ms();
+        if (g) {
+            r=gm_stream_track_unit(g,idx,seg,out,&split,err,errlen);
+            double seek_ms=0,scan_ms=0;long packets=0;gm_stream_last_timings(g,&seek_ms,&scan_ms,&packets);
+            log_line("audio: copy segment=%d read_ms=%.0f seek_ms=%.0f scan_ms=%.0f source_io_ms=%.0f packets=%ld result=%d",seg,
+                     now_ms()-read,seek_ms,scan_ms,kr_source_io_ms(source)-io,packets,r);
+            return r;
+        }
         pthread_mutex_lock(&S.gm_lock);  // lock order: agm_lock, then gm_lock (never the other way)
         r = gm_stream_track_unit(S.gm, idx, seg, out, &split, err, errlen);
         pthread_mutex_unlock(&S.gm_lock);
@@ -730,7 +741,7 @@ static void video_init_ready(void *context,const uint8_t *data,int len) {
     if(!atomic_load(&S.stopping))cache_put(R_VCOMPAT,-1,data,len,0);
 }
 
-// Makes segment seg's unit (lane lock held) and caches its parts: the init from segment 0, the media segment always.
+// Makes segment seg's unit (lane lock held), caching its init if missing and its media segment.
 // out (optional) gets the init (want_init) or the media segment.
 static int make_part(int rend, int seg, int ahead, int want_init, gm_buf *out, char *err, int errlen) {
     gm_buf u = {0};
@@ -741,7 +752,8 @@ static int make_part(int rend, int seg, int ahead, int want_init, gm_buf *out, c
         int m = kr_first_moof(u.data, u.len);
         if (m <= 0 || m >= u.len) { snprintf(err, (size_t)errlen, "bad segment split"); r = -1; }
         else {
-            if (seg == 0) cache_put(rend, -1, u.data, m, 0);
+            // Every unit carries its codec init. A resume must not convert segment zero again just for headers.
+            if (!cache_has(rend, -1)) cache_put(rend, -1, u.data, m, 0);
             cache_put(rend, seg, u.data + m, u.len - m, ahead);
             if (out && !(want_init ? copy_out(out, u.data, m) : copy_out(out, u.data + m, u.len - m))) {
                 snprintf(err, (size_t)errlen, "out of memory"); r = -1;
@@ -905,7 +917,7 @@ static int get_part(int rend, int seg, gm_buf *out, char *err, int errlen) {
     while(pthread_mutex_trylock(l)!=0) {
         // An encoder can publish its init while still producing media under this lane's lock.
         if(seg<0 && cache_take(rend,seg,out)){atomic_fetch_sub(&demand[rend],1);return 0;}
-        if(atomic_load(&S.stopping)){atomic_fetch_sub(&demand[rend],1);snprintf(err,(size_t)errlen,"stopping");return -1;}
+        if(source_interrupted((void *)(uintptr_t)atomic_load(&S.ticket))){atomic_fetch_sub(&demand[rend],1);snprintf(err,(size_t)errlen,"segment wait interrupted");return -1;}
         usleep(10000);
     }
     double began = now_ms();
@@ -917,6 +929,8 @@ static int get_part(int rend, int seg, gm_buf *out, char *err, int errlen) {
         log_line("request: %s segment %d waited %.0f ms, production %.0f ms, result %d",
                  rend == R_VCOPY ? "video" : rend == R_VCOMPAT ? "converted video" : "audio", seg,
                  began - queued, ended - began, r);
+    if(r<0)log_line("request: rendition %d segment %d failed: %s; canceled=%d deadline_expired=%d",rend,seg,err,
+                   atomic_load(&S.stopping),atomic_load(&S.startup_deadline_ms)>0 && ended>=atomic_load(&S.startup_deadline_ms));
     return r;
 }
 
@@ -1487,9 +1501,12 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
     teardown_locked();
     if(ticket!=atomic_load(&request_ticket)){pthread_mutex_unlock(&S.lock);return KR_FAILED;}
     atomic_store(&S.ticket,ticket);
-    network_begin_for(lan,ticket);
+    // kr_remux_begin already started the clock before queued work/teardown. Do not reset that budget here.
     atomic_store(&S.stopping, 0);
-    atomic_store(&S.startup_deadline_ms,(long long)(now_ms()+45000));
+    pthread_mutex_lock(&N.lock);
+    S.startup_end_ms=(long long)((N.ticket==ticket && N.start_ms?N.start_ms:now_ms())+KR_STARTUP_SECONDS*1000);
+    pthread_mutex_unlock(&N.lock);
+    atomic_store(&S.startup_deadline_ms,S.startup_end_ms);
     atomic_store(&S.served_video, 0); atomic_store(&S.served_audio, 0); S.vcodec[0] = 0;
     atomic_store(&S.compat_clients, 0); atomic_store(&S.prefetched, 0);
     atomic_store(&copy_canceled,0);S.roku_safe=0;
@@ -1603,6 +1620,13 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
         if (input->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO &&
             !(input->streams[i]->disposition & AV_DISPOSITION_ATTACHED_PIC)) has_video = 1;
     int selected = gm_stream_selected_video(S.gm);
+    if(selected>=0) {
+        AVCodecParameters *p=input->streams[selected]->codecpar;
+        const AVPixFmtDescriptor *pix=av_pix_fmt_desc_get(p->format);
+        log_line("source: video codec=%s profile=%d pixel_format=%s bit_depth=%d raw_bit_depth=%d dimensions=%dx%d level=%d",
+                 avcodec_get_name(p->codec_id),p->profile,pix?pix->name:"unknown",pix?pix->comp[0].depth:0,
+                 p->bits_per_raw_sample,p->width,p->height,p->level);
+    }
     if(segmented && !compat && selected>=0) {
         AVCodecParameters *p=input->streams[selected]->codecpar;
         if((p->codec_id==AV_CODEC_ID_H264 && (p->width>1920 || p->height>1080 || p->level>42)) ||
@@ -1614,7 +1638,7 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
         if (S.vindex < 0) { set_message("AirPlay: this build cannot decode this video's codec."); goto done; }
         if (!kr_video_available()) { set_message("AirPlay: this build cannot convert video (no H.264 encoder)."); goto done; }
         compat = 1;
-        log_line("compat: the video is not H.264/HEVC, converting it");
+        log_line("compat: conversion reason=%s",selected<0?"codec cannot be copied":"unsupported profile, bit depth or chroma sampling");
     }
     if (compat) {
         if (S.vindex < 0) { set_message("AirPlay: this file has no video that can be converted."); goto done; }
@@ -1698,16 +1722,8 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
             cache_put(rend,-1,init.data,init.len,0);
         free(init.data);
     }
-    // r8: background producers, and the start of the default video and audio made before the receiver asks.
+    // Start workers, but do not warm zero: priming knows the actual resume position.
     prefetch_start();
-    prefetch_push(S.compat ? R_VCOMPAT : R_VCOPY, 0);
-    {
-        int a = gm_stream_selected_audio(S.gm);
-        gm_track_info t;
-        for (int i = 0; a < 0 && i < gm_stream_track_count(S.gm); i++)
-            if (gm_stream_track_info(S.gm, i, &t) == 0 && t.src_index < MAX_TRACKS && S.routes[t.src_index]) a = t.src_index;
-        if (a >= 0 && a < MAX_TRACKS && S.routes[a]) prefetch_push(R_AUDIO + a, 0);
-    }
     result = KR_READY;
 done:
     if(source_interrupted((void *)(uintptr_t)ticket)) {
@@ -1728,25 +1744,42 @@ int kr_remux_start(const char *url,int lan,int compat,char *out,int outlen) {
     return kr_remux_start_for(kr_remux_begin(lan),url,lan,compat,out,outlen);
 }
 
+typedef struct {int rendition,segment,result;char error[256];} prime_part;
+static void *prime_audio(void *opaque) {
+    prime_part *part=opaque;gm_buf data={0};double began=now_ms();
+    part->result=get_part(part->rendition,part->segment,&data,part->error,sizeof part->error);free(data.data);
+    log_line("startup: audio segment %d buffered in %.0f ms result=%d",part->segment,now_ms()-began,part->result);
+    return NULL;
+}
 int kr_remux_prime_for(unsigned ticket,double seconds) {
     pthread_mutex_lock(&S.lock);
     int r=KR_FAILED;
     if(ticket!=atomic_load(&S.ticket) || ticket!=atomic_load(&request_ticket) || atomic_load(&S.state)!=KR_READY)goto done;
     if(S.prepared){r=KR_READY;goto done;}
     double began=now_ms();phase_for(ticket,"opening");
-    atomic_store(&S.startup_deadline_ms,(long long)(began+55000));
+    atomic_store(&S.startup_deadline_ms,S.startup_end_ms);
     int seg=gm_stream_time_to_segment(S.gm,isfinite(seconds) && seconds>0?seconds:0);
     gm_buf part={0};char err[256]="";
     int video=S.compat?R_VCOMPAT:R_VCOPY;
-    int made=get_part(video,seg,&part,err,sizeof err);free(part.data);part=(gm_buf){0};
     int audio=gm_stream_selected_audio(S.gm);
     if(audio<0 || audio>=MAX_TRACKS || !S.routes[audio]) {
         audio=-1;for(int i=0;i<MAX_TRACKS;i++)if(S.routes[i]){audio=i;break;}
     }
-    if(made==0 && audio>=0)made=get_part(R_AUDIO+audio,seg,&part,err,sizeof err);
+    log_line("startup: priming position=%.3f segment=%d remaining_ms=%.0f parallel_audio=%d",seconds,seg,
+             fmax(0,S.startup_end_ms-began),audio>=0);
+    prime_part sound={.rendition=R_AUDIO+audio,.segment=seg,.result=-1,.error=""};pthread_t thread;
+    int parallel=audio>=0 && pthread_create(&thread,NULL,prime_audio,&sound)==0;
+    int made=get_part(video,seg,&part,err,sizeof err);
+    log_line("startup: video segment %d buffered in %.0f ms result=%d",seg,now_ms()-began,made);
+    if(made<0 && parallel)abort_sources();
+    if(parallel) {
+        pthread_join(thread,NULL);
+        if(made==0 && sound.result<0){made=sound.result;snprintf(err,sizeof err,"%s",sound.error);}
+    } else if(made==0 && audio>=0){free(part.data);part=(gm_buf){0};made=get_part(R_AUDIO+audio,seg,&part,err,sizeof err);}
     free(part.data);
+    int expired=now_ms()>=S.startup_end_ms;
     atomic_store(&S.startup_deadline_ms,0);
-    if(made==0 && !source_interrupted((void *)(uintptr_t)ticket)) {
+    if(made==0 && !expired && !source_interrupted((void *)(uintptr_t)ticket)) {
         // Priming is not consumption: keep these units fresh until the receiver takes them. Otherwise
         // high-bitrate speculative segments could evict the first unit before Roku finishes launching.
         pthread_mutex_lock(&C.lock);

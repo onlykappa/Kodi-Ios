@@ -110,6 +110,9 @@ class ExpiredLink(unittest.TestCase):
   home=Home();home.setProperty(remote_media.PROPERTY,broker.url);home.setProperty(recovery.PROPERTY,json.dumps(RECORD))
   url,lease=remote_media.acquire(OLD,home)
   with urllib.request.urlopen(urllib.request.Request(url,headers={'Range':'bytes=0-9'}),timeout=5) as response:self.assertEqual(response.read(),DATA[:10])
-  self.assertEqual(lease.status(),{'renewal':'refreshed'});self.assertEqual(renewals,[1]);lease.close()
+  status=lease.status();self.assertEqual(status['renewal'],'refreshed')
+  self.assertGreater(status['stats']['http_requests'],0);self.assertEqual(status['stats']['last_status'],206)
+  self.assertNotIn(OLD,json.dumps(status));self.assertNotIn(NEW,json.dumps(status))
+  self.assertEqual(renewals,[1]);lease.close()
 
 if __name__=='__main__':unittest.main()

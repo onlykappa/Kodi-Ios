@@ -91,6 +91,7 @@ class Broker:
        answer={'url':broker.current.media_url,'id':broker.ident}
       elif action=='status':
        answer={'renewal':broker.current.renewal_state if broker.current and request.get('id')==broker.ident else 'closed'}
+       if broker.current and request.get('id')==broker.ident:answer['stats']=broker.current.stats()
       elif action=='close':
        if request.get('id')==broker.ident:
         if broker.current:broker.current.close()

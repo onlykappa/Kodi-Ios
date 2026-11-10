@@ -711,6 +711,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
 // Real AirPlay video: Apple's player with external playback, then the device sheet. The TV keeps playing while
 // Kodi is in the background (playback audio session). Apple's player handles MP4/MOV/HLS; r5 converts MKV, AVI,
 // WebM and MPEG-TS on the phone first (and links whose bytes turn out not to be MP4).
+__attribute__((visibility("default"))) int kodi_airplay_startup_budget(void) { return KR_STARTUP_SECONDS; }
 __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, const char *title) {
     os_unfair_lock_lock(&ownershipLock);
     unsigned generation=atomic_fetch_add(&playGeneration,1)+1;

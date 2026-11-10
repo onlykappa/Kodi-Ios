@@ -553,7 +553,8 @@ def _note_pick(item, home=None):
     try:
         import json
         import time
-        (home or _home()).setProperty(SEASON_PICK, json.dumps(dict(profile(item), time=time.time())))
+        (home or _home()).setProperty(SEASON_PICK, json.dumps(dict(profile(item), time=time.time(),
+            show_tmdb=exp.get('tmdb'),season=exp.get('season'),episode=exp.get('episode'),selection_name=item.get('name'))))
     except Exception:
         pass
 
@@ -570,6 +571,12 @@ def auto_request(home=None, now=None):
     except Exception:
         pass
     return None
+
+
+def automatic_matches(wanted,exp):
+    target=wanted.get('target')
+    if not target:return True  # existing rest-of-season requests
+    return all(str(exp.get(k) or '')==str(target.get(k) or '') for k in ('tmdb','season','episode'))
 
 
 def auto_choose(kept, want):
@@ -712,6 +719,10 @@ def show_all(title, items, parsed, kept, hidden, sm):
 def run(title, items, top_n=TOP_N, expect=None):
     parsed = parse_all(items)
     if parsed is None:
+        auto=auto_request()
+        if auto and auto.get('target'):
+            sm=_matcher();exp=expect if expect is not None else identity(title,sm)
+            if exp and automatic_matches(auto,exp):return -1
         return None
     sm = _matcher()
     exp = expect if expect is not None else identity(title, sm)
@@ -731,13 +742,19 @@ def run(title, items, top_n=TOP_N, expect=None):
         if sm is not None:
             sm.log(u'Choose a version: %d links for "%s" not checked (the title being played is not known)' % (len(parsed), title))
     # Kodi-iOS: the rest of a season, picked here without asking (download.py's AUTO_PICK).
+    try:
+        import episode_watch
+        if exp and episode_watch.canceled(_home(),exp):return -1
+    except (ImportError,AttributeError):pass
     auto = auto_request()
-    if auto is not None and exp and exp.get('episode'):
-        best = auto_choose(kept, auto.get('profile') or {})
+    if auto is not None and exp and exp.get('episode') and automatic_matches(auto,exp):
+        failed=set(auto.get('excluded_names') or [])
+        best = auto_choose([p for p in kept if p['name'] not in failed], auto.get('profile') or {})
         try:
             import json
             _home().setProperty(AUTO_RESULT, json.dumps({'episode': exp.get('episode'), 'found': bool(best),
-                                                         'quality': best['quality'] if best else u'', 'name': best['name'] if best else u''}))
+                                                         'quality': best['quality'] if best else u'', 'name': best['name'] if best else u'',
+                                                         'request_id':auto.get('request_id')}))
         except Exception:
             pass
         if sm is not None:

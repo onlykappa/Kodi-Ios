@@ -269,7 +269,7 @@ def receiver_outcome(network,wait,timeout=60):
   elapsed+=0.5
  return 'failed'
 
-def airplay_outcome(state,wait,timeout=25,network=None,stage=None):
+def airplay_outcome(state,wait,timeout=25,network=None,stage=None,startup_limit=AIRPLAY_STARTUP):
  """Separate file opening, the owner's TV choice and the actual connection. Each phase has its own bound.
  A TV cannot fetch an unopened file: only a started connection may return 'unreachable'."""
  waited=0.0;phase_begun={};shown=None;had_phase=False
@@ -294,7 +294,7 @@ def airplay_outcome(state,wait,timeout=25,network=None,stage=None):
     group='connecting';age_key='connect_age_s' if phase else 'listen_age_s'
     limit=timeout if reached else AIRPLAY_CONNECT;expired='failed' if reached else 'unreachable'
    else:
-    group='opening';age_key='start_age_s';limit=AIRPLAY_STARTUP;expired='startup_timeout'
+    group='opening';age_key='start_age_s';limit=startup_limit;expired='startup_timeout'
   else:
    group='connecting';age_key='';limit=timeout;expired='failed'
   # r36: the player restarted with the H.264 picture (a TV that took the sound only) and is opening again: its TV choice

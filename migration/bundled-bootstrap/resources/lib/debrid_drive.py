@@ -43,16 +43,18 @@ def save(profile, state, enqueue=False):
     with open(str(path)+'.lock','a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)
         current=load(profile)
-        key=lambda j:(j['hash'],str(j.get('episode','')),j.get('added',0))
+        key=lambda j:(j['hash'],str(j.get('season','')),str(j.get('episode','')),j.get('added',0))
         pending={key(j):j for j in current.get('jobs',[])}
         for index,job in enumerate(state.get('jobs',[])):
             old=pending.pop(key(job),{})
             if enqueue and old:
                 request=job.get('watch_requested',0)
+                if job.get('show_tmdb') and not old.get('show_tmdb'):old['show_tmdb']=job['show_tmdb']
                 state['jobs'][index]=job=old
                 job['watch_requested']=max(request,job.get('watch_requested',0))
             for field in ('watch_requested','watch_handled'):
                 if old.get(field,0)>job.get(field,0):job[field]=old[field]
+            if old.get('show_tmdb') and not job.get('show_tmdb'):job['show_tmdb']=old['show_tmdb']
         state.setdefault('jobs',[]).extend(pending.values())
         tmp = path.with_suffix('.tmp')
         tmp.write_text(json.dumps(state, indent=1), encoding='utf-8')
@@ -69,20 +71,32 @@ def info_hash(torrent):
     return ''
 
 
-def queue(profile, torrent, kind, title='', season='', episode='', now=None, episodes=(), watch=False):
+def queue(profile, torrent, kind, title='', season='', episode='', now=None, episodes=(), watch=False,show_tmdb=None):
+    # Serialize the read/deduplicate/save transaction across the foreground picker and opening watcher.
+    target=location(profile);target.parent.mkdir(parents=True,exist_ok=True)
+    with open(str(target)+'.enqueue.lock','a') as guard:
+        fcntl.flock(guard,fcntl.LOCK_EX)
+        return _queue(profile,torrent,kind,title,season,episode,now,episodes,watch,show_tmdb)
+
+
+def _queue(profile, torrent, kind, title='', season='', episode='', now=None, episodes=(), watch=False,show_tmdb=None):
     """Add a Download to the queue (once per torrent and episode). Returns the job."""
     state = load(profile)
     h = info_hash(torrent)
     if not h:
         raise ValueError('torrent without an info-hash')
     for job in state['jobs']:
-        if job['hash'] == h and job.get('episode', '') == str(episode or '') and job['status'] not in ('done', 'failed'):
-            if watch:job['watch_requested']=time.time();save(profile,state,enqueue=True)
+        if job['hash'] == h and job.get('season','')==str(season or '') and job.get('episode', '') == str(episode or '') and job['status'] not in ('done', 'failed'):
+            changed=False
+            if show_tmdb and not job.get('show_tmdb'):job['show_tmdb']=str(show_tmdb);changed=True
+            if watch:job['watch_requested']=time.time();changed=True
+            if changed:save(profile,state,enqueue=True)
             return job
     job = {'hash': h, 'name': str(torrent.get('name') or title or h), 'title': title, 'kind': kind,
            'season': str(season or ''), 'episode': str(episode or ''), 'episodes': sorted(int(n) for n in episodes or ()),
            'status': 'new', 'files': [], 'watch_requested':(time.time() if watch else 0),
            'added': time.time() if now is None else now}
+    if show_tmdb:job['show_tmdb']=str(show_tmdb)
     state['jobs'].append(job)
     save(profile, state, enqueue=True)
     return job

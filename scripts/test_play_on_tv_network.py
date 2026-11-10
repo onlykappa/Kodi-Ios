@@ -115,6 +115,24 @@ class ConnectionTests(unittest.TestCase):
   def snapshot(buffer,size):buffer.value=b'{"expected":1,"start_age_s":0,"tv_requests":0}';return len(buffer.value)
   net=airplay.network(types.SimpleNamespace(kodi_airplay_network=snapshot),window,1015)
   self.assertEqual(net['start_age_s'],15)  # a queued/restarted native probe cannot reset the caller's deadline
+ def test_new_native_budget_leaves_room_for_real_buffering_and_reports_legacy_limit(self):
+  self.assertEqual(airplay.startup_budget(types.SimpleNamespace()),60)
+  self.assertEqual(airplay.startup_budget(types.SimpleNamespace(kodi_airplay_startup_budget=lambda:100)),105)
+  self.assertEqual(airplay.startup_budget(types.SimpleNamespace(kodi_airplay_startup_budget=lambda:999999)),60)
+  elapsed=[0.0]
+  def wait(seconds):elapsed[0]+=seconds;return False
+  def network():return {'expected':True,'phase':'opening' if elapsed[0]<80 else 'playing','start_age_s':elapsed[0],
+                        'tv_requests':int(elapsed[0]>=80),'tv_video':int(elapsed[0]>=80)}
+  result=cast.airplay_outcome(lambda:int(elapsed[0]>=80),wait,network=network,startup_limit=105)
+  self.assertEqual((result,elapsed[0]),('playing',80))
+ def test_startup_progress_logs_preserve_pause_state_and_controller_budget(self):
+  with tempfile.TemporaryDirectory() as profile:
+   import transfer_control
+   transfer_control.set_paused(profile,'up',True)
+   out=self.exercise(profile,startup=4,received=6)
+  events=[json.loads(s.split('Kodi iOS diagnostic ',1)[1]) for s in out.logs if '"event":"startup_progress"' in s]
+  self.assertTrue(events);self.assertEqual(events[0]['controller_budget_s'],60)
+  self.assertTrue(events[0]['background_paused']['up']);self.assertIn('phase',events[0]['native'])
 
  def test_build196_slow_source_is_never_described_as_a_lan_permission_failure(self):
   with tempfile.TemporaryDirectory() as profile:

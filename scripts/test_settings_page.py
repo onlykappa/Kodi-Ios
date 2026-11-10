@@ -111,9 +111,12 @@ class SettingsPages(unittest.TestCase):
  def test_native_addon_settings_expose_the_same_scan_and_refresh_actions(self):
   root=ET.parse(BOOT/'resources/settings.xml').getroot();library=root.find(".//category[@id='library']")
   self.assertIsNotNone(library)
-  actions={n.get('id'):n.findtext('data') for n in library.iter('setting')}
+  actions={n.get('id'):n.findtext('data') for n in library.iter('setting') if n.get('type')=='action'}
   self.assertEqual(actions,{'library_scan':'RunScript(service.kodi.ios.bootstrap,library_scan)',
                             'library_refresh':'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&all=1)'})
+  follow=library.find(".//setting[@id='follow_episodes']")
+  self.assertEqual(follow.get('type'),'boolean');self.assertEqual(follow.findtext('default'),'true')
+  self.assertIn('when Kodi opens',follow.findtext('help'))
   dispatch=load('settings_scan_dispatch',BOOT/'default.py')
   script,argv=dispatch.target(['service.kodi.ios.bootstrap','library_scan'])
   self.assertEqual(Path(script),BOOT/'library_scan.py');self.assertEqual(argv,[script])

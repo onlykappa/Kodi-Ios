@@ -46,6 +46,8 @@ def run():
  setup_done=threading.Event()
  # Not for the gear menu's Recover (recover.py runs this with --recover next to the running service).
  if not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
+  import episode_watch_runtime
+  threading.Thread(target=episode_watch_runtime.run,args=(monitor,profile,setup_done.is_set),daemon=True).start()
   portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),kwargs={'ready':setup_done,'native_ui_started':_EARLY_UI_STARTED},daemon=True);portrait_thread.start()
  # Owner build-136 log: the tab bar answered ~8 s after launch, 2 s of it this fixed wait. Only setup waits now.
  if monitor.waitForAbort(2):return

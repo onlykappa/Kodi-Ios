@@ -39,10 +39,19 @@ def run():
   if not season or not season.isdigit():return
   kind='season'
  if kind in ('season','episode') and not season:dialog.ok('Download','Could not tell which season this is.');return
+ title,year=values.get('title',''),values.get('year','')
+ if kind=='season':
+  pick=dialog.select('Download season %s'%season,['Full season','Choose episodes...','Follow new episodes only'])
+  if pick<0:return
+  if pick==2:
+   import episode_watch,xbmcvfs
+   profile=xbmcvfs.translatePath('special://profile/')
+   if episode_watch.register(profile,tmdb,title,season,1,episode_watch.library_preference(profile,title)):
+    dialog.notification('New episodes','Show added to followed episodes.',xbmcgui.NOTIFICATION_INFO,4000)
+   return
  if not elementum_engine.running():
   dialog.ok('Download','Elementum is not running. Gear menu › Retry Elementum engine, then try again.');return
  wait=lambda:xbmc.Monitor().waitForAbort(1)
- title,year=values.get('title',''),values.get('year','')
  def check(k,s='',e=''):
   # Library status › "Find a version without converting" (replace=1): the copy we have is the one being replaced.
   if args.get('replace')=='1':return None
@@ -61,10 +70,11 @@ def run():
   # Every entry point shares the post-selection cloud prompt. Do not wait for a local torrent:
   # the /play or /download URI is intercepted before Elementum can add one.
   url=dl.plugin_url(k,tmdb,season,e)
+  if k=='episode':
+   import episode_watch
+   episode_watch.canceled(xbmcgui.Window(10000),{'tmdb':tmdb,'season':season,'episode':e},clear=True)
   dl.follow(url)
  if kind=='season':
-  pick=dialog.select('Download season %s'%season,['Full season','Choose episodes...'])
-  if pick<0:return
   if pick==1:
    import json
    answer=json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Files.GetDirectory','params':{

@@ -626,6 +626,7 @@ def _enrich_show(exp, key, get):
     details = tmdb_get('/tv/%s' % tmdb, {'append_to_response': 'alternative_titles,translations'}, key, get)
     if not details:
         return
+    exp['tmdb'] = _s(details.get('id') or tmdb)
     _add_titles(exp, [details.get('name'), details.get('original_name')])
     _add_titles(exp, [a.get('title') for a in ((details.get('alternative_titles') or {}).get('results') or ())])
     _add_titles(exp, [(t.get('data') or {}).get('name') for t in ((details.get('translations') or {}).get('translations') or ())])

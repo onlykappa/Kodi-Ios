@@ -2126,3 +2126,75 @@ ISSUE-148 delivery: verified IPA 221 from fcae63e0f3dc83a8fb537cbea4d863e3ebfc5b
 19 helpers and Python 3.11 source hashes, verified native binaries and 154 unsigned ARM64 images checked.
 See reports/refresh-layout-cache-delivery.json. Source/host repair complete; actual iPhone/Roku/provider and UI
 acceptance remain pending. ISSUE-147 is not included. Main remains unchanged.
+
+## ISSUE-149 — Build 221 cancels AirPlay during native startup (2026-11-10)
+
+Severity: HIGH. Components: AirPlay controller, native first-segment priming, source diagnostics.
+The supplied build-221 capture has two Umbrella attempts with source_cache=true. Inspection takes about
+13 and 15 seconds. Both hit the controller's 60-second startup_timeout before TV handoff. Pausing background
+uploads/conversion does not remove the second timeout. Video production takes about 14 seconds; audio finishes
+with result -5 only after cancellation, so that result alone does not establish corrupt media/provider failure.
+The older native “not H.264/HEVC” message is also misleading: copy eligibility can reject profiles/chroma/depth.
+The capture does not identify the exact source-I/O bottleneck or establish a Wi-Fi fault.
+
+Root cause: independent, overlapping clocks. The outer 60 seconds includes inspection; native priming starts its
+own 55-second budget afterwards and produces video then audio sequentially. Unconditional segment-zero prefetch
+can also compete with the resumed segment (63/64 in the capture); missing init can regenerate zero again.
+
+Source repair: preserve a single native 100-second reservation-to-buffer deadline across queued work, inspection
+and priming; advertise it to Python with 5 seconds of controller grace (old frameworks keep legacy behavior).
+Prime video and audio concurrently at the actual resume target, cache that target's init and avoid unrelated zero
+prefetch. Cancellation and bounded startup remain enforced. Logs now report codec/profile/pixel depth, separate
+audio open/seek/scan/packet/I-O time, cache hit/miss/wait counts, HTTP status/retry/error/read time, deadline versus
+cancellation and background pause state. Signed source URLs and account state are not added to diagnostics.
+
+Host regressions: reservation includes queued delay; resumed first video/audio units are cached; copied and
+converted target segments decode with their init; cancellation/readahead, streaming and seeking pass. The initial
+recommendations run had 1/37 failures because its cancellation setup depended on old implicit zero-prefetch. It
+now explicitly consumes zero to schedule real readahead, preserving its cancellation assertions; 37/37 pass.
+One run against a separately launched range server failed after that server exited on resume, and the harness
+continued into an unavailable playlist. The server is now owned by the same orchestration as the test, and failed
+source-open assertions return before dereferencing missing playlists. Four healthy-server native suites pass
+(211 checks). This environment failure is retained, not attributed to the iOS app.
+
+Python test adapters initially assumed the source URL was the last controller argument, an exact old broker-status
+shape and a pre-metrics unlocked DriveStream mock. Updated adapters assert the URL/lease separately and preserve
+renewal/privacy assertions while checking safe metrics. Final targeted suites pass. Settings tests initially
+assumed every Library option was an action; they now distinguish the new boolean and verify its default/help.
+See reports/airplay-opening-episodes-checks.json for final counts and acceptance limits.
+
+Status: implemented/tested as source only. No iPhone native framework rebuild, native pin update, workflow,
+IPA/publication/push or main merge; owner explicitly holds the IPA. Verified AirPlay r43 remains pinned and does
+not contain these new native changes. Rebuild/verify/pin native AirPlay before the next authorized IPA. Actual
+provider/iPhone/Roku acceptance remains pending. ISSUE-147 seek/caption/hour-stop issues are not repaired here.
+
+## ISSUE-150 — Newly released episodes require manual downloads (2026-11-10)
+
+Owner requests automatic downloads for anticipated episodes of shows they download, checking on opening rather
+than continuously. Source now enrolls confirmed TV downloads with canonical show TMDb ID and selected quality/
+HDR/codec/source/size preferences. Existing shows can use Follow new episodes only in the season download menu;
+Library settings offers Download new episodes automatically, default enabled. Registration is after confirmation,
+not after a canceled picker; manual show registration does not require a running download engine.
+
+Opening/foreground passes use fresh TMDb show/season dates, never episode titles as release proof. Future,
+undated, special and older episodes are skipped. Bounds: 25 shows, 8 source attempts, 180-second planning budget,
+30-minute per-show cooldown; an already-started source request can extend the pass up to its 120-second timeout.
+A lightweight 15-second app-state check schedules only launch/foreground passes, postponing busy UI; it does not
+periodically search sources while the app stays open. Media playback, background state, disabled setting, transfer
+pauses and abort stop further work. Network/ownership failures defer; missing accounts/engine do not open dialogs.
+
+Actual Drive/phone inventory plus matching queue jobs prevent repeats. Failed jobs retry a different source on a
+later eligible opening; cancellations remain protected. Request IDs and exact show/season/episode matching ensure
+only the requested automatic choice is queued. Late timed-out responses are suppressed rather than opening a
+manual picker. Queue deduplication is now serialized and includes season, fixing the concrete collision between
+same-number episodes from two seasons of one pack. Stale service saves preserve newly attached show identity.
+
+Thirty watcher tests include advancing a synthetic future episode's actual date, restarts/preferences, ownership
+failure, bounds/cooldowns, later seasons, dates versus names, cancellations, retrying failed queues, fresh exact
+selection, canonical ID recovery, cross-season/concurrent queue writes, late/empty automatic results and the real
+catalog-adapter → deck picker → queue integration with synthetic network/Kodi dependencies. Initial calendar test
+incorrectly treated every season's episode 1 as owned; fixed the fixture to S1E1 and hardened season-row checks.
+UI policy/routed HIG guidance read; existing settings/menu/notification controls only. No desktop Kodi binary
+available, so visual/device and real provider/new-release acceptance are pending. No owner account/media accessed.
+Status: code/host verification ready; held with ISSUE-149 for an eventual authorized native/IPA build. No release,
+push or main merge. The owner should use Follow new episodes only for shows downloaded before this feature.

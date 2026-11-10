@@ -1979,6 +1979,8 @@ static void test_stream_recommendations(const char *base,const char *work) {
 
     kr_remux_set_prefetch(1);snprintf(source,sizeof source,"%s/slow/coalesced.mp4",base);
     CHECK(start_session(source,KR_COMPAT_SEGMENTED,playlist,sizeof playlist)==KR_READY,"cancelable read-ahead movie opens");
+    // Startup no longer warms segment zero speculatively. Start real consumption to queue read-ahead first.
+    part=http_get(kr_remux_port(),"/video/seg0.m4s",NULL);free(part.body);
     usleep(250000);port=kr_remux_port();part=http_get(port,"/video/seg3.m4s",NULL);
     CHECK(part.status==200 && part.len>65536,"seek succeeds after canceling an obsolete copied read (%d, %zu)",part.status,part.len);
     kr_remux_log(log,sizeof log);CHECK(strstr(log,"cancel obsolete copied video segment"),"seek records cancellation of obsolete read-ahead");
@@ -2070,14 +2072,40 @@ static void test_startup_repairs(const char *base) {
     char url[512],list[512],err[256]="",log[8192];
     snprintf(url,sizeof url,"%s/slow/h264_aac_srt.mkv",base);
     kr_remux_set_prefetch(0);unsigned ticket=kr_remux_begin(0);
-    CHECK(kr_remux_start_for(ticket,url,0,0,list,sizeof list)==KR_READY,"prebuffer session opens");
+    usleep(150000); // queued dispatch time belongs to the same startup clock
+    int opening=kr_remux_start_for(ticket,url,0,0,list,sizeof list);
+    CHECK(opening==KR_READY,"prebuffer session opens");if(opening!=KR_READY)return;
+    char network[1024];kr_remux_network(network,sizeof network);
+    char *age=strstr(network,"\"start_age_s\":");
+    CHECK(age && atof(age+14)>=.15,"source opening preserves the caller's reservation clock");
     snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
     char *end=strstr(prefix_path,"/master.m3u8");if(end)*end=0;
     CHECK(kr_remux_prime_for(ticket,9.1)==KR_READY,"video and audio buffered before receiver launch at resume position");
     double v=get_ms(kr_remux_port(),"/video/seg1.m4s"),a=get_ms(kr_remux_port(),"/audio/1/seg1.m4s");
     CHECK(v<50 && a<50,"receiver's first video/audio already available (%.1f/%.1f ms)",v,a);
     kr_remux_log(log,sizeof log);CHECK(strstr(log,"startup: buffered video and audio at 9.1 s (segment 1)"),"buffer diagnostics identify actual resume segment");
+    CHECK(strstr(log,"parallel_audio=1") && strstr(log,"startup: audio segment 1 buffered") && strstr(log,"startup: video segment 1 buffered"),
+          "startup records both independent target lanes");
+    CHECK(!strstr(log,"request: audio segment 0") && !strstr(log,"request: converted video segment 0"),"resume does not warm an unrelated segment zero");
     kr_remux_cancel(ticket);CHECK(kr_remux_prime_for(ticket,0)==KR_FAILED,"stale canceled attempt cannot prime a session");kr_remux_stop();
+    // A converted resume needs the init from its target unit, including the AAC bridge's init.
+    // Requesting init must not require encoding the beginning again, and those headers must decode real frames.
+    snprintf(url,sizeof url,"file:%s/hevc_ac3_ass.mkv",fixture_dir);
+    kr_video_set_encoder("mpeg4");kr_remux_set_subtitles(-1,NULL,NULL);ticket=kr_remux_begin(0);
+    opening=kr_remux_start_for(ticket,url,0,KR_COMPAT_ROKU_SAFE,list,sizeof list);
+    CHECK(opening==KR_READY,"converted resume source opens");if(opening!=KR_READY)return;
+    snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
+    end=strstr(prefix_path,"/master.m3u8");if(end)*end=0;
+    CHECK(kr_remux_prime_for(ticket,9.1)==KR_READY,"converted picture and AAC prime at resume position");
+    char output[1024];snprintf(output,sizeof output,"%s/out/primed-resume-video.mp4",fixture_dir);
+    reply vi=http_get(kr_remux_port(),"/video/init.mp4",NULL),vp=http_get(kr_remux_port(),"/video/seg1.m4s",NULL);
+    CHECK(vi.status==200 && vp.status==200,"converted target headers and media available");
+    FILE *joined=fopen(output,"wb");if(joined){fwrite(vi.body,1,vi.len,joined);fwrite(vp.body,1,vp.len,joined);fclose(joined);}
+    int keys=0;CHECK(joined && decode_count(output,&keys)>100,"converted resume init and segment decode real video frames");free(vi.body);free(vp.body);
+    reply ai=http_get(kr_remux_port(),"/audio/1/init.mp4",NULL),ap=http_get(kr_remux_port(),"/audio/1/seg1.m4s",NULL);
+    CHECK(ai.status==200 && ap.status==200 && ai.len>16 && ap.len>100,"AAC target init and segment available without warming zero");
+    free(ai.body);free(ap.body);kr_remux_stop();
+    snprintf(url,sizeof url,"%s/slow/h264_aac_srt.mkv",base);
     kr_source *source=kr_source_open(url,5,err,sizeof err);
     gm_stream *gm=source?gm_stream_open(kr_source_gm(source),6,err,sizeof err):NULL;
     kr_source *clone=kr_source_clone(source,5,NULL,NULL);

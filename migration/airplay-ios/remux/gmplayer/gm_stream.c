@@ -25,6 +25,7 @@
 #include <libavutil/intreadwrite.h>
 #include <libavutil/mathematics.h>
 #include <libavutil/dovi_meta.h>
+#include <libavutil/time.h>
 
 // gm_auto_select lives in CFFmpeg/compat.c. Declare it here (same signature).
 extern int gm_auto_select(AVFormatContext *fmt, enum AVMediaType type);
@@ -49,6 +50,8 @@ struct gm_stream {
     double seg_starts[GM_MAX_SEGS];
     double seg_real_end[GM_MAX_SEGS]; ///< actual keyframe-aligned end of segment i (lazy, -1 = unknown)
     double last_actual_end;           ///< video closing-keyframe pts from the last produce_sel
+    double last_seek_ms,last_scan_ms;
+    long last_packets;
     int    out_index[GM_MAX_STREAMS]; ///< input stream index -> output stream index (-1 = not muxed)
     int    n_seg;
     double target_seg_sec;
@@ -323,7 +326,7 @@ static void ts_init_for(gm_stream *s, AVFormatContext *oc, int vout, gm_ts_state
 static int produce_sel(gm_stream *s, double seg_start, double seg_end,
                        double ts_offset_sec, gm_sel sel,
                        gm_buf *buf, int *moov_end, char *err, int errlen) {
-    buf->len = 0;
+    buf->len = 0;s->last_seek_ms=s->last_scan_ms=0;s->last_packets=0;
     AVFormatContext *oc = NULL; AVIOContext *avio = NULL; out_ctx *octx = NULL;
     int vout, aout;
     int ret = open_output(s, buf, ts_offset_sec, sel, &oc, &avio, &octx, &vout, &aout, err, errlen);
@@ -340,7 +343,9 @@ static int produce_sel(gm_stream *s, double seg_start, double seg_end,
     for(unsigned i=0;i<s->in->nb_streams;i++)s->in->streams[i]->discard=s->out_index[i]>=0?AVDISCARD_DEFAULT:AVDISCARD_ALL;
     AVStream *sst = s->in->streams[seek_stream];
     int64_t seek_ts = (int64_t)(seg_start / av_q2d(sst->time_base) + 0.5);
+    int64_t seek_began=av_gettime_relative();
     ret = av_seek_frame(s->in, seek_stream, seek_ts, AVSEEK_FLAG_BACKWARD);
+    s->last_seek_ms=(av_gettime_relative()-seek_began)/1000.0;
     if (ret < 0) { set_err(err, errlen, "seek input", ret); close_output(oc, avio, octx); return ret; }
 
     gm_ts_state ts[GM_MAX_OUT];
@@ -361,7 +366,9 @@ static int produce_sel(gm_stream *s, double seg_start, double seg_end,
 
     AVPacket *pkt = av_packet_alloc();
     int wrote_any = 0;
+    int64_t scan_began=av_gettime_relative();
     while ((ret = av_read_frame(s->in, pkt)) >= 0) {
+        s->last_packets++;
         int si = pkt->stream_index;
         // Route via the input->output map (handles >1 audio stream in all_audio mode).
         int oidx = (si >= 0 && si < (int)s->in->nb_streams) ? s->out_index[si] : -1;
@@ -427,6 +434,7 @@ static int produce_sel(gm_stream *s, double seg_start, double seg_end,
         if (ret < 0) { set_err(err, errlen, "write_frame", ret); break; }
         wrote_any = 1;
     }
+    s->last_scan_ms=(av_gettime_relative()-scan_began)/1000.0;
     av_packet_free(&pkt);
     // Report the VIDEO segment's real end (the closing keyframe pts) so EXTINF can match
     // the actual muxed span. Audio (no video) ends at its own frame boundary == seg_end.
@@ -1130,6 +1138,12 @@ int gm_stream_track_init(gm_stream *s,int src,gm_buf *out,char *err,int errlen) 
     }
     if(r>=0 && !moov)r=-1;
     close_output(oc,io,ctx);return r<0?r:0;
+}
+
+void gm_stream_last_timings(const gm_stream *s,double *seek_ms,double *scan_ms,long *packets) {
+    if(seek_ms)*seek_ms=s?s->last_seek_ms:0;
+    if(scan_ms)*scan_ms=s?s->last_scan_ms:0;
+    if(packets)*packets=s?s->last_packets:0;
 }
 
 int gm_stream_track_unit(gm_stream *s, int src, int i, gm_buf *out, int *moov_end, char *err, int errlen) {

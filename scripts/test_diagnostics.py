@@ -63,7 +63,7 @@ class Diagnostics(unittest.TestCase):
   folder=self.profile/'addon_data/service.kodi.ios.bootstrap'
   (folder/debrid_drive.FILE).write_text(json.dumps({'jobs':[{'status':'uploading','source_url':'SECRET','hash':'SECRET'}],'current':{'stage':'Upload','sent':1024,'total':4096,'source_url':'SECRET'}}))
   (folder/'airplay-preparation.json').write_text(json.dumps({'jobs':{'private_id':{'status':'failed','source':{'id':'SECRET'}}},'staging_cleanup':['SECRET'],'current':{'stage':'Inspecting','progress':0,'indeterminate':True,'updated':80}}))
-  (folder/'preparation-runtime.json').write_text(json.dumps(dict(phase='Inspecting',known=False,updated=99,**drive_stream.DriveStream.stats(Mock(bytes_read=2048,last_read=99,last_problem='')),url='SECRET')))
+  (folder/'preparation-runtime.json').write_text(json.dumps(dict(phase='Inspecting',known=False,updated=99,read_bytes=2048,last_read=99,read_error='',url='SECRET')))
   (folder/'drive-uploads.json').write_text(json.dumps({'sessions':{'SECRET':{'url':'SECRET'}},'verified':{'SECRET':{}},'current':{'sent':333,'total':999,'name':'SECRET'}}))
   result=diag.snapshot(self.profile,clock=lambda:100)
   self.assertEqual(result['uploads']['resumable_sessions'],1);self.assertEqual(result['uploads']['current']['sent'],333)

@@ -42,18 +42,22 @@ class _Blocks(object):
         self.data = collections.OrderedDict()
         self.pending = {}
         self.sizes = {}
+        self.hits = self.misses = self.waits = 0
 
     def get(self, item, index):
         key = (item, index)
         for _ in range(4):
             with self.lock:
                 if key in self.data:
+                    self.hits += 1
                     self.data.move_to_end(key)
                     return self.data[key]
                 waiting = self.pending.get(key)
                 if waiting is None:
+                    self.misses += 1
                     mine = self.pending[key] = threading.Event()
                     break
+                self.waits += 1
             waiting.wait(120)   # another reader is fetching it: use theirs (or fetch it ourselves if that failed)
         else:
             raise TimeoutError('Drive block was not read in time')
@@ -121,6 +125,8 @@ class DriveStream(object):
         self.bytes_read=0
         self.last_read=0
         self.last_problem=''
+        self.metric_lock=threading.Lock()
+        self.metrics={'http_requests':0,'http_retries':0,'http_errors':0,'last_status':0,'request_ms':0,'source_read_ms':0}
         self.hold = lambda: False   # true while the owner paused converting: no read-ahead then (the service sets it)
         self.gate = slowdown.Gate()   # build 193: a video or AirPlay playing slows the reads to a share of the line
         self.block_size=block_size;self.playback=playback
@@ -224,10 +230,14 @@ class DriveStream(object):
                                          headers={'Authorization': 'Bearer ' + self.token(), 'Range': 'bytes=%d-%d' % (start, end)})
         for attempt in range(3):
             began = time.monotonic()
+            with self.metric_lock:
+                self.metrics['http_requests']+=1
+                if attempt:self.metrics['http_retries']+=1
             try:
                 upstream = self.open_url(request, 20)
                 try:
                     status = getattr(upstream, 'status', None) or upstream.getcode()
+                    with self.metric_lock:self.metrics.update(last_status=status,range_start=start,range_bytes=end-start+1)
                     span = SPAN.match(upstream.headers.get('Content-Range') or '')
                     if status == 206 and span:
                         total = int(span.group(3))
@@ -258,15 +268,23 @@ class DriveStream(object):
                 self.gate.after(time.monotonic() - began, sum(len(x) for x in parts), download=True)
                 return b''.join(parts), total
             except urllib.error.HTTPError as error:
+                with self.metric_lock:self.metrics.update(last_status=error.code,http_errors=self.metrics['http_errors']+1)
                 if error.code not in (429, 500, 502, 503, 504) or attempt == 2:
                     raise
             except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as error:
+                with self.metric_lock:self.metrics['http_errors']+=1
                 if 'CERTIFICATE_VERIFY_FAILED' in str(error) or attempt == 2:
                     raise
+            finally:
+                with self.metric_lock:
+                    ms=round((time.monotonic()-began)*1000)
+                    self.metrics.update(request_ms=ms,source_read_ms=self.metrics['source_read_ms']+ms)
             time.sleep(.25 * (attempt + 1))
 
     def stats(self):
-        return {'read_bytes':self.bytes_read,'last_read':self.last_read,'read_error':self.last_problem}
+        with self.metric_lock:metrics=dict(self.metrics)
+        with self.blocks.lock:metrics.update(cache_hits=self.blocks.hits,cache_misses=self.blocks.misses,cache_waits=self.blocks.waits)
+        return dict(metrics,read_bytes=self.bytes_read,last_read=self.last_read,read_error=self.last_problem)
 
     def url(self, item_id):
         """The loopback link KodiAirPlay reads for one Drive file."""

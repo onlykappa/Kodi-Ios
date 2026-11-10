@@ -382,3 +382,15 @@ counts changed; device/Roku results and ISSUE-147 remain pending. Main is not me
 Current checkpoint delivery: verified IPA 221 (source fcae63e, run 42842353113 success); see
 reports/refresh-layout-cache-delivery.json. Source/host checks complete; owner iPhone/Roku acceptance pending.
 Build 220 was superseded/cancelled before delivery. No main merge or phase/task completion change.
+
+## Source checkpoint: AirPlay startup and opening episode checks — 2026-11-10
+
+ISSUE-149 / ISSUE-150 / DEC-033: shared native startup deadline, parallel audio/video priming at resume position,
+reused target init and safe source/cache/timing diagnostics implemented. Newly downloaded TV shows are followed;
+existing shows can opt in through Follow new episodes only. Bounded app-opening/foreground checks use real air
+dates, selected quality and actual ownership/queue deduplication through the existing Drive download path. Existing
+UI controls only; policy checked. Host evidence: reports/airplay-opening-episodes-checks.json and PROGRESS.
+Owner holds IPA publication. No native iPhone framework build/release, workflow dispatch, IPA, push or main merge.
+Native pins stay r26/r43; next authorized IPA requires rebuilding/verifying/pinning the changed AirPlay component
+first. Actual iPhone/Roku, provider/new-release and visual acceptance remain pending. ISSUE-147 remains separate;
+no roadmap phase/task acceptance counts change.

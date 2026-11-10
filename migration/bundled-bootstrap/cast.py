@@ -208,7 +208,7 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
   source,lease=remote_media.acquire(raw,xbmcgui.Window(10000))
   diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','source_cache',enabled=bool(lease))
  try:
-  retained=bool(_send_airplay(xbmc,dialog,player,library,url,title,playing,lib,source))
+  retained=bool(_send_airplay(xbmc,dialog,player,library,url,title,playing,lib,source,lease))
   return retained
  finally:
   # Native playback outlives this interpreter after the 45-second settle check. The service owns its cache.
@@ -218,7 +218,7 @@ def send_airplay(xbmc,dialog,player,library,url,title,playing):
    if not retained:lease.close()
 
 
-def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_override=None):
+def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_override=None,source_lease=None):
  """ISSUE-079: Apple's player for MP4/HLS (Kodi waits paused and carries on if it cannot open the stream);
  ISSUE-083: KodiAirPlay r5 converts MKV/AVI/WebM/TS on the phone first. Screen Mirroring steps for the rest, with
  Kodi still playing."""
@@ -256,7 +256,7 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
  # Reset evidence before starting; the service may drain native log lines before this script sees them.
  for key in (airplay.STARTED,airplay.LISTENING,airplay.TV_REQUEST):home.clearProperty(key)
  if converting and cast.format_name(source)!='M3U8':home.setProperty(airplay.STARTED,str(time.time()))
- started=[0.0];monitor=xbmc.Monitor()
+ started=[0.0];monitor=xbmc.Monitor();budget=airplay.startup_budget(lib);last_diagnostic=[-5.0]
  lines=[];endpoint=None
  def network():
   nonlocal endpoint
@@ -268,6 +268,19 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
    try:library_tools.note_airplay(profile,new)
    except Exception as error:diagnostics.log_exception(xbmc,'airplay_record',error)
   net=airplay.network(lib,home) if converting else None
+  if started[0]-last_diagnostic[0]>=5:
+   last_diagnostic[0]=started[0]
+   source_stats={}
+   if source_lease:
+    try:source_stats=source_lease.status().get('stats') or {}
+    except Exception:pass
+   controls={}
+   if profile:
+    import transfer_control
+    controls={kind:transfer_control.paused(profile,kind) for kind in transfer_control.KINDS}
+   diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','startup_progress',
+    elapsed_s=started[0],controller_budget_s=budget,background_paused=controls,source=source_stats,
+    native={key:net[key] for key in ('phase','start_age_s','tv_requests','tv_video','tv_audio') if net and key in net})
   if net and net.get('host') and net.get('port') and endpoint!=(net['host'],net['port']):
    endpoint=(net['host'],net['port'])
    diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','endpoint',host=endpoint[0],port=endpoint[1])
@@ -284,7 +297,7 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
    try:lib.kodi_airplay_start_at(float(player.getTime()))
    except Exception:lib.kodi_airplay_start_at(0.0)
   lib.kodi_airplay_play(source.encode('utf-8'),(title or '').encode('utf-8'))
-  outcome=cast.airplay_outcome(lib.kodi_airplay_state,wait,60 if converting else 25,network=network,stage=stage)
+  outcome=cast.airplay_outcome(lib.kodi_airplay_state,wait,60 if converting else 25,network=network,stage=stage,startup_limit=budget)
   why=airplay.message(lib)
   net=network()
   if profile and outcome=='failed':
@@ -373,7 +386,7 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
    import transfer_control
    for kind in transfer_control.KINDS:transfer_control.set_paused(profile,kind,True)
    notices.note('info','Uploads paused for AirPlay','Resume them in Library status when the movie is over.')
-  return _send_airplay(xbmc,dialog,player,library,url,title,playing,lib,source_override)
+  return _send_airplay(xbmc,dialog,player,library,url,title,playing,lib,source_override,source_lease)
 
 def tv_link(xbmc,library,url,playing,kind,safe=False):
  """r40 (owner, build 203: "work on any tv thats connected to the same wifi"): the link a TV's own player opens. Kodi's

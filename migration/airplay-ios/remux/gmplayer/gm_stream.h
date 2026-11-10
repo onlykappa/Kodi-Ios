@@ -187,6 +187,8 @@ struct AVFormatContext *gm_stream_format_context(gm_stream *s);
 /// Kodi iOS addition (r8): the single-track unit (ftyp+moov+moof+mdat) of segment `i` for source stream `src` (the
 /// selected video or an audio track); [0, *moov_end) is the init, the rest the media segment.
 int gm_stream_track_unit(gm_stream *s, int src, int i, gm_buf *out, int *moov_end, char *err, int errlen);
+// Last single-track seek/packet scan timings. Read under the same rendition lock as production.
+void gm_stream_last_timings(const gm_stream *s, double *seek_ms, double *scan_ms, long *packets);
 // Header from already-probed codec parameters; no source reads or segment production. Serialize with producers.
 int gm_stream_track_init(gm_stream *s, int src, gm_buf *out, char *err, int errlen);
 // Replace an estimated grid with known random-access timestamps (e.g. a prepared MP4's complete mfra).

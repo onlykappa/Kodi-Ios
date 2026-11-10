@@ -24,6 +24,7 @@
   </category>
   <category id="library" label="Library">
    <group id="1">
+    <setting id="follow_episodes" type="boolean" label="Download new episodes automatically"><level>0</level><default>true</default><control type="toggle"/><help>After you download a show or episode, check for newly aired episodes when Kodi opens or returns to the screen. Follow your chosen quality and save to Google Drive. No continuous episode searches; future and undated episodes wait.</help></setting>
     <setting id="library_scan" type="action" label="Scan iPhone files for movies and shows"><level>0</level><data>RunScript(service.kodi.ios.bootstrap,library_scan)</data><control type="button" format="action"/><help>Scan Kodi Downloads or a folder available to Kodi. Missing movies and shows are uploaded to Google Drive; phone copies are removed only after the Drive files are verified.</help></setting>
     <setting id="library_refresh" type="action" label="Refresh Library"><level>0</level><data>RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&amp;all=1)</data><control type="button" format="action"/></setting>
    </group>

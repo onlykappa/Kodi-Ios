@@ -4,6 +4,14 @@ import diagnostics
 # Full-screen video or music only: on Fuse's menus the top-right corner holds the clock and the gear.
 PLAYING='Player.HasMedia + [Window.IsActive(fullscreenvideo) | Window.IsActive(visualisation)]'
 
+def startup_budget(lib):
+ """New frameworks own one absolute startup deadline; older installed frameworks keep their existing limit."""
+ try:
+  seconds=int(lib.kodi_airplay_startup_budget())
+  if 60<=seconds<=180:return seconds+5  # let native failure diagnostics arrive before controller cancellation
+ except (AttributeError,TypeError,ValueError):pass
+ return 60
+
 def library_path(xbmc_home):
  """special://xbmc lies inside Kodi.app; the framework sits in Kodi.app/Frameworks."""
  app=str(xbmc_home).rstrip('/')

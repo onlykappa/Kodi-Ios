@@ -26,6 +26,14 @@ class Cache(unittest.TestCase):
   self.assertEqual(self.read(s,len(DATA)-123,len(DATA)-1),DATA[-123:])
   self.assertLessEqual(len(self.requests),3)
   self.assertTrue(all(r.full_url=='https://media.example/episode.mkv' for r in self.requests))
+ def test_source_metrics_explain_cache_and_upstream_reads_without_url_or_headers(self):
+  source=self.source('https://media.example/episode.mkv?secret=PRIVATE|Authorization=Bearer%20PRIVATE')
+  self.read(source,0,99);self.read(source,0,99)
+  stats=source.stats()
+  self.assertGreater(stats['cache_hits'],0);self.assertGreater(stats['cache_misses'],0)
+  self.assertGreater(stats['http_requests'],0);self.assertEqual(stats['last_status'],206)
+  self.assertGreater(stats['read_bytes'],0);self.assertIn('source_read_ms',stats)
+  self.assertNotIn('PRIVATE',json.dumps(stats));self.assertNotIn('https://',json.dumps(stats))
  def test_cross_block_and_suffix_ranges(self):
   s=self.source();a=2*1024*1024-10;b=a+99
   self.assertEqual(self.read(s,a,b),DATA[a:b+1])
@@ -120,7 +128,7 @@ class Controller(Broker):
   xbmc=types.SimpleNamespace(log=lambda *a:None,LOGINFO=1)
   for fails in (False,True):
    def play(*args):
-    self.assertTrue(args[-1].startswith('http://127.0.0.1:'));self.assertIsNotNone(self.broker.current)
+    self.assertTrue(args[-2].startswith('http://127.0.0.1:'));self.assertIsNotNone(args[-1]);self.assertIsNotNone(self.broker.current)
     if fails:raise RuntimeError('cancelled startup')
    with patch.dict(sys.modules,{'xbmcgui':gui}),patch.object(controller.airplay,'load',return_value=lib),\
         patch.object(controller.airplay,'converts',return_value=True),patch.object(controller.cast,'airplay_source',return_value=raw),\
