@@ -1647,9 +1647,9 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
 +#include "utils/log.h"
 +#include <chrono>
 +#include <cmath>
- 
+
  using namespace KODI;
- 
+
 @@ -119,7 +122,22 @@
    {
      int val;
@@ -1672,7 +1672,7 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
 +        SetIntValue(val);
 +    }
    }
- 
+
    dirty |= guiBackground->SetHeight(m_height);
 @@ -386,7 +404,16 @@
      std::string action = StringUtils::Format(m_action->formatString, percent);
@@ -1691,9 +1691,9 @@ diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
 +      CServiceBroker::GetGUI()->GetWindowManager().SendMessage(message);
    }
  }
- 
+
 @@ -682,7 +709,7 @@
- 
+
  EVENT_RESULT CGUISliderControl::OnMouseEvent(const CPoint& point, const MOUSE::CMouseEvent& event)
  {
 -  m_dragging = false;
