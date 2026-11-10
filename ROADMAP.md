@@ -343,3 +343,8 @@ project/UI checks and real native host generated-source recovery pass. Evidence:
 Next: package/verify the requested updated test IPA using unchanged verified Kodi r26/AirPlay r43, then owner tests
 Refresh (ready count/no new Lanterns conversion), upload status, and Umbrella AirPlay/Media Assistant separately.
 Device/visual/provider acceptance and roadmap phase/task counts remain unchanged; no main merge.
+
+Packaging retry checkpoint (ISSUE-146): build 218 / 42755096028 failed before packaging on an obsolete AirPlay
+wording assertion. Corrected, 29 routing tests and every subsequent CI test script pass locally; Python 3.11 path
+supplied for bytecode tests as CI does. App sources/pins unchanged. Next: new packaging run, artifact verification
+and owner delivery; 218 was never delivered. Failed attempt retained in ISSUES and checks report.

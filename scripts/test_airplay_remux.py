@@ -33,7 +33,7 @@ class PhoneSource(unittest.TestCase):
   self.assertEqual(cast.phone_source('/var/mobile/Movie.mkv','http://fallback/x'),'http://fallback/x')
   source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
   self.assertIn('cast.airplay_source(playing,url,converting)',source)
-  self.assertIn('AirPlay converts this %s video on the phone',source)
+  self.assertIn('AirPlay streams from this iPhone: keep Kodi open.',source)
  def test_a_prepared_mp4_also_uses_the_phones_own_link(self):
   # Owner build 157: Scary.Movie...mp4 (prepared) went out as http://10.0.0.247:57527/... and was refused.
   playing='http://127.0.0.1:57527/download/1/1/abc/Scary.Movie.2026.2160p.mp4'

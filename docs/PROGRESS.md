@@ -2,6 +2,11 @@
 
 ## Upload, progress, expired-link recovery and Refresh inspection — 2026-11-10
 
+Packaging checkpoint: build 218 / run 42755096028 stopped before IPA creation on an obsolete AirPlay wording
+assertion. Corrected it; all 29 remux/routing tests and all subsequent packaging test scripts pass locally. The
+customized-IPA test also passes with the installed Python 3.11 environment configured as in CI. Details and the
+failed run are preserved in ISSUE-146/report. No app source/pin change was needed. A new packaging run follows.
+
 Owner authorizes all three recommendations in the build and asks Library status Refresh to read files so a ready
 Lanterns episode is not converted again. HTTP preparation uploads now start at 1 MiB, adapt to 1–8 MiB aligned
 pieces, and retain the existing 32 MiB producer/resume pieces plus 256 MiB checkpoint window. Every acknowledged

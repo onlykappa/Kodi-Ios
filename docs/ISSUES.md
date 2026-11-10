@@ -1995,3 +1995,14 @@ Native host comparison with 150 ms local request latency produces identical 467,
 These are generated fixtures/local HTTP/mocked AllDebrid responses, not live provider/iPhone/Roku results. Source:
 reports/refresh-streaming-checks.json. Existing UI layout/style and verified r26/r43 native pins are unchanged.
 Owner requests this updated test build for a retest; IPA packaging follows. Device and visual acceptance remain open.
+
+
+ISSUE-146 packaging attempt: build 218 / run 42755096028 from 7c27f81d9d17bdfab366da0776d49af57607e2d6
+stopped before IPA creation/publication. test_airplay_remux still required the old "AirPlay converts this video"
+label, removed under ISSUE-145 because supported originals do not require background conversion. Corrected the
+wording assertion while retaining functional source-routing checks; all 29 tests pass. The subsequent artifact
+upload failure was secondary: tests stopped before producing the review ZIP. Ran every remaining packaging-test
+script locally; all pass after setting the installed KODI_IOS_PYTHON311 path for the customized-IPA bytecode test
+(the first local run omitted that environment variable; CI already supplies it). The app source/pins did not change
+for this CI correction. Exact additional scripts/counts are in the checks report. A new source checkout/build run
+is required; rerunning the immutable failed checkout would retain the old assertion. Build 218 was never delivered.
