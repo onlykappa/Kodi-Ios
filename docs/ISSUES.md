@@ -2241,3 +2241,14 @@ AirPlay position is saved and a bounded handoff guard protects it while Kodi mov
 Sixteen focused regressions pass; expanded packaging/UI/library/progress checks and device review follow. UI policy
 and routed HIG playback/slider guidance read; existing controls and select menu, no layout/style redesign. Owner
 approved native builds/IPA under DEC-034; no main merge. No owner account or media was accessed.
+
+ISSUE-147 final regression follow-up: found that integer player progress within one percent of a fractional target
+could still clear against the unchanged baseline. Record the pre-submit observed percentage and require it to
+change before accepting landing; the fractional regression fails without this guard and passes with it. Kodi r27
+is superseded before IPA; r28 source c829a92 / run 42881626230 passes 46 local scenarios and is building. Full native
+suite also retained two assertions against the previous misleading conversion log string; update to the corrected
+conversion reason while retaining actual decode/format checks. The first AirPlay candidate run 42881365570 compiled
+its framework but is superseded for that test correction. Python restart assertion likewise needed its new diagnostic
+wrapper reflected; library refresh's old raw-path assertion now checks the exact copy inside the resume route.
+One unrelated upload nonblocking timing check measured 1.074 seconds against a 1-second bound while native/video,
+portrait generation and parallel suites competed; retain the bound and rerun in isolation. No product relaxation.

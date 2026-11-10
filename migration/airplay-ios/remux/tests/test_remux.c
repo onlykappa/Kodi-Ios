@@ -681,7 +681,7 @@ static void test_compat(const char *url, const char *name, int ask, double offse
     }
     kr_remux_log(log, sizeof log);
     CHECK(strstr(log, "compat: converting video stream") && strstr(log, "with mpeg4 (software decoding)"), "%s: conversion logged:\n%.2000s", name, log);
-    if (!ask) CHECK(strstr(log, "compat: the video is not H.264/HEVC") != NULL, "%s: switched by itself", name);
+    if (!ask) CHECK(strstr(log, "compat: conversion reason=") != NULL, "%s: switched by itself", name);
     free(master.body); free(video.body); free(init.body);
     kr_remux_stop();
     CHECK(kr_remux_compat() == 0 && kr_remux_state() == KR_IDLE, "%s: compat cleared on stop", name);

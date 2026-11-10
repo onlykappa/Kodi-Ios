@@ -1,5 +1,18 @@
 # Persistent progress
 
+## Playback retention delivery underway — 2026-11-10
+
+Owner approves seek retention, subtitle loading, automatic stop diagnostics and an IPA, then adds downloaded movie
+Continue from / restart. DEC-034 supersedes the prior IPA hold for this delivery; no merge is requested. Source
+repairs and focused regressions are committed. Kodi r27 built successfully but was superseded before IPA after a
+fractional-seek baseline edge case was found; r28 candidate run 42881626230 includes that guard (46 actual-method
+scenarios). AirPlay source adds retained subtitle work/cache and retryable failures, native safe health snapshots
+and bounded local stop reports. Downloaded movies share history with Continue Watching, preserve existing provider
+choices, support uncached media identities and record native TV progress through handoff. See ISSUE-147/151.
+Native/full Python verification, immutable release/provenance pinning and final IPA validation remain in progress.
+No new IPA is delivered by this source checkpoint; actual iPhone/Roku/provider and visual acceptance remain pending.
+
+
 ## Code ready, IPA held: AirPlay startup and followed episodes — 2026-11-10
 
 Owner requests the AirPlay repair/diagnostics and automatic downloads for newly aired episodes, checking on app

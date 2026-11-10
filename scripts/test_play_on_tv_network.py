@@ -335,7 +335,7 @@ class SoundOnlyRestart(unittest.TestCase):
   self.assertIn('compatTried = YES; restarting = YES; atomic_store(&compatBusy,1);',build)
   self.assertIn('restarting = NO; atomic_store(&compatBusy,0);',build)
   self.assertIn('failedSeen=failed && !atomic_load(&compatBusy) ? failedSeen+1 : 0;',build)
-  self.assertIn('if(failedSeen>=3)playbackStateFor(generation,-1,0);',build)
+  self.assertIn('if(failedSeen>=3){if(playbackStateFor(generation,-1,0))atomic_store(&healthReason,2);}',build)
   self.assertIn('openFailedSeen = openFailed && !atomic_load(&compatBusy) ? openFailedSeen + 1 : 0;',build)
   self.assertIn('} else if (openFailedSeen >= 3) {',build)
   self.assertIn('if(atomic_load(&compatBusy))return;   // r37',build)
