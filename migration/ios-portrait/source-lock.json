@@ -4,22 +4,22 @@
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
   "build_tag": "kodi-ios-portrait-r28",
-  "staged_patch_note": "r28 candidate adds observed-baseline guard so a fractional seek cannot clear against the same old integer progress; r27 superseded before IPA. Existing r26 verified executable remains pinned until r28 verification.",
+  "staged_patch_note": "r28 verified native executable pinned for owner-approved seek retention test IPA.",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
+    "tag": "kodi-ios-portrait-r28",
+    "asset": "Kodi-portrait-executable.zip",
+    "sha256": "ee7deca750e612822c4606a920110eda44675957c1d26e97ce91f6c0082fa31d",
+    "archive_sha256": "3fcde2b3d469344ef74327c4473bdd047be05a1950ace3bf09cfae323a36e9ef"
+  },
+  "build_note": "r28 verified run 42881626230: 46 actual slider/gesture/info-refresh scenarios, fractional baseline guard, ARM64 compilation/publication. Release binary equals artifact; patch/upstream commit/ZIP/digests verified. r27 superseded before IPA; device acceptance pending.",
+  "previous_executable_release": {
     "tag": "kodi-ios-portrait-r26",
     "asset": "Kodi-portrait-executable.zip",
     "sha256": "f4379642605486f9a09f16366e9d2f32279f3ce8c8c0b665a7465a17404678d3",
     "archive_sha256": "d34ea5d0c349906b428a406ebf4a1dc4dfcf4e765223bec4a516d609ed2e220b"
   },
-  "build_note": "r26: native run 42705743785 passed 32 real gesture/slider dispatch scenarios, ARM64 executable compilation and publication. Release binary equals the CI artifact; extracted binary digest, archive digest, patch digest and pinned upstream Kodi commit verified separately. Fixes build 216 release-to-start regression; device retest pending.",
-  "previous_executable_release": {
-    "tag": "kodi-ios-portrait-r25",
-    "asset": "Kodi-portrait-executable.zip",
-    "sha256": "c3f0560c3731f53408a9e7c202b7108ef472272e72c873042e7b400bc1c79e2c",
-    "archive_sha256": "fe7844edf12bb16c2f6315d492eb494d21e5c6ce0375a88027a8dd9170237af4"
-  },
-  "verified_run": 42705743785,
-  "source_commit": "403bd10e683e8054c6437a1883895d662f80d1d9",
-  "patch_sha256": "1800202ed6877f61d5686f36be9b9a0d9c147d053f9f12285d600c7128ee13bb"
+  "verified_run": 42881626230,
+  "source_commit": "c829a928bdde3ba30d2f80d62c838933d8374441",
+  "patch_sha256": "a3c1814b381753ebba0475598881cbd6fddfdb41acf69542709a535deff5e851"
 }

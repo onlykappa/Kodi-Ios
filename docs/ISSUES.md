@@ -2258,8 +2258,17 @@ ISSUE-147 verification follow-up: isolated nonblocking upload test passed unchan
 blocked-upload event: the producer must finish all three writes while PUT is still deliberately blocked, then
 release the network and verify the exact stored bytes. This strengthens the nonblocking guarantee without changing
 application upload behavior or simply raising the old limit. The full 26-test preparation suite is rerun with it.
-Local full native run (3251 checks) also lacked KR_TEST_FONT, causing 15 text-render failures despite valid cue
+Local full native run (3251 checks) also lacked KR_TEST_FONT, causing 14 text-render failures despite valid cue
 parsing. Use the host runner's documented DejaVu fallback for retest; no iOS font change. Four old burned-text
 checks now assert the intentional unadvertised-track 404 and the old optional-caption timeout check now asserts
 bounded retryable 503 plus prompt cancellation. One prefetch latency assertion ran under concurrent generation
 load and is retained for isolated retest. Original full-run failures are kept in the checks report.
+
+ISSUE-147/151 verification: final local native suite passes 3252/3252 with documented host font, strict prefetch
+timing unchanged. All 62 Python suites / 1094 tests and 46 actual gesture/info-refresh scenarios pass; a final
+post-pin packaging test needed its existing Python 3.11 environment variable restored and then passed. Stop
+classification also captures an apparent end notification well before known duration and retains the final
+snapshot on normal closes. Kodi r28 artifact/release/upstream/patch/ARM64 verified; AirPlay final candidate
+923131c / 42883448916 passes native host, framework and end-to-end conversion jobs; exact artifact digest/ZIP,
+new exports and ARM64 checked. Pins r28/r44 staged for verified framework publication then requested test IPA.
+Device/provider/visual acceptance and historical hour-stop attribution remain pending. No main merge.

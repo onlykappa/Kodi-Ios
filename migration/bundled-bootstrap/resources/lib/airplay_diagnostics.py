@@ -31,8 +31,12 @@ class Tracker:
   if player.get('active') and player.get('state')==1:self.played=True
   if not self.played:return None
   why=None;reason=player.get('stop_reason',0)
-  if reason in (1,3):return None # finished or explicitly closed by the owner/controller
-  if reason==2 or player.get('state',0)<0:why='player_failed'
+  if reason==3:return None # explicitly closed by the owner/controller
+  if reason==1:
+   total=player.get('duration',0);remaining=total-player.get('position',0)
+   if total>0 and remaining>max(10,min(30,total*.01)):why='ended_before_duration'
+   else:return None
+  elif reason==2 or player.get('state',0)<0:why='player_failed'
   elif before.get('external') and not player.get('external') and player.get('active'):why='receiver_route_ended'
   elif before.get('active') and not player.get('active'):why='unexpected_player_stop'
   elif player.get('time_control')==2 and now-self.advanced>=30:why='buffering_without_progress'
@@ -63,9 +67,13 @@ def watch(lib,profile,window,write,wait,clock=time.time):
    try:source=selected(remote_media.stats(window),SOURCE)
    except Exception:source={} # a closing broker must not prevent the stop itself from being captured
    sample={'player':player,'network':selected(airplay.network(lib,window) or {},NETWORK),'source':source}
+   was_playing=tracker.played
    now=clock();report=tracker.observe(sample,now)
    if report:capture(profile,report,write,diagnostics.snapshot(profile))
-   if not player.get('active') and player.get('state',0)<=0:tracker.played=False
+   if was_playing and not player.get('active') and player.get('state',0)<=0:
+    store(profile,'airplay-recent.json',{'generation':tracker.generation,'recent':list(tracker.rows)})
+    diagnostics.event(write,'airplay','playback_ended',**sample)
+    tracker.played=False
    if player.get('active') and now-saved>=30:
     store(profile,'airplay-recent.json',{'generation':tracker.generation,'recent':list(tracker.rows)});saved=now
    if player.get('active') and now-logged>=30:

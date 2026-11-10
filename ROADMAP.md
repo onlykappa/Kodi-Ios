@@ -394,3 +394,13 @@ Owner holds IPA publication. No native iPhone framework build/release, workflow 
 Native pins stay r26/r43; next authorized IPA requires rebuilding/verifying/pinning the changed AirPlay component
 first. Actual iPhone/Roku, provider/new-release and visual acceptance remain pending. ISSUE-147 remains separate;
 no roadmap phase/task acceptance counts change.
+
+## Playback retention verified; owner-approved test IPA packaging next — 2026-11-10
+
+DEC-034 / ISSUE-147/151: seek retention (including fractional baseline), retained subtitle worker/cache, automatic
+stop evidence and downloaded-movie Continue from/restart implemented. Native local 3252 checks, 1094 Python tests
+and 46 real slider/gesture/info-refresh scenarios pass. Verified Kodi r28 run 42881626230, AirPlay candidate run
+42883448916 host/framework/end-to-end success; new immutable pin/publication follows checks receipt. See
+reports/playback-retention-checks.json and PROGRESS. Owner approves IPA and prior opening-episode/startup changes
+are included. Next publish verified framework, package/independently verify IPA and deliver. No main merge;
+actual iPhone/Roku/provider/visual acceptance and existing roadmap task counts stay unchanged.

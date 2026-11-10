@@ -19,7 +19,11 @@ class Classification(unittest.TestCase):
   self.assertEqual(report['reason'],'player_failed');self.assertEqual(report['recent'][-1]['player']['error_code'],-12889)
   self.assertEqual(len(report['recent']),96);self.assertEqual(report['recent'][0]['at'],3130)
  def test_owner_close_and_normal_end_are_not_unexpected_stops(self):
-  for reason in (1,3):self.assertIsNone(self.tracker.observe(sample(active=0,state=0,stop_reason=reason),5))
+  self.assertIsNone(self.tracker.observe(sample(7199,active=0,state=0,stop_reason=1),5))
+  self.assertIsNone(self.tracker.observe(sample(100,active=0,state=0,stop_reason=3),10))
+ def test_an_end_notification_halfway_through_the_movie_is_still_captured(self):
+  report=self.tracker.observe(sample(3600,active=0,state=0,stop_reason=1),3600)
+  self.assertEqual(report['reason'],'ended_before_duration')
  def test_pausing_is_not_a_buffering_stall(self):
   for now in range(5,101,5):self.assertIsNone(self.tracker.observe(sample(rate=0,time_control=0),now))
  def test_waiting_without_progress_is_captured_after_thirty_seconds(self):
