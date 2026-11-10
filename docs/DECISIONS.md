@@ -164,3 +164,16 @@ container/audio on demand. Unknown/unsupported video keeps the existing preparat
 automatic repacks of already ready files. Readiness is tied to the inspected Drive version/checksum/size/ID;
 transaction recovery and owner-kept choices remain protected. This does not declare MKV universally receiver-native,
 remove runtime subtitle/audio handling, or accept the separate Umbrella/Roku bug as fixed on a device.
+
+
+## DEC-032 — Audit compatibility and faster opening separately on every Refresh (2026-11-10)
+
+Owner: “anytime i press the refresh button i want it to read my entire library and check if faster open has been
+done and conversion is good, and if one of then is missing something it will fix it”. This revises DEC-031's
+disabling of faster-open background repacks: keep compatible picture quality, but restore a missing fast-open
+container/index step. Every explicit Refresh reopens all eligible library files, including cached/prepared ones;
+automatic scans can reuse exact identity results. Inspect native tracks plus bounded byte ranges; never infer
+compatibility/layout from extension alone. Front-indexed MP4 and valid completed prepared layouts skip rewrites.
+Protect owner-kept originals, transaction recovery, current conversion and checkpoints/backoff. A layout audit
+requires access to the Drive bytes (internet if those bytes are cloud-only); it does not download a full local copy.
+Existing UI fact slots report faster opening independently; no layout or native framework change.

@@ -111,6 +111,24 @@ class Broker:
    if self.current:self.current.close();self.current=None
 
 
+def start(monitor,window,context=None):
+ """Register on Kodi's Home window (the service's `home` is a filesystem Path)."""
+ broker=Broker(context=context)
+ try:
+  window.setProperty(PROPERTY,broker.url)
+  def close_sources():
+   try:
+    while not monitor.waitForAbort(30):pass
+   finally:
+    try:
+     if window.getProperty(PROPERTY)==broker.url:window.clearProperty(PROPERTY)
+    finally:broker.close()
+  threading.Thread(target=close_sources,daemon=True).start()
+ except Exception:
+  broker.close();raise
+ return broker
+
+
 def _call(endpoint,payload):
  body=json.dumps(payload).encode()
  with urllib.request.urlopen(urllib.request.Request(endpoint,data=body,headers={'Content-Type':'application/json'}),timeout=5) as response:

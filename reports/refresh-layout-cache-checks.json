@@ -1,0 +1,411 @@
+{
+  "date": "2026-11-10",
+  "status": "host repair checks; packaging pending",
+  "branch": "claude/trusting-euler-kgug98",
+  "pr": 16,
+  "issue": 148,
+  "owner_scope": "Every Library status Refresh audits the entire library for video compatibility and faster-open preparation, repairing only missing steps; fix observed Umbrella source-cache startup failure.",
+  "device_log": {
+    "build": 219,
+    "span_device_clock": "06:35:11\u201306:43:22",
+    "cache_startup_error": "PosixPath has no setProperty",
+    "both_umbrella_cache_flags": false,
+    "opening_deadline_seconds": 45,
+    "wifi_fault_proven": false
+  },
+  "refresh": {
+    "every_explicit_refresh_reinspects_cached_and_prepared_files": true,
+    "native_tracks_and_bounded_mp4_ranges": true,
+    "front_moov_or_completed_fragment_index": "keep unchanged",
+    "missing_layout": "repack with compatible picture copied",
+    "old_v1_fragments": "repair to v2",
+    "unsupported_picture": "existing native conversion",
+    "identity_rechecked_after_track_and_layout_checks": true,
+    "full_local_movie_download": false,
+    "owner_kept_commit_recovery_native_serialization_resume_and_backoff_preserved": true
+  },
+  "umbrella": {
+    "actual_service_uses_home_window": true,
+    "original_service_fails_new_integration_regression": true,
+    "fixed_service_starts_acquires_range_reads_and_closes": true,
+    "startup_failure_closes_broker": true,
+    "existing_loopback_mp4_hls_routes_preserved": true
+  },
+  "generated_real_layouts": [
+    {
+      "fixture": "h264_aac.mp4",
+      "fast_open": false,
+      "layout_reason": "index_after_media"
+    },
+    {
+      "fixture": "long-gop.mp4",
+      "fast_open": true,
+      "layout_reason": "fragment_index"
+    },
+    {
+      "fixture": "hevc_ac3.mp4",
+      "fast_open": false,
+      "layout_reason": "index_after_media"
+    },
+    {
+      "fixture": "h264_aac_srt.mkv",
+      "fast_open": false,
+      "layout_reason": "not_mp4"
+    },
+    {
+      "fixture": "stream-prepared-0.mp4",
+      "fast_open": true,
+      "layout_reason": "fragment_index"
+    },
+    {
+      "fixture": "resume-joined-0.mp4",
+      "fast_open": true,
+      "layout_reason": "fragment_index"
+    },
+    {
+      "fixture": "coalesced.mp4",
+      "fast_open": true,
+      "layout_reason": "fragment_index"
+    }
+  ],
+  "checks": [
+    {
+      "script": "test_activation.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "script": "test_airplay_flow.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "script": "test_airplay_remux.py",
+      "passed": true,
+      "tests": 29
+    },
+    {
+      "script": "test_airplay_room.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "script": "test_background_queue.py",
+      "passed": true,
+      "tests": 10
+    },
+    {
+      "script": "test_build192.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "script": "test_bundled_bootstrap.py",
+      "passed": true,
+      "tests": 15
+    },
+    {
+      "script": "test_choose_source.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "script": "test_compatibility_filter.py",
+      "passed": true,
+      "tests": 31
+    },
+    {
+      "script": "test_continue_downloads.py",
+      "passed": true,
+      "tests": 19
+    },
+    {
+      "script": "test_conversion_speed.py",
+      "passed": true,
+      "tests": 48
+    },
+    {
+      "script": "test_customized_ipa.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "script": "test_debrid_drive.py",
+      "passed": true,
+      "tests": 24
+    },
+    {
+      "script": "test_deck_picker.py",
+      "passed": true,
+      "tests": 13
+    },
+    {
+      "script": "test_diagnostics.py",
+      "passed": true,
+      "tests": 14
+    },
+    {
+      "script": "test_downloaded_play.py",
+      "passed": true,
+      "tests": 9
+    },
+    {
+      "script": "test_downloaded_show.py",
+      "passed": true,
+      "tests": 20
+    },
+    {
+      "script": "test_drive_library.py",
+      "passed": true,
+      "tests": 20
+    },
+    {
+      "script": "test_drive_prepare.py",
+      "passed": true,
+      "tests": 26
+    },
+    {
+      "script": "test_drive_upload.py",
+      "passed": true,
+      "tests": 23
+    },
+    {
+      "script": "test_elementum_cloud.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "script": "test_fast_open.py",
+      "passed": true,
+      "tests": 10
+    },
+    {
+      "script": "test_genre_photos.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "script": "test_glassbar.py",
+      "passed": true,
+      "tests": 28
+    },
+    {
+      "script": "test_import_builder.py",
+      "passed": true,
+      "tests": 13
+    },
+    {
+      "script": "test_import_profile.py",
+      "passed": true,
+      "tests": 19
+    },
+    {
+      "script": "test_ios.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "script": "test_ios_navigation.py",
+      "passed": true,
+      "tests": 30
+    },
+    {
+      "script": "test_library_artwork.py",
+      "passed": true,
+      "tests": 14
+    },
+    {
+      "script": "test_library_pages.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "script": "test_library_refresh.py",
+      "passed": true,
+      "tests": 17
+    },
+    {
+      "script": "test_library_scan.py",
+      "passed": true,
+      "tests": 33
+    },
+    {
+      "script": "test_library_status.py",
+      "passed": true,
+      "tests": 48
+    },
+    {
+      "script": "test_library_tools.py",
+      "passed": true,
+      "tests": 31
+    },
+    {
+      "script": "test_listing_cache.py",
+      "passed": true,
+      "tests": 28
+    },
+    {
+      "script": "test_native_startup.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "script": "test_native_ui.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "script": "test_notice_log.py",
+      "passed": true,
+      "tests": 15
+    },
+    {
+      "script": "test_notices.py",
+      "passed": true,
+      "tests": 19
+    },
+    {
+      "script": "test_pages.py",
+      "passed": true,
+      "tests": 19
+    },
+    {
+      "script": "test_performance_budget.py",
+      "passed": true,
+      "tests": 13
+    },
+    {
+      "script": "test_play_on_tv_network.py",
+      "passed": true,
+      "tests": 62
+    },
+    {
+      "script": "test_play_on_tv_start.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "script": "test_preparation_runtime.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "script": "test_prepare_downloads.py",
+      "passed": true,
+      "tests": 59
+    },
+    {
+      "script": "test_remote_media.py",
+      "passed": true,
+      "tests": 23
+    },
+    {
+      "script": "test_resume.py",
+      "passed": true,
+      "tests": 12
+    },
+    {
+      "script": "test_search_categories.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "script": "test_seek_release.py",
+      "passed": true,
+      "tests": null,
+      "host_slider_scenarios": 32
+    },
+    {
+      "script": "test_settings_page.py",
+      "passed": true,
+      "tests": 23
+    },
+    {
+      "script": "test_settings_search.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "script": "test_show_parent_navigation.py",
+      "passed": true,
+      "tests": 1
+    },
+    {
+      "script": "test_show_scrolling.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "script": "test_signin_server.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "script": "test_slowdown.py",
+      "passed": true,
+      "tests": 21
+    },
+    {
+      "script": "test_source_match.py",
+      "passed": true,
+      "tests": 39
+    },
+    {
+      "script": "test_startup_sequence.py",
+      "passed": true,
+      "tests": 9
+    },
+    {
+      "script": "test_transfer_artwork.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "script": "test_transfer_efficiency.py",
+      "passed": true,
+      "tests": 9
+    },
+    {
+      "script": "test_umbrella_recovery.py",
+      "passed": true,
+      "tests": 13
+    },
+    {
+      "script": "test_updates_calibration.py",
+      "passed": true,
+      "tests": 41
+    },
+    {
+      "script": "test_watch_continue.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "script": "test_watch_dialog.py",
+      "passed": true,
+      "tests": 13
+    },
+    {
+      "script": "test_watch_routes.py",
+      "passed": true,
+      "tests": 10
+    },
+    {
+      "script": "test_work_state.py",
+      "passed": true,
+      "tests": 27
+    }
+  ],
+  "native_pins_changed": false,
+  "ui": "existing fact/status slots only; policy followed; visual acceptance pending",
+  "device_tested": false,
+  "live_owner_drive_or_media_accessed": false,
+  "separate_open_issues": [
+    "ISSUE-147 seek rollback",
+    "ISSUE-147 subtitle timeout",
+    "continuous-hour stop not captured"
+  ],
+  "merge_to_main": false,
+  "completed_suites": 65,
+  "unit_tests": 1122
+}

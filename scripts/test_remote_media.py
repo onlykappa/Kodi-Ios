@@ -1,5 +1,5 @@
 """Foreground HTTP cache reuses Drive ranges without its credentials, throttling or disk storage."""
-import io,json,sys,threading,time,unittest,urllib.request
+import ast,io,json,sys,threading,time,types,unittest,urllib.request
 from pathlib import Path
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'migration/bundled-bootstrap/resources/lib'))
@@ -63,6 +63,37 @@ class Broker(unittest.TestCase):
    source=remote.Foreground(url,open_url=open);self.sources.append(source);return source
   self.broker=remote.Broker(source_factory=factory);self.addCleanup(self.broker.close)
   self.home=type('Home',(),{'getProperty':lambda _,key:self.broker.url})()
+ def test_real_service_registers_cache_with_a_path_home_and_closes_on_abort(self):
+  tree=ast.parse((ROOT/'migration/bundled-bootstrap/service.py').read_text())
+  fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='drive_uploads')
+  setup=next(n for n in fn.body if isinstance(n,ast.Try) and any(isinstance(c,ast.Name) and c.id=='remote_media' for c in ast.walk(n)))
+  properties={};stopped=threading.Event();closed=threading.Event();errors=[]
+  window=types.SimpleNamespace(setProperty=lambda k,v:properties.update({k:v}),getProperty=lambda k:properties.get(k,''),clearProperty=lambda k:properties.pop(k,None))
+  def close():
+   try:original_close()
+   finally:closed.set()
+  original_close=self.broker.close
+  self.broker.close=close
+  env=dict(home=Path('/synthetic/kodi/home'),remote_media=remote,tls_context=lambda:None,
+           xbmcgui=types.SimpleNamespace(Window=lambda ident:window if ident==10000 else None),
+           monitor=types.SimpleNamespace(waitForAbort=lambda delay:stopped.wait(.01)),threading=threading,xbmc=object(),
+           diagnostics=types.SimpleNamespace(log_exception=lambda *args:errors.append(args)))
+  try:
+   with patch.object(remote,'Broker',return_value=self.broker):
+    exec(compile(ast.Module(body=[setup],type_ignores=[]),'service-cache-setup','exec'),env)
+   self.assertFalse(errors);self.assertEqual(properties[remote.PROPERTY],self.broker.url)
+   url,lease=remote.acquire('https://media.example/episode.mkv',window)
+   self.assertIsNotNone(lease);self.assertTrue(url.startswith('http://127.0.0.1:'))
+   with urllib.request.urlopen(urllib.request.Request(url,headers={'Range':'bytes=0-9'})) as response:
+    self.assertEqual(response.read(),DATA[:10])
+  finally:
+   stopped.set();self.assertTrue(closed.wait(3))
+  self.assertNotIn(remote.PROPERTY,properties);self.assertIsNone(self.broker.current)
+ def test_registration_failure_closes_the_started_server(self):
+  window=types.SimpleNamespace(setProperty=lambda *args:(_ for _ in ()).throw(RuntimeError('window unavailable')))
+  with patch.object(remote,'Broker',return_value=self.broker),patch.object(self.broker,'close') as close:
+   with self.assertRaisesRegex(RuntimeError,'window unavailable'):remote.start(object(),window)
+   close.assert_called_once()
  def test_service_owned_source_and_explicit_close(self):
   url,lease=remote.acquire('https://media.example/episode.mkv',self.home)
   self.assertTrue(url.startswith('http://127.0.0.1:'));self.assertIsNotNone(lease)

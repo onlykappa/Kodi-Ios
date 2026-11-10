@@ -1,5 +1,29 @@
 # Persistent progress
 
+## Full Refresh audit and Umbrella cache startup repair — 2026-11-10
+
+Owner build-219 log confirms compatible files skip conversion, but faster-open work was also suppressed.
+Explicit Refresh now repeats native track inspection and bounded MP4 layout reads for every eligible listed file,
+including cached/prepared files. It distinguishes a copy-safe picture from a front-indexed progressive MP4 or a
+fragmented MP4 with a completed, valid random-access index. Known v1 fragment layouts still need the v2 repack.
+Already fast files stay unchanged; a missing container/index step queues faster opening with the picture copied.
+Unsupported picture keeps the conversion path. No complete local movie download is needed for this inspection.
+Exact source identity is checked again after inspection. Active native work defers full checks; newer requests,
+owner-kept choices, commit recovery, staging/resume checkpoints and retry delays remain protected.
+
+The same log reports PosixPath.setProperty in media_source_bridge at startup. Both recorded Umbrella attempts
+have source_cache=false; one aborts and another exceeds its 45-second pre-TV opening deadline. Registering the
+broker through xbmcgui.Window(10000) fixes that concrete wiring defect. Shutdown removes only its own property
+and closes its source; a registration failure closes the already-started server. The integration regression
+executes the real service setup with a Path home, opens/range-reads its selected source, then checks shutdown.
+It fails against the previous service and passes with the repair. This does not establish a Wi-Fi fault or prove
+that every provider/receiver combination now plays. Native seek/subtitle/hour-stop ISSUE-147 remains separate.
+
+UI policy/skill followed; existing fact slots distinguish faster opening from picture compatibility, with no
+layout/style changes. Actual iPhone/Roku/provider and visual acceptance remain pending. No native pin changes;
+no owner Drive/media account access. Host verification and delivery status: reports/refresh-layout-cache-checks.json.
+Main and roadmap task counts remain unchanged.
+
 ## Supplied old log matches the same short session — 2026-11-10
 
 The new kodi.old.log contains the exact 1,993 lines already reviewed plus 59 shutdown lines (17.764 s). It spans

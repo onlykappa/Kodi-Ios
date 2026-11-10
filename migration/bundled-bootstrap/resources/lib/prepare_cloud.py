@@ -90,6 +90,7 @@ def process_one(q, keep_going):
         # Build 181: the prepared movie is a new Drive file (same folder and name, .mp4); the original is in the bin.
         main=dict(outputs.get('0') or {},moved=True)
         job['cloud_output']={'0':main};job['status']='done';job['completed']=q.clock();job['prepared_id']=new['id']
+        job.pop('stream_only',None);job.pop('audit',None)
         q.commit();clear_temps()
         try:
             import debrid_drive;debrid_drive.renamed(q.profile,item['id'],new['id'])   # "download and watch" plays the new one
@@ -105,7 +106,7 @@ def process_one(q, keep_going):
             drive_prepare.bin(q.drive,item['id'])
             return finished(prep.metadata(q.drive,job['promoted']))
         current = prep.metadata(q.drive,item['id'])
-        if prep.ready(current):
+        if prep.ready(current) and not job.get('repack') and not job.get('audit'):
             job['status']='done';clear_temps();q.commit();return True
         if q.skip_compatible(slot,job,current,job.get('probe')):
             q.state.pop('current',None);q.commit();return True
@@ -131,7 +132,11 @@ def process_one(q, keep_going):
                         drivelibrary.display_title(item['name']),checkpoint['offset']+len(checkpoint['tail'])-checkpoint.get('skip',0),checkpoint.get('skip',0)))
                 else:
                     progress('Inspecting video and track index',None)
-                    before=q.native.probe(source);job['probe']=before;q.commit()
+                    before=q.inspect_source(item,keep_going);job['probe']=before
+                    # Keep a contradictory old prepared marker from bypassing this repair after a pause/failure.
+                    if prep.streamable_video(before):job.pop('audit',None)
+                    else:job['audit']=True
+                    q.commit()
                 if q.skip_compatible(slot,job,item,before):
                     q.state.pop('current',None);q.commit();return True
                 q.log('preparation: %s — codec %s, %sx%s, %s-bit, HDR=%s, copy=%s, audio work=%s'%(drivelibrary.display_title(item['name']),before.get('codec'),before.get('width'),before.get('height'),before.get('bit_depth'),before.get('hdr'),before.get('copy_video'),before.get('audio_work_bytes')))
@@ -239,7 +244,7 @@ def process_one(q, keep_going):
         status,_,_=q.drive.call('PATCH',driveupload.API+'/'+urllib.parse.quote(item['id'],safe=''),json.dumps({'appProperties':props}).encode(),{'Content-Type':'application/json'})
         if status!=200:raise RuntimeError('Preparation verification marker: HTTP %d'%status)
         # Sidecars now belong to the library; only the temporary main movie is removed.
-        job['cloud_output']={'0':main};job['status']='done';job['completed']=q.clock()
+        job['cloud_output']={'0':main};job['status']='done';job['completed']=q.clock();job.pop('audit',None);job.pop('stream_only',None)
         pending=q.state.setdefault('staging_cleanup',[])
         if main['id'] not in pending:pending.append(main['id'])
         q.commit();clear_temps()

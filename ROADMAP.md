@@ -370,3 +370,11 @@ ISSUE-147 old-log follow-up (2026-11-10): supplied old log exactly extends the p
 Shutdown begins three minutes after the captured AirPlay close. Existing seek/subtitle findings remain; hour-stop
 attribution stays unresolved. Capture the next actual stop before restart. Report/progress updated; no app/native
 change, build, IPA, main merge or phase/task-count change.
+
+
+## Current repair checkpoint — 2026-11-10 (ISSUE-148)
+
+Full Library status Refresh now audits actual codec and faster-open layout separately and queues only missing
+preparation. Umbrella service cache registration now uses Kodi Home rather than a filesystem Path. See
+reports/refresh-layout-cache-checks.json and docs/PROGRESS.md for verification/delivery. No phase/task acceptance
+counts changed; device/Roku results and ISSUE-147 remain pending. Main is not merged.

@@ -282,12 +282,7 @@ def drive_uploads(monitor,home,profile):
  from clouddrive.common.remote.request import tls_context
  import remote_media
  try:
-  source_broker=remote_media.Broker(context=tls_context())
-  home.setProperty(remote_media.PROPERTY,source_broker.url)
-  def close_sources():
-   while not monitor.waitForAbort(30):pass
-   source_broker.close()
-  threading.Thread(target=close_sources,daemon=True).start()
+  remote_media.start(monitor,xbmcgui.Window(10000),context=tls_context())
  except Exception as error:diagnostics.log_exception(xbmc,'media_source_bridge',error)
  drive_addon=xbmcaddon.Addon('plugin.googledrive')
  if signin_server.migrate(drive_addon):xbmc.log('Kodi iOS Drive: sign-in server set to the owner worker',xbmc.LOGINFO)

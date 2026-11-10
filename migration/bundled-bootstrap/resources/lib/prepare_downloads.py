@@ -6,7 +6,7 @@ validated result is uploaded in place. Native r16 streams both input and output;
 """
 import contextlib,ctypes,fcntl,hashlib,json,os,re,shutil,threading,time,urllib.error,urllib.parse,urllib.request
 from pathlib import Path
-import app_state,driveupload,drivelibrary,library_scan,phone_space
+import app_state,driveupload,drivelibrary,library_scan,phone_space,fast_open
 
 # Build 192 (owner: a converted Interstellar "takes forever" to open): v2 = KodiAirPlay r32's layout (interleaved, ~64 MB
 # fragments: Kodi opens it in seconds). v1 movies still play and AirPlay as before; they are re-packed in the background
@@ -101,7 +101,7 @@ def streamable_video(probe):
 def playback_ready(profile,item):
  if ready(item):return True
  job=(load(profile).get('jobs') or {}).get(key(item)) or {}
- return bool(job.get('stream_only') and job.get('status')=='done' and streamable_video(job.get('probe'))
+ return bool(job.get('stream_only') and streamable_video(job.get('probe'))
              and job.get('source') and identity(job['source'])==identity(item))
 
 def repack_due(item):
@@ -486,7 +486,7 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
   if e['state']=='ready':
    # Build 181: a prepared movie is a new Drive file; its job is found by the id it was given.
    job=job or prepared.get(e['id'])
-   done=job if job and job.get('status')=='done' else {}
+   done=job if job and (job.get('status')=='done' or job.get('repack')) else {}
    rows['ready'].append(dict(base,state='ready',sub=quality_text(e['name'],e['size']),probe=done.get('probe'),
     completed=done.get('completed'),started_at=done.get('started_at'),stream_only=bool(e.get('stream_only') or done.get('stream_only'))));continue
   if job and (job.get('blocked') or job.get('kept')):
@@ -632,6 +632,7 @@ class Queue:
   # a movie converts runs beside it (service.py), so the state is shared between two threads: lock is held while the
   # job list changes and while it is saved; scanning holds one check at a time.
   self.lock=threading.RLock();self.scanning=threading.Lock();self.busy=False
+  self.layout_probe=fast_open.inspect
  def commit(self):
   with self.lock:
    for tries in range(5):
@@ -639,13 +640,33 @@ class Queue:
     except RuntimeError:   # the converting thread changed a job while it was being written: write it again
      if tries==4:raise
      time.sleep(0.05)
+ def inspect_source(self,item,keep_going=lambda:True):
+  self.native.keep_going=keep_going
+  source=self.stream.url(item['id'])
+  probe=dict(self.native.probe(source))
+  if streamable_video(probe):probe.update(self.layout_probe(source,int(item['size']),keep_going))
+  # v1's fragment index predates interleaved, larger fragments. An index alone does
+  # not upgrade that known old layout; progressive front-moov originals need no rewrite.
+  if repack_due(item) and probe.get('layout_reason')=='fragment_index':
+   probe.update(fast_open=False,layout_reason='older_prepared_layout')
+  if not keep_going():raise driveupload.Stop('Library check paused')
+  if identity(metadata(self.drive,item['id']))!=identity(item):raise RuntimeError('Drive source changed during inspection')
+  return probe
  def skip_compatible(self,slot,job,item,probe):
   """Keep the original and stop only app-owned, uncommitted preparation for compatible video."""
   if not streamable_video(probe) or job.get('status')=='committing' or job.get('promoted') or job.get('kept'):return False
   if not job.get('source') or identity(job['source'])!=identity(item):return False
+  # A compatible picture is playable now, but may still need an indexed MP4 container.
+  # Keep checkpoints/backoff intact when the same faster-open task is already queued.
+  if probe.get('fast_open') is False:
+   if not job.get('repack'):self.log('preparation: compatible picture; faster opening needed (%s)'%probe.get('layout_reason','missing layout'))
+   job.update(repack=True,stream_only=True)
+   job.pop('audit',None)
+   if job.get('status')=='done':job.update(status='waiting',retry_after=0,attempts=0)
+   self.commit();return False
   self.stage_cleanup(job)
   job.update(status='done',stream_only=True,probe=dict(probe),retry_after=0,attempts=0)
-  for name in ('repack','space','error','blocked','started_at','completed'):job.pop(name,None)
+  for name in ('audit','repack','space','error','blocked','started_at','completed'):job.pop(name,None)
   import resume_store
   resume_store.clear(self.profile,slot)
   library=self.state.get('library') or {}
@@ -711,13 +732,10 @@ class Queue:
    slot=key(item);seen.add(slot)
    recovering=[old for old,job in self.state['jobs'].items() if job['source']['id']==item['id'] and job.get('status')=='committing']
    if recovering:seen.update(recovering);continue
-   if ready(item):
-    counts['ready']+=1;entries.append(entry(item,'ready'))
-    old=self.state['jobs'].get(slot)
-    if old and old.get('repack') and item['id']!=converting:
-     self.stage_cleanup(old);old.update(status='done');old.pop('repack',None)
-    continue
    old=self.state['jobs'].get(slot)
+   if ready(item) and not inspection and not (old or {}).get('repack') and not (old or {}).get('audit'):
+    counts['ready']+=1;entries.append(entry(item,'ready'))
+    continue
    if item['id']!=converting:
     with self.lock:
      if old is None or old.get('status')=='superseded' or identity(old['source'])!=identity(item):
@@ -725,26 +743,31 @@ class Queue:
       old=self.state['jobs'][slot]={'source':item,'status':'waiting','attempts':0,'retry_after':0}
     # Refresh reads actual track metadata before deciding to queue conversion. Never probe through the same
     # native instance beside an active conversion or abandon a promotion/owner-kept original.
-    if inspection and not old.get('probe') and not old.get('kept') and not old.get('promoted') and self.stream:
+    if inspection and not old.get('kept') and not old.get('promoted') and self.stream:
      if beside:self.inspection_pending=True
      else:
       try:
-       status.update(stage='Checking compatibility · '+drivelibrary.display_title(item['name']),updated=self.clock());self.commit()
+       old['audit']=True;old.pop('probe',None)
+       status.update(stage='Checking compatibility and faster opening · '+drivelibrary.display_title(item['name']),updated=self.clock());self.commit()
        if self.runtime:self.runtime.phase('Checking compatibility',False,item['name'])
-       self.native.keep_going=keep_going
-       probe=self.native.probe(self.stream.url(item['id']))
-       if not keep_going():raise driveupload.Stop('Library check paused')
-       if identity(metadata(self.drive,item['id']))!=identity(item):raise RuntimeError('Drive source changed during inspection')
+       probe=self.inspect_source(item,keep_going)
        old['probe']=probe;old.pop('inspection_error',None);self.commit()
+       if not streamable_video(probe):
+        old.pop('stream_only',None);old.pop('repack',None)
+        if old.get('status')=='done':old.update(status='waiting',retry_after=0,attempts=0)
       except driveupload.Stop:raise
       except Exception as error:
        import preparation_runtime
        old['inspection_error']=preparation_runtime.problem(error)
+       old.update(status='failed',retry_after=self.clock()+60)
        self.log('preparation: compatibility check will retry (%s)'%type(error).__name__)
       finally:self.stream.forget(item['id'])
    if old and item['id']!=converting and self.skip_compatible(slot,old,item,old.get('probe')):
     counts['ready']+=1;entries.append(dict(entry(item,'ready'),stream_only=True));continue
-   entries.append(entry(item,'todo'))
+   playable=bool(old and old.get('repack') and streamable_video(old.get('probe')) and old.get('status')!='failed'
+                 and not old.get('blocked') and not old.get('kept')) or (ready(item) and not (old or {}).get('audit') and not (old or {}).get('repack'))
+   entries.append(dict(entry(item,'ready' if playable else 'todo'),stream_only=bool((old or {}).get('stream_only'))))
+   if playable:counts['ready']+=1
    with self.lock:
     if item['id']==converting:continue   # the movie being converted keeps its job as it is
     if slot not in self.state['jobs'] or self.state['jobs'][slot].get('status')=='superseded' or identity(self.state['jobs'][slot]['source'])!=identity(item):
@@ -920,7 +943,7 @@ class Queue:
   try:
    if not keep_going():raise driveupload.Stop('Preparation paused')
    current=metadata(self.drive,item['id'])
-   if ready(current):job['status']='done';self.commit();shutil.rmtree(folder);return True
+   if ready(current) and not job.get('repack') and not job.get('audit'):job['status']='done';self.commit();shutil.rmtree(folder);return True
    # A completed upload can survive a process exit before tagging/cleanup. Recover it from the local output.
    already_uploaded=False
    if output.is_file():

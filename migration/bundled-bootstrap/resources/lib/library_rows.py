@@ -244,8 +244,9 @@ def details(row, view):
                      actions=[('Play', 'play'), ('Play on TV', 'tv')])
         if row.get('stream_only'):
             sheet.update(status='Ready to stream',quality='Original file · No background conversion',
-                         facts=[('Picture','Original quality'),('AirPlay','Prepared during playback if needed'),
-                                ('On Google Drive','Original file kept')])
+                         facts=[('Picture','Original quality'),
+                                ('Faster opening','Queued' if row.get('repack') else 'Checked' if probe.get('fast_open') else 'Not checked yet'),
+                                ('AirPlay','Prepared during playback if needed'),('On Google Drive','Original file kept')])
     elif state == 'preparing':
         pct = row.get('pct', 0)
         out_total = row.get('out_total') or 0
@@ -317,7 +318,7 @@ def details(row, view):
         guess_picture, guess_codec = name_quality(row.get('name') or row.get('title') or '')
         picture, codec = picture or guess_picture, codec or guess_codec
     sheet['quality'] = ' · '.join(x for x in (picture, codec, '%.1f GB'%(size/GB) if size else '') if x)
-    sheet['sentence'] = ('It already plays in Kodi and on AirPlay. This rearranges it so it opens in a second or two; the picture and sound stay the same.' if live['kind']=='repack' else 'Play on this iPhone while Kodi gets it ready for AirPlay.') if live and live['kind'] in ('conv','repack') else ''
+    sheet['sentence'] = ('Preparing faster opening while keeping the original picture quality.' if live['kind']=='repack' else 'Play on this iPhone while Kodi gets it ready for AirPlay.') if live and live['kind'] in ('conv','repack') else ''
     ready = state == 'ready'
     sheet['steps'] = [('Downloaded', 'FF30D158'), ('On Drive' if state not in ('downloading','uploading') else 'On Drive…',
                       'FF30D158' if state not in ('downloading','uploading') else DOWN),

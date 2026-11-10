@@ -2075,3 +2075,43 @@ present in either file. The seek/caption findings stand; the specific continuous
 For a future recurrence, export immediately after the actual stop before exiting/restarting Kodi, since rotation
 can replace the needed session. Follow-up recorded in reports/seek-subtitle-stop-review.json. Review only; no app
 source change, new tests/build/IPA, account access or main merge.
+
+
+## ISSUE-148 — Build 219 skips faster opening; Umbrella cache fails to register (2026-11-10)
+
+Severity: HIGH. Components: Library status Refresh / preparation policy; service-owned foreground source cache.
+Owner: compatible video skipped conversion successfully, but also skipped faster opening; Refresh should audit
+the entire library and repair missing preparation. Umbrella stays loading and never connects.
+
+Evidence: supplied build-219 session spans 06:35:11–06:43:22 (device clock). At 06:35:24 the media_source_bridge
+startup raises AttributeError: PosixPath has no setProperty. Both Umbrella starts report source_cache=false.
+First attempt is cancelled after about 36 seconds; the next takes about 42 seconds inspecting its index and
+reaches the 45-second opening deadline. This fails before TV connection; Wi-Fi failure is not established.
+Raw logs remain outside Git.
+
+Root causes:
+- DEC-031's codec-only skip also cancelled repack jobs and trusted prepared/cache flags before any full file audit.
+  Manual Refresh inspected only unknown files, so a compatible cached file could never regain missing faster-open work.
+- The source broker was registered on the service's home filesystem Path rather than Kodi's Home window.
+  Standalone cache tests passed but never executed the service setup, missing the integration error.
+
+Repair:
+- Manual Refresh re-reads every eligible file, probes actual tracks and checks bounded MP4 box/index ranges.
+  Compatibility and fast-open evidence are separate. Naturally front-indexed MP4 and valid indexed prepared files
+  are kept; MKV, tail-moov MP4, unindexed fragments and known older prepared layouts queue only missing layout work.
+  Supported picture is copied; unsupported video retains native conversion. Source identity is rechecked afterwards.
+- Already-ready metadata cannot bypass a requested repair. Owner-kept/committing/promoted originals stay protected;
+  active native conversion defers inspection; failed reads retry without reporting a fresh successful audit.
+  Repeated Refresh preserves existing output/checkpoints and failure backoff for a still-needed repack.
+- Service registers the cache through Window(10000); lifecycle closes startup failures and clears its own endpoint
+  on abort. Drive/Elementum loopback and already-working MP4/HLS routes are unchanged.
+- Existing status fact slots show faster opening independently; no redesign or native component rebuild.
+
+Regression evidence: full-library/repeated-refresh tests, prepared-marker override, missing-layout repair through
+actual queue promotion/verification, changed-source rejection, owner/commit safety, cancellation and range guards;
+real generated native MP4 layouts checked. Actual service startup regression fails against original HEAD and passes
+with Path home after the repair, including selected-source range read and shutdown. See checks report for totals.
+
+Status: source repair implemented; host checks recorded separately. iPhone/Roku/provider acceptance is pending.
+The source-opening timeout can have additional provider causes; this fixes the observed missing cache route.
+ISSUE-147 seek intent, subtitle timeout and unobserved continuous-hour stop remain open; no repair is claimed here.
