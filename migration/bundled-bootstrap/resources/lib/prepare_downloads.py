@@ -731,8 +731,11 @@ class Queue:
    self.commit()
    slot=key(item);seen.add(slot)
    recovering=[old for old,job in self.state['jobs'].items() if job['source']['id']==item['id'] and job.get('status')=='committing']
-   if recovering:seen.update(recovering);continue
+   if recovering:
+    if inspection:self.inspection_pending=True
+    seen.update(recovering);continue
    old=self.state['jobs'].get(slot)
+   if inspection and (item['id']==converting or (old or {}).get('promoted')):self.inspection_pending=True
    if ready(item) and not inspection and not (old or {}).get('repack') and not (old or {}).get('audit'):
     counts['ready']+=1;entries.append(entry(item,'ready'))
     continue

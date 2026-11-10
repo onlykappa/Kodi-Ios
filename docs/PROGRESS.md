@@ -8,7 +8,8 @@ including cached/prepared files. It distinguishes a copy-safe picture from a fro
 fragmented MP4 with a completed, valid random-access index. Known v1 fragment layouts still need the v2 repack.
 Already fast files stay unchanged; a missing container/index step queues faster opening with the picture copied.
 Unsupported picture keeps the conversion path. No complete local movie download is needed for this inspection.
-Exact source identity is checked again after inspection. Active native work defers full checks; newer requests,
+Exact source identity is checked again after inspection. Active native work defers full checks, including when it is the only library file; transaction recovery also
+retains the explicit audit request until it can read the resulting file. Newer requests,
 owner-kept choices, commit recovery, staging/resume checkpoints and retry delays remain protected.
 
 The same log reports PosixPath.setProperty in media_source_bridge at startup. Both recorded Umbrella attempts

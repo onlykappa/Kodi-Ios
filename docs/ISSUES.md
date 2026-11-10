@@ -2115,3 +2115,8 @@ with Path home after the repair, including selected-source range read and shutdo
 Status: source repair implemented; host checks recorded separately. iPhone/Roku/provider acceptance is pending.
 The source-opening timeout can have additional provider causes; this fixes the observed missing cache route.
 ISSUE-147 seek intent, subtitle timeout and unobserved continuous-hour stop remain open; no repair is claimed here.
+
+ISSUE-148 follow-up before delivery: final review found the full-audit marker could be consumed when its only
+file was actively converting or recovering a transaction. The marker now remains pending through both cases,
+then inspects the resulting file when safe. Two actual-queue regressions cover this. Build-220 packaging was
+superseded and cancellation requested before delivery; its workflow outcome is recorded in the checks report.

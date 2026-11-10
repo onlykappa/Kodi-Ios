@@ -104,6 +104,20 @@ class Filter(unittest.TestCase):
    prep.request_check(self.tmp.name,inspect=True);self.refresh(beside=True)
   self.assertTrue(self.q.inspection_pending);self.assertTrue(prep.check_requested(self.tmp.name))
   self.refresh();self.assertEqual(self.q.state['library']['ready'],1);self.assertFalse(prep.check_requested(self.tmp.name))
+ def test_refresh_of_the_only_running_video_is_not_consumed_before_its_audit(self):
+  self.q.state['current']={'running':True,'title':self.item['name']}
+  self.native.probe=lambda url:self.fail('the active native instance was probed')
+  prep.request_check(self.tmp.name,inspect=True);self.refresh(beside=True)
+  self.assertTrue(self.q.inspection_pending);self.assertTrue(prep.check_requested(self.tmp.name))
+  self.q.state.pop('current',None);self.native.probe=lambda url:dict(self.probe)
+  self.refresh();self.assertFalse(prep.check_requested(self.tmp.name))
+ def test_refresh_waits_for_transaction_recovery_before_consuming_its_audit(self):
+  job=self.q.state['jobs'][self.slot]
+  for extra in ({'status':'committing'},{'status':'waiting','promoted':'new-id'}):
+   job.update(extra);prep.request_check(self.tmp.name,inspect=True)
+   self.refresh();self.assertTrue(prep.check_requested(self.tmp.name));self.assertTrue(self.q.inspection_pending)
+   job.pop('promoted',None)
+  job['status']='waiting';self.refresh();self.assertFalse(prep.check_requested(self.tmp.name))
  def test_failed_inspection_never_labels_an_unknown_file_ready(self):
   self.native.probe=lambda url:(_ for _ in ()).throw(TimeoutError())
   prep.request_check(self.tmp.name,inspect=True);self.refresh()

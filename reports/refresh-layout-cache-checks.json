@@ -1,6 +1,6 @@
 {
   "date": "2026-11-10",
-  "status": "host repair checks; packaging pending",
+  "status": "host checks passed; packaging restart after preserving audits across active work",
   "branch": "claude/trusting-euler-kgug98",
   "pr": 16,
   "issue": 148,
@@ -22,7 +22,8 @@
     "unsupported_picture": "existing native conversion",
     "identity_rechecked_after_track_and_layout_checks": true,
     "full_local_movie_download": false,
-    "owner_kept_commit_recovery_native_serialization_resume_and_backoff_preserved": true
+    "owner_kept_commit_recovery_native_serialization_resume_and_backoff_preserved": true,
+    "active_file_and_transaction_audit_request_preserved": true
   },
   "umbrella": {
     "actual_service_uses_home_window": true,
@@ -112,7 +113,7 @@
     {
       "script": "test_compatibility_filter.py",
       "passed": true,
-      "tests": 31
+      "tests": 33
     },
     {
       "script": "test_continue_downloads.py",
@@ -285,6 +286,11 @@
       "tests": 5
     },
     {
+      "script": "test_portrait.py",
+      "passed": true,
+      "tests": 50
+    },
+    {
       "script": "test_preparation_runtime.py",
       "passed": true,
       "tests": 4
@@ -406,6 +412,19 @@
     "continuous-hour stop not captured"
   ],
   "merge_to_main": false,
-  "completed_suites": 65,
-  "unit_tests": 1122
+  "completed_suites": 66,
+  "unit_tests": 1174,
+  "project_check_passed": true,
+  "ui_guidance_check_passed": true,
+  "git_diff_check_passed": true,
+  "packaging_attempts": [
+    {
+      "build": 220,
+      "run": 42841133679,
+      "source_commit": "d69274c19b238afcd2c86bd50fff5385a60549c4",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "reason": "Superseded before delivery to preserve Refresh audits across active work/transaction recovery"
+    }
+  ]
 }
