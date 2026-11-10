@@ -2016,3 +2016,50 @@ all actual CI gates pass. Receipt: reports/refresh-streaming-delivery.json. This
 actual iPhone/Roku/provider behavior remains pending owner retest. Build 218 failure is preserved above. No main
 merge or live owner-account/media access occurred. UI status values/text reuse the existing layout; visual review
 remains pending.
+
+
+## ISSUE-147 — Seek intent rollback, blank AirPlay captions and missing continuous-hour stop evidence (2026-11-10)
+
+Owner supplies a new log, reporting that releasing the seek bar does not retain/play the chosen point. They add
+missing subtitles and a stop after about an hour, and confirm the hour was continuous TV playback through AirPlay.
+This is an investigation request; no new app fix/native release/IPA is produced in this review. Raw logs, URLs,
+identifiers and the expanded host harness stay outside Git. Report: reports/seek-subtitle-stop-review.json.
+
+Capture identity/limits: device log spans 21:38:48.457–21:43:56.863 (308.406 s, device clock), identifies build 217
+with Kodi r26/AirPlay r43, the same native components retained in build 219. The logged TV user-agent reports Apple
+TV. The hour-long session itself is absent; do not call a short-session error proof of that earlier hour-long stop.
+
+Seek evidence: eight release handlers run and every submission takes 500 ms. Video first-picture-after-flush
+markers range 846–7561 ms (some also occur during startup/return from AirPlay, not only seek release). The info-level
+log does not include requested/landed times or all pointer-event IDs. Source trace explains the synchronous 500 ms
+submission wait: VideoPlayer::SeekTime calls SynchronizeDemuxer, which can wait 500 ms on the calling GUI thread.
+
+Expanded host reproduction compiles pinned real SendClick/SetFromPosition/OnMouseEvent, window gesture dispatch,
+generic END packing and the actual Process player-info refresh block, with platform stubs. Normal drag 50% releases
+50%, then the next info refresh while the backend is still at 3% redraws 3%. Insert an unrelated mouse-motion event
+before that refresh/release and OnMouseEvent's unconditional m_dragging=false lets it overwrite intent: release
+submits 3%. This is a concrete code defect and a plausible path for the reported behavior, not proof that this
+exact event interleaving occurred on the phone. The earlier 32 r26 scenarios passed their limited dispatch cases;
+they omitted render refresh/unrelated events and did not prove retention during an unfinished seek. First expanded
+harness compile failed because its SetIntValue stub omitted default arguments; adding those defaults allowed the
+actual-method reproduction. Product code is unchanged in this review.
+
+Subtitle evidence: Kodi selects ordinal 0 and Apple's player selects English. Prepared fast path advertises two
+text renditions. There are 32 subtitle-read I/O failures and 31 HTTP 200 responses containing only 8 bytes of empty
+WEBVTT, completing in 1509–1599 ms. Native serve() gives lock acquisition, demux opening and cue reading a single
+1500 ms deadline, closes the demuxer/source on expiry, and responds successfully with empty WEBVTT after failure.
+Repeated requests can therefore keep opening/aborting the reader and serve blank captions as successful content.
+A cue-free interval is valid, but these logged I/O failures are not evidence that captions were disabled or absent.
+
+Stop evidence: this short session reaches playing and later closes with Apple's local clock at 16.6 s. Source reads
+of 64 KiB take 1011–3453 ms, video byte-range responses repeatedly end partially, and Apple reports -12889 plus two
+-15628 CoreMedia errors. These show real source/streaming trouble during this captured session. An incomplete range
+can also result from a receiver closing/reseeking, so do not label every partial response an upstream failure.
+There is no basis here to assign the earlier hour-long stop to Wi-Fi, an expired link, or a hard time limit. Need
+kodi.old.log or the actual log covering that continuous hour and its stop, before further restarts rotate it away.
+
+Repair direction: keep dragged/pending seek intent independent of progress polling and unrelated pointer events;
+avoid a synchronous demux wait in the touch UI path; record requested and landed times. Warm/prefetch/cache captions
+on an independent worker, retain unfinished work and distinguish failure from a genuinely cue-free interval. Native
+rebuild/device retest would be required for a shipped native repair. These are findings/directions, not a claim
+that build 219 fixes them. Device acceptance and main remain unchanged.

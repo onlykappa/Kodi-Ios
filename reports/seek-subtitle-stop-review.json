@@ -1,0 +1,106 @@
+{
+  "date": "2026-11-10",
+  "status": "investigation complete; repairs not implemented in this review",
+  "branch": "claude/trusting-euler-kgug98",
+  "pr": 16,
+  "scope": [
+    "seek release/landing",
+    "missing AirPlay subtitles",
+    "owner-reported continuous AirPlay stop after about an hour"
+  ],
+  "log": {
+    "build": 217,
+    "native_kodi": "r26",
+    "native_airplay": "r43",
+    "same_native_components_as_delivered_build_219": true,
+    "device_clock_start": "2026-11-09 21:38:48.457",
+    "device_clock_end": "2026-11-09 21:43:56.863",
+    "capture_seconds": 308.406,
+    "raw_log_committed": false,
+    "receiver_user_agent_reports": "Apple TV"
+  },
+  "seeking": {
+    "release_events": 8,
+    "submission_ms": [
+      500,
+      500,
+      500,
+      500,
+      500,
+      500,
+      500,
+      500
+    ],
+    "first_decoded_picture_after_flush_ms": [
+      2975,
+      4549,
+      7561,
+      3191,
+      846,
+      3466
+    ],
+    "requested_and_actual_landed_positions_in_log": false,
+    "confirmed_code_reproduction": {
+      "drag_target_percent": 50,
+      "old_player_percent": 3,
+      "normal_release_submits_percent": 50,
+      "display_after_next_info_refresh_while_seek_pending_percent": 3,
+      "with_intervening_mouse_move_submitted_percent": 3
+    },
+    "test_scope": "Compiled pinned real slider SendClick/SetFromPosition/OnMouseEvent, window dispatch, generic gesture end and actual Process player-info refresh block; platform stubs, not full render/input pipeline or device.",
+    "root_causes": [
+      "After release the slider immediately refreshes from old player progress before an asynchronous seek has completed.",
+      "OnMouseEvent clears drag ownership on every event; an unrelated pointer event plus info refresh can overwrite the selected percentage before release."
+    ],
+    "device_attribution_limit": "The log records release timing but no target/landed timestamps or intervening mouse event IDs. It cannot prove which target-overwrite path occurred on this phone.",
+    "submission_block_source": "VideoPlayer::SeekTime calls SynchronizeDemuxer, whose GUI caller can wait 500 ms for the demuxer.",
+    "prior_regression_gap": "The 32 passing r26 cases exercise gesture/slider dispatch without intervening Process refresh or unrelated pointer events; they do not prove target retention while the player is still seeking.",
+    "repair_direction": [
+      "Keep selected intent independent of playback-info refresh until seek completion.",
+      "Preserve touch ownership across unrelated pointer events.",
+      "Avoid the synchronous demux wait on the seek UI path; log requested target and actual landing."
+    ]
+  },
+  "subtitles": {
+    "selected_in_kodi": true,
+    "native_player_selected_english": true,
+    "prepared_text_tracks": 2,
+    "subtitle_read_errors": 32,
+    "blank_http200_vtt_responses": 31,
+    "blank_response_bytes": 8,
+    "blank_response_ms_range": [
+      1509,
+      1599
+    ],
+    "root_cause": "Caption requests have a shared 1500 ms lock/open/read budget. On timeout/read failure the demuxer is closed and the server returns HTTP 200 with an empty WEBVTT body. Repeated requests can keep reopening and timing out, exposing blank captions as successful results.",
+    "evidence": "Error/empty-response timings match the native deadline. Some 57-byte header-only responses also occur; not every empty segment by itself proves a defect.",
+    "repair_direction": "Prefetch/warm and cache subtitle cues independently of media, preserve unfinished work, and distinguish genuinely cue-free intervals from failed generation instead of caching errors as successful blank captions."
+  },
+  "airplay_stop": {
+    "owner_confirmed": "Played continuously for about an hour on the TV through AirPlay.",
+    "hour_long_session_captured": false,
+    "hour_stop_cause_established": false,
+    "this_short_session": {
+      "played_outcome": true,
+      "apple_reported_player_clock_at_close_seconds": 16.6,
+      "coremedia_errors": [
+        -12889,
+        -15628,
+        -15628
+      ],
+      "slow_source_65536_byte_reads_ms_range": [
+        1011,
+        3453
+      ],
+      "repeated_partially_completed_video_range_responses": true
+    },
+    "limits": "This capture covers five minutes of a restarted Kodi session; the actual continuous-hour stop is absent. The observed short-session stalls do not establish Wi-Fi failure, URL expiry or the exact earlier stop cause.",
+    "needed_evidence": "kodi.old.log or a log covering the actual hour-long playback and stop; retain it before further app restarts."
+  },
+  "harness_failure": "First expanded private harness omitted default SetIntValue arguments; added the platform stub defaults, then compiled and reproduced the values above.",
+  "ui_policy_previously_read": true,
+  "app_source_changed": false,
+  "new_ipa_published": false,
+  "main_merged": false,
+  "device_retest_passed": false
+}

@@ -355,3 +355,12 @@ hashes, 154 unsigned/unencrypted ARM64 images). Receipt: reports/refresh-streami
 at the top of PROGRESS. Source/build/delivery complete; owner retests Refresh/Ready count and Umbrella/Roku,
 subtitles/seeking. Build 218's obsolete wording failure stays recorded. Device/visual/provider acceptance and
 phase/task counts remain unchanged; no main merge.
+
+ISSUE-147 investigation checkpoint (2026-11-10): owner adds seek-release, subtitles and a continuous-hour AirPlay
+stop. Current five-minute build-217 capture shares r26/r43 with 219. Expanded real-slider/info-refresh reproduction
+shows pending target display rollback and conditional target overwrite; every logged submission blocks 500 ms.
+Selected captions repeatedly time out at the native 1.5 s budget and are returned as empty HTTP-200 WEBVTT. The
+actual hour-long stop is absent, so exact stop cause is unresolved; need kodi.old.log/actual stop capture. Report:
+reports/seek-subtitle-stop-review.json. Investigation only, no app fix/native build/IPA/merge or device acceptance.
+Next: source repair with expanded refresh/event coverage; inspect actual stop evidence when available. Phase/task
+counts remain unchanged.

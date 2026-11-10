@@ -1,5 +1,21 @@
 # Persistent progress
 
+## New seek/subtitle/AirPlay-stop log reviewed — 2026-11-10
+
+Owner asks to investigate seek release, missing captions and continuous AirPlay stopping after about an hour.
+The five-minute log identifies build 217, sharing native r26/r43 with 219. Eight seek releases each block 500 ms;
+video after-flush markers reach 7.561 s. Expanded actual-slider/info-refresh host reproduction shows normal 50%
+release immediately redraws old 3% while a seek is pending; an intervening mouse event can also make it submit 3%.
+The log lacks target/landing/event detail, so exact device-path attribution remains unproven. Earlier 32 r26 cases
+omitted those refresh/interleaving paths; no prior device acceptance is retroactively claimed.
+
+Captions are selected, but 32 native subtitle-read failures and 31 successful HTTP responses containing empty
+8-byte WEBVTT match the native 1.5-second caption deadline. Failure is masked as a blank successful caption. The
+short AirPlay session also shows slow reads/CoreMedia errors, but the owner's continuous-hour stop is not present
+in this capture; need kodi.old.log or a capture of that stop. See ISSUE-147 and reports/seek-subtitle-stop-review.json.
+Investigation only: no app/native source change, new build, account/media access, or merge. Source repair/device
+acceptance remain open; existing build 219 should not be presented as fixing these newly reviewed native defects.
+
 ## Build 219: Refresh inspection and streaming recommendations delivered — 2026-11-10
 
 [Download test IPA 219](https://github.com/onlykappa/Kodi-Ios/releases/download/build-219/Kodi-iOS-Customized-Touch-r10.ipa).
