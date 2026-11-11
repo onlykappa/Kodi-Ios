@@ -19,8 +19,9 @@ shows it; "suspected" means it still needs a measurement first. Nothing here is 
   Playback speed list in Kodi's select box.
 - Code reading on `main` after #16.
 
-Build 229 predates #16's last fixes. The approved picker sheets, the show page text fixes, the native keyboard and
-the resume-point AirPlay start are merged but not yet in an IPA (build 230, Phase 0).
+Build 229 predates #16's last fixes. Build 232 (run 43066517004, `main` after the #16 merge) has the approved picker
+sheets, the show page fixes, the native keyboard (Kodi r30) and the new settings pages. It still uses AirPlay r46, so
+the resume-point AirPlay start and uploads through system networking need AirPlay r47 (0.0). #19's fixes are not in it.
 
 ## What the logs measure (build 229 on the iPhone 16 Pro)
 
@@ -51,7 +52,7 @@ Per 2-minute session the phone ran 64 Home row requests, ~300 lines of Elementum
 | Seeking | 5 | 4 s to land on Drive copies |
 | Home and navigation | 6 | rows reload on every tab return and around playback |
 | Start-up | 6 | 5-9 s of background work after Home appears |
-| Downloads to Google Drive | 5 | ~0.3 MB/s uploads (ISSUE-167; native networking in build 230 pending a device test) |
+| Downloads to Google Drive | 5 | ~0.3 MB/s uploads (ISSUE-167; system networking needs AirPlay r47, not in build 232) |
 | AirPlay | 4 | slow start; 10-bit H.264 converts slower than real time |
 | Source and player choice | 5 | Drive copies ignored outside Continue Watching; Next Episode fails |
 | Subtitles / audio | 4 | online search unreachable; blank AirPlay captions |
@@ -64,7 +65,8 @@ Per 2-minute session the phone ran 64 Home row requests, ~300 lines of Elementum
 
 | # | Work | Pass when |
 |---|---|---|
-| 0.0 | Build 230 from `main` (+ #19): pin AirPlay r47 (system networking for uploads), build and verify the IPA | IPA verified; owner installs |
+| 0.0 | Next build after 232 from `main` + #19: pin AirPlay r47 (resume-point start, LAN retry, system networking for uploads), build and verify the IPA | IPA verified; owner installs |
+| 0.0a | Owner tests build 232 (pickers, show page, keyboard, settings, resume prompt) with a log | log and screenshots |
 | 0.1 | AirPlay starts at the resume point (ISSUE-166) | TV's first video request is the resume segment; picture < 30 s |
 | 0.2 | Uploads through system networking (ISSUE-167) | log "uploads use system networking"; pieces > 2 MB/s on Wi-Fi; "interpreter wait" lines (1A.1) |
 | 0.3 | Approved picker sheets replace Kodi's select box for Watch / quality / season | screenshots like boards 13-15; taps pick the row |
@@ -136,7 +138,7 @@ Evidence: ISSUE-167.
 
 | # | Work | Target |
 |---|---|---|
-| 1F.1 | Read the "interpreter wait" lines (1A.1 probe, in #19) and the system-networking upload speed from build 230 | cause proven |
+| 1F.1 | Read the "interpreter wait" lines (probe in #19) and the system-networking upload speed from the r47 build | cause proven |
 | 1F.2 | Drive and AllDebrid reads through system networking too (DriveStream, remote_media) | preparation reads > 20 MB/s |
 | 1F.3 | AllDebrid → Drive copy loop in native code (read range, PUT piece), no bytes through Python | line speed |
 | 1F.4 | More upload lanes once the bottleneck is gone (2 → 3-4) | season copies at line speed |
@@ -164,13 +166,15 @@ Evidence: ISSUE-163/165/166.
 | 2.8 | Drive copies are ignored unless playback starts from Continue Watching | Known: `ios_watch_dialog.choose_player` calls `downloaded_item(..., cloud=resume)`; Next Episode, spotlight Play and show pages check only phone copies (`e8ab5995` 09:32:47: Phony S1E2 "completed-copy check: none" although E2 is on Drive) | check Drive copies on every entry point (cached Drive listing, no network wait) |
 | 2.9 | Next Episode on a downloaded show fails | `e8ab5995` 09:32:47: menu offered then "picked -1" 0.12 s later, "lib.player - Failure!" — the select box opened while the player was closing and was dismissed | with 2.8 the copy plays directly; otherwise open the sheet after the player has closed |
 | 2.10 | Spotlight Play may open a different title than the one shown (suspected) | owner screenshot 1: the menu asks about "Crosby, Stills a…" over The Awakening's artwork; the hero may have rotated as it was tapped | Play reads the focused hero item at tap time, not the rotation's next item; same family as the resume-card bug (ISSUE-166) |
-| 2.11 | Taps on Kodi's select box can return "nothing picked" | `e8ab5995` 09:31:36: tap on the Download/Stream box returned -1 while Kodi ignored actions during the closing animation | replaced by the sheet in build 230 (0.3); confirm |
+| 2.11 | Taps on Kodi's select box can return "nothing picked" | `e8ab5995` 09:31:36: tap on the Download/Stream box returned -1 while Kodi ignored actions during the closing animation | replaced by the sheet in build 232 (0.3); confirm |
 | 2.12 | Playback speed still uses Kodi's select box | owner screenshot 3 | the track-menu style (same as Subtitles/Audio) |
 | 2.13 | Subtitles › Find online always fails | both logs: podnapisi.net does not resolve (`Errno 8`) | second provider (OpenSubtitles.com API or SubDL), requests through system networking, a clear message when every provider is unreachable (ISSUE-156) |
 | 2.14 | Track menu opens with an unfocusable control | "Control 9310 in window 13000 has been asked to focus, but it can't" on every open | focus the first row |
 | 2.15 | Skin expression errors on the Settings section page | "Error parsing boolean expression $exp[exp_tmdbhelper_isdata]" / isblur in IOSSection | define or remove the expressions |
 | 2.16 | Library list focus errors | "Control 53 in window 10025 … can't" on each Library open/close | valid default focus |
 | 2.17 | Phony / single-episode show with no finished episode (old ISSUE-155) | ISSUE-155 | empty state on the show page |
+| 2.18 | No feedback or cancel while a video opens | `396d5d67` 09:36:37: the owner tapped the busy ring 4 s into a 13 s open and nothing happened | an opening card that says the stage (finding the copy, connecting, reading) with Cancel; goes away when 1A makes opens fast |
+| 2.19 | Long-pressing Continue Watching opens Kodi's context menu, then Play needs a second tap | `e8ab5995` 09:32:09-09:32:23 | one tap plays; long press shows the iOS-style menu |
 
 ## Phase 3 — Reliability and measurement
 
@@ -185,7 +189,7 @@ Evidence: ISSUE-163/165/166.
 
 ## Suggested order
 
-1. **0.0** build 230, then one Phase 0 test session with a log (covers 0.1-0.8).
+1. **0.0a** test build 232 now; **0.0** the r47 build with #19, then one Phase 0 test session with a log (0.1-0.8).
 2. **2.8 + 2.9 + 2.10** (Drive copies everywhere, Next Episode, spotlight item): small code, big daily effect.
 3. **1D.1-1D.3** (rows): removes most of the background Python work while navigating.
 4. **1A.2 → 1A.1 → 1A.3 → 1A.5** (Drive playback without Python): 11-13 s opens → ~3 s, seeks < 1.5 s.
