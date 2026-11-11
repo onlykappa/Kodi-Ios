@@ -25,8 +25,16 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      # Run 43056244487 hung here twice for 20-35 min (Ubuntu mirror): apt now times out and retries.
       - name: ffmpeg for the test fixtures (x264, x265, DTS and TrueHD encoders)
-        run: sudo apt-get update -q && sudo apt-get install -yq ffmpeg libx265-dev
+        timeout-minutes: 12
+        run: |
+          APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+          for try in 1 2 3; do
+            sudo timeout 240 apt-get $APT update -q && sudo timeout 300 apt-get $APT install -yq ffmpeg libx265-dev && exit 0
+            echo "apt try $try failed; retrying"; sleep 10
+          done
+          exit 1
       - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
         with:
           path: ${{ runner.temp }}/ff-host
@@ -47,7 +55,7 @@ jobs:
       # queue end to end against a local Drive stand-in: interrupted runs, killed uploads, slow lines, the read-back check.
       - name: End-to-end conversion (converter + add-on queue + Drive stand-in)
         run: |
-          sudo apt-get install -yq libass-dev
+          sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -yq libass-dev
           FF="$RUNNER_TEMP/ff-host";R=migration/airplay-ios/remux
           cc -std=gnu11 -O2 -fPIC -shared -w -I"$FF/include" "$R"/src/*.c "$R"/gmplayer/*.c -Wl,-Bsymbolic \
             "$FF/lib/libavformat.a" "$FF/lib/libavcodec.a" "$FF/lib/libdav1d.a" "$FF/lib/libswscale.a" "$FF/lib/libswresample.a" "$FF/lib/libavutil.a" \
