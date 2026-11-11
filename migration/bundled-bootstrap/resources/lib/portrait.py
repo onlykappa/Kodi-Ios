@@ -97,7 +97,8 @@ MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
       ('Google Drive','cloud.png','FF0A84FF',DRIVE),
       ('Check for updates','cloud-arrow-down.png','FF30D158',UPDATES),
       ('Favourites','star.png','FFFF9F0A','RunScript(service.kodi.ios.bootstrap,favourites_page)'),
-      ('File manager','clapperboard.png','FF5E5CE6','ActivateWindow(filemanager)'),
+      # Roadmap 2.6: Kodi's desktop file manager replaced by the app's own Transfers page.
+      ('Transfers','clapperboard.png','FF5E5CE6','RunScript(service.kodi.ios.bootstrap,activity_page)'),
       ('iPhone navigation / recovery','life-ring.png','FFFF453A',MENU)]
 HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{'Includes_Portrait.xml',SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml',activity_skin.NAME,activity_skin.BOX}|pages.HANDMADE
 # Never shrunk: playback stays landscape, and these are not windows.
