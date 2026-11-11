@@ -466,7 +466,7 @@ def track_menu():
  more=''   # More is a row under Timing (mockup board 1)
  inner=('<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation><animation effect="fade" start="100" end="0" time="120">WindowClose</animation>'
   '<animation effect="slide" start="0,-24" end="0,0" time="220" tween="cubic" easing="out">WindowOpen</animation>'+
-  back+lab(36,0,w-340,head,P('title'),'font_head_bold')+more+(img(w-97,16,75,75,MEDIA+'close_disc.png','2EFFFFFF')+img(w-97,16,75,75,MEDIA+'close_disc.png','24FFFFFF','<visible>Control.HasFocus(9500)</visible>')+img(w-74,39,29,29,MEDIA+'close_cross.png','B3EBEBF5')+'<control type="button" id="9500"><left>%d</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><ondown>9510</ondown></control>'%(w-118))+cta+audio)
+  back+lab(36,0,w-170,head,P('title'),'font_head_bold')+more+(img(w-97,16,75,75,MEDIA+'close_disc.png','2EFFFFFF')+img(w-97,16,75,75,MEDIA+'close_disc.png','24FFFFFF','<visible>Control.HasFocus(9500)</visible>')+img(w-74,39,29,29,MEDIA+'close_cross.png','B3EBEBF5')+'<control type="button" id="9500"><left>%d</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><ondown>9510</ondown></control>'%(w-118))+cta+audio)
  body=('<control type="button" id="9099"><left>0</left><top>0</top><width>100%</width><height>100%</height><texturefocus /><texturenofocus />'
   '<onclick>Close</onclick><onfocus>SetFocus(9310)</onfocus></control>'
   # Under the button that opened it: CC (subtitles), 140 in from the right (SAFE); Audio slides 190 left, under the
