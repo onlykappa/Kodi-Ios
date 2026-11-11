@@ -118,6 +118,7 @@ jobs:
           python3 -B scripts/test_interpreter_probe.py
           python3 -B scripts/test_doh_fetch.py
           python3 -B scripts/test_kodi_patch_ios.py
+          python3 -B scripts/test_open_timing.py
           python3 -B scripts/test_settings_search.py
           python3 -B scripts/test_deck_picker.py
           python3 -B scripts/test_source_match.py

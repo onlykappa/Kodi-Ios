@@ -134,6 +134,9 @@ def choose_player(player):
   source=getattr(downloaded,'ios_download_source','local')
   xbmc.log('Kodi iOS watch: playing a completed %s copy; provider selection skipped'%source,xbmc.LOGINFO)
   try:
+   import ios_library;ios_library.mark_open(source+' copy')
+  except Exception as error:_quiet('ios_watch_dialog:mark',error)
+  try:
    from ios_continue import record
    record(player,read,write,choice=source,preserve_player=True)
   except Exception as error:_quiet('ios_watch_dialog:132',error)
@@ -181,6 +184,9 @@ def choose_player(player):
  except Exception as error:_quiet('ios_watch_dialog:169',error)
  if item is engine:share_details(player)
  log('playing with %s (%s)'%(kind_of(item),getattr(item,'file','')))
+ try:
+  import ios_library;ios_library.mark_open(kind_of(item))
+ except Exception as error:_quiet('ios_watch_dialog:mark',error)
  return item
 
 SHEET_DETAIL={'elementum':'Saved to Google Drive \u00b7 watch any time','umbrella':'Plays now from your AllDebrid account',

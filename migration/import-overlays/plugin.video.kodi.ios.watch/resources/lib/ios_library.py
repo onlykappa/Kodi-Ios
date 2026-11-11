@@ -50,6 +50,13 @@ def local_entries(kind,lib):
   out.append(dict(info,path=path))
  return out
 
+def mark_open(via):
+ """Roadmap 1C.1: the service logs how long this open takes to a playing picture (open_timing.py)."""
+ try:
+  import json,time,xbmcgui
+  xbmcgui.Window(10000).setProperty('KodiIOS.Open',json.dumps({'t':time.time(),'via':via}))
+ except Exception:pass
+
 def boot_path(xbmcvfs):
  """The bootstrap add-on's lib on sys.path (drivelibrary), once per reused interpreter."""
  boot=xbmcvfs.translatePath(BOOT)
@@ -398,6 +405,7 @@ def play_downloaded(handle,params):
   if choice<0:xbmcplugin.setResolvedUrl(handle,False,xbmcgui.ListItem());return
   if choice==1:position=0
  li=xbmcgui.ListItem(label=params.get('title',''),path=path);li.setProperty('IsPlayable','true')
+ mark_open('library')
  try:
   boot_path(xbmcvfs)
   import drivelibrary as lib
