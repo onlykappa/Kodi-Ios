@@ -385,23 +385,25 @@ def refresh_stale(state_dir,now=time.time,ttl=LISTING_TTL):
   listing(kind,state_dir,folder or None,now=now,strict=True,fresh=True);done.append(slot)
  return done
 
-def completed_copy(kind,title,year,season,episode,state_dir):
+def completed_copy(kind,title,year,season,episode,state_dir,cached_only=False):
  """Match a kept download by title/year or show/episode, without art lookups or source scraping. Local phone
- matching and this Drive check share the same strict title rule. A Drive error propagates to stop silent redownload."""
+ matching and this Drive check share the same strict title rule. A Drive error propagates to stop silent redownload.
+ cached_only (roadmap 2.8): the saved listings only, no Drive request, for taps that must not wait."""
  from ios_downloaded import has_title,has_episode
+ tries=(False,) if cached_only else (False,True)
  if kind=='movie':
-  for fresh in (False,True):
+  for fresh in tries:
    entries,driveid=listing('movie',state_dir,strict=True,fresh=fresh)
    matches=[e for e in entries if has_title(e.get('title',''),title) and (not year or str(e.get('year'))==str(year)) and int(e.get('size') or 0)>0]
    if matches or not driveid:break
  else:
-  for fresh in (False,True):
+  for fresh in tries:
    shows,driveid=listing('tv',state_dir,strict=True,fresh=fresh)
    shows=[s for s in shows if has_title(s.get('title',''),title)]
    if shows or not driveid:break
   matches=[]
   for show in shows:
-   for fresh in (False,True):
+   for fresh in tries:
     entries,driveid=listing('tv',state_dir,show['id'],strict=True,fresh=fresh)
     found=[e for e in entries if has_episode(e.get('name',''),season,episode) and int(e.get('size') or 0)>0
            and (not show.get('loose') or has_title(e.get('title',''),title))]

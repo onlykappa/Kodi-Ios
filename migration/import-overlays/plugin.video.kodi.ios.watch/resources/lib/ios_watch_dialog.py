@@ -124,7 +124,8 @@ def choose_player(player):
   if copy is not None:rows.insert(0,('Downloaded copy','play',copy));kind_of=(lambda item,old=kind_of:getattr(item,'ios_download_source','local') if item is copy else old(item))
   xbmc.log('Kodi iOS watch: choose source asked; offering %d options'%len(rows),xbmc.LOGINFO)
  # A finished download on the phone plays at once (owner build-132: Home fetched the torrent again).
- try:downloaded=None if choosing(player) else downloaded_item(player,candidates,cloud=resume)
+ # Roadmap 2.8: every way in also finds a Drive copy (saved listing only, no wait), not just Continue Watching.
+ try:downloaded=None if choosing(player) else downloaded_item(player,candidates,cloud=True if resume else 'cached')
  except DownloadLookupError:
   xbmcgui.Dialog().ok('Check downloaded copy','Completed downloads could not be checked. Try again before starting another download.')
   return None
