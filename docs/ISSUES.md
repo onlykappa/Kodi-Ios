@@ -2413,7 +2413,7 @@ Status: IN SOURCE, LOCAL ONLY (not pushed, not built; owner: "code it but dont p
   the drawn sub-page; a downloaded subtitle is not remembered for the next play yet.
 - Regression: scripts/test_track_menu.py (9).
 
-## ISSUE-153 — Settings rig audit: blank app settings, labels under switches, cut footers (2026-11-11)
+## ISSUE-157 — Settings rig audit: blank app settings, labels under switches, cut footers (2026-11-11)
 
 Status: FIXED IN SOURCE, LOCAL ONLY (not pushed, not built). Desktop Kodi rig (portrait 603x1167), every Settings route.
 - Routing: all 23 Settings routes open the right window with no errors (Settings, Interface, Player, Media, Services,
