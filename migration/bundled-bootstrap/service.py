@@ -118,6 +118,13 @@ def run():
     if folder:xbmc.log('Kodi iOS setup set Elementum downloads to '+folder,xbmc.LOGINFO)
     if elementum_upload_cap(engine.getSetting,engine.setSetting):xbmc.log('Kodi iOS setup capped Elementum torrent upload at 1 MB/s',xbmc.LOGINFO)
    except Exception as error:xbmc.log('Kodi iOS Elementum defaults skipped: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
+  try:
+   if xbmc.getCondVisibility('System.HasAddon(script.elementum.burst)'):
+    import bootstrap
+    burst=xbmcaddon.Addon('script.elementum.burst')
+    off=bootstrap.burst_providers(profile/'addon_data/service.kodi.ios.bootstrap/burst-providers-r1',burst.getSetting,burst.setSetting)
+    if off:xbmc.log('Kodi iOS setup turned off search providers that never answer: '+', '.join(off),xbmc.LOGINFO)
+  except Exception as error:xbmc.log('Kodi iOS Burst providers skipped: '+type(error).__name__,xbmc.LOGWARNING)
   # Once per phone: folders the Deck config expects, phone-useless network discovery off (ISSUE-070).
   try:
    engine=xbmcaddon.Addon('plugin.video.elementum') if xbmc.getCondVisibility('System.HasAddon(plugin.video.elementum)') else None

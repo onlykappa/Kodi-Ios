@@ -79,4 +79,15 @@ class BootstrapTests(unittest.TestCase):
   state=self.profile/'addon_data'/m.ID;state.mkdir(parents=True);(state/'status.json').write_text('{"status":"FAILED; RECOVERED TO ESTUARY"}')
   manifest=json.loads((self.seed/'seed-manifest.json').read_text());manifest['version']='2-touch-r1';(self.seed/'seed-manifest.json').write_text(json.dumps(manifest))
   self.assertEqual(m.initialize(self.seed,self.profile,self.api),'COMPLETE');self.assertTrue(list(state.parent.glob(m.ID+'.history-*')))
+class BurstProviders(unittest.TestCase):
+ def test_dead_providers_off_once_and_a_later_choice_stays(self):
+  settings={'use_1337x':'true','use_bt4g':'true','use_knaben':'true','use_torrentio':'true'}
+  with tempfile.TemporaryDirectory() as tmp:
+   marker=Path(tmp)/'x/burst-providers-r1'
+   self.assertEqual(m.burst_providers(marker,settings.get,settings.__setitem__),['use_1337x','use_bt4g'])
+   self.assertEqual((settings['use_1337x'],settings['use_bt4g'],settings['use_knaben'],settings['use_torrentio']),('false','false','true','true'))
+   settings['use_1337x']='true'   # the owner turns one back on
+   self.assertEqual(m.burst_providers(marker,settings.get,settings.__setitem__),[])
+   self.assertEqual(settings['use_1337x'],'true')
+
 if __name__=='__main__':unittest.main()

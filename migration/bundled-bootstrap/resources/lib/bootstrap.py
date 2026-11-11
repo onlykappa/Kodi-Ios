@@ -121,6 +121,17 @@ def elementum_defaults(downloads,get_setting,set_setting):
  if current and not current.endswith('/Documents/Elementum Downloads'):return None
  Path(downloads).mkdir(parents=True,exist_ok=True);set_setting('download_path',str(downloads).rstrip('/')+'/');return str(downloads)
 
+DEAD_PROVIDERS=('use_1337x','use_bt4g')
+def burst_providers(marker,get_setting,set_setting):
+ """Roadmap B.10: in all ten owner searches (logs to build 232) 1337x and BT4G returned 0 results (their sites block
+ the phone) and each cost ~2.4 s of the search. Turned off once per phone (marker), so turning one back on stays."""
+ marker=Path(marker)
+ if marker.exists():return []
+ off=[k for k in DEAD_PROVIDERS if str(get_setting(k)).lower()!='false']
+ for k in off:set_setting(k,'false')
+ marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text('1\n')
+ return off
+
 UPLOAD_CAP_KB=1024
 def elementum_upload_cap(get_setting,set_setting):
  """Build 185 (build-184 log: Drive uploads of a conversion stalled for 120 s at a time): a seeding torrent with no
