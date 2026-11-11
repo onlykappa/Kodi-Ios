@@ -455,6 +455,13 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
   "Converting the picture for your TV", then the picture or the slow-internet card; send kodi.log either way, the
   Roku model, and what the TV screen says if it fails.
 
+## Build 224 — verified (release build-224, IPA sha256 df2f152c…, commit f410a83; Kodi r29, AirPlay r44, glassbar r6). Owner testing (ISSUE-158, 159)
+- Downloads: AirPlay's Pause and retry is lifted 2 minutes after AirPlay ends; the first start lifts old pauses; a
+  "Downloads are paused" card with Resume tops Library status (the build-223 log had uploads paused for 2 hours).
+- Includes d058ca2 (season packs only, qualities with episode coverage, paused queue visible), the Subtitles / Audio
+  menus with Download and apply (podnapisi.net, unverified against the real site), the settings label / footer fixes
+  and Kodi r29 (Browse for subtitle guard). The Settings redesign is NOT in it.
+
 ## Build 210 — ISSUE-137: buffering % moved into the video controls; its own dialog (which froze Kodi) never opens
 
 ## Build 208 — ISSUE-136: all background work (uploads, copies, conversion) waits while Kodi plays or buffers a video; AirPlay unchanged
