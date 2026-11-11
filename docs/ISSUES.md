@@ -965,3 +965,1636 @@ Status: OPEN; findings only, no code changed. Evidence class: **desktop Kodi rig
 - **Blue accents:** the Movies tab, the "Done" button, the progress bar and the app tile use at least two blues (see policy §4.3 drift). Pick one per role when the pill is restyled.
 - What already matches the policy: floating capsule pill above the tab bar, one line per text run with no overlap, white primary/secondary text hierarchy, sheet with grabber, large title and Done, dimmed backdrop, thin progress bar, one primary (white) action on the hero.
 - Next: fix as part of the pill work on PR #9 (rebase onto main first), re-render in the rig, then build a test IPA when the owner authorises it so the pill can be checked on the phone for the first time.
+
+## ISSUE-118 — Pages disagree; "Paused while a video plays" with nothing playing; work stops for playback (build 192)
+
+Status: IN SOURCE on PR #16 (build 193 Phases 1–5, not built); visual and device checks pending.
+- Owner (build 192): "Notification center isn't linked with Library status properly or it is just SUPER SLOW … it still says paused as a video plays and it seems to be converting … if I click on it it says nothing is moving … stuff should ALWAYS be moving even if an AirPlay movie is playing, just slower."
+- Root causes (full review with log lines and file:line: docs/LOG-REVIEW-192.md): (1) the converter's own `prepare: …` lines went through the AirPlay log and `airplay.activity` took them as AirPlay playing for 90 s, which held the conversion, its Drive reads and uploads and the AllDebrid copy, and made the queue wait 120 s; (2) `prepare_cloud.waiting()` always said "a video plays"; (3) a stopped job and a failed library check kept running words; (4) each page used its own freshness clock (1, 15, 30, 60 s, none).
+- Fix: only the AirPlay server's and Apple's player's lines mark AirPlay (`airplay.airplay_lines`); playback never holds work any more, it slows it to a share of the line and CPU (`slowdown.py`: video 35 %, AirPlay 25 %, 8 % for 60 s after a TV read slower than 1.5 s; used by the converter pace, Drive reads, upload pieces, phone uploads and AllDebrid copies); the owner's Pause stays a real pause and now says "Paused by you"; one status model (`work_state.py`, written every 2 s, older than 6 s never shown as running, the reason stored with the state) read by Library status, the Queue, Notifications, Transfers and the bell; a failed check clears its card; AllDebrid progress carries its time, tries reset after a piece goes up, a retry says "trying again in N min".
+- Retest: all scripts/test_*.py, check_project, check_ui_guidance (local). Device: needs a build-193 log with a video and with AirPlay playing during a conversion.
+- Second log (13:49-14:16): Fall 2's faster start failed on "MP4 packet: Invalid argument" at 22 %; a re-pack that fails on a converter writing error now stays as it is (it plays) instead of restarting from 0 % for ever (`prepare_cloud.REPACK_STOPS`; `test_drive_prepare` 2 tests). Converter cause not yet found (needs time stamps in its log).
+- Regression: `test_slowdown` (10), `test_work_state` (20); old pins updated in test_airplay_room, test_conversion_speed, test_hold_menu, test_notices, test_prepare_downloads.
+
+
+### ISSUE-118 — Phase 4/5 follow-through (2026-11-07)
+- The approved nine boards are implemented in portrait XML; working cards and graph labels are shared, all live
+  wording comes from `work_state`, and unread messages no longer create a red bell badge. Full source matrix and
+  remaining evidence requirements: [BUILD-193-UI-HANDOVER.md](BUILD-193-UI-HANDOVER.md).
+- Validation found standalone import/texture/XML defects and an inherited Queue label overlap; fixed with
+  generated-XML/asset checks. A queued ready faster-start movie was initially counted twice and dropped by the
+  Queue's eligibility filter: it now occupies one summary category, remains reorderable and keeps Play actions.
+  Regression: `test_build193_pages.test_queued_faster_start_is_counted_once_and_keeps_play`.
+- All initial failures were diagnosed and retested. Visual verification remains PENDING without a Kodi rig;
+  build-193 iPhone results are still required. No converter change or device-success claim.
+
+
+### ISSUE-118 — Eight build-193 review findings
+
+- Owner supplied a source review: title-only transfer joins hid the kept original; download Pause used an unsupported
+  pause-file kind; incomplete transfers offered Play; notification cards lacked cancel identifiers; live actions
+  dropped QUICKER; recovery opened behind modal windows; graphs re-rendered unchanged samples; first-seen starts reset
+  and blocked faster-start jobs showed ineffective retry.
+- Fixed all eight in the page/data controllers. Graph files are cached by job and sample signature; stopped
+  faster-start retries are hidden rather than unblocking a known converter failure. No converter or slowdown rules
+  changed. Per-item fixes and regression names: [BUILD-193-UI-HANDOVER.md](BUILD-193-UI-HANDOVER.md).
+- Regression protection: ten additional `test_build193_pages.ReviewFindings` tests, including real controllers with
+  fake Kodi controls, correct engine/cancel targets, recovery dismissal ordering and renderer call counts. Device
+  verification remains with the owner; the desktop rig is not being used as acceptance evidence.
+- Retest: **80/80 test scripts passed** (only `test_drive_runtime.py` excluded); the page suite passes **24 tests**.
+  `check_project.py` and `check_ui_guidance.py` both pass with zero issues/problems. No app/IPA build was run.
+
+## ISSUE-119 — Build-193 pages look nothing like the approved mockups (device screenshots, 2026-11-08)
+
+Status: FIXED IN SOURCE on PR #16 (build 194, not built); checked in the desktop Kodi 21.3 rig; iPhone check pending.
+- Owner (build 193 on the iPhone): "this looks nothing like the mocs i approved". Empty bars, a filter row and a
+  ring instead of the summary card, posters in Up next, "•••" on the cards, a clipped "Library status" link, the step
+  repeated under the title, a flat zero graph, half-size icons and a red bell count that never showed.
+- Root causes, found by rendering every page in a real Kodi 21.3 build (desktop rig, Xvfb, 603 × 1167):
+  (1) a `<control type="progress">` bound to `Window().Property(x)` stays empty in Kodi 21; bars now have ids and are
+  set with `setPercent` (`status_ui.id_bar`, summary segments with `setWidth`/`setPosition`);
+  (2) a label whose text is only a number ("1") is read as a localized string id; the Queue uses `$NUMBER[n]`;
+  (3) Kodi reads `!!X` as `!X`, so `'!' + has(x)` inverted conditions (the bell's count badge never showed, History's
+  retry card); `status_ui.neg()` writes the opposite of a condition;
+  (4) the icon PNGs keep their shape in the middle half of the 128 px canvas, so a 59-unit icon drew a 30-unit
+  shape; `status_ui.glyph()` draws at twice the size around the same centre;
+  (5) the generators were written from the roadmap text, not measured against the boards.
+- Fix: every board measured with Playwright (`docs/design/build-193-measurements.md`) and rebuilt to it; details per
+  board in [BUILD-193-UI-HANDOVER.md](BUILD-193-UI-HANDOVER.md) ("Build 194 visual pass"). No change to
+  `work_state.py`, `slowdown.py` or the converter.
+- Regression: `test_build193_pages.Board194` (11 tests: sizes against the measurement table within 4 units, segment
+  widths and colours, the step bars at 100 % when done, the graph placeholder at rate 0, no "•••", the always-visible
+  link, the bell's grey track and count, `$NUMBER`, no `!!` on any page, History card heights); old pins updated in
+  test_library_status, test_library_tools, test_notices, test_transfers, test_prepare_downloads, test_check_beside.
+- Retest: 80/80 test scripts (only `test_drive_runtime.py` excluded), `check_project.py` and `check_ui_guidance.py`
+  pass. Known leftover outside these boards: the landscape AirPlay sheet (`library_tools_page.airplay_sheet`) still
+  has one `!!` condition; it is pinned to its earlier source by a test and was left unchanged.
+
+## ISSUE-120 — Ready movies cannot connect over AirPlay (build-194 device log)
+
+Status: FIXED IN SOURCE / DEVICE RETEST PENDING on PR #16. Native r34 diagnostics are staged in source;
+build/release/pinning await owner approval. Released KodiAirPlay r33 remains pinned.
+
+- Evidence: owner log 18:11–18:15, repeated AVPlayer -1004, zero server `GET /…`/receiver `client:` lines;
+  Play on TV opened twice at 18:12:45 and 18:12:50. Full sanitized analysis:
+  [LOG-REVIEW-194.md](LOG-REVIEW-194.md). Raw log stays outside Git.
+- Root causes found in source: missing Local Network purpose declaration; picker check/set race; no first-request
+  deadline; source URLs mistaken for server diagnostics; incoming accepts/early requests not recorded. The log
+  does not prove permission denial: Apple's TN3179 exempts incoming TCP, while unicast TV discovery needs access.
+- Fix: stage the purpose string; hold a process-shared lock before the picker; stop an unreachable attempt at
+  15 seconds without retry; resume Kodi and persist a needs-you recovery card across script/service interpreters.
+  r33 uses shared request-log evidence. r34 source adds strict en0 selection, endpoint/listen/peer/request/timing
+  diagnostics with a non-draining API, ordered native session work, cancellation generations and app Settings.
+- Regression: 13 tests in `test_play_on_tv_network.py`, plus the staged-plist test in `test_customized_ipa.py`.
+  Updated old lock/progress/retry assertions to the corrected behavior. The full sweep also found a pre-existing
+  r23 tag/hash assertion after this branch had pinned r24; updated the exact assertion without changing the pin.
+- Retest: **82/82 test scripts pass** after that correction/retest (only `test_drive_runtime.py` excluded).
+  `check_project.py`, `check_ui_guidance.py`, shell syntax and diff checks pass. Native r34 runtime tests and
+  iPhone playback remain pending; no app/native build, release or merge was run in this pass.
+- Owner subsequently approved native verification/release and explicitly requested an installable iPhone IPA.
+  Added compiled host regressions for non-draining network snapshots, reported listener/endpoint, and excluding
+  phone/loopback requests from TV evidence. Preflight found that only `127.0.0.1` was excluded; the whole `127/8`
+  range is now excluded and phone User-Agent checks ignore case. Candidate CI must pass before r34 is pinned.
+- Delivered in **build 196** after owner approval: native run 42441688126 passed 3,107 checks and 199 end-to-end
+  checks with zero failures; r34 publication 42442400925 and IPA run 42442484724 succeeded. Release equals the
+  candidate; the downloaded IPA's purpose string, identity and normalized r34/r24 binaries are verified.
+  [Delivery evidence](../reports/airplay-r34-delivery.json). Device playback retest remains pending.
+- Final 82-script sweep had one scheduling-sensitive `test_drive_prepare.BackgroundUpload` timing failure
+  (1.2217 s against 1.0 s). All 26 tests passed unchanged on focused rerun; no worker code or timing threshold was
+  altered. All other scripts passed; `test_drive_runtime.py` remained excluded as requested.
+
+## ISSUE-121 — Kodi r24 pin used the archive hash instead of the executable hash
+
+Status: FIXED; verified against the immutable `kodi-ios-portrait-r24` release before the next IPA build.
+- Preflight for the owner's approved AirPlay IPA found `executable_release.sha256` contained the ZIP's hash
+  (`efdc2f0e…`), while `ios_portrait.fetch` verifies the unpacked `Kodi` executable. Build 195 had failed earlier
+  at the stale r23 test assertion, before it reached this fetch; the wrong pin would block the next build too.
+- Downloaded the r24 release, checked ZIP integrity and its GitHub asset digest, then hashed `Kodi` inside it:
+  `02d5357af48bbf991efddc9ed5babecf06e19b826c5c648cf335c7073d767a80`. Corrected only the checksum; r24 is unchanged.
+- Regression: `test_glassbar.IpaTests.test_executable_pin_checks_the_binary_inside_the_zip` accepts the binary pin
+  and rejects the archive pin. The repository's exact pin assertion now checks that verified binary digest.
+- Build 196 successfully fetched r24 using the corrected pin. Its downloaded executable equals the verified r24
+  release after signature removal; the app's build identity records the corrected `02d5357a…` binary checksum.
+
+## ISSUE-122 — Build 196 declares the TV unreachable before the stream opens; screen-lock lifetime is fragile
+
+Status: FIXED IN SOURCE, native candidate verification and device retest pending on PR #16.
+
+- Device evidence: two attempts expire at 15 seconds, but the first listener appears about 129 seconds after
+  startup. No TV request or successful playback appears. Local Network is enabled. Full timeline and limits:
+  [LOG-REVIEW-196.md](LOG-REVIEW-196.md).
+- Root cause: one startup/connection deadline and queued cancellation behind blocking source I/O. AirPlay's
+  fragmented-MP4 opener also missed the index option already present in preparation/Kodi r24. Background lifetime
+  depended on a diagnostic lease and the download preference; the silent download helper could replace the
+  player's audio session. The log proves startup ordering, not the result of the screen-lock fix.
+- Fix: indexed opening, interruptible initial HTTP open, 45-second native startup bound, reserved session tickets,
+  scoped immediate cancellation, separate TV-choice/connection clocks, no automatic retry, and native playback
+  ownership independent of logs/download settings. Preserve the playback/movie audio session and audio background
+  mode through screen lock; clear active on completion/failure/close and allow legitimate replay.
+- Regression: Python controller/network/lifetime tests; compiled native cancellation, stale work/cleanup and
+  indexed-request/byte bounds; staged IPA preserves existing background modes and adds audio. Old source API pins
+  now assert the ticket implementation. Candidate build/release, complete suite and iPhone results follow below.
+- Owner explicitly requested a new build and screen-locked playback; native r35 release and IPA are authorized.
+
+## ISSUE-123 — Build 194 crashes Kodi when a live page's controls are freed (desktop Kodi rig, 2026-11-08)
+
+Status: FIXED IN SOURCE (not built). **Build 194 must not be installed.**
+- Found while running the new rig from scratch: two segfaults in a Python thread, in
+  `CGUIProgressControl::SetPercentage` and `Control::setWidth` (addr2line on the rig's kodi-x11).
+- Root cause: build 194's pages set bars, segment widths and positions from their 2 s refresh threads. xbmcgui caches
+  the Control objects it hands out; Kodi frees a script window's controls when the window closes (WindowXML loads every
+  time) and when the skin reloads (Fuse rebuilds its menus on a first start or after an update) while the page stays
+  open. The next refresh wrote into freed memory. Reproduced: open Library status, `ReloadSkin()` — crash on cycle 0.
+  Notifications' and Transfers' single setPercent (since earlier builds) had the same latent risk.
+- Fix: `resources/lib/live_window.Guard` — control changes run only while `Window.IsActive(id)` (false as soon as a
+  window starts closing), under a lock the page's own close also takes, and each control is looked up afresh through a
+  new `xbmcgui.Window(id)` wrapper instead of the cached one. Used by Library status, its sheet, Notifications,
+  Transfers and the Queue.
+- Retest in the rig: 20 open → ReloadSkin → close cycles over the four live pages, no crash (build 194 code: crash on
+  the first). Regression: `test_build193_pages.Board194.test_issue120_controls_only_while_the_window_is_open`; the
+  fake Kodi in test_library_status now refuses a control used after its window closed.
+
+## ISSUE-124 — AirPlay plays only the sound of a prepared HEVC movie on a TCL Roku TV (build 198, 2026-11-08)
+
+Status: FIXED IN SOURCE (native r36 candidate pending); device retest pending.
+- Owner: "airplay is connecting to tv but it says action cant be completed and only audio plays on my tv" (photo: a
+  music note on the TCL TV). Log (build 198, AirPlay r35): the movie opened in 0.4 s and was inspected by its index in
+  1 s (r35 works); every request to the phone's server came from the iPhone itself (AppleCoreMedia, 192.168.1.24);
+  the player reported `presentation 0x0, external 0`, then -11819 "Cannot Complete Action".
+- Root cause: iOS gave the TV the AirPlay route as sound only: this third-party receiver cannot take the prepared
+  4K HEVC picture (already noted in ISSUE-116 and HANDOFF-PROGRESS: "The TCL Roku TV may play only the sound of HEVC";
+  build-136-era logs needed H.264 for it). The H.264 compat restart existed for live HLS only: `build-airplay.sh`
+  disabled it for `/prepared.mp4`, no trigger covered "external playback never starts", and `kr_remux.c` served the
+  prepared file again even in compat mode.
+- Fix (r36 source): `kr_remux.c` converts a prepared file in compat mode; the player restarts once with the H.264
+  picture when the TV is on an AirPlay route but external playback has not started for 4 s (or Apple's player fails
+  that way), unless the picture is already H.264. Prepared movies keep the fast as-is path for TVs that take them.
+  Python: going back to opening restarts the TV-choice and connection clocks (`cast.airplay_outcome`), so the
+  restart is not cut off as "unreachable"; the card says "Converting the picture for your TV".
+- Regression: `test_remux.c` (compat start of a prepared file is converted HLS, then as-is again);
+  `test_play_on_tv_network.SoundOnlyRestart` (3). Native compile and host/E2E: candidate CI.
+
+## ISSUE-125 — Build 200: Kodi's plain dialogs instead of the Play on TV card, and the H.264 restart cancelled (2026-11-08)
+
+Status: FIXED IN SOURCE (card: Python; restart: native r37 candidate pending); device retest pending.
+- Owner (build 200, photo of Kodi's OK dialog): "didnt work and doesnt look pretty", "none of the new cards ported".
+- Cause 1 (the card): `EXCEPTION: XML File for Window is missing`, then "card unavailable (RuntimeError), using Kodi's
+  dialogs". The start-up refresh wrote `1080i/IOSAirPlayFlow.xml` after Kodi had listed `1080i`, and Kodi answers
+  "does this window file exist" from its directory cache (as for Transfers, build 173). `portrait.refresh_skin`
+  re-listed only the portrait folder. Reproduced in the desktop Kodi rig: the same exception before a re-list, the card
+  opens after one.
+- Fix 1: `refresh_skin` re-lists every folder it wrote a file to (1080i included); `cast.FlowUI` re-lists `1080i`
+  and tries once more on RuntimeError.
+- Cause 2 (sound only again): r36 began its H.264 restart ("the TV took the sound only … restarting in compat mode"),
+  but in the same second `airplayWatch` logged "could not open the stream" (-11819) and set the state to -1. Python
+  showed "failed" (its reason was the restart's own note "Converting the picture for this TV…") and closed the player,
+  so the restart was cancelled ("start result -1: AirPlay canceled").
+- Fix 2 (r37 source): `compatBusy` is set while a restart runs. `airplayWatch`, `routeWatch` and the failed-to-play
+  observer ignore the old item's failure while it is set, and a failure counts only after 1.5 s, so the 1 s player
+  timer can start the restart first.
+- Regression: `test_transfers.NewPageFound` (2 new), `test_play_on_tv_network.SoundOnlyRestart` (old item's failure).
+  Native compile and host/E2E: candidate CI.
+
+## ISSUE-126 — Build 201: the TV took the H.264 picture, then stopped (phone reading Drive too slowly); bare Apple alert (2026-11-08)
+
+Status: FIXED IN SOURCE (Python card; native r38 candidate, not published or built: owner tests the Apple TV first).
+- Owner (build 201, two photos): "did not work … It didnt even play audio". Apple's "AirPlay stopped: The operation could
+  not be completed"; earlier, "Converting the picture for this TV…" written across Apple's skip-10 s buttons.
+- Log: the card loaded and the r37 restart held (ISSUE-125 fixed). The TCL TV (MFi AirPlay, 192.168.1.8) took the
+  H.264 master for the first time and asked for video segment 0. Converting it needed the movie from Drive: "segment 0
+  stopped after 21817 ms, source I/O 20689 ms". The TV gave up after 10 s. The 4K movie is 24.7 Mbit/s (about 3 MB/s);
+  Drive delivered about 0.9 MB/s; Kodi's own playback had stalled before Play on TV; a Drive upload ran at 0.20 MB/s.
+  The sound waits for the picture, so nothing played. Python had already reported "playing" (on the TV's first
+  request) and closed its card, so Apple's alert was all the owner saw.
+- Fix: Kodi keeps watching for 45 s after "playing" (`cast.airplay_settle`). While Kodi polls `kodi_airplay_state`,
+  native r38 (clock: NSProcessInfo systemUptime; QuartzCore is not linked) leaves a stop to Kodi's card instead of Apple's alert. After the close, `cast.slow_source` reads the
+  waits (requests or source reads of 5 s or more, or a near-empty served range) and shows the slow-internet card
+  (`airplay_flow` kind `slow_source`, wifi icon, Try again / Keep watching here). The owner wants uploads to keep
+  working in the background, so this card has no pause button and nothing is paused. The converting text is now a
+  pill at the top, clear of Apple's controls.
+- Not fixable in code: converting a 4K movie streamed live from Drive needs about 3 MB/s. A downloaded movie, or an
+  HEVC-capable receiver such as the owner's Apple TV (the prepared file plays as-is), avoids it.
+- Regression: `test_play_on_tv_network.SlowSource` (7). Desktop Kodi rig: the card renders (3 lines, fits).
+
+## ISSUE-127 — Apple TV: black screen, the Apple TV never asked for the movie (build 201, 2026-11-08)
+
+Status: FIXED IN SOURCE (native r38 candidate pending); device retest pending.
+- Owner: "it just gives me a black screen on my phone and nothing changes on the tv" (photo: Apple's player, black,
+  only its close button). Log: the prepared movie (7.1 GB, 22 s fragments, 24.7 Mbit/s) opened in 0.26 s and its
+  index in 0.8 s; then only the iPhone's own player (AppleCoreMedia) read prepared.mp4, in open ranges at 73, 112, 136,
+  168, 214 ... 592 MB, 0.4-3.9 MB each, 3-7 s apart. The Apple TV made no request; the player never became ready.
+- Root cause: given a progressive fragmented MP4, AVFoundation walks every fragment header (moof) before it plays; it
+  does not use the fragment index at the end (mfra). Across about 400 fragments of a Drive file that would take
+  half an hour. The same was measured by karbassi/undertone#8 ("AVFoundation reads the whole fragmented MP4
+  regardless"); their fix, like Beamly #11 and Pley #83 for HEVC/HDR, is fMP4 HLS. This probably also explains the
+  "sound only" starts of ISSUE-124 (external playback never started because the item was never ready).
+- Fix (r38): at start the server reads the prepared file's mfra (two small reads) and serves `prepared.m3u8` (one
+  variant: CODECS from the hvcC/avcC and every copied audio codec, RESOLUTION, FRAME-RATE, VIDEO-RANGE PQ/HLG/SDR,
+  BANDWIDTH = the largest fragment's rate) and `prepared-media.m3u8` (EXT-X-MAP = ftyp+moov byte range, one
+  EXT-X-BYTERANGE per fragment, ENDLIST). Apple's player and the TV fetch only the fragments that play. Without a
+  usable index the MP4 itself is served as before.
+- Open: the movie's audio tracks are muxed in each fragment, so the TV plays the file's first audio track; picking
+  another needs separate renditions. 4K streamed from Drive still needs about 3 MB/s from Drive.
+- Regression: test_remux.c (master and media playlists, first range is a moof, init range is ftyp+moov);
+  `test_play_on_tv_network.PreparedAsHls`. Device: owner's Apple TV.
+
+## ISSUE-128 — Build 202: AirPlay works on the Apple TV; stopping it went back to the start; no subtitles (2026-11-08)
+
+Status: FIXED IN SOURCE (native r39 candidate pending); device retest pending.
+- Owner: "IT WORKED ... if i stop airplay it restarts the movie it seems or goes back to where it started airplaying?
+  And subtitles didnt work". Log: prepared HLS over 141 fragments; the Apple TV (10.0.0.40) asked 3.3 s after start
+  and played; the player started at 0.0 s although Kodi was further in, and "closed at 246.9 s" left Kodi where it
+  had paused. Subtitles: Kodi's choice -2 (the file's default); the prepared file's English text subtitles ride in
+  the fragments as mov_text, which HLS ignores.
+- Fix (r39): `kodi_airplay_start_at(seconds)` (new export, 27 checked) is set from Kodi's position before
+  `kodi_airplay_play`; the native player seeks there once ready. `airplay.activity` (both readers of the native log)
+  moves Kodi's paused video to "closed at X s" (`airplay.back_to_kodi`, nothing under 5 s). The prepared master
+  lists the file's text subtitles as WebVTT renditions (the converted path's /subs/ playlists and cue files), the
+  one Kodi shows (else forced/default/first) as DEFAULT; the native player selects the DEFAULT legible option.
+- Not covered: image subtitles (PGS, kept beside the movie as .sup) and external subtitle files over AirPlay.
+- Regression: test_remux.c (h264_aac_srt prepared: SUBTITLES group with DEFAULT=YES, playlist and WEBVTT cue file);
+  `test_play_on_tv_network.AfterAirPlay` (4).
+
+## ISSUE-129 — Play on TV for any TV on the Wi-Fi: Roku, Chromecast and DLNA got a link they could not open (2026-11-08)
+
+Status: FIXED IN SOURCE (native r40 candidate pending; build 204); device test pending.
+- Owner (build 203): "ideally i want it to work on any tv thats connected to the same wifi". Research:
+  Roku locked "Play on Roku" (channel 15985) in Roku OS 11.5 (home-assistant/core#83819: it opens and exits), which is
+  why this TCL Roku TV answered 404 (build 138); Home Assistant moved to the free Media Assistant channel
+  (MedievalApple/Media-Assistant, Channel Store id 782875: /launch/782875 or /input with u, t=v, videoName,
+  videoFormat). Roku is not a DLNA renderer. No maintained iOS library covers every TV; every caster combines
+  AirPlay, Cast, DLNA and Roku ECP, as Play on TV already does.
+- Root cause for the non-AirPlay TVs: they were sent Kodi's link with the phone's address; Drive's and Elementum's
+  helpers answer on 127.0.0.1 only, so the TV could never open it, and Drive links need the phone anyway.
+- Fix (r40): `kodi_airplay_serve(url, compat, out)` (export 28) starts the phone's server on the Wi-Fi address without
+  Apple's player and returns its link: prepared movies as the byte-range HLS (ISSUE-127), other files remuxed.
+  Play on TV (`cast.tv_link`) gives Roku and Chromecast that playlist, DLNA the prepared MP4 itself; an HLS source
+  or an unavailable server keeps Kodi's link. Roku: Media Assistant first, then the old channel; a 404 says to add
+  Media Assistant (or use AirPlay on a Roku TV). Chromecast starts at Kodi's position. Kodi must stay open (the
+  phone serves the movie).
+- Open: TVs without HEVC get the picture as it is (compat 0); a per-TV H.264 choice needs each TV's capabilities.
+- Regression: `test_play_on_tv_network.AnyTv` (4), `test_updates_calibration` (Media Assistant URL, order, 404 text).
+
+## ISSUE-130 — Customisation said 15 rows on Home (7 showed) and Add seemed to do nothing (build 202, 2026-11-08)
+
+Status: FIXED IN SOURCE (Python; build 204); device retest pending.
+- Owner (screenshot of Tabs & Rows › Home, "15 rows on the page"): "i only have 7 rows ... when i press add and
+  nothing is added ... this applies to all, home movies and tv". The editor and Home read the same Skin Variables
+  lists (rows_editor.NODES = portrait.NODES), so changes did reach Home; but Home hides a row while its list is empty
+  (portrait.row: visible while NumItems > 0), e.g. Trakt rows without a Trakt sign-in (the desktop Kodi rig shows the
+  Trakt 401) and empty library rows, while the page counted every row that could show. Add appended the new row
+  after all the others, below the fold on the page and at the very end of Home.
+- Fix: `rows_editor.empty_rows` judges each row as Home does: TMDb Helper rows by the service's listing copy (it keeps
+  one for every list with items; without any copy, nothing is judged), library rows by a one-item JSON-RPC
+  Files.GetDirectory (`folder_counter`), add-on rows not at all. Empty rows are faded with "Empty now · hidden on Home"
+  or "Empty · sign in to Trakt", and the header counts only what shows ("10 rows on the page · 2 empty right now");
+  the Customisation counts use the same rule. Add puts the new row first, under Continue Watching, and says so.
+- Regression: `test_customisation.RowsScript` (count, empty marks, no-copy case, folder counter, Add first). Desktop
+  Kodi rig: page renders, text fits (screenshot not committed).
+
+## ISSUE-131 — Tabs & Rows: trending lists to add, rows added at the bottom, and a 4.7 s wait after every change (2026-11-08)
+
+Status: FIXED IN SOURCE (Python; desktop Kodi rig verified); device retest pending.
+- Owner (build 204): "I want trending movies to be a option and trending shows, and Now Playing under movies ... I do
+  like the home how it is but make it so i can add the rows i want ... add a row and see if it populates correctly at
+  the bottom and switch rows around ... ensure its quick".
+- Add Row lists: Home: Trending Movies, Trending Shows, Trakt Trending Movies/Shows, Now Playing, Airing Today,
+  Popular, Recommended (Trakt), Recently Added; Movies: Trending Movies, Trakt Trending Movies, Now Playing first;
+  TV: Trending Shows, Trakt Trending Shows, Airing Today first. Home's own rows are unchanged.
+- A new row goes last among the rows Home shows (ISSUE-130 had put it first) and the page moves its focus to it.
+- Speed: closing the page ran the full portrait refresh (every texture drawn in Python): 4.7 s in the rig before Home
+  changed. `portrait.refresh_rows` rewrites only the hub files (`row_files`, identical to the full build's; a test
+  compares them) and brings the start-up marker up to date: 0.055-0.063 s in the rig.
+- Desktop Kodi rig (real UI, SendClick): Add → Trending Movies landed at the bottom of Home with 21 titles; moved up
+  three places and the rows around it kept their titles (21 each); Netflix Original Movies moved to the top; TV:
+  Trending Shows added at the bottom with 21 titles. The rig's lists were put back afterwards.
+- Regression: `test_customisation` (Add Row lists, add position and focus, row_files = full build).
+
+## ISSUE-132 — Build 205: seeking nearly froze the app; one season showed as one download; no buffering progress (2026-11-08)
+
+Status: FIXED IN SOURCE (Python; build 206); device retest pending.
+- Owner: seeking an Umbrella episode (Dragon Ball Super: Beerus, H.264 + E-AC3 + ASS) "completely nearly broke the
+  app ... have it show like a buffer percentage ... it should use download speeds"; "i went to download a entire
+  season and it seems only 1 thing is downloading".
+- Log: `AddVideoPicture - timeout waiting for render` at 11:25:20 and :26 while an AllDebrid → Drive copy read 32 MB in
+  2.4 s (13 MB/s) during playback (slowdown gave background work 35% of the time but each read ran at line speed);
+  Kodi's cache was 20 MB at 4x.
+- Fix: background downloads (AllDebrid copy reads, preparation's Drive reads) keep under 1 MB/s while a video or
+  AirPlay plays and wait while Kodi buffers (`slowdown` reason 'buffering' from Player.Caching); uploads keep the
+  time share. Kodi's cache set once to 96 MB at 10x (`portrait.tune_cache`). "Buffering 45%" pill
+  (`Custom_1156_Buffering.xml`, Player.CacheLevel) between the centre controls and the title; rendered in the desktop
+  Kodi rig (forced visible: "Buffering 99%"). A video window control was not drawn in the rig, hence its own dialog.
+- Season queue: the copy names its episode and "N of M"; the season's other episodes and the other AllDebrid jobs are
+  listed as up next (`work_state.drive_next`, Queue page).
+- Regression: test_slowdown.DownloadCap (5), test_work_state.SeasonQueue (4), test_portrait.BufferingPill (2).
+
+## ISSUE-133 — "I pressed full season" (Lanterns) and got episode 1 only; Next Episode button (2026-11-08)
+
+Status: FIXED IN SOURCE (Python; build 206); device retest pending.
+- Log: Elementum's season download (/show/95350/season/1/download) used the version picked from 29 results of
+  "lanterns season 1"; it held one 8.4 GB file, S01E01 (4K HEVC HDR), which was copied, listed and prepared. A season
+  search lists single-episode releases too and the version page did not say which was which.
+- Fix: `source_match.coverage` tells a season pack from "Episode 1 only"; the version page lists full seasons first with
+  a FULL SEASON / EPISODE N ONLY badge. A season download that held one episode ends with "Only one episode was in
+  that download" instead of "Saved to Google Drive".
+- Next Episode (owner: "i want a button at the top to watch next episode"): top left beside back, episodes only;
+  `next_episode.py` plays the playlist's next item, else TMDb Helper's play for the same show and episode + 1 (by the
+  show's TMDb id when tagged, else its title). Not yet seen in the rig (the owner stopped that run).
+- Regression: test_source_match.SeasonCoverage (2), test_debrid_drive (one-episode season), test_next_episode (4).
+
+## ISSUE-134 — Whole seasons: the other episodes follow the first quality pick (2026-11-08)
+
+Status: BUILT IN SOURCE (Python; build 206); device test pending.
+- Owner (build 205): "cant it automatically pick sources based off my first quality pick? like if i pick 4K hd, then it
+  can find compatible sources for each episode of that show automatically? ... i want shows to be able to be easily
+  downloaded".
+- How: the version picked for a season (or the first of several ticked episodes) is kept as a profile (quality, HDR
+  kind, codec, source type, size, what it held: `deck_picker.profile`, Home property KodiIOS.SeasonPick). When that
+  version was a full season nothing more happens. When it held some episodes only, one question ("Get the other N
+  episodes automatically in the same quality (4K · HDR10)?") and then `download.rest_of_season` starts Elementum's
+  download of each listed episode not yet owned, one by one with a cancellable progress bar, with KodiIOS.AutoPick
+  set: the version page picks by itself (`deck_picker.auto_choose`: same quality, else the nearest lower; the same HDR
+  kind and codec; no AV1 when avoidable; seeds; the nearest size) and `elementum_cloud.route` queues it with the
+  first answer to "Save to Google Drive" (never playing an episode Drive already has). One summary notice: "Lanterns
+  season 1: 8 episodes queued in 4K · E04 in 1080p · not found yet: E05".
+- Regression: test_auto_season (6); test_elementum_cloud, test_deck_picker, test_source_match unchanged and passing.
+
+## ISSUE-135 — Build 206: season copy read AllDebrid at 1.3 MB/s; Transfers stuck bar, no graph, Peak 0.0 (2026-11-08)
+
+Status: FIXED IN SOURCE (Python; not built). Device test pending.
+- Owner (build 206, log d85fe349 + Transfers screenshot "Lanterns · S01E02 · 2 of 8 · 46%", bar at the start, Peak and
+  Average 0.0 MB/s, no graph): "downloads should be based of download speed? im wondering why its going so slow".
+- Cause 1 (speed): build 206 added `slowdown.Gate.after(..., download=True)` after every 1 MB the copy reads. Each call
+  re-asked `slowdown.reason()`, whose answer comes from Kodi's GUI (`getCondVisibility('Player.Caching' /
+  'Player.HasVideo')`). In the background that call waits for Kodi's GUI lock. Log: the first two pieces (app on screen)
+  read at 9.3 and 15 MB/s; from 13:10:25 ("silent audio running", app in the background) every 32 MB piece took 16-33 s
+  (1.0-2.0 MB/s, average 19.9 s) with nothing playing, no slowdown words and Drive PUTs at 20-25 MB/s. Build 205 (logs
+  a747e2ef, 15d60fb0) read 13-16 MB/s in the background, on the same path minus the per-MB gate.
+- Fix 1: `slowdown.watch` (started by the service) asks Kodi once a second on its own thread; `reason()` only reads its
+  answer, so no worker ever waits for Kodi. Each change is logged ("Kodi iOS slowdown: Slower while a video plays" /
+  "full speed"), so a slow copy in a future log shows whether it was slowed on purpose. The cap during playback stays.
+- Cause 2 (no graph, Peak/Average 0.0): the history titled the copy by its show ("Lanterns"), the pages by the episode
+  ("Lanterns · S01E02"), so Transfers and the Library status sheet dropped its speeds. And the copy's speed window
+  (20 s) held one mark when pieces came more than 20 s apart, so the rate read 0.
+- Fix 2: `transfer_history.activity` uses the same per-episode title; the copy's speed window always keeps the piece
+  before.
+- Cause 3 (bar at the start): `live_window.Guard` (ISSUE-123) asked `self.window.getId()`. Kodi 21's script windows
+  have no getId() (only Action has), so `open()` was always False and no script-set bar, width or position on
+  Transfers, Library status, its sheet, Notifications or the tool pages was ever changed. ISSUE-123's unit test used a
+  fake window that had getId(). Once the guard worked, the rig crashed (gdb: SIGSEGV in
+  `ControlProgress_setPercent`): the control came from an `xbmcgui.Window(id)` wrapper freed at once.
+- Fix 3: the guard finds its window id from `getCurrentWindowDialogId()` / `getCurrentWindowId()`, confirmed by a marker
+  property set on the page itself (never another window's controls), and keeps one fresh wrapper alive for the whole
+  change. Desktop Kodi rig: Transfers bar at 38% (scenario 38%), Library status row bar and segmented bar filled;
+  ReloadSkin with each page open and five open/Back cycles: no crash, no SIGSEGV under gdb.
+- Not fixed, same mistake: `cast.py` `shown()` also calls `self.win.getId()`, so it is always False and the cast sheet is
+  shown again on each question. Harmless so far; left for a separate change.
+- Regression: test_slowdown.Watched (3), test_transfers.SeasonEpisodeSpeeds, test_debrid_drive
+  (speed between slow pieces), test_build193_pages (guard without getId).
+
+## ISSUE-136 — Build 207: seeking a downloaded episode froze the app for ~100 s (2026-11-08)
+
+Status: FIXED IN SOURCE (build 208); device test pending.
+- Owner (build 207, log 34cd7aac, Lanterns S01E01 from Drive): dragging the bar "did nothing for 30 seconds then it
+  moved but still froze up".
+- Cause: Kodi buffered from 15:07:09 ("Kodi iOS slowdown: Waiting while the video buffers") until ~15:08:38 while a
+  phone-to-Drive upload kept sending 8-28 MB/s and preparation read Drive. Build 206's wait-while-buffering and cap
+  applied to downloads only; uploads and the converter only took a share of the time, and a full-speed upload
+  starves the video's download on the shared Wi-Fi.
+- Owner (after the first patch): "it never buffered and never loaded it just froze ... completely freezing is
+  unacceptable and the bar needs to move smoothly ... umbrella streams downloaded movies and shows everywhere". The
+  log agrees: no input was handled and no Python thread logged from 15:07:09 to 15:08:53, while the converter, a Drive
+  upload and an AllDebrid copy all ran beside a 4K HEVC episode.
+- Fix (decision, owner's words above take priority over build 193's "always moving"): while Kodi itself plays or
+  buffers a video, from any source, every background worker waits until it stops: `slowdown.Gate.after` holds
+  uploads and AllDebrid copies, the converter holds through the owner's Pause path (`Sink.hold`, prepare_cloud) and
+  the Drive read-ahead stops (`DriveStream.hold`). AirPlay keeps build 193's rule (slower, never stopped; the TV plays).
+  Uploads also pass their bytes, so they keep the 1 MB/s cap during AirPlay.
+- Not proven: whether the freeze needs more than this (the log has no player lines in the gap). Device test pending.
+- Regression: test_slowdown.DownloadCap (holds while Kodi plays or buffers, AirPlay cap and share, converter hold
+  wiring), test_conversion_speed (hold wiring).
+
+## ISSUE-137 — The "Buffering NN%" dialog froze Kodi's main thread (2026-11-09)
+
+Status: FIXED IN SOURCE (build 210); device test pending.
+- Owner (build 209, log 3efdc5ca): "still laggy not smooth at all".
+- Evidence: in both freeze logs Kodi's main thread logs nothing from the moment it loads `Custom_1156_Buffering.xml`
+  (build 206's buffering pill, its own dialog opened on `Player.Caching`) until it closes: 34cd7aac 15:07:09 →
+  15:08:53, 3efdc5ca 15:53:08 → 15:53:41; every tap in between is handled in one burst afterwards. Background work
+  was already held in 209 (ISSUE-136), so it was not the cause this time. Exact mechanism inside Kodi not proven.
+- Fix: the dialog stays in the skin but never opens (`<visible>false</visible>`, so an old copy cannot come back); the
+  same "Buffering NN%" text is a label in the video controls, under the play button, visible on Player.Caching.
+- Regression: test_portrait.BufferingPill.
+
+## ISSUE-138 — Roku: reaches the TV, then fails (2026-11-09)
+
+Status: R41 FAILED ON THE OWNER'S ROKU in build 213 (2026-11-09). Both Media Assistant and AirPlay still failed
+for two movies. Native run 42547843379 and IPA run 42550189064 proved the build, not playback. Delivery receipt:
+`reports/roku-drive-test-delivery.json`. The follow-up repair and evidence are tracked in ISSUE-139 below.
+- Owner (build 209, log 1430bbc1, Roku without the Apple TV): "it reaches tv but fails"; Media Assistant shows a black
+  screen with the title and time, then "wifi issues on my phone".
+- Media Assistant route (16:55:44): the Roku (Roku/DVP-15.3) took the link and read prepared.m3u8, prepared-media.m3u8
+  and the MP4's first 3,764 bytes (the init), which took 7,816 ms to serve; it asked for nothing more.
+- Roku's own AirPlay (build 211, log daaf1c8c, 17:26:06 and 17:26:30; client "AirPlay/2.0 MFi_AirPlay_Device", TV
+  192.168.1.8): read prepared.m3u8 (286 B) only, never the media playlist, then Apple's player stopped "The operation
+  could not be completed" 0.5 s later, with external playback on. No restart was tried: r36's conversion triggers need
+  "no external playback", and r8's is off for prepared links. The phone's own player asked
+  `bytes=0-73921655` (init and first fragment, 74 MB) and got its first 64 KB after 9,902 ms (2,164 ms the second time).
+- Fixed earlier on this branch: a TV fed by the phone's server did not count as playing ("slowdown: full speed" at
+  16:55:46). `airplay.mark_serve` now slows uploads and copies as for AirPlay.
+
+Cause 1: the 7.8 s for 3.7 KB (code). `serve_prepared` reads through `prepared_read`. On a cache miss it fills a whole
+4 MB block (`PC_BLOCK`) from the source before the first byte goes out, while holding the cache lock. The kept-open
+Drive connection was last used for the index reads at the end of the file (`mfro` at size-16, then the `mfra`, in
+`prepared_playlists`), so offset 0 needs a new range request through Kodi's 127.0.0.1 Drive helper and then 4 MB at
+Drive speed. In the build-211 log that speed was low: Drive copy "0.01 MB/s from the source", uploads at 0.16 MB/s,
+and Kodi's own player still reading. 4 MB at 0.5-1 MB/s is 4-8 s. The playlists were never slow (built at start,
+0 ms).
+
+Cause 2: the stream is outside Roku's specifications. These come from Roku's "Streaming specifications" page,
+developer.roku.com/dev/docs/media:
+- **Muxed fMP4 is not supported.** The HLS chunk format row reads "video: TS, CMAF (muxing audio and video not
+  supported for CMAF)". The prepared fragments carry the HEVC and AAC samples together. The master declares
+  `CODECS="hvc1…,mp4a.40.2"` on one variant with no AUDIO group. This is the documented mismatch, for both routes.
+- **The segments are too long.** "Roku recommends media chunk durations between 4 and 6 seconds" and "< 10 seconds for
+  VOD". The prepared fragments run up to 70.2 s, and the first one is 74 MB. A TV that downloads a whole segment
+  before playing waits 40-70 s at Drive speed.
+- **HEVC Main 10 is accepted on 4K Rokus.** HEVC profiles are "main, main 10", levels 4.1/5.0/5.1, and "Roku 4K
+  devices support HEVC up to level 5.1 and bitrates up to 40Mbps". `hvc1.2.4.L150.90` (Main 10, level 5.0) and a
+  15.1 Mbit/s peak are within that on a 4K Roku, but not on a non-4K one. The page lists no codec-string rules
+  (hvc1 versus hev1).
+- **EXT-X-BYTERANGE is not documented.** Roku's "HLS and DASH" page mentions it only for image (thumbnail)
+  playlists. Its support for media segments is unknown, and the fix avoids it.
+- **The master's attributes look fine.** WebVTT in HLS is supported (fragmented, unfragmented and side-loaded), so the
+  SUBTITLES group is not the problem. VIDEO-RANGE is not mentioned (standard HLS; SDR here, and one variant, so the
+  rule "no HDR and non-HDR variants in the same manifest" holds). CODECS: see the muxed point above.
+- **Roku's AirPlay receiver: no Roku documentation found.** Roku publishes no list of what its AirPlay 2 receiver
+  plays. This TV's own history: build 136, demuxed HEVC copy, it read the init then hung up; builds 138/201, demuxed
+  H.264 (converted), it took the master and asked for video segment 0. This time it turned the prepared master down
+  without reading the media playlist. Inference, not proven: the receiver judges the variant line (muxed hvc1+mp4a)
+  and plays H.264 in demuxed HLS.
+- Why the Apple TV plays the same stream: AVPlayer accepts muxed fMP4 byte ranges and long segments, and fetches
+  inside a range progressively (builds 202-204).
+
+Fix (r41 source, smallest change found). Rejected alternatives:
+- A "Roku playlist" of shorter byte ranges is not possible. An fMP4 segment must start at a moof, so a fragment
+  cannot be cut shorter, and its audio and video stay muxed.
+- Giving Roku the progressive MP4 has no Roku documentation for fragmented MP4 with an mfra. It also risks the same
+  fragment walk as ISSUE-127.
+
+The changes:
+1. Media Assistant: `kodi_airplay_serve_segmented(url, out, outlen)` (export 29) starts the server in
+   `KR_COMPAT_SEGMENTED` mode. A prepared movie goes through the ordinary remuxer instead of as-is: picture copied (no
+   conversion, no extra phone work), 6-s segments (`SEG_SECONDS`), audio as its own rendition (`AUDIO="aud"`),
+   WebVTT subtitles, `master.m3u8`. Segment 0 is made ahead at start (existing `prefetch_push`). `cast.tv_link` uses
+   it for kind `roku` when the framework has it; Media Assistant gets `videoFormat=hls`. Chromecast and DLNA, and
+   older frameworks, keep the r40 behaviour.
+2. AirPlay: once external playback has been on and no fragment was served to the TV, Apple's player failing restarts
+   once in compat mode. The `everExternal` flag survives the route dropping in the same second. Compat mode is the
+   existing r36 path: H.264, demuxed, 6 s, the stream this TV took in builds 138 and 201. This needs Drive at about
+   the movie's rate (peak 15.1 Mbit/s, about 1.9 MB/s). Slower, and ISSUE-126's slow-internet card shows.
+3. First bytes in about 1 s: right after the prepared playlists exist, a background thread reads the first 8 MB
+   (blocks 0-1: the init and the start of fragment 1) into the cache. The thread is counted in `S.active` and
+   interrupted by `abort_sources`. It leaves the kept-open Drive connection positioned for the first fragment. Block 0
+   is never evicted, so the init is always in memory. The log line `prepared: first N MB in memory after X ms` shows
+   whether it finished before the TV asked. The playlists were already cached.
+
+Still open:
+- A cold cache miss still waits for a whole 4 MB block. Serving bytes as they arrive would cut it to Drive's
+  first-byte time.
+- The first fragment of the as-is path (up to 74 MB) cannot arrive in 1 s at Drive speed.
+- A non-4K Roku has no HEVC: Media Assistant would need compat 1 (H.264), which needs a way to know the model (ECP
+  `query/device-info`).
+
+Regression:
+- `test_play_on_tv_network.RokuSegmented` (5).
+- Updated: `AnyTv`, `SoundOnlyRestart`, and `test_conversion_speed` (export count 29).
+- `test_remux.c`: segmented start of a prepared file gives master.m3u8, no byte ranges, target ≤ 12 s and audio
+  apart; the read-ahead log line appears.
+- Initial source validation was syntax-only. Subsequently, native candidate CI 42547843379 passed 3,177 host
+  checks, the E2E conversion checks and the iPhoneOS framework compile. The owner then authorized test IPA
+  packaging; build 213 passed the full packaging workflow and downloaded-artifact verification. Device retest pending.
+
+Owner's TV must verify:
+1. Media Assistant with a prepared movie: the picture starts. kodi.log should show `/video/index.m3u8`, `init.mp4`,
+   `seg0.m4s` and audio requests from Roku/DVP, and `prepared:` is gone.
+2. Roku's AirPlay with a prepared movie: "the TV turned down the prepared playlist … converting the picture", then
+   the H.264 picture or the slow-internet card.
+3. The time of the first init and segment requests.
+4. What the Roku screen says if it still fails.
+5. The Roku's model, from Settings › System › About.
+
+
+## ISSUE-139 — Build 213: Drive startup stalls and false slow-internet diagnosis (2026-11-09)
+
+Status: REPAIRED TEST CANDIDATE DELIVERED in build 214 with r42. Native CI 42639212562 and IPA CI 42641842437 passed; downloaded artifact verified. Actual iPhone/Roku acceptance remains pending. Owner authorizes repairs and a new test
+build in the current request. Keep the existing Drive library and file identities; no required local download.
+
+The private build-213 log (two movies, Media Assistant and AirPlay) provides concrete failures:
+
+- Media Assistant's tiny audio/video init responses took 17.5/26.0 seconds for one movie and 23.0/45.3 seconds for
+  the other. The log attributes the delay to waiting for a production lane, with zero production in the request.
+  `get_part` took the segment lane and `make_part` generated the whole first segment before splitting its init.
+- A prepared-file request for 128 KiB waited 18.3 seconds while warming the first 8 MiB held the same 4 MiB cache
+  lock. Cached prefixes could not bypass warming, and a partial block was marked present without a refill path.
+- Separate video/audio/subtitle sources fetched/probed the same Drive bytes independently. The converted-video
+  path records actual source I/O of 12.7–13.8 seconds; queue waits alone do not identify its cause or Wi-Fi speed.
+- A subtitle response took 43 seconds. The existing 1.5-second limit covered only waiting for its mutex;
+  opening/probing/reading afterward had no whole-request deadline.
+- The slow-source classifier treated any five-second lane wait or near-empty canceled HTTP response as slow
+  internet. A successful playlist fetch also counted as playing before any video media had reached the TV.
+- The initial resume timer and compatibility restart both sought on a replacement item (requested position versus
+  0.0 seconds). Prepared-file delivery counters were updated only after an entire long range finished.
+- Roku was launched before the asynchronous first-segment producer finished, leaving its own timeout to absorb
+  the Drive startup delay. A launch acknowledgement also stopped Kodi and reported success immediately.
+
+Repair:
+
+1. Per-movie shared byte cache (128 KiB blocks, 128 MiB maximum, first block retained), with independent cursors,
+   cancellation and connections. Duplicate in-flight reads share a fill; cached prefixes bypass missing-block I/O.
+   Cache locks never span network reads. Partial blocks extend on demand; premature EOF reconnects at the missing
+   offset within one timeout budget. The cache is released with the session, never shared across movie versions.
+2. Copy-track init headers are built from probed codec metadata before producers start. Converted-video headers
+   publish after the first encoded packet; an init waiter can take them while the full media producer continues.
+   AC-3/E-AC-3 retain their first-packet parser path when their codec configuration cannot be synthesized safely.
+3. Prepared reads request only the needed bytes, share the source cache, and use one kept-open foreground cursor.
+   Warming uses another cursor and at most 1 MiB, so it cannot own the foreground connection or a 4 MiB lock.
+4. Before launching Roku, buffer the first video and default audio segment. Native segmented AirPlay and its
+   compatibility restart buffer the actual requested resume segment. Preparation remains bounded and cancelable;
+   subsequent segments use existing prefetch. Compatible 4K HEVC is copied by the Roku path.
+5. Optional subtitle opening, probing, reading and lane waiting share a 1.5-second deadline. An expired demuxer is
+   retired; media lanes continue, and later cues can retry using the session cache.
+6. Network snapshots distinguish TV requests, delivered media and delivered video. Playlists and audio alone
+   remain connecting. Prepared-video counters update during delivery. Media Assistant waits for video before
+   stopping Kodi; failure restores playback and never launches a known-unavailable phone stream.
+7. Slow-source classification requires measured source I/O. The card reports a movie-loading timeout, without
+   asserting slow internet or recommending local files. One timer owns the replacement item's resume seek. Kodi pauses its own playback before buffering a TV
+   handoff and resumes it on failure/cancel; background work slows from the start of buffering.
+
+Regression protection: native shared-read/stall/cancellation/partial-refill and no-media-read init tests; real
+converted init callback timing; startup priming at a resume position; bounded distant subtitle request; existing
+packet/frame/timestamp/seek/shutdown suite. Python regressions cover playlist/audio-only false readiness, launch
+monitor bounds, and queue/cancellation false source diagnoses. Full validation and build receipts are recorded in
+PROGRESS when completed. An early local harness run hit a shell parse error because its script changed while it was
+running; rerun from stable files is required. The first new startup test also omitted the session token prefix and
+received HTTP 404; its request setup was corrected before retesting. Neither is device evidence. The full host run then exposed a 167 ms copy/converted timestamp mismatch in
+metadata-only init headers (the normal delayed header carries a decode-lead edit list) and incorrect buffered HTTP
+seeks after opening a clone at a nonzero offset (the protocol and AVIO cursors started at different positions).
+Added the matching metadata-derived edit list and synchronized the AVIO cursor; regression tests retain both
+cases. Early init also exposed an FLV rewind failure after canceling the initial segment: a failed seek to zero left
+no frames. The converter now reopens once for an empty rewind and uses its buffered beginning. The targeted
+streaming regression passes 117 checks, including all these failures; the expanded source and startup sets pass
+39 and 13 checks. Full-suite and iPhoneOS candidate validation still must pass before framework publication.
+
+Recommendations and acceptance steps: docs/ROKU-STREAMING.md. Device startup, sustained playback, sound, HDR and
+forward/backward seeks remain unverified until the owner tests the resulting IPA. The log proves contact with the
+TV; it cannot establish a Wi-Fi throughput problem. Main is unchanged.
+
+
+ISSUE-139 follow-up found during final review: a generated 32-second movie with a 30-second GOP advertised six
+six-second windows, but segment 0 carried about 30 seconds and later requests repeated the same tail. The prepared
+file's fragment lengths in the owner log do not by themselves prove its GOP structure, but the existing source
+path cannot safely assume a short keyframe interval. For indexed MP4s, Roku now takes real random-access boundaries
+from the complete mfra index; video and audio use the same truthful plan. Old long-GOP files retain longer windows
+and their original 4K picture. The output and byte caches are bounded at 128 MiB each to retain an old prepared
+unit without discarding it before launch. Copy demuxers discard other tracks to avoid duplicate 4K reads for audio.
+Newly converted video uses two-second encoder keyframes with the existing preparation workflow, resolution
+and HDR policy. This does not require downloading/replacing old Drive movies to use the repaired route.
+The long-GOP regression decodes the complete picture and checks every frame once, plus the audio timeline.
+
+The first long-GOP test used FFmpeg's raw empty-moov output, whose zero init duration hid the final two seconds;
+the fixture now carries the finite init duration written by the real preparation path. The corrected regression
+passes all 141 streaming checks. The older r32 assertion requiring only 1–3 large fragments in a 65-second file
+was updated to require about eleven six-second fragments, with its sample-interleaving check retained.
+
+
+Final-candidate run 42635055257 passed 3,223 native checks and the iPhoneOS compile but failed one E2E performance
+budget: a saved 65-second-style short-fragment layout caused 226 sequential Kodi range requests for long_big.mkv
+(limit 60). Restored the established coalesced/interleaved saved-file layout; Roku still uses truthful random-access
+windows, and new video encodes retain frequent keyframes. This preserves the r32 efficiency requirement instead
+of accepting more Drive requests. The earlier fragment-count assertion is restored with the saved-file layout.
+Local non-assembly FFmpeg also exceeded the 4.5-second HDR-cancellation timing budget in repeated runs; CI's
+accelerated host build passed that check. Further tracing isolates the delay to the first synchronous HDR color conversion (6–7 seconds), including with
+input on tmpfs; cleanup itself completes within milliseconds. This local FFmpeg was built with `--disable-x86asm`.
+The cancellation callback cannot interrupt an in-progress scaler call. The native close API remains asynchronous,
+but actual iPhone HDR/cancellation timing still needs device evidence. Added the native demuxer's interrupt callback so its own parse/seek loops
+observe cancellation too; device timing remains unverified. Do not report the slow local timing run as passing.
+
+Final retest: source 0385902, native run 42639212562 passed 3,231 checks and the E2E conversion/resume suite.
+Sequential playback now uses 39 requests (budget 60). The verified r42 pin is recorded in source-lock.json and
+reports/roku-streaming-repair-native.json. The local software-HDR timing limitation remains explicitly recorded;
+SDR cancellation passed 20/20, and accelerated CI passed its cancellation check. Device acceptance is still open.
+
+Delivery retest: build 214 (IPA run 42641842437) passed the app tests and full packaging. The downloaded IPA's
+SHA256 is 7decfff5fa03b593844e940d02f7e5e7a3ba4e4d28814ddaf7dc220cba44ad46; its r42 framework, casting Python
+sources/3.11 bytecode and 154 unsigned, unencrypted ARM64 images were verified. Receipt:
+reports/roku-drive-test-delivery-r42.json. The owner must still check real TV startup, sustained picture/sound and
+seeks. This delivery does not mark device behavior as passing.
+
+
+## ISSUE-140 — Build 214: coalesced fragments, partial delivery and missing captions (2026-11-09)
+
+Status: owner's device retest failed; host repair candidate implemented, native CI and new test IPA pending.
+The latest owner-provided log identifies build 214/r42. Media Assistant takes the link and Roku reads both
+playlists and both init headers immediately; Wi-Fi discovery/connection succeeded. Its segment responses then
+show cancellations and zero-byte totals. Those totals are unreliable: `respond` recorded bytes/counters only
+when the entire body finished, so a canceled large response erased its delivered prefix. They do not establish
+zero network transfer or establish a decoded picture. Apple TV's subsequent native AirPlay requests are visible;
+this log does not establish a successful attempt through Roku's built-in AirPlay receiver.
+
+Root causes and repairs:
+
+- The prepared writer coalesces several GOPs into large storage fragments. The r42 plan used only each fragment's
+  first indexed sample, so even frequent-keyframe movies became 30–70-second HLS segments. A bounded four-cursor
+  metadata scan now reads moof sample durations/flags/CTS offsets, gathers the complete keyframe timeline and
+  chooses actual boundaries around six seconds. It leaves the saved file, Drive workflow, resolution and encoded
+  picture alone. Invalid metadata falls back without publishing a partial plan; true long GOPs still need longer
+  windows. The saved-file fragment layout stays coalesced for efficient normal Kodi playback.
+- Segment sends now report actual partial bytes and media progress while writing, preserving cancellation evidence.
+  Headers, HEAD and one-byte range probes do not count as delivered picture. Optional Roku ECP feedback adds actual
+  play/buffering/error state when available. Unsupported feedback remains optional. Model and playback logs contain
+  an explicit safe field list, excluding media URLs, serials, MACs and account state.
+- Caption requests used the video seek index, read every stream, then filtered packets. The 1.5-second deadline
+  repeatedly produced eight-byte empty WebVTT responses. The dedicated caption demuxer now discards video/audio
+  before reading and seeks its own subtitle index. If a backward seek before the first indexed cue fails, a forward
+  seek recovers that cue instead of retaining the probe's later buffered position. This keeps overlap cues and
+  forward/backward caption seeks. Media Assistant also receives Kodi's current subtitle choice; its master now
+  marks that text rendition as default. Roku's caption visibility setting still applies.
+
+Research: Roku's streaming/closed-caption/ECP specifications, Media Assistant's published deeplink parameters,
+Home Assistant's Roku media path and KSPlayer's AirPlay picker were reviewed. The existing AVPlayer/AVRoutePicker
+approach matches those native AirPlay patterns. No third-party player/UI code was imported. Receiver projects are
+not drop-in sender/packaging repairs; the concrete fixes above address the observed sender failures.
+
+Regression protection: a private generated 32-second, constant-bitrate MP4 has coalesced storage, internal two-second
+GOPs and text captions. Before changes: 46 checks, four failures (oversized HLS window, missing partial delivery,
+zero-byte cancellation log and lost captions). After changes plus selection, seek and malformed-header checks:
+102 checks, zero failed. The copied movie decodes every one of 768 frames exactly once. Additional local checks:
+141 streaming, 13 startup and 142 Python checks passed. The initial caption test used a master-only path helper and
+was corrected to strip either playlist filename before confirming the real deadline failure. The first code compile
+needed a forward declaration for the moved sender helper. A mistakenly named Python test path was corrected to
+`test_play_on_tv_start.py`. The first project scan rejected the two new native source files; their exact paths are
+now allowlisted, retaining all other scanner rules. These setup failures are not hidden as passing device tests.
+
+Receipt: reports/roku-build214-retest.json. Native CI/new IPA and real phone/Roku acceptance remain pending.
+
+Additional regression finding (synthetic evidence, not inferred from the owner's raw movie): a B-frame fixture
+using signed composition offsets initially returned HTTP 500 for later segments. FFmpeg 8.1.1's `mov_read_trun`
+read version-1 offsets as unsigned during MFRA-to-DTS arithmetic. The shipped LGPL patch sign-extends these offsets
+and prefers explicit TFDT for actual sample decode timestamps, retaining MFRA for fragment lookup. The first local
+patch rebuild needed a PRId64 string correction; the final patch reverse dry-run passed. A remaining first-cue
+presentation offset was corrected to one stream-wide offset instead of re-anchoring each fragment to TFRA. Finally,
+the container average rate made decode ladders overlap and MOV marked opening keyframes as discard; the nominal
+rate selected by `av_guess_frame_rate` keeps those boundaries monotonic. The expanded 102-check suite now decodes
+all 768 B-frames as well as the original 768-frame fixture exactly once, with no failed segment requests. Existing
+static tests were updated for the selected-subtitle master and functional native caption-seek coverage.
+
+
+## ISSUE-141 — Touch seeking and apparent download stalls, build 214 (2026-11-09)
+
+Owner supplies a new private log and the player-bar screenshot. The supplied log ends during Settings/Library
+navigation; it does not record the actual playback/drag gesture. The native slider bug was established from
+Kodi 21.3 source and a compiled handler harness, not inferred as a measured device frame rate.
+
+Touch root cause: GUISliderControl's mouse-drag branch marks `m_dragging`, but the touch gesture branch did not.
+Consequently every PAN ran the seek action and Process kept replacing the thumb with Player.Progress. The native
+patch marks touch BEGIN/PAN as dragging, commits the seek once on END, and restores playback progress after ABORT.
+A compiled harness using the actual handler reproduced failure before the patch and passed after it: 100 PAN
+moves, no intermediate seek, one seek on release, cancellation and mouse-click behavior. The patch applies cleanly
+to the pinned upstream slider source. Actual iPhone touch smoothness and a new native build remain unverified.
+No player layout or artwork changes are made.
+
+Download evidence: AllDebrid-to-phone reads varied from about 1.1–11.9 seconds per 32 MiB; Google Drive PUTs took
+about 8.3–31.4 seconds. HTTP 308 means Drive accepted a resumable-upload piece, not a failed download. Progress
+updated only after a whole 32 MiB upload, so the bar stayed still for those intervals. The streamer now uses at
+most 8 MiB per piece, preserving the existing one-piece read-ahead and resume checks. A bytearray avoids repeated
+copying of an ever-growing immutable buffer. Source reads check cancellation between 1 MiB reads.
+
+A second confirmed bug put the playback throttle before processing successful upload responses. An upload that
+had already finished could wait through playback before being marked done. Confirmed offsets and final success
+are now processed before throttling the next piece, for both streamed and local uploads. Existing intentional
+playback pauses and buffering protection remain; this is not a claim that real network slowdowns disappeared.
+
+Validation: 22 AllDebrid/streaming tests, 23 upload tests and two HTTP-piece tests passed, including resumed bytes,
+8 MiB progress checkpoints, progress-before-throttle and no throttle after completed upload. The first new test
+run lacked the mock patch import, now corrected. A patch-check command initially used a not-yet-created working
+directory; rerunning after creating it passed. Raw logs/media stay outside Git. Actual-device retest is pending.
+
+An owner-attached episode can be used as a private rig fixture for decode, timeline and seeking tests. Keep it
+outside Git, use its existing path in the rig and compare with synthetic fixtures. Desktop rig results cannot
+establish iPhone gesture dispatch, networking or background behavior. No episode was attached in this turn.
+
+
+ISSUE-141 follow-up: the public 4K movie host check passed startup, five seek requests and four first-frame decodes.
+The first run could not connect because its private HTTP stand-in had stopped; restarting that stand-in resolved
+the harness failure. No desktop app is claimed: release/artifact inspection found no compatible Linux rig binary.
+See reports/public-movie-seek-check.json. The native CI host job remains in package installation, so its full suite
+and new IPA are not represented as passed. No additional desktop Kodi build was started after the owner asked to
+reuse the branch version.
+
+
+## ISSUE-142 — Owner-approved streaming recommendations and test IPA (2026-11-09)
+
+Owner explicitly requests adding the recommended capability checks, buffering/cancellation, adaptive chunks,
+clear transfer stages and seek diagnostics to this IPA and pushing it. Main merge is not authorized. Native r25
+includes the prior touch seek fix plus gesture duration/submission timing and elapsed video-flush-to-first-decoded
+picture queued to the renderer. The latter is queue readiness, not a measured display-vsync event. Host handler
+checks and pinned-file patch application passed; native build and device acceptance follow. Other recommendations
+are in progress. UI policy and its project skill were read before changing visible stages; reuse existing layouts.
+The first diagnostic patch-write helper ran from the fixture directory with a relative repository path; rerunning
+with the absolute repository root passed.
+
+The preceding native run 42685265901 passed the framework compile but failed one of 3,307 host checks: the signed-CTS
+B-frame fixture decoded 769 frames instead of the local expected 768. Investigate source fixture frame count and
+packet preservation before accepting any candidate; do not relabel that run as a full pass.
+
+
+ISSUE-142 implementation: explicit HD-only Roku capabilities start in H.264 SDR/AAC stereo mode; unknown
+capabilities preserve the existing route. A connected receiver failure gets one compatibility retry, preserving
+phone pause ownership. Native buffering uses a bounded 12–18 s target and cancels obsolete copied-video reads
+on seek, then clears interrupted demux read state before reuse. Upload chunks adapt at 256 KiB boundaries within
+1–8 MiB, retaining one-piece read-ahead and Drive-confirmed resumability. Existing transfer rows name the active
+read/upload/hold stage. A regression test ensures playback labels never hide a real scheduled network retry.
+
+Fixture diagnosis: FFmpeg versions can duplicate a frame under the default output cadence when transcoding
+negative-composition-offset input. The fixture now explicitly passes timestamps through. The assertion compares
+all decoded output frames with actual input frames and the ordered compressed video packet digest, rather than
+a local hardcoded frame count. The digest helper reports track count (not frame count); an initial new comparison
+mistakenly compared the three-track source with the video-only output, corrected before commit. Focused tests
+now pass 103 checks, including signed CTS. Recommendation checks pass 37 checks, including actual stereo audio,
+retaining compatible 4K HEVC and successful decoding after canceling an old copied read. Full native CI is required.
+
+Python checks pass: casting 61, direct transfer 24, upload 23, status 26, remux contract 29, calibration 41 and
+portrait 50. UI guidance/project scans pass. The patch checker initially flagged whitespace-only unified-diff
+context; preserving valid empty context lines fixed it, and pinned upstream patch application passes. Existing
+rig start fails because the desktop Kodi binary is absent; visual and iPhone/Roku acceptance remain pending.
+
+
+ISSUE-142 follow-up checks: slow-source latency passed 46 checks; prefetched segments returned in 4.3/1.8 ms.
+Casting now passes 62 tests with additional failed/canceled fallback, HD-only capability and already-paused-phone
+cases. Compatibility preparation itself is inside the exception handler so an interrupted retry also restores
+phone playback. A CLI artifact download was rejected by the artifact storage endpoint; the GitHub connector
+successfully fetched the same candidate archive, which was downloaded and SHA256 checked locally. No release
+pin is accepted until the full native suite passes.
+
+
+ISSUE-142 full candidate run 42694006257: framework compilation passed; host suite failed 3 of 3,319 checks
+(all one legacy prepared-file test), so no framework release or IPA was published from it. The synthetic DoVi
+fixture has HEVC level 255. The new documented Roku codec limit correctly requires conversion, while the old test
+required copy mode and had restored the unavailable host H.264 encoder. Update that test to require conversion
+for this invalid-level fixture, retaining packet-copy assertions for the compatible sources including 4K HEVC,
+and use the same MPEG4 host reference encoder as other conversion tests. Full native retest follows.
+The public 4K H.264 test produced valid 1080p seek output and three decoded samples, but cold Linux software
+conversion took 31–133 s, which fails real-time performance. This is retained in its report; iPhone hardware
+conversion and actual Roku/caption acceptance remain pending.
+
+The precommit scanner blocked a generated Python bytecode file from the private native-artifact inspection
+(import run without `-B`). Removed that generated file, reran with bytecode disabled, and rescanned before commit.
+No binary, media or private account data was committed.
+
+
+Packaging checks: the initial customized-IPA unit run failed its Python 3.11 bytecode check because only 3.12 was
+installed locally. Installed an isolated managed Python 3.11 under private scratch storage; all 11 customized-IPA
+checks then passed, alongside 7 unsigned-IPA and 11 foundation checks. No packaging requirement was relaxed.
+The corrected candidate is run 42695837108 from source 0a5ad576ad757233384532186a105a096a8517fc; its framework
+compile passes and full host/E2E checks remain pending at this checkpoint.
+
+Follow-up status regression: a resumed transfer used its last pre-pause byte acknowledgement to calculate silence,
+briefly labeling the playback hold as a network delay. Status now uses the latest explicit phase transition for
+that timer while retaining Drive-confirmed percentage; 27 state tests pass, including a real subsequent stall.
+The glass-bar contract test also matched a literal space on an otherwise blank patch context line. Aligning it
+with the whitespace-clean native patch retains the surrounding frame-loop code assertion and updates verified
+r25/previous-r24 release expectations; no native behavior change is required.
+
+
+ISSUE-142 verified candidate: run 42695837108 from 0a5ad576ad757233384532186a105a096a8517fc passed all 3,319 host
+checks, end-to-end conversion/interruption/resume/expired-session/slow-source checks (zero failures), and the
+ARM64 iPhoneOS compile. Its candidate archive SHA256 is c1562e136d42d3fe694435b6175bfdac600a08bcdd450946e9e227210d243be8.
+The r25 executable was separately built, released, hash checked and compared exactly with its CI artifact.
+Publication and IPA packaging are authorized by the owner; actual phone/Roku/visual acceptance remains pending.
+
+
+ISSUE-142 packaging failure: run 42697763579 (build 215) passed app regression tests and bundle apply/restore,
+then stopped fetching the portrait executable. The new r25 pin mistakenly used the release ZIP hash; the existing
+fetch contract checks the extracted executable hash. Corrected `executable_release.sha256` to verified binary
+c3f0560c3731f53408a9e7c202b7108ef472272e72c873042e7b400bc1c79e2c and retained the archive digest separately
+as `archive_sha256`. The binary still equals the successful native CI artifact; no native rebuild or behavior
+change is needed. Validate through the actual portrait fetch helper before retrying packaging. No build-215 IPA
+was published. This was a pinning mistake, not an upstream download or runtime streaming failure.
+
+
+ISSUE-142 delivery/retest: the actual portrait fetch helper accepted the corrected r25 binary digest and published
+r6 glass bar; all 28 glass-bar contract tests passed. Packaging run 42698801783 then passed every stage and
+published build 216 from fd6ef1cdc7ca26397d1cfea0c0486bb270490417. The downloaded public asset matched SHA256,
+ZIP integrity, exact verified r43 framework and r25 executable after signature removal, current casting/transfer
+helpers, Python 3.11 bytecode, seek markers and 154 unsigned/unencrypted ARM64 images. Delivery receipt is
+reports/streaming-recommendations-delivery.json. Native/software gates are complete; actual iPhone/Roku smoothness,
+caption rendering, sound and visual acceptance remain pending. No live Drive account access or main merge.
+
+
+## ISSUE-143 — Build 216 device retest: seek release resets position; conversion queue idle (2026-11-09)
+
+Owner reports smooth dragging but release jumps to the beginning, seven conversions stay queued, and Start now
+has no effect. This request is a findings review. Raw log and device screenshot remain outside Git.
+
+Confirmed log evidence: build 216 with Kodi r25 and AirPlay r43 is installed. At 13:18:14, 13:19:14, 13:20:14
+and 13:21:14 the preparation state has seven waiting jobs and empty current; no worker heartbeat is present.
+The screenshot independently shows zero Working/seven Up next. Conversion is not observed actively encoding.
+The library refresh and local playback from Drive succeed, with about 23.2 GB free. No Drive authentication,
+network-timeout or out-of-space error establishes those as the cause in this capture. No new TV casting result
+is established by this log.
+
+Confirmed seek regression in the previous slider repair: pinned Kodi GenericTouchActionHandler sends gesture
+END as velocityX/velocityY followed by finger x/y. GUIWindow turns the first two amounts into the point passed
+to the exclusive slider. The new END handler calls SetFromPosition(point), treating velocity as a coordinate;
+a stationary release clamps to zero. A 50%-pan/zero-velocity-release reproduction produces a 0% seek. Four device
+release logs at 13:20:15/19/25/30 and subsequent flushes/sync warnings corroborate the owner report. The prior
+handler harness checked drag ownership and seek count but stubbed coordinates, so it missed the resulting
+position. Future regression protection must exercise real END payload packing and target percentage.
+
+Confirmed conditional Start now bug: the action writes priority/retry state but never clears persistent paused-conv.
+The service skips process_one while that pause exists and no current job is running; request consumption occurs
+inside process_one. Reproduced with actual request/pause files in an isolated synthetic profile: the request stays
+pending and applying it does not clear the pause. The device log does not include the saved pause flag, so this
+is a proven blocking code path and a plausible queue explanation, not a confirmed on-device pause-state diagnosis.
+A future fix should process explicit start requests before the pause skip and retain the intended pause ownership.
+
+Review only: source behavior unchanged; no new IPA published. Device acceptance remains failed/open for these
+symptoms. The new build's prior host/build passes do not override this actual device evidence.
+
+
+ISSUE-143 repair authorized: owner requests fixes and a new IPA, then clarifies that eligible downloads/uploads/
+conversions must automatically start while idle. Native r26 commits the already-dragged percentage via SendClick
+on END; no release velocity is interpreted as position. A new compiled test extracts the actual pinned Kodi
+slider methods, generic gesture-END packing and window dispatch, with platform/rendering stubs. All 32 target,
+velocity, scale, cancel and tap scenarios pass; the previous r25 patch fails the same test (target 0 becomes 100
+with a high release velocity). Initial harness compilation lacked two control-ID stub members; adding these
+platform fields fixed compilation without changing tested Kodi methods. The native build runs this test against
+its actual patched source tree, and IPA CI repeats it. Queue/scheduler repairs are in progress; device acceptance
+remains pending and no new build is represented as delivered.
+
+
+ISSUE-143 implementation follow-up: Start now resumes only the conversion channel for a valid pending job;
+upload pauses and unrelated queue actions retain their ownership. The service reads saved requests before its
+pause skip, recovering requests left pending by older builds, and checks for new idle work every 20 s instead
+of 120 s (startup remains 5 s, pending commands 5 s, known retry backoff remains respected). Diagnostics now include
+pause flags, request counts and scheduler reasons, without file IDs/names. The old log lacks the pause flag, so
+the exact prior idle gate is not retrospectively established. The new evidence makes that gate observable.
+
+The first r26 native run 42705056711 stopped in the new host regression harness, before native compilation:
+the actual patched GUIWindow also references layout/property helpers that the initial harness omitted. Added
+those platform stubs and made default tests apply the window patch too; all 32 scenarios pass against that path.
+The first scheduler harness missed the service function-attribute stub, and the initial diagnostic request counter
+used a dict-only reader for a JSON list. Added the function stub and explicitly counted list requests; the
+scheduler/control diagnostics tests now pass. Full native rebuild and IPA validation follow.
+
+
+ISSUE-143 scheduler coverage now executes the actual service loop with isolated queue/control files. Ten tests
+pass: automatic idle conversion, upload followed by conversion, old/new Start now, preserving unrelated upload
+pauses, invalid/blocked requests, honoring explicit conversion pause, retry eligibility, missing account, busy
+transfer lock and privacy-safe control counters. Silent missing-account/lock skips now emit a scheduler reason.
+Focused existing suites also pass: preparation 59, runtime 4, diagnostics 14, slowdown 21, library status 48,
+status model 27, pages 37, direct downloads 24 and uploads 23. Portrait suite is still running at this checkpoint.
+Native r26 run 42705743785 from 403bd10e683e8054c6437a1883895d662f80d1d9 is building; the previous failed
+harness run remains recorded above. No app layout, styling, Drive library, credentials or main branch changes.
+
+
+ISSUE-143 native verification (2026-11-10): run 42705743785 from 403bd10e683e8054c6437a1883895d662f80d1d9
+passed all 32 real gesture/slider dispatch scenarios against the patched native tree, then compiled and published
+Kodi r26. The public release executable equals the CI artifact, with binary SHA256
+f4379642605486f9a09f16366e9d2f32279f3ce8c8c0b665a7465a17404678d3. Archive SHA256 is recorded separately as
+d34ea5d0c349906b428a406ebf4a1dc4dfcf4e765223bec4a516d609ed2e220b. Native patch and pinned upstream commit
+also match. The actual portrait fetch helper accepts the new binary pin; glass-bar contract 28, portrait 50,
+scheduler 10 and the other focused suites pass. IPA packaging follows. Owner authorized this test IPA; no main
+merge or device acceptance is implied. AirPlay r43 is reused unchanged.
+
+
+ISSUE-143 delivery (2026-11-10): run 42732787090 passed every packaging gate and published build 217 from
+16daca2621ad1272a84991e4fcb9b5c4cd051c30. Downloaded public IPA matches the release digest, ZIP integrity,
+exact verified r26 executable and unchanged r43 framework after signature removal, current scheduler/controller
+helpers, compiled Python 3.11 hashes for all four changed helper modules, and 154 unsigned/unencrypted ARM64
+images. Receipt: reports/seek-queue-repair-delivery.json. The current worktree scan and UI guidance pass.
+This closes the source/build/delivery work, while actual device seek release, automatic background work and
+Roku/caption acceptance stay open. No live Drive credentials/media access or main merge occurred.
+
+
+## ISSUE-144 — Build 217: conversion appears frozen behind slow Drive uploads (2026-11-10)
+
+Owner supplies a screenshot rounded to Converting 8% and a new log. Review only; raw log/screenshot stay outside
+Git. The log confirms build 217. At launch conversion_paused=true and 15 pending preparation requests; the service
+clears that pause, consumes the requests, reports seven eligible jobs and automatically opens an episode. This
+provides actual device evidence that the ISSUE-143 pending-start recovery works; it does not accept seek behavior.
+
+Conversion progress advances from 3.024% at 18:57:04 to 5.992%, then 7.519% at 19:02:04 (device log time).
+The worker heartbeat remains fresh (0–1 s), pause flags are false, and no Drive-read error is recorded. Most
+importantly, Drive PUTs continue to succeed: 32 MiB in 145.655 s at 18:58:55, 141.016 s at 19:01:16, and
+121.274 s at 19:03:18, all HTTP 308 acknowledgements (0.22–0.26 MiB/s). The capture ends at 19:03:36, eighteen
+seconds after the last acknowledged piece. This is ongoing work with long stalls, not evidence of a permanent
+app freeze. The upload path is the measured bottleneck; the log does not identify whether the underlying cause
+is local uplink, carrier/router, Drive routing/throttling, or another transport factor.
+
+Source confirms conversion output still uses drive_prepare.Sink MAIN_CHUNK=32 MiB and a bounded four-piece
+queue. The earlier adaptive chunks changed Drive.upload_stream for direct copies, not this separate conversion
+sink. A full output queue blocks the producer, so source reads and converter progress can remain unchanged for
+minutes while a large PUT is in flight. prepare_cloud publishes current/rate from native progress callbacks;
+upload acknowledgement alone does not refresh that UI model. Consequently stale/dash speed fields and the
+unchanged generic Converting label conceal the upload wait. The source video is copied (HEVC 3840x1920, 10-bit,
+copy=True), with audio processing; this log does not establish a slow 4K picture encoder.
+
+Future repair should adapt aligned upload pieces in the conversion sink and expose upload/backpressure metrics
+independently of native progress. Keep checkpoint windows independently sized: reducing MAIN_CHUNK must not
+silently reduce MARK_CAP and break large-fragment/re-encode resume. Smaller pieces improve responsiveness and
+recovery, but cannot establish increased uplink bandwidth. No code repair, new IPA, or runtime completion is
+claimed in this review.
+
+
+## ISSUE-145 — Unnecessary Drive preparation and separate Umbrella source-opening timeout (2026-11-10)
+
+Owner wants compatible files kept unchanged, distinguishing this efficiency change from Umbrella's AirPlay bug.
+The supplied latest build-217 log has Umbrella playing H.264 + EAC3 + ASS in MKV; Kodi demux takes 22 s and later
+buffers once. First AirPlay attempt opens the source in 1.954 s, spends 43.045 s inspecting its index and reaches the
+45 s startup deadline. There is no HLS endpoint or TV handoff. Later attempts are cancelled after 2 and 7 s, so they
+are not codec-rejection evidence. A concurrent 32 MiB upload takes 128 s, but the log does not establish contention
+or Wi-Fi as the sole cause. Raw log, source URLs/headers and test media stay outside Git.
+
+Efficiency fix: actual native copy-video/codec inspection now stops full preparation for supported H.264/HEVC
+video before creating an upload sink. Exact ID/checksum/size/version binds local readiness; a changed file must be
+inspected again. The original keeps its ID/content/properties, with no false remote prepared markers. On-demand
+container/audio adaptation still serves playback. Optional automatic repacks of already prepared movies stop.
+Pending app-owned staging is journaled for cleanup; committing/promoted transactions and owner-kept choices are
+protected. Watch-after-download and existing-file reuse recognize inspected originals.
+
+Separate Umbrella candidate: reuse Drive's bounded HTTP byte-range cache for resolved remote MKV/AVI/WebM before
+the existing native bridge opens them. Foreground profile uses 2 MiB blocks, 16 retained blocks, two-block read-ahead
+and no background slowdown gate. Preserve provider headers; do not forward Drive authorization. Loopback control
+and media URLs have random per-launch tokens. The service owns the source through TV playback; secrets/source
+URLs stay in memory. New sources replace old ones; stale leases cannot close new sessions. Existing Drive/Elementum
+loopback and direct MP4/HLS routes remain as before. This reduces repeated remote opens; it does not prove the
+owner's provider or Roku now works.
+
+Failures and corrections: (1) Initial wrapper would close the service source after AirPlay's 45-second settle check
+returned successfully. Code review caught native playback outliving the script. Successful playing handoff now
+retains the source; cancelled/failed/exception paths release it. Runtime tests verify both AirPlay and TV handoff,
+including native exceptions. (2) The conversion-speed suite failed two source-string checks: one omitted the new
+foreground read-ahead profile, and the other predated adaptive direct-copy chunk arguments already in the branch.
+Updated expected wiring while retaining actual range, cache, background slowdown and adaptive upload tests.
+(3) A build-192 wiring check required optional automatic repacks; updated to the newly owner-requested policy.
+An attempted nonexistent test_drive_stream.py invocation also failed; actual range-cache coverage is in
+conversion-speed and the new remote-media suite. No failed attempt is treated as a device regression/pass.
+
+Retest: 17 focused suites, 442 tests pass, including compatibility 12, remote cache/controller 19, casting 62,
+preparation 59, cloud transactions 26, conversion-speed 48, resume 12, scheduler 10, status 48, tools 31 and existing
+library/watch/bootstrap suites. Real unchanged native host bridge streamed a generated H.264 MKV with identical
+first video segment hash both ways: direct 7 upstream requests / 1.080 s; cache 3 / 0.335 s under 150 ms per-request
+latency. Earlier run varied to 9 / 1.406 s versus 3 / 0.363 s; report records the latest repeat. These are host source
+measurements, not iPhone/Roku acceptance. New suites run in import-review CI. UI guidance and project scanner pass;
+policy read, existing text slots reused, visual/device review pending. Evidence: reports/compatibility-filter-review.json.
+No native source/pin change, new IPA publication, account access or main merge in this patch.
+
+
+## ISSUE-146 — Adaptive preparation uploads, accurate transport status, expired links and explicit Refresh (2026-11-10)
+
+Owner approves the three recommendations and asks Refresh to inspect files before converting an already ready
+episode. Root causes extend ISSUE-144/145: conversion output still issued whole 32 MiB PUTs; upload evidence only
+updated at the end of the producer batch and UI relied on native callbacks; Refresh could only reuse an existing
+probe rather than inspect a previously unknown original; retrying an expired resolved Umbrella URL reused it.
+
+Repairs: preserve 32 MiB producer/on-disk pieces and the independent 256 MiB resume window, while each PUT starts
+at 1 MiB and adapts between 1–8 MiB in 256 KiB multiples. Successful small pieces do not consume the retry budget.
+Partial/lost ACKs query/resume only unconfirmed bytes and every confirmed piece updates speed. Final size/checksum
+verification still protects the original. Finalization now checks upload-thread errors while waiting for queue room.
+
+The independent runtime heartbeat exposes confirmed bytes, upload speed, active request age and transport phase.
+It updates existing progress slots even while the producer waits for queue room or final flushing. Upload waits
+longer than ten seconds say Waiting for Drive, with no invented ETA. Owner pauses and source verification retain
+priority. Library status's explicit Refresh requests actual native inspection over the Drive range stream. Exact
+identity caching survives restart; unknown/changed/failed sources cannot inherit readiness. Active conversion's
+native instance is never probed beside itself: metadata/cache refresh runs beside it and unknown probes remain
+requested until idle. Newer refresh requests and owner-kept/committing files are protected.
+
+Umbrella AllDebrid's recognized unlock method registers selected link, resolved URL, name and size in a RAM-only
+Home property, then the service broker keeps it with that exact source. HTTP 401/403/404/410 gets one unlock through
+the existing account, shared between readers. A new filename/size/range total is rejected; provider headers/ranges
+are preserved and the account credential goes only to the AllDebrid API. No new scrape, torrent, file download or
+account flow. Unrecognized upstream hook shape is left unchanged. Other providers retain their current route.
+Current public upstream blob 181335b6a51ff73575bbcef10935edfa248c30b6 was patched, compiled, executed with stubs
+and checked for idempotence outside Git; actual owner provider access was not used.
+
+Failures/diagnosis/retest: the existing upload concurrency test expected literal 32 MiB HTTP requests; its byte
+integrity/nonblocking checks remain, now asserting bounded requests and exact total. The first adaptive sender
+review caught that an eight-iteration loop would count successful pieces as retries; the revised loop counts
+failures and a >8-piece regression passes. Another review caught finalization's blocking sentinel enqueue after
+an uploader fails; a regression now fails promptly instead. The slowdown source-string test predated the foreground
+cache profile from ISSUE-145; expected wiring now includes it, retaining actual background slowdown tests. A
+heartbeat test's fixed 40 ms wait failed under host load (initial phase observed); it now waits up to one second
+for the actual phase, retaining heartbeat/expiry assertions. All failure records remain; no device pass is implied.
+
+Validation: 24 focused suites / 545 tests pass (report includes exact scripts/counts), scanner and UI guidance pass.
+Native host comparison with 150 ms local request latency produces identical 467,251-byte video segments: direct
+8 requests / 1.255 s, cached 3 / 0.378 s, cached+simulated HTTP expiry 4 / 0.511 s and exactly one API renewal.
+These are generated fixtures/local HTTP/mocked AllDebrid responses, not live provider/iPhone/Roku results. Source:
+reports/refresh-streaming-checks.json. Existing UI layout/style and verified r26/r43 native pins are unchanged.
+Owner requests this updated test build for a retest; IPA packaging follows. Device and visual acceptance remain open.
+
+
+ISSUE-146 packaging attempt: build 218 / run 42755096028 from 7c27f81d9d17bdfab366da0776d49af57607e2d6
+stopped before IPA creation/publication. test_airplay_remux still required the old "AirPlay converts this video"
+label, removed under ISSUE-145 because supported originals do not require background conversion. Corrected the
+wording assertion while retaining functional source-routing checks; all 29 tests pass. The subsequent artifact
+upload failure was secondary: tests stopped before producing the review ZIP. Ran every remaining packaging-test
+script locally; all pass after setting the installed KODI_IOS_PYTHON311 path for the customized-IPA bytecode test
+(the first local run omitted that environment variable; CI already supplies it). The app source/pins did not change
+for this CI correction. Exact additional scripts/counts are in the checks report. A new source checkout/build run
+is required; rerunning the immutable failed checkout would retain the old assertion. Build 218 was never delivered.
+
+
+ISSUE-146 delivery: corrected source/test checkout 2d658de5ede446f9d8170a5c0185b1e5ee3c3efa passed every
+workflow stage in run 42755715794 and published IPA 219. Downloaded release digest/ZIP, exact r26/r43 native
+binaries after unsigning, 18 current helper sources and Python 3.11 source hashes, and 154 unsigned/unencrypted
+ARM64 images independently verified. 24 focused suites / 545 tests and 38 remaining packaging test scripts pass;
+all actual CI gates pass. Receipt: reports/refresh-streaming-delivery.json. This closes source/build/delivery work;
+actual iPhone/Roku/provider behavior remains pending owner retest. Build 218 failure is preserved above. No main
+merge or live owner-account/media access occurred. UI status values/text reuse the existing layout; visual review
+remains pending.
+
+
+## ISSUE-147 — Seek intent rollback, blank AirPlay captions and missing continuous-hour stop evidence (2026-11-10)
+
+Owner supplies a new log, reporting that releasing the seek bar does not retain/play the chosen point. They add
+missing subtitles and a stop after about an hour, and confirm the hour was continuous TV playback through AirPlay.
+This is an investigation request; no new app fix/native release/IPA is produced in this review. Raw logs, URLs,
+identifiers and the expanded host harness stay outside Git. Report: reports/seek-subtitle-stop-review.json.
+
+Capture identity/limits: device log spans 21:38:48.457–21:43:56.863 (308.406 s, device clock), identifies build 217
+with Kodi r26/AirPlay r43, the same native components retained in build 219. The logged TV user-agent reports Apple
+TV. The hour-long session itself is absent; do not call a short-session error proof of that earlier hour-long stop.
+
+Seek evidence: eight release handlers run and every submission takes 500 ms. Video first-picture-after-flush
+markers range 846–7561 ms (some also occur during startup/return from AirPlay, not only seek release). The info-level
+log does not include requested/landed times or all pointer-event IDs. Source trace explains the synchronous 500 ms
+submission wait: VideoPlayer::SeekTime calls SynchronizeDemuxer, which can wait 500 ms on the calling GUI thread.
+
+Expanded host reproduction compiles pinned real SendClick/SetFromPosition/OnMouseEvent, window gesture dispatch,
+generic END packing and the actual Process player-info refresh block, with platform stubs. Normal drag 50% releases
+50%, then the next info refresh while the backend is still at 3% redraws 3%. Insert an unrelated mouse-motion event
+before that refresh/release and OnMouseEvent's unconditional m_dragging=false lets it overwrite intent: release
+submits 3%. This is a concrete code defect and a plausible path for the reported behavior, not proof that this
+exact event interleaving occurred on the phone. The earlier 32 r26 scenarios passed their limited dispatch cases;
+they omitted render refresh/unrelated events and did not prove retention during an unfinished seek. First expanded
+harness compile failed because its SetIntValue stub omitted default arguments; adding those defaults allowed the
+actual-method reproduction. Product code is unchanged in this review.
+
+Subtitle evidence: Kodi selects ordinal 0 and Apple's player selects English. Prepared fast path advertises two
+text renditions. There are 32 subtitle-read I/O failures and 31 HTTP 200 responses containing only 8 bytes of empty
+WEBVTT, completing in 1509–1599 ms. Native serve() gives lock acquisition, demux opening and cue reading a single
+1500 ms deadline, closes the demuxer/source on expiry, and responds successfully with empty WEBVTT after failure.
+Repeated requests can therefore keep opening/aborting the reader and serve blank captions as successful content.
+A cue-free interval is valid, but these logged I/O failures are not evidence that captions were disabled or absent.
+
+Stop evidence: this short session reaches playing and later closes with Apple's local clock at 16.6 s. Source reads
+of 64 KiB take 1011–3453 ms, video byte-range responses repeatedly end partially, and Apple reports -12889 plus two
+-15628 CoreMedia errors. These show real source/streaming trouble during this captured session. An incomplete range
+can also result from a receiver closing/reseeking, so do not label every partial response an upstream failure.
+There is no basis here to assign the earlier hour-long stop to Wi-Fi, an expired link, or a hard time limit. Need
+kodi.old.log or the actual log covering that continuous hour and its stop, before further restarts rotate it away.
+
+Repair direction: keep dragged/pending seek intent independent of progress polling and unrelated pointer events;
+avoid a synchronous demux wait in the touch UI path; record requested and landed times. Warm/prefetch/cache captions
+on an independent worker, retain unfinished work and distinguish failure from a genuinely cue-free interval. Native
+rebuild/device retest would be required for a shipped native repair. These are findings/directions, not a claim
+that build 219 fixes them. Device acceptance and main remain unchanged.
+
+
+ISSUE-147 supplied kodi.old.log follow-up (2026-11-10): the new file is the same build-217 session, with all
+1,993 prior lines an exact prefix. It adds 59 lines / 17.764 seconds, ending at 21:44:14.627; total capture length
+326.170 seconds. Added lines show Kodi starting orderly application shutdown at 21:44:10.741 and services exiting.
+The captured AirPlay player had already closed at 21:41:10.298, so this later shutdown is not the initiating cause
+of that earlier AirPlay failure. There is no crash trace in the added tail; the file ends during teardown, so this
+is not proof of final process exit status or an OS-level absence of termination. No hour-long playback/stop is
+present in either file. The seek/caption findings stand; the specific continuous-hour stop cause remains unknown.
+For a future recurrence, export immediately after the actual stop before exiting/restarting Kodi, since rotation
+can replace the needed session. Follow-up recorded in reports/seek-subtitle-stop-review.json. Review only; no app
+source change, new tests/build/IPA, account access or main merge.
+
+
+## ISSUE-148 — Build 219 skips faster opening; Umbrella cache fails to register (2026-11-10)
+
+Severity: HIGH. Components: Library status Refresh / preparation policy; service-owned foreground source cache.
+Owner: compatible video skipped conversion successfully, but also skipped faster opening; Refresh should audit
+the entire library and repair missing preparation. Umbrella stays loading and never connects.
+
+Evidence: supplied build-219 session spans 06:35:11–06:43:22 (device clock). At 06:35:24 the media_source_bridge
+startup raises AttributeError: PosixPath has no setProperty. Both Umbrella starts report source_cache=false.
+First attempt is cancelled after about 36 seconds; the next takes about 42 seconds inspecting its index and
+reaches the 45-second opening deadline. This fails before TV connection; Wi-Fi failure is not established.
+Raw logs remain outside Git.
+
+Root causes:
+- DEC-031's codec-only skip also cancelled repack jobs and trusted prepared/cache flags before any full file audit.
+  Manual Refresh inspected only unknown files, so a compatible cached file could never regain missing faster-open work.
+- The source broker was registered on the service's home filesystem Path rather than Kodi's Home window.
+  Standalone cache tests passed but never executed the service setup, missing the integration error.
+
+Repair:
+- Manual Refresh re-reads every eligible file, probes actual tracks and checks bounded MP4 box/index ranges.
+  Compatibility and fast-open evidence are separate. Naturally front-indexed MP4 and valid indexed prepared files
+  are kept; MKV, tail-moov MP4, unindexed fragments and known older prepared layouts queue only missing layout work.
+  Supported picture is copied; unsupported video retains native conversion. Source identity is rechecked afterwards.
+- Already-ready metadata cannot bypass a requested repair. Owner-kept/committing/promoted originals stay protected;
+  active native conversion defers inspection; failed reads retry without reporting a fresh successful audit.
+  Repeated Refresh preserves existing output/checkpoints and failure backoff for a still-needed repack.
+- Service registers the cache through Window(10000); lifecycle closes startup failures and clears its own endpoint
+  on abort. Drive/Elementum loopback and already-working MP4/HLS routes are unchanged.
+- Existing status fact slots show faster opening independently; no redesign or native component rebuild.
+
+Regression evidence: full-library/repeated-refresh tests, prepared-marker override, missing-layout repair through
+actual queue promotion/verification, changed-source rejection, owner/commit safety, cancellation and range guards;
+real generated native MP4 layouts checked. Actual service startup regression fails against original HEAD and passes
+with Path home after the repair, including selected-source range read and shutdown. See checks report for totals.
+
+Status: source repair implemented; host checks recorded separately. iPhone/Roku/provider acceptance is pending.
+The source-opening timeout can have additional provider causes; this fixes the observed missing cache route.
+ISSUE-147 seek intent, subtitle timeout and unobserved continuous-hour stop remain open; no repair is claimed here.
+
+ISSUE-148 follow-up before delivery: final review found the full-audit marker could be consumed when its only
+file was actively converting or recovering a transaction. The marker now remains pending through both cases,
+then inspects the resulting file when safe. Two actual-queue regressions cover this. Build-220 packaging was
+superseded and cancellation requested before delivery; its workflow outcome is recorded in the checks report.
+
+ISSUE-148 delivery: verified IPA 221 from fcae63e0f3dc83a8fb537cbea4d863e3ebfc5b29, run 42842353113 success.
+66 suites / 1,174 unit tests plus 32 existing slider scenarios and all CI stages pass. Downloaded IPA checksum/ZIP,
+19 helpers and Python 3.11 source hashes, verified native binaries and 154 unsigned ARM64 images checked.
+See reports/refresh-layout-cache-delivery.json. Source/host repair complete; actual iPhone/Roku/provider and UI
+acceptance remain pending. ISSUE-147 is not included. Main remains unchanged.
+
+## ISSUE-149 — Build 221 cancels AirPlay during native startup (2026-11-10)
+
+Severity: HIGH. Components: AirPlay controller, native first-segment priming, source diagnostics.
+The supplied build-221 capture has two Umbrella attempts with source_cache=true. Inspection takes about
+13 and 15 seconds. Both hit the controller's 60-second startup_timeout before TV handoff. Pausing background
+uploads/conversion does not remove the second timeout. Video production takes about 14 seconds; audio finishes
+with result -5 only after cancellation, so that result alone does not establish corrupt media/provider failure.
+The older native “not H.264/HEVC” message is also misleading: copy eligibility can reject profiles/chroma/depth.
+The capture does not identify the exact source-I/O bottleneck or establish a Wi-Fi fault.
+
+Root cause: independent, overlapping clocks. The outer 60 seconds includes inspection; native priming starts its
+own 55-second budget afterwards and produces video then audio sequentially. Unconditional segment-zero prefetch
+can also compete with the resumed segment (63/64 in the capture); missing init can regenerate zero again.
+
+Source repair: preserve a single native 100-second reservation-to-buffer deadline across queued work, inspection
+and priming; advertise it to Python with 5 seconds of controller grace (old frameworks keep legacy behavior).
+Prime video and audio concurrently at the actual resume target, cache that target's init and avoid unrelated zero
+prefetch. Cancellation and bounded startup remain enforced. Logs now report codec/profile/pixel depth, separate
+audio open/seek/scan/packet/I-O time, cache hit/miss/wait counts, HTTP status/retry/error/read time, deadline versus
+cancellation and background pause state. Signed source URLs and account state are not added to diagnostics.
+
+Host regressions: reservation includes queued delay; resumed first video/audio units are cached; copied and
+converted target segments decode with their init; cancellation/readahead, streaming and seeking pass. The initial
+recommendations run had 1/37 failures because its cancellation setup depended on old implicit zero-prefetch. It
+now explicitly consumes zero to schedule real readahead, preserving its cancellation assertions; 37/37 pass.
+One run against a separately launched range server failed after that server exited on resume, and the harness
+continued into an unavailable playlist. The server is now owned by the same orchestration as the test, and failed
+source-open assertions return before dereferencing missing playlists. Four healthy-server native suites pass
+(211 checks). This environment failure is retained, not attributed to the iOS app.
+
+Python test adapters initially assumed the source URL was the last controller argument, an exact old broker-status
+shape and a pre-metrics unlocked DriveStream mock. Updated adapters assert the URL/lease separately and preserve
+renewal/privacy assertions while checking safe metrics. Final targeted suites pass. Settings tests initially
+assumed every Library option was an action; they now distinguish the new boolean and verify its default/help.
+See reports/airplay-opening-episodes-checks.json for final counts and acceptance limits.
+
+Status: implemented/tested as source only. No iPhone native framework rebuild, native pin update, workflow,
+IPA/publication/push or main merge; owner explicitly holds the IPA. Verified AirPlay r43 remains pinned and does
+not contain these new native changes. Rebuild/verify/pin native AirPlay before the next authorized IPA. Actual
+provider/iPhone/Roku acceptance remains pending. ISSUE-147 seek/caption/hour-stop issues are not repaired here.
+
+## ISSUE-150 — Newly released episodes require manual downloads (2026-11-10)
+
+Owner requests automatic downloads for anticipated episodes of shows they download, checking on opening rather
+than continuously. Source now enrolls confirmed TV downloads with canonical show TMDb ID and selected quality/
+HDR/codec/source/size preferences. Existing shows can use Follow new episodes only in the season download menu;
+Library settings offers Download new episodes automatically, default enabled. Registration is after confirmation,
+not after a canceled picker; manual show registration does not require a running download engine.
+
+Opening/foreground passes use fresh TMDb show/season dates, never episode titles as release proof. Future,
+undated, special and older episodes are skipped. Bounds: 25 shows, 8 source attempts, 180-second planning budget,
+30-minute per-show cooldown; an already-started source request can extend the pass up to its 120-second timeout.
+A lightweight 15-second app-state check schedules only launch/foreground passes, postponing busy UI; it does not
+periodically search sources while the app stays open. Media playback, background state, disabled setting, transfer
+pauses and abort stop further work. Network/ownership failures defer; missing accounts/engine do not open dialogs.
+
+Actual Drive/phone inventory plus matching queue jobs prevent repeats. Failed jobs retry a different source on a
+later eligible opening; cancellations remain protected. Request IDs and exact show/season/episode matching ensure
+only the requested automatic choice is queued. Late timed-out responses are suppressed rather than opening a
+manual picker. Queue deduplication is now serialized and includes season, fixing the concrete collision between
+same-number episodes from two seasons of one pack. Stale service saves preserve newly attached show identity.
+
+Thirty watcher tests include advancing a synthetic future episode's actual date, restarts/preferences, ownership
+failure, bounds/cooldowns, later seasons, dates versus names, cancellations, retrying failed queues, fresh exact
+selection, canonical ID recovery, cross-season/concurrent queue writes, late/empty automatic results and the real
+catalog-adapter → deck picker → queue integration with synthetic network/Kodi dependencies. Initial calendar test
+incorrectly treated every season's episode 1 as owned; fixed the fixture to S1E1 and hardened season-row checks.
+UI policy/routed HIG guidance read; existing settings/menu/notification controls only. No desktop Kodi binary
+available, so visual/device and real provider/new-release acceptance are pending. No owner account/media accessed.
+Status: code/host verification ready; held with ISSUE-149 for an eventual authorized native/IPA build. No release,
+push or main merge. The owner should use Follow new episodes only for shows downloaded before this feature.
+
+ISSUE-147 authorized repair follow-up (DEC-034, 2026-11-10): owner requests the three recommendations and a test
+IPA. Slider polling now holds the dragged/pending percentage until reported landing or a bounded 15-second timeout;
+unrelated mouse movement cannot end a drag. Progress actions use SendThreadMessage outside touch dispatch, with
+requested/observed target and timing logs. Expanded actual slider/gesture/info-refresh harness passes 45 scenarios.
+Native Kodi r27 candidate source 780c990 / run 42878755013 compiled and published successfully; artifact verification
+and pinning precede IPA packaging. Patch generation initially introduced context trailing spaces; normalized them,
+reran the harness/project/diff checks and published the corrected source, retaining both source commits.
+
+Subtitle requests now use a bounded independent worker/cache. A request waits up to eight seconds without canceling
+its in-flight read; pending/failed work is retryable HTTP 503 with Retry-After, and only successfully read cues enter
+the cache (including legitimately cue-free intervals). Worker reading has a separate 45-second bound and media
+lanes remain independent. Selected/next cues warm in the background; session cancellation wakes waiters, aborts the
+reader and joins before freeing the plan. A generated-media regression deliberately delays a subtitle read ten
+seconds: first request gets 503, the same work completes with actual text, a repeat hits the cache, invalid track
+gets 404. Eight native checks pass. First compile inserted the worker before helper definitions; moved it behind
+those definitions and recompiled. First delay test's control reply used HTTP/1.0 against a helper expecting 1.1;
+the seven caption checks passed, control-response assertion failed. Fixed the control fixture's protocol/close,
+then all eight passed. One old Python source assertion required the replaced trylock approach; updated it to the
+bounded worker wait; actual delayed native test protects behavior. Full native/CI evidence follows in the report.
+
+Automatic stop evidence samples safe native player/time/buffer/error/route fields, source cache/HTTP counters and
+network progress. A bounded eight-minute local history and three rotating stop files are retained, the useful tail
+is also emitted into kodi.log, and Export diagnostics includes them. A continuous-hour synthetic test verifies
+capture after failure; normal end, explicit close, pause, seek and suspension are distinguished. This adds evidence
+for the previously uncaptured hour-stop; it does not identify that historical failure's cause or guarantee a fix
+for every receiver. No account/media URLs are added to these snapshots. Device and visual acceptance pending.
+
+## ISSUE-151 — Downloaded movies bypass resume history (2026-11-10)
+
+Owner adds: downloaded-library movies start at the beginning instead of offering Continue. Local and Drive movie
+rows bypassed the shared history/resolver, unlike downloaded episode rows; initial zero during opening and paused
+Kodi time during TV playback could also overwrite a saved point. Movie rows now batch actual local/Kodi bookmarks,
+match shared history by title plus year, offer Continue from / Start from beginning / Cancel in existing Kodi select
+controls, resolve the exact completed copy with its chosen offset and register it in shared progress. No TMDb ID
+is fabricated: uncached movies retain a valid downloaded-copy route in Continue Watching. Existing provider/version
+choices remain intact. Provider URLs are never browsed by filesystem RPCs; local copies still require the actual
+completed-movie inventory. Native-library rows keep their existing route. The idle movie page refreshes when the
+history revision changes. Initial near-zero opening samples cannot erase a saved point for twenty seconds; live
+AirPlay position is saved and a bounded handoff guard protects it while Kodi moves from its old paused position.
+Sixteen focused regressions pass; expanded packaging/UI/library/progress checks and device review follow. UI policy
+and routed HIG playback/slider guidance read; existing controls and select menu, no layout/style redesign. Owner
+approved native builds/IPA under DEC-034; no main merge. No owner account or media was accessed.
+
+ISSUE-147 final regression follow-up: found that integer player progress within one percent of a fractional target
+could still clear against the unchanged baseline. Record the pre-submit observed percentage and require it to
+change before accepting landing; the fractional regression fails without this guard and passes with it. Kodi r27
+is superseded before IPA; r28 source c829a92 / run 42881626230 passes 46 local scenarios and is building. Full native
+suite also retained two assertions against the previous misleading conversion log string; update to the corrected
+conversion reason while retaining actual decode/format checks. The first AirPlay candidate run 42881365570 compiled
+its framework but is superseded for that test correction. Python restart assertion likewise needed its new diagnostic
+wrapper reflected; library refresh's old raw-path assertion now checks the exact copy inside the resume route.
+One unrelated upload nonblocking timing check measured 1.074 seconds against a 1-second bound while native/video,
+portrait generation and parallel suites competed; retain the bound and rerun in isolation. No product relaxation.
+
+ISSUE-147 verification follow-up: isolated nonblocking upload test passed unchanged, but full-file reruns measured
+2.729 and 1.116 seconds at the one-second wall-clock assertion. Replace that timing proxy with a deterministic
+blocked-upload event: the producer must finish all three writes while PUT is still deliberately blocked, then
+release the network and verify the exact stored bytes. This strengthens the nonblocking guarantee without changing
+application upload behavior or simply raising the old limit. The full 26-test preparation suite is rerun with it.
+Local full native run (3251 checks) also lacked KR_TEST_FONT, causing 14 text-render failures despite valid cue
+parsing. Use the host runner's documented DejaVu fallback for retest; no iOS font change. Four old burned-text
+checks now assert the intentional unadvertised-track 404 and the old optional-caption timeout check now asserts
+bounded retryable 503 plus prompt cancellation. One prefetch latency assertion ran under concurrent generation
+load and is retained for isolated retest. Original full-run failures are kept in the checks report.
+
+ISSUE-147/151 verification: final local native suite passes 3252/3252 with documented host font, strict prefetch
+timing unchanged. All 62 Python suites / 1094 tests and 46 actual gesture/info-refresh scenarios pass; a final
+post-pin packaging test needed its existing Python 3.11 environment variable restored and then passed. Stop
+classification also captures an apparent end notification well before known duration and retains the final
+snapshot on normal closes. Kodi r28 artifact/release/upstream/patch/ARM64 verified; AirPlay final candidate
+923131c / 42883448916 passes native host, framework and end-to-end conversion jobs; exact artifact digest/ZIP,
+new exports and ARM64 checked. Pins r28/r44 staged for verified framework publication then requested test IPA.
+Device/provider/visual acceptance and historical hour-stop attribution remain pending. No main merge.
+
+ISSUE-147/151 native publication verified: Kodi r28 release binary equals run 42881626230 artifact; exact patch
+and upstream digest checked. AirPlay final 42883448916 passed host/framework/end-to-end jobs; verified artifact
+digest/ZIP/new APIs/ARM64, publication 42886188374 succeeded and release archive independently downloaded and
+compared byte-for-byte. Pins r28/r44 now point at these verified immutable releases. IPA packaging is next;
+device/provider/visual behavior remains pending and the historical continuous-hour cause is still unknown.
+
+ISSUE-147/151 packaging retry: build 222 / run 42886688945 stopped before packaging at GlassBar's stale r26
+tag/digest snapshot after the verified r28 pin update; no IPA was produced or delivered. Subsequent audit found
+AirPlay's old r43/previous-release snapshots too. Updated strict expectations to independently verified r28/r44
+and their actual previous pins, rather than weakening/removing the checks. All workflow scripts from GlassBar
+onward rerun under the existing Python 3.11.17 and pass, including 46 actual seek scenarios. Native app sources
+and binaries are unchanged. Missing upload artifact was a secondary consequence of the early test failure.
+Next dispatch a fresh packaging run from these verified test-only corrections; keep 222 in failure history.
+
+ISSUE-147/151 delivered as verified test IPA 223: source f6b40982b97c8d67976e748e98381cfe7fd03759, run
+42887751497 success. All 62 CI Python suites / 1094 tests, 46 actual slider scenarios, native CI 3336 checks plus
+end-to-end conversion and local native 3252 checks pass. Downloaded asset digest/ZIP, exact r28/r44 binaries after
+signature removal, 22 source helpers / 21 matching Python 3.11 hashes and 154 unsigned ARM64 images verified.
+See reports/playback-retention-delivery.json. Failed 222 remains recorded; no app/native change was needed for
+its strict test-pin correction. Historical hour-stop cause remains unknown; automatic evidence is added. Resume
+reuses saved history; a progress point never recorded by old builds cannot be recreated. Device/provider/visual
+acceptance pending, no main merge or roadmap acceptance-count change.
+
+## ISSUE-152 — Full season offers individual episodes; quality must reflect usable sources (2026-11-11 UTC)
+
+Owner found a Full season search offering an episode when no pack exists. Sorting partial releases below packs
+still allowed a partial to satisfy that interaction. Automatic rest-of-season selection could also lower quality;
+counting a source-picker result as a queued download was insufficient proof of acceptance.
+
+Source repair: a scoped pack request exposes only verified, seeded, non-bad releases with full coverage. Cancel
+ends the pack interaction. With no genuine pack, list aired episodes, exclude owned/queued entries, inspect their
+sources without selection, then offer only qualities actually returned by the verified picker with episode
+coverage. Exact-quality selection never falls back to a lower resolution. Queue receipts must match the request
+ID and require the real cloud queue save. Explicit old episodes awaiting that quality are persisted separately
+from following future releases and retried on opening/foreground. A foreground season interaction holds the
+opening watcher's search lane. No source URLs or credentials are persisted. Unknown source formats/identity fail
+closed; a completed no-results search can enter the fallback. Existing manual non-season pickers retain behavior.
+
+Regression coverage includes real picker filtering and the HTTP redirect/cloud-save boundary, not just selected
+source mocks: unavailable 4K, zero seeds/wrong titles/episodes, full versus partial packs including long lists,
+empty/malformed sources, vanished chosen quality, actual queue receipt, cancellation and old-episode strict retry.
+Initial new retry test exposed a pre-existing default logging callback that rejected keyword fields; corrected
+the no-op callback. An inflight-filter edit initially shadowed the queued-result list; renamed the helper and
+reran the focused suite. Desktop Kodi rig evidence and final check counts are recorded at the delivery checkpoint;
+no device/provider success is inferred and no IPA is published under the current hold.
+
+## ISSUE-153 — Accepted downloads invisible while uploads are paused, including after Refresh (2026-11-11 UTC)
+
+Owner's build-223 logs show an accepted new job after the movie selection: total debrid jobs 11 → 12, new jobs
+2 → 3, while one older job remained copying with an empty current record. uploads_paused=true throughout the
+relevant interval and through the end of the later log. The second attempt did not increase the count again.
+This proves a durable acceptance and a persistent pause, rather than proving a missing job or a Wi-Fi failure.
+The older show report has the same paused/pre-transfer condition. Private log paths and media IDs stay outside Git.
+
+Concrete model/UI defects: _copy returned None before any transfer progress; Library status ignored drive_next;
+Queue access depended only on preparation jobs; Queue drew only the first three Drive entries without paging.
+Refresh rescanned Drive media while these accepted transfers were omitted, yielding 0 Working / 0 Up next.
+
+Repair: publish the first pre-transfer job as queued/indeterminate or explicitly paused, include remaining
+transfers in Library status with stable identities and their owning actions, and make Queue reachable for Drive
+work. Page all Drive entries using the existing page controls; never send transfer IDs to preparation reorder
+handlers. Library/Queue reread durable transfer jobs and pause controls locally, retaining the service's freshness
+for other jobs. Resume/cancel go to transfer_control. A new download while paused offers explicit resume-upload or
+keep-queued choices and a truthful notification. Quiet automatic jobs preserve the pause. Safe queue-save events
+record kind/status/pause/count without media names or identifiers.
+
+Verification failures retained: rebuilding every model from raw state initially discarded the published native
+heartbeat and immediate reorder previews (three status tests and one Queue test failed); changed to refreshing
+only durable Drive transfers while preserving the published non-transfer model, and all affected tests pass.
+The first paused-notification regression exposed an incomplete old fake Kodi lacking Window; completed the fake
+so it now exercises the success notification instead of silently catching an AttributeError after queue save.
+The desktop rig dependency install first ran out of disk; removed reproducible old downloaded IPA duplicates and
+one public-media archive, retained build 223 and all receipts, repaired dependencies and resumed the isolated rig.
+Final desktop evidence/check counts follow; this does not prove actual phone transfer throughput or receiver use.
+
+## ISSUE-154 — Browse for subtitle blocks the interface during streamed movie playback (2026-11-11 UTC)
+
+Owner screenshot and build-223 log: FileBrowser.xml loads at 15:47:16 device time; subsequent touch events reach the
+iOS view but produce no handled Kodi clicks, while background diagnostics continue through 15:47:39. This narrows
+the failure to opening/browsing the subtitle file dialog. It is not evidence of an online subtitle-service failure:
+owner subsequently confirms Download subtitle works and captions appear on the phone. The later attempted taps do
+not establish a separately handled Download action after Browse blocked the UI.
+
+Kodi 21.3 BrowseForSubtitle starts the file browser at the playing item's dynamic path and its browser performs a
+synchronous directory listing. A streamed movie URL is therefore a candidate blocking directory. The log contains
+no completed directory error or thread stack proving the precise blocked operation. Investigate/reproduce with a
+controlled slow HTTP folder in the desktop rig before attributing the exact root cause or changing native code.
+Current source repair does not claim to fix Browse. AirPlay captions and Media Assistant's reported five-second
+stall are separate follow-ups to ISSUE-147/149; latest received logs contain no corresponding AirPlay session.
+Requested a fresh post-test log and whether captions were enabled before or after TV handoff. Native pins remain
+r28/r44; owner holds the IPA.
+
+ISSUE-153 final source handoff: desktop UI exposed queued transfers duplicated in Waiting and Drive sections;
+exclude transfer rows from preparation holds. QPREV/QNEXT existed in controllers but were never rendered; add the
+actual controls with disabled boundary states. A conditional link also unnecessarily shortened a header; use the
+full-width header when the link is elsewhere. Relevant controller/generated XML regressions pass. Final real UI
+paging/action recheck remains pending at the owner's handoff request.
+
+ISSUE-154 follow-up: reproduced in real desktop Kodi with a synthetic HTTP movie and a parent directory delayed
+25 seconds. The subtitle settings UI stays on screen and cannot process Close during that directory request.
+Source guard clears an HTTP(S) initial browser path; local/SMB paths retain behavior. Complete patch applies to
+pinned upstream, Linux engine rebuild passes, and the same browser opens without another parent request afterward.
+Normalized added patch context whitespace and rechecked the complete patch. No iOS binary rebuilt/pinned and no
+IPA published; device acceptance remains pending. Native r28 is still the old delivered engine.
+
+## ISSUE-155 — Downloaded show folder opens an empty page (Phony) (2026-11-11 UTC)
+
+Owner's show is present in source-search logs. Downloaded TV discovery includes Drive folders without requiring
+completed episode files; preparation/status discovery indexes video files and jobs. A folder poster therefore
+cannot prove a completed episode. Paused queue omission is repaired under ISSUE-153. The distinct empty show page
+still needs a truthful empty state and action, or completed-membership filtering without foreground network cost.
+An attempted empty-page CTA populated properties in the desktop rig but did not render its header correctly;
+owner requested committing completed work and leaving the rest out. Those UI/backend/test changes were removed
+and saved as a local patch outside Git. No completed fix claimed for this page. See REVIEW-HANDOFF-PR16.md.
+
+Rig failure history: stock Home widgets produced unauthenticated Trakt prompts, isolated by moving to Settings.
+A real engine occupied the fixture's initial port; move controlled provider replies to another port through a
+transport adapter. Add the actual Kodi Six dependency to the direct picker fixture. Missing Umbrella metadata in
+the desktop add-on subset required intercepting its account adapter before constructing the absent add-on. The
+phone's bundled bootstrap path also required a rig-only resource alias. These were fixture/environment issues,
+not product account failures. The final container stopped with exit 255/OOM=false; further diagnosis and smoke
+tests were stopped at the owner's explicit handoff request. Completed evidence remains on disk.
+## ISSUE-156 — Subtitles and Audio menus with Download and apply (2026-11-11)
+
+Status: IN SOURCE, LOCAL ONLY (not pushed, not built; owner: "code it but dont push it").
+- Owner: the CC and waveform buttons opened Kodi's settings dialog ("those look meh"); wanted working download /
+  find subtitles, "a button that will find, download and apply the subtitles". Mockup approved: PR #17 round 2.
+- Done: `tracks.py` (page `tracks`) + `1080i/IOSTrackMenu.xml` (`pages.track_menu`) replace
+  `osdsubtitlesettings` / `osdaudiosettings`. Tracks from Player.GetProperties, one tap switches and closes with a
+  notice; Timing (subtitle / audio delay), Volume boost (volume amplification); More: Choose another, Add from a
+  file, Use for all videos (`locale.subtitlelanguage`). Download and apply: no subtitle add-on is installed on the
+  phone, so `track_menu.py` searches Podnapisi (free, no account) by title, year and episode in Kodi's subtitle
+  download language, ranks by the file's release name, downloads the zip and `setSubtitles()`.
+- Verified (desktop Kodi rig, landscape 1311x603, a generated test video with 2 audio and 2 subtitle tracks): both
+  menus render like the mockup with the real tracks. Not verified: tapping in the rig (stopped by the owner), the
+  Podnapisi answer (this sandbox cannot reach podnapisi.net; API shape from subliminal's provider), the phone.
+- Known gaps: Volume boost shows no value (Kodi has no info label for it); the More page is Kodi's select list, not
+  the drawn sub-page; a downloaded subtitle is not remembered for the next play yet.
+- Regression: scripts/test_track_menu.py (9).
+
+## ISSUE-157 — Settings rig audit: blank app settings, labels under switches, cut footers (2026-11-11)
+
+Status: FIXED IN SOURCE, LOCAL ONLY (not pushed, not built). Desktop Kodi rig (portrait 603x1167), every Settings route.
+- Routing: all 23 Settings routes open the right window with no errors (Settings, Interface, Player, Media, Services,
+  System, PVR, Games, Skin Settings, Profiles, System info, Event log, File manager, Add-ons, Add-on updates,
+  Favourites, Accounts, Search, Tabs & Rows, Library status, Customisation and its four pages, Library). The
+  navigation menu only runs on iOS (System.Platform.IOS); customise_counts has no window by design.
+- Fixed: the app's own add-on settings (Activity, Updates, Library…) showed no labels at all: settings.xml used
+  plain-text labels, which Kodi 21 shows blank. 27 labels now numbered (32001+) with
+  resources/language/resource.language.en_gb/strings.po (check_project allows .po).
+- Fixed: toggle rows let long labels run under the switch (Media "Ignore different video versions on scan",
+  Services "Announce services to other systems", add-on settings): the label now ends before the switch.
+- Fixed: the add-on settings title scrolled sideways (caught mid-word); it now truncates.
+- Fixed: footers had fixed heights, so longer ones lost their last line (Library › Library status); they grow
+  with their text.
+- Not fixed (belongs to the Settings inside-pages redesign, PR #18): Skin Settings, Profiles, Favourites and the
+  Settings search keyboard are still Fuse's landscape windows letterboxed in portrait; Kodi's settings pages keep
+  category chips, "- " sub-setting dashes and one help paragraph at the bottom; Add-on updates with nothing to
+  update shows only "..". Check for updates in the rig says the private repository needs a token (rig only).
+
+## ISSUE-158 — Downloads stopped for days: uploads stayed paused (build 223, 2026-11-11)
+
+Status: FIXED IN SOURCE (build 224); device test pending.
+- Owner: "I need downloading to work asap, its currently completely broken". Build-223 log 27f59dcd: uploads_paused
+  true in all 122 status snapshots over two hours; debrid queue 1 copying + 3 new, none moved. AllDebrid itself
+  answered (one transient URLError retried).
+- Cause: Play on TV's "Pause and retry" (cast.py) set the owner's own pause on uploads and conversion "until resumed
+  in Library status"; nothing lifted it, and Library status only said "Uploads paused · resume to download" in grey.
+- Fix: that pause is now marked as AirPlay's (transfer_control why='airplay') and is lifted two minutes after
+  AirPlay stops (release_airplay, from the service's AllDebrid loop); the first start of build 224 lifts any pause
+  carried over, logged with a notice (reset_once); a paused upload with downloads waiting raises a "Downloads are
+  paused" card with Resume at the top of Library status (work_state 'uploads_paused', page resume_uploads). Owner
+  pauses still last until Resume.
+- Desktop Kodi rig: the card renders; Resume removes the pause and reopens Library status. Also found: the rig's
+  scenario wrote a new 'added' time every second and debrid_drive.save merges by it (468 duplicate jobs); scenario
+  fixed, not an app defect.
+- Regression: scripts/test_pause_release.py (6).
+
+## ISSUE-159 — Kodi r29: Browse for subtitle guard built and pinned for build 224 (2026-11-11)
+
+Status: BUILT, VERIFIED AND PINNED; device test pending.
+- r29 = r28 plus the ISSUE-154 guard (no file browser started at an HTTP(S) movie URL). Run 42942056360 (macos-15,
+  cached depends, about 20 min). Release kodi-ios-portrait-r29: zip sha256 9e1d40b9…, executable sha256 070b0baf…
+  (both re-checked after download; arm64 Mach-O). Pinned in migration/ios-portrait/source-lock.json with r28 as the
+  previous executable; test_glassbar's pin assertions moved to r29/r28 (the old-pin trap that failed build 222).
+
+## ISSUE-160 — Settings redesign coded locally from the approved boards (2026-11-11)
+
+Status: CODED AND RIG-CHECKED ON THE DESKTOP RIG; NOT PUSHED, NOT BUILT; device untested.
+- Section pages (Interface, Player, Media, Services, System, PVR, Games) with category rows, big-title category
+  pages without chips (Back returns to the section), Skin Settings landing + per-section lists with the Settings
+  Level row, Download/Stream and quality pickers (tiles, second line), Profiles, Favourites, Search Settings
+  (own edit field) and Add-on Updates pages. Wording: "Download" / "Stream" replace Elementum / Umbrella.
+- Merge traps found: helper patches conflicted on PAGES, the portrait fingerprint, settings_page.files() and
+  test routes; a bad merge duplicated the ROOT rows (caught by test_settings_page: duplicate control ids).
+  Add-on Updates said "Everything Is Up to Date" even when Kodi's list could not be read; heading is now a property.
+- Not done / unverified: add-on settings sheet tabs (board 08); "- " sub-setting prefix (Kodi core string); More
+  menu links still use old native windows; Search keyboard (Action(Select) opens Kodi's own keyboard on desktop,
+  iPhone behaviour unverified); [B] bold in search results; Favourites with real items (empty state only seen).
+- Regression: test_settings_sections, test_skin_settings, test_pickers_redesign, test_profiles_favourites,
+  test_search_updates, test_settings_search.
+
+## ISSUE-161 — Umbrella AirPlay still cancelled at 60 s in build 224 (2026-11-11)
+
+Status: ROOT CAUSE FIXED IN SOURCE (local); needs AirPlay framework r45 rebuild + pin; device untested.
+- Owner log (build 224, Dragon Ball Super Beerus S01E01, debrid.it MKV, H.264 High 10 → converts): attempt 1 opened
+  in 6 s, inspection took 21 s, the TV endpoint was ready at 27 s, then the sheet was closed at 31 s (aborted).
+  Attempt 2 needed 3 open attempts (10 s) and 50 s of inspection; cast.py cancelled at exactly 60 s
+  ("controller_budget_s":60, "start result -1: AirPlay canceled") before the first segment reached the TV.
+- Root cause: ISSUE-149 gave the native side one 100 s startup deadline and exported kodi_airplay_startup_budget so
+  Python waits 105 s. The function is defined in build-airplay.sh but missing from the -exported_symbols_list, so
+  r44 hides it; airplay.startup_budget() hits AttributeError and keeps the legacy 60 s. kodi_airplay_health was hidden
+  the same way (native health diagnostics never reached the log).
+- Fix: both symbols added to the exports list. Regression: scripts/test_airplay_exports.py (every default-visibility
+  native function and every lib.kodi_airplay_* call must be exported); fails on the old list, passes now.
+- Secondary, not fixed: the source is slow per request (~2.6–3 s per 2 MiB range, about 0.7 MB/s) and Kodi's own
+  paused player keeps reading the same debrid URL (CFileCache) during AirPlay startup. Even with 105 s, a 50 s
+  inspection plus conversion of the first segment is tight. Next step if r45 still times out: stop Kodi's read-ahead
+  (or stop playback) before inspection, and log inspection bytes/requests.
+
+## ISSUE-162 — Owner: no Arctic Fuse keyboard on the phone; native keyboard everywhere (2026-11-11)
+
+Status: CODED LOCALLY; Kodi patch needs the r30 executable build; device untested.
+- Kodi 21.3 on iOS picks the skin's keyboard (DialogKeyboard) whenever CDarwinEmbedKeyboard::hasExternalKeyboard()
+  says a hardware keyboard exists (GCKeyboard.coalescedKeyboard), otherwise the native one (DialogKeyboardTouch).
+  Patch (kodi-21.3-portrait.patch, GUIKeyboardFactory.cpp): iPhone always uses the native keyboard; a paired keyboard
+  types into the same native field. Applies cleanly to Kodi 21.3 (git apply --check). patch_sha256 in source-lock
+  changes when r30 is built and pinned.
+- Settings search: the board-11 rewrite had dropped the native search field and used a Kodi edit control plus
+  Action(Select) (rig: Kodi's keyboard over the results). Restored: with the glassbar the iPhone's own search field
+  sits where the board's field is (y 340), results update as you type, keyboard raised on open; the edit control is
+  only the fallback without the glassbar.
+- Season prompt in download.py used Kodi's number pad (Dialog.numeric); now Dialog.input (native keyboard), digits
+  checked. Kodi's own PIN/time pads (CGUIDialogNumeric) are not changed.
+
+## ISSUE-163 — AirPlay takes 60-90 s to start on debrid streams (build 224, 2026-11-11)
+
+Status: FIXED IN SOURCE; needs AirPlay r45; host-measured, device untested.
+- Build-224 log: before the first picture the native side read ~27 MB of the episode at ~0.7 MB/s (2 MiB requests,
+  2.6-3 s each, two in flight) while Kodi's paused player kept downloading the same link.
+- Cause 1: FFmpeg's Matroska demuxer reads every attachment (anime releases carry 10-30 MB of fonts) while opening;
+  AirPlay never uses them (burn-in renders with its own fonts). Patch ffmpeg-mkv-skip-attachments.patch skips the
+  data (EBML_NONE seeks past it). Host check, FFmpeg 8.1.1: MKV with a 20 MB attachment, open+probe read 20,459,324
+  bytes before, 196,608 after; plain MKV unchanged (131,072).
+- Cause 2: the TV's source cache fetched 2 MiB blocks two at a time. Now 4 MiB blocks, four in flight, 24 kept
+  (96 MiB). Test SlowLink (0.5 s per request, 24 MB in order): 2.0 s, four in flight; old profile two in flight.
+- Not changed: stopping Kodi's paused player during startup. It would break "AirPlay stop returns to the same spot"
+  (back_to_kodi needs the open video) and a cancelled start would wait ~25 s for Kodi to reopen this file.
+- Regression: test_airplay_exports (SkipAttachments), test_remote_media (SlowLink), test_conversion_speed.
+
+## ISSUE-164 — Uploads to Drive at ~0.3 MB/s (owner, build 224, 2026-11-11)
+
+Status: CHANGED IN SOURCE; device untested.
+- Owner's Speedtest (5G) 3.94 Mbps up = ~0.49 MB/s. Build-224 log (Wi-Fi, while an episode streamed): 1 MiB pieces at
+  0.14-0.33 MB/s, each waiting for Drive's 308 before the next. Mbps vs MB/s explained to the owner.
+- Season jobs upload two episodes at once (debrid_drive LANES=2): each lane has its own resumable session copy written
+  back under one lock; the season folder is created under the lock; `current` shows one upload whose rate is both
+  lanes (parallel=2); the other lane is `current_also`. A failed lane keeps the other's finished episodes and its own
+  session; the job retries as before. Movies (one file) are unchanged.
+- Piece policy (StreamChunks): aim at ~10 s per piece (was 3 s), cut only past 15 s, grow under 6 s. At 0.3 MB/s a piece
+  is ~2.75 MiB instead of 1 MiB.
+- Not changed: two different jobs still go one after another (one `current` per job on the pages).
+- Regression: test_debrid_drive (TwoLanes: two in flight, both speeds shown, one lane failing keeps the session; chunk
+  policy), test_transfer_efficiency (slow line now 0.1 MB/s).
+
+## ISSUE-165 — Build 226: Umbrella AirPlay still never reaches the TV; show downloads use the old menus (2026-11-11)
+
+Status: FIXED IN SOURCE; needs AirPlay r46; host-measured, device untested.
+- Owner log 9e2568a7 (build 226, Dragon Ball Super episode at 9 min, debrid MKV): attempt 1 inspected in 36 s, then
+  "no usable Wi-Fi en0 IPv4" and blamed Wi-Fi; the retry 20 s later had 192.168.1.24. Attempt 2: video segment 91
+  converted in 7.2 s, but the independent audio reader's seek took 100,004 ms with 0 packets; the 100 s deadline
+  expired. The source cache meanwhile read 757 MB at ~8 MB/s (four parallel reads worked).
+- Root cause: Matroska cues index only the video track. The audio-only rendition (gm_stream produce_sel) seeked by
+  the audio stream, so FFmpeg walked every cluster from the start to 9 min. Present since independent audio readers
+  (it was the "audio -5" seen in builds 221 and 224). Fix: an audio-only rendition seeks by the video index (backward),
+  then the existing time window drops audio before the segment. Host check, 10-min MKV (video-only cues): audio segment
+  80 read 42.2 MB before, 0.6 MB after; audio output byte-identical for segments 0, 1, 37, 80, 99.
+- Wi-Fi: the address check now looks for en0 IPv4 for up to 5 s before failing.
+- Show downloads: the season menu and the season quality list were still the old text lists. Now board 3: heading
+  "<show> · Season N", choices with a second line, and each quality with its coverage ("All 8 episodes" in green, or
+  "6 of 8 · episodes 1–6 now; 7–8 wait for 4K Ultra HD" in orange). Still not built: the All Links page with badges
+  (board 4).
+- CI host suite first failed (23 checks: every h264_ac3.ts audio segment, "seek input"): MPEG-TS seeks by reading the
+  seek stream's timestamps, which this reader discards. Fix limited to Matroska; MKV result unchanged.
+- Regression: test_season_sources (Rows); host measurement recorded here; CI host suite covers audio renditions.
+
+## ISSUE-166 — Build 229 owner test: slow AirPlay connect, wrong card text, resume card, show page, ugly pickers (2026-11-11)
+
+Status: FIXED IN SOURCE (rig-checked where possible); AirPlay part needs r47; device untested.
+- AirPlay (log 5331b718): the phone primed the resume segment (118, 11:53) in 15 s, but Apple's player then loaded
+  segments 0-6 from the start (each converted, up to 45 s) and seeked to 11:53 only once ready, a minute later; then
+  converted 117-119 again. Media playlists now carry #EXT-X-START:TIME-OFFSET=<resume>,PRECISE=YES so the receiver
+  fetches the resume segment first. Host test: primed at 9.1 s, both playlists carry the tag.
+- Card said "Opening the movie" for an episode and its poster tile was grey (never set): now "episode" wording, the
+  show's poster, and "Show · S1 E1" as the subtitle.
+- Resume prompt showed the spotlight's card (owner: "asks me to resume the show at the top"): the 11:53 offer was
+  Dragon Ball's own; Kodi's resume prompt is the context-menu window and its card used the focused spotlight item.
+  The card is hidden when the second row is Kodi string 12021 (Play from beginning). Rig: centred menu, no card.
+- Show page: Play/Download text ran under their glyphs (fixed glyph x). Inline capsule (glyph + auto-width label in a
+  centred grouplist); labels "Play/Download Season N". Season chips scrolled away: a pinned row (same folder) appears
+  once the page scrolls (Container(9900).HasPrevious); tap selects that season (SetFocus absolute + Control.Move -1).
+  Chips read "Season N" (were "S1 • Kazeka..."). Episode titles/plots now wrap (Kodi draws list labels on one line;
+  textboxes wrap and show whole lines); show plot shows 3 whole lines (was 4, the last cut). Rig screenshots checked.
+- Pickers (owner: "still ugly"): the approved round-3 boards were built as Kodi's select box with second lines. Now one
+  bottom sheet (choice_sheet.py, IOSChoiceSheet.xml): art card with kind badge and title, rows with tiles, detail
+  lines, BEST / ALL n / k OF n tags, coverage bars, blue Show All row, footer, separate Cancel capsule. Used by How
+  would you like to watch (watch add-on), Pick a quality (deck picker), the season menu and season qualities.
+  Rig: real TMDb Helper play flow opens it; Back, Cancel tap and a row tap answer correctly. (A rig-only Trakt sign-in
+  prompt opened under it once and froze input; not reproducible after dismissing it.)
+- Regression: test_choice_sheet (new), test_airplay_flow, test_show_scrolling, test_source_match, test_deck_picker,
+  test_season_sources, host test_remux EXT-X-START check.
+
+## ISSUE-167 — Uploads to Drive at ~0.3 MB/s on a 115 Mbps line (owner, build 229, 2026-11-11)
+
+Status: CHANGED IN SOURCE; needs AirPlay r47; device untested (the cause is inferred, not proven).
+- Owner: Speedtest 512 down / 115 up Mbps on Wi-Fi. Log 5331b718, 06:48-06:57 with nothing playing ("full speed", no
+  slowdown): Drive copy read the source at 110-360 MB/s, but each upload PUT ran 0.12-0.23 MB/s per lane; two lanes
+  together ~0.35 MB/s, the same total as one lane earlier, and the same as on 5G. A shared limit inside the app, not
+  the line or Google. No cap applies when nothing plays (slowdown.CAP is only for video/AirPlay).
+- Likely cause: Python's TLS sends a body 16 KB at a time and every step waits for the interpreter shared by all the
+  add-ons' threads. Change: upload pieces go through kodi_http_send (KodiAirPlay, NSURLSession: connection reuse,
+  HTTP/2) while the Python thread waits outside the interpreter; everything else keeps urllib. The log says which path
+  is used ("uploads use system networking") and each piece says "system networking".
+- Regression: test_native_http (status/headers/body/error mapping; only PUT pieces >= 256 KB go native; wiring),
+  test_airplay_exports (export list includes kodi_http_send; the build fails without it).

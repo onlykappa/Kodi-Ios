@@ -20,14 +20,54 @@ def paused(profile,kind):
  try:return (folder(profile)/('paused-'+kind)).exists()
  except OSError:return False
 
-def set_paused(profile,kind,on,now=None):
+def set_paused(profile,kind,on,now=None,why='you'):
+ """why: 'you' (the owner's Pause, kept until Resume) or 'airplay' (Pause and retry over AirPlay: lifted on its own
+ when AirPlay is over, release_airplay)."""
  if kind not in KINDS:raise ValueError(kind)
  path=folder(profile)/('paused-'+kind)
  if on:
-  path.parent.mkdir(parents=True,exist_ok=True);path.write_text(str(now if now is not None else time.time()))
+  path.parent.mkdir(parents=True,exist_ok=True)
+  path.write_text('%s %s'%(now if now is not None else time.time(),why))
  else:
   try:path.unlink()
   except FileNotFoundError:pass
+
+def reason(profile,kind):
+ """Why kind is paused: 'you', 'airplay', or '' when it runs. Files from before build 224 hold only a time: 'you'."""
+ try:text=(folder(profile)/('paused-'+kind)).read_text().split()
+ except OSError:return ''
+ return text[1] if len(text)>1 else 'you'
+
+# Build 224 (owner: "downloading ... its currently completely broken"; build-223 log 27f59dcd: uploads_paused true in
+# all 122 snapshots over two hours, four AllDebrid downloads waiting): AirPlay's "Pause and retry" paused uploads and
+# conversion "until resumed in Library status" and nothing ever resumed them.
+AIRPLAY_GRACE=120   # seconds after AirPlay stops before its pause is lifted
+
+def release_airplay(profile,airplay_busy,now=None,quiet_since=None):
+ """Lift pauses that AirPlay's Pause and retry set once AirPlay is over. quiet_since: a one-item list the caller
+ keeps (when AirPlay was last seen busy). Returns the kinds resumed."""
+ now=time.time() if now is None else now
+ if airplay_busy:
+  if quiet_since is not None:quiet_since[:]=[None]
+  return []
+ if quiet_since is not None:
+  if not quiet_since or quiet_since[0] is None:quiet_since[:]=[now];return []
+  if now-quiet_since[0]<AIRPLAY_GRACE:return []
+ done=[k for k in KINDS if reason(profile,k)=='airplay']
+ for k in done:set_paused(profile,k,False)
+ return done
+
+RESET='pause-reset-224'
+def reset_once(profile):
+ """Build 224, once: lift every pause carried over from earlier builds (the owner did not know uploads were paused).
+ Returns the kinds resumed ([] on later starts or when nothing was paused)."""
+ marker=folder(profile)/RESET
+ if marker.exists():return []
+ done=[k for k in KINDS if paused(profile,k)]
+ for k in done:set_paused(profile,k,False)
+ try:marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(str(time.time()))
+ except OSError:pass
+ return done
 
 def cancel_copy(profile,info_hash):
  path=folder(profile)/'cancel-up';path.parent.mkdir(parents=True,exist_ok=True)

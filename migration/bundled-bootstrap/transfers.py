@@ -8,10 +8,56 @@ import transfer_history as th,transfers_page as tp
 BACK=(9,10,92,110)
 GB=1024**3
 
-def page_state(history,now,wanted,queued):
- """(window properties, bar percent, shown kind, the other running kinds) for one refresh (pure: tested without Kodi)."""
- kind=th.pick(history,wanted,now)
- props={k:'' for k in ('kind','tint','title','now','peak','avg','started','from','line','graph')}
+MODEL_KIND={'conv':'conv','repack':'conv','copy':'up','upload':'up','down':'down'}
+
+def live(history,model):
+ """History with only the jobs the status model has moving or paused (build 193: one rule for "running" everywhere;
+ a history record up to 30 s old used to keep a stopped job on screen, or a quiet one off it)."""
+ if model is None:return history
+ import work_state
+ kinds={MODEL_KIND[j['kind']] for j in model.get('jobs') or [] if j.get('kind') in MODEL_KIND and j.get('state')!=work_state.STALE_STATE}
+ return dict(history,jobs={k:v for k,v in (history.get('jobs') or {}).items() if k in kinds})
+
+def model_entries(model):
+ """Every published job has its own chip, including simultaneous jobs of the same kind."""
+ counts={}
+ out=[]
+ for j in (model or {}).get('jobs') or []:
+  base=MODEL_KIND.get(j.get('kind'))
+  if not base:continue
+  counts[base]=counts.get(base,0)+1
+  key=base if counts[base]==1 else '%s.%d'%(base,counts[base])
+  out.append((key,j))
+ return out
+
+def model_job(model,kind):
+ return next((j for key,j in model_entries(model) if key==kind),None)
+
+
+def page_state(history,now,wanted,queued,model=None,first_seen=None):
+ """(window properties, bar percent, shown kind, the other running kinds) for one refresh (pure: tested without Kodi).
+ model: the status model (work_state.load); it decides what runs, its words and the empty state's words."""
+ history=live(history,model)
+ if model is not None:
+  import work_state
+  entries=model_entries(model)
+  first_seen={} if first_seen is None else first_seen
+  active={work_state.job_key(j) for _,j in entries}
+  for identity in list(first_seen):
+   if identity not in active:first_seen.pop(identity)
+  jobs={}
+  for k,j in entries:
+   old=(history.get('jobs') or {}).get(k) or (history.get('jobs') or {}).get(k.split('.')[0],{})
+   if old.get('title')!=j['title']:old={}
+   identity=work_state.job_key(j)
+   start=first_seen.setdefault(identity,old.get('start',now))
+   start=min(start,old.get('start',start));first_seen[identity]=start
+   jobs[k]=dict(old,kind=k,title=j['title'],start=start,last=now,
+                pct=j.get('pct'),done=j.get('sent') or 0,total=j.get('total') or 0)
+  history=dict(history,jobs=jobs)
+ kind=(wanted if wanted in history.get('jobs',{}) else next(iter(history.get('jobs',{})),None)) if model is not None else th.pick(history,wanted,now)
+ base=(kind or '').split('.')[0]
+ props={k:'' for k in ('kind','tint','title','now','peak','avg','started','from','line','graph','number','units','step','axis0','axis1','axis2','wait')}
  pct=0.0;others=[]
  if kind:
   job=history['jobs'][kind]
@@ -29,17 +75,38 @@ def page_state(history,now,wanted,queued):
    line='%s of %s'%(th.size(done),th.size(total)) if total else ''
   left=_left(kind,job,rate,pct,now)
   if left:line=' · '.join(x for x in (line,left) if x)
-  props.update(kind=th.LABELS[kind].upper(),tint=th.TINTS[kind],title=job['title'],now=th.mb(rate) if rate>0 else 'Starting…',
+  m=model_job(model,kind)
+  if m is not None:
+   # Slowed, paused by you or waiting for the network: the model's own words (never "Starting…" or a stale speed).
+   line=m['line'];rate=float(m.get('rate') or 0);pct=float(m.get('pct') or 0)
+  props.update(kind=th.LABELS[base].upper(),tint=th.TINTS[base],title=job['title'],
+               now=th.mb(rate) if rate>0 else ((m or {}).get('line') if m is not None and m.get('state')!='running' else 'Starting…'),
                peak=th.mb(job.get('peak')),
                avg=th.mb(job.get('sum',0)/max(1,job.get('n',1))),started=th.ago(now-job['start']),line=line)
   props['from']=th.ago(now-job['start']).replace('just now','a moment ago')
-  others=[k for k in th.running(history,now) if k!=kind]
+  props['tint']=(m or {}).get('tint_now') or props['tint']
+  props['step']=((m or {}).get('step') or th.LABELS[base]) + (' · %d%%'%pct if not (m or {}).get('indeterminate') else '')
+  props['number']='%.1f'%(rate/1048576.) if rate else '–'
+  props['units']='MB/s'+(' · '+_left(kind,job,rate,pct,now) if model is None else '')
+  if m and m.get('eta_s'):
+   import prepare_downloads
+   props['units']='MB/s · '+prepare_downloads.eta_text(m['eta_s']).replace('about ','')
+  props.update({k:v for k,v in th.graph_labels(pts,job['start'],now).items() if isinstance(v,str)})
+  props['peak']=th.mb(job.get('peak'))
+  import library_rows
+  props['started']=library_rows.clock12(job['start'])
+  props['wait']='' if len(pts)>1 and any(pt[1]>0 for pt in pts) else ((m or {}).get('step') or 'Measuring…')
+  others=list(history.get('jobs') or {})
+ props['headline']=(model or {}).get('headline','')
  for n in range(1,tp.OTHERS+1):
   k=others[n-1] if n<=len(others) else ''
   j=(history.get('jobs') or {}).get(k,{})
-  props['other.%d.label'%n]=('%s %s'%(th.LABELS[k],j.get('title',''))) if k else ''
-  props['other.%d.tint'%n]=th.TINTS.get(k,'')
-  props['other.%d.rate'%n]=th.mb((j.get('points') or [[0,0]])[-1][1]) if k else ''
+  props['other.%d.label'%n]=('Converting' if k.startswith('conv') else 'Downloading') if k else ''
+  props['other.%d.tint'%n]=(model_job(model,k) or {}).get('tint_now') or th.TINTS.get(k,'')
+  props['other.%d.rate'%n]=''
+  props['other.%d.on'%n]='true' if k and k==kind else ''
+ if model is not None:
+  queued=[(j['title'],'%s · %.1f GB'%(j['what'],float(j.get('size') or 0)/GB)) for j in model.get('next') or []]
  # Owner (build 176): "it says finished? but its clearly not finished": stopped attempts stay in History only.
  finished=[f for f in history.get('finished') or [] if now-f.get('end',0)<24*3600 and th.outcome(f)=='done']
  for n in range(1,tp.DONE+1):
@@ -53,6 +120,14 @@ def page_state(history,now,wanted,queued):
  for n in range(1,tp.NEXT+1):
   r=queued[n-1] if n<=len(queued) else ('','')
   props['next.%d.title'%n],props['next.%d.line'%n]=r
+  shown=min(len(queued),tp.NEXT)
+  props['next.%d.pos'%n]='' if n>shown else 'only' if shown==1 else 'first' if n==1 else 'last' if n==shown else 'mid'
+ # "Nothing is moving" only when nothing runs, waits or needs you (owner, build 192: it said so while converting).
+ import work_state
+ mode=(model or {}).get('mode',work_state.STALE_STATE)
+ props['empty.title']='Nothing is moving right now' if mode==work_state.IDLE else ((model or {}).get('headline') or 'Updating…')[:1].upper()+((model or {}).get('headline') or 'Updating…')[1:]
+ props['empty.text']=('Downloads, Drive copies and conversions show here while they run.' if mode==work_state.IDLE else
+                      (((model or {}).get('needs') or [{}])[0].get('text') or (model or {}).get('wait') or 'The next one starts on its own.'))
  return props,pct,kind,others
 
 def film_text(done,total):
@@ -81,7 +156,10 @@ def queue_lists(profile,now):
  for job in (state.get('jobs') or {}).values():
   src=job.get('source') or {};name=src.get('name','')
   if job.get('status') in ('waiting','paused') and name!=running and not job.get('kept') and not job.get('blocked'):
-   nexts.append((drivelibrary.display_title(name),'convert · %.1f GB'%(int(src.get('size') or 0)/GB)))
+   # A repack (prepared before build 191) is already Ready and plays; it is only rearranged to open faster (owner,
+   # build 192: "all my stuff is re converting even though it says ready").
+   what='faster start' if job.get('repack') else 'convert'
+   nexts.append((drivelibrary.display_title(name),'%s · %.1f GB'%(what,int(src.get('size') or 0)/GB)))
  return nexts
 
 def run(args=()):
@@ -92,7 +170,9 @@ def run(args=()):
  here=os.path.dirname(os.path.abspath(__file__))
  class Page(xbmcgui.WindowXMLDialog):
   def onInit(self):
-   self.wanted=wanted;self.others=[];self.counter=0;self.stop=threading.Event();self.lock=threading.Lock()
+   import live_window
+   self.guard=live_window.Guard(self)   # ISSUE-123: controls only while this page is open
+   self.wanted=wanted;self.others=[];self.first_seen={};self.graphs=th.GraphCache('transfers');self.stop=threading.Event();self.lock=threading.Lock()
    self.refresh();threading.Thread(target=self.loop,daemon=True).start()
   def loop(self):
    monitor=xbmc.Monitor()
@@ -102,16 +182,20 @@ def run(args=()):
   def refresh(self):
    with self.lock:
     now=time.time();history=th.load(profile)
-    try:nexts=queue_lists(profile,now)
-    except Exception:nexts=[]
-    props,pct,kind,self.others=page_state(history,now,self.wanted,nexts)
+    nexts=[]   # queue order and words come from the same published snapshot as the jobs
+    import work_state
+    model=work_state.load(profile,now) or {'mode':'stale','headline':'Updating…','jobs':[],'next':[]}
+    props,pct,kind,self.others=page_state(history,now,self.wanted,nexts,model,self.first_seen)
     if kind:
-     job=history['jobs'][kind]
-     self.counter+=1
-     props['graph']='special://skin/extras/portrait/graph/'+th.write_graph(folder,self.counter,th.render(job.get('points') or [],th.TINTS[kind],start=job['start'],now=now))
+     job=(history.get('jobs') or {}).get(kind) or (history.get('jobs') or {}).get(kind.split('.')[0]) or {}
+     if job.get('title')!=props['title']:job={}
+     pts=job.get('points') or []
+     # Build 194: no flat zero graph while nothing is measured yet; the card says what it is doing instead (props['wait']).
+     props['graph']=self.graphs.image(work_state.job_key(model_job(model,kind)),pts,
+      props['tint'],folder,'special://skin/extras/portrait/graph',width=tp.PLOT[2],height=tp.PLOT[3],scale=th.device_scale(),
+      start=job.get('start'),now=(pts or [[now]])[-1][0]) if not props.get('wait') else ''
     for k,v in props.items():self.setProperty(k,v)
-    try:self.getControl(tp.BAR).setPercent(float(pct))
-    except Exception:pass
+    self.guard.percent(tp.BAR,pct or 0)
   def onAction(self,action):
    if action.getId() in BACK:self.finish()
   def onClick(self,control):
@@ -121,7 +205,7 @@ def run(args=()):
    elif tp.OTHER<control<=tp.OTHER+tp.OTHERS and control-tp.OTHER<=len(self.others):
     self.wanted=self.others[control-tp.OTHER-1];self.refresh()
   def finish(self):
-   self.stop.set();self.close()
+   self.stop.set();self.guard.close()
  skin=xbmcvfs.translatePath('special://skin/')
  try:page=Page(tp.WINDOW,here,'Default','1080i')
  except RuntimeError:

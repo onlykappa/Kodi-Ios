@@ -18,7 +18,7 @@ CHUNK = 8 * 1024 * 1024  # Drive requires multiples of 256 KiB
 # Build 177 (build-176 log: the upload was busy 270 of 294 s at ~3 MB/s while the converter waited for each 8 MB
 # piece): the movie goes up in 32 MB pieces on its own thread, AHEAD pieces may wait their turn, and the converter
 # only waits when all of them are full.
-MAIN_CHUNK = 32 * 1024 * 1024
+MAIN_CHUNK = 32 * 1024 * 1024  # producer batches / existing on-disk resume pieces, not HTTP request size
 AHEAD = 4   # build 185: 4 x 32 MB may wait, so a short upload stall does not stop the converter
 # r30 (owner: "fix restarting when its closed and have it keep progress"): Drive can only carry on from what it
 # confirmed, in 256 KiB steps, and a converter can only carry on from a mark (KodiAirPlay's safe places). So pieces end
@@ -29,7 +29,7 @@ STEP = 256 * 1024
 # Build 190 (end-to-end test of an interrupted AV1 → HEVC conversion): a re-encode only has a mark every 30 s unit,
 # and 30 s of 4K HEVC is 75-300 MB. With 96 MB the movie went up past the saved mark inside every unit, so closing
 # Kodi there started the movie again. 256 MB holds a unit up to ~68 Mbit/s in memory.
-MARK_CAP = 8 * MAIN_CHUNK
+MARK_CAP = 256 * 1024 * 1024  # independent of adaptive HTTP pieces; retain large 4K resume windows
 
 
 def parse_mark(text):
@@ -64,13 +64,19 @@ class Sink:
         self.drive, self.parent, self.name, self.keep_going = drive, parent, name, keep_going
         # Owner (build 181: AirPlay of Buddy failed while Interstellar's 32 MB pieces went up, one took 94 s): while a
         # video plays, hold() is true and the pieces wait, so playback gets the whole line.
-        self.hold = hold
+        self.hold = hold          # build 193: only the owner's Pause holds now; playback slows it (gate)
+        import slowdown
+        self.gate = slowdown.Gate(keep_going=lambda: not self.closed)
         self.tracks = {}
         self.on_file = on_file
         self.background, self.clock, self.sleep = background, clock, sleep
         self.closed = False
         self.sent = 0            # bytes Drive has confirmed for the movie
         self.marks = []          # (time, sent) over the last 20 s, for the upload speed
+        self.upload_lock = threading.Lock()
+        self.uploads = {}
+        self.upload_wait = threading.Event()
+        self.finishing = False
         self.made = 0            # bytes of the movie the converter has handed over
         self.made_marks = []     # (time, made): how fast the converter makes the movie (shown before any upload)
         # r30: spool (a folder) keeps picture subtitle files there until the movie is done, so a mark can say how much
@@ -150,8 +156,18 @@ class Sink:
     def rate(self):
         """How fast the movie goes up to Drive (bytes per second over the last ~20 s)."""
         marks = list(self.marks)
-        if len(marks) < 2 or marks[-1][0] - marks[0][0] < 1:return 0.0
-        return (marks[-1][1] - marks[0][1]) / (marks[-1][0] - marks[0][0])
+        now = self.clock()
+        if not marks or now - marks[0][0] < 1:return 0.0
+        return (self.sent - marks[0][1]) / (now - marks[0][0])
+
+    def stats(self):
+        """Read by the independent heartbeat even when native progress is blocked on an upload."""
+        with self.upload_lock:uploads=list(self.uploads.values())
+        age=max((self.clock()-started for started in uploads),default=0)
+        waiting=self.upload_wait.is_set() or self.finishing
+        phase=('waiting_drive' if age>=10 else 'uploading') if waiting and uploads else ''
+        return {'out_bytes':self.sent,'up_rate':self.rate(),'upload_inflight_s':round(age,1),
+                'upload_pending':bool(uploads),'transfer_phase':phase}
 
     def made_rate(self):
         """How fast the converter hands over the movie (bytes per second over the last ~20 s)."""
@@ -163,8 +179,11 @@ class Sink:
         if track != 0:return
         self.sent = t['offset']
         now = self.clock()
+        if self.marks and self.marks[-1][1]==self.sent:return
         self.marks.append((now, self.sent))
-        self.marks[:] = [m for m in self.marks if now - m[0] <= 20]
+        # Retain the preceding anchor, including a slow first piece, so its confirmed speed is measurable.
+        old=[m for m in self.marks if now-m[0]>20]
+        self.marks[:] = old[-1:]+[m for m in self.marks if now-m[0]<=20]
 
     def _uploader(self, t, track=0):
         """A track's pieces, in order, to Drive. Errors are kept and raised in the converter's thread."""
@@ -181,7 +200,10 @@ class Sink:
             if self.closed:return
             try:
                 wire['buffer'].extend(piece)
+                began = time.monotonic()
                 self._send(wire, len(piece), final=False, sleep=self.sleep)
+                # Build 193: while a video or AirPlay plays the movie still goes up, at a share of the line.
+                self.gate.after(time.monotonic() - began)
                 self._confirmed(wire, track)
                 if saved:self._checkpoint(wire['url'], wire['offset'], saved)
                 if track == 0 and self.keep_pieces:self._drop_confirmed(wire['offset'])
@@ -227,8 +249,10 @@ class Sink:
         self.tracks[track] = t = dict(url=url, offset=offset, queued=offset, buffer=bytearray(), md5=hashlib.md5(), name=name,
                                       chunk=(MAIN_CHUNK if track == 0 else CHUNK) if background else
                                       (CHUNK if track == 0 else 256*1024))
+        t['track']=track
+        if track==0:self.sent=offset;self.marks=[(self.clock(),offset)]
         if background:
-            t['wire'] = dict(url=url, offset=offset, buffer=bytearray())
+            t['wire'] = dict(url=url, offset=offset, buffer=bytearray(),track=track)
             t['queue'] = queue.Queue(maxsize=AHEAD)
             t['thread'] = threading.Thread(target=self._uploader, args=(t, track), daemon=True)
             t['thread'].start()
@@ -288,30 +312,49 @@ class Sink:
                 continue
             piece = bytes(t['buffer'][:n])
             if track == 0 and self.keep_pieces:saved = None   # marks are saved as they come (mark_from)
-            while True:   # wait for room, but never forever: an upload error or a pause ends the wait
-                self._raise(t)
-                if not self.keep_going():raise driveupload.Stop('Preparation paused')
-                try:t['queue'].put((piece, saved), timeout=0.5);break
-                except queue.Full:continue
+            try:
+                while True:   # wait for room, but never forever: an upload error or a pause ends the wait
+                    self._raise(t)
+                    if not self.keep_going():raise driveupload.Stop('Preparation paused')
+                    try:t['queue'].put((piece, saved), timeout=0.5);break
+                    except queue.Full:self.upload_wait.set()
+            finally:self.upload_wait.clear()
             del t['buffer'][:n]
             t['queued'] += n
 
     def _send(self, t, length, final, attempts=8, sleep=None):
+        with self.upload_lock:self.uploads[id(t)]=self.clock()
+        try:return self._send_parts(t,length,final,attempts,sleep)
+        finally:
+            with self.upload_lock:self.uploads.pop(id(t),None)
+
+    def _send_parts(self, t, length, final, attempts=8, sleep=None):
         """Send the first `length` buffered bytes. Drive may keep only part of a chunk (308 with a shorter Range) or
         answer 5xx: what it confirmed is dropped from the buffer and the rest is sent again (owner, build 169:
         Interstellar failed after two hours on "did not acknowledge its byte range")."""
-        import time
         sleep = sleep or time.sleep
         target = t['offset'] + length
-        for attempt in range(attempts):
-            if not self.keep_going():raise driveupload.Stop('Preparation paused')
+        chunks=t.get('chunks')
+        if chunks is None:
+            chunks=t['chunks']=driveupload.StreamChunks()
+            chunks.current=chunks.minimum  # first acknowledgement is quick even on an unknown slow uplink
+        failures=0
+        while failures<attempts:
+            if self.closed or not self.keep_going():raise driveupload.Stop('Preparation paused')
+            while self.hold():
+                if self.closed or not self.keep_going():raise driveupload.Stop('Preparation paused')
+                time.sleep(.25)
             start = t['offset']
-            remaining = target - start
-            body = bytes(t['buffer'][:remaining])
-            content_range = 'bytes %d-%d/%s' % (start, target - 1, str(target) if final else '*')
+            remaining = target-start
+            end=start+min(remaining,chunks.current)
+            body=bytes(t['buffer'][:end-start])
+            content_range=('bytes %d-%d/%s'%(start,end-1,str(target) if final else '*')) if remaining else 'bytes */%d'%target
+            began=self.clock()
+            with self.upload_lock:self.uploads[id(t)]=began
             try:status, headers, answer = self.drive.call('PUT', t['url'], body, {'Content-Range':content_range})
             except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):
                 status, headers, answer = 0, {}, b''
+            elapsed=max(.001,self.clock()-began)
             if final and status in (200, 201):
                 result = json.loads(answer)
                 if int(result.get('size', -1)) != target or (t['md5'] is not None and result.get('md5Checksum', '').lower() != t['md5'].hexdigest()):
@@ -319,26 +362,35 @@ class Sink:
                 t['result'] = result
                 del t['buffer'][:remaining]
                 t['offset'] = target
+                self._confirmed(t,t.get('track',0))
                 return
             if status != 308:
                 # Lost answer or a Drive hiccup: ask how far it got, then carry on from there.
-                sleep(min(30, 2 ** attempt))
+                failures+=1
+                chunks.observe(max(1,len(body)),0,max(6,elapsed))
+                sleep(min(30, 2 ** (failures-1)))
                 try:status, headers, answer = self.drive.call('PUT', t['url'], b'', {'Content-Range':'bytes */%s' % (str(target) if final else '*')})
                 except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):continue
                 if final and status in (200, 201):
                     result = json.loads(answer)
                     if int(result.get('size', -1)) == target and (t['md5'] is None or result.get('md5Checksum', '').lower() == t['md5'].hexdigest()):
-                        t['result'] = result;del t['buffer'][:remaining];t['offset'] = target;return
+                        t['result'] = result;del t['buffer'][:remaining];t['offset'] = target
+                        self._confirmed(t,t.get('track',0));return
                     raise RuntimeError('Prepared Drive file checksum differs')
                 if status != 308:continue
             got = driveupload._next_offset(headers) if headers.get('Range') or headers.get('range') else start
-            if got < start or got > target:raise RuntimeError('Preparation upload offset is invalid')
+            if got < start or got > end:raise RuntimeError('Preparation upload offset is invalid')
             del t['buffer'][:got - start]
             t['offset'] = got
+            self._confirmed(t,t.get('track',0))
+            if got>start:
+                chunks.observe(got-start,0,elapsed);failures=0
+            else:failures+=1
             if got == target and not final:return
         raise RuntimeError('Preparation upload did not acknowledge its byte range')
 
     def finish(self):
+        self.finishing=True
         # r30: picture subtitle files kept on the phone go up now, before the movie.
         for track, path in sorted(self.spooled.items()):
             if track in self.tracks:continue
@@ -355,7 +407,11 @@ class Sink:
             t = self.tracks[track]
             if t.get('queue') is not None:
                 # Every piece handed over must be confirmed before the last one is sent.
-                t['queue'].put(None)
+                while True:
+                    self._raise(t)
+                    if not self.keep_going():raise driveupload.Stop('Preparation paused')
+                    try:t['queue'].put(None,timeout=.5);break
+                    except queue.Full:continue
                 while t['thread'].is_alive():
                     t['thread'].join(timeout=0.5)
                     if not self.keep_going():
@@ -366,6 +422,7 @@ class Sink:
             self._confirmed(t, track)
             self.on_file(str(track),t['result'])
         if 0 not in self.tracks:raise RuntimeError('Preparation produced no video')
+        self.finishing=False
         return {str(k):t['result'] for k,t in self.tracks.items()}
 
 

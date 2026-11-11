@@ -129,7 +129,7 @@ class SpeedEverywhere(unittest.TestCase):
   early=library_rows.details(dict(row,pct=0,film_done=None,film_total=None,pace=None,eta_s=0,out_total=0,probe=None),{'free':0})
   self.assertEqual(dict(early['facts'])['Done so far'],'starting');self.assertEqual(dict(early['facts'])['Ready around'],'working it out')
   self.assertEqual(early['bar'],'');self.assertNotIn('Pace',dict(early['facts']))
-  self.assertIn('<control type="progress" id="9210">',(LIB/'library_page.py').read_text())
+  self.assertIn("sheet['steps']",(LIB/'library_rows.py').read_text())
  def test_ready_sheet(self):
   import library_rows,time
   now=time.time()
@@ -137,7 +137,7 @@ class SpeedEverywhere(unittest.TestCase):
        'completed':now-60,'started_at':now-60-41*60}
   s=library_rows.details(row,{'free':0});facts=dict(s['facts'])
   self.assertEqual(s['actions'],[('Play','play'),('Play on TV','tv')]);self.assertEqual(s['card'],'')
-  self.assertEqual(facts['Picture'],'4K HDR');self.assertEqual(facts['Made ready'],'Today · took 41 min');self.assertEqual(facts['Size'],'16.9 GB')
+  self.assertEqual(facts['Picture'],'4K HDR');self.assertEqual(facts['Kodi'],'Opens in about 1 s');self.assertEqual(facts['AirPlay'],'Ready, seeks instantly')
  def test_live_card(self):
   import library_rows,transfer_history as th
   d={}
@@ -147,7 +147,7 @@ class SpeedEverywhere(unittest.TestCase):
   props,pts=library_rows.card(d,'conv','Interstellar (2014)',1060);self.assertEqual((props['card.now'],pts),('starting',[]))
  def test_cloud_progress_records_speed_and_folder_icons_resolve(self):
   self.assertIn("detail=prep.speed_text(*speed),eta=eta,eta_s=eta_s",(LIB/'prepare_cloud.py').read_text())
-  self.assertIn("p.ICONS + '$INFO[ListItem.Property(icon)]'",(LIB/'library_page.py').read_text())
+  self.assertIn('circle-check.png',(LIB/'library_page.py').read_text())
 
 class Build175Log(unittest.TestCase):
  """Build-175 log: per 30 s of Inception the video took 37 s on the phone's hardware and each of its two audio tracks
@@ -196,9 +196,11 @@ class Build175Log(unittest.TestCase):
     native.convert_to('src',None,lambda:False,lambda *a:None,paused=lambda:False)
  def test_the_service_and_upload_wait_through_playback(self):
   svc=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
-  self.assertIn("preparation.paused=lambda:(not monitor.abortRequested() and (xbmc.Player().isPlayingVideo() or transfer_control.paused(profile,'conv') or airplay_busy())",svc)
+  # Build 193: playback slows the conversion (slowdown.py); only the owner's Pause holds it where it is.
+  self.assertIn("preparation.paused=lambda:(not monitor.abortRequested() and transfer_control.paused(profile,'conv') and",svc)
+  self.assertNotIn('isPlayingVideo() or transfer_control',svc)
   cloud=(LIB/'prepare_cloud.py').read_text()
-  self.assertIn('drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=paused,',cloud)
+  self.assertIn("drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=lambda:paused() or __import__('slowdown').holding(),",cloud)
   self.assertIn('converted_progress,paused,waiting,resume=',cloud)
 
 class AV1Speed(unittest.TestCase):
@@ -232,7 +234,7 @@ class Build178Log(unittest.TestCase):
   self.assertIn('if(p->codec_type==AVMEDIA_TYPE_AUDIO && !keep_audio(original,i))continue;',c)
   self.assertIn('(p->codec_type==AVMEDIA_TYPE_AUDIO && keep_audio(original,i))',c)   # verify counts the same tracks
   b=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
-  self.assertIn('_kodi_airplay_prepare_audio_languages',b);self.assertIn("== 23 ]]",b)   # r30: prepare_marks, prepare_resume
+  self.assertIn('_kodi_airplay_prepare_audio_languages',b);self.assertIn("== 29 ]]",b)   # r35: network, Settings and active lifetime; r39: start_at; r40: serve; r41: serve_segmented
  def test_language_codes(self):
   self.assertEqual(prep.audio_languages('English','resource.language.en_gb'),'en,eng')
   self.assertEqual(prep.audio_languages('original','resource.language.de_de'),'de,ger,deu')
@@ -323,7 +325,7 @@ class Build180Log(unittest.TestCase):
  def test_copies_read_ahead_and_bigger_pieces(self):
   import driveupload,drive_stream
   self.assertEqual(driveupload.CHUNK,32*1024*1024);self.assertEqual(drive_stream.KEEP,24)
-  self.assertIn('if end+1<size:coming=ahead.submit(read,end+1)',(LIB/'driveupload.py').read_text())
+  self.assertIn('if end+1<size:coming=ahead.submit(read,end+1,chunks.current)',(LIB/'driveupload.py').read_text())
 
 class Build181Log(unittest.TestCase):
  """Build-181 log: the upload waited for the Drive read 45% of the time; the Home hero came 60 s late."""
@@ -368,11 +370,12 @@ class AirPlayGetsTheLine(unittest.TestCase):
   clock.sleep(1.3);self.assertEqual(sent,[])          # held while the video plays
   state['hold']=False;clock.sleep(1.5);self.assertEqual(sent,[10])
   sink.closed=True;th.join(3)
-  self.assertIn('hold=paused',(LIB/'prepare_cloud.py').read_text())
- def test_no_read_ahead_while_a_video_plays(self):
+  self.assertIn('hold=lambda:paused() or',(LIB/'prepare_cloud.py').read_text())
+ def test_read_ahead_while_a_video_plays(self):
+  # Build 193: one block ahead while a video or AirPlay plays (slowed, never stopped); none only when the owner paused.
   s=(LIB/'drive_stream.py').read_text()
-  self.assertIn('for step in range(1, 0 if stream.hold() else READ_AHEAD + 1):',s)
-  self.assertIn('if preparation.stream:preparation.stream.hold=preparation.paused',(ROOT/'migration/bundled-bootstrap/service.py').read_text())
+  self.assertIn('for step in range(1, 0 if stream.hold() else (stream.ahead_blocks or (2 if stream.playback else 1 if slowdown.reason() else READ_AHEAD)) + 1):',s)
+  self.assertIn('if preparation.stream:preparation.stream.hold=lambda:preparation.paused() or slowdown.holding()',(ROOT/'migration/bundled-bootstrap/service.py').read_text())
 
 class PreparedAirPlayServer(unittest.TestCase):
  """Build-181 log: every range AVPlayer asked for opened a new connection to Drive (1-6 s each): "Cannot Complete
@@ -381,7 +384,10 @@ class PreparedAirPlayServer(unittest.TestCase):
   c=(ROOT/'migration/airplay-ios/remux/src/kr_remux.c').read_text()
   serve=c.split('static void serve_prepared(')[1].split('\n}\n')[0]
   self.assertNotIn('kr_source_open',serve);self.assertIn('prepared_read(first,buffer,want,error,sizeof error)',serve)
-  self.assertIn('#define PC_BLOCK (4 * 1024 * 1024)',c);self.assertEqual(c.count('prepared_cache_clear();'),2)
+  self.assertIn('kr_source_cached_read(S.src,offset,buf,want)',c)
+  source=(ROOT/'migration/airplay-ios/remux/src/kr_source.c').read_text()
+  self.assertIn('#define SOURCE_BLOCK (128 * 1024)',source);self.assertIn('source_cache *cache;',source)
+  self.assertEqual(c.count('prepared_cache_clear();'),2)
 
 class UploadStalls(unittest.TestCase):
  """Build-184 log: a 32 MB piece hung 120 s with nothing moving before it was retried, and with only 2 pieces allowed

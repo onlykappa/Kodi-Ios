@@ -58,13 +58,17 @@ def _log(text):
 
 
 def queue_snapshot(profile, now=None):
-    """The Queue page's content right now: requests not yet applied by the service show at once (as Library status)."""
-    import debrid_drive
+    """The Queue page's metadata and published order; the service reflects requests in its next two-second snapshot."""
     import prepare_downloads
     now = time.time() if now is None else now
-    state = prepare_downloads.apply_to(prepare_downloads.snapshot(profile), prepare_downloads.pending_requests(profile), now)
+    import work_state
+    model = work_state.current(profile, now)
+    state = work_state.align(prepare_downloads.snapshot(profile), model)   # build 193: the status model
+    state = prepare_downloads.apply_to(state, prepare_downloads.pending_requests(profile), now)
     view = prepare_downloads.library_view(state, now=lambda: now)
-    return lt.queue_view(view, lt.debrid_jobs(debrid_drive.load(profile)), now)
+    import library_rows
+    view=library_rows.with_model(view,model)
+    return lt.queue_view(view, now=now)
 
 
 def open_queue(profile=None):
@@ -75,8 +79,11 @@ def open_queue(profile=None):
 
     class Queue(xbmcgui.WindowXMLDialog):
         def onInit(self):
+            import live_window
+            self.guard = live_window.Guard(self)   # ISSUE-123: controls only while this page is open
             self.stop = threading.Event()
             self.lock = threading.Lock()
+            self.offset=0
             self.line = []
             self.refresh()
             threading.Thread(target=self.loop, daemon=True).start()
@@ -92,9 +99,20 @@ def open_queue(profile=None):
         def refresh(self):
             with self.lock:
                 q = queue_snapshot(profile)
-                self.line = q['line']
-                for k, v in lt.queue_properties(q).items():
+                # The existing page controls also page Drive jobs; none disappear beyond its three row slots.
+                total=max(len(q['line']),((len(q['drive'])+page.DRIVE_SLOTS-1)//page.DRIVE_SLOTS)*page.QUEUE_SLOTS)
+                self.offset=min(self.offset,max(0,(total-1)//page.QUEUE_SLOTS*page.QUEUE_SLOTS))
+                self.line = q['line'][self.offset:self.offset+page.QUEUE_SLOTS]
+                self.setProperty('pages','true' if total>page.QUEUE_SLOTS else '')
+                self.setProperty('page.previous','true' if self.offset else '')
+                self.setProperty('page.more','true' if self.offset+page.QUEUE_SLOTS<total else '')
+                drive_offset=(self.offset//page.QUEUE_SLOTS)*page.DRIVE_SLOTS
+                q=dict(q,line=self.line,drive=q['drive'][drive_offset:drive_offset+page.DRIVE_SLOTS])
+                props = lt.queue_properties(q)
+                for k, v in props.items():
                     self.setProperty(k, v)
+                # Kodi cannot size a progress bar from a window property; set it only while the page is open.
+                self.guard.percent(page.QBAR, props.get('now.pct') or 0)
 
         def onAction(self, action):
             if action.getId() in BACK:
@@ -102,12 +120,14 @@ def open_queue(profile=None):
 
         def finish(self):
             self.stop.set()
-            self.close()
+            self.guard.close()
 
         def onClick(self, control):
             if control == page.BACK:
                 self.finish()
                 return
+            if control in (page.QPREV,page.QNEXT):
+                self.offset=max(0,self.offset+(page.QUEUE_SLOTS if control==page.QNEXT else -page.QUEUE_SLOTS));self.refresh();return
             for base, action in ((page.UP, 'up'), (page.DOWN, 'down')):
                 n = control - base
                 if 1 <= n <= page.QUEUE_SLOTS and n <= len(self.line):
@@ -119,18 +139,35 @@ def open_queue(profile=None):
 
 
 def open_history(profile=None):
+    import xbmc
     import xbmcgui
     import transfer_history as th
     profile = profile or _profile()
 
     class History(xbmcgui.WindowXMLDialog):
         def onInit(self):
+            self.offset=0
             self.day = getattr(self, 'day', 'today')
+            self.stop=threading.Event()
             self.refresh()
+            threading.Thread(target=self.loop,daemon=True).start()
+
+        def loop(self):
+            monitor=xbmc.Monitor()
+            while not self.stop.is_set() and not monitor.waitForAbort(2):
+                try:self.refresh()
+                except Exception as error:_log('history: %s'%error)
 
         def refresh(self):
             now = time.time()
             h = lt.history_view(th.load(profile).get('finished') or [], th.failures(profile, now), now, self.day)
+            total=len(h['rows'])
+            self.offset=min(self.offset,max(0,(total-1)//page.HISTORY_SLOTS*page.HISTORY_SLOTS))
+            self.setProperty('pages','true' if total>page.HISTORY_SLOTS else '')
+            h=dict(h,rows=h['rows'][self.offset:self.offset+page.HISTORY_SLOTS])
+            self.entries=h['rows']
+            for entry in self.entries:
+                entry['retry']=retry_target(profile,entry)
             for k, v in lt.history_properties(h, self.day).items():
                 self.setProperty(k, v)
 
@@ -141,10 +178,47 @@ def open_history(profile=None):
         def onClick(self, control):
             if control == page.BACK:
                 self.close()
+            elif control in (page.HPREV,page.HNEXT):
+                self.offset=max(0,self.offset+(page.HISTORY_SLOTS if control==page.HNEXT else -page.HISTORY_SLOTS));self.refresh()
+            elif page.RETRY < control <= page.RETRY + page.HISTORY_SLOTS:
+                n=control-page.RETRY-1
+                if n<len(self.entries) and self.entries[n].get('retry'):
+                    retry_history(profile,self.entries[n]['retry']);self.refresh()
             elif page.DAY < control <= page.DAY + len(lt.DAYS):
+                self.offset=0
                 self.day = lt.DAYS[control - page.DAY - 1][0]
                 self.refresh()
     show(History, page.HISTORY)
+
+
+def retry_target(profile, entry):
+    """Resolve a unique owning job. Ambiguous legacy titles must never retry another copy."""
+    if entry.get('tone')=='ok':return None
+    import prepare_downloads as prep
+    import debrid_drive
+    import drivelibrary
+    if entry.get('kind')=='conv':
+        matches=[j for j in (prep.load(profile).get('jobs') or {}).values()
+                 if (j.get('source') or {}).get('id') and
+                 drivelibrary.display_title(j['source'].get('name',''))==entry.get('title')]
+        ids={j['source']['id'] for j in matches}
+        stopped=any(j.get('blocked') and j.get('repack_failed') for j in matches)
+        return ('conv',matches[0]['source']['id']) if len(ids)==1 and not stopped else None
+    if entry.get('kind')=='up':
+        matches=[j for j in debrid_drive.load(profile).get('jobs') or [] if j.get('status')=='failed' and
+                 (j.get('title') or drivelibrary.display_title(j.get('name','')))==entry.get('title')]
+        ids={(j['hash'],j.get('episode','')) for j in matches}
+        return ('up',matches[-1]) if len(ids)==1 else None
+    return None
+
+
+def retry_history(profile, target):
+    import prepare_downloads as prep
+    import debrid_drive
+    if target[0]=='conv':prep.request(profile,'retry',target[1])
+    else:
+        j=target[1]
+        debrid_drive.queue(profile,{'id':j['hash'],'name':j['name']},j['kind'],j.get('title',''),j.get('season',''),j.get('episode',''),episodes=j.get('episodes') or [])
 
 
 def airplay_properties(profile, now=None):

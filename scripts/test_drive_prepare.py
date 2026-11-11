@@ -134,18 +134,32 @@ class Upload(unittest.TestCase):
 class BackgroundUpload(unittest.TestCase):
  """Build 177 (build-176 log: upload busy 270 of 294 s at ~3 MB/s, the converter waiting on each 8 MB piece)."""
  def test_converter_does_not_wait_for_a_slow_upload(self):
-  import time as _t
-  d=Drive();orig=d.call;puts=[]
+  import threading
+  d=Drive();orig=d.call;puts=[];entered=threading.Event();release=threading.Event();done=threading.Event();errors=[]
   def slow(method,url,body=None,headers=None):
-   if method=='PUT' and body:_t.sleep(1.5);puts.append(len(body))   # one piece takes 1.5 s to go up
+   if method=='PUT' and body:
+    entered.set()
+    if not release.wait(10):raise TimeoutError('Test upload was not released')
+    puts.append(len(body))
    return orig(method,url,body,headers)
   d.call=slow;sink=dp.Sink(d,'staging','prepared',lambda:True)
   piece=b'z'*(dp.MAIN_CHUNK)
-  t0=_t.monotonic();sink.write(0,'.mp4',piece);sink.write(0,'.mp4',piece);sink.write(0,'.mp4',b'end')
-  self.assertLess(_t.monotonic()-t0,1.0)   # handed over, not uploaded in this thread (that alone would take 1.5 s)
+  def produce():
+   try:sink.write(0,'.mp4',piece);sink.write(0,'.mp4',piece);sink.write(0,'.mp4',b'end')
+   except BaseException as error:errors.append(error)
+   finally:done.set()
+  producer=threading.Thread(target=produce,daemon=True);producer.start()
+  try:
+   self.assertTrue(entered.wait(5),'background uploader started')
+   self.assertTrue(done.wait(5),'converter returned while the network upload is still blocked')
+   self.assertFalse(errors)
+   self.assertFalse(release.is_set())
+  finally:release.set();producer.join(5)
+  self.assertFalse(producer.is_alive())
   result=sink.finish()['0']
   self.assertEqual(d.files[result['id']]['data'],piece*2+b'end')
-  self.assertEqual(puts[:2],[dp.MAIN_CHUNK,dp.MAIN_CHUNK]);self.assertEqual(sink.sent,dp.MAIN_CHUNK*2+3)
+  self.assertTrue(all(0<n<=8*1024*1024 for n in puts))
+  self.assertEqual(sum(puts),dp.MAIN_CHUNK*2+3);self.assertEqual(sink.sent,dp.MAIN_CHUNK*2+3)
  def test_upload_error_reaches_the_converter_and_original_stays(self):
   d=Drive();orig=d.call
   def broken(method,url,body=None,headers=None):
@@ -194,6 +208,22 @@ class Queue(unittest.TestCase):
   self.assertTrue(self.q.state['jobs']['slot']['blocked'])
   self.assertFalse(self.q.process_one())
   self.assertEqual(self.d.files['source']['data'],b'original')
+ def test_failed_faster_start_is_not_retried_for_ever(self):
+  # Build-192 log 13:55:08: Fall 2's re-pack failed at 22 % on "MP4 packet: Invalid argument"; each retry restarts at 0 %.
+  notes=[];self.q.notify=lambda kind,title,text:notes.append((kind,title,text))
+  def refused(*args,**kwargs):raise RuntimeError('MP4 packet: Invalid argument')
+  self.n.convert_to=refused
+  self.q.state['jobs']['slot']['repack']=True
+  self.assertFalse(self.q.process_one())
+  job=self.q.state['jobs']['slot'];self.assertTrue(job['blocked']);self.assertTrue(job['repack_failed'])
+  self.assertEqual(notes,[('info','Kept as it is',"Film still plays in Kodi and on AirPlay; it couldn't be made to start faster.")])
+  self.assertFalse(self.q.process_one());self.assertEqual(len(notes),1)          # not tried again
+  self.assertEqual(self.d.files['source']['data'],b'original')
+ def test_same_error_on_a_first_conversion_is_retried(self):
+  def refused(*args,**kwargs):raise RuntimeError('MP4 packet: Invalid argument')
+  self.n.convert_to=refused
+  self.assertFalse(self.q.process_one());job=self.q.state['jobs']['slot']
+  self.assertFalse(job.get('blocked'));self.assertGreater(job['retry_after'],0)   # a movie that is not ready yet keeps trying
  def test_end_to_end_queue_writes_no_local_media_and_marks_ready(self):
   with patch.object(prep.phone_space,'free',return_value=0):self.assertTrue(self.q.process_one())
   # Build 181: uploaded once. The prepared file takes the original's place; the original goes to the bin.

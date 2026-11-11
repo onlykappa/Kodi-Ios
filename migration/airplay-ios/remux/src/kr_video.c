@@ -5,6 +5,7 @@
 // decoded and dropped). Timestamps stay the source's (absolute), so tfdt places each fragment on the timeline.
 // A fresh encoder per segment: its first frame is an IDR, no B-frames, so every segment is a closed GOP.
 #include "kr_video.h"
+#include <libavutil/intreadwrite.h>
 #include "kr_audio.h"  // kr_first_moof
 #include "kr_color.h"
 #include "kr_subs.h"   // r10: burned-in subtitles
@@ -41,6 +42,7 @@ struct kr_video {
     int64_t pos;
     AVFormatContext *in;
     int index;
+    int fresh;
     AVCodecContext *dec;
     AVBufferRef *hw;          // VideoToolbox device, NULL for software decoding
     int ow, oh;               // output size
@@ -66,7 +68,13 @@ struct kr_video {
     double sub_scan_to;
     atomic_int abort;         // sticky: the server is stopping
     atomic_int cancel;        // r8: give up the conversion in progress only (the next one clears it)
+    void (*on_init)(void *,const uint8_t *,int);
+    void *init_context;
 };
+
+void kr_video_on_init(kr_video *v,void (*callback)(void *,const uint8_t *,int),void *context) {
+    if(v){v->on_init=callback;v->init_context=context;}
+}
 
 static const char *encoder_name;
 static const char *hdr_encoder_name;
@@ -189,18 +197,25 @@ static int open_decoder(kr_video *v, int hw, char *err, int errlen) {
     return 0;
 }
 
+static int demux_interrupted(void *context) { return kr_video_interrupted(context); }
+
 kr_video *kr_video_open(gm_source src, int index, char *err, int errlen) {
     kr_video *v = calloc(1, sizeof *v);
     if (!v) return NULL;
-    v->src = src; v->index = index; v->last_path = -1; v->sub_index = -1; v->cov_from = v->cov_to = -1; v->sub_scan_to=-1;
+    v->src = src; v->index = index; v->fresh=1; v->last_path = -1; v->sub_index = -1; v->cov_from = v->cov_to = -1; v->sub_scan_to=-1;
     uint8_t *iob = av_malloc(1 << 16);
     AVIOContext *io = avio_alloc_context(iob, 1 << 16, 0, v, in_read, NULL, in_seek);
     v->in = avformat_alloc_context();
     if (!io || !v->in) { seterr(err, errlen, "out of memory", 0); av_free(iob); goto fail; }
     v->in->pb = io;
+    v->in->interrupt_callback=(AVIOInterruptCB){demux_interrupted,v};
     v->in->probesize = 2 * 1024 * 1024;
     v->in->max_analyze_duration = 2 * AV_TIME_BASE;
-    int r = avformat_open_input(&v->in, NULL, NULL, NULL);
+    AVDictionary *input_opts=NULL;
+    av_dict_set(&input_opts,"use_mfra_for","pts",0);
+    av_dict_set(&input_opts,"skip_estimate_duration_from_pts","1",0);
+    int r = avformat_open_input(&v->in, NULL, NULL, &input_opts);
+    av_dict_free(&input_opts);
     if (r < 0) { seterr(err, errlen, "open", r); v->in = NULL; avio_context_free(&io); goto fail; }
     if ((r = avformat_find_stream_info(v->in, NULL)) < 0) { seterr(err, errlen, "probe", r); goto fail; }
     if (index < 0 || index >= (int)v->in->nb_streams || v->in->streams[index]->codecpar->codec_type != AVMEDIA_TYPE_VIDEO) {
@@ -219,7 +234,7 @@ kr_video *kr_video_open(gm_source src, int index, char *err, int errlen) {
     v->want_hw = v->hw != NULL;
     AVStream *st = v->in->streams[index];
     kr_video_output_size(st->codecpar->width, st->codecpar->height, &v->ow, &v->oh);
-    v->fps = st->avg_frame_rate.num > 0 && st->avg_frame_rate.den > 0 ? st->avg_frame_rate : st->r_frame_rate;
+    v->fps = av_guess_frame_rate(v->in,st,NULL);
     if (v->fps.num <= 0 || v->fps.den <= 0) v->fps = (AVRational){ 24000, 1001 };
     av_reduce(&v->fps.num, &v->fps.den, v->fps.num, v->fps.den, 60000);
     for (unsigned i = 0; i < v->in->nb_streams; i++) v->in->streams[i]->discard = i == (unsigned)index ? AVDISCARD_DEFAULT : AVDISCARD_ALL;
@@ -402,6 +417,7 @@ static int open_encoder(job *j, char *err, int errlen) {
     c->rc_max_rate = c->bit_rate * 3 / 2;
     c->rc_buffer_size = (int)c->bit_rate * 2;
     c->gop_size = 100000;      // one keyframe: the first frame of the segment
+    if(v->offline)c->gop_size=(int)fmax(1,round(av_q2d(v->fps)*2)); // future prepared movies seek/chunk every ~2 s
     c->max_b_frames = 0;       // pts == dts, closed GOP
     c->color_range = AVCOL_RANGE_MPEG;
     c->color_primaries = AVCOL_PRI_BT709; c->color_trc = AVCOL_TRC_BT709; c->colorspace = AVCOL_SPC_BT709;
@@ -464,7 +480,21 @@ static int write_packet(job *j, AVPacket *pk) {
     pk->pos = -1;
     av_packet_rescale_ts(pk, j->tb, j->oc->streams[0]->time_base);  // the muxer picked its own timescale
     int r = av_interleaved_write_frame(j->oc, pk);
-    if (r == 0) j->written++;
+    if (r == 0) {
+        j->written++;
+        if(j->written==1 && j->v->on_init && !j->v->offline) {
+            // delay_moov needs one encoded packet (VideoToolbox may not provide SPS/PPS at open).
+            // Flush the header now; retain all media in this unit for the normal segment response.
+            av_write_frame(j->oc,NULL);avio_flush(j->io);
+            gm_buf *b=j->w.b;
+            for(int at=0;at+8<=b->len;) {
+                uint32_t size=AV_RB32(b->data+at);
+                if(size<8 || size>(uint32_t)(b->len-at))break;
+                if(!memcmp(b->data+at+4,"moov",4)){j->v->on_init(j->v->init_context,b->data,at+(int)size);break;}
+                at+=(int)size;
+            }
+        }
+    }
     return r;
 }
 
@@ -665,6 +695,10 @@ send:
 // every container (MPEG-TS lands on the next keyframe after the target), so the first packet is checked and the seek
 // goes further back when it is late; the beginning of the file is the last resort.
 static void seek_before(kr_video *v, double start) {
+    // find_stream_info retains its initial packets. Some FLV files cannot seek back to timestamp zero;
+    // on a freshly opened demuxer the buffered beginning is already the correct starting position.
+    if(start<=0 && v->fresh){v->fresh=0;return;}
+    v->fresh=0;
     AVStream *st = v->in->streams[v->index];
     double back = 0.25;
     AVPacket *p = av_packet_alloc();
@@ -696,6 +730,7 @@ static void sub_lookback(kr_video *v, double start) {
     v->sub_scan_to=-1;
     double span=10,from = fmax(0,start-span);
     if (v->cov_from >= 0 && v->cov_from <= from + 1e-3 && v->cov_to >= start - 1e-3) return;
+    v->fresh=0;
     AVStream *vs = v->in->streams[v->index];
     AVPacket *p = av_packet_alloc();
     if (!p) return;

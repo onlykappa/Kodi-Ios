@@ -20,9 +20,37 @@ def read(profile,clock=time.time):
 
 def active():return _active.is_set()
 
+def current(item,runtime):
+ """Merge independent transport evidence; a blocked producer cannot refresh native progress itself."""
+ item=dict(item)
+ if not runtime or not item.get('running'):return item
+ item['updated']=runtime.get('updated',item.get('updated',0))
+ item['indeterminate']=not runtime.get('known')
+ item['stage']=runtime.get('phase') or item.get('stage')
+ for name in ('up_rate','out_bytes','upload_inflight_s'):
+  if name in runtime:item[name]=runtime[name]
+ phase=runtime.get('transfer_phase')
+ if phase in ('uploading','waiting_drive') and not item.get('paused'):
+  item.update(stage='Uploading to Google Drive' if phase=='uploading' else 'Waiting for Drive',
+              rate=runtime.get('up_rate',0),eta='',eta_s=0,indeterminate=False)
+  item['detail']='Drive is receiving the upload' if phase=='uploading' else 'Waiting for the current upload to finish'
+ elif item['indeterminate'] and runtime.get('read_bytes'):
+  item['stage']+=' · %.0f MB read'%(runtime['read_bytes']/1024**2)
+ return item
+
 def pending(state):
  return bool(state.get('staging_cleanup')) or any(j.get('status') not in ('done','superseded') and not j.get('blocked') and not j.get('kept')
                                                for j in (state.get('jobs') or {}).values())
+
+def schedule(state,paused=False,now=None):
+ """Explain the worker gate without media names, IDs or credentials."""
+ now=time.time() if now is None else now
+ jobs=[j for j in (state.get('jobs') or {}).values()
+       if j.get('status') not in ('done','superseded') and not j.get('blocked') and not j.get('kept')]
+ eligible=sum(float(j.get('retry_after') or 0)<=now for j in jobs)
+ active=bool((state.get('current') or {}).get('running'))
+ reason='running' if active else 'owner_paused' if paused and jobs else 'ready' if eligible else 'retry_wait' if jobs else 'no_jobs'
+ return {'reason':reason,'queued_jobs':len(jobs),'eligible_jobs':eligible,'owner_paused':bool(paused)}
 
 def problem(error):
  """Useful transport diagnostics without signed URLs, access tokens or request headers."""

@@ -43,6 +43,8 @@ int kr_video_pick_stream(gm_stream *s);
 
 // Opens its own demuxer over `src` (a second connection) for video stream `index`.
 kr_video *kr_video_open(gm_source src, int index, char *err, int errlen);
+// Live server: publish the init as soon as the encoder has codec configuration, before the full unit finishes.
+void kr_video_on_init(kr_video *v, void (*callback)(void *, const uint8_t *, int), void *context);
 // Offline preparation only: keep the selected source's dimensions (never the live 1080p limit).
 void kr_video_keep_resolution(kr_video *v);
 // Host tests may select libx265; the shipped iOS build uses Apple HEVC VideoToolbox.

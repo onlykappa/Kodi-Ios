@@ -1,0 +1,53 @@
+{
+  "build": 219,
+  "source_commit": "2d658de5ede446f9d8170a5c0185b1e5ee3c3efa",
+  "workflow_run": 42755715794,
+  "framework_tag": "kodi-airplay-r43",
+  "framework_source_commit": "0a5ad576ad757233384532186a105a096a8517fc",
+  "native_candidate_run": 42695837108,
+  "filename": "Kodi-iOS-Customized-Touch-r10.ipa",
+  "bytes": 620487865,
+  "sha256": "a9b36d4ef3c8bcdc66a422ffa8e4c30cb83637125f8d893387e7a3dd47af224b",
+  "asset_digest_matches": true,
+  "zip_integrity_passed": true,
+  "framework_equals_verified_release_after_signature_removal": true,
+  "latest_controller_helpers_and_python311_bytecode_present": true,
+  "unsigned_unencrypted_arm64_images": 154,
+  "kodi_executable_release": "kodi-ios-portrait-r26",
+  "kodi_executable_equals_verified_release_after_signature_removal": true,
+  "seek_diagnostics_present": true,
+  "device_tested": false,
+  "live_drive_accessed": false,
+  "date": "2026-11-10",
+  "status": "published and downloaded IPA verified; device retest pending",
+  "download_url": "https://github.com/onlykappa/Kodi-Ios/releases/download/build-219/Kodi-iOS-Customized-Touch-r10.ipa",
+  "all_workflow_stages_passed": true,
+  "exact_source_helpers_verified": 18,
+  "python311_source_hash_matches": 18,
+  "host_focused_suites": 24,
+  "host_focused_tests": 545,
+  "remaining_packaging_test_scripts_retested": 38,
+  "ui_policy_read": true,
+  "layout_changed": false,
+  "main_merged": false,
+  "failed_attempt": {
+    "build": 218,
+    "workflow_run": 42755096028,
+    "failure": "obsolete wording assertion; failed before IPA creation; corrected and rerun"
+  },
+  "included": [
+    "compatible originals skip background conversion/re-upload",
+    "manual Refresh inspects unknown source tracks before preparation decisions",
+    "adaptive 1\u20138 MiB HTTP preparation uploads with existing resume windows",
+    "independent upload progress/Waiting for Drive evidence",
+    "one selected Umbrella/AllDebrid link renewal on expiry",
+    "service-owned foreground cache",
+    "existing seek-release and automatic-work repairs"
+  ],
+  "retest": [
+    "Install as an update with the existing profile/Drive setup.",
+    "Open Library status and press Refresh; allow the inspection to finish. Compatible Lanterns should be Ready without a new conversion/upload.",
+    "Unknown inspections defer while the same native converter is actively busy.",
+    "Test Umbrella AirPlay and Roku Media Assistant separately, with captions and seeking."
+  ]
+}

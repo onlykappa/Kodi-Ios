@@ -196,8 +196,12 @@ class Integration(unittest.TestCase):
   setting=ET.parse(ROOT/'migration/bundled-bootstrap/resources/settings.xml').find(".//setting[@id='prepare_downloads']")
   self.assertEqual(setting.findtext('default'),'true')
  def test_notifications_have_preparation_progress(self):
-  source=(ROOT/'migration/bundled-bootstrap/notifications.py').read_text();self.assertIn('prepare_downloads.cards(profile)',source)
-  self.assertIn('self.percent(9431,',source)
+  source=(ROOT/'migration/bundled-bootstrap/notifications.py').read_text();self.assertIn('model=work_state.load(profile)',source);self.assertIn("j['kind'] in ('copy','upload')",source)   # build 193: the status model
+  self.assertIn("self.setProperty(pre+'pct',str(j.get('pct') or 0))",source)
+  import portrait
+  # Build 194: the card's bar has an id and is filled with setPercent (a property-bound bar stays empty in Kodi 21).
+  import notifications_skin
+  self.assertIn('id="%d"'%notifications_skin.BARS,portrait.notices_page());self.assertIn('self.guard.percent(control',source)   # ISSUE-123: only while the page is open
  def test_framework_exports_probe_and_preparation(self):
   source=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   self.assertIn('_kodi_airplay_prepare\\n_kodi_airplay_probe\\n',source)

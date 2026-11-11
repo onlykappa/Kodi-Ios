@@ -56,7 +56,7 @@ class ShowsWhatItDoes(unittest.TestCase):
   cloud=(LIB/'prepare_cloud.py').read_text()
   self.assertIn("converted=[min(80,80*resume_store.mark_seconds(checkpoint['mark'])/duration) if checkpoint and duration else 0]",cloud)
   self.assertIn("doing='Making it start faster' if job.get('repack') else 'Converting'",cloud);self.assertNotIn("progress('Converting and saving to Drive'",cloud)
-  self.assertIn("library_rows.card(transfer_history.load(profile),s['card'],s['title'],time.time(),s.get('step',''))",(BOOT/'library_status.py').read_text())
+  self.assertIn("else live.get('line','Updating…')",(BOOT/'library_status.py').read_text())
  def test_drive_reads_are_logged_while_converting(self):
   svc=(BOOT/'service.py').read_text()
   self.assertIn("log('preparation: Drive reads: %.1f MB in %.0f s (%.2f MB/s), last read %s ago%s'",svc)
@@ -67,7 +67,7 @@ class ShowsWhatItDoes(unittest.TestCase):
 class Wiring(unittest.TestCase):
  def test_service_and_queue(self):
   svc=(BOOT/'service.py').read_text();cloud=(LIB/'prepare_cloud.py').read_text()
-  self.assertIn("if q.busy and prepare_downloads.check_requested(profile):",svc)
+  self.assertIn("if q.busy and prepare_downloads.check_requested(profile)",svc)   # d058ca2 adds an inspection guard
   self.assertIn("q.scan(lambda:not monitor.abortRequested(),force=True,beside=True)",svc)
   self.assertIn("preparation.busy=True",svc);self.assertIn("finally:preparation.busy=False",svc)
   self.assertIn("with q.lock:   # build 191",cloud)

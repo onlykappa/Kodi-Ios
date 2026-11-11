@@ -1,0 +1,183 @@
+{
+  "candidate_run": 42441688126,
+  "source_commit": "1ea630725d38f4aecda6b4560848c3d23ecc321a",
+  "artifact_id": 13601965805,
+  "artifact_sha256": "8ae1491e1a68173853b4ffaa32c58c9b4149d9641dce77b7b841c8d900b2e913",
+  "archive_sha256": "1831b9eae6c9ff1135ef2b914470d5c6bd09e14b9089e9c7c81dc7d0f69e701d",
+  "binary_sha256": "c4d4e932891f8f3344a8ec897788281bce4e4473cc2dde2a4369aa8a47be44db",
+  "exported_symbols": [
+    "_kodi_airplay_close",
+    "_kodi_airplay_log",
+    "_kodi_airplay_message",
+    "_kodi_airplay_network",
+    "_kodi_airplay_open",
+    "_kodi_airplay_play",
+    "_kodi_airplay_prepare",
+    "_kodi_airplay_prepare_audio_languages",
+    "_kodi_airplay_prepare_background",
+    "_kodi_airplay_prepare_hdr",
+    "_kodi_airplay_prepare_keep_image_subs",
+    "_kodi_airplay_prepare_marks",
+    "_kodi_airplay_prepare_resume",
+    "_kodi_airplay_prepare_streams",
+    "_kodi_airplay_prepare_subtitle_languages",
+    "_kodi_airplay_prepare_to",
+    "_kodi_airplay_probe",
+    "_kodi_airplay_probe_ex",
+    "_kodi_airplay_settings",
+    "_kodi_airplay_show",
+    "_kodi_airplay_state",
+    "_kodi_airplay_subtitles",
+    "_kodi_airplay_verify",
+    "_kodi_background_keep",
+    "_kodi_background_state"
+  ],
+  "required_export_count": 25,
+  "mach_o": {
+    "cpu": "arm64",
+    "cpu_subtype": 0,
+    "filetype": 6,
+    "platforms": [
+      {
+        "platform": 2,
+        "minimum_os": "14.0.0",
+        "sdk": "18.5.0"
+      }
+    ],
+    "dylib_loads": [
+      {
+        "name": "/System/Library/Frameworks/UIKit.framework/UIKit",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/AVKit.framework/AVKit",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/AVFoundation.framework/AVFoundation",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/CoreMedia.framework/CoreMedia",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/VideoToolbox.framework/VideoToolbox",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/CoreVideo.framework/CoreVideo",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/CoreText.framework/CoreText",
+        "weak": false
+      },
+      {
+        "name": "/usr/lib/libc++.1.dylib",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/Security.framework/Security",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+        "weak": false
+      },
+      {
+        "name": "/usr/lib/libz.1.dylib",
+        "weak": false
+      },
+      {
+        "name": "/usr/lib/libiconv.2.dylib",
+        "weak": false
+      },
+      {
+        "name": "/System/Library/Frameworks/Foundation.framework/Foundation",
+        "weak": false
+      },
+      {
+        "name": "/usr/lib/libobjc.A.dylib",
+        "weak": false
+      },
+      {
+        "name": "/usr/lib/libSystem.B.dylib",
+        "weak": false
+      }
+    ],
+    "rpaths": [],
+    "code_signature_commands": [],
+    "encrypted": false
+  },
+  "zip_integrity_passed": true,
+  "device_tested": false,
+  "status": "released_pinned_and_verified_in_build_196_device_retest_pending",
+  "host_checks": 3107,
+  "host_failures": 0,
+  "end_to_end_passes": 199,
+  "end_to_end_failures": 0,
+  "candidate_url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/42441688126",
+  "owner_authorized_ipa": true,
+  "kodi_r24_archive_sha256": "efdc2f0e2f5f1d388650bed8c311fc08f9d95a599af0854b2c444292f9d78208",
+  "kodi_r24_binary_sha256": "02d5357af48bbf991efddc9ed5babecf06e19b826c5c648cf335c7073d767a80",
+  "release_url": "https://github.com/onlykappa/Kodi-Ios/releases/tag/kodi-airplay-r34",
+  "publication_run": 42442400925,
+  "publication_url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/42442400925",
+  "release_equals_candidate": true,
+  "ipa_run": 42442484724,
+  "ipa_run_url": "https://github.com/onlykappa/Kodi-Ios/actions/runs/42442484724",
+  "ipa_release_url": "https://github.com/onlykappa/Kodi-Ios/releases/tag/build-196",
+  "ipa_download_url": "https://github.com/onlykappa/Kodi-Ios/releases/download/build-196/Kodi-iOS-Customized-Touch-r10.ipa",
+  "ipa_verification": {
+    "build": 196,
+    "source_commit": "a2b9b8b5402cff422b103033241c3fdd4a9d51d6",
+    "source_ref": "claude/trusting-euler-kgug98",
+    "ipa_filename": "Kodi-iOS-Customized-Touch-r10.ipa",
+    "ipa_bytes": 620333330,
+    "ipa_sha256": "40dc7d153f3425e7b12cc42520000a9cd55ef17ae07516ac3f535a8597a6f168",
+    "frameworks": {
+      "airplay": {
+        "sha256": "1831b9eae6c9ff1135ef2b914470d5c6bd09e14b9089e9c7c81dc7d0f69e701d",
+        "tag": "kodi-airplay-r34"
+      },
+      "glassbar": {
+        "sha256": "ecc883d2fe159e9aa08653a3130efe4003c3d40c4882222494dbb82f960bf16e",
+        "tag": "kodi-glassbar-r6"
+      },
+      "ios-portrait": {
+        "sha256": "02d5357af48bbf991efddc9ed5babecf06e19b826c5c648cf335c7073d767a80",
+        "tag": "kodi-ios-portrait-r24"
+      }
+    },
+    "zip_integrity_passed": true,
+    "purpose_string_verified": true,
+    "airplay_equals_verified_candidate_after_signature_removal": true,
+    "kodi_equals_verified_r24_after_signature_removal": true,
+    "active_signatures": false,
+    "device_tested": false,
+    "signing_required": true,
+    "github_asset_digest_matches": true
+  },
+  "python_validation": {
+    "scripts": 82,
+    "passed": 82,
+    "excluded": [
+      "test_drive_runtime.py"
+    ],
+    "initial_failures": [
+      [
+        "test_drive_prepare.py",
+        1
+      ]
+    ],
+    "unchanged_retests_passed": [
+      "test_drive_prepare.py"
+    ],
+    "timing_note": "Background-upload hand-over asserted <1.0s; first run was 1.2217s under host scheduling load. All 26 tests passed unchanged on focused rerun."
+  }
+}

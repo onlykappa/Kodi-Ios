@@ -15,6 +15,7 @@ accounts=_iu.module_from_spec(_spec);_spec.loader.exec_module(accounts)
 BOOT='special://xbmc/addons/service.kodi.ios.bootstrap/'
 ACCOUNTS='RunScript(service.kodi.ios.bootstrap,accounts_page)'
 SEARCH='RunScript(service.kodi.ios.bootstrap,settings_search)'
+ADDON_UPDATES='RunScript(service.kodi.ios.bootstrap,addon_updates)'
 WINDOW='10004'
 PAGE='Window(%s).Property(Settings.Page)'%WINDOW
 ON_ROOT='String.IsEmpty(%s)'%PAGE
@@ -63,22 +64,22 @@ LIBRARY_SCAN='RunScript(service.kodi.ios.bootstrap,library_scan)'
 LIBRARY_STATUS='RunScript(service.kodi.ios.bootstrap,library_status)'
 LIBRARY_REFRESH='RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&all=1)'
 ROOT=[
- [R(9111,'Skin','ActivateWindow(skinsettings)','paintbrush.png',PURPLE),
-  R(9112,'Interface','ActivateWindow(interfacesettings)','palette.png',BLUE),
+ [R(9111,'Skin','RunScript(service.kodi.ios.bootstrap,skin_settings_page)','paintbrush.png',PURPLE),
+  R(9112,'Interface','RunScript(service.kodi.ios.bootstrap,section_page,interface)','palette.png',BLUE),
   R(9113,'Customisation',CUSTOM_PAGE,'sliders.png','FFD1D1D6'),
-  R(9114,'Player','ActivateWindow(playersettings)','circle-play.png',GREEN),
-  R(9115,'Media','ActivateWindow(mediasettings)','film.png',ORANGE),
+  R(9114,'Player','RunScript(service.kodi.ios.bootstrap,section_page,player)','circle-play.png',GREEN),
+  R(9115,'Media','RunScript(service.kodi.ios.bootstrap,section_page,media)','film.png',ORANGE),
   R(9116,'Library',LIBRARY_PAGE,'folder.png',BLUE)],
  # What the profile button's More menu held (round 5: the gear in the header opens Settings instead).
  [R(9171,'Google Drive','ActivateWindow(Videos,plugin://plugin.googledrive/,return)','cloud.png',BLUE),
-  R(9172,'Favourites','ActivateWindow(1160)','star.png',ORANGE),
+  R(9172,'Favourites','RunScript(service.kodi.ios.bootstrap,favourites_page)','star.png',ORANGE),
   R(9173,'Check for updates','RunScript(service.kodi.ios.bootstrap,check_updates)','cloud-arrow-down.png',GREEN),
   R(9174,'iPhone navigation / recovery','RunScript(service.kodi.ios.bootstrap,navigation_menu)','life-ring.png',RED)],
- [R(9121,'PVR & Live TV','ActivateWindow(pvrsettings)','tv.png',RED),
-  R(9122,'Games','ActivateWindow(gamesettings)','gamepad.png',PINK)],
- [R(9131,'System','ActivateWindow(systemsettings)','gear.png',SILVER),
-  R(9132,'Services','ActivateWindow(servicesettings)','sitemap.png',TEAL),
-  R(9133,'Profiles','ActivateWindow(profiles)','user.png',BLUE)],
+ [R(9121,'PVR & Live TV','RunScript(service.kodi.ios.bootstrap,section_page,pvr)','tv.png',RED),
+  R(9122,'Games','RunScript(service.kodi.ios.bootstrap,section_page,games)','gamepad.png',PINK)],
+ [R(9131,'System','RunScript(service.kodi.ios.bootstrap,section_page,system)','gear.png',SILVER),
+  R(9132,'Services','RunScript(service.kodi.ios.bootstrap,section_page,services)','sitemap.png',TEAL),
+  R(9133,'Profiles','RunScript(service.kodi.ios.bootstrap,profiles_page)','user.png',BLUE)],
  [R(9141,'Add-ons','ActivateWindow(addonbrowser)','puzzle-piece.png',ORANGE,badge=UPDATES),
   R(9142,'File Manager','ActivateWindow(filemanager)','folder.png',TEAL),
   R(9143,'Event Log','ActivateWindow(eventlog)','list.png',SILVER),
@@ -101,7 +102,7 @@ CUSTOM=[
   R(9412,'Info Page',INFO_PAGE,'circle-info.png',SILVER,COUNT('info')),
   R(9413,'View Types',VIEWS_PAGE,'grip.png',PURPLE,COUNT('views')),
   R(9414,'Poster Badges',BADGES_PAGE,'circle-check.png',ORANGE,COUNT('badges'))],''),
- ('',[R(9421,'Skin Settings','ActivateWindow(skinsettings)','paintbrush.png',PURPLE),
+ ('',[R(9421,'Skin Settings','RunScript(service.kodi.ios.bootstrap,skin_settings_page)','paintbrush.png',PURPLE),
   R(9422,'TMDb Helper','Addon.OpenSettings(plugin.video.themoviedb.helper)','film.png','FF01B4E4')],
   'TMDb Helper fills the Home rows. Sign in to Trakt from Accounts.'),
 ]
@@ -225,6 +226,10 @@ def spacer(h,visible=''):
  return '<control type="image"><height>%d</height>%s<texture /></control>'%(h,'<visible>%s</visible>'%visible if visible else '')
 
 def footer(p,text,h=110):
+ # Grows with its text (build 224 rig audit: Accounts' and Library's last footer lines were cut off): p_foot fits
+ # about 46 characters per line across the page, 44 units a line.
+ import math
+ h=max(h,30+44*math.ceil(len(str(text))/46.0))
  return ('<control type="group"><width>%d</width><height>%d</height>'%(p.WIDTH,h)+
          p.label(p.SIDE+PAD,10,p.WIDTH-2*(p.SIDE+PAD),h-20,text,'p_foot',p.GREY,'left','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+'</control>')
 
@@ -247,7 +252,7 @@ def profile_card(p,moves):
   p.icon(w-PAD-34,(h-34)//2,34,'chevron-right.png',p.GREY)+'</control></control>')
 
 def updates_banner(p,moves):
- return card(p,[R(9102,'Add-on Updates Available','ActivateWindow(addonbrowser,addons://outdated/,return)',badge=UPDATES)],moves,UPDATES)
+ return card(p,[R(9102,'Add-on Updates Available',ADDON_UPDATES,badge=UPDATES)],moves,UPDATES)
 
 def search_field(p,moves):
  """iOS Settings search field at the top of the list: opens Kodi's keyboard and lists the matching settings."""
@@ -387,22 +392,49 @@ def settings_window(p,original):
  extra+='<onload condition="%s">%s</onload>'%(ON_TABS,COUNTS)   # back from a tab's rows: its count again
  return p.window(original,body,'9101',extra)
 
+# --- Search Settings (owner-approved mockup, docs/design/settings-pages-mockups.html, board 11) ---
+SEARCH_FIELD=9161;SEARCH_LIST=9160;SEARCH_CARD=8   # property rows: 1..7 draw a card that size; 8 means eight or more
 def search_window(p):
- # Owner (build 168 log): with the field empty the whole page was hidden, yet the modal dialog stayed on top: taps
- # went nowhere, Back was hidden and list 9160 "can't focus". The page is now always shown: before typing it lists
- # Settings' own rows (as the approved mockup), then the matches; Back always works.
- top=SETTINGS_TOP+160
- visible='true'
- row=lambda focus:('<%s height="160">'%('focusedlayout' if focus else 'itemlayout')+
-   (p.image(p.SIDE,0,p.WIDTH-2*p.SIDE,160,p.MEDIA+'white.png','18FFFFFF') if focus else '')+
-   p.label(p.SIDE+34,14,p.WIDTH-2*p.SIDE-68,76,'$INFO[ListItem.Label]','p_body')+
-   p.label(p.SIDE+34,90,p.WIDTH-2*p.SIDE-68,50,'$INFO[ListItem.Label2]','p_foot',p.GREY)+
-   '</%s>'%('focusedlayout' if focus else 'itemlayout'))
- body=p.backdrop()+p.label(p.SIDE,200,p.WIDTH-2*p.SIDE,140,'Settings','p_title')
- body+=p.nav_button(9001,p.SIDE,76,'chevron-left.png',[], '<ondown>9160</ondown>')
- body+=p.label(p.SIDE,top,p.WIDTH-2*p.SIDE,160,'No matching settings. Change your search above.','p_body',p.GREY,extra='<wrapmultiline>true</wrapmultiline><visible>!String.IsEmpty(Window().Property(empty))</visible>')
- body+='<control type="list" id="9160"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><scrolltime>160</scrolltime>%s%s</control>'%(top,p.WIDTH,row(False),row(True))
- return '<?xml version="1.0" encoding="UTF-8"?><window type="dialog"><defaultcontrol>9160</defaultcontrol><controls><control type="group"><visible>%s</visible>%s</control></controls></window>'%(visible,body)
+ """portrait/IOSSettingsSearch.xml for settings_search.py: Back (9001) and the title, the field (9161, a Kodi edit control
+ so iOS opens its keyboard), the matches as a grouped list (9160) on a card that grows with them, and "No settings match"
+ (property empty). The page's properties: rows (how many matches the card shows) and empty ('1' when nothing matches)."""
+ # field_y: the iPhone's own search field (glassbar kodi_search_context, 116.5-182.5 pt under the safe area) sits here;
+ # the Kodi edit control below is only drawn without it (property native empty).
+ w=p.WIDTH-2*p.SIDE;field_y=340;field_h=124;list_y=field_y+field_h+40;room=p.HEIGHT-list_y
+ kodi_field='<visible>String.IsEmpty(Window().Property(native))</visible>'
+ field=('<control type="edit" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
+        '<font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><hinttext>Search</hinttext><label></label>'
+        '<align>left</align><aligny>center</aligny><textoffsetx>100</textoffsetx>'
+        '<texturefocus border="62" colordiffuse="FF3A3A3C">%spill_124.png</texturefocus>'
+        '<texturenofocus border="62" colordiffuse="%s">%spill_124.png</texturenofocus>'
+        '<onup>9001</onup><ondown>%d</ondown>'+kodi_field+'</control>')%(SEARCH_FIELD,p.SIDE,field_y,w,field_h,p.WHITE,p.WHITE,p.MEDIA,p.SURFACE,p.MEDIA,SEARCH_LIST)
+ card=''.join('<control type="group"><visible>String.IsEqual(Window().Property(rows),%d)</visible>%s</control>'
+              %(k,p.surface(p.SIDE,0,w,k*ROW2,'group.png',p.SURFACE,RADIUS)) for k in range(1,SEARCH_CARD))
+ card+=('<control type="group"><visible>String.IsEqual(Window().Property(rows),%d)</visible>%s</control>'
+        %(SEARCH_CARD,p.surface(p.SIDE,0,w,room,'group.png',p.SURFACE,RADIUS)))
+ def item(focus):
+  # Label and breadcrumb come from ListItem: the label carries [B] around the typed part.
+  tag='focusedlayout' if focus else 'itemlayout'
+  return ('<%s width="%d" height="%d">'%(tag,w,ROW2)+(p.image(0,0,w,ROW2,p.MEDIA+'white.png','18FFFFFF') if focus else '')+
+          p.image(PAD,0,w-PAD,2,p.MEDIA+'white.png',p.SEP,'<visible>!String.IsEqual(ListItem.Property(first),1)</visible>')+
+          p.label(PAD,22,w-2*PAD-110,90,'$INFO[ListItem.Label]','p_body',p.WHITE,'left','<scroll>false</scroll>')+
+          p.label(PAD,94,w-2*PAD-110,60,'$INFO[ListItem.Label2]','p_foot',p.GREY,'left','<scroll>false</scroll>')+
+          p.icon(w-PAD-34,(ROW2-34)//2,34,'chevron-right.png',p.GREY)+'</%s>'%tag)
+ results=('<control type="list" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
+          '<orientation>vertical</orientation><itemgap>0</itemgap><onup condition="!String.IsEmpty(Window().Property(native))">9001</onup>'
+          '<onup>%d</onup>'
+          '<scrolltime tween="cubic" easing="out">160</scrolltime>%s%s</control>')%(SEARCH_LIST,p.SIDE,list_y,w,room,SEARCH_FIELD,item(False),item(True))
+ empty=('<control type="group"><visible>!String.IsEmpty(Window().Property(empty))</visible>'+
+        p.label(p.SIDE,list_y+60,w,110,'No settings match','p_h3',p.WHITE,'center')+
+        p.label(p.SIDE+PAD,list_y+180,w-2*PAD,120,'Try a shorter word or check the spelling.','p_foot',p.GREY,'center',
+                '<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+'</control>')
+ body=('<controls>'+p.backdrop()+
+       '<control type="group"><left>0</left><top>%d</top><width>%d</width><height>%d</height>%s</control>'%(list_y,p.WIDTH,room,card)+
+       results+empty+field+
+       p.icon(p.SIDE+36,field_y+(field_h-44)//2,44,'magnifying-glass.png',p.GREY,kodi_field)+
+       header(p,[('','Close')],[('Search Settings','')],36,'<ondown condition="!String.IsEmpty(Window().Property(native))">%d</ondown><ondown>%d</ondown>'%(SEARCH_LIST,SEARCH_FIELD))+'</controls>')
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window type="dialog"><defaultcontrol always="true">%d</defaultcontrol>'
+         '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>%s</window>\n')%(p.MARKER,SEARCH_FIELD,body)
 
 def account_row(p,n,y,first,moves,w):
  P=lambda k:'$INFO[Window().Property(acct.%d.%s)]'%(n,k)
@@ -458,6 +490,122 @@ def accounts_page(p):
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9601</defaultcontrol>'
          '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
 
+# --- Section page: a section's categories as rows (owner-approved mockup docs/design/settings-pages-mockups.html, board 1) ---
+SECTION_ROWS=9
+def section_page(p):
+ """portrait/IOSSection.xml for section_page.py: Interface, Player, Media, Services, System, PVR and Games open to their
+ categories as rows (tile, name, what is set now) instead of Kodi's chip row. Properties title, subtitle, foot and
+ for each row n: sec.n.name / .sub / .icon / .tint; button 9600+n opens category n (9001 closes)."""
+ w=p.WIDTH-2*p.SIDE;P=lambda k:'$INFO[Window().Property(%s)]'%k;h=ROW2;tile=100
+ order=[(9600+n,'') for n in range(1,SECTION_ROWS+1)]
+ moves=nav(order)
+ def row(n,y,first):
+  q=lambda k:'$INFO[Window().Property(sec.%d.%s)]'%(n,k)
+  x=PAD+tile+38
+  xml=('<control type="group"><visible>!String.IsEmpty(Window().Property(sec.%d.name))</visible><width>%d</width><height>%d</height>'%(n,w,h)+
+       '<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>%s%s</control>'
+       %(9600+n,w,h,highlight(p,w,h),nav_xml(p,moves[9600+n])))
+  if not first:xml+=p.image(x,0,w-x,2,p.MEDIA+'white.png',p.SEP)
+  xml+=(p.surface(PAD,(h-tile)//2,tile,tile,'tile100.png',q('tint'),28)+p.icon(PAD+15,(h-70)//2,70,icon_path(p,q('icon')),p.WHITE)+
+        p.label(x,22,w-x-90,64,q('name'),'p_body')+p.label(x,86,w-x-90,56,q('sub'),'p_foot',p.GREY)+
+        p.icon(w-PAD-34,(h-34)//2,34,'chevron-right.png',p.DIM)+'</control>')
+  return xml
+ body=''.join(row(n,0,n==1) for n in range(1,SECTION_ROWS+1))
+ card_xml=('<control type="grouplist" id="9310"><left>%d</left><top>0</top><width>%d</width><height>%d</height><orientation>vertical</orientation><itemgap>0</itemgap>'
+           '<usecontrolcoords>false</usecontrolcoords><onup>9001</onup>%s</control>')%(p.SIDE,w,SECTION_ROWS*h,body)
+ # The card and the footer under it fit the rows shown (property rows): one background and footer per count.
+ fit=''
+ for k in range(1,SECTION_ROWS+1):
+  fit+=('<control type="group"><visible>String.IsEqual(Window().Property(rows),%d)</visible>'%k+
+        p.surface(p.SIDE,0,w,k*h,'group.png',p.SURFACE,RADIUS)+
+        p.label(p.SIDE+PAD,k*h+14,w-2*PAD,140,P('foot'),'p_foot',p.GREY,'left','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+'</control>')
+ shell='<control type="group"><width>%d</width><height>%d</height>%s%s</control>'%(p.WIDTH,SECTION_ROWS*h+160,fit,card_xml)
+ lst=('<control type="grouplist" id="9300"><left>0</left><top>200</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+      '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%p.WIDTH+
+      p.label(p.SIDE+PAD,0,w-2*PAD,130,P('title'),'p_large',p.WHITE,'left','<scroll>false</scroll>')+
+      '<control type="image"><height>14</height><texture /></control>'+shell+spacer(60)+'</control>')
+ page='<controls>'+p.backdrop()+lst+header(p,[('','Close')],[('','')])+'</controls>'
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9601</defaultcontrol>'
+         '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
+
+# --- Skin Settings list page (mockup board 6): Fuse's entries of one section as rows -----------------------------
+def skin_list_page(p):
+ """portrait/IOSSkinList.xml for skin_settings_page.py: a title and one list (9310) whose items carry the properties
+ kind (title|switch|button), on (switches) and the label / label2 (a button's value). 9001 closes."""
+ w=p.WIDTH-2*p.SIDE;M=p.MEDIA;P=lambda k:'$INFO[Window().Property(%s)]'%k
+ L=lambda k:'$INFO[ListItem.Property(%s)]'%k
+ kind=lambda k:'String.IsEqual(ListItem.Property(kind),%s)'%k
+ def layout(focused):
+  bg=(p.image(0,0,w,ROW,M+'white.png','1AFFFFFF','<visible>%s</visible>'%'!%s'%kind('title')) if focused else '')
+  return (p.image(0,0,w,ROW,M+'white.png',p.SURFACE,'<visible>!%s</visible>'%kind('title'))+bg+
+          p.image(PAD,ROW-2,w-PAD,2,M+'white.png',p.SEP,'<visible>!%s</visible>'%kind('title'))+
+          # group title: small grey words sitting on the page, as the Settings pages have
+          p.label(PAD,0,w-2*PAD,ROW,L('label'),'p_h3',p.GREY,'left','<aligny>bottom</aligny><scroll>false</scroll><visible>%s</visible>'%kind('title'))+
+          p.label(PAD,0,w-2*PAD-420,ROW,L('label'),'p_body',p.WHITE,'left','<scroll>false</scroll><visible>!%s</visible>'%kind('title'))+
+          p.label(w-PAD-400,0,330,ROW,L('value'),'p_body',p.GREY,'right','<scroll>false</scroll><visible>%s</visible>'%kind('button'))+
+          p.icon(w-PAD-34,(ROW-34)//2,34,'chevron-right.png',p.DIM,'<visible>%s</visible>'%kind('button'))+
+          p.image(w-PAD-130,(ROW-58)//2,130,58,M+'toggle_on.png',p.WHITE,'<visible>%s + !String.IsEmpty(ListItem.Property(on))</visible>'%kind('switch'))+
+          p.image(w-PAD-130,(ROW-58)//2,130,58,M+'toggle_off.png',p.WHITE,'<visible>%s + String.IsEmpty(ListItem.Property(on))</visible>'%kind('switch')))
+ lst=('<control type="list" id="9310"><left>%d</left><top>330</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+      '<scrolltime tween="cubic" easing="out">200</scrolltime><onup>9001</onup>'
+      '<itemlayout height="%d" width="%d">%s</itemlayout><focusedlayout height="%d" width="%d">%s</focusedlayout></control>')%(
+      p.SIDE,w,ROW,w,layout(False),ROW,w,layout(True))
+ title=p.label(p.SIDE+PAD,190,w-2*PAD,140,P('title'),'p_large',p.WHITE,'left','<scroll>false</scroll>')
+ page='<controls>'+p.backdrop()+lst+title+header(p,[('','Close')],[('','')])+'</controls>'
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9310</defaultcontrol>'
+         '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
+
+# --- Add-on Updates (owner-approved mockup, docs/design/settings-pages-mockups.html, board 12) ---
+UPDATE_ROWS=8;UPDATE_ROW=9600          # row n is button 9600+n: it opens Kodi's add-on list
+UPDATE_CHECK=(9650,9651)               # Check Now: in the empty state, and under the list
+def addon_updates_page(p):
+ """portrait/IOSAddonUpdates.xml for addon_updates.py. Properties: rows (0 shows the empty state; otherwise the rows to
+ show, 8 meaning eight or more), upd.n.name and upd.n.icon for row n, checked (the line under the title) and button
+ (Check Now's label). Kodi's own add-on list (addons://outdated/) is what a row opens."""
+ w=p.WIDTH-2*p.SIDE;h=ROW2;tile=100;top=360;P=lambda k:'$INFO[Window().Property(%s)]'%k
+ is_empty='String.IsEqual(Window().Property(rows),0)';has_rows='!String.IsEqual(Window().Property(rows),0)'
+ def button(id,x,y,width):
+  return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>124</height>'
+          '<label>%s</label><font>p_btn</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
+          '<align>center</align><aligny>center</aligny>'
+          '<texturefocus border="62" colordiffuse="FF3A3A3C">%spill_124.png</texturefocus>'
+          '<texturenofocus border="62" colordiffuse="%s">%spill_124.png</texturenofocus></control>')%(
+          id,x,y,width,P('button'),p.ACCENT,p.ACCENT,p.MEDIA,p.SURFACE2,p.MEDIA)
+ def row(n):
+  q=lambda k:P('upd.%d.%s'%(n,k));x=PAD+tile+38
+  xml=('<control type="group"><visible>!String.IsEmpty(Window().Property(upd.%d.name))</visible><width>%d</width><height>%d</height>'%(n,w,h)+
+       '<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>%s</control>'
+       %(UPDATE_ROW+n,w,h,highlight(p,w,h)))
+  if n>1:xml+=p.image(x,0,w-x,2,p.MEDIA+'white.png',p.SEP)
+  return xml+(p.surface(PAD,(h-tile)//2,tile,tile,'tile100.png',ORANGE,28)+p.icon(PAD+15,(h-70)//2,70,'puzzle-piece.png',p.WHITE)+
+       p.image(PAD,(h-tile)//2,tile,tile,q('icon'),p.WHITE,'<visible>!String.IsEmpty(Window().Property(upd.%d.icon))</visible>'%n,'',p.MEDIA+'tile100.png')+
+       p.label(x,22,w-x-90,64,q('name'),'p_body',p.WHITE,'left','<scroll>false</scroll>')+
+       p.label(x,86,w-x-90,56,'Update available','p_foot',p.GREY)+
+       p.icon(w-PAD-34,(h-34)//2,34,'chevron-right.png',p.GREY)+'</control>')
+ # Empty state: a green tick in a tile, the title, when the check last ran, and Check Now.
+ tile_x=(p.WIDTH-176)//2
+ empty=('<control type="group"><visible>%s</visible>'%is_empty+
+        p.surface(tile_x,560,176,176,'group.png',p.SURFACE,RADIUS)+p.icon(tile_x+33,593,110,'check.png',GREEN)+
+        p.label(p.SIDE,800,w,110,P('heading'),'p_h3',p.WHITE,'center')+
+        p.label(p.SIDE+PAD,930,w-2*PAD,200,P('checked'),'p_sub',p.GREY,'center','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+
+        button(UPDATE_CHECK[0],(p.WIDTH-420)//2,1190,420)+'</control>')
+ # The list: a card that fits the rows (property rows), then the line under it and Check Now, in one grouplist so they follow the rows.
+ card=''.join('<control type="group"><visible>String.IsEqual(Window().Property(rows),%d)</visible>%s</control>'
+              %(k,p.surface(p.SIDE,0,w,k*h,'group.png',p.SURFACE,RADIUS)) for k in range(1,UPDATE_ROWS+1))
+ foot=('<control type="group"><visible>%s</visible><width>%d</width><height>150</height>'%(has_rows,w)+
+       p.label(PAD,14,w-2*PAD,130,P('checked'),'p_foot',p.GREY,'left','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+'</control>')
+ check=('<control type="group"><visible>%s</visible><width>%d</width><height>160</height>'%(has_rows,w)+button(UPDATE_CHECK[1],(w-420)//2,26,420)+'</control>')
+ lst=('<control type="grouplist" id="9310"><left>%d</left><top>0</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
+      '<itemgap>0</itemgap><usecontrolcoords>false</usecontrolcoords>%s%s%s</control>')%(p.SIDE,w,UPDATE_ROWS*h+400,
+      ''.join(row(n) for n in range(1,UPDATE_ROWS+1)),foot,check)
+ rows_block=('<control type="group"><visible>%s</visible><left>0</left><top>%d</top><width>%d</width><height>%d</height>%s%s</control>'
+             %(has_rows,top,p.WIDTH,UPDATE_ROWS*h+400,card,lst))
+ body=('<controls>'+p.backdrop()+empty+rows_block+
+       header(p,[('','Close')],[('Add-on Updates','')],36,
+              '<ondown condition="%s">%d</ondown><ondown>%d</ondown>'%(is_empty,UPDATE_CHECK[0],UPDATE_ROW+1))+'</controls>')
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window type="dialog"><defaultcontrol always="true">%d</defaultcontrol>'
+         '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>%s</window>\n')%(p.MARKER,9001,body)
+
 # --- Kodi's own setting pages (categories and add-on settings) -------------------------------------------------
 # Kodi builds these pages itself from templates the skin provides (GUIDialogSettingsBase): category buttons from
 # id 10 into grouplist 3, settings from ids 7 (button), 8 (switch), 9 (spinner), 12 (edit), 13 (slider), 14 (group
@@ -483,11 +631,13 @@ def setting_templates(p,category_type):
  chev=(p.ICONS+'chevron-left.png',p.ICONS+'chevron-right.png')
  return (pill+
   '<control type="button" id="7">%s%s%s<label2></label2></control>'%(base,row_textures(p),text_style(p))+
-  ('<control type="radiobutton" id="8">%s%s%s<radiowidth>130</radiowidth><radioheight>58</radioheight><radioposx>%d</radioposx>'
+  # The label stops before the switch (build 224 rig audit: "Announce services to other systems", "Ignore different
+  # video versions on scan" and add-on settings ran under the switch).
+  ('<control type="radiobutton" id="8">%s%s%s<textwidth>%d</textwidth><radiowidth>130</radiowidth><radioheight>58</radioheight><radioposx>%d</radioposx>'
    '<textureradioonfocus>%stoggle_on.png</textureradioonfocus><textureradioonnofocus>%stoggle_on.png</textureradioonnofocus>'
    '<textureradioofffocus>%stoggle_off.png</textureradioofffocus><textureradiooffnofocus>%stoggle_off.png</textureradiooffnofocus>'
    '<textureradioondisabled colordiffuse="66FFFFFF">%stoggle_on.png</textureradioondisabled><textureradiooffdisabled colordiffuse="66FFFFFF">%stoggle_off.png</textureradiooffdisabled>'
-   '</control>')%(base,row_textures(p),text_style(p),w-PAD-130,M,M,M,M,M,M)+
+   '</control>')%(base,row_textures(p),text_style(p),w-2*PAD-130-24,w-PAD-130,M,M,M,M,M,M)+
   ('<control type="spincontrolex" id="9">%s%s%s<spinwidth>36</spinwidth><spinheight>36</spinheight><spinposx>%d</spinposx>'
    '<textureup colordiffuse="%s">%s</textureup><textureupfocus colordiffuse="%s">%s</textureupfocus>'
    '<texturedown colordiffuse="%s">%s</texturedown><texturedownfocus colordiffuse="%s">%s</texturedownfocus>'
@@ -505,15 +655,21 @@ def setting_templates(p,category_type):
    base,row_textures(p),text_style(p),w-PAD-60,M,M)+
   '<control type="image" id="11"><width>%d</width><height>34</height><texture /></control>'%w)
 
-def setting_body(p,title,header_buttons,extra='',categories=True):
+def setting_body(p,title,header_buttons,extra='',categories=True,paged=False):
  """Header (title = label 2), category pills (grouplist 3), settings (grouplist 5), help text (label 6)."""
  w=p.WIDTH-2*p.SIDE
  bar=p.image(0,0,p.WIDTH,(LIST_TOP if categories else 200)-10,p.MEDIA+'white.png',p.BG)
  heading=('<control type="label" id="2"><left>300</left><top>36</top><width>%d</width><height>108</height><font>p_h3</font>'
-          '<textcolor>%s</textcolor><align>center</align><aligny>center</aligny><scroll>true</scroll><label>%s</label></control>')%(p.WIDTH-600,p.WHITE,p.e(title))
+          '<textcolor>%s</textcolor><align>center</align><aligny>center</aligny><scroll>false</scroll><label>%s</label>%s</control>')%(p.WIDTH-600,p.WHITE,p.e(title),'<visible>String.IsEmpty(Window(Home).Property(KodiIOS.CategoryPage))</visible>' if paged else '')
+ # Opened from a section page row (section_page.py sets KodiIOS.CategoryPage): the chip row slides out of sight (it must
+ # stay "visible" so Kodi can focus its buttons and load that category) and the category's name is a large title.
+ paged_on='!String.IsEmpty(Window(Home).Property(KodiIOS.CategoryPage))'
+ hide=('<animation effect="slide" end="0,-700" time="0" condition="%s">Conditional</animation>'%paged_on) if paged else ''
  cats=('<control type="grouplist" id="3"><left>%d</left><top>200</top><width>%d</width><height>96</height><orientation>horizontal</orientation>'
-       '<itemgap>16</itemgap><scrolltime tween="cubic" easing="out">250</scrolltime><ondown>5</ondown><onup>9001</onup>%s</control>')%(
-       p.SIDE,w,'' if categories else '<visible>false</visible>')
+       '<itemgap>16</itemgap><scrolltime tween="cubic" easing="out">250</scrolltime><ondown>5</ondown><onup>9001</onup>%s%s</control>')%(
+       p.SIDE,w,'' if categories else '<visible>false</visible>',hide)
+ big=(p.label(p.SIDE+PAD,190,w-2*PAD,140,'$INFO[Window(Home).Property(KodiIOS.CategoryPage)]','p_large',p.WHITE,'left','<scroll>false</scroll><visible>%s</visible>'%paged_on)
+      if paged else '')
  lst=('<control type="grouplist" id="5"><left>%d</left><top>%d</top><width>%d</width><bottom>%d</bottom><orientation>vertical</orientation>'
       '<itemgap>2</itemgap><usecontrolcoords>false</usecontrolcoords><onup>3</onup><scrolltime tween="cubic" easing="out">250</scrolltime></control>')%(
       p.SIDE,LIST_TOP if categories else 200,w,HELP_H)
@@ -523,17 +679,21 @@ def setting_body(p,title,header_buttons,extra='',categories=True):
         '<control type="label" id="6"><width>1</width><height>1</height><visible>false</visible></control>'+
         '<control type="textbox"><left>%d</left><bottom>16</bottom><width>%d</width><height>%d</height><font>p_foot</font><textcolor>%s</textcolor>'
         '<label>$INFO[Control.GetLabel(6)]</label><autoscroll>false</autoscroll></control>')%(p.SIDE+PAD,w-2*PAD,HELP_H-40,p.GREY)
- return '<controls>'+p.backdrop()+lst+bar+heading+cats+help_+header_buttons+extra+'</controls>'
+ return '<controls>'+p.backdrop()+lst+bar+heading+big+cats+help_+header_buttons+extra+'</controls>'
 
 def category_window(p,original):
  """portrait/SettingsCategory.xml: System, Player, Media, Interface, Services, PVR and Games pages."""
  back=p.nav_button(9001,p.SIDE,36,'chevron-left.png','Action(Back)','<ondown>3</ondown>')
+ # From a section page row, Back returns to that section page (it was closed to open this one).
+ back=back.replace('<onclick>Action(Back)</onclick>','<onclick condition="!String.IsEmpty(Window(Home).Property(KodiIOS.CategorySection))">'
+                   'RunScript(service.kodi.ios.bootstrap,section_page,$INFO[Window(Home).Property(KodiIOS.CategorySection)])</onclick><onclick>Action(Back)</onclick>',1)
  level=('<control type="button" id="20"><left>%d</left><top>36</top><width>290</width><height>108</height><font>p_foot_b</font>'
         '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
         '<texturefocus border="54" colordiffuse="FF48484A">%spill_108.png</texturefocus><texturenofocus border="54" colordiffuse="%s">%spill_108.png</texturenofocus>'
         '<onclick>settingslevelchange</onclick><ondown>3</ondown><onleft>9001</onleft></control>')%(p.WIDTH-p.SIDE-290,BLUE,BLUE,p.MEDIA,p.SURFACE,p.MEDIA)
- body=setting_body(p,'',back+level,setting_templates(p,'togglebutton'))
- return p.window(original,body,'5','<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>')
+ body=setting_body(p,'',back+level,setting_templates(p,'togglebutton'),paged=True)
+ return p.window(original,body,'5','<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>'
+                 '<onunload>ClearProperty(KodiIOS.CategoryPage,Home)</onunload><onunload>ClearProperty(KodiIOS.CategorySection,Home)</onunload>')
 
 def addon_settings_window(p,original,categories=True):
  """portrait/DialogAddonSettings.xml: every add-on's settings (Elementum, Umbrella, Trakt...) as an iOS sheet with
@@ -547,11 +707,111 @@ def addon_settings_window(p,original,categories=True):
  return p.window(original,body,'5','<animation effect="slide" start="0,300" end="0,0" time="260" tween="cubic" easing="out">WindowOpen</animation>'
                  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>')
 
+# --- Profiles and Favourites pages (owner-approved mockup boards 09 and 10: profiles_page.py, favourites_page.py) ---
+def _module(name):
+ spec=_iu.spec_from_file_location(name,os.path.join(os.path.dirname(os.path.abspath(__file__)),name+'.py'))
+ module=_iu.module_from_spec(spec);spec.loader.exec_module(module);return module
+profiles_rows=_module('profiles_rows');favourites_rows=_module('favourites_rows');choice_sheet=_module('choice_sheet')
+
+def profile_row(p,n,w):
+ """Profile n (shown while its name is set): picture or initials, its name and, for the current profile, "Signed in now"
+ with a blue tick. Button 9600+n switches to it. The rows sit in a grouplist, so their positions follow the count."""
+ flag=lambda k:'Window().Property(profile.%d.%s)'%(n,k)
+ P=lambda k:'$INFO[%s]'%flag(k)
+ shown='!String.IsEmpty(%s)'%flag('name');current='String.IsEqual(%s,true)'%flag('current');thumb='!String.IsEmpty(%s)'%flag('thumb')
+ h=ROW2;a=130;x=PAD+a+40;ay=(h-a)//2;tw=w-x-PAD-110
+ return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(w,h,shown)+
+  '<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>%s%s</control>'
+  %(9600+n,w,h,highlight(p,w,h),'<onup>9001</onup>' if n==1 else '')+
+  (p.image(x,0,w-x,2,p.MEDIA+'white.png',p.SEP) if n>1 else '')+
+  p.surface(PAD,ay,a,a,'avatar_s.png','FF7B88C4')+p.label(PAD,ay,a,a,P('initials'),'p_h3',p.WHITE,'center','<visible>!%s</visible>'%thumb)+
+  p.image(PAD,ay,a,a,P('thumb'),p.WHITE,'<visible>%s</visible>'%thumb,'',p.MEDIA+'avatar_s.png')+
+  p.label(x,0,tw,h,P('name'),'p_body',p.WHITE,'left','<scroll>false</scroll><visible>!%s</visible>'%current)+
+  p.label(x,26,tw,70,P('name'),'p_body',p.WHITE,'left','<scroll>false</scroll><visible>%s</visible>'%current)+
+  p.label(x,96,tw,56,profiles_rows.SIGNED_IN,'p_foot',p.GREY,'left','<visible>%s</visible>'%current)+
+  p.icon(w-PAD-40,(h-50)//2,50,'check.png',p.ACCENT,'<visible>%s</visible>'%current)+'</control>')
+
+def profiles_page(p):
+ """portrait/IOSProfiles.xml for profiles_page.py (Settings > Profiles, mockup board 09): one row per profile, then Add
+ Profile in blue, and the footer under the card. Window properties: rows (profiles + 1), profile.n.name / initials /
+ thumb / current. Buttons 9600+n switch to profile n, 9609 opens Kodi's Profiles window, 9001 closes."""
+ w=p.WIDTH-2*p.SIDE;h=ROW2;n_rows=profiles_rows.MAX+1;x=PAD+130+40
+ add=('<control type="group"><width>%d</width><height>%d</height>'%(w,h)+
+  '<control type="button" id="9609"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>%s</control>'%(w,h,highlight(p,w,h))+
+  p.image(x,0,w-x,2,p.MEDIA+'white.png',p.SEP)+
+  p.surface(PAD,(h-130)//2,130,130,'avatar_s.png',p.SURFACE2)+p.label(PAD,(h-130)//2,130,130,'+','p_h2',p.ACCENT,'center')+
+  p.label(x,0,w-x-PAD,h,profiles_rows.ADD,'p_body',p.ACCENT,'left','<scroll>false</scroll>')+'</control>')
+ rows=''.join(profile_row(p,n,w) for n in range(1,profiles_rows.MAX+1))+add
+ # The card's background and the footer under it are drawn for each row count (property rows), as section_page does.
+ fit=''.join('<control type="group"><visible>String.IsEqual(Window().Property(rows),%d)</visible>'%k+
+  p.surface(p.SIDE,0,w,k*h,'group.png',p.SURFACE,RADIUS)+
+  p.label(p.SIDE+PAD,k*h+14,w-2*PAD,140,profiles_rows.FOOT,'p_foot',p.GREY,'left','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+'</control>'
+  for k in range(1,n_rows+1))
+ shell=('<control type="group"><width>%d</width><height>%d</height>%s'%(p.WIDTH,n_rows*h+160,fit)+
+  '<control type="grouplist" id="9310"><left>%d</left><top>0</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
+  '<itemgap>0</itemgap><usecontrolcoords>false</usecontrolcoords>%s</control></control>')%(p.SIDE,w,n_rows*h,rows)
+ lst=('<control type="grouplist" id="9300"><left>0</left><top>200</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+      '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%p.WIDTH+
+      p.label(p.SIDE,0,w,130,'Profiles','p_large',p.WHITE,'left','<scroll>false</scroll>')+
+      spacer(14)+shell+spacer(60)+'</control>')
+ page='<controls>'+p.backdrop()+lst+header(p,[('','Close')],[('Profiles','')])+'</controls>'
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9601</defaultcontrol>'
+         '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
+
+def favourite_cell(p,n,x,y,cw,ch):
+ """Poster n (shown while its title is set): the Movies grid's poster card and art, its title under it, and in Edit mode a
+ red remove badge on the favourites Favourites.AddFavourite can remove. Button 9700+n opens it (or removes it in Edit)."""
+ flag=lambda k:'Window().Property(fav.%d.%s)'%(n,k)
+ shown='!String.IsEmpty(%s)'%flag('title')
+ badge='String.IsEqual(%s,true) + !String.IsEmpty(Window().Property(editing))'%flag('removable')
+ cap=96
+ return ('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><visible>%s</visible>'%(x,y,cw,ch+cap,shown)+
+  '<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus /></control>'%(9700+n,cw,ch+cap)+
+  '<control type="group"><animation effect="zoom" start="100" end="104" time="160" center="auto" tween="cubic" easing="out" condition="Control.HasFocus(%d)">Conditional</animation>'%(9700+n)+
+  p.image(0,0,cw,ch,p.MEDIA+'white.png',p.SURFACE,'','',p.MEDIA+'poster_mask.png')+
+  p.image(0,0,cw,ch,'$INFO[%s]'%flag('thumb'),p.WHITE,'','>scale',p.MEDIA+'poster_mask.png',background=True)+
+  p.label(0,ch+14,cw,cap-14,'$INFO[%s]'%flag('title'),'p_foot_b',p.WHITE,'left','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+
+  '<control type="group"><left>%d</left><top>14</top><visible>%s</visible>'%(cw-70,badge)+
+  p.image(0,0,56,56,p.MEDIA+'avatar_s.png',RED)+p.image(2,2,52,52,p.MEDIA+'close_cross.png',p.WHITE)+'</control></control></control>')
+
+def favourites_page(p):
+ """portrait/IOSFavourites.xml for favourites_page.py (Settings > Favourites, mockup board 10): the favourites as a poster
+ grid, three across, the empty state, the footer, and Edit (top right) that shows remove badges. Window properties:
+ count, fav.n.title / thumb / removable. Buttons 9700+n open favourite n (or remove it in Edit); 9010 Edit, 9011 Done."""
+ w=p.WIDTH-2*p.SIDE;cols=3;cw=(w-(cols-1)*p.GAP)//cols;ch=cw*3//2;cap=96;row_h=ch+cap+p.GAP
+ rows=''.join('<control type="group"><width>%d</width><height>%d</height><visible>!String.IsEmpty(Window().Property(fav.%d.title))</visible>%s</control>'%(
+   p.WIDTH,row_h,3*r+1,''.join(favourite_cell(p,3*r+c+1,p.SIDE+c*(cw+p.GAP),0,cw,ch) for c in range(cols)))
+   for r in range(favourites_rows.MAX//cols))
+ empty=('<control type="group"><width>%d</width><height>240</height><visible>String.IsEmpty(Window().Property(fav.1.title))</visible>'%p.WIDTH+
+  p.label(p.SIDE,40,w,160,favourites_rows.EMPTY,'p_h3',p.WHITE,'center')+'</control>')
+ lst=('<control type="grouplist" id="9300"><left>0</left><top>200</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+      '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%p.WIDTH+
+      p.label(p.SIDE,0,w,130,favourites_rows.TITLE,'p_large',p.WHITE,'left','<scroll>false</scroll>')+
+      spacer(14)+rows+empty+footer(p,favourites_rows.FOOT,130)+spacer(160)+'</control>')
+ has='!String.IsEmpty(Window().Property(fav.1.title))';editing='!String.IsEmpty(Window().Property(editing))'
+ # Edit and Done are text buttons in the header's right corner, in the accent blue like Cancel and Done in the sheets.
+ edit=('<control type="button" id="9010"><left>%d</left><top>36</top><width>240</width><height>108</height><label>Edit</label>'
+  '<font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>right</align><aligny>center</aligny>'
+  '<texturefocus /><texturenofocus /><visible>String.IsEmpty(Window().Property(editing)) + %s</visible><ondown>9300</ondown></control>')%(
+  p.WIDTH-p.SIDE-240,p.ACCENT,p.ACCENT,has)
+ done=('<control type="button" id="9011"><left>%d</left><top>36</top><width>240</width><height>108</height><label>Done</label>'
+  '<font>p_btn</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>right</align><aligny>center</aligny>'
+  '<texturefocus /><texturenofocus /><visible>%s</visible><ondown>9300</ondown></control>')%(p.WIDTH-p.SIDE-240,p.ACCENT,p.ACCENT,editing)
+ page='<controls>'+p.backdrop()+lst+header(p,[('','Close')],[(favourites_rows.TITLE,'')])+edit+done+'</controls>'
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9001</defaultcontrol>'
+         '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
+
 def files(p,read):
  """{relative path: bytes} for the portrait folder and its textures."""
  out={p.FOLDER+'/Settings.xml':settings_window(p,read('Settings.xml')).encode(),
       p.FOLDER+'/IOSAccounts.xml':accounts_page(p).encode(),
+      p.FOLDER+'/IOSSection.xml':section_page(p).encode(),
+      p.FOLDER+'/IOSSkinList.xml':skin_list_page(p).encode(),
+      p.FOLDER+'/IOSProfiles.xml':profiles_page(p).encode(),
+      p.FOLDER+'/IOSFavourites.xml':favourites_page(p).encode(),
       p.FOLDER+'/IOSSettingsSearch.xml':search_window(p).encode(),
+      p.FOLDER+'/IOSAddonUpdates.xml':addon_updates_page(p).encode(),
+      p.FOLDER+'/'+choice_sheet.WINDOW:choice_sheet.window(p).encode(),
       p.FOLDER+'/SettingsCategory.xml':category_window(p,read('SettingsCategory.xml')).encode(),
       p.FOLDER+'/DialogAddonSettings.xml':addon_settings_window(p,read('DialogAddonSettings.xml')).encode()}
  for name,data in textures(p).items():out['extras/portrait/'+name]=data

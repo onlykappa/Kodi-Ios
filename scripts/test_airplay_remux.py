@@ -33,7 +33,7 @@ class PhoneSource(unittest.TestCase):
   self.assertEqual(cast.phone_source('/var/mobile/Movie.mkv','http://fallback/x'),'http://fallback/x')
   source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
   self.assertIn('cast.airplay_source(playing,url,converting)',source)
-  self.assertIn('AirPlay converts this %s video on the phone',source)
+  self.assertIn('AirPlay streams from this iPhone: keep Kodi open.',source)
  def test_a_prepared_mp4_also_uses_the_phones_own_link(self):
   # Owner build 157: Scary.Movie...mp4 (prepared) went out as http://10.0.0.247:57527/... and was refused.
   playing='http://127.0.0.1:57527/download/1/1/abc/Scary.Movie.2026.2160p.mp4'
@@ -72,7 +72,7 @@ class KodiStaysPaused(unittest.TestCase):
   # Owner build-136 log: player.stop() right after "playing" rotated the app and the TV dropped the session.
   source=(ROOT/'migration/bundled-bootstrap/cast.py').read_text()
   body=source[source.index('def send_airplay('):source.index('def send(xbmc')]
-  playing=body[body.index("if outcome=='playing':"):body.index("lib.kodi_airplay_close();airplay.clear_busy(home)")]
+  playing=body[body.rindex("if outcome=='playing':"):body.rindex("lib.kodi_airplay_close();airplay.clear_busy(home)")]
   self.assertNotIn('player.stop()',playing);self.assertIn('player.pause()',playing)
 
 class RokuFallsBackToAirPlay(unittest.TestCase):
@@ -98,10 +98,32 @@ class Framework(unittest.TestCase):
   self.assertIn('airplay.message(lib)',source)
  def test_framework_exports_and_stops_the_server(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
-  for needle in ('kodi_airplay_message','kr_remux_start(copy, 1,','kr_remux_kind(url) == KR_DIRECT','stopRemux();','exported_symbols_list',
+  for needle in ('kodi_airplay_message','kr_remux_start_for(ticket,copy, 1,','kr_remux_kind(url) == KR_DIRECT','retirePlaybackFor(self.generation)','exported_symbols_list',
                  'FFmpeg symbols exported','showProblem(','THIRD-PARTY-NOTICES'):
    self.assertIn(needle,build)
-  self.assertGreaterEqual(build.count('stopRemux();'),3)  # new direct play, Apple's player dismissed, kodi_airplay_close
+  self.assertGreaterEqual(build.count('stopRemuxFor('),4)  # wrapper, new direct play and explicit close
+  stop=build[build.index('static void stopRemuxFor('):build.index('static BOOL tvRoute(')]
+  self.assertLess(stop.index('kr_remux_cancel(ticket)'),stop.index('dispatch_async(remuxQueue()'))
+
+ def test_native_ownership_and_screen_lock_lifetime(self):
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  restart=build[build.index('BOOL (^restartCompat)'):build.index('return YES;',build.index('BOOL (^restartCompat)'))]
+  self.assertLess(restart.index('kr_remux_begin(1)'),restart.index('dispatch_async(remuxQueue()'))
+  self.assertIn('os_unfair_lock_lock(&ownershipLock)',restart)
+  presentation=build[build.index('[top presentViewController:holder animated:YES completion:'):]
+  self.assertIn('routeWatch=[NSTimer',presentation)
+  self.assertIn('kr_remux_player(holder.ticket',presentation)
+  self.assertIn('atomic_load(&airplayState)>=0 && player.timeControlStatus',presentation)
+  observer=build[build.index('static void watchPlayback('):build.index('static void presentPlayer(')]
+  for needle in ('AVPlayerItemDidPlayToEndTimeNotification','AVPlayerItemFailedToPlayToEndTimeNotification',
+                 '__weak AVPlayer','current.currentItem!=note.object','playbackStateFor(generation,0,0)',
+                 'playbackStateFor(generation,-1,0)'):
+   self.assertIn(needle,observer)
+  self.assertIn('AVPlayerAudiovisualBackgroundPlaybackPolicyContinuesIfPossible',build)
+  keep=build[build.index('static void keepUpdate(void) {'):]
+  owned=keep[:keep.index('const BOOL run')]
+  self.assertIn('atomic_load(&playbackActive)',owned)
+  self.assertIn('[keepPlayer stop]',owned)
 
 class AirPlayLog(unittest.TestCase):
  def test_old_framework_has_no_log(self):
@@ -126,15 +148,17 @@ class AirPlayLog(unittest.TestCase):
    self.assertIn(needle,build)
   lock=__import__('json').loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())
   import re
-  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r33')
-  self.assertRegex(lock['framework_release']['sha256'],r'^(PENDING-set-after-publish|[0-9a-f]{64})$')
-  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r32')
-  self.assertEqual(lock['previous']['sha256'],'c3307e22715824245eb99cd65953ecfc1752feb0ed08abac5d73b115607d4426')
+  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r46')
+  self.assertRegex(lock['framework_release']['sha256'],r'^[0-9a-f]{64}$')
+  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r45')
+  self.assertEqual(lock['previous']['sha256'],'4d282fa9bd0afe43b1106d919fba48b12c61f08fd18b4e25367f3629ff5e77db')
+  self.assertEqual(lock['framework_release']['sha256'],'45f37b1785e64c3335892f63e733e54fbf277f84197b525e40912c0ceb69eeb4')
+  self.assertEqual(lock['verified_run'],42965789430)
 
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
-  for needle in ('kr_remux_start(copy, 1, 0,','kr_remux_start(source, 1, 1,','compatTried','Converting the picture for this TV',
+  for needle in ('kr_remux_start_for(ticket,copy, 1, 0,','kr_remux_start_for(restartTicket,source, 1, 1,','compatTried','Converting the picture for this TV',
                  'replaceCurrentItemWithPlayerItem','seekToTime:','showNoPicture(hevc)','kr_remux_compat()',
                  '-framework VideoToolbox','-framework CoreVideo','libswscale.a','h264_videotoolbox'):
    self.assertIn(needle,build)
@@ -167,7 +191,7 @@ class PerReceiver(unittest.TestCase):
   for needle in ('int kr_remux_third_party_receiver(const char *ua);','int kr_remux_compat_clients(void);',
                  'int kr_remux_served_external(int video);','int kr_remux_prefetched(void);'):
    self.assertIn(needle,header)
-  for needle in ('mfi_airplay_device','kr_hls_master_at(S.gm, S.base, 1, "cvideo")','prefetch_after(rend','cache_take(',
+  for needle in ('mfi_airplay_device','kr_hls_master_selected(S.gm,S.base,1,"cvideo",S.burn_index)','prefetch_after(rend','cache_take(',
                  'audio_demuxer()','kr_video_cancel(S.video)','prefetch_stop();'):
    self.assertIn(needle,code)
   tests=(src.parent/'tests/test_remux.c').read_text()
@@ -182,7 +206,7 @@ class PerReceiver(unittest.TestCase):
    self.assertIn(needle,build)
   self.assertNotIn('holder.mask',build)
   self.assertIn('r8:',build.split('set -euo pipefail')[0])
-  self.assertEqual(build.count('kr_remux_start(source, 1, 1,'),1)  # one restart path for both triggers
+  self.assertEqual(build.count('kr_remux_start_for(restartTicket,source, 1, 1,'),1)  # one guarded restart path
 
 
 class R9Speed(unittest.TestCase):
@@ -194,13 +218,13 @@ class R9Speed(unittest.TestCase):
                  'TARGET_OS_IPHONE','__builtin_available(iOS 16.0, *)','"threads", 0','prio_speed'):
    self.assertIn(needle,video)
   code=(src/'kr_remux.c').read_text()
-  for needle in ('t_err','session stopped','atomic_store(&vc_seg, seg)','pthread_mutex_trylock(&S.sgm_lock)',
+  for needle in ('t_err','session stopped','atomic_store(&vc_seg, seg)','pthread_cond_timedwait(&SC.changed',
                  'if (third || S.compat) prefetch_push(R_VCOMPAT, 0);'):
    self.assertIn(needle,code)
   # Source retry/seek behavior is exercised by compiled fault-injection tests; do not require the old
   # nested HTTP reconnect/AVSEEK_FORCE implementation, which could exceed its timeout repeatedly.
   gm=(src.parent/'gmplayer/gm_stream.c').read_text()
-  self.assertIn('av_seek_frame(s->in, -1, (int64_t)(seek_to * AV_TIME_BASE)',gm)
+  # Caption seeks and first-cue fallback are covered by native remote-MP4 regressions.
   self.assertIn('"subtitle read"',gm)
   self.assertIn('Second line',(src.parent/'tests/test_remux.c').read_text())
   self.assertIn('r9:',(ROOT/'migration/airplay-ios/build-airplay.sh').read_text().split('set -euo pipefail')[0])

@@ -24,7 +24,8 @@ class Layout(unittest.TestCase):
   self.assertIsNone(page.find(".//control[@id='9001']"));self.assertIsNone(page.find(".//control[@id='9010']"))
  def test_downloaded_primary_action_uses_existing_episode_route_and_provider_action_survives(self):
   button=self.control(9002);actions=button.findall('onclick')
-  self.assertEqual(button.findtext('label'),'$VAR[Portrait_Show_Play_Label]')
+  # Owner (build 229): the label sits beside the glyph, centred with it, not under it (pill_button inline).
+  self.assertIn('$VAR[Portrait_Show_Play_Label]',[c.findtext('label') for c in self.root.iter('control') if c.get('type')=='label'])
   self.assertTrue(any('Container(50).ListItem.Property(KodiIOS.PlayPath)' in a.text and portrait.DOWNLOADED_SHOW in a.get('condition') for a in actions))
   self.assertTrue(any('Container.Property(KodiIOS.PlayPath)' in a.text and 'Container.Content(episodes)' in a.get('condition') for a in actions))
   self.assertTrue(any('Container(60).ListItemAbsolute(0)' in a.text and '!'+portrait.DOWNLOADED_SHOW in a.get('condition') for a in actions))

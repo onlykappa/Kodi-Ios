@@ -16,6 +16,49 @@ if [[ ! -f "$WORK/fixtures/dvd.idx" || ! -f "$WORK/fixtures/dvd.sub" ]]; then
   python3 -B "$HERE/make_pgs.py" "$WORK/fixtures/dvd.idx" --vobsub
 fi
 ASS="$(cd "${3:-$FF/../asshost}" && pwd)"
+if [[ ! -f "$WORK/fixtures/coalesced.mp4" ]]; then
+  # A prepared movie's storage fragment can contain many short GOPs. Filler makes socket backpressure and
+  # caption reads realistic without a large picture or expensive encoder. Keep this fixture private.
+  ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=128x72:rate=24:duration=32' \
+    -f lavfi -i 'sine=frequency=440:duration=32' -i "$WORK/fixtures/subs.srt" \
+    -map 0:v -map 1:a -map 2:s -c:v libx264 -preset ultrafast -g 48 -sc_threshold 0 \
+    -b:v 8M -minrate 8M -maxrate 8M -bufsize 8M -x264-params nal-hrd=cbr \
+    -c:a aac -b:a 64k -c:s mov_text -metadata kodi_airplay_prepared=1 \
+    -movflags empty_moov+default_base_moof+frag_keyframe+use_metadata_tags -min_frag_duration 30000000 "$WORK/fixtures/coalesced.mp4"
+fi
+if [[ ! -f "$WORK/fixtures/coalesced-b.mp4" ]]; then
+  ffmpeg -hide_banner -loglevel error -y -i "$WORK/fixtures/coalesced.mp4" -map 0 \
+    -c:v libx264 -preset veryfast -g 48 -bf 3 -sc_threshold 0 -fps_mode passthrough -c:a copy -c:s copy \
+    -metadata kodi_airplay_prepared=1 -movflags empty_moov+default_base_moof+frag_keyframe+use_metadata_tags+negative_cts_offsets \
+    -min_frag_duration 10000000 "$WORK/fixtures/coalesced-b.mp4"
+fi
+if [[ ! -f "$WORK/fixtures/long-gop.mp4" ]]; then
+  ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=128x72:rate=24:duration=32' \
+    -f lavfi -i 'sine=frequency=440:duration=32' -c:v libx264 -preset ultrafast -g 720 -sc_threshold 0 \
+    -c:a aac -b:a 64k -movflags empty_moov+default_base_moof+frag_keyframe -min_frag_duration 30000000 "$WORK/fixtures/long-gop.mp4"
+fi
+# Match the prepared writer's finite init duration (FFmpeg empty_moov alone leaves these fields zero).
+python3 -B - "$WORK/fixtures/long-gop.mp4" <<'PY'
+import struct,sys
+from pathlib import Path
+p=Path(sys.argv[1]);data=bytearray(p.read_bytes())
+def walk(start,end):
+    at=start
+    while at+8<=end:
+        size,kind=struct.unpack_from('>I4s',data,at)
+        if size<8 or at+size>end:break
+        if kind in (b'moov',b'trak',b'mdia'):walk(at+8,at+size)
+        if kind in (b'mvhd',b'mdhd') and data[at+8]==0:
+            scale=struct.unpack_from('>I',data,at+20)[0]
+            struct.pack_into('>I',data,at+24,round(32.023*scale))
+        if kind==b'tkhd' and data[at+8]==0:struct.pack_into('>I',data,at+28,32023)
+        at+=size
+walk(0,len(data));p.write_bytes(data)
+if p.name=='long-gop.mp4':
+    for name in ('coalesced.mp4','coalesced-b.mp4'):
+        other=p.with_name(name)
+        data=bytearray(other.read_bytes());walk(0,len(data));other.write_bytes(data)
+PY
 if [[ ! -f "$WORK/fixtures/dovi.mkv" ]]; then
   python3 -B "$HERE/make_dovi.py" "$WORK/fixtures/dovi.mkv"
 fi
@@ -36,6 +79,11 @@ fi
 if [[ ! -f "$WORK/fixtures/long_big.mkv" ]]; then
   ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=640x360:rate=10:duration=1300' -f lavfi -i 'sine=frequency=440:duration=1300' \
     -c:v libx264 -preset ultrafast -g 20 -b:v 600k -c:a aac -b:a 64k "$WORK/fixtures/long_big.mkv"
+fi
+# A cue seek far into a large movie must obey the whole-request subtitle deadline.
+if [[ ! -f "$WORK/fixtures/long_sub.mkv" ]]; then
+  ffmpeg -hide_banner -loglevel error -y -i "$WORK/fixtures/long_big.mkv" -i "$WORK/fixtures/subs.srt" \
+    -map 0:v -map 0:a -map 1:s -c copy "$WORK/fixtures/long_sub.mkv"
 fi
 if [[ ! -f "$WORK/fixtures/resume_av1_hdr_big.mkv" ]]; then
   ffmpeg -hide_banner -loglevel error -y -f lavfi -i 'testsrc2=size=640x360:rate=24:duration=95' -f lavfi -i 'sine=frequency=440:duration=95' \

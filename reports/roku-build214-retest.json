@@ -1,0 +1,60 @@
+{
+  "date": "2026-11-09",
+  "status": "DEVICE_FAILURE_CONFIRMED_HOST_REPAIR_CANDIDATE",
+  "tested_build": 214,
+  "tested_framework": "kodi-airplay-r42",
+  "owner_report": "Media Assistant still fails and subtitles are missing; Apple TV box works",
+  "private_evidence": "Owner-provided Kodi log; raw file retained outside Git",
+  "evidence_lines": {
+    "buffering_before_launch": 950,
+    "roku_connected": 957,
+    "roku_headers": 962,
+    "segmented_canceled_delivery": 985,
+    "subtitle_deadlines": 1269
+  },
+  "confirmed_bugs": [
+    "Storage-fragment first-sample index was mistaken for a complete keyframe index, producing up-to-70-second HLS segments",
+    "Segment delivery counters and byte logs updated only after the entire response, losing partial delivery evidence",
+    "Subtitle reads sought/read the video/audio payload before filtering; requests expired and returned empty WebVTT",
+    "TV-server handoff did not forward Kodi subtitle selection, and the segmented master never marked it default"
+  ],
+  "repairs": [
+    "Bounded four-cursor moof metadata scan finds internal keyframes while preserving source picture and Drive files",
+    "Segment sender accounts for partial writes and exposes media delivery before response completion",
+    "Subtitle demuxer discards other tracks before reading and seeks the caption index, including first-cue forward fallback",
+    "Forward current caption choice to TV server and select that rendition in its HLS master",
+    "Optional safe Roku player/model feedback distinguishes buffering/error/play from transport delivery"
+  ],
+  "regression_before": {
+    "checks": 46,
+    "failed": 4
+  },
+  "regression_after": {
+    "checks": 102,
+    "failed": 0
+  },
+  "local_streaming_checks": 141,
+  "local_streaming_failures": 0,
+  "local_startup_checks": 13,
+  "local_startup_failures": 0,
+  "python_checks": 142,
+  "python_failures": 0,
+  "native_ci": "pending",
+  "test_ipa": "pending",
+  "live_drive_accessed": false,
+  "roku_repair_device_tested": false,
+  "main_merged": false,
+  "research": [
+    "https://developer.roku.com/dev/docs/media",
+    "https://developer.roku.com/dev/docs/closed-caption",
+    "https://developer.roku.com/dev/docs/external-control-api",
+    "https://github.com/MedievalApple/Media-Assistant/blob/main/README.md",
+    "https://github.com/home-assistant/core/blob/dev/homeassistant/components/roku/media_player.py",
+    "https://github.com/kingslay/KSPlayer/blob/main/Sources/KSPlayerUI/SwiftUI/AirPlayView.swift"
+  ],
+  "additional_regression_bugs": [
+    "Version-1 negative composition offsets were treated as unsigned while deriving DTS from MFRA PTS; use signed offsets and prefer explicit TFDT decode timestamps",
+    "Per-fragment TFRA anchoring could reset the stream presentation offset; use absolute sample timestamps plus one stream-wide offset",
+    "Container average frame rate drifted CFR decode ladders, making MOV discard boundary keyframes; use the nominal rate selected by av_guess_frame_rate"
+  ]
+}

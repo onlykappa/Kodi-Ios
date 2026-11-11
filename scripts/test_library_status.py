@@ -54,7 +54,7 @@ class View(unittest.TestCase):
  def test_empty_library(self):
   v=prep.library_view({});self.assertEqual((v['total'],v['pct'],v['checked']),(0,0,'not checked yet'))
   self.assertEqual(rows.page_properties(v)['headline'],'Not checked yet')
-  self.assertEqual([i['kind'] for i in rows.list_items(v)],['foot'])
+  self.assertEqual(rows.list_items(v),[])
 
 class Rows(unittest.TestCase):
  def setUp(self):
@@ -62,29 +62,24 @@ class Rows(unittest.TestCase):
   for n in range(8):state['library']['items'].append(item('x%d'%n,'Film%d.2000.1080p.mkv'%n,'ready'))
   self.view=prep.library_view(state,free=40*GB,working=2*GB,now=lambda:1000)
  def test_all_shows_what_happens_now_and_folders(self):
-  """Owner (build 160): "it needs to be in like a folder so ready will show 7 then if i tap it it shows the movies"."""
   items=rows.list_items(self.view)
-  self.assertEqual([(i['kind'],i['props'].get('folder') or i['props'].get('id')) for i in items],
-                   [('row','p1'),('folder','waiting'),('folder','ready'),('folder','kept'),('foot',None)])
-  folders={i['props']['folder']:i for i in items if i['kind']=='folder'}
-  self.assertEqual({k:f['props']['count'] for k,f in folders.items()},{'waiting':'5','ready':'10','kept':'2'})
-  self.assertEqual(folders['ready']['label'],'Ready for Kodi and AirPlay')
-  self.assertEqual(folders['waiting']['label2'],'Alien (1979) · next and 4 more')
-  self.assertTrue(folders['ready']['label2'].endswith('and 8 more'))
-  self.assertEqual([f['props']['pos'] for f in folders.values()],['first','mid','last'])
-  self.assertEqual((folders['ready']['props']['icon'],folders['ready']['props']['tint']),('circle-check.png','FF30D158'))
-  self.assertEqual(len([i for i in rows.list_items(self.view,'ready') if i['kind']=='row']),10)
+  self.assertTrue(all(i['kind']=='row' for i in items))
+  self.assertEqual([i['props']['section'] for i in items if i['props']['section']],['UP NEXT','READY FOR KODI AND AIRPLAY','KEPT AS IT IS'])
+  self.assertEqual(sum(i['props']['state']=='ready' for i in items),10)
+  self.assertEqual(items[0]['props']['number'],'1')
  def test_every_item_is_one_height_in_one_layout(self):
-  self.assertNotIn('condition=',library_page.page(portrait).split('<control type="list"')[1].split('</control>')[0][:400])
-  self.assertEqual(rows.TITLES['ready'],'Ready')
+  xml=library_page.page(portrait)
+  self.assertIn('<control type="grouplist" id="9300">',xml)
+  # Build 194 (boards 1 and 2): one pool of rows per section, each section one grouped card.
+  for key in ('down','next','kept','ready'):self.assertIn('Window().Property(%s.0.title)'%key,xml)
+  self.assertIn('Window().Property(next.0.number)',xml)
  def test_positions_round_the_group(self):
   waiting=[i['props']['pos'] for i in rows.list_items(self.view,'waiting')]
   self.assertEqual((waiting[0],waiting[-1]),('first','last'));self.assertTrue(all(p=='mid' for p in waiting[1:-1]))
  def test_filters(self):
-  todo={i['props']['state'] for i in rows.list_items(self.view,'todo') if i['kind']=='row'}
+  todo={i['props']['state'] for i in rows.list_items(self.view,'todo')}
   self.assertNotIn('ready',todo);self.assertIn('preparing',todo)
-  self.assertEqual(rows.list_items(self.view,'downloading')[0]['kind'],'foot')
-  self.assertIn('Nothing is downloading',rows.list_items(self.view,'downloading')[0]['label'])
+  self.assertEqual(rows.list_items(self.view,'downloading'),[])
  def test_ring_texture(self):
   self.assertEqual((rows.ring_name(0),rows.ring_name(39),rows.ring_name(100),rows.ring_name(None)),('ring_00.png','ring_08.png','ring_20.png','ring_00.png'))
  def test_page_top(self):
@@ -138,18 +133,22 @@ class Skin(unittest.TestCase):
   ids={c.get('id') for c in self.sheetx.iter('control')}
   for n in (9200,9201,9202,9099):self.assertIn(str(n),ids)
  def test_properties_the_controller_sets(self):
-  for k in rows.page_properties(prep.library_view({})):
+  for k in ('sub','headline','count.ready','count.working','count.next','count.kept'):
    self.assertIn('Window().Property(%s)'%k,self.page,k)
-  for k in ('title','status','tone','quality','poster','fact3.value','action2.label'):self.assertIn('Window().Property(%s)'%k,self.sheet,k)
-  for k in ('kind','pos','state','ring','pct','warn'):self.assertIn('ListItem.Property(%s)'%k,self.page,k)
+  for k in ('title','quality','poster','fact3.value','action2.label','step2.label','card.num','card.unit','card.left','card.wait'):
+   self.assertIn('Window().Property(%s)'%k,self.sheet,k)
+  for k in ('title','sub','number','pos'):
+   self.assertIn('Window().Property(next.0.%s)'%k,self.page,k)
  def test_status_sheet_closes_with_a_cross(self):
-  self.assertIn('close_cross.png',self.sheet);self.assertNotIn('>Done<',self.sheet)
+  self.assertIn('close_cross.png',self.sheet);self.assertTrue(all(c.findtext('label')!='Done' for c in self.sheetx.iter('control') if c.get('type')=='button'))
  def test_pill_stays_off_this_page(self):
   skin=(LIB/'activity_skin.py').read_text()
   self.assertIn('IOSLibraryStatus.xml',skin);self.assertIn('IOSLibraryItem.xml',skin)
  def test_registered_in_the_skin(self):
   files=library_page.files(portrait)
-  self.assertEqual(sorted(Path(k).name for k in files),['IOSLibraryItem.xml','IOSLibraryStatus.xml'])
+  self.assertEqual(sorted(Path(k).name for k in files if k.endswith('.xml')),['IOSLibraryItem.xml','IOSLibraryStatus.xml'])
+  # Build 194: the rounded shapes the approved boards use (status_ui.textures), drawn by the generator.
+  self.assertTrue({'r27.png','pill16.png','poster27.png'}<=set(Path(k).name for k in files))
   self.assertIn('library_page.files(ns)',(LIB/'portrait.py').read_text())
 
 class Wiring(unittest.TestCase):
@@ -164,6 +163,13 @@ class Wiring(unittest.TestCase):
   module=load('library_status_t',BOOT/'library_status.py')
   self.assertTrue(callable(module.run));self.assertEqual(module.FILTER_BASE,9101)
 
+def model_for(profile):
+ import work_state,time
+ now=time.time()
+ state=prep.apply_to(prep.load(profile),prep.pending_requests(profile),now)
+ if state.get('current'):state['current']['updated']=now
+ return work_state.build({'prep':state},now)
+
 class FakeKodi:
  """Just enough of xbmc, xbmcgui, xbmcaddon and xbmcvfs to run library_status.run() and tap every button."""
  def __init__(self,profile,script,settings=None,answer=True):
@@ -174,6 +180,12 @@ class FakeKodi:
   class Monitor:
    def waitForAbort(self,t=0):return True    # the refresh loop ends at once; the test refreshes by tapping
   xbmc.Monitor=Monitor
+  def visible(condition):
+   # Window.IsActive(N): window N (its index here) is open; live_window.Guard asks before touching controls.
+   import re
+   m=re.match(r'Window\.IsActive\((\d+)\)$',condition)
+   return bool(m) and int(m.group(1))<len(kodi.windows) and not kodi.windows[int(m.group(1))].closed
+  xbmc.getCondVisibility=visible
   gui=types.ModuleType('xbmcgui');gui.NOTIFICATION_INFO='info';gui.NOTIFICATION_WARNING='warn'
   class ListItem:
    def __init__(self,label='',label2=''):self.label,self.label2,self.props,self.art=label,label2,{},{}
@@ -191,10 +203,15 @@ class FakeKodi:
    def getListItem(self,n):return self.items[n]
    def setPercent(self,v):self.percent=v
   class Window:
-   def __init__(self,xml,*rest):self.xml=xml;self.props={};self.controls={};self.closed=False;self.focus=None;kodi.windows.append(self)
+   def __init__(self,xml,*rest):
+    self.xml=xml;self.props={};self.controls={};self.closed=False;self.focus=None;kodi.windows.append(self)
    def setProperty(self,k,v):self.props[k]=v
    def getProperty(self,k):return self.props.get(k,'')
-   def getControl(self,n):return self.controls.setdefault(n,Control())
+   def getId(self):return kodi.windows.index(self)
+   def getControl(self,n):
+    # Kodi frees a closed window's controls; using one then crashes Kodi (ISSUE-123), so the fake refuses loudly.
+    assert not self.closed,'control %d used after its window closed'%n
+    return self.controls.setdefault(n,Control())
    def setFocusId(self,n):self.focus=n
    def close(self):self.closed=True
    def doModal(self):
@@ -207,6 +224,12 @@ class FakeKodi:
    def yesno(self,*a,**k):kodi.notes.append(('yesno',a[1]));return kodi.answer
    def notification(self,title,text,*a):kodi.notes.append(('note',text))
   gui.ListItem,gui.WindowXMLDialog,gui.Dialog=ListItem,Window,Dialog
+  def existing(ident):
+   # xbmcgui.Window(id): a wrapper on a window Kodi already has (one of this run's windows, or Home's properties)
+   if 0<=ident<len(kodi.windows):return kodi.windows[ident]
+   home=Window.__new__(Window);home.props,home.controls,home.closed=kodi.props_home if hasattr(kodi,'props_home') else {},{},False
+   return home
+  gui.Window=existing
   addon=types.ModuleType('xbmcaddon')
   class Addon:
    def __init__(self,name=None):
@@ -221,23 +244,18 @@ class FakeKodi:
   self.modules={'xbmc':xbmc,'xbmcgui':gui,'xbmcaddon':addon,'xbmcvfs':vfs}
 
 def tap(control):return lambda w:w.onClick(control)
+def tap_first(w):w.onClick(w.control_for(w.items[0]))
 def tap_row(ident):
- """Tap a video's row, opening the folder it is in first when it is not on the page (All shows folders)."""
  def go(w):
-  listing=w.getControl(library_page.LIST)
-  ids=lambda:[r.getProperty('id') for r in listing.items]
-  if ident not in ids():
-   if w.getProperty('filter')!='all':w.onClick(library_page.BACK)
-   for folder in [r.getProperty('folder') for r in listing.items if r.getProperty('kind')=='folder']:
-    listing.selectItem([r.getProperty('folder') for r in listing.items].index(folder));w.onClick(library_page.LIST)
-    if ident in ids():break
-    w.onClick(library_page.BACK)
-  listing.selectItem(ids().index(ident));w.onClick(library_page.LIST)
+  if w.filter!='all':w.set_filter('all')
+  ids=[i['props'].get('id') for i in w.items]
+  index=ids.index(ident)
+  w.onClick(w.control_for(w.items[index]))
  return go
 def tap_kind(kind):
  def go(w):
-  rows=w.getControl(library_page.LIST).items
-  w.getControl(library_page.LIST).selectItem([r.getProperty('kind') for r in rows].index(kind));w.onClick(library_page.LIST)
+  index=next(n for n,i in enumerate(w.items) if i['kind']==kind)
+  w.onClick(w.control_for(w.items[index]))
  return go
 
 class TapEveryButton(unittest.TestCase):
@@ -251,41 +269,31 @@ class TapEveryButton(unittest.TestCase):
  def run_page(self,script,**kw):
   from unittest.mock import patch
   kodi=FakeKodi(self.profile,script,**kw)
+  import work_state
   import notices
-  with patch.dict(sys.modules,kodi.modules),patch.object(notices,'downloads',lambda get=None:[]):
+  with patch.dict(sys.modules,kodi.modules),patch.object(notices,'downloads',lambda get=None:[]),patch.object(work_state,'load',side_effect=lambda *a:model_for(self.profile)):
    module=load('library_status_run',BOOT/'library_status.py');module.run([])
   return kodi
- def page_rows(self,w):return [(r.getProperty('id'),r.getProperty('state'),r.label2) for r in w.getControl(library_page.LIST).items if r.getProperty('kind')=='row']
+ def page_rows(self, w):
+  return [(i['props'].get('id'),i['props'].get('state'),i.get('label2','')) for i in w.items if i['kind']=='row']
  def test_page_opens_filled(self):
   seen={}
   kodi=self.run_page([(library_page.WINDOW,lambda w:seen.update(props=dict(w.props),rows=self.page_rows(w))),(library_page.WINDOW,tap(library_page.BACK))])
-  page=kodi.windows[0]
-  self.assertTrue(page.closed);self.assertEqual(seen['props']['headline'],'10 of 18 ready');self.assertEqual(seen['props']['filter'],'all')
-  self.assertEqual(seen['props']['title'],'Library status')
-  self.assertEqual([r[:2] for r in seen['rows']],[('p1','preparing')])
-  self.assertEqual(self.folders(kodi.windows[0]),[('waiting','5'),('ready','10'),('kept','2')])
+  self.assertTrue(kodi.windows[0].closed)
+  self.assertEqual(seen['props']['headline'],'10 of 18 ready')
+  self.assertEqual(seen['props']['work.title'],'Lanterns · S1 E1')
+  self.assertEqual({r[1] for r in seen['rows']},{'waiting','space','problem','ready','kept'})
  def test_filters(self):
   seen=[]
-  snap=lambda w:seen.append((w.getProperty('filter'),{s for _,s,_ in self.page_rows(w)}))
-  self.run_page([(library_page.WINDOW,tap(9102)),(library_page.WINDOW,snap),(library_page.WINDOW,tap(9103)),(library_page.WINDOW,snap),
-                 (library_page.WINDOW,tap(9104)),(library_page.WINDOW,snap),(library_page.WINDOW,tap(9101)),(library_page.WINDOW,snap),
-                 (library_page.WINDOW,tap(library_page.BACK))])
-  self.assertEqual([f for f,_ in seen],['ready','todo','downloading','all'])
-  self.assertEqual(seen[0][1],{'ready'});self.assertNotIn('ready',seen[1][1]);self.assertEqual(seen[2][1],set())
-  self.assertEqual(seen[3][1],{'preparing'})   # All: what happens now; the rest is in folders
+  snap=lambda w:seen.append((w.filter,{r[1] for r in self.page_rows(w)}))
+  self.run_page([(library_page.WINDOW,tap(9101)),(library_page.WINDOW,snap),(library_page.WINDOW,tap(9102)),(library_page.WINDOW,snap),(library_page.WINDOW,tap(9103)),(library_page.WINDOW,snap),(library_page.WINDOW,tap(9104)),(library_page.WINDOW,snap),(library_page.WINDOW,tap(library_page.BACK)),(library_page.WINDOW,tap(library_page.BACK))])
+  self.assertEqual([x[0] for x in seen],['ready','working','waiting','kept'])
+  self.assertEqual(seen[0][1],{'ready'});self.assertEqual(seen[1][1],{'preparing'});self.assertEqual(seen[3][1],{'kept'})
  def folders(self,w):return [(r.getProperty('folder'),r.getProperty('count')) for r in w.getControl(library_page.LIST).items if r.getProperty('kind')=='folder']
  def test_a_folder_opens_and_back_returns_to_all(self):
   seen=[]
-  snap=lambda w:seen.append((w.getProperty('filter'),w.getProperty('title'),len(self.page_rows(w)),self.folders(w),w.closed))
-  kodi=self.run_page([(library_page.WINDOW,snap),(library_page.WINDOW,tap_kind('folder')),(library_page.WINDOW,snap),
-                      (library_page.WINDOW,tap(library_page.BACK)),(library_page.WINDOW,snap),
-                      (library_page.WINDOW,tap_kind('folder')),(library_page.WINDOW,lambda w:w.onAction(type('A',(),{'getId':lambda s:92})())),(library_page.WINDOW,snap),
-                      (library_page.WINDOW,tap(library_page.BACK))])
-  self.assertEqual(seen[0][:2],('all','Library status'));self.assertEqual(seen[0][3],[('waiting','5'),('ready','10'),('kept','2')])
-  self.assertEqual(seen[1][:3],('waiting','Waiting',5));self.assertFalse(seen[1][4])
-  self.assertEqual(seen[2][:2],('all','Library status'));self.assertFalse(seen[2][4])
-  self.assertEqual(seen[3][:2],('all','Library status'))   # the back gesture in a folder returns to All
-  self.assertTrue(kodi.windows[0].closed)
+  kodi=self.run_page([(library_page.WINDOW,tap(9103)),(library_page.WINDOW,lambda w:seen.append(w.filter)),(library_page.WINDOW,tap(library_page.BACK)),(library_page.WINDOW,lambda w:seen.append(w.filter)),(library_page.WINDOW,tap(library_page.BACK))])
+  self.assertEqual(seen,['waiting','all']);self.assertTrue(kodi.windows[0].closed)
  def test_back_closes_only_from_all_in_the_skin_too(self):
   xml=library_page.page(portrait)
   self.assertIn('<onclick condition="String.IsEqual(Window().Property(filter),all)">Close</onclick>',xml)
@@ -307,7 +315,7 @@ class TapEveryButton(unittest.TestCase):
   self.assertEqual((sheet['action1.label'],sheet['action2.label'],sheet['action3.label']),('Start converting now','Prepare next','Keep as it is'))
   self.assertEqual((sheet['action2.colour'],sheet['action3.colour']),('FFFFFFFF','FFFF453A'))
   self.assertEqual(prep.pending_requests(self.profile),[{'action':'next','id':'w1'}])
-  waiting=[r for r in seen[0] if r[1]=='waiting'];self.assertEqual(waiting[0][0],'w1');self.assertTrue(waiting[0][2].startswith('Next'))
+  waiting=[r for r in seen[0] if r[1]=='waiting'];self.assertEqual(waiting[0][0],'w1');self.assertTrue(waiting[0][2].startswith('convert'))
   self.assertIn(('note','Prepare next: Fall (2022)'),kodi.notes)
   queue=prep.Queue.__new__(prep.Queue);queue.profile=self.profile;queue.clock=lambda:7000;queue.state=prep.load(self.profile);queue.commit=lambda:None
   self.assertTrue(queue.apply_requests());self.assertEqual(queue.state['jobs']['a']['priority'],7000);self.assertEqual(prep.pending_requests(self.profile),[])
@@ -403,9 +411,11 @@ class SpaceAsTheIPhoneCountsIt(unittest.TestCase):
 class RoundPosterInTheRing(unittest.TestCase):
  """Owner (build 170): the square poster did not fit in the preparing ring."""
  def test_poster_is_a_circle_inside_the_ring(self):
-  src=(LIB/'library_page.py').read_text()
-  ring=src[src.index("ring = ("):src.index("text_w = w - 160 - 130")]
-  self.assertNotIn('tile108.png',ring);self.assertEqual(ring.count("M + 'knob.png'"),2)
+  import status_ui
+  xml=status_ui.working(portrait,'work.',9005)
+  self.assertIn('poster_mask.png',xml);self.assertIn('Window().Property(work.ring)',xml)
+  self.assertIn('Window().Property(work.percent)',xml)
+  self.assertIn('Window().Property(work.poster)',xml)
 
 class FindAVersionWithoutConverting(unittest.TestCase):
  def test_sheet_offers_it_for_reencodes_only(self):

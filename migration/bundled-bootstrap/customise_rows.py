@@ -18,11 +18,15 @@ def tab_from(args):
 
 class Editor:
  """The page's state and what each tap does (no Kodi calls: `ui` asks the questions, tests pass a fake)."""
- def __init__(self,profile,tab,ui):
-  self.profile=profile;self.key,self.name,self.list=re_.tab(tab);self.ui=ui
-  self.rows=re_.load(profile,self.list);self.editing=False;self.current=None;self.changed=False
+ def __init__(self,profile,tab,ui,count_folder=None):
+  self.profile=profile;self.key,self.name,self.list=re_.tab(tab);self.ui=ui;self.count_folder=count_folder
+  self.rows=re_.load(profile,self.list);self.editing=False;self.current=None;self.changed=False;self.fresh=set();self.focus=None
+  self.look()
+ def look(self):
+  # Which rows Home hides because they have nothing to show (rows_editor.empty_rows); new rows are not judged yet.
+  self.empty=re_.empty_rows(self.profile,self.rows,self.count_folder,self.fresh)
  def props(self):
-  out=re_.properties(self.rows,page.SLOTS)
+  out=re_.properties(self.rows,page.SLOTS,self.empty)
   out.update({'title':self.name if self.current is None else (self.rows[self.current].get('label') or 'Row'),
               'sub':out['count'] if self.current is None else 'On %s'%self.name,
               'edit_label':'Done' if self.editing else 'Edit','editing':'true' if self.editing else '',
@@ -30,21 +34,28 @@ class Editor:
   out.update(re_.row_properties(self.rows[self.current]) if self.current is not None else
              {k:'' for k in ('one.title','one.on','one.style','one.source','one.path')})
   return out
- def _set(self,rows):
+ def _set(self,rows,fresh=None):
+  # Rows keep their 'fresh' mark through moves and deletes (by identity, as the list is rebuilt each time).
+  marked=[self.rows[i] for i in self.fresh if i<len(self.rows)]+([fresh] if fresh else [])
   self.rows=rows;self.changed=True;re_.save(self.profile,self.list,rows)
+  self.fresh={i for i,r in enumerate(rows) if any(r is m for m in marked)}
+  self.look()
  def back(self):
   """True when the page should close."""
   if self.current is not None:self.current=None;return False
   if self.editing:self.editing=False;return False
   return True
  def click(self,control):
-  n=lambda base:control-base if 1<=control-base<=min(page.SLOTS,len(self.rows)) else 0
+  # Slot n is the n-th row in the page's order (rows_editor.view: Home's order, then the rows Home never shows).
+  order=re_.view(self.rows)
+  n=lambda base:control-base if 1<=control-base<=min(page.SLOTS,len(order)) else 0
+  at=lambda base:order[n(base)-1]
   if control==page.EDIT:self.editing=not self.editing
-  elif n(page.ROW_BASE) and not self.editing:self.current=n(page.ROW_BASE)-1
-  elif n(page.UP):self._set(re_.move(self.rows,n(page.UP)-1,-1))
-  elif n(page.DOWN):self._set(re_.move(self.rows,n(page.DOWN)-1,1))
+  elif n(page.ROW_BASE) and not self.editing:self.current=at(page.ROW_BASE)
+  elif n(page.UP):self._set(re_.move_shown(self.rows,at(page.UP),-1))
+  elif n(page.DOWN):self._set(re_.move_shown(self.rows,at(page.DOWN),1))
   elif n(page.REMOVE):
-   i=n(page.REMOVE)-1
+   i=at(page.REMOVE)
    if self.ui.confirm('Delete "%s"?'%(self.rows[i].get('label') or 'this row')):self._set(re_.delete(self.rows,i))
   elif control==page.ADD:self.add()
   elif control==page.RESTORE:
@@ -72,7 +83,9 @@ class Editor:
    if not path:return
    label=self.ui.text('Name',os.path.basename(path.rstrip('/')) or 'New Row')
    if not label:return
-  self._set(re_.add(self.rows,label,path))
+  rows=re_.add(self.rows,label,path);at=next(i for i,r in enumerate(rows) if r.get('path')==path and r.get('label')==label and r not in self.rows)
+  self._set(rows,fresh=rows[at]);self.focus=page.ROW_BASE+re_.slot_of(self.rows,at)
+  self.ui.notify('Added "%s" at the bottom of %s'%(label,self.name))
 
 class KodiUI:
  def __init__(self):
@@ -89,7 +102,7 @@ def run(args):
  import xbmc,xbmcgui,xbmcvfs
  import tool_windows
  profile=xbmcvfs.translatePath('special://profile/')
- editor=Editor(profile,tab_from(args),KodiUI())
+ editor=Editor(profile,tab_from(args),KodiUI(),re_.folder_counter(xbmc.executeJSONRPC))
 
  class Rows(xbmcgui.WindowXMLDialog):
   def onInit(self):self.show_state()
@@ -103,13 +116,18 @@ def run(args):
   def onClick(self,control):
    if control==page.BACK:self.go_back();return
    was=editor.current;editor.click(control);self.show_state()
-   if editor.current!=was:self.setFocusId(page.BACK)
+   if editor.focus:
+    # The new row: the list scrolls to it, so it is plain to see where it went.
+    target,editor.focus=editor.focus,None
+    try:self.setFocusId(target)
+    except Exception:pass
+   elif editor.current!=was:self.setFocusId(page.BACK)
  tool_windows.show(Rows,page.NAME)
  if editor.changed:
   import importlib.util
   spec=importlib.util.spec_from_file_location('portrait_rows',os.path.join(HERE,'resources','lib','portrait.py'))
   portrait=importlib.util.module_from_spec(spec);spec.loader.exec_module(portrait)
-  portrait.refresh_skin(xbmc,xbmc.executebuiltin,xbmcvfs.translatePath('special://skin/'),profile)
+  portrait.refresh_rows(xbmc,xbmc.executebuiltin,xbmcvfs.translatePath('special://skin/'),profile)   # build 204: only the hub files
   xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,customise_counts)')
 
 if __name__=='__main__':run(sys.argv[1:])

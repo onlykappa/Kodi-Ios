@@ -22,7 +22,12 @@ char *kr_hls_master(gm_stream *s, const char *base, int compat);
 // r8: the same with the video variant's media playlist at base/<video_dir>/index.m3u8 ("video", or "cvideo" for the
 // converted picture served to one receiver while the others get the copy).
 char *kr_hls_master_at(gm_stream *s, const char *base, int compat, const char *video_dir);
+// The subtitle currently enabled in Kodi, as a source stream index (-1: no automatic selection).
+char *kr_hls_master_selected(gm_stream *s,const char *base,int compat,const char *video_dir,int subtitle);
+char *kr_hls_master_receiver(gm_stream *s,const char *base,int compat,const char *video_dir,int subtitle,int stereo);
 char *kr_hls_media(gm_stream *s, const char *prefix, const char *seg_ext, int with_map);
+// The position the receiver should start at (0 = from the beginning); used by every media playlist after it.
+void kr_hls_set_start(double seconds);
 // "avc1.640028" / "hvc1.2.4.L150.90" for the selected video (from the stream's profile and level).
 void kr_hls_video_codec(gm_stream *s, char *out, int len);
 #endif

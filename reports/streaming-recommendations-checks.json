@@ -1,0 +1,127 @@
+{
+  "date": "2026-11-09",
+  "evidence": "host tests and native artifact verification; device and visual review pending",
+  "airplay_source_commit": "0a5ad576ad757233384532186a105a096a8517fc",
+  "airplay_candidate_run": 42695837108,
+  "focused_native": {
+    "roku_regressions": 103,
+    "recommendations": 37,
+    "slow_source_latency": 46,
+    "failures": 0,
+    "preparation_core": 330
+  },
+  "python_tests": {
+    "casting": {
+      "passed": true,
+      "tests": 62
+    },
+    "direct_transfer": {
+      "passed": true,
+      "tests": 24
+    },
+    "drive_upload": {
+      "passed": true,
+      "tests": 23
+    },
+    "work_state": {
+      "passed": true,
+      "tests": 27
+    },
+    "remux_contract": {
+      "passed": true,
+      "tests": 29
+    },
+    "calibration": {
+      "passed": true,
+      "tests": 41
+    },
+    "portrait": {
+      "passed": true,
+      "tests": 50
+    },
+    "test_transfer_artwork": {
+      "passed": true,
+      "tests": 3
+    },
+    "test_upload_timeout": {
+      "passed": true,
+      "tests": 2
+    },
+    "test_notices": {
+      "passed": true,
+      "tests": 19
+    },
+    "test_transfers": {
+      "passed": true,
+      "tests": 25
+    },
+    "test_notice_log": {
+      "passed": true,
+      "tests": 15
+    },
+    "test_library_status": {
+      "passed": true,
+      "tests": 48
+    },
+    "test_slowdown": {
+      "passed": true,
+      "tests": 21
+    },
+    "test_build193_pages": {
+      "passed": true,
+      "tests": 37
+    },
+    "glassbar_contract": {
+      "passed": true,
+      "tests": 28
+    },
+    "unsigned_ipa": {
+      "passed": true,
+      "tests": 7
+    },
+    "customized_ipa": {
+      "passed": true,
+      "tests": 11
+    },
+    "foundation": {
+      "passed": true,
+      "tests": 11
+    }
+  },
+  "kodi_executable": {
+    "run": 42692028826,
+    "source_commit": "db5e554d4d6cf514d127609b1c1396475a95363c",
+    "binary_sha256": "c3f0560c3731f53408a9e7c202b7108ef472272e72c873042e7b400bc1c79e2c",
+    "patch_sha256": "4302ac8684103345f806ec46a509e9f624e1374a51176afd0f4ab7ee4dcbc56e",
+    "release_matches_ci_artifact": true,
+    "native_compile_passed": true,
+    "cpu": "arm64"
+  },
+  "ui_policy_read": true,
+  "ui_guidance_passed": true,
+  "existing_controls_and_layouts_reused": true,
+  "desktop_visual_review": "pending; existing rig start failed because desktop Kodi is absent; no desktop rebuild requested",
+  "device_acceptance": "pending",
+  "live_drive_accessed": false,
+  "main_merged": false,
+  "failed_full_candidate": {
+    "run": 42694006257,
+    "checks": 3319,
+    "failures": 3,
+    "reason": "Legacy prepared-copy test requires copy even for synthetic HEVC level 255, above the new Roku limit; corrected test passes focused preparation suite."
+  },
+  "full_native": {
+    "run": 42695837108,
+    "host_checks": 3319,
+    "host_failures": 0,
+    "e2e_passed": true,
+    "e2e_failures": 0,
+    "iphoneos_compile_passed": true,
+    "source_commit": "0a5ad576ad757233384532186a105a096a8517fc",
+    "framework_tag": "kodi-airplay-r43",
+    "archive_sha256": "c1562e136d42d3fe694435b6175bfdac600a08bcdd450946e9e227210d243be8"
+  },
+  "status": "VERIFIED_TEST_IPA_DELIVERED_DEVICE_RETEST_PENDING",
+  "delivery_receipt": "reports/streaming-recommendations-delivery.json",
+  "actual_portrait_fetch_contract_passed": true
+}

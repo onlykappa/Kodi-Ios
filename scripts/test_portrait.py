@@ -135,7 +135,7 @@ class PortraitTests(unittest.TestCase):
   self.assertTrue({'7101','7102','7111','7112','7113','7121','7122','7123','7131','7141','7142','7201'}<=ids)
   clicks=[o.text for o in osd.iter('onclick')]
   for action in ['PlayerControl(Stop)','RunScript(service.kodi.ios.bootstrap,cast)','Seek(-10)','PlayerControl(Play)','Seek(10)',
-                 'RunScript(service.kodi.ios.bootstrap,speed)','ActivateWindow(osdaudiosettings)','ActivateWindow(osdsubtitlesettings)','$VAR[Action_OSD_WikiInfo]']:self.assertIn(action,clicks)
+                 'RunScript(service.kodi.ios.bootstrap,speed)','RunScript(service.kodi.ios.bootstrap,tracks,audio)','RunScript(service.kodi.ios.bootstrap,tracks,subtitles)','$VAR[Action_OSD_WikiInfo]']:self.assertIn(action,clicks)
   self.assertNotIn('volume',files['1080i/VideoOSD.xml'].decode().lower())
   self.assertIn('$NUMBER[10]',files['1080i/VideoOSD.xml'].decode())  # a bare 10 is a Kodi string id
   # r4: Fuse's seek bar is replaced by a window that never shows (the owner wants only the controls' bar); Kodi's
@@ -453,5 +453,23 @@ class ResolutionChoice(unittest.TestCase):
    self.assertIn('aspect="1080:2090"',text);self.assertNotIn('9:19.5',text);self.assertEqual(text.count('folder="portrait"'),2)
    self.assertFalse(portrait.add_resolutions(addon));self.assertEqual(addon.read_text(),text)
   self.assertIn("if add_resolutions(Path(skin)/'addon.xml'):",Path(portrait.__file__).read_text())   # every start
+
+class BufferingPill(unittest.TestCase):
+ """Build 206 (owner, build 205: "have it show like a buffer percentage so i know its working"). The desktop Kodi rig
+ showed the pill over a playing video (forced visible): "Buffering 99%" between the centre controls and the title."""
+ def test_the_percentage_is_in_the_controls_and_the_dialog_never_opens(self):
+  # Build 210 (logs 34cd7aac 15:07:09, 3efdc5ca 15:53:08): Kodi's main thread stopped each time the pill's own dialog
+  # opened (33 s and 100 s, taps queued). The percentage moved into the video controls; the dialog stays, never shown.
+  osd=portrait.player_osd;xml=osd.buffering_window()
+  root=ET.fromstring(xml.split('\n',2)[2]);self.assertEqual(root.findtext('visible'),'false')
+  src=open(osd.__file__,encoding='utf-8').read()
+  self.assertIn("'Buffering $INFO[Player.CacheLevel]%','font_main_bold','FFFFFFFF','center','<visible>Player.Caching</visible>'",src)
+ def test_kodi_cache_is_tuned_once(self):
+  calls=[]
+  class X:
+   def executeJSONRPC(self,text):calls.append(json.loads(text)['params']);return '{}'
+  with tempfile.TemporaryDirectory() as d:
+   self.assertTrue(portrait.tune_cache(X(),d));self.assertFalse(portrait.tune_cache(X(),d))
+  self.assertEqual(calls,[{'setting':'filecache.memorysize','value':96},{'setting':'filecache.readfactor','value':1000}])
 
 if __name__=='__main__':unittest.main()

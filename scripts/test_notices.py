@@ -39,7 +39,12 @@ class NoticeTests(unittest.TestCase):
   state.parent.mkdir(parents=True,exist_ok=True);state.write_text(json.dumps({'current':{'name':'Pilot.mkv','folder':'TV','sent':50,'total':200}}))
   self.assertEqual(notices.uploads(self.profile)[0]['progress'],25.0)
   notices.add(self.profile,'info','x')
-  self.assertEqual(notices.badge(self.profile,lambda url:'[]'),('1','true'))
+  # Build 193: "something moves" is the status model's (work_state), not a file of any age.
+  import work_state,time
+  now=time.time()
+  work_state.save(self.profile,work_state.build({'phone':notices.uploads(self.profile)},now))
+  self.assertEqual(notices.badge(self.profile,lambda url:'[]',now=now+1),('1','true'))
+  self.assertEqual(notices.badge(self.profile,lambda url:'[]',now=now+60),('1',''))   # an old snapshot never counts as moving
  def test_ingest_kodi_popups(self):
   path=notices.toasts(self.profile);path.parent.mkdir(parents=True,exist_ok=True)
   path.write_text('\n'.join([json.dumps({'time':10,'type':'info','caption':'TMDbHelper','description':'Trakt authorized in 1.665s'}),
@@ -84,9 +89,12 @@ class PageTests(unittest.TestCase):
  def test_layout_ids_match_controller(self):
   root=ET.fromstring(portrait.notices_page().encode())
   ids={int(c.get('id')) for c in root.iter('control') if c.get('id')}
-  need={9001,9002,9101,9102,9103,9300,9430}|{9400+n for n in range(1,page.SLOTS+1)}|{9410+n for n in range(1,page.SLOTS+1)}|{9420+n for n in range(1,page.SLOTS+1)}|{9500+n for n in range(1,page.ROWS+1)}
+  need={9001,9002,9101,9102,9103,9104,9300,9432,9433,9440}|set(range(9436,9440))|{9500+n for n in range(1,page.ROWS+1)}
   self.assertTrue(need<=ids,need-ids)
   self.assertEqual((portrait.NOTICE_SLOTS,portrait.NOTICE_ROWS),(page.SLOTS,page.ROWS))
+  # Board 5: the running cards have no "•••"; a long press on the card still opens Pause / Cancel (onAction).
+  self.assertNotIn('•••',portrait.notices_page());self.assertNotIn('ellipsis',portrait.notices_page())
+  self.assertIn('if self.long_press(*card)',(BOOT/'notifications.py').read_text())
  def test_card_and_message_properties(self):
   props=page.card_properties(notices.downloads(lambda url:json.dumps(TORRENTS)),[])
   self.assertEqual((props['has.dl'],props['dl.1.pausetext'],props['dl.2.pausetext'],props['dl.3.title'],props['dl.summary']),('true','Pause','Resume','','1 active'))
@@ -105,6 +113,9 @@ class PageTests(unittest.TestCase):
 def label_boxes(group):
  """(left, top, right, bottom, text) for each label directly inside a group."""
  out=[]
+ # A grouplist lays its children out one after another (build 194: "4.8" + "MB/s", a grey line + an accent link),
+ # so their own left/top/width ("auto") are not boxes on the page.
+ if group.get('type')=='grouplist':return out
  for c in group.findall('control'):
   if c.get('type')!='label':continue
   num=lambda tag:float(c.findtext(tag) or 0)
@@ -140,7 +151,7 @@ class OverlapTests(unittest.TestCase):
   xml=portrait.notices_page()
   self.assertNotIn('then off the phone',xml);self.assertNotIn('source resolution',xml)
   for pre in ('up.','prepare.'):
-   for key in ('title','summary','line'):self.assertIn('Window().Property(%s%s)'%(pre,key),xml)
+   for key in ('title','line'):self.assertIn('Window().Property(%s%s)'%(pre,key),xml)
   props=page.card_properties([],[{'title':'Fall (2022)','folder':'Movies','progress':5,'line':'5%'}])
   self.assertEqual(props['up.summary'],'Movies · then off the phone')
   self.assertEqual(notices.drivelibrary.display_title('Lanterns.S01E01.Pilot.2160p.10bit.WEB-DL.mkv'),'Lanterns · S1 E1')

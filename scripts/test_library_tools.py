@@ -67,7 +67,7 @@ class QueueView(unittest.TestCase):
  def test_sections(self):
   q=self.q
   self.assertEqual(q['now']['id'],'p1');self.assertEqual([r['id'] for r in q['line']],['w1','w2','w3','w4'])
-  self.assertEqual(q['line'][0]['title'],'1. Alpha (2020)');self.assertEqual((q['line'][0]['up'],q['line'][0]['down']),('','true'))
+  self.assertEqual(q['line'][0]['title'],'Alpha (2020)');self.assertEqual((q['line'][0]['up'],q['line'][0]['down']),('','true'))
   self.assertEqual((q['line'][-1]['up'],q['line'][-1]['down']),('true',''));self.assertEqual([r['id'] for r in q['held']],['s1'])
   self.assertEqual([d['title'] for d in q['drive']],['Fall 2','The.Batman']);self.assertTrue(q['drive'][0]['sub'].startswith('93% · 8.4 MB/s'))
   self.assertEqual(q['drive'][1]['sub'],'Waiting · AllDebrid has it ready')
@@ -75,7 +75,10 @@ class QueueView(unittest.TestCase):
   props=lt.queue_properties(self.q)
   self.assertEqual(props['line.count'],'4 videos');self.assertEqual(props['line.5.title'],'');self.assertEqual(props['empty'],'')
   xml=ltp.queue_page(portrait)
-  for k in props:self.assertIn('Window().Property(%s)'%k,xml,k)
+  for k in props:
+   # now.pct fills the running job's bar through Control.setPercent (tool_windows: Kodi leaves a property-bound bar empty).
+   if k not in ('line.count','now.pct') and not k.endswith('.tone'):self.assertIn('Window().Property(%s)'%k,xml,k)
+  self.assertIn('id="%d"'%ltp.QBAR,xml);self.assertIn('self.guard.percent(page.QBAR',(LIB/'tool_windows.py').read_text())
   self.assertEqual(lt.queue_properties(lt.queue_view({'rows':{}}))['empty'],'Nothing is waiting to be converted.')
  def test_more_than_fit(self):
   line=[{'id':str(n),'title':'T%d'%n,'state':'waiting','sub':'x · y'} for n in range(13)]
@@ -83,6 +86,12 @@ class QueueView(unittest.TestCase):
   self.assertEqual(props['line.more'],'and 3 more below: move one up to see it')
 
 class Pages(unittest.TestCase):
+ def test_queue_page_contains_the_real_pagination_buttons(self):
+  tree=self.trees['portrait/'+ltp.QUEUE]
+  for ident in (ltp.QPREV,ltp.QNEXT):
+   controls=tree.findall(".//control[@id='%d']"%ident)
+   self.assertEqual(len(controls),1)
+   self.assertGreaterEqual(int(controls[0].findtext('height')),118)
  @classmethod
  def setUpClass(cls):
   cls.files=ltp.files(portrait)
@@ -132,14 +141,14 @@ class History(unittest.TestCase):
             {'kind':'up','title':'The Batman','reason':'AllDebrid could not fetch it','time':today-3*86400}]
   h=lt.history_view(finished,failures,now,'today')
   self.assertEqual([(r['title'],r['tone']) for r in h['rows']],[('Inception (2010)','bad'),('Fall 2','ok')])
-  self.assertEqual(h['rows'][0]['line'],'after 30 min');self.assertEqual(h['rows'][1]['line'],'16.9 GB · 37 min · 7.8 MB/s')
+  self.assertEqual(h['rows'][0]['line'],'after 30 min');self.assertEqual(h['rows'][1]['line'],'16.9 GB in 37 min')   # board 8
   self.assertEqual(h['rows'][1]['result'],'On Google Drive');self.assertEqual((h['count'],h['failed'],h['total']),(2,2,'20.9 GB'))
   self.assertEqual(h['busiest'],'Busiest: today · 16.9 GB')
   self.assertEqual([r['title'] for r in lt.history_view(finished,failures,now,'yesterday')['rows']],['Scarface'])
   self.assertEqual(len(lt.history_view(finished,failures,now,'week')['rows']),4)
   props=lt.history_properties(h,'today');xml=ltp.history_page(portrait)
   for k in props:
-   if k!='day':self.assertIn('Window().Property(%s)'%k,xml,k)
+   if k not in ('day','week.total','week.line','more') and not k.endswith(('.line','.tone')):self.assertIn('Window().Property(%s)'%k,xml,k)
   self.assertIn("Window().Property(day)",xml)
   self.assertEqual(lt.history_properties(lt.history_view([],[],now,'yesterday'),'yesterday')['empty'],'Nothing finished yesterday.')
  def test_a_job_that_stopped_part_way_is_not_ready(self):
@@ -157,7 +166,7 @@ class History(unittest.TestCase):
   self.assertNotIn('conv',th.activity([],{},{'running':True,'title':'Movies and shows','stage':'Checking video 2 of 9','updated':time.time()}))
   d={};th.track(d,1000,{'conv':{'title':'Inception','rate':MB,'pct':1.6}});th.track(d,1100,{})
   self.assertEqual((d['finished'][0]['pct'],th.outcome(d['finished'][0])),(1.6,'stopped'))
-  self.assertIn("_is(key + 'tone', 'plain')",(LIB/'library_tools_page.py').read_text())
+  self.assertIn("unfinished",ltp.history_page(portrait))
  def test_failures_are_noted_where_jobs_fail(self):
   self.assertIn("transfer_history.failed(q.profile,'conv'",(LIB/'prepare_cloud.py').read_text())
   self.assertIn("transfer_history.failed(self.profile,'conv'",(LIB/'prepare_downloads.py').read_text())
@@ -269,10 +278,22 @@ class TapEveryButton(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.profile=self.tmp.name;prep.save(self.profile,queue_state())
  def tearDown(self):self.tmp.cleanup()
+ def test_paused_downloads_are_visible_and_all_drive_pages_are_reachable(self):
+  import debrid_drive,transfer_control
+  for n in range(5):
+   debrid_drive.queue(self.profile,{'id':'%040x'%(n+1),'name':'Sample.Movie.%d.1080p'%n},'movie','Sample Movie %d'%n)
+  transfer_control.set_paused(self.profile,'up',True)
+  seen=[]
+  snap=lambda w:seen.append([w.getProperty('drive.%d.title'%n) for n in range(1,4)])
+  self.run_status([(library_page.WINDOW,ls.tap(library_page.EDIT)),
+   (ltp.QUEUE,snap),(ltp.QUEUE,ls.tap(ltp.QNEXT)),(ltp.QUEUE,snap),
+   (ltp.QUEUE,ls.tap(ltp.BACK)),(library_page.WINDOW,ls.tap(library_page.BACK))])
+  self.assertEqual([title for page in seen for title in page if title],['Sample Movie %d'%n for n in range(5)])
+  self.assertTrue(transfer_control.paused(self.profile,'up'))
  def run_status(self,script):
   kodi=ls.FakeKodi(self.profile,script)
-  import notices
-  with patch.dict(sys.modules,kodi.modules),patch.object(notices,'downloads',lambda get=None:[]),patch.object(notices,'torrent_list',lambda *a,**k:[]):
+  import notices,work_state
+  with patch.object(work_state,'load',side_effect=lambda *a:ls.model_for(self.profile)),patch.dict(sys.modules,kodi.modules),patch.object(notices,'downloads',lambda get=None:[]),patch.object(notices,'torrent_list',lambda *a,**k:[]):
    load('library_status_tools',BOOT/'library_status.py').run([])
   return kodi
  def test_edit_order_moves_a_video_down_and_up(self):
@@ -284,9 +305,9 @@ class TapEveryButton(unittest.TestCase):
                         (ltp.QUEUE,ls.tap(ltp.UP+4)),(ltp.QUEUE,snap),(ltp.QUEUE,lambda w:seen.append(w.getProperty('now.title'))),
                         (ltp.QUEUE,ls.tap(ltp.BACK)),(library_page.WINDOW,lambda w:seen.append(ls.TapEveryButton.page_rows(None,w))),
                         (library_page.WINDOW,ls.tap(library_page.BACK)),(library_page.WINDOW,ls.tap(library_page.BACK))])
-  self.assertEqual(seen[0],['1. Alpha (2020)','2. Bravo (2020)','3. Charlie (2020)','4. Delta (2020)'])
-  self.assertEqual(seen[1][:2],['1. Bravo (2020)','2. Alpha (2020)'])
-  self.assertEqual(seen[2],['1. Alpha (2020)','2. Bravo (2020)','3. Delta (2020)','4. Charlie (2020)'])   # ▲ on the top one: nothing
+  self.assertEqual(seen[0],['Alpha (2020)','Bravo (2020)','Charlie (2020)','Delta (2020)'])
+  self.assertEqual(seen[1][:2],['Bravo (2020)','Alpha (2020)'])
+  self.assertEqual(seen[2],['Alpha (2020)','Bravo (2020)','Delta (2020)','Charlie (2020)'])   # ▲ on the top one: nothing
   self.assertEqual(seen[3],'Inception (2020)')
   waiting=[r[0] for r in seen[4] if r[1]=='waiting'];self.assertEqual(waiting,['w1','w2','w4','w3'])   # Library status agrees
   self.assertEqual([(r['action'],r['id']) for r in prep.pending_requests(self.profile)],[('down','w1'),('up','w1'),('up','w4')])
@@ -302,7 +323,7 @@ class TapEveryButton(unittest.TestCase):
                                  (ltp.HISTORY,ls.tap(ltp.BACK)),(tp.WINDOW,ls.tap(tp.BACK))])
   kodi.modules['xbmcvfs'].listdir=lambda p:([],[])
   with patch.dict(sys.modules,kodi.modules):load('transfers_tools',BOOT/'transfers.py').run(['up'])
-  self.assertEqual(seen[0],('Inception (2010)','On Google Drive'));self.assertEqual(seen[1],('yesterday','Nothing finished yesterday.'))
+  self.assertEqual(seen[0],('Inception (2010)','On Google Drive · 1.0 GB in 9 min'));self.assertEqual(seen[1],('yesterday','Nothing finished yesterday.'))
   self.assertTrue(all(w.closed for w in kodi.windows))
  def test_airplay_check_from_a_notification(self):
   import notices

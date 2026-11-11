@@ -1,0 +1,41 @@
+{
+  "build": 213,
+  "source_commit": "551f32c876df6bbabce4148a96ff3f00d6076dcd",
+  "workflow_run": 42550189064,
+  "framework_tag": "kodi-airplay-r41",
+  "filename": "Kodi-iOS-Customized-Touch-r10.ipa",
+  "bytes": 620433205,
+  "sha256": "fabcb829d99c2f737f7206ecd697b6e3193d79266e1ebad3b8a5a63721175945",
+  "asset_digest_matches": true,
+  "zip_integrity_passed": true,
+  "framework_equals_verified_r41_after_signature_removal": true,
+  "roku_segmented_route_and_python311_bytecode_present": true,
+  "unsigned_unencrypted_arm64_images": 154,
+  "device_tested": false,
+  "live_drive_accessed": false,
+  "status": "TEST_IPA_DELIVERED_DEVICE_ACCEPTANCE_PENDING",
+  "authorization": "Owner explicitly requested a test build in this session",
+  "source_reused_existing_candidate": true,
+  "streaming_source_changed_in_this_delivery": false,
+  "branch": "claude/trusting-euler-kgug98",
+  "pull_request": 16,
+  "main_merged": false,
+  "workflow_conclusion": "success",
+  "native_candidate_run": 42547843379,
+  "native_host_checks": 3177,
+  "native_host_failures": 0,
+  "native_e2e_passed": true,
+  "iphoneos_framework_compile_passed": true,
+  "local_project_check_passed": true,
+  "local_python_suites": {
+    "test_play_on_tv_network": 50,
+    "test_airplay_remux": 29,
+    "test_conversion_speed": 48
+  },
+  "download_url": "https://github.com/onlykappa/Kodi-Ios/releases/download/build-213/Kodi-iOS-Customized-Touch-r10.ipa",
+  "limitations": [
+    "Actual iPhone, Drive and Roku playback and seeking need owner testing",
+    "AirPlay compatibility conversion can reduce resolution; Roku Media Assistant copies compatible 4K video",
+    "Cold prepared-file cache misses still fill a complete block in the as-is route"
+  ]
+}

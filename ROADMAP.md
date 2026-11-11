@@ -260,3 +260,171 @@ Phase 2 completion means static deliverables, not certified iPhone functionality
 ## Owner decision 2026-11-01 — version 1 on main
 
 The owner authorized merging the iOS work into `main` after the r13 review build (build-111) as version 1 (DEC-024). Task IDs and their states above are unchanged: device tasks still need the owner's evidence. The roadmap is to be reworked from version 1 at the owner's request.
+
+## Roku Drive test delivery — 2026-11-09
+
+Owner authorized a new test build. Existing r41 candidate delivered as build 213 from PR #16's feature branch;
+main was not merged. Packaging and downloaded-IPA verification passed; see docs/PROGRESS.md and
+reports/roku-drive-test-delivery.json. P4-005/P4-006 and task counts are unchanged: actual Drive/Roku startup,
+sustained 4K playback and seeking still require owner evidence. The cold prepared-file cache limitation stays open.
+
+
+## Build-213 Roku failure and repair — 2026-11-09
+
+The owner reports both routes still fail and authorizes repairs and a new test IPA. ISSUE-139 tracks startup lane
+waits, shared Drive reads, subtitle deadlines, false success/slow-internet diagnoses and resume ownership. Candidate
+validation and delivery continue on PR #16, retaining the Drive workflow. Existing device task states and counts
+remain unchanged; actual Roku playback is still an acceptance gate. See docs/PROGRESS.md and docs/ROKU-STREAMING.md.
+
+
+## Roku repair r42 candidate verified — 2026-11-09
+
+Owner-authorized repair source 0385902 passed native run 42639212562: 3,231 host checks, E2E conversion/resume and
+an iPhoneOS framework compile. The r42 framework pin and IPA-CI casting coverage are prepared on PR #16. Test IPA
+publication and artifact verification follow; device task states and counts remain unchanged. See PROGRESS and
+reports/roku-streaming-repair-native.json for evidence and remaining device checks.
+
+
+## Roku repair test build 214 delivered — 2026-11-09
+
+The owner-authorized r42 repair is delivered on PR #16 as build 214. Native CI 42639212562 and IPA CI 42641842437
+passed, and the downloaded archive/framework/Python code/ARM64 binaries were verified. Receipt:
+reports/roku-drive-test-delivery-r42.json. Retained-4K Media Assistant and native AirPlay still need the owner's
+actual device tests; task counts and pending device states remain unchanged. Main is unchanged.
+
+
+## Build 214 owner retest and follow-up — 2026-11-09
+
+The owner reports Media Assistant/captions still fail. ISSUE-140 and reports/roku-build214-retest.json record
+reproduced packaging, partial-delivery and caption bugs, host repairs and passing focused tests. Native CI and
+new IPA delivery are pending. Actual Roku acceptance remains open; task counts and main are unchanged.
+
+
+## Touch seeking and download follow-up — 2026-11-09
+
+ISSUE-141: native touch drag/seek ownership and streamed-upload progress/completion repairs implemented.
+Compiled handler harness and 47 upload/download tests pass. Native delivery/device acceptance remain pending;
+no phase counts or main merge changed.
+
+
+2026-11-09 owner-approved recommendation follow-up: capability routing/one compatibility retry, bounded adaptive
+read-ahead and obsolete-read cancellation, adaptive resumable upload chunks, existing-row transfer phases and
+native seek diagnostics are implemented for the next test IPA. See ISSUE-142 and PROGRESS for validation/build
+status. Device acceptance and phase counts remain unchanged; no main merge is authorized.
+
+
+2026-11-09 delivery: owner-approved recommendations and repairs are pushed and included in verified test IPA 216
+(run 42698801783), with AirPlay r43 and Kodi r25. Native checks/recovery, packaging and downloaded-asset validation
+pass; see reports/streaming-recommendations-delivery.json and ISSUE-142. iPhone/Roku/visual acceptance remains
+pending and existing phase counts are unchanged. Main was not merged.
+
+
+2026-11-10 delivery: owner-approved seek-release and automatic-work repairs are included in verified test IPA 217
+(run 42732787090), with Kodi r26 and retained AirPlay r43. Native gesture dispatch 32, scheduler 10, focused suites,
+packaging and downloaded-asset validation pass. See ISSUE-143 and reports/seek-queue-repair-delivery.json.
+Actual iPhone/Roku acceptance remains pending; existing phase counts are unchanged. Main was not merged.
+
+
+Compatibility-first preparation checkpoint (2026-11-10, ISSUE-145 / DEC-031): supported inspected video keeps its
+original Drive file; no background conversion/re-upload or optional ready-file repack. Umbrella remote file reads
+separately reuse the Drive range-cache engine with a service-owned foreground profile. 17 focused suites / 442 tests
+and unchanged native host streaming comparison pass (identical first segment, fewer upstream reads). Evidence:
+reports/compatibility-filter-review.json and PROGRESS. UI text only; policy checked, device/visual acceptance pending.
+No new IPA, native build or main merge. Next: authorized updated-IPA/device retest of compatible queue skip and
+Umbrella AirPlay/Media Assistant separately. Existing roadmap phase/task completion counts are unchanged.
+
+
+Refresh/recommendations checkpoint (2026-11-10, ISSUE-146): owner approves the three additions and file inspection
+on Library status Refresh for another build/retest. Adaptive 1–8 MiB preparation HTTP uploads preserve 32 MiB
+resume pieces/256 MiB window; independent transport progress reports upload waits; selected Umbrella/AllDebrid
+links renew once; unknown files are inspected before readiness/conversion decisions on explicit Refresh. Exact
+cached identities survive restart; active native work and transactions stay protected. 24 suites / 545 tests,
+project/UI checks and real native host generated-source recovery pass. Evidence: reports/refresh-streaming-checks.json.
+Next: package/verify the requested updated test IPA using unchanged verified Kodi r26/AirPlay r43, then owner tests
+Refresh (ready count/no new Lanterns conversion), upload status, and Umbrella AirPlay/Media Assistant separately.
+Device/visual/provider acceptance and roadmap phase/task counts remain unchanged; no main merge.
+
+Packaging retry checkpoint (ISSUE-146): build 218 / 42755096028 failed before packaging on an obsolete AirPlay
+wording assertion. Corrected, 29 routing tests and every subsequent CI test script pass locally; Python 3.11 path
+supplied for bytecode tests as CI does. App sources/pins unchanged. Next: new packaging run, artifact verification
+and owner delivery; 218 was never delivered. Failed attempt retained in ISSUES and checks report.
+
+ISSUE-146 delivery (2026-11-10): test IPA 219 from 2d658de5ede446f9d8170a5c0185b1e5ee3c3efa published by
+successful run 42755715794 and independently downloaded/verified (digest/ZIP, exact r26/r43, 18 sources/Python 3.11
+hashes, 154 unsigned/unencrypted ARM64 images). Receipt: reports/refresh-streaming-delivery.json; download linked
+at the top of PROGRESS. Source/build/delivery complete; owner retests Refresh/Ready count and Umbrella/Roku,
+subtitles/seeking. Build 218's obsolete wording failure stays recorded. Device/visual/provider acceptance and
+phase/task counts remain unchanged; no main merge.
+
+ISSUE-147 investigation checkpoint (2026-11-10): owner adds seek-release, subtitles and a continuous-hour AirPlay
+stop. Current five-minute build-217 capture shares r26/r43 with 219. Expanded real-slider/info-refresh reproduction
+shows pending target display rollback and conditional target overwrite; every logged submission blocks 500 ms.
+Selected captions repeatedly time out at the native 1.5 s budget and are returned as empty HTTP-200 WEBVTT. The
+actual hour-long stop is absent, so exact stop cause is unresolved; need kodi.old.log/actual stop capture. Report:
+reports/seek-subtitle-stop-review.json. Investigation only, no app fix/native build/IPA/merge or device acceptance.
+Next: source repair with expanded refresh/event coverage; inspect actual stop evidence when available. Phase/task
+counts remain unchanged.
+
+ISSUE-147 old-log follow-up (2026-11-10): supplied old log exactly extends the prior 1,993 lines by 59 lines /
+17.764 s of shutdown. It still covers only ~5.4 minutes, build 217, with no continuous-hour failure captured.
+Shutdown begins three minutes after the captured AirPlay close. Existing seek/subtitle findings remain; hour-stop
+attribution stays unresolved. Capture the next actual stop before restart. Report/progress updated; no app/native
+change, build, IPA, main merge or phase/task-count change.
+
+
+## Current repair checkpoint — 2026-11-10 (ISSUE-148)
+
+Full Library status Refresh now audits actual codec and faster-open layout separately and queues only missing
+preparation. Umbrella service cache registration now uses Kodi Home rather than a filesystem Path. See
+reports/refresh-layout-cache-checks.json and docs/PROGRESS.md for verification/delivery. No phase/task acceptance
+counts changed; device/Roku results and ISSUE-147 remain pending. Main is not merged.
+
+Current checkpoint delivery: verified IPA 221 (source fcae63e, run 42842353113 success); see
+reports/refresh-layout-cache-delivery.json. Source/host checks complete; owner iPhone/Roku acceptance pending.
+Build 220 was superseded/cancelled before delivery. No main merge or phase/task completion change.
+
+## Source checkpoint: AirPlay startup and opening episode checks — 2026-11-10
+
+ISSUE-149 / ISSUE-150 / DEC-033: shared native startup deadline, parallel audio/video priming at resume position,
+reused target init and safe source/cache/timing diagnostics implemented. Newly downloaded TV shows are followed;
+existing shows can opt in through Follow new episodes only. Bounded app-opening/foreground checks use real air
+dates, selected quality and actual ownership/queue deduplication through the existing Drive download path. Existing
+UI controls only; policy checked. Host evidence: reports/airplay-opening-episodes-checks.json and PROGRESS.
+Owner holds IPA publication. No native iPhone framework build/release, workflow dispatch, IPA, push or main merge.
+Native pins stay r26/r43; next authorized IPA requires rebuilding/verifying/pinning the changed AirPlay component
+first. Actual iPhone/Roku, provider/new-release and visual acceptance remain pending. ISSUE-147 remains separate;
+no roadmap phase/task acceptance counts change.
+
+## Playback retention verified; owner-approved test IPA packaging next — 2026-11-10
+
+DEC-034 / ISSUE-147/151: seek retention (including fractional baseline), retained subtitle worker/cache, automatic
+stop evidence and downloaded-movie Continue from/restart implemented. Native local 3252 checks, 1094 Python tests
+and 46 real slider/gesture/info-refresh scenarios pass. Verified Kodi r28 run 42881626230, AirPlay candidate run
+42883448916 host/framework/end-to-end success; new immutable pin/publication follows checks receipt. See
+reports/playback-retention-checks.json and PROGRESS. Owner approves IPA and prior opening-episode/startup changes
+are included. Next publish verified framework, package/independently verify IPA and deliver. No main merge;
+actual iPhone/Roku/provider/visual acceptance and existing roadmap task counts stay unchanged.
+
+Playback retention delivery checkpoint (ISSUE-147/151 / DEC-034, 2026-11-10): verified IPA 223 from f6b4098,
+run 42887751497 success, Kodi r28 / AirPlay r44. Downloaded digest/ZIP/native/source/bytecode/154 unsigned ARM64
+images checked. 1094 Python tests + 46 actual slider cases, native CI 3336 and local 3252 checks plus end-to-end
+conversion pass. Receipt reports/playback-retention-delivery.json; source checks/failures retained separately.
+Failed 222 was not delivered. Next owner device checks: saved downloaded-movie Continue/Start from beginning,
+seek landing, captions and actual AirPlay/Roku; new-episode provider/visual acceptance pending. Historical hour-stop
+cause remains unknown; local/exported evidence added. No main merge or roadmap phase/task-count change.
+
+## Source work in progress: season source availability and visible paused queues — 2026-11-11 UTC
+
+DEC-035 / ISSUE-152/153: owner holds IPA publication and requests real desktop rig tests. Genuine pack filtering,
+a source-derived exact-quality episode fallback with opening retries, and durable paused/queued transfer visibility
+(including Refresh and Queue pagination) are implemented with focused regressions. No native pin change or IPA
+workflow dispatch. Desktop Kodi 21.3 rig is compiling in an isolated container using build-223 add-ons; visual/app
+flow checks remain pending. ISSUE-154 subtitle Browse freeze is under investigation; Download subtitle/phone
+captions work per owner. AirPlay captions and the Media Assistant five-second stall still need matching session
+evidence. No phase/task acceptance count changes or main merge. Final validation/evidence checkpoint will follow.
+
+Source handoff requested by owner (2026-11-11 UTC): commit completed ISSUE-152/153 repairs and ISSUE-154 native
+HTTP Browse guard to PR #16 on claude/trusting-euler-kgug98; keep IPA held. Real desktop quality/queue-save and
+Browse guard evidence plus passing related checks recorded in reports/season-source-queue-checks.json. Unfinished
+empty-show UI excluded (ISSUE-155). Remaining TV-session evidence, final UI smoke tests and required new iOS
+engine build/pin are listed in docs/REVIEW-HANDOFF-PR16.md. No main merge or phase acceptance-count changes.

@@ -11,6 +11,7 @@
 #include "../src/kr_hls.h"
 #include "../src/kr_audio.h"
 #include "../src/kr_source.h"
+#include "../src/kr_mp4.h"
 #include "../src/kr_video.h"
 #include "../src/kr_color.h"
 #include "../src/kr_dovi.h"
@@ -42,6 +43,7 @@ typedef struct { int status; char *body; size_t len; char head[1024]; } reply;
 
 static char prefix_path[96];
 static const char *test_ua = "test_remux/1";  // r8: the User-Agent of the requests (receivers are told apart by it)
+static double mono_ms(void);
 static reply http_get_raw(int port, const char *path, const char *range);
 static reply http_get(int port, const char *path, const char *range) {
     char full[512];
@@ -156,6 +158,73 @@ static void test_kind(void) {
 
 typedef struct { const char *file; const char *video; const char *audio_tokens; int audio_tracks, subs, hdr, bridged; const char *sub_text; double offset; int lan; } fixture;
 
+static void test_network_evidence(void) {
+    CHECK(!kr_remux_external_peer("127.0.0.1","192.0.2.10","AirPlay/1"),"loopback is not a TV");
+    CHECK(!kr_remux_external_peer("127.0.0.2","192.0.2.10","AirPlay/1"),"the whole loopback range is excluded");
+    CHECK(!kr_remux_external_peer("192.0.2.10","192.0.2.10","AppleCoreMedia/1"),"phone's own LAN address is excluded");
+    CHECK(!kr_remux_external_peer("192.0.2.20","192.0.2.10","AppleCoreMedia (iPhone)"),"phone player is excluded");
+    CHECK(!kr_remux_external_peer("192.0.2.20","192.0.2.10","AppleCoreMedia (IPAD)"),"phone user agents ignore case");
+    CHECK(!kr_remux_external_peer("unknown","192.0.2.10","AirPlay/1"),"failed peer lookup is not TV evidence");
+    CHECK(kr_remux_external_peer("192.0.2.20","192.0.2.10","AppleCoreMedia (Apple TV)"),"an Apple TV counts");
+    CHECK(kr_remux_external_peer("192.0.2.20","192.0.2.10","MFi_AirPlay_Device"),"a third-party TV counts");
+    char snapshot[1024],again[1024],log[1024];
+    kr_remux_network_begin(1);
+    CHECK(kr_remux_network(snapshot,sizeof snapshot)>0 && strstr(snapshot,"\"expected\":1") &&
+          strstr(snapshot,"\"tv_requests\":0") && strstr(snapshot,"\"first_tv_s\":-1"),"new session resets TV evidence: %s",snapshot);
+    kr_remux_network(again,sizeof again);
+    CHECK(strstr(again,"\"tv_requests\":0"),"reading a snapshot does not consume it");
+    kr_remux_note("network-test: marker");kr_remux_network(snapshot,sizeof snapshot);
+    CHECK(kr_remux_log(log,sizeof log)>0 && strstr(log,"network-test: marker"),"network snapshot never drains logs");
+    kr_remux_network_begin(0);
+    kr_remux_network(snapshot,sizeof snapshot);
+    CHECK(strstr(snapshot,"\"expected\":0"),"direct playback has no local-server deadline");
+}
+
+typedef struct {unsigned ticket;char url[1200];char playlist[512];int result;} startup_job;
+static void *run_startup(void *opaque) {
+    startup_job *j=opaque;j->result=kr_remux_start_for(j->ticket,j->url,0,0,j->playlist,sizeof j->playlist);return NULL;
+}
+static void test_startup_cancel(const char *http_base) {
+    startup_job j={0};j.ticket=kr_remux_begin(0);
+    snprintf(j.url,sizeof j.url,"%s/open-stall/h264_aac_srt.mkv",http_base);
+    pthread_t worker;pthread_create(&worker,NULL,run_startup,&j);usleep(250000);
+    double at=mono_ms();kr_remux_cancel(j.ticket);pthread_join(worker,NULL);
+    CHECK(j.result==KR_FAILED && mono_ms()-at<3000,"cancel interrupts initial HTTP open instead of waiting for 8s headers (%.0f ms)",mono_ms()-at);
+    unsigned canceled=kr_remux_begin(0);kr_remux_cancel(canceled);
+    at=mono_ms();int result=kr_remux_start_for(canceled,j.url,0,0,j.playlist,sizeof j.playlist);
+    CHECK(result==KR_FAILED && !j.playlist[0] && mono_ms()-at<1000,"canceled queued job never opens a source");
+    unsigned fresh=kr_remux_begin(0);snprintf(j.url,sizeof j.url,"%s/h264_aac_srt.mkv",http_base);
+    CHECK(kr_remux_start_for(fresh,j.url,0,0,j.playlist,sizeof j.playlist)==KR_READY,"next attempt starts after cancellation");
+    int port=kr_remux_port();kr_remux_stop_for(j.ticket);kr_remux_cancel(j.ticket);
+    CHECK(kr_remux_state()==KR_READY && kr_remux_port()==port,"stale cancellation/cleanup never destroys the next attempt");
+    char snapshot[1024];kr_remux_network(snapshot,sizeof snapshot);
+    CHECK(strstr(snapshot,"\"phase\":\"ready\"") && strstr(snapshot,"\"connect_age_s\":-1"),"listening is not yet a TV connection: %s",snapshot);
+    kr_remux_player(fresh,0);kr_remux_network(snapshot,sizeof snapshot);
+    CHECK(strstr(snapshot,"\"phase\":\"waiting_tv\"") && strstr(snapshot,"\"connect_age_s\":-1"),"choosing the TV does not consume its connection deadline");
+    kr_remux_player(fresh,1);kr_remux_network(snapshot,sizeof snapshot);
+    CHECK(strstr(snapshot,"\"phase\":\"connecting\"") && !strstr(snapshot,"\"connect_age_s\":-1"),"connection clock starts at route selection");
+    kr_remux_stop();
+}
+
+static void test_prepared_indexed_open(const char *http_base,const char *work) {
+    char input[1200],output[1200],url[1400],error[512]="",playlist[512];
+    snprintf(input,sizeof input,"%s/long_big.mkv",fixture_dir);
+    snprintf(output,sizeof output,"%s/airplay-indexed.mp4",work);unlink(output);
+    int result=kodi_airplay_prepare(input,output,NULL,NULL,error,sizeof error);
+    CHECK(result==0,"large indexed AirPlay fixture prepares: %s",error);if(result)return;
+    int upstream=0;sscanf(http_base,"http://127.0.0.1:%d",&upstream);
+    reply reset=http_get_raw(upstream,"/__stats/reset",NULL);free(reset.body);
+    snprintf(url,sizeof url,"%s/indexed/out/airplay-indexed.mp4",http_base);
+    double at=mono_ms();result=kr_remux_start(url,0,0,playlist,sizeof playlist);
+    CHECK(result==KR_READY && strstr(playlist,"/prepared."),"prepared MP4 opens through indexed byte-range path: %s",kr_remux_message());
+    reply stats=http_get_raw(upstream,"/__stats",NULL);
+    int requests=999;long long bytes=0;
+    if(stats.body){char *p=strstr(stats.body,"\"requests\":");if(p)requests=atoi(p+11);p=strstr(stats.body,"\"bytes\":");if(p)bytes=atoll(p+8);}
+    CHECK(requests<=12 && bytes<12LL*1024*1024,"indexed open bounds remote requests/bytes (requests=%d bytes=%lld)",requests,bytes);
+    printf("  indexed prepared AirPlay open: %d remote requests, %lld bytes, %.0f ms\n",requests,bytes,mono_ms()-at);
+    free(stats.body);kr_remux_stop();unlink(output);
+}
+
 static void test_file(const char *url, const fixture *fx, const char *work) {
     start_offset = fx->offset;
     char m3u8[256];
@@ -170,8 +239,14 @@ static void test_file(const char *url, const fixture *fx, const char *work) {
     CHECK(st == KR_READY, "%s: start %d (%s)", fx->file, st, kr_remux_message());
     if (st != KR_READY) return;
     int port = kr_remux_port();
+    char network[1024],port_field[32];
+    kr_remux_network(network,sizeof network);snprintf(port_field,sizeof port_field,"\"port\":%d",port);
+    CHECK(strstr(network,port_field) && strstr(log,"server: listening bind=") && strstr(log,"server: endpoint="),
+          "%s: actual listener/endpoint is reported without a token",fx->file);
     CHECK(port > 0 && strstr(m3u8, "/master.m3u8") && (fx->lan || strstr(m3u8, "http://127.0.0.1:")), "playlist url %s", m3u8);
     reply master = http_get(port, "/master.m3u8", NULL);
+    kr_remux_network(network,sizeof network);
+    CHECK(strstr(network,"\"tv_requests\":0"),"phone's loopback fetch never satisfies the TV watchdog");
     CHECK(master.status == 200 && strstr(master.head, "application/vnd.apple.mpegurl"), "master status");
     const char *pl = master.body ? master.body : "";
     CHECK(!strncmp(pl, "#EXTM3U\n#EXT-X-VERSION:7\n", 25), "%s master header", fx->file);
@@ -285,6 +360,70 @@ typedef struct { kr_source *source; int result; uint8_t bytes[4096]; } source_wa
 static int interrupt_source_wait(void *context) { return atomic_load((atomic_int *)context); }
 static void *waiting_source_read(void *context) {
     source_wait *w=context;w->result=kr_source_read(w->source,700000,w->bytes,sizeof w->bytes);return NULL;
+}
+
+// Build 213: cached headers must remain available while another cursor is stuck upstream. Two readers of
+// the same missing block share one fill, but each keeps its own cursor and cancellation state.
+static void test_shared_source(const char *base) {
+    char url[512],err[128]="";uint8_t a[4096],b[4096];
+    snprintf(url,sizeof url,"%s/stall/h264_dts.mkv",base);
+    kr_source *root=kr_source_open(url,5,err,sizeof err);
+    CHECK(root!=NULL,"shared source opens: %s",err);if(!root)return;
+    CHECK(kr_source_read(root,0,a,sizeof a)==sizeof a,"warm only requested header bytes");
+    kr_source *cursor=kr_source_clone(root,5,NULL,NULL);
+    if(cursor) {
+        uint8_t actual[100],expected[100];
+        CHECK(kr_source_read(cursor,5000,actual,100)==100 && kr_source_read(root,5500,actual,100)==100 &&
+              kr_source_read(cursor,6000,actual,100)==100,"interleaved partial-block extensions succeed");
+        extern const char *fixture_dir;char path[512];snprintf(path,sizeof path,"%s/h264_dts.mkv",fixture_dir);
+        FILE *f=fopen(path,"rb");if(f){fseek(f,6000,SEEK_SET);fread(expected,1,100,f);fclose(f);
+            CHECK(!memcmp(actual,expected,100),"lazy HTTP cursor uses absolute offsets after another cursor extends the cache");}
+        kr_source_close(cursor);
+    }
+    kr_source *one=kr_source_clone(root,5,NULL,NULL),*two=kr_source_clone(root,5,NULL,NULL);
+    CHECK(one && two,"independent cursors share a session cache");
+    if(one && two) {
+        CHECK(kr_source_read(two,0,b,sizeof b)==sizeof b && !memcmp(a,b,sizeof a) && kr_source_io_ms(two)==0,
+              "clone uses probed header without opening another Drive request");
+        source_wait first={.source=one},second={.source=two};pthread_t th[2];
+        pthread_create(&th[0],NULL,waiting_source_read,&first);usleep(150000);
+        double at=mono_ms();
+        CHECK(kr_source_cached_read(root,0,b,sizeof b)==sizeof b && !memcmp(a,b,sizeof a) && mono_ms()-at<50,
+              "cached init bypasses a stalled block fill (%.0f ms)",mono_ms()-at);
+        pthread_create(&th[1],NULL,waiting_source_read,&second);
+        pthread_join(th[0],NULL);pthread_join(th[1],NULL);
+        CHECK(first.result==4096 && second.result==4096 && !memcmp(first.bytes,second.bytes,4096),"concurrent fills return identical exact bytes");
+        CHECK(kr_source_io_ms(two)==0,"same-block waiter never repeats the upstream read (%.0f ms I/O)",kr_source_io_ms(two));
+        kr_source_abort(one);
+        CHECK(kr_source_read(one,0,b,sizeof b)<0 && kr_source_read(two,0,b,sizeof b)==sizeof b,
+              "canceling one cursor does not poison another cursor's cached bytes");
+        CHECK(kr_source_read(two,65536,b,sizeof b)==sizeof b,"a short cached prefix is extended on demand");
+        extern const char *fixture_dir;char path[512];snprintf(path,sizeof path,"%s/h264_dts.mkv",fixture_dir);
+        FILE *f=fopen(path,"rb");if(f){fseek(f,65536,SEEK_SET);fread(a,1,sizeof a,f);fclose(f);CHECK(!memcmp(a,b,sizeof a),"refilled partial block matches source bytes");}
+    }
+    kr_source_close(one);kr_source_close(two);kr_source_close(root);
+}
+
+typedef struct {gm_source source;int deny,reads;} guarded_source;
+static int64_t guarded_size(void *ctx){guarded_source *g=ctx;return g->source.size(g->source.ctx);}
+static int guarded_read(void *ctx,int64_t off,uint8_t *buf,int n){guarded_source *g=ctx;g->reads++;return g->deny?-1:g->source.read(g->source.ctx,off,buf,n);}
+static void test_metadata_init(const char *base) {
+    char url[512],err[256]="";snprintf(url,sizeof url,"%s/h264_aac_srt.mkv",base);
+    kr_source *source=kr_source_open(url,5,err,sizeof err);if(!source){CHECK(0,"metadata init source: %s",err);return;}
+    guarded_source guard={.source=kr_source_gm(source)};gm_source input={&guard,guarded_size,guarded_read};
+    gm_stream *gm=gm_stream_open(input,6,err,sizeof err);CHECK(gm!=NULL,"metadata init open: %s",err);
+    if(gm) {
+        guard.deny=1;int before=guard.reads;
+        int tracks[]={gm_stream_selected_video(gm),gm_stream_selected_audio(gm)};
+        for(int i=0;i<2;i++) {
+            gm_buf init={0};double at=mono_ms();
+            CHECK(gm_stream_track_init(gm,tracks[i],&init,err,sizeof err)==0 && init.len>16 &&
+                  !memcmp(init.data+4,"ftyp",4) && memmem(init.data,(size_t)init.len,"moov",4),"track %d init uses codec metadata only: %s",tracks[i],err);
+            CHECK(guard.reads==before && mono_ms()-at<50,"init needs zero source reads even when media is unavailable");free(init.data);
+        }
+        gm_stream_close(gm);
+    }
+    kr_source_close(source);
 }
 
 static void test_source_transport(const char *http_base) {
@@ -542,7 +681,7 @@ static void test_compat(const char *url, const char *name, int ask, double offse
     }
     kr_remux_log(log, sizeof log);
     CHECK(strstr(log, "compat: converting video stream") && strstr(log, "with mpeg4 (software decoding)"), "%s: conversion logged:\n%.2000s", name, log);
-    if (!ask) CHECK(strstr(log, "compat: the video is not H.264/HEVC") != NULL, "%s: switched by itself", name);
+    if (!ask) CHECK(strstr(log, "compat: conversion reason=") != NULL, "%s: switched by itself", name);
     free(master.body); free(video.body); free(init.body);
     kr_remux_stop();
     CHECK(kr_remux_compat() == 0 && kr_remux_state() == KR_IDLE, "%s: compat cleared on stop", name);
@@ -574,7 +713,7 @@ static int start_session(const char *url, int compat, char *m3u8, size_t len) {
     int st = kr_remux_start(url, 0, compat, m3u8, (int)len);
     if (st == KR_READY) {
         snprintf(prefix_path, sizeof prefix_path, "%s", strchr(strstr(m3u8, "://") + 3, '/'));
-        char *cut = strstr(prefix_path, "/master.m3u8"); if (cut) *cut = 0;
+        char *cut = strrchr(prefix_path, '/'); if (cut) *cut = 0;
     }
     return st;
 }
@@ -687,7 +826,7 @@ static void test_extra_format(const char *url, const char *name, const char *wor
     }
     reply back = http_get(port, "/video/seg0.m4s", NULL);
     reply retry = http_get(port, "/video/seg2.m4s", NULL);
-    CHECK(back.status == 200 && retry.status == 200 && !*kr_remux_message(), "%s: backward/forward retry", name);
+    CHECK(back.status == 200 && retry.status == 200 && !*kr_remux_message(), "%s: backward/forward retry (%d/%d: %s)", name,back.status,retry.status,kr_remux_message());
     reply master = http_get(port, "/master.m3u8", NULL);
     int audio = -1;
     const char *p = master.body ? strstr(master.body, "/audio/") : NULL;
@@ -964,7 +1103,7 @@ static void test_latency(const char *http_base) {
     snprintf(ainit, sizeof ainit, "/audio/%d/init.mp4", aidx);
     double vinit = get_ms(port, "/video/init.mp4"), first_ainit = get_ms(port, ainit);  // opens the audio demuxer
     double vinit2 = get_ms(port, "/video/init.mp4"), seg0 = get_ms(port, "/video/seg0.m4s");
-    CHECK(vinit2 < 50 && seg0 < 50, "init and segment 0 made once (init %.0f ms, again %.1f ms, seg0 after it %.1f ms)", vinit, vinit2, seg0);
+    CHECK(vinit < 50 && first_ainit < 50 && vinit2 < 50, "copied inits need no media production (video %.1f ms, audio %.1f ms, again %.1f ms; media %.1f ms)", vinit, first_ainit, vinit2, seg0);
     snprintf(aseg, sizeof aseg, "/audio/%d/seg2.m4s", aidx);
     double tv = get_ms(port, "/video/seg2.m4s"), ta = get_ms(port, aseg);
     timed gv = { port, "/video/seg1.m4s", 0, 0 }, ga = { port, "", 0, 0 };
@@ -975,7 +1114,7 @@ static void test_latency(const char *http_base) {
     pthread_join(th[0], NULL); pthread_join(th[1], NULL);
     double both = mono_ms() - t0;
     CHECK(gv.status == 200 && ga.status == 200, "video and audio together (%d %d)", gv.status, ga.status);
-    CHECK(both < 0.8 * (tv + ta), "video and audio are made at the same time: together %.0f ms, one after the other %.0f + %.0f ms", both, tv, ta);
+    CHECK(both < 2000, "parallel video/audio requests reuse cached source data: together %.0f ms, previous requests %.0f + %.0f ms", both, tv, ta);
     double again = get_ms(port, "/video/seg2.m4s");
     CHECK(again < 50, "a segment asked again comes from the cache (%.1f ms, made in %.0f ms)", again, tv);
     CHECK(kr_remux_prefetched() == 0, "nothing made ahead with prefetch off (%d)", kr_remux_prefetched());
@@ -1309,10 +1448,10 @@ static void test_burn_select(void) {
             reply seg = get_as(UA_TV, kr_remux_port(), "/cvideo/seg0.m4s");
             CHECK(seg.status == 200 && seg.len > 0, "case %zu: burned segment served (%d)", k, seg.status);
             free(seg.body);
-            // r11: burned in for the TV: no WebVTT rendition in its master, and a /subs request answers at once (empty)
+            // Burned subtitles are already in the picture; the unadvertised text rendition is unavailable.
             CHECK(!strstr(tv.body, "TYPE=SUBTITLES") && !strstr(tv.body, "SUBTITLES=\"subs\""), "case %zu: no subtitles group for the TV", k);
             reply vtt = get_as(UA_TV, kr_remux_port(), "/subs/2/seg0.vtt");
-            CHECK(vtt.status == 200 && vtt.body && !strncmp(vtt.body, "WEBVTT", 6) && !strstr(vtt.body, "Hello"), "case %zu: empty cue file for the TV", k);
+            CHECK(vtt.status == 404, "case %zu: unadvertised burned text rendition unavailable", k);
             free(vtt.body);
         }
         free(tv.body);
@@ -1348,6 +1487,57 @@ static int preparation_write(int track,const char *suffix,const uint8_t *data,in
     if(!sink->files[track]){char path[2048];snprintf(path,sizeof path,"%s%s",sink->base,suffix);sink->files[track]=fopen(path,"wb");}
     return sink->files[track] && fwrite(data,1,(size_t)size,sink->files[track])==(size_t)size;
 }
+// r38 (owner's build-201 Apple TV log): Apple's player reads every fragment of a progressive fragmented MP4; a prepared
+// (fragmented, indexed) movie is offered as HLS byte ranges over the same file, taken from its mfra.
+static void check_prepared_hls(const char *file,const char *what,int want_subs) {
+    char url[1200],playlist[512]="";snprintf(url,sizeof url,"file:%s",file);
+    kr_remux_set_subtitles(-2,"","");   // as Kodi reports in the owner's build-202 log: on, the file's default
+    int st=kr_remux_start(url,0,0,playlist,sizeof playlist);
+    CHECK(st==KR_READY && strstr(playlist,"/prepared.m3u8"),"%s: a fragmented prepared movie is offered as HLS (%s %s)",what,playlist,kr_remux_message());
+    if(st!=KR_READY || !strstr(playlist,"/prepared.m3u8")){kr_remux_stop();return;}
+    int port=kr_remux_port();
+    reply master=http_get(port,playlist,NULL);
+    CHECK(master.status==200 && master.body && strstr(master.body,"#EXT-X-STREAM-INF:") && strstr(master.body,"CODECS=\"") && strstr(master.body,"/prepared-media.m3u8"),
+          "%s: master playlist: %.300s",what,master.body?master.body:"");
+    char media_url[600],mp4_url[600];
+    snprintf(media_url,sizeof media_url,"%s",playlist);strcpy(strstr(media_url,"/prepared.m3u8"),"/prepared-media.m3u8");
+    snprintf(mp4_url,sizeof mp4_url,"%s",playlist);strcpy(strstr(mp4_url,"/prepared.m3u8"),"/prepared.mp4");
+    reply media=http_get(port,media_url,NULL);
+    long long map_len=-1,seg_len=-1,seg_at=-1,last_len=-1,last_at=-1;int segments=0;
+    if(media.body){char *p=strstr(media.body,"BYTERANGE=\"");if(p)sscanf(p+11,"%lld@",&map_len);
+        p=strstr(media.body,"#EXT-X-BYTERANGE:");if(p)sscanf(p+17,"%lld@%lld",&seg_len,&seg_at);
+        for(p=media.body;(p=strstr(p,"#EXT-X-BYTERANGE:"));p++){segments++;sscanf(p+17,"%lld@%lld",&last_len,&last_at);}}
+    CHECK(media.status==200 && media.body && strstr(media.body,"#EXT-X-ENDLIST") && map_len>0 && seg_at==map_len && seg_len>0 && segments>=1,
+          "%s: media playlist: init %lld bytes, first fragment %lld@%lld, %d fragments",what,map_len,seg_len,seg_at,segments);
+    if(map_len>0 && seg_at>0 && last_at>0) {
+        char want[64];snprintf(want,sizeof want,"bytes=%lld-%lld",seg_at,seg_at+15);
+        reply first=http_get(port,mp4_url,want);
+        CHECK(first.status==206 && first.len==16 && first.body && !memcmp(first.body+4,"moof",4),"%s: the first byte range is a fragment (moof)",what);free(first.body);
+        snprintf(want,sizeof want,"bytes=%lld-%lld",last_at,last_at+15);
+        reply last=http_get(port,mp4_url,want);
+        CHECK(last.status==206 && last.len==16 && last.body && !memcmp(last.body+4,"moof",4),"%s: the last byte range is a fragment (moof)",what);free(last.body);
+        snprintf(want,sizeof want,"bytes=%lld-%lld",last_at+last_len,last_at+last_len+15);
+        reply after=http_get(port,mp4_url,want);
+        CHECK(after.status==206 && after.body && !memcmp(after.body+4,"mfra",4),"%s: the last fragment ends where the index starts",what);free(after.body);
+        snprintf(want,sizeof want,"bytes=0-%lld",map_len-1);
+        reply init=http_get(port,mp4_url,want);
+        CHECK(init.status==206 && init.len==map_len && init.body && !memcmp(init.body+4,"ftyp",4) && memmem(init.body,(size_t)init.len,"moov",4),"%s: the init range is ftyp+moov",what);free(init.body);
+    }
+    // r39 (owner, build 202: "subtitles didnt work"): text subtitles as WebVTT renditions, the default one on.
+    if(want_subs) {
+        char *u=master.body?strstr(master.body,"TYPE=SUBTITLES"):NULL;char sub_url[600]="";
+        if(u && (u=strstr(u,"URI=\""))){u+=5;size_t n=strcspn(u,"\"");if(n<sizeof sub_url){memcpy(sub_url,u,n);sub_url[n]=0;}}
+        CHECK(u && strstr(master.body,"DEFAULT=YES") && strstr(master.body,"SUBTITLES=\"subs\""),"%s: text subtitles offered as a WebVTT group: %.400s",what,master.body?master.body:"");
+        if(*sub_url) {
+            reply list=http_get(port,sub_url,NULL);char seg[600]="";
+            if(list.body){char *q=strstr(list.body,"#EXTINF:");if(q && (q=strchr(q,'\n'))){q++;size_t n=strcspn(q,"\n");if(n<sizeof seg){memcpy(seg,q,n);seg[n]=0;}}}
+            CHECK(list.status==200 && *seg,"%s: subtitle playlist: %.200s",what,list.body?list.body:"");
+            if(*seg){reply cue=http_get(port,seg,NULL);CHECK(cue.status==200 && cue.body && !strncmp(cue.body,"WEBVTT",6),"%s: subtitle cue file is WebVTT",what);free(cue.body);}
+            free(list.body);
+        }
+    }
+    free(master.body);free(media.body);kr_remux_stop();
+}
 static void test_preparation_stream(const char *work,const char *http_base) {
     const char *files[]={"h264_aac_srt.mkv","hevc_ac3_ass.mkv","h264_ac3_dts_srt.mkv","hevc_4k.mkv","dovi.mkv","long_seek.mkv","h264_pgs.mkv"};
     kodi_airplay_prepare_keep_image_subs(1);
@@ -1367,6 +1557,8 @@ static void test_preparation_stream(const char *work,const char *http_base) {
         uint8_t a[16],b[16];int aw,ah,an,bw,bh,bn;char local[1100];snprintf(local,sizeof local,"%s/%s",fixture_dir,files[i]);
         CHECK(video_digest(local,a,&aw,&ah,&an)==0 && video_digest(output,b,&bw,&bh,&bn)==0 && !memcmp(a,b,16),"streaming preserves original H.264/HEVC packets for %s",files[i]);
         CHECK(kodi_airplay_probe(output,json,sizeof json)==0 && strstr(json,"\"ready\":true"),"streamed output is prepared: %s",json);
+        if(!strcmp(files[i],"hevc_4k.mkv") || !strcmp(files[i],"long_seek.mkv") || !strcmp(files[i],"h264_aac_srt.mkv"))
+            check_prepared_hls(output,files[i],!strcmp(files[i],"h264_aac_srt.mkv"));
         {uint8_t header[65536];FILE *file=fopen(output,"rb");size_t length=file?fread(header,1,sizeof header,file):0;if(file)fclose(file);int duration=0;
          for(size_t n=4;n+24<length;n++)if(!memcmp(header+n,"mvhd",4) && header[n+4]==0){duration=AV_RB32(header+n+20)>0;break;}
          CHECK(duration,"streamed MP4 advertises a finite nonzero movie duration in its init: %s",files[i]);}
@@ -1627,13 +1819,46 @@ static void test_preparation(const char *work) {
         CHECK(an==bn,"all selected video/audio/text tracks preserved (%d -> %d)",an,bn);
         CHECK(!memcmp(a,b,16),"H.264/HEVC video packets preserved without quality loss: %s",files[i]);
         snprintf(url,sizeof url,"file:%s",output);
-        CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared.mp4"),"prepared file uses indexed byte-range seeking without live conversion");
+        CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared."),"prepared file uses indexed byte-range seeking without live conversion");
         int port=kr_remux_port();
-        reply bytes=http_get(port,playlist,"bytes=0-127");
+        char mp4_url[600];snprintf(mp4_url,sizeof mp4_url,"%s",playlist);
+        {char *dot=strstr(mp4_url,"/prepared.m3u8");if(dot)strcpy(dot,"/prepared.mp4");}
+        reply bytes=http_get(port,mp4_url,"bytes=0-127");
         CHECK(bytes.status==206 && bytes.len==128 && !memcmp(bytes.body+4,"ftyp",4),"prepared MP4 ranges return exact bytes");free(bytes.body);
-        bytes=http_get(port,playlist,"bytes=-128");CHECK(bytes.status==206 && bytes.len==128,"prepared MP4 suffix range");free(bytes.body);
-        bytes=http_get(port,playlist,"bytes=10-2");CHECK(bytes.status==416,"prepared MP4 rejects invalid range");free(bytes.body);
+        bytes=http_get(port,mp4_url,"bytes=-128");CHECK(bytes.status==206 && bytes.len==128,"prepared MP4 suffix range");free(bytes.body);
+        bytes=http_get(port,mp4_url,"bytes=10-2");CHECK(bytes.status==416,"prepared MP4 rejects invalid range");free(bytes.body);
         CHECK(kr_remux_compat()==0 && kr_remux_prefetched()==0,"prepared playback never converts/prefetches segments");
+        kr_remux_stop();
+        // r36: a TV that takes only the sound of a prepared movie gets the converted H.264 picture on the compat restart
+        // (mpeg4 stands in for the iPhone's H.264 encoder on the host, as in the other compat tests).
+        const char *encoder=kr_video_encoder();kr_video_set_encoder("mpeg4");
+        CHECK(kr_remux_start(url,0,1,playlist,sizeof playlist)==KR_READY && !strstr(playlist,"/prepared.") && kr_remux_compat()==1,
+              "prepared file restarts in compat mode as converted HLS: %s %s",playlist,kr_remux_message());
+        kr_remux_stop();kr_video_set_encoder(encoder);
+        // Roku copies sources within its codec limits. The synthetic DoVi fixture advertises HEVC level 255,
+        // so it must take the conversion route even though the prepared-file path can serve its bytes unchanged.
+        int receiver_convert=!strcmp(files[i],"dovi.mkv");
+        kr_video_set_encoder("mpeg4"); // host reference for the iPhone's H.264 encoder
+        CHECK(kr_remux_start(url,0,KR_COMPAT_SEGMENTED,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/master.m3u8") && kr_remux_compat()==receiver_convert,
+              "segmented: prepared %s follows Roku codec limits (convert %d): %s %s",files[i],receiver_convert,playlist,kr_remux_message());
+        {
+            int sport=kr_remux_port();reply m=http_get(sport,playlist,NULL);
+            char vurl[600]="";snprintf(vurl,sizeof vurl,"%s",playlist);char *mm=strstr(vurl,"/master.m3u8");if(mm)strcpy(mm,"/video/index.m3u8");
+            reply v=http_get(sport,vurl,NULL);int target=-1;
+            if(v.body){char *t=strstr(v.body,"#EXT-X-TARGETDURATION:");if(t)target=atoi(t+22);}
+            CHECK(m.status==200 && m.body && !strstr(m.body,"/prepared") && strstr(m.body,"/video/index.m3u8") &&
+                  (!strstr(m.body,"TYPE=AUDIO") || strstr(m.body,"AUDIO=\"aud\"")),"segmented: master names the remuxed video (and audio apart): %.300s",m.body?m.body:"");
+            CHECK(v.status==200 && v.body && !strstr(v.body,"BYTERANGE") && target>0 && target<=12,"segmented: segments of at most 12 s (target %d)",target);
+            free(m.body);free(v.body);
+        }
+        kr_remux_stop();kr_video_set_encoder(encoder);
+        CHECK(kr_remux_start(url,0,0,playlist,sizeof playlist)==KR_READY && strstr(playlist,"/prepared."),"prepared file is served as it is again afterwards");
+        {   // r41: the start of the file is read ahead as soon as the playlists exist
+            char warm[16384]="";int seen=0;
+            for(int k=0;k<100 && !seen;k++){usleep(20000);int n=kr_remux_log(warm,sizeof warm);if(n>0 && strstr(warm,"prepared: cached "))seen=1;}
+            CHECK(seen,"prepared: the init and first fragment are read ahead into memory");
+        }
+        port=kr_remux_port();
         int idle_fd=socket(AF_INET,SOCK_STREAM,0);struct sockaddr_in idle_address={0};
         idle_address.sin_family=AF_INET;idle_address.sin_port=htons((uint16_t)port);idle_address.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
         CHECK(connect(idle_fd,(struct sockaddr *)&idle_address,sizeof idle_address)==0,"connect idle seek client");usleep(20000);
@@ -1717,6 +1942,215 @@ static void test_preparation_http(const char *http_base,const char *work) {
           "preparation never reads a non-loopback URL: %s",err);
 }
 
+static void test_long_gop_roku(const char *base,const char *work) {
+    char url[512],list[512],out[1024];snprintf(url,sizeof url,"%s/long-gop.mp4",base);
+    kr_remux_set_prefetch(0);
+    CHECK(start_session(url,KR_COMPAT_SEGMENTED,list,sizeof list)==KR_READY,"long-GOP indexed Roku opens: %s",kr_remux_message());
+    int port=kr_remux_port();reply video=http_get(port,"/video/index.m3u8",NULL);
+    double total=0,maxd=0;int target=0;int n=playlist_segments(video.body?video.body:"",&total,&maxd,&target);
+    CHECK(n==1 && total>31 && total<33 && target>=32,"source has a 30-s GOP: advertise its real window, never duplicate six-second tail segments (%d, %.3f)",n,total);
+    snprintf(out,sizeof out,"%s/long-gop-roku-video.mp4",work);start_offset=0;
+    check_rendition(port,"/video",n,32,out,0);int keys=0;
+    CHECK(decode_count(out,&keys)==768,"long-GOP Roku copy contains every frame exactly once");
+    snprintf(out,sizeof out,"%s/long-gop-roku-audio.mp4",work);
+    check_rendition(port,"/audio/1",n,32,out,1);
+    free(video.body);kr_remux_stop();kr_remux_set_prefetch(1);
+}
+
+typedef struct {kr_video *video;long frames;int count,len;} init_watch;
+static void test_stream_recommendations(const char *base,const char *work) {
+    char source[1024],playlist[512],file[1024],log[16384];
+    kr_video_set_encoder("mpeg4");kr_remux_set_subtitles(-1,NULL,NULL);kr_remux_set_prefetch(0);
+    snprintf(source,sizeof source,"file:%s/hevc_ac3_ass.mkv",fixture_dir);
+    CHECK(start_session(source,KR_COMPAT_ROKU_SAFE,playlist,sizeof playlist)==KR_READY,"safe Roku profile opens: %s",kr_remux_message());
+    CHECK(kr_remux_compat(),"safe profile converts the picture");
+    int port=kr_remux_port();reply master=http_get(port,"/master.m3u8",NULL);
+    CHECK(master.body && strstr(master.body,"avc1.") && strstr(master.body,"mp4a.40.2") && !strstr(master.body,"ac-3") && strstr(master.body,"VIDEO-RANGE=SDR"),"safe profile advertises H.264 SDR and actual stereo AAC");free(master.body);
+    reply init=http_get(port,"/audio/1/init.mp4",NULL),part=http_get(port,"/audio/1/seg0.m4s",NULL);
+    CHECK(init.status==200 && part.status==200,"safe stereo audio init and segment delivered");
+    snprintf(file,sizeof file,"%s/roku-safe-audio.mp4",work);FILE *f=fopen(file,"wb");fwrite(init.body,1,init.len,f);fwrite(part.body,1,part.len,f);fclose(f);free(init.body);free(part.body);
+    AVFormatContext *audio=NULL;int opened=avformat_open_input(&audio,file,NULL,NULL);if(!opened)avformat_find_stream_info(audio,NULL);
+    CHECK(!opened && audio->streams[0]->codecpar->codec_id==AV_CODEC_ID_AAC && audio->streams[0]->codecpar->ch_layout.nb_channels==2,"safe profile actually downmixes to two AAC channels");avformat_close_input(&audio);kr_remux_stop();
+
+    snprintf(source,sizeof source,"file:%s/hevc_4k.mkv",fixture_dir);
+    CHECK(start_session(source,KR_COMPAT_SEGMENTED,playlist,sizeof playlist)==KR_READY,"ordinary 4K Roku profile opens");
+    master=http_get(kr_remux_port(),"/master.m3u8",NULL);
+    CHECK(!kr_remux_compat() && master.body && strstr(master.body,"hvc1.") && strstr(master.body,"RESOLUTION=3840x2160"),"compatible 4K HEVC remains copied");free(master.body);kr_remux_stop();
+
+    kr_remux_set_prefetch(1);snprintf(source,sizeof source,"%s/slow/coalesced.mp4",base);
+    CHECK(start_session(source,KR_COMPAT_SEGMENTED,playlist,sizeof playlist)==KR_READY,"cancelable read-ahead movie opens");
+    // Startup no longer warms segment zero speculatively. Start real consumption to queue read-ahead first.
+    part=http_get(kr_remux_port(),"/video/seg0.m4s",NULL);free(part.body);
+    usleep(250000);port=kr_remux_port();part=http_get(port,"/video/seg3.m4s",NULL);
+    CHECK(part.status==200 && part.len>65536,"seek succeeds after canceling an obsolete copied read (%d, %zu)",part.status,part.len);
+    kr_remux_log(log,sizeof log);CHECK(strstr(log,"cancel obsolete copied video segment"),"seek records cancellation of obsolete read-ahead");
+    init=http_get(port,"/video/init.mp4",NULL);snprintf(file,sizeof file,"%s/after-canceled-copy.mp4",work);f=fopen(file,"wb");fwrite(init.body,1,init.len,f);fwrite(part.body,1,part.len,f);fclose(f);
+    int keys=0;CHECK(decode_count(file,&keys)>100,"fresh seek segment decodes after canceled source I/O");free(init.body);free(part.body);kr_remux_stop();
+}
+
+static void test_roku214(const char *base,const char *work) {
+    char url[1024],list[512],out[1024],log[16384];
+    kr_remux_set_prefetch(0);kr_remux_set_subtitles(0,NULL,"eng");
+    snprintf(url,sizeof url,"file:%s/coalesced.mp4",fixture_dir);
+    CHECK(start_session(url,KR_COMPAT_SEGMENTED,list,sizeof list)==KR_READY,"coalesced prepared movie opens for Roku: %s",kr_remux_message());
+    int port=kr_remux_port();reply master=http_get(port,"/master.m3u8",NULL);
+    const char *subs=strstr(master.body,"TYPE=SUBTITLES");
+    CHECK(subs && strstr(subs,"DEFAULT=YES,AUTOSELECT=YES,FORCED=NO"),"Roku receives Kodi's enabled caption track as the default");free(master.body);
+    reply pl=http_get(port,"/video/index.m3u8",NULL);
+    double total,maxd;int target;int n=playlist_segments(pl.body,&total,&maxd,&target);
+    CHECK(n>=4 && maxd<=8.1 && fabs(total-32)<.2,"Roku uses internal keyframes, not 30-second storage fragments (%d segments, max %.3f)",n,maxd);
+    snprintf(out,sizeof out,"%s/coalesced-roku.mp4",work);check_rendition(port,"/video",n,32,out,0);
+    int keys=0;CHECK(decode_count(out,&keys)==768,"coalesced Roku copy keeps all 768 frames exactly once");
+    free(pl.body);kr_remux_stop();kr_remux_set_subtitles(-1,NULL,NULL);
+
+    snprintf(url,sizeof url,"file:%s/coalesced-b.mp4",fixture_dir);
+    CHECK(start_session(url,KR_COMPAT_SEGMENTED,list,sizeof list)==KR_READY,"coalesced B-frame movie opens");port=kr_remux_port();
+    pl=http_get(port,"/video/index.m3u8",NULL);n=playlist_segments(pl.body,&total,&maxd,&target);
+    CHECK(n>=4 && maxd<=8.1,"composition offsets preserve short actual-keyframe windows");free(pl.body);
+    snprintf(out,sizeof out,"%s/coalesced-b-roku.mp4",work);check_rendition(port,"/video",n,32,out,0);
+    int bf_frames=decode_count(out,&keys),source_frames=decode_count(url,&keys);
+    CHECK(source_frames>0 && bf_frames==source_frames,"signed composition offsets keep every input B-frame exactly once (%d of %d decoded)",bf_frames,source_frames);
+    uint8_t before[16],after[16];int bw,bh,bn,aw,ah,an;
+    CHECK(video_digest(url,before,&bw,&bh,&bn)==0 && video_digest(out,after,&aw,&ah,&an)==0 && bw==aw && bh==ah && !memcmp(before,after,16),"signed-CTS copy preserves the complete ordered packet digest");
+    snprintf(out,sizeof out,"%s/coalesced-b-audio.mp4",work);check_rendition(port,"/audio/1",n,32,out,1);kr_remux_stop();
+
+    snprintf(url,sizeof url,"file:%s/coalesced.mp4",fixture_dir);
+    CHECK(start_session(url,KR_COMPAT_SEGMENTED,list,sizeof list)==KR_READY,"backpressured Roku session opens");port=kr_remux_port();
+    master=http_get(port,"/master.m3u8",NULL);subs=strstr(master.body,"TYPE=SUBTITLES");
+    CHECK(subs && strstr(subs,"DEFAULT=NO,AUTOSELECT=NO,FORCED=NO"),"Kodi's captions-off choice is respected");free(master.body);
+    reply probe=http_get(port,"/video/seg0.m4s","bytes=0-0");free(probe.body);
+    CHECK(kr_remux_served_external(1)==0,"a one-byte range probe is not delivered picture");
+    int fd=socket(AF_INET,SOCK_STREAM,0),window=4096;
+    setsockopt(fd,SOL_SOCKET,SO_RCVBUF,&window,sizeof window);
+    struct timeval timeout={5,0};setsockopt(fd,SOL_SOCKET,SO_RCVTIMEO,&timeout,sizeof timeout);
+    struct sockaddr_in addr={.sin_family=AF_INET,.sin_port=htons((uint16_t)port),.sin_addr.s_addr=htonl(INADDR_LOOPBACK)};
+    CHECK(connect(fd,(struct sockaddr *)&addr,sizeof addr)==0,"slow receiver connects");
+    char request[512];int len=snprintf(request,sizeof request,"GET %s/video/seg0.m4s HTTP/1.1\r\nHost: 127.0.0.1\r\nUser-Agent: Roku/DVP-16.0\r\n\r\n",prefix_path);
+    send(fd,request,(size_t)len,0);
+    char block[8192];int bytes=0;
+    while(bytes<131072){int got=(int)recv(fd,block,sizeof block,0);if(got<=0)break;bytes+=got;}
+    CHECK(bytes>=131072,"slow receiver reads a media prefix (%d bytes)",bytes);
+    usleep(100000);
+    CHECK(kr_remux_served_external(1)>0,"partial video delivery is visible before the whole segment finishes");
+    struct linger reset={1,0};setsockopt(fd,SOL_SOCKET,SO_LINGER,&reset,sizeof reset);close(fd);usleep(100000);
+    kr_remux_log(log,sizeof log);
+    CHECK(strstr(log,"/video/seg0.m4s -200") && !strstr(log,"/video/seg0.m4s -200 0 B"),"canceled response retains delivered byte count: %.2000s",log);
+    kr_remux_stop();
+
+    snprintf(url,sizeof url,"%s/slow/coalesced.mp4",base);
+    CHECK(start_session(url,0,list,sizeof list)==KR_READY,"remote prepared subtitle session opens");
+    double at=mono_ms();reply cue=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
+    CHECK(cue.status==200 && cue.body && strstr(cue.body,"Hello from SRT"),"remote MP4 captions survive the request deadline (%.0f ms): %.200s",mono_ms()-at,cue.body?cue.body:"");
+    free(cue.body);cue=http_get(kr_remux_port(),"/subs/2/seg1.vtt",NULL);
+    CHECK(cue.body && strstr(cue.body,"Second line"),"later caption survives a subtitle-track seek");free(cue.body);
+    cue=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
+    CHECK(cue.body && strstr(cue.body,"Hello from SRT"),"caption seek back keeps the first cue");free(cue.body);
+    kr_remux_stop();kr_remux_set_prefetch(1);
+
+    // An untrusted sample count must fail within its header bounds, preserving the caller's fallback plan.
+    snprintf(url,sizeof url,"%s/coalesced.mp4",fixture_dir);FILE *input=fopen(url,"rb");uint8_t h[8];uint8_t *moof=NULL;uint32_t size=0;
+    while(input && fread(h,1,8,input)==8){size=AV_RB32(h);if(size<8)break;if(!memcmp(h+4,"moof",4)){moof=malloc(size);memcpy(moof,h,8);if(fread(moof+8,1,size-8,input)!=size-8){free(moof);moof=NULL;}break;}if(fseeko(input,(off_t)size-8,SEEK_CUR))break;}
+    if(input)fclose(input);
+    CHECK(moof!=NULL,"metadata-only corruption fixture has a moof");
+    if(moof){
+        uint8_t *trun=memmem(moof,size,"trun",4);CHECK(trun && (size_t)(trun-moof)+12<size,"sample metadata has a trun");
+        if(trun && (size_t)(trun-moof)+12<size){
+            AV_WB32(trun+8,UINT32_MAX);snprintf(out,sizeof out,"%s/bad-moof",work);FILE *f=fopen(out,"wb");fwrite(moof,1,size,f);fclose(f);
+            char err[128];snprintf(url,sizeof url,"file:%s",out);kr_source *source=kr_source_open(url,2,err,sizeof err);
+            kr_mp4_fragment fr={0,0};double *times=NULL;int nk=0;
+            CHECK(source && kr_mp4_keyframes(source,&fr,1,1,1.0/12288,0,NULL,NULL,&times,&nk)<0 && !times && !nk,"corrupt sample count is rejected without publishing a partial keyframe plan");
+            kr_source_close(source);free(times);
+        }free(moof);
+    }
+}
+
+static void observe_init(void *ctx,const uint8_t *data,int len) {
+    init_watch *watch=ctx;watch->count++;watch->frames=kr_video_frames(watch->video);watch->len=len;
+    CHECK(len>16 && !memcmp(data+4,"ftyp",4) && memmem(data,(size_t)len,"moov",4),"early converted header contains real codec configuration");
+}
+static void test_subtitle_retention(const char *base) {
+    char source[1024],list[512],log[8192];int origin=0;
+    sscanf(base,"http://127.0.0.1:%d",&origin);kr_remux_set_prefetch(0);kr_remux_set_subtitles(-1,NULL,NULL);
+    snprintf(source,sizeof source,"%s/cue-delay/h264_aac_srt.mkv",base);
+    int opening=start_session(source,0,list,sizeof list);
+    CHECK(opening==KR_READY,"delayed subtitle source opens");if(opening!=KR_READY)return;
+    reply armed=http_get_raw(origin,"/__cue_delay",NULL);CHECK(armed.status==200,"subtitle delay armed after opening");free(armed.body);
+    double began=mono_ms();reply first=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
+    CHECK(first.status==503 && strstr(first.head,"Retry-After: 1"),"slow cue is retryable, not a blank successful caption (%d)",first.status);
+    CHECK(mono_ms()-began<9000,"HTTP wait bounded independently of ongoing subtitle read");free(first.body);
+    reply ready=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
+    CHECK(ready.status==200 && ready.body && strstr(ready.body,"Hello from SRT"),"same in-flight cue eventually serves real text (%d)",ready.status);free(ready.body);
+    began=mono_ms();ready=http_get(kr_remux_port(),"/subs/2/seg0.vtt",NULL);
+    CHECK(ready.status==200 && ready.body && strstr(ready.body,"Hello from SRT") && mono_ms()-began<100,"repeated cue is cached");free(ready.body);
+    ready=http_get(kr_remux_port(),"/subs/999/seg0.vtt",NULL);CHECK(ready.status==404,"unknown subtitle stream isn't a successful empty cue");free(ready.body);
+    kr_remux_log(log,sizeof log);CHECK(strstr(log,"returning retryable 503") && strstr(log,"cached"),"logs distinguish unfinished work from completed cue");
+    kr_remux_stop();kr_remux_set_prefetch(1);kr_remux_set_subtitles(-2,NULL,NULL);
+}
+
+static void test_startup_repairs(const char *base) {
+    char url[512],list[512],err[256]="",log[8192];
+    snprintf(url,sizeof url,"%s/slow/h264_aac_srt.mkv",base);
+    kr_remux_set_prefetch(0);unsigned ticket=kr_remux_begin(0);
+    usleep(150000); // queued dispatch time belongs to the same startup clock
+    int opening=kr_remux_start_for(ticket,url,0,0,list,sizeof list);
+    CHECK(opening==KR_READY,"prebuffer session opens");if(opening!=KR_READY)return;
+    char network[1024];kr_remux_network(network,sizeof network);
+    char *age=strstr(network,"\"start_age_s\":");
+    CHECK(age && atof(age+14)>=.15,"source opening preserves the caller's reservation clock");
+    snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
+    char *end=strstr(prefix_path,"/master.m3u8");if(end)*end=0;
+    CHECK(kr_remux_prime_for(ticket,9.1)==KR_READY,"video and audio buffered before receiver launch at resume position");
+    double v=get_ms(kr_remux_port(),"/video/seg1.m4s"),a=get_ms(kr_remux_port(),"/audio/1/seg1.m4s");
+    CHECK(v<50 && a<50,"receiver's first video/audio already available (%.1f/%.1f ms)",v,a);
+    kr_remux_log(log,sizeof log);CHECK(strstr(log,"startup: buffered video and audio at 9.1 s (segment 1)"),"buffer diagnostics identify actual resume segment");
+    CHECK(strstr(log,"parallel_audio=1") && strstr(log,"startup: audio segment 1 buffered") && strstr(log,"startup: video segment 1 buffered"),
+          "startup records both independent target lanes");
+    CHECK(!strstr(log,"request: audio segment 0") && !strstr(log,"request: converted video segment 0"),"resume does not warm an unrelated segment zero");
+    // ISSUE-166: the receiver starts at the resume point instead of loading from segment zero and seeking later.
+    reply vstart=http_get(kr_remux_port(),"/video/index.m3u8",NULL),astart=http_get(kr_remux_port(),"/audio/1/index.m3u8",NULL);
+    CHECK(vstart.body && strstr(vstart.body,"#EXT-X-START:TIME-OFFSET=9.100,PRECISE=YES") && astart.body &&
+          strstr(astart.body,"#EXT-X-START:TIME-OFFSET=9.100,PRECISE=YES"),"media playlists start at the resume position");
+    free(vstart.body);free(astart.body);
+    kr_remux_cancel(ticket);CHECK(kr_remux_prime_for(ticket,0)==KR_FAILED,"stale canceled attempt cannot prime a session");kr_remux_stop();
+    // A converted resume needs the init from its target unit, including the AAC bridge's init.
+    // Requesting init must not require encoding the beginning again, and those headers must decode real frames.
+    snprintf(url,sizeof url,"file:%s/hevc_ac3_ass.mkv",fixture_dir);
+    kr_video_set_encoder("mpeg4");kr_remux_set_subtitles(-1,NULL,NULL);ticket=kr_remux_begin(0);
+    opening=kr_remux_start_for(ticket,url,0,KR_COMPAT_ROKU_SAFE,list,sizeof list);
+    CHECK(opening==KR_READY,"converted resume source opens");if(opening!=KR_READY)return;
+    snprintf(prefix_path,sizeof prefix_path,"%s",strchr(strstr(list,"://")+3,'/'));
+    end=strstr(prefix_path,"/master.m3u8");if(end)*end=0;
+    CHECK(kr_remux_prime_for(ticket,9.1)==KR_READY,"converted picture and AAC prime at resume position");
+    char output[1024];snprintf(output,sizeof output,"%s/out/primed-resume-video.mp4",fixture_dir);
+    reply vi=http_get(kr_remux_port(),"/video/init.mp4",NULL),vp=http_get(kr_remux_port(),"/video/seg1.m4s",NULL);
+    CHECK(vi.status==200 && vp.status==200,"converted target headers and media available");
+    FILE *joined=fopen(output,"wb");if(joined){fwrite(vi.body,1,vi.len,joined);fwrite(vp.body,1,vp.len,joined);fclose(joined);}
+    int keys=0;CHECK(joined && decode_count(output,&keys)>100,"converted resume init and segment decode real video frames");free(vi.body);free(vp.body);
+    reply ai=http_get(kr_remux_port(),"/audio/1/init.mp4",NULL),ap=http_get(kr_remux_port(),"/audio/1/seg1.m4s",NULL);
+    CHECK(ai.status==200 && ap.status==200 && ai.len>16 && ap.len>100,"AAC target init and segment available without warming zero");
+    free(ai.body);free(ap.body);kr_remux_stop();
+    snprintf(url,sizeof url,"%s/slow/h264_aac_srt.mkv",base);
+    kr_source *source=kr_source_open(url,5,err,sizeof err);
+    gm_stream *gm=source?gm_stream_open(kr_source_gm(source),6,err,sizeof err):NULL;
+    kr_source *clone=kr_source_clone(source,5,NULL,NULL);
+    kr_video_set_encoder("mpeg4");
+    kr_video *video=clone?kr_video_open(kr_source_gm(clone),0,err,sizeof err):NULL;
+    CHECK(gm && video,"early-header conversion opens: %s",err);
+    if(gm && video) {
+        init_watch watch={.video=video};kr_video_on_init(video,observe_init,&watch);gm_buf unit={0};
+        CHECK(kr_video_unit(video,gm,0,&unit,err,sizeof err)==0,"early-header converted unit finishes: %s",err);
+        CHECK(watch.count==1 && watch.frames>0 && watch.frames<kr_video_frames(video),
+              "converted init published after %ld frames, before full segment's %ld frames",watch.frames,kr_video_frames(video));free(unit.data);
+    }
+    kr_video_close(video);gm_stream_close(gm);kr_source_close(clone);kr_source_close(source);
+    snprintf(url,sizeof url,"%s/stall/long_sub.mkv",base);
+    CHECK(start_session(url,0,list,sizeof list)==KR_READY,"subtitle deadline movie opens: %s",kr_remux_message());
+    double at=mono_ms();reply cue=http_get(kr_remux_port(),"/subs/2/seg20.vtt",NULL);
+    CHECK(cue.status==503 && strstr(cue.head,"Retry-After: 1") && mono_ms()-at<9000,
+          "pending subtitle is bounded and retryable (%.0f ms, %d)",mono_ms()-at,cue.status);free(cue.body);
+    at=mono_ms();kr_remux_stop();CHECK(mono_ms()-at<1500,"stopping aborts unfinished subtitle work promptly");kr_remux_set_prefetch(1);
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: test_remux FIXTURE_DIR [HTTP_BASE]\n"); return 2; }
     fixture_dir = argv[1];
@@ -1724,7 +2158,7 @@ int main(int argc, char **argv) {
     kr_remux_set_subtitles(-1, NULL, NULL);
     kr_subs_set_font_file(getenv("KR_TEST_FONT"));
     if (argc > 3 && !strcmp(argv[3], "--source-only")) {
-        test_source_transport(argv[2]);
+        test_source_transport(argv[2]);test_shared_source(argv[2]);test_metadata_init(argv[2]);
         printf("%d checks, %d failed\n", checks, failures);
         return failures ? 1 : 0;
     }
@@ -1746,9 +2180,29 @@ int main(int argc, char **argv) {
         printf("%d checks, %d failed\n", checks, failures);
         return failures ? 1 : 0;
     }
-    test_kind();
+    if(argc>3 && !strcmp(argv[3],"--startup-only")) {
+        test_startup_repairs(argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+    }
+    if(argc>3 && !strcmp(argv[3],"--subtitles-only")) {
+        test_subtitle_retention(argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+    }
+    test_kind();test_network_evidence();
     char work[512]; snprintf(work, sizeof work, "%s/out", argv[1]);
     mkdir(work, 0755);
+    if(argc>3 && !strcmp(argv[3],"--recommendations-only")) {
+        test_stream_recommendations(argv[2],work);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+    }
+    if(argc>3 && !strcmp(argv[3],"--roku214-only")) {
+        test_roku214(argv[2],work);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+    }
+    if(argc>3 && !strcmp(argv[3],"--streaming-only")) {
+        char url[1024],h264[1024];kr_video_set_encoder("mpeg4");
+        snprintf(url,sizeof url,"file:%s/hevc_ac3_ass.mkv",fixture_dir);snprintf(h264,sizeof h264,"file:%s/h264_aac_srt.mkv",fixture_dir);
+        test_receivers(url,h264,work);test_long_gop_roku(argv[2],work);
+        snprintf(url,sizeof url,"file:%s/flv_mp3.flv",fixture_dir);test_extra_format(url,"flv_mp3.flv",work,1);
+        snprintf(url,sizeof url,"%s/hevc_ac3_ass.mkv",argv[2]);test_compat(url,"hevc-http-regression",1,0,"ac-3",work);
+        printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
+    }
     if (argc > 3 && !strcmp(argv[3], "--prepare-only")) {
         test_preparation(work);test_audio_languages(work);test_preparation_http(argv[2],work);test_preparation_stream(work,argv[2]);test_hdr_preparation(work,argv[2]);test_preparation_resume(work,argv[2]);printf("%d checks, %d failed\n",checks,failures);return failures?1:0;
     }
@@ -1768,7 +2222,7 @@ int main(int argc, char **argv) {
         return failures ? 1 : 0;
     }
     test_preparation(work);test_audio_languages(work);
-    if (argc > 2){test_preparation_http(argv[2], work);test_preparation_stream(work,argv[2]);test_hdr_preparation(work,argv[2]);test_preparation_resume(work,argv[2]);}
+    if (argc > 2){test_startup_cancel(argv[2]);test_prepared_indexed_open(argv[2],work);test_preparation_http(argv[2], work);test_preparation_stream(work,argv[2]);test_hdr_preparation(work,argv[2]);test_preparation_resume(work,argv[2]);}
     fixture fx[] = {
         { "h264_aac_srt.mkv", "avc1.42C0", "mp4a.40.2", 1, 1, 0, 0, "Hello from SRT" },
         { "hevc_ac3_ass.mkv", "hvc1.2.4.L", "ac-3", 1, 1, 1, 0, "Hello from ASS" },
@@ -1844,13 +2298,13 @@ int main(int argc, char **argv) {
     if (argc > 2) {
         printf("-- over HTTP (%s)\n", argv[2]);
         test_range_source(argv[2]);
-        test_source_transport(argv[2]);
+        test_source_transport(argv[2]);test_shared_source(argv[2]);test_metadata_init(argv[2]);
         char url[1024]; snprintf(url, sizeof url, "%s/h264_ac3_dts_srt.mkv", argv[2]);
         test_file(url, &fx[4], work);
         snprintf(url, sizeof url, "%s/hevc_ac3_ass.mkv", argv[2]);
         test_compat(url, "hevc_ac3_ass.mkv.http", 1, 0, "ac-3", work);
         printf("-- r8 latency (slow source)\n"); fflush(stdout);
-        test_latency(argv[2]);
+        test_subtitle_retention(argv[2]);test_latency(argv[2]);test_startup_repairs(argv[2]);test_long_gop_roku(argv[2],work);test_roku214(argv[2],work);test_stream_recommendations(argv[2],work);
         printf("-- overlapping converted seek requests\n"); fflush(stdout);
         test_seek_overlap(argv[2]);
     }

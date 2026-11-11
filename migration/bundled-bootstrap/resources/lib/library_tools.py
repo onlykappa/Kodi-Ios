@@ -45,10 +45,10 @@ def queue_view(view, debrid_jobs=(), now=None):
     line = [r for r in waiting if r['state'] == 'waiting']
     out = []
     for n, r in enumerate(line):
-        out.append({'id': r['id'], 'name': r.get('name', ''), 'title': '%d. %s' % (n + 1, r['title']),
+        out.append({'id': r['id'], 'name': r.get('name', ''), 'title': r['title'],
                     'sub': ' · '.join(r['sub'].split(' · ')[1:]) or r['sub'],
                     'up': 'true' if n else '', 'down': 'true' if n < len(line) - 1 else ''})
-    held = [{'id': r['id'], 'name': r.get('name', ''), 'title': r['title'], 'sub': r['sub']} for r in waiting if r['state'] != 'waiting']
+    held = [{'id': r['id'], 'name': r.get('name', ''), 'title': r['title'], 'sub': r['sub']} for r in waiting if r['state'] != 'waiting' and not r.get('queued_transfer')]
     drive = []
     for job in debrid_jobs or ():
         status = job.get('status')
@@ -67,7 +67,22 @@ def queue_view(view, debrid_jobs=(), now=None):
         else:
             drive.append({'title': title, 'sub': 'Waiting · AllDebrid has it ready' if status == 'copying' else 'Waiting for AllDebrid',
                           'tone': 'plain'})
-    return {'now': now_row, 'line': out, 'held': held, 'drive': drive}
+    model = view.get('model')
+    if model is not None:
+        import work_state
+        c=work_state.job(model,'conv')
+        now_row=dict(c,sub=c['line'],percent='%d%%'%float(c.get('pct') or 0),tint=c['tint_now']) if c else None
+        eligible={r['id'] for r in rows.get('waiting') or [] if r['state']=='waiting'}
+        nexts=[j for j in model.get('next') or [] if j['id'] in eligible]
+        out=[dict(j,sub=j['what']+' · '+size_text(j.get('size')), up='true' if n else '',
+                  down='true' if n<len(nexts)-1 else '') for n,j in enumerate(nexts)]
+        drive=[dict(j,sub=j['line']) for j in model.get('jobs') or [] if j['kind'] in ('copy','upload','down')]
+        # Build 205: the season's other episodes and the other AllDebrid jobs, in the order they will go.
+        drive+=[dict(j,sub=j['line'],tone='plain') for j in model.get('drive_next') or []]
+    import work_state
+    estimate=work_state.remaining_text(model)
+    return {'now': now_row, 'line': out, 'held': held, 'drive': drive,
+            'subtitle':'One at a time, top first'+(' · '+estimate if estimate else '')}
 
 
 def _eta(seconds):
@@ -90,13 +105,20 @@ def debrid_jobs(state):
 
 def queue_properties(q):
     """Window properties for the Queue page (every slot set, empty when unused)."""
-    props = {'now.title': '', 'now.sub': ''}
+    props = {'now.title': '', 'now.sub': '', 'now.pct':'0', 'now.percent':'', 'now.tint':'FFBF5AF2', 'subtitle':q.get('subtitle','One at a time, top first')}
     if q['now']:
         props.update({'now.title': q['now']['title'], 'now.sub': q['now']['sub']})
+    if q['now']:
+        for k in ('pct','percent','tint'):props['now.'+k]=str(q['now'].get(k,''))
     for n in range(1, QUEUE_SLOTS + 1):
         r = q['line'][n - 1] if n <= len(q['line']) else {}
         for k in ('title', 'sub', 'up', 'down'):
             props['line.%d.%s' % (n, k)] = r.get(k, '')
+        props['line.%d.sub' % n] = props['line.%d.sub' % n][:1].upper() + props['line.%d.sub' % n][1:]
+        # Build 194 (board 7): one grouped card; a faster-start job (already Ready) has a grey number.
+        shown = min(len(q['line']), QUEUE_SLOTS)
+        props['line.%d.pos' % n] = '' if n > shown else 'only' if shown == 1 else 'first' if n == 1 else 'last' if n == shown else 'mid'
+        props['line.%d.later' % n] = 'true' if r and 'faster start' in str(r.get('sub', '')).lower() else ''
     more = len(q['line']) - QUEUE_SLOTS
     props['line.more'] = ('and %d more below: move one up to see it' % more) if more > 0 else ''
     props['line.count'] = '%d video%s' % (len(q['line']), '' if len(q['line']) == 1 else 's') if q['line'] else ''
@@ -158,8 +180,9 @@ def history_entries(finished, failures):
                         'result': ('Stopped %s' % how).strip() if state == 'stopped' else 'Ended',
                         'line': ' · '.join(x for x in (_took(f['end'] - f['start']), _speed(f.get('avg'))) if x), 'size': 0})
             continue
-        line = ' · '.join(x for x in (size_text(f['size']) if f.get('size') else '', _took(f['end'] - f['start']),
-                                      _speed(f.get('avg'))) if x)
+        # Board 8: "52 GB in 41 min" (the speed is on the Transfers page).
+        took = _took(f['end'] - f['start'])
+        line = ('%s in %s' % (size_text(f['size']), took) if took else size_text(f['size'])) if f.get('size') else took
         out.append({'title': f['title'], 'kind': f['kind'], 'end': f['end'], 'tone': 'ok', 'result': RESULT.get(f['kind'], 'Done'),
                     'line': line, 'size': float(f.get('size') or 0)})
     for x in fails:
@@ -190,6 +213,7 @@ def history_view(finished, failures, now, day='today'):
         busiest = 'Busiest: %s · %s' % ('today' if when == today else 'yesterday' if when == today - 86400 else time.strftime('%A', time.localtime(when)),
                                         size_text(per_day[when]))
     done = [e for e in week if e['tone'] == 'ok']
+    rows.sort(key=lambda e:(e['tone']=='ok',-e['end']))
     return {'rows': rows, 'total': size_text(sum(e['size'] for e in done)), 'count': len(done),
             'failed': len([e for e in week if e['tone'] == 'bad']), 'busiest': busiest}
 
@@ -198,13 +222,23 @@ def history_properties(h, day):
     props = {'day': day, 'week.total': h['total'],
              'week.line': ' · '.join(x for x in ('%d finished' % h['count'], '%d failed' % h['failed'] if h['failed'] else '', h['busiest']) if x),
              'empty': '' if h['rows'] else {'today': 'Nothing finished today yet.', 'yesterday': 'Nothing finished yesterday.'}.get(day, 'Nothing in the last 7 days.')}
+    props['unfinished']='true' if any(e['tone']!='ok' for e in h['rows']) else ''
+    props['finished']='true' if any(e['tone']=='ok' for e in h['rows']) else ''
     for n in range(1, HISTORY_SLOTS + 1):
         e = h['rows'][n - 1] if n <= len(h['rows']) else {}
         props['h.%d.title' % n] = e.get('title', '')
-        when = time.strftime('%a' if day == 'week' else '%H:%M', time.localtime(e['end'])) if e else ''
+        t = time.localtime(e['end']) if e else None
+        when = (time.strftime('%a', t) if day == 'week' else '%d:%02d %s' % ((t.tm_hour % 12) or 12, t.tm_min, 'AM' if t.tm_hour < 12 else 'PM')) if e else ''
         props['h.%d.line' % n] = ' · '.join(x for x in (e.get('line', ''), when) if x)
-        props['h.%d.result' % n] = e.get('result', '')
+        props['h.%d.when' % n] = when
+        props['h.%d.section' % n] = 'finished' if e.get('tone')=='ok' else 'unfinished'
+        props['h.%d.retry' % n] = 'true' if e.get('retry') else ''
+        props['h.%d.result' % n] = ' · '.join(x for x in (e.get('result',''),e.get('line','') if e.get('tone')=='ok' else '') if x)
         props['h.%d.tone' % n] = e.get('tone', '')
+        # Build 194 (board 8): finished rows share one grouped card.
+        same = [x for x in h['rows'][:HISTORY_SLOTS] if (x.get('tone') == 'ok') == (e.get('tone') == 'ok')] if e else []
+        i = next((k for k, x in enumerate(same) if x is e), 0)
+        props['h.%d.pos' % n] = '' if not e else 'only' if len(same) == 1 else 'first' if i == 0 else 'last' if i == len(same) - 1 else 'mid'
     props['more'] = 'and %d more' % (len(h['rows']) - HISTORY_SLOTS) if len(h['rows']) > HISTORY_SLOTS else ''
     return props
 

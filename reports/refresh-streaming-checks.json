@@ -1,0 +1,443 @@
+{
+  "date": "2026-11-10",
+  "status": "verified IPA 219 delivered for device retest",
+  "branch": "claude/trusting-euler-kgug98",
+  "pr": 16,
+  "owner_scope": "Add the three recommended upload/progress/link-recovery improvements and inspect compatibility when Library status Refresh is pressed; updated test build for another device retest.",
+  "adaptive_upload": {
+    "http_initial_bytes": 1048576,
+    "http_minimum_bytes": 1048576,
+    "http_maximum_bytes": 8388608,
+    "target_seconds": 3,
+    "alignment_bytes": 262144,
+    "fast_pieces_before_growth": 3,
+    "producer_batch_and_existing_resume_piece_bytes": 33554432,
+    "resume_window_bytes": 268435456,
+    "checkpoints_decoupled_from_http_piece_size": true,
+    "ack_progress_reported_for_each_http_piece": true,
+    "retry_budget_counts_failures_not_successful_pieces": true,
+    "original_and_final_checksum_protection_preserved": true
+  },
+  "transport_status": {
+    "heartbeat_interval_seconds": 2,
+    "wait_label_after_inflight_seconds": 10,
+    "fields": [
+      "confirmed bytes",
+      "upload rate",
+      "inflight age",
+      "uploading or waiting phase"
+    ],
+    "works_while_native_progress_is_blocked": true,
+    "pause_and_verification_preserved": true
+  },
+  "manual_refresh": {
+    "native_track_inspection_for_unknown_files": true,
+    "download_or_conversion_needed_for_inspection": false,
+    "exact_unchanged_source_reuses_cached_result": true,
+    "changed_source_requires_reinspection": true,
+    "beside_active_conversion": "metadata/cache results update; new native probes deferred until the converter is idle",
+    "owner_kept_and_committing_files_protected": true,
+    "newer_refresh_request_preserved": true,
+    "automatic_listing_cannot_downgrade_inspection_request": true,
+    "request_updates_and_consumption_locked": true
+  },
+  "umbrella_recovery": {
+    "supported_provider": "existing Umbrella AllDebrid account",
+    "trigger_http_statuses": [
+      401,
+      403,
+      404,
+      410
+    ],
+    "max_unlocks_per_stream_session": 1,
+    "concurrent_reads_share_unlock": true,
+    "same_selected_file_only": true,
+    "size_name_and_range_total_validated": true,
+    "new_scrape_or_torrent": false,
+    "registration_storage": "RAM-only Home property and service broker; never media/account files",
+    "provider_headers_preserved": true,
+    "no_account_secret_forwarded_to_media_host": true,
+    "upstream_inspected": "umbrellaplug/umbrellaplug.github.io omega/plugin.video.umbrella/resources/lib/debrid/alldebrid.py",
+    "upstream_blob_sha": "181335b6a51ff73575bbcef10935edfa248c30b6",
+    "actual_upstream_hook_compile_execution_and_idempotence_passed": true,
+    "unrecognized_upstream": "left untouched; existing playback route retained"
+  },
+  "checks": [
+    {
+      "script": "scripts/test_prepare_downloads.py",
+      "passed": true,
+      "tests": 59
+    },
+    {
+      "script": "scripts/test_compatibility_filter.py",
+      "passed": true,
+      "tests": 21
+    },
+    {
+      "script": "scripts/test_preparation_runtime.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "script": "scripts/test_work_state.py",
+      "passed": true,
+      "tests": 27
+    },
+    {
+      "script": "scripts/test_library_status.py",
+      "passed": true,
+      "tests": 48
+    },
+    {
+      "script": "scripts/test_library_tools.py",
+      "passed": true,
+      "tests": 31
+    },
+    {
+      "script": "scripts/test_library_scan.py",
+      "passed": true,
+      "tests": 33
+    },
+    {
+      "script": "scripts/test_library_refresh.py",
+      "passed": true,
+      "tests": 17
+    },
+    {
+      "script": "scripts/test_elementum_cloud.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "script": "scripts/test_background_queue.py",
+      "passed": true,
+      "tests": 10
+    },
+    {
+      "script": "scripts/test_play_on_tv_network.py",
+      "passed": true,
+      "tests": 62
+    },
+    {
+      "script": "scripts/test_play_on_tv_start.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "script": "scripts/test_remote_media.py",
+      "passed": true,
+      "tests": 19
+    },
+    {
+      "script": "scripts/test_resume.py",
+      "passed": true,
+      "tests": 12
+    },
+    {
+      "script": "scripts/test_conversion_speed.py",
+      "passed": true,
+      "tests": 48
+    },
+    {
+      "script": "scripts/test_bundled_bootstrap.py",
+      "passed": true,
+      "tests": 15
+    },
+    {
+      "script": "scripts/test_build192.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "script": "scripts/test_debrid_drive.py",
+      "passed": true,
+      "tests": 24
+    },
+    {
+      "script": "scripts/test_downloaded_play.py",
+      "passed": true,
+      "tests": 9
+    },
+    {
+      "script": "scripts/test_diagnostics.py",
+      "passed": true,
+      "tests": 14
+    },
+    {
+      "script": "scripts/test_slowdown.py",
+      "passed": true,
+      "tests": 21
+    },
+    {
+      "script": "scripts/test_drive_prepare.py",
+      "passed": true,
+      "tests": 26
+    },
+    {
+      "script": "scripts/test_transfer_efficiency.py",
+      "passed": true,
+      "tests": 9
+    },
+    {
+      "script": "scripts/test_umbrella_recovery.py",
+      "passed": true,
+      "tests": 13
+    }
+  ],
+  "host_test_total": 545,
+  "native_host_streaming": [
+    {
+      "mode": "direct",
+      "renewals": 0,
+      "cache": false,
+      "startup_s": 0.169,
+      "first_segment_s": 1.255,
+      "remote_requests": 8,
+      "segment_bytes": 467251,
+      "segment_sha256": "dbdba1decbaf226c8457bc1c477955f2030ea5f101ae1b57e56d1aec7760926d"
+    },
+    {
+      "mode": "cached",
+      "renewals": 0,
+      "cache": true,
+      "startup_s": 0.192,
+      "first_segment_s": 0.378,
+      "remote_requests": 3,
+      "segment_bytes": 467251,
+      "segment_sha256": "dbdba1decbaf226c8457bc1c477955f2030ea5f101ae1b57e56d1aec7760926d"
+    },
+    {
+      "mode": "renewed_cache",
+      "renewals": 1,
+      "cache": true,
+      "startup_s": 0.345,
+      "first_segment_s": 0.511,
+      "remote_requests": 4,
+      "segment_bytes": 467251,
+      "segment_sha256": "dbdba1decbaf226c8457bc1c477955f2030ea5f101ae1b57e56d1aec7760926d"
+    }
+  ],
+  "native_streaming_fixture": "generated H.264 MKV, AC3/DTS audio, SRT; localhost only; 150 ms request delay",
+  "native_first_video_segment_identical_in_all_modes": true,
+  "project_scanner_passed": true,
+  "ui_guidance_passed": true,
+  "ui_policy_read": true,
+  "ui_change": "existing status strings and values; no new controls/layout/style",
+  "visual_verification": "pending; existing desktop rig binary absent and not rebuilt",
+  "device_tested": false,
+  "live_media_or_drive_account_accessed": false,
+  "native_pins": "verified Kodi r26 and AirPlay r43 unchanged",
+  "main_merged": false,
+  "ipa_published": true,
+  "diagnosed_test_failures": [
+    "Existing asynchronous upload test assumed every HTTP request was 32 MiB. Updated to bounded HTTP pieces with exact byte sum and end-to-end content checks.",
+    "Slowdown static assertion predated the foreground cache profile; updated expected profile while retaining runtime background-gate tests.",
+    "Heartbeat test assumed a background thread ran within a fixed 40 ms under concurrent host load. Replaced the sleep with a bounded wait for the actual phase.",
+    "The local customized-IPA bytecode test initially had no KODI_IOS_PYTHON311 setting; rerun with the installed Python 3.11 executable passes all 11. CI already sets this variable."
+  ],
+  "packaging_gate_retest": [
+    {
+      "script": "scripts/test_airplay_remux.py",
+      "passed": true,
+      "tests": 29
+    },
+    {
+      "script": "scripts/test_airplay_flow.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "script": "scripts/test_airplay_room.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "script": "scripts/test_play_on_tv_start.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "script": "scripts/test_play_on_tv_network.py",
+      "passed": true,
+      "tests": 62
+    },
+    {
+      "script": "scripts/test_prepare_downloads.py",
+      "passed": true,
+      "tests": 59
+    },
+    {
+      "script": "scripts/test_debrid_drive.py",
+      "passed": true,
+      "tests": 24
+    },
+    {
+      "script": "scripts/test_elementum_cloud.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "script": "scripts/test_drive_prepare.py",
+      "passed": true,
+      "tests": 26
+    },
+    {
+      "script": "scripts/test_preparation_runtime.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "script": "scripts/test_transfer_artwork.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "script": "scripts/test_diagnostics.py",
+      "passed": true,
+      "tests": 14
+    },
+    {
+      "script": "scripts/test_library_status.py",
+      "passed": true,
+      "tests": 48
+    },
+    {
+      "script": "scripts/test_downloaded_play.py",
+      "passed": true,
+      "tests": 9
+    },
+    {
+      "script": "scripts/test_choose_source.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "script": "scripts/test_signin_server.py",
+      "passed": true,
+      "tests": 3
+    },
+    {
+      "script": "scripts/test_library_scan.py",
+      "passed": true,
+      "tests": 33
+    },
+    {
+      "script": "scripts/test_library_refresh.py",
+      "passed": true,
+      "tests": 17
+    },
+    {
+      "script": "scripts/test_library_artwork.py",
+      "passed": true,
+      "tests": 14
+    },
+    {
+      "script": "scripts/test_library_pages.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "script": "scripts/test_downloaded_show.py",
+      "passed": true,
+      "tests": 20
+    },
+    {
+      "script": "scripts/test_show_scrolling.py",
+      "passed": true,
+      "tests": 7
+    },
+    {
+      "script": "scripts/test_show_parent_navigation.py",
+      "passed": true,
+      "tests": 1
+    },
+    {
+      "script": "scripts/test_settings_page.py",
+      "passed": true,
+      "tests": 23
+    },
+    {
+      "script": "scripts/test_genre_photos.py",
+      "passed": true,
+      "tests": 4
+    },
+    {
+      "script": "scripts/test_search_categories.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "script": "scripts/test_performance_budget.py",
+      "passed": true,
+      "tests": 13
+    },
+    {
+      "script": "scripts/test_customized_ipa.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "script": "scripts/test_import_builder.py",
+      "passed": true,
+      "tests": 13
+    },
+    {
+      "script": "scripts/test_import_profile.py",
+      "passed": true,
+      "tests": 19
+    },
+    {
+      "script": "scripts/test_watch_routes.py",
+      "passed": true,
+      "tests": 10
+    },
+    {
+      "script": "scripts/test_watch_dialog.py",
+      "passed": true,
+      "tests": 13
+    },
+    {
+      "script": "scripts/test_watch_continue.py",
+      "passed": true,
+      "tests": 8
+    },
+    {
+      "script": "scripts/test_continue_downloads.py",
+      "passed": true,
+      "tests": 19
+    },
+    {
+      "script": "scripts/test_drive_library.py",
+      "passed": true,
+      "tests": 20
+    },
+    {
+      "script": "scripts/test_listing_cache.py",
+      "passed": true,
+      "tests": 28
+    },
+    {
+      "script": "scripts/test_activation.py",
+      "passed": true,
+      "tests": 6
+    },
+    {
+      "script": "scripts/test_ios.py",
+      "passed": true,
+      "tests": 8
+    }
+  ],
+  "ci_attempts": [
+    {
+      "run": 42755096028,
+      "build": 218,
+      "source_commit": "7c27f81d9d17bdfab366da0776d49af57607e2d6",
+      "status": "failed before IPA creation",
+      "failure": "test_airplay_remux required obsolete UI text saying every file converts; updated to current streaming wording",
+      "correction_verified_tests": 29
+    }
+  ],
+  "delivery_receipt": "reports/refresh-streaming-delivery.json",
+  "ipa_source_commit": "2d658de5ede446f9d8170a5c0185b1e5ee3c3efa",
+  "ipa_workflow_run": 42755715794
+}

@@ -2,15 +2,46 @@
 remuxer host tests. Prints its port, then serves DIR until killed. usage: range_server.py DIR
 r8: paths under /slow/ serve the same files like a remote source (Drive through its loopback proxy): every request
 waits SLOW_LATENCY seconds before answering and the bytes come at SLOW_RATE bytes/s (the latency host tests)."""
-import http.server,os,re,sys,time,threading
+import http.server,json,os,re,sys,time,threading
 SLOW_LATENCY=0.1
 SLOW_RATE=2*1024*1024
 RECOVERED=set()
 RECOVER_LOCK=threading.Lock()
+STATS={'requests':0,'bytes':0}
+STATS_LOCK=threading.Lock()
+CUE_DELAY=False
 
 class Handler(http.server.SimpleHTTPRequestHandler):
  def log_message(self,*a):pass
+ def handle(self):
+  try:super().handle()
+  except (BrokenPipeError,ConnectionResetError):pass  # expected when the native cancellation test interrupts open
  def send_head(self):
+  global CUE_DELAY
+  if self.path=='/__cue_delay':
+   self.protocol_version='HTTP/1.1';self.close_connection=True
+   with STATS_LOCK:CUE_DELAY=True
+   import io
+   self.send_response(200);self.send_header('Content-Length','2');self.end_headers();return io.BytesIO(b'OK')
+  if self.path.startswith('/cue-delay/'):
+   self.path=self.path[len('/cue-delay'):]
+   with STATS_LOCK:delay=CUE_DELAY;CUE_DELAY=False
+   if delay:time.sleep(10) # only the first read after arming; the demuxer must retain its in-flight work
+  self.indexed=False;self.slow=False
+  if self.path.startswith('/__stats'):
+   with STATS_LOCK:
+    if self.path.endswith('/reset'):STATS.update(requests=0,bytes=0)
+    data=json.dumps(STATS).encode()
+   import io
+   self.send_response(200);self.send_header('Content-Length',str(len(data)));self.end_headers()
+   return io.BytesIO(data)
+  self.indexed=self.path.startswith('/indexed/')
+  if self.indexed:
+   self.path=self.path[len('/indexed'):]
+   with STATS_LOCK:STATS['requests']+=1
+   time.sleep(0.1)
+  if self.path.startswith('/open-stall/'):
+   self.path=self.path[len('/open-stall'):];time.sleep(8)
   self.fault=None
   for mode in ('bounded','recover','stall'):
    if self.path.startswith('/'+mode+'/'):
@@ -45,6 +76,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
    if not chunk:break
    try:dst.write(chunk)
    except (BrokenPipeError,ConnectionResetError):return
+   if self.indexed:
+    with STATS_LOCK:STATS['bytes']+=len(chunk)
    if self.slow:time.sleep(len(chunk)/SLOW_RATE)
    if left is not None:left-=len(chunk)
 

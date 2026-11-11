@@ -63,11 +63,11 @@ class SettingsPages(unittest.TestCase):
   self.assertNotIn('landscape window',ET.tostring(root,encoding='unicode'))
  def test_every_kodi_category_is_a_row(self):
   root=self.read('Settings.xml')
-  for id,action in ((9111,'ActivateWindow(skinsettings)'),(9112,'ActivateWindow(interfacesettings)'),(9114,'ActivateWindow(playersettings)'),
-                    (9115,'ActivateWindow(mediasettings)'),(9121,'ActivateWindow(pvrsettings)'),(9122,'ActivateWindow(gamesettings)'),
-                    (9131,'ActivateWindow(systemsettings)'),(9132,'ActivateWindow(servicesettings)'),(9133,'ActivateWindow(profiles)'),
+  for id,action in ((9111,'RunScript(service.kodi.ios.bootstrap,skin_settings_page)'),(9112,'RunScript(service.kodi.ios.bootstrap,section_page,interface)'),(9114,'RunScript(service.kodi.ios.bootstrap,section_page,player)'),
+                    (9115,'RunScript(service.kodi.ios.bootstrap,section_page,media)'),(9121,'RunScript(service.kodi.ios.bootstrap,section_page,pvr)'),(9122,'RunScript(service.kodi.ios.bootstrap,section_page,games)'),
+                    (9131,'RunScript(service.kodi.ios.bootstrap,section_page,system)'),(9132,'RunScript(service.kodi.ios.bootstrap,section_page,services)'),(9133,'RunScript(service.kodi.ios.bootstrap,profiles_page)'),
                     (9141,'ActivateWindow(addonbrowser)'),(9142,'ActivateWindow(filemanager)'),(9143,'ActivateWindow(eventlog)'),
-                    (9151,'ActivateWindow(systeminfo)'),(9102,'ActivateWindow(addonbrowser,addons://outdated/,return)')):
+                    (9151,'ActivateWindow(systeminfo)'),(9102,'RunScript(service.kodi.ios.bootstrap,addon_updates)')):
    self.assertEqual(self.clicks(root,id),[action])
  def test_profile_card_opens_accounts_script_that_exists(self):
   action=self.clicks(self.read('Settings.xml'),9101)[0]
@@ -78,7 +78,7 @@ class SettingsPages(unittest.TestCase):
   self.assertEqual(self.clicks(root,9113),['SetProperty(Settings.Page,custom,10004)','SetFocus(9401)','RunScript(service.kodi.ios.bootstrap,customise_counts)'])
   self.assertEqual(self.clicks(root,9401),['SetProperty(Settings.Page,tabs,10004)','SetFocus(9551)'])
   self.assertEqual(self.clicks(root,9412),['SetProperty(Settings.Page,info,10004)','SetFocus(9561)'])
-  self.assertEqual(self.clicks(root,9421),['ActivateWindow(skinsettings)'])
+  self.assertEqual(self.clicks(root,9421),['RunScript(service.kodi.ios.bootstrap,skin_settings_page)'])
   self.assertEqual(self.clicks(root,9411),['SetProperty(Settings.Page,osd,10004)','SetFocus(9531)'])
   self.assertEqual(self.clicks(root,9414),['SetProperty(Settings.Page,badges,10004)','SetFocus(9501)'])
  def test_back_button_leaves_customisation_first(self):
@@ -111,9 +111,12 @@ class SettingsPages(unittest.TestCase):
  def test_native_addon_settings_expose_the_same_scan_and_refresh_actions(self):
   root=ET.parse(BOOT/'resources/settings.xml').getroot();library=root.find(".//category[@id='library']")
   self.assertIsNotNone(library)
-  actions={n.get('id'):n.findtext('data') for n in library.iter('setting')}
+  actions={n.get('id'):n.findtext('data') for n in library.iter('setting') if n.get('type')=='action'}
   self.assertEqual(actions,{'library_scan':'RunScript(service.kodi.ios.bootstrap,library_scan)',
                             'library_refresh':'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&all=1)'})
+  follow=library.find(".//setting[@id='follow_episodes']")
+  self.assertEqual(follow.get('type'),'boolean');self.assertEqual(follow.findtext('default'),'true')
+  self.assertIn('when Kodi opens',follow.findtext('help'))
   dispatch=load('settings_scan_dispatch',BOOT/'default.py')
   script,argv=dispatch.target(['service.kodi.ios.bootstrap','library_scan'])
   self.assertEqual(Path(script),BOOT/'library_scan.py');self.assertEqual(argv,[script])

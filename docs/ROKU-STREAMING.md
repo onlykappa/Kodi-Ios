@@ -1,0 +1,67 @@
+# Roku streaming from the existing Drive library
+
+Use Play on TV → the Roku / Media Assistant route first for a 4K movie. Kodi fetches the same Drive file and serves
+separate video/audio HLS renditions to the TV. HEVC within the Roku codec limits keeps its resolution and encoded picture; H.264 above 1080p is converted,
+because Roku documents H.264 through 1080p even on its 4K models. Other compatible video is copied;
+there is no required local download, separate media server, or Apple TV box.
+
+The first segment is buffered before launching Media Assistant. The Roku path inspects keyframes inside the
+existing storage fragments, then streams separate video/audio segments around six seconds. The saved file retains
+its coalesced fragment layout for efficient normal Kodi reads. A genuinely long video GOP can still need a longer
+window; its duration is advertised truthfully. After launch, playlist access alone is not success: Kodi waits for
+video delivery and, where available, Roku playback feedback before stopping its own player. Keep Kodi open on the
+iPhone while using Media Assistant; it is the streaming server. Existing background work slows during casting. Explicit HD-only receiver capabilities select a 1080p SDR/
+stereo AAC route immediately. Unknown capability data keeps the original route. If a connected Roku fails to
+start video, the sender makes one automatic compatibility retry; it restores phone playback if that also fails.
+
+Kodi forwards the enabled text subtitle to Media Assistant's HLS playlist. Captions use their own track's index
+and avoid downloading 4K video merely to read a cue. On Roku, press ✱ during playback and set Closed captions to
+On always if you want them visible; the TV's caption setting still applies. Image-only subtitle tracks cannot be
+sent as selectable WebVTT without conversion; the native compatibility path can burn supported captions in.
+
+Roku's built-in AirPlay remains an alternative. The prepared-file path uses progressive byte ranges; a rejected
+stream can restart once as H.264 with separate audio. That compatibility conversion is limited to 1080p SDR, so
+use Media Assistant to test retained 4K first. A successful framework build cannot establish either receiver's
+actual decoding behavior.
+
+For testing the repaired build:
+
+1. Install it as an update, preserving the current Drive/account setup. Open the same prepared 4K movie.
+2. Choose Media Assistant. Allow the opening/buffering step to complete; verify picture, sound and advancing time.
+3. Play for at least five minutes, seek forward several minutes, then back. Repeat with the second movie.
+4. Try native AirPlay separately. Record whether it uses the original picture or the compatibility restart.
+5. If either fails, retain the new Kodi log. It now separates initialization, lane waits, measured source I/O,
+   first video delivery, and cancellation. Note the Roku's message and the time of the attempt.
+
+Practical recommendations:
+
+- Use a 4K-capable Roku for 4K HEVC. Roku documents Main/Main10 through level 5.1 and up to 40 Mbit/s for 4K models;
+  a model without that support requires a compatible video conversion.
+- For sustained high-bitrate playback, keep the phone and TV on a strong local connection (5 GHz or Ethernet for
+  the TV when available). This is a throughput recommendation, not a diagnosis from the old warning.
+- Judge the next attempt by actual video delivery and measured source read times. A movie stored in Drive still
+  travels from Drive to the phone and then across the local network to Roku; “downloaded” in the Drive workflow
+  does not by itself mean those bytes are already on the iPhone. No workflow change is required for this repair.
+
+References reviewed: [Roku media documentation](https://developer.roku.com/dev/docs/media) and
+[Apple AirPlay guidance](https://developer.apple.com/design/human-interface-guidelines/airplay),
+[Media Assistant](https://github.com/MedievalApple/Media-Assistant/blob/main/README.md),
+[Roku captions](https://developer.roku.com/dev/docs/closed-caption) and
+[Roku ECP playback feedback](https://developer.roku.com/dev/docs/external-control-api).
+
+
+Wi-Fi is the local iPhone-to-Roku link; it can work without an internet connection when the complete movie is
+available to Kodi offline. The installed Drive playback helper caches resolved URLs, then requests authenticated
+Google media byte ranges. Its URL cache is not a complete offline movie. A Google Drive app's offline storage is
+also separate from Kodi's sandbox. If playback with Wi-Fi off uses mobile data, it still has internet access.
+A direct Roku download requires a TV-readable URL and compatible media/authentication. Private Drive URLs need the
+Google credentials handled by the phone's bridge; account permissions and file visibility are unchanged.
+
+
+This candidate also targets 12 seconds of read-ahead, growing toward 18 seconds when production is expensive,
+within fixed queue and cache bounds. Seeking drops obsolete work, including in-flight copied-video reads.
+Direct AllDebrid-to-Drive uploads use aligned 1–8 MiB pieces based on observed read/upload times, with one piece
+read ahead. The existing transfer row distinguishes reading the source, uploading to Drive and playback holds;
+only Drive-confirmed bytes advance the percentage. Network retry messages retain priority over playback labels.
+The seek log records gesture duration, submission time and first decoded picture queued after the video flush.
+That queue timing does not measure when the TV or iPhone physically displays the frame.

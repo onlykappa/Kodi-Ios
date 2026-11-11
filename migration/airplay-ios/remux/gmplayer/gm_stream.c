@@ -25,6 +25,7 @@
 #include <libavutil/intreadwrite.h>
 #include <libavutil/mathematics.h>
 #include <libavutil/dovi_meta.h>
+#include <libavutil/time.h>
 
 // gm_auto_select lives in CFFmpeg/compat.c. Declare it here (same signature).
 extern int gm_auto_select(AVFormatContext *fmt, enum AVMediaType type);
@@ -49,6 +50,8 @@ struct gm_stream {
     double seg_starts[GM_MAX_SEGS];
     double seg_real_end[GM_MAX_SEGS]; ///< actual keyframe-aligned end of segment i (lazy, -1 = unknown)
     double last_actual_end;           ///< video closing-keyframe pts from the last produce_sel
+    double last_seek_ms,last_scan_ms;
+    long last_packets;
     int    out_index[GM_MAX_STREAMS]; ///< input stream index -> output stream index (-1 = not muxed)
     int    n_seg;
     double target_seg_sec;
@@ -304,7 +307,9 @@ static void ts_init_for(gm_stream *s, AVFormatContext *oc, int vout, gm_ts_state
         int64_t fn = 0, fd = 0, lead = 0;
         if (k == vout && s->video_in >= 0) {
             AVStream *iv = s->in->streams[s->video_in];
-            AVRational fr = iv->avg_frame_rate;
+            // Fragment/edit padding can bias avg_frame_rate. Using it for the decode ladder makes
+            // adjacent CFR segments overlap and MOV marks their opening keyframes for discard.
+            AVRational fr = av_guess_frame_rate(s->in,iv,NULL);
             if (fr.num <= 0 || fr.den <= 0) fr = iv->r_frame_rate;
             if (fr.num > 0 && fr.den > 0) { fn = fr.num; fd = fr.den; }
             int vd = iv->codecpar->video_delay;
@@ -321,7 +326,7 @@ static void ts_init_for(gm_stream *s, AVFormatContext *oc, int vout, gm_ts_state
 static int produce_sel(gm_stream *s, double seg_start, double seg_end,
                        double ts_offset_sec, gm_sel sel,
                        gm_buf *buf, int *moov_end, char *err, int errlen) {
-    buf->len = 0;
+    buf->len = 0;s->last_seek_ms=s->last_scan_ms=0;s->last_packets=0;
     AVFormatContext *oc = NULL; AVIOContext *avio = NULL; out_ctx *octx = NULL;
     int vout, aout;
     int ret = open_output(s, buf, ts_offset_sec, sel, &oc, &avio, &octx, &vout, &aout, err, errlen);
@@ -333,9 +338,25 @@ static int produce_sel(gm_stream *s, double seg_start, double seg_end,
     if (ret < 0) { set_err(err, errlen, "write_header", ret); close_output(oc, avio, octx); return ret; }
 
     int seek_stream = sel.vid_src >= 0 ? sel.vid_src : (sel.all_audio ? s->audio_in : sel.aud_src);
+    // Kodi iOS (ISSUE-165, build-226 log: the independent audio reader read 757 MB of an episode in 100 s to reach
+    // 9 min): Matroska cues usually index only the video track, so seeking by the audio stream walks every cluster
+    // from the start. An audio-only rendition seeks by the file's video index instead (backward, so it lands on a
+    // cluster at or before seg_start); the time window below still drops audio before seg_start. Video packets stay
+    // discarded, so nothing extra is read.
+    // Matroska only: MPEG-TS finds its seek point by reading timestamps of the seek stream, which this reader has
+    // discarded (CI: every h264_ac3.ts audio segment then failed with "seek input").
+    if (sel.vid_src < 0 && s->video_in >= 0 && seek_stream != s->video_in &&
+        s->in->iformat && strstr(s->in->iformat->name, "matroska") &&
+        s->in->streams[s->video_in]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
+        seek_stream = s->video_in;
+    // Independent rendition cursors need only their selected packets. In MOV this avoids fetching a whole
+    // 4K video payload again just to extract its much smaller audio track.
+    for(unsigned i=0;i<s->in->nb_streams;i++)s->in->streams[i]->discard=s->out_index[i]>=0?AVDISCARD_DEFAULT:AVDISCARD_ALL;
     AVStream *sst = s->in->streams[seek_stream];
     int64_t seek_ts = (int64_t)(seg_start / av_q2d(sst->time_base) + 0.5);
+    int64_t seek_began=av_gettime_relative();
     ret = av_seek_frame(s->in, seek_stream, seek_ts, AVSEEK_FLAG_BACKWARD);
+    s->last_seek_ms=(av_gettime_relative()-seek_began)/1000.0;
     if (ret < 0) { set_err(err, errlen, "seek input", ret); close_output(oc, avio, octx); return ret; }
 
     gm_ts_state ts[GM_MAX_OUT];
@@ -356,7 +377,9 @@ static int produce_sel(gm_stream *s, double seg_start, double seg_end,
 
     AVPacket *pkt = av_packet_alloc();
     int wrote_any = 0;
+    int64_t scan_began=av_gettime_relative();
     while ((ret = av_read_frame(s->in, pkt)) >= 0) {
+        s->last_packets++;
         int si = pkt->stream_index;
         // Route via the input->output map (handles >1 audio stream in all_audio mode).
         int oidx = (si >= 0 && si < (int)s->in->nb_streams) ? s->out_index[si] : -1;
@@ -422,6 +445,7 @@ static int produce_sel(gm_stream *s, double seg_start, double seg_end,
         if (ret < 0) { set_err(err, errlen, "write_frame", ret); break; }
         wrote_any = 1;
     }
+    s->last_scan_ms=(av_gettime_relative()-scan_began)/1000.0;
     av_packet_free(&pkt);
     // Report the VIDEO segment's real end (the closing keyframe pts) so EXTINF can match
     // the actual muxed span. Audio (no video) ends at its own frame boundary == seg_end.
@@ -483,7 +507,13 @@ gm_stream *gm_stream_open(gm_source src, double target_seg_sec,
     s->in->probesize = 2 * 1024 * 1024;       // 2 MiB (enough for codecpar; keeps OPEN fast)
     s->in->max_analyze_duration = 2 * AV_TIME_BASE;  // 2 s
 
-    int ret = avformat_open_input(&s->in, NULL, NULL, NULL);
+    // Prepared fragmented MP4s carry a final mfra index. Without it MOV walks fragment headers across the
+    // remote file before it can report ready (owner build 196: 129 seconds). DTS/PTS index conversion is
+    // already provided by the pinned FFmpeg patch; non-MOV demuxers ignore this private MOV option.
+    AVDictionary *open_options=NULL;
+    av_dict_set(&open_options,"use_mfra_for","pts",0);
+    int ret = avformat_open_input(&s->in, NULL, NULL, &open_options);
+    av_dict_free(&open_options);
     if (ret < 0) { set_err(err, errlen, "open input", ret); gm_stream_close(s); return NULL; }
     ret = avformat_find_stream_info(s->in, NULL);
     if (ret < 0) { set_err(err, errlen, "find stream info", ret); gm_stream_close(s); return NULL; }
@@ -752,7 +782,7 @@ int gm_stream_track_info(const gm_stream *s, int i, gm_track_info *out) {
     out->width = (par->codec_type == AVMEDIA_TYPE_VIDEO) ? par->width : 0;
     out->height = (par->codec_type == AVMEDIA_TYPE_VIDEO) ? par->height : 0;
     if (par->codec_type == AVMEDIA_TYPE_VIDEO) {
-        AVRational fr = st->avg_frame_rate;
+        AVRational fr = av_guess_frame_rate(s->in,st,NULL);
         if (fr.num <= 0 || fr.den <= 0) fr = st->r_frame_rate;
         if (fr.num > 0 && fr.den > 0) { out->fps_num = fr.num; out->fps_den = fr.den; }
     }
@@ -956,12 +986,19 @@ int gm_stream_subtitle_segment(gm_stream *s, int src, int i, gm_buf *out, char *
     AVCodecContext *dec = open_sub_decoder(s, src);
     if (!dec) { set_err(err, errlen, "open sub decoder", 0); return -1; }
 
-    // Seek a little before the segment so a cue that STARTED earlier but is still on
-    // screen at seg_start is decoded and emitted (overlap rule).
-    // Kodi iOS r9: 10 s back, not 30 (a 4K remux reads every stream's bytes on the way: 30 s was ~70 MB per cue
-    // file over Drive), on the default (video) stream, whose index the container always has.
-    double seek_to = seg_start > 10.0 ? seg_start - 10.0 : 0.0;
-    av_seek_frame(s->in, -1, (int64_t)(seek_to * AV_TIME_BASE), AVSEEK_FLAG_BACKWARD);
+    // MOV's subtitle samples have their own timestamps and index. Seek that track backwards so a cue
+    // spanning this boundary survives, and discard all picture/audio packets before any read. Seeking the
+    // video and filtering after av_read_frame downloaded megabytes of 4K for each tiny caption file.
+    for(unsigned k=0;k<s->in->nb_streams;k++)s->in->streams[k]->discard=(int)k==src?AVDISCARD_DEFAULT:AVDISCARD_ALL;
+    int64_t seek_ts=(int64_t)(seg_start/av_q2d(ist->time_base));
+    int seek=av_seek_frame(s->in,src,seek_ts,AVSEEK_FLAG_BACKWARD);
+    // Before a track's first indexed cue there is no backward entry. Seek to its first later sample,
+    // rather than retaining the probe's buffered position (which can already be past the first cue).
+    if(seek<0)seek=av_seek_frame(s->in,src,seek_ts,0);
+    if(seek<0) {
+        double seek_to=seg_start>10?seg_start-10:0;
+        av_seek_frame(s->in,-1,(int64_t)(seek_to*AV_TIME_BASE),AVSEEK_FLAG_BACKWARD);
+    }
 
     AVPacket *pkt = av_packet_alloc();
     AVSubtitle sub;
@@ -1025,6 +1062,11 @@ void gm_stream_close(gm_stream *s) {
     if (s->in_avio) { av_free(s->in_avio->buffer); avio_context_free(&s->in_avio); }
     free(s);
 }
+void gm_stream_clear_read_error(gm_stream *s) {
+    if(!s)return;
+    avformat_flush(s->in);
+    if(s->in_avio){s->in_avio->error=0;s->in_avio->eof_reached=0;}
+}
 
 // Kodi iOS addition (not in GMPlayer upstream): the opened source, for the variant's CODECS profile/level.
 AVFormatContext *gm_stream_format_context(gm_stream *s) { return s ? s->in : NULL; }
@@ -1032,6 +1074,89 @@ AVFormatContext *gm_stream_format_context(gm_stream *s) { return s ? s->in : NUL
 // Kodi iOS addition (r8, not upstream): one single-track unit (ftyp+moov+moof+mdat) over segment i, the init/media
 // split in *moov_end, so the server caches the init and the media segment from one pass (the init request no longer
 // muxes segment 0 a second time). Same windows and output as gm_stream_video_segment / gm_stream_audio_segment.
+// Match delay_moov's edit list without reading media: gm_ts leads video DTS by a fixed number of frames.
+// Omitting this edit shifts copied video by that lead (about 167 ms), breaking alignment with converted video.
+static int metadata_edit(gm_stream *s,int src,AVFormatContext *oc,gm_buf *out) {
+    AVStream *input=s->in->streams[src],*output=oc->streams[0];int64_t lead_ticks=0;
+    if(input->codecpar->codec_type==AVMEDIA_TYPE_VIDEO) {
+        AVRational fps=av_guess_frame_rate(s->in,input,NULL);if(fps.num<=0 || fps.den<=0)fps=input->avg_frame_rate;
+        if(fps.num<=0 || fps.den<=0)return -1;
+        int lead=(input->codecpar->video_delay>0?input->codecpar->video_delay:1)+2;if(lead>16)lead=16;
+        int64_t num=(int64_t)lead*fps.den*output->time_base.den,den=(int64_t)fps.num*output->time_base.num;
+        lead_ticks=(num+den-1)/den;if(lead_ticks>INT32_MAX)return -1;
+    }
+    int moov=-1,trak=-1;
+    for(int at=0;at+8<=out->len;) {
+        uint32_t n=AV_RB32(out->data+at);if(n<8 || n>(uint32_t)(out->len-at))return -1;
+        if(!memcmp(out->data+at+4,"moov",4)){moov=at;break;}at+=(int)n;
+    }
+    if(moov<0)return -1;
+    int limit=moov+(int)AV_RB32(out->data+moov);
+    for(int at=moov+8;at+8<=limit;) {
+        uint32_t n=AV_RB32(out->data+at);if(n<8 || n>(uint32_t)(limit-at))return -1;
+        if(!memcmp(out->data+at+4,"trak",4)){trak=at;break;}at+=(int)n;
+    }
+    if(trak<0)return -1;
+    int track_size=(int)AV_RB32(out->data+trak);
+    if(box_end_offset(out->data+trak+8,track_size-8,"edts")>=0)return 0;
+    int tkhd=box_end_offset(out->data+trak+8,track_size-8,"tkhd");if(tkhd<0)return -1;
+    int at=trak+8+tkhd;
+    if(buf_ensure(out,out->len+36)<0)return -1;
+    memmove(out->data+at+36,out->data+at,(size_t)(out->len-at));
+    uint8_t *edit=out->data+at;memset(edit,0,36);
+    AV_WB32(edit,36);memcpy(edit+4,"edts",4);AV_WB32(edit+8,28);memcpy(edit+12,"elst",4);
+    AV_WB32(edit+20,1);AV_WB32(edit+28,(uint32_t)lead_ticks);AV_WB32(edit+32,0x00010000);
+    AV_WB32(out->data+moov,AV_RB32(out->data+moov)+36);AV_WB32(out->data+trak,track_size+36);
+    out->len+=36;return 0;
+}
+
+int gm_stream_plan_keyframes(gm_stream *s,const double *times,int count) {
+    if(!s || !times || count<1)return -1;
+    int n=gm_plan_segments(times,count,s->duration,s->target_seg_sec,s->seg_starts,GM_MAX_SEGS);
+    if(n<1)return -1;
+    s->n_seg=n;for(int i=0;i<n;i++)s->seg_real_end[i]=-1;
+    return 0;
+}
+int gm_stream_uniform_plan(gm_stream *s) {
+    if(!s)return -1;
+    int count=gm_plan_uniform(s->duration,s->target_seg_sec,s->seg_starts,GM_MAX_SEGS);
+    if(count<1)return -1;
+    s->n_seg=count;for(int i=0;i<count;i++)s->seg_real_end[i]=-1;
+    return 0;
+}
+
+int gm_stream_track_init(gm_stream *s,int src,gm_buf *out,char *err,int errlen) {
+    if(!s || !out || src<0 || src>=(int)s->in->nb_streams)return -1;
+    AVCodecParameters *p=s->in->streams[src]->codecpar;
+    // AC-3/E-AC-3 need the muxer's first-packet parser; keep their existing delayed-header path.
+    if(p->codec_id==AV_CODEC_ID_AC3 || p->codec_id==AV_CODEC_ID_EAC3 || p->extradata_size<=0)return -1;
+    gm_sel sel={p->codec_type==AVMEDIA_TYPE_VIDEO?src:-1,p->codec_type==AVMEDIA_TYPE_AUDIO?src:-1,0};
+    if(sel.vid_src<0 && sel.aud_src<0)return -1;
+    AVFormatContext *oc=NULL;AVIOContext *io=NULL;out_ctx *ctx=NULL;int v,a;
+    out->len=0;
+    int r=open_output(s,out,0,sel,&oc,&io,&ctx,&v,&a,err,errlen);
+    if(r<0)return r;
+    AVDictionary *opts=NULL;
+    av_dict_set(&opts,"movflags","frag_keyframe+empty_moov+default_base_moof+frag_discont",0);
+    r=avformat_write_header(oc,&opts);av_dict_free(&opts);avio_flush(io);
+    if(r>=0 && metadata_edit(s,src,oc,out)<0)r=-1;
+    int moov=0;
+    for(int at=0;at+8<=out->len;) {
+        uint32_t size=((uint32_t)out->data[at]<<24)|((uint32_t)out->data[at+1]<<16)|((uint32_t)out->data[at+2]<<8)|out->data[at+3];
+        if(size<8 || size>(uint32_t)(out->len-at))break;
+        if(!memcmp(out->data+at+4,"moov",4))moov=1;
+        at+=(int)size;
+    }
+    if(r>=0 && !moov)r=-1;
+    close_output(oc,io,ctx);return r<0?r:0;
+}
+
+void gm_stream_last_timings(const gm_stream *s,double *seek_ms,double *scan_ms,long *packets) {
+    if(seek_ms)*seek_ms=s?s->last_seek_ms:0;
+    if(scan_ms)*scan_ms=s?s->last_scan_ms:0;
+    if(packets)*packets=s?s->last_packets:0;
+}
+
 int gm_stream_track_unit(gm_stream *s, int src, int i, gm_buf *out, int *moov_end, char *err, int errlen) {
     if (!s || !out || !moov_end || i < 0 || i >= s->n_seg || src < 0 || src >= (int)s->in->nb_streams) {
         set_err(err, errlen, "bad segment index", 0); return -1;

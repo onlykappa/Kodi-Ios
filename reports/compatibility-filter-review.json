@@ -1,0 +1,162 @@
+{
+  "date": "2026-11-10",
+  "status": "source changes tested; device acceptance pending",
+  "branch": "claude/trusting-euler-kgug98",
+  "pr": 16,
+  "compatibility_policy": {
+    "inspection": "native codec/copy-video probe, dimensions, exact Drive source identity",
+    "skip_background_preparation_for": [
+      "copy-safe H.264",
+      "copy-safe HEVC"
+    ],
+    "keep_original_drive_file": true,
+    "container_and_audio_adaptation": "on demand during playback",
+    "filename_only_decisions": false,
+    "unknown_or_unsupported_video": "existing preparation path",
+    "automatic_optional_repack": false,
+    "interrupted_commit_recovery_preserved": true
+  },
+  "umbrella_log_findings": {
+    "failure_stage": "source inspection before any TV handoff",
+    "startup_timeout_s": 45,
+    "indexed_inspection_s": 43.045,
+    "network_or_receiver_cause_proven": false
+  },
+  "remote_cache": {
+    "implementation": "existing Drive byte-range cache with foreground profile",
+    "block_bytes": 2097152,
+    "cache_blocks": 16,
+    "background_throttle_applies": false,
+    "lifetime": "service-owned through native playback; replaced by next source or closed on shutdown",
+    "original_provider_headers_preserved": true,
+    "drive_oauth_forwarded": false,
+    "original_remote_urls_persisted": false,
+    "known_working_loopback_and_mp4_hls_paths_preserved": true
+  },
+  "checks": [
+    {
+      "script": "scripts/test_compatibility_filter.py",
+      "passed": true,
+      "tests": 12
+    },
+    {
+      "script": "scripts/test_remote_media.py",
+      "passed": true,
+      "tests": 19
+    },
+    {
+      "script": "scripts/test_prepare_downloads.py",
+      "passed": true,
+      "tests": 59
+    },
+    {
+      "script": "scripts/test_drive_prepare.py",
+      "passed": true,
+      "tests": 26
+    },
+    {
+      "script": "scripts/test_conversion_speed.py",
+      "passed": true,
+      "tests": 48
+    },
+    {
+      "script": "scripts/test_resume.py",
+      "passed": true,
+      "tests": 12
+    },
+    {
+      "script": "scripts/test_library_status.py",
+      "passed": true,
+      "tests": 48
+    },
+    {
+      "script": "scripts/test_library_tools.py",
+      "passed": true,
+      "tests": 31
+    },
+    {
+      "script": "scripts/test_work_state.py",
+      "passed": true,
+      "tests": 27
+    },
+    {
+      "script": "scripts/test_elementum_cloud.py",
+      "passed": true,
+      "tests": 11
+    },
+    {
+      "script": "scripts/test_play_on_tv_start.py",
+      "passed": true,
+      "tests": 5
+    },
+    {
+      "script": "scripts/test_play_on_tv_network.py",
+      "passed": true,
+      "tests": 62
+    },
+    {
+      "script": "scripts/test_background_queue.py",
+      "passed": true,
+      "tests": 10
+    },
+    {
+      "script": "scripts/test_bundled_bootstrap.py",
+      "passed": true,
+      "tests": 15
+    },
+    {
+      "script": "scripts/test_library_scan.py",
+      "passed": true,
+      "tests": 33
+    },
+    {
+      "script": "scripts/test_library_refresh.py",
+      "passed": true,
+      "tests": 17
+    },
+    {
+      "script": "scripts/test_build192.py",
+      "passed": true,
+      "tests": 7
+    }
+  ],
+  "host_test_total": 442,
+  "native_streaming_measurement": {
+    "fixture": "generated H.264 MKV with AC3/DTS audio and SRT subtitles",
+    "simulated_upstream_request_delay_s": 0.15,
+    "observations": [
+      {
+        "cache": false,
+        "startup_s": 0.169,
+        "first_segment_s": 1.08,
+        "remote_requests": 7,
+        "segment_bytes": 467251,
+        "segment_sha256": "dbdba1decbaf226c8457bc1c477955f2030ea5f101ae1b57e56d1aec7760926d"
+      },
+      {
+        "cache": true,
+        "startup_s": 0.168,
+        "first_segment_s": 0.335,
+        "remote_requests": 3,
+        "segment_bytes": 467251,
+        "segment_sha256": "dbdba1decbaf226c8457bc1c477955f2030ea5f101ae1b57e56d1aec7760926d"
+      }
+    ],
+    "first_video_segment_identical": true,
+    "device_or_live_provider_measurement": false
+  },
+  "regressions_diagnosed": [
+    "Initial AirPlay cache wrapper closed on UI return despite native playback continuing; retain on successful playing handoff, release on cancel/error; runtime regression added.",
+    "Existing conversion-speed source assertions used an old read-ahead signature and omitted the new foreground profile; updated to current adaptive-copy and preserved background policy.",
+    "Old build-192 wiring assertion required optional repacks that the owner now explicitly disables; updated to new compatibility-first policy."
+  ],
+  "ui_policy_read": true,
+  "ui_change": "existing status/facts wording only; layout and styling preserved",
+  "ui_guidance_passed": true,
+  "visual_review": "pending; desktop rig binary unavailable; no rebuild requested",
+  "device_tested": false,
+  "live_drive_accessed": false,
+  "new_native_build_required": false,
+  "main_merged": false,
+  "new_ipa_published": false
+}

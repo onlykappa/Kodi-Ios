@@ -9,7 +9,8 @@ class Runtime(unittest.TestCase):
   with tempfile.TemporaryDirectory() as profile:
    with runtime.Lease(profile,stats=lambda:dict(bytes_read=4096),every=.01) as lease:
     lease.phase('Inspecting video',title='Film')
-    time.sleep(.04)
+    deadline=time.monotonic()+1
+    while runtime.read(profile).get('phase')!='Inspecting video' and time.monotonic()<deadline:time.sleep(.01)
     self.assertTrue(runtime.active())
     item=runtime.read(profile);self.assertEqual(item['phase'],'Inspecting video')
     self.assertFalse(item['known']);self.assertEqual(item['bytes_read'],4096)

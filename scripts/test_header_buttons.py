@@ -99,7 +99,7 @@ class Header(unittest.TestCase):
    for n in (9206,9207,9208):self.assertIn(str(n+off),ids)
   for tab in ('home','movies','tv'):self.assertIn('refresh_rows,tab=%s'%tab,self.xml)
   self.assertIn('hdr_gear.png',self.xml);self.assertIn('ActivateWindow(settings)',self.xml);self.assertNotIn('circle-user.png',self.xml)
-  self.assertIn('ring_arc.png',self.xml);self.assertIn('New picks on Movies',self.xml)
+  self.assertNotIn('ring_arc.png',self.xml);self.assertIn('Notices.Pct',self.xml);self.assertIn('New picks on Movies',self.xml)
  def test_glyph_sizes_follow_the_policy(self):
   self.assertEqual(portrait.HDR_GLYPH,46);self.assertEqual(portrait.NAV_GLYPH,104)
   self.assertNotIn('ActivateWindow(1170)',portrait.page_header('Library'))
@@ -115,7 +115,7 @@ class SettingsKeepsTheMoreMenu(unittest.TestCase):
  def test_rows(self):
   sp=load('settings_page_header',LIB/'settings_page.py')
   rows={r[1]:r[2] for g in sp.ROOT for r in g}
-  self.assertEqual(rows['Favourites'],'ActivateWindow(1160)');self.assertIn('check_updates',rows['Check for updates'])
+  self.assertEqual(rows['Favourites'],'RunScript(service.kodi.ios.bootstrap,favourites_page)');self.assertIn('check_updates',rows['Check for updates'])
   self.assertIn('navigation_menu',rows['iPhone navigation / recovery']);self.assertIn('plugin.googledrive',rows['Google Drive'])
 
 if __name__=='__main__':unittest.main()

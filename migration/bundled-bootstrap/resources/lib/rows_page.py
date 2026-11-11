@@ -29,8 +29,8 @@ def slot(p,n):
  remove=('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><visible>%s</visible>'%(S+6,(ROW-HIT)//2,HIT,HIT,EDITING)+
   p.image(29,29,60,60,p.MEDIA+'avatar_s.png','FFFF453A')+p.image(44,56,30,6,p.MEDIA+'white.png',p.WHITE)+
   '<control type="button" id="%d"><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus /></control></control>'%(REMOVE+n,HIT,HIT))
- arrows=('<control type="group"><visible>%s</visible>'%EDITING+_arrow(p,UP+n,S+w-2*HIT-20,'arrow_up.png',key+'up')+
-         _arrow(p,DOWN+n,S+w-HIT-6,'arrow_down.png',key+'down')+'</control>')
+ # Owner (build 192): "make it so it has arrows to easily change up the layouts": ▲ ▼ always, Edit adds delete.
+ arrows=(_arrow(p,UP+n,S+w-2*HIT-20,'arrow_up.png',key+'up')+_arrow(p,DOWN+n,S+w-HIT-6,'arrow_down.png',key+'down'))
  return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(W,ROW+12,has(key+'title'))+
   p.surface(S-6,0,w+12,ROW,'round.png',p.SURFACE,32)+
   '<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><label></label>'
@@ -38,7 +38,13 @@ def slot(p,n):
   '<control type="group">%s%s'%(off,indent)+
   p.label(S+24,22,w-48-2*HIT-140,58,P(key+'title'),'p_pill',p.WHITE)+p.label(S+24,78,w-48-2*HIT-140,50,P(key+'sub'),'p_pill_s',p.GREY)+
   '</control>'+
-  p.icon(S+w-60,(ROW-34)//2,34,'chevron-right.png',p.GREY,'<visible>!%s</visible>'%EDITING)+remove+arrows+'</control>')
+  remove+arrows+'</control>')
+
+def fixed(p):
+ """Continue Watching: always the first row on Home, Movies and TV (portrait.hub_body), so it leads the list."""
+ S,W,w=p.SIDE,p.WIDTH,p.WIDTH-2*p.SIDE
+ return ('<control type="group"><width>%d</width><height>%d</height>'%(W,ROW+12)+p.surface(S-6,0,w+12,ROW,'round.png',p.SURFACE,32)+
+  p.label(S+24,22,w-48,58,'Continue Watching','p_pill',p.WHITE)+p.label(S+24,78,w-48,50,'Always first · what you are watching','p_pill_s',p.GREY)+'</control>')
 
 def action_row(p,id,text,color,height=ROW,extra=''):
  S,W,w=p.SIDE,p.WIDTH,p.WIDTH-2*p.SIDE
@@ -67,10 +73,10 @@ def page(p):
  rows=('<control type="grouplist" id="%d"><left>0</left><top>340</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
   '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords><visible>%s</visible>'%(LIST,W,ON_LIST)+
   text(p,P('empty'),110).replace('<control type="group">','<control type="group"><visible>%s</visible>'%has('empty'),1)+
-  ''.join(slot(p,n) for n in range(1,SLOTS+1))+text(p,P('more'),90)+
+  fixed(p)+''.join(slot(p,n) for n in range(1,SLOTS+1))+text(p,P('more'),90)+
   '<control type="image"><height>40</height><texture /></control>'+
   action_row(p,ADD,'+  Add Row','FF0A84FF')+action_row(p,RESTORE,'Restore Default Rows','FFFF453A')+
-  text(p,'The rows show in this order on the page. Faded rows are off. Edit to move or delete rows.',200)+'</control>')
+  text(p,'The rows show in this order on the page. Use ▲ ▼ to move a row, tap it for its settings, Edit to delete. Faded rows are not on the page.',200)+'</control>')
  toggle=(p.image(w-150,(ROW-58)//2,130,58,p.MEDIA+'toggle_on.png',p.WHITE,'<visible>%s</visible>'%has('one.on'))+
          p.image(w-150,(ROW-58)//2,130,58,p.MEDIA+'toggle_off.png',p.WHITE,'<visible>!%s</visible>'%has('one.on')))
  one=('<control type="grouplist" id="%d"><left>0</left><top>340</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'

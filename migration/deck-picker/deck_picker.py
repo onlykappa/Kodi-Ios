@@ -297,7 +297,7 @@ def pick(items, top_n=TOP_N):
     rest = [i for i in items if id(i) not in good_ids]
     ranked = good + rest                                   # dead / bad copies only if nothing better
     if len(ranked) <= top_n:
-        return ranked
+        return sorted(ranked, key=lambda it: 1 if it.get('coverage') else 0)   # Kodi-iOS: full seasons first (stable)
     chosen, seen = [], set()
     for it in ranked:
         key = (source_type(it), codec(it))
@@ -312,7 +312,7 @@ def pick(items, top_n=TOP_N):
         if not any(it is c for c in chosen):
             chosen.append(it)
     order = {id(it): n for n, it in enumerate(ranked)}
-    return sorted(chosen, key=lambda it: order[id(it)])
+    return sorted(chosen, key=lambda it: (1 if it.get('coverage') else 0, order[id(it)]))   # Kodi-iOS: full seasons first
 
 
 def group_by_quality(parsed):
@@ -346,8 +346,10 @@ def build_rows(shown, total_label=u''):
         st = source_type(it)
         if st:
             head = head + DOT + st
+        cover = it.get('coverage')
         rows.append({'headline': head, 'tags': DOT.join(tag_list(it)), 'meta': meta_text(it),
-                     'badge': u'MAY STUTTER' if too_heavy(it) else u'AV1 \u00b7 SLOW TO PREPARE' if slow_to_prepare(it)
+                     'badge': cover.upper() if cover else u'FULL SEASON' if cover == u'' else
+                     u'MAY STUTTER' if too_heavy(it) else u'AV1 \u00b7 SLOW TO PREPARE' if slow_to_prepare(it)
                      else b.get(n, u''), 'icon': it['icon']})
     return rows
 
@@ -357,7 +359,14 @@ def quality_menu_labels(keys, groups, top_n=TOP_N):
     labels = []
     for q in keys:
         uniq = dedupe(groups[q])
-        labels.append(u'[B]%s[/B]   \u00b7   %d version%s' % (quality_label(q), len(uniq), u'' if len(uniq) == 1 else u's'))
+        # Owner-approved picker (mockup board 14): the quality, and under it how many versions and the size they start
+        # from. choose_quality splits the two at \x1f into the choice's name and its second line.
+        smallest = min(uniq, key=lambda it: it['size'])
+        # Board 14: HDR when some version of this quality has it.
+        blob = u' '.join(_blob(u'%s %s' % (it.get('tags_text', u''), it.get('name', u''))) for it in uniq)
+        hdr = u' \u00b7 Dolby Vision' if re.search(r'DOLBY ?VISION| DOVI | DV ', blob) else (u' \u00b7 HDR10' if 'HDR' in blob else u'')
+        labels.append(u'[B]%s[/B]\x1f%d version%s%s \u00b7 from %s' % (quality_label(q), len(uniq), u'' if len(uniq) == 1 else u's',
+                                                                     hdr, size_text(smallest)))
     return labels
 
 
@@ -370,9 +379,49 @@ def count_label(shown_n, uniq_n):
 # ---------------------------------------------------------------------------------
 # on-screen pieces (only these touch Kodi; tests replace them)
 # ---------------------------------------------------------------------------------
-def choose_quality(labels):
+def _sheet():
+    """The bootstrap add-on's choice sheet (owner-approved mockup board 14), or None (Kodi's box is used)."""
+    try:
+        import importlib.util
+        from kodi_six import xbmcaddon
+        here = xbmcaddon.Addon('service.kodi.ios.bootstrap').getAddonInfo('path')
+        source = os.path.join(here, 'resources', 'lib', 'choice_sheet.py')
+        if not os.path.isfile(source):
+            return None
+        spec = importlib.util.spec_from_file_location('kodi_ios_choice_sheet', source)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.HOME = here
+        return module
+    except Exception:
+        return None
+
+
+def quality_sheet(labels, title=u'', total=0):
+    """The sheet for the quality menu: the title and how many versions, each quality with its line, the best one
+    tagged, and Show All as a blue row (the last label)."""
+    rows = []
+    for n, text in enumerate(labels[:-1]):
+        name, _, detail = text.partition(u'\x1f')
+        rows.append({'label': re.sub(r'\[/?B\]', u'', name), 'detail': detail,
+                     'tag': u'BEST' if n == 0 else u'', 'tag_kind': u'best' if n == 0 else u''})
+    return {'heading': title, 'sub': u'Pick a quality \u00b7 %d versions found' % total if total else u'Pick a quality',
+            'rows': rows, 'link': labels[-1].replace(u'Show all', u'Show All').replace(u' links', u' Links')}
+
+
+def choose_quality(labels, title=u'', total=0):
+    sheet = _sheet()
+    if sheet is not None:
+        try:
+            return sheet.choose(quality_sheet(labels, title, total), path=getattr(sheet, 'HOME', None))
+        except Exception:
+            pass
     from kodi_six import xbmcgui
-    return xbmcgui.Dialog().select(u'Pick a quality', labels)
+    items = []
+    for text in labels:
+        name, _, detail = text.partition(u'\x1f')
+        items.append(xbmcgui.ListItem(label=name, label2=detail))
+    return xbmcgui.Dialog().select(u'Pick a quality', items)
 
 
 def _poster_for(title):
@@ -519,8 +568,91 @@ def find_same(parsed, wanted):
     return ([p for p in same if p['quality'] == wanted.get('quality')] or same)[0]
 
 
+# ---------------------------------------------------------------------------------
+# Kodi-iOS (owner, build 205: "cant it automatically pick sources based off my first quality pick? ... find
+# compatible sources for each episode of that show automatically"): the version picked for a season download is
+# kept as a profile (SEASON_PICK); download.py then asks for each other episode with AUTO_PICK and this page picks
+# the closest version itself, without showing (AUTO_RESULT says what it took).
+# ---------------------------------------------------------------------------------
+SEASON_PICK = 'KodiIOS.SeasonPick'
+AUTO_PICK = 'KodiIOS.AutoPick'
+AUTO_RESULT = 'KodiIOS.AutoPick.Result'
+_CONTEXT = {'exp': None}
+HDR_TAGS = (u'Dolby Vision', u'HDR10+', u'HDR10', u'HDR')
+
+
+def profile(item):
+    """What made the first pick: quality, HDR kind, codec, source type, size (GB) and how much of the season it held."""
+    tags = tag_list(item)
+    return {'quality': item['quality'], 'hdr': next((t for t in tags if t in HDR_TAGS), u''), 'codec': codec(item),
+            'source': source_type(item), 'size': round(item['size'], 2), 'coverage': item.get('coverage')}
+
+
+def _home():
+    from kodi_six import xbmcgui
+    return xbmcgui.Window(10000)
+
+
+def _note_pick(item, home=None):
+    exp = _CONTEXT.get('exp') or {}
+    if exp.get('kind') == 'movie' or exp.get('season') is None:   # a season or one of its episodes
+        return
+    try:
+        import json
+        import time
+        (home or _home()).setProperty(SEASON_PICK, json.dumps(dict(profile(item), time=time.time(),
+            show_tmdb=exp.get('tmdb'),season=exp.get('season'),episode=exp.get('episode'),selection_name=item.get('name'))))
+    except Exception:
+        pass
+
+
+def auto_request(home=None, now=None):
+    """download.py's request to pick by itself ({'profile', 'until'}), or None."""
+    import json
+    import time
+    try:
+        raw = (home or _home()).getProperty(AUTO_PICK)
+        wanted = json.loads(raw) if raw else None
+        if wanted and float(wanted.get('until', 0)) >= (now if now is not None else time.time()):
+            return wanted
+    except Exception:
+        pass
+    return None
+
+
+def automatic_matches(wanted,exp):
+    target=wanted.get('target')
+    if not target:return True  # existing rest-of-season requests
+    return all(str(exp.get(k) or '')==str(target.get(k) or '') for k in ('tmdb','season','episode'))
+
+
+def auto_choose(kept, want):
+    """The version closest to the first pick: its quality (else the nearest lower, then higher), its HDR kind and
+    codec, never AV1 when avoidable, seeds, then the size nearest the first pick's. None when nothing has seeds."""
+    if want.get('strict_quality'):
+        kept = [p for p in kept if p['quality'] == want.get('quality') and not is_bad(p)]
+    if not kept:
+        return None
+    order = {q: n for n, q in enumerate(QUALITY_ORDER)}
+    target = order.get(want.get('quality'), 2)
+    size = float(want.get('size') or 0)
+    if want.get('coverage') == u'' and size:
+        size = 0.0                                      # a pack's size says nothing about one episode's
+
+    def score(it):
+        q = order.get(it['quality'], 9)
+        distance = (q - target) * 2 if q >= target else (target - q) * 2 + 1      # lower quality before higher
+        tags = tag_list(it)
+        hdr = next((t for t in tags if t in HDR_TAGS), u'')
+        return (is_bad(it), it['seeds'] <= 0, distance, hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
+                slow_to_prepare(it), too_heavy(it), abs(it['size'] - size) if size else 0, -it['seeds'])
+    best = min(dedupe(kept), key=score)
+    return None if best['seeds'] <= 0 else best
+
+
 def remember(item, title, path=None, now=None):
     """Save the version picked for the title the watch menu has just started, for Continue Watching."""
+    _note_pick(item)
     import json
     import os
     import time
@@ -636,16 +768,73 @@ def show_all(title, items, parsed, kept, hidden, sm):
 def run(title, items, top_n=TOP_N, expect=None):
     parsed = parse_all(items)
     if parsed is None:
+        auto=auto_request()
+        if auto and auto.get('target'):
+            sm=_matcher();exp=expect if expect is not None else identity(title,sm)
+            if auto.get('purpose') in ('scan','packs') and (not exp or not automatic_matches(auto,exp)):
+                import json
+                _home().setProperty(AUTO_RESULT,json.dumps({'request_id':auto['request_id'],'error':'identity_mismatch'}))
+                return -1
+            if exp and automatic_matches(auto,exp):
+                if auto.get('purpose') in ('scan','packs'):
+                    import json
+                    _home().setProperty(AUTO_RESULT,json.dumps({'request_id':auto['request_id'],
+                        'qualities':[],'packs':False,'error':'unsupported_source_list' if items else ''}))
+                return -1
         return None
     sm = _matcher()
     exp = expect if expect is not None else identity(title, sm)
+    _CONTEXT['exp'] = exp
+    active=auto_request()
+    if active and active.get('purpose') in ('scan','packs') and (not exp or not automatic_matches(active,exp)):
+        import json
+        _home().setProperty(AUTO_RESULT,json.dumps({'request_id':active['request_id'],'error':'identity_unavailable'}))
+        return -1
     if sm is not None and exp:
         kept, hidden = sm.split(parsed, exp, name=lambda p: p['name'], result=lambda p: None)
         sm.report('Choose a version', exp, kept, hidden, name=lambda p: p['name'])
+        # Kodi-iOS (owner, build 205: "i pressed full season" and got episode 1 alone): for a season download, full
+        # seasons first and every row says which it is.
+        if hasattr(sm, 'coverage'):
+            for p in kept:
+                p['coverage'] = sm.coverage(p['name'], exp)
+            if any(p['coverage'] is not None for p in kept):
+                kept = [p for p in kept if p['coverage'] == u''] + [p for p in kept if p['coverage'] != u'']
     else:
         kept, hidden = parsed, []
         if sm is not None:
             sm.log(u'Choose a version: %d links for "%s" not checked (the title being played is not known)' % (len(parsed), title))
+    # Kodi-iOS: the rest of a season, picked here without asking (download.py's AUTO_PICK).
+    try:
+        import episode_watch
+        if exp and episode_watch.canceled(_home(),exp):return -1
+    except (ImportError,AttributeError):pass
+    auto = auto_request()
+    if auto and exp and automatic_matches(auto, exp) and auto.get('purpose') in ('scan', 'packs'):
+        import json
+        usable = [p for p in kept if p['seeds'] > 0 and not is_bad(p)] if sm is not None and exp.get('titles') else []
+        if auto['purpose'] == 'packs':
+            usable = [p for p in usable if p.get('coverage') == u'']
+        _home().setProperty(AUTO_RESULT, json.dumps({'request_id': auto['request_id'],
+            'qualities': [q for q in QUALITY_ORDER if any(p['quality'] == q for p in usable)],
+            'packs': bool(usable) if auto['purpose'] == 'packs' else False}))
+        if auto['purpose'] == 'scan' or not usable:
+            return -1
+        # A Full season request offers genuine packs only. Cancel never queues a partial episode.
+        return show_list(title, usable, [], sm, u'Full season packs', count_label(len(usable), len(usable)))
+    if auto is not None and exp and exp.get('episode') and automatic_matches(auto,exp):
+        failed=set(auto.get('excluded_names') or [])
+        best = auto_choose([p for p in kept if p['name'] not in failed], auto.get('profile') or {})
+        try:
+            import json
+            _home().setProperty(AUTO_RESULT, json.dumps({'episode': exp.get('episode'), 'found': bool(best),
+                                                         'quality': best['quality'] if best else u'', 'name': best['name'] if best else u'',
+                                                         'request_id':auto.get('request_id')}))
+        except Exception:
+            pass
+        if sm is not None:
+            sm.log(u'Choose a version (automatic): %s: %s' % (exp.get('label') or title, best['name'] if best else u'nothing with seeds'))
+        return best['idx'] if best else -1
     # Library status › "Find a version without converting": only links that need no conversion, at the same quality.
     wanted = avoid_request()
     if wanted is not None:
@@ -679,7 +868,7 @@ def run(title, items, top_n=TOP_N, expect=None):
         if len(keys) == 1:
             qi = 0
         else:
-            choice = choose_quality(labels + [u'Show all %d links' % len(kept)])
+            choice = choose_quality(labels + [u'Show all %d links' % len(kept)], title, len(kept))
             if choice is None or choice < 0:
                 return -1
             if choice >= len(keys):

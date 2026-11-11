@@ -31,7 +31,7 @@ SERVICES=[
   'manage':'Addon.OpenSettings(plugin.video.themoviedb.helper)'},
 ]
 # Extra rows under the services (ids 9611...).
-LINKS=[('Profiles & Login Screen','user.png','FF0A84FF','ActivateWindow(profiles)')]
+LINKS=[('Profiles & Login Screen','user.png','FF0A84FF','RunScript(service.kodi.ios.bootstrap,profiles_page)')]
 
 def status(service,installed,get_setting,drive_accounts=()):
  """{'signed','text','button','action'} for one service. get_setting(id) reads the add-on's setting ('' if unset);

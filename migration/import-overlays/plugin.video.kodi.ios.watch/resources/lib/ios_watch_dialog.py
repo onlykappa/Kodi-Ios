@@ -1,4 +1,8 @@
 """Deck-style "How would you like to watch?" chooser inside TMDb Helper's movie/episode resolver; no autoplay."""
+# Owner (build 224): "Download or Stream" in place of the add-on names. The second line says what each one does.
+ICON_DIR='special://skin/extras/icons/'
+ROW_TILE={'elementum':('FF1F6FEB','cloud-arrow-down.png'),'umbrella':('FF7D3CFF','circle-play.png')}
+ROW_DETAIL={'play':{False:''},'elementum':{True:'Not available on this iPhone yet'},'umbrella':{True:'Coming soon'}}
 NOT_READY={'elementum':('Elementum not available','Elementum is not installed or is switched off in this build. Check Add-ons > Video add-ons > Elementum.'),
            'umbrella':('Umbrella not available yet','Umbrella has not been ported to this iPhone build yet. It will appear here once it is.')}
 
@@ -92,12 +96,14 @@ def choose_player(player):
  def installed(addon):return xbmc.getCondVisibility('System.AddonIsEnabled('+addon+')')
  rows=[]
  engine=next((p for p in candidates if p.file=='ios.elementum.json'),None)
- if engine and installed('plugin.video.elementum') and settings.getSettingBool('offer_elementum'):rows.append(('Elementum','play',engine))
- else:rows.append(('Elementum — not available on iPhone yet','elementum',None))
+ if engine and installed('plugin.video.elementum') and settings.getSettingBool('offer_elementum'):rows.append(('Download','play',engine))
+ else:rows.append(('Download — not available on iPhone yet','elementum',None))
+ # Owner (build 224): the two ways are called what they do: Download (Elementum: a torrent that can save to Google Drive)
+ # and Stream (Umbrella: a link from AllDebrid), not by their add-on names.
  # Any TMDb Helper player for Umbrella is offered once the add-on is installed, as on the Deck.
  umbrella=next((p for p in candidates if 'umbrella' in str(p.file).lower()),None)
- if umbrella and installed('plugin.video.umbrella'):rows.append(('Umbrella','play',umbrella))
- else:rows.append(('Umbrella — coming soon','umbrella',None))
+ if umbrella and installed('plugin.video.umbrella'):rows.append(('Stream','play',umbrella))
+ else:rows.append(('Stream — coming soon','umbrella',None))
  # Google Drive is not offered here: Elementum plays Drive-backed sources itself.
  for p in candidates:
   if p.is_local and p.kodi_file and xbmcvfs.exists(p.kodi_file):rows.append(('Local library file','play',p))
@@ -146,9 +152,14 @@ def choose_player(player):
  if selected is None:
   items=[]
   for label,action,item in rows:
-   li=xbmcgui.ListItem(label=label);li.setArt(art);items.append(li)
+   li=xbmcgui.ListItem(label=label,label2=ROW_DETAIL.get(action,{}).get(item is None,''));li.setArt(art)
+   # Download and Stream get coloured tiles (the picker's approved look); other rows stay plain.
+   tile=ROW_TILE.get(kind_of(item) if item is not None else action)
+   if tile:li.setProperty('tint',tile[0]);li.setProperty('glyph',ICON_DIR+tile[1])
+   items.append(li)
   name=str(info.get('title') or info.get('tvshowtitle') or '')
-  selected=xbmcgui.Dialog().select('How would you like to watch'+(' '+name if name else '')+'?',items)
+  selected=sheet_choice(rows,kind_of,art,info,name)
+  if selected is None:selected=xbmcgui.Dialog().select('How would you like to watch'+(' '+name if name else '')+'?',items)
  # Owner logs (build-124): TMDb Helper reported "lib.player - Failure!" right after a row was tapped, i.e. this
  # returned nothing. Say what was offered and what came back, so the next log shows which way it went.
  log=lambda text:xbmc.log('Kodi iOS watch: '+text,xbmc.LOGINFO)
@@ -170,6 +181,35 @@ def choose_player(player):
  if item is engine:share_details(player)
  log('playing with %s (%s)'%(kind_of(item),getattr(item,'file','')))
  return item
+
+SHEET_DETAIL={'elementum':'Saved to Google Drive \u00b7 watch any time','umbrella':'Plays now from your AllDebrid account',
+              'drive':'Already on your Google Drive','local':'Already on this iPhone'}
+def sheet_choice(rows,kind_of,art,info,name):
+ """Owner-approved choice sheet (mockup board 13): the title's art with its kind and name, then Download and Stream
+ as rows with their tiles and what each does. None when the sheet is not available (Kodi's box is used)."""
+ try:
+  import choice_sheet_loader
+  sheet=choice_sheet_loader.load()
+ except Exception:sheet=None
+ if sheet is None:return None
+ tv=bool(info.get('tvshowtitle')) and info.get('mediatype')!='movie'
+ badge='EPISODE' if tv else 'MOVIE'
+ if tv and info.get('season') not in (None,'') and info.get('episode') not in (None,''):
+  try:badge+=' \u00b7 S%d E%d'%(int(info.get('season')),int(info.get('episode')))
+  except (TypeError,ValueError):pass
+ elif info.get('year'):badge+=' \u00b7 %s'%info.get('year')
+ spec={'art':art.get('fanart') or art.get('tvshow.fanart') or art.get('landscape') or art.get('thumb') or '',
+       'badge':badge,'art_title':(info.get('tvshowtitle') if tv else name) or name,'sub':'How would you like to get it?','rows':[]}
+ for label,action,item in rows:
+  kind=kind_of(item) if item is not None else action
+  tile=ROW_TILE.get(kind)
+  detail=ROW_DETAIL.get(action,{}).get(item is None,'') or SHEET_DETAIL.get(kind,'')
+  if detail and ' \u2014 ' in label:label=label.split(' \u2014 ')[0]   # the line under it says why
+  spec['rows'].append({'label':label,'detail':detail,'tint':tile[0] if tile else '','glyph':ICON_DIR+tile[1] if tile else ''})
+ if not spec['art']:spec['heading']=name
+ try:return sheet.choose(spec,path=getattr(sheet,'HOME',None))
+ except Exception as error:
+  _quiet('sheet_choice',error);return None
 
 def _quiet(where,error,_seen=set()):
  """Log an error that is deliberately not shown on screen, once per place and kind (loops run every second)."""

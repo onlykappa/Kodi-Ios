@@ -1,0 +1,141 @@
+{
+  "status": "Candidate framework verified; host/E2E verification running; no r35 publication or IPA yet",
+  "source_branch": "claude/trusting-euler-kgug98",
+  "pr": 16,
+  "native_candidate": {
+    "candidate_run": 42448621268,
+    "source_commit": "9976d705e60b92d6094cf124018a95735cbd9722",
+    "artifact_id": 13604662616,
+    "artifact_sha256": "9ada55e387ce02f0fb481c05a085c0959772285abdad4ab304a30315230ec833",
+    "archive_sha256": "0a61e95895a14370b72a486ffb2f6e54564d6f9ada758c0527bccd2311d66d89",
+    "binary_sha256": "2a0dbdcd9ac381fb7d81e021c61a9d40fbe9bdff366a6fb5d8ccae4a9d033a79",
+    "exported_symbols": [
+      "_kodi_airplay_active",
+      "_kodi_airplay_close",
+      "_kodi_airplay_log",
+      "_kodi_airplay_message",
+      "_kodi_airplay_network",
+      "_kodi_airplay_open",
+      "_kodi_airplay_play",
+      "_kodi_airplay_prepare",
+      "_kodi_airplay_prepare_audio_languages",
+      "_kodi_airplay_prepare_background",
+      "_kodi_airplay_prepare_hdr",
+      "_kodi_airplay_prepare_keep_image_subs",
+      "_kodi_airplay_prepare_marks",
+      "_kodi_airplay_prepare_resume",
+      "_kodi_airplay_prepare_streams",
+      "_kodi_airplay_prepare_subtitle_languages",
+      "_kodi_airplay_prepare_to",
+      "_kodi_airplay_probe",
+      "_kodi_airplay_probe_ex",
+      "_kodi_airplay_settings",
+      "_kodi_airplay_show",
+      "_kodi_airplay_state",
+      "_kodi_airplay_subtitles",
+      "_kodi_airplay_verify",
+      "_kodi_background_keep",
+      "_kodi_background_state"
+    ],
+    "required_export_count": 26,
+    "mach_o": {
+      "cpu": "arm64",
+      "cpu_subtype": 0,
+      "filetype": 6,
+      "platforms": [
+        {
+          "platform": 2,
+          "minimum_os": "14.0.0",
+          "sdk": "18.5.0"
+        }
+      ],
+      "dylib_loads": [
+        {
+          "name": "/System/Library/Frameworks/UIKit.framework/UIKit",
+          "weak": false
+        },
+        {
+          "name": "/System/Library/Frameworks/AVKit.framework/AVKit",
+          "weak": false
+        },
+        {
+          "name": "/System/Library/Frameworks/AVFoundation.framework/AVFoundation",
+          "weak": false
+        },
+        {
+          "name": "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
+          "weak": false
+        },
+        {
+          "name": "/System/Library/Frameworks/CoreMedia.framework/CoreMedia",
+          "weak": false
+        },
+        {
+          "name": "/System/Library/Frameworks/VideoToolbox.framework/VideoToolbox",
+          "weak": false
+        },
+        {
+          "name": "/System/Library/Frameworks/CoreVideo.framework/CoreVideo",
+          "weak": false
+        },
+        {
+          "name": "/System/Library/Frameworks/CoreText.framework/CoreText",
+          "weak": false
+        },
+        {
+          "name": "/usr/lib/libc++.1.dylib",
+          "weak": false
+        },
+        {
+          "name": "/System/Library/Frameworks/Security.framework/Security",
+          "weak": false
+        },
+        {
+          "name": "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+          "weak": false
+        },
+        {
+          "name": "/usr/lib/libz.1.dylib",
+          "weak": false
+        },
+        {
+          "name": "/usr/lib/libiconv.2.dylib",
+          "weak": false
+        },
+        {
+          "name": "/System/Library/Frameworks/Foundation.framework/Foundation",
+          "weak": false
+        },
+        {
+          "name": "/usr/lib/libobjc.A.dylib",
+          "weak": false
+        },
+        {
+          "name": "/usr/lib/libSystem.B.dylib",
+          "weak": false
+        }
+      ],
+      "rpaths": [],
+      "code_signature_commands": [],
+      "encrypted": false
+    },
+    "zip_integrity_passed": true,
+    "device_tested": false
+  },
+  "python_validation": {
+    "scripts_passed": 82,
+    "excluded": [
+      "test_drive_runtime.py"
+    ],
+    "source_assertion_updated": "test_conversion_speed: export count 23 -> 26; focused 48 tests pass",
+    "project_check": true,
+    "ui_guidance_check": true,
+    "shell_syntax_check": true
+  },
+  "native_host_status": "pending",
+  "native_e2e_status": "pending",
+  "release": null,
+  "ipa": null,
+  "device_tested": false,
+  "screen_lock_device_tested": false
+}

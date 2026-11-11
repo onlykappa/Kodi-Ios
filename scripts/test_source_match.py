@@ -211,7 +211,7 @@ class VersionPage(unittest.TestCase):
  def run_page(self,items,answers,exp=FALL,quality=None):
   seen=[]
   def source(title,rows,q,count):seen.append({'rows':rows,'quality':q,'count':count});return answers.pop(0)
-  with mock.patch.object(dp,'choose_source',source),mock.patch.object(dp,'choose_quality',quality or (lambda labels:seen.append({'labels':labels}) or answers.pop(0))),\
+  with mock.patch.object(dp,'choose_source',source),mock.patch.object(dp,'choose_quality',quality or (lambda labels,*a:seen.append({'labels':labels}) or answers.pop(0))),\
        mock.patch.object(dp,'resume_wanted',lambda:None),mock.patch.object(dp,'remember',lambda *a:True),mock.patch.object(sm,'log',lambda m:None):
    return dp.run('Choose a stream Fall (2022)',items,expect=exp),seen
  def test_short_list_gets_our_page_with_only_this_title_and_a_hidden_row(self):
@@ -234,10 +234,10 @@ class VersionPage(unittest.TestCase):
   self.assertEqual(choice,3)
  def test_show_all_from_the_quality_menu(self):
   items=GOOD*2+BAD
-  choice,seen=self.run_page(items,[-1],quality=lambda labels:len(labels)-1)
+  choice,seen=self.run_page(items,[-1],quality=lambda labels,*a:len(labels)-1)
   self.assertEqual(choice,-1);self.assertEqual(len(seen[0]['rows']),6+1)
  def test_show_all_with_everything_verified_is_elementums_own_list(self):
-  self.assertIsNone(self.run_page(GOOD*2,[],quality=lambda labels:len(labels)-1)[0])
+  self.assertIsNone(self.run_page(GOOD*2,[],quality=lambda labels,*a:len(labels)-1)[0])
  def test_all_hidden_says_so_and_can_reveal(self):
   choice,seen=self.run_page(BAD,[0,1])
   self.assertEqual([r['headline'] for r in seen[0]['rows']],['2 hidden (wrong title/year)']);self.assertEqual(seen[0]['count'],'All 2 links hidden')
@@ -397,5 +397,24 @@ class WhatTheTorrentReallyIs(unittest.TestCase):
  def test_service_runs_the_guard(self):
   service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertIn('target=source_guard.run,args=(window,notices.torrent_list,driveupload.remove_torrent,',service)
+
+class SeasonCoverage(unittest.TestCase):
+ """Owner (build 205): "i pressed full season" for Lanterns season 1 and got S01E01 alone (an 8.4 GB 4K episode):
+ a season search lists single episodes too. The version page lists full seasons first and says which is which."""
+ exp=sm.expected('season',['Lanterns'],season=1)
+ def test_packs_and_single_episodes(self):
+  c=lambda n:sm.coverage(n,self.exp)
+  self.assertEqual(c('Lanterns.S01.2160p.WEB-DL.DDP5.1.HEVC'),'')
+  self.assertEqual(c('Lanterns Season 1 Complete 1080p'),'')
+  self.assertEqual(c('Lanterns.S01E01.2160p.HMAX.WEB-DL.DV.HDR.HEVC'),'Episode 1 only')
+  self.assertEqual(c('Lanterns.S01E01-E03.1080p'),'Episodes 1-3 only')
+  self.assertIsNone(sm.coverage('Lanterns.S01E01.1080p',sm.expected('episode',['Lanterns'],season=1,episode=1)))
+ def test_the_page_lists_full_seasons_first_and_labels_them(self):
+  base=lambda idx,name,size,cover:dict(idx=idx,quality='4k',seeds=90 if idx==0 else 20,peers=0,size=size,tags_text='',name=name,providers=['x'],icon='',multi=False,coverage=cover)
+  items=[base(0,'Lanterns.S01E01.2160p.WEB-DL.HEVC',8.4,'Episode 1 only'),base(1,'Lanterns.S01.2160p.WEB-DL.HEVC',40.0,'')]
+  shown=dp.pick([dict(i) for i in items])
+  self.assertEqual([i['idx'] for i in shown],[1,0])
+  rows=dp.build_rows(shown)
+  self.assertEqual([r['badge'] for r in rows],['FULL SEASON','EPISODE 1 ONLY'])
 
 if __name__=='__main__':unittest.main()

@@ -8,8 +8,12 @@ window shrunk into the middle of the portrait screen, so nothing becomes unreach
 The same module builds the folder into the IPA (scripts/build_customized_ipa.py) and, on the phone,
 refreshes the rows from the owner's widget lists and reloads the skin when the phone rotates.
 """
+import sys
 import hashlib,json,os,re,struct,zlib,xml.etree.ElementTree as ET
 import importlib.util as _iu
+for _name in ('status_ui','notifications_skin'):
+ _shared=_iu.spec_from_file_location(_name,os.path.join(os.path.dirname(os.path.abspath(__file__)),_name+'.py'))
+ _module=_iu.module_from_spec(_shared);sys.modules[_name]=_module;_shared.loader.exec_module(_module)
 _spec=_iu.spec_from_file_location('player_osd',os.path.join(os.path.dirname(os.path.abspath(__file__)),'player_osd.py'))
 player_osd=_iu.module_from_spec(_spec);_spec.loader.exec_module(player_osd)
 _spec=_iu.spec_from_file_location('settings_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'settings_page.py'))
@@ -92,7 +96,7 @@ CATEGORIES=[('Drama',18,(52,92,190),(12,18,52)),('Comedy',35,(44,196,182),(22,86
 MORE=[('Settings','gear.png','FF8E8E93','ActivateWindow(settings)'),
       ('Google Drive','cloud.png','FF0A84FF',DRIVE),
       ('Check for updates','cloud-arrow-down.png','FF30D158',UPDATES),
-      ('Favourites','star.png','FFFF9F0A','ActivateWindow(1160)'),
+      ('Favourites','star.png','FFFF9F0A','RunScript(service.kodi.ios.bootstrap,favourites_page)'),
       ('File manager','clapperboard.png','FF5E5CE6','ActivateWindow(filemanager)'),
       ('iPhone navigation / recovery','life-ring.png','FFFF453A',MENU)]
 HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{'Includes_Portrait.xml',SEARCH_FILE,'Startup.xml','Custom_1198_Dialog_Startup.xml','DialogContextMenu.xml','Custom_1182_Dialog_Topmenu_Overlay.xml','MyVideoNav.xml','DialogVideoInfo.xml','DialogSelect.xml','Custom_1170_Dialog_Options.xml','Font.xml','Includes.xml','Settings.xml','SettingsCategory.xml','DialogAddonSettings.xml',activity_skin.NAME,activity_skin.BOX}|pages.HANDMADE
@@ -100,12 +104,12 @@ HANDMADE=set(HUBS)|set(LIBRARY_FILES)|{'Includes_Portrait.xml',SEARCH_FILE,'Star
 SKIP_WRAP={'VideoFullScreen.xml','VideoOSD.xml','MusicVisualisation.xml','SlideShow.xml','Pointer.xml'}
 # Shown only over landscape playback: no portrait copy, so Kodi always loads them from 1080i with landscape
 # coordinates (it picks a window's folder when it loads it, and these load while the phone is still upright).
-VIDEO_ONLY={'DialogSeekBar.xml','DialogFullScreenInfo.xml','DialogSubtitles.xml','VideoOSDBookmarks.xml','DialogPVRChannelsOSD.xml',
+VIDEO_ONLY={'DialogSeekBar.xml','Custom_1156_Buffering.xml','DialogFullScreenInfo.xml','DialogSubtitles.xml','VideoOSDBookmarks.xml','DialogPVRChannelsOSD.xml',
             'GameOSD.xml','MusicOSD.xml','Custom_1140_OSD_Playlist.xml','Custom_1141_OSD_Cast.xml','Custom_1142_OSD_MusicTracks.xml',
             'Custom_1143_OSD_NextOverlay.xml','Custom_1145_OSD_InfoPanel.xml','Custom_1146_OSD_AudioStreams.xml',
             'Custom_1147_OSD_SubtitleStreams.xml','Custom_1148_OSD_VideoStreams.xml','Custom_1151_OSD_MusicInfoOverlay.xml',
             'Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml','Custom_1193_VideoOSDInfo.xml',
-            'IOSPlayOnTV.xml'}   # pages.play_on_tv: Play on TV over video
+            'IOSPlayOnTV.xml','IOSAirPlayFlow.xml','IOSTrackMenu.xml'}   # pages.play_on_tv, pages.track_menu, airplay_flow: Play on TV over video
 # iOS text styles at 2.687 units/pt (large title 34pt, title2 22pt, headline/body 17pt, subhead 15pt, footnote 13pt...).
 FONTS=[('p_large','Inter-Bold.ttf',92),('p_title','Inter-Bold.ttf',78),('p_h2','Inter-Bold.ttf',58),
        ('p_h3','Inter-Bold.ttf',46),('p_body','Inter-Regular.ttf',44),('p_sub','Inter-Regular.ttf',40),
@@ -288,15 +292,33 @@ def close_button(id,x,y,extra='',navigation='',size=118):
 
 
 def icon(x,y,size,name,color=WHITE,extra=''):return image(x,y,size,size,name if ('://' in name or name.startswith('$')) else ICONS+name,color,extra,'>keep')
+def textbox(x,y,w,h,text,font,color=WHITE):
+ """Wrapped text inside a list's item layout (owner, build 229: episode titles and plots ended in "..." after one
+ line). A list draws a label on one line whatever wrapmultiline says; a textbox wraps and shows whole lines only."""
+ return ('<control type="textbox"><left>%s</left><top>%s</top><width>%s</width><height>%s</height><font>%s</font>'
+         '<textcolor>%s</textcolor><label>%s</label><autoscroll>false</autoscroll></control>')%(x,y,w,h,font,color,e(text))
 def label(x,y,w,h,text,font,color=WHITE,align='left',extra=''):
  return ('<control type="label"><left>%s</left><top>%s</top><width>%s</width><height>%s</height><font>%s</font>'
          '<textcolor>%s</textcolor><align>%s</align><aligny>center</aligny><label>%s</label>%s</control>')%(x,y,w,h,font,color,align,e(text),extra)
 def surface(x,y,w,h,texture,color=WHITE,border=0,extra=''):return image(x,y,w,h,MEDIA+texture,color,extra,border=border)
 
-def pill_button(id,x,y,w,h,text,actions,style,glyph='',extra='',glyph_x=None):
- """Apple-style capsule: 'primary' white with black text, 'glass' frosted. actions: [(condition, action)]."""
+def pill_button(id,x,y,w,h,text,actions,style,glyph='',extra='',glyph_x=None,inline=False):
+ """Apple-style capsule: 'primary' white with black text, 'glass' frosted. actions: [(condition, action)].
+ inline: the glyph and the label are centred together whatever the label's length (owner, build 229: on a show page
+ "Play S4 · Immortal Devastators..." ran under the play glyph), the label ending in "..." when it is too long."""
  fill,tex,textcolor=(('FFFFFFFF','pill_%d.png'%h,'FF000000') if style=='primary' else ('FFFFFFFF','glass_%d.png'%h,'FFFFFFFF'))
  clicks=''.join('<onclick%s>%s</onclick>'%(' condition="%s"'%e(c) if c else '',e(a)) for c,a in actions)
+ if inline and glyph and text:
+  inner=('<control type="button" id="%d"><width>%d</width><height>%d</height><label></label>'
+         '<texturefocus border="%d" colordiffuse="%s">%s%s</texturefocus><texturenofocus border="%d" colordiffuse="%s">%s%s</texturenofocus>'
+         '%s%s</control>')%(id,w,h,h//2,fill,MEDIA,tex,h//2,fill,MEDIA,tex,clicks,extra)
+  row=('<control type="grouplist"><left>40</left><top>0</top><width>%d</width><height>%d</height><orientation>horizontal</orientation>'
+       '<align>center</align><itemgap>18</itemgap><usecontrolcoords>true</usecontrolcoords>'%(w-80,h)+
+       icon(0,(h-46)//2,46,glyph,textcolor)+
+       '<control type="label"><width max="%d">auto</width><height>%d</height><font>p_btn</font><textcolor>%s</textcolor>'
+       '<aligny>center</aligny><label>%s</label><scroll>false</scroll></control></control>')%(w-80-64,h,textcolor,e(text))
+  visible=''.join(re.findall(r'<visible(?: [^>]*)?>.*?</visible>',extra))
+  return '<control type="group"><left>%s</left><top>%s</top><width>%s</width><height>%s</height>%s%s%s</control>'%(x,y,w,h,visible,inner,row)
  inner=('<control type="button" id="%d"><width>%d</width><height>%d</height><label>%s</label><font>p_btn</font>'
         '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny><textoffsetx>%d</textoffsetx>'
         '<texturefocus border="%d" colordiffuse="%s">%s%s</texturefocus><texturenofocus border="%d" colordiffuse="%s">%s%s</texturenofocus>'
@@ -332,16 +354,25 @@ def header_button(id,x,y,glyph,action,extra=''):
  off=(HDR-HDR_GLYPH)//2
  return pill_button(id,x,y,HDR,HDR,'',[('',action)],'glass','',extra)[:-len('</control>')]+icon(off,off,HDR_GLYPH,glyph)+'</control>'
 def bell(x,y,extra=''):
- """Bell: red count of unread messages, a thin blue arc turning around it while something runs
- (the bootstrap service keeps Notices.Unread and Notices.Active on the Home window)."""
- unread='Window(Home).Property(Notices.Unread)'
- return ('<control type="group"><left>%d</left><top>%d</top><width>108</width><height>108</height>'%(x,y)+
-  image(-12,-12,132,132,MEDIA+'ring_arc.png',ACCENT,'<visible>!String.IsEmpty(Window(Home).Property(Notices.Active))</visible>'
-   '<animation effect="rotate" end="-360" center="auto" time="1200" loop="true" reversible="false" condition="true">Conditional</animation>')+
-  header_button(9207,0,0,'bell.png',NOTICES,extra)+
-  '<control type="group"><left>66</left><top>-8</top><visible>!String.IsEmpty(%s) + !String.IsEqual(%s,0)</visible>'%(unread,unread)+
-  image(0,0,56,56,MEDIA+'dot.png','FF000000')+image(4,4,48,48,MEDIA+'dot.png','FFFF453A')+
-  label(4,4,48,48,'$INFO[%s]'%unread,'p_foot_b',WHITE,'center','<aligny>center</aligny>')+'</control></control>')
+ """Real model percentage; needs-you is the only red badge. No looping arc."""
+ active='!String.IsEmpty(Window(Home).Property(Notices.Active))'
+ pct='Window(Home).Property(Notices.Pct)'
+ # Board 6: the ring sits on a grey track (#3A3A3C) while something moves.
+ rings=image(-10,-10,128,128,MEDIA+'ring_20.png','FF3A3A3C','<visible>'+active+'</visible>')
+ for n in range(21):
+  cond=active+' + !Integer.IsGreater(%s,%d)'%(pct,n*5+2)
+  if n:cond+=' + Integer.IsGreater(%s,%d)'%(pct,n*5-3)
+  rings+=image(-10,-10,128,128,MEDIA+'ring_%02d.png'%n,'$INFO[Window(Home).Property(Notices.Tint)]','<visible>'+cond+'</visible>')
+ needs='!String.IsEmpty(Window(Home).Property(Notices.Needs))'
+ badge=''
+ # Build 194: the blue count only when something runs, there is a count and nothing needs the owner (the old
+ # condition read "!!String.IsEmpty(...)" and drew an empty blue badge while slowed).
+ count='!String.IsEmpty(Window(Home).Property(Notices.Count))'
+ for key,tint,cond in (('Count','FF0A84FF',active+' + '+count+' + String.IsEmpty(Window(Home).Property(Notices.Needs))'),('Needs','FFFF453A',needs)):
+  badge+='<control type="group"><left>70</left><top>-6</top><visible>'+cond+'</visible>'+image(0,0,50,50,MEDIA+'dot.png',tint)+label(0,0,50,50,'$INFO[Window(Home).Property(Notices.%s)]'%key,'p_cap',WHITE,'center','<scroll>false</scroll>')+'</control>'
+ # The invisible hit target is 118, while the visible bell remains 24 pt.
+ return '<control type="group"><left>%d</left><top>%d</top>'%(x,y)+rings+icon(23,23,62,'bell.png')+'<control type="button" id="9207"><left>-5</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><onclick>'+NOTICES+'</onclick>'+extra+'</control>'+badge+'</control>'
+
 
 def gear(x,y,extra=''):
  """Gear in place of the profile picture: opens Settings (Accounts is its first row). A dot while add-on updates wait."""
@@ -852,13 +883,13 @@ def show_header(ids_down):
  play_visible='Container.Content(seasons) | [Container.Content(episodes) + '+DOWNLOADED_SHOW+']'
  play_button=pill_button(9002,SIDE,0,WIDTH-2*SIDE,124,'$VAR[Portrait_Show_Play_Label]',play,'primary',MEDIA+'play.png',
   '<visible>%s</visible><onup>9001</onup><ondown condition="%s">52</ondown><ondown condition="%s">50</ondown><ondown condition="%s">9003</ondown>'%(
-   play_visible,'Container.Content(episodes)','['+DOWNLOADED_SHOW+' | !System.HasAddon(plugin.video.elementum)] + Container.Content(seasons)','!'+DOWNLOADED_SHOW+' + Container.Content(seasons) + System.HasAddon(plugin.video.elementum)'),glyph_x=(WIDTH-2*SIDE)//2-230)
+   play_visible,'Container.Content(episodes)','['+DOWNLOADED_SHOW+' | !System.HasAddon(plugin.video.elementum)] + Container.Content(seasons)','!'+DOWNLOADED_SHOW+' + Container.Content(seasons) + System.HasAddon(plugin.video.elementum)'),inline=True)
  header+='<control type="group"><width>%d</width><height>144</height><visible>%s</visible>%s</control>'%(WIDTH,play_visible,play_button)
  download_visible='Container.Content(seasons) + !'+DOWNLOADED_SHOW+' + System.HasAddon(plugin.video.elementum)'
  header+='<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>%s</control>'%(WIDTH,DL_SHIFT,download_visible,
-  pill_button(9003,SIDE,0,WIDTH-2*SIDE,DL_H,'Download  $INFO[Container(50).ListItem.Label]',[('',DOWNLOAD_SEASON)],'glass',ICONS+'download.png',
-              '<visible>%s</visible><onup>9002</onup><ondown>50</ondown>'%download_visible,glyph_x=(WIDTH-2*SIDE)//2-300))
- header+='<control type="group"><width>%d</width><height>170</height><control type="textbox"><left>%d</left><top>0</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>$VAR[Portrait_Show_Plot]</label><autoscroll>false</autoscroll></control></control>'%(WIDTH,SIDE,WIDTH-2*SIDE,GREY)
+  pill_button(9003,SIDE,0,WIDTH-2*SIDE,DL_H,'Download $VAR[Portrait_Season_Short]',[('',DOWNLOAD_SEASON)],'glass',ICONS+'download.png',
+              '<visible>%s</visible><onup>9002</onup><ondown>50</ondown>'%download_visible,inline=True))
+ header+='<control type="group"><width>%d</width><height>160</height><control type="textbox"><left>%d</left><top>0</top><width>%d</width><height>132</height><font>p_foot</font><textcolor>%s</textcolor><label>$VAR[Portrait_Show_Plot]</label><autoscroll>false</autoscroll></control></control>'%(WIDTH,SIDE,WIDTH-2*SIDE,GREY)
  return header
 
 def episode_item(focused):
@@ -868,13 +899,13 @@ def episode_item(focused):
   image(SIDE,18,thumb_w,thumb_h,'$VAR[Portrait_Thumb]',WHITE,'','>scale',MEDIA+'thumb_mask.png',background=True)+
   image(SIDE+thumb_w//2-48,18+thumb_h//2-48,96,96,MEDIA+'glass_96.png')+icon(SIDE+thumb_w//2-18,18+thumb_h//2-20,40,MEDIA+'play.png')+
   episode_badges(SIDE,18,thumb_w,thumb_h)+
-  label(SIDE+thumb_w+30,40,WIDTH-2*SIDE-thumb_w-30,110,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_h3',WHITE,'left','<wrapmultiline>true</wrapmultiline>')+
-  label(SIDE+thumb_w+30,154,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]','p_cap',GREY)+
-  label(SIDE,thumb_h+40,WIDTH-2*SIDE,56,'$INFO[ListItem.Plot]','p_cap',GREY,'left','<scroll>false</scroll>')+'</control>')
+  textbox(SIDE+thumb_w+30,30,WIDTH-2*SIDE-thumb_w-30,116,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_h3',WHITE)+
+  label(SIDE+thumb_w+30,160,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]','p_cap',GREY)+
+  textbox(SIDE,thumb_h+36,WIDTH-2*SIDE,84,'$INFO[ListItem.Plot]','p_cap',GREY)+'</control>')
 
 def video_nav(original):
  chip=lambda on:('<control type="group"><visible>String.IsEqual(ListItem.DBType,season)</visible>'+surface(0,8,250,96,'pill_96.png' if on else 'glass_96.png',WHITE,48)+
-  label(0,8,250,96,'$INFO[ListItem.Label]','p_foot_b','FF000000' if on else WHITE,'center')+'</control>')
+  label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b','FF000000' if on else WHITE,'center')+'</control>')
  chips=('<control type="list" id="50"><left>%d</left><top>%d</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
   '<ondown>60</ondown><onup condition="%s">9002</onup><onup condition="%s">9003</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'
   '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout></control>')%(SIDE,0,WIDTH-SIDE,'['+DOWNLOADED_SHOW+' | !System.HasAddon(plugin.video.elementum)]','!'+DOWNLOADED_SHOW+' + System.HasAddon(plugin.video.elementum)',chip(False),chip(True))
@@ -904,8 +935,28 @@ def video_nav(original):
   '%s%s%s%s</control>')%(WIDTH,HEIGHT,show_header('50'),chips,
   episodes%(60,0,WIDTH,HEIGHT,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>'),
   episodes%(52,0,WIDTH,HEIGHT,'9002','Container.Content(episodes)',episode_item(False),episode_item(True),''))
- body=('<controls>'+backdrop()+show_page+generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+back+plain_title+refresh+'</controls>')
+ # Owner (build 229): "If i scroll down after i select a season the season selecter disappears". Once the page has
+ # scrolled, the same seasons (the folder's own listing, cached by the add-on) stay pinned under the Back button. A tap
+ # selects that season in the page's own row (SetFocus absolute takes a 0-based index; CurrentItem is 1-based).
+ pinned_visible='Container.Content(seasons) + Container(9900).HasPrevious'
+ pinned=('<control type="group"><visible>%s</visible>'%pinned_visible+
+  '<animation effect="fade" start="0" end="100" time="180">Visible</animation><animation effect="fade" start="100" end="0" time="120">Hidden</animation>'+
+  image(0,0,WIDTH,300,MEDIA+'white.png','FF000000')+image(0,300,WIDTH,60,MEDIA+'fade_down.png')+
+  ('<control type="list" id="49"><left>%d</left><top>170</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
+   '<onup>9001</onup><ondown>60</ondown><scrolltime tween="cubic">250</scrolltime>'
+   '<onclick>SetFocus(50,$INFO[Container(49).CurrentItem],absolute)</onclick><onclick>Control.Move(50,-1)</onclick>'
+   '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout>'
+   '<content>$INFO[Container.FolderPath]</content></control>')%(SIDE,WIDTH-SIDE,pinned_chip(False),pinned_chip(True))+'</control>')
+ body=('<controls>'+backdrop()+show_page+generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+pinned+back+plain_title+refresh+'</controls>')
  return window(original,body,'50','<views>50,51,52,53</views>')
+
+def pinned_chip(focused):
+ """A season in the pinned row: white when it is the season the page shows (the row on the page decides)."""
+ on='String.IsEqual(ListItem.Label,Container(50).ListItem.Label)'
+ return ('<control type="group"><visible>String.IsEqual(ListItem.DBType,season)</visible>'+
+  surface(0,8,250,96,'pill_96.png',WHITE,48,'<visible>%s</visible>'%on)+surface(0,8,250,96,'glass_96.png',WHITE,48,'<visible>!%s</visible>'%on)+
+  label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b','FF000000','center','<visible>%s</visible>'%on)+
+  label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b',WHITE,'center','<visible>!%s</visible>'%on)+'</control>')
 
 GRID='Container.Content(movies) | Container.Content(tvshows)'
 GRID_LARGE='String.IsEqual(Skin.String(Portrait.Grid),large)'   # Settings › Customisation › View Types
@@ -942,7 +993,10 @@ SHOW_VARS=('<variable name="Portrait_Show_Art"><value condition="!String.IsEmpty
 # Downloaded pages keep show metadata stable while an episode card is focused.
 SHOW_VARS+=''.join('<variable name="Portrait_Show_%s"><value condition="%s + !String.IsEmpty(Container.Property(KodiIOS.Show%s))">$INFO[Container.Property(KodiIOS.Show%s)]</value><value>$INFO[ListItem.%s]</value></variable>'%
  (name,DOWNLOADED_SHOW,name,name,label) for name,label in (('Plot','Plot'),('Year','Year'),('Rating','Rating'),('Genres','Genre')))
-SHOW_VARS+='<variable name="Portrait_Show_Play_Label"><value condition="%s + Container.Content(seasons) + !String.IsEmpty(Container(50).ListItem.Property(KodiIOS.PlayLabel))">$INFO[Container(50).ListItem.Property(KodiIOS.PlayLabel)]</value><value condition="%s">$INFO[Container.Property(KodiIOS.PlayLabel)]</value><value>Play $INFO[Container(50).ListItem.Label]</value></variable>'%(DOWNLOADED_SHOW,DOWNLOADED_SHOW)
+SHOW_VARS+='<variable name="Portrait_Show_Play_Label"><value condition="%s + Container.Content(seasons) + !String.IsEmpty(Container(50).ListItem.Property(KodiIOS.PlayLabel))">$INFO[Container(50).ListItem.Property(KodiIOS.PlayLabel)]</value><value condition="%s">$INFO[Container.Property(KodiIOS.PlayLabel)]</value><value>Play $VAR[Portrait_Season_Short]</value></variable>'%(DOWNLOADED_SHOW,DOWNLOADED_SHOW)
+SHOW_VARS+='<variable name="Portrait_Chip_Label"><value condition="String.IsEqual(ListItem.Season,0)">Specials</value><value condition="!String.IsEmpty(ListItem.Season)">Season $INFO[ListItem.Season]</value><value>$INFO[ListItem.Label]</value></variable>'
+# "Season 4" (or Specials), not the season's long name, on the Play and Download buttons (owner, build 229).
+SHOW_VARS+='<variable name="Portrait_Season_Short"><value condition="String.IsEqual(Container(50).ListItem.Season,0)">Specials</value><value condition="!String.IsEmpty(Container(50).ListItem.Season)">Season $INFO[Container(50).ListItem.Season]</value><value>$INFO[Container(50).ListItem.Label]</value></variable>'
 
 # Settings › Customisation › Info Page: rows under the plot, from TMDb Helper, each behind Fuse's own switch
 # (settings_page.INFO). (key, title, TMDb Helper info, setting, only for, landscape thumbnails)
@@ -1028,10 +1082,22 @@ def select_dialog(original):
   '<control type="group"><visible>!%s</visible>%s</control>'%(titled,label(40,24,w-80,130,'$INFO[Control.GetLabel(1)]','p_h3',WHITE,'center','<wrapmultiline>true</wrapmultiline>'))+
   '<control type="label" id="1"><visible>false</visible></control>')
  icon_row='!String.IsEmpty(ListItem.Icon) + !String.StartsWith(ListItem.Icon,Default) + String.IsEmpty(ListItem.Art(poster))'
+ # Owner-approved pickers (docs/design/settings-pages-mockups.html boards 13-14): a choice may carry a second line
+ # (ListItem.Label2: "5 versions · from 18 GB") and a coloured tile (properties tint and glyph, as in the More menu).
+ tile='!String.IsEmpty(ListItem.Property(tint))';two='!String.IsEmpty(ListItem.Label2)'
  item=lambda focused:(image(0,0,w,2,MEDIA+'white.png',SEP)+(image(0,2,w,row_h-2,MEDIA+'white.png','14FFFFFF') if focused else '')+
-  icon(40,(row_h-72)//2,72,'$INFO[ListItem.Icon]',WHITE,'<visible>%s</visible>'%icon_row)+
-  label(40,0,w-80,row_h,'$INFO[ListItem.Label]','p_sub',WHITE,'center','<wrapmultiline>true</wrapmultiline><scroll>false</scroll><visible>![%s]</visible>'%icon_row)+
-  label(140,0,w-200,row_h,'$INFO[ListItem.Label]','p_body',WHITE,'left','<visible>%s</visible>'%icon_row)+
+  icon(40,(row_h-72)//2,72,'$INFO[ListItem.Icon]',WHITE,'<visible>%s + !%s</visible>'%(icon_row,tile))+
+  label(40,0,w-80,row_h,'$INFO[ListItem.Label]','p_sub',WHITE,'center','<wrapmultiline>true</wrapmultiline><scroll>false</scroll><visible>![%s] + !%s + !%s</visible>'%(icon_row,tile,two))+
+  label(140,0,w-200,row_h,'$INFO[ListItem.Label]','p_body',WHITE,'left','<visible>%s + !%s + !%s</visible>'%(icon_row,tile,two))+
+  # a tile: 80 square in the choice's colour with its glyph, text beside it
+  image(40,(row_h-80)//2,80,80,MEDIA+'tile_mask.png','$INFO[ListItem.Property(tint)]','<visible>%s</visible>'%tile)+
+  icon(40+18,(row_h-44)//2,44,'$INFO[ListItem.Property(glyph)]',WHITE,'<visible>%s</visible>'%tile)+
+  label(150,10,w-260,70,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>%s + %s</visible>'%(tile,two))+
+  label(150,0,w-260,row_h,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>%s + !%s</visible>'%(tile,two))+
+  label(150,72,w-260,48,'$INFO[ListItem.Label2]','p_foot',GREY,'left','<scroll>false</scroll><visible>%s + %s</visible>'%(tile,two))+
+  # two lines, no tile: left-aligned name over its detail
+  label(40,10,w-130,70,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>!%s + %s</visible>'%(tile,two))+
+  label(40,72,w-130,48,'$INFO[ListItem.Label2]','p_foot',GREY,'left','<scroll>false</scroll><visible>!%s + %s</visible>'%(tile,two))+
   icon(w-86,(row_h-40)//2,40,'check.png',GREEN,'<visible>ListItem.IsSelected</visible>'))
  lists=''.join(('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><onup>%d</onup><ondown>9050</ondown>'
   '<scrolltime tween="cubic">250</scrolltime><itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout>%s</control>'
@@ -1090,6 +1156,10 @@ def context_menu(original):
  x=60;card_w=WIDTH-2*x;pad=20;art_h=(card_w-2*pad)*9//16;card_h=pad+art_h+136;top=110;menu_w=780;row_h=120;cap=30
  menu_top=top+card_h+30
  no_art='String.IsEmpty(ListItem.Art(fanart)) + String.IsEmpty(ListItem.Art(landscape)) + String.IsEmpty(ListItem.Art(thumb)) + String.IsEmpty(Window(Home).Property(Portrait.Item.Art))'
+ # Owner (build 229): tapping Dragon Ball in Continue Watching asked "Resume from 00:11:53" under The Awakening's card:
+ # Kodi's resume prompt is this window too, and the focused item (the spotlight) is not what is being played. The
+ # resume prompt (second row "Play from beginning", Kodi string 12021) never shows the card.
+ no_art='[%s] | String.IsEqual(Control.GetLabel(1002),$LOCALIZE[12021])'%no_art
  card=('<control type="group"><left>%d</left><top>%d</top><visible>![%s] + !Control.IsVisible(%d)</visible>'%(x,top,no_art,1001+(HEIGHT-(top+card_h+30)-60-2*cap)//row_h)+
   '<animation effect="zoom" start="94" end="100" center="auto" time="240" tween="back" easing="out">WindowOpen</animation>'+
   surface(0,0,card_w,card_h,'glass_card.png',WHITE,44)+
@@ -1168,73 +1238,9 @@ def deck_page(original=''):
 NOTICE_SLOTS=4;NOTICE_ROWS=15
 NOTICE_FILTERS=(('all','All'),('general','General'),('downloads','Downloads'),('problems','Problems'))   # buttons 9101-9104, notifications.FILTER_KEYS
 def notices_page():
- """Notification center (owner-approved mockup): live downloads with progress bars, the Google Drive upload,
- then earlier messages. notifications.py fills it through window properties and the progress controls."""
- P=lambda name:'$INFO[Window().Property(%s)]'%name
- has=lambda name:'!String.IsEmpty(Window().Property(%s))'%name
- w=WIDTH-2*SIDE
- def section(text,cond,extra=''):
-  return ('<control type="group"><width>%d</width><height>96</height><visible>%s</visible>'%(WIDTH,cond)+
-   label(SIDE,30,w-260,60,text,'p_foot_b',GREY)+(label(SIDE+w-240,30,240,60,extra,'p_foot',GREY,'right') if extra else '')+'</control>')
- def card(n):
-  h=350;pre='dl.%d.'%n   # Pause/Cancel are 124 high (46 pt): touch areas of at least 44 pt (APPLE-UI-POLICY 4.5)
-  return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(WIDTH,h+24,has(pre+'title'))+
-   surface(SIDE-6,0,w+12,h,'round.png',SURFACE,32)+
-   # Owner: tapping a transfer card opens the Transfers page (speed graph); Pause/Cancel are drawn on top of this.
-   '<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus /></control>'%(9435+n,SIDE-6,w+12,h)+
-   surface(SIDE+24,26,130,196,'round_s.png','FF3A3A3C',20)+icon(SIDE+59,94,60,'download.png',GREY,'<visible>!%s</visible>'%has(pre+'poster'))+
-   image(SIDE+24,26,130,196,P(pre+'poster'),extra='<aspectratio>scale</aspectratio><visible>%s</visible>'%has(pre+'poster'))+
-   label(SIDE+184,22,w-210,64,P(pre+'title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
-   '<control type="progress" id="%d"><left>%d</left><top>110</top><width>%d</width><height>14</height>'
-   '<texturebg border="7" colordiffuse="52787880">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="FF0A84FF">%sdot.png</midtexture><righttexture /></control>'%(9400+n,SIDE+184,w-210,MEDIA,MEDIA)+
-   label(SIDE+184,136,w-210,48,P(pre+'line')+'$INFO[Window().Property(%sspeed),  ·  ,]'%pre,'p_cap',GREY)+
-   pill_button(9410+n,SIDE+184,202,240,124,P(pre+'pausetext'),[('','noop')],'glass')+
-   pill_button(9420+n,SIDE+184+260,202,240,124,'[COLOR FFFF453A]Cancel[/COLOR]',[('','noop')],'glass')+'</control>')
- def transfer(pre,progress_id,glyph,tint,tile):
-  """Upload/preparation card: title, summary, bar, status. One label per line, each truncating (ISSUE-101)."""
-  return ('<control type="group"><width>%d</width><height>244</height><visible>%s</visible>'%(WIDTH,has(pre+'title'))+
-   surface(SIDE-6,0,w+12,220,'round.png',SURFACE,32)+
-   '<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>220</height><label></label><texturefocus colordiffuse="14FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>'%(progress_id+2,SIDE-6,w+12,MEDIA)+
-   surface(SIDE+24,26,130,168,'round_s.png',tile,20)+icon(SIDE+59,80,60,glyph,tint,'<visible>![%s] + ![%s]</visible>'%(has(pre+'indeterminate'),has(pre+'poster')))+
-   image(SIDE+59,80,60,60,MEDIA+'ring_06.png',tint,'<visible>%s</visible><animation effect="rotate" end="-360" center="auto" time="1100" loop="true" condition="true">Conditional</animation>'%has(pre+'indeterminate'))+
-   image(SIDE+24,26,130,168,P(pre+'poster'),extra='<aspectratio>scale</aspectratio><visible>%s</visible>'%has(pre+'poster'))+
-   label(SIDE+184,20,w-210,60,P(pre+'title'),'p_h3',WHITE,'left','<scroll>false</scroll>')+
-   label(SIDE+184,80,w-210,46,P(pre+'summary'),'p_cap',GREY)+
-   '<control type="progress" id="%d"><left>%d</left><top>134</top><width>%d</width><height>14</height>'
-   '<texturebg border="7" colordiffuse="52787880">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="%s">%sdot.png</midtexture><righttexture /></control>'%(progress_id,SIDE+184,w-210,MEDIA,tint,MEDIA)+
-   label(SIDE+184,158,w-210,46,P(pre+'line'),'p_cap',GREY)+'</control>')
- def row(n):
-  pre='msg.%d.'%n;h=170
-  return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(WIDTH,h+14,has(pre+'title'))+
-   surface(SIDE-6,0,w+12,h,'round_s.png',SURFACE,20)+
-   '<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>%d</height><texturefocus colordiffuse="14FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>'%(9500+n,SIDE-6,w+12,h,MEDIA)+
-   image(SIDE+8,h//2-8,16,16,MEDIA+'dot.png','FF0A84FF','<visible>%s</visible>'%has(pre+'unread'))+
-   surface(SIDE+36,30,86,86,'round_s.png',P(pre+'tint'),20)+icon(SIDE+56,50,46,ICONS+P(pre+'icon'),WHITE)+
-   label(SIDE+150,22,w-300,58,P(pre+'title'),'p_foot_b',WHITE,'left','<scroll>false</scroll>')+
-   label(SIDE+150,80,w-190,70,P(pre+'text'),'p_cap',GREY,'left','<wrapmultiline>true</wrapmultiline>')+
-   label(SIDE+w-140,22,120,58,P(pre+'ago'),'p_cap',GREY,'right')+'</control>')
- filters=''.join('<control type="group"><left>%d</left><top>0</top>'%(i*w//len(NOTICE_FILTERS))+
-   image(4,4,w//len(NOTICE_FILTERS)-8,80,MEDIA+'pill_96.png','FF636366','<visible>String.IsEqual(Window().Property(filter),%s)</visible>'%key,border=40)+
-   '<control type="button" id="%d"><top>-15</top><width>%d</width><height>118</height><label>%s</label><font>p_foot_b</font><textoffsetx>0</textoffsetx><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
-   '<align>center</align><aligny>center</aligny><texturefocus /><texturenofocus /></control></control>'%(9101+i,w//len(NOTICE_FILTERS),text,GREY,WHITE)
-   for i,(key,text) in enumerate(NOTICE_FILTERS))
- body=('<controls>'+backdrop()+
-  nav_button(9001,SIDE,36,'chevron-left.png','Close','<ondown>9101</ondown>')+
-  '<control type="button" id="9002"><left>%d</left><top>31</top><width>260</width><height>118</height><label>Clear All</label><font>p_body</font>'
-  '<textcolor>%s</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>right</align><aligny>center</aligny><texturefocus /><texturenofocus /></control>'%(WIDTH-SIDE-260,ACCENT)+
-  label(SIDE,160,w,110,'Notifications','p_large')+
-  '<control type="group"><left>%d</left><top>290</top>'%SIDE+surface(0,0,w,88,'pill_96.png',SURFACE,44)+filters+'</control>'+
-  '<control type="grouplist" id="9300"><left>0</left><top>400</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%WIDTH+
-  section('Downloading',has('has.dl'),P('dl.summary'))+''.join(card(n) for n in range(1,NOTICE_SLOTS+1))+
-  section('Uploading to Google Drive',has('has.up'))+transfer('up.',9430,'cloud-arrow-up.png',GREEN,'FF1F3D2B')+
-  section('Preparing for Kodi and AirPlay',has('has.prepare'))+
-  transfer('prepare.',9431,'cloud-arrow-up.png',GREEN,'FF1F3D2B')+
-  section('Earlier',has('has.msg'))+''.join(row(n) for n in range(1,NOTICE_ROWS+1))+
-  '<control type="group"><width>%d</width><height>300</height><visible>%s</visible>'%(WIDTH,has('empty'))+
-  label(SIDE,80,w,80,"You're all caught up",'p_h3',GREY,'center')+'</control>'+
-  '<control type="image"><height>200</height><texture /></control></control></controls>')
- return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9101</defaultcontrol>'
-         '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(MARKER,body)
+ import notifications_skin
+ return notifications_skin.page(type('PortraitTokens',(),globals()))
+
 
 def shrink(data,name=''):
  root=ET.fromstring(data)
@@ -1396,7 +1402,39 @@ def portrait_files(skin,profile):
  # Fuse's info over the video, clear of the Dynamic Island on either side (player_osd.safe_inset).
  for name in player_osd.INSET:
   if read(name):files['1080i/'+name]=player_osd.safe_inset(read(name),name in player_osd.HIDE_UNDER_OSD).encode()
+ # Build 206: "Buffering 45%" over the video while Kodi fills its buffer.
+ files['1080i/'+player_osd.BUFFER_WINDOW]=player_osd.buffering_window().encode()
  return files
+
+def row_files(skin,profile):
+ """Only the files the widget lists feed: the hubs (Home, Movies, TV) and their row variables, exactly as
+ portrait_files makes them (scripts/test_customisation.py compares the two)."""
+ import types
+ row_variables={};files={}
+ for name,data in hub_files(skin,profile,row_variables).items():files[FOLDER+'/'+name]=data
+ files[FOLDER+'/Includes.xml']=includes(row_variables)
+ files['1080i/'+LANDSCAPE_VARS]=landscape_variables(row_variables)
+ ns=types.SimpleNamespace(**globals())
+ for rel in list(files):
+  if rel.startswith(FOLDER+'/'):files[rel]=activity_skin.inject(ns,rel[len(FOLDER)+1:],files[rel])
+ return files
+
+def refresh_rows(xbmc,invoke,skin,profile):
+ """After Settings › Customisation › Tabs & Rows (owner, build 204: "ensure its quick"): the full refresh redrew every
+ texture in Python (about 4.7 s in the desktop rig before Home showed the change); a row change only rewrites the
+ hub files. The start-up marker is brought up to date so the next start does not rebuild everything."""
+ import time
+ started=time.monotonic()
+ changed=write(skin,row_files(skin,profile))
+ for folder in sorted({c.split('/')[0] for c in changed if '/' in c}):refresh_listing(skin,folder)
+ try:
+  marker=Path(profile)/INPUTS;marker.parent.mkdir(parents=True,exist_ok=True)
+  marker.write_text(json.dumps({'inputs':fingerprint(skin,profile)})+'\n')
+ except OSError:pass
+ reload=bool(changed) and needs_reload(changed,xbmc.getCondVisibility)
+ if reload and is_portrait(xbmc.getInfoLabel):invoke('ReloadSkin()')
+ xbmc.log('Kodi iOS rows: %d hub files updated%s (%.3fs)'%(len(changed),'; skin reloaded' if reload else '',time.monotonic()-started),xbmc.LOGINFO)
+ return changed
 
 SPLASH=('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: Fuse startup splash, never shown -->\n'
         '<window type="dialog" id="1198"><visible>false</visible><controls /></window>\n'%MARKER).encode()
@@ -1447,14 +1485,14 @@ def refresh(skin,profile):
 
 # Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
 # inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','IOSPlayOnTV.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + activity_skin.py, pages.BUSY, player_osd.INSET
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','Custom_1156_Buffering.xml','IOSPlayOnTV.xml','IOSTrackMenu.xml','IOSAirPlayFlow.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + activity_skin.py, pages.BUSY, player_osd.INSET
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__),Path(rows_page.__file__)):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py')):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())
@@ -1530,14 +1568,32 @@ def first_feed_publisher(info,log,clock,timeout=60,started=None):
   finished=not pending
  return tick
 
-def progress_tracker(player,continue_module,read,write,clock,every=10):
+def progress_tracker(player,continue_module,read,write,clock,every=10,external=lambda:{}):
  """Continue Watching: save the position of what the chooser started, and drop it once finished."""
- state={'playing':False,'saved':float('-inf'),'position':0,'total':0}
+ state={'playing':False,'saved':float('-inf'),'position':0,'total':0,'started':0,'seed':0,'remote':False,'handoff':False}
  def tick():
   try:
-   if player.isPlayingVideo():
-    state.update(playing=True,position=player.getTime(),total=player.getTotalTime())
-    if clock()-state['saved']>=every:continue_module.update(read,write,state['position'],state['total']);state['saved']=clock()
+   try:remote=external() or {}
+   except Exception:remote={}
+   on_tv=bool(remote.get('active') and remote.get('state')==1 and remote.get('sample_age_s',0)<=15)
+   if on_tv or player.isPlayingVideo():
+    now=clock()
+    if not state['playing']:
+     state.update(playing=True,started=now,seed=0)
+     try:
+      data=continue_module.load(read);entry=data.get('items',{}).get(data.get('current')) or {}
+      state.update(seed=float(entry.get('position') or 0),position=float(entry.get('position') or 0),total=float(entry.get('total') or 0))
+     except (AttributeError,ValueError,TypeError):pass
+    position,total=(remote.get('position',0),remote.get('duration',0)) if on_tv else (player.getTime(),player.getTotalTime())
+    if state['remote'] and not on_tv:state.update(seed=state['position'],started=now,handoff=True)
+    state['remote']=on_tv
+    if state['handoff'] and not on_tv:
+     if abs(position-state['seed'])>10 and now-state['started']<20:return
+     state['handoff']=False
+    # Opening/initial seek can briefly report zero. Do not erase a real resume point during that interval.
+    if state['seed']>=10 and position<10 and now-state['started']<20:return
+    state.update(position=position,total=total)
+    if now-state['saved']>=every:continue_module.update(read,write,state['position'],state['total']);state['saved']=now
    elif state['playing']:
     state['playing']=False;continue_module.update(read,write,state['position'],state['total']);continue_module.stopped(read,write)
   except Exception as error:_quiet('portrait:1179',error)
@@ -1650,7 +1706,9 @@ def refresh_skin(xbmc,invoke,skin,profile):
  # wait-for-widgets loop (its script ran again every half second for up to a minute while rows loaded).
  for setting,on in (('Startup.EnableHubPreloading',False),('Startup.DisableWaitForLoad',True)):
   if bool(xbmc.getCondVisibility('Skin.HasSetting(%s)'%setting))!=on:invoke(('Skin.SetBool(%s)' if on else 'Skin.Reset(%s)')%setting)
- if changed:refresh_listing(skin)
+ # Build 200: IOSAirPlayFlow.xml (1080i) was written after Kodi listed 1080i, so the Play on TV card was "missing" and
+ # Kodi's plain dialogs showed instead. Re-list every folder a file was written to, not only portrait.
+ for folder in sorted({c.split('/')[0] for c in changed if '/' in c} or ({FOLDER} if changed else set())):refresh_listing(skin,folder)
  reload=bool(changed) and needs_reload(changed,xbmc.getCondVisibility)
  listed=(' ('+', '.join(c for c in changed if not c.startswith('extras/'))[:300]+')') if changed else ''
  xbmc.log('Kodi iOS portrait files checked in %s: %d updated%s%s (%.3fs)'%(skin,len(changed),listed,
@@ -1660,8 +1718,22 @@ def refresh_skin(xbmc,invoke,skin,profile):
   # Once: no ".." rows, so a show page opens on its first season (the owner can turn it back on in Settings).
   xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Settings.SetSettingValue','params':{'setting':'filelists.showparentdiritems','value':False}}))
   marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(json.dumps({'revision':REVISION})+'\n')
+ tune_cache(xbmc,profile)
  if reload and is_portrait(xbmc.getInfoLabel):invoke('ReloadSkin()')
  return changed
+
+# Build 206 (owner, build 205: seeking an Umbrella episode "nearly broke the app ... I need fluid seeking"): Kodi read
+# ahead 20 MB of a stream at up to 4x its bitrate; after a seek that refill is the wait. 96 MB (Kodi keeps about three
+# times this in RAM) at up to 10x refills a seek far sooner. Set once, so the owner can still change them in Kodi.
+CACHE={'filecache.memorysize':96,'filecache.readfactor':1000}
+CACHE_MARKER='addon_data/service.kodi.ios.bootstrap/cache-206.json'
+def tune_cache(xbmc,profile):
+ marker=Path(profile)/CACHE_MARKER
+ if marker.exists():return False
+ for setting,value in CACHE.items():
+  xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Settings.SetSettingValue','params':{'setting':setting,'value':value}}))
+ marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(json.dumps(CACHE)+'\n')
+ return True
 
 def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',ready=None,native_ui_started=False):
  """Started by the bootstrap service as soon as it starts. The tab bar, Continue Watching and the focused-item details
@@ -1700,7 +1772,10 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
    xbmcvfs.mkdirs(path.rsplit('/',1)[0]);f=xbmcvfs.File(path,'w')
    try:f.write(text)
    finally:f.close()
-  tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic)
+  import airplay
+  try:native_player=airplay.cached_load(airplay.library_path(xbmcvfs.translatePath('special://xbmc/')))
+  except Exception:native_player=None
+  tick=progress_tracker(xbmc.Player(),module,read,write,time.monotonic,external=lambda:airplay.health(native_player))
  except Exception as error:xbmc.log('Kodi iOS continue watching unavailable: '+type(error).__name__,xbmc.LOGWARNING)
  # Listing cache: check the row flags against the copies now, then fill and refresh copies in the background.
  try:

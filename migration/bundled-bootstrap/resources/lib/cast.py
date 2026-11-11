@@ -3,7 +3,7 @@ smart TVs (AVTransport), and Chromecast / Google TV (Cast protocol, Default Medi
 link itself, so the phone can sleep or switch apps. A link served by the phone (Elementum's local engine) is
 rewritten to the phone's Wi-Fi address and only plays while Kodi keeps running. AirPlay goes through Apple's
 player in KodiAirPlay.framework (see airplay.py)."""
-import concurrent.futures,json,re,socket,ssl,struct,time,urllib.error,urllib.parse,urllib.request
+import concurrent.futures,contextlib,json,os,re,socket,ssl,struct,time,urllib.error,urllib.parse,urllib.request
 from xml.sax.saxutils import escape
 PORT=8060
 LOCAL={'127.0.0.1','localhost','::1','0.0.0.0'}
@@ -40,6 +40,20 @@ def launch_url(roku,url,title='',command='input'):
  if ext:query['videoFormat']=ext.group(1)
  return 'http://%s:%d/%s/15985?%s'%(roku,PORT,command,urllib.parse.urlencode(query,quote_via=urllib.parse.quote))
 
+# r40 (owner, build 203: "work on any tv thats connected to the same wifi"): Roku locked "Play on Roku" (15985) in Roku
+# OS 11.5 (home-assistant/core#83819: it opens and exits at once). The free "Media Assistant" channel
+# (MedievalApple/Media-Assistant, Channel Store id 782875) took its place: /launch/782875 (or /input while it runs)
+# with u = the link, t = v (video), videoName, videoFormat (hls / mp4 / mkv; empty: Roku guesses).
+MEDIA_ASSISTANT='782875'
+
+def assistant_url(roku,url,title='',command='launch'):
+ path=urllib.parse.urlsplit(url).path.lower()
+ fmt='hls' if path.endswith('.m3u8') else (re.search(r'\.([a-z0-9]{2,4})$',path) or [None,''])[1]
+ query={'u':url,'t':'v','videoName':title or 'Kodi'}
+ if fmt:query['videoFormat']=fmt
+ where='launch/'+MEDIA_ASSISTANT if command=='launch' else 'input'
+ return 'http://%s:%d/%s?%s'%(roku,PORT,where,urllib.parse.urlencode(query,quote_via=urllib.parse.quote))
+
 class TVRefused(Exception):
  """The TV answered but would not play; str() is what to tell the owner."""
 
@@ -49,16 +63,18 @@ def roku_reason(errors):
   return ('The Roku refused the request (403). On the Roku: Settings › System › Advanced system settings › '
           'Control by mobile apps › Network access: Permissive, then try again.')
  if codes and all(c==404 for c in codes):
-  return ('This Roku has no "Play on Roku" receiver (404). If the TV has AirPlay (Settings › Apple AirPlay and '
-          'HomeKit), choose "Apple TV / AirPlay TV" instead.')
+  return ('This Roku has no player Play on TV can use (404). Add the free "Media Assistant" channel from the Roku '
+          'Channel Store, then try again. A Roku TV with AirPlay (Settings › Apple AirPlay and HomeKit) can also use '
+          '"Apple TV / AirPlay TV".')
  if not codes:return 'The Roku did not answer (%s). Make sure it is on and on this Wi-Fi.'%', '.join(sorted(set(map(str,errors))))
  return 'The Roku answered %s.'%', '.join(map(str,errors))
 
 def roku_play(host,url,title,post):
- """Hand the link to the Roku, trying both ways in. Returns the one it took; raises TVRefused with the reason."""
+ """Hand the link to the Roku: Media Assistant first (r40), then the old "Play on Roku" both ways in. Returns the way
+ it took ('media-assistant', 'input', 'launch'); raises TVRefused with the reason."""
  errors=[]
- for command in ('input','launch'):
-  try:post(launch_url(host,url,title,command));return command
+ for command,link in (('media-assistant',assistant_url(host,url,title)),('input',launch_url(host,url,title,'input')),('launch',launch_url(host,url,title,'launch'))):
+  try:post(link);return command
   except urllib.error.HTTPError as error:errors.append(error.code)
   except OSError as error:errors.append(type(error).__name__)
  raise TVRefused(roku_reason(errors))
@@ -90,6 +106,42 @@ def find_rokus(phone_ip,get,workers=64):
 
 def http_get(url,timeout):
  with urllib.request.urlopen(url,timeout=timeout) as r:return r.read()
+
+def roku_player(host,get):
+ """Optional ECP feedback. Return only playback fields; exclude URLs, serials and account identifiers."""
+ try:
+  from xml.etree import ElementTree
+  data=get('http://%s:%d/query/media-player'%(host,PORT),1)
+  if len(data)>32768:return {}
+  player=ElementTree.fromstring(data)
+  if player.tag!='player':return {}
+  if not player.get('state') and player.get('error','false').lower()!='true':return {}
+  plugin=player.find('plugin');fmt=player.find('format')
+  position=re.match(r'\s*(\d+)',player.findtext('position') or '')
+  out={'state':player.get('state','')[:40],'error':player.get('error','false').lower()=='true',
+       'player_id':plugin.get('id','')[:40] if plugin is not None else ''}
+  if position:out['position_ms']=int(position.group(1))
+  if fmt is not None:
+   out.update({key:fmt.get(key,'')[:80] for key in ('video','audio','video_res','captions')})
+  return out
+ except (OSError,ValueError,ElementTree.ParseError):return {}
+
+def roku_model(host,get):
+ """Safe capability evidence for the next device log; no serial, MAC, device name or account state."""
+ try:
+  from xml.etree import ElementTree
+  data=get('http://%s:%d/query/device-info'%(host,PORT),1)
+  if len(data)>32768:return {}
+  root=ElementTree.fromstring(data)
+  if root.tag!='device-info':return {}
+  return {key:(root.findtext(key) or '')[:80] for key in ('model-number','model-name','software-version','supports-4k','max-resolution')}
+ except (OSError,ValueError,ElementTree.ParseError):return {}
+
+def roku_needs_compatibility(model):
+ """Use explicit capability evidence only. Missing fields on older Roku versions mean unknown."""
+ support=str((model or {}).get('supports-4k','')).strip().lower()
+ maximum=str((model or {}).get('max-resolution','')).strip().lower()
+ return support in ('false','0','no') or maximum in ('720p','1080p','1920x1080','1280x720')
 
 def http_post(url,timeout=5):
  with urllib.request.urlopen(urllib.request.Request(url,data=b'',method='POST'),timeout=timeout) as r:return r.status
@@ -138,7 +190,44 @@ def player_problem(lines):
    return line.split(':',2)[-1].strip()[:120]
  return ''
 
+SLOW_MS=5000
+SLOW_PATTERNS=(r'source I/O (\d+) ms',)
+
+def slow_source(lines):
+ """Only measured upstream read time is source evidence. Lane waits, client disconnects, canceled requests
+ and socket response times cannot distinguish Drive from preparation or receiver/network delays."""
+ for line in lines or ():
+  if 'session stopped' in line or 'cancelled' in line or 'canceled' in line:continue
+  for pattern in SLOW_PATTERNS:
+   m=re.search(pattern,line)
+   if m and int(m.group(1))>=SLOW_MS:return True
+ return False
+
+def airplay_settle(state,wait,network=None,seconds=45):
+ """After 'playing': keep watching Apple's player for a while (r38: while Kodi polls, the native side leaves its
+ problems to Kodi's card instead of Apple's alert). 'failed' when it stops, else 'playing'."""
+ waited=0.0
+ while waited<seconds:
+  if network:network()
+  if state()<0:return 'failed'
+  if wait(0.5):return 'playing'
+  waited+=0.5
+ return 'playing'
+
 BUSY='KodiIOS.PlayOnTV'   # Home window property while Play on TV is starting (a second press waits for it)
+
+@contextlib.contextmanager
+def session_lock(profile):
+ """Kernel-owned lock across Kodi's separate script interpreters; a crashed script releases it too."""
+ import fcntl
+ folder=os.path.join(str(profile),'addon_data','service.kodi.ios.bootstrap')
+ os.makedirs(folder,exist_ok=True)
+ with open(os.path.join(folder,'play-on-tv.lock'),'a') as lock:
+  try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+  except BlockingIOError:yield False;return
+  try:yield True
+  finally:fcntl.flock(lock,fcntl.LOCK_UN)
+
 def busy(value,now,window=90):
  """Whether Play on TV is already starting: the property holds when it began (seconds)."""
  try:return now-float(value)<window
@@ -155,17 +244,73 @@ def retry_airplay(outcome,why):
  """Build 186: one more try when Apple's player gave up waiting for the first reads (a busy line), not otherwise."""
  return outcome=='failed' and 'timed out' in str(why or '').lower()
 
-def airplay_outcome(state,wait,timeout=25):
- """Poll Apple's player (state(): 1 has the stream, -1 failed, 0 not yet) for up to `timeout` seconds; wait(s)
- sleeps and returns True if Kodi is closing. Returns 'playing', 'failed' or 'aborted'."""
- waited=0.0
- while waited<timeout:
+AIRPLAY_STARTUP=60
+AIRPLAY_SELECTION=120
+AIRPLAY_CONNECT=15
+AIRPLAY_WORDS={'opening':'Opening the video for AirPlay…',
+               'waiting_tv':'Choose your TV in the AirPlay list…',
+               'connecting':'Connecting to the TV…'}
+
+PHASES=('opening','waiting_tv','connecting')
+
+def receiver_outcome(network,wait,timeout=60):
+ """A Roku launch acknowledgement is not playback. Wait for video delivery; playlists/audio alone do not count."""
+ elapsed=0.0
+ while elapsed<timeout:
+  began=time.monotonic()
+  net=network() or {}
+  if net.get('receiver_error'):return 'failed'
+  # Where ECP feedback is available, delivered bytes alone do not establish a decoded picture.
+  if net.get('tv_video',0)>0 and net.get('receiver_state') in (None,'play','playing'):return 'playing'
+  if net.get('phase') in ('failed','canceled'):return 'failed'
+  if elapsed>=AIRPLAY_CONNECT and not net.get('tv_requests',0):return 'unreachable'
+  elapsed+=max(0,time.monotonic()-began)
+  if wait(0.5):return 'aborted'
+  elapsed+=0.5
+ return 'failed'
+
+def airplay_outcome(state,wait,timeout=25,network=None,stage=None,startup_limit=AIRPLAY_STARTUP):
+ """Separate file opening, the owner's TV choice and the actual connection. Each phase has its own bound.
+ A TV cannot fetch an unopened file: only a started connection may return 'unreachable'."""
+ waited=0.0;phase_begun={};shown=None;had_phase=False
+ while True:
+  net=network() if network else None
+  local=bool(net and net.get('expected'))
+  reached=bool(net and net.get('tv_requests',0)>0)
+  phase=(net or {}).get('phase','')
   now=state()
-  if now==1:return 'playing'
-  if now<0:return 'failed'
+  if phase=='canceled':return 'aborted'
+  if phase=='idle' and had_phase and now==0:return 'aborted'
+  had_phase=had_phase or phase not in ('','idle')
+  if now<0 or phase=='failed':return 'failed'
+  choosing=phase=='waiting_tv'
+  preparing=phase in ('opening','inspecting','ready')
+  delivered=bool(net and net.get('tv_video',net.get('tv_requests',0))>0)
+  if now==1 and (delivered or (not local and not choosing and not preparing)):return 'playing'
+  if choosing:
+   group='waiting_tv';age_key='player_age_s';limit=AIRPLAY_SELECTION;expired='selection_timeout'
+  elif local or preparing:
+   if phase in ('connecting','playing') or (not phase and net.get('listen_age_s',-1)>=0):
+    group='connecting';age_key='connect_age_s' if phase else 'listen_age_s'
+    limit=timeout if reached else AIRPLAY_CONNECT;expired='failed' if reached else 'unreachable'
+   else:
+    group='opening';age_key='start_age_s';limit=startup_limit;expired='startup_timeout'
+  else:
+   group='connecting';age_key='';limit=timeout;expired='failed'
+  # r36: the player restarted with the H.264 picture (a TV that took the sound only) and is opening again: its TV choice
+  # and connection get their own time again, counted from now, not from the first attempt's.
+  if shown in PHASES and group in PHASES and PHASES.index(group)<PHASES.index(shown):
+   for later in PHASES[PHASES.index(group)+1:]:phase_begun.pop(later,None)
+   if group=='opening':phase_begun[group]=waited
+  entered=phase_begun.setdefault(group,waited)
+  # The local elapsed fallback prevents a broken/reset native clock from keeping a phase alive forever.
+  age=max(waited-entered,float((net or {}).get(age_key,-1)))
+  if age>=limit:return expired
+  if group!=shown:
+   shown=group
+   if stage:stage(group,AIRPLAY_WORDS[group])
   if wait(0.5):return 'aborted'
   waited+=0.5
- return 'failed'
 
 def media_type(url):
  path=urllib.parse.urlsplit(url).path.lower()
@@ -281,7 +426,7 @@ def chromecast_name(host,get):
  try:return json.loads(get('http://%s:8008/setup/eureka_info?params=name'%host,2)).get('name') or 'Chromecast'
  except Exception:return None
 
-def chromecast_play(host,url,title,connect=None,timeout=20):
+def chromecast_play(host,url,title,connect=None,timeout=20,start=0):
  sock=(connect or _cast_socket)(host)
  send=lambda dst,ns,payload:sock.sendall(cast_frame('sender-0',dst,ns,payload))
  def read():
@@ -298,7 +443,7 @@ def chromecast_play(host,url,title,connect=None,timeout=20):
      if app.get('appId')==MEDIA_RECEIVER and app.get('transportId'):
       transport=app['transportId']
       send(transport,'urn:x-cast:com.google.cast.tp.connection',{'type':'CONNECT'})
-      send(transport,'urn:x-cast:com.google.cast.media',{'type':'LOAD','requestId':2,'autoplay':True,'currentTime':0,
+      send(transport,'urn:x-cast:com.google.cast.media',{'type':'LOAD','requestId':2,'autoplay':True,'currentTime':max(0,float(start or 0)),
            'media':{'contentId':url,'streamType':'BUFFERED','contentType':'video/mp4' if media_type(url)=='video/x-matroska' else media_type(url),
                     'metadata':{'metadataType':0,'title':title or 'Kodi'}}})
    elif payload.get('type') in {'LOAD_FAILED','LOAD_CANCELLED','INVALID_REQUEST','LAUNCH_ERROR'}:

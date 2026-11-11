@@ -43,6 +43,9 @@ Key points (the policy has the detail):
 - Reuse existing helpers and tokens (`portrait.py`, `pages.py`) before adding variants.
 - Follow the visual review process (policy §7) and label screenshots as mockup, desktop Kodi rig or device
   (policy §9). A passing check is not visual verification.
+- To see a page in real Kodi, use the desktop Kodi rig: `python3 -B scripts/kodi_rig.py setup` once (builds Kodi
+  21.3, about 15 min), then `start` and `boards` (every approved board next to its mockup). Guide:
+  [docs/design/KODI-RIG.md](docs/design/KODI-RIG.md). Rig screenshots never go into Git.
 - Apple's current documentation outranks every vendored summary.
 
 Skill discovery: Codex scans `.agents/skills/`. Claude Code reads `.claude/skills/`, which holds pointers to the

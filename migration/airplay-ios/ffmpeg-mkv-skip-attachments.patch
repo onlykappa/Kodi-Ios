@@ -1,0 +1,23 @@
+diff --git a/libavformat/matroskadec.c b/libavformat/matroskadec.c
+--- a/libavformat/matroskadec.c
++++ b/libavformat/matroskadec.c
+@@ -651,7 +651,9 @@
+     { MATROSKA_ID_FILEUID,      EBML_UINT, 0, 0, offsetof(MatroskaAttachment, uid) },
+     { MATROSKA_ID_FILENAME,     EBML_UTF8, 0, 0, offsetof(MatroskaAttachment, filename) },
+     { MATROSKA_ID_FILEMIMETYPE, EBML_STR,  0, 0, offsetof(MatroskaAttachment, mime) },
+-    { MATROSKA_ID_FILEDATA,     EBML_BIN,  0, 0, offsetof(MatroskaAttachment, bin) },
++    /* Kodi iOS: AirPlay never uses attached files (fonts, covers). Skipping the data seeks past it instead of
++     * downloading it over the network before the first picture (anime releases carry 10-30 MB of fonts). */
++    { MATROSKA_ID_FILEDATA,     EBML_NONE },
+     { MATROSKA_ID_FILEDESC,     EBML_UTF8, 0, 0, offsetof(MatroskaAttachment, description) },
+     CHILD_OF(matroska_attachments)
+ };
+@@ -3406,7 +3408,7 @@
+     for (j = 0; j < attachments_list->nb_elem; j++) {
+         if (!(attachments[j].filename && attachments[j].mime &&
+               attachments[j].bin.data && attachments[j].bin.size > 0)) {
+-            av_log(matroska->ctx, AV_LOG_ERROR, "incomplete attachment\n");
++            av_log(matroska->ctx, AV_LOG_DEBUG, "attachment data skipped\n");
+         } else {
+             AVStream *st = avformat_new_stream(s, NULL);
+             if (!st)

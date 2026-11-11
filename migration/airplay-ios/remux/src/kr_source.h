@@ -7,6 +7,12 @@ typedef struct kr_source kr_source;
 // Opens `url`; NULL with `err` filled when it cannot be opened. timeout_s bounds opening and each complete
 // read (including retries). HTTP uses bounded ranges; file reads retain normal byte-offset behavior.
 kr_source *kr_source_open(const char *url, int timeout_s, char *err, int errlen);
+// Cancellation is installed before the first network operation, not after open returns.
+kr_source *kr_source_open_interruptible(const char *url, int timeout_s, int (*interrupt)(void *), void *context, char *err, int errlen);
+// Independent cursor/connection, sharing this session's bounded byte cache. No network on clone.
+kr_source *kr_source_clone(kr_source *source, int timeout_s, int (*interrupt)(void *), void *context);
+// Nonblocking cache lookup. Returns available bytes, 0 on a miss; never waits for upstream I/O.
+int kr_source_cached_read(kr_source *source, int64_t offset, uint8_t *buf, int n);
 gm_source kr_source_gm(kr_source *s);
 int64_t kr_source_size(kr_source *s);
 // Reads up to n bytes at offset: bytes read, 0 at the end, negative on error.

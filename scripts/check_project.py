@@ -31,13 +31,13 @@ PATTERNS = {
 FORBIDDEN_EXTENSIONS = {'.ipa','.deb','.mobileprovision','.p12','.pfx','.zip','.zst','.tgz','.tar','.db','.sqlite','.sqlite3','.log','.mp4','.mkv','.mov','.avi','.mp3','.flac','.jpg','.jpeg','.png','.webp','.pem','.key','.so','.dll','.dylib','.exe','.strm'}
 ALLOWED_TOP_LEVEL = {'README.md','ROADMAP.md','.gitignore','migration','docs','scripts','inventory','snapshot','reports',
                      'AGENTS.md','CLAUDE.md','.agents','.claude'}   # agent instructions and project skills (DEC-026)
-ALLOWED_SUFFIXES = {'.md','.json','.py','.xml','.xsp'}
+ALLOWED_SUFFIXES = {'.md','.json','.py','.xml','.xsp','.po'}   # .po: Kodi add-on label strings (settings.xml needs numbered labels)
 PORTRAIT_FILES = {'.github/workflows/kodi-ios-portrait.yml','migration/ios-portrait/build-kodi-ios.sh','migration/ios-portrait/kodi-21.3-portrait.patch',
                   '.github/workflows/glassbar-ios.yml','migration/glassbar-ios/build-glassbar.sh',
                   'docs/design/settings-mockups.html','docs/design/fuse-pages-mockups.html',
                   'docs/design/poster-cards-mockups.html','docs/design/activity-indicator-mockups.html','docs/design/activity-mockups-r4.html',
                   'docs/design/library-status-mockup.html','docs/design/library-tools-mockups.html',
-                  'docs/design/transfers-simple-mockup.html'}   # owner mockups (self-contained pages, no images)
+                  'docs/design/transfers-simple-mockup.html','docs/design/library-status-mockups-r1.html'}   # owner mockups (self-contained pages, no images)
 
 # AirPlay MKV remuxer (migration/airplay-ios/remux): C sources, build and test scripts, licence files, its CI.
 REMUX_FILES = {'migration/airplay-ios/remux/THIRD-PARTY-NOTICES',
@@ -45,7 +45,8 @@ REMUX_FILES = {'migration/airplay-ios/remux/THIRD-PARTY-NOTICES',
                'migration/airplay-ios/remux/src/kr_prepare.h',
                'migration/airplay-ios/build-dav1d.sh',
                'migration/airplay-ios/ffmpeg-mov-pts.patch',
-               'migration/airplay-ios/ffmpeg-dovi-padding.patch',
+               'migration/airplay-ios/ffmpeg-mov-trun-cts.patch',
+               'migration/airplay-ios/ffmpeg-dovi-padding.patch','migration/airplay-ios/ffmpeg-mkv-skip-attachments.patch',
                'migration/airplay-ios/remux/src/kr_color.c',
                'migration/airplay-ios/remux/src/kr_color.h',
                'migration/airplay-ios/remux/src/kr_dovi.c',
@@ -67,6 +68,8 @@ REMUX_FILES = {'migration/airplay-ios/remux/THIRD-PARTY-NOTICES',
                'migration/airplay-ios/remux/src/kr_audio.h',
                'migration/airplay-ios/remux/src/kr_hls.c',
                'migration/airplay-ios/remux/src/kr_hls.h',
+               'migration/airplay-ios/remux/src/kr_mp4.c',
+               'migration/airplay-ios/remux/src/kr_mp4.h',
                'migration/airplay-ios/remux/src/kr_remux.c',
                'migration/airplay-ios/remux/src/kr_remux.h',
                'migration/airplay-ios/remux/src/kr_source.c',

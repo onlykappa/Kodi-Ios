@@ -11,6 +11,25 @@ PARTIAL=re.compile(r'(?:^|[._ -])(?:sample|partial|incomplete|downloading)(?:[._
 CHUNK=32*1024*1024  # a multiple of 256 KiB, as Drive requires (build 181: 32 MB, less time lost between pieces)
 TOP='Kodi Downloads'
 
+class StreamChunks:
+ """Aligned pieces bounded at 1–8 MiB. Growth requires three fast pieces.
+ ISSUE-164 (build-224 log: 1 MiB pieces at ~0.3 MB/s, each waiting for Drive's answer before the next): pieces now
+ aim at about ten seconds, not three, so the wait between pieces costs a few percent instead of 10-15%. A piece is
+ cut only past fifteen seconds, and a stalled piece is still retried by the per-piece timeout."""
+ TARGET=10;SLOW=15;FAST=6
+ def __init__(self,limit=None):
+  self.limit=min(CHUNK if limit is None else limit,8*1024*1024)
+  self.minimum=min(self.limit,1024*1024);self.current=self.limit;self.fast=0
+ def observe(self,size,read_seconds,put_seconds):
+  cost=max(read_seconds,put_seconds,.001)
+  if cost>self.SLOW:
+   target=int(size*self.TARGET/cost)//(256*1024)*(256*1024)
+   self.current=max(self.minimum,min(self.current,target));self.fast=0
+  elif cost<self.FAST:
+   self.fast+=1
+   if self.fast>=3:self.current=min(self.limit,self.current*2);self.fast=0
+  else:self.fast=0
+
 class Stop(Exception):pass
 
 @contextlib.contextmanager
@@ -173,16 +192,19 @@ class Drive(object):
    location=headers.get('Location') or headers.get('location')
    if status!=200 or not location:raise RuntimeError('Drive upload start: HTTP %s'%status)
    session={'url':location,'size':size};sessions[path]=session;save();offset=0
+  import slowdown;gate=slowdown.Gate(keep_going=keep_going)
   with open(path,'rb') as f:
    while offset<size:
     if not keep_going():raise Stop()
     f.seek(offset);chunk=f.read(CHUNK);end=offset+len(chunk)-1
+    began=time.monotonic()
     status,headers,body=self.call('PUT',session['url'],chunk,{'Content-Range':'bytes %d-%d/%d'%(offset,end,size)})
     if status in (200,201):return self._done(path,sessions,save,body)
     if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
     offset=_next_offset(headers);progress(offset,size)
+    gate.after(time.monotonic()-began,len(chunk),download=True)
   raise RuntimeError('Drive did not confirm the upload')
- def upload_stream(self,open_at,size,name,parent,session,save,keep_going=lambda:True,progress=lambda done,total:None):
+ def upload_stream(self,open_at,size,name,parent,session,save,keep_going=lambda:True,progress=lambda done,total:None,activity=lambda phase,done,total:None):
   """Resumable upload of a web file straight into Drive, CHUNK at a time: nothing is written to the phone (owner,
   build 160: AllDebrid straight to Drive). open_at(offset) -> a readable response from that byte on. `session` is a
   dict kept by the caller ({'url','size'}) so a restart carries on where Drive got to. Returns the Drive file."""
@@ -201,27 +223,40 @@ class Drive(object):
    session.clear();session.update(url=location,size=size);save();offset=0
   import concurrent.futures
   source=[open_at(offset)]
-  def read(at):
-   chunk=b'';began=time.monotonic()
-   while len(chunk)<CHUNK and at+len(chunk)<size:
-    data=source[0].read(min(CHUNK-len(chunk),1024*1024))
+  import slowdown as _slow;reader_gate=_slow.Gate(keep_going=keep_going)
+  # Bound feedback latency and RAM while retaining one-piece read-ahead. Local-file uploads keep CHUNK.
+  chunks=StreamChunks()
+  def read(at,limit):
+   chunk=bytearray();began=time.monotonic()
+   while len(chunk)<limit and at+len(chunk)<size:
+    if not keep_going():raise Stop()
+    piece=time.monotonic()
+    data=source[0].read(min(limit-len(chunk),size-at-len(chunk),1024*1024))
     if not data:break
-    chunk+=data
-   return chunk,time.monotonic()-began
+    chunk.extend(data)
+    # Build 206: a download under the playing video's cap (and none while Kodi buffers), 1 MB at a time.
+    reader_gate.after(time.monotonic()-piece,len(data),download=True)
+   return bytes(chunk),time.monotonic()-began
   # Build 181 (owner: "whatever that will make uploading and downloading quicker"): the next piece downloads from
   # the source while this one goes up to Drive (they used to take turns).
   ahead=concurrent.futures.ThreadPoolExecutor(max_workers=1);coming=None
+  import slowdown;gate=slowdown.Gate(keep_going=keep_going)   # build 193: slower while a video or AirPlay plays
   try:
    while offset<size:
     if not keep_going():raise Stop()
-    if coming is not None:chunk,read_s=coming.result();coming=None
-    else:chunk,read_s=read(offset)
+    if coming is not None:
+     if not coming.done():activity('reading',offset,size)
+     chunk,read_s=coming.result();coming=None
+    else:
+     activity('reading',offset,size);chunk,read_s=read(offset,chunks.current)
     if not chunk:raise RuntimeError('The download stopped before the end; it will carry on')
     end=offset+len(chunk)-1;began=time.monotonic()
-    if end+1<size:coming=ahead.submit(read,end+1)
+    if end+1<size:coming=ahead.submit(read,end+1,chunks.current)
+    activity('uploading',offset,size)
     status,headers,body=self.call('PUT',session['url'],chunk,{'Content-Range':'bytes %d-%d/%d'%(offset,end,size)})
     # Owner (build 168): 0.2 MB/s. Which side is slow, the source (AllDebrid) or Google Drive, for the next log.
     put_s=time.monotonic()-began;mb=len(chunk)/1048576.0
+    chunks.observe(len(chunk),read_s,put_s)
     _note('Drive copy: %.1f MB read in %.1f s (%.2f MB/s from the source), sent in %.1f s (%.2f MB/s to Google Drive), %.1f%% done'%(
      mb,read_s,mb/max(read_s,.001),put_s,mb/max(put_s,.001),100.0*(end+1)/size))
     if status in (200,201):progress(size,size);return json.loads(body or b'{}')
@@ -236,6 +271,8 @@ class Drive(object):
      except Exception:pass
      source[0]=open_at(confirmed)
     offset=confirmed;save();progress(offset,size)
+    if _slow.reason() in _slow.HOLD:activity('paused_playback',offset,size)
+    gate.after(put_s,len(chunk),download=True)
   finally:
    if coming is not None:
     try:coming.result()
@@ -396,13 +433,16 @@ STALL=45
 SLOW_RATE=128*1024
 def request_timeout(timeout,body):
  return timeout+(len(body)/SLOW_RATE if body else 0)
-def sender(context,timeout=STALL,log=lambda message:None):
- """HTTP for Drive with the given TLS context; returns (status, headers, body) without following redirects."""
+def sender(context,timeout=STALL,log=lambda message:None,native=None):
+ """HTTP for Drive with the given TLS context; returns (status, headers, body) without following redirects.
+ native: native_http.sender(lib) or None. Upload pieces go through it (ISSUE-167); everything else stays here."""
  import diagnostics
  class NoRedirect(urllib.request.HTTPRedirectHandler):
   def redirect_request(self,*args,**kwargs):return None
  opener=urllib.request.build_opener(NoRedirect,urllib.request.HTTPSHandler(context=context))
  def send(method,url,body,headers):
+  if native is not None and method=='PUT' and body and len(body)>=256*1024:
+   return native_put(url,body,headers)
   request=urllib.request.Request(url,data=body,headers=dict(headers,**{'User-Agent':'Kodi iOS Drive upload'}),method=method)
   safe=method in ('GET','HEAD','DELETE')
   for attempt in range(3 if safe else 1):
@@ -414,23 +454,66 @@ def sender(context,timeout=STALL,log=lambda message:None):
      if elapsed>=10 or (body and len(body)>=256*1024):diagnostics.event(log,'drive_http','response',status=r.status,elapsed_s=elapsed,response_bytes=len(answer),**fields)
      return r.status,dict(r.headers),answer
    except urllib.error.HTTPError as e:
-    diagnostics.event(log,'drive_http','http_error',status=e.code,elapsed_s=round(time.monotonic()-begun,3),retry=safe and e.code in (429,500,502,503,504) and attempt<2,**fields)
+    elapsed=round(time.monotonic()-begun,3)
+    if e.code==308 and method=='PUT':
+     # Build 197 (owner's build-196 log): 308 is Drive's normal "piece kept, send the next" for a resumable upload,
+     # not an error. Say so, with the piece's speed, so a slow line reads as slow and not as failing.
+     rate=(len(body)/1048576/elapsed) if body and elapsed>0 else 0
+     if body and len(body)>=256*1024:
+      log('Drive upload: %.1f MB piece in %.0f s (%.2f MB/s)'%(len(body)/1048576,elapsed,rate))
+      diagnostics.event(log,'drive_http','piece',status=308,elapsed_s=elapsed,mb_s=round(rate,2),**fields)
+    else:
+     diagnostics.event(log,'drive_http','http_error',status=e.code,elapsed_s=elapsed,retry=safe and e.code in (429,500,502,503,504) and attempt<2,**fields)
     if not safe or e.code not in (429,500,502,503,504) or attempt==2:return e.code,dict(e.headers or {}),e.read()
     e.close()
    except (urllib.error.URLError,TimeoutError) as e:
     diagnostics.exception(log,'drive_http',e,elapsed_s=round(time.monotonic()-begun,3),retry=safe and attempt<2 and 'CERTIFICATE_VERIFY_FAILED' not in str(e),**fields)
     if not safe or attempt==2 or 'CERTIFICATE_VERIFY_FAILED' in str(e):raise
    time.sleep(.5*2**attempt)
+ def native_put(url,body,headers):
+  begun=time.monotonic()
+  fields=dict(method='PUT',host=urllib.parse.urlsplit(url).hostname,attempt=1,request_bytes=len(body),native=True)
+  try:status,answer_headers,answer=native('PUT',url,body,dict(headers,**{'User-Agent':'Kodi iOS Drive upload'}),request_timeout(timeout,body))
+  except ConnectionError as e:
+   diagnostics.exception(log,'drive_http',e,elapsed_s=round(time.monotonic()-begun,3),retry=False,**fields);raise
+  elapsed=round(time.monotonic()-begun,3);rate=(len(body)/1048576/elapsed) if elapsed>0 else 0
+  if status==308:
+   log('Drive upload: %.1f MB piece in %.0f s (%.2f MB/s, system networking)'%(len(body)/1048576,elapsed,rate))
+   diagnostics.event(log,'drive_http','piece',status=308,elapsed_s=elapsed,mb_s=round(rate,2),**fields)
+  else:diagnostics.event(log,'drive_http','response',status=status,elapsed_s=elapsed,response_bytes=len(answer),**fields)
+  return status,answer_headers,answer
  return send
 
+class SignedOut(RuntimeError):
+ """Google no longer accepts the saved Drive sign-in (the sign-in server's refresh answered 400/401: invalid_grant,
+ e.g. a refresh token of an OAuth app in Testing status, which Google ends after 7 days). Only signing in again helps."""
+class RefreshBusy(RuntimeError):
+ """The sign-in server could not refresh right now (429, 5xx): wait before asking again."""
+REFUSED={}          # refresh token -> when Google refused it: not sent again until the account has a new one
+HOLD={'until':0.0}  # no refresh before this time (after a 429 / 5xx)
+HOLD_S=120
+def refresh_error(status):
+ """The error for a refresh that did not answer 200 (owner, build 192: a refused sign-in was asked again every 5 s
+ by two threads until the sign-in server answered 429)."""
+ if status in (400,401):return SignedOut('Google no longer accepts the saved Drive sign-in. Sign in to Google Drive again (Settings › Accounts).')
+ return RefreshBusy('Drive sign-in refresh: HTTP %s, trying again in a few minutes'%status)
+
 def token_source(accounts,save_account,refresh,now=time.time):
- """Access token from the Google Drive add-on's first signed-in account, refreshed through the sign-in server."""
+ """Access token from the Google Drive add-on's first signed-in account, refreshed through the sign-in server.
+ A refused refresh token is never sent again (signing in again saves a new one); after a busy answer every thread
+ waits HOLD_S before the next refresh."""
  def token():
   account=next(iter(accounts().values()),None)
   if not account:raise RuntimeError('Sign in to Google Drive in Kodi first')
   tokens=account['access_tokens']
   if now()>tokens.get('date',0)+tokens.get('expires_in',0)-600:
-   fresh=refresh(tokens['refresh_token']);fresh['date']=now()
+   old=tokens.get('refresh_token','')
+   if old in REFUSED:raise refresh_error(400)
+   if now()<HOLD['until']:raise RefreshBusy('Drive sign-in refresh: waiting %d s after the sign-in server was busy'%(HOLD['until']-now()))
+   try:fresh=refresh(old)
+   except SignedOut:REFUSED[old]=now();raise
+   except RefreshBusy:HOLD['until']=now()+HOLD_S;raise
+   fresh['date']=now()
    tokens.update(fresh);account['access_tokens']=tokens;save_account(account)
   return tokens['access_token']
  return token

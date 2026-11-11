@@ -12,6 +12,10 @@ import diagnostics
 import resume_store
 
 
+# A re-pack (faster start) that fails on one of these converter errors would fail the same way every time.
+REPACK_STOPS=('MP4 packet','Picture subtitle packet','Subtitle decode','Subtitle encode')
+
+
 def process_one(q, keep_going):
     # Cleanup is independent of jobs: a library rescan can remove completed or superseded jobs.
     # Journal before deleting, and retry 404 safely if a process exited after Drive acknowledged deletion.
@@ -37,6 +41,7 @@ def process_one(q, keep_going):
     # so a restart measured from hours earlier ("about 46 h 28 min", owner screenshot).
     job.pop('eta_mark',None);job['started_at']=q.clock()   # Library status › a ready movie: "took 41 min"
     attempt={'mark':None,'sink':None,'fraction':0.0,'convert_start':None}
+    original_stats=q.runtime.stats if q.runtime else None
     def progress(stage,pct):
         if q.runtime:q.runtime.phase(stage,pct is not None,item['name'])
         if not keep_going():raise driveupload.Stop('Preparation paused')
@@ -50,7 +55,7 @@ def process_one(q, keep_going):
         eta_s=0
         if mark and (pct or 0)-mark[1]>=0.2 and now>mark[0]:
             eta_s=(now-mark[0])*(100-(pct or 0))/((pct or 0)-mark[1]);eta=prep.eta_text(eta_s)
-        current=dict(title=item['name'],stage='Step 3 of 3 · '+stage,progress=max(0,min(100,pct or 0)),indeterminate=pct is None,
+        current=dict(title=item['name'],stage='Step 3 of 3 · '+stage,kind='repack' if job.get('repack') else 'conv',progress=max(0,min(100,pct or 0)),indeterminate=pct is None,
                      queued=len(candidates),running=True,updated=now,read=speed[0],rate=speed[1],
                      detail=prep.speed_text(*speed),eta=eta,eta_s=eta_s)
         # Build 177 (owner-approved movie sheet): upload speed, film done, pace and the expected size.
@@ -85,6 +90,7 @@ def process_one(q, keep_going):
         # Build 181: the prepared movie is a new Drive file (same folder and name, .mp4); the original is in the bin.
         main=dict(outputs.get('0') or {},moved=True)
         job['cloud_output']={'0':main};job['status']='done';job['completed']=q.clock();job['prepared_id']=new['id']
+        job.pop('stream_only',None);job.pop('audit',None)
         q.commit();clear_temps()
         try:
             import debrid_drive;debrid_drive.renamed(q.profile,item['id'],new['id'])   # "download and watch" plays the new one
@@ -94,14 +100,16 @@ def process_one(q, keep_going):
         q.notify('info','Ready for Kodi and AirPlay',drivelibrary.display_title(item['name']));return True
     try:
         q.log('preparation: %s — opening Drive file'%drivelibrary.display_title(item['name']))
-        progress('Reading from Google Drive',None)
+        progress('Checking compatibility',None)
         if job.get('promoted'):
             # Stopped after the prepared file took the original's place: send the original to the bin and finish.
             drive_prepare.bin(q.drive,item['id'])
             return finished(prep.metadata(q.drive,job['promoted']))
         current = prep.metadata(q.drive,item['id'])
-        if prep.ready(current) and not prep.repack_due(current):
+        if prep.ready(current) and not job.get('repack') and not job.get('audit'):
             job['status']='done';clear_temps();q.commit();return True
+        if q.skip_compatible(slot,job,current,job.get('probe')):
+            q.state.pop('current',None);q.commit();return True
         main = outputs.get('0')
         completed = bool(main and int(current['size']) == int(main['size']) and current['md5Checksum'].lower() == main['md5Checksum'].lower())
         if not completed:
@@ -124,7 +132,13 @@ def process_one(q, keep_going):
                         drivelibrary.display_title(item['name']),checkpoint['offset']+len(checkpoint['tail'])-checkpoint.get('skip',0),checkpoint.get('skip',0)))
                 else:
                     progress('Inspecting video and track index',None)
-                    before=q.native.probe(source);job['probe']=before;q.commit()
+                    before=q.inspect_source(item,keep_going);job['probe']=before
+                    # Keep a contradictory old prepared marker from bypassing this repair after a pause/failure.
+                    if prep.streamable_video(before):job.pop('audit',None)
+                    else:job['audit']=True
+                    q.commit()
+                if q.skip_compatible(slot,job,item,before):
+                    q.state.pop('current',None);q.commit();return True
                 q.log('preparation: %s — codec %s, %sx%s, %s-bit, HDR=%s, copy=%s, audio work=%s'%(drivelibrary.display_title(item['name']),before.get('codec'),before.get('width'),before.get('height'),before.get('bit_depth'),before.get('hdr'),before.get('copy_video'),before.get('audio_work_bytes')))
                 progress('Opening conversion tracks',None)
                 parent=q.drive.folder([driveupload.TOP,'.Preparation'])
@@ -132,16 +146,21 @@ def process_one(q, keep_going):
                 # A video playing pauses the conversion where it is (owner, build 175): the upload session waits too.
                 paused=getattr(q,'paused',None) or (lambda:False)
                 identity=prep.identity(item)
-                sink=drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=paused,
+                sink=drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=lambda:paused() or __import__('slowdown').holding(),
                     spool=str(resume_store.folder(q.profile)) if resumes else None,checkpoint=checkpoint,
                     keep_pieces=resumes and not (job.get('probe') or {}).get('copy_video'),
                     on_checkpoint=lambda cp:resume_store.save(q.profile,slot,identity,cp))
                 attempt['sink']=sink
+                if q.runtime:
+                    q.runtime.stats=lambda:dict(original_stats() or {},**sink.stats())
                 def waiting():
-                    if q.runtime:q.runtime.phase('Paused while a video plays',False,item['name'])
+                    # Build 193: only the owner's Pause holds a conversion now (a video or AirPlay slows it instead),
+                    # so the words say so; the reason is stored, never guessed (build-192 log: "Paused while a video
+                    # plays" with nothing playing).
+                    if q.runtime:q.runtime.phase('Paused by you',False,item['name'])
                     current=q.state.get('current') or {}
-                    if q.clock()-float(current.get('updated') or 0)>=10:   # under transfer_history's 15 s: still running
-                        current.update(stage='Step 3 of 3 · Paused while a video plays',running=True,updated=q.clock(),rate=0,detail='')
+                    if q.clock()-float(current.get('updated') or 0)>=2:
+                        current.update(stage='Step 3 of 3 · Paused by you',running=True,paused=True,updated=q.clock(),rate=0,detail='')
                         q.state['current']=current;q.commit()
                 # Build 192: a resumed movie shows where it got to (the mark's place in the film), not 0%, while it lines up.
                 duration=float((job.get('probe') or {}).get('duration') or 0)
@@ -225,7 +244,7 @@ def process_one(q, keep_going):
         status,_,_=q.drive.call('PATCH',driveupload.API+'/'+urllib.parse.quote(item['id'],safe=''),json.dumps({'appProperties':props}).encode(),{'Content-Type':'application/json'})
         if status!=200:raise RuntimeError('Preparation verification marker: HTTP %d'%status)
         # Sidecars now belong to the library; only the temporary main movie is removed.
-        job['cloud_output']={'0':main};job['status']='done';job['completed']=q.clock()
+        job['cloud_output']={'0':main};job['status']='done';job['completed']=q.clock();job.pop('audit',None);job.pop('stream_only',None)
         pending=q.state.setdefault('staging_cleanup',[])
         if main['id'] not in pending:pending.append(main['id'])
         q.commit();clear_temps()
@@ -247,6 +266,14 @@ def process_one(q, keep_going):
         q.log('preparation: failed for %s: %s; phase=%s; video=%s'%(drivelibrary.display_title(item['name']),text,(q.state.get('current') or {}).get('stage','opening'),json.dumps(job.get('probe') or {},sort_keys=True)))
         if 'source changed' in text:job['status']='superseded';q.state['last_scan']=0;clear_temps();resume_store.clear(q.profile,slot)
         elif 'tracks MP4 cannot preserve' in text or 'without changing HDR' in text or 'needs RPU remapping' in text:job['blocked']=True
+        elif job.get('repack') and any(word in text for word in REPACK_STOPS):
+            # Build 193 (build-192 log 13:55:08: Fall 2's faster start failed at 22 % on "MP4 packet: Invalid argument" after
+            # 26 min): the converter refuses the same piece of an older file every time, so each retry would start from
+            # 0 % and fail there again, for ever. The movie is Ready and plays; it stays as it is.
+            job['blocked']=True;job['repack_failed']=True;clear_temps();resume_store.clear(q.profile,slot)
+            q.notify('info','Kept as it is',drivelibrary.display_title(item['name'])+" still plays in Kodi and on AirPlay; it couldn't be made to start faster.")
+            import transfer_history;transfer_history.failed(q.profile,'conv',item['name'],"couldn't be made to start faster; it still plays",q.clock())
+            job['error']=text;return False
         if job.get('error')!=text:
             q.notify('problem','Video preparation paused',drivelibrary.display_title(item['name'])+': '+text[:200])
             # Transfers › History: once per video and reason, like the notification (not a source changed meanwhile).
@@ -254,7 +281,10 @@ def process_one(q, keep_going):
                 import transfer_history;transfer_history.failed(q.profile,'conv',item['name'],prep.plain(text),q.clock())
         job['error']=text;return False
     finally:
+        if q.runtime and original_stats is not None:q.runtime.stats=original_stats
         q.stream.forget(item['id'])
         if temp_id:q.stream.forget(temp_id)
-        if q.state.get('current'):q.state['current'].update(running=False,updated=q.clock())
+        # Build 193 (build-192 log: a stopped Inception kept "Paused while a video plays"): a stopped job says it stopped.
+        if q.state.get('current'):q.state['current'].update(running=False,paused=False,updated=q.clock(),rate=0,detail='',
+                                                            stage='Stopped' if job.get('status')!='failed' else 'Will try again')
         q.commit()

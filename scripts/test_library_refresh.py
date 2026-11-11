@@ -123,7 +123,7 @@ class ActualDirectory(unittest.TestCase):
    with self.subTest(drive_enabled=enabled):
     listing=self.render(['/phone/Kodi Downloads/Movies/Heat.1995.mkv'],drive_enabled=enabled)
     self.assertEqual([li.label for path,li,folder in self.items],['Heat','Refresh Library'])
-    self.assertEqual(self.items[0][0],'/phone/Kodi Downloads/Movies/Heat.1995.mkv');self.assertFalse(self.items[0][2])
+    self.assertEqual(parse_qs(urlsplit(self.items[0][0]).query)['path'],['/phone/Kodi Downloads/Movies/Heat.1995.mkv']);self.assertFalse(self.items[0][2])
     self.items[0][1].setProperty.assert_called_with('IsPlayable','true')
     self.items[0][1].getVideoInfoTag.return_value.setYear.assert_called_once_with(1995)
     self.items[0][1].addContextMenuItems.assert_called_once_with([('Refresh Library',page.REFRESH)])

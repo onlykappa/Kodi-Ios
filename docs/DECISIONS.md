@@ -120,3 +120,111 @@ Owner reviewed the round-4 mockups (2026-11-05: "this looks great. I like ur she
 - Close (✕) for status-only sheets.
 
 Recorded in docs/design/APPLE-UI-POLICY.md §4.3 and §4.7. The owner declined a test build of PR #10's Notifications fix for now ("not yet pr 10 is different then ui stuff"). Next: implement the approved design on PR #9. No merge or release implied.
+
+## DEC-029 — Build 194: the approved boards are the measured specification (2026-11-08)
+
+Owner, after build 193 on the iPhone: "this looks nothing like the mocs i approved", with a fix prompt naming the
+approved boards in `docs/design/library-status-mockups-r1.html` as the specification ("look EXACTLY like the
+owner-approved mockups"). Decisions taken in this pass, each citing that approved mockup:
+- New generated textures at the boards' radii (`status_ui.textures`, never committed): `r27.png` (10 pt tiles and
+  segmented controls), `r21.png` (selected segment), `pill21/16/11.png` (8 pt summary bar, 6 pt card bars, 4 pt step
+  bars), `poster27/21/16.png` (rounded posters 64 × 96, 52 × 78 and 40 × 60 pt), `pill_134.png` (50 pt Play/Pause
+  capsules, boards 3 and 9). Cards use the existing 16 pt `row_*` textures.
+- Board 5 drops the "•••" buttons on the running cards (owner: "remove •••"). Long press on a card still opens
+  Pause / Cancel, and the on-screen alternative the policy (§ gestures) requires is the job's row in Library status,
+  whose sheet carries Pause and Cancel; the Notifications page links there ("Library status").
+- While AirPlay or a video slows a job (still moving), its ring and bars keep the job's colour as boards 2 and 5 show;
+  grey stays for paused, stale and the slowed bell (board 6).
+- Multi-line text (board 2's sign-in sentence, board 3's sentence, board 7's note) is a Kodi textbox
+  (`status_ui.paragraph`); every one-line run stays a label with scroll off and "…".
+No build, release or merge implied; device review pending (ISSUE-119).
+
+## DEC-030 — Play on TV becomes one card over the video (owner-approved mockups, 2026-11-08)
+
+Owner, on Kodi's generic "Connecting to the TV…" progress box and "Your TV couldn't reach this iPhone" OK alert:
+"can we get a moc up of a better pages for this? these are uglyy". Six boards were made
+(https://claude.ai/artifact/6rg8jopnvJRVKRUotRgNZM); the owner approved all ("i approve all mocs").
+- One landscape card (`resources/lib/airplay_flow.py`, `1080i/IOSAirPlayFlow.xml`) from Play on TV until the TV plays:
+  three steps (open the movie, choose your TV, connect and play), a bar, and Cancel. Problems stay on the same card with
+  plain words and buttons that act: Try again, Pause uploads and try again (the owner's own Pause), Open Settings
+  (KodiAirPlay r34+), Keep watching here / Cancel. A slow open is never described as a network or permission problem.
+- Kodi's own progress box and alert remain only as a fallback when the card cannot load.
+- Board 4 (the phone as a remote while the TV plays: pause, ±10 s, Play on iPhone, Stop) needs native pause/seek in
+  KodiAirPlay; it is not built yet.
+- Surfaces: the solid 16 pt card texture (`row_only.png`, SURFACE2), not the translucent sheet texture (policy §2: text
+  cards ≥ ~90 % opaque). Desktop Kodi rig renders checked; device review pending.
+
+
+## DEC-031 — Keep compatible original video; prepare only when needed (2026-11-10)
+
+Owner: "only converts formats that are needed" and "the airplay is a separate bug, it works for elementum drive
+downloads so just apply the same logic". Use actual native video codec/copy safety inspection before background
+preparation. Copy-safe H.264/HEVC originals stay on Drive without conversion/re-upload; playback can adapt their
+container/audio on demand. Unknown/unsupported video keeps the existing preparation path. Disable optional
+automatic repacks of already ready files. Readiness is tied to the inspected Drive version/checksum/size/ID;
+transaction recovery and owner-kept choices remain protected. This does not declare MKV universally receiver-native,
+remove runtime subtitle/audio handling, or accept the separate Umbrella/Roku bug as fixed on a device.
+
+
+## DEC-032 — Audit compatibility and faster opening separately on every Refresh (2026-11-10)
+
+Owner: “anytime i press the refresh button i want it to read my entire library and check if faster open has been
+done and conversion is good, and if one of then is missing something it will fix it”. This revises DEC-031's
+disabling of faster-open background repacks: keep compatible picture quality, but restore a missing fast-open
+container/index step. Every explicit Refresh reopens all eligible library files, including cached/prepared ones;
+automatic scans can reuse exact identity results. Inspect native tracks plus bounded byte ranges; never infer
+compatibility/layout from extension alone. Front-indexed MP4 and valid completed prepared layouts skip rewrites.
+Protect owner-kept originals, transaction recovery, current conversion and checkpoints/backoff. A layout audit
+requires access to the Drive bytes (internet if those bytes are cloud-only); it does not download a full local copy.
+Existing UI fact slots report faster opening independently; no layout or native framework change.
+
+## DEC-033 — Repair AirPlay startup and follow newly aired episodes; hold IPA (2026-11-10)
+
+Owner asks to code the reviewed AirPlay fix/log upgrades and add automatic downloads for anticipated episodes,
+preferably checking on app opening, then explicitly says “don't push ipa yet.” This authorizes source changes and
+host validation; no IPA/native release, publication, push or main merge in this checkpoint. AirPlay receives a
+shared bounded startup deadline and parallel target priming, with safe diagnostic measurements. Codec safety
+predicates remain enforced; no unsupported picture is silently declared compatible. Existing native pins remain
+unchanged until a later authorized rebuild/verification/pin step, which must precede an IPA containing this repair.
+
+Confirmed TV downloads follow their canonical show identity and selected source preferences. Check fresh actual
+air dates on launch/foreground, with a cooldown and work caps, rather than continuously scraping. Use the existing
+Elementum → AllDebrid → Google Drive flow, verifying actual ownership/inflight jobs before searching. Failed
+sources retry later; cancellation is respected. Existing downloaded shows have an explicit Follow new episodes
+only season-menu action; Library settings can turn automatic downloading off. Reuse established Kodi controls
+under the Apple UI policy; device/visual/provider acceptance stays pending. ISSUE-147 remains separate.
+
+## DEC-034 — Build and deliver seek/subtitle/stop diagnostics, including downloaded movie resume (2026-11-10)
+
+Owner approves the three recommendations: seek-position retention, retained/cached subtitle loading and automatic
+unexpected AirPlay stop evidence, and requests “push the ipa please.” This supersedes DEC-033's IPA hold for this
+update and authorizes the required native builds, artifact verification/pins, source push and test IPA publication.
+Owner then adds Continue from for downloaded-library movies; include it with retention. Preserve restart choice,
+existing Drive setup and source-quality policy. No main merge is requested. Device acceptance remains pending.
+
+Native Kodi r27 candidate: retain dragged/pending target across progress refresh and unrelated pointer events;
+queue progress actions outside the touch callback, log target/observed landing and bound stale-target display.
+Expanded real slider/gesture/info-refresh harness passes 45 scenarios. Verified r26 executable remains pinned
+until the new candidate passes native compilation/artifact provenance checks. UI policy/routed HIG guidance read;
+behavior repair only, existing playback controls. AirPlay and downloaded resume repairs follow in this delivery.
+
+## DEC-035 — Full-season quality comes from verified sources; hold the IPA (2026-11-11 UTC)
+
+Owner requests Full season to offer genuine season packs, otherwise select a quality and download episodes one
+by one. The quality menu must read actual available sources: never offer 4K if there are no usable 4K results.
+Owner explicitly chooses skip and retry the same quality later rather than automatic quality downgrades, asks
+for desktop rig testing, and holds IPA publication. This supersedes DEC-034's publication authorization for new
+work. No IPA dispatch/publication, main merge or native pin change is authorized by this checkpoint.
+
+Use existing Kodi selection/progress dialogs and status rows, following APPLE-UI-POLICY and routed HIG guidance.
+Only aired, dated episodes are considered. Existing copies and accepted transfers are excluded. Source scans do
+not select/download media; only an actual saved queue receipt counts as queued. Persist explicit missing episodes
+separately from the future-release date floor; retry on opening/foreground with the same strict quality and
+ownership checks. Preserve cancellation and existing followed-show behavior. A paused upload queue remains paused
+unless the owner explicitly picks the option to resume uploads. Refresh must also read the saved transfer queue,
+without waiting for the next service snapshot or doing network work on the page's UI thread.
+
+Later reports add invisible Maze Runner downloads, a blocking subtitle file browser, Media Assistant stalling after
+about five seconds, and missing AirPlay captions. Owner corrects the initial subtitle report: Download subtitle
+and phone captions work; only Browse freezes. These reports require their own evidence. Do not describe the
+unobserved AirPlay/caption causes as fixed or infer Wi-Fi failure from the queue pause.

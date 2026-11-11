@@ -120,10 +120,25 @@ jobs:
           python3 -B scripts/test_bundled_bootstrap.py
           python3 -B scripts/test_portrait.py
           python3 -B scripts/test_glassbar.py
+          python3 -B scripts/test_seek_release.py
+          python3 -B scripts/test_background_queue.py
+          python3 -B scripts/test_compatibility_filter.py
+          python3 -B scripts/test_episode_watch.py
+          python3 -B scripts/test_season_sources.py
+          python3 -B scripts/test_airplay_diagnostics.py
+          python3 -B scripts/test_playback_retention.py
+          python3 -B scripts/test_fast_open.py
+          python3 -B scripts/test_remote_media.py
+          python3 -B scripts/test_transfer_efficiency.py
+          python3 -B scripts/test_umbrella_recovery.py
           python3 -B scripts/test_notices.py
           python3 -B scripts/test_notice_log.py
           python3 -B scripts/test_pages.py
           python3 -B scripts/test_airplay_remux.py
+          python3 -B scripts/test_airplay_flow.py
+          python3 -B scripts/test_airplay_room.py
+          python3 -B scripts/test_play_on_tv_start.py
+          python3 -B scripts/test_play_on_tv_network.py
           python3 -B scripts/test_prepare_downloads.py
           python3 -B scripts/test_debrid_drive.py
           python3 -B scripts/test_elementum_cloud.py

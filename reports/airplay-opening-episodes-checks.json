@@ -1,0 +1,333 @@
+{
+  "date": "2026-11-10",
+  "scope": [
+    "ISSUE-149",
+    "ISSUE-150",
+    "DEC-033"
+  ],
+  "baseline": {
+    "source": "7285f68",
+    "previous_test_ipa": 221,
+    "native_pins_unchanged": {
+      "Kodi": "r26",
+      "AirPlay": "r43"
+    }
+  },
+  "status": "Source implemented and host verification passed; IPA held by owner request",
+  "owner_instruction": "Code the AirPlay fix/log upgrades and automatic newly aired episode downloads; do not push an IPA yet.",
+  "airplay": {
+    "evidence": "Build 221: two source-cached Umbrella attempts hit the 60-second controller timeout before TV handoff, including after pausing background transfers.",
+    "cause": "Outer timeout includes inspection; native priming gets another independent 55 seconds and sequential video/audio production. Unrelated zero prefetch can compete with resumed work.",
+    "changes": [
+      "One 100-second native deadline starting at reservation; new optional startup-budget API gives controller a 5-second grace, old native API keeps legacy 60 seconds.",
+      "Parallel video/audio priming at actual resume segment; cache its init without producing zero again.",
+      "Bounded cancellation/deadline checks include lock waits.",
+      "Log actual codec/profile/depth; audio open/seek/scan/packet/source-I-O timing; cache hit/miss/wait and HTTP status/retry/error/read timing; background pause state."
+    ],
+    "limits": [
+      "This capture does not prove the specific Wi-Fi/provider/cache cause of slow I/O.",
+      "Audio -5 arrives after cancellation, so it alone does not establish a damaged source.",
+      "Compatibility predicates remain enforced; the prior misleading codec message is corrected, not bypassed."
+    ]
+  },
+  "episode_follow": {
+    "enrollment": "Confirmed TV downloads save canonical TMDb show identity and selected source preferences. Existing shows can opt in using Follow new episodes only in the season menu.",
+    "schedule": "Launch/foreground transitions only; lightweight 15-second state detection, 30-minute per-show cooldown; busy UI postpones checks.",
+    "bounds": {
+      "shows_per_pass": 25,
+      "source_attempts_per_pass": 8,
+      "planning_budget_seconds": 180,
+      "inflight_source_timeout_seconds": 120,
+      "metadata_timeout_seconds": 8
+    },
+    "release_rule": "Fresh actual air dates since follow date; skip future/undated/special/older episodes, no reliance on episode names.",
+    "download_path": "Existing Elementum -> AllDebrid -> Google Drive; preserve chosen quality/HDR/codec/source/size preference.",
+    "safety": [
+      "Check actual Drive/phone ownership and queue jobs before a search; ownership failure defers.",
+      "Only confirmed request-ID-matching queue success records a queued result.",
+      "Retry failed sources later, exclude failed release names, preserve cancellation.",
+      "Bounded stale request/late-response suppression avoids background manual dialogs.",
+      "Serialize queue deduplication and include season; preserve attached show identity through old service saves.",
+      "Stop further work during playback, background state, disabled setting, transfer pauses or shutdown."
+    ],
+    "settings": "Library: Download new episodes automatically, default enabled."
+  },
+  "verification": {
+    "python_suites": [
+      {
+        "script": "scripts/test_activity.py",
+        "tests": 36,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_airplay_remux.py",
+        "tests": 29,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_auto_season.py",
+        "tests": 6,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_background_queue.py",
+        "tests": 10,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_bundled_bootstrap.py",
+        "tests": 15,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_compatibility_filter.py",
+        "tests": 33,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_customized_ipa.py",
+        "tests": 11,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_debrid_drive.py",
+        "tests": 24,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_deck_picker.py",
+        "tests": 13,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_diagnostics.py",
+        "tests": 14,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_downloaded_show.py",
+        "tests": 20,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_drive_prepare.py",
+        "tests": 26,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_elementum_cloud.py",
+        "tests": 11,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_episode_watch.py",
+        "tests": 30,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_import_builder.py",
+        "tests": 13,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_library_status.py",
+        "tests": 48,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_library_tools.py",
+        "tests": 31,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_native_startup.py",
+        "tests": 3,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_native_ui.py",
+        "tests": 7,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_pages.py",
+        "tests": 19,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_play_on_tv_network.py",
+        "tests": 64,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_play_on_tv_start.py",
+        "tests": 5,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_portrait.py",
+        "tests": 50,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_prepare_downloads.py",
+        "tests": 59,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_remote_media.py",
+        "tests": 24,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_settings_page.py",
+        "tests": 23,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_slowdown.py",
+        "tests": 21,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_source_match.py",
+        "tests": 39,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_startup_sequence.py",
+        "tests": 9,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_transfer_efficiency.py",
+        "tests": 9,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_umbrella_recovery.py",
+        "tests": 13,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_work_state.py",
+        "tests": 27,
+        "passed": true
+      }
+    ],
+    "python_suite_count": 32,
+    "python_test_count": 742,
+    "python_all_passed": true,
+    "native_host_compile": {
+      "passed": true,
+      "toolchain": "Linux gcc, installed FFmpeg/libass host libraries; no iPhone framework build"
+    },
+    "native_suites": [
+      {
+        "mode": "--startup-only",
+        "checks": 21,
+        "failed": 0
+      },
+      {
+        "mode": "--recommendations-only",
+        "checks": 37,
+        "failed": 0
+      },
+      {
+        "mode": "--streaming-only",
+        "checks": 141,
+        "failed": 0
+      },
+      {
+        "mode": "--seek-only",
+        "checks": 12,
+        "failed": 0
+      }
+    ],
+    "native_check_count": 211,
+    "native_media": "Generated host fixtures outside Git; resumed copy and converted video target/init behavior checked, converted MPEG4 target plus init actually decodes, AAC target/init availability checked. This does not verify iPhone VideoToolbox or receiver behavior.",
+    "episode_integration": "Synthetic TMDb/provider/Kodi dependencies execute real runtime adapter, deck picker and debrid queue; synthetic calendar advances test future release behavior now.",
+    "project_check": {
+      "passed": true,
+      "files_scanned": 715,
+      "snapshot_files_checked": 34,
+      "known_baseline_placeholders_unchanged": true
+    },
+    "ui_guidance": {
+      "passed": true,
+      "vendored_files": 186,
+      "authored_files": 8
+    },
+    "diff_check_passed": true
+  },
+  "retained_failures": [
+    {
+      "failure": "Native recommendations 1/37 failure depended on implicit zero-prefetch.",
+      "fix": "Explicitly consume zero to schedule readahead; retain cancellation assertions.",
+      "retest": "37/37 passed."
+    },
+    {
+      "failure": "Range-server process ended across resume; harness continued after unavailable source/playlist.",
+      "fix": "Own server lifetime with native test orchestration; return after failed source-open checks.",
+      "retest": "All four healthy-server native suites passed."
+    },
+    {
+      "failure": "Python controller/status mocks assumed URL was last argument, exact old broker status and unlocked DriveStream mock.",
+      "fix": "Assert separate URL/lease, renewal and safe stats, remove obsolete diagnostics mock call.",
+      "retest": "Controller, remote-media, diagnostics and recovery suites passed."
+    },
+    {
+      "failure": "Settings test assumed every Library setting was an action.",
+      "fix": "Filter actions separately and verify automatic-download boolean/default/help.",
+      "retest": "23/23 passed."
+    },
+    {
+      "failure": "Future-season fixture treated episode 1 of every season as already owned.",
+      "fix": "Limit ownership fixture to S1E1 and harden season-row validation.",
+      "retest": "30 watcher tests passed."
+    }
+  ],
+  "ui": {
+    "policy": "docs/design/APPLE-UI-POLICY.md",
+    "skill": ".agents/skills/kodi-ios-ui/SKILL.md",
+    "guidance_read": [
+      "Apple HIG foundations",
+      "settings",
+      "toggles",
+      "action sheets"
+    ],
+    "changes": "Existing Kodi settings switch, select-menu option and confirmation notification; no custom layout/style.",
+    "visual_acceptance": "Pending; no existing Kodi executable found in workspace. Owner requested reuse rather than rebuilding the desktop rig."
+  },
+  "delivery": {
+    "commit": "Local source checkpoint recorded in Git history; no source push",
+    "source_pushed": false,
+    "native_iphone_build": false,
+    "native_release": false,
+    "native_pin_change": false,
+    "workflow_dispatched": false,
+    "ipa_built": false,
+    "ipa_published": false,
+    "merged": false
+  },
+  "next": [
+    "After authorization for an IPA: build, verify and pin the modified iPhone AirPlay framework before packaging.",
+    "Actual iPhone/Roku and provider retest; follow an existing show explicitly, then validate a real newly aired episode."
+  ],
+  "acceptance": {
+    "device": false,
+    "roku": false,
+    "provider_new_release": false,
+    "visual": false,
+    "owner_accounts_or_media_accessed": false,
+    "roadmap_acceptance_counts_changed": false
+  },
+  "separate_open_work": "ISSUE-147 seek intent/subtitle timeout/uncaptured continuous-hour stop remains unrepaired by this checkpoint.",
+  "source_files_sha256": {
+    "migration/airplay-ios/remux/src/kr_remux.c": "8ea75437d88259a9a0da365ca3c2d457226adb238a601aaa52833bd91ddc6be5",
+    "migration/airplay-ios/remux/gmplayer/gm_stream.c": "1e6610d18d8bd9b9ab8f87d22233399402b126d123fba76caad6f7d1a575dc94",
+    "migration/bundled-bootstrap/resources/lib/episode_watch.py": "04b0274ffe6013d2b91e72529100e706d3a1ed301ac9df26a30811772abe9ff9",
+    "migration/bundled-bootstrap/resources/lib/episode_watch_runtime.py": "4af0336e1637dff92993edefbb715a703db4d5b1950b0cb594125673af723124",
+    "scripts/test_episode_watch.py": "23b869aa14c30263abaeba5dbfbf2f849beaec412fceca0371e756e47a7a40aa"
+  }
+}

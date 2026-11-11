@@ -1,0 +1,89 @@
+{
+  "build": 223,
+  "source_commit": "f6b40982b97c8d67976e748e98381cfe7fd03759",
+  "workflow_run": 42887751497,
+  "filename": "Kodi-iOS-Customized-Touch-r10.ipa",
+  "bytes": 620552475,
+  "sha256": "03a48d7e72560de5e03f1d0690e7d44fb210584fd78b1c374c3358930666366a",
+  "zip_integrity": true,
+  "asset_digest_matches": true,
+  "native_releases": {
+    "Kodi": "kodi-ios-portrait-r28",
+    "AirPlay": "kodi-airplay-r44"
+  },
+  "kodi_equals_verified_release_after_signature_removal": true,
+  "airplay_equals_verified_release_after_signature_removal": true,
+  "new_native_features_and_exports_present": true,
+  "audited_source_helpers": 22,
+  "matching_python311_unchecked_hash_modules": 21,
+  "unsigned_unencrypted_arm64_images": 154,
+  "device_tested": false,
+  "owner_media_or_accounts_accessed": false,
+  "release_tag": "build-223",
+  "download_url": "https://github.com/onlykappa/Kodi-Ios/releases/download/build-223/Kodi-iOS-Customized-Touch-r10.ipa",
+  "asset_id": 732729425,
+  "published_at": "2026-11-10T19:47:53Z",
+  "workflow_conclusion": "success",
+  "branch": "claude/trusting-euler-kgug98",
+  "pr": 16,
+  "merged": false,
+  "native_provenance": {
+    "Kodi": {
+      "source_commit": "c829a928bdde3ba30d2f80d62c838933d8374441",
+      "run": 42881626230,
+      "artifact_id": 13794963687,
+      "tag": "kodi-ios-portrait-r28",
+      "binary_sha256": "ee7deca750e612822c4606a920110eda44675957c1d26e97ce91f6c0082fa31d",
+      "archive_sha256": "3fcde2b3d469344ef74327c4473bdd047be05a1950ace3bf09cfae323a36e9ef",
+      "patch_sha256": "a3c1814b381753ebba0475598881cbd6fddfdb41acf69542709a535deff5e851",
+      "upstream_kodi_commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
+      "bytes": 83104752,
+      "cpu": "arm64",
+      "encrypted": false,
+      "release_equals_ci_artifact": true,
+      "seek_scenarios": 46
+    },
+    "AirPlay": {
+      "tag": "kodi-airplay-r44",
+      "run": 42883448916,
+      "source_commit": "923131cca5e519262c964a86a2e569bff483bc2b",
+      "artifact_id": 13795511545,
+      "artifact_digest": "73c43bc4c7d518699947e64bbbe0230a2d6568472c49b4a6fde7f14f78edd8a7",
+      "archive_sha256": "5a84f200025d315dbe8c98490bfccb8fb33e9c87e89b14883cc97c9eefe35299",
+      "binary_sha256": "a084db8995ce018f330318c779ed8e9861d7789ff5dcba1d202ec08eb039a3b2",
+      "bytes": 9065232,
+      "cpu": "arm64",
+      "encrypted": false,
+      "exports_and_features_present": true,
+      "zip_integrity": true,
+      "host_verification": "passed, including end-to-end conversion",
+      "published": true,
+      "publication_run": 42886188374,
+      "release_equals_ci_artifact": true
+    }
+  },
+  "validation": {
+    "ci_python_suites": 62,
+    "ci_python_tests": 1094,
+    "actual_slider_scenarios": 46,
+    "native_ci_checks": 3336,
+    "native_ci_failed": 0,
+    "native_local_checks": 3252,
+    "native_local_failed": 0,
+    "end_to_end_conversion": "passed",
+    "project_ui_diff_checks": "passed"
+  },
+  "previous_failed_packaging": {
+    "build": 222,
+    "run": 42886688945,
+    "reason": "Old native-pin assertion; no IPA produced/delivered. Strict assertions updated; all subsequent scripts and final workflow pass."
+  },
+  "acceptance": {
+    "device": false,
+    "roku": false,
+    "provider_new_release": false,
+    "visual": false,
+    "roadmap_task_counts_changed": false
+  },
+  "install": "Install as an update. Test saved downloaded-library Continue/Start from beginning, seek landing, captions and AirPlay on the actual receiver; diagnostics retain future stop evidence locally and in log export."
+}

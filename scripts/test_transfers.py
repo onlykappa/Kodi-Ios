@@ -75,7 +75,8 @@ class Graph(unittest.TestCase):
   job=d['jobs']['up'];w,h,rows=decode(th.render(job['points'],th.TINTS['up'],start=job['start'],now=1300))
   self.assertEqual((w,h),(th.W,th.H))
   colours={bytes(r[x*4:x*4+3]) for r in rows for x in range(w) if r[x*4+3]==255}
-  self.assertEqual(colours,{bytes(GREEN)})   # only the job's line is solid: no other jobs, no limit line
+  # Only the job's line is solid (no other jobs, no limit line), plus board 3/4's white "now" dot.
+  self.assertEqual(colours,{bytes(GREEN),b'\xff\xff\xff'})
   self.assertTrue(any(r[3] for r in rows))
  def test_empty_and_single_point(self):
   decode(th.render([],th.TINTS['down']));decode(th.render([[5,MB,1]],th.TINTS['down']))
@@ -102,9 +103,9 @@ class Page(unittest.TestCase):
   d['finished']=[{'kind':'conv','title':'Inception','start':now-400,'end':now-300,'peak':3*MB,'avg':2*MB,'size':0,'pct':4.0},   # stopped: not listed
                   {'kind':'down','title':'Batman','start':now-3000,'end':now-500,'peak':30*MB,'avg':20*MB,'size':12*GB,'done':12*GB,'total':12*GB}]
   props,pct,kind,others=transfers.page_state(d,now,'up',[('Interstellar','convert · 8.4 GB')])
-  self.assertEqual(kind,'up');self.assertEqual(others,['conv']);self.assertEqual(props['now'],'7.2 MB/s');self.assertEqual(props['kind'],'SAVING TO GOOGLE DRIVE')
+  self.assertEqual(kind,'up');self.assertEqual(others,['up','conv']);self.assertEqual(props['now'],'7.2 MB/s');self.assertEqual(props['kind'],'SAVING TO GOOGLE DRIVE')
   self.assertEqual(props['tint'],th.TINTS['up']);self.assertAlmostEqual(pct,100*15.8/16.9,1);self.assertIn('15.8 GB of 16.9 GB',props['line'])
-  self.assertIn('left',props['line']);self.assertEqual(props['other.1.label'],'Converting Inception');self.assertEqual(props['started'],'10 min ago')
+  self.assertIn('left',props['line']);self.assertEqual(props['other.1.label'],'Downloading');self.assertRegex(props['started'],r'^\d{1,2}:\d\d [AP]M$')   # board 4: "Started 1:13 PM"
   self.assertEqual(props['done.1.title'],'Batman');self.assertIn('peak 30.0 MB/s',props['done.1.line']);self.assertEqual(props['next.1.title'],'Interstellar')
   props2,pct2,kind2,_=transfers.page_state(d,now,'conv',[])
   self.assertEqual(kind2,'conv');self.assertEqual(pct2,24);self.assertEqual(props2['line'],'24%')
@@ -112,7 +113,8 @@ class Page(unittest.TestCase):
   props3,_,_,_=transfers.page_state(d,now,'conv',[])
   self.assertEqual(props3['line'],"24% · 46 of 148 min of film · 3.8× the film's speed · about 27 min left")
   for k in props:
-   if k!='graph':self.assertIn('Window().Property(%s)'%k,self.xml,k)
+   # Board 4: the time left rides with the unit ("MB/s · 6 min left"); 'line' stays for the notification card.
+   if k in ('title','step','number','units','peak','avg','started','axis0','axis1','axis2','from','headline') or k.startswith(('other.', 'next.')) and k.endswith(('label','title','line')):self.assertIn('Window().Property(%s)'%k,self.xml,k)
   self.assertIn('Window().Property(graph)',self.xml)
   empty,_,none,_=transfers.page_state({},now,'down',[]);self.assertIsNone(none);self.assertEqual(empty['title'],'')
  def test_registered_and_pill_hidden(self):
@@ -126,7 +128,19 @@ class NewPageFound(unittest.TestCase):
   seen=[];fake=types.SimpleNamespace(listdir=lambda path:seen.append(path) or ([],[]))
   with patch.dict(sys.modules,{'xbmcvfs':fake}):portrait.refresh_listing('/skin')
   self.assertEqual(seen,['/skin/portrait/'])
-  self.assertIn(' if changed:refresh_listing(skin)',(LIB/'portrait.py').read_text())
+  self.assertIn("{c.split('/')[0] for c in changed if '/' in c}",(LIB/'portrait.py').read_text())
+ def test_every_written_folder_is_read_again(self):
+  # Build 200: IOSAirPlayFlow.xml is in 1080i; only portrait was re-listed, so the Play on TV card was "missing".
+  import types
+  from unittest.mock import patch
+  seen=[];fake=types.SimpleNamespace(listdir=lambda path:seen.append(path) or ([],[]))
+  with patch.dict(sys.modules,{'xbmcvfs':fake}):portrait.refresh_listing('/skin','1080i')
+  self.assertEqual(seen,['/skin/1080i/'])
+  text=(LIB/'portrait.py').read_text();self.assertIn('refresh_listing(skin,folder)',text)
+ def test_play_on_tv_card_retries_once_after_refreshing(self):
+  text=(BOOT/'cast.py').read_text()
+  self.assertIn("Flow=airplay_flow.make(xbmc,xbmcgui)",text)
+  self.assertIn("xbmcvfs.listdir(os.path.join(xbmcvfs.translatePath('special://skin/'),'1080i')+'/')",text)
  def test_transfers_retries_once_after_refreshing(self):
   text=(BOOT/'transfers.py').read_text()
   self.assertIn("except RuntimeError:",text);self.assertIn("xbmcvfs.listdir(os.path.join(skin,'portrait')+'/')",text)
@@ -135,13 +149,16 @@ class OnlyFromNotifications(unittest.TestCase):
  def test_cards_have_tap_targets_under_pause(self):
   xml=portrait.notices_page()
   for n in (9432,9433,9436,9437,9438,9439):self.assertIn('id="%d"'%n,xml)
-  self.assertLess(xml.index('id="9436"'),xml.index('id="9411"'))   # Pause/Cancel stay on top
+  # Board 5 drops the "•••" buttons: Pause/Cancel stay on a long press of the card (notifications.long_press).
+  self.assertNotIn('id="9462"',xml);self.assertIn('if self.long_press(*card)',(BOOT/'notifications.py').read_text())
   for page in ('library_status.py','activity_page.py'):self.assertNotIn('transfers',(BOOT/page).read_text())
  def test_tapping_the_upload_card_opens_transfers(self):
   import notices,test_library_status as lib
   from unittest.mock import patch
   with tempfile.TemporaryDirectory() as profile:
    th.save(profile,feed({},time.time()-20,20,up={'title':'Fall 2','rate':8*MB,'done':GB,'total':2*GB},conv={'title':'Inception','rate':4*MB}))
+   import work_state
+   work_state.save(profile,work_state.build({'phone':[{'title':'Fall 2','rate':8*MB,'progress':50}], 'prep':{'current':{'running':True,'title':'Inception','rate':4*MB,'updated':time.time()}}},time.time()))
    seen={}
    def look(w):seen.update(dict(w.props))
    kodi=lib.FakeKodi(profile,[('IOSNotifications.xml',lambda w:w.onClick(9432)),(tp.WINDOW,look),(tp.WINDOW,lambda w:w.onClick(tp.OTHER+1)),
@@ -154,7 +171,7 @@ class OnlyFromNotifications(unittest.TestCase):
    kodi.modules['xbmcgui'].Window=Window;kodi.modules['xbmc'].executebuiltin=lambda a:None
    with patch.dict(sys.modules,kodi.modules),patch.object(notices,'downloads',lambda get=None:[]),patch.object(notices,'uploads',lambda p:[]):
     load('notifications_run_t',BOOT/'notifications.py').run()
-   self.assertEqual(seen['title'],'Fall 2');self.assertEqual(seen['now'],'8.0 MB/s');self.assertTrue(seen['graph'].startswith('special://skin/extras/portrait/graph/graph_'))
+   self.assertEqual(seen['title'],'Fall 2');self.assertEqual(seen['now'],'8.0 MB/s');self.assertTrue(seen['graph'].startswith('special://skin/extras/portrait/graph/transfers-') and Path(seen['graph']).name.startswith('graph_'))
    self.assertEqual(seen['after'],'Inception');self.assertTrue(all(w.closed for w in kodi.windows))
    self.assertTrue(os.path.exists(os.path.join(profile,'extras','portrait','graph')))
 
@@ -174,5 +191,23 @@ class NeverNothingWhileConverting(unittest.TestCase):
  def test_library_cards_too(self):
   import prepare_downloads as prep
   self.assertIn("now()-current.get('updated',0)<60",(LIB/'prepare_downloads.py').read_text())
+
+class SeasonEpisodeSpeeds(unittest.TestCase):
+ """Build 207 (owner, build-206 Transfers screenshot: "Lanterns · S01E02 ... 46%", Peak and Average 0.0 MB/s, no
+ graph): the history titled the copy by its show, the page by its episode, so the page dropped the speeds."""
+ def test_history_and_page_name_the_same_episode(self):
+  import work_state,transfers
+  now=time.time();d={}
+  for i in range(0,60,2):
+   cur={'name':'Lanterns','stage':'copying','sent':(1400+i)*MB,'total':3000*MB,'rate':1.6*MB,'updated':now-60+i,
+        'file':'Lanterns.S01E02.2160p.WEB.mkv','index':2,'count':8}
+   th.track(d,now-60+i,th.activity([],cur,{}))
+  debrid={'current':cur,'jobs':[{'title':'Lanterns','status':'copying','hash':'01226f96'}]}
+  model=work_state.build({'debrid':debrid},now)
+  props,pct,kind,_=transfers.page_state(d,now,'up',[],model,{})
+  self.assertEqual(props['title'],'Lanterns · S01E02')
+  self.assertEqual(props['peak'],'1.6 MB/s');self.assertEqual(props['avg'],'1.6 MB/s')
+  self.assertEqual(props['wait'],'')                     # the graph shows
+  self.assertEqual(int(pct),48)
 
 if __name__=='__main__':unittest.main()

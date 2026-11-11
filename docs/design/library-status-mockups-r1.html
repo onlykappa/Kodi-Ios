@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Library status mockups r1</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#111;color:#EBEBF5;font-family:Inter,sans-serif}
+header{max-width:1200px;margin:0 auto;padding:32px 16px 8px}
+h1{font-size:28px;margin:0 0 8px;color:#fff}
+p{margin:4px 0;color:rgba(235,235,245,.6);font-size:15px;line-height:1.45}
+.boards{display:flex;flex-wrap:wrap;gap:40px;justify-content:center;padding:24px 16px 64px}
+.board{margin:0;display:flex;flex-direction:column;gap:10px}
+figcaption{font-size:14px;font-weight:600;color:#fff}
+.phone{width:402px;height:874px;border-radius:44px;overflow:hidden;box-shadow:0 0 0 10px #2a2a2c}
+a{color:#4FA8FF}
+button{font-family:inherit}
+</style>
+</head>
+<body>
+<header>
+<h1>Library status, Transfers, Notifications, bell, Queue, History, movie sheets · mockups round 1</h1>
+<p><b>Mockup</b> (APPLE-UI-POLICY §9): browser rendering of the intended look, not evidence of Kodi. Approved by the owner on 2026-11-07 ("Awesome work"). The roadmap is docs/plans/build-193-roadmap.md.</p>
+<p>Phone frames are 402 × 874 pt (iPhone 16 Pro). In Kodi's portrait canvas 1 pt = 2.687 units. "poster" boxes stand for the title's real artwork at runtime.</p>
+</header>
+<div class="boards">
+<figure class="board"><figcaption>1 · Library status (working)</figcaption><div class="phone"><div style="width: 402px; height: 874px; box-sizing: border-box; background: #000000; color: #FFFFFF; font-family: Inter, sans-serif; padding: 62px 20px 24px; display: flex; flex-direction: column; gap: 14px; overflow: hidden">
+  <div style="display: flex; justify-content: space-between; align-items: center; height: 44px">
+    <button aria-label="Back" style="width: 44px; height: 44px; background: none; border: 0; padding: 0; color: #FFFFFF; display: flex; align-items: center">
+      <svg width="13" height="22" viewBox="0 0 13 22" aria-hidden="true"><path d="M11 2 2 11l9 9" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button aria-label="Check now" style="width: 44px; height: 44px; background: none; border: 0; padding: 0; display: flex; align-items: center; justify-content: flex-end">
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" fill="none" stroke="#4FA8FF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px">
+    <h1 style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.4px">Library status</h1>
+    <div style="font-size: 15px; color: rgba(235,235,245,0.6)">Kodi Downloads on Google Drive · checked just now</div>
+  </div>
+
+  <a href="#" style="text-decoration: none; color: inherit; background: #1C1C1E; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; gap: 12px; align-items: center">
+      <div style="width: 52px; height: 78px; border-radius: 8px; background: #2C2C2E; display: flex; align-items: center; justify-content: center; font-size: 11px; color: rgba(235,235,245,0.6); flex-shrink: 0">poster</div>
+      <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1">
+        <div style="font-size: 13px; font-weight: 600; color: #BF5AF2; letter-spacing: 0.2px">WORKING ON NOW</div>
+        <div style="font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Lanterns · S1 E1</div>
+        <div style="font-size: 15px; color: rgba(235,235,245,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Making it start faster</div>
+      </div>
+      <svg width="54" height="54" viewBox="0 0 54 54" role="img" aria-label="42 percent">
+        <circle cx="27" cy="27" r="23" fill="none" stroke="#3A3A3C" stroke-width="5"/>
+        <circle cx="27" cy="27" r="23" fill="none" stroke="#BF5AF2" stroke-width="5" stroke-linecap="round" stroke-dasharray="60.7 144.5" transform="rotate(-90 27 27)"/>
+        <text x="27" y="31.5" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#FFFFFF">42%</text>
+      </svg>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px">
+      <svg width="170" height="30" viewBox="0 0 250 30" preserveAspectRatio="none" aria-hidden="true" style="flex: 1; min-width: 0">
+        <defs><linearGradient id="mf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#BF5AF2" stop-opacity="0.35"/><stop offset="1" stop-color="#BF5AF2" stop-opacity="0"/></linearGradient></defs>
+        <path d="M0 22 C20 18 35 12 55 14 S90 20 110 12 S150 6 170 10 S210 16 230 9 L250 8 L250 30 L0 30Z" fill="url(#mf)"/>
+        <path d="M0 22 C20 18 35 12 55 14 S90 20 110 12 S150 6 170 10 S210 16 230 9 L250 8" fill="none" stroke="#BF5AF2" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="250" cy="8" r="3" fill="#FFFFFF"/>
+      </svg>
+      <div style="font-size: 15px; font-weight: 600; white-space: nowrap">4.8 MB/s <span style="font-weight: 400; color: rgba(235,235,245,0.6)">· 6 min left</span></div>
+      <svg width="8" height="14" viewBox="0 0 8 14" aria-hidden="true"><path d="M1.5 1.5 6.5 7l-5 5.5" fill="none" stroke="rgba(235,235,245,0.6)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+  </a>
+
+  <div style="background: #1C1C1E; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline">
+      <div style="font-size: 17px; font-weight: 600">8 of 12 ready</div>
+      <div style="font-size: 15px; color: rgba(235,235,245,0.6)">about 1 h 20 min to go</div>
+    </div>
+    <div style="display: flex; gap: 3px; height: 8px">
+      <div style="flex: 8; background: #30D158; border-radius: 4px 0 0 4px"></div>
+      <div style="flex: 1; background: #BF5AF2"></div>
+      <div style="flex: 2; background: #0A84FF"></div>
+      <div style="flex: 1; background: #636366; border-radius: 0 4px 4px 0"></div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px">
+      <button style="background: #2C2C2E; border: 0; border-radius: 10px; padding: 8px 0; color: #FFFFFF; display: flex; flex-direction: column; align-items: center; gap: 1px; min-height: 52px"><span style="font-size: 20px; font-weight: 700; color: #30D158">8</span><span style="font-size: 12px; color: rgba(235,235,245,0.6)">Ready</span></button>
+      <button style="background: #2C2C2E; border: 0; border-radius: 10px; padding: 8px 0; color: #FFFFFF; display: flex; flex-direction: column; align-items: center; gap: 1px; min-height: 52px"><span style="font-size: 20px; font-weight: 700; color: #BF5AF2">1</span><span style="font-size: 12px; color: rgba(235,235,245,0.6)">Working</span></button>
+      <button style="background: #2C2C2E; border: 0; border-radius: 10px; padding: 8px 0; color: #FFFFFF; display: flex; flex-direction: column; align-items: center; gap: 1px; min-height: 52px"><span style="font-size: 20px; font-weight: 700; color: #4FA8FF">2</span><span style="font-size: 12px; color: rgba(235,235,245,0.6)">Up next</span></button>
+      <button style="background: #2C2C2E; border: 0; border-radius: 10px; padding: 8px 0; color: #FFFFFF; display: flex; flex-direction: column; align-items: center; gap: 1px; min-height: 52px"><span style="font-size: 20px; font-weight: 700; color: rgba(235,235,245,0.6)">1</span><span style="font-size: 12px; color: rgba(235,235,245,0.6)">Kept</span></button>
+    </div>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 6px 4px 0">
+    <div style="font-size: 15px; font-weight: 600; color: rgba(235,235,245,0.6)">UP NEXT</div>
+    <a href="#" style="font-size: 15px; text-decoration: none">Edit order</a>
+  </div>
+  <div style="background: #1C1C1E; border-radius: 16px; display: flex; flex-direction: column">
+    <div style="display: flex; align-items: center; gap: 12px; padding: 0 14px; min-height: 60px; border-bottom: 1px solid rgba(235,235,245,0.12)">
+      <div style="width: 30px; height: 30px; border-radius: 15px; background: rgba(10,132,255,0.18); color: #4FA8FF; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center">1</div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+        <div style="font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Scary Movie (2026)</div>
+        <div style="font-size: 13px; color: rgba(235,235,245,0.6)">Convert · 4.3 GB · about 25 min</div>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px; padding: 0 14px; min-height: 60px">
+      <div style="width: 30px; height: 30px; border-radius: 15px; background: rgba(10,132,255,0.18); color: #4FA8FF; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center">2</div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+        <div style="font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Fall 2 Deadpoint (2026)</div>
+        <div style="font-size: 13px; color: rgba(235,235,245,0.6)">Ready now · faster start next · 16.9 GB</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="font-size: 15px; font-weight: 600; color: rgba(235,235,245,0.6); padding: 6px 4px 0">READY FOR KODI AND AIRPLAY</div>
+  <div style="background: #1C1C1E; border-radius: 16px; display: flex; flex-direction: column">
+    <div style="display: flex; align-items: center; gap: 12px; padding: 0 14px; min-height: 52px; border-bottom: 1px solid rgba(235,235,245,0.12)">
+      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="11" fill="#30D158"/><path d="m6.5 11.3 3 3 6-6.3" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div style="flex: 1; font-size: 17px">Interstellar (2014)</div>
+      <div style="font-size: 13px; color: rgba(235,235,245,0.6)">4K HDR</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px; padding: 0 14px; min-height: 52px">
+      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="11" fill="#30D158"/><path d="m6.5 11.3 3 3 6-6.3" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div style="flex: 1; font-size: 17px">Fall 2 Deadpoint (2026)</div>
+      <div style="font-size: 13px; color: rgba(235,235,245,0.6)">4K</div>
+    </div>
+  </div>
+</div></div></figure>
+<figure class="board"><figcaption>2 · Needs you · slower while AirPlay plays</figcaption><div class="phone"><div style="width: 402px; height: 874px; box-sizing: border-box; background: #000000; color: #FFFFFF; font-family: Inter, sans-serif; padding: 62px 20px 24px; display: flex; flex-direction: column; gap: 14px; overflow: hidden">
+  <div style="display: flex; justify-content: space-between; align-items: center; height: 44px">
+    <button aria-label="Back" style="width: 44px; height: 44px; background: none; border: 0; padding: 0; display: flex; align-items: center">
+      <svg width="13" height="22" viewBox="0 0 13 22" aria-hidden="true"><path d="M11 2 2 11l9 9" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button aria-label="Check now" style="width: 44px; height: 44px; background: none; border: 0; padding: 0; display: flex; align-items: center; justify-content: flex-end">
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" fill="none" stroke="#4FA8FF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px">
+    <h1 style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.4px">Library status</h1>
+    <div style="font-size: 15px; color: rgba(235,235,245,0.6)">Kodi Downloads on Google Drive · checked just now</div>
+  </div>
+
+  <div style="background: #1C1C1E; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; gap: 12px; align-items: flex-start">
+      <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(255,159,10,0.18); display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20L12 3Z" fill="none" stroke="#FF9F0A" stroke-width="2.2" stroke-linejoin="round"/><path d="M12 10v4" stroke="#FF9F0A" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.3" fill="#FF9F0A"/></svg>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 3px">
+        <div style="font-size: 17px; font-weight: 600">Sign in to Google Drive again</div>
+        <div style="font-size: 15px; color: rgba(235,235,245,0.6); line-height: 1.35">Google stopped accepting the saved sign-in. Downloads and conversions wait until you sign in; nothing is lost.</div>
+      </div>
+    </div>
+    <button style="height: 44px; border-radius: 22px; border: 0; background: #FFFFFF; color: #000000; font-size: 17px; font-weight: 600">Sign in</button>
+  </div>
+
+  <div style="background: #1C1C1E; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; gap: 12px; align-items: center">
+      <div style="width: 52px; height: 78px; border-radius: 8px; background: #2C2C2E; display: flex; align-items: center; justify-content: center; font-size: 11px; color: rgba(235,235,245,0.6); flex-shrink: 0">poster</div>
+      <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1">
+        <div style="font-size: 13px; font-weight: 600; color: #BF5AF2; letter-spacing: 0.2px">WORKING ON NOW</div>
+        <div style="font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Scary Movie (2026)</div>
+        <div style="font-size: 15px; color: rgba(235,235,245,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Converting</div>
+      </div>
+      <svg width="54" height="54" viewBox="0 0 54 54" role="img" aria-label="18 percent">
+        <circle cx="27" cy="27" r="23" fill="none" stroke="#3A3A3C" stroke-width="5"/>
+        <circle cx="27" cy="27" r="23" fill="none" stroke="#BF5AF2" stroke-width="5" stroke-linecap="round" stroke-dasharray="26 144.5" transform="rotate(-90 27 27)"/>
+        <text x="27" y="31.5" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#FFFFFF">18%</text>
+      </svg>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(235,235,245,0.6); white-space: nowrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H4z" fill="none" stroke="rgba(235,235,245,0.6)" stroke-width="2" stroke-linejoin="round"/><path d="m8 21 4-5 4 5Z" fill="rgba(235,235,245,0.6)"/></svg>
+      Slower while AirPlay plays · <span style="font-weight: 600; color: #FFFFFF">1.1 MB/s</span> · 25 min left
+    </div>
+  </div>
+
+  <div style="font-size: 15px; font-weight: 600; color: rgba(235,235,245,0.6); padding: 6px 4px 0">DOWNLOADING TO GOOGLE DRIVE</div>
+  <div style="background: #1C1C1E; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px">
+      <div style="font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Inception (2010)</div>
+      <div style="font-size: 15px; font-weight: 600; color: #4FA8FF">38%</div>
+    </div>
+    <div style="height: 6px; border-radius: 3px; background: #3A3A3C"><div style="width: 38%; height: 6px; border-radius: 3px; background: #0A84FF"></div></div>
+    <div style="font-size: 13px; color: rgba(235,235,245,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">AllDebrid → Drive · 2.4 MB/s · 9 min left</div>
+  </div>
+
+  <div style="font-size: 15px; font-weight: 600; color: rgba(235,235,245,0.6); padding: 6px 4px 0">KEPT AS IT IS</div>
+  <div style="background: #1C1C1E; border-radius: 16px; display: flex; align-items: center; gap: 12px; padding: 0 14px; min-height: 60px">
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+      <div style="font-size: 17px">Inception (2010) · old copy</div>
+      <div style="font-size: 13px; color: rgba(235,235,245,0.6)">Being replaced by the new download above</div>
+    </div>
+  </div>
+</div></div></figure>
+<figure class="board"><figcaption>3 · One movie (sheet)</figcaption><div class="phone"><div style="width: 402px; height: 874px; box-sizing: border-box; background: #0B0B0C; color: #FFFFFF; font-family: Inter, sans-serif; position: relative; overflow: hidden">
+  <div style="position: absolute; left: 0; right: 0; top: 70px; bottom: 0; background: #1C1C1E; border-radius: 28px 28px 0 0; padding: 8px 20px 24px; display: flex; flex-direction: column; gap: 16px">
+    <div style="align-self: center; width: 40px; height: 5px; border-radius: 3px; background: #48484A"></div>
+    <div style="display: flex; gap: 14px; align-items: center">
+      <div style="width: 64px; height: 96px; border-radius: 10px; background: #2C2C2E; display: flex; align-items: center; justify-content: center; font-size: 11px; color: rgba(235,235,245,0.6); flex-shrink: 0">poster</div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+        <div style="font-size: 22px; font-weight: 700; line-height: 1.2">Lanterns · S1 E1</div>
+        <div style="font-size: 15px; color: rgba(235,235,245,0.6)">4K · HEVC · 2.8 GB</div>
+      </div>
+      <a href="#" aria-label="Close" style="width: 44px; height: 44px; border-radius: 22px; background: #2C2C2E; display: flex; align-items: center; justify-content: center; align-self: flex-start">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="m2 2 10 10M12 2 2 12" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </a>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="height: 4px; border-radius: 2px; background: #30D158"></div>
+        <div style="font-size: 13px; color: rgba(235,235,245,0.6)">Downloaded</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="height: 4px; border-radius: 2px; background: #30D158"></div>
+        <div style="font-size: 13px; color: rgba(235,235,245,0.6)">On Drive</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="height: 4px; border-radius: 2px; background: #3A3A3C; overflow: hidden"><div style="width: 42%; height: 4px; background: #BF5AF2"></div></div>
+        <div style="font-size: 13px; font-weight: 600">Faster start · 42%</div>
+      </div>
+    </div>
+
+    <div style="background: #2C2C2E; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; justify-content: space-between; align-items: baseline">
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <div style="font-size: 13px; color: rgba(235,235,245,0.6)">Right now</div>
+          <div style="font-size: 28px; font-weight: 700">4.8 <span style="font-size: 17px; font-weight: 600; color: rgba(235,235,245,0.6)">MB/s</span></div>
+        </div>
+        <div style="font-size: 15px; color: rgba(235,235,245,0.6)">6 min left</div>
+      </div>
+      <svg width="334" height="150" viewBox="0 0 334 150" role="img" aria-label="Speed over the last 10 minutes, now 4.8 megabytes per second">
+        <defs><linearGradient id="sf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#BF5AF2" stop-opacity="0.38"/><stop offset="1" stop-color="#BF5AF2" stop-opacity="0"/></linearGradient></defs>
+        <g stroke="rgba(235,235,245,0.12)" stroke-width="1">
+          <line x1="0" y1="20" x2="300" y2="20"/><line x1="0" y1="65" x2="300" y2="65"/><line x1="0" y1="110" x2="300" y2="110"/>
+        </g>
+        <g font-family="Inter, sans-serif" font-size="11" fill="rgba(235,235,245,0.6)">
+          <text x="306" y="24">6</text><text x="306" y="69">4</text><text x="306" y="114">2</text>
+          <text x="0" y="146">10 min ago</text><text x="300" y="146" text-anchor="end">now</text>
+        </g>
+        <path d="M0 98 C25 92 40 70 62 66 S100 74 120 58 S160 40 182 46 S222 62 240 50 S280 34 300 38 L300 128 L0 128Z" fill="url(#sf)"/>
+        <path d="M0 98 C25 92 40 70 62 66 S100 74 120 58 S160 40 182 46 S222 62 240 50 S280 34 300 38" fill="none" stroke="#BF5AF2" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="160" y1="40" x2="160" y2="128" stroke="rgba(235,235,245,0.25)" stroke-dasharray="3 3"/>
+        <text x="164" y="36" font-family="Inter, sans-serif" font-size="11" fill="rgba(235,235,245,0.6)">peak 5.6</text>
+        <circle cx="300" cy="38" r="5" fill="#FFFFFF"/><circle cx="300" cy="38" r="9" fill="#FFFFFF" fill-opacity="0.2"/>
+      </svg>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; border-top: 1px solid rgba(235,235,245,0.12); padding-top: 10px">
+        <div><div style="font-size: 13px; color: rgba(235,235,245,0.6)">Average</div><div style="font-size: 17px; font-weight: 600">4.2 MB/s</div></div>
+        <div><div style="font-size: 13px; color: rgba(235,235,245,0.6)">Done</div><div style="font-size: 17px; font-weight: 600">1.2 of 2.8 GB</div></div>
+        <div><div style="font-size: 13px; color: rgba(235,235,245,0.6)">Started</div><div style="font-size: 17px; font-weight: 600">1:13 PM</div></div>
+      </div>
+    </div>
+
+    <div style="font-size: 15px; color: rgba(235,235,245,0.6); line-height: 1.4">It already plays in Kodi and on AirPlay. This rearranges it so it opens in a second or two; the picture and sound stay the same.</div>
+
+    <div style="display: flex; gap: 10px; margin-top: auto">
+      <button style="flex: 1; height: 50px; border-radius: 25px; border: 0; background: #FFFFFF; color: #000000; font-size: 17px; font-weight: 600">Play</button>
+      <button style="flex: 1; height: 50px; border-radius: 25px; border: 0; background: #3A3A3C; color: #FFFFFF; font-size: 17px; font-weight: 600">Pause</button>
+    </div>
+  </div>
+</div></div></figure>
+<figure class="board"><figcaption>4 · Transfers with the new graph</figcaption><div class="phone"><div style="width: 402px; height: 874px; box-sizing: border-box; background: #000000; color: #FFFFFF; font-family: Inter, sans-serif; padding: 62px 20px 24px; display: flex; flex-direction: column; gap: 14px; overflow: hidden">
+  <div style="display: flex; justify-content: space-between; align-items: center; height: 44px">
+    <button aria-label="Back" style="width: 44px; height: 44px; background: none; border: 0; padding: 0; display: flex; align-items: center">
+      <svg width="13" height="22" viewBox="0 0 13 22" aria-hidden="true"><path d="M11 2 2 11l9 9" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <a href="#" style="font-size: 17px; text-decoration: none">History</a>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px">
+    <h1 style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.4px">Transfers</h1>
+    <div style="font-size: 15px; color: rgba(235,235,245,0.6)">2 running · 2 up next</div>
+  </div>
+
+  <div style="display: flex; gap: 8px">
+    <button style="height: 36px; padding: 0 14px; border-radius: 18px; border: 0; background: #FFFFFF; color: #000000; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #BF5AF2"></span>Converting</button>
+    <button style="height: 36px; padding: 0 14px; border-radius: 18px; border: 0; background: #2C2C2E; color: #FFFFFF; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; border-radius: 4px; background: #0A84FF"></span>Downloading</button>
+  </div>
+
+  <div style="background: #1C1C1E; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <div style="font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Lanterns · S1 E1</div>
+      <div style="font-size: 15px; color: rgba(235,235,245,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Making it start faster · 42%</div>
+    </div>
+    <div style="display: flex; align-items: baseline; gap: 6px">
+      <div style="font-size: 40px; font-weight: 700; letter-spacing: -0.6px">4.8</div>
+      <div style="font-size: 17px; font-weight: 600; color: rgba(235,235,245,0.6); white-space: nowrap">MB/s · 6 min left</div>
+    </div>
+    <svg width="334" height="170" viewBox="0 0 334 170" role="img" aria-label="Speed graph: steady around 4 to 5 megabytes per second over 10 minutes">
+      <defs><linearGradient id="tf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#BF5AF2" stop-opacity="0.4"/><stop offset="1" stop-color="#BF5AF2" stop-opacity="0"/></linearGradient></defs>
+      <g stroke="rgba(235,235,245,0.12)" stroke-width="1">
+        <line x1="0" y1="18" x2="304" y2="18"/><line x1="0" y1="68" x2="304" y2="68"/><line x1="0" y1="118" x2="304" y2="118"/>
+      </g>
+      <g font-family="Inter, sans-serif" font-size="11" fill="rgba(235,235,245,0.6)">
+        <text x="310" y="22">6</text><text x="310" y="72">4</text><text x="310" y="122">2</text>
+        <text x="0" y="166">1:03</text><text x="152" y="166" text-anchor="middle">1:08</text><text x="304" y="166" text-anchor="end">now</text>
+      </g>
+      <path d="M0 120 C18 112 30 84 52 80 S88 92 108 72 S140 52 160 60 S196 78 214 62 S256 40 276 46 S296 42 304 40 L304 146 L0 146Z" fill="url(#tf)"/>
+      <path d="M0 120 C18 112 30 84 52 80 S88 92 108 72 S140 52 160 60 S196 78 214 62 S256 40 276 46 S296 42 304 40" fill="none" stroke="#BF5AF2" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="304" cy="40" r="5" fill="#FFFFFF"/><circle cx="304" cy="40" r="10" fill="#FFFFFF" fill-opacity="0.18"/>
+    </svg>
+    <div style="height: 6px; border-radius: 3px; background: #3A3A3C"><div style="width: 42%; height: 6px; border-radius: 3px; background: #BF5AF2"></div></div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+      <div><div style="font-size: 13px; color: rgba(235,235,245,0.6)">Peak</div><div style="font-size: 17px; font-weight: 600">5.6 MB/s</div></div>
+      <div><div style="font-size: 13px; color: rgba(235,235,245,0.6)">Average</div><div style="font-size: 17px; font-weight: 600">4.2 MB/s</div></div>
+      <div><div style="font-size: 13px; color: rgba(235,235,245,0.6)">Started</div><div style="font-size: 17px; font-weight: 600">1:03 PM</div></div>
+    </div>
+  </div>
+
+  <div style="font-size: 15px; font-weight: 600; color: rgba(235,235,245,0.6); padding: 4px 4px 0">UP NEXT</div>
+  <div style="background: #1C1C1E; border-radius: 16px; display: flex; flex-direction: column">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px; min-height: 52px; border-bottom: 1px solid rgba(235,235,245,0.12)">
+      <div style="font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Scary Movie (2026)</div>
+      <div style="font-size: 13px; color: rgba(235,235,245,0.6); white-space: nowrap">convert · 4.3 GB</div>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px; min-height: 52px">
+      <div style="font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Fall 2 Deadpoint (2026)</div>
+      <div style="font-size: 13px; color: rgba(235,235,245,0.6); white-space: nowrap">faster start · 16.9 GB</div>
+    </div>
+  </div>
+</div></div></figure>
+<figure class="board"><figcaption>5 · Notifications (same card as Library status)</figcaption><div class="phone"><div style="width: 402px; height: 874px; box-sizing: border-box; background: #000000; color: #FFFFFF; font-family: Inter, sans-serif; padding: 62px 20px 24px; display: flex; flex-direction: column; gap: 14px; overflow: hidden">
+  <div style="display: flex; justify-content: space-between; align-items: center; height: 44px">
+    <button aria-label="Back" style="width: 44px; height: 44px; background: none; border: 0; padding: 0; display: flex; align-items: center">
+      <svg width="13" height="22" viewBox="0 0 13 22" aria-hidden="true"><path d="M11 2 2 11l9 9" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <a href="#" style="font-size: 17px; text-decoration: none">Clear All</a>
+  </div>
+  <h1 style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.4px">Notifications</h1>
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; background: #1C1C1E; border-radius: 10px; padding: 2px">
+    <button style="height: 32px; border: 0; border-radius: 8px; background: #48484A; color: #FFFFFF; font-size: 13px; font-weight: 600">All</button>
+    <button style="height: 32px; border: 0; border-radius: 8px; background: none; color: rgba(235,235,245,0.6); font-size: 13px; font-weight: 600">General</button>
+    <button style="height: 32px; border: 0; border-radius: 8px; background: none; color: rgba(235,235,245,0.6); font-size: 13px; font-weight: 600">Downloads</button>
+    <button style="height: 32px; border: 0; border-radius: 8px; background: none; color: rgba(235,235,245,0.6); font-size: 13px; font-weight: 600">Problems</button>
+  </div>
+
+  <div style="font-size: 15px; font-weight: 600; color: rgba(235,235,245,0.6); padding: 4px 4px 0">RUNNING NOW</div>
+  <a href="#" style="text-decoration: none; color: inherit; background: #1C1C1E; border-radius: 16px; padding: 12px 14px; display: flex; gap: 12px; align-items: center">
+    <div style="width: 40px; height: 60px; border-radius: 6px; background: #2C2C2E; display: flex; align-items: center; justify-content: center; font-size: 9px; color: rgba(235,235,245,0.6); flex-shrink: 0">poster</div>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+      <div style="font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Lanterns · S1 E1</div>
+      <div style="font-size: 13px; color: rgba(235,235,245,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Making it start faster · 4.8 MB/s · 6 min left</div>
+      <div style="height: 4px; border-radius: 2px; background: #3A3A3C; margin-top: 4px"><div style="width: 42%; height: 4px; border-radius: 2px; background: #BF5AF2"></div></div>
+    </div>
+    <svg width="8" height="14" viewBox="0 0 8 14" aria-hidden="true"><path d="M1.5 1.5 6.5 7l-5 5.5" fill="none" stroke="rgba(235,235,245,0.6)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </a>
+  <a href="#" style="text-decoration: none; color: inherit; background: #1C1C1E; border-radius: 16px; padding: 12px 14px; display: flex; gap: 12px; align-items: center">
+    <div style="width: 40px; height: 60px; border-radius: 6px; background: #2C2C2E; display: flex; align-items: center; justify-content: center; font-size: 9px; color: rgba(235,235,245,0.6); flex-shrink: 0">poster</div>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+      <div style="font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Inception (2010)</div>
+      <div style="font-size: 13px; color: rgba(235,235,245,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">AllDebrid → Drive · 2.4 MB/s · 9 min left</div>
+      <div style="height: 4px; border-radius: 2px; background: #3A3A3C; margin-top: 4px"><div style="width: 38%; height: 4px; border-radius: 2px; background: #0A84FF"></div></div>
+    </div>
+    <svg width="8" height="14" viewBox="0 0 8 14" aria-hidden="true"><path d="M1.5 1.5 6.5 7l-5 5.5" fill="none" stroke="rgba(235,235,245,0.6)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </a>
+  <div style="font-size: 13px; color: rgba(235,235,245,0.6); padding: 0 4px">Up next: Scary Movie, then Fall 2 Deadpoint · <a href="#" style="text-decoration: none">Library status</a></div>
+
+  <div style="font-size: 15px; font-weight: 600; color: rgba(235,235,245,0.6); padding: 6px 4px 0">EARLIER</div>
+  <div style="background: #1C1C1E; border-radius: 16px; display: flex; flex-direction: column">
+    <div style="display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-bottom: 1px solid rgba(235,235,245,0.12)">
+      <div style="width: 8px; height: 8px; border-radius: 4px; background: #0A84FF; flex-shrink: 0"></div>
+      <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(48,209,88,0.18); display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+        <svg width="18" height="18" viewBox="0 0 22 22" aria-hidden="true"><path d="m5 11.5 4 4 8-9" fill="none" stroke="#30D158" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+        <div style="display: flex; justify-content: space-between; gap: 8px"><div style="font-size: 15px; font-weight: 600">Ready for Kodi and AirPlay</div><div style="font-size: 13px; color: rgba(235,235,245,0.6)">2m</div></div>
+        <div style="font-size: 13px; color: rgba(235,235,245,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Interstellar (2014) opens quickly now</div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: center; padding: 12px 14px">
+      <div style="width: 8px; height: 8px; border-radius: 4px; background: transparent; flex-shrink: 0"></div>
+      <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(10,132,255,0.18); display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="#4FA8FF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+        <div style="display: flex; justify-content: space-between; gap: 8px"><div style="font-size: 15px; font-weight: 600">Queued for Google Drive</div><div style="font-size: 13px; color: rgba(235,235,245,0.6)">5m</div></div>
+        <div style="font-size: 13px; color: rgba(235,235,245,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Inception · AllDebrid → Drive → ready</div>
+      </div>
+    </div>
+  </div>
+</div></div></figure>
+<figure class="board"><figcaption>6 · Bell states on Home</figcaption><div class="phone"><div style="width: 402px; height: 874px; box-sizing: border-box; background: #000000; color: #FFFFFF; font-family: Inter, sans-serif; padding: 62px 20px 24px; display: flex; flex-direction: column; gap: 22px; overflow: hidden">
+  <h1 style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.4px">The bell on Home</h1>
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <div style="font-size: 15px; font-weight: 600; color: rgba(235,235,245,0.6)">NOTHING RUNNING</div>
+    <div style="height: 96px; border-radius: 16px; background: #1C1C1E; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 0 14px">
+      <button aria-label="Notifications" style="width: 44px; height: 44px; border: 0; background: none; padding: 0; display: flex; align-items: center; justify-content: center">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15Z" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"/><path d="M10 20.5a2 2 0 0 0 4 0" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button aria-label="Settings" style="width: 44px; height: 44px; border: 0; background: none; padding: 0; display: flex; align-items: center; justify-content: center">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="#FFFFFF" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <div style="font-size: 15px; font-weight: 600; color: rgba(235,235,245,0.6)">WORKING · 42%</div>
+    <div style="height: 96px; border-radius: 16px; background: #1C1C1E; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 0 14px">
+      <button aria-label="Notifications, 2 running, 42 percent" style="width: 44px; height: 44px; border: 0; background: none; padding: 0; display: flex; align-items: center; justify-content: center; position: relative">
+        <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
+          <circle cx="22" cy="22" r="19" fill="none" stroke="#3A3A3C" stroke-width="3"/>
+          <circle cx="22" cy="22" r="19" fill="none" stroke="#BF5AF2" stroke-width="3" stroke-linecap="round" stroke-dasharray="50 119.4" transform="rotate(-90 22 22)"/>
+          <path d="M15 26V21a7 7 0 0 1 14 0v5l1.5 2h-17Z" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"/><path d="M20 31a2 2 0 0 0 4 0" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <span style="position: absolute; top: -2px; right: -4px; min-width: 18px; height: 18px; border-radius: 9px; background: #0A84FF; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 4px; box-sizing: border-box">2</span>
+      </button>
+      <button aria-label="Settings" style="width: 44px; height: 44px; border: 0; background: none; padding: 0; display: flex; align-items: center; justify-content: center">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="#FFFFFF" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div style="font-size: 13px; color: rgba(235,235,245,0.6)">The ring fills with the job's real progress; the number is how many are running.</div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <div style="font-size: 15px; font-weight: 600; color: rgba(235,235,245,0.6)">SLOWER WHILE AIRPLAY PLAYS</div>
+    <div style="height: 96px; border-radius: 16px; background: #1C1C1E; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 0 14px">
+      <button aria-label="Notifications, running slower" style="width: 44px; height: 44px; border: 0; background: none; padding: 0; display: flex; align-items: center; justify-content: center">
+        <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true">
+          <circle cx="22" cy="22" r="19" fill="none" stroke="#3A3A3C" stroke-width="3"/>
+          <circle cx="22" cy="22" r="19" fill="none" stroke="#8E8E93" stroke-width="3" stroke-linecap="round" stroke-dasharray="22 119.4" transform="rotate(-90 22 22)"/>
+          <path d="M15 26V21a7 7 0 0 1 14 0v5l1.5 2h-17Z" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"/><path d="M20 31a2 2 0 0 0 4 0" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button aria-label="Settings" style="width: 44px; height: 44px; border: 0; background: none; padding: 0; display: flex; align-items: center; justify-content: center">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="#FFFFFF" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div style="font-size: 13px; color: rgba(235,235,245,0.6)">Grey ring: still moving, just slower, so the video gets the line.</div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <div style="font-size: 15px; font-weight: 600; color: rgba(235,235,245,0.6)">NEEDS YOU</div>
+    <div style="height: 96px; border-radius: 16px; background: #1C1C1E; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 0 14px">
+      <button aria-label="Notifications, 1 needs you" style="width: 44px; height: 44px; border: 0; background: none; padding: 0; display: flex; align-items: center; justify-content: center; position: relative">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15Z" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"/><path d="M10 20.5a2 2 0 0 0 4 0" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/></svg>
+        <span style="position: absolute; top: 2px; right: 0; min-width: 18px; height: 18px; border-radius: 9px; background: #FF453A; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 4px; box-sizing: border-box">1</span>
+      </button>
+      <button aria-label="Settings" style="width: 44px; height: 44px; border: 0; background: none; padding: 0; display: flex; align-items: center; justify-content: center">
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="#FFFFFF" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div style="font-size: 13px; color: rgba(235,235,245,0.6)">Red only when you have to do something, such as sign in to Google Drive.</div>
+  </div>
+</div></div></figure>
+<figure class="board"><figcaption>7 · Queue (Edit order)</figcaption><div class="phone"><div style="width: 402px; height: 874px; box-sizing: border-box; background: #000000; color: #FFFFFF; font-family: Inter, sans-serif; padding: 62px 20px 24px; display: flex; flex-direction: column; gap: 14px; overflow: hidden">
+  <div style="display: flex; align-items: center; height: 44px">
+    <button aria-label="Back" style="width: 44px; height: 44px; background: none; border: 0; padding: 0; display: flex; align-items: center">
+      <svg width="13" height="22" viewBox="0 0 13 22" aria-hidden="true"><path d="M11 2 2 11l9 9" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 2px">
+    <h1 style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.4px">Queue</h1>
+    <div style="font-size: 15px; color: rgba(235,235,245,0.6)">One at a time, top first · about 1 h 20 min</div>
+  </div>
+
+  <div style="font-size: 15px; font-weight: 600; color: rgba(235,235,245,0.6); padding: 4px 4px 0">WORKING ON NOW</div>
+  <div style="background: #1C1C1E; border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; justify-content: space-between; gap: 12px">
+      <div style="font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Lanterns · S1 E1</div>
+      <div style="font-size: 15px; font-weight: 600; color: #BF5AF2">42%</div>
+    </div>
+    <div style="height: 4px; border-radius: 2px; background: #3A3A3C"><div style="width: 42%; height: 4px; border-radius: 2px; background: #BF5AF2"></div></div>
+    <div style="font-size: 13px; color: rgba(235,235,245,0.6)">Making it start faster · 6 min left · finishes first</div>
+  </div>
+
+  <div style="font-size: 15px; font-weight: 600; color: rgba(235,235,245,0.6); padding: 6px 4px 0">UP NEXT</div>
+  <div style="background: #1C1C1E; border-radius: 16px; display: flex; flex-direction: column">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px 0 14px; min-height: 64px; border-bottom: 1px solid rgba(235,235,245,0.12)">
+      <div style="width: 28px; height: 28px; border-radius: 14px; background: rgba(10,132,255,0.18); color: #4FA8FF; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0">1</div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+        <div style="font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Scary Movie (2026)</div>
+        <div style="font-size: 13px; color: rgba(235,235,245,0.6)">Convert · 4.3 GB · about 25 min</div>
+      </div>
+      <button aria-label="Move up" disabled style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: none; display: flex; align-items: center; justify-content: center"><svg width="16" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M2 8 8 2l6 6" fill="none" stroke="rgba(235,235,245,0.3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button aria-label="Move down" style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: #2C2C2E; display: flex; align-items: center; justify-content: center"><svg width="16" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M2 2l6 6 6-6" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px 0 14px; min-height: 64px; border-bottom: 1px solid rgba(235,235,245,0.12)">
+      <div style="width: 28px; height: 28px; border-radius: 14px; background: rgba(10,132,255,0.18); color: #4FA8FF; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0">2</div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+        <div style="font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Inception (2010)</div>
+        <div style="font-size: 13px; color: rgba(235,235,245,0.6)">Convert after download · 22 GB</div>
+      </div>
+      <button aria-label="Move up" style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: #2C2C2E; display: flex; align-items: center; justify-content: center"><svg width="16" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M2 8 8 2l6 6" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button aria-label="Move down" style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: #2C2C2E; display: flex; align-items: center; justify-content: center"><svg width="16" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M2 2l6 6 6-6" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px 0 14px; min-height: 64px">
+      <div style="width: 28px; height: 28px; border-radius: 14px; background: #2C2C2E; color: rgba(235,235,245,0.6); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0">3</div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+        <div style="font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Fall 2 Deadpoint (2026)</div>
+        <div style="font-size: 13px; color: rgba(235,235,245,0.6)">Ready now · faster start · 16.9 GB</div>
+      </div>
+      <button aria-label="Move up" style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: #2C2C2E; display: flex; align-items: center; justify-content: center"><svg width="16" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M2 8 8 2l6 6" fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button aria-label="Move down" disabled style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: none; display: flex; align-items: center; justify-content: center"><svg width="16" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M2 2l6 6 6-6" fill="none" stroke="rgba(235,235,245,0.3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+  </div>
+  <div style="font-size: 13px; color: rgba(235,235,245,0.6); padding: 0 4px; line-height: 1.4">Moving a video to the top makes it next. Faster-start jobs are already Ready, so they wait behind new movies on their own.</div>
+</div></div></figure>
+<figure class="board"><figcaption>8 · History</figcaption><div class="phone"><div style="width: 402px; height: 874px; box-sizing: border-box; background: #000000; color: #FFFFFF; font-family: Inter, sans-serif; padding: 62px 20px 24px; display: flex; flex-direction: column; gap: 14px; overflow: hidden">
+  <div style="display: flex; align-items: center; height: 44px">
+    <button aria-label="Back" style="width: 44px; height: 44px; background: none; border: 0; padding: 0; display: flex; align-items: center">
+      <svg width="13" height="22" viewBox="0 0 13 22" aria-hidden="true"><path d="M11 2 2 11l9 9" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+  <h1 style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.4px">History</h1>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; background: #1C1C1E; border-radius: 10px; padding: 2px">
+    <button style="height: 32px; border: 0; border-radius: 8px; background: #48484A; color: #FFFFFF; font-size: 13px; font-weight: 600">Today</button>
+    <button style="height: 32px; border: 0; border-radius: 8px; background: none; color: rgba(235,235,245,0.6); font-size: 13px; font-weight: 600">Yesterday</button>
+    <button style="height: 32px; border: 0; border-radius: 8px; background: none; color: rgba(235,235,245,0.6); font-size: 13px; font-weight: 600">7 days</button>
+  </div>
+
+  <div style="font-size: 15px; font-weight: 600; color: rgba(235,235,245,0.6); padding: 4px 4px 0">DIDN'T FINISH</div>
+  <div style="background: #1C1C1E; border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; gap: 12px; align-items: flex-start">
+      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" style="flex-shrink: 0; margin-top: 2px"><circle cx="11" cy="11" r="11" fill="#FF453A"/><path d="M11 6v6" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"/><circle cx="11" cy="15.6" r="1.3" fill="#FFFFFF"/></svg>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+        <div style="display: flex; justify-content: space-between; gap: 8px"><div style="font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Inception (2010)</div><div style="font-size: 13px; color: rgba(235,235,245,0.6); white-space: nowrap">12:23 PM</div></div>
+        <div style="font-size: 13px; color: rgba(235,235,245,0.6)">AllDebrid was busy and didn't answer properly</div>
+      </div>
+    </div>
+    <button style="align-self: flex-start; margin-left: 34px; height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: #2C2C2E; color: #4FA8FF; font-size: 15px; font-weight: 600">Try again</button>
+  </div>
+
+  <div style="font-size: 15px; font-weight: 600; color: rgba(235,235,245,0.6); padding: 6px 4px 0">FINISHED</div>
+  <div style="background: #1C1C1E; border-radius: 16px; display: flex; flex-direction: column">
+    <div style="display: flex; gap: 12px; align-items: center; padding: 0 14px; min-height: 60px; border-bottom: 1px solid rgba(235,235,245,0.12)">
+      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" style="flex-shrink: 0"><circle cx="11" cy="11" r="11" fill="#30D158"/><path d="m6.5 11.3 3 3 6-6.3" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+        <div style="display: flex; justify-content: space-between; gap: 8px"><div style="font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Interstellar (2014)</div><div style="font-size: 13px; color: rgba(235,235,245,0.6); white-space: nowrap">1:02 PM</div></div>
+        <div style="font-size: 13px; color: rgba(235,235,245,0.6)">Faster start · 52 GB in 41 min</div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: center; padding: 0 14px; min-height: 60px">
+      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" style="flex-shrink: 0"><circle cx="11" cy="11" r="11" fill="#30D158"/><path d="m6.5 11.3 3 3 6-6.3" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+        <div style="display: flex; justify-content: space-between; gap: 8px"><div style="font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Lanterns · S1 E2</div><div style="font-size: 13px; color: rgba(235,235,245,0.6); white-space: nowrap">11:40 AM</div></div>
+        <div style="font-size: 13px; color: rgba(235,235,245,0.6)">Downloaded and ready · 2.6 GB</div>
+      </div>
+    </div>
+  </div>
+</div></div></figure>
+<figure class="board"><figcaption>9 · Movie sheet: ready</figcaption><div class="phone"><div style="width: 402px; height: 874px; box-sizing: border-box; background: #0B0B0C; color: #FFFFFF; font-family: Inter, sans-serif; position: relative; overflow: hidden">
+  <div style="position: absolute; left: 0; right: 0; top: 70px; bottom: 0; background: #1C1C1E; border-radius: 28px 28px 0 0; padding: 8px 20px 24px; display: flex; flex-direction: column; gap: 16px">
+    <div style="align-self: center; width: 40px; height: 5px; border-radius: 3px; background: #48484A"></div>
+    <div style="display: flex; gap: 14px; align-items: center">
+      <div style="width: 64px; height: 96px; border-radius: 10px; background: #2C2C2E; display: flex; align-items: center; justify-content: center; font-size: 11px; color: rgba(235,235,245,0.6); flex-shrink: 0">poster</div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+        <div style="font-size: 22px; font-weight: 700; line-height: 1.2">Interstellar (2014)</div>
+        <div style="font-size: 15px; color: rgba(235,235,245,0.6)">4K HDR · 2 h 49 min · 52 GB</div>
+      </div>
+      <button aria-label="Close" style="width: 44px; height: 44px; border-radius: 22px; border: 0; background: #2C2C2E; display: flex; align-items: center; justify-content: center; align-self: flex-start">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="m2 2 10 10M12 2 2 12" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+      <div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 4px; border-radius: 2px; background: #30D158"></div><div style="font-size: 13px; color: rgba(235,235,245,0.6)">Downloaded</div></div>
+      <div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 4px; border-radius: 2px; background: #30D158"></div><div style="font-size: 13px; color: rgba(235,235,245,0.6)">On Drive</div></div>
+      <div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 4px; border-radius: 2px; background: #30D158"></div><div style="font-size: 13px; font-weight: 600">Ready</div></div>
+    </div>
+
+    <div style="background: #2C2C2E; border-radius: 16px; display: flex; flex-direction: column">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 14px; min-height: 48px; border-bottom: 1px solid rgba(235,235,245,0.12)"><div style="font-size: 15px">Kodi</div><div style="font-size: 15px; color: #30D158; font-weight: 600">Opens in about 1 s</div></div>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 14px; min-height: 48px; border-bottom: 1px solid rgba(235,235,245,0.12)"><div style="font-size: 15px">AirPlay</div><div style="font-size: 15px; color: #30D158; font-weight: 600">Ready, seeks instantly</div></div>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 14px; min-height: 48px; border-bottom: 1px solid rgba(235,235,245,0.12)"><div style="font-size: 15px">Picture</div><div style="font-size: 15px; color: rgba(235,235,245,0.6)">HEVC 4K HDR10 · copied</div></div>
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 14px; min-height: 48px"><div style="font-size: 15px">Sound and subtitles</div><div style="font-size: 15px; color: rgba(235,235,245,0.6)">English · 5.1</div></div>
+    </div>
+
+    <div style="background: #2C2C2E; border-radius: 16px; padding: 12px 14px; display: flex; gap: 12px; align-items: flex-start">
+      <div style="width: 30px; height: 30px; border-radius: 9px; background: rgba(255,159,10,0.18); display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 20h20L12 3Z" fill="none" stroke="#FF9F0A" stroke-width="2.4" stroke-linejoin="round"/><path d="M12 10v4" stroke="#FF9F0A" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="17" r="1.3" fill="#FF9F0A"/></svg>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <div style="font-size: 15px; font-weight: 600">When something needs you</div>
+        <div style="font-size: 13px; color: rgba(235,235,245,0.6); line-height: 1.4">This card appears only then, with one button, e.g. "Sign in to Google Drive again" or "Try another source".</div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-top: auto">
+      <button style="flex: 1; height: 50px; border-radius: 25px; border: 0; background: #FFFFFF; color: #000000; font-size: 17px; font-weight: 600">Play</button>
+      <button style="flex: 1; height: 50px; border-radius: 25px; border: 0; background: #3A3A3C; color: #FFFFFF; font-size: 17px; font-weight: 600">Play on TV</button>
+    </div>
+  </div>
+</div></div></figure>
+</div>
+</body>
+</html>

@@ -3,6 +3,7 @@ chose AllDebrid straight to Drive. alldebrid (client, pick), driveupload.upload_
 and the wiring in download.py, service.py and notices.py."""
 import io,json,sys,tempfile,unittest
 from pathlib import Path
+from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1];BOOT=ROOT/'migration/bundled-bootstrap';LIB=BOOT/'resources/lib'
 sys.dont_write_bytecode=True
 sys.path.insert(0,str(LIB))
@@ -60,6 +61,23 @@ class FakeDrive(driveupload.Drive):
  def folder(self,parts):self.folders_made.append(parts);return 'folder-id'
 
 class Stream(unittest.TestCase):
+ def test_chunk_policy_shrinks_aligns_and_recovers_cautiously(self):
+  policy=driveupload.StreamChunks(8*1024*1024)
+  policy.observe(8*1024*1024,1,12);self.assertEqual(policy.current,8*1024*1024)   # 12 s: kept (ISSUE-164)
+  policy.observe(8*1024*1024,1,27)          # the owner's 0.3 MB/s: about ten seconds' worth, 256 KiB aligned
+  self.assertEqual(policy.current,2816*1024)
+  for _ in range(2):policy.observe(policy.current,.5,1)
+  self.assertEqual(policy.current,2816*1024)
+  policy.observe(policy.current,.5,1);self.assertEqual(policy.current,5632*1024)
+  policy.observe(policy.current,120,1);self.assertEqual(policy.current,1024*1024)
+ def test_activity_does_not_claim_unconfirmed_download_bytes(self):
+  import threading
+  thread=threading.get_ident();events=[];drive=FakeDrive()
+  def activity(phase,done,total):
+   self.assertEqual(threading.get_ident(),thread)
+   self.assertLessEqual(done,len(drive.data));events.append(phase)
+  drive.upload_stream(self.open_at,len(self.blob),'x','p',{},lambda:None,activity=activity)
+  self.assertIn('reading',events);self.assertIn('uploading',events)
  def setUp(self):
   self.old=driveupload.CHUNK;driveupload.CHUNK=256*1024
   self.blob=bytes(range(256))*4000   # ~1 MB
@@ -77,6 +95,21 @@ class Stream(unittest.TestCase):
   self.assertEqual(self.opened,[512*1024]);self.assertEqual(drive.data,self.blob)
  def test_stop_when_asked(self):
   with self.assertRaises(driveupload.Stop):FakeDrive().upload_stream(self.open_at,len(self.blob),'x','p',{},lambda:None,keep_going=lambda:False)
+ def test_confirmed_progress_precedes_throttle_and_completion_does_not_wait(self):
+  import slowdown
+  drive=FakeDrive();seen=[];calls=[]
+  class Gate:
+   def after(inner,seconds,nbytes=0,download=False):
+    calls.append(len(drive.data))
+    self.assertEqual(seen[-1],len(drive.data))
+    self.assertLess(len(drive.data),len(self.blob))
+  with patch.object(slowdown,'Gate',side_effect=[type('Reader',(),{'after':lambda *a,**k:None})(),Gate()]):
+   drive.upload_stream(self.open_at,len(self.blob),'x','p',{},lambda:None,progress=lambda sent,total:seen.append(sent))
+  self.assertEqual(seen[-1],len(self.blob));self.assertEqual(len(calls),drive.puts-1)
+ def test_large_stream_reports_eight_megabyte_checkpoints(self):
+  driveupload.CHUNK=32*1024*1024;self.blob=b'z'*(17*1024*1024);seen=[];drive=FakeDrive()
+  drive.upload_stream(self.open_at,len(self.blob),'x','p',{},lambda:None,progress=lambda sent,total:seen.append(sent))
+  self.assertEqual(seen,[8*1024*1024,16*1024*1024,17*1024*1024]);self.assertEqual(drive.data,self.blob)
 
 class FakeAPI:
  def __init__(self,ready=True,status=(4,1.0,'Ready')):self.ready=ready;self.st=status;self.added=[]
@@ -84,6 +117,57 @@ class FakeAPI:
  def status(self,m):return self.st
  def files(self,m):return [('Fall/Fall.2022.2160p.mkv',3,'L')]
  def unlock(self,l):return 'https://x/f','Fall.2022.2160p.mkv',3
+
+class TwoLanes(unittest.TestCase):
+ """ISSUE-164: a season's episodes go up to Drive two at a time; a movie is still one upload."""
+ def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name
+ def tearDown(self):self.tmp.cleanup()
+ def season(self,names):
+  class Pack(FakeAPI):
+   def files(self,m):return [('S/%s'%n,3,n) for n in names]
+   def unlock(self,l):return 'https://x/'+l,l,3
+  return Pack()
+ def drive(self,fail=None,pause=.3):
+  import threading,time
+  test=self;lock=threading.Lock();test.now=test.most=0;test.uploaded=[];test.shown=[];p=self.p
+  class Lanes(FakeDrive):
+   def upload_stream(self,open_at,size,name,parent,session,save,keep_going=lambda:True,progress=lambda s,t:None,activity=lambda *a:None):
+    with lock:test.now+=1;test.most=max(test.most,test.now)
+    try:
+     session.update(url='https://upload/'+name,size=size);save()
+     time.sleep(pause);progress(1,size);time.sleep(pause)
+     test.shown.append(dict(debrid_drive.load(p).get('current') or {}))
+     if name==fail:raise ConnectionError('dropped')
+     progress(size,size);test.uploaded.append(name);return {'id':'d-'+name,'size':str(size)}
+    finally:
+     with lock:test.now-=1
+  return Lanes()
+ def run_job(self,api,drive):
+  for _ in range(6):
+   if debrid_drive.step(self.p,api,drive) is None:break
+ def test_a_season_uploads_two_episodes_at_once(self):
+  names=['Show.S01E0%d.mkv'%n for n in (1,2,3)]
+  debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')
+  drive=self.drive();self.run_job(self.season(names),drive)
+  job=debrid_drive.load(self.p)['jobs'][0]
+  self.assertEqual(job['status'],'done');self.assertEqual(sorted(self.uploaded),names);self.assertEqual(self.most,2)
+  self.assertTrue(all(f['done'] and f['drive_id'] for f in job['files']))
+  self.assertEqual(len(drive.folders_made),3)
+  self.assertTrue(any(c.get('parallel')==2 for c in self.shown))      # the pages show both lanes' speed
+  state=debrid_drive.load(self.p);self.assertNotIn('current',state);self.assertNotIn('current_also',state)
+ def test_a_movie_is_still_one_upload(self):
+  debrid_drive.queue(self.p,{'id':H,'name':'Fall.2022.2160p'},'movie','Fall (2022)')
+  self.run_job(FakeAPI(),self.drive());self.assertEqual(self.most,1)
+ def test_one_lane_failing_keeps_the_others_work_and_the_session(self):
+  names=['Show.S01E01.mkv','Show.S01E02.mkv']
+  debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')
+  api,drive=self.season(names),self.drive(fail='Show.S01E02.mkv')
+  self.assertEqual(debrid_drive.step(self.p,api,drive),1)                 # AllDebrid has it
+  self.assertEqual(debrid_drive.step(self.p,api,drive),30)                # copy: one lane failed, tried again in 30 s
+  job=debrid_drive.load(self.p)['jobs'][0];files={f['path']:f for f in job['files']}
+  self.assertTrue(files['S/Show.S01E01.mkv']['done']);self.assertFalse(files['S/Show.S01E02.mkv']['done'])
+  self.assertEqual(files['S/Show.S01E02.mkv']['session']['url'],'https://upload/Show.S01E02.mkv')   # resumes there
+  self.assertEqual(job['tries'],1)
 
 class Queue(unittest.TestCase):
  def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name;self.notes=[];self.done=[]
@@ -99,6 +183,31 @@ class Queue(unittest.TestCase):
   self.assertEqual(job['status'],'done');self.assertEqual(drive.data,b'abc');self.assertEqual(drive.folders_made,[['Kodi Downloads','Movies']])
   self.assertIn(('drive','Saved to Google Drive'),self.notes);self.assertEqual(len(self.done),1)
   self.assertFalse(debrid_drive.active(self.p));self.assertEqual(debrid_drive.uploads(self.p),[])
+ def test_a_season_download_with_one_episode_says_so(self):
+  # Owner (build 205): "i pressed full season" and the Lanterns version picked held S01E01 alone (8.4 GB).
+  class One(FakeAPI):
+   def files(self,m):return [('Lanterns/Lanterns.S01E01.2160p.mkv',3,'L')]
+   def unlock(self,l):return 'https://x/f','Lanterns.S01E01.2160p.mkv',3
+  debrid_drive.queue(self.p,{'id':H,'name':'Lanterns.S01E01.2160p'},'season','Lanterns',season='1')
+  self.run_all(One(),FakeDrive())
+  self.assertIn(('problem','Only one episode was in that download'),self.notes)
+  self.assertNotIn(('drive','Saved to Google Drive'),self.notes)
+ def test_speed_between_slow_pieces(self):
+  # Build 207 (build-206 log): 32 MB pieces 20-30 s apart; the 20 s window held one mark and every page read 0 MB/s.
+  t={'now':1000.0};seen=[];p=self.p
+  class Slow(FakeDrive):
+   def upload_stream(self,open_at,size,name,parent,session,save,keep_going=lambda:True,progress=lambda s,t:None,activity=lambda *a:None):
+    for n in range(1,4):
+     t['now']+=25;progress(n*32*1048576,size);seen.append(debrid_drive.load(p)['current']['rate'])
+    return {'id':'d','size':str(size)}
+  class Big(FakeAPI):
+   def files(self,m):return [('Fall/Fall.2022.2160p.mkv',10**10,'L')]
+   def unlock(self,l):return 'https://x/f','Fall.2022.2160p.mkv',10**10
+  debrid_drive.queue(self.p,{'id':H,'name':'Fall.2022.2160p'},'movie','Fall (2022)')
+  for _ in range(5):
+   if debrid_drive.step(self.p,Big(),Slow(),clock=lambda:t['now']) is None or len(seen)>=3:break
+  self.assertEqual(seen[0],0.0)
+  self.assertAlmostEqual(seen[1],32*1048576/25.0);self.assertAlmostEqual(seen[2],32*1048576/25.0)
  def test_waits_while_alldebrid_fetches(self):
   debrid_drive.queue(self.p,{'id':H},'movie','Fall (2022)')
   api=FakeAPI(ready=False,status=(1,0.25,'Downloading'))

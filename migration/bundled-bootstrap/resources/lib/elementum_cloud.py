@@ -90,7 +90,7 @@ def selected(url, read=None):
     return dict(q, hash=h.lower(), name=name)
 
 
-def route(url):
+def route(url,quiet=False,request_id=None):
     """True means consumed (queued, cancelled or error). False means ordinary browsing."""
     # Test the route before importing Kodi APIs; don't affect Elementum browsing.
     p = urllib.parse.urlsplit(url)
@@ -111,35 +111,95 @@ def route(url):
         accounts = AccountManager(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.googledrive').getAddonInfo('profile')))
         if not accounts.get_accounts():raise RuntimeError('Sign in to Google Drive first.')
         profile = xbmcvfs.translatePath('special://profile/')
+        try:home = xbmcgui.Window(10000)
+        except Exception:home = None
+        auto = auto_season(home,choice=choice) if home is not None else None
+        if request_id and (not auto or auto.get('request_id')!=request_id):return True
         existing = existing_url(profile,choice)
         if existing:
+            if auto is not None:return True          # already in Drive: nothing to do for this episode
             import xbmc
             xbmc.executebuiltin('PlayMedia(%s)'%existing)
             return True
-        mode = dialog.select('Save to Google Drive', ['Download only', 'Download and watch after preparation'])
+        import transfer_control
+        held=transfer_control.paused(profile,'up')
+        if auto is None and held:
+            mode=dialog.select('Uploads paused', ['Download now · resume uploads',
+                'Download and watch · resume uploads','Keep queued · uploads stay paused'])
+            if mode in (0,1):transfer_control.set_paused(profile,'up',False)
+            elif mode==2:mode=0
+        else:
+            mode = auto.get('mode', 0) if auto is not None else dialog.select('Save to Google Drive', ['Download only', 'Download and watch after preparation'])
         if mode < 0:return True
+        if auto is None and home is not None:
+            try:home.setProperty('KodiIOS.LastSaveMode', str(mode))   # the rest of a season reuses it
+            except Exception:pass
         name = choice['name'] or choice['hash']
         info = drivelibrary.parse(name)
         kind = 'episode' if choice.get('episode') else ('season' if choice.get('season') else debrid_drive.kind_of(name))
+        tracked=(auto or {}).get('target') or {}
+        if not tracked and home is not None:
+            import episode_watch
+            pick=episode_watch.selection(home,choice)
+            tracked={'tmdb':pick.get('show_tmdb'),'season':pick.get('season'),'episode':pick.get('episode')}
         job = debrid_drive.queue(profile, {'id':choice['hash'], 'name':name}, kind,
                                  info.get('title') or drivelibrary.display_title(name),
-                                 choice.get('season') or info.get('season') or '',
-                                 choice.get('episode') or info.get('episode') or '', watch=mode == 1)
-        replaced = replacing(xbmcgui.Window(10000))
+                                 choice.get('season') or info.get('season') or tracked.get('season') or '',
+                                 choice.get('episode') or info.get('episode') or '', watch=mode == 1,show_tmdb=tracked.get('tmdb'))
+        try:
+            import xbmc,diagnostics,transfer_control
+            diagnostics.event(lambda text:xbmc.log(text,xbmc.LOGINFO),'download_queue','saved',kind=kind,
+                              status=job.get('status'),uploads_paused=transfer_control.paused(profile,'up'),
+                              pending_jobs=sum(j.get('status') not in ('done','failed') for j in debrid_drive.load(profile).get('jobs',[])))
+        except Exception:pass  # logging must never undo a saved download
+        if auto is not None and home is not None:
+            import json
+            home.setProperty('KodiIOS.AutoPick.Queued',json.dumps({'request_id':auto.get('request_id'),'queued':True}))
+        if auto is None and home is not None and kind in ('episode','season'):
+            try:
+                import episode_watch
+                episode_watch.remember_selection(profile,home,choice,job['title'])
+            except Exception:pass  # following a show must not undo its confirmed download
+        replaced = None if request_id else replacing(xbmcgui.Window(10000))
         if replaced:
             # Library status › "Find a version without converting": the AV1 copy stops converting now and goes to Drive's
             # bin once this copy is on Drive (owner, build 185: "it needs to end the conversion and begin the download").
             import prepare_downloads
             prepare_downloads.request(profile, 'replace', replaced)
-        notices.note('download', 'Queued for Google Drive', '%s · %s' % (job['title'],
-                     'will play after preparation' if mode == 1 else 'AllDebrid → Drive → Prepare'))
-        dialog.notification('Download', 'Queued for Google Drive', xbmcgui.NOTIFICATION_INFO, 4000)
+        if auto is None:
+            import transfer_control
+            held=transfer_control.paused(profile,'up')
+            status='Queued · uploads paused' if held else 'Queued for Google Drive'
+            detail='Resume uploads in Library status to start' if held else ('will play after preparation' if mode == 1 else 'AllDebrid → Drive → Prepare')
+            notices.note('download', status, '%s · %s' % (job['title'],detail))
+            dialog.notification('Download', status, xbmcgui.NOTIFICATION_INFO, 4000)
     except Exception as error:
         # Transport errors can contain signed URLs. Only our own plain errors are displayed.
         message = str(error) if isinstance(error, (ValueError, RuntimeError)) else 'Could not queue this torrent (%s).' % type(error).__name__
         if 'http://' in message or 'https://' in message:message = 'Could not read the selected torrent metadata.'
-        dialog.ok('Download to Google Drive', message)
+        if quiet:
+            import xbmc,diagnostics
+            diagnostics.event(lambda text:xbmc.log(text,xbmc.LOGINFO),'episode_watch','queue_deferred',error=type(error).__name__)
+        else:dialog.ok('Download to Google Drive', message)
     return True
+
+
+def auto_season(window, now=None,choice=None):
+    """download.py's automatic season request (deck_picker.AUTO_PICK) while it lasts, else None."""
+    import json, time
+    try:
+        raw = window.getProperty('KodiIOS.AutoPick')
+        wanted = json.loads(raw) if raw else None
+        if wanted and float(wanted.get('until', 0)) >= (time.time() if now is None else now):
+            if wanted.get('target') and choice is not None:
+                selected=json.loads(window.getProperty('KodiIOS.AutoPick.Result') or '{}')
+                if selected.get('request_id')!=wanted.get('request_id') or not selected.get('found'):return None
+                if selected.get('name')!=choice.get('name'):return None
+                if any(str(choice.get(k) or '')!=str(wanted['target'].get(k) or '') for k in ('season','episode')):return None
+            return wanted
+    except Exception:
+        pass
+    return None
 
 
 REPLACING = 'KodiIOS.Replacing'
@@ -175,6 +235,6 @@ def existing_url(profile,choice):
         drive,driveid=drivelibrary.client()
         if drive and driveid:
             for item in matches:
-                if prep.ready(prep.metadata(drive,item['id'])):return drivelibrary.play_url(driveid,item['id'])
+                if prep.playback_ready(profile,prep.metadata(drive,item['id'])):return drivelibrary.play_url(driveid,item['id'])
     except Exception:pass
     return None

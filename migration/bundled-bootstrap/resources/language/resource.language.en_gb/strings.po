@@ -1,0 +1,113 @@
+# Kodi iOS bootstrap add-on: settings labels (Kodi 21 settings need numbered labels; plain text shows blank).
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: en_GB\n"
+
+msgctxt "#32001"
+msgid "Activity"
+msgstr ""
+
+msgctxt "#32002"
+msgid "Show the activity pill"
+msgstr ""
+
+msgctxt "#32003"
+msgid "Show it during video (only with the controls)"
+msgstr ""
+
+msgctxt "#32004"
+msgid "Show activity from"
+msgstr ""
+
+msgctxt "#32005"
+msgid "Elementum downloads and Drive uploads"
+msgstr ""
+
+msgctxt "#32006"
+msgid "Torrent searches (Burst)"
+msgstr ""
+
+msgctxt "#32007"
+msgid "Umbrella"
+msgstr ""
+
+msgctxt "#32008"
+msgid "Library scans"
+msgstr ""
+
+msgctxt "#32009"
+msgid "Add-on installs"
+msgstr ""
+
+msgctxt "#32010"
+msgid "Update checks and skin jobs"
+msgstr ""
+
+msgctxt "#32011"
+msgid "Updates"
+msgstr ""
+
+msgctxt "#32012"
+msgid "Check GitHub for a newer test build when Kodi starts"
+msgstr ""
+
+msgctxt "#32013"
+msgid "GitHub token (read-only; only needed while the repository is private)"
+msgstr ""
+
+msgctxt "#32014"
+msgid "Check for updates now"
+msgstr ""
+
+msgctxt "#32015"
+msgid "Library"
+msgstr ""
+
+msgctxt "#32016"
+msgid "Download new episodes automatically"
+msgstr ""
+
+msgctxt "#32017"
+msgid "Scan iPhone files for movies and shows"
+msgstr ""
+
+msgctxt "#32018"
+msgid "Refresh Library"
+msgstr ""
+
+msgctxt "#32019"
+msgid "Google Drive"
+msgstr ""
+
+msgctxt "#32020"
+msgid "Prepare downloaded movies and shows for Kodi and AirPlay"
+msgstr ""
+
+msgctxt "#32021"
+msgid "Library status"
+msgstr ""
+
+msgctxt "#32022"
+msgid "Upload the Elementum videos you keep to Google Drive › Kodi Downloads"
+msgstr ""
+
+msgctxt "#32023"
+msgid "Remove the phone copy once Google Drive has it"
+msgstr ""
+
+msgctxt "#32024"
+msgid "Background downloads, uploads and preparation"
+msgstr ""
+
+msgctxt "#32025"
+msgid "Playback"
+msgstr ""
+
+msgctxt "#32026"
+msgid "Last TV used by Play on TV"
+msgstr ""
+
+msgctxt "#32027"
+msgid "Also show Apple's AirPlay audio button during playback"
+msgstr ""

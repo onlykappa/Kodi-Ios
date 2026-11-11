@@ -1,0 +1,517 @@
+{
+  "date": "2026-11-10",
+  "scope": [
+    "ISSUE-147",
+    "ISSUE-151",
+    "DEC-034",
+    "prior ISSUE-149/150 checkpoint included"
+  ],
+  "status": "Verified test IPA 223 published and independently downloaded/checked; actual device acceptance pending",
+  "authorization": "Owner approves seek retention, subtitle loading, stop evidence and IPA, then adds downloaded-library Continue from. Prior IPA hold superseded; no main merge.",
+  "changes": {
+    "seek": "Preserve dragged/pending target across pointer events and progress polling; fractional target requires leaving observed baseline; bounded 15-second target retention, asynchronous progress dispatch and requested/observed logs.",
+    "subtitles": "Independent retained reader/cache; eight-second HTTP wait returns retryable 503/Retry-After while work continues, successful cues cached, 45-second worker budget and abort/join at stop; burned text unadvertised routes return 404.",
+    "stop_evidence": "Safe native player/position/duration/buffer/error/route plus cache/HTTP/receiver counters; eight minutes and three rotating local reports; ordinary kodi.log tail and Export diagnostics. Distinguish pause, natural end, explicit close, early end, failure and stalled buffering; keep final close snapshot.",
+    "downloaded_resume": "Shared history plus local/Kodi bookmarks; exact title/year matching; Continue from / Start from beginning / Cancel; exact completed copy validation, fallback real download route without fake TMDb ID, preserve provider/version choice, refresh movie page, protect opening zeros and TV handoff and save actual TV position.",
+    "included_previous_source": "Shared startup deadline/parallel resume-target priming, safe source timings and automatic opening-only future-episode downloads through existing Drive queue."
+  },
+  "verification": {
+    "python_suites": [
+      {
+        "script": "scripts/test_activation.py",
+        "tests": 6,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_airplay_diagnostics.py",
+        "tests": 15,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_airplay_flow.py",
+        "tests": 8,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_airplay_remux.py",
+        "tests": 29,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_airplay_room.py",
+        "tests": 3,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_background_queue.py",
+        "tests": 10,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_bundled_bootstrap.py",
+        "tests": 15,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_choose_source.py",
+        "tests": 4,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_compatibility_filter.py",
+        "tests": 33,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_continue_downloads.py",
+        "tests": 19,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_customized_ipa.py",
+        "tests": 11,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_debrid_drive.py",
+        "tests": 24,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_deck_picker.py",
+        "tests": 13,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_diagnostics.py",
+        "tests": 14,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_downloaded_play.py",
+        "tests": 9,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_downloaded_show.py",
+        "tests": 20,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_drive_library.py",
+        "tests": 20,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_drive_prepare.py",
+        "tests": 26,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_drive_upload.py",
+        "tests": 23,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_elementum_cloud.py",
+        "tests": 11,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_episode_watch.py",
+        "tests": 30,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_fast_open.py",
+        "tests": 10,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_genre_photos.py",
+        "tests": 4,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_glassbar.py",
+        "tests": 28,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_import_builder.py",
+        "tests": 13,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_import_profile.py",
+        "tests": 19,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_ios.py",
+        "tests": 8,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_ios_navigation.py",
+        "tests": 30,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_library_artwork.py",
+        "tests": 14,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_library_pages.py",
+        "tests": 8,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_library_refresh.py",
+        "tests": 17,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_library_scan.py",
+        "tests": 33,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_library_status.py",
+        "tests": 48,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_listing_cache.py",
+        "tests": 28,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_native_startup.py",
+        "tests": 3,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_native_ui.py",
+        "tests": 7,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_notice_log.py",
+        "tests": 15,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_notices.py",
+        "tests": 19,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_pages.py",
+        "tests": 19,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_performance_budget.py",
+        "tests": 13,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_play_on_tv_network.py",
+        "tests": 64,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_play_on_tv_start.py",
+        "tests": 5,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_playback_retention.py",
+        "tests": 16,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_portrait.py",
+        "tests": 50,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_preparation_runtime.py",
+        "tests": 4,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_prepare_downloads.py",
+        "tests": 59,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_remote_media.py",
+        "tests": 26,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_search_categories.py",
+        "tests": 6,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_settings_page.py",
+        "tests": 23,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_settings_search.py",
+        "tests": 6,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_show_parent_navigation.py",
+        "tests": 1,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_show_scrolling.py",
+        "tests": 7,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_signin_server.py",
+        "tests": 3,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_source_match.py",
+        "tests": 39,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_startup_sequence.py",
+        "tests": 9,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_transfer_artwork.py",
+        "tests": 3,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_transfer_efficiency.py",
+        "tests": 9,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_umbrella_recovery.py",
+        "tests": 13,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_updates_calibration.py",
+        "tests": 41,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_watch_continue.py",
+        "tests": 8,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_watch_dialog.py",
+        "tests": 13,
+        "passed": true
+      },
+      {
+        "script": "scripts/test_watch_routes.py",
+        "tests": 10,
+        "passed": true
+      }
+    ],
+    "python_suite_count": 62,
+    "python_test_count": 1094,
+    "all_python_passed": true,
+    "actual_gesture_info_refresh_scenarios": 46,
+    "native_full_local": {
+      "checks": 3252,
+      "failed": 0,
+      "font": "Documented KR_TEST_FONT DejaVu Sans fallback"
+    },
+    "delayed_subtitle_fault": {
+      "checks": 8,
+      "failed": 0,
+      "delay_seconds": 10,
+      "proves": "503 then actual cue from retained work, cache hit, invalid track refusal"
+    },
+    "native_media": "Generated fixtures outside Git; actual codec/mux/decode/stream/seek/cancel/subtitle checks, no owner media.",
+    "kodi": {
+      "source_commit": "c829a928bdde3ba30d2f80d62c838933d8374441",
+      "run": 42881626230,
+      "artifact_id": 13794963687,
+      "tag": "kodi-ios-portrait-r28",
+      "binary_sha256": "ee7deca750e612822c4606a920110eda44675957c1d26e97ce91f6c0082fa31d",
+      "archive_sha256": "3fcde2b3d469344ef74327c4473bdd047be05a1950ace3bf09cfae323a36e9ef",
+      "patch_sha256": "a3c1814b381753ebba0475598881cbd6fddfdb41acf69542709a535deff5e851",
+      "upstream_kodi_commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
+      "bytes": 83104752,
+      "cpu": "arm64",
+      "encrypted": false,
+      "release_equals_ci_artifact": true,
+      "seek_scenarios": 46
+    },
+    "airplay": {
+      "tag": "kodi-airplay-r44",
+      "run": 42883448916,
+      "source_commit": "923131cca5e519262c964a86a2e569bff483bc2b",
+      "artifact_id": 13795511545,
+      "artifact_digest": "73c43bc4c7d518699947e64bbbe0230a2d6568472c49b4a6fde7f14f78edd8a7",
+      "archive_sha256": "5a84f200025d315dbe8c98490bfccb8fb33e9c87e89b14883cc97c9eefe35299",
+      "binary_sha256": "a084db8995ce018f330318c779ed8e9861d7789ff5dcba1d202ec08eb039a3b2",
+      "bytes": 9065232,
+      "cpu": "arm64",
+      "encrypted": false,
+      "exports_and_features_present": true,
+      "zip_integrity": true,
+      "host_verification": "passed, including end-to-end conversion",
+      "published": true,
+      "publication_run": 42886188374,
+      "release_equals_ci_artifact": true
+    },
+    "project_check": "passed",
+    "ui_guidance": "passed",
+    "diff_check": "passed",
+    "post_pin_script_rerun": {
+      "scripts": 52,
+      "all_passed": true,
+      "python": "3.11.17",
+      "scope": "All workflow scripts from native pin checks onward; includes 46 actual gesture scenarios."
+    },
+    "native_ci_check_summaries": [
+      "3336 checks, 0 failed"
+    ],
+    "final_ipa_ci_python_suites": 62,
+    "final_ipa_ci_python_tests": 1094,
+    "native_ci_checks": 3336,
+    "downloaded_ipa": {
+      "build": 223,
+      "source_commit": "f6b40982b97c8d67976e748e98381cfe7fd03759",
+      "workflow_run": 42887751497,
+      "filename": "Kodi-iOS-Customized-Touch-r10.ipa",
+      "bytes": 620552475,
+      "sha256": "03a48d7e72560de5e03f1d0690e7d44fb210584fd78b1c374c3358930666366a",
+      "zip_integrity": true,
+      "asset_digest_matches": true,
+      "native_releases": {
+        "Kodi": "kodi-ios-portrait-r28",
+        "AirPlay": "kodi-airplay-r44"
+      },
+      "kodi_equals_verified_release_after_signature_removal": true,
+      "airplay_equals_verified_release_after_signature_removal": true,
+      "new_native_features_and_exports_present": true,
+      "audited_source_helpers": 22,
+      "matching_python311_unchecked_hash_modules": 21,
+      "unsigned_unencrypted_arm64_images": 154,
+      "device_tested": false,
+      "owner_media_or_accounts_accessed": false
+    }
+  },
+  "retained_failures": [
+    {
+      "kind": "Generated patch whitespace",
+      "retest": "Normalized context, actual-method harness/project/diff pass before corrected push."
+    },
+    {
+      "kind": "r27 superseded before IPA",
+      "detail": "Fractional same-baseline edge found after 45-case candidate; r28 guard and 46-case regression compiled and verified."
+    },
+    {
+      "kind": "Worker compile order",
+      "retest": "Moved after helper definitions; native compilation passes."
+    },
+    {
+      "kind": "Delay-control fixture protocol",
+      "detail": "Seven cue checks passed; control HTTP/1.0 failed against 1.1 helper. Corrected control endpoint and all eight pass."
+    },
+    {
+      "kind": "Initial local full native run",
+      "checks": 3251,
+      "failed": 22,
+      "causes": {
+        "old conversion log": 2,
+        "missing local font environment": 14,
+        "old burned text 200": 4,
+        "old blank-success timeout": 1,
+        "prefetch timing with concurrent load": 1
+      },
+      "retest": "3252/3252 with correct font and explicit failure/cancel expectations; original prefetch timing unchanged and passes."
+    },
+    {
+      "kind": "Legacy Python source/path assertions",
+      "retest": "Retain restart/renewal/privacy behavior checks; adapt replaced wait/error wrapper and exact file inside resume route. All affected suites pass."
+    },
+    {
+      "kind": "Upload wall-clock proxy",
+      "detail": "1.074/2.729/1.116-second full-file measurements; isolated unchanged test passes. Deterministic blocked-PUT test proves producer finishes before network is released, then exact bytes verified. No upload application change; 26/26 pass."
+    },
+    {
+      "kind": "Candidate supersession",
+      "runs": [
+        42881365570,
+        42882524116
+      ],
+      "detail": "Cancelled before IPA while complete caption test expectations were corrected. Final run 42883448916 passes host/framework/end-to-end."
+    },
+    {
+      "kind": "CLI artifact HTTP 403",
+      "retest": "Connected GitHub artifact download succeeds; GitHub artifact digest, ZIP and native release/provenance checked."
+    },
+    {
+      "kind": "Packaging test interpreter selection",
+      "retest": "One post-pin rerun omitted required KODI_IOS_PYTHON311; rerun with existing configured 3.11 interpreter passes 11/11."
+    },
+    {
+      "kind": "IPA 222 pre-packaging pin test",
+      "run": 42886688945,
+      "source_commit": "0a0de03a09112957bb6779b56a7ad97c1b30f63e",
+      "detail": "GlassBar integration test still pinned r26 after verified r28 update. Audit also found old r43/rollback assertions. Update strict tag/digest expectations to verified r28/r44 and their real previous pins; do not disable pin checks. All subsequent packaging scripts rerun and pass. No IPA produced/delivered; missing artifact is secondary."
+    }
+  ],
+  "acceptance": {
+    "iphone": false,
+    "roku": false,
+    "real_provider_or_new_episode": false,
+    "visual": false,
+    "ui": "Existing Kodi controls/select menu only; policy/HIG read. No existing desktop Kodi binary available; owner requested reuse rather than a new desktop build.",
+    "owner_accounts_or_media_accessed": false,
+    "roadmap_acceptance_counts_changed": false
+  },
+  "delivery": {
+    "source_pushed": true,
+    "native_pins": [
+      "kodi-ios-portrait-r28",
+      "kodi-airplay-r44"
+    ],
+    "framework_publication": {
+      "run": 42886188374,
+      "result": "success",
+      "release_archive_equals_verified_candidate": true
+    },
+    "ipa": {
+      "build": 223,
+      "run": 42887751497,
+      "source_commit": "f6b40982b97c8d67976e748e98381cfe7fd03759",
+      "sha256": "03a48d7e72560de5e03f1d0690e7d44fb210584fd78b1c374c3358930666366a",
+      "download_url": "https://github.com/onlykappa/Kodi-Ios/releases/download/build-223/Kodi-iOS-Customized-Touch-r10.ipa",
+      "receipt": "reports/playback-retention-delivery.json"
+    },
+    "main_merged": false,
+    "packaging_attempts": [
+      {
+        "build": 222,
+        "run": 42886688945,
+        "outcome": "failed before packaging on obsolete r26 test pin; no IPA delivered"
+      }
+    ]
+  },
+  "limitation": "Historical continuous-hour stop remains unattributed; this adds retained evidence and does not establish every receiver/provider now works."
+}

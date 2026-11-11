@@ -1,0 +1,250 @@
+"""Video controls › Subtitles (CC) and Audio (waveform): the owner-approved menus (mockup
+docs/design/player-subtitles-audio-mockups.html, round 2) instead of Kodi's settings dialogs.
+
+RunScript(service.kodi.ios.bootstrap,tracks,subtitles|audio) opens 1080i/IOSTrackMenu.xml (pages.track_menu) over the
+video. Tap a track to switch (the menu closes and a notice says what is on). Subtitles has Download and apply: one tap
+finds subtitles for this video in the owner's language on Podnapisi, downloads and turns them on (track_menu.py). More
+holds Choose another (the other results), Add from a file and Use for all videos. Timing and Volume boost use Kodi's
+own subtitle delay, audio delay and volume amplification."""
+import json
+import os
+import sys
+import threading
+import time
+import urllib.request
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, 'resources', 'lib'))
+import track_menu as tm
+
+BACK = (9, 10, 92, 110)
+CLOSE, MORE, CTA, LIST, T_MINUS, T_PLUS, B_MINUS, B_PLUS = 9500, 9501, 9510, 9310, 9401, 9402, 9403, 9404
+FIELDS = ['subtitles', 'currentsubtitle', 'subtitleenabled', 'audiostreams', 'currentaudiostream']
+UA = 'KodiIOS/1.0'
+
+
+def rpc(xbmc, method, params=None):
+    answer = json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params or {}})))
+    return answer.get('result')
+
+
+def player_id(xbmc):
+    for p in rpc(xbmc, 'Player.GetActivePlayers') or []:
+        if p.get('type') == 'video':
+            return p['playerid']
+    return None
+
+
+def subtitle_language(xbmc):
+    """The owner's subtitle download language (Kodi › Subtitles › Languages to download), as ('en', 'English')."""
+    try:
+        names = (rpc(xbmc, 'Settings.GetSettingValue', {'setting': 'subtitles.languages'}) or {}).get('value') or []
+        name = names[0] if names else 'English'
+    except Exception:
+        name = 'English'
+    code = ''
+    try:
+        code = xbmc.convertLanguage(name, xbmc.ISO_639_1)
+    except Exception:
+        pass
+    return (code or 'en'), tm.language_name(code or 'en', name)
+
+
+def http_get(url):
+    with urllib.request.urlopen(urllib.request.Request(url, headers={'Accept': 'application/json', 'User-Agent': UA}), timeout=20) as r:
+        return r.read()
+
+
+def run(mode):
+    import xbmc
+    import xbmcgui
+    import xbmcvfs
+    pid = player_id(xbmc)
+    if pid is None:
+        return
+    log = lambda m: xbmc.log('Kodi iOS tracks: ' + m, xbmc.LOGINFO)
+    lang, lang_name = subtitle_language(xbmc)
+    folder = xbmcvfs.translatePath('special://temp/kodiios-subtitles/')
+
+    class Menu(xbmcgui.WindowXMLDialog):
+        def onInit(self):
+            self.rows, self.results, self.added = [], [], set()
+            self.setProperty('mode', mode)
+            self.setProperty('title', 'Subtitles' if mode == 'subtitles' else 'Audio')
+            self.state('idle')
+            self.fill()
+            self.timing()
+
+        def state(self, name):
+            self.setProperty('cta_state', 'busy' if name in ('search', 'download') else name)
+            self.setProperty('cta', tm.cta(name, lang_name))
+            self.setProperty('hint', tm.note(name, lang_name) or
+                             {'idle': 'Finds %s subtitles for this video' % lang_name, 'search': 'Matching this exact version of the video',
+                              'download': 'Matching this exact version of the video', 'done': 'Wrong one? More › Choose another'}.get(name, ''))
+
+        def fill(self, focus_on=True):
+            p = rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': FIELDS}) or {}
+            if mode == 'subtitles':
+                cur = (p.get('currentsubtitle') or {}).get('index')
+                subs = [dict(s, downloaded=s.get('index') in self.added) for s in p.get('subtitles') or []]
+                self.rows = tm.subtitle_rows(subs, cur, p.get('subtitleenabled'))
+            else:
+                self.rows = tm.audio_rows(p.get('audiostreams'), (p.get('currentaudiostream') or {}).get('index'))
+            items = []
+            for n, r in enumerate(self.rows):
+                li = xbmcgui.ListItem(r['label'])
+                li.setProperty('tag', r['tag'])
+                li.setProperty('on', 'true' if r['on'] else '')
+                li.setProperty('new', 'true' if r['tag'] == 'NEW' else '')
+                li.setProperty('sep', 'true' if n < len(self.rows) - 1 else '')
+                items.append(li)
+            self.setProperty('rows', str(max(1, min(3, len(self.rows)))))   # the cards and the menu fit the rows shown
+            lst = self.getControl(LIST)
+            lst.reset()
+            lst.addItems(items)
+            if focus_on:
+                on = next((n for n, r in enumerate(self.rows) if r['on']), 0)
+                lst.selectItem(on)
+
+        def timing(self):
+            self.setProperty('timing', tm.seconds_text(xbmc.getInfoLabel('Player.SubtitleDelay' if mode == 'subtitles' else 'Player.AudioDelay'),
+                                                       's' if mode == 'subtitles' else 'ms'))
+            self.setProperty('boost', '')
+
+        def pick(self, n):
+            r = self.rows[n]
+            if mode == 'subtitles':
+                if r['index'] is None:
+                    rpc(xbmc, 'Player.SetSubtitle', {'playerid': pid, 'subtitle': 'off'})
+                    said = 'Subtitles off'
+                else:
+                    rpc(xbmc, 'Player.SetSubtitle', {'playerid': pid, 'subtitle': r['index'], 'enable': True})
+                    said = '%s subtitles on' % r['label']
+            else:
+                rpc(xbmc, 'Player.SetAudioStream', {'playerid': pid, 'stream': r['index']})
+                said = 'Audio: %s' % r['label']
+            log(said)
+            self.fill()
+            xbmc.sleep(300)
+            self.close()
+            xbmcgui.Dialog().notification(said, '', xbmcgui.NOTIFICATION_INFO, 2000, False)
+
+        def item(self):
+            it = rpc(xbmc, 'Player.GetItem', {'playerid': pid, 'properties': ['title', 'showtitle', 'year', 'season', 'episode', 'file']}) or {}
+            return it.get('item') or {}
+
+        def search(self):
+            it = self.item()
+            show = it.get('showtitle')
+            season, episode = it.get('season'), it.get('episode')
+            title = show or it.get('title') or it.get('label') or ''
+            name = os.path.basename(str(it.get('file') or '').split('?')[0].split('|')[0])
+            ep = (season, episode) if show and (season or -1) >= 0 and (episode or -1) > 0 else (None, None)
+            log('search %s %r %s S%sE%s' % (lang, title, it.get('year'), ep[0], ep[1]))
+            return tm.find(http_get, lang, title, it.get('year') or None, ep[0], ep[1], name)
+
+        def apply(self, result):
+            got = tm.fetch(http_get, result)
+            if not got:
+                raise ValueError('no subtitle file in the download')
+            name, data = got
+            os.makedirs(folder, exist_ok=True)
+            path = os.path.join(folder, '%s.%s.%s' % (result['id'], lang, name.rsplit('.', 1)[-1].lower()))
+            with open(path, 'wb') as f:
+                f.write(data)
+            before = {s.get('index') for s in (rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['subtitles']}) or {}).get('subtitles') or []}
+            xbmc.Player().setSubtitles(path)
+            xbmc.sleep(400)
+            after = (rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['subtitles']}) or {}).get('subtitles') or []
+            self.added |= {s.get('index') for s in after} - before
+            log('applied %s (%d bytes)' % (result['id'], len(data)))
+
+        def download_and_apply(self, result=None):
+            try:
+                if result is None:
+                    self.state('search')
+                    self.results = self.search()
+                    if not self.results:
+                        self.state('none')
+                        log('nothing found')
+                        return
+                    result = self.results[0]
+                self.state('download')
+                self.apply(result)
+                self.state('done')
+                self.fill()
+                xbmcgui.Dialog().notification('%s subtitles on' % lang_name, '', xbmcgui.NOTIFICATION_INFO, 2000, False)
+            except Exception as error:
+                log('download and apply failed: %s: %s' % (type(error).__name__, error))
+                self.state('error')
+
+        def more(self):
+            try:
+                cur = (rpc(xbmc, 'Settings.GetSettingValue', {'setting': 'locale.subtitlelanguage'}) or {}).get('value') or ''
+            except Exception:
+                cur = ''
+            always = cur not in ('', 'default', 'original', 'none', 'forced_only')
+            found = ' (%d found)' % len(self.results) if self.results else ''
+            choice = xbmcgui.Dialog().select('Subtitles', ['Choose another' + found, 'Add from a file',
+                                                           'Use for all videos: ' + ('On' if always else 'Off')])
+            if choice == 0:
+                if not self.results:
+                    self.state('search')
+                    try:
+                        self.results = self.search()
+                    except Exception as error:
+                        log('search failed: %s' % error)
+                        self.state('error')
+                        return
+                if not self.results:
+                    self.state('none')
+                    return
+                self.state('idle')
+                labels = [(r['releases'][0] if r['releases'] else 'Subtitle %s' % r['id']) + (' · SDH' if r['impaired'] else '') for r in self.results]
+                n = xbmcgui.Dialog().select('Choose subtitles', labels)
+                if n >= 0:
+                    threading.Thread(target=self.download_and_apply, args=(self.results[n],), daemon=True).start()
+            elif choice == 1:
+                path = xbmcgui.Dialog().browse(1, 'Add subtitles', 'files', '.srt|.ass|.ssa|.vtt|.sub')
+                if path:
+                    xbmc.Player().setSubtitles(path)
+                    xbmc.sleep(400)
+                    self.fill()
+            elif choice == 2:
+                on = next((r for r in self.rows if r['on'] and r['index'] is not None), None)
+                value = 'default' if always else (on['label'] if on else lang_name)
+                rpc(xbmc, 'Settings.SetSettingValue', {'setting': 'locale.subtitlelanguage', 'value': value})
+                log('use for all videos: %s' % value)
+
+        def onClick(self, control):
+            if control == CLOSE:
+                self.close()
+            elif control == LIST:
+                n = self.getControl(LIST).getSelectedPosition()
+                if 0 <= n < len(self.rows):
+                    self.pick(n)
+            elif control == CTA:
+                if self.getProperty('cta_state') != 'busy':
+                    threading.Thread(target=self.download_and_apply, daemon=True).start()
+            elif control == MORE:
+                self.more()
+            elif control in (T_MINUS, T_PLUS):
+                step = 'SubtitleDelay' if mode == 'subtitles' else 'AudioDelay'
+                xbmc.executebuiltin('Action(%s%s)' % (step, 'Minus' if control == T_MINUS else 'Plus'))
+                xbmc.sleep(150)
+                self.timing()
+            elif control in (B_MINUS, B_PLUS):
+                xbmc.executebuiltin('Action(%s)' % ('VolAmpDown' if control == B_MINUS else 'VolAmpUp'))
+
+        def onAction(self, action):
+            if action.getId() in BACK:
+                self.close()
+
+    home = HERE
+    menu = Menu('IOSTrackMenu.xml', home, 'Default', '1080i')
+    menu.doModal()
+    del menu
+
+
+if __name__ == '__main__':
+    run(sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] in ('subtitles', 'audio') else 'subtitles')

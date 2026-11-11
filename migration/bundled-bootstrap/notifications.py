@@ -27,6 +27,41 @@ def card_properties(downloads,uploads):
  props['up.summary']=' · '.join(x for x in (u.get('folder',''),'then off the phone') if x) if u else ''
  return props
 
+def transfer_card(job, running_id=''):
+ """Control metadata stays with the model card so its long-press menu can cancel the right job."""
+ card=dict(job,progress=job.get('pct') or 0,paused=job.get('state')=='paused_by_you')
+ if job.get('kind') in ('conv','repack'):card['id']=job.get('id') or running_id
+ if job.get('kind')=='copy':card.update(source='debrid',hash=job.get('hash') or '')
+ return card
+
+
+def model_cards(state,running_id=''):
+ """Build 193: the Preparing and Uploading cards from the status model (work_state), the same words as Library status,
+ Transfers and the bell. Returns (prepare card or {}, upload line or '')."""
+ import work_state
+ conv=work_state.job(state,'conv');copy=work_state.job(state,'up');card={}
+ if conv:
+  card={'title':conv['title'],'line':conv['line'],'progress':conv['pct'],'indeterminate':conv['indeterminate'] or conv['state'] not in work_state.MOVING,
+        'running':conv['state'] in work_state.MOVING,'paused':conv['state']==work_state.PAUSED,'id':running_id}
+ elif state and state.get('next'):
+  first=state['next'][0]
+  card={'title':first['title'],'progress':0,'indeterminate':False,'running':False,'id':first['id'],
+        'line':'Paused by you' if first.get('paused') else (state.get('wait') or 'Up next · #1')}
+ if card:card['queued']=len((state or {}).get('next') or [])
+ return card,(copy['line'] if copy else '')
+
+def next_text(titles,room=60):   # Kodi cuts the line short of the link (notifications_skin.LINK_W)
+ """Board 5: 'Up next: Scary Movie, then Fall 2 Deadpoint ·' with the titles cut short, so the Library status link
+ after it always shows."""
+ if not titles:return ''
+ import re
+ cut=lambda t,n:t if len(t)<=n else t[:max(1,n-1)].rstrip()+'…'
+ shown=[re.sub(r'\s*\((19|20)\d\d\)$','',t) for t in titles[:2]]
+ budget=max(8*len(shown),room-len('Up next: ')-(len(', then ') if len(shown)>1 else 0))
+ # Each title gets an even share; room one title does not need goes to the other.
+ share=budget//len(shown);spare=sum(max(0,share-len(t)) for t in shown)
+ return 'Up next: '+', then '.join(cut(t,share+spare) for t in shown)+' ·'
+
 def message_properties(items,filter_key,now=None):
  """Window properties for the Earlier rows under the chosen filter, and the empty state."""
  kinds=notices.FILTERS.get(filter_key,notices.KINDS);shown=[i for i in items if i.get('kind','info') in kinds][:ROWS]
@@ -34,8 +69,11 @@ def message_properties(items,filter_key,now=None):
  for n in range(1,ROWS+1):
   i=shown[n-1] if n<=len(shown) else {}
   glyph,tint=ICON.get(i.get('kind'),ICON['info']) if i else ('','')
+  # Build 194 (board 5): one grouped card; the tile is the kind's colour at 18 %, its glyph the full colour.
+  pos='' if not i else 'only' if len(shown)==1 else 'first' if n==1 else 'last' if n==len(shown) else 'mid'
   props.update({'msg.%d.title'%n:i.get('title',''),'msg.%d.text'%n:i.get('text',''),'msg.%d.ago'%n:notices.ago(i['time'],now) if i else '',
-                'msg.%d.icon'%n:glyph,'msg.%d.tint'%n:tint,'msg.%d.unread'%n:'true' if i and not i.get('was_read') else ''})
+                'msg.%d.icon'%n:glyph,'msg.%d.tint'%n:('2E'+tint[2:]) if tint else '','msg.%d.glyph'%n:('FF'+tint[2:]) if tint else '',
+                'msg.%d.pos'%n:pos,'msg.%d.unread'%n:'true' if i and not i.get('was_read') else ''})
  return props,shown
 
 KIND_WORDS={'download':'Downloads','drive':'Google Drive','problem':'Problem','update':'Update','info':'Kodi iOS','general':'General'}
@@ -105,6 +143,8 @@ def run():
    # The blue dot marks what was new when the page opened; everything counts as read from now on.
    self.items=[dict(i,was_read=i.get('read',False)) for i in items];notices.mark_all_read(profile)
    xbmcgui.Window(10000).setProperty('Notices.Unread','')
+   import live_window
+   self.guard=live_window.Guard(self)   # ISSUE-123: controls only while this page is open
    self.filter='all';self.shown=[];self.downloads=[];self.lock=threading.Lock();self.stop=threading.Event()
    self.attempted=set()
    try:self.artkey=drivelibrary.tmdb_key(xbmcvfs.translatePath(xbmcaddon.Addon('plugin.video.themoviedb.helper').getAddonInfo('path')))
@@ -123,30 +163,36 @@ def run():
   def refresh(self):
    with self.lock:
     show_live=self.filter in ('all','downloads')
-    self.downloads=notices.downloads() if show_live else [];ups=notices.uploads(profile) if show_live else []
-    props=card_properties(self.downloads,ups)
-    if ups and transfer_control.paused(profile,'up'):props['up.line']='Paused by you · hold this card to resume'
-    self.set_all(props)
-    preparing=prepare_downloads.cards(profile) if show_live else []
-    current=preparing[0] if preparing else {}
+    import work_state
+    model=work_state.load(profile) if show_live else None
+    jobs=(model or {}).get('jobs') or []
+    self.downloads=[transfer_card(j) for j in jobs if j['kind']=='down']
+    ups=[transfer_card(j) for j in jobs if j['kind'] in ('copy','upload')]
+    conv=work_state.job(model,'conv')
+    current=transfer_card(conv,prepare_downloads.running_id(prepare_downloads.load(profile))) if conv else {}
     self.ups,self.current=ups,current
-    self.setProperty('has.prepare','true' if preparing else '')
-    self.setProperty('prepare.indeterminate','1' if current.get('indeterminate') else '')
-    for key in ('title','line'):self.setProperty('prepare.'+key,str(current.get(key,'')))
-    queued=current.get('queued',0)
-    self.setProperty('prepare.summary',('Download → Drive → Prepare'+(' · %d remaining'%queued if queued else '')) if preparing else '')
-    self.percent(9431,current.get('progress',0))
-    for n in range(1,SLOTS+1):
-     if n<=len(self.downloads):self.percent(9400+n,self.downloads[n-1]['progress'])
-    if ups:self.percent(9430,ups[0]['progress'])
-    self.artnames=[d.get('title','') for d in self.downloads]+[u.get('title','') for u in ups]+[current.get('title','')]
+    self.setProperty('live','true' if jobs else '')
+    self.setProperty('has.prepare','true' if current else '')
+    self.setProperty('has.dl','true' if self.downloads else '')
+    self.setProperty('has.up','true' if ups else '')
     cache=drivelibrary.load_json(transfer_artwork.cache_path(profile),{})
-    for pre,name in [('dl.%d.'%(n+1),d.get('title','')) for n,d in enumerate(self.downloads[:SLOTS])]+[('up.',ups[0].get('title','') if ups else ''),('prepare.',current.get('title',''))]:
-     self.setProperty(pre+'poster',transfer_artwork.describe(name,cache)['poster'] if name else '')
+    pairs=[('dl.%d.'%(n+1),self.downloads[n] if n<len(self.downloads) else {}) for n in range(SLOTS)]
+    pairs += [('up.',ups[0] if ups else {}),('prepare.',current)]
+    self.artnames=[j.get('name') or j['title'] for j in jobs]
+    import notifications_skin
+    bars={'prepare.':notifications_skin.BARS,'up.':notifications_skin.BARS+1}
+    bars.update({'dl.%d.'%k:notifications_skin.BARS+1+k for k in range(1,SLOTS+1)})
+    for pre,j in pairs:
+     for key in ('title','line'):self.setProperty(pre+key,str(j.get(key,'')))
+     self.setProperty(pre+'pct',str(j.get('pct') or 0))
+     if pre in bars:self.percent(bars[pre],j.get('pct') or 0)
+     self.setProperty(pre+'tint',j.get('tint','') if j.get('state')=='slowed' else j.get('tint_now',''))   # board 5: slowed still moves
+     self.setProperty(pre+'poster',transfer_artwork.describe(j.get('name') or j.get('title',''),cache)['poster'] if j else '')
+    titles=[j['title'] for j in (model or {}).get('next') or []]
+    self.setProperty('next.text',next_text(titles))
     self.update_empty()
   def percent(self,control,value):
-   try:self.getControl(control).setPercent(float(value))
-   except Exception as error:_quiet('notifications:70',error)
+   self.guard.percent(control,value or 0)
   def loop(self):
    monitor=xbmc.Monitor()
    while not self.stop.is_set() and not monitor.waitForAbort(1):
@@ -202,7 +248,7 @@ def run():
      prepare_downloads.request(profile,'keep',item['id'])
    self.refresh()
   def finish(self):
-   self.stop.set();self.close()
+   self.stop.set();self.guard.close()
   def onClick(self,control):
    if control==9001:self.finish()
    elif control==9002:
@@ -218,6 +264,12 @@ def run():
     else:return
     if not notices.engine_action(command,d['id']):xbmcgui.Dialog().notification('Elementum','The download engine did not answer',xbmcgui.NOTIFICATION_WARNING,3000)
     self.refresh()
+   elif control==9440:
+    import library_status;library_status.run()
+   elif 9460<=control<=9465:
+    if control==9460:self.long_press('conv',0)
+    elif control==9461:self.long_press('up',0)
+    else:self.long_press('down',control-9462)
    elif control in (9432,9433) or 9436<=control<=9435+SLOTS:
     # Owner: the speed graph shows only when a transfer card is tapped.
     import transfers;transfers.run(['up' if control==9432 else 'conv' if control==9433 else 'down'])

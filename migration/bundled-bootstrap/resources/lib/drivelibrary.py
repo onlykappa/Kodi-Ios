@@ -332,7 +332,7 @@ def client():
   import signin_server;server=signin_server.server(drive_addon.getSetting('sign-in-server'))
   body=urllib.parse.urlencode({'provider':'googledrive','refresh_token':refresh_token}).encode()
   status,_,answer=send('POST',server+'/refresh',body,{'Content-Type':'application/x-www-form-urlencoded'})
-  if status!=200:raise RuntimeError('Drive sign-in refresh: HTTP %s'%status)
+  if status!=200:raise driveupload.refresh_error(status)
   return json.loads(answer)
  return driveupload.Drive(driveupload.token_source(accounts.get_accounts,accounts.save_account,refresh),send),driveid
 

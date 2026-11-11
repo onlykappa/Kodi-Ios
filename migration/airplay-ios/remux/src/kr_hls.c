@@ -113,6 +113,13 @@ static int name_taken(char names[][160], int count, const char *name) {
 char *kr_hls_master(gm_stream *s, const char *base, int compat) { return kr_hls_master_at(s, base, compat, "video"); }
 
 char *kr_hls_master_at(gm_stream *s, const char *base, int compat, const char *video_dir) {
+    return kr_hls_master_selected(s,base,compat,video_dir,-1);
+}
+
+char *kr_hls_master_selected(gm_stream *s,const char *base,int compat,const char *video_dir,int subtitle) {
+    return kr_hls_master_receiver(s,base,compat,video_dir,subtitle,0);
+}
+char *kr_hls_master_receiver(gm_stream *s,const char *base,int compat,const char *video_dir,int subtitle,int stereo) {
     sb b = {0};
     sb_add(&b, "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n");
     int n = gm_stream_track_count(s), sel = gm_stream_selected_audio(s), nau = 0, nsub = 0, deflt = -1;
@@ -123,7 +130,7 @@ char *kr_hls_master_at(gm_stream *s, const char *base, int compat, const char *v
         if (gm_stream_track_info(s, i, &t) == 0 && kr_audio_route(&t) && (deflt < 0 || t.src_index == sel)) deflt = t.src_index;
     for (int i = 0; i < n && nau < 64; i++) {
         if (gm_stream_track_info(s, i, &t) != 0 || !kr_audio_route(&t)) continue;
-        const char *tok = kr_audio_token(&t);
+        const char *tok = stereo?"mp4a.40.2":kr_audio_token(&t);
         if (!strstr(tokens, tok)) { if (*tokens) strcat(tokens, ","); strncat(tokens, tok, sizeof tokens - strlen(tokens) - 1); }
         char name[160]; rendition_name(&t, nau + 1, name, sizeof name);
         if (kr_audio_route(&t) == KR_AUDIO_AAC) { char tmp[160]; snprintf(tmp, sizeof tmp, "%.120s (AAC)", name); strcpy(name, tmp); }
@@ -147,7 +154,8 @@ char *kr_hls_master_at(gm_stream *s, const char *base, int compat, const char *v
         strcpy(names[nau + nsub++], name);
         sb_add(&b, "#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"subs\",NAME=\"%s\"", name);
         if (*kr_language(t.language)) sb_add(&b, ",LANGUAGE=\"%s\"", kr_language(t.language));
-        sb_add(&b, ",DEFAULT=NO,AUTOSELECT=NO,FORCED=NO,URI=\"%s/subs/%d/index.m3u8\"\n", base, t.src_index);
+        sb_add(&b, ",DEFAULT=%s,AUTOSELECT=%s,FORCED=NO,URI=\"%s/subs/%d/index.m3u8\"\n",
+               t.src_index==subtitle?"YES":"NO",t.src_index==subtitle?"YES":"NO",base,t.src_index);
     }
     char vcodec[64]; kr_hls_video_codec(s, vcodec, sizeof vcodec);
     AVFormatContext *f = gm_stream_format_context(s);
@@ -162,7 +170,7 @@ char *kr_hls_master_at(gm_stream *s, const char *base, int compat, const char *v
     if (v >= 0 && f && v < (int)f->nb_streams) {
         AVStream *st = f->streams[v];
         w = st->codecpar->width; h = st->codecpar->height;
-        AVRational r = st->avg_frame_rate.num > 0 && st->avg_frame_rate.den > 0 ? st->avg_frame_rate : st->r_frame_rate;
+        AVRational r = av_guess_frame_rate(f,st,NULL);
         if (r.num > 0 && r.den > 0) fps = av_q2d(r);
     }
     if (compat) {
@@ -183,6 +191,11 @@ char *kr_hls_master_at(gm_stream *s, const char *base, int compat, const char *v
     return b.p;
 }
 
+// ISSUE-166 (build-229 log): Apple's player loaded segments 0-6 of a resumed episode (each converted on the phone)
+// and only seeked to 11:53 once it was ready, a minute later. EXT-X-START makes it fetch the resume segment first.
+static double hls_start;
+void kr_hls_set_start(double seconds) { hls_start = isfinite(seconds) && seconds > 1 ? seconds : 0; }
+
 char *kr_hls_media(gm_stream *s, const char *prefix, const char *seg_ext, int with_map) {
     sb b = {0};
     int n = gm_stream_segment_count(s);
@@ -190,6 +203,7 @@ char *kr_hls_media(gm_stream *s, const char *prefix, const char *seg_ext, int wi
     for (int i = 0; i < n; i++) maxd = fmax(maxd, gm_stream_segment_duration(s, i));
     sb_add(&b, "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:%d\n", (int)ceil(maxd));
     sb_add(&b, "#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-INDEPENDENT-SEGMENTS\n");
+    if (hls_start > 0) sb_add(&b, "#EXT-X-START:TIME-OFFSET=%.3f,PRECISE=YES\n", hls_start);
     if (with_map) sb_add(&b, "#EXT-X-MAP:URI=\"%s/init.mp4\"\n", prefix);
     for (int i = 0; i < n; i++) sb_add(&b, "#EXTINF:%.5f,\n%s/seg%d.%s\n", gm_stream_segment_duration(s, i), prefix, i, seg_ext);
     sb_add(&b, "#EXT-X-ENDLIST\n");

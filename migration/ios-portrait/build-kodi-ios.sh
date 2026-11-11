@@ -16,6 +16,7 @@ test "$(git -C "$SRC" rev-parse HEAD)" = "$COMMIT" || { echo "Kodi tag $TAG move
 git -C "$SRC" checkout --quiet -- xbmc tools/depends
 git -C "$SRC" apply --check "$HERE/kodi-21.3-portrait.patch"
 git -C "$SRC" apply "$HERE/kodi-21.3-portrait.patch"
+python3 -B "$HERE/../../scripts/test_seek_release.py" --source-tree "$SRC"
 JOBS=$(getconf _NPROCESSORS_ONLN)
 cd "$SRC/tools/depends"
 [ -f "$DEPS/.depends-built" ] || ./bootstrap

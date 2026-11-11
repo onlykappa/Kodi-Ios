@@ -143,3 +143,13 @@ SOFTWARE.
 FFmpeg also includes ffmpeg-dovi-padding.patch (LGPL-2.1+): ignore NAL trailing_zero_8bits
 before Dolby RPU extension detection. This avoids interpreting zero padding as DM v2 metadata;
 the unmodified picture/RPU content and CRC checks remain intact. Patch shipped with the framework.
+
+FFmpeg includes ffmpeg-mov-trun-cts.patch (LGPL-2.1+): preserve signed version-1
+composition offsets while deriving fragment decode timestamps from MFRA presentation times.
+Without the sign extension, a negative offset became approximately 2^32 ticks, corrupting
+later B-frame segment timestamps. The patch is shipped with the framework for rebuilding/relinking.
+
+FFmpeg includes ffmpeg-mkv-skip-attachments.patch (LGPL-2.1+): the Matroska demuxer skips
+attached file data (fonts, cover images) instead of reading it. AirPlay never uses attachments,
+and over a network link they were read in full before the first picture. The patch is shipped
+with the framework for rebuilding/relinking.

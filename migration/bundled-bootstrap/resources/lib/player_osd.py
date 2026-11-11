@@ -20,6 +20,10 @@ MEDIA='special://skin/extras/portrait/'
 BOOT='special://xbmc/addons/service.kodi.ios.bootstrap/'
 CAST='RunScript(service.kodi.ios.bootstrap,cast)'
 SPEED='RunScript(service.kodi.ios.bootstrap,speed)'
+# Owner-approved Subtitles / Audio menus (tracks.py) instead of Kodi's settings dialogs.
+TRACKS='RunScript(service.kodi.ios.bootstrap,tracks,%s)'
+NEXT_EPISODE='RunScript(service.kodi.ios.bootstrap,next_episode)'
+EPISODE='!String.IsEmpty(VideoPlayer.TVShowTitle) + !String.IsEmpty(VideoPlayer.Episode)'
 CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type=all'
 INFO='$VAR[Action_OSD_WikiInfo]'
 # The row's list is only fetched once Continue Watching is tapped (its path is empty until then), so opening the
@@ -94,12 +98,17 @@ def window():
  rounded corners and the Dynamic Island."""
  left=EDGE;top=110
  back=tap(7101,left+75,top,150,'chevron-left.png','PlayerControl(Stop)','<onright>7121</onright><ondown>7112</ondown>',104)
+ # Build 206 (owner, build 205: "i want a button at the top to watch next episode"): next to back, only for episodes
+ # (the top right holds the four icons; a centred button would meet them on the 16:9 layout).
+ back+=('<control type="group"><visible>%s</visible>'%EPISODE+
+        text_button(7103,left+170,top-75,420,150,'Next Episode  ›',[NEXT_EPISODE],'<onleft>7101</onleft><onright>7121</onright><ondown>7112</ondown>')+
+        '</control>')
  # Right group, 900 wide: speed, audio, subtitles, AirPlay from left to right, the last 90 in from the edge.
  rw=900;rx=rw-EDGE
  icons=''.join(tap(id,rx-75-i*180,top,150,icon,action,nav,74 if icon.endswith('airplay.png') else 96) for i,(id,icon,action,nav) in enumerate([
    (7102,MEDIA+'airplay.png',CAST,'<onleft>7123</onleft><ondown>7112</ondown>'),
-   (7123,'closed-captioning.png','ActivateWindow(osdsubtitlesettings)','<onleft>7122</onleft><onright>7102</onright><ondown>7112</ondown>'),
-   (7122,'file-waveform.png','ActivateWindow(osdaudiosettings)','<onleft>7121</onleft><onright>7123</onright><ondown>7112</ondown>'),
+   (7123,'closed-captioning.png',TRACKS%'subtitles','<onleft>7122</onleft><onright>7102</onright><ondown>7112</ondown>'),
+   (7122,'file-waveform.png',TRACKS%'audio','<onleft>7121</onleft><onright>7123</onright><ondown>7112</ondown>'),
    (7121,'gauge-high.png',SPEED,'<onleft>7101</onleft><onright>7122</onright><ondown>7112</ondown>')]))
  head=back+group('right',rw,icons)
  # Centre row in a group 1200 wide centred on the screen; the "10" sits inside the arrows ($NUMBER: a bare 10
@@ -112,7 +121,10 @@ def window():
   '<onclick>PlayerControl(Play)</onclick><onleft>7111</onleft><onright>7113</onright><onup>7101</onup><ondown>7131</ondown></control>'%(cx-130,cy-130)+
   glyph(cx+10,cy,150,'play.png','<visible>Player.Paused | Player.Forwarding | Player.Rewinding</visible>')+
   glyph(cx,cy,140,'pause.png','<visible>!Player.Paused + !Player.Forwarding + !Player.Rewinding</visible>')+
-  tap(7113,cx+gap,cy,240,'rotate-right.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',160)+ten(cx+gap),
+  tap(7113,cx+gap,cy,240,'rotate-right.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',160)+ten(cx+gap)+
+  # Build 210: the buffer percentage lives here, in the controls already on screen while seeking. Its own dialog
+  # (Custom_1156) froze Kodi's main thread each time it opened (logs 34cd7aac 15:07:09, 3efdc5ca 15:53:08).
+  label(cx-300,cy+150,600,64,'Buffering $INFO[Player.CacheLevel]%','font_main_bold','FFFFFFFF','center','<visible>Player.Caching</visible>'),
   '<visible>!%s</visible>'%PANEL)
  # Title: the film, or the show and the episode.
  title=('<control type="label"><left>%d</left><right>%d</right><top>770</top><height>90</height><font>font_title_midi</font>'
@@ -198,6 +210,25 @@ def safe_inset(original,hide_under_osd=False):
   controls.remove(child);group.append(child)
  controls.insert(0,group)
  return '<?xml version="1.0" encoding="UTF-8"?>\n'+ET.tostring(root,encoding='unicode')+'\n'
+
+BUFFER_MARKER='Kodi-iOS player controls: buffering pill'   # navigation.patch_skin leaves these alone
+BUFFER_WINDOW='Custom_1156_Buffering.xml'
+def buffering_window():
+ """Build 206 (owner, build 205: "i completely understand if it needs to buffer but have it show like a buffer
+ percentage so i know its working"): while Kodi fills its buffer (after a seek, a stall) a pill between the centre
+ controls and the title: the spinning ring and "Buffering 45%" (Player.CacheLevel). Its own dialog (as Fuse's info
+ over the video), which Kodi opens and closes on its visible condition. Nearly opaque: Kodi cannot blur."""
+ w,h=460,84
+ spin='<animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation>'
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window type="dialog" id="1156"><zorder>2</zorder>'
+  '<visible>false</visible>'   # build 210: never opens (it froze Kodi); the OSD shows the percentage
+  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
+  '<controls><control type="group"><centerleft>50%%</centerleft><top>668</top><width>%d</width><height>%d</height>'
+  '<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture border="42" colordiffuse="EB2C2C2E">%sround.png</texture></control>'
+  '<control type="image"><left>26</left><top>18</top><width>48</width><height>48</height><texture colordiffuse="FFFFFFFF">%sring.png</texture>%s</control>'
+  '<control type="label"><left>92</left><top>0</top><width>%d</width><height>%d</height><font>font_midi</font><textcolor>FFFFFFFF</textcolor>'
+  '<align>left</align><aligny>center</aligny><scroll>false</scroll><label>Buffering $INFO[Player.CacheLevel]%%</label></control>'
+  '</control></controls></window>\n')%(BUFFER_MARKER,w,h,w,h,MEDIA,MEDIA,spin,w-92-26,h)
 
 def airplay_png(png,size=96):
  """AirPlay glyph: a screen outline open at the bottom, with a triangle rising into it. png: portrait.png."""

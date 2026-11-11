@@ -4,9 +4,9 @@ The service scans app-managed Movies/TV Shows at startup and after uploads. Work
 the uploader/scanner, paused during playback, and checkpointed. Source bytes stay on Drive until a
 validated result is uploaded in place. Native r16 streams both input and output; no media working files. No permanent AirPlay variant, source-ID switch or extra folder.
 """
-import ctypes,hashlib,json,os,re,shutil,threading,time,urllib.error,urllib.parse,urllib.request
+import contextlib,ctypes,fcntl,hashlib,json,os,re,shutil,threading,time,urllib.error,urllib.parse,urllib.request
 from pathlib import Path
-import app_state,driveupload,drivelibrary,library_scan,phone_space
+import app_state,driveupload,drivelibrary,library_scan,phone_space,fast_open
 
 # Build 192 (owner: a converted Interstellar "takes forever" to open): v2 = KodiAirPlay r32's layout (interleaved, ~64 MB
 # fragments: Kodi opens it in seconds). v1 movies still play and AirPlay as before; they are re-packed in the background
@@ -91,6 +91,19 @@ def save(profile,state):drivelibrary.save_json(str(location(profile)),state)
 def ready(item):
  props=item.get('appProperties') or {}
  return bool(item.get('md5Checksum')) and props.get(PROPERTY) in (PROFILE,)+OLD_PROFILES and props.get(CHECKSUM_PROPERTY)==item['md5Checksum'].lower()
+def streamable_video(probe):
+ """Actual native codec inspection, never a filename guess. The TV bridge handles container/audio on demand."""
+ if not isinstance(probe,dict) or probe.get('copy_video') is not True:return False
+ codec=str(probe.get('codec','')).lower()
+ try:return codec in ('h264','hevc') and int(probe.get('width') or 0)>0 and int(probe.get('height') or 0)>0
+ except (TypeError,ValueError):return False
+
+def playback_ready(profile,item):
+ if ready(item):return True
+ job=(load(profile).get('jobs') or {}).get(key(item)) or {}
+ return bool(job.get('stream_only') and streamable_video(job.get('probe'))
+             and job.get('source') and identity(job['source'])==identity(item))
+
 def repack_due(item):
  """Prepared in an older layout: plays, but Kodi opens it slowly; it is re-packed when nothing else waits."""
  return ready(item) and (item.get('appProperties') or {}).get(PROPERTY)!=PROFILE
@@ -362,12 +375,24 @@ def request(profile,action,item_id):
  if action not in MOVES:pending=[r for r in pending if r.get('id')!=str(item_id) or r.get('action') in MOVES]
  pending.append({'action':action,'id':str(item_id)})
  tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(pending));os.replace(tmp,path)
+ if action=='now':resume_requested(profile,pending)
 
 def pending_requests(profile):
  """What the owner asked for on Library status that the service has not applied yet."""
  try:pending=json.loads((location(profile).parent/REQUESTS).read_text())
  except (OSError,ValueError):return []
  return pending if isinstance(pending,list) else []
+
+def resume_requested(profile,requests=None,state=None):
+ """An explicit valid Start now resumes conversion; queued work alone never overrides the owner's Pause."""
+ requests=pending_requests(profile) if requests is None else requests
+ state=load(profile) if state is None else state
+ eligible={str(j['source']['id']) for j in (state.get('jobs') or {}).values()
+           if j.get('status') not in ('done','superseded') and not j.get('blocked')}
+ if not any(r.get('action')=='now' and str(r.get('id')) in eligible for r in requests):return False
+ import transfer_control
+ transfer_control.set_paused(profile,'conv',False)
+ return True
 
 def apply_to(state,requests,now):
  """Apply owner requests to a queue state (the service for real; the page on a copy, so a tap shows at once).
@@ -461,9 +486,9 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
   if e['state']=='ready':
    # Build 181: a prepared movie is a new Drive file; its job is found by the id it was given.
    job=job or prepared.get(e['id'])
-   done=job if job and job.get('status')=='done' else {}
+   done=job if job and (job.get('status')=='done' or job.get('repack')) else {}
    rows['ready'].append(dict(base,state='ready',sub=quality_text(e['name'],e['size']),probe=done.get('probe'),
-    completed=done.get('completed'),started_at=done.get('started_at')));continue
+    completed=done.get('completed'),started_at=done.get('started_at'),stream_only=bool(e.get('stream_only') or done.get('stream_only'))));continue
   if job and (job.get('blocked') or job.get('kept')):
    why=job.get('error') or 'Kept as it is'
    rows['kept'].append(dict(base,state='kept',owner=bool(job.get('kept')) and not job.get('blocked'),
@@ -531,9 +556,20 @@ def audio_languages(audio_setting,ui_language):
  return ','.join([code]+LANGUAGE_TAGS[code].split(','))
 
 RESCAN='airplay-preparation-rescan'
-def request_check(profile):
+@contextlib.contextmanager
+def check_request(profile):
+ marker=location(profile).parent/RESCAN;marker.parent.mkdir(parents=True,exist_ok=True)
+ with open(str(marker)+'.lock','a') as guard:
+  fcntl.flock(guard,fcntl.LOCK_EX)
+  try:yield marker
+  finally:fcntl.flock(guard,fcntl.LOCK_UN)
+
+def request_check(profile,inspect=False):
  """Ask the service to check Google Drive › Kodi Downloads now (Settings › Library › Check library for conversion)."""
- marker=location(profile).parent/RESCAN;marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text(str(time.time()))
+ # Automatic listing requests must not downgrade a pending explicit file inspection.
+ with check_request(profile) as marker:
+  if inspect:marker.write_text(json.dumps({'inspect':True,'time':time.time()}))
+  elif not marker.exists():marker.write_text(str(time.time()))
 def check_requested(profile):return (location(profile).parent/RESCAN).exists()
 
 def running_id(state):
@@ -596,6 +632,7 @@ class Queue:
   # a movie converts runs beside it (service.py), so the state is shared between two threads: lock is held while the
   # job list changes and while it is saved; scanning holds one check at a time.
   self.lock=threading.RLock();self.scanning=threading.Lock();self.busy=False
+  self.layout_probe=fast_open.inspect
  def commit(self):
   with self.lock:
    for tries in range(5):
@@ -603,6 +640,43 @@ class Queue:
     except RuntimeError:   # the converting thread changed a job while it was being written: write it again
      if tries==4:raise
      time.sleep(0.05)
+ def inspect_source(self,item,keep_going=lambda:True):
+  self.native.keep_going=keep_going
+  source=self.stream.url(item['id'])
+  probe=dict(self.native.probe(source))
+  if streamable_video(probe):probe.update(self.layout_probe(source,int(item['size']),keep_going))
+  # v1's fragment index predates interleaved, larger fragments. An index alone does
+  # not upgrade that known old layout; progressive front-moov originals need no rewrite.
+  if repack_due(item) and probe.get('layout_reason')=='fragment_index':
+   probe.update(fast_open=False,layout_reason='older_prepared_layout')
+  if not keep_going():raise driveupload.Stop('Library check paused')
+  if identity(metadata(self.drive,item['id']))!=identity(item):raise RuntimeError('Drive source changed during inspection')
+  return probe
+ def skip_compatible(self,slot,job,item,probe):
+  """Keep the original and stop only app-owned, uncommitted preparation for compatible video."""
+  if not streamable_video(probe) or job.get('status')=='committing' or job.get('promoted') or job.get('kept'):return False
+  if not job.get('source') or identity(job['source'])!=identity(item):return False
+  # A compatible picture is playable now, but may still need an indexed MP4 container.
+  # Keep checkpoints/backoff intact when the same faster-open task is already queued.
+  if probe.get('fast_open') is False:
+   if not job.get('repack'):self.log('preparation: compatible picture; faster opening needed (%s)'%probe.get('layout_reason','missing layout'))
+   job.update(repack=True,stream_only=True)
+   job.pop('audit',None)
+   if job.get('status')=='done':job.update(status='waiting',retry_after=0,attempts=0)
+   self.commit();return False
+  self.stage_cleanup(job)
+  job.update(status='done',stream_only=True,probe=dict(probe),retry_after=0,attempts=0)
+  for name in ('audit','repack','space','error','blocked','started_at','completed'):job.pop(name,None)
+  import resume_store
+  resume_store.clear(self.profile,slot)
+  library=self.state.get('library') or {}
+  for entry in library.get('items') or []:
+   if entry.get('id')==item['id']:entry['state']='ready';entry['stream_only']=True
+  if library.get('items'):library['ready']=sum(e.get('state')=='ready' for e in library['items'])
+  self.commit()
+  self.log('preparation: compatible video kept unchanged; container/audio handled during playback')
+  return True
+
  def stage_cleanup(self,job):
   """Journal unused app-owned staging files before a job is removed or kept as its original.
   The journal survives library rescans; cloud preparation retries deletion independently of that job."""
@@ -615,6 +689,14 @@ class Queue:
   card, and the movie being converted (and its source file) is never dropped or replaced."""
   if not self.scanning.acquire(blocking=not beside):return
   try:self._scan(keep_going,force,beside)
+  except BaseException:
+   # Build 193 (build-192 log, 12:57-13:09): a check that failed (Drive sign-in refused) left "Checking downloaded videos"
+   # running, so every page showed a check in progress while nothing could run.
+   if not beside:
+    with self.lock:
+     if (self.state.get('current') or {}).get('title')=='Movies and shows':self.state.pop('current',None)
+    self.commit()
+   raise
   finally:
    self.scanning.release()
    if beside:
@@ -623,6 +705,12 @@ class Queue:
  def _scan(self,keep_going,force,beside):
   requested=location(self.profile).parent/'airplay-preparation-rescan'
   if not force and not requested.exists() and self.clock()-self.state.get('last_scan',0)<300:return
+  with check_request(self.profile):
+   try:requested_text=requested.read_text()
+   except OSError:requested_text=''
+  try:inspection=bool(json.loads(requested_text).get('inspect'))
+  except (ValueError,AttributeError):inspection=False
+  self.inspection_pending=False
   status={'title':'Movies and shows','stage':'Checking downloaded videos','progress':0,'queued':0,'running':True,'updated':self.clock()}
   converting=running_id(self.state) if beside else ''
   with self.lock:self.state['checking' if beside else 'current']=status
@@ -643,15 +731,46 @@ class Queue:
    self.commit()
    slot=key(item);seen.add(slot)
    recovering=[old for old,job in self.state['jobs'].items() if job['source']['id']==item['id'] and job.get('status')=='committing']
-   if recovering:seen.update(recovering);continue
-   if ready(item):
+   if recovering:
+    if inspection:self.inspection_pending=True
+    seen.update(recovering);continue
+   old=self.state['jobs'].get(slot)
+   if inspection and (item['id']==converting or (old or {}).get('promoted')):self.inspection_pending=True
+   if ready(item) and not inspection and not (old or {}).get('repack') and not (old or {}).get('audit'):
     counts['ready']+=1;entries.append(entry(item,'ready'))
-    if repack_due(item):
-     with self.lock:
-      if slot not in self.state['jobs'] or identity(self.state['jobs'][slot]['source'])!=identity(item):
-       self.state['jobs'][slot]={'source':item,'status':'waiting','attempts':0,'retry_after':0,'repack':True}
     continue
-   entries.append(entry(item,'todo'))
+   if item['id']!=converting:
+    with self.lock:
+     if old is None or old.get('status')=='superseded' or identity(old['source'])!=identity(item):
+      if old:self.stage_cleanup(old)
+      old=self.state['jobs'][slot]={'source':item,'status':'waiting','attempts':0,'retry_after':0}
+    # Refresh reads actual track metadata before deciding to queue conversion. Never probe through the same
+    # native instance beside an active conversion or abandon a promotion/owner-kept original.
+    if inspection and not old.get('kept') and not old.get('promoted') and self.stream:
+     if beside:self.inspection_pending=True
+     else:
+      try:
+       old['audit']=True;old.pop('probe',None)
+       status.update(stage='Checking compatibility and faster opening · '+drivelibrary.display_title(item['name']),updated=self.clock());self.commit()
+       if self.runtime:self.runtime.phase('Checking compatibility',False,item['name'])
+       probe=self.inspect_source(item,keep_going)
+       old['probe']=probe;old.pop('inspection_error',None);self.commit()
+       if not streamable_video(probe):
+        old.pop('stream_only',None);old.pop('repack',None)
+        if old.get('status')=='done':old.update(status='waiting',retry_after=0,attempts=0)
+      except driveupload.Stop:raise
+      except Exception as error:
+       import preparation_runtime
+       old['inspection_error']=preparation_runtime.problem(error)
+       old.update(status='failed',retry_after=self.clock()+60)
+       self.log('preparation: compatibility check will retry (%s)'%type(error).__name__)
+      finally:self.stream.forget(item['id'])
+   if old and item['id']!=converting and self.skip_compatible(slot,old,item,old.get('probe')):
+    counts['ready']+=1;entries.append(dict(entry(item,'ready'),stream_only=True));continue
+   playable=bool(old and old.get('repack') and streamable_video(old.get('probe')) and old.get('status')!='failed'
+                 and not old.get('blocked') and not old.get('kept')) or (ready(item) and not (old or {}).get('audit') and not (old or {}).get('repack'))
+   entries.append(dict(entry(item,'ready' if playable else 'todo'),stream_only=bool((old or {}).get('stream_only'))))
+   if playable:counts['ready']+=1
    with self.lock:
     if item['id']==converting:continue   # the movie being converted keeps its job as it is
     if slot not in self.state['jobs'] or self.state['jobs'][slot].get('status')=='superseded' or identity(self.state['jobs'][slot]['source'])!=identity(item):
@@ -665,7 +784,12 @@ class Queue:
    self.state['library']=dict(counts,checked=self.clock(),items=entries)
    self.state['last_scan']=self.clock()
    if not beside:self.state.pop('current',None)
-  self.commit();requested.unlink(missing_ok=True)
+  self.commit()
+  if not self.inspection_pending:
+   with check_request(self.profile):
+    try:
+     if requested.read_text()==requested_text:requested.unlink(missing_ok=True)
+    except FileNotFoundError:pass
  def unique(self,found):
   """One copy per episode or movie (owner, build 152: 'Lanterns' and 'Lanterns (2026)' each held S1 E1, and both
   were queued; the owner then asked for the extra copy to be deleted). Keeps, in order: a copy already prepared, one
@@ -731,6 +855,7 @@ class Queue:
   path=location(self.profile).parent/REQUESTS
   if not path.exists():return False
   requests=pending_requests(self.profile)
+  resume_requested(self.profile,requests,self.state)
   path.unlink(missing_ok=True)
   apply_to(self.state,requests,self.clock())
   for job in self.state['jobs'].values():
@@ -821,7 +946,7 @@ class Queue:
   try:
    if not keep_going():raise driveupload.Stop('Preparation paused')
    current=metadata(self.drive,item['id'])
-   if ready(current):job['status']='done';self.commit();shutil.rmtree(folder);return True
+   if ready(current) and not job.get('repack') and not job.get('audit'):job['status']='done';self.commit();shutil.rmtree(folder);return True
    # A completed upload can survive a process exit before tagging/cleanup. Recover it from the local output.
    already_uploaded=False
    if output.is_file():
@@ -846,6 +971,8 @@ class Queue:
     before=self.native.probe(str(source))
     # Kept with the job: the queue and Library status then use the same estimate as this step (work_bytes).
     job['probe']={k:before.get(k) for k in ('copy_video','audio_work_bytes','duration','width','height','codec','bit_depth','pgs_subtitles')}
+    if self.skip_compatible(slot,job,item,before):
+     self.state.pop('current',None);self.commit();shutil.rmtree(folder,ignore_errors=True);return True
     # Never trade the selected 4K/HDR source for the live converter's 1080p fallback.
     if not output.is_file():
      needed=work_bytes(item,before)
@@ -909,10 +1036,7 @@ def snapshot(profile,now=time.time):
  import preparation_runtime
  runtime=preparation_runtime.read(profile,now)
  if runtime and current.get('running'):
-  current['updated']=runtime['updated'];current['indeterminate']=not runtime.get('known')
-  current['stage']=runtime.get('phase') or current.get('stage')
-  if current['indeterminate'] and runtime.get('read_bytes'):current['stage']+=' · %.0f MB read'%(runtime['read_bytes']/1024**2)
-  state['current']=current
+  state['current']=preparation_runtime.current(current,runtime)
  return state
 
 def cards(profile,now=time.time):

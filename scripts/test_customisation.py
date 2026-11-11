@@ -95,7 +95,7 @@ class MorePages(Pages):
   with tempfile.TemporaryDirectory() as d:
    rows.save(d,'homewidgets',[{'label':'A','path':'p'},{'label':'B','path':'q','disabled':'true'}])
    out=counts.values({},lambda c:False,d,sp,rows)
-  self.assertEqual((out['custom.rows.home'],out['custom.rows.tv'],out['custom.rows'],out['custom.views']),('1 rows','0 rows','1 rows','Poster Grid'))
+  self.assertEqual((out['custom.rows.home'],out['custom.rows.tv'],out['custom.rows'],out['custom.views']),('2 rows','1 row','4 rows','Poster Grid'))
 
 class RowsEditor(unittest.TestCase):
  def setUp(self):
@@ -110,7 +110,7 @@ class RowsEditor(unittest.TestCase):
   rows=r.move(rows,0,1);rows=r.rename(rows,1,'  Popular Now ');rows=r.set_style(rows,0,'Poster');rows[1]=r.set_on(rows[1],False)
   r.save(self.p,'1102widgets',rows);back=r.load(self.p,'1102widgets')
   self.assertEqual([w['label'] for w in back],['Library','Popular Now']);self.assertEqual(back[1]['extra'],1)
-  self.assertEqual(back[1]['disabled'],'true');self.assertEqual(r.summary(back[1]),'Off');self.assertEqual(r.summary(back[0]),'Poster · Your library')
+  self.assertEqual(back[1]['disabled'],'true');self.assertEqual(r.summary(back[1]),'Off · not on Home');self.assertEqual(r.summary(back[0]),'Poster · Your library')
   self.assertFalse(portrait.usable(back[1]));self.assertTrue(portrait.usable(back[0]))
   r.save(self.p,'1102widgets',r.delete(back,0))   # the kept copy is the first one
   self.assertTrue(r.restore(self.p,'1102widgets'));self.assertEqual(r.load(self.p,'1102widgets'),self.original)
@@ -122,11 +122,32 @@ class RowsEditor(unittest.TestCase):
  def test_properties(self):
   r=self.rows;props=r.properties(r.load(self.p,'1102widgets'),3)
   self.assertEqual((props['row.1.title'],props['row.1.up'],props['row.1.down'],props['row.2.down'],props['row.3.title'],props['count']),
-                   ('Popular','','true','','','2 rows'))
+                   ('Popular','','true','','','3 rows on the page'))
  def test_catalogue_paths_are_rows_portrait_shows(self):
   for key,items in self.rows.CATALOGUE.items():
    self.assertTrue(items,key)
    for label,path in items:self.assertTrue(portrait.usable({'path':path}),path)
+
+class MatchesHome(unittest.TestCase):
+ """Owner (build 192): the page said 17 rows, Home had 7 and began with Continue Watching."""
+ def setUp(self):self.r=load('rows_m',LIB/'rows_editor.py')
+ SAMPLES=[{'label':'In Progress Movies','path':'special://profile/playlists/video/In Progress Movies.xsp'},
+          {'label':'Video add-ons','path':'library://video/addons.xml/'},{'label':'Umbrella','path':'plugin://plugin.video.umbrella/'},
+          {'label':'Netflix','path':'plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=tv&with_networks=213'},
+          {'label':'Run','path':'RunScript(x)'},{'label':'Movies','path':'videodb://movies/titles/'},{'label':'Recently added Tv','path':'videodb://recentlyaddedepisodes/'}]
+ def test_same_rules_as_portrait(self):
+  for w in self.SAMPLES+[{'label':l,'path':p} for k in self.r.CATALOGUE for l,p in self.r.CATALOGUE[k]]:
+   self.assertEqual(not self.r.why_not_shown(w),portrait.usable(w) and not portrait.in_progress(w),w)
+ def test_page_order_count_and_moves(self):
+  rows=self.SAMPLES;order=self.r.view(rows)
+  self.assertEqual([rows[i]['label'] for i in order[:3]],['Netflix','Movies','Recently added Tv'])
+  self.assertEqual(self.r.shown_count(rows),4)   # Continue Watching + the three
+  props=self.r.properties(rows,10)
+  self.assertEqual((props['row.1.up'],props['row.3.down'],props['row.4.up'],props['row.4.off']),('','','','true'))
+  self.assertIn('Continue Watching already shows these',props['row.4.sub'])
+  moved=self.r.move_shown(rows,5,-1)   # 'Movies' up past the hidden rows, over 'Netflix'
+  self.assertEqual([moved[i]['label'] for i in self.r.view(moved)[:3]],['Movies','Netflix','Recently added Tv'])
+  self.assertEqual(self.r.move_shown(rows,0,1),rows)   # a row Home never shows does not move
 
 class RowsScript(unittest.TestCase):
  class UI:
@@ -157,10 +178,64 @@ class RowsScript(unittest.TestCase):
   self.assertEqual((e.rows[1]['label'],e.rows[1]['widget_style'],e.rows[1]['disabled']),('New name','Poster','true'))
   self.assertFalse(e.back());self.assertEqual(e.props()['page'],'')
  def test_add_from_the_list_and_from_an_addon(self):
-  e=self.editor(0);e.click(self.page.ADD);self.assertEqual(e.rows[-1]['label'],'Trending Movies')
+  # Owner (build 204): a new row goes at the bottom of the rows Home shows, and the page moves to it (build 202:
+  # "when i press add and nothing is added").
+  e=self.editor(0);e.click(self.page.ADD);self.assertEqual([r['label'] for r in e.rows],['A','B','Trending Movies'])
+  self.assertEqual(e.props()['row.3.title'],'Trending Movies');self.assertEqual(e.props()['row.3.off'],'')   # not judged empty yet
+  self.assertEqual(e.focus,self.page.ROW_BASE+3);self.assertEqual(e.ui.note,'Added "Trending Movies" at the bottom of Home')
   e=self.editor(len(self.script.re_.CATALOGUE['home']),'plugin://plugin.video.umbrella/movies/','Umbrella Movies')
   e.click(self.page.ADD);self.assertEqual((e.rows[-1]['label'],e.rows[-1]['path']),('Umbrella Movies','plugin://plugin.video.umbrella/movies/'))
   e=self.editor(-1);before=len(e.rows);e.click(self.page.ADD);self.assertEqual(len(e.rows),before);self.assertEqual(before,4)
+ def test_count_matches_what_home_shows(self):
+  # Owner (build 202): "Customization still says i have 15 rows on home ... i only have 7 rows". Home hides a row with
+  # nothing to show; the page counts and marks only what Home really shows.
+  import json
+  re_=self.script.re_
+  tmdb='plugin://plugin.video.themoviedb.helper/?info=%s&tmdb_type=movie'
+  rows=[{'label':'Trending','path':tmdb%'trending_week'},{'label':'Trakt For You','path':tmdb%'trakt_becauseyouwatched'},
+        {'label':'Recent','path':'videodb://recentlyaddedmovies/'},{'label':'Library','path':'videodb://movies/titles/'},
+        {'label':'Umbrella','path':'plugin://plugin.video.umbrella/?a=1'}]
+  re_.save(self.p,'homewidgets',rows)
+  copy=Path(self.p)/(re_.LISTINGS%re_.copy_key(tmdb%'trending_week'));copy.parent.mkdir(parents=True,exist_ok=True)
+  copy.write_text(json.dumps({'items':[{'path':'x'}]}))   # the service keeps copies of lists that have items
+  counts={'videodb://recentlyaddedmovies/':0,'videodb://movies/titles/':40}
+  e=self.script.Editor(self.p,'home',self.UI([]),counts.get)
+  self.assertEqual(e.empty,{1,2})
+  props=e.props()
+  self.assertEqual(props['count'],'4 rows on the page · 2 empty right now')   # CW, Trending, Library, Umbrella
+  self.assertEqual(props['row.2.sub'],'Empty · sign in to Trakt');self.assertEqual(props['row.2.off'],'true')
+  self.assertEqual(props['row.3.sub'],'Empty now · hidden on Home')
+  self.assertEqual(re_.count(self.p,'homewidgets',counts.get),4)
+  copy.unlink()   # no copies at all (first start, or the rig): TMDb rows are not judged, library rows still are
+  self.assertEqual(re_.empty_rows(self.p,re_.load(self.p,'homewidgets'),counts.get),{2})
+ def test_folder_counter_asks_kodi_for_one_item(self):
+  import json
+  asked=[]
+  def rpc(text):asked.append(json.loads(text));return json.dumps({'result':{'files':[{}],'limits':{'start':0,'end':1,'total':12}}})
+  count=self.script.re_.folder_counter(rpc)
+  self.assertEqual(count('videodb://movies/titles/'),12);self.assertEqual(asked[0]['params']['limits'],{'start':0,'end':1})
+  self.assertIsNone(count('plugin://plugin.video.umbrella/?a=1'));self.assertEqual(len(asked),1)
+ def test_add_row_offers_trending_and_now_playing(self):
+  # Owner (build 204): "I want trending movies to be a option and trending shows, and Now Playing under movies".
+  c=self.script.re_.CATALOGUE;names=lambda k:[n for n,_ in c[k]]
+  for name in ('Trending Movies','Trending Shows','Trakt Trending Movies','Trakt Trending Shows'):self.assertIn(name,names('home'))
+  self.assertEqual(names('movies')[:3],['Trending Movies','Trakt Trending Movies','Now Playing'])
+  self.assertEqual(names('tv')[:3],['Trending Shows','Trakt Trending Shows','Airing Today'])
+  self.assertEqual(dict(c['movies'])['Now Playing'],'plugin://plugin.video.themoviedb.helper/?info=now_playing&tmdb_type=movie')
+  self.assertTrue(all(p for _,p in c['home']))
+  rows=[{'label':'A','path':'plugin://a/?x'},{'label':'Menu','path':'plugin://b'}]
+  self.assertEqual([r['label'] for r in self.script.re_.add(rows,'N','plugin://n/?y')],['A','N','Menu'])   # before rows Home never shows
+ def test_row_files_match_the_full_build(self):
+  # Build 204 (owner: "ensure its quick"): after a row change only the hub files are rebuilt; they must be exactly what
+  # the full refresh makes, or Home would differ from the next start's.
+  import os
+  skin=os.environ.get('KODI_RIG_SKIN','/root/.cache/kodi-rig-test/home/.kodi/addons/skin.arctic.fuse.3')
+  if not os.path.isdir(skin):self.skipTest('no Fuse copy (desktop Kodi rig) on this machine')
+  self.script.re_.save(self.p,'homewidgets',[{'label':'Trending Movies','path':self.script.re_.TMDB%('trending_week','movie')}])
+  full=portrait.portrait_files(skin,self.p);rows=portrait.row_files(skin,self.p)
+  self.assertTrue({'portrait/Home.xml','portrait/Includes.xml','1080i/'+portrait.LANDSCAPE_VARS}<=set(rows))
+  for rel,data in rows.items():self.assertEqual(data,full[rel],rel)
+  self.assertIn(b'Trending Movies',rows['portrait/Home.xml'])
  def test_restore(self):
   e=self.editor(True);e.click(self.page.EDIT);e.click(self.page.REMOVE+1)
   e=self.editor(True);e.click(self.page.RESTORE);self.assertEqual([r['label'] for r in e.rows],['A','B'])

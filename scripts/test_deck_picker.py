@@ -22,7 +22,7 @@ class DeckPicker(unittest.TestCase):
   self.assertEqual((parsed[0]['quality'],parsed[0]['seeds'],round(parsed[0]['size'],2),parsed[0]['providers']),('1080p',75,1.71,['Torrentio']))
  def test_quality_first_then_five_best_and_the_choice_maps_back(self):
   seen={}
-  def quality(labels):seen['qualities']=labels;return 0
+  def quality(labels,*a):seen['qualities']=labels;return 0
   def source(title,rows,quality,count):seen['rows']=rows;seen['quality']=quality;return 1
   with mock.patch.object(dp,'choose_quality',quality),mock.patch.object(dp,'choose_source',source):
    choice=dp.run('Orange Is the New Black S01E01',ITEMS)
@@ -31,8 +31,8 @@ class DeckPicker(unittest.TestCase):
   shown=dp.pick(dp.group_by_quality(dp.parse_all(ITEMS))[1]['1080p'],dp.TOP_N)
   self.assertEqual(choice,shown[1]['idx']);self.assertTrue(0<=choice<len(ITEMS))
  def test_cancel_and_show_all_fall_back_safely(self):
-  with mock.patch.object(dp,'choose_quality',lambda labels:-1):self.assertEqual(dp.run('t',ITEMS),-1)
-  with mock.patch.object(dp,'choose_quality',lambda labels:len(labels)-1):self.assertIsNone(dp.run('t',ITEMS))
+  with mock.patch.object(dp,'choose_quality',lambda labels,*a:-1):self.assertEqual(dp.run('t',ITEMS),-1)
+  with mock.patch.object(dp,'choose_quality',lambda labels,*a:len(labels)-1):self.assertIsNone(dp.run('t',ITEMS))
   self.assertIsNone(dp.run('t',['not a torrent line']*10))
   # Kodi-iOS: a short list gets the page too (its links are checked against the title: source_match.py).
   seen=[]
@@ -84,7 +84,9 @@ class UmbrellaPage(unittest.TestCase):
   # No seed counts for debrid links: size and where it comes from.
   self.assertEqual(deck.meta_text(parsed[0]),'48.00 GB  \u2022  AllDebrid, Torrentio, unchecked')
   labels=deck.quality_menu_labels(*deck.group_by_quality(parsed))
-  self.assertEqual(labels[:2],['[B]4K Ultra HD[/B]   \u00b7   6 versions','[B]1080p Full HD[/B]   \u00b7   1 version'])
+  self.assertEqual([l.split('\x1f')[0] for l in labels[:2]],['[B]4K Ultra HD[/B]','[B]1080p Full HD[/B]'])
+  # the second line (split off by choose_quality): how many versions and the size they start from
+  self.assertTrue(labels[0].split('\x1f')[1].startswith('6 versions \u00b7 ') and ' \u00b7 from ' in labels[0]);self.assertTrue(labels[1].split('\x1f')[1].startswith('1 version \u00b7 from '))
   self.assertFalse(any('top pick' in l or 'seeds' in l for l in labels))
   self.assertEqual(sys.modules.get('elementum'),None)  # stand-ins only lived inside load()
  def test_run_returns_what_umbrellas_window_returns(self):
@@ -129,7 +131,7 @@ class UmbrellaPage(unittest.TestCase):
   with mock.patch.object(dp,'resume_wanted',lambda:wanted),mock.patch.object(dp,'choose_source',side_effect=AssertionError('asked')):
    self.assertEqual(dp.run('Orange Is the New Black S01E01',ITEMS),3)
   # Gone from the list: the normal page.
-  with mock.patch.object(dp,'resume_wanted',lambda:{'name':'Not.There','time':time.time()}),mock.patch.object(dp,'choose_quality',lambda labels:-1):
+  with mock.patch.object(dp,'resume_wanted',lambda:{'name':'Not.There','time':time.time()}),mock.patch.object(dp,'choose_quality',lambda labels,*a:-1):
    self.assertEqual(dp.run('Orange Is the New Black S01E01',ITEMS),-1)
  def test_a_pick_is_remembered_for_the_title_just_started(self):
   import json,tempfile,time,os
