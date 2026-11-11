@@ -3,8 +3,8 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
-  "build_tag": "kodi-ios-portrait-r28",
-  "staged_patch_note": "r28 verified native executable pinned for owner-approved seek retention test IPA.",
+  "build_tag": "kodi-ios-portrait-r29",
+  "staged_patch_note": "r29 candidate: r28 plus the Browse for subtitle guard (ISSUE-154: no file browser started at an HTTP(S) movie URL). The IPA keeps the pinned r28 executable until r29 is verified and pinned.",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
     "tag": "kodi-ios-portrait-r28",
@@ -21,5 +21,5 @@
   },
   "verified_run": 42881626230,
   "source_commit": "c829a928bdde3ba30d2f80d62c838933d8374441",
-  "patch_sha256": "a3c1814b381753ebba0475598881cbd6fddfdb41acf69542709a535deff5e851"
+  "patch_sha256": "fd35870c2461a6ad79f9eedd010f0df14bc4247de4da9a0956f8f789073da5a8"
 }

@@ -382,10 +382,11 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
  if action=='settings' and hasattr(lib,'kodi_airplay_settings'):lib.kodi_airplay_settings()
  elif action in ('retry','pause_retry'):
   if action=='pause_retry' and profile:
-   # The owner's own Pause (transfer_control), so it stays paused until resumed in Library status.
+   # Build 224: an AirPlay pause, lifted on its own two minutes after AirPlay ends (transfer_control.release_airplay);
+   # before, it stayed until Resume in Library status and downloads stopped for days.
    import transfer_control
-   for kind in transfer_control.KINDS:transfer_control.set_paused(profile,kind,True)
-   notices.note('info','Uploads paused for AirPlay','Resume them in Library status when the movie is over.')
+   for kind in transfer_control.KINDS:transfer_control.set_paused(profile,kind,True,why='airplay')
+   notices.note('info','Uploads paused for AirPlay','They start again on their own when AirPlay is over.')
   return _send_airplay(xbmc,dialog,player,library,url,title,playing,lib,source_override,source_lease)
 
 def tv_link(xbmc,library,url,playing,kind,safe=False):

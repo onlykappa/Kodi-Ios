@@ -303,10 +303,24 @@ def drive_uploads(monitor,home,profile):
  # Downloads through AllDebrid go straight to Drive (debrid_drive): its own loop, so a long copy never holds up the
  # phone-to-Drive uploads or preparation below, and it runs during playback too (network only, no phone storage).
  def debrid_loop():
-  import alldebrid,debrid_drive,prepare_downloads
+  import alldebrid,debrid_drive,prepare_downloads,transfer_control
   delay=10
+  # Build 224: pauses carried over from earlier builds are lifted once; AirPlay's pause ends with AirPlay.
+  try:
+   lifted=transfer_control.reset_once(profile)
+   if lifted:
+    xbmc.log('Kodi iOS transfers: build 224 resumed paused %s'%', '.join(lifted),xbmc.LOGINFO)
+    notices.note('info','Downloads resumed','Uploads to Google Drive were paused from an earlier build; they are running again.')
+  except Exception as error:xbmc.log('Kodi iOS transfers: pause reset skipped: %s'%error,xbmc.LOGWARNING)
+  quiet=[None]
   while not monitor.waitForAbort(delay):
    delay=20
+   try:
+    lifted=transfer_control.release_airplay(profile,airplay_busy(),quiet_since=quiet)
+    if lifted:
+     xbmc.log('Kodi iOS transfers: AirPlay is over, resumed %s'%', '.join(lifted),xbmc.LOGINFO)
+     notices.note('info','Uploads running again','AirPlay is over, so downloads and uploads to Google Drive continue.')
+   except Exception as error:xbmc.log('Kodi iOS transfers: AirPlay pause check failed: %s'%error,xbmc.LOGWARNING)
    try:token=xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken')
    except Exception:token=''
    # A version played from the source page keeps downloading onto the phone after playback (Elementum's keep
