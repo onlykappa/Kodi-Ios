@@ -388,6 +388,8 @@ def track_menu():
  P=lambda k:'$INFO[Window().Property(%s)]'%k
  isp=lambda k,v:'String.IsEqual(Window().Property(%s),%s)'%(k,v)
  subs=isp('mode','subtitles')
+ # Roadmap B.7/2.12: Playback speed is a third mode: the list of speeds, no Download/Timing/Boost.
+ speed=isp('mode','speed')
  w=840;row=118;head=108;pad=27;cpad=38;list_h=TRACK_ROWS*row;cta_h=112
  def img(x,y,w,h,tex,color='FFFFFFFF',extra='',border=''):
   return ('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texture%s colordiffuse="%s">%s</texture>%s</control>'
@@ -443,6 +445,7 @@ def track_menu():
   tracks(y_list,9510,9401)+
   '<control type="group"><left>0</left><top>0</top><width>%d</width>'%w+
   ''.join('<animation effect="slide" start="0,0" end="0,-%d" time="0" condition="String.IsEqual(Window().Property(rows),%d)">Conditional</animation>'%((TRACK_ROWS-k)*row,k) for k in range(1,TRACK_ROWS))+
+  '<control type="group"><visible>!%s</visible>'%speed+
   img(pad,y_time,w-2*pad,2*row,MEDIA+'round_s.png','47000000','','26')+
   lab(pad+36,y_time,300,row,'Timing','font_main')+stepper(w-pad-372,y_time,9401,9402,'timing','<onup>9310</onup><ondown>9501</ondown>')+
   '<control type="group"><visible>%s</visible>'%subs+
@@ -456,9 +459,10 @@ def track_menu():
   '<control type="group"><visible>!%s</visible>'%subs+
   img(pad+36,y_time+row-1,w-2*pad-36,2,MEDIA+'white.png','1FEBEBF5')+
   lab(pad+36,y_time+row,300,row,'Volume boost','font_main')+stepper(w-pad-372,y_time+row,9403,9404,'boost','<onup>9401</onup>')+
-  '</control></control></control>')
- back=''.join(img(0,0,w,hh-(TRACK_ROWS-k)*row,MEDIA+'round_s.png','F52C2C2E','<visible>%s%s + String.IsEqual(Window().Property(rows),%d)</visible>'%(m,subs,k),'26')
-              for m,hh in (('',h_subs),('!',h_audio)) for k in range(1,TRACK_ROWS+1))
+  '</control></control></control></control>')
+ h_speed=y_list-lift+list_h+pad
+ back=''.join(img(0,0,w,hh-(TRACK_ROWS-k)*row,MEDIA+'round_s.png','F52C2C2E','<visible>%s + String.IsEqual(Window().Property(rows),%d)</visible>'%(cond,k),'26')
+              for cond,hh in ((subs,h_subs),('!%s + !%s'%(subs,speed),h_audio),(speed,h_speed)) for k in range(1,TRACK_ROWS+1))
  more=''   # More is a row under Timing (mockup board 1)
  inner=('<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation><animation effect="fade" start="100" end="0" time="120">WindowClose</animation>'
   '<animation effect="slide" start="0,-24" end="0,0" time="220" tween="cubic" easing="out">WindowOpen</animation>'+
@@ -468,9 +472,10 @@ def track_menu():
   # Under the button that opened it: CC (subtitles), 140 in from the right (SAFE); Audio slides 190 left, under the
   # waveform. One copy of the controls (two copies would share their ids).
   '<control type="group"><right>140</right><top>172</top><width>'+str(w)+'</width>'
-  '<animation effect="slide" start="0,0" end="-190,0" time="0" condition="!'+subs+'">Conditional</animation>'+inner+'</control>')
+  '<animation effect="slide" start="0,0" end="-190,0" time="0" condition="!'+subs+'">Conditional</animation>'
+  '<animation effect="slide" start="0,0" end="-180,0" time="0" condition="'+speed+'">Conditional</animation>'+inner+'</control>')
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: track menu r1 (navigation.patch_skin leaves this marker alone) -->\n'
-         '<window type="dialog"><defaultcontrol always="true">9310</defaultcontrol><controls>%s</controls></window>\n')%body
+         '<window type="dialog"><defaultcontrol always="true">9500</defaultcontrol><controls>%s</controls></window>\n')%body
 
 # --- Kodi's busy dialog (DialogBusy: opening a video, buffering, loading a list) ---------------------------
 # Build 191 (owner: a white badge with the Kodi logo over the Library posters, and a small spinner over the video

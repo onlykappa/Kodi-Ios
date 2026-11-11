@@ -178,3 +178,52 @@ def cta(state, language):
 def note(state, language):
     text = NOTE.get(state, '')
     return text % language if '%s' in text else text
+
+
+BOOST_STEP = 3    # dB per tap; Kodi's VolAmpUp/Down move 1 dB each
+BOOST_TOP = 18    # Kodi allows 60 dB; past ~18 dB speech distorts on the phone speaker
+
+
+def boost_change(current, up):
+    """(new dB, Kodi actions to send) for one tap on Volume boost - or +. Kodi keeps the gain only inside the player
+    and offers no way to read it, so the menu counts it per video (roadmap B.2)."""
+    new = max(0, min(BOOST_TOP, int(current) + (BOOST_STEP if up else -BOOST_STEP)))
+    n = abs(new - int(current))
+    return new, ['VolAmpUp' if up else 'VolAmpDown'] * n
+
+
+def boost_text(db):
+    return 'Off' if not db else '+%d dB' % db
+
+
+SPEEDS = (0.8, 0.9, 1.0, 1.1, 1.25, 1.5)
+
+
+def speed_rows(current):
+    """Playback speed rows (roadmap B.7: Kodi's select box replaced by the track menu); index is the tempo."""
+    try:
+        now = float(current or 1)
+    except ValueError:
+        now = 1.0
+    if now <= 0:
+        now = 1.0
+    near = min(SPEEDS, key=lambda s: abs(s - now))
+    return [{'label': '%gx' % s, 'tag': 'NORMAL' if s == 1.0 else '', 'on': s == near, 'index': s} for s in SPEEDS]
+
+
+def more_rows(found, always):
+    """Subtitles › More as rows (roadmap B.6): back, Choose another, Add from a file, Use for all videos."""
+    return [{'label': '\u2039 Subtitles', 'tag': '', 'on': False, 'index': 'back'},
+            {'label': 'Choose another', 'tag': ('%d FOUND' % found) if found else '', 'on': False, 'index': 'choose'},
+            {'label': 'Add from a file', 'tag': '', 'on': False, 'index': 'file'},
+            {'label': 'Use for all videos', 'tag': 'ON' if always else 'OFF', 'on': bool(always), 'index': 'always'}]
+
+
+def result_rows(results):
+    """Found subtitles as rows under a back row; index is the result's position."""
+    rows = [{'label': '\u2039 More', 'tag': '', 'on': False, 'index': 'more'}]
+    for n, r in enumerate(results):
+        rows.append({'label': r['releases'][0] if r['releases'] else 'Subtitle %s' % r['id'],
+                     'tag': 'SDH' if r['impaired'] else '', 'on': False, 'index': n})
+    return rows
+

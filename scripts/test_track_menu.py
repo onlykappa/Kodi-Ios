@@ -76,4 +76,51 @@ class Window(unittest.TestCase):
   portrait=(LIB/'portrait.py').read_text();self.assertEqual(portrait.count("'IOSTrackMenu.xml'"),2)   # OWN_1080I and VIDEO_ONLY
   self.assertIn("'1080i/'+TRACK_MENU:track_menu()",(LIB/'pages.py').read_text())
 
+class Boost(unittest.TestCase):
+    def test_three_db_a_tap_capped_and_never_below_off(self):
+        import track_menu as tm
+        self.assertEqual(tm.boost_change(0, True), (3, ['VolAmpUp'] * 3))
+        self.assertEqual(tm.boost_change(17, True), (18, ['VolAmpUp']))
+        self.assertEqual(tm.boost_change(18, True), (18, []))
+        self.assertEqual(tm.boost_change(2, False), (0, ['VolAmpDown'] * 2))
+        self.assertEqual((tm.boost_text(0), tm.boost_text(6)), ('Off', '+6 dB'))
+
+    def test_menu_never_opens_focused_on_its_empty_list(self):
+        import pages
+        src = (Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap/resources/lib/pages.py').read_text()
+        self.assertNotIn('<defaultcontrol always="true">9310</defaultcontrol>', src)
+
+
+class Speed(unittest.TestCase):
+    def test_rows_check_the_current_tempo(self):
+        import track_menu as tm
+        rows = tm.speed_rows('1.25')
+        self.assertEqual([r['label'] for r in rows], ['0.8x', '0.9x', '1x', '1.1x', '1.25x', '1.5x'])
+        self.assertEqual([r['label'] for r in rows if r['on']], ['1.25x'])
+        self.assertEqual([r['label'] for r in tm.speed_rows('')  if r['on']], ['1x'])
+        self.assertEqual([r['label'] for r in tm.speed_rows('0') if r['on']], ['1x'])   # paused reads 0
+
+    def test_speed_mode_hides_download_timing_and_boost(self):
+        import pages
+        xml = pages.track_menu()
+        ET.fromstring(xml.split('\n', 1)[1] if xml.startswith('<?xml') else xml)
+        self.assertIn("String.IsEqual(Window().Property(mode),speed)", xml)
+        self.assertIn('<visible>!String.IsEqual(Window().Property(mode),speed)</visible>', xml)
+
+
+class More(unittest.TestCase):
+    def test_more_and_results_are_rows_with_a_way_back(self):
+        import track_menu as tm
+        rows = tm.more_rows(3, False)
+        self.assertEqual([r['index'] for r in rows], ['back', 'choose', 'file', 'always'])
+        self.assertEqual((rows[1]['tag'], rows[3]['tag']), ('3 FOUND', 'OFF'))
+        found = tm.result_rows([{'id': '7', 'releases': ['Phony.S01E01.WEB'], 'impaired': True}, {'id': '9', 'releases': [], 'impaired': False}])
+        self.assertEqual([(r['label'], r['tag'], r['index']) for r in found],
+                         [('\u2039 More', '', 'more'), ('Phony.S01E01.WEB', 'SDH', 0), ('Subtitle 9', '', 1)])
+
+    def test_no_kodi_select_box_left_in_the_track_menu(self):
+        src = (Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap/tracks.py').read_text()
+        self.assertNotIn('Dialog().select', src)
+
+
 if __name__=='__main__':unittest.main()
