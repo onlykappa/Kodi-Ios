@@ -50,6 +50,12 @@ def local_entries(kind,lib):
   out.append(dict(info,path=path))
  return out
 
+def boot_path(xbmcvfs):
+ """The bootstrap add-on's lib on sys.path (drivelibrary), once per reused interpreter."""
+ boot=xbmcvfs.translatePath(BOOT)
+ if boot not in sys.path:sys.path.insert(0,boot)  # reused interpreter: once
+ return boot
+
 def show_key(title):return re.sub(r'[^0-9a-z]+','',str(title).casefold())
 
 def local_rows(kind,show,year,entries,lib,art_cache,key,get,cached_only=False,any_year=False):
@@ -393,8 +399,7 @@ def play_downloaded(handle,params):
   if choice==1:position=0
  li=xbmcgui.ListItem(label=params.get('title',''),path=path);li.setProperty('IsPlayable','true')
  try:
-  boot=xbmcvfs.translatePath(BOOT)
-  if boot not in sys.path:sys.path.insert(0,boot)
+  boot_path(xbmcvfs)
   import drivelibrary as lib
   name,info,art=playback_details(params,lib,lib.load_json(os.path.join(xbmcvfs.translatePath(STATE),'drive-library-art.json'),{}))
   li.setLabel(name);apply_details(li,info,art)
@@ -438,8 +443,7 @@ def _directory(handle,params):
  kind='tv' if params.get('type')=='tv' else 'movie';folder=params.get('folder');show=params.get('show','')
  local=params.get('local')=='1';merge=params.get('merge')=='1';episodes=bool(folder or local or merge);year=params.get('year','')
  show_page=kind=='tv' and episodes and bool(show)
- boot=xbmcvfs.translatePath(BOOT)
- if boot not in sys.path:sys.path.insert(0,boot)  # reused interpreter: once
+ boot_path(xbmcvfs)
  import drivelibrary as lib
  state_dir=xbmcvfs.translatePath(STATE)
  def rpc(method,args):
