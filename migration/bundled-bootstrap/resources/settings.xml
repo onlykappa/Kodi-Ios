@@ -1,47 +1,47 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <settings version="1">
  <section id="service.kodi.ios.bootstrap">
-  <category id="activity" label="Activity">
+  <category id="activity" label="32001">
    <group id="1">
-    <setting id="activity_show" type="boolean" label="Show the activity pill"><level>0</level><default>true</default><control type="toggle"/></setting>
-    <setting id="activity_video" type="boolean" label="Show it during video (only with the controls)"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="activity_show" type="boolean" label="32002"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="activity_video" type="boolean" label="32003"><level>0</level><default>true</default><control type="toggle"/></setting>
    </group>
-   <group id="2" label="Show activity from">
-    <setting id="activity_elementum" type="boolean" label="Elementum downloads and Drive uploads"><level>0</level><default>true</default><control type="toggle"/></setting>
-    <setting id="activity_burst" type="boolean" label="Torrent searches (Burst)"><level>0</level><default>true</default><control type="toggle"/></setting>
-    <setting id="activity_umbrella" type="boolean" label="Umbrella"><level>0</level><default>true</default><control type="toggle"/></setting>
-    <setting id="activity_library" type="boolean" label="Library scans"><level>0</level><default>true</default><control type="toggle"/></setting>
-    <setting id="activity_addons" type="boolean" label="Add-on installs"><level>0</level><default>true</default><control type="toggle"/></setting>
-    <setting id="activity_quiet" type="boolean" label="Update checks and skin jobs"><level>0</level><default>false</default><control type="toggle"/></setting>
-   </group>
-  </category>
-  <category id="updates" label="Updates">
-   <group id="1">
-    <setting id="check_on_start" type="boolean" label="Check GitHub for a newer test build when Kodi starts"><level>0</level><default>true</default><control type="toggle"/></setting>
-    <setting id="github_token" type="string" label="GitHub token (read-only; only needed while the repository is private)"><level>0</level><default/><constraints><allowempty>true</allowempty></constraints><control type="edit" format="string"><heading>GitHub token</heading><hidden>true</hidden></control></setting>
-    <setting id="check_now" type="action" label="Check for updates now"><level>0</level><data>RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/check_updates.py)</data><control type="button" format="action"/></setting>
+   <group id="2" label="32004">
+    <setting id="activity_elementum" type="boolean" label="32005"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="activity_burst" type="boolean" label="32006"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="activity_umbrella" type="boolean" label="32007"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="activity_library" type="boolean" label="32008"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="activity_addons" type="boolean" label="32009"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="activity_quiet" type="boolean" label="32010"><level>0</level><default>false</default><control type="toggle"/></setting>
    </group>
   </category>
-  <category id="library" label="Library">
+  <category id="updates" label="32011">
    <group id="1">
-    <setting id="follow_episodes" type="boolean" label="Download new episodes automatically"><level>0</level><default>true</default><control type="toggle"/><help>After you download a show or episode, check for newly aired episodes when Kodi opens or returns to the screen. Follow your chosen quality and save to Google Drive. No continuous episode searches; future and undated episodes wait.</help></setting>
-    <setting id="library_scan" type="action" label="Scan iPhone files for movies and shows"><level>0</level><data>RunScript(service.kodi.ios.bootstrap,library_scan)</data><control type="button" format="action"/><help>Scan Kodi Downloads or a folder available to Kodi. Missing movies and shows are uploaded to Google Drive; phone copies are removed only after the Drive files are verified.</help></setting>
-    <setting id="library_refresh" type="action" label="Refresh Library"><level>0</level><data>RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&amp;all=1)</data><control type="button" format="action"/></setting>
+    <setting id="check_on_start" type="boolean" label="32012"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="github_token" type="string" label="32013"><level>0</level><default/><constraints><allowempty>true</allowempty></constraints><control type="edit" format="string"><heading>GitHub token</heading><hidden>true</hidden></control></setting>
+    <setting id="check_now" type="action" label="32014"><level>0</level><data>RunScript(special://xbmc/addons/service.kodi.ios.bootstrap/check_updates.py)</data><control type="button" format="action"/></setting>
    </group>
   </category>
-  <category id="drive" label="Google Drive">
+  <category id="library" label="32015">
    <group id="1">
-    <setting id="prepare_downloads" type="boolean" label="Prepare downloaded movies and shows for Kodi and AirPlay"><level>0</level><default>true</default><control type="toggle"/><help>Scan on startup and after uploads. Prepare one seekable MP4 in the same Drive file, keeping the selected source resolution and compatible HDR. Follow progress in Notifications. Movie data stays on Drive; processing uses bounded phone RAM.</help></setting>
-    <setting id="library_status" type="action" label="Library status"><level>0</level><data>RunScript(service.kodi.ios.bootstrap,library_status)</data><control type="button" format="action"/><help>Every video in Google Drive › Kodi Downloads: ready for Kodi and AirPlay, preparing, downloading, waiting or kept as it is, with what can be done about each.</help></setting>
-    <setting id="drive_upload" type="boolean" label="Upload the Elementum videos you keep to Google Drive › Kodi Downloads"><level>0</level><default>true</default><control type="toggle"/></setting>
-    <setting id="drive_upload_delete" type="boolean" label="Remove the phone copy once Google Drive has it"><level>0</level><default>true</default><control type="toggle"/></setting>
-    <setting id="background_transfers" type="boolean" label="Background downloads, uploads and preparation"><level>0</level><default>true</default><control type="toggle"/><help>Keep work running while using other apps or with the screen locked. Plays silent audio while work is queued. Calls or iOS resource limits can interrupt it; work resumes when allowed. Powering off or force-quitting stops phone-side work.</help></setting>
+    <setting id="follow_episodes" type="boolean" label="32016"><level>0</level><default>true</default><control type="toggle"/><help>After you download a show or episode, check for newly aired episodes when Kodi opens or returns to the screen. Follow your chosen quality and save to Google Drive. No continuous episode searches; future and undated episodes wait.</help></setting>
+    <setting id="library_scan" type="action" label="32017"><level>0</level><data>RunScript(service.kodi.ios.bootstrap,library_scan)</data><control type="button" format="action"/><help>Scan Kodi Downloads or a folder available to Kodi. Missing movies and shows are uploaded to Google Drive; phone copies are removed only after the Drive files are verified.</help></setting>
+    <setting id="library_refresh" type="action" label="32018"><level>0</level><data>RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&amp;all=1)</data><control type="button" format="action"/></setting>
    </group>
   </category>
-  <category id="playback" label="Playback">
+  <category id="drive" label="32019">
    <group id="1">
-    <setting id="last_tv" type="string" label="Last TV used by Play on TV"><level>0</level><default/><constraints><allowempty>true</allowempty></constraints><control type="edit" format="string"><heading>Last TV</heading></control></setting>
-    <setting id="airplay_button" type="boolean" label="Also show Apple's AirPlay audio button during playback"><level>0</level><default>false</default><control type="toggle"/></setting>
+    <setting id="prepare_downloads" type="boolean" label="32020"><level>0</level><default>true</default><control type="toggle"/><help>Scan on startup and after uploads. Prepare one seekable MP4 in the same Drive file, keeping the selected source resolution and compatible HDR. Follow progress in Notifications. Movie data stays on Drive; processing uses bounded phone RAM.</help></setting>
+    <setting id="library_status" type="action" label="32021"><level>0</level><data>RunScript(service.kodi.ios.bootstrap,library_status)</data><control type="button" format="action"/><help>Every video in Google Drive › Kodi Downloads: ready for Kodi and AirPlay, preparing, downloading, waiting or kept as it is, with what can be done about each.</help></setting>
+    <setting id="drive_upload" type="boolean" label="32022"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="drive_upload_delete" type="boolean" label="32023"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="background_transfers" type="boolean" label="32024"><level>0</level><default>true</default><control type="toggle"/><help>Keep work running while using other apps or with the screen locked. Plays silent audio while work is queued. Calls or iOS resource limits can interrupt it; work resumes when allowed. Powering off or force-quitting stops phone-side work.</help></setting>
+   </group>
+  </category>
+  <category id="playback" label="32025">
+   <group id="1">
+    <setting id="last_tv" type="string" label="32026"><level>0</level><default/><constraints><allowempty>true</allowempty></constraints><control type="edit" format="string"><heading>Last TV</heading></control></setting>
+    <setting id="airplay_button" type="boolean" label="32027"><level>0</level><default>false</default><control type="toggle"/></setting>
    </group>
   </category>
  </section>

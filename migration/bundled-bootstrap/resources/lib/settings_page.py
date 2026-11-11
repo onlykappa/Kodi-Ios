@@ -225,6 +225,10 @@ def spacer(h,visible=''):
  return '<control type="image"><height>%d</height>%s<texture /></control>'%(h,'<visible>%s</visible>'%visible if visible else '')
 
 def footer(p,text,h=110):
+ # Grows with its text (build 224 rig audit: Accounts' and Library's last footer lines were cut off): p_foot fits
+ # about 46 characters per line across the page, 44 units a line.
+ import math
+ h=max(h,30+44*math.ceil(len(str(text))/46.0))
  return ('<control type="group"><width>%d</width><height>%d</height>'%(p.WIDTH,h)+
          p.label(p.SIDE+PAD,10,p.WIDTH-2*(p.SIDE+PAD),h-20,text,'p_foot',p.GREY,'left','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+'</control>')
 
@@ -483,11 +487,13 @@ def setting_templates(p,category_type):
  chev=(p.ICONS+'chevron-left.png',p.ICONS+'chevron-right.png')
  return (pill+
   '<control type="button" id="7">%s%s%s<label2></label2></control>'%(base,row_textures(p),text_style(p))+
-  ('<control type="radiobutton" id="8">%s%s%s<radiowidth>130</radiowidth><radioheight>58</radioheight><radioposx>%d</radioposx>'
+  # The label stops before the switch (build 224 rig audit: "Announce services to other systems", "Ignore different
+  # video versions on scan" and add-on settings ran under the switch).
+  ('<control type="radiobutton" id="8">%s%s%s<textwidth>%d</textwidth><radiowidth>130</radiowidth><radioheight>58</radioheight><radioposx>%d</radioposx>'
    '<textureradioonfocus>%stoggle_on.png</textureradioonfocus><textureradioonnofocus>%stoggle_on.png</textureradioonnofocus>'
    '<textureradioofffocus>%stoggle_off.png</textureradioofffocus><textureradiooffnofocus>%stoggle_off.png</textureradiooffnofocus>'
    '<textureradioondisabled colordiffuse="66FFFFFF">%stoggle_on.png</textureradioondisabled><textureradiooffdisabled colordiffuse="66FFFFFF">%stoggle_off.png</textureradiooffdisabled>'
-   '</control>')%(base,row_textures(p),text_style(p),w-PAD-130,M,M,M,M,M,M)+
+   '</control>')%(base,row_textures(p),text_style(p),w-2*PAD-130-24,w-PAD-130,M,M,M,M,M,M)+
   ('<control type="spincontrolex" id="9">%s%s%s<spinwidth>36</spinwidth><spinheight>36</spinheight><spinposx>%d</spinposx>'
    '<textureup colordiffuse="%s">%s</textureup><textureupfocus colordiffuse="%s">%s</textureupfocus>'
    '<texturedown colordiffuse="%s">%s</texturedown><texturedownfocus colordiffuse="%s">%s</texturedownfocus>'
@@ -510,7 +516,7 @@ def setting_body(p,title,header_buttons,extra='',categories=True):
  w=p.WIDTH-2*p.SIDE
  bar=p.image(0,0,p.WIDTH,(LIST_TOP if categories else 200)-10,p.MEDIA+'white.png',p.BG)
  heading=('<control type="label" id="2"><left>300</left><top>36</top><width>%d</width><height>108</height><font>p_h3</font>'
-          '<textcolor>%s</textcolor><align>center</align><aligny>center</aligny><scroll>true</scroll><label>%s</label></control>')%(p.WIDTH-600,p.WHITE,p.e(title))
+          '<textcolor>%s</textcolor><align>center</align><aligny>center</aligny><scroll>false</scroll><label>%s</label></control>')%(p.WIDTH-600,p.WHITE,p.e(title))
  cats=('<control type="grouplist" id="3"><left>%d</left><top>200</top><width>%d</width><height>96</height><orientation>horizontal</orientation>'
        '<itemgap>16</itemgap><scrolltime tween="cubic" easing="out">250</scrolltime><ondown>5</ondown><onup>9001</onup>%s</control>')%(
        p.SIDE,w,'' if categories else '<visible>false</visible>')

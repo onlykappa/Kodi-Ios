@@ -31,7 +31,7 @@ PATTERNS = {
 FORBIDDEN_EXTENSIONS = {'.ipa','.deb','.mobileprovision','.p12','.pfx','.zip','.zst','.tgz','.tar','.db','.sqlite','.sqlite3','.log','.mp4','.mkv','.mov','.avi','.mp3','.flac','.jpg','.jpeg','.png','.webp','.pem','.key','.so','.dll','.dylib','.exe','.strm'}
 ALLOWED_TOP_LEVEL = {'README.md','ROADMAP.md','.gitignore','migration','docs','scripts','inventory','snapshot','reports',
                      'AGENTS.md','CLAUDE.md','.agents','.claude'}   # agent instructions and project skills (DEC-026)
-ALLOWED_SUFFIXES = {'.md','.json','.py','.xml','.xsp'}
+ALLOWED_SUFFIXES = {'.md','.json','.py','.xml','.xsp','.po'}   # .po: Kodi add-on label strings (settings.xml needs numbered labels)
 PORTRAIT_FILES = {'.github/workflows/kodi-ios-portrait.yml','migration/ios-portrait/build-kodi-ios.sh','migration/ios-portrait/kodi-21.3-portrait.patch',
                   '.github/workflows/glassbar-ios.yml','migration/glassbar-ios/build-glassbar.sh',
                   'docs/design/settings-mockups.html','docs/design/fuse-pages-mockups.html',

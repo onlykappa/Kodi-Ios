@@ -2412,3 +2412,23 @@ Status: IN SOURCE, LOCAL ONLY (not pushed, not built; owner: "code it but dont p
 - Known gaps: Volume boost shows no value (Kodi has no info label for it); the More page is Kodi's select list, not
   the drawn sub-page; a downloaded subtitle is not remembered for the next play yet.
 - Regression: scripts/test_track_menu.py (9).
+
+## ISSUE-153 — Settings rig audit: blank app settings, labels under switches, cut footers (2026-11-11)
+
+Status: FIXED IN SOURCE, LOCAL ONLY (not pushed, not built). Desktop Kodi rig (portrait 603x1167), every Settings route.
+- Routing: all 23 Settings routes open the right window with no errors (Settings, Interface, Player, Media, Services,
+  System, PVR, Games, Skin Settings, Profiles, System info, Event log, File manager, Add-ons, Add-on updates,
+  Favourites, Accounts, Search, Tabs & Rows, Library status, Customisation and its four pages, Library). The
+  navigation menu only runs on iOS (System.Platform.IOS); customise_counts has no window by design.
+- Fixed: the app's own add-on settings (Activity, Updates, Library…) showed no labels at all: settings.xml used
+  plain-text labels, which Kodi 21 shows blank. 27 labels now numbered (32001+) with
+  resources/language/resource.language.en_gb/strings.po (check_project allows .po).
+- Fixed: toggle rows let long labels run under the switch (Media "Ignore different video versions on scan",
+  Services "Announce services to other systems", add-on settings): the label now ends before the switch.
+- Fixed: the add-on settings title scrolled sideways (caught mid-word); it now truncates.
+- Fixed: footers had fixed heights, so longer ones lost their last line (Library › Library status); they grow
+  with their text.
+- Not fixed (belongs to the Settings inside-pages redesign, PR #18): Skin Settings, Profiles, Favourites and the
+  Settings search keyboard are still Fuse's landscape windows letterboxed in portrait; Kodi's settings pages keep
+  category chips, "- " sub-setting dashes and one help paragraph at the bottom; Add-on updates with nothing to
+  update shows only "..". Check for updates in the rig says the private repository needs a token (rig only).
