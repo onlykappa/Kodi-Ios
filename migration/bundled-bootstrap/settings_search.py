@@ -1,6 +1,6 @@
 """Search Settings (the field at the top of portrait Settings, RunScript(service.kodi.ios.bootstrap,settings_search)),
-owner-approved mockup board 11. portrait/IOSSettingsSearch.xml shows the field (a Kodi edit control, so iOS opens its own
-keyboard), the matching settings as a grouped list that updates as you type, and "No settings match" when none does.
+owner-approved mockup board 11. On the iPhone the field is the native search field (glassbar, kodi_search_context: the
+real iOS keyboard, results update as you type, ISSUE-162); without the glassbar a Kodi edit control stands in. The page shows the matching settings as a grouped list that updates as you type, and "No settings match" when none does.
 Picking a result runs its action once the page has closed: a Settings row's own action, or Kodi's settings window at the
 setting's category. The index is resources/lib/settings_search.py; matching and bold are resources/lib/settings_find.py."""
 import os,sys
@@ -12,8 +12,19 @@ FIELD=settings_page.SEARCH_FIELD;LIST=settings_page.SEARCH_LIST;BACK=9001
 BACK_KEYS=(9,10,92,110)
 POLL=0.3   # seconds between reads of the field
 
+def native_field():
+ """The glassbar library when it can host Settings' search (kodi_search_context), else None."""
+ import xbmcvfs
+ try:
+  import glassbar
+  path=glassbar.library_path(xbmcvfs.translatePath('special://xbmc/'))
+  lib=glassbar.load(path) if path else None
+ except Exception:return None
+ return lib if lib is not None and hasattr(lib,'kodi_search_context') else None
+
 def run():
  import threading,xbmc,xbmcgui,xbmcvfs
+ lib=native_field();home=xbmcgui.Window(10000)
  entries=settings_search.page_entries(settings_page)
  try:
   with xbmcvfs.File(settings_search.KODI_SETTINGS) as f:entries+=settings_search.kodi_entries(f.read(),xbmc.getLocalizedString)
@@ -24,16 +35,28 @@ def run():
    self.stop=threading.Event();self.query=None;self.found=[];self.chosen=None
    self.setProperty('rows','0');self.setProperty('empty','')
    self.refresh('')   # nothing typed yet: Settings' own rows, so the page is never blank and a tap still goes somewhere
-   try:self.setFocusId(FIELD)
-   except Exception:pass
-   # The mockup opens with the keyboard up: Select on the focused field is what tapping it does.
-   xbmc.executebuiltin('Action(Select)')
+   if lib is not None:
+    # searchbar.py (the service) shows the native field in Settings' place and writes what is typed to Home.
+    self.setProperty('native','1')
+    home.clearProperty('Settings.Search.Query');home.clearProperty('Settings.Search.Close')
+    home.setProperty('Settings.Search.Active','1')
+    try:self.setFocusId(LIST)
+    except Exception:pass
+   else:
+    try:self.setFocusId(FIELD)
+    except Exception:pass
    threading.Thread(target=self.poll,daemon=True).start()
+  def typed(self):
+   if lib is None:return self.getControl(FIELD).getText()
+   if home.getProperty('Settings.Search.Close')=='1':self.finish();return None
+   return home.getProperty('Settings.Search.Query')
   def poll(self):
-   monitor=xbmc.Monitor()
+   monitor=xbmc.Monitor();raised=lib is None
    while not self.stop.is_set() and not monitor.waitForAbort(POLL):
-    try:query=self.getControl(FIELD).getText()
+    if not raised:lib.kodi_search_focus(1);raised=True   # the mockup opens with the keyboard up
+    try:query=self.typed()
     except Exception:break
+    if query is None:break
     if query!=self.query:self.refresh(query)
   def refresh(self,typed):
    query=' '.join(str(typed or '').split());self.query=typed
@@ -60,6 +83,9 @@ def run():
  try:page.doModal()
  finally:
   if hasattr(page,'stop'):page.stop.set()
+  if lib is not None:
+   for key in ('Active','Query','Close'):home.clearProperty('Settings.Search.'+key)
+   lib.kodi_search_focus(0);lib.kodi_search_show(0)
  chosen=getattr(page,'chosen',None);del page
  if chosen:
   for action in chosen.split('\x00'):xbmc.executebuiltin(action)

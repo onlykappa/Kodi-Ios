@@ -398,13 +398,16 @@ def search_window(p):
  """portrait/IOSSettingsSearch.xml for settings_search.py: Back (9001) and the title, the field (9161, a Kodi edit control
  so iOS opens its keyboard), the matches as a grouped list (9160) on a card that grows with them, and "No settings match"
  (property empty). The page's properties: rows (how many matches the card shows) and empty ('1' when nothing matches)."""
- w=p.WIDTH-2*p.SIDE;field_y=270;field_h=124;list_y=field_y+field_h+40;room=p.HEIGHT-list_y
+ # field_y: the iPhone's own search field (glassbar kodi_search_context, 116.5-182.5 pt under the safe area) sits here;
+ # the Kodi edit control below is only drawn without it (property native empty).
+ w=p.WIDTH-2*p.SIDE;field_y=340;field_h=124;list_y=field_y+field_h+40;room=p.HEIGHT-list_y
+ kodi_field='<visible>String.IsEmpty(Window().Property(native))</visible>'
  field=('<control type="edit" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
         '<font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><hinttext>Search</hinttext><label></label>'
         '<align>left</align><aligny>center</aligny><textoffsetx>100</textoffsetx>'
         '<texturefocus border="62" colordiffuse="FF3A3A3C">%spill_124.png</texturefocus>'
         '<texturenofocus border="62" colordiffuse="%s">%spill_124.png</texturenofocus>'
-        '<onup>9001</onup><ondown>%d</ondown></control>')%(SEARCH_FIELD,p.SIDE,field_y,w,field_h,p.WHITE,p.WHITE,p.MEDIA,p.SURFACE,p.MEDIA,SEARCH_LIST)
+        '<onup>9001</onup><ondown>%d</ondown>'+kodi_field+'</control>')%(SEARCH_FIELD,p.SIDE,field_y,w,field_h,p.WHITE,p.WHITE,p.MEDIA,p.SURFACE,p.MEDIA,SEARCH_LIST)
  card=''.join('<control type="group"><visible>String.IsEqual(Window().Property(rows),%d)</visible>%s</control>'
               %(k,p.surface(p.SIDE,0,w,k*ROW2,'group.png',p.SURFACE,RADIUS)) for k in range(1,SEARCH_CARD))
  card+=('<control type="group"><visible>String.IsEqual(Window().Property(rows),%d)</visible>%s</control>'
@@ -418,7 +421,8 @@ def search_window(p):
           p.label(PAD,94,w-2*PAD-110,60,'$INFO[ListItem.Label2]','p_foot',p.GREY,'left','<scroll>false</scroll>')+
           p.icon(w-PAD-34,(ROW2-34)//2,34,'chevron-right.png',p.GREY)+'</%s>'%tag)
  results=('<control type="list" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
-          '<orientation>vertical</orientation><itemgap>0</itemgap><onup>%d</onup>'
+          '<orientation>vertical</orientation><itemgap>0</itemgap><onup condition="!String.IsEmpty(Window().Property(native))">9001</onup>'
+          '<onup>%d</onup>'
           '<scrolltime tween="cubic" easing="out">160</scrolltime>%s%s</control>')%(SEARCH_LIST,p.SIDE,list_y,w,room,SEARCH_FIELD,item(False),item(True))
  empty=('<control type="group"><visible>!String.IsEmpty(Window().Property(empty))</visible>'+
         p.label(p.SIDE,list_y+60,w,110,'No settings match','p_h3',p.WHITE,'center')+
@@ -427,8 +431,8 @@ def search_window(p):
  body=('<controls>'+p.backdrop()+
        '<control type="group"><left>0</left><top>%d</top><width>%d</width><height>%d</height>%s</control>'%(list_y,p.WIDTH,room,card)+
        results+empty+field+
-       p.icon(p.SIDE+36,field_y+(field_h-44)//2,44,'magnifying-glass.png',p.GREY)+
-       header(p,[('','Close')],[('Search Settings','')],36,'<ondown>%d</ondown>'%SEARCH_FIELD)+'</controls>')
+       p.icon(p.SIDE+36,field_y+(field_h-44)//2,44,'magnifying-glass.png',p.GREY,kodi_field)+
+       header(p,[('','Close')],[('Search Settings','')],36,'<ondown condition="!String.IsEmpty(Window().Property(native))">%d</ondown><ondown>%d</ondown>'%(SEARCH_LIST,SEARCH_FIELD))+'</controls>')
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window type="dialog"><defaultcontrol always="true">%d</defaultcontrol>'
          '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>%s</window>\n')%(p.MARKER,SEARCH_FIELD,body)
 

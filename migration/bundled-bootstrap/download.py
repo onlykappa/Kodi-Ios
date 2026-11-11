@@ -35,7 +35,8 @@ def run():
  tmdb,season,episode=dl.ids(kind,path,values)
  if not tmdb:dialog.ok('Download','This item has no TMDb id, so Elementum cannot look it up.');return
  if kind=='tvshow':
-  season=dialog.numeric(0,'Download which season?',season or '1')
+  # ISSUE-162: the iPhone keyboard, not the skin's number pad.
+  season=(dialog.input('Download which season?',season or '1',type=xbmcgui.INPUT_ALPHANUM) or '').strip()
   if not season or not season.isdigit():return
   kind='season'
  if kind in ('season','episode') and not season:dialog.ok('Download','Could not tell which season this is.');return

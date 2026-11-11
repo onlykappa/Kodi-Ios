@@ -1818,3 +1818,18 @@ index d1c8e31..411c653 100644
 +
    std::string strMask =
        ".utf|.utf8|.utf-8|.sub|.srt|.smi|.rt|.txt|.ssa|.aqt|.jss|.ass|.vtt|.idx|.zip|.sup";
+diff --git a/xbmc/guilib/GUIKeyboardFactory.cpp b/xbmc/guilib/GUIKeyboardFactory.cpp
+index fbf7a22..c9e7c96 100644
+--- a/xbmc/guilib/GUIKeyboardFactory.cpp
++++ b/xbmc/guilib/GUIKeyboardFactory.cpp
+@@ -94,7 +94,9 @@ bool CGUIKeyboardFactory::ShowAndGetInput(std::string& aTextString,
+   useKodiKeyboard = CServiceBroker::GetSettingsComponent()->GetSettings()->GetBool(
+       CSettings::SETTING_INPUT_TVOSUSEKODIKEYBOARD);
+ #else
+-  useKodiKeyboard = CDarwinEmbedKeyboard::hasExternalKeyboard();
++  // Kodi iOS (ISSUE-162): always the iPhone's own keyboard. A paired keyboard types into the same native field;
++  // iOS can report one (GCKeyboard) with none attached, which brought up the skin's on-screen keyboard.
++  useKodiKeyboard = false;
+ #endif // defined(TARGET_DARWIN_TVOS)
+ #endif
+ 

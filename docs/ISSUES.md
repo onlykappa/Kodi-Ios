@@ -2492,3 +2492,18 @@ Status: ROOT CAUSE FIXED IN SOURCE (local); needs AirPlay framework r45 rebuild 
   paused player keeps reading the same debrid URL (CFileCache) during AirPlay startup. Even with 105 s, a 50 s
   inspection plus conversion of the first segment is tight. Next step if r45 still times out: stop Kodi's read-ahead
   (or stop playback) before inspection, and log inspection bytes/requests.
+
+## ISSUE-162 — Owner: no Arctic Fuse keyboard on the phone; native keyboard everywhere (2026-11-11)
+
+Status: CODED LOCALLY; Kodi patch needs the r30 executable build; device untested.
+- Kodi 21.3 on iOS picks the skin's keyboard (DialogKeyboard) whenever CDarwinEmbedKeyboard::hasExternalKeyboard()
+  says a hardware keyboard exists (GCKeyboard.coalescedKeyboard), otherwise the native one (DialogKeyboardTouch).
+  Patch (kodi-21.3-portrait.patch, GUIKeyboardFactory.cpp): iPhone always uses the native keyboard; a paired keyboard
+  types into the same native field. Applies cleanly to Kodi 21.3 (git apply --check). patch_sha256 in source-lock
+  changes when r30 is built and pinned.
+- Settings search: the board-11 rewrite had dropped the native search field and used a Kodi edit control plus
+  Action(Select) (rig: Kodi's keyboard over the results). Restored: with the glassbar the iPhone's own search field
+  sits where the board's field is (y 340), results update as you type, keyboard raised on open; the edit control is
+  only the fallback without the glassbar.
+- Season prompt in download.py used Kodi's number pad (Dialog.numeric); now Dialog.input (native keyboard), digits
+  checked. Kodi's own PIN/time pads (CGUIDialogNumeric) are not changed.
