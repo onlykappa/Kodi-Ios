@@ -218,6 +218,26 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
 .asheet .hd span{display:block;font-size:13px;color:var(--label3);margin-top:3px}
 .asheet .row .ct{box-shadow:inset 0 .5px 0 var(--sep)}
 .asheet .cancel{margin-top:10px;background:rgba(44,44,46,.97);border-radius:var(--radius-group);height:58px;display:grid;place-items:center;font-size:19px;font-weight:700;color:var(--blue)}
+.seg{display:flex;margin:0 16px 18px;background:#1c1c1e;border-radius:12px;padding:3px}
+.seg span{flex:1;text-align:center;font-size:14px;font-weight:600;padding:8px 0;border-radius:9px;color:#d1d1d6}
+.seg span.on{background:#636366;color:#fff}
+.sheet-top{position:absolute;inset:0;background:#1c1c1e;border-radius:38px 38px 0 0;top:26px}
+.sheet-nav{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 6px}
+.sheet-nav span{color:var(--blue);font-size:17px}.sheet-nav b{font-size:17px}
+.grabber{width:40px;height:5px;border-radius:3px;background:#48484a;margin:8px auto 0}
+.av{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#fff;flex:none;font-size:17px}
+.fav{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:0 16px}
+.fav div{aspect-ratio:2/3;border-radius:12px;background:linear-gradient(160deg,#3a3a3c,#1c1c1e);position:relative}
+.fav div span{position:absolute;left:8px;right:8px;bottom:8px;font-size:12px;font-weight:600}
+.sfield{margin:0 16px 14px;height:40px;border-radius:12px;background:#1c1c1e;display:flex;align-items:center;gap:8px;padding:0 12px;color:#fff;font-size:17px}
+.sfield svg{width:18px;height:18px;color:var(--label2)}
+.hl{color:#fff;font-weight:700}
+.crumb{display:block;color:var(--label2);font-size:13px;margin-top:2px}
+.empty{text-align:center;padding:90px 30px 0}
+.empty .ic2{width:70px;height:70px;border-radius:20px;background:#0f0f10;margin:0 auto 18px;display:grid;place-items:center;color:var(--green)}
+.empty .ic2 svg{width:38px;height:38px}
+.empty h3{font-size:22px;font-weight:800}.empty p{color:var(--label2);font-size:16px;margin-top:6px;line-height:1.4}
+.btn-sec{display:inline-block;margin-top:18px;background:#2c2c2e;color:var(--blue);font-weight:700;font-size:16px;border-radius:20px;padding:10px 20px}
 </style>
 </head>
 <body>
@@ -283,12 +303,12 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
 <symbol id="mute" viewBox="0 0 24 24"><g fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 16.5h11s-1.8-1.6-2-5M7 9a5 5 0 0 1 8-3.7M10.5 20h3"/><path d="M4 3l16 18"/></g></symbol>
 </svg>
 <header class="intro">
-  <div class="eyebrow">Kodi for iOS · Design mockups · Settings inside pages · round 1</div>
+  <div class="eyebrow">Kodi for iOS · Design mockups · Settings inside pages · round 2</div>
   <h1>Inside the Settings pages</h1>
   <p>The Settings home is approved. Inside it, Kodi's own pages still show their desktop roots: a row of category chips, "- Theme" dashes for sub-settings, one help paragraph stuck at the bottom, an "Expert" button, and Fuse's landscape Skin Settings letterboxed in the middle of the phone. These boards bring every inside page to the same grouped-list style as the home screen.</p>
   <nav class="chips">
     <a href="#p-section">Section</a><a href="#p-page">Settings page</a><a href="#p-picker">Picker</a><a href="#p-text">Text field</a>
-    <a href="#p-skin">Skin settings</a><a href="#p-skinpage">Skin settings page</a><a href="#p-sheet">Choice sheet</a><a href="#specs">Rules</a>
+    <a href="#p-skin">Skin settings</a><a href="#p-skinpage">Skin settings page</a><a href="#p-sheet">Choice sheet</a><a href="#p-addon">Add-on settings</a><a href="#p-profiles">Profiles</a><a href="#p-favs">Favourites</a><a href="#p-search">Search</a><a href="#p-updates">Add-on updates</a><a href="#specs">Rules</a>
   </nav>
 </header>
 <main class="grid">
@@ -468,6 +488,113 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
 <p>Kodi's centred select box (Navigation / Recovery, "Choose a skin", short lists) becomes a sheet from the bottom, within thumb reach: a small title and a line saying what it is for, left-aligned rows with tiles, and Cancel apart in blue. "Arctic Fuse iOS — Navigation / Recovery" becomes "Navigation and Recovery".</p></figcaption>
 </figure>
 
+
+<!-- 08 ADD-ON SETTINGS -->
+<figure id="p-addon">
+<div class="phone"><div class="screen">
+  <div class="sheet-dim" style="background:rgba(0,0,0,.6)"></div>
+  <div class="sheet-top" style="z-index:26">
+    <div class="grabber"></div>
+    <div class="sheet-nav"><span>Cancel</span><b>TMDb Helper</b><span style="font-weight:700">Done</span></div>
+    <div style="padding-top:10px">
+    <div class="seg"><span class="on">General</span><span>Widgets</span><span>Library</span><span>More</span></div>
+    <div class="sh">Language</div>
+    <div class="group">
+      <a class="row"><span class="ct"><span class="lb">Rating Prefix</span><span class="val">None</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">Language and Country</span><span class="val">English (US)</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <div class="row"><span class="ct"><span class="lb">Ignore Region Release Filter</span><span class="tg"></span></span></div>
+      <div class="row"><span class="ct"><span class="lb">English Plot When Missing</span><span class="tg"></span></span></div>
+    </div>
+    <div class="foot">Adds text to the start of ratings, for example "Rated PG".</div>
+    <div class="gap-s"></div>
+    <div class="sh">Artwork</div>
+    <div class="group">
+      <a class="row"><span class="ct"><span class="lb">Artwork Quality</span><span class="val">Highest</span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <div class="row"><span class="ct"><span class="lb">Prefer English Artwork</span><span class="tg"></span></span></div>
+    </div>
+    </div>
+  </div>
+</div></div>
+<figcaption><div class="n">08 · ADD-ON SETTINGS</div><h2>Any add-on's settings, as a sheet</h2>
+<p>TMDb Helper, Elementum, Umbrella and the app's own settings open as a sheet from the bottom: Cancel and Done, the add-on's name, then up to four sections in a segmented control (the rest under More). Same rows and footers as board 02; the long title that scrolled sideways is just the add-on's name.</p></figcaption>
+</figure>
+
+<!-- 09 PROFILES -->
+<figure id="p-profiles">
+<div class="phone"><div class="screen">
+  <div class="nav"><a class="back"><svg><use href="#back"/></svg></a><div class="title">Profiles</div></div>
+  <div class="scroll">
+    <div class="big-title">Profiles</div>
+    <div class="group">
+      <a class="row"><span class="av" style="background:linear-gradient(160deg,#9aa9d8,#6b78b4)">MU</span><span class="ct" style="margin-left:14px"><span class="lb">Master user<small>Signed in now</small></span><svg class="check"><use href="#tick"/></svg></span></a>
+      <a class="row"><span class="av" style="background:#2c2c2e;color:var(--blue);font-size:26px;font-weight:400">+</span><span class="ct" style="margin-left:14px"><span class="lb link">Add Profile</span></span></a>
+    </div>
+    <div class="foot">Each profile has its own watched history, favourites and Home rows.</div>
+    <div class="gap"></div>
+    <div class="sh">At Start-up</div>
+    <div class="group">
+      <div class="row"><span class="ct"><span class="lb">Ask Who's Watching</span><span class="tg"></span></span></div>
+      <a class="row dim"><span class="ct"><span class="lb">Start With</span><span class="val">Last used</span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="foot">When off, Kodi opens the last profile used.</div>
+  </div>
+</div></div>
+<figcaption><div class="n">09 · PROFILES</div><h2>Profiles</h2>
+<p>Replaces Fuse's letterboxed Profile Settings. Profiles are rows with their picture, the current one ticked; Add Profile in blue. "Login screen" becomes "Ask Who's Watching"; "Last used profile" becomes Start With.</p></figcaption>
+</figure>
+
+<!-- 10 FAVOURITES -->
+<figure id="p-favs">
+<div class="phone"><div class="screen">
+  <div class="nav"><a class="back"><svg><use href="#back"/></svg></a><div class="title">Favourites</div><div class="lvl" style="color:var(--blue)">Edit</div></div>
+  <div class="scroll">
+    <div class="big-title">Favourites</div>
+    <div class="fav">
+      <div><span>Title one</span></div><div><span>Title two</span></div><div><span>Title three</span></div>
+      <div><span>Title four</span></div><div><span>Title five</span></div>
+    </div>
+    <div class="foot" style="padding-top:14px">Long-press a poster anywhere and choose Add to Favourites. Edit lets you reorder or remove.</div>
+  </div>
+</div></div>
+<figcaption><div class="n">10 · FAVOURITES</div><h2>Favourites</h2>
+<p>Today a tiny landscape box over Home. Now a full page with the poster grid used in Movies and TV, Edit at the top right for reordering and removing. Empty: "No favourites yet" with the same footer.</p></figcaption>
+</figure>
+
+<!-- 11 SEARCH -->
+<figure id="p-search">
+<div class="phone"><div class="screen">
+  <div class="nav"><a class="back"><svg><use href="#back"/></svg></a><div class="title">Search Settings</div></div>
+  <div class="scroll">
+    <div class="sfield"><svg><use href="#search"/></svg>subtit</div>
+    <div class="group">
+      <a class="row"><span class="ct"><span class="lb"><span class="hl">Subtit</span>le Language<span class="crumb">Player › Language</span></span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">Download <span class="hl">Subtit</span>les For<span class="crumb">Player › Language</span></span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb"><span class="hl">Subtit</span>le Size<span class="crumb">Player › Subtitles</span></span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb"><span class="hl">Subtit</span>les Over AirPlay<span class="crumb">Kodi iOS › Library</span></span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+  </div>
+  <div class="mock-kb"><div><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div><i style="width:210px"></i></div></div>
+</div></div>
+<figcaption><div class="n">11 · SEARCH</div><h2>Search Settings</h2>
+<p>Today the Search row opens Kodi's tiny landscape keyboard over Home. Now it is a page: the search field at the top with the iPhone keyboard, results update as you type with the match in bold and where each setting lives underneath. Tap one to open its page.</p></figcaption>
+</figure>
+
+<!-- 12 UPDATES -->
+<figure id="p-updates">
+<div class="phone"><div class="screen">
+  <div class="nav"><a class="back"><svg><use href="#back"/></svg></a><div class="title">Add-on Updates</div></div>
+  <div class="scroll">
+    <div class="empty">
+      <div class="ic2"><svg><use href="#tick"/></svg></div>
+      <h3>Everything Is Up to Date</h3>
+      <p>Checked 2 minutes ago. Add-ons update on their own when a new version is out.</p>
+      <span class="btn-sec">Check Now</span>
+    </div>
+  </div>
+</div></div>
+<figcaption><div class="n">12 · ADD-ON UPDATES</div><h2>Nothing to update</h2>
+<p>Today an empty list with only "..". Now it says everything is up to date, when it last checked, with Check Now. When updates exist they are rows with the add-on's icon, its new version and an Update button, plus Update All at the top.</p></figcaption>
+</figure>
 </main>
 
 <section class="specs" id="specs">
