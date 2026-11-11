@@ -23,12 +23,29 @@ def entries_by_include(xbmcvfs):
         handle.close()
 
 
+def skin_expressions(xbmcvfs):
+    """The skin's <expression> definitions (every 1080i XML file that has one), for ss.expand."""
+    folder = xbmcvfs.translatePath('special://skin/1080i/')
+    texts = []
+    try:
+        for name in os.listdir(folder):
+            if name.lower().endswith('.xml'):
+                with open(os.path.join(folder, name), encoding='utf-8', errors='replace') as f:
+                    text = f.read()
+                if '<expression' in text:
+                    texts.append(text)
+    except OSError:
+        pass
+    return ss.expressions(texts)
+
+
 def run(section=None):
     import xbmc
     import xbmcgui
     import xbmcvfs
 
-    test = xbmc.getCondVisibility
+    exprs = skin_expressions(xbmcvfs)
+    test = lambda condition: xbmc.getCondVisibility(ss.expand(condition, exprs))
     text = lambda s: (xbmc.getInfoLabel(s) if '$' in s else s) if s else ''
     level = ss.level_from(xbmc.getInfoLabel('Skin.String(Skin.SettingsLevel)'))
     groups = entries_by_include(xbmcvfs)

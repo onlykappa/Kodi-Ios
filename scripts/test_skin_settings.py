@@ -62,4 +62,13 @@ class Pages(unittest.TestCase):
   page=(self.BOOT/'skin_settings_page.py').read_text()
   self.assertIn("Skin.SetString(Skin.SettingsLevel,%d)",page);self.assertIn("special://skin/1080i/Includes_SkinSettings.xml",page)
 
+class Expressions(unittest.TestCase):
+    def test_exp_names_expand_for_python_and_unknown_ones_are_false(self):
+        e = ss.expressions(['<expression name="exp_tmdbhelper_isdata">String.IsEqual(A,1) + $EXP[Inner]</expression>'
+                            '<expression name="inner">Skin.HasSetting(x)</expression>'])
+        self.assertEqual(ss.expand('!$exp[exp_tmdbhelper_isdata] | $EXP[missing]', e),
+                         '![String.IsEqual(A,1) + [Skin.HasSetting(x)]] | false')
+        self.assertEqual(ss.expand('Skin.HasSetting(y)', e), 'Skin.HasSetting(y)')
+
+
 if __name__=='__main__':unittest.main()
