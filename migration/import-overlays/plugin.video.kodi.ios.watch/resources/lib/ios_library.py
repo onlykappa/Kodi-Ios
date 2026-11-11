@@ -172,6 +172,9 @@ def episode_rows(rows,show,lib,art_cache,key,get,cached_only=True):
   if showart.get('genres'):info['genres']=showart['genres']
   if showart.get('year'):info['year']=showart['year']
   info['tmdb_id']=tmdb or ''
+  # Roadmap 2.2: a file named only by its show ('phony.s01e01…') is listed as 'Episode 1', not as the show.
+  if not ep.get('title') and number[1] and (not label or show_key(label)==show_key(show) or show_key(label)==show_key(info.get('tvshowtitle'))):
+   label='Episode %d'%number[1]
   out.append((path,ep.get('title') or label,art,info,folder))
  return sorted(out,key=lambda r:(int(r[3].get('season') or 0),int(r[3].get('episode') or 0)) if r[3].get('mediatype')=='episode' else (-1,0))
 

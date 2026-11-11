@@ -257,6 +257,21 @@ def artwork(kind,title,year,key,cache,get,cached_only=False):
  cache[slot]=found
  return found
 
+def remember_show(state_dir,titles,tmdb_id):
+ """Roadmap 2.2 (owner, build 229: "downloading shows individually creates that mess in the library"): a download
+ knows its show's TMDb id, but the Library looked the show up by its folder name (from a release file, e.g. 'phony')
+ and could land on another show, or none. Record the id under every name the show's folder can have; the page fills
+ the poster, plot and episode details from it (show_details, season). Returns True when the cache changed."""
+ tmdb_id=str(tmdb_id or '').strip()
+ if not tmdb_id.isdigit():return False
+ path=os.path.join(state_dir,'drive-library-art.json');cache=load_json(path,{});changed=False
+ for title in {str(t).strip() for t in titles if t and str(t).strip()}:
+  for name in {title,parse(title)['title']}:
+   slot='tv:%s:'%name.lower()
+   if str((cache.get(slot) or {}).get('tmdb_id') or '')!=tmdb_id:cache[slot]={'tmdb_id':tmdb_id};changed=True
+ if changed:save_json(path,cache)
+ return changed
+
 def season(tmdb_id,number,key,cache,get,cached_only=False):
  """{episode number (text): {'title','plot','thumb','runtime','aired'}} for one season of a TMDb show, cached.
  Owner (build 146): downloaded shows opened a bare page (no episode names, stills or plots)."""

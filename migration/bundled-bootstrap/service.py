@@ -312,6 +312,15 @@ def drive_uploads(monitor,home,profile):
  def debrid_loop():
   import alldebrid,debrid_drive,prepare_downloads,transfer_control
   delay=10
+  def remember_shows(jobs):
+   try:
+    import drivelibrary
+    state_dir=str(profile/'addon_data/service.kodi.ios.bootstrap')
+    return debrid_drive.remember_shows(profile,jobs,lambda names,tmdb:drivelibrary.remember_show(state_dir,names,tmdb))
+   except Exception as error:diagnostics.log_exception(xbmc,'remember_show',error)
+  # Roadmap 2.2: copies finished by earlier builds get their show's TMDb id once too.
+  if remember_shows(debrid_drive.load(profile).get('jobs') or []):
+   driveupload.invalidate_library(str(profile/'addon_data/service.kodi.ios.bootstrap'))
   # Build 224: pauses carried over from earlier builds are lifted once; AirPlay's pause ends with AirPlay.
   try:
    lifted=transfer_control.reset_once(profile)
@@ -352,6 +361,7 @@ def drive_uploads(monitor,home,profile):
    if not debrid_drive.active(profile) or not accounts.get_accounts():continue
    try:
     def done(job):
+     remember_shows([job])
      driveupload.invalidate_library(str(profile/'addon_data/service.kodi.ios.bootstrap'))
      prepare_downloads.request_check(profile)   # preparation for Kodi and AirPlay picks it up from Drive
     delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text:notices.add(profile,kind,title,text),

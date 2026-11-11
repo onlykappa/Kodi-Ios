@@ -225,6 +225,22 @@ class Queue(unittest.TestCase):
   self.assertEqual(debrid_drive.folders('season','01 - Pilot.mkv','Lanterns'),['Kodi Downloads','TV Shows','Lanterns'])
   self.assertEqual(debrid_drive.info_hash({'id':H.upper()}),H);self.assertEqual(debrid_drive.info_hash({'id':'nothex'}),'')
 
+class RememberShows(unittest.TestCase):
+    def test_finished_episode_copies_name_their_show(self):
+        seen = []
+        jobs = [{'status': 'done', 'kind': 'episode', 'title': 'Phony', 'show_tmdb': '275139',
+                 'files': [{'drive_name': 'phony.s01e01.1080p.web.h264-x.mkv'}]},
+                {'status': 'copying', 'kind': 'episode', 'title': 'Busy', 'show_tmdb': '1', 'files': []},
+                {'status': 'done', 'kind': 'movie', 'title': 'Film', 'show_tmdb': '2', 'files': []},
+                {'status': 'done', 'kind': 'season', 'title': 'Old', 'files': []}]
+        self.assertTrue(debrid_drive.remember_shows(None, jobs, lambda names, tmdb: seen.append((names, tmdb)) or True))
+        self.assertEqual(len(seen), 1)
+        names, tmdb = seen[0]
+        self.assertEqual(tmdb, '275139')
+        self.assertIn('Phony', names)
+        self.assertEqual(len(names), 2)
+
+
 class Wiring(unittest.TestCase):
  def test_download_uses_the_shared_pre_selection_interceptor(self):
   src=(BOOT/'download.py').read_text()

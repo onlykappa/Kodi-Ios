@@ -48,6 +48,23 @@ class Pages(unittest.TestCase):
   self.assertEqual(label,'Pilot');self.assertEqual((art['thumb'],art['tvshow.fanart'],art['tvshow.poster']),('still.jpg','fan.jpg','poster.jpg'))
   self.assertEqual((info['plot'],info['duration'],info['premiered'],info['rating']),('It begins.',3360,'2026-08-17',7.5))
   self.assertEqual(out[1][1],'S01E02');self.assertEqual(out[1][2]['thumb'],'fan.jpg')  # no TMDb entry yet: show art
+ def test_single_episode_files_named_by_the_show_read_episode_n(self):
+  # Roadmap 2.2 (owner, build 229): 'phony.s01e01…' and 'Phony.S01E02…' listed as "1. phony", "2. Phony".
+  rows=[('plugin://drive/a','phony',{},{'mediatype':'episode','season':'1','episode':'1','tvshowtitle':'phony','source':'drive'},False),
+        ('plugin://drive/b','Phony',{},{'mediatype':'episode','season':'1','episode':'2','tvshowtitle':'phony','source':'drive'},False)]
+  out=page.episode_rows(rows,'phony',lib,{},'KEY',None)
+  self.assertEqual([r[1] for r in out],['Episode 1','Episode 2'])
+ def test_download_records_its_shows_tmdb_id(self):
+  import tempfile,os
+  with tempfile.TemporaryDirectory() as d:
+   path=os.path.join(d,'drive-library-art.json')
+   lib.save_json(path,{'tv:phony:':{'tmdb_id':'1','poster':'wrong.jpg'},'tv:other:':{'tmdb_id':'5'}})
+   self.assertTrue(lib.remember_show(d,['Phony','phony','Phony (2025)',''],'275139'))
+   cache=lib.load_json(path,{})
+   self.assertEqual(cache['tv:phony:'],{'tmdb_id':'275139'});self.assertEqual(cache['tv:phony (2025):'],{'tmdb_id':'275139'})
+   self.assertEqual(cache['tv:other:'],{'tmdb_id':'5'})
+   self.assertFalse(lib.remember_show(d,['Phony'],'275139'))   # unchanged: no write
+   self.assertFalse(lib.remember_show(d,['Phony'],None))
  def test_season_lookup_parses_and_caches(self):
   answer=json.dumps({'episodes':[{'episode_number':1,'name':'Pilot','overview':'x','still_path':'/s.jpg','runtime':56,'air_date':'2026-08-17'}]}).encode()
   urls=[];cache={}

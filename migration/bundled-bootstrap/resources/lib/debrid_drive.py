@@ -112,6 +112,20 @@ def folders(kind, name, title=''):
     return parts
 
 
+def remember_shows(profile, jobs, remember):
+    """Roadmap 2.2: tell the Library which TMDb show each finished episode or season copy belongs to, under the job's
+    title and every Drive folder name its files went to. remember(titles, tmdb_id) -> True when anything changed."""
+    changed = False
+    for job in jobs:
+        if job.get('status') != 'done' or not job.get('show_tmdb') or job.get('kind') == 'movie':
+            continue
+        names = [job.get('title')] + [folders(job['kind'], f.get('drive_name') or os.path.basename(f.get('path') or ''),
+                                              job.get('title'))[-1]
+                                      for f in job.get('files') or [] if f.get('drive_name') or f.get('path')]
+        changed = remember(names, job['show_tmdb']) or changed
+    return changed
+
+
 def kind_of(name):
     """movie, episode (SxxEyy) or season (a pack: S01, Season 1, Complete) from a torrent's name."""
     import re
