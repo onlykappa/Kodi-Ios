@@ -2395,3 +2395,20 @@ the desktop add-on subset required intercepting its account adapter before const
 phone's bundled bootstrap path also required a rig-only resource alias. These were fixture/environment issues,
 not product account failures. The final container stopped with exit 255/OOM=false; further diagnosis and smoke
 tests were stopped at the owner's explicit handoff request. Completed evidence remains on disk.
+## ISSUE-156 — Subtitles and Audio menus with Download and apply (2026-11-11)
+
+Status: IN SOURCE, LOCAL ONLY (not pushed, not built; owner: "code it but dont push it").
+- Owner: the CC and waveform buttons opened Kodi's settings dialog ("those look meh"); wanted working download /
+  find subtitles, "a button that will find, download and apply the subtitles". Mockup approved: PR #17 round 2.
+- Done: `tracks.py` (page `tracks`) + `1080i/IOSTrackMenu.xml` (`pages.track_menu`) replace
+  `osdsubtitlesettings` / `osdaudiosettings`. Tracks from Player.GetProperties, one tap switches and closes with a
+  notice; Timing (subtitle / audio delay), Volume boost (volume amplification); More: Choose another, Add from a
+  file, Use for all videos (`locale.subtitlelanguage`). Download and apply: no subtitle add-on is installed on the
+  phone, so `track_menu.py` searches Podnapisi (free, no account) by title, year and episode in Kodi's subtitle
+  download language, ranks by the file's release name, downloads the zip and `setSubtitles()`.
+- Verified (desktop Kodi rig, landscape 1311x603, a generated test video with 2 audio and 2 subtitle tracks): both
+  menus render like the mockup with the real tracks. Not verified: tapping in the rig (stopped by the owner), the
+  Podnapisi answer (this sandbox cannot reach podnapisi.net; API shape from subliminal's provider), the phone.
+- Known gaps: Volume boost shows no value (Kodi has no info label for it); the More page is Kodi's select list, not
+  the drawn sub-page; a downloaded subtitle is not remembered for the next play yet.
+- Regression: scripts/test_track_menu.py (9).

@@ -20,6 +20,8 @@ MEDIA='special://skin/extras/portrait/'
 BOOT='special://xbmc/addons/service.kodi.ios.bootstrap/'
 CAST='RunScript(service.kodi.ios.bootstrap,cast)'
 SPEED='RunScript(service.kodi.ios.bootstrap,speed)'
+# Owner-approved Subtitles / Audio menus (tracks.py) instead of Kodi's settings dialogs.
+TRACKS='RunScript(service.kodi.ios.bootstrap,tracks,%s)'
 NEXT_EPISODE='RunScript(service.kodi.ios.bootstrap,next_episode)'
 EPISODE='!String.IsEmpty(VideoPlayer.TVShowTitle) + !String.IsEmpty(VideoPlayer.Episode)'
 CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type=all'
@@ -105,8 +107,8 @@ def window():
  rw=900;rx=rw-EDGE
  icons=''.join(tap(id,rx-75-i*180,top,150,icon,action,nav,74 if icon.endswith('airplay.png') else 96) for i,(id,icon,action,nav) in enumerate([
    (7102,MEDIA+'airplay.png',CAST,'<onleft>7123</onleft><ondown>7112</ondown>'),
-   (7123,'closed-captioning.png','ActivateWindow(osdsubtitlesettings)','<onleft>7122</onleft><onright>7102</onright><ondown>7112</ondown>'),
-   (7122,'file-waveform.png','ActivateWindow(osdaudiosettings)','<onleft>7121</onleft><onright>7123</onright><ondown>7112</ondown>'),
+   (7123,'closed-captioning.png',TRACKS%'subtitles','<onleft>7122</onleft><onright>7102</onright><ondown>7112</ondown>'),
+   (7122,'file-waveform.png',TRACKS%'audio','<onleft>7121</onleft><onright>7123</onright><ondown>7112</ondown>'),
    (7121,'gauge-high.png',SPEED,'<onleft>7101</onleft><onright>7122</onright><ondown>7112</ondown>')]))
  head=back+group('right',rw,icons)
  # Centre row in a group 1200 wide centred on the screen; the "10" sits inside the arrows ($NUMBER: a bare 10

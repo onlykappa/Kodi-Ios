@@ -376,6 +376,102 @@ def play_on_tv():
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: Play on TV sheet r1 (navigation.patch_skin leaves this marker alone) -->\n'
          '<window type="dialog"><defaultcontrol always="true">9601</defaultcontrol><controls>%s</controls></window>\n')%body
 
+TRACK_MENU='IOSTrackMenu.xml'
+TRACK_ROWS=3   # rows shown before the list scrolls
+def track_menu():
+ """1080i/IOSTrackMenu.xml for tracks.py: the Subtitles / Audio menu over the video (owner-approved mockup
+ docs/design/player-subtitles-audio-mockups.html, round 2). A popover under the button that opened it, on the
+ landscape canvas (2340 x 1080 on the phone, 2.68 units/pt). Window properties: mode (subtitles|audio), title,
+ cta / cta_state (idle|busy|done|none|error), hint, timing, boost. Controls: 9500 close, 9501 More, 9510 Download
+ and apply, 9310 the tracks (filled by the script), 9401/9402 timing -/+, 9403/9404 volume boost -/+."""
+ MEDIA='special://skin/extras/portrait/';ICONS='special://skin/extras/icons/'
+ P=lambda k:'$INFO[Window().Property(%s)]'%k
+ isp=lambda k,v:'String.IsEqual(Window().Property(%s),%s)'%(k,v)
+ subs=isp('mode','subtitles')
+ w=840;row=118;head=108;pad=27;cpad=38;list_h=TRACK_ROWS*row;cta_h=112
+ def img(x,y,w,h,tex,color='FFFFFFFF',extra='',border=''):
+  return ('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texture%s colordiffuse="%s">%s</texture>%s</control>'
+          %(x,y,w,h,' border="%s"'%border if border else '',color,tex,extra))
+ def lab(x,y,w,h,text,font,color='FFFFFFFF',align='left',extra=''):
+  return ('<control type="label"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><font>%s</font><textcolor>%s</textcolor>'
+          '<align>%s</align><aligny>center</aligny><label>%s</label><scroll>false</scroll>%s</control>'%(x,y,w,h,font,color,align,text,extra))
+ def stepper(x,y,minus,plus,value,nav=''):
+  disc=lambda bx,id,g:(img(bx+10,y+(row-76)//2,86,76,MEDIA+'pill_72.png','1FFFFFFF',border='36')+
+                       img(bx+10,y+(row-76)//2,86,76,MEDIA+'pill_72.png','24FFFFFF','<visible>Control.HasFocus(%d)</visible>'%id,'36')+
+                       img(bx+35,y+(row-6)//2,36,6,MEDIA+'white.png')+
+                       (img(bx+50,y+(row-36)//2,6,36,MEDIA+'white.png') if g=='plus' else '')+
+                       '<control type="button" id="%d"><left>%d</left><top>%d</top><width>106</width><height>%d</height><texturefocus /><texturenofocus />%s</control>'%(id,bx,y,row,nav))
+  return (disc(x,minus,'minus')+lab(x+106,y,150,row,P(value),'font_main','FFFFFFFF','center')+disc(x+256,plus,'plus'))
+ def card(y,rows,body):
+  return img(pad,y,w-2*pad,rows*row,MEDIA+'round_s.png','47000000',border='26')+body
+ item=lambda focused:(
+  (img(0,0,w-2*pad,row,MEDIA+'round_s.png','1AFFFFFF',border='26') if focused else '')+
+  img(100,row-2,w-2*pad-100,2,MEDIA+'white.png','1FEBEBF5','<visible>!String.IsEmpty(ListItem.Property(sep))</visible>')+
+  img(28,(row-52)//2,52,52,ICONS+'check.png','FF4FA8FF','<visible>!String.IsEmpty(ListItem.Property(on))</visible>')+
+  lab(100,0,w-2*pad-330,row,'$INFO[ListItem.Label]','font_main_bold','FFFFFFFF','left','<visible>!String.IsEmpty(ListItem.Property(on))</visible>')+
+  lab(100,0,w-2*pad-330,row,'$INFO[ListItem.Label]','font_main','FFFFFFFF','left','<visible>String.IsEmpty(ListItem.Property(on))</visible>')+
+  lab(w-2*pad-226,0,200,row,'$INFO[ListItem.Property(tag)]','font_mini','99EBEBF5','right','<visible>String.IsEmpty(ListItem.Property(new))</visible>')+
+  lab(w-2*pad-226,0,200,row,'$INFO[ListItem.Property(tag)]','font_mini','FF30D158','right','<visible>!String.IsEmpty(ListItem.Property(new))</visible>'))
+ def tracks(y,up,down):
+  nrows='Window().Property(rows)'
+  cards=''.join(img(pad,y,w-2*pad,k*row,MEDIA+'round_s.png','47000000','<visible>String.IsEqual(%s,%d)</visible>'%(nrows,k),'26') for k in range(1,TRACK_ROWS+1))
+  return (cards+
+   '<control type="list" id="9310"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
+   '<onup>%s</onup><ondown>%s</ondown><scrolltime>200</scrolltime>'%(pad,y,w-2*pad,list_h,up,down)+
+   '<itemlayout height="%d" width="%d">%s</itemlayout><focusedlayout height="%d" width="%d">%s</focusedlayout></control>'%(row,w-2*pad,item(False),row,w-2*pad,item(True)))
+ # Subtitles: header, Download and apply, its hint, tracks, Timing.
+ y_cta=head;y_hint=y_cta+cta_h;y_list=y_hint+42;y_time=y_list+list_h+16;h_subs=y_time+2*row+pad
+ cta=('<control type="group"><visible>%s</visible>'%subs+
+  img(cpad,y_cta,w-2*cpad,cta_h,MEDIA+'pill_112.png','FFFFFFFF','<visible>%s | %s | %s</visible>'%(isp('cta_state','idle'),isp('cta_state','none'),isp('cta_state','error')),'56')+
+  img(cpad,y_cta,w-2*cpad,cta_h,MEDIA+'pill_112.png','1FFFFFFF','<visible>%s</visible>'%isp('cta_state','busy'),'56')+
+  img(cpad,y_cta,w-2*cpad,cta_h,MEDIA+'pill_112.png','2930D158','<visible>%s</visible>'%isp('cta_state','done'),'56')+
+  img(cpad,y_cta,w-2*cpad,cta_h,MEDIA+'pill_112.png','1A000000','<visible>Control.HasFocus(9510)</visible>','56')+
+  img(w//2-200,y_cta+(cta_h-44)//2,44,44,MEDIA+'ring.png','FFFFFFFF','<visible>%s</visible>'
+      '<animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation>'%isp('cta_state','busy'))+
+  lab(cpad,y_cta,w-2*cpad,cta_h,P('cta'),'font_main_bold','FF000000','center','<visible>!%s + !%s</visible>'%(isp('cta_state','busy'),isp('cta_state','done')))+
+  lab(cpad+40,y_cta,w-2*cpad-40,cta_h,P('cta'),'font_main_bold','FFFFFFFF','center','<visible>%s</visible>'%isp('cta_state','busy'))+
+  lab(cpad,y_cta,w-2*cpad,cta_h,P('cta'),'font_main_bold','FF30D158','center','<visible>%s</visible>'%isp('cta_state','done'))+
+  '<control type="button" id="9510"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus /><texturenofocus />'
+  '<onup>9500</onup><ondown>9310</ondown></control>'%(cpad,y_cta,w-2*cpad,cta_h)+
+  lab(pad,y_hint,w-2*pad,42,P('hint'),'font_mini','99EBEBF5','center')+
+  '</control>')
+ # Shared by both modes, drawn once (one set of ids): the tracks and Timing. Audio has no Download and apply, so
+ # they slide up by its height; Volume boost is Audio's own row under Timing.
+ lift=y_list-head;h_audio=y_time-lift+2*row+pad
+ audio=('<control type="group"><left>0</left><top>0</top><width>%d</width>'%w+
+  '<animation effect="slide" start="0,0" end="0,-%d" time="0" condition="!%s">Conditional</animation>'%(lift,subs)+
+  tracks(y_list,9510,9401)+
+  '<control type="group"><left>0</left><top>0</top><width>%d</width>'%w+
+  ''.join('<animation effect="slide" start="0,0" end="0,-%d" time="0" condition="String.IsEqual(Window().Property(rows),%d)">Conditional</animation>'%((TRACK_ROWS-k)*row,k) for k in range(1,TRACK_ROWS))+
+  img(pad,y_time,w-2*pad,2*row,MEDIA+'round_s.png','47000000','','26')+
+  lab(pad+36,y_time,300,row,'Timing','font_main')+stepper(w-pad-372,y_time,9401,9402,'timing','<onup>9310</onup><ondown>9501</ondown>')+
+  '<control type="group"><visible>%s</visible>'%subs+
+  img(pad+36,y_time+row-1,w-2*pad-36,2,MEDIA+'white.png','1FEBEBF5')+
+  img(pad,y_time+row,w-2*pad,row,MEDIA+'round_s.png','1AFFFFFF','<visible>Control.HasFocus(9501)</visible>','26')+
+  lab(pad+36,y_time+row,300,row,'More','font_main')+
+  img(w-pad-70,y_time+row+(row-56)//2,40,56,ICONS+'chevron-right.png','80EBEBF5')+
+  '<control type="button" id="9501"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus /><texturenofocus />'
+  '<onup>9401</onup></control>'%(pad,y_time+row,w-2*pad,row)+
+  '</control>'+
+  '<control type="group"><visible>!%s</visible>'%subs+
+  img(pad+36,y_time+row-1,w-2*pad-36,2,MEDIA+'white.png','1FEBEBF5')+
+  lab(pad+36,y_time+row,300,row,'Volume boost','font_main')+stepper(w-pad-372,y_time+row,9403,9404,'boost','<onup>9401</onup>')+
+  '</control></control></control>')
+ back=''.join(img(0,0,w,hh-(TRACK_ROWS-k)*row,MEDIA+'round_s.png','F52C2C2E','<visible>%s%s + String.IsEqual(Window().Property(rows),%d)</visible>'%(m,subs,k),'26')
+              for m,hh in (('',h_subs),('!',h_audio)) for k in range(1,TRACK_ROWS+1))
+ more=''   # More is a row under Timing (mockup board 1)
+ inner=('<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation><animation effect="fade" start="100" end="0" time="120">WindowClose</animation>'
+  '<animation effect="slide" start="0,-24" end="0,0" time="220" tween="cubic" easing="out">WindowOpen</animation>'+
+  back+lab(36,0,w-340,head,P('title'),'font_head_bold')+more+(img(w-97,16,75,75,MEDIA+'close_disc.png','2EFFFFFF')+img(w-97,16,75,75,MEDIA+'close_disc.png','24FFFFFF','<visible>Control.HasFocus(9500)</visible>')+img(w-74,39,29,29,MEDIA+'close_cross.png','B3EBEBF5')+'<control type="button" id="9500"><left>%d</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><ondown>9510</ondown></control>'%(w-118))+cta+audio)
+ body=('<control type="button" id="9099"><left>0</left><top>0</top><width>100%</width><height>100%</height><texturefocus /><texturenofocus />'
+  '<onclick>Close</onclick><onfocus>SetFocus(9310)</onfocus></control>'
+  # Under the button that opened it: CC (subtitles), 140 in from the right (SAFE); Audio slides 190 left, under the
+  # waveform. One copy of the controls (two copies would share their ids).
+  '<control type="group"><right>140</right><top>172</top><width>'+str(w)+'</width>'
+  '<animation effect="slide" start="0,0" end="-190,0" time="0" condition="!'+subs+'">Conditional</animation>'+inner+'</control>')
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: track menu r1 (navigation.patch_skin leaves this marker alone) -->\n'
+         '<window type="dialog"><defaultcontrol always="true">9310</defaultcontrol><controls>%s</controls></window>\n')%body
+
 # --- Kodi's busy dialog (DialogBusy: opening a video, buffering, loading a list) ---------------------------
 # Build 191 (owner: a white badge with the Kodi logo over the Library posters, and a small spinner over the video
 # "instead of the pill loader"): Fuse's DialogBusy, its Kodi logo in a white circle with a spinning arc made for
@@ -463,6 +559,7 @@ def files(p,read):
       p.FOLDER+'/FileManager.xml':file_manager(p,read('FileManager.xml')),
       p.FOLDER+'/source_progress.xml':umbrella_ready(p),
       '1080i/IOSPlayOnTV.xml':play_on_tv(),
+      '1080i/'+TRACK_MENU:track_menu(),   # owner-approved Subtitles / Audio menus (tracks.py)
       '1080i/IOSAirPlayFlow.xml':_airplay_flow().page(close_button_1080),   # owner-approved Play on TV boards (2026-11-08)
       p.FOLDER+'/'+BUSY:busy_dialog(p.MARKER,'p_pill'),
       '1080i/'+BUSY:busy_dialog('Kodi-iOS player controls: busy pill','font_main_bold'),

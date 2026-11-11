@@ -109,7 +109,7 @@ VIDEO_ONLY={'DialogSeekBar.xml','Custom_1156_Buffering.xml','DialogFullScreenInf
             'Custom_1143_OSD_NextOverlay.xml','Custom_1145_OSD_InfoPanel.xml','Custom_1146_OSD_AudioStreams.xml',
             'Custom_1147_OSD_SubtitleStreams.xml','Custom_1148_OSD_VideoStreams.xml','Custom_1151_OSD_MusicInfoOverlay.xml',
             'Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml','Custom_1193_VideoOSDInfo.xml',
-            'IOSPlayOnTV.xml','IOSAirPlayFlow.xml'}   # pages.play_on_tv, airplay_flow: Play on TV over video
+            'IOSPlayOnTV.xml','IOSAirPlayFlow.xml','IOSTrackMenu.xml'}   # pages.play_on_tv, pages.track_menu, airplay_flow: Play on TV over video
 # iOS text styles at 2.687 units/pt (large title 34pt, title2 22pt, headline/body 17pt, subhead 15pt, footnote 13pt...).
 FONTS=[('p_large','Inter-Bold.ttf',92),('p_title','Inter-Bold.ttf',78),('p_h2','Inter-Bold.ttf',58),
        ('p_h3','Inter-Bold.ttf',46),('p_body','Inter-Regular.ttf',44),('p_sub','Inter-Regular.ttf',40),
@@ -1428,7 +1428,7 @@ def refresh(skin,profile):
 
 # Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
 # inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','Custom_1156_Buffering.xml','IOSPlayOnTV.xml','IOSAirPlayFlow.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + activity_skin.py, pages.BUSY, player_osd.INSET
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','Custom_1156_Buffering.xml','IOSPlayOnTV.xml','IOSTrackMenu.xml','IOSAirPlayFlow.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + activity_skin.py, pages.BUSY, player_osd.INSET
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
