@@ -403,6 +403,10 @@ def play_downloaded(handle,params):
   import drivelibrary as lib
   name,info,art=playback_details(params,lib,lib.load_json(os.path.join(xbmcvfs.translatePath(STATE),'drive-library-art.json'),{}))
   li.setLabel(name);apply_details(li,info,art)
+  if drive:
+   import xbmcaddon
+   fast=lib.direct_url(path,xbmcvfs.translatePath(STATE),xbmcaddon.Addon('plugin.googledrive').getSetting('download.service.port'))
+   if fast:li.setPath(fast);xbmc.log('Kodi iOS Library: Drive stream opened directly (Drive add-on step skipped)',xbmc.LOGINFO)
  except Exception as error:xbmc.log('Kodi iOS Library: playback details unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
  li.getVideoInfoTag().setResumePoint(position,total)
  if position:li.setProperty('StartOffset',str(position))

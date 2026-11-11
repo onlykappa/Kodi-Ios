@@ -61,6 +61,16 @@ class DriveLibrary(unittest.TestCase):
   with patch.object(lib,'listing',side_effect=[([{'id':'show','title':'phony'}],'D1'),
                                                ([{'id':'e2','name':'phony.s01e02.1080p.mkv','title':'phony','size':5}],'D1')]):
    self.assertIn('item_id=e2',lib.completed_copy('episode','Phony','',1,2,'state',cached_only=True))
+ def test_direct_url_skips_the_drive_add_on_step(self):
+  import json,os
+  with tempfile.TemporaryDirectory() as tmp:
+   with open(os.path.join(tmp,'drive-library.json'),'w') as f:
+    json.dump({'movie:':{'entries':[{'id':'F1','name':'Home Alone (1990).mp4'}],'driveid':'D1'}},f)
+   url=lib.play_url('D1','F1')
+   self.assertEqual(lib.direct_url(url,tmp,'63092'),'http://127.0.0.1:63092/download/D1/D1/F1/Home%20Alone%20%281990%29.mp4')
+   self.assertIsNone(lib.direct_url(url,tmp,''))                                  # add-on port unknown
+   self.assertIsNone(lib.direct_url(lib.play_url('D1','other'),tmp,'63092'))      # not in the saved listing
+   self.assertIsNone(lib.direct_url('/phone/x.mkv',tmp,'63092'))                  # phone copy
  def test_single_file_tv_uploads_appear_and_open_only_the_selected_show(self):
   drive=FakeDrive()
   drive.tree['tv'] += [('loose1','Lanterns.S01E01.2160p.mkv','video/x-matroska'),

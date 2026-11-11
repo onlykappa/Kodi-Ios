@@ -194,6 +194,25 @@ def play_url(driveid,item_id):
  return 'plugin://plugin.googledrive/?'+urllib.parse.urlencode({'action':'play','content_type':'video','driveid':driveid,
                                                                'item_driveid':driveid,'item_id':item_id})
 
+def direct_url(path,state_dir,port):
+ """Roadmap 1A.2 (owner log 396d5d67: 2.2-2.5 s in the watch add-on, then ~1 s in the Google Drive add-on before
+ Kodi started reading): the Drive add-on's play step only asks Drive for the file's name and answers with its local
+ stream address. Build that address from the saved Library listing instead (no Drive request): None when the file,
+ its name or the add-on's port is unknown, so the caller keeps the add-on's play link."""
+ parts=urllib.parse.urlsplit(str(path or ''))
+ q=urllib.parse.parse_qs(parts.query)
+ if parts.scheme!='plugin' or parts.netloc!='plugin.googledrive' or q.get('action')!=['play']:return None
+ item=(q.get('item_id') or [''])[0];driveid=(q.get('driveid') or [''])[0];item_drive=(q.get('item_driveid') or [driveid])[0]
+ if not (item and driveid and str(port or '').isdigit()):return None
+ name=None
+ for slot in (load_json(os.path.join(state_dir,'drive-library.json'),{}) or {}).values():
+  for entry in (slot or {}).get('entries') or []:
+   if isinstance(entry,dict) and entry.get('id')==item and entry.get('name'):name=entry['name'];break
+  if name:break
+ if not name:return None
+ return 'http://127.0.0.1:%d/download/%s/%s/%s/%s'%(int(port),urllib.parse.quote(driveid,safe=''),urllib.parse.quote(item_drive,safe=''),
+                                                    urllib.parse.quote(item,safe=''),urllib.parse.quote(name))
+
 def movies(files):
  """One entry per file in Movies, newest name first not assumed: sorted by title."""
  out=[]
