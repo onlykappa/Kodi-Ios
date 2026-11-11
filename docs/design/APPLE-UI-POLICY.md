@@ -157,7 +157,7 @@ From `portrait.py` and `pages.py` (dark-only UI, matching iOS dark system colour
 | `DIM` | `4DEBEBF5` | disabled or placeholder only |
 | `SEP` | `33EBEBF5` | separators |
 | `GREEN` | `FF30D158` | success, "done" |
-| Blue, fills | `FF0A84FF` (`pages.BLUE`) | progress rings and bars, selected tab, app tiles, unread dot |
+| Blue, fills | `FF0A84FF` (`pages.BLUE`) | progress bars (and the Home bell's ring), selected tab, app tiles, unread dot |
 | Blue, text | `FF4FA8FF` (`portrait.ACCENT`) | blue text and glyphs: links such as "Clear All", text buttons |
 | `RED`, `ORANGE` | `FFFF453A`, `FFFF9F0A` | destructive, warnings |
 
@@ -202,19 +202,24 @@ Rules:
 
 ### 4.7 Activity control (pill) and activity sheet
 
-These are aesthetic rules; behaviour belongs to PR #9. The approved design is the round-4 mockup
-(`activity-mockups-r4.html` in docs/design on PR #9's branch; owner approved it on 2026-11-05, DEC-027).
+These are aesthetic rules; behaviour belongs to PR #9. The base design is the round-4 mockup
+(`activity-mockups-r4.html` in docs/design on PR #9's branch; owner approved it on 2026-11-05, DEC-027), with
+progress changed from rings to bars by DEC-036 (2026-11-11, owner: "the bar for everything").
 
-- **Progress is a ring around the app tile, in both the pill and the sheet.** It fills clockwise, and with no
-  percentage the same ring spins in the same place. It turns grey while paused, and the tile shows a green check when
-  done. No corner badges, and no switch between ring and bar for the same job.
-- **Pill:** a compact floating capsule, 62 pt (167 units) high, with the ring tile, a bold title line and a status
-  line that starts with the percentage, plus a trailing pause/resume control or a job count. Each text line must fit
+- **Progress is a thin bar, everywhere:** in the pill, in sheet rows and in cards, including the opening and
+  source-search cards and the buffering capsule over video. The bar is 4 pt high (5 pt in cards), a 20 % white track
+  with a `0A84FF` fill, and it fills left to right. With no percentage a short segment slides along it. It turns
+  grey while paused, and the tile shows a green check (bar full and green) when done. No spinners for work whose
+  progress can be shown; a stage list ticks finished stages and shows one bar.
+- **The only ring is the one around the bell icon on Home**, the activity entry point: it follows the running jobs
+  (filled, or spinning with no percentage) as in the round-4 mockup. No corner badges, and one style per job.
+- **Pill:** a compact floating capsule, 62 pt (167 units) high, with the app tile, a bold title line, a status
+  line that starts with the percentage and the bar under it, plus a trailing pause/resume control or a job count. Each text line must fit
   (§4.2). Place it above the tab bar on tab pages. Hide it over alerts, the keyboard and sheets. It never covers
   playback controls. With several jobs, show stacked tiles and "N running".
 - **Sheet:** use `SURFACE1` rows on a `SURFACE2` group (or the reverse; keep one), with the sheet top radius (§4.4)
   and a grabber. Group the jobs by kind (Downloading, Preparing for AirPlay, Uploading to Google Drive) with the
-  count once in the group header. Each row: ring tile, title, status line, percentage, pause/resume.
+  count once in the group header. Each row: app tile, title, status line, the bar, percentage, pause/resume.
 - **A status-only sheet closes with a ✕ (Close) control, not "Done".** HIG keeps Done for finishing a task.
   Swiping down and tapping the dimmed page also close it.
 - Every pause, resume and close control has a 118-unit touch area, with a smaller drawn disc (about 92 units).
