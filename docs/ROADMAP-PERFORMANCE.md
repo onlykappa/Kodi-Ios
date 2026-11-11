@@ -76,6 +76,45 @@ Per 2-minute session the phone ran 64 Home row requests, ~300 lines of Elementum
 | 0.7 | Follow new episodes (ISSUE-150) | a followed show's new episode queues |
 | 0.8 | Resume prompt shows only the tapped item (ISSUE-166) | no spotlight card |
 
+## Build 232 findings (owner log `eabc204b` and screenshots, 09:57-10:00)
+
+| # | Finding | Evidence and cause | Fix |
+|---|---|---|---|
+| B.1 | **Uploads and AllDebrid copies never start in build 232** | `Thread-16 (drive_uploads)` UnboundLocalError at 09:57:06; the Maze Runner download queued at 09:58:05 and never copied (ISSUE-168) | **fixed in #19**; needs the next build |
+| B.2 | Volume boost opens Kodi's own volume slider at the top, which disappears; the boost row shows no value | taps on control 9404 open `DialogSlider.xml` (09:59:04-09:59:13); screenshot 1 | change the gain in the menu itself (VolAmpUp/VolAmpDown, value shown in the row, 0-12 dB); no Kodi slider |
+| B.3 | Info in the video controls shows nothing useful | 7141 opens `Custom_1193_VideoOSDInfo.xml`; the item had no metadata (B.4) | fill the info from the episode, and restyle Info (U.6) |
+| B.4 | Episodes played from Library › downloaded show have no metadata: the title is the file name (`phony.s01e01.1080p.web.h264-cakes[EZTVx.to].mp4`) | screenshots 1-2; `library_play` passes the Drive file without show, season, episode or plot | `library_play` sets the ListItem's tvshowtitle, season, episode, title, plot and art from the TMDb details already cached for the page |
+| B.5 | Subtitles › Find online searches the file name with no season or episode | 09:58:43 `search en 'phony.s01e01…mp4' 0 SNoneENone`; the site is also unreachable (2.13) | B.4 gives the right title; parse the file name as a fallback; 2.13 for the provider |
+| B.6 | Subtitles › More (Choose another, Add from a file, Use for all videos) opens Kodi's select box over the menu | 9501 → `DialogSelect.xml` 09:58:51; screenshot 3 | rows inside the track menu (approved #17 design) |
+| B.7 | Playback speed still opens Kodi's select box | 7121 → `DialogSelect.xml` 09:59:18; screenshot 4 (= 2.12) | track-menu style |
+| B.8 | "EXCEPTION: Window id does not exist" when the subtitle menu closes | 09:58:45.673 | close by the window the menu owns |
+| B.9 | After a version is picked, Kodi's select box asks the next question | `DeckSourceSelect.xml` → `DialogSelect.xml` 09:58:04 | the approved sheet |
+| B.10 | Elementum's link search held the Download flow for 20.4 s (`/forcelinks` 302 after 20.407 s), of which ~6 s was provider search and the rest the owner choosing | 09:57:43-09:58:04 | show search progress in the sheet; drop providers that return nothing (1337x, BT4G, Torrentio returned 0 every time in the logs) |
+| B.11 | Download queue diagnostics say `"build":"unknown"` | 09:58:05 download_queue line | stamp the build in the Elementum-side writer |
+
+## UI — Arctic Fuse and Kodi windows still on screen (owner: "we need mocks of the pages that are Arctic Fuse")
+
+Counted from every owner log (how often each window opened). Already redesigned and not listed: Home, hubs, Library
+lists, video controls, notifications banner, volume banner, settings home and the `IOS*` pages. Each item needs a
+mockup board first (APPLE-UI-POLICY §7), then the skin change, then a rig check.
+
+| # | Window | Where the owner meets it | Notes |
+|---|---|---|---|
+| U.1 | `DialogSelect.xml` (20 opens) | Playback speed, Subtitles › More, the question after a version, resume from Library, any add-on list | one sheet style for every list choice; most callers can use choice_sheet |
+| U.2 | `DialogConfirm.xml` (20) | yes/no and OK messages (Download not available, errors) | iOS alert style |
+| U.3 | `DialogBusy.xml` (98) and `Custom_1156_Buffering.xml` (14) | every open and wait; the ring over the spotlight | opening card with stage and Cancel (2.18) |
+| U.4 | `DialogExtendedProgressBar.xml` (50) | TMDb Helper's "Constructing players…" and add-on progress | thin progress in the activity pill, or hidden |
+| U.5 | `DialogContextMenu.xml` (11) | long press on rows and Continue Watching | iOS context menu (2.19) |
+| U.6 | `Custom_1193_VideoOSDInfo.xml` | Info in the video controls | episode card: still, title, S·E, plot, runtime, ends at |
+| U.7 | `DeckSourceSelect.xml` (10) | the version list after Download | All Links page (board 4, item 2.1) |
+| U.8 | `DialogSlider.xml` | Volume boost | removed by B.2 |
+| U.9 | `source_progress.xml` (4) | Umbrella's source scraping progress | progress sheet matching U.3 |
+| U.10 | `Custom_1170_Dialog_Options.xml` (3) | Fuse options dialog | sheet |
+| U.11 | `DialogSubtitles.xml` | Kodi's subtitle search window | replaced by the track menu (B.6) |
+| U.12 | `Custom_1105_Search.xml` (7) | search results | iOS search results list |
+| U.13 | `Startup.xml`, `Custom_1198_Dialog_Startup.xml` | launch | match the launch screen |
+| U.14 | `DialogAddonSettings.xml`, `DialogSettings.xml`, `SettingsCategory.xml`, `SkinSettings.xml`, `SettingsSystemInfo.xml`, `DialogAddonInfo.xml`, `AddonBrowser.xml`, `Custom_1118_Dialog_Settings.xml`, `Custom_1160_Dialog_Favourites.xml`, `pin-dialog.xml` | settings, add-ons, favourites, PIN | **owner's agent (#17/#18, 2.3-2.6)**; coordinate before changing |
+
 ## Phase 1 — Speed
 
 ### 1A. Opening a video from Google Drive (11-13 s → target 3 s)
@@ -189,7 +228,7 @@ Evidence: ISSUE-163/165/166.
 
 ## Suggested order
 
-1. **0.0a** test build 232 now; **0.0** the r47 build with #19, then one Phase 0 test session with a log (0.1-0.8).
+1. **B.1 is fixed in #19: build 232 cannot upload or copy.** Ship the next build first (r47 + #19). **0.0a** test build 232 for UI only; **0.0** the r47 build with #19, then one Phase 0 test session with a log (0.1-0.8).
 2. **2.8 + 2.9 + 2.10** (Drive copies everywhere, Next Episode, spotlight item): small code, big daily effect.
 3. **1D.1-1D.3** (rows): removes most of the background Python work while navigating.
 4. **1A.2 → 1A.1 → 1A.3 → 1A.5** (Drive playback without Python): 11-13 s opens → ~3 s, seeks < 1.5 s.

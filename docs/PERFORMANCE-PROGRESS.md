@@ -42,3 +42,8 @@ Never claim a phone result without the owner's log or screenshot.
 - Biggest finds: Drive playback goes through plugin.googledrive's Python proxy (open 11-13 s, seek 4.2 s); Home rows
   reload on every tab return and around playback (31 Python runs each); Drive copies ignored outside Continue
   Watching (ios_watch_dialog cloud=resume) which also breaks Next Episode; subtitle site does not resolve.
+
+## 2026-11-11 build 232 log (eabc204b)
+- ISSUE-168 found and fixed: drive_uploads crashed at start (UnboundLocalError 'airplay'), so build 232 never uploads or
+  copies. Fix in service.py; scripts/test_service_scoping.py catches it. Needs the next build.
+- Roadmap: "Build 232 findings" B.1-B.11 and "UI" U.1-U.14 (Arctic Fuse/Kodi windows that need mockups) added.

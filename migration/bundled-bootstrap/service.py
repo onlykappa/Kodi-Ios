@@ -292,7 +292,7 @@ def drive_uploads(monitor,home,profile):
  accounts=AccountManager(xbmcvfs.translatePath(drive_addon.getAddonInfo('profile')))
  native=None
  try:
-  import airplay,native_http
+  import native_http   # airplay is the module imported at the top; importing it here made it local (build-232 crash)
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
   native=native_http.sender(airplay.load(path)) if path else None
  except Exception as error:xbmc.log('Kodi iOS Drive: system networking unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)

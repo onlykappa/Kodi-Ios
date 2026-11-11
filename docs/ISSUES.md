@@ -2598,3 +2598,15 @@ Status: CHANGED IN SOURCE; needs AirPlay r47; device untested (the cause is infe
   is used ("uploads use system networking") and each piece says "system networking".
 - Regression: test_native_http (status/headers/body/error mapping; only PUT pieces >= 256 KB go native; wiring),
   test_airplay_exports (export list includes kodi_http_send; the build fails without it).
+
+## ISSUE-168 — Build 232: uploads and AllDebrid copies never start (owner log eabc204b, 2026-11-11)
+
+Status: FIXED IN SOURCE (#19); device untested.
+- Log eabc204b 09:57:06: `Thread-16 (drive_uploads)` raised `UnboundLocalError: cannot access local variable 'airplay'`
+  at `playback_lib=airplay.cached_load(...)`. The owner's download (Maze Runner, 09:58:05) was queued and never copied.
+- Root cause: ISSUE-167's change added `import airplay,native_http` inside `drive_uploads`. Python makes a name local to
+  the whole function when it is imported anywhere in it, so the earlier module-level use of `airplay` (line 277) failed.
+  The thread also runs phone uploads and the AllDebrid → Drive loop, so all transfers stopped.
+- Fix: import only `native_http` there; `airplay` is the module imported at the top of service.py.
+- Regression: scripts/test_service_scoping.py fails on the old code ("drive_uploads: airplay used at line 277, imported at
+  295") and passes on the fix. Host tests do not start the service's threads, which is why CI missed it.
