@@ -1,5 +1,14 @@
 # Persistent progress
 
+## Build 225 in progress — 2026-11-11
+
+Owner approved: "fix all your recommendations including airplay ... you can push the ipa once its done". Pushed to
+claude/trusting-euler-kgug98 at d3761cb: settings redesign (ISSUE-160), AirPlay exports (161), native keyboard (162),
+AirPlay start speed (163), uploads two lanes / ~10 s pieces (164). Native runs: Kodi r30
+[42953011608](https://github.com/onlykappa/Kodi-Ios/actions/runs/42953011608), AirPlay remux candidate
+[42953015048](https://github.com/onlykappa/Kodi-Ios/actions/runs/42953015048). Next: verify and pin Kodi r30 and AirPlay
+r45 (publish_verified_candidate), then import-review for IPA 225, verify, send. Device results pending.
+
 ## Verified test IPA 224 delivered — 2026-11-11
 
 [Download IPA 224](https://github.com/onlykappa/Kodi-Ios/releases/download/build-224/Kodi-iOS-Customized-Touch-r10.ipa).
