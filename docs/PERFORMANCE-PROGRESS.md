@@ -26,8 +26,10 @@ Never claim a phone result without the owner's log or screenshot.
 - 2.2 (code): cause found: a single-episode copy goes to Drive folder named from the file ('phony'), and the Library searched TMDb by that name only, so it could land on another show or none, with no episode names, stills or plots. Fix: finished copies record the job's show_tmdb under the title and folder names in drive-library-art.json (drivelibrary.remember_show, debrid_drive.remember_shows, plus a one-time backfill from finished jobs at service start). Episode rows with no TMDb name read 'Episode N', not the show name. Tests in test_library_pages and test_debrid_drive. Needs a device check on Phony.
 
 ## Handoff (2026-11-11 ~17:00 UTC)
-- PR #16 head 027f4c3 (CI apt timeout fix); checks were running. Merge #16 when green, then #17 and #18 (mockup docs only,
-  designs already built in #16; resolve the approved-pages list in scripts/check_project.py if they conflict).
+- PR #16 head 027f4c3 (CI apt timeout fix); checks were running. Merge #16 when green.
+- Do NOT merge #17 or #18 (owner, 2026-11-11): an agent works on them first. Their open work: 2.3 add-on settings tabs
+  (board 08), 2.4 "- " dash (Kodi patch), 2.5 Kodi PIN/time number pads, 2.6 More/power-menu links to old windows,
+  ISSUE-156 "Find subtitles online" against the real site.
 - This branch (claude/performance-roadmap) = #16 + roadmap docs + 1B.1, 1A.1, 2.2. After #16 merges it shows only these.
 - Then: pin AirPlay r47 from the airplay-remux run on 027f4c3 (framework zip sha256, exports _kodi_http_send, health,
   startup_budget; source_commit 027f4c3, previous r46), dispatch airplay-ios.yml publish_verified_candidate=true,
