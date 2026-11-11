@@ -64,20 +64,20 @@ LIBRARY_STATUS='RunScript(service.kodi.ios.bootstrap,library_status)'
 LIBRARY_REFRESH='RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&all=1)'
 ROOT=[
  [R(9111,'Skin','ActivateWindow(skinsettings)','paintbrush.png',PURPLE),
-  R(9112,'Interface','ActivateWindow(interfacesettings)','palette.png',BLUE),
+  R(9112,'Interface','RunScript(service.kodi.ios.bootstrap,section_page,interface)','palette.png',BLUE),
   R(9113,'Customisation',CUSTOM_PAGE,'sliders.png','FFD1D1D6'),
-  R(9114,'Player','ActivateWindow(playersettings)','circle-play.png',GREEN),
-  R(9115,'Media','ActivateWindow(mediasettings)','film.png',ORANGE),
+  R(9114,'Player','RunScript(service.kodi.ios.bootstrap,section_page,player)','circle-play.png',GREEN),
+  R(9115,'Media','RunScript(service.kodi.ios.bootstrap,section_page,media)','film.png',ORANGE),
   R(9116,'Library',LIBRARY_PAGE,'folder.png',BLUE)],
  # What the profile button's More menu held (round 5: the gear in the header opens Settings instead).
  [R(9171,'Google Drive','ActivateWindow(Videos,plugin://plugin.googledrive/,return)','cloud.png',BLUE),
   R(9172,'Favourites','ActivateWindow(1160)','star.png',ORANGE),
   R(9173,'Check for updates','RunScript(service.kodi.ios.bootstrap,check_updates)','cloud-arrow-down.png',GREEN),
   R(9174,'iPhone navigation / recovery','RunScript(service.kodi.ios.bootstrap,navigation_menu)','life-ring.png',RED)],
- [R(9121,'PVR & Live TV','ActivateWindow(pvrsettings)','tv.png',RED),
-  R(9122,'Games','ActivateWindow(gamesettings)','gamepad.png',PINK)],
- [R(9131,'System','ActivateWindow(systemsettings)','gear.png',SILVER),
-  R(9132,'Services','ActivateWindow(servicesettings)','sitemap.png',TEAL),
+ [R(9121,'PVR & Live TV','RunScript(service.kodi.ios.bootstrap,section_page,pvr)','tv.png',RED),
+  R(9122,'Games','RunScript(service.kodi.ios.bootstrap,section_page,games)','gamepad.png',PINK)],
+ [R(9131,'System','RunScript(service.kodi.ios.bootstrap,section_page,system)','gear.png',SILVER),
+  R(9132,'Services','RunScript(service.kodi.ios.bootstrap,section_page,services)','sitemap.png',TEAL),
   R(9133,'Profiles','ActivateWindow(profiles)','user.png',BLUE)],
  [R(9141,'Add-ons','ActivateWindow(addonbrowser)','puzzle-piece.png',ORANGE,badge=UPDATES),
   R(9142,'File Manager','ActivateWindow(filemanager)','folder.png',TEAL),
@@ -462,6 +462,44 @@ def accounts_page(p):
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9601</defaultcontrol>'
          '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
 
+# --- Section page: a section's categories as rows (owner-approved mockup docs/design/settings-pages-mockups.html, board 1) ---
+SECTION_ROWS=9
+def section_page(p):
+ """portrait/IOSSection.xml for section_page.py: Interface, Player, Media, Services, System, PVR and Games open to their
+ categories as rows (tile, name, what is set now) instead of Kodi's chip row. Properties title, subtitle, foot and
+ for each row n: sec.n.name / .sub / .icon / .tint; button 9600+n opens category n (9001 closes)."""
+ w=p.WIDTH-2*p.SIDE;P=lambda k:'$INFO[Window().Property(%s)]'%k;h=ROW2;tile=100
+ order=[(9600+n,'') for n in range(1,SECTION_ROWS+1)]
+ moves=nav(order)
+ def row(n,y,first):
+  q=lambda k:'$INFO[Window().Property(sec.%d.%s)]'%(n,k)
+  x=PAD+tile+38
+  xml=('<control type="group"><visible>!String.IsEmpty(Window().Property(sec.%d.name))</visible><width>%d</width><height>%d</height>'%(n,w,h)+
+       '<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>%s%s</control>'
+       %(9600+n,w,h,highlight(p,w,h),nav_xml(p,moves[9600+n])))
+  if not first:xml+=p.image(x,0,w-x,2,p.MEDIA+'white.png',p.SEP)
+  xml+=(p.surface(PAD,(h-tile)//2,tile,tile,'tile100.png',q('tint'),28)+p.icon(PAD+15,(h-70)//2,70,icon_path(p,q('icon')),p.WHITE)+
+        p.label(x,22,w-x-90,64,q('name'),'p_body')+p.label(x,86,w-x-90,56,q('sub'),'p_foot',p.GREY)+
+        p.icon(w-PAD-34,(h-34)//2,34,'chevron-right.png',p.DIM)+'</control>')
+  return xml
+ body=''.join(row(n,0,n==1) for n in range(1,SECTION_ROWS+1))
+ card_xml=('<control type="grouplist" id="9310"><left>%d</left><top>0</top><width>%d</width><height>%d</height><orientation>vertical</orientation><itemgap>0</itemgap>'
+           '<usecontrolcoords>false</usecontrolcoords><onup>9001</onup>%s</control>')%(p.SIDE,w,SECTION_ROWS*h,body)
+ # The card and the footer under it fit the rows shown (property rows): one background and footer per count.
+ fit=''
+ for k in range(1,SECTION_ROWS+1):
+  fit+=('<control type="group"><visible>String.IsEqual(Window().Property(rows),%d)</visible>'%k+
+        p.surface(p.SIDE,0,w,k*h,'group.png',p.SURFACE,RADIUS)+
+        p.label(p.SIDE+PAD,k*h+14,w-2*PAD,140,P('foot'),'p_foot',p.GREY,'left','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+'</control>')
+ shell='<control type="group"><width>%d</width><height>%d</height>%s%s</control>'%(p.WIDTH,SECTION_ROWS*h+160,fit,card_xml)
+ lst=('<control type="grouplist" id="9300"><left>0</left><top>200</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+      '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%p.WIDTH+
+      p.label(p.SIDE+PAD,0,w-2*PAD,130,P('title'),'p_large',p.WHITE,'left','<scroll>false</scroll>')+
+      '<control type="image"><height>14</height><texture /></control>'+shell+spacer(60)+'</control>')
+ page='<controls>'+p.backdrop()+lst+header(p,[('','Close')],[('','')])+'</controls>'
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9601</defaultcontrol>'
+         '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
+
 # --- Kodi's own setting pages (categories and add-on settings) -------------------------------------------------
 # Kodi builds these pages itself from templates the skin provides (GUIDialogSettingsBase): category buttons from
 # id 10 into grouplist 3, settings from ids 7 (button), 8 (switch), 9 (spinner), 12 (edit), 13 (slider), 14 (group
@@ -511,15 +549,21 @@ def setting_templates(p,category_type):
    base,row_textures(p),text_style(p),w-PAD-60,M,M)+
   '<control type="image" id="11"><width>%d</width><height>34</height><texture /></control>'%w)
 
-def setting_body(p,title,header_buttons,extra='',categories=True):
+def setting_body(p,title,header_buttons,extra='',categories=True,paged=False):
  """Header (title = label 2), category pills (grouplist 3), settings (grouplist 5), help text (label 6)."""
  w=p.WIDTH-2*p.SIDE
  bar=p.image(0,0,p.WIDTH,(LIST_TOP if categories else 200)-10,p.MEDIA+'white.png',p.BG)
  heading=('<control type="label" id="2"><left>300</left><top>36</top><width>%d</width><height>108</height><font>p_h3</font>'
-          '<textcolor>%s</textcolor><align>center</align><aligny>center</aligny><scroll>false</scroll><label>%s</label></control>')%(p.WIDTH-600,p.WHITE,p.e(title))
+          '<textcolor>%s</textcolor><align>center</align><aligny>center</aligny><scroll>false</scroll><label>%s</label>%s</control>')%(p.WIDTH-600,p.WHITE,p.e(title),'<visible>String.IsEmpty(Window(Home).Property(KodiIOS.CategoryPage))</visible>' if paged else '')
+ # Opened from a section page row (section_page.py sets KodiIOS.CategoryPage): the chip row slides out of sight (it must
+ # stay "visible" so Kodi can focus its buttons and load that category) and the category's name is a large title.
+ paged_on='!String.IsEmpty(Window(Home).Property(KodiIOS.CategoryPage))'
+ hide=('<animation effect="slide" end="0,-700" time="0" condition="%s">Conditional</animation>'%paged_on) if paged else ''
  cats=('<control type="grouplist" id="3"><left>%d</left><top>200</top><width>%d</width><height>96</height><orientation>horizontal</orientation>'
-       '<itemgap>16</itemgap><scrolltime tween="cubic" easing="out">250</scrolltime><ondown>5</ondown><onup>9001</onup>%s</control>')%(
-       p.SIDE,w,'' if categories else '<visible>false</visible>')
+       '<itemgap>16</itemgap><scrolltime tween="cubic" easing="out">250</scrolltime><ondown>5</ondown><onup>9001</onup>%s%s</control>')%(
+       p.SIDE,w,'' if categories else '<visible>false</visible>',hide)
+ big=(p.label(p.SIDE+PAD,190,w-2*PAD,140,'$INFO[Window(Home).Property(KodiIOS.CategoryPage)]','p_large',p.WHITE,'left','<scroll>false</scroll><visible>%s</visible>'%paged_on)
+      if paged else '')
  lst=('<control type="grouplist" id="5"><left>%d</left><top>%d</top><width>%d</width><bottom>%d</bottom><orientation>vertical</orientation>'
       '<itemgap>2</itemgap><usecontrolcoords>false</usecontrolcoords><onup>3</onup><scrolltime tween="cubic" easing="out">250</scrolltime></control>')%(
       p.SIDE,LIST_TOP if categories else 200,w,HELP_H)
@@ -529,17 +573,21 @@ def setting_body(p,title,header_buttons,extra='',categories=True):
         '<control type="label" id="6"><width>1</width><height>1</height><visible>false</visible></control>'+
         '<control type="textbox"><left>%d</left><bottom>16</bottom><width>%d</width><height>%d</height><font>p_foot</font><textcolor>%s</textcolor>'
         '<label>$INFO[Control.GetLabel(6)]</label><autoscroll>false</autoscroll></control>')%(p.SIDE+PAD,w-2*PAD,HELP_H-40,p.GREY)
- return '<controls>'+p.backdrop()+lst+bar+heading+cats+help_+header_buttons+extra+'</controls>'
+ return '<controls>'+p.backdrop()+lst+bar+heading+big+cats+help_+header_buttons+extra+'</controls>'
 
 def category_window(p,original):
  """portrait/SettingsCategory.xml: System, Player, Media, Interface, Services, PVR and Games pages."""
  back=p.nav_button(9001,p.SIDE,36,'chevron-left.png','Action(Back)','<ondown>3</ondown>')
+ # From a section page row, Back returns to that section page (it was closed to open this one).
+ back=back.replace('<onclick>Action(Back)</onclick>','<onclick condition="!String.IsEmpty(Window(Home).Property(KodiIOS.CategorySection))">'
+                   'RunScript(service.kodi.ios.bootstrap,section_page,$INFO[Window(Home).Property(KodiIOS.CategorySection)])</onclick><onclick>Action(Back)</onclick>',1)
  level=('<control type="button" id="20"><left>%d</left><top>36</top><width>290</width><height>108</height><font>p_foot_b</font>'
         '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
         '<texturefocus border="54" colordiffuse="FF48484A">%spill_108.png</texturefocus><texturenofocus border="54" colordiffuse="%s">%spill_108.png</texturenofocus>'
         '<onclick>settingslevelchange</onclick><ondown>3</ondown><onleft>9001</onleft></control>')%(p.WIDTH-p.SIDE-290,BLUE,BLUE,p.MEDIA,p.SURFACE,p.MEDIA)
- body=setting_body(p,'',back+level,setting_templates(p,'togglebutton'))
- return p.window(original,body,'5','<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>')
+ body=setting_body(p,'',back+level,setting_templates(p,'togglebutton'),paged=True)
+ return p.window(original,body,'5','<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>'
+                 '<onunload>ClearProperty(KodiIOS.CategoryPage,Home)</onunload><onunload>ClearProperty(KodiIOS.CategorySection,Home)</onunload>')
 
 def addon_settings_window(p,original,categories=True):
  """portrait/DialogAddonSettings.xml: every add-on's settings (Elementum, Umbrella, Trakt...) as an iOS sheet with
@@ -557,6 +605,7 @@ def files(p,read):
  """{relative path: bytes} for the portrait folder and its textures."""
  out={p.FOLDER+'/Settings.xml':settings_window(p,read('Settings.xml')).encode(),
       p.FOLDER+'/IOSAccounts.xml':accounts_page(p).encode(),
+      p.FOLDER+'/IOSSection.xml':section_page(p).encode(),
       p.FOLDER+'/IOSSettingsSearch.xml':search_window(p).encode(),
       p.FOLDER+'/SettingsCategory.xml':category_window(p,read('SettingsCategory.xml')).encode(),
       p.FOLDER+'/DialogAddonSettings.xml':addon_settings_window(p,read('DialogAddonSettings.xml')).encode()}

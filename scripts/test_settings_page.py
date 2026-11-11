@@ -63,9 +63,9 @@ class SettingsPages(unittest.TestCase):
   self.assertNotIn('landscape window',ET.tostring(root,encoding='unicode'))
  def test_every_kodi_category_is_a_row(self):
   root=self.read('Settings.xml')
-  for id,action in ((9111,'ActivateWindow(skinsettings)'),(9112,'ActivateWindow(interfacesettings)'),(9114,'ActivateWindow(playersettings)'),
-                    (9115,'ActivateWindow(mediasettings)'),(9121,'ActivateWindow(pvrsettings)'),(9122,'ActivateWindow(gamesettings)'),
-                    (9131,'ActivateWindow(systemsettings)'),(9132,'ActivateWindow(servicesettings)'),(9133,'ActivateWindow(profiles)'),
+  for id,action in ((9111,'ActivateWindow(skinsettings)'),(9112,'RunScript(service.kodi.ios.bootstrap,section_page,interface)'),(9114,'RunScript(service.kodi.ios.bootstrap,section_page,player)'),
+                    (9115,'RunScript(service.kodi.ios.bootstrap,section_page,media)'),(9121,'RunScript(service.kodi.ios.bootstrap,section_page,pvr)'),(9122,'RunScript(service.kodi.ios.bootstrap,section_page,games)'),
+                    (9131,'RunScript(service.kodi.ios.bootstrap,section_page,system)'),(9132,'RunScript(service.kodi.ios.bootstrap,section_page,services)'),(9133,'ActivateWindow(profiles)'),
                     (9141,'ActivateWindow(addonbrowser)'),(9142,'ActivateWindow(filemanager)'),(9143,'ActivateWindow(eventlog)'),
                     (9151,'ActivateWindow(systeminfo)'),(9102,'ActivateWindow(addonbrowser,addons://outdated/,return)')):
    self.assertEqual(self.clicks(root,id),[action])
