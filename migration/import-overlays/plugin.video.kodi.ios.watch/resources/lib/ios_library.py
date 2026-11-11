@@ -356,6 +356,13 @@ def apply_details(li,info,art):
  if info.get('duration'):tag.setDuration(int(info['duration']))
  if art:li.setArt(art)
 
+def empty_show_row(details):
+ """Roadmap 2.17 (old ISSUE-155): a show folder with no finished episode opened as a blank page. One row says why."""
+ art={k:details[k] for k in ('poster','fanart') if details.get(k)}
+ return (ME+'?'+urllib.parse.urlencode({'action':'library','type':'tv'}),'No finished episodes yet',art,
+         {'mediatype':'video','plot':'Episodes appear here when their copy to Google Drive finishes. '
+          'Progress is in Notifications.','properties':{'KodiIOS.EmptyShow':'true'}},True)
+
 def play_downloaded(handle,params):
  """Resolve a completed copy directly and retain progress in the same history used by Continue Watching."""
  import xbmc,xbmcgui,xbmcplugin,xbmcvfs
@@ -465,6 +472,7 @@ def _directory(handle,params):
                 'KodiIOS.ShowRating':str(details.get('rating') or ''),'KodiIOS.ShowGenres':' / '.join(details.get('genres') or [])})
   if params.get('season') is None:rows=season_rows(rows,params,lib,art_cache,key)
   else:rows=[(play_route(row),row[1],row[2],dict(row[3],properties=play_properties([row])),row[4]) for row in rows]
+  if not rows:rows=[empty_show_row(details)]
  else:
   props={key:'' for key in ('KodiIOS.DownloadedShow','KodiIOS.PlayLabel','KodiIOS.PlayPath','KodiIOS.PlayResume',
                            'KodiIOS.ShowPlot','KodiIOS.ShowYear','KodiIOS.ShowRating','KodiIOS.ShowGenres')}

@@ -79,6 +79,10 @@ class Pages(unittest.TestCase):
   self.assertEqual((name,info['plot']),('Episode 2','Show plot'))   # no TMDb entry yet: never the file name
   name,info,art=page.playback_details({'kind':'movie','title':'Home Alone','year':'1990'},lib,{'movie:home alone:1990':{'plot':'Kevin.','poster':'h.jpg'}})
   self.assertEqual((name,info['plot'],art['poster']),('Home Alone','Kevin.','h.jpg'))
+ def test_show_with_nothing_finished_says_so(self):
+  path,label,art,info,folder=page.empty_show_row({'poster':'p.jpg'})
+  self.assertEqual((label,art['poster'],info['properties']['KodiIOS.EmptyShow']),('No finished episodes yet','p.jpg','true'))
+  self.assertIn('Notifications',info['plot'])
  def test_season_lookup_parses_and_caches(self):
   answer=json.dumps({'episodes':[{'episode_number':1,'name':'Pilot','overview':'x','still_path':'/s.jpg','runtime':56,'air_date':'2026-08-17'}]}).encode()
   urls=[];cache={}
