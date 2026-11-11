@@ -15,7 +15,8 @@ class Transfers(unittest.TestCase):
   now=[0.];drive=Drive();original=drive.call;sizes=[]
   def slow(method,url,body=None,headers=None):
    if method=='PUT' and body:
-    sizes.append(len(body));now[0]+=.1 if len(sizes)<=3 else len(body)/(.25*MB)
+    # ISSUE-164: pieces aim at ~10 s and shrink past 15 s, so the slow line here is 0.1 MB/s (2 MB took 20 s).
+    sizes.append(len(body));now[0]+=.1 if len(sizes)<=3 else len(body)/(.1*MB)
    return original(method,url,body,headers)
   drive.call=slow;sink=self.sink(drive,clock=lambda:now[0],background=False)
   data=b'x'*(dp.MAIN_CHUNK+1);sink.write(0,'.mp4',data);item=sink.finish()['0']

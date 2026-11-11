@@ -63,11 +63,12 @@ class FakeDrive(driveupload.Drive):
 class Stream(unittest.TestCase):
  def test_chunk_policy_shrinks_aligns_and_recovers_cautiously(self):
   policy=driveupload.StreamChunks(8*1024*1024)
-  policy.observe(8*1024*1024,1,16)
-  self.assertEqual(policy.current,1536*1024)
+  policy.observe(8*1024*1024,1,12);self.assertEqual(policy.current,8*1024*1024)   # 12 s: kept (ISSUE-164)
+  policy.observe(8*1024*1024,1,27)          # the owner's 0.3 MB/s: about ten seconds' worth, 256 KiB aligned
+  self.assertEqual(policy.current,2816*1024)
   for _ in range(2):policy.observe(policy.current,.5,1)
-  self.assertEqual(policy.current,1536*1024)
-  policy.observe(policy.current,.5,1);self.assertEqual(policy.current,3*1024*1024)
+  self.assertEqual(policy.current,2816*1024)
+  policy.observe(policy.current,.5,1);self.assertEqual(policy.current,5632*1024)
   policy.observe(policy.current,120,1);self.assertEqual(policy.current,1024*1024)
  def test_activity_does_not_claim_unconfirmed_download_bytes(self):
   import threading
@@ -116,6 +117,57 @@ class FakeAPI:
  def status(self,m):return self.st
  def files(self,m):return [('Fall/Fall.2022.2160p.mkv',3,'L')]
  def unlock(self,l):return 'https://x/f','Fall.2022.2160p.mkv',3
+
+class TwoLanes(unittest.TestCase):
+ """ISSUE-164: a season's episodes go up to Drive two at a time; a movie is still one upload."""
+ def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name
+ def tearDown(self):self.tmp.cleanup()
+ def season(self,names):
+  class Pack(FakeAPI):
+   def files(self,m):return [('S/%s'%n,3,n) for n in names]
+   def unlock(self,l):return 'https://x/'+l,l,3
+  return Pack()
+ def drive(self,fail=None,pause=.3):
+  import threading,time
+  test=self;lock=threading.Lock();test.now=test.most=0;test.uploaded=[];test.shown=[];p=self.p
+  class Lanes(FakeDrive):
+   def upload_stream(self,open_at,size,name,parent,session,save,keep_going=lambda:True,progress=lambda s,t:None,activity=lambda *a:None):
+    with lock:test.now+=1;test.most=max(test.most,test.now)
+    try:
+     session.update(url='https://upload/'+name,size=size);save()
+     time.sleep(pause);progress(1,size);time.sleep(pause)
+     test.shown.append(dict(debrid_drive.load(p).get('current') or {}))
+     if name==fail:raise ConnectionError('dropped')
+     progress(size,size);test.uploaded.append(name);return {'id':'d-'+name,'size':str(size)}
+    finally:
+     with lock:test.now-=1
+  return Lanes()
+ def run_job(self,api,drive):
+  for _ in range(6):
+   if debrid_drive.step(self.p,api,drive) is None:break
+ def test_a_season_uploads_two_episodes_at_once(self):
+  names=['Show.S01E0%d.mkv'%n for n in (1,2,3)]
+  debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')
+  drive=self.drive();self.run_job(self.season(names),drive)
+  job=debrid_drive.load(self.p)['jobs'][0]
+  self.assertEqual(job['status'],'done');self.assertEqual(sorted(self.uploaded),names);self.assertEqual(self.most,2)
+  self.assertTrue(all(f['done'] and f['drive_id'] for f in job['files']))
+  self.assertEqual(len(drive.folders_made),3)
+  self.assertTrue(any(c.get('parallel')==2 for c in self.shown))      # the pages show both lanes' speed
+  state=debrid_drive.load(self.p);self.assertNotIn('current',state);self.assertNotIn('current_also',state)
+ def test_a_movie_is_still_one_upload(self):
+  debrid_drive.queue(self.p,{'id':H,'name':'Fall.2022.2160p'},'movie','Fall (2022)')
+  self.run_job(FakeAPI(),self.drive());self.assertEqual(self.most,1)
+ def test_one_lane_failing_keeps_the_others_work_and_the_session(self):
+  names=['Show.S01E01.mkv','Show.S01E02.mkv']
+  debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')
+  api,drive=self.season(names),self.drive(fail='Show.S01E02.mkv')
+  self.assertEqual(debrid_drive.step(self.p,api,drive),1)                 # AllDebrid has it
+  self.assertEqual(debrid_drive.step(self.p,api,drive),30)                # copy: one lane failed, tried again in 30 s
+  job=debrid_drive.load(self.p)['jobs'][0];files={f['path']:f for f in job['files']}
+  self.assertTrue(files['S/Show.S01E01.mkv']['done']);self.assertFalse(files['S/Show.S01E02.mkv']['done'])
+  self.assertEqual(files['S/Show.S01E02.mkv']['session']['url'],'https://upload/Show.S01E02.mkv')   # resumes there
+  self.assertEqual(job['tries'],1)
 
 class Queue(unittest.TestCase):
  def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name;self.notes=[];self.done=[]

@@ -2522,3 +2522,18 @@ Status: FIXED IN SOURCE; needs AirPlay r45; host-measured, device untested.
 - Not changed: stopping Kodi's paused player during startup. It would break "AirPlay stop returns to the same spot"
   (back_to_kodi needs the open video) and a cancelled start would wait ~25 s for Kodi to reopen this file.
 - Regression: test_airplay_exports (SkipAttachments), test_remote_media (SlowLink), test_conversion_speed.
+
+## ISSUE-164 — Uploads to Drive at ~0.3 MB/s (owner, build 224, 2026-11-11)
+
+Status: CHANGED IN SOURCE; device untested.
+- Owner's Speedtest (5G) 3.94 Mbps up = ~0.49 MB/s. Build-224 log (Wi-Fi, while an episode streamed): 1 MiB pieces at
+  0.14-0.33 MB/s, each waiting for Drive's 308 before the next. Mbps vs MB/s explained to the owner.
+- Season jobs upload two episodes at once (debrid_drive LANES=2): each lane has its own resumable session copy written
+  back under one lock; the season folder is created under the lock; `current` shows one upload whose rate is both
+  lanes (parallel=2); the other lane is `current_also`. A failed lane keeps the other's finished episodes and its own
+  session; the job retries as before. Movies (one file) are unchanged.
+- Piece policy (StreamChunks): aim at ~10 s per piece (was 3 s), cut only past 15 s, grow under 6 s. At 0.3 MB/s a piece
+  is ~2.75 MiB instead of 1 MiB.
+- Not changed: two different jobs still go one after another (one `current` per job on the pages).
+- Regression: test_debrid_drive (TwoLanes: two in flight, both speeds shown, one lane failing keeps the session; chunk
+  policy), test_transfer_efficiency (slow line now 0.1 MB/s).

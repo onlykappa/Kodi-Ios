@@ -12,16 +12,20 @@ CHUNK=32*1024*1024  # a multiple of 256 KiB, as Drive requires (build 181: 32 MB
 TOP='Kodi Downloads'
 
 class StreamChunks:
- """Aligned pieces targeting about three seconds, bounded at 1–8 MiB. Growth requires three fast pieces."""
+ """Aligned pieces bounded at 1–8 MiB. Growth requires three fast pieces.
+ ISSUE-164 (build-224 log: 1 MiB pieces at ~0.3 MB/s, each waiting for Drive's answer before the next): pieces now
+ aim at about ten seconds, not three, so the wait between pieces costs a few percent instead of 10-15%. A piece is
+ cut only past fifteen seconds, and a stalled piece is still retried by the per-piece timeout."""
+ TARGET=10;SLOW=15;FAST=6
  def __init__(self,limit=None):
   self.limit=min(CHUNK if limit is None else limit,8*1024*1024)
   self.minimum=min(self.limit,1024*1024);self.current=self.limit;self.fast=0
  def observe(self,size,read_seconds,put_seconds):
   cost=max(read_seconds,put_seconds,.001)
-  if cost>5:
-   target=int(size*3/cost)//(256*1024)*(256*1024)
+  if cost>self.SLOW:
+   target=int(size*self.TARGET/cost)//(256*1024)*(256*1024)
    self.current=max(self.minimum,min(self.current,target));self.fast=0
-  elif cost<2:
+  elif cost<self.FAST:
    self.fast+=1
    if self.fast>=3:self.current=min(self.limit,self.current*2);self.fast=0
   else:self.fast=0

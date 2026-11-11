@@ -115,7 +115,7 @@ class SettingsKeepsTheMoreMenu(unittest.TestCase):
  def test_rows(self):
   sp=load('settings_page_header',LIB/'settings_page.py')
   rows={r[1]:r[2] for g in sp.ROOT for r in g}
-  self.assertEqual(rows['Favourites'],'ActivateWindow(1160)');self.assertIn('check_updates',rows['Check for updates'])
+  self.assertEqual(rows['Favourites'],'RunScript(service.kodi.ios.bootstrap,favourites_page)');self.assertIn('check_updates',rows['Check for updates'])
   self.assertIn('navigation_menu',rows['iPhone navigation / recovery']);self.assertIn('plugin.googledrive',rows['Google Drive'])
 
 if __name__=='__main__':unittest.main()
