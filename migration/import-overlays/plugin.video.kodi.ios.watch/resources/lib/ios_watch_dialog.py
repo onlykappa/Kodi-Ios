@@ -220,3 +220,51 @@ def _quiet(where,error,_seen=set()):
  try:
   import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
  except Exception:pass
+
+def title_for(tmdb_type,tmdb_id,art_cache):
+ """(title, year) for a TMDb id from the Library's saved art (drive-library-art.json), no network; None if unknown."""
+ kind='tv' if tmdb_type=='tv' else 'movie'
+ for slot,value in (art_cache or {}).items():
+  if not isinstance(value,dict) or str(value.get('tmdb_id') or '')!=str(tmdb_id):continue
+  parts=slot.split(':')
+  if len(parts)>=3 and parts[0]==kind and parts[1]:return parts[1],parts[2]
+ return None
+
+def fast_copy(handle,params,read_art=None,find=None,play=None):
+ """Roadmap 1C.2 (owner logs: 1.4-2.1 s in TMDb Helper before a downloaded copy played): Next Episode, spotlight
+ Play and show pages play a copy already on the phone or Drive before TMDb Helper fetches details and builds its
+ players. Only from saved data (art cache, saved Drive listing); Continue Watching and Choose source keep the full
+ path (their resume and choice logic lives there). True when it played."""
+ if params.get('ios_continue')=='1' or params.get('ios_choose')=='1':return False
+ tmdb_type=params.get('tmdb_type');tmdb_id=str(params.get('tmdb_id') or '')
+ if tmdb_type not in ('movie','tv') or not tmdb_id.isdigit():return False
+ season,episode=str(params.get('season') or ''),str(params.get('episode') or '')
+ if tmdb_type=='tv' and not (season.isdigit() and episode.isdigit()):return False
+ try:
+  if read_art is None:
+   import json,os,xbmcvfs
+   path=os.path.join(xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/'),'drive-library-art.json')
+   read_art=lambda:json.load(open(path,encoding='utf-8')) if os.path.exists(path) else {}
+  known=title_for(tmdb_type,tmdb_id,read_art())
+  if not known:return False
+  title,year=known
+  kind='movie' if tmdb_type=='movie' else 'episode'
+  if find is None:
+   import ios_downloaded
+   find=lambda *a:ios_downloaded.completed_copy(*a,cloud='cached')
+  copy=find(kind,title,year,season,episode)
+  path=(copy or {}).get('path')
+  if not path:return False
+  values={'path':path,'title':title,'show':'' if kind=='movie' else title,'kind':kind,'year':year,
+          'ask':'1' if kind=='movie' else '0','season':season or '0','episode':episode or '0','tmdb_id':tmdb_id}
+  if play is None:
+   import ios_library
+   play=ios_library.play_downloaded
+  play(handle if handle is not None else -1,values)
+  try:
+   import xbmc;xbmc.log('Kodi iOS watch: fast path played a %s copy of %s (TMDb Helper skipped)'%(copy.get('source'),kind),xbmc.LOGINFO)
+  except ImportError:pass
+  return True
+ except Exception as error:
+  _quiet('ios_watch_dialog:fast_copy',error)
+  return False

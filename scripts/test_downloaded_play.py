@@ -98,4 +98,20 @@ class WatchMenu(unittest.TestCase):
   self.assertIsNot(item,local)
   self.assertEqual((item.kodi_file,item.actions,item.is_local),('/dl/x.mkv','/dl/x.mkv',True))
   self.assertIsNone(m.downloaded_item(player,[local],find=lambda *a:None,folders=lambda:['/dl']))
+class FastPath(unittest.TestCase):
+ def load(self):
+  spec=importlib.util.spec_from_file_location('watch_fast',LIB/'ios_watch_dialog.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
+ def test_known_copy_plays_before_tmdb_helper(self):
+  m=self.load();played=[]
+  art={'tv:phony:':{'tmdb_id':'275139'},'movie:home alone:1990':{'tmdb_id':'771'}}
+  find=lambda kind,title,year,s,e:{'path':'plugin://plugin.googledrive/?action=play&item_id=e2','source':'drive'} if (title,s,e)==('phony','1','2') else None
+  self.assertTrue(m.fast_copy(7,{'tmdb_type':'tv','tmdb_id':'275139','season':'1','episode':'2'},lambda:art,find,lambda h,v:played.append((h,v))))
+  self.assertEqual((played[0][0],played[0][1]['show'],played[0][1]['kind'],played[0][1]['episode']),(7,'phony','episode','2'))
+  self.assertFalse(m.fast_copy(7,{'tmdb_type':'tv','tmdb_id':'275139','season':'1','episode':'3'},lambda:art,find,lambda h,v:played.append(v)))
+ def test_continue_watching_choose_and_unknown_titles_keep_the_full_path(self):
+  m=self.load();never=lambda *a:self.fail('looked up')
+  for extra in ({'ios_continue':'1'},{'ios_choose':'1'}):
+   self.assertFalse(m.fast_copy(1,dict({'tmdb_type':'movie','tmdb_id':'771'},**extra),never,never,never))
+  self.assertFalse(m.fast_copy(1,{'tmdb_type':'movie','tmdb_id':'999'},lambda:{},never,never))
+
 if __name__=='__main__':unittest.main()

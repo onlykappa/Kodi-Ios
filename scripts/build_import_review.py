@@ -57,6 +57,13 @@ def patch_helper(files,id):
  n=methods[0];lines=text.splitlines(keepends=True);indent=' '*(n.col_offset+4)
  replacement=lines[n.lineno-1]+indent+'from ios_watch_dialog import choose_player\n'+indent+'selected = choose_player(self)\n'+indent+'return self.set_resolver(selected) if selected else None\n'
  lines[n.lineno-1:n.end_lineno]=[replacement];files[player]=''.join(lines).encode();changes.append('Movie/episode resolver always requests explicit native Kodi watch choice before selecting a backend')
+ # Roadmap 1C.2: a copy already on the phone or Drive plays before TMDb Helper fetches details and builds players.
+ router=prefix+'resources/tmdbhelper/lib/items/router.py'
+ if router in files:
+  text=files[router].decode()
+  old='        play_player(handle=self.handle if self.handle != -1 else None, **self.params)';assert text.count(old)==1
+  files[router]=text.replace(old,'        from ios_watch_dialog import fast_copy\n        if fast_copy(self.handle if self.handle != -1 else None, self.params):\n            return\n'+old).encode()
+  changes.append('A downloaded copy plays before TMDb Helper builds its player list (no 1-2 s details fetch)')
  item=prefix+'resources/tmdbhelper/lib/items/listitem.py';text=files[item].decode();old='        return BuildURL(self.path, **self.params).url';assert text.count(old)==1
  files[item]=text.replace(old,'        from ios_watch_routes import wrap_item\n        return wrap_item(self, BuildURL(self.path, **self.params).url)').encode();changes.append('TV show routes open watch/episode options; original metadata/art/context entries remain')
  return files,changes
