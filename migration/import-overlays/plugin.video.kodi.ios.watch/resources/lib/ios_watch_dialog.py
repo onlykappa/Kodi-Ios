@@ -92,12 +92,14 @@ def choose_player(player):
  def installed(addon):return xbmc.getCondVisibility('System.AddonIsEnabled('+addon+')')
  rows=[]
  engine=next((p for p in candidates if p.file=='ios.elementum.json'),None)
- if engine and installed('plugin.video.elementum') and settings.getSettingBool('offer_elementum'):rows.append(('Elementum','play',engine))
- else:rows.append(('Elementum — not available on iPhone yet','elementum',None))
+ if engine and installed('plugin.video.elementum') and settings.getSettingBool('offer_elementum'):rows.append(('Download','play',engine))
+ else:rows.append(('Download — not available on iPhone yet','elementum',None))
+ # Owner (build 224): the two ways are called what they do: Download (Elementum: a torrent that can save to Google Drive)
+ # and Stream (Umbrella: a link from AllDebrid), not by their add-on names.
  # Any TMDb Helper player for Umbrella is offered once the add-on is installed, as on the Deck.
  umbrella=next((p for p in candidates if 'umbrella' in str(p.file).lower()),None)
- if umbrella and installed('plugin.video.umbrella'):rows.append(('Umbrella','play',umbrella))
- else:rows.append(('Umbrella — coming soon','umbrella',None))
+ if umbrella and installed('plugin.video.umbrella'):rows.append(('Stream','play',umbrella))
+ else:rows.append(('Stream — coming soon','umbrella',None))
  # Google Drive is not offered here: Elementum plays Drive-backed sources itself.
  for p in candidates:
   if p.is_local and p.kodi_file and xbmcvfs.exists(p.kodi_file):rows.append(('Local library file','play',p))
