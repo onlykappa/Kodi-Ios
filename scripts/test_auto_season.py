@@ -64,7 +64,7 @@ class Season(unittest.TestCase):
   self.assertEqual((heading,text),('Lanterns season 1','2 episodes queued in 4K · E04 in 1080p · not found yet: E05'))
  def test_queueing_without_asking_again(self):
   text=(LIB/'elementum_cloud.py').read_text()
-  self.assertIn("mode = auto.get('mode', 0) if auto is not None else dialog.select('Save to Google Drive'",text)
+  self.assertIn("mode = auto.get('mode', 0) if auto is not None else ask(dialog, 'Save to Google Drive'",text)
   self.assertIn("if auto is not None:return True          # already in Drive",text)
 
 if __name__=='__main__':unittest.main()

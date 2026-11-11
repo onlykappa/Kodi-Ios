@@ -9,6 +9,17 @@ import os
 import urllib.parse
 import urllib.request
 
+def ask(dialog, heading, rows):
+    """Roadmap B.9 (owner log eabc204b 09:58:04): after the version, Kodi's select box asked the next question. The
+    approved choice sheet asks it instead; Kodi's box only if the sheet cannot open. rows: [(label, detail)]."""
+    try:
+        import xbmcgui
+        import choice_sheet
+        return choice_sheet.choose({'heading': heading, 'rows': [{'label': l, 'detail': d} for l, d in rows]}, xbmcgui=xbmcgui)
+    except Exception:
+        return dialog.select(heading, ['%s · %s' % (l, d) for l, d in rows])
+
+
 LIMIT = 8 * 1024 * 1024  # torrent metadata only, never media
 
 
@@ -124,12 +135,12 @@ def route(url,quiet=False,request_id=None):
         import transfer_control
         held=transfer_control.paused(profile,'up')
         if auto is None and held:
-            mode=dialog.select('Uploads paused', ['Download now · resume uploads',
-                'Download and watch · resume uploads','Keep queued · uploads stay paused'])
+            mode=ask(dialog,'Uploads are paused',[('Download now','Uploads resume'),('Download and watch','Uploads resume; plays when ready'),
+                                                   ('Keep it queued','Uploads stay paused')])
             if mode in (0,1):transfer_control.set_paused(profile,'up',False)
             elif mode==2:mode=0
         else:
-            mode = auto.get('mode', 0) if auto is not None else dialog.select('Save to Google Drive', ['Download only', 'Download and watch after preparation'])
+            mode = auto.get('mode', 0) if auto is not None else ask(dialog, 'Save to Google Drive', [('Download only', 'Saved to Google Drive · watch any time'), ('Download and watch', 'Plays as soon as it is ready on Drive')])
         if mode < 0:return True
         if auto is None and home is not None:
             try:home.setProperty('KodiIOS.LastSaveMode', str(mode))   # the rest of a season reuses it
@@ -148,6 +159,9 @@ def route(url,quiet=False,request_id=None):
                                  choice.get('episode') or info.get('episode') or '', watch=mode == 1,show_tmdb=tracked.get('tmdb'))
         try:
             import xbmc,diagnostics,transfer_control
+            # Roadmap B.11: this runs in Elementum's interpreter; join the app's session so the line names the build.
+            try:diagnostics.attach(xbmcaddon.Addon('service.kodi.ios.bootstrap').getAddonInfo('path'),profile)
+            except Exception:pass
             diagnostics.event(lambda text:xbmc.log(text,xbmc.LOGINFO),'download_queue','saved',kind=kind,
                               status=job.get('status'),uploads_paused=transfer_control.paused(profile,'up'),
                               pending_jobs=sum(j.get('status') not in ('done','failed') for j in debrid_drive.load(profile).get('jobs',[])))

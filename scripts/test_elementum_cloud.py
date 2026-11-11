@@ -58,7 +58,7 @@ class Route(unittest.TestCase):
    self.dialog.select.return_value=mode
    cloud.route(url(uri=magnet(),type='episode',season='1',episode=str(mode+1)))
    self.assertEqual(transfer_control.paused(self.tmp.name,'up'),paused)
-   self.assertEqual(self.dialog.select.call_args.args[0],'Uploads paused')
+   self.assertEqual(self.dialog.select.call_args.args[0],'Uploads are paused')
   self.assertEqual(len(self.jobs()),2)
   self.assertEqual(self.dialog.notification.call_args.args[1],'Queued · uploads paused')
  def test_cancel_paused_download_keeps_pause_and_saves_nothing(self):
@@ -74,7 +74,7 @@ class Route(unittest.TestCase):
   self.assertEqual(len(self.jobs()),2)
   self.assertEqual([bool(j.get('watch_requested')) for j in self.jobs()],[False,True])
   self.assertEqual(self.dialog.select.call_count,2)
-  self.assertEqual(self.dialog.select.call_args.args[1],['Download only','Download and watch after preparation'])
+  self.assertEqual([x.split(' · ')[0] for x in self.dialog.select.call_args.args[1]],['Download only','Download and watch'])
  def test_cancel_never_enqueues_or_starts_a_player(self):
   self.dialog.select.return_value=-1
   self.assertTrue(cloud.route(url(uri=magnet())))
