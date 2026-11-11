@@ -238,6 +238,28 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
 .empty .ic2 svg{width:38px;height:38px}
 .empty h3{font-size:22px;font-weight:800}.empty p{color:var(--label2);font-size:16px;margin-top:6px;line-height:1.4}
 .btn-sec{display:inline-block;margin-top:18px;background:#2c2c2e;color:var(--blue);font-weight:700;font-size:16px;border-radius:20px;padding:10px 20px}
+.bgfade{position:absolute;inset:0;padding:100px 16px 0;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;align-content:start}
+.bgfade i{aspect-ratio:2/3;border-radius:12px;background:linear-gradient(160deg,#3a4350,#1c1c1e)}
+.art{height:150px;border-radius:16px;margin:4px 14px 0;background:radial-gradient(120% 120% at 30% 25%,#5d7a4f,#1d2a22 60%,#0b0f0c);position:relative;overflow:hidden}
+.art::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 45%,rgba(0,0,0,.55))}
+.art b{position:absolute;left:14px;bottom:12px;z-index:1;font-size:22px;font-weight:800;letter-spacing:-.02em}
+.art span{position:absolute;right:12px;top:10px;z-index:1;font-size:12px;font-weight:700;background:rgba(0,0,0,.45);padding:4px 9px;border-radius:10px}
+.tg2{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.03em;border:1px solid rgba(235,235,245,.28);color:var(--label2);border-radius:6px;padding:1px 6px;margin-right:5px;vertical-align:1px}
+.tg2.best{color:var(--green);border-color:rgba(48,209,88,.55)}
+.tg2.warn{color:#ff9f0a;border-color:rgba(255,159,10,.55)}
+.cover{display:block;height:6px;border-radius:3px;background:#3a3a3c;margin-top:7px;overflow:hidden}
+.cover i{display:block;height:100%;border-radius:3px;background:var(--blue)}
+.cover.full i{background:var(--green)}
+.asheet .sub{padding:0 20px 10px;text-align:center;color:var(--label2);font-size:14px;line-height:1.35}
+.asheet .big-hd{padding:14px 20px 8px;text-align:center}
+.asheet .big-hd b{display:block;font-size:20px;font-weight:800;letter-spacing:-.02em}
+.asheet .big-hd span{display:block;font-size:14px;color:var(--label2);margin-top:3px}
+.asheet .row .lb{padding:11px 0}
+.asheet .link-row{justify-content:center;min-height:50px}
+.asheet .link-row .ct{justify-content:center;box-shadow:inset 0 .5px 0 var(--sep)}
+.asheet .link-row .lb{flex:none;color:var(--blue);font-weight:600}
+.asheet .scroll2{max-height:420px;overflow:hidden;position:relative}
+.asheet .scroll2::after{content:"";position:absolute;left:0;right:0;bottom:0;height:40px;background:linear-gradient(rgba(44,44,46,0),rgba(44,44,46,.97))}
 </style>
 </head>
 <body>
@@ -303,12 +325,12 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
 <symbol id="mute" viewBox="0 0 24 24"><g fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 16.5h11s-1.8-1.6-2-5M7 9a5 5 0 0 1 8-3.7M10.5 20h3"/><path d="M4 3l16 18"/></g></symbol>
 </svg>
 <header class="intro">
-  <div class="eyebrow">Kodi for iOS · Design mockups · Settings inside pages · round 2</div>
+  <div class="eyebrow">Kodi for iOS · Design mockups · Settings inside pages + pickers · round 3</div>
   <h1>Inside the Settings pages</h1>
   <p>The Settings home is approved. Inside it, Kodi's own pages still show their desktop roots: a row of category chips, "- Theme" dashes for sub-settings, one help paragraph stuck at the bottom, an "Expert" button, and Fuse's landscape Skin Settings letterboxed in the middle of the phone. These boards bring every inside page to the same grouped-list style as the home screen.</p>
   <nav class="chips">
     <a href="#p-section">Section</a><a href="#p-page">Settings page</a><a href="#p-picker">Picker</a><a href="#p-text">Text field</a>
-    <a href="#p-skin">Skin settings</a><a href="#p-skinpage">Skin settings page</a><a href="#p-sheet">Choice sheet</a><a href="#p-addon">Add-on settings</a><a href="#p-profiles">Profiles</a><a href="#p-favs">Favourites</a><a href="#p-search">Search</a><a href="#p-updates">Add-on updates</a><a href="#specs">Rules</a>
+    <a href="#p-skin">Skin settings</a><a href="#p-skinpage">Skin settings page</a><a href="#p-sheet">Choice sheet</a><a href="#p-addon">Add-on settings</a><a href="#p-profiles">Profiles</a><a href="#p-favs">Favourites</a><a href="#p-search">Search</a><a href="#p-updates">Add-on updates</a><a href="#p-watch">How to watch</a><a href="#p-quality">Pick a quality</a><a href="#p-season">Season quality</a><a href="#p-links">All links</a><a href="#specs">Rules</a>
   </nav>
 </header>
 <main class="grid">
@@ -594,6 +616,78 @@ figcaption p{color:var(--label2);font-size:14px;line-height:1.45}
 </div></div>
 <figcaption><div class="n">12 · ADD-ON UPDATES</div><h2>Nothing to update</h2>
 <p>Today an empty list with only "..". Now it says everything is up to date, when it last checked, with Check Now. When updates exist they are rows with the add-on's icon, its new version and an Update button, plus Update All at the top.</p></figcaption>
+</figure>
+
+<!-- 13 HOW TO WATCH -->
+<figure id="p-watch">
+<div class="phone"><div class="screen">
+  <div class="bgfade"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="sheet-dim"></div>
+  <div class="asheet"><div class="grp">
+    <div class="art"><span>MOVIE · 2014</span><b>The Maze Runner</b></div>
+    <div class="big-hd"><span>How would you like to get it?</span></div>
+    <a class="row"><i class="ic fill" style="--c:#1f6feb"><svg><use href="#magnet"/></svg></i><span class="ct"><span class="lb">Elementum<small>Torrents · can save to Google Drive</small></span><svg class="chev"><use href="#chev"/></svg></span></a>
+    <a class="row"><i class="ic fill" style="--c:#7d3cff"><svg><use href="#umbrella"/></svg></i><span class="ct"><span class="lb">Umbrella<small>Links from your AllDebrid account</small></span><svg class="chev"><use href="#chev"/></svg></span></a>
+    <div class="foot" style="padding:10px 22px 14px">Your choice is remembered for this show. Change it any time in Settings › Accounts.</div>
+  </div><div class="cancel">Cancel</div></div>
+</div></div>
+<figcaption><div class="n">13 · HOW TO WATCH</div><h2>Choosing a source</h2>
+<p>Today a centred dark box with a small picture and two bare words. Now a sheet from the bottom, like every other choice: the title's artwork with its name, then Elementum and Umbrella as rows with their own tiles and one line saying what each does. A footer says it is remembered. Cancel stays apart in blue.</p></figcaption>
+</figure>
+
+<!-- 14 PICK A QUALITY (movie) -->
+<figure id="p-quality">
+<div class="phone"><div class="screen">
+  <div class="bgfade"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="sheet-dim"></div>
+  <div class="asheet"><div class="grp">
+    <div class="big-hd"><b>The Maze Runner</b><span>Pick a quality · 25 versions found</span></div>
+    <a class="row"><span class="ct"><span class="lb"><b>4K Ultra HD</b> <span class="tg2 best">BEST</span><small>5 versions · HDR10 · from 18 GB</small></span><svg class="chev"><use href="#chev"/></svg></span></a>
+    <a class="row"><span class="ct"><span class="lb"><b>1080p Full HD</b><small>11 versions · from 2.4 GB</small></span><svg class="chev"><use href="#chev"/></svg></span></a>
+    <a class="row"><span class="ct"><span class="lb"><b>720p HD</b><small>3 versions · from 1.1 GB</small></span><svg class="chev"><use href="#chev"/></svg></span></a>
+    <a class="row link-row"><span class="ct"><span class="lb">Show All 25 Links</span></span></a>
+  </div><div class="cancel">Cancel</div></div>
+</div></div>
+<figcaption><div class="n">14 · PICK A QUALITY</div><h2>Quality, with what it means</h2>
+<p>Each quality shows how many versions exist, the size it starts from, and a tag for HDR; the best available is marked. The title sits at the top so you know what you are choosing for. "Show all links" is a blue row at the bottom, not another grey option.</p></figcaption>
+</figure>
+
+<!-- 15 SEASON QUALITY -->
+<figure id="p-season">
+<div class="phone"><div class="screen">
+  <div class="bgfade"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="sheet-dim"></div>
+  <div class="asheet"><div class="grp">
+    <div class="big-hd"><b>Lanterns · Season 1</b><span>No full-season pack found. These get each episode separately.</span></div>
+    <a class="row"><span class="ct"><span class="lb"><b>1080p Full HD</b> <span class="tg2 best">ALL 8</span><small>8 of 8 episodes</small><span class="cover full"><i style="width:100%"></i></span></span><svg class="chev"><use href="#chev"/></svg></span></a>
+    <a class="row"><span class="ct"><span class="lb"><b>4K Ultra HD</b> <span class="tg2 warn">6 OF 8</span><small>Episodes 1–6 · 7 and 8 wait for a 4K version</small><span class="cover"><i style="width:75%"></i></span></span><svg class="chev"><use href="#chev"/></svg></span></a>
+    <a class="row"><span class="ct"><span class="lb"><b>720p HD</b> <span class="tg2 best">ALL 8</span><small>8 of 8 episodes</small><span class="cover full"><i style="width:100%"></i></span></span><svg class="chev"><use href="#chev"/></svg></span></a>
+    <div class="foot" style="padding:10px 22px 14px">Episodes without your quality are not downloaded in a lower one. They are tried again when you open the app.</div>
+  </div><div class="cancel">Cancel</div></div>
+</div></div>
+<figcaption><div class="n">15 · SEASON, NO PACK</div><h2>Season quality, episode by episode</h2>
+<p>When there is no full-season pack, the choices are qualities with how many of the aired episodes they cover (a bar and a tag, green when all). The footer states the rule the app follows: no silent drop to a lower quality, and the rest are retried on opening. Picking one queues every covered episode at once.</p></figcaption>
+</figure>
+
+<!-- 16 ALL LINKS -->
+<figure id="p-links">
+<div class="phone"><div class="screen">
+  <div class="nav"><a class="back"><svg><use href="#back"/></svg></a><div class="title">All Links</div><div class="lvl">Best First<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
+  <div class="scroll">
+    <div class="big-title">All Links</div>
+    <div class="foot" style="padding:0 32px 12px">The Maze Runner · 25 versions</div>
+    <div class="group">
+      <a class="row"><span class="ct"><span class="lb">REMUX UHD BluRay<small><span class="tg2 best">4K</span><span class="tg2">HDR10</span><span class="tg2">HEVC</span>58 GB · 214 seeds</small></span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">UHD BluRay x265<small><span class="tg2 best">4K</span><span class="tg2">HDR10</span><span class="tg2">HEVC</span>21 GB · 96 seeds</small></span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">WEB-DL AV1<small><span class="tg2 best">4K</span><span class="tg2 warn">AV1</span>9.8 GB · 41 seeds</small></span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">BluRay x264<small><span class="tg2">1080p</span><span class="tg2">H.264</span>8.4 GB · 188 seeds</small></span><svg class="chev"><use href="#chev"/></svg></span></a>
+      <a class="row"><span class="ct"><span class="lb">WEBRip x265<small><span class="tg2">1080p</span><span class="tg2">HEVC</span>2.6 GB · 120 seeds</small></span><svg class="chev"><use href="#chev"/></svg></span></a>
+    </div>
+    <div class="foot">AV1 is marked in orange: it may need converting on the phone before Apple TV or AirPlay.</div>
+  </div>
+</div></div>
+<figcaption><div class="n">16 · ALL LINKS</div><h2>The full list, readable</h2>
+<p>Show All Links opens a page, not another box: the release type as the title, then tags for picture, HDR and codec, with size and seeds on one line. Sort menu top right (Best First, Smallest, Most Seeds). Tags use the same pills as the Subtitles menu; AV1 is flagged because it can need converting.</p></figcaption>
 </figure>
 </main>
 
