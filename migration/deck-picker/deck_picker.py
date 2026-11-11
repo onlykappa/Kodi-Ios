@@ -359,7 +359,11 @@ def quality_menu_labels(keys, groups, top_n=TOP_N):
     labels = []
     for q in keys:
         uniq = dedupe(groups[q])
-        labels.append(u'[B]%s[/B]   \u00b7   %d version%s' % (quality_label(q), len(uniq), u'' if len(uniq) == 1 else u's'))
+        # Owner-approved picker (mockup board 14): the quality, and under it how many versions and the size they start
+        # from. choose_quality splits the two at \x1f into the choice's name and its second line.
+        smallest = min(uniq, key=lambda it: it['size'])
+        labels.append(u'[B]%s[/B]\x1f%d version%s \u00b7 from %s' % (quality_label(q), len(uniq), u'' if len(uniq) == 1 else u's',
+                                                                   size_text(smallest)))
     return labels
 
 
@@ -374,7 +378,11 @@ def count_label(shown_n, uniq_n):
 # ---------------------------------------------------------------------------------
 def choose_quality(labels):
     from kodi_six import xbmcgui
-    return xbmcgui.Dialog().select(u'Pick a quality', labels)
+    items = []
+    for text in labels:
+        name, _, detail = text.partition(u'\x1f')
+        items.append(xbmcgui.ListItem(label=name, label2=detail))
+    return xbmcgui.Dialog().select(u'Pick a quality', items)
 
 
 def _poster_for(title):

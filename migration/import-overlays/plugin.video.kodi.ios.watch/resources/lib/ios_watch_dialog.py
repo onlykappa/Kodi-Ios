@@ -1,4 +1,8 @@
 """Deck-style "How would you like to watch?" chooser inside TMDb Helper's movie/episode resolver; no autoplay."""
+# Owner (build 224): "Download or Stream" in place of the add-on names. The second line says what each one does.
+ICON_DIR='special://skin/extras/icons/'
+ROW_TILE={'elementum':('FF1F6FEB','cloud-arrow-down.png'),'umbrella':('FF7D3CFF','circle-play.png')}
+ROW_DETAIL={'play':{False:''},'elementum':{True:'Not available on this iPhone yet'},'umbrella':{True:'Coming soon'}}
 NOT_READY={'elementum':('Elementum not available','Elementum is not installed or is switched off in this build. Check Add-ons > Video add-ons > Elementum.'),
            'umbrella':('Umbrella not available yet','Umbrella has not been ported to this iPhone build yet. It will appear here once it is.')}
 
@@ -148,7 +152,11 @@ def choose_player(player):
  if selected is None:
   items=[]
   for label,action,item in rows:
-   li=xbmcgui.ListItem(label=label);li.setArt(art);items.append(li)
+   li=xbmcgui.ListItem(label=label,label2=ROW_DETAIL.get(action,{}).get(item is None,''));li.setArt(art)
+   # Download and Stream get coloured tiles (the picker's approved look); other rows stay plain.
+   tile=ROW_TILE.get(kind_of(item) if item is not None else action)
+   if tile:li.setProperty('tint',tile[0]);li.setProperty('glyph',ICON_DIR+tile[1])
+   items.append(li)
   name=str(info.get('title') or info.get('tvshowtitle') or '')
   selected=xbmcgui.Dialog().select('How would you like to watch'+(' '+name if name else '')+'?',items)
  # Owner logs (build-124): TMDb Helper reported "lib.player - Failure!" right after a row was tapped, i.e. this

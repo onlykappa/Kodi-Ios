@@ -1041,10 +1041,22 @@ def select_dialog(original):
   '<control type="group"><visible>!%s</visible>%s</control>'%(titled,label(40,24,w-80,130,'$INFO[Control.GetLabel(1)]','p_h3',WHITE,'center','<wrapmultiline>true</wrapmultiline>'))+
   '<control type="label" id="1"><visible>false</visible></control>')
  icon_row='!String.IsEmpty(ListItem.Icon) + !String.StartsWith(ListItem.Icon,Default) + String.IsEmpty(ListItem.Art(poster))'
+ # Owner-approved pickers (docs/design/settings-pages-mockups.html boards 13-14): a choice may carry a second line
+ # (ListItem.Label2: "5 versions · from 18 GB") and a coloured tile (properties tint and glyph, as in the More menu).
+ tile='!String.IsEmpty(ListItem.Property(tint))';two='!String.IsEmpty(ListItem.Label2)'
  item=lambda focused:(image(0,0,w,2,MEDIA+'white.png',SEP)+(image(0,2,w,row_h-2,MEDIA+'white.png','14FFFFFF') if focused else '')+
-  icon(40,(row_h-72)//2,72,'$INFO[ListItem.Icon]',WHITE,'<visible>%s</visible>'%icon_row)+
-  label(40,0,w-80,row_h,'$INFO[ListItem.Label]','p_sub',WHITE,'center','<wrapmultiline>true</wrapmultiline><scroll>false</scroll><visible>![%s]</visible>'%icon_row)+
-  label(140,0,w-200,row_h,'$INFO[ListItem.Label]','p_body',WHITE,'left','<visible>%s</visible>'%icon_row)+
+  icon(40,(row_h-72)//2,72,'$INFO[ListItem.Icon]',WHITE,'<visible>%s + !%s</visible>'%(icon_row,tile))+
+  label(40,0,w-80,row_h,'$INFO[ListItem.Label]','p_sub',WHITE,'center','<wrapmultiline>true</wrapmultiline><scroll>false</scroll><visible>![%s] + !%s + !%s</visible>'%(icon_row,tile,two))+
+  label(140,0,w-200,row_h,'$INFO[ListItem.Label]','p_body',WHITE,'left','<visible>%s + !%s + !%s</visible>'%(icon_row,tile,two))+
+  # a tile: 80 square in the choice's colour with its glyph, text beside it
+  image(40,(row_h-80)//2,80,80,MEDIA+'tile_mask.png','$INFO[ListItem.Property(tint)]','<visible>%s</visible>'%tile)+
+  icon(40+18,(row_h-44)//2,44,'$INFO[ListItem.Property(glyph)]',WHITE,'<visible>%s</visible>'%tile)+
+  label(150,10,w-260,70,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>%s + %s</visible>'%(tile,two))+
+  label(150,0,w-260,row_h,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>%s + !%s</visible>'%(tile,two))+
+  label(150,72,w-260,48,'$INFO[ListItem.Label2]','p_foot',GREY,'left','<scroll>false</scroll><visible>%s + %s</visible>'%(tile,two))+
+  # two lines, no tile: left-aligned name over its detail
+  label(40,10,w-130,70,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>!%s + %s</visible>'%(tile,two))+
+  label(40,72,w-130,48,'$INFO[ListItem.Label2]','p_foot',GREY,'left','<scroll>false</scroll><visible>!%s + %s</visible>'%(tile,two))+
   icon(w-86,(row_h-40)//2,40,'check.png',GREEN,'<visible>ListItem.IsSelected</visible>'))
  lists=''.join(('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><onup>%d</onup><ondown>9050</ondown>'
   '<scrolltime tween="cubic">250</scrolltime><itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout>%s</control>'

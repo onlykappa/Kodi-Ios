@@ -84,7 +84,9 @@ class UmbrellaPage(unittest.TestCase):
   # No seed counts for debrid links: size and where it comes from.
   self.assertEqual(deck.meta_text(parsed[0]),'48.00 GB  \u2022  AllDebrid, Torrentio, unchecked')
   labels=deck.quality_menu_labels(*deck.group_by_quality(parsed))
-  self.assertEqual(labels[:2],['[B]4K Ultra HD[/B]   \u00b7   6 versions','[B]1080p Full HD[/B]   \u00b7   1 version'])
+  self.assertEqual([l.split('\x1f')[0] for l in labels[:2]],['[B]4K Ultra HD[/B]','[B]1080p Full HD[/B]'])
+  # the second line (split off by choose_quality): how many versions and the size they start from
+  self.assertTrue(labels[0].split('\x1f')[1].startswith('6 versions \u00b7 from '));self.assertTrue(labels[1].split('\x1f')[1].startswith('1 version \u00b7 from '))
   self.assertFalse(any('top pick' in l or 'seeds' in l for l in labels))
   self.assertEqual(sys.modules.get('elementum'),None)  # stand-ins only lived inside load()
  def test_run_returns_what_umbrellas_window_returns(self):
