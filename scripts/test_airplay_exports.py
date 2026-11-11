@@ -13,7 +13,7 @@ class Exports(unittest.TestCase):
  def setUp(self):
   self.sh=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text();self.exp=exports(self.sh)
  def test_every_public_native_function_is_exported(self):
-  defined=set(re.findall(r'visibility\("default"\)\)\)\s+[\w\s\*]+?\b(kodi_(?:airplay|background)_\w+)\s*\(',self.sh))
+  defined=set(re.findall(r'visibility\("default"\)\)\)\s+[\w\s\*]+?\b(kodi_(?:airplay|background|http)_\w+)\s*\(',self.sh))
   self.assertTrue(defined);self.assertEqual(sorted(defined-self.exp),[])
  def test_every_airplay_function_python_calls_is_exported(self):
   used=set()

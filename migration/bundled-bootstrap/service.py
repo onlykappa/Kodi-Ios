@@ -290,7 +290,14 @@ def drive_uploads(monitor,home,profile):
  drive_addon=xbmcaddon.Addon('plugin.googledrive')
  if signin_server.migrate(drive_addon):xbmc.log('Kodi iOS Drive: sign-in server set to the owner worker',xbmc.LOGINFO)
  accounts=AccountManager(xbmcvfs.translatePath(drive_addon.getAddonInfo('profile')))
- send=driveupload.sender(tls_context(),log=lambda message:xbmc.log(message,xbmc.LOGINFO))
+ native=None
+ try:
+  import airplay,native_http
+  path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
+  native=native_http.sender(airplay.load(path)) if path else None
+ except Exception as error:xbmc.log('Kodi iOS Drive: system networking unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
+ xbmc.log('Kodi iOS Drive: uploads use %s'%('system networking' if native else 'Python networking'),xbmc.LOGINFO)
+ send=driveupload.sender(tls_context(),log=lambda message:xbmc.log(message,xbmc.LOGINFO),native=native)
  def refresh(refresh_token):
   server=signin_server.server(drive_addon.getSetting('sign-in-server'))
   body=urllib.parse.urlencode({'provider':'googledrive','refresh_token':refresh_token}).encode()

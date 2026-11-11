@@ -433,13 +433,16 @@ STALL=45
 SLOW_RATE=128*1024
 def request_timeout(timeout,body):
  return timeout+(len(body)/SLOW_RATE if body else 0)
-def sender(context,timeout=STALL,log=lambda message:None):
- """HTTP for Drive with the given TLS context; returns (status, headers, body) without following redirects."""
+def sender(context,timeout=STALL,log=lambda message:None,native=None):
+ """HTTP for Drive with the given TLS context; returns (status, headers, body) without following redirects.
+ native: native_http.sender(lib) or None. Upload pieces go through it (ISSUE-167); everything else stays here."""
  import diagnostics
  class NoRedirect(urllib.request.HTTPRedirectHandler):
   def redirect_request(self,*args,**kwargs):return None
  opener=urllib.request.build_opener(NoRedirect,urllib.request.HTTPSHandler(context=context))
  def send(method,url,body,headers):
+  if native is not None and method=='PUT' and body and len(body)>=256*1024:
+   return native_put(url,body,headers)
   request=urllib.request.Request(url,data=body,headers=dict(headers,**{'User-Agent':'Kodi iOS Drive upload'}),method=method)
   safe=method in ('GET','HEAD','DELETE')
   for attempt in range(3 if safe else 1):
@@ -467,6 +470,18 @@ def sender(context,timeout=STALL,log=lambda message:None):
     diagnostics.exception(log,'drive_http',e,elapsed_s=round(time.monotonic()-begun,3),retry=safe and attempt<2 and 'CERTIFICATE_VERIFY_FAILED' not in str(e),**fields)
     if not safe or attempt==2 or 'CERTIFICATE_VERIFY_FAILED' in str(e):raise
    time.sleep(.5*2**attempt)
+ def native_put(url,body,headers):
+  begun=time.monotonic()
+  fields=dict(method='PUT',host=urllib.parse.urlsplit(url).hostname,attempt=1,request_bytes=len(body),native=True)
+  try:status,answer_headers,answer=native('PUT',url,body,dict(headers,**{'User-Agent':'Kodi iOS Drive upload'}),request_timeout(timeout,body))
+  except ConnectionError as e:
+   diagnostics.exception(log,'drive_http',e,elapsed_s=round(time.monotonic()-begun,3),retry=False,**fields);raise
+  elapsed=round(time.monotonic()-begun,3);rate=(len(body)/1048576/elapsed) if elapsed>0 else 0
+  if status==308:
+   log('Drive upload: %.1f MB piece in %.0f s (%.2f MB/s, system networking)'%(len(body)/1048576,elapsed,rate))
+   diagnostics.event(log,'drive_http','piece',status=308,elapsed_s=elapsed,mb_s=round(rate,2),**fields)
+  else:diagnostics.event(log,'drive_http','response',status=status,elapsed_s=elapsed,response_bytes=len(answer),**fields)
+  return status,answer_headers,answer
  return send
 
 class SignedOut(RuntimeError):

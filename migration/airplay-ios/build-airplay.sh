@@ -740,6 +740,74 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
 // Kodi is in the background (playback audio session). Apple's player handles MP4/MOV/HLS; r5 converts MKV, AVI,
 // WebM and MPEG-TS on the phone first (and links whose bytes turn out not to be MP4).
 __attribute__((visibility("default"))) int kodi_airplay_startup_budget(void) { return KR_STARTUP_SECONDS; }
+// ISSUE-167 (build-229 log 5331b718): uploads to Google Drive ran at ~0.3 MB/s in total on a 115 Mbps Wi-Fi line,
+// one lane or two, 5G or Wi-Fi alike, while nothing played: a limit inside the app, not the line. Python sends a body
+// 16 KB at a time, each step waiting for the interpreter. This sends one HTTP request with the system's networking
+// (NSURLSession: connection reuse, HTTP/2) while the caller's thread waits; ctypes releases the interpreter meanwhile.
+// headers: "Name: value\n" lines. Returns the HTTP status, or -1 with the error in out_body. Redirects are not followed.
+@interface KodiHTTPNoRedirect : NSObject <NSURLSessionTaskDelegate>
+@end
+@implementation KodiHTTPNoRedirect
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response
+        newRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURLRequest *))completionHandler { completionHandler(nil); }
+@end
+static NSURLSession *kodiHTTPSession(void) {
+    static NSURLSession *session; static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSURLSessionConfiguration *c = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+        c.HTTPMaximumConnectionsPerHost = 6; c.timeoutIntervalForRequest = 60; c.timeoutIntervalForResource = 3600;
+        c.URLCache = nil; c.HTTPCookieStorage = nil;
+        session = [NSURLSession sessionWithConfiguration:c delegate:[KodiHTTPNoRedirect new] delegateQueue:nil];
+    });
+    return session;
+}
+__attribute__((visibility("default"))) int kodi_http_send(const char *method, const char *url, const char *headers,
+        const void *body, long long length, double timeout, char *out_headers, int out_headers_len,
+        char *out_body, int out_body_len, int *out_body_used) {
+    @autoreleasepool {
+        if (out_body_used) *out_body_used = 0;
+        if (out_headers && out_headers_len > 0) out_headers[0] = 0;
+        NSURL *address = url ? [NSURL URLWithString:[NSString stringWithUTF8String:url]] : nil;
+        if (!address) { if (out_body && out_body_len > 0) snprintf(out_body, out_body_len, "bad url"); return -1; }
+        NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:address];
+        request.HTTPMethod = method ? [NSString stringWithUTF8String:method] : @"GET";
+        request.timeoutInterval = timeout > 0 ? timeout : 60;
+        request.cachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
+        if (headers) {
+            for (NSString *line in [[NSString stringWithUTF8String:headers] componentsSeparatedByString:@"\n"]) {
+                NSRange colon = [line rangeOfString:@":"];
+                if (colon.location == NSNotFound) continue;
+                NSString *name = [[line substringToIndex:colon.location] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+                NSString *value = [[line substringFromIndex:colon.location + 1] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+                if (name.length) [request setValue:value forHTTPHeaderField:name];
+            }
+        }
+        NSData *payload = body && length > 0 ? [NSData dataWithBytesNoCopy:(void *)body length:(NSUInteger)length freeWhenDone:NO] : nil;
+        __block NSInteger status = -1; __block NSData *answer = nil; __block NSString *problem = nil; __block NSDictionary *fields = nil;
+        dispatch_semaphore_t done = dispatch_semaphore_create(0);
+        void (^finish)(NSData *, NSURLResponse *, NSError *) = ^(NSData *data, NSURLResponse *response, NSError *error) {
+            if (error) problem = error.localizedDescription ?: @"request failed";
+            if ([response isKindOfClass:NSHTTPURLResponse.class]) { status = ((NSHTTPURLResponse *)response).statusCode; fields = ((NSHTTPURLResponse *)response).allHeaderFields; }
+            if (error && ![response isKindOfClass:NSHTTPURLResponse.class]) status = -1;
+            answer = data; dispatch_semaphore_signal(done);
+        };
+        NSURLSessionDataTask *task = payload ? [kodiHTTPSession() uploadTaskWithRequest:request fromData:payload completionHandler:finish]
+                                             : [kodiHTTPSession() dataTaskWithRequest:request completionHandler:finish];
+        [task resume];
+        dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
+        if (out_headers && out_headers_len > 0) {
+            NSMutableString *text = [NSMutableString string];
+            for (id key in fields) [text appendFormat:@"%@: %@\n", key, fields[key]];
+            snprintf(out_headers, out_headers_len, "%s", text.UTF8String ?: "");
+        }
+        if (status < 0) { if (out_body && out_body_len > 0) snprintf(out_body, out_body_len, "%s", problem.UTF8String ?: "request failed"); return -1; }
+        if (out_body && out_body_len > 0 && answer.length) {
+            int n = (int)MIN((NSUInteger)out_body_len, answer.length);
+            memcpy(out_body, answer.bytes, n); if (out_body_used) *out_body_used = n;
+        }
+        return (int)status;
+    }
+}
 __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, const char *title) {
     os_unfair_lock_lock(&ownershipLock);
     unsigned generation=atomic_fetch_add(&playGeneration,1)+1;
@@ -1026,7 +1094,7 @@ for c in "$REMUX"/src/*.c "$REMUX"/gmplayer/*.c; do
 done
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
 printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n_kodi_airplay_serve\n_kodi_airplay_serve_segmented\n' > "$WORK/exports"
-printf '_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n' >> "$WORK/exports"
+printf '_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
   -framework VideoToolbox -framework CoreVideo -framework CoreText \
@@ -1059,8 +1127,8 @@ nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(show|open|play|state|close|
 # r15: prepare_keep_image_subs keeps Blu-ray picture subtitles in .sup files beside the MP4 (Interstellar, build 160).
 [[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(show|open|play|state|close|message|log|network|settings|active|subtitles|prepare|probe|prepare_streams|prepare_keep_image_subs|prepare_to|verify|prepare_hdr|probe_ex|prepare_audio_languages|prepare_background|prepare_subtitle_languages|prepare_marks|prepare_resume|start_at|serve|serve_segmented)|background_(keep|state))$')" == 29 ]] || { echo 'missing exports' >&2; exit 1; }
 # ISSUE-161: r44 defined these but did not export them, so the controller fell back to 60 s and lost the health log.
-nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_airplay_(health|startup_budget)$'
-[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_airplay_(health|startup_budget)$')" == 2 ]] || { echo 'startup budget/health not exported' >&2; exit 1; }
+nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(health|startup_budget)|http_send)$'
+[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(health|startup_budget)|http_send)$')" == 3 ]] || { echo 'startup budget/health/http_send not exported' >&2; exit 1; }
 ! nm -gU "$FW/KodiAirPlay" | grep -E ' _(av|avformat|avcodec|swr|sws|kr|gm|ass|FT|hb|fribidi)_' || { echo 'FFmpeg symbols exported: they would clash with Kodi (libass too)' >&2; exit 1; }
 # r10: libass and the burn-in path are linked in (private).
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _(ass_render_frame|kr_subs_blend|kr_video_burn|kr_remux_set_subtitles|hb_shape|FT_Init_FreeType|fribidi_get_par_embedding_levels_ex)$')" == 7 ]] || { echo 'r10 libass burn-in missing' >&2; exit 1; }

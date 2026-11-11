@@ -2584,3 +2584,17 @@ Status: FIXED IN SOURCE (rig-checked where possible); AirPlay part needs r47; de
   prompt opened under it once and froze input; not reproducible after dismissing it.)
 - Regression: test_choice_sheet (new), test_airplay_flow, test_show_scrolling, test_source_match, test_deck_picker,
   test_season_sources, host test_remux EXT-X-START check.
+
+## ISSUE-167 — Uploads to Drive at ~0.3 MB/s on a 115 Mbps line (owner, build 229, 2026-11-11)
+
+Status: CHANGED IN SOURCE; needs AirPlay r47; device untested (the cause is inferred, not proven).
+- Owner: Speedtest 512 down / 115 up Mbps on Wi-Fi. Log 5331b718, 06:48-06:57 with nothing playing ("full speed", no
+  slowdown): Drive copy read the source at 110-360 MB/s, but each upload PUT ran 0.12-0.23 MB/s per lane; two lanes
+  together ~0.35 MB/s, the same total as one lane earlier, and the same as on 5G. A shared limit inside the app, not
+  the line or Google. No cap applies when nothing plays (slowdown.CAP is only for video/AirPlay).
+- Likely cause: Python's TLS sends a body 16 KB at a time and every step waits for the interpreter shared by all the
+  add-ons' threads. Change: upload pieces go through kodi_http_send (KodiAirPlay, NSURLSession: connection reuse,
+  HTTP/2) while the Python thread waits outside the interpreter; everything else keeps urllib. The log says which path
+  is used ("uploads use system networking") and each piece says "system networking".
+- Regression: test_native_http (status/headers/body/error mapping; only PUT pieces >= 256 KB go native; wiring),
+  test_airplay_exports (export list includes kodi_http_send; the build fails without it).
