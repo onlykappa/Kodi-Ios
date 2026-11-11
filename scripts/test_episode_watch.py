@@ -143,7 +143,7 @@ class Runtime(unittest.TestCase):
   fixture=Route();fixture.setUp();self.addCleanup(fixture.doCleanups)
   props={}
   home=types.SimpleNamespace(getProperty=lambda k:props.get(k,''),setProperty=lambda k,v:props.update({k:v}),clearProperty=lambda k:props.pop(k,None))
-  fixture.mods['xbmcgui'].Window=lambda ident:home
+  fixture.mods['xbmcgui'].Window=lambda ident:home;fixture.mods['xbmcgui'].ListItem=lambda label='',label2='':label+'\x1f'+label2
   return fixture,home,props
  def test_startup_wiring_never_runs_an_episode_check_on_the_main_thread(self):
   source=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
