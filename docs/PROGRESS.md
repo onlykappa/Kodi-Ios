@@ -1,5 +1,15 @@
 # Persistent progress
 
+## Verified test IPA 229 delivered — 2026-11-11
+
+[Download IPA 229](https://github.com/onlykappa/Kodi-Ios/releases/download/build-229/Kodi-iOS-Customized-Touch-r10.ipa).
+Source c26971ec2d3f3b0562dd862d29ec025ee6d53127; run 43035125470. IPA sha256
+ad62361857711bdafcbd47e8c726a1d708f420838455ff0ee70912b4a01bbf9a matches the release digest; ZIP integrity passes;
+build.json 229 / c26971e. AirPlay r46 (candidate run 42965789430, host suite green; framework in the IPA equals the
+release), Kodi r30 (equals the release after signature removal), glassbar r6. Adds ISSUE-165: MKV audio seeks by the
+video index, Wi-Fi checked for 5 s, season menus restyled (board 3, rig-checked). 105 local suites pass.
+Builds 227/228 were pull-request runs (cancelled / failed test fake) and are not deliveries. Device results pending.
+
 ## Verified test IPA 226 delivered — 2026-11-11
 
 [Download IPA 226](https://github.com/onlykappa/Kodi-Ios/releases/download/build-226/Kodi-iOS-Customized-Touch-r10.ipa).
