@@ -65,7 +65,7 @@ class SettingsPages(unittest.TestCase):
   root=self.read('Settings.xml')
   for id,action in ((9111,'RunScript(service.kodi.ios.bootstrap,skin_settings_page)'),(9112,'RunScript(service.kodi.ios.bootstrap,section_page,interface)'),(9114,'RunScript(service.kodi.ios.bootstrap,section_page,player)'),
                     (9115,'RunScript(service.kodi.ios.bootstrap,section_page,media)'),(9121,'RunScript(service.kodi.ios.bootstrap,section_page,pvr)'),(9122,'RunScript(service.kodi.ios.bootstrap,section_page,games)'),
-                    (9131,'RunScript(service.kodi.ios.bootstrap,section_page,system)'),(9132,'RunScript(service.kodi.ios.bootstrap,section_page,services)'),(9133,'ActivateWindow(profiles)'),
+                    (9131,'RunScript(service.kodi.ios.bootstrap,section_page,system)'),(9132,'RunScript(service.kodi.ios.bootstrap,section_page,services)'),(9133,'RunScript(service.kodi.ios.bootstrap,profiles_page)'),
                     (9141,'ActivateWindow(addonbrowser)'),(9142,'ActivateWindow(filemanager)'),(9143,'ActivateWindow(eventlog)'),
                     (9151,'ActivateWindow(systeminfo)'),(9102,'ActivateWindow(addonbrowser,addons://outdated/,return)')):
    self.assertEqual(self.clicks(root,id),[action])

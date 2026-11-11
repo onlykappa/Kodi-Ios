@@ -71,14 +71,14 @@ ROOT=[
   R(9116,'Library',LIBRARY_PAGE,'folder.png',BLUE)],
  # What the profile button's More menu held (round 5: the gear in the header opens Settings instead).
  [R(9171,'Google Drive','ActivateWindow(Videos,plugin://plugin.googledrive/,return)','cloud.png',BLUE),
-  R(9172,'Favourites','ActivateWindow(1160)','star.png',ORANGE),
+  R(9172,'Favourites','RunScript(service.kodi.ios.bootstrap,favourites_page)','star.png',ORANGE),
   R(9173,'Check for updates','RunScript(service.kodi.ios.bootstrap,check_updates)','cloud-arrow-down.png',GREEN),
   R(9174,'iPhone navigation / recovery','RunScript(service.kodi.ios.bootstrap,navigation_menu)','life-ring.png',RED)],
  [R(9121,'PVR & Live TV','RunScript(service.kodi.ios.bootstrap,section_page,pvr)','tv.png',RED),
   R(9122,'Games','RunScript(service.kodi.ios.bootstrap,section_page,games)','gamepad.png',PINK)],
  [R(9131,'System','RunScript(service.kodi.ios.bootstrap,section_page,system)','gear.png',SILVER),
   R(9132,'Services','RunScript(service.kodi.ios.bootstrap,section_page,services)','sitemap.png',TEAL),
-  R(9133,'Profiles','ActivateWindow(profiles)','user.png',BLUE)],
+  R(9133,'Profiles','RunScript(service.kodi.ios.bootstrap,profiles_page)','user.png',BLUE)],
  [R(9141,'Add-ons','ActivateWindow(addonbrowser)','puzzle-piece.png',ORANGE,badge=UPDATES),
   R(9142,'File Manager','ActivateWindow(filemanager)','folder.png',TEAL),
   R(9143,'Event Log','ActivateWindow(eventlog)','list.png',SILVER),
@@ -628,12 +628,108 @@ def addon_settings_window(p,original,categories=True):
  return p.window(original,body,'5','<animation effect="slide" start="0,300" end="0,0" time="260" tween="cubic" easing="out">WindowOpen</animation>'
                  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>')
 
+# --- Profiles and Favourites pages (owner-approved mockup boards 09 and 10: profiles_page.py, favourites_page.py) ---
+def _module(name):
+ spec=_iu.spec_from_file_location(name,os.path.join(os.path.dirname(os.path.abspath(__file__)),name+'.py'))
+ module=_iu.module_from_spec(spec);spec.loader.exec_module(module);return module
+profiles_rows=_module('profiles_rows');favourites_rows=_module('favourites_rows')
+
+def profile_row(p,n,w):
+ """Profile n (shown while its name is set): picture or initials, its name and, for the current profile, "Signed in now"
+ with a blue tick. Button 9600+n switches to it. The rows sit in a grouplist, so their positions follow the count."""
+ flag=lambda k:'Window().Property(profile.%d.%s)'%(n,k)
+ P=lambda k:'$INFO[%s]'%flag(k)
+ shown='!String.IsEmpty(%s)'%flag('name');current='String.IsEqual(%s,true)'%flag('current');thumb='!String.IsEmpty(%s)'%flag('thumb')
+ h=ROW2;a=130;x=PAD+a+40;ay=(h-a)//2;tw=w-x-PAD-110
+ return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(w,h,shown)+
+  '<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>%s%s</control>'
+  %(9600+n,w,h,highlight(p,w,h),'<onup>9001</onup>' if n==1 else '')+
+  (p.image(x,0,w-x,2,p.MEDIA+'white.png',p.SEP) if n>1 else '')+
+  p.surface(PAD,ay,a,a,'avatar_s.png','FF7B88C4')+p.label(PAD,ay,a,a,P('initials'),'p_h3',p.WHITE,'center','<visible>!%s</visible>'%thumb)+
+  p.image(PAD,ay,a,a,P('thumb'),p.WHITE,'<visible>%s</visible>'%thumb,'',p.MEDIA+'avatar_s.png')+
+  p.label(x,0,tw,h,P('name'),'p_body',p.WHITE,'left','<scroll>false</scroll><visible>!%s</visible>'%current)+
+  p.label(x,26,tw,70,P('name'),'p_body',p.WHITE,'left','<scroll>false</scroll><visible>%s</visible>'%current)+
+  p.label(x,96,tw,56,profiles_rows.SIGNED_IN,'p_foot',p.GREY,'left','<visible>%s</visible>'%current)+
+  p.icon(w-PAD-40,(h-50)//2,50,'check.png',p.ACCENT,'<visible>%s</visible>'%current)+'</control>')
+
+def profiles_page(p):
+ """portrait/IOSProfiles.xml for profiles_page.py (Settings > Profiles, mockup board 09): one row per profile, then Add
+ Profile in blue, and the footer under the card. Window properties: rows (profiles + 1), profile.n.name / initials /
+ thumb / current. Buttons 9600+n switch to profile n, 9609 opens Kodi's Profiles window, 9001 closes."""
+ w=p.WIDTH-2*p.SIDE;h=ROW2;n_rows=profiles_rows.MAX+1;x=PAD+130+40
+ add=('<control type="group"><width>%d</width><height>%d</height>'%(w,h)+
+  '<control type="button" id="9609"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>%s</control>'%(w,h,highlight(p,w,h))+
+  p.image(x,0,w-x,2,p.MEDIA+'white.png',p.SEP)+
+  p.surface(PAD,(h-130)//2,130,130,'avatar_s.png',p.SURFACE2)+p.label(PAD,(h-130)//2,130,130,'+','p_h2',p.ACCENT,'center')+
+  p.label(x,0,w-x-PAD,h,profiles_rows.ADD,'p_body',p.ACCENT,'left','<scroll>false</scroll>')+'</control>')
+ rows=''.join(profile_row(p,n,w) for n in range(1,profiles_rows.MAX+1))+add
+ # The card's background and the footer under it are drawn for each row count (property rows), as section_page does.
+ fit=''.join('<control type="group"><visible>String.IsEqual(Window().Property(rows),%d)</visible>'%k+
+  p.surface(p.SIDE,0,w,k*h,'group.png',p.SURFACE,RADIUS)+
+  p.label(p.SIDE+PAD,k*h+14,w-2*PAD,140,profiles_rows.FOOT,'p_foot',p.GREY,'left','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+'</control>'
+  for k in range(1,n_rows+1))
+ shell=('<control type="group"><width>%d</width><height>%d</height>%s'%(p.WIDTH,n_rows*h+160,fit)+
+  '<control type="grouplist" id="9310"><left>%d</left><top>0</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
+  '<itemgap>0</itemgap><usecontrolcoords>false</usecontrolcoords>%s</control></control>')%(p.SIDE,w,n_rows*h,rows)
+ lst=('<control type="grouplist" id="9300"><left>0</left><top>200</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+      '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%p.WIDTH+
+      p.label(p.SIDE,0,w,130,'Profiles','p_large',p.WHITE,'left','<scroll>false</scroll>')+
+      spacer(14)+shell+spacer(60)+'</control>')
+ page='<controls>'+p.backdrop()+lst+header(p,[('','Close')],[('Profiles','')])+'</controls>'
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9601</defaultcontrol>'
+         '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
+
+def favourite_cell(p,n,x,y,cw,ch):
+ """Poster n (shown while its title is set): the Movies grid's poster card and art, its title under it, and in Edit mode a
+ red remove badge on the favourites Favourites.AddFavourite can remove. Button 9700+n opens it (or removes it in Edit)."""
+ flag=lambda k:'Window().Property(fav.%d.%s)'%(n,k)
+ shown='!String.IsEmpty(%s)'%flag('title')
+ badge='String.IsEqual(%s,true) + !String.IsEmpty(Window().Property(editing))'%flag('removable')
+ cap=96
+ return ('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><visible>%s</visible>'%(x,y,cw,ch+cap,shown)+
+  '<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label><texturefocus /><texturenofocus /></control>'%(9700+n,cw,ch+cap)+
+  '<control type="group"><animation effect="zoom" start="100" end="104" time="160" center="auto" tween="cubic" easing="out" condition="Control.HasFocus(%d)">Conditional</animation>'%(9700+n)+
+  p.image(0,0,cw,ch,p.MEDIA+'white.png',p.SURFACE,'','',p.MEDIA+'poster_mask.png')+
+  p.image(0,0,cw,ch,'$INFO[%s]'%flag('thumb'),p.WHITE,'','>scale',p.MEDIA+'poster_mask.png',background=True)+
+  p.label(0,ch+14,cw,cap-14,'$INFO[%s]'%flag('title'),'p_foot_b',p.WHITE,'left','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+
+  '<control type="group"><left>%d</left><top>14</top><visible>%s</visible>'%(cw-70,badge)+
+  p.image(0,0,56,56,p.MEDIA+'avatar_s.png',RED)+p.image(2,2,52,52,p.MEDIA+'close_cross.png',p.WHITE)+'</control></control></control>')
+
+def favourites_page(p):
+ """portrait/IOSFavourites.xml for favourites_page.py (Settings > Favourites, mockup board 10): the favourites as a poster
+ grid, three across, the empty state, the footer, and Edit (top right) that shows remove badges. Window properties:
+ count, fav.n.title / thumb / removable. Buttons 9700+n open favourite n (or remove it in Edit); 9010 Edit, 9011 Done."""
+ w=p.WIDTH-2*p.SIDE;cols=3;cw=(w-(cols-1)*p.GAP)//cols;ch=cw*3//2;cap=96;row_h=ch+cap+p.GAP
+ rows=''.join('<control type="group"><width>%d</width><height>%d</height><visible>!String.IsEmpty(Window().Property(fav.%d.title))</visible>%s</control>'%(
+   p.WIDTH,row_h,3*r+1,''.join(favourite_cell(p,3*r+c+1,p.SIDE+c*(cw+p.GAP),0,cw,ch) for c in range(cols)))
+   for r in range(favourites_rows.MAX//cols))
+ empty=('<control type="group"><width>%d</width><height>240</height><visible>String.IsEmpty(Window().Property(fav.1.title))</visible>'%p.WIDTH+
+  p.label(p.SIDE,40,w,160,favourites_rows.EMPTY,'p_h3',p.WHITE,'center')+'</control>')
+ lst=('<control type="grouplist" id="9300"><left>0</left><top>200</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+      '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>'%p.WIDTH+
+      p.label(p.SIDE,0,w,130,favourites_rows.TITLE,'p_large',p.WHITE,'left','<scroll>false</scroll>')+
+      spacer(14)+rows+empty+footer(p,favourites_rows.FOOT,130)+spacer(160)+'</control>')
+ has='!String.IsEmpty(Window().Property(fav.1.title))';editing='!String.IsEmpty(Window().Property(editing))'
+ # Edit and Done are text buttons in the header's right corner, in the accent blue like Cancel and Done in the sheets.
+ edit=('<control type="button" id="9010"><left>%d</left><top>36</top><width>240</width><height>108</height><label>Edit</label>'
+  '<font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>right</align><aligny>center</aligny>'
+  '<texturefocus /><texturenofocus /><visible>String.IsEmpty(Window().Property(editing)) + %s</visible><ondown>9300</ondown></control>')%(
+  p.WIDTH-p.SIDE-240,p.ACCENT,p.ACCENT,has)
+ done=('<control type="button" id="9011"><left>%d</left><top>36</top><width>240</width><height>108</height><label>Done</label>'
+  '<font>p_btn</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>right</align><aligny>center</aligny>'
+  '<texturefocus /><texturenofocus /><visible>%s</visible><ondown>9300</ondown></control>')%(p.WIDTH-p.SIDE-240,p.ACCENT,p.ACCENT,editing)
+ page='<controls>'+p.backdrop()+lst+header(p,[('','Close')],[(favourites_rows.TITLE,'')])+edit+done+'</controls>'
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9001</defaultcontrol>'
+         '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
+
 def files(p,read):
  """{relative path: bytes} for the portrait folder and its textures."""
  out={p.FOLDER+'/Settings.xml':settings_window(p,read('Settings.xml')).encode(),
       p.FOLDER+'/IOSAccounts.xml':accounts_page(p).encode(),
       p.FOLDER+'/IOSSection.xml':section_page(p).encode(),
       p.FOLDER+'/IOSSkinList.xml':skin_list_page(p).encode(),
+      p.FOLDER+'/IOSProfiles.xml':profiles_page(p).encode(),
+      p.FOLDER+'/IOSFavourites.xml':favourites_page(p).encode(),
       p.FOLDER+'/IOSSettingsSearch.xml':search_window(p).encode(),
       p.FOLDER+'/SettingsCategory.xml':category_window(p,read('SettingsCategory.xml')).encode(),
       p.FOLDER+'/DialogAddonSettings.xml':addon_settings_window(p,read('DialogAddonSettings.xml')).encode()}
