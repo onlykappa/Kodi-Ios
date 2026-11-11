@@ -63,7 +63,7 @@ LIBRARY_SCAN='RunScript(service.kodi.ios.bootstrap,library_scan)'
 LIBRARY_STATUS='RunScript(service.kodi.ios.bootstrap,library_status)'
 LIBRARY_REFRESH='RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=library_refresh&all=1)'
 ROOT=[
- [R(9111,'Skin','ActivateWindow(skinsettings)','paintbrush.png',PURPLE),
+ [R(9111,'Skin','RunScript(service.kodi.ios.bootstrap,skin_settings_page)','paintbrush.png',PURPLE),
   R(9112,'Interface','RunScript(service.kodi.ios.bootstrap,section_page,interface)','palette.png',BLUE),
   R(9113,'Customisation',CUSTOM_PAGE,'sliders.png','FFD1D1D6'),
   R(9114,'Player','RunScript(service.kodi.ios.bootstrap,section_page,player)','circle-play.png',GREEN),
@@ -101,7 +101,7 @@ CUSTOM=[
   R(9412,'Info Page',INFO_PAGE,'circle-info.png',SILVER,COUNT('info')),
   R(9413,'View Types',VIEWS_PAGE,'grip.png',PURPLE,COUNT('views')),
   R(9414,'Poster Badges',BADGES_PAGE,'circle-check.png',ORANGE,COUNT('badges'))],''),
- ('',[R(9421,'Skin Settings','ActivateWindow(skinsettings)','paintbrush.png',PURPLE),
+ ('',[R(9421,'Skin Settings','RunScript(service.kodi.ios.bootstrap,skin_settings_page)','paintbrush.png',PURPLE),
   R(9422,'TMDb Helper','Addon.OpenSettings(plugin.video.themoviedb.helper)','film.png','FF01B4E4')],
   'TMDb Helper fills the Home rows. Sign in to Trakt from Accounts.'),
 ]
@@ -500,6 +500,33 @@ def section_page(p):
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9601</defaultcontrol>'
          '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
 
+# --- Skin Settings list page (mockup board 6): Fuse's entries of one section as rows -----------------------------
+def skin_list_page(p):
+ """portrait/IOSSkinList.xml for skin_settings_page.py: a title and one list (9310) whose items carry the properties
+ kind (title|switch|button), on (switches) and the label / label2 (a button's value). 9001 closes."""
+ w=p.WIDTH-2*p.SIDE;M=p.MEDIA;P=lambda k:'$INFO[Window().Property(%s)]'%k
+ L=lambda k:'$INFO[ListItem.Property(%s)]'%k
+ kind=lambda k:'String.IsEqual(ListItem.Property(kind),%s)'%k
+ def layout(focused):
+  bg=(p.image(0,0,w,ROW,M+'white.png','1AFFFFFF','<visible>%s</visible>'%'!%s'%kind('title')) if focused else '')
+  return (p.image(0,0,w,ROW,M+'white.png',p.SURFACE,'<visible>!%s</visible>'%kind('title'))+bg+
+          p.image(PAD,ROW-2,w-PAD,2,M+'white.png',p.SEP,'<visible>!%s</visible>'%kind('title'))+
+          # group title: small grey words sitting on the page, as the Settings pages have
+          p.label(PAD,0,w-2*PAD,ROW,L('label'),'p_h3',p.GREY,'left','<aligny>bottom</aligny><scroll>false</scroll><visible>%s</visible>'%kind('title'))+
+          p.label(PAD,0,w-2*PAD-420,ROW,L('label'),'p_body',p.WHITE,'left','<scroll>false</scroll><visible>!%s</visible>'%kind('title'))+
+          p.label(w-PAD-400,0,330,ROW,L('value'),'p_body',p.GREY,'right','<scroll>false</scroll><visible>%s</visible>'%kind('button'))+
+          p.icon(w-PAD-34,(ROW-34)//2,34,'chevron-right.png',p.DIM,'<visible>%s</visible>'%kind('button'))+
+          p.image(w-PAD-130,(ROW-58)//2,130,58,M+'toggle_on.png',p.WHITE,'<visible>%s + !String.IsEmpty(ListItem.Property(on))</visible>'%kind('switch'))+
+          p.image(w-PAD-130,(ROW-58)//2,130,58,M+'toggle_off.png',p.WHITE,'<visible>%s + String.IsEmpty(ListItem.Property(on))</visible>'%kind('switch')))
+ lst=('<control type="list" id="9310"><left>%d</left><top>330</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+      '<scrolltime tween="cubic" easing="out">200</scrolltime><onup>9001</onup>'
+      '<itemlayout height="%d" width="%d">%s</itemlayout><focusedlayout height="%d" width="%d">%s</focusedlayout></control>')%(
+      p.SIDE,w,ROW,w,layout(False),ROW,w,layout(True))
+ title=p.label(p.SIDE+PAD,190,w-2*PAD,140,P('title'),'p_large',p.WHITE,'left','<scroll>false</scroll>')
+ page='<controls>'+p.backdrop()+lst+title+header(p,[('','Close')],[('','')])+'</controls>'
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9310</defaultcontrol>'
+         '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
+
 # --- Kodi's own setting pages (categories and add-on settings) -------------------------------------------------
 # Kodi builds these pages itself from templates the skin provides (GUIDialogSettingsBase): category buttons from
 # id 10 into grouplist 3, settings from ids 7 (button), 8 (switch), 9 (spinner), 12 (edit), 13 (slider), 14 (group
@@ -606,6 +633,7 @@ def files(p,read):
  out={p.FOLDER+'/Settings.xml':settings_window(p,read('Settings.xml')).encode(),
       p.FOLDER+'/IOSAccounts.xml':accounts_page(p).encode(),
       p.FOLDER+'/IOSSection.xml':section_page(p).encode(),
+      p.FOLDER+'/IOSSkinList.xml':skin_list_page(p).encode(),
       p.FOLDER+'/IOSSettingsSearch.xml':search_window(p).encode(),
       p.FOLDER+'/SettingsCategory.xml':category_window(p,read('SettingsCategory.xml')).encode(),
       p.FOLDER+'/DialogAddonSettings.xml':addon_settings_window(p,read('DialogAddonSettings.xml')).encode()}

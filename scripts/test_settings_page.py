@@ -63,7 +63,7 @@ class SettingsPages(unittest.TestCase):
   self.assertNotIn('landscape window',ET.tostring(root,encoding='unicode'))
  def test_every_kodi_category_is_a_row(self):
   root=self.read('Settings.xml')
-  for id,action in ((9111,'ActivateWindow(skinsettings)'),(9112,'RunScript(service.kodi.ios.bootstrap,section_page,interface)'),(9114,'RunScript(service.kodi.ios.bootstrap,section_page,player)'),
+  for id,action in ((9111,'RunScript(service.kodi.ios.bootstrap,skin_settings_page)'),(9112,'RunScript(service.kodi.ios.bootstrap,section_page,interface)'),(9114,'RunScript(service.kodi.ios.bootstrap,section_page,player)'),
                     (9115,'RunScript(service.kodi.ios.bootstrap,section_page,media)'),(9121,'RunScript(service.kodi.ios.bootstrap,section_page,pvr)'),(9122,'RunScript(service.kodi.ios.bootstrap,section_page,games)'),
                     (9131,'RunScript(service.kodi.ios.bootstrap,section_page,system)'),(9132,'RunScript(service.kodi.ios.bootstrap,section_page,services)'),(9133,'ActivateWindow(profiles)'),
                     (9141,'ActivateWindow(addonbrowser)'),(9142,'ActivateWindow(filemanager)'),(9143,'ActivateWindow(eventlog)'),
@@ -78,7 +78,7 @@ class SettingsPages(unittest.TestCase):
   self.assertEqual(self.clicks(root,9113),['SetProperty(Settings.Page,custom,10004)','SetFocus(9401)','RunScript(service.kodi.ios.bootstrap,customise_counts)'])
   self.assertEqual(self.clicks(root,9401),['SetProperty(Settings.Page,tabs,10004)','SetFocus(9551)'])
   self.assertEqual(self.clicks(root,9412),['SetProperty(Settings.Page,info,10004)','SetFocus(9561)'])
-  self.assertEqual(self.clicks(root,9421),['ActivateWindow(skinsettings)'])
+  self.assertEqual(self.clicks(root,9421),['RunScript(service.kodi.ios.bootstrap,skin_settings_page)'])
   self.assertEqual(self.clicks(root,9411),['SetProperty(Settings.Page,osd,10004)','SetFocus(9531)'])
   self.assertEqual(self.clicks(root,9414),['SetProperty(Settings.Page,badges,10004)','SetFocus(9501)'])
  def test_back_button_leaves_customisation_first(self):
