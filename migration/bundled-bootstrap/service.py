@@ -14,7 +14,16 @@ if __name__=='__main__' and not (len(sys.argv)>1 and sys.argv[1]=='--recover'):
 from bootstrap import initialize,restore,ensure_enabled,install_players,elementum_defaults,elementum_upload_cap,install_payload,umbrella_defaults,media_folders,elementum_library,umbrella_streaming_only,phone_housekeeping
 from navigation import upgrade,sync_skin_preferences,update_nodes,phone_defaults,REVISION
 from startup import generate,failure,LOCK,FUSE
-import activity,signin_server,airplay,background,calibration,driveupload,notices,updates,threading,portrait,umbrella_ready,diagnostics,transfer_control
+import airplay,notices,updates,threading,diagnostics,transfer_control
+class _Late:
+ """A module imported on first use (performance 1E.4: 1.74 s of imports before the service ran; portrait.py alone is
+ 147 KB). Each of these is first used in a worker thread or well after start-up, so the import leaves the main path."""
+ def __init__(self,name):self._name=name;self._module=None
+ def __getattr__(self,attribute):
+  if self._module is None:
+   import importlib;self._module=importlib.import_module(self._name)
+  return getattr(self._module,attribute)
+activity,signin_server,background,calibration,driveupload,portrait,umbrella_ready=[_Late(n) for n in ('activity','signin_server','background','calibration','driveupload','portrait','umbrella_ready')]
 _IMPORT_SECONDS=time.monotonic()-_IMPORT_STARTED
 
 def run():

@@ -133,7 +133,7 @@ class Runtime(unittest.TestCase):
   fixture,home,props=self.setup_runtime();fixture.dialog.select.return_value=2
   spec=importlib.util.spec_from_file_location('follow_download_entry',ROOT/'migration/bundled-bootstrap/download.py')
   entry=importlib.util.module_from_spec(spec);spec.loader.exec_module(entry)
-  with patch.dict(sys.modules,{'elementum_engine':types.SimpleNamespace(running=lambda:False)}),\
+  with patch.dict(sys.modules,{'elementum_engine':types.SimpleNamespace(running=lambda:False,ensure_here=lambda:False)}),\
        patch.object(sys,'argv',['download.py','kind=season','title=Show','season=1','path=plugin://plugin.video.themoviedb.helper/?tmdb_id=123&tmdb_type=tv&season=1']),\
        patch.object(elementum_download,'follow') as follow:
    entry.run()
@@ -184,7 +184,7 @@ class Runtime(unittest.TestCase):
    kwargs['route'](url(uri=magnet(),season='1',episode='2'))
   with patch.object(runtime.urllib.request,'urlopen',side_effect=api),patch.object(source_match,'tmdb_key',return_value='synthetic'),\
        patch.object(drivelibrary,'client',return_value=(object(),'drive')),patch.object(library_scan,'remote_files',return_value=[]),\
-       patch.dict(sys.modules,{'elementum_engine':types.SimpleNamespace(running=lambda:True),'ios_downloaded':types.SimpleNamespace(completed_copy=lambda *a,**k:None)}),\
+       patch.dict(sys.modules,{'elementum_engine':types.SimpleNamespace(running=lambda:True,ensure_here=lambda:True),'ios_downloaded':types.SimpleNamespace(completed_copy=lambda *a,**k:None)}),\
        patch.object(elementum_download,'follow',side_effect=follow),patch.object(picker,'_home',return_value=home):
    count=runtime.pass_once(fixture.tmp.name,home,lambda:True,lambda *a,**k:None)
    self.assertEqual(count,1);self.assertEqual(len(fixture.jobs()),1)

@@ -1,5 +1,5 @@
 """Performance pass (docs/ROADMAP-PERFORMANCE.md 1E): on-demand Elementum engine and the other start-up trims."""
-import sys,unittest
+import ast,sys,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'scripts'))
 LIB=ROOT/'migration/bundled-bootstrap/resources/lib';sys.path.insert(0,str(LIB))
@@ -39,5 +39,23 @@ class LazyEngine(unittest.TestCase):
  def test_plugin_asks_for_the_engine_after_the_cloud_check(self):
   (after,)=[n for f,o,n in ELEMENTUM_PATCHES if o==b'def _json(url):\n']
   self.assertLess(after.index(b'_kodi_cloud(url)'),after.index(b'    _kodi_engine()\n'))
+
+SERVICE_PY=ROOT/'migration/bundled-bootstrap/service.py'
+
+class StartupImports(unittest.TestCase):
+ def tree(self):return ast.parse(SERVICE_PY.read_text())
+ def test_heavy_modules_are_not_imported_at_module_level(self):
+  eager={a.name for n in self.tree().body if isinstance(n,ast.Import) for a in n.names}
+  eager|={n.module for n in self.tree().body if isinstance(n,ast.ImportFrom)}
+  for name in ('portrait','driveupload','activity','signin_server','umbrella_ready','background','calibration'):self.assertNotIn(name,eager)
+ def test_late_module_imports_on_first_attribute_only(self):
+  cls=[n for n in self.tree().body if isinstance(n,ast.ClassDef) and n.name=='_Late'][0]
+  space={};exec(compile(ast.Module([cls],[]),'service.py','exec'),space)
+  late=space['_Late']('json');self.assertIsNone(late._module)
+  self.assertEqual(late.dumps([1]),'[1]');self.assertIsNotNone(late._module)
+ def test_service_names_still_bound(self):
+  src=SERVICE_PY.read_text()
+  for name in ('activity','signin_server','background','calibration','driveupload','portrait','umbrella_ready'):self.assertIn(name+'.',src)
+  self.assertIn("[_Late(n) for n in",src)
 
 if __name__=='__main__':unittest.main()
