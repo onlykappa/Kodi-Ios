@@ -55,13 +55,35 @@ class Cache(unittest.TestCase):
   s=remote.Foreground('https://media.example/file.mkv',open_url=lambda *a:response);self.addCleanup(s.close)
   with self.assertRaisesRegex(ConnectionError,'wrong byte range'):s._fetch('media',2097152,2097251)
  def test_cache_size_and_default_drive_profile_are_unchanged(self):
-  s=self.source();self.assertEqual((s.block_size,s.blocks.keep),(2*1024*1024,16))
+  # ISSUE-163: 4 MiB blocks, 24 kept, four fetched at once for the TV's source; Drive's own profile unchanged.
+  s=self.source();self.assertEqual((s.block_size,s.blocks.keep,s.ahead_blocks),(4*1024*1024,24,4))
   blocks=drive_stream._Blocks(lambda *a:None)
   self.assertEqual((blocks.block_size,blocks.keep),(8*1024*1024,24))
  def test_known_working_local_sources_and_playlists_bypass_the_adapter(self):
   for url in ('http://127.0.0.1:1234/file.mkv','http://localhost:1/x.mkv','http://[::1]:2/x.mkv','https://x.example/a.m3u8','https://x.example/a.mp4'):
    self.assertFalse(remote.eligible(url))
   self.assertTrue(remote.eligible('https://x.example/a.MKV?expires=1'))
+class SlowLink(unittest.TestCase):
+ """ISSUE-163: a debrid link answers each request slowly; reading the start of an episode in order must keep four
+ requests in flight, not one or two (build 224: 2 MiB per 2.6-3 s, 20-50 s before the first picture)."""
+ def test_sequential_read_keeps_four_requests_in_flight(self):
+  data=bytes(range(256))*(24*1024*1024//256);state={'now':0,'most':0};lock=threading.Lock()
+  def slow(request,timeout):
+   with lock:state['now']+=1;state['most']=max(state['most'],state['now'])
+   try:
+    time.sleep(.5);a,b=map(int,request.get_header('Range')[6:].split('-'));return Reply(data,a,min(b,len(data)-1))
+   finally:
+    with lock:state['now']-=1
+  s=remote.Foreground('https://media.example/slow.mkv',open_url=slow);self.addCleanup(s.close)
+  began=time.monotonic();got=0
+  with urllib.request.urlopen(urllib.request.Request(s.media_url,headers={'Range':'bytes=0-%d'%(len(data)-1)}),timeout=30) as r:
+   while True:
+    chunk=r.read(1<<20)
+    if not chunk:break
+    got+=len(chunk)
+  took=time.monotonic()-began
+  self.assertEqual(got,len(data));self.assertGreaterEqual(state['most'],4)
+  self.assertLess(took,3.0)   # 6 blocks at 0.5 s each: about 1 s in parallel, 3 s one after another
 class Broker(unittest.TestCase):
  def setUp(self):
   self.sources=[]

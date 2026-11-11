@@ -21,4 +21,14 @@ class Exports(unittest.TestCase):
    used|=set(re.findall(r'lib\.(kodi_(?:airplay|background)_\w+)',Path(f).read_text(encoding='utf-8')))
   self.assertIn('kodi_airplay_startup_budget',used);self.assertEqual(sorted(used-self.exp),[])
 
+class SkipAttachments(unittest.TestCase):
+ """ISSUE-163: the AirPlay FFmpeg skips MKV attachment data (host check: a 20 MB font made the open read 20.4 MB;
+ with the patch 0.2 MB)."""
+ def test_patch_is_applied_and_shipped(self):
+  build=(ROOT/'migration/airplay-ios/build-remux-ffmpeg.sh').read_text()
+  self.assertIn('ffmpeg-mkv-skip-attachments.patch',build)
+  self.assertIn('Kodi iOS: AirPlay never uses attached files',(ROOT/'migration/airplay-ios/ffmpeg-mkv-skip-attachments.patch').read_text())
+  self.assertIn('ffmpeg-mkv-skip-attachments.patch',(ROOT/'migration/airplay-ios/build-airplay.sh').read_text())
+  self.assertIn('{ MATROSKA_ID_FILEDATA,     EBML_NONE },',(ROOT/'migration/airplay-ios/ffmpeg-mkv-skip-attachments.patch').read_text())
+
 if __name__=='__main__':unittest.main()

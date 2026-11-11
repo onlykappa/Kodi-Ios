@@ -1039,7 +1039,7 @@ cp "$REMUX/THIRD-PARTY-NOTICES" "$FW/THIRD-PARTY-NOTICES"; cp "$FF/FFMPEG-CONFIG
 cp "$REMUX/LICENSE-LGPL-2.1" "$FW/LICENSE-LGPL-2.1"
 cp "$ASS/LIBASS-CONFIG.txt" "$FW/LIBASS-CONFIG.txt"
 cp "$FF/DAV1D-CONFIG.txt" "$FF/DAV1D-LICENSE.txt" "$FF/ffmpeg-mov-pts.patch" "$FW/"
-cp "$FF/ffmpeg-dovi-padding.patch" "$FF/ffmpeg-mov-trun-cts.patch" "$FW/"
+cp "$FF/ffmpeg-dovi-padding.patch" "$FF/ffmpeg-mov-trun-cts.patch" "$FF/ffmpeg-mkv-skip-attachments.patch" "$FW/"
 cat > "$FW/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

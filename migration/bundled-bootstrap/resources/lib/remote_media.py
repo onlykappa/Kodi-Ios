@@ -2,11 +2,12 @@
 
 Only the original resolved stream URL/headers are held in RAM. A per-launch authenticated
 loopback control endpoint gives other Kodi interpreters a source URL that survives their exit.
-One source at a time, at most 32 MiB cached, no Drive OAuth or media files.
+One source at a time, at most 96 MiB cached, no Drive OAuth or media files.
 """
 import http.server,ipaddress,json,secrets,threading,urllib.error,urllib.parse,urllib.request
 import drive_stream,umbrella_recovery
 PROPERTY='KodiIOS.RemoteMedia'
+BLOCK=4*1024*1024;KEEP=24;AHEAD=4
 
 
 def eligible(source):
@@ -44,7 +45,11 @@ class Foreground(drive_stream.DriveStream):
    if span and total and int(span.group(3))!=total:
     response.close();raise ConnectionError('The refreshed stream is a different file')
    return response
-  super().__init__(lambda:'',context=context,open_url=remote,block_size=2*1024*1024,keep=16,playback=True)
+  # ISSUE-163 (build-224 log: 2 MiB blocks took 2.6-3 s each, about 0.7 MB/s, so reading the start of an episode took
+  # 20-50 s): debrid links are slow per connection, not per phone. 4 MiB blocks with four fetched at once (about four
+  # times the speed); 24 kept (96 MiB) so AirPlay's video and audio readers still share them.
+  super().__init__(lambda:'',context=context,open_url=remote,block_size=BLOCK,keep=KEEP,playback=True)
+  self.ahead_blocks=AHEAD
   # This is the playing movie, not a background download competing with it.
   self.gate=type('ForegroundGate',(),{'after':lambda *args,**kwargs:None})()
   self.media_url=self.url('media')

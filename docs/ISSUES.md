@@ -2507,3 +2507,18 @@ Status: CODED LOCALLY; Kodi patch needs the r30 executable build; device unteste
   only the fallback without the glassbar.
 - Season prompt in download.py used Kodi's number pad (Dialog.numeric); now Dialog.input (native keyboard), digits
   checked. Kodi's own PIN/time pads (CGUIDialogNumeric) are not changed.
+
+## ISSUE-163 — AirPlay takes 60-90 s to start on debrid streams (build 224, 2026-11-11)
+
+Status: FIXED IN SOURCE; needs AirPlay r45; host-measured, device untested.
+- Build-224 log: before the first picture the native side read ~27 MB of the episode at ~0.7 MB/s (2 MiB requests,
+  2.6-3 s each, two in flight) while Kodi's paused player kept downloading the same link.
+- Cause 1: FFmpeg's Matroska demuxer reads every attachment (anime releases carry 10-30 MB of fonts) while opening;
+  AirPlay never uses them (burn-in renders with its own fonts). Patch ffmpeg-mkv-skip-attachments.patch skips the
+  data (EBML_NONE seeks past it). Host check, FFmpeg 8.1.1: MKV with a 20 MB attachment, open+probe read 20,459,324
+  bytes before, 196,608 after; plain MKV unchanged (131,072).
+- Cause 2: the TV's source cache fetched 2 MiB blocks two at a time. Now 4 MiB blocks, four in flight, 24 kept
+  (96 MiB). Test SlowLink (0.5 s per request, 24 MB in order): 2.0 s, four in flight; old profile two in flight.
+- Not changed: stopping Kodi's paused player during startup. It would break "AirPlay stop returns to the same spot"
+  (back_to_kodi needs the open video) and a cancelled start would wait ~25 s for Kodi to reopen this file.
+- Regression: test_airplay_exports (SkipAttachments), test_remote_media (SlowLink), test_conversion_speed.

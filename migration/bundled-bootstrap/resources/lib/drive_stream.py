@@ -130,6 +130,7 @@ class DriveStream(object):
         self.hold = lambda: False   # true while the owner paused converting: no read-ahead then (the service sets it)
         self.gate = slowdown.Gate()   # build 193: a video or AirPlay playing slows the reads to a share of the line
         self.block_size=block_size;self.playback=playback
+        self.ahead_blocks=None   # a fixed read-ahead (remote_media.Foreground); None keeps the rules below
         self.blocks = _Blocks(self._fetch,keep,block_size)
         stream = self
 
@@ -209,7 +210,7 @@ class DriveStream(object):
                         # the next READ_AHEAD blocks are fetched at once, in parallel, not one after another.
                         # Not while a video plays (build-181 log: AirPlay starved while a conversion read and uploaded).
                         # Build 193: while a video or AirPlay plays, one block ahead instead of none (it slows, never stops).
-                        for step in range(1, 0 if stream.hold() else (2 if stream.playback else 1 if slowdown.reason() else READ_AHEAD) + 1):
+                        for step in range(1, 0 if stream.hold() else (stream.ahead_blocks or (2 if stream.playback else 1 if slowdown.reason() else READ_AHEAD)) + 1):
                             stream.blocks.ahead(item, index + step)
                         piece = block[position - index * stream.block_size:end - index * stream.block_size + 1]
                         if not piece:
