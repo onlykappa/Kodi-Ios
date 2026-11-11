@@ -495,9 +495,20 @@ def busy_dialog(marker,font,media='special://skin/extras/portrait/'):
   '<control type="group"><centerleft>50%%</centerleft><centertop>50%%</centertop><width>%d</width><height>%d</height>'
   '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
   '<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture colordiffuse="FFFFFFFF">%sring.png</texture>%s</control></control>'
+  # Roadmap 2.18 (owner log 396d5d67: a tap on the ring 4 s into a 13 s open did nothing): after 2 s a line and a
+  # Cancel button fade in under the ring. Cancel is Kodi's Back, which the busy dialog honours (it stops an add-on's
+  # resolve). Short loads still show only the ring (owner, build 192).
+  '<control type="group"><centerleft>50%%</centerleft><centertop>50%%</centertop><width>600</width><height>420</height>'
+  '<animation effect="fade" start="0" end="100" delay="2000" time="250">WindowOpen</animation>'
+  '<control type="image"><left>60</left><top>280</top><width>480</width><height>150</height><texture border="26" colordiffuse="EB1C1C1E">%sround_s.png</texture></control>'
+  '<control type="label"><left>0</left><top>290</top><width>600</width><height>50</height><font>%s</font><textcolor>B3EBEBF5</textcolor>'
+  '<align>center</align><aligny>center</aligny><label>Still working…</label></control>'
+  '<control type="button" id="9850"><left>180</left><top>340</top><width>240</width><height>80</height><font>%s</font>'
+  '<label>Cancel</label><textcolor>FF4FA8FF</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>center</align><aligny>center</aligny>'
+  '<texturefocus /><texturenofocus /><onclick>Action(Back)</onclick></control></control>'
   '<control type="group"><left>-4000</left><top>-4000</top><width>10</width><height>10</height><visible>false</visible>'
   '<control type="progress" id="10"><width>10</width><height>10</height><texturebg /><lefttexture /><midtexture /><righttexture /></control></control>'
-  '</controls></window>\n')%(marker,ring,ring,ring,ring,media,spin)
+  '</controls></window>\n')%(marker,ring,ring,ring,ring,media,spin,media,font,font)
 
 # Build 192 (quick wins): Kodi's toasts and volume bar as iOS banners instead of Fuse's corner pill, and the info
 # button's wait (Custom_1193) as the same centred ring as DialogBusy. Kodi fills 400/401/402 (icon, heading, text) and

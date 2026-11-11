@@ -137,12 +137,16 @@ class Pages(unittest.TestCase):
   for rel,font in (('portrait/DialogBusy.xml','p_pill'),('1080i/DialogBusy.xml','font_main_bold')):
    xml=(self.skin/rel).read_text(encoding='utf-8');root=ET.fromstring(xml)
    for stock in ('kodi.png','Furniture_Busy','provider_circle','loading-spinner','landscape window'):self.assertNotIn(stock,xml,rel)
-   # No window <visible>: Kodi would open a dialog with one by itself. Nothing to tap or focus.
-   self.assertIsNone(root.find('visible'),rel);self.assertEqual([c for c in root.iter('control') if c.get('type') in ('button','list')],[],rel)
+   # No window <visible>: Kodi would open a dialog with one by itself. Roadmap 2.18: the only thing to tap is Cancel
+   # (Kodi's Back), in a group that fades in after 2 s.
+   self.assertIsNone(root.find('visible'),rel)
+   taps=[c for c in root.iter('control') if c.get('type') in ('button','list')]
+   self.assertEqual([(c.get('id'),c.findtext('label'),c.findtext('onclick')) for c in taps],[('9850','Cancel','Action(Back)')],rel)
+   self.assertIn('delay="2000"',xml,rel)
    pill=root.find('controls/control[@type="group"]')
    self.assertEqual((pill.findtext('centerleft'),pill.findtext('centertop')),('50%','50%'),rel);self.assertIsNone(pill.find('left'),rel)
    # Build 192 (owner): a clean spinning circle in the centre, no pill and no "Loading…".
-   self.assertNotIn('pill_glass_124.png',xml);self.assertNotIn('Loading',xml);self.assertIsNone(pill.find('control[@type="label"]'),rel)
+   self.assertNotIn('pill_glass_124.png',xml);self.assertNotIn('Loading',xml);self.assertIsNone(pill.find('control[@type="label"]'),rel)  # the ring group itself has no words
    ring=[c for c in pill.iter('control') if 'ring.png' in (c.findtext('texture') or '')][0]
    self.assertEqual(ring.find('animation').get('effect'),'rotate')
    # Kodi's progress 10 stays for Kodi, inside a group that is never drawn.
