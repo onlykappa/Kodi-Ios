@@ -485,3 +485,5 @@ Phases 1-3 (status model, slow-down instead of holds, docs/LOG-REVIEW-192.md), P
   slowdown.CAP; portrait generates Custom_1156_Buffering.xml.
 - Owner to check: Lanterns › Download Season 1 (FULL SEASON first; else "Get them"); seeking while a download runs;
   Buffering %; Next Episode; the queue listing episodes.
+
+## Build 226 — verified (release build-226, IPA sha256 9f04487d…, commit 7804111; Kodi r30, AirPlay r45, glassbar r6). Owner testing (ISSUE-160 to 164)

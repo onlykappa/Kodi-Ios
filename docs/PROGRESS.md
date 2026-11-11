@@ -1,13 +1,15 @@
 # Persistent progress
 
-## Build 225 in progress — 2026-11-11
+## Verified test IPA 226 delivered — 2026-11-11
 
-Owner approved: "fix all your recommendations including airplay ... you can push the ipa once its done". Pushed to
-claude/trusting-euler-kgug98 at d3761cb: settings redesign (ISSUE-160), AirPlay exports (161), native keyboard (162),
-AirPlay start speed (163), uploads two lanes / ~10 s pieces (164). Native runs: Kodi r30
-[42953011608](https://github.com/onlykappa/Kodi-Ios/actions/runs/42953011608), AirPlay remux candidate
-[42953015048](https://github.com/onlykappa/Kodi-Ios/actions/runs/42953015048). Next: verify and pin Kodi r30 and AirPlay
-r45 (publish_verified_candidate), then import-review for IPA 225, verify, send. Device results pending.
+[Download IPA 226](https://github.com/onlykappa/Kodi-Ios/releases/download/build-226/Kodi-iOS-Customized-Touch-r10.ipa).
+Source 78041117ce833deb5874c7b20c2c403d3fd3b526; run 42957128306. IPA sha256
+9f04487dd19e86e69734d7e45c5d9b6e23ae3b47f4de45e44d48d34e0b481943 matches the release digest; ZIP integrity passes;
+build.json 226 / 7804111. Kodi r30 (run 42953009766; IPA executable equals the r30 release after signature removal),
+AirPlay r45 (run 42955579547; framework binary in the IPA equals the release; exports health and startup_budget),
+glassbar r6. Contains ISSUE-160 settings redesign, 161 AirPlay exports, 162 native keyboard, 163 AirPlay start speed,
+164 upload lanes/pieces. Build 225 was a pull-request run on the old pins and is not the delivery.
+Device results pending; nothing here is proven on the phone.
 
 ## Verified test IPA 224 delivered — 2026-11-11
 
