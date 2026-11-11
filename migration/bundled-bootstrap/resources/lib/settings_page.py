@@ -15,6 +15,7 @@ accounts=_iu.module_from_spec(_spec);_spec.loader.exec_module(accounts)
 BOOT='special://xbmc/addons/service.kodi.ios.bootstrap/'
 ACCOUNTS='RunScript(service.kodi.ios.bootstrap,accounts_page)'
 SEARCH='RunScript(service.kodi.ios.bootstrap,settings_search)'
+ADDON_UPDATES='RunScript(service.kodi.ios.bootstrap,addon_updates)'
 WINDOW='10004'
 PAGE='Window(%s).Property(Settings.Page)'%WINDOW
 ON_ROOT='String.IsEmpty(%s)'%PAGE
@@ -251,7 +252,7 @@ def profile_card(p,moves):
   p.icon(w-PAD-34,(h-34)//2,34,'chevron-right.png',p.GREY)+'</control></control>')
 
 def updates_banner(p,moves):
- return card(p,[R(9102,'Add-on Updates Available','ActivateWindow(addonbrowser,addons://outdated/,return)',badge=UPDATES)],moves,UPDATES)
+ return card(p,[R(9102,'Add-on Updates Available',ADDON_UPDATES,badge=UPDATES)],moves,UPDATES)
 
 def search_field(p,moves):
  """iOS Settings search field at the top of the list: opens Kodi's keyboard and lists the matching settings."""
@@ -391,22 +392,45 @@ def settings_window(p,original):
  extra+='<onload condition="%s">%s</onload>'%(ON_TABS,COUNTS)   # back from a tab's rows: its count again
  return p.window(original,body,'9101',extra)
 
+# --- Search Settings (owner-approved mockup, docs/design/settings-pages-mockups.html, board 11) ---
+SEARCH_FIELD=9161;SEARCH_LIST=9160;SEARCH_CARD=8   # property rows: 1..7 draw a card that size; 8 means eight or more
 def search_window(p):
- # Owner (build 168 log): with the field empty the whole page was hidden, yet the modal dialog stayed on top: taps
- # went nowhere, Back was hidden and list 9160 "can't focus". The page is now always shown: before typing it lists
- # Settings' own rows (as the approved mockup), then the matches; Back always works.
- top=SETTINGS_TOP+160
- visible='true'
- row=lambda focus:('<%s height="160">'%('focusedlayout' if focus else 'itemlayout')+
-   (p.image(p.SIDE,0,p.WIDTH-2*p.SIDE,160,p.MEDIA+'white.png','18FFFFFF') if focus else '')+
-   p.label(p.SIDE+34,14,p.WIDTH-2*p.SIDE-68,76,'$INFO[ListItem.Label]','p_body')+
-   p.label(p.SIDE+34,90,p.WIDTH-2*p.SIDE-68,50,'$INFO[ListItem.Label2]','p_foot',p.GREY)+
-   '</%s>'%('focusedlayout' if focus else 'itemlayout'))
- body=p.backdrop()+p.label(p.SIDE,200,p.WIDTH-2*p.SIDE,140,'Settings','p_title')
- body+=p.nav_button(9001,p.SIDE,76,'chevron-left.png',[], '<ondown>9160</ondown>')
- body+=p.label(p.SIDE,top,p.WIDTH-2*p.SIDE,160,'No matching settings. Change your search above.','p_body',p.GREY,extra='<wrapmultiline>true</wrapmultiline><visible>!String.IsEmpty(Window().Property(empty))</visible>')
- body+='<control type="list" id="9160"><left>0</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation><scrolltime>160</scrolltime>%s%s</control>'%(top,p.WIDTH,row(False),row(True))
- return '<?xml version="1.0" encoding="UTF-8"?><window type="dialog"><defaultcontrol>9160</defaultcontrol><controls><control type="group"><visible>%s</visible>%s</control></controls></window>'%(visible,body)
+ """portrait/IOSSettingsSearch.xml for settings_search.py: Back (9001) and the title, the field (9161, a Kodi edit control
+ so iOS opens its keyboard), the matches as a grouped list (9160) on a card that grows with them, and "No settings match"
+ (property empty). The page's properties: rows (how many matches the card shows) and empty ('1' when nothing matches)."""
+ w=p.WIDTH-2*p.SIDE;field_y=270;field_h=124;list_y=field_y+field_h+40;room=p.HEIGHT-list_y
+ field=('<control type="edit" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
+        '<font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><hinttext>Search</hinttext><label></label>'
+        '<align>left</align><aligny>center</aligny><textoffsetx>100</textoffsetx>'
+        '<texturefocus border="62" colordiffuse="FF3A3A3C">%spill_124.png</texturefocus>'
+        '<texturenofocus border="62" colordiffuse="%s">%spill_124.png</texturenofocus>'
+        '<onup>9001</onup><ondown>%d</ondown></control>')%(SEARCH_FIELD,p.SIDE,field_y,w,field_h,p.WHITE,p.WHITE,p.MEDIA,p.SURFACE,p.MEDIA,SEARCH_LIST)
+ card=''.join('<control type="group"><visible>String.IsEqual(Window().Property(rows),%d)</visible>%s</control>'
+              %(k,p.surface(p.SIDE,0,w,k*ROW2,'group.png',p.SURFACE,RADIUS)) for k in range(1,SEARCH_CARD))
+ card+=('<control type="group"><visible>String.IsEqual(Window().Property(rows),%d)</visible>%s</control>'
+        %(SEARCH_CARD,p.surface(p.SIDE,0,w,room,'group.png',p.SURFACE,RADIUS)))
+ def item(focus):
+  # Label and breadcrumb come from ListItem: the label carries [B] around the typed part.
+  tag='focusedlayout' if focus else 'itemlayout'
+  return ('<%s width="%d" height="%d">'%(tag,w,ROW2)+(p.image(0,0,w,ROW2,p.MEDIA+'white.png','18FFFFFF') if focus else '')+
+          p.image(PAD,0,w-PAD,2,p.MEDIA+'white.png',p.SEP,'<visible>!String.IsEqual(ListItem.Property(first),1)</visible>')+
+          p.label(PAD,22,w-2*PAD-110,90,'$INFO[ListItem.Label]','p_body',p.WHITE,'left','<scroll>false</scroll>')+
+          p.label(PAD,94,w-2*PAD-110,60,'$INFO[ListItem.Label2]','p_foot',p.GREY,'left','<scroll>false</scroll>')+
+          p.icon(w-PAD-34,(ROW2-34)//2,34,'chevron-right.png',p.GREY)+'</%s>'%tag)
+ results=('<control type="list" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
+          '<orientation>vertical</orientation><itemgap>0</itemgap><onup>%d</onup>'
+          '<scrolltime tween="cubic" easing="out">160</scrolltime>%s%s</control>')%(SEARCH_LIST,p.SIDE,list_y,w,room,SEARCH_FIELD,item(False),item(True))
+ empty=('<control type="group"><visible>!String.IsEmpty(Window().Property(empty))</visible>'+
+        p.label(p.SIDE,list_y+60,w,110,'No settings match','p_h3',p.WHITE,'center')+
+        p.label(p.SIDE+PAD,list_y+180,w-2*PAD,120,'Try a shorter word or check the spelling.','p_foot',p.GREY,'center',
+                '<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+'</control>')
+ body=('<controls>'+p.backdrop()+
+       '<control type="group"><left>0</left><top>%d</top><width>%d</width><height>%d</height>%s</control>'%(list_y,p.WIDTH,room,card)+
+       results+empty+field+
+       p.icon(p.SIDE+36,field_y+(field_h-44)//2,44,'magnifying-glass.png',p.GREY)+
+       header(p,[('','Close')],[('Search Settings','')],36,'<ondown>%d</ondown>'%SEARCH_FIELD)+'</controls>')
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window type="dialog"><defaultcontrol always="true">%d</defaultcontrol>'
+         '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>%s</window>\n')%(p.MARKER,SEARCH_FIELD,body)
 
 def account_row(p,n,y,first,moves,w):
  P=lambda k:'$INFO[Window().Property(acct.%d.%s)]'%(n,k)
@@ -526,6 +550,57 @@ def skin_list_page(p):
  page='<controls>'+p.backdrop()+lst+title+header(p,[('','Close')],[('','')])+'</controls>'
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9310</defaultcontrol>'
          '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>%s</window>\n')%(p.MARKER,page)
+
+# --- Add-on Updates (owner-approved mockup, docs/design/settings-pages-mockups.html, board 12) ---
+UPDATE_ROWS=8;UPDATE_ROW=9600          # row n is button 9600+n: it opens Kodi's add-on list
+UPDATE_CHECK=(9650,9651)               # Check Now: in the empty state, and under the list
+def addon_updates_page(p):
+ """portrait/IOSAddonUpdates.xml for addon_updates.py. Properties: rows (0 shows the empty state; otherwise the rows to
+ show, 8 meaning eight or more), upd.n.name and upd.n.icon for row n, checked (the line under the title) and button
+ (Check Now's label). Kodi's own add-on list (addons://outdated/) is what a row opens."""
+ w=p.WIDTH-2*p.SIDE;h=ROW2;tile=100;top=360;P=lambda k:'$INFO[Window().Property(%s)]'%k
+ is_empty='String.IsEqual(Window().Property(rows),0)';has_rows='!String.IsEqual(Window().Property(rows),0)'
+ def button(id,x,y,width):
+  return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>124</height>'
+          '<label>%s</label><font>p_btn</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
+          '<align>center</align><aligny>center</aligny>'
+          '<texturefocus border="62" colordiffuse="FF3A3A3C">%spill_124.png</texturefocus>'
+          '<texturenofocus border="62" colordiffuse="%s">%spill_124.png</texturenofocus></control>')%(
+          id,x,y,width,P('button'),p.ACCENT,p.ACCENT,p.MEDIA,p.SURFACE2,p.MEDIA)
+ def row(n):
+  q=lambda k:P('upd.%d.%s'%(n,k));x=PAD+tile+38
+  xml=('<control type="group"><visible>!String.IsEmpty(Window().Property(upd.%d.name))</visible><width>%d</width><height>%d</height>'%(n,w,h)+
+       '<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>%s</control>'
+       %(UPDATE_ROW+n,w,h,highlight(p,w,h)))
+  if n>1:xml+=p.image(x,0,w-x,2,p.MEDIA+'white.png',p.SEP)
+  return xml+(p.surface(PAD,(h-tile)//2,tile,tile,'tile100.png',ORANGE,28)+p.icon(PAD+15,(h-70)//2,70,'puzzle-piece.png',p.WHITE)+
+       p.image(PAD,(h-tile)//2,tile,tile,q('icon'),p.WHITE,'<visible>!String.IsEmpty(Window().Property(upd.%d.icon))</visible>'%n,'',p.MEDIA+'tile100.png')+
+       p.label(x,22,w-x-90,64,q('name'),'p_body',p.WHITE,'left','<scroll>false</scroll>')+
+       p.label(x,86,w-x-90,56,'Update available','p_foot',p.GREY)+
+       p.icon(w-PAD-34,(h-34)//2,34,'chevron-right.png',p.GREY)+'</control>')
+ # Empty state: a green tick in a tile, the title, when the check last ran, and Check Now.
+ tile_x=(p.WIDTH-176)//2
+ empty=('<control type="group"><visible>%s</visible>'%is_empty+
+        p.surface(tile_x,560,176,176,'group.png',p.SURFACE,RADIUS)+p.icon(tile_x+33,593,110,'check.png',GREEN)+
+        p.label(p.SIDE,800,w,110,P('heading'),'p_h3',p.WHITE,'center')+
+        p.label(p.SIDE+PAD,930,w-2*PAD,200,P('checked'),'p_sub',p.GREY,'center','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+
+        button(UPDATE_CHECK[0],(p.WIDTH-420)//2,1190,420)+'</control>')
+ # The list: a card that fits the rows (property rows), then the line under it and Check Now, in one grouplist so they follow the rows.
+ card=''.join('<control type="group"><visible>String.IsEqual(Window().Property(rows),%d)</visible>%s</control>'
+              %(k,p.surface(p.SIDE,0,w,k*h,'group.png',p.SURFACE,RADIUS)) for k in range(1,UPDATE_ROWS+1))
+ foot=('<control type="group"><visible>%s</visible><width>%d</width><height>150</height>'%(has_rows,w)+
+       p.label(PAD,14,w-2*PAD,130,P('checked'),'p_foot',p.GREY,'left','<aligny>top</aligny><wrapmultiline>true</wrapmultiline>')+'</control>')
+ check=('<control type="group"><visible>%s</visible><width>%d</width><height>160</height>'%(has_rows,w)+button(UPDATE_CHECK[1],(w-420)//2,26,420)+'</control>')
+ lst=('<control type="grouplist" id="9310"><left>%d</left><top>0</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
+      '<itemgap>0</itemgap><usecontrolcoords>false</usecontrolcoords>%s%s%s</control>')%(p.SIDE,w,UPDATE_ROWS*h+400,
+      ''.join(row(n) for n in range(1,UPDATE_ROWS+1)),foot,check)
+ rows_block=('<control type="group"><visible>%s</visible><left>0</left><top>%d</top><width>%d</width><height>%d</height>%s%s</control>'
+             %(has_rows,top,p.WIDTH,UPDATE_ROWS*h+400,card,lst))
+ body=('<controls>'+p.backdrop()+empty+rows_block+
+       header(p,[('','Close')],[('Add-on Updates','')],36,
+              '<ondown condition="%s">%d</ondown><ondown>%d</ondown>'%(is_empty,UPDATE_CHECK[0],UPDATE_ROW+1))+'</controls>')
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window type="dialog"><defaultcontrol always="true">%d</defaultcontrol>'
+         '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation>%s</window>\n')%(p.MARKER,9001,body)
 
 # --- Kodi's own setting pages (categories and add-on settings) -------------------------------------------------
 # Kodi builds these pages itself from templates the skin provides (GUIDialogSettingsBase): category buttons from
@@ -731,6 +806,7 @@ def files(p,read):
       p.FOLDER+'/IOSProfiles.xml':profiles_page(p).encode(),
       p.FOLDER+'/IOSFavourites.xml':favourites_page(p).encode(),
       p.FOLDER+'/IOSSettingsSearch.xml':search_window(p).encode(),
+      p.FOLDER+'/IOSAddonUpdates.xml':addon_updates_page(p).encode(),
       p.FOLDER+'/SettingsCategory.xml':category_window(p,read('SettingsCategory.xml')).encode(),
       p.FOLDER+'/DialogAddonSettings.xml':addon_settings_window(p,read('DialogAddonSettings.xml')).encode()}
  for name,data in textures(p).items():out['extras/portrait/'+name]=data

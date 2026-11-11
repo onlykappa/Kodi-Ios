@@ -2458,3 +2458,19 @@ Status: BUILT, VERIFIED AND PINNED; device test pending.
   cached depends, about 20 min). Release kodi-ios-portrait-r29: zip sha256 9e1d40b9…, executable sha256 070b0baf…
   (both re-checked after download; arm64 Mach-O). Pinned in migration/ios-portrait/source-lock.json with r28 as the
   previous executable; test_glassbar's pin assertions moved to r29/r28 (the old-pin trap that failed build 222).
+
+## ISSUE-160 — Settings redesign coded locally from the approved boards (2026-11-11)
+
+Status: CODED AND RIG-CHECKED ON THE DESKTOP RIG; NOT PUSHED, NOT BUILT; device untested.
+- Section pages (Interface, Player, Media, Services, System, PVR, Games) with category rows, big-title category
+  pages without chips (Back returns to the section), Skin Settings landing + per-section lists with the Settings
+  Level row, Download/Stream and quality pickers (tiles, second line), Profiles, Favourites, Search Settings
+  (own edit field) and Add-on Updates pages. Wording: "Download" / "Stream" replace Elementum / Umbrella.
+- Merge traps found: helper patches conflicted on PAGES, the portrait fingerprint, settings_page.files() and
+  test routes; a bad merge duplicated the ROOT rows (caught by test_settings_page: duplicate control ids).
+  Add-on Updates said "Everything Is Up to Date" even when Kodi's list could not be read; heading is now a property.
+- Not done / unverified: add-on settings sheet tabs (board 08); "- " sub-setting prefix (Kodi core string); More
+  menu links still use old native windows; Search keyboard (Action(Select) opens Kodi's own keyboard on desktop,
+  iPhone behaviour unverified); [B] bold in search results; Favourites with real items (empty state only seen).
+- Regression: test_settings_sections, test_skin_settings, test_pickers_redesign, test_profiles_favourites,
+  test_search_updates, test_settings_search.

@@ -67,7 +67,7 @@ class SettingsPages(unittest.TestCase):
                     (9115,'RunScript(service.kodi.ios.bootstrap,section_page,media)'),(9121,'RunScript(service.kodi.ios.bootstrap,section_page,pvr)'),(9122,'RunScript(service.kodi.ios.bootstrap,section_page,games)'),
                     (9131,'RunScript(service.kodi.ios.bootstrap,section_page,system)'),(9132,'RunScript(service.kodi.ios.bootstrap,section_page,services)'),(9133,'RunScript(service.kodi.ios.bootstrap,profiles_page)'),
                     (9141,'ActivateWindow(addonbrowser)'),(9142,'ActivateWindow(filemanager)'),(9143,'ActivateWindow(eventlog)'),
-                    (9151,'ActivateWindow(systeminfo)'),(9102,'ActivateWindow(addonbrowser,addons://outdated/,return)')):
+                    (9151,'ActivateWindow(systeminfo)'),(9102,'RunScript(service.kodi.ios.bootstrap,addon_updates)')):
    self.assertEqual(self.clicks(root,id),[action])
  def test_profile_card_opens_accounts_script_that_exists(self):
   action=self.clicks(self.read('Settings.xml'),9101)[0]

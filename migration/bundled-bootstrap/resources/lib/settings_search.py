@@ -1,8 +1,8 @@
-"""Search Settings (the field at the top of portrait Settings): an index of the Settings page rows plus every Kodi
-setting from Kodi's own definition (special://xbmc/system/settings/settings.xml), matched against what was typed.
-settings_search.py at the add-on root asks for the text with Kodi's keyboard and lists the matches; picking one runs
-its action (a Settings row's own action, or the setting's section window opened at its category)."""
+"""Search Settings, the index: every setting the search can find, as (label, breadcrumb, action). Page rows come from
+settings_page.py, and every visible setting in Kodi's own settings.xml (special://xbmc/system/settings/settings.xml).
+The matching is settings_find.py; the page is settings_search.py at the add-on root."""
 import xml.etree.ElementTree as ET
+import settings_find
 
 KODI_SETTINGS='special://xbmc/system/settings/settings.xml'
 # Kodi settings section id -> the window that shows it (the same windows the Settings rows open).
@@ -13,12 +13,12 @@ HIDDEN_LEVEL=4   # Kodi's internal settings, never shown in its own pages
 def page_entries(settings_page):
  """[(label, section, actions)] for every row of Settings, Customisation and Library."""
  out=[(r[1],'Settings',r[2]) for group in settings_page.ROOT for r in group]
- out+=[(r[1],'Customisation'+(' · '+title if title else ''),r[2]) for title,rows,_ in settings_page.CUSTOM for r in rows]
- out+=[(r[1],'Library'+(' · '+title if title else ''),r[2]) for title,rows,_ in settings_page.LIBRARY for r in rows]
+ out+=[(r[1],settings_find.crumb('Customisation',title),r[2]) for title,rows,_ in settings_page.CUSTOM for r in rows]
+ out+=[(r[1],settings_find.crumb('Library',title),r[2]) for title,rows,_ in settings_page.LIBRARY for r in rows]
  return out
 
 def kodi_entries(xml_text,localize):
- """[(label, 'Section · Category', action)] for each visible setting in Kodi's settings.xml; localize(id) -> text."""
+ """[(label, 'Section › Category', action)] for each visible setting in Kodi's settings.xml; localize(id) -> text."""
  try:root=ET.fromstring(xml_text)
  except ET.ParseError:return []
  def text(node):
@@ -31,7 +31,7 @@ def kodi_entries(xml_text,localize):
   window=SECTIONS.get(section.get('id'))
   if not window:continue
   for category in section.findall('category'):
-   where='%s · %s'%(text(section),text(category))
+   where=settings_find.crumb(text(section),text(category))
    action='ActivateWindow(%s,%s)'%(window,category.get('id'))
    out.append((text(category),text(section),action))
    for setting in category.iter('setting'):
@@ -40,16 +40,3 @@ def kodi_entries(xml_text,localize):
     label=text(setting)
     if label:out.append((label,where,action))
  return out
-
-def search(entries,query,limit=60):
- """Entries whose label or section contains every word typed (any case); label matches first, no duplicates."""
- words=str(query or '').lower().split()
- if not words:return []
- first,second,seen=[],[],set()
- for label,where,action in entries:
-  key=(label.lower(),where.lower())
-  if key in seen:continue
-  hay=key[0]+' '+key[1]
-  if all(w in hay for w in words):
-   seen.add(key);(first if all(w in key[0] for w in words) else second).append((label,where,action))
- return (first+second)[:limit]
