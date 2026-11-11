@@ -1,0 +1,214 @@
+"""The choice sheet (owner-approved mockup round 3, boards 13-15): a bottom sheet in the Navigation menu's style.
+
+One window for every picker that used Kodi's plain select box ("How would you like to watch", "Pick a quality", a
+season's menu and its qualities). The card grows upward from a fixed bottom edge (a vertical grouplist aligned to
+its bottom), so it is always as tall as its content; Cancel is its own capsule under it.
+
+spec = {'art': image, 'badge': 'MOVIE · 2014', 'art_title': 'The Maze Runner',
+        'heading': 'The Maze Runner', 'sub': 'Pick a quality · 25 versions found',
+        'rows': [{'label', 'detail', 'tag', 'tag_kind' ('best'|'warn'|''), 'tint', 'glyph', 'cover' (0-100 or None)}],
+        'link': 'Show All 25 Links', 'foot': 'Your choice is remembered ...'}
+choose(spec) -> row index, len(rows) for the link row, -1 for Cancel/Back.
+Other add-ons (the watch add-on, the version picker) open it through load(); without it they keep Kodi's box.
+"""
+WINDOW = 'IOSChoiceSheet.xml'
+MAX_ROWS = 8
+ROW0, LINK, CANCEL, DIM = 9811, 9830, 9840, 9099
+BACK_KEYS = (9, 10, 92, 110)
+SIDE = 32           # the sheet's distance from the screen's sides
+ROW_H = 176
+ART_H = 420
+
+
+def properties(spec):
+    """Window properties for a spec (pure; tested without Kodi)."""
+    rows = list(spec.get('rows') or [])[:MAX_ROWS]
+    props = {'art': spec.get('art') or '', 'badge': spec.get('badge') or '', 'art_title': spec.get('art_title') or '',
+             'heading': spec.get('heading') or '', 'sub': spec.get('sub') or '', 'link': spec.get('link') or '',
+             'foot': spec.get('foot') or '', 'rows': str(len(rows))}
+    for n in range(1, MAX_ROWS + 1):
+        row = rows[n - 1] if n <= len(rows) else {}
+        cover = row.get('cover')
+        props.update({'row.%d.label' % n: row.get('label') or '', 'row.%d.detail' % n: row.get('detail') or '',
+                      'row.%d.tag' % n: row.get('tag') or '', 'row.%d.tag_kind' % n: row.get('tag_kind') or '',
+                      'row.%d.tint' % n: row.get('tint') or '', 'row.%d.glyph' % n: row.get('glyph') or '',
+                      # the coverage bar in tenths (0-10); '' hides it
+                      'row.%d.cover' % n: '' if cover is None else str(max(0, min(10, int(round(float(cover) / 10.0)))))})
+    return props
+
+
+def result(control, rows, link):
+    """The answer for a tapped control: a row index, len(rows) for the link, -1 otherwise."""
+    if ROW0 <= control < ROW0 + min(rows, MAX_ROWS):
+        return control - ROW0
+    if control == LINK and link:
+        return rows
+    return -1
+
+
+def choose(spec, xbmcgui=None, xbmc=None, path=None):
+    import os
+    if xbmcgui is None:
+        import xbmcgui
+    if xbmc is None:
+        import xbmc
+    props = properties(spec)
+    rows, link = int(props['rows']), bool(props['link'])
+
+    class Sheet(xbmcgui.WindowXMLDialog):
+        def onInit(self):
+            self.answer = -1
+            for key, value in props.items():
+                self.setProperty(key, value)
+            try:
+                self.setFocusId(ROW0 if rows else (LINK if link else CANCEL))
+            except Exception:
+                pass
+
+        def onClick(self, control):
+            self.answer = result(control, rows, link)
+            self.close()
+
+        def onAction(self, action):
+            if action.getId() in BACK_KEYS:
+                self.answer = -1
+                self.close()
+
+    sheet = Sheet(WINDOW, path or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                  'Default', '1080i')
+    try:
+        sheet.doModal()
+        return getattr(sheet, 'answer', -1)
+    finally:
+        del sheet
+
+
+def load():
+    """This module from another add-on (None when the bootstrap add-on or its sheet is not there)."""
+    try:
+        import importlib.util
+        import os
+        import xbmcaddon
+        here = xbmcaddon.Addon('service.kodi.ios.bootstrap').getAddonInfo('path')
+        source = os.path.join(here, 'resources', 'lib', 'choice_sheet.py')
+        if not os.path.isfile(source):
+            return None
+        spec = importlib.util.spec_from_file_location('kodi_ios_choice_sheet', source)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.HOME = here
+        return module
+    except Exception:
+        return None
+
+
+def window(p):
+    """portrait/IOSChoiceSheet.xml (p: the portrait module)."""
+    W = p.WIDTH - 2 * SIDE
+    P = lambda k: '$INFO[Window().Property(%s)]' % k
+    has = lambda k: '!String.IsEmpty(Window().Property(%s))' % k
+    is_ = lambda k, v: 'String.IsEqual(Window().Property(%s),%s)' % (k, v)
+    card = p.SURFACE2
+    slab = lambda h, extra='': p.image(0, 0, W, h, p.MEDIA + 'white.png', card, extra)
+
+    def block(h, inner, visible=''):
+        vis = '<visible>%s</visible>' % visible if visible else ''
+        return '<control type="group"><width>%d</width><height>%d</height>%s%s%s</control>' % (W, h, vis, slab(h), inner)
+
+    cap = lambda name: ('<control type="image"><width>%d</width><height>48</height>'
+                        '<texture border="44,0,44,0" colordiffuse="%s">%s%s</texture></control>') % (W, card, p.MEDIA, name)
+    # The title's art with its kind and name over it (board 13).
+    art = block(ART_H + 20,
+                p.image(34, 0, W - 68, ART_H, P('art'), p.WHITE, '', '>scale', p.MEDIA + 'card_mask.png', background=True) +
+                p.image(34, ART_H - 200, W - 68, 200, p.MEDIA + 'hero_fade.png', 'B3000000', '', '', p.MEDIA + 'card_mask.png') +
+                p.label(74, ART_H - 120, W - 148, 100, P('art_title'), 'p_h2', p.WHITE, 'left', '<scroll>false</scroll>') +
+                # The badge on a dark capsule that fits its text (a disabled auto-width button), right-aligned.
+                '<control type="grouplist"><left>34</left><top>24</top><width>%d</width><height>60</height><orientation>horizontal</orientation>'
+                '<align>right</align><usecontrolcoords>true</usecontrolcoords><visible>%s</visible>' % (W - 68 - 24, has('badge')) +
+                '<control type="button"><width min="80" max="420">auto</width><height>56</height><label>[B]%s[/B]</label><font>p_cap</font>'
+                '<textoffsetx>22</textoffsetx><align>center</align><aligny>center</aligny><enable>false</enable><disabledcolor>%s</disabledcolor>'
+                '<texturenofocus border="28" colordiffuse="99000000">%spill_56.png</texturenofocus>'
+                '<texturefocus border="28" colordiffuse="99000000">%spill_56.png</texturefocus></control></control>' % (P('badge'), p.WHITE, p.MEDIA, p.MEDIA),
+                has('art'))
+    heading = block(84, p.label(48, 8, W - 96, 76, '[B]%s[/B]' % P('heading'), 'p_h3', p.WHITE, 'center', '<scroll>false</scroll>'), has('heading'))
+    sub = block(108, p.label(56, 0, W - 112, 100, P('sub'), 'p_foot', p.GREY, 'center',
+                             '<aligny>top</aligny><wrapmultiline>true</wrapmultiline>'), has('sub'))
+
+    def tag_button(n):
+        kinds = (('best', p.GREEN, '3330D158'), ('warn', 'FFFF9F0A', '33FF9F0A'), ('', p.GREY, '24EBEBF5'))
+        out = ''
+        for kind, text, fill in kinds:
+            cond = is_('row.%d.tag_kind' % n, kind) if kind else '!%s + !%s' % (is_('row.%d.tag_kind' % n, 'best'), is_('row.%d.tag_kind' % n, 'warn'))
+            out += ('<control type="button"><width min="60" max="320">auto</width><height>48</height><top>8</top>'
+                    '<label>[B]%s[/B]</label><font>p_cap</font><textoffsetx>16</textoffsetx><align>center</align><aligny>center</aligny>'
+                    '<disabledcolor>%s</disabledcolor><textcolor>%s</textcolor><enable>false</enable>'
+                    '<texturenofocus border="24" colordiffuse="%s">%spill_56.png</texturenofocus>'
+                    '<texturefocus border="24" colordiffuse="%s">%spill_56.png</texturefocus>'
+                    '<visible>%s + %s</visible></control>') % (P('row.%d.tag' % n), text, text, fill, p.MEDIA, fill, p.MEDIA,
+                                                              has('row.%d.tag' % n), cond)
+        return out
+
+    def row(n):
+        k = 'row.%d.' % n
+        tile = has(k + 'tint')
+        tx_tile, tx_plain = 172, 48
+        text_w = W - 48 - 80
+        sep = p.image(48, 0, W - 48, 2, p.MEDIA + 'white.png', p.SEP, '<visible>!String.IsEqual(Window().Property(rows),0) + %s</visible>' % ('true' if n > 1 else 'false'))
+        tiles = ('<control type="image"><left>48</left><top>%d</top><width>96</width><height>96</height>'
+                 '<texture border="26" colordiffuse="%s">%stile100.png</texture><visible>%s</visible></control>'
+                 % ((ROW_H - 96) // 2, P(k + 'tint'), p.MEDIA, tile) +
+                 p.icon(72, (ROW_H - 48) // 2, 48, P(k + 'glyph'), p.WHITE, '<visible>%s</visible>' % tile))
+
+        def text(x, visible):
+            w = text_w - (x - 48)
+            title = ('<control type="grouplist"><left>%d</left><top>28</top><width>%d</width><height>64</height><orientation>horizontal</orientation>'
+                     '<itemgap>14</itemgap><usecontrolcoords>true</usecontrolcoords>' % (x, w) +
+                     '<control type="label"><width max="%d">auto</width><height>64</height><font>p_h3</font><textcolor>%s</textcolor>'
+                     '<aligny>center</aligny><label>%s</label><scroll>false</scroll></control>' % (w - 140, p.WHITE, P(k + 'label')) +
+                     tag_button(n) + '</control>')
+            detail = p.label(x, 96, w, 50, P(k + 'detail'), 'p_foot', p.GREY, 'left', '<scroll>false</scroll>')
+            bar = ''
+            bar_w = w - 20
+            bar += p.image(x, 150, bar_w, 10, p.MEDIA + 'white.png', 'FF3A3A3C', '<visible>%s</visible>' % has(k + 'cover'))
+            for t in range(1, 11):
+                color = p.GREEN if t == 10 else p.ACCENT
+                bar += p.image(x, 150, bar_w * t // 10, 10, p.MEDIA + 'white.png', color,
+                               '<visible>%s</visible>' % is_(k + 'cover', t))
+            return '<control type="group"><visible>%s</visible>%s%s%s</control>' % (visible, title, detail, bar)
+
+        inner = (sep + '<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height><label></label>'
+                 '<texturefocus /><texturenofocus /><onup>%s</onup><ondown>%s</ondown></control>'
+                 % (ROW0 + n - 1, W, ROW_H, ROW0 + n - 2 if n > 1 else ROW0, ROW0 + n if n < MAX_ROWS else LINK) +
+                 tiles + text(tx_tile, tile) + text(tx_plain, '!' + tile) +
+                 p.icon(W - 72, (ROW_H - 34) // 2, 34, 'chevron-right.png', p.GREY))
+        return block(ROW_H, inner, has(k + 'label'))
+
+    link = block(132, p.image(0, 0, W, 2, p.MEDIA + 'white.png', p.SEP) +
+                 '<control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>132</height>'
+                 '<label>[B]%s[/B]</label><font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
+                 '<align>center</align><aligny>center</aligny><texturefocus /><texturenofocus /></control>'
+                 % (LINK, W, P('link'), p.ACCENT, p.ACCENT), has('link'))
+    foot = block(150, p.label(56, 18, W - 112, 120, P('foot'), 'p_cap', p.GREY, 'center',
+                              '<aligny>top</aligny><wrapmultiline>true</wrapmultiline>'), has('foot'))
+    top_pad = block(20, '', '!' + has('art'))
+    bottom = 60
+    cancel_h = 128
+    sheet_h = p.HEIGHT - bottom - cancel_h - 22
+    stack = ('<control type="grouplist" id="9800"><left>%d</left><top>0</top><width>%d</width><height>%d</height>'
+             '<orientation>vertical</orientation><align>right</align><itemgap>0</itemgap><usecontrolcoords>false</usecontrolcoords>'
+             % (SIDE, W, sheet_h) +
+             cap('cap_top.png') + top_pad + art + heading + sub + ''.join(row(n) for n in range(1, MAX_ROWS + 1)) +
+             link + foot + cap('cap_bottom.png') + '</control>')
+    cancel = ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
+              '<label>[B]Cancel[/B]</label><font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
+              '<align>center</align><aligny>center</aligny>'
+              '<texturefocus border="64" colordiffuse="%s">%spill_128.png</texturefocus>'
+              '<texturenofocus border="64" colordiffuse="%s">%spill_128.png</texturenofocus><onup>%d</onup></control>'
+              % (CANCEL, SIDE, p.HEIGHT - bottom - cancel_h, W, cancel_h, p.WHITE, p.WHITE, card, p.MEDIA, card, p.MEDIA, ROW0))
+    body = ('<controls><control type="button" id="%d"><left>0</left><top>0</top><width>%d</width><height>%d</height>'
+            '<texturefocus colordiffuse="99000000">%swhite.png</texturefocus><texturenofocus colordiffuse="99000000">%swhite.png</texturenofocus>'
+            '<onclick>Close</onclick></control>' % (DIM, p.WIDTH, p.HEIGHT, p.MEDIA, p.MEDIA) + stack + cancel + '</controls>')
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window type="dialog"><defaultcontrol always="true">%d</defaultcontrol>'
+            '<animation effect="slide" start="0,300" end="0,0" time="260" tween="cubic" easing="out">WindowOpen</animation>'
+            '<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation>'
+            '<animation effect="fade" start="100" end="0" time="140">WindowClose</animation>%s</window>\n') % (p.MARKER, ROW0, body)

@@ -57,6 +57,18 @@ class Views(unittest.TestCase):
             self.assertNotEqual(v['b1.label'], 'OK' if kind != 'mirroring' else '', kind)
 
 
+class EpisodeCard(unittest.TestCase):
+    """Owner (build 229): the card said movie for an episode and its poster tile stayed grey."""
+    def test_episode_words_and_poster(self):
+        v = f.stage_view('opening', 'Dragon Ball Super \u00b7 S1 E1', kind='episode', poster='image://p.jpg/')
+        self.assertEqual((v['step0.label'], v['poster']), ('Opening the episode', 'image://p.jpg/'))
+        self.assertEqual(f.stage_view('waiting_tv', kind='episode')['step0.label'], 'Episode opened')
+        self.assertEqual(f.stage_view('opening')['step0.label'], 'Opening the movie')
+    def test_cast_sets_kind_and_poster(self):
+        src = (ROOT / 'migration/bundled-bootstrap/cast.py').read_text()
+        self.assertIn("Player.Art(tvshow.poster)", src); self.assertEqual(src.count('kind=self.kind,poster=self.poster'), 2)
+
+
 class Window(unittest.TestCase):
     def setUp(self):
         self.xml = f.page(pages.close_button_1080)

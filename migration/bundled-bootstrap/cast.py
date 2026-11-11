@@ -152,6 +152,12 @@ class FlowUI:
   import airplay_flow
   self.xbmc,self.xbmcgui,self.dialog,self.title,self.flow=xbmc,xbmcgui,dialog,title or '',airplay_flow
   self.win=None;self.box=None;self.skipped=()
+  # What is playing, for the card: an episode says so, and the show's poster fills the tile.
+  info=lambda label:(xbmc.getInfoLabel(label) or '') if hasattr(xbmc,'getInfoLabel') else ''
+  self.kind='episode' if info('VideoPlayer.TVShowTitle') else 'movie'
+  self.poster=info('Player.Art(tvshow.poster)') or info('Player.Art(poster)') or info('Player.Art(thumb)')
+  season,episode=info('VideoPlayer.Season'),info('VideoPlayer.Episode')
+  if self.kind=='episode' and season and episode and ' S%s'%season not in self.title:self.title='%s \u00b7 S%s E%s'%(self.title,season,episode)
   try:
    home=os.path.dirname(os.path.abspath(__file__))
    Flow=airplay_flow.make(xbmc,xbmcgui)
@@ -167,14 +173,14 @@ class FlowUI:
  def show(self,stage,skipped=()):
   self.skipped=skipped
   if self.win is not None:
-   self.win.apply(self.flow.stage_view(stage,self.title,skipped=skipped));self.win.show();self.win.apply({'bar':self.win.props.get('bar','0')})
+   self.win.apply(self.flow.stage_view(stage,self.title,skipped=skipped,kind=self.kind,poster=self.poster));self.win.show();self.win.apply({'bar':self.win.props.get('bar','0')})
   else:
    self.box=self.xbmcgui.DialogProgress();self.box.create('Play on TV',cast.AIRPLAY_WORDS[stage])
  def stage(self,stage):
   # Back to opening after the TV was reached: the native player restarted with the H.264 picture (r36).
   self.converting=getattr(self,'converting',False) or (stage=='opening' and getattr(self,'last','') in ('waiting_tv','connecting'))
   self.last=stage
-  if self.win is not None:self.win.apply(self.flow.stage_view(stage,self.title,skipped=self.skipped,converting=self.converting))
+  if self.win is not None:self.win.apply(self.flow.stage_view(stage,self.title,skipped=self.skipped,converting=self.converting,kind=self.kind,poster=self.poster))
   elif self.box:self.box.update(0,cast.AIRPLAY_WORDS.get(stage,''))
  def canceled(self):
   if self.win is not None:return self.win.canceled()

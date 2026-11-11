@@ -362,8 +362,11 @@ def quality_menu_labels(keys, groups, top_n=TOP_N):
         # Owner-approved picker (mockup board 14): the quality, and under it how many versions and the size they start
         # from. choose_quality splits the two at \x1f into the choice's name and its second line.
         smallest = min(uniq, key=lambda it: it['size'])
-        labels.append(u'[B]%s[/B]\x1f%d version%s \u00b7 from %s' % (quality_label(q), len(uniq), u'' if len(uniq) == 1 else u's',
-                                                                   size_text(smallest)))
+        # Board 14: HDR when some version of this quality has it.
+        blob = u' '.join(_blob(u'%s %s' % (it.get('tags_text', u''), it.get('name', u''))) for it in uniq)
+        hdr = u' \u00b7 Dolby Vision' if re.search(r'DOLBY ?VISION| DOVI | DV ', blob) else (u' \u00b7 HDR10' if 'HDR' in blob else u'')
+        labels.append(u'[B]%s[/B]\x1f%d version%s%s \u00b7 from %s' % (quality_label(q), len(uniq), u'' if len(uniq) == 1 else u's',
+                                                                     hdr, size_text(smallest)))
     return labels
 
 
@@ -376,7 +379,43 @@ def count_label(shown_n, uniq_n):
 # ---------------------------------------------------------------------------------
 # on-screen pieces (only these touch Kodi; tests replace them)
 # ---------------------------------------------------------------------------------
-def choose_quality(labels):
+def _sheet():
+    """The bootstrap add-on's choice sheet (owner-approved mockup board 14), or None (Kodi's box is used)."""
+    try:
+        import importlib.util
+        from kodi_six import xbmcaddon
+        here = xbmcaddon.Addon('service.kodi.ios.bootstrap').getAddonInfo('path')
+        source = os.path.join(here, 'resources', 'lib', 'choice_sheet.py')
+        if not os.path.isfile(source):
+            return None
+        spec = importlib.util.spec_from_file_location('kodi_ios_choice_sheet', source)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.HOME = here
+        return module
+    except Exception:
+        return None
+
+
+def quality_sheet(labels, title=u'', total=0):
+    """The sheet for the quality menu: the title and how many versions, each quality with its line, the best one
+    tagged, and Show All as a blue row (the last label)."""
+    rows = []
+    for n, text in enumerate(labels[:-1]):
+        name, _, detail = text.partition(u'\x1f')
+        rows.append({'label': re.sub(r'\[/?B\]', u'', name), 'detail': detail,
+                     'tag': u'BEST' if n == 0 else u'', 'tag_kind': u'best' if n == 0 else u''})
+    return {'heading': title, 'sub': u'Pick a quality \u00b7 %d versions found' % total if total else u'Pick a quality',
+            'rows': rows, 'link': labels[-1].replace(u'Show all', u'Show All').replace(u' links', u' Links')}
+
+
+def choose_quality(labels, title=u'', total=0):
+    sheet = _sheet()
+    if sheet is not None:
+        try:
+            return sheet.choose(quality_sheet(labels, title, total), path=getattr(sheet, 'HOME', None))
+        except Exception:
+            pass
     from kodi_six import xbmcgui
     items = []
     for text in labels:
@@ -829,7 +868,7 @@ def run(title, items, top_n=TOP_N, expect=None):
         if len(keys) == 1:
             qi = 0
         else:
-            choice = choose_quality(labels + [u'Show all %d links' % len(kept)])
+            choice = choose_quality(labels + [u'Show all %d links' % len(kept)], title, len(kept))
             if choice is None or choice < 0:
                 return -1
             if choice >= len(keys):

@@ -191,6 +191,11 @@ char *kr_hls_master_receiver(gm_stream *s,const char *base,int compat,const char
     return b.p;
 }
 
+// ISSUE-166 (build-229 log): Apple's player loaded segments 0-6 of a resumed episode (each converted on the phone)
+// and only seeked to 11:53 once it was ready, a minute later. EXT-X-START makes it fetch the resume segment first.
+static double hls_start;
+void kr_hls_set_start(double seconds) { hls_start = isfinite(seconds) && seconds > 1 ? seconds : 0; }
+
 char *kr_hls_media(gm_stream *s, const char *prefix, const char *seg_ext, int with_map) {
     sb b = {0};
     int n = gm_stream_segment_count(s);
@@ -198,6 +203,7 @@ char *kr_hls_media(gm_stream *s, const char *prefix, const char *seg_ext, int wi
     for (int i = 0; i < n; i++) maxd = fmax(maxd, gm_stream_segment_duration(s, i));
     sb_add(&b, "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:%d\n", (int)ceil(maxd));
     sb_add(&b, "#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-INDEPENDENT-SEGMENTS\n");
+    if (hls_start > 0) sb_add(&b, "#EXT-X-START:TIME-OFFSET=%.3f,PRECISE=YES\n", hls_start);
     if (with_map) sb_add(&b, "#EXT-X-MAP:URI=\"%s/init.mp4\"\n", prefix);
     for (int i = 0; i < n; i++) sb_add(&b, "#EXTINF:%.5f,\n%s/seg%d.%s\n", gm_stream_segment_duration(s, i), prefix, i, seg_ext);
     sb_add(&b, "#EXT-X-ENDLIST\n");

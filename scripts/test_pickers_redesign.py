@@ -21,6 +21,6 @@ class Pickers(unittest.TestCase):
   import deck_picker as dp
   items=[{'quality':'1080p','size':2.4,'seeds':5,'providers':[]}]
   src=(ROOT/'migration/deck-picker/deck_picker.py').read_text()
-  self.assertIn("\\x1f%d version%s \\u00b7 from %s",src);self.assertIn("name, _, detail = text.partition(u'\\x1f')",src)
+  self.assertIn("\\x1f%d version%s%s \\u00b7 from %s",src);self.assertIn("name, _, detail = text.partition(u'\\x1f')",src)
 
 if __name__=='__main__':unittest.main()

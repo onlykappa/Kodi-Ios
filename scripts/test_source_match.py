@@ -211,7 +211,7 @@ class VersionPage(unittest.TestCase):
  def run_page(self,items,answers,exp=FALL,quality=None):
   seen=[]
   def source(title,rows,q,count):seen.append({'rows':rows,'quality':q,'count':count});return answers.pop(0)
-  with mock.patch.object(dp,'choose_source',source),mock.patch.object(dp,'choose_quality',quality or (lambda labels:seen.append({'labels':labels}) or answers.pop(0))),\
+  with mock.patch.object(dp,'choose_source',source),mock.patch.object(dp,'choose_quality',quality or (lambda labels,*a:seen.append({'labels':labels}) or answers.pop(0))),\
        mock.patch.object(dp,'resume_wanted',lambda:None),mock.patch.object(dp,'remember',lambda *a:True),mock.patch.object(sm,'log',lambda m:None):
    return dp.run('Choose a stream Fall (2022)',items,expect=exp),seen
  def test_short_list_gets_our_page_with_only_this_title_and_a_hidden_row(self):
@@ -234,10 +234,10 @@ class VersionPage(unittest.TestCase):
   self.assertEqual(choice,3)
  def test_show_all_from_the_quality_menu(self):
   items=GOOD*2+BAD
-  choice,seen=self.run_page(items,[-1],quality=lambda labels:len(labels)-1)
+  choice,seen=self.run_page(items,[-1],quality=lambda labels,*a:len(labels)-1)
   self.assertEqual(choice,-1);self.assertEqual(len(seen[0]['rows']),6+1)
  def test_show_all_with_everything_verified_is_elementums_own_list(self):
-  self.assertIsNone(self.run_page(GOOD*2,[],quality=lambda labels:len(labels)-1)[0])
+  self.assertIsNone(self.run_page(GOOD*2,[],quality=lambda labels,*a:len(labels)-1)[0])
  def test_all_hidden_says_so_and_can_reveal(self):
   choice,seen=self.run_page(BAD,[0,1])
   self.assertEqual([r['headline'] for r in seen[0]['rows']],['2 hidden (wrong title/year)']);self.assertEqual(seen[0]['count'],'All 2 links hidden')

@@ -2106,6 +2106,11 @@ static void test_startup_repairs(const char *base) {
     CHECK(strstr(log,"parallel_audio=1") && strstr(log,"startup: audio segment 1 buffered") && strstr(log,"startup: video segment 1 buffered"),
           "startup records both independent target lanes");
     CHECK(!strstr(log,"request: audio segment 0") && !strstr(log,"request: converted video segment 0"),"resume does not warm an unrelated segment zero");
+    // ISSUE-166: the receiver starts at the resume point instead of loading from segment zero and seeking later.
+    reply vstart=http_get(kr_remux_port(),"/video/index.m3u8",NULL),astart=http_get(kr_remux_port(),"/audio/1/index.m3u8",NULL);
+    CHECK(vstart.body && strstr(vstart.body,"#EXT-X-START:TIME-OFFSET=9.100,PRECISE=YES") && astart.body &&
+          strstr(astart.body,"#EXT-X-START:TIME-OFFSET=9.100,PRECISE=YES"),"media playlists start at the resume position");
+    free(vstart.body);free(astart.body);
     kr_remux_cancel(ticket);CHECK(kr_remux_prime_for(ticket,0)==KR_FAILED,"stale canceled attempt cannot prime a session");kr_remux_stop();
     // A converted resume needs the init from its target unit, including the AAC bridge's init.
     // Requesting init must not require encoding the beginning again, and those headers must decode real frames.

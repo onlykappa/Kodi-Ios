@@ -711,7 +711,7 @@ def addon_settings_window(p,original,categories=True):
 def _module(name):
  spec=_iu.spec_from_file_location(name,os.path.join(os.path.dirname(os.path.abspath(__file__)),name+'.py'))
  module=_iu.module_from_spec(spec);spec.loader.exec_module(module);return module
-profiles_rows=_module('profiles_rows');favourites_rows=_module('favourites_rows')
+profiles_rows=_module('profiles_rows');favourites_rows=_module('favourites_rows');choice_sheet=_module('choice_sheet')
 
 def profile_row(p,n,w):
  """Profile n (shown while its name is set): picture or initials, its name and, for the current profile, "Signed in now"
@@ -811,6 +811,7 @@ def files(p,read):
       p.FOLDER+'/IOSFavourites.xml':favourites_page(p).encode(),
       p.FOLDER+'/IOSSettingsSearch.xml':search_window(p).encode(),
       p.FOLDER+'/IOSAddonUpdates.xml':addon_updates_page(p).encode(),
+      p.FOLDER+'/'+choice_sheet.WINDOW:choice_sheet.window(p).encode(),
       p.FOLDER+'/SettingsCategory.xml':category_window(p,read('SettingsCategory.xml')).encode(),
       p.FOLDER+'/DialogAddonSettings.xml':addon_settings_window(p,read('DialogAddonSettings.xml')).encode()}
  for name,data in textures(p).items():out['extras/portrait/'+name]=data

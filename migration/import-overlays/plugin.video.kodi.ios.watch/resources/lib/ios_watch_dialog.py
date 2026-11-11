@@ -158,7 +158,8 @@ def choose_player(player):
    if tile:li.setProperty('tint',tile[0]);li.setProperty('glyph',ICON_DIR+tile[1])
    items.append(li)
   name=str(info.get('title') or info.get('tvshowtitle') or '')
-  selected=xbmcgui.Dialog().select('How would you like to watch'+(' '+name if name else '')+'?',items)
+  selected=sheet_choice(rows,kind_of,art,info,name)
+  if selected is None:selected=xbmcgui.Dialog().select('How would you like to watch'+(' '+name if name else '')+'?',items)
  # Owner logs (build-124): TMDb Helper reported "lib.player - Failure!" right after a row was tapped, i.e. this
  # returned nothing. Say what was offered and what came back, so the next log shows which way it went.
  log=lambda text:xbmc.log('Kodi iOS watch: '+text,xbmc.LOGINFO)
@@ -180,6 +181,35 @@ def choose_player(player):
  if item is engine:share_details(player)
  log('playing with %s (%s)'%(kind_of(item),getattr(item,'file','')))
  return item
+
+SHEET_DETAIL={'elementum':'Saved to Google Drive \u00b7 watch any time','umbrella':'Plays now from your AllDebrid account',
+              'drive':'Already on your Google Drive','local':'Already on this iPhone'}
+def sheet_choice(rows,kind_of,art,info,name):
+ """Owner-approved choice sheet (mockup board 13): the title's art with its kind and name, then Download and Stream
+ as rows with their tiles and what each does. None when the sheet is not available (Kodi's box is used)."""
+ try:
+  import choice_sheet_loader
+  sheet=choice_sheet_loader.load()
+ except Exception:sheet=None
+ if sheet is None:return None
+ tv=bool(info.get('tvshowtitle')) and info.get('mediatype')!='movie'
+ badge='EPISODE' if tv else 'MOVIE'
+ if tv and info.get('season') not in (None,'') and info.get('episode') not in (None,''):
+  try:badge+=' \u00b7 S%d E%d'%(int(info.get('season')),int(info.get('episode')))
+  except (TypeError,ValueError):pass
+ elif info.get('year'):badge+=' \u00b7 %s'%info.get('year')
+ spec={'art':art.get('fanart') or art.get('tvshow.fanart') or art.get('landscape') or art.get('thumb') or '',
+       'badge':badge,'art_title':(info.get('tvshowtitle') if tv else name) or name,'sub':'How would you like to get it?','rows':[]}
+ for label,action,item in rows:
+  kind=kind_of(item) if item is not None else action
+  tile=ROW_TILE.get(kind)
+  detail=ROW_DETAIL.get(action,{}).get(item is None,'') or SHEET_DETAIL.get(kind,'')
+  if detail and ' \u2014 ' in label:label=label.split(' \u2014 ')[0]   # the line under it says why
+  spec['rows'].append({'label':label,'detail':detail,'tint':tile[0] if tile else '','glyph':ICON_DIR+tile[1] if tile else ''})
+ if not spec['art']:spec['heading']=name
+ try:return sheet.choose(spec,path=getattr(sheet,'HOME',None))
+ except Exception as error:
+  _quiet('sheet_choice',error);return None
 
 def _quiet(where,error,_seen=set()):
  """Log an error that is deliberately not shown on screen, once per place and kind (loops run every second)."""

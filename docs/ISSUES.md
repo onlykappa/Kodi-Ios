@@ -2558,3 +2558,29 @@ Status: FIXED IN SOURCE; needs AirPlay r46; host-measured, device untested.
 - CI host suite first failed (23 checks: every h264_ac3.ts audio segment, "seek input"): MPEG-TS seeks by reading the
   seek stream's timestamps, which this reader discards. Fix limited to Matroska; MKV result unchanged.
 - Regression: test_season_sources (Rows); host measurement recorded here; CI host suite covers audio renditions.
+
+## ISSUE-166 — Build 229 owner test: slow AirPlay connect, wrong card text, resume card, show page, ugly pickers (2026-11-11)
+
+Status: FIXED IN SOURCE (rig-checked where possible); AirPlay part needs r47; device untested.
+- AirPlay (log 5331b718): the phone primed the resume segment (118, 11:53) in 15 s, but Apple's player then loaded
+  segments 0-6 from the start (each converted, up to 45 s) and seeked to 11:53 only once ready, a minute later; then
+  converted 117-119 again. Media playlists now carry #EXT-X-START:TIME-OFFSET=<resume>,PRECISE=YES so the receiver
+  fetches the resume segment first. Host test: primed at 9.1 s, both playlists carry the tag.
+- Card said "Opening the movie" for an episode and its poster tile was grey (never set): now "episode" wording, the
+  show's poster, and "Show · S1 E1" as the subtitle.
+- Resume prompt showed the spotlight's card (owner: "asks me to resume the show at the top"): the 11:53 offer was
+  Dragon Ball's own; Kodi's resume prompt is the context-menu window and its card used the focused spotlight item.
+  The card is hidden when the second row is Kodi string 12021 (Play from beginning). Rig: centred menu, no card.
+- Show page: Play/Download text ran under their glyphs (fixed glyph x). Inline capsule (glyph + auto-width label in a
+  centred grouplist); labels "Play/Download Season N". Season chips scrolled away: a pinned row (same folder) appears
+  once the page scrolls (Container(9900).HasPrevious); tap selects that season (SetFocus absolute + Control.Move -1).
+  Chips read "Season N" (were "S1 • Kazeka..."). Episode titles/plots now wrap (Kodi draws list labels on one line;
+  textboxes wrap and show whole lines); show plot shows 3 whole lines (was 4, the last cut). Rig screenshots checked.
+- Pickers (owner: "still ugly"): the approved round-3 boards were built as Kodi's select box with second lines. Now one
+  bottom sheet (choice_sheet.py, IOSChoiceSheet.xml): art card with kind badge and title, rows with tiles, detail
+  lines, BEST / ALL n / k OF n tags, coverage bars, blue Show All row, footer, separate Cancel capsule. Used by How
+  would you like to watch (watch add-on), Pick a quality (deck picker), the season menu and season qualities.
+  Rig: real TMDb Helper play flow opens it; Back, Cancel tap and a row tap answer correctly. (A rig-only Trakt sign-in
+  prompt opened under it once and froze input; not reproducible after dismissing it.)
+- Regression: test_choice_sheet (new), test_airplay_flow, test_show_scrolling, test_source_match, test_deck_picker,
+  test_season_sources, host test_remux EXT-X-START check.

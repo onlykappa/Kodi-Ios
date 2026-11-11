@@ -292,15 +292,33 @@ def close_button(id,x,y,extra='',navigation='',size=118):
 
 
 def icon(x,y,size,name,color=WHITE,extra=''):return image(x,y,size,size,name if ('://' in name or name.startswith('$')) else ICONS+name,color,extra,'>keep')
+def textbox(x,y,w,h,text,font,color=WHITE):
+ """Wrapped text inside a list's item layout (owner, build 229: episode titles and plots ended in "..." after one
+ line). A list draws a label on one line whatever wrapmultiline says; a textbox wraps and shows whole lines only."""
+ return ('<control type="textbox"><left>%s</left><top>%s</top><width>%s</width><height>%s</height><font>%s</font>'
+         '<textcolor>%s</textcolor><label>%s</label><autoscroll>false</autoscroll></control>')%(x,y,w,h,font,color,e(text))
 def label(x,y,w,h,text,font,color=WHITE,align='left',extra=''):
  return ('<control type="label"><left>%s</left><top>%s</top><width>%s</width><height>%s</height><font>%s</font>'
          '<textcolor>%s</textcolor><align>%s</align><aligny>center</aligny><label>%s</label>%s</control>')%(x,y,w,h,font,color,align,e(text),extra)
 def surface(x,y,w,h,texture,color=WHITE,border=0,extra=''):return image(x,y,w,h,MEDIA+texture,color,extra,border=border)
 
-def pill_button(id,x,y,w,h,text,actions,style,glyph='',extra='',glyph_x=None):
- """Apple-style capsule: 'primary' white with black text, 'glass' frosted. actions: [(condition, action)]."""
+def pill_button(id,x,y,w,h,text,actions,style,glyph='',extra='',glyph_x=None,inline=False):
+ """Apple-style capsule: 'primary' white with black text, 'glass' frosted. actions: [(condition, action)].
+ inline: the glyph and the label are centred together whatever the label's length (owner, build 229: on a show page
+ "Play S4 · Immortal Devastators..." ran under the play glyph), the label ending in "..." when it is too long."""
  fill,tex,textcolor=(('FFFFFFFF','pill_%d.png'%h,'FF000000') if style=='primary' else ('FFFFFFFF','glass_%d.png'%h,'FFFFFFFF'))
  clicks=''.join('<onclick%s>%s</onclick>'%(' condition="%s"'%e(c) if c else '',e(a)) for c,a in actions)
+ if inline and glyph and text:
+  inner=('<control type="button" id="%d"><width>%d</width><height>%d</height><label></label>'
+         '<texturefocus border="%d" colordiffuse="%s">%s%s</texturefocus><texturenofocus border="%d" colordiffuse="%s">%s%s</texturenofocus>'
+         '%s%s</control>')%(id,w,h,h//2,fill,MEDIA,tex,h//2,fill,MEDIA,tex,clicks,extra)
+  row=('<control type="grouplist"><left>40</left><top>0</top><width>%d</width><height>%d</height><orientation>horizontal</orientation>'
+       '<align>center</align><itemgap>18</itemgap><usecontrolcoords>true</usecontrolcoords>'%(w-80,h)+
+       icon(0,(h-46)//2,46,glyph,textcolor)+
+       '<control type="label"><width max="%d">auto</width><height>%d</height><font>p_btn</font><textcolor>%s</textcolor>'
+       '<aligny>center</aligny><label>%s</label><scroll>false</scroll></control></control>')%(w-80-64,h,textcolor,e(text))
+  visible=''.join(re.findall(r'<visible(?: [^>]*)?>.*?</visible>',extra))
+  return '<control type="group"><left>%s</left><top>%s</top><width>%s</width><height>%s</height>%s%s%s</control>'%(x,y,w,h,visible,inner,row)
  inner=('<control type="button" id="%d"><width>%d</width><height>%d</height><label>%s</label><font>p_btn</font>'
         '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny><textoffsetx>%d</textoffsetx>'
         '<texturefocus border="%d" colordiffuse="%s">%s%s</texturefocus><texturenofocus border="%d" colordiffuse="%s">%s%s</texturenofocus>'
@@ -865,13 +883,13 @@ def show_header(ids_down):
  play_visible='Container.Content(seasons) | [Container.Content(episodes) + '+DOWNLOADED_SHOW+']'
  play_button=pill_button(9002,SIDE,0,WIDTH-2*SIDE,124,'$VAR[Portrait_Show_Play_Label]',play,'primary',MEDIA+'play.png',
   '<visible>%s</visible><onup>9001</onup><ondown condition="%s">52</ondown><ondown condition="%s">50</ondown><ondown condition="%s">9003</ondown>'%(
-   play_visible,'Container.Content(episodes)','['+DOWNLOADED_SHOW+' | !System.HasAddon(plugin.video.elementum)] + Container.Content(seasons)','!'+DOWNLOADED_SHOW+' + Container.Content(seasons) + System.HasAddon(plugin.video.elementum)'),glyph_x=(WIDTH-2*SIDE)//2-230)
+   play_visible,'Container.Content(episodes)','['+DOWNLOADED_SHOW+' | !System.HasAddon(plugin.video.elementum)] + Container.Content(seasons)','!'+DOWNLOADED_SHOW+' + Container.Content(seasons) + System.HasAddon(plugin.video.elementum)'),inline=True)
  header+='<control type="group"><width>%d</width><height>144</height><visible>%s</visible>%s</control>'%(WIDTH,play_visible,play_button)
  download_visible='Container.Content(seasons) + !'+DOWNLOADED_SHOW+' + System.HasAddon(plugin.video.elementum)'
  header+='<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>%s</control>'%(WIDTH,DL_SHIFT,download_visible,
-  pill_button(9003,SIDE,0,WIDTH-2*SIDE,DL_H,'Download  $INFO[Container(50).ListItem.Label]',[('',DOWNLOAD_SEASON)],'glass',ICONS+'download.png',
-              '<visible>%s</visible><onup>9002</onup><ondown>50</ondown>'%download_visible,glyph_x=(WIDTH-2*SIDE)//2-300))
- header+='<control type="group"><width>%d</width><height>170</height><control type="textbox"><left>%d</left><top>0</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>$VAR[Portrait_Show_Plot]</label><autoscroll>false</autoscroll></control></control>'%(WIDTH,SIDE,WIDTH-2*SIDE,GREY)
+  pill_button(9003,SIDE,0,WIDTH-2*SIDE,DL_H,'Download $VAR[Portrait_Season_Short]',[('',DOWNLOAD_SEASON)],'glass',ICONS+'download.png',
+              '<visible>%s</visible><onup>9002</onup><ondown>50</ondown>'%download_visible,inline=True))
+ header+='<control type="group"><width>%d</width><height>160</height><control type="textbox"><left>%d</left><top>0</top><width>%d</width><height>132</height><font>p_foot</font><textcolor>%s</textcolor><label>$VAR[Portrait_Show_Plot]</label><autoscroll>false</autoscroll></control></control>'%(WIDTH,SIDE,WIDTH-2*SIDE,GREY)
  return header
 
 def episode_item(focused):
@@ -881,13 +899,13 @@ def episode_item(focused):
   image(SIDE,18,thumb_w,thumb_h,'$VAR[Portrait_Thumb]',WHITE,'','>scale',MEDIA+'thumb_mask.png',background=True)+
   image(SIDE+thumb_w//2-48,18+thumb_h//2-48,96,96,MEDIA+'glass_96.png')+icon(SIDE+thumb_w//2-18,18+thumb_h//2-20,40,MEDIA+'play.png')+
   episode_badges(SIDE,18,thumb_w,thumb_h)+
-  label(SIDE+thumb_w+30,40,WIDTH-2*SIDE-thumb_w-30,110,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_h3',WHITE,'left','<wrapmultiline>true</wrapmultiline>')+
-  label(SIDE+thumb_w+30,154,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]','p_cap',GREY)+
-  label(SIDE,thumb_h+40,WIDTH-2*SIDE,56,'$INFO[ListItem.Plot]','p_cap',GREY,'left','<scroll>false</scroll>')+'</control>')
+  textbox(SIDE+thumb_w+30,30,WIDTH-2*SIDE-thumb_w-30,116,'$INFO[ListItem.Episode,,. ]$INFO[ListItem.Title]','p_h3',WHITE)+
+  label(SIDE+thumb_w+30,160,WIDTH-2*SIDE-thumb_w-30,48,'$INFO[ListItem.Duration(mins),,m]$INFO[ListItem.Premiered,  ·  ]','p_cap',GREY)+
+  textbox(SIDE,thumb_h+36,WIDTH-2*SIDE,84,'$INFO[ListItem.Plot]','p_cap',GREY)+'</control>')
 
 def video_nav(original):
  chip=lambda on:('<control type="group"><visible>String.IsEqual(ListItem.DBType,season)</visible>'+surface(0,8,250,96,'pill_96.png' if on else 'glass_96.png',WHITE,48)+
-  label(0,8,250,96,'$INFO[ListItem.Label]','p_foot_b','FF000000' if on else WHITE,'center')+'</control>')
+  label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b','FF000000' if on else WHITE,'center')+'</control>')
  chips=('<control type="list" id="50"><left>%d</left><top>%d</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
   '<ondown>60</ondown><onup condition="%s">9002</onup><onup condition="%s">9003</onup><scrolltime tween="cubic">250</scrolltime><visible>Container.Content(seasons)</visible>'
   '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout></control>')%(SIDE,0,WIDTH-SIDE,'['+DOWNLOADED_SHOW+' | !System.HasAddon(plugin.video.elementum)]','!'+DOWNLOADED_SHOW+' + System.HasAddon(plugin.video.elementum)',chip(False),chip(True))
@@ -917,8 +935,28 @@ def video_nav(original):
   '%s%s%s%s</control>')%(WIDTH,HEIGHT,show_header('50'),chips,
   episodes%(60,0,WIDTH,HEIGHT,'50','Container.Content(seasons)',episode_item(False),episode_item(True),'<content target="videos">$INFO[Container(50).ListItem.FolderPath]</content>'),
   episodes%(52,0,WIDTH,HEIGHT,'9002','Container.Content(episodes)',episode_item(False),episode_item(True),''))
- body=('<controls>'+backdrop()+show_page+generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+back+plain_title+refresh+'</controls>')
+ # Owner (build 229): "If i scroll down after i select a season the season selecter disappears". Once the page has
+ # scrolled, the same seasons (the folder's own listing, cached by the add-on) stay pinned under the Back button. A tap
+ # selects that season in the page's own row (SetFocus absolute takes a 0-based index; CurrentItem is 1-based).
+ pinned_visible='Container.Content(seasons) + Container(9900).HasPrevious'
+ pinned=('<control type="group"><visible>%s</visible>'%pinned_visible+
+  '<animation effect="fade" start="0" end="100" time="180">Visible</animation><animation effect="fade" start="100" end="0" time="120">Hidden</animation>'+
+  image(0,0,WIDTH,300,MEDIA+'white.png','FF000000')+image(0,300,WIDTH,60,MEDIA+'fade_down.png')+
+  ('<control type="list" id="49"><left>%d</left><top>170</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
+   '<onup>9001</onup><ondown>60</ondown><scrolltime tween="cubic">250</scrolltime>'
+   '<onclick>SetFocus(50,$INFO[Container(49).CurrentItem],absolute)</onclick><onclick>Control.Move(50,-1)</onclick>'
+   '<itemlayout width="268" height="112">%s</itemlayout><focusedlayout width="268" height="112">%s</focusedlayout>'
+   '<content>$INFO[Container.FolderPath]</content></control>')%(SIDE,WIDTH-SIDE,pinned_chip(False),pinned_chip(True))+'</control>')
+ body=('<controls>'+backdrop()+show_page+generic+grid()+image(0,0,WIDTH,90,MEDIA+'fade_down.png')+pinned+back+plain_title+refresh+'</controls>')
  return window(original,body,'50','<views>50,51,52,53</views>')
+
+def pinned_chip(focused):
+ """A season in the pinned row: white when it is the season the page shows (the row on the page decides)."""
+ on='String.IsEqual(ListItem.Label,Container(50).ListItem.Label)'
+ return ('<control type="group"><visible>String.IsEqual(ListItem.DBType,season)</visible>'+
+  surface(0,8,250,96,'pill_96.png',WHITE,48,'<visible>%s</visible>'%on)+surface(0,8,250,96,'glass_96.png',WHITE,48,'<visible>!%s</visible>'%on)+
+  label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b','FF000000','center','<visible>%s</visible>'%on)+
+  label(0,8,250,96,'$VAR[Portrait_Chip_Label]','p_foot_b',WHITE,'center','<visible>!%s</visible>'%on)+'</control>')
 
 GRID='Container.Content(movies) | Container.Content(tvshows)'
 GRID_LARGE='String.IsEqual(Skin.String(Portrait.Grid),large)'   # Settings › Customisation › View Types
@@ -955,7 +993,10 @@ SHOW_VARS=('<variable name="Portrait_Show_Art"><value condition="!String.IsEmpty
 # Downloaded pages keep show metadata stable while an episode card is focused.
 SHOW_VARS+=''.join('<variable name="Portrait_Show_%s"><value condition="%s + !String.IsEmpty(Container.Property(KodiIOS.Show%s))">$INFO[Container.Property(KodiIOS.Show%s)]</value><value>$INFO[ListItem.%s]</value></variable>'%
  (name,DOWNLOADED_SHOW,name,name,label) for name,label in (('Plot','Plot'),('Year','Year'),('Rating','Rating'),('Genres','Genre')))
-SHOW_VARS+='<variable name="Portrait_Show_Play_Label"><value condition="%s + Container.Content(seasons) + !String.IsEmpty(Container(50).ListItem.Property(KodiIOS.PlayLabel))">$INFO[Container(50).ListItem.Property(KodiIOS.PlayLabel)]</value><value condition="%s">$INFO[Container.Property(KodiIOS.PlayLabel)]</value><value>Play $INFO[Container(50).ListItem.Label]</value></variable>'%(DOWNLOADED_SHOW,DOWNLOADED_SHOW)
+SHOW_VARS+='<variable name="Portrait_Show_Play_Label"><value condition="%s + Container.Content(seasons) + !String.IsEmpty(Container(50).ListItem.Property(KodiIOS.PlayLabel))">$INFO[Container(50).ListItem.Property(KodiIOS.PlayLabel)]</value><value condition="%s">$INFO[Container.Property(KodiIOS.PlayLabel)]</value><value>Play $VAR[Portrait_Season_Short]</value></variable>'%(DOWNLOADED_SHOW,DOWNLOADED_SHOW)
+SHOW_VARS+='<variable name="Portrait_Chip_Label"><value condition="String.IsEqual(ListItem.Season,0)">Specials</value><value condition="!String.IsEmpty(ListItem.Season)">Season $INFO[ListItem.Season]</value><value>$INFO[ListItem.Label]</value></variable>'
+# "Season 4" (or Specials), not the season's long name, on the Play and Download buttons (owner, build 229).
+SHOW_VARS+='<variable name="Portrait_Season_Short"><value condition="String.IsEqual(Container(50).ListItem.Season,0)">Specials</value><value condition="!String.IsEmpty(Container(50).ListItem.Season)">Season $INFO[Container(50).ListItem.Season]</value><value>$INFO[Container(50).ListItem.Label]</value></variable>'
 
 # Settings › Customisation › Info Page: rows under the plot, from TMDb Helper, each behind Fuse's own switch
 # (settings_page.INFO). (key, title, TMDb Helper info, setting, only for, landscape thumbnails)
@@ -1115,6 +1156,10 @@ def context_menu(original):
  x=60;card_w=WIDTH-2*x;pad=20;art_h=(card_w-2*pad)*9//16;card_h=pad+art_h+136;top=110;menu_w=780;row_h=120;cap=30
  menu_top=top+card_h+30
  no_art='String.IsEmpty(ListItem.Art(fanart)) + String.IsEmpty(ListItem.Art(landscape)) + String.IsEmpty(ListItem.Art(thumb)) + String.IsEmpty(Window(Home).Property(Portrait.Item.Art))'
+ # Owner (build 229): tapping Dragon Ball in Continue Watching asked "Resume from 00:11:53" under The Awakening's card:
+ # Kodi's resume prompt is this window too, and the focused item (the spotlight) is not what is being played. The
+ # resume prompt (second row "Play from beginning", Kodi string 12021) never shows the card.
+ no_art='[%s] | String.IsEqual(Control.GetLabel(1002),$LOCALIZE[12021])'%no_art
  card=('<control type="group"><left>%d</left><top>%d</top><visible>![%s] + !Control.IsVisible(%d)</visible>'%(x,top,no_art,1001+(HEIGHT-(top+card_h+30)-60-2*cap)//row_h)+
   '<animation effect="zoom" start="94" end="100" center="auto" time="240" tween="back" easing="out">WindowOpen</animation>'+
   surface(0,0,card_w,card_h,'glass_card.png',WHITE,44)+
@@ -1447,7 +1492,7 @@ def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py')):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py')):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())

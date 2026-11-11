@@ -25,8 +25,10 @@ FOOT = {'opening': 'Usually a few seconds. Your downloads keep going, slower.',
 TITLES = {'opening': 'Play on TV', 'waiting_tv': 'Choose your TV', 'connecting': 'Connecting to your TV'}
 
 
-def stage_view(stage, title='', quality='', skipped=(), converting=False):
-    """Window properties for a running stage. `skipped`: stages this attempt never needs (a direct link opens nothing)."""
+def stage_view(stage, title='', quality='', skipped=(), converting=False, kind='movie', poster=''):
+    """Window properties for a running stage. `skipped`: stages this attempt never needs (a direct link opens nothing).
+    kind 'episode' says episode, not movie (owner, build 229: "it says reading movie not tv show"); poster is the art
+    the card shows (it was never set, so the tile stayed grey)."""
     stage = stage if stage in STAGES else 'opening'
     now = STAGES.index(stage)
     props = {'mode': 'steps', 'title': TITLES[stage], 'sub': ' · '.join(x for x in (title, quality) if x),
@@ -35,10 +37,13 @@ def stage_view(stage, title='', quality='', skipped=(), converting=False):
     for n, name in enumerate(STAGES):
         state = 'active' if n == now else 'done' if n < now or name in skipped else 'todo'
         label, note = (ACTIVE[name] if state == 'active' else (DONE[n], '') if state == 'done' else STEPS[n])
+        if kind == 'episode':
+            label = label.replace('the movie', 'the episode').replace('Movie opened', 'Episode opened')
         if state == 'todo':
             note = ''
         props.update({'step%d.state' % n: state, 'step%d.label' % n: label, 'step%d.note' % n: note,
                       'step%d.number' % n: str(n + 1) if state == 'todo' else ''})
+    props['poster'] = poster or ''
     if converting and stage == 'opening':
         # r36: the TV took the sound only; the picture is being converted to H.264 for it.
         props.update({'title': 'Converting the picture for your TV', 'step0.label': 'Converting the picture to H.264',

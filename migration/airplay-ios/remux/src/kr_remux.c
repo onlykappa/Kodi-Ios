@@ -1613,6 +1613,7 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
     for(int i=0;i<NREND;i++)atomic_store(&part_cost_ms[i],0);
     atomic_store(&S.served_ext_video, 0); atomic_store(&S.served_ext_audio, 0);
     atomic_store(&S.state, KR_STARTING);
+    kr_hls_set_start(0);   // a new session starts from the beginning until priming names its position
     set_message("");
     if (out && outlen > 0) *out = 0;
     char err[256] = "";
@@ -1866,6 +1867,7 @@ int kr_remux_prime_for(unsigned ticket,double seconds) {
     if(audio<0 || audio>=MAX_TRACKS || !S.routes[audio]) {
         audio=-1;for(int i=0;i<MAX_TRACKS;i++)if(S.routes[i]){audio=i;break;}
     }
+    kr_hls_set_start(seconds);
     log_line("startup: priming position=%.3f segment=%d remaining_ms=%.0f parallel_audio=%d",seconds,seg,
              fmax(0,S.startup_end_ms-began),audio>=0);
     prime_part sound={.rendition=R_AUDIO+audio,.segment=seg,.result=-1,.error=""};pthread_t thread;
