@@ -365,6 +365,16 @@ def drive_uploads(monitor,home,profile):
    except Exception as error:
     diagnostics.log_exception(xbmc,'alldebrid_to_drive',error);delay=60
  threading.Thread(target=debrid_loop,daemon=True).start()
+ # Roadmap 1A.1 (ISSUE-167): measure how long Python threads wait for the interpreter, only while a copy runs.
+ def interpreter_wait():
+  import interpreter_probe,debrid_drive
+  while not monitor.waitForAbort(30):
+   try:
+    if not debrid_drive.active(profile):continue
+    interpreter_probe.run(lambda:monitor.abortRequested() or not debrid_drive.active(profile),
+                          lambda median,p95,n:xbmc.log('Kodi iOS interpreter wait: median %.1f ms, p95 %.1f ms (%d samples)'%(median,p95,n),xbmc.LOGINFO))
+   except Exception as error:diagnostics.log_exception(xbmc,'interpreter_probe',error)
+ threading.Thread(target=interpreter_wait,daemon=True).start()
  # Build 192 (owner: Library › Movies "takes a few seconds"): the page shows the saved Drive lists at once; they are
  # listed again here when older than 5 minutes or marked stale after an upload or a conversion.
  def library_lists():
