@@ -33,6 +33,21 @@ def plan(item, position, size):
     return 'play', TMDB_PLAY + urllib.parse.urlencode(query)
 
 
+def wait_stopped(xbmc, limit=6.0, step=0.1):
+    """Stop the video and wait until Kodi has no video player (True), at most limit seconds."""
+    xbmc.Player().stop()
+    waited = 0.0
+    monitor = xbmc.Monitor()
+    while waited < limit:
+        if not xbmc.getCondVisibility('Player.HasVideo') and not xbmc.getCondVisibility('Window.IsActive(fullscreenvideo)'):
+            monitor.waitForAbort(0.3)   # let the video window and its dialogs finish closing
+            return True
+        if monitor.waitForAbort(step):
+            return False
+        waited += step
+    return False
+
+
 def run():
     import xbmc
     import xbmcgui
@@ -52,6 +67,10 @@ def run():
         xbmc.Player().playnext()
     elif how == 'play':
         xbmc.log('Kodi iOS Next Episode: %s S%02dE%02d via TMDb Helper' % (item.get('showtitle'), int(item['season']), int(item['episode']) + 1), xbmc.LOGINFO)
+        # Roadmap 2.9 (owner log e8ab5995 09:32:47): the source question opened while this video was still closing and
+        # was dismissed 0.12 s later ("picked -1", "lib.player - Failure!"). Stop first, start once it has closed.
+        stopped = wait_stopped(xbmc)
+        xbmc.log('Kodi iOS Next Episode: current video %s' % ('closed' if stopped else 'still closing after 6 s'), xbmc.LOGINFO)
         xbmc.executebuiltin('PlayMedia(%s)' % what)
     else:
         xbmcgui.Dialog().notification('Next Episode', what, xbmcgui.NOTIFICATION_INFO, 3000)

@@ -28,4 +28,20 @@ class Button(unittest.TestCase):
   self.assertIn('<visible>%s</visible>'%osd.EPISODE,xml)
   self.assertIn("'next_episode'",(BOOT/'default.py').read_text())
 
+class StopFirst(unittest.TestCase):
+    def test_waits_for_the_video_to_close_before_the_next_starts(self):
+        import types
+        state = {'video': 3, 'stopped': 0}
+        class Monitor:
+            def waitForAbort(self, t):
+                state['video'] = max(0, state['video'] - 1)
+                return False
+        fake = types.SimpleNamespace(Player=lambda: types.SimpleNamespace(stop=lambda: state.__setitem__('stopped', 1)),
+                                     Monitor=Monitor, getCondVisibility=lambda c: state['video'] > 0)
+        self.assertTrue(ne.wait_stopped(fake))
+        self.assertEqual((state['stopped'], state['video']), (1, 0))
+        state['video'] = 10 ** 9
+        self.assertFalse(ne.wait_stopped(fake, limit=0.3))
+
+
 if __name__=='__main__':unittest.main()
