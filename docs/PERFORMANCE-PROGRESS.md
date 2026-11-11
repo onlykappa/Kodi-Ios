@@ -35,3 +35,10 @@ Never claim a phone result without the owner's log or screenshot.
   startup_budget; source_commit 027f4c3, previous r46), dispatch airplay-ios.yml publish_verified_candidate=true,
   import-review.yml for build 230, verify, record in PROGRESS/HANDOFF.
 - Next items: 1A.2, 1B.3, 1B.2, 1C.1, 2.1, 2.3-2.6.
+
+## 2026-11-11 investigation (owner: "investigate before we code")
+- Read owner logs e8ab5995 and 396d5d67 (build 229) and the 37 earlier logs. Roadmap rewritten with measured timings,
+  known causes and new items 1A-1G, 2.8-2.17, 3.5-3.6. No code changed for these yet.
+- Biggest finds: Drive playback goes through plugin.googledrive's Python proxy (open 11-13 s, seek 4.2 s); Home rows
+  reload on every tab return and around playback (31 Python runs each); Drive copies ignored outside Continue
+  Watching (ios_watch_dialog cloud=resume) which also breaks Next Episode; subtitle site does not resolve.
