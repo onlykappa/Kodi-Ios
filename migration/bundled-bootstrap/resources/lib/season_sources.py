@@ -55,8 +55,9 @@ def quality_rows(choices,sources,remaining):
    detail='[COLOR %s]All %d episode%s[/COLOR]'%(GREEN,count,'' if count==1 else 's')
   else:
    have=[n for n in remaining if q in sources.get(n,[])];wait=[n for n in remaining if n not in have]
-   detail='[COLOR %s]%d of %d[/COLOR] \u00b7 episode%s %s now; %s wait%s for %s'%(ORANGE,count,len(remaining),
-    '' if len(have)==1 else 's',spans(have),spans(wait),'s' if len(wait)==1 else '',FULL_NAMES.get(q,q))
+   # Kept short enough for one line on the phone (rig: the longer wording was cut off).
+   detail='[COLOR %s]%d of %d[/COLOR] \u00b7 %s now, %s wait%s'%(ORANGE,count,len(remaining),spans(have),spans(wait),
+    's' if len(wait)==1 else '')
   rows.append((name,detail))
  return rows
 

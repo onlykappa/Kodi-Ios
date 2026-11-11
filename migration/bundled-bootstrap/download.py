@@ -44,7 +44,7 @@ def run():
  if kind=='season':
   # Owner-approved season picker (mockup round 3): the show and season as the heading, each choice with a line under it.
   rows=[('[B]Full season[/B]','Every aired episode, in one quality'),('[B]Choose episodes\u2026[/B]','Pick the ones you want'),
-        ('[B]Follow new episodes[/B]','Each new episode downloads when it comes out')]
+        ('[B]Follow new episodes[/B]','Each one downloads when it comes out')]
   pick=dialog.select('%s \u00b7 Season %s'%(values.get('title') or 'Download',season),[xbmcgui.ListItem(label=n,label2=d) for n,d in rows])
   if pick<0:return
   if pick==2:
