@@ -48,3 +48,5 @@ Never claim a phone result without the owner's log or screenshot.
   copies. Fix in service.py; scripts/test_service_scoping.py catches it. Needs the next build.
 - Roadmap: "Build 232 findings" B.1-B.11 and "UI" U.1-U.14 (Arctic Fuse/Kodi windows that need mockups) added.
 - 2.8 (code): Drive copies found on every way in (Next Episode, spotlight Play, show pages) from the saved Drive listing, no network wait; a failed Drive check there counts as no copy. Continue Watching keeps the strict check. Fixes 2.9 when the episode is on Drive. Tests: test_drive_library (cached_only). Device check pending.
+- B.3/B.4/B.5 (code): Library playback carries title, show, S/E, plot, runtime and art from the saved TMDb details (ios_library.playback_details); never the file name. Subtitle search reads show/S/E from the release name when Kodi has none (track_menu.from_release). Tests: test_library_pages, test_doh_fetch.
+- 2.13 (code): subtitle downloads retry through DNS over HTTPS (1.1.1.1) when the phone's DNS refuses the site (doh_fetch.py); certificate still checked for the site's name. Device check pending.

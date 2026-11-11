@@ -65,6 +65,20 @@ class Pages(unittest.TestCase):
    self.assertEqual(cache['tv:other:'],{'tmdb_id':'5'})
    self.assertFalse(lib.remember_show(d,['Phony'],'275139'))   # unchanged: no write
    self.assertFalse(lib.remember_show(d,['Phony'],None))
+ def test_library_play_carries_episode_details_not_the_file_name(self):
+  # Owner (build 232): Library played 'phony.s01e01.1080p.web.h264-cakes[EZTVx.to].mp4' as the title.
+  cache={'tv:phony:':{'tmdb_id':'275139','poster':'p.jpg','fanart':'f.jpg'},
+         'show:275139':{'plot':'Show plot','clearlogo':'logo.png'},
+         'season:275139:1':{'1':{'title':'Pilot','plot':'Sonny awakens.','thumb':'s.jpg','runtime':35,'aired':'2026-10-20'}}}
+  params={'kind':'episode','title':'phony.s01e01.1080p.web.h264-cakes[EZTVx.to].mp4','show':'phony','season':'1','episode':'1','tmdb_id':''}
+  name,info,art=page.playback_details(params,lib,cache)
+  self.assertEqual(name,'Pilot')
+  self.assertEqual((info['tvshowtitle'],info['season'],info['episode'],info['plot'],info['duration']),('phony',1,1,'Sonny awakens.',2100))
+  self.assertEqual((art['thumb'],art['tvshow.clearlogo']),('s.jpg','logo.png'))
+  name,info,_=page.playback_details(dict(params,episode='2'),lib,cache)
+  self.assertEqual((name,info['plot']),('Episode 2','Show plot'))   # no TMDb entry yet: never the file name
+  name,info,art=page.playback_details({'kind':'movie','title':'Home Alone','year':'1990'},lib,{'movie:home alone:1990':{'plot':'Kevin.','poster':'h.jpg'}})
+  self.assertEqual((name,info['plot'],art['poster']),('Home Alone','Kevin.','h.jpg'))
  def test_season_lookup_parses_and_caches(self):
   answer=json.dumps({'episodes':[{'episode_number':1,'name':'Pilot','overview':'x','still_path':'/s.jpg','runtime':56,'air_date':'2026-08-17'}]}).encode()
   urls=[];cache={}

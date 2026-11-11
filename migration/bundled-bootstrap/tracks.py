@@ -51,8 +51,9 @@ def subtitle_language(xbmc):
 
 
 def http_get(url):
-    with urllib.request.urlopen(urllib.request.Request(url, headers={'Accept': 'application/json', 'User-Agent': UA}), timeout=20) as r:
-        return r.read()
+    # Roadmap 2.13: the owner's DNS refuses the subtitle site; doh_fetch retries through DNS over HTTPS.
+    import doh_fetch
+    return doh_fetch.get(url, {'Accept': 'application/json', 'User-Agent': UA})
 
 
 def run(mode):
@@ -139,6 +140,11 @@ def run(mode):
             season, episode = it.get('season'), it.get('episode')
             title = show or it.get('title') or it.get('label') or ''
             name = os.path.basename(str(it.get('file') or '').split('?')[0].split('|')[0])
+            # Roadmap B.5 (build 232): a copy played without details searched its file name; read show and episode
+            # from the release name ('phony.s01e01.1080p…' -> 'phony', 1, 1) when Kodi has none.
+            guess = tm.from_release(title) if not show else None
+            if guess:
+                title, show, season, episode = guess['title'], guess['title'], guess['season'], guess['episode']
             ep = (season, episode) if show and (season or -1) >= 0 and (episode or -1) > 0 else (None, None)
             log('search %s %r %s S%sE%s' % (lang, title, it.get('year'), ep[0], ep[1]))
             return tm.find(http_get, lang, title, it.get('year') or None, ep[0], ep[1], name)

@@ -79,6 +79,18 @@ def seconds_text(value, unit='s'):
     return '0.0 s' if abs(v) < 0.05 else ('%+.1f s' % v).replace('-', '−')
 
 
+RELEASE = re.compile(r'(?i)^(.+?)[ ._-]+s(\d{1,2})[ ._-]?e(\d{1,3})\b')
+
+
+def from_release(text):
+    """{'title', 'season', 'episode'} from a release or file name ('phony.s01e01.1080p…'), or None."""
+    m = RELEASE.match(re.sub(r'\[[^\]]*\]', '', str(text or '')).strip())
+    if not m:
+        return None
+    title = re.sub(r'[._]+', ' ', m.group(1)).strip(' -')
+    return {'title': title, 'season': int(m.group(2)), 'episode': int(m.group(3))} if title else None
+
+
 def search_url(lang, title, year=None, season=None, episode=None):
     q = {'keywords': title, 'language': lang}
     if season and episode:

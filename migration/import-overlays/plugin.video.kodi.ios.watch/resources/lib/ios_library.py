@@ -314,6 +314,48 @@ def season_rows(rows,params,lib,art_cache,key):
   out.append((page_url(route),'Specials' if number==0 else 'Season %d'%number,art,info,True))
  return out
 
+def playback_details(params,lib,art_cache):
+ """(title, info, art) for a downloaded copy, from the TMDb details the Library already saved (no network).
+ Owner (build 232): an episode played from Library showed its file name ('phony.s01e01.1080p…mp4') as the title,
+ Info had nothing to show and the subtitle search looked for the file name (roadmap B.3-B.5)."""
+ movie=params.get('kind')=='movie';title=params.get('title','');show=params.get('show','')
+ def number(key):
+  try:return int(params.get(key) or 0)
+  except (TypeError,ValueError):return 0
+ season,episode=number('season'),number('episode')
+ info={'mediatype':'movie' if movie else 'episode'};art={}
+ if movie:
+  found=lib.artwork('movie',title,params.get('year',''),'',art_cache,None,cached_only=True) or {}
+  info.update(title=title,year=params.get('year',''),plot=found.get('plot',''))
+  art.update({k:found[k] for k in ('poster','fanart') if found.get(k)})
+  return title,info,art
+ show=show or title
+ found=lib.artwork('tv',show,'',None,art_cache,None,cached_only=True) or {}
+ tmdb=params.get('tmdb_id') or found.get('tmdb_id')
+ details=lib.show_details(tmdb,'',art_cache,None,cached_only=True) if tmdb else {}
+ ep=(lib.season(tmdb,season,'',art_cache,None,cached_only=True) or {}).get(str(episode),{}) if tmdb and season else {}
+ looks_like_file=bool(re.search(r'(?i)\bs\d{1,2}[ ._-]?e\d{1,3}\b|\.(mkv|mp4|m4v|avi)$',title)) or show_key(title)==show_key(show)
+ name=ep.get('title') or (title if title and not looks_like_file else ('Episode %d'%episode if episode else show))
+ info.update(title=name,tvshowtitle=show,season=season,episode=episode,plot=ep.get('plot') or details.get('plot',''))
+ if ep.get('runtime'):info['duration']=int(ep['runtime'])*60
+ if ep.get('aired'):info['premiered']=ep['aired']
+ fan=details.get('fanart') or found.get('fanart','');poster=details.get('poster') or found.get('poster','')
+ art.update({k:v for k,v in {'thumb':ep.get('thumb') or fan,'fanart':fan,'poster':poster,'tvshow.poster':poster,
+                             'tvshow.fanart':fan,'tvshow.clearlogo':details.get('clearlogo','')}.items() if v})
+ return name,info,art
+
+def apply_details(li,info,art):
+ tag=li.getVideoInfoTag();tag.setMediaType(info['mediatype']);tag.setTitle(info.get('title',''))
+ if info.get('plot'):tag.setPlot(info['plot'])
+ if info['mediatype']=='episode':
+  tag.setTvShowTitle(info.get('tvshowtitle',''))
+  if info.get('season'):tag.setSeason(int(info['season']))
+  if info.get('episode'):tag.setEpisode(int(info['episode']))
+  if info.get('premiered'):tag.setPremiered(info['premiered'])
+ elif str(info.get('year') or '').isdigit():tag.setYear(int(info['year']))
+ if info.get('duration'):tag.setDuration(int(info['duration']))
+ if art:li.setArt(art)
+
 def play_downloaded(handle,params):
  """Resolve a completed copy directly and retain progress in the same history used by Continue Watching."""
  import xbmc,xbmcgui,xbmcplugin,xbmcvfs
@@ -334,6 +376,13 @@ def play_downloaded(handle,params):
   if choice<0:xbmcplugin.setResolvedUrl(handle,False,xbmcgui.ListItem());return
   if choice==1:position=0
  li=xbmcgui.ListItem(label=params.get('title',''),path=path);li.setProperty('IsPlayable','true')
+ try:
+  boot=xbmcvfs.translatePath(BOOT)
+  if boot not in sys.path:sys.path.insert(0,boot)
+  import drivelibrary as lib
+  name,info,art=playback_details(params,lib,lib.load_json(os.path.join(xbmcvfs.translatePath(STATE),'drive-library-art.json'),{}))
+  li.setLabel(name);apply_details(li,info,art)
+ except Exception as error:xbmc.log('Kodi iOS Library: playback details unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
  li.getVideoInfoTag().setResumePoint(position,total)
  if position:li.setProperty('StartOffset',str(position))
  import ios_continue
