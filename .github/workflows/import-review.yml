@@ -114,6 +114,8 @@ jobs:
           python3 -B scripts/test_native_ui.py
           python3 -B scripts/test_updates_calibration.py
           python3 -B scripts/test_drive_upload.py
+          python3 -B scripts/test_service_scoping.py
+          python3 -B scripts/test_interpreter_probe.py
           python3 -B scripts/test_settings_search.py
           python3 -B scripts/test_deck_picker.py
           python3 -B scripts/test_source_match.py
