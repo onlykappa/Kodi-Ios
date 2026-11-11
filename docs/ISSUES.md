@@ -2474,3 +2474,21 @@ Status: CODED AND RIG-CHECKED ON THE DESKTOP RIG; NOT PUSHED, NOT BUILT; device 
   iPhone behaviour unverified); [B] bold in search results; Favourites with real items (empty state only seen).
 - Regression: test_settings_sections, test_skin_settings, test_pickers_redesign, test_profiles_favourites,
   test_search_updates, test_settings_search.
+
+## ISSUE-161 — Umbrella AirPlay still cancelled at 60 s in build 224 (2026-11-11)
+
+Status: ROOT CAUSE FIXED IN SOURCE (local); needs AirPlay framework r45 rebuild + pin; device untested.
+- Owner log (build 224, Dragon Ball Super Beerus S01E01, debrid.it MKV, H.264 High 10 → converts): attempt 1 opened
+  in 6 s, inspection took 21 s, the TV endpoint was ready at 27 s, then the sheet was closed at 31 s (aborted).
+  Attempt 2 needed 3 open attempts (10 s) and 50 s of inspection; cast.py cancelled at exactly 60 s
+  ("controller_budget_s":60, "start result -1: AirPlay canceled") before the first segment reached the TV.
+- Root cause: ISSUE-149 gave the native side one 100 s startup deadline and exported kodi_airplay_startup_budget so
+  Python waits 105 s. The function is defined in build-airplay.sh but missing from the -exported_symbols_list, so
+  r44 hides it; airplay.startup_budget() hits AttributeError and keeps the legacy 60 s. kodi_airplay_health was hidden
+  the same way (native health diagnostics never reached the log).
+- Fix: both symbols added to the exports list. Regression: scripts/test_airplay_exports.py (every default-visibility
+  native function and every lib.kodi_airplay_* call must be exported); fails on the old list, passes now.
+- Secondary, not fixed: the source is slow per request (~2.6–3 s per 2 MiB range, about 0.7 MB/s) and Kodi's own
+  paused player keeps reading the same debrid URL (CFileCache) during AirPlay startup. Even with 105 s, a 50 s
+  inspection plus conversion of the first segment is tight. Next step if r45 still times out: stop Kodi's read-ahead
+  (or stop playback) before inspection, and log inspection bytes/requests.
