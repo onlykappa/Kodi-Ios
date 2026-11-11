@@ -151,6 +151,15 @@ def slow_to_prepare(item):
     return codec(item) == u'AV1'
 
 
+def converts_for_tv(item):
+    """Roadmap 1B.1 (owner logs, builds 226-229: anime releases in 10-bit H.264 converted for AirPlay at 120-170% of real
+    time, so the TV stalls): Apple TV and AirPlay play 8-bit H.264 and HEVC (10-bit included) as they are, but not
+    10-bit H.264 (Hi10P), which the phone converts while playing. AV1 has its own badge."""
+    b = _blob(_all(item))
+    ten = any(w in b for w in (u' 10BIT ', u' 10 BIT ', u' HI10P ', u' HI10 '))
+    return ten and codec(item) == u'H.264'
+
+
 def avoid_request(now=None, read=None):
     """(quality or '') while a 'without converting' search is wanted, else None."""
     try:
@@ -350,7 +359,7 @@ def build_rows(shown, total_label=u''):
         rows.append({'headline': head, 'tags': DOT.join(tag_list(it)), 'meta': meta_text(it),
                      'badge': cover.upper() if cover else u'FULL SEASON' if cover == u'' else
                      u'MAY STUTTER' if too_heavy(it) else u'AV1 \u00b7 SLOW TO PREPARE' if slow_to_prepare(it)
-                     else b.get(n, u''), 'icon': it['icon']})
+                     else u'10-BIT \u00b7 SLOW ON AIRPLAY' if converts_for_tv(it) else b.get(n, u''), 'icon': it['icon']})
     return rows
 
 

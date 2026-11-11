@@ -178,4 +178,16 @@ class SlowToPrepare(unittest.TestCase):
   self.assertIsNone(dp.avoid_request(now=1000+dp.AVOID_FOR+100,read=lambda:'4k|900'))
   self.assertIsNone(dp.avoid_request(now=1000,read=lambda:''))
 
+class TvReady(unittest.TestCase):
+ """Roadmap 1B.1: 10-bit H.264 (Hi10P) is converted for AirPlay; say so on the version row."""
+ def item(self,name,tags=''):return {'name':name,'tags_text':tags,'providers':[],'quality':'1080p','seeds':5,'size':1.0,'icon':'','idx':0}
+ def test_only_ten_bit_h264(self):
+  self.assertTrue(dp.converts_for_tv(self.item('Show.S01E01.1080p.WEB.x264.10bit-GRP')))
+  self.assertTrue(dp.converts_for_tv(self.item('Show S01E01 [1080p Hi10P AVC]')))
+  self.assertFalse(dp.converts_for_tv(self.item('Show.S01E01.1080p.WEB.x264-GRP')))
+  self.assertFalse(dp.converts_for_tv(self.item('Show.S01E01.1080p.WEB.x265.10bit-GRP')))
+ def test_row_badge(self):
+  rows=dp.build_rows([self.item('Show.S01E01.1080p.WEB.x264-GRP'),self.item('Show.S01E01.1080p.x264.10bit-GRP')])
+  self.assertEqual([r['badge'] for r in rows],['BEST MATCH','10-BIT \u00b7 SLOW ON AIRPLAY'])
+
 if __name__=='__main__':unittest.main()
