@@ -206,8 +206,8 @@ These are aesthetic rules; behaviour belongs to PR #9. The base design is the ro
 (`activity-mockups-r4.html` in docs/design on PR #9's branch; owner approved it on 2026-11-05, DEC-027), with
 progress changed from rings to bars by DEC-036 (2026-11-11, owner: "the bar for everything").
 
-- **Progress is a thin bar, everywhere:** in the pill, in sheet rows and in cards, including the opening and
-  source-search cards and the buffering capsule over video. The bar is 4 pt high (5 pt in cards), a 20 % white track
+- **Progress is a thin bar, everywhere:** in the pill, in sheet rows and in cards, including the opening card,
+  Umbrella's "getting ready to play" page and the buffering capsule over video. The bar is 4 pt high (5 pt in cards), a 20 % white track
   with a `0A84FF` fill, and it fills left to right. With no percentage a short segment slides along it. It turns
   grey while paused, and the tile shows a green check (bar full and green) when done. No spinners for work whose
   progress can be shown; a stage list ticks finished stages and shows one bar.

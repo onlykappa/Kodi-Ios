@@ -236,7 +236,7 @@ Owner reviewed the Fuse-windows mockups (PR #20, board 06): "I like the bar … 
 the home." This supersedes the "rings" part of DEC-027 (progress rings around the app tile in the pill and the
 sheet). The blue-by-role and Close (✕) parts of DEC-027 stand.
 
-- Progress is a thin bar in the activity pill, the activity sheet rows, the opening card, the source-search card and
+- Progress is a thin bar in the activity pill, the activity sheet rows, the opening card, Umbrella's "getting ready to play" page and
   the buffering capsule; with no percentage a short segment slides along it. No spinners for work whose progress can
   be shown.
 - The only ring is around the bell icon on Home.
