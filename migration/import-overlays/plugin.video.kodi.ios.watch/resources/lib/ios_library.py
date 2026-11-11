@@ -379,7 +379,16 @@ def play_downloaded(handle,params):
  if total and position>=0.92*total:position=0
  if position and params.get('kind')=='movie' and params.get('ask')=='1':
   stamp='%d:%02d:%02d'%(int(position)//3600,int(position)//60%60,int(position)%60)
-  choice=xbmcgui.Dialog().select(params.get('title') or 'Movie',['Continue from '+stamp,'Start from beginning'])
+  # Roadmap 2.11/U.1: the approved sheet, not Kodi's select box (its taps could come back as "nothing picked").
+  choice=None
+  try:
+   import choice_sheet_loader
+   sheet=choice_sheet_loader.load()
+   if sheet is not None:
+    choice=sheet.choose({'heading':params.get('title') or 'Movie','rows':[{'label':'Continue from '+stamp,'detail':'Where you stopped'},
+                         {'label':'Start from beginning','detail':''}]},path=getattr(sheet,'HOME',None))
+  except Exception:choice=None
+  if choice is None:choice=xbmcgui.Dialog().select(params.get('title') or 'Movie',['Continue from '+stamp,'Start from beginning'])
   if choice<0:xbmcplugin.setResolvedUrl(handle,False,xbmcgui.ListItem());return
   if choice==1:position=0
  li=xbmcgui.ListItem(label=params.get('title',''),path=path);li.setProperty('IsPlayable','true')
