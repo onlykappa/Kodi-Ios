@@ -1223,9 +1223,20 @@ int kr_remux_compat_clients(void) { return atomic_load(&S.compat_clients); }
 int kr_remux_prefetched(void) { return atomic_load(&S.prefetched); }
 
 // The phone's Wi-Fi IPv4 address (en0 on iOS; the first up, non-loopback IPv4 elsewhere).
+static int lan_address_once(char *out, size_t len, int quiet);
+// ISSUE-165 (build-226 log): one start found no en0 IPv4 and blamed Wi-Fi, though the retry 20 s later had
+// 192.168.1.24 (the phone was rejoining). Look again for up to five seconds before saying Wi-Fi is missing.
 static int lan_address(char *out, size_t len) {
+    for (int tries = 0; tries < 10; tries++) {
+        if (lan_address_once(out, len, 1) == 0) return lan_address_once(out, len, 0);
+        if (atomic_load(&S.stopping)) break;
+        usleep(500 * 1000);
+    }
+    return lan_address_once(out, len, 0);
+}
+static int lan_address_once(char *out, size_t len, int quiet) {
     struct ifaddrs *list = NULL, *best = NULL;
-    if (getifaddrs(&list) != 0) { log_line("network: getifaddrs failed errno=%d",errno); return -1; }
+    if (getifaddrs(&list) != 0) { if (!quiet) log_line("network: getifaddrs failed errno=%d",errno); return -1; }
     for (struct ifaddrs *i = list; i; i = i->ifa_next) {
         if (!i->ifa_addr || i->ifa_addr->sa_family != AF_INET || !(i->ifa_flags & IFF_UP) || (i->ifa_flags & IFF_LOOPBACK)) continue;
         if (!strcmp(i->ifa_name, "en0")) { best = i; break; }
@@ -1235,8 +1246,10 @@ static int lan_address(char *out, size_t len) {
     }
     int r = -1;
     if (best && inet_ntop(AF_INET, &((struct sockaddr_in *)best->ifa_addr)->sin_addr, out, (socklen_t)len)) r = 0;
-    if (!r) log_line("network: interface=%s IPv4=%s",best->ifa_name,out);
-    else log_line("network: no usable Wi-Fi en0 IPv4");
+    if (!quiet) {
+        if (!r) log_line("network: interface=%s IPv4=%s",best->ifa_name,out);
+        else log_line("network: no usable Wi-Fi en0 IPv4 (looked for 5 s)");
+    }
     freeifaddrs(list);
     return r;
 }

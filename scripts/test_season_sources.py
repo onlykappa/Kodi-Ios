@@ -57,6 +57,14 @@ class Picker(unittest.TestCase):
    self.assertEqual(deck.run('Sample Show',[line('Sample.Show.S01E01.1080p.HEVC')],expect=exp),-1)
   self.assertFalse(json.loads(self.home.getProperty(watch.RESULT))['packs'])
 
+class Rows(unittest.TestCase):
+ def test_full_and_partial_coverage_lines(self):
+  sources={n:['1080p']+(['4k'] if n<=6 else []) for n in range(1,9)}
+  rows=season.quality_rows([('4k',6),('1080p',8)],sources,list(range(1,9)))
+  self.assertEqual(rows[1],('[B]1080p Full HD[/B]','[COLOR FF30D158]All 8 episodes[/COLOR]'))
+  self.assertEqual(rows[0][1],'[COLOR FFFF9F0A]6 of 8[/COLOR] \u00b7 episodes 1\u20136 now; 7\u20138 wait for 4K Ultra HD')
+  self.assertEqual(season.spans([1,2,3,5,7,8]),'1\u20133, 5, 7\u20138')
+
 class Batch(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
@@ -78,13 +86,14 @@ class Batch(unittest.TestCase):
   return season.run(self.xbmc,self.gui,self.dialog,Home(),self.tmp.name,'123','Sample Show',1,[1,2,3],{1},search)
  def test_only_actual_quality_options_and_missing_episodes_wait_without_downgrade(self):
   self.assertEqual(self.run_batch({2:['1080p'],3:[]}),[2])
-  self.assertEqual(self.labels,['1080p · 1 of 2 available'])
+  # Board 3 rows: quality in bold, then coverage (episode 2 now, episode 3 waits).
+  self.assertEqual(self.labels,['[B]1080p Full HD[/B]\x1f[COLOR FFFF9F0A]1 of 2[/COLOR] \u00b7 episode 2 now; 3 waits for 1080p Full HD'])
   self.assertEqual(self.calls,[(2,'scan',None),(3,'scan',None),(2,'queue','1080p')])
   planned=watch.load(self.tmp.name)['shows']['123']['planned']
   self.assertEqual(planned['1:3'],{'quality':'1080p','status':'not_found'})
  def test_selected_source_without_queue_receipt_never_counts_as_queued(self):
   self.assertEqual(self.run_batch({2:['4k'],3:['1080p']},{2:False}),[])
-  self.assertEqual(self.labels,['4K · 1 of 2 available','1080p · 1 of 2 available'])
+  self.assertEqual([l.split('\x1f')[0] for l in self.labels],['[B]4K Ultra HD[/B]','[B]1080p Full HD[/B]'])
  def test_cancel_quality_creates_no_plan(self):
   self.pick=-1;self.assertEqual(self.run_batch({2:['1080p']}),[])
   self.assertFalse(watch.load(self.tmp.name)['shows'])

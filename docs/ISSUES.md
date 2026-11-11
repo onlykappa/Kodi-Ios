@@ -2537,3 +2537,22 @@ Status: CHANGED IN SOURCE; device untested.
 - Not changed: two different jobs still go one after another (one `current` per job on the pages).
 - Regression: test_debrid_drive (TwoLanes: two in flight, both speeds shown, one lane failing keeps the session; chunk
   policy), test_transfer_efficiency (slow line now 0.1 MB/s).
+
+## ISSUE-165 — Build 226: Umbrella AirPlay still never reaches the TV; show downloads use the old menus (2026-11-11)
+
+Status: FIXED IN SOURCE; needs AirPlay r46; host-measured, device untested.
+- Owner log 9e2568a7 (build 226, Dragon Ball Super episode at 9 min, debrid MKV): attempt 1 inspected in 36 s, then
+  "no usable Wi-Fi en0 IPv4" and blamed Wi-Fi; the retry 20 s later had 192.168.1.24. Attempt 2: video segment 91
+  converted in 7.2 s, but the independent audio reader's seek took 100,004 ms with 0 packets; the 100 s deadline
+  expired. The source cache meanwhile read 757 MB at ~8 MB/s (four parallel reads worked).
+- Root cause: Matroska cues index only the video track. The audio-only rendition (gm_stream produce_sel) seeked by
+  the audio stream, so FFmpeg walked every cluster from the start to 9 min. Present since independent audio readers
+  (it was the "audio -5" seen in builds 221 and 224). Fix: an audio-only rendition seeks by the video index (backward),
+  then the existing time window drops audio before the segment. Host check, 10-min MKV (video-only cues): audio segment
+  80 read 42.2 MB before, 0.6 MB after; audio output byte-identical for segments 0, 1, 37, 80, 99.
+- Wi-Fi: the address check now looks for en0 IPv4 for up to 5 s before failing.
+- Show downloads: the season menu and the season quality list were still the old text lists. Now board 3: heading
+  "<show> · Season N", choices with a second line, and each quality with its coverage ("All 8 episodes" in green, or
+  "6 of 8 · episodes 1–6 now; 7–8 wait for 4K Ultra HD" in orange). Still not built: the All Links page with badges
+  (board 4).
+- Regression: test_season_sources (Rows); host measurement recorded here; CI host suite covers audio renditions.

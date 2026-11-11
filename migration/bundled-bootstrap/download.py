@@ -42,7 +42,10 @@ def run():
  if kind in ('season','episode') and not season:dialog.ok('Download','Could not tell which season this is.');return
  title,year=values.get('title',''),values.get('year','')
  if kind=='season':
-  pick=dialog.select('Download season %s'%season,['Full season','Choose episodes...','Follow new episodes only'])
+  # Owner-approved season picker (mockup round 3): the show and season as the heading, each choice with a line under it.
+  rows=[('[B]Full season[/B]','Every aired episode, in one quality'),('[B]Choose episodes\u2026[/B]','Pick the ones you want'),
+        ('[B]Follow new episodes[/B]','Each new episode downloads when it comes out')]
+  pick=dialog.select('%s \u00b7 Season %s'%(values.get('title') or 'Download',season),[xbmcgui.ListItem(label=n,label2=d) for n,d in rows])
   if pick<0:return
   if pick==2:
    import episode_watch,xbmcvfs

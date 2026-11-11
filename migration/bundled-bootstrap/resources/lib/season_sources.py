@@ -31,6 +31,35 @@ def availability(sources,numbers):
  return [(q,sum(q in sources.get(n,[]) for n in numbers)) for q in ORDER
          if any(q in sources.get(n,[]) for n in numbers)]
 
+FULL_NAMES={'4k':'4K Ultra HD','1440p':'1440p QHD','1080p':'1080p Full HD','720p':'720p HD','480p':'480p','sd':'SD'}
+GREEN='FF30D158';ORANGE='FFFF9F0A'
+
+def spans(numbers):
+ """[1,2,3,5,7,8] -> '1-3, 5, 7-8' (episode numbers in a sentence)."""
+ out=[];run=[]
+ for n in sorted(numbers):
+  if run and n==run[-1]+1:run.append(n)
+  else:
+   if run:out.append(run)
+   run=[n]
+ if run:out.append(run)
+ return ', '.join('%d'%r[0] if len(r)==1 else '%d\u2013%d'%(r[0],r[-1]) for r in out)
+
+def quality_rows(choices,sources,remaining):
+ """Owner-approved season picker (mockup round 3, board 3): each quality in bold, and under it how many of the
+ episodes it covers (green when all of them), or which are ready now and which wait for that quality."""
+ rows=[]
+ for q,count in choices:
+  name='[B]%s[/B]'%FULL_NAMES.get(q,QUALITY_NAMES.get(q,q))
+  if count>=len(remaining):
+   detail='[COLOR %s]All %d episode%s[/COLOR]'%(GREEN,count,'' if count==1 else 's')
+  else:
+   have=[n for n in remaining if q in sources.get(n,[])];wait=[n for n in remaining if n not in have]
+   detail='[COLOR %s]%d of %d[/COLOR] \u00b7 episode%s %s now; %s wait%s for %s'%(ORANGE,count,len(remaining),
+    '' if len(have)==1 else 's',spans(have),spans(wait),'s' if len(wait)==1 else '',FULL_NAMES.get(q,q))
+  rows.append((name,detail))
+ return rows
+
 def pending_episodes(profile,tmdb,season,numbers):
  """Already accepted episodes must not get another source while their transfer is waiting or paused."""
  import debrid_drive,drivelibrary
@@ -113,8 +142,10 @@ def _run(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,search=Non
  note(xbmc,'scan_complete',episodes=len(remaining),coverage=dict(choices))
  if not choices:
   dialog.ok('Download season','No usable episode sources were found. Try again later.');return []
- labels=['%s · %d of %d available'%(QUALITY_NAMES[q],count,len(remaining)) for q,count in choices]
- index=dialog.select('Season %s: download quality'%season,labels)
+ rows=quality_rows(choices,sources,remaining)
+ # Episodes without the chosen quality are not downloaded in a lower one; they are tried again on the next opening.
+ items=[gui.ListItem(label=n,label2=d) for n,d in rows] if hasattr(gui,'ListItem') else ['%s\x1f%s'%r for r in rows]
+ index=dialog.select('%s \u00b7 Season %s'%(title,season),items)
  if index<0 or index>=len(choices):return []
  quality=choices[index][0]
  import transfer_control

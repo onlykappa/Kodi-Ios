@@ -338,6 +338,14 @@ static int produce_sel(gm_stream *s, double seg_start, double seg_end,
     if (ret < 0) { set_err(err, errlen, "write_header", ret); close_output(oc, avio, octx); return ret; }
 
     int seek_stream = sel.vid_src >= 0 ? sel.vid_src : (sel.all_audio ? s->audio_in : sel.aud_src);
+    // Kodi iOS (ISSUE-165, build-226 log: the independent audio reader read 757 MB of an episode in 100 s to reach
+    // 9 min): Matroska cues usually index only the video track, so seeking by the audio stream walks every cluster
+    // from the start. An audio-only rendition seeks by the file's video index instead (backward, so it lands on a
+    // cluster at or before seg_start); the time window below still drops audio before seg_start. Video packets stay
+    // discarded, so nothing extra is read.
+    if (sel.vid_src < 0 && s->video_in >= 0 && seek_stream != s->video_in &&
+        s->in->streams[s->video_in]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
+        seek_stream = s->video_in;
     // Independent rendition cursors need only their selected packets. In MOV this avoids fetching a whole
     // 4K video payload again just to extract its much smaller audio track.
     for(unsigned i=0;i<s->in->nb_streams;i++)s->in->streams[i]->discard=s->out_index[i]>=0?AVDISCARD_DEFAULT:AVDISCARD_ALL;
