@@ -1,5 +1,17 @@
 # Persistent progress
 
+## Verified test IPA 224 delivered — 2026-11-11
+
+[Download IPA 224](https://github.com/onlykappa/Kodi-Ios/releases/download/build-224/Kodi-iOS-Customized-Touch-r10.ipa).
+Source f410a83b91ad587459bdc72eadee687f1dec9cec; run 42944518367. IPA sha256
+df2f152c457e8ea528e6cc80cfc8d507dba5fc2c89cd4288b3ca49f9723c54bc matches the release digest; build.json 224 / f410a83;
+Kodi r29 (executable sha256 070b0baf…, re-checked after download), AirPlay r44, glassbar r6.
+Fixes ISSUE-158 (uploads left paused after AirPlay's Pause and retry: lifted after AirPlay, old pauses lifted once,
+"Downloads are paused" card with Resume) and ISSUE-159 (Kodi r29 Browse for subtitle guard). Includes d058ca2 (season
+packs, quality coverage, visible paused queue), the Subtitles / Audio menus with Download and apply (Podnapisi; not
+yet tried against the real site) and the settings label / footer fixes. The Settings redesign is not in it.
+Device acceptance pending; no owner account or media accessed.
+
 ## Source handoff to PR #16; IPA held — 2026-11-11 UTC
 
 Owner requests committing completed work now and leaving unfinished work out for another agent. Branch:
