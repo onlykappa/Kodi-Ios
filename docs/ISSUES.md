@@ -2450,3 +2450,11 @@ Status: FIXED IN SOURCE (build 224); device test pending.
   scenario wrote a new 'added' time every second and debrid_drive.save merges by it (468 duplicate jobs); scenario
   fixed, not an app defect.
 - Regression: scripts/test_pause_release.py (6).
+
+## ISSUE-159 — Kodi r29: Browse for subtitle guard built and pinned for build 224 (2026-11-11)
+
+Status: BUILT, VERIFIED AND PINNED; device test pending.
+- r29 = r28 plus the ISSUE-154 guard (no file browser started at an HTTP(S) movie URL). Run 42942056360 (macos-15,
+  cached depends, about 20 min). Release kodi-ios-portrait-r29: zip sha256 9e1d40b9…, executable sha256 070b0baf…
+  (both re-checked after download; arm64 Mach-O). Pinned in migration/ios-portrait/source-lock.json with r28 as the
+  previous executable; test_glassbar's pin assertions moved to r29/r28 (the old-pin trap that failed build 222).

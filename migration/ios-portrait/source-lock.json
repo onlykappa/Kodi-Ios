@@ -4,22 +4,22 @@
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
   "build_tag": "kodi-ios-portrait-r29",
-  "staged_patch_note": "r29 candidate: r28 plus the Browse for subtitle guard (ISSUE-154: no file browser started at an HTTP(S) movie URL). The IPA keeps the pinned r28 executable until r29 is verified and pinned.",
+  "staged_patch_note": "r29 verified native executable pinned for build 224: r28 plus the Browse for subtitle guard (ISSUE-154).",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
+    "tag": "kodi-ios-portrait-r29",
+    "asset": "Kodi-portrait-executable.zip",
+    "sha256": "070b0baf99169364ed022bc33f9d8966909e84bed408d4c3ba3551c4f0e4a60e",
+    "archive_sha256": "9e1d40b9d893814c61c841b508ee333f3b16ffb8d6e5858e202cb6c59d51271a"
+  },
+  "build_note": "r29 verified run 42942056360: ARM64 compilation/publication; release zip and executable digests checked after download (arm64 Mach-O). r28 superseded; device acceptance pending.",
+  "previous_executable_release": {
     "tag": "kodi-ios-portrait-r28",
     "asset": "Kodi-portrait-executable.zip",
     "sha256": "ee7deca750e612822c4606a920110eda44675957c1d26e97ce91f6c0082fa31d",
     "archive_sha256": "3fcde2b3d469344ef74327c4473bdd047be05a1950ace3bf09cfae323a36e9ef"
   },
-  "build_note": "r28 verified run 42881626230: 46 actual slider/gesture/info-refresh scenarios, fractional baseline guard, ARM64 compilation/publication. Release binary equals artifact; patch/upstream commit/ZIP/digests verified. r27 superseded before IPA; device acceptance pending.",
-  "previous_executable_release": {
-    "tag": "kodi-ios-portrait-r26",
-    "asset": "Kodi-portrait-executable.zip",
-    "sha256": "f4379642605486f9a09f16366e9d2f32279f3ce8c8c0b665a7465a17404678d3",
-    "archive_sha256": "d34ea5d0c349906b428a406ebf4a1dc4dfcf4e765223bec4a516d609ed2e220b"
-  },
-  "verified_run": 42881626230,
-  "source_commit": "c829a928bdde3ba30d2f80d62c838933d8374441",
+  "verified_run": 42942056360,
+  "source_commit": "3ac502d78aea3a4a6b30f7f654c02ff4b317e8cd",
   "patch_sha256": "fd35870c2461a6ad79f9eedd010f0df14bc4247de4da9a0956f8f789073da5a8"
 }
