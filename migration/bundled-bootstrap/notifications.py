@@ -223,7 +223,8 @@ def run():
    elif kind=='up':item=self.ups[0] if getattr(self,'ups',None) else None
    else:item=getattr(self,'current',None) or None
    if not item:return False
-   rows=transfer_control.menu(kind,item,transfer_control.paused(profile,'up'),transfer_control.paused(profile,'conv'))
+   queued=len(transfer_control.unfinished_copies(profile)) if kind=='up' else 0
+   rows=transfer_control.menu(kind,item,transfer_control.paused(profile,'up'),transfer_control.paused(profile,'conv'),queued)
    pick=xbmcgui.Dialog().contextmenu([label for label,_ in rows])
    if 0<=pick<len(rows):self.act(kind,item,rows[pick][1])
    return True
@@ -240,6 +241,12 @@ def run():
     now=not transfer_control.paused(profile,kind);transfer_control.set_paused(profile,kind,now)
     words={'up':('Uploads paused','Uploads resumed'),'conv':('Converting paused','Converting resumed')}[kind]
     xbmcgui.Dialog().notification('Kodi iOS',words[0] if now else words[1],xbmcgui.NOTIFICATION_INFO,2500)
+   elif action=='cancel_all':
+    n=len(transfer_control.unfinished_copies(profile))
+    if xbmcgui.Dialog().yesno('Cancel all downloads','Stop the copy running now and remove all %d downloads to Google Drive from the queue? '
+                              'Videos already on Google Drive stay.'%n):
+     done=transfer_control.cancel_all_copies(profile)
+     xbmcgui.Dialog().notification('Kodi iOS','%d downloads cancelled'%done,xbmcgui.NOTIFICATION_INFO,3000)
    elif kind=='up':
     if xbmcgui.Dialog().yesno('Cancel download','Stop copying %s from AllDebrid to Google Drive? What has been copied so far is dropped.'%title):
      transfer_control.cancel_copy(profile,item['hash'])

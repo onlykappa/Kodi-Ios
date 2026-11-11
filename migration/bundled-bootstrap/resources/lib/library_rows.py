@@ -310,6 +310,9 @@ def details(row, view):
             if row.get('reencode'):actions.append(QUICKER)
         elif (live['kind']=='down' and live.get('id')) or (live['kind']=='copy' and live.get('hash')):
             actions.append(('Cancel','cancel'))
+        # Owner (build 252: queue of 500+): with several copies waiting, the sheet also ends them all.
+        if live['kind']=='copy' and int((model or {}).get('copies_waiting') or 0)>1:
+            actions.append(('Cancel All','cancel_all'))
         sheet.update(status=live['line'], step=live['step'], bar=str(live.get('pct') or 0), bar_tint=live['tint_now'],
                      card='conv' if live['kind'] in ('conv','repack') else 'up' if live['kind'] in ('copy','upload') else 'down',
                      actions=actions)

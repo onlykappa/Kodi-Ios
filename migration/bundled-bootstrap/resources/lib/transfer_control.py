@@ -85,14 +85,30 @@ def clear_cancelled(profile,info_hash):
   else:path.unlink()
  except OSError:pass
 
-def menu(kind,item,up_paused=False,conv_paused=False):
+def unfinished_copies(profile):
+ """Info hashes of every AllDebrid -> Drive job not done or failed."""
+ import debrid_drive
+ return sorted({str(j.get('hash','')).lower() for j in debrid_drive.load(profile).get('jobs',[])
+                if j.get('status') not in ('done','failed') and j.get('hash')})
+
+def cancel_all_copies(profile):
+ """Owner (build 252: a queue of 500+ after a series pack; "a button to end and remove all items in queue"): every
+ unfinished AllDebrid -> Drive copy is cancelled through the same list a single Cancel uses (the copy loop stops the
+ running upload and drops the rest in one pass). Returns how many."""
+ hashes=unfinished_copies(profile)
+ for h in hashes:cancel_copy(profile,h)
+ return len(hashes)
+
+def menu(kind,item,up_paused=False,conv_paused=False,queued=0):
  """The long-press choices for a card: [(label, action)].
- kind 'down' (an Elementum download: item has 'paused'), 'up' (the Drive upload: item has 'source'), 'conv'."""
+ kind 'down' (an Elementum download: item has 'paused'), 'up' (the Drive upload: item has 'source'), 'conv'.
+ queued: unfinished AllDebrid -> Drive copies; two or more add 'Cancel all downloads to Drive'."""
  if kind=='down':
   return [('Resume download' if item.get('paused') else 'Pause download','toggle'),('Cancel download','cancel'),('Show speed','speed')]
  if kind=='up':
   rows=[('Resume uploads' if up_paused else 'Pause uploads','toggle')]
   if item.get('source')=='debrid' and item.get('hash'):rows.append(('Cancel this download','cancel'))
+  if queued>1:rows.append(('Cancel all downloads to Drive (%d)'%queued,'cancel_all'))
   return rows+[('Show speed','speed')]
  if kind=='conv':
   rows=[('Resume converting' if conv_paused else 'Pause converting','toggle')]

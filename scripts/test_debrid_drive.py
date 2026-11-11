@@ -225,6 +225,43 @@ class Queue(unittest.TestCase):
   self.assertEqual(debrid_drive.folders('season','01 - Pilot.mkv','Lanterns'),['Kodi Downloads','TV Shows','Lanterns'])
   self.assertEqual(debrid_drive.info_hash({'id':H.upper()}),H);self.assertEqual(debrid_drive.info_hash({'id':'nothex'}),'')
 
+class SeriesPack(unittest.TestCase):
+    """Owner (build 252): seasons 1-3 of Naruto Shippuden from a complete-series pack queued all 500 episodes and the
+    films three times."""
+    PACK = 'Naruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio)/'
+    def files(self):
+        out = []
+        for season, first, last in ((1, 1, 32), (2, 33, 53), (3, 54, 71), (4, 72, 88)):
+            for n in range(first, last + 1):
+                out.append((self.PACK + 'Season %02d (%03d-%03d)/Naruto Shippuden Episode %03d.mkv' % (season, first, last, n), 400, 'L%d' % n))
+        out.append((self.PACK + 'Movies/Naruto Shippuden The Movie 02 - Bonds (2008).mkv', 2000, 'M2'))
+        return out
+    def test_a_season_takes_only_its_folder(self):
+        picked = alldebrid.pick(self.files(), 'season', '2')
+        self.assertEqual(len(picked), 21)
+        self.assertTrue(all('/Season 02 (' in p for p, _, _ in picked))
+    def test_sxxeyy_names_win_and_another_season_is_empty(self):
+        files = [('Show.S01/Show.S01E%02d.mkv' % n, 300, str(n)) for n in range(1, 11)]
+        self.assertEqual(len(alldebrid.pick(files, 'season', '1')), 10)
+        self.assertEqual(alldebrid.pick(files, 'season', '3'), [])
+    def test_an_unknowable_series_pack_is_refused_not_queued(self):
+        files = [('Pack/Episode %03d.mkv' % n, 300, str(n)) for n in range(1, 501)]
+        with self.assertRaises(alldebrid.TooMany):
+            alldebrid.pick(files, 'season', '1')
+
+class CancelAll(unittest.TestCase):
+    def test_every_unfinished_copy_is_cancelled_once(self):
+        import transfer_control
+        with tempfile.TemporaryDirectory() as tmp:
+            debrid_drive.save(tmp, {'jobs': [{'hash': 'AA', 'status': 'copying'}, {'hash': 'bb', 'status': 'new'},
+                                             {'hash': 'cc', 'status': 'done'}, {'hash': 'dd', 'status': 'failed'}]})
+            self.assertEqual(transfer_control.unfinished_copies(tmp), ['aa', 'bb'])
+            self.assertEqual(transfer_control.cancel_all_copies(tmp), 2)
+            self.assertEqual(transfer_control.cancelled_copies(tmp), {'aa', 'bb'})
+            self.assertEqual(transfer_control.menu('up', {'source': 'debrid', 'hash': 'aa'}, queued=2)[-2],
+                             ('Cancel all downloads to Drive (2)', 'cancel_all'))
+
+
 class RememberShows(unittest.TestCase):
     def test_finished_episode_copies_name_their_show(self):
         seen = []

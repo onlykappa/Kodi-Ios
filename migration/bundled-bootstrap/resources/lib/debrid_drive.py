@@ -239,9 +239,13 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             return 1 if code == alldebrid.READY else 15
         if job['status'] == 'copying':
             if not job['files']:
-                chosen = alldebrid.pick(api.files(job['magnet']), job['kind'], job.get('season'), job.get('episode'), job.get('episodes'))
+                try:
+                    chosen = alldebrid.pick(api.files(job['magnet']), job['kind'], job.get('season'), job.get('episode'), job.get('episodes'))
+                except alldebrid.TooMany as many:
+                    raise alldebrid.Problem(str(many))
                 if not chosen:
-                    raise alldebrid.Problem('This torrent has no video file.')
+                    raise alldebrid.Problem('This version has no video for season %s. Pick a season pack.' % job.get('season')
+                                            if job.get('kind') == 'season' and job.get('season') else 'This torrent has no video file.')
                 job['files'] = [{'path': p, 'size': s, 'link': l, 'session': {}, 'done': False} for p, s, l in chosen]
                 commit()
             # ISSUE-164 (owner: "upload speed is so slow"; build-224 log ~0.3 MB/s on a 0.49 MB/s line): one Drive upload

@@ -2610,3 +2610,18 @@ Status: FIXED IN SOURCE (#19); device untested.
 - Fix: import only `native_http` there; `airplay` is the module imported at the top of service.py.
 - Regression: scripts/test_service_scoping.py fails on the old code ("drive_uploads: airplay used at line 277, imported at
   295") and passes on the fix. Host tests do not start the service's threads, which is why CI missed it.
+
+## ISSUE-169 — A season download from a complete-series pack queued the whole series (owner log 10b3eee1, build 252)
+
+Status: FIXED IN SOURCE (#19); device untested.
+- Owner: "My queue is over 500 as I tried to download season 1-3 of Naruto Shippuden and somehow it's downloading
+  everything." Log 13:50-13:56: the season searches kept file results from inside complete-series packs ("Naruto
+  Shippuden (001-500) [Complete Series + Movies] … Season 01 (001-032)/Naruto Shippuden Episode 001 Homecoming.mkv").
+  Drive then received episode 001 onwards and the films (preparation lines 14:57-15:39).
+- Root cause: alldebrid.pick for a season kept only SxxEyy-named files and, when none matched (absolute numbering),
+  fell back to every video in the torrent, once per season job.
+- Fix: a season takes SxxEyy names of that season, else files under a "Season NN" / "S01" folder; a pack numbered for
+  other seasons gives nothing; more than 60 unknowable files is refused with "This version holds N videos (a whole
+  series), not one season. Pick a season pack." Owner request: "Cancel all downloads to Drive" in the upload card's
+  long-press menu (Notifications) and "Cancel All" in the Library status sheet of a copy, with a confirmation.
+- Regression: test_debrid_drive SeriesPack (Naruto layout: season 2 takes its 21 files, films never), CancelAll.

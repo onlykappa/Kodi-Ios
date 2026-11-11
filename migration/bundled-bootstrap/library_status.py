@@ -303,6 +303,13 @@ def run(args=()):
    if recovery:self.finish();xbmc.executebuiltin(recovery);return
    if chosen and chosen[1] in ('play','tv'):
     play(chosen_row,chosen[1]=='tv');return
+   if chosen and chosen[1]=='cancel_all':
+    import transfer_control
+    n=len(transfer_control.unfinished_copies(profile))
+    if dialog.yesno('Cancel all downloads','Stop the copy running now and remove all %d downloads to Google Drive from the queue? '
+                    'Videos already on Google Drive stay.'%n):
+     dialog.notification('Kodi iOS','%d downloads cancelled'%transfer_control.cancel_all_copies(profile),xbmcgui.NOTIFICATION_INFO,3000)
+    self.refresh(force=True);return
    if chosen and chosen[1] in ('toggle','cancel'):
     import transfer_control
     kind=live.get('kind')

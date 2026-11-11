@@ -352,6 +352,8 @@ def build(inp, now):
         if paused.get('up'):j['line']='Uploads paused · waiting to download'
     return {'at': now, 'mode': mode, 'slow': slow, 'slow_words': SLOW_WORDS.get(slow, ''), 'jobs': jobs, 'next': nexts,
             'drive_next': drive_next,
+            # Unfinished AllDebrid -> Drive copies (the Library status sheet offers Cancel All when there are several).
+            'copies_waiting': sum(1 for j in ((inp.get('debrid') or {}).get('jobs') or []) if j.get('status') not in ('done', 'failed')),
             'needs': needs, 'wait': wait_text,
             'running': len(moving), 'headline': headline(mode, jobs, nexts + drive_next, needs, wait_text, slow),
             'bell': {'state': mode, 'pct': lead['pct'] if lead and lead['state'] in MOVING else 0,
