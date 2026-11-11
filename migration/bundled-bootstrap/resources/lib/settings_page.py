@@ -617,10 +617,19 @@ def row_textures(p,focus=True):
 def text_style(p):
  return ('<font>p_body</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><disabledcolor>%s</disabledcolor>'
          '<align>left</align><aligny>center</aligny><textoffsetx>%d</textoffsetx>')%(p.WHITE,p.WHITE,p.DIM,PAD)
-def setting_templates(p,category_type):
+SEGMENTS=4   # board 08: up to four add-on setting sections side by side; more scroll sideways
+def setting_templates(p,category_type,segmented=False):
  """The row templates Kodi copies for every setting: full-width iOS cells, 52 pt high, hairline gaps between them."""
  w=p.WIDTH-2*p.SIDE;M=p.MEDIA;base='<width>%d</width><height>%d</height>'%(w,ROW)
- pill=('<control type="%s" id="10"><width>300</width><height>96</height><label></label><font>p_foot_b</font><textcolor>%s</textcolor>'
+ if segmented:
+  # Roadmap 2.3 (board 08): a segmented control: equal segments on one track, the chosen one lighter.
+  seg=(w-12)//SEGMENTS
+  pill=('<control type="%s" id="10"><width>%d</width><height>84</height><label></label><font>p_foot_b</font><textcolor>%s</textcolor>'
+        '<focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
+        '<texturefocus border="40" colordiffuse="FF636366">%spill_96.png</texturefocus><texturenofocus />'
+        %(category_type,seg,p.GREY,p.WHITE,M))
+ else:
+  pill=('<control type="%s" id="10"><width>300</width><height>96</height><label></label><font>p_foot_b</font><textcolor>%s</textcolor>'
        '<focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
        '<texturefocus border="48" colordiffuse="FF48484A">%spill_96.png</texturefocus><texturenofocus border="48" colordiffuse="%s">%spill_96.png</texturenofocus>'
        %(category_type,p.GREY,p.WHITE,M,p.SURFACE,M))
@@ -655,7 +664,7 @@ def setting_templates(p,category_type):
    base,row_textures(p),text_style(p),w-PAD-60,M,M)+
   '<control type="image" id="11"><width>%d</width><height>34</height><texture /></control>'%w)
 
-def setting_body(p,title,header_buttons,extra='',categories=True,paged=False):
+def setting_body(p,title,header_buttons,extra='',categories=True,paged=False,segmented=False):
  """Header (title = label 2), category pills (grouplist 3), settings (grouplist 5), help text (label 6)."""
  w=p.WIDTH-2*p.SIDE
  bar=p.image(0,0,p.WIDTH,(LIST_TOP if categories else 200)-10,p.MEDIA+'white.png',p.BG)
@@ -665,7 +674,15 @@ def setting_body(p,title,header_buttons,extra='',categories=True,paged=False):
  # stay "visible" so Kodi can focus its buttons and load that category) and the category's name is a large title.
  paged_on='!String.IsEmpty(Window(Home).Property(KodiIOS.CategoryPage))'
  hide=('<animation effect="slide" end="0,-700" time="0" condition="%s">Conditional</animation>'%paged_on) if paged else ''
- cats=('<control type="grouplist" id="3"><left>%d</left><top>200</top><width>%d</width><height>96</height><orientation>horizontal</orientation>'
+ if segmented:
+  # One rounded track behind the segments (board 08); the grouplist sits 6 px inside it.
+  track=('<control type="image"><left>%d</left><top>200</top><width>%d</width><height>96</height><texture border="48" colordiffuse="%s">%spill_96.png</texture>%s</control>'
+         %(p.SIDE,w,p.SURFACE,p.MEDIA,'' if categories else '<visible>false</visible>'))
+  cats=track+('<control type="grouplist" id="3"><left>%d</left><top>206</top><width>%d</width><height>84</height><orientation>horizontal</orientation>'
+       '<itemgap>0</itemgap><scrolltime tween="cubic" easing="out">250</scrolltime><ondown>5</ondown><onup>9001</onup>%s%s</control>')%(
+       p.SIDE+6,w-12,'' if categories else '<visible>false</visible>',hide)
+ else:
+  cats=('<control type="grouplist" id="3"><left>%d</left><top>200</top><width>%d</width><height>96</height><orientation>horizontal</orientation>'
        '<itemgap>16</itemgap><scrolltime tween="cubic" easing="out">250</scrolltime><ondown>5</ondown><onup>9001</onup>%s%s</control>')%(
        p.SIDE,w,'' if categories else '<visible>false</visible>',hide)
  big=(p.label(p.SIDE+PAD,190,w-2*PAD,140,'$INFO[Window(Home).Property(KodiIOS.CategoryPage)]','p_large',p.WHITE,'left','<scroll>false</scroll><visible>%s</visible>'%paged_on)
@@ -702,8 +719,15 @@ def addon_settings_window(p,original,categories=True):
    '<label>%s</label><font>%s</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>%s</align><aligny>center</aligny>'
    '<texturefocus /><texturenofocus /><ondown>3</ondown></control>')%(id,x,text,'p_btn' if bold else 'p_body',color,'FF64D2FF',align))
  hidden=''.join('<control type="button" id="%d"><width>1</width><height>1</height><visible>false</visible><texturefocus /><texturenofocus /></control>'%i for i in (20,30))
- buttons=text_button(29,p.SIDE,'Cancel',BLUE,False,'left')+text_button(28,p.WIDTH-p.SIDE-240,'Done',BLUE,True,'right')+hidden
- body=setting_body(p,'',buttons,setting_templates(p,'button'),categories)
+ # Board 08: Kodi writes "OK" on 28 and "Settings - <add-on>" as the title; both are drawn transparent and the board's
+ # "Done" and the add-on's own name (System.AddonTitle of the Addon.ID property Kodi sets) are drawn over them.
+ buttons=(text_button(29,p.SIDE,'Cancel',BLUE,False,'left')+text_button(28,p.WIDTH-p.SIDE-240,'Done','00FFFFFF',True,'right').replace('<focusedcolor>FF64D2FF</focusedcolor>','<focusedcolor>00FFFFFF</focusedcolor>')+
+          p.label(p.WIDTH-p.SIDE-240,36,240,108,'[B]Done[/B]','p_btn',BLUE,'right','<visible>!Control.HasFocus(28)</visible>')+
+          p.label(p.WIDTH-p.SIDE-240,36,240,108,'[B]Done[/B]','p_btn','FF64D2FF','right','<visible>Control.HasFocus(28)</visible>')+
+          p.label(300,36,p.WIDTH-600,108,'[B]$INFO[System.AddonTitle($INFO[Window.Property(Addon.ID)])][/B]','p_h3',p.WHITE,'center','<scroll>false</scroll>')+hidden)
+ body=setting_body(p,'',buttons,setting_templates(p,'button',segmented=True),categories,segmented=True)
+ body=body.replace('<font>p_h3</font><textcolor>%s</textcolor><align>center</align><aligny>center</aligny><scroll>false</scroll><label></label>'%p.WHITE,
+                   '<font>p_h3</font><textcolor>00FFFFFF</textcolor><align>center</align><aligny>center</aligny><scroll>false</scroll><label></label>',1)
  return p.window(original,body,'5','<animation effect="slide" start="0,300" end="0,0" time="260" tween="cubic" easing="out">WindowOpen</animation>'
                  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>')
 

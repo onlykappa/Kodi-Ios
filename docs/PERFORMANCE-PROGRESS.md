@@ -59,3 +59,4 @@ Never claim a phone result without the owner's log or screenshot.
 - 2.11 (code): the Library movie resume question uses the approved sheet (Kodi's box only as fallback); Download/Stream already uses the sheet in build 232 (seen working in log eabc204b: picked 0).
 - 2.4/2.5 (Kodi patch, needs Kodi r31): sub-settings without the '- ' prefix on iOS; number and PIN prompts (ShowAndGetNumber, ShowAndVerifyInput) on the iPhone keyboard, digits kept; time/date/IP pads stay Kodi's. git apply --check passes on Kodi 21.3. Test: test_kodi_patch_ios.
 - 2.6 (code): More › File manager → Transfers (our page); recovery menu Skin settings → our Skin Settings page, Local videos → Library.
+- 2.3 (code, rig-checked: desktop Kodi rig, TMDb Helper settings): add-on settings as board 08: add-on name as title (System.AddonTitle), Cancel / Done, sections in a segmented control (4 wide, more scroll). The '- ' prefix there goes with the Kodi r31 patch (2.4).
