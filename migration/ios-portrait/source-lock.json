@@ -3,8 +3,8 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
-  "build_tag": "kodi-ios-portrait-r29",
-  "staged_patch_note": "r29 verified native executable pinned for build 224: r28 plus the Browse for subtitle guard (ISSUE-154).",
+  "build_tag": "kodi-ios-portrait-r30",
+  "staged_patch_note": "r30 staged: r29 plus the native iPhone keyboard everywhere (ISSUE-162). r29 stays pinned until r30 is built and verified.",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
     "tag": "kodi-ios-portrait-r29",
