@@ -57,6 +57,12 @@ def patch_helper(files,id):
  n=methods[0];lines=text.splitlines(keepends=True);indent=' '*(n.col_offset+4)
  replacement=lines[n.lineno-1]+indent+'from ios_watch_dialog import choose_player\n'+indent+'selected = choose_player(self)\n'+indent+'return self.set_resolver(selected) if selected else None\n'
  lines[n.lineno-1:n.end_lineno]=[replacement];files[player]=''.join(lines).encode();changes.append('Movie/episode resolver always requests explicit native Kodi watch choice before selecting a backend')
+ # Roadmap 1C.3 (owner logs: "GetDirectory - Error getting .../plugin.video.themoviedb.helper/resources/players/" twice on
+ # every play): the add-on ships without that folder; an empty one (a note file) ends the failed reads.
+ players_note=prefix+'resources/players/README.txt'
+ if not any(name.startswith(prefix+'resources/players/') for name in files):
+  files[players_note]=b'Kodi iOS: players are configured by the Kodi iOS watch add-on; this folder exists so TMDb Helper finds it.\n'
+  changes.append('Empty resources/players folder (no failed directory reads on every play)')
  # Roadmap 1C.2: a copy already on the phone or Drive plays before TMDb Helper fetches details and builds players.
  router=prefix+'resources/tmdbhelper/lib/items/router.py'
  if router in files:
