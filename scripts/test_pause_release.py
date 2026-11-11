@@ -35,4 +35,15 @@ class Pauses(unittest.TestCase):
   svc=(BOOT/'service.py').read_text()
   self.assertIn('transfer_control.reset_once(profile)',svc);self.assertIn('transfer_control.release_airplay(profile,airplay_busy(),quiet_since=quiet)',svc)
 
+class PausedCard(unittest.TestCase):
+ def test_card_and_resume_page(self):
+  import work_state
+  card=work_state.NEEDS_TEXT['uploads_paused']
+  self.assertEqual((card['title'],card['button']),('Downloads are paused','Resume'))
+  self.assertEqual(card['action'],'RunScript(service.kodi.ios.bootstrap,resume_uploads)')
+  self.assertIn("'resume_uploads'",(BOOT/'default.py').read_text())
+  page=(BOOT/'resume_uploads.py').read_text()
+  self.assertIn("transfer_control.set_paused(profile,'up',False)",page);self.assertIn("work_state.need('uploads_paused',False,profile)",page)
+  self.assertIn("work_state.need('uploads_paused',transfer_control.paused(profile,'up') and debrid_drive.active(profile),profile)",(BOOT/'service.py').read_text())
+
 if __name__=='__main__':unittest.main()

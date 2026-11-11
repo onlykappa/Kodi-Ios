@@ -44,6 +44,11 @@ NEEDS_TEXT = {
     'alldebrid_key': {'title': 'Add your AllDebrid key',
                       'text': 'Downloads to Google Drive wait until Umbrella has your AllDebrid key.',
                       'button': 'Open Umbrella', 'action': 'Addon.OpenSettings(plugin.video.umbrella)'},
+    # Build 224 (build-223 log 27f59dcd: uploads paused for two hours, four downloads waiting, and only a grey line said
+    # so): a paused upload with downloads waiting is a card at the top of Library status with Resume.
+    'uploads_paused': {'title': 'Downloads are paused',
+                       'text': 'Uploads to Google Drive are paused, so downloads from AllDebrid wait. Resume to continue where they stopped.',
+                       'button': 'Resume', 'action': 'RunScript(service.kodi.ios.bootstrap,resume_uploads)'},
     'airplay_network': {'title': "Your TV couldn't reach this iPhone",
                        'text': "Your TV couldn't reach this iPhone. Check Settings › Privacy & Security › Local Network › Kodi, and that the TV and iPhone are on the same Wi-Fi.",
                        'button': 'Open Settings', 'action': 'RunScript(service.kodi.ios.bootstrap,airplay_settings)'},

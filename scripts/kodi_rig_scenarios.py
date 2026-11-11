@@ -70,7 +70,7 @@ def debrid_state(now, copying):
     if not copying:
         return {'jobs': []}
     job = {'hash': 'a' * 40, 'name': 'Inception.2010.2160p.REMUX', 'title': 'Inception (2010)', 'kind': 'movie',
-           'status': 'copying', 'files': [], 'added': now - 600}
+           'status': 'copying', 'files': [], 'added': 1731000000}   # fixed: debrid_drive.save merges jobs by added time
     return {'jobs': [job], 'current': {'name': 'Inception.2010.2160p.REMUX', 'folder': 'Inception (2010)', 'sent': 0.38 * 22 * GB,
                                       'total': 22 * GB, 'stage': 'copying', 'rate': 2.4 * MB, 'eta_s': 540, 'updated': now}}
 

@@ -327,6 +327,7 @@ def drive_uploads(monitor,home,profile):
    # downloading): once nothing plays, AllDebrid takes it to Drive and Elementum drops it (owner, build 160).
    import work_state
    work_state.need('alldebrid_key',not token and debrid_drive.active(profile))
+   work_state.need('uploads_paused',transfer_control.paused(profile,'up') and debrid_drive.active(profile),profile)
    if token and accounts.get_accounts():
     try:
      for tid in debrid_drive.adopt(profile,notices.torrent_list(),xbmc.Player().isPlayingVideo()):

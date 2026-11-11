@@ -2432,3 +2432,21 @@ Status: FIXED IN SOURCE, LOCAL ONLY (not pushed, not built). Desktop Kodi rig (p
   Settings search keyboard are still Fuse's landscape windows letterboxed in portrait; Kodi's settings pages keep
   category chips, "- " sub-setting dashes and one help paragraph at the bottom; Add-on updates with nothing to
   update shows only "..". Check for updates in the rig says the private repository needs a token (rig only).
+
+## ISSUE-158 — Downloads stopped for days: uploads stayed paused (build 223, 2026-11-11)
+
+Status: FIXED IN SOURCE (build 224); device test pending.
+- Owner: "I need downloading to work asap, its currently completely broken". Build-223 log 27f59dcd: uploads_paused
+  true in all 122 status snapshots over two hours; debrid queue 1 copying + 3 new, none moved. AllDebrid itself
+  answered (one transient URLError retried).
+- Cause: Play on TV's "Pause and retry" (cast.py) set the owner's own pause on uploads and conversion "until resumed
+  in Library status"; nothing lifted it, and Library status only said "Uploads paused · resume to download" in grey.
+- Fix: that pause is now marked as AirPlay's (transfer_control why='airplay') and is lifted two minutes after
+  AirPlay stops (release_airplay, from the service's AllDebrid loop); the first start of build 224 lifts any pause
+  carried over, logged with a notice (reset_once); a paused upload with downloads waiting raises a "Downloads are
+  paused" card with Resume at the top of Library status (work_state 'uploads_paused', page resume_uploads). Owner
+  pauses still last until Resume.
+- Desktop Kodi rig: the card renders; Resume removes the pause and reopens Library status. Also found: the rig's
+  scenario wrote a new 'added' time every second and debrid_drive.save merges by it (468 duplicate jobs); scenario
+  fixed, not an app defect.
+- Regression: scripts/test_pause_release.py (6).
