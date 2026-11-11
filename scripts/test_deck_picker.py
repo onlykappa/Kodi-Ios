@@ -36,7 +36,7 @@ class DeckPicker(unittest.TestCase):
   self.assertIsNone(dp.run('t',['not a torrent line']*10))
   # Kodi-iOS: a short list gets the page too (its links are checked against the title: source_match.py).
   seen=[]
-  with mock.patch.object(dp,'choose_source',lambda title,rows,q,c:seen.append(rows) or 2):self.assertEqual(dp.run('t',ITEMS[:3]),2)
+  with mock.patch.object(dp,'choose_source',lambda title,rows,q,c,*a:seen.append(rows) or 2):self.assertEqual(dp.run('t',ITEMS[:3]),2)
   self.assertEqual(len(seen[0]),3)
 
 class WatchMenuDetails(unittest.TestCase):
@@ -189,5 +189,16 @@ class TvReady(unittest.TestCase):
  def test_row_badge(self):
   rows=dp.build_rows([self.item('Show.S01E01.1080p.WEB.x264-GRP'),self.item('Show.S01E01.1080p.x264.10bit-GRP')])
   self.assertEqual([r['badge'] for r in rows],['BEST MATCH','10-BIT \u00b7 SLOW ON AIRPLAY'])
+
+class AllLinks(unittest.TestCase):
+    def test_sorts_keep_the_hidden_row_last(self):
+        rows=[{'size':8.4,'seeds':188},{'size':58,'seeds':214},{'size':2.6,'seeds':120},{'headline':'Show hidden'}]
+        self.assertEqual(dp.sort_order(rows,u'best'),[0,1,2,3])
+        self.assertEqual(dp.sort_order(rows,u'small'),[2,0,1,3])
+        self.assertEqual(dp.sort_order(rows,u'seeds'),[1,0,2,3])
+    def test_rows_carry_pills_size_and_seeds(self):
+        r=dp.build_rows(dp.parse_all(ITEMS[:1]))[0]
+        self.assertLessEqual(len(r['pills']),4);self.assertIn('size',r);self.assertIn('seeds',r)
+
 
 if __name__=='__main__':unittest.main()

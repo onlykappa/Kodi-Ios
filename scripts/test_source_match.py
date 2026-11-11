@@ -210,7 +210,7 @@ BAD=[entry('Fall.2026.1080p.WEB-DL.DDP5.1',seeds=90),entry('Free.Fall.2014.1080p
 class VersionPage(unittest.TestCase):
  def run_page(self,items,answers,exp=FALL,quality=None):
   seen=[]
-  def source(title,rows,q,count):seen.append({'rows':rows,'quality':q,'count':count});return answers.pop(0)
+  def source(title,rows,q,count,*a):seen.append({'rows':rows,'quality':q,'count':count});return answers.pop(0)
   with mock.patch.object(dp,'choose_source',source),mock.patch.object(dp,'choose_quality',quality or (lambda labels,*a:seen.append({'labels':labels}) or answers.pop(0))),\
        mock.patch.object(dp,'resume_wanted',lambda:None),mock.patch.object(dp,'remember',lambda *a:True),mock.patch.object(sm,'log',lambda m:None):
    return dp.run('Choose a stream Fall (2022)',items,expect=exp),seen
@@ -339,7 +339,7 @@ class UmbrellaRoute(unittest.TestCase):
   rows=[]
   results=[self.item('Fall.2026.2160p'),self.item('Fall.2022.1080p'),self.item('Free.Fall.2014.1080p')]
   with mock.patch.object(up,'share',lambda meta:None),mock.patch.object(sm,'enrich',lambda exp:exp),mock.patch.object(sm,'log',lambda m:None),\
-       mock.patch.object(deck,'choose_source',lambda t,r,q,c:rows.append(r) or 0),mock.patch.object(deck,'resume_wanted',lambda:None),mock.patch.object(deck,'remember',lambda *a:True):
+       mock.patch.object(deck,'choose_source',lambda t,r,q,c,*a:rows.append(r) or 0),mock.patch.object(deck,'resume_wanted',lambda:None),mock.patch.object(deck,'remember',lambda *a:True):
    action,item=up.run(results,{'title':'Fall','year':2022},deck,lambda:FakeItem(),sm=sm)
   self.assertEqual(json.loads(item.props['umbrella.source_dict'])[0]['name'],'Fall.2022.1080p')
   self.assertEqual(rows[0][-1]['headline'],'2 hidden (wrong title/year)')

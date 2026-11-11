@@ -1206,6 +1206,21 @@ def deck_row(focused):
   label(40,92,w-80,56,'$INFO[ListItem.Property(tags)]','p_foot',sub)+
   label(40,146,w-80,50,'$INFO[ListItem.Property(meta)]','p_foot',dim)+badge)
 
+def links_row(focused):
+ """One link on the All Links page (board 16): the release as the title, up to four tag pills (AV1 in orange: it
+ can need converting), size and seeds on one line."""
+ w=WIDTH-2*SIDE;h=228;text='FF000000' if focused else WHITE;sub='B3000000' if focused else GREY
+ card=surface(0,0,w,h-20,'round.png','FFF5F5F7' if focused else 'F22C2C2E',32)
+ pills=''
+ for n in range(1,5):
+  x=40+(n-1)*186;kind='String.IsEqual(ListItem.Property(tag%d.kind),av1)'%n;has='!String.IsEmpty(ListItem.Property(tag%d))'%n
+  pills+=('<control type="group"><left>%d</left><top>98</top><width>174</width><height>56</height><visible>%s</visible>'%(x,has)+
+   image(0,0,174,56,MEDIA+'pill_56.png','40000000' if focused else '33FFFFFF','<visible>!%s</visible>'%kind,border=28)+
+   image(0,0,174,56,MEDIA+'pill_56.png','FFFF9F0A','<visible>%s</visible>'%kind,border=28)+
+   label(0,0,174,56,'[B]$INFO[ListItem.Property(tag%d)][/B]'%n,'p_cap',text,'center','<scroll>false</scroll>')+'</control>')
+ return (card+label(40,20,w-80,72,'$INFO[ListItem.Property(headline)]','p_h3',text,'left','<scroll>false</scroll>')+pills+
+  label(40,158,w-80,46,'$INFO[ListItem.Property(meta)]','p_foot',sub))
+
 def deck_page(original=''):
  """The Deck's "Choose a version" page (Elementum and Umbrella, deck_picker.py) drawn for portrait. Kodi looks
  for an add-on's window in the current skin folder first, so this one is used while the phone is upright; the
@@ -1231,8 +1246,23 @@ def deck_page(original=''):
  lst=('<control type="list" id="32503"><left>%d</left><top>%d</top><width>%d</width><bottom>40</bottom><orientation>vertical</orientation>'
   '<onup>32500</onup><scrolltime tween="cubic" easing="out">300</scrolltime>'
   '<itemlayout height="236">%s</itemlayout><focusedlayout height="236">%s</focusedlayout></control>')%(SIDE,top+poster_h+230,WIDTH-2*SIDE,deck_row(False),deck_row(True))
- back=nav_button(32500,SIDE,36,'chevron-left.png','Close','<ondown>32503</ondown>')
- body='<controls>%s%s%s%s%s%s</controls>'%(backdrop(),head,heading,sub,lst,back)
+ back=nav_button(32500,SIDE,36,'chevron-left.png','Close','<ondown>32503</ondown><ondown>32504</ondown>')
+ # Roadmap 2.1 (board 16): "Show All Links" opens this page in mode "all": a compact bar (back, All Links, the sort
+ # menu), a large title, then every link with tag pills. The quality page keeps the poster header and list 32503.
+ all_on="String.IsEqual(Window().Property(deck.mode),all)"
+ normal='<control type="group"><visible>!%s</visible>%s%s%s%s</control>'%(all_on,head,heading,sub,lst)
+ sort=('<control type="group"><visible>%s</visible>'%all_on+
+  '<control type="button" id="32510"><left>%d</left><top>40</top><width>420</width><height>100</height>'%(WIDTH-SIDE-420)+
+  '<label>$INFO[Window().Property(deck.sort)]</label><font>p_btn</font><textcolor>FF4FA8FF</textcolor><focusedcolor>FF64D2FF</focusedcolor>'
+  '<align>right</align><aligny>center</aligny><textoffsetx>56</textoffsetx><texturefocus /><texturenofocus /><ondown>32504</ondown><onleft>32500</onleft></control>'+
+  image(WIDTH-SIDE-40,70,40,40,ICONS+'chevron-down.png','FF4FA8FF')+'</control>')
+ links=('<control type="list" id="32504"><left>%d</left><top>380</top><width>%d</width><bottom>40</bottom><orientation>vertical</orientation>'
+  '<onup>32510</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>%s</visible>'
+  '<itemlayout height="228">%s</itemlayout><focusedlayout height="228">%s</focusedlayout></control>')%(SIDE,WIDTH-2*SIDE,all_on,links_row(False),links_row(True))
+ all_page=('<control type="group"><visible>%s</visible>'%all_on+
+  label(SIDE,150,WIDTH-2*SIDE,120,'All Links','p_large',WHITE)+
+  label(SIDE,270,WIDTH-2*SIDE,70,'%s  ·  %s'%(prop('subject'),prop('count_label')),'p_sub',GREY,'left','<scroll>false</scroll>')+'</control>')
+ body='<controls>%s%s%s%s%s%s</controls>'%(backdrop(),normal,all_page,links,sort,back)
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">32503</defaultcontrol>'
          '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>%s</window>\n')%(MARKER,body)
 

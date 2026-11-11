@@ -356,7 +356,10 @@ def build_rows(shown, total_label=u''):
         if st:
             head = head + DOT + st
         cover = it.get('coverage')
-        rows.append({'headline': head, 'tags': DOT.join(tag_list(it)), 'meta': meta_text(it),
+        tags = tag_list(it)
+        rows.append({'headline': head, 'tags': DOT.join(tags), 'meta': meta_text(it),
+                     # All Links page (board 16): up to four tag pills, AV1 flagged; size and seeds to sort by.
+                     'pills': tags[:4], 'size': it.get('size') or 0, 'seeds': it.get('seeds') or 0,
                      'badge': cover.upper() if cover else u'FULL SEASON' if cover == u'' else
                      u'MAY STUTTER' if too_heavy(it) else u'AV1 \u00b7 SLOW TO PREPARE' if slow_to_prepare(it)
                      else u'10-BIT \u00b7 SLOW ON AIRPLAY' if converts_for_tv(it) else b.get(n, u''), 'icon': it['icon']})
@@ -484,6 +487,8 @@ def _window_class():
             self.count_text = kwargs.get('count_text', u'')
             self.poster = kwargs.get('poster', u'')
             self.details = kwargs.get('details') or {}
+            self.mode = kwargs.get('mode', u'')
+            self.sort = 0
             self.retval = -1
 
         def onInit(self):
@@ -494,22 +499,43 @@ def _window_class():
             for key in ('fanart', 'title', 'meta', 'plot'):
                 self.setProperty('deck.' + key, self.details.get(key, u''))
             self.getControl(32501).setLabel(u'Choose a version')
-            listControl = self.getControl(32503)
-            for n, r in enumerate(self.rows):
+            self.setProperty('deck.mode', self.mode)
+            self.fill()
+
+        def list_id(self):
+            return 32504 if self.mode == u'all' else 32503
+
+        def fill(self):
+            self.setProperty('deck.sort', SORTS[self.sort][1])
+            try:
+                listControl = self.getControl(self.list_id())
+            except RuntimeError:   # an older page without the All Links list
+                self.mode = u''
+                listControl = self.getControl(32503)
+            listControl.reset()
+            order = sort_order(self.rows, SORTS[self.sort][0]) if self.mode == u'all' else range(len(self.rows))
+            for n in order:
+                r = self.rows[n]
                 item = xbmcgui.ListItem(r['headline'], r['meta'])
                 item.setProperty('index', str(n))
                 item.setProperty('headline', r['headline'])
                 item.setProperty('tags', r['tags'])
                 item.setProperty('meta', r['meta'])
                 item.setProperty('badge', r['badge'])
+                for k, tag in enumerate(r.get('pills') or [], 1):
+                    item.setProperty('tag%d' % k, tag)
+                    item.setProperty('tag%d.kind' % k, u'av1' if u'AV1' in tag.upper() else u'')
                 listControl.addItem(item)
-            self.setFocusId(32503)
+            self.setFocusId(self.list_id())
 
         def onClick(self, controlId):
             if controlId == 32500:
                 self.close()
-            elif controlId == 32503:
-                self.retval = int(self.getControl(32503).getSelectedItem().getProperty('index'))
+            elif controlId == 32510:
+                self.sort = (self.sort + 1) % len(SORTS)
+                self.fill()
+            elif controlId in (32503, 32504):
+                self.retval = int(self.getControl(controlId).getSelectedItem().getProperty('index'))
                 self.close()
 
         def onAction(self, action):
@@ -520,11 +546,25 @@ def _window_class():
     return DeckSelect
 
 
-def choose_source(title, rows, quality, count_text):
+SORTS = ((u'best', u'Best First'), (u'small', u'Smallest'), (u'seeds', u'Most Seeds'))
+
+
+def sort_order(rows, how):
+    """Positions of rows for a sort (board 16's menu); rows without a size (the hidden-links row) stay last."""
+    real = [n for n, r in enumerate(rows) if r.get('size')]
+    rest = [n for n, r in enumerate(rows) if not r.get('size')]
+    if how == u'small':
+        real.sort(key=lambda n: rows[n]['size'])
+    elif how == u'seeds':
+        real.sort(key=lambda n: -rows[n].get('seeds', 0))
+    return real + rest
+
+
+def choose_source(title, rows, quality, count_text, mode=u''):
     from elementum.addon import ADDON_PATH
     details = _details_for(title)
     window = _window_class()("DeckSourceSelect.xml", ADDON_PATH, "Default", rows=rows, subject=title,
-                             quality=quality, count_text=count_text, poster=details['poster'], details=details)
+                             quality=quality, count_text=count_text, poster=details['poster'], details=details, mode=mode)
     window.doModal()
     retval = window.retval
     del window
@@ -755,10 +795,10 @@ def show_hidden(title, hidden):
     return hidden[sel][0]['idx']
 
 
-def show_list(title, entries, hidden, sm, quality_text, count_text):
+def show_list(title, entries, hidden, sm, quality_text, count_text, mode=u''):
     """Our page for a list of verified links (every one of them), plus the hidden row."""
     rows = build_rows(entries) + ([hidden_row(hidden, sm)] if hidden else [])
-    sel = choose_source(title, rows, quality_text, count_text)
+    sel = choose_source(title, rows, quality_text, count_text, mode)
     if sel is None or sel < 0:
         return -1
     if sel < len(entries):
@@ -771,7 +811,7 @@ def show_all(title, items, parsed, kept, hidden, sm):
     """"Show all": Elementum's own list when every link in it is verified, else every verified link here."""
     if not hidden and len(parsed) == len(items):
         return None
-    return show_list(title, kept, hidden, sm, u'All verified links', u'%d link%s' % (len(kept), u'' if len(kept) == 1 else u's'))
+    return show_list(title, kept, hidden, sm, u'All verified links', u'%d version%s' % (len(kept), u'' if len(kept) == 1 else u's'), u'all')
 
 
 def run(title, items, top_n=TOP_N, expect=None):
