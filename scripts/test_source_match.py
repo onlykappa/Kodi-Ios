@@ -409,6 +409,13 @@ class SeasonCoverage(unittest.TestCase):
   self.assertEqual(c('Lanterns.S01E01.2160p.HMAX.WEB-DL.DV.HDR.HEVC'),'Episode 1 only')
   self.assertEqual(c('Lanterns.S01E01-E03.1080p'),'Episodes 1-3 only')
   self.assertIsNone(sm.coverage('Lanterns.S01E01.1080p',sm.expected('episode',['Lanterns'],season=1,episode=1)))
+ def test_whole_series_packs_are_not_season_packs(self):
+  # ISSUE-169 (owner, build 252): files from complete-series packs were listed as Naruto Shippuden season 1.
+  exp=sm.expected('season',['Naruto Shippuden'],season=1)
+  for n in ('Naruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio) Season 01 (001-032)/Naruto Shippuden Episode 001 Homecoming.mkv',
+            '[NamikazeSubs] Naruto Shippuuden (Collection of 500) (720p) (x265)','Naruto Shippuden 001-250 1080p AV1 BD Dual Audio'):
+   self.assertEqual(sm.coverage(n,exp),'Whole series',n)
+  self.assertEqual(sm.coverage('Naruto.Shippuden.S01.1080p.BluRay.x265',exp),'')
  def test_the_page_lists_full_seasons_first_and_labels_them(self):
   base=lambda idx,name,size,cover:dict(idx=idx,quality='4k',seeds=90 if idx==0 else 20,peers=0,size=size,tags_text='',name=name,providers=['x'],icon='',multi=False,coverage=cover)
   items=[base(0,'Lanterns.S01E01.2160p.WEB-DL.HEVC',8.4,'Episode 1 only'),base(1,'Lanterns.S01.2160p.WEB-DL.HEVC',40.0,'')]
