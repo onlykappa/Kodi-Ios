@@ -343,7 +343,10 @@ static int produce_sel(gm_stream *s, double seg_start, double seg_end,
     // from the start. An audio-only rendition seeks by the file's video index instead (backward, so it lands on a
     // cluster at or before seg_start); the time window below still drops audio before seg_start. Video packets stay
     // discarded, so nothing extra is read.
+    // Matroska only: MPEG-TS finds its seek point by reading timestamps of the seek stream, which this reader has
+    // discarded (CI: every h264_ac3.ts audio segment then failed with "seek input").
     if (sel.vid_src < 0 && s->video_in >= 0 && seek_stream != s->video_in &&
+        s->in->iformat && strstr(s->in->iformat->name, "matroska") &&
         s->in->streams[s->video_in]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
         seek_stream = s->video_in;
     // Independent rendition cursors need only their selected packets. In MOV this avoids fetching a whole

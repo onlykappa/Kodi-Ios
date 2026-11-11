@@ -2555,4 +2555,6 @@ Status: FIXED IN SOURCE; needs AirPlay r46; host-measured, device untested.
   "<show> · Season N", choices with a second line, and each quality with its coverage ("All 8 episodes" in green, or
   "6 of 8 · episodes 1–6 now; 7–8 wait for 4K Ultra HD" in orange). Still not built: the All Links page with badges
   (board 4).
+- CI host suite first failed (23 checks: every h264_ac3.ts audio segment, "seek input"): MPEG-TS seeks by reading the
+  seek stream's timestamps, which this reader discards. Fix limited to Matroska; MKV result unchanged.
 - Regression: test_season_sources (Rows); host measurement recorded here; CI host suite covers audio renditions.
