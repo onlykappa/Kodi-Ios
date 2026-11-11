@@ -67,7 +67,7 @@ class ShowsWhatItDoes(unittest.TestCase):
 class Wiring(unittest.TestCase):
  def test_service_and_queue(self):
   svc=(BOOT/'service.py').read_text();cloud=(LIB/'prepare_cloud.py').read_text()
-  self.assertIn("if q.busy and prepare_downloads.check_requested(profile):",svc)
+  self.assertIn("if q.busy and prepare_downloads.check_requested(profile)",svc)   # d058ca2 adds an inspection guard
   self.assertIn("q.scan(lambda:not monitor.abortRequested(),force=True,beside=True)",svc)
   self.assertIn("preparation.busy=True",svc);self.assertIn("finally:preparation.busy=False",svc)
   self.assertIn("with q.lock:   # build 191",cloud)

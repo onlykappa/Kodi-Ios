@@ -296,6 +296,11 @@ class ReviewFindings(unittest.TestCase):
             with self.subTest(cancel=kind),tempfile.TemporaryDirectory() as profile:
                 j=self.work(kind,id='torrent')
                 m=dict(model(),jobs=[j],next=[])
+                if kind=='copy':
+                    # d058ca2: Library status rereads saved AllDebrid jobs, so the copy must exist on disk as a real one does.
+                    import debrid_drive
+                    debrid_drive.save(profile,{'jobs':[{'hash':j.get('hash') or 'a'*40,'title':j['title'],'name':j.get('name',''),
+                                                        'kind':'movie','status':'copying','files':[],'added':1}]})
                 script=[(lp.WINDOW,fixture.tap_first),(lp.ITEM,fixture.tap(9202)),(lp.WINDOW,fixture.tap(lp.BACK))]
                 with patch.object(notices,'engine_action',return_value=True) as engine:
                     self.run_library(profile,m,script)

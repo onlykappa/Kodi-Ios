@@ -165,7 +165,7 @@ class AlreadyDownloaded(unittest.TestCase):
   source=(ROOT/'migration/bundled-bootstrap/download.py').read_text()
   for kind in ("check('movie')","check('episode',season,episode)","dl.mark_owned(","dl.season_question("):self.assertIn(kind,source)
   # every check happens before Elementum is asked: the first start() call comes after the movie/episode checks
-  self.assertLess(source.index("check('movie')"),source.index("start('season')"))
+  self.assertLess(source.index("check('movie')"),source.index("start(kind,episode)"))   # d058ca2: seasons go through season_sources
   self.assertIn('return None',source.split('def owned_copy',1)[1].split('\ndef ',1)[0])   # a failed check never blocks
 
 class DownloadFolders(unittest.TestCase):
