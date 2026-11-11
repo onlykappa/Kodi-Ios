@@ -12,6 +12,7 @@ on:
       - 'migration/glassbar-ios/source-lock.json'
       - 'migration/ios-portrait/source-lock.json'
       - 'scripts/test_customized_ipa.py'
+      - 'scripts/test_speed_fixes.py'
       - 'scripts/test_bundled_bootstrap.py'
       - 'scripts/test_ios_navigation.py'
       - 'scripts/test_native_startup.py'
@@ -53,6 +54,7 @@ on:
       - 'migration/glassbar-ios/source-lock.json'
       - 'migration/ios-portrait/source-lock.json'
       - 'scripts/test_customized_ipa.py'
+      - 'scripts/test_speed_fixes.py'
       - 'scripts/test_bundled_bootstrap.py'
       - 'scripts/test_ios_navigation.py'
       - 'scripts/test_native_startup.py'
@@ -146,6 +148,7 @@ jobs:
           python3 -B scripts/test_prepare_downloads.py
           python3 -B scripts/test_debrid_drive.py
           python3 -B scripts/test_elementum_cloud.py
+          python3 -B scripts/test_speed_fixes.py
           python3 -B scripts/test_drive_prepare.py
           python3 -B scripts/test_preparation_runtime.py
           python3 -B scripts/test_transfer_artwork.py

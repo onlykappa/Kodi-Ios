@@ -291,10 +291,54 @@ ELEMENTUM_PATCHES=[('resources/site-packages/elementum/daemon.py',b'def get_elem
 """),
  # The engine thread only starts where Elementum can fork; on iOS it runs in-process (library mode) instead.
  ('resources/site-packages/elementum/service.py',b'    if not ONLY_CLIENT and PLATFORM["fork"]:',b'    if not ONLY_CLIENT and (PLATFORM["fork"] or PLATFORM.get("os") == "ios"):'),
+ # Performance 1E.1: on iOS the engine waits until something asks for it (Download, an automatic episode download,
+ # an Elementum play request: elementum_engine.ensure sets KodiIOS.ElementumEngine on the Home window) or until
+ # the download folder holds files (a torrent still seeding or waiting for Drive). Not started at every launch.
+ ('resources/site-packages/elementum/service.py',b'def run():\n',b'''def kios_engine_thread(monitor):
+    # KODI-IOS-LAZY-ENGINE: start the engine when it is wanted, not at launch.
+    import os
+    import xbmcaddon
+    import xbmcgui
+    try:
+        from xbmcvfs import translatePath
+    except ImportError:
+        translatePath = xbmc.translatePath
+
+    def wanted():
+        if xbmcgui.Window(10000).getProperty("KodiIOS.ElementumEngine") == "1":
+            return True
+        try:
+            folder = translatePath(xbmcaddon.Addon("plugin.video.elementum").getSetting("download_path") or "")
+            return bool(folder) and os.path.isdir(folder) and bool(os.listdir(folder))
+        except Exception:
+            return True
+
+    if PLATFORM.get("os") == "ios":
+        waiter = xbmc.Monitor()
+        log.info("elementum: engine waits until it is needed")
+        while not wanted():
+            if waiter.waitForAbort(0.5):
+                return
+        log.info("elementum: engine wanted, starting it")
+    elementumd_thread(monitor)
+
+
+def run():
+'''),
+ ('resources/site-packages/elementum/service.py',b'threading.Thread(target=elementumd_thread, args=[monitor])',b'threading.Thread(target=kios_engine_thread, args=[monitor])'),
  ('resources/site-packages/elementum/osarch.py',b'    if global_platform:\n',b'    if xbmc.getCondVisibility("System.Platform.IOS"):\n        ret.update(os="ios", arch="arm64", fork=False)\n        return ret\n\n    if global_platform:\n')]
 
 # Inspect initial /play requests AND source-picker redirects before either reaches the local downloader.
-ELEMENTUM_CLOUD=b"""def _kodi_cloud(url):
+ELEMENTUM_CLOUD=b"""def _kodi_engine():
+    # The engine is not started at launch (performance 1E.1): the first request that needs it starts it.
+    import sys
+    from xbmcvfs import translatePath
+    lib=translatePath('special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib')
+    if lib not in sys.path:sys.path.insert(0,lib)
+    import elementum_engine
+    elementum_engine.ensure_here()
+
+def _kodi_cloud(url):
     import sys
     from xbmcvfs import translatePath
     lib=translatePath('special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib')
@@ -304,7 +348,7 @@ ELEMENTUM_CLOUD=b"""def _kodi_cloud(url):
 
 """
 ELEMENTUM_PATCHES += [
- ('resources/site-packages/elementum/navigation.py',b'def _json(url):\n',ELEMENTUM_CLOUD+b'def _json(url):\n    if _kodi_cloud(url):return None\n'),
+ ('resources/site-packages/elementum/navigation.py',b'def _json(url):\n',ELEMENTUM_CLOUD+b'def _json(url):\n    if _kodi_cloud(url):return None\n    _kodi_engine()\n'),
  ('resources/site-packages/elementum/navigation.py',b'        if response.code == 300:\n',b'        if location and _kodi_cloud(location):return None\n        if response.code == 300:\n')]
 
 # Kodi-iOS source check (service.kodi.ios.bootstrap/resources/lib/source_match.py) inside Burst, where every provider's
