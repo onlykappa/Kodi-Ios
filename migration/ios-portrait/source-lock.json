@@ -4,22 +4,22 @@
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
   "build_tag": "kodi-ios-portrait-r30",
-  "staged_patch_note": "r30 staged: r29 plus the native iPhone keyboard everywhere (ISSUE-162). r29 stays pinned until r30 is built and verified.",
+  "staged_patch_note": "r30 verified native executable pinned for build 225: r29 plus the native iPhone keyboard everywhere (ISSUE-162).",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
+    "tag": "kodi-ios-portrait-r30",
+    "asset": "Kodi-portrait-executable.zip",
+    "sha256": "636264da7f89bc61ceac79d31518818e31fa41d6c89386716d1c3b04e4254871",
+    "archive_sha256": "c64f69f06b4216e57c8dabd5747ac814e47af6700ab1d5176b64b77775bddf6a"
+  },
+  "build_note": "r30 run 42953009766 (pull request build of d3761cb): release zip and executable digests checked after download (arm64 Mach-O). r29 kept as previous; device acceptance pending.",
+  "previous_executable_release": {
     "tag": "kodi-ios-portrait-r29",
     "asset": "Kodi-portrait-executable.zip",
     "sha256": "070b0baf99169364ed022bc33f9d8966909e84bed408d4c3ba3551c4f0e4a60e",
     "archive_sha256": "9e1d40b9d893814c61c841b508ee333f3b16ffb8d6e5858e202cb6c59d51271a"
   },
-  "build_note": "r29 verified run 42942056360: ARM64 compilation/publication; release zip and executable digests checked after download (arm64 Mach-O). r28 superseded; device acceptance pending.",
-  "previous_executable_release": {
-    "tag": "kodi-ios-portrait-r28",
-    "asset": "Kodi-portrait-executable.zip",
-    "sha256": "ee7deca750e612822c4606a920110eda44675957c1d26e97ce91f6c0082fa31d",
-    "archive_sha256": "3fcde2b3d469344ef74327c4473bdd047be05a1950ace3bf09cfae323a36e9ef"
-  },
-  "verified_run": 42942056360,
-  "source_commit": "3ac502d78aea3a4a6b30f7f654c02ff4b317e8cd",
-  "patch_sha256": "fd35870c2461a6ad79f9eedd010f0df14bc4247de4da9a0956f8f789073da5a8"
+  "verified_run": 42953009766,
+  "source_commit": "d3761cbd406fef80331173269f5ab8f745e4d169",
+  "patch_sha256": "9e9426b95ed54bbee997cc6e9211430f31893db06c0b694c47f286d633e59f8c"
 }
