@@ -62,7 +62,7 @@ def queue_snapshot(profile, now=None):
     import prepare_downloads
     now = time.time() if now is None else now
     import work_state
-    model = work_state.load(profile, now) or {'mode':'stale','jobs':[],'next':[]}
+    model = work_state.current(profile, now)
     state = work_state.align(prepare_downloads.snapshot(profile), model)   # build 193: the status model
     state = prepare_downloads.apply_to(state, prepare_downloads.pending_requests(profile), now)
     view = prepare_downloads.library_view(state, now=lambda: now)
@@ -99,11 +99,15 @@ def open_queue(profile=None):
         def refresh(self):
             with self.lock:
                 q = queue_snapshot(profile)
-                total=len(q['line'])
+                # The existing page controls also page Drive jobs; none disappear beyond its three row slots.
+                total=max(len(q['line']),((len(q['drive'])+page.DRIVE_SLOTS-1)//page.DRIVE_SLOTS)*page.QUEUE_SLOTS)
                 self.offset=min(self.offset,max(0,(total-1)//page.QUEUE_SLOTS*page.QUEUE_SLOTS))
                 self.line = q['line'][self.offset:self.offset+page.QUEUE_SLOTS]
                 self.setProperty('pages','true' if total>page.QUEUE_SLOTS else '')
-                q=dict(q,line=self.line)
+                self.setProperty('page.previous','true' if self.offset else '')
+                self.setProperty('page.more','true' if self.offset+page.QUEUE_SLOTS<total else '')
+                drive_offset=(self.offset//page.QUEUE_SLOTS)*page.DRIVE_SLOTS
+                q=dict(q,line=self.line,drive=q['drive'][drive_offset:drive_offset+page.DRIVE_SLOTS])
                 props = lt.queue_properties(q)
                 for k, v in props.items():
                     self.setProperty(k, v)

@@ -207,3 +207,24 @@ queue progress actions outside the touch callback, log target/observed landing a
 Expanded real slider/gesture/info-refresh harness passes 45 scenarios. Verified r26 executable remains pinned
 until the new candidate passes native compilation/artifact provenance checks. UI policy/routed HIG guidance read;
 behavior repair only, existing playback controls. AirPlay and downloaded resume repairs follow in this delivery.
+
+## DEC-035 — Full-season quality comes from verified sources; hold the IPA (2026-11-11 UTC)
+
+Owner requests Full season to offer genuine season packs, otherwise select a quality and download episodes one
+by one. The quality menu must read actual available sources: never offer 4K if there are no usable 4K results.
+Owner explicitly chooses skip and retry the same quality later rather than automatic quality downgrades, asks
+for desktop rig testing, and holds IPA publication. This supersedes DEC-034's publication authorization for new
+work. No IPA dispatch/publication, main merge or native pin change is authorized by this checkpoint.
+
+Use existing Kodi selection/progress dialogs and status rows, following APPLE-UI-POLICY and routed HIG guidance.
+Only aired, dated episodes are considered. Existing copies and accepted transfers are excluded. Source scans do
+not select/download media; only an actual saved queue receipt counts as queued. Persist explicit missing episodes
+separately from the future-release date floor; retry on opening/foreground with the same strict quality and
+ownership checks. Preserve cancellation and existing followed-show behavior. A paused upload queue remains paused
+unless the owner explicitly picks the option to resume uploads. Refresh must also read the saved transfer queue,
+without waiting for the next service snapshot or doing network work on the page's UI thread.
+
+Later reports add invisible Maze Runner downloads, a blocking subtitle file browser, Media Assistant stalling after
+about five seconds, and missing AirPlay captions. Owner corrects the initial subtitle report: Download subtitle
+and phone captions work; only Browse freezes. These reports require their own evidence. Do not describe the
+unobserved AirPlay/caption causes as fixed or infer Wi-Fi failure from the queue pause.

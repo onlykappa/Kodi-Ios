@@ -108,19 +108,29 @@ def run():
     if pick:home.setProperty(SEASON_PICK,json.dumps(dict(pick,coverage='Episode %d only'%episodes[0])))
     rest_of_season(xbmc,xbmcgui,dialog,home,title,season,episodes,set(),lambda n:start('episode',n))
    return
-  # Whole season: say first how much of it is already downloaded (a failed listing never blocks the download).
+  # Whole season: verify real packs first, otherwise scan aired episodes before offering quality.
   try:
    import json
    answer=json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Files.GetDirectory','params':{
-    'directory':dl.season_path(tmdb,season),'media':'video','properties':['episode','title']}})))
-   numbers=[n for n,label in dl.episode_choices(answer.get('result',{}).get('files'))]
+    'directory':dl.season_path(tmdb,season),'media':'video','properties':['episode','title','firstaired']}})))
+   import season_sources
+   numbers=season_sources.aired(answer.get('result',{}).get('files'))
   except Exception:numbers=[]
   owned={n for n in numbers if check('episode',season,n)}
   question=dl.season_question(season,len(owned),len(numbers)) if numbers else None
   if question and not dialog.yesno(question[0],question[1],nolabel='Cancel',yeslabel='Download'):return
+  import season_sources,xbmcvfs
+  profile=xbmcvfs.translatePath('special://profile/')
+  if numbers and set(numbers)<=owned|season_sources.pending_episodes(profile,tmdb,season,numbers):
+   dialog.ok('Download season','Every aired episode is already downloaded or queued.');return
   home=xbmcgui.Window(10000);home.clearProperty(SEASON_PICK)
-  start('season')
-  rest_of_season(xbmc,xbmcgui,dialog,home,title,season,numbers,owned,lambda n:start('episode',n))
+  packs=season_sources.request(home,tmdb,season,purpose='packs')
+  if packs.get('packs'):return  # choosing or cancelling a genuine pack completes this interaction
+  if not packs:
+   dialog.ok('Download season','Could not verify the season sources. Try again.');return
+  if not numbers:
+   dialog.ok('Download season','No aired episodes could be verified for this season. Try refreshing the show.');return
+  season_sources.run(xbmc,xbmcgui,dialog,home,profile,tmdb,title,season,numbers,owned)
   return
  start(kind,episode)
 

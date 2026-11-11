@@ -2295,3 +2295,103 @@ See reports/playback-retention-delivery.json. Failed 222 remains recorded; no ap
 its strict test-pin correction. Historical hour-stop cause remains unknown; automatic evidence is added. Resume
 reuses saved history; a progress point never recorded by old builds cannot be recreated. Device/provider/visual
 acceptance pending, no main merge or roadmap acceptance-count change.
+
+## ISSUE-152 — Full season offers individual episodes; quality must reflect usable sources (2026-11-11 UTC)
+
+Owner found a Full season search offering an episode when no pack exists. Sorting partial releases below packs
+still allowed a partial to satisfy that interaction. Automatic rest-of-season selection could also lower quality;
+counting a source-picker result as a queued download was insufficient proof of acceptance.
+
+Source repair: a scoped pack request exposes only verified, seeded, non-bad releases with full coverage. Cancel
+ends the pack interaction. With no genuine pack, list aired episodes, exclude owned/queued entries, inspect their
+sources without selection, then offer only qualities actually returned by the verified picker with episode
+coverage. Exact-quality selection never falls back to a lower resolution. Queue receipts must match the request
+ID and require the real cloud queue save. Explicit old episodes awaiting that quality are persisted separately
+from following future releases and retried on opening/foreground. A foreground season interaction holds the
+opening watcher's search lane. No source URLs or credentials are persisted. Unknown source formats/identity fail
+closed; a completed no-results search can enter the fallback. Existing manual non-season pickers retain behavior.
+
+Regression coverage includes real picker filtering and the HTTP redirect/cloud-save boundary, not just selected
+source mocks: unavailable 4K, zero seeds/wrong titles/episodes, full versus partial packs including long lists,
+empty/malformed sources, vanished chosen quality, actual queue receipt, cancellation and old-episode strict retry.
+Initial new retry test exposed a pre-existing default logging callback that rejected keyword fields; corrected
+the no-op callback. An inflight-filter edit initially shadowed the queued-result list; renamed the helper and
+reran the focused suite. Desktop Kodi rig evidence and final check counts are recorded at the delivery checkpoint;
+no device/provider success is inferred and no IPA is published under the current hold.
+
+## ISSUE-153 — Accepted downloads invisible while uploads are paused, including after Refresh (2026-11-11 UTC)
+
+Owner's build-223 logs show an accepted new job after the movie selection: total debrid jobs 11 → 12, new jobs
+2 → 3, while one older job remained copying with an empty current record. uploads_paused=true throughout the
+relevant interval and through the end of the later log. The second attempt did not increase the count again.
+This proves a durable acceptance and a persistent pause, rather than proving a missing job or a Wi-Fi failure.
+The older show report has the same paused/pre-transfer condition. Private log paths and media IDs stay outside Git.
+
+Concrete model/UI defects: _copy returned None before any transfer progress; Library status ignored drive_next;
+Queue access depended only on preparation jobs; Queue drew only the first three Drive entries without paging.
+Refresh rescanned Drive media while these accepted transfers were omitted, yielding 0 Working / 0 Up next.
+
+Repair: publish the first pre-transfer job as queued/indeterminate or explicitly paused, include remaining
+transfers in Library status with stable identities and their owning actions, and make Queue reachable for Drive
+work. Page all Drive entries using the existing page controls; never send transfer IDs to preparation reorder
+handlers. Library/Queue reread durable transfer jobs and pause controls locally, retaining the service's freshness
+for other jobs. Resume/cancel go to transfer_control. A new download while paused offers explicit resume-upload or
+keep-queued choices and a truthful notification. Quiet automatic jobs preserve the pause. Safe queue-save events
+record kind/status/pause/count without media names or identifiers.
+
+Verification failures retained: rebuilding every model from raw state initially discarded the published native
+heartbeat and immediate reorder previews (three status tests and one Queue test failed); changed to refreshing
+only durable Drive transfers while preserving the published non-transfer model, and all affected tests pass.
+The first paused-notification regression exposed an incomplete old fake Kodi lacking Window; completed the fake
+so it now exercises the success notification instead of silently catching an AttributeError after queue save.
+The desktop rig dependency install first ran out of disk; removed reproducible old downloaded IPA duplicates and
+one public-media archive, retained build 223 and all receipts, repaired dependencies and resumed the isolated rig.
+Final desktop evidence/check counts follow; this does not prove actual phone transfer throughput or receiver use.
+
+## ISSUE-154 — Browse for subtitle blocks the interface during streamed movie playback (2026-11-11 UTC)
+
+Owner screenshot and build-223 log: FileBrowser.xml loads at 15:47:16 device time; subsequent touch events reach the
+iOS view but produce no handled Kodi clicks, while background diagnostics continue through 15:47:39. This narrows
+the failure to opening/browsing the subtitle file dialog. It is not evidence of an online subtitle-service failure:
+owner subsequently confirms Download subtitle works and captions appear on the phone. The later attempted taps do
+not establish a separately handled Download action after Browse blocked the UI.
+
+Kodi 21.3 BrowseForSubtitle starts the file browser at the playing item's dynamic path and its browser performs a
+synchronous directory listing. A streamed movie URL is therefore a candidate blocking directory. The log contains
+no completed directory error or thread stack proving the precise blocked operation. Investigate/reproduce with a
+controlled slow HTTP folder in the desktop rig before attributing the exact root cause or changing native code.
+Current source repair does not claim to fix Browse. AirPlay captions and Media Assistant's reported five-second
+stall are separate follow-ups to ISSUE-147/149; latest received logs contain no corresponding AirPlay session.
+Requested a fresh post-test log and whether captions were enabled before or after TV handoff. Native pins remain
+r28/r44; owner holds the IPA.
+
+ISSUE-153 final source handoff: desktop UI exposed queued transfers duplicated in Waiting and Drive sections;
+exclude transfer rows from preparation holds. QPREV/QNEXT existed in controllers but were never rendered; add the
+actual controls with disabled boundary states. A conditional link also unnecessarily shortened a header; use the
+full-width header when the link is elsewhere. Relevant controller/generated XML regressions pass. Final real UI
+paging/action recheck remains pending at the owner's handoff request.
+
+ISSUE-154 follow-up: reproduced in real desktop Kodi with a synthetic HTTP movie and a parent directory delayed
+25 seconds. The subtitle settings UI stays on screen and cannot process Close during that directory request.
+Source guard clears an HTTP(S) initial browser path; local/SMB paths retain behavior. Complete patch applies to
+pinned upstream, Linux engine rebuild passes, and the same browser opens without another parent request afterward.
+Normalized added patch context whitespace and rechecked the complete patch. No iOS binary rebuilt/pinned and no
+IPA published; device acceptance remains pending. Native r28 is still the old delivered engine.
+
+## ISSUE-155 — Downloaded show folder opens an empty page (Phony) (2026-11-11 UTC)
+
+Owner's show is present in source-search logs. Downloaded TV discovery includes Drive folders without requiring
+completed episode files; preparation/status discovery indexes video files and jobs. A folder poster therefore
+cannot prove a completed episode. Paused queue omission is repaired under ISSUE-153. The distinct empty show page
+still needs a truthful empty state and action, or completed-membership filtering without foreground network cost.
+An attempted empty-page CTA populated properties in the desktop rig but did not render its header correctly;
+owner requested committing completed work and leaving the rest out. Those UI/backend/test changes were removed
+and saved as a local patch outside Git. No completed fix claimed for this page. See REVIEW-HANDOFF-PR16.md.
+
+Rig failure history: stock Home widgets produced unauthenticated Trakt prompts, isolated by moving to Settings.
+A real engine occupied the fixture's initial port; move controlled provider replies to another port through a
+transport adapter. Add the actual Kodi Six dependency to the direct picker fixture. Missing Umbrella metadata in
+the desktop add-on subset required intercepting its account adapter before constructing the absent add-on. The
+phone's bundled bootstrap path also required a rig-only resource alias. These were fixture/environment issues,
+not product account failures. The final container stopped with exit 255/OOM=false; further diagnosis and smoke
+tests were stopped at the owner's explicit handoff request. Completed evidence remains on disk.

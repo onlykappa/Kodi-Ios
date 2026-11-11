@@ -1,0 +1,128 @@
+{
+  "scope": "Completed source checkpoint; no IPA publication",
+  "branch": "claude/trusting-euler-kgug98",
+  "pr": 16,
+  "tests": {
+    "suites": [
+      {
+        "suite": "season_sources",
+        "tests": 22,
+        "passed": true
+      },
+      {
+        "suite": "auto_season",
+        "tests": 6,
+        "passed": true
+      },
+      {
+        "suite": "episode_watch",
+        "tests": 30,
+        "passed": true
+      },
+      {
+        "suite": "deck_picker",
+        "tests": 13,
+        "passed": true
+      },
+      {
+        "suite": "source_match",
+        "tests": 39,
+        "passed": true
+      },
+      {
+        "suite": "elementum_cloud",
+        "tests": 13,
+        "passed": true
+      },
+      {
+        "suite": "work_state",
+        "tests": 27,
+        "passed": true
+      },
+      {
+        "suite": "library_status",
+        "tests": 48,
+        "passed": true
+      },
+      {
+        "suite": "library_tools",
+        "tests": 33,
+        "passed": true
+      },
+      {
+        "suite": "background_queue",
+        "tests": 10,
+        "passed": true
+      },
+      {
+        "suite": "notices",
+        "tests": 19,
+        "passed": true
+      },
+      {
+        "suite": "activity",
+        "tests": 36,
+        "passed": true
+      },
+      {
+        "suite": "library_pages",
+        "tests": 8,
+        "passed": true
+      },
+      {
+        "suite": "bundled_bootstrap",
+        "tests": 15,
+        "passed": true
+      },
+      {
+        "suite": "portrait",
+        "tests": 50,
+        "passed": true
+      },
+      {
+        "suite": "library_refresh",
+        "tests": 17,
+        "passed": true
+      },
+      {
+        "suite": "transfer_efficiency",
+        "tests": 9,
+        "passed": true
+      },
+      {
+        "suite": "native_startup",
+        "tests": 3,
+        "passed": true
+      }
+    ],
+    "python_tests": 398,
+    "actual_cpp_seek_scenarios": 46,
+    "project_check": "pass",
+    "diff_check": "pass"
+  },
+  "rig": {
+    "evidence_class": "desktop Kodi rig, not iPhone or Roku",
+    "upstream": "a3a448d26b8d560a65655dab2cd122994dc4e146",
+    "addons": "build-223",
+    "source_fixtures": "controlled provider HTTP replies and account adapters; real Kodi dialogs and durable queue saves",
+    "only_1080p": "only 1080p offered; E1/E2 queued, E3 pending",
+    "mixed_quality": "4K 1/3 and 1080p 2/3 shown; selecting 4K queued only E2, E1/E3 remain pending in 4K",
+    "paused_jobs": "five saved jobs visible in Library status despite an empty published model",
+    "browse_before": "25-second delayed HTTP parent directory reproduced blocked subtitle settings UI",
+    "browse_after": "native guard compiled; file browser opened at sources, parent request count stayed at one",
+    "baseline_binary_sha256": "5a80f6ddd2452c4e204aec403d69a1e60fb29937f7c776cb484f523fd5a5fb8d",
+    "guard_binary_sha256": "117c333e05d202fee7e60f0b76504080895aee25856506386b105343d10e847d",
+    "patch_apply": "complete patch checked against pinned upstream",
+    "final_pagination_and_device_checks": "pending; owner requested handoff",
+    "rig_final_state": "stopped, exit 255, OOM false; not diagnosed after owner requested handoff"
+  },
+  "held": {
+    "ipa": true,
+    "native_pins": "r28/r44 unchanged; rebuild and verify Kodi before next IPA"
+  },
+  "left_out": [
+    "unfinished empty downloaded-show page UI",
+    "AirPlay caption and five-second Media Assistant stall fixes without matching TV-session evidence"
+  ],
+  "private_evidence": "Raw logs, screenshots, media, rig profile and unfinished UI patch remain outside Git"
+}

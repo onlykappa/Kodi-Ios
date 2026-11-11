@@ -5,6 +5,7 @@ import episode_watch as watch
 def pass_once(profile,window,keep_going,log):
  import xbmc,xbmcaddon,xbmcvfs
  import debrid_drive,drivelibrary,library_scan,source_match,elementum_cloud,elementum_download,transfer_control
+ if watch.batch_active(window):return 0
  if not watch.load(profile)['shows']:return 0
  key=source_match.tmdb_key()
  if not key:raise RuntimeError('Episode metadata is unavailable')
@@ -51,7 +52,7 @@ def pass_once(profile,window,keep_going,log):
   if ios_downloaded.completed_copy('episode',show['title'],'',s,e,cloud=False):return True
   return 'failed' if failed else False
  def download(show,episode):
-  if not keep_going() or watch.active_request(window):return False
+  if not keep_going() or watch.active_request(window) or watch.batch_active(window):return False
   # Do not launch a source search only to discover a missing account in a dialog.
   if not xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken'):return False
   import elementum_engine
@@ -76,7 +77,7 @@ def pass_once(profile,window,keep_going,log):
    except ValueError:current={}
    if current.get('request_id')==ident:window.clearProperty(watch.AUTO)
  def allowed():
-  return keep_going() and not any(transfer_control.paused(profile,k) for k in transfer_control.KINDS)
+  return keep_going() and not watch.batch_active(window) and not any(transfer_control.paused(profile,k) for k in transfer_control.KINDS)
  return watch.sweep(profile,show,lambda ident,n:get('/tv/%s/season/%d'%(ident,n)),existing,download,keep_going=allowed,log=log)
 
 def run(monitor,profile,ready):
@@ -89,5 +90,5 @@ def run(monitor,profile,ready):
               and xbmcaddon.Addon().getSetting('follow_episodes')!='false',log))
   except Exception as error:log('opening_deferred',error=type(error).__name__)
  watch.run_open_checks(monitor,ready,app_state.foreground,
-  lambda:xbmc.getCondVisibility('Player.HasMedia | Window.IsVisible(yesnodialog) | Window.IsVisible(selectdialog) | Window.IsVisible(keyboarddialog)') or bool(watch.active_request(window)),
+  lambda:xbmc.getCondVisibility('Player.HasMedia | Window.IsVisible(yesnodialog) | Window.IsVisible(selectdialog) | Window.IsVisible(virtualkeyboard)') or bool(watch.active_request(window)) or watch.batch_active(window),
   lambda:xbmcaddon.Addon().getSetting('follow_episodes')!='false',check)

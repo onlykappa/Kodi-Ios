@@ -121,7 +121,15 @@ def route(url,quiet=False,request_id=None):
             import xbmc
             xbmc.executebuiltin('PlayMedia(%s)'%existing)
             return True
-        mode = auto.get('mode', 0) if auto is not None else dialog.select('Save to Google Drive', ['Download only', 'Download and watch after preparation'])
+        import transfer_control
+        held=transfer_control.paused(profile,'up')
+        if auto is None and held:
+            mode=dialog.select('Uploads paused', ['Download now · resume uploads',
+                'Download and watch · resume uploads','Keep queued · uploads stay paused'])
+            if mode in (0,1):transfer_control.set_paused(profile,'up',False)
+            elif mode==2:mode=0
+        else:
+            mode = auto.get('mode', 0) if auto is not None else dialog.select('Save to Google Drive', ['Download only', 'Download and watch after preparation'])
         if mode < 0:return True
         if auto is None and home is not None:
             try:home.setProperty('KodiIOS.LastSaveMode', str(mode))   # the rest of a season reuses it
@@ -138,6 +146,12 @@ def route(url,quiet=False,request_id=None):
                                  info.get('title') or drivelibrary.display_title(name),
                                  choice.get('season') or info.get('season') or tracked.get('season') or '',
                                  choice.get('episode') or info.get('episode') or '', watch=mode == 1,show_tmdb=tracked.get('tmdb'))
+        try:
+            import xbmc,diagnostics,transfer_control
+            diagnostics.event(lambda text:xbmc.log(text,xbmc.LOGINFO),'download_queue','saved',kind=kind,
+                              status=job.get('status'),uploads_paused=transfer_control.paused(profile,'up'),
+                              pending_jobs=sum(j.get('status') not in ('done','failed') for j in debrid_drive.load(profile).get('jobs',[])))
+        except Exception:pass  # logging must never undo a saved download
         if auto is not None and home is not None:
             import json
             home.setProperty('KodiIOS.AutoPick.Queued',json.dumps({'request_id':auto.get('request_id'),'queued':True}))
@@ -153,9 +167,12 @@ def route(url,quiet=False,request_id=None):
             import prepare_downloads
             prepare_downloads.request(profile, 'replace', replaced)
         if auto is None:
-            notices.note('download', 'Queued for Google Drive', '%s · %s' % (job['title'],
-                         'will play after preparation' if mode == 1 else 'AllDebrid → Drive → Prepare'))
-            dialog.notification('Download', 'Queued for Google Drive', xbmcgui.NOTIFICATION_INFO, 4000)
+            import transfer_control
+            held=transfer_control.paused(profile,'up')
+            status='Queued · uploads paused' if held else 'Queued for Google Drive'
+            detail='Resume uploads in Library status to start' if held else ('will play after preparation' if mode == 1 else 'AllDebrid → Drive → Prepare')
+            notices.note('download', status, '%s · %s' % (job['title'],detail))
+            dialog.notification('Download', status, xbmcgui.NOTIFICATION_INFO, 4000)
     except Exception as error:
         # Transport errors can contain signed URLs. Only our own plain errors are displayed.
         message = str(error) if isinstance(error, (ValueError, RuntimeError)) else 'Could not queue this torrent (%s).' % type(error).__name__

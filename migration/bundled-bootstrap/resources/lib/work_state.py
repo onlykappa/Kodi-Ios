@@ -147,6 +147,14 @@ def _title(name):
     except Exception:
         return str(name or '')
 
+def _download_title(job):
+    title=_title(job.get('title') or job.get('name') or '')
+    try:
+        if int(job.get('season') or 0)>0 and int(job.get('episode') or 0)>0 and ' · S' not in title:
+            title+=' · S%d E%d'%(int(job['season']),int(job['episode']))
+    except (TypeError,ValueError):pass
+    return title
+
 
 def _conversion(prep, runtime, now):
     """The conversion (or library check) running now, from the queue's 'current' and the heartbeat, or None."""
@@ -185,17 +193,18 @@ def _copy_next(debrid):
     jobs = [j for j in (debrid or {}).get('jobs') or [] if j.get('status') not in ('done', 'failed')]
     out = []
     for n, job in enumerate(jobs):
-        title = _title(job.get('title') or job.get('name') or '')
+        title = _download_title(job)
+        identity = {'hash':job.get('hash',''), 'id':'debrid:%s:%s:%s'%(job.get('hash',''),job.get('season',''),job.get('episode',''))}
         pending = [f for f in job.get('files') or [] if not f.get('done')]
         if n == 0:
             pending = pending[1:]   # the first one left is the one copying now
         if pending:
             for f in pending:
-                out.append({'kind': 'copy', 'title': '%s · %s' % (title, episode_label(f.get('path'))),
-                            'line': 'Waiting · %s' % STEP['copy']})
+                out.append(dict(identity, **{'id':identity['id']+':'+f.get('path',''), 'folder':f.get('path',''), 'kind': 'copy', 'title': '%s · %s' % (title, episode_label(f.get('path'))),
+                            'line': 'Waiting · %s' % STEP['copy']}))
         elif n:
-            out.append({'kind': 'copy', 'title': title,
-                        'line': 'Waiting for AllDebrid' if job.get('status') in ('new', 'fetching') else 'Waiting · %s' % STEP['copy']})
+            out.append(dict(identity, **{'kind': 'copy', 'title': title,
+                        'line': 'Waiting for AllDebrid' if job.get('status') in ('new', 'fetching') else 'Waiting · %s' % STEP['copy']}))
     return out
 
 
@@ -206,7 +215,7 @@ def _copy(debrid, now):
     if not jobs:
         return None
     job = jobs[0]
-    title = _title(job.get('title') or job.get('name') or current.get('name', ''))
+    title = _download_title(job) or _title(current.get('name',''))
     retry = float(job.get('retry_at') or 0)
     if current.get('stage') == 'copying' and current.get('total'):
         sent, total = float(current.get('sent') or 0), float(current.get('total') or 0)
@@ -239,7 +248,9 @@ def _copy(debrid, now):
         return {'kind': 'copy', 'title': title, 'name': job.get('name', ''), 'step': STEP['copy'], 'pct': 0, 'indeterminate': False,
                 'rate': 0.0, 'eta_s': 0, 'tint': BLUE, 'hash': job.get('hash', ''),
                 'wait': 'Waiting for the network · %s' % retry_text(retry, now)}
-    return None
+    return {'kind':'copy','title':title,'name':job.get('name',''),'step':
+            'Waiting for AllDebrid' if job.get('status') in ('new','fetching') else 'Starting transfer to Google Drive',
+            'pct':0,'indeterminate':True,'queued':True,'rate':0.0,'eta_s':0,'tint':BLUE,'hash':job.get('hash','')}
 
 
 def _next(prep, running_name):
@@ -272,6 +283,8 @@ def build(inp, now):
             state = PAUSED
         elif wait:
             state = NETWORK
+        elif job.get('queued'):
+            state = QUEUED
         elif slow:
             state = SLOWED
         else:
@@ -286,8 +299,11 @@ def build(inp, now):
         add(conv, held=conv.pop('held', False) or (paused.get('conv') and conv['kind'] != 'check'))
     copy = _copy(inp.get('debrid'), now)
     if copy:
+        owner=next(j for j in inp['debrid']['jobs'] if j.get('status') not in ('done','failed'))
+        copy['id']='debrid:%s:%s:%s'%(owner.get('hash',''),owner.get('season',''),owner.get('episode',''))
         playback_held=copy.pop('playback_held',False)
         add(copy, held=bool(paused.get('up')), wait=copy.pop('wait', ''))
+        if paused.get('up'):jobs[-1]['line']='Uploads paused · resume to download'
         if (playback_held or slow in ('video','buffering')) and not paused.get('up') and jobs[-1]['state'] != NETWORK:
             # Preserve the approved slowed-state surface; describe the actual hold in its existing line.
             text='Pausing for playback' if copy.get('transfer_phase')=='uploading' and not playback_held else 'Paused for playback'
@@ -315,7 +331,7 @@ def build(inp, now):
         mode = PAUSED
     elif waits or any(j['state'] == NETWORK for j in jobs):
         mode = NETWORK
-    elif nexts:
+    elif nexts or any(j['state']==QUEUED for j in jobs):
         mode = QUEUED
     else:
         mode = IDLE
@@ -325,6 +341,10 @@ def build(inp, now):
         wait_text = '%s · %s' % (w.get('why') or 'Waiting for the network', retry_text(w['until'], now))
     lead = (moving or jobs or [None])[0]
     drive_next = _copy_next(inp.get('debrid'))
+    for j in drive_next:
+        j.update(state=PAUSED if paused.get('up') else QUEUED,step=j['line'],pct=0,indeterminate=True,
+                 tint=BLUE,tint_now=GREY if paused.get('up') else BLUE,rate=0,eta_s=0)
+        if paused.get('up'):j['line']='Uploads paused · waiting to download'
     return {'at': now, 'mode': mode, 'slow': slow, 'slow_words': SLOW_WORDS.get(slow, ''), 'jobs': jobs, 'next': nexts,
             'drive_next': drive_next,
             'needs': needs, 'wait': wait_text,
@@ -348,8 +368,9 @@ def headline(mode, jobs, nexts, needs, wait_text, slow):
         parts.append('paused by you')
     if needs:
         parts.append('%d need%s you' % (len(needs), 's' if len(needs) == 1 else ''))
-    if nexts:
-        parts.append('%d up next' % len(nexts))
+    queued=len(nexts)+sum(j['state']==QUEUED for j in jobs)
+    if queued:
+        parts.append('%d up next' % queued)
     if mode == NETWORK and wait_text and not moving:
         parts.insert(0, wait_text)
     if mode == SLOWED and slow:
@@ -379,6 +400,34 @@ def load(profile, now=None):
     if not isinstance(state, dict):
         return None
     return stale(state, now)
+
+
+def current(profile, now=None):
+    """Refresh durable Drive transfers immediately; retain the service's other jobs and their freshness.
+
+    No network calls. Rereading the queue must not revive stale conversion or torrent measurements.
+    """
+    import debrid_drive,transfer_control
+    now=time.time() if now is None else now
+    state=load(profile,now) or build({},now)
+    paused={k:transfer_control.paused(profile,k) for k in transfer_control.KINDS}
+    copies=build({'debrid':debrid_drive.load(profile),'paused':paused,'slow':state.get('slow','')},now)
+    jobs=[j for j in state.get('jobs',[]) if j.get('kind')!='copy']+copies['jobs']
+    nexts=state.get('next') or [];drive_next=copies['drive_next'];needs=state.get('needs') or []
+    moving=[j for j in jobs if j['state'] in MOVING]
+    if needs:mode=NEEDS
+    elif moving:mode=SLOWED if all(j['state']==SLOWED for j in moving) else RUNNING
+    elif any(j['state']==PAUSED for j in jobs) or any(j.get('paused') for j in nexts):mode=PAUSED
+    elif any(j['state']==NETWORK for j in jobs) or state.get('wait'):mode=NETWORK
+    elif nexts or drive_next or any(j['state']==QUEUED for j in jobs):mode=QUEUED
+    elif any(j['state']==STALE_STATE for j in jobs):mode=STALE_STATE
+    else:mode=IDLE
+    lead=(moving or jobs or [None])[0]
+    return dict(state,jobs=jobs,drive_next=drive_next,mode=mode,running=len(moving),
+                headline=headline(mode,jobs,nexts+drive_next,needs,state.get('wait',''),state.get('slow','')),
+                bell={'state':mode,'pct':lead['pct'] if lead and lead['state'] in MOVING else 0,
+                      'tint':(GREY if mode==SLOWED else lead['tint']) if lead and mode in MOVING else '',
+                      'count':len(moving),'needs':len(needs)})
 
 
 def stale(state, now):
@@ -490,4 +539,4 @@ def job_key(job):
     """Stable identity for per-job presentation state; titles never identify Drive copies."""
     job=job or {}
     return (job.get('kind',''), str(job.get('id') or job.get('hash') or job.get('name') or job.get('title') or ''),
-            str(job.get('folder') or ''))
+            '' if job.get('kind')=='copy' and job.get('id') else str(job.get('folder') or ''))

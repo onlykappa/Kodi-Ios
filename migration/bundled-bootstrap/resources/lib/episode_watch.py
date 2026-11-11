@@ -13,6 +13,11 @@ MAX_SHOWS=25
 AUTO='KodiIOS.AutoPick'
 RESULT='KodiIOS.AutoPick.Result'
 CANCELED='KodiIOS.AutoPick.Canceled'
+BATCH='KodiIOS.SeasonBatch.Until'
+
+def batch_active(window,now=None):
+ try:return float(window.getProperty(BATCH) or 0)>(time.time() if now is None else now)
+ except (ValueError,TypeError):return False
 
 def active_request(window,now=None):
  now=time.time() if now is None else now;raw=window.getProperty(AUTO)
@@ -61,12 +66,35 @@ def register(profile,tmdb,title,season,episode,preference,now=None):
  except (ValueError,TypeError):return False
  if int(tmdb)<1 or season<1 or episode<1 or not title:return False
  now=time.time() if now is None else now
- prefs={k:preference[k] for k in ('quality','hdr','codec','source','size') if k in preference}
+ prefs={k:preference[k] for k in ('quality','hdr','codec','source','size','strict_quality') if k in preference}
  def change(state):
   show=state['shows'].setdefault(tmdb,{'since':now,'floor':[season,episode],'episodes':{},'last_check':0})
   show.update(tmdb=tmdb,title=str(title),preference=prefs)
   return True
  return update(profile,change)
+
+def plan_season(profile,tmdb,title,season,numbers,quality,now=None):
+ """Explicit back-catalogue requests, separate from the date floor for following future releases."""
+ register(profile,tmdb,title,season,min(numbers),{'quality':quality,'strict_quality':True},now)
+ def change(state):
+  show=state['shows'][str(tmdb)]
+  for n in numbers:
+   show.setdefault('planned',{})['%d:%d'%(int(season),int(n))]={'quality':quality,'status':'not_found'}
+ update(profile,change)
+
+def record_planned(profile,tmdb,season,episode,queued):
+ def change(state):
+  show=state['shows'].get(str(tmdb),{});key='%d:%d'%(int(season),int(episode))
+  if key in show.get('planned',{}):show['planned'][key]['status']='queued' if queued else 'not_found'
+ update(profile,change)
+
+def cancel_planned(profile,tmdb,season,numbers):
+ def change(state):
+  show=state['shows'].get(str(tmdb),{});planned=show.get('planned',{})
+  for n in numbers:
+   key='%d:%d'%(int(season),int(n));planned.pop(key,None)
+   show.setdefault('episodes',{})[key]={'status':'canceled'}
+ update(profile,change)
 
 def selection(window,choice,now=None):
  """The picker records the show's TMDb ID (Elementum's tmdb field can be an episode ID)."""
@@ -112,7 +140,7 @@ def seasons(details,show,today):
   if isinstance(n,int) and n>=show['floor'][0]:wanted.add(n)
  return sorted(wanted)[:4]
 
-def sweep(profile,get_show,get_season,existing,download,clock=time.time,keep_going=lambda:True,log=lambda *args:None):
+def sweep(profile,get_show,get_season,existing,download,clock=time.time,keep_going=lambda:True,log=lambda *args,**kwargs:None):
  """One bounded opening pass. Dependencies allow future release dates and restarts to be tested now."""
  now=clock();today=datetime.datetime.fromtimestamp(now,datetime.timezone.utc).date();started=now;attempted=queued=0
  shows=sorted(load(profile)['shows'].values(),key=lambda s:s.get('last_check',0))[:MAX_SHOWS]
@@ -124,31 +152,37 @@ def sweep(profile,get_show,get_season,existing,download,clock=time.time,keep_goi
    details=get_show(ident)
    if not isinstance(details,dict) or str(details.get('id'))!=ident:raise ValueError('Show metadata unavailable')
    episodes={}
-   for number in seasons(details,show,today):
+   planned=show.get('planned') or {}
+   pending_seasons={int(k.split(':')[0]) for k,v in planned.items() if v.get('status')!='owned'}
+   for number in sorted(set(seasons(details,show,today))|pending_seasons):
     if not keep_going():return queued
     data=get_season(ident,number)
     if not isinstance(data,dict) or not isinstance(data.get('episodes'),list):raise ValueError('Season metadata unavailable')
     for row in data['episodes']:
      s,e=row.get('season_number',number),row.get('episode_number');aired=day(row.get('air_date'))
      if not isinstance(s,int) or not isinstance(e,int) or s!=number or s<1 or e<1 or not aired:continue
-     if (s,e)<tuple(show['floor']) or not since<=aired<=today:continue
+     explicit='%d:%d'%(s,e) in planned
+     if aired>today or (not explicit and ((s,e)<tuple(show['floor']) or aired<since)):continue
      episodes[(s,e)]=dict(row,season_number=s,episode_number=e)
    for row in sorted(episodes.values(),key=lambda r:(r['season_number'],r['episode_number'])):
     if not keep_going() or attempted>=MAX_EPISODES or clock()-started>=180:break
     key='%d:%d'%(row['season_number'],row['episode_number'])
     # Queue success, rather than a selected source alone, owns the durable marker.
-    prior=(show.get('episodes') or {}).get(key) or {}
-    if prior.get('status')=='owned':continue
+    prior=planned.get(key) or (show.get('episodes') or {}).get(key) or {}
+    if prior.get('status') in ('owned','canceled'):continue
     owned=existing(show,row)
     if prior.get('status')=='queued' and owned!='failed':continue
     if owned and owned!='failed':status='owned'
     else:
      attempted+=1
-     status='queued' if download(show,row) else 'not_found'
+     wanted=dict(show,preference={'quality':prior['quality'],'strict_quality':True}) if key in planned else show
+     status='queued' if download(wanted,row) else 'not_found'
      if status=='queued':queued+=1
     def record(state):
      target=state['shows'].get(ident)
-     if target:target.setdefault('episodes',{})[key]={'status':status,'checked':clock()}
+     if target:
+      target.setdefault('episodes',{})[key]={'status':status,'checked':clock()}
+      if key in target.get('planned',{}):target['planned'][key].update(status=status,checked=clock())
     update(profile,record)
     log('episode_checked',status=status,season=row['season_number'],episode=row['episode_number'])
   except Exception as error:

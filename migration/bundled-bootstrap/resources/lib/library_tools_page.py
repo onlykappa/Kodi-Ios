@@ -136,6 +136,7 @@ def queue_page(p):
     rows += ''.join(_card_row(p, 'held.%d.' % n, p.GREY) for n in range(1, HELD_SLOTS + 1))
     rows += header('DOWNLOADING TO GOOGLE DRIVE', _has('drive.1.title'), 105)
     rows += ''.join(_card_row(p, 'drive.%d.' % n, p.GREY) for n in range(1, DRIVE_SLOTS + 1))
+    rows += u.group(p, 124, u.tap(p, QPREV, S, 0, w // 2, 118, 'Previous',enabled=_has('page.previous')) + u.tap(p, QNEXT, S + w // 2, 0, w // 2, 118, 'More',enabled=_has('page.more')), _has('pages'))
     rows += u.group(p, 160, u.paragraph(p, S + 10, 0, w - 20, 150, 'Moving a video to the top makes it next. Faster-start jobs are already Ready, so they wait behind new movies on their own.', 'p_foot'))
     rows += u.group(p, 100, u.text(p, S, 0, w, 60, _P('empty'), 'p_foot', p.GREY), _has('empty'))
     rows += u.group(p, 200, '')

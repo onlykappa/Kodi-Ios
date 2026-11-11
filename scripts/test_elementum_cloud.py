@@ -44,10 +44,29 @@ class Route(unittest.TestCase):
         'clouddrive':types.ModuleType('clouddrive'),'clouddrive.common':types.ModuleType('clouddrive.common'),
         'clouddrive.common.account':types.SimpleNamespace(AccountManager=lambda path:self.account),
         'notices':Mock()}
+  props={}
+  mods['xbmcgui'].Window=lambda ident:types.SimpleNamespace(getProperty=lambda k:props.get(k,''),
+      setProperty=lambda k,v:props.__setitem__(k,v),clearProperty=lambda k:props.pop(k,None))
   self.mods=mods;self.addon=addon
   self.patcher=patch.dict(sys.modules,mods);self.patcher.start();self.addCleanup(self.patcher.stop)
   self.existing=patch.object(cloud,'existing_url',return_value=None);self.existing.start();self.addCleanup(self.existing.stop)
  def jobs(self):return debrid_drive.load(self.tmp.name).get('jobs',[])
+ def test_paused_uploads_offer_explicit_resume_or_keep_queued(self):
+  import transfer_control
+  for mode,paused in ((0,False),(2,True)):
+   transfer_control.set_paused(self.tmp.name,'up',True)
+   self.dialog.select.return_value=mode
+   cloud.route(url(uri=magnet(),type='episode',season='1',episode=str(mode+1)))
+   self.assertEqual(transfer_control.paused(self.tmp.name,'up'),paused)
+   self.assertEqual(self.dialog.select.call_args.args[0],'Uploads paused')
+  self.assertEqual(len(self.jobs()),2)
+  self.assertEqual(self.dialog.notification.call_args.args[1],'Queued · uploads paused')
+ def test_cancel_paused_download_keeps_pause_and_saves_nothing(self):
+  import transfer_control
+  transfer_control.set_paused(self.tmp.name,'up',True)
+  self.dialog.select.return_value=-1
+  cloud.route(url(uri=magnet(),type='episode',season='1',episode='2'))
+  self.assertTrue(transfer_control.paused(self.tmp.name,'up'));self.assertFalse(self.jobs())
  def test_prompt_after_each_new_movie_or_episode_selected_and_both_modes_queue(self):
   for mode in (0,1):
    self.dialog.select.return_value=mode

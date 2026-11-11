@@ -48,7 +48,7 @@ def queue_view(view, debrid_jobs=(), now=None):
         out.append({'id': r['id'], 'name': r.get('name', ''), 'title': r['title'],
                     'sub': ' · '.join(r['sub'].split(' · ')[1:]) or r['sub'],
                     'up': 'true' if n else '', 'down': 'true' if n < len(line) - 1 else ''})
-    held = [{'id': r['id'], 'name': r.get('name', ''), 'title': r['title'], 'sub': r['sub']} for r in waiting if r['state'] != 'waiting']
+    held = [{'id': r['id'], 'name': r.get('name', ''), 'title': r['title'], 'sub': r['sub']} for r in waiting if r['state'] != 'waiting' and not r.get('queued_transfer')]
     drive = []
     for job in debrid_jobs or ():
         status = job.get('status')

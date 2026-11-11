@@ -35,7 +35,7 @@ def snapshot(profile,downloads,uploads):
  # Choices not yet applied by the service show at once (it applies them before its next video).
  import work_state
  # Build 193: "preparing" and its words come from the status model, as on every other page and the bell.
- model=work_state.load(profile)
+ model=work_state.current(profile)
  state=work_state.align(prepare_downloads.snapshot(profile),model)
  state=prepare_downloads.apply_to(state,prepare_downloads.pending_requests(profile),time.time())
  work=prepare_downloads.location(profile).parent/'preparing-videos'
@@ -188,7 +188,8 @@ def run(args=()):
     self.pools=pools
     self.setProperty('empty','' if items or (view.get('model') or {}).get('jobs') else 'No downloaded videos here yet.')
     model=view.get('model') or {}
-    self.setProperty('queue','true' if model.get('next') else '')
+    self.setProperty('queue','true' if model.get('next') or model.get('drive_next') or any(j.get('kind') in ('copy','upload','down') for j in model.get('jobs',[])) else '')
+    self.setProperty('queue.label','Edit order' if model.get('next') else 'View queue')
     for k in ('title','text','button'):self.setProperty('need.'+k,(model.get('needs') or [{}])[0].get(k,''))
     import work_state
     conv=work_state.job(model,'conv') or {}
@@ -242,7 +243,7 @@ def run(args=()):
   def onClick(self,control):
    if control==library_page.BACK:self.go_back()
    elif control==library_page.CHECK:self.check()
-   elif control==library_page.EDIT:
+   elif control in (library_page.EDIT,library_page.VIEW_QUEUE):
     # Waiting › Edit order: the Queue page (▲ ▼); this page shows the new order when it comes back.
     tool_windows.open_queue(profile);self.refresh(force=True)
    elif FILTER_BASE<=control<FILTER_BASE+len(library_page.FILTERS):self.set_filter(library_page.FILTERS[control-FILTER_BASE][0])
@@ -290,7 +291,7 @@ def run(args=()):
     _,view=snapshot(profile,notices.downloads,lambda:notices.uploads(profile))
     for rows in view['rows'].values():
      for r in rows:
-      if r.get('id')==wanted.get('id') and r.get('title')==wanted.get('title'):return library_rows.details(r,view),r
+      if r.get('id')==wanted.get('id') and (r.get('title')==wanted.get('title') or wanted.get('work_key')):return library_rows.details(r,view),r
     matches=[r for group in view['rows'].values() for r in group if wanted.get('state')=='preparing' and r.get('state') in ('preparing','ready') and r.get('title')==wanted.get('title')]
     if len(matches)==1:return library_rows.details(matches[0],view),matches[0]
     return None

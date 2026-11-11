@@ -1804,3 +1804,17 @@ diff --git a/xbmc/cores/VideoPlayer/VideoPlayerVideo.h b/xbmc/cores/VideoPlayer/
 +  std::chrono::steady_clock::time_point m_seekFrameAt{};
    EOutputState m_outputSate;
  };
+diff --git a/xbmc/video/dialogs/GUIDialogSubtitleSettings.cpp b/xbmc/video/dialogs/GUIDialogSubtitleSettings.cpp
+index d1c8e31..411c653 100644
+--- a/xbmc/video/dialogs/GUIDialogSubtitleSettings.cpp
++++ b/xbmc/video/dialogs/GUIDialogSubtitleSettings.cpp
+@@ -138,5 +138,9 @@ std::string CGUIDialogSubtitleSettings::BrowseForSubtitle()
+     strPath = dynPath;
+   }
+
++  // A streamed movie URL is not a browsable folder. Its HTTP parent can block the GUI.
++  if (URIUtils::IsHTTP(strPath))
++    strPath.clear();
++
+   std::string strMask =
+       ".utf|.utf8|.utf-8|.sub|.srt|.smi|.rt|.txt|.ssa|.aqt|.jss|.ass|.vtt|.idx|.zip|.sup";

@@ -582,6 +582,8 @@ def automatic_matches(wanted,exp):
 def auto_choose(kept, want):
     """The version closest to the first pick: its quality (else the nearest lower, then higher), its HDR kind and
     codec, never AV1 when avoidable, seeds, then the size nearest the first pick's. None when nothing has seeds."""
+    if want.get('strict_quality'):
+        kept = [p for p in kept if p['quality'] == want.get('quality') and not is_bad(p)]
     if not kept:
         return None
     order = {q: n for n, q in enumerate(QUALITY_ORDER)}
@@ -722,11 +724,25 @@ def run(title, items, top_n=TOP_N, expect=None):
         auto=auto_request()
         if auto and auto.get('target'):
             sm=_matcher();exp=expect if expect is not None else identity(title,sm)
-            if exp and automatic_matches(auto,exp):return -1
+            if auto.get('purpose') in ('scan','packs') and (not exp or not automatic_matches(auto,exp)):
+                import json
+                _home().setProperty(AUTO_RESULT,json.dumps({'request_id':auto['request_id'],'error':'identity_mismatch'}))
+                return -1
+            if exp and automatic_matches(auto,exp):
+                if auto.get('purpose') in ('scan','packs'):
+                    import json
+                    _home().setProperty(AUTO_RESULT,json.dumps({'request_id':auto['request_id'],
+                        'qualities':[],'packs':False,'error':'unsupported_source_list' if items else ''}))
+                return -1
         return None
     sm = _matcher()
     exp = expect if expect is not None else identity(title, sm)
     _CONTEXT['exp'] = exp
+    active=auto_request()
+    if active and active.get('purpose') in ('scan','packs') and (not exp or not automatic_matches(active,exp)):
+        import json
+        _home().setProperty(AUTO_RESULT,json.dumps({'request_id':active['request_id'],'error':'identity_unavailable'}))
+        return -1
     if sm is not None and exp:
         kept, hidden = sm.split(parsed, exp, name=lambda p: p['name'], result=lambda p: None)
         sm.report('Choose a version', exp, kept, hidden, name=lambda p: p['name'])
@@ -747,6 +763,18 @@ def run(title, items, top_n=TOP_N, expect=None):
         if exp and episode_watch.canceled(_home(),exp):return -1
     except (ImportError,AttributeError):pass
     auto = auto_request()
+    if auto and exp and automatic_matches(auto, exp) and auto.get('purpose') in ('scan', 'packs'):
+        import json
+        usable = [p for p in kept if p['seeds'] > 0 and not is_bad(p)] if sm is not None and exp.get('titles') else []
+        if auto['purpose'] == 'packs':
+            usable = [p for p in usable if p.get('coverage') == u'']
+        _home().setProperty(AUTO_RESULT, json.dumps({'request_id': auto['request_id'],
+            'qualities': [q for q in QUALITY_ORDER if any(p['quality'] == q for p in usable)],
+            'packs': bool(usable) if auto['purpose'] == 'packs' else False}))
+        if auto['purpose'] == 'scan' or not usable:
+            return -1
+        # A Full season request offers genuine packs only. Cancel never queues a partial episode.
+        return show_list(title, usable, [], sm, u'Full season packs', count_label(len(usable), len(usable)))
     if auto is not None and exp and exp.get('episode') and automatic_matches(auto,exp):
         failed=set(auto.get('excluded_names') or [])
         best = auto_choose([p for p in kept if p['name'] not in failed], auto.get('profile') or {})

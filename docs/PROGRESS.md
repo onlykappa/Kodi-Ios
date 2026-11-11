@@ -1,5 +1,43 @@
 # Persistent progress
 
+## Source handoff to PR #16; IPA held — 2026-11-11 UTC
+
+Owner requests committing completed work now and leaving unfinished work out for another agent. Branch:
+`claude/trusting-euler-kgug98`. Included: source-derived full-season quality selection, exact-quality pending opening
+retries, real queue receipts, visible paused/pre-transfer jobs, local queue rereads on Refresh, explicit resume/keep
+queued choices, stable job identity, Queue paging controls and deduplication, and the native subtitle Browse HTTP
+start-path guard. Existing UI helpers/tokens reused; UI policy/HIG followed. No IPA/workflow dispatch or main merge.
+
+Real desktop Kodi 21.3 checks: unavailable 4K hidden; 1080p queues two of three episodes; selecting 4K from mixed
+sources queues only its available episode and retains the others in 4K. Five paused jobs appear despite an idle
+published model. Browse freeze reproduced with a 25-second HTTP folder; compiled guard opens the browser without
+requesting that parent. Full native patch applies to pinned upstream. Related Python/controller/XML checks and 46
+actual C++ seek scenarios pass; receipt: reports/season-source-queue-checks.json. Native iOS pins remain r28/r44;
+next IPA requires a rebuilt/verified Kodi executable to include the Browse guard. Phone/provider/Roku acceptance
+and final paging/action smoke tests remain pending.
+
+Left out: unfinished Phony empty-show UI. The downloaded grid lists folders, so a poster does not prove completed
+episodes; source queue/status repairs are included, but the separate empty-page redesign was excluded. A local WIP
+patch is saved outside Git. AirPlay captions and the five-second Media Assistant/Umbrella stall need matching TV
+session logs; no repair claimed. See docs/REVIEW-HANDOFF-PR16.md for included/remaining work and test limitations.
+
+
+## In progress: season quality availability and missing paused queues — 2026-11-11 UTC
+
+Owner holds the IPA (DEC-035). ISSUE-152: real packs only, otherwise inspect aired episode sources and offer actual
+available qualities with coverage; exact chosen quality, real queue receipts and explicit pending opening retries.
+ISSUE-153: logs prove a saved new movie job while uploads remained paused; missing pre-transfer rows, omitted Drive
+queue rows, hidden Queue access and its three-row limit repaired. Refresh rereads durable jobs/pause state locally;
+published native progress/reorder freshness is preserved. Existing dialogs/rows/tokens only, UI policy/HIG read.
+Focused picker/redirect/save/retry/controller tests pass; expanded tests and desktop Kodi 21.3 rig checks running.
+No new IPA, native build dispatch, pin update or main merge. Native r28/r44 remain delivered in IPA 223.
+
+Owner corrects subtitle report: Download subtitle and phone captions work. Browse opens FileBrowser.xml then Kodi
+stops handling taps while background diagnostics continue (ISSUE-154). Remote initial-directory enumeration is a
+candidate, not a proven stack-level root cause. Reported Media Assistant five-second stall and AirPlay captions
+need matching TV-session evidence; requested the post-test log and subtitle-enable timing. Do not mark them fixed.
+Private logs and rig images remain outside Git; initial verification/setup failures retained in ISSUES.
+
 ## Verified test IPA 223 delivered — 2026-11-10
 
 [Download IPA 223](https://github.com/onlykappa/Kodi-Ios/releases/download/build-223/Kodi-iOS-Customized-Touch-r10.ipa).

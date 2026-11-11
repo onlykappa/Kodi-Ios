@@ -4,6 +4,7 @@ ITEM = 'IOSLibraryItem.xml'
 FILTERS = (('ready', 'Ready'), ('working', 'Working'), ('waiting', 'Up next'), ('kept', 'Kept'))   # buttons 9101-9104
 LIST, BACK, CHECK = 9300, 9001, 9002
 EDIT = 9003   # Waiting › Edit order (the Queue)
+VIEW_QUEUE = 9006   # One current download, before there are any Up next rows
 HIT = 118
 PURPLE = 'FFBF5AF2'
 BLUE = 'FF0A84FF'
@@ -132,8 +133,15 @@ def page(p):
     titles = {'down': 'DOWNLOADING TO GOOGLE DRIVE', 'next': 'UP NEXT', 'kept': 'KEPT AS IT IS', 'ready': 'READY FOR KODI AND AIRPLAY'}
     pools = {}
     for key, base, slots, h in POOLS:
-        action = u.link(p, EDIT, W - S - 300, -18, 290, 118, 'Edit order') if key == 'next' else ''
-        pools[key] = (_header(p, u, titles[key], u.has('%s.0.title' % key), action) + _pool(p, u, key, base, slots, h) +
+        action = u.link(p, EDIT, W - S - 300, -18, 290, 118, P('queue.label')) if key == 'next' else ''
+        if key == 'down':
+            action=('<control type="group"><visible>%s</visible>%s</control>' % (
+                u.neg(u.has('next.0.title')),u.link(p,VIEW_QUEUE,W-S-300,-18,290,118,'View queue')))
+        heading=_header(p,u,titles[key],u.has('%s.0.title'%key),action)
+        if key=='down':
+            heading=(_header(p,u,'DOWNLOADS',u.has('down.0.title')+' + '+u.neg(u.has('next.0.title')),action)+
+                     _header(p,u,titles[key],u.has('down.0.title')+' + '+u.has('next.0.title')))
+        pools[key] = (heading + _pool(p, u, key, base, slots, h) +
                       u.group(p, u.GAP, '', u.has('%s.0.title' % key)))
     listing = ('<control type="grouplist" id="9300"><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
                '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>' % (LIST_TOP, W) +

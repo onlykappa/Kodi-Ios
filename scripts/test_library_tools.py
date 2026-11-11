@@ -86,6 +86,12 @@ class QueueView(unittest.TestCase):
   self.assertEqual(props['line.more'],'and 3 more below: move one up to see it')
 
 class Pages(unittest.TestCase):
+ def test_queue_page_contains_the_real_pagination_buttons(self):
+  tree=self.trees['portrait/'+ltp.QUEUE]
+  for ident in (ltp.QPREV,ltp.QNEXT):
+   controls=tree.findall(".//control[@id='%d']"%ident)
+   self.assertEqual(len(controls),1)
+   self.assertGreaterEqual(int(controls[0].findtext('height')),118)
  @classmethod
  def setUpClass(cls):
   cls.files=ltp.files(portrait)
@@ -272,6 +278,18 @@ class TapEveryButton(unittest.TestCase):
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.profile=self.tmp.name;prep.save(self.profile,queue_state())
  def tearDown(self):self.tmp.cleanup()
+ def test_paused_downloads_are_visible_and_all_drive_pages_are_reachable(self):
+  import debrid_drive,transfer_control
+  for n in range(5):
+   debrid_drive.queue(self.profile,{'id':'%040x'%(n+1),'name':'Sample.Movie.%d.1080p'%n},'movie','Sample Movie %d'%n)
+  transfer_control.set_paused(self.profile,'up',True)
+  seen=[]
+  snap=lambda w:seen.append([w.getProperty('drive.%d.title'%n) for n in range(1,4)])
+  self.run_status([(library_page.WINDOW,ls.tap(library_page.EDIT)),
+   (ltp.QUEUE,snap),(ltp.QUEUE,ls.tap(ltp.QNEXT)),(ltp.QUEUE,snap),
+   (ltp.QUEUE,ls.tap(ltp.BACK)),(library_page.WINDOW,ls.tap(library_page.BACK))])
+  self.assertEqual([title for page in seen for title in page if title],['Sample Movie %d'%n for n in range(5)])
+  self.assertTrue(transfer_control.paused(self.profile,'up'))
  def run_status(self,script):
   kodi=ls.FakeKodi(self.profile,script)
   import notices,work_state

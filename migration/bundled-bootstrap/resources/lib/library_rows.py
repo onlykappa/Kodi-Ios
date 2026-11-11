@@ -81,7 +81,8 @@ def pools(items):
         state = item['props'].get('state', '')
         if state == 'preparing':
             continue
-        out.setdefault(POOL_OF.get(state, 'next'), []).append(dict(item, props=dict(item['props'])))
+        pool='next' if (item.get('row') or {}).get('queued_transfer') else POOL_OF.get(state, 'next')
+        out.setdefault(pool, []).append(dict(item, props=dict(item['props'])))
     for key, rows in out.items():
         for n, item in enumerate(rows):
             item['props']['pos'] = 'only' if len(rows) == 1 else 'first' if n == 0 else 'last' if n == len(rows) - 1 else 'mid'
@@ -300,7 +301,7 @@ def details(row, view):
         sheet['facts'] = sheet['facts'][:FACTS - 1] + [('Why it is slow', 'AV1 is re-encoded on the phone; HEVC and H.264 are only repackaged')]
     model = view.get('model')
     import work_state
-    live = next((j for j in (model or {}).get('jobs',[]) if matches_job(j,row)), None)
+    live = next((j for j in (model or {}).get('jobs',[])+(model or {}).get('drive_next',[]) if matches_job(j,row)), None)
     if live:
         converting=live['kind'] in ('conv','repack')
         actions=[('Resume' if live['state']=='paused_by_you' else 'Pause','toggle')]
@@ -415,8 +416,11 @@ def with_model(view, model):
     for j in (model or {}).get('next') or []:
         base=lookup.get(j['id']) or by_title.get(j['title']) or {}
         waiting.append(dict(base,**j,state=base.get('state') if base.get('state') in ('space','problem') else 'waiting',ready_now=base.get('state')=='ready',repack=j['what']=='faster start',sub=base.get('sub','') if base.get('state') in ('space','problem') else ('Ready now · ' if base.get('state')=='ready' else '')+j['what']+' · %.1f GB'%(float(j.get('size') or 0)/GB)))
+    for j in (model or {}).get('drive_next') or []:
+        waiting.append(dict(j,state='uploading',queued_transfer=True,sub=j['line'],size=0,
+                            work_key=work_state.job_key(j)))
     # Retain actionable problems and phone-space explanations, but never invent queued jobs.
-    rows['waiting']=waiting+[r for r in rows['waiting'] if r['state']!='waiting' and r['id'] not in active_ids and r['id'] not in {j['id'] for j in waiting}]
+    rows['waiting']=waiting+[r for r in rows['waiting'] if r['state']!='waiting' and not r.get('queued_transfer') and r['id'] not in active_ids and r['id'] not in {j['id'] for j in waiting}]
     queued_ids={j['id'] for j in waiting}
     rows['ready']=[r for r in rows['ready'] if r['id'] not in queued_ids]
     view.update(model=model,ready=len(rows['ready']),kept=len(rows['kept']),todo=len(rows['preparing'])+len(rows['waiting']),

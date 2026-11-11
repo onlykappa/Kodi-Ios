@@ -412,3 +412,19 @@ conversion pass. Receipt reports/playback-retention-delivery.json; source checks
 Failed 222 was not delivered. Next owner device checks: saved downloaded-movie Continue/Start from beginning,
 seek landing, captions and actual AirPlay/Roku; new-episode provider/visual acceptance pending. Historical hour-stop
 cause remains unknown; local/exported evidence added. No main merge or roadmap phase/task-count change.
+
+## Source work in progress: season source availability and visible paused queues — 2026-11-11 UTC
+
+DEC-035 / ISSUE-152/153: owner holds IPA publication and requests real desktop rig tests. Genuine pack filtering,
+a source-derived exact-quality episode fallback with opening retries, and durable paused/queued transfer visibility
+(including Refresh and Queue pagination) are implemented with focused regressions. No native pin change or IPA
+workflow dispatch. Desktop Kodi 21.3 rig is compiling in an isolated container using build-223 add-ons; visual/app
+flow checks remain pending. ISSUE-154 subtitle Browse freeze is under investigation; Download subtitle/phone
+captions work per owner. AirPlay captions and the Media Assistant five-second stall still need matching session
+evidence. No phase/task acceptance count changes or main merge. Final validation/evidence checkpoint will follow.
+
+Source handoff requested by owner (2026-11-11 UTC): commit completed ISSUE-152/153 repairs and ISSUE-154 native
+HTTP Browse guard to PR #16 on claude/trusting-euler-kgug98; keep IPA held. Real desktop quality/queue-save and
+Browse guard evidence plus passing related checks recorded in reports/season-source-queue-checks.json. Unfinished
+empty-show UI excluded (ISSUE-155). Remaining TV-session evidence, final UI smoke tests and required new iOS
+engine build/pin are listed in docs/REVIEW-HANDOFF-PR16.md. No main merge or phase acceptance-count changes.

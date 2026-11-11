@@ -56,11 +56,12 @@ def text(p, x, y, w, h, value, font='p_foot', tint=None, align='left'):
     return p.label(x, y, w, h, value, font, tint or p.WHITE, align, NOS)
 
 
-def tap(p, ident, x, y, w, h, title='', tint=None):
+def tap(p, ident, x, y, w, h, title='', tint=None, enabled=''):
     return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
             '<label>%s</label><font>p_foot_b</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>'
             '<align>center</align><aligny>center</aligny><scroll>false</scroll><texturefocus colordiffuse="14FFFFFF">%swhite.png</texturefocus>'
-            '<texturenofocus /></control>') % (ident,x,y,w,h,p.e(title),tint or p.ACCENT,p.WHITE,p.MEDIA)
+            '<texturenofocus />%s</control>') % (ident,x,y,w,h,p.e(title),tint or p.ACCENT,p.WHITE,p.MEDIA,
+             '<enable>%s</enable><disabledcolor>%s</disabledcolor>'%(enabled,p.DIM) if enabled else '')
 
 
 def group(p, height, body, cond='true'):
