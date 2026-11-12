@@ -102,6 +102,25 @@ class BundleTests(unittest.TestCase):
    manifest=Path(t)/'m.xml';manifest.write_text('<addons><addon>pvr.demo</addon></addons>')
    (root/'pvr.demo').mkdir();(root/'pvr.demo/addon.xml').write_text('<addon id="pvr.demo"/>')
    with self.assertRaises(AssertionError):prune_unused_addons(root,manifest)
+ def test_drive_unused_services_stop_but_existing_exports_and_sources_survive(self):
+  old,new=next((o,n) for name,o,n in DRIVE_PATCHES if name.endswith('service/utils.py'))
+  source=b"class ServiceUtil(object):\n    @staticmethod\n    def run(services):\n"+old+b"        return [s.name for s in services]\n"
+  from types import SimpleNamespace
+  with tempfile.TemporaryDirectory() as root:
+   def names(setting='',export=False):
+    settings={'ios_extra_services':setting,'port_directory_listing':'8587'}
+    ns={'KodiUtils':SimpleNamespace(get_addon_setting=lambda k:settings.get(k,''),translate_path=lambda p:str(Path(root)/p.rsplit('/',1)[-1]))}
+    exec(source.replace(old,new).decode(),ns)
+    services=[SimpleNamespace(name=n,export_manager=SimpleNamespace(get_exports=lambda:{'saved':{}} if export else {})) for n in ('download','source','export','player')]
+    return ns['ServiceUtil'].run(services)
+   self.assertEqual(names(),['download'])
+   self.assertEqual(names('true'),['download','source','export','player'])
+   self.assertEqual(names(export=True),['download','export'])
+   (Path(root)/'sources.xml').write_text('<source>http://127.0.0.1:8587/source/</source>')
+   self.assertEqual(names(),['download','source','player'])
+ @staticmethod
+ def exec_ns(code):
+  ns={};exec(code.decode(),ns);return ns
  def test_packaged_sources_manifest_seed_and_original_preserved(self):
   app,receipt=prepare(self.app,self.bundle,self.sha,self.root/'work');base=app/'AppData/AppHome';xml=ET.parse(base/'system/addon-manifest.xml').getroot()
   self.assertEqual(xml.find("addon[.='fixture.addon']").get('optional'),'true');self.assertIsNone(xml.find("addon[.='"+BOOT+"']").get('optional'))

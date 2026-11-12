@@ -181,3 +181,6 @@ old screenshot's counts as acceptance evidence. Commit and push each repair sepa
 
 - 1E.2 imported/reviewed: prune unused binary add-ons from staged IPA contents with dependency checks.
   test_customized_ipa 13 pass with Python 3.11; actual startup timing remains a device measurement.
+
+- 1E.3 Drive service trim imported with additional safeguards: configured exports/source URLs remain supported;
+  unused export/source/player loops stop. 14 packaging tests pass. Other provider/skin services still need audit.

@@ -2722,3 +2722,8 @@ its measured phone target; unknown causes and unmeasured hardware/receiver behav
   system-manifest entries are checked before deletion, with media/input/archive support retained. Packaging suite
   passes 13 cases under the matching Python 3.11 bytecode runtime. The donor test context referenced its separate
   Drive-service change; excluded that unrelated fixture until its own repair. No base installation is modified.
+
+- 1E.3 (Drive portion): imported/reviewed 5804295, then corrected its blanket service filter to preserve configured
+  exports and source/favourite integrations. Unused workers stop; the stream proxy remains. Unknown configuration
+  fails conservatively by keeping its worker. Fourteen packaging tests pass, including saved exports/sources.
+  Umbrella/account update services and the skin's required monitor are not blindly disabled.

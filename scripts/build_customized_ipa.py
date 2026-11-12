@@ -123,6 +123,33 @@ SEARCH=b'''    def _search(self, driveid=None, item_driveid=None, item_id=None, 
         self.get_provider().configure(self._account_manager, driveid)
         query = query or self._dialog.input('''
 DRIVE_COMMON='script.module.clouddrive.common/'
+DRIVE_SERVICE_FILTER = b"""        if type(services) != list:
+            services = [services]
+        if KodiUtils.get_addon_setting('ios_extra_services') != 'true':
+            # Preserve existing exports and source/favourite integrations; trim only unused workers.
+            def needed(service):
+                if service.name == 'download':
+                    return True
+                try:
+                    if service.name == 'export':
+                        return bool(service.export_manager.get_exports())
+                    ports = ['8585', '8587', str(KodiUtils.get_addon_setting('port_directory_listing'))]
+                    for name in ('sources.xml', 'favourites.xml'):
+                        try:
+                            with open(KodiUtils.translate_path('special://profile/' + name), encoding='utf-8') as saved:
+                                text = saved.read()
+                            if any(':' + port + '/' in text for port in ports if port):
+                                return True
+                        except FileNotFoundError:
+                            pass
+                    return False
+                except Exception:
+                    return True  # unknown configuration must retain the existing integration
+            services = [service for service in services if needed(service)]
+            if not services:
+                return
+"""
+
 DRIVE_PATCHES=[('clouddrive/common/remote/request.py',b'response = urllib.request.urlopen(req)\n',b'response = _open_url(req)\n'),
  ('clouddrive/common/remote/request.py',b'import urllib\n',b'import urllib\n'+TLS),
  # The sign-in screen first calls /ip with no headers, so Python sent its default "Python-urllib" user agent,
@@ -137,6 +164,10 @@ DRIVE_PATCHES=[('clouddrive/common/remote/request.py',b'response = urllib.reques
  ('clouddrive/common/service/upstream.py',b'import urllib.parse\n',b'import urllib.parse\n\nfrom clouddrive.common.remote.request import tls_context\n'),
  ('clouddrive/common/service/upstream.py',b'self._context = ssl.create_default_context()',b'self._context = tls_context()'),
  ('clouddrive/common/ui/addon.py',b"    def _search(self, driveid, item_driveid=None, item_id=None):\n        self.get_provider().configure(self._account_manager, driveid)\n        query = self._dialog.input(",SEARCH),
+ # Roadmap 1E.3: of the add-on's four services only 'download' (the stream proxy) is used here. 'source' (a directory
+ # listing server on port 8585 for "use as a Kodi source"), 'export' (STRM export scheduler, wakes every minute) and
+ # 'player' (subtitles for that source) start only when the add-on's setting ios_extra_services is true.
+ ('clouddrive/common/service/utils.py',b"        if type(services) != list:\n            services = [services]\n",DRIVE_SERVICE_FILTER),
  ('addon.xml',b'<import addon="script.module.pyqrcode"/>',b'<import addon="script.module.pyqrcode"/>\n\t\t<import addon="script.module.certifi"/>')]
 
 def patch_drive(addonroot):
