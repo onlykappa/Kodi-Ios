@@ -20,7 +20,7 @@ HEADING = 'AI Upscale test'
 CHOICES = (
     ('Whole video, best AI engine', ('auto',), 0),
     ('First 5 minutes, best AI engine', ('auto',), 5),
-    ('First 3 minutes with each engine (compare)', ('ai-video', 'ai-image', 'ai-fast', 'lanczos'), 3),
+    ('Compare engines, 3 min each', ('ai-video', 'ai-image', 'ai-fast', 'lanczos'), 3),
 )
 
 
@@ -35,9 +35,14 @@ def main():
         dialog.ok(HEADING, 'No prepared 720p or 1080p video on Google Drive yet. Download one, let it finish preparing, then try again.')
         return
     found = found[:40]
-    rows = ['%s · %s · %d min' % (row['name'], picture.LABELS[picture.level(row['width'], row['height'])]
-                                   if picture.level(row['width'], row['height']) >= 0 else '%dp' % row['height'],
-                                   round(row['duration'] / 60)) for row in found]
+    import drivelibrary
+
+    def row_text(row):
+        # Size and length first, then the cleaned title: a long file name must not push the facts off the row.
+        index = picture.level(row['width'], row['height'])
+        size = picture.LABELS[index] if index >= 0 else '%dp' % row['height']
+        return '%s · %d min · %s' % (size, round(row['duration'] / 60), drivelibrary.display_title(row['name']) or row['name'])
+    rows = [row_text(row) for row in found]
     pick = dialog.select(HEADING, rows)
     if pick < 0:
         return
