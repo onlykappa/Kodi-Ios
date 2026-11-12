@@ -38,7 +38,7 @@ be closed by a Linux rig or source assertion. Current binary pins remain Kodi r3
 | 1F.3 | AllDebrid → Drive copy loop in native code (read range, PUT piece), no bytes through Python | Native staged | Native validated range-to-PUT pieces; Python only handles receipts, session checkpoints and renewal |
 | 1F.4 | More upload lanes once the bottleneck is gone (2 → 3-4) | Source | 80a082f at most three resumable file lanes |
 | 1G.1 | 10-bit H.264 marked in the picker ("10-BIT · SLOW ON AIRPLAY", done in #19) | Source | Picker warns about 10-bit H.264 |
-| 1G.2 | 10-bit conversion faster than real time (threads, two segments in parallel, GPU scaling) | Measurement required | GPU scaling/hardware decode and software all-core decode exist; <=70% real-time cannot be certified without phone input |
+| 1G.2 | 10-bit conversion faster than real time (threads, two segments in parallel, GPU scaling) | Measurement tool added; no speed change made blind; needs the owner's device log | scripts/conversion_log.py reads the 'compat: segment N converted in MS ms (P% of realtime) via ROUTE' lines and says whether the 70 % target holds; levers listed below |
 | 1G.3 | Pause Kodi's read-ahead while AirPlay starts | Partial | Kodi paused before native open; cache-reader contention needs evidence |
 | 1G.4 | Hand the TV the playlist as soon as the first video segment is ready | Native staged | Prime target video/primary audio in parallel; new framework and timing required |
 | 1G.5 | Blank AirPlay captions (ISSUE-147) | Device required | Subtitle worker/HTTP retry repairs exist; actual missing-TV-caption cause unconfirmed |
