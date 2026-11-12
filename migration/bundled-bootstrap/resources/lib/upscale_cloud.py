@@ -46,6 +46,17 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
     profile = q.profile
     settings = settings if settings is not None else picture.load(profile)
     data = uq.load(profile)
+    # Settings › AI Upscale's status card reads this (the page does not load the native library itself).
+    import upscale_page
+    engine = upscale_page.engine_state(q.native)
+    wants_model = data.pop('model_request', False)
+    if wants_model and engine.get('model') == 0:
+        q.native.upscale_model(1920, 1080, '4K UHD', ENGINE_AUTO, start=True)
+        engine['model'] = 1
+        q.log('upscale: downloading the AI model (asked for in Settings)')
+    if data.get('engine') != engine or wants_model:
+        data['engine'] = engine
+        uq.save(profile, data)
     added = uq.plan(q.state, data, settings, media_for, clock)
     if added:
         q.log('upscale: %d copy%s to make (%s)' % (len(added), '' if len(added) == 1 else ' copies',

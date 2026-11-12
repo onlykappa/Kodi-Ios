@@ -127,8 +127,21 @@ class MakesACopy(unittest.TestCase):
     def test_the_model_is_downloaded_first(self):
         native = Native(model=0)
         done, entry, _, _ = self.run_one(native)
-        self.assertEqual(native.calls, [('model', False), ('model', True)])
+        # The first look is the Settings status card's (saved as 'engine'), then the copy's own check starts the download.
+        self.assertEqual(native.calls, [('model', False), ('model', False), ('model', True)])
         self.assertEqual((entry['status'], entry['note']), ('waiting', 'Downloading the AI model'))
+
+    def test_settings_can_ask_for_the_model_and_see_the_engine(self):
+        log = []
+        with tempfile.TemporaryDirectory() as profile, mock.patch.dict(sys.modules, fake_modules(log)):
+            uq.save(profile, {'copies': {}, 'model_request': True})
+            native = Native(model=0)
+            q = queue(profile, native)
+            upscale_cloud.process_one(q, lambda: True, settings(picture.OFF), lambda job: SHOW, clock=lambda: 1000.0)
+            data = uq.load(profile)
+        self.assertIn(('model', True), native.calls)
+        self.assertEqual(data['engine'], {'upscales': True, 'model': 1})
+        self.assertNotIn('model_request', data)
 
     def test_a_copy_of_the_wrong_size_is_thrown_away_and_retried_later(self):
         done, entry, _, log = self.run_one(Native(out=(1920, 1080)))

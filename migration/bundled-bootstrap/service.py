@@ -40,6 +40,11 @@ def run():
  keys={'changed':False}   # roadmap 3.6: Kodi reads the keymaps at launch; they are reloaded only when a file changed
  # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).
  window.setProperty('KodiIOS.Build',updates.installed_build(root))
+ # Settings › AI Upscale's row: "On · 4K" or "Off" (the page updates it after each change).
+ try:
+  import picture,upscale_page
+  window.setProperty('KodiIOS.UpscaleSummary',upscale_page.summary(picture.load(profile)))
+ except Exception:pass
  def diagnostic_settings():
   addon=xbmcaddon.Addon()
   return {key:addon.getSettingBool(key) for key in ('background_transfers','drive_upload','prepare_downloads','airplay_button')}

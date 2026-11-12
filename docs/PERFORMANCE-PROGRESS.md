@@ -27,8 +27,12 @@ Priority order:
    runs it only when nothing waits to be converted): plan → charger/heat/Drive room → AI model first → convert with
    upscale into .Preparation → size check → moved beside the original as '<name> [AI 4K UHD].mp4' → upscale-copies.json
    'ready'. Opt-in: nothing is made until a show or the default asks for a size (Settings page still to code).
-   Still to do: Settings › AI Upscale page, playback/AirPlay choosing the copy (upscale_queue.choose), Picture menu,
-   Saturation shader (Kodi r32). Original list:
+   DONE too: playback/AirPlay choose the ready copy (ios_library.upscaled_path; drivelibrary.is_video hides
+   '[AI …].mp4' copies from the Library, scans and the preparation queue); Settings › AI Upscale (row 9117 under
+   Library with 'On · 4K'; upscale_settings.py + upscale_page.py on the IOSSkinList window, which gained a grey second
+   line and wrapped notes). Desktop Kodi rig: boards A and B1/B2 match. Board C (one show's own page with its episodes
+   and Remove the copies) is a size list for now (Off + sizes above the show): to do.
+   Still to do: Picture menu (video-picture-mockups round 4), Saturation shader (Kodi r32), board C. Original list:
    Then the full AI Upscale feature (DEC-039/040/042): Settings › AI Upscale page (ai-upscale-settings-mockups.html),
    the background queue step wiring upscale_queue.py (rules + 16 tests exist, not wired), copy upload beside the
    original, playback/AirPlay choosing the copy, Picture button/menu in the OSD (video-picture-mockups.html round 4),
