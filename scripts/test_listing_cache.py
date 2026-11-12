@@ -290,7 +290,8 @@ class SkinTests(unittest.TestCase):
    for name,path in (('homewidgets',TRENDING),('1102widgets',POPULAR),('1101widgets','videodb://tvshows/')):
     (nodes/('skinvariables-shortcut-%s.json'%name)).write_text(json.dumps([{'label':'x','path':path},{'label':'In Progress','path':TRENDING+'&inprogress'}]))
    spots,rows=portrait.cache_lists(tmp,lambda s:'spot-'+s)
-   self.assertEqual(list(spots),['home','1102','1101']);self.assertEqual(rows,[TRENDING,POPULAR,'videodb://tvshows/'])
+   # Rows of released titles leave TMDb Helper's unreleased ones out (portrait.released_only, owner 2026-11-12).
+   self.assertEqual(list(spots),['home','1102','1101']);self.assertEqual(rows,[TRENDING+'&hide_unaired=true',POPULAR+'&hide_unaired=true','videodb://tvshows/'])
  def test_service_thread_checks_at_once_and_runs_tmdb_helper_only_later(self):
   calls=[]
   fake=SimpleNamespace(check=lambda lists,store,flags,clock:calls.append('check') or (0,0),
