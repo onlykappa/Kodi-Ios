@@ -23,6 +23,7 @@ build() is pure (no Kodi), so every rule is tested on its own (scripts/test_work
 import json
 import os
 import threading
+import re
 import time
 
 FILE = 'work-state.json'
@@ -152,8 +153,31 @@ def _title(name):
     except Exception:
         return str(name or '')
 
+# Owner screenshot (2026-11-12): queued copies read '45e2c1e044af006c...' when Elementum handed over a pick without a
+# release name, so the job's name was the torrent's id. A name that is only an id is replaced by, in order: the
+# first file's name, the show's name from the cached TMDb details (show_names: {tmdb id: name}), then 'Download'.
+HASH=re.compile(r'^[0-9a-fA-F]{32,40}$')
+_NAMES = {}
+
+
+def show_names(profile):
+    """{show tmdb id: name} from the Library's cached show details (drive-library-art.json; no network)."""
+    import json, os
+    try:
+        with open(os.path.join(str(profile), 'addon_data/service.kodi.ios.bootstrap/drive-library-art.json'), encoding='utf-8') as f:
+            cache = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return {k.split(':', 1)[1]: v.get('name') for k, v in cache.items()
+            if k.startswith('show:') and isinstance(v, dict) and v.get('name')}
+
+
 def _download_title(job):
     title=_title(job.get('title') or job.get('name') or '')
+    if not title or HASH.match(title.split(' · ')[0].strip()):
+        files=[f.get('path') for f in job.get('files') or [] if f.get('path')]
+        named=_title(files[0].rsplit('/',1)[-1]) if files else ''
+        title=(named if named and not HASH.match(named) else '') or _NAMES.get(str(job.get('show_tmdb') or '')) or 'Download'
     try:
         if int(job.get('season') or 0)>0 and int(job.get('episode') or 0)>0 and ' · S' not in title:
             title+=' · S%d E%d'%(int(job['season']),int(job['episode']))
@@ -278,6 +302,8 @@ def build(inp, now):
     """The snapshot every page and the bell show. inp: {'prep': queue state, 'runtime': heartbeat or {}, 'debrid': AllDebrid
     state, 'phone': [notices.uploads phone entries], 'torrents': [notices.downloads entries], 'paused': {'conv', 'up'},
     'slow': '' | 'video' | 'airplay', 'needs': [...], 'network': [...]}."""
+    _NAMES.clear()
+    _NAMES.update(inp.get('show_names') or {})
     slow = inp.get('slow') or ''
     slow = slow if slow in SLOW_WORDS else ''
     paused = inp.get('paused') or {}
@@ -418,7 +444,7 @@ def current(profile, now=None):
     now=time.time() if now is None else now
     state=load(profile,now) or build({},now)
     paused={k:transfer_control.paused(profile,k) for k in transfer_control.KINDS}
-    copies=build({'debrid':debrid_drive.load(profile),'paused':paused,'slow':state.get('slow','')},now)
+    copies=build({'debrid':debrid_drive.load(profile),'paused':paused,'slow':state.get('slow',''),'show_names':show_names(profile)},now)
     jobs=[j for j in state.get('jobs',[]) if j.get('kind')!='copy']+copies['jobs']
     nexts=state.get('next') or [];drive_next=copies['drive_next'];needs=state.get('needs') or []
     moving=[j for j in jobs if j['state'] in MOVING]
@@ -478,7 +504,9 @@ def publish(profile, gather, wait, every=EVERY, set_property=None, clock=time.ti
     last = None
     while not wait(every):
         try:
-            state = build(gather(), clock())
+            inp = gather()
+            inp.setdefault('show_names', show_names(profile))
+            state = build(inp, clock())
             save(profile, state)
             if set_property:
                 props = bell_properties(state)

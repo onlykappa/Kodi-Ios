@@ -249,4 +249,23 @@ class SeasonQueue(unittest.TestCase):
   text=(LIB/'debrid_drive.py').read_text()
   self.assertIn("'file': name, 'index': job['files'].index(entry) + 1, 'count': len(job['files'])",text)
 
+
+class NoTorrentIds(unittest.TestCase):
+ # Owner screenshot (2026-11-12): queued copies read '45e2c1e044af006c...'.
+ H='45e2c1e044af006c8fbf625483a18e1c2b3d4e5f'
+ def title(self,job,names=None):
+  ws._NAMES.clear();ws._NAMES.update(names or {});return ws._download_title(job)
+ def test_a_real_name_stays(self):
+  self.assertEqual(self.title({'title':'Phony','season':1,'episode':2}),'Phony · S1 E2')
+ def test_an_id_becomes_the_file_the_show_or_download(self):
+  self.assertNotIn(self.H[:12],self.title({'name':self.H,'files':[{'path':'Phony/Phony.S01E01.1080p.mkv'}]}))
+  self.assertEqual(self.title({'name':self.H,'title':self.H,'show_tmdb':'77','season':1,'episode':3},{'77':'Phony'}),'Phony · S1 E3')
+  self.assertEqual(self.title({'name':self.H,'title':self.H,'season':2,'episode':1}),'Download · S2 E1')
+ def test_names_come_from_the_cached_show_details(self):
+  with tempfile.TemporaryDirectory() as t:
+   d=Path(t)/'addon_data/service.kodi.ios.bootstrap';d.mkdir(parents=True)
+   (d/'drive-library-art.json').write_text(json.dumps({'show:77':{'name':'Phony'},'tv:phony:':{'tmdb_id':'77'}}))
+   self.assertEqual(ws.show_names(t),{'77':'Phony'})
+  self.assertEqual(ws.show_names('/nonexistent'),{})
+
 if __name__=='__main__':unittest.main()
