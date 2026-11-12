@@ -153,6 +153,8 @@ class AirPlayLog(unittest.TestCase):
   self.assertRegex(lock['framework_release']['sha256'],r'^[0-9a-f]{64}$')
   self.assertEqual(lock['previous']['tag'],'kodi-airplay-r47')
   self.assertEqual(lock['previous']['sha256'],'e3ad181a72e1c1d3ea9043a558d3112a230fcfc7f0a33e5bd46f58345697ceea')
+  self.assertEqual(lock['framework_release']['sha256'],'fab9f187e2abcb9c2a070e154562f57a19c5ae3d628e436c555a3eac669696ba')
+  self.assertEqual(lock['verified_run'],43263786191)
  def test_r48_upscaler_in_the_framework(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   for needle in ('kr_upscale.m','kr_upscale_stub.c ]] && continue','_kodi_airplay_prepare_upscale','_kodi_device_state',

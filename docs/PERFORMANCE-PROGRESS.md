@@ -14,8 +14,9 @@
 - Pins: AirPlay r47 pinned (run 43251110403, digest checked by download). Kodi r31 (run 43256323634) still building
   at this point; pin it from that run when it finishes.
 - Research done, engine chosen: DEC-040 (Apple VTSuperResolutionScaler in KodiAirPlay; no "AI" fallback that is not AI).
-- Measurement build (DEC-039 step 1) coded: KodiAirPlay r48 staged (source-lock placeholder sha256; airplay-ios builds
-  and publishes it on this PR, then pin by checksum). Native: remux/src/kr_upscale.m (+ stub for host), kr_video
+- Measurement build (DEC-039 step 1): KodiAirPlay r48 built by airplay-ios run 43263786191 (Xcode 26.3, iPhoneOS 26.2
+  SDK; super resolution classes weak-linked) and PINNED (sha256 fab9f187…96ba, checked by download). The IPA for the
+  owner is built by import-review on the pin commit with Kodi r30 (r31 still compiling; pin it in a later build). Native: remux/src/kr_upscale.m (+ stub for host), kr_video
   upscale path, kr_prepare kodi_airplay_prepare_upscale / upscale_support / upscale_model, kodi_device_state.
   Add-on: Settings › Google Drive › "AI Upscale test" (upscale_test.py) → upscale_measure.py runs in the preparation
   thread, counts the copy (nothing uploaded), logs 'upscale measurement:' lines and a RESULT JSON line to kodi.log.
