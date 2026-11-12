@@ -239,6 +239,11 @@ def run():
                   lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),
                   kwargs={'on_open':lambda:cache_tune.apply(xbmc,str(profile),lambda text:xbmc.log(text,xbmc.LOGINFO)),
                           'probe':lambda:{'media':xbmc.getCondVisibility('Player.HasMedia'),'video':xbmc.getCondVisibility('Player.HasVideo')}},daemon=True).start()
+ # Roadmap 3.5: one performance line a minute (list runs, opens, Drive proxy requests and seeks), only when something happened.
+ import perf_summary,drive_proxy
+ threading.Thread(target=perf_summary.watch,args=(xbmcgui.Window(10000),open_timing.take,
+                  lambda:drive_proxy.CURRENT[0].stats.take() if drive_proxy.CURRENT else {},
+                  lambda text:xbmc.log(text,xbmc.LOGINFO),monitor.waitForAbort),daemon=True).start()
  # Build 193: one status model for every page and the bell (work_state.py), every 2 s, with the reason stored.
  import work_state,slowdown
  def work_inputs():
@@ -383,7 +388,7 @@ def drive_uploads(monitor,home,profile):
    if lifted:
     xbmc.log('Kodi iOS transfers: build 224 resumed paused %s'%', '.join(lifted),xbmc.LOGINFO)
     notices.note('info','Downloads resumed','Uploads to Google Drive were paused from an earlier build; they are running again.')
-  except Exception as error:xbmc.log('Kodi iOS transfers: pause reset skipped: %s'%error,xbmc.LOGWARNING)
+  except Exception as error:xbmc.log('Kodi iOS transfers: pause reset skipped: %s'%diagnostics.error_text(error),xbmc.LOGWARNING)
   quiet=[None]
   while not monitor.waitForAbort(delay):
    delay=20
@@ -392,7 +397,7 @@ def drive_uploads(monitor,home,profile):
     if lifted:
      xbmc.log('Kodi iOS transfers: AirPlay is over, resumed %s'%', '.join(lifted),xbmc.LOGINFO)
      notices.note('info','Uploads running again','AirPlay is over, so downloads and uploads to Google Drive continue.')
-   except Exception as error:xbmc.log('Kodi iOS transfers: AirPlay pause check failed: %s'%error,xbmc.LOGWARNING)
+   except Exception as error:xbmc.log('Kodi iOS transfers: AirPlay pause check failed: %s'%diagnostics.error_text(error),xbmc.LOGWARNING)
    try:token=xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken')
    except Exception:token=''
    # A version played from the source page keeps downloading onto the phone after playback (Elementum's keep
@@ -582,7 +587,7 @@ def drive_uploads(monitor,home,profile):
    work_state.need('drive_signin')   # build 193: the orange card with Sign in on Library status and Notifications
    delay=max(delay,60)
   except driveupload.RefreshBusy as error:
-   xbmc.log('Kodi iOS Drive: %s'%error,xbmc.LOGINFO);delay=max(delay,60)
+   xbmc.log('Kodi iOS Drive: %s'%diagnostics.error_text(error),xbmc.LOGINFO);delay=max(delay,60)
    work_state.network('drive',driveupload.HOLD.get('until') or time.time()+60,'Google Drive is busy')
   except Exception as error:
    diagnostics.log_exception(xbmc,'drive_upload',error)

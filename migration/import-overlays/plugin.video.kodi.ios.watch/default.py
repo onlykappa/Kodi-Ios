@@ -7,6 +7,11 @@ if LIB not in sys.path:sys.path.insert(0,LIB)
 from ios_watch_routes import choices
 
 def run(argv):
+ try:   # roadmap 3.5: one more list run for the one-minute performance line (Home window property counter)
+  import xbmcgui
+  window=xbmcgui.Window(10000);name='KodiIOS.Count.'+('cached' if argv[2].startswith('?action=cached&key=') else 'watch')
+  window.setProperty(name,str(int(window.getProperty(name) or 0)+1))
+ except Exception:pass
  if argv[2].startswith('?action=cached&key='):
   # Hub rows and heroes from their last TMDb Helper result (ios_cache.py): read a file and list it, nothing else.
   import xbmc,xbmcgui,xbmcplugin,xbmcvfs

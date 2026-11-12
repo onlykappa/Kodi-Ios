@@ -236,6 +236,14 @@ def title_for(tmdb_type,tmdb_id,art_cache):
   if len(parts)>=3 and parts[0]==kind and parts[1]:return parts[1],parts[2]
  return None
 
+def count_run(name):
+ """Roadmap 3.5: one more list run of TMDb Helper for the one-minute performance line (perf_summary.py)."""
+ try:
+  import xbmcgui
+  window=xbmcgui.Window(10000);key='KodiIOS.Count.'+name
+  window.setProperty(key,str(int(window.getProperty(key) or 0)+1))
+ except Exception:pass
+
 def warm_details(params,details_class=None):
  """Roadmap 1C.4: TMDb Helper's route info=ios_warm. Builds the details Play will ask for, with the same arguments, so
  TMDb Helper's own cache answers when Play is tapped. Quiet on any failure; nothing is played or shown."""

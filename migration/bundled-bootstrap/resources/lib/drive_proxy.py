@@ -23,6 +23,7 @@ HOST = 'www.googleapis.com'
 PIECE = 256 * 1024
 TIMEOUT = 30
 PROPERTY = 'KodiIOS.DriveProxy'   # Home window property: the port while the proxy runs
+CURRENT = []                      # roadmap 3.5: the running server, so the one-minute summary can read its stats
 WARM_HEAD = 4 * 1024 * 1024       # roadmap 1A.4: bytes from the start kept ready when a title's page opens
 WARM_TAIL = 1024 * 1024           # ... and from the end (an MP4's fragment index sits there)
 WARM_FILES = 2                    # at most this many titles are kept warm (about 10 MB)
@@ -448,6 +449,7 @@ def start(token, connect=None, port=0, hold=None):
                                                      'warm': Warm(), 'stats': stats, 'hold': staticmethod(hold) if hold else None})
     server = Server(('127.0.0.1', port), handler)
     server.stats = stats
+    CURRENT[:] = [server]
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, server.server_address[1]
 

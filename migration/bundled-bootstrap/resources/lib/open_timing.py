@@ -18,6 +18,14 @@ RESOLVED = 'KodiIOS.OpenResolved'
 GIVE_UP = 120.0
 NAMES = (('resolved', 'resolve'), ('media', 'handoff'), ('video', 'open'))
 _seen = {}      # mark time -> {'armed': {flag: True}, 'at': {flag: time}}
+RECENT = []     # roadmap 3.5: (seconds, route, stages text) of the opens since perf_summary last asked
+
+
+def take():
+    """The opens since the last call (for the one-minute performance line)."""
+    out = list(RECENT)
+    del RECENT[:]
+    return out
 
 
 def mark(home, via, now=None):
@@ -82,6 +90,8 @@ def check(home, playing, log, now=None, probe=None):
     if playing():
         stages = breakdown(started, stamps, now)
         log('Kodi iOS open timing: %.1f s via %s%s' % (took, m.get('via') or '?', ' (%s)' % stages if stages else ''))
+        RECENT.append((took, m.get('via') or '?', stages))
+        del RECENT[:-20]
         _finish(home, started)
         return True
     if took > GIVE_UP:

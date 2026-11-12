@@ -78,6 +78,12 @@ def patch_helper(files,id):
   if text.count(old)==1:
    files[router]=text.replace(old,"        if self.params.get('info') == 'ios_warm':\n            from ios_watch_dialog import warm_details\n            return warm_details(self.params)\n"+old).encode()
    changes.append('Details of titles on screen are fetched in the background (Play needs no network wait)')
+  # Roadmap 3.5: every list TMDb Helper builds is counted for the one-minute performance line.
+  text=files[router].decode()
+  old="        self.get_directory()\n"
+  if text.count(old)==1:
+   files[router]=text.replace(old,"        from ios_watch_dialog import count_run\n        count_run('tmdb')\n"+old).encode()
+   changes.append('TMDb Helper list runs are counted for the one-minute performance line')
  # Roadmap 1E.5: the first Trakt use after launch waited 1.66 s on a network check of the saved token. A saved token
  # that has not expired is trusted at once and confirmed in a background thread (a rejection clears TraktIsAuth, so the
  # next use checks again as before).
