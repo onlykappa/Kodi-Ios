@@ -41,7 +41,10 @@ def model(profile):
     movie_rows = lf.movie_rows(movies, prep, ups)
     for row, movie in zip(movie_rows, movies):
         row['art'] = poster('movie', movie)
-    return {'shows': show_rows, 'movies': movie_rows, 'storage': lf.storage(show_rows, movie_rows, ups)}
+    fanart = {s['id']: (drivelibrary.artwork('tv', s.get('title') or '', s.get('year'), None, art, None, cached_only=True) or {}).get('fanart', '')
+              for s in shows}
+    return {'shows': show_rows, 'movies': movie_rows, 'storage': lf.storage(show_rows, movie_rows, ups),
+            'episodes': episodes, 'prep': prep, 'debrid': debrid, 'upscale': ups, 'fanart': fanart}
 
 
 def fill(data, tab='tv', sort='recent', search='', slots=30):
@@ -86,6 +89,39 @@ def fill(data, tab='tv', sort='recent', search='', slots=30):
     return props, rows
 
 
+def fill_show(data, show, season=None, slots=60, seasons_max=8):
+    """Board B: {property: value} for one show and the season shown (default: its first), and the episode rows."""
+    rows = lf.episode_rows(show, data.get('episodes', {}).get(show['id']) or [], data.get('prep'), data.get('debrid'),
+                           data.get('upscale'))
+    seasons = sorted({r['season'] for r in rows}) or [0]
+    season = season if season in seasons else seasons[0]
+    shown = [r for r in rows if r['season'] == season]
+    ready = sum(1 for r in rows if r['state'] in (lf.READY, lf.UNKNOWN))
+    props = {'title': show['title'], 'fanart': (data.get('fanart') or {}).get(show['id'], ''),
+             'sub': ' \u00b7 '.join(x for x in (str(show.get('year') or ''), 'Google Drive \u203a TV Shows') if x),
+             'n.episodes': str(len(rows)), 'n.episodes.label': 'episodes',
+             'n.size': lf.size_text(sum(r['size'] for r in rows)) or '0 MB', 'n.size.label': 'on Drive',
+             'n.ready': str(ready), 'n.ready.label': 'ready for TV',
+             'season.on': str(seasons.index(season))}
+    for n in range(seasons_max):
+        props['season.%d' % n] = ('Season %d' % seasons[n] if seasons[n] else 'Specials') if n < len(seasons) else ''
+        props['season.%d.tint' % n] = 'FF0A84FF' if n < len(seasons) and seasons[n] == season else 'FF2C2C2E'
+    for n in range(slots):
+        for key in ('title', 'line', 'state', 'bar', 'repair', 'pos'):
+            props['ep.%d.%s' % (n, key)] = ''
+    shown = shown[:slots]
+    for n, r in enumerate(shown):
+        k = 'ep.%d.' % n
+        props[k + 'title'] = '%d \u00b7 %s' % (r['episode'], r['name'] or 'Episode %d' % r['episode'])
+        props[k + 'line'] = r['line']
+        props[k + 'state'] = r['state']
+        props[k + 'bar'] = 'true' if r['state'] in (lf.CONVERTING, lf.COPYING) and r.get('progress') is not None else ''
+        props[k + 'repair'] = 'true' if r['repair'] else ''
+        props[k + 'pos'] = POS(n, len(shown))
+    props['empty'] = '' if shown else 'No episodes of this show on Google Drive yet.'
+    return props, shown, seasons
+
+
 def run():
     import xbmc
     import xbmcgui
@@ -126,14 +162,42 @@ def run():
                     self.sort = SORTS[pick][0]
             elif page.ROW <= control < page.ROW + page.SLOTS and control - page.ROW < len(self.rows):
                 row = self.rows[control - page.ROW]
-                kind = 'tv' if self.tab == 'tv' else 'movie'
-                # Board B (one show) and C (one movie) are the next roadmap steps (L3, L4); until then the existing
-                # Library listing for the show opens.
-                xbmc.executebuiltin('ActivateWindow(Videos,plugin://plugin.video.kodi.ios.watch/?action=library&type=%s,return)' % kind)
+                if self.tab == 'tv':
+                    show = Show(show_page.WINDOW, HERE, 'Default', '1080i')
+                    show.data, show.show = self.data, row
+                    show.doModal()
+                    del show
+                else:
+                    # Board C (one movie, L4) is the next step; until then the existing Library listing opens.
+                    xbmc.executebuiltin('ActivateWindow(Videos,plugin://plugin.video.kodi.ios.watch/?action=library&type=movie,return)')
                 return
             else:
                 return
             self.draw()
+
+    import library_show_page as show_page
+
+    class Show(xbmcgui.WindowXML):
+        """Board B: one show. Season chips switch the episodes; Repair and ••• come with L5, the episode sheet with L4."""
+        def onInit(self):
+            self.season = None
+            self.draw()
+
+        def draw(self):
+            props, self.episodes, self.seasons = fill_show(self.data, self.show, self.season, show_page.SLOTS, show_page.SEASONS)
+            for key, value in props.items():
+                self.setProperty(key, str(value))
+            for n, r in enumerate(self.episodes):
+                if r.get('progress') is not None:
+                    try:
+                        self.getControl(show_page.BAR + n).setPercent(float(r['progress']))
+                    except Exception:
+                        pass
+
+        def onClick(self, control):
+            if show_page.SEASON <= control < show_page.SEASON + show_page.SEASONS and control - show_page.SEASON < len(self.seasons):
+                self.season = self.seasons[control - show_page.SEASON]
+                self.draw()
 
     window = Files(page.WINDOW, HERE, 'Default', '1080i')
     window.doModal()

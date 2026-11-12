@@ -149,5 +149,25 @@ class Page(unittest.TestCase):
         self.assertIn('No downloaded shows yet', props['empty'])
 
 
+class ShowPage(Page):
+    """library_manager.fill_show: board B for one show."""
+    def test_board_b(self):
+        data = dict(self.data, episodes={'f-naruto': [ep(1), ep(2), ep(3), ep(4), ep(1, season=2)]},
+                    prep=PREP, debrid=DEBRID, upscale=UPSCALE, fanart={'f-naruto': 'fan.jpg'})
+        show = data['shows'][0]
+        props, shown, seasons = self.lm.fill_show(data, show, slots=10)
+        self.assertEqual(seasons, [1, 2])
+        self.assertEqual((props['season.0'], props['season.1'], props['season.2'], props['season.on']), ('Season 1', 'Season 2', '', '0'))
+        self.assertEqual((props['n.episodes'], props['n.ready'], props['fanart']), ('7', '3', 'fan.jpg'))
+        self.assertEqual([r['episode'] for r in shown], [1, 2, 3, 4, 5, 9])
+        self.assertEqual(props['ep.0.title'], '1 \u00b7 Naruto Shippuden')
+        self.assertEqual((props['ep.3.state'], props['ep.3.repair']), ('problem', 'true'))
+        self.assertEqual((props['ep.4.state'], props['ep.4.bar']), ('copying', 'true'))   # 61 % known
+        self.assertEqual(props['ep.2.bar'], '')                                          # converting, no percentage yet
+        self.assertEqual((props['ep.0.pos'], props['ep.5.pos'], props['ep.6.title']), ('first', 'last', ''))
+        props, shown, _ = self.lm.fill_show(data, show, season=2, slots=10)
+        self.assertEqual(([r['season'] for r in shown], props['season.on']), ([2], '1'))
+
+
 if __name__ == '__main__':
     unittest.main()
