@@ -221,7 +221,7 @@ Evidence: ISSUE-163/165/166.
 
 | # | Item | Evidence |
 |---|---|---|
-| 3.1 | Background survival: iOS interrupts the silent-audio keep-alive | logs 9e2568a7, 5331b718 |
+| 3.1 | Background survival: iOS interrupts the silent-audio keep-alive | logs 9e2568a7, 5331b718 — **Coded (host-tested); iOS suspension itself is OS-managed; needs the owner's device log (speed-reliability-fixes): background.watch: re-asks each tick, times recovery, and after 3 minutes of lost background audio with work waiting adds one Notifications entry; native restart logic unchanged** |
 | 3.2 | Transfers recover after Wi-Fi ↔ 5G changes without long waits | ISSUE-167 |
 | 3.3 | Expired debrid links renewed mid-copy and mid-AirPlay | ISSUE-146 |
 | 3.4 | Rig smoke list before every IPA (pickers, show page, settings, resume prompt, track menus) | this session |

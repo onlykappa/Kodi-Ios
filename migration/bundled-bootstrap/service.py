@@ -300,7 +300,7 @@ def run():
     if debrid_drive.active(profile):return 'AllDebrid download or Drive transfer'
     preparing=xbmcaddon.Addon().getSettingBool('prepare_downloads') and (preparation_runtime.active() or preparation_runtime.pending(prepare_downloads.load(profile)))
     return ('video preparation' if preparing else background.reason(notices.downloads(),notices.uploads(profile),uploading and background.videos_waiting(kept)))
-   threading.Thread(target=background.watch,args=(lib.kodi_background_keep,why,monitor.waitForAbort,lambda m:xbmc.log(m,xbmc.LOGINFO)),kwargs={'status':getattr(lib,'kodi_background_state',lambda:0)},daemon=True).start()
+   threading.Thread(target=background.watch,args=(lib.kodi_background_keep,why,monitor.waitForAbort,lambda m:xbmc.log(m,xbmc.LOGINFO)),kwargs={"status":getattr(lib,"kodi_background_state",lambda:0),"notify":lambda title,text:notices.note("info",title,text)},daemon=True).start()
  except Exception as error:xbmc.log('Kodi iOS background transfers unavailable: '+type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
  # r6: the AirPlay stream's requests, CODECS and Apple's player events into kodi.log (owner build-133: sound only).
  try:
