@@ -198,6 +198,22 @@ def route(url,quiet=False,request_id=None):
     return True
 
 
+def same_pick(picked, chosen):
+    """The picker's version and Elementum's selection are the same torrent. Owner log 15e6cbc4 (build 288, Naruto
+    Shippuden): the picker names a file inside a pack by its full path ('Naruto Shippuden (001-500) [...]/... Episode
+    001 Homecoming.mkv'), Elementum's selection only by the torrent ('Naruto Shippuden (001-500) [...]'); every episode
+    was refused and the season said '0 episodes added'."""
+    import re
+    norm = lambda s: re.sub(r'\s+', ' ', str(s or '')).strip().lower()
+    a, b = norm(picked), norm(chosen)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    short, long_ = (a, b) if len(a) < len(b) else (b, a)
+    return len(short) >= 8 and long_.startswith(short) and long_[len(short)] in '/ ._-[('
+
+
 def auto_season(window, now=None,choice=None):
     """download.py's automatic season request (deck_picker.AUTO_PICK) while it lasts, else None."""
     import json, time
@@ -208,7 +224,7 @@ def auto_season(window, now=None,choice=None):
             if wanted.get('target') and choice is not None:
                 selected=json.loads(window.getProperty('KodiIOS.AutoPick.Result') or '{}')
                 if selected.get('request_id')!=wanted.get('request_id') or not selected.get('found'):return None
-                if selected.get('name')!=choice.get('name'):return None
+                if not same_pick(selected.get('name'),choice.get('name')):return None
                 if any(str(choice.get(k) or '')!=str(wanted['target'].get(k) or '') for k in ('season','episode')):return None
             return wanted
     except Exception:

@@ -701,6 +701,10 @@ def automatic_matches(wanted,exp):
     return all(str(exp.get(k) or '')==str(target.get(k) or '') for k in ('tmdb','season','episode'))
 
 
+WHOLE_SERIES = re.compile(r'(?i)complete[ ._-]*series|collection[ ._-]*of[ ._-]*\d{3}|'
+                          r'[(\[ ._-]0*1[ ._]*-[ ._]*\d{3}[)\] ._-]|\ball[ ._-]*\d{3}[ ._-]*episodes')   # source_match.WHOLE_SERIES
+
+
 def auto_choose(kept, want):
     """The version closest to the first pick: its quality (else the nearest lower, then higher), its HDR kind and
     codec, never AV1 when avoidable, seeds, then the size nearest the first pick's. None when nothing has seeds."""
@@ -719,7 +723,10 @@ def auto_choose(kept, want):
         distance = (q - target) * 2 if q >= target else (target - q) * 2 + 1      # lower quality before higher
         tags = tag_list(it)
         hdr = next((t for t in tags if t in HDR_TAGS), u'')
-        return (is_bad(it), it['seeds'] <= 0, distance, hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
+        # Owner log 15e6cbc4: one episode of a season build was taken from a 500-episode "Complete Series" pack (the
+        # most seeds); whole-series packs come last, used only when nothing else has the episode.
+        return (is_bad(it), it['seeds'] <= 0, bool(WHOLE_SERIES.search(_s(it.get('name')))), distance,
+                hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
                 slow_to_prepare(it), too_heavy(it), abs(it['size'] - size) if size else 0, -it['seeds'])
     best = min(dedupe(kept), key=score)
     return None if best['seeds'] <= 0 else best

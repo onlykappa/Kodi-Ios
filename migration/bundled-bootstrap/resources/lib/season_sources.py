@@ -284,5 +284,8 @@ def _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names,se
    note(xbmc,'episode_result',episode=n,quality=picks[n][0],queued=success)
    if success:queued.append(n)
  finally:card.close()
- dialog.notification('Season %s'%season,'%d episode%s added to your downloads'%(len(queued),'' if len(queued)==1 else 's'),gui.NOTIFICATION_INFO,6000)
+ if queued or stop():
+  dialog.notification('Season %s'%season,'%d episode%s added to your downloads'%(len(queued),'' if len(queued)==1 else 's'),gui.NOTIFICATION_INFO,6000)
+ else:   # owner log 15e6cbc4: "0 episodes added" read like success
+  dialog.notification('Season %s'%season,'No episode could be added. Try again in a moment.',gui.NOTIFICATION_WARNING,8000)
  return queued

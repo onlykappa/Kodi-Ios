@@ -227,4 +227,12 @@ class NothingFoundState(unittest.TestCase):
   self.assertIn('elif controlId == 32512:',code)
   self.assertIn("SetProperty(deck.retry,true)",(ROOT/'migration/bundled-bootstrap/resources/lib/portrait.py').read_text())
 
+class SeasonBuildPicks(unittest.TestCase):
+ def test_whole_series_pack_comes_after_a_single_episode(self):
+  # Owner log 15e6cbc4: episode 1 was taken from "Naruto Shippuden (001-500) [Complete Series ...]".
+  pack=dp.parse_item('1080p (232 / 0) [262.85 MB] WebDL H.264 - Torrentio\nNaruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio)/Naruto Shippuden Episode 001 Homecoming.mkv\nicon.png',0)
+  single=dp.parse_item('1080p (12 / 0) [400 MB] WebDL H.264 - Torrentio\nNaruto.Shippuden.S01E01.1080p.WEB.x264\nicon.png',1)
+  self.assertEqual(dp.auto_choose([pack,single],{'quality':'1080p','strict_quality':True})['idx'],1)
+  self.assertEqual(dp.auto_choose([pack],{'quality':'1080p','strict_quality':True})['idx'],0)   # still used when alone
+
 if __name__=='__main__':unittest.main()

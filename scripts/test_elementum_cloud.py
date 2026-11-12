@@ -115,4 +115,15 @@ class Watch(unittest.TestCase):
    state=debrid_drive.load(p);self.assertEqual(len(state['jobs']),2)
    self.assertEqual(state['jobs'][0]['watch_handled'],state['jobs'][0]['watch_requested'])
 
+class PackFileMatch(unittest.TestCase):
+ def test_a_file_inside_a_pack_is_the_same_pick(self):
+  # Owner log 15e6cbc4 (build 288): every episode of a season build was refused, "0 episodes added".
+  import elementum_cloud as ec
+  pack='Naruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio)'
+  self.assertTrue(ec.same_pick(pack+' Season 01 (001-032)/Naruto Shippuden Episode 001 Homecoming.mkv',pack))
+  self.assertTrue(ec.same_pick('Naruto.Shippuden.S01E01.1080p','naruto.shippuden.s01e01.1080p'))
+  self.assertFalse(ec.same_pick('Naruto Shippuden S01E02','Naruto Shippuden S01E01'))
+  self.assertFalse(ec.same_pick('Naruto','Naruto Shippuden S01E01'))   # too short to trust
+  self.assertFalse(ec.same_pick('',pack))
+
 if __name__=='__main__':unittest.main()
