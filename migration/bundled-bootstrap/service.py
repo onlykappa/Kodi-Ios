@@ -320,19 +320,20 @@ def drive_uploads(monitor,home,profile):
  from clouddrive.common.account import AccountManager
  from clouddrive.common.remote.request import tls_context
  import remote_media
- try:
-  remote_media.start(monitor,xbmcgui.Window(10000),context=tls_context())
- except Exception as error:diagnostics.log_exception(xbmc,'media_source_bridge',error)
  drive_addon=xbmcaddon.Addon('plugin.googledrive')
  if signin_server.migrate(drive_addon):xbmc.log('Kodi iOS Drive: sign-in server set to the owner worker',xbmc.LOGINFO)
  accounts=AccountManager(xbmcvfs.translatePath(drive_addon.getAddonInfo('profile')))
- native=None
+ native=None;native_reader=None
  try:
   import native_http   # airplay is the module imported at the top; importing it here made it local (build-232 crash)
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
-  native=native_http.sender(airplay.load(path)) if path else None
+  native_lib=airplay.load(path) if path else None
+  native=native_http.sender(native_lib);native_reader=native_http.opener(native_lib)
  except Exception as error:xbmc.log('Kodi iOS Drive: system networking unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
  xbmc.log('Kodi iOS Drive: uploads use %s'%('system networking' if native else 'Python networking'),xbmc.LOGINFO)
+ xbmc.log('Kodi iOS Drive: media reads use %s'%('system networking' if native_reader else 'Python networking'),xbmc.LOGINFO)
+ try:remote_media.start(monitor,xbmcgui.Window(10000),context=tls_context(),open_url=native_reader)
+ except Exception as error:diagnostics.log_exception(xbmc,'media_source_bridge',error)
  send=driveupload.sender(tls_context(),log=lambda message:xbmc.log(message,xbmc.LOGINFO),native=native)
  def refresh(refresh_token):
   server=signin_server.server(drive_addon.getSetting('sign-in-server'))
@@ -457,7 +458,7 @@ def drive_uploads(monitor,home,profile):
   stream=None
   if native.streams:
    import drive_stream
-   stream=drive_stream.DriveStream(drive.token,context=tls_context())
+   stream=drive_stream.DriveStream(drive.token,context=tls_context(),open_url=native_reader,refresh_token=drive.token)
    xbmc.log('Kodi iOS preparation: streaming from Google Drive (no downloaded copy)',xbmc.LOGINFO)
   return prepare_downloads.Queue(profile,drive,native,
     download_file=lambda *args:prepare_downloads.download(*args,context=tls_context()),

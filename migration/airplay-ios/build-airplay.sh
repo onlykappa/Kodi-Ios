@@ -745,69 +745,118 @@ __attribute__((visibility("default"))) int kodi_airplay_startup_budget(void) { r
 // 16 KB at a time, each step waiting for the interpreter. This sends one HTTP request with the system's networking
 // (NSURLSession: connection reuse, HTTP/2) while the caller's thread waits; ctypes releases the interpreter meanwhile.
 // headers: "Name: value\n" lines. Returns the HTTP status, or -1 with the error in out_body. Redirects are not followed.
-@interface KodiHTTPNoRedirect : NSObject <NSURLSessionTaskDelegate>
+// Shared native HTTP transport. Results own their bytes: cancellation never borrows Python's freed buffer.
+@interface KodiHTTPResult : NSObject
+@property(nonatomic, strong) NSMutableData *data;
+@property(nonatomic, strong) NSHTTPURLResponse *response;
+@property(nonatomic, strong) NSError *error;
+@property(nonatomic) NSUInteger limit;
+@property(nonatomic, strong) dispatch_semaphore_t done;
+@end
+@implementation KodiHTTPResult
+@end
+
+@interface KodiHTTPNoRedirect : NSObject <NSURLSessionDataDelegate>
+@property(nonatomic, strong) NSMutableDictionary<NSNumber *, KodiHTTPResult *> *pending;
 @end
 @implementation KodiHTTPNoRedirect
+- (instancetype)init { if ((self=[super init])) _pending=[NSMutableDictionary dictionary]; return self; }
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response
         newRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURLRequest *))completionHandler { completionHandler(nil); }
+- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)task didReceiveResponse:(NSURLResponse *)response
+        completionHandler:(void (^)(NSURLSessionResponseDisposition))completionHandler {
+    @synchronized(self) {
+        KodiHTTPResult *r=self.pending[@(task.taskIdentifier)];
+        if ([response isKindOfClass:NSHTTPURLResponse.class]) r.response=(NSHTTPURLResponse *)response;
+        // Refuse ignored ranges before buffering an entire movie.
+        BOOL huge=[task.originalRequest valueForHTTPHeaderField:@"Range"] && response.expectedContentLength>(long long)r.limit;
+        if (huge) r.error=[NSError errorWithDomain:@"KodiHTTP" code:2 userInfo:nil];
+        completionHandler(huge ? NSURLSessionResponseCancel : NSURLSessionResponseAllow);
+    }
+}
+- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)task didReceiveData:(NSData *)data {
+    @synchronized(self) {
+        KodiHTTPResult *r=self.pending[@(task.taskIdentifier)];
+        if (!r) return;
+        if (data.length>r.limit-r.data.length) {
+            r.error=[NSError errorWithDomain:@"KodiHTTP" code:2 userInfo:nil]; [task cancel];
+        } else if (!r.error) [r.data appendData:data];
+    }
+}
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
+    KodiHTTPResult *r;
+    @synchronized(self) {
+        r=self.pending[@(task.taskIdentifier)];
+        if (r && !r.error) r.error=error;
+        [self.pending removeObjectForKey:@(task.taskIdentifier)];
+    }
+    if (r) dispatch_semaphore_signal(r.done);
+}
 @end
+static KodiHTTPNoRedirect *kodiHTTPDelegate(void) {
+    static KodiHTTPNoRedirect *delegate; static dispatch_once_t once;
+    dispatch_once(&once, ^{ delegate=[KodiHTTPNoRedirect new]; }); return delegate;
+}
 static NSURLSession *kodiHTTPSession(void) {
     static NSURLSession *session; static dispatch_once_t once;
     dispatch_once(&once, ^{
         NSURLSessionConfiguration *c = [NSURLSessionConfiguration ephemeralSessionConfiguration];
-        c.HTTPMaximumConnectionsPerHost = 6; c.timeoutIntervalForRequest = 60; c.timeoutIntervalForResource = 3600;
-        c.URLCache = nil; c.HTTPCookieStorage = nil;
-        session = [NSURLSession sessionWithConfiguration:c delegate:[KodiHTTPNoRedirect new] delegateQueue:nil];
-    });
-    return session;
+        c.HTTPMaximumConnectionsPerHost = 6; c.timeoutIntervalForRequest = 60; c.timeoutIntervalForResource = 120;
+        c.waitsForConnectivity=NO; c.URLCache=nil; c.HTTPCookieStorage=nil;
+        session=[NSURLSession sessionWithConfiguration:c delegate:kodiHTTPDelegate() delegateQueue:nil];
+    }); return session;
 }
 __attribute__((visibility("default"))) int kodi_http_send(const char *method, const char *url, const char *headers,
         const void *body, long long length, double timeout, char *out_headers, int out_headers_len,
         char *out_body, int out_body_len, int *out_body_used) {
     @autoreleasepool {
-        if (out_body_used) *out_body_used = 0;
-        if (out_headers && out_headers_len > 0) out_headers[0] = 0;
-        NSURL *address = url ? [NSURL URLWithString:[NSString stringWithUTF8String:url]] : nil;
-        if (!address) { if (out_body && out_body_len > 0) snprintf(out_body, out_body_len, "bad url"); return -1; }
-        NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:address];
-        request.HTTPMethod = method ? [NSString stringWithUTF8String:method] : @"GET";
-        request.timeoutInterval = timeout > 0 ? timeout : 60;
-        request.cachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
-        if (headers) {
-            for (NSString *line in [[NSString stringWithUTF8String:headers] componentsSeparatedByString:@"\n"]) {
-                NSRange colon = [line rangeOfString:@":"];
-                if (colon.location == NSNotFound) continue;
-                NSString *name = [[line substringToIndex:colon.location] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
-                NSString *value = [[line substringFromIndex:colon.location + 1] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
-                if (name.length) [request setValue:value forHTTPHeaderField:name];
-            }
+        if (out_body_used) *out_body_used=0;
+        if (out_headers && out_headers_len>0) out_headers[0]=0;
+        if (out_body && out_body_len>0) out_body[0]=0;
+        NSURL *address=url ? [NSURL URLWithString:[NSString stringWithUTF8String:url]] : nil;
+        if (!address || !([address.scheme isEqualToString:@"https"] || [address.scheme isEqualToString:@"http"]) ||
+            length<0 || length>32LL*1024*1024 || out_body_len<0 || out_body_len>8*1024*1024) return -1;
+        double budget=isfinite(timeout) && timeout>0 ? fmin(timeout,120.0) : 60.0;
+        NSMutableURLRequest *request=[NSMutableURLRequest requestWithURL:address];
+        request.HTTPMethod=method ? [NSString stringWithUTF8String:method] : @"GET";
+        request.timeoutInterval=budget; request.cachePolicy=NSURLRequestReloadIgnoringLocalCacheData;
+        if (headers) for (NSString *line in [[NSString stringWithUTF8String:headers] componentsSeparatedByString:@"\n"]) {
+            NSRange colon=[line rangeOfString:@":"]; if (colon.location==NSNotFound) continue;
+            NSString *name=[[line substringToIndex:colon.location] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+            NSString *value=[[line substringFromIndex:colon.location+1] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+            if (name.length) [request setValue:value forHTTPHeaderField:name];
         }
-        NSData *payload = body && length > 0 ? [NSData dataWithBytesNoCopy:(void *)body length:(NSUInteger)length freeWhenDone:NO] : nil;
-        __block NSInteger status = -1; __block NSData *answer = nil; __block NSString *problem = nil; __block NSDictionary *fields = nil;
-        dispatch_semaphore_t done = dispatch_semaphore_create(0);
-        void (^finish)(NSData *, NSURLResponse *, NSError *) = ^(NSData *data, NSURLResponse *response, NSError *error) {
-            if (error) problem = error.localizedDescription ?: @"request failed";
-            if ([response isKindOfClass:NSHTTPURLResponse.class]) { status = ((NSHTTPURLResponse *)response).statusCode; fields = ((NSHTTPURLResponse *)response).allHeaderFields; }
-            if (error && ![response isKindOfClass:NSHTTPURLResponse.class]) status = -1;
-            answer = data; dispatch_semaphore_signal(done);
-        };
-        NSURLSessionDataTask *task = payload ? [kodiHTTPSession() uploadTaskWithRequest:request fromData:payload completionHandler:finish]
-                                             : [kodiHTTPSession() dataTaskWithRequest:request completionHandler:finish];
+        KodiHTTPResult *result=[KodiHTTPResult new]; result.limit=(NSUInteger)out_body_len;
+        result.data=[NSMutableData data]; result.done=dispatch_semaphore_create(0);
+        NSData *payload=body && length>0 ? [NSData dataWithBytes:body length:(NSUInteger)length] : nil;
+        NSURLSessionDataTask *task=payload ? [kodiHTTPSession() uploadTaskWithRequest:request fromData:payload]
+                                          : [kodiHTTPSession() dataTaskWithRequest:request];
+        KodiHTTPNoRedirect *delegate=kodiHTTPDelegate();
+        @synchronized(delegate) { delegate.pending[@(task.taskIdentifier)]=result; }
         [task resume];
-        dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
-        if (out_headers && out_headers_len > 0) {
-            NSMutableString *text = [NSMutableString string];
-            for (id key in fields) [text appendFormat:@"%@: %@\n", key, fields[key]];
-            snprintf(out_headers, out_headers_len, "%s", text.UTF8String ?: "");
+        long expired=dispatch_semaphore_wait(result.done,dispatch_time(DISPATCH_TIME_NOW,(int64_t)(budget*NSEC_PER_SEC)));
+        if (expired) {
+            [task cancel];
+            if (out_body && out_body_len>0) snprintf(out_body,out_body_len,"request deadline reached");
+            return -1;   // delegate/task retain their owned buffers until cancellation completes
         }
-        if (status < 0) { if (out_body && out_body_len > 0) snprintf(out_body, out_body_len, "%s", problem.UTF8String ?: "request failed"); return -1; }
-        if (out_body && out_body_len > 0 && answer.length) {
-            int n = (int)MIN((NSUInteger)out_body_len, answer.length);
-            memcpy(out_body, answer.bytes, n); if (out_body_used) *out_body_used = n;
+        if (result.error || !result.response) {
+            if (out_body && out_body_len>0) snprintf(out_body,out_body_len,"request failed (%ld)",(long)result.error.code);
+            return -1;
         }
-        return (int)status;
+        if (out_headers && out_headers_len>0) {
+            NSMutableString *text=[NSMutableString string];
+            for (id key in result.response.allHeaderFields) [text appendFormat:@"%@: %@\n",key,result.response.allHeaderFields[key]];
+            if ([text lengthOfBytesUsingEncoding:NSUTF8StringEncoding]>=(NSUInteger)out_headers_len) return -1;
+            snprintf(out_headers,out_headers_len,"%s",text.UTF8String ?: "");
+        }
+        if (out_body && result.data.length) memcpy(out_body,result.data.bytes,result.data.length);
+        if (out_body_used) *out_body_used=(int)result.data.length;
+        return (int)result.response.statusCode;
     }
 }
+__attribute__((visibility("default"))) int kodi_http_reads(void) { return 1; }
+
 __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, const char *title) {
     os_unfair_lock_lock(&ownershipLock);
     unsigned generation=atomic_fetch_add(&playGeneration,1)+1;
@@ -1098,7 +1147,7 @@ for c in "$REMUX"/src/*.c "$REMUX"/gmplayer/*.c; do
 done
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
 printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n_kodi_airplay_serve\n_kodi_airplay_serve_segmented\n' > "$WORK/exports"
-printf '_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
+printf '_kodi_http_reads\n_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
   -framework VideoToolbox -framework CoreVideo -framework CoreText \

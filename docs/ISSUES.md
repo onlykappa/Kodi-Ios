@@ -2738,3 +2738,15 @@ its measured phone target; unknown causes and unmeasured hardware/receiver behav
   its name/size before accepting bytes. Original source selection and resumable upload sessions are preserved.
   New host cases cover a second expiry an hour later and a queued copy recovering without a job delay. This
   is a concrete recovery repair, not attribution of the owner's earlier hour-long stop.
+
+- 1F.2 / 3.2: native HTTP now owns its upload bytes, bounds response buffering before/while data arrives, and
+  enforces an absolute deadline with task cancellation (the old semaphore waited forever). A new capability
+  gates bounded NSURLSession range reads for preparation and foreground media. Redirects cannot forward private
+  credentials to another origin; ranges and renewed Drive credentials are checked. Old frameworks use Python.
+  Seven native-adapter, 59 preparation, 14 renewal, 29 remux and 3 export cases pass locally. Foundation itself
+  is unavailable on Linux: three real compiled transport/fault cases are added to the macOS candidate workflow.
+- Validation history: the service excerpt fixture needed its new native_reader dependency; completed it. A
+  stale exact-source assertion was updated to the actual constructor. The existing 24 MiB slow-link benchmark
+  exceeds its 3-second wall budget on this execution host (new source 6.68 s; unmodified e6041ae baseline 9.47 s).
+  Its byte-integrity/concurrency assertions pass; no performance acceptance or app regression attribution is
+  inferred. The threshold was not weakened. Real provider speed and Wi-Fi/cellular handoff remain device checks.

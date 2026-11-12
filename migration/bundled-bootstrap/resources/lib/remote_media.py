@@ -74,9 +74,9 @@ class Foreground(drive_stream.DriveStream):
 
 
 class Broker:
- def __init__(self,context=None,source_factory=None,renew_link=None):
+ def __init__(self,context=None,source_factory=None,renew_link=None,open_url=None):
   self.lock=threading.Lock();self.current=None;self.ident='';self.secret=secrets.token_urlsafe(24)
-  self.factory=source_factory or (lambda source:Foreground(source,context=context))
+  self.factory=source_factory or (lambda source:Foreground(source,context=context,open_url=open_url))
   self.renew_link=renew_link or (lambda record:umbrella_recovery.renew(record,context=context))
   broker=self
   class Handler(http.server.BaseHTTPRequestHandler):
@@ -121,9 +121,9 @@ class Broker:
    if self.current:self.current.close();self.current=None
 
 
-def start(monitor,window,context=None):
+def start(monitor,window,context=None,open_url=None):
  """Register on Kodi's Home window (the service's `home` is a filesystem Path)."""
- broker=Broker(context=context)
+ broker=Broker(context=context,open_url=open_url)
  try:
   window.setProperty(PROPERTY,broker.url)
   def close_sources():

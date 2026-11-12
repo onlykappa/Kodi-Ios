@@ -104,7 +104,7 @@ class Broker(unittest.TestCase):
    finally:closed.set()
   original_close=self.broker.close
   self.broker.close=close
-  env=dict(home=Path('/synthetic/kodi/home'),remote_media=remote,tls_context=lambda:None,
+  env=dict(home=Path('/synthetic/kodi/home'),remote_media=remote,tls_context=lambda:None,native_reader=None,
            xbmcgui=types.SimpleNamespace(Window=lambda ident:window if ident==10000 else None),
            monitor=types.SimpleNamespace(waitForAbort=lambda delay:stopped.wait(.01)),threading=threading,xbmc=object(),
            diagnostics=types.SimpleNamespace(log_exception=lambda *args:errors.append(args)))

@@ -3,30 +3,35 @@
 Build-229 log: Drive upload pieces crawled (~0.3 MB/s in total, one lane or two, on a 115 Mbps line) while nothing
 played. Python's TLS sends a body 16 KB at a time and every step waits for the interpreter. The framework sends the
 whole request with NSURLSession while this thread waits outside the interpreter (ctypes releases it)."""
-import ctypes
+import ctypes,email.message,io,urllib.error,urllib.parse,urllib.request
 
 HEADERS_MAX = 64 * 1024
 BODY_MAX = 256 * 1024
+READ_MAX = 8 * 1024 * 1024
 
 
-def sender(lib):
+def sender(lib,body_max=BODY_MAX):
     """send(method, url, body, headers, timeout) -> (status, headers, body), or None without the framework."""
     fn = getattr(lib, 'kodi_http_send', None) if lib is not None else None
     if fn is None:
         return None
+    if not 0<body_max<=READ_MAX:raise ValueError('Invalid native HTTP response limit')
     fn.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_longlong, ctypes.c_double,
                    ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.POINTER(ctypes.c_int)]
     fn.restype = ctypes.c_int
 
     def send(method, url, body, headers, timeout):
-        lines = ''.join('%s: %s\n' % (k, v) for k, v in (headers or {}).items() if '\n' not in str(v))
+        if any('\r' in str(x) or '\n' in str(x) for pair in (headers or {}).items() for x in pair):
+            raise ValueError('Invalid HTTP header')
+        lines = ''.join('%s: %s\n' % (k, v) for k, v in (headers or {}).items())
         out_headers = ctypes.create_string_buffer(HEADERS_MAX)
-        out_body = ctypes.create_string_buffer(BODY_MAX)
+        out_body = ctypes.create_string_buffer(body_max)
         used = ctypes.c_int(0)
         status = fn(method.encode(), url.encode(), lines.encode(), body or None, len(body or b''), float(timeout),
-                    out_headers, HEADERS_MAX, out_body, BODY_MAX, ctypes.byref(used))
+                    out_headers, HEADERS_MAX, out_body, body_max, ctypes.byref(used))
         if status < 0:
             raise ConnectionError('System networking: ' + out_body.value.decode('utf-8', 'replace')[:200])
+        if not 0<=used.value<=body_max:raise ConnectionError('Invalid native HTTP response length')
         parsed = {}
         for line in out_headers.value.decode('utf-8', 'replace').split('\n'):
             name, sep, value = line.partition(':')
@@ -34,3 +39,35 @@ def sender(lib):
                 parsed[name.strip()] = value.strip()
         return status, parsed, out_body.raw[:used.value]
     return send
+
+
+class Response(io.BytesIO):
+    def __init__(self,status,headers,body):
+        super().__init__(body);self.status=status;self.headers=email.message.Message()
+        for name,value in headers.items():self.headers[name]=str(value)
+    def getcode(self):return self.status
+
+
+def opener(lib):
+    """Bounded range reads through NSURLSession, or None on an older framework. No full-film response buffering."""
+    capability=getattr(lib,'kodi_http_reads',None) if lib is not None else None
+    if capability is None or capability()!=1:return None
+    send=sender(lib,READ_MAX)
+    if send is None:return None
+    def open_url(request,timeout=20):
+        url=request.full_url;headers=dict(request.header_items())
+        for _ in range(6):
+            status,answer,body=send(request.get_method(),url,None,headers,timeout)
+            if status in (301,302,303,307,308):
+                location=next((v for k,v in answer.items() if k.lower()=='location'),None)
+                if not location:break
+                target=urllib.parse.urljoin(url,location);old=urllib.parse.urlsplit(url);new=urllib.parse.urlsplit(target)
+                if new.scheme not in ('http','https') or (old.scheme=='https' and new.scheme!='https'):
+                    raise ConnectionError('Refused unsafe media redirect')
+                if (old.scheme,old.hostname,old.port)!=(new.scheme,new.hostname,new.port):
+                    headers={k:v for k,v in headers.items() if k.lower() not in ('authorization','cookie','host')}
+                url=target;continue
+            if status>=300:raise urllib.error.HTTPError(url,status,'Media request failed',answer,io.BytesIO(body))
+            return Response(status,answer,body)
+        raise ConnectionError('Media redirect did not finish')
+    return open_url

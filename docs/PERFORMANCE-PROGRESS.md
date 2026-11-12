@@ -190,3 +190,8 @@ old screenshot's counts as acceptance evidence. Commit and push each repair sepa
 
 - 3.3: expired links can renew again later in a long movie (cooldown prevents loops); Drive copies renew an expired
   source reopen immediately at its confirmed offset, checking the same file's name/size. New regressions pass.
+
+- 1F.2/3.2 native candidate: bounded system range reads, absolute request deadlines and owned cancellation buffers;
+  capability-gated into preparation/foreground media. Foundation fault tests now run on macOS before the framework
+  build. Local adapter/prepare/renewal checks pass; Linux loopback throughput benchmark fails on both old and new
+  source, so speed acceptance remains open (ISSUE-175). Full 42-item status: PERFORMANCE-COVERAGE.md.
