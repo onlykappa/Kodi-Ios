@@ -46,6 +46,10 @@ def arc(p,size,stroke,frac):
   return (255,255,255,int(255*a)) if frac>=1 or ang<=frac*360 else (255,255,255,0)
  return p.png(size,size,pixel)
 
+import importlib.util as _iu,os as _os
+_sp=_iu.spec_from_file_location('pages_for_bar',_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),'pages.py'))
+_pages=_iu.module_from_spec(_sp);_sp.loader.exec_module(_pages)
+pages_slide=_pages.slide_bar
 RING=140;TILE=108;HIT=118;DISC=92   # ring tile 52 pt around a 40 pt tile; touch areas 44 pt, drawn discs 34 pt
 
 def corner_texture(p,size,radius,top,bottom):
@@ -71,18 +75,22 @@ def tile(p,x,y,size,icon,tint,texture):
  return p.image(x,y,size,size,p.MEDIA+texture,tint)+p.icon(x+(size-g)//2,y+(size-g)//2,g,p.ICONS+icon,p.WHITE)
 
 def ring_tile(p,x,y,ring,ring_tint,icon,tint,ring_on,spin_on,art='',art_on='false'):
- """The app tile inside its progress ring: filled clockwise to the job's percentage (ring_00..ring_20), or, with no
- percentage, a short arc spinning in the same place (HIG: keep the indicator's place and style)."""
+ """The app tile (DEC-036: no ring around it; progress is the thin bar under the text, see bar()). The signature and the
+ 140-unit square stay so the callers keep their layout; the poster of what is downloading sits over the tile."""
  M=p.MEDIA;o=(RING-TILE)//2
  return ('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(x,y,RING,RING)+
-  p.image(0,0,RING,RING,M+'ring_20.png','29FFFFFF','<visible>%s | %s</visible>'%(ring_on,spin_on))+
-  p.image(0,0,RING,RING,M+ring,ring_tint,'<visible>%s</visible>'%ring_on)+
-  p.image(0,0,RING,RING,M+'ring_06.png',ring_tint,'<visible>%s</visible>'%spin_on+
-   '<animation effect="rotate" end="-360" center="auto" time="1100" loop="true" reversible="false" condition="true">Conditional</animation>')+
   tile(p,o,o,TILE,icon,tint,'tile108.png')+
-  # The poster of what is downloading, over the app tile (which stays as the fallback while it loads).
   (p.image(o,o,TILE,TILE,art,p.WHITE,'<visible>%s</visible>'%art_on,aspect='>scale',diffuse=M+'tile108.png',background=True) if art else '')+
   '</control>')
+
+BAR=11   # 4 pt, DEC-036
+def bar(p,x,y,width,pct,tint,on,spin,done):
+ """The one progress bar of the pill and the sheet rows (DEC-036): a 20 % white track, a fill in `tint` (blue, grey while
+ paused, green when done) in 20 steps of the job's percentage, or with no percentage a short segment sliding along it."""
+ M=p.MEDIA
+ steps=''.join(p.image(x,y,max(BAR,width*k//20),BAR,M+'dot.png',tint,'<visible>%s + [Integer.IsGreaterOrEqual(%s,%d) | %s]</visible>'%(on,pct,k*5,done),border=BAR//2) for k in range(1,21))
+ return (p.image(x,y,width,BAR,M+'dot.png','33FFFFFF','<visible>%s | %s</visible>'%(on,spin),border=BAR//2)+steps+
+         pages_slide(M,x,y,width,extra='<visible>%s</visible>'%spin,track=False))
 
 def round_button(p,id,x,y,glyphs,extra='',navigation=''):
  """A 118-unit (44 pt) touch area with a 92-unit drawn disc and a centred glyph; glyphs: [(icon, condition)]."""
@@ -106,8 +114,9 @@ def full_pill(p,w):
  right=16+HIT+16   # the pause control's lane, kept clear even when it is hidden
  def texts(x,cond):
   return ('<control type="group"><visible>%s</visible>'%cond+
-   p.label(x,28,w-x-right,58,P('Title'),'p_pill',p.WHITE,'left','<scroll>false</scroll>')+
-   p.label(x,90,w-x-right,50,P('Sub'),'p_pill_s',p.GREY,'left','<scroll>false</scroll>')+'</control>')
+   p.label(x,20,w-x-right,58,P('Title'),'p_pill',p.WHITE,'left','<scroll>false</scroll>')+
+   p.label(x,78,w-x-right,50,P('Sub'),'p_pill_s',p.GREY,'left','<scroll>false</scroll>')+
+   bar(p,x,138,w-x-right,'Window(Home).Property(Activity.Pct)',P('RingTint'),'[%s | %s | %s]'%(IS('State','progress'),IS('State','paused'),IS('State','done')),IS('State','spin'),IS('State','done'))+'</control>')
  text=(texts(14+RING+26,single)+
        texts(22+58+92+26,'%s + %s'%(HAS('Stack'),IS('Count','2')))+
        texts(22+2*58+92+26,'%s + %s'%(HAS('Stack'),IS('Count','3')))+
@@ -189,8 +198,9 @@ def sheet(p):
   nav='<onup>%d</onup><ondown>%d</ondown>'%(9610+n-1 if n>1 else 9600,9610+n+1)
   return ('<control type="group"><width>%d</width><height>%d</height><visible>%s</visible>'%(w,row,H(n,'Title'))+backs+sep+
    ring_tile(p,18,(row-RING)//2,R(n,'Ring'),R(n,'Bar'),R(n,'Icon'),R(n,'Tint'),ring_on,Q(n,'State','spin'),R(n,'Art'),H(n,'Art'))+
-   p.label(176,30,w-176-240,58,R(n,'Title'),'p_pill',p.WHITE,'left','<scroll>false</scroll>')+
-   p.label(176,94,w-176-240,50,R(n,'Sub'),'p_pill_s',p.GREY,'left','<scroll>false</scroll>')+
+   p.label(176,24,w-176-240,58,R(n,'Title'),'p_pill',p.WHITE,'left','<scroll>false</scroll>')+
+   p.label(176,88,w-176-240,50,R(n,'Sub'),'p_pill_s',p.GREY,'left','<scroll>false</scroll>')+
+   bar(p,176,150,w-176-160,'Window(Home).Property(Activity.%d.Pct)'%n,R(n,'Bar'),ring_on,Q(n,'State','spin'),Q(n,'State','done'))+
    p.label(w-236,0,90,row,R(n,'Pct')+'%','p_pill_s',p.GREY,'right','<visible>%s + !%s</visible>'%(H(n,'Pct'),Q(n,'State','done')))+
    round_button(p,9610+n,w-16-HIT,(row-HIT)//2,[('pause.png',Q(n,'Pause','pause')),('play.png',Q(n,'Pause','resume'))],
                 '<visible>%s</visible>'%H(n,'Pause'),nav)+'</control>')

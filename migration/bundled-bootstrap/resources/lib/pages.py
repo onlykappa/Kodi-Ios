@@ -523,14 +523,14 @@ def track_menu():
 # the landscape marker (navigation.patch_skin leaves it alone) and is centred with centerleft/centertop, so it
 # holds on the 2340-wide layout too. Progress 10 stays (Kodi drives it), never drawn.
 BUSY='DialogBusy.xml'
-def slide_bar(media,x,y,w,h=11,segment=0.36,time=1100,extra='',fill='FF0A84FF'):
+def slide_bar(media,x,y,w,h=11,segment=0.36,time=1100,extra='',fill='FF0A84FF',track=True):
  """Indeterminate progress (DEC-036): the 20 % white track with a short blue segment sliding along it. Kodi cannot clip,
  so the segment moves between the two ends of the track. `extra` (a <visible> or animation) goes on both pieces."""
  seg=int(w*segment)
- return ('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texture border="%d" colordiffuse="33FFFFFF">%sdot.png</texture>%s</control>'
+ return (('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texture border="%d" colordiffuse="33FFFFFF">%sdot.png</texture>%s</control>'%(x,y,w,h,h//2,media,extra) if track else '')+
          '<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texture border="%d" colordiffuse="%s">%sdot.png</texture>'
          '<animation effect="slide" start="0,0" end="%d,0" time="%d" tween="sine" easing="inout" loop="true" condition="true">Conditional</animation>%s</control>')%(
-         x,y,w,h,h//2,media,extra,x,y,seg,h,h//2,fill,media,w-seg,time,extra)
+         x,y,seg,h,h//2,fill,media,w-seg,time,extra)
 def busy_dialog(marker,font,media='special://skin/extras/portrait/'):
  """DialogBusy: the opening card of owner-approved boards 04/05 (docs/design/fuse-windows-mockups.html). When the opener
  has set Window(home).Property(IOSOpen.Title) the card names the open ("Opening X", IOSOpen.Source, then stages 1-3
