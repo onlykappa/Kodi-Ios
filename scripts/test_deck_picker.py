@@ -201,4 +201,13 @@ class AllLinks(unittest.TestCase):
         self.assertLessEqual(len(r['pills']),4);self.assertIn('size',r);self.assertIn('seeds',r)
 
 
+class NoStutter(unittest.TestCase):
+    def test_ten_bit_h264_goes_after_versions_that_play_as_they_are(self):
+        raw=['1080p (500 / 0) [4.0 GB] WebDL H.264 - Torrentio\nShow.S01.1080p.WEB.10bit.x264-A.mkv\nicon.png',
+             '1080p (50 / 0) [3.0 GB] WebDL H.265 - Torrentio\nShow.S01.1080p.WEB.x265-B.mkv\nicon.png']
+        ranked=dp.pick(dp.parse_all(raw),top_n=5)
+        self.assertTrue(dp.converts_for_tv(dp.parse_all(raw)[0]))
+        self.assertEqual([r['idx'] for r in ranked],[1,0])
+
+
 if __name__=='__main__':unittest.main()

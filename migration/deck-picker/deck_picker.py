@@ -302,6 +302,10 @@ def pick(items, top_n=TOP_N):
     good = [i for i in good if not too_heavy(i)] + [i for i in good if too_heavy(i)]
     # Kodi-iOS: AV1 after the codecs that need no conversion on the phone (stable: Elementum's order otherwise).
     good = [i for i in good if not slow_to_prepare(i)] + [i for i in good if slow_to_prepare(i)]
+    # Kodi-iOS (owner: "we want no stutter"): 10-bit H.264 has no hardware decoder on Apple devices, so AirPlay must
+    # convert it live on the CPU (slower than real time at 1080p). Those versions go last, after every version that
+    # plays on the TV as it is (stable otherwise).
+    good = [i for i in good if not converts_for_tv(i)] + [i for i in good if converts_for_tv(i)]
     good_ids = set(id(i) for i in good)
     rest = [i for i in items if id(i) not in good_ids]
     ranked = good + rest                                   # dead / bad copies only if nothing better
