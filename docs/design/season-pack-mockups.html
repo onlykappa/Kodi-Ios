@@ -118,6 +118,25 @@ section p{color:var(--label2);max-width:880px;line-height:1.45;margin:0 0 18px}
 .er.more .nm{color:var(--blue-text);font-weight:600}
 .warn{display:flex;gap:8px;align-items:flex-start;margin-top:12px;color:var(--label2);font-size:12.5px;line-height:1.4}
 .warn i{font-style:normal;color:var(--orange);font-weight:800}
+/* Board F: every episode of the ready sheet */
+.qs.full{top:44px;border-radius:30px 30px 0 0;display:flex;flex-direction:column}
+.fback{color:var(--blue-text);font-size:15px;font-weight:600;margin:4px 0 6px}
+.fhead b{display:block;font-size:24px;font-weight:800}.fhead span{color:var(--label2);font-size:13px}
+.seg{display:flex;background:var(--s2);border-radius:9px;padding:2px;margin:12px 0}
+.seg span{flex:1;text-align:center;font-size:12.5px;font-weight:600;color:var(--label2);padding:6px 0;border-radius:7px}
+.seg span.on{background:#636366;color:#fff}
+.full .eplist{flex:1;overflow:hidden}
+.er2{display:flex;gap:10px;padding:9px 12px;position:relative;align-items:flex-start}
+.er2+.er2:before{content:"";position:absolute;left:46px;right:0;top:0;height:1px;background:var(--sep)}
+.er2 .no{width:24px;color:var(--label2);font-size:13px;font-weight:700;text-align:right;flex:none;padding-top:2px}
+.er2 .tx{flex:1;min-width:0}
+.er2 .t1{display:flex;gap:8px;align-items:center}
+.er2 .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14.5px;font-weight:600}
+.er2 .sz{color:var(--label2);font-size:12.5px;flex:none}
+.er2 .t2{color:var(--label2);font-size:11.5px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.er2 .lo{color:var(--orange);font-size:11px;font-weight:800;border:1px solid rgba(255,159,10,.55);border-radius:5px;padding:1px 5px;flex:none}
+.er2.gone .nm{color:var(--label2)}.er2 .out{color:var(--label2);font-size:11px;font-weight:800;border:1px solid var(--sep);border-radius:5px;padding:1px 5px;flex:none}
+.full .dl{flex:none}
 </style>
 </head>
 <body>
@@ -290,6 +309,43 @@ exists the app <b>builds the season from single episodes</b> at that quality.</p
     <div class="later">Cancel</div>
    </div>
   </div></div><div class="cap"><b>D2 · All found:</b> every episode in the chosen quality</div></div>
+ </div>
+</section>
+
+<section class="board" id="f">
+ <div class="tagline"><span class="mk">MOCKUP</span><span>F · Every episode (from "28 more episodes")</span></div>
+ <h2>All 32 episodes: what each one is, before anything downloads</h2>
+ <p>Owner, 2026-11-12: "if i press 28 more episodes it should show the list, and tell me any details and stuff like 720p only".
+ "N more episodes" on the ready sheet (board D) opens this page of the same sheet: a blue back link, the season, a
+ segmented filter (All · Lower quality · Not found), then every episode on two lines: number, name, an orange tag
+ when it was only found lower, the size; under it the version found (quality, video, audio, seeds). An episode found
+ nowhere stays in the list, greyed, marked Left out. Download All stays at the foot. Nothing here downloads on its own.</p>
+ <div class="shots">
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="hero"><div class="logo">NARUTO</div></div>
+   <div class="dim"></div>
+   <div class="qs full"><div class="grab"></div>
+    <div class="fback">‹ Season 1</div>
+    <div class="fhead"><b>All 32 episodes</b><span>Naruto Shippūden · 1080p · 16.3 GB</span></div>
+    <div class="seg"><span class="on">All 32</span><span>Lower 2</span><span>Not found 1</span></div>
+    <div class="eplist"><div class="er2"><span class="no">1</span><div class="tx"><div class="t1"><span class="nm">Homecoming</span><span class="sz">263 MB</span></div><div class="t2">1080p · HEVC · Dual Audio · 232 seeds</div></div></div><div class="er2"><span class="no">2</span><div class="tx"><div class="t1"><span class="nm">The Akatsuki Makes Its Move</span><span class="sz">252 MB</span></div><div class="t2">1080p · HEVC 10-bit · Dual Audio · 10 seeds</div></div></div><div class="er2"><span class="no">3</span><div class="tx"><div class="t1"><span class="nm">The Results of Training</span><span class="sz">281 MB</span></div><div class="t2">1080p · H.264 · Dual Audio · 41 seeds</div></div></div><div class="er2"><span class="no">4</span><div class="tx"><div class="t1"><span class="nm">The Jinchuriki of the Sand</span><span class="sz">251 MB</span></div><div class="t2">1080p · HEVC · Dual Audio · 38 seeds</div></div></div><div class="er2"><span class="no">5</span><div class="tx"><div class="t1"><span class="nm">The Kazekage Stands Tall</span><span class="sz">259 MB</span></div><div class="t2">1080p · HEVC · Dual Audio · 35 seeds</div></div></div><div class="er2"><span class="no">6</span><div class="tx"><div class="t1"><span class="nm">Mission Cleared</span><span class="sz">610 MB</span></div><div class="t2">1080p · H.264 · English · 22 seeds</div></div></div><div class="er2"><span class="no">7</span><div class="tx"><div class="t1"><span class="nm">Run, Kankuro</span><span class="lo">720p</span><span class="sz">205 MB</span></div><div class="t2">720p only · H.264 · Dual Audio · 9 seeds</div></div></div><div class="er2"><span class="no">8</span><div class="tx"><div class="t1"><span class="nm">Team Kakashi, Deployed</span><span class="sz">248 MB</span></div><div class="t2">1080p · HEVC · Dual Audio · 31 seeds</div></div></div><div class="er2"><span class="no">9</span><div class="tx"><div class="t1"><span class="nm">The Jinchuriki’s Tears</span><span class="sz">255 MB</span></div><div class="t2">1080p · HEVC · Dual Audio · 30 seeds</div></div></div></div>
+    <div class="dl">Download All 31 · 16.0 GB</div>
+   </div>
+  </div></div><div class="cap"><b>F1 · All:</b> every episode with the version found</div></div>
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="hero"><div class="logo">NARUTO</div></div>
+   <div class="dim"></div>
+   <div class="qs full"><div class="grab"></div>
+    <div class="fback">‹ Season 1</div>
+    <div class="fhead"><b>All 32 episodes</b><span>Naruto Shippūden · 1080p · 16.3 GB</span></div>
+    <div class="seg"><span>All 32</span><span class="on">Lower 2</span><span>Not found 1</span></div>
+    <div class="eplist"><div class="er2"><span class="no">7</span><div class="tx"><div class="t1"><span class="nm">Run, Kankuro</span><span class="lo">720p</span><span class="sz">205 MB</span></div><div class="t2">720p only · H.264 · Dual Audio · 9 seeds</div></div></div><div class="er2"><span class="no">19</span><div class="tx"><div class="t1"><span class="nm">Hiruko vs. Two Kunoichi</span><span class="lo">720p</span><span class="sz">215 MB</span></div><div class="t2">720p only · HEVC · English · 6 seeds</div></div></div><div class="er2 gone"><span class="no">30</span><div class="tx"><div class="t1"><span class="nm">The Retrieval</span><span class="out">Left out</span></div><div class="t2">Not found in any quality yet · tried 4 sites</div></div></div></div>
+    <div class="warn"><i>!</i><span>2 episodes only exist in 720p and come in 720p. Episode 30 is left out; it is looked for again later.</span></div>
+    <div class="dl">Download All 31 · 16.0 GB</div>
+   </div>
+  </div></div><div class="cap"><b>F2 · Filtered:</b> what is lower and what is missing</div></div>
  </div>
 </section>
 
