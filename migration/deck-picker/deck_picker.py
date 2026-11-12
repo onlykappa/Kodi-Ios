@@ -931,6 +931,14 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
     sm = _matcher()
     exp = expect if expect is not None else identity(title, sm)
     _CONTEXT['exp'] = exp
+    # Owner (build 309): "this menu also shows up as its downloading ... ensure its removed for downloading seasons".
+    # While Build Season looks up episodes, a version page whose episode is not known never asks: that lookup gets
+    # nothing (and is looked up again), the owner is not shown a menu.
+    if not exp:
+        pending = auto_request()
+        if pending and pending.get('target'):
+            _log_unmatched(title)
+            return -1
     active=auto_request(exp=exp) if exp else auto_request()
     if active and active.get('_unmatched'):
         _log_unmatched(title)

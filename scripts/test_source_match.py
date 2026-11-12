@@ -203,7 +203,11 @@ class Identity(unittest.TestCase):
    sm.publish({'kind':'episode','titles':['ナルト 疾風伝','Naruto Shippuden'],'season':1,'episode':ep},window=window,now=1000+ep)
   self.assertEqual(sm.published('ナルト 疾風伝 S01E01',window=window,now=1010)['episode'],1)
   self.assertEqual(sm.published('ナルト 疾風伝 S01E03',window=window,now=1010)['episode'],3)
-  self.assertIsNone(sm.published('ナルト 疾風伝 S01E07',window=window,now=1010))   # never another episode's
+  # Owner log 8bb997da (build 309): episode 9's own entry was lost in a simultaneous write; its page takes the show
+  # from a sibling and keeps its own season and episode, never another episode's.
+  borrowed=sm.published('Available streams for Naruto Shippuden S01E07 (2007)',window=window,now=1010)
+  self.assertEqual((borrowed['season'],borrowed['episode'],borrowed['borrowed']),(1,7,True))
+  self.assertIsNone(sm.published('Available streams for Lanterns S01E07',window=window,now=1010))   # another show
   self.assertEqual(sm.published('ナルト 疾風伝',window=window,now=1010)['episode'],3)    # no episode named: the latest
  def test_watch_menu_details_as_identity(self):
   props={'Deck.Picker.Title':'Fall','Deck.Picker.Meta':'2022  |  107 min','Deck.Picker.Time':'1000'}

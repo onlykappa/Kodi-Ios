@@ -702,6 +702,21 @@ def published(dialog_title, window=None, now=None):
                 continue
             exp['revealed'] = bool(data.get('revealed'))
             return exp
+        # Owner log 8bb997da (build 309): episodes 8 and 9 finished their Burst searches in the same millisecond, both
+        # rewrote the shared list and episode 9's entry was lost, so its version page had no identity and the picker
+        # asked the owner. The show is the same for every episode: a page naming its episode takes a recent identity
+        # of the same show and swaps in the page's season and episode.
+        if page:
+            for data in sorted(entries, key=lambda e: -float(e.get('time', 0))):
+                exp = dict(data['exp'])
+                if now - float(data.get('time', 0)) > FRESH or exp.get('episode') is None:
+                    continue
+                if not any(u' %s ' % normalize(t) in heading for t in exp.get('titles') or () if normalize(t)):
+                    continue
+                exp.update(season=page[0], episode=page[1], revealed=False, borrowed=True)
+                for k in ('label', 'episode_title', 'aired'):
+                    exp.pop(k, None)
+                return exp
         return None
     except Exception:
         return None

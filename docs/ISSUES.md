@@ -2903,3 +2903,19 @@ attachment and CropSourceToCleanAperture (no copy on the CPU); the join is a row
 now refused natively too when they would overshoot. 720p gets 2x (2560x1440), then kr_video fits it to the size chosen.
 Not compiled here (no iOS SDK): the airplay-ios run is the compile check, the owner's AI Upscale test log the proof
 (speed, heat, joins). pick_engine already chooses the tiled fast model from the r49 support line ("fast" fits 1).
+
+## ISSUE-181 — Build Season: one episode opened the version menu; card text cut (build 309, owner log 8bb997da) — FIXED on host
+
+Result of ISSUE-179's fix on the phone: 31 of 32 Naruto episodes queued (episode_result queued:true) and Drive copies
+started. Episode 9 was not: its version page ("Available streams for Naruto Shippūden S01E09 (2007)") came with no
+identity ("not checked (the title being played is not known)"), so the picker opened the version menu in the middle
+of the season (owner screenshot: "this menu also shows up as its downloading"). The card read "Adding to your do…".
+Root cause: Burst's searches for episodes 8 and 9 finished in the same millisecond (11:38:21.393); both rewrote
+source_match's shared KodiIOS.SourceMatch.Recent list and episode 9's entry was lost.
+Fix: source_match.published lets a page that names its episode take a recent identity of the same show (title in the
+page heading) with the page's own season and episode ('borrowed'); deck_picker.run never shows a menu for a page with
+no identity while a Build Season lookup is running (that lookup gets nothing); season_sources._build tries every
+episode not added once more on its own before the season is done ('queue_retry' event); the card says "Adding
+episodes".
+Retest: test_source_match (borrowed identity, other show refused), test_deck_picker NoMenuDuringBuildSeason,
+test_season_sheet test_an_episode_not_added_is_tried_once_more; season suites pass. Phone proof: next Build Season log.

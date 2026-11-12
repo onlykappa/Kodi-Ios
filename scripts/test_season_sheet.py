@@ -90,7 +90,7 @@ class Models(unittest.TestCase):
 
 
 class Flow(unittest.TestCase):
-    def run_build(self, answers, quality='1080p', confirm=True):
+    def run_build(self, answers, quality='1080p', confirm=True, queue_fail=None):
         import season_sources
         calls = {'queued': [], 'card': []}
 
@@ -113,6 +113,9 @@ class Flow(unittest.TestCase):
                 calls.setdefault('scans', []).append(n)
                 return {'qualities': got, 'sizes': {x: 0.4 for x in got}}
             calls['queued'].append((n, q))
+            if (queue_fail or {}).get(n):
+                queue_fail[n] -= 1
+                return {}
             return {'queued': True}
         home = types.SimpleNamespace(props={}, getProperty=lambda k: home.props.get(k, ''),
                                      setProperty=lambda k, v: home.props.__setitem__(k, v), clearProperty=lambda k: home.props.pop(k, None))
@@ -157,6 +160,13 @@ class Flow(unittest.TestCase):
         out, calls = self.run_build({1: ['1080p'], 3: ['1080p']})
         self.assertEqual(sorted(calls['scans']), [1, 2, 2, 3])
         self.assertEqual(sorted(n for n, q in calls['queued']), [1, 3])
+
+    def test_an_episode_not_added_is_tried_once_more(self):
+        # Owner log 8bb997da (build 309): 31 of 32 added; episode 9 was lost while three ran at once.
+        import unittest.mock  # noqa: F401
+        out, calls = self.run_build({1: ['1080p'], 2: ['1080p'], 3: ['1080p']}, queue_fail={2: 1})
+        self.assertEqual([n for n, q in calls['queued']].count(2), 2)
+        self.assertEqual(out, [1, 2, 3])
 
     def test_nothing_queues_without_download_all(self):
         import unittest.mock  # noqa: F401

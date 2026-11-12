@@ -183,7 +183,7 @@ def building_props(season, quality, title, done, total, found, looking):
 
 def queueing_props(season, quality, title, done, total):
     return card_props('Season %s · %s' % (season, LABELS[quality]), title,
-                      [('Adding to your downloads', '%d of %d' % (done, total), 'wait' if done < total else 'ok')],
+                      [('Adding episodes', '%d of %d' % (done, total), 'wait' if done < total else 'ok')],
                       100.0 * done / max(1, total))
 
 

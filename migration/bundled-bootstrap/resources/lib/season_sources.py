@@ -351,6 +351,15 @@ def _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names,se
   lanes(episodes,add,lambda done,current:card.show(ss.queueing_props(season,quality,title,done,len(episodes))),stop,halt,
         len(watch.LANES) if not search else 1)
   if halt['stop']:watch.cancel_planned(profile,tmdb,season,[n for n in episodes if n not in tried])
+  else:
+   # Owner log 8bb997da (build 309): 31 of 32 were added; episode 9's page lost its identity while three ran at once.
+   # An episode not added is tried once more on its own before the season is called done.
+   again=[n for n in episodes if n not in queued]
+   if again:note(xbmc,'queue_retry',episodes=again)
+   for n in again:
+    if stop():halt['stop']=True;break
+    card.show(ss.queueing_props(season,quality,title,len(queued),len(episodes)))
+    add(n,'')
  finally:card.close()
  queued.sort()
  if len(queued)>1 and not search:

@@ -265,6 +265,18 @@ class Lanes(unittest.TestCase):
   home=types.SimpleNamespace(getProperty=lambda k:props.get(k,''),setProperty=props.__setitem__)
   self.assertEqual(dp.auto_request(home,exp={'tmdb':'1','season':1,'episode':9})['request_id'],'r1')
 
+class NoMenuDuringBuildSeason(unittest.TestCase):
+ def test_a_page_with_no_identity_does_not_ask_while_a_season_is_built(self):
+  # Owner (build 309): the version menu opened in the middle of a Build Season.
+  import json,time as t
+  props={dp.AUTO_PICK:json.dumps({'request_id':'r1','until':t.time()+60,'purpose':'queue','target':{'tmdb':'31910','season':1,'episode':9}})}
+  home=types.SimpleNamespace(getProperty=lambda k:props.get(k,''),setProperty=props.__setitem__)
+  item='1080p (12 / 0) [400 MB] WebDL H.264 - Torrentio\nNaruto.Shippuden.S01E09.1080p\nicon.png'
+  with mock.patch.object(dp,'_home',return_value=home),mock.patch.object(dp,'_matcher',return_value=None),\
+       mock.patch.object(dp,'show_list',side_effect=AssertionError('menu shown')) as menu:
+   self.assertEqual(dp.run('Available streams for Naruto Shippuden S01E09 (2007)',[item]),-1)
+  menu.assert_not_called()
+
 class OneEpisodeFirst(unittest.TestCase):
  def items(self):
   one=lambda i,seeds,size:dp.parse_item('1080p (%d / 0) [%d MB] WebDL H.264 - Torrentio\nNaruto.Shippuden.S01E05.1080p.WEB.x264\nicon.png'%(seeds,size),i)
