@@ -594,7 +594,17 @@ def drive_uploads(monitor,home,profile):
       if transfer_control.paused(profile,'conv') and not (prepare_downloads.load(profile).get('current') or {}).get('running'):delay=30
       else:
        preparation.busy=True
-       try:delay=2 if preparation.process_one(converting) else 20
+       try:
+        delay=2 if preparation.process_one(converting) else 20
+        # DEC-039/040/042: AI Upscale copies are made only when nothing waits to be converted (one engine at a time).
+        if delay==20 and not transfer_control.paused(profile,'conv'):
+         import upscale_cloud,upscale_queue,drivelibrary
+         if not getattr(preparation,'upscale_recovered',False):
+          data=upscale_queue.load(profile);upscale_queue.save(profile,upscale_queue.recover(data));preparation.upscale_recovered=True
+         try:
+          if upscale_cloud.process_one(preparation,converting,media_for=upscale_cloud.media_lookup(profile,drivelibrary.parse)):delay=2
+         except Exception as error:
+          diagnostics.log_exception(xbmc,'upscale',error)
        finally:preparation.busy=False
      preparation.runtime=None
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))

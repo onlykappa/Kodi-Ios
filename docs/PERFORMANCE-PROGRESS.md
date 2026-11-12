@@ -23,7 +23,13 @@ Priority order:
    Phone proof pending: the owner's next Build Season log ('quality_checked' event).
 3. Owner's AI Upscale measurement log (Settings › Library › Transfer settings › Google Drive tab › AI Upscale test;
    "First 5 minutes" with Kodi on screen and charging). Read 'upscale measurement:' + RESULT lines; decide speed/size.
-4. Then the full AI Upscale feature (DEC-039/040/042): Settings › AI Upscale page (ai-upscale-settings-mockups.html),
+4. AI Upscale progress: the background step is coded (resources/lib/upscale_cloud.py, test_upscale_cloud.py; service.py
+   runs it only when nothing waits to be converted): plan → charger/heat/Drive room → AI model first → convert with
+   upscale into .Preparation → size check → moved beside the original as '<name> [AI 4K UHD].mp4' → upscale-copies.json
+   'ready'. Opt-in: nothing is made until a show or the default asks for a size (Settings page still to code).
+   Still to do: Settings › AI Upscale page, playback/AirPlay choosing the copy (upscale_queue.choose), Picture menu,
+   Saturation shader (Kodi r32). Original list:
+   Then the full AI Upscale feature (DEC-039/040/042): Settings › AI Upscale page (ai-upscale-settings-mockups.html),
    the background queue step wiring upscale_queue.py (rules + 16 tests exist, not wired), copy upload beside the
    original, playback/AirPlay choosing the copy, Picture button/menu in the OSD (video-picture-mockups.html round 4),
    Saturation needs a GLES shader change in kodi-21.3-portrait.patch (Kodi has none) → Kodi r32.
