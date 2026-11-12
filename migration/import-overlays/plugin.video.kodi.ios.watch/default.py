@@ -90,7 +90,8 @@ def run(argv):
   xbmcplugin.endOfDirectory(handle,succeeded=False);return
  for entry in entries:
   li=xbmcgui.ListItem(label=entry['label']);li.setArt({k:params[k] for k in ['poster','fanart','thumb'] if params.get(k)})
-  li.setInfo('video',{'title':params.get('title',''),'mediatype':params.get('kind','')})
+  tag=li.getVideoInfoTag();tag.setTitle(params.get('title',''))   # roadmap 3.6: ListItem.setInfo is deprecated in Kodi 21 (a log warning per item)
+  if params.get('kind'):tag.setMediaType(params.get('kind'))
   if not entry['folder']:li.setProperty('IsPlayable','true')
   xbmcplugin.addDirectoryItem(handle,entry['url'],li,isFolder=entry['folder'])
  xbmcplugin.setPluginCategory(handle,'Watch options');xbmcplugin.endOfDirectory(handle)

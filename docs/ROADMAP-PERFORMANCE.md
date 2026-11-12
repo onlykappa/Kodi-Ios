@@ -226,7 +226,7 @@ Evidence: ISSUE-163/165/166.
 | 3.3 | Expired debrid links renewed mid-copy and mid-AirPlay | ISSUE-146 |
 | 3.4 | Rig smoke list before every IPA (pickers, show page, settings, resume prompt, track menus) | this session — **Coded and run in the desktop Kodi rig (19 of 19 pages pass); not wired into CI (speed-reliability-fixes): scripts/rig_smoke.py opens 19 pages in the real Kodi rig and fails on log errors, a missing open line or a blank picture** |
 | 3.5 | Performance budget in diagnostics: tap-to-picture (1C.1), start-up stages, row requests per minute, seek-to-land; one summary line a minute | this investigation — **Coded (host-tested); needs the next IPA and a device log (speed-reliability-fixes): perf_summary: one 'Kodi iOS perf 60 s: rows ... | opens ... | drive proxy ...' line a minute when something happened** |
-| 3.6 | Log hygiene: Elementum config dump, deprecated `addStreamInfo`, duplicate keymap loads on resume | `e8ab5995`, `396d5d67` |
+| 3.6 | Log hygiene: Elementum config dump, deprecated `addStreamInfo`, duplicate keymap loads on resume | `e8ab5995`, `396d5d67` — **Partly done: error text redacted everywhere, keymap reload only on change, deprecated setInfo removed; third-party noise (Elementum dump, addStreamInfo) not patched (speed-reliability-fixes): diagnostics.error_text redacts links, tokens and headers at 16 log sites; keymaps reload only when a file changed; the watch add-on's ListItem.setInfo is gone** |
 
 ## Suggested order
 

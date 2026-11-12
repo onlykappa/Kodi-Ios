@@ -224,7 +224,7 @@ def _quiet(where,error,_seen=set()):
  if key in _seen:return
  _seen.add(key)
  try:
-  import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
+  import re,xbmc;text=re.sub(r'(?i)\b(?:https?|plugin|ftp|smb)://\S+|magnet:\?\S+','[URL redacted]',str(error))[:200];xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,text),xbmc.LOGWARNING)
  except Exception:pass
 
 def title_for(tmdb_type,tmdb_id,art_cache):

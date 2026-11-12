@@ -1937,7 +1937,7 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
    lists=lambda:cache.targets(*cache_lists(profile,lambda s:xbmc.getInfoLabel(spotlight_path(s)),lambda tab:xbmc.getInfoLabel(page_of(tab)))),fetch=bounded(fetch),
    wait=monitor.waitForAbort,busy=lambda:xbmc.getSkinDir()!=fuse or xbmc.getCondVisibility('Player.HasVideo'),
    log=lambda text:xbmc.log('Kodi iOS listing cache: '+text,xbmc.LOGINFO))).start()
- except Exception as error:xbmc.log('Kodi iOS listing cache unavailable: %s'%error,xbmc.LOGWARNING)
+ except Exception as error:import diagnostics;xbmc.log('Kodi iOS listing cache unavailable: %s'%diagnostics.error_text(error),xbmc.LOGWARNING)
  import xbmcgui
  home=xbmcgui.Window(10000)
  publish=focused_item_publisher(xbmc.getInfoLabel,xbmc.getCondVisibility,lambda k,v:home.setProperty('Portrait.Item.'+k,v))
@@ -1978,5 +1978,5 @@ def _quiet(where,error,_seen=set()):
  if key in _seen:return
  _seen.add(key)
  try:
-  import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
+  import xbmc,diagnostics;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,diagnostics.error_text(error)),xbmc.LOGWARNING)
  except Exception:pass

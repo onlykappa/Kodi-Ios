@@ -37,6 +37,7 @@ def run():
  diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'startup','installed_build',
   kodi=xbmc.getInfoLabel('System.BuildVersion'),os=xbmc.getInfoLabel('System.OSVersion'),python=sys.version.split()[0])
  window=xbmcgui.Window(10000);state={'stage':'prepare'};generated=False
+ keys={'changed':False}   # roadmap 3.6: Kodi reads the keymaps at launch; they are reloaded only when a file changed
  # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).
  window.setProperty('KodiIOS.Build',updates.installed_build(root))
  def diagnostic_settings():
@@ -105,11 +106,12 @@ def run():
   home=Path(xbmcvfs.translatePath('special://home/')).resolve()
   if not profile.is_relative_to(home):raise RuntimeError('Profile is outside the app home')
   stage('navigation');navigation=upgrade(home,profile)
+  keys['changed']|=bool(navigation.get('keymap_changed'))
   # Load the guarded XML before a legacy completed profile runs its helpers again.
   if navigation.get('changed_files') and xbmc.getSkinDir()==FUSE:invoke('ReloadSkin()')
   stage('initialize')
   result=initialize(root/'seed',profile,api,verify_skin=verify_skin,home=home,refresh=refresh)
-  upgrade(home,profile)
+  keys['changed']|=bool(upgrade(home,profile).get('keymap_changed'))
   stage('enable_addons')
   for addon in ensure_enabled(root/'seed',profile,api):xbmc.log('Kodi iOS setup enabled bundled add-on '+addon,xbmc.LOGINFO)
   # e.g. Umbrella, once installed, appears in "How would you like to watch?" through its TMDb Helper player.
@@ -184,7 +186,8 @@ def run():
   xbmcgui.Dialog().ok('Kodi setup needs review','Automatic setup failed at '+state['stage']+'. Settings and Recovery remain available. Report startup-error.json; do not share credentials.')
  finally:
   window.clearProperty(LOCK)
-  invoke('Action(reloadkeymaps)')
+  if keys['changed'] or generated or '--recover' in sys.argv:invoke('Action(reloadkeymaps)')
+  else:xbmc.log('Kodi iOS startup: keymaps unchanged, not reloaded',xbmc.LOGINFO)
   # Exactly one reload after verified generation, never during Keep Skin confirmation.
   if generated and state['stage']=='complete' and xbmc.getSkinDir()==FUSE:invoke('ReloadSkin()')
   setup_done.set()

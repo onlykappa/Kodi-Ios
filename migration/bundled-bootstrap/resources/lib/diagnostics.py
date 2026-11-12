@@ -31,6 +31,10 @@ def redact(value,limit=2000):
  text=_SECRET_VALUE.sub(lambda m:m.group(1)+'[redacted]',text)
  return text[:limit] if limit else text
 
+def error_text(error,limit=200):
+ """An exception's message for kodi.log: redacted (URLs, tokens, headers, magnets) and short. Roadmap 3.6."""
+ return redact(error,limit)
+
 def safe(value):
  if isinstance(value,dict):return {str(k):('[redacted]' if PRIVATE.search(str(k)) else safe(v)) for k,v in value.items()}
  if isinstance(value,(list,tuple)):return [safe(v) for v in value[:100]]

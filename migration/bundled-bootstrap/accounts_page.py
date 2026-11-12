@@ -77,5 +77,5 @@ def _quiet(where,error,_seen=set()):
  if key in _seen:return
  _seen.add(key)
  try:
-  import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
+  import xbmc,diagnostics;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,diagnostics.error_text(error)),xbmc.LOGWARNING)
  except Exception:pass
