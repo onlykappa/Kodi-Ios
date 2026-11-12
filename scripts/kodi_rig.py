@@ -225,14 +225,32 @@ def prepare(_args):
     if not FUSE.exists():
         raise SystemExit('no add-ons yet: run kodi_rig.py setup first')
     bootstrap_copy(ADDONS / BOOT_ID)
+    watch_copy(ADDONS / 'plugin.video.kodi.ios.watch')
     HOME.mkdir(parents=True, exist_ok=True)
     portrait_rig().prepare(ADDONS, FUSE, HOME)
     print('prepared', HOME)
 
 
+def watch_copy(dest):
+    """This checkout's watch add-on (the Library pages, choose-a-player menu) as the rig runs it. The add-on finds the
+    bootstrap's modules under special://xbmc/addons (inside the app on the phone); in the rig the bootstrap lives in the
+    profile's add-ons, so those paths are pointed there. Without this the Library pages fail with 'No module named
+    drivelibrary' in the rig (found by scripts/rig_smoke.py), and the rig would run an older release's watch add-on."""
+    source = REPO / 'migration/import-overlays/plugin.video.kodi.ios.watch'
+    for f in source.rglob('*'):
+        if f.is_file() and '__pycache__' not in f.parts:
+            target = dest / f.relative_to(source)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if f.suffix == '.py':
+                target.write_text(f.read_text().replace('special://xbmc/addons/' + BOOT_ID, 'special://home/addons/' + BOOT_ID))
+            else:
+                shutil.copy2(f, target)
+
+
 def sync(_args):
     """This checkout's add-on and regenerated portrait folder into the running rig (no restart needed: Kodi reads a
     window's XML each time it opens)."""
+    watch_copy(HOME / '.kodi/addons/plugin.video.kodi.ios.watch')
     boot = HOME / '.kodi/addons' / BOOT_ID
     for f in BOOT.rglob('*'):
         if f.is_file() and '__pycache__' not in f.parts and f.name not in ('addon.xml', 'default.py'):

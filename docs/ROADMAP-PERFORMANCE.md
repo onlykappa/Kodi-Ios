@@ -224,7 +224,7 @@ Evidence: ISSUE-163/165/166.
 | 3.1 | Background survival: iOS interrupts the silent-audio keep-alive | logs 9e2568a7, 5331b718 — **Coded (host-tested); iOS suspension itself is OS-managed; needs the owner's device log (speed-reliability-fixes): background.watch: re-asks each tick, times recovery, and after 3 minutes of lost background audio with work waiting adds one Notifications entry; native restart logic unchanged** |
 | 3.2 | Transfers recover after Wi-Fi ↔ 5G changes without long waits | ISSUE-167 |
 | 3.3 | Expired debrid links renewed mid-copy and mid-AirPlay | ISSUE-146 |
-| 3.4 | Rig smoke list before every IPA (pickers, show page, settings, resume prompt, track menus) | this session |
+| 3.4 | Rig smoke list before every IPA (pickers, show page, settings, resume prompt, track menus) | this session — **Coded and run in the desktop Kodi rig (19 of 19 pages pass); not wired into CI (speed-reliability-fixes): scripts/rig_smoke.py opens 19 pages in the real Kodi rig and fails on log errors, a missing open line or a blank picture** |
 | 3.5 | Performance budget in diagnostics: tap-to-picture (1C.1), start-up stages, row requests per minute, seek-to-land; one summary line a minute | this investigation |
 | 3.6 | Log hygiene: Elementum config dump, deprecated `addStreamInfo`, duplicate keymap loads on resume | `e8ab5995`, `396d5d67` |
 
