@@ -522,6 +522,8 @@ def _kios_card(payload, total):
                 if control == 9802:
                     _kios_card_state['stop'] = 9802
                     self.close()
+                elif control == 9803:   # Close: the card goes, the search goes on
+                    self.close()
 
             def onAction(self, action):
                 if action.getId() in (9, 10, 92, 216, 247, 257, 275, 61467, 61448):

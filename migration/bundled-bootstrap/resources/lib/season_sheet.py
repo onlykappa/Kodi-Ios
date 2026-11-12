@@ -21,7 +21,8 @@ CARD_LINES = 2    # lines on the building card
 CARD_BASE = 9701          # quality cards 9701..9704 (QUALITIES order)
 BUILD, CLOSE = 9720, 9721
 DOWNLOAD_ALL, READY_CLOSE = 9730, 9731
-CANCEL = 9802             # the card's one Cancel (pages.searching_card)
+CANCEL = 9802             # the card's Cancel (pages.searching_card): stops the work
+HIDE = 9803               # the card's Close: hides the card, the work goes on in the background
 
 
 def size_text(gb):
@@ -192,7 +193,7 @@ class Card(object):
     """The building card (board C) over the page while the episodes are looked up. Cancel sets `canceled`."""
     def __init__(self, xbmcgui):
         import threading
-        self.gui, self.canceled, self.window = xbmcgui, False, None
+        self.gui, self.canceled, self.window, self.hidden = xbmcgui, False, None, False
         home = xbmcgui.Window(10000)
         owner = self
 
@@ -201,6 +202,8 @@ class Card(object):
                 if control == CANCEL:
                     owner.canceled = True
                     self.close()
+                elif control == HIDE:
+                    owner.hide()
 
             def onAction(self, action):
                 if action.getId() in (9, 10, 92, 216, 247, 257, 275, 61467, 61448):
@@ -212,6 +215,21 @@ class Card(object):
             threading.Thread(target=self.window.doModal, daemon=True).start()
         except Exception:
             self.window = None
+
+    def hide(self):
+        """Close: the card goes, the season goes on (owner: play around while it works); the ready sheet or the
+        'added to your downloads' message still comes at the end."""
+        self.hidden = True
+        if self.window is not None:
+            try:
+                self.window.close()
+            except Exception:
+                pass
+        try:
+            self.gui.Dialog().notification(self.home.getProperty('IOSSearch.Kicker') or 'Season', 'Working in the background',
+                                           self.gui.NOTIFICATION_INFO, 3000, False)
+        except Exception:
+            pass
 
     def show(self, props):
         for k, v in props.items():

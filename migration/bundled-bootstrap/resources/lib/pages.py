@@ -619,7 +619,8 @@ def searching_card(p):
  """IOSSearching.xml (season-pack-mockups boards A and C, owner 2026-11-12): one card for every wait on sources. Burst's
  site search (build_customized_ipa BURST_CARD) and Build Season (season_sheet.Card) fill Window(home).Property(IOSSearch.*):
  Kicker (small grey line), Title, Lines (1-5) with Line.N.Text / .Count / .State (ok: green tick, wait: spinning ring,
- none: grey dash) and Pct for the bar. One full-width Cancel (9802); no Stop (owner: "I'd never press Stop")."""
+ none: grey dash) and Pct for the bar. Close (9803) hides the card while the work goes on; Cancel (9802) stops it;
+ no Stop (owner: "I'd never press Stop")."""
  M=p.MEDIA;w=760;pad=44;inner=w-2*pad;top=196;lh=66;foot=40+11+40+124+40
  P=lambda k:'$INFO[Window(home).Property(IOSSearch.%s)]'%k
  lines_is=lambda n:'String.IsEqual(Window(home).Property(IOSSearch.Lines),%d)'%n
@@ -642,9 +643,14 @@ def searching_card(p):
  pct='Window(home).Property(IOSSearch.Pct)'
  bar=(p.image(pad,0,inner,11,M+'dot.png','33FFFFFF',border=6)+
   ''.join(p.image(pad,0,max(11,inner*k//20),11,M+'dot.png','FF0A84FF','<visible>Integer.IsGreaterOrEqual(%s,%d)</visible>'%(pct,k*5),border=6) for k in range(1,21)))
- cancel=('<control type="button" id="9802"><left>%d</left><top>51</top><width>%d</width><height>124</height><font>p_btn</font><label>Cancel</label>'
-  '<textcolor>FFFFFFFF</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>center</align><aligny>center</aligny>'
-  '<texturefocus border="62" colordiffuse="FF5A5A5E">%spill_124.png</texturefocus><texturenofocus border="62" colordiffuse="FF3A3A3C">%spill_124.png</texturenofocus></control>')%(pad,inner,M,M)
+ # Owner (2026-11-12): "it should say close and cancel ... then i can play around as its doing it in the background".
+ # Close (9803) only hides the card and the work goes on; Cancel (9802, red: it ends the work) stops it.
+ half=(inner-24)//2
+ button=lambda id,x,label,color,nav:('<control type="button" id="%d"><left>%d</left><top>51</top><width>%d</width><height>124</height><font>p_btn</font><label>%s</label>'
+  '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
+  '<texturefocus border="62" colordiffuse="FF5A5A5E">%spill_124.png</texturefocus><texturenofocus border="62" colordiffuse="FF3A3A3C">%spill_124.png</texturenofocus>%s</control>')%(
+  id,x,half,label,color,color,M,M,nav)
+ cancel=(button(9803,pad,'Close','FFFFFFFF','<onright>9802</onright>')+button(9802,pad+half+24,'Cancel','FFFF453A','<onleft>9803</onleft>'))
  # The bar and Cancel sit under the last line: one step per line count (Kodi cannot measure).
  low=('<control type="group"><top>%d</top>'%(top+40)+
   ''.join('<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(n*lh,lines_is(n)) for n in range(1,6))+bar+cancel+'</control>')
@@ -652,7 +658,7 @@ def searching_card(p):
   p.label(pad,92,inner,70,P('Title'),'p_h3',p.WHITE,'center','<scroll>false</scroll>')+rows+low)
  # Centred on the screen for every line count: the card's group moves up half of what it grows.
  centre=''.join('<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(-(height(n)-height(1))//2,lines_is(n)) for n in range(2,6))
- return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS: searching / building card (season-pack boards A, C) -->\n<window type="dialog"><defaultcontrol always="true">9802</defaultcontrol><controls>'
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS: searching / building card (season-pack boards A, C) -->\n<window type="dialog"><defaultcontrol always="true">9803</defaultcontrol><controls>'
   '<control type="image"><width>100%%</width><height>100%%</height><texture colordiffuse="8C000000">%swhite.png</texture></control>'
   '<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>%s'
   '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
