@@ -632,7 +632,9 @@ def searching_card(p):
    p.image(pad,y+15,36,36,M+'ring.png','FF0A84FF','<visible>%s</visible><animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation>'%st('wait'))+
    p.image(pad,y+15,36,36,M+'dot.png','1FEBEBF5','<visible>%s</visible>'%st('none'))+
    p.image(pad+11,y+31,14,4,M+'white.png',p.GREY,'<visible>%s</visible>'%st('none'))+
-   p.label(pad+56,y,inner-56-220,lh,P('Line.%d.Text'%n),'p_body',p.WHITE,'left','<scroll>false</scroll>')+
+   # A line without a count ("Looking for episode 13") gets the whole width (rig: it was cut short).
+   p.label(pad+56,y,inner-56-220,lh,P('Line.%d.Text'%n),'p_body',p.WHITE,'left','<scroll>false</scroll><visible>!String.IsEmpty(Window(home).Property(IOSSearch.Line.%d.Count))</visible>'%n)+
+   p.label(pad+56,y,inner-56,lh,P('Line.%d.Text'%n),'p_body',p.WHITE,'left','<scroll>false</scroll><visible>String.IsEmpty(Window(home).Property(IOSSearch.Line.%d.Count))</visible>'%n)+
    p.label(pad+inner-220,y,220,lh,P('Line.%d.Count'%n),'p_foot',p.GREY,'right','<scroll>false</scroll>')+'</control>')
  pct='Window(home).Property(IOSSearch.Pct)'
  bar=(p.image(pad,0,inner,11,M+'dot.png','33FFFFFF',border=6)+
@@ -677,7 +679,9 @@ def _white_button(p,id,x,y,w,label,nav=''):
  M=p.MEDIA
  return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>140</height><font>p_btn</font><label>%s</label>'
   '<textcolor>FF000000</textcolor><focusedcolor>FF000000</focusedcolor><align>center</align><aligny>center</aligny>'
-  '<texturefocus border="70" colordiffuse="FFD1D1D6">%spill_150.png</texturefocus><texturenofocus border="70" colordiffuse="FFFFFFFF">%spill_150.png</texturenofocus>%s</control>')%(id,x,y,w,label,M,M,nav)
+  '<texturefocus border="70" colordiffuse="FFFFFFFF">%spill_150.png</texturefocus><texturenofocus border="70" colordiffuse="FFFFFFFF">%spill_150.png</texturenofocus>'
+  # White as in the mockups: it has the focus from the start, so a grey focus colour made it look pressed (rig).
+  '%s</control>')%(id,x,y,w,label,M,M,nav)
 
 def _text_button(p,id,x,y,w,label,nav=''):
  return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>118</height><font>p_btn</font><label>%s</label>'
@@ -713,7 +717,7 @@ def season_ready_sheet(p):
  Download All (9730) and Cancel (9731). season_sheet.confirm_ready fills Window().Property(...)."""
  M=p.MEDIA;S=p.SIDE;W=p.WIDTH;w=W-2*S;gap=22;sw=(w-2*gap)//3;sh=150;rh=104
  P=lambda k:'$INFO[Window().Property(%s)]'%k;has=lambda k:'!String.IsEmpty(Window().Property(%s))'%k
- st_y=280;list_y=st_y+sh+34;rows_h=4*rh+rh;warn_y=list_y+rows_h+24;btn_y=warn_y+130;h=btn_y+140+20+118+60
+ st_y=280;list_y=st_y+sh+34;rows_h=4*rh+rh;warn_y=list_y+rows_h+24;btn_y=warn_y+170;h=btn_y+140+20+118+60
  stats=''.join(p.image(S+i*(sw+gap),st_y,sw,sh,M+'round.png',p.SURFACE2,border=32)+
   p.label(S+i*(sw+gap)+30,st_y+22,sw-40,70,P(k),'p_h2',p.WHITE,'left','<scroll>false</scroll>')+
   p.label(S+i*(sw+gap)+30,st_y+90,sw-40,44,t,'p_foot',p.GREY,'left') for i,(k,t) in enumerate((('count','episodes'),('quality','quality'),('total','total'))))
@@ -731,7 +735,7 @@ def season_ready_sheet(p):
   p.label(S+110,list_y+4*rh,w-200,rh,P('more'),'p_body',p.ACCENT,'left')+'</control>')
  warn=(p.label(S+6,warn_y,40,56,'!','p_foot_b','FFFF9F0A','left','<visible>!%s</visible>'%has('ok'))+
   p.icon(S+6,warn_y+12,30,'check.png','FF30D158','<visible>%s</visible>'%has('ok'))+
-  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>110</height><font>p_foot</font><textcolor>%s</textcolor><label>%s</label></control>'%(S+52,warn_y,w-58,p.GREY,P('warn')))
+  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>156</height><font>p_foot</font><textcolor>%s</textcolor><label>%s</label></control>'%(S+52,warn_y,w-58,p.GREY,P('warn')))
  body=(_header(p,P('title'),P('sub'))+stats+rows+warn+
   _white_button(p,9730,S,btn_y,w,P('button'),'<ondown>9731</ondown>')+_text_button(p,9731,S,btn_y+150,w,'Cancel','<onup>9730</onup>'))
  return _sheet(p,SEASON_READY,'Build Season ready sheet (board D)',9730,h,body)

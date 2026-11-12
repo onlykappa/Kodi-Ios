@@ -37,8 +37,9 @@ def quality_props(title, season, episodes, chosen=DEFAULT):
         props['q.%d.label' % n] = LABELS[q]
         props['q.%d.note' % n] = NOTES[q]
         props['q.%d.on' % n] = 'true' if q == chosen else ''
-    props['how'] = ('Build Season finds the best copy of each of the %d episodes in %s and downloads them in order. '
-                    'An episode only out in a lower quality is taken in the next one down and marked.' % (episodes, LABELS[chosen]))
+    # Rig (2026-11-12): four lines were cut off above the button; the mockup's sentence is three lines.
+    props['how'] = ('Finds the best copy of each of the %d episodes in %s and downloads them in order. '
+                    'One only out lower comes a quality down, marked.' % (episodes, LABELS[chosen]))
     props['button'] = 'Build %s Season' % LABELS[chosen]
     return props
 
@@ -88,9 +89,9 @@ def ready_model(title, season, wanted, picks, names):
              'low': LABELS.get(picks[n][0], '') if n in lower else ''} for n in sorted(shown)]
     more = len(got) - len(rows)
     if missing and lower:
-        warn, ok = '%d only in a lower quality; %d not found (not downloaded).' % (len(lower), len(missing)), False
+        warn, ok = '%d only in a lower quality; %d not found, left out.' % (len(lower), len(missing)), False
     elif missing:
-        warn, ok = '%d episode%s not found in any quality (not downloaded).' % (len(missing), '' if len(missing) == 1 else 's'), False
+        warn, ok = '%d episode%s not found in any quality, left out.' % (len(missing), '' if len(missing) == 1 else 's'), False
     elif lower:
         warn, ok = '%d episode%s only found in a lower quality.' % (len(lower), '' if len(lower) == 1 else 's'), False
     else:
