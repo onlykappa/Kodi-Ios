@@ -1,5 +1,20 @@
 # Persistent progress
 
+## PR #19 review fixes committed separately — 2026-11-12
+
+Owner requested source fixes and individual commits, then chose Media Assistant to preserve 4K when a Roku
+AirPlay receiver needs H.264. Work is on claude/performance-roadmap (PR #19), with [skip ci] source pushes.
+- 8baacad: ISSUE-171 real rejected-token renewal, concurrent reuse and existing backoff preserved.
+- f048abb: ISSUE-172 bounded Drive HEAD probes; ignored Range cannot load the movie into memory.
+- dd5c996: ISSUE-173 bounded season source discovery and active HTTP cancellation; strict-quality retries retained.
+- ISSUE-174: matched-Roku Media Assistant fallback with native copy-only serving, no silent picture downgrade,
+  resume-position handoff, cancellation and phone recovery. Compiled host recommendations: 41 checks, 0 failures.
+  Focused Python suites total 297 passing cases. Project/UI guidance/shell checks pass.
+Current native pins remain Kodi r30 / AirPlay r46. The fourth repair is capability gated until a new framework
+with kodi_airplay_serve_copy is built, verified and pinned. Kodi r31's existing staged improvements also await
+verified binary delivery. No native/IPA workflow, release or main merge performed. Device/TV and visual acceptance,
+AirPlay captions and continuous-hour playback remain unproven. See ISSUE-171–174 and PERFORMANCE-PROGRESS.md.
+
 ## Verified test IPA 229 delivered — 2026-11-11
 
 [Download IPA 229](https://github.com/onlykappa/Kodi-Ios/releases/download/build-229/Kodi-iOS-Customized-Touch-r10.ipa).

@@ -45,6 +45,8 @@ def load(path):
  if hasattr(lib,'kodi_airplay_serve'):lib.kodi_airplay_serve.argtypes=[ctypes.c_char_p,ctypes.c_int,ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_serve.restype=ctypes.c_int
  if hasattr(lib,'kodi_airplay_serve_segmented'):   # r41: a Roku's own player gets the movie remuxed in 6-s segments
   lib.kodi_airplay_serve_segmented.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_serve_segmented.restype=ctypes.c_int
+ if hasattr(lib,'kodi_airplay_serve_copy'):
+  lib.kodi_airplay_serve_copy.argtypes=[ctypes.c_char_p,ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_serve_copy.restype=ctypes.c_int
  if hasattr(lib,'kodi_background_keep'):lib.kodi_background_keep.argtypes=[ctypes.c_int];lib.kodi_background_keep.restype=None
  if hasattr(lib,'kodi_background_state'):lib.kodi_background_state.argtypes=[];lib.kodi_background_state.restype=ctypes.c_int
  return lib

@@ -2679,3 +2679,29 @@ Status: FIXED IN SOURCE; host tested, live provider/iPhone acceptance pending.
 - Test repair history: the first test insertion put four existing methods under the wrong fixture; moved them
   back. Closing a previously leaked HTTP response exposed an old fake with no close(); completed the fixture.
   All affected suites pass afterward. No real account/media was used.
+
+
+## ISSUE-174 — Copy-safe HEVC still converts live on Roku AirPlay (PR #19 review, 2026-11-12)
+
+Status: SOURCE REPAIR + COMPILED HOST CHECKS PASS; new native AirPlay build and device acceptance pending.
+- Cause: generic preparation's copy_video says whether the original picture can be carried, not whether every
+  receiver route accepts it. A third-party AirPlay receiver can still select the H.264 compatibility rendition
+  of an otherwise ready HEVC movie. Re-running generic preparation cannot fix that receiver-specific mismatch.
+- Owner chose to keep 4K via Media Assistant instead of preparing a separate H.264 copy. When an inspected,
+  supported HEVC source is being converted for a connected Roku, the controller verifies that exact receiver's
+  4K capability and installed Media Assistant, then switches its route. It never guesses from a discovered TV.
+  Peer + User-Agent are correlated in a new native log record; separate old log records cannot activate it.
+- The new kodi_airplay_serve_copy API explicitly forbids picture conversion. Unsupported profiles, oversized
+  pictures and Dolby Vision-only inputs fail closed; a Media Assistant failure restores the phone instead of
+  trying H.264 or looping back to AirPlay. The existing direct Media Assistant and Apple TV paths retain their
+  behavior. No original is replaced or uploaded. TV serving now receives Kodi's current position and primes
+  that position; the existing EXT-X-START behavior requires the new framework too.
+- Host checks: 68 TV/network controller cases, 9 TV/start cases, 29 remux Python cases, 3 export cases, 10 flow
+  cases, 3 preparation-gate cases pass. Compiled native recommendations suite: 41 checks, 0 failures, including
+  4K HEVC copy under an MFi receiver and rejection of unsupported video without conversion. Shell syntax, project
+  and UI-guidance checks pass. Completed an older fake response's close() method exposed by response cleanup.
+- Native iOS/Objective-C compilation and actual TV acceptance are not established by host checks. Current pins
+  remain Kodi r30 / AirPlay r46. The automatic fallback requires the new exported copy-only API and correlated
+  receiver record, so an old framework cannot misinterpret the mode as a request to convert.
+- UI policy/project skill and relevant HIG writing/feedback/loading/media guidance read. Reuse existing Play on TV
+  flow/error card; no layout, style or control added. New error sentence is plain; device visual review pending.

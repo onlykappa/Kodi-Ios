@@ -228,3 +228,12 @@ Later reports add invisible Maze Runner downloads, a blocking subtitle file brow
 about five seconds, and missing AirPlay captions. Owner corrects the initial subtitle report: Download subtitle
 and phone captions work; only Browse freezes. These reports require their own evidence. Do not describe the
 unobserved AirPlay/caption causes as fixed or infer Wi-Fi failure from the queue pause.
+
+
+## PR #19 review decision — preserve 4K on Roku (2026-11-12)
+
+Owner selected "Keep 4K via Media Assistant" for a Roku AirPlay receiver that requires H.264. Prefer the confirmed
+Roku's Media Assistant route for copy-safe HEVC instead of a new H.264 derivative or a silent picture downgrade.
+Verify the actual receiver, 4K support and installed channel. Preserve playback position, cancellation, phone
+recovery and source ownership. A strict copy-only native API must fail rather than re-encode. Unknown evidence
+keeps the existing route. Source fixes and separate commits are authorized; no native release/IPA is requested.

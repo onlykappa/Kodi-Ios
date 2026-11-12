@@ -1,5 +1,14 @@
 # Performance and quality progress
 
+## PR #19 review repair checkpoint — 2026-11-12
+
+- Separate source commits: ISSUE-171 real token renewal; ISSUE-172 bounded HEAD; ISSUE-173 bounded season scans +
+  active cancellation; ISSUE-174 Roku Media Assistant fallback preserving compatible 4K HEVC.
+- Owner explicitly chose Media Assistant for Roku receivers that otherwise convert HEVC through AirPlay.
+- Current pins are still Kodi r30 / AirPlay r46. New fallback is capability gated and requires the next native
+  build's kodi_airplay_serve_copy + correlated receiver evidence. No IPA/native release dispatched here.
+- Compiled recommendations suite: 41 checks, 0 failures. Phone/TV acceptance and hour-long/caption tests remain open.
+
 ## Current state and handoff (read this first; updated 2026-11-12)
 
 Rule (owner, 2026-11-12): every fix is committed AND pushed to GitHub as soon as it is coded, by every agent, so a
@@ -158,3 +167,7 @@ Owner asks for fixes committed separately. Source commits use [skip ci] to prese
 - ISSUE-173: discovery is bounded to 60 seconds total / 25 per episode; Cancel interrupts the active HTTP wait.
   Unscanned episodes retain strict-quality retry eligibility. 92 focused host cases pass (29 season, 14 speed,
   30 watch, 13 cloud, 6 auto-season), including stalled local HTTP and late-redirect cancellation. No layout change.
+
+- ISSUE-174: verified same-Roku fallback from live HEVC conversion to Media Assistant. Strict native copy-only
+  serving refuses a downgrade, carries the playback position, and restores phone playback on failure. Source
+  only until the new native framework is built/verified/pinned. Compiled host recommendations: 41/41.

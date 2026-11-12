@@ -254,3 +254,7 @@ Evidence: ISSUE-163/165/166.
 - 1A.1 reliability: ISSUE-172 bounded size probes repaired and host tested; no full movie read during HEAD.
 
 - Season reliability: ISSUE-173 bounded source discovery and active cancellation repaired; live provider check pending.
+
+- 1G receiver readiness: ISSUE-174 implements the owner's 4K-preserving Media Assistant fallback for a confirmed
+  Roku converting HEVC over AirPlay. New native API is capability gated; verified framework delivery/device tests
+  remain required. Generic preparation is not proof that every AirPlay receiver accepts the original picture.

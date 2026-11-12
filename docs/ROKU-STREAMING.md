@@ -65,3 +65,9 @@ read ahead. The existing transfer row distinguishes reading the source, uploadin
 only Drive-confirmed bytes advance the percentage. Network retry messages retain priority over playback labels.
 The seek log records gesture duration, submission time and first decoded picture queued after the video flush.
 That queue timing does not measure when the TV or iPhone physically displays the frame.
+
+PR #19 review candidate (source only): if built-in Roku AirPlay converts an inspected, supported HEVC picture,
+Kodi can hand that same Roku to Media Assistant, preserving the original picture. This requires a new verified
+framework with kodi_airplay_serve_copy and correlated receiver evidence; r46 cannot activate it. Kodi checks that
+the Roku supports 4K and has Media Assistant installed. This route refuses conversion and resumes phone playback
+if the receiver fails, rather than retrying a lower-resolution picture. Device acceptance remains pending.

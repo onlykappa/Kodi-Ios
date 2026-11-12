@@ -143,6 +143,38 @@ def roku_needs_compatibility(model):
  maximum=str((model or {}).get('max-resolution','')).strip().lower()
  return support in ('false','0','no') or maximum in ('720p','1080p','1920x1080','1280x720')
 
+def roku_copy_peer(lines):
+ """Only a correlated, connected Roku receiver and inspected copy-safe HEVC can switch routes automatically.
+ Old uncorrelated client/peer logs, unknown profiles and Dolby Vision-only pictures fail closed."""
+ import ipaddress
+ lines=list(lines or [])
+ if any('Dolby Vision profile 5' in s or 'unsupported profile, bit depth or chroma' in s for s in lines):return None
+ probes=[re.search(r'video codec=hevc profile=(\d+) pixel_format=(\S+) bit_depth=(\d+).*dimensions=(\d+)x(\d+) level=(\d+)',s) for s in lines]
+ probe=next((p for p in reversed(probes) if p),None)
+ if not probe:return None
+ profile,pixel,depth,width,height,level=probe.groups()
+ if int(profile) not in (1,2) or pixel not in ('yuv420p','yuv420p10le','nv12','p010le') or int(depth) not in (8,10):return None
+ if not (0<int(width)<=3840 and 0<int(height)<=2160 and 0<int(level)<=153):return None
+ if not any('compat:' in s and ('converting video stream' in s or 'gets the picture as H.264' in s) for s in lines):return None
+ for s in reversed(lines):
+  match=re.search(r'network: TV receiver peer=([0-9.]+) agent=(.*)',s)
+  if not match:continue
+  if not re.search(r'MFi_AirPlay_Device.*\broku\b',match.group(2),re.I):return None
+  try:address=ipaddress.ip_address(match.group(1))
+  except ValueError:continue
+  if address.is_private and not address.is_loopback and not address.is_unspecified and not address.is_multicast:return str(address)
+ return None
+
+def roku_copy_available(host,get):
+ """Confirm this exact receiver supports 4K and has Media Assistant; do not probe other TVs."""
+ model=roku_model(host,get)
+ if str(model.get('supports-4k','')).lower() not in ('true','1','yes') or roku_needs_compatibility(model):return False
+ try:
+  from xml.etree import ElementTree
+  data=get('http://%s:%d/query/apps'%(host,PORT),1)
+  return len(data)<=131072 and any(app.get('id')==MEDIA_ASSISTANT for app in ElementTree.fromstring(data).findall('app'))
+ except (OSError,ValueError,ElementTree.ParseError):return False
+
 def http_post(url,timeout=5):
  with urllib.request.urlopen(urllib.request.Request(url,data=b'',method='POST'),timeout=timeout) as r:return r.status
 
@@ -208,7 +240,7 @@ def airplay_settle(state,wait,network=None,seconds=45):
  problems to Kodi's card instead of Apple's alert). 'failed' when it stops, else 'playing'."""
  waited=0.0
  while waited<seconds:
-  if network:network()
+  if network and (network() or {}).get('roku_copy'):return 'roku_copy'
   if state()<0:return 'failed'
   if wait(0.5):return 'playing'
   waited+=0.5
@@ -280,6 +312,7 @@ def airplay_outcome(state,wait,timeout=25,network=None,stage=None,startup_limit=
   phase=(net or {}).get('phase','')
   now=state()
   if phase=='canceled':return 'aborted'
+  if net and net.get('roku_copy'):return 'roku_copy'
   if phase=='idle' and had_phase and now==0:return 'aborted'
   had_phase=had_phase or phase not in ('','idle')
   if now<0 or phase=='failed':return 'failed'

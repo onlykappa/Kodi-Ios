@@ -1977,6 +1977,13 @@ static void test_stream_recommendations(const char *base,const char *work) {
     master=http_get(kr_remux_port(),"/master.m3u8",NULL);
     CHECK(!kr_remux_compat() && master.body && strstr(master.body,"hvc1.") && strstr(master.body,"RESOLUTION=3840x2160"),"compatible 4K HEVC remains copied");free(master.body);kr_remux_stop();
 
+    CHECK(start_session(source,KR_COMPAT_ROKU_COPY,playlist,sizeof playlist)==KR_READY,"strict original-picture Roku route opens");
+    master=get_as(UA_TV,kr_remux_port(),"/master.m3u8");
+    CHECK(!kr_remux_compat() && master.body && strstr(master.body,"hvc1.") && strstr(master.body,"RESOLUTION=3840x2160") && !strstr(master.body,"cvideo"),"even an MFi receiver retains the 4K HEVC copy on the explicit copy route");free(master.body);kr_remux_stop();
+    snprintf(source,sizeof source,"file:%s/h264_10bit.mp4",fixture_dir);
+    CHECK(start_session(source,KR_COMPAT_ROKU_COPY,playlist,sizeof playlist)==KR_FAILED,"strict copy route refuses unsupported picture instead of silently converting");
+    CHECK(strstr(kr_remux_message(),"original picture"),"strict-copy refusal explains the picture constraint");kr_remux_stop();
+
     kr_remux_set_prefetch(1);snprintf(source,sizeof source,"%s/slow/coalesced.mp4",base);
     CHECK(start_session(source,KR_COMPAT_SEGMENTED,playlist,sizeof playlist)==KR_READY,"cancelable read-ahead movie opens");
     // Startup no longer warms segment zero speculatively. Start real consumption to queue read-ahead first.
