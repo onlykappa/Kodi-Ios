@@ -17,9 +17,10 @@ Open items for the next PR, in order:
 2. Native builds: Kodi r31 from migration/ios-portrait/kodi-21.3-portrait.patch (MKV attachments skipped, Home plugin
    rows kept around playback, Settings "- " prefix, PIN keyboard) and AirPlay r47 (system-networking uploads,
    resume start, Roku Media Assistant route); then pin and build an IPA.
-3. UI: board 11 options sheet (portrait's Custom_1170 is the More menu: ask the owner), board 13 slow-first-run pill,
-   buffering capsule (Custom_1156 froze Kodi in build 210).
-4. Speed: the background log-lag review's findings; Build Season scans one episode at a time (~5.5 s each).
+3. UI: boards 11 (More menu as a bottom sheet) and 13 (first-frame placeholders, slow-start pill) were already coded in
+   4fc1157 (owner approved both, 2026-11-12); left: the buffering capsule (Custom_1156 froze Kodi in build 210).
+   Done on PR #21: board F (every episode of a season build), Build Season three lanes (season_sources.lanes).
+4. Speed: the background log-lag review's findings (Build Season now runs three lanes, PR #21).
 5. Rig tip: start the rig inside a long-running background task; started from a one-off shell it gets killed.
 
 ## Update 2026-11-12 (build 290)
