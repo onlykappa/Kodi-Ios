@@ -28,6 +28,7 @@ WARM_TAIL = 1024 * 1024           # ... and from the end (an MP4's fragment inde
 WARM_FILES = 2                    # at most this many titles are kept warm (about 10 MB)
 WARM_MAX_AGE = 600                # seconds a warmed title stays usable
 SPARE_MAX_AGE = 45                # seconds a pre-opened connection is trusted (Drive closes idle ones)
+HOLD_MAX = 10                     # roadmap 1G.3: longest one wait is (below Kodi's 20 s low-speed limit), seconds
 READ_AHEAD = 16                  # roadmap 1A.5: pieces (4 MB) the proxy reads ahead of Kodi after a seek
 
 
@@ -239,6 +240,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     sizes = {}
     warm = None
     stats = None
+    hold = None
 
     def log_message(self, *args):
         pass
@@ -321,9 +323,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     raise piece
                 if not piece:
                     return
+                self._hold()
                 yield piece
         finally:
             stop.set()
+
+    def _hold(self):
+        """Roadmap 1G.3: while Play on TV is starting, Kodi's own request (its file cache reading ahead of a paused
+        video) waits here, so the converter reading the same file through this proxy has the line. Only requests from
+        Kodi (user agent 'Kodi/...') wait, never the AirPlay reader (FFmpeg's), and never longer than HOLD_MAX."""
+        hold = self.hold
+        if not hold or not (self.headers.get('User-Agent') or '').startswith('Kodi/'):
+            return
+        waited = 0.0
+        while waited < HOLD_MAX and hold():
+            time.sleep(0.25)
+            waited += 0.25
 
     def _range(self, rng, size):
         match = re.fullmatch(r'bytes=(\d+)-(\d*)', rng or '')
@@ -426,11 +441,11 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
     allow_reuse_address = True
 
 
-def start(token, connect=None, port=0):
+def start(token, connect=None, port=0, hold=None):
     """Start the proxy on 127.0.0.1; returns (server, port). token(force) -> bearer token."""
     stats = Stats()
     handler = type('DriveProxyHandler', (Handler,), {'upstream': Upstream(token, connect, spare=connect is None), 'sizes': {},
-                                                     'warm': Warm(), 'stats': stats})
+                                                     'warm': Warm(), 'stats': stats, 'hold': staticmethod(hold) if hold else None})
     server = Server(('127.0.0.1', port), handler)
     server.stats = stats
     threading.Thread(target=server.serve_forever, daemon=True).start()

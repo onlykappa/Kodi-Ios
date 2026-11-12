@@ -224,7 +224,7 @@ def run():
    try:
     drive,_=drivelibrary.client()
     if drive:
-     server,port=drive_proxy.start(drive.token)
+     server,port=drive_proxy.start(drive.token,hold=lambda:airplay.starting(home_window))   # roadmap 1G.3
      home_window.setProperty(drive_proxy.PROPERTY,str(port))
      xbmc.log('Kodi iOS Drive proxy: streaming Drive copies on port %d'%port,xbmc.LOGINFO)
      monitor.waitForAbort()

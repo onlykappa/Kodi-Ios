@@ -194,6 +194,16 @@ def log_text(line):
 ENDED=('player: closed','player: stopped')
 def mark_busy(window,now):window.setProperty(BUSY,'%.0f'%now)
 def clear_busy(window):window.setProperty(BUSY,'')
+# Roadmap 1G.3: Play on TV has paused Kodi and is starting. Kodi's file cache keeps reading ahead of a paused video
+# (up to its memory size, at up to ten times the bitrate), which competes with the converter for the same source.
+# The app's Drive proxy holds Kodi's own requests while this mark is fresh. A mark older than STARTING_FOR is ignored.
+STARTING='KodiIOS.AirPlay.Starting';STARTING_FOR=60
+def mark_starting(window,now):window.setProperty(STARTING,'%.0f'%now)
+def clear_starting(window):window.setProperty(STARTING,'')
+def starting(window,now=None):
+ now=time.time() if now is None else now
+ try:return 0<=now-float(window.getProperty(STARTING) or 0)<STARTING_FOR
+ except (TypeError,ValueError):return False
 SERVE='KodiIOS.TvServe'   # build 211: set when Play on TV hands a Roku, Chromecast or DLNA TV the phone's link
 def mark_serve(window,now):window.setProperty(SERVE,'%.0f'%now)
 def clear_serve(window):window.setProperty(SERVE,'')

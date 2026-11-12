@@ -189,7 +189,7 @@ Evidence: ISSUE-163/165/166.
 |---|---|---|
 | 1G.1 | 10-bit H.264 marked in the picker ("10-BIT · SLOW ON AIRPLAY", done in #19) | most streams need no conversion |
 | 1G.2 | 10-bit conversion faster than real time (threads, two segments in parallel, GPU scaling) | ≤ 70 % of real time — **Measurement tool added; no speed change made blind; needs the owner's device log (speed-reliability-fixes): scripts/conversion_log.py reads the 'compat: segment N converted in MS ms (P% of realtime) via ROUTE' lines and says whether the 70 % target holds; levers listed below** |
-| 1G.3 | Pause Kodi's read-ahead while AirPlay starts | one reader during start |
+| 1G.3 | Pause Kodi's read-ahead while AirPlay starts | one reader during start — **Coded for Drive copies (host-tested); debrid streams not covered; device check pending (speed-reliability-fixes): Play on TV marks KodiIOS.AirPlay.Starting; the Drive proxy holds Kodi's own requests (not the AirPlay reader's) while it is fresh; debrid links Kodi reads directly are not controlled** |
 | 1G.4 | Hand the TV the playlist as soon as the first video segment is ready | TV picture < 20 s on a debrid link |
 | 1G.5 | Blank AirPlay captions (ISSUE-147) | captions show on the TV |
 | 1G.6 | Hour-long AirPlay stop (ISSUE-147) | one hour without a stop |

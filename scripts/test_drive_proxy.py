@@ -179,4 +179,47 @@ class ReadAhead(ProxyBase):
         up=dp.Upstream(lambda force:'t',Conn,spare=True);up.spare=Conn();up.spare_at=time.time()-dp.SPARE_MAX_AGE-1
         self.assertIsNone(up._take_spare())
 
+class HoldWhileAirPlayStarts(unittest.TestCase):
+    """Roadmap 1G.3: Kodi's own read-ahead (a paused video's file cache) waits while Play on TV starts; the AirPlay
+    reader going through the same proxy does not."""
+    def setUp(self):
+        FakeConn.log=[]
+        self.flag={'on':True}
+        self.server,self.port=dp.start(lambda force:'t',connect=FakeConn,hold=lambda:self.flag['on'])
+        self.saved=dp.HOLD_MAX;dp.HOLD_MAX=1.0
+    def tearDown(self):
+        dp.HOLD_MAX=self.saved;self.flag['on']=False
+        self.server.shutdown();self.server.server_close()
+    def timed(self,agent):
+        req=urllib.request.Request('http://127.0.0.1:%d/drive/H1/Movie.mp4'%self.port,headers={'User-Agent':agent,'Range':'bytes=0-1023'})
+        started=time.time()
+        with urllib.request.urlopen(req,timeout=10) as r:body=r.read()
+        return time.time()-started,body
+    def test_kodi_waits_but_the_airplay_reader_does_not(self):
+        took,body=self.timed('Lavf/60.16.100');self.assertLess(took,0.5);self.assertEqual(body,DATA[:1024])
+        took,body=self.timed('Kodi/21.3 (iPhone) App_Bitness/64');self.assertGreaterEqual(took,0.9);self.assertEqual(body,DATA[:1024])   # bounded by HOLD_MAX
+    def test_kodi_goes_on_the_moment_the_mark_clears(self):
+        threading.Timer(0.3,lambda:self.flag.update(on=False)).start()
+        took,_=self.timed('Kodi/21.3 (iPhone)');self.assertGreaterEqual(took,0.25);self.assertLess(took,0.9)
+    def test_without_a_mark_nothing_waits(self):
+        self.flag['on']=False
+        took,_=self.timed('Kodi/21.3 (iPhone)');self.assertLess(took,0.5)
+
+class StartingMark(unittest.TestCase):
+    def test_mark_is_fresh_for_a_minute_and_clearable(self):
+        import airplay
+        class Home(dict):
+            def setProperty(self,k,v):self[k]=v
+            def getProperty(self,k):return self.get(k,'')
+        h=Home()
+        self.assertFalse(airplay.starting(h,1000.0))
+        airplay.mark_starting(h,1000.0)
+        self.assertTrue(airplay.starting(h,1030.0));self.assertFalse(airplay.starting(h,1000.0+airplay.STARTING_FOR+1))
+        airplay.clear_starting(h);self.assertFalse(airplay.starting(h,1001.0))
+    def test_play_on_tv_marks_the_start_and_clears_it_on_every_way_out(self):
+        src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/cast.py').read_text()
+        self.assertEqual(src.count('airplay.mark_starting(home,time.time())'),1)
+        self.assertEqual(src.count('airplay.clear_starting(home)'),3)     # failure while starting, TV playing, every other outcome
+        self.assertLess(src.index('airplay.mark_starting(home,time.time())'),src.index("airplay.clear_starting(home)"))
+
 if __name__=='__main__':unittest.main()
