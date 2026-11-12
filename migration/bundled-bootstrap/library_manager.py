@@ -307,6 +307,11 @@ def run():
         del sheet
         return playing
 
+    def more_entries(rows):
+        """Board B round 2's ••• menu: Find Missing Episodes always; Repair All Problems only when there is one."""
+        problems = [r for r in rows if r.get('repair')]
+        return [('find', 'Find Missing Episodes')] + ([('repair_all', 'Repair All Problems (%d)' % len(problems))] if problems else [])
+
     class Show(xbmcgui.WindowXML):
         """Board B: one show. Season chips switch the episodes; Repair and ••• come with L5, the episode sheet with L4."""
         def onInit(self):
@@ -324,6 +329,25 @@ def run():
                     except Exception:
                         pass
 
+        def more(self):
+            entries = more_entries(self.episodes)
+            pick = xbmcgui.Dialog().contextmenu([label for _, label in entries])
+            if pick < 0:
+                return
+            what = entries[pick][0]
+            tmdb = (self.data.get('tmdb') or {}).get(self.show['id'], '')
+            if what == 'find':
+                if not tmdb:
+                    xbmcgui.Dialog().ok('Find Missing Episodes', 'This show has no TMDb match yet, so its season cannot be looked up.')
+                    return
+                # Build Season looks the season up and adds only what is not on Drive or queued already.
+                season = self.season if self.season is not None else (self.seasons[0] if self.seasons else 1)
+                xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,download,kind=season,tmdb=%s,tvshow.tmdb_id=%s,season=%d,title=%s)' % (
+                    tmdb, tmdb, season or 1, self.show['title'].replace(',', ' ')))
+            elif what == 'repair_all':
+                for row in [r for r in self.episodes if r.get('repair')]:
+                    act('repair' if not row.get('id') else 'retry', row, self.data, self.show)
+
         def onClick(self, control):
             if show_page.SEASON <= control < show_page.SEASON + show_page.SEASONS and control - show_page.SEASON < len(self.seasons):
                 self.season = self.seasons[control - show_page.SEASON]
@@ -331,6 +355,8 @@ def run():
             elif show_page.EP <= control < show_page.EP + show_page.SLOTS and control - show_page.EP < len(self.episodes):
                 if open_item(self.data, self.episodes[control - show_page.EP], self.show):
                     self.close()
+            elif control == show_page.MORE:
+                self.more()
             elif show_page.REPAIR <= control < show_page.REPAIR + show_page.SLOTS and control - show_page.REPAIR < len(self.episodes):
                 row = self.episodes[control - show_page.REPAIR]
                 act('repair' if not row.get('id') else 'retry', row, self.data, self.show)

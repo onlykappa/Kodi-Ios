@@ -49,11 +49,12 @@ def page(p):
     y += FACTS * 96 + 54
     # Main action: a white capsule (Play, or Repair on a problem); second: a dark capsule; Delete: red text.
     half = (w - 32) // 2
-    out += p.image(S, y, half, 134, p.MEDIA + 'pill_134.png', 'FFFFFFFF', border=67)
-    out += u.tap(p, PRIMARY, S, y, half, 134) + u.text(p, S, y, half, 134, P('primary'), 'p_btn', 'FF000000', 'center')
+    # The tap area goes under the capsule, so its square focus texture never shows around it.
+    out += u.tap(p, PRIMARY, S, y, half, 134) + p.image(S, y, half, 134, p.MEDIA + 'pill_134.png', 'FFFFFFFF', border=67)
+    out += u.text(p, S, y, half, 134, P('primary'), 'p_btn', 'FF000000', 'center')
     out += '<control type="group"><visible>%s</visible>%s</control>' % (u.has('secondary'), (
-        p.image(S + half + 32, y, half, 134, p.MEDIA + 'pill_134.png', 'FF3A3A3C', border=67) +
-        u.tap(p, SECONDARY, S + half + 32, y, half, 134) + u.text(p, S + half + 32, y, half, 134, P('secondary'), 'p_btn', p.WHITE, 'center')))
+        u.tap(p, SECONDARY, S + half + 32, y, half, 134) +
+        p.image(S + half + 32, y, half, 134, p.MEDIA + 'pill_134.png', 'FF3A3A3C', border=67) + u.text(p, S + half + 32, y, half, 134, P('secondary'), 'p_btn', p.WHITE, 'center')))
     out += ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>118</height><label>%s</label>'
             '<font>p_btn</font><textcolor>FFFF453A</textcolor><focusedcolor>FFFF453A</focusedcolor><align>center</align><aligny>center</aligny>'
             '<texturefocus /><texturenofocus /></control>') % (DELETE, S, y + 170, w, P('delete'))
