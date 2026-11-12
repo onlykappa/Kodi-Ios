@@ -41,6 +41,8 @@ def run(argv):
   # Kodi's parent (..) item leads here. It is navigation, not a movie to resolve.
   from ios_library import root_directory
   root_directory(handle);return
+ if params.get('action')=='search':   # board 12: the Search page's All results in MOVIES / TV SHOWS sections
+  from ios_search import directory;directory(handle,params.get('query',''));return
  if params.get('action')=='library':
   from ios_library import directory;directory(handle,params);return
  if params.get('action')=='library_play':

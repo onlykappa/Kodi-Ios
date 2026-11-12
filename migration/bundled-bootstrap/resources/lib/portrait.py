@@ -840,31 +840,39 @@ def search_window(original):
  kindmap=(('movie','Movie'),('tv','TV Show'),('season','Season'),('episode','Episode'))
  sub=lambda focused:(label(180,112,row_w-200,50,'$INFO[ListItem.Year]','p_foot',GREY,'left','<scroll>false</scroll><visible>!%s</visible>'%'|'.join('String.IsEqual(ListItem.Property(tmdb_type),%s)'%k for k,_ in kindmap))+
   ''.join(label(180,112,row_w-200,50,'$INFO[ListItem.Year,,  ·  ]%s'%t,'p_foot',GREY,'left','<scroll>false</scroll><visible>String.IsEqual(ListItem.Property(tmdb_type),%s)</visible>'%k) for k,t in kindmap))
- result=lambda focused:((image(0,0,row_w,row_h-6,MEDIA+'white.png','1FFFFFFF') if focused else '')+
+ # Board 12: on All the list comes in sections (ios_search.py); a heading is an item of its own (property header),
+ # drawn as a small grey caption at the bottom of its row.
+ head='!String.IsEmpty(ListItem.Property(header))'
+ result=lambda focused:('<control type="group"><visible>!%s</visible>'%head+
+  (image(0,0,row_w,row_h-6,MEDIA+'white.png','1FFFFFFF') if focused else '')+
   image(0,10,140,190,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
   image(0,10,140,190,'$INFO[ListItem.Art(poster)]',WHITE,aspect='>scale',diffuse=MEDIA+'poster_mask.png',background=True)+
   label(180,50,row_w-200,60,'$INFO[ListItem.Label]','p_h3',WHITE,'left','<scroll>false</scroll>')+sub(focused)+
-  image(180,row_h-2,row_w-180,2,MEDIA+'white.png',SEP))
+  image(180,row_h-2,row_w-180,2,MEDIA+'white.png',SEP)+'</control>'+
+  label(0,row_h-80,row_w,60,'$INFO[ListItem.Label]','p_foot_b',GREY,'left','<scroll>false</scroll><visible>%s</visible>'%head))
  # Filter (owner): All / Movies / Shows, as Window(Home).Property(Portrait.Search.Type) ('' / movie / tv) for searchbar.py.
  kind='Window(Home).Property(Portrait.Search.Type)'
  pills=''
- for n,(text,value) in enumerate((('All',''),('Movies','movie'),('Shows','tv'))):
+ x=SIDE
+ for n,(text,value,pw) in enumerate((('All','',170),('Movies','movie',230),('TV Shows','tv',290))):   # each pill fits its word
   on=('String.IsEmpty(%s)'%kind) if not value else 'String.IsEqual(%s,%s)'%(kind,value)
   act=('ClearProperty(Portrait.Search.Type,home)' if not value else 'SetProperty(Portrait.Search.Type,%s,home)'%value)
-  x=SIDE+n*230
-  pills+=('<control type="button" id="%d"><left>%d</left><top>0</top><width>210</width><height>96</height><label>%s</label>'
+  pills+=('<control type="button" id="%d"><left>%d</left><top>0</top><width>%d</width><height>96</height><label>%s</label>'
    '<font>p_sub</font><align>center</align><aligny>center</aligny><textcolor>FFFFFFFF</textcolor><focusedcolor>FFFFFFFF</focusedcolor>'
    '<texturefocus border="48" colordiffuse="FF3A3A3C">%spill_96.png</texturefocus><texturenofocus border="48" colordiffuse="FF1C1C1E">%spill_96.png</texturenofocus>'
    '<onclick>%s</onclick></control>'
-   '<control type="image"><left>%d</left><top>0</top><width>210</width><height>96</height><texture border="48" colordiffuse="33FFFFFF">%spill_96.png</texture><visible>%s</visible></control>'
-   )%(5210+n,x,text,MEDIA,MEDIA,e(act),x,MEDIA,e(on))
+   '<control type="image"><left>%d</left><top>0</top><width>%d</width><height>96</height><texture border="48" colordiffuse="33FFFFFF">%spill_96.png</texture><visible>%s</visible></control>'
+   )%(5210+n,x,pw,text,MEDIA,MEDIA,e(act),x,pw,MEDIA,e(on))
+  x+=pw+20
  top=SEARCH_BAND+30
  filters='<control type="group"><top>%d</top><visible>%s</visible>%s</control>'%(top,SEARCH_NATIVE,pills)
  top+=120
  results=(filters+'<control type="group"><visible>!String.IsEmpty(%s)</visible>'%SEARCH_PATH+
-  label(SIDE,top,WIDTH-2*SIDE,70,'Results','p_h3',GREY)+
+  label(SIDE,top,WIDTH-2*SIDE,70,'Results','p_h3',GREY,'left','<visible>!String.IsEmpty(%s)</visible>'%kind)+   # All: the sections' headings instead
   ('<control type="list" id="5200"><left>%d</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
    '<scrolltime tween="cubic" easing="out">300</scrolltime><preloaditems>2</preloaditems>'
+   # All: no "Results" line, and the first heading's row starts high, so the list moves up (board 12).
+   '<animation effect="slide" end="0,-200" time="0" condition="String.IsEmpty(Window(Home).Property(Portrait.Search.Type))">Conditional</animation>'
    '<itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout>'
    '<content target="videos">$INFO[%s]</content></control>'
    )%(SIDE,top+90,WIDTH-2*SIDE,row_h,result(False),row_h,result(True),SEARCH_PATH)+
