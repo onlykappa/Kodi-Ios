@@ -73,7 +73,7 @@ class Pages(unittest.TestCase):
   params={'kind':'episode','title':'phony.s01e01.1080p.web.h264-cakes[EZTVx.to].mp4','show':'phony','season':'1','episode':'1','tmdb_id':''}
   name,info,art=page.playback_details(params,lib,cache)
   self.assertEqual(name,'Pilot')
-  self.assertEqual((info['tvshowtitle'],info['season'],info['episode'],info['plot'],info['duration']),('phony',1,1,'Sonny awakens.',2100))
+  self.assertEqual((info['tvshowtitle'],info['season'],info['episode'],info['plot'],info['duration']),('Phony',1,1,'Sonny awakens.',2100))  # never the file's lower-case name
   self.assertEqual((art['thumb'],art['tvshow.clearlogo']),('s.jpg','logo.png'))
   name,info,_=page.playback_details(dict(params,episode='2'),lib,cache)
   self.assertEqual((name,info['plot']),('Episode 2','Show plot'))   # no TMDb entry yet: never the file name
@@ -83,6 +83,18 @@ class Pages(unittest.TestCase):
   path,label,art,info,folder=page.empty_show_row({'poster':'p.jpg'})
   self.assertEqual((label,art['poster'],info['properties']['KodiIOS.EmptyShow']),('No finished episodes yet','p.jpg','true'))
   self.assertIn('Notifications',info['plot'])
+ def test_continue_watching_cards_heal_from_saved_details(self):
+  # Owner (build 252 screenshot): "the maze runner" and "phony" with no picture on Continue Watching.
+  import ios_continue as cw
+  saved={('movie','the maze runner'):{'name':'The Maze Runner','poster':'m.jpg','fanart':'mf.jpg'},('tv','phony'):{'poster':'p.jpg'}}
+  look=lambda kind,title,year,tmdb:saved.get((kind,title.lower()),{})
+  movie=cw.heal({'kind':'movie','title':'the maze runner','year':'2014'},look)
+  self.assertEqual((movie['title'],movie['art']['poster']),('The Maze Runner','m.jpg'))
+  ep=cw.heal({'kind':'episode','title':'Pilot','tvshowtitle':'phony','season':'1','episode':'1'},look)
+  self.assertEqual((ep['tvshowtitle'],ep['art']['tvshow.poster']),('Phony','p.jpg'))
+  fine={'kind':'movie','title':'Inception','art':{'poster':'i.jpg'}}
+  self.assertIs(cw.heal(fine,lambda *a:self.fail('looked up')),fine)
+  self.assertEqual(page.nice_title('the maze runner'),'The Maze Runner');self.assertEqual(page.nice_title('WALL-E'),'WALL-E')
  def test_season_lookup_parses_and_caches(self):
   answer=json.dumps({'episodes':[{'episode_number':1,'name':'Pilot','overview':'x','still_path':'/s.jpg','runtime':56,'air_date':'2026-08-17'}]}).encode()
   urls=[];cache={}

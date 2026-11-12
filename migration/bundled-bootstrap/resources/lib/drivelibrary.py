@@ -270,7 +270,7 @@ def artwork(kind,title,year,key,cache,get,cached_only=False):
   if results is None:return {}   # not cached: try again next time
   if results:
    r=results[0]
-   found={'tmdb_id':str(r.get('id') or ''),'plot':r.get('overview') or '','rating':r.get('vote_average') or 0,
+   found={'tmdb_id':str(r.get('id') or ''),'name':r.get('title') or r.get('name') or '','plot':r.get('overview') or '','rating':r.get('vote_average') or 0,
           'poster':IMAGE+'w500'+r['poster_path'] if r.get('poster_path') else '',
           'fanart':IMAGE+'w1280'+r['backdrop_path'] if r.get('backdrop_path') else ''}
  cache[slot]=found
@@ -320,7 +320,7 @@ def show_details(tmdb_id,key,cache,get,cached_only=False):
  if not data.get('id'):return {}
  logos=(data.get('images') or {}).get('logos') or []
  logos=sorted((logo for logo in logos if logo.get('file_path')),key=lambda logo:(logo.get('iso_639_1')!='en',-float(logo.get('vote_average') or 0)))
- found={'plot':data.get('overview') or '', 'genres':[g['name'] for g in data.get('genres') or [] if g.get('name')],
+ found={'name':data.get('name') or '','plot':data.get('overview') or '', 'genres':[g['name'] for g in data.get('genres') or [] if g.get('name')],
         'rating':data.get('vote_average') or 0,'year':str(data.get('first_air_date') or '')[:4],
         'clearlogo':IMAGE+'original'+logos[0]['file_path'] if logos else ''}
  if data.get('poster_path'):found['poster']=IMAGE+'w500'+data['poster_path']

@@ -327,6 +327,11 @@ def season_rows(rows,params,lib,art_cache,key):
   out.append((page_url(route),'Specials' if number==0 else 'Season %d'%number,art,info,True))
  return out
 
+def nice_title(text):
+ """'the maze runner' -> 'The Maze Runner' for names taken from files; a name with capitals is left as it is."""
+ text=str(text or '').strip()
+ return ' '.join(w[:1].upper()+w[1:] for w in text.split(' ')) if text and text==text.lower() else text
+
 def playback_details(params,lib,art_cache):
  """(title, info, art) for a downloaded copy, from the TMDb details the Library already saved (no network).
  Owner (build 232): an episode played from Library showed its file name ('phony.s01e01.1080p…mp4') as the title,
@@ -339,7 +344,8 @@ def playback_details(params,lib,art_cache):
  info={'mediatype':'movie' if movie else 'episode'};art={}
  if movie:
   found=lib.artwork('movie',title,params.get('year',''),'',art_cache,None,cached_only=True) or {}
-  info.update(title=title,year=params.get('year',''),plot=found.get('plot',''))
+  title=found.get('name') or nice_title(title)
+  info.update(title=title,year=params.get('year',''),plot=found.get('plot',''),tmdb_id=found.get('tmdb_id',''))
   art.update({k:found[k] for k in ('poster','fanart') if found.get(k)})
   return title,info,art
  show=show or title
@@ -349,7 +355,9 @@ def playback_details(params,lib,art_cache):
  ep=(lib.season(tmdb,season,'',art_cache,None,cached_only=True) or {}).get(str(episode),{}) if tmdb and season else {}
  looks_like_file=bool(re.search(r'(?i)\bs\d{1,2}[ ._-]?e\d{1,3}\b|\.(mkv|mp4|m4v|avi)$',title)) or show_key(title)==show_key(show)
  name=ep.get('title') or (title if title and not looks_like_file else ('Episode %d'%episode if episode else show))
- info.update(title=name,tvshowtitle=show,season=season,episode=episode,plot=ep.get('plot') or details.get('plot',''))
+ show_name=details.get('name') or found.get('name') or nice_title(show)
+ if not ep.get('title') and name==show:name=show_name
+ info.update(title=name,tvshowtitle=show_name,season=season,episode=episode,plot=ep.get('plot') or details.get('plot',''),tmdb_id=tmdb or '')
  if ep.get('runtime'):info['duration']=int(ep['runtime'])*60
  if ep.get('aired'):info['premiered']=ep['aired']
  fan=details.get('fanart') or found.get('fanart','');poster=details.get('poster') or found.get('poster','')
@@ -428,11 +436,17 @@ def play_downloaded(handle,params):
   try:target.write(text)
   finally:target.close()
  try:
+  # Owner (build 252 screenshot): Continue Watching showed "the maze runner" and "phony" with no picture: the
+  # record kept the file's name and no art. It takes the Library's saved TMDb name, id and art now.
+  try:rec_info,rec_art=info,art
+  except NameError:rec_info,rec_art={},{}
   if params.get('kind')=='movie':
-   ios_continue.record_downloaded_movie(params,path,position,total,read,write)
-  elif str(params.get('tmdb_id','')).isdecimal():
-   player=SimpleNamespace(tmdb_type='tv',tmdb_id=params['tmdb_id'],season=params.get('season','0'),episode=params.get('episode','0'),
-                          details=SimpleNamespace(infolabels={'title':params.get('title',''),'tvshowtitle':params.get('show','')},art={}))
+   ios_continue.record_downloaded_movie(dict(params,title=rec_info.get('title') or params.get('title',''),
+                                             tmdb_id=params.get('tmdb_id') or rec_info.get('tmdb_id','')),path,position,total,read,write,art=rec_art)
+  elif str(params.get('tmdb_id') or rec_info.get('tmdb_id') or '').isdecimal():
+   player=SimpleNamespace(tmdb_type='tv',tmdb_id=params.get('tmdb_id') or rec_info.get('tmdb_id'),season=params.get('season','0'),episode=params.get('episode','0'),
+                          details=SimpleNamespace(infolabels={'title':rec_info.get('title') or params.get('title',''),
+                                                              'tvshowtitle':rec_info.get('tvshowtitle') or params.get('show','')},art=rec_art))
    ios_continue.record(player,read,write,choice='local',preserve_player=True)
   else:
    data=ios_continue.load(read);data.pop('current',None);ios_continue.save(data,write)

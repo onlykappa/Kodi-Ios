@@ -128,3 +128,4 @@ Never claim a phone result without the owner's log or screenshot.
 - 1G.8 (code): Play on TV on a Drive download whose preparation is waiting or running and whose picture needs converting (or not probed yet) asks first with the approved sheet: Prepare first (front of the queue, then it plays as it is) or Play now (live conversion, may stutter). Copy-only files (HEVC / 8-bit H.264 that only need repackaging) and ready files go straight on. Test: test_cast_ready.
 
 - 1G.8 change (owner: "it should say prepare first"): no choice; Play on TV on an unprepared download that needs converting queues it first and says 'Preparing first'.
+- ISSUE-170 (code): Continue Watching cards from Library playback get the TMDb name and art; old cards heal when shown.

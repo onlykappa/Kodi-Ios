@@ -64,7 +64,7 @@ def record(player,read,write,now=time.time,choice=None,preserve_player=False):
  data['items'][key(entry)]=entry;data['current']=key(entry);save(data,write)
  return key(entry)
 
-def record_downloaded_movie(params,path,position,total,read,write,now=time.time):
+def record_downloaded_movie(params,path,position,total,read,write,now=time.time,art=None):
  """A downloaded movie is tracked even before cached artwork supplies a TMDb ID; never invent a provider ID."""
  import hashlib
  from ios_library import show_key
@@ -78,6 +78,7 @@ def record_downloaded_movie(params,path,position,total,read,write,now=time.time)
   if not old['tmdb_id']:old['download_key']='downloaded:'+hashlib.sha256((show_key(title)+':'+year).encode()).hexdigest()[:24]
   item_key=key(old)
  entry=dict(old,title=title,year=year,download_path=path,position=position,total=total,played=now(),playback_source='local')
+ if art:entry['art']={k:v for k,v in art.items() if k in ('poster','fanart','landscape','thumb','clearlogo') and v}
  data['items'][item_key]=entry;data['current']=item_key;save(data,write);return item_key
 
 def update(read,write,position,total,now=time.time):
@@ -142,6 +143,42 @@ def library_items(rpc):
               'file':ep['file'],'source':'library'})
  return out
 
+def heal(entry,lookup):
+ """Owner (build 252): Continue Watching cards recorded from Library playback had the file's name ("the maze
+ runner", "phony") and no picture. A card missing art, or named in lower case, takes the Library's saved TMDb name and
+ art (lookup(kind, title, year, tmdb_id) -> {'name', 'poster', 'fanart', ...}); nothing is fetched."""
+ episode=entry.get('kind')=='episode'
+ title=entry.get('tvshowtitle') if episode else entry.get('title')
+ needs=not entry.get('art') or (title and title==title.lower())
+ if not needs or not title:return entry
+ found=lookup('tv' if episode else 'movie',title,'' if episode else entry.get('year',''),entry.get('tmdb_id','')) or {}
+ if not found:return entry
+ fixed=dict(entry)
+ name=found.get('name') or ' '.join(w[:1].upper()+w[1:] for w in title.split(' '))
+ if episode:fixed['tvshowtitle']=name
+ else:fixed['title']=name
+ if not entry.get('art'):
+  pre='tvshow.' if episode else ''
+  fixed['art']={pre+k:found[k] for k in ('poster','fanart','clearlogo') if found.get(k)}
+ return fixed
+
+def filler(xbmcvfs):
+ """heal() with the Library's saved art (drive-library-art.json), or a no-op when it cannot be read."""
+ try:
+  import os,sys
+  boot=xbmcvfs.translatePath('special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib')
+  if boot not in sys.path:sys.path.insert(0,boot)
+  import drivelibrary as lib
+  cache=lib.load_json(os.path.join(xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/'),'drive-library-art.json'),{})
+ except Exception:return lambda entry:entry
+ def lookup(kind,title,year,tmdb):
+  found=dict(lib.artwork(kind,title,year,'',cache,None,cached_only=True) or {})
+  if not found and kind=='movie':found=dict(lib.artwork(kind,title,'','',cache,None,cached_only=True) or {})
+  tmdb=found.get('tmdb_id') or tmdb
+  if kind=='tv' and tmdb:found.update({k:v for k,v in (lib.show_details(tmdb,'',cache,None,cached_only=True) or {}).items() if v})
+  return found
+ return lambda entry:heal(entry,lookup)
+
 def directory(handle,kind):
  import xbmc,xbmcgui,xbmcplugin,xbmcvfs
  def read(path):
@@ -152,7 +189,9 @@ def directory(handle,kind):
   try:return json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':params}))).get('result',{})
   except ValueError:return {}
  data=load(read) if xbmcvfs.exists(STORE) else {'items':{}}
+ fill=filler(xbmcvfs)
  for entry in entries(data,kind,library_items(rpc)):
+  entry=fill(entry)
   episode=entry['kind']=='episode'
   li=xbmcgui.ListItem(label=entry['tvshowtitle'] if episode else entry['title'],offscreen=True)
   art=dict(entry.get('art',{}))

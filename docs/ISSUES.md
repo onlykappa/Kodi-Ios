@@ -2625,3 +2625,14 @@ Status: FIXED IN SOURCE (#19); device untested.
   series), not one season. Pick a season pack." Owner request: "Cancel all downloads to Drive" in the upload card's
   long-press menu (Notifications) and "Cancel All" in the Library status sheet of a copy, with a confirmation.
 - Regression: test_debrid_drive SeriesPack (Naruto layout: season 2 takes its 21 files, films never), CancelAll.
+
+## ISSUE-170 — Continue Watching cards from Library playback had the file's name and no picture (owner, build 252)
+
+Status: FIXED IN SOURCE (#19); device untested.
+- Owner screenshot: "the maze runner" and "phony" (S1, E1) with blank cards. Both were started from Library.
+- Root cause: ios_library.play_downloaded recorded Continue Watching with the row's label (the release name) and no
+  art or TMDb id (record_downloaded_movie took params only; episodes got art={}). The card is drawn from that record.
+- Fix: play_downloaded records the Library's saved TMDb name, id and art (playback_details); drivelibrary keeps TMDb's
+  own name ('name') in its art cache; an all-lower-case file name is capitalised until then. Existing cards heal when
+  drawn (ios_continue.heal: missing art or lower-case name -> saved TMDb name and art, no network).
+- Regression: test_library_pages (heal, nice_title, Phony name).
