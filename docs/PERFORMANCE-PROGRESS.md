@@ -9,6 +9,19 @@
   build's kodi_airplay_serve_copy + correlated receiver evidence. No IPA/native release dispatched here.
 - Compiled recommendations suite: 41 checks, 0 failures. Phone/TV acceptance and hour-long/caption tests remain open.
 
+## HANDOFF (2026-11-12, end of PR #21) — read this first
+
+PR #21 merged to main on the owner's word ("Merge all branches once the new ipa is out"). Latest IPA: **build-314**
+(Kodi r31, AirPlay r50). In it: ISSUE-179/181 Build Season (31/32 queued on the phone with build 309; the version
+menu never opens mid-season, lost identities recovered, one retry), B3 quality sheet (DEC-041), ISSUE-180 AI Upscale
+guard + r49 tiled AI upscaling for 720p/1080p (not yet run on the phone), Settings › AI Upscale page, upscaled copy
+plays, ISSUE-182 speed (three episodes copy at once; r50 32 MB pieces).
+Waiting on the owner's phone logs: Build Season (queue_retry, no menu), copy speed (three "Drive copy native"
+threads, pieces growing to 32 MB), AI Upscale test (tiles: speed, heat, battery, size, visible joins).
+Mockups for owner review, not to be built until the owner says: docs/design/library-files-mockups.html (Library
+file manager, round 2 with Repair and the ••• menu). Still to code from approved mockups: Picture menu + Saturation
+(Kodi r32 shader), AI Upscale board C (one show's page).
+
 ## HANDOFF FOR THE NEXT AGENT (2026-11-12, end of the AI Upscaler session) — read this first
 
 Branch claude/trusting-euler-kgug98, PR #21 (draft). Latest IPA: build-302 (Kodi r31 + AirPlay r48 pinned).
