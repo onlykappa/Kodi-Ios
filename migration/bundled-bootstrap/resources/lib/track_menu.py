@@ -212,16 +212,16 @@ def speed_rows(current):
 
 
 def more_rows(found, always):
-    """Subtitles › More as rows (roadmap B.6): back, Choose another, Add from a file, Use for all videos."""
-    return [{'label': '\u2039 Subtitles', 'tag': '', 'on': False, 'index': 'back'},
-            {'label': 'Choose another', 'tag': ('%d FOUND' % found) if found else '', 'on': False, 'index': 'choose'},
+    """Subtitles › More as rows (roadmap B.6): Choose another, Add from a file, Use for all videos. The way back is
+    the header's blue link (board 02), not a row."""
+    return [{'label': 'Choose another', 'tag': ('%d FOUND' % found) if found else '', 'on': False, 'index': 'choose'},
             {'label': 'Add from a file', 'tag': '', 'on': False, 'index': 'file'},
             {'label': 'Use for all videos', 'tag': 'ON' if always else 'OFF', 'on': bool(always), 'index': 'always'}]
 
 
 def result_rows(results):
-    """Found subtitles as rows under a back row; index is the result's position."""
-    rows = [{'label': '\u2039 More', 'tag': '', 'on': False, 'index': 'more'}]
+    """Found subtitles as rows (the way back is the header's link); index is the result's position."""
+    rows = []
     for n, r in enumerate(results):
         rows.append({'label': r['releases'][0] if r['releases'] else 'Subtitle %s' % r['id'],
                      'tag': 'SDH' if r['impaired'] else '', 'on': False, 'index': n})

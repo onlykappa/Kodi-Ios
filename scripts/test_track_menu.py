@@ -110,13 +110,19 @@ class Speed(unittest.TestCase):
 
 class More(unittest.TestCase):
     def test_more_and_results_are_rows_with_a_way_back(self):
+        # Board 02: the way back is the header's blue link (9502), not a row.
         import track_menu as tm
         rows = tm.more_rows(3, False)
-        self.assertEqual([r['index'] for r in rows], ['back', 'choose', 'file', 'always'])
-        self.assertEqual((rows[1]['tag'], rows[3]['tag']), ('3 FOUND', 'OFF'))
+        self.assertEqual([r['index'] for r in rows], ['choose', 'file', 'always'])
+        self.assertEqual((rows[0]['tag'], rows[2]['tag']), ('3 FOUND', 'OFF'))
         found = tm.result_rows([{'id': '7', 'releases': ['Phony.S01E01.WEB'], 'impaired': True}, {'id': '9', 'releases': [], 'impaired': False}])
         self.assertEqual([(r['label'], r['tag'], r['index']) for r in found],
-                         [('\u2039 More', '', 'more'), ('Phony.S01E01.WEB', 'SDH', 0), ('Subtitle 9', '', 1)])
+                         [('Phony.S01E01.WEB', 'SDH', 0), ('Subtitle 9', '', 1)])
+        xml = __import__('pages').track_menu()
+        self.assertIn('id="9502"', xml)
+        self.assertIn('Window().Property(back)', xml)
+        src = (Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap/tracks.py').read_text()
+        self.assertIn('control == BACK', src)
 
     def test_no_kodi_select_box_left_in_the_track_menu(self):
         src = (Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap/tracks.py').read_text()

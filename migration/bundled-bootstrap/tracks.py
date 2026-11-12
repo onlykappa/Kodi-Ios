@@ -20,6 +20,7 @@ import track_menu as tm
 BACK = (9, 10, 92, 110)
 CLOSE, MORE, CTA, LIST, T_MINUS, T_PLUS, B_MINUS, B_PLUS = 9500, 9501, 9510, 9310, 9401, 9402, 9403, 9404
 SPEED_LIST = 9311   # board 02: Playback speed's own six-row list
+BACK = 9502         # board 02: the sub-page's back link in the header
 FIELDS = ['subtitles', 'currentsubtitle', 'subtitleenabled', 'audiostreams', 'currentaudiostream']
 UA = 'KodiIOS/1.0'
 
@@ -242,6 +243,9 @@ def run(mode):
             # Roadmap B.6 (owner, build 232 screenshot): More opened Kodi's select box over the menu. Its choices and
             # the found subtitles are now rows in this list, with a back row on top.
             self.page = page
+            # Board 02: a sub-page shows a blue back link in the header instead of the title (pages.track_menu).
+            self.setProperty('page', '' if page == 'tracks' else page)
+            self.setProperty('back', {'more': '\u2039 Subtitles', 'choose': '\u2039 More'}.get(page, ''))
             self.fill()
             self.setFocusId(LIST)
 
@@ -279,6 +283,8 @@ def run(mode):
                 self.fill()
             elif isinstance(what, int) and 0 <= what < len(self.results):
                 self.page = 'tracks'
+                self.setProperty('page', '')   # back to the tracks: the title again, not the back link
+                self.setProperty('back', '')
                 threading.Thread(target=self.download_and_apply, args=(self.results[what],), daemon=True).start()
 
         def subtitle_streams(self):
@@ -289,6 +295,8 @@ def run(mode):
         def onClick(self, control):
             if control == CLOSE:
                 self.close()
+            elif control == BACK:   # the sub-page's back link: Choose another -> More -> the tracks
+                self.more('more' if self.page == 'choose' else 'tracks')
             elif control in (LIST, SPEED_LIST):
                 n = self.getControl(control).getSelectedPosition()
                 if 0 <= n < len(self.rows):

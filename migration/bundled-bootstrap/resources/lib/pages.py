@@ -433,6 +433,9 @@ def track_menu():
  subs=isp('mode','subtitles')
  # Roadmap B.7/2.12: Playback speed is a third mode: the list of speeds, no Download/Timing/Boost.
  speed=isp('mode','speed')
+ # Board 02 (Subtitles › More and its found subtitles): a sub-page under a blue back link in the header, without
+ # Download and apply or Timing (Window property page: '' for the tracks, else the page; back: the link's text).
+ sub='!String.IsEmpty(Window().Property(page))'
  w=840;row=118;head=108;pad=27;cpad=38;list_h=TRACK_ROWS*row;cta_h=112
  def img(x,y,w,h,tex,color='FFFFFFFF',extra='',border=''):
   return ('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texture%s colordiffuse="%s">%s</texture>%s</control>'
@@ -466,7 +469,7 @@ def track_menu():
    '<itemlayout height="%d" width="%d">%s</itemlayout><focusedlayout height="%d" width="%d">%s</focusedlayout></control>'%(row,w-2*pad,item(False),row,w-2*pad,item(True)))+('</control>' if cond else '')
  # Subtitles: header, Download and apply, its hint, tracks, Timing.
  y_cta=head;y_hint=y_cta+cta_h;y_list=y_hint+42;y_time=y_list+list_h+16;h_subs=y_time+2*row+pad
- cta=('<control type="group"><visible>%s</visible>'%subs+
+ cta=('<control type="group"><visible>%s + !%s</visible>'%(subs,sub)+
   img(cpad,y_cta,w-2*cpad,cta_h,MEDIA+'pill_112.png','FFFFFFFF','<visible>%s | %s | %s</visible>'%(isp('cta_state','idle'),isp('cta_state','none'),isp('cta_state','error')),'56')+
   img(cpad,y_cta,w-2*cpad,cta_h,MEDIA+'pill_112.png','1FFFFFFF','<visible>%s</visible>'%isp('cta_state','busy'),'56')+
   img(cpad,y_cta,w-2*cpad,cta_h,MEDIA+'pill_112.png','2930D158','<visible>%s</visible>'%isp('cta_state','done'),'56')+
@@ -484,11 +487,11 @@ def track_menu():
  # they slide up by its height; Volume boost is Audio's own row under Timing.
  lift=y_list-head;h_audio=y_time-lift+2*row+pad
  audio=('<control type="group"><left>0</left><top>0</top><width>%d</width>'%w+
-  '<animation effect="slide" start="0,0" end="0,-%d" time="0" condition="!%s">Conditional</animation>'%(lift,subs)+
+  '<animation effect="slide" start="0,0" end="0,-%d" time="0" condition="!%s | %s">Conditional</animation>'%(lift,subs,sub)+
   tracks(y_list,9510,9401,cond='!'+speed)+tracks(y_list,9500,9500,SPEED_LIST,SPEED_ROWS,speed)+
   '<control type="group"><left>0</left><top>0</top><width>%d</width>'%w+
   ''.join('<animation effect="slide" start="0,0" end="0,-%d" time="0" condition="String.IsEqual(Window().Property(rows),%d)">Conditional</animation>'%((TRACK_ROWS-k)*row,k) for k in range(1,TRACK_ROWS))+
-  '<control type="group"><visible>!%s</visible>'%speed+
+  '<control type="group"><visible>!%s + !%s</visible>'%(speed,sub)+
   img(pad,y_time,w-2*pad,2*row,MEDIA+'round_s.png','47000000','','26')+
   lab(pad+36,y_time,300,row,'Timing','font_main')+stepper(w-pad-372,y_time,9401,9402,'timing','<onup>9310</onup><ondown>9501</ondown>')+
   '<control type="group"><visible>%s</visible>'%subs+
@@ -505,13 +508,17 @@ def track_menu():
   '</control></control></control></control>')
  h_speed=y_list-lift+list_h+pad
  back=''.join(img(0,0,w,hh-(TRACK_ROWS-k)*row,MEDIA+'round_s.png','F52C2C2E','<visible>%s + String.IsEqual(Window().Property(rows),%d)</visible>'%(cond,k),'26')
-              for cond,hh in ((subs,h_subs),('!%s + !%s'%(subs,speed),h_audio)) for k in range(1,TRACK_ROWS+1))
+              for cond,hh in (('%s + !%s'%(subs,sub),h_subs),('!%s + !%s'%(subs,speed),h_audio),('%s + %s'%(subs,sub),h_speed)) for k in range(1,TRACK_ROWS+1))
  back+=''.join(img(0,0,w,h_speed+(k-TRACK_ROWS)*row,MEDIA+'round_s.png','F52C2C2E','<visible>%s + String.IsEqual(Window().Property(rows),%d)</visible>'%(speed,k),'26')
                for k in range(1,SPEED_ROWS+1))
  more=''   # More is a row under Timing (mockup board 1)
  inner=('<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation><animation effect="fade" start="100" end="0" time="120">WindowClose</animation>'
   '<animation effect="slide" start="0,-24" end="0,0" time="220" tween="cubic" easing="out">WindowOpen</animation>'+
-  back+lab(36,0,w-170,head,P('title'),'font_head_bold')+more+(img(w-97,16,75,75,MEDIA+'close_disc.png','2EFFFFFF')+img(w-97,16,75,75,MEDIA+'close_disc.png','24FFFFFF','<visible>Control.HasFocus(9500)</visible>')+img(w-74,39,29,29,MEDIA+'close_cross.png','B3EBEBF5')+'<control type="button" id="9500"><left>%d</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><ondown>9510</ondown></control>'%(w-118))+cta+audio)
+  back+lab(36,0,w-170,head,P('title'),'font_head_bold','FFFFFFFF','left','<visible>!%s</visible>'%sub)+
+  # The sub-page's back link (9502): blue, where the title was; tracks.py goes one page up.
+  '<control type="button" id="9502"><left>12</left><top>0</top><width>%d</width><height>%d</height><label>$INFO[Window().Property(back)]</label>'
+  '<font>font_head_bold</font><textcolor>FF4FA8FF</textcolor><focusedcolor>FF64D2FF</focusedcolor><textoffsetx>24</textoffsetx><align>left</align><aligny>center</aligny>'
+  '<texturefocus /><texturenofocus /><onright>9500</onright><ondown>9310</ondown><visible>%s</visible></control>'%(w-170,head,sub)+more+(img(w-97,16,75,75,MEDIA+'close_disc.png','2EFFFFFF')+img(w-97,16,75,75,MEDIA+'close_disc.png','24FFFFFF','<visible>Control.HasFocus(9500)</visible>')+img(w-74,39,29,29,MEDIA+'close_cross.png','B3EBEBF5')+'<control type="button" id="9500"><left>%d</left><top>-5</top><width>118</width><height>118</height><texturefocus /><texturenofocus /><ondown>9510</ondown></control>'%(w-118))+cta+audio)
  body=('<control type="button" id="9099"><left>0</left><top>0</top><width>100%</width><height>100%</height><texturefocus /><texturenofocus />'
   '<onclick>Close</onclick><onfocus>SetFocus(9310)</onfocus></control>'
   # Under the button that opened it: CC (subtitles), 140 in from the right (SAFE); Audio slides 190 left, under the
