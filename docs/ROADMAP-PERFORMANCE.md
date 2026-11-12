@@ -136,7 +136,7 @@ Evidence: older logs `41de3707`, `18b7b4b0`, `9e2568a7` (Demuxer → first strea
 | 1B.1 | Apply the MKV skip-attachments patch (already in the AirPlay FFmpeg) to Kodi's own FFmpeg in the Kodi build | Known: Kodi's demuxer reads every attachment (fonts, covers) over the network before playing | MKV first stream < 5 s |
 | 1B.2 | Network-aware probe limits: smaller `probesize`/`analyzeduration` for http/plugin sources, larger for local files | Suspected; measure with 1C.1 | − 1-3 s per open — **Kodi patch (needs Kodi r31) (speed-reliability-fixes): DVDDemuxFFmpeg: 3 MB / 3 s probe for http(s) sources, 20 MB / 10 s for local files, one retry at FFmpeg's defaults; patch applies to Kodi 21.3, not compiled** |
 | 1B.3 | Cache settings for phones: start playback after a small cache fill; read factor tuned for 5G vs Wi-Fi | Suspected (Buffer mode 4, 96 MB, read factor 10) | picture before the cache is full — **Coded (host-tested) (speed-reliability-fixes): cache_tune: read factor 10x on Wi-Fi, 4x on cellular, set as a video opens, owner's own value kept; values are unmeasured defaults** |
-| 1B.4 | Debrid links: keep Umbrella's resolve, but start Kodi reading the link while the source window closes | Suspected | − 1 s |
+| 1B.4 | Debrid links: keep Umbrella's resolve, but start Kodi reading the link while the source window closes | Suspected | − 1 s — **Coded (host-tested) (speed-reliability-fixes): link_warm: the resolved debrid link's first 512 KB and last 256 KB are read in the background as Umbrella's unlock returns; saving unmeasured** |
 
 ### 1C. Taps that wait for TMDb Helper (1-2 s each)
 Evidence: `e8ab5995` 09:31:25 (1.4 s), 09:32:23 (1.9 s), 09:32:45 (2.1 s).
