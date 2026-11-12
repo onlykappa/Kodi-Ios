@@ -310,9 +310,9 @@ Decision:
    available on this iPhone"**: there is no silent fallback. The converter has a Lanczos engine, named "Lanczos resize
    (not AI)" everywhere, for host tests and the measurement's comparison only; it is never offered as AI Upscale.
 4. HDR sources are not upscaled (the models take SDR pictures; 720p/1080p HDR downloads are rare). 4K sources never.
-5. "2K" in the approved slider sits between 1440p and 4K UHD, so it is taken as 2880×1620 (1.5× 1080p); the sizes are
-   boxes (720p 1280×720, 1080p 1920×1080, 1440p 2560×1440, 2K 2880×1620, 4K UHD 3840×2160) and the picture is fitted
-   inside with square pixels. To confirm with the owner.
+5. Sizes are boxes (720p 1280×720, 1080p 1920×1080, 1440p 2560×1440, 4K UHD 3840×2160) and the picture is fitted
+   inside with square pixels. **No "2K" step**: the round-4 slider had one between 1440p and 4K UHD, but no standard
+   size sits there; owner, 2026-11-12: "we can skip 2K".
 6. Bit rate: HEVC at about 4 Mbit/s per 1080p of area (16 Mbit/s at 4K UHD): about 2.9 GB for a 24-minute episode.
    The measurement build reports the real size; the rate is a parameter.
 7. One AI engine at a time: an upscale conversion uses one lane (each lane holds its own engine and 4K buffers), and

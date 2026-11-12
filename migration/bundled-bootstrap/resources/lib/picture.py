@@ -3,13 +3,13 @@
 Pure logic, no Kodi imports, so the queue, the Picture menu, Settings › Picture and the player share one rule set.
 
 Sizes are boxes; a picture is fitted inside with square pixels (kr_video_upscale_size does the same natively).
-"2K" sits between 1440p and 4K UHD in the approved slider (round 4), so it is 2880×1620 (1.5× 1080p) — DEC-040.
+No "2K" step: the owner dropped it (2026-11-12, DEC-040 item 5).
 """
 import json
 import os
 import time
 
-SIZES = (('720p', 1280, 720), ('1080p', 1920, 1080), ('1440p', 2560, 1440), ('2K', 2880, 1620), ('4K UHD', 3840, 2160))
+SIZES = (('720p', 1280, 720), ('1080p', 1920, 1080), ('1440p', 2560, 1440), ('4K UHD', 3840, 2160))
 LABELS = tuple(label for label, _, _ in SIZES)
 OFF = 'Off'
 # A picture counts as a size when it reaches 90 % of the box in width or height: 1920×800 (scope) is 1080p,

@@ -31,7 +31,7 @@
   rendered; picker rows fixed for truncation. No Picture menu yet to render.
 - Next: give it to the owner and ask for the kodi.log of one 1080p episode → 4K test (whole video, and
   the 3-minute compare). Only then: the upscale queue step, playback choice, Picture menu, Settings › Picture (task
-  list in the final report of this session). Open question for the owner: "2K" taken as 2880×1620 (DEC-040 item 5).
+  list in the final report of this session). Owner dropped "2K" (DEC-040 item 5): sizes are 720p, 1080p, 1440p, 4K UHD.
 
 ## HANDOFF 2026-11-12 (PR #21, branch claude/trusting-euler-kgug98) — read this first
 

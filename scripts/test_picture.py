@@ -7,17 +7,17 @@ import picture as pc
 
 class Sizes(unittest.TestCase):
     def test_only_sizes_above_the_video(self):
-        self.assertEqual(pc.above(854, 480), ['720p', '1080p', '1440p', '2K', '4K UHD'])   # a 480p show gets all five
-        self.assertEqual(pc.above(1280, 720), ['1080p', '1440p', '2K', '4K UHD'])
-        self.assertEqual(pc.above(1920, 1080), ['1440p', '2K', '4K UHD'])                 # a 1080p film starts at 1440p
-        self.assertEqual(pc.above(2560, 1440), ['2K', '4K UHD'])
+        self.assertEqual(pc.above(854, 480), ['720p', '1080p', '1440p', '4K UHD'])   # a 480p show gets all five
+        self.assertEqual(pc.above(1280, 720), ['1080p', '1440p', '4K UHD'])
+        self.assertEqual(pc.above(1920, 1080), ['1440p', '4K UHD'])                 # a 1080p film starts at 1440p
+        self.assertEqual(pc.above(2560, 1440), ['4K UHD'])
         self.assertEqual(pc.above(3840, 2160), [])                                        # a 4K film: no upscaler
         self.assertEqual(pc.above(0, 0), [])
 
     def test_scope_and_cropped_pictures_count_as_their_size(self):
-        self.assertEqual(pc.above(1920, 800), ['1440p', '2K', '4K UHD'])
-        self.assertEqual(pc.above(1916, 1036), ['1440p', '2K', '4K UHD'])
-        self.assertEqual(pc.above(1280, 536), ['1080p', '1440p', '2K', '4K UHD'])
+        self.assertEqual(pc.above(1920, 800), ['1440p', '4K UHD'])
+        self.assertEqual(pc.above(1916, 1036), ['1440p', '4K UHD'])
+        self.assertEqual(pc.above(1280, 536), ['1080p', '1440p', '4K UHD'])
         self.assertEqual(pc.above(3840, 1600), [])
         self.assertEqual(pc.above(3996, 2160), [])
 
@@ -29,19 +29,18 @@ class Sizes(unittest.TestCase):
         self.assertIsNone(pc.target(3840, 2160, '4K UHD'))     # 4K sources are never upscaled
         self.assertIsNone(pc.target(1920, 1080, 'Off'))
         self.assertIsNone(pc.target(1920, 1080, 'bogus'))
-        self.assertEqual(pc.target(1280, 720, '2K'), '2K')
+        self.assertIsNone(pc.target(1280, 720, '2K'))      # no 2K step any more
 
     def test_fitted_keeps_the_shape(self):
         self.assertEqual(pc.fitted(1920, 1080, '4K UHD'), (3840, 2160))
         self.assertEqual(pc.fitted(1280, 720, '4K UHD'), (3840, 2160))
         self.assertEqual(pc.fitted(1920, 800, '4K UHD'), (3840, 1600))
         self.assertEqual(pc.fitted(1440, 1080, '4K UHD'), (2880, 2160))      # 4:3 stays 4:3
-        self.assertEqual(pc.fitted(1920, 1080, '2K'), (2880, 1620))
         self.assertIsNone(pc.fitted(3840, 2160, '4K UHD'))
         self.assertIsNone(pc.fitted(1920, 1080, '1080p'))
 
     def test_box_order_matches_the_slider(self):
-        self.assertEqual(pc.LABELS, ('720p', '1080p', '1440p', '2K', '4K UHD'))
+        self.assertEqual(pc.LABELS, ('720p', '1080p', '1440p', '4K UHD'))
         heights = [h for _, _, h in pc.SIZES]
         self.assertEqual(heights, sorted(heights))
         with self.assertRaises(ValueError):
@@ -74,8 +73,8 @@ class Settings(unittest.TestCase):
     def test_all_videos_moves_the_show_to_the_default(self):
         data = pc.load(self.dir)
         pc.apply(data, 'show', NARUTO, upscale='1440p')
-        pc.apply(data, 'default', NARUTO, upscale='2K')
-        self.assertEqual(pc.resolve(data, NARUTO), ('default', {'upscale': '2K', 'saturation': 0}))
+        pc.apply(data, 'default', NARUTO, upscale='1440p')
+        self.assertEqual(pc.resolve(data, NARUTO), ('default', {'upscale': '1440p', 'saturation': 0}))
         self.assertEqual(data['shows'], {})
 
     def test_reset_this_show(self):
