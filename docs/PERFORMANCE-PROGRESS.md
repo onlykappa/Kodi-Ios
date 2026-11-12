@@ -13,8 +13,8 @@
 
 Branch claude/trusting-euler-kgug98, PR #21 (draft). Latest IPA: build-302 (Kodi r31 + AirPlay r48 pinned).
 Priority order:
-1. ISSUE-179 (OPEN, owner blocked): Build Season finds every episode but queues none ("automatic pick refused
-   (different version)" / "no matching automatic request"). Owner cannot download seasons, so cannot test the upscaler.
+1. ISSUE-179 FIXED on host (route's request_id now picks the lane; names no longer compared for a lane's own link).
+   Owner to retest Build Season on the next IPA and send kodi.log (look for episode_result queued:true).
 2. Build the approved Build Season quality sheet round 3 (DEC-041, season-pack-mockups.html board B3): 4K/1080p/720p,
    quick 3-episode availability check, missing greyed, RECOMMENDED = highest quality under ~3 GB/episode and 40 GB/season.
 3. Owner's AI Upscale measurement log (Settings › Library › Transfer settings › Google Drive tab › AI Upscale test;

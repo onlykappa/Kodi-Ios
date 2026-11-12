@@ -2835,7 +2835,7 @@ one lane keeps the old behaviour; box set neither sizes nor picks the episode; b
 (missed episode looked up once more; still nothing → left out). Each fails on the old code and passes now; the
 related suites (auto_season, episode_watch, import_builder, customized_ipa) pass. Phone check: next IPA.
 
-## ISSUE-179 — Build Season: every episode found but none queued (build 302, owner logs dab02446 / 0296adce) — OPEN
+## ISSUE-179 — Build Season: every episode found but none queued (build 302, owner logs dab02446 / 0296adce / 1138649a) — FIXED on host, owner retest pending
 
 After ISSUE-178 the scan works (build_scanned found 32/32, scan_retry found episode 9). The queue phase fails for all
 32: episode_result queued:false, one queue_deferred TimeoutError, card "No episode could be added". For each episode
@@ -2852,3 +2852,24 @@ cloud route's lane lookup (auto_season loops lanes and checks each lane's Result
 (3) ISSUE-178's `_unmatched` guard must not affect the queue phase. Reproduce with a host test of
 season_sources._build's queue phase + deck_picker.run(purpose='queue') + elementum_cloud.auto_season with three lanes.
 Not fixed (session ran out); build 290 queued episodes one lane at a time, so compare with the pre-lane code.
+
+Root cause (owner log 1138649a, build 302): suspect (1), and it was not only packs. Elementum's link names the torrent
+its own way (the magnet's dn, else the search query), while the picker's Result `name` is Elementum's whole label line
+with Torrentio's stats ("Naruto Shippuuden - 002 [1080p] dual audio 10bit.mkv 👤 10 💾 945.19 MB ⚙️ NyaaSi…"). Even the
+single-file episode 2 was refused "different version". With no lane accepted, route's request_id check then logged
+"no matching automatic request" and returned without the receipt. Yet route already had the answer: each lane's lookup
+calls route(url, request_id=<that lane's id>), so the link's lane is known and the name test was never needed there.
+Fix (elementum_cloud): auto_season(…, request_id) looks only at the lane whose AutoPick has that request id and calls
+refusal(…, own=True), which skips the name comparison and still checks found, request id and (when the link carries
+them) season and episode. Without a request id (a hand pick while a season runs) names are still compared, now with the
+stats suffix cut and a file-in-pack vs bare file match, and a refusal logs both names
+('different version (picked "…", Elementum "…")').
+Pack question: the "001-500 Complete Series" file was chosen only where it was the sole 1080p copy the title/episode
+check kept (E01: the other 1080p links were hidden as "no season/episode in the name"); auto_choose already ranks
+WHOLE_SERIES last and E02 took the single file. AllDebrid's pick() downloads just that episode's file from the pack.
+Retest: scripts/test_elementum_cloud.py SeasonQueueThreeLanes (three lanes, deck_picker.run answers each, Elementum
+links named differently from the picker reach auto_season in shuffled order: every lane accepted; another lane's link is
+refused "different episode"; a hand pick with a different name is refused with both names logged). It fails on the
+old code. Related suites (episode_watch, auto_season, season_sources, deck_picker, debrid_drive) pass.
+Regression protection: that test in import-review.yml (test_elementum_cloud already runs there). Phone proof: the owner's
+next Build Season log should show episode_result queued:true and no "refused" lines.

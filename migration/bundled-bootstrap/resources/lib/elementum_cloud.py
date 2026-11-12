@@ -124,7 +124,7 @@ def route(url,quiet=False,request_id=None):
         profile = xbmcvfs.translatePath('special://profile/')
         try:home = xbmcgui.Window(10000)
         except Exception:home = None
-        auto = auto_season(home,choice=choice) if home is not None else None
+        auto = auto_season(home,choice=choice,request_id=request_id) if home is not None else None
         if request_id and (not auto or auto.get('request_id')!=request_id):
             _refused('no matching automatic request' if not auto else 'another request id')
             return True
@@ -208,17 +208,22 @@ def same_pick(picked, chosen):
     001 Homecoming.mkv'), Elementum's selection only by the torrent ('Naruto Shippuden (001-500) [...]'); every episode
     was refused and the season said '0 episodes added'."""
     import re
-    norm = lambda s: re.sub(r'\s+', ' ', str(s or '')).strip().lower()
+    # ISSUE-179 (owner log 1138649a, build 302): the picker's name is Elementum's whole label line, Torrentio's stats
+    # included ('... 10bit.mkv 👤 10 💾 945.19 MB ⚙️ NyaaSi'); those are cut before comparing.
+    norm = lambda s: re.sub(r'\s+', ' ', re.split(u'\U0001F464|\U0001F4BE|\u2699', str(s or ''))[0]).strip().lower()
     a, b = norm(picked), norm(chosen)
     if not a or not b:
         return False
     if a == b:
         return True
+    # A file inside a pack against the bare file name.
+    if len(b) >= 8 and a.rsplit('/', 1)[-1] == b or len(a) >= 8 and b.rsplit('/', 1)[-1] == a:
+        return True
     short, long_ = (a, b) if len(a) < len(b) else (b, a)
     return len(short) >= 8 and long_.startswith(short) and long_[len(short)] in '/ ._-[('
 
 
-def refusal(wanted, selected, choice):
+def refusal(wanted, selected, choice, own=False):
     """Why Elementum's selection is not the automatic season request's pick ('' when it is). Owner log 5169a460 (build
     290): every Build Season episode was refused without a word in the log. Season and episode are compared only when
     Elementum's link carries them."""
@@ -226,13 +231,20 @@ def refusal(wanted, selected, choice):
         return 'another request'
     if not selected.get('found'):
         return 'picker found nothing'
-    if not same_pick(selected.get('name'), choice.get('name')):
-        return 'different version'
+    # ISSUE-179: own=True when Elementum's link came from this lane's own lookup (route's request_id is the lane's):
+    # the picker's answer is then this link whatever the two names say, and only the episode is still checked.
+    if not own and not same_pick(selected.get('name'), choice.get('name')):
+        return 'different version (picked "%s", Elementum "%s")' % (_short(selected.get('name')), _short(choice.get('name')))
     for k in ('season', 'episode'):
         have = str(choice.get(k) or '')
         if have and have.lstrip('0') != str(wanted['target'].get(k) or '').lstrip('0'):
             return 'different ' + k
     return ''
+
+
+def _short(name, size=90):
+    name = str(name or '')
+    return name if len(name) <= size else name[:size - 1] + u'\u2026'
 
 
 def _refused(why):
@@ -243,8 +255,9 @@ def _refused(why):
         pass
 
 
-def auto_season(window, now=None,choice=None):
-    """download.py's automatic season request (deck_picker.AUTO_PICK) while it lasts, else None."""
+def auto_season(window, now=None, choice=None, request_id=None):
+    """download.py's automatic season request (deck_picker.AUTO_PICK) while it lasts, else None. With request_id (the
+    lookup that followed Elementum to this link), only that lookup's own lane."""
     import json, time
     now = time.time() if now is None else now
     reasons = []
@@ -255,10 +268,12 @@ def auto_season(window, now=None,choice=None):
             wanted = json.loads(raw) if raw else None
             if not wanted or float(wanted.get('until', 0)) < now:
                 continue
+            if request_id and wanted.get('request_id') != request_id:
+                continue
             wanted['_lane'] = lane
             if wanted.get('target') and choice is not None:
                 selected = json.loads(window.getProperty('KodiIOS.AutoPick.Result' + lane) or '{}')
-                why = refusal(wanted, selected, choice)
+                why = refusal(wanted, selected, choice, own=bool(request_id))
                 if why:
                     reasons.append(why)
                     continue
