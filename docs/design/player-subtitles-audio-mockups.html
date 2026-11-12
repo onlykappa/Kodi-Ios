@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Player Track Menus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi.
+   Tokens from portrait.py / pages.py (§4.3). All sizes in pt via --u (1pt of a 874 x 402 pt landscape screen). */
+:root{--surface2:rgba(44,44,46,.96);--white:#fff;--grey:rgba(235,235,245,.6);--dim:rgba(235,235,245,.3);
+  --sep:rgba(235,235,245,.16);--blue:#0a84ff;--blue-text:#4fa8ff;--green:#30d158;--font:Inter,system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#0a0a0b;color:var(--white);font-family:var(--font);-webkit-font-smoothing:antialiased}
+svg{display:block}
+.intro{max-width:1100px;margin:0 auto;padding:40px 16px 8px}
+.label{display:inline-block;background:#3a2a00;color:#ffd60a;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+.eyebrow{color:var(--grey);font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+h1{font-size:clamp(26px,4.5vw,40px);font-weight:800;letter-spacing:-.02em;margin:8px 0 10px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:760px;margin-bottom:8px}
+.board{max-width:1100px;margin:0 auto;padding:28px 16px 8px}
+.board .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+.board h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+.board > p{color:var(--grey);font-size:14px;line-height:1.5;max-width:780px;margin-bottom:16px}
+
+.frame{width:100%;max-width:934px;aspect-ratio:934/462;border-radius:56px;padding:30px;
+  background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.screen{position:relative;width:100%;height:100%;border-radius:30px;overflow:hidden;background:#000;container-type:inline-size}
+.pt{position:absolute;inset:0;--u:calc(100cqw / 874)}
+.video{position:absolute;inset:0;background:radial-gradient(120% 90% at 30% 40%,#2b3440 0%,#151a20 45%,#07090b 100%)}
+.video::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.5),rgba(0,0,0,0) 30%,rgba(0,0,0,0) 62%,rgba(0,0,0,.65))}
+
+.osd{position:absolute;inset:0;opacity:.3}
+.ic{position:absolute;top:calc(14*var(--u));width:calc(44*var(--u));height:calc(44*var(--u));display:flex;align-items:center;justify-content:center}
+.ic svg{width:calc(24*var(--u));height:calc(24*var(--u))}
+.on{opacity:1;border-radius:50%;background:rgba(255,255,255,.18);z-index:3}
+.title{position:absolute;left:calc(43*var(--u));bottom:calc(58*var(--u));font-size:calc(26*var(--u));font-weight:700}
+.bar{position:absolute;left:calc(43*var(--u));right:calc(43*var(--u));bottom:calc(44*var(--u));height:calc(4*var(--u));border-radius:9px;background:rgba(255,255,255,.25)}
+.bar i{position:absolute;inset:0 78% 0 0;border-radius:9px;background:#fff}
+.centre{position:absolute;left:38%;top:50%;transform:translate(-50%,-50%);display:flex;gap:calc(90*var(--u))}
+.centre svg{width:calc(42*var(--u));height:calc(42*var(--u))}
+.sub{position:absolute;left:33%;bottom:calc(96*var(--u));transform:translateX(-50%);font-size:calc(20*var(--u));font-weight:600;text-shadow:0 1px 3px #000;white-space:nowrap}
+
+.menu{position:absolute;top:calc(64*var(--u));right:calc(20*var(--u));width:calc(318*var(--u));border-radius:calc(18*var(--u));
+  background:var(--surface2);box-shadow:0 calc(18*var(--u)) calc(50*var(--u)) rgba(0,0,0,.55);overflow:hidden;z-index:4;padding-bottom:calc(10*var(--u));max-height:calc(326*var(--u))}
+.fade{position:absolute;left:0;right:0;bottom:0;height:calc(40*var(--u));background:linear-gradient(rgba(44,44,46,0),rgba(44,44,46,1))}
+.mh{display:flex;align-items:center;height:calc(50*var(--u));padding:0 calc(6*var(--u)) 0 calc(18*var(--u))}
+.mh b{flex:1;font-size:calc(17*var(--u));font-weight:700}
+.mh .back{display:flex;align-items:center;gap:calc(5*var(--u));color:var(--blue-text);font-size:calc(16*var(--u));font-weight:500;flex:1}
+.mh .back svg{width:calc(10*var(--u));height:calc(16*var(--u))}
+.x{width:calc(44*var(--u));height:calc(44*var(--u));display:flex;align-items:center;justify-content:center}
+.x span{width:calc(28*var(--u));height:calc(28*var(--u));border-radius:50%;background:rgba(235,235,245,.12);display:flex;align-items:center;justify-content:center}
+.x svg{width:calc(11*var(--u));height:calc(11*var(--u))}
+
+.cta{margin:calc(2*var(--u)) calc(14*var(--u)) calc(6*var(--u));height:calc(44*var(--u));border-radius:calc(22*var(--u));background:#fff;color:#000;
+  display:flex;align-items:center;justify-content:center;gap:calc(8*var(--u));font-size:calc(16*var(--u));font-weight:700}
+.cta svg{width:calc(18*var(--u));height:calc(18*var(--u))}
+.cta.busy{background:rgba(235,235,245,.12);color:#fff;font-weight:600}
+.cta.busy .spin{width:calc(18*var(--u));height:calc(18*var(--u));border-radius:50%;border:calc(2.4*var(--u)) solid rgba(255,255,255,.25);border-top-color:#fff}
+.cta.done{background:rgba(48,209,88,.16);color:var(--green);font-weight:600}
+.hint{margin:0 calc(18*var(--u)) calc(12*var(--u));color:var(--grey);font-size:calc(12*var(--u));text-align:center}
+
+.list{margin:0 calc(10*var(--u));border-radius:calc(12*var(--u));background:rgba(0,0,0,.28)}
+.row{position:relative;display:flex;align-items:center;gap:calc(8*var(--u));height:calc(44*var(--u));padding:0 calc(12*var(--u)) 0 calc(38*var(--u))}
+.row + .row::before{content:"";position:absolute;top:0;left:calc(38*var(--u));right:0;height:1px;background:var(--sep)}
+.row .chk{position:absolute;left:calc(12*var(--u));width:calc(16*var(--u));height:calc(16*var(--u));color:var(--blue-text)}
+.row .t{flex:1;min-width:0;font-size:calc(16*var(--u));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .t.sel{font-weight:600}
+.tag{flex:none;font-size:calc(11*var(--u));font-weight:700;letter-spacing:.03em;color:var(--grey);border:1px solid rgba(235,235,245,.25);border-radius:calc(6*var(--u));padding:calc(2*var(--u)) calc(6*var(--u))}
+.tag.new{color:var(--green);border-color:rgba(48,209,88,.5)}
+.row .val{color:var(--grey);font-size:calc(15*var(--u))}
+.row .go{width:calc(8*var(--u));height:calc(13*var(--u));color:var(--dim)}
+.row.plain{padding-left:calc(14*var(--u))}
+.row.plain + .row.plain::before{left:calc(14*var(--u))}
+.spacer{height:calc(8*var(--u))}
+.step{display:flex;align-items:center}
+.step .v{min-width:calc(58*var(--u));text-align:center;font-size:calc(15*var(--u));font-variant-numeric:tabular-nums}
+.sb{width:calc(40*var(--u));height:calc(44*var(--u));display:flex;align-items:center;justify-content:center}
+.sb span{width:calc(32*var(--u));height:calc(28*var(--u));border-radius:calc(14*var(--u));background:rgba(235,235,245,.12);display:flex;align-items:center;justify-content:center}
+.sb svg{width:calc(11*var(--u));height:calc(11*var(--u))}
+.toggle{flex:none;width:calc(46*var(--u));height:calc(28*var(--u));border-radius:calc(14*var(--u));background:#39393d;position:relative}
+.toggle::after{content:"";position:absolute;top:calc(2*var(--u));left:calc(2*var(--u));width:calc(24*var(--u));height:calc(24*var(--u));border-radius:50%;background:#fff}
+.toggle.on{background:var(--green)}.toggle.on::after{left:calc(20*var(--u))}
+.toast{position:absolute;left:38%;top:calc(20*var(--u));transform:translateX(-50%);display:flex;align-items:center;gap:calc(8*var(--u));
+  background:var(--surface2);border-radius:calc(20*var(--u));padding:calc(9*var(--u)) calc(16*var(--u));font-size:calc(14*var(--u));font-weight:600;z-index:5;white-space:nowrap}
+.toast svg{width:calc(16*var(--u));height:calc(16*var(--u));color:var(--green)}
+.note{margin:0 calc(18*var(--u)) calc(12*var(--u));font-size:calc(13*var(--u));color:var(--grey);line-height:1.35}
+.note b{color:#fff;font-weight:600}
+
+.notes{max-width:1100px;margin:0 auto;padding:24px 16px 64px;color:#b4b4ba;font-size:14px;line-height:1.55}
+.notes h3{color:#fff;font-size:16px;margin:18px 0 6px}
+.notes li{margin:3px 0 3px 18px}
+.notes code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#d8d8dc}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="chev-l" viewBox="0 0 24 24"><path d="M15 4 7 12l8 8" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="back" viewBox="0 0 10 16"><path d="M8 1.5 2 8l6 6.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="gauge" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#fff"/><path d="M12 13 16.5 7.5" stroke="#000" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="13" r="2" fill="#000"/></symbol>
+  <symbol id="wave" viewBox="0 0 24 24"><path d="M6 2h8l5 5v15H6z" fill="#fff"/><path d="M8 14h2l1.5-3 2 6 1.5-3h2" fill="none" stroke="#000" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+  <symbol id="cc" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3" fill="#fff"/><text x="12" y="15.6" text-anchor="middle" font-family="Inter,sans-serif" font-weight="800" font-size="8" fill="#000">CC</text></symbol>
+  <symbol id="airplay" viewBox="0 0 24 24"><path d="M6 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-2" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 14 18 21H6z" fill="#fff"/></symbol>
+  <symbol id="back10" viewBox="0 0 24 24"><path d="M5 12a7 7 0 1 0 2-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><path d="M4 3v5h5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="pause" viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1.5" fill="#fff"/><rect x="14" y="4" width="5" height="16" rx="1.5" fill="#fff"/></symbol>
+  <symbol id="x" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2 2 10" stroke="rgba(235,235,245,.7)" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="check" viewBox="0 0 16 16"><path d="M2.5 8.5 6.5 12.5 13.5 3.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="go" viewBox="0 0 8 13"><path d="M1.5 1.5 6.5 6.5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="minus" viewBox="0 0 12 12"><path d="M1.5 6h9" stroke="#fff" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="plus" viewBox="0 0 12 12"><path d="M1.5 6h9M6 1.5v9" stroke="#fff" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="dl" viewBox="0 0 18 18"><path d="M9 2v9M5 7.5 9 11.5l4-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 15h12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="ok" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="currentColor"/><path d="M4.5 8.3 7 10.8l4.6-5.3" fill="none" stroke="#000" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<div class="intro">
+  <span class="label">MOCKUP · not a render of Kodi · round 2</span>
+  <div class="eyebrow">Video controls · landscape</div>
+  <h1>Subtitles and Audio menus</h1>
+  <p>Today the CC and waveform buttons open Kodi's settings dialog, a large centred box with an empty side panel. These boards replace both with one compact menu that drops from the button you tapped. On top: <b>Download and apply</b>, one tap that finds, downloads and turns on the best subtitles for this video in your language. Below it: the tracks, then Timing and More.</p>
+  <p>The video keeps playing. Tapping outside the menu, the ✕ or the same button closes it.</p>
+</div>
+
+<section class="board" id="b1">
+  <div class="n">BOARD 1</div>
+  <h2>Subtitles</h2>
+  <p>One white button, the only primary action. The hint under it says what it will fetch (your subtitle language from Settings). Tracks are one line each; a small tag says what is special about one (SDH, FORCED). Tap a track to switch. The menu stops above the progress bar and scrolls; the fade shows there is more (Timing, More).</p>
+  <div class="frame"><div class="screen"><div class="pt">
+    <div class="video"></div><div class="sub">Where are we going?</div>
+    <div class="osd">
+      <div class="ic" style="left:calc(39*var(--u))"><svg><use href="#chev-l"/></svg></div>
+      <div class="ic" style="right:calc(178*var(--u))"><svg><use href="#gauge"/></svg></div>
+      <div class="ic" style="right:calc(126*var(--u))"><svg><use href="#wave"/></svg></div>
+      <div class="ic" style="right:calc(22*var(--u))"><svg><use href="#airplay"/></svg></div>
+      <div class="centre"><svg><use href="#back10"/></svg><svg><use href="#pause"/></svg></div>
+      <div class="title">Title of the film</div><div class="bar"><i></i></div>
+    </div>
+    <div class="ic on" style="right:calc(74*var(--u))"><svg><use href="#cc"/></svg></div>
+    <div class="menu">
+      <div class="mh"><b>Subtitles</b><div class="x"><span><svg><use href="#x"/></svg></span></div></div>
+      <div class="cta"><svg><use href="#dl"/></svg>Download and apply</div>
+      <div class="hint">Finds English subtitles for this video</div>
+      <div class="list">
+        <div class="row"><span class="t">Off</span></div>
+        <div class="row"><svg class="chk"><use href="#check"/></svg><span class="t sel">English</span></div>
+        <div class="row"><span class="t">English</span><span class="tag">SDH</span></div>
+        <div class="row"><span class="t">Spanish (Latin America)</span></div>
+      </div>
+      <div class="spacer"></div>
+      <div class="list">
+        <div class="row plain"><span class="t">Timing</span><div class="step"><div class="sb"><span><svg><use href="#minus"/></svg></span></div><div class="v">0.0 s</div><div class="sb"><span><svg><use href="#plus"/></svg></span></div></div></div>
+        <div class="row plain"><span class="t">More</span><svg class="go"><use href="#go"/></svg></div>
+      </div>
+      <div class="fade"></div>
+    </div>
+  </div></div></div>
+</section>
+
+<section class="board" id="b2">
+  <div class="n">BOARD 2</div>
+  <h2>Download and apply: working</h2>
+  <p>The button becomes its own progress: a spinner and one line that says the step ("Searching…", then "Downloading…"). The rest of the menu stays usable; closing the menu does not stop it.</p>
+  <div class="frame"><div class="screen"><div class="pt">
+    <div class="video"></div>
+    <div class="osd">
+      <div class="ic" style="left:calc(39*var(--u))"><svg><use href="#chev-l"/></svg></div>
+      <div class="ic" style="right:calc(178*var(--u))"><svg><use href="#gauge"/></svg></div>
+      <div class="ic" style="right:calc(126*var(--u))"><svg><use href="#wave"/></svg></div>
+      <div class="ic" style="right:calc(22*var(--u))"><svg><use href="#airplay"/></svg></div>
+      <div class="centre"><svg><use href="#back10"/></svg><svg><use href="#pause"/></svg></div>
+      <div class="title">Title of the film</div><div class="bar"><i></i></div>
+    </div>
+    <div class="ic on" style="right:calc(74*var(--u))"><svg><use href="#cc"/></svg></div>
+    <div class="menu">
+      <div class="mh"><b>Subtitles</b><div class="x"><span><svg><use href="#x"/></svg></span></div></div>
+      <div class="cta busy"><div class="spin"></div>Searching for English…</div>
+      <div class="hint">Matching this exact version of the video</div>
+      <div class="list">
+        <div class="row"><svg class="chk"><use href="#check"/></svg><span class="t sel">Off</span></div>
+        <div class="row"><span class="t">Spanish (Latin America)</span></div>
+      </div>
+      <div class="spacer"></div>
+      <div class="list">
+        <div class="row plain"><span class="t">Timing</span><div class="step"><div class="sb"><span><svg><use href="#minus"/></svg></span></div><div class="v">0.0 s</div><div class="sb"><span><svg><use href="#plus"/></svg></span></div></div></div>
+        <div class="row plain"><span class="t">More</span><svg class="go"><use href="#go"/></svg></div>
+      </div>
+    </div>
+  </div></div></div>
+</section>
+
+<section class="board" id="b3">
+  <div class="n">BOARD 3</div>
+  <h2>Download and apply: done</h2>
+  <p>The subtitles turn on by themselves and appear in the list with a green NEW tag, checked. The menu closes after a moment; a short confirmation shows at the top. Next time this video plays they are already there.</p>
+  <div class="frame"><div class="screen"><div class="pt">
+    <div class="video"></div><div class="sub">Where are we going?</div>
+    <div class="toast"><svg><use href="#ok"/></svg>English subtitles on</div>
+    <div class="osd">
+      <div class="ic" style="left:calc(39*var(--u))"><svg><use href="#chev-l"/></svg></div>
+      <div class="ic" style="right:calc(178*var(--u))"><svg><use href="#gauge"/></svg></div>
+      <div class="ic" style="right:calc(126*var(--u))"><svg><use href="#wave"/></svg></div>
+      <div class="ic" style="right:calc(22*var(--u))"><svg><use href="#airplay"/></svg></div>
+      <div class="centre"><svg><use href="#back10"/></svg><svg><use href="#pause"/></svg></div>
+      <div class="title">Title of the film</div><div class="bar"><i></i></div>
+    </div>
+    <div class="ic on" style="right:calc(74*var(--u))"><svg><use href="#cc"/></svg></div>
+    <div class="menu">
+      <div class="mh"><b>Subtitles</b><div class="x"><span><svg><use href="#x"/></svg></span></div></div>
+      <div class="cta done"><svg><use href="#dl"/></svg>Downloaded and on</div>
+      <div class="hint">Wrong one? More › Choose another</div>
+      <div class="list">
+        <div class="row"><span class="t">Off</span></div>
+        <div class="row"><svg class="chk"><use href="#check"/></svg><span class="t sel">English</span><span class="tag new">NEW</span></div>
+        <div class="row"><span class="t">Spanish (Latin America)</span></div>
+      </div>
+    </div>
+  </div></div></div>
+</section>
+
+<section class="board" id="b4">
+  <div class="n">BOARD 4</div>
+  <h2>More</h2>
+  <p>The rarer choices, one level down (‹ Subtitles goes back). <b>Choose another</b> lists every result found online, best match first, so a wrong pick is one tap to fix. <b>Add from a file</b> opens Kodi's file browser. <b>Use for all videos</b> keeps the language on for new videos.</p>
+  <div class="frame"><div class="screen"><div class="pt">
+    <div class="video"></div><div class="sub">Where are we going?</div>
+    <div class="osd">
+      <div class="ic" style="left:calc(39*var(--u))"><svg><use href="#chev-l"/></svg></div>
+      <div class="ic" style="right:calc(178*var(--u))"><svg><use href="#gauge"/></svg></div>
+      <div class="ic" style="right:calc(126*var(--u))"><svg><use href="#wave"/></svg></div>
+      <div class="ic" style="right:calc(22*var(--u))"><svg><use href="#airplay"/></svg></div>
+      <div class="centre"><svg><use href="#back10"/></svg><svg><use href="#pause"/></svg></div>
+      <div class="title">Title of the film</div><div class="bar"><i></i></div>
+    </div>
+    <div class="ic on" style="right:calc(74*var(--u))"><svg><use href="#cc"/></svg></div>
+    <div class="menu">
+      <div class="mh"><div class="back"><svg><use href="#back"/></svg>Subtitles</div><div class="x"><span><svg><use href="#x"/></svg></span></div></div>
+      <div class="list">
+        <div class="row plain"><span class="t">Choose another</span><span class="val">12 found</span><svg class="go"><use href="#go"/></svg></div>
+        <div class="row plain"><span class="t">Add from a file</span><svg class="go"><use href="#go"/></svg></div>
+        <div class="row plain"><span class="t">Use for all videos</span><div class="toggle on"></div></div>
+      </div>
+    </div>
+  </div></div></div>
+</section>
+
+<section class="board" id="b5">
+  <div class="n">BOARD 5</div>
+  <h2>Nothing found</h2>
+  <p>Plain words and one next step. No raw add-on errors on screen (they go to the log).</p>
+  <div class="frame"><div class="screen"><div class="pt">
+    <div class="video"></div>
+    <div class="osd">
+      <div class="ic" style="left:calc(39*var(--u))"><svg><use href="#chev-l"/></svg></div>
+      <div class="ic" style="right:calc(178*var(--u))"><svg><use href="#gauge"/></svg></div>
+      <div class="ic" style="right:calc(126*var(--u))"><svg><use href="#wave"/></svg></div>
+      <div class="ic" style="right:calc(22*var(--u))"><svg><use href="#airplay"/></svg></div>
+      <div class="centre"><svg><use href="#back10"/></svg><svg><use href="#pause"/></svg></div>
+      <div class="title">Title of the film</div><div class="bar"><i></i></div>
+    </div>
+    <div class="ic on" style="right:calc(74*var(--u))"><svg><use href="#cc"/></svg></div>
+    <div class="menu">
+      <div class="mh"><b>Subtitles</b><div class="x"><span><svg><use href="#x"/></svg></span></div></div>
+      <div class="note"><b>No English subtitles found for this video.</b> Try another language in Settings › Subtitles, or add a file.</div>
+      <div class="cta"><svg><use href="#dl"/></svg>Try again</div>
+      <div class="spacer"></div>
+      <div class="list">
+        <div class="row"><svg class="chk"><use href="#check"/></svg><span class="t sel">Off</span></div>
+        <div class="row plain"><span class="t">More</span><svg class="go"><use href="#go"/></svg></div>
+      </div>
+    </div>
+  </div></div></div>
+</section>
+
+<section class="board" id="b6">
+  <div class="n">BOARD 6</div>
+  <h2>Audio</h2>
+  <p>Same menu from the waveform button. Tracks in plain words with format tags (ATMOS, 5.1, COMMENTARY). Timing fixes lip sync; Volume boost is Kodi's volume amplification.</p>
+  <div class="frame"><div class="screen"><div class="pt">
+    <div class="video"></div>
+    <div class="osd">
+      <div class="ic" style="left:calc(39*var(--u))"><svg><use href="#chev-l"/></svg></div>
+      <div class="ic" style="right:calc(178*var(--u))"><svg><use href="#gauge"/></svg></div>
+      <div class="ic" style="right:calc(74*var(--u))"><svg><use href="#cc"/></svg></div>
+      <div class="ic" style="right:calc(22*var(--u))"><svg><use href="#airplay"/></svg></div>
+      <div class="centre"><svg><use href="#back10"/></svg><svg><use href="#pause"/></svg></div>
+      <div class="title">Title of the film</div><div class="bar"><i></i></div>
+    </div>
+    <div class="ic on" style="right:calc(126*var(--u))"><svg><use href="#wave"/></svg></div>
+    <div class="menu" style="right:calc(72*var(--u))">
+      <div class="mh"><b>Audio</b><div class="x"><span><svg><use href="#x"/></svg></span></div></div>
+      <div class="list">
+        <div class="row"><svg class="chk"><use href="#check"/></svg><span class="t sel">English</span><span class="tag">ATMOS</span></div>
+        <div class="row"><span class="t">English</span><span class="tag">COMMENTARY</span></div>
+        <div class="row"><span class="t">Spanish (Latin America)</span><span class="tag">5.1</span></div>
+      </div>
+      <div class="spacer"></div>
+      <div class="list">
+        <div class="row plain"><span class="t">Timing</span><div class="step"><div class="sb"><span><svg><use href="#minus"/></svg></span></div><div class="v">0 ms</div><div class="sb"><span><svg><use href="#plus"/></svg></span></div></div></div>
+        <div class="row plain"><span class="t">Volume boost</span><div class="step"><div class="sb"><span><svg><use href="#minus"/></svg></span></div><div class="v">Off</div><div class="sb"><span><svg><use href="#plus"/></svg></span></div></div></div>
+      </div>
+    </div>
+  </div></div></div>
+</section>
+
+<div class="notes">
+  <h3>Measurements (pt)</h3>
+  <ul>
+    <li>Menu 318 wide, 64 from the top, at most 326 high (it stops above the progress bar and scrolls, with a fade), right edge under its button; radius 18; <code>SURFACE2</code> at 96 % (Kodi cannot blur, §2); soft shadow. Controls behind dim to 30 %; the open button gets an 18 % white disc.</li>
+    <li>Header 50: title 17 bold, ✕ in a 44 × 44 area (28 disc). Sub-page header: blue "‹ Subtitles" back.</li>
+    <li>Download and apply: white capsule 44 high, black 16 bold, one per view (§4.5). Working: 12 % white with spinner. Done: green 16 % tint, green text.</li>
+    <li>Rows 44 high in an inset group (radius 12, black 28 %): title 16 (selected 16 semibold), tags 11 bold capitals in a hairline box, check 16 in <code>4FA8FF</code>, hairline separators.</li>
+    <li>Steppers: − and + each in a 40 × 44 area; value 15 tabular. Timing steps 0.1 s (subtitles) / 25 ms (audio); hold repeats.</li>
+  </ul>
+  <h3>How Download and apply would work (for review, not decided)</h3>
+  <ul>
+    <li>Uses the subtitle add-on Kodi already runs for "Download subtitle…" (its <code>search</code> then <code>download</code> actions), in the language from Kodi's subtitle settings, matched by the video's file name and hash first, then by title, year and episode.</li>
+    <li>The best result is downloaded and turned on with <code>xbmc.Player().setSubtitles()</code>; it is remembered for that video so the next play has it.</li>
+    <li>Choose another lists the same search results. Which subtitle add-on is installed, and whether it needs an account, must be checked before building.</li>
+    <li>Tracks come from <code>Player.GetProperties</code> (<code>subtitles</code>, <code>audiostreams</code>); switching uses <code>Player.SetSubtitle</code> / <code>Player.SetAudioStream</code>; Timing and Volume boost call Kodi's subtitle delay, audio delay and volume amplification.</li>
+  </ul>
+  <h3>Not shown</h3>
+  <ul><li>Portrait (video is landscape only). No live blur in Kodi. VoiceOver and Dynamic Type are not available in Kodi-drawn UI (§5.3).</li></ul>
+</div>
+</body>
+</html>
