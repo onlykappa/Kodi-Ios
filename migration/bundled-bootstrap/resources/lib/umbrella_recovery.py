@@ -11,13 +11,20 @@ def web(url):
   return p.scheme in ('http','https') and bool(p.hostname)
  except (TypeError,ValueError):return False
 
-def remember(link,response,home=None):
+def remember(link,response,home=None,warm=None):
  if not isinstance(response,dict) or not web(response.get('link','')) or not isinstance(link,str) or not 0<len(link)<8192:return
  if home is None:
   import xbmcgui
   home=xbmcgui.Window(10000)
+  if warm is None:   # the real call from Umbrella's unlock: roadmap 1B.4, read the link's start while Umbrella's window closes
+   try:
+    import link_warm;warm=link_warm.start
+   except Exception:warm=None
  record={'source':response['link'],'link':link,'size':int(response.get('filesize') or 0),'filename':str(response.get('filename') or '')}
  if len(json.dumps(record))<20000:home.setProperty(PROPERTY,json.dumps(record))
+ if warm:
+  try:warm(response['link'],record['size'])
+  except Exception:pass
 
 def selected(source,home):
  try:

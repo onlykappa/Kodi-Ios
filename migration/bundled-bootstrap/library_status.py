@@ -146,7 +146,8 @@ def run(args=()):
      elif self.fresh:
       self.sheet=dict(self.sheet,live={'state':'stale','line':'Updating…'},status='Updating…',actions=[])
      self.show(self.sheet)
-    except Exception as error:xbmc.log('Library status sheet: %s: %s'%(type(error).__name__,error),xbmc.LOGWARNING)
+    except Exception as error:
+     import diagnostics;xbmc.log('Library status sheet: %s: %s'%(type(error).__name__,diagnostics.error_text(error)),xbmc.LOGWARNING)
   def onAction(self,action):
    if action.getId() in BACK:self.finish()
   def onClick(self,control):
@@ -172,7 +173,7 @@ def run(args=()):
    while not page_wait.idle(self.stop,monitor,2):
     if self.stop.is_set():break
     try:self.refresh()
-    except Exception as error:xbmc.log('Library status: %s'%error,xbmc.LOGWARNING)
+    except Exception as error:import diagnostics;xbmc.log('Library status: %s'%diagnostics.error_text(error),xbmc.LOGWARNING)
   def refresh(self,force=False):
    with self.busy:
     state,view=snapshot(profile,notices.downloads,lambda:notices.uploads(profile))
@@ -355,7 +356,7 @@ def run(args=()):
    info=drivelibrary.parse(row.get('name') or '')
    found=drivelibrary.artwork('tv' if info['season'] else 'movie',info['title'],info['year'],key,cache,get) if key else {}
   except Exception as error:
-   xbmc.log('Library status: TMDb lookup failed: %s'%error,xbmc.LOGWARNING);info,found={},{}
+   import diagnostics;xbmc.log('Library status: TMDb lookup failed: %s'%diagnostics.error_text(error),xbmc.LOGWARNING);info,found={},{}
   tmdb=str((found or {}).get('tmdb_id') or '')
   if not tmdb:
    dialog.ok('Find a version without converting','TMDb did not recognise "%s", so its other versions cannot be looked up.'%row.get('title',''));return

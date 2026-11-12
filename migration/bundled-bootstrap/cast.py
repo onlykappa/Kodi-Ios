@@ -267,6 +267,8 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
  import time,xbmcgui
  # Build 186 (owner: "airplay stops out of nowhere"): the copies, uploads and conversion step aside from now on.
  home=xbmcgui.Window(10000);airplay.mark_busy(home,time.time())
+ # Roadmap 1G.3: while AirPlay starts, the app's Drive proxy holds Kodi's own read-ahead so the converter has the line.
+ airplay.mark_starting(home,time.time())
  # Owner-approved card (airplay_flow): the steps at once, with Cancel. A direct link has nothing to open first.
  ui=FlowUI(xbmc,xbmcgui,dialog,title)
  ui.show('opening' if converting else 'connecting',() if converting else ('opening','waiting_tv'))
@@ -338,7 +340,7 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
    import work_state;work_state.need('airplay_network',False,profile)
  except Exception:
   # A logging/controller exception must not strand the native source or Kodi's paused video.
-  lib.kodi_airplay_close();ui.close();airplay.clear_busy(home)
+  lib.kodi_airplay_close();ui.close();airplay.clear_busy(home);airplay.clear_starting(home)
   if xbmc.getCondVisibility('Player.Paused'):player.pause()
   raise
  if ui.win is None:ui.close()   # Kodi's own progress box goes before its alert; the card stays for boards 5 and 6
@@ -355,6 +357,7 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
   # Owner build-136 log: stopping Kodi's video here (7 ms after "playing") turned the app back to portrait under
   # Apple's player; the TV then hung up on the video and audio segments and AirPlay switched off 4 s later. Kodi's
   # video stays paused in landscape while AirPlay plays; closing Apple's player returns to it.
+  airplay.clear_starting(home)
   if not xbmc.getCondVisibility('Player.Paused'):player.pause()
   if profile:
    import work_state;work_state.need('airplay_network',False,profile)
@@ -366,7 +369,7 @@ def _send_airplay(xbmc,dialog,player,library,url,title,playing,lib=None,source_o
   if settled=='playing':return True
   outcome=settled;why=airplay.message(lib);ui=FlowUI(xbmc,xbmcgui,dialog,title)
   diagnostics.event(lambda message:xbmc.log(message,xbmc.LOGINFO),'airplay','outcome',outcome='stopped',reason=why)
- lib.kodi_airplay_close();airplay.clear_busy(home)
+ lib.kodi_airplay_close();airplay.clear_busy(home);airplay.clear_starting(home)
  if outcome=='roku_copy' and (ui.canceled() or monitor.abortRequested()):outcome='aborted'
  if outcome=='roku_copy' and roku_copy['host'] and not ui.canceled() and not monitor.abortRequested():
   ui.close()

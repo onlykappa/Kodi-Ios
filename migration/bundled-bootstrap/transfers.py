@@ -178,7 +178,8 @@ def run(args=()):
    monitor=xbmc.Monitor()
    while not page_wait.idle(self.stop,monitor,2):
     try:self.refresh()
-    except Exception as error:xbmc.log('Kodi iOS Transfers: %s: %s'%(type(error).__name__,error),xbmc.LOGWARNING)
+    except Exception as error:
+     import diagnostics;xbmc.log('Kodi iOS Transfers: %s: %s'%(type(error).__name__,diagnostics.error_text(error)),xbmc.LOGWARNING)
   def refresh(self):
    with self.lock:
     now=time.time();history=th.load(profile)

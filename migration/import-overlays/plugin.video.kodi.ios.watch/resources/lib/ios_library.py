@@ -57,6 +57,41 @@ def mark_open(via):
   xbmcgui.Window(10000).setProperty('KodiIOS.Open',json.dumps({'t':time.time(),'via':via}))
  except Exception:pass
 
+def mark_resolved():
+ """Roadmap 1C.1: the address has been handed to Kodi (the 'resolve' stage of the open timing line ends here)."""
+ try:
+  import time,xbmcgui
+  xbmcgui.Window(10000).setProperty('KodiIOS.OpenResolved',repr(time.time()))
+ except Exception:pass
+
+def drive_file_id(path):
+ """The Drive file id of a Google Drive add-on play link, or ''."""
+ url=urllib.parse.urlsplit(str(path or ''));query=urllib.parse.parse_qs(url.query)
+ if url.scheme=='plugin' and url.netloc=='plugin.googledrive' and query.get('action')==['play']:return (query.get('item_id') or [''])[0]
+ return ''
+
+def warm_copy(path,xbmcvfs=None,ask=None):
+ """Roadmap 1A.4: a title's page opened, so the app's Drive proxy reads the start and the end (the index) of the
+ file Play will open, before Play is tapped. One title per page, never per row focus. Quiet when it cannot."""
+ try:
+  file_id=drive_file_id(path)
+  if not file_id:return False
+  import xbmcgui
+  port=xbmcgui.Window(10000).getProperty('KodiIOS.DriveProxy')
+  if not port.isdigit():return False
+  if ask is None:
+   boot_path(xbmcvfs);import drive_proxy;ask=drive_proxy.ask_warm
+  return bool(ask(int(port),file_id))
+ except Exception:return False
+
+def movie_warm_target(rows):
+ """The Drive movie most likely to be played next from the Movies list: the first one with a resume point."""
+ for route,_,_,info,folder in rows:
+  if folder or info.get('mediatype')!='movie' or info.get('source')!='drive' or not (info.get('resume') or {}).get('position'):continue
+  found=(urllib.parse.parse_qs(urllib.parse.urlsplit(route).query).get('path') or [''])[0]
+  if drive_file_id(found):return found
+ return ''
+
 def boot_path(xbmcvfs):
  """The bootstrap add-on's lib on sys.path (drivelibrary), once per reused interpreter."""
  boot=xbmcvfs.translatePath(BOOT)
@@ -455,6 +490,7 @@ def play_downloaded(handle,params):
   else:
    data=ios_continue.load(read);data.pop('current',None);ios_continue.save(data,write)
  except (OSError,ValueError,RuntimeError):xbmc.log('Kodi iOS Library: playback history could not be updated',xbmc.LOGWARNING)
+ mark_resolved()
  xbmcplugin.setResolvedUrl(handle,True,li)
 
 def directory(handle,params):
@@ -509,6 +545,8 @@ def _directory(handle,params):
   if params.get('season') is not None:
    rows=[row for row in rows if str(row[3].get('season') or '0')==params['season']]
   props=play_properties(rows)
+  target=play_target(rows)
+  if target:warm_copy(target[0],xbmcvfs)   # roadmap 1A.4
   search=lib.artwork('tv',show,'',key,art_cache,None,cached_only=True)
   details=dict(search,**lib.show_details(search.get('tmdb_id'),key,art_cache,None,cached_only=True))
   props.update({'KodiIOS.ShowPlot':details.get('plot',''),'KodiIOS.ShowYear':str(details.get('year') or year),
@@ -541,6 +579,7 @@ def _directory(handle,params):
    finally:history_file.close()
   except (OSError,ValueError,AttributeError):history={}
   rows=movie_resume_rows(rows,rpc,history)
+  warm_copy(movie_warm_target(rows),xbmcvfs)   # roadmap 1A.4: the movie most likely to be resumed
  seen=set()
  for name,value in props.items():xbmcplugin.setProperty(handle,name,value)
  for path,label,art,info,is_folder in rows:

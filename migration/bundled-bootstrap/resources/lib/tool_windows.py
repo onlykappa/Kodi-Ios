@@ -53,7 +53,8 @@ def _profile():
 def _log(text):
     try:
         import xbmc
-        xbmc.log('Kodi iOS library tools: %s' % text, xbmc.LOGWARNING)
+        import diagnostics
+        xbmc.log('Kodi iOS library tools: %s' % diagnostics.redact(text, 400), xbmc.LOGWARNING)
     except Exception:
         pass
 

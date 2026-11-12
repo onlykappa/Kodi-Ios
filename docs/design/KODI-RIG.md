@@ -57,6 +57,25 @@ By hand:
 
 Kodi's own log is `KODI_RIG_HOME/home/.kodi/temp/kodi.log` (script errors from the pages land there).
 
+## Smoke check before an IPA (roadmap 3.4)
+
+```
+python3 -B scripts/rig_smoke.py            # starts the rig if needed, syncs this checkout, runs every check (about 4 minutes)
+python3 -B scripts/rig_smoke.py --list     # the checks and what is not covered
+python3 -B scripts/rig_smoke.py notifications watch_sheet
+```
+
+For each page (Notifications, Accounts, Profiles, Favourites, Settings search and sections, Skin settings, the
+Navigation menu, Activity, Library status, Transfers, Queue, History, AirPlay settings, the watch / resume / quality
+sheets, the show and movies pages) it opens the page in the running rig and fails the check when: the page's own open
+line (`ui open`, or the sheet's line) is missing from Kodi's log, Kodi's log gains a traceback, an expression or XML
+error or a missing window (a short allow-list with reasons is in the script), or the screenshot is blank. The report
+is `KODI_RIG_HOME/smoke/report.json`; the exit status is 1 when anything failed. Run it before asking for an IPA and
+put its result line in the PR. It is **desktop Kodi rig** evidence: it does not cover the track menus and video
+controls (the rig plays no video), a real Umbrella/Elementum flow, layout against the mockups (use `boards`), or
+anything on the phone. It is not wired into CI: that needs a built Kodi on the runner (about 15 minutes), which the
+workflows do not have.
+
 ## Rules
 
 - Screenshots and side-by-sides stay out of Git: they show film artwork. Attach them to the reply or PR comment and

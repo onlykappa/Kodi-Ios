@@ -201,7 +201,7 @@ def rest_of_season(xbmc,xbmcgui,dialog,home,title,season,numbers,owned,start_epi
    home.clearProperty(AUTO_RESULT)
    home.setProperty(AUTO_PICK,json.dumps({'profile':pick,'mode':mode,'until':(now or time.time())+AUTO_SECONDS}))
    try:start_episode(n)
-   except Exception as error:xbmc.log('Kodi iOS download: S%sE%s automatic: %s'%(season,n,error),xbmc.LOGWARNING)
+   except Exception as error:import diagnostics;xbmc.log('Kodi iOS download: S%sE%s automatic: %s'%(season,n,diagnostics.error_text(error)),xbmc.LOGWARNING)
    try:result=json.loads(home.getProperty(AUTO_RESULT) or '{}')
    except ValueError:result={}
    results.append((n,result))

@@ -224,7 +224,7 @@ def _quiet(where,error,_seen=set()):
  if key in _seen:return
  _seen.add(key)
  try:
-  import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
+  import re,xbmc;text=re.sub(r'(?i)\b(?:https?|plugin|ftp|smb)://\S+|magnet:\?\S+','[URL redacted]',str(error))[:200];xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,text),xbmc.LOGWARNING)
  except Exception:pass
 
 def title_for(tmdb_type,tmdb_id,art_cache):
@@ -235,6 +235,29 @@ def title_for(tmdb_type,tmdb_id,art_cache):
   parts=slot.split(':')
   if len(parts)>=3 and parts[0]==kind and parts[1]:return parts[1],parts[2]
  return None
+
+def count_run(name):
+ """Roadmap 3.5: one more list run of TMDb Helper for the one-minute performance line (perf_summary.py)."""
+ try:
+  import xbmcgui
+  window=xbmcgui.Window(10000);key='KodiIOS.Count.'+name
+  window.setProperty(key,str(int(window.getProperty(key) or 0)+1))
+ except Exception:pass
+
+def warm_details(params,details_class=None):
+ """Roadmap 1C.4: TMDb Helper's route info=ios_warm. Builds the details Play will ask for, with the same arguments, so
+ TMDb Helper's own cache answers when Play is tapped. Quiet on any failure; nothing is played or shown."""
+ tmdb_type=params.get('tmdb_type');tmdb_id=str(params.get('tmdb_id') or '')
+ if tmdb_type not in ('movie','tv') or not tmdb_id.isdigit():return False
+ try:
+  if details_class is None:
+   from tmdbhelper.lib.player.dialog.details import PlayerDetails as details_class
+  season,episode=str(params.get('season') or ''),str(params.get('episode') or '')
+  details_class(tmdb_type,tmdb_id,season if season.isdigit() else None,episode if episode.isdigit() else None).details
+  return True
+ except Exception as error:
+  _quiet('ios_watch_dialog:warm',error)
+  return False
 
 def fast_copy(handle,params,read_art=None,find=None,play=None):
  """Roadmap 1C.2 (owner logs: 1.4-2.1 s in TMDb Helper before a downloaded copy played): Next Episode, spotlight

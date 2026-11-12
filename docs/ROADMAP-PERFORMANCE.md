@@ -125,8 +125,8 @@ Evidence: `396d5d67` 09:35:41-09:35:53 and 09:36:29-09:36:43; `e8ab5995` 09:32:2
 | 1A.1 | Serve Drive playback from native code: a range server in KodiAirPlay (it already reads Drive for AirPlay) or a direct Drive URL with the OAuth header that Kodi's curl reads, instead of plugin.googledrive's Python proxy | Known: Kodi reads the movie through `plugin.googledrive`'s local Python proxy; opening takes 4.8-6.2 s and every seek waits on it | stream open < 1 s |
 | 1A.2 | One hop instead of two: the watch add-on resolves the Drive file itself (id → URL, token cached) and hands Kodi the final URL, instead of `library_play` → `plugin.googledrive` `play` | Known: 2.2-2.5 s in `library_play`, then 1.0 s in the Drive add-on, before Kodi starts reading | < 0.3 s to OpenFile |
 | 1A.3 | Keep the prepared file's fragment index (mfra) with its Drive metadata, so the player starts from it instead of reading the end of the file first | Known: "opening MP4 by its fragment index" costs 0.6-1.9 s on every open | index read 0 s |
-| 1A.4 | Warm the first megabytes and the index when a movie or episode page opens (not on every row focus) | Suspected; measure after 1A.1 | first picture < 1 s after OpenFile |
-| 1A.5 | Seek on Drive copies through the native reader with read-ahead from the new position | Known: seek landed after 4.2 s with buffer and audio timeouts | seek < 1.5 s |
+| 1A.4 | Warm the first megabytes and the index when a movie or episode page opens (not on every row focus) | Suspected; measure after 1A.1 | first picture < 1 s after OpenFile — **Coded (host-tested) (speed-reliability-fixes): drive_proxy Warm: page open reads first 4 MB + last 1 MB; first requests answered locally; device timing pending** |
+| 1A.5 | Seek on Drive copies through the native reader with read-ahead from the new position | Known: seek landed after 4.2 s with buffer and audio timeouts | seek < 1.5 s — **Coded (host-tested) (speed-reliability-fixes): drive_proxy: pre-opened spare Drive connection, 4 MB read-ahead queue, seek first-byte timing; device seek time pending** |
 
 ### 1B. Opening streams and unprepared MKVs (6-32 s → target 8 s)
 Evidence: older logs `41de3707`, `18b7b4b0`, `9e2568a7` (Demuxer → first stream 24-30 s); ISSUE-145.
@@ -134,19 +134,19 @@ Evidence: older logs `41de3707`, `18b7b4b0`, `9e2568a7` (Demuxer → first strea
 | # | Work | Cause | Target |
 |---|---|---|---|
 | 1B.1 | Apply the MKV skip-attachments patch (already in the AirPlay FFmpeg) to Kodi's own FFmpeg in the Kodi build | Known: Kodi's demuxer reads every attachment (fonts, covers) over the network before playing | MKV first stream < 5 s |
-| 1B.2 | Network-aware probe limits: smaller `probesize`/`analyzeduration` for http/plugin sources, larger for local files | Suspected; measure with 1C.1 | − 1-3 s per open |
-| 1B.3 | Cache settings for phones: start playback after a small cache fill; read factor tuned for 5G vs Wi-Fi | Suspected (Buffer mode 4, 96 MB, read factor 10) | picture before the cache is full |
-| 1B.4 | Debrid links: keep Umbrella's resolve, but start Kodi reading the link while the source window closes | Suspected | − 1 s |
+| 1B.2 | Network-aware probe limits: smaller `probesize`/`analyzeduration` for http/plugin sources, larger for local files | Suspected; measure with 1C.1 | − 1-3 s per open — **Kodi patch (needs Kodi r31) (speed-reliability-fixes): DVDDemuxFFmpeg: 3 MB / 3 s probe for http(s) sources, 20 MB / 10 s for local files, one retry at FFmpeg's defaults; patch applies to Kodi 21.3, not compiled** |
+| 1B.3 | Cache settings for phones: start playback after a small cache fill; read factor tuned for 5G vs Wi-Fi | Suspected (Buffer mode 4, 96 MB, read factor 10) | picture before the cache is full — **Coded (host-tested) (speed-reliability-fixes): cache_tune: read factor 10x on Wi-Fi, 4x on cellular, set as a video opens, owner's own value kept; values are unmeasured defaults** |
+| 1B.4 | Debrid links: keep Umbrella's resolve, but start Kodi reading the link while the source window closes | Suspected | − 1 s — **Coded (host-tested) (speed-reliability-fixes): link_warm: the resolved debrid link's first 512 KB and last 256 KB are read in the background as Umbrella's unlock returns; saving unmeasured** |
 
 ### 1C. Taps that wait for TMDb Helper (1-2 s each)
 Evidence: `e8ab5995` 09:31:25 (1.4 s), 09:32:23 (1.9 s), 09:32:45 (2.1 s).
 
 | # | Work | Cause | Target |
 |---|---|---|---|
-| 1C.1 | One timing line per play: tap → plugin → resolve → OpenFile → stream open → first picture, in the diagnostics log | We infer stages from gaps today | every open has a breakdown |
+| 1C.1 | One timing line per play: tap → plugin → resolve → OpenFile → stream open → first picture, in the diagnostics log | We infer stages from gaps today | every open has a breakdown — **Coded (host-tested) (speed-reliability-fixes): open timing line now breaks the time into resolve / handoff / open / picture; needs a device log to read** |
 | 1C.2 | Check for a completed copy before TMDb Helper builds its player list; play it straight away | Known: TMDb Helper constructs players, reads item details and the library (1-2 s), then our hook finds the Drive copy | Drive copy plays < 0.3 s after the tap's plugin call |
 | 1C.3 | Ship TMDb Helper's `resources/players/` folder (or point it at ours), so it stops failing two directory reads per play | Known: `GetDirectory - Error getting …/resources/players/` twice on every play | no errors |
-| 1C.4 | Cache TMDb item details for the titles on screen (spotlight, Continue Watching) so Play needs no network | Suspected | Play menu < 0.4 s |
+| 1C.4 | Cache TMDb item details for the titles on screen (spotlight, Continue Watching) so Play needs no network | Suspected | Play menu < 0.4 s — **Coded (host-tested; needs the next IPA) (speed-reliability-fixes): details_warm: after each listing-cache refresh the hero titles and Continue Watching have TMDb Helper's details fetched in the background (info=ios_warm); effect on Play unmeasured** |
 
 ### 1D. Home rows and navigation
 Evidence: 31 row requests per launch in every log since build 184; 64 in a 2-minute session; 31 after one tap on the
@@ -154,10 +154,10 @@ Home tab (`396d5d67` 09:36:48); 11-17 while a video opened or closed (`e8ab5995`
 
 | # | Work | Cause | Target |
 |---|---|---|---|
-| 1D.1 | Stop Home rows reloading on tab return: Kodi re-requests a plugin row whenever Home becomes visible again; give rows a stable path and refresh only when the listing cache says the content changed | Known: each request starts a Python interpreter (the cache answers in 3-30 ms, but the interpreter start costs far more) | 0 requests on tab return when nothing changed |
+| 1D.1 | Stop Home rows reloading on tab return: Kodi re-requests a plugin row whenever Home becomes visible again; give rows a stable path and refresh only when the listing cache says the content changed | Known: each request starts a Python interpreter (the cache answers in 3-30 ms, but the interpreter start costs far more) | 0 requests on tab return when nothing changed — **Verified by code reading + pinned (tab return); playback part native staged (Kodi r31); device check pending (speed-reliability-fixes): Kodi 21.3 source: returning to Home does not refetch rows unless a row's address changes; a test now pins that no row address reads window-dependent info** |
 | 1D.2 | No row refresh while a video opens or closes; refresh Continue Watching once after playback stops | Known: rows reload behind the player at its busiest moment | 0 requests during OpenFile |
 | 1D.3 | Load only the rows the visible tab shows; Movies and TV hubs load when opened | Known: hero.1101/hero.1102 (other tabs) load at start-up | start-up row requests 31 → ~10 |
-| 1D.4 | Spotlight: show the loading ring only when the hero has no items (owner screenshot shows it over a loaded hero) | Owner screenshot 2 | no ring over content |
+| 1D.4 | Spotlight: show the loading ring only when the hero has no items (owner screenshot shows it over a loaded hero) | Owner screenshot 2 | no ring over content — **Already done in 4fc1157 (hero placeholder only while empty); now pinned by tests; device check pending (speed-reliability-fixes): portrait.hero draws loading feedback only while Container(4000) has no items; test_portrait.HeroLoadingFeedback pins it** |
 
 ### 1E. Start-up and background work (5.4-9.5 s → target 3 s)
 Evidence: `e8ab5995` and `396d5d67` start-up; 37 logs.
@@ -166,7 +166,7 @@ Evidence: `e8ab5995` and `396d5d67` start-up; 37 logs.
 |---|---|---|---|
 | 1E.1 | Start Elementum's daemon only when Download is chosen (or a torrent is active), not at every launch | Known: daemon, libtorrent listener and ~300 log lines every launch | no Elementum at launch |
 | 1E.2 | Remove unused binary add-ons from the IPA: 20+ PVR clients, ~22 audio decoders, game add-ons | Known: 205 add-ons scanned at launch; app size | − scan time and IPA size |
-| 1E.3 | Trim services: Umbrella's update check, cocoscrapers' undesirables check, embuary's player monitor, Google Drive's export/download/player services and source port | Known: all start at launch | services that do work only on demand |
+| 1E.3 | Trim services: Umbrella's update check, cocoscrapers' undesirables check, embuary's player monitor, Google Drive's export/download/player services and source port | Known: all start at launch | services that do work only on demand — **Partly done: Embuary Helper service off; audit recorded; Umbrella/cocoscrapers not patchable here (speed-reliability-fixes): bootstrap housekeeping switches off script.embuary.helper's service (fanart grabber, widget timer, player monitor); other services audited and kept; Umbrella/cocoscrapers need their source** |
 | 1E.4 | Bootstrap imports 1.74 s: import page builders lazily | Known: "bootstrap entered (imports 1.743s)" | < 0.4 s |
 | 1E.5 | TMDb Helper's Trakt check (1.66 s) after Home settles, not at launch | Known | deferred |
 | 1E.6 | Script windows close without "waiting on thread": daemon worker threads end with the window | Known: each Settings/Notifications/Play on TV close waits on a thread | instant close |
@@ -188,11 +188,11 @@ Evidence: ISSUE-163/165/166.
 | # | Work | Target |
 |---|---|---|
 | 1G.1 | 10-bit H.264 marked in the picker ("10-BIT · SLOW ON AIRPLAY", done in #19) | most streams need no conversion |
-| 1G.2 | 10-bit conversion faster than real time (threads, two segments in parallel, GPU scaling) | ≤ 70 % of real time |
-| 1G.3 | Pause Kodi's read-ahead while AirPlay starts | one reader during start |
+| 1G.2 | 10-bit conversion faster than real time (threads, two segments in parallel, GPU scaling) | ≤ 70 % of real time — **Measurement tool added; no speed change made blind; needs the owner's device log (speed-reliability-fixes): scripts/conversion_log.py reads the 'compat: segment N converted in MS ms (P% of realtime) via ROUTE' lines and says whether the 70 % target holds; levers listed below** |
+| 1G.3 | Pause Kodi's read-ahead while AirPlay starts | one reader during start — **Coded for Drive copies (host-tested); debrid streams not covered; device check pending (speed-reliability-fixes): Play on TV marks KodiIOS.AirPlay.Starting; the Drive proxy holds Kodi's own requests (not the AirPlay reader's) while it is fresh; debrid links Kodi reads directly are not controlled** |
 | 1G.4 | Hand the TV the playlist as soon as the first video segment is ready | TV picture < 20 s on a debrid link |
-| 1G.5 | Blank AirPlay captions (ISSUE-147) | captions show on the TV |
-| 1G.6 | Hour-long AirPlay stop (ISSUE-147) | one hour without a stop |
+| 1G.5 | Blank AirPlay captions (ISSUE-147) | captions show on the TV — **Partly done: caption path mapped and a log reader added; cause still needs the owner's device log (speed-reliability-fixes): scripts/caption_log.py turns a kodi.log into one verdict on how captions reached the TV (off / burned in / WebVTT served / never read); the cause of the blank captions is unconfirmed** |
+| 1G.6 | Hour-long AirPlay stop (ISSUE-147) | one hour without a stop — **Partly done: stop evidence reader added; no hour-long log exists, cause not established, nothing to fix yet (speed-reliability-fixes): scripts/stop_log.py rebuilds the session timeline from the service's diagnostic lines and attributes a stop (expired token/link near 3600 s, failing reads, phone suspended, receiver)** |
 | 1G.7 | 10-bit H.264 ranked last in the picker (no hardware decoder on Apple devices) — **done** | streams pick versions that play as they are |
 | 1G.8 | Play on TV on a download whose preparation has not finished: offer "Prepare first (about N min)" next to "Play now", move it to the front of the preparation queue, and play it as it is once ready (owner: "if the file is already good then no conversion is needed") | no live conversion of downloads |
 
@@ -221,12 +221,12 @@ Evidence: ISSUE-163/165/166.
 
 | # | Item | Evidence |
 |---|---|---|
-| 3.1 | Background survival: iOS interrupts the silent-audio keep-alive | logs 9e2568a7, 5331b718 |
+| 3.1 | Background survival: iOS interrupts the silent-audio keep-alive | logs 9e2568a7, 5331b718 — **Coded (host-tested); iOS suspension itself is OS-managed; needs the owner's device log (speed-reliability-fixes): background.watch: re-asks each tick, times recovery, and after 3 minutes of lost background audio with work waiting adds one Notifications entry; native restart logic unchanged** |
 | 3.2 | Transfers recover after Wi-Fi ↔ 5G changes without long waits | ISSUE-167 |
 | 3.3 | Expired debrid links renewed mid-copy and mid-AirPlay | ISSUE-146 |
-| 3.4 | Rig smoke list before every IPA (pickers, show page, settings, resume prompt, track menus) | this session |
-| 3.5 | Performance budget in diagnostics: tap-to-picture (1C.1), start-up stages, row requests per minute, seek-to-land; one summary line a minute | this investigation |
-| 3.6 | Log hygiene: Elementum config dump, deprecated `addStreamInfo`, duplicate keymap loads on resume | `e8ab5995`, `396d5d67` |
+| 3.4 | Rig smoke list before every IPA (pickers, show page, settings, resume prompt, track menus) | this session — **Coded and run in the desktop Kodi rig (19 of 19 pages pass); not wired into CI (speed-reliability-fixes): scripts/rig_smoke.py opens 19 pages in the real Kodi rig and fails on log errors, a missing open line or a blank picture** |
+| 3.5 | Performance budget in diagnostics: tap-to-picture (1C.1), start-up stages, row requests per minute, seek-to-land; one summary line a minute | this investigation — **Coded (host-tested); needs the next IPA and a device log (speed-reliability-fixes): perf_summary: one 'Kodi iOS perf 60 s: rows ... | opens ... | drive proxy ...' line a minute when something happened** |
+| 3.6 | Log hygiene: Elementum config dump, deprecated `addStreamInfo`, duplicate keymap loads on resume | `e8ab5995`, `396d5d67` — **Partly done: error text redacted everywhere, keymap reload only on change, deprecated setInfo removed; third-party noise (Elementum dump, addStreamInfo) not patched (speed-reliability-fixes): diagnostics.error_text redacts links, tokens and headers at 16 log sites; keymaps reload only when a file changed; the watch add-on's ListItem.setInfo is gone** |
 
 ## Suggested order
 

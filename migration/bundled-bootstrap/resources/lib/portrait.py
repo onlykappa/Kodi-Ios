@@ -1795,7 +1795,7 @@ def tab_lists(profile,tab):
   return keys,ids
  return [],[]
 
-def listing_cache(cache,store,flags,lists,fetch,wait,busy,log,clock=None):
+def listing_cache(cache,store,flags,lists,fetch,wait,busy,log,clock=None,after=None):
  """Background thread (run_service). At once: flags whose copy is gone go off, so those rows load TMDb Helper again.
  After REFRESH_AFTER: missing and stale copies are made one at a time (Files.GetDirectory from this service, never
  from the plugin), each row's flag going on once its copy reads back; never during video or outside Fuse."""
@@ -1815,6 +1815,9 @@ def listing_cache(cache,store,flags,lists,fetch,wait,busy,log,clock=None):
    done,failed=cache.refresh(current,store,flags,fetch,pace,clock)
    cache.prune(store,current,clock)
    if done or failed:log('%d copies made or refreshed, %d failed%s'%(len(done),len(failed),(' ('+'; '.join(failed[:3])+')') if failed else ''))
+   if after:   # roadmap 1C.4: the titles now on screen get their details fetched before anyone taps Play
+    try:after(current)
+    except Exception as error:log('details warm-up skipped: %r'%error)
    if pace(REFRESH_EVERY):return
  except Exception as error:
   # Rows keep whatever their flags say: good copies stay served, the others stay live.
@@ -1929,13 +1932,23 @@ def run_service(xbmc,xbmcvfs,monitor,profile,invoke,fuse='skin.arctic.fuse.3',re
                      'params':{'directory':url,'media':'video','properties':cache.PROPERTIES}})))
    if 'error' in answer:raise RuntimeError(str(answer['error'].get('message') or answer['error'])[:120])
    return answer.get('result')
+  copies=cache.Store(xbmcvfs.translatePath(cache.FOLDER))
+  def warm_details_after(current):
+   # Roadmap 1C.4: TMDb Helper fetches the details of the hero titles and the Continue Watching history in the background.
+   import details_warm
+   hero=[(copies.load(key) or {}).get('items') for key,_ in current if key.startswith('hero.')]
+   entries=[]
+   try:entries=list(module.load(read)['items'].values())
+   except Exception:pass
+   details_warm.run(details_warm.collect(hero,entries),str(profile),lambda url:xbmc.executebuiltin('RunPlugin(%s)'%url),monitor.waitForAbort,
+                    lambda:xbmc.getSkinDir()!=fuse or xbmc.getCondVisibility('Player.HasVideo'),log=lambda text:xbmc.log('Kodi iOS '+text,xbmc.LOGINFO))
   threading.Thread(target=listing_cache,daemon=True,kwargs=dict(
-   cache=cache,store=cache.Store(xbmcvfs.translatePath(cache.FOLDER)),
+   after=warm_details_after,cache=cache,store=copies,
    flags=cache.Flags(xbmc.getCondVisibility,xbmc.getInfoLabel,xbmc.executebuiltin),
    lists=lambda:cache.targets(*cache_lists(profile,lambda s:xbmc.getInfoLabel(spotlight_path(s)),lambda tab:xbmc.getInfoLabel(page_of(tab)))),fetch=bounded(fetch),
    wait=monitor.waitForAbort,busy=lambda:xbmc.getSkinDir()!=fuse or xbmc.getCondVisibility('Player.HasVideo'),
    log=lambda text:xbmc.log('Kodi iOS listing cache: '+text,xbmc.LOGINFO))).start()
- except Exception as error:xbmc.log('Kodi iOS listing cache unavailable: %s'%error,xbmc.LOGWARNING)
+ except Exception as error:import diagnostics;xbmc.log('Kodi iOS listing cache unavailable: %s'%diagnostics.error_text(error),xbmc.LOGWARNING)
  import xbmcgui
  home=xbmcgui.Window(10000)
  publish=focused_item_publisher(xbmc.getInfoLabel,xbmc.getCondVisibility,lambda k,v:home.setProperty('Portrait.Item.'+k,v))
@@ -1976,5 +1989,5 @@ def _quiet(where,error,_seen=set()):
  if key in _seen:return
  _seen.add(key)
  try:
-  import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
+  import xbmc,diagnostics;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,diagnostics.error_text(error)),xbmc.LOGWARNING)
  except Exception:pass

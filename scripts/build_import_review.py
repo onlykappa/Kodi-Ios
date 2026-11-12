@@ -70,6 +70,20 @@ def patch_helper(files,id):
   old='        play_player(handle=self.handle if self.handle != -1 else None, **self.params)';assert text.count(old)==1
   files[router]=text.replace(old,'        from ios_watch_dialog import fast_copy\n        if fast_copy(self.handle if self.handle != -1 else None, self.params):\n            return\n'+old).encode()
   changes.append('A downloaded copy plays before TMDb Helper builds its player list (no 1-2 s details fetch)')
+ # Roadmap 1C.4: the service asks (RunPlugin ... info=ios_warm) for the details of titles on screen, so TMDb Helper has
+ # them cached when Play is tapped. Skipped, not failed, if a later TMDb Helper changes this method.
+ if router in files:
+  text=files[router].decode()
+  old="        if self.params.get('info') == 'play':\n            return self.play_player()\n"
+  if text.count(old)==1:
+   files[router]=text.replace(old,"        if self.params.get('info') == 'ios_warm':\n            from ios_watch_dialog import warm_details\n            return warm_details(self.params)\n"+old).encode()
+   changes.append('Details of titles on screen are fetched in the background (Play needs no network wait)')
+  # Roadmap 3.5: every list TMDb Helper builds is counted for the one-minute performance line.
+  text=files[router].decode()
+  old="        self.get_directory()\n"
+  if text.count(old)==1:
+   files[router]=text.replace(old,"        from ios_watch_dialog import count_run\n        count_run('tmdb')\n"+old).encode()
+   changes.append('TMDb Helper list runs are counted for the one-minute performance line')
  # Roadmap 1E.5: the first Trakt use after launch waited 1.66 s on a network check of the saved token. A saved token
  # that has not expired is trusted at once and confirmed in a background thread (a rejection clears TraktIsAuth, so the
  # next use checks again as before).

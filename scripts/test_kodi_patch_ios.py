@@ -47,6 +47,17 @@ class KodiPatch(unittest.TestCase):
         self.assertIn('"action=cached"', s)
         self.assertIn('+#endif', s)
 
+    def test_probe_limits_follow_the_connection_with_a_safe_retry(self):
+        """Roadmap 1B.2: 3 MB / 3 s for http(s) sources, 20 MB / 10 s for files on the phone; one retry with FFmpeg's
+        defaults if the short probe left a video stream without a picture size."""
+        s = self.section('xbmc/cores/VideoPlayer/DVDDemuxers/DVDDemuxFFmpeg.cpp')
+        self.assertIn('+      const int64_t probeBytes = probeRemote ? 3 * 1024 * 1024 : 20 * 1024 * 1024;', s)
+        self.assertIn('+      const int64_t probeMicros = probeRemote ? 3000000 : 10000000;', s)
+        self.assertIn('probeUrl.IsProtocol("http") || probeUrl.IsProtocol("https")', s)
+        self.assertIn('+        av_opt_set_int(m_pFormatContext, "probesize", 5000000, 0);', s)
+        self.assertIn('par->width == 0 || par->height == 0', s)
+        self.assertIn('use_mfra_for', s)   # the earlier hunk of the same file is intact
+
     def test_build_script_rebuilds_a_cached_ffmpeg_once(self):
         script = (Path(__file__).resolve().parents[1] / 'migration/ios-portrait/build-kodi-ios.sh').read_text()
         self.assertIn('.ffmpeg-mkv-skip-', script)
