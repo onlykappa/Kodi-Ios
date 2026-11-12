@@ -2,14 +2,18 @@
 
 ## Current state and handoff (read this first; updated 2026-11-12)
 
+Rule (owner, 2026-11-12): every fix is committed AND pushed to GitHub as soon as it is coded, by every agent, so a
+later agent can see where things stand from the PR alone. Agents push only their own branch; no force-push.
+
 Where everything lives
 - Branch `claude/performance-roadmap`, PR #19 (draft, not merged). Every push builds an IPA (import-review workflow).
   Owner's last device build: 252. The roadmap is `docs/ROADMAP-PERFORMANCE.md`; issues in `docs/ISSUES.md`
   (latest ISSUE-169). Nothing is merged or released without the owner asking in the conversation.
 - UI work from the approved mockups (PR #20, `docs/design/fuse-windows-mockups.html` on branch
-  `claude/fuse-window-mockups-v9thgx`): a Sonnet agent is coding them on branch `claude/fuse-windows-code-2`
-  (backed up on GitHub). Review, rig-check, then merge into `claude/performance-roadmap`. Done so far there: board 03
-  alert, 04/05 opening card + buffering bar, 06 bar (DEC-036), 09 All Links states, 10 Umbrella page, 12 search.
+  `claude/fuse-window-mockups-v9thgx`): coded on branch `claude/fuse-windows-code-2` (on GitHub; its agent stopped).
+  Done there, not yet reviewed or merged: board 03 alert, 04/05 opening card + buffering bar, 06 bar (DEC-036),
+  09 All Links states, 10 Umbrella page, 12 search. Not done: 07 context menu, 08 Info card, 11 options sheet,
+  13 start-up. Review, rig-check, then merge into `claude/performance-roadmap`.
   Branch `claude/fuse-windows-code` (an earlier Haiku attempt) is superseded; ignore it.
 - Speed work by the Sonnet speed agent (branch `claude/speed-fixes`) is merged into #19.
 
