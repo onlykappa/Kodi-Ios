@@ -237,3 +237,9 @@ Roku's Media Assistant route for copy-safe HEVC instead of a new H.264 derivativ
 Verify the actual receiver, 4K support and installed channel. Preserve playback position, cancellation, phone
 recovery and source ownership. A strict copy-only native API must fail rather than re-encode. Unknown evidence
 keeps the existing route. Source fixes and separate commits are authorized; no native release/IPA is requested.
+
+## PR #19 scope and preloading — 2026-11-12
+
+Owner keeps Movies/TV preloading for instant tab switching; do not implement deferred first-tab loading (1D.3).
+Owner now requests remaining items one at a time, starting with 1A.3 only. Commit/push the source repair for
+review; no IPA, native release/pin update or main merge is requested.

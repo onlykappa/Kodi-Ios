@@ -175,6 +175,14 @@ Owner asks for fixes committed separately. Source commits use [skip ci] to prese
 
 ## Full speed/reliability coverage pass — 2026-11-12
 
+Latest scope: owner requests **1A.3 only**, one remaining item at a time. ISSUE-176 implements a persistent,
+validated mfra cache in the lean Drive proxy. First playback captures the player's existing bounded tail read;
+later opens serve exact index ranges locally after checking fresh Drive identity. No proactive movie read,
+page warming or seek read-ahead is included. Missing metadata/cache failures preserve ordinary streaming.
+22 new cache/HTTP cases, 10 existing proxy, 22 library and one service-scoping case pass; project check passes.
+Phone opening-time improvement remains unmeasured. No IPA or native pin change.
+Owner separately chose to retain Movies/TV preloading for instant tab switches (1D.3).
+
 Owner expanded the source task to every roadmap speed/reliability item (36 + 6 currently). Do not treat the
 old screenshot's counts as acceptance evidence. Commit and push each repair separately with [skip ci].
 - 1E.7 imported/reviewed: idle polling backoff from speed-fixes-2, active cadence preserved. 49 focused cases pass.

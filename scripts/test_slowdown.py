@@ -82,7 +82,7 @@ class Workers(Reset):
   self.assertIn('self.gate.after(time.monotonic() - began, sum(len(x) for x in parts), download=True)',stream)
   self.assertIn('(2 if stream.playback else 1 if slowdown.reason() else READ_AHEAD)',stream)
   up=(LIB/'driveupload.py').read_text()
-  self.assertEqual(up.count('slowdown.Gate(keep_going=keep_going)'),2)   # phone uploads and AllDebrid copies
+  self.assertEqual(up.count('slowdown.Gate(keep_going=keep_going)'),3)   # phone uploads, AllDebrid copies and the native resumable copy (eef4910)
   self.assertIn('gate.after(put_s,len(chunk),download=True)',up)
   self.assertIn('pause = max(pause, self.slow(wall))',(LIB/'app_state.py').read_text())
  def test_sink_hold_is_only_the_owners_pause(self):
