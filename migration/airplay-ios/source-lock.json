@@ -2,14 +2,14 @@
   "framework_release": {
     "tag": "kodi-airplay-r50",
     "asset": "KodiAirPlay.framework.zip",
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "sha256": "3fc7e903de0c0dc500aafb7f84764308e5920f66549a621461038d550d1d1769"
   },
   "previous": {
     "tag": "kodi-airplay-r49",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "d59ba3b0b99c56d53c56097edf8a5d5def0ac8f8aac7c7d9a610c2e7537044b1"
   },
-  "source_commit": "0222fd887c396cf9342aed212e691b52de330c48",
-  "verified_run": 43290658990,
-  "staged_note": "r50 staged (owner log 31996cd8, 182/101 Mbps line at ~2.8 MB/s: native AllDebrid-to-Drive pieces up to 32 MB, kodi_http_copy_max): built and published by airplay-ios on PR #21; sha256, source_commit and verified_run are pinned from that run."
+  "source_commit": "962d816300759502d0c2b2459d6878d33f82043f",
+  "verified_run": 43295084167,
+  "pin_note": "r50 (32 MB AllDebrid-to-Drive pieces, kodi_http_copy_max; ISSUE-182) pinned from airplay-ios run 43295084167 (PR #21, 962d816): release zip downloaded, sha256 matches the release notes and the asset digest; arm64 Mach-O with kodi_http_copy_max and the r49 tiled upscaler."
 }
