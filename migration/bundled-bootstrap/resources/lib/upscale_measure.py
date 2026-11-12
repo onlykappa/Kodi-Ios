@@ -128,8 +128,22 @@ def _run(q, req, log, notify, clock, sleep, keep_going, native, title, name, sou
     support = native.upscale_support(width, height, label)
     log('upscale measurement: this iPhone: %s' % json.dumps(support, sort_keys=True))
     results['support'] = support
+    import upscale_queue
     for engine_name in req.get('engines') or ['auto']:
         engine = ENGINES.get(engine_name, 0)
+        if engine != ENGINES['lanczos']:
+            # Owner logs 0afdfd7b / 1ff17f50: 'auto' took the 4x image model (7680x4320 frames) and iOS closed Kodi.
+            # Only an AI model whose pictures are no larger than the target is used (upscale_queue.pick_engine).
+            if engine == 0:
+                engine, why = upscale_queue.pick_engine(support, width, height, label)
+            else:
+                name = next(k for k, v in upscale_queue.ENGINE_IDS.items() if v == engine)
+                fits, why = upscale_queue.pick_engine({'os26': support.get('os26'), name: support.get(name)}, width, height, label)
+                engine = engine if fits else None
+            log('upscale measurement: %s: %s' % (engine_name, why if engine is None else 'engine ' + why))
+            if engine is None:
+                results['runs'].append({'engine': engine_name, 'error': why})
+                continue
         if engine != ENGINES['lanczos']:
             status = native.upscale_model(width, height, label, engine)
             if status == 0:

@@ -20,8 +20,13 @@ class Clock:
 class FakeNative:
     upscales = True
 
-    def __init__(self, clock, probe=None, model=(2,), fail=None, thermal='fair'):
+    # A phone whose AI models take 1080p at 2x (the owner's iPhone offers only 4x: OWNER_PHONE below).
+    SUPPORT = {'os26': 1, 'engine': 'ai-video', 'model': 'ready', 'video': {'supported': 1, 'fits': 1, 'scale': 2, 'factors': [2, 4]},
+               'image': {'supported': 1, 'fits': 1, 'scale': 2, 'factors': [2, 4]}, 'fast': {'supported': 1, 'fits': 1, 'scale': 2, 'factors': [2]}}
+
+    def __init__(self, clock, probe=None, model=(2,), fail=None, thermal='fair', support=None):
         self.clock, self.models, self.fail, self.thermal = clock, list(model), fail, thermal
+        self.support = support or self.SUPPORT
         self.probed = probe or {'width': 1920, 'height': 1080, 'duration': 1200.0, 'fps': 23.976, 'hdr': False,
                                 'codec': 'hevc', 'audio_tracks': 2, 'subtitle_tracks': 1}
         self.calls, self.started_download, self.battery = [], False, 0.9
@@ -30,7 +35,7 @@ class FakeNative:
         return dict(self.probed)
 
     def upscale_support(self, w, h, label, engine=0):
-        return {'engine': 'ai-image', 'model': 'ready'}
+        return self.support
 
     def upscale_model(self, w, h, label, engine=0, start=False):
         if start:
@@ -83,7 +88,7 @@ class Measure(unittest.TestCase):
         native = FakeNative(self.clock)
         result = self.run_req(native)
         run = result['runs'][0]
-        self.assertEqual(native.calls, [(3840, 2160, 0, 0)])
+        self.assertEqual(native.calls, [(3840, 2160, 2, 0)])     # auto: the video model, which fits
         self.assertEqual(run['size'], '3840x2160')
         self.assertEqual(run['film_seconds'], 1200.0)
         self.assertEqual(run['wall_seconds'], 3600.0)
@@ -127,6 +132,25 @@ class Measure(unittest.TestCase):
         self.assertEqual(native.calls, [])
         self.assertIn('model not ready', result['runs'][0]['error'])
         self.assertEqual(self.notes[0][1], 'AI Upscale test stopped')
+
+    def test_a_phone_with_only_4x_models_does_not_make_8k_frames(self):
+        # Owner logs 0afdfd7b / 1ff17f50 (build 302): 1920x1080 -> 7680x4320 with the 4x image model; iOS closed Kodi.
+        owner = {'os26': 1, 'engine': 'ai-image', 'model': 'ready', 'video': {'factors': [4], 'fits': 0, 'scale': 0, 'supported': 1},
+                 'image': {'factors': [4], 'fits': 1, 'scale': 4, 'supported': 1},
+                 'fast': {'factors': [], 'fits': 0, 'scale': 0, 'supported': 1, 'max': '1280x1280'}}
+        native = FakeNative(self.clock, support=owner)
+        result = self.run_req(native)
+        self.assertEqual(native.calls, [])
+        self.assertIn('7680x4320', result['runs'][0]['error'])
+        self.assertEqual(self.notes[0][1], 'AI Upscale test stopped')
+        # Compare mode: the image model is skipped, Lanczos still runs.
+        native = FakeNative(self.clock, support=owner)
+        result = self.run_req(native, engines=['ai-image', 'lanczos'], minutes=1)
+        self.assertEqual([c[2] for c in native.calls], [1])
+        # A 720p video on the same phone: the 4x image model would make 5120x2880, still larger than 4K UHD.
+        import upscale_queue
+        self.assertIsNone(upscale_queue.pick_engine(owner, 1280, 720, '4K UHD')[0])
+        self.assertEqual(upscale_queue.pick_engine(owner, 960, 540, '4K UHD')[0], 3)
 
     def test_hdr_and_4k_are_not_measured(self):
         hdr = FakeNative(self.clock, probe={'width': 1920, 'height': 1080, 'duration': 60, 'hdr': True})

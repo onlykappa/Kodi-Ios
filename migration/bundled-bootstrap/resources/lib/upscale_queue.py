@@ -187,6 +187,36 @@ def menu_state(data, original_id, width, height, wanted, ai_available=True):
     return {'state': 'offer', 'label': label}
 
 
+ENGINE_IDS = {'video': 2, 'image': 3, 'fast': 4}
+SLACK = 1.05
+
+
+def pick_engine(support, width, height, label):
+    """(engine id, words) of the AI model to use for this picture, or (None, why). Owner logs 0afdfd7b / 1ff17f50
+    (build 302): this iPhone's AI models make 4x pictures only and the video model does not take 1080p, so "auto" took
+    the image model and a 1920x1080 episode became 7680x4320 frames (about 265 MB each); iOS closed Kodi seconds later.
+    An engine is used only when what it makes is no larger than the size asked for (the converter then fits it)."""
+    support = support or {}
+    if not support.get('os26'):
+        return None, 'AI Upscale needs iOS 26 (not available on this device)'
+    bw, bh = picture.box(label)
+    made = []
+    for name in ('video', 'image', 'fast'):
+        e = support.get(name) or {}
+        scale = float(e.get('scale') or 0)
+        if not e.get('supported') or not e.get('fits') or scale < 1.2:
+            continue
+        w, h = int(width * scale), int(height * scale)
+        if w > bw * SLACK or h > bh * SLACK:
+            made.append('%s model %gx = %dx%d' % (name, scale, w, h))
+            continue
+        return ENGINE_IDS[name], '%s model, %gx' % (name, scale)
+    if made:
+        return None, ('not available on this device for %dx%d: its AI models would make %s, more than %s and more '
+                      'memory than iOS gives an app' % (width, height, '; '.join(made), label))
+    return None, 'not available on this device for %dx%d' % (width, height)
+
+
 def copy_name(original_name, label):
     """'Naruto S01E03 [AI 4K UHD].mp4' beside the original on Drive."""
     stem = original_name.rsplit('.', 1)[0] if '.' in original_name else original_name

@@ -57,8 +57,13 @@ class Native:
         self.state = state or {'charging': 1, 'battery': 0.8, 'thermal': 'nominal', 'low_power': 0}
         self.calls = []
 
+    SUPPORT = {'os26': 1, 'video': {'supported': 1, 'fits': 1, 'scale': 2}}
+
     def device_state(self):
         return self.state
+
+    def upscale_support(self, w, h, label, engine=0):
+        return getattr(self, 'support', self.SUPPORT)
 
     def upscale_model(self, w, h, label, engine, start=False):
         self.calls.append(('model', start))
@@ -103,7 +108,7 @@ class MakesACopy(unittest.TestCase):
         done, entry, q, log = self.run_one(native)
         self.assertTrue(done)
         self.assertEqual((entry['status'], entry['copy_id'], entry['label']), ('ready', 'copy1', '4K UHD'))
-        self.assertEqual(native.calls[-1], ('convert', 'http://drive/orig1', (3840, 2160, 0, 0)))
+        self.assertEqual(native.calls[-1], ('convert', 'http://drive/orig1', (3840, 2160, 2, 0)))
         moved = [c for c in q.drive.calls if c[0] == 'PATCH']
         self.assertIn('addParents=show-folder', moved[0][1])
         self.assertEqual(moved[0][2], {'name': 'Naruto S01E03 [AI 4K UHD].mp4'})
@@ -154,6 +159,14 @@ class MakesACopy(unittest.TestCase):
         done, entry, _, log = self.run_one(Native(fail=Stop('paused')))
         self.assertEqual((entry['status'], entry['progress']), ('waiting', 0))
         self.assertIn('closed', log)
+
+    def test_only_4x_models_block_a_1080p_copy_instead_of_closing_kodi(self):
+        native = Native()
+        native.support = {'os26': 1, 'image': {'supported': 1, 'fits': 1, 'scale': 4}, 'video': {'supported': 1, 'fits': 0, 'scale': 0}}
+        done, entry, _, _ = self.run_one(native)
+        self.assertEqual(entry['status'], 'blocked')
+        self.assertIn('7680x4320', entry['error'])
+        self.assertFalse([c for c in native.calls if c[0] == 'convert'])
 
     def test_no_upscaler_in_this_build_blocks_it(self):
         native = Native()

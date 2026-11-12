@@ -2873,3 +2873,25 @@ refused "different episode"; a hand pick with a different name is refused with b
 old code. Related suites (episode_watch, auto_season, season_sources, deck_picker, debrid_drive) pass.
 Regression protection: that test in import-review.yml (test_elementum_cloud already runs there). Phone proof: the owner's
 next Build Season log should show episode_result queued:true and no "refused" lines.
+
+## ISSUE-180 — AI Upscale test closes Kodi (build 302, owner logs 0afdfd7b / 1ff17f50) — guarded on host, retest pending
+
+Symptom: Settings › AI Upscale test, "First 5 minutes, best AI engine", on Hell House LLC Origins (1920x1040) and Phony
+S01E02 (1920x1080). Kodi closes seconds after "upscale: AI super resolution (image model, 4x), 1920x1080 -> 7680x4320";
+the log just ends (no Python error), which points at iOS stopping the app, most likely for memory.
+Root cause: this iPhone's support line says the AI models make 4x pictures only ("image": factors [4]; "video":
+factors [4], fits 0 for 1080p; "fast": max 1280x1280, so not 1080p). kr_upscale.pick_factor falls back to the largest
+factor when none is near the 2x needed, so "auto" took the image model at 4x: 7680x4320 frames in the engine's
+half-float format (about 265 MB each, several held at once), then scaled down to 4K. Run 1 also logged "model download
+failed (VTFrameProcessorErrorDomain error -19743)" at the moment the conversion opened, although the status said ready
+10 s earlier (to look at with the native code; not the crash's cause on run 2, where the model was ready).
+Fix (Python, no new framework): upscale_queue.pick_engine uses an AI model only when what it makes is no larger than
+the size asked for (5 % slack); otherwise the test stops with the reason ("its AI models would make image model 4x =
+7680x4320, more than 4K UHD …") and the background step marks the copy 'blocked'. On this iPhone that means 1080p and
+720p videos cannot be AI-upscaled with Apple's models as they are; 540p and smaller can (4x = 4K).
+Retest: test_upscale_measure.test_a_phone_with_only_4x_models_does_not_make_8k_frames (the owner's support line; no
+conversion starts; compare mode skips the image model and still runs Lanczos) and test_upscale_cloud
+test_only_4x_models_block_a_1080p_copy_instead_of_closing_kodi. Phone proof: the next test log should say why it
+stopped instead of Kodi closing.
+Open: a way to get 1080p -> 4K on a 4x-only phone needs native work (for example tiles of the frame through the
+low-latency model, or the 4x model on a smaller source) and a new KodiAirPlay build; to decide with the owner.

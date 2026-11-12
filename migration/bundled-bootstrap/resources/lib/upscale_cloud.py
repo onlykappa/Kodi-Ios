@@ -90,9 +90,20 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
         uq.failed(entry, 'The video is already this size', clock)
         uq.save(profile, data)
         return True
+    # Only an AI model whose pictures are no larger than the size asked for (owner logs 0afdfd7b / 1ff17f50: the 4x image
+    # model made 7680x4320 frames from 1080p and iOS closed Kodi). None fits: blocked, with the reason.
+    try:
+        engine, why = uq.pick_engine(native.upscale_support(width, height, label), width, height, label)
+    except Exception as error:
+        engine, why = None, 'not available on this device (%s)' % error
+    if engine is None:
+        uq.failed(entry, 'AI Upscale is ' + why, clock)
+        uq.save(profile, data)
+        q.log('upscale: %s' % why)
+        return True
     # The AI model (Apple's, a one-time download per size) comes first.
     try:
-        model = native.upscale_model(width, height, label, ENGINE_AUTO)
+        model = native.upscale_model(width, height, label, engine)
     except Exception as error:
         uq.failed(entry, error, clock)
         uq.save(profile, data)
@@ -103,7 +114,7 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
         return True
     if model != MODEL_READY:
         if model == 0:
-            native.upscale_model(width, height, label, ENGINE_AUTO, start=True)
+            native.upscale_model(width, height, label, engine, start=True)
             q.log('upscale: downloading the AI model for %s' % label)
         _status_text(entry, 'Downloading the AI model')
         uq.save(profile, data)
@@ -149,7 +160,7 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
         try:
             bw, bh = picture.box(label)
             native.convert_to(source, sink, keep_going, progress, getattr(q, 'paused', None), None,
-                              upscale=(bw, bh, ENGINE_AUTO, int(settings.get('downloads', {}).get('kbps') or 0)))
+                              upscale=(bw, bh, engine, int(settings.get('downloads', {}).get('kbps') or 0)))
             sink.finish()
         except Exception:
             sink.close()
