@@ -315,14 +315,14 @@ class UmbrellaRoute(unittest.TestCase):
   return {'quality':'1080p','name':name,'size':2.0,'info':'HEVC','debrid':'RD','provider':'torrentio','source':source,'seeders':0,'url':'u'}
  def test_identity_from_meta_reaches_the_page(self):
   got={}
-  deck=types.SimpleNamespace(run=lambda title,labels,expect=None:got.update(title=title,expect=expect) or 0)
+  deck=types.SimpleNamespace(run=lambda title,labels,expect=None,mode=None:got.update(title=title,expect=expect,mode=mode) or 0)
   results=[self.item('Fall.2022.1080p'),self.item('Fall.2026.1080p')]
   with mock.patch.object(up,'share',lambda meta:None),mock.patch.object(sm,'enrich',lambda exp:exp):
    action,item=up.run(results,{'title':'Fall','year':'2022'},deck,lambda:types.SimpleNamespace(setProperty=lambda k,v:None),sm=sm)
-  self.assertEqual(action,'play_Item');self.assertEqual(got['expect']['year'],2022)
+  self.assertEqual(action,'play_Item');self.assertEqual(got['expect']['year'],2022);self.assertEqual(got['mode'],'stream')   # Umbrella is live playback
  def test_umbrellas_own_list_keeps_only_this_title(self):
   results=[self.item('Fall.2022.1080p'),self.item('Fall.2026.1080p','TORRENT UNCACHED'),self.item('Fall.2022.720p','TORRENT UNCACHED')]
-  deck=types.SimpleNamespace(run=lambda title,labels,expect=None:None)
+  deck=types.SimpleNamespace(run=lambda title,labels,expect=None,mode=None:None)
   with mock.patch.object(up,'share',lambda meta:None),mock.patch.object(sm,'enrich',lambda exp:exp),mock.patch.object(sm,'log',lambda m:None):
    self.assertIsNone(up.run(results,{'title':'Fall','year':2022},deck,sm=sm))
   self.assertEqual([r['name'] for r in results],['Fall.2022.1080p','Fall.2022.720p'])

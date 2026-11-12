@@ -90,14 +90,14 @@ class UmbrellaPage(unittest.TestCase):
   self.assertFalse(any('top pick' in l or 'seeds' in l for l in labels))
   self.assertEqual(sys.modules.get('elementum'),None)  # stand-ins only lived inside load()
  def test_run_returns_what_umbrellas_window_returns(self):
-  deck=types.SimpleNamespace(run=lambda title,labels,expect=None:1)
+  deck=types.SimpleNamespace(run=lambda title,labels,expect=None,mode=None:1)
   with mock.patch.object(up,'share',lambda meta:None):
    action,item=up.run(UMBRELLA,{'title':'Scary Movie'},deck,FakeItem)
    self.assertEqual(action,'play_Item')
    # The uncached torrent is left to Umbrella's own list, so the second playable entry is UMBRELLA[1].
    self.assertEqual(json.loads(item.getProperty('umbrella.source_dict')),[UMBRELLA[1]])
-   self.assertEqual(up.run(UMBRELLA,{},types.SimpleNamespace(run=lambda t,l,expect=None:-1),FakeItem),(None,''))
-   self.assertIsNone(up.run(UMBRELLA,{},types.SimpleNamespace(run=lambda t,l,expect=None:None),FakeItem))
+   self.assertEqual(up.run(UMBRELLA,{},types.SimpleNamespace(run=lambda t,l,expect=None,mode=None:-1),FakeItem),(None,''))
+   self.assertIsNone(up.run(UMBRELLA,{},types.SimpleNamespace(run=lambda t,l,expect=None,mode=None:None),FakeItem))
    self.assertIsNone(up.run([UMBRELLA[2]],{},deck,FakeItem))
  def test_hook_goes_into_umbrellas_window_once(self):
   import tempfile
@@ -205,9 +205,18 @@ class NoStutter(unittest.TestCase):
     def test_ten_bit_h264_goes_after_versions_that_play_as_they_are(self):
         raw=['1080p (500 / 0) [4.0 GB] WebDL H.264 - Torrentio\nShow.S01.1080p.WEB.10bit.x264-A.mkv\nicon.png',
              '1080p (50 / 0) [3.0 GB] WebDL H.265 - Torrentio\nShow.S01.1080p.WEB.x265-B.mkv\nicon.png']
-        ranked=dp.pick(dp.parse_all(raw),top_n=5)
         self.assertTrue(dp.converts_for_tv(dp.parse_all(raw)[0]))
-        self.assertEqual([r['idx'] for r in ranked],[1,0])
+        try:
+            dp.MODE[0]=u'stream'   # Umbrella: live playback, nothing AirPlay must convert first
+            self.assertEqual([r['idx'] for r in dp.pick(dp.parse_all(raw),top_n=5)],[1,0])
+            dp.MODE[0]=u'download' # Elementum: prepared once on Drive, Elementum's order (best seeded first)
+            self.assertEqual([r['idx'] for r in dp.pick(dp.parse_all(raw),top_n=5)],[0,1])
+        finally:
+            dp.MODE[0]=u'download'
+    def test_dolby_vision_without_hdr10_counts_as_live_conversion(self):
+        dv=dp.parse_all(['2160p (90 / 0) [12 GB] WebDL H.265 - Torrentio\nShow.S01E01.2160p.WEB-DL.DV.HEVC.mkv\nicon.png',
+                         '2160p (90 / 0) [12 GB] WebDL H.265 - Torrentio\nShow.S01E01.2160p.WEB-DL.DV.HDR10.HEVC.mkv\nicon.png'])
+        self.assertEqual([dp.dv_only(i) for i in dv],[True,False])
 
 
 if __name__=='__main__':unittest.main()

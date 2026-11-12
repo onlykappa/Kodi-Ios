@@ -294,6 +294,21 @@ def dedupe(items):
     return kept
 
 
+MODE = [u'download']   # u'stream' while Umbrella's sources are shown (umbrella_picker), set by run()
+
+
+def dv_only(item):
+    """Dolby Vision with no HDR10 layer named (profile 5 web releases): plays with wrong colours where DV is missing."""
+    b = _blob(_all(item))
+    dv = bool(re.search(r' (DOLBY ?VISION|DOVI|DV) ', b))
+    return dv and not re.search(r' (HDR10\+?|HDR) ', b)
+
+
+def live_conversion(item):
+    """A stream AirPlay could not send as it is: AV1, 10-bit H.264, Dolby Vision only."""
+    return slow_to_prepare(item) or converts_for_tv(item) or dv_only(item)
+
+
 def pick(items, top_n=TOP_N):
     """items: one quality, already in Elementum's order. Returns up to top_n varied links."""
     items = dedupe(items)
@@ -302,10 +317,12 @@ def pick(items, top_n=TOP_N):
     good = [i for i in good if not too_heavy(i)] + [i for i in good if too_heavy(i)]
     # Kodi-iOS: AV1 after the codecs that need no conversion on the phone (stable: Elementum's order otherwise).
     good = [i for i in good if not slow_to_prepare(i)] + [i for i in good if slow_to_prepare(i)]
-    # Kodi-iOS (owner: "we want no stutter"): 10-bit H.264 has no hardware decoder on Apple devices, so AirPlay must
-    # convert it live on the CPU (slower than real time at 1080p). Those versions go last, after every version that
-    # plays on the TV as it is (stable otherwise).
-    good = [i for i in good if not converts_for_tv(i)] + [i for i in good if converts_for_tv(i)]
+    # Kodi-iOS (owner: "only time I'd do live playback is with Umbrella ... if I stream it it should also work without
+    # needing conversion"): for a stream, everything AirPlay would have to convert live goes last: 10-bit H.264 (no
+    # hardware decoder on Apple devices), Dolby Vision without an HDR10 fallback (wrong colours on TVs without DV).
+    # Downloads (Elementum) are prepared once on Drive, so those stay in Elementum's order there.
+    if MODE[0] == u'stream':
+        good = [i for i in good if not live_conversion(i)] + [i for i in good if live_conversion(i)]
     good_ids = set(id(i) for i in good)
     rest = [i for i in items if id(i) not in good_ids]
     ranked = good + rest                                   # dead / bad copies only if nothing better
@@ -818,7 +835,8 @@ def show_all(title, items, parsed, kept, hidden, sm):
     return show_list(title, kept, hidden, sm, u'All verified links', u'%d version%s' % (len(kept), u'' if len(kept) == 1 else u's'), u'all')
 
 
-def run(title, items, top_n=TOP_N, expect=None):
+def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
+    MODE[0] = mode
     parsed = parse_all(items)
     if parsed is None:
         auto=auto_request()
