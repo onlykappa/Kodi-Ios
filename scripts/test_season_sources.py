@@ -291,4 +291,31 @@ class PlanSeason(unittest.TestCase):
             watch.plan_season(profile,'31910','Naruto Shippuden',1,[4],'1080p',now=6)
             self.assertEqual(watch.load(profile)['shows']['31910']['title'],'Naruto Shippuden')
 
+class ThreeLanes(unittest.TestCase):
+    def test_lookups_run_three_at_a_time_each_in_its_lane(self):
+        # Owner (2026-11-12): "fix the speed for shows" (one episode at a time, about 5.5 s each).
+        import threading
+        busy=[];peak=[0];seen={};lock=threading.Lock()
+        def work(n,lane):
+            with lock:busy.append(n);peak[0]=max(peak[0],len(busy));seen[n]=lane
+            time.sleep(0.05)
+            with lock:busy.remove(n)
+        shown=[]
+        season.lanes(list(range(1,10)),work,lambda d,c:shown.append(d),lambda:False,{'stop':False},3)
+        self.assertEqual(sorted(seen),list(range(1,10)));self.assertEqual(peak[0],3)
+        self.assertEqual(set(seen.values()),set(watch.LANES))
+    def test_stop_takes_no_new_episode(self):
+        done=[];halt={'stop':False}
+        season.lanes(list(range(1,20)),lambda n,l:(done.append(n),time.sleep(0.05)),lambda d,c:None,lambda:len(done)>=3,halt,3)
+        self.assertTrue(halt['stop']);self.assertLess(len(done),19)
+    def test_season_jobs_back_in_episode_order(self):
+        with tempfile.TemporaryDirectory() as profile:
+            for n,h in ((3,'c'),(1,'a'),(2,'b')):
+                debrid_drive.queue(profile,{'id':h*40,'name':'Naruto S01E0%d'%n},'episode','Naruto','1',str(n),show_tmdb='31910')
+            debrid_drive.queue(profile,{'id':'d'*40,'name':'Other S01E01'},'episode','Other','1','1',show_tmdb='9')
+            self.assertTrue(debrid_drive.order_season(profile,'31910','1'))
+            self.assertEqual([(j['show_tmdb'],j['episode']) for j in debrid_drive.load(profile)['jobs']],
+                             [('31910','1'),('31910','2'),('31910','3'),('9','1')])
+            self.assertFalse(debrid_drive.order_season(profile,'31910','1'))
+
 if __name__=='__main__':unittest.main()

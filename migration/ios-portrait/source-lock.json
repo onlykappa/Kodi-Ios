@@ -3,23 +3,22 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
-  "build_tag": "kodi-ios-portrait-r30",
-  "staged_patch_note": "r30 verified native executable pinned for build 225: r29 plus the native iPhone keyboard everywhere (ISSUE-162).",
+  "build_tag": "kodi-ios-portrait-r31",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
+    "tag": "kodi-ios-portrait-r31",
+    "asset": "Kodi-portrait-executable.zip",
+    "sha256": "a3f8626281731a1c11e2a01df22261632a8944b8da40f10f5db9a77e83264d3c",
+    "archive_sha256": "8bb096ab6e73cc21128da6eb79d732546a0f3abba4ee8e374766d562d356e179"
+  },
+  "build_note": "r31 run 43256323634 (pull request build of 8affdb8): release zip and executable digests checked after download (arm64 Mach-O). r30 kept as previous; device acceptance pending.",
+  "previous_executable_release": {
     "tag": "kodi-ios-portrait-r30",
     "asset": "Kodi-portrait-executable.zip",
     "sha256": "636264da7f89bc61ceac79d31518818e31fa41d6c89386716d1c3b04e4254871",
     "archive_sha256": "c64f69f06b4216e57c8dabd5747ac814e47af6700ab1d5176b64b77775bddf6a"
   },
-  "build_note": "r30 run 42953009766 (pull request build of d3761cb): release zip and executable digests checked after download (arm64 Mach-O). r29 kept as previous; device acceptance pending.",
-  "previous_executable_release": {
-    "tag": "kodi-ios-portrait-r29",
-    "asset": "Kodi-portrait-executable.zip",
-    "sha256": "070b0baf99169364ed022bc33f9d8966909e84bed408d4c3ba3551c4f0e4a60e",
-    "archive_sha256": "9e1d40b9d893814c61c841b508ee333f3b16ffb8d6e5858e202cb6c59d51271a"
-  },
-  "verified_run": 42953009766,
-  "source_commit": "d3761cbd406fef80331173269f5ab8f745e4d169",
+  "verified_run": 43256323634,
+  "source_commit": "8affdb81cb0e2b4f6158ee7200a27fa0b175dda8",
   "patch_sha256": "9e9426b95ed54bbee997cc6e9211430f31893db06c0b694c47f286d633e59f8c"
 }

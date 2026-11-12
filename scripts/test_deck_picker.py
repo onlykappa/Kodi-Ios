@@ -235,4 +235,60 @@ class SeasonBuildPicks(unittest.TestCase):
   self.assertEqual(dp.auto_choose([pack,single],{'quality':'1080p','strict_quality':True})['idx'],1)
   self.assertEqual(dp.auto_choose([pack],{'quality':'1080p','strict_quality':True})['idx'],0)   # still used when alone
 
+class Lanes(unittest.TestCase):
+ def test_each_episode_finds_its_own_lane(self):
+  import json,time as t
+  props={}
+  home=types.SimpleNamespace(getProperty=lambda k:props.get(k,''),setProperty=props.__setitem__)
+  for lane,ep in (('',1),('.1',2),('.2',3)):
+   props[dp.AUTO_PICK+lane]=json.dumps({'request_id':'r%d'%ep,'until':t.time()+60,'purpose':'scan','target':{'tmdb':'31910','season':1,'episode':ep}})
+  exp={'tmdb':'31910','season':1,'episode':3}
+  got=dp.auto_request(home,exp=exp)
+  self.assertEqual((got['request_id'],got['_lane']),('r3','.2'))
+  with mock.patch.object(dp,'_home',return_value=home):dp._auto_result(got,{'request_id':'r3'})
+  self.assertEqual(json.loads(props[dp.AUTO_RESULT+'.2'])['request_id'],'r3');self.assertNotIn(dp.AUTO_RESULT,props)
+
+ def test_a_page_for_no_running_lane_answers_nobody(self):
+  # ISSUE-178 (owner log 77b35834): episode 1's page answered episode 3's lane; episode 1 then read "not found".
+  import json,time as t
+  props={}
+  home=types.SimpleNamespace(getProperty=lambda k:props.get(k,''),setProperty=props.__setitem__)
+  for lane,ep in (('',2),('.1',3),('.2',4)):
+   props[dp.AUTO_PICK+lane]=json.dumps({'request_id':'r%d'%ep,'until':t.time()+60,'purpose':'scan','target':{'tmdb':'31910','season':1,'episode':ep}})
+  got=dp.auto_request(home,exp={'tmdb':'31910','season':1,'episode':1})
+  self.assertTrue(got.get('_unmatched'))
+  with mock.patch.object(dp,'_home',return_value=home):dp._auto_result(got,{'request_id':'x'})
+  self.assertFalse([k for k in props if k.startswith(dp.AUTO_RESULT)])
+ def test_one_lane_keeps_the_old_answer(self):
+  import json,time as t
+  props={dp.AUTO_PICK:json.dumps({'request_id':'r1','until':t.time()+60,'purpose':'scan','target':{'tmdb':'1','season':1,'episode':1}})}
+  home=types.SimpleNamespace(getProperty=lambda k:props.get(k,''),setProperty=props.__setitem__)
+  self.assertEqual(dp.auto_request(home,exp={'tmdb':'1','season':1,'episode':9})['request_id'],'r1')
+
+class NoMenuDuringBuildSeason(unittest.TestCase):
+ def test_a_page_with_no_identity_does_not_ask_while_a_season_is_built(self):
+  # Owner (build 309): the version menu opened in the middle of a Build Season.
+  import json,time as t
+  props={dp.AUTO_PICK:json.dumps({'request_id':'r1','until':t.time()+60,'purpose':'queue','target':{'tmdb':'31910','season':1,'episode':9}})}
+  home=types.SimpleNamespace(getProperty=lambda k:props.get(k,''),setProperty=props.__setitem__)
+  item='1080p (12 / 0) [400 MB] WebDL H.264 - Torrentio\nNaruto.Shippuden.S01E09.1080p\nicon.png'
+  with mock.patch.object(dp,'_home',return_value=home),mock.patch.object(dp,'_matcher',return_value=None),\
+       mock.patch.object(dp,'show_list',side_effect=AssertionError('menu shown')) as menu:
+   self.assertEqual(dp.run('Available streams for Naruto Shippuden S01E09 (2007)',[item]),-1)
+  menu.assert_not_called()
+
+class OneEpisodeFirst(unittest.TestCase):
+ def items(self):
+  one=lambda i,seeds,size:dp.parse_item('1080p (%d / 0) [%d MB] WebDL H.264 - Torrentio\nNaruto.Shippuden.S01E05.1080p.WEB.x264\nicon.png'%(seeds,size),i)
+  box=dp.parse_item('1080p (90 / 0) [4198 MB] BDRip x264 - Torrentio\n[uP] Naruto Shippuden - Box 1 (BDRip 1080p) [uP] Naruto Shippuden - 005.mkv\nicon.png',3)
+  return [one(0,10,250),one(1,8,260),one(2,6,255),box]
+ def test_a_box_set_does_not_set_the_episode_size_or_the_pick(self):
+  # ISSUE-178: episode 5 read "4.1 GB" (a better-seeded box set) in the ready sheet and would have downloaded it.
+  kept=dp.mark_multi(self.items(),{'kind':'episode','season':1,'episode':5,'titles':['Naruto Shippuden']})
+  self.assertEqual([p['multi'] for p in kept],[False,False,False,True])
+  self.assertEqual(dp.auto_choose(kept,{'quality':'1080p','strict_quality':True})['idx'],0)
+ def test_the_box_is_still_used_when_alone(self):
+  kept=dp.mark_multi(self.items()[3:],{'kind':'episode','season':1,'episode':5})
+  self.assertEqual(dp.auto_choose(kept,{'quality':'1080p','strict_quality':True})['idx'],3)
+
 if __name__=='__main__':unittest.main()

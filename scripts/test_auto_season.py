@@ -65,6 +65,6 @@ class Season(unittest.TestCase):
  def test_queueing_without_asking_again(self):
   text=(LIB/'elementum_cloud.py').read_text()
   self.assertIn("mode = auto.get('mode', 0) if auto is not None else ask(dialog, 'Save to Google Drive'",text)
-  self.assertIn("if auto is not None:return True          # already in Drive",text)
+  self.assertIn("existing = None if auto is not None else existing_url(profile,choice)",text)
 
 if __name__=='__main__':unittest.main()

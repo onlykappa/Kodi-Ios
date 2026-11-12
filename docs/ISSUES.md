@@ -2778,3 +2778,163 @@ disk failure, metadata timeout and fail-open streaming. Existing proxy 10, libra
 also pass. The first malformed-index fixture changed a valid track ID rather than the version byte; corrected
 the fixture offset and retained the negative regression. Project checks pass. Logs contain only safe byte counts.
 Actual iPhone opening-time improvement is unmeasured. No IPA or native binary/pin change.
+
+## ISSUE-177 — AI Upscale (DEC-039/DEC-040): bugs found while building the measurement build (2026-11-12)
+
+Found by the new host tests before any phone build; each is fixed, retested and kept as a regression test.
+
+1. **The converter refused an upscaled copy before it started** ("video conversion: no H.264 encoder in this
+   build"). Root cause: `kr_video_open` checks for the H.264 encoder up front (the live AirPlay bridge needs it); an
+   upscaled copy only needs HEVC, which is checked when its encoder opens. On the phone both exist, so this would only
+   have hidden on builds without H.264, but it blocked every host test of the path. Fix: skip the H.264 check while an
+   upscale is set for the conversion. Retest: `remux/tests/upscale_host.py` 23/23 (Lanczos engine on the host:
+   1280×720 HEVC, both audio and both subtitle tracks kept, tag read back, HDR and same-size refused, the setting used
+   once, cancel mid-copy then a fresh copy). Protection: that test runs in airplay-remux CI.
+2. **"All videos (my default)" copied the show's title and date into the default** (picture.apply). Root cause:
+   `_clean` kept every key of the entry it was given, and the resolved show entry carries title/updated. Fix: `_clean`
+   returns only upscale and saturation. Retest/protection: `scripts/test_picture.py` (13 tests; in import-review).
+3. **The measurement results file was never written on a fresh profile** and the error was swallowed. Root cause:
+   the add-on data folder may not exist yet; `open()` failed inside a bare `except: pass`. Fix: create the folder and
+   log the reason if saving still fails. Retest/protection: `scripts/test_upscale_measure.py` (10 tests; in
+   import-review).
+
+4. **The measurement kept the Drive read-ahead for its video after the run.** Root cause: `upscale_measure` called
+   `DriveStream.url()` (which registers the file) but never `forget()`, unlike the queue. Fix: forget in a `finally`.
+   Retest/protection: `test_upscale_measure` `test_drive_read_ahead_is_let_go`.
+
+Regression check: the existing remux host suite (run_host_tests.sh, KR_HDR_TESTS=1) passes with the r48 changes:
+3341 checks, 0 failed. AirPlay r48 built with Xcode 26.3 / iPhoneOS 26.2 SDK (airplay-ios run 43263786191).
+
+Not yet checked (needs the owner's iPhone, measurement build): the AI engine itself (model download, speed, heat,
+battery, output size), Xcode 26 building the framework in CI.
+
+## ISSUE-178 — Build Season leaves out episodes that exist, and sizes one from a box set (owner logs 77b35834, 7027e593, build 300)
+
+Naruto Shippuden S1: episodes 1, 9, 17 and 22 "Not found in any quality", although Burst found 11 sources for every
+episode; episode 5 read 4.1 GB. Rick and Morty S1: 3 of 11 left out the same way.
+
+Root causes (all from the three-lane Build Season of PR #21):
+1. **One shared identity slot.** Burst publishes the episode a search is for in one Home-window property; with three
+   searches at once the version page read whichever finished last (log: two pages checked against S01E03 at the same
+   millisecond; episode 1's page hid its own links as "wrong episode"; Rick and Morty: E02, E05, E08 reused).
+2. **Unsafe lane fallback.** A page whose episode matched no lane answered into the first live lane, so another
+   episode's lookup took this page's links and the real episode got nothing.
+3. **Scan limit too short with three lanes.** Elementum answered episodes 9 and 22 in 22-26 s; the limit was 25 s and
+   nothing retried.
+4. **Box set out-seeded the single files.** The scan reported the best-seeded copy's size and the automatic pick did not
+   prefer one-episode files over season packs / box sets, so episode 5 would also have downloaded a 4.1 GB box.
+
+Fixes: source_match keeps the last 8 identities and a page takes only the one for its own SxxEyy (never another
+episode's); deck_picker answers no lane when several are live and none matches; Build Season scans get 45 s in lanes
+and one 60 s retry each, on their own, for any episode still missing; deck_picker.mark_multi marks links holding more
+than the episode (season pack, range, box set by name, or > 3x the median size) and ranks them last for sizes and
+automatic picks (still used when alone).
+
+Retest: new tests in test_source_match (each page its own identity), test_deck_picker (no-lane page answers nobody;
+one lane keeps the old behaviour; box set neither sizes nor picks the episode; box used when alone), test_season_sheet
+(missed episode looked up once more; still nothing → left out). Each fails on the old code and passes now; the
+related suites (auto_season, episode_watch, import_builder, customized_ipa) pass. Phone check: next IPA.
+
+## ISSUE-179 — Build Season: every episode found but none queued (build 302, owner logs dab02446 / 0296adce / 1138649a) — FIXED on host, owner retest pending
+
+After ISSUE-178 the scan works (build_scanned found 32/32, scan_retry found episode 9). The queue phase fails for all
+32: episode_result queued:false, one queue_deferred TimeoutError, card "No episode could be added". For each episode
+the picker logs "Choose a version (automatic): … S01E0N: <name>" and elementum_cloud then logs
+"automatic pick refused (different version)" followed by "automatic pick refused (no matching automatic request)"
+(elementum_cloud.auto_season → refusal(wanted, selected, choice)). So the queue receipt
+(KodiIOS.AutoPick.Queued<lane>) is never written.
+Also: for E01, E03-E08 the automatic pick was a file inside "Naruto Shippuden (001-500) [Complete Series + Movies
+(1080p)] … Season 01 (001-032)/…" although WHOLE_SERIES / mark_multi should rank it last; check what auto_choose had
+to choose from (strict_quality 1080p may have filtered every single-episode file).
+Suspects to check first: (1) refusal() compares the picker's Result (`name` of the chosen link) with what Elementum
+resolved (`choice`): for a file inside a pack the names differ → "different version"; (2) with three lanes, the
+cloud route's lane lookup (auto_season loops lanes and checks each lane's Result) may test the wrong lane's Result;
+(3) ISSUE-178's `_unmatched` guard must not affect the queue phase. Reproduce with a host test of
+season_sources._build's queue phase + deck_picker.run(purpose='queue') + elementum_cloud.auto_season with three lanes.
+Not fixed (session ran out); build 290 queued episodes one lane at a time, so compare with the pre-lane code.
+
+Root cause (owner log 1138649a, build 302): suspect (1), and it was not only packs. Elementum's link names the torrent
+its own way (the magnet's dn, else the search query), while the picker's Result `name` is Elementum's whole label line
+with Torrentio's stats ("Naruto Shippuuden - 002 [1080p] dual audio 10bit.mkv 👤 10 💾 945.19 MB ⚙️ NyaaSi…"). Even the
+single-file episode 2 was refused "different version". With no lane accepted, route's request_id check then logged
+"no matching automatic request" and returned without the receipt. Yet route already had the answer: each lane's lookup
+calls route(url, request_id=<that lane's id>), so the link's lane is known and the name test was never needed there.
+Fix (elementum_cloud): auto_season(…, request_id) looks only at the lane whose AutoPick has that request id and calls
+refusal(…, own=True), which skips the name comparison and still checks found, request id and (when the link carries
+them) season and episode. Without a request id (a hand pick while a season runs) names are still compared, now with the
+stats suffix cut and a file-in-pack vs bare file match, and a refusal logs both names
+('different version (picked "…", Elementum "…")').
+Pack question: the "001-500 Complete Series" file was chosen only where it was the sole 1080p copy the title/episode
+check kept (E01: the other 1080p links were hidden as "no season/episode in the name"); auto_choose already ranks
+WHOLE_SERIES last and E02 took the single file. AllDebrid's pick() downloads just that episode's file from the pack.
+Retest: scripts/test_elementum_cloud.py SeasonQueueThreeLanes (three lanes, deck_picker.run answers each, Elementum
+links named differently from the picker reach auto_season in shuffled order: every lane accepted; another lane's link is
+refused "different episode"; a hand pick with a different name is refused with both names logged). It fails on the
+old code. Related suites (episode_watch, auto_season, season_sources, deck_picker, debrid_drive) pass.
+Regression protection: that test in import-review.yml (test_elementum_cloud already runs there). Phone proof: the owner's
+next Build Season log should show episode_result queued:true and no "refused" lines.
+
+## ISSUE-180 — AI Upscale test closes Kodi (build 302, owner logs 0afdfd7b / 1ff17f50) — guarded on host, retest pending
+
+Symptom: Settings › AI Upscale test, "First 5 minutes, best AI engine", on Hell House LLC Origins (1920x1040) and Phony
+S01E02 (1920x1080). Kodi closes seconds after "upscale: AI super resolution (image model, 4x), 1920x1080 -> 7680x4320";
+the log just ends (no Python error), which points at iOS stopping the app, most likely for memory.
+Root cause: this iPhone's support line says the AI models make 4x pictures only ("image": factors [4]; "video":
+factors [4], fits 0 for 1080p; "fast": max 1280x1280, so not 1080p). kr_upscale.pick_factor falls back to the largest
+factor when none is near the 2x needed, so "auto" took the image model at 4x: 7680x4320 frames in the engine's
+half-float format (about 265 MB each, several held at once), then scaled down to 4K. Run 1 also logged "model download
+failed (VTFrameProcessorErrorDomain error -19743)" at the moment the conversion opened, although the status said ready
+10 s earlier (to look at with the native code; not the crash's cause on run 2, where the model was ready).
+Fix (Python, no new framework): upscale_queue.pick_engine uses an AI model only when what it makes is no larger than
+the size asked for (5 % slack); otherwise the test stops with the reason ("its AI models would make image model 4x =
+7680x4320, more than 4K UHD …") and the background step marks the copy 'blocked'. On this iPhone that means 1080p and
+720p videos cannot be AI-upscaled with Apple's models as they are; 540p and smaller can (4x = 4K).
+Retest: test_upscale_measure.test_a_phone_with_only_4x_models_does_not_make_8k_frames (the owner's support line; no
+conversion starts; compare mode skips the image model and still runs Lanczos) and test_upscale_cloud
+test_only_4x_models_block_a_1080p_copy_instead_of_closing_kodi. Phone proof: the next test log should say why it
+stopped instead of Kodi closing.
+Open: a way to get 1080p -> 4K on a 4x-only phone needs native work (for example tiles of the frame through the
+low-latency model, or the 4x model on a smaller source) and a new KodiAirPlay build; to decide with the owner.
+Follow-up (owner: "i want 720 and 1080 to be upscaled"): KodiAirPlay r49 (staged) runs the low-latency AI model on
+tiles. A 1920x1080 picture is cut into overlapping tiles no larger than the model's 1280x1280 (2x1 tiles of about
+992x1080, 16 px shared margin); each tile is enlarged 2x, and the tiles' middles are joined into one 3840x2160 RGBA
+half-float picture (about 66 MB), which kr_video fits and encodes as before. Tiles are cut with a clean-aperture
+attachment and CropSourceToCleanAperture (no copy on the CPU); the join is a row copy. The 4x video/image models are
+now refused natively too when they would overshoot. 720p gets 2x (2560x1440), then kr_video fits it to the size chosen.
+Not compiled here (no iOS SDK): the airplay-ios run is the compile check, the owner's AI Upscale test log the proof
+(speed, heat, joins). pick_engine already chooses the tiled fast model from the r49 support line ("fast" fits 1).
+
+## ISSUE-181 — Build Season: one episode opened the version menu; card text cut (build 309, owner log 8bb997da) — FIXED on host
+
+Result of ISSUE-179's fix on the phone: 31 of 32 Naruto episodes queued (episode_result queued:true) and Drive copies
+started. Episode 9 was not: its version page ("Available streams for Naruto Shippūden S01E09 (2007)") came with no
+identity ("not checked (the title being played is not known)"), so the picker opened the version menu in the middle
+of the season (owner screenshot: "this menu also shows up as its downloading"). The card read "Adding to your do…".
+Root cause: Burst's searches for episodes 8 and 9 finished in the same millisecond (11:38:21.393); both rewrote
+source_match's shared KodiIOS.SourceMatch.Recent list and episode 9's entry was lost.
+Fix: source_match.published lets a page that names its episode take a recent identity of the same show (title in the
+page heading) with the page's own season and episode ('borrowed'); deck_picker.run never shows a menu for a page with
+no identity while a Build Season lookup is running (that lookup gets nothing); season_sources._build tries every
+episode not added once more on its own before the season is done ('queue_retry' event); the card says "Adding
+episodes".
+Retest: test_source_match (borrowed identity, other show refused), test_deck_picker NoMenuDuringBuildSeason,
+test_season_sheet test_an_episode_not_added_is_tried_once_more; season suites pass. Phone proof: next Build Season log.
+
+## ISSUE-182 — AllDebrid to Drive copies far below the line (build 309, owner log 31996cd8) — FIXED on host, r50 staged
+
+Owner: "my upload and download are super high ensure there are no app caps" (Speedtest: 182 Mbps down, 101 up).
+Log: 124 "Drive copy native" pieces, all on one thread, 8 MB in 2.9 s on average (~2.8 MB/s, ~22 Mbps), later
+4-8 s a piece. Two caps:
+1. One episode at a time. The three upload lanes (ISSUE-164, Roadmap 1F.4) only run the files of one job (a season
+   pack); Build Season makes one job per episode, so a season copied one episode after another.
+2. 8 MB pieces. Each native piece reads its range from AllDebrid, then PUTs it to Drive and waits for Drive's answer;
+   with nothing overlapping, the fixed waits (first byte from AllDebrid, Drive's confirmation) dominate. The native
+   copier refused pieces over 8 MB (kodi_http_copy), and StreamChunks was capped at 8 MB too.
+Fix: debrid_drive.step takes up to two more ready one-file jobs (debrid_drive.companions: AllDebrid has them, their
+file picked) beside a one-file job, so three episodes copy side by side; a companion's failure stays its own (tries,
+retry_at), never the first job's. KodiAirPlay r50 (staged) takes pieces up to 32 MB (kodi_http_copy_max) and allows
+up to 180 s for one; native_http.copier reads the limit (8 MB on older frameworks) and gives a piece at least 1 s per
+MB; driveupload's native path grows pieces to that limit after three fast pieces.
+Retest: test_debrid_drive (build_season_episodes_one_job_each_copy_three_at_a_time; a companion failing does not fail
+the first), test_native_http (r50 32 MB pieces, older frameworks keep 8 MB, pieces grow to 32 MB). Phone proof: the
+next log should show three "Drive copy native" threads and pieces growing to 32 MB.

@@ -69,7 +69,10 @@ ROOT=[
   R(9113,'Customisation',CUSTOM_PAGE,'sliders.png','FFD1D1D6'),
   R(9114,'Player','RunScript(service.kodi.ios.bootstrap,section_page,player)','circle-play.png',GREEN),
   R(9115,'Media','RunScript(service.kodi.ios.bootstrap,section_page,media)','film.png',ORANGE),
-  R(9116,'Library',LIBRARY_PAGE,'folder.png',BLUE)],
+  R(9116,'Library',LIBRARY_PAGE,'folder.png',BLUE),
+  # Settings › AI Upscale (ai-upscale-settings-mockups.html board A, DEC-042): right under Library, a purple wand.
+  R(9117,'AI Upscale','RunScript(service.kodi.ios.bootstrap,upscale_settings)','wand-magic-sparkles.png',PURPLE,
+    '$INFO[Window(Home).Property(KodiIOS.UpscaleSummary)]')],
  # What the profile button's More menu held (round 5: the gear in the header opens Settings instead).
  [R(9171,'Google Drive','ActivateWindow(Videos,plugin://plugin.googledrive/,return)','cloud.png',BLUE),
   R(9172,'Favourites','RunScript(service.kodi.ios.bootstrap,favourites_page)','star.png',ORANGE),
@@ -540,8 +543,16 @@ def skin_list_page(p):
   return (p.image(0,0,w,ROW,M+'white.png',p.SURFACE,'<visible>!%s</visible>'%kind('title'))+bg+
           p.image(PAD,ROW-2,w-PAD,2,M+'white.png',p.SEP,'<visible>!%s</visible>'%kind('title'))+
           # group title: small grey words sitting on the page, as the Settings pages have
-          p.label(PAD,0,w-2*PAD,ROW,L('label'),'p_h3',p.GREY,'left','<aligny>bottom</aligny><scroll>false</scroll><visible>%s</visible>'%kind('title'))+
-          p.label(PAD,0,w-2*PAD-420,ROW,L('label'),'p_body',p.WHITE,'left','<scroll>false</scroll><visible>!%s</visible>'%kind('title'))+
+          p.label(PAD,0,w-2*PAD,ROW,L('label'),'p_h3',p.GREY,'left','<aligny>bottom</aligny><scroll>false</scroll><visible>%s + String.IsEmpty(ListItem.Property(note))</visible>'%kind('title'))+
+          # Settings › AI Upscale: a grey note under a group (wrapped), and a grey second line under a row; a row with no
+          # value on the right gets the width a value would take (rig: "Upscale new downl..." was cut).
+          p.textbox(PAD,14,w-2*PAD,ROW-14,L('label'),'p_cap',p.GREY).replace('<control type="textbox">','<control type="textbox"><visible>!String.IsEmpty(ListItem.Property(note))</visible>',1)+
+          p.label(PAD,0,w-2*PAD-420,ROW,L('label'),'p_body',p.WHITE,'left','<scroll>false</scroll><visible>!%s + String.IsEmpty(ListItem.Property(sub)) + !String.IsEmpty(ListItem.Property(value))</visible>'%kind('title'))+
+          p.label(PAD,ROW//2-54,w-2*PAD-420,56,L('label'),'p_body',p.WHITE,'left','<scroll>false</scroll><visible>!%s + !String.IsEmpty(ListItem.Property(sub)) + !String.IsEmpty(ListItem.Property(value))</visible>'%kind('title'))+
+          p.label(PAD,ROW//2+4,w-2*PAD-420,48,L('sub'),'p_cap',p.GREY,'left','<scroll>false</scroll><visible>!%s + !String.IsEmpty(ListItem.Property(sub)) + !String.IsEmpty(ListItem.Property(value))</visible>'%kind('title'))+
+          p.label(PAD,0,w-2*PAD-200,ROW,L('label'),'p_body',p.WHITE,'left','<scroll>false</scroll><visible>!%s + String.IsEmpty(ListItem.Property(sub)) + String.IsEmpty(ListItem.Property(value))</visible>'%kind('title'))+
+          p.label(PAD,ROW//2-54,w-2*PAD-200,56,L('label'),'p_body',p.WHITE,'left','<scroll>false</scroll><visible>!%s + !String.IsEmpty(ListItem.Property(sub)) + String.IsEmpty(ListItem.Property(value))</visible>'%kind('title'))+
+          p.label(PAD,ROW//2+4,w-2*PAD-200,48,L('sub'),'p_cap',p.GREY,'left','<scroll>false</scroll><visible>!%s + !String.IsEmpty(ListItem.Property(sub)) + String.IsEmpty(ListItem.Property(value))</visible>'%kind('title'))+
           p.label(w-PAD-400,0,330,ROW,L('value'),'p_body',p.GREY,'right','<scroll>false</scroll><visible>%s</visible>'%kind('button'))+
           p.icon(w-PAD-34,(ROW-34)//2,34,'chevron-right.png',p.DIM,'<visible>%s</visible>'%kind('button'))+
           p.image(w-PAD-130,(ROW-58)//2,130,58,M+'toggle_on.png',p.WHITE,'<visible>%s + !String.IsEmpty(ListItem.Property(on))</visible>'%kind('switch'))+

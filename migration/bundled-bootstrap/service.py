@@ -40,6 +40,11 @@ def run():
  keys={'changed':False}   # roadmap 3.6: Kodi reads the keymaps at launch; they are reloaded only when a file changed
  # Settings shows it beside Kodi's version: "Kodi 21.3 (build 157)" (owner request).
  window.setProperty('KodiIOS.Build',updates.installed_build(root))
+ # Settings › AI Upscale's row: "On · 4K" or "Off" (the page updates it after each change).
+ try:
+  import picture,upscale_page
+  window.setProperty('KodiIOS.UpscaleSummary',upscale_page.summary(picture.load(profile)))
+ except Exception:pass
  def diagnostic_settings():
   addon=xbmcaddon.Addon()
   return {key:addon.getSettingBool(key) for key in ('background_transfers','drive_upload','prepare_downloads','airplay_button')}
@@ -579,10 +584,32 @@ def drive_uploads(monitor,home,profile):
                                  xbmcaddon.Addon().getSettingBool('prepare_downloads') and not prepare_downloads.interrupts(profile))
       # The upload pieces and the Drive read-ahead wait too while paused by the owner.
       if preparation.stream:preparation.stream.hold=lambda:preparation.paused() or slowdown.holding()   # build 208: no read-ahead while Kodi plays
+      # DEC-039 measurement build: an AI Upscale test asked for in Settings runs here, between conversions, with the
+      # queue's own converter and Drive stream (one AI engine at a time). Counted only, nothing uploaded.
+      import upscale_measure
+      measure=upscale_measure.pending(profile)
+      if measure:
+       upscale_measure.clear(profile)   # once, even if it fails: a crash must not repeat it on every pass
+       preparation.busy=True
+       try:upscale_measure.run(preparation,measure,log,notify=lambda kind,title,text:notices.add(profile,kind,title,text),keep_going=can_prepare)
+       except Exception as error:
+        diagnostics.log_exception(xbmc,'upscale_measure',error)
+        notices.add(profile,'problem','AI Upscale test stopped',diagnostics.redact(error)[:160])
+       finally:preparation.busy=False
       if transfer_control.paused(profile,'conv') and not (prepare_downloads.load(profile).get('current') or {}).get('running'):delay=30
       else:
        preparation.busy=True
-       try:delay=2 if preparation.process_one(converting) else 20
+       try:
+        delay=2 if preparation.process_one(converting) else 20
+        # DEC-039/040/042: AI Upscale copies are made only when nothing waits to be converted (one engine at a time).
+        if delay==20 and not transfer_control.paused(profile,'conv'):
+         import upscale_cloud,upscale_queue,drivelibrary
+         if not getattr(preparation,'upscale_recovered',False):
+          data=upscale_queue.load(profile);upscale_queue.save(profile,upscale_queue.recover(data));preparation.upscale_recovered=True
+         try:
+          if upscale_cloud.process_one(preparation,converting,media_for=upscale_cloud.media_lookup(profile,drivelibrary.parse)):delay=2
+         except Exception as error:
+          diagnostics.log_exception(xbmc,'upscale',error)
        finally:preparation.busy=False
      preparation.runtime=None
    if count:notices.add(profile,'drive','Uploaded to Google Drive','%d video%s in Kodi Downloads'%(count,'' if count==1 else 's'))

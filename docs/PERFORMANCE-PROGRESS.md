@@ -9,6 +9,91 @@
   build's kodi_airplay_serve_copy + correlated receiver evidence. No IPA/native release dispatched here.
 - Compiled recommendations suite: 41 checks, 0 failures. Phone/TV acceptance and hour-long/caption tests remain open.
 
+## HANDOFF (2026-11-12, end of PR #21) — read this first
+
+PR #21 merged to main on the owner's word ("Merge all branches once the new ipa is out"). Latest IPA: **build-314**
+(Kodi r31, AirPlay r50). In it: ISSUE-179/181 Build Season (31/32 queued on the phone with build 309; the version
+menu never opens mid-season, lost identities recovered, one retry), B3 quality sheet (DEC-041), ISSUE-180 AI Upscale
+guard + r49 tiled AI upscaling for 720p/1080p (not yet run on the phone), Settings › AI Upscale page, upscaled copy
+plays, ISSUE-182 speed (three episodes copy at once; r50 32 MB pieces).
+Waiting on the owner's phone logs: Build Season (queue_retry, no menu), copy speed (three "Drive copy native"
+threads, pieces growing to 32 MB), AI Upscale test (tiles: speed, heat, battery, size, visible joins).
+Mockups for owner review, not to be built until the owner says: docs/design/library-files-mockups.html (Library
+file manager, round 2 with Repair and the ••• menu). Still to code from approved mockups: Picture menu + Saturation
+(Kodi r32 shader), AI Upscale board C (one show's page).
+
+## HANDOFF FOR THE NEXT AGENT (2026-11-12, end of the AI Upscaler session) — read this first
+
+Branch claude/trusting-euler-kgug98, PR #21 (draft). Latest IPA: build-302 (Kodi r31 + AirPlay r48 pinned).
+Priority order:
+1. ISSUE-179 FIXED on host (route's request_id now picks the lane; names no longer compared for a lane's own link).
+   Owner to retest Build Season on the next IPA and send kodi.log (look for episode_result queued:true).
+2. DONE (commits 586cc90 + rig fixes): Build Season quality sheet B3 (DEC-041). season_sheet.check_numbers/survey/
+   recommend/checking_props/quality_props, pick_quality(check, wait) opens the sheet, runs the 3-episode check in the
+   lanes, then waits for a tap; season_sources._build reuses the check answers. Desktop Kodi rig: B3·1-4 match the board
+   (tag width and the 20-step check bar fixed after the first rig look). Rig tip: `kodi_rig.py sync` while Kodi runs
+   stopped Kodi; write the one window XML into skin.arctic.fuse.3/portrait instead, or sync before start.
+   Phone proof pending: the owner's next Build Season log ('quality_checked' event).
+3. Owner's AI Upscale measurement log (Settings › Library › Transfer settings › Google Drive tab › AI Upscale test;
+   "First 5 minutes" with Kodi on screen and charging). Read 'upscale measurement:' + RESULT lines; decide speed/size.
+4. AI Upscale progress: the background step is coded (resources/lib/upscale_cloud.py, test_upscale_cloud.py; service.py
+   runs it only when nothing waits to be converted): plan → charger/heat/Drive room → AI model first → convert with
+   upscale into .Preparation → size check → moved beside the original as '<name> [AI 4K UHD].mp4' → upscale-copies.json
+   'ready'. Opt-in: nothing is made until a show or the default asks for a size (Settings page still to code).
+   DONE too: playback/AirPlay choose the ready copy (ios_library.upscaled_path; drivelibrary.is_video hides
+   '[AI …].mp4' copies from the Library, scans and the preparation queue); Settings › AI Upscale (row 9117 under
+   Library with 'On · 4K'; upscale_settings.py + upscale_page.py on the IOSSkinList window, which gained a grey second
+   line and wrapped notes). Desktop Kodi rig: boards A and B1/B2 match. Board C (one show's own page with its episodes
+   and Remove the copies) is a size list for now (Off + sizes above the show): to do.
+   Still to do: Picture menu (video-picture-mockups round 4), Saturation shader (Kodi r32), board C. Original list:
+   Then the full AI Upscale feature (DEC-039/040/042): Settings › AI Upscale page (ai-upscale-settings-mockups.html),
+   the background queue step wiring upscale_queue.py (rules + 16 tests exist, not wired), copy upload beside the
+   original, playback/AirPlay choosing the copy, Picture button/menu in the OSD (video-picture-mockups.html round 4),
+   Saturation needs a GLES shader change in kodi-21.3-portrait.patch (Kodi has none) → Kodi r32.
+Rules: commit+push after every fix; check_project before commits; native: stage tag, CI publish, pin by checksum
+(download and verify); never merge/release without owner approval; phone results need the owner's log; desktop rig:
+scripts/kodi_rig.py setup --release build-302 (build-275 is gone; codeload.github.com is blocked in cloud sessions:
+fetch dav1d from code.videolan.org for host FFmpeg builds, see ISSUE-177 notes).
+
+## HANDOFF 2026-11-12 (AI Upscaler, PR #21) — read this first
+
+- LATEST: **build-302** (import-review #302 on d8ab616): Kodi r31 PINNED (run 43256323634, digests checked), AirPlay
+  r48, ISSUE-178 Build Season lane fix. Owner to retest Build Season (Naruto S1, Rick and Morty S1) and then the AI
+  Upscale test on a prepared 1080p episode. Next to code: Build Season quality sheet round 3 (DEC-041, board B3).
+
+- Pins: AirPlay r47 pinned (run 43251110403, digest checked by download). Kodi r31 (run 43256323634) still building
+  at this point; pin it from that run when it finishes.
+- Research done, engine chosen: DEC-040 (Apple VTSuperResolutionScaler in KodiAirPlay; no "AI" fallback that is not AI).
+- Measurement build (DEC-039 step 1): KodiAirPlay r48 built by airplay-ios run 43263786191 (Xcode 26.3, iPhoneOS 26.2
+  SDK; super resolution classes weak-linked) and PINNED (sha256 fab9f187…96ba, checked by download). The IPA for the
+  owner is built by import-review on the pin commit with Kodi r30 (r31 still compiling; pin it in a later build). Native: remux/src/kr_upscale.m (+ stub for host), kr_video
+  upscale path, kr_prepare kodi_airplay_prepare_upscale / upscale_support / upscale_model, kodi_device_state.
+  Add-on: Settings › Google Drive › "AI Upscale test" (upscale_test.py) → upscale_measure.py runs in the preparation
+  thread, counts the copy (nothing uploaded), logs 'upscale measurement:' lines and a RESULT JSON line to kodi.log.
+- Saturation: Kodi 21.3 has Brightness/Contrast/Gamma only (VideoSettings.h); saturation exists only in the Windows
+  DXVA path. So it needs the small GLES shader change in kodi-21.3-portrait.patch (Kodi r32), after the measurement.
+- Also coded, not wired yet: upscale_queue.py (which videos, charger/battery/heat/Low Power, Drive room, one at a
+  time, kill/resume, back-off, playback choice incl. a copy deleted on Drive, board E states), 16 tests.
+- Host-tested: remux/tests/upscale_host.py 23/23, test_picture 13, test_upscale_measure 10, import-review list 79/79.
+- IPA for the owner: **build-300** (import-review run 43264784072 on f9dd97f; AirPlay r48 + Kodi r30;
+  Kodi-iOS-Customized-Touch-r10.ipa sha256 2811c0aa…a00). Owner asked for this measurement IPA (2026-11-12).
+- Rig (desktop Kodi rig, build-294 add-ons): Settings › Google Drive row, empty state, video picker and choice sheet
+  rendered; picker rows fixed for truncation. No Picture menu yet to render.
+- Next: give it to the owner and ask for the kodi.log of one 1080p episode → 4K test (whole video, and
+  the 3-minute compare). Only then: the upscale queue step, playback choice, Picture menu, Settings › Picture (task
+  list in the final report of this session). Owner dropped "2K" (DEC-040 item 5): sizes are 720p, 1080p, 1440p, 4K UHD.
+
+## HANDOFF 2026-11-12 (PR #21, branch claude/trusting-euler-kgug98) — read this first
+
+- Next agent: code the **AI Upscaler** per DEC-039 and docs/design/video-picture-mockups.html (round 4, approved):
+  Picture button + menu (AI Upscale slider, Saturation), per-show settings, Settings › Picture, and the background
+  upscaled copy (VTSuperResolutionScaler in migration/airplay-ios, a new preparation step). Measurement build first.
+- Pending on this PR: Kodi r31 build (kodi-ios-portrait run 43256323634 on 8affdb8) then pin Kodi r31 and AirPlay r47
+  (airplay-ios run 43251110403 on a0a3b90 succeeded; migration/airplay-ios/source-lock.json still has a placeholder
+  sha256, so the IPA build fails until both are pinned). Then one IPA for the owner.
+- Coded on this PR, phone checks pending: Build Season queue fixes + refusal logging, Close/Cancel, board F (every
+  episode), three-lane season lookups, subtitles (SubDL/OpenSubtitles), hidden offset slider.
+
 ## MERGED 2026-11-12: PR #19 into main (DEC-038) — next work starts from main in a fresh PR
 
 Open items for the next PR, in order:
@@ -17,9 +102,10 @@ Open items for the next PR, in order:
 2. Native builds: Kodi r31 from migration/ios-portrait/kodi-21.3-portrait.patch (MKV attachments skipped, Home plugin
    rows kept around playback, Settings "- " prefix, PIN keyboard) and AirPlay r47 (system-networking uploads,
    resume start, Roku Media Assistant route); then pin and build an IPA.
-3. UI: board 11 options sheet (portrait's Custom_1170 is the More menu: ask the owner), board 13 slow-first-run pill,
-   buffering capsule (Custom_1156 froze Kodi in build 210).
-4. Speed: the background log-lag review's findings; Build Season scans one episode at a time (~5.5 s each).
+3. UI: boards 11 (More menu as a bottom sheet) and 13 (first-frame placeholders, slow-start pill) were already coded in
+   4fc1157 (owner approved both, 2026-11-12); left: the buffering capsule (Custom_1156 froze Kodi in build 210).
+   Done on PR #21: board F (every episode of a season build), Build Season three lanes (season_sources.lanes).
+4. Speed: the background log-lag review's findings (Build Season now runs three lanes, PR #21).
 5. Rig tip: start the rig inside a long-running background task; started from a one-off shell it gets killed.
 
 ## Update 2026-11-12 (build 290)

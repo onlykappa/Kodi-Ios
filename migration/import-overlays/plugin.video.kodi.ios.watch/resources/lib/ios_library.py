@@ -419,6 +419,27 @@ def empty_show_row(details):
          {'mediatype':'video','plot':'Episodes appear here when their copy to Google Drive finishes. '
           'Progress is in Notifications.','properties':{'KodiIOS.EmptyShow':'true'}},True)
 
+def upscaled_path(path,params,profile,xbmc=None):
+ """The Drive play path of the AI Upscale copy when this show's (or video's) picture asks for one and it is ready,
+ else the path as it is. Drive is not asked whether the copy still exists (that would delay every start); a copy
+ deleted by hand fails to open, and the upscale step marks it 'gone' on its next pass."""
+ try:
+  import picture,upscale_queue
+  url=urllib.parse.urlsplit(path);query=urllib.parse.parse_qs(url.query);original=(query.get('item_id') or [''])[0]
+  if not original:return path
+  media={'tmdb':params.get('tmdb_id',''),'type':'movie' if params.get('kind')=='movie' else 'tv',
+         'show':params.get('show') or params.get('title',''),'drive_id':original}
+  wanted=picture.resolve(picture.load(profile),media)[1]['upscale']
+  data=upscale_queue.load(profile)
+  copy,label=upscale_queue.choose(data,original,wanted,lambda item_id:True)
+  if not label:return path
+  query['item_id']=[copy]
+  if xbmc is not None:xbmc.log('Kodi iOS Library: AI Upscale copy (%s) plays'%label,xbmc.LOGINFO)
+  return urllib.parse.urlunsplit(url._replace(query=urllib.parse.urlencode({k:v[0] for k,v in query.items()})))
+ except Exception as error:
+  if xbmc is not None:xbmc.log('Kodi iOS Library: AI Upscale copy not used (%s)'%type(error).__name__,xbmc.LOGWARNING)
+  return path
+
 def play_downloaded(handle,params):
  """Resolve a completed copy directly and retain progress in the same history used by Continue Watching."""
  import xbmc,xbmcgui,xbmcplugin,xbmcvfs
@@ -457,6 +478,9 @@ def play_downloaded(handle,params):
   if drive:
    import xbmcaddon
    state=xbmcvfs.translatePath(STATE)
+   # DEC-039/040: AI Upscale on for this show (or video) and its copy ready: the copy plays, here and on AirPlay.
+   path=upscaled_path(path,params,xbmcvfs.translatePath('special://profile/'),xbmc)
+   li.setPath(path)
    ours=xbmcgui.Window(10000).getProperty('KodiIOS.DriveProxy')   # roadmap 1A.1: the app's own Drive proxy
    fast=lib.direct_url(path,state,ours,ours=True) if ours else None
    via='app proxy' if fast else 'Drive add-on stream'

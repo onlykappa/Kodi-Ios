@@ -272,3 +272,66 @@ PRs #17, #18 and #20 merged into it) goes to main. Carried into the next PR, fro
 Continue Watching timing, AirPlay captions, Remove); the Kodi r31 and AirPlay r47 native builds and pins (coded, not
 built); boards 11 (options sheet) and 13 (slow-start pill) and the buffering capsule; the log-lag review and faster
 season scanning. No native release or pin change is part of this merge.
+
+## DEC-039 — Picture: AI Upscale through prepared copies, Saturation only (2026-11-12)
+
+Owner approved the Picture mockups (docs/design/video-picture-mockups.html, round 4): a Picture button in the video
+controls with **AI Upscale** (one slider: Off, then only the sizes above the video among 720p, 1080p, 1440p, 2K and
+4K UHD; none for a 4K video) and **Saturation** as the only picture slider; per show / movie / all videos; Settings ›
+Picture with the default and the shows that have their own. AI Upscale must work on AirPlay: the upscaled copy is
+**prepared in the background** like a conversion, only for 720p and 1080p downloads (4K sources are downloaded as
+4K), with Apple's VTSuperResolutionScaler (iOS 26+) in the KodiAirPlay converter. Start with a measurement build that
+upscales one episode (time, heat, size on Drive). Another agent codes it.
+
+## DEC-040 — AI Upscale engine: Apple's super resolution in KodiAirPlay; no "AI" fallback that is not AI (2026-11-12)
+
+Research for DEC-039, before any code (sources: Apple's VideoToolbox documentation and the iOS 26.0 SDK headers
+`VTFrameProcessor_SuperResolutionScaler.h` / `VTFrameProcessor_LowLatencySuperResolutionScaler.h`; Apple's WWDC25
+session 300 and its sample code "Enhancing your app with machine learning-based video effects" (MIT-style licence,
+read, not copied); MetalFX documentation; Anime4K and its Metal port).
+
+| Option | Quality | Speed / cost | Licence | Fit here |
+|---|---|---|---|---|
+| **VTSuperResolutionScaler** (VTFrameProcessor, iOS 26+) | ML model; the **video** model uses the previous frame and previous output (temporal, fewer flickers); an **image** model per frame | Apple Neural Engine/GPU; not measured on this phone yet | System framework, no licence to carry | Fits the converter: CVPixelBuffer in/out like the existing VTPixelTransferSession path. Limits on iOS: video model input **at most 1440×1080**, image model at most 1920×1080; integer factors (`supportedScaleFactors`); the model may need a **download** (`configurationModelStatus`, `downloadConfigurationModel`) |
+| VTLowLatencySuperResolutionScaler (iOS 26+) | lighter ML model made for video calls (sharper edges, fewer coding artefacts) | made for real time, low power | System | Takes fractional factors (Apple's sample: 1.5, 2, 4) and runtime `maximumDimensions`; a fallback when the main model does not take the size |
+| MetalFX spatial scaler (`MTLFXSpatialScaler`) | spatial, not ML; built for rendered game frames | very fast | System | Not designed for compressed video; quality close to a good resize. Not chosen |
+| Anime4K (bloc97, MIT) / Anime4KMetal (Apache-2.0) | strong on line art (anime such as Naruto); weak on live action | fast GPU shaders | MIT / Apache-2.0, compatible with the framework's LGPL | Would need a GLSL→Metal port inside our converter and a per-show "anime" choice. Kept as a candidate if the measurement shows Apple's model is too slow or soft on anime; not built now |
+| Lanczos resize (libswscale `SWS_LANCZOS`) | classic resize, no new detail | CPU, slow at 4K | LGPL (already linked) | Not AI. A TV's own scaler does as well, so a Lanczos copy would cost 2.5× Drive space for nothing visible |
+
+Decision:
+1. The engine is Apple's **VTSuperResolutionScaler** inside KodiAirPlay's preparation converter (r48,
+   `remux/src/kr_upscale.m`): decode (VideoToolbox, or software for 10-bit H.264) → super resolution → fit to the exact
+   target size on the GPU (VTPixelTransferSession) → HEVC with VideoToolbox; audio and subtitles go through the existing
+   preparation path unchanged (copied when they are already AAC / mov_text, which every prepared download is).
+2. Automatic order: video model (temporal) when the source fits it (720p, 1440×1080), else the image model (1920×1080
+   sources on iOS), else the low-latency model. The measurement build logs which one ran and can force each.
+3. `isSupported` and the model status are checked at run time; the model is downloaded by an explicit step (Settings or
+   the measurement), never in the middle of a conversion. When no AI engine takes the source, the person sees **"Not
+   available on this iPhone"**: there is no silent fallback. The converter has a Lanczos engine, named "Lanczos resize
+   (not AI)" everywhere, for host tests and the measurement's comparison only; it is never offered as AI Upscale.
+4. HDR sources are not upscaled (the models take SDR pictures; 720p/1080p HDR downloads are rare). 4K sources never.
+5. Sizes are boxes (720p 1280×720, 1080p 1920×1080, 1440p 2560×1440, 4K UHD 3840×2160) and the picture is fitted
+   inside with square pixels. **No "2K" step**: the round-4 slider had one between 1440p and 4K UHD, but no standard
+   size sits there; owner, 2026-11-12: "we can skip 2K".
+6. Bit rate: HEVC at about 4 Mbit/s per 1080p of area (16 Mbit/s at 4K UHD): about 2.9 GB for a 24-minute episode.
+   The measurement build reports the real size; the rate is a parameter.
+7. One AI engine at a time: an upscale conversion uses one lane (each lane holds its own engine and 4K buffers), and
+   the upscale step runs in the preparation queue's thread, after ordinary preparation work.
+
+## DEC-041 — Build Season quality sheet round 3 approved; AI Upscale stays on prepared copies for now (2026-11-12)
+
+Owner approved board B3 of docs/design/season-pack-mockups.html ("it looks good"): 4K, 1080p and 720p only (480p
+removed); a quick check of three episodes first so a quality nobody has is greyed and cannot be chosen; one row marked
+RECOMMENDED and picked: the highest quality that exists unless it is over about 3 GB an episode or 40 GB a season,
+then the next one down; season size and size per episode on each row. To be coded next.
+Owner asked why an Umbrella stream (Dragon Ball) has no AI Upscale: by DEC-039 the upscaler works on prepared copies of
+downloads (which also reach AirPlay); live upscaling of streams on the phone screen is a separate option, to decide
+after the measurement log.
+
+## DEC-042 — Owner approved every open mockup (2026-11-12)
+
+Owner: "I approve all mocs". Approved: docs/design/ai-upscale-settings-mockups.html (Settings › AI Upscale: row under
+Library, status card, new-download settings, making now, every show and movie with chips, one show with its own size,
+movie off, not-available and model-download states), docs/design/season-pack-mockups.html board B3 (DEC-041), and
+docs/design/video-picture-mockups.html round 4 (DEC-039). Work continues in a fresh agent session (handoff in
+docs/PERFORMANCE-PROGRESS.md).

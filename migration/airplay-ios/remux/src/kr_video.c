@@ -10,6 +10,7 @@
 #include "kr_color.h"
 #include "kr_subs.h"   // r10: burned-in subtitles
 #include "kr_remux.h"  // r22: kr_remux_note
+#include "kr_upscale.h" // r48: AI upscaled copies
 #include <time.h>
 #include <math.h>
 #include <stdatomic.h>
@@ -37,6 +38,9 @@
 #define KR_GPU 1
 #endif
 
+// r48: the upscale asked for (kr_video_set_upscale), for the length of one preparation.
+static atomic_int up_box_w, up_box_h, up_engine_set = -1, up_kbps_set;
+
 struct kr_video {
     gm_source src;
     int64_t pos;
@@ -58,6 +62,15 @@ struct kr_video {
     CVPixelBufferPoolRef pool;       // NV12 output buffers at ow x oh
     int gpu_off;                     // the GPU path failed once: CPU from then on
 #endif
+    // r48 (DEC-039/DEC-040): an upscaled copy. up_engine KR_UP_* (-1 off); the output size ow x oh is the target box
+    // fitted to the picture. AI engines run on the GPU path only (kr_upscale); LANCZOS is libswscale on the CPU.
+    int up_engine, up_kbps;
+    struct kr_upscale *up;
+    struct SwsContext *up_sws;       // LANCZOS, and software-decoded pictures handed to the AI engine
+#ifdef KR_GPU
+    CVPixelBufferPoolRef up_in_pool; // software-decoded pictures as NV12 for the AI engine (source size)
+#endif
+    double up_began, up_noted;
     int last_hdr;
     int last_path;            // r11: 1 GPU transfer, 0 libswscale, -1 nothing converted yet
     kr_subs *subs;            // r10: subtitles burned into the picture, NULL when none (kept for the session)
@@ -203,6 +216,7 @@ kr_video *kr_video_open(gm_source src, int index, char *err, int errlen) {
     kr_video *v = calloc(1, sizeof *v);
     if (!v) return NULL;
     v->src = src; v->index = index; v->fresh=1; v->last_path = -1; v->sub_index = -1; v->cov_from = v->cov_to = -1; v->sub_scan_to=-1;
+    v->up_engine = -1;   // r48: not an upscaled copy unless kr_video_keep_resolution says so
     uint8_t *iob = av_malloc(1 << 16);
     AVIOContext *io = avio_alloc_context(iob, 1 << 16, 0, v, in_read, NULL, in_seek);
     v->in = avformat_alloc_context();
@@ -229,7 +243,8 @@ kr_video *kr_video_open(gm_source src, int index, char *err, int errlen) {
             v->dovi_profile5 = 1;
         }
     }
-    if (!kr_video_available()) { seterr(err, errlen, "no H.264 encoder in this build", 0); goto fail; }
+    // r48: an upscaled copy needs the HEVC encoder only (checked when it opens), not the H.264 one.
+    if (!kr_video_available() && atomic_load(&up_engine_set) < 0) { seterr(err, errlen, "no H.264 encoder in this build", 0); goto fail; }
     if (open_decoder(v, 1, err, errlen) < 0 && open_decoder(v, 0, err, errlen) < 0) goto fail;
     v->want_hw = v->hw != NULL;
     AVStream *st = v->in->streams[index];
@@ -245,11 +260,38 @@ fail:
 }
 
 int kr_video_width(const kr_video *v) { return v ? v->ow : 0; }
+// r48: the upscale asked for (kodi_airplay_prepare_upscale), read by kr_video_keep_resolution: preparation runs one
+// conversion at a time and sets it before and clears it after, so every lane of that conversion sees the same value.
+void kr_video_set_upscale(int box_w, int box_h, int engine, int kbps) {
+    atomic_store(&up_box_w, box_w > 0 ? box_w : 0); atomic_store(&up_box_h, box_h > 0 ? box_h : 0);
+    atomic_store(&up_engine_set, box_w > 0 && box_h > 0 ? engine : -1); atomic_store(&up_kbps_set, kbps > 0 ? kbps : 0);
+}
+int kr_video_upscale_size(int w, int h, AVRational sar, int box_w, int box_h, int *ow, int *oh) {
+    double dw = sar.num > 0 && sar.den > 0 ? (double)w * sar.num / sar.den : (double)w;   // square pixels out
+    if (w <= 0 || h <= 0 || box_w <= 0 || box_h <= 0) return 0;
+    double scale = fmin(box_w / dw, (double)box_h / h);
+    if (scale <= 1.01) return 0;   // already this size (never shrink, never a 1 % "upscale")
+    *ow = (int)lround(dw * scale) & ~1; *oh = (int)lround(h * scale) & ~1;
+    if (*ow > box_w) *ow = box_w & ~1;
+    if (*oh > box_h) *oh = box_h & ~1;
+    return 1;
+}
+int kr_video_upscaling(const kr_video *v) { return v && v->up_engine >= 0; }
+const char *kr_video_upscaler(const kr_video *v) {
+    if (!v || v->up_engine < 0) return "off";
+    if (v->up_engine == KR_UP_LANCZOS) return "Lanczos resize (not AI)";
+    return v->up ? kr_upscale_name(v->up) : "AI super resolution (not started)";
+}
 void kr_video_keep_resolution(kr_video *v) {
     if (!v) return;
     AVCodecParameters *p=v->in->streams[v->index]->codecpar;
     v->ow=p->width;v->oh=p->height;v->offline=1;
     v->keep_hdr=p->color_trc==AVCOL_TRC_SMPTE2084 || p->color_trc==AVCOL_TRC_ARIB_STD_B67;
+    int engine=atomic_load(&up_engine_set),ow=0,oh=0;
+    AVRational sar=p->sample_aspect_ratio;
+    if(engine>=0 && kr_video_upscale_size(p->width,p->height,sar,atomic_load(&up_box_w),atomic_load(&up_box_h),&ow,&oh)) {
+        v->up_engine=engine;v->up_kbps=atomic_load(&up_kbps_set);v->ow=ow;v->oh=oh;
+    }
 }
 int kr_video_height(const kr_video *v) { return v ? v->oh : 0; }
 int kr_video_hw_decode(const kr_video *v) { return v && v->hw ? 1 : 0; }
@@ -295,6 +337,8 @@ double kr_video_subtitle_scan_end(const kr_video *v) { return v ? v->sub_scan_to
 void kr_video_close(kr_video *v) {
     if (!v) return;
     kr_subs_free(v->subs);
+    kr_upscale_close(v->up);
+    sws_freeContext(v->up_sws);
     avcodec_free_context(&v->dec);
     av_buffer_unref(&v->hw);
     kr_color_free(v->sws);
@@ -303,6 +347,7 @@ void kr_video_close(kr_video *v) {
         if (v->xfer) { VTPixelTransferSessionInvalidate(v->xfer); CFRelease(v->xfer); }
     }
     if (v->pool) CVPixelBufferPoolRelease(v->pool);
+    if (v->up_in_pool) CVPixelBufferPoolRelease(v->up_in_pool);
 #endif
     if (v->in) {
         AVIOContext *io = v->in->pb;
@@ -379,8 +424,10 @@ static int hdr_passable(kr_video *v, AVFrame *fr) {
 
 static int open_encoder(job *j, char *err, int errlen) {
     kr_video *v = j->v;
-    const AVCodec *codec = avcodec_find_encoder_by_name(v->keep_hdr?(hdr_encoder_name?hdr_encoder_name:"hevc_videotoolbox"):kr_video_encoder());
-    if (!codec) { seterr(err, errlen, v->keep_hdr?"10-bit HEVC HDR encoder unavailable":"no H.264 encoder in this build", 0); return -1; }
+    // r48: an upscaled copy is HEVC (half the size of H.264 at 4K; every AirPlay TV that shows 4K decodes it).
+    int hevc = v->keep_hdr || v->up_engine >= 0;
+    const AVCodec *codec = avcodec_find_encoder_by_name(hevc?(hdr_encoder_name?hdr_encoder_name:"hevc_videotoolbox"):kr_video_encoder());
+    if (!codec) { seterr(err, errlen, v->keep_hdr?"10-bit HEVC HDR encoder unavailable":hevc?"HEVC encoder unavailable":"no H.264 encoder in this build", 0); return -1; }
     AVCodecContext *c = j->enc = avcodec_alloc_context3(codec);
     if (!c) { seterr(err, errlen, "out of memory", 0); return -1; }
     c->width = v->ow; c->height = v->oh;
@@ -414,6 +461,8 @@ static int open_encoder(job *j, char *err, int errlen) {
     c->sample_aspect_ratio = (AVRational){ 1, 1 };
     c->bit_rate = kr_video_bitrate(v->ow, v->oh);
     if(v->offline)c->bit_rate=(int)fmax(1.5e6,7e6*(double)v->ow*v->oh/(1920.0*1080.0));
+    // r48: HEVC of an upscaled picture: ~4 Mbit/s per 1080p of area (16 Mbit/s at 4K UHD), or what was asked.
+    if(v->up_engine>=0)c->bit_rate=v->up_kbps>0?v->up_kbps*1000:(int)fmax(6e6,4e6*(double)v->ow*v->oh/(1920.0*1080.0));
     c->rc_max_rate = c->bit_rate * 3 / 2;
     c->rc_buffer_size = (int)c->bit_rate * 2;
     c->gop_size = 100000;      // one keyframe: the first frame of the segment
@@ -438,7 +487,7 @@ static int open_encoder(job *j, char *err, int errlen) {
         av_opt_set_int(c->priv_data, "allow_sw", 0, 0);      // the hardware encoder only (battery)
     }
     if(!strcmp(codec->name,"hevc_videotoolbox")) {
-        av_opt_set(c->priv_data,"profile","main10",0);
+        av_opt_set(c->priv_data,"profile",v->keep_hdr?"main10":"main",0);
         av_opt_set_int(c->priv_data,"allow_sw",1,0);
         av_opt_set_int(c->priv_data,"realtime",0,0);
         // r24 (owner: AV1 re-encodes "ridiculous"): speed over quality, as the H.264 path always had; at the fixed
@@ -546,9 +595,16 @@ static void release_pb(void *opaque, uint8_t *data) { (void)opaque; CVPixelBuffe
 
 // r9: the decoded CVPixelBuffer scaled and converted on the GPU into a pooled NV12 buffer, wrapped as a VideoToolbox
 // AVFrame for the encoder. 0 = done (*out set), -1 = not possible (the caller takes the CPU path).
+static int gpu_scale_buffer(kr_video *v, CVPixelBufferRef src, AVFrame **out);
 static int gpu_scale(kr_video *v, AVFrame *fr, AVFrame **out) {
     *out = NULL;
     if (v->gpu_off || fr->format != AV_PIX_FMT_VIDEOTOOLBOX || !fr->data[3]) return -1;
+    return gpu_scale_buffer(v, (CVPixelBufferRef)fr->data[3], out);
+}
+// Any picture (the decoder's, or r48 the AI engine's larger one) fitted to ow x oh NV12 on the GPU.
+static int gpu_scale_buffer(kr_video *v, CVPixelBufferRef src, AVFrame **out) {
+    *out = NULL;
+    if (v->gpu_off || !src) return -1;
     if (__builtin_available(iOS 16.0, *)) {
         if (!v->xfer) {
             VTPixelTransferSessionRef session=NULL;
@@ -573,7 +629,7 @@ static int gpu_scale(kr_video *v, AVFrame *fr, AVFrame **out) {
         }
         CVPixelBufferRef dst = NULL;
         if (CVPixelBufferPoolCreatePixelBuffer(NULL, v->pool, &dst) != kCVReturnSuccess || !dst) { v->gpu_off = 1; return -1; }
-        if (VTPixelTransferSessionTransferImage(v->xfer, (CVPixelBufferRef)fr->data[3], dst) != noErr) {
+        if (VTPixelTransferSessionTransferImage(v->xfer, src, dst) != noErr) {
             CVPixelBufferRelease(dst); v->gpu_off = 1; return -1;
         }
         AVFrame *f = av_frame_alloc();
@@ -593,10 +649,150 @@ static int gpu_scale(kr_video *v, AVFrame *fr, AVFrame **out) {
 
 static int64_t frame_ms(job *j, int64_t pts) { return llround(pts * av_q2d(j->tb) * 1000.0); }
 
+// j->conv (the picture in the encoder's format) to the encoder; the packets that come out go to the muxer.
+static int send_conv(job *j, int64_t pts, char *err, int errlen) {
+    int r;
+    j->src_pts[j->sent % RING] = pts;
+    j->conv->pts = j->sent;
+    j->last_pts = pts;
+    j->conv->pict_type = j->sent == 0 ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
+    if ((r = avcodec_send_frame(j->enc, j->conv)) < 0) {
+        if (j->hdr_pass) hdr_pass_broken = 1;   // the next attempt takes the CPU path
+        seterr(err, errlen, "encode", r); return -1;
+    }
+    j->sent++;
+    // r22 (owner, build 174: Inception's first 30-second unit had not finished after 10 minutes, and the log said
+    // nothing): during preparation, the route at the first frame and the frame rate every 20 s, so a slow or stuck
+    // unit shows which path it is on. Live AirPlay segments stay quiet.
+    if (j->v->offline) {
+        struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
+        double now = (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+        if (j->sent == 1) {
+            j->began = j->noted = now;
+            kr_remux_note("prepare: unit started via %s", j->v->route);
+        } else if (now - j->noted >= 20) {
+            j->noted = now;
+            kr_remux_note("prepare: %d frames in %.0f s (%.2f fps) via %s", j->sent, now - j->began,
+                          now > j->began ? j->sent / (now - j->began) : 0, j->v->route);
+        }
+    }
+    // The encoder keeps its own reference only if it needs one; a fresh buffer next time keeps this frame intact.
+    av_frame_unref(j->conv); av_frame_free(&j->conv);
+    return take_packets(j, 0) < 0 ? (seterr(err, errlen, "mux", 0), -1) : 0;
+}
+
+
+// ── r48: upscaled copies ───────────────────────────────────────────────────────
+// Every picture of an upscaled copy comes here. AI engines: the decoder's picture (a hardware frame, or a software one
+// copied into an NV12 buffer) -> kr_upscale (Apple's super resolution, factor 2 or 4) -> fitted to ow x oh on the GPU ->
+// HEVC. LANCZOS: a plain Lanczos resize with libswscale on the CPU, named so in the log and the copy's metadata.
+// HDR is never upscaled here (the caller refuses it): the AI models take SDR pictures.
+static void up_note(job *j) {
+    kr_video *v = j->v;
+    struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
+    double now = (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+    if (v->up_began == 0) { v->up_began = v->up_noted = now; return; }
+    if (now - v->up_noted < 60) return;
+    v->up_noted = now;
+    long frames = v->up ? kr_upscale_frames(v->up) : 0;
+    kr_remux_note("upscale: %ld pictures, engine %.1f ms each, %s", frames,
+                  frames ? kr_upscale_busy_ms(v->up) / frames : 0, kr_video_upscaler(v));
+}
+static int encode_upscaled(job *j, AVFrame *fr, int64_t pts, char *err, int errlen) {
+    kr_video *v = j->v;
+    if (kr_color_is_hdr(fr) || v->keep_hdr) { seterr(err, errlen, "HDR video is kept as it is (not upscaled)", 0); return -1; }
+    up_note(j);
+    if (v->up_engine == KR_UP_LANCZOS) {
+        AVFrame *sw = fr, *tmp = NULL;
+        if (fr->format == AV_PIX_FMT_VIDEOTOOLBOX) {
+            tmp = av_frame_alloc();
+            if (!tmp || av_hwframe_transfer_data(tmp, fr, 0) < 0 || av_frame_copy_props(tmp, fr) < 0) {
+                av_frame_free(&tmp); seterr(err, errlen, "hardware frame", 0); return -1;
+            }
+            sw = tmp;
+        }
+        if (!j->enc && open_encoder(j, err, errlen) < 0) { av_frame_free(&tmp); return -1; }
+        if (j->sent == 0) snprintf(v->route, sizeof v->route, "Lanczos resize, not AI (%s decoder, %s)", v->dec->codec->name, j->enc->codec->name);
+        j->conv = av_frame_alloc();
+        if (!j->conv) { av_frame_free(&tmp); seterr(err, errlen, "out of memory", 0); return -1; }
+        j->conv->format = j->enc->pix_fmt; j->conv->width = v->ow; j->conv->height = v->oh;
+        int r = av_frame_get_buffer(j->conv, 0);
+        v->up_sws = sws_getCachedContext(v->up_sws, sw->width, sw->height, sw->format, v->ow, v->oh, j->conv->format,
+                                         SWS_LANCZOS | SWS_ACCURATE_RND, NULL, NULL, NULL);
+        if (r >= 0 && v->up_sws) {
+            const int *cs = sws_getCoefficients(sw->height > 576 ? SWS_CS_ITU709 : SWS_CS_ITU601);
+            int full = sw->color_range == AVCOL_RANGE_JPEG;
+            sws_setColorspaceDetails(v->up_sws, cs, full, sws_getCoefficients(SWS_CS_ITU709), 0, 0, 1 << 16, 1 << 16);
+            r = sws_scale(v->up_sws, (const uint8_t *const *)sw->data, sw->linesize, 0, sw->height, j->conv->data, j->conv->linesize);
+        } else if (r >= 0) r = AVERROR(EINVAL);
+        av_frame_free(&tmp);
+        if (r < 0) { av_frame_free(&j->conv); seterr(err, errlen, "Lanczos resize", r); return -1; }
+        j->conv->color_range = AVCOL_RANGE_MPEG; j->conv->colorspace = AVCOL_SPC_BT709;
+        j->conv->color_primaries = AVCOL_PRI_BT709; j->conv->color_trc = AVCOL_TRC_BT709;
+        return send_conv(j, pts, err, errlen);
+    }
+#ifdef KR_GPU
+    CVPixelBufferRef in = NULL;
+    if (fr->format == AV_PIX_FMT_VIDEOTOOLBOX && fr->data[3]) in = CVPixelBufferRetain((CVPixelBufferRef)fr->data[3]);
+    else {
+        // A picture the hardware cannot decode (10-bit H.264 and the like): NV12 at its own size for the engine.
+        if (!v->up_in_pool) {
+            int32_t w = fr->width, h = fr->height, f = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
+            CFNumberRef nw = CFNumberCreate(NULL, kCFNumberSInt32Type, &w), nh = CFNumberCreate(NULL, kCFNumberSInt32Type, &h),
+                        nf = CFNumberCreate(NULL, kCFNumberSInt32Type, &f);
+            CFDictionaryRef ios = CFDictionaryCreate(NULL, NULL, NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+            const void *k[] = { kCVPixelBufferWidthKey, kCVPixelBufferHeightKey, kCVPixelBufferPixelFormatTypeKey, kCVPixelBufferIOSurfacePropertiesKey };
+            const void *val[] = { nw, nh, nf, ios };
+            CFDictionaryRef attrs = CFDictionaryCreate(NULL, k, val, 4, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+            if (CVPixelBufferPoolCreate(NULL, NULL, attrs, &v->up_in_pool) != kCVReturnSuccess) v->up_in_pool = NULL;
+            CFRelease(attrs); CFRelease(ios); CFRelease(nw); CFRelease(nh); CFRelease(nf);
+        }
+        if (!v->up_in_pool || CVPixelBufferPoolCreatePixelBuffer(NULL, v->up_in_pool, &in) != kCVReturnSuccess || !in) {
+            seterr(err, errlen, "upscale input buffer", 0); return -1;
+        }
+        v->up_sws = sws_getCachedContext(v->up_sws, fr->width, fr->height, fr->format, fr->width, fr->height, AV_PIX_FMT_NV12,
+                                         SWS_BICUBIC | SWS_ACCURATE_RND, NULL, NULL, NULL);
+        int r = -1;
+        if (v->up_sws && CVPixelBufferLockBaseAddress(in, 0) == kCVReturnSuccess) {
+            uint8_t *d[4] = { CVPixelBufferGetBaseAddressOfPlane(in, 0), CVPixelBufferGetBaseAddressOfPlane(in, 1), NULL, NULL };
+            int ls[4] = { (int)CVPixelBufferGetBytesPerRowOfPlane(in, 0), (int)CVPixelBufferGetBytesPerRowOfPlane(in, 1), 0, 0 };
+            r = sws_scale(v->up_sws, (const uint8_t *const *)fr->data, fr->linesize, 0, fr->height, d, ls);
+            CVPixelBufferUnlockBaseAddress(in, 0);
+        }
+        if (r < 0) { CVPixelBufferRelease(in); seterr(err, errlen, "upscale input conversion", r); return -1; }
+        CVBufferSetAttachment(in, kCVImageBufferYCbCrMatrixKey, kCVImageBufferYCbCrMatrix_ITU_R_709_2, kCVAttachmentMode_ShouldPropagate);
+        CVBufferSetAttachment(in, kCVImageBufferColorPrimariesKey, kCVImageBufferColorPrimaries_ITU_R_709_2, kCVAttachmentMode_ShouldPropagate);
+        CVBufferSetAttachment(in, kCVImageBufferTransferFunctionKey, kCVImageBufferTransferFunction_ITU_R_709_2, kCVAttachmentMode_ShouldPropagate);
+    }
+    if (!v->up) {
+        v->up = kr_upscale_open(fr->width, fr->height, v->ow, v->oh, v->up_engine, err, errlen);
+        if (!v->up) { CVPixelBufferRelease(in); return -1; }
+    }
+    void *bigger = NULL;
+    double seconds = pts * av_q2d(j->tb);
+    // A unit's first picture starts the engine's history afresh (units are made in any order, lanes apart).
+    if (kr_upscale_frame(v->up, in, seconds, j->sent > 0, &bigger, err, errlen) < 0) { CVPixelBufferRelease(in); return -1; }
+    CVPixelBufferRelease(in);
+    AVFrame *g = NULL;
+    j->gpu = 1;
+    int r = gpu_scale_buffer(v, (CVPixelBufferRef)bigger, &g);
+    CVPixelBufferRelease((CVPixelBufferRef)bigger);
+    if (r < 0 || !g) { seterr(err, errlen, "fitting the upscaled picture", 0); return -1; }
+    if (!j->enc && open_encoder(j, err, errlen) < 0) { av_frame_free(&g); return -1; }
+    if (j->sent == 0) snprintf(v->route, sizeof v->route, "%s (%s decoder, %s)", kr_upscale_name(v->up), v->dec->codec->name, j->enc->codec->name);
+    j->conv = g;
+    return send_conv(j, pts, err, errlen);
+#else
+    seterr(err, errlen, "AI upscaling is not available on this device", 0);
+    return -1;
+#endif
+}
+
 static int encode_frame(job *j, AVFrame *fr, int64_t pts, char *err, int errlen) {
     AVFrame *sw = fr;
     AVFrame *tmp = NULL;
     int r;
+    if (j->v->up_engine >= 0) return encode_upscaled(j, fr, pts, err, errlen);
 #ifdef KR_GPU
     if (!j->enc) j->hdr_pass = !hdr_pass_broken && j->v->keep_hdr && !j->v->subs && !j->v->dovi_profile5 && hdr_passable(j->v, fr);
     if (j->hdr_pass) {
@@ -662,33 +858,7 @@ cpu:
 #ifdef KR_GPU
 send:
 #endif
-    j->src_pts[j->sent % RING] = pts;
-    j->conv->pts = j->sent;
-    j->last_pts = pts;
-    j->conv->pict_type = j->sent == 0 ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
-    if ((r = avcodec_send_frame(j->enc, j->conv)) < 0) {
-        if (j->hdr_pass) hdr_pass_broken = 1;   // the next attempt takes the CPU path
-        seterr(err, errlen, "encode", r); return -1;
-    }
-    j->sent++;
-    // r22 (owner, build 174: Inception's first 30-second unit had not finished after 10 minutes, and the log said
-    // nothing): during preparation, the route at the first frame and the frame rate every 20 s, so a slow or stuck
-    // unit shows which path it is on. Live AirPlay segments stay quiet.
-    if (j->v->offline) {
-        struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
-        double now = (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
-        if (j->sent == 1) {
-            j->began = j->noted = now;
-            kr_remux_note("prepare: unit started via %s", j->v->route);
-        } else if (now - j->noted >= 20) {
-            j->noted = now;
-            kr_remux_note("prepare: %d frames in %.0f s (%.2f fps) via %s", j->sent, now - j->began,
-                          now > j->began ? j->sent / (now - j->began) : 0, j->v->route);
-        }
-    }
-    // The encoder keeps its own reference only if it needs one; a fresh buffer next time keeps this frame intact.
-    av_frame_unref(j->conv); av_frame_free(&j->conv);
-    return take_packets(j, 0) < 0 ? (seterr(err, errlen, "mux", 0), -1) : 0;
+    return send_conv(j, pts, err, errlen);
 }
 
 // Positions the demuxer on a packet of the stream presented at or before `start`. A backward seek is not exact in

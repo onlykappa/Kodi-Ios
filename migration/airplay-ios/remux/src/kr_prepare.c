@@ -10,6 +10,7 @@
 #include "kr_video.h"
 #include "kr_audio.h"
 #include "kr_source.h"
+#include "kr_upscale.h"
 #include <libavcodec/avcodec.h>
 #include <libavutil/pixdesc.h>
 #include <libavutil/dovi_meta.h>
@@ -58,6 +59,27 @@ void kodi_airplay_prepare_subtitle_languages(const char *list) {
     for(char *c=subtitle_languages;*c;c++)if(*c>='A' && *c<='Z')*c=(char)(*c|32);
     if(!strcmp(subtitle_languages,",,"))subtitle_languages[0]=0;
 }
+// r48 (DEC-039/DEC-040): the next conversion makes an upscaled copy in a box_w x box_h box (0 x 0: an ordinary
+// preparation). The setter is the add-on's; prepare() hands it to kr_video for the length of one conversion.
+static int up_box_w=0,up_box_h=0,up_engine=KR_UP_AUTO,up_kbps=0;
+void kodi_airplay_prepare_upscale(int box_w,int box_h,int engine,int kbps) {
+    up_box_w=box_w>0?box_w:0;up_box_h=box_h>0?box_h:0;up_engine=engine;up_kbps=kbps>0?kbps:0;
+}
+int kodi_airplay_upscale_support(int w,int h,int box_w,int box_h,int engine,char *json,int size) {
+    int ow=0,oh=0;
+    if(!json || size<64)return -1;
+    if(!kr_video_upscale_size(w,h,(AVRational){1,1},box_w,box_h,&ow,&oh)) {
+        int n=snprintf(json,(size_t)size,"{\"engine\":\"none\",\"engine_id\":-1,\"model\":\"none\",\"why\":\"already this size\"}");
+        return n<size?n:-1;
+    }
+    return kr_upscale_support(w,h,ow,oh,engine,json,size);
+}
+int kodi_airplay_upscale_model(int w,int h,int box_w,int box_h,int engine,int start) {
+    int ow=0,oh=0;
+    if(!kr_video_upscale_size(w,h,(AVRational){1,1},box_w,box_h,&ow,&oh))return -1;
+    return kr_upscale_model(w,h,ow,oh,engine,start,NULL);
+}
+int kodi_device_state(char *json,int size){return json && size>0?kr_device_state(json,size):-1;}
 static int keep_subtitle(AVFormatContext *f,unsigned i) {
     if(!subtitle_languages[0])return 1;
     AVDictionaryEntry *l=av_dict_get(f->streams[i]->metadata,"language",NULL,0);
@@ -157,6 +179,13 @@ static int open_source(AVFormatContext **f,const char *input){return open_source
 // The setup add-on asks this before streaming a Drive file to preparation instead of downloading it first.
 int kodi_airplay_prepare_streams(void) { return 1; }
 int kodi_airplay_prepare_hdr(void) { return 1; }
+// r48: the copy's "WxH engine=N" tag, only when it is plain text (it goes into JSON as it is).
+static const char *upscaled_tag(AVFormatContext *f) {
+    AVDictionaryEntry *e=av_dict_get(f->metadata,"kodi_airplay_upscaled",NULL,0);
+    if(!e || !e->value || strlen(e->value)>48)return "";
+    for(const char *c=e->value;*c;c++)if(!((*c>='0'&&*c<='9')||(*c>='a'&&*c<='z')||*c=='x'||*c==' '||*c=='='||*c=='-'))return "";
+    return e->value;
+}
 static int probe(const char *input,char *json,int size,kr_prepare_progress cb,void *ctx) {
     AVFormatContext *f=NULL;int r=-1;
     if(!local_input(input) || !json || size<2) return -1;
@@ -165,9 +194,10 @@ static int probe(const char *input,char *json,int size,kr_prepare_progress cb,vo
     if(opened<0){r=opened==AVERROR_EXIT?-2:opened==AVERROR(ETIMEDOUT)?-3:-1;goto end;}
     int v=video_index(f);if(v<0) goto end;
     AVCodecParameters *p=f->streams[v]->codecpar;
-    double audio_work=0,duration=f->duration>0?(double)f->duration/AV_TIME_BASE:0;int pgs=0,other_image=0,extra_video=0;
+    double audio_work=0,duration=f->duration>0?(double)f->duration/AV_TIME_BASE:0;int pgs=0,other_image=0,extra_video=0,audio_tracks=0,subtitle_tracks=0;
     for(unsigned i=0;i<f->nb_streams;i++) {
         AVCodecParameters *a=f->streams[i]->codecpar;
+        audio_tracks+=a->codec_type==AVMEDIA_TYPE_AUDIO;subtitle_tracks+=a->codec_type==AVMEDIA_TYPE_SUBTITLE;
         if(a->codec_type==AVMEDIA_TYPE_AUDIO && a->codec_id!=AV_CODEC_ID_AAC && keep_audio(f,i))
             audio_work+=duration*(a->ch_layout.nb_channels>=6?384000:160000)/8;
         if(a->codec_type==AVMEDIA_TYPE_SUBTITLE && !text_sub(a->codec_id) && keep_subtitle(f,i)){if(a->codec_id==AV_CODEC_ID_HDMV_PGS_SUBTITLE)pgs++;else other_image++;}
@@ -175,11 +205,15 @@ static int probe(const char *input,char *json,int size,kr_prepare_progress cb,vo
     }
     // r15: the codec and the tracks that decide whether and how a file can be prepared, for the owner's status page.
     snprintf(json,(size_t)size,"{\"ready\":%s,\"width\":%d,\"height\":%d,\"hdr\":%s,\"duration\":%.6f,\"copy_video\":%s,\"audio_work_bytes\":%.0f,"
-             "\"codec\":\"%s\",\"bit_depth\":%d,\"pgs_subtitles\":%d,\"other_image_subtitles\":%d,\"extra_video\":%d}",
+             "\"codec\":\"%s\",\"bit_depth\":%d,\"pgs_subtitles\":%d,\"other_image_subtitles\":%d,\"extra_video\":%d,"
+             "\"fps\":%.3f,\"audio_tracks\":%d,\"subtitle_tracks\":%d,\"upscaled\":\"%s\"}",
              kr_prepare_ready(f) && av_dict_get(f->metadata,"kodi_airplay_prepared",NULL,0)?"true":"false",p->width,p->height,hdr(p)?"true":"false",
              duration,copy_video(p)?"true":"false",audio_work,avcodec_get_name(p->codec_id),
              p->bits_per_raw_sample?p->bits_per_raw_sample:(av_pix_fmt_desc_get(p->format)?av_pix_fmt_desc_get(p->format)->comp[0].depth:0),
-             pgs,other_image,extra_video);r=0;
+             pgs,other_image,extra_video,
+             // r48: frame rate (measurement), track counts (an upscaled copy keeps them all) and the copy's tag.
+             f->streams[v]->avg_frame_rate.den?av_q2d(f->streams[v]->avg_frame_rate):0,audio_tracks,subtitle_tracks,
+             upscaled_tag(f));r=0;
 end:avformat_close_input(&f);return r;
 }
 int kodi_airplay_probe(const char *input,char *json,int size){return probe(input,json,size,NULL,NULL);}
@@ -424,7 +458,8 @@ static int generated_open(generated_reader *g,AVFormatContext **format,AVIOConte
         first->video=kr_video_open(kr_source_gm(first->source),index,err,en);if(!first->video)return -1;kr_video_keep_resolution(first->video);
         // A picture copied by hardware HDR / GPU work in lanes; one lane for anything else (CPU work is already
         // spread over the cores inside one lane).
-        if(kr_video_hw_decode(first->video))g->nlanes=VIDEO_LANES;
+        // r48: an upscaled copy keeps one lane: each lane holds its own AI engine and 4K buffers.
+        if(kr_video_hw_decode(first->video) && !kr_video_upscaling(first->video))g->nlanes=VIDEO_LANES;
         // Host tests have no VideoToolbox: KR_PREP_LANES forces the lanes so the in-order hand-over is tested.
         const char *forced=getenv("KR_PREP_LANES");
         if(forced && atoi(forced)>=1 && atoi(forced)<=MAX_LANES)g->nlanes=atoi(forced);
@@ -841,6 +876,16 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
     int vi=video_index(original);if(vi<0 || original->nb_streams>=TRACKS) {fail(err,en,"Unsupported track layout",0);goto end;}
     sinks[0].duration=(double)original->duration/AV_TIME_BASE;
     if(original->duration<=0){fail(err,en,"Source duration is unknown",0);goto end;}
+    // r48: an upscaled copy. Only when the picture is smaller than the box; never HDR (the AI models take SDR), never
+    // a resize dressed up: the caller asked for this box, so a picture that already fills it is refused, not copied.
+    int up=0;
+    if(up_box_w>0 && up_box_h>0) {
+        AVCodecParameters *p=original->streams[vi]->codecpar;int ow=0,oh=0;
+        if(hdr(p)){fail(err,en,"HDR video is kept as it is (not upscaled)",0);goto end;}
+        if(!kr_video_upscale_size(p->width,p->height,p->sample_aspect_ratio,up_box_w,up_box_h,&ow,&oh)){fail(err,en,"The video is already this size; no upscaled copy needed",0);goto end;}
+        up=1;kr_video_set_upscale(up_box_w,up_box_h,up_engine,up_kbps);
+        kr_remux_note("prepare: upscaled copy %dx%d -> %dx%d (engine %d)",p->width,p->height,ow,oh,up_engine);
+    }
     if(!copy_video(original->streams[vi]->codecpar)) {
         AVCodecParameters *p=original->streams[vi]->codecpar;
         for(int i=0;i<p->nb_coded_side_data;i++)if(p->coded_side_data[i].type==AV_PKT_DATA_DOVI_CONF) {
@@ -880,7 +925,7 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
         AVStream *dst=avformat_new_stream(out,NULL);if(!dst)goto end;mapped++;
         av_dict_copy(&dst->metadata,src->metadata,0);dst->disposition=src->disposition;dst->time_base=src->time_base;
         avcodec_parameters_copy(dst->codecpar,p);dst->codecpar->codec_tag=0;
-        int generated=((int)i==vi && !copy_video(p)) || (p->codec_type==AVMEDIA_TYPE_AUDIO && p->codec_id!=AV_CODEC_ID_AAC);
+        int generated=((int)i==vi && (!copy_video(p) || up)) || (p->codec_type==AVMEDIA_TYPE_AUDIO && p->codec_id!=AV_CODEC_ID_AAC);
         if(generated) {
             int ni=ninputs++;input_track *one=&ins[ni];one->own=1;
             if(writer) {
@@ -926,6 +971,10 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
     }
     av_dict_copy(&out->metadata,original->metadata,0);
     av_dict_set(&out->metadata,"kodi_airplay_prepared","source-resolution-v1",0);
+    if(up && video_out>=0) {
+        char tag[64];snprintf(tag,sizeof tag,"%dx%d engine=%d",out->streams[video_out]->codecpar->width,out->streams[video_out]->codecpar->height,up_engine);
+        av_dict_set(&out->metadata,"kodi_airplay_upscaled",tag,0);
+    }
     out->avoid_negative_ts=AVFMT_AVOID_NEG_TS_MAKE_NON_NEGATIVE;
     if((writer?sink_open(out,&sinks[0]):avio_open(&out->pb,partial,AVIO_FLAG_WRITE))<0)goto end;
     if(rc) {
@@ -1044,6 +1093,9 @@ end:
     avformat_close_input(&original);if(r && !writer)unlink(partial);
     for(int i=0;i<=TRACKS;i++)av_free(sinks[i].init);
     if(rc){av_free(rc->moof);free(rc->tfra);free(rc);}
+    // r48: the upscale asked for was for this conversion only; the next one is an ordinary preparation unless the
+    // add-on asks again (a stopped copy that carries on sets it again before resuming).
+    if(up_box_w || up_box_h){kr_video_set_upscale(0,0,-1,0);up_box_w=up_box_h=0;up_engine=KR_UP_AUTO;up_kbps=0;}
     if(r==-1 && err && en>0 && !*err)fail(err,en,"Preparation failed; original retained",0);
     return r;
 }

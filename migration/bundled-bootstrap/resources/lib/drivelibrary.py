@@ -62,7 +62,10 @@ def find_folder(drive,parts,strict=False):
  found=find_folders(drive,parts,strict)
  return found[0] if found else None
 
-def is_video(name):return os.path.splitext(str(name))[1].lower() in VIDEO
+# An AI Upscale copy beside its original ('Name [AI 4K UHD].mp4', upscale_queue.copy_name) is never a video of its own:
+# the Library, the scans and the preparation queue skip it; playback picks it for the original (upscale_queue.choose).
+AI_COPY=re.compile(r' \[AI (?:720p|1080p|1440p|4K UHD)\]\.mp4$')
+def is_video(name):return os.path.splitext(str(name))[1].lower() in VIDEO and not AI_COPY.search(str(name))
 
 def videos(drive,folder_id,depth=3):
  """Video files in a folder and its subfolders (Elementum keeps each release in its own folder)."""

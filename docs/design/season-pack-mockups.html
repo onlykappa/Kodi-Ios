@@ -83,6 +83,25 @@ section p{color:var(--label2);max-width:880px;line-height:1.45;margin:0 0 18px}
 .build-note{border:1px dashed #3a3b40;border-radius:12px;padding:12px 14px;color:var(--label2);font-size:13px;line-height:1.45;max-width:880px;margin-bottom:16px}
 .build-note b{color:#fff}
 
+
+/* board B r3: three qualities, one recommended, unavailable greyed */
+.ql{display:flex;flex-direction:column;gap:8px}
+.qr{display:flex;align-items:center;gap:12px;background:var(--s2);border-radius:16px;padding:11px 14px;min-height:64px;border:2px solid transparent;position:relative}
+.qr .lab{width:96px;flex:none}.qr b{display:block;font-size:24px;font-weight:800;letter-spacing:-.02em}
+.qr .mid{flex:1;min-width:0}
+.qr .mid div{font-size:13px;color:var(--label2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qr .mid div.sz{color:#fff;font-weight:600;font-size:14px}
+.qr.on{border-color:var(--blue);background:rgba(10,132,255,.14)}
+.qr .tick{width:22px;height:22px;border-radius:50%;flex:none;border:2px solid rgba(235,235,245,.3)}
+.qr.on .tick{border:none;background:var(--blue);color:#fff;font-size:12px;font-weight:800;display:grid;place-items:center}
+.qr.on .tick::after{content:"✓"}
+.qr.none b,.qr.none .mid div{color:var(--dim)}.qr{min-height:68px}.qr.none .tick{opacity:0}
+.rec{display:inline-block;background:rgba(48,209,88,.18);color:var(--green);font-size:11px;font-weight:700;letter-spacing:.02em;border-radius:5px;padding:1px 5px;margin-top:3px}
+.chk{background:var(--s2);border-radius:16px;padding:14px;color:var(--label2);font-size:13.5px}
+.chk b{color:#fff;display:block;font-size:15px;margin-bottom:8px}
+.chk .thin{margin-top:10px}
+.chk .row3{display:flex;justify-content:space-between;margin-top:8px;font-size:13px}
+.dl.off{background:#3a3a3c;color:var(--dim)}
 /* board B r2: quality cards */
 .qs{position:absolute;left:0;right:0;bottom:0;background:var(--s1);border-radius:30px 30px 0 0;padding:10px 18px 30px}
 .qs .grab{width:36px;height:5px;border-radius:3px;background:rgba(235,235,245,.3);margin:0 auto 14px}
@@ -118,6 +137,25 @@ section p{color:var(--label2);max-width:880px;line-height:1.45;margin:0 0 18px}
 .er.more .nm{color:var(--blue-text);font-weight:600}
 .warn{display:flex;gap:8px;align-items:flex-start;margin-top:12px;color:var(--label2);font-size:12.5px;line-height:1.4}
 .warn i{font-style:normal;color:var(--orange);font-weight:800}
+/* Board F: every episode of the ready sheet */
+.qs.full{top:44px;border-radius:30px 30px 0 0;display:flex;flex-direction:column}
+.fback{color:var(--blue-text);font-size:15px;font-weight:600;margin:4px 0 6px}
+.fhead b{display:block;font-size:24px;font-weight:800}.fhead span{color:var(--label2);font-size:13px}
+.seg{display:flex;background:var(--s2);border-radius:9px;padding:2px;margin:12px 0}
+.seg span{flex:1;text-align:center;font-size:12.5px;font-weight:600;color:var(--label2);padding:6px 0;border-radius:7px}
+.seg span.on{background:#636366;color:#fff}
+.full .eplist{flex:1;overflow:hidden}
+.er2{display:flex;gap:10px;padding:9px 12px;position:relative;align-items:flex-start}
+.er2+.er2:before{content:"";position:absolute;left:46px;right:0;top:0;height:1px;background:var(--sep)}
+.er2 .no{width:24px;color:var(--label2);font-size:13px;font-weight:700;text-align:right;flex:none;padding-top:2px}
+.er2 .tx{flex:1;min-width:0}
+.er2 .t1{display:flex;gap:8px;align-items:center}
+.er2 .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14.5px;font-weight:600}
+.er2 .sz{color:var(--label2);font-size:12.5px;flex:none}
+.er2 .t2{color:var(--label2);font-size:11.5px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.er2 .lo{color:var(--orange);font-size:11px;font-weight:800;border:1px solid rgba(255,159,10,.55);border-radius:5px;padding:1px 5px;flex:none}
+.er2.gone .nm{color:var(--label2)}.er2 .out{color:var(--label2);font-size:11px;font-weight:800;border:1px solid var(--sep);border-radius:5px;padding:1px 5px;flex:none}
+.full .dl{flex:none}
 </style>
 </head>
 <body>
@@ -191,7 +229,71 @@ exists the app <b>builds the season from single episodes</b> at that quality.</p
     </div>
     <div class="how"><b>Build Season:</b> all 26 episodes found in 1080p. The app takes the best copy of each one and downloads them in order.</div>
     <div class="dl">Download 1080p · 9.8 GB</div>
+    <di
+
+<section class="board" id="b3">
+ <div class="tagline"><span class="mk">MOCKUP</span><span>B · Season: pick a quality (round 3, for owner review)</span></div>
+ <h2>Three qualities, one recommended, only what exists can be picked</h2>
+ <p>Owner, 2026-11-12 (Rick and Morty, build 300): "remove the 480P and make it so it recommends one like if its super super large then maybe 1080P
+ or if it can easily do 4K then have it do that … show options only that are available so if 4K isnt available at all then it can be greyed out".
+ Now: 4K, 1080p and 720p as three full-width rows (480p gone), each with what the season costs and about how much an episode is.
+ A quick check of three episodes runs first so a quality nobody has is greyed and cannot be tapped. One row is marked <b>RECOMMENDED</b> and picked:
+ the highest quality that exists whose season stays reasonable (proposed rule: under about 3 GB an episode and 40 GB for the season; else the next
+ one down). The button says the quality and the size. Same sheet, poster, grabber and Cancel as round 2; the Season pack / Build switch stays gone (owner:
+ Build Season always).</p>
+ <div class="shots">
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="hero" style="background:linear-gradient(160deg,#1f8a6b,#0b2e33 60%,#000)"><div class="logo">RICK AND MORTY</div></div>
+   <div class="dim"></div>
+   <div class="qs"><div class="grab"></div>
+    <div class="who"><i style="background:linear-gradient(160deg,#7ee0c3,#0c4a3a)"></i><div><b>Season 1</b><span>Rick and Morty · 11 episodes</span></div></div>
+    <div class="chk"><b>Checking which qualities exist…</b>Looking at episodes 1, 6 and 11
+     <div class="thin"><i style="width:55%"></i></div>
+     <div class="row3"><span>4K · found</span><span>1080p · found</span><span>720p · …</span></div></div>
+    <div class="how">Takes a few seconds. Only qualities that exist can be chosen.</div>
+    <div class="dl off">Build Season</div>
     <div class="later">Cancel</div>
+   </div>
+  </div></div><div class="cap"><b>B3·1 · Checking first:</b> three episodes are looked up (start, middle, end) before the choice, so the sheet only offers what exists. A few seconds.</div></div>
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="hero" style="background:linear-gradient(160deg,#1f8a6b,#0b2e33 60%,#000)"><div class="logo">RICK AND MORTY</div></div>
+   <div class="dim"></div>
+   <div class="qs"><div class="grab"></div>
+    <div class="who"><i style="background:linear-gradient(160deg,#7ee0c3,#0c4a3a)"></i><div><b>Season 1</b><span>Rick and Morty · 11 episodes</span></div></div>
+    <div class="ql"><div class="qr on"><div class="lab"><b>4K</b><span class="rec">RECOMMENDED</span></div><div class="mid"><div class="sz">15 GB season</div><div>1.4 GB each</div></div><div class="tick"></div></div><div class="qr"><div class="lab"><b>1080p</b></div><div class="mid"><div class="sz">5 GB season</div><div>450 MB each</div></div><div class="tick"></div></div><div class="qr"><div class="lab"><b>720p</b></div><div class="mid"><div class="sz">2.8 GB season</div><div>250 MB each</div></div><div class="tick"></div></div></div>
+    <div class="how"><b>4K is small for this show</b> (animation), so it is picked for you. Any episode only found lower comes a quality down, marked.</div>
+    <div class="dl">Build 4K Season · 15 GB</div>
+    <div class="later">Cancel</div>
+   </div>
+  </div></div><div class="cap"><b>B3·2 · Rick and Morty:</b> 4K exists and is light (1.4 GB an episode): recommended and picked.</div></div>
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="hero" style="background:linear-gradient(160deg,#1f5f86,#0c1d33 60%,#000)"><div class="logo">NARUTO</div></div>
+   <div class="dim"></div>
+   <div class="qs"><div class="grab"></div>
+    <div class="who"><i style="background:linear-gradient(160deg,#ff9f0a,#7a2e0e)"></i><div><b>Season 1</b><span>Naruto Shippūden · 32 episodes</span></div></div>
+    <div class="ql"><div class="qr none"><div class="lab"><b>4K</b></div><div class="mid"><div>Not found</div><div>No copy exists</div></div><div class="tick"></div></div><div class="qr on"><div class="lab"><b>1080p</b><span class="rec">RECOMMENDED</span></div><div class="mid"><div class="sz">8.3 GB season</div><div>260 MB each</div></div><div class="tick"></div></div><div class="qr"><div class="lab"><b>720p</b></div><div class="mid"><div class="sz">4.8 GB season</div><div>150 MB each</div></div><div class="tick"></div></div></div>
+    <div class="how">No 4K copy exists, so 4K is greyed and cannot be chosen. <b>1080p</b> is the best there is.</div>
+    <div class="dl">Build 1080p Season · 8.3 GB</div>
+    <div class="later">Cancel</div>
+   </div>
+  </div></div><div class="cap"><b>B3·3 · Naruto:</b> 4K greyed (not found); the best quality that exists is recommended.</div></div>
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="hero" style="background:linear-gradient(160deg,#6b4a1f,#20140a 60%,#000)"><div class="logo">LANTERNS</div></div>
+   <div class="dim"></div>
+   <div class="qs"><div class="grab"></div>
+    <div class="who"><i style="background:linear-gradient(160deg,#ffd27a,#5a3b0e)"></i><div><b>Season 2</b><span>Lanterns · 8 episodes</span></div></div>
+    <div class="ql"><div class="qr"><div class="lab"><b>4K</b></div><div class="mid"><div class="sz">76 GB season</div><div>9.5 GB each</div></div><div class="tick"></div></div><div class="qr on"><div class="lab"><b>1080p</b><span class="rec">RECOMMENDED</span></div><div class="mid"><div class="sz">17 GB season</div><div>2.1 GB each</div></div><div class="tick"></div></div><div class="qr"><div class="lab"><b>720p</b></div><div class="mid"><div class="sz">8.8 GB season</div><div>1.1 GB each</div></div><div class="tick"></div></div></div>
+    <div class="how"><b>4K is very large</b> here (76 GB), so 1080p is recommended. 4K can still be chosen.</div>
+    <div class="dl">Build 1080p Season · 17 GB</div>
+    <div class="later">Cancel</div>
+   </div>
+  </div></div><div class="cap"><b>B3·4 · Lanterns:</b> 4K exists but is huge: 1080p recommended, 4K still selectable.</div></div>
+ </div>
+</section>v class="later">Cancel</div>
    </div>
   </div></div><div class="cap"><b>B1 · Naruto:</b> no 1080p pack, so 1080p is built from episodes (picked for you)</div></div>
   <div class="slot"><div class="bezel"><div class="screen">
@@ -290,6 +392,43 @@ exists the app <b>builds the season from single episodes</b> at that quality.</p
     <div class="later">Cancel</div>
    </div>
   </div></div><div class="cap"><b>D2 · All found:</b> every episode in the chosen quality</div></div>
+ </div>
+</section>
+
+<section class="board" id="f">
+ <div class="tagline"><span class="mk">MOCKUP</span><span>F · Every episode (from "28 more episodes")</span></div>
+ <h2>All 32 episodes: what each one is, before anything downloads</h2>
+ <p>Owner, 2026-11-12: "if i press 28 more episodes it should show the list, and tell me any details and stuff like 720p only".
+ "N more episodes" on the ready sheet (board D) opens this page of the same sheet: a blue back link, the season, a
+ segmented filter (All · Lower quality · Not found), then every episode on two lines: number, name, an orange tag
+ when it was only found lower, the size; under it the version found (quality, video, audio, seeds). An episode found
+ nowhere stays in the list, greyed, marked Left out. Download All stays at the foot. Nothing here downloads on its own.</p>
+ <div class="shots">
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="hero"><div class="logo">NARUTO</div></div>
+   <div class="dim"></div>
+   <div class="qs full"><div class="grab"></div>
+    <div class="fback">‹ Season 1</div>
+    <div class="fhead"><b>All 32 episodes</b><span>Naruto Shippūden · 1080p · 16.3 GB</span></div>
+    <div class="seg"><span class="on">All 32</span><span>Lower 2</span><span>Not found 1</span></div>
+    <div class="eplist"><div class="er2"><span class="no">1</span><div class="tx"><div class="t1"><span class="nm">Homecoming</span><span class="sz">263 MB</span></div><div class="t2">1080p · HEVC · Dual Audio · 232 seeds</div></div></div><div class="er2"><span class="no">2</span><div class="tx"><div class="t1"><span class="nm">The Akatsuki Makes Its Move</span><span class="sz">252 MB</span></div><div class="t2">1080p · HEVC 10-bit · Dual Audio · 10 seeds</div></div></div><div class="er2"><span class="no">3</span><div class="tx"><div class="t1"><span class="nm">The Results of Training</span><span class="sz">281 MB</span></div><div class="t2">1080p · H.264 · Dual Audio · 41 seeds</div></div></div><div class="er2"><span class="no">4</span><div class="tx"><div class="t1"><span class="nm">The Jinchuriki of the Sand</span><span class="sz">251 MB</span></div><div class="t2">1080p · HEVC · Dual Audio · 38 seeds</div></div></div><div class="er2"><span class="no">5</span><div class="tx"><div class="t1"><span class="nm">The Kazekage Stands Tall</span><span class="sz">259 MB</span></div><div class="t2">1080p · HEVC · Dual Audio · 35 seeds</div></div></div><div class="er2"><span class="no">6</span><div class="tx"><div class="t1"><span class="nm">Mission Cleared</span><span class="sz">610 MB</span></div><div class="t2">1080p · H.264 · English · 22 seeds</div></div></div><div class="er2"><span class="no">7</span><div class="tx"><div class="t1"><span class="nm">Run, Kankuro</span><span class="lo">720p</span><span class="sz">205 MB</span></div><div class="t2">720p only · H.264 · Dual Audio · 9 seeds</div></div></div><div class="er2"><span class="no">8</span><div class="tx"><div class="t1"><span class="nm">Team Kakashi, Deployed</span><span class="sz">248 MB</span></div><div class="t2">1080p · HEVC · Dual Audio · 31 seeds</div></div></div><div class="er2"><span class="no">9</span><div class="tx"><div class="t1"><span class="nm">The Jinchuriki’s Tears</span><span class="sz">255 MB</span></div><div class="t2">1080p · HEVC · Dual Audio · 30 seeds</div></div></div></div>
+    <div class="dl">Download All 31 · 16.0 GB</div>
+   </div>
+  </div></div><div class="cap"><b>F1 · All:</b> every episode with the version found</div></div>
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="hero"><div class="logo">NARUTO</div></div>
+   <div class="dim"></div>
+   <div class="qs full"><div class="grab"></div>
+    <div class="fback">‹ Season 1</div>
+    <div class="fhead"><b>All 32 episodes</b><span>Naruto Shippūden · 1080p · 16.3 GB</span></div>
+    <div class="seg"><span>All 32</span><span class="on">Lower 2</span><span>Not found 1</span></div>
+    <div class="eplist"><div class="er2"><span class="no">7</span><div class="tx"><div class="t1"><span class="nm">Run, Kankuro</span><span class="lo">720p</span><span class="sz">205 MB</span></div><div class="t2">720p only · H.264 · Dual Audio · 9 seeds</div></div></div><div class="er2"><span class="no">19</span><div class="tx"><div class="t1"><span class="nm">Hiruko vs. Two Kunoichi</span><span class="lo">720p</span><span class="sz">215 MB</span></div><div class="t2">720p only · HEVC · English · 6 seeds</div></div></div><div class="er2 gone"><span class="no">30</span><div class="tx"><div class="t1"><span class="nm">The Retrieval</span><span class="out">Left out</span></div><div class="t2">Not found in any quality yet · tried 4 sites</div></div></div></div>
+    <div class="warn"><i>!</i><span>2 episodes only exist in 720p and come in 720p. Episode 30 is left out; it is looked for again later.</span></div>
+    <div class="dl">Download All 31 · 16.0 GB</div>
+   </div>
+  </div></div><div class="cap"><b>F2 · Filtered:</b> what is lower and what is missing</div></div>
  </div>
 </section>
 

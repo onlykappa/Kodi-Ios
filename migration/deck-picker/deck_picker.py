@@ -681,18 +681,53 @@ def _note_pick(item, home=None):
         pass
 
 
-def auto_request(home=None, now=None):
-    """download.py's request to pick by itself ({'profile', 'until'}), or None."""
+# Build Season looks up three episodes at once (owner, 2026-11-12: "fix the speed for shows"; one at a time took
+# 5.5 s an episode): each lookup has its own lane, AUTO_PICK + lane and AUTO_RESULT + lane (episode_watch.LANES).
+LANES = ('', '.1', '.2')
+
+
+def auto_request(home=None, now=None, exp=None):
+    """download.py's request to pick by itself ({'profile', 'until', '_lane'}), or None. With exp, the request whose
+    target is this episode (any lane); without, the first live one."""
     import json
     import time
-    try:
-        raw = (home or _home()).getProperty(AUTO_PICK)
-        wanted = json.loads(raw) if raw else None
-        if wanted and float(wanted.get('until', 0)) >= (now if now is not None else time.time()):
+    now = now if now is not None else time.time()
+    first = None
+    live = 0
+    for lane in LANES:
+        try:
+            raw = (home or _home()).getProperty(AUTO_PICK + lane)
+            wanted = json.loads(raw) if raw else None
+        except Exception:
+            wanted = None
+        if not wanted or float(wanted.get('until', 0)) < now:
+            continue
+        wanted['_lane'] = lane
+        live += 1
+        if exp is None or automatic_matches(wanted, exp):
             return wanted
+        first = first or wanted
+    # ISSUE-178 (owner log 77b35834): with Build Season's three lanes live, a page whose episode matches none of them
+    # used to answer into the first lane, so another episode's lookup got this page's links (or "not found").
+    # With more than one lane live it now answers nobody; that lane's own page answers it.
+    if exp is not None and live > 1:
+        return {'_unmatched': True}
+    return first
+
+
+def _auto_result(auto, value):
+    import json
+    if not auto or auto.get('_unmatched'):
+        return
+    _home().setProperty(AUTO_RESULT + (auto.get('_lane') or ''), json.dumps(value))
+
+
+def _log_unmatched(title):
+    try:
+        import xbmc
+        xbmc.log('Kodi iOS cloud: version page "%s" matches no running Build Season lookup; left to its own lane' % title, xbmc.LOGINFO)
     except Exception:
         pass
-    return None
 
 
 def automatic_matches(wanted,exp):
@@ -703,6 +738,30 @@ def automatic_matches(wanted,exp):
 
 WHOLE_SERIES = re.compile(r'(?i)complete[ ._-]*series|collection[ ._-]*of[ ._-]*\d{3}|'
                           r'[(\[ ._-]0*1[ ._]*-[ ._]*\d{3}[)\] ._-]|\ball[ ._-]*\d{3}[ ._-]*episodes')   # source_match.WHOLE_SERIES
+
+
+def mark_multi(kept, exp, sm=None):
+    """ISSUE-178: for one episode's page, marks the links that hold more than that episode (a season pack, an episode
+    range, a box set), by name when the matcher can tell, else by size (over 3x the median at its quality), so a
+    one-episode file comes first in Build Season's sizes and automatic picks. The pack is still used when alone."""
+    season_exp = dict(exp, episode=None)
+    by_quality = {}
+    for p in kept:
+        by_quality.setdefault(p['quality'], []).append(p['size'])
+    for p in kept:
+        multi = False
+        if sm is not None and hasattr(sm, 'coverage'):
+            try:
+                cover = sm.coverage(p['name'], season_exp)
+                multi = cover in (u'', u'Whole series') or (cover or u'').startswith(u'Episodes ')
+            except Exception:
+                multi = False
+        sizes = sorted(by_quality.get(p['quality']) or [])
+        if not multi and len(sizes) >= 3:
+            median = sizes[len(sizes) // 2]
+            multi = median > 0 and p['size'] > 3 * median
+        p['multi'] = multi
+    return kept
 
 
 def auto_choose(kept, want):
@@ -725,7 +784,7 @@ def auto_choose(kept, want):
         hdr = next((t for t in tags if t in HDR_TAGS), u'')
         # Owner log 15e6cbc4: one episode of a season build was taken from a 500-episode "Complete Series" pack (the
         # most seeds); whole-series packs come last, used only when nothing else has the episode.
-        return (is_bad(it), it['seeds'] <= 0, bool(WHOLE_SERIES.search(_s(it.get('name')))), distance,
+        return (is_bad(it), it['seeds'] <= 0, bool(WHOLE_SERIES.search(_s(it.get('name')))), bool(it.get('multi')), distance,
                 hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
                 slow_to_prepare(it), too_heavy(it), abs(it['size'] - size) if size else 0, -it['seeds'])
     best = min(dedupe(kept), key=score)
@@ -852,26 +911,40 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
     parsed = parse_all(items)
     if parsed is None:
         auto=auto_request()
+        if auto and auto.get('_unmatched'):
+            return -1
         if auto and auto.get('target'):
             sm=_matcher();exp=expect if expect is not None else identity(title,sm)
+            auto=auto_request(exp=exp) if exp else auto
+            if auto.get('_unmatched'):
+                _log_unmatched(title)
+                return -1
             if auto.get('purpose') in ('scan','packs') and (not exp or not automatic_matches(auto,exp)):
-                import json
-                _home().setProperty(AUTO_RESULT,json.dumps({'request_id':auto['request_id'],'error':'identity_mismatch'}))
+                _auto_result(auto,{'request_id':auto['request_id'],'error':'identity_mismatch'})
                 return -1
             if exp and automatic_matches(auto,exp):
                 if auto.get('purpose') in ('scan','packs'):
-                    import json
-                    _home().setProperty(AUTO_RESULT,json.dumps({'request_id':auto['request_id'],
-                        'qualities':[],'packs':False,'error':'unsupported_source_list' if items else ''}))
+                    _auto_result(auto,{'request_id':auto['request_id'],
+                        'qualities':[],'packs':False,'error':'unsupported_source_list' if items else ''})
                 return -1
         return None
     sm = _matcher()
     exp = expect if expect is not None else identity(title, sm)
     _CONTEXT['exp'] = exp
-    active=auto_request()
+    # Owner (build 309): "this menu also shows up as its downloading ... ensure its removed for downloading seasons".
+    # While Build Season looks up episodes, a version page whose episode is not known never asks: that lookup gets
+    # nothing (and is looked up again), the owner is not shown a menu.
+    if not exp:
+        pending = auto_request()
+        if pending and pending.get('target'):
+            _log_unmatched(title)
+            return -1
+    active=auto_request(exp=exp) if exp else auto_request()
+    if active and active.get('_unmatched'):
+        _log_unmatched(title)
+        return -1
     if active and active.get('purpose') in ('scan','packs','survey') and (not exp or not automatic_matches(active,exp)):
-        import json
-        _home().setProperty(AUTO_RESULT,json.dumps({'request_id':active['request_id'],'error':'identity_unavailable'}))
+        _auto_result(active,{'request_id':active['request_id'],'error':'identity_unavailable'})
         return -1
     if sm is not None and exp:
         kept, hidden = sm.split(parsed, exp, name=lambda p: p['name'], result=lambda p: None)
@@ -892,7 +965,12 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
         import episode_watch
         if exp and episode_watch.canceled(_home(),exp):return -1
     except (ImportError,AttributeError):pass
-    auto = auto_request()
+    auto = auto_request(exp=exp) if exp else auto_request()
+    if auto and auto.get('_unmatched'):
+        _log_unmatched(title)
+        return -1
+    if exp and exp.get('episode'):
+        mark_multi(kept, exp, sm)
     if auto and exp and automatic_matches(auto, exp) and auto.get('purpose') in ('scan', 'packs', 'survey'):
         import json
         usable = [p for p in kept if p['seeds'] > 0 and not is_bad(p)] if sm is not None and exp.get('titles') else []
@@ -907,10 +985,16 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
                   'packs': bool(usable) if auto['purpose'] in ('packs', 'survey') else False}
         if auto['purpose'] == 'scan':
             # Build Season (board D): the best-seeded copy's size per quality, for the ready sheet's sizes.
-            sizes = {}
-            for p in sorted(usable, key=lambda p: -p['seeds']):
+            sizes, details = {}, {}
+            # ISSUE-178: a one-episode file before a season pack or box set holding it (owner log 77b35834: episode 5
+            # read "4.1 GB" from a pack with more seeds), then the most seeds.
+            for p in sorted(usable, key=lambda p: (bool(p.get('multi')), -p['seeds'])):
                 sizes.setdefault(p['quality'], p['size'])
+                # Board F: what the version is (video, audio, seeds), shown per episode in the full list.
+                details.setdefault(p['quality'], u' \u00b7 '.join([t for t in tag_list(p) if t not in ('4K', '1080p', '720p')][:4] +
+                                                          ['%d seeds' % p['seeds']]))
             result['sizes'] = sizes
+            result['details'] = details
         if auto['purpose'] == 'survey':
             # The season sheet's cards: per quality, how many genuine full-season packs and the best one's size/seeds.
             by = {}
@@ -920,7 +1004,7 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
                     by[p['quality']] = {'count': (best or {}).get('count', 0), 'size_gb': p['size'], 'seeds': p['seeds']}
                 by[p['quality']]['count'] = by[p['quality']].get('count', 0) + 1
             result['packs_by_quality'] = by
-        _home().setProperty(AUTO_RESULT, json.dumps(result))
+        _auto_result(auto, result)
         if auto['purpose'] in ('scan', 'survey') or not usable:
             return -1
         # A Full season request offers genuine packs only. Cancel never queues a partial episode.
@@ -930,9 +1014,9 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
         best = auto_choose([p for p in kept if p['name'] not in failed], auto.get('profile') or {})
         try:
             import json
-            _home().setProperty(AUTO_RESULT, json.dumps({'episode': exp.get('episode'), 'found': bool(best),
-                                                         'quality': best['quality'] if best else u'', 'name': best['name'] if best else u'',
-                                                         'request_id':auto.get('request_id')}))
+            _auto_result(auto, {'episode': exp.get('episode'), 'found': bool(best),
+                                'quality': best['quality'] if best else u'', 'name': best['name'] if best else u'',
+                                'request_id':auto.get('request_id')})
         except Exception:
             pass
         if sm is not None:

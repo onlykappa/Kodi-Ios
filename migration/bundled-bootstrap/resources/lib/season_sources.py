@@ -11,6 +11,9 @@ QUALITY_NAMES={'4k':'4K','1440p':'1440p','1080p':'1080p','720p':'720p','480p':'4
 ORDER=tuple(QUALITY_NAMES)
 SCAN_SECONDS=60
 EPISODE_SECONDS=25
+# ISSUE-178 (owner log 77b35834): three lookups at once share Elementum; some took 22-26 s and were dropped at 25 s.
+LANE_SECONDS=45
+RETRY_SECONDS=60
 
 def note(xbmc,event,**fields):
  try:
@@ -114,16 +117,16 @@ def pending_episodes(profile,tmdb,season,numbers):
     except (TypeError,ValueError):pass
  return have.intersection(numbers)
 
-def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=None,cancel=None,timeout=None):
+def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=None,cancel=None,timeout=None,lane=''):
  import elementum_cloud
- if watch.active_request(home):raise RuntimeError('Another episode search is running. Try again when it finishes.')
+ if watch.active_request(home,lane=lane):raise RuntimeError('Another episode search is running. Try again when it finishes.')
  ident=uuid.uuid4().hex
  target={'tmdb':str(tmdb),'season':int(season),'episode':int(episode) if episode else None}
  wanted={'request_id':ident,'target':target,'purpose':purpose,'mode':0,'until':time.time()+600,
          'profile':{'quality':quality,'strict_quality':True} if quality else {}}
  watch.canceled(home,target,clear=True)
- home.clearProperty(watch.RESULT);home.clearProperty('KodiIOS.AutoPick.Queued')
- home.setProperty(watch.AUTO,json.dumps(wanted));result={}
+ home.clearProperty(watch.RESULT+lane);home.clearProperty('KodiIOS.AutoPick.Queued'+lane)
+ home.setProperty(watch.AUTO+lane,json.dumps(wanted));result={}
  try:
   url=dl.plugin_url('episode' if episode else 'season',tmdb,season,episode)
   route=(lambda url:urllib.parse.urlsplit(url).path.rstrip('/') in ('/play','/download')) if purpose=='scan' else (
@@ -133,23 +136,23 @@ def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=Non
   options={'timeout':timeout if timeout is not None else (600 if purpose=='packs' else 120),'route':route}
   if cancel is not None:options['cancel']=cancel
   reached=(follow or dl.follow)(url,**options)
-  try:result=json.loads(home.getProperty(watch.RESULT) or '{}')
+  try:result=json.loads(home.getProperty(watch.RESULT+lane) or '{}')
   except ValueError:result={}
   if not result and purpose in ('scan','packs') and reached==url.replace(dl.PLUGIN_PREFIX,dl.ENGINE,1):
    # Elementum answers a no-results search without opening a picker. A failed HTTP request raises above.
    result={'request_id':ident,'qualities':[],'packs':False}
   if result.get('request_id')!=ident or result.get('error'):return {}
   if purpose=='queue':
-   try:receipt=json.loads(home.getProperty('KodiIOS.AutoPick.Queued') or '{}')
+   try:receipt=json.loads(home.getProperty('KodiIOS.AutoPick.Queued'+lane) or '{}')
    except ValueError:receipt={}
    result['queued']=receipt.get('request_id')==ident and receipt.get('queued') is True
   if cancel and cancel() and not result.get('queued'):raise dl.Canceled('Source search canceled')
   return result
  finally:
   if result.get('request_id')!=ident or (purpose=='queue' and not result.get('queued')):watch.cancel_request(home,wanted)
-  try:current=json.loads(home.getProperty(watch.AUTO) or '{}')
+  try:current=json.loads(home.getProperty(watch.AUTO+lane) or '{}')
   except ValueError:current={}
-  if current.get('request_id')==ident:home.clearProperty(watch.AUTO)
+  if current.get('request_id')==ident:home.clearProperty(watch.AUTO+lane)
 
 def run(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,search=None):
  """An explicit season interaction owns the search lane until its chooser/queueing finishes."""
@@ -235,32 +238,96 @@ def build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names=Non
  finally:
   if home.getProperty(watch.BATCH)==lease:home.clearProperty(watch.BATCH)
 
+def lanes(items,work,show,stop,halt,count):
+ """Owner (2026-11-12): "fix the speed for shows" (32 episodes took about 3 minutes to look up and as long to add, one
+ at a time). work(item, lane) runs for every item, up to `count` at once, each in its own lane (episode_watch.LANES);
+ this thread keeps show(done, current) up to date and stop() checked (its short wait lets the card's Close and
+ Cancel through); stop() true sets halt['stop'] and the lanes take no new item."""
+ import threading
+ todo=list(items);lock=threading.Lock();state={'done':0,'current':items[0] if items else None}
+ def worker(lane):
+  while not halt['stop']:
+   with lock:
+    if not todo:return
+    item=todo.pop(0);state['current']=item
+   try:work(item,lane)
+   finally:
+    with lock:state['done']+=1
+ if count<=1:
+  for item in items:
+   if stop():halt['stop']=True;return
+   show(state['done'],item);state['current']=item
+   work(item,'');state['done']+=1
+  if stop():halt['stop']=True
+  return
+ threads=[threading.Thread(target=worker,args=(watch.LANES[k],),daemon=True) for k in range(min(count,len(items)))]
+ for t in threads:t.start()
+ while any(t.is_alive() for t in threads):
+  show(state['done'],state['current'])
+  if stop():halt['stop']=True
+  for t in threads:t.join(0.1)
+ if stop():halt['stop']=True
+
 def _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names,search):
  import season_sheet as ss
  have=set(owned)|pending_episodes(profile,tmdb,season,numbers)
  remaining=[n for n in numbers if n not in have]
  if not remaining:
   dialog.ok('Download season','Every aired episode is already downloaded or queued.');return []
- quality=ss.pick_quality(gui,title,season,len(remaining))
- if not quality:return []
- monitor=xbmc.Monitor();card=ss.Card(gui)
- def stop():return card.canceled or monitor.abortRequested()
- def lookup(n,purpose,q=None):
+ monitor=xbmc.Monitor();halt={'stop':False};card=None
+ def lookup(n,purpose,q=None,lane='',timeout=None):
   if search:return search(n,purpose,q)
-  return request(home,tmdb,season,n,purpose,q,cancel=stop,timeout=EPISODE_SECONDS if purpose=='scan' else 120)
- picks={}
+  return request(home,tmdb,season,n,purpose,q,cancel=lambda:halt['stop'] or bool(card and card.canceled),
+                 timeout=timeout or (LANE_SECONDS if purpose=='scan' else 120),lane=lane)
+ # Board B3 (DEC-041): three episodes (start, middle, end) are looked up in every quality while the sheet shows the
+ # check card, so a quality nobody has is greyed and one is recommended. Their answers are kept for the build below.
+ checked={}
+ def check(show,stopped):
+  numbers=check.numbers;states={}
+  def one(n,lane):
+   try:checked[n]=lookup(n,'scan',lane=lane)
+   except Exception as error:note(xbmc,'check_deferred',episode=n,error=type(error).__name__)
+   got=[q for a in checked.values() for q in (a.get('qualities') or [])]
+   for q in ss.QUALITIES:states[q]='found' if q in got or (q=='720p' and ss.best_for(got,q)) else states.get(q,'')
+  lanes(numbers,one,lambda done,current:show(done,dict(states,**({q:states.get(q) or 'none' for q in ss.QUALITIES} if done>=len(numbers) else {}))),
+        lambda:monitor.waitForAbort(0.01) or stopped(),halt,len(watch.LANES) if not search else 1)
+  note(xbmc,'quality_checked',episodes=numbers,found={n:checked[n].get('qualities') or [] for n in checked})
+  return dict(checked) if checked else None
+ check.numbers=ss.check_numbers(remaining)
+ quality=ss.pick_quality(gui,title,season,len(remaining),check,monitor.waitForAbort)
+ halt['stop']=False
+ if not quality:return []
+ card=ss.Card(gui)
+ # Owner log 5169a460 (build 290): Close and Cancel on the card did nothing. Kodi hands a window's taps to this script
+ # only while it waits in Kodi (sleep / waitForAbort); the lookups waited on Elementum the whole time. stop() runs every
+ # 0.1 s during those waits, and its short waitForAbort lets the taps through.
+ def stop():return monitor.waitForAbort(0.01) or card.canceled
+ picks={};details={}
+ def keep(n,found):
+  got=ss.best_for(found.get('qualities') or [],quality)
+  details[n]=(found.get('details') or {}).get(got,'') if got else ''
+  picks[n]=(got,(found.get('sizes') or {}).get(got) if got else None)
+ def scan(n,lane,timeout=None):
+  try:found=lookup(n,'scan',lane=lane,timeout=timeout)
+  except Exception as error:
+   note(xbmc,'scan_deferred',episode=n,error=type(error).__name__);found={}
+  keep(n,found)
+ for n,found in checked.items():keep(n,found)
  try:
-  for i,n in enumerate(remaining):
-   if stop():return []
-   card.show(ss.building_props(season,quality,title,i,len(remaining),sum(1 for v in picks.values() if v[0]),n))
-   try:found=lookup(n,'scan')
-   except Exception as error:
-    note(xbmc,'scan_deferred',episode=n,error=type(error).__name__);found={}
-   got=ss.best_for(found.get('qualities') or [],quality)
-   picks[n]=(got,(found.get('sizes') or {}).get(got) if got else None)
-  if stop():return []
+  lanes([n for n in remaining if n not in checked],scan,lambda done,current:card.show(ss.building_props(season,quality,title,done+len(checked),len(remaining),
+        sum(1 for v in picks.values() if v[0]),current)),stop,halt,len(watch.LANES) if not search else 1)
+  if halt['stop']:return []
+  # ISSUE-178: an episode the lanes did not find (a slow answer, or a page that answered another lane) is looked up
+  # once more on its own before it is called "not found".
+  missing=[n for n in remaining if not picks.get(n,(None,))[0]]
+  if missing:note(xbmc,'scan_retry',episodes=missing)
+  for n in missing:
+   if stop():halt['stop']=True;return []
+   card.show(ss.building_props(season,quality,title,len(remaining),len(remaining),sum(1 for v in picks.values() if v[0]),n))
+   scan(n,'',RETRY_SECONDS)
+  if missing:note(xbmc,'scan_retried',found=[n for n in missing if picks.get(n,(None,))[0]])
  finally:card.close()
- model=ss.ready_model(title,season,quality,picks,names)
+ model=ss.ready_model(title,season,quality,picks,names,details)
  note(xbmc,'build_scanned',episodes=len(remaining),quality=quality,found=len(model['episodes']),
       lower=sum(1 for n in model['episodes'] if picks[n][0]!=quality))
  if not model['episodes']:
@@ -270,20 +337,36 @@ def _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names,se
  if transfer_control.paused(profile,'up'):transfer_control.set_paused(profile,'up',False)   # Download All means now
  episodes=model['episodes']
  watch.plan_season(profile,tmdb,title,season,episodes,quality)
- queued=[];card=ss.Card(gui)
+ queued=[];tried=set();card=ss.Card(gui);halt['stop']=False
+ def add(n,lane):
+  result={}
+  try:result=lookup(n,'queue',picks[n][0],lane=lane)
+  except Exception as error:note(xbmc,'queue_deferred',episode=n,error=type(error).__name__)
+  success=result.get('queued') is True
+  watch.record_planned(profile,tmdb,season,n,success)
+  note(xbmc,'episode_result',episode=n,quality=picks[n][0],queued=success)
+  tried.add(n)
+  if success:queued.append(n)
  try:
-  for i,n in enumerate(episodes):
-   if stop():
-    watch.cancel_planned(profile,tmdb,season,episodes[i:]);break
-   card.show(ss.queueing_props(season,quality,title,i,len(episodes)))
-   result={}
-   try:result=lookup(n,'queue',picks[n][0])
-   except Exception as error:note(xbmc,'queue_deferred',episode=n,error=type(error).__name__)
-   success=result.get('queued') is True
-   watch.record_planned(profile,tmdb,season,n,success)
-   note(xbmc,'episode_result',episode=n,quality=picks[n][0],queued=success)
-   if success:queued.append(n)
+  lanes(episodes,add,lambda done,current:card.show(ss.queueing_props(season,quality,title,done,len(episodes))),stop,halt,
+        len(watch.LANES) if not search else 1)
+  if halt['stop']:watch.cancel_planned(profile,tmdb,season,[n for n in episodes if n not in tried])
+  else:
+   # Owner log 8bb997da (build 309): 31 of 32 were added; episode 9's page lost its identity while three ran at once.
+   # An episode not added is tried once more on its own before the season is called done.
+   again=[n for n in episodes if n not in queued]
+   if again:note(xbmc,'queue_retry',episodes=again)
+   for n in again:
+    if stop():halt['stop']=True;break
+    card.show(ss.queueing_props(season,quality,title,len(queued),len(episodes)))
+    add(n,'')
  finally:card.close()
+ queued.sort()
+ if len(queued)>1 and not search:
+  try:
+   import debrid_drive
+   debrid_drive.order_season(profile,tmdb,season)   # added three at a time: back into episode order
+  except Exception as error:note(xbmc,'order_failed',error=type(error).__name__)
  if queued or stop():
   dialog.notification('Season %s'%season,'%d episode%s added to your downloads'%(len(queued),'' if len(queued)==1 else 's'),gui.NOTIFICATION_INFO,6000)
  else:   # owner log 15e6cbc4: "0 episodes added" read like success

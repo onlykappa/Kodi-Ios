@@ -17,8 +17,8 @@ class StreamChunks:
  aim at about ten seconds, not three, so the wait between pieces costs a few percent instead of 10-15%. A piece is
  cut only past fifteen seconds, and a stalled piece is still retried by the per-piece timeout."""
  TARGET=10;SLOW=15;FAST=6
- def __init__(self,limit=None):
-  self.limit=min(CHUNK if limit is None else limit,8*1024*1024)
+ def __init__(self,limit=None,cap=None):
+  self.limit=min(CHUNK if limit is None else limit,cap or 8*1024*1024)
   self.minimum=min(self.limit,1024*1024);self.current=self.limit;self.fast=0
  def observe(self,size,read_seconds,put_seconds):
   cost=max(read_seconds,put_seconds,.001)
@@ -286,7 +286,9 @@ class Drive(object):
  def _native_stream(self,copy_to,size,session,offset,save,keep_going,progress,activity):
   """Only offsets and receipts cross Python; each native piece validates the source range before its PUT."""
   import slowdown
-  gate=slowdown.Gate(keep_going=keep_going);chunks=StreamChunks();chunks.current=chunks.minimum
+  # r50: pieces grow to what the native copier takes (32 MB; 8 MB on older frameworks).
+  gate=slowdown.Gate(keep_going=keep_going);chunks=StreamChunks(getattr(copy_to,'max',None),cap=getattr(copy_to,'max',None))
+  chunks.current=chunks.minimum
   failures=0
   while offset<size:
    if not keep_going():raise Stop()

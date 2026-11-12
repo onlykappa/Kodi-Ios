@@ -19,12 +19,14 @@ def batch_active(window,now=None):
  try:return float(window.getProperty(BATCH) or 0)>(time.time() if now is None else now)
  except (ValueError,TypeError):return False
 
-def active_request(window,now=None):
- now=time.time() if now is None else now;raw=window.getProperty(AUTO)
+LANES=('','.1','.2')   # Build Season looks up three episodes at once, one lane each (deck_picker.LANES)
+
+def active_request(window,now=None,lane=''):
+ now=time.time() if now is None else now;raw=window.getProperty(AUTO+lane)
  try:request=json.loads(raw or '{}')
  except ValueError:request={}
  if float(request.get('until') or 0)>now:return request
- if raw and window.getProperty(AUTO)==raw:window.clearProperty(AUTO)
+ if raw and window.getProperty(AUTO+lane)==raw:window.clearProperty(AUTO+lane)
  return None
 
 def cancel_request(window,request,now=None):

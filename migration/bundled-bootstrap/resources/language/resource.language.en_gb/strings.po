@@ -111,3 +111,7 @@ msgstr ""
 msgctxt "#32027"
 msgid "Also show Apple's AirPlay audio button during playback"
 msgstr ""
+
+msgctxt "#32028"
+msgid "AI Upscale test (one video, counted only)"
+msgstr ""

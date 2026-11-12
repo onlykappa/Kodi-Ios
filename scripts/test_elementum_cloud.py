@@ -126,4 +126,62 @@ class PackFileMatch(unittest.TestCase):
   self.assertFalse(ec.same_pick('Naruto','Naruto Shippuden S01E01'))   # too short to trust
   self.assertFalse(ec.same_pick('',pack))
 
+class AutomaticRefusals(unittest.TestCase):
+ def test_only_fields_in_the_link_are_compared(self):
+  # Owner log 5169a460 (build 290): every Build Season episode was refused silently.
+  import elementum_cloud as ec
+  wanted={'request_id':'r','target':{'tmdb':'31910','season':1,'episode':5}}
+  picked={'request_id':'r','found':True,'name':'Naruto Shippuden (001-500) [Complete Series]/Episode 005.mkv'}
+  self.assertEqual(ec.refusal(wanted,picked,{'name':'Naruto Shippuden (001-500) [Complete Series]'}),'')
+  self.assertEqual(ec.refusal(wanted,picked,{'name':'Naruto Shippuden (001-500) [Complete Series]','season':'1','episode':'05'}),'')
+  self.assertEqual(ec.refusal(wanted,picked,{'name':'Naruto Shippuden (001-500) [Complete Series]','episode':'6'}),'different episode')
+  self.assertEqual(ec.refusal(wanted,dict(picked,request_id='x'),{'name':'x'}),'another request')
+  self.assertTrue(ec.refusal(wanted,picked,{'name':'Something Else S01E05'}).startswith('different version (picked "'))
+  # The lane's own lookup: names are not compared, the episode still is.
+  self.assertEqual(ec.refusal(wanted,picked,{'name':'Something Else'},own=True),'')
+  self.assertEqual(ec.refusal(wanted,picked,{'name':'x','episode':'6'},own=True),'different episode')
+
+class SeasonQueueThreeLanes(unittest.TestCase):
+ """ISSUE-179 (owner log 1138649a, build 302): Build Season found every episode and queued none: each pick was
+ "refused (different version)" then "no matching automatic request". Reproduces season_sources.request's queue phase
+ for three lanes: deck_picker.run answers each lane, then Elementum's link for each lane reaches auto_season with the
+ lane's request id, in any order."""
+ def test_each_lane_queues_its_own_pick(self):
+  import importlib.util,json,time as t,random
+  spec=importlib.util.spec_from_file_location('deck_picker_t',ROOT/'migration/deck-picker/deck_picker.py')
+  dp=importlib.util.module_from_spec(spec);spec.loader.exec_module(dp)
+  props={}
+  home=types.SimpleNamespace(getProperty=lambda k:props.get(k,''),setProperty=props.__setitem__,clearProperty=lambda k:props.pop(k,None))
+  pack='Naruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio) Season 01 (001-032)/Naruto Shippuden Episode %03d.mkv'
+  labels={1:[pack%1],2:['Naruto Shippuuden - 002 [1080p] dual audio 10bit.mkv',pack%2],3:[pack%3]}
+  links={}
+  with patch.object(dp,'_home',return_value=home),patch.object(dp,'_matcher',return_value=None):
+   for lane,ep in (('',1),('.1',2),('.2',3)):
+    props[dp.AUTO_PICK+lane]=json.dumps({'request_id':'r%d'%ep,'until':t.time()+600,'purpose':'queue','mode':0,
+      'target':{'tmdb':'31910','season':1,'episode':ep},'profile':{'quality':'1080p','strict_quality':True}})
+   for lane,ep in (('',1),('.1',2),('.2',3)):
+    items=['1080p (%d / 0) [262.85 MB] WebDL H.264 - Torrentio\n%s \U0001F464 10 \U0001F4BE 945.19 MB \u2699\ufe0f NyaaSi\nicon.png'%(200-i,n)
+           for i,n in enumerate(labels[ep])]
+    idx=dp.run('ナルト 疾風伝 S01E%02d'%ep,items,expect={'tmdb':'31910','season':1,'episode':ep,'label':'S01E%02d'%ep})
+    self.assertGreaterEqual(idx,0)
+    # Elementum's link names the torrent its own way (here: the search query), never the picker's label line.
+    m='magnet:?'+urllib.parse.urlencode({'xt':'urn:btih:'+('%02d'%ep)*20,'dn':'ナルト 疾風伝'})
+    links[ep]=url(uri=m,season='1',episode=str(ep),query='ナルト 疾風伝')
+  order=[1,2,3];random.Random(7).shuffle(order)
+  for ep in order:
+   got=cloud.auto_season(home,choice=cloud.selected(links[ep]),request_id='r%d'%ep)
+   self.assertIsNotNone(got,'episode %d refused'%ep);self.assertEqual(got['request_id'],'r%d'%ep)
+   self.assertEqual(got['_lane'],{1:'',2:'.1',3:'.2'}[ep])
+  # Another lane's link for this episode is still refused (wrong episode), and a hand pick still compares names.
+  self.assertIsNone(cloud.auto_season(home,choice=cloud.selected(links[2]),request_id='r1'))
+  with patch.object(cloud,'_refused') as said:
+   self.assertIsNone(cloud.auto_season(home,choice=cloud.selected(links[2])))
+  self.assertIn('Elementum "ナルト 疾風伝"',said.call_args[0][0])
+
+ def test_the_picker_label_stats_do_not_stop_a_name_match(self):
+  import elementum_cloud as ec
+  self.assertTrue(ec.same_pick('Naruto Shippuuden - 002 [1080p] dual audio 10bit.mkv \U0001F464 10 \U0001F4BE 945.19 MB \u2699\ufe0f NyaaSi',
+                               'Naruto Shippuuden - 002 [1080p] dual audio 10bit.mkv'))
+  self.assertTrue(ec.same_pick('Pack (001-500)/Naruto Shippuden Episode 003.mkv','Naruto Shippuden Episode 003.mkv'))
+
 if __name__=='__main__':unittest.main()

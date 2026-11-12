@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Picture Settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi.
+   Tokens from portrait.py / pages.py (§4.3). All sizes in pt via --u (1pt of a 874 x 402 pt landscape screen). */
+:root{--surface2:rgba(44,44,46,.96);--white:#fff;--grey:rgba(235,235,245,.6);--dim:rgba(235,235,245,.3);
+  --sep:rgba(235,235,245,.16);--blue:#0a84ff;--blue-text:#4fa8ff;--green:#30d158;--font:Inter,system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#0a0a0b;color:var(--white);font-family:var(--font);-webkit-font-smoothing:antialiased}
+svg{display:block}
+.intro{max-width:1100px;margin:0 auto;padding:40px 16px 8px}
+.label{display:inline-block;background:#3a2a00;color:#ffd60a;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+.eyebrow{color:var(--grey);font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+h1{font-size:clamp(26px,4.5vw,40px);font-weight:800;letter-spacing:-.02em;margin:8px 0 10px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:760px;margin-bottom:8px}
+.board{max-width:1100px;margin:0 auto;padding:28px 16px 8px}
+.board .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+.board h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+.board > p{color:var(--grey);font-size:14px;line-height:1.5;max-width:780px;margin-bottom:16px}
+
+.frame{width:100%;max-width:934px;aspect-ratio:934/462;border-radius:56px;padding:30px;
+  background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.screen{position:relative;width:100%;height:100%;border-radius:30px;overflow:hidden;background:#000;container-type:inline-size}
+.pt{position:absolute;inset:0;--u:calc(100cqw / 874)}
+.video{position:absolute;inset:0;background:radial-gradient(120% 90% at 30% 40%,#2b3440 0%,#151a20 45%,#07090b 100%)}
+.video::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.5),rgba(0,0,0,0) 30%,rgba(0,0,0,0) 62%,rgba(0,0,0,.65))}
+
+.osd{position:absolute;inset:0;opacity:.3}
+.ic{position:absolute;top:calc(14*var(--u));width:calc(44*var(--u));height:calc(44*var(--u));display:flex;align-items:center;justify-content:center}
+.ic svg{width:calc(24*var(--u));height:calc(24*var(--u))}
+.on{opacity:1;border-radius:50%;background:rgba(255,255,255,.18);z-index:3}
+.title{position:absolute;left:calc(43*var(--u));bottom:calc(58*var(--u));font-size:calc(26*var(--u));font-weight:700}
+.bar{position:absolute;left:calc(43*var(--u));right:calc(43*var(--u));bottom:calc(44*var(--u));height:calc(4*var(--u));border-radius:9px;background:rgba(255,255,255,.25)}
+.bar i{position:absolute;inset:0 78% 0 0;border-radius:9px;background:#fff}
+.centre{position:absolute;left:38%;top:50%;transform:translate(-50%,-50%);display:flex;gap:calc(90*var(--u))}
+.centre svg{width:calc(42*var(--u));height:calc(42*var(--u))}
+.sub{position:absolute;left:33%;bottom:calc(96*var(--u));transform:translateX(-50%);font-size:calc(20*var(--u));font-weight:600;text-shadow:0 1px 3px #000;white-space:nowrap}
+
+.menu{position:absolute;top:calc(64*var(--u));right:calc(20*var(--u));width:calc(318*var(--u));border-radius:calc(18*var(--u));
+  background:var(--surface2);box-shadow:0 calc(18*var(--u)) calc(50*var(--u)) rgba(0,0,0,.55);overflow:hidden;z-index:4;padding-bottom:calc(10*var(--u));max-height:calc(326*var(--u))}
+.fade{position:absolute;left:0;right:0;bottom:0;height:calc(40*var(--u));background:linear-gradient(rgba(44,44,46,0),rgba(44,44,46,1))}
+.mh{display:flex;align-items:center;height:calc(50*var(--u));padding:0 calc(6*var(--u)) 0 calc(18*var(--u))}
+.mh b{flex:1;font-size:calc(17*var(--u));font-weight:700}
+.mh .back{display:flex;align-items:center;gap:calc(5*var(--u));color:var(--blue-text);font-size:calc(16*var(--u));font-weight:500;flex:1}
+.mh .back svg{width:calc(10*var(--u));height:calc(16*var(--u))}
+.x{width:calc(44*var(--u));height:calc(44*var(--u));display:flex;align-items:center;justify-content:center}
+.x span{width:calc(28*var(--u));height:calc(28*var(--u));border-radius:50%;background:rgba(235,235,245,.12);display:flex;align-items:center;justify-content:center}
+.x svg{width:calc(11*var(--u));height:calc(11*var(--u))}
+
+.cta{margin:calc(2*var(--u)) calc(14*var(--u)) calc(6*var(--u));height:calc(44*var(--u));border-radius:calc(22*var(--u));background:#fff;color:#000;
+  display:flex;align-items:center;justify-content:center;gap:calc(8*var(--u));font-size:calc(16*var(--u));font-weight:700}
+.cta svg{width:calc(18*var(--u));height:calc(18*var(--u))}
+.cta.busy{background:rgba(235,235,245,.12);color:#fff;font-weight:600}
+.cta.busy .spin{width:calc(18*var(--u));height:calc(18*var(--u));border-radius:50%;border:calc(2.4*var(--u)) solid rgba(255,255,255,.25);border-top-color:#fff}
+.cta.done{background:rgba(48,209,88,.16);color:var(--green);font-weight:600}
+.hint{margin:0 calc(18*var(--u)) calc(12*var(--u));color:var(--grey);font-size:calc(12*var(--u));text-align:center}
+
+.list{margin:0 calc(10*var(--u));border-radius:calc(12*var(--u));background:rgba(0,0,0,.28)}
+.row{position:relative;display:flex;align-items:center;gap:calc(8*var(--u));height:calc(44*var(--u));padding:0 calc(12*var(--u)) 0 calc(38*var(--u))}
+.row + .row::before{content:"";position:absolute;top:0;left:calc(38*var(--u));right:0;height:1px;background:var(--sep)}
+.row .chk{position:absolute;left:calc(12*var(--u));width:calc(16*var(--u));height:calc(16*var(--u));color:var(--blue-text)}
+.row .t{flex:1;min-width:0;font-size:calc(16*var(--u));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .t.sel{font-weight:600}
+.tag{flex:none;font-size:calc(11*var(--u));font-weight:700;letter-spacing:.03em;color:var(--grey);border:1px solid rgba(235,235,245,.25);border-radius:calc(6*var(--u));padding:calc(2*var(--u)) calc(6*var(--u))}
+.tag.new{color:var(--green);border-color:rgba(48,209,88,.5)}
+.row .val{color:var(--grey);font-size:calc(15*var(--u))}
+.row .go{width:calc(8*var(--u));height:calc(13*var(--u));color:var(--dim)}
+.row.plain{padding-left:calc(14*var(--u))}
+.row.plain + .row.plain::before{left:calc(14*var(--u))}
+.spacer{height:calc(8*var(--u))}
+.step{display:flex;align-items:center}
+.step .v{min-width:calc(58*var(--u));text-align:center;font-size:calc(15*var(--u));font-variant-numeric:tabular-nums}
+.sb{width:calc(40*var(--u));height:calc(44*var(--u));display:flex;align-items:center;justify-content:center}
+.sb span{width:calc(32*var(--u));height:calc(28*var(--u));border-radius:calc(14*var(--u));background:rgba(235,235,245,.12);display:flex;align-items:center;justify-content:center}
+.sb svg{width:calc(11*var(--u));height:calc(11*var(--u))}
+.toggle{flex:none;width:calc(46*var(--u));height:calc(28*var(--u));border-radius:calc(14*var(--u));background:#39393d;position:relative}
+.toggle::after{content:"";position:absolute;top:calc(2*var(--u));left:calc(2*var(--u));width:calc(24*var(--u));height:calc(24*var(--u));border-radius:50%;background:#fff}
+.toggle.on{background:var(--green)}.toggle.on::after{left:calc(20*var(--u))}
+.toast{position:absolute;left:38%;top:calc(20*var(--u));transform:translateX(-50%);display:flex;align-items:center;gap:calc(8*var(--u));
+  background:var(--surface2);border-radius:calc(20*var(--u));padding:calc(9*var(--u)) calc(16*var(--u));font-size:calc(14*var(--u));font-weight:600;z-index:5;white-space:nowrap}
+.toast svg{width:calc(16*var(--u));height:calc(16*var(--u));color:var(--green)}
+.note{margin:0 calc(18*var(--u)) calc(12*var(--u));font-size:calc(13*var(--u));color:var(--grey);line-height:1.35}
+.note b{color:#fff;font-weight:600}
+
+.notes{max-width:1100px;margin:0 auto;padding:24px 16px 64px;color:#b4b4ba;font-size:14px;line-height:1.55}
+.notes h3{color:#fff;font-size:16px;margin:18px 0 6px}
+.notes li{margin:3px 0 3px 18px}
+.notes code{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:#d8d8dc}
+
+/* Picture menu (this page) */
+.seg3{display:flex;margin:calc(6*var(--u)) calc(10*var(--u)) calc(8*var(--u));background:rgba(0,0,0,.28);border-radius:calc(10*var(--u));padding:calc(2*var(--u))}
+.seg3 span{flex:1;text-align:center;font-size:calc(14*var(--u));font-weight:600;color:var(--grey);padding:calc(6*var(--u)) 0;border-radius:calc(8*var(--u))}
+.seg3 span.on{background:#636366;color:#fff}
+.sl{position:relative;flex:none;width:calc(120*var(--u));height:calc(4*var(--u));border-radius:9px;background:rgba(235,235,245,.2);margin-right:calc(8*var(--u))}
+.sl i{position:absolute;top:0;bottom:0;left:0;border-radius:9px;background:var(--blue)}
+.sl b{position:absolute;top:50%;width:calc(18*var(--u));height:calc(18*var(--u));border-radius:50%;background:#fff;transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.row .num{min-width:calc(34*var(--u));text-align:right;color:var(--grey);font-size:calc(14*var(--u));font-variant-numeric:tabular-nums}
+.badge{flex:none;font-size:calc(10.5*var(--u));font-weight:800;letter-spacing:.04em;color:#bf5af2;border:1px solid rgba(191,90,242,.55);border-radius:calc(6*var(--u));padding:calc(1.5*var(--u)) calc(5*var(--u))}
+.cap2{margin:calc(6*var(--u)) calc(18*var(--u)) 0;color:var(--grey);font-size:calc(11.5*var(--u));line-height:1.35}
+.split{position:absolute;inset:0;display:flex}.split div{flex:1}
+.split .l{background:radial-gradient(120% 90% at 30% 40%,#2b3440 0%,#151a20 45%,#07090b 100%);filter:blur(.6px) saturate(.85)}
+.split .r{background:radial-gradient(120% 90% at -20% 40%,#3a4a60 0%,#1a2230 45%,#07090b 100%);filter:saturate(1.25) contrast(1.06)}
+.splitline{position:absolute;top:0;bottom:0;left:38%;width:2px;background:rgba(255,255,255,.7)}
+.splitlab{position:absolute;top:calc(70*var(--u));font-size:calc(12*var(--u));font-weight:700;background:rgba(0,0,0,.55);padding:calc(3*var(--u)) calc(8*var(--u));border-radius:calc(8*var(--u))}
+/* portrait frame for the Settings board */
+.pframe{width:340px;max-width:100%;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.pscreen{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000;padding:44px 16px 16px;font-size:14px}
+.pscreen .nb{color:var(--blue-text);font-size:15px;font-weight:600;margin-bottom:6px}
+.pscreen h3{font-size:30px;font-weight:800;margin-bottom:14px}
+.pscreen .sh{color:var(--grey);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:14px 6px 6px}
+.grp{background:#1c1c1e;border-radius:12px;overflow:hidden}
+.pr{position:relative;display:flex;align-items:center;gap:8px;min-height:44px;padding:8px 12px}
+.pr+.pr::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.pr .t{flex:1;min-width:0}.pr .t b{display:block;font-weight:500;font-size:15px}.pr .t span{color:var(--grey);font-size:12px}
+.pr .v{color:var(--grey);font-size:14px}
+.pr .go{width:8px;height:13px;color:var(--dim)}
+.pr .tile{width:30px;height:44px;border-radius:5px;flex:none}
+.pr .toggle{width:46px;height:28px;border-radius:14px}
+.pr .toggle::after{top:2px;left:2px;width:24px;height:24px}.pr .toggle.on::after{left:20px}
+.foot{color:var(--grey);font-size:12px;margin:6px 6px 0;line-height:1.35}
+.side{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+.side .txt{flex:1;min-width:260px;color:var(--grey);font-size:14px;line-height:1.5}
+
+/* Upscale-to slider (round 2) */
+.up{margin:calc(4*var(--u)) calc(10*var(--u)) calc(8*var(--u));padding:calc(10*var(--u)) calc(14*var(--u)) calc(8*var(--u));background:rgba(0,0,0,.28);border-radius:calc(12*var(--u))}
+.up .lab{display:flex;justify-content:space-between;font-size:calc(14*var(--u));color:var(--grey);margin-bottom:calc(10*var(--u))}
+.up .lab b{color:#fff;font-weight:600}
+.track{position:relative;height:calc(4*var(--u));border-radius:9px;background:rgba(235,235,245,.2);margin:0 calc(8*var(--u))}
+.track i{position:absolute;top:0;bottom:0;left:0;border-radius:9px;background:var(--blue)}
+.track .stop{position:absolute;top:50%;width:calc(8*var(--u));height:calc(8*var(--u));border-radius:50%;background:rgba(235,235,245,.45);transform:translate(-50%,-50%)}
+.track .stop.lit{background:var(--blue)}
+.track .knob{position:absolute;top:50%;width:calc(22*var(--u));height:calc(22*var(--u));border-radius:50%;background:#fff;transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.ticks{position:relative;height:calc(18*var(--u));margin:calc(10*var(--u)) calc(8*var(--u)) 0}
+.ticks span{position:absolute;transform:translateX(-50%);}
+.ticks span:first-child{transform:none}.ticks span:last-child{transform:translateX(-100%)}
+.ticks span{font-size:calc(12*var(--u));color:var(--grey);white-space:nowrap}
+.ticks span.sel{color:#fff;font-weight:700}
+.src{flex:none;font-size:calc(11*var(--u));font-weight:800;letter-spacing:.03em;color:var(--grey);border:1px solid rgba(235,235,245,.25);border-radius:calc(6*var(--u));padding:calc(1.5*var(--u)) calc(5*var(--u))}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="chev-l" viewBox="0 0 24 24"><path d="M15 4 7 12l8 8" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="back" viewBox="0 0 10 16"><path d="M8 1.5 2 8l6 6.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="gauge" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#fff"/><path d="M12 13 16.5 7.5" stroke="#000" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="13" r="2" fill="#000"/></symbol>
+  <symbol id="wave" viewBox="0 0 24 24"><path d="M6 2h8l5 5v15H6z" fill="#fff"/><path d="M8 14h2l1.5-3 2 6 1.5-3h2" fill="none" stroke="#000" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+  <symbol id="cc" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3" fill="#fff"/><text x="12" y="15.6" text-anchor="middle" font-family="Inter,sans-serif" font-weight="800" font-size="8" fill="#000">CC</text></symbol>
+  <symbol id="airplay" viewBox="0 0 24 24"><path d="M6 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-2" fill="none" stroke="#fff" stroke-width="2"/><path d="M12 14 18 21H6z" fill="#fff"/></symbol>
+  <symbol id="back10" viewBox="0 0 24 24"><path d="M5 12a7 7 0 1 0 2-5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><path d="M4 3v5h5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="pause" viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1.5" fill="#fff"/><rect x="14" y="4" width="5" height="16" rx="1.5" fill="#fff"/></symbol>
+  <symbol id="x" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2 2 10" stroke="rgba(235,235,245,.7)" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="check" viewBox="0 0 16 16"><path d="M2.5 8.5 6.5 12.5 13.5 3.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="go" viewBox="0 0 8 13"><path d="M1.5 1.5 6.5 6.5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="minus" viewBox="0 0 12 12"><path d="M1.5 6h9" stroke="#fff" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="plus" viewBox="0 0 12 12"><path d="M1.5 6h9M6 1.5v9" stroke="#fff" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="dl" viewBox="0 0 18 18"><path d="M9 2v9M5 7.5 9 11.5l4-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 15h12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="ok" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill="currentColor"/><path d="M4.5 8.3 7 10.8l4.6-5.3" fill="none" stroke="#000" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="wand" viewBox="0 0 24 24"><path d="M4 20 15 9" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><path d="M17 2l.9 2.6L20.5 5.5l-2.6.9L17 9l-.9-2.6L13.5 5.5l2.6-.9z M7 3l.6 1.4L9 5l-1.4.6L7 7l-.6-1.4L5 5l1.4-.6z M20 11l.6 1.4L22 13l-1.4.6L20 15l-.6-1.4L18 13l1.4-.6z" fill="#fff"/></symbol>
+</svg>
+
+<div class="intro">
+  <span class="label">MOCKUP · not a render of Kodi · round 4 (owner approved)</span>
+  <div class="eyebrow">Video controls · landscape, and Settings</div>
+  <h1>Picture: AI Upscale, colour and per-show settings</h1>
+  <p>Owner, 2026-11-12: "an AI upscaler would be nice, especially for the 1080p films … on and off … per show, and same with saturation and other general video mods", then round 2: "for up scaler do like 1080p 1440p, 2K and 4K like a slider bar, if a show is already 1080 or 1440 dont have it show up, make it clean". A new <b>Picture</b> button (wand) opens the same compact menu as Subtitles and Audio; the video keeps playing.</p>
+</div>
+<section class="board"><div class="n">A · PICTURE MENU</div><h2>Upscale to: a slider of sizes, only the ones above the video</h2><p>One control: <b>AI Upscale</b> with the video’s own size (grey tag) and a slider whose left end is <b>Off</b>, then only the sizes larger than the video (720p, 1080p, 1440p, 2K, 4K UHD); the chosen size is on the right of the title. A 480p show gets all five; a 1080p film starts at 1440p; a 4K film shows no upscaler at all. Saturation is the only picture slider (owner, round 4: "i really only care about color"). The header link says who keeps these (This show) and opens board B.</p><div class="frame"><div class="screen"><div class="pt"><div class="video"></div><div class="osd"><div class="ic on" style="left:calc(546*var(--u));opacity:1"><svg><use href="#wand"/></svg></div><div class="ic" style="left:calc(610*var(--u))"><svg><use href="#gauge"/></svg></div><div class="ic" style="left:calc(674*var(--u))"><svg><use href="#wave"/></svg></div><div class="ic" style="left:calc(738*var(--u))"><svg><use href="#cc"/></svg></div><div class="ic" style="left:calc(802*var(--u))"><svg><use href="#airplay"/></svg></div><div class="title">Naruto · S1 E3</div><div class="bar"><i></i></div></div><div class="menu" style="max-height:none"><div class="mh"><b>Picture</b><span style="color:var(--blue-text);font-size:calc(14*var(--u));font-weight:600;margin-right:calc(6*var(--u))">This show ›</span><div class="x"><span><svg><use href="#x"/></svg></span></div></div><div class="up"><div class="lab"><span style="color:#fff;font-weight:600">AI Upscale <span class="src">480p</span></span><b>1080p</b></div><div class="track"><i style="width:40%"></i><span class="stop lit" style="left:0%"></span><span class="stop lit" style="left:20%"></span><span class="stop lit" style="left:40%"></span><span class="stop" style="left:60%"></span><span class="stop" style="left:80%"></span><span class="stop" style="left:100%"></span><span class="knob" style="left:40%"></span></div><div class="ticks"><span class="" style="left:0%">Off</span><span class="" style="left:20%">720p</span><span class="sel" style="left:40%">1080p</span><span class="" style="left:60%">1440p</span><span class="" style="left:80%">2K</span><span class="" style="left:100%">4K</span></div></div><div class="list"><div class="row plain"><span class="t">Saturation</span><span class="sl"><i style="width:62%"></i><b style="left:62%"></b></span><span class="num">+12</span></div></div></div></div></div></div><div style="height:22px"></div><div class="frame"><div class="screen"><div class="pt"><div class="video"></div><div class="osd"><div class="ic on" style="left:calc(546*var(--u));opacity:1"><svg><use href="#wand"/></svg></div><div class="ic" style="left:calc(610*var(--u))"><svg><use href="#gauge"/></svg></div><div class="ic" style="left:calc(674*var(--u))"><svg><use href="#wave"/></svg></div><div class="ic" style="left:calc(738*var(--u))"><svg><use href="#cc"/></svg></div><div class="ic" style="left:calc(802*var(--u))"><svg><use href="#airplay"/></svg></div><div class="title">Interstellar</div><div class="bar"><i></i></div></div><div class="menu" style="max-height:none"><div class="mh"><b>Picture</b><span style="color:var(--blue-text);font-size:calc(14*var(--u));font-weight:600;margin-right:calc(6*var(--u))">This movie ›</span><div class="x"><span><svg><use href="#x"/></svg></span></div></div><div class="up"><div class="lab"><span style="color:#fff;font-weight:600">AI Upscale <span class="src">1080p</span></span><b>4K UHD</b></div><div class="track"><i style="width:100%"></i><span class="stop lit" style="left:0%"></span><span class="stop lit" style="left:33%"></span><span class="stop lit" style="left:67%"></span><span class="stop lit" style="left:100%"></span><span class="knob" style="left:100%"></span></div><div class="ticks"><span class="" style="left:0%">Off</span><span class="" style="left:33%">1440p</span><span class="" style="left:67%">2K</span><span class="sel" style="left:100%">4K</span></div></div><div class="list"><div class="row plain"><span class="t">Saturation</span><span class="sl"><i style="width:62%"></i><b style="left:62%"></b></span><span class="num">+12</span></div></div></div></div></div></div><div style="height:22px"></div><div class="frame"><div class="screen"><div class="pt"><div class="video"></div><div class="osd"><div class="ic on" style="left:calc(546*var(--u));opacity:1"><svg><use href="#wand"/></svg></div><div class="ic" style="left:calc(610*var(--u))"><svg><use href="#gauge"/></svg></div><div class="ic" style="left:calc(674*var(--u))"><svg><use href="#wave"/></svg></div><div class="ic" style="left:calc(738*var(--u))"><svg><use href="#cc"/></svg></div><div class="ic" style="left:calc(802*var(--u))"><svg><use href="#airplay"/></svg></div><div class="title">Dune: Part Two</div><div class="bar"><i></i></div></div><div class="menu" style="max-height:none"><div class="mh"><b>Picture</b><span style="color:var(--blue-text);font-size:calc(14*var(--u));font-weight:600;margin-right:calc(6*var(--u))">This movie ›</span><div class="x"><span><svg><use href="#x"/></svg></span></div></div><div class="list"><div class="row plain"><span class="t">Saturation</span><span class="sl"><i style="width:62%"></i><b style="left:62%"></b></span><span class="num">+12</span></div></div></div></div></div></div></section><section class="board"><div class="n">B · APPLY TO</div><h2>This video, this show, or everything</h2><p>The header link opens a sub-page under the blue back link: this video only, this show (every episode, now and later), or all videos (the default). A show’s own picture wins over the default.</p><div class="frame"><div class="screen"><div class="pt"><div class="video"></div><div class="osd"><div class="ic" style="left:calc(610*var(--u))"><svg><use href="#gauge"/></svg></div><div class="ic" style="left:calc(674*var(--u))"><svg><use href="#wave"/></svg></div><div class="ic" style="left:calc(738*var(--u))"><svg><use href="#cc"/></svg></div><div class="ic on" style="left:calc(546*var(--u));opacity:1"><svg><use href="#wand"/></svg></div><div class="ic" style="left:calc(802*var(--u))"><svg><use href="#airplay"/></svg></div><div class="title">Naruto Shippūden · S1 E3</div><div class="bar"><i></i></div></div><div class="menu"><div class="mh"><div class="back"><svg><use href="#back"/></svg>Picture</div></div><div class="list"><div class="row"><svg class="chk" style="opacity:0"><use href="#check"/></svg><span class="t">This video only</span></div><div class="row"><svg class="chk"><use href="#check"/></svg><span class="t sel">This show · Naruto Shippūden</span></div><div class="row"><svg class="chk" style="opacity:0"><use href="#check"/></svg><span class="t">All videos (my default)</span></div></div><div class="spacer"></div><div class="list"><div class="row plain"><span class="t" style="color:var(--blue-text)">Reset this show to the default</span></div></div><div class="note" style="margin-top:12px">A show’s own picture wins over the default. Change it any time in <b>Settings › Picture</b>.</div></div></div></div></div></section><section class="board"><div class="n">C · COMPARE</div><h2>See what AI Upscale does before keeping it</h2><p>Compare splits the video: left the original, right upscaled; drag the line. Upscaling live costs battery and heat, so it says so, and turns itself off on low battery.</p><div class="frame"><div class="screen"><div class="pt"><div class="video"></div><div class="split"><div class="l"></div><div class="r"></div></div><div class="splitline"></div><div class="splitlab" style="left:calc(150*var(--u))">Original</div><div class="splitlab" style="left:calc(360*var(--u))">AI Upscale · 4K UHD</div><div class="osd"><div class="ic" style="left:calc(610*var(--u))"><svg><use href="#gauge"/></svg></div><div class="ic" style="left:calc(674*var(--u))"><svg><use href="#wave"/></svg></div><div class="ic" style="left:calc(738*var(--u))"><svg><use href="#cc"/></svg></div><div class="ic on" style="left:calc(546*var(--u));opacity:1"><svg><use href="#wand"/></svg></div><div class="ic" style="left:calc(802*var(--u))"><svg><use href="#airplay"/></svg></div><div class="title">Naruto Shippūden · S1 E3</div><div class="bar"><i></i></div></div><div class="menu" style="max-height:none"><div class="mh"><b>Picture</b><div class="x"><span><svg><use href="#x"/></svg></span></div></div><div class="up"><div class="lab"><span style="color:#fff;font-weight:600">AI Upscale <span class="src">1080p</span></span><b>4K UHD</b></div><div class="track"><i style="width:100%"></i><span class="stop lit" style="left:0%"></span><span class="stop lit" style="left:33%"></span><span class="stop lit" style="left:67%"></span><span class="stop lit" style="left:100%"></span><span class="knob" style="left:100%"></span></div><div class="ticks"><span class="" style="left:0%">Off</span><span class="" style="left:33%">1440p</span><span class="" style="left:67%">2K</span><span class="sel" style="left:100%">4K</span></div></div><div class="list"><div class="row plain"><span class="t">Compare</span><span class="toggle on"></span></div></div><div class="cap2">Drag the line on the video to compare. Uses more battery while on; turns itself off below 20 %.</div></div></div></div></div></section><section class="board"><div class="n">D · SETTINGS › PICTURE</div><h2>The default, and every show that has its own</h2><p>Where per-show pictures are kept and changed.</p><div class="side"><div class="pframe"><div class="pscreen"><div class="nb">‹ Settings</div><h3>Picture</h3><div class="sh">Default for all videos</div><div class="grp"><div class="pr"><div class="t"><b>AI Upscale</b><span>Only sizes above the video’s own</span></div><span class="v">Up to 4K UHD</span><svg class="go"><use href="#go"/></svg></div><div class="pr"><div class="t"><b>Saturation</b></div><span class="v">0</span><svg class="go"><use href="#go"/></svg></div></div><div class="sh">Shows with their own picture</div><div class="grp"><div class="pr"><div class="tile" style="background:linear-gradient(160deg,#ff9f0a,#7a2e0e)"></div><div class="t"><b>Naruto Shippūden</b><span>Upscale to 4K UHD · Saturation +12</span></div><svg class="go"><use href="#go"/></svg></div><div class="pr"><div class="tile" style="background:linear-gradient(160deg,#5a7a9a,#1b2633)"></div><div class="t"><b>Lanterns</b><span>Upscale off · Saturation +5</span></div><svg class="go"><use href="#go"/></svg></div><div class="pr"><div class="tile" style="background:linear-gradient(160deg,#c33,#300)"></div><div class="t"><b>Interstellar</b><span>This movie · Brightness −5</span></div><svg class="go"><use href="#go"/></svg></div></div><div class="foot">Swipe a show to go back to the default. Shows are set from the Picture button while one plays.</div></div></div><div class="txt"><b style="color:#fff">Settings › Picture</b> (portrait, inside the existing Settings pages). The default for every video, then every show or movie that has its own picture, with what it changes. Tapping one opens the same Picture menu for it.</div></div></section><section class="board"><div class="n">E · ON THE TV (AIRPLAY)</div><h2>AI Upscale on the TV: an upscaled copy prepared in the background</h2><p>Owner, 2026-11-12: "i want it to work on airplay, maybe have it download the upscale settings in background like the conversion … only for shows that are 720 or 1080p. Otherwise it’s directly going to be downloaded at 4K". The TV can only show the file it is sent, so the app makes the upscaled file ahead of time, after the download is on Drive, with Apple’s AI super-resolution scaler (iOS 26+), in the same queue as conversion. Three states in the Picture menu: ready (the TV plays the 4K copy), preparing (plays the original meanwhile), not prepared yet (one button).</p><div class="frame"><div class="screen"><div class="pt"><div class="video"></div><div class="osd"><div class="ic on" style="left:calc(546*var(--u));opacity:1"><svg><use href="#wand"/></svg></div><div class="ic" style="left:calc(610*var(--u))"><svg><use href="#gauge"/></svg></div><div class="ic" style="left:calc(674*var(--u))"><svg><use href="#wave"/></svg></div><div class="ic" style="left:calc(738*var(--u))"><svg><use href="#cc"/></svg></div><div class="ic" style="left:calc(802*var(--u))"><svg><use href="#airplay"/></svg></div><div class="title">Naruto Shippūden · S1 E3</div><div class="bar"><i></i></div></div><div class="menu" style="max-height:none"><div class="mh"><b>Picture</b><span style="color:var(--blue-text);font-size:calc(14*var(--u));font-weight:600;margin-right:calc(6*var(--u))">This show ›</span><div class="x"><span><svg><use href="#x"/></svg></span></div></div><div class="up"><div class="lab"><span style="color:#fff;font-weight:600">AI Upscale <span class="src">1080p</span></span><b>4K</b></div><div style="display:flex;align-items:center;gap:calc(8*var(--u));font-size:calc(13*var(--u));color:var(--green);font-weight:600"><svg style="width:calc(16*var(--u));height:calc(16*var(--u));color:var(--green)"><use href="#ok"/></svg>4K UHD copy ready on Google Drive</div></div><div class="note"><b>Playing on Living Room TV in 4K UHD.</b> The TV gets the upscaled copy; nothing is worked out live.</div></div></div></div></div><div style="height:22px"></div><div class="frame"><div class="screen"><div class="pt"><div class="video"></div><div class="osd"><div class="ic on" style="left:calc(546*var(--u));opacity:1"><svg><use href="#wand"/></svg></div><div class="ic" style="left:calc(610*var(--u))"><svg><use href="#gauge"/></svg></div><div class="ic" style="left:calc(674*var(--u))"><svg><use href="#wave"/></svg></div><div class="ic" style="left:calc(738*var(--u))"><svg><use href="#cc"/></svg></div><div class="ic" style="left:calc(802*var(--u))"><svg><use href="#airplay"/></svg></div><div class="title">Naruto Shippūden · S1 E4</div><div class="bar"><i></i></div></div><div class="menu" style="max-height:none"><div class="mh"><b>Picture</b><span style="color:var(--blue-text);font-size:calc(14*var(--u));font-weight:600;margin-right:calc(6*var(--u))">This show ›</span><div class="x"><span><svg><use href="#x"/></svg></span></div></div><div class="up"><div class="lab"><span style="color:#fff;font-weight:600">AI Upscale <span class="src">1080p</span></span><b>Preparing</b></div><div class="track"><i style="width:42%"></i><span class="knob" style="left:42%;width:calc(10*var(--u));height:calc(10*var(--u))"></span></div><div style="display:flex;justify-content:space-between;margin-top:calc(8*var(--u));font-size:calc(12*var(--u));color:var(--grey)"><span>Upscaling to 4K UHD · 42 %</span><span>about 18 min</span></div></div><div class="note"><b>Playing the 1080p copy for now.</b> The 4K copy takes over next time you play this episode.</div></div></div></div></div><div style="height:22px"></div><div class="frame"><div class="screen"><div class="pt"><div class="video"></div><div class="osd"><div class="ic on" style="left:calc(546*var(--u));opacity:1"><svg><use href="#wand"/></svg></div><div class="ic" style="left:calc(610*var(--u))"><svg><use href="#gauge"/></svg></div><div class="ic" style="left:calc(674*var(--u))"><svg><use href="#wave"/></svg></div><div class="ic" style="left:calc(738*var(--u))"><svg><use href="#cc"/></svg></div><div class="ic" style="left:calc(802*var(--u))"><svg><use href="#airplay"/></svg></div><div class="title">Lanterns · S1 E1</div><div class="bar"><i></i></div></div><div class="menu" style="max-height:none"><div class="mh"><b>Picture</b><span style="color:var(--blue-text);font-size:calc(14*var(--u));font-weight:600;margin-right:calc(6*var(--u))">This show ›</span><div class="x"><span><svg><use href="#x"/></svg></span></div></div><div class="up"><div class="lab"><span style="color:#fff;font-weight:600">AI Upscale <span class="src">1080p</span></span><b>Off</b></div><div class="cta" style="margin:0;height:calc(38*var(--u));font-size:calc(14*var(--u))">Prepare a 4K UHD copy</div></div><div class="note">Made in the background like a conversion (best while charging). About 2.5× the file size on Drive.</div></div></div></div></div></section><section class="board"><div class="n">G · SETTINGS › PICTURE · AUTOMATIC</div><h2>Upscale new downloads for the TV, automatically</h2>
+<p>A default under Settings › Picture so new 720p and 1080p downloads get their upscaled copy without asking; 4K downloads are left as they are. Each show can still say otherwise (board D).</p>
+<div class="side"><div class="pframe"><div class="pscreen"><div class="nb">‹ Settings</div><h3>Picture</h3>
+<div class="sh">AI Upscale for downloads</div><div class="grp">
+<div class="pr"><div class="t"><b>Prepare upscaled copies</b><span>720p and 1080p downloads only</span></div><span class="toggle on"></span></div>
+<div class="pr"><div class="t"><b>Upscale to</b></div><span class="v">4K</span><svg class="go"><use href="#go"/></svg></div>
+<div class="pr"><div class="t"><b>Only while charging</b></div><span class="toggle on"></span></div>
+<div class="pr"><div class="t"><b>Keep the original too</b><span>For the phone and older TVs</span></div><span class="toggle on"></span></div></div>
+<div class="foot">4K downloads are kept as they are. Upscaled copies are about 2.5× larger on Google Drive.</div>
+<div class="sh">In the queue</div><div class="grp">
+<div class="pr"><div class="tile" style="background:linear-gradient(160deg,#ff9f0a,#7a2e0e)"></div><div class="t"><b>Naruto Shippūden · S1 E4</b><span>Upscaling to 4K UHD · 42 % · 18 min</span></div></div>
+<div class="pr"><div class="tile" style="background:linear-gradient(160deg,#ff9f0a,#7a2e0e)"></div><div class="t"><b>Naruto Shippūden · S1 E5</b><span>Up next</span></div></div></div>
+</div></div><div class="txt"><b style="color:#fff">The queue</b> is the existing Library status queue: upscaling is one more step after "Making it start faster", with the same bar, pause and Cancel.</div></div></section>
+<div class="notes">
+<h3>What is real today, and what needs building (for the owner to decide)</h3>
+<ul>
+
+<li><b>Saturation:</b> to be checked on the iPhone build: if Kodi 21's renderer there has no saturation control, it needs a small change to Kodi's video shader in our Kodi build (the portrait patch), then a native build.</li>
+<li><b>AI Upscale (round 2 plan):</b> done ahead of time, not live: after a 720p/1080p download is on Drive, the preparation step decodes it, upscales each frame with Apple’s VTSuperResolutionScaler (VideoToolbox, iOS 26+, on this iPhone) and encodes HEVC at the target size, then uploads it beside the original; AirPlay and the phone play that copy when AI Upscale is on. Native work in the KodiAirPlay framework (the converter); speed, heat and file size to be measured on the iPhone first. Earlier note: Kodi has no AI upscaler. Real AI upscaling would be new native work in our Kodi build: a Metal / Core ML super-resolution step on each frame (for example Apple's MetalFX upscaler). It is the biggest item here, uses battery and heat, and has to be measured on the iPhone first. A cheaper first step is "Enhance" = Kodi's best built-in scaler (Lanczos3) plus sharpening, honestly named.</li>
+<li><b>Steps:</b> 720p, 1080p, 1440p, 2K, 4K UHD (owner, round 4: "keep both"); only those above the video are shown.</li>
+<li><b>Per show:</b> our own feature: the app remembers settings per TMDb show or movie and applies them when playback starts.</li>
+<li><b>AirPlay:</b> the TV draws the picture; phone-side changes do not reach it (board E). Converting with the picture baked in would mean a full re-encode on Drive, not proposed.</li>
+</ul>
+</div>
+</body></html>
