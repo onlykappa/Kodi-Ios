@@ -202,6 +202,7 @@ def run(args=()):
     self.setProperty('work.metrics',work_state.metrics_line(conv))
     self.setProperty('work.ring',library_rows.ring_name(conv.get('pct')))
     self.setProperty('work.percent','' if conv.get('indeterminate') else '%d%%'%float(conv.get('pct') or 0))
+    for n in (0,1):self.guard.percent(library_page.WORK_BAR+n,0 if conv.get('indeterminate') else float(conv.get('pct') or 0))
     self.setProperty('work.poster',poster(conv))
     graph=''
     if conv:
