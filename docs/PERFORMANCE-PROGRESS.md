@@ -39,7 +39,7 @@ Next work (in order)
    1A.3 keep the MP4 index with it (plan below).
 3. 1G.2 conversion faster than real time (only AV1 / 10-bit H.264 / unprepared downloads need it now).
 4. 1E.2/1E.3/1E.7 start-up trims, 1F.2-1F.4 uploads to line speed, 1D.3 rows for the visible tab only.
-5. MKV fonts trade-off (1B.1 drops embedded fonts for styled subtitles): asked the owner; no answer yet.
+5. MKV fonts trade-off (1B.1): owner chose faster opens with the plain subtitle font (2026-11-12). Applies to every MKV Kodi opens: Umbrella streams and Elementum; prepared Drive MP4s are unaffected.
 
 ## Log (newest last)
 
