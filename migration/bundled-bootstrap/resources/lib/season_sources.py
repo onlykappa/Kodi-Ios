@@ -211,3 +211,68 @@ def _run(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,search=Non
  text='%d queued · %d waiting for %s'%(len(queued),processed-len(queued),QUALITY_NAMES[quality])
  dialog.notification('Season %s'%season,text,gui.NOTIFICATION_INFO,6000)
  return queued
+
+
+def build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names=None,search=None):
+ """Build Season (owner, 2026-11-12: always, never a ready-made pack; season-pack-mockups boards B, C, D): pick a
+ quality, look up every episode at it (the next quality down when an episode only exists lower), show what was found,
+ then queue each episode. Returns the queued episode numbers."""
+ if watch.batch_active(home) or watch.active_request(home):
+  dialog.ok('Download season','Another episode search is running. Try again when it finishes.');return []
+ lease=str(time.time()+600*(len(numbers)+1))
+ home.setProperty(watch.BATCH,lease)
+ try:return _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names or {},search)
+ finally:
+  if home.getProperty(watch.BATCH)==lease:home.clearProperty(watch.BATCH)
+
+def _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names,search):
+ import season_sheet as ss
+ have=set(owned)|pending_episodes(profile,tmdb,season,numbers)
+ remaining=[n for n in numbers if n not in have]
+ if not remaining:
+  dialog.ok('Download season','Every aired episode is already downloaded or queued.');return []
+ quality=ss.pick_quality(gui,title,season,len(remaining))
+ if not quality:return []
+ monitor=xbmc.Monitor();card=ss.Card(gui)
+ def stop():return card.canceled or monitor.abortRequested()
+ def lookup(n,purpose,q=None):
+  if search:return search(n,purpose,q)
+  return request(home,tmdb,season,n,purpose,q,cancel=stop,timeout=EPISODE_SECONDS if purpose=='scan' else 120)
+ picks={}
+ try:
+  for i,n in enumerate(remaining):
+   if stop():return []
+   card.show(ss.building_props(season,quality,title,i,len(remaining),sum(1 for v in picks.values() if v[0]),n))
+   try:found=lookup(n,'scan')
+   except Exception as error:
+    note(xbmc,'scan_deferred',episode=n,error=type(error).__name__);found={}
+   got=ss.best_for(found.get('qualities') or [],quality)
+   picks[n]=(got,(found.get('sizes') or {}).get(got) if got else None)
+  if stop():return []
+ finally:card.close()
+ model=ss.ready_model(title,season,quality,picks,names)
+ note(xbmc,'build_scanned',episodes=len(remaining),quality=quality,found=len(model['episodes']),
+      lower=sum(1 for n in model['episodes'] if picks[n][0]!=quality))
+ if not model['episodes']:
+  dialog.ok('Download season','No episode of Season %s was found. Try again later.'%season);return []
+ if not ss.confirm_ready(gui,model):return []
+ import transfer_control
+ if transfer_control.paused(profile,'up'):transfer_control.set_paused(profile,'up',False)   # Download All means now
+ episodes=model['episodes']
+ watch.plan_season(profile,tmdb,title,season,episodes,quality)
+ queued=[];card=ss.Card(gui)
+ try:
+  for i,n in enumerate(episodes):
+   if stop():
+    watch.cancel_planned(profile,tmdb,season,episodes[i:]);break
+   card.show(ss.queueing_props(season,quality,title,i,len(episodes)))
+   result={}
+   try:result=lookup(n,'queue',picks[n][0])
+   except Exception as error:note(xbmc,'queue_deferred',episode=n,error=type(error).__name__)
+   success=result.get('queued') is True
+   watch.record_planned(profile,tmdb,season,n,success)
+   note(xbmc,'episode_result',episode=n,quality=picks[n][0],queued=success)
+   if success:queued.append(n)
+ finally:card.close()
+ dialog.notification('Season %s'%season,'%d episode%s added to your downloads'%(len(queued),'' if len(queued)==1 else 's'),gui.NOTIFICATION_INFO,6000)
+ return queued

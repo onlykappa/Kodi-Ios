@@ -9,6 +9,39 @@
   build's kodi_airplay_serve_copy + correlated receiver evidence. No IPA/native release dispatched here.
 - Compiled recommendations suite: 41 checks, 0 failures. Phone/TV acceptance and hour-long/caption tests remain open.
 
+## HANDOFF 2026-11-12 (end of session): Build Season — read this first
+
+Branch: `claude/performance-roadmap` (PR #19; `claude/exciting-hamilton-ol7dke` is the same commits). Last IPA: build-275.
+
+Owner-approved mockups: `docs/design/season-pack-mockups.html` (open in a browser; rendered images must not be committed).
+Approved: board A (searching card, ONE wide Cancel, no Stop, English title), board B round 2 (four quality cards, one
+Build button), board C (building card), board D round 2 (ready sheet: three numbers, episode list, Download All).
+Board B's Pack/Build switch and board E's pack rows are NOT wanted any more: owner, 2026-11-12, "the season builder
+should be used at all times ... the only option is Build Season". Board E's list style for Choose a version (movies,
+episodes) is still wanted but NOT coded yet.
+
+Coded in the last commit, host-tested only (scripts/test_season_sheet.py, 7 cases; deck_picker, source_match, pages,
+customized_ipa pass), NOT yet rendered in the desktop rig and NOT on the phone:
+- resources/lib/season_sheet.py: models + windows (pick_quality = board B, Card = board C, confirm_ready = board D).
+- season_sources.build/_build: always Build Season: quality sheet -> scan every episode (card counts) -> ready sheet ->
+  queue each episode at its picked quality (next quality down when only lower exists; none found = left out).
+- download.py season branch now calls season_sources.build (no more 'packs' request); it passes episode names and sets
+  IOSSeason.Poster; start() sets IOSSearch.Name/NameAt/Context so the searching card shows the English title.
+- pages.py: searching_card rewritten (generic IOSSearch.Kicker/Title/Lines/Line.N.Text|Count|State/Pct, one Cancel 9802),
+  season_quality_sheet (IOSSeasonQuality.xml), season_ready_sheet (IOSSeasonReady.xml).
+- build_customized_ipa.BURST_CARD: card lines per site from provider_results, English title, no Stop; hidden while
+  KodiIOS.AutoPick is set (Build Season's own scans).
+- deck_picker: scan results carry 'sizes' per quality; a 'survey' purpose and a quality filter for 'packs' were added
+  but are unused now (may be removed).
+
+Next steps, in order:
+1. Render B, C, D in the rig (scratch script idea: call season_sheet.pick_quality / Card / confirm_ready with sample
+   data) and compare with the mockups; fix layout (card navigation, text fit, poster).
+2. Watch the import-review build (IPA) and give the owner the release link.
+3. Board E: Choose a version / All Links in the board 09 list style (portrait.deck_page / links_row).
+4. Owner device check: download a season (Naruto Shippuden S1) and a movie; read the log (season_sources events
+   build_scanned / episode_result).
+
 ## Current state and handoff (read this first; updated 2026-11-12)
 
 Rule (owner, 2026-11-12): every fix is committed AND pushed to GitHub as soon as it is coded, by every agent, so a

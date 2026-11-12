@@ -862,7 +862,7 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
     exp = expect if expect is not None else identity(title, sm)
     _CONTEXT['exp'] = exp
     active=auto_request()
-    if active and active.get('purpose') in ('scan','packs') and (not exp or not automatic_matches(active,exp)):
+    if active and active.get('purpose') in ('scan','packs','survey') and (not exp or not automatic_matches(active,exp)):
         import json
         _home().setProperty(AUTO_RESULT,json.dumps({'request_id':active['request_id'],'error':'identity_unavailable'}))
         return -1
@@ -886,15 +886,35 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
         if exp and episode_watch.canceled(_home(),exp):return -1
     except (ImportError,AttributeError):pass
     auto = auto_request()
-    if auto and exp and automatic_matches(auto, exp) and auto.get('purpose') in ('scan', 'packs'):
+    if auto and exp and automatic_matches(auto, exp) and auto.get('purpose') in ('scan', 'packs', 'survey'):
         import json
         usable = [p for p in kept if p['seeds'] > 0 and not is_bad(p)] if sm is not None and exp.get('titles') else []
-        if auto['purpose'] == 'packs':
+        if auto['purpose'] in ('packs', 'survey'):
             usable = [p for p in usable if p.get('coverage') == u'']
-        _home().setProperty(AUTO_RESULT, json.dumps({'request_id': auto['request_id'],
-            'qualities': [q for q in QUALITY_ORDER if any(p['quality'] == q for p in usable)],
-            'packs': bool(usable) if auto['purpose'] == 'packs' else False}))
-        if auto['purpose'] == 'scan' or not usable:
+        # Kodi-iOS season sheet (season-pack-mockups board B): a pack request for one quality shows only that quality.
+        only = (auto.get('profile') or {}).get('quality')
+        if auto['purpose'] == 'packs' and only:
+            usable = [p for p in usable if p['quality'] == only]
+        result = {'request_id': auto['request_id'],
+                  'qualities': [q for q in QUALITY_ORDER if any(p['quality'] == q for p in usable)],
+                  'packs': bool(usable) if auto['purpose'] in ('packs', 'survey') else False}
+        if auto['purpose'] == 'scan':
+            # Build Season (board D): the best-seeded copy's size per quality, for the ready sheet's sizes.
+            sizes = {}
+            for p in sorted(usable, key=lambda p: -p['seeds']):
+                sizes.setdefault(p['quality'], p['size'])
+            result['sizes'] = sizes
+        if auto['purpose'] == 'survey':
+            # The season sheet's cards: per quality, how many genuine full-season packs and the best one's size/seeds.
+            by = {}
+            for p in usable:
+                best = by.get(p['quality'])
+                if best is None or p['seeds'] > best['seeds']:
+                    by[p['quality']] = {'count': (best or {}).get('count', 0), 'size_gb': p['size'], 'seeds': p['seeds']}
+                by[p['quality']]['count'] = by[p['quality']].get('count', 0) + 1
+            result['packs_by_quality'] = by
+        _home().setProperty(AUTO_RESULT, json.dumps(result))
+        if auto['purpose'] in ('scan', 'survey') or not usable:
             return -1
         # A Full season request offers genuine packs only. Cancel never queues a partial episode.
         return show_list(title, usable, [], sm, u'Full season packs', count_label(len(usable), len(usable)))

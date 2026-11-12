@@ -486,6 +486,22 @@ def _kios_finish(results, payload):
 # pages.searching_card) shows the title, how many sites answered and how many versions were found. Stop ends the wait
 # and goes on with what was found; Cancel drops the search. Not for silent (automatic) searches.
 BURST_CARD=b"""_kios_card_state = {}
+_KIOS_KEYS = ['Kicker', 'Title', 'Lines', 'Pct'] + ['Line.%d.%s' % (n, k) for n in range(1, 6) for k in ('Text', 'Count', 'State')]
+
+
+def _kios_card_title(payload):
+    # The title in a script the app's font has: the name download.py set for this search (fresh), else the English one.
+    home = xbmcgui.Window(10000)
+    try:
+        if time.time() - float(home.getProperty('IOSSearch.NameAt') or 0) < 120 and home.getProperty('IOSSearch.Name'):
+            return home.getProperty('IOSSearch.Name'), home.getProperty('IOSSearch.Context')
+    except ValueError:
+        pass
+    titles = payload.get('titles') or {}
+    english = titles.get('en') or ''
+    title = english.title() if english else (payload.get('title') or payload.get('query') or '')
+    season = payload.get('season')
+    return title, ('Season %s' % season) if season else ''
 
 
 def _kios_card(payload, total):
@@ -494,14 +510,17 @@ def _kios_card(payload, total):
         return
     try:   # anything missing (properties, window support, an older skin) leaves the search exactly as it was
         home = xbmcgui.Window(10000)
-        title = payload.get('title') or payload.get('query') or ''
-        for key, value in (('Title', title), ('Answered', '0'), ('Total', str(int(total))), ('Found', '0'), ('Pct', '0')):
-            home.setProperty('IOSSearch.' + key, value)
+        if home.getProperty('KodiIOS.AutoPick'):   # Build Season's own lookups: its building card is up instead
+            return
+        title, context = _kios_card_title(payload)
         _kios_card_state['shown'] = True
+        _kios_card_state['total'] = total
+        _kios_card_publish(home, 'Finding versions' + (' \xc2\xb7 ' + context if context else ''), title, 0)
+
         class Card(xbmcgui.WindowXMLDialog):
             def onClick(self, control):
-                if control in (9801, 9802):
-                    _kios_card_state['stop'] = control
+                if control == 9802:
+                    _kios_card_state['stop'] = 9802
                     self.close()
 
             def onAction(self, action):
@@ -516,12 +535,31 @@ def _kios_card(payload, total):
     Thread(target=card.doModal).start()
 
 
+def _kios_card_publish(home, kicker, title, answered):
+    # One line per site that answered (its name and how many it found), then one for the sites still asking.
+    counts = {}
+    for r in provider_results:
+        name = re.sub(r'\[/?[A-Za-z]+[^\]]*\]', '', str(r.get('provider') or '')).strip() or 'A site'
+        counts[name] = counts.get(name, 0) + 1
+    lines = [(name, '%d found' % n, 'ok') for name, n in sorted(counts.items(), key=lambda kv: -kv[1])][:4]
+    total = _kios_card_state.get('total') or 0
+    left = int(total - answered)
+    if left > 0:
+        lines.append(('%d site%s still answering' % (left, '' if left == 1 else 's'), '', 'wait'))
+    elif not lines:
+        lines.append(('Nothing found', '', 'none'))
+    values = {'Kicker': kicker, 'Title': title, 'Lines': str(len(lines)), 'Pct': str(int(answered * 100 / total)) if total else '0'}
+    for n in range(1, 6):
+        text, count, state = lines[n - 1] if n <= len(lines) else ('', '', '')
+        values.update({'Line.%d.Text' % n: text, 'Line.%d.Count' % n: count, 'Line.%d.State' % n: state})
+    for key, value in values.items():
+        home.setProperty('IOSSearch.' + key, value)
+    _kios_card_state['kicker'], _kios_card_state['title'] = kicker, title
+
+
 def _kios_card_tick(answered, found, total):
     if 'card' in _kios_card_state:
-        home = xbmcgui.Window(10000)   # only once the card opened, so properties work here
-        home.setProperty('IOSSearch.Answered', str(int(answered)))
-        home.setProperty('IOSSearch.Found', str(found) if found else '')
-        home.setProperty('IOSSearch.Pct', str(int(answered * 100 / total)) if total else '0')
+        _kios_card_publish(xbmcgui.Window(10000), _kios_card_state.get('kicker', ''), _kios_card_state.get('title', ''), answered)
     return bool(_kios_card_state.get('stop'))
 
 
@@ -537,7 +575,7 @@ def _kios_card_done():
     if _kios_card_state.get('stop') == 9802:   # Cancel: nothing goes back to Elementum
         del provider_results[:]
     try:
-        for key in ('Title', 'Answered', 'Total', 'Found', 'Pct'):
+        for key in _KIOS_KEYS:
             xbmcgui.Window(10000).clearProperty('IOSSearch.' + key)
     except Exception:
         pass

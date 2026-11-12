@@ -85,6 +85,14 @@ def run():
   # Every entry point shares the post-selection cloud prompt. Do not wait for a local torrent:
   # the /play or /download URI is intercepted before Elementum can add one.
   url=dl.plugin_url(k,tmdb,season,e)
+  # The searching card names what is searched in the app's own words (Burst may only know the original-language
+  # title, e.g. Japanese, which the app's font cannot draw): KODI-IOS-SEARCH-CARD reads these for two minutes.
+  try:
+   import time as _t
+   home=xbmcgui.Window(10000)
+   home.setProperty('IOSSearch.Name',str(title));home.setProperty('IOSSearch.NameAt',str(_t.time()))
+   home.setProperty('IOSSearch.Context','Season %s · Episode %s'%(season,e) if k=='episode' else ('%s'%year if year else ''))
+  except Exception:pass
   if k=='episode':
    import episode_watch
    episode_watch.canceled(xbmcgui.Window(10000),{'tmdb':tmdb,'season':season,'episode':e},clear=True)
@@ -130,7 +138,8 @@ def run():
     'directory':dl.season_path(tmdb,season),'media':'video','properties':['episode','title','firstaired']}})))
    import season_sources
    numbers=season_sources.aired(answer.get('result',{}).get('files'))
-  except Exception:numbers=[]
+   names={int(f['episode']):f.get('title') or '' for f in answer.get('result',{}).get('files') or [] if f.get('episode')}
+  except Exception:numbers=[];names={}
   owned={n for n in numbers if check('episode',season,n)}
   question=dl.season_question(season,len(owned),len(numbers)) if numbers else None
   if question and not dialog.yesno(question[0],question[1],nolabel='Cancel',yeslabel='Download'):return
@@ -139,13 +148,12 @@ def run():
   if numbers and set(numbers)<=owned|season_sources.pending_episodes(profile,tmdb,season,numbers):
    dialog.ok('Download season','Every aired episode is already downloaded or queued.');return
   home=xbmcgui.Window(10000);home.clearProperty(SEASON_PICK)
-  packs=season_sources.request(home,tmdb,season,purpose='packs')
-  if packs.get('packs'):return  # choosing or cancelling a genuine pack completes this interaction
-  if not packs:
-   dialog.ok('Download season','Could not verify the season sources. Try again.');return
   if not numbers:
    dialog.ok('Download season','No aired episodes could be verified for this season. Try refreshing the show.');return
-  season_sources.run(xbmc,xbmcgui,dialog,home,profile,tmdb,title,season,numbers,owned)
+  # Owner (2026-11-12): a season is always built from single episodes at the quality picked, never a ready-made pack
+  # (season-pack-mockups boards B, C, D; season_sources.build).
+  home.setProperty('IOSSeason.Poster',xbmc.getInfoLabel('ListItem.Art(tvshow.poster)') or xbmc.getInfoLabel('ListItem.Art(poster)'))
+  season_sources.build(xbmc,xbmcgui,dialog,home,profile,tmdb,title,season,numbers,owned,names)
   return
  start(kind,episode)
 

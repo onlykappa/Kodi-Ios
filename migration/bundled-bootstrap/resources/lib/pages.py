@@ -611,34 +611,130 @@ def busy_dialog(marker,font,media='special://skin/extras/portrait/'):
 # BURST_PATCHES: _kios_card) and keeps Window(home).Property(IOSSearch.*) up to date: Title, Answered, Total, Found, Pct.
 # Stop (9801) ends the search and goes on with what was found; Cancel (9802) drops the search.
 SEARCHING='IOSSearching.xml'
-def searching_card(media='special://skin/extras/portrait/'):
- w=720;pad=48;inner=w-2*pad;h=500
+SEASON_QUALITY='IOSSeasonQuality.xml';SEASON_READY='IOSSeasonReady.xml'
+def searching_card(p):
+ """IOSSearching.xml (season-pack-mockups boards A and C, owner 2026-11-12): one card for every wait on sources. Burst's
+ site search (build_customized_ipa BURST_CARD) and Build Season (season_sheet.Card) fill Window(home).Property(IOSSearch.*):
+ Kicker (small grey line), Title, Lines (1-5) with Line.N.Text / .Count / .State (ok: green tick, wait: spinning ring,
+ none: grey dash) and Pct for the bar. One full-width Cancel (9802); no Stop (owner: "I'd never press Stop")."""
+ M=p.MEDIA;w=760;pad=44;inner=w-2*pad;top=196;lh=66;foot=40+11+40+124+40
  P=lambda k:'$INFO[Window(home).Property(IOSSearch.%s)]'%k
- L=lambda x,y,wd,hh,text,f,color,align='center',extra='':('<control type="label"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><font>%s</font>'
-   '<textcolor>%s</textcolor><align>%s</align><aligny>center</aligny><scroll>false</scroll><label>%s</label>%s</control>')%(x,y,wd,hh,f,color,align,text,extra)
+ lines_is=lambda n:'String.IsEqual(Window(home).Property(IOSSearch.Lines),%d)'%n
+ height=lambda n:top+n*lh+foot
+ backs=''.join(p.image(0,0,w,height(n),M+'alert.png',p.WHITE,'<visible>%s</visible>'%lines_is(n),border=40) for n in range(1,6))
+ rows=''
+ for n in range(1,6):
+  y=top+(n-1)*lh;st=lambda v:'String.IsEqual(Window(home).Property(IOSSearch.Line.%d.State),%s)'%(n,v)
+  has='!String.IsEmpty(Window(home).Property(IOSSearch.Line.%d.Text))'%n
+  rows+=('<control type="group"><visible>%s</visible>'%has+
+   p.image(pad,y+15,36,36,M+'dot.png','2E30D158','<visible>%s</visible>'%st('ok'))+
+   p.icon(pad+7,y+22,22,'check.png','FF30D158','<visible>%s</visible>'%st('ok'))+
+   p.image(pad,y+15,36,36,M+'ring.png','FF0A84FF','<visible>%s</visible><animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation>'%st('wait'))+
+   p.image(pad,y+15,36,36,M+'dot.png','1FEBEBF5','<visible>%s</visible>'%st('none'))+
+   p.image(pad+11,y+31,14,4,M+'white.png',p.GREY,'<visible>%s</visible>'%st('none'))+
+   p.label(pad+56,y,inner-56-220,lh,P('Line.%d.Text'%n),'p_body',p.WHITE,'left','<scroll>false</scroll>')+
+   p.label(pad+inner-220,y,220,lh,P('Line.%d.Count'%n),'p_foot',p.GREY,'right','<scroll>false</scroll>')+'</control>')
  pct='Window(home).Property(IOSSearch.Pct)'
- # Kodi's progress control cannot read a property: twenty segments, as on Umbrella's page (board 10).
- bar=('<control type="image"><left>%d</left><top>236</top><width>%d</width><height>11</height><texture border="6" colordiffuse="33FFFFFF">%sdot.png</texture></control>'%(pad,inner,media)+
-  ''.join('<control type="image"><left>%d</left><top>236</top><width>%d</width><height>11</height><texture border="6" colordiffuse="FF0A84FF">%sdot.png</texture>'
-          '<visible>Integer.IsGreaterOrEqual(%s,%d)</visible></control>'%(pad,max(11,inner*k//20),media,pct,k*5) for k in range(1,21)))
- button=lambda id,x,bw,text,primary,nav:('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>124</height><font>p_btn</font>'
-  '<label>%s</label><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
-  '<texturefocus border="62" colordiffuse="%s">%spill_124.png</texturefocus><texturenofocus border="62" colordiffuse="%s">%spill_124.png</texturenofocus>%s</control>')%(
-  id,x,h-124-40,bw,text,'FF000000' if primary else 'FFFFFFFF','FF000000' if primary else 'FFFFFFFF',
-  'FFD1D1D6' if primary else 'FF5A5A5E',media,'FFFFFFFF' if primary else 'FF3A3A3C',media,nav)
- half=(inner-24)//2
- body=('<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture border="40" colordiffuse="FFFFFFFF">%salert.png</texture></control>'%(w,h,media)+
-  L(pad,36,inner,52,'Finding versions','p_foot','99EBEBF5')+
-  L(pad,88,inner,66,P('Title'),'p_h3','FFFFFFFF')+
-  L(pad,158,inner,52,P('Answered')+' of '+P('Total')+' sites answered'+'$INFO[Window(home).Property(IOSSearch.Found), · , found]','p_foot','99EBEBF5')+
-  bar+
-  L(pad,262,inner,52,'Stop shows what has been found so far.','p_cap','99EBEBF5')+
-  button(9802,pad,half,'Cancel',False,'<onright>9801</onright>')+button(9801,pad+half+24,half,'Stop',True,'<onleft>9802</onleft>'))
- return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS: searching card (board 09) -->\n<window type="dialog"><defaultcontrol always="true">9801</defaultcontrol><controls>'
-  '<control type="image"><width>100%%</width><height>100%%</height><texture colordiffuse="66000000">%swhite.png</texture></control>'
-  '<control type="group"><centerleft>50%%</centerleft><centertop>50%%</centertop><width>%d</width><height>%d</height>'
+ bar=(p.image(pad,0,inner,11,M+'dot.png','33FFFFFF',border=6)+
+  ''.join(p.image(pad,0,max(11,inner*k//20),11,M+'dot.png','FF0A84FF','<visible>Integer.IsGreaterOrEqual(%s,%d)</visible>'%(pct,k*5),border=6) for k in range(1,21)))
+ cancel=('<control type="button" id="9802"><left>%d</left><top>51</top><width>%d</width><height>124</height><font>p_btn</font><label>Cancel</label>'
+  '<textcolor>FFFFFFFF</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>center</align><aligny>center</aligny>'
+  '<texturefocus border="62" colordiffuse="FF5A5A5E">%spill_124.png</texturefocus><texturenofocus border="62" colordiffuse="FF3A3A3C">%spill_124.png</texturenofocus></control>')%(pad,inner,M,M)
+ # The bar and Cancel sit under the last line: one step per line count (Kodi cannot measure).
+ low=('<control type="group"><top>%d</top>'%(top+40)+
+  ''.join('<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(n*lh,lines_is(n)) for n in range(1,6))+bar+cancel+'</control>')
+ body=(backs+p.label(pad,36,inner,52,P('Kicker'),'p_foot',p.GREY,'center','<scroll>false</scroll>')+
+  p.label(pad,92,inner,70,P('Title'),'p_h3',p.WHITE,'center','<scroll>false</scroll>')+rows+low)
+ # Centred on the screen for every line count: the card's group moves up half of what it grows.
+ centre=''.join('<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(-(height(n)-height(1))//2,lines_is(n)) for n in range(2,6))
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS: searching / building card (season-pack boards A, C) -->\n<window type="dialog"><defaultcontrol always="true">9802</defaultcontrol><controls>'
+  '<control type="image"><width>100%%</width><height>100%%</height><texture colordiffuse="8C000000">%swhite.png</texture></control>'
+  '<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>%s'
   '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
-  '%s</control></controls></window>\n')%(media,w,h,body)
+  '%s</control></controls></window>\n')%(M,(p.WIDTH-w)//2,(p.HEIGHT-height(1))//2,w,height(5),centre,body)
+
+def _sheet(p,name,comment,default,h,body):
+ """A bottom sheet in the activity sheet's style (season-pack boards B and D): grabber, SURFACE, 38 pt top corners."""
+ M=p.MEDIA;W=p.WIDTH
+ anim=('<animation effect="slide" start="0,%d" end="0,0" time="300" tween="cubic" easing="out">WindowOpen</animation>'
+       '<animation effect="slide" start="0,0" end="0,%d" time="220" tween="cubic" easing="in">WindowClose</animation>')%(h,h)
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS: %s -->\n<window type="dialog"><defaultcontrol always="true">%d</defaultcontrol><controls>'
+  '<control type="image"><width>%d</width><height>%d</height><texture colordiffuse="8C000000">%swhite.png</texture>'
+  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation></control>'
+  '<control type="group"><left>0</left><top>%d</top><width>%d</width><height>%d</height>%s'%(comment,default,W,p.HEIGHT,M,p.HEIGHT-h,W,h,anim)+
+  p.image(0,0,W,h+140,M+'sheet_bg.png',p.SURFACE,border=102)+p.image((W-100)//2,22,100,14,M+'dot.png','4DFFFFFF',border=7)+
+  body+'</control></controls></window>\n')
+
+def _header(p,title,sub,y=70):
+ """Poster (the show's) beside the large title and the grey line under it."""
+ M=p.MEDIA;S=p.SIDE
+ return (p.image(S,y,118,172,M+'white.png',p.SURFACE2,diffuse=M+'poster_mask.png')+
+  p.image(S,y,118,172,'$INFO[Window(home).Property(IOSSeason.Poster)]',p.WHITE,'','>scale',M+'poster_mask.png',background=True)+
+  p.label(S+150,y+30,p.WIDTH-2*S-150,74,title,'p_h2',p.WHITE,'left','<scroll>false</scroll>')+
+  p.label(S+150,y+104,p.WIDTH-2*S-150,52,sub,'p_foot',p.GREY,'left','<scroll>false</scroll>'))
+
+def _white_button(p,id,x,y,w,label,nav=''):
+ M=p.MEDIA
+ return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>140</height><font>p_btn</font><label>%s</label>'
+  '<textcolor>FF000000</textcolor><focusedcolor>FF000000</focusedcolor><align>center</align><aligny>center</aligny>'
+  '<texturefocus border="70" colordiffuse="FFD1D1D6">%spill_150.png</texturefocus><texturenofocus border="70" colordiffuse="FFFFFFFF">%spill_150.png</texturenofocus>%s</control>')%(id,x,y,w,label,M,M,nav)
+
+def _text_button(p,id,x,y,w,label,nav=''):
+ return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>118</height><font>p_btn</font><label>%s</label>'
+  '<textcolor>%s</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>center</align><aligny>center</aligny><texturefocus /><texturenofocus />%s</control>')%(id,x,y,w,label,p.ACCENT,nav)
+
+def season_quality_sheet(p):
+ """IOSSeasonQuality.xml (season-pack board B round 2, Build Season only): the season and show, four quality cards
+ (9701-9704; the chosen one outlined in blue with a tick), one sentence on what happens, Build (9720) and Cancel (9721).
+ season_sheet.pick_quality fills Window().Property(...)."""
+ M=p.MEDIA;S=p.SIDE;W=p.WIDTH;w=W-2*S;gap=27;cw=(w-gap)//2;ch=200
+ P=lambda k:'$INFO[Window().Property(%s)]'%k
+ grid_y=290;how_y=grid_y+2*ch+gap+40;btn_y=how_y+170;h=btn_y+140+20+118+60
+ cards=''
+ for n in range(1,5):
+  x=S+((n-1)%2)*(cw+gap);y=grid_y+((n-1)//2)*(ch+gap);on='!String.IsEmpty(Window().Property(q.%d.on))'%n
+  up,down,left,right={1:(9701,9703,9701,9702),2:(9702,9704,9701,9702),3:(9701,9720,9703,9704),4:(9702,9720,9703,9704)}[n]   # 2 x 2 grid, then Build
+  nav='<onup>%d</onup><ondown>%d</ondown><onleft>%d</onleft><onright>%d</onright>'%(up,down,left,right)
+  cards+=(p.image(x,y,cw,ch,M+'round.png','FF0A84FF','<visible>%s</visible>'%on,border=32)+
+   p.image(x+6,y+6,cw-12,ch-12,M+'round.png','FF16273D','<visible>%s</visible>'%on,border=28)+
+   p.image(x,y,cw,ch,M+'round.png',p.SURFACE2,'<visible>!%s</visible>'%on,border=32)+
+   p.label(x+36,y+34,cw-130,80,P('q.%d.label'%n),'p_h2',p.WHITE,'left','<scroll>false</scroll>')+
+   p.label(x+36,y+118,cw-60,50,P('q.%d.note'%n),'p_foot',p.GREY,'left','<scroll>false</scroll>')+
+   p.image(x+cw-82,y+28,54,54,M+'dot.png','FF0A84FF','<visible>%s</visible>'%on)+p.icon(x+cw-70,y+40,30,'check.png',p.WHITE,'<visible>%s</visible>'%on)+
+   '<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus colordiffuse="14FFFFFF" border="32">%sround.png</texturefocus><texturenofocus />%s</control>'%(9700+n,x,y,cw,ch,M,nav))
+ body=(_header(p,P('season.title'),P('season.sub'))+cards+
+  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>%s</label></control>'%(S+6,how_y,w-12,p.GREY,P('how'))+
+  _white_button(p,9720,S,btn_y,w,P('button'),'<onup>9703</onup><ondown>9721</ondown>')+_text_button(p,9721,S,btn_y+150,w,'Cancel','<onup>9720</onup>'))
+ return _sheet(p,SEASON_QUALITY,'Build Season quality sheet (board B)',9720,h,body)
+
+def season_ready_sheet(p):
+ """IOSSeasonReady.xml (season-pack board D round 2): the season, three numbers (episodes, quality, size), up to four
+ episodes (number, name, an orange tag for a lower quality, size), "N more", one line on what was not in the quality,
+ Download All (9730) and Cancel (9731). season_sheet.confirm_ready fills Window().Property(...)."""
+ M=p.MEDIA;S=p.SIDE;W=p.WIDTH;w=W-2*S;gap=22;sw=(w-2*gap)//3;sh=150;rh=104
+ P=lambda k:'$INFO[Window().Property(%s)]'%k;has=lambda k:'!String.IsEmpty(Window().Property(%s))'%k
+ st_y=280;list_y=st_y+sh+34;rows_h=4*rh+rh;warn_y=list_y+rows_h+24;btn_y=warn_y+130;h=btn_y+140+20+118+60
+ stats=''.join(p.image(S+i*(sw+gap),st_y,sw,sh,M+'round.png',p.SURFACE2,border=32)+
+  p.label(S+i*(sw+gap)+30,st_y+22,sw-40,70,P(k),'p_h2',p.WHITE,'left','<scroll>false</scroll>')+
+  p.label(S+i*(sw+gap)+30,st_y+90,sw-40,44,t,'p_foot',p.GREY,'left') for i,(k,t) in enumerate((('count','episodes'),('quality','quality'),('total','total'))))
+ rows=p.image(S,list_y,w,rows_h,M+'round.png',p.SURFACE2,border=32)
+ for n in range(1,5):
+  y=list_y+(n-1)*rh;low=has('row.%d.low'%n)
+  rows+=('<control type="group"><visible>%s</visible>'%has('row.%d.name'%n)+
+   (p.image(S+110,y,w-110,2,M+'white.png',p.SEP) if n>1 else '')+
+   p.label(S+20,y,70,rh,P('row.%d.no'%n),'p_foot_b',p.GREY,'right')+
+   p.label(S+110,y,w-110-340,rh,P('row.%d.name'%n),'p_body',p.WHITE,'left','<scroll>false</scroll>')+
+   '<control type="group"><visible>%s</visible>'%low+p.image(S+w-330,y+(rh-50)//2,120,50,M+'tag_line.png','FFFF9F0A',border=16)+
+   p.label(S+w-330,y,120,rh,P('row.%d.low'%n),'p_cap','FFFF9F0A','center')+'</control>'+
+   p.label(S+w-200,y,170,rh,P('row.%d.size'%n),'p_foot',p.GREY,'right')+'</control>')
+ rows+=('<control type="group"><visible>%s</visible>'%has('more')+p.image(S+110,list_y+4*rh,w-110,2,M+'white.png',p.SEP)+
+  p.label(S+110,list_y+4*rh,w-200,rh,P('more'),'p_body',p.ACCENT,'left')+'</control>')
+ warn=(p.label(S+6,warn_y,40,56,'!','p_foot_b','FFFF9F0A','left','<visible>!%s</visible>'%has('ok'))+
+  p.icon(S+6,warn_y+12,30,'check.png','FF30D158','<visible>%s</visible>'%has('ok'))+
+  '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>110</height><font>p_foot</font><textcolor>%s</textcolor><label>%s</label></control>'%(S+52,warn_y,w-58,p.GREY,P('warn')))
+ body=(_header(p,P('title'),P('sub'))+stats+rows+warn+
+  _white_button(p,9730,S,btn_y,w,P('button'),'<ondown>9731</ondown>')+_text_button(p,9731,S,btn_y+150,w,'Cancel','<onup>9730</onup>'))
+ return _sheet(p,SEASON_READY,'Build Season ready sheet (board D)',9730,h,body)
 
 # Build 192 (quick wins): Kodi's toasts and volume bar as iOS banners instead of Fuse's corner pill. The controls'
 # Info (Custom_1193) is the episode card of board 08 (info_card). Kodi fills 400/401/402 (icon, heading, text) and
@@ -735,7 +831,7 @@ def info_card():
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: info card (board 08) -->\n'
          '<window type="dialog" id="1193"><zorder>3</zorder><defaultcontrol always="true">9500</defaultcontrol><controls>%s</controls></window>\n')%body
 
-HANDMADE={SEARCHING,NOTIFY,VOLUME,'DialogConfirm.xml','DialogTextViewer.xml','DialogSettings.xml','AddonBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml',BUSY}
+HANDMADE={SEARCHING,SEASON_QUALITY,SEASON_READY,NOTIFY,VOLUME,'DialogConfirm.xml','DialogTextViewer.xml','DialogSettings.xml','AddonBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml',BUSY}
 
 def files(p,read):
  out={p.FOLDER+'/DialogConfirm.xml':confirm_dialog(p,read('DialogConfirm.xml')),
@@ -750,7 +846,8 @@ def files(p,read):
       '1080i/'+TRACK_MENU:track_menu(),   # owner-approved Subtitles / Audio menus (tracks.py)
       '1080i/IOSAirPlayFlow.xml':_airplay_flow().page(close_button_1080),   # owner-approved Play on TV boards (2026-11-08)
       p.FOLDER+'/'+BUSY:busy_dialog(p.MARKER,'p_pill'),
-      p.FOLDER+'/'+SEARCHING:searching_card(),   # board 09
+      p.FOLDER+'/'+SEARCHING:searching_card(p),   # boards 09 / season A, C
+      p.FOLDER+'/'+SEASON_QUALITY:season_quality_sheet(p),p.FOLDER+'/'+SEASON_READY:season_ready_sheet(p),   # Build Season B, D
       '1080i/'+BUSY:busy_dialog('Kodi-iOS player controls: busy pill','font_main_bold'),
       p.FOLDER+'/'+NOTIFY:notification_dialog(p.MARKER,p.SIDE,150,p.WIDTH-2*p.SIDE,'p_foot_b','p_foot'),
       p.FOLDER+'/'+VOLUME:volume_dialog(p.MARKER,(p.WIDTH-640)//2,150,640,'p_foot_b'),
