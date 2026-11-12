@@ -127,6 +127,15 @@ h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
 .tabbar{position:absolute;left:12px;right:12px;bottom:10px;height:52px;border-radius:26px;background:rgba(40,40,44,.92);display:flex;justify-content:space-around;align-items:center;font-size:10px;color:var(--grey)}
 .tabbar .on{color:var(--blue-text);font-weight:700}
 .big{background:var(--s1);border-radius:14px;overflow:hidden;margin-bottom:10px}
+/* round 2: Repair and the more menu */
+.fix{flex:none;background:rgba(255,69,58,.18);color:var(--red);border-radius:13px;padding:5px 10px;font-size:12px;font-weight:700}
+.more{position:absolute;top:44px;right:72px;width:28px;height:28px;border-radius:50%;background:rgba(118,118,128,.32);color:#fff;display:grid;place-items:center;font-size:14px;font-weight:800;letter-spacing:1px}
+.menu{position:absolute;right:14px;top:86px;width:236px;background:rgba(44,44,46,.98);border-radius:13px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.7)}
+.menu div{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;font-size:14px}
+.menu div+div{border-top:1px solid var(--sep)}.menu div span{color:var(--grey);font-size:12px}
+.menu .sepbig{border-top:6px solid rgba(0,0,0,.35)!important}
+.ic.bad{background:var(--red);color:#fff}
+.btns .r{background:#fff;color:#000}
 </style>
 </head><body>
 <div class="intro"><span class="mk">MOCKUP · not a render of Kodi · round 1, for owner review</span>
@@ -159,10 +168,10 @@ h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
 </div></section>
 
 <section class="board"><div class="n">B · ONE SHOW</div><h2>Its seasons and episodes, each with its state</h2>
-<p>The show's art at the top, three numbers (episodes, size, ready), season chips, then every episode: still, number and name, quality and size, and one state line with a coloured dot. Converting shows its bar; a problem says what. Tap an episode for board C; <b>Select</b> (top right) for board D.</p>
+<p>The show's art at the top, three numbers (episodes, size, ready), season chips, then every episode: still, number and name, quality and size, and one state line with a coloured dot. Converting shows its bar; a problem says what. Tap an episode for board C; <b>Select</b> (top right) for board D. Round 2 (owner: "a way for me to repair issues and scan for full season … make it hidden like in a menu"): a red <b>Repair</b> only on an episode with a problem, and a <b>•••</b> menu with <b>Find Missing Episodes</b>.</p>
 <div class="shots">
  <div class="slot"><div class="pframe"><div class="ps">
-  <div class="hero2"><div class="bg" style="background:linear-gradient(160deg,#1f5f86,#0c1d33 60%,#000)"></div><div class="fade"></div><div class="back">‹ TV Shows</div><div class="sel">Select</div></div>
+  <div class="hero2"><div class="bg" style="background:linear-gradient(160deg,#1f5f86,#0c1d33 60%,#000)"></div><div class="fade"></div><div class="back">‹ TV Shows</div><div class="more">•••</div><div class="sel">Select</div></div>
   <div class="who2"><i class="post" style="background:linear-gradient(160deg,#ff9f0a,#7a2e0e)"></i><div><b>Naruto Shippūden</b><span>2007 · Google Drive › TV Shows</span></div></div>
   <div class="stats"><div><b>32</b><span>episodes</span></div><div><b>8.3 GB</b><span>on Drive</span></div><div><b>29</b><span>ready for TV</span></div></div>
   <div class="seasons"><div class="on">Season 1</div><div>Season 2</div><div>Specials</div></div>
@@ -171,13 +180,26 @@ h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
    <div class="er"><i class="thumb" style="background:linear-gradient(135deg,#7b9a5a,#28361e)"><i class="pb" style="width:40%"></i></i><div class="t"><b>2 · The Akatsuki Makes Its Move</b><span><i class="dot" style="background:var(--green)"></i>Ready · 945 MB · <span style="color:#d48cf7">AI 4K</span></span></div></div>
    <div class="er"><i class="thumb" style="background:linear-gradient(135deg,#5a7b9a,#1e2836)"></i><div class="t"><b>3 · The Results of Training</b><span><i class="dot" style="background:var(--orange)"></i>Converting · 42 % · 6 min</span><div class="thinx"><i style="width:42%"></i></div></div></div>
    <div class="er"><i class="thumb" style="background:linear-gradient(135deg,#9a5a7b,#361e28)"></i><div class="t"><b>4 · The Jinchuriki of the Sand</b><span><i class="dot" style="background:var(--blue)"></i>Copying to Drive · 61 %</span><div class="thinx"><i style="width:61%"></i></div></div></div>
-   <div class="er"><i class="thumb" style="background:linear-gradient(135deg,#6a6a6a,#222)"></i><div class="t"><b>9 · The Jinchuriki's Tears</b><span><i class="dot" style="background:var(--red)"></i>Not added · tap to find one</span></div></div>
+   <div class="er"><i class="thumb" style="background:linear-gradient(135deg,#6a6a6a,#222)"></i><div class="t"><b>9 · The Jinchuriki's Tears</b><span><i class="dot" style="background:var(--red)"></i>Not added</span></div><div class="fix">Repair</div></div>
   </div>
- </div></div><div class="cap"><b>B · Naruto:</b> every episode's state on one line; bars only while something is happening.</div></div>
+ </div></div><div class="cap"><b>B1 · Naruto:</b> every episode's state on one line; <b>Repair</b> appears only on an episode with a problem (episode 9 here).</div></div>
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="hero2"><div class="bg" style="background:linear-gradient(160deg,#1f5f86,#0c1d33 60%,#000)"></div><div class="fade"></div><div class="back">‹ TV Shows</div><div class="more" style="background:#fff;color:#000">•••</div><div class="sel">Select</div></div>
+  <div class="who2"><i class="post" style="background:linear-gradient(160deg,#ff9f0a,#7a2e0e)"></i><div><b>Naruto Shippūden</b><span>2007 · Google Drive › TV Shows</span></div></div>
+  <div class="stats"><div><b>32</b><span>episodes</span></div><div><b>8.3 GB</b><span>on Drive</span></div><div><b>29</b><span>ready for TV</span></div></div>
+  <div class="dimall"></div>
+  <div class="menu">
+   <div>Find Missing Episodes <span>⌕</span></div>
+   <div>Repair All Problems <span>1</span></div>
+   <div>Check Every Episode <span>✓</span></div>
+   <div class="sepbig">Mark Season Watched</div>
+   <div>Free Up Space <span>›</span></div>
+  </div>
+ </div></div><div class="cap"><b>B2 · The ••• menu:</b> out of sight until wanted. <b>Find Missing Episodes</b> looks the season up again (the Build Season check) and adds only what is not here yet; <b>Repair All Problems</b> appears only when there is one.</div></div>
 </div></section>
 
 <section class="board"><div class="n">C · ONE EPISODE</div><h2>Where the file is, what was done to it, and Delete</h2>
-<p>A sheet over the show. Its steps as a short checklist: on Google Drive, ready for Kodi and AirPlay (what conversion did and how long it took), AI Upscale copy, subtitles. Then the file facts (size, picture, sound, folder, added). Play and Play on TV; Delete in red under them. C2 is a movie that is still converting.</p>
+<p>A sheet over the show. Its steps as a short checklist: on Google Drive, ready for Kodi and AirPlay (what conversion did and how long it took), AI Upscale copy, subtitles. Then the file facts (size, picture, sound, folder, added). Play and Play on TV; Delete in red under them. C2 is a movie that is still converting; C3 an episode with a problem, where Repair is the main action.</p>
 <div class="shots">
  <div class="slot"><div class="pframe"><div class="ps" style="background:#000">
   <div class="hero2" style="opacity:.35"><div class="bg" style="background:linear-gradient(160deg,#1f5f86,#0c1d33 60%,#000)"></div></div><div class="dimall"></div>
@@ -209,6 +231,19 @@ h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
    <div class="del">Delete Movie…</div>
   </div>
  </div></div><div class="cap"><b>C2 · A movie still converting:</b> the step that is running has the bar; Play still works (the original plays).</div></div>
+ <div class="slot"><div class="pframe"><div class="ps" style="background:#000">
+  <div class="dimall"></div>
+  <div class="dsheet"><div class="grab"></div>
+   <div class="dhead"><i class="thumb" style="background:linear-gradient(135deg,#6a6a6a,#222)"></i><div><b>9 · The Jinchuriki's Tears</b><span>Naruto Shippūden · Season 1 · 23 min</span></div></div>
+   <div class="steps">
+    <div class="st"><i class="ic bad">!</i><div><b>Not added</b><span>Its version page came back without the episode while three were looked up at once (12 Nov).</span></div></div>
+    <div class="st"><i class="ic no"></i><div><b>Ready for Kodi and AirPlay</b><span>After it is added</span></div></div>
+   </div>
+   <div class="foot" style="margin:0 2px 12px">Repair looks this episode up again in 1080p, takes the best version with seeds and adds it to your downloads. Nothing else changes.</div>
+   <div class="btns"><div class="r">Repair</div><div class="g">Choose a Version</div></div>
+   <div class="del">Remove from Library…</div>
+  </div>
+ </div></div><div class="cap"><b>C3 · An episode with a problem:</b> what went wrong in one line, then <b>Repair</b> as the main action (Choose a Version to pick by hand).</div></div>
 </div></section>
 
 <section class="board"><div class="n">D · SELECT AND DELETE</div><h2>Pick several, see the space you get back, confirm</h2>
