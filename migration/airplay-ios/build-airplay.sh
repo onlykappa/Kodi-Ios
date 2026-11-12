@@ -65,6 +65,8 @@
 # and kodi_airplay_upscale_model() say what this phone can do and fetch the model; kodi_device_state() gives battery,
 # charging, thermal state and Low Power Mode for the measurement build and "only while charging". Built with the
 # iOS 26 SDK (Xcode 26); the classes are weak-linked, so older iOS reports "not available" and runs as before.
+# r51: the background silent audio is tried again every 10 s while work waits after iOS interrupted it (iOS often never
+# says the interruption ended; build-317 log: 62 min of throttled copies).
 # Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh, REMUX_LIBASS=DIR
 # one of build-libass.sh ios)
 set -euo pipefail
@@ -1112,6 +1114,14 @@ __attribute__((visibility("default"))) void kodi_airplay_close(void) {
 static AVAudioPlayer *keepPlayer;
 static BOOL keepWanted, keepInBackground, keepSaved;
 static BOOL keepInterrupted=NO;
+// r51 (owner log ed63fe73, build 317: "audio interrupted by iOS" at 13:18, back only when Kodi was opened 62 min later;
+// meanwhile iOS throttled the app and a Drive copy crawled at 1 MB pieces): iOS often never sends "interruption ended",
+// and keepUpdate refused every restart while interrupted. Now, while work waits in the background, the mixable silence
+// is tried again KEEP_RETRY_S after the interruption and every KEEP_RETRY_S after that (another app's sound may go on:
+// MixWithOthers plays beside it); a try that iOS refuses leaves it interrupted until the next one.
+static NSTimeInterval keepInterruptedAt=0, keepRetriedAt=0;
+#define KEEP_RETRY_S 10.0
+#define KEEP_FIRST_RETRY_S 15.0
 static atomic_int keepState=0;
 static AVAudioSessionCategory keepCategory;
 static AVAudioSessionMode keepMode;
@@ -1137,7 +1147,14 @@ static void keepUpdate(void) {
         // helper must never replace it with a mixable/default session or restore a previous category over it.
         [keepPlayer stop];keepSaved=NO;atomic_store(&keepState,3);return;
     }
-    if(keepInterrupted){atomic_store(&keepState,-2);return;}
+    BOOL retrying=NO;
+    if(keepInterrupted){
+        NSTimeInterval now=NSProcessInfo.processInfo.systemUptime;
+        if(!(keepWanted && keepInBackground) || now-keepInterruptedAt<KEEP_FIRST_RETRY_S || now-keepRetriedAt<KEEP_RETRY_S){
+            atomic_store(&keepState,-2);return;
+        }
+        keepRetriedAt=now;keepInterrupted=NO;retrying=YES;[keepPlayer stop];
+    }
     const BOOL run = keepWanted && keepInBackground;
     if(!keepInBackground)atomic_store(&keepState,keepWanted?1:0);
     if (run && !keepPlayer.playing) {
@@ -1153,6 +1170,7 @@ static void keepUpdate(void) {
             keepPlayer.numberOfLoops = -1;
         }
         BOOL playing = [keepPlayer prepareToPlay] && [keepPlayer play];
+        if(retrying && !playing){keepInterrupted=YES;atomic_store(&keepState,-2);return;}   // r51: try again later
         atomic_store(&keepState,playing?2:-1);
         NSLog(@"KodiAirPlay: staying awake in the background for a download or upload: %@", playing ? @"yes" : error);
     } else if (!run && (keepPlayer.playing || keepSaved)) {
@@ -1180,7 +1198,8 @@ __attribute__((visibility("default"))) void kodi_background_keep(int on) {
             [center addObserverForName:AVAudioSessionInterruptionNotification object:nil queue:NSOperationQueue.mainQueue
                             usingBlock:^(NSNotification *note) {
                 if ([note.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue] == AVAudioSessionInterruptionTypeBegan) {
-                    keepInterrupted=YES;[keepPlayer stop];atomic_store(&keepState,-2);
+                    keepInterrupted=YES;keepInterruptedAt=NSProcessInfo.processInfo.systemUptime;keepRetriedAt=0;
+                    [keepPlayer stop];atomic_store(&keepState,-2);
                 } else if ([note.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue] == AVAudioSessionInterruptionTypeEnded) {
                     keepInterrupted=NO;
                     [keepPlayer stop];

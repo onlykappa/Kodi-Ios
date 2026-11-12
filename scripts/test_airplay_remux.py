@@ -172,6 +172,17 @@ class AirPlayLog(unittest.TestCase):
   ci=(ROOT/'.github/workflows/airplay-remux.yml').read_text()
   self.assertIn('tests/upscale_host.py',ci)
 
+class BackgroundRetry(unittest.TestCase):
+ def test_r51_silence_is_tried_again_after_an_interruption(self):
+  # Owner log ed63fe73 (build 317): iOS interrupted the silent audio and never said it ended; the framework refused
+  # every restart for 62 minutes while the add-on asked every second, and copies crawled.
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  keep=build.split('static void keepUpdate(void) {',1)[1].split('__attribute__((visibility("default"))) void kodi_background_keep',1)[0]
+  for needle in ('KEEP_FIRST_RETRY_S','KEEP_RETRY_S','keepRetriedAt=now;keepInterrupted=NO;retrying=YES','if(retrying && !playing){keepInterrupted=YES'):
+   self.assertIn(needle,keep)
+  self.assertNotIn('if(keepInterrupted){atomic_store(&keepState,-2);return;}',keep)
+  self.assertIn('keepInterruptedAt=NSProcessInfo.processInfo.systemUptime',build)
+
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()

@@ -2966,3 +2966,22 @@ and still halve after a lost answer. Retest: test_debrid_drive (four lanes; nati
 with 8, then 4 MB pieces). Phone proof: four threads and 8 MB first pieces in the next log.
 Also in the log: one "Drive source changed; preparation will rescan" for episode 2 at start (the file was still
 arriving); the rescan then kept every episode unchanged (compatible). No action.
+
+## ISSUE-185 — Downloads "frozen" in the background: iOS took the silent audio and it never came back (owner log ed63fe73, build 317)
+
+What the log shows: copies ran well (8-16 MB pieces, three at a time) until 13:18:14 "audio interrupted by iOS; work
+will resume when allowed". The silent audio that keeps Kodi working in the background came back only at 14:19:59
+("running again after 3705 s", when the owner opened Kodi). In between, iOS throttled the app: from about 13:42 copy
+pieces timed out at ~20 s, each timeout halved the piece size down to 1 MB, and the copy crawled from 0.1 % to 3.1 % in
+32 minutes. No slowdown reason was set (nothing was playing), so playback throttling was not the cause.
+
+Root cause: KodiAirPlay's keepUpdate() returned at once while `keepInterrupted` was set, so the add-on's restart
+request every second (background.watch) was ignored. Only iOS's "interruption ended" (often never sent), or Kodi
+leaving/returning to the screen, cleared it.
+
+Fix (KodiAirPlay r51, staged): while work waits in the background, the mixable silent audio is tried again 15 s after
+the interruption and every 10 s after that; a refused try stays interrupted until the next. Retest: test_airplay_remux
+BackgroundRetry (fails on r50's code). Phone check on the next IPA: lock the phone with a season copying, play music
+in another app, stop it; the log should show "silent audio running again after N s" within ~10-30 s, not an hour.
+Also seen (not fixed yet): episode 006's preparation restarted from the beginning at 13:38 after 20 min of work while
+throttled; and piece sizes recover slowly after timeouts. Both to recheck once the audio no longer drops.
