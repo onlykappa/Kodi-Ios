@@ -29,8 +29,8 @@ def model(profile):
     import debrid_drive
     import upscale_queue
     state_dir = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap')
-    shows, _ = cached(state_dir, 'tv:')
-    movies, _ = cached(state_dir, 'movie:')
+    shows, tv_drive = cached(state_dir, 'tv:')
+    movies, movie_drive = cached(state_dir, 'movie:')
     episodes = {s['id']: cached(state_dir, 'tv:%s' % s['id'])[0] for s in shows}
     prep, debrid, ups = prepare_downloads.load(profile), debrid_drive.load(profile), upscale_queue.load(profile)
     art = drivelibrary.load_json(os.path.join(state_dir, 'drive-library-art.json'), {})
@@ -44,7 +44,10 @@ def model(profile):
     fanart = {s['id']: (drivelibrary.artwork('tv', s.get('title') or '', s.get('year'), None, art, None, cached_only=True) or {}).get('fanart', '')
               for s in shows}
     return {'shows': show_rows, 'movies': movie_rows, 'storage': lf.storage(show_rows, movie_rows, ups),
-            'episodes': episodes, 'prep': prep, 'debrid': debrid, 'upscale': ups, 'fanart': fanart}
+            'episodes': episodes, 'prep': prep, 'debrid': debrid, 'upscale': ups, 'fanart': fanart,
+            'driveid': tv_drive or movie_drive,
+            'tmdb': {s['id']: (drivelibrary.artwork('tv', s.get('title') or '', s.get('year'), None, art, None, cached_only=True) or {}).get('tmdb_id', '')
+                     for s in shows}}
 
 
 def fill(data, tab='tv', sort='recent', search='', slots=30):
@@ -122,6 +125,62 @@ def fill_show(data, show, season=None, slots=60, seasons_max=8):
     return props, shown, seasons
 
 
+def fill_item(row, show=None, kind='episode'):
+    """Board C: {property: value} for one episode (row from fill_show) or movie (row from movie_rows), and its actions:
+    ('play'|'repair'|'retry', 'tv'|'choose'|'', 'delete')."""
+    s = row['state']
+    probe = row.get('probe') or {}
+    title = ('%d \u00b7 %s' % (row['episode'], row.get('name') or 'Episode %d' % row['episode'])) if kind == 'episode' else row.get('title') or ''
+    sub = (' \u00b7 '.join(x for x in ((show or {}).get('title'), 'Season %d' % row['season'] if row.get('season') else '') if x)
+           if kind == 'episode' else ' \u00b7 '.join(x for x in ('Movie', str(row.get('year') or '')) if x))
+    props = {'title': title, 'sub': sub}
+    steps = []
+    if s == lf.COPYING:
+        steps.append(('run', 'Copying to Google Drive', 'From AllDebrid' + (' \u00b7 %d %%' % row['progress'] if row.get('progress') is not None else '')))
+    elif s == lf.PROBLEM and not row.get('id'):
+        steps.append(('bad', 'Not added', 'Its lookup came back without a version that could be added.'))
+    else:
+        steps.append(('ok', 'On Google Drive', ' \u00b7 '.join(x for x in (lf.size_text(row.get('size') or 0), row.get('quality') or '') if x)))
+    if s == lf.PROBLEM and row.get('id'):
+        steps.append(('bad', 'Not ready for Kodi and AirPlay', (row.get('problem') or 'Preparation stopped')[:90]))
+    elif s == lf.CONVERTING:
+        steps.append(('run', 'Converting for TV', 'Made ready for Kodi and AirPlay in the background'))
+    elif s in (lf.READY, lf.UNKNOWN):
+        steps.append(('ok', 'Ready for Kodi and AirPlay', 'Plays at once, seeks without waiting'))
+    else:
+        steps.append(('off', 'Ready for Kodi and AirPlay', 'After it is on Google Drive'))
+    if row.get('ai'):
+        steps.append(('ok', 'AI Upscale \u00b7 %s' % (row.get('ai_label') or '4K UHD'),
+                      ' \u00b7 '.join(x for x in (lf.size_text(row.get('ai_size') or 0), 'the TV gets this copy') if x)))
+    else:
+        steps.append(('off', 'AI Upscale', 'Off \u00b7 Settings \u203a AI Upscale'))
+    tracks = probe.get('subtitle_tracks')
+    steps.append(('ok' if tracks else 'off', 'Subtitles', '%d in the file' % tracks if tracks else 'None in the file \u00b7 search while it plays'))
+    for n in range(4):
+        st = steps[n] if n < len(steps) else ('', '', '')
+        props['step.%d.state' % n], props['step.%d.title' % n], props['step.%d.detail' % n] = st
+        props['step.%d.pct' % n] = str(row['progress']) if st[0] == 'run' and row.get('progress') is not None else ''
+    picture = ' \u00b7 '.join(x for x in ('%s\u00d7%s' % (probe['width'], probe['height']) if probe.get('width') else '',
+                                          str(probe.get('codec') or '').upper()) if x)
+    facts = [('Picture', picture or '\u2014'), ('Sound', '%s track%s' % (probe['audio_tracks'], '' if probe['audio_tracks'] == 1 else 's')
+              if probe.get('audio_tracks') else '\u2014'),
+             ('Size', lf.size_text(row.get('size') or 0) or '\u2014'), ('File', (row.get('file') or '\u2014')[:60])]
+    for n, (k, v) in enumerate(facts):
+        props['fact.%d.k' % n], props['fact.%d.v' % n] = k, v
+    if s == lf.PROBLEM:
+        primary = 'repair' if not row.get('id') else 'retry'
+        props.update(primary='Repair', secondary='Choose a Version' if not row.get('id') else '',
+                     delete='Remove from Library\u2026' if not row.get('id') else 'Delete %s\u2026' % ('Episode' if kind == 'episode' else 'Movie'))
+        actions = (primary, 'choose' if not row.get('id') else '', 'delete' if row.get('id') else '')
+    elif s == lf.COPYING:
+        props.update(primary='Close', secondary='', delete='')
+        actions = ('close', '', '')
+    else:
+        props.update(primary='Play', secondary='Play on TV', delete='Delete %s\u2026' % ('Episode' if kind == 'episode' else 'Movie'))
+        actions = ('play', 'tv', 'delete')
+    return props, actions
+
+
 def run():
     import xbmc
     import xbmcgui
@@ -167,15 +226,86 @@ def run():
                     show.data, show.show = self.data, row
                     show.doModal()
                     del show
-                else:
-                    # Board C (one movie, L4) is the next step; until then the existing Library listing opens.
-                    xbmc.executebuiltin('ActivateWindow(Videos,plugin://plugin.video.kodi.ios.watch/?action=library&type=movie,return)')
+                elif open_item(self.data, row, None, 'movie'):
+                    self.close()
                 return
             else:
                 return
             self.draw()
 
     import library_show_page as show_page
+    import library_item_page as item_page
+    import urllib.parse
+
+    def act(action, row, data, show=None, kind='episode'):
+        """Board C's actions. Returns True when the pages should close (playback started)."""
+        import drivelibrary
+        if action == 'play' or action == 'tv':
+            url = drivelibrary.play_url(data.get('driveid'), row['id'])
+            xbmc.executebuiltin('Dialog.Close(all,true)')
+            player = xbmc.Player()
+            player.play(url)
+            if action == 'tv':
+                monitor = xbmc.Monitor()
+                for _ in range(60):   # Play on TV works on the video that is playing
+                    if player.isPlayingVideo() or monitor.waitForAbort(0.5):
+                        break
+                xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,cast)')
+            return True
+        if action == 'retry':
+            import prepare_downloads
+            prepare_downloads.request(profile, 'retry', row.get('job_id') or row['id'])
+            xbmcgui.Dialog().notification('Repair', 'Preparing it again', xbmcgui.NOTIFICATION_INFO, 3000)
+            return False
+        if action in ('repair', 'choose'):
+            tmdb = (data.get('tmdb') or {}).get((show or {}).get('id'), '')
+            if not tmdb:
+                xbmcgui.Dialog().ok('Repair', 'This show has no TMDb match yet, so its episodes cannot be looked up again.')
+                return False
+            # Until L5's automatic Repair (Build Season's lookup, no question), both open the episode's download step,
+            # which searches it again and lets the owner pick the version.
+            args = ['kind=episode', 'tmdb=%s' % tmdb, 'tvshow.tmdb_id=%s' % tmdb, 'season=%d' % row['season'],
+                    'episode=%d' % row['episode'], 'title=%s' % (show or {}).get('title', '')]
+            xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,download,%s)' % ','.join(a.replace(',', ' ') for a in args))
+            return False
+        if action == 'delete':
+            query = urllib.parse.urlencode({'action': 'library_remove', 'kind': 'movie' if kind == 'movie' else 'tv',
+                                            'name': row.get('title') if kind == 'movie' else '%s S%02dE%02d' % ((show or {}).get('title', ''), row['season'], row['episode']),
+                                            'drive': row['id']})
+            xbmc.executebuiltin('RunPlugin(plugin://plugin.video.kodi.ios.watch/?%s)' % query, True)
+            return False
+        return action == 'close'
+
+    class Item(xbmcgui.WindowXMLDialog):
+        """Board C: one episode or movie."""
+        def onInit(self):
+            props, self.actions = fill_item(self.row, self.show, self.kind)
+            for key, value in props.items():
+                self.setProperty(key, str(value))
+            for n in range(item_page.STEPS):
+                if props.get('step.%d.pct' % n):
+                    try:
+                        self.getControl(item_page.STEP_BAR + n).setPercent(float(props['step.%d.pct' % n]))
+                    except Exception:
+                        pass
+
+        def onClick(self, control):
+            index = {item_page.PRIMARY: 0, item_page.SECONDARY: 1, item_page.DELETE: 2}.get(control)
+            if control == item_page.CLOSE:
+                self.close()
+                return
+            if index is None or not self.actions[index]:
+                return
+            self.close()
+            self.playing = act(self.actions[index], self.row, self.data, self.show, self.kind)
+
+    def open_item(data, row, show=None, kind='episode'):
+        sheet = Item(item_page.WINDOW, HERE, 'Default', '1080i')
+        sheet.data, sheet.row, sheet.show, sheet.kind, sheet.playing = data, row, show, kind, False
+        sheet.doModal()
+        playing = sheet.playing
+        del sheet
+        return playing
 
     class Show(xbmcgui.WindowXML):
         """Board B: one show. Season chips switch the episodes; Repair and ••• come with L5, the episode sheet with L4."""
@@ -198,6 +328,12 @@ def run():
             if show_page.SEASON <= control < show_page.SEASON + show_page.SEASONS and control - show_page.SEASON < len(self.seasons):
                 self.season = self.seasons[control - show_page.SEASON]
                 self.draw()
+            elif show_page.EP <= control < show_page.EP + show_page.SLOTS and control - show_page.EP < len(self.episodes):
+                if open_item(self.data, self.episodes[control - show_page.EP], self.show):
+                    self.close()
+            elif show_page.REPAIR <= control < show_page.REPAIR + show_page.SLOTS and control - show_page.REPAIR < len(self.episodes):
+                row = self.episodes[control - show_page.REPAIR]
+                act('repair' if not row.get('id') else 'retry', row, self.data, self.show)
 
     window = Files(page.WINDOW, HERE, 'Default', '1080i')
     window.doModal()

@@ -169,5 +169,35 @@ class ShowPage(Page):
         self.assertEqual(([r['season'] for r in shown], props['season.on']), ([2], '1'))
 
 
+class ItemSheet(Page):
+    """library_manager.fill_item: board C for an episode or a movie, in each state."""
+    def rows(self):
+        data = dict(self.data, episodes={'f-naruto': [ep(1), ep(2), ep(3), ep(4)]}, prep=PREP, debrid=DEBRID, upscale=UPSCALE)
+        _, shown, _ = self.lm.fill_show(data, data['shows'][0], slots=10)
+        return {r['episode']: r for r in shown}
+
+    def test_ready_with_ai_copy(self):
+        props, actions = self.lm.fill_item(self.rows()[2], {'title': 'Naruto Shippuden'})
+        self.assertEqual((props['title'], props['sub']), ('2 \u00b7 Naruto Shippuden', 'Naruto Shippuden \u00b7 Season 1'))
+        self.assertEqual([props['step.%d.state' % n] for n in range(4)], ['ok', 'ok', 'ok', 'off'])
+        self.assertEqual(props['step.2.title'], 'AI Upscale \u00b7 4K UHD')
+        self.assertEqual((props['primary'], props['secondary'], props['delete']), ('Play', 'Play on TV', 'Delete Episode\u2026'))
+        self.assertEqual(actions, ('play', 'tv', 'delete'))
+
+    def test_problem_and_not_added_lead_with_repair(self):
+        props, actions = self.lm.fill_item(self.rows()[4], {'title': 'Naruto'})
+        self.assertEqual((props['step.1.state'], props['primary'], actions[0]), ('bad', 'Repair', 'retry'))
+        self.assertIn('HTTP 503', props['step.1.detail'])
+        props, actions = self.lm.fill_item(self.rows()[9], {'title': 'Naruto'})
+        self.assertEqual((props['step.0.title'], props['secondary'], actions), ('Not added', 'Choose a Version', ('repair', 'choose', '')))
+
+    def test_copying_and_movie(self):
+        props, actions = self.lm.fill_item(self.rows()[5], {'title': 'Naruto'})
+        self.assertEqual((props['step.0.state'], props['step.0.pct'], actions), ('run', '61', ('close', '', '')))
+        movie = self.data['movies'][0]
+        props, actions = self.lm.fill_item(movie, None, 'movie')
+        self.assertEqual((props['title'], props['sub'], props['delete']), ('Fall', 'Movie \u00b7 2022', 'Delete Movie\u2026'))
+
+
 if __name__ == '__main__':
     unittest.main()

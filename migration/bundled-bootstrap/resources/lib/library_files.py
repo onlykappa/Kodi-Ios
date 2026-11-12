@@ -43,7 +43,9 @@ def file_state(item, prep, copies, watched=()):
     item_id = str(item.get('id') or '')
     job = prep.get(item_id)
     out = {'state': UNKNOWN, 'progress': None, 'ai': False, 'ai_label': '', 'problem': '',
-           'watched': item_id in watched or str(item.get('name') or '') in watched}
+           'watched': item_id in watched or str(item.get('name') or '') in watched,
+           'job_id': str(((job or {}).get('source') or {}).get('id') or ''), 'probe': dict((job or {}).get('probe') or {}),
+           'ai_size': 0}
     if job:
         status = job.get('status')
         if job.get('blocked'):
@@ -60,7 +62,7 @@ def file_state(item, prep, copies, watched=()):
         out['state'] = READY
     copy = copies.get(item_id)
     if copy and copy.get('status') == 'ready':
-        out.update(ai=True, ai_label=copy.get('label', ''))
+        out.update(ai=True, ai_label=copy.get('label', ''), ai_size=int(copy.get('size') or 0))
     return out
 
 
@@ -146,7 +148,7 @@ def episode_rows(show, files, prep_state, debrid_state=None, upscale_state=None,
         state = file_state(f, prep, copies, watched)
         season, number = int(f.get('season') or 0), int(f.get('episode') or 0)
         have.add((season, number))
-        rows.append(dict(state, id=f.get('id'), season=season, episode=number, size=int(f.get('size') or 0),
+        rows.append(dict(state, id=f.get('id'), file=f.get('name') or '', quality=f.get('quality') or '', season=season, episode=number, size=int(f.get('size') or 0),
                          name=names.get((season, number)) or f.get('title') or f.get('name'),
                          line=state_line(state, f), repair=state['state'] == PROBLEM))
     key = str(show.get('title') or '').casefold()
@@ -155,7 +157,7 @@ def episode_rows(show, files, prep_state, debrid_state=None, upscale_state=None,
             continue
         problem = (title, season, number) in failed
         state = {'state': PROBLEM if problem else COPYING, 'progress': pct, 'ai': False, 'ai_label': '',
-                 'problem': 'Not added' if problem else '', 'watched': False}
+                 'problem': 'Not added' if problem else '', 'watched': False, 'job_id': '', 'probe': {}, 'ai_size': 0}
         rows.append(dict(state, id=None, season=season, episode=number, size=0, name=names.get((season, number)) or '',
                          line='Not added' if problem else ('Copying to Drive · %d %%' % pct if pct is not None else 'Copying to Drive'),
                          repair=problem))
