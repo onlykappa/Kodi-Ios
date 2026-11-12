@@ -168,7 +168,10 @@ def run():
     jobs=(model or {}).get('jobs') or []
     self.downloads=[transfer_card(j) for j in jobs if j['kind']=='down']
     ups=[transfer_card(j) for j in jobs if j['kind'] in ('copy','upload')]
-    conv=work_state.job(model,'conv')
+    # Owner (2026-11-12): the bell showed 1 running with its ring while this page said RUNNING NOW over nothing: the job
+    # was Google Drive's library check ('check'), which the bell counts and this page had no card for. It shows in
+    # the preparing card's place.
+    conv=work_state.job(model,'conv') or work_state.job(model,'check')
     current=transfer_card(conv,prepare_downloads.running_id(prepare_downloads.load(profile))) if conv else {}
     self.ups,self.current=ups,current
     self.setProperty('live','true' if jobs else '')
@@ -222,7 +225,7 @@ def run():
    if kind=='down':item=self.downloads[n] if n<len(self.downloads) else None
    elif kind=='up':item=self.ups[0] if getattr(self,'ups',None) else None
    else:item=getattr(self,'current',None) or None
-   if not item:return False
+   if not item or item.get('kind')=='check':return False   # the Drive library check has nothing to pause or cancel
    queued=len(transfer_control.unfinished_copies(profile)) if kind=='up' else 0
    rows=transfer_control.menu(kind,item,transfer_control.paused(profile,'up'),transfer_control.paused(profile,'conv'),queued)
    pick=xbmcgui.Dialog().contextmenu([label for label,_ in rows])

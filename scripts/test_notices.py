@@ -158,4 +158,15 @@ class OverlapTests(unittest.TestCase):
   self.assertEqual(notices.drivelibrary.display_title('INCEPTION.2010.PROPER.1080p.BluRay.x264'),'Inception (2010)')
   self.assertEqual(notices.drivelibrary.display_title('Movies and shows'),'Movies and shows')
 
+class BellMatchesPage(unittest.TestCase):
+ def test_every_job_the_bell_counts_has_a_card(self):
+  # Owner (2026-11-12): the bell said 1 running while Notifications showed RUNNING NOW over nothing (Drive's check).
+  src=(BOOT/'notifications.py').read_text()
+  self.assertIn("work_state.job(model,'conv') or work_state.job(model,'check')",src)
+  self.assertIn("item.get('kind')=='check':return False",src)
+  import re,work_state
+  kinds=set(re.findall(r"'kind': *'([a-z]+)'",(BOOT/'resources/lib/work_state.py').read_text()))
+  shown={'down','copy','upload','conv','repack','check'}
+  self.assertTrue(kinds<=shown,kinds-shown)
+
 if __name__=='__main__':unittest.main()
