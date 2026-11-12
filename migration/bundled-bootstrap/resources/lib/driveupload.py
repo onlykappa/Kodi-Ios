@@ -2,7 +2,7 @@
 Drive › Kodi Downloads › Movies / TV Shows, resuming interrupted uploads, then removes the phone copy once Drive
 reports the same size and checksum. Uses the Google Drive add-on's sign-in, which needs the drive.file permission (the sign-in
 server deployed by .github/workflows/signin-server.yml); drive.file only reaches files this app created."""
-import contextlib,fcntl,hashlib,json,os,re,time,urllib.error,urllib.parse,urllib.request
+import contextlib,fcntl,hashlib,json,os,re,threading,time,urllib.error,urllib.parse,urllib.request
 API='https://www.googleapis.com/drive/v3/files'
 UPLOAD='https://www.googleapis.com/upload/drive/v3/files'
 FOLDER='application/vnd.google-apps.folder'
@@ -492,6 +492,7 @@ class RefreshBusy(RuntimeError):
 REFUSED={}          # refresh token -> when Google refused it: not sent again until the account has a new one
 HOLD={'until':0.0}  # no refresh before this time (after a 429 / 5xx)
 HOLD_S=120
+TOKEN_LOCK=threading.RLock()
 def refresh_error(status):
  """The error for a refresh that did not answer 200 (owner, build 192: a refused sign-in was asked again every 5 s
  by two threads until the sign-in server answered 429)."""
@@ -502,11 +503,16 @@ def token_source(accounts,save_account,refresh,now=time.time):
  """Access token from the Google Drive add-on's first signed-in account, refreshed through the sign-in server.
  A refused refresh token is never sent again (signing in again saves a new one); after a busy answer every thread
  waits HOLD_S before the next refresh."""
- def token():
+ def token(force=False):
+  # A 401 can reject a token before its recorded expiry. A rejected-token string avoids a second refresh when
+  # another reader has already replaced it; existing callers still use token() and the expiry check.
+  with TOKEN_LOCK:return access(force)
+ def access(force):
   account=next(iter(accounts().values()),None)
   if not account:raise RuntimeError('Sign in to Google Drive in Kodi first')
   tokens=account['access_tokens']
-  if now()>tokens.get('date',0)+tokens.get('expires_in',0)-600:
+  rejected=force is True or (isinstance(force,str) and force==tokens.get('access_token'))
+  if rejected or now()>tokens.get('date',0)+tokens.get('expires_in',0)-600:
    old=tokens.get('refresh_token','')
    if old in REFUSED:raise refresh_error(400)
    if now()<HOLD['until']:raise RefreshBusy('Drive sign-in refresh: waiting %d s after the sign-in server was busy'%(HOLD['until']-now()))

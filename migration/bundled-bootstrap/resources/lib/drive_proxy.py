@@ -60,7 +60,8 @@ class Upstream(object):
         """The open upstream response for file_id (status 200/206/...), retrying once on a stale connection or 401."""
         force = False
         for attempt in range(3):
-            headers = {'Authorization': 'Bearer ' + self.token(force)}
+            access = self.token(force)
+            headers = {'Authorization': 'Bearer ' + access}
             if rng:
                 headers['Range'] = rng
             conn = self._conn(fresh=attempt > 0)
@@ -73,7 +74,7 @@ class Upstream(object):
                 continue
             if resp.status == 401 and not force:
                 resp.read()
-                force = True
+                force = access
                 continue
             return resp
         return resp

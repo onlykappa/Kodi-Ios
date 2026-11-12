@@ -1,8 +1,9 @@
 """Roadmap 1A.1: the app's own Drive streaming proxy (replaces the Google Drive add-on's for Library playback)."""
-import io,sys,unittest,urllib.request
+import io,sys,time,unittest,urllib.request
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib'))
 import drive_proxy as dp
+import driveupload as du
 
 DATA=bytes(range(256))*4096   # 1 MiB
 
@@ -48,6 +49,18 @@ class Proxy(unittest.TestCase):
         FakeConn.expired={'old'}
         with self.fetch('/drive/F1/Movie.mp4',{'Range':'bytes=0-9'}) as r:self.assertEqual(r.read(),DATA[:10])
         self.assertEqual(self.tokens,['old','new'])
+    def test_actual_drive_token_source_refreshes_a_rejected_unexpired_token(self):
+        account={'access_tokens':{'access_token':'old','refresh_token':'synthetic','date':time.time(),'expires_in':3600}}
+        refreshes=[]
+        def refresh(token):
+            refreshes.append(token)
+            return {'access_token':'new','expires_in':3600}
+        drive=du.Drive(du.token_source(lambda:{'a':account},lambda acc:None,refresh),None)
+        self.server.RequestHandlerClass.upstream.token=drive.token
+        FakeConn.expired={'old'}
+        with self.fetch('/drive/F1/Movie.mp4',{'Range':'bytes=0-9'}) as r:self.assertEqual(r.read(),DATA[:10])
+        self.assertEqual(refreshes,['synthetic'])
+        self.assertEqual([h['Authorization'] for _,h in FakeConn.log],['Bearer old','Bearer new'])
     def test_unknown_paths_and_files(self):
         for path in ('/other/x','/drive/missing/x.mp4'):
             with self.assertRaises(urllib.error.HTTPError) as e:self.fetch(path)

@@ -145,3 +145,9 @@ Never claim a phone result without the owner's log or screenshot.
 - Fuse windows board 12 (search results): results panel 5200 is now a list of 210-unit rows (poster, title, year and kind), with "No results for “x”" and a hint; bold matching letters not done (ISSUE-160). Rig-checked (real multi-search rows).
 - Fuse windows board 05 (buffering, part 2): the OSD's "Buffering NN%" gets a thin bar (Player.CacheLevel) under it; Custom_1156 stays disabled (it froze Kodi, build 210). Not rig-checked (needs playing video).
 - Fuse windows boards 07, 08, 11: not built, see the final report (07 and 11 already drawn by portrait with different content than the mockup assumes; 08 needs the Info button rewired).
+
+## PR #19 review repairs — 2026-11-12
+
+Owner asks for fixes committed separately. Source commits use [skip ci] to preserve the current no-IPA scope.
+- ISSUE-171: rejected Drive tokens now really refresh, once across concurrent readers, without bypassing backoff.
+  Host: test_drive_proxy 6 / test_drive_signin 7 pass. iPhone acceptance pending.

@@ -2636,3 +2636,14 @@ Status: FIXED IN SOURCE (#19); device untested.
   own name ('name') in its art cache; an all-lower-case file name is capitalised until then. Existing cards heal when
   drawn (ios_continue.heal: missing art or lower-case name -> saved TMDb name and art, no network).
 - Regression: test_library_pages (heal, nice_title, Phony name).
+
+
+## ISSUE-171 — Drive streaming retries rejected credentials without refreshing (PR #19 review, 2026-11-12)
+
+Status: FIXED IN SOURCE; host tested, device acceptance pending.
+- Root cause: drive_proxy asked token(force) after HTTP 401, but service.py discarded force and token_source only
+  refreshed near expiry. A rejected, unexpired token was therefore sent twice, with no refresh.
+- Fix: wire the real Drive token provider into the proxy; accept the rejected token as a refresh hint. Serialize
+  refreshes and reuse a token another reader already renewed. Refused-refresh and busy-server backoff still apply.
+- Verification: test_drive_proxy (6 cases, actual token_source through local HTTP) and test_drive_signin (7 cases,
+  concurrent rejection, existing expiry, busy/refused recovery). Synthetic accounts only; no live provider claim.

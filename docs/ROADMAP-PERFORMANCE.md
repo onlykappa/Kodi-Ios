@@ -244,3 +244,9 @@ Evidence: ISSUE-163/165/166.
 - No merge, release or IPA without the owner's request in the conversation.
 - UI work follows docs/design/APPLE-UI-POLICY.md and is checked in the rig before it is called done.
 - #17/#18 and items 2.3-2.6 belong to the owner's agent; coordinate before changing the Kodi pin.
+
+## PR #19 review repairs (2026-11-12)
+
+- 1A.1 reliability: ISSUE-171 rejected-token renewal repaired and host tested; device check pending.
+- This checkpoint authorizes source fixes and separate commits, not native releases or an IPA. r31/r47 delivery
+  remains a separate verified-build step; do not change pins to unbuilt artifacts.
