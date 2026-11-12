@@ -20,8 +20,16 @@
   upscale path, kr_prepare kodi_airplay_prepare_upscale / upscale_support / upscale_model, kodi_device_state.
   Add-on: Settings › Google Drive › "AI Upscale test" (upscale_test.py) → upscale_measure.py runs in the preparation
   thread, counts the copy (nothing uploaded), logs 'upscale measurement:' lines and a RESULT JSON line to kodi.log.
+- Saturation: Kodi 21.3 has Brightness/Contrast/Gamma only (VideoSettings.h); saturation exists only in the Windows
+  DXVA path. So it needs the small GLES shader change in kodi-21.3-portrait.patch (Kodi r32), after the measurement.
+- Also coded, not wired yet: upscale_queue.py (which videos, charger/battery/heat/Low Power, Drive room, one at a
+  time, kill/resume, back-off, playback choice incl. a copy deleted on Drive, board E states), 16 tests.
 - Host-tested: remux/tests/upscale_host.py 23/23, test_picture 13, test_upscale_measure 10, import-review list 79/79.
-- Next: pin r48, IPA, give it to the owner and ask for the kodi.log of one 1080p episode → 4K test (whole video, and
+- IPA for the owner: **build-300** (import-review run 43264784072 on f9dd97f; AirPlay r48 + Kodi r30;
+  Kodi-iOS-Customized-Touch-r10.ipa sha256 2811c0aa…a00). Owner asked for this measurement IPA (2026-11-12).
+- Rig (desktop Kodi rig, build-294 add-ons): Settings › Google Drive row, empty state, video picker and choice sheet
+  rendered; picker rows fixed for truncation. No Picture menu yet to render.
+- Next: give it to the owner and ask for the kodi.log of one 1080p episode → 4K test (whole video, and
   the 3-minute compare). Only then: the upscale queue step, playback choice, Picture menu, Settings › Picture (task
   list in the final report of this session). Open question for the owner: "2K" taken as 2880×1620 (DEC-040 item 5).
 

@@ -2798,5 +2798,12 @@ Found by the new host tests before any phone build; each is fixed, retested and 
    log the reason if saving still fails. Retest/protection: `scripts/test_upscale_measure.py` (10 tests; in
    import-review).
 
+4. **The measurement kept the Drive read-ahead for its video after the run.** Root cause: `upscale_measure` called
+   `DriveStream.url()` (which registers the file) but never `forget()`, unlike the queue. Fix: forget in a `finally`.
+   Retest/protection: `test_upscale_measure` `test_drive_read_ahead_is_let_go`.
+
+Regression check: the existing remux host suite (run_host_tests.sh, KR_HDR_TESTS=1) passes with the r48 changes:
+3341 checks, 0 failed. AirPlay r48 built with Xcode 26.3 / iPhoneOS 26.2 SDK (airplay-ios run 43263786191).
+
 Not yet checked (needs the owner's iPhone, measurement build): the AI engine itself (model download, speed, heat,
 battery, output size), Xcode 26 building the framework in CI.
