@@ -855,6 +855,63 @@ __attribute__((visibility("default"))) int kodi_http_send(const char *method, co
         return (int)result.response.statusCode;
     }
 }
+static NSString *httpField(const char *fields,NSString *key) {
+    NSString *text=[NSString stringWithUTF8String:fields ?: ""];
+    for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
+        NSRange colon=[line rangeOfString:@":"]; if(colon.location==NSNotFound)continue;
+        if([[line substringToIndex:colon.location] caseInsensitiveCompare:key]==NSOrderedSame)
+            return [[line substringFromIndex:colon.location+1] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    } return nil;
+}
+// One resumable piece stays entirely native. Python keeps only status, offsets and the upload receipt.
+__attribute__((visibility("default"))) int kodi_http_copy(const char *source,const char *source_headers,
+        const char *target,const char *target_headers,long long offset,int count,long long total,double timeout,
+        char *out_headers,int headers_size,char *out_body,int body_size,int *used,int *source_status) {
+    @autoreleasepool {
+        if(used)*used=0; if(source_status)*source_status=-1;
+        if(out_headers && headers_size>0)out_headers[0]=0;
+        if(out_body && body_size>0)out_body[0]=0;
+        if(!source || !target || offset<0 || count<=0 || count>8*1024*1024 || total<=0 || offset>total || count>total-offset)return -1;
+        uint8_t *bytes=malloc((size_t)count); if(!bytes)return -1;
+        double deadline=NSProcessInfo.processInfo.systemUptime+fmin(60.0,timeout>0?timeout:20.0);
+        NSString *url=[NSString stringWithUTF8String:source];
+        NSMutableString *readHeaders=[NSMutableString stringWithUTF8String:source_headers ?: ""];
+        [readHeaders appendFormat:@"\nRange: bytes=%lld-%lld\nAccept-Encoding: identity\n",offset,offset+count-1];
+        char fields[65536]="";int got=0,status=-1;
+        for(int hop=0;hop<6;hop++) {
+            double left=deadline-NSProcessInfo.processInfo.systemUptime; if(left<=0)break;
+            status=kodi_http_send("GET",url.UTF8String,readHeaders.UTF8String,NULL,0,left,fields,sizeof fields,(char *)bytes,count,&got);
+            if(source_status)*source_status=status;
+            if(status!=301 && status!=302 && status!=303 && status!=307 && status!=308)break;
+            NSString *location=httpField(fields,@"Location");
+            NSURL *old=[NSURL URLWithString:url],*next=location ? [[NSURL URLWithString:location relativeToURL:old] absoluteURL] : nil;
+            if(!next || !([next.scheme isEqualToString:@"http"] || [next.scheme isEqualToString:@"https"]) ||
+                ([old.scheme isEqualToString:@"https"] && ![next.scheme isEqualToString:@"https"])) {status=-1;break;}
+            if(![old.host isEqualToString:next.host] || ![old.scheme isEqualToString:next.scheme] || !((old.port==nil && next.port==nil) || [old.port isEqual:next.port])) {
+                NSMutableString *safe=[NSMutableString string];
+                for(NSString *line in [readHeaders componentsSeparatedByString:@"\n"]) {
+                    NSString *lower=line.lowercaseString;
+                    if(![lower hasPrefix:@"authorization:"] && ![lower hasPrefix:@"cookie:"] && ![lower hasPrefix:@"host:"])
+                        [safe appendFormat:@"%@\n",line];
+                } readHeaders=safe;
+            }
+            url=next.absoluteString;
+        }
+        long long first=-1,last=-1,size=-1;int parsed=0;
+        NSString *range=httpField(fields,@"Content-Range");const char *span=range.UTF8String ?: "";
+        BOOL exact=status==206 && sscanf(span,"bytes %lld-%lld/%lld%n",&first,&last,&size,&parsed)==3 && !span[parsed] &&
+                   first==offset && last==offset+count-1 && size==total;
+        if(!(exact || (status==200 && offset==0 && count==total)) || got!=count) {
+            free(bytes);if(out_body && body_size>0)snprintf(out_body,body_size,"source range was not read completely");return -1;
+        }
+        double left=deadline-NSProcessInfo.processInfo.systemUptime;
+        if(left<=0){free(bytes);return -1;}
+        NSMutableString *writeHeaders=[NSMutableString stringWithUTF8String:target_headers ?: ""];
+        [writeHeaders appendFormat:@"\nContent-Range: bytes %lld-%lld/%lld\n",offset,offset+count-1,total];
+        status=kodi_http_send("PUT",target,writeHeaders.UTF8String,bytes,count,left,out_headers,headers_size,out_body,body_size,used);
+        free(bytes);return status;
+    }
+}
 __attribute__((visibility("default"))) int kodi_http_reads(void) { return 1; }
 
 __attribute__((visibility("default"))) void kodi_airplay_play(const char *url, const char *title) {
@@ -1147,7 +1204,7 @@ for c in "$REMUX"/src/*.c "$REMUX"/gmplayer/*.c; do
 done
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
 printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n_kodi_airplay_serve\n_kodi_airplay_serve_segmented\n' > "$WORK/exports"
-printf '_kodi_http_reads\n_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
+printf '_kodi_http_copy\n_kodi_http_reads\n_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
   -framework VideoToolbox -framework CoreVideo -framework CoreText \

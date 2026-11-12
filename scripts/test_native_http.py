@@ -14,6 +14,22 @@ def fake_lib(status,headers='Range: bytes=0-1048575\nX-GUploader: y\n',body=b'',
  return types.SimpleNamespace(kodi_http_send=fn)
 
 class Native(unittest.TestCase):
+ def test_native_copy_passes_only_offsets_and_receipts_to_python(self):
+  seen=[]
+  def fn(source,source_headers,target,target_headers,offset,count,total,timeout,out_h,hl,out_b,bl,used,read_status):
+   seen.append((source,target,offset,count,total));read_status._obj.value=206
+   body=b'{"id":"saved","size":"100"}';ctypes.memmove(out_b,body,len(body));used._obj.value=len(body);return 200
+  copy=native_http.copier(types.SimpleNamespace(kodi_http_copy=fn))
+  result=copy('https://source/file',{},'https://upload/session',{'Authorization':'Bearer test'},0,100,100)
+  self.assertEqual(result[0],200);self.assertEqual(result[2],b'{"id":"saved","size":"100"}')
+  self.assertEqual(seen,[(b'https://source/file',b'https://upload/session',0,100,100)])
+  self.assertIsNone(native_http.copier(None))
+  with self.assertRaises(ValueError):copy('s',{},'d',{},10,100,100)
+ def test_native_copy_exposes_source_expiry_for_existing_link_renewal(self):
+  def fn(*args):args[-1]._obj.value=403;return -1
+  copy=native_http.copier(types.SimpleNamespace(kodi_http_copy=fn))
+  with self.assertRaises(urllib.error.HTTPError) as error:copy('https://source/file',{},'https://upload/session',{},0,10,100)
+  self.assertEqual(error.exception.code,403)
  def test_status_headers_body_and_errors(self):
   seen=[];send=native_http.sender(fake_lib(308,seen=seen))
   status,headers,body=send('PUT','https://upload/x',b'a'*10,{'Content-Range':'bytes 0-9/20'},60)

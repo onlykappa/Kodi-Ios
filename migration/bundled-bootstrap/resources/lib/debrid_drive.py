@@ -313,9 +313,9 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 url, name, size = api.unlock(entry['link'])
                 original_name=name
                 source_link=[url];source_guard=threading.Lock();renew_after=[0.0]
-                def open_source(offset):
+                def with_source(action):
                     attempted=source_link[0]
-                    try:return open_url(attempted,offset)
+                    try:return action(attempted)
                     except urllib.error.HTTPError as error:
                         error.close()
                         if error.code not in (401,403,404,410):raise
@@ -327,7 +327,12 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                                 if fresh_name!=original_name or fresh_size!=size:
                                     raise RuntimeError('The refreshed download is a different file')
                                 source_link[0]=fresh
-                        return open_url(source_link[0],offset)
+                        return action(source_link[0])
+                def open_source(offset):return with_source(lambda source:open_url(source,offset))
+                if callable(getattr(drive,'copy_piece',None)):
+                    def copy_to(target,headers,offset,count,total):
+                        return with_source(lambda source:drive.copy_piece(source,{},target,headers,offset,count,total,20))
+                    open_source.copy_to=copy_to
                 name = os.path.basename(name or entry['path'])
                 size = size or entry['size']
                 parts = folders(job['kind'], name, job.get('title') if job['kind'] != 'movie' else '')

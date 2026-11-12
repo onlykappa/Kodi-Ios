@@ -2750,3 +2750,13 @@ its measured phone target; unknown causes and unmeasured hardware/receiver behav
   exceeds its 3-second wall budget on this execution host (new source 6.68 s; unmodified e6041ae baseline 9.47 s).
   Its byte-integrity/concurrency assertions pass; no performance acceptance or app regression attribution is
   inferred. The threshold was not weakened. Real provider speed and Wi-Fi/cellular handoff remain device checks.
+
+- 1F.3: a capability-gated native range-to-PUT piece keeps media bytes out of Python. Native code checks exact
+  source offsets/total, bounds memory, follows safe redirects without forwarding credentials to another origin,
+  and applies one overall deadline. Python retains per-file sessions, confirmed offsets, pause/cancel, source
+  renewal and receipt checks. An uncertain PUT is queried before retrying; no progress is invented.
+  Nine adapter cases and 35 debrid cases pass, including a committed piece whose receipt is lost and a Python
+  reader that fails if any video bytes reach it. Five real Foundation fault/copy cases are queued for macOS.
+- Native candidate 43138216141 at 1de2395: framework compilation and the first three actual Foundation transport
+  tests passed. This validates the bounded transport, not the later copy API or iPhone/TV performance. Linux
+  native host job was still running at this checkpoint. No native release/pin or IPA was made.

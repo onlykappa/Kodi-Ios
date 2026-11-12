@@ -9,6 +9,18 @@ HEADERS_MAX = 64 * 1024
 BODY_MAX = 256 * 1024
 READ_MAX = 8 * 1024 * 1024
 
+def header_lines(headers):
+    if any('\r' in str(x) or '\n' in str(x) for pair in (headers or {}).items() for x in pair):
+        raise ValueError('Invalid HTTP header')
+    return ''.join('%s: %s\n'%(k,v) for k,v in (headers or {}).items())
+
+def parse_headers(text):
+    out={}
+    for line in text.split('\n'):
+        name,sep,value=line.partition(':')
+        if sep:out[name.strip()]=value.strip()
+    return out
+
 
 def sender(lib,body_max=BODY_MAX):
     """send(method, url, body, headers, timeout) -> (status, headers, body), or None without the framework."""
@@ -21,9 +33,7 @@ def sender(lib,body_max=BODY_MAX):
     fn.restype = ctypes.c_int
 
     def send(method, url, body, headers, timeout):
-        if any('\r' in str(x) or '\n' in str(x) for pair in (headers or {}).items() for x in pair):
-            raise ValueError('Invalid HTTP header')
-        lines = ''.join('%s: %s\n' % (k, v) for k, v in (headers or {}).items())
+        lines = header_lines(headers)
         out_headers = ctypes.create_string_buffer(HEADERS_MAX)
         out_body = ctypes.create_string_buffer(body_max)
         used = ctypes.c_int(0)
@@ -32,13 +42,27 @@ def sender(lib,body_max=BODY_MAX):
         if status < 0:
             raise ConnectionError('System networking: ' + out_body.value.decode('utf-8', 'replace')[:200])
         if not 0<=used.value<=body_max:raise ConnectionError('Invalid native HTTP response length')
-        parsed = {}
-        for line in out_headers.value.decode('utf-8', 'replace').split('\n'):
-            name, sep, value = line.partition(':')
-            if sep:
-                parsed[name.strip()] = value.strip()
+        parsed = parse_headers(out_headers.value.decode('utf-8','replace'))
         return status, parsed, out_body.raw[:used.value]
     return send
+
+def copier(lib):
+    fn=getattr(lib,'kodi_http_copy',None) if lib is not None else None
+    if fn is None:return None
+    fn.argtypes=[ctypes.c_char_p]*4+[ctypes.c_longlong,ctypes.c_int,ctypes.c_longlong,ctypes.c_double,
+                 ctypes.c_char_p,ctypes.c_int,ctypes.c_char_p,ctypes.c_int,ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_int)]
+    fn.restype=ctypes.c_int
+    def copy(source,source_headers,target,target_headers,offset,count,total,timeout=20):
+        if offset<0 or not 0<count<=READ_MAX or total<=0 or offset>total or count>total-offset:raise ValueError('Invalid copy bounds')
+        headers=ctypes.create_string_buffer(HEADERS_MAX);body=ctypes.create_string_buffer(BODY_MAX)
+        used=ctypes.c_int();read_status=ctypes.c_int(-1)
+        status=fn(source.encode(),header_lines(source_headers).encode(),target.encode(),header_lines(target_headers).encode(),
+                  offset,count,total,float(timeout),headers,HEADERS_MAX,body,BODY_MAX,ctypes.byref(used),ctypes.byref(read_status))
+        if read_status.value>=300:raise urllib.error.HTTPError(source,read_status.value,'Source request failed',{},None)
+        if status<0:raise ConnectionError('Native copy did not finish; checking confirmed upload position')
+        if not 0<=used.value<=BODY_MAX:raise ConnectionError('Invalid native copy receipt')
+        return status,parse_headers(headers.value.decode('utf-8','replace')),body.raw[:used.value]
+    return copy
 
 
 class Response(io.BytesIO):

@@ -35,7 +35,7 @@ be closed by a Linux rig or source assertion. Current binary pins remain Kodi r3
 | 1E.7 | Fewer always-on Python polling loops (0.1-1 s across the service) | Source | 8fb1c4b idle polling; six measured fake-clock cases |
 | 1F.1 | Read the "interpreter wait" lines (probe in #19) and the system-networking upload speed from the r47 build | Measurement | Device showed ~3.3 MB/s, 4 ms interpreter wait; no remaining GIL-limit proof |
 | 1F.2 | Drive and AllDebrid reads through system networking too (DriveStream, remote_media) | Native staged | Bounded NSURLSession reads; Foundation compile/fault tests pending |
-| 1F.3 | AllDebrid → Drive copy loop in native code (read range, PUT piece), no bytes through Python | Open | Implementation and regression coverage still required |
+| 1F.3 | AllDebrid → Drive copy loop in native code (read range, PUT piece), no bytes through Python | Native staged | Native validated range-to-PUT pieces; Python only handles receipts, session checkpoints and renewal |
 | 1F.4 | More upload lanes once the bottleneck is gone (2 → 3-4) | Source | 80a082f at most three resumable file lanes |
 | 1G.1 | 10-bit H.264 marked in the picker ("10-BIT · SLOW ON AIRPLAY", done in #19) | Source | Picker warns about 10-bit H.264 |
 | 1G.2 | 10-bit conversion faster than real time (threads, two segments in parallel, GPU scaling) | Measurement required | GPU scaling/hardware decode and software all-core decode exist; <=70% real-time cannot be certified without phone input |

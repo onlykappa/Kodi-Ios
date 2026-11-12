@@ -323,12 +323,13 @@ def drive_uploads(monitor,home,profile):
  drive_addon=xbmcaddon.Addon('plugin.googledrive')
  if signin_server.migrate(drive_addon):xbmc.log('Kodi iOS Drive: sign-in server set to the owner worker',xbmc.LOGINFO)
  accounts=AccountManager(xbmcvfs.translatePath(drive_addon.getAddonInfo('profile')))
- native=None;native_reader=None
+ native=None;native_reader=None;native_copier=None
  try:
   import native_http   # airplay is the module imported at the top; importing it here made it local (build-232 crash)
   path=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
   native_lib=airplay.load(path) if path else None
   native=native_http.sender(native_lib);native_reader=native_http.opener(native_lib)
+  native_copier=native_http.copier(native_lib)
  except Exception as error:xbmc.log('Kodi iOS Drive: system networking unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
  xbmc.log('Kodi iOS Drive: uploads use %s'%('system networking' if native else 'Python networking'),xbmc.LOGINFO)
  xbmc.log('Kodi iOS Drive: media reads use %s'%('system networking' if native_reader else 'Python networking'),xbmc.LOGINFO)
@@ -342,6 +343,7 @@ def drive_uploads(monitor,home,profile):
   if status!=200:raise driveupload.refresh_error(status)
   return json.loads(answer)
  drive=driveupload.Drive(driveupload.token_source(accounts.get_accounts,accounts.save_account,refresh),send)
+ drive.copy_piece=native_copier
  root=str(updates.updates_folder(home).with_name('Kodi Downloads'))
  state=str(profile/'addon_data/service.kodi.ios.bootstrap/drive-uploads.json')
  # Downloads through AllDebrid go straight to Drive (debrid_drive): its own loop, so a long copy never holds up the

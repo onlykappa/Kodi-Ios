@@ -195,3 +195,7 @@ old screenshot's counts as acceptance evidence. Commit and push each repair sepa
   capability-gated into preparation/foreground media. Foundation fault tests now run on macOS before the framework
   build. Local adapter/prepare/renewal checks pass; Linux loopback throughput benchmark fails on both old and new
   source, so speed acceptance remains open (ISSUE-175). Full 42-item status: PERFORMANCE-COVERAGE.md.
+
+- 1F.3 native copy candidate: exact source ranges go straight into native resumable PUTs; Python handles only
+  metadata/confirmed progress/renewal. 44 focused cases pass. The macOS Foundation harness now covers a real native
+  copy through a redirect and refusal of wrong source ranges before any upload. New candidate validation required.

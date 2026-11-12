@@ -118,6 +118,25 @@ class FakeAPI:
  def files(self,m):return [('Fall/Fall.2022.2160p.mkv',3,'L')]
  def unlock(self,l):return 'https://x/f','Fall.2022.2160p.mkv',3
 
+class NativeCopies(unittest.TestCase):
+ def test_copy_bytes_bypass_python_reader_and_query_uncertain_ack_before_resuming(self):
+  blob=b'x'*(3*1024*1024);offsets=[]
+  class API(FakeAPI):
+   def unlock(self,link):return 'https://source/f','Fall.2022.2160p.mkv',len(blob)
+  class Drive(FakeDrive):
+   def copy_piece(self,source,source_headers,target,headers,offset,count,total,timeout):
+    offsets.append(offset)
+    result=self.call('PUT',target,blob[offset:offset+count],{'Content-Range':'bytes %d-%d/%d'%(offset,offset+count-1,total)})
+    if len(offsets)==1:raise ConnectionError('response lost after Drive accepted the bytes')
+    return result
+  with tempfile.TemporaryDirectory() as profile:
+   debrid_drive.queue(profile,{'id':H,'name':'Fall'},'movie','Fall');drive=Drive();api=API()
+   debrid_drive.step(profile,api,drive)
+   def forbidden(*args):raise AssertionError('Video bytes passed through Python source reader')
+   debrid_drive.step(profile,api,drive,open_url=forbidden)
+   self.assertEqual(debrid_drive.load(profile)['jobs'][0]['status'],'done');self.assertEqual(drive.data,blob)
+   self.assertEqual(offsets,[0,1024*1024,2*1024*1024])
+
 class TwoLanes(unittest.TestCase):
  """ISSUE-164 / 1F.4: a season's episodes go up to Drive up to three at a time; a movie is still one upload."""
  def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name

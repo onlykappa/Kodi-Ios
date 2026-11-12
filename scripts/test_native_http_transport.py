@@ -18,7 +18,12 @@ int main(int argc,char **argv) {
         int limit=atoi(argv[4]),used=0;char *out=calloc((size_t)limit+1,1),fields[65536];
         char *payload=calloc(1024*1024,1);memset(payload,'x',1024*1024);
         double before=NSProcessInfo.processInfo.systemUptime;
-        int status=kodi_http_send(argv[2],argv[1],"Range: bytes=0-15\n",payload,
+        int source_status=0,status;
+        if(!strcmp(argv[2],"COPY")) {
+            NSURLComponents *target=[NSURLComponents componentsWithString:@(argv[1])];target.path=@"/copy";
+            status=kodi_http_copy(argv[1],"",target.URL.absoluteString.UTF8String,"",0,16,16,atof(argv[3]),
+                fields,sizeof fields,out,limit,&used,&source_status);
+        } else status=kodi_http_send(argv[2],argv[1],"Range: bytes=0-15\n",payload,
             !strcmp(argv[2],"PUT")?1024*1024:0,atof(argv[3]),fields,sizeof fields,out,limit,&used);
         double elapsed=NSProcessInfo.processInfo.systemUptime-before;
         free(payload);free(out); // a late canceled upload may not retain this borrowed pointer
@@ -34,19 +39,27 @@ int main(int argc,char **argv) {
  @classmethod
  def tearDownClass(cls):cls.tmp.cleanup()
  def setUp(self):
-  self.release=threading.Event();owner=self
+  self.release=threading.Event();self.uploads=[];owner=self
   class Handler(http.server.BaseHTTPRequestHandler):
    def log_message(self,*args):pass
    def do_PUT(self):
-    self.rfile.read(int(self.headers.get('Content-Length','0')))
-    owner.release.wait(3)
+    body=self.rfile.read(int(self.headers.get('Content-Length','0')))
+    owner.uploads.append((body,self.headers.get('Content-Range')))
+    if self.path=='/copy':
+     answer=b'{"id":"saved","size":"16"}'
+     self.send_response(200);self.send_header('Content-Length',str(len(answer)));self.end_headers();self.wfile.write(answer)
+    else:owner.release.wait(3)
    def do_GET(self):
     try:
      if self.path=='/headers':owner.release.wait(3);return
+     if self.path=='/redirect':
+      self.send_response(302);self.send_header('Location','/range');self.send_header('Content-Length','0');self.end_headers();return
      self.send_response(200 if self.path=='/ignored' else 206)
      self.send_header('Connection','close')
      if self.path=='/ignored':self.send_header('Content-Length','20000000000')
      elif self.path!='/chunked':self.send_header('Content-Length','16')
+     if self.path in ('/range','/bad-range'):
+      self.send_header('Content-Range','bytes 1-16/16' if self.path=='/bad-range' else 'bytes 0-15/16')
      self.end_headers()
      if self.path=='/body':self.wfile.write(b'x');self.wfile.flush();owner.release.wait(3)
      else:self.wfile.write(b'x'*(4096 if self.path=='/chunked' else 16))
@@ -67,5 +80,11 @@ int main(int argc,char **argv) {
   for path in ('/ignored','/chunked'):
    with self.subTest(path=path):
     r=self.run_request(path);self.assertEqual(r['status'],-1);self.assertEqual(r['bytes'],0)
+ def test_copy_stays_native_and_preserves_range_after_a_redirect(self):
+  r=self.run_request('/redirect','COPY',budget=2,limit=256)
+  self.assertEqual(r['status'],200);self.assertEqual(self.uploads,[(b'x'*16,'bytes 0-15/16')])
+ def test_copy_never_uploads_a_mismatched_source_range(self):
+  r=self.run_request('/bad-range','COPY',budget=2,limit=256)
+  self.assertEqual(r['status'],-1);self.assertEqual(self.uploads,[])
 
 if __name__=='__main__':unittest.main()
