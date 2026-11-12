@@ -151,6 +151,10 @@ class Measure(unittest.TestCase):
         import upscale_queue
         self.assertIsNone(upscale_queue.pick_engine(owner, 1280, 720, '4K UHD')[0])
         self.assertEqual(upscale_queue.pick_engine(owner, 960, 540, '4K UHD')[0], 3)
+        # r49: the same phone with the low-latency model in tiles (2x) takes 1080p -> 4K UHD and 720p -> 1440p.
+        tiled = dict(owner, fast={'factors': [2], 'fits': 1, 'scale': 2, 'supported': 1, 'max': '1280x1280', 'tiles': '2x1'})
+        self.assertEqual(upscale_queue.pick_engine(tiled, 1920, 1080, '4K UHD'), (4, 'fast model, 2x'))
+        self.assertEqual(upscale_queue.pick_engine(tiled, 1280, 720, '1440p')[0], 4)
 
     def test_hdr_and_4k_are_not_measured(self):
         hdr = FakeNative(self.clock, probe={'width': 1920, 'height': 1080, 'duration': 60, 'hdr': True})

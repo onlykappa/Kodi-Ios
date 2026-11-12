@@ -2895,3 +2895,11 @@ test_only_4x_models_block_a_1080p_copy_instead_of_closing_kodi. Phone proof: the
 stopped instead of Kodi closing.
 Open: a way to get 1080p -> 4K on a 4x-only phone needs native work (for example tiles of the frame through the
 low-latency model, or the 4x model on a smaller source) and a new KodiAirPlay build; to decide with the owner.
+Follow-up (owner: "i want 720 and 1080 to be upscaled"): KodiAirPlay r49 (staged) runs the low-latency AI model on
+tiles. A 1920x1080 picture is cut into overlapping tiles no larger than the model's 1280x1280 (2x1 tiles of about
+992x1080, 16 px shared margin); each tile is enlarged 2x, and the tiles' middles are joined into one 3840x2160 RGBA
+half-float picture (about 66 MB), which kr_video fits and encodes as before. Tiles are cut with a clean-aperture
+attachment and CropSourceToCleanAperture (no copy on the CPU); the join is a row copy. The 4x video/image models are
+now refused natively too when they would overshoot. 720p gets 2x (2560x1440), then kr_video fits it to the size chosen.
+Not compiled here (no iOS SDK): the airplay-ios run is the compile check, the owner's AI Upscale test log the proof
+(speed, heat, joins). pick_engine already chooses the tiled fast model from the r49 support line ("fast" fits 1).

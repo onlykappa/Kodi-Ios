@@ -27,7 +27,20 @@
 #define KR_SR 1
 #endif
 
+// r49 (owner logs 0afdfd7b / 1ff17f50, ISSUE-180): on the owner's iPhone the AI models make 4x pictures only and the
+// video model takes no 1080p, so 1080p -> 4K made 7680x4320 frames (about 265 MB each) and iOS closed Kodi. Now a model
+// is used only when its result is no larger than asked (5 % slack), and the low-latency model, which takes at most
+// 1280x1280, works on tiles: the picture is cut into overlapping tiles small enough for it, each is enlarged, and the
+// tiles' middles are joined into one picture (64-bit half-float RGBA; a 4K picture is about 66 MB).
+typedef struct { int cols, rows, tw, th; } kr_tiles;
+#define KR_TILE_MARGIN 16         // source pixels each tile reaches past its own part, so the joins do not show
+#define KR_SLACK 1.05
+
 struct kr_upscale {
+    int cols, rows, tw, th;       // tiles (cols 0: the whole picture at once)
+    double f;                     // the engine's factor
+    VTPixelTransferSessionRef crop;   // source -> one tile (its own session: it carries the crop rectangle)
+    CVPixelBufferPoolRef tile_pool, big_pool;   // a tile's result in RGBA half float; the joined picture
     void *processor;              // VTFrameProcessor (retained, CFBridgingRetain)
     void *config;                 // its configuration
     int engine, w, h, ow, oh;     // ow x oh: what the engine makes (its factor times the source)
@@ -64,15 +77,35 @@ static double pick_factor(NSArray<NSNumber *> *factors, double need) {
     return best > 0 ? best : largest;
 }
 static double needed(int w, int h, int ow, int oh) { return fmax((double)ow / fmax(1, w), (double)oh / fmax(1, h)); }
+// A factor whose picture would be larger than asked (the 4x model for a 2x need) is refused, not shrunk afterwards.
+__attribute__((unused)) static int overshoots(double f, double need) { return need > 1.0 && f > need * KR_SLACK + 0.01; }
+// The fewest tiles that fit the low-latency model's largest frame, each reaching KR_TILE_MARGIN past its part.
+__attribute__((unused)) static int plan_tiles(int w, int h, int mxw, int mxh, kr_tiles *t) {
+    t->cols = t->rows = 0;
+    for (int c = 1; c <= 8 && !t->cols; c++) {
+        int inner = (((w + c - 1) / c) + 1) & ~1;
+        int tw = c == 1 ? w : inner + 2 * KR_TILE_MARGIN;
+        if (tw > w) tw = w;
+        if (tw <= mxw) { t->cols = c; t->tw = tw; }
+    }
+    for (int r = 1; r <= 8 && !t->rows; r++) {
+        int inner = (((h + r - 1) / r) + 1) & ~1;
+        int th = r == 1 ? h : inner + 2 * KR_TILE_MARGIN;
+        if (th > h) th = h;
+        if (th <= mxh) { t->rows = r; t->th = th; }
+    }
+    return t->cols && t->rows;
+}
 
 // The configuration for one engine, nil when it does not take this size on this phone.
-static id make_config(int engine, int w, int h, int ow, int oh, double *factor) API_AVAILABLE(ios(26.0)) {
+static id make_config(int engine, int w, int h, int ow, int oh, double *factor, kr_tiles *tiles) API_AVAILABLE(ios(26.0)) {
     *factor = 0;
+    if (tiles) tiles->cols = tiles->rows = 0;
     double need = needed(w, h, ow, oh);
     if (engine == KR_UP_AI_VIDEO || engine == KR_UP_AI_IMAGE) {
         if (!VTSuperResolutionScalerConfiguration.isSupported) return nil;
         double f = pick_factor(VTSuperResolutionScalerConfiguration.supportedScaleFactors, need);
-        if (f < 1.5) return nil;
+        if (f < 1.5 || overshoots(f, need)) return nil;
         VTSuperResolutionScalerConfiguration *c = [[VTSuperResolutionScalerConfiguration alloc]
             initWithFrameWidth:w frameHeight:h scaleFactor:(NSInteger)llround(f)
                      inputType:engine == KR_UP_AI_VIDEO ? VTSuperResolutionScalerConfigurationInputTypeVideo
@@ -87,22 +120,28 @@ static id make_config(int engine, int w, int h, int ow, int oh, double *factor) 
         if (!VTLowLatencySuperResolutionScalerConfiguration.isSupported) return nil;
         CMVideoDimensions mx = VTLowLatencySuperResolutionScalerConfiguration.maximumDimensions;
         CMVideoDimensions mn = VTLowLatencySuperResolutionScalerConfiguration.minimumDimensions;
-        if (w > mx.width || h > mx.height || w < mn.width || h < mn.height) return nil;
-        double f = pick_factor([VTLowLatencySuperResolutionScalerConfiguration supportedScaleFactorsForFrameWidth:w frameHeight:h], need);
-        if (f < 1.2) return nil;
+        if (w < mn.width || h < mn.height) return nil;
+        kr_tiles t = { 1, 1, w, h };
+        if ((w > mx.width || h > mx.height) && !plan_tiles(w, h, mx.width, mx.height, &t)) return nil;
+        if (t.tw < mn.width || t.th < mn.height) return nil;
+        double f = pick_factor([VTLowLatencySuperResolutionScalerConfiguration supportedScaleFactorsForFrameWidth:t.tw frameHeight:t.th], need);
+        if (f < 1.2 || overshoots(f, need)) return nil;
         VTLowLatencySuperResolutionScalerConfiguration *c =
-            [[VTLowLatencySuperResolutionScalerConfiguration alloc] initWithFrameWidth:w frameHeight:h scaleFactor:(float)f];
-        if (c) *factor = f;
+            [[VTLowLatencySuperResolutionScalerConfiguration alloc] initWithFrameWidth:t.tw frameHeight:t.th scaleFactor:(float)f];
+        if (c) {
+            *factor = f;
+            if (tiles && (t.cols > 1 || t.rows > 1)) *tiles = t;
+        }
         return c;
     }
     return nil;
 }
 // AUTO: the video model (uses neighbouring frames), then the image model, then the low-latency one.
-static id choose(int want, int w, int h, int ow, int oh, int *engine, double *factor) API_AVAILABLE(ios(26.0)) {
+static id choose(int want, int w, int h, int ow, int oh, int *engine, double *factor, kr_tiles *tiles) API_AVAILABLE(ios(26.0)) {
     int order[3] = { KR_UP_AI_VIDEO, KR_UP_AI_IMAGE, KR_UP_AI_FAST };
     for (int i = 0; i < 3; i++) {
         if (want != KR_UP_AUTO && want != order[i]) continue;
-        id c = make_config(order[i], w, h, ow, oh, factor);
+        id c = make_config(order[i], w, h, ow, oh, factor, tiles);
         if (c) { *engine = order[i]; return c; }
     }
     *engine = -1;
@@ -141,11 +180,12 @@ int kr_upscale_support(int w, int h, int ow, int oh, int engine, char *json, int
     if (@available(iOS 26.0, *)) {
         double f = 0, fv = 0, fi = 0, ff = 0;
         int chosen = -1;
-        id c = choose(engine, w, h, ow, oh, &chosen, &f);
+        kr_tiles tf = { 0, 0, 0, 0 };
+        id c = choose(engine, w, h, ow, oh, &chosen, &f, NULL);
         BOOL sr = VTSuperResolutionScalerConfiguration.isSupported, fast = VTLowLatencySuperResolutionScalerConfiguration.isSupported;
-        id cv = sr ? make_config(KR_UP_AI_VIDEO, w, h, ow, oh, &fv) : nil;
-        id ci = sr ? make_config(KR_UP_AI_IMAGE, w, h, ow, oh, &fi) : nil;
-        id cf = fast ? make_config(KR_UP_AI_FAST, w, h, ow, oh, &ff) : nil;
+        id cv = sr ? make_config(KR_UP_AI_VIDEO, w, h, ow, oh, &fv, NULL) : nil;
+        id ci = sr ? make_config(KR_UP_AI_IMAGE, w, h, ow, oh, &fi, NULL) : nil;
+        id cf = fast ? make_config(KR_UP_AI_FAST, w, h, ow, oh, &ff, &tf) : nil;
         NSString *model = @"none";
         float pct = 0;
         if (c) {
@@ -161,13 +201,14 @@ int kr_upscale_support(int w, int h, int ow, int oh, int engine, char *json, int
             @"{\"os26\":1,\"engine\":\"%s\",\"engine_id\":%d,\"scale\":%g,\"model\":\"%@\",\"model_pct\":%.3f,"
             "\"video\":{\"supported\":%d,\"factors\":%@,\"fits\":%d,\"scale\":%g},"
             "\"image\":{\"supported\":%d,\"factors\":%@,\"fits\":%d,\"scale\":%g},"
-            "\"fast\":{\"supported\":%d,\"factors\":%@,\"fits\":%d,\"scale\":%g,\"max\":\"%dx%d\",\"min\":\"%dx%d\"},"
+            "\"fast\":{\"supported\":%d,\"factors\":%@,\"fits\":%d,\"scale\":%g,\"max\":\"%dx%d\",\"min\":\"%dx%d\",\"tiles\":\"%dx%d\"},"
             "\"formats\":%@}",
             engine_word(chosen), chosen, f, model, pct,
             sr, sr ? factors_json(VTSuperResolutionScalerConfiguration.supportedScaleFactors) : @"[]", cv != nil, fv,
             sr, sr ? factors_json(VTSuperResolutionScalerConfiguration.supportedScaleFactors) : @"[]", ci != nil, fi,
-            fast, fast ? factors_json([VTLowLatencySuperResolutionScalerConfiguration supportedScaleFactorsForFrameWidth:w frameHeight:h]) : @"[]",
-            cf != nil, ff, mx.width, mx.height, mn.width, mn.height, formats];
+            fast, fast ? factors_json([VTLowLatencySuperResolutionScalerConfiguration supportedScaleFactorsForFrameWidth:(tf.cols ? tf.tw : w)
+                                                                                                            frameHeight:(tf.rows ? tf.th : h)]) : @"[]",
+            cf != nil, ff, mx.width, mx.height, mn.width, mn.height, tf.cols ? tf.cols : 1, tf.rows ? tf.rows : 1, formats];
     }
 #endif
     if (!text) text = @"{\"os26\":0,\"engine\":\"none\",\"engine_id\":-1,\"scale\":0,\"model\":\"none\",\"model_pct\":0,"
@@ -185,7 +226,7 @@ int kr_upscale_model(int w, int h, int ow, int oh, int engine, int start, float 
     if (@available(iOS 26.0, *)) {
         double f = 0;
         int chosen = -1;
-        id c = choose(engine, w, h, ow, oh, &chosen, &f);
+        id c = choose(engine, w, h, ow, oh, &chosen, &f, NULL);
         if (!c) return -1;
         int s = model_status(c);
         BOOL sr = [c isKindOfClass:VTSuperResolutionScalerConfiguration.class];
@@ -223,7 +264,8 @@ kr_upscale *kr_upscale_open(int w, int h, int ow, int oh, int engine, char *err,
     if (@available(iOS 26.0, *)) {
         double f = 0;
         int chosen = -1;
-        id c = choose(engine, w, h, ow, oh, &chosen, &f);
+        kr_tiles t = { 0, 0, 0, 0 };
+        id c = choose(engine, w, h, ow, oh, &chosen, &f, &t);
         if (!c) { seterr(err, errlen, [NSString stringWithFormat:@"AI upscaling is not available on this device for %dx%d", w, h]); return NULL; }
         if (model_status(c) != 2) { seterr(err, errlen, @"The AI upscaling model is not on this iPhone yet"); return NULL; }
         VTFrameProcessor *processor = [[VTFrameProcessor alloc] init];
@@ -238,19 +280,37 @@ kr_upscale *kr_upscale_open(int w, int h, int ow, int oh, int engine, char *err,
         u->config = (void *)CFBridgingRetain(c);
         u->engine = chosen; u->w = w; u->h = h;
         u->ow = (int)lround(w * f) & ~1; u->oh = (int)lround(h * f) & ~1;
+        u->f = f;
         u->in_pool = make_pool([c sourcePixelBufferAttributes]);
         u->out_pool = make_pool([c destinationPixelBufferAttributes]);
         if (!u->in_pool || !u->out_pool || VTPixelTransferSessionCreate(kCFAllocatorDefault, &u->xfer) != noErr) {
             kr_upscale_close(u); seterr(err, errlen, @"AI upscaling buffers could not be made"); return NULL;
         }
+        if (t.cols) {
+            u->cols = t.cols; u->rows = t.rows; u->tw = t.tw; u->th = t.th;
+            NSDictionary *(^rgba)(int, int) = ^NSDictionary *(int bw, int bh) {
+                return @{(id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_64RGBAHalf), (id)kCVPixelBufferWidthKey: @(bw),
+                         (id)kCVPixelBufferHeightKey: @(bh), (id)kCVPixelBufferIOSurfacePropertiesKey: @{},
+                         (id)kCVPixelBufferMetalCompatibilityKey: @YES};
+            };
+            u->tile_pool = make_pool(rgba((int)lround(t.tw * f), (int)lround(t.th * f)));
+            u->big_pool = make_pool(rgba(u->ow, u->oh));
+            if (!u->tile_pool || !u->big_pool || VTPixelTransferSessionCreate(kCFAllocatorDefault, &u->crop) != noErr ||
+                VTSessionSetProperty(u->crop, kVTPixelTransferPropertyKey_ScalingMode, kVTScalingMode_CropSourceToCleanAperture) != noErr) {
+                kr_upscale_close(u); seterr(err, errlen, @"AI upscaling tile buffers could not be made"); return NULL;
+            }
+        }
         // Read the engine's real output size from one destination buffer (its attributes decide, not our arithmetic).
         CVPixelBufferRef probe = NULL;
-        if (CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, u->out_pool, &probe) == kCVReturnSuccess && probe) {
+        if (!u->cols && CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, u->out_pool, &probe) == kCVReturnSuccess && probe) {
             u->ow = (int)CVPixelBufferGetWidth(probe); u->oh = (int)CVPixelBufferGetHeight(probe);
             CVPixelBufferRelease(probe);
         }
-        snprintf(u->name, sizeof u->name, "AI super resolution (%s, %gx)",
-                 chosen == KR_UP_AI_VIDEO ? "video model" : chosen == KR_UP_AI_IMAGE ? "image model" : "low-latency model", f);
+        if (u->cols)
+            snprintf(u->name, sizeof u->name, "AI super resolution (low-latency model, %gx, %dx%d tiles of %dx%d)", f, u->cols, u->rows, u->tw, u->th);
+        else
+            snprintf(u->name, sizeof u->name, "AI super resolution (%s, %gx)",
+                     chosen == KR_UP_AI_VIDEO ? "video model" : chosen == KR_UP_AI_IMAGE ? "image model" : "low-latency model", f);
         kr_remux_note("upscale: %s, %dx%d -> %dx%d", u->name, w, h, u->ow, u->oh);
         return u;
     }
@@ -260,11 +320,111 @@ kr_upscale *kr_upscale_open(int w, int h, int ow, int oh, int engine, char *err,
     return NULL;
 }
 
+#ifdef KR_SR
+// One tile: the source's x0,y0 tw x th window -> the engine -> RGBA half float (tw*f x th*f), retained in *out.
+static int tile_once(kr_upscale *u, CVPixelBufferRef src, int x0, int y0, double seconds, CVPixelBufferRef *out, NSString **why) API_AVAILABLE(ios(26.0)) {
+    *out = NULL;
+    CVPixelBufferRef in = NULL, dst = NULL, rgba = NULL;
+    // The tile is the source's clean aperture (its offsets count from the picture's centre); the crop session's scaling
+    // mode is CropSourceToCleanAperture, so the transfer cuts exactly that window (same size: no scaling).
+    NSDictionary *aperture = @{(id)kCVImageBufferCleanApertureWidthKey: @(u->tw), (id)kCVImageBufferCleanApertureHeightKey: @(u->th),
+        (id)kCVImageBufferCleanApertureHorizontalOffsetKey: @((x0 + u->tw / 2.0) - u->w / 2.0),
+        (id)kCVImageBufferCleanApertureVerticalOffsetKey: @((y0 + u->th / 2.0) - u->h / 2.0)};
+    CVBufferSetAttachment(src, kCVImageBufferCleanApertureKey, (__bridge CFDictionaryRef)aperture, kCVAttachmentMode_ShouldNotPropagate);
+    if (CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, u->in_pool, &in) != kCVReturnSuccess || !in) { *why = @"no tile input buffer"; return -1; }
+    if (VTPixelTransferSessionTransferImage(u->crop, src, in) != noErr) { CVPixelBufferRelease(in); *why = @"tile could not be cut"; return -1; }
+    if (CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, u->out_pool, &dst) != kCVReturnSuccess || !dst) {
+        CVPixelBufferRelease(in); *why = @"no tile output buffer"; return -1;
+    }
+    BOOL ok = NO;
+    NSError *error = nil;
+    @autoreleasepool {
+        CMTime t = CMTimeMakeWithSeconds(seconds, 90000);
+        VTFrameProcessorFrame *source = [[VTFrameProcessorFrame alloc] initWithBuffer:in presentationTimeStamp:t];
+        VTFrameProcessorFrame *destination = [[VTFrameProcessorFrame alloc] initWithBuffer:dst presentationTimeStamp:t];
+        id params = source && destination ? [[VTLowLatencySuperResolutionScalerParameters alloc] initWithSourceFrame:source destinationFrame:destination] : nil;
+        if (params) ok = [(__bridge VTFrameProcessor *)u->processor processWithParameters:params error:&error];
+        if (!ok) *why = [NSString stringWithFormat:@"AI upscaling failed on a tile: %@", error.localizedDescription ?: @"frame not accepted"];
+    }
+    CVPixelBufferRelease(in);
+    if (!ok) { CVPixelBufferRelease(dst); return -1; }
+    if (CVPixelBufferGetPixelFormatType(dst) == kCVPixelFormatType_64RGBAHalf && !CVPixelBufferIsPlanar(dst)) { *out = dst; return 0; }
+    if (CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, u->tile_pool, &rgba) != kCVReturnSuccess || !rgba ||
+        VTPixelTransferSessionTransferImage(u->xfer, dst, rgba) != noErr) {
+        CVPixelBufferRelease(dst); if (rgba) CVPixelBufferRelease(rgba); *why = @"tile result could not be read"; return -1;
+    }
+    CVPixelBufferRelease(dst);
+    *out = rgba;
+    return 0;
+}
+
+// The tiled picture: each tile's middle part (without the margin it shares with its neighbours) into one buffer.
+static int tiled_frame(kr_upscale *u, CVPixelBufferRef src, double seconds, void **out, char *err, int errlen) API_AVAILABLE(ios(26.0)) {
+    int w = u->w, h = u->h;
+    double f = u->f;
+    int iw = ((((w + u->cols - 1) / u->cols)) + 1) & ~1, ih = ((((h + u->rows - 1) / u->rows)) + 1) & ~1;
+    CVPixelBufferRef big = NULL;
+    if (CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, u->big_pool, &big) != kCVReturnSuccess || !big) {
+        seterr(err, errlen, @"upscale: no buffer for the joined picture"); return -1;
+    }
+    CVPixelBufferLockBaseAddress(big, 0);
+    uint8_t *bb = CVPixelBufferGetBaseAddress(big);
+    size_t brow = CVPixelBufferGetBytesPerRow(big);
+    int bw = (int)CVPixelBufferGetWidth(big), bh = (int)CVPixelBufferGetHeight(big);
+    for (int r = 0; r < u->rows; r++) {
+        for (int c = 0; c < u->cols; c++) {
+            int ix = c * iw, iy = r * ih;
+            if (ix >= w || iy >= h) continue;
+            int pw = ix + iw > w ? w - ix : iw, ph = iy + ih > h ? h - iy : ih;
+            int x0 = ix - KR_TILE_MARGIN, y0 = iy - KR_TILE_MARGIN;
+            if (x0 > w - u->tw) x0 = w - u->tw;
+            if (y0 > h - u->th) y0 = h - u->th;
+            if (x0 < 0) x0 = 0;
+            if (y0 < 0) y0 = 0;
+            CVPixelBufferRef tile = NULL;
+            NSString *why = nil;
+            if (tile_once(u, src, x0, y0, seconds, &tile, &why) < 0) {
+                CVBufferRemoveAttachment(src, kCVImageBufferCleanApertureKey);
+                CVPixelBufferUnlockBaseAddress(big, 0); CVPixelBufferRelease(big); seterr(err, errlen, why ?: @"tile failed"); return -1;
+            }
+            int dx = c == 0 ? 0 : (int)lround(ix * f), dy = r == 0 ? 0 : (int)lround(iy * f);
+            int ex = (c == u->cols - 1 || ix + pw >= w) ? bw : (int)lround((ix + pw) * f);
+            int ey = (r == u->rows - 1 || iy + ph >= h) ? bh : (int)lround((iy + ph) * f);
+            int sx = dx - (int)lround(x0 * f), sy = dy - (int)lround(y0 * f);
+            CVPixelBufferLockBaseAddress(tile, kCVPixelBufferLock_ReadOnly);
+            const uint8_t *tb = CVPixelBufferGetBaseAddress(tile);
+            size_t trow = CVPixelBufferGetBytesPerRow(tile);
+            int tw = (int)CVPixelBufferGetWidth(tile), th = (int)CVPixelBufferGetHeight(tile);
+            if (sx < 0) sx = 0;
+            if (sy < 0) sy = 0;
+            int cw = ex - dx, chh = ey - dy;
+            if (sx + cw > tw) cw = tw - sx;
+            if (sy + chh > th) chh = th - sy;
+            for (int y = 0; y < chh && tb && bb; y++)
+                memcpy(bb + (size_t)(dy + y) * brow + (size_t)dx * 8, tb + (size_t)(sy + y) * trow + (size_t)sx * 8, (size_t)cw * 8);
+            CVPixelBufferUnlockBaseAddress(tile, kCVPixelBufferLock_ReadOnly);
+            CVPixelBufferRelease(tile);
+        }
+    }
+    CVPixelBufferUnlockBaseAddress(big, 0);
+    CVBufferRemoveAttachment(src, kCVImageBufferCleanApertureKey);
+    CVBufferPropagateAttachments(src, big);   // colour tags travel with the picture
+    *out = big;
+    return 0;
+}
+#endif
+
 int kr_upscale_frame(kr_upscale *u, void *src, double seconds, int sequential, void **out, char *err, int errlen) {
     if (out) *out = NULL;
 #ifdef KR_SR
     if (@available(iOS 26.0, *)) {
         if (!u || !src || !out) { seterr(err, errlen, @"upscale: nothing to do"); return -1; }
+        if (u->cols) {
+            double began = now_ms();
+            int r = tiled_frame(u, (CVPixelBufferRef)src, seconds, out, err, errlen);
+            if (r == 0) { u->busy_ms += now_ms() - began; u->frames++; }
+            return r;
+        }
         double began = now_ms();
         CVPixelBufferRef in = NULL, dst = NULL;
         if (CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, u->in_pool, &in) != kCVReturnSuccess || !in) {
@@ -337,6 +497,9 @@ void kr_upscale_close(kr_upscale *u) {
     if (u->processor) CFRelease(u->processor);
     if (u->config) CFRelease(u->config);
     if (u->xfer) { VTPixelTransferSessionInvalidate(u->xfer); CFRelease(u->xfer); }
+    if (u->crop) { VTPixelTransferSessionInvalidate(u->crop); CFRelease(u->crop); }
+    if (u->tile_pool) CVPixelBufferPoolRelease(u->tile_pool);
+    if (u->big_pool) CVPixelBufferPoolRelease(u->big_pool);
     if (u->in_pool) CVPixelBufferPoolRelease(u->in_pool);
     if (u->out_pool) CVPixelBufferPoolRelease(u->out_pool);
     if (u->prev_in) CVPixelBufferRelease(u->prev_in);
