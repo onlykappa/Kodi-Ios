@@ -327,3 +327,11 @@ then the next one down; season size and size per episode on each row. To be code
 Owner asked why an Umbrella stream (Dragon Ball) has no AI Upscale: by DEC-039 the upscaler works on prepared copies of
 downloads (which also reach AirPlay); live upscaling of streams on the phone screen is a separate option, to decide
 after the measurement log.
+
+## DEC-042 — Owner approved every open mockup (2026-11-12)
+
+Owner: "I approve all mocs". Approved: docs/design/ai-upscale-settings-mockups.html (Settings › AI Upscale: row under
+Library, status card, new-download settings, making now, every show and movie with chips, one show with its own size,
+movie off, not-available and model-download states), docs/design/season-pack-mockups.html board B3 (DEC-041), and
+docs/design/video-picture-mockups.html round 4 (DEC-039). Work continues in a fresh agent session (handoff in
+docs/PERFORMANCE-PROGRESS.md).

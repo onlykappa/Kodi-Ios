@@ -2834,3 +2834,21 @@ Retest: new tests in test_source_match (each page its own identity), test_deck_p
 one lane keeps the old behaviour; box set neither sizes nor picks the episode; box used when alone), test_season_sheet
 (missed episode looked up once more; still nothing → left out). Each fails on the old code and passes now; the
 related suites (auto_season, episode_watch, import_builder, customized_ipa) pass. Phone check: next IPA.
+
+## ISSUE-179 — Build Season: every episode found but none queued (build 302, owner logs dab02446 / 0296adce) — OPEN
+
+After ISSUE-178 the scan works (build_scanned found 32/32, scan_retry found episode 9). The queue phase fails for all
+32: episode_result queued:false, one queue_deferred TimeoutError, card "No episode could be added". For each episode
+the picker logs "Choose a version (automatic): … S01E0N: <name>" and elementum_cloud then logs
+"automatic pick refused (different version)" followed by "automatic pick refused (no matching automatic request)"
+(elementum_cloud.auto_season → refusal(wanted, selected, choice)). So the queue receipt
+(KodiIOS.AutoPick.Queued<lane>) is never written.
+Also: for E01, E03-E08 the automatic pick was a file inside "Naruto Shippuden (001-500) [Complete Series + Movies
+(1080p)] … Season 01 (001-032)/…" although WHOLE_SERIES / mark_multi should rank it last; check what auto_choose had
+to choose from (strict_quality 1080p may have filtered every single-episode file).
+Suspects to check first: (1) refusal() compares the picker's Result (`name` of the chosen link) with what Elementum
+resolved (`choice`): for a file inside a pack the names differ → "different version"; (2) with three lanes, the
+cloud route's lane lookup (auto_season loops lanes and checks each lane's Result) may test the wrong lane's Result;
+(3) ISSUE-178's `_unmatched` guard must not affect the queue phase. Reproduce with a host test of
+season_sources._build's queue phase + deck_picker.run(purpose='queue') + elementum_cloud.auto_season with three lanes.
+Not fixed (session ran out); build 290 queued episodes one lane at a time, so compare with the pre-lane code.

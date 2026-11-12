@@ -9,6 +9,25 @@
   build's kodi_airplay_serve_copy + correlated receiver evidence. No IPA/native release dispatched here.
 - Compiled recommendations suite: 41 checks, 0 failures. Phone/TV acceptance and hour-long/caption tests remain open.
 
+## HANDOFF FOR THE NEXT AGENT (2026-11-12, end of the AI Upscaler session) — read this first
+
+Branch claude/trusting-euler-kgug98, PR #21 (draft). Latest IPA: build-302 (Kodi r31 + AirPlay r48 pinned).
+Priority order:
+1. ISSUE-179 (OPEN, owner blocked): Build Season finds every episode but queues none ("automatic pick refused
+   (different version)" / "no matching automatic request"). Owner cannot download seasons, so cannot test the upscaler.
+2. Build the approved Build Season quality sheet round 3 (DEC-041, season-pack-mockups.html board B3): 4K/1080p/720p,
+   quick 3-episode availability check, missing greyed, RECOMMENDED = highest quality under ~3 GB/episode and 40 GB/season.
+3. Owner's AI Upscale measurement log (Settings › Library › Transfer settings › Google Drive tab › AI Upscale test;
+   "First 5 minutes" with Kodi on screen and charging). Read 'upscale measurement:' + RESULT lines; decide speed/size.
+4. Then the full AI Upscale feature (DEC-039/040/042): Settings › AI Upscale page (ai-upscale-settings-mockups.html),
+   the background queue step wiring upscale_queue.py (rules + 16 tests exist, not wired), copy upload beside the
+   original, playback/AirPlay choosing the copy, Picture button/menu in the OSD (video-picture-mockups.html round 4),
+   Saturation needs a GLES shader change in kodi-21.3-portrait.patch (Kodi has none) → Kodi r32.
+Rules: commit+push after every fix; check_project before commits; native: stage tag, CI publish, pin by checksum
+(download and verify); never merge/release without owner approval; phone results need the owner's log; desktop rig:
+scripts/kodi_rig.py setup --release build-302 (build-275 is gone; codeload.github.com is blocked in cloud sessions:
+fetch dav1d from code.videolan.org for host FFmpeg builds, see ISSUE-177 notes).
+
 ## HANDOFF 2026-11-12 (AI Upscaler, PR #21) — read this first
 
 - LATEST: **build-302** (import-review #302 on d8ab616): Kodi r31 PINNED (run 43256323634, digests checked), AirPlay
