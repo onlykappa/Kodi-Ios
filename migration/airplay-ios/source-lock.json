@@ -2,15 +2,14 @@
   "framework_release": {
     "tag": "kodi-airplay-r51",
     "asset": "KodiAirPlay.framework.zip",
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "sha256": "55f6d2f6b77dc1b922c2f29375accc54bf80116c7e0c515dc3dc3a6e10b453ab"
   },
   "previous": {
     "tag": "kodi-airplay-r50",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "3fc7e903de0c0dc500aafb7f84764308e5920f66549a621461038d550d1d1769"
   },
-  "source_commit": "962d816300759502d0c2b2459d6878d33f82043f",
-  "verified_run": 43295084167,
-  "staged_note": "r51 staged (background silent audio retried after an iOS interruption, owner log ed63fe73): built and published by airplay-ios on this PR; sha256, source_commit and verified_run are pinned from that run.",
-  "pin_note": "r50 (32 MB AllDebrid-to-Drive pieces, kodi_http_copy_max; ISSUE-182) pinned from airplay-ios run 43295084167 (PR #21, 962d816): release zip downloaded, sha256 matches the release notes and the asset digest; arm64 Mach-O with kodi_http_copy_max and the r49 tiled upscaler."
+  "source_commit": "e56c7afbcdef66081b2b8a0495b1a5a0b2a8a805",
+  "verified_run": 43320420111,
+  "pin_note": "r51 (background silent audio retried after an iOS interruption, ISSUE-185) pinned from airplay-ios run 43320420111: release zip downloaded, sha256 matches the release notes; arm64 Mach-O."
 }
