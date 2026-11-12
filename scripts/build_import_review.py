@@ -64,6 +64,21 @@ def patch_helper(files,id):
   old='        play_player(handle=self.handle if self.handle != -1 else None, **self.params)';assert text.count(old)==1
   files[router]=text.replace(old,'        from ios_watch_dialog import fast_copy\n        if fast_copy(self.handle if self.handle != -1 else None, self.params):\n            return\n'+old).encode()
   changes.append('A downloaded copy plays before TMDb Helper builds its player list (no 1-2 s details fetch)')
+ # Roadmap 1E.5: the first Trakt use after launch waited 1.66 s on a network check of the saved token. A saved token
+ # that has not expired is trusted at once and confirmed in a background thread (a rejection clears TraktIsAuth, so the
+ # next use checks again as before).
+ token=prefix+'resources/tmdbhelper/lib/api/trakt/token.py'
+ if token in files:
+  text=files[token].decode()
+  hook='    @cached_property\n    def winprop_traktisauth(self):\n';call='winprop_traktisauth or self.authorization_check()'
+  assert text.count(hook)==1 and text.count(call)==1
+  method=('    def ios_deferred_check(self):\n        # KODI-IOS: trust an unexpired saved token now, confirm it in the background.\n'
+   '        if not (self.access_token and self.refresh_token and self.has_valid_token):\n            return self.authorization_check()\n'
+   '        stamp = self.expires_in_timestamp\n        self.update_traktisauth_property()\n\n        def confirm():\n'
+   '            if not self.authorization_check():\n                get_property(\'TraktIsAuth\', clear_property=True)\n\n'
+   '        import threading\n        threading.Thread(target=confirm, daemon=True).start()\n        return stamp\n\n')
+  files[token]=text.replace(hook,method+hook).replace(call,'winprop_traktisauth or self.ios_deferred_check()').encode()
+  changes.append('Trakt token check runs in the background when a saved token is still valid (no 1.7 s wait at launch)')
  item=prefix+'resources/tmdbhelper/lib/items/listitem.py';text=files[item].decode();old='        return BuildURL(self.path, **self.params).url';assert text.count(old)==1
  files[item]=text.replace(old,'        from ios_watch_routes import wrap_item\n        return wrap_item(self, BuildURL(self.path, **self.params).url)').encode();changes.append('TV show routes open watch/episode options; original metadata/art/context entries remain')
  return files,changes

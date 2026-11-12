@@ -78,4 +78,43 @@ class PageLoops(unittest.TestCase):
   for path in list(base.glob('*.py'))+[base/'resources/lib/tool_windows.py']:
    self.assertNotRegex(path.read_text(),r'self\.stop\.is_set\(\) and not monitor\.waitForAbort',path.name)
 
+from build_import_review import patch_helper
+import test_import_builder
+
+TOKEN_SOURCE=b'''class T:
+    @cached_property
+    def winprop_traktisauth(self):
+        winprop_traktisauth = get_property('TraktIsAuth', is_type=float)
+        winprop_traktisauth = winprop_traktisauth or self.authorization_check()  # first start
+        return winprop_traktisauth or 0
+'''
+TOKEN_PATH='resources/tmdbhelper/lib/api/trakt/token.py'
+
+class TraktDeferral(unittest.TestCase):
+ def fixture(self):return test_import_builder.BuilderTests().fixture()
+ def test_saved_valid_token_is_confirmed_in_the_background(self):
+  import threading,time,types
+  p,files=self.fixture();files[p+TOKEN_PATH]=TOKEN_SOURCE
+  out,changes=patch_helper(files,'plugin.video.themoviedb.helper');source=out[p+TOKEN_PATH].decode();tree=ast.parse(source)
+  self.assertIn('self.ios_deferred_check()',source);self.assertNotIn('or self.authorization_check()',source)
+  self.assertTrue(any('Trakt token check' in c for c in changes))
+  method=[n for n in ast.walk(tree) if isinstance(n,ast.FunctionDef) and n.name=='ios_deferred_check'][0]
+  props={};done=threading.Event();calls=[]
+  def get_property(key,set_property=None,clear_property=False):
+   if clear_property:props.pop(key,None)
+   else:props[key]=set_property
+  space={'get_property':get_property};exec(ast.unparse(ast.Module([method],[])),space)
+  def check(valid,confirmed):
+   me=types.SimpleNamespace(access_token='a',refresh_token='r',has_valid_token=valid,expires_in_timestamp=99.0,
+    update_traktisauth_property=lambda:props.__setitem__('TraktIsAuth','99.0'))
+   def authorization_check():calls.append('net');done.set();return confirmed
+   me.authorization_check=authorization_check;done.clear();calls.clear();props.clear()
+   result=space['ios_deferred_check'](me);done.wait(2);time.sleep(0.05);return result
+  self.assertEqual(check(True,False),99.0);self.assertNotIn('TraktIsAuth',props)   # rejected: next use checks again
+  self.assertEqual(check(True,True),99.0);self.assertEqual(props['TraktIsAuth'],'99.0')
+  self.assertIsNone(check(False,None));self.assertEqual(calls,['net'])   # expired: the old blocking check
+ def test_changed_upstream_token_code_stops_the_build(self):
+  p,files=self.fixture();files[p+TOKEN_PATH]=b'# upstream changed\n'
+  with self.assertRaises(AssertionError):patch_helper(files,'plugin.video.themoviedb.helper')
+
 if __name__=='__main__':unittest.main()
