@@ -9,6 +9,33 @@
   build's kodi_airplay_serve_copy + correlated receiver evidence. No IPA/native release dispatched here.
 - Compiled recommendations suite: 41 checks, 0 failures. Phone/TV acceptance and hour-long/caption tests remain open.
 
+## HANDOFF 2026-11-12 (later): where things stand after build 280 — read this first
+
+Branch `claude/performance-roadmap` (PR #19, draft, not merged). Last IPA delivered: **build-280** (commit 7d30453).
+Pushed after it (in build 281): 8490e9f, the white loading circle (DEC-037).
+
+Done since the Build Season handoff below (each pushed):
+- Build Season sheets B/C/D rendered in the desktop Kodi rig and fixed against the mockups (text fits above the
+  button, white main button, full-width "Looking for episode N" line). Rig-checked; phone not yet.
+- Board E is NOT wanted: owner, 2026-11-12, keeps the current Choose a version page (poster header, one card per
+  version, badges such as BEST MATCH / MAY STUTTER). Do not restyle it into the All Links list.
+- Long press › **Remove** (red) on Library downloads (ios_remove.py): asks first; Drive copy to Drive's Trash, phone
+  files and emptied folders deleted, listing and Continue Watching forget it. Host-tested only (no Drive in the rig).
+- Subtitles (owner log 89a98e5b): tracks.py BACK/BACK_LINK clash (TypeError on every key) fixed; doh_fetch asks
+  1.1.1.1, 8.8.8.8, 1.0.0.1 (A then AAAA) and the error names each resolver's answer. Needs a phone log.
+- Library status "Working on now": bar instead of ring (DEC-036). All Links nothing-found state wired (board 09).
+- DEC-037: plain waits show the white spinning circle again (no card, no Cancel); the opening card only while a video
+  opens. Rig-checked.
+- claude/speed-fixes-2 needs no merge: all five commits were imported and reviewed earlier (see the coverage pass
+  below); git only lists them because they were copied, not merged.
+
+Next:
+1. Owner device checks on build 280/281: a subtitle search (read 'Kodi iOS tracks' lines), Remove on the nameless
+   show card, a Build Season download (Naruto Shippuden S1), the white loading circle.
+2. Boards still open from the Fuse windows mockups: 11 (options sheet: portrait's Custom_1170 is the More menu,
+   different content from the mockup; ask the owner) and 13 (slow-first-run pill not wired).
+3. Builds still to make: Kodi r31 (patch changes) and AirPlay r47, then pins (see "Builds still to make" below).
+
 ## HANDOFF 2026-11-12 (end of session): Build Season — read this first
 
 Branch: `claude/performance-roadmap` (PR #19; `claude/exciting-hamilton-ol7dke` is the same commits). Last IPA: build-275.
