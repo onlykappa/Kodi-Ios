@@ -137,6 +137,14 @@ DRIVE_PATCHES=[('clouddrive/common/remote/request.py',b'response = urllib.reques
  ('clouddrive/common/service/upstream.py',b'import urllib.parse\n',b'import urllib.parse\n\nfrom clouddrive.common.remote.request import tls_context\n'),
  ('clouddrive/common/service/upstream.py',b'self._context = ssl.create_default_context()',b'self._context = tls_context()'),
  ('clouddrive/common/ui/addon.py',b"    def _search(self, driveid, item_driveid=None, item_id=None):\n        self.get_provider().configure(self._account_manager, driveid)\n        query = self._dialog.input(",SEARCH),
+ # Roadmap 1E.3: of the add-on's four services only 'download' (the stream proxy) is used here. 'source' (a directory
+ # listing server on port 8585 for "use as a Kodi source"), 'export' (STRM export scheduler, wakes every minute) and
+ # 'player' (subtitles for that source) start only when the add-on's setting ios_extra_services is true.
+ ('clouddrive/common/service/utils.py',b"        if type(services) != list:\n            services = [services]\n",
+  b"        if type(services) != list:\n            services = [services]\n"
+  b"        if KodiUtils.get_addon_setting('ios_extra_services') != 'true':\n"
+  b"            services = [s for s in services if s.name == 'download']\n"
+  b"            if not services:\n                return\n"),
  ('addon.xml',b'<import addon="script.module.pyqrcode"/>',b'<import addon="script.module.pyqrcode"/>\n\t\t<import addon="script.module.certifi"/>')]
 
 def patch_drive(addonroot):

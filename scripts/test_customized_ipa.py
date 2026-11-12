@@ -70,6 +70,23 @@ class BundleTests(unittest.TestCase):
   receipt=patch_drive(self.root/'addons');self.assertEqual(len(receipt),len({n for n,_,_ in DRIVE_PATCHES}))
   for name,_,after in DRIVE_PATCHES:self.assertIn(after,(base/name).read_bytes())
   with self.assertRaises(AssertionError):patch_drive(self.root/'addons')
+ def test_drive_extra_services_off_unless_setting_true(self):
+  old,new=next((o,n) for name,o,n in DRIVE_PATCHES if name.endswith('service/utils.py'))
+  source=(b"class KodiUtils:\n    setting=''\n    @staticmethod\n    def get_addon_setting(key):\n        return KodiUtils.setting\n"
+          b"class ServiceUtil(object):\n    @staticmethod\n    def run(services):\n"+old+b"        return [s.name for s in services]\n")
+  patched=source.replace(old,new)
+  self.assertNotEqual(patched,source)
+  def names(setting,wanted):
+   ns=self.exec_ns(patched);ns['KodiUtils'].setting=setting
+   return ns['ServiceUtil'].run([type('S',(),{'name':n})() for n in wanted])
+  all4=['download','source','export','player']
+  self.assertEqual(names('',all4),['download'])
+  self.assertEqual(names('false',all4),['download'])
+  self.assertEqual(names('true',all4),all4)
+  self.assertIsNone(names('',['source']))   # nothing left to run: the service returns instead of waking every second
+ @staticmethod
+ def exec_ns(code):
+  ns={};exec(code.decode(),ns);return ns
  def test_packaged_sources_manifest_seed_and_original_preserved(self):
   app,receipt=prepare(self.app,self.bundle,self.sha,self.root/'work');base=app/'AppData/AppHome';xml=ET.parse(base/'system/addon-manifest.xml').getroot()
   self.assertEqual(xml.find("addon[.='fixture.addon']").get('optional'),'true');self.assertIsNone(xml.find("addon[.='"+BOOT+"']").get('optional'))
