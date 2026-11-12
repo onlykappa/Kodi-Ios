@@ -103,6 +103,21 @@ section p{color:var(--label2);max-width:880px;line-height:1.45;margin:0 0 18px}
 .seg div.on{background:#636366;color:#fff}
 .dl{margin-top:16px;height:52px;border-radius:26px;background:#fff;color:#000;display:grid;place-items:center;font-weight:800;font-size:17px}
 .later{text-align:center;color:var(--blue-text);font-weight:600;font-size:16px;margin-top:14px}
+
+/* board D r2: summary sheet */
+.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.stat{background:var(--s2);border-radius:14px;padding:10px 12px}
+.stat b{display:block;font-size:21px;font-weight:800;letter-spacing:-.02em;white-space:nowrap}.stat span{color:var(--label2);font-size:12px}
+.eplist{background:var(--s2);border-radius:14px;overflow:hidden}
+.er{display:flex;align-items:center;gap:10px;padding:9px 12px;position:relative}
+.er+.er::before{content:"";position:absolute;top:0;left:44px;right:0;height:.5px;background:var(--sep)}
+.er .no{width:24px;color:var(--label2);font-size:13px;font-weight:700;text-align:right;flex:none}
+.er .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14.5px;font-weight:600}
+.er .sz{color:var(--label2);font-size:12.5px;flex:none}
+.er .lo{color:var(--orange);font-size:11px;font-weight:800;border:1px solid rgba(255,159,10,.55);border-radius:5px;padding:1px 5px;flex:none}
+.er.more .nm{color:var(--blue-text);font-weight:600}
+.warn{display:flex;gap:8px;align-items:flex-start;margin-top:12px;color:var(--label2);font-size:12.5px;line-height:1.4}
+.warn i{font-style:normal;color:var(--orange);font-weight:800}
 </style>
 </head>
 <body>
@@ -225,28 +240,56 @@ exists the app <b>builds the season from single episodes</b> at that quality.</p
 </section>
 
 <section class="board" id="d">
- <div class="tagline"><span class="mk">MOCKUP</span><span>D · Ready to download</span></div>
- <h2>What will be downloaded, before anything starts</h2>
- <p>A short summary sheet: how many episodes, the quality, the total size, and any episode that had to come in a lower quality. Download all queues them to
- Google Drive in episode order (the existing queue, Cancel All on the Queue page).</p>
+ <div class="tagline"><span class="mk">MOCKUP</span><span>D · Ready to download (round 2)</span></div>
+ <h2>Season 1 is ready: three numbers, the episodes, one Download</h2>
+ <p>Same sheet as board B. On top the season; then three big numbers (episodes, quality, size); the episodes as one list that never wraps (number, name,
+ size; an orange 720p tag on any episode that only exists lower); "22 more" opens the full list. One line explains the 720p ones; one Download button.</p>
  <div class="shots">
   <div class="slot"><div class="bezel"><div class="screen">
    <div class="status"><span>9:41</span><span>▮▮</span></div>
    <div class="hero"><div class="logo">NARUTO</div></div>
    <div class="dim"></div>
-   <div class="sheet">
-    <div class="grp">
-     <div class="hd"><b>Season 1 is ready to download</b><span>26 episodes · 1080p · about 9.8 GB</span></div>
-     <div class="ep2"><b>1. Homecoming</b><span>1080p · 380 MB</span></div>
-     <div class="ep2"><b>2. The Akatsuki Makes Its Move</b><span>1080p · 372 MB</span></div>
-     <div class="ep2"><b>3. The Results of Training</b><span>1080p · 377 MB</span></div>
-     <div class="ep2"><b>17. Lord Elder Chiyo</b><span style="color:var(--orange)">720p only · 210 MB</span></div>
-     <div class="foot">24 in 1080p · 2 only in 720p (marked). Downloads go to Google Drive in order.</div>
+   <div class="qs"><div class="grab"></div>
+    <div class="who"><i></i><div><b>Season 1 is ready</b><span>Naruto Shippūden · Build Season</span></div></div>
+    <div class="stats">
+     <div class="stat"><b>26</b><span>episodes</span></div>
+     <div class="stat"><b>1080p</b><span>quality</span></div>
+     <div class="stat"><b>9.8 GB</b><span>total</span></div>
     </div>
-    <div class="primary">Download All 26</div>
-    <div class="cancel">Cancel</div>
+    <div class="eplist">
+     <div class="er"><span class="no">1</span><span class="nm">Homecoming</span><span class="sz">380 MB</span></div>
+     <div class="er"><span class="no">2</span><span class="nm">The Akatsuki Makes Its Move</span><span class="sz">372 MB</span></div>
+     <div class="er"><span class="no">3</span><span class="nm">The Results of Training</span><span class="sz">377 MB</span></div>
+     <div class="er"><span class="no">17</span><span class="nm">Lord Elder Chiyo</span><span class="lo">720p</span><span class="sz">210 MB</span></div>
+     <div class="er more"><span class="no"></span><span class="nm">22 more episodes</span><span class="sz">›</span></div>
+    </div>
+    <div class="warn"><i>!</i><span>2 episodes were only found in 720p. Everything goes to Google Drive in episode order.</span></div>
+    <div class="dl">Download All 26 · 9.8 GB</div>
+    <div class="later">Cancel</div>
    </div>
-  </div></div><div class="cap"><b>D1 · Summary:</b> 24 in 1080p, 2 marked 720p</div></div>
+  </div></div><div class="cap"><b>D1 · Ready:</b> 24 in 1080p, 2 tagged 720p</div></div>
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="hero" style="background:linear-gradient(160deg,#6b4a1f,#20140a 60%,#000)"><div class="logo">LANTERNS</div></div>
+   <div class="dim"></div>
+   <div class="qs"><div class="grab"></div>
+    <div class="who"><i style="background:linear-gradient(160deg,#ffd27a,#5a3b0e)"></i><div><b>Season 2 is ready</b><span>Lanterns · Build Season</span></div></div>
+    <div class="stats">
+     <div class="stat"><b>8</b><span>episodes</span></div>
+     <div class="stat"><b>1080p</b><span>quality</span></div>
+     <div class="stat"><b>8.1 GB</b><span>total</span></div>
+    </div>
+    <div class="eplist">
+     <div class="er"><span class="no">1</span><span class="nm">The River Road</span><span class="sz">1.0 GB</span></div>
+     <div class="er"><span class="no">2</span><span class="nm">Last Light</span><span class="sz">980 MB</span></div>
+     <div class="er"><span class="no">3</span><span class="nm">The Lantern Maker</span><span class="sz">1.1 GB</span></div>
+     <div class="er more"><span class="no"></span><span class="nm">5 more episodes</span><span class="sz">›</span></div>
+    </div>
+    <div class="warn"><i style="color:var(--green)">✓</i><span>Every episode found in 1080p. Everything goes to Google Drive in episode order.</span></div>
+    <div class="dl">Download All 8 · 8.1 GB</div>
+    <div class="later">Cancel</div>
+   </div>
+  </div></div><div class="cap"><b>D2 · All found:</b> every episode in the chosen quality</div></div>
  </div>
 </section>
 
