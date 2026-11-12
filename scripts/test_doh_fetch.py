@@ -45,4 +45,37 @@ class Release(unittest.TestCase):
         self.assertEqual(track_menu.from_release('The.Last.of.Us.S02E07.2160p.mkv')['title'],'The Last of Us')
         self.assertIsNone(track_menu.from_release('Home Alone'))
 
+class MoreResolvers(unittest.TestCase):
+    """Owner log 89a98e5b: Cloudflare's answer was not enough; the next resolvers and IPv6 are asked, and a failure
+    says what each resolver answered."""
+    def opener(self,answers):
+        def open_(req,timeout=None):
+            host=req.full_url.split('/')[2];rtype=req.full_url.rsplit('type=',1)[1]
+            got=answers.get((host,rtype))
+            if isinstance(got,Exception):raise got
+            body={'Answer':[{'type':1 if rtype=='A' else 28,'data':ip} for ip in got or []]}
+            return io.BytesIO(json.dumps(body).encode())
+        return open_
+    def test_second_resolver_and_ipv6(self):
+        o=self.opener({('8.8.8.8','A'):['5.6.7.8']})
+        self.assertEqual(doh_fetch.resolve('www.podnapisi.net',opener=o),['5.6.7.8'])
+        o=self.opener({('1.1.1.1','AAAA'):['2001:db8::1']})
+        self.assertEqual(doh_fetch.resolve('www.podnapisi.net',opener=o),['2001:db8::1'])
+    def test_failure_names_each_resolver(self):
+        o=self.opener({('1.1.1.1','A'):urllib.error.URLError('blocked')})
+        self.assertEqual(doh_fetch.resolve('x.example',opener=o),[])
+        text=doh_fetch.tried_text()
+        self.assertIn('1.1.1.1 A: URLError',text);self.assertIn('8.8.8.8 AAAA: no answer',text)
+        def dead(req,timeout=None):raise urllib.error.URLError(socket.gaierror(8,'nodename nor servname'))
+        with self.assertRaises(urllib.error.URLError) as caught:
+            doh_fetch.get('https://x.example/a',opener=dead,resolver=lambda h:doh_fetch.resolve(h,opener=o))
+        self.assertIn('DNS over HTTPS',str(caught.exception))
+
+class TrackMenuKeys(unittest.TestCase):
+    def test_back_keys_stay_a_list(self):
+        # Owner log 89a98e5b: BACK was reused for the back link's id and every key press raised a TypeError.
+        src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/tracks.py').read_text()
+        self.assertEqual(src.count('\nBACK = '),1);self.assertIn('BACK = (9, 10, 92, 110)',src)
+
+
 if __name__=='__main__':unittest.main()

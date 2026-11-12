@@ -126,7 +126,10 @@ class ActualDirectory(unittest.TestCase):
     self.assertEqual(parse_qs(urlsplit(self.items[0][0]).query)['path'],['/phone/Kodi Downloads/Movies/Heat.1995.mkv']);self.assertFalse(self.items[0][2])
     self.items[0][1].setProperty.assert_called_with('IsPlayable','true')
     self.items[0][1].getVideoInfoTag.return_value.setYear.assert_called_once_with(1995)
-    self.items[0][1].addContextMenuItems.assert_called_once_with([('Refresh Library',page.REFRESH)])
+    # Owner (2026-11-12): a phone download also offers Remove (red in the long-press menu, ios_remove).
+    menu=self.items[0][1].addContextMenuItems.call_args[0][0]
+    self.assertEqual(menu[0],('Refresh Library',page.REFRESH));self.assertEqual(menu[1][0],'Remove')
+    self.assertIn('action=library_remove',menu[1][1]);self.assertEqual(len(menu),2)
     self.assertEqual(listing.call_count,int(enabled));self.dialog.ok.assert_not_called()
  def test_drive_failure_preserves_phone_items_and_does_not_publish_private_error_text(self):
   self.render(['/phone/Kodi Downloads/Movies/Heat.1995.mkv'],drive_enabled=True,drive_failure=True)

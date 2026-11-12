@@ -13,16 +13,42 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-DOH = 'https://1.1.1.1/dns-query?name=%s&type=A'
+# Owner log 89a98e5b (build 275): the fallback still ended in the phone's own Errno 8, so Cloudflare at 1.1.1.1 gave no
+# IPv4 answer (or could not be asked). Three resolvers, each by IP address, then IPv6; what each said goes to the log.
+RESOLVERS = ('https://1.1.1.1/dns-query?name=%s&type=%s', 'https://8.8.8.8/resolve?name=%s&type=%s',
+             'https://1.0.0.1/dns-query?name=%s&type=%s')
+DOH = RESOLVERS[0]
+TRIED = []    # (resolver, type, answer or error) of the last resolve(), for the log
+
+
+def _ask(url, opener, timeout, rtype):
+    req = urllib.request.Request(url, headers={'Accept': 'application/dns-json'})
+    with opener(req, timeout=timeout) as r:
+        data = json.loads(r.read().decode('utf-8', 'replace'))
+    return [a['data'] for a in data.get('Answer') or [] if a.get('type') == rtype and a.get('data')]
 
 
 def resolve(host, opener=None, timeout=8):
-    """IPv4 addresses for host from DNS over HTTPS, [] when none."""
+    """Addresses for host from DNS over HTTPS (IPv4 first, then IPv6), [] when no resolver has one."""
     opener = opener or urllib.request.urlopen
-    req = urllib.request.Request(DOH % urllib.parse.quote(host), headers={'Accept': 'application/dns-json'})
-    with opener(req, timeout=timeout) as r:
-        data = json.loads(r.read().decode('utf-8', 'replace'))
-    return [a['data'] for a in data.get('Answer') or [] if a.get('type') == 1 and a.get('data')]
+    del TRIED[:]
+    for rtype, code in (('A', 1), ('AAAA', 28)):
+        for template in RESOLVERS:
+            url = template % (urllib.parse.quote(host), rtype)
+            try:
+                found = _ask(url, opener, timeout, code)
+            except Exception as error:
+                TRIED.append((urllib.parse.urlsplit(url).hostname, rtype, type(error).__name__))
+                continue
+            TRIED.append((urllib.parse.urlsplit(url).hostname, rtype, ','.join(found) or 'no answer'))
+            if found:
+                return found
+    return []
+
+
+def tried_text():
+    """'1.1.1.1 A: no answer; 8.8.8.8 A: URLError; ...' for the log."""
+    return '; '.join('%s %s: %s' % t for t in TRIED)
 
 
 class _Pinned(http.client.HTTPSConnection):
@@ -31,7 +57,7 @@ class _Pinned(http.client.HTTPSConnection):
         self._ip = ip
 
     def connect(self):
-        sock = socket.create_connection((self._ip, 443), self.timeout)
+        sock = socket.create_connection((self._ip, 443), self.timeout)   # an IPv6 answer connects the same way
         self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
 
 
@@ -58,7 +84,7 @@ def get(url, headers=None, timeout=20, opener=None, resolver=None, connect=None,
             raise first
         ips = resolver(parts.hostname)
         if not ips:
-            raise first
+            raise urllib.error.URLError('%s (DNS over HTTPS: %s)' % (getattr(first, 'reason', first), tried_text() or 'not asked'))
         conn = connect(parts.hostname, ips[0])
         try:
             path = parts.path or '/'

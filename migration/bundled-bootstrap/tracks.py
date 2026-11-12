@@ -20,7 +20,8 @@ import track_menu as tm
 BACK = (9, 10, 92, 110)
 CLOSE, MORE, CTA, LIST, T_MINUS, T_PLUS, B_MINUS, B_PLUS = 9500, 9501, 9510, 9310, 9401, 9402, 9403, 9404
 SPEED_LIST = 9311   # board 02: Playback speed's own six-row list
-BACK = 9502         # board 02: the sub-page's back link in the header
+BACK_LINK = 9502    # board 02: the sub-page's back link in the header (owner log 89a98e5b: named BACK, it
+                    # replaced the back actions above and every key press in the menu raised a TypeError)
 FIELDS = ['subtitles', 'currentsubtitle', 'subtitleenabled', 'audiostreams', 'currentaudiostream']
 UA = 'KodiIOS/1.0'
 
@@ -295,7 +296,7 @@ def run(mode):
         def onClick(self, control):
             if control == CLOSE:
                 self.close()
-            elif control == BACK:   # the sub-page's back link: Choose another -> More -> the tracks
+            elif control == BACK_LINK:   # the sub-page's back link: Choose another -> More -> the tracks
                 self.more('more' if self.page == 'choose' else 'tracks')
             elif control in (LIST, SPEED_LIST):
                 n = self.getControl(control).getSelectedPosition()
