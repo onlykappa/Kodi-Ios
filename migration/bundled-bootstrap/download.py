@@ -132,14 +132,20 @@ def run():
     rest_of_season(xbmc,xbmcgui,dialog,home,title,season,episodes,set(),lambda n:start('episode',n))
    return
   # Whole season: verify real packs first, otherwise scan aired episodes before offering quality.
-  try:
-   import json
-   answer=json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Files.GetDirectory','params':{
-    'directory':dl.season_path(tmdb,season),'media':'video','properties':['episode','title','firstaired']}})))
-   import season_sources
-   numbers=season_sources.aired(answer.get('result',{}).get('files'))
-   names={int(f['episode']):f.get('title') or '' for f in answer.get('result',{}).get('files') or [] if f.get('episode')}
-  except Exception:numbers=[];names={}
+  numbers=[];names={}
+  import json,season_sources
+  for attempt in (1,2):   # TMDb Helper can time out on its first listing of a long season; once more
+   try:
+    answer=json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Files.GetDirectory','params':{
+     'directory':dl.season_path(tmdb,season),'media':'video','properties':['episode','title','firstaired','premiered']}})))
+    files=answer.get('result',{}).get('files') or []
+    numbers=season_sources.aired(files)
+    names={int(f['episode']):f.get('title') or '' for f in files if f.get('episode')}
+    xbmc.log('Kodi iOS download: season %s listing: %d rows, %d aired%s'%(season,len(files),len(numbers),
+             (' (error %s)'%answer['error'].get('message','')) if answer.get('error') else ''),xbmc.LOGINFO)
+   except Exception as error:
+    xbmc.log('Kodi iOS download: season %s listing failed: %s'%(season,type(error).__name__),xbmc.LOGWARNING)
+   if numbers:break
   owned={n for n in numbers if check('episode',season,n)}
   question=dl.season_question(season,len(owned),len(numbers)) if numbers else None
   if question and not dialog.yesno(question[0],question[1],nolabel='Cancel',yeslabel='Download'):return

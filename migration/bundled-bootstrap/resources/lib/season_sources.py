@@ -19,13 +19,23 @@ def note(xbmc,event,**fields):
  except Exception:pass
 
 def aired(files,today=None):
+ """Episode numbers that have aired. Owner (2026-11-12, Naruto Shippuden S1, 2007): "No aired episodes could be
+ verified" for a season that has every episode. An episode is left out only when its air date is in the future;
+ one without a date counts as aired unless it comes after an episode still to air (TMDb Helper does not always
+ fill firstaired), so only a brand-new season with nothing out yet is empty."""
  today=today or datetime.datetime.now(datetime.timezone.utc).date()
- out=set()
+ out=set();undated=set();future=set()
  for row in files or []:
-  date=watch.day(row.get('firstaired') or row.get('premiered'))
   try:number=int(row.get('episode') or 0)
   except (TypeError,ValueError):continue
-  if number>0 and row.get('filetype')!='directory' and date and date<=today:out.add(number)
+  if number<=0 or row.get('filetype')=='directory':continue
+  date=watch.day(row.get('firstaired') or row.get('premiered') or row.get('aired'))
+  if not date:undated.add(number)
+  elif date<=today:out.add(number)
+  else:future.add(number)
+ # An undated episode before the first future one has aired (a running season's undated tail has not).
+ first_future=min(future) if future else None
+ out|={n for n in undated if first_future is None or n<first_future}
  return sorted(out)
 
 def availability(sources,numbers):

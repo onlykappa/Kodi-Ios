@@ -265,4 +265,18 @@ class InterruptibleHTTP(unittest.TestCase):
   with self.assertRaises(TimeoutError):season.dl._interruptible_get('http://127.0.0.1:%d/headers'%self.server.server_address[1],.2,lambda:False)
   self.assertLess(time.monotonic()-started,1.5)
 
+class AiredEpisodes(unittest.TestCase):
+    """Owner (2026-11-12): Naruto Shippuden S1 (2007) said no aired episodes could be verified."""
+    def test_undated_episodes_count_unless_the_season_is_only_future(self):
+        import datetime
+        from season_sources import aired
+        today=datetime.date(2026,11,12)
+        rows=lambda *dates:[{'episode':n,'firstaired':d,'filetype':'file'} for n,d in enumerate(dates,1)]
+        self.assertEqual(aired(rows('','',''),today),[1,2,3])                       # no dates at all
+        self.assertEqual(aired(rows('2007-02-15','',''),today),[1,2,3])             # some dated, aired
+        self.assertEqual(aired(rows('2026-12-01','',''),today),[])                  # brand-new season
+        self.assertEqual(aired(rows('','2026-12-01',''),today),[1])                 # undated before the next one
+        self.assertEqual(aired(rows('2007-02-15','2027-01-01'),today),[1])          # future one left out
+        self.assertEqual(aired([{'episode':1,'premiered':'2007-02-15'}],today),[1])
+
 if __name__=='__main__':unittest.main()
