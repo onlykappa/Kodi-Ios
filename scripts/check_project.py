@@ -34,7 +34,7 @@ ALLOWED_TOP_LEVEL = {'README.md','ROADMAP.md','.gitignore','migration','docs','s
 ALLOWED_SUFFIXES = {'.md','.json','.py','.xml','.xsp','.po'}   # .po: Kodi add-on label strings (settings.xml needs numbered labels)
 PORTRAIT_FILES = {'.github/workflows/kodi-ios-portrait.yml','migration/ios-portrait/build-kodi-ios.sh','migration/ios-portrait/kodi-21.3-portrait.patch',
                   '.github/workflows/glassbar-ios.yml','migration/glassbar-ios/build-glassbar.sh',
-                  'docs/design/settings-mockups.html','docs/design/fuse-pages-mockups.html',
+                  'docs/design/settings-mockups.html','docs/design/fuse-pages-mockups.html','docs/design/season-pack-mockups.html',
                   'docs/design/poster-cards-mockups.html','docs/design/activity-indicator-mockups.html','docs/design/activity-mockups-r4.html',
                   'docs/design/library-status-mockup.html','docs/design/library-tools-mockups.html',
                   'docs/design/transfers-simple-mockup.html','docs/design/library-status-mockups-r1.html'}   # owner mockups (self-contained pages, no images)
