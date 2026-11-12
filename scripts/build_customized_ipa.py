@@ -155,6 +155,30 @@ def patch_drive(addonroot):
   path.write_bytes(data.replace(old,new))
  return [{'path':'addons/'+DRIVE_COMMON+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]
 
+# Roadmap 1E.2: Kodi's build ships ~200 add-ons; Kodi scans every addon.xml at launch and each binary add-on carries its own
+# dylib (about 230 MB unpacked of 850 MB). This app plays video: it never uses PVR clients, music-tracker audio decoders,
+# game cores, visualisations, screensavers (except Kodi's built-in black/dim), the audio rippers, rare image decoders,
+# RTMP or SFTP. Kept on purpose: kodi.binary.* (API definitions), inputstream.adaptive/ffmpegdirect, imagedecoder.heif,
+# peripheral.joystick, game.controller.* (controller profiles), vfs.rar/libarchive (Elementum packs), metadata.*.
+PRUNE_PREFIXES=('pvr.','audiodecoder.','game.libretro','visualization.','screensaver.','audioencoder.','imagedecoder.mpo','imagedecoder.raw','inputstream.rtmp','vfs.sftp')
+PRUNE_KEEP=('screensaver.xbmc.builtin.black','screensaver.xbmc.builtin.dim','audioencoder.kodi.builtin.aac','audioencoder.kodi.builtin.wma')
+
+def prune_unused_addons(addonroot,manifest=None):
+ """Delete the unused binary add-ons from the staged AppHome/addons. Refuses to remove one that another add-on needs
+ (a non-optional <import>) or that the system manifest enables outright. Returns the removed ids."""
+ addonroot=Path(addonroot)
+ removed=sorted(d.name for d in addonroot.iterdir() if d.is_dir() and d.name.startswith(PRUNE_PREFIXES) and d.name not in PRUNE_KEEP)
+ doomed=set(removed)
+ if manifest:
+  enabled={a.text for a in ET.parse(manifest).getroot().findall('addon') if a.get('optional')!='true'}
+  assert not doomed&enabled,'System manifest needs a pruned add-on: '+', '.join(sorted(doomed&enabled))
+ for d in addonroot.iterdir():
+  if not d.is_dir() or d.name in doomed or not (d/'addon.xml').is_file():continue
+  needed=[i.get('addon') for i in ET.parse(d/'addon.xml').getroot().findall('requires/import') if i.get('optional')!='true' and i.get('addon') in doomed]
+  assert not needed,'%s needs a pruned add-on: %s'%(d.name,', '.join(needed))
+ for name in removed:shutil.rmtree(addonroot/name)
+ return removed
+
 ELEMENTUM='plugin.video.elementum';BURST='script.elementum.burst'
 # The engine cannot run as a separate program on iOS, so the add-on's own library mode loads it in-process
 # from the app's Frameworks/elementum.framework (built by migration/elementum-ios/build-ios-engine.sh).
@@ -580,6 +604,7 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
   dest=base/name
   assert not dest.exists(),'Unexpected bundled addon collision: '+name
   dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data)
+ pruned=prune_unused_addons(addonroot,system)
  navigation_files=_nav.patch_skin(addonroot/'skin.arctic.fuse.3') if (addonroot/'skin.arctic.fuse.3').is_dir() else []
  drive_files=patch_drive(addonroot) if (addonroot/DRIVE_COMMON).is_dir() else []
  engine=add_elementum(elementum,target,addonroot) if elementum else None
@@ -617,7 +642,7 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
  for id in order+[BOOT]:
   assert id not in existing,'System manifest collision';ET.SubElement(root,'addon',{} if id==BOOT else {'optional':'true'}).text=id
  ET.indent(root);tree.write(system,encoding='utf-8',xml_declaration=True)
- return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'elementum':engine,'profile_addons':profile_addons,'portrait':portrait,'splash':splash}
+ return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'pruned_addons':pruned,'elementum':engine,'profile_addons':profile_addons,'portrait':portrait,'splash':splash}
 
 # Owner crash report (build 142, cpu_resource_fatal): iOS killed Kodi for CPU use, and part of it was Python compiling
 # source (builtin_compile / Py_CompileStringObject under import). The app bundle is read-only, so Python can never save
