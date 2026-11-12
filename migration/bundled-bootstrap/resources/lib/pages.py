@@ -72,28 +72,62 @@ def pill_button(p,id,x,y,w,text,actions='',extra='',selected=''):
 
 # --- iOS alert: yes/no, OK, progress ---------------------------------------------------------------------
 def confirm_dialog(p,original):
- """portrait/DialogConfirm.xml. Kodi fills heading 1 and text 9, shows buttons 10 (No/Cancel), 11 (Yes/OK) and
- 12 (custom) as needed, and the progress bar 20 only for progress dialogs."""
- w=900;h=680;x=(p.WIDTH-w)//2;y=(p.HEIGHT-h)//2;M=p.MEDIA
- def button(id,text_color,fill):
-  return ('<control type="button" id="%d"><width min="250" max="520">auto</width><height>112</height><font>p_btn</font><textcolor>%s</textcolor>'
-          '<focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny><textoffsetx>44</textoffsetx>'
-          '<texturefocus border="56" colordiffuse="%s">%spill_112.png</texturefocus><texturenofocus border="56" colordiffuse="%s">%spill_112.png</texturenofocus>'
-          '<onup>9</onup></control>')%(id,text_color,text_color,'FF5A5A5E' if fill!=BLUE else 'FF3D9BFF',M,fill,M)
- dim=('<control type="image"><width>%d</width><height>%d</height><texture colordiffuse="8C000000">%swhite.png</texture></control>'%(p.WIDTH,p.HEIGHT,M))
- card=('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(x,y,w,h)+
-  '<animation effect="zoom" start="94" end="100" center="auto" time="220" tween="back" easing="out">WindowOpen</animation>'
-  '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation><animation effect="fade" start="100" end="0" time="120">WindowClose</animation>'+
-  p.image(0,0,w,h,M+'alert.png',p.WHITE,border=40)+
-  '<control type="label" id="1"><left>50</left><top>44</top><width>%d</width><height>70</height><font>p_h3</font><textcolor>%s</textcolor>'
-  '<align>center</align><aligny>center</aligny><scroll>true</scroll></control>'%(w-100,p.WHITE)+
-  '<control type="textbox" id="9"><left>60</left><top>130</top><width>%d</width><height>%d</height><font>p_sub</font><textcolor>FFD1D1D6</textcolor>'
-  '<align>center</align><autoscroll delay="4000" time="2000" repeat="6000">true</autoscroll><pagecontrol>-</pagecontrol></control>'%(w-120,h-130-250)+
-  '<control type="progress" id="20"><left>60</left><top>%d</top><width>%d</width><height>14</height>'
-  '<texturebg border="7" colordiffuse="40FFFFFF">%sdot.png</texturebg><lefttexture /><midtexture border="7" colordiffuse="%s">%sdot.png</midtexture><righttexture /></control>'%(h-230,w-120,M,BLUE,M)+
-  '<control type="grouplist" id="9100"><left>40</left><top>%d</top><width>%d</width><height>112</height><orientation>horizontal</orientation>'
-  '<align>center</align><itemgap>24</itemgap>'%(h-160,w-80)+button(10,p.WHITE,'FF48484A')+button(12,p.WHITE,'FF48484A')+button(11,p.WHITE,BLUE)+
-  '</control></control>')
+ """portrait/DialogConfirm.xml (owner-approved board 03, docs/design/fuse-windows-mockups.html): a short bold title,
+ one line of context and hairline-divided buttons. Kodi fills heading 1 and text 9 and shows buttons 10 (No/Cancel),
+ 11 (Yes/OK) and 12 (custom); progress dialogs show 10 and the bar 20. One button is full width, two share the row
+ (the likely choice on the trailing side, bold) and a custom third stacks all three, Cancel last. The buttons keep
+ their ids and a 118-unit height but draw nothing themselves: the rows are separate images and labels that follow
+ which buttons Kodi shows (their text is read back with Control.GetLabel). A destructive verb is red."""
+ w=800;rh=118;top=400;h_two=top+rh;h_three=top+3*rh;M=p.MEDIA
+ v=lambda i:'Control.IsVisible(%d)'%i
+ three=v(12);two='%s + %s + !%s'%(v(10),v(11),v(12));only10='%s + !%s + !%s'%(v(10),v(11),v(12));only11='%s + !%s + !%s'%(v(11),v(10),v(12))
+ x=(p.WIDTH-w)//2;y=(p.HEIGHT-h_two)//2
+ destructive='[%s]'%' | '.join('String.Contains(Control.GetLabel(11),%s)'%k for k in ('Delete','delete','Remove','remove','Clear','clear','Reset','reset','Erase'))
+ def ghost(id,l,t,width,visible='',extra=''):
+  return ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><label></label>'
+          '<textcolor>00000000</textcolor><focusedcolor>00000000</focusedcolor><texturefocus /><texturenofocus />%s%s</control>')%(id,l,t,width,rh,('<visible>%s</visible>'%visible) if visible else '',extra)
+ def lit(l,t,width,focus,visible):
+  # Pressed/focused row: a rounded inset highlight, so it does not poke out of the card's corners.
+  return p.image(l+10,t+10,width-20,rh-20,M+'round_s.png','24FFFFFF','<visible>%s + Control.HasFocus(%d)</visible>'%(visible,focus),border=26)
+ def words(l,t,width,button,font,color,visible):
+  return p.label(l,t,width,rh,'$INFO[Control.GetLabel(%d)]'%button,font,color,'center','<visible>%s</visible><scroll>false</scroll>'%visible)
+ hair=lambda l,t,width,height,visible='':p.image(l,t,width,height,M+'white.png',p.SEP,('<visible>%s</visible>'%visible) if visible else '')
+ B=p.ACCENT
+ # Which row each button sits on in each layout: (left, top, width, layout condition)
+ rows={11:[(0,top,w,only11),(w//2,top,w//2,two),(0,top,w,three)],
+       10:[(0,top,w,only10),(0,top,w//2,two),(0,top+2*rh,w,three)],
+       12:[(0,top+rh,w,three)]}
+ drawn=''
+ for button,places in rows.items():
+  for l,t,width,cond in places:
+   drawn+=lit(l,t,width,button,cond)
+   if button==11:
+    drawn+=words(l,t,width,11,'p_btn',B,cond+' + ![%s]'%destructive)+words(l,t,width,11,'p_btn',RED,cond+' + '+destructive)
+   else:drawn+=words(l,t,width,button,'p_body',B,cond)
+ chrome=(hair(0,top,w,2)+hair(w//2-1,top,2,rh,two)+hair(0,top+rh,w,2,three)+hair(0,top+2*rh,w,2,three))
+ anim=('<animation effect="zoom" start="94" end="100" center="auto" time="220" tween="back" easing="out">WindowOpen</animation>'
+       '<animation effect="fade" start="0" end="100" time="160">WindowOpen</animation><animation effect="fade" start="100" end="0" time="120">WindowClose</animation>'
+       # The stacked layout is 236 units taller: the group is lifted by half of that so the card stays centred.
+       '<animation effect="slide" end="0,-%d" time="0" condition="%s">Conditional</animation>')%(rh,three)
+ card=('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(x,y,w,h_three)+anim+
+  p.image(0,0,w,h_two,M+'alert.png',p.WHITE,'<visible>!%s</visible>'%three,border=40)+
+  p.image(0,0,w,h_three,M+'alert.png',p.WHITE,'<visible>%s</visible>'%three,border=40)+
+  '<control type="label" id="1"><left>50</left><top>52</top><width>%d</width><height>64</height><font>p_h3</font><textcolor>%s</textcolor>'
+  '<align>center</align><aligny>center</aligny><scroll>false</scroll></control>'%(w-100,p.WHITE)+
+  '<control type="textbox" id="9"><left>60</left><top>126</top><width>%d</width><height>%d</height><font>p_foot</font><textcolor>%s</textcolor>'
+  '<align>center</align><autoscroll delay="4000" time="2000" repeat="6000">true</autoscroll><pagecontrol>-</pagecontrol></control>'%(w-120,top-126-30,p.GREY)+
+  '<control type="progress" id="20"><left>60</left><top>%d</top><width>%d</width><height>13</height>'
+  '<texturebg border="6" colordiffuse="33FFFFFF">%sdot.png</texturebg><lefttexture /><midtexture border="6" colordiffuse="%s">%sdot.png</midtexture><righttexture /></control>'%(top-70,w-120,M,BLUE,M)+
+  chrome+drawn+
+  ghost(11,0,top,w,'',('<onup>12</onup><ondown>12</ondown><onleft>10</onleft><onright>10</onright>'))+
+  ghost(12,0,top+rh,w,'','<onup>11</onup><ondown>10</ondown>')+
+  ghost(10,0,top,w//2,'','<onleft>11</onleft><onright>11</onright><onup>12</onup><ondown>11</ondown>'
+        '<animation effect="slide" end="0,%d" time="0" condition="%s">Conditional</animation>'%(2*rh,three))+
+  # Right-hand halves that only a stacked or Cancel-only row needs, so the whole row answers a tap.
+  ghost(9102,w//2,top,w//2,only10,'<onclick>SendClick(10)</onclick>')+
+  ghost(9103,w//2,top+2*rh,w//2,three,'<onclick>SendClick(10)</onclick>')+
+  '</control>')
+ dim=p.image(0,0,p.WIDTH,p.HEIGHT,M+'white.png','8C000000')
  # Kodi hides 11 in progress dialogs; this 1x1 button takes the first focus and hands it to Yes/OK, else Cancel
  # (focus stayed nowhere before, so a remote could not cancel).
  relay=('<control type="button" id="9101"><left>0</left><top>0</top><width>1</width><height>1</height><texturefocus /><texturenofocus />'
@@ -486,29 +520,66 @@ def track_menu():
 # the landscape marker (navigation.patch_skin leaves it alone) and is centred with centerleft/centertop, so it
 # holds on the 2340-wide layout too. Progress 10 stays (Kodi drives it), never drawn.
 BUSY='DialogBusy.xml'
+def slide_bar(media,x,y,w,h=11,segment=0.36,time=1100,extra='',fill='FF0A84FF'):
+ """Indeterminate progress (DEC-036): the 20 % white track with a short blue segment sliding along it. Kodi cannot clip,
+ so the segment moves between the two ends of the track. `extra` (a <visible> or animation) goes on both pieces."""
+ seg=int(w*segment)
+ return ('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texture border="%d" colordiffuse="33FFFFFF">%sdot.png</texture>%s</control>'
+         '<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texture border="%d" colordiffuse="%s">%sdot.png</texture>'
+         '<animation effect="slide" start="0,0" end="%d,0" time="%d" tween="sine" easing="inout" loop="true" condition="true">Conditional</animation>%s</control>')%(
+         x,y,w,h,h//2,media,extra,x,y,seg,h,h//2,fill,media,w-seg,time,extra)
 def busy_dialog(marker,font,media='special://skin/extras/portrait/'):
- # Build 192 (owner: "we can remove the loading… and just have a clean loading circle in the center"): the open ring
- # alone, spinning in the middle of the screen; no pill, no words. (font is kept for the callers; nothing uses it.)
- ring=96
- spin='<animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation>'
- return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: Kodi busy dialog as a centred spinning ring -->\n<window><zorder>1000</zorder><controls>'
+ """DialogBusy: the opening card of owner-approved boards 04/05 (docs/design/fuse-windows-mockups.html). When the opener
+ has set Window(home).Property(IOSOpen.Title) the card names the open ("Opening X", IOSOpen.Source, then stages 1-3
+ from IOSOpen.Stage ticked as they finish, a sliding bar, and after about ten seconds IOSOpen.Slow in plain words).
+ For any other wait it is a small card, a title and the sliding bar, and Cancel joins after 2 s as before (roadmap
+ 2.18). Cancel (9850) is Kodi's Back, which the busy dialog honours. The ring is gone: the only ring is the bell's (DEC-036)."""
+ w=720;pad=48;inner=w-2*pad;icons='special://skin/extras/icons/'
+ title='Window(home).Property(IOSOpen.Title)';has='!String.IsEmpty(%s)'%title;no='String.IsEmpty(%s)'%title
+ stage=lambda n:'Window(home).Property(IOSOpen.Stage)'
+ def only(cond,body):return '<control type="group"><visible>%s</visible>%s</control>'%(cond,body)
+ L=lambda x,y,wd,h,text,f,color,align='left',extra='':('<control type="label"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><font>%s</font>'
+   '<textcolor>%s</textcolor><align>%s</align><aligny>center</aligny><scroll>false</scroll><label>%s</label>%s</control>')%(x,y,wd,h,f,color,align,text,extra)
+ stages=''
+ for n,(doing,done) in enumerate((('Finding your copy…','Found your copy'),('Connecting…','Connected'),('Reading the file…','Read the file')),1):
+  y=190+(n-1)*66
+  at='Integer.IsEqual(Window(home).Property(IOSOpen.Stage),%d)'%n
+  passed=' | '.join('Integer.IsEqual(Window(home).Property(IOSOpen.Stage),%d)'%k for k in range(n+1,5))
+  stages+=(
+   '<control type="image"><left>%d</left><top>%d</top><width>44</width><height>44</height><aspectratio>keep</aspectratio><texture colordiffuse="FF30D158">%scircle-check.png</texture><visible>%s</visible></control>'%(pad,y+11,icons,passed)+
+   '<control type="image"><left>%d</left><top>%d</top><width>44</width><height>44</height><aspectratio>keep</aspectratio><texture colordiffuse="FF0A84FF">%scircle.png</texture><visible>%s</visible></control>'%(pad,y+11,icons,at)+
+   '<control type="image"><left>%d</left><top>%d</top><width>44</width><height>44</height><aspectratio>keep</aspectratio><texture colordiffuse="33EBEBF5">%scircle.png</texture><visible>![%s | %s]</visible></control>'%(pad,y+11,icons,at,passed)+
+   L(pad+66,y,inner-66,66,doing,'p_sub','FFFFFFFF','left','<visible>%s</visible>'%at)+
+   L(pad+66,y,inner-66,66,done,'p_sub','99EBEBF5','left','<visible>%s</visible>'%passed)+
+   L(pad+66,y,inner-66,66,doing.rstrip('…'),'p_sub','4DEBEBF5','left','<visible>![%s | %s]</visible>'%(at,passed)))
+ long_h=720;short_h=340
+ card=(
+  '<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture border="40" colordiffuse="FFFFFFFF">%salert.png</texture><visible>%s</visible></control>'%(w,long_h,media,has)+
+  '<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture border="40" colordiffuse="FFFFFFFF">%salert.png</texture><visible>%s</visible></control>'%(w,short_h,media,no)+
+  only(has,L(pad,40,inner,64,'$INFO[%s,Opening ,]'%title,'p_h3','FFFFFFFF','center')+
+       L(pad,104,inner,52,'$INFO[Window(home).Property(IOSOpen.Source)]','p_foot','99EBEBF5','center')+
+       only('!String.IsEmpty(Window(home).Property(IOSOpen.Stage))',stages)+
+       slide_bar(media,pad,420,inner)+
+       # About ten seconds in, why it is slow, in the host's own words.
+       '<control type="group"><visible>!String.IsEmpty(Window(home).Property(IOSOpen.Slow))</visible>'
+       '<animation effect="fade" start="0" end="100" delay="10000" time="250">WindowOpen</animation>'+
+       L(pad,452,inner,52,'Taking longer than usual.','p_foot_b','FFFFFFFF','center')+
+       L(pad,500,inner,52,'$INFO[Window(home).Property(IOSOpen.Slow)]','p_foot','99EBEBF5','center')+'</control>')+
+  only(no,L(pad,36,inner,64,'Working…','p_h3','FFFFFFFF','center')+slide_bar(media,pad,134,inner)))
+ # One Cancel for both cards: secondary (a glass-styled capsule, 124 units), at the foot of whichever card shows.
+ cancel=('<control type="button" id="9850"><left>%d</left><top>%d</top><width>%d</width><height>124</height><font>%s</font>'
+  '<label>Cancel</label><textcolor>FFFFFFFF</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>center</align><aligny>center</aligny>'
+  '<texturefocus border="62" colordiffuse="FF5A5A5E">%spill_124.png</texturefocus><texturenofocus border="62" colordiffuse="FF3A3A3C">%spill_124.png</texturenofocus>'
+  '<onclick>Action(Back)</onclick><animation effect="slide" end="0,-%d" time="0" condition="%s">Conditional</animation>'
+  '<animation effect="fade" start="0" end="100" delay="2000" time="250" condition="%s">WindowOpen</animation></control>')%(
+  pad,long_h-124-40,inner,font,media,media,long_h-short_h,no,no)
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: Kodi busy dialog as the opening card -->\n<window><zorder>1000</zorder><controls>'
   '<control type="group"><centerleft>50%%</centerleft><centertop>50%%</centertop><width>%d</width><height>%d</height>'
   '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
-  '<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture colordiffuse="FFFFFFFF">%sring.png</texture>%s</control></control>'
-  # Roadmap 2.18 (owner log 396d5d67: a tap on the ring 4 s into a 13 s open did nothing): after 2 s a line and a
-  # Cancel button fade in under the ring. Cancel is Kodi's Back, which the busy dialog honours (it stops an add-on's
-  # resolve). Short loads still show only the ring (owner, build 192).
-  '<control type="group"><centerleft>50%%</centerleft><centertop>50%%</centertop><width>600</width><height>420</height>'
-  '<animation effect="fade" start="0" end="100" delay="2000" time="250">WindowOpen</animation>'
-  '<control type="image"><left>60</left><top>280</top><width>480</width><height>150</height><texture border="26" colordiffuse="EB1C1C1E">%sround_s.png</texture></control>'
-  '<control type="label"><left>0</left><top>290</top><width>600</width><height>50</height><font>%s</font><textcolor>B3EBEBF5</textcolor>'
-  '<align>center</align><aligny>center</aligny><label>Still working…</label></control>'
-  '<control type="button" id="9850"><left>180</left><top>340</top><width>240</width><height>80</height><font>%s</font>'
-  '<label>Cancel</label><textcolor>FF4FA8FF</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>center</align><aligny>center</aligny>'
-  '<texturefocus /><texturenofocus /><onclick>Action(Back)</onclick></control></control>'
+  '%s%s</control>'
   '<control type="group"><left>-4000</left><top>-4000</top><width>10</width><height>10</height><visible>false</visible>'
   '<control type="progress" id="10"><width>10</width><height>10</height><texturebg /><lefttexture /><midtexture /><righttexture /></control></control>'
-  '</controls></window>\n')%(marker,ring,ring,ring,ring,media,spin,media,font,font)
+  '</controls></window>\n')%(marker,w,long_h,card,cancel)
 
 # Build 192 (quick wins): Kodi's toasts and volume bar as iOS banners instead of Fuse's corner pill, and the info
 # button's wait (Custom_1193) as the same centred ring as DialogBusy. Kodi fills 400/401/402 (icon, heading, text) and

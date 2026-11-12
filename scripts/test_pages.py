@@ -143,16 +143,17 @@ class Pages(unittest.TestCase):
    taps=[c for c in root.iter('control') if c.get('type') in ('button','list')]
    self.assertEqual([(c.get('id'),c.findtext('label'),c.findtext('onclick')) for c in taps],[('9850','Cancel','Action(Back)')],rel)
    self.assertIn('delay="2000"',xml,rel)
-   pill=root.find('controls/control[@type="group"]')
-   self.assertEqual((pill.findtext('centerleft'),pill.findtext('centertop')),('50%','50%'),rel);self.assertIsNone(pill.find('left'),rel)
-   # Build 192 (owner): a clean spinning circle in the centre, no pill and no "Loading…".
-   self.assertNotIn('pill_glass_124.png',xml);self.assertNotIn('Loading',xml);self.assertIsNone(pill.find('control[@type="label"]'),rel)  # the ring group itself has no words
-   ring=[c for c in pill.iter('control') if 'ring.png' in (c.findtext('texture') or '')][0]
-   self.assertEqual(ring.find('animation').get('effect'),'rotate')
+   # Boards 04/05 (DEC-036): the opening card with a sliding bar replaces the ring; the only ring is the bell's.
+   card=root.find('controls/control[@type="group"]')
+   self.assertEqual((card.findtext('centerleft'),card.findtext('centertop')),('50%','50%'),rel);self.assertIsNone(card.find('left'),rel)
+   self.assertNotIn('ring.png',xml);self.assertIn('IOSOpen.Title',xml);self.assertIn('IOSOpen.Stage',xml);self.assertIn('IOSOpen.Slow',xml)
+   slide=[c for c in card.iter('control') if c.find('animation') is not None and c.find('animation').get('effect')=='slide' and c.find('animation').get('loop')=='true']
+   self.assertTrue(slide,rel)
+   self.assertEqual(slide[0].find('texture').get('colordiffuse'),'FF0A84FF')
    # Kodi's progress 10 stays for Kodi, inside a group that is never drawn.
    hidden=[g for g in root.iter('control') if g.get('type')=='group' and g.findtext('visible')=='false'][0]
    self.assertEqual([c.get('id') for c in hidden.iter('control') if c.get('id')],['10'],rel)
-   shapes.append([(c.get('type'),c.findtext('left'),c.findtext('top'),c.findtext('width'),c.findtext('height')) for c in pill.iter('control')])
+   shapes.append([(c.get('type'),c.findtext('left'),c.findtext('top'),c.findtext('width'),c.findtext('height')) for c in card.iter('control')])
   self.assertEqual(shapes[0],shapes[1])
   self.assertIn('DialogBusy.xml',portrait.OWN_1080I);self.assertIn('DialogBusy.xml',portrait.LOADED_AT_START)
   self.assertIn('Kodi-iOS player controls',(self.skin/'1080i/DialogBusy.xml').read_text(encoding='utf-8'))
