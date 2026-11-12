@@ -208,7 +208,7 @@ def speed_rows(current):
     if now <= 0:
         now = 1.0
     near = min(SPEEDS, key=lambda s: abs(s - now))
-    return [{'label': '%gx' % s, 'tag': 'NORMAL' if s == 1.0 else '', 'on': s == near, 'index': s} for s in SPEEDS]
+    return [{'label': 'Normal' if s == 1.0 else '%g×' % s, 'tag': '', 'on': s == near, 'index': s} for s in SPEEDS]   # board 02
 
 
 def more_rows(found, always):

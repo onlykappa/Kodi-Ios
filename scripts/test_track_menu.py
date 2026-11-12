@@ -95,10 +95,10 @@ class Speed(unittest.TestCase):
     def test_rows_check_the_current_tempo(self):
         import track_menu as tm
         rows = tm.speed_rows('1.25')
-        self.assertEqual([r['label'] for r in rows], ['0.8x', '0.9x', '1x', '1.1x', '1.25x', '1.5x'])
-        self.assertEqual([r['label'] for r in rows if r['on']], ['1.25x'])
-        self.assertEqual([r['label'] for r in tm.speed_rows('')  if r['on']], ['1x'])
-        self.assertEqual([r['label'] for r in tm.speed_rows('0') if r['on']], ['1x'])   # paused reads 0
+        self.assertEqual([r['label'] for r in rows], ['0.8×', '0.9×', 'Normal', '1.1×', '1.25×', '1.5×'])   # board 02 wording
+        self.assertEqual([r['label'] for r in rows if r['on']], ['1.25×'])
+        self.assertEqual([r['label'] for r in tm.speed_rows('')  if r['on']], ['Normal'])
+        self.assertEqual([r['label'] for r in tm.speed_rows('0') if r['on']], ['Normal'])   # paused reads 0
 
     def test_speed_mode_hides_download_timing_and_boost(self):
         import pages

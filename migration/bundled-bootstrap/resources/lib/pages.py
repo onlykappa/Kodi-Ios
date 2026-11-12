@@ -419,6 +419,8 @@ def play_on_tv():
 
 TRACK_MENU='IOSTrackMenu.xml'
 TRACK_ROWS=3   # rows shown before the list scrolls
+# Board 02: Playback speed shows every speed Kodi plays (0.8x-1.5x) in its own list, so none scrolls away.
+SPEED_LIST=9311;SPEED_ROWS=6
 def track_menu():
  """1080i/IOSTrackMenu.xml for tracks.py: the Subtitles / Audio menu over the video (owner-approved mockup
  docs/design/player-subtitles-audio-mockups.html, round 2). A popover under the button that opened it, on the
@@ -455,13 +457,13 @@ def track_menu():
   lab(100,0,w-2*pad-330,row,'$INFO[ListItem.Label]','font_main','FFFFFFFF','left','<visible>String.IsEmpty(ListItem.Property(on))</visible>')+
   lab(w-2*pad-226,0,200,row,'$INFO[ListItem.Property(tag)]','font_mini','99EBEBF5','right','<visible>String.IsEmpty(ListItem.Property(new))</visible>')+
   lab(w-2*pad-226,0,200,row,'$INFO[ListItem.Property(tag)]','font_mini','FF30D158','right','<visible>!String.IsEmpty(ListItem.Property(new))</visible>'))
- def tracks(y,up,down):
+ def tracks(y,up,down,id=9310,rows=TRACK_ROWS,cond=''):
   nrows='Window().Property(rows)'
-  cards=''.join(img(pad,y,w-2*pad,k*row,MEDIA+'round_s.png','47000000','<visible>String.IsEqual(%s,%d)</visible>'%(nrows,k),'26') for k in range(1,TRACK_ROWS+1))
-  return (cards+
-   '<control type="list" id="9310"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
-   '<onup>%s</onup><ondown>%s</ondown><scrolltime>200</scrolltime>'%(pad,y,w-2*pad,list_h,up,down)+
-   '<itemlayout height="%d" width="%d">%s</itemlayout><focusedlayout height="%d" width="%d">%s</focusedlayout></control>'%(row,w-2*pad,item(False),row,w-2*pad,item(True)))
+  cards=''.join(img(pad,y,w-2*pad,k*row,MEDIA+'round_s.png','47000000','<visible>String.IsEqual(%s,%d)</visible>'%(nrows,k),'26') for k in range(1,rows+1))
+  return ('<control type="group"><visible>%s</visible>'%cond if cond else '')+(cards+
+   '<control type="list" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
+   '<onup>%s</onup><ondown>%s</ondown><scrolltime>200</scrolltime>'%(id,pad,y,w-2*pad,rows*row,up,down)+
+   '<itemlayout height="%d" width="%d">%s</itemlayout><focusedlayout height="%d" width="%d">%s</focusedlayout></control>'%(row,w-2*pad,item(False),row,w-2*pad,item(True)))+('</control>' if cond else '')
  # Subtitles: header, Download and apply, its hint, tracks, Timing.
  y_cta=head;y_hint=y_cta+cta_h;y_list=y_hint+42;y_time=y_list+list_h+16;h_subs=y_time+2*row+pad
  cta=('<control type="group"><visible>%s</visible>'%subs+
@@ -483,7 +485,7 @@ def track_menu():
  lift=y_list-head;h_audio=y_time-lift+2*row+pad
  audio=('<control type="group"><left>0</left><top>0</top><width>%d</width>'%w+
   '<animation effect="slide" start="0,0" end="0,-%d" time="0" condition="!%s">Conditional</animation>'%(lift,subs)+
-  tracks(y_list,9510,9401)+
+  tracks(y_list,9510,9401,cond='!'+speed)+tracks(y_list,9500,9500,SPEED_LIST,SPEED_ROWS,speed)+
   '<control type="group"><left>0</left><top>0</top><width>%d</width>'%w+
   ''.join('<animation effect="slide" start="0,0" end="0,-%d" time="0" condition="String.IsEqual(Window().Property(rows),%d)">Conditional</animation>'%((TRACK_ROWS-k)*row,k) for k in range(1,TRACK_ROWS))+
   '<control type="group"><visible>!%s</visible>'%speed+
@@ -503,7 +505,9 @@ def track_menu():
   '</control></control></control></control>')
  h_speed=y_list-lift+list_h+pad
  back=''.join(img(0,0,w,hh-(TRACK_ROWS-k)*row,MEDIA+'round_s.png','F52C2C2E','<visible>%s + String.IsEqual(Window().Property(rows),%d)</visible>'%(cond,k),'26')
-              for cond,hh in ((subs,h_subs),('!%s + !%s'%(subs,speed),h_audio),(speed,h_speed)) for k in range(1,TRACK_ROWS+1))
+              for cond,hh in ((subs,h_subs),('!%s + !%s'%(subs,speed),h_audio)) for k in range(1,TRACK_ROWS+1))
+ back+=''.join(img(0,0,w,h_speed+(k-TRACK_ROWS)*row,MEDIA+'round_s.png','F52C2C2E','<visible>%s + String.IsEqual(Window().Property(rows),%d)</visible>'%(speed,k),'26')
+               for k in range(1,SPEED_ROWS+1))
  more=''   # More is a row under Timing (mockup board 1)
  inner=('<animation effect="fade" start="0" end="100" time="180">WindowOpen</animation><animation effect="fade" start="100" end="0" time="120">WindowClose</animation>'
   '<animation effect="slide" start="0,-24" end="0,0" time="220" tween="cubic" easing="out">WindowOpen</animation>'+

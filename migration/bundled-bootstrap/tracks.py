@@ -19,6 +19,7 @@ import track_menu as tm
 
 BACK = (9, 10, 92, 110)
 CLOSE, MORE, CTA, LIST, T_MINUS, T_PLUS, B_MINUS, B_PLUS = 9500, 9501, 9510, 9310, 9401, 9402, 9403, 9404
+SPEED_LIST = 9311   # board 02: Playback speed's own six-row list
 FIELDS = ['subtitles', 'currentsubtitle', 'subtitleenabled', 'audiostreams', 'currentaudiostream']
 UA = 'KodiIOS/1.0'
 
@@ -89,7 +90,7 @@ def run(mode):
             self.fill()
             self.timing()
             # Roadmap 2.14: the list is empty until fill(), so the window opens on Close and moves here once filled.
-            self.setFocusId(LIST)
+            self.setFocusId(SPEED_LIST if mode == 'speed' else LIST)
 
         def state(self, name):
             self.setProperty('cta_state', 'busy' if name in ('search', 'download') else name)
@@ -123,8 +124,8 @@ def run(mode):
                 li.setProperty('new', 'true' if r['tag'] == 'NEW' else '')
                 li.setProperty('sep', 'true' if n < len(self.rows) - 1 else '')
                 items.append(li)
-            self.setProperty('rows', str(max(1, min(3, len(self.rows)))))   # the cards and the menu fit the rows shown
-            lst = self.getControl(LIST)
+            self.setProperty('rows', str(max(1, min(6 if mode == 'speed' else 3, len(self.rows)))))   # the cards and the menu fit the rows shown
+            lst = self.getControl(SPEED_LIST if mode == 'speed' else LIST)
             lst.reset()
             lst.addItems(items)
             if focus_on:
@@ -288,8 +289,8 @@ def run(mode):
         def onClick(self, control):
             if control == CLOSE:
                 self.close()
-            elif control == LIST:
-                n = self.getControl(LIST).getSelectedPosition()
+            elif control in (LIST, SPEED_LIST):
+                n = self.getControl(control).getSelectedPosition()
                 if 0 <= n < len(self.rows):
                     self.pick(n)
             elif control == CTA:
