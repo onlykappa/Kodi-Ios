@@ -817,11 +817,18 @@ def search_window(original):
   '<onup>5101</onup><scrolltime tween="cubic" easing="out">300</scrolltime><visible>String.IsEmpty(%s)</visible>%s'
   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout><content>%s</content></control>'
   )%(left,WIDTH-left,SEARCH_PATH,up,tile_w+gap,tile_h+gap,tile(False),tile_w+gap,tile_h+gap,tile(True),items)
- # Results: posters only (the title shows on a dark card when a result has no poster: people, some new titles).
- result=lambda focused:('<control type="group"><left>0</left><top>0</top>%s'%zoom(focused)+
-  image(0,0,tile_w,tile_h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
-  '<control type="textbox"><left>24</left><top>24</top><width>%d</width><height>%d</height><font>p_body</font><textcolor>%s</textcolor><align>center</align><label>$INFO[ListItem.Label]</label></control>'%(tile_w-48,tile_h-48,GREY)+
-  image(0,0,tile_w,tile_h,'$INFO[ListItem.Art(poster)]',WHITE,aspect='>scale',diffuse=MEDIA+'poster_mask.png',background=True)+'</control>')
+ # Results as a list (owner-approved board 12): a 140 x 210 poster, the title, and year and kind on a grey line. The poster
+ # card shows the title when a result has no poster (people, some new titles). Rows are 78 pt (210 units); no chevron,
+ # a row plays or opens like Home's. (The bold matching letters wait for ISSUE-160's device check.)
+ row_h=210;row_w=WIDTH-2*SIDE;tx=SIDE+0
+ kindmap=(('movie','Movie'),('tv','TV Show'),('season','Season'),('episode','Episode'))
+ sub=lambda focused:(label(180,112,row_w-200,50,'$INFO[ListItem.Year]','p_foot',GREY,'left','<scroll>false</scroll><visible>!%s</visible>'%'|'.join('String.IsEqual(ListItem.Property(tmdb_type),%s)'%k for k,_ in kindmap))+
+  ''.join(label(180,112,row_w-200,50,'$INFO[ListItem.Year,,  ·  ]%s'%t,'p_foot',GREY,'left','<scroll>false</scroll><visible>String.IsEqual(ListItem.Property(tmdb_type),%s)</visible>'%k) for k,t in kindmap))
+ result=lambda focused:((image(0,0,row_w,row_h-6,MEDIA+'white.png','1FFFFFFF') if focused else '')+
+  image(0,10,140,190,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
+  image(0,10,140,190,'$INFO[ListItem.Art(poster)]',WHITE,aspect='>scale',diffuse=MEDIA+'poster_mask.png',background=True)+
+  label(180,50,row_w-200,60,'$INFO[ListItem.Label]','p_h3',WHITE,'left','<scroll>false</scroll>')+sub(focused)+
+  image(180,row_h-2,row_w-180,2,MEDIA+'white.png',SEP))
  # Filter (owner): All / Movies / Shows, as Window(Home).Property(Portrait.Search.Type) ('' / movie / tv) for searchbar.py.
  kind='Window(Home).Property(Portrait.Search.Type)'
  pills=''
@@ -840,12 +847,14 @@ def search_window(original):
  top+=120
  results=(filters+'<control type="group"><visible>!String.IsEmpty(%s)</visible>'%SEARCH_PATH+
   label(SIDE,top,WIDTH-2*SIDE,70,'Results','p_h3',GREY)+
-  ('<control type="panel" id="5200"><left>%d</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
+  ('<control type="list" id="5200"><left>%d</left><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
    '<scrolltime tween="cubic" easing="out">300</scrolltime><preloaditems>2</preloaditems>'
-   '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
+   '<itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout>'
    '<content target="videos">$INFO[%s]</content></control>'
-   )%(left,top+90,WIDTH-left,tile_w+gap,tile_h+gap,result(False),tile_w+gap,tile_h+gap,result(True),SEARCH_PATH)+
-  label(SIDE,top+90,WIDTH-2*SIDE,120,'No results','p_body',GREY,'center',
+   )%(SIDE,top+90,WIDTH-2*SIDE,row_h,result(False),row_h,result(True),SEARCH_PATH)+
+  label(SIDE,top+90,WIDTH-2*SIDE,80,'$INFO[Window(Home).Property(Portrait.Search.Query),No results for “,”]','p_h3',WHITE,'center','<scroll>false</scroll>'
+        '<visible>Integer.IsEqual(Container(5200).NumItems,0) + !Container(5200).IsUpdating</visible>')+
+  label(SIDE,top+170,WIDTH-2*SIDE,60,'Check the spelling or try fewer words.','p_sub',GREY,'center',
         '<visible>Integer.IsEqual(Container(5200).NumItems,0) + !Container(5200).IsUpdating</visible>')+
   label(SIDE,top+90,WIDTH-2*SIDE,120,'Searching…','p_body',GREY,'center','<visible>Container(5200).IsUpdating</visible>')+
   '</control>')
@@ -1262,7 +1271,22 @@ def deck_page(original=''):
  all_page=('<control type="group"><visible>%s</visible>'%all_on+
   label(SIDE,150,WIDTH-2*SIDE,120,'All Links','p_large',WHITE)+
   label(SIDE,270,WIDTH-2*SIDE,70,'%s  ·  %s'%(prop('subject'),prop('count_label')),'p_sub',GREY,'left','<scroll>false</scroll>')+'</control>')
- body='<controls>%s%s%s%s%s%s</controls>'%(backdrop(),normal,all_page,links,sort,back)
+ # Board 09 states (docs/design/fuse-windows-mockups.html): results arriving while providers still answer (the picker
+ # sets deck.status, e.g. "3 of 5 providers answered"; Stop sets deck.stop) and nothing found (deck.empty with its
+ # one next step; Try Again sets deck.retry). Plain words, no provider names or errors on screen.
+ searching=('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>230</height><visible>%s + %s</visible>'%(SIDE,HEIGHT-300,WIDTH-2*SIDE,all_on,has('status'))+
+  surface(0,0,WIDTH-2*SIDE,230,'round.png','F22C2C2E',32)+
+  label(40,24,WIDTH-2*SIDE-260,60,'Still searching','p_h3',WHITE,'left','<scroll>false</scroll>')+
+  label(40,82,WIDTH-2*SIDE-260,48,prop('status'),'p_foot',GREY,'left','<scroll>false</scroll>')+
+  pages.slide_bar(MEDIA,40,150,WIDTH-2*SIDE-80)+
+  '<control type="button" id="32511"><left>%d</left><top>16</top><width>200</width><height>118</height><label>Stop</label><font>p_btn</font>'
+  '<textcolor>%s</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>center</align><aligny>center</aligny><texturefocus /><texturenofocus />'
+  '<onclick>SetProperty(deck.stop,true)</onclick><onup>32504</onup><onleft>32504</onleft></control>'%(WIDTH-2*SIDE-220,ACCENT)+'</control>')
+ empty=('<control type="group"><visible>%s + %s</visible>'%(all_on,has('empty'))+
+  label(SIDE,700,WIDTH-2*SIDE,90,'No versions found','p_h2',WHITE,'center')+
+  '<control type="textbox"><left>%d</left><top>800</top><width>%d</width><height>200</height><font>p_sub</font><textcolor>%s</textcolor><align>center</align><label>%s</label></control>'%(SIDE+40,WIDTH-2*SIDE-80,GREY,prop('empty'))+
+  pill_button(32512,(WIDTH-360)//2,1010,360,112,'Try Again',[('','SetProperty(deck.retry,true)')],'primary','','<onup>32500</onup>')+'</control>')
+ body='<controls>%s%s%s%s%s%s%s%s</controls>'%(backdrop(),normal,all_page,links,sort,searching,empty,back)
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">32503</defaultcontrol>'
          '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>%s</window>\n')%(MARKER,body)
 

@@ -124,7 +124,10 @@ def window():
   tap(7113,cx+gap,cy,240,'rotate-right.png','Seek(10)','<onleft>7112</onleft><onup>7102</onup><ondown>7131</ondown>',160)+ten(cx+gap)+
   # Build 210: the buffer percentage lives here, in the controls already on screen while seeking. Its own dialog
   # (Custom_1156) froze Kodi's main thread each time it opened (logs 34cd7aac 15:07:09, 3efdc5ca 15:53:08).
-  label(cx-300,cy+150,600,64,'Buffering $INFO[Player.CacheLevel]%','font_main_bold','FFFFFFFF','center','<visible>Player.Caching</visible>'),
+  label(cx-300,cy+150,600,64,'Buffering $INFO[Player.CacheLevel]%','font_main_bold','FFFFFFFF','center','<visible>Player.Caching</visible>')+
+  # Board 05 (DEC-036): the buffer fill as a thin bar under the words (the cache level is the only number Kodi has).
+  '<control type="progress"><left>%d</left><top>%d</top><width>360</width><height>11</height><info>Player.CacheLevel</info><visible>Player.Caching</visible>'
+  '<texturebg border="6" colordiffuse="33FFFFFF">%sdot.png</texturebg><lefttexture /><midtexture border="6" colordiffuse="FF0A84FF">%sdot.png</midtexture><righttexture /></control>'%(cx-180,cy+222,MEDIA,MEDIA),
   '<visible>!%s</visible>'%PANEL)
  # Title: the film, or the show and the episode.
  title=('<control type="label"><left>%d</left><right>%d</right><top>770</top><height>90</height><font>font_title_midi</font>'
