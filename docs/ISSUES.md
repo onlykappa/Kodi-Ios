@@ -2717,3 +2717,8 @@ its measured phone target; unknown causes and unmeasured hardware/receiver behav
   lacked Python 3.11 on PATH; use the retained Python 3.11 runtime for bytecode tests, rather than alter the app.
 - Integration history: the donor branch's appended progress notes conflicted with the PR's newer notes. Both
   histories retained; source changes were clean. No native/IPA workflow or main merge authorized here.
+
+- 1E.2: imported/reviewed a334592's staging-only removal of unused binary add-ons. Required imports and mandatory
+  system-manifest entries are checked before deletion, with media/input/archive support retained. Packaging suite
+  passes 13 cases under the matching Python 3.11 bytecode runtime. The donor test context referenced its separate
+  Drive-service change; excluded that unrelated fixture until its own repair. No base installation is modified.

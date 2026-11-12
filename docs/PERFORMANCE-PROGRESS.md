@@ -178,3 +178,6 @@ Owner asks for fixes committed separately. Source commits use [skip ci] to prese
 Owner expanded the source task to every roadmap speed/reliability item (36 + 6 currently). Do not treat the
 old screenshot's counts as acceptance evidence. Commit and push each repair separately with [skip ci].
 - 1E.7 imported/reviewed: idle polling backoff from speed-fixes-2, active cadence preserved. 49 focused cases pass.
+
+- 1E.2 imported/reviewed: prune unused binary add-ons from staged IPA contents with dependency checks.
+  test_customized_ipa 13 pass with Python 3.11; actual startup timing remains a device measurement.
