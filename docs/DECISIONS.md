@@ -229,6 +229,20 @@ about five seconds, and missing AirPlay captions. Owner corrects the initial sub
 and phone captions work; only Browse freezes. These reports require their own evidence. Do not describe the
 unobserved AirPlay/caption causes as fixed or infer Wi-Fi failure from the queue pause.
 
+## DEC-036 — Progress is a bar everywhere; the ring stays only on the Home bell (2026-11-11)
+
+Owner reviewed the Fuse-windows mockups (PR #20, board 06): "I like the bar … the ring is a little hard to look at
+… I'd like the bar for everything, it seems more trackable than the ring. Only ring can be around the Bell icon on
+the home." This supersedes the "rings" part of DEC-027 (progress rings around the app tile in the pill and the
+sheet). The blue-by-role and Close (✕) parts of DEC-027 stand.
+
+- Progress is a thin bar in the activity pill, the activity sheet rows, the opening card, Umbrella's "getting ready to play" page and
+  the buffering capsule; with no percentage a short segment slides along it. No spinners for work whose progress can
+  be shown.
+- The only ring is around the bell icon on Home.
+- Recorded in docs/design/APPLE-UI-POLICY.md §4.3 and §4.7 and drawn in docs/design/fuse-windows-mockups.html.
+  PR #9's activity code, `portrait.ring()` and the round-4 mockup still draw rings; they change when the activity
+  skin is next touched. No build, merge or release implied.
 
 ## PR #19 review decision — preserve 4K on Roku (2026-11-12)
 
