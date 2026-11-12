@@ -846,6 +846,24 @@ def info_card():
 
 HANDMADE={SEARCHING,SEASON_QUALITY,SEASON_READY,NOTIFY,VOLUME,'DialogConfirm.xml','DialogTextViewer.xml','DialogSettings.xml','AddonBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml',BUSY}
 
+SLIDER='DialogSlider.xml';TRACK_MENU_OPEN='KodiIOS.TrackMenu'
+def slider_quiet(original):
+ """Fuse's DialogSlider (Kodi's "Subtitle offset" / "Audio offset" / volume amplification popup) drawn as nothing while
+ the Subtitles / Audio menu is open (owner, 2026-11-12 screenshot: the slider covered the video above the menu, whose
+ Timing row already shows the value; tracks.py sets Window(Home).Property(KodiIOS.TrackMenu)). Everywhere else it is
+ Fuse's slider unchanged. The controls keep their ids inside one wrapping group; no window <visible> (Kodi would open
+ a dialog that has one by itself)."""
+ import xml.etree.ElementTree as ET
+ if not original or 'slider hidden under the track menu' in original:return original   # already done (the source is the live 1080i file)
+ root=ET.fromstring(original);controls=root.find('controls')
+ if controls is None:return original
+ wrap=ET.Element('control',{'type':'group'})
+ vis=ET.SubElement(wrap,'visible');vis.text='String.IsEmpty(Window(Home).Property(%s))'%TRACK_MENU_OPEN
+ for child in list(controls):
+  controls.remove(child);wrap.append(child)
+ controls.append(wrap)
+ return '<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: slider hidden under the track menu -->\n'+ET.tostring(root,encoding='unicode')+'\n'
+
 def files(p,read):
  out={p.FOLDER+'/DialogConfirm.xml':confirm_dialog(p,read('DialogConfirm.xml')),
       p.FOLDER+'/DialogTextViewer.xml':text_viewer(p,read('DialogTextViewer.xml')),
@@ -868,6 +886,8 @@ def files(p,read):
       '1080i/'+NOTIFY:notification_dialog('Kodi-iOS player controls: notification','(1920-1100)/2',40,1100,'font_main_bold','font_midi').replace('<left>(1920-1100)/2</left>','<centerleft>50%</centerleft>'),
       '1080i/'+VOLUME:volume_dialog('Kodi-iOS player controls: volume','x',40,700,'font_main_bold').replace('<left>x</left>','<centerleft>50%</centerleft>')}
  out['1080i/'+INFO_WAIT]=info_card()
+ slider=slider_quiet(read(SLIDER)) if read(SLIDER) else ''
+ if slider:out['1080i/'+SLIDER]=slider
  out={k:v.encode() for k,v in out.items()}
  for name,data in textures(p).items():out['extras/portrait/'+name]=data
  return out

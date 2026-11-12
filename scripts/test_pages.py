@@ -172,4 +172,19 @@ class HeroTaps(unittest.TestCase):
    self.assertTrue(all('!Container(4000).Scrolling' in l for l in onclick),action)
 
 
+class SliderUnderTrackMenu(unittest.TestCase):
+ def test_kodi_offset_slider_hidden_while_the_menu_is_open(self):
+  # Owner (2026-11-12): Timing -/+ showed Kodi's "Subtitle offset" slider over the video above the menu.
+  import pages
+  fuse='<window type="dialog" id="10145"><controls><control type="slider" id="11"/><control type="label" id="10"/></controls></window>'
+  once=pages.slider_quiet(fuse);twice=pages.slider_quiet(once)
+  self.assertEqual(once,twice)
+  root=ET.fromstring(once.split('-->',1)[1])
+  wrap=root.find('controls/control')
+  self.assertEqual(wrap.findtext('visible'),'String.IsEmpty(Window(Home).Property(KodiIOS.TrackMenu))')
+  self.assertEqual(sorted(c.get('id') for c in wrap.findall('control')),['10','11'])
+  self.assertIsNone(root.find('visible'))
+  src=(ROOT/'migration/bundled-bootstrap/tracks.py').read_text()
+  self.assertIn("setProperty('KodiIOS.TrackMenu', 'open')",src);self.assertIn("clearProperty('KodiIOS.TrackMenu')",src)
+
 if __name__=='__main__':unittest.main()

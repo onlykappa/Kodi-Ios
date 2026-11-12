@@ -126,6 +126,7 @@ def run(mode):
         closed = False
 
         def close(self):
+            xbmcgui.Window(10000).clearProperty('KodiIOS.TrackMenu')   # Kodi's own offset slider may show again
             # Roadmap B.8: a search or download thread could still set a property after the menu closed
             # ("EXCEPTION: Window id does not exist"); those updates are skipped once it is closed.
             self.closed = True
@@ -136,6 +137,9 @@ def run(mode):
                 xbmcgui.WindowXMLDialog.setProperty(self, key, value)
 
         def onInit(self):
+            # Owner (2026-11-12): Timing − / + opened Kodi's "Subtitle offset" slider over the video; the menu's own
+            # row shows the value, so the slider is hidden while the menu is open (pages.slider_quiet).
+            xbmcgui.Window(10000).setProperty('KodiIOS.TrackMenu', 'open')
             self.rows, self.results, self.added = [], [], set()
             self.page = 'tracks'
             self.setProperty('mode', mode)
