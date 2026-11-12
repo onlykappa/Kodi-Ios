@@ -218,6 +218,35 @@ def active(profile):
     return any(j['status'] not in ('done', 'failed') for j in load(profile).get('jobs', []))
 
 
+def companions(state, later, api, clock, log=lambda text: None):
+    """Up to LANES-1 later jobs that hold one file each and can copy now (AllDebrid has them): their files are picked
+    here. A job that AllDebrid still has to fetch, has several files, or waits for a retry is left for its own turn."""
+    out = []
+    for other in later:
+        if len(out) >= LANES - 1:
+            break
+        if other['status'] not in ('new', 'copying') or other.get('retry_at', 0) > clock():
+            continue
+        try:
+            if other['status'] == 'new':
+                other['magnet'], ready = api.add(other['hash'])
+                other['status'] = 'copying' if ready else 'fetching'
+                if not ready:
+                    continue
+            if not other.get('files'):
+                chosen = alldebrid.pick(api.files(other['magnet']), other['kind'], other.get('season'), other.get('episode'),
+                                        other.get('episodes'))
+                if not chosen:
+                    continue
+                other['files'] = [{'path': p, 'size': s, 'link': l, 'session': {}, 'done': False} for p, s, l in chosen]
+        except Exception as error:   # its own turn deals with it (and says so)
+            log('%s: left for its own turn (%s)' % (other.get('title') or other['name'], type(error).__name__))
+            continue
+        if len(other['files']) == 1 and not other['files'][0]['done']:
+            out.append(other)
+    return out
+
+
 def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=default_open, keep_going=lambda: True,
          clock=time.time, on_done=lambda job: None, cancelled=lambda: set(), forget=lambda info_hash: None, log=lambda text: None):
     """Move the oldest unfinished job on by one step. Returns seconds until the next step is worth trying
@@ -276,7 +305,13 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             # is one connection and rarely fills a phone's upload. A season's episodes now go up two at a time; the
             # pages show one upload whose speed is both together. A movie (one file) is unchanged.
             guard = threading.RLock()
-            todo = [e for e in job['files'] if not e['done']]
+            # Owner log 31996cd8 (build 309, a 182/101 Mbps line): Build Season makes one job per episode, so the three
+            # lanes above never applied and the 31 episodes went up one at a time (~2.8 MB/s). A one-file job now takes
+            # up to LANES-1 more ready one-file jobs (an episode each) and they copy side by side.
+            group = [job] + (companions(state, jobs[1:], api, clock, log) if len(job['files']) == 1 else [])
+            if len(group) > 1:
+                commit()
+            todo = [(j, e) for j in group for e in j['files'] if not e['done']]
             plain_commit = commit
 
             def commit():   # both lanes change `state`; it is written whole, one lane at a time
@@ -328,7 +363,9 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     elif extra and not state.get('current'):
                         state['current'] = extra.pop(next(iter(extra)))
 
-            def copy(entry, slot):
+            def copy(item, slot):
+                owner, entry = item
+                job_title = owner.get('title') or owner['name']
                 url, name, size = api.unlock(entry['link'])
                 original_name=name
                 source_link=[url];source_guard=threading.Lock();renew_after=[0.0]
@@ -351,10 +388,11 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 if callable(getattr(drive,'copy_piece',None)):
                     def copy_to(target,headers,offset,count,total):
                         return with_source(lambda source:drive.copy_piece(source,{},target,headers,offset,count,total,20))
+                    copy_to.max=getattr(drive.copy_piece,'max',8*1024*1024)
                     open_source.copy_to=copy_to
                 name = os.path.basename(name or entry['path'])
                 size = size or entry['size']
-                parts = folders(job['kind'], name, job.get('title') if job['kind'] != 'movie' else '')
+                parts = folders(owner['kind'], name, owner.get('title') if owner['kind'] != 'movie' else '')
                 with guard:   # two uploads must not both create the season's folder
                     parent = drive.folder(parts)
 
@@ -374,23 +412,23 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     # and a piece that went up resets the tries (six AllDebrid 500s made a later timeout wait 210 s).
                     # Owner (build 205: "i went to download a entire season and it seems only 1 thing is downloading"):
                     # which file of the job this is, so the pages name the episode and count the season.
-                    show(slot, {'name': title, 'folder': parts[-1], 'sent': sent, 'total': total, 'stage': 'copying',
+                    show(slot, {'name': job_title, 'folder': parts[-1], 'sent': sent, 'total': total, 'stage': 'copying',
                                         'rate_own': rate, 'eta_s': (total - sent) / rate if rate else 0, 'updated': now,
-                                        'file': name, 'index': job['files'].index(entry) + 1, 'count': len(job['files'])})
+                                        'file': name, 'index': owner['files'].index(entry) + 1, 'count': len(owner['files'])})
                     with guard:
-                        if job.get('tries') and sent > (marks[0][1] if len(marks) > 1 else 0):
-                            job['tries'] = 0
-                            job.pop('error', None)
+                        if owner.get('tries') and sent > (marks[0][1] if len(marks) > 1 else 0):
+                            owner['tries'] = 0
+                            owner.pop('error', None)
                     commit()
-                hash_ = str(job['hash']).lower()
+                hash_ = str(owner['hash']).lower()
                 going = lambda: keep_going() and hash_ not in {str(h).lower() for h in cancelled()}
                 def activity(phase,sent,total):
                     # Called on the owner thread, never the read-ahead thread. Percent remains confirmed bytes.
                     now=clock()
                     with guard:
                         current=dict((state.get(key_for(slot)) if key_for(slot) else extra.get(slot)) or {})
-                    current.update(name=title,folder=parts[-1],file=name,index=job['files'].index(entry)+1,
-                                   count=len(job['files']),sent=sent,total=total,stage='copying',phase=phase,phase_at=now)
+                    current.update(name=job_title,folder=parts[-1],file=name,index=owner['files'].index(entry)+1,
+                                   count=len(owner['files']),sent=sent,total=total,stage='copying',phase=phase,phase_at=now)
                     if phase=='paused_playback':current.update(rate_own=0,eta_s=0)
                     show(slot,current)
                 # Each lane works on its own copy of the resumable session, copied back when it is saved.
@@ -417,7 +455,21 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                             entry = todo.pop(0) if todo else None
                         if entry is None:
                             return
-                        copy(entry, slot)
+                        if entry[0] is job:
+                            copy(entry, slot)
+                            continue
+                        try:
+                            copy(entry, slot)
+                        except driveupload.Stop:
+                            raise
+                        except Exception as error:   # a companion's problem stays its own; it carries on in its own turn
+                            with guard:
+                                other = entry[0]
+                                other['tries'] = other.get('tries', 0) + 1
+                                other['error'] = '%s: %s' % (type(error).__name__, str(error)[:160])
+                                other['retry_at'] = clock() + min(600, 30 * other['tries'])
+                            log('%s: try %d (beside %s): %s' % (other.get('title') or other['name'], other['tries'], title, other['error']))
+                            commit()
                 finally:
                     release(slot)
 
@@ -432,11 +484,20 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 for problem in problems:
                     if problem is not None:
                         raise problem
+            for other in group[1:]:
+                if all(e['done'] for e in other['files']):
+                    other['status'] = 'done'
+                    other['finished'] = clock()
+                    notify('drive', 'Saved to Google Drive', '%s · straight from AllDebrid, nothing kept on the phone'
+                           % (other.get('title') or other['name']))
             job['status'] = 'done'
             job['finished'] = clock()
             state.pop('current', None)
             state.pop('current_also', None)
             commit()
+            for other in group[1:]:
+                if other['status'] == 'done':
+                    on_done(other)
             files = job.get('files') or []
             if job['kind'] not in ('movie', 'episode') and len(files) == 1:
                 # Owner (build 205): "i pressed full season" and the version picked held episode 1 alone. Say so.

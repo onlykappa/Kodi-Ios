@@ -25,6 +25,23 @@ class Native(unittest.TestCase):
   self.assertEqual(seen,[(b'https://source/file',b'https://upload/session',0,100,100)])
   self.assertIsNone(native_http.copier(None))
   with self.assertRaises(ValueError):copy('s',{},'d',{},10,100,100)
+ def test_r50_copies_32_mb_pieces_and_older_frameworks_keep_8(self):
+  # Owner log 31996cd8 (182/101 Mbps line, ~2.8 MB/s): 8 MB pieces each waited for AllDebrid and Drive.
+  seen=[]
+  def fn(source,source_headers,target,target_headers,offset,count,total,timeout,*rest):
+   seen.append((count,timeout));rest[-1]._obj.value=206;return 308
+  big=32*1024*1024
+  new=native_http.copier(types.SimpleNamespace(kodi_http_copy=fn,kodi_http_copy_max=lambda:big))
+  self.assertEqual(new.max,big)
+  new('s',{},'d',{},0,big,10*big)
+  self.assertEqual(seen[-1],(big,32.0))                        # a 32 MB piece gets 32 s, not 20
+  old=native_http.copier(types.SimpleNamespace(kodi_http_copy=fn))
+  self.assertEqual(old.max,8*1024*1024)
+  with self.assertRaises(ValueError):old('s',{},'d',{},0,big,10*big)
+  chunks=driveupload.StreamChunks(big,cap=big);chunks.current=chunks.minimum
+  for _ in range(15):chunks.observe(chunks.current,2.0,0)   # three fast pieces per doubling: 1 to 32 MB
+  self.assertEqual(chunks.current,big)                         # fast pieces grow to 32 MB
+  self.assertEqual(driveupload.StreamChunks(big).limit,8*1024*1024)   # without the cap: 8 MB as before
  def test_native_copy_exposes_source_expiry_for_existing_link_renewal(self):
   def fn(*args):args[-1]._obj.value=403;return -1
   copy=native_http.copier(types.SimpleNamespace(kodi_http_copy=fn))

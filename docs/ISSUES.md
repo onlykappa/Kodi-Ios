@@ -2919,3 +2919,22 @@ episode not added once more on its own before the season is done ('queue_retry' 
 episodes".
 Retest: test_source_match (borrowed identity, other show refused), test_deck_picker NoMenuDuringBuildSeason,
 test_season_sheet test_an_episode_not_added_is_tried_once_more; season suites pass. Phone proof: next Build Season log.
+
+## ISSUE-182 — AllDebrid to Drive copies far below the line (build 309, owner log 31996cd8) — FIXED on host, r50 staged
+
+Owner: "my upload and download are super high ensure there are no app caps" (Speedtest: 182 Mbps down, 101 up).
+Log: 124 "Drive copy native" pieces, all on one thread, 8 MB in 2.9 s on average (~2.8 MB/s, ~22 Mbps), later
+4-8 s a piece. Two caps:
+1. One episode at a time. The three upload lanes (ISSUE-164, Roadmap 1F.4) only run the files of one job (a season
+   pack); Build Season makes one job per episode, so a season copied one episode after another.
+2. 8 MB pieces. Each native piece reads its range from AllDebrid, then PUTs it to Drive and waits for Drive's answer;
+   with nothing overlapping, the fixed waits (first byte from AllDebrid, Drive's confirmation) dominate. The native
+   copier refused pieces over 8 MB (kodi_http_copy), and StreamChunks was capped at 8 MB too.
+Fix: debrid_drive.step takes up to two more ready one-file jobs (debrid_drive.companions: AllDebrid has them, their
+file picked) beside a one-file job, so three episodes copy side by side; a companion's failure stays its own (tries,
+retry_at), never the first job's. KodiAirPlay r50 (staged) takes pieces up to 32 MB (kodi_http_copy_max) and allows
+up to 180 s for one; native_http.copier reads the limit (8 MB on older frameworks) and gives a piece at least 1 s per
+MB; driveupload's native path grows pieces to that limit after three fast pieces.
+Retest: test_debrid_drive (build_season_episodes_one_job_each_copy_three_at_a_time; a companion failing does not fail
+the first), test_native_http (r50 32 MB pieces, older frameworks keep 8 MB, pieces grow to 32 MB). Phone proof: the
+next log should show three "Drive copy native" threads and pieces growing to 32 MB.

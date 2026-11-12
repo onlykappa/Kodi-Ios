@@ -52,8 +52,15 @@ def copier(lib):
     fn.argtypes=[ctypes.c_char_p]*4+[ctypes.c_longlong,ctypes.c_int,ctypes.c_longlong,ctypes.c_double,
                  ctypes.c_char_p,ctypes.c_int,ctypes.c_char_p,ctypes.c_int,ctypes.POINTER(ctypes.c_int),ctypes.POINTER(ctypes.c_int)]
     fn.restype=ctypes.c_int
+    # r50: the framework says how large a piece it takes (32 MB); older ones take 8 MB (READ_MAX).
+    limit=getattr(lib,'kodi_http_copy_max',None)
+    if limit is not None:
+        limit.argtypes=[];limit.restype=ctypes.c_int
+    largest=max(READ_MAX,int(limit())) if limit is not None else READ_MAX
     def copy(source,source_headers,target,target_headers,offset,count,total,timeout=20):
-        if offset<0 or not 0<count<=READ_MAX or total<=0 or offset>total or count>total-offset:raise ValueError('Invalid copy bounds')
+        if offset<0 or not 0<count<=largest or total<=0 or offset>total or count>total-offset:raise ValueError('Invalid copy bounds')
+        # A larger piece gets more time: at least 1 MB/s before the piece counts as stalled.
+        timeout=max(float(timeout),count/1048576.0)
         headers=ctypes.create_string_buffer(HEADERS_MAX);body=ctypes.create_string_buffer(BODY_MAX)
         used=ctypes.c_int();read_status=ctypes.c_int(-1)
         status=fn(source.encode(),header_lines(source_headers).encode(),target.encode(),header_lines(target_headers).encode(),
@@ -62,6 +69,7 @@ def copier(lib):
         if status<0:raise ConnectionError('Native copy did not finish; checking confirmed upload position')
         if not 0<=used.value<=BODY_MAX:raise ConnectionError('Invalid native copy receipt')
         return status,parse_headers(headers.value.decode('utf-8','replace')),body.raw[:used.value]
+    copy.max=largest
     return copy
 
 

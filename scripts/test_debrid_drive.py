@@ -175,6 +175,34 @@ class TwoLanes(unittest.TestCase):
   self.assertEqual(len(drive.folders_made),3)
   self.assertTrue(any(c.get('parallel')==3 for c in self.shown))      # the pages show all three lanes' speed
   state=debrid_drive.load(self.p);self.assertNotIn('current',state);self.assertNotIn('current_also',state)
+ def test_build_season_episodes_one_job_each_copy_three_at_a_time(self):
+  # Owner log 31996cd8 (build 309, 182/101 Mbps line): one job per episode went up one at a time (~2.8 MB/s).
+  class Episodes(FakeAPI):
+   def files(self,m):return [('S/Show.S01E0%s.mkv'%m[-1],3,'Show.S01E0%s.mkv'%m[-1])]
+   def unlock(self,l):return 'https://x/'+l,l,3
+   def add(self,h):self.added.append(h);return 'magnet'+h[-1],True
+  for n in (1,2,3,4):
+   debrid_drive.queue(self.p,{'id':('%d'%n)*40,'name':'Show S01E0%d'%n},'episode','Show',season='1',episode=str(n))
+  drive=self.drive();api=Episodes()
+  self.assertEqual(debrid_drive.step(self.p,api,drive),1)          # episode 1: added at AllDebrid
+  debrid_drive.step(self.p,api,drive)                              # 1, 2 and 3 copy side by side
+  self.assertEqual(self.most,3);self.assertEqual(sorted(self.uploaded),['Show.S01E01.mkv','Show.S01E02.mkv','Show.S01E03.mkv'])
+  jobs=debrid_drive.load(self.p)['jobs']
+  self.assertEqual([j['status'] for j in jobs],['done','done','done','new'])
+  self.run_job(api,drive)
+  self.assertEqual([j['status'] for j in debrid_drive.load(self.p)['jobs']],['done']*4)
+ def test_a_companion_episode_failing_does_not_fail_the_first(self):
+  class Episodes(FakeAPI):
+   def files(self,m):return [('S/Show.S01E0%s.mkv'%m[-1],3,'Show.S01E0%s.mkv'%m[-1])]
+   def unlock(self,l):return 'https://x/'+l,l,3
+   def add(self,h):self.added.append(h);return 'magnet'+h[-1],True
+  for n in (1,2):
+   debrid_drive.queue(self.p,{'id':('%d'%n)*40,'name':'Show S01E0%d'%n},'episode','Show',season='1',episode=str(n))
+  drive=self.drive(fail='Show.S01E02.mkv',pause=.05);api=Episodes()
+  debrid_drive.step(self.p,api,drive);debrid_drive.step(self.p,api,drive)
+  jobs=debrid_drive.load(self.p)['jobs']
+  self.assertEqual(jobs[0]['status'],'done')
+  self.assertEqual((jobs[1]['status'],jobs[1]['tries']),('copying',1));self.assertIn('ConnectionError',jobs[1]['error'])
  def test_two_episodes_use_two_lanes_and_five_use_three_at_a_time(self):
   self.assertEqual([debrid_drive.lanes_for(n) for n in (0,1,2,3,4,10)],[1,1,2,3,3,3])
   for count,most in ((2,2),(5,3)):

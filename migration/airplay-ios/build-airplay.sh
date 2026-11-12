@@ -876,6 +876,10 @@ static NSString *httpField(const char *fields,NSString *key) {
             return [[line substringFromIndex:colon.location+1] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
     } return nil;
 }
+// r50 (owner log 31996cd8, a 182/101 Mbps line at ~2.8 MB/s): pieces up to 32 MB, so the wait for AllDebrid's
+// first byte and Drive's answer is paid four times less often. Python asks kodi_http_copy_max (absent: 8 MB).
+#define KODI_HTTP_COPY_MAX (32*1024*1024)
+__attribute__((visibility("default"))) int kodi_http_copy_max(void) { return KODI_HTTP_COPY_MAX; }
 // One resumable piece stays entirely native. Python keeps only status, offsets and the upload receipt.
 __attribute__((visibility("default"))) int kodi_http_copy(const char *source,const char *source_headers,
         const char *target,const char *target_headers,long long offset,int count,long long total,double timeout,
@@ -884,9 +888,9 @@ __attribute__((visibility("default"))) int kodi_http_copy(const char *source,con
         if(used)*used=0; if(source_status)*source_status=-1;
         if(out_headers && headers_size>0)out_headers[0]=0;
         if(out_body && body_size>0)out_body[0]=0;
-        if(!source || !target || offset<0 || count<=0 || count>8*1024*1024 || total<=0 || offset>total || count>total-offset)return -1;
+        if(!source || !target || offset<0 || count<=0 || count>KODI_HTTP_COPY_MAX || total<=0 || offset>total || count>total-offset)return -1;
         uint8_t *bytes=malloc((size_t)count); if(!bytes)return -1;
-        double deadline=NSProcessInfo.processInfo.systemUptime+fmin(60.0,timeout>0?timeout:20.0);
+        double deadline=NSProcessInfo.processInfo.systemUptime+fmin(180.0,timeout>0?timeout:20.0);
         NSString *url=[NSString stringWithUTF8String:source];
         NSMutableString *readHeaders=[NSMutableString stringWithUTF8String:source_headers ?: ""];
         [readHeaders appendFormat:@"\nRange: bytes=%lld-%lld\nAccept-Encoding: identity\n",offset,offset+count-1];
@@ -1222,7 +1226,7 @@ xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$
 OBJS+=("$WORK/kr_upscale.o")
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
 printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n_kodi_airplay_serve\n_kodi_airplay_serve_segmented\n' > "$WORK/exports"
-printf '_kodi_http_copy\n_kodi_http_reads\n_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
+printf '_kodi_http_copy_max\n_kodi_http_copy\n_kodi_http_reads\n_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
 printf '_kodi_airplay_prepare_upscale\n_kodi_airplay_upscale_support\n_kodi_airplay_upscale_model\n_kodi_device_state\n' >> "$WORK/exports"   # r48
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \

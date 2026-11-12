@@ -149,12 +149,16 @@ class AirPlayLog(unittest.TestCase):
    self.assertIn(needle,build)
   lock=__import__('json').loads((ROOT/'migration/airplay-ios/source-lock.json').read_text())
   import re
-  self.assertEqual(lock['framework_release']['tag'],'kodi-airplay-r48')
+  # The pinned framework is r48 or newer (AI upscaling), and 'previous' is the one before it.
+  tag=lock['framework_release']['tag'];number=int(re.fullmatch(r'kodi-airplay-r(\d+)',tag).group(1))
+  self.assertGreaterEqual(number,48)
   self.assertRegex(lock['framework_release']['sha256'],r'^[0-9a-f]{64}$')
-  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r47')
-  self.assertEqual(lock['previous']['sha256'],'e3ad181a72e1c1d3ea9043a558d3112a230fcfc7f0a33e5bd46f58345697ceea')
-  self.assertEqual(lock['framework_release']['sha256'],'fab9f187e2abcb9c2a070e154562f57a19c5ae3d628e436c555a3eac669696ba')
-  self.assertEqual(lock['verified_run'],43263786191)
+  self.assertEqual(lock['previous']['tag'],'kodi-airplay-r%d'%(number-1))
+  # The digests come from each pin's own verified run (recorded in pin_note); a pin always names its run.
+  self.assertRegex(lock['previous']['sha256'],r'^[0-9a-f]{64}$')
+  self.assertNotEqual(lock['previous']['sha256'],lock['framework_release']['sha256'])
+  self.assertIsInstance(lock['verified_run'],int)
+  self.assertIn(str(lock['verified_run']),lock.get('pin_note',''))
  def test_r48_upscaler_in_the_framework(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   for needle in ('kr_upscale.m','kr_upscale_stub.c ]] && continue','_kodi_airplay_prepare_upscale','_kodi_device_state',

@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Library file manager mockups</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Portrait 402 x 874 pt,
+     tokens from portrait.py / pages.py (§4.3), the style of ai-upscale-settings-mockups.html. -->
+<style>
+:root{--bg:#000;--s1:#1c1c1e;--s2:#2c2c2e;--grey:rgba(235,235,245,.6);--dim:rgba(235,235,245,.3);--sep:rgba(235,235,245,.16);
+ --blue:#0a84ff;--blue-text:#4fa8ff;--green:#30d158;--orange:#ff9f0a;--red:#ff453a;--purple:#bf5af2}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro{max-width:1180px;margin:0 auto 10px}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:880px;margin-bottom:8px}
+.board{max-width:1180px;margin:30px auto 0;padding-top:16px;border-top:1px solid #26272b}
+.board .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+.board h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+.board>p{color:var(--grey);font-size:14px;line-height:1.5;max-width:880px;margin-bottom:16px}
+.shots{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.slot{width:340px}
+.cap{color:var(--grey);font-size:13px;line-height:1.4;margin-top:10px}.cap b{color:#fff}
+.pframe{width:340px;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000;padding:44px 14px 16px;font-size:14px}
+.nb{color:var(--blue-text);font-size:15px;font-weight:600;margin-bottom:4px}
+.ps h3{font-size:30px;font-weight:800;margin-bottom:12px;letter-spacing:-.01em}
+.sh{color:var(--grey);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:14px 6px 6px}
+.grp{background:var(--s1);border-radius:12px;overflow:hidden}
+.pr{position:relative;display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 12px}
+.pr+.pr::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.pr .t{flex:1;min-width:0}.pr .t b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .t span{display:block;color:var(--grey);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .v{color:var(--grey);font-size:14px;white-space:nowrap}
+.go{color:var(--dim);font-size:17px;font-weight:600}
+.ico{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:15px}
+.tile{width:30px;height:44px;border-radius:5px;flex:none}
+.toggle{flex:none;width:46px;height:28px;border-radius:14px;background:#39393d;position:relative}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:#fff}
+.toggle.on{background:var(--green)}.toggle.on::after{left:20px}
+.foot{color:var(--grey);font-size:12px;margin:6px 6px 0;line-height:1.35}
+.thin{height:4px;border-radius:2px;background:rgba(235,235,245,.2);overflow:hidden;margin-top:6px}.thin i{display:block;height:100%;background:var(--blue)}
+.chip{font-size:11px;font-weight:700;border-radius:6px;padding:2px 6px;white-space:nowrap}
+.chip.g{background:rgba(48,209,88,.18);color:var(--green)}.chip.b{background:rgba(10,132,255,.2);color:var(--blue-text)}
+.chip.n{background:rgba(235,235,245,.12);color:var(--grey)}
+.status{background:var(--s1);border-radius:12px;padding:12px;display:flex;gap:12px;align-items:center}
+.status .t b{font-size:15px}.status .t span{color:var(--grey);font-size:12.5px;display:block;margin-top:2px}
+.seg{display:flex;background:var(--s2);border-radius:9px;padding:2px;margin:0 0 8px}
+.seg div{flex:1;text-align:center;padding:6px 0;border-radius:7px;font-size:13px;font-weight:600;color:var(--grey)}.seg div.on{background:#636366;color:#fff}
+.btn{margin-top:12px;height:46px;border-radius:23px;background:#fff;color:#000;display:grid;place-items:center;font-weight:700;font-size:15.5px}
+.red{color:var(--red);text-align:center;font-weight:600;font-size:15px;margin-top:12px}
+.hero{display:flex;gap:12px;align-items:center;margin-bottom:6px}
+.hero i{width:58px;height:84px;border-radius:7px;flex:none}
+.hero b{display:block;font-size:22px;font-weight:800}.hero span{color:var(--grey);font-size:13px}
+.slider{background:var(--s1);border-radius:12px;padding:12px}
+.slider .row{display:flex;justify-content:space-between;align-items:baseline}.slider .row b{font-size:15px}.slider .row span{color:var(--blue-text);font-weight:700}
+.track{position:relative;height:4px;background:rgba(235,235,245,.25);border-radius:2px;margin:16px 6px 8px}
+.track i{position:absolute;left:0;top:0;bottom:0;width:100%;background:var(--blue);border-radius:2px}
+.track em{position:absolute;top:-10px;right:-12px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--grey)}.ticks .on{color:#fff;font-weight:700}
+.notes{max-width:1180px;margin:30px auto 0;color:#b4b4ba;font-size:14px;line-height:1.55}.notes h3{color:#fff;font-size:16px;margin:16px 0 6px}.notes li{margin:3px 0 3px 18px}
+</style></head><body>
+<style>
+.seg2{display:flex;background:var(--s1);border-radius:10px;padding:2px;margin:2px 0 12px}
+.seg2 div{flex:1;text-align:center;padding:7px 0;border-radius:8px;font-size:13.5px;font-weight:600;color:var(--grey)}.seg2 div.on{background:#636366;color:#fff}
+.store{background:var(--s1);border-radius:14px;padding:12px 12px 10px;margin-bottom:12px}
+.store .row{display:flex;justify-content:space-between;align-items:baseline}.store b{font-size:15px}.store span{color:var(--grey);font-size:12px}
+.stack{display:flex;height:8px;border-radius:4px;overflow:hidden;margin:10px 0 8px;background:rgba(235,235,245,.12)}
+.stack i{display:block;height:100%}
+.legend{display:flex;gap:10px;font-size:11px;color:var(--grey);white-space:nowrap}.legend em{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;vertical-align:middle}
+.tools{display:flex;gap:8px;margin-bottom:10px}.tools .sf{flex:1;background:var(--s1);border-radius:10px;padding:8px 10px;color:var(--grey);font-size:13.5px}
+.tools .sort{background:var(--s1);border-radius:10px;padding:8px 10px;font-size:13px;color:var(--blue-text);font-weight:600;white-space:nowrap}
+.shows{background:var(--s1);border-radius:14px;overflow:hidden}
+.sr{position:relative;display:flex;gap:11px;align-items:center;padding:9px 10px}
+.sr+.sr::before{content:"";position:absolute;top:0;left:66px;right:0;height:1px;background:var(--sep)}
+.post{width:46px;height:68px;border-radius:6px;flex:none}
+.sr .t{flex:1;min-width:0}.sr .t b{display:block;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr .t span{display:block;color:var(--grey);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chips{display:flex;gap:5px;margin-top:5px;flex-wrap:nowrap;overflow:hidden}
+.chip.o{background:rgba(255,159,10,.18);color:var(--orange)}.chip.ai{background:rgba(191,90,242,.18);color:#d48cf7}.chip.r{background:rgba(255,69,58,.18);color:var(--red)}
+.hero2{position:relative;height:150px;margin:-44px -14px 0;}
+.hero2 .bg{position:absolute;inset:0}.hero2 .fade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.2),rgba(0,0,0,.25) 50%,#000)}
+.hero2 .back{position:absolute;top:46px;left:14px;color:var(--blue-text);font-weight:600;font-size:15px}
+.hero2 .sel{position:absolute;top:46px;right:14px;color:var(--blue-text);font-weight:600;font-size:15px}
+.who2{display:flex;gap:12px;align-items:flex-end;margin-top:-52px;position:relative;margin-bottom:10px}
+.who2 .post{width:70px;height:104px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.6)}
+.who2 b{display:block;font-size:22px;font-weight:800;line-height:1.1}.who2 span{color:var(--grey);font-size:12.5px}
+.stats{display:flex;gap:6px;margin-bottom:10px}
+.stats div{flex:1;background:var(--s1);border-radius:11px;padding:8px 9px}.stats b{display:block;font-size:16px}.stats span{color:var(--grey);font-size:11px}
+.seasons{display:flex;gap:6px;margin-bottom:10px}.seasons div{background:var(--s1);border-radius:16px;padding:5px 12px;font-size:12.5px;font-weight:600;color:var(--grey)}.seasons div.on{background:#fff;color:#000}
+.eps{background:var(--s1);border-radius:14px;overflow:hidden}
+.er{position:relative;display:flex;gap:10px;align-items:center;padding:8px 10px}
+.er+.er::before{content:"";position:absolute;top:0;left:100px;right:0;height:1px;background:var(--sep)}
+.thumb{width:80px;height:45px;border-radius:6px;flex:none;position:relative;overflow:hidden}
+.thumb .pb{position:absolute;left:0;bottom:0;height:3px;background:var(--blue)}
+.er .t{flex:1;min-width:0}.er .t b{display:block;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.er .t span{display:flex;align-items:center;gap:5px;color:var(--grey);font-size:11.5px;margin-top:3px;white-space:nowrap;overflow:hidden}
+.dot{width:7px;height:7px;border-radius:50%;flex:none}
+.er .thinx{height:3px;border-radius:2px;background:rgba(235,235,245,.2);margin-top:5px;overflow:hidden}.er .thinx i{display:block;height:100%;background:var(--blue)}
+.ck{width:22px;height:22px;border-radius:50%;border:2px solid rgba(235,235,245,.3);flex:none}
+.ck.on{border:none;background:var(--blue);display:grid;place-items:center}.ck.on::after{content:"✓";font-size:12px;font-weight:800}
+.dsheet{position:absolute;left:0;right:0;bottom:0;background:var(--s1);border-radius:26px 26px 0 0;padding:10px 14px 18px;box-shadow:0 -10px 40px rgba(0,0,0,.6)}
+.dsheet .grab{width:36px;height:5px;border-radius:3px;background:rgba(235,235,245,.3);margin:0 auto 12px}
+.dhead{display:flex;gap:11px;align-items:center;margin-bottom:12px}.dhead .thumb{width:104px;height:58px}
+.dhead b{display:block;font-size:16px;font-weight:700}.dhead span{color:var(--grey);font-size:12px}
+.steps{background:var(--s2);border-radius:12px;padding:4px 11px;margin-bottom:10px}
+.st{position:relative;display:flex;gap:10px;align-items:flex-start;padding:7px 0}
+.st+.st{border-top:1px solid var(--sep)}
+.st .ic{width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:11px;font-weight:800;margin-top:1px}
+.st .ic.ok{background:var(--green);color:#000}.st .ic.go{background:var(--blue)}.st .ic.no{border:2px solid rgba(235,235,245,.3)}
+.st b{display:block;font-size:13.5px}.st span{display:block;color:var(--grey);font-size:11.5px;margin-top:1px}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.facts div{background:var(--s2);border-radius:10px;padding:7px 9px}.facts span{display:block;color:var(--grey);font-size:10.5px}.facts b{font-size:12.5px}
+.btns{display:flex;gap:8px}.btns div{flex:1;height:42px;border-radius:21px;display:grid;place-items:center;font-weight:700;font-size:14px}
+.btns .w{background:#fff;color:#000}.btns .g{background:var(--s2);color:#fff}
+.del{color:var(--red);text-align:center;font-weight:600;font-size:14.5px;margin-top:12px}
+.bar2{position:absolute;left:0;right:0;bottom:0;background:rgba(28,28,30,.96);border-top:1px solid var(--sep);padding:10px 14px 22px;display:flex;justify-content:space-between;align-items:center}
+.bar2 .l{color:var(--blue-text);font-weight:600;font-size:14px}.bar2 .r{background:var(--red);color:#fff;border-radius:18px;padding:8px 14px;font-weight:700;font-size:13.5px}
+.alert{position:absolute;left:34px;right:34px;top:260px;background:rgba(44,44,46,.98);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.7)}
+.alert .h{padding:16px 14px 12px;text-align:center}.alert .h b{display:block;font-size:16px}.alert .h span{display:block;color:var(--grey);font-size:12.5px;margin-top:4px;line-height:1.35}
+.alert .o{border-top:1px solid var(--sep);padding:11px;text-align:center;font-size:15px;color:var(--blue-text)}
+.alert .o.d{color:var(--red);font-weight:600}.alert .o.c{font-weight:600}
+.alert .opt{border-top:1px solid var(--sep);padding:9px 14px;display:flex;justify-content:space-between;align-items:center;font-size:13px}
+.dimall{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.mv{min-width:0}
+.mv .p{aspect-ratio:2/3;border-radius:8px;position:relative;overflow:hidden}
+.mv .p .badge{position:absolute;left:5px;bottom:5px;height:auto;white-space:nowrap}
+.mv b{display:block;font-size:11.5px;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.mv>span{display:block;color:var(--grey);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tabbar{position:absolute;left:12px;right:12px;bottom:10px;height:52px;border-radius:26px;background:rgba(40,40,44,.92);display:flex;justify-content:space-around;align-items:center;font-size:10px;color:var(--grey)}
+.tabbar .on{color:var(--blue-text);font-weight:700}
+.big{background:var(--s1);border-radius:14px;overflow:hidden;margin-bottom:10px}
+</style>
+</head><body>
+<div class="intro"><span class="mk">MOCKUP · not a render of Kodi · round 1, for owner review</span>
+<h1>Library › TV Shows and Movies</h1>
+<p>Owner, 2026-11-12: "currently it just takes me to downloaded movies but instead i want a way to view like the details of shows and movies like if i click on a show it will show the episodes and all that then if i click on a episode it tells me it's converted ready blah blah and a easy way to delete files! Like a professional file manager but make it so pretty!"</p>
+<p>The Library's TV Shows and Movies tabs become one file manager for everything downloaded (Google Drive and this iPhone): what you have, how much room it takes, what state each file is in, and a safe way to delete. Same dark grouped style as Settings; poster art is grey/colour placeholders here. Deleting always asks first and sends Drive files to Drive's Trash (30 days), as the long-press Remove does today.</p></div>
+
+<section class="board"><div class="n">A · LIBRARY › TV SHOWS</div><h2>Every downloaded show, its size and its state</h2>
+<p>A TV Shows / Movies switch at the top. A storage card: Google Drive used, split into shows, movies and AI copies, and this iPhone. Search and sort (Recent, Name, Size). Each show: poster, name, seasons and episodes, total size, and chips for the state: green ready, orange still converting, purple AI copy, red a problem. Tap a show for board B.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Library</div><h3>TV Shows</h3>
+  <div class="seg2"><div class="on">TV Shows</div><div>Movies</div></div>
+  <div class="store"><div class="row"><b>214 GB on Google Drive</b><span>of 2 TB</span></div>
+   <div class="stack"><i style="width:9%;background:var(--blue)"></i><i style="width:5%;background:var(--orange)"></i><i style="width:2%;background:var(--purple)"></i></div>
+   <div class="legend"><span><em style="background:var(--blue)"></em>Shows 128</span><span><em style="background:var(--orange)"></em>Movies 71</span><span><em style="background:var(--purple)"></em>AI copies 15 GB</span></div></div>
+  <div class="tools"><div class="sf">⌕ Search downloads</div><div class="sort">Recent ▾</div></div>
+  <div class="shows">
+   <div class="sr"><i class="post" style="background:linear-gradient(160deg,#ff9f0a,#7a2e0e)"></i><div class="t"><b>Naruto Shippūden</b><span>Season 1 · 32 episodes · 8.3 GB</span>
+    <div class="chips"><span class="chip g">29 ready</span><span class="chip o">3 converting</span></div></div><div class="go">›</div></div>
+   <div class="sr"><i class="post" style="background:linear-gradient(160deg,#7ee0c3,#0c4a3a)"></i><div class="t"><b>Rick and Morty</b><span>Seasons 1–2 · 21 episodes · 9.6 GB</span>
+    <div class="chips"><span class="chip g">All ready</span><span class="chip ai">AI 4K · 11</span></div></div><div class="go">›</div></div>
+   <div class="sr"><i class="post" style="background:linear-gradient(160deg,#ffd27a,#5a3b0e)"></i><div class="t"><b>Lanterns</b><span>Season 2 · 8 episodes · 17 GB</span>
+    <div class="chips"><span class="chip g">7 ready</span><span class="chip r">1 problem</span></div></div><div class="go">›</div></div>
+   <div class="sr"><i class="post" style="background:linear-gradient(160deg,#9aa7ff,#1c2257)"></i><div class="t"><b>Phony</b><span>Season 1 · 6 episodes · 3.1 GB · on this iPhone</span>
+    <div class="chips"><span class="chip g">All ready</span><span class="chip n">iPhone</span></div></div><div class="go">›</div></div>
+  </div>
+  <div class="tabbar"><span>Home</span><span>Movies</span><span>TV</span><span class="on">Library</span><span>Search</span></div>
+ </div></div><div class="cap"><b>A · TV Shows:</b> storage at a glance, then every show with its size and state chips.</div></div>
+</div></section>
+
+<section class="board"><div class="n">B · ONE SHOW</div><h2>Its seasons and episodes, each with its state</h2>
+<p>The show's art at the top, three numbers (episodes, size, ready), season chips, then every episode: still, number and name, quality and size, and one state line with a coloured dot. Converting shows its bar; a problem says what. Tap an episode for board C; <b>Select</b> (top right) for board D.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="hero2"><div class="bg" style="background:linear-gradient(160deg,#1f5f86,#0c1d33 60%,#000)"></div><div class="fade"></div><div class="back">‹ TV Shows</div><div class="sel">Select</div></div>
+  <div class="who2"><i class="post" style="background:linear-gradient(160deg,#ff9f0a,#7a2e0e)"></i><div><b>Naruto Shippūden</b><span>2007 · Google Drive › TV Shows</span></div></div>
+  <div class="stats"><div><b>32</b><span>episodes</span></div><div><b>8.3 GB</b><span>on Drive</span></div><div><b>29</b><span>ready for TV</span></div></div>
+  <div class="seasons"><div class="on">Season 1</div><div>Season 2</div><div>Specials</div></div>
+  <div class="eps">
+   <div class="er"><i class="thumb" style="background:linear-gradient(135deg,#c98b5a,#47301e)"><i class="pb" style="width:100%"></i></i><div class="t"><b>1 · Homecoming</b><span><i class="dot" style="background:var(--green)"></i>Ready · 1080p · 262 MB</span></div></div>
+   <div class="er"><i class="thumb" style="background:linear-gradient(135deg,#7b9a5a,#28361e)"><i class="pb" style="width:40%"></i></i><div class="t"><b>2 · The Akatsuki Makes Its Move</b><span><i class="dot" style="background:var(--green)"></i>Ready · 945 MB · <span style="color:#d48cf7">AI 4K</span></span></div></div>
+   <div class="er"><i class="thumb" style="background:linear-gradient(135deg,#5a7b9a,#1e2836)"></i><div class="t"><b>3 · The Results of Training</b><span><i class="dot" style="background:var(--orange)"></i>Converting · 42 % · 6 min</span><div class="thinx"><i style="width:42%"></i></div></div></div>
+   <div class="er"><i class="thumb" style="background:linear-gradient(135deg,#9a5a7b,#361e28)"></i><div class="t"><b>4 · The Jinchuriki of the Sand</b><span><i class="dot" style="background:var(--blue)"></i>Copying to Drive · 61 %</span><div class="thinx"><i style="width:61%"></i></div></div></div>
+   <div class="er"><i class="thumb" style="background:linear-gradient(135deg,#6a6a6a,#222)"></i><div class="t"><b>9 · The Jinchuriki's Tears</b><span><i class="dot" style="background:var(--red)"></i>Not added · tap to find one</span></div></div>
+  </div>
+ </div></div><div class="cap"><b>B · Naruto:</b> every episode's state on one line; bars only while something is happening.</div></div>
+</div></section>
+
+<section class="board"><div class="n">C · ONE EPISODE</div><h2>Where the file is, what was done to it, and Delete</h2>
+<p>A sheet over the show. Its steps as a short checklist: on Google Drive, ready for Kodi and AirPlay (what conversion did and how long it took), AI Upscale copy, subtitles. Then the file facts (size, picture, sound, folder, added). Play and Play on TV; Delete in red under them. C2 is a movie that is still converting.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps" style="background:#000">
+  <div class="hero2" style="opacity:.35"><div class="bg" style="background:linear-gradient(160deg,#1f5f86,#0c1d33 60%,#000)"></div></div><div class="dimall"></div>
+  <div class="dsheet"><div class="grab"></div>
+   <div class="dhead"><i class="thumb" style="background:linear-gradient(135deg,#7b9a5a,#28361e)"></i><div><b>2 · The Akatsuki Makes Its Move</b><span>Naruto Shippūden · Season 1 · 23 min</span></div></div>
+   <div class="steps">
+    <div class="st"><i class="ic ok">✓</i><div><b>On Google Drive</b><span>From AllDebrid · 945 MB · 12 Nov</span></div></div>
+    <div class="st"><i class="ic ok">✓</i><div><b>Ready for Kodi and AirPlay</b><span>H.264 kept · sound to AAC · took 3 min</span></div></div>
+    <div class="st"><i class="ic ok">✓</i><div><b>AI Upscale · 4K UHD copy</b><span>2.4 GB beside it · the TV gets this one</span></div></div>
+    <div class="st"><i class="ic ok">✓</i><div><b>Subtitles</b><span>English (SubDL) · Japanese in the file</span></div></div>
+   </div>
+   <div class="facts"><div><span>Picture</span><b>1920×1080 · H.264</b></div><div><span>Sound</span><b>AAC 2.0 · Japanese, English</b></div>
+    <div><span>Folder</span><b>TV Shows › Naruto › S1</b></div><div><span>File</span><b>Naruto…002 [1080p].mp4</b></div></div>
+   <div class="btns"><div class="w">▶ Play</div><div class="g">Play on TV</div></div>
+   <div class="del">Delete Episode…</div>
+  </div>
+ </div></div><div class="cap"><b>C1 · An episode that is ready:</b> four ticks say everything is done.</div></div>
+ <div class="slot"><div class="pframe"><div class="ps" style="background:#000">
+  <div class="dimall"></div>
+  <div class="dsheet"><div class="grab"></div>
+   <div class="dhead"><i class="thumb" style="background:linear-gradient(135deg,#8a4b2e,#2a120a)"></i><div><b>Hell House LLC Origins</b><span>Movie · 2023 · 1 h 39 min</span></div></div>
+   <div class="steps">
+    <div class="st"><i class="ic ok">✓</i><div><b>On Google Drive</b><span>From AllDebrid · 1.9 GB · 12 Nov</span></div></div>
+    <div class="st"><i class="ic go"></i><div><b>Converting for TV · 42 %</b><span>HEVC 10-bit to H.264 · about 18 min left</span><div class="thin"><i style="width:42%"></i></div></div></div>
+    <div class="st"><i class="ic no"></i><div><b>AI Upscale</b><span>Off for this movie · 4K would be about 12 GB</span></div></div>
+   </div>
+   <div class="facts"><div><span>Picture</span><b>1920×1040 · HEVC</b></div><div><span>Sound</span><b>AAC 5.1 · English</b></div></div>
+   <div class="btns"><div class="w">▶ Play</div><div class="g">Pause converting</div></div>
+   <div class="del">Delete Movie…</div>
+  </div>
+ </div></div><div class="cap"><b>C2 · A movie still converting:</b> the step that is running has the bar; Play still works (the original plays).</div></div>
+</div></section>
+
+<section class="board"><div class="n">D · SELECT AND DELETE</div><h2>Pick several, see the space you get back, confirm</h2>
+<p>Select turns the rows into checkboxes (with Select All / watched). The bottom bar says how many and how much. Delete asks with an iOS alert: what goes where (Drive files to Drive's Trash for 30 days, phone copies deleted), whether the AI copies go too, Cancel. D2 is the alert.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb" style="display:flex;justify-content:space-between"><span>Select All</span><span>Done</span></div><h3 style="font-size:24px">3 selected</h3>
+  <div class="seasons"><div class="on">Season 1</div><div>Watched (6)</div></div>
+  <div class="eps">
+   <div class="er"><i class="ck on"></i><i class="thumb" style="background:linear-gradient(135deg,#c98b5a,#47301e)"></i><div class="t"><b>1 · Homecoming</b><span>262 MB · watched</span></div></div>
+   <div class="er"><i class="ck on"></i><i class="thumb" style="background:linear-gradient(135deg,#7b9a5a,#28361e)"></i><div class="t"><b>2 · The Akatsuki Makes Its Move</b><span>945 MB + AI copy 2.4 GB</span></div></div>
+   <div class="er"><i class="ck on"></i><i class="thumb" style="background:linear-gradient(135deg,#5a9a8a,#1e3630)"></i><div class="t"><b>3 · The Results of Training</b><span>281 MB · watched</span></div></div>
+   <div class="er"><i class="ck"></i><i class="thumb" style="background:linear-gradient(135deg,#9a5a7b,#361e28)"></i><div class="t"><b>4 · The Jinchuriki of the Sand</b><span>251 MB</span></div></div>
+  </div>
+  <div class="bar2"><span class="l">Mark Watched</span><span class="r">Delete 3 · 3.9 GB</span></div>
+ </div></div><div class="cap"><b>D1 · Select:</b> the size freed is on the red button before anything happens.</div></div>
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ TV Shows</div><h3 style="font-size:24px">3 selected</h3><div class="eps" style="opacity:.5"><div class="er"><i class="ck on"></i><div class="t"><b>1 · Homecoming</b><span>262 MB</span></div></div></div>
+  <div class="dimall"></div>
+  <div class="alert"><div class="h"><b>Delete 3 episodes?</b><span>They go to Google Drive's Trash, where they stay for 30 days. Nothing else is touched.</span></div>
+   <div class="opt"><span>Also delete the AI copies (2.4 GB)</span><span class="toggle on" style="transform:scale(.8)"></span></div>
+   <div class="o d">Delete 3 Episodes</div><div class="o c">Cancel</div></div>
+ </div></div><div class="cap"><b>D2 · Confirm:</b> one red action, Cancel always there, and it says it can be undone in Drive.</div></div>
+</div></section>
+
+<section class="board"><div class="n">E · LIBRARY › MOVIES</div><h2>Posters with size and state; the same detail sheet</h2>
+<p>The Movies side of the switch: a three-column poster grid (posters scan faster than rows for films), each with its size and a small state badge. Sort by Recent, Name or Size; "Largest first" is how you free space. Tapping a poster opens board C.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Library</div><h3>Movies</h3>
+  <div class="seg2"><div>TV Shows</div><div class="on">Movies</div></div>
+  <div class="tools"><div class="sf">⌕ Search downloads</div><div class="sort">Size ▾</div></div>
+  <div class="grid3">
+   <div class="mv"><div class="p" style="background:linear-gradient(160deg,#3d5a80,#0b1320)"><span class="badge chip g">Ready</span></div><b>Interstellar</b><span>58 GB · 4K HDR</span></div>
+   <div class="mv"><div class="p" style="background:linear-gradient(160deg,#c2a36b,#3a2a10)"><span class="badge chip g">Ready</span></div><b>Dune: Part Two</b><span>41 GB · 4K</span></div>
+   <div class="mv"><div class="p" style="background:linear-gradient(160deg,#6b8f71,#14241a)"><span class="badge chip ai">AI 4K</span></div><b>The Blair Witch Project</b><span>9.2 GB · 480p → 4K</span></div>
+   <div class="mv"><div class="p" style="background:linear-gradient(160deg,#8a4b2e,#2a120a)"><span class="badge chip o">42 %</span></div><b>Hell House LLC Origins</b><span>1.9 GB · converting</span></div>
+   <div class="mv"><div class="p" style="background:linear-gradient(160deg,#5b5b8a,#15152a)"><span class="badge chip g">Ready</span></div><b>Fall</b><span>3.4 GB · 1080p</span></div>
+   <div class="mv"><div class="p" style="background:linear-gradient(160deg,#8a5b7a,#2a1524)"><span class="badge chip r">Problem</span></div><b>Scary Movie</b><span>2.1 GB · tap for why</span></div>
+  </div>
+  <div class="tabbar"><span>Home</span><span>Movies</span><span>TV</span><span class="on">Library</span><span>Search</span></div>
+ </div></div><div class="cap"><b>E · Movies, largest first:</b> the size under each title; badges only say the state.</div></div>
+</div></section>
+
+<section class="board"><div class="n">F · FREE UP SPACE</div><h2>From the storage card: the quickest ways to get room back</h2>
+<p>Tapping the storage card (board A) opens this: the biggest groups first, each with one action that asks before it deletes (board D2's alert). Nothing is removed without that alert.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ TV Shows</div><h3 style="font-size:26px">Free Up Space</h3>
+  <div class="store"><div class="row"><b>214 GB on Google Drive</b><span>1.8 TB free</span></div>
+   <div class="stack"><i style="width:9%;background:var(--blue)"></i><i style="width:5%;background:var(--orange)"></i><i style="width:2%;background:var(--purple)"></i></div></div>
+  <div class="sh">Suggestions</div>
+  <div class="grp">
+   <div class="pr"><div class="t"><b>Watched episodes</b><span>38 episodes · 11.4 GB</span></div><div class="v" style="color:var(--blue-text)">Review ›</div></div>
+   <div class="pr"><div class="t"><b>AI Upscale copies</b><span>15 GB · the originals stay</span></div><div class="v" style="color:var(--blue-text)">Review ›</div></div>
+   <div class="pr"><div class="t"><b>Largest movies</b><span>Interstellar 58 GB · Dune 41 GB · 3 more</span></div><div class="v" style="color:var(--blue-text)">Review ›</div></div>
+   <div class="pr"><div class="t"><b>Copies on this iPhone</b><span>3.1 GB · already on Google Drive too</span></div><div class="v" style="color:var(--blue-text)">Review ›</div></div>
+  </div>
+  <div class="foot">Deleted files stay in Google Drive's Trash for 30 days. Kodi never empties the Trash.</div>
+ </div></div><div class="cap"><b>F · Free Up Space:</b> each suggestion opens the select list of board D, already ticked.</div></div>
+</div></section>
+
+<div class="notes"><h3>Notes</h3><ul>
+<li>Kodi limits (APPLE-UI-POLICY §2): this is Kodi skin XML, not UIKit. The switch, chips, bars, checkboxes and sheet are drawn with the existing portrait helpers (season sheets, Settings rows, the IOSSkinList second line).</li>
+<li>States come from what the app already records: debrid_drive (copying to Drive), the preparation queue (converting, ready, problem), upscale-copies.json (AI copies), the phone's completed downloads, Continue Watching (watched).</li>
+<li>Delete reuses ios_remove (long press › Remove): Drive files to Drive's Trash, phone files deleted, Library listing and Continue Watching cleaned. New: several at once, and AI copies with their originals.</li>
+<li>Numbers and names are examples; artwork is placeholder colour.</li>
+</ul></div>
+</body></html>
