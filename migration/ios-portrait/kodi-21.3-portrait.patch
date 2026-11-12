@@ -1633,10 +1633,52 @@ diff --git a/xbmc/cores/VideoPlayer/DVDDemuxers/DVDDemuxFFmpeg.cpp b/xbmc/cores/
 +      CLog::Log(LOGINFO, "{} - opening MP4 by its fragment index (use_mfra_for pts)", __FUNCTION__);
 +      av_dict_set(&options, "use_mfra_for", "pts", 0);
 +    }
-
+ 
      if (StringUtils::StartsWith(content, "audio/l16"))
      {
-
+@@ -551,8 +558,42 @@ bool CDVDDemuxFFmpeg::Open(const std::shared_ptr<CDVDInputStream>& pInput, bool
+     if (m_pInput->IsStreamType(DVDSTREAM_TYPE_DVD))
+       av_opt_set_int(m_pFormatContext, "analyzeduration", 500000, 0);
+ 
++    // Kodi iOS r31 (roadmap 1B.2): probe limits follow the connection. FFmpeg's defaults (5 MB, 5 s) are read in full
++    // over Google Drive or a debrid link when a stream is slow to reveal itself; a network source gets 3 MB / 3 s,
++    // a file on the phone 20 MB / 10 s (it costs nothing to look further). If the short probe leaves a video stream
++    // without a picture size, the probe runs once more with FFmpeg's defaults, so a late-starting stream still plays.
++    const CURL probeUrl(strFile);
++    const bool probeRemote = probeUrl.IsProtocol("http") || probeUrl.IsProtocol("https");
++    const bool probeShortened = probeRemote && !isBluray && !m_pInput->IsStreamType(DVDSTREAM_TYPE_DVD);
++    if (!isBluray && !m_pInput->IsStreamType(DVDSTREAM_TYPE_DVD))
++    {
++      const int64_t probeBytes = probeRemote ? 3 * 1024 * 1024 : 20 * 1024 * 1024;
++      const int64_t probeMicros = probeRemote ? 3000000 : 10000000;
++      av_opt_set_int(m_pFormatContext, "probesize", probeBytes, 0);
++      av_opt_set_int(m_pFormatContext, "analyzeduration", probeMicros, 0);
++      CLog::Log(LOGINFO, "{} - probe limits {} MB / {} s ({})", __FUNCTION__, probeBytes / (1024 * 1024),
++                probeMicros / 1000000, probeRemote ? "network" : "local");
++    }
++
+     CLog::Log(LOGDEBUG, "{} - avformat_find_stream_info starting", __FUNCTION__);
+     int iErr = avformat_find_stream_info(m_pFormatContext, NULL);
++    if (probeShortened)
++    {
++      bool incomplete = iErr < 0;
++      for (unsigned int i = 0; i < m_pFormatContext->nb_streams && !incomplete; ++i)
++      {
++        const AVCodecParameters* par = m_pFormatContext->streams[i]->codecpar;
++        incomplete = par->codec_type == AVMEDIA_TYPE_VIDEO &&
++                     (par->codec_id == AV_CODEC_ID_NONE || par->width == 0 || par->height == 0);
++      }
++      if (incomplete)
++      {
++        CLog::Log(LOGINFO, "{} - short probe was not enough, probing again with FFmpeg's limits", __FUNCTION__);
++        av_opt_set_int(m_pFormatContext, "probesize", 5000000, 0);
++        av_opt_set_int(m_pFormatContext, "analyzeduration", 5000000, 0);
++        iErr = avformat_find_stream_info(m_pFormatContext, NULL);
++      }
++    }
+     if (iErr < 0)
+     {
+       CLog::Log(LOGWARNING, "could not find codec parameters for {}", CURL::GetRedacted(strFile));
 diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
 --- a/xbmc/guilib/GUISliderControl.cpp
 +++ b/xbmc/guilib/GUISliderControl.cpp

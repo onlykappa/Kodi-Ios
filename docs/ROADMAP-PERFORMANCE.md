@@ -134,7 +134,7 @@ Evidence: older logs `41de3707`, `18b7b4b0`, `9e2568a7` (Demuxer → first strea
 | # | Work | Cause | Target |
 |---|---|---|---|
 | 1B.1 | Apply the MKV skip-attachments patch (already in the AirPlay FFmpeg) to Kodi's own FFmpeg in the Kodi build | Known: Kodi's demuxer reads every attachment (fonts, covers) over the network before playing | MKV first stream < 5 s |
-| 1B.2 | Network-aware probe limits: smaller `probesize`/`analyzeduration` for http/plugin sources, larger for local files | Suspected; measure with 1C.1 | − 1-3 s per open |
+| 1B.2 | Network-aware probe limits: smaller `probesize`/`analyzeduration` for http/plugin sources, larger for local files | Suspected; measure with 1C.1 | − 1-3 s per open — **Kodi patch (needs Kodi r31) (speed-reliability-fixes): DVDDemuxFFmpeg: 3 MB / 3 s probe for http(s) sources, 20 MB / 10 s for local files, one retry at FFmpeg's defaults; patch applies to Kodi 21.3, not compiled** |
 | 1B.3 | Cache settings for phones: start playback after a small cache fill; read factor tuned for 5G vs Wi-Fi | Suspected (Buffer mode 4, 96 MB, read factor 10) | picture before the cache is full |
 | 1B.4 | Debrid links: keep Umbrella's resolve, but start Kodi reading the link while the source window closes | Suspected | − 1 s |
 
