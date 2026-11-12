@@ -82,6 +82,27 @@ section p{color:var(--label2);max-width:880px;line-height:1.45;margin:0 0 18px}
 .primary{margin-top:8px;background:#fff;color:#000;border-radius:22px;height:52px;display:grid;place-items:center;font-weight:700;font-size:17px}
 .build-note{border:1px dashed #3a3b40;border-radius:12px;padding:12px 14px;color:var(--label2);font-size:13px;line-height:1.45;max-width:880px;margin-bottom:16px}
 .build-note b{color:#fff}
+
+/* board B r2: quality cards */
+.qs{position:absolute;left:0;right:0;bottom:0;background:var(--s1);border-radius:30px 30px 0 0;padding:10px 18px 30px}
+.qs .grab{width:36px;height:5px;border-radius:3px;background:rgba(235,235,245,.3);margin:0 auto 14px}
+.qs .who{display:flex;gap:12px;align-items:center;margin-bottom:16px}
+.qs .who i{width:44px;height:64px;border-radius:7px;background:linear-gradient(160deg,#ff9f0a,#7a2e0e);flex:none}
+.qs .who b{display:block;font-size:20px;font-weight:800}.qs .who span{color:var(--label2);font-size:13px}
+.qgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.q{background:var(--s2);border-radius:16px;padding:12px 14px;min-height:78px;position:relative;border:2px solid transparent}
+.q b{display:block;font-size:24px;font-weight:800;letter-spacing:-.02em}
+.q span{display:block;color:var(--label2);font-size:12.5px;margin-top:4px}
+.q.on{border-color:var(--blue);background:rgba(10,132,255,.14)}
+.q.on::after{content:"✓";position:absolute;top:10px;right:12px;width:20px;height:20px;border-radius:50%;background:var(--blue);color:#fff;font-size:12px;font-weight:800;display:grid;place-items:center}
+.q .sz{color:#fff;font-weight:600;margin-top:1px}
+.q.none b{color:var(--dim)}.q.none span{color:var(--dim)}
+.how{margin:16px 2px 0;color:var(--label2);font-size:13.5px;line-height:1.45}.how b{color:#fff}
+.seg{display:flex;background:var(--s2);border-radius:10px;padding:2px;margin-top:14px}
+.seg div{flex:1;text-align:center;padding:7px 0;border-radius:8px;font-size:13.5px;font-weight:600;color:var(--label2)}
+.seg div.on{background:#636366;color:#fff}
+.dl{margin-top:16px;height:52px;border-radius:26px;background:#fff;color:#000;display:grid;place-items:center;font-weight:800;font-size:17px}
+.later{text-align:center;color:var(--blue-text);font-weight:600;font-size:16px;margin-top:14px}
 </style>
 </head>
 <body>
@@ -135,44 +156,47 @@ exists the app <b>builds the season from single episodes</b> at that quality.</p
 </section>
 
 <section class="board" id="b">
- <div class="tagline"><span class="mk">MOCKUP</span><span>B · Season: pick a quality first</span></div>
- <h2>Download Season 1: the quality you want, and how the app gets it</h2>
- <p>After the search, the season sheet lists qualities, not packs. Each row says how that quality would come: a real <b>season pack</b>, or <b>built from single
- episodes</b> ("Build Season" — the app picks the best-seeded copy of every episode at that quality). A quality nobody has is shown dimmed, not hidden.</p>
- <div class="build-note"><b>Name (recommendation):</b> the option is called <b>Build Season</b> with the line "From single episodes · 26 of 26 found". Short, says what it does, and
- sits naturally next to "Season pack". The best row carries <b>BEST</b>.</div>
+ <div class="tagline"><span class="mk">MOCKUP</span><span>B · Season: pick a quality (round 2)</span></div>
+ <h2>Download Season 1: four big quality cards, one Download</h2>
+ <p>Owner, round 1 "looks like ass": tiny tiles, wrapping lines, repeated "Season pack · N versions". Now: the show and season on top, one card per quality
+ (big label, one short line), the best one picked for you, one sentence saying how the app will get it, and one Download button with the size. A quality
+ nobody has stays in its place, greyed. When a quality has both a real pack and Build Season, a two-way switch under the cards chooses.</p>
  <div class="shots">
   <div class="slot"><div class="bezel"><div class="screen">
    <div class="status"><span>9:41</span><span>▮▮</span></div>
    <div class="hero"><div class="logo">NARUTO</div></div>
    <div class="dim"></div>
-   <div class="sheet">
-    <div class="grp">
-     <div class="hd"><b>Naruto Shippūden · Season 1</b><span>Pick a quality · 26 episodes</span></div>
-     <div class="row"><div class="tile" style="background:#0a84ff">1080p</div><div class="tx"><b>1080p<span class="badge b-green">BEST</span></b><span>Build Season · 26 of 26 episodes · 9.8 GB</span></div><div class="go">›</div></div>
-     <div class="row"><div class="tile" style="background:#5e5ce6">720p</div><div class="tx"><b>720p</b><span>Season pack · 1 version · 6.1 GB</span></div><div class="go">›</div></div>
-     <div class="row"><div class="tile" style="background:#636366">480p</div><div class="tx"><b>480p</b><span>Season pack · 2 versions · 400 MB+</span></div><div class="go">›</div></div>
-     <div class="row off"><div class="tile" style="background:#3a3a3c">4K</div><div class="tx"><b>4K</b><span>Not found for this season</span></div></div>
-     <div class="foot">Build Season picks the best-seeded copy of each episode at that quality.</div>
+   <div class="qs"><div class="grab"></div>
+    <div class="who"><i></i><div><b>Season 1</b><span>Naruto Shippūden · 26 episodes</span></div></div>
+    <div class="qgrid">
+     <div class="q none"><b>4K</b><span>Not found</span></div>
+     <div class="q on"><b>1080p</b><span>Build Season</span><span class="sz">9.8 GB</span></div>
+     <div class="q"><b>720p</b><span>Season pack</span><span class="sz">6.1 GB</span></div>
+     <div class="q"><b>480p</b><span>Season pack</span><span class="sz">400 MB</span></div>
     </div>
-    <div class="cancel">Cancel</div>
+    <div class="how"><b>Build Season:</b> all 26 episodes found in 1080p. The app takes the best copy of each one and downloads them in order.</div>
+    <div class="dl">Download 1080p · 9.8 GB</div>
+    <div class="later">Cancel</div>
    </div>
-  </div></div><div class="cap"><b>B1 · The season sheet</b> (Naruto: no 1080p pack, so 1080p is built)</div></div>
+  </div></div><div class="cap"><b>B1 · Naruto:</b> no 1080p pack, so 1080p is built from episodes (picked for you)</div></div>
   <div class="slot"><div class="bezel"><div class="screen">
    <div class="status"><span>9:41</span><span>▮▮</span></div>
-   <div class="hero"><div class="logo">LANTERNS</div></div>
+   <div class="hero" style="background:linear-gradient(160deg,#6b4a1f,#20140a 60%,#000)"><div class="logo">LANTERNS</div></div>
    <div class="dim"></div>
-   <div class="sheet">
-    <div class="grp">
-     <div class="hd"><b>Lanterns · Season 2</b><span>Pick a quality · 8 episodes</span></div>
-     <div class="row"><div class="tile" style="background:#30d158;color:#000">4K</div><div class="tx"><b>4K<span class="badge b-green">BEST</span></b><span>Season pack · 3 versions · 38 GB+</span></div><div class="go">›</div></div>
-     <div class="row"><div class="tile" style="background:#0a84ff">1080p</div><div class="tx"><b>1080p</b><span>Season pack · 5 versions · 9.2 GB+</span></div><div class="go">›</div></div>
-     <div class="row"><div class="tile" style="background:#0a84ff">1080p</div><div class="tx"><b>1080p · Build Season</b><span>8 of 8 episodes · 8.1 GB</span></div><div class="go">›</div></div>
-     <div class="foot">Build Season picks the best-seeded copy of each episode at that quality.</div>
+   <div class="qs"><div class="grab"></div>
+    <div class="who"><i style="background:linear-gradient(160deg,#ffd27a,#5a3b0e)"></i><div><b>Season 2</b><span>Lanterns · 8 episodes</span></div></div>
+    <div class="qgrid">
+     <div class="q"><b>4K</b><span>Season pack</span><span class="sz">38 GB</span></div>
+     <div class="q on"><b>1080p</b><span>Pack or Build</span><span class="sz">8–9 GB</span></div>
+     <div class="q"><b>720p</b><span>Build Season</span><span class="sz">4.2 GB</span></div>
+     <div class="q none"><b>480p</b><span>Not found</span></div>
     </div>
-    <div class="cancel">Cancel</div>
+    <div class="seg"><div class="on">Season pack</div><div>Build Season</div></div>
+    <div class="how"><b>Season pack:</b> one download, 9.2 GB, 312 seeds. Build Season would take each episode separately (8.1 GB).</div>
+    <div class="dl">Download 1080p · 9.2 GB</div>
+    <div class="later">Cancel</div>
    </div>
-  </div></div><div class="cap"><b>B2 · When packs exist:</b> packs first; Build Season still offered</div></div>
+  </div></div><div class="cap"><b>B2 · Lanterns:</b> 1080p has a pack and Build Season; the switch picks</div></div>
  </div>
 </section>
 
