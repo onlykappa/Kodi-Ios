@@ -606,6 +606,40 @@ def busy_dialog(marker,font,media='special://skin/extras/portrait/'):
   '<control type="progress" id="10"><width>10</width><height>10</height><texturebg /><lefttexture /><midtexture /><righttexture /></control></control>'
   '</controls></window>\n')%(marker,w,long_h,card,cancel)
 
+# Board 09, option A (owner, 2026-11-12): while Elementum's Burst asks the torrent sites, a card in the style of the
+# opening card (board 04) says what is happening, instead of only the pill. Burst opens it (build_customized_ipa
+# BURST_PATCHES: _kios_card) and keeps Window(home).Property(IOSSearch.*) up to date: Title, Answered, Total, Found, Pct.
+# Stop (9801) ends the search and goes on with what was found; Cancel (9802) drops the search.
+SEARCHING='IOSSearching.xml'
+def searching_card(media='special://skin/extras/portrait/'):
+ w=720;pad=48;inner=w-2*pad;h=500
+ P=lambda k:'$INFO[Window(home).Property(IOSSearch.%s)]'%k
+ L=lambda x,y,wd,hh,text,f,color,align='center',extra='':('<control type="label"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><font>%s</font>'
+   '<textcolor>%s</textcolor><align>%s</align><aligny>center</aligny><scroll>false</scroll><label>%s</label>%s</control>')%(x,y,wd,hh,f,color,align,text,extra)
+ pct='Window(home).Property(IOSSearch.Pct)'
+ # Kodi's progress control cannot read a property: twenty segments, as on Umbrella's page (board 10).
+ bar=('<control type="image"><left>%d</left><top>236</top><width>%d</width><height>11</height><texture border="6" colordiffuse="33FFFFFF">%sdot.png</texture></control>'%(pad,inner,media)+
+  ''.join('<control type="image"><left>%d</left><top>236</top><width>%d</width><height>11</height><texture border="6" colordiffuse="FF0A84FF">%sdot.png</texture>'
+          '<visible>Integer.IsGreaterOrEqual(%s,%d)</visible></control>'%(pad,max(11,inner*k//20),media,pct,k*5) for k in range(1,21)))
+ button=lambda id,x,bw,text,primary,nav:('<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>124</height><font>p_btn</font>'
+  '<label>%s</label><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
+  '<texturefocus border="62" colordiffuse="%s">%spill_124.png</texturefocus><texturenofocus border="62" colordiffuse="%s">%spill_124.png</texturenofocus>%s</control>')%(
+  id,x,h-124-40,bw,text,'FF000000' if primary else 'FFFFFFFF','FF000000' if primary else 'FFFFFFFF',
+  'FFD1D1D6' if primary else 'FF5A5A5E',media,'FFFFFFFF' if primary else 'FF3A3A3C',media,nav)
+ half=(inner-24)//2
+ body=('<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture border="40" colordiffuse="FFFFFFFF">%salert.png</texture></control>'%(w,h,media)+
+  L(pad,36,inner,52,'Finding versions','p_foot','99EBEBF5')+
+  L(pad,88,inner,66,P('Title'),'p_h3','FFFFFFFF')+
+  L(pad,158,inner,52,P('Answered')+' of '+P('Total')+' sites answered'+'$INFO[Window(home).Property(IOSSearch.Found), · , found]','p_foot','99EBEBF5')+
+  bar+
+  L(pad,262,inner,52,'Stop shows what has been found so far.','p_cap','99EBEBF5')+
+  button(9802,pad,half,'Cancel',False,'<onright>9801</onright>')+button(9801,pad+half+24,half,'Stop',True,'<onleft>9802</onleft>'))
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS: searching card (board 09) -->\n<window type="dialog"><defaultcontrol always="true">9801</defaultcontrol><controls>'
+  '<control type="image"><width>100%%</width><height>100%%</height><texture colordiffuse="66000000">%swhite.png</texture></control>'
+  '<control type="group"><centerleft>50%%</centerleft><centertop>50%%</centertop><width>%d</width><height>%d</height>'
+  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
+  '%s</control></controls></window>\n')%(media,w,h,body)
+
 # Build 192 (quick wins): Kodi's toasts and volume bar as iOS banners instead of Fuse's corner pill. The controls'
 # Info (Custom_1193) is the episode card of board 08 (info_card). Kodi fills 400/401/402 (icon, heading, text) and
 # moves 933 (volume); they stay, hidden, and the banner reads their labels.
@@ -701,7 +735,7 @@ def info_card():
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: info card (board 08) -->\n'
          '<window type="dialog" id="1193"><zorder>3</zorder><defaultcontrol always="true">9500</defaultcontrol><controls>%s</controls></window>\n')%body
 
-HANDMADE={NOTIFY,VOLUME,'DialogConfirm.xml','DialogTextViewer.xml','DialogSettings.xml','AddonBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml',BUSY}
+HANDMADE={SEARCHING,NOTIFY,VOLUME,'DialogConfirm.xml','DialogTextViewer.xml','DialogSettings.xml','AddonBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml',BUSY}
 
 def files(p,read):
  out={p.FOLDER+'/DialogConfirm.xml':confirm_dialog(p,read('DialogConfirm.xml')),
@@ -716,6 +750,7 @@ def files(p,read):
       '1080i/'+TRACK_MENU:track_menu(),   # owner-approved Subtitles / Audio menus (tracks.py)
       '1080i/IOSAirPlayFlow.xml':_airplay_flow().page(close_button_1080),   # owner-approved Play on TV boards (2026-11-08)
       p.FOLDER+'/'+BUSY:busy_dialog(p.MARKER,'p_pill'),
+      p.FOLDER+'/'+SEARCHING:searching_card(),   # board 09
       '1080i/'+BUSY:busy_dialog('Kodi-iOS player controls: busy pill','font_main_bold'),
       p.FOLDER+'/'+NOTIFY:notification_dialog(p.MARKER,p.SIDE,150,p.WIDTH-2*p.SIDE,'p_foot_b','p_foot'),
       p.FOLDER+'/'+VOLUME:volume_dialog(p.MARKER,(p.WIDTH-640)//2,150,640,'p_foot_b'),

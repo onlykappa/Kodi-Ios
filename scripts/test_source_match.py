@@ -265,8 +265,17 @@ class BurstHook(unittest.TestCase):
           b'    request_time = time.time()\n\n'
           b"    cookie_sync(payload['silent'])\n"
           b'    provider_results = []\n'
+          b'    p_dialog = xbmcgui.DialogProgressBG()\n'
           b'    for provider, results in PROVIDERS:\n'
           b'        got_results(provider, results)\n'
+          b'    available_providers = 1\n'
+          b'    total = float(available_providers)\n'
+          b'    while available_providers > 0:\n'
+          b'        available_providers -= 1\n'
+          b'        time.sleep(0.25)\n'
+          b"    if not payload['silent']:\n"
+          b'        p_dialog.close()\n'
+          b'    del p_dialog\n'
           b'    filtered_results = apply_filters(provider_results)\n'
           b'    return filtered_results\n\n'
           b'def got_results(provider, results):\n'
@@ -279,9 +288,11 @@ class BurstHook(unittest.TestCase):
    root=Path(tmp);(root/self.b.BURST/'burst').mkdir(parents=True);(root/self.b.BURST/'burst/burst.py').write_bytes(self.fixture())
    receipt=self.b.patch_burst(root);text=(root/self.b.BURST/'burst/burst.py').read_text()
    with self.assertRaises(AssertionError):self.b.patch_burst(root)   # the pinned source only, once
+  self.assertEqual(text.count('# KODI-IOS-SEARCH-CARD'),3)   # board 09: the searching card around Burst's wait
   self.assertEqual(text.count('# KODI-IOS-SOURCE-MATCH'),4);self.assertEqual(receipt[0]['path'],'addons/script.elementum.burst/burst/burst.py')
   notes,dialogs,props=[],[],{}
   xbmcgui=types.ModuleType('xbmcgui');xbmcgui.Dialog=lambda:types.SimpleNamespace(yesno=lambda h,m:dialogs.append(m) or yes)
+  xbmcgui.DialogProgressBG=lambda:types.SimpleNamespace(close=lambda:None)
   xbmcgui.Window=lambda n:types.SimpleNamespace(setProperty=props.__setitem__,getProperty=lambda k:props.get(k,''))
   xbmcvfs=types.ModuleType('xbmcvfs');xbmcvfs.translatePath=lambda p:str(LIB)
   six=types.ModuleType('kodi_six');six.xbmc=types.ModuleType('xbmc');six.xbmcgui=xbmcgui

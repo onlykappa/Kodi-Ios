@@ -482,11 +482,77 @@ def _kios_finish(results, payload):
 
 
 """
-BURST_PATCHES=[('burst/burst.py',b'def search(payload, method="general"):\n',BURST_HELPERS+b'def search(payload, method="general"):\n'),
+# KODI-IOS-SEARCH-CARD r1 (board 09, option A): while the sites answer, the searching card (skin IOSSearching.xml,
+# pages.searching_card) shows the title, how many sites answered and how many versions were found. Stop ends the wait
+# and goes on with what was found; Cancel drops the search. Not for silent (automatic) searches.
+BURST_CARD=b"""_kios_card_state = {}
+
+
+def _kios_card(payload, total):
+    _kios_card_state.clear()
+    if payload.get('silent') or not total:
+        return
+    try:   # anything missing (properties, window support, an older skin) leaves the search exactly as it was
+        home = xbmcgui.Window(10000)
+        title = payload.get('title') or payload.get('query') or ''
+        for key, value in (('Title', title), ('Answered', '0'), ('Total', str(int(total))), ('Found', '0'), ('Pct', '0')):
+            home.setProperty('IOSSearch.' + key, value)
+        _kios_card_state['shown'] = True
+        class Card(xbmcgui.WindowXMLDialog):
+            def onClick(self, control):
+                if control in (9801, 9802):
+                    _kios_card_state['stop'] = control
+                    self.close()
+
+            def onAction(self, action):
+                if action.getId() in (9, 10, 92, 216, 247, 257, 275, 61467, 61448):
+                    _kios_card_state['stop'] = 9802
+                    self.close()
+        card = Card('IOSSearching.xml', xbmcaddon.Addon().getAddonInfo('path'), 'Default', '1080i')
+    except Exception as error:
+        log.debug('KODI-IOS searching card unavailable: %s' % error)
+        return
+    _kios_card_state['card'] = card
+    Thread(target=card.doModal).start()
+
+
+def _kios_card_tick(answered, found, total):
+    if 'card' in _kios_card_state:
+        home = xbmcgui.Window(10000)   # only once the card opened, so properties work here
+        home.setProperty('IOSSearch.Answered', str(int(answered)))
+        home.setProperty('IOSSearch.Found', str(found) if found else '')
+        home.setProperty('IOSSearch.Pct', str(int(answered * 100 / total)) if total else '0')
+    return bool(_kios_card_state.get('stop'))
+
+
+def _kios_card_done():
+    if not _kios_card_state:   # silent search or no card: nothing to tidy
+        return
+    card = _kios_card_state.pop('card', None)
+    if card is not None:
+        try:
+            card.close()
+        except Exception:
+            pass
+    if _kios_card_state.get('stop') == 9802:   # Cancel: nothing goes back to Elementum
+        del provider_results[:]
+    try:
+        for key in ('Title', 'Answered', 'Total', 'Found', 'Pct'):
+            xbmcgui.Window(10000).clearProperty('IOSSearch.' + key)
+    except Exception:
+        pass
+    _kios_card_state.clear()
+
+
+"""
+BURST_PATCHES=[('burst/burst.py',b'def search(payload, method="general"):\n',BURST_HELPERS+BURST_CARD+b'def search(payload, method="general"):\n'),
  ('burst/burst.py',b"    request_time = time.time()\n\n    cookie_sync(payload['silent'])\n",b"    request_time = time.time()\n    _kios_start(payload, method)  # KODI-IOS-SOURCE-MATCH\n\n    cookie_sync(payload['silent'])\n"),
  # Before each provider's results are sorted and cut to the best ones, so the other title cannot crowd this one out.
  ('burst/burst.py',b'    definition = get_alias(definition, get_setting("%s_alias" % provider))\n\n    # 0 "Resolution"\n',
   b'    definition = get_alias(definition, get_setting("%s_alias" % provider))\n    results = _kios_prefilter(provider, results)  # KODI-IOS-SOURCE-MATCH\n\n    # 0 "Resolution"\n'),
+ ('burst/burst.py',b'    total = float(available_providers)\n',b'    total = float(available_providers)\n    _kios_card(payload, total)  # KODI-IOS-SEARCH-CARD\n'),
+ ('burst/burst.py',b'        time.sleep(0.25)\n',b'        if _kios_card_tick(total - available_providers, len(provider_results), total):  # KODI-IOS-SEARCH-CARD\n            break\n        time.sleep(0.25)\n'),
+ ('burst/burst.py',b"    if not payload['silent']:\n        p_dialog.close()\n    del p_dialog\n",b"    _kios_card_done()  # KODI-IOS-SEARCH-CARD\n    if not payload['silent']:\n        p_dialog.close()\n    del p_dialog\n"),
  ('burst/burst.py',b'    filtered_results = apply_filters(provider_results)\n',b'    filtered_results = apply_filters(provider_results)\n    filtered_results = _kios_finish(filtered_results, payload)  # KODI-IOS-SOURCE-MATCH\n')]
 
 def patch_burst(addonroot):
