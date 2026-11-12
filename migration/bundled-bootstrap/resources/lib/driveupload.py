@@ -288,7 +288,9 @@ class Drive(object):
   import slowdown
   # r50: pieces grow to what the native copier takes (32 MB; 8 MB on older frameworks).
   gate=slowdown.Gate(keep_going=keep_going);chunks=StreamChunks(getattr(copy_to,'max',None),cap=getattr(copy_to,'max',None))
-  chunks.current=chunks.minimum
+  # Owner log 4beafff6 (build 314): from 1 MB the pieces took the first minute to reach 16 MB; they start at 8 MB (the
+  # size every framework takes) and still halve on a timeout.
+  chunks.current=min(chunks.limit,8*1024*1024)
   failures=0
   while offset<size:
    if not keep_going():raise Stop()

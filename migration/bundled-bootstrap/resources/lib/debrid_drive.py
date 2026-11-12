@@ -21,7 +21,9 @@ import driveupload
 import transfer_history
 
 FILE = 'debrid-drive.json'
-LANES = 3   # most episodes of one season uploaded at once (ISSUE-164; Roadmap 1F.4: 3 since the build-252 log, ~3.3 MB/s per lane)
+# Most files copied at once (ISSUE-164; Roadmap 1F.4). Owner log 4beafff6 (build 314, a 101 Mbps upload): three copies
+# ran at ~2.4 MB/s each, 7.2 MB/s together, each held by its own connection; a fourth adds a quarter more.
+LANES = 4
 
 
 def lanes_for(files_left):

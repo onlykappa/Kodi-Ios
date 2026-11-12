@@ -120,7 +120,7 @@ class FakeAPI:
 
 class NativeCopies(unittest.TestCase):
  def test_copy_bytes_bypass_python_reader_and_query_uncertain_ack_before_resuming(self):
-  blob=b'x'*(3*1024*1024);offsets=[]
+  blob=b'x'*(20*1024*1024);offsets=[]   # owner log 4beafff6: native pieces start at 8 MB
   class API(FakeAPI):
    def unlock(self,link):return 'https://source/f','Fall.2022.2160p.mkv',len(blob)
   class Drive(FakeDrive):
@@ -135,7 +135,7 @@ class NativeCopies(unittest.TestCase):
    def forbidden(*args):raise AssertionError('Video bytes passed through Python source reader')
    debrid_drive.step(profile,api,drive,open_url=forbidden)
    self.assertEqual(debrid_drive.load(profile)['jobs'][0]['status'],'done');self.assertEqual(drive.data,blob)
-   self.assertEqual(offsets,[0,1024*1024,2*1024*1024])
+   self.assertEqual(offsets,[0,8*1024*1024,12*1024*1024,16*1024*1024])   # after the lost answer: half-size pieces
 
 class HashNamedJobs(unittest.TestCase):
  """Owner screenshot (build 314): Build Season's episodes went into Drive folders named after the torrent hash
@@ -216,9 +216,9 @@ class TwoLanes(unittest.TestCase):
   drive=self.drive();api=Episodes()
   self.assertEqual(debrid_drive.step(self.p,api,drive),1)          # episode 1: added at AllDebrid
   debrid_drive.step(self.p,api,drive)                              # 1, 2 and 3 copy side by side
-  self.assertEqual(self.most,3);self.assertEqual(sorted(self.uploaded),['Show.S01E01.mkv','Show.S01E02.mkv','Show.S01E03.mkv'])
+  self.assertEqual(self.most,4);self.assertEqual(len(self.uploaded),4)
   jobs=debrid_drive.load(self.p)['jobs']
-  self.assertEqual([j['status'] for j in jobs],['done','done','done','new'])
+  self.assertEqual([j['status'] for j in jobs],['done']*4)
   self.run_job(api,drive)
   self.assertEqual([j['status'] for j in debrid_drive.load(self.p)['jobs']],['done']*4)
  def test_a_companion_episode_failing_does_not_fail_the_first(self):
@@ -234,8 +234,8 @@ class TwoLanes(unittest.TestCase):
   self.assertEqual(jobs[0]['status'],'done')
   self.assertEqual((jobs[1]['status'],jobs[1]['tries']),('copying',1));self.assertIn('ConnectionError',jobs[1]['error'])
  def test_two_episodes_use_two_lanes_and_five_use_three_at_a_time(self):
-  self.assertEqual([debrid_drive.lanes_for(n) for n in (0,1,2,3,4,10)],[1,1,2,3,3,3])
-  for count,most in ((2,2),(5,3)):
+  self.assertEqual([debrid_drive.lanes_for(n) for n in (0,1,2,3,4,10)],[1,1,2,3,4,4])   # owner log 4beafff6: four at once
+  for count,most in ((2,2),(5,4)):
    self.tearDown();self.setUp()
    names=['Show.S01E%02d.mkv'%n for n in range(1,count+1)]
    debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')

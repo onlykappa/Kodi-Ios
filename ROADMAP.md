@@ -468,3 +468,18 @@ Video and AI Upscale (approved DEC-039 / DEC-042, not built yet).
 
 Waiting on owner logs from build-314 before more AI Upscale work: the tiled upscaler test (speed, heat, battery,
 size, joins) and the copy speed (three copies at once, 32 MB pieces).
+
+### Fixes from the owner's logs (2026-11-12) — status
+
+| Issue | What | State |
+|---|---|---|
+| ISSUE-179 | Build Season found every episode, queued none | Fixed; phone: 31/32 queued (build 309) |
+| ISSUE-180 | AI Upscale test closed Kodi (4x model made 8K frames) | Guard in build 309; tiled 720p/1080p upscaling in AirPlay r49 (build 314), phone test pending |
+| ISSUE-181 | Version menu opened mid-season; lost episode identity | Fixed in build 314; phone log pending |
+| ISSUE-182 | AllDebrid → Drive one episode at a time, 8 MB pieces | Build 314: 3 at once, 7.2 MB/s (was 2.8) |
+| ISSUE-183 | Build Season downloads named after the torrent hash, no metadata | Fixed after build 314 (title in the request, files moved and renamed); phone proof pending |
+| ISSUE-184 | Pieces ramp slowly; per-connection limit ~2.4 MB/s | 4 lanes, 8 MB first pieces; phone proof pending |
+
+Next owner checks on the next IPA: the hash cards become "Naruto Shippūden" with episodes and art; four copy threads;
+the AI Upscale test (Settings › AI Upscale › Test on one video): speed, heat, battery, size and whether the tile joins
+show.

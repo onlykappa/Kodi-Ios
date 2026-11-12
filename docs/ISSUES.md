@@ -2955,3 +2955,14 @@ when the original does not say its season and episode (new copies and moved ones
 Retest: test_debrid_drive HashNamedJobs (retitle, move, rename, parse back to show/season/episode),
 test_elementum_cloud SeasonQueueNames; related suites pass. Phone proof: after the next IPA, the two hash cards become
 Naruto Shippūden with its episodes (the service moves them on its next AllDebrid step).
+
+## ISSUE-184 — Copy speed on build 314: three lanes work, pieces ramp too slowly (owner log 4beafff6) — tuned on host
+
+Build 314 (ISSUE-182 fixes) on the owner's 101 Mbps upload: three "Drive copy native" threads at once, 950 MB in
+132 s = 7.2 MB/s (~58 Mbps), up from 2.8 MB/s on build 309; each lane ~2.4 MB/s (per-connection limit, AllDebrid or
+Drive). Pieces started at 1 MB and needed most of the two minutes to double up to 16 MB.
+Change: LANES 3 → 4 (a fourth connection adds about a quarter); native pieces start at 8 MB (every framework takes it)
+and still halve after a lost answer. Retest: test_debrid_drive (four lanes; native copy resumes after a lost answer
+with 8, then 4 MB pieces). Phone proof: four threads and 8 MB first pieces in the next log.
+Also in the log: one "Drive source changed; preparation will rescan" for episode 2 at start (the file was still
+arriving); the rescan then kept every episode unchanged (compatible). No action.
