@@ -4,6 +4,15 @@ import glassbar,ios_tabs
 
 NATIVE_TAB_BAR='Portrait.NativeTabBar'
 
+FAST=0.05;SLOW=0.5
+
+def fast(polls):
+ """True when a poll needs the 50 ms rhythm. A poll without a `needed` hook always does; False when none does."""
+ return any(getattr(p,'needed',lambda:True)() for p in polls)
+
+def poll_wait(polls,playing):
+ return SLOW if playing or not fast(polls) else FAST
+
 def run(xbmc,xbmcvfs,monitor,fuse='skin.arctic.fuse.3'):
  started=time.monotonic();close=None;find_close=None;native=False
  xbmc.log('Kodi iOS startup: native UI worker entered',xbmc.LOGINFO)
@@ -44,10 +53,12 @@ def run(xbmc,xbmcvfs,monitor,fuse='skin.arctic.fuse.3'):
     home.setProperty('Portrait.SearchBar','1');ticks.append(find);polls.append(typed)
   except Exception as error:xbmc.log('Kodi iOS search field unavailable: '+type(error).__name__,xbmc.LOGWARNING)
   if not ticks:return  # Kodi drives the bar and there is no native Search field: nothing left to poll
+  # Roadmap 1E.7: the ticks run every half second. Only a shown Search field (typing) or the Python-driven tab bar
+  # needs the 50 ms poll; otherwise the loop sleeps the whole half second (1200 -> 120 wake-ups a minute).
   playing=False;count=0
-  while not monitor.waitForAbort(0.5 if playing else 0.05):
+  while not monitor.waitForAbort(poll_wait(polls,playing)):
    count+=1
-   if playing or count%10==0:
+   if playing or not fast(polls) or count%10==0:
     playing=bool(xbmc.getCondVisibility('Window.IsActive(fullscreenvideo)'))
     for tick in ticks:tick()
    if not playing:

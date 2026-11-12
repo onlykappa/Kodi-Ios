@@ -2705,3 +2705,15 @@ Status: SOURCE REPAIR + COMPILED HOST CHECKS PASS; new native AirPlay build and 
   receiver record, so an old framework cannot misinterpret the mode as a request to convert.
 - UI policy/project skill and relevant HIG writing/feedback/loading/media guidance read. Reuse existing Play on TV
   flow/error card; no layout, style or control added. New error sentence is plain; device visual review pending.
+
+
+## ISSUE-175 — Remaining speed/reliability roadmap coverage (2026-11-12)
+
+Owner requests every speed and reliability item in PR #19. The screenshot's 34 speed rows precede 1G.7/1G.8;
+the current scope is 36 speed + 6 reliability/measurement rows. An implemented source repair is distinct from
+its measured phone target; unknown causes and unmeasured hardware/receiver behavior cannot be marked proved.
+- 1E.7: reviewed and imported 5acee50's idle polling changes. Visible/active work retains fast polling; idle
+  loops back off. 6 fake-clock polling, 36 activity and 7 native UI tests pass. Existing packaging suite initially
+  lacked Python 3.11 on PATH; use the retained Python 3.11 runtime for bytecode tests, rather than alter the app.
+- Integration history: the donor branch's appended progress notes conflicted with the PR's newer notes. Both
+  histories retained; source changes were clean. No native/IPA workflow or main merge authorized here.

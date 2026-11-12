@@ -77,4 +77,5 @@ def controller(lib,take,visible,portrait,set_property,clock,delay=0.45,info=lamb
   elif state['typed'] is not None and clock()-state['typed']>=delay:send(state['text'])
  def close():
   if state['shown']:lib.kodi_search_show(0);state['shown']=False
+ poll.needed=lambda:state['shown']   # the 50 ms poll is only for a shown field
  return tick,poll,close

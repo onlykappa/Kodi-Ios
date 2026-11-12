@@ -171,3 +171,10 @@ Owner asks for fixes committed separately. Source commits use [skip ci] to prese
 - ISSUE-174: verified same-Roku fallback from live HEVC conversion to Media Assistant. Strict native copy-only
   serving refuses a downgrade, carries the playback position, and restores phone playback on failure. Source
   only until the new native framework is built/verified/pinned. Compiled host recommendations: 41/41.
+- 1E.7 (code, branch claude/speed-fixes-2): idle Python wake-ups per minute, measured by scripts/test_polling_loops.py with a fake clock. Inventory (thread, interval before -> after): native_ui worker 0.05 s -> 0.5 s unless the Search field is shown or the Python-driven tab bar polls (1200 -> 120/min); activity pill 0.5 s -> 1.5 s after 10 s with no box, no job (120 -> ~53); source_guard 2 s -> 6 s with no torrent (30 -> 10); transfer_history 2 s -> 5 s with nothing running (30 -> 12); background keep-awake 1 s -> 3 s with nothing to keep awake for (60 -> 20). Unchanged on purpose: slowdown 1 s (workers read its cache), work_state 2 s (snapshot goes stale after 6 s), notices 3 s, portrait ticks 0.5 s (focused-item publisher, progress), airplay button 0.5 s, umbrella_ready 1 s idle, open_timing 1 s idle, library_watch 5 s, airplay relay/diagnostics 5 s, diagnostics 60 s, service loops 5-60 s. A transfer or torrent starting is noticed up to 1.5-6 s later by the background loops; nothing visible slows once work exists. Saves ~1150 wake-ups/min idle; not measured on the phone.
+
+## Full speed/reliability coverage pass — 2026-11-12
+
+Owner expanded the source task to every roadmap speed/reliability item (36 + 6 currently). Do not treat the
+old screenshot's counts as acceptance evidence. Commit and push each repair separately with [skip ci].
+- 1E.7 imported/reviewed: idle polling backoff from speed-fixes-2, active cadence preserved. 49 focused cases pass.

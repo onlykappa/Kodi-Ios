@@ -86,11 +86,17 @@ class Guard(object):
         return stopped
 
 
-def run(window, torrents, stop, notify, wait, interval=2.0):
-    """Service loop: every `interval` s while Kodi runs."""
+IDLE_INTERVAL = 6.0   # Roadmap 1E.7: with no torrent at all there is nothing to guard
+
+
+def run(window, torrents, stop, notify, wait, interval=2.0, idle_interval=IDLE_INTERVAL):
+    """Service loop: every `interval` s while a torrent exists, every `idle_interval` s while none does."""
     guard = Guard(stop, notify)
-    while not wait(interval):
+    idle = False
+    while not wait(idle_interval if idle else interval):
         try:
-            guard.tick(torrents() or [], identity(window))
+            found = torrents() or []
+            idle = not found
+            guard.tick(found, identity(window))
         except Exception:
             pass

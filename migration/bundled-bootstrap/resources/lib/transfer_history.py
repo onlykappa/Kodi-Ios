@@ -221,15 +221,22 @@ def pick(data, wanted, now):
     return None
 
 
-def watch(profile, read, wait, every=2, save_every=5, clock=time.time):
-    """The service loop: read() -> activity(); looks every `every` s, saves every `save_every` s."""
+IDLE_EVERY = 5   # Roadmap 1E.7: no transfer running, none being drawn: look every 5 s
+
+
+def watch(profile, read, wait, every=2, save_every=5, clock=time.time, idle_every=IDLE_EVERY):
+    """The service loop: read() -> activity(); looks every `every` s (`idle_every` s while nothing runs), saves every
+    `save_every` s."""
     data = load(profile)
+    idle = False
     data.pop('5min', None), data.pop('hour', None), data.pop('day', None)   # the build-171 ranges
     last_save = 0.0
-    while not wait(every):
+    while not wait(idle_every if idle else every):
         try:
             now = clock()
-            track(data, now, read())
+            active = read()
+            track(data, now, active)
+            idle = not active and not data.get('jobs')
             if now - last_save >= save_every:
                 save(profile, data)
                 last_save = now
