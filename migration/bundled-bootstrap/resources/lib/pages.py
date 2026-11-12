@@ -297,8 +297,9 @@ def umbrella_ready(p):
       p.image(0,0,W,art_h,M+'hero_fade.png')+p.image(0,0,W,260,M+'fade_down.png'))
  logo=('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>260</height><aspectratio align="left" aligny="bottom">keep</aspectratio>'
        '<texture background="true">$INFO[Window.Property(umbrella.clearlogo)]</texture></control>')%(p.SIDE,card_y-700,w-200)
- title=p.label(p.SIDE,card_y-560,w,140,'$INFO[Window.Property(umbrella.title)]','p_title',p.WHITE,'left',
-               '<visible>String.IsEmpty(Window.Property(umbrella.clearlogo))</visible>')
+ # Board 10: a long title wraps to two lines (bottom-aligned above the show line and the plot), never "...".
+ title=p.label(p.SIDE,card_y-680,w,200,'$INFO[Window.Property(umbrella.title)]','p_title',p.WHITE,'left',
+               '<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(Window.Property(umbrella.clearlogo))</visible>')
  plot=('<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>200</height><font>p_foot</font><textcolor>%s</textcolor>'
        '<label>$INFO[Window.Property(umbrella.plot)]</label></control>')%(p.SIDE,card_y-400,w,p.GREY)
  tv=p.label(p.SIDE,card_y-460,w,56,'$INFO[Window.Property(umbrella.tvtitle)]','p_foot_b','FFFF6B6B')
@@ -315,8 +316,14 @@ def umbrella_ready(p):
   '<control type="textbox"><left>180</left><top>184</top><width>%d</width><height>110</height><font>p_foot_b</font><textcolor>%s</textcolor>'
   '<label>%s</label></control>'%(w-220,p.WHITE,R('Badges'))+
   p.label(40,290,w-80,50,R('File'),'p_cap',p.GREY,'left','<scroll>true</scroll>')+'</control>'+
-  '<control type="textbox"><left>40</left><top>40</top><width>%d</width><height>270</height><font>p_foot</font><textcolor>%s</textcolor>'
-  '<label>%s</label><visible>!%s</visible></control>'%(w-80,'FFD1D1D6',R('Text'),ready)+
+  # Board 10, before a source is known: the Umbrella tile, "Looking for a source" and where it looks, then
+  # Umbrella's own words (IOSReady.Text) under them.
+  '<control type="group"><visible>!%s</visible>'%ready+
+  p.surface(40,40,100,100,'tile100.png','FF7D3CFF',28)+p.icon(55,55,70,'umbrella.png',p.WHITE)+
+  p.label(170,40,w-210,56,'Looking for a source','p_body',p.WHITE)+
+  p.label(170,96,w-210,46,'Umbrella · your accounts','p_foot',p.GREY)+
+  '<control type="textbox"><left>40</left><top>178</top><width>%d</width><height>170</height><font>p_foot</font><textcolor>%s</textcolor>'
+  '<label>%s</label></control></control>'%(w-80,'FFD1D1D6',R('Text'))+
   # Kodi's progress control cannot read a window property, so the bar is 20 segments shown by Umbrella's percent.
   # DEC-036 / board 10: one thin bar (11 units). It follows Umbrella's percent once a source is known, and slides
   # while Umbrella is still looking.
