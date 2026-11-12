@@ -483,3 +483,21 @@ size, joins) and the copy speed (three copies at once, 32 MB pieces).
 Next owner checks on the next IPA: the hash cards become "Naruto Shippūden" with episodes and art; four copy threads;
 the AI Upscale test (Settings › AI Upscale › Test on one video): speed, heat, battery, size and whether the tile joins
 show.
+
+### Open bugs, not coded yet (owner screenshots after build 314, 2026-11-12) — for the next agent
+
+1. **Activity shows one upload while several copy.** debrid_drive.uploads() returns only state['current']; 'current_also'
+   is saved but never read, and lanes 3-4 live only in the local `extra` dict (never saved). activity.current() also
+   gives every upload the same key 'drive', so rows collapse into one. Fix: save every lane (e.g. state['current_more']),
+   return all of them from uploads(), and key each Activity row by lane or file.
+2. **Raw hashes as titles** ("Ee34425D5595F37297Bc8C94Dab…" in Activity and the upload card). The row title is
+   display_title(job name), and jobs queued before ISSUE-183 are named after the info-hash. ISSUE-183's retitle()
+   renames queued jobs, but every display path should also refuse a hash: use the show (folder) + episode label from
+   the file name, never the hash (debrid_drive.is_hash exists).
+3. **No metadata/poster anywhere for anime-style names** (Library status "Naruto Shippuuden - 002", Notifications,
+   Downloaded TV Shows). drivelibrary.parse keeps " - 002" and "Episode 006 …" in the title and finds no episode, so the
+   poster lookup (activity.Posters, transfer_artwork) and the Library grouping miss. Fix: parse absolute-numbered names
+   ("Show - 002", "Show Episode 006 Title", "Show 002 [1080p]") into title + episode, with tests; ISSUE-183's
+   episode_name() covers new copies only.
+4. Check after the fix: Library status "Working on now", Notifications "Running now" and Activity show the show's
+   poster and "Naruto Shippūden · S1 E2" for every lane.
