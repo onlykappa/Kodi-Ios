@@ -2,14 +2,14 @@
   "framework_release": {
     "tag": "kodi-airplay-r49",
     "asset": "KodiAirPlay.framework.zip",
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "sha256": "d59ba3b0b99c56d53c56097edf8a5d5def0ac8f8aac7c7d9a610c2e7537044b1"
   },
   "previous": {
     "tag": "kodi-airplay-r48",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "fab9f187e2abcb9c2a070e154562f57a19c5ae3d628e436c555a3eac669696ba"
   },
-  "source_commit": "86d04d3850c26b7ce6275d0a0275d1716dda78db",
-  "verified_run": 43263786191,
-  "staged_note": "r49 staged (ISSUE-180: AI upscaling in tiles through the low-latency model for 720p/1080p; a model whose picture would be larger than asked is refused, so no 8K frames): built and published by airplay-ios on PR #21; sha256, source_commit and verified_run are pinned from that run."
+  "source_commit": "0222fd887c396cf9342aed212e691b52de330c48",
+  "verified_run": 43290658990,
+  "pin_note": "r49 (tiled AI upscaling for 720p/1080p, ISSUE-180) pinned from airplay-ios run 43290658990 (PR #21, 0222fd8): release zip downloaded, sha256 matches the run, the release notes and the asset digest; arm64 Mach-O with the tiled engine strings."
 }
