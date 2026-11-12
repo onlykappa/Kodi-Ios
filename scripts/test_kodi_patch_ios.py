@@ -23,6 +23,35 @@ class KodiPatch(unittest.TestCase):
         self.assertEqual(s.count('CGUIKeyboardFactory::ShowAndGetInput('), 2)
         self.assertIn('if (c >= \'0\' && c <= \'9\')', s)
 
+    def test_kodis_ffmpeg_skips_mkv_attachment_data(self):
+        """Roadmap 1B.1: the depends build patches its FFmpeg so an MKV's fonts/covers are not read before playing."""
+        make = self.section('tools/depends/target/ffmpeg/Makefile')
+        self.assertIn('+\tcd $(PLATFORM); patch -p1 -i ../kodi-ios-mkv-skip-attachments.patch', make)
+        self.assertIn('kodi-ios-mkv-skip-attachments.patch\n', make.split('+DEPS = ')[1])
+        ff = self.section('tools/depends/target/ffmpeg/kodi-ios-mkv-skip-attachments.patch')
+        self.assertIn('++    { MATROSKA_ID_FILEDATA,     EBML_NONE },', ff)
+        self.assertIn('+--- a/libavformat/matroskadec.c', ff)
+        # the embedded patch is the same change the AirPlay FFmpeg uses
+        airplay = (Path(__file__).resolve().parents[1] / 'migration/airplay-ios/ffmpeg-mkv-skip-attachments.patch').read_text()
+        embedded = ''.join(l[1:] + '\n' for l in ff.split('@@ -0,0 +1,', 1)[1].splitlines()[1:])
+        self.assertEqual(embedded, airplay)
+
+    def test_plugin_rows_do_not_reload_when_a_video_starts_or_stops(self):
+        """Roadmap 1D.1/1D.2: CDirectoryProvider::Announce refreshed every sort-less plugin row on OnPlay/OnResume/
+        OnStop and on library updates; on iOS only the watch add-on's rows refresh, and not at the start."""
+        s = self.section('xbmc/guilib/listproviders/DirectoryProvider.cpp')
+        self.assertIn('+#if defined(TARGET_DARWIN_EMBEDDED)', s)
+        self.assertIn('StartsWithNoCase(m_currentUrl, "plugin://")', s)
+        self.assertIn('"plugin://plugin.video.kodi.ios.watch/"', s)
+        self.assertIn('message != "OnStop"', s)
+        self.assertIn('"action=cached"', s)
+        self.assertIn('+#endif', s)
+
+    def test_build_script_rebuilds_a_cached_ffmpeg_once(self):
+        script = (Path(__file__).resolve().parents[1] / 'migration/ios-portrait/build-kodi-ios.sh').read_text()
+        self.assertIn('.ffmpeg-mkv-skip-', script)
+        self.assertIn('rm -f "$DEPS/.depends-built"', script)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -6,7 +6,7 @@ setting's category. The index is resources/lib/settings_search.py; matching and 
 import os,sys
 HERE=os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0,os.path.join(HERE,'resources','lib'))
-import settings_page,settings_search,settings_find
+import page_wait,settings_page,settings_search,settings_find
 
 FIELD=settings_page.SEARCH_FIELD;LIST=settings_page.SEARCH_LIST;BACK=9001
 BACK_KEYS=(9,10,92,110)
@@ -52,7 +52,7 @@ def run():
    return home.getProperty('Settings.Search.Query')
   def poll(self):
    monitor=xbmc.Monitor();raised=lib is None
-   while not self.stop.is_set() and not monitor.waitForAbort(POLL):
+   while not page_wait.idle(self.stop,monitor,POLL):
     if not raised:lib.kodi_search_focus(1);raised=True   # the mockup opens with the keyboard up
     try:query=self.typed()
     except Exception:break

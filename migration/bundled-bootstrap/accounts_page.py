@@ -3,7 +3,7 @@ with their sign-in state. Tapping a signed-in service opens its settings; otherw
 The layout is portrait/IOSAccounts.xml, written by portrait.py (settings_page.py); this fills it."""
 import os,sys,threading
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
-import accounts
+import accounts,page_wait
 
 BACK=(9,10,92,110)   # parent dir, previous menu, nav back, back
 ROW_BASE=9600        # service n is button 9600+n
@@ -48,7 +48,7 @@ def run():
   def loop(self):
    # Sign-ins finish in other windows (the add-on's settings, a code on trakt.tv); pick them up when they do.
    monitor=xbmc.Monitor()
-   while not self.stop.is_set() and not monitor.waitForAbort(2):
+   while not page_wait.idle(self.stop,monitor,2):
     if self.stop.is_set():break
     try:self.refresh()
     except Exception as error:_quiet('accounts_page:54',error)

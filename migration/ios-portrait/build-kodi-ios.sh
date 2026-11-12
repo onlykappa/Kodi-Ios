@@ -19,6 +19,14 @@ git -C "$SRC" apply "$HERE/kodi-21.3-portrait.patch"
 python3 -B "$HERE/../../scripts/test_seek_release.py" --source-tree "$SRC"
 JOBS=$(getconf _NPROCESSORS_ONLN)
 cd "$SRC/tools/depends"
+# Kodi's FFmpeg skips MKV attachment data (performance 1B.1). A restored depends cache built without that patch must
+# rebuild FFmpeg: drop its build state and the "depends built" marker once per patch version.
+FF_MARK="$DEPS/.ffmpeg-mkv-skip-$(shasum -a 256 "$HERE/kodi-21.3-portrait.patch" | cut -c1-12)"
+if [ -f "$DEPS/.depends-built" ] && ! ls "$DEPS"/.ffmpeg-mkv-skip-* >/dev/null 2>&1; then
+  rm -f "$DEPS/.depends-built"
+  rm -rf "$SRC"/tools/depends/target/ffmpeg/.build-* "$SRC"/tools/depends/target/ffmpeg/.installed-*
+  find "$SRC/tools/depends/target/ffmpeg" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +
+fi
 [ -f "$DEPS/.depends-built" ] || ./bootstrap
 [ -f "$DEPS/.depends-built" ] || ./configure --host=aarch64-apple-darwin --with-platform=ios --disable-debug --prefix="$DEPS" > "$WORK/configure.log" 2>&1 || { tail -50 "$WORK/configure.log"; exit 1; }
 if [ ! -f "$DEPS/.depends-built" ]; then
@@ -28,6 +36,7 @@ if [ ! -f "$DEPS/.depends-built" ]; then
     make -j1 > "$WORK/depends-j1.log" 2>&1 || { grep -v "Installing: " "$WORK/depends-j1.log" | tail -150; exit 1; }
   fi
   touch "$DEPS/.depends-built"
+  touch "$FF_MARK"
 fi
 make -C "$SRC/tools/depends/target/cmakebuildsys" BUILD_DIR="$BUILD" > "$WORK/cmake.log" 2>&1 || { tail -80 "$WORK/cmake.log"; exit 1; }
 cd "$BUILD"

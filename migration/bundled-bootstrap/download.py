@@ -60,7 +60,12 @@ def run():
     dialog.notification('New episodes','Show added to followed episodes.',xbmcgui.NOTIFICATION_INFO,4000)
    return
  if not elementum_engine.running():
-  dialog.ok('Download','Elementum is not running. Gear menu › Retry Elementum engine, then try again.');return
+  # Not started at launch (performance 1E.1): start it now, with the busy ring while it loads.
+  xbmc.executebuiltin('ActivateWindow(busydialognocancel)')
+  try:started=elementum_engine.ensure_here()
+  finally:xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
+  if not started:
+   dialog.ok('Download','Elementum is not running. Gear menu › Retry Elementum engine, then try again.');return
  wait=lambda:xbmc.Monitor().waitForAbort(1)
  def check(k,s='',e=''):
   # Library status › "Find a version without converting" (replace=1): the copy we have is the one being replaced.

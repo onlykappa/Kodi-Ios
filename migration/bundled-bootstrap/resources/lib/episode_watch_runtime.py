@@ -56,7 +56,7 @@ def pass_once(profile,window,keep_going,log):
   # Do not launch a source search only to discover a missing account in a dialog.
   if not xbmcaddon.Addon('plugin.video.umbrella').getSetting('alldebridtoken'):return False
   import elementum_engine
-  if not elementum_engine.running():return False
+  if not elementum_engine.ensure_here():return False   # started on demand, not at launch
   ident=uuid.uuid4().hex;target={'tmdb':show['tmdb'],'season':episode['season_number'],'episode':episode['episode_number']}
   request={'request_id':ident,'target':target,'profile':show['preference'],'mode':0,'until':time.time()+600}
   request['excluded_names']=[j['name'] for j in debrid_drive.load(profile).get('jobs',[])
