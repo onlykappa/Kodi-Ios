@@ -219,4 +219,12 @@ class NoStutter(unittest.TestCase):
         self.assertEqual([dp.dv_only(i) for i in dv],[True,False])
 
 
+class NothingFoundState(unittest.TestCase):
+ def test_all_links_sets_and_clears_the_empty_state_and_try_again_closes(self):
+  # Board 09: the page's empty group shows on deck.empty and Try Again is id 32512 (portrait.deck_page).
+  code=(ROOT/'migration/deck-picker/deck_picker.py').read_text()
+  self.assertIn("self.setProperty('deck.empty', u'' if self.rows or self.mode != u'all' else",code)
+  self.assertIn('elif controlId == 32512:',code)
+  self.assertIn("SetProperty(deck.retry,true)",(ROOT/'migration/bundled-bootstrap/resources/lib/portrait.py').read_text())
+
 if __name__=='__main__':unittest.main()

@@ -535,6 +535,9 @@ def _window_class():
                 listControl = self.getControl(32503)
             listControl.reset()
             order = sort_order(self.rows, SORTS[self.sort][0]) if self.mode == u'all' else range(len(self.rows))
+            # Board 09 "nothing found": All Links with no version says so, with Try Again (back to the qualities).
+            self.setProperty('deck.empty', u'' if self.rows or self.mode != u'all' else
+                             u'Nothing playable came back for this title. Try again, or pick another quality.')
             for n in order:
                 r = self.rows[n]
                 item = xbmcgui.ListItem(r['headline'], r['meta'])
@@ -551,6 +554,8 @@ def _window_class():
 
         def onClick(self, controlId):
             if controlId == 32500:
+                self.close()
+            elif controlId == 32512:   # Try Again on the nothing-found state
                 self.close()
             elif controlId == 32510:
                 self.sort = (self.sort + 1) % len(SORTS)
