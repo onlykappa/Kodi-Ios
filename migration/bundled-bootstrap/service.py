@@ -210,7 +210,7 @@ def run():
    try:
     drive,_=drivelibrary.client()
     if drive:
-     server,port=drive_proxy.start(drive.token)
+     server,port=drive_proxy.start(drive.token,state_dir=profile/'addon_data/service.kodi.ios.bootstrap',log=lambda text:xbmc.log(text,xbmc.LOGINFO))
      home_window.setProperty(drive_proxy.PROPERTY,str(port))
      xbmc.log('Kodi iOS Drive proxy: streaming Drive copies on port %d'%port,xbmc.LOGINFO)
      monitor.waitForAbort()

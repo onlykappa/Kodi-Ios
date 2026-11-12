@@ -9,6 +9,7 @@ probe) is answered from a 1-byte ranged GET, cached per file. Owner logs show Py
 so the interpreter is not the limit here; the add-on's per-request work was."""
 import http.client
 import http.server
+import json
 import mimetypes
 import re
 import socketserver
@@ -61,22 +62,45 @@ class Upstream(object):
             self.local.conn = None
 
     def get(self, file_id, rng=None):
+        return self.request(media_path(file_id),rng)
+
+    def metadata(self,file_id):
+        """Fresh small Drive identity, on a separate bounded connection so a live movie read is untouched."""
+        def connect():
+            conn=self.connect();conn.timeout=3;return conn
+        channel=Upstream(self.token,connect)
+        response=None
+        try:
+            path='/drive/v3/files/%s?fields=id,size,md5Checksum,version,modifiedTime,mimeType&supportsAllDrives=true'%urllib.parse.quote(file_id,safe='')
+            response=channel.request(path,attempts=1)
+            if response.status!=200:return None
+            raw=response.read(8193)
+            return json.loads(raw) if len(raw)<=8192 else None
+        except Exception:return None
+        finally:
+            try:
+                if response is not None:response.close()
+            except Exception:pass
+            try:channel.drop()
+            except Exception:pass
+
+    def request(self,path,rng=None,attempts=3):
         """The open upstream response for file_id (status 200/206/...), retrying once on a stale connection or 401."""
         force = False
-        for attempt in range(3):
+        for attempt in range(attempts):
             access = self.token(force)
             headers = {'Authorization': 'Bearer ' + access}
             if rng:
                 headers['Range'] = rng
             conn = self._conn(fresh=attempt > 0)
             try:
-                conn.request('GET', media_path(file_id), headers=headers)
+                conn.request('GET', path, headers=headers)
                 resp = conn.getresponse()
             except (http.client.HTTPException, OSError):
-                if attempt == 2:
+                if attempt == attempts-1:
                     raise
                 continue
-            if resp.status == 401 and not force:
+            if resp.status == 401 and not force and attempt < attempts-1:
                 resp.read()
                 force = access
                 continue
@@ -88,6 +112,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
     upstream = None
     sizes = {}
+    indices = None
 
     def log_message(self, *args):
         pass
@@ -121,9 +146,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return given
         return mimetypes.guess_type(name)[0] or 'video/mp4'
 
+    def _index_meta(self,file_id,**options):
+        try:return self.indices.begin(file_id,self.upstream,**options) if self.indices else None
+        except Exception:return None  # Optional acceleration must leave the ordinary stream usable.
+
+    def _index_range(self,file_id,rng,meta):
+        try:return self.indices.range(file_id,rng,self.upstream,meta) if self.indices else None
+        except Exception:return None
+
     def do_HEAD(self):
         file_id = parse_path(self.path)
         try:
+            if self.indices and file_id:
+                meta=self._index_meta(file_id,head=True)
+                if meta:self.sizes[file_id]=(meta['size'],meta.get('mimeType') or '')
             info = self._size(file_id) if file_id else None
         except Exception:
             self.upstream.drop()
@@ -145,6 +181,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         rng = self.headers.get('Range')
         try:
+            if self.indices:
+                meta=self._index_meta(file_id,front=not rng or bool(re.match(r'bytes=0-',rng)))
+                hit=self._index_range(file_id,rng,meta)
+                if hit:
+                    start,end,total,data=hit
+                    self.send_response(206);self.send_header('Content-Length',str(len(data)))
+                    self.send_header('Content-Range','bytes %d-%d/%d'%(start,end,total));self.send_header('Accept-Ranges','bytes')
+                    self.send_header('Content-Type',self._type(self.path,(meta or {}).get('mimeType')));self.end_headers()
+                    self.wfile.write(data);return
             resp = self.upstream.get(file_id, rng)
         except Exception:
             self.send_error(502)
@@ -177,9 +222,13 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
     allow_reuse_address = True
 
 
-def start(token, connect=None, port=0):
+def start(token, connect=None, port=0,state_dir=None,log=lambda text:None):
     """Start the proxy on 127.0.0.1; returns (server, port). token(force) -> bearer token."""
-    handler = type('DriveProxyHandler', (Handler,), {'upstream': Upstream(token, connect), 'sizes': {}})
+    indices=None
+    if state_dir is not None:
+        import drive_index
+        indices=drive_index.Cache(state_dir,log)
+    handler = type('DriveProxyHandler', (Handler,), {'upstream': Upstream(token, connect), 'sizes': {},'indices':indices})
     server = Server(('127.0.0.1', port), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, server.server_address[1]

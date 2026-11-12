@@ -11,7 +11,7 @@ be closed by a Linux rig or source assertion. Current binary pins remain Kodi r3
 |---|---|---|---|
 | 1A.1 | Serve Drive playback from native code: a range server in KodiAirPlay (it already reads Drive for AirPlay) or a direct Drive URL with the OAuth header that Kodi's curl reads, instead of plugin.googledrive's Python proxy | Source | Lean Drive proxy; token/HEAD repairs; device open target pending |
 | 1A.2 | One hop instead of two: the watch add-on resolves the Drive file itself (id → URL, token cached) and hands Kodi the final URL, instead of `library_play` → `plugin.googledrive` `play` | Source | drivelibrary.direct_url skips the add-on hop |
-| 1A.3 | Keep the prepared file's fragment index (mfra) with its Drive metadata, so the player starts from it instead of reading the end of the file first | Open | Implementation and regression coverage still required |
+| 1A.3 | Keep the prepared file's fragment index (mfra) with its Drive metadata, so the player starts from it instead of reading the end of the file first | Source | ISSUE-176: bounded persistent cache, fresh identity on HEAD/front open, changed-version invalidation; 22 cache/HTTP tests. Device timing pending |
 | 1A.4 | Warm the first megabytes and the index when a movie or episode page opens (not on every row focus) | Open | Implementation and regression coverage still required |
 | 1A.5 | Seek on Drive copies through the native reader with read-ahead from the new position | Open | Implementation and regression coverage still required |
 | 1B.1 | Apply the MKV skip-attachments patch (already in the AirPlay FFmpeg) to Kodi's own FFmpeg in the Kodi build | Native staged | Kodi FFmpeg attachment skip; new executable required |
@@ -24,7 +24,7 @@ be closed by a Linux rig or source assertion. Current binary pins remain Kodi r3
 | 1C.4 | Cache TMDb item details for the titles on screen (spotlight, Continue Watching) so Play needs no network | Open | Implementation and regression coverage still required |
 | 1D.1 | Stop Home rows reloading on tab return: Kodi re-requests a plugin row whenever Home becomes visible again; give rows a stable path and refresh only when the listing cache says the content changed | Partial | Playback invalidation patched; Home-tab return not independently proved |
 | 1D.2 | No row refresh while a video opens or closes; refresh Continue Watching once after playback stops | Native staged | Plugin-row invalidation guard; new executable required |
-| 1D.3 | Load only the rows the visible tab shows; Movies and TV hubs load when opened | Open | Implementation and regression coverage still required |
+| 1D.3 | Load only the rows the visible tab shows; Movies and TV hubs load when opened | Retained by owner | Owner explicitly keeps Movies/TV preloading for instant tab switching; deferred loading is not requested |
 | 1D.4 | Spotlight: show the loading ring only when the hero has no items (owner screenshot shows it over a loaded hero) | Open | Implementation and regression coverage still required |
 | 1E.1 | Start Elementum's daemon only when Download is chosen (or a torrent is active), not at every launch | Source | Elementum demand startup |
 | 1E.2 | Remove unused binary add-ons from the IPA: 20+ PVR clients, ~22 audio decoders, game add-ons | Source | 89c2f88 staged add-on pruning; package tests |

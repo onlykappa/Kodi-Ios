@@ -2760,3 +2760,21 @@ its measured phone target; unknown causes and unmeasured hardware/receiver behav
 - Native candidate 43138216141 at 1de2395: framework compilation and the first three actual Foundation transport
   tests passed. This validates the bounded transport, not the later copy API or iPhone/TV performance. Linux
   native host job was still running at this checkpoint. No native release/pin or IPA was made.
+
+## ISSUE-176 — Repeated Drive MP4 fragment-index reads (1A.3, 2026-11-12)
+
+The lean proxy previously forwarded every mfro/mfra range to Drive, including unchanged prepared files on
+repeat opens. Add a private persistent index cache, bound to fresh Drive ID/checksum/size/version/modifiedTime.
+Capture only a complete validated mfra from the player's existing bounded EOF read; no extra movie prefetch.
+Recheck identity before saving. HEAD/front opens validate live identity (immediate HEAD-to-front shares it);
+within a playback, identity expires after five minutes. A changed version/checksum discards the saved index.
+Index bytes are bounded to 2 MiB each, 8 MiB total, 64 entries; cache writes are atomic and optional. Network
+waits do not hold the shared cache lock. Metadata gets one three-second transport attempt, then a 30-second
+failure cooldown; streaming keeps its existing authenticated path. Metadata checks still require connectivity.
+
+Validation: 22 new tests cover exact HTTP 206 ranges, restart reuse without remote index reads, same-size content
+changes, version changes, mid-read changes, malformed/oversized/short/wrong ranges, bounded contexts/eviction,
+disk failure, metadata timeout and fail-open streaming. Existing proxy 10, library 22 and service-scoping one
+also pass. The first malformed-index fixture changed a valid track ID rather than the version byte; corrected
+the fixture offset and retained the negative regression. Project checks pass. Logs contain only safe byte counts.
+Actual iPhone opening-time improvement is unmeasured. No IPA or native binary/pin change.

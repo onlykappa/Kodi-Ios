@@ -1,5 +1,16 @@
 # Persistent progress
 
+## PR #19 — 1A.3 fragment-index cache — 2026-11-12
+
+Owner narrowed the remaining work to one item at a time, starting with 1A.3. The Drive proxy now saves only
+validated mfra bytes in the private profile, bounded to 2 MiB per index / 8 MiB total / 64 entries. HEAD/front
+opens check live Drive ID, checksum, size, version and modification time; changed identity invalidates old data.
+The existing player tail read populates the cache; subsequent index ranges use local bytes, also after restart.
+Metadata failure, corrupt cache or full/read-only storage leaves normal streaming available. Diagnostics log
+safe byte counts without file IDs or credentials. 55 focused tests pass (22 new); project check passes.
+Source repair only: phone timings pending; no IPA, native release/pin or merge. Movies/TV preloading retained
+per owner choice. Other open speed/reliability items remain in PERFORMANCE-COVERAGE.md.
+
 ## PR #19 review fixes committed separately — 2026-11-12
 
 Owner requested source fixes and individual commits, then chose Media Assistant to preserve 4K when a Roku
