@@ -11,7 +11,7 @@ native tab bar, scaling on the phone or real AirPlay. Device checks stay with th
 ## Set up (once per machine, about 15–20 minutes)
 
 ```
-python3 -B scripts/kodi_rig.py setup            # add --release build-NNN to take add-ons from another release
+python3 -B scripts/kodi_rig.py setup            # about 45-60 min; --release build-NNN must be a release that still exists (default build-275)
 python3 -B scripts/kodi_rig.py start
 ```
 

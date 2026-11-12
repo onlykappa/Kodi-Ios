@@ -452,7 +452,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest='cmd', required=True)
     s = sub.add_parser('setup')
-    s.add_argument('--release', default='build-192', help='release whose IPA supplies the add-ons and Fuse skin')
+    s.add_argument('--release', default='build-275', help='release whose IPA supplies the add-ons and Fuse skin')
     s.add_argument('--skip-packages', action='store_true')
     for name in ('prepare', 'start', 'stop', 'restart', 'sync', 'mockups'):
         sub.add_parser(name)
