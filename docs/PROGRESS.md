@@ -661,3 +661,10 @@ Owner explicitly resumed. Inspected run 41068166024: SUCCESS; revised artifact 1
 ## Test delivery build tracker
 
 PR #8 merged at `2a8bb1cb16dfa0984f7a1b3d974e20857c0f6d3c`. Native r23 source: `d13ec87c3db61a1667de0023450a8acc1f4d033b`; [native run 42078285510](https://github.com/onlykappa/Kodi-Ios/actions/runs/42078285510) queued/running. The pin intentionally remains r22 until the native output is verified; no intermediate IPA job was started. Resume by inspecting this run and reports/ipa-test-delivery.json, verify/pin r23, then build and verify the test IPA. Owner authorizes this delivery; device results still pending.
+
+## Mockup roadmap opened — 2026-11-12
+
+PR #21 merged (build-314: Kodi r31, AirPlay r50). The owner approved the Library file manager mockup (DEC-043, round 3
+buttons) and asked for the work to be planned before coding: ROADMAP.md "Mockup roadmap" (L1-L8 Library, V1-V3
+Picture menu, Saturation, AI Upscale show page). No code yet; the owner says when to start. Owner logs from
+build-314 (Build Season, copy speed, AI Upscale tiles) are awaited.

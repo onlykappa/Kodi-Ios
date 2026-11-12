@@ -335,3 +335,14 @@ Library, status card, new-download settings, making now, every show and movie wi
 movie off, not-available and model-download states), docs/design/season-pack-mockups.html board B3 (DEC-041), and
 docs/design/video-picture-mockups.html round 4 (DEC-039). Work continues in a fresh agent session (handoff in
 docs/PERFORMANCE-PROGRESS.md).
+
+## DEC-043 — Library file manager mockup approved; buttons cleaned (2026-11-12)
+
+Owner, on docs/design/library-files-mockups.html round 2: "clean up the buttons otherwise i approve! … open pr and
+begin implementing the moc roadmap … no need to code yet". Round 3 makes the controls over the show art one set: a
+round back button, a round ••• and a Select capsule, same 32 pt height, same dark translucent fill, one line.
+Approved scope: boards A (TV Shows list with storage card and state chips), B (one show: episodes, Repair only on a
+problem episode, the ••• menu with Find Missing Episodes and Repair All Problems), C (episode/movie sheet: steps,
+facts, Play, Delete; Repair as the main action for a problem), D (select and delete with the iOS confirmation; Drive
+files to Drive's Trash), E (Movies poster grid), F (Free Up Space). The work is planned in ROADMAP.md "Mockup
+roadmap"; coding starts when the owner says so.
