@@ -319,11 +319,14 @@ def read_box(xbmc,xbmcgui):
  if not heading and not text:return None
  return heading,text,pct
 
+IDLE_AFTER=20      # quiet looks (10 s) before the loop slows down
+IDLE_INTERVAL=1.5  # Roadmap 1E.7: nothing shown and nothing running: look every 1.5 s, not every 0.5 s
+
 def watch(read,downloads,uploads,setting,playing,publish,report,wait,interval=0.5,clock=time.time,posters=None):
  """The service loop. read() -> (heading, text, pct) or None; downloads()/uploads() -> lists (notices.py);
  setting(id, default) -> bool; playing() -> bool; publish(props); report(problem text) -> None; wait(s) -> True to stop."""
- tracker=Tracker();last={};engine_every=2.0;engine_at=0;dl=[];up=[]
- while not wait(interval):
+ tracker=Tracker();last={};engine_every=2.0;engine_at=0;dl=[];up=[];quiet=0
+ while not wait(IDLE_INTERVAL if quiet>=IDLE_AFTER else interval):
   try:
    now=clock()
    seen=read()
@@ -337,6 +340,7 @@ def watch(read,downloads,uploads,setting,playing,publish,report,wait,interval=0.
     except Exception:up=[]
    tracker.prune(now)
    jobs=tracker.current(dl,up,now)
+   quiet=quiet+1 if not (seen or jobs or dl or up) else 0
    video=playing()
    shown=[j for j in jobs if allowed(j,setting,video)]
    props=properties(shown,len(jobs)-len(shown),art=lambda job:posters.url(job.get('raw','')) if posters else '')
