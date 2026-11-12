@@ -45,6 +45,8 @@ def run(argv):
   from ios_search import directory;directory(handle,params.get('query',''));return
  if params.get('action')=='library':
   from ios_library import directory;directory(handle,params);return
+ if params.get('action')=='library_remove':
+  from ios_remove import run;run(params);return
  if params.get('action')=='library_play':
   from ios_library import play_downloaded;play_downloaded(handle,params);return
  if params.get('action')=='continue':

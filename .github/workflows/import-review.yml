@@ -130,6 +130,7 @@ jobs:
           python3 -B scripts/test_settings_search.py
           python3 -B scripts/test_deck_picker.py
           python3 -B scripts/test_season_sheet.py
+          python3 -B scripts/test_ios_remove.py
           python3 -B scripts/test_source_match.py
           python3 -B scripts/test_bundled_bootstrap.py
           python3 -B scripts/test_portrait.py

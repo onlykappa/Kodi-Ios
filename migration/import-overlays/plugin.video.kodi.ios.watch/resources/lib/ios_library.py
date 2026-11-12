@@ -586,7 +586,9 @@ def _directory(handle,params):
   if path in seen:continue
   seen.add(path)
   li=xbmcgui.ListItem(label=label,offscreen=True);li.setArt({k:v for k,v in art.items() if v})
-  li.addContextMenuItems([('Refresh Library',REFRESH)])
+  # Owner (2026-11-12): a download can be removed from its long press (red Remove; ios_remove asks first).
+  import ios_remove
+  li.addContextMenuItems([('Refresh Library',REFRESH)]+[e for e in (ios_remove.menu_entry(path,label,info),) if e])
   for name,value in info.get('properties',{}).items():li.setProperty(name,value)
   if info.get('source'):li.setLabel2({'local':'On this iPhone','drive':'Google Drive'}.get(info['source'],'iPhone and Google Drive'))
   tag=li.getVideoInfoTag();tag.setMediaType(info.get('mediatype','video'));tag.setTitle(label)
