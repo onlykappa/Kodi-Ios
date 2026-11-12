@@ -250,3 +250,5 @@ Evidence: ISSUE-163/165/166.
 - 1A.1 reliability: ISSUE-171 rejected-token renewal repaired and host tested; device check pending.
 - This checkpoint authorizes source fixes and separate commits, not native releases or an IPA. r31/r47 delivery
   remains a separate verified-build step; do not change pins to unbuilt artifacts.
+
+- 1A.1 reliability: ISSUE-172 bounded size probes repaired and host tested; no full movie read during HEAD.

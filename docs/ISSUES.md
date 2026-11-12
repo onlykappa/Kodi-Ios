@@ -2647,3 +2647,15 @@ Status: FIXED IN SOURCE; host tested, device acceptance pending.
   refreshes and reuse a token another reader already renewed. Refused-refresh and busy-server backoff still apply.
 - Verification: test_drive_proxy (6 cases, actual token_source through local HTTP) and test_drive_signin (7 cases,
   concurrent rejection, existing expiry, busy/refused recovery). Synthetic accounts only; no live provider claim.
+
+
+## ISSUE-172 — Drive size checks can read an entire movie (PR #19 review, 2026-11-12)
+
+Status: FIXED IN SOURCE; host tested, device acceptance pending.
+- Root cause: HEAD used an unbounded read of the one-byte Range response, including HTTP 200 when Range was
+  ignored. A large movie could therefore be downloaded into Python memory just to learn its size.
+- Fix: validate the partial Content-Range and read at most one byte; use Content-Length without any body read
+  for HTTP 200. Close/discard unread responses instead of reusing their connection. Metadata transport failures
+  now produce HTTP 502 instead of silently terminating the local request.
+- Verification: test_drive_proxy 10 cases pass, including a synthetic 20 GB size, ignored Range, malformed or
+  missing size, and upstream failure. The metadata fixture fails any unbounded read; no media is allocated.

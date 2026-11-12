@@ -45,6 +45,37 @@ class Proxy(unittest.TestCase):
         with self.fetch('/drive/F2/Show.S01E01.mkv',method='HEAD') as r:
             self.assertEqual((r.headers['Content-Length'],r.headers['Accept-Ranges']),('1048576','bytes'))
         self.assertEqual(FakeConn.log[-1][1]['Range'],'bytes=0-0')
+    def metadata_response(self,status,headers,body=b'x'):
+        reads=[]
+        class TrackedResp(FakeResp):
+            def read(self,n=-1):
+                reads.append(n)
+                if n<0:raise AssertionError('An unbounded metadata read would download the movie')
+                return super().read(n)
+        class Conn(FakeConn):
+            def getresponse(self):return TrackedResp(status,body,headers)
+        self.server.RequestHandlerClass.upstream.connect=Conn
+        return reads
+    def test_head_ignored_range_uses_length_without_downloading_video(self):
+        reads=self.metadata_response(200,{'Content-Length':'20000000000'})
+        with self.fetch('/drive/large/Movie.mp4',method='HEAD') as r:
+            self.assertEqual(r.headers['Content-Length'],'20000000000')
+        self.assertEqual(reads,[])
+    def test_head_partial_response_reads_only_one_byte(self):
+        reads=self.metadata_response(206,{'Content-Range':'bytes 0-0/20000000000','Content-Length':'1'})
+        with self.fetch('/drive/large/Movie.mp4',method='HEAD') as r:
+            self.assertEqual(r.headers['Content-Length'],'20000000000')
+        self.assertEqual(reads,[1])
+    def test_head_missing_or_malformed_size_never_drains_the_body(self):
+        for status,headers in ((200,{}),(206,{'Content-Range':'bytes 0-0/*'})):
+            reads=self.metadata_response(status,headers)
+            with self.assertRaises(urllib.error.HTTPError):self.fetch('/drive/unknown/Movie.mp4',method='HEAD')
+            self.assertEqual(reads,[])
+    def test_head_upstream_failure_returns_an_http_error(self):
+        def failed(*args):raise OSError('synthetic upstream failure')
+        self.server.RequestHandlerClass.upstream.get=failed
+        with self.assertRaises(urllib.error.HTTPError) as e:self.fetch('/drive/offline/Movie.mp4',method='HEAD')
+        self.assertEqual(e.exception.code,502)
     def test_expired_token_gets_one_fresh_retry(self):
         FakeConn.expired={'old'}
         with self.fetch('/drive/F1/Movie.mp4',{'Range':'bytes=0-9'}) as r:self.assertEqual(r.read(),DATA[:10])

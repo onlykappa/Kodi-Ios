@@ -151,3 +151,6 @@ Never claim a phone result without the owner's log or screenshot.
 Owner asks for fixes committed separately. Source commits use [skip ci] to preserve the current no-IPA scope.
 - ISSUE-171: rejected Drive tokens now really refresh, once across concurrent readers, without bypassing backoff.
   Host: test_drive_proxy 6 / test_drive_signin 7 pass. iPhone acceptance pending.
+
+- ISSUE-172: size probes read at most one byte, even if Drive ignores Range. HTTP 200 uses its length and drops
+  the unread connection. Host: test_drive_proxy 10 pass, including synthetic 20 GB metadata and transport failure.

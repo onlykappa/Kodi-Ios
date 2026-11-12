@@ -10,6 +10,7 @@ so the interpreter is not the limit here; the add-on's per-request work was."""
 import http.client
 import http.server
 import mimetypes
+import re
 import socketserver
 import threading
 import urllib.parse
@@ -54,7 +55,10 @@ class Upstream(object):
         return conn
 
     def drop(self):
-        self._conn(fresh=True)
+        conn = getattr(self.local, 'conn', None)
+        if conn is not None:
+            conn.close()
+            self.local.conn = None
 
     def get(self, file_id, rng=None):
         """The open upstream response for file_id (status 200/206/...), retrying once on a stale connection or 401."""
@@ -91,12 +95,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _size(self, file_id):
         if file_id not in self.sizes:
             resp = self.upstream.get(file_id, 'bytes=0-0')
-            body = resp.read()
-            total = (resp.getheader('Content-Range') or '').rsplit('/', 1)[-1]
-            if resp.status in (200, 206) and (total.isdigit() or resp.status == 200):
-                self.sizes[file_id] = (int(total) if total.isdigit() else len(body), resp.getheader('Content-Type') or '')
-            else:
-                return None
+            consumed = False
+            try:
+                total = re.fullmatch(r'bytes 0-0/([1-9][0-9]*)', resp.getheader('Content-Range') or '')
+                if resp.status == 206 and total:
+                    # Read at most the requested byte. Never drain a malformed or ignored range response.
+                    if len(resp.read(1)) != 1:
+                        return None
+                    consumed = resp.getheader('Content-Length') == '1'
+                    size = int(total.group(1))
+                elif resp.status == 200 and (resp.getheader('Content-Length') or '').isdigit():
+                    # Drive may ignore Range. The length already tells us the size; close without reading video.
+                    size = int(resp.getheader('Content-Length'))
+                else:
+                    return None
+                self.sizes[file_id] = (size, resp.getheader('Content-Type') or '')
+            finally:
+                resp.close()
+                if not consumed:
+                    self.upstream.drop()
         return self.sizes[file_id]
 
     def _type(self, name, given):
@@ -106,7 +123,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_HEAD(self):
         file_id = parse_path(self.path)
-        info = self._size(file_id) if file_id else None
+        try:
+            info = self._size(file_id) if file_id else None
+        except Exception:
+            self.upstream.drop()
+            self.send_error(502)
+            return
         if not info:
             self.send_error(404)
             return
