@@ -13,12 +13,52 @@ import season_sheet as ss  # noqa: E402
 
 
 class Models(unittest.TestCase):
-    def test_1080p_is_picked_and_every_card_builds(self):
-        props = ss.quality_props('Naruto Shippūden', 1, 26)
-        self.assertEqual([props['q.%d.label' % n] for n in range(1, 5)], ['4K', '1080p', '720p', '480p'])
-        self.assertEqual(props['q.2.on'], 'true')
-        self.assertEqual(props['button'], 'Build 1080p Season')
-        self.assertIn('26 episodes', props['how'])
+    def test_round_3_rows_recommend_the_highest_light_quality(self):
+        # Board B3·2 (DEC-041): 4K exists and is light, so it is recommended and picked.
+        found = ss.survey({1: {'qualities': ['4k', '1080p', '720p'], 'sizes': {'4k': 1.4, '1080p': 0.45, '720p': 0.25}},
+                           6: {'qualities': ['4k', '1080p'], 'sizes': {'4k': 1.4, '1080p': 0.45}}})
+        props = ss.quality_props('Rick and Morty', 1, 11, found)
+        self.assertEqual([props['q.%d.label' % n] for n in range(1, 4)], ['4K', '1080p', '720p'])
+        self.assertNotIn('q.4.label', props)                       # 480p is gone
+        self.assertEqual((props['q.1.rec'], props['q.1.on'], props['q.1.size'], props['q.1.each']), ('RECOMMENDED', 'true', '15 GB season', '1.4 GB each'))
+        self.assertEqual(props['button'], 'Build 4K Season · 15 GB')
+        self.assertIn('small for this show', props['how'])
+
+    def test_a_quality_nobody_has_is_greyed(self):
+        # Board B3·3: no 4K copy, 1080p recommended.
+        found = ss.survey({1: {'qualities': ['1080p', '720p'], 'sizes': {'1080p': 0.26, '720p': 0.15}}})
+        props = ss.quality_props('Naruto Shippūden', 1, 32, found)
+        self.assertEqual((props['q.1.off'], props['q.1.size'], props['q.1.each'], props['q.1.on']), ('true', 'Not found', 'No copy exists', ''))
+        self.assertEqual((props['q.2.rec'], props['q.2.on'], props['q.2.size']), ('RECOMMENDED', 'true', '8.3 GB season'))
+        self.assertTrue(props['how'].startswith('No 4K copy exists, so it is greyed'))
+        self.assertEqual(props['button'], 'Build 1080p Season · 8.3 GB')
+
+    def test_a_huge_4k_season_recommends_1080p_but_4k_can_be_chosen(self):
+        # Board B3·4: 9.5 GB an episode, 76 GB the season.
+        found = ss.survey({1: {'qualities': ['4k', '1080p', '720p'], 'sizes': {'4k': 9.5, '1080p': 2.1, '720p': 1.1}}})
+        props = ss.quality_props('Lanterns', 2, 8, found)
+        self.assertEqual((props['q.2.rec'], props['q.2.on'], props['q.1.off']), ('RECOMMENDED', 'true', ''))
+        self.assertIn('4K is very large[/B] here (76 GB)', props['how'])
+        chose = ss.quality_props('Lanterns', 2, 8, found, '4k')
+        self.assertEqual((chose['q.1.on'], chose['q.2.rec'], chose['button']), ('true', 'RECOMMENDED', 'Build 4K Season · 76 GB'))
+        # A 40 GB season limit as well as 3 GB an episode.
+        self.assertEqual(ss.recommend({'4k': [2.5], '1080p': [1.0]}, 20), '1080p')
+        self.assertEqual(ss.recommend({'4k': [9.0]}, 8), '4k')         # the only one there is
+        self.assertIsNone(ss.recommend({}, 8))
+
+    def test_check_looks_at_start_middle_end_and_counts_lower_for_720p(self):
+        self.assertEqual(ss.check_numbers(range(1, 12)), [1, 6, 11])
+        self.assertEqual(ss.check_numbers([4, 5]), [4, 5])
+        self.assertEqual(ss.survey({1: {'qualities': ['480p'], 'sizes': {'480p': 0.1}}}), {'720p': [0.1]})
+        props = ss.checking_props('Rick and Morty', 1, 11, [1, 6, 11], 2, {'4k': 'found', '1080p': 'found'})
+        self.assertEqual((props['check.sub'], props['check.q.3'], props['button.off'], props['check.pct']),
+                         ('Looking at episodes 1, 6 and 11', '720p · \u2026', 'true', '66'))
+
+    def test_nothing_found_cannot_build_and_no_answer_lets_every_row_be_chosen(self):
+        props = ss.quality_props('X', 1, 8, {})
+        self.assertEqual((props['button.off'], props['q.1.off'], props['q.2.off'], props['q.3.off']), ('true',) * 4)
+        props = ss.quality_props('X', 1, 8, None)
+        self.assertEqual((props['button.off'], props['q.2.on'], props['button']), ('', 'true', 'Build 1080p Season'))
 
     def test_an_episode_only_lower_takes_the_next_quality_down(self):
         self.assertEqual(ss.best_for(['1080p', '720p'], '1080p'), '1080p')
@@ -59,7 +99,10 @@ class Flow(unittest.TestCase):
             def show(self, props): calls['card'].append(props['IOSSearch.Kicker'])
             def close(self): pass
         orig = (ss.pick_quality, ss.confirm_ready, ss.Card)
-        ss.pick_quality = lambda gui, title, season, n: quality
+        def pick(gui, title, season, n, check=None, wait=None):
+            calls['checked'] = check(lambda done, states: None, lambda: False) if check else None
+            return quality
+        ss.pick_quality = pick
         ss.confirm_ready = lambda gui, model: calls.setdefault('model', model) and confirm
         ss.Card = Card
 
@@ -96,7 +139,9 @@ class Flow(unittest.TestCase):
         self.assertTrue(self.waits and all(t <= 0.05 for t in self.waits))
         self.assertEqual(out, [1, 2, 3])
         self.assertEqual(calls['queued'], [(1, '1080p'), (2, '720p'), (3, '1080p')])
-        self.assertIn('Building Season 1 · 1080p', calls['card'])
+        # Board B3: the check answers are used for the build, not looked up again.
+        self.assertEqual(sorted(calls['checked']), [1, 2, 3])
+        self.assertEqual(sorted(calls['scans']), [1, 2, 3])
 
     def test_an_episode_missed_by_the_lanes_is_looked_up_once_more(self):
         # ISSUE-178 (owner log 77b35834): episodes 9 and 22 timed out with three lookups at once and were "not found".
@@ -117,6 +162,25 @@ class Flow(unittest.TestCase):
         import unittest.mock  # noqa: F401
         out, calls = self.run_build({1: ['1080p']}, confirm=False)
         self.assertEqual((out, calls['queued']), ([], []))
+
+
+class QualityWindow(unittest.TestCase):
+    def test_round_3_window_has_three_rows_a_check_card_and_a_grey_build(self):
+        import xml.etree.ElementTree as ET
+        portrait = importlib.util.module_from_spec(importlib.util.spec_from_file_location('portrait_b3', LIB / 'portrait.py'))
+        portrait.__spec__.loader.exec_module(portrait)
+        import pages
+        xml = pages.season_quality_sheet(portrait)
+        root = ET.fromstring(xml)
+        ids = {c.get('id') for c in root.iter('control') if c.get('id')}
+        self.assertTrue({'9701', '9702', '9703', '9720', '9721'} <= ids)
+        self.assertNotIn('9704', ids)                                   # 480p is gone
+        self.assertIn('Window().Property(check.pct)', xml)
+        self.assertIn('<enable>String.IsEmpty(Window().Property(q.1.off))</enable>', xml)   # greyed rows cannot be chosen
+        self.assertIn('<enable>String.IsEmpty(Window().Property(button.off))</enable>', xml)
+        self.assertIn('circle_line.png', xml)
+        self.assertNotIn('!!', xml)
+        self.assertIn('circle_line.png', portrait.textures())
 
 
 class EveryEpisode(unittest.TestCase):

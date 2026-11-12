@@ -697,28 +697,55 @@ def _text_button(p,id,x,y,w,label,nav=''):
   '<textcolor>%s</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>center</align><aligny>center</aligny><texturefocus /><texturenofocus />%s</control>')%(id,x,y,w,label,p.ACCENT,nav)
 
 def season_quality_sheet(p):
- """IOSSeasonQuality.xml (season-pack board B round 2, Build Season only): the season and show, four quality cards
- (9701-9704; the chosen one outlined in blue with a tick), one sentence on what happens, Build (9720) and Cancel (9721).
- season_sheet.pick_quality fills Window().Property(...)."""
- M=p.MEDIA;S=p.SIDE;W=p.WIDTH;w=W-2*S;gap=27;cw=(w-gap)//2;ch=200
- P=lambda k:'$INFO[Window().Property(%s)]'%k
- grid_y=290;how_y=grid_y+2*ch+gap+40;btn_y=how_y+170;h=btn_y+140+20+118+60
- cards=''
- for n in range(1,5):
-  x=S+((n-1)%2)*(cw+gap);y=grid_y+((n-1)//2)*(ch+gap);on='!String.IsEmpty(Window().Property(q.%d.on))'%n
-  up,down,left,right={1:(9701,9703,9701,9702),2:(9702,9704,9701,9702),3:(9701,9720,9703,9704),4:(9702,9720,9703,9704)}[n]   # 2 x 2 grid, then Build
-  nav='<onup>%d</onup><ondown>%d</ondown><onleft>%d</onleft><onright>%d</onright>'%(up,down,left,right)
-  cards+=(p.image(x,y,cw,ch,M+'round.png','FF0A84FF','<visible>%s</visible>'%on,border=32)+
-   p.image(x+6,y+6,cw-12,ch-12,M+'round.png','FF16273D','<visible>%s</visible>'%on,border=28)+
-   p.image(x,y,cw,ch,M+'round.png',p.SURFACE2,'<visible>!%s</visible>'%on,border=32)+
-   p.label(x+36,y+34,cw-130,80,P('q.%d.label'%n),'p_h2',p.WHITE,'left','<scroll>false</scroll>')+
-   p.label(x+36,y+118,cw-60,50,P('q.%d.note'%n),'p_foot',p.GREY,'left','<scroll>false</scroll>')+
-   p.image(x+cw-82,y+28,54,54,M+'dot.png','FF0A84FF','<visible>%s</visible>'%on)+p.icon(x+cw-70,y+40,30,'check.png',p.WHITE,'<visible>%s</visible>'%on)+
-   '<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus colordiffuse="14FFFFFF" border="32">%sround.png</texturefocus><texturenofocus />%s</control>'%(9700+n,x,y,cw,ch,M,nav))
- body=(_header(p,P('season.title'),P('season.sub'))+cards+
+ """IOSSeasonQuality.xml (season-pack board B3, DEC-041): the season and show; while three episodes are looked up, a
+ check card (title, which episodes, a thin bar, each quality's state) and a grey Build; then three full-width rows
+ (9701-9703: 4K, 1080p, 720p) with the season's size and an episode's, a green RECOMMENDED tag, a tick circle (filled
+ blue on the chosen one), a quality nobody has greyed; one sentence, Build (9720) with the quality and size, Cancel
+ (9721). season_sheet.pick_quality fills Window().Property(...)."""
+ M=p.MEDIA;S=p.SIDE;W=p.WIDTH;w=W-2*S;gap=22;rh=184
+ P=lambda k:'$INFO[Window().Property(%s)]'%k;has=lambda k:'!String.IsEmpty(Window().Property(%s))'%k
+ list_y=290;how_y=list_y+3*rh+2*gap+40;btn_y=how_y+170;h=btn_y+140+20+118+60
+ checking=has('checking')
+ rows=''
+ for n in range(1,4):
+  y=list_y+(n-1)*(rh+gap);on=has('q.%d.on'%n);off=has('q.%d.off'%n)
+  up=9700+n-1 if n>1 else 9701;down=9700+n+1 if n<3 else 9720
+  colour=lambda live:'<visible>%s</visible>'%live
+  rows+=(p.image(S,y,w,rh,M+'round.png','FF0A84FF',colour(on),border=32)+
+   p.image(S+6,y+6,w-12,rh-12,M+'round.png','FF16273D',colour(on),border=28)+
+   p.image(S,y,w,rh,M+'round.png',p.SURFACE2,colour('!'+on),border=32)+
+   p.label(S+38,y+26,260,80,'[B]%s[/B]'%P('q.%d.label'%n),'p_h2',p.WHITE,'left','<scroll>false</scroll><visible>!%s</visible>'%off)+
+   p.label(S+38,y+26,260,80,'[B]%s[/B]'%P('q.%d.label'%n),'p_h2',p.DIM,'left','<scroll>false</scroll><visible>%s</visible>'%off)+
+   '<control type="group"><visible>%s</visible>'%has('q.%d.rec'%n)+p.image(S+38,y+110,230,48,M+'round.png','2E30D158',border=12)+
+   p.label(S+38,y+110,230,48,'[B]%s[/B]'%P('q.%d.rec'%n),'p_cap',p.GREEN,'center','<scroll>false</scroll>')+'</control>'+
+   p.label(S+320,y+38,w-320-130,52,P('q.%d.size'%n),'p_foot_b',p.WHITE,'left','<scroll>false</scroll><visible>!%s</visible>'%off)+
+   p.label(S+320,y+38,w-320-130,52,P('q.%d.size'%n),'p_foot',p.DIM,'left','<scroll>false</scroll><visible>%s</visible>'%off)+
+   p.label(S+320,y+96,w-320-130,48,P('q.%d.each'%n),'p_foot',p.GREY,'left','<scroll>false</scroll><visible>!%s</visible>'%off)+
+   p.label(S+320,y+96,w-320-130,48,P('q.%d.each'%n),'p_foot',p.DIM,'left','<scroll>false</scroll><visible>%s</visible>'%off)+
+   p.image(S+w-98,y+(rh-60)//2,60,60,M+'circle_line.png','4DEBEBF5','<visible>!%s + !%s</visible>'%(on,off))+
+   p.image(S+w-98,y+(rh-60)//2,60,60,M+'dot.png','FF0A84FF',colour(on))+p.icon(S+w-84,y+(rh-60)//2+14,32,'check.png',p.WHITE,colour(on))+
+   '<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus colordiffuse="14FFFFFF" border="32">%sround.png</texturefocus>'
+   '<texturenofocus /><enable>!%s</enable><onup>%d</onup><ondown>%d</ondown></control>'%(9700+n,S,y,w,rh,M,off,up,down))
+ ch=330
+ check=('<control type="group"><visible>%s</visible>'%checking+p.image(S,list_y,w,ch,M+'round.png',p.SURFACE2,border=32)+
+  p.label(S+38,list_y+30,w-76,56,'[B]%s[/B]'%P('check.title'),'p_body',p.WHITE,'left','<scroll>false</scroll>')+
+  p.label(S+38,list_y+96,w-76,50,P('check.sub'),'p_foot',p.GREY,'left','<scroll>false</scroll>')+
+  p.image(S+38,list_y+176,w-76,12,M+'white.png','33EBEBF5')+
+  '<control type="progress"><left>%d</left><top>%d</top><width>%d</width><height>12</height><texturebg /><midtexture colordiffuse="FF0A84FF">%swhite.png</midtexture>'
+  '<info>Window().Property(check.pct)</info></control>'%(S+38,list_y+176,w-76,M)+
+  ''.join(p.label(S+38+i*(w-76)//3,list_y+226,(w-76)//3,50,P('check.q.%d'%(i+1)),'p_foot',p.GREY,('left','center','right')[i],'<scroll>false</scroll>') for i in range(3))+
+  '</control>')
+ off_btn=has('button.off')
+ body=(_header(p,P('season.title'),P('season.sub'))+
+  '<control type="group"><visible>!%s</visible>%s</control>'%(checking,rows)+check+
   '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>150</height><font>p_foot</font><textcolor>%s</textcolor><label>%s</label></control>'%(S+6,how_y,w-12,p.GREY,P('how'))+
-  _white_button(p,9720,S,btn_y,w,P('button'),'<onup>9703</onup><ondown>9721</ondown>')+_text_button(p,9721,S,btn_y+150,w,'Cancel','<onup>9720</onup>'))
- return _sheet(p,SEASON_QUALITY,'Build Season quality sheet (board B)',9720,h,body)
+  _white_button(p,9720,S,btn_y,w,P('button'),'<onup>9703</onup><ondown>9721</ondown><enable>!%s</enable>'%off_btn)+
+  # Board B3·1: Build is grey until the check has answered (and when nothing was found).
+  '<control type="group"><visible>%s</visible>'%off_btn+p.image(S,btn_y,w,140,M+'pill_150.png','FF3A3A3C',border=70)+
+  p.label(S,btn_y,w,140,P('button'),'p_btn',p.DIM,'center')+'</control>'+
+  _text_button(p,9721,S,btn_y+150,w,'Cancel','<onup>9720</onup>'))
+ # has() is '!String.IsEmpty(...)': its negation is written plainly, not as '!!'.
+ return _sheet(p,SEASON_QUALITY,'Build Season quality sheet (board B3)',9720,h,body.replace('!!String.IsEmpty','String.IsEmpty'))
 
 def season_ready_sheet(p):
  """IOSSeasonReady.xml (season-pack board D round 2): the season, three numbers (episodes, quality, size), up to four

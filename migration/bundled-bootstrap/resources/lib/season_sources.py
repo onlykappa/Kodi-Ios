@@ -274,28 +274,47 @@ def _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names,se
  remaining=[n for n in numbers if n not in have]
  if not remaining:
   dialog.ok('Download season','Every aired episode is already downloaded or queued.');return []
- quality=ss.pick_quality(gui,title,season,len(remaining))
+ monitor=xbmc.Monitor();halt={'stop':False};card=None
+ def lookup(n,purpose,q=None,lane='',timeout=None):
+  if search:return search(n,purpose,q)
+  return request(home,tmdb,season,n,purpose,q,cancel=lambda:halt['stop'] or bool(card and card.canceled),
+                 timeout=timeout or (LANE_SECONDS if purpose=='scan' else 120),lane=lane)
+ # Board B3 (DEC-041): three episodes (start, middle, end) are looked up in every quality while the sheet shows the
+ # check card, so a quality nobody has is greyed and one is recommended. Their answers are kept for the build below.
+ checked={}
+ def check(show,stopped):
+  numbers=check.numbers;states={}
+  def one(n,lane):
+   try:checked[n]=lookup(n,'scan',lane=lane)
+   except Exception as error:note(xbmc,'check_deferred',episode=n,error=type(error).__name__)
+   got=[q for a in checked.values() for q in (a.get('qualities') or [])]
+   for q in ss.QUALITIES:states[q]='found' if q in got or (q=='720p' and ss.best_for(got,q)) else states.get(q,'')
+  lanes(numbers,one,lambda done,current:show(done,dict(states,**({q:states.get(q) or 'none' for q in ss.QUALITIES} if done>=len(numbers) else {}))),
+        lambda:monitor.waitForAbort(0.01) or stopped(),halt,len(watch.LANES) if not search else 1)
+  note(xbmc,'quality_checked',episodes=numbers,found={n:checked[n].get('qualities') or [] for n in checked})
+  return dict(checked) if checked else None
+ check.numbers=ss.check_numbers(remaining)
+ quality=ss.pick_quality(gui,title,season,len(remaining),check,monitor.waitForAbort)
+ halt['stop']=False
  if not quality:return []
- monitor=xbmc.Monitor();card=ss.Card(gui)
+ card=ss.Card(gui)
  # Owner log 5169a460 (build 290): Close and Cancel on the card did nothing. Kodi hands a window's taps to this script
  # only while it waits in Kodi (sleep / waitForAbort); the lookups waited on Elementum the whole time. stop() runs every
  # 0.1 s during those waits, and its short waitForAbort lets the taps through.
  def stop():return monitor.waitForAbort(0.01) or card.canceled
- halt={'stop':False}
- def lookup(n,purpose,q=None,lane='',timeout=None):
-  if search:return search(n,purpose,q)
-  return request(home,tmdb,season,n,purpose,q,cancel=lambda:halt['stop'] or card.canceled,
-                 timeout=timeout or (LANE_SECONDS if purpose=='scan' else 120),lane=lane)
  picks={};details={}
+ def keep(n,found):
+  got=ss.best_for(found.get('qualities') or [],quality)
+  details[n]=(found.get('details') or {}).get(got,'') if got else ''
+  picks[n]=(got,(found.get('sizes') or {}).get(got) if got else None)
  def scan(n,lane,timeout=None):
   try:found=lookup(n,'scan',lane=lane,timeout=timeout)
   except Exception as error:
    note(xbmc,'scan_deferred',episode=n,error=type(error).__name__);found={}
-  got=ss.best_for(found.get('qualities') or [],quality)
-  details[n]=(found.get('details') or {}).get(got,'') if got else ''
-  picks[n]=(got,(found.get('sizes') or {}).get(got) if got else None)
+  keep(n,found)
+ for n,found in checked.items():keep(n,found)
  try:
-  lanes(remaining,scan,lambda done,current:card.show(ss.building_props(season,quality,title,done,len(remaining),
+  lanes([n for n in remaining if n not in checked],scan,lambda done,current:card.show(ss.building_props(season,quality,title,done+len(checked),len(remaining),
         sum(1 for v in picks.values() if v[0]),current)),stop,halt,len(watch.LANES) if not search else 1)
   if halt['stop']:return []
   # ISSUE-178: an episode the lanes did not find (a slow answer, or a page that answered another lane) is looked up

@@ -159,6 +159,13 @@ def triangle(size):
   return (255,255,255,int(255*inside/16))
  return png(size,size,alpha)
 
+def circle_line(size,stroke):
+ """A whole thin circle: the empty tick of a choice row (season-pack board B3)."""
+ def pixel(x,y):
+  outer=coverage(x,y,size,size,size/2);inner=coverage(x,y,size,size,size/2,stroke)
+  return (255,255,255,int(255*max(outer-inner,0)))
+ return png(size,size,pixel)
+
 def ring(size,stroke):
  """Open ring (a quarter missing, like the activity spinner) around the bell while a download runs."""
  import math
@@ -247,7 +254,7 @@ def textures():
          'hero_fade.png':fade(lambda t:0 if t<0.3 else ((t-0.3)/0.7)**1.25),
          'poster_mask.png':rounded(POSTER[0],POSTER[1],RADIUS),'card_mask.png':rounded(CARD[0],CARD[1],RADIUS),
          'thumb_mask.png':rounded(400,225,20),'tile_mask.png':rounded(80,80,18),'dot.png':rounded(24,24,12),'knob.png':rounded(48,48,24),'clear48.png':png(4,48,lambda x,y:(0,0,0,0)),
-         'white.png':png(4,4,lambda x,y:(255,255,255,255)),'play.png':triangle(64),'airplay.png':player_osd.airplay_png(png),'ring.png':ring(132,7),
+         'white.png':png(4,4,lambda x,y:(255,255,255,255)),'play.png':triangle(64),'airplay.png':player_osd.airplay_png(png),'ring.png':ring(132,7),'circle_line.png':circle_line(132,12),
          # Capsules per height: 9-slice borders of h/2 keep the ends perfectly round at any width.
          **{'pill_%d.png'%h:rounded(h,h,h/2) for h in CAPSULES},
          **{'glass_%d.png'%h:glass(h,h/2,(30,30,34,232),(255,255,255,50)) for h in CAPSULES},
