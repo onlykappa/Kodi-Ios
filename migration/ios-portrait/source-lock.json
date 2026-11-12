@@ -3,8 +3,8 @@
   "tag": "21.3-Omega",
   "commit": "a3a448d26b8d560a65655dab2cd122994dc4e146",
   "patch": "kodi-21.3-portrait.patch",
-  "build_tag": "kodi-ios-portrait-r30",
-  "staged_patch_note": "r30 verified native executable pinned for build 225: r29 plus the native iPhone keyboard everywhere (ISSUE-162).",
+  "build_tag": "kodi-ios-portrait-r31",
+  "staged_patch_note": "r31 staged (owner 2026-11-12 \"build everything now with one ipa\"): r30 plus the MKV attachment skip (faster opens), Home plugin rows kept around playback, Settings without \"- \", PIN keyboard. Built and published by kodi-ios-portrait on PR #21; executable_release moves to r31 once its digests are checked.",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
     "tag": "kodi-ios-portrait-r30",
