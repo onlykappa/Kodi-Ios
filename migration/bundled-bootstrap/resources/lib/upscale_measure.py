@@ -104,6 +104,13 @@ def run(q, req, log, notify=lambda *args: None, clock=time.time, sleep=time.slee
     if not getattr(native, 'upscales', False):
         raise RuntimeError('This build has no AI upscaler (KodiAirPlay r48 or later is needed)')
     source = q.stream.url(req['id'])
+    try:
+        return _run(q, req, log, notify, clock, sleep, keep_going, native, title, name, source)
+    finally:
+        q.stream.forget(req['id'])   # the Drive read-ahead for this file is let go, as the queue does
+
+
+def _run(q, req, log, notify, clock, sleep, keep_going, native, title, name, source):
     probe = native.probe(source)
     width, height = int(probe.get('width') or 0), int(probe.get('height') or 0)
     duration, fps = float(probe.get('duration') or 0), float(probe.get('fps') or 0)

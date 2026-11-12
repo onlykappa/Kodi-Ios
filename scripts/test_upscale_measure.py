@@ -58,8 +58,13 @@ class Queue:
         self.native, self.profile = native, profile
 
         class Stream:
+            forgotten = []
+
             def url(self, item_id):
                 return 'http://127.0.0.1:1/' + item_id
+
+            def forget(self, item_id):
+                self.forgotten.append(item_id)
         self.stream = Stream()
 
 
@@ -129,6 +134,12 @@ class Measure(unittest.TestCase):
         uhd = FakeNative(self.clock, probe={'width': 3840, 'height': 2160, 'duration': 60, 'hdr': False})
         self.assertIn('already', self.run_req(uhd)['error'])
         self.assertEqual(hdr.calls + uhd.calls, [])
+
+    def test_drive_read_ahead_is_let_go(self):
+        native = FakeNative(self.clock, fail='boom')
+        q = Queue(native, self.profile)
+        um.run(q, {'id': 'abc', 'engines': ['auto']}, self.lines.append, clock=self.clock, sleep=self.clock.sleep)
+        self.assertEqual(q.stream.forgotten[-1], 'abc')
 
     def test_converter_failure_is_reported(self):
         native = FakeNative(self.clock, fail='video conversion: AI upscaling is not available on this device')
