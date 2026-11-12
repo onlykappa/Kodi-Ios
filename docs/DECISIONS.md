@@ -272,3 +272,13 @@ PRs #17, #18 and #20 merged into it) goes to main. Carried into the next PR, fro
 Continue Watching timing, AirPlay captions, Remove); the Kodi r31 and AirPlay r47 native builds and pins (coded, not
 built); boards 11 (options sheet) and 13 (slow-start pill) and the buffering capsule; the log-lag review and faster
 season scanning. No native release or pin change is part of this merge.
+
+## DEC-039 — Picture: AI Upscale through prepared copies, Saturation only (2026-11-12)
+
+Owner approved the Picture mockups (docs/design/video-picture-mockups.html, round 4): a Picture button in the video
+controls with **AI Upscale** (one slider: Off, then only the sizes above the video among 720p, 1080p, 1440p, 2K and
+4K UHD; none for a 4K video) and **Saturation** as the only picture slider; per show / movie / all videos; Settings ›
+Picture with the default and the shows that have their own. AI Upscale must work on AirPlay: the upscaled copy is
+**prepared in the background** like a conversion, only for 720p and 1080p downloads (4K sources are downloaded as
+4K), with Apple's VTSuperResolutionScaler (iOS 26+) in the KodiAirPlay converter. Start with a measurement build that
+upscales one episode (time, heat, size on Drive). Another agent codes it.

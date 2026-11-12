@@ -9,6 +9,17 @@
   build's kodi_airplay_serve_copy + correlated receiver evidence. No IPA/native release dispatched here.
 - Compiled recommendations suite: 41 checks, 0 failures. Phone/TV acceptance and hour-long/caption tests remain open.
 
+## HANDOFF 2026-11-12 (PR #21, branch claude/trusting-euler-kgug98) — read this first
+
+- Next agent: code the **AI Upscaler** per DEC-039 and docs/design/video-picture-mockups.html (round 4, approved):
+  Picture button + menu (AI Upscale slider, Saturation), per-show settings, Settings › Picture, and the background
+  upscaled copy (VTSuperResolutionScaler in migration/airplay-ios, a new preparation step). Measurement build first.
+- Pending on this PR: Kodi r31 build (kodi-ios-portrait run 43256323634 on 8affdb8) then pin Kodi r31 and AirPlay r47
+  (airplay-ios run 43251110403 on a0a3b90 succeeded; migration/airplay-ios/source-lock.json still has a placeholder
+  sha256, so the IPA build fails until both are pinned). Then one IPA for the owner.
+- Coded on this PR, phone checks pending: Build Season queue fixes + refusal logging, Close/Cancel, board F (every
+  episode), three-lane season lookups, subtitles (SubDL/OpenSubtitles), hidden offset slider.
+
 ## MERGED 2026-11-12: PR #19 into main (DEC-038) — next work starts from main in a fresh PR
 
 Open items for the next PR, in order:
