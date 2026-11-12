@@ -35,6 +35,7 @@
     <setting id="library_status" type="action" label="32021"><level>0</level><data>RunScript(service.kodi.ios.bootstrap,library_status)</data><control type="button" format="action"/><help>Every video in Google Drive › Kodi Downloads: ready for Kodi and AirPlay, preparing, downloading, waiting or kept as it is, with what can be done about each.</help></setting>
     <setting id="drive_upload" type="boolean" label="32022"><level>0</level><default>true</default><control type="toggle"/></setting>
     <setting id="drive_upload_delete" type="boolean" label="32023"><level>0</level><default>true</default><control type="toggle"/></setting>
+    <setting id="upscale_test" type="action" label="32028"><level>0</level><data>RunScript(service.kodi.ios.bootstrap,upscale_test)</data><control type="button" format="action"/><help>Measurement build (DEC-039): upscales one prepared 720p or 1080p video to 4K UHD with Apple's AI super resolution and writes time, speed, heat, battery and size to kodi.log. Nothing is uploaded or changed on Google Drive.</help></setting>
     <setting id="background_transfers" type="boolean" label="32024"><level>0</level><default>true</default><control type="toggle"/><help>Keep work running while using other apps or with the screen locked. Plays silent audio while work is queued. Calls or iOS resource limits can interrupt it; work resumes when allowed. Powering off or force-quitting stops phone-side work.</help></setting>
    </group>
   </category>

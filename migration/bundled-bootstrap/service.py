@@ -579,6 +579,18 @@ def drive_uploads(monitor,home,profile):
                                  xbmcaddon.Addon().getSettingBool('prepare_downloads') and not prepare_downloads.interrupts(profile))
       # The upload pieces and the Drive read-ahead wait too while paused by the owner.
       if preparation.stream:preparation.stream.hold=lambda:preparation.paused() or slowdown.holding()   # build 208: no read-ahead while Kodi plays
+      # DEC-039 measurement build: an AI Upscale test asked for in Settings runs here, between conversions, with the
+      # queue's own converter and Drive stream (one AI engine at a time). Counted only, nothing uploaded.
+      import upscale_measure
+      measure=upscale_measure.pending(profile)
+      if measure:
+       upscale_measure.clear(profile)   # once, even if it fails: a crash must not repeat it on every pass
+       preparation.busy=True
+       try:upscale_measure.run(preparation,measure,log,notify=lambda kind,title,text:notices.add(profile,kind,title,text),keep_going=can_prepare)
+       except Exception as error:
+        diagnostics.log_exception(xbmc,'upscale_measure',error)
+        notices.add(profile,'problem','AI Upscale test stopped',diagnostics.redact(error)[:160])
+       finally:preparation.busy=False
       if transfer_control.paused(profile,'conv') and not (prepare_downloads.load(profile).get('current') or {}).get('running'):delay=30
       else:
        preparation.busy=True

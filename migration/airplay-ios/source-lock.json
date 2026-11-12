@@ -1,15 +1,15 @@
 {
   "framework_release": {
+    "tag": "kodi-airplay-r48",
+    "asset": "KodiAirPlay.framework.zip",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "previous": {
     "tag": "kodi-airplay-r47",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "e3ad181a72e1c1d3ea9043a558d3112a230fcfc7f0a33e5bd46f58345697ceea"
   },
-  "previous": {
-    "tag": "kodi-airplay-r46",
-    "asset": "KodiAirPlay.framework.zip",
-    "sha256": "45f37b1785e64c3335892f63e733e54fbf277f84197b525e40912c0ceb69eeb4"
-  },
   "source_commit": "a0a3b90b3c60c6f4fc1c6efcf268611b39341940",
   "verified_run": 43251110403,
-  "pin_note": "r47 pinned from airplay-ios run 43251110403 (PR #21, a0a3b90): release zip downloaded and its sha256 checked against the release notes."
+  "staged_note": "r48 staged (DEC-039/DEC-040 measurement build: AI upscaled copies with VTSuperResolutionScaler, kodi_device_state): built and published by airplay-ios on PR #21; sha256, source_commit and verified_run are pinned from that run."
 }

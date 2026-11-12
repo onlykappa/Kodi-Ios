@@ -2778,3 +2778,25 @@ disk failure, metadata timeout and fail-open streaming. Existing proxy 10, libra
 also pass. The first malformed-index fixture changed a valid track ID rather than the version byte; corrected
 the fixture offset and retained the negative regression. Project checks pass. Logs contain only safe byte counts.
 Actual iPhone opening-time improvement is unmeasured. No IPA or native binary/pin change.
+
+## ISSUE-177 — AI Upscale (DEC-039/DEC-040): bugs found while building the measurement build (2026-11-12)
+
+Found by the new host tests before any phone build; each is fixed, retested and kept as a regression test.
+
+1. **The converter refused an upscaled copy before it started** ("video conversion: no H.264 encoder in this
+   build"). Root cause: `kr_video_open` checks for the H.264 encoder up front (the live AirPlay bridge needs it); an
+   upscaled copy only needs HEVC, which is checked when its encoder opens. On the phone both exist, so this would only
+   have hidden on builds without H.264, but it blocked every host test of the path. Fix: skip the H.264 check while an
+   upscale is set for the conversion. Retest: `remux/tests/upscale_host.py` 23/23 (Lanczos engine on the host:
+   1280×720 HEVC, both audio and both subtitle tracks kept, tag read back, HDR and same-size refused, the setting used
+   once, cancel mid-copy then a fresh copy). Protection: that test runs in airplay-remux CI.
+2. **"All videos (my default)" copied the show's title and date into the default** (picture.apply). Root cause:
+   `_clean` kept every key of the entry it was given, and the resolved show entry carries title/updated. Fix: `_clean`
+   returns only upscale and saturation. Retest/protection: `scripts/test_picture.py` (13 tests; in import-review).
+3. **The measurement results file was never written on a fresh profile** and the error was swallowed. Root cause:
+   the add-on data folder may not exist yet; `open()` failed inside a bare `except: pass`. Fix: create the folder and
+   log the reason if saving still fails. Retest/protection: `scripts/test_upscale_measure.py` (10 tests; in
+   import-review).
+
+Not yet checked (needs the owner's iPhone, measurement build): the AI engine itself (model download, speed, heat,
+battery, output size), Xcode 26 building the framework in CI.

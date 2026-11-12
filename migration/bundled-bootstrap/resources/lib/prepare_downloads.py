@@ -188,16 +188,49 @@ class Native:
    lib.kodi_airplay_prepare_resume.argtypes=[ctypes.c_char_p,ctypes.c_char_p,WRITE,ctypes.c_void_p,CALLBACK,ctypes.c_void_p,ctypes.c_char_p,ctypes.c_int]
    lib.kodi_airplay_prepare_resume.restype=ctypes.c_int
    lib.kodi_airplay_prepare_marks(1)
+  # r48 (DEC-039/DEC-040): AI upscaled copies, what the phone can do, and the phone's battery/thermal state.
+  self.upscales=all(hasattr(lib,name) for name in ('kodi_airplay_prepare_upscale','kodi_airplay_upscale_support','kodi_airplay_upscale_model'))
+  if self.upscales:
+   lib.kodi_airplay_prepare_upscale.argtypes=[ctypes.c_int]*4;lib.kodi_airplay_prepare_upscale.restype=None
+   lib.kodi_airplay_upscale_support.argtypes=[ctypes.c_int]*5+[ctypes.c_char_p,ctypes.c_int];lib.kodi_airplay_upscale_support.restype=ctypes.c_int
+   lib.kodi_airplay_upscale_model.argtypes=[ctypes.c_int]*6;lib.kodi_airplay_upscale_model.restype=ctypes.c_int
+  self.reads_device=hasattr(lib,'kodi_device_state')
+  if self.reads_device:
+   lib.kodi_device_state.argtypes=[ctypes.c_char_p,ctypes.c_int];lib.kodi_device_state.restype=ctypes.c_int
+  self.audio_languages=self.subtitle_languages=''
   self.keeps_image_subs=hasattr(lib,'kodi_airplay_prepare_keep_image_subs')
   if self.keeps_image_subs:
    lib.kodi_airplay_prepare_keep_image_subs.argtypes=[ctypes.c_int];lib.kodi_airplay_prepare_keep_image_subs.restype=None
    lib.kodi_airplay_prepare_keep_image_subs(1)
  def set_subtitle_languages(self,codes):
   """Keep subtitles in these language tags (and untagged ones); '' keeps every subtitle (owner, build 180)."""
+  self.subtitle_languages=str(codes or '')
   if getattr(self,'filters_subtitles',False):self.lib.kodi_airplay_prepare_subtitle_languages(str(codes or '').encode())
  def set_audio_languages(self,codes):
   """Keep the first (original) audio track and these language tags ('' keeps every track)."""
+  self.audio_languages=str(codes or '')
   if self.filters_audio:self.lib.kodi_airplay_prepare_audio_languages(str(codes or '').encode())
+ def upscale_support(self,width,height,label,engine=0):
+  """What this phone can do for a width x height picture in the `label` box (picture.SIZES), as a dict:
+  engine 'ai-video' | 'ai-image' | 'ai-fast' | 'none', model 'ready' | 'downloading' | 'download-required' | 'none'."""
+  if not getattr(self,'upscales',False):return {'engine':'none','model':'none','why':'This build has no AI upscaler'}
+  import picture
+  bw,bh=picture.box(label);out=ctypes.create_string_buffer(2048)
+  n=self.lib.kodi_airplay_upscale_support(int(width),int(height),bw,bh,int(engine),out,len(out))
+  if n<0:raise RuntimeError('Upscale support answer did not fit')
+  return json.loads(out.value.decode())
+ def upscale_model(self,width,height,label,engine=0,start=False):
+  """2 ready, 1 downloading, 0 download required, -1 no AI engine for this size (start=True starts the download)."""
+  if not getattr(self,'upscales',False):return -1
+  import picture
+  bw,bh=picture.box(label)
+  return int(self.lib.kodi_airplay_upscale_model(int(width),int(height),bw,bh,int(engine),int(bool(start))))
+ def device_state(self):
+  """{'battery': 0..1 or -1, 'charging': 1/0/-1, 'thermal': 'nominal'|'fair'|'serious'|'critical', 'low_power': 0/1}."""
+  if not getattr(self,'reads_device',False):return {'battery':-1,'charging':-1,'thermal':'unknown','thermal_id':-1,'low_power':0}
+  out=ctypes.create_string_buffer(256)
+  if self.lib.kodi_device_state(out,len(out))<0:return {'battery':-1,'charging':-1,'thermal':'unknown','thermal_id':-1,'low_power':0}
+  return json.loads(out.value.decode())
  def probe(self,path):
   out=ctypes.create_string_buffer(1024)
   if hasattr(self.lib,'kodi_airplay_probe_ex'):
@@ -217,7 +250,7 @@ class Native:
   error=ctypes.create_string_buffer(512)
   if self.lib.kodi_airplay_verify(os.fsencode(source),os.fsencode(output),error,len(error)):
    raise RuntimeError(error.value.decode('utf-8','replace') or 'Prepared Drive file validation failed')
- def convert_to(self,source,sink,keep_going,progress,paused=None,waiting=None,resume=None):
+ def convert_to(self,source,sink,keep_going,progress,paused=None,waiting=None,resume=None,upscale=None):
   """paused(): the conversion should wait where it is rather than stop (a video is playing); waiting() is called
   about once a second meanwhile. Owner (build 175): a storage-free conversion cannot resume, so every video played
   used to throw away hours of work."""
@@ -256,12 +289,23 @@ class Native:
     except Exception:pass
     done.wait(2)
   threading.Thread(target=screen,daemon=True).start()
+  # r48: an upscaled copy keeps every audio and subtitle track of the prepared file it is made from (the language
+  # choice already ran when that file was prepared); the converter takes the box for this one call only.
+  if upscale:
+   if not getattr(self,'upscales',False):done.set();raise RuntimeError('This build has no AI upscaler')
+   if self.filters_audio:self.lib.kodi_airplay_prepare_audio_languages(b'')
+   if getattr(self,'filters_subtitles',False):self.lib.kodi_airplay_prepare_subtitle_languages(b'')
+   self.lib.kodi_airplay_prepare_upscale(*[int(v) for v in upscale])
   try:
    if resume:
     if not self.resumes:raise ResumeFailed('This framework cannot carry on a conversion')
     r=self.lib.kodi_airplay_prepare_resume(os.fsencode(source),resume.encode(),writer,None,callback,None,error,len(error))
    else:r=self.lib.kodi_airplay_prepare_to(os.fsencode(source),writer,None,callback,None,error,len(error))
-  finally:done.set()
+  finally:
+   done.set()
+   if upscale:
+    self.lib.kodi_airplay_prepare_upscale(0,0,0,0)   # never carried into the next ordinary preparation
+    self.set_audio_languages(self.audio_languages);self.set_subtitle_languages(self.subtitle_languages)
   if errors:raise errors[0]
   if not keep_going() or r==-2:raise driveupload.Stop('Preparation paused')
   if r and resume and error.value.decode('utf-8','replace').startswith('Resume'):raise ResumeFailed(error.value.decode('utf-8','replace'))

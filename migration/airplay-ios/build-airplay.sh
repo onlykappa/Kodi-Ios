@@ -58,10 +58,23 @@
 # prepared movie remuxed (picture copied, 6-s segments, audio apart) instead of the muxed byte-range playlist; the
 # start of a prepared file is read ahead into the cache (and kept there) as soon as its playlists exist; a TV's AirPlay
 # that turns the prepared playlist down before any fragment gets the converted stream once.
+# r48 (DEC-039/DEC-040): AI upscaled copies. kodi_airplay_prepare_upscale(box_w, box_h, engine, kbps) makes the next
+# preparation an HEVC copy at a larger size: each picture goes through Apple's super resolution (VTFrameProcessor with
+# VTSuperResolutionScalerConfiguration / VTLowLatencySuperResolutionScalerConfiguration, iOS 26+, remux/src/kr_upscale.m)
+# and is fitted to the box on the GPU; audio and subtitles as preparation keeps them. kodi_airplay_upscale_support()
+# and kodi_airplay_upscale_model() say what this phone can do and fetch the model; kodi_device_state() gives battery,
+# charging, thermal state and Low Power Mode for the measurement build and "only while charging". Built with the
+# iOS 26 SDK (Xcode 26); the classes are weak-linked, so older iOS reports "not available" and runs as before.
 # Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh, REMUX_LIBASS=DIR
 # one of build-libass.sh ios)
 set -euo pipefail
 [[ "$(uname -s)" == Darwin ]] || { echo 'BLOCKED: macOS with the iPhoneOS SDK is required.' >&2; exit 2; }
+# r48: the AI upscaler needs the iOS 26 SDK. The runner's default Xcode may be older: take the newest Xcode 26+.
+if [[ "$(xcrun --sdk iphoneos --show-sdk-version | cut -d. -f1)" -lt 26 ]]; then
+  for x in $(ls -d /Applications/Xcode_2[6-9]*.app 2>/dev/null | sort -t_ -k2 -V -r); do export DEVELOPER_DIR="$x/Contents/Developer"; break; done
+fi
+echo "Xcode: ${DEVELOPER_DIR:-default}; iPhoneOS SDK $(xcrun --sdk iphoneos --show-sdk-version)"
+[[ "$(xcrun --sdk iphoneos --show-sdk-version | cut -d. -f1)" -ge 26 ]] || { echo 'BLOCKED: r48 needs the iOS 26 SDK (Xcode 26) for AI upscaling' >&2; exit 2; }
 OUT="$(mkdir -p "${1:?output directory}" && cd "$1" && pwd)"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/kodi-airplay.XXXXXX")"
 HERE="$(cd "$(dirname "$0")" && pwd)"; REMUX="$HERE/remux"
@@ -1200,14 +1213,20 @@ FW="$OUT/KodiAirPlay.framework"; rm -rf "$FW"; mkdir -p "$FW"
 CC_IOS=(xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -O2 -std=gnu11 -I"$FF/include" -I"$ASS/include")
 OBJS=()
 for c in "$REMUX"/src/*.c "$REMUX"/gmplayer/*.c; do
+  [[ "$(basename "$c")" == kr_upscale_stub.c ]] && continue   # r48: the phone has the real engine (kr_upscale.m)
   o="$WORK/$(basename "${c%.c}").o"; "${CC_IOS[@]}" -c "$c" -o "$o"; OBJS+=("$o")
 done
+# r48: Apple's super resolution (Objective-C, ARC).
+xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -O2 -fobjc-arc -fmodules \
+  -I"$FF/include" -I"$REMUX/src" -c "$REMUX/src/kr_upscale.m" -o "$WORK/kr_upscale.o"
+OBJS+=("$WORK/kr_upscale.o")
 # Only Kodi's entry points are exported: Kodi has its own FFmpeg, these copies stay private to the framework.
 printf '_kodi_airplay_show\n_kodi_airplay_open\n_kodi_airplay_play\n_kodi_airplay_state\n_kodi_airplay_close\n_kodi_airplay_message\n_kodi_airplay_log\n_kodi_airplay_subtitles\n_kodi_background_keep\n_kodi_background_state\n_kodi_airplay_prepare\n_kodi_airplay_probe\n_kodi_airplay_prepare_streams\n_kodi_airplay_prepare_keep_image_subs\n_kodi_airplay_prepare_to\n_kodi_airplay_verify\n_kodi_airplay_prepare_hdr\n_kodi_airplay_probe_ex\n_kodi_airplay_prepare_audio_languages\n_kodi_airplay_prepare_background\n_kodi_airplay_prepare_subtitle_languages\n_kodi_airplay_prepare_marks\n_kodi_airplay_prepare_resume\n_kodi_airplay_start_at\n_kodi_airplay_serve\n_kodi_airplay_serve_segmented\n' > "$WORK/exports"
 printf '_kodi_http_copy\n_kodi_http_reads\n_kodi_airplay_serve_copy\n_kodi_airplay_network\n_kodi_airplay_settings\n_kodi_airplay_active\n_kodi_airplay_health\n_kodi_airplay_startup_budget\n_kodi_http_send\n' >> "$WORK/exports"
+printf '_kodi_airplay_prepare_upscale\n_kodi_airplay_upscale_support\n_kodi_airplay_upscale_model\n_kodi_device_state\n' >> "$WORK/exports"   # r48
 xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=$MIN_IOS -fobjc-arc -O2 -dynamiclib \
   -install_name @rpath/KodiAirPlay.framework/KodiAirPlay -framework UIKit -framework AVKit -framework AVFoundation -framework CoreGraphics -framework CoreMedia \
-  -framework VideoToolbox -framework CoreVideo -framework CoreText \
+  -framework VideoToolbox -framework CoreVideo -framework CoreText -framework Metal \
   -I"$REMUX/src" -Wl,-exported_symbols_list,"$WORK/exports" \
   -o "$FW/KodiAirPlay" "$WORK/KodiAirPlay.m" "${OBJS[@]}" \
   "$ASS/lib/libass.a" "$ASS/lib/libharfbuzz.a" "$ASS/lib/libfribidi.a" "$ASS/lib/libfreetype.a" -lc++ \
@@ -1245,6 +1264,12 @@ nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(health|startup_budget)|http
 # r8: the per-receiver picture and the TV's segment count are linked in (private to the framework, not exported).
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _kr_remux_(third_party_receiver|served_external|compat_clients)$')" == 3 ]] || { echo 'r8 remuxer missing' >&2; exit 1; }
 [[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _(kr_dovi_convert|kr_source_set_interrupt|kr_video_subtitle_scan_end)$')" == 3 ]] || { echo 'AirPlay RPU/seek source fixes missing' >&2; exit 1; }
+# r48: the upscaler's entry points are exported and Apple's super resolution classes are linked (weakly, iOS 26+).
+nm -gU "$FW/KodiAirPlay" | grep -E ' _kodi_(airplay_(prepare_upscale|upscale_support|upscale_model)|device_state)$'
+[[ "$(nm -gU "$FW/KodiAirPlay" | grep -cE ' _kodi_(airplay_(prepare_upscale|upscale_support|upscale_model)|device_state)$')" == 4 ]] || { echo 'r48 upscale exports missing' >&2; exit 1; }
+nm -m "$FW/KodiAirPlay" | grep -E '_OBJC_CLASS_\$_VT(LowLatency)?SuperResolutionScaler(Configuration|Parameters)'
+[[ "$(nm -m "$FW/KodiAirPlay" | grep -E 'weak external _OBJC_CLASS_\$_VT(SuperResolutionScalerConfiguration|SuperResolutionScalerParameters|LowLatencySuperResolutionScalerConfiguration|LowLatencySuperResolutionScalerParameters|FrameProcessor|FrameProcessorFrame)' | wc -l | tr -d ' ')" -ge 6 ]] || { echo 'r48 super resolution classes not weak-linked' >&2; exit 1; }
+[[ "$(nm "$FW/KodiAirPlay" | grep -cE ' [tT] _(kr_upscale_open|kr_upscale_frame|kr_video_set_upscale)$')" == 3 ]] || { echo 'r48 upscaler not linked' >&2; exit 1; }
 # r7: the picture bridge needs Apple's hardware H.264 encoder in this FFmpeg.
 grep -q -- '--enable-encoder=h264_videotoolbox' "$FF/FFMPEG-CONFIG.txt" || { echo 'FFmpeg built without h264_videotoolbox' >&2; exit 1; }
 lipo -info "$FW/KodiAirPlay"

@@ -282,3 +282,38 @@ Picture with the default and the shows that have their own. AI Upscale must work
 **prepared in the background** like a conversion, only for 720p and 1080p downloads (4K sources are downloaded as
 4K), with Apple's VTSuperResolutionScaler (iOS 26+) in the KodiAirPlay converter. Start with a measurement build that
 upscales one episode (time, heat, size on Drive). Another agent codes it.
+
+## DEC-040 — AI Upscale engine: Apple's super resolution in KodiAirPlay; no "AI" fallback that is not AI (2026-11-12)
+
+Research for DEC-039, before any code (sources: Apple's VideoToolbox documentation and the iOS 26.0 SDK headers
+`VTFrameProcessor_SuperResolutionScaler.h` / `VTFrameProcessor_LowLatencySuperResolutionScaler.h`; Apple's WWDC25
+session 300 and its sample code "Enhancing your app with machine learning-based video effects" (MIT-style licence,
+read, not copied); MetalFX documentation; Anime4K and its Metal port).
+
+| Option | Quality | Speed / cost | Licence | Fit here |
+|---|---|---|---|---|
+| **VTSuperResolutionScaler** (VTFrameProcessor, iOS 26+) | ML model; the **video** model uses the previous frame and previous output (temporal, fewer flickers); an **image** model per frame | Apple Neural Engine/GPU; not measured on this phone yet | System framework, no licence to carry | Fits the converter: CVPixelBuffer in/out like the existing VTPixelTransferSession path. Limits on iOS: video model input **at most 1440×1080**, image model at most 1920×1080; integer factors (`supportedScaleFactors`); the model may need a **download** (`configurationModelStatus`, `downloadConfigurationModel`) |
+| VTLowLatencySuperResolutionScaler (iOS 26+) | lighter ML model made for video calls (sharper edges, fewer coding artefacts) | made for real time, low power | System | Takes fractional factors (Apple's sample: 1.5, 2, 4) and runtime `maximumDimensions`; a fallback when the main model does not take the size |
+| MetalFX spatial scaler (`MTLFXSpatialScaler`) | spatial, not ML; built for rendered game frames | very fast | System | Not designed for compressed video; quality close to a good resize. Not chosen |
+| Anime4K (bloc97, MIT) / Anime4KMetal (Apache-2.0) | strong on line art (anime such as Naruto); weak on live action | fast GPU shaders | MIT / Apache-2.0, compatible with the framework's LGPL | Would need a GLSL→Metal port inside our converter and a per-show "anime" choice. Kept as a candidate if the measurement shows Apple's model is too slow or soft on anime; not built now |
+| Lanczos resize (libswscale `SWS_LANCZOS`) | classic resize, no new detail | CPU, slow at 4K | LGPL (already linked) | Not AI. A TV's own scaler does as well, so a Lanczos copy would cost 2.5× Drive space for nothing visible |
+
+Decision:
+1. The engine is Apple's **VTSuperResolutionScaler** inside KodiAirPlay's preparation converter (r48,
+   `remux/src/kr_upscale.m`): decode (VideoToolbox, or software for 10-bit H.264) → super resolution → fit to the exact
+   target size on the GPU (VTPixelTransferSession) → HEVC with VideoToolbox; audio and subtitles go through the existing
+   preparation path unchanged (copied when they are already AAC / mov_text, which every prepared download is).
+2. Automatic order: video model (temporal) when the source fits it (720p, 1440×1080), else the image model (1920×1080
+   sources on iOS), else the low-latency model. The measurement build logs which one ran and can force each.
+3. `isSupported` and the model status are checked at run time; the model is downloaded by an explicit step (Settings or
+   the measurement), never in the middle of a conversion. When no AI engine takes the source, the person sees **"Not
+   available on this iPhone"**: there is no silent fallback. The converter has a Lanczos engine, named "Lanczos resize
+   (not AI)" everywhere, for host tests and the measurement's comparison only; it is never offered as AI Upscale.
+4. HDR sources are not upscaled (the models take SDR pictures; 720p/1080p HDR downloads are rare). 4K sources never.
+5. "2K" in the approved slider sits between 1440p and 4K UHD, so it is taken as 2880×1620 (1.5× 1080p); the sizes are
+   boxes (720p 1280×720, 1080p 1920×1080, 1440p 2560×1440, 2K 2880×1620, 4K UHD 3840×2160) and the picture is fitted
+   inside with square pixels. To confirm with the owner.
+6. Bit rate: HEVC at about 4 Mbit/s per 1080p of area (16 Mbit/s at 4K UHD): about 2.9 GB for a 24-minute episode.
+   The measurement build reports the real size; the rate is a parameter.
+7. One AI engine at a time: an upscale conversion uses one lane (each lane holds its own engine and 4K buffers), and
+   the upscale step runs in the preparation queue's thread, after ordinary preparation work.

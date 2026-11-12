@@ -9,6 +9,21 @@
   build's kodi_airplay_serve_copy + correlated receiver evidence. No IPA/native release dispatched here.
 - Compiled recommendations suite: 41 checks, 0 failures. Phone/TV acceptance and hour-long/caption tests remain open.
 
+## HANDOFF 2026-11-12 (AI Upscaler, PR #21) — read this first
+
+- Pins: AirPlay r47 pinned (run 43251110403, digest checked by download). Kodi r31 (run 43256323634) still building
+  at this point; pin it from that run when it finishes.
+- Research done, engine chosen: DEC-040 (Apple VTSuperResolutionScaler in KodiAirPlay; no "AI" fallback that is not AI).
+- Measurement build (DEC-039 step 1) coded: KodiAirPlay r48 staged (source-lock placeholder sha256; airplay-ios builds
+  and publishes it on this PR, then pin by checksum). Native: remux/src/kr_upscale.m (+ stub for host), kr_video
+  upscale path, kr_prepare kodi_airplay_prepare_upscale / upscale_support / upscale_model, kodi_device_state.
+  Add-on: Settings › Google Drive › "AI Upscale test" (upscale_test.py) → upscale_measure.py runs in the preparation
+  thread, counts the copy (nothing uploaded), logs 'upscale measurement:' lines and a RESULT JSON line to kodi.log.
+- Host-tested: remux/tests/upscale_host.py 23/23, test_picture 13, test_upscale_measure 10, import-review list 79/79.
+- Next: pin r48, IPA, give it to the owner and ask for the kodi.log of one 1080p episode → 4K test (whole video, and
+  the 3-minute compare). Only then: the upscale queue step, playback choice, Picture menu, Settings › Picture (task
+  list in the final report of this session). Open question for the owner: "2K" taken as 2880×1620 (DEC-040 item 5).
+
 ## HANDOFF 2026-11-12 (PR #21, branch claude/trusting-euler-kgug98) — read this first
 
 - Next agent: code the **AI Upscaler** per DEC-039 and docs/design/video-picture-mockups.html (round 4, approved):

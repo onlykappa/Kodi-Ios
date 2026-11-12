@@ -8,6 +8,7 @@
 #ifndef KR_VIDEO_H
 #define KR_VIDEO_H
 #include "../gmplayer/gm_stream.h"
+#include <libavutil/rational.h>
 typedef struct kr_video kr_video;
 // A seek superseded speculative conversion. Distinct from a decode/read/encode failure.
 #define KR_VIDEO_CANCELLED (-2)
@@ -82,4 +83,14 @@ int kr_video_burn_events(const kr_video *v);  // subtitle events loaded so far (
 long kr_video_burn_drawn(const kr_video *v);  // r11: converted frames with a subtitle drawn on them so far
 // r20: how the last segment was made, for the preparation log.
 const char *kr_video_route(kr_video *v);
+// r48 (DEC-039/DEC-040): upscaled copies. Offline preparation only: kr_video_keep_resolution reads this and, when the
+// picture is smaller than the box, makes an HEVC copy at the box fitted to the picture (square pixels). engine is
+// KR_UP_* (kr_upscale.h); box_w <= 0 turns it off. Preparation runs one conversion at a time: set before, clear after.
+void kr_video_set_upscale(int box_w, int box_h, int engine, int kbps);
+// The output size for a w x h picture (sample aspect ratio sar) in a box_w x box_h box: 1 and *ow/*oh, or 0 when the
+// picture already fills the box (never shrinks). Exposed for tests.
+int kr_video_upscale_size(int w, int h, AVRational sar, int box_w, int box_h, int *ow, int *oh);
+int kr_video_upscaling(const kr_video *v);
+// "AI super resolution (image model, 2x)", "Lanczos resize (not AI)" or "off".
+const char *kr_video_upscaler(const kr_video *v);
 #endif

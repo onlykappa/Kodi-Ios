@@ -33,4 +33,16 @@ void kodi_airplay_prepare_marks(int on);
 int kodi_airplay_prepare_resume(const char *input,const char *resume,kr_prepare_write write,void *write_context,
                                 kr_prepare_progress progress,void *context,char *error,int error_size);
 int kodi_airplay_verify(const char *input,const char *output,char *error,int error_size);
+// r48 (DEC-039/DEC-040): the next kodi_airplay_prepare* call makes an upscaled HEVC copy in a box_w x box_h box (the
+// picture fitted inside, square pixels) instead of an ordinary preparation; audio and subtitles are kept as preparation
+// keeps them. engine: 0 the best AI engine, 1 Lanczos (not AI), 2 AI video model, 3 AI image model, 4 AI low latency.
+// kbps 0: about 4 Mbit/s per 1080p of area. Refused with a reason for HDR or a picture that already fills the box.
+// Used by one conversion, then cleared.
+void kodi_airplay_prepare_upscale(int box_w,int box_h,int engine,int kbps);
+// What this phone can do for a w x h picture in that box, as JSON (see kr_upscale.h). Length, or negative.
+int kodi_airplay_upscale_support(int w,int h,int box_w,int box_h,int engine,char *json,int size);
+// The AI model for it: 2 ready, 1 downloading, 0 download required (start=1 starts the download), -1 no AI engine.
+int kodi_airplay_upscale_model(int w,int h,int box_w,int box_h,int engine,int start);
+// Battery, charging, thermal state and Low Power Mode as JSON (iPhone; -1 / "unknown" elsewhere).
+int kodi_device_state(char *json,int size);
 #endif
