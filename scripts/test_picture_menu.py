@@ -99,5 +99,24 @@ class Board_E(unittest.TestCase):
         self.assertEqual((m['airplay'], m['note']), (None, 'AI Upscale works on downloads (a copy is made on Google Drive).'))
 
 
+class Window(unittest.TestCase):
+    def test_no_double_negation_in_conditions(self):
+        # Rig (build of V1): the card's background never showed: '!' + '!String.IsEmpty(...)' reads as '!String.IsEmpty'.
+        import picture_osd
+        from xml.dom import minidom
+        text = picture_osd.menu()
+        minidom.parseString(text.encode())
+        self.assertNotIn('!!', text)
+        self.assertIn('String.IsEmpty(Window().Property(upscale))', text)
+
+    def test_every_stop_has_its_own_button(self):
+        import picture_osd as po
+        xml = po.menu()
+        ids = [po.stop_id(n, k) for n in range(2, 6) for k in range(n)]
+        self.assertEqual(len(ids), len(set(ids)))
+        for i in ids:
+            self.assertIn('id="%d"' % i, xml)
+
+
 if __name__ == '__main__':
     unittest.main()

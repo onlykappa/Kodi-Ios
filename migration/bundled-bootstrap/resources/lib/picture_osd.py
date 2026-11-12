@@ -18,7 +18,7 @@ MEDIA = 'special://skin/extras/portrait/'
 ICONS = 'special://skin/extras/icons/'
 W, ROW, HEAD, PAD = 840, 118, 108, 27
 UP_H = 2 * ROW + 40       # AI Upscale: its title row and the slider
-TV_H = 190                # AirPlay: headline, line, bar or button
+TV_H = 240                # AirPlay: headline, a line that may take two rows, bar or button
 NOTE_H = 80
 SAT_H = ROW + 40
 
@@ -45,6 +45,7 @@ def _btn(ident, x, y, w, h, extra=''):
 P = lambda k: '$INFO[Window().Property(%s)]' % k
 IS = lambda k, v: 'String.IsEqual(Window().Property(%s),%s)' % (k, v)
 HAS = lambda k: '!String.IsEmpty(Window().Property(%s))' % k
+EMPTY = lambda k: 'String.IsEmpty(Window().Property(%s))' % k   # never '!' + HAS(k): Kodi reads '!!X' as '!X'
 MAIN = 'String.IsEmpty(Window().Property(page))'
 
 
@@ -57,8 +58,9 @@ def _upscale():
     x0, x1 = PAD + 70, W - PAD - 70
     body = _img(PAD, 0, W - 2 * PAD, UP_H - 20, MEDIA + 'round_s.png', '47000000', border='26')
     body += _lab(PAD + 36, 0, 300, ROW, 'AI Upscale', 'font_main')
-    body += _img(PAD + 270, (ROW - 56) // 2, 120, 56, MEDIA + 'pill_72.png', '1FFFFFFF', border='28')
-    body += _lab(PAD + 270, 0, 120, ROW, P('src'), 'font_mini', '99EBEBF5', 'center')
+    # The video's own size as a grey tag, clear of the title (rig: at +270 it sat on "AI Upscale").
+    body += _img(PAD + 360, (ROW - 56) // 2, 130, 56, MEDIA + 'pill_72.png', '1FFFFFFF', border='28')
+    body += _lab(PAD + 360, 0, 130, ROW, P('src'), 'font_mini', '99EBEBF5', 'center')
     body += _lab(W - PAD - 236, 0, 200, ROW, P('chosen'), 'font_main_bold', 'FF4FA8FF', 'right')
     ty = ROW + 26
     body += _img(x0, ty - 4, x1 - x0, 8, MEDIA + 'dot.png', '33FFFFFF', border='4')
@@ -83,16 +85,17 @@ def _upscale():
 def _tv():
     """Board E: on AirPlay, the copy's state under the slider."""
     body = _lab(PAD + 36, 0, W - 2 * PAD - 72, 60, P('tv.head'), 'font_main_bold', 'FFFFFFFF', 'left', '<visible>%s</visible>' % HAS('tv.head'))
-    body += _lab(PAD + 36, 56, W - 2 * PAD - 72, 56, P('tv.line'), 'font_mini', '99EBEBF5')
+    body += _lab(PAD + 36, 54, W - 2 * PAD - 72, 100, P('tv.line'), 'font_mini', '99EBEBF5', 'left',
+                 '<wrapmultiline>true</wrapmultiline>').replace('<aligny>center</aligny>', '<aligny>top</aligny>')
     # Preparing: the thin bar (DEC-036), filled by the script (Kodi cannot read a percentage from a property).
     body += ('<control type="progress" id="9531"><left>%d</left><top>%d</top><width>%d</width><height>11</height><visible>%s</visible>'
              '<texturebg border="5" colordiffuse="33FFFFFF">%sdot.png</texturebg><lefttexture />'
              '<midtexture border="5" colordiffuse="FF0A84FF">%sdot.png</midtexture><righttexture /></control>') % (
-        PAD + 36, 128, W - 2 * PAD - 72, IS('tv.state', 'preparing'), MEDIA, MEDIA)
+        PAD + 36, 176, W - 2 * PAD - 72, IS('tv.state', 'preparing'), MEDIA, MEDIA)
     # Not prepared yet: one white capsule.
-    body += _img(PAD + 36, 112, W - 2 * PAD - 72, 72, MEDIA + 'pill_72.png', 'FFFFFFFF', '<visible>%s</visible>' % HAS('tv.button'), '36')
-    body += _lab(PAD + 36, 112, W - 2 * PAD - 72, 72, P('tv.button'), 'font_main_bold', 'FF000000', 'center', '<visible>%s</visible>' % HAS('tv.button'))
-    body += _btn(PREPARE, PAD + 36, 100, W - 2 * PAD - 72, 96, '<visible>%s</visible>' % HAS('tv.button'))
+    body += _img(PAD + 36, 158, W - 2 * PAD - 72, 72, MEDIA + 'pill_72.png', 'FFFFFFFF', '<visible>%s</visible>' % HAS('tv.button'), '36')
+    body += _lab(PAD + 36, 158, W - 2 * PAD - 72, 72, P('tv.button'), 'font_main_bold', 'FF000000', 'center', '<visible>%s</visible>' % HAS('tv.button'))
+    body += _btn(PREPARE, PAD + 36, 140, W - 2 * PAD - 72, 108, '<visible>%s</visible>' % HAS('tv.button'))
     return _group(TV_H, body, '%s + %s + %s' % (MAIN, HAS('upscale'), HAS('tv')))
 
 
@@ -130,7 +133,8 @@ def _apply_page():
         LIST, PAD, W - 2 * PAD, 3 * ROW, BACK_LINK, RESET, ROW, W - 2 * PAD, row(False), ROW, W - 2 * PAD, row(True))
     body += _lab(PAD + 36, 3 * ROW + 10, W - 2 * PAD - 72, ROW, 'Reset this show to the default', 'font_main', 'FF4FA8FF')
     body += _btn(RESET, PAD, 3 * ROW + 10, W - 2 * PAD, ROW, '<onup>%d</onup>' % LIST)
-    body += _lab(PAD + 36, 4 * ROW + 20, W - 2 * PAD - 72, 90, "A show's own picture wins over the default.", 'font_mini', '99EBEBF5')
+    body += _lab(PAD + 36, 4 * ROW + 20, W - 2 * PAD - 72, 100, "A show's own picture wins over the default.", 'font_mini', '99EBEBF5', 'left',
+                 '<wrapmultiline>true</wrapmultiline>')
     return '<control type="group"><top>%d</top><visible>!%s</visible>%s</control>' % (HEAD, MAIN, body)
 
 
@@ -143,9 +147,9 @@ def _backgrounds():
                 if tv and not up:
                     continue
                 h = HEAD + up * UP_H + tv * TV_H + note * NOTE_H + SAT_H + PAD
-                cond = ' + '.join([MAIN, (HAS if up else lambda k: '!' + HAS(k))('upscale'),
-                                   (HAS if tv else lambda k: '!' + HAS(k))('tv') if up else 'true',
-                                   (HAS if note else lambda k: '!' + HAS(k))('note')])
+                cond = ' + '.join([MAIN, (HAS if up else EMPTY)('upscale'),
+                                   (HAS if tv else EMPTY)('tv') if up else 'true',
+                                   (HAS if note else EMPTY)('note')])
                 out += _img(0, 0, W, h, MEDIA + 'round_s.png', 'F52C2C2E', '<visible>%s</visible>' % cond, '26')
     out += _img(0, 0, W, HEAD + 4 * ROW + 140, MEDIA + 'round_s.png', 'F52C2C2E', '<visible>!%s</visible>' % MAIN, '26')
     return out
