@@ -1094,18 +1094,20 @@ def centered_dialog(original,body,default):
 
 SELECT_ROWS=7
 def select_dialog(original):
- """Kodi's select dialog, and so "How would you like to watch?": an iOS action sheet in the middle,
- sized to its rows. With the title's art (the watch chooser) the art leads the card."""
- x=96;w=WIDTH-2*x;row_h=132;cancel_h=128;gap=22
+ """Kodi's select dialog, and so "How would you like to watch?": an iOS action sheet at the bottom of the screen
+ (owner-approved board 01, docs/design/fuse-windows-mockups.html; roadmap U.1), sized to its rows: the question in a
+ small bold heading, rows with the name on the left (a tile and a grey second line when the caller gives them),
+ then a separate solid Cancel in blue. With the title's art (the watch chooser) the art leads the card."""
+ x=27;w=WIDTH-2*x;row_h=132;cancel_h=156;gap=27;bottom=40
  titled='[!String.IsEmpty(Container(3).ListItem.Art(poster)) | !String.IsEmpty(Container(6).ListItem.Art(poster))]'
  count=lambda n,op='IsEqual':'[Integer.%s(Container(3).NumItems,%d) | Integer.%s(Container(6).NumItems,%d)]'%(op,n,op,n)
  head_plain,head_art=170,170+300
  # Card height for n rows (n<SELECT_ROWS; more rows scroll inside the full card).
  def card_h(n,head):return head+n*row_h
- full=card_h(SELECT_ROWS,head_art)+gap+cancel_h;top=(HEIGHT-full)//2
+ full=card_h(SELECT_ROWS,head_art)+gap+cancel_h;top=HEIGHT-full-bottom
  heading=('<control type="image"><left>%d</left><top>36</top><width>420</width><height>236</height><texture diffuse="%sthumb_mask.png">$VAR[Portrait_Select_Art]</texture><aspectratio>scale</aspectratio><visible>%s</visible></control>'%((w-420)//2,MEDIA,titled)+
-  '<control type="group"><visible>%s</visible>%s</control>'%(titled,label(40,290,w-80,150,'$INFO[Control.GetLabel(1)]','p_h3',WHITE,'center','<wrapmultiline>true</wrapmultiline>'))+
-  '<control type="group"><visible>!%s</visible>%s</control>'%(titled,label(40,24,w-80,130,'$INFO[Control.GetLabel(1)]','p_h3',WHITE,'center','<wrapmultiline>true</wrapmultiline>'))+
+  '<control type="group"><visible>%s</visible>%s</control>'%(titled,label(40,290,w-80,150,'$INFO[Control.GetLabel(1)]','p_pill',WHITE,'center','<wrapmultiline>true</wrapmultiline>'))+
+  '<control type="group"><visible>!%s</visible>%s</control>'%(titled,label(40,24,w-80,130,'$INFO[Control.GetLabel(1)]','p_pill',WHITE,'center','<wrapmultiline>true</wrapmultiline>'))+
   '<control type="label" id="1"><visible>false</visible></control>')
  icon_row='!String.IsEmpty(ListItem.Icon) + !String.StartsWith(ListItem.Icon,Default) + String.IsEmpty(ListItem.Art(poster))'
  # Owner-approved pickers (docs/design/settings-pages-mockups.html boards 13-14): a choice may carry a second line
@@ -1113,7 +1115,7 @@ def select_dialog(original):
  tile='!String.IsEmpty(ListItem.Property(tint))';two='!String.IsEmpty(ListItem.Label2)'
  item=lambda focused:(image(0,0,w,2,MEDIA+'white.png',SEP)+(image(0,2,w,row_h-2,MEDIA+'white.png','14FFFFFF') if focused else '')+
   icon(40,(row_h-72)//2,72,'$INFO[ListItem.Icon]',WHITE,'<visible>%s + !%s</visible>'%(icon_row,tile))+
-  label(40,0,w-80,row_h,'$INFO[ListItem.Label]','p_sub',WHITE,'center','<wrapmultiline>true</wrapmultiline><scroll>false</scroll><visible>![%s] + !%s + !%s</visible>'%(icon_row,tile,two))+
+  label(48,0,w-150,row_h,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>![%s] + !%s + !%s</visible>'%(icon_row,tile,two))+
   label(140,0,w-200,row_h,'$INFO[ListItem.Label]','p_body',WHITE,'left','<visible>%s + !%s + !%s</visible>'%(icon_row,tile,two))+
   # a tile: 80 square in the choice's colour with its glyph, text beside it
   image(40,(row_h-80)//2,80,80,MEDIA+'tile_mask.png','$INFO[ListItem.Property(tint)]','<visible>%s</visible>'%tile)+
@@ -1124,7 +1126,7 @@ def select_dialog(original):
   # two lines, no tile: left-aligned name over its detail
   label(40,10,w-130,70,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll><visible>!%s + %s</visible>'%(tile,two))+
   label(40,72,w-130,48,'$INFO[ListItem.Label2]','p_foot',GREY,'left','<scroll>false</scroll><visible>!%s + %s</visible>'%(tile,two))+
-  icon(w-86,(row_h-40)//2,40,'check.png',GREEN,'<visible>ListItem.IsSelected</visible>'))
+  icon(w-90,(row_h-44)//2,44,'check.png',ACCENT,'<visible>ListItem.IsSelected</visible>'))
  lists=''.join(('<control type="list" id="%d"><left>0</left><top>%d</top><width>%d</width><height>%d</height><onup>%d</onup><ondown>9050</ondown>'
   '<scrolltime tween="cubic">250</scrolltime><itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout>%s</control>'
   )%(id,head_plain,w,SELECT_ROWS*row_h,id,row_h,item(False),row_h,item(True),
@@ -1137,9 +1139,15 @@ def select_dialog(original):
    h=card_h(n,head)
    cards+=(image(0,0,w,h,MEDIA+'glass_card.png',WHITE,'<visible>%s + %s</visible>'%(cond,art_cond),border=44)+
      '<control type="group"><top>%d</top><visible>%s + %s</visible>%s</control>'%(h+gap,cond,art_cond,
-      pill_button(9050 if (n,head)==(1,head_art) else 0,0,0,w,cancel_h,'Cancel',[('','Close')],'glass','','<onup>3</onup>').replace('<control type="button" id="0">','<control type="button">')))
- slides=''.join('<animation effect="slide" end="0,%d" time="0" condition="%s + %s">Conditional</animation>'%((full-(card_h(n,head)+gap+cancel_h))//2,count(n),c)
+      # A solid surface (no see-through glass: the page's buttons showed through it) with the blue Cancel.
+      ('<control type="button"%s><left>0</left><top>0</top><width>%d</width><height>%d</height><label>Cancel</label><font>p_btn</font>'
+       '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
+       '<texturefocus border="44" colordiffuse="FF3A3A3C">%sglass_card.png</texturefocus><texturenofocus border="44" colordiffuse="FFFFFFFF">%sglass_card.png</texturenofocus>'
+       '<onclick>Close</onclick><onup>3</onup></control>')%(' id="9050"' if (n,head)==(1,head_art) else '',w,cancel_h,ACCENT,ACCENT,MEDIA,MEDIA)))
+ slides=''.join('<animation effect="slide" end="0,%d" time="0" condition="%s + %s">Conditional</animation>'%(full-(card_h(n,head)+gap+cancel_h),count(n),c)
                for n in range(1,SELECT_ROWS) for head,c in ((head_art,titled),(head_plain,'!'+titled)))
+ # A long list without art: the full card is shorter by the art's height, so it moves down to the bottom too.
+ slides+='<animation effect="slide" end="0,%d" time="0" condition="%s + !%s">Conditional</animation>'%(head_art-head_plain,count(SELECT_ROWS-1,'IsGreater'),titled)
  hidden=''.join('<control type="button" id="%d"><visible>false</visible></control>'%i for i in (5,7,8))+'<control type="label" id="2"><visible>false</visible></control>'
  body='<left>%d</left><top>%d</top><width>%d</width><height>%d</height>%s%s%s%s%s'%(x,top,w,full,slides,cards,heading,lists,hidden)
  return centered_dialog(original,body,'3')
