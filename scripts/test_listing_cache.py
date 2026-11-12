@@ -3,7 +3,7 @@
 The watch plugin's cached route only reads a copy (no JSON-RPC, no TMDb Helper); the skin picks cached or live per row
 from saved skin flags; the bootstrap service makes copies one at a time and sets a flag only after the copy reads back.
 """
-import importlib.util,json,os,sys,tempfile,time,unittest,xml.etree.ElementTree as ET
+import importlib.util,json,os,re,sys,tempfile,time,unittest,xml.etree.ElementTree as ET
 from pathlib import Path
 from types import SimpleNamespace
 ROOT=Path(__file__).resolve().parents[1]
@@ -258,6 +258,24 @@ class SkinTests(unittest.TestCase):
   contents=[c.findtext('content') for c in root.iter('control') if c.get('type')=='list' and c.findtext('content')]
   self.assertIn(portrait.CONTINUE+'all',contents);self.assertIn('videodb://movies/titles/',contents)  # not TMDb Helper: as before
   self.assertIn('$VAR[Portrait_Cache_Row_tv_2]',contents)
+ def test_a_rows_address_cannot_change_when_the_home_tab_is_shown_again(self):
+  """Roadmap 1D.1. Kodi (CDirectoryProvider::Update) fetches a row again only when its address, sort, limit or browse
+  mode evaluates differently, or an announcement marked it stale (patched out for plugin rows). Window de-init does not
+  reset a provider (CGUIWindow::FreeResources runs with immediately=false). So the one thing left that could reload
+  rows on a tab return is an address that reads something that changes with the window: this pins that every row
+  address and the conditions choosing it read only saved skin settings and add-on state."""
+  root,variables=self.hubs()
+  volatile=re.compile(r'\b(Player|Window|Container|Control|ListItem|Network|VideoPlayer|MusicPlayer|PVR|Library)\b|System\.(Time|Date|Idle|Uptime|Free|Cpu|Mem|Battery|Screen|ProfileName)')
+  texts=[c.findtext('content') for c in root.iter('control') if c.get('type') in ('list','fixedlist','panel','wraplist') and c.findtext('content')]
+  checked=0
+  for text in texts:
+   for name in re.findall(r'\$VAR\[([^\]]+)\]',text):
+    for value in ET.fromstring(variables[name]).findall('value'):
+     texts.append(value.text or '');texts.append(value.get('condition') or '')
+  for text in texts:
+   checked+=1
+   self.assertIsNone(volatile.search(text),'volatile info in a row address: '+text)
+  self.assertGreater(checked,10)
  def test_hero_compares_its_flag_with_the_current_spotlight(self):
   _,variables=self.hubs()
   hero=ET.fromstring(variables['Portrait_Cache_Hero_movies']).findall('value')

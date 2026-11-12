@@ -154,7 +154,7 @@ Home tab (`396d5d67` 09:36:48); 11-17 while a video opened or closed (`e8ab5995`
 
 | # | Work | Cause | Target |
 |---|---|---|---|
-| 1D.1 | Stop Home rows reloading on tab return: Kodi re-requests a plugin row whenever Home becomes visible again; give rows a stable path and refresh only when the listing cache says the content changed | Known: each request starts a Python interpreter (the cache answers in 3-30 ms, but the interpreter start costs far more) | 0 requests on tab return when nothing changed |
+| 1D.1 | Stop Home rows reloading on tab return: Kodi re-requests a plugin row whenever Home becomes visible again; give rows a stable path and refresh only when the listing cache says the content changed | Known: each request starts a Python interpreter (the cache answers in 3-30 ms, but the interpreter start costs far more) | 0 requests on tab return when nothing changed — **Verified by code reading + pinned (tab return); playback part native staged (Kodi r31); device check pending (speed-reliability-fixes): Kodi 21.3 source: returning to Home does not refetch rows unless a row's address changes; a test now pins that no row address reads window-dependent info** |
 | 1D.2 | No row refresh while a video opens or closes; refresh Continue Watching once after playback stops | Known: rows reload behind the player at its busiest moment | 0 requests during OpenFile |
 | 1D.3 | Load only the rows the visible tab shows; Movies and TV hubs load when opened | Known: hero.1101/hero.1102 (other tabs) load at start-up | start-up row requests 31 → ~10 |
 | 1D.4 | Spotlight: show the loading ring only when the hero has no items (owner screenshot shows it over a loaded hero) | Owner screenshot 2 | no ring over content |
