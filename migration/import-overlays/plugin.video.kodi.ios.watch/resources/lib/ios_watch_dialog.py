@@ -259,12 +259,29 @@ def warm_details(params,details_class=None):
   _quiet('ios_watch_dialog:warm',error)
   return False
 
-def fast_copy(handle,params,read_art=None,find=None,play=None):
+def continue_position(kind,tmdb_id,season,episode,read=None):
+ """(position, total) saved for this title in Continue Watching, or (0, 0)."""
+ try:
+  import ios_continue
+  if read is None:
+   import xbmcvfs
+   def read(location):
+    source=xbmcvfs.File(location)
+    try:return source.read()
+    finally:source.close()
+  entry=ios_continue.load(read)['items'].get(ios_continue.key({'kind':kind,'tmdb_id':tmdb_id,'season':season,'episode':episode})) or {}
+  return float(entry.get('position') or 0),float(entry.get('total') or 0)
+ except Exception:
+  return 0,0
+
+def fast_copy(handle,params,read_art=None,find=None,play=None,resume=None):
  """Roadmap 1C.2 (owner logs: 1.4-2.1 s in TMDb Helper before a downloaded copy played): Next Episode, spotlight
- Play and show pages play a copy already on the phone or Drive before TMDb Helper fetches details and builds its
- players. Only from saved data (art cache, saved Drive listing); Continue Watching and Choose source keep the full
- path (their resume and choice logic lives there). True when it played."""
- if params.get('ios_continue')=='1' or params.get('ios_choose')=='1':return False
+ Play, show pages and Continue Watching play a copy already on the phone or Drive before TMDb Helper fetches details
+ and builds its players. Only from saved data (art cache, saved Drive listing). Owner log 20b1ca76 (build 284): a
+ downloaded movie from Continue Watching took 8.8 s, 2 s of it in TMDb Helper and 5.8 s through the Google Drive
+ add-on; it now resumes from its saved place through the app's own Drive proxy (ios_library.play_downloaded asks
+ Continue or Start over). Choose source keeps the full path (its choice logic lives there). True when it played."""
+ if params.get('ios_choose')=='1':return False
  tmdb_type=params.get('tmdb_type');tmdb_id=str(params.get('tmdb_id') or '')
  if tmdb_type not in ('movie','tv') or not tmdb_id.isdigit():return False
  season,episode=str(params.get('season') or ''),str(params.get('episode') or '')
@@ -286,6 +303,9 @@ def fast_copy(handle,params,read_art=None,find=None,play=None):
   if not path:return False
   values={'path':path,'title':title,'show':'' if kind=='movie' else title,'kind':kind,'year':year,
           'ask':'1' if kind=='movie' else '0','season':season or '0','episode':episode or '0','tmdb_id':tmdb_id}
+  if params.get('ios_continue')=='1':
+   position,total=(resume or continue_position)(kind,tmdb_id,season,episode)
+   values.update(resume=position,total=total)
   if play is None:
    import ios_library
    play=ios_library.play_downloaded

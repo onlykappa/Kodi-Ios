@@ -108,10 +108,18 @@ class FastPath(unittest.TestCase):
   self.assertTrue(m.fast_copy(7,{'tmdb_type':'tv','tmdb_id':'275139','season':'1','episode':'2'},lambda:art,find,lambda h,v:played.append((h,v))))
   self.assertEqual((played[0][0],played[0][1]['show'],played[0][1]['kind'],played[0][1]['episode']),(7,'phony','episode','2'))
   self.assertFalse(m.fast_copy(7,{'tmdb_type':'tv','tmdb_id':'275139','season':'1','episode':'3'},lambda:art,find,lambda h,v:played.append(v)))
- def test_continue_watching_choose_and_unknown_titles_keep_the_full_path(self):
+ def test_choose_and_unknown_titles_keep_the_full_path(self):
   m=self.load();never=lambda *a:self.fail('looked up')
-  for extra in ({'ios_continue':'1'},{'ios_choose':'1'}):
-   self.assertFalse(m.fast_copy(1,dict({'tmdb_type':'movie','tmdb_id':'771'},**extra),never,never,never))
+  self.assertFalse(m.fast_copy(1,{'tmdb_type':'movie','tmdb_id':'771','ios_choose':'1'},never,never,never))
   self.assertFalse(m.fast_copy(1,{'tmdb_type':'movie','tmdb_id':'999'},lambda:{},never,never))
+
+ def test_continue_watching_resumes_a_downloaded_copy_through_the_fast_path(self):
+  # Owner log 20b1ca76 (build 284): 8.8 s from Continue Watching to the picture, through TMDb Helper and the Drive add-on.
+  m=self.load();played=[]
+  art={'movie:interstellar:2014':{'tmdb_id':'157336'}}
+  find=lambda kind,title,year,s,e:{'path':'plugin://plugin.googledrive/?action=play&item_id=f1','source':'drive'} if title=='interstellar' else None
+  self.assertTrue(m.fast_copy(3,{'tmdb_type':'movie','tmdb_id':'157336','ios_continue':'1'},lambda:art,find,lambda h,v:played.append(v),
+                              resume=lambda kind,tmdb,s,e:(1234.0,9000.0) if (kind,tmdb)==('movie','157336') else (0,0)))
+  self.assertEqual((played[0]['resume'],played[0]['total'],played[0]['ask']),(1234.0,9000.0,'1'))
 
 if __name__=='__main__':unittest.main()
