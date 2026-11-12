@@ -159,4 +159,15 @@ class Pages(unittest.TestCase):
  def test_shared_textures(self):
   for name in ('alert.png','sheet_l.png'):self.assertTrue((self.skin/'extras/portrait'/name).read_bytes().startswith(b'\x89PNG'))
 
+class HeroTaps(unittest.TestCase):
+ def test_play_and_info_ignore_taps_while_the_spotlight_slides(self):
+  # Roadmap 2.10 (owner screenshot): the watch question named another title than the one on screen.
+  import portrait
+  xml=portrait.hero('home','Home')
+  for action in ('PlayMedia($ESCINFO[Container(4000).ListItem.FileNameAndPath])','Action(Info)'):
+   onclick=[l for l in xml.split('<onclick') if action in l]
+   self.assertTrue(onclick,action)
+   self.assertTrue(all('!Container(4000).Scrolling' in l for l in onclick),action)
+
+
 if __name__=='__main__':unittest.main()

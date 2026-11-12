@@ -627,7 +627,10 @@ def hero(spotlight,title,tab='home',variables=None):
  meta='$INFO[%s.Genre]$INFO[%s.Year,  ·  ]$INFO[%s.MPAA,  ·  ]'%(info,info,info)
  is_show='String.IsEqual(%s.DBType,tvshow)'%info
  # A show opens its page (seasons and episodes); a movie goes straight to "How would you like to watch?".
- play=[(is_show,'ActivateWindow(Videos,$ESCINFO[%s.FolderPath],return)'%info),('!'+is_show,'PlayMedia($ESCINFO[%s.FileNameAndPath])'%info)]
+ # Roadmap 2.10 (owner screenshot: the watch question named another title than the one shown): a tap that lands while
+ # the spotlight is still sliding to the next title is ignored, so Play and Info act on the title on screen.
+ still='!Container(4000).Scrolling'
+ play=[(still+' + '+is_show,'ActivateWindow(Videos,$ESCINFO[%s.FolderPath],return)'%info),(still+' + !'+is_show,'PlayMedia($ESCINFO[%s.FileNameAndPath])'%info)]
  dots=''.join('<control type="group"><width>34</width><height>20</height><visible>Integer.IsGreaterOrEqual(Container(4000).NumItems,%d)</visible>%s%s</control>'
   %(i,image(7,0,20,20,MEDIA+'dot.png','59FFFFFF'),image(7,0,20,20,MEDIA+'dot.png',WHITE,'<visible>Integer.IsEqual(Container(4000).CurrentItem,%d)</visible>'%i)) for i in range(1,9))
  btn_w=440
@@ -653,7 +656,7 @@ def hero(spotlight,title,tab='home',variables=None):
      # Play and Info only once there is a title to play; until then a soft placeholder where the art will be.
      '<control type="group"><visible>Integer.IsGreater(Container(4000).NumItems,0)</visible>'+
      pill_button(4001,WIDTH//2-btn_w-12,HERO-214,btn_w,124,'Play',play,'primary',MEDIA+'play.png','<onup>4000</onup><onright>4002</onright><ondown>5001</ondown>')+
-     pill_button(4002,WIDTH//2+12,HERO-214,btn_w,124,'Info',[('','SetFocus(4000)'),('','Action(Info)')],'glass','circle-info.png','<onup>4000</onup><onleft>4001</onleft><ondown>5001</ondown>')+'</control>'+
+     pill_button(4002,WIDTH//2+12,HERO-214,btn_w,124,'Info',[(still,'SetFocus(4000)'),(still,'Action(Info)')],'glass','circle-info.png','<onup>4000</onup><onleft>4001</onleft><ondown>5001</ondown>')+'</control>'+
      '<control type="group"><visible>Integer.IsEqual(Container(4000).NumItems,0)</visible>'+
      surface(SIDE,220,WIDTH-2*SIDE,HERO-420,'round.png',SURFACE,32,'<animation effect="fade" start="100" end="45" time="900" pulse="true" condition="Container(4000).IsUpdating">Conditional</animation>')+
      label(SIDE,220,WIDTH-2*SIDE,HERO-420,'Loading…','p_sub',DIM,'center','<visible>Container(4000).IsUpdating</visible>')+'</control>',

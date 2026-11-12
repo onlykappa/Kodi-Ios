@@ -129,3 +129,4 @@ Never claim a phone result without the owner's log or screenshot.
 
 - 1G.8 change (owner: "it should say prepare first"): no choice; Play on TV on an unprepared download that needs converting queues it first and says 'Preparing first'.
 - ISSUE-170 (code): Continue Watching cards from Library playback get the TMDb name and art; old cards heal when shown.
+- 2.10 (code): spotlight Play and Info ignore a tap while the spotlight is still sliding (!Container(4000).Scrolling), so they act on the title on screen. Tests: test_pages HeroTaps, test_portrait. 2.7 stays a device check; 2.16 stays log noise (changing the declared views risks the show page).
