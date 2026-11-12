@@ -317,3 +317,13 @@ Decision:
    The measurement build reports the real size; the rate is a parameter.
 7. One AI engine at a time: an upscale conversion uses one lane (each lane holds its own engine and 4K buffers), and
    the upscale step runs in the preparation queue's thread, after ordinary preparation work.
+
+## DEC-041 — Build Season quality sheet round 3 approved; AI Upscale stays on prepared copies for now (2026-11-12)
+
+Owner approved board B3 of docs/design/season-pack-mockups.html ("it looks good"): 4K, 1080p and 720p only (480p
+removed); a quick check of three episodes first so a quality nobody has is greyed and cannot be chosen; one row marked
+RECOMMENDED and picked: the highest quality that exists unless it is over about 3 GB an episode or 40 GB a season,
+then the next one down; season size and size per episode on each row. To be coded next.
+Owner asked why an Umbrella stream (Dragon Ball) has no AI Upscale: by DEC-039 the upscaler works on prepared copies of
+downloads (which also reach AirPlay); live upscaling of streams on the phone screen is a separate option, to decide
+after the measurement log.

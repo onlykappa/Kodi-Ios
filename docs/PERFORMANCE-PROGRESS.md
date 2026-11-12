@@ -11,6 +11,10 @@
 
 ## HANDOFF 2026-11-12 (AI Upscaler, PR #21) — read this first
 
+- LATEST: **build-302** (import-review #302 on d8ab616): Kodi r31 PINNED (run 43256323634, digests checked), AirPlay
+  r48, ISSUE-178 Build Season lane fix. Owner to retest Build Season (Naruto S1, Rick and Morty S1) and then the AI
+  Upscale test on a prepared 1080p episode. Next to code: Build Season quality sheet round 3 (DEC-041, board B3).
+
 - Pins: AirPlay r47 pinned (run 43251110403, digest checked by download). Kodi r31 (run 43256323634) still building
   at this point; pin it from that run when it finishes.
 - Research done, engine chosen: DEC-040 (Apple VTSuperResolutionScaler in KodiAirPlay; no "AI" fallback that is not AI).
