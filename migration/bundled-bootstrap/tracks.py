@@ -53,10 +53,51 @@ def subtitle_language(xbmc):
     return (code or 'en'), tm.language_name(code or 'en', name)
 
 
-def http_get(url):
+def http_get(url, headers=None):
     # Roadmap 2.13: the owner's DNS refuses the subtitle site; doh_fetch retries through DNS over HTTPS.
     import doh_fetch
-    return doh_fetch.get(url, {'Accept': 'application/json', 'User-Agent': UA})
+    return doh_fetch.get(url, dict({'Accept': 'application/json', 'User-Agent': UA}, **(headers or {})))
+
+
+def http_post(url, body, headers=None):
+    import urllib.request
+    req = urllib.request.Request(url, data=body, headers=dict({'User-Agent': UA}, **(headers or {})), method='POST')
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return r.read()
+
+
+def keys_folder(xbmcvfs):
+    return xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/')
+
+
+def ask_keys(xbmcgui, xbmcvfs, log):
+    """More › Subtitle keys: the free SubDL key and/or OpenSubtitles key (and account), saved only on the phone."""
+    import subtitle_sources as ss
+    folder = keys_folder(xbmcvfs)
+    keys = ss.load_keys(folder)
+    d = xbmcgui.Dialog()
+    labels = ['SubDL key (subdl.com, free)', 'OpenSubtitles key (opensubtitles.com, free)',
+              'OpenSubtitles username (optional)', 'OpenSubtitles password (optional)']
+    while True:
+        rows = ['%s: %s' % (label, 'set' if keys[k] else 'not set') for label, k in zip(labels, ss.KEY_NAMES)]
+        pick = d.select('Subtitle keys', rows)
+        if pick < 0:
+            break
+        k = ss.KEY_NAMES[pick]
+        hidden = k == 'opensubtitles_password'
+        value = d.input(labels[pick], '' if hidden else keys[k], type=xbmcgui.INPUT_ALPHANUM,
+                        option=xbmcgui.ALPHANUM_HIDE_INPUT if hidden else 0)
+        keys[k] = value.strip()
+        ss.save_keys(folder, keys)
+        log('subtitle keys: %s %s' % (k, 'set' if keys[k] else 'cleared'))   # never the value
+    return keys
+
+
+def keys_tag(xbmcvfs):
+    import subtitle_sources as ss
+    keys = ss.load_keys(keys_folder(xbmcvfs))
+    names = [n for n, k in (('SubDL', 'subdl'), ('OpenSubtitles', 'opensubtitles')) if keys[k]]
+    return ' + '.join(names).upper() if names else 'NOT SET'
 
 
 def run(mode):
@@ -94,8 +135,12 @@ def run(mode):
             # Roadmap 2.14: the list is empty until fill(), so the window opens on Close and moves here once filled.
             self.setFocusId(SPEED_LIST if mode == 'speed' else LIST)
 
+        def missing(self, name):
+            # Nothing found or no answer while no subtitle key is saved: say how to add one (Podnapisi is gone).
+            return 'nokey' if keys_tag(xbmcvfs) == 'NOT SET' else name
+
         def state(self, name):
-            self.setProperty('cta_state', 'busy' if name in ('search', 'download') else name)
+            self.setProperty('cta_state', 'busy' if name in ('search', 'download') else 'error' if name == 'nokey' else name)
             self.setProperty('cta', tm.cta(name, lang_name))
             self.setProperty('hint', tm.note(name, lang_name) or
                              {'idle': 'Finds %s subtitles for this video' % lang_name, 'search': 'Matching this exact version of the video',
@@ -109,7 +154,7 @@ def run(mode):
             if mode == 'speed':
                 self.rows = tm.speed_rows(xbmc.getInfoLabel('Player.PlaySpeed'))
             elif mode == 'subtitles' and page == 'more':
-                self.rows = tm.more_rows(len(self.results), self.always_on())
+                self.rows = tm.more_rows(len(self.results), self.always_on(), keys_tag(xbmcvfs))
             elif mode == 'subtitles' and page == 'choose':
                 self.rows = tm.result_rows(self.results)
             elif mode == 'subtitles':
@@ -180,7 +225,7 @@ def run(mode):
             xbmcgui.Dialog().notification(said, '', xbmcgui.NOTIFICATION_INFO, 2000, False)
 
         def item(self):
-            it = rpc(xbmc, 'Player.GetItem', {'playerid': pid, 'properties': ['title', 'showtitle', 'year', 'season', 'episode', 'file']}) or {}
+            it = rpc(xbmc, 'Player.GetItem', {'playerid': pid, 'properties': ['title', 'showtitle', 'year', 'season', 'episode', 'file', 'uniqueid']}) or {}
             return it.get('item') or {}
 
         def search(self):
@@ -192,14 +237,25 @@ def run(mode):
             # Roadmap B.5 (build 232): a copy played without details searched its file name; read show and episode
             # from the release name ('phony.s01e01.1080p…' -> 'phony', 1, 1) when Kodi has none.
             guess = tm.from_release(title) if not show else None
+            year = it.get('year') or None
             if guess:
                 title, show, season, episode = guess['title'], guess['title'], guess['season'], guess['episode']
+            elif not show:
+                movie = tm.movie_from_release(title)
+                if movie and (not year or str(year) == str(movie['year']) or title == name):
+                    title, year = movie['title'], movie['year']
             ep = (season, episode) if show and (season or -1) >= 0 and (episode or -1) > 0 else (None, None)
-            log('search %s %r %s S%sE%s' % (lang, title, it.get('year'), ep[0], ep[1]))
-            return tm.find(http_get, lang, title, it.get('year') or None, ep[0], ep[1], name)
+            import subtitle_sources as ss
+            keys = ss.load_keys(keys_folder(xbmcvfs))
+            self.episode = ep
+            tmdb = (it.get('uniqueid') or {}).get('tmdb') if not ep[0] else None
+            log('search %s %r %s S%sE%s via %s' % (lang, title, year, ep[0], ep[1], ', '.join(ss.sources(keys))))
+            return ss.find(http_get, keys, lang, title, year, ep[0], ep[1], name, tmdb, log=lambda m: log('subtitles ' + m))
 
         def apply(self, result):
-            got = tm.fetch(http_get, result)
+            import subtitle_sources as ss
+            ep = getattr(self, 'episode', (None, None))
+            got = ss.fetch(http_get, http_post, ss.load_keys(keys_folder(xbmcvfs)), result, ep[0], ep[1])
             if not got:
                 raise ValueError('no subtitle file in the download')
             name, data = got
@@ -220,7 +276,7 @@ def run(mode):
                     self.state('search')
                     self.results = self.search()
                     if not self.results:
-                        self.state('none')
+                        self.state(self.missing('none'))
                         log('nothing found')
                         return
                     result = self.results[0]
@@ -231,7 +287,7 @@ def run(mode):
                 xbmcgui.Dialog().notification('%s subtitles on' % lang_name, '', xbmcgui.NOTIFICATION_INFO, 2000, False)
             except Exception as error:
                 log('download and apply failed: %s: %s' % (type(error).__name__, error))
-                self.state('error')
+                self.state(self.missing('error'))
 
         def always_on(self):
             try:
@@ -263,10 +319,10 @@ def run(mode):
                         self.results = self.search()
                     except Exception as error:
                         log('search failed: %s' % error)
-                        self.state('error')
+                        self.state(self.missing('error'))
                         return
                 if not self.results:
-                    self.state('none')
+                    self.state(self.missing('none'))
                     return
                 self.state('idle')
                 self.more('choose')
@@ -276,6 +332,10 @@ def run(mode):
                     xbmc.Player().setSubtitles(path)
                     xbmc.sleep(400)
                     self.more('tracks')
+            elif what == 'keys':
+                ask_keys(xbmcgui, xbmcvfs, log)
+                self.results = []
+                self.more('more')
             elif what == 'always':
                 tracks_now = [x for x in tm.subtitle_rows(*self.subtitle_streams()) if x['on'] and x['index'] is not None]
                 value = 'default' if self.always_on() else (tracks_now[0]['label'] if tracks_now else lang_name)

@@ -113,7 +113,7 @@ class More(unittest.TestCase):
         # Board 02: the way back is the header's blue link (9502), not a row.
         import track_menu as tm
         rows = tm.more_rows(3, False)
-        self.assertEqual([r['index'] for r in rows], ['choose', 'file', 'always'])
+        self.assertEqual([r['index'] for r in rows], ['choose', 'file', 'always', 'keys'])
         self.assertEqual((rows[0]['tag'], rows[2]['tag']), ('3 FOUND', 'OFF'))
         found = tm.result_rows([{'id': '7', 'releases': ['Phony.S01E01.WEB'], 'impaired': True}, {'id': '9', 'releases': [], 'impaired': False}])
         self.assertEqual([(r['label'], r['tag'], r['index']) for r in found],

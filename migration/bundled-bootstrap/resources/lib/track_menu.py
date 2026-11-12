@@ -91,6 +91,21 @@ def from_release(text):
     return {'title': title, 'season': int(m.group(2)), 'episode': int(m.group(3))} if title else None
 
 
+MOVIE_RELEASE = re.compile(r'(?i)^(.+)[ ._(\[-]+((?:19|20)\d{2})(?:[ ._)\]-]|$)')
+
+
+def movie_from_release(text):
+    """{'title', 'year'} from a movie file name ('Interstellar.2014.2160p.4K.BluRay…mp4' -> 'Interstellar', 2014), or
+    None. Owner log 94605e4b (build 280): a copy played without details searched the whole file name with year 0."""
+    name = re.sub(r'\[[^\]]*\]', '', str(text or '')).strip()
+    name = re.sub(r'(?i)\.(mkv|mp4|m4v|avi|mov|ts|webm)$', '', name)
+    m = MOVIE_RELEASE.match(name)
+    if not m:
+        return None
+    title = re.sub(r'[._]+', ' ', m.group(1)).strip(' -(')
+    return {'title': title, 'year': int(m.group(2))} if title else None
+
+
 def search_url(lang, title, year=None, season=None, episode=None):
     q = {'keywords': title, 'language': lang}
     if season and episode:
@@ -141,13 +156,17 @@ def rank(results, filename):
     return sorted(results, key=score, reverse=True)
 
 
-def subtitle_from_zip(blob):
-    """The .srt (or .ass / .ssa / .sub / .vtt) inside Podnapisi's zip: (name, bytes) or None."""
+def subtitle_from_zip(blob, season=None, episode=None):
+    """The .srt (or .ass / .ssa / .sub / .vtt) inside a subtitle zip: (name, bytes) or None. A season pack's zip
+    (SubDL) gives the file of this episode (S01E05, 1x05)."""
     try:
         z = zipfile.ZipFile(io.BytesIO(blob))
     except zipfile.BadZipFile:
         return None
     names = [n for n in z.namelist() if n.lower().endswith(('.srt', '.ass', '.ssa', '.vtt', '.sub'))]
+    if season and episode and len(names) > 1:
+        mark = re.compile(r'(?i)(?:s0*%d[ ._-]?e0*%d|\b0*%dx0*%d)(?!\d)' % (int(season), int(episode), int(season), int(episode)))
+        names = [n for n in names if mark.search(n.rsplit('/', 1)[-1])]
     names.sort(key=lambda n: (not n.lower().endswith('.srt'), len(n)))
     return (names[0].rsplit('/', 1)[-1], z.read(names[0])) if names else None
 
@@ -166,8 +185,10 @@ def fetch(get, result):
 
 
 CTA = {'idle': 'Download and apply', 'search': 'Searching for %s…', 'download': 'Downloading…',
-       'done': 'Downloaded and on', 'none': 'Try again', 'error': 'Try again'}
-NOTE = {'none': 'No %s subtitles found for this video.', 'error': 'The subtitle site did not answer. Check the Wi-Fi and try again.'}
+       'done': 'Downloaded and on', 'none': 'Try again', 'error': 'Try again', 'nokey': 'Try again'}
+NOTE = {'none': 'No %s subtitles found for this video.', 'error': 'The subtitle site did not answer. Check the Wi-Fi and try again.',
+        # 2026-11-12: Podnapisi is gone; SubDL and OpenSubtitles need a free key (subtitle_sources).
+        'nokey': 'Add a free subtitle key: More › Subtitle keys.'}
 
 
 def cta(state, language):
@@ -211,12 +232,13 @@ def speed_rows(current):
     return [{'label': 'Normal' if s == 1.0 else '%g×' % s, 'tag': '', 'on': s == near, 'index': s} for s in SPEEDS]   # board 02
 
 
-def more_rows(found, always):
+def more_rows(found, always, keys_tag=''):
     """Subtitles › More as rows (roadmap B.6): Choose another, Add from a file, Use for all videos. The way back is
     the header's blue link (board 02), not a row."""
     return [{'label': 'Choose another', 'tag': ('%d FOUND' % found) if found else '', 'on': False, 'index': 'choose'},
             {'label': 'Add from a file', 'tag': '', 'on': False, 'index': 'file'},
-            {'label': 'Use for all videos', 'tag': 'ON' if always else 'OFF', 'on': bool(always), 'index': 'always'}]
+            {'label': 'Use for all videos', 'tag': 'ON' if always else 'OFF', 'on': bool(always), 'index': 'always'},
+            {'label': 'Subtitle keys', 'tag': keys_tag, 'on': False, 'index': 'keys'}]
 
 
 def result_rows(results):
