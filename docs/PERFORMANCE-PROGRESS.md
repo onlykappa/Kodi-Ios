@@ -9,6 +9,19 @@
   build's kodi_airplay_serve_copy + correlated receiver evidence. No IPA/native release dispatched here.
 - Compiled recommendations suite: 41 checks, 0 failures. Phone/TV acceptance and hour-long/caption tests remain open.
 
+## MERGED 2026-11-12: PR #19 into main (DEC-038) — next work starts from main in a fresh PR
+
+Open items for the next PR, in order:
+1. Phone checks on the latest IPA: Build Season queue (Naruto Shippuden S1), Continue Watching open time ('open timing'
+   line), AirPlay captions with SubDL subtitles, long press › Remove, the hidden Subtitle offset slider.
+2. Native builds: Kodi r31 from migration/ios-portrait/kodi-21.3-portrait.patch (MKV attachments skipped, Home plugin
+   rows kept around playback, Settings "- " prefix, PIN keyboard) and AirPlay r47 (system-networking uploads,
+   resume start, Roku Media Assistant route); then pin and build an IPA.
+3. UI: board 11 options sheet (portrait's Custom_1170 is the More menu: ask the owner), board 13 slow-first-run pill,
+   buffering capsule (Custom_1156 froze Kodi in build 210).
+4. Speed: the background log-lag review's findings; Build Season scans one episode at a time (~5.5 s each).
+5. Rig tip: start the rig inside a long-running background task; started from a one-off shell it gets killed.
+
 ## Update 2026-11-12 (build 290)
 
 - Subtitles: Podnapisi is dead (no DNS anywhere); subtitle_sources uses SubDL / OpenSubtitles with the owner's free

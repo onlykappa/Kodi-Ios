@@ -264,3 +264,11 @@ Owner, build 280 (Kodi iOS Watch Options showed the "Working…" card with Cance
 instead of working/cancel". Kodi's busy dialog shows the white spinning circle for any wait, with no card and no
 Cancel (Back still leaves). The opening card (boards 04/05) stays only while a video opens, where its stages and
 Cancel help. This narrows DEC-036 for the busy dialog; progress elsewhere stays a bar.
+
+## DEC-038 — Merge PR #19 with the mockup PRs; carry the rest into a fresh PR (2026-11-12)
+
+Owner: "merge all pending prs so we can start fresh today", then chose "Merge now, fresh PR". PR #19 (with the mockup
+PRs #17, #18 and #20 merged into it) goes to main. Carried into the next PR, from main: phone checks (season queue,
+Continue Watching timing, AirPlay captions, Remove); the Kodi r31 and AirPlay r47 native builds and pins (coded, not
+built); boards 11 (options sheet) and 13 (slow-start pill) and the buffering capsule; the log-lag review and faster
+season scanning. No native release or pin change is part of this merge.
