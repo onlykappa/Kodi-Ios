@@ -164,5 +164,27 @@ class WhichShow(unittest.TestCase):
         self.assertEqual((picture.show_key(other), picture.video_key(other)), ('title:lanterns', 'x'))
 
 
+class PlaysTheCopy(unittest.TestCase):
+    def test_a_ready_copy_plays_when_the_show_asks_and_the_library_hides_it(self):
+        import drivelibrary
+        self.assertFalse(drivelibrary.is_video('Naruto S01E03 [AI 4K UHD].mp4'))
+        self.assertTrue(drivelibrary.is_video('Naruto S01E03.mp4'))
+        sys.path.insert(0, str(LIB.parents[2] / 'import-overlays/plugin.video.kodi.ios.watch/resources/lib'))
+        import ios_library
+        path = 'plugin://plugin.googledrive/?action=play&item_id=orig1&driveid=d'
+        params = {'tmdb_id': '31910', 'kind': 'episode', 'show': 'Naruto Shippuden'}
+        with tempfile.TemporaryDirectory() as profile:
+            self.assertEqual(ios_library.upscaled_path(path, params, profile), path)          # no copy yet
+            uq.save(profile, {'copies': {'orig1': {'label': '4K UHD', 'status': 'ready', 'copy_id': 'copy1'}}})
+            self.assertEqual(ios_library.upscaled_path(path, params, profile), path)          # AI Upscale off
+            data = picture.load(profile)
+            picture.apply(data, 'show', {'tmdb': '31910', 'type': 'tv'}, upscale='4K UHD')
+            picture.save(profile, data)
+            self.assertIn('item_id=copy1', ios_library.upscaled_path(path, params, profile))
+            picture.apply(data, 'show', {'tmdb': '31910', 'type': 'tv'}, upscale='1440p')    # smaller than the copy
+            picture.save(profile, data)
+            self.assertIn('item_id=orig1', ios_library.upscaled_path(path, params, profile))
+
+
 if __name__ == '__main__':
     unittest.main()
