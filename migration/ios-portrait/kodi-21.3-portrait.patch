@@ -1948,3 +1948,25 @@ new file mode 100644
 +         } else {
 +             AVStream *st = avformat_new_stream(s, NULL);
 +             if (!st)
+diff --git a/xbmc/guilib/listproviders/DirectoryProvider.cpp b/xbmc/guilib/listproviders/DirectoryProvider.cpp
+--- a/xbmc/guilib/listproviders/DirectoryProvider.cpp
++++ b/xbmc/guilib/listproviders/DirectoryProvider.cpp
+@@ -303,6 +303,18 @@
+          (std::find(m_itemTypes.begin(), m_itemTypes.end(), InfoTagType::AUDIO) == m_itemTypes.end())))
+       return;
+ 
++#if defined(TARGET_DARWIN_EMBEDDED)
++    // Kodi-iOS (performance 1D.1/1D.2): every plugin row of Home (a Python start each, 11-17 of them) was fetched
++    // again whenever a video started, stopped or the library changed, at the busiest moment of opening a video.
++    // Plugin rows keep their items; only the watch add-on's own rows (Continue Watching, Up Next, library) refresh,
++    // and not when playback starts. Its cached route (action=cached) carries the TMDb Helper rows: those stay.
++    if (StringUtils::StartsWithNoCase(m_currentUrl, "plugin://") &&
++        (!StringUtils::StartsWithNoCase(m_currentUrl, "plugin://plugin.video.kodi.ios.watch/") ||
++         m_currentUrl.find("action=cached") != std::string::npos ||
++         ((flag & ANNOUNCEMENT::Player) && message != "OnStop")))
++      return;
++#endif
++
+     if (flag & ANNOUNCEMENT::Player)
+     {
+       if (message == "OnPlay" || message == "OnResume" || message == "OnStop")
