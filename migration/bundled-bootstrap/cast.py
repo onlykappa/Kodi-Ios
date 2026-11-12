@@ -65,6 +65,20 @@ def run_owned():
  title=xbmc.getInfoLabel('VideoPlayer.TVShowTitle') or xbmc.getInfoLabel('VideoPlayer.Title')
  library=airplay.library_path(xbmcvfs.translatePath('special://xbmc/'))
  playing=player.getPlayingFile()
+ # Roadmap 1G.8: a download that preparation has not finished is offered Prepare first instead of a live conversion.
+ try:
+  import cast_ready,prepare_downloads
+  profile=xbmcvfs.translatePath('special://profile/');ident=cast_ready.item_id(playing)
+  if ident and cast_ready.not_ready(prepare_downloads.library_view(prepare_downloads.load(profile)),ident):
+   import choice_sheet
+   pick=choice_sheet.choose(cast_ready.SHEET,xbmcgui=xbmcgui)
+   xbmc.log('Kodi iOS Play on TV: not prepared yet; owner chose %s'%{0:'prepare first',1:'play now'}.get(pick,'nothing'),xbmc.LOGINFO)
+   if pick==0:
+    prepare_downloads.request(profile,'now',ident)
+    dialog.notification('Preparing for your TV','It moves to the front; Play on TV once Library status says ready.',xbmcgui.NOTIFICATION_INFO,5000)
+    return
+   if pick!=1:return
+ except Exception as error:xbmc.log('Kodi iOS Play on TV: preparation check skipped (%s)'%type(error).__name__,xbmc.LOGWARNING)
  extra=[]
  note='Plays from where you are now. '
  if library:
