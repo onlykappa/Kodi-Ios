@@ -107,11 +107,11 @@ class SearchFieldTests(unittest.TestCase):
   spec=importlib.util.spec_from_file_location('portrait',ROOT/'migration/bundled-bootstrap/resources/lib/portrait.py')
   portrait=importlib.util.module_from_spec(spec);spec.loader.exec_module(portrait)
   root=ET.fromstring(portrait.search_window('<window id="1105"/>'))
-  panels={c.get('id'):c for c in root.iter('control') if c.get('type')=='panel'}
+  panels={c.get('id'):c for c in root.iter('control') if c.get('type') in ('panel','list')}
   # Results grid: three posters a row, filled from the typed search, under the native band.
   results=panels['5200'];self.assertIn('Portrait.Search.Path',results.findtext('content'))
   self.assertGreater(int(results.findtext('top')),portrait.SEARCH_BAND)
-  self.assertEqual(int(results.find('itemlayout').get('width'))*3,1080-2*int(results.findtext('left'))+24)
+  self.assertEqual(results.get('type'),'list');self.assertEqual(int(results.find('itemlayout').get('height')),210)   # board 12: rows, not a poster grid
   # Categories while the field is empty; the old Kodi field only on a phone without the native one.
   self.assertIn('String.IsEmpty(Window(Home).Property(Portrait.Search.Path))',panels['5100'].findtext('visible'))
   button=[c for c in root.iter('control') if c.get('id')=='5101'][0]
