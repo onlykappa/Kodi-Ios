@@ -2731,3 +2731,10 @@ its measured phone target; unknown causes and unmeasured hardware/receiver behav
 - 1F.4: imported/reviewed 99ab30a's bounded three-lane season copying, per-file resumable sessions and truthful
   aggregate rates. Movies stay single-lane; two remaining episodes use two lanes. Tests: 33 debrid, 9 transfer
   efficiency and 29 season/source cases pass. More lanes are capacity, not proof of 1.5x speed on the phone.
+
+- 3.3: found two remaining expiry gaps: the foreground bridge allowed only one renewal per movie, and queued
+  copies waited for a full job retry when a resumed source URL expired. Renewals now coalesce with a 60-second
+  cooldown instead of a lifetime limit; copy source reopen renews the selected file at the same offset and checks
+  its name/size before accepting bytes. Original source selection and resumable upload sessions are preserved.
+  New host cases cover a second expiry an hour later and a queued copy recovering without a job delay. This
+  is a concrete recovery repair, not attribution of the owner's earlier hour-long stop.

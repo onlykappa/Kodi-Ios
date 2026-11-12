@@ -311,6 +311,23 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
 
             def copy(entry, slot):
                 url, name, size = api.unlock(entry['link'])
+                original_name=name
+                source_link=[url];source_guard=threading.Lock();renew_after=[0.0]
+                def open_source(offset):
+                    attempted=source_link[0]
+                    try:return open_url(attempted,offset)
+                    except urllib.error.HTTPError as error:
+                        error.close()
+                        if error.code not in (401,403,404,410):raise
+                        with source_guard:
+                            if source_link[0]==attempted:
+                                if clock()<renew_after[0]:raise
+                                renew_after[0]=clock()+60
+                                fresh,fresh_name,fresh_size=api.unlock(entry['link'])
+                                if fresh_name!=original_name or fresh_size!=size:
+                                    raise RuntimeError('The refreshed download is a different file')
+                                source_link[0]=fresh
+                        return open_url(source_link[0],offset)
                 name = os.path.basename(name or entry['path'])
                 size = size or entry['size']
                 parts = folders(job['kind'], name, job.get('title') if job['kind'] != 'movie' else '')
@@ -360,7 +377,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     with guard:
                         entry['session'] = dict(session)
                     commit()
-                result = drive.upload_stream(lambda offset: open_url(url, offset), size, name, parent, session,
+                result = drive.upload_stream(open_source, size, name, parent, session,
                                              keep, going, progress,activity=activity)
                 if int(result.get('size') or size) != size:
                     raise RuntimeError('Google Drive has a different size for %s' % name)

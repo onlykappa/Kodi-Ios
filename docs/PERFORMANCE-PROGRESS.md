@@ -187,3 +187,6 @@ old screenshot's counts as acceptance evidence. Commit and push each repair sepa
 
 - 1F.4 imported/reviewed: up to three per-file resumable Drive lanes; aggregate speed includes the third lane.
   71 focused host cases pass. Phone memory/throughput measurement remains pending.
+
+- 3.3: expired links can renew again later in a long movie (cooldown prevents loops); Drive copies renew an expired
+  source reopen immediately at its confirmed offset, checking the same file's name/size. New regressions pass.

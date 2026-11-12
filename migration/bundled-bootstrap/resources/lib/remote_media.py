@@ -4,7 +4,7 @@ Only the original resolved stream URL/headers are held in RAM. A per-launch auth
 loopback control endpoint gives other Kodi interpreters a source URL that survives their exit.
 One source at a time, at most 96 MiB cached, no Drive OAuth or media files.
 """
-import http.server,ipaddress,json,secrets,threading,urllib.error,urllib.parse,urllib.request
+import http.server,ipaddress,json,secrets,threading,time,urllib.error,urllib.parse,urllib.request
 import drive_stream,umbrella_recovery
 PROPERTY='KodiIOS.RemoteMedia'
 BLOCK=4*1024*1024;KEEP=24;AHEAD=4
@@ -20,11 +20,12 @@ def eligible(source):
 
 
 class Foreground(drive_stream.DriveStream):
- def __init__(self,source,context=None,open_url=None):
+ def __init__(self,source,context=None,open_url=None,clock=time.monotonic):
   raw,_,extra=source.partition('|');p=urllib.parse.urlsplit(raw)
   if p.scheme not in ('http','https') or not p.hostname:raise ValueError('Not an HTTP media source')
   self.remote_url=raw
   self.renew_lock=threading.Lock();self.renewal=None;self.renew_link=None;self.renewed=False;self.renewal_state='unavailable'
+  self.renew_clock=clock;self.renew_after=0.0
   self.remote_headers={k:v for k,v in urllib.parse.parse_qsl(extra,keep_blank_values=True)
                        if k.lower() not in ('host','range','connection','content-length','transfer-encoding')}
   if not any(k.lower()=='user-agent' for k in self.remote_headers):self.remote_headers['User-Agent']='Kodi-iOS-AirPlay/1'
@@ -34,8 +35,8 @@ class Foreground(drive_stream.DriveStream):
    attempted=self.remote_url
    try:response=opener(urllib.request.Request(attempted,headers=headers),timeout)
    except urllib.error.HTTPError as error:
-    if error.code not in (401,403,404,410) or not self._renew(attempted):raise
     error.close()
+    if error.code not in (401,403,404,410) or not self._renew(attempted):raise
     response=opener(urllib.request.Request(self.remote_url,headers=headers),timeout)
    span=drive_stream.SPAN.match(response.headers.get('Content-Range') or '')
    start=int(headers['Range'][6:].split('-')[0])
@@ -61,7 +62,8 @@ class Foreground(drive_stream.DriveStream):
  def _renew(self,attempted):
   with self.renew_lock:
    if attempted!=self.remote_url:return True  # another reader renewed this source already
-   if self.renewed or not self.renewal or not self.renew_link:return False
+   if self.renew_clock()<self.renew_after or not self.renewal or not self.renew_link:return False
+   self.renew_after=self.renew_clock()+60   # bound rejected-link loops, not the lifetime of a long movie
    self.renewed=True;self.renewal_state='refreshing'
    try:
     fresh=self.renew_link(self.renewal)

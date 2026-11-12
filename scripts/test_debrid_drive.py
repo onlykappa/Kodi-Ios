@@ -1,7 +1,7 @@
 """Owner (build 160): "a movie im downloading goes onto my phone still … if i do a large movie it wont ever download";
 chose AllDebrid straight to Drive. alldebrid (client, pick), driveupload.upload_stream, debrid_drive (queue, step),
 and the wiring in download.py, service.py and notices.py."""
-import io,json,sys,tempfile,unittest
+import io,json,sys,tempfile,unittest,urllib.error
 from pathlib import Path
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1];BOOT=ROOT/'migration/bundled-bootstrap';LIB=BOOT/'resources/lib'
@@ -181,6 +181,20 @@ class TwoLanes(unittest.TestCase):
 class Queue(unittest.TestCase):
  def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name;self.notes=[];self.done=[]
  def tearDown(self):self.tmp.cleanup()
+ def test_expired_source_renews_at_the_same_offset_without_waiting_for_a_job_retry(self):
+  api=FakeAPI();unlocks=[];opens=[]
+  def unlock(link):
+   unlocks.append(link);return 'https://source/'+str(len(unlocks)),'Fall.2022.2160p.mkv',3
+  api.unlock=unlock
+  def open(url,offset):
+   opens.append((url,offset))
+   if url.endswith('/1'):raise urllib.error.HTTPError(url,403,'expired',{},io.BytesIO())
+   return io.BytesIO(b'abc'[offset:])
+  debrid_drive.queue(self.p,{'id':H,'name':'Fall'},'movie','Fall')
+  debrid_drive.step(self.p,api,FakeDrive())
+  drive=FakeDrive();debrid_drive.step(self.p,api,drive,open_url=open)
+  self.assertEqual(drive.data,b'abc');self.assertEqual(opens,[('https://source/1',0),('https://source/2',0)])
+  self.assertEqual(debrid_drive.load(self.p)['jobs'][0]['status'],'done')
  def run_all(self,api,drive):
   for _ in range(10):
    if debrid_drive.step(self.p,api,drive,lambda k,t,x:self.notes.append((k,t)),open_url=lambda u,o:io.BytesIO(b'abc'[o:]),on_done=self.done.append) is None:break
