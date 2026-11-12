@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Upscale settings mockups</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Portrait 402 x 874 pt,
+     tokens from portrait.py / pages.py (§4.3), the Settings › Picture style of video-picture-mockups.html (boards D, G). -->
+<style>
+:root{--bg:#000;--s1:#1c1c1e;--s2:#2c2c2e;--grey:rgba(235,235,245,.6);--dim:rgba(235,235,245,.3);--sep:rgba(235,235,245,.16);
+ --blue:#0a84ff;--blue-text:#4fa8ff;--green:#30d158;--orange:#ff9f0a;--red:#ff453a;--purple:#bf5af2}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro{max-width:1180px;margin:0 auto 10px}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:880px;margin-bottom:8px}
+.board{max-width:1180px;margin:30px auto 0;padding-top:16px;border-top:1px solid #26272b}
+.board .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+.board h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+.board>p{color:var(--grey);font-size:14px;line-height:1.5;max-width:880px;margin-bottom:16px}
+.shots{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.slot{width:340px}
+.cap{color:var(--grey);font-size:13px;line-height:1.4;margin-top:10px}.cap b{color:#fff}
+.pframe{width:340px;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000;padding:44px 14px 16px;font-size:14px}
+.nb{color:var(--blue-text);font-size:15px;font-weight:600;margin-bottom:4px}
+.ps h3{font-size:30px;font-weight:800;margin-bottom:12px;letter-spacing:-.01em}
+.sh{color:var(--grey);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:14px 6px 6px}
+.grp{background:var(--s1);border-radius:12px;overflow:hidden}
+.pr{position:relative;display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 12px}
+.pr+.pr::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.pr .t{flex:1;min-width:0}.pr .t b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .t span{display:block;color:var(--grey);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .v{color:var(--grey);font-size:14px;white-space:nowrap}
+.go{color:var(--dim);font-size:17px;font-weight:600}
+.ico{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:15px}
+.tile{width:30px;height:44px;border-radius:5px;flex:none}
+.toggle{flex:none;width:46px;height:28px;border-radius:14px;background:#39393d;position:relative}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:#fff}
+.toggle.on{background:var(--green)}.toggle.on::after{left:20px}
+.foot{color:var(--grey);font-size:12px;margin:6px 6px 0;line-height:1.35}
+.thin{height:4px;border-radius:2px;background:rgba(235,235,245,.2);overflow:hidden;margin-top:6px}.thin i{display:block;height:100%;background:var(--blue)}
+.chip{font-size:11px;font-weight:700;border-radius:6px;padding:2px 6px;white-space:nowrap}
+.chip.g{background:rgba(48,209,88,.18);color:var(--green)}.chip.b{background:rgba(10,132,255,.2);color:var(--blue-text)}
+.chip.n{background:rgba(235,235,245,.12);color:var(--grey)}
+.status{background:var(--s1);border-radius:12px;padding:12px;display:flex;gap:12px;align-items:center}
+.status .t b{font-size:15px}.status .t span{color:var(--grey);font-size:12.5px;display:block;margin-top:2px}
+.seg{display:flex;background:var(--s2);border-radius:9px;padding:2px;margin:0 0 8px}
+.seg div{flex:1;text-align:center;padding:6px 0;border-radius:7px;font-size:13px;font-weight:600;color:var(--grey)}.seg div.on{background:#636366;color:#fff}
+.btn{margin-top:12px;height:46px;border-radius:23px;background:#fff;color:#000;display:grid;place-items:center;font-weight:700;font-size:15.5px}
+.red{color:var(--red);text-align:center;font-weight:600;font-size:15px;margin-top:12px}
+.hero{display:flex;gap:12px;align-items:center;margin-bottom:6px}
+.hero i{width:58px;height:84px;border-radius:7px;flex:none}
+.hero b{display:block;font-size:22px;font-weight:800}.hero span{color:var(--grey);font-size:13px}
+.slider{background:var(--s1);border-radius:12px;padding:12px}
+.slider .row{display:flex;justify-content:space-between;align-items:baseline}.slider .row b{font-size:15px}.slider .row span{color:var(--blue-text);font-weight:700}
+.track{position:relative;height:4px;background:rgba(235,235,245,.25);border-radius:2px;margin:16px 6px 8px}
+.track i{position:absolute;left:0;top:0;bottom:0;width:100%;background:var(--blue);border-radius:2px}
+.track em{position:absolute;top:-10px;right:-12px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--grey)}.ticks .on{color:#fff;font-weight:700}
+.notes{max-width:1180px;margin:30px auto 0;color:#b4b4ba;font-size:14px;line-height:1.55}.notes h3{color:#fff;font-size:16px;margin:16px 0 6px}.notes li{margin:3px 0 3px 18px}
+</style></head><body>
+<div class="intro"><span class="mk">MOCKUP · not a render of Kodi · round 1, for owner review</span>
+<h1>Settings › AI Upscale</h1>
+<p>Owner, 2026-11-12: "make a ai upscale settings like in the settings like below library … then i can view what shows and movies are upscalable and all that".
+One page for everything AI Upscale: whether this iPhone can do it, what new downloads get, what is being made now, and every show and movie with what it
+can become. Replaces the hidden "AI Upscale test" button in the add-on settings (it moves to the bottom of this page). Sizes: 720p, 1080p, 1440p and
+4K UHD (no 2K, DEC-040); only sizes above the video; 4K and HDR videos are kept as they are.</p></div>
+
+<section class="board"><div class="n">A · SETTINGS</div><h2>A new AI Upscale row, right under Library</h2>
+<p>Same grouped Settings page; the row shows what it does at a glance (on, and the size). A purple wand tile, like the Picture button's wand in the video controls.</p>
+<div class="shots"><div class="slot"><div class="pframe"><div class="ps">
+<h3>Settings</h3>
+<div class="grp">
+<div class="pr"><div class="ico" style="background:var(--green)">▶</div><div class="t"><b>Player</b></div><span class="go">›</span></div>
+<div class="pr"><div class="ico" style="background:var(--orange)">▣</div><div class="t"><b>Media</b></div><span class="go">›</span></div>
+<div class="pr"><div class="ico" style="background:var(--blue)">▤</div><div class="t"><b>Library</b></div><span class="go">›</span></div>
+<div class="pr" style="background:rgba(191,90,242,.10)"><div class="ico" style="background:var(--purple)">✦</div><div class="t"><b>AI Upscale</b></div><span class="v">On · 4K</span><span class="go">›</span></div>
+</div>
+<div class="sh">&nbsp;</div><div class="grp">
+<div class="pr"><div class="ico" style="background:var(--blue)">☁</div><div class="t"><b>Google Drive</b></div><span class="go">›</span></div>
+<div class="pr"><div class="ico" style="background:var(--orange)">★</div><div class="t"><b>Favourites</b></div><span class="go">›</span></div>
+<div class="pr"><div class="ico" style="background:var(--green)">↓</div><div class="t"><b>Check for updates</b></div><span class="go">›</span></div>
+</div>
+<div class="sh">&nbsp;</div><div class="grp">
+<div class="pr"><div class="ico" style="background:#8e8e93">⚙</div><div class="t"><b>System</b></div><span class="go">›</span></div>
+<div class="pr"><div class="ico" style="background:#30b0c7">⌘</div><div class="t"><b>Services</b></div><span class="go">›</span></div>
+</div></div></div><div class="cap"><b>A · Settings:</b> AI Upscale under Library (highlighted here only to point at it).</div></div></div></section>
+
+<section class="board"><div class="n">B · SETTINGS › AI UPSCALE</div><h2>Can this iPhone do it, what new downloads get, what is happening now</h2>
+<p>Top: one status card (Apple's AI model ready, downloading, or not available on this iPhone). Then the settings for new downloads (board G of the Picture
+mockups, moved here), and the one copy being made now with the same thin bar as Library status, with the upcoming count. B2 is the same page scrolled.</p>
+<div class="shots">
+<div class="slot"><div class="pframe"><div class="ps">
+<div class="nb">‹ Settings</div><h3>AI Upscale</h3>
+<div class="status"><div class="ico" style="background:var(--purple)">✦</div><div class="t"><b>Ready on this iPhone</b><span>Apple's AI super resolution · iOS 26</span></div></div>
+<div class="sh">New downloads</div><div class="grp">
+<div class="pr"><div class="t"><b>Upscale new downloads</b><span>720p and 1080p only</span></div><span class="toggle on"></span></div>
+<div class="pr"><div class="t"><b>Upscale to</b></div><span class="v">4K UHD</span><span class="go">›</span></div>
+<div class="pr"><div class="t"><b>Only while charging</b></div><span class="toggle on"></span></div>
+<div class="pr"><div class="t"><b>Keep the original too</b><span>For the phone and older TVs</span></div><span class="toggle on"></span></div>
+</div>
+<div class="foot">Copies are made in the background like a conversion and play on the TV with AirPlay. About 2.5× the size on Google Drive.</div>
+<div class="sh">Making now</div><div class="grp">
+<div class="pr"><div class="tile" style="background:linear-gradient(160deg,#ff9f0a,#7a2e0e)"></div><div class="t"><b>Naruto Shippūden · S1 E4</b><span>To 4K UHD · 42 % · about 18 min</span><div class="thin"><i style="width:42%"></i></div></div></div>
+<div class="pr"><div class="t"><b>3 more waiting</b></div><span class="go">›</span></div>
+</div>
+</div></div><div class="cap"><b>B1 · Top of the page:</b> ready, settings, the copy being made now.</div></div>
+
+<div class="slot"><div class="pframe"><div class="ps" style="padding-top:20px">
+<div class="sh" style="margin-top:4px">Shows and movies</div>
+<div class="seg"><div class="on">All 14</div><div>Upscaled 5</div><div>Can upscale 9</div></div>
+<div class="grp">
+<div class="pr"><div class="tile" style="background:linear-gradient(160deg,#ff9f0a,#7a2e0e)"></div><div class="t"><b>Naruto Shippūden</b><span>28 ep · 1080p → 4K · 12 ready</span></div><span class="chip b">4K</span><span class="go">›</span></div>
+<div class="pr"><div class="tile" style="background:linear-gradient(160deg,#7ee0c3,#0c4a3a)"></div><div class="t"><b>Rick and Morty</b><span>11 ep · 720p → 4K · all ready</span></div><span class="chip g">4K</span><span class="go">›</span></div>
+<div class="pr"><div class="tile" style="background:linear-gradient(160deg,#ffd27a,#5a3b0e)"></div><div class="t"><b>Lanterns</b><span>8 ep · 1080p · can go 4K</span></div><span class="chip n">Off</span><span class="go">›</span></div>
+<div class="pr"><div class="tile" style="background:linear-gradient(160deg,#5e6b7a,#141a22)"></div><div class="t"><b>The Blair Witch Project</b><span>Movie · 480p → 4K · ready</span></div><span class="chip g">4K</span><span class="go">›</span></div>
+<div class="pr"><div class="tile" style="background:linear-gradient(160deg,#9a3b2a,#1d0b07)"></div><div class="t"><b>Hell House LLC Origins</b><span>Movie · 1080p · can go 4K</span></div><span class="chip n">Off</span><span class="go">›</span></div>
+</div>
+<div class="sh">Kept as they are</div><div class="grp">
+<div class="pr"><div class="t"><b>6 videos already in 4K or HDR</b><span>Interstellar, Dune: Part Two and 4 more</span></div><span class="go">›</span></div>
+</div>
+<div class="foot">Upscaled copies use 41 GB on Google Drive.</div>
+<div class="grp" style="margin-top:12px">
+<div class="pr"><div class="t"><b style="color:var(--blue-text)">Test on one video</b><span>Speed, heat, battery; nothing uploaded</span></div></div>
+</div>
+</div></div><div class="cap"><b>B2 · Scrolled:</b> every downloaded show and movie: what it is now, what it can become (green chip: copy ready; blue: being made; grey: off). 4K/HDR in one closed row. The test moves here.</div></div>
+</div></section>
+
+<section class="board"><div class="n">C · ONE SHOW</div><h2>Tap a show: its size, its episodes, one button</h2>
+<p>The same slider as the Picture menu (Off, then only sizes above the video); here it is this show's own setting (DEC-039 per show). Episodes show their state
+in one chip; one button makes the rest; removing the copies is red and asks first.</p>
+<div class="shots">
+<div class="slot"><div class="pframe"><div class="ps">
+<div class="nb">‹ AI Upscale</div>
+<div class="hero"><i style="background:linear-gradient(160deg,#ff9f0a,#7a2e0e)"></i><div><b>Naruto Shippūden</b><span>Season 1 · 28 episodes · 1080p</span></div></div>
+<div class="slider"><div class="row"><b>Upscale this show</b><span>4K UHD</span></div>
+<div class="track"><i></i><em></em></div><div class="ticks"><span>Off</span><span>1440p</span><span class="on">4K</span></div></div>
+<div class="sh">Episodes</div><div class="grp">
+<div class="pr"><div class="t"><b>1 · Homecoming</b><span>4K copy · 640 MB</span></div><span class="chip g">Ready</span></div>
+<div class="pr"><div class="t"><b>2 · The Akatsuki Makes Its Move</b><span>4K copy · 655 MB</span></div><span class="chip g">Ready</span></div>
+<div class="pr"><div class="t"><b>4 · The Jinchuriki of the Sand</b><span>42 % · about 18 min</span><div class="thin"><i style="width:42%"></i></div></div><span class="chip b">Making</span></div>
+<div class="pr"><div class="t"><b>5 · The Kazekage Stands Tall</b><span>Up next</span></div><span class="chip n">Waiting</span></div>
+<div class="pr"><div class="t"><b>14 more episodes</b></div><span class="go">›</span></div>
+</div>
+<div class="btn">Upscale the other 15 · about 10 GB</div>
+<div class="red">Remove the 4K copies…</div>
+</div></div><div class="cap"><b>C1 · Naruto:</b> 12 ready, one being made, the rest waiting; the button makes the rest.</div></div>
+
+<div class="slot"><div class="pframe"><div class="ps">
+<div class="nb">‹ AI Upscale</div>
+<div class="hero"><i style="background:linear-gradient(160deg,#9a3b2a,#1d0b07)"></i><div><b>Hell House LLC Origins</b><span>Movie · 1 h 39 min · 1080p</span></div></div>
+<div class="slider"><div class="row"><b>Upscale this movie</b><span style="color:var(--grey)">Off</span></div>
+<div class="track"><i style="width:0"></i><em style="right:auto;left:-12px"></em></div><div class="ticks"><span class="on">Off</span><span>1440p</span><span>4K</span></div></div>
+<div class="sh">If upscaled</div><div class="grp">
+<div class="pr"><div class="t"><b>4K UHD copy</b><span>About 12 GB on Google Drive</span></div></div>
+<div class="pr"><div class="t"><b>Time on this iPhone</b><span>About 1 h 40 min while charging (measured)</span></div></div>
+</div>
+<div class="foot">The original stays for the phone and older TVs. The TV gets the 4K copy over AirPlay.</div>
+<div class="btn">Upscale to 4K UHD</div>
+</div></div><div class="cap"><b>C2 · A movie that is off:</b> what a copy would cost (size, and time from the measurement), one button.</div></div>
+
+<div class="slot"><div class="pframe"><div class="ps">
+<div class="nb">‹ Settings</div><h3>AI Upscale</h3>
+<div class="status"><div class="ico" style="background:#48484a">✦</div><div class="t"><b>Not available on this iPhone</b><span>Apple's AI super resolution needs iOS 26</span></div></div>
+<div class="foot" style="margin-top:10px">Videos play as they are. Nothing is upscaled and nothing extra goes to Google Drive.</div>
+<div class="sh">Or, the first time</div>
+<div class="status"><div class="ico" style="background:var(--purple)">✦</div><div class="t"><b>Apple's AI model is needed</b><span>A one-time download from Apple</span></div></div>
+<div class="btn" style="margin-top:10px">Download the model</div>
+<div class="foot">Shown once, before the first copy. Then this card reads "Ready on this iPhone".</div>
+</div></div><div class="cap"><b>C3 · Other states of the status card:</b> not available (iOS 25 or older), and the one-time model download.</div></div>
+</div></section>
+
+<div class="notes"><h3>Notes</h3><ul>
+<li><b>What is real today:</b> the engine (KodiAirPlay r48) and the measurement. This page, the per-show setting and the background queue are the next
+pieces (upscale_queue.py holds the rules: charger, battery, heat, Drive space, one at a time, a deleted copy made again).</li>
+<li><b>Numbers here are examples.</b> Real time and size per copy come from the owner's measurement log; C2's "time on this iPhone" would use it.</li>
+<li><b>Kodi limits (policy §2):</b> Kodi skin XML, not UIKit: the toggles, slider and chips are Kodi controls drawn with the existing portrait helpers.</li>
+</ul></div>
+</body></html>
