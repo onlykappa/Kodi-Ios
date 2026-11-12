@@ -314,18 +314,21 @@ def umbrella_ready(p):
   '<control type="textbox"><left>40</left><top>40</top><width>%d</width><height>270</height><font>p_foot</font><textcolor>%s</textcolor>'
   '<label>%s</label><visible>!%s</visible></control>'%(w-80,'FFD1D1D6',R('Text'),ready)+
   # Kodi's progress control cannot read a window property, so the bar is 20 segments shown by Umbrella's percent.
-  p.image(40,360,w-80,16,M+'dot.png','33FFFFFF',border=8)+
-  ''.join(p.image(40,360,max(16,(w-80)*k//20),16,M+'dot.png',p.WHITE,
-                  '<visible>Integer.IsGreaterOrEqual(Window.Property(percent),%d)</visible>'%(k*5),border=8) for k in range(1,21))+
+  # DEC-036 / board 10: one thin bar (11 units). It follows Umbrella's percent once a source is known, and slides
+  # while Umbrella is still looking.
+  p.image(40,368,w-80,11,M+'dot.png','33FFFFFF',border=6,extra='<visible>%s</visible>'%ready)+
+  ''.join(p.image(40,368,max(11,(w-80)*k//20),11,M+'dot.png',BLUE,
+                  '<visible>%s + Integer.IsGreaterOrEqual(Window.Property(percent),%d)</visible>'%(ready,k*5),border=6) for k in range(1,21))+
+  slide_bar(M,40,368,w-80,extra='<visible>!%s</visible>'%ready)+
   p.label(40,390,w-300,60,'Getting ready to play…','p_foot','FFD1D1D6')+
-  p.label(w-260,390,220,60,'$INFO[Window.Property(percent)]%','p_foot','FFD1D1D6','right')+'</control>')
+  p.label(w-260,390,220,60,'$INFO[Window.Property(percent)]%','p_foot','FFD1D1D6','right','<visible>%s</visible>'%ready)+'</control>')
  cancel=('<control type="button" id="9001"><left>%d</left><top>%d</top><width>%d</width><height>140</height><label>Cancel</label>'
          '<font>p_btn</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
          '<texturefocus border="70" colordiffuse="FFFFFFFF">%sglass_150.png</texturefocus><texturenofocus border="70" colordiffuse="FFFFFFFF">%sglass_150.png</texturenofocus>'
          '<onclick>Action(Back)</onclick></control>')%(p.SIDE,p.HEIGHT-200,w,p.WHITE,p.WHITE,M,M)
  # Umbrella's "icon only" setting: just a small spinner in the corner, as Umbrella draws it.
  small=('<control type="group"><visible>String.IsEqual(Window.Property(umbrella.icononly),true) + !String.IsEqual(Window.Property(umbrella.isHidden),true)</visible>'+
-        p.image(W-p.SIDE-120,40,120,120,M+'ring.png',p.WHITE,'<animation effect="rotate" end="-360" center="auto" time="1200" loop="true" reversible="false" condition="true">Conditional</animation>')+'</control>')
+        slide_bar(M,W-p.SIDE-240,90,240)+'</control>')
  hidden_text='<control type="textbox" id="2001"><left>-4000</left><top>0</top><width>800</width><height>800</height><font>p_cap</font></control>'
  full='<control type="group"><visible>![%s]</visible>%s%s%s%s%s%s%s</control>'%(hidden,art,logo,title,tv,plot,card,cancel)
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s -->\n<window><defaultcontrol always="true">9001</defaultcontrol>'
