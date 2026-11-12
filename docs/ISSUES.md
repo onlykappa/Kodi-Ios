@@ -2727,3 +2727,7 @@ its measured phone target; unknown causes and unmeasured hardware/receiver behav
   exports and source/favourite integrations. Unused workers stop; the stream proxy remains. Unknown configuration
   fails conservatively by keeping its worker. Fourteen packaging tests pass, including saved exports/sources.
   Umbrella/account update services and the skin's required monitor are not blindly disabled.
+
+- 1F.4: imported/reviewed 99ab30a's bounded three-lane season copying, per-file resumable sessions and truthful
+  aggregate rates. Movies stay single-lane; two remaining episodes use two lanes. Tests: 33 debrid, 9 transfer
+  efficiency and 29 season/source cases pass. More lanes are capacity, not proof of 1.5x speed on the phone.

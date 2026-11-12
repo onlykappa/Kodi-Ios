@@ -184,3 +184,6 @@ old screenshot's counts as acceptance evidence. Commit and push each repair sepa
 
 - 1E.3 Drive service trim imported with additional safeguards: configured exports/source URLs remain supported;
   unused export/source/player loops stop. 14 packaging tests pass. Other provider/skin services still need audit.
+
+- 1F.4 imported/reviewed: up to three per-file resumable Drive lanes; aggregate speed includes the third lane.
+  71 focused host cases pass. Phone memory/throughput measurement remains pending.
