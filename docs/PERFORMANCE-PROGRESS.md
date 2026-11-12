@@ -35,8 +35,9 @@ Builds still to make (owner approval for the IPA is in the conversation; merging
 
 Next work (in order)
 1. Review/merge the mockup agent's branch (rig-check each board: scripts/kodi_rig.py, docs/design/KODI-RIG.md).
-2. 1A.1 native Drive range reader in KodiAirPlay (replaces plugin.googledrive's Python proxy: 5-6 s opens, 4 s seeks);
-   1A.3 keep the MP4 index with it (plan below).
+2. 1A.1 DONE as the app's own Drive proxy (drive_proxy.py, Python; no framework build): check open timing and seeks
+   in the owner's next log. 1A.3 (keep the MP4 index) can now cache the tail in drive_proxy. A second Sonnet agent
+   works on 1E.7, 1E.3, 1E.2, 1D.3, 1F.4 on branch claude/speed-fixes-2 (local until reviewed).
 3. 1G.2 conversion faster than real time (only AV1 / 10-bit H.264 / unprepared downloads need it now).
 4. 1E.2/1E.3/1E.7 start-up trims, 1F.2-1F.4 uploads to line speed, 1D.3 rows for the visible tab only.
 5. MKV fonts trade-off (1B.1): owner chose faster opens with the plain subtitle font (2026-11-12). Applies to every MKV Kodi opens: Umbrella streams and Elementum; prepared Drive MP4s are unaffected.
