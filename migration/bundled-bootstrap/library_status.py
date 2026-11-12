@@ -241,6 +241,14 @@ def run(args=()):
    else:self.finish()
   def onAction(self,action):
    if action.getId() in BACK:self.go_back()
+  def cancel_all(self):
+   # Every queued AllDebrid -> Drive copy goes, after one question (the heading's Cancel All and the copy's sheet).
+   import transfer_control
+   n=len(transfer_control.unfinished_copies(profile))
+   if dialog.yesno('Cancel all downloads','Stop the copy running now and remove all %d downloads to Google Drive from the queue? '
+                   'Videos already on Google Drive stay.'%n,nolabel='Keep',yeslabel='Remove All'):   # red: the alert marks Remove
+    dialog.notification('Kodi iOS','%d downloads cancelled'%transfer_control.cancel_all_copies(profile),xbmcgui.NOTIFICATION_INFO,3000)
+   self.refresh(force=True)
   def onClick(self,control):
    if control==library_page.BACK:self.go_back()
    elif control==library_page.CHECK:self.check()
@@ -305,12 +313,7 @@ def run(args=()):
    if chosen and chosen[1] in ('play','tv'):
     play(chosen_row,chosen[1]=='tv');return
    if chosen and chosen[1]=='cancel_all':
-    import transfer_control
-    n=len(transfer_control.unfinished_copies(profile))
-    if dialog.yesno('Cancel all downloads','Stop the copy running now and remove all %d downloads to Google Drive from the queue? '
-                    'Videos already on Google Drive stay.'%n):
-     dialog.notification('Kodi iOS','%d downloads cancelled'%transfer_control.cancel_all_copies(profile),xbmcgui.NOTIFICATION_INFO,3000)
-    self.refresh(force=True);return
+    self.cancel_all();return
    if chosen and chosen[1] in ('toggle','cancel'):
     import transfer_control
     kind=live.get('kind')

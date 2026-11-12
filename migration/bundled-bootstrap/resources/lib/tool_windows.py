@@ -128,6 +128,16 @@ def open_queue(profile=None):
             if control == page.BACK:
                 self.finish()
                 return
+            if control == page.QCANCEL:
+                # Every queued AllDebrid -> Drive copy goes, after one question.
+                import transfer_control, xbmcgui
+                n = len(transfer_control.unfinished_copies(profile))
+                if xbmcgui.Dialog().yesno('Cancel all downloads', 'Stop the copy running now and remove all %d downloads to Google Drive '
+                                          'from the queue? Videos already on Google Drive stay.' % n, nolabel='Keep', yeslabel='Remove All'):
+                    xbmcgui.Dialog().notification('Kodi iOS', '%d downloads cancelled' % transfer_control.cancel_all_copies(profile),
+                                                  xbmcgui.NOTIFICATION_INFO, 3000)
+                self.refresh()
+                return
             if control in (page.QPREV,page.QNEXT):
                 self.offset=max(0,self.offset+(page.QUEUE_SLOTS if control==page.QNEXT else -page.QUEUE_SLOTS));self.refresh();return
             for base, action in ((page.UP, 'up'), (page.DOWN, 'down')):

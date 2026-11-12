@@ -91,6 +91,7 @@ def _arrow(p, id, x, glyph, key):
 
 RETRY = 9890
 QPREV, QNEXT, HPREV, HNEXT = 9841, 9842, 9905, 9906
+QCANCEL = 9843   # Cancel All beside DOWNLOADING TO GOOGLE DRIVE (owner, 2026-11-12)
 
 
 QBAR = 9850     # the Queue's running-job bar (tool_windows sets it)
@@ -134,7 +135,11 @@ def queue_page(p):
     rows += u.group(p, 100, u.text(p, S, 0, w, 60, _P('line.more'), 'p_foot', p.GREY), _has('line.more'))
     rows += header('WAITING', _has('held.1.title'), 105)
     rows += ''.join(_card_row(p, 'held.%d.' % n, p.GREY) for n in range(1, HELD_SLOTS + 1))
-    rows += header('DOWNLOADING TO GOOGLE DRIVE', _has('drive.1.title'), 105)
+    # Red Cancel All on the right of the Drive heading (it asks first; tool_windows Queue). The heading leaves it room.
+    cancel = u.link(p, QCANCEL, W - S - 300, -28, 290, 118, 'Cancel All').replace(
+        '<textcolor>%s</textcolor><focusedcolor>%s</focusedcolor>' % (p.ACCENT, p.ACCENT), '<textcolor>FFFF453A</textcolor><focusedcolor>FFFF453A</focusedcolor>')
+    rows += u.group(p, 105, u.text(p, S + 10, 0, w - 330, 62, 'DOWNLOADING TO DRIVE', 'p_pill', p.GREY) +
+                    '<control type="group"><visible>%s</visible>%s</control>' % (_has('cancel_all'), cancel), _has('drive.1.title'))
     rows += ''.join(_card_row(p, 'drive.%d.' % n, p.GREY) for n in range(1, DRIVE_SLOTS + 1))
     rows += u.group(p, 124, u.tap(p, QPREV, S, 0, w // 2, 118, 'Previous',enabled=_has('page.previous')) + u.tap(p, QNEXT, S + w // 2, 0, w // 2, 118, 'More',enabled=_has('page.more')), _has('pages'))
     rows += u.group(p, 160, u.paragraph(p, S + 10, 0, w - 20, 150, 'Moving a video to the top makes it next. Faster-start jobs are already Ready, so they wait behind new movies on their own.', 'p_foot'))
