@@ -143,7 +143,7 @@ Evidence: `e8ab5995` 09:31:25 (1.4 s), 09:32:23 (1.9 s), 09:32:45 (2.1 s).
 
 | # | Work | Cause | Target |
 |---|---|---|---|
-| 1C.1 | One timing line per play: tap → plugin → resolve → OpenFile → stream open → first picture, in the diagnostics log | We infer stages from gaps today | every open has a breakdown |
+| 1C.1 | One timing line per play: tap → plugin → resolve → OpenFile → stream open → first picture, in the diagnostics log | We infer stages from gaps today | every open has a breakdown — **Coded (host-tested) (speed-reliability-fixes): open timing line now breaks the time into resolve / handoff / open / picture; needs a device log to read** |
 | 1C.2 | Check for a completed copy before TMDb Helper builds its player list; play it straight away | Known: TMDb Helper constructs players, reads item details and the library (1-2 s), then our hook finds the Drive copy | Drive copy plays < 0.3 s after the tap's plugin call |
 | 1C.3 | Ship TMDb Helper's `resources/players/` folder (or point it at ours), so it stops failing two directory reads per play | Known: `GetDirectory - Error getting …/resources/players/` twice on every play | no errors |
 | 1C.4 | Cache TMDb item details for the titles on screen (spotlight, Continue Watching) so Play needs no network | Suspected | Play menu < 0.4 s |

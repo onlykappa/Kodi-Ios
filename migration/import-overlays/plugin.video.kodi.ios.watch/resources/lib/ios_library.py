@@ -57,6 +57,13 @@ def mark_open(via):
   xbmcgui.Window(10000).setProperty('KodiIOS.Open',json.dumps({'t':time.time(),'via':via}))
  except Exception:pass
 
+def mark_resolved():
+ """Roadmap 1C.1: the address has been handed to Kodi (the 'resolve' stage of the open timing line ends here)."""
+ try:
+  import time,xbmcgui
+  xbmcgui.Window(10000).setProperty('KodiIOS.OpenResolved',repr(time.time()))
+ except Exception:pass
+
 def drive_file_id(path):
  """The Drive file id of a Google Drive add-on play link, or ''."""
  url=urllib.parse.urlsplit(str(path or ''));query=urllib.parse.parse_qs(url.query)
@@ -483,6 +490,7 @@ def play_downloaded(handle,params):
   else:
    data=ios_continue.load(read);data.pop('current',None);ios_continue.save(data,write)
  except (OSError,ValueError,RuntimeError):xbmc.log('Kodi iOS Library: playback history could not be updated',xbmc.LOGWARNING)
+ mark_resolved()
  xbmcplugin.setResolvedUrl(handle,True,li)
 
 def directory(handle,params):
