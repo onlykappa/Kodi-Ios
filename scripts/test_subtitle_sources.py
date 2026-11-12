@@ -92,4 +92,18 @@ class NoKeysInTheLog(unittest.TestCase):
   src=(root/'migration/bundled-bootstrap/tracks.py').read_text()
   self.assertIn("zlib.crc32(str(result['id'])",src);self.assertIn('redact(m)',src)
 
+class MenuPages(unittest.TestCase):
+ def test_keys_and_files_are_rows_of_the_menu(self):
+  rows=tm.keys_rows(dict(KEYS,opensubtitles=''))
+  self.assertEqual([(r['label'],r['tag'],r['index']) for r in rows[:2]],[('SubDL key','SET','key:subdl'),('OpenSubtitles key','ADD','key:opensubtitles')])
+  self.assertEqual(tm.file_rows([])[0]['index'],'nofiles')
+  self.assertEqual(tm.file_rows(['/d/Inbox/Interstellar.en.srt'])[0],{'label':'Interstellar.en.srt','tag':'INBOX','on':False,'index':'sub:0'})
+ def test_subtitle_files_newest_first_skipping_kodi_folders(self):
+  with tempfile.TemporaryDirectory() as d:
+   import os,time
+   for rel,age in (('Inbox/a.srt',30),('Kodi Downloads/Movies/b.ass',10),('Kodi/userdata/c.srt',1),('notes.txt',1)):
+    p=Path(d,rel);p.parent.mkdir(parents=True,exist_ok=True);p.write_text('x');os.utime(p,(time.time()-age,time.time()-age))
+   got=[Path(x).name for x in tm.subtitle_files([d,str(Path(d,'Inbox'))])]
+   self.assertEqual(got,['b.ass','a.srt'])
+
 if __name__=='__main__':unittest.main()

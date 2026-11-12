@@ -76,27 +76,31 @@ def keys_folder(xbmcvfs):
     return xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/')
 
 
-def ask_keys(xbmcgui, xbmcvfs, log):
-    """More › Subtitle keys: the free SubDL key and/or OpenSubtitles key (and account), saved only on the phone."""
+def set_key(xbmcgui, xbmcvfs, name, log):
+    """Subtitles › More › Subtitle keys › a row: the keyboard for that key; saved only on the phone."""
     import subtitle_sources as ss
     folder = keys_folder(xbmcvfs)
     keys = ss.load_keys(folder)
-    d = xbmcgui.Dialog()
-    labels = ['SubDL key (subdl.com, free)', 'OpenSubtitles key (opensubtitles.com, free)',
-              'OpenSubtitles username (optional)', 'OpenSubtitles password (optional)']
-    while True:
-        rows = ['%s: %s' % (label, 'set' if keys[k] else 'not set') for label, k in zip(labels, ss.KEY_NAMES)]
-        pick = d.select('Subtitle keys', rows)
-        if pick < 0:
-            break
-        k = ss.KEY_NAMES[pick]
-        hidden = k == 'opensubtitles_password'
-        value = d.input(labels[pick], '' if hidden else keys[k], type=xbmcgui.INPUT_ALPHANUM,
-                        option=xbmcgui.ALPHANUM_HIDE_INPUT if hidden else 0)
-        keys[k] = value.strip()
-        ss.save_keys(folder, keys)
-        log('subtitle keys: %s %s' % (k, 'set' if keys[k] else 'cleared'))   # never the value
-    return keys
+    label = dict(tm.KEY_ROWS).get(name, name)
+    hidden = name == 'opensubtitles_password'
+    value = xbmcgui.Dialog().input(label, '' if hidden else keys.get(name, ''), type=xbmcgui.INPUT_ALPHANUM,
+                                   option=xbmcgui.ALPHANUM_HIDE_INPUT if hidden else 0)
+    keys[name] = (value or '').strip()
+    ss.save_keys(folder, keys)
+    log('subtitle keys: %s %s' % (name, 'set' if keys[name] else 'cleared'))   # never the value
+
+
+def file_roots(xbmc, xbmcvfs):
+    """Where subtitle files are looked for: the app's Documents (Files app), its Inbox (AirDrop / Share), Kodi Downloads,
+    Elementum's folder, and the folder of the video playing when it is on the phone."""
+    from pathlib import Path
+    home = Path(xbmcvfs.translatePath('special://home/'))
+    docs = next((p for p in (home, *home.parents) if p.name == 'Documents'), home.parent)
+    roots = [str(docs / 'Inbox'), str(docs / 'Kodi Downloads'), str(docs / 'Elementum Download'), str(docs)]
+    playing = xbmc.getInfoLabel('Player.Folderpath')
+    if playing.startswith('/'):
+        roots.insert(0, playing)
+    return [r for r in roots if os.path.isdir(r)]
 
 
 def keys_tag(xbmcvfs):
@@ -164,6 +168,11 @@ def run(mode):
                 self.rows = tm.more_rows(len(self.results), self.always_on(), keys_tag(xbmcvfs))
             elif mode == 'subtitles' and page == 'choose':
                 self.rows = tm.result_rows(self.results)
+            elif mode == 'subtitles' and page == 'keys':
+                import subtitle_sources as ss
+                self.rows = tm.keys_rows(ss.load_keys(keys_folder(xbmcvfs)))
+            elif mode == 'subtitles' and page == 'files':
+                self.rows = tm.file_rows(getattr(self, 'files', []))
             elif mode == 'subtitles':
                 cur = (p.get('currentsubtitle') or {}).get('index')
                 subs = [dict(s, downloaded=s.get('index') in self.added) for s in p.get('subtitles') or []]
@@ -312,7 +321,7 @@ def run(mode):
             self.page = page
             # Board 02: a sub-page shows a blue back link in the header instead of the title (pages.track_menu).
             self.setProperty('page', '' if page == 'tracks' else page)
-            self.setProperty('back', {'more': '\u2039 Subtitles', 'choose': '\u2039 More'}.get(page, ''))
+            self.setProperty('back', {'more': '\u2039 Subtitles', 'choose': '\u2039 More', 'keys': '\u2039 More', 'files': '\u2039 More'}.get(page, ''))
             self.fill()
             self.setFocusId(LIST)
 
@@ -337,15 +346,22 @@ def run(mode):
                 self.state('idle')
                 self.more('choose')
             elif what == 'file':
-                path = xbmcgui.Dialog().browse(1, 'Add subtitles', 'files', '.srt|.ass|.ssa|.vtt|.sub')
-                if path:
-                    xbmc.Player().setSubtitles(path)
-                    xbmc.sleep(400)
-                    self.more('tracks')
-            elif what == 'keys':
-                ask_keys(xbmcgui, xbmcvfs, log)
+                self.files = tm.subtitle_files(file_roots(xbmc, xbmcvfs))
+                self.more('files')
+            elif isinstance(what, str) and what.startswith('sub:'):
+                path = self.files[int(what[4:])]
+                xbmc.Player().setSubtitles(path)
+                log('subtitle file turned on: %s' % os.path.basename(path))
+                xbmc.sleep(400)
+                self.more('tracks')
+            elif what == 'nofiles':
+                pass
+            elif isinstance(what, str) and what.startswith('key:'):
+                set_key(xbmcgui, xbmcvfs, what[4:], log)
                 self.results = []
-                self.more('more')
+                self.fill()
+            elif what == 'keys':
+                self.more('keys')
             elif what == 'always':
                 tracks_now = [x for x in tm.subtitle_rows(*self.subtitle_streams()) if x['on'] and x['index'] is not None]
                 value = 'default' if self.always_on() else (tracks_now[0]['label'] if tracks_now else lang_name)
@@ -367,7 +383,7 @@ def run(mode):
             if control == CLOSE:
                 self.close()
             elif control == BACK_LINK:   # the sub-page's back link: Choose another -> More -> the tracks
-                self.more('more' if self.page == 'choose' else 'tracks')
+                self.more('more' if self.page in ('choose', 'keys', 'files') else 'tracks')
             elif control in (LIST, SPEED_LIST):
                 n = self.getControl(control).getSelectedPosition()
                 if 0 <= n < len(self.rows):

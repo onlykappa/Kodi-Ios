@@ -241,6 +241,53 @@ def more_rows(found, always, keys_tag=''):
             {'label': 'Subtitle keys', 'tag': keys_tag, 'on': False, 'index': 'keys'}]
 
 
+KEY_ROWS = (('subdl', 'SubDL key'), ('opensubtitles', 'OpenSubtitles key'), ('opensubtitles_user', 'OpenSubtitles username'),
+            ('opensubtitles_password', 'OpenSubtitles password'))
+
+
+def keys_rows(keys):
+    """Subtitles › More › Subtitle keys as rows of the menu (owner, 2026-11-12: Kodi's select box looked wrong):
+    each key, SET or ADD; tapping one opens the keyboard."""
+    return [{'label': label, 'tag': 'SET' if keys.get(k) else 'ADD', 'on': False, 'index': 'key:' + k} for k, label in KEY_ROWS]
+
+
+SUB_EXT = ('.srt', '.ass', '.ssa', '.vtt', '.sub')
+
+
+def subtitle_files(roots, limit=40, depth=3, walk=None, mtime=None):
+    """Subtitle files on the phone (Documents, Inbox, Kodi Downloads...), newest first, at most `limit`."""
+    import os
+    walk = walk or os.walk
+    mtime = mtime or os.path.getmtime
+    found = {}
+    for root in roots:
+        if not root:
+            continue
+        base = root.rstrip(os.sep).count(os.sep)
+        for folder, dirs, files in walk(root):
+            if folder.count(os.sep) - base >= depth:
+                dirs[:] = []
+            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ('Kodi', 'userdata', 'addons')]
+            for f in files:
+                if f.lower().endswith(SUB_EXT):
+                    path = os.path.join(folder, f)
+                    try:
+                        found[path] = mtime(path)
+                    except OSError:
+                        continue
+    return sorted(found, key=lambda p: -found[p])[:limit]
+
+
+def file_rows(paths):
+    """Subtitles › More › Add from a file as rows (owner, 2026-11-12: Kodi's file browser looked wrong): the file
+    and the folder it is in; one plain row when there are none."""
+    import os
+    if not paths:
+        return [{'label': 'No subtitle files on this iPhone', 'tag': '', 'on': False, 'index': 'nofiles'}]
+    return [{'label': os.path.basename(p), 'tag': os.path.basename(os.path.dirname(p)).upper()[:18], 'on': False, 'index': 'sub:%d' % n}
+            for n, p in enumerate(paths)]
+
+
 def result_rows(results):
     """Found subtitles as rows (the way back is the header's link); index is the result's position."""
     rows = []
