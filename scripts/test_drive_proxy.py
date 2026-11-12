@@ -1,5 +1,5 @@
 """Roadmap 1A.1: the app's own Drive streaming proxy (replaces the Google Drive add-on's for Library playback)."""
-import io,sys,time,unittest,urllib.request
+import io,sys,threading,time,unittest,urllib.request
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib'))
 import drive_proxy as dp
@@ -26,7 +26,7 @@ class FakeConn(object):
         return FakeResp(200,DATA,{'Content-Length':str(len(DATA)),'Content-Type':'video/mp4'})
     def close(self):pass
 
-class Proxy(unittest.TestCase):
+class ProxyBase(unittest.TestCase):
     def setUp(self):
         FakeConn.log=[];FakeConn.expired=set();self.tokens=[]
         def token(force):
@@ -36,6 +36,8 @@ class Proxy(unittest.TestCase):
     def fetch(self,path,headers=None,method='GET'):
         req=urllib.request.Request('http://127.0.0.1:%d%s'%(self.port,path),headers=headers or {},method=method)
         return urllib.request.urlopen(req,timeout=10)
+
+class Proxy(ProxyBase):
     def test_whole_file_and_a_seek(self):
         with self.fetch('/drive/F1/Movie.mp4') as r:self.assertEqual((r.status,r.read()),(200,DATA))
         with self.fetch('/drive/F1/Movie.mp4',{'Range':'bytes=1000-1999'}) as r:
@@ -99,5 +101,82 @@ class Proxy(unittest.TestCase):
     def test_url_and_path_round_trip(self):
         u=dp.url(self.port,'1oH7yt-Hx','Home Alone (1990).mp4')
         self.assertEqual(dp.parse_path(u.split(str(self.port),1)[1]),'1oH7yt-Hx')
+
+class Warming(ProxyBase):
+    """Roadmap 1A.4: a title's page opening makes the proxy read its start and index before Play is tapped."""
+    def setUp(self):
+        super().setUp()
+        dp.WARM_HEAD,dp.WARM_TAIL=4096,1024   # DATA is 1 MiB; small windows keep the test about the logic
+    def tearDown(self):
+        dp.WARM_HEAD,dp.WARM_TAIL=4*1024*1024,1024*1024
+        super().tearDown()
+    def warm_and_wait(self,file_id='W1'):
+        self.assertTrue(dp.ask_warm(self.port,file_id,'Movie (2020).mp4'))
+        warm=self.server.RequestHandlerClass.warm
+        for _ in range(100):
+            if warm.get(file_id):break
+            time.sleep(.02)
+        return warm.get(file_id)
+    def test_page_open_reads_the_start_and_the_end_once(self):
+        entry=self.warm_and_wait()
+        self.assertEqual(entry['size'],len(DATA));self.assertEqual([(s,len(d)) for s,d in entry['chunks']],[(0,4096),(len(DATA)-1024,1024)])
+        ranges=[h['Range'] for _,h in FakeConn.log]
+        self.assertEqual(ranges,['bytes=0-4095','bytes=%d-%d'%(len(DATA)-1024,len(DATA)-1)])
+        self.assertEqual(self.server.RequestHandlerClass.warm.start(None,{},'W1'),'cached')   # a second page open reads nothing
+    def test_first_requests_are_answered_without_asking_drive(self):
+        self.warm_and_wait();FakeConn.log.clear()
+        with self.fetch('/drive/W1/Movie.mp4',method='HEAD') as r:self.assertEqual(r.headers['Content-Length'],str(len(DATA)))
+        with self.fetch('/drive/W1/Movie.mp4',{'Range':'bytes=100-199'}) as r:self.assertEqual(r.read(),DATA[100:200])
+        with self.fetch('/drive/W1/Movie.mp4',{'Range':'bytes=%d-'%(len(DATA)-500)}) as r:
+            self.assertEqual((r.status,r.headers['Content-Range'],r.read()),(206,'bytes %d-%d/%d'%(len(DATA)-500,len(DATA)-1,len(DATA)),DATA[-500:]))
+        self.assertEqual(FakeConn.log,[])
+        self.assertEqual(self.server.stats.take()['warm_hits'],2)
+    def test_a_read_past_the_warm_start_continues_from_drive_exactly(self):
+        self.warm_and_wait();FakeConn.log.clear()
+        with self.fetch('/drive/W1/Movie.mp4',{'Range':'bytes=0-'}) as r:
+            self.assertEqual((r.status,r.headers['Content-Length']),(206,str(len(DATA))));self.assertEqual(r.read(),DATA)
+        self.assertEqual([h['Range'] for _,h in FakeConn.log],['bytes=4096-%d'%(len(DATA)-1)])
+    def test_warm_keeps_only_two_titles(self):
+        for name in ('A','B','C'):self.warm_and_wait(name)
+        warm=self.server.RequestHandlerClass.warm
+        self.assertEqual((warm.get('A'),bool(warm.get('B')),bool(warm.get('C'))),(None,True,True))
+    def test_a_stale_warm_start_is_not_used(self):
+        self.warm_and_wait()
+        warm=self.server.RequestHandlerClass.warm;warm.clock=lambda:time.time()+dp.WARM_MAX_AGE+1
+        self.assertIsNone(warm.get('W1'))
+
+class ReadAhead(ProxyBase):
+    """Roadmap 1A.5: a seek's new request is timed, streamed ahead of Kodi and can use a connection opened in advance."""
+    def test_seek_requests_are_timed_but_a_start_from_zero_is_not(self):
+        with self.fetch('/drive/F1/Movie.mp4',{'Range':'bytes=0-9'}) as r:r.read()
+        with self.fetch('/drive/F1/Movie.mp4',{'Range':'bytes=500000-'}) as r:self.assertEqual(r.read(),DATA[500000:])
+        taken=self.server.stats.take()
+        self.assertEqual((taken['requests'],len(taken['seeks'])),(2,1));self.assertLess(taken['seeks'][0],2)
+        self.assertEqual(self.server.stats.take()['requests'],0)   # taking the summary resets it
+    def test_the_whole_body_arrives_in_order_through_the_read_ahead_queue(self):
+        with self.fetch('/drive/F1/Movie.mp4') as r:self.assertEqual(r.read(),DATA)
+    def test_a_stalled_reader_does_not_pin_the_read_ahead_thread(self):
+        before=threading.active_count()
+        for _ in range(3):
+            r=self.fetch('/drive/F1/Movie.mp4',{'Range':'bytes=0-'});r.read(10);r.close()
+        time.sleep(1.5)
+        self.assertLessEqual(threading.active_count(),before+2)
+    def test_a_spare_connection_is_opened_in_advance_and_used_by_the_next_request(self):
+        opened=[]
+        class Conn(FakeConn):
+            def __init__(self):opened.append(self)
+            def connect(self):self.connected=True
+        up=dp.Upstream(lambda force:'t',Conn,spare=True)
+        up._conn()                       # the first request opens one and asks for the next to be prepared
+        for _ in range(100):
+            if up.spare is not None:break
+            time.sleep(.02)
+        spare=up.spare;self.assertIsNotNone(spare);self.assertTrue(spare.connected)
+        up.drop();self.assertIs(up._conn(),spare)   # after a seek (drop) the next request starts on the spare
+    def test_an_old_spare_connection_is_not_trusted(self):
+        class Conn(FakeConn):
+            def connect(self):pass
+        up=dp.Upstream(lambda force:'t',Conn,spare=True);up.spare=Conn();up.spare_at=time.time()-dp.SPARE_MAX_AGE-1
+        self.assertIsNone(up._take_spare())
 
 if __name__=='__main__':unittest.main()

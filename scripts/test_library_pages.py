@@ -139,4 +139,35 @@ class Pages(unittest.TestCase):
   self.assertIn('<left>48</left><top>36</top>',xml)
 
 
+class WarmOnPageOpen(unittest.TestCase):
+ """Roadmap 1A.4: a title's page opening warms the one Drive file Play will open, never every row."""
+ PLAY='plugin://plugin.googledrive/?action=play&content_type=video&driveid=D&item_driveid=D&item_id=FILE1'
+ def fake_home(self,port):
+  import types
+  window=types.SimpleNamespace(getProperty=lambda name:port if name=='KodiIOS.DriveProxy' else '')
+  fake=types.ModuleType('xbmcgui');fake.Window=lambda ident:window
+  self.addCleanup(sys.modules.pop,'xbmcgui',None);sys.modules['xbmcgui']=fake
+ def test_file_id_comes_only_from_a_drive_play_link(self):
+  self.assertEqual(page.drive_file_id(self.PLAY),'FILE1')
+  for other in ('/var/mobile/a.mp4','plugin://plugin.video.other/?action=play&item_id=X','plugin://plugin.googledrive/?action=list&item_id=X',''):
+   self.assertEqual(page.drive_file_id(other),'')
+ def test_a_drive_copy_is_warmed_through_the_running_proxy(self):
+  self.fake_home('4321');asked=[]
+  self.assertTrue(page.warm_copy(self.PLAY,ask=lambda port,file_id:asked.append((port,file_id)) or True))
+  self.assertEqual(asked,[(4321,'FILE1')])
+ def test_nothing_is_asked_without_the_proxy_a_drive_file_or_when_it_fails(self):
+  self.fake_home('');asked=[]
+  self.assertFalse(page.warm_copy(self.PLAY,ask=lambda *a:asked.append(a)))
+  self.fake_home('4321')
+  self.assertFalse(page.warm_copy('/var/mobile/a.mp4',ask=lambda *a:asked.append(a)))
+  def broken(*a):raise OSError('down')
+  self.assertFalse(page.warm_copy(self.PLAY,ask=broken));self.assertEqual(asked,[])
+ def test_the_movies_list_warms_only_the_resumable_drive_movie(self):
+  def movie(file,position,source='drive'):
+   route=page.ME+'?'+page.urllib.parse.urlencode({'action':'library_play','path':'plugin://plugin.googledrive/?action=play&item_id='+file})
+   return (route,file,{},{'mediatype':'movie','source':source,'resume':{'position':position}},False)
+  rows=[movie('A',0),movie('B',30,'local'),movie('C',50),movie('D',70)]
+  self.assertEqual(page.drive_file_id(page.movie_warm_target(rows)),'C')
+  self.assertEqual(page.movie_warm_target([movie('A',0)]),'')
+
 if __name__=='__main__':unittest.main()
