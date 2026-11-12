@@ -279,4 +279,16 @@ class AiredEpisodes(unittest.TestCase):
         self.assertEqual(aired(rows('2007-02-15','2027-01-01'),today),[1])          # future one left out
         self.assertEqual(aired([{'episode':1,'premiered':'2007-02-15'}],today),[1])
 
+class PlanSeason(unittest.TestCase):
+    def test_download_all_plans_even_when_the_show_could_not_be_registered(self):
+        # Owner log 4e7b2fb2 (build 284): KeyError '31910' after Download All, nothing queued.
+        with tempfile.TemporaryDirectory() as profile:
+            watch.plan_season(profile,'31910','',1,[1,2,3],'1080p',now=5)
+            show=watch.load(profile)['shows']['31910']
+            self.assertEqual(sorted(show['planned']),['1:1','1:2','1:3'])
+            watch.record_planned(profile,'31910',1,2,True)
+            self.assertEqual(watch.load(profile)['shows']['31910']['planned']['1:2']['status'],'queued')
+            watch.plan_season(profile,'31910','Naruto Shippuden',1,[4],'1080p',now=6)
+            self.assertEqual(watch.load(profile)['shows']['31910']['title'],'Naruto Shippuden')
+
 if __name__=='__main__':unittest.main()

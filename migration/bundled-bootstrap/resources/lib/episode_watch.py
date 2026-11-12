@@ -74,10 +74,15 @@ def register(profile,tmdb,title,season,episode,preference,now=None):
  return update(profile,change)
 
 def plan_season(profile,tmdb,title,season,numbers,quality,now=None):
- """Explicit back-catalogue requests, separate from the date floor for following future releases."""
+ """Explicit back-catalogue requests, separate from the date floor for following future releases. Owner log
+ 4e7b2fb2 (build 284, Naruto Shippuden): register() declined the show (it returns False rather than raising, e.g. for a
+ missing title) and reading it back raised KeyError '31910' after Download All, so nothing was queued. The record is
+ made here when register() did not make it."""
+ now=time.time() if now is None else now
  register(profile,tmdb,title,season,min(numbers),{'quality':quality,'strict_quality':True},now)
  def change(state):
-  show=state['shows'][str(tmdb)]
+  show=state['shows'].setdefault(str(tmdb),{'since':now,'floor':[int(season),int(min(numbers))],'episodes':{},'last_check':0,
+                                            'tmdb':str(tmdb),'title':str(title or ''),'preference':{'quality':quality,'strict_quality':True}})
   for n in numbers:
    show.setdefault('planned',{})['%d:%d'%(int(season),int(n))]={'quality':quality,'status':'not_found'}
  update(profile,change)
