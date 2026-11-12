@@ -70,7 +70,10 @@ class Flow(unittest.TestCase):
             return {'queued': True}
         home = types.SimpleNamespace(props={}, getProperty=lambda k: home.props.get(k, ''),
                                      setProperty=lambda k, v: home.props.__setitem__(k, v), clearProperty=lambda k: home.props.pop(k, None))
-        xbmc = types.SimpleNamespace(Monitor=lambda: types.SimpleNamespace(abortRequested=lambda: False), log=lambda *a: None, LOGINFO=1)
+        self.waits = []
+        xbmc = types.SimpleNamespace(Monitor=lambda: types.SimpleNamespace(abortRequested=lambda: False,
+                                                                           waitForAbort=lambda t: self.waits.append(t) or False),
+                                     log=lambda *a: None, LOGINFO=1)
         dialog = types.SimpleNamespace(ok=lambda *a: calls.setdefault('ok', a), notification=lambda *a: None)
         gui = types.SimpleNamespace(NOTIFICATION_INFO=1)
         try:
@@ -86,6 +89,8 @@ class Flow(unittest.TestCase):
     def test_builds_from_episodes_at_the_quality_with_fallback(self):
         import unittest.mock  # noqa: F401
         out, calls = self.run_build({1: ['1080p', '480p'], 2: ['720p'], 3: ['1080p']})
+        # Owner log 5169a460: Close/Cancel taps reach the card only while the script waits in Kodi.
+        self.assertTrue(self.waits and all(t <= 0.05 for t in self.waits))
         self.assertEqual(out, [1, 2, 3])
         self.assertEqual(calls['queued'], [(1, '1080p'), (2, '720p'), (3, '1080p')])
         self.assertIn('Building Season 1 · 1080p', calls['card'])
