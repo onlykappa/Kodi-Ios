@@ -2,14 +2,14 @@
   "framework_release": {
     "tag": "kodi-airplay-r47",
     "asset": "KodiAirPlay.framework.zip",
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "sha256": "e3ad181a72e1c1d3ea9043a558d3112a230fcfc7f0a33e5bd46f58345697ceea"
   },
   "previous": {
     "tag": "kodi-airplay-r46",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "45f37b1785e64c3335892f63e733e54fbf277f84197b525e40912c0ceb69eeb4"
   },
-  "source_commit": "e9205f2644efd7b2a13e7f4c0ef25826a66f6567",
-  "verified_run": 42965789430,
-  "staged_note": "r47 staged (DEC-038 follow-up, owner 2026-11-12 \"build everything now with one ipa\"): built and published by airplay-ios on PR #21; sha256, source_commit and verified_run are pinned from that run."
+  "source_commit": "a0a3b90b3c60c6f4fc1c6efcf268611b39341940",
+  "verified_run": 43251110403,
+  "pin_note": "r47 pinned from airplay-ios run 43251110403 (PR #21, a0a3b90): release zip downloaded and its sha256 checked against the release notes."
 }

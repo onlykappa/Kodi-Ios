@@ -153,6 +153,8 @@ class AirPlayLog(unittest.TestCase):
   self.assertRegex(lock['framework_release']['sha256'],r'^[0-9a-f]{64}$')
   self.assertEqual(lock['previous']['tag'],'kodi-airplay-r46')
   self.assertEqual(lock['previous']['sha256'],'45f37b1785e64c3335892f63e733e54fbf277f84197b525e40912c0ceb69eeb4')
+  self.assertEqual(lock['framework_release']['sha256'],'e3ad181a72e1c1d3ea9043a558d3112a230fcfc7f0a33e5bd46f58345697ceea')
+  self.assertEqual(lock['verified_run'],43251110403)
 
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):
