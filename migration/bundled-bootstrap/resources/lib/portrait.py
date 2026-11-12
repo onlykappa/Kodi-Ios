@@ -24,6 +24,8 @@ _spec=_iu.spec_from_file_location('activity_skin',os.path.join(os.path.dirname(o
 activity_skin=_iu.module_from_spec(_spec);_spec.loader.exec_module(activity_skin)
 _spec=_iu.spec_from_file_location('library_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_page.py'))
 library_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_page)
+_spec=_iu.spec_from_file_location('library_files_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_files_page.py'))
+library_files_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_files_page)
 _spec=_iu.spec_from_file_location('notice_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'notice_page.py'))
 notice_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(notice_page)
 _spec=_iu.spec_from_file_location('transfers_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'transfers_page.py'))
@@ -82,8 +84,9 @@ def titled_page(title,path):
 # Library: Kodi's own library together with the downloads kept in Google Drive › Kodi Downloads (owner, 2026-11-02:
 # "this needs to be linked to library, not gear to Drive"); the watch add-on lists both (ios_library.py).
 LIBRARY_PAGE='plugin://plugin.video.kodi.ios.watch/?action=library&type='
-LIBRARY=[('Movies','film.png',titled_page('Movies',LIBRARY_PAGE+'movie')),
-         ('TV Shows','tv.png',titled_page('TV Shows',LIBRARY_PAGE+'tv'))]
+# DEC-043 board A: the Library's rows open the file manager (library_manager.py), each on its own side of the switch.
+LIBRARY=[('Movies','film.png','RunScript(service.kodi.ios.bootstrap,library_manager,movie)'),
+         ('TV Shows','tv.png','RunScript(service.kodi.ios.bootstrap,library_manager,tv)')]
 TMDB='plugin://plugin.video.themoviedb.helper/'
 SEARCH_ACTION='ActivateWindow(Videos,%s?info=search&tmdb_type=multi,return)'%TMDB
 # Search page categories (TMDb TV genres) with their tile gradients.
@@ -110,7 +113,7 @@ VIDEO_ONLY={'DialogSeekBar.xml','Custom_1156_Buffering.xml','DialogFullScreenInf
             'Custom_1143_OSD_NextOverlay.xml','Custom_1145_OSD_InfoPanel.xml','Custom_1146_OSD_AudioStreams.xml',
             'Custom_1147_OSD_SubtitleStreams.xml','Custom_1148_OSD_VideoStreams.xml','Custom_1151_OSD_MusicInfoOverlay.xml',
             'Custom_1152_OSD_VideoInfoOverlay.xml','Custom_1153_OSD_VideoInfoOverlayTop.xml','Custom_1193_VideoOSDInfo.xml',
-            'IOSPlayOnTV.xml','IOSAirPlayFlow.xml','IOSTrackMenu.xml'}   # pages.play_on_tv, pages.track_menu, airplay_flow: Play on TV over video
+            'IOSPlayOnTV.xml','IOSAirPlayFlow.xml','IOSTrackMenu.xml','IOSPictureMenu.xml'}   # pages.play_on_tv, pages.track_menu, airplay_flow: Play on TV over video
 # iOS text styles at 2.687 units/pt (large title 34pt, title2 22pt, headline/body 17pt, subhead 15pt, footnote 13pt...).
 FONTS=[('p_large','Inter-Bold.ttf',92),('p_title','Inter-Bold.ttf',78),('p_h2','Inter-Bold.ttf',58),
        ('p_h3','Inter-Bold.ttf',46),('p_body','Inter-Regular.ttf',44),('p_sub','Inter-Regular.ttf',40),
@@ -1560,6 +1563,8 @@ def portrait_files(skin,profile):
  ns=types.SimpleNamespace(**globals());files.update(activity_skin.files(ns))
  # Settings › Library › Library status and its details sheet (library_page.py).
  files.update(library_page.files(ns))
+ # Library › TV Shows / Movies, the file manager (DEC-043 board A, library_files_page.py).
+ files.update(library_files_page.files(ns))
  # Notifications › a message's details with its part of kodi.log (notice_page.py).
  files.update(notice_page.files(ns))
  # The Transfers page (speed graph), opened from a transfer card in Notifications (transfers_page.py).
@@ -1660,19 +1665,20 @@ def refresh(skin,profile):
 
 # Written into 1080i by this module (portrait_files' '1080i/' entries, incl. pages.py's Play on TV), so they are not
 # inputs: as an input, any later rewrite of one (navigation's start-up patching) would rebuild and reload at each start.
-OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','Custom_1156_Buffering.xml','IOSPlayOnTV.xml','IOSTrackMenu.xml','IOSAirPlayFlow.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + activity_skin.py, pages.BUSY, player_osd.INSET
+OWN_1080I={'VideoOSD.xml','DialogSeekBar.xml','Custom_1156_Buffering.xml','IOSPlayOnTV.xml','IOSTrackMenu.xml','IOSPictureMenu.xml','IOSAirPlayFlow.xml','IOSAirPlayCheck.xml','Includes.xml','Includes_Portrait.xml','Custom_1187_Activity.xml','DialogExtendedProgressBar.xml','DialogBusy.xml',pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}|set(player_osd.INSET)   # + activity_skin.py, pages.BUSY, player_osd.INSET
 INPUTS='addon_data/service.kodi.ios.bootstrap/portrait-inputs.json'
 
 def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py')):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(library_files_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py')):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())
  for path in sorted((skin/'1080i').glob('*.xml')):
   if path.name not in OWN_1080I:stamp(path)
+ h.update(Path(__file__).with_name('picture_osd.py').read_bytes())   # V1: the Picture menu (written by pages.files)
  stamp(skin/'addon.xml')
  for lists in sorted({name for _,lists,_,_ in HUBS.values() for name in lists}):stamp(Path(profile)/NODES.format(lists))
  h.update(str(len(list((skin/FOLDER).glob('*.xml'))) if (skin/FOLDER).is_dir() else '-').encode())

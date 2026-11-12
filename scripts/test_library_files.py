@@ -113,5 +113,41 @@ class Space(unittest.TestCase):
         self.assertEqual(lf.size_text(0), '')
 
 
+
+class Page(unittest.TestCase):
+    """library_manager.fill: every property board A reads."""
+    def setUp(self):
+        import importlib.util
+        root = Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap'
+        spec = importlib.util.spec_from_file_location('library_manager', root / 'library_manager.py')
+        self.lm = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.lm)
+        files = {'f-naruto': [ep(1), ep(2), ep(3), ep(4)], 'f-rick': [dict(ep(i), id='r%d' % i, size=1400) for i in (1, 2)]}
+        shows = lf.show_rows([NARUTO, RICK], files, PREP, DEBRID, UPSCALE)
+        movies = lf.movie_rows([{'id': 'm1', 'title': 'Fall', 'year': 2022, 'size': 3400 * MB, 'quality': '1080p'}], PREP)
+        self.data = {'shows': shows, 'movies': movies, 'storage': lf.storage(shows, movies, UPSCALE)}
+
+    def test_tv_rows(self):
+        props, rows = self.lm.fill(self.data, 'tv', 'name', '', slots=5)
+        self.assertEqual((props['title'], props['sort.label']), ('TV Shows', 'Name'))   # no arrow character: Inter has none (the rig drew a box))
+        self.assertEqual(props['row.0.title'], 'Naruto Shippuden')
+        self.assertEqual(props['row.0.sub'], 'Season 1 · 6 episodes · 1.0 GB')
+        self.assertEqual((props['row.0.chip0'], props['row.0.chip0c'], props['row.0.chip1c']), ('2 ready', 'green', 'red'))
+        self.assertEqual((props['row.0.pos'], props['row.1.pos']), ('first', 'last'))
+        self.assertEqual(props['row.2.title'], '')      # unused slots are cleared
+        self.assertEqual(props['empty'], '')
+        self.assertTrue(props['store.line'].endswith('on Google Drive'))
+        self.assertIn('AI copies 2.3 GB', props['store.legend'])
+
+    def test_movies_and_search(self):
+        props, rows = self.lm.fill(self.data, 'movie', 'size', '', slots=5)
+        self.assertEqual((props['title'], props['row.0.title'], props['row.0.chip0'], props['row.0.chip0c']), ('Movies', 'Fall', 'Ready', 'green'))
+        self.assertEqual(props['row.0.sub'], '2022 · 3.3 GB · 1080p')
+        props, rows = self.lm.fill(self.data, 'tv', 'recent', 'zzz', slots=5)
+        self.assertEqual((rows, props['empty']), ([], 'Nothing matches “zzz”.'))
+        props, rows = self.lm.fill({'shows': [], 'movies': [], 'storage': lf.storage([], [])}, 'tv', slots=5)
+        self.assertIn('No downloaded shows yet', props['empty'])
+
+
 if __name__ == '__main__':
     unittest.main()
