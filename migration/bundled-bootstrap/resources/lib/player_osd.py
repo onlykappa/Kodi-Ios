@@ -25,7 +25,9 @@ TRACKS='RunScript(service.kodi.ios.bootstrap,tracks,%s)'
 NEXT_EPISODE='RunScript(service.kodi.ios.bootstrap,next_episode)'
 EPISODE='!String.IsEmpty(VideoPlayer.TVShowTitle) + !String.IsEmpty(VideoPlayer.Episode)'
 CONTINUE='plugin://plugin.video.kodi.ios.watch/?action=continue&type=all'
-INFO='$VAR[Action_OSD_WikiInfo]'
+# Board 08 (U.6): Info opens the episode card (pages.info_card) over the controls; Fuse's action closed the controls
+# and waited for TMDb Helper's details page.
+INFO='ActivateWindow(1193)'
 # The row's list is only fetched once Continue Watching is tapped (its path is empty until then), so opening the
 # controls during playback does not start the watch add-on every time.
 PANEL='Skin.HasSetting(ios_osd_continue)'

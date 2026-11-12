@@ -60,6 +60,19 @@ def run():
   portrait_thread=threading.Thread(target=portrait.run_service,args=(xbmc,xbmcvfs,monitor,profile,invoke),kwargs={'ready':setup_done,'native_ui_started':_EARLY_UI_STARTED},daemon=True);portrait_thread.start()
  # Owner build-136 log: the tab bar answered ~8 s after launch, 2 s of it this fixed wait. Only setup waits now.
  if monitor.waitForAbort(2):return
+ def slow_start(after=3.0):
+  """Board 13 (owner-approved, docs/design/fuse-windows-mockups.html; roadmap U.13): no startup box over Home. Only
+  when the skin's own setup (first start, or after an update) is still running `after` seconds later, the activity
+  pill says so ("Getting things ready · Preparing your library"), through Kodi's background box that the pill reads
+  (activity.classify), until setup is over."""
+  import activity
+  if monitor.waitForAbort(after) or setup_done.is_set():return
+  box=xbmcgui.DialogProgressBG()
+  try:
+   box.create(activity.STARTUP_TITLE,activity.STARTUP_TEXT)
+   while not setup_done.is_set():
+    if monitor.waitForAbort(0.5):break
+  finally:box.close()
  def prepare_generated(sync=True):
   nonlocal generated
   stage('skin_preferences')
@@ -68,6 +81,7 @@ def run():
   stage('phone_menus');update_nodes(profile);phone_defaults(lambda id:xbmc.getInfoLabel('Skin.String('+id+')'),invoke)
   skin=Path(xbmcvfs.translatePath('special://skin/')).resolve()
   if skin.name!=FUSE or not skin.is_relative_to(home):raise RuntimeError('Writable Fuse path not selected')
+  threading.Thread(target=slow_start,daemon=True).start()
   generate(skin,xbmc.getSkinDir,invoke,monitor.waitForAbort,xbmc.getInfoLabel('Skin.String(SkinVariables.SkinUser)'),stage)
   generated=True
  try:

@@ -125,6 +125,9 @@ PAGE_H=HEIGHT
 CAPSULES=(56,72,96,108,112,124,126,128,150,170,246)
 
 # --- tiny PNG writer (no PIL on the build host) -------------------------------------------------------
+def types_ns():
+ import types;return types.SimpleNamespace(png=png,coverage=coverage)
+
 def png(width,height,pixel):
  rows=b''.join(b'\0'+b''.join(struct.pack('4B',*pixel(x,y)) for x in range(width)) for y in range(height))
  chunk=lambda tag,data:struct.pack('>I',len(data))+tag+data+struct.pack('>I',zlib.crc32(tag+data)&0xffffffff)
@@ -239,7 +242,7 @@ def header_glyphs():
  return _GLYPHS
 
 def textures():
- return {**header_glyphs(),'round.png':rounded(96,96,32),'round_s.png':rounded(64,64,26),'glass_card.png':glass(160,44,(44,44,46,245),(255,255,255,26)),
+ return {**header_glyphs(),'round.png':rounded(96,96,32),'round_s.png':rounded(64,64,26),'menu_round.png':rounded(160,160,64),**{'menu_%s.png'%k:activity_skin.corner_texture(types_ns(),160,64,t,b) for k,t,b in (('first',True,False),('last',False,True))},'glass_card.png':glass(160,44,(44,44,46,245),(255,255,255,26)),
          'fade_down.png':fade(lambda t:(1-t)**1.6*0.85),'fade_up.png':fade(lambda t:t**1.5),
          'hero_fade.png':fade(lambda t:0 if t<0.3 else ((t-0.3)/0.7)**1.25),
          'poster_mask.png':rounded(POSTER[0],POSTER[1],RADIUS),'card_mask.png':rounded(CARD[0],CARD[1],RADIUS),
@@ -613,6 +616,12 @@ def row(index,widget,last,tab='home',variables=None):
  visible='Integer.IsGreater(Container(%d).NumItems,0) | Container(%d).IsUpdating'%(id,id)
  item=poster_item if style=='poster' else (lambda f:card_item(f,style=='continue'))
  return (label(SIDE,0,WIDTH-2*SIDE,128,'%s  [COLOR %s]›[/COLOR]'%(title,GREY),'p_h2',WHITE,'left','<aligny>bottom</aligny><visible>%s</visible>'%visible).replace('<control type="label">','<control type="label" id="%d">'%(id+500),1)+
+  # Board 13: while the row is still loading and has nothing yet, its tiles are drawn as placeholders (SURFACE, the
+  # item's own size and corners), so the first frame already shows the page's structure. A 1-unit group: the grouplist
+  # moves the list down by 1 while it shows.
+  ('<control type="group"><height>1</height><visible>Container(%d).IsUpdating + Integer.IsEqual(Container(%d).NumItems,0)</visible>'%(id,id)+
+   ''.join(image(SIDE+k*(w+GAP),14,w,POSTER[1] if style=='poster' else CARD[1],MEDIA+'white.png',SURFACE,
+                 diffuse=MEDIA+('poster_mask.png' if style=='poster' else 'card_mask.png')) for k in range(4 if style=='poster' else 2))+'</control>')+
   ('<control type="list" id="%d"><left>0</left><width>%d</width><height>%d</height><orientation>horizontal</orientation>'
    '%s<scrolltime tween="cubic" easing="out">320</scrolltime><preloaditems>2</preloaditems><visible allowhiddenfocus="true">%s</visible>'
    '<itemlayout width="%d" height="%d">%s</itemlayout><focusedlayout width="%d" height="%d">%s</focusedlayout>'
@@ -657,9 +666,13 @@ def hero(spotlight,title,tab='home',variables=None):
      '<control type="group"><visible>Integer.IsGreater(Container(4000).NumItems,0)</visible>'+
      pill_button(4001,WIDTH//2-btn_w-12,HERO-214,btn_w,124,'Play',play,'primary',MEDIA+'play.png','<onup>4000</onup><onright>4002</onright><ondown>5001</ondown>')+
      pill_button(4002,WIDTH//2+12,HERO-214,btn_w,124,'Info',[(still,'SetFocus(4000)'),(still,'Action(Info)')],'glass','circle-info.png','<onup>4000</onup><onleft>4001</onleft><ondown>5001</ondown>')+'</control>'+
-     '<control type="group"><visible>Integer.IsEqual(Container(4000).NumItems,0)</visible>'+
-     surface(SIDE,220,WIDTH-2*SIDE,HERO-420,'round.png',SURFACE,32,'<animation effect="fade" start="100" end="45" time="900" pulse="true" condition="Container(4000).IsUpdating">Conditional</animation>')+
-     label(SIDE,220,WIDTH-2*SIDE,HERO-420,'Loading…','p_sub',DIM,'center','<visible>Container(4000).IsUpdating</visible>')+'</control>',
+     # Board 13 (first frame): until the spotlight has a title, a soft dark hero with placeholders where the title
+     # and its genre line will be; no spinner, no words.
+     '<control type="group"><visible>Integer.IsEqual(Container(4000).NumItems,0)</visible>'
+     '<animation effect="fade" start="100" end="55" time="900" pulse="true" condition="Container(4000).IsUpdating">Conditional</animation>'+
+     image(0,0,WIDTH,HERO,MEDIA+'white.png','FF15161A')+image(0,0,WIDTH,HERO,MEDIA+'hero_fade.png')+
+     surface((WIDTH-618)//2,HERO-420,618,81,'round.png',SURFACE,22)+
+     surface((WIDTH-403)//2,HERO-300,403,43,'round.png',SURFACE,16)+'</control>',
      HERO-62,WIDTH,dots)
 
 def in_progress(widget):
@@ -1131,27 +1144,61 @@ def select_dialog(original):
  body='<left>%d</left><top>%d</top><width>%d</width><height>%d</height>%s%s%s%s%s'%(x,top,w,full,slides,cards,heading,lists,hidden)
  return centered_dialog(original,body,'3')
 
+# Board 11 (owner-approved, docs/design/fuse-windows-mockups.html; roadmap U.10): Fuse's options window (1170) is the
+# More menu here, drawn as the activity sheet: grabber, large title, close, grouped rows with chevrons, a footnote.
+# Places to go first, then app upkeep.
+MORE_GROUPS=(('Settings','Google Drive','Favourites','Transfers'),('Check for updates','iPhone navigation / recovery'))
 def more_menu(original):
- """iOS Settings-style grouped list: coloured icon tiles, labels, chevrons."""
- x=70;w=WIDTH-2*x;row_h=140;h=170+len(MORE)*row_h+30;top=(HEIGHT-h)//2
- items=''.join('<item><label>%s</label><icon>%s</icon><property name="tint">%s</property><onclick>Dialog.Close(1170)</onclick><onclick>%s</onclick></item>'%(e(t),ICONS+i,c,e(a)) for t,i,c,a in MORE)
- item=lambda focused:((image(0,0,w,row_h,MEDIA+'white.png','14FFFFFF') if focused else '')+
-  image(44,(row_h-80)//2,80,80,MEDIA+'tile_mask.png','$INFO[ListItem.Property(tint)]')+
-  icon(44+18,(row_h-44)//2,44,'$INFO[ListItem.Icon]')+
-  label(160,0,w-260,row_h,'$INFO[ListItem.Label]','p_body')+label(w-90,0,50,row_h,'›','p_h2',DIM,'right')+
-  image(160,row_h-2,w-160,2,MEDIA+'white.png',SEP))
- lst=('<control type="list" id="3"><left>0</left><top>170</top><width>%d</width><height>%d</height><itemlayout height="%d">%s</itemlayout>'
-      '<focusedlayout height="%d">%s</focusedlayout><content>%s</content></control>')%(w,len(MORE)*row_h,row_h,item(False),row_h,item(True),items)
- body=('<left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(x,top,w,h)+
-  image(0,0,w,h,MEDIA+'glass_card.png',border=44)+label(44,40,w-88,100,'More','p_h2')+lst)
- return centered_dialog(original,body,'3')
+ """The More menu (the profile button, Fuse's window 1170) as a bottom sheet in the activity sheet's style: SURFACE
+ sheet with 38 pt top corners, SURFACE2 groups with 16 pt corners, 54 pt rows with a tile, the name and a chevron.
+ Every row goes somewhere, so it closes with the close button (and a tap on the dimmed page), not Done."""
+ W=WIDTH;side=43;w=W-2*side;row=145;head=200;gap=43;foot=120;tile=80
+ by_name={t:(t,i,c,a) for t,i,c,a in MORE}
+ groups=[[by_name[t] for t in names if t in by_name] for names in MORE_GROUPS]
+ groups=[g for g in groups if g]
+ h=head+sum(len(g)*row for g in groups)+gap*(len(groups)-1)+foot
+ top=HEIGHT-h
+ def item(focused,list_id):
+  backs=''.join(image(0,0,w,row,MEDIA+tex,SURFACE2,'<visible>String.IsEqual(ListItem.Property(pos),%s)</visible>'%pos,border=43) for pos,tex in
+                (('only','row_only.png'),('first','row_first.png'),('last','row_last.png'),('mid','white.png')))
+  return (backs+(''.join(image(0,0,w,row,MEDIA+tex,'14FFFFFF','<visible>Control.HasFocus(%d) + String.IsEqual(ListItem.Property(pos),%s)</visible>'%(list_id,pos),border=43) for pos,tex in
+                (('only','row_only.png'),('first','row_first.png'),('last','row_last.png'),('mid','white.png'))) if focused else '')+
+   image(40,(row-tile)//2,tile,tile,MEDIA+'tile_mask.png','$INFO[ListItem.Property(tint)]')+
+   icon(40+10,(row-60)//2,60,'$INFO[ListItem.Icon]')+
+   label(150,0,w-250,row,'$INFO[ListItem.Label]','p_body',WHITE,'left','<scroll>false</scroll>')+
+   icon(w-84,(row-48)//2,48,'chevron-right.png',GREY)+
+   image(150,0,w-150,2,MEDIA+'white.png',SEP,'<visible>!String.IsEqual(ListItem.Property(pos),first) + !String.IsEqual(ListItem.Property(pos),only)</visible>'))
+ lists='';y=head
+ for n,group in enumerate(groups):
+  pos=lambda k:'only' if len(group)==1 else 'first' if k==0 else 'last' if k==len(group)-1 else 'mid'
+  items=''.join('<item><label>%s</label><icon>%s</icon><property name="tint">%s</property><property name="pos">%s</property>'
+                '<onclick>Dialog.Close(1170)</onclick><onclick>%s</onclick></item>'%(e(t),ICONS+i,c,pos(k),e(a)) for k,(t,i,c,a) in enumerate(group))
+  up='9600' if n==0 else str(3+n-1);down=str(3+n+1) if n<len(groups)-1 else str(3+n)
+  lists+=('<control type="list" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><onup>%s</onup><ondown>%s</ondown>'
+          '<itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout><content>%s</content></control>')%(
+          3+n,side,y,w,len(group)*row,up,down,row,item(False,3+n),row,item(True,3+n),items)
+  y+=len(group)*row+gap
+ y-=gap
+ content=('<control type="group"><left>0</left><top>%d</top><width>%d</width><height>%d</height>'%(top,W,h)+
+  image(0,0,W,h+140,MEDIA+'sheet_bg.png',SURFACE,border=102)+
+  image((W-100)//2,22,100,14,MEDIA+'dot.png','4DFFFFFF',border=7)+
+  label(side+12,60,w-200,120,'More','p_title')+
+  close_button(9600,W-side-118,62,navigation='<onclick>Close</onclick><ondown>3</ondown>')+lists+
+  label(side+12,y+16,w-24,60,'Kodi $INFO[System.BuildVersionShort]$INFO[Window(Home).Property(KodiIOS.Build), · build ]','p_foot',GREY,'left','<scroll>false</scroll>')+
+  '</control>')
+ anim=('<animation effect="slide" start="0,%d" end="0,0" time="300" tween="cubic" easing="out">WindowOpen</animation>'
+       '<animation effect="slide" start="0,0" end="0,%d" time="220" tween="cubic" easing="in">WindowClose</animation>')%(h,h)
+ body=('<controls><control type="button" id="9099"><width>%d</width><height>%d</height><texturefocus colordiffuse="73000000">%swhite.png</texturefocus>'
+       '<texturenofocus colordiffuse="73000000">%swhite.png</texturenofocus><onclick>Close</onclick><onfocus>SetFocus(3)</onfocus></control>'%(W,HEIGHT,MEDIA,MEDIA)+
+       '<control type="group"><animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>%s%s</control></controls>'%(anim,content))
+ return window(original,body,'3')
 
 CTX_ROWS=15
 # Context menu entries -> icon (first match wins; Kodi's String.Contains ignores case).
 CTX_ICONS=[('Resume','clock-rotate-left.png'),('Trailer','film.png'),('next','forward.png'),('unwatched','eye-slash.png'),
-           ('watched','circle-check.png'),('Play','circle-play.png'),('Download','circle-down.png'),('Information','circle-info.png'),
+           ('watched','eye.png'),('Play','play.png'),('Download','circle-down.png'),('Details','circle-info.png'),('Information','circle-info.png'),
            ('Info','circle-info.png'),('Show','tv.png'),('Season','tv.png'),('Queue','list.png'),('favourite','star.png'),
-           ('Remove','circle-xmark.png'),('Delete','trash.png'),('Search','magnifying-glass.png'),('Share','share.png'),
+           ('Delete','trash.png'),('Remove','circle-xmark-regular.png'),('Search','magnifying-glass.png'),('Share','share.png'),
            ('Manage','gear.png'),('Settings','gear.png'),('Browse','folder.png'),('Add','square-plus.png')]
 ITEM='Window(Home).Property(Portrait.Item.%s)'
 def ctx_variables():
@@ -1164,43 +1211,69 @@ def ctx_variables():
   pick('Portrait_Ctx_Sub','$INFO[ListItem.Property(subtitle)]$INFO[ListItem.Year]$INFO[ListItem.Genre,  ·  ]','$INFO[%s]'%(ITEM%'Sub'))+''.join('<variable name="Portrait_Ctx_Icon_%d">%s<value>%sellipsis.png</value></variable>'%(i,''.join(
   '<value condition="String.Contains(Control.GetLabel(%d),%s)">%s%s</value>'%(1001+i,word,ICONS,name) for word,name in CTX_ICONS),ICONS) for i in range(CTX_ROWS)))
 
+# Rows whose action cannot be undone or takes the item away: red, as iOS draws destructive menu items (board 07).
+CTX_RED=('Remove','Delete')
 def context_menu(original):
- """Long press: the title as a card on top, then a frosted menu with an icon per entry (iOS context menu)."""
- x=60;card_w=WIDTH-2*x;pad=20;art_h=(card_w-2*pad)*9//16;card_h=pad+art_h+136;top=110;menu_w=780;row_h=120;cap=30
- menu_top=top+card_h+30
+ """Long press (owner-approved board 07, docs/design/fuse-windows-mockups.html; roadmap U.5): the page dims, the
+ item is lifted as a copy (its 16:9 art, the small line and the title) and an iOS context menu opens under it:
+ 340 pt wide (the board's Continue Watching menu: long names fit), 48 pt rows with the name on the left and its glyph on the right, hairlines between rows, 24 pt
+ corners, destructive rows (Remove, Delete) in red. A tap on a row plays/opens straight away (2.19); only a long
+ press gets here. Kodi cannot morph the item into the preview or know where it sits on the page, so the copy
+ is drawn at the top of the screen with the menu under it. Kodi fills the rows (list 996 from button 1000);
+ the skin cannot choose which entries Kodi and the add-ons put there."""
+ x=SIDE;card_w,art_h=CARD;top=230;cap_h=150;card_h=art_h+cap_h;menu_w=914;row_h=129;pad=48
+ menu_top=top+card_h+32
  no_art='String.IsEmpty(ListItem.Art(fanart)) + String.IsEmpty(ListItem.Art(landscape)) + String.IsEmpty(ListItem.Art(thumb)) + String.IsEmpty(Window(Home).Property(Portrait.Item.Art))'
  # Owner (build 229): tapping Dragon Ball in Continue Watching asked "Resume from 00:11:53" under The Awakening's card:
  # Kodi's resume prompt is this window too, and the focused item (the spotlight) is not what is being played. The
  # resume prompt (second row "Play from beginning", Kodi string 12021) never shows the card.
  no_art='[%s] | String.IsEqual(Control.GetLabel(1002),$LOCALIZE[12021])'%no_art
- card=('<control type="group"><left>%d</left><top>%d</top><visible>![%s] + !Control.IsVisible(%d)</visible>'%(x,top,no_art,1001+(HEIGHT-(top+card_h+30)-60-2*cap)//row_h)+
-  '<animation effect="zoom" start="94" end="100" center="auto" time="240" tween="back" easing="out">WindowOpen</animation>'+
-  surface(0,0,card_w,card_h,'glass_card.png',WHITE,44)+
-  image(pad,pad,card_w-2*pad,art_h,'$VAR[Portrait_Ctx_Art]',WHITE,'','>scale',MEDIA+'card_mask.png',background=True)+
-  label(40,pad+art_h+16,card_w-80,46,'$VAR[Portrait_Ctx_Sub]','p_foot_b',GREY)+
-  label(40,pad+art_h+60,card_w-80,66,'$VAR[Portrait_Ctx_Title]','p_h3')+'</control>')
- template=('<control type="button" id="1000"><width>%d</width><height>%d</height><font>p_body</font><textcolor>FFFFFFFF</textcolor>'
-  '<focusedcolor>FFFFFFFF</focusedcolor><textoffsetx>128</textoffsetx><align>left</align><aligny>center</aligny>'
-  '<texturefocus colordiffuse="FF3A3A3C">%swhite.png</texturefocus><texturenofocus colordiffuse="F22C2C2E">%swhite.png</texturenofocus></control>')%(menu_w,row_h,MEDIA,MEDIA)
- caps=lambda name:'<control type="image"><width>%d</width><height>%d</height><texture border="44,0,44,0" colordiffuse="F22C2C2E">%s%s</texture></control>'%(menu_w,cap,MEDIA,name)
- # Rows that fit under the card, and on the whole screen. A longer menu hides the card; one longer than the
- # screen scrolls, and its icons (a fixed layer beside the list) would no longer line up, so they hide.
- fit_card=(HEIGHT-menu_top-60-2*cap)//row_h;fit_screen=(HEIGHT-top-60-2*cap)//row_h
+ fit_card=(HEIGHT-menu_top-60)//row_h;fit_screen=(HEIGHT-top-60)//row_h
  long_menu='Control.IsVisible(%d)'%(1001+fit_card);scrolls='Control.IsVisible(%d)'%(1001+fit_screen)
- icons=''.join(icon(42,cap+i*row_h+(row_h-58)//2,58,'$VAR[Portrait_Ctx_Icon_%d]'%i,WHITE,'<visible>Control.IsVisible(%d) + !%s</visible>'%(1001+i,scrolls)) for i in range(CTX_ROWS))
+ card=('<control type="group"><left>%d</left><top>%d</top><visible>![%s] + !%s</visible>'%(x,top,no_art,long_menu)+
+  '<animation effect="zoom" start="96" end="104" center="%d,%d" time="260" tween="cubic" easing="out">WindowOpen</animation>'%(card_w//2,card_h)+
+  '<animation effect="zoom" start="104" end="104" center="%d,%d" time="0" condition="true">Conditional</animation>'%(card_w//2,card_h)+
+  image(0,0,card_w,art_h,MEDIA+'white.png',SURFACE2,diffuse=MEDIA+'card_mask.png')+
+  image(0,0,card_w,art_h,'$VAR[Portrait_Ctx_Art]',WHITE,'','>scale',MEDIA+'card_mask.png',background=True)+
+  label(4,art_h+18,card_w-8,46,'$VAR[Portrait_Ctx_Sub]','p_foot',GREY,'left','<scroll>false</scroll>')+
+  label(4,art_h+62,card_w-8,62,'$VAR[Portrait_Ctx_Title]','p_h3',WHITE,'left','<scroll>false</scroll>')+'</control>')
+ template=('<control type="button" id="1000"><width>%d</width><height>%d</height><font>p_body</font><textcolor>FFFFFFFF</textcolor>'
+  '<focusedcolor>FFFFFFFF</focusedcolor><textoffsetx>%d</textoffsetx><textwidth>%d</textwidth><align>left</align><aligny>center</aligny>'
+  '<texturefocus /><texturenofocus /></control>')%(menu_w,row_h,pad,menu_w-2*pad-100)
+ red='[%s]'%' | '.join('String.Contains(Control.GetLabel(%%d),%s)'%w for w in CTX_RED)
+ # The menu's background, one per row count (Kodi cannot size an image to the list), and per row its glyph on the
+ # right, the hairline above it and, for a destructive row, the name again in red over the white one.
+ backs=''.join(image(0,0,menu_w,n*row_h,MEDIA+'menu_round.png','F52C2C2E','<visible>Control.IsVisible(%d) + !Control.IsVisible(%d)</visible>'%(1000+n,1001+n),border=64)
+               for n in range(1,CTX_ROWS+1))
+ rows=''
+ for i in range(CTX_ROWS):
+  id=1001+i;y=i*row_h;bad=red.replace('%d',str(id));shown='Control.IsVisible(%d) + !%s'%(id,scrolls)
+  last='!Control.IsVisible(%d)'%(id+1)
+  # The focused row's highlight follows the menu's corners: the first row's top, the last row's bottom.
+  hl=lambda tex,cond:image(0,y,menu_w,row_h,MEDIA+tex,'1FFFFFFF','<visible>Control.HasFocus(%d) + %s</visible>'%(id,cond),border=64)
+  rows+=((hl('menu_round.png',last)+hl('menu_first.png','!'+last)) if i==0 else (hl('menu_last.png',last)+hl('white.png','!'+last)))
+  rows+=((image(pad,y,menu_w-2*pad,2,MEDIA+'white.png',SEP,'<visible>%s</visible>'%shown) if i else '')+
+   '<control type="group"><visible>%s + %s + !Control.HasFocus(%d)</visible>'%(shown,bad,id)+
+   image(pad-8,y+8,menu_w-2*pad-74,row_h-16,MEDIA+'white.png','FF2C2C2E')+
+   label(pad,y,menu_w-2*pad-100,row_h,'$INFO[Control.GetLabel(%d)]'%id,'p_body','FFFF453A','left','<scroll>false</scroll>')+'</control>'+
+   icon(menu_w-pad-72,y+(row_h-72)//2,72,'$VAR[Portrait_Ctx_Icon_%d]'%i,WHITE,'<visible>%s + !%s</visible>'%(shown,bad))+
+   icon(menu_w-pad-72,y+(row_h-72)//2,72,'$VAR[Portrait_Ctx_Icon_%d]'%i,'FFFF453A','<visible>%s + %s</visible>'%(shown,bad)))
  # No art (e.g. a menu button) or a long menu: the menu moves up to where the card would be.
  menu=('<control type="group"><left>%d</left><top>%d</top>'%(x,menu_top)+
-  '<animation effect="slide" end="%d,%d" time="0" condition="[%s] | %s">Conditional</animation>'%((WIDTH-menu_w)//2-x,-(card_h+30),no_art,long_menu)+
+  '<animation effect="slide" end="%d,%d" time="0" condition="[%s] | %s">Conditional</animation>'%((WIDTH-menu_w)//2-x,top-menu_top,no_art,long_menu)+
   # Without the card (e.g. Resume / Play from beginning) the menu sits in the middle of the screen, as an iOS
   # alert does: one step per possible row count, since Kodi cannot measure the list.
   ''.join('<animation effect="slide" end="0,%d" time="0" condition="[[%s] | %s] + Control.IsVisible(%d) + !Control.IsVisible(%d)">Conditional</animation>'
-          %((HEIGHT-(n*row_h+2*cap))//2-top,no_art,long_menu,1000+n,1001+n) for n in range(1,fit_screen+1) if (HEIGHT-(n*row_h+2*cap))//2>top)+
-  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>'+
-  '<control type="grouplist" id="996"><width>%d</width><height>%d</height><orientation>vertical</orientation><itemgap>0</itemgap>%s%s%s</control>'
-  %(menu_w,HEIGHT-top-60,caps('cap_top.png'),template,caps('cap_bottom.png'))+icons+'</control>')
+          %((HEIGHT-n*row_h)//2-top,no_art,long_menu,1000+n,1001+n) for n in range(1,fit_screen+1) if (HEIGHT-n*row_h)//2>top)+
+  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation>'
+  '<animation effect="zoom" start="90" end="100" center="%d,0" time="240" tween="cubic" easing="out">WindowOpen</animation>'%(menu_w//2)+
+  backs+
+  '<control type="grouplist" id="996"><width>%d</width><height>%d</height><orientation>vertical</orientation><itemgap>0</itemgap>%s</control>'
+  %(menu_w,HEIGHT-top-60,template)+rows+'</control>')
  # No background control (999): Kodi would resize it to the menu and centre the dialog on the pressed item.
  # Without one the dialog is the full screen, so the card and menu stay where this layout puts them.
- body=('<controls><control type="image"><width>%d</width><height>%d</height><texture colordiffuse="99000000">%swhite.png</texture></control>'
+ body=('<controls><control type="image"><width>%d</width><height>%d</height><texture colordiffuse="80000000">%swhite.png</texture>'
+  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation></control>'
   '<control type="button" id="9099"><width>%d</width><height>%d</height><texturefocus /><texturenofocus /><onclick>Close</onclick><onfocus>SetFocus(996)</onfocus></control>'
   '%s%s</controls>')%(WIDTH,HEIGHT,MEDIA,WIDTH,HEIGHT,card,menu)
  return window(original,body,'996')

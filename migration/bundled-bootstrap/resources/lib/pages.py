@@ -17,8 +17,12 @@ ROW=140;TOP=200
 
 def sp(p):return p.settings_page
 
+def tag_line(p,size=64,radius=16,stroke=3):
+ """A rounded outline (nine-sliced with border=radius): the info card's tags (board 08)."""
+ return p.png(size,size,lambda x,y:(255,255,255,int(255*max(0,p.coverage(x,y,size,size,radius)-p.coverage(x,y,size,size,radius,stroke)))))
+
 def textures(p):
- return {'alert.png':p.glass(120,40,(44,44,48,252),(255,255,255,40)),'sheet_l.png':p.glass(120,40,(36,36,40,230),(255,255,255,44))}
+ return {'tag_line.png':tag_line(p),'alert.png':p.glass(120,40,(44,44,48,252),(255,255,255,40)),'sheet_l.png':p.glass(120,40,(36,36,40,230),(255,255,255,44))}
 
 # --- shared pieces --------------------------------------------------------------------------------------
 def page(p,original,body,default,extra=''):
@@ -346,9 +350,9 @@ def _airplay_flow():
  spec=importlib.util.spec_from_file_location('airplay_flow',os.path.join(os.path.dirname(os.path.abspath(__file__)),'airplay_flow.py'))
  module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
 
-def close_button_1080(id,x,y,extra='',size=100):
+def close_button_1080(id,x,y,extra='',size=100,disc=None):
  """close_button (portrait.py) for the landscape sheets (Play on TV, AirPlay check), on Fuse's 1920x1080 canvas."""
- disc=int(size*104/118);g=int(size*52/118);d=(size-disc)//2;o=(size-g)//2
+ disc=disc or int(size*104/118);g=int(disc/2);d=(size-disc)//2;o=(size-g)//2
  img=lambda x,y,s,tex,col,more='':('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'
                                    '<texture colordiffuse="%s">%s%s</texture>%s</control>'%(x,y,s,s,col,'special://skin/extras/portrait/',tex,more))
  return ('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(x,y,size,size)+
@@ -584,8 +588,8 @@ def busy_dialog(marker,font,media='special://skin/extras/portrait/'):
   '<control type="progress" id="10"><width>10</width><height>10</height><texturebg /><lefttexture /><midtexture /><righttexture /></control></control>'
   '</controls></window>\n')%(marker,w,long_h,card,cancel)
 
-# Build 192 (quick wins): Kodi's toasts and volume bar as iOS banners instead of Fuse's corner pill, and the info
-# button's wait (Custom_1193) as the same centred ring as DialogBusy. Kodi fills 400/401/402 (icon, heading, text) and
+# Build 192 (quick wins): Kodi's toasts and volume bar as iOS banners instead of Fuse's corner pill. The controls'
+# Info (Custom_1193) is the episode card of board 08 (info_card). Kodi fills 400/401/402 (icon, heading, text) and
 # moves 933 (volume); they stay, hidden, and the banner reads their labels.
 NOTIFY='DialogNotification.xml';VOLUME='DialogVolumeBar.xml';INFO_WAIT='Custom_1193_VideoOSDInfo.xml'
 def banner(marker,x,y,w,h,inner,extra=''):
@@ -621,21 +625,63 @@ def volume_dialog(marker,x,y,w,font):
  hidden=('<control type="label" id="31"><width>1</width><height>1</height><visible>false</visible></control>'
          '<control type="progress" id="933"><width>1</width><height>1</height><visible>false</visible><info>Player.Volume</info></control>')
  return banner(marker,x,y,w,h,inner,hidden).replace('<zorder>1000</zorder>','<zorder>1001</zorder>',1)
-def info_wait(original,media='special://skin/extras/portrait/'):
- """Fuse's Custom_1193 (the controls' Info: waits for TMDb Helper's details) with its corner spinner swapped for the ring."""
- import xml.etree.ElementTree as ET
- if not original:return original
- root=ET.fromstring(original);controls=root.find('controls')
- if controls is None:return original
- for group in list(controls):
-  if group.tag=='control' and any(i.tag=='include' and i.get('content')=='Furniture_Busy' for i in group):
-   for child in [c for c in group if c.tag!='visible']:group.remove(child)
-   ring=ET.fromstring('<control type="group"><centerleft>50%</centerleft><centertop>50%</centertop><width>96</width><height>96</height>'
-    '<animation effect="fade" start="0" end="100" time="200" delay="400">Visible</animation>'
-    '<control type="image"><width>96</width><height>96</height><texture colordiffuse="FFFFFFFF">'+media+'ring.png</texture>'
-    '<animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation></control></control>')
-   group.append(ring)
- return '<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: info wait ring -->\n'+ET.tostring(root,encoding='unicode')+'\n'
+def info_card():
+ """1080i/Custom_1193_VideoOSDInfo.xml: Info in the video controls as an episode card (owner-approved board 08,
+ docs/design/fuse-windows-mockups.html, roadmap U.6). It replaces Fuse's 1193, which only waited for TMDb Helper's
+ details page and closed the controls. The card sits above the progress bar on the left, over the playing video:
+ still, show, S·E, the episode title, the plot (four lines) and two tags (runtime, ends at). Everything comes from
+ the playing item (library_play sets show, season, episode, plot and art: B.4); without metadata it shows what it
+ has and a placeholder line, never an empty card. Kodi cannot blur, so the card is a flat 98 % opaque surface.
+ Tap outside, the close button or Back closes it; the video keeps playing. Landscape canvas: 2.687 units/pt."""
+ M='special://skin/extras/portrait/';I='special://skin/extras/icons/'
+ left,bottom=150,795                      # the controls' left edge (player_osd.EDGE); 106 pt above the bottom
+ pad=38;still_w,still_h=623,349;tx=pad+still_w+43;w=1505;close=118
+ tw=w-tx-pad;meta_y=442;h=meta_y+56+pad;top=bottom-h
+ episode='!String.IsEmpty(VideoPlayer.TVShowTitle)'
+ has=lambda info:'!String.IsEmpty(%s)'%info
+ def img(x,y,ww,hh,tex,color='FFFFFFFF',extra='',border='',diffuse=''):
+  return ('<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texture%s%s colordiffuse="%s">%s</texture>%s</control>'
+          %(x,y,ww,hh,' border="%s"'%border if border else '',' diffuse="%s"'%diffuse if diffuse else '',color,tex,extra))
+ def lab(x,y,ww,hh,text,font,color='FFFFFFFF',extra=''):
+  return ('<control type="label"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><font>%s</font><textcolor>%s</textcolor>'
+          '<aligny>center</aligny><scroll>false</scroll><label>%s</label>%s</control>'%(x,y,ww,hh,font,color,text,extra))
+ thumb,fanart='Player.Art(thumb)','Player.Art(fanart)'
+ # A frame Kodi grabs from the file itself (image://video@...) is not a still: the placeholder shows instead.
+ has=lambda info:'[!String.IsEmpty(%s)%s]'%(info,' + !String.StartsWith(%s,image://video@)'%info if info==thumb else '')
+ still=(img(pad,pad,still_w,still_h,M+'white.png','FF1C1C1E',diffuse=M+'thumb_mask.png')+
+  img(pad+(still_w-92)//2,pad+(still_h-92)//2,92,92,I+'film.png','4DEBEBF5','<aspectratio>keep</aspectratio><visible>!%s + !%s</visible>'%(has(thumb),has(fanart)))+
+  '<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><aspectratio>scale</aspectratio><fadetime>150</fadetime>'
+  '<texture diffuse="%sthumb_mask.png" background="true">$INFO[%s]</texture><visible>%s</visible></control>'%(pad,pad,still_w,still_h,M,thumb,has(thumb))+
+  '<control type="image"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><aspectratio>scale</aspectratio><fadetime>150</fadetime>'
+  '<texture diffuse="%sthumb_mask.png" background="true">$INFO[%s]</texture><visible>!%s + %s</visible></control>'%(pad,pad,still_w,still_h,M,fanart,has(thumb),has(fanart)))
+ grey='99EBEBF5'
+ text=(lab(tx,44,tw-close,36,'[UPPERCASE]$INFO[VideoPlayer.TVShowTitle][/UPPERCASE]','font_midi_bold',grey,'<visible>%s</visible>'%episode)+
+  lab(tx,44,tw-close,36,'[UPPERCASE]$INFO[VideoPlayer.Genre][/UPPERCASE]','font_midi_bold',grey,'<visible>!%s</visible>'%episode)+
+  lab(tx,82,tw-close,44,'S$INFO[VideoPlayer.Season] · E$INFO[VideoPlayer.Episode]','font_head',grey,'<visible>%s</visible>'%episode)+
+  lab(tx,82,tw-close,44,'$INFO[VideoPlayer.Year]','font_head',grey,'<visible>!%s</visible>'%episode)+
+  lab(tx,128,tw,66,'$INFO[VideoPlayer.Title]','font_title_main')+
+  '<control type="textbox"><left>%d</left><top>200</top><width>%d</width><height>186</height><font>font_head</font><textcolor>%s</textcolor>'
+  '<autoscroll>false</autoscroll><label>$INFO[VideoPlayer.Plot]</label><visible>%s</visible></control>'%(tx,tw,grey,has('VideoPlayer.Plot'))+
+  lab(tx,200,tw,52,'No description for this video yet.','font_head',grey,'<visible>!%s</visible>'%has('VideoPlayer.Plot')))
+ tag=lambda id,text,cond='':('<control type="button" id="%d"><width min="120">auto</width><height>56</height><textoffsetx>22</textoffsetx>'
+  '<font>font_main_bold</font><textcolor>%s</textcolor><disabledcolor>%s</disabledcolor><align>center</align><aligny>center</aligny><label>%s</label>'
+  '<texturefocus border="16" colordiffuse="40EBEBF5">%stag_line.png</texturefocus><texturenofocus border="16" colordiffuse="40EBEBF5">%stag_line.png</texturenofocus>'
+  '<enable>false</enable>%s</control>'%(id,grey,grey,text,M,M,'<visible>%s</visible>'%cond if cond else ''))
+ meta=('<control type="grouplist"><left>%d</left><top>%d</top><width>%d</width><height>56</height><orientation>horizontal</orientation><itemgap>21</itemgap>'%(pad,meta_y,w-2*pad)+
+  tag(9601,'$INFO[Player.Duration(mins)] min',has('Player.Duration'))+tag(9602,'Ends at $INFO[Player.FinishTime]',has('Player.FinishTime'))+'</control>')
+ card=('<control type="group"><left>%d</left><top>%d</top><width>%d</width><height>%d</height>'%(left,top,w,h)+
+  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
+  '<animation effect="slide" start="0,24" end="0,0" time="240" tween="cubic" easing="out">WindowOpen</animation>'+
+  img(0,0,w,h,M+'round_s.png','FA2C2C2E',border='26')+
+  '<control type="button" id="9098"><width>%d</width><height>%d</height><texturefocus /><texturenofocus /><onfocus>SetFocus(9500)</onfocus></control>'%(w,h)+
+  still+text+meta+close_button_1080(9500,w-close,0,'<onclick>Close</onclick>',close,92)+'</control>')
+ body=('<control type="button" id="9099"><left>0</left><top>0</top><width>100%</width><height>100%</height><texturefocus /><texturenofocus />'
+  '<onclick>Close</onclick><onfocus>SetFocus(9500)</onfocus></control>'+
+  # The controls fade back behind the card (board 08); the video keeps playing.
+  '<control type="image"><left>0</left><top>0</top><width>100%%</width><height>100%%</height><texture colordiffuse="8C000000">%swhite.png</texture>'
+  '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation></control>'%M+card)
+ return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: info card (board 08) -->\n'
+         '<window type="dialog" id="1193"><zorder>3</zorder><defaultcontrol always="true">9500</defaultcontrol><controls>%s</controls></window>\n')%body
 
 HANDMADE={NOTIFY,VOLUME,'DialogConfirm.xml','DialogTextViewer.xml','DialogSettings.xml','AddonBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml',BUSY}
 
@@ -658,8 +704,7 @@ def files(p,read):
       # Landscape (video): centred at the top, clear of the island on either side.
       '1080i/'+NOTIFY:notification_dialog('Kodi-iOS player controls: notification','(1920-1100)/2',40,1100,'font_main_bold','font_midi').replace('<left>(1920-1100)/2</left>','<centerleft>50%</centerleft>'),
       '1080i/'+VOLUME:volume_dialog('Kodi-iOS player controls: volume','x',40,700,'font_main_bold').replace('<left>x</left>','<centerleft>50%</centerleft>')}
- wait=info_wait(read(INFO_WAIT)) if read(INFO_WAIT) else None
- if wait:out['1080i/'+INFO_WAIT]=wait
+ out['1080i/'+INFO_WAIT]=info_card()
  out={k:v.encode() for k,v in out.items()}
  for name,data in textures(p).items():out['extras/portrait/'+name]=data
  return out

@@ -38,6 +38,10 @@ class Wording(unittest.TestCase):
   s=C('Scanning movies using The Movie Database','Inception',-1);self.assertEqual((s['app'],s['title'],s['sub']),('library','Updating library','Inception'))
   self.assertEqual(C('Copy','Inception.mkv',34)['title'],'Copying')
   self.assertEqual(C('Skin Variables','Constructing Viewtypes...',-1)['group'],'quiet')
+  # Board 13: a slow first start shows one pill, never a dialog; it is not a quiet job.
+  st=C(activity.STARTUP_TITLE,activity.STARTUP_TEXT,-1)
+  self.assertEqual((st['app'],st['title'],st['sub'],st['pct']),('startup','Getting things ready','Preparing your library',None))
+  self.assertTrue(activity.allowed(st,lambda key,default:default))
   self.assertEqual(C('TMDbHelper Library','Severance',47)['title'],'Adding to your library')
  def test_unknown_is_kept_without_tags(self):
   j=C('[B]Some Add-on[/B]','[COLOR red]Doing things[/COLOR]',20)

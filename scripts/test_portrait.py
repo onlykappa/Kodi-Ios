@@ -135,7 +135,7 @@ class PortraitTests(unittest.TestCase):
   self.assertTrue({'7101','7102','7111','7112','7113','7121','7122','7123','7131','7141','7142','7201'}<=ids)
   clicks=[o.text for o in osd.iter('onclick')]
   for action in ['PlayerControl(Stop)','RunScript(service.kodi.ios.bootstrap,cast)','Seek(-10)','PlayerControl(Play)','Seek(10)',
-                 'RunScript(service.kodi.ios.bootstrap,speed)','RunScript(service.kodi.ios.bootstrap,tracks,audio)','RunScript(service.kodi.ios.bootstrap,tracks,subtitles)','$VAR[Action_OSD_WikiInfo]']:self.assertIn(action,clicks)
+                 'RunScript(service.kodi.ios.bootstrap,speed)','RunScript(service.kodi.ios.bootstrap,tracks,audio)','RunScript(service.kodi.ios.bootstrap,tracks,subtitles)','ActivateWindow(1193)']:self.assertIn(action,clicks)
   self.assertNotIn('volume',files['1080i/VideoOSD.xml'].decode().lower())
   self.assertIn('$NUMBER[10]',files['1080i/VideoOSD.xml'].decode())  # a bare 10 is a Kodi string id
   # r4: Fuse's seek bar is replaced by a window that never shows (the owner wants only the controls' bar); Kodi's

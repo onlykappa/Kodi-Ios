@@ -262,13 +262,18 @@ class InfoRowsAndGrid(unittest.TestCase):
   self.assertIn('condition="%s"'%portrait.GRID_LARGE,g);self.assertEqual(g.count('<itemlayout'),2)
 
 class Dialogs(unittest.TestCase):
- def test_notification_volume_and_info_wait(self):
+ def test_notification_volume_and_info_card(self):
   pages=portrait.pages
   n=pages.notification_dialog('m',43,150,994,'a','b');ET.fromstring(n.split('\n',2)[2])
   for id in ('400','401','402'):self.assertIn('id="%s"'%id,n)
   v=pages.volume_dialog('m',220,150,640,'a');self.assertIn('id="933"',v);self.assertIn('Player.Muted',v)
-  w=pages.info_wait('<window type="dialog" id="1193"><controls><control type="group"><visible>x</visible><include content="Furniture_Busy" /></control></controls></window>')
-  self.assertIn('ring.png',w);self.assertNotIn('Furniture_Busy',w);self.assertIn('<visible>x</visible>',w)
+  # Board 08: Info is the episode card (window 1193), opened by the controls' Info without closing them.
+  w=pages.info_card();root=ET.fromstring(w.split('\n',2)[2])
+  self.assertEqual(root.get('id'),'1193')
+  for info in ('VideoPlayer.TVShowTitle','VideoPlayer.Season','VideoPlayer.Episode','VideoPlayer.Title','VideoPlayer.Plot','Player.FinishTime','Player.Art(thumb)'):self.assertIn(info,w)
+  self.assertIn('No description for this video yet.',w);self.assertNotIn('Furniture_Busy',w);self.assertNotIn('ring.png',w)
+  self.assertIn('<onclick>Close</onclick>',w)
+  self.assertEqual(portrait.player_osd.INFO,'ActivateWindow(1193)')
   self.assertTrue({pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}<=portrait.OWN_1080I)
  def test_fuse_overlay_hides_under_our_controls(self):
   osd=portrait.player_osd;src='<window><controls><control type="label" /></controls></window>'
