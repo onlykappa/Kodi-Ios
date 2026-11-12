@@ -65,7 +65,10 @@ class Flow(unittest.TestCase):
 
         def search(n, purpose, q):
             if purpose == 'scan':
-                return {'qualities': answers.get(n, []), 'sizes': {x: 0.4 for x in answers.get(n, [])}}
+                got = answers.get(n, [])
+                got = got() if callable(got) else got
+                calls.setdefault('scans', []).append(n)
+                return {'qualities': got, 'sizes': {x: 0.4 for x in got}}
             calls['queued'].append((n, q))
             return {'queued': True}
         home = types.SimpleNamespace(props={}, getProperty=lambda k: home.props.get(k, ''),
@@ -94,6 +97,21 @@ class Flow(unittest.TestCase):
         self.assertEqual(out, [1, 2, 3])
         self.assertEqual(calls['queued'], [(1, '1080p'), (2, '720p'), (3, '1080p')])
         self.assertIn('Building Season 1 · 1080p', calls['card'])
+
+    def test_an_episode_missed_by_the_lanes_is_looked_up_once_more(self):
+        # ISSUE-178 (owner log 77b35834): episodes 9 and 22 timed out with three lookups at once and were "not found".
+        import unittest.mock  # noqa: F401
+        tries = iter([[], ['1080p']])
+        out, calls = self.run_build({1: ['1080p'], 2: lambda: next(tries), 3: ['1080p']})
+        self.assertEqual(sorted(calls['scans']), [1, 2, 2, 3])
+        self.assertEqual(sorted(n for n, q in calls['queued']), [1, 2, 3])
+        self.assertEqual(out, [1, 2, 3])
+
+    def test_a_retry_that_still_finds_nothing_leaves_it_out(self):
+        import unittest.mock  # noqa: F401
+        out, calls = self.run_build({1: ['1080p'], 3: ['1080p']})
+        self.assertEqual(sorted(calls['scans']), [1, 2, 2, 3])
+        self.assertEqual(sorted(n for n, q in calls['queued']), [1, 3])
 
     def test_nothing_queues_without_download_all(self):
         import unittest.mock  # noqa: F401

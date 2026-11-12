@@ -11,6 +11,9 @@ QUALITY_NAMES={'4k':'4K','1440p':'1440p','1080p':'1080p','720p':'720p','480p':'4
 ORDER=tuple(QUALITY_NAMES)
 SCAN_SECONDS=60
 EPISODE_SECONDS=25
+# ISSUE-178 (owner log 77b35834): three lookups at once share Elementum; some took 22-26 s and were dropped at 25 s.
+LANE_SECONDS=45
+RETRY_SECONDS=60
 
 def note(xbmc,event,**fields):
  try:
@@ -279,13 +282,13 @@ def _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names,se
  # 0.1 s during those waits, and its short waitForAbort lets the taps through.
  def stop():return monitor.waitForAbort(0.01) or card.canceled
  halt={'stop':False}
- def lookup(n,purpose,q=None,lane=''):
+ def lookup(n,purpose,q=None,lane='',timeout=None):
   if search:return search(n,purpose,q)
   return request(home,tmdb,season,n,purpose,q,cancel=lambda:halt['stop'] or card.canceled,
-                 timeout=EPISODE_SECONDS if purpose=='scan' else 120,lane=lane)
+                 timeout=timeout or (LANE_SECONDS if purpose=='scan' else 120),lane=lane)
  picks={};details={}
- def scan(n,lane):
-  try:found=lookup(n,'scan',lane=lane)
+ def scan(n,lane,timeout=None):
+  try:found=lookup(n,'scan',lane=lane,timeout=timeout)
   except Exception as error:
    note(xbmc,'scan_deferred',episode=n,error=type(error).__name__);found={}
   got=ss.best_for(found.get('qualities') or [],quality)
@@ -295,6 +298,15 @@ def _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names,se
   lanes(remaining,scan,lambda done,current:card.show(ss.building_props(season,quality,title,done,len(remaining),
         sum(1 for v in picks.values() if v[0]),current)),stop,halt,len(watch.LANES) if not search else 1)
   if halt['stop']:return []
+  # ISSUE-178: an episode the lanes did not find (a slow answer, or a page that answered another lane) is looked up
+  # once more on its own before it is called "not found".
+  missing=[n for n in remaining if not picks.get(n,(None,))[0]]
+  if missing:note(xbmc,'scan_retry',episodes=missing)
+  for n in missing:
+   if stop():halt['stop']=True;return []
+   card.show(ss.building_props(season,quality,title,len(remaining),len(remaining),sum(1 for v in picks.values() if v[0]),n))
+   scan(n,'',RETRY_SECONDS)
+  if missing:note(xbmc,'scan_retried',found=[n for n in missing if picks.get(n,(None,))[0]])
  finally:card.close()
  model=ss.ready_model(title,season,quality,picks,names,details)
  note(xbmc,'build_scanned',episodes=len(remaining),quality=quality,found=len(model['episodes']),

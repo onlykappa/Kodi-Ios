@@ -647,14 +647,28 @@ def _enrich_show(exp, key, get):
 # ---------------------------------------------------------------------------------------------------------------
 # hand-over between Burst and the version page (Home window property, both run inside Kodi)
 # ---------------------------------------------------------------------------------------------------------------
+RECENT = PROPERTY + '.Recent'   # the last few identities: Build Season searches three episodes at once
+RECENT_KEEP = 8
+
+
 def publish(exp, hidden=0, revealed=False, window=None, now=None):
     try:
         if window is None:
             import xbmcgui
             window = xbmcgui.Window(10000)
         clean = dict((k, v) for k, v in exp.items() if not k.startswith('_'))
-        window.setProperty(PROPERTY, json.dumps({'exp': clean, 'time': now or time.time(), 'hidden': hidden,
-                                                 'revealed': bool(revealed)}))
+        entry = {'exp': clean, 'time': now or time.time(), 'hidden': hidden, 'revealed': bool(revealed)}
+        window.setProperty(PROPERTY, json.dumps(entry))
+        # Owner log 77b35834 (build 300): with three episode searches at once the single property held whichever
+        # finished last, so episode 1's version page checked its links against episode 3 (ISSUE-178). Each search's
+        # identity is kept here too, and published() takes the one for the page's own episode.
+        try:
+            recent = json.loads(window.getProperty(RECENT) or '[]')
+        except ValueError:
+            recent = []
+        key = lambda e: (e['exp'].get('season'), e['exp'].get('episode'), tuple(e['exp'].get('titles') or ()))
+        recent = [e for e in recent if isinstance(e, dict) and e.get('exp') and key(e) != key(entry)][-(RECENT_KEEP - 1):]
+        window.setProperty(RECENT, json.dumps(recent + [entry]))
     except Exception:
         pass
 
@@ -665,17 +679,38 @@ def published(dialog_title, window=None, now=None):
         if window is None:
             import xbmcgui
             window = xbmcgui.Window(10000)
-        data = json.loads(window.getProperty(PROPERTY) or '{}')
-        if not data or (now or time.time()) - float(data.get('time', 0)) > FRESH:
-            return None
-        exp = data['exp']
+        now = now or time.time()
+        try:
+            entries = json.loads(window.getProperty(RECENT) or '[]')
+        except ValueError:
+            entries = []
+        entries = [e for e in entries if isinstance(e, dict) and e.get('exp')]
+        latest = json.loads(window.getProperty(PROPERTY) or '{}')
+        if latest.get('exp'):
+            entries.append(latest)
         heading = u' %s ' % normalize(dialog_title)
-        if not any(u' %s ' % normalize(t) in heading for t in exp.get('titles') or () if normalize(t)):
-            return None
-        exp['revealed'] = bool(data.get('revealed'))
-        return exp
+        page = page_episode(dialog_title)
+        for data in sorted(entries, key=lambda e: -float(e.get('time', 0))):
+            if now - float(data.get('time', 0)) > FRESH:
+                continue
+            exp = data['exp']
+            if not any(u' %s ' % normalize(t) in heading for t in exp.get('titles') or () if normalize(t)):
+                continue
+            # A page for S01E01 never takes S01E03's identity (ISSUE-178).
+            if page and exp.get('episode') is not None and (int(exp['episode']) != page[1] or
+                                                            (exp.get('season') is not None and int(exp['season']) != page[0])):
+                continue
+            exp['revealed'] = bool(data.get('revealed'))
+            return exp
+        return None
     except Exception:
         return None
+
+
+def page_episode(dialog_title):
+    """(season, episode) named in a version page's title ("ナルト 疾風伝 S01E05"), else None."""
+    found = re.search(r'\bS(\d{1,3})E(\d{1,4})\b', _s(dialog_title), re.I)
+    return (int(found.group(1)), int(found.group(2))) if found else None
 
 
 LABEL_EP = re.compile(r'^(.*?)[\s.:-]*\bS(\d{1,3})E(\d{1,4})\b', re.I)
@@ -698,6 +733,9 @@ def from_details(dialog_title, window=None, now=None):
         ep = re.search(r'S(\d{1,3})E(\d{1,4})', meta)
         year = re.search(r'(?<!\d)(\d{4})(?!\d)', meta)
         if ep:
+            page = page_episode(dialog_title)
+            if page and page != (int(ep.group(1)), int(ep.group(2))):
+                return None                                  # left for another episode (ISSUE-178)
             return expected('episode', [title], None, (), season=int(ep.group(1)), episode=int(ep.group(2)))
         return expected('movie', [title], int(year.group(1)) if year else None)
     except Exception:

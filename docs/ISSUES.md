@@ -2807,3 +2807,30 @@ Regression check: the existing remux host suite (run_host_tests.sh, KR_HDR_TESTS
 
 Not yet checked (needs the owner's iPhone, measurement build): the AI engine itself (model download, speed, heat,
 battery, output size), Xcode 26 building the framework in CI.
+
+## ISSUE-178 — Build Season leaves out episodes that exist, and sizes one from a box set (owner logs 77b35834, 7027e593, build 300)
+
+Naruto Shippuden S1: episodes 1, 9, 17 and 22 "Not found in any quality", although Burst found 11 sources for every
+episode; episode 5 read 4.1 GB. Rick and Morty S1: 3 of 11 left out the same way.
+
+Root causes (all from the three-lane Build Season of PR #21):
+1. **One shared identity slot.** Burst publishes the episode a search is for in one Home-window property; with three
+   searches at once the version page read whichever finished last (log: two pages checked against S01E03 at the same
+   millisecond; episode 1's page hid its own links as "wrong episode"; Rick and Morty: E02, E05, E08 reused).
+2. **Unsafe lane fallback.** A page whose episode matched no lane answered into the first live lane, so another
+   episode's lookup took this page's links and the real episode got nothing.
+3. **Scan limit too short with three lanes.** Elementum answered episodes 9 and 22 in 22-26 s; the limit was 25 s and
+   nothing retried.
+4. **Box set out-seeded the single files.** The scan reported the best-seeded copy's size and the automatic pick did not
+   prefer one-episode files over season packs / box sets, so episode 5 would also have downloaded a 4.1 GB box.
+
+Fixes: source_match keeps the last 8 identities and a page takes only the one for its own SxxEyy (never another
+episode's); deck_picker answers no lane when several are live and none matches; Build Season scans get 45 s in lanes
+and one 60 s retry each, on their own, for any episode still missing; deck_picker.mark_multi marks links holding more
+than the episode (season pack, range, box set by name, or > 3x the median size) and ranks them last for sizes and
+automatic picks (still used when alone).
+
+Retest: new tests in test_source_match (each page its own identity), test_deck_picker (no-lane page answers nobody;
+one lane keeps the old behaviour; box set neither sizes nor picks the episode; box used when alone), test_season_sheet
+(missed episode looked up once more; still nothing → left out). Each fails on the old code and passes now; the
+related suites (auto_season, episode_watch, import_builder, customized_ipa) pass. Phone check: next IPA.
