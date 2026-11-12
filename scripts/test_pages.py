@@ -142,11 +142,12 @@ class Pages(unittest.TestCase):
    self.assertIsNone(root.find('visible'),rel)
    taps=[c for c in root.iter('control') if c.get('type') in ('button','list')]
    self.assertEqual([(c.get('id'),c.findtext('label'),c.findtext('onclick')) for c in taps],[('9850','Cancel','Action(Back)')],rel)
-   self.assertIn('delay="2000"',xml,rel)
+   # DEC-037 (owner, 2026-11-12): Cancel only on the opening card; any other wait is the white spinning circle.
+   self.assertIn('<visible>!String.IsEmpty(Window(home).Property(IOSOpen.Title))</visible></control>',xml,rel)
    # Boards 04/05 (DEC-036): the opening card with a sliding bar replaces the ring; the only ring is the bell's.
    card=root.find('controls/control[@type="group"]')
    self.assertEqual((card.findtext('centerleft'),card.findtext('centertop')),('50%','50%'),rel);self.assertIsNone(card.find('left'),rel)
-   self.assertNotIn('ring.png',xml);self.assertIn('IOSOpen.Title',xml);self.assertIn('IOSOpen.Stage',xml);self.assertIn('IOSOpen.Slow',xml)
+   self.assertEqual(xml.count('ring.png'),1,rel);self.assertIn('IOSOpen.Title',xml);self.assertIn('IOSOpen.Stage',xml);self.assertIn('IOSOpen.Slow',xml)
    slide=[c for c in card.iter('control') if c.find('animation') is not None and c.find('animation').get('effect')=='slide' and c.find('animation').get('loop')=='true']
    self.assertTrue(slide,rel)
    self.assertEqual(slide[0].find('texture').get('colordiffuse'),'FF0A84FF')

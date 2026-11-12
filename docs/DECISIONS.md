@@ -243,3 +243,10 @@ keeps the existing route. Source fixes and separate commits are authorized; no n
 Owner keeps Movies/TV preloading for instant tab switching; do not implement deferred first-tab loading (1D.3).
 Owner now requests remaining items one at a time, starting with 1A.3 only. Commit/push the source repair for
 review; no IPA, native release/pin update or main merge is requested.
+
+## DEC-037 — The white loading circle is back for plain waits (2026-11-12)
+
+Owner, build 280 (Kodi iOS Watch Options showed the "Working…" card with Cancel): "I miss my white loading circle
+instead of working/cancel". Kodi's busy dialog shows the white spinning circle for any wait, with no card and no
+Cancel (Back still leaves). The opening card (boards 04/05) stays only while a video opens, where its stages and
+Cancel help. This narrows DEC-036 for the busy dialog; progress elsewhere stays a bar.

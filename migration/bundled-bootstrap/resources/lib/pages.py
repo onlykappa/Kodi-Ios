@@ -557,8 +557,8 @@ def busy_dialog(marker,font,media='special://skin/extras/portrait/'):
  """DialogBusy: the opening card of owner-approved boards 04/05 (docs/design/fuse-windows-mockups.html). When the opener
  has set Window(home).Property(IOSOpen.Title) the card names the open ("Opening X", IOSOpen.Source, then stages 1-3
  from IOSOpen.Stage ticked as they finish, a sliding bar, and after about ten seconds IOSOpen.Slow in plain words).
- For any other wait it is a small card, a title and the sliding bar, and Cancel joins after 2 s as before (roadmap
- 2.18). Cancel (9850) is Kodi's Back, which the busy dialog honours. The ring is gone: the only ring is the bell's (DEC-036)."""
+ Cancel (9850) is Kodi's Back, which the busy dialog honours (roadmap 2.18). Any other wait is the white spinning
+ circle in the middle of the screen, no card and no Cancel (owner, 2026-11-12, DEC-037: "I miss my white loading circle")."""
  w=720;pad=48;inner=w-2*pad;icons='special://skin/extras/icons/'
  title='Window(home).Property(IOSOpen.Title)';has='!String.IsEmpty(%s)'%title;no='String.IsEmpty(%s)'%title
  stage=lambda n:'Window(home).Property(IOSOpen.Stage)'
@@ -580,7 +580,7 @@ def busy_dialog(marker,font,media='special://skin/extras/portrait/'):
  long_h=720;short_h=340
  card=(
   '<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture border="40" colordiffuse="FFFFFFFF">%salert.png</texture><visible>%s</visible></control>'%(w,long_h,media,has)+
-  '<control type="image"><left>0</left><top>0</top><width>%d</width><height>%d</height><texture border="40" colordiffuse="FFFFFFFF">%salert.png</texture><visible>%s</visible></control>'%(w,short_h,media,no)+
+
   only(has,L(pad,40,inner,64,'$INFO[%s,Opening ,]'%title,'p_h3','FFFFFFFF','center')+
        L(pad,104,inner,52,'$INFO[Window(home).Property(IOSOpen.Source)]','p_foot','99EBEBF5','center')+
        only('!String.IsEmpty(Window(home).Property(IOSOpen.Stage))',stages)+
@@ -590,14 +590,17 @@ def busy_dialog(marker,font,media='special://skin/extras/portrait/'):
        '<animation effect="fade" start="0" end="100" delay="10000" time="250">WindowOpen</animation>'+
        L(pad,452,inner,52,'Taking longer than usual.','p_foot_b','FFFFFFFF','center')+
        L(pad,500,inner,52,'$INFO[Window(home).Property(IOSOpen.Slow)]','p_foot','99EBEBF5','center')+'</control>')+
-  only(no,L(pad,36,inner,64,'Working…','p_h3','FFFFFFFF','center')+slide_bar(media,pad,134,inner)))
+  # Owner (2026-11-12, Watch Options): any other wait is the white spinning circle again, no card and no Cancel
+  # (Back still leaves); the card stays for opening a video, where its stages and Cancel help.
+  only(no,'<control type="image"><left>%d</left><top>%d</top><width>96</width><height>96</height><texture colordiffuse="FFFFFFFF">%sring.png</texture>'
+          '<animation effect="fade" start="0" end="100" time="200" delay="400">WindowOpen</animation>'
+          '<animation effect="rotate" end="-360" center="auto" time="1000" loop="true" reversible="false" condition="true">Conditional</animation></control>'%((w-96)//2,(long_h-96)//2,media)))
  # One Cancel for both cards: secondary (a glass-styled capsule, 124 units), at the foot of whichever card shows.
  cancel=('<control type="button" id="9850"><left>%d</left><top>%d</top><width>%d</width><height>124</height><font>%s</font>'
   '<label>Cancel</label><textcolor>FFFFFFFF</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>center</align><aligny>center</aligny>'
   '<texturefocus border="62" colordiffuse="FF5A5A5E">%spill_124.png</texturefocus><texturenofocus border="62" colordiffuse="FF3A3A3C">%spill_124.png</texturenofocus>'
-  '<onclick>Action(Back)</onclick><animation effect="slide" end="0,-%d" time="0" condition="%s">Conditional</animation>'
-  '<animation effect="fade" start="0" end="100" delay="2000" time="250" condition="%s">WindowOpen</animation></control>')%(
-  pad,long_h-124-40,inner,font,media,media,long_h-short_h,no,no)
+  '<onclick>Action(Back)</onclick><visible>%s</visible></control>')%(
+  pad,long_h-124-40,inner,font,media,media,has)
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- %s: Kodi busy dialog as the opening card -->\n<window><zorder>1000</zorder><controls>'
   '<control type="group"><centerleft>50%%</centerleft><centertop>50%%</centertop><width>%d</width><height>%d</height>'
   '<animation effect="fade" start="0" end="100" time="200">WindowOpen</animation><animation effect="fade" start="100" end="0" time="150">WindowClose</animation>'
