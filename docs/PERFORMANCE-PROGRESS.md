@@ -1,4 +1,47 @@
-# Performance roadmap — progress log
+# Performance and quality progress
+
+## Current state and handoff (read this first; updated 2026-11-12)
+
+Where everything lives
+- Branch `claude/performance-roadmap`, PR #19 (draft, not merged). Every push builds an IPA (import-review workflow).
+  Owner's last device build: 252. The roadmap is `docs/ROADMAP-PERFORMANCE.md`; issues in `docs/ISSUES.md`
+  (latest ISSUE-169). Nothing is merged or released without the owner asking in the conversation.
+- UI work from the approved mockups (PR #20, `docs/design/fuse-windows-mockups.html` on branch
+  `claude/fuse-window-mockups-v9thgx`): a Sonnet agent is coding them on branch `claude/fuse-windows-code-2`
+  (backed up on GitHub). Review, rig-check, then merge into `claude/performance-roadmap`. Done so far there: board 03
+  alert, 04/05 opening card + buffering bar, 06 bar (DEC-036), 09 All Links states, 10 Umbrella page, 12 search.
+  Branch `claude/fuse-windows-code` (an earlier Haiku attempt) is superseded; ignore it.
+- Speed work by the Sonnet speed agent (branch `claude/speed-fixes`) is merged into #19.
+
+Done (code in #19; device checks pending unless the owner said otherwise)
+- Bugs: 26 of 30 (B.1-B.11, 2.1-2.6, 2.8, 2.9, 2.11-2.15, 2.17, 2.18); 2.19 checked as working. Open: 2.10 (needs a
+  screen recording), 2.7 (device check), 2.16 (log noise only).
+- ISSUE-169: season downloads never take a whole-series pack; "Cancel all downloads to Drive" (Notifications long
+  press on the upload card, Library status sheet "Cancel All"); whole-series packs marked WHOLE SERIES.
+- Speed: 1A.2, 1B.1*, 1C.1, 1C.2, 1C.3, 1D.1/1D.2*, 1E.1, 1E.4, 1E.5, 1E.6, 1F.1 (answered: uploads ~3.3 MB/s,
+  Python waits 4 ms), 1G.1, 1G.7 (10-bit H.264 last for streams), 1G.8 (Play on TV on an unprepared download:
+  "Preparing first", front of the queue, no live conversion). Picker modes: Umbrella = stream (AirPlay-ready first:
+  AV1, 10-bit H.264, DV-only last); Elementum = download (best seeded at the chosen quality; AV1 last).
+  * needs Kodi r31 (Kodi patch: MKV attachments skipped, Home plugin rows kept around playback; also the 2.4 "- "
+  prefix and 2.5 PIN keyboard).
+
+Builds still to make (owner approval for the IPA is in the conversation; merging is not)
+1. Kodi r31 from `migration/ios-portrait/kodi-21.3-portrait.patch` (kodi-ios-portrait workflow, then pin in
+   `migration/ios-portrait/source-lock.json`; patch_sha256 there is stale, nothing reads it).
+2. AirPlay r47 (system networking for uploads, resume-point start): candidate from the airplay-remux run on the PR
+   head; pin in `migration/airplay-ios/source-lock.json` + `scripts/test_airplay_remux.py`, then airplay-ios with
+   publish_verified_candidate=true.
+3. IPA via import-review (runs on every push to #19).
+
+Next work (in order)
+1. Review/merge the mockup agent's branch (rig-check each board: scripts/kodi_rig.py, docs/design/KODI-RIG.md).
+2. 1A.1 native Drive range reader in KodiAirPlay (replaces plugin.googledrive's Python proxy: 5-6 s opens, 4 s seeks);
+   1A.3 keep the MP4 index with it (plan below).
+3. 1G.2 conversion faster than real time (only AV1 / 10-bit H.264 / unprepared downloads need it now).
+4. 1E.2/1E.3/1E.7 start-up trims, 1F.2-1F.4 uploads to line speed, 1D.3 rows for the visible tab only.
+5. MKV fonts trade-off (1B.1 drops embedded fonts for styled subtitles): asked the owner; no answer yet.
+
+## Log (newest last)
 
 Read this first when taking over. The plan is docs/ROADMAP-PERFORMANCE.md. Update this file at every step:
 what was done, where it lives (branch, commit, run), what was verified (and how), what is next.
@@ -83,3 +126,5 @@ Never claim a phone result without the owner's log or screenshot.
 - No-stutter (code): the version picker ranks 10-bit H.264 after every version that plays on the TV as it is (no hardware decoder on Apple devices: live AirPlay conversion runs slower than real time). Downloads were already safe: preparation re-encodes 10-bit H.264 to 8-bit H.264 once on Drive (kr_prepare copy_video). Remaining stutter case: AirPlay of a download before its preparation finished; next: 1G.8 prepare that video first / say so on the Play on TV card. Test: test_deck_picker NoStutter.
 - Stream vs download (code): deck_picker.run(mode=) — Umbrella (umbrella_picker, live playback) uses 'stream': AV1, 10-bit H.264 and Dolby Vision without HDR10 go after versions AirPlay sends as they are. Elementum downloads keep Elementum's best-seeded order at the chosen quality (AV1 still after, slow to prepare); preparation converts anything else once on Drive. Tests: test_deck_picker NoStutter, test_source_match.
 - 1G.8 (code): Play on TV on a Drive download whose preparation is waiting or running and whose picture needs converting (or not probed yet) asks first with the approved sheet: Prepare first (front of the queue, then it plays as it is) or Play now (live conversion, may stutter). Copy-only files (HEVC / 8-bit H.264 that only need repackaging) and ready files go straight on. Test: test_cast_ready.
+
+- 1G.8 change (owner: "it should say prepare first"): no choice; Play on TV on an unprepared download that needs converting queues it first and says 'Preparing first'.

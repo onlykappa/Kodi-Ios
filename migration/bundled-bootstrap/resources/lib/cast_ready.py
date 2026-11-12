@@ -1,6 +1,6 @@
 """Roadmap 1G.8 (owner: "if the file is already good then no conversion is needed"; "yes" to offering a choice):
 Play on TV on a download that preparation has not finished would convert it live on the phone and can stutter.
-Before the TV is picked, the owner chooses Prepare first (front of the queue, converted once) or Play now."""
+Owner: "it should say prepare first": it goes to the front of the preparation queue and plays as it is once ready."""
 import re
 import urllib.parse
 
@@ -33,6 +33,5 @@ def not_ready(view, ident, probe_of=lambda row: row.get('probe')):
     return False
 
 
-SHEET = {'heading': 'Not ready for the TV yet', 'sub': 'This video still needs converting so it plays smoothly.',
-         'rows': [{'label': 'Prepare first', 'detail': 'Converts it once, then it plays on the TV as it is'},
-                  {'label': 'Play now', 'detail': 'Converts live on this iPhone · may stutter'}]}
+MESSAGE = ('Preparing first', 'This video is being prepared for your TV so it plays smoothly. It is now first in line; '
+           'press Play on TV again when Library status shows it as ready.')

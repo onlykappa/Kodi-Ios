@@ -70,14 +70,11 @@ def run_owned():
   import cast_ready,prepare_downloads
   profile=xbmcvfs.translatePath('special://profile/');ident=cast_ready.item_id(playing)
   if ident and cast_ready.not_ready(prepare_downloads.library_view(prepare_downloads.load(profile)),ident):
-   import choice_sheet
-   pick=choice_sheet.choose(cast_ready.SHEET,xbmcgui=xbmcgui)
-   xbmc.log('Kodi iOS Play on TV: not prepared yet; owner chose %s'%{0:'prepare first',1:'play now'}.get(pick,'nothing'),xbmc.LOGINFO)
-   if pick==0:
-    prepare_downloads.request(profile,'now',ident)
-    dialog.notification('Preparing for your TV','It moves to the front; Play on TV once Library status says ready.',xbmcgui.NOTIFICATION_INFO,5000)
-    return
-   if pick!=1:return
+   # Owner: "it should say prepare first": no live conversion is offered; it is prepared first, then plays as it is.
+   prepare_downloads.request(profile,'now',ident)
+   xbmc.log('Kodi iOS Play on TV: not prepared yet; prepared first (front of the queue)',xbmc.LOGINFO)
+   dialog.ok(cast_ready.MESSAGE[0],cast_ready.MESSAGE[1])
+   return
  except Exception as error:xbmc.log('Kodi iOS Play on TV: preparation check skipped (%s)'%type(error).__name__,xbmc.LOGWARNING)
  extra=[]
  note='Plays from where you are now. '

@@ -14,7 +14,8 @@ class CastReady(unittest.TestCase):
                       'preparing':[{'id':'D','probe':{'copy_video':False}}],'ready':[{'id':'E'}]}}
         self.assertEqual([cr.not_ready(view,i) for i in 'ABCDEX'],[True,True,False,True,False,False])
         self.assertFalse(cr.not_ready(view,''))
-    def test_the_sheet_offers_prepare_first_then_play_now(self):
-        self.assertEqual([r['label'] for r in cr.SHEET['rows']],['Prepare first','Play now'])
+    def test_it_says_prepare_first_and_offers_no_live_conversion(self):
+        self.assertEqual(cr.MESSAGE[0],'Preparing first')
+        self.assertFalse(hasattr(cr,'SHEET'))
 
 if __name__=='__main__':unittest.main()
