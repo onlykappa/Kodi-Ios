@@ -21,6 +21,7 @@ class LazyEngine(unittest.TestCase):
   calls=[]
   class R:
    def read(self):return b''
+   def close(self):pass
   class Opener:
    def open(self,url,timeout=0):calls.append(('open',url));return R()
   elementum_download.follow('plugin://plugin.video.elementum/x',opener=Opener(),route=lambda u:False,engine=lambda:calls.append('engine'))

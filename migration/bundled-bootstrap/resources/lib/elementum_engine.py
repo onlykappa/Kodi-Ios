@@ -35,8 +35,12 @@ def ensure(want,wait,is_running=running,attempts=45):
   if wait():return False
  return False
 
-def ensure_here(attempts=45):
+def ensure_here(attempts=45,cancel=None):
  """ensure() for code running inside Kodi: the property goes on the Home window, waiting follows Kodi's abort."""
  import xbmc,xbmcgui
  monitor=xbmc.Monitor()
- return ensure(lambda:xbmcgui.Window(10000).setProperty(WANTED,'1'),lambda:monitor.waitForAbort(1),attempts=attempts)
+ def wait():
+  for _ in range(10):
+   if (cancel and cancel()) or monitor.waitForAbort(.1):return True
+  return False
+ return ensure(lambda:xbmcgui.Window(10000).setProperty(WANTED,'1'),wait,attempts=attempts)

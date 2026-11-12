@@ -154,3 +154,7 @@ Owner asks for fixes committed separately. Source commits use [skip ci] to prese
 
 - ISSUE-172: size probes read at most one byte, even if Drive ignores Range. HTTP 200 uses its length and drops
   the unread connection. Host: test_drive_proxy 10 pass, including synthetic 20 GB metadata and transport failure.
+
+- ISSUE-173: discovery is bounded to 60 seconds total / 25 per episode; Cancel interrupts the active HTTP wait.
+  Unscanned episodes retain strict-quality retry eligibility. 92 focused host cases pass (29 season, 14 speed,
+  30 watch, 13 cloud, 6 auto-season), including stalled local HTTP and late-redirect cancellation. No layout change.

@@ -252,3 +252,5 @@ Evidence: ISSUE-163/165/166.
   remains a separate verified-build step; do not change pins to unbuilt artifacts.
 
 - 1A.1 reliability: ISSUE-172 bounded size probes repaired and host tested; no full movie read during HEAD.
+
+- Season reliability: ISSUE-173 bounded source discovery and active cancellation repaired; live provider check pending.

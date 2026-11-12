@@ -9,6 +9,8 @@ import elementum_download as dl
 
 QUALITY_NAMES={'4k':'4K','1440p':'1440p','1080p':'1080p','720p':'720p','480p':'480p','sd':'SD'}
 ORDER=tuple(QUALITY_NAMES)
+SCAN_SECONDS=60
+EPISODE_SECONDS=25
 
 def note(xbmc,event,**fields):
  try:
@@ -102,7 +104,7 @@ def pending_episodes(profile,tmdb,season,numbers):
     except (TypeError,ValueError):pass
  return have.intersection(numbers)
 
-def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=None):
+def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=None,cancel=None,timeout=None):
  import elementum_cloud
  if watch.active_request(home):raise RuntimeError('Another episode search is running. Try again when it finishes.')
  ident=uuid.uuid4().hex
@@ -118,7 +120,9 @@ def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=Non
     (lambda url:elementum_cloud.route(url)) if purpose=='packs' else
     (lambda url:elementum_cloud.route(url,quiet=True,request_id=ident)))
   # A scan reaches the search route, but consumes any selected-media redirect.
-  reached=(follow or dl.follow)(url,timeout=600 if purpose=='packs' else 120,route=route)
+  options={'timeout':timeout if timeout is not None else (600 if purpose=='packs' else 120),'route':route}
+  if cancel is not None:options['cancel']=cancel
+  reached=(follow or dl.follow)(url,**options)
   try:result=json.loads(home.getProperty(watch.RESULT) or '{}')
   except ValueError:result={}
   if not result and purpose in ('scan','packs') and reached==url.replace(dl.PLUGIN_PREFIX,dl.ENGINE,1):
@@ -129,6 +133,7 @@ def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=Non
    try:receipt=json.loads(home.getProperty('KodiIOS.AutoPick.Queued') or '{}')
    except ValueError:receipt={}
    result['queued']=receipt.get('request_id')==ident and receipt.get('queued') is True
+  if cancel and cancel() and not result.get('queued'):raise dl.Canceled('Source search canceled')
   return result
  finally:
   if result.get('request_id')!=ident or (purpose=='queue' and not result.get('queued')):watch.cancel_request(home,wanted)
@@ -148,20 +153,28 @@ def run(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,search=None
 
 def _run(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,search=None):
  """Return queued episode numbers. A cancelled scan/quality chooser creates no durable plan."""
- search=search or (lambda n,purpose,q=None:request(home,tmdb,season,n,purpose,q))
  have=set(owned)|pending_episodes(profile,tmdb,season,numbers)
  remaining=[n for n in numbers if n not in have]
  if not remaining:
   dialog.ok('Download season','Every aired episode is already downloaded or queued.');return []
  progress=gui.DialogProgress();progress.create('Checking available sources','Finding episode qualities…')
- sources={}
+ sources={};deadline=time.monotonic()+SCAN_SECONDS;monitor=xbmc.Monitor()
+ def canceled():return progress.iscanceled() or monitor.abortRequested()
+ def lookup(n,purpose,q=None):
+  if search:return search(n,purpose,q)
+  scanning=purpose=='scan'
+  stop=(lambda:canceled() or time.monotonic()>=deadline) if scanning else canceled
+  timeout=min(EPISODE_SECONDS,max(.1,deadline-time.monotonic())) if scanning else 120
+  return request(home,tmdb,season,n,purpose,q,cancel=stop,timeout=timeout)
  try:
   for i,n in enumerate(remaining):
-   if progress.iscanceled() or xbmc.Monitor().abortRequested():return []
+   if canceled():return []
+   if time.monotonic()>=deadline:break
    progress.update(int(100*i/len(remaining)),'Episode %d · %d of %d'%(n,i+1,len(remaining)))
-   try:sources[n]=search(n,'scan').get('qualities') or []
+   try:sources[n]=lookup(n,'scan').get('qualities') or []
    except Exception as error:
     note(xbmc,'scan_deferred',episode=n,error=type(error).__name__);sources[n]=[]
+  if canceled():return []
  finally:progress.close()
  choices=availability(sources,remaining)
  note(xbmc,'scan_complete',episodes=len(remaining),coverage=dict(choices))
@@ -183,9 +196,12 @@ def _run(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,search=Non
     watch.cancel_planned(profile,tmdb,season,remaining[i:]);break
    progress.update(int(100*i/len(remaining)),'Episode %d · %s'%(n,QUALITY_NAMES[quality]))
    result={}
-   if quality in sources[n]:
-    try:result=search(n,'queue',quality)
-    except Exception as error:note(xbmc,'queue_deferred',episode=n,error=type(error).__name__)
+   if quality in sources.get(n,[]):
+    try:result=lookup(n,'queue',quality)
+    except Exception as error:
+     note(xbmc,'queue_deferred',episode=n,error=type(error).__name__)
+     if canceled():
+      watch.cancel_planned(profile,tmdb,season,remaining[i:]);break
    success=result.get('queued') is True
    watch.record_planned(profile,tmdb,season,n,success)
    note(xbmc,'episode_result',episode=n,quality=quality,queued=success)

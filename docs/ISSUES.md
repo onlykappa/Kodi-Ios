@@ -2659,3 +2659,23 @@ Status: FIXED IN SOURCE; host tested, device acceptance pending.
   now produce HTTP 502 instead of silently terminating the local request.
 - Verification: test_drive_proxy 10 cases pass, including a synthetic 20 GB size, ignored Range, malformed or
   missing size, and upstream failure. The metadata fixture fails any unbounded read; no media is allocated.
+
+
+## ISSUE-173 — Season quality discovery waits for every slow episode; Cancel waits for HTTP (2026-11-12)
+
+Status: FIXED IN SOURCE; host tested, live provider/iPhone acceptance pending.
+- Cause: sequential 120-second episode searches had no whole-scan budget and only checked Cancel between calls.
+- Fix: source discovery has a 60-second total budget and 25-second individual waits. Offer only qualities actually
+  observed within that budget; unseen episodes join the existing exact-quality retry plan after selection.
+  The shared automatic-picker lane remains serial: parallel requests would overwrite its window properties.
+- Active HTTP header/body waits now run through an interruptible transport. Cancel closes/shuts down the socket,
+  and redirect/queue actions remain on the caller after the cancellation check. Engine startup waits also honor
+  Cancel. Failed/canceled requests retain the existing late-response tombstones; canceled queue work removes
+  unprocessed planned retries. No new UI layout or visible wording.
+- Verification: 29 season/source tests, 14 speed tests, 30 episode-watch tests, 13 cloud-route tests and 6 auto-season
+  tests pass. Real local HTTP fixtures deliberately stall headers/body (including Connection: close): cancellation
+  and timeout return under 1.5 s and never follow a late download redirect. A synthetic clock verifies the total
+  scan budget and strict-quality retries for unscanned episodes.
+- Test repair history: the first test insertion put four existing methods under the wrong fixture; moved them
+  back. Closing a previously leaked HTTP response exposed an old fake with no close(); completed the fixture.
+  All affected suites pass afterward. No real account/media was used.
