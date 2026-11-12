@@ -157,8 +157,15 @@ def route(url,quiet=False,request_id=None):
             import episode_watch
             pick=episode_watch.selection(home,choice)
             tracked={'tmdb':pick.get('show_tmdb'),'season':pick.get('season'),'episode':pick.get('episode')}
+        # Owner screenshot (build 314): Build Season's picks often come with no torrent name, so the job, its Drive
+        # folder and the Library card were the info-hash ("3c90db2e052…"). The season request carries the show's title.
+        show_title = tracked.get('title') or ''
+        if show_title and (not choice.get('name') or debrid_drive.is_hash(name)):
+            s, e = choice.get('season') or tracked.get('season'), choice.get('episode') or tracked.get('episode')
+            name = '%s S%02dE%02d' % (show_title, int(s), int(e)) if s and e else show_title
+            info = drivelibrary.parse(name)
         job = debrid_drive.queue(profile, {'id':choice['hash'], 'name':name}, kind,
-                                 info.get('title') or drivelibrary.display_title(name),
+                                 show_title or info.get('title') or drivelibrary.display_title(name),
                                  choice.get('season') or info.get('season') or tracked.get('season') or '',
                                  choice.get('episode') or info.get('episode') or '', watch=mode == 1,show_tmdb=tracked.get('tmdb'))
         try:

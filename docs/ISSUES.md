@@ -2938,3 +2938,20 @@ MB; driveupload's native path grows pieces to that limit after three fast pieces
 Retest: test_debrid_drive (build_season_episodes_one_job_each_copy_three_at_a_time; a companion failing does not fail
 the first), test_native_http (r50 32 MB pieces, older frameworks keep 8 MB, pieces grow to 32 MB). Phone proof: the
 next log should show three "Drive copy native" threads and pieces growing to 32 MB.
+
+## ISSUE-183 — Build Season downloads show as hash-named cards with no metadata (build 314, owner screenshot) — FIXED on host
+
+Owner screenshot: Library › Downloaded TV Shows lists "3c90db2e052…" and "ee34425d559…" with no title or poster, and
+the upload card names the hash; "awh man and i forgot meta data not working".
+Root cause: Build Season's automatic picks often reach elementum_cloud.route with no torrent name (no magnet dn, no
+query), so name fell back to the info-hash; the job's title, its Drive folder (Kodi Downloads › TV Shows › <hash>)
+and the Library card came from it. Second, anime files number episodes absolutely ("Naruto Shippuuden - 002
+[1080p].mkv"), so even in the right folder the Library could not tell which episode a file is.
+Fix: season_sources.request puts the show's title in the automatic request's target; route names such a job
+'<show> S01E02' with the show's title. debrid_drive.retitle gives jobs already queued under a hash the show's title
+from the season plan (episode_watch, by TMDb id); rehome moves files already copied into a hash folder into the show's
+folder (and trashes the empty hash folder); episode_name names an episode's Drive file '<show> S01E02 - <original>'
+when the original does not say its season and episode (new copies and moved ones).
+Retest: test_debrid_drive HashNamedJobs (retitle, move, rename, parse back to show/season/episode),
+test_elementum_cloud SeasonQueueNames; related suites pass. Phone proof: after the next IPA, the two hash cards become
+Naruto Shippūden with its episodes (the service moves them on its next AllDebrid step).

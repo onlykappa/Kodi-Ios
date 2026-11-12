@@ -128,6 +128,90 @@ def order_season(profile, show_tmdb, season):
         return True
 
 
+def is_hash(text):
+    """A torrent info-hash (40 hex or 32 base32), not a name."""
+    import re
+    text = str(text or '').strip()
+    return bool(re.fullmatch(r'[0-9a-fA-F]{40}|[A-Z2-7]{32}', text))
+
+
+def retitle(profile, state, plans=None):
+    """Jobs named after their info-hash (Build Season before build 315) take the show's title from the season plan
+    (episode_watch, by TMDb id). Returns the jobs changed: [(job, old title)]."""
+    if plans is None:
+        try:
+            import episode_watch
+            plans = episode_watch.load(profile).get('shows', {})
+        except Exception:
+            plans = {}
+    changed = []
+    for job in state.get('jobs', []):
+        old = job.get('title') or ''
+        if not (is_hash(old) or is_hash(job.get('name'))) or not job.get('show_tmdb'):
+            continue
+        title = (plans.get(str(job['show_tmdb'])) or {}).get('title') or ''
+        if not title or title == old:
+            continue
+        job['title'] = title
+        if is_hash(job.get('name')):
+            job['name'] = '%s S%02dE%02d' % (title, int(job.get('season') or 0), int(job.get('episode') or 0)) \
+                if job.get('season') and job.get('episode') else title
+        job.setdefault('moved_from', old)
+        changed.append((job, old))
+    return changed
+
+
+def episode_name(job, name):
+    """The Drive name of an episode's file: the original when it says its season and episode, else '<show> S01E02 -
+    <original>' (owner screenshot, build 314: "Naruto Shippuuden - 002 [1080p].mkv" gave the Library no episode)."""
+    import drivelibrary
+    info = drivelibrary.parse(name)
+    if info.get('season') and info.get('episode'):
+        return name
+    if job.get('kind') != 'episode' or not job.get('season') or not job.get('episode') or not job.get('title') or is_hash(job['title']):
+        return name
+    return '%s S%02dE%02d - %s' % (job['title'], int(job['season']), int(job['episode']), name)
+
+
+def rehome(drive, job, log=lambda text: None):
+    """Files a job already copied into a folder named after the hash move into the show's folder; the empty hash folder
+    goes to Drive's Trash. Returns how many files moved."""
+    old = job.get('moved_from')
+    if not old:
+        return 0
+    moved = 0
+    import json as _json
+    import urllib.parse as _p
+    wrong = drive.folder([TOP, 'TV Shows', old])
+    for f in job.get('files') or []:
+        if not f.get('drive_id') or f.get('rehomed'):
+            continue
+        right = drive.folder(folders(job['kind'], f.get('drive_name') or f.get('path') or '', job.get('title') or ''))
+        if right == wrong:
+            continue
+        named = episode_name(job, f.get('drive_name') or os.path.basename(f.get('path') or ''))
+        status, _, _ = drive.call('PATCH', driveupload.API + '/' + _p.quote(str(f['drive_id']), safe='') + '?addParents=' +
+                                  _p.quote(right, safe='') + '&removeParents=' + _p.quote(wrong, safe=''),
+                                  _json.dumps({'name': named}).encode(), {'Content-Type': 'application/json'})
+        if status == 200:
+            f['rehomed'] = True
+            f['drive_name'] = named
+            moved += 1
+        else:
+            log('%s: could not move it into %s (HTTP %s)' % (f.get('drive_name') or f.get('path'), job.get('title'), status))
+    if all(f.get('rehomed') or not f.get('drive_id') for f in job.get('files') or []):
+        try:
+            status, _, body = drive.call('GET', driveupload.API + '?q=' + _p.quote("'%s' in parents and trashed=false" % wrong) +
+                                         '&fields=files(id)&pageSize=1')
+            if status == 200 and not _json.loads(body or b'{}').get('files'):
+                drive.call('PATCH', driveupload.API + '/' + _p.quote(wrong, safe=''), _json.dumps({'trashed': True}).encode(),
+                           {'Content-Type': 'application/json'})
+        except Exception:
+            pass
+        job.pop('moved_from', None)
+    return moved
+
+
 def folders(kind, name, title=''):
     """Drive › Kodi Downloads › Movies, or › TV Shows › <show> (from the file's name, else the show's title)."""
     parts = driveupload.drive_folders(name, '/')
@@ -261,6 +345,21 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             save(profile, state)
             transfer_history.failed(profile, 'up', job.get('title') or job['name'], 'cancelled by you', clock())
             forget(job['hash'])
+    # Owner screenshot (build 314): Build Season jobs named after their hash; give them the show's title and move what
+    # was already copied into the show's folder.
+    renamed = retitle(profile, state)
+    if renamed:
+        for job_, old in renamed:
+            log('%s: named after its show (was %s)' % (job_['title'], old[:12]))
+        save(profile, state)
+    for job_ in [j for j in state['jobs'] if j.get('moved_from') and j['status'] == 'done']:
+        try:
+            if rehome(drive, job_, log):
+                driveupload.invalidate_library(str(location(profile).parent))   # the Library lists the show again
+        except Exception as error:
+            log('%s: moving into its show folder failed (%s)' % (job_.get('title'), type(error).__name__))
+        else:
+            save(profile, state)
     jobs = [j for j in state['jobs'] if j['status'] not in ('done', 'failed')]
     if not jobs:
         if state.pop('current', None) is not None:
@@ -390,7 +489,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                         return with_source(lambda source:drive.copy_piece(source,{},target,headers,offset,count,total,20))
                     copy_to.max=getattr(drive.copy_piece,'max',8*1024*1024)
                     open_source.copy_to=copy_to
-                name = os.path.basename(name or entry['path'])
+                name = episode_name(owner, os.path.basename(name or entry['path']))
                 size = size or entry['size']
                 parts = folders(owner['kind'], name, owner.get('title') if owner['kind'] != 'movie' else '')
                 with guard:   # two uploads must not both create the season's folder

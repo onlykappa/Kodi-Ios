@@ -137,6 +137,36 @@ class NativeCopies(unittest.TestCase):
    self.assertEqual(debrid_drive.load(profile)['jobs'][0]['status'],'done');self.assertEqual(drive.data,blob)
    self.assertEqual(offsets,[0,1024*1024,2*1024*1024])
 
+class HashNamedJobs(unittest.TestCase):
+ """Owner screenshot (build 314): Build Season's episodes went into Drive folders named after the torrent hash
+ ("3c90db2e052…"), so the Library had no title or poster for them."""
+ def test_jobs_take_the_show_title_and_copied_files_move_into_its_folder(self):
+  h='3c90db2e05'+'a'*30
+  state={'jobs':[{'hash':h,'name':h,'title':h,'kind':'episode','season':'1','episode':'2','show_tmdb':'31910','status':'done',
+                  'files':[{'path':'Naruto Shippuuden - 002 [1080p].mkv','drive_name':'Naruto Shippuuden - 002 [1080p].mkv','drive_id':'f1','done':True}]},
+                 {'hash':'b'*40,'name':'b'*40,'title':'b'*40,'kind':'episode','season':'1','episode':'3','show_tmdb':'31910','status':'new','files':[]},
+                 {'hash':'c'*40,'name':'Fall','title':'Fall','kind':'movie','status':'new','files':[]}]}
+  changed=debrid_drive.retitle('/p',state,plans={'31910':{'title':'Naruto Shippūden'}})
+  self.assertEqual([j['title'] for j,_ in changed],['Naruto Shippūden','Naruto Shippūden'])
+  self.assertEqual((state['jobs'][1]['name'],state['jobs'][2]['title']),('Naruto Shippūden S01E03','Fall'))
+  calls=[]
+  class Drive:
+   def folder(self,parts):return 'id:'+'/'.join(parts[1:])
+   def call(self,method,url,body=None,headers=None):
+    calls.append((method,url));return (200,{},b'{"files":[]}') if method=='GET' else (200,{},b'{}')
+  self.assertEqual(debrid_drive.rehome(Drive(),state['jobs'][0]),1)
+  move=calls[0][1]
+  self.assertIn('addParents=id%3ATV%20Shows/Naruto%20Shipp%C5%ABden',move.replace('%2F','/'))
+  self.assertIn('removeParents=id%3ATV%20Shows/'+h,move.replace('%2F','/'))
+  self.assertTrue(any(m=='PATCH' and h in u for m,u in calls[2:]))      # the empty hash folder goes to the Trash
+  self.assertNotIn('moved_from',state['jobs'][0])
+  self.assertTrue(debrid_drive.is_hash('A'*32) and not debrid_drive.is_hash('Naruto'))
+  self.assertEqual(state['jobs'][0]['files'][0]['drive_name'],'Naruto Shippūden S01E02 - Naruto Shippuuden - 002 [1080p].mkv')
+  import drivelibrary
+  info=drivelibrary.parse(state['jobs'][0]['files'][0]['drive_name'])
+  self.assertEqual((info['title'],info['season'],info['episode']),('Naruto Shippūden','1','2'))
+  self.assertEqual(debrid_drive.episode_name(state['jobs'][0],'Naruto.S01E02.mkv'),'Naruto.S01E02.mkv')   # already says it
+
 class TwoLanes(unittest.TestCase):
  """ISSUE-164 / 1F.4: a season's episodes go up to Drive up to three at a time; a movie is still one upload."""
  def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name

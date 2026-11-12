@@ -117,11 +117,12 @@ def pending_episodes(profile,tmdb,season,numbers):
     except (TypeError,ValueError):pass
  return have.intersection(numbers)
 
-def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=None,cancel=None,timeout=None,lane=''):
+def request(home,tmdb,season,episode=None,purpose='scan',quality=None,follow=None,cancel=None,timeout=None,lane='',title=''):
  import elementum_cloud
  if watch.active_request(home,lane=lane):raise RuntimeError('Another episode search is running. Try again when it finishes.')
  ident=uuid.uuid4().hex
- target={'tmdb':str(tmdb),'season':int(season),'episode':int(episode) if episode else None}
+ # title: the show's name for the download's folder (owner screenshot, build 314: Drive folders named after the torrent hash).
+ target={'tmdb':str(tmdb),'season':int(season),'episode':int(episode) if episode else None,'title':str(title or '')}
  wanted={'request_id':ident,'target':target,'purpose':purpose,'mode':0,'until':time.time()+600,
          'profile':{'quality':quality,'strict_quality':True} if quality else {}}
  watch.canceled(home,target,clear=True)
@@ -278,7 +279,7 @@ def _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names,se
  def lookup(n,purpose,q=None,lane='',timeout=None):
   if search:return search(n,purpose,q)
   return request(home,tmdb,season,n,purpose,q,cancel=lambda:halt['stop'] or bool(card and card.canceled),
-                 timeout=timeout or (LANE_SECONDS if purpose=='scan' else 120),lane=lane)
+                 timeout=timeout or (LANE_SECONDS if purpose=='scan' else 120),lane=lane,title=title)
  # Board B3 (DEC-041): three episodes (start, middle, end) are looked up in every quality while the sheet shows the
  # check card, so a quality nobody has is greyed and one is recommended. Their answers are kept for the build below.
  checked={}
