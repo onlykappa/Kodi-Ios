@@ -69,6 +69,7 @@ class DriveLibrary(unittest.TestCase):
    url=lib.play_url('D1','F1')
    self.assertEqual(lib.direct_url(url,tmp,'63092'),'http://127.0.0.1:63092/download/D1/D1/F1/Home%20Alone%20%281990%29.mp4')
    self.assertIsNone(lib.direct_url(url,tmp,''))                                  # add-on port unknown
+   self.assertEqual(lib.direct_url(url,tmp,'51000',ours=True),'http://127.0.0.1:51000/drive/F1/Home%20Alone%20%281990%29.mp4')  # app proxy
    self.assertIsNone(lib.direct_url(lib.play_url('D1','other'),tmp,'63092'))      # not in the saved listing
    self.assertIsNone(lib.direct_url('/phone/x.mkv',tmp,'63092'))                  # phone copy
  def test_single_file_tv_uploads_appear_and_open_only_the_selected_show(self):

@@ -202,6 +202,22 @@ def run():
   return transfer_history.activity(torrents,debrid_drive.load(profile).get('current'),prepare_downloads.load(profile).get('current'))
  import transfer_history
  threading.Thread(target=transfer_history.watch,args=(profile,transfer_rates,monitor.waitForAbort),daemon=True).start()
+ # Roadmap 1A.1: the app's own Drive streaming proxy (Library playback of Drive copies), started once Drive is signed in.
+ def drive_proxy_loop():
+  import drive_proxy,drivelibrary
+  home_window=xbmcgui.Window(10000)
+  while not monitor.abortRequested():
+   try:
+    drive,_=drivelibrary.client()
+    if drive:
+     server,port=drive_proxy.start(lambda force:drive.token())
+     home_window.setProperty(drive_proxy.PROPERTY,str(port))
+     xbmc.log('Kodi iOS Drive proxy: streaming Drive copies on port %d'%port,xbmc.LOGINFO)
+     monitor.waitForAbort()
+     home_window.clearProperty(drive_proxy.PROPERTY);server.shutdown();return
+   except Exception as error:xbmc.log('Kodi iOS Drive proxy: not started (%s)'%type(error).__name__,xbmc.LOGWARNING)
+   if monitor.waitForAbort(60):return
+ threading.Thread(target=drive_proxy_loop,daemon=True).start()
  # Roadmap 1C.1: "open timing" log line per video (tap to picture).
  import open_timing
  threading.Thread(target=open_timing.watch,args=(xbmcgui.Window(10000),lambda:xbmc.getCondVisibility('Player.HasVideo + Player.Playing'),

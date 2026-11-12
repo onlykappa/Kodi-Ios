@@ -4,7 +4,7 @@ Owner: "it should say prepare first": it goes to the front of the preparation qu
 import re
 import urllib.parse
 
-DIRECT = re.compile(r'^/download/[^/]+/[^/]+/([^/]+)/')
+DIRECT = re.compile(r'^/(?:download/[^/]+/[^/]+|drive)/([^/]+)/')   # the Drive add-on's stream, or the app's (drive_proxy)
 
 
 def item_id(playing):

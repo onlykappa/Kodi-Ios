@@ -122,6 +122,7 @@ jobs:
           python3 -B scripts/test_kodi_patch_ios.py
           python3 -B scripts/test_open_timing.py
           python3 -B scripts/test_cast_ready.py
+          python3 -B scripts/test_drive_proxy.py
           python3 -B scripts/test_settings_search.py
           python3 -B scripts/test_deck_picker.py
           python3 -B scripts/test_source_match.py

@@ -8,6 +8,7 @@ class CastReady(unittest.TestCase):
     def test_drive_file_id_from_both_kinds_of_link(self):
         self.assertEqual(cr.item_id('plugin://plugin.googledrive/?action=play&driveid=D&item_driveid=D&item_id=F1'),'F1')
         self.assertEqual(cr.item_id('http://127.0.0.1:63092/download/D/D/F2/Movie%20(2010).mp4|User-Agent=x'),'F2')
+        self.assertEqual(cr.item_id('http://127.0.0.1:51000/drive/F3/Show.mkv'),'F3')
         self.assertEqual(cr.item_id('https://debrid.example/stream.mkv'),'')
     def test_only_unprepared_pictures_that_need_converting_ask(self):
         view={'rows':{'waiting':[{'id':'A','probe':{'copy_video':False}},{'id':'B'},{'id':'C','probe':{'copy_video':True}}],

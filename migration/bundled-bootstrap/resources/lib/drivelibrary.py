@@ -194,7 +194,7 @@ def play_url(driveid,item_id):
  return 'plugin://plugin.googledrive/?'+urllib.parse.urlencode({'action':'play','content_type':'video','driveid':driveid,
                                                                'item_driveid':driveid,'item_id':item_id})
 
-def direct_url(path,state_dir,port):
+def direct_url(path,state_dir,port,ours=False):
  """Roadmap 1A.2 (owner log 396d5d67: 2.2-2.5 s in the watch add-on, then ~1 s in the Google Drive add-on before
  Kodi started reading): the Drive add-on's play step only asks Drive for the file's name and answers with its local
  stream address. Build that address from the saved Library listing instead (no Drive request): None when the file,
@@ -210,6 +210,8 @@ def direct_url(path,state_dir,port):
    if isinstance(entry,dict) and entry.get('id')==item and entry.get('name'):name=entry['name'];break
   if name:break
  if not name:return None
+ if ours:   # roadmap 1A.1: the app's own Drive proxy (drive_proxy.py)
+  return 'http://127.0.0.1:%d/drive/%s/%s'%(int(port),urllib.parse.quote(item,safe=''),urllib.parse.quote(name))
  return 'http://127.0.0.1:%d/download/%s/%s/%s/%s'%(int(port),urllib.parse.quote(driveid,safe=''),urllib.parse.quote(item_drive,safe=''),
                                                     urllib.parse.quote(item,safe=''),urllib.parse.quote(name))
 
