@@ -125,10 +125,14 @@ def route(url,quiet=False,request_id=None):
         try:home = xbmcgui.Window(10000)
         except Exception:home = None
         auto = auto_season(home,choice=choice) if home is not None else None
-        if request_id and (not auto or auto.get('request_id')!=request_id):return True
-        existing = existing_url(profile,choice)
+        if request_id and (not auto or auto.get('request_id')!=request_id):
+            _refused('no matching automatic request' if not auto else 'another request id')
+            return True
+        # Build Season already leaves out the episodes on the phone or Drive (season_sources), and a pack's torrent
+        # name carries no episode: matching it against the Library took any Naruto copy for this episode (owner log
+        # 5169a460, build 290). Only a hand-picked version is checked here.
+        existing = None if auto is not None else existing_url(profile,choice)
         if existing:
-            if auto is not None:return True          # already in Drive: nothing to do for this episode
             import xbmc
             xbmc.executebuiltin('PlayMedia(%s)'%existing)
             return True
@@ -214,6 +218,31 @@ def same_pick(picked, chosen):
     return len(short) >= 8 and long_.startswith(short) and long_[len(short)] in '/ ._-[('
 
 
+def refusal(wanted, selected, choice):
+    """Why Elementum's selection is not the automatic season request's pick ('' when it is). Owner log 5169a460 (build
+    290): every Build Season episode was refused without a word in the log. Season and episode are compared only when
+    Elementum's link carries them."""
+    if selected.get('request_id') != wanted.get('request_id'):
+        return 'another request'
+    if not selected.get('found'):
+        return 'picker found nothing'
+    if not same_pick(selected.get('name'), choice.get('name')):
+        return 'different version'
+    for k in ('season', 'episode'):
+        have = str(choice.get(k) or '')
+        if have and have.lstrip('0') != str(wanted['target'].get(k) or '').lstrip('0'):
+            return 'different ' + k
+    return ''
+
+
+def _refused(why):
+    try:
+        import xbmc
+        xbmc.log('Kodi iOS cloud: automatic pick refused (%s)' % why, xbmc.LOGINFO)
+    except Exception:
+        pass
+
+
 def auto_season(window, now=None,choice=None):
     """download.py's automatic season request (deck_picker.AUTO_PICK) while it lasts, else None."""
     import json, time
@@ -223,9 +252,10 @@ def auto_season(window, now=None,choice=None):
         if wanted and float(wanted.get('until', 0)) >= (time.time() if now is None else now):
             if wanted.get('target') and choice is not None:
                 selected=json.loads(window.getProperty('KodiIOS.AutoPick.Result') or '{}')
-                if selected.get('request_id')!=wanted.get('request_id') or not selected.get('found'):return None
-                if not same_pick(selected.get('name'),choice.get('name')):return None
-                if any(str(choice.get(k) or '')!=str(wanted['target'].get(k) or '') for k in ('season','episode')):return None
+                why=refusal(wanted,selected,choice)
+                if why:
+                    _refused(why)
+                    return None
             return wanted
     except Exception:
         pass

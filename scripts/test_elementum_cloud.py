@@ -126,4 +126,16 @@ class PackFileMatch(unittest.TestCase):
   self.assertFalse(ec.same_pick('Naruto','Naruto Shippuden S01E01'))   # too short to trust
   self.assertFalse(ec.same_pick('',pack))
 
+class AutomaticRefusals(unittest.TestCase):
+ def test_only_fields_in_the_link_are_compared(self):
+  # Owner log 5169a460 (build 290): every Build Season episode was refused silently.
+  import elementum_cloud as ec
+  wanted={'request_id':'r','target':{'tmdb':'31910','season':1,'episode':5}}
+  picked={'request_id':'r','found':True,'name':'Naruto Shippuden (001-500) [Complete Series]/Episode 005.mkv'}
+  self.assertEqual(ec.refusal(wanted,picked,{'name':'Naruto Shippuden (001-500) [Complete Series]'}),'')
+  self.assertEqual(ec.refusal(wanted,picked,{'name':'Naruto Shippuden (001-500) [Complete Series]','season':'1','episode':'05'}),'')
+  self.assertEqual(ec.refusal(wanted,picked,{'name':'Naruto Shippuden (001-500) [Complete Series]','episode':'6'}),'different episode')
+  self.assertEqual(ec.refusal(wanted,dict(picked,request_id='x'),{'name':'x'}),'another request')
+  self.assertEqual(ec.refusal(wanted,picked,{'name':'Something Else S01E05'}),'different version')
+
 if __name__=='__main__':unittest.main()

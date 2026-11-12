@@ -244,7 +244,10 @@ def _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names,se
  quality=ss.pick_quality(gui,title,season,len(remaining))
  if not quality:return []
  monitor=xbmc.Monitor();card=ss.Card(gui)
- def stop():return card.canceled or monitor.abortRequested()
+ # Owner log 5169a460 (build 290): Close and Cancel on the card did nothing. Kodi hands a window's taps to this script
+ # only while it waits in Kodi (sleep / waitForAbort); the lookups waited on Elementum the whole time. stop() runs every
+ # 0.1 s during those waits, and its short waitForAbort lets the taps through.
+ def stop():return monitor.waitForAbort(0.01) or card.canceled
  def lookup(n,purpose,q=None):
   if search:return search(n,purpose,q)
   return request(home,tmdb,season,n,purpose,q,cancel=stop,timeout=EPISODE_SECONDS if purpose=='scan' else 120)
