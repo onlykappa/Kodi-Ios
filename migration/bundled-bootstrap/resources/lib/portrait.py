@@ -868,9 +868,11 @@ def search_window(original):
    '<itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout>'
    '<content target="videos">$INFO[%s]</content></control>'
    )%(SIDE,top+90,WIDTH-2*SIDE,row_h,result(False),row_h,result(True),SEARCH_PATH)+
-  label(SIDE,top+90,WIDTH-2*SIDE,80,'$INFO[Window(Home).Property(Portrait.Search.Query),No results for “,”]','p_h3',WHITE,'center','<scroll>false</scroll>'
+  # Board 12: the search glyph above "No results".
+  icon((WIDTH-104)//2,top+110,104,'magnifying-glass.png',GREY,'<visible>Integer.IsEqual(Container(5200).NumItems,0) + !Container(5200).IsUpdating</visible>')+
+  label(SIDE,top+250,WIDTH-2*SIDE,80,'$INFO[Window(Home).Property(Portrait.Search.Query),No results for “,”]','p_h3',WHITE,'center','<scroll>false</scroll>'
         '<visible>Integer.IsEqual(Container(5200).NumItems,0) + !Container(5200).IsUpdating</visible>')+
-  label(SIDE,top+170,WIDTH-2*SIDE,60,'Check the spelling or try fewer words.','p_sub',GREY,'center',
+  label(SIDE,top+330,WIDTH-2*SIDE,60,'Check the spelling or try fewer words.','p_sub',GREY,'center',
         '<visible>Integer.IsEqual(Container(5200).NumItems,0) + !Container(5200).IsUpdating</visible>')+
   label(SIDE,top+90,WIDTH-2*SIDE,120,'Searching…','p_body',GREY,'center','<visible>Container(5200).IsUpdating</visible>')+
   '</control>')
@@ -1344,7 +1346,7 @@ def deck_page(original=''):
  # menu), a large title, then every link with tag pills. The quality page keeps the poster header and list 32503.
  all_on="String.IsEqual(Window().Property(deck.mode),all)"
  normal='<control type="group"><visible>!%s</visible>%s%s%s%s</control>'%(all_on,head,heading,sub,lst)
- sort=('<control type="group"><visible>%s</visible>'%all_on+
+ sort=('<control type="group"><visible>%s + !%s</visible>'%(all_on,has('empty'))+   # nothing to sort when empty (board 09)
   '<control type="button" id="32510"><left>%d</left><top>40</top><width>420</width><height>100</height>'%(WIDTH-SIDE-420)+
   '<label>$INFO[Window().Property(deck.sort)]</label><font>p_btn</font><textcolor>FF4FA8FF</textcolor><focusedcolor>FF64D2FF</focusedcolor>'
   '<align>right</align><aligny>center</aligny><textoffsetx>56</textoffsetx><texturefocus /><texturenofocus /><ondown>32504</ondown><onleft>32500</onleft></control>'+
@@ -1367,6 +1369,7 @@ def deck_page(original=''):
   '<textcolor>%s</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>center</align><aligny>center</aligny><texturefocus /><texturenofocus />'
   '<onclick>SetProperty(deck.stop,true)</onclick><onup>32504</onup><onleft>32504</onleft></control>'%(WIDTH-2*SIDE-220,ACCENT)+'</control>')
  empty=('<control type="group"><visible>%s + %s</visible>'%(all_on,has('empty'))+
+  icon((WIDTH-104)//2,570,104,'magnifying-glass.png',GREY)+   # board 09: the search glyph above the words
   label(SIDE,700,WIDTH-2*SIDE,90,'No versions found','p_h2',WHITE,'center')+
   '<control type="textbox"><left>%d</left><top>800</top><width>%d</width><height>200</height><font>p_sub</font><textcolor>%s</textcolor><align>center</align><label>%s</label></control>'%(SIDE+40,WIDTH-2*SIDE-80,GREY,prop('empty'))+
   pill_button(32512,(WIDTH-360)//2,1010,360,112,'Try Again',[('','SetProperty(deck.retry,true)')],'primary','','<onup>32500</onup>')+'</control>')
