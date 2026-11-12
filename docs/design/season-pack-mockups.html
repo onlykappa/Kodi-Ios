@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Season Packs Mockups</title>
+<!-- MOCKUP (APPLE-UI-POLICY §9: evidence class "mockup"). Owner requests 2026-11-12: a cleaner searching card with one
+     Cancel; a season download that lets you pick 1080p / 4K and builds the season from single episodes when no good
+     pack exists; the Choose a version page in the approved All Links style (fuse-windows-mockups board 09). -->
+<style>
+:root{--bg:#000;--s1:#1c1c1e;--s2:#2c2c2e;--s2a:rgba(44,44,46,.98);--label:#fff;--label2:rgba(235,235,245,.6);--dim:rgba(235,235,245,.3);
+ --sep:rgba(235,235,245,.2);--blue:#0a84ff;--blue-text:#4fa8ff;--green:#30d158;--orange:#ff9f0a;--red:#ff453a;--purple:#bf5af2}
+*{box-sizing:border-box}
+body{margin:0;background:#111214;color:#fff;font-family:Inter,-apple-system,"SF Pro Text",system-ui,sans-serif;padding:32px 24px 64px}
+h1{font-size:28px;margin:0 0 6px}
+.lead{color:var(--label2);max-width:900px;line-height:1.45;margin:0 0 30px}
+section.board{margin:0 0 56px;padding-top:12px;border-top:1px solid #26272b}
+.tagline{display:flex;gap:10px;align-items:center;font-size:12px;letter-spacing:.06em;font-weight:700;color:var(--label2)}
+.mk{background:#ffd60a;color:#000;border-radius:5px;padding:2px 7px}
+section h2{font-size:21px;margin:8px 0 6px}
+section p{color:var(--label2);max-width:880px;line-height:1.45;margin:0 0 18px}
+.shots{display:flex;flex-wrap:wrap;gap:28px}
+.slot{width:342px}
+.bezel{width:342px;height:740px;border-radius:52px;padding:10px;background:#1d1e22;box-shadow:0 0 0 1px #2c2d33}
+.screen{width:322px;height:720px;border-radius:44px;overflow:hidden;position:relative;background:var(--bg);font-size:15px}
+.cap{color:var(--label2);font-size:13px;line-height:1.4;margin-top:10px}
+.cap b{color:#fff}
+.status{position:absolute;top:14px;left:30px;right:26px;display:flex;justify-content:space-between;font-weight:600;font-size:14px}
+.back{position:absolute;top:58px;left:18px;font-size:26px;color:#fff}
+.hero{position:absolute;top:0;left:0;right:0;height:360px;background:linear-gradient(160deg,#1f5f86,#0c1d33 60%,#000)}
+.hero .logo{position:absolute;left:0;right:0;top:200px;text-align:center;font-weight:900;font-size:34px;color:#ff9f0a;letter-spacing:.02em}
+.hero .meta{position:absolute;left:18px;right:18px;top:262px;color:var(--label2);font-size:12px;text-align:center}
+.cta{position:absolute;left:18px;right:18px;top:292px;height:44px;border-radius:22px;background:#fff;color:#000;display:grid;place-items:center;font-weight:700}
+.eps{position:absolute;left:14px;right:14px;top:360px}
+.ep{display:flex;gap:12px;margin-bottom:14px}.ep i{width:130px;height:74px;border-radius:8px;background:#3a4a5a;flex:none}
+.ep b{display:block;font-size:15px}.ep span{color:var(--label2);font-size:12px}
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+/* searching card */
+.card{position:absolute;left:28px;right:28px;top:250px;background:var(--s2a);border-radius:22px;padding:20px 18px 16px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.card .k{color:var(--label2);font-size:13px;text-align:center}
+.card .t{font-weight:700;font-size:18px;text-align:center;margin:4px 0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sites{display:flex;flex-direction:column;gap:7px;margin:4px 0 14px}
+.site{display:flex;align-items:center;gap:10px;font-size:14px}
+.site .d{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;flex:none}
+.site .d.ok{background:rgba(48,209,88,.18);color:var(--green)}
+.site .d.wait{border:2px solid rgba(235,235,245,.25);border-top-color:var(--blue)}
+.site .d.no{background:rgba(235,235,245,.12);color:var(--label2)}
+.site .n{margin-left:auto;color:var(--label2);font-size:13px}
+.thin{height:4px;border-radius:2px;background:rgba(235,235,245,.2);overflow:hidden}.thin i{display:block;height:100%;background:var(--blue);border-radius:2px}
+.cancel-wide{margin-top:16px;height:46px;border-radius:23px;background:#3a3a3c;display:grid;place-items:center;font-weight:700;font-size:16px}
+.sum{color:var(--label2);font-size:13px;text-align:center;margin-top:10px}
+/* bottom sheet */
+.sheet{position:absolute;left:8px;right:8px;bottom:24px}
+.grp{background:var(--s2a);border-radius:22px;overflow:hidden}
+.hd{text-align:center;padding:14px 18px 10px}.hd b{display:block;font-size:15px}.hd span{display:block;color:var(--label2);font-size:12.5px;margin-top:3px}
+.row{position:relative;display:flex;align-items:center;gap:12px;padding:11px 16px;min-height:60px}
+.row::before{content:"";position:absolute;top:0;left:62px;right:0;height:.5px;background:var(--sep)}
+.row .tile{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;font-weight:800;font-size:11px;flex:none}
+.row .tx{flex:1;min-width:0}.row .tx b{display:block;font-size:16px;font-weight:600}.row .tx span{display:block;color:var(--label2);font-size:12.5px;margin-top:2px}
+.row .go{color:var(--dim);font-size:18px}
+.row .tx b .badge{display:inline-block;margin-top:0}
+.row.off{opacity:.42}
+.badge{font-size:10px;font-weight:800;letter-spacing:.04em;border-radius:5px;padding:2px 6px;margin-left:6px;vertical-align:2px}
+.b-green{color:var(--green);border:1px solid rgba(48,209,88,.5)}.b-blue{color:var(--blue-text);border:1px solid rgba(79,168,255,.5)}
+.foot{color:var(--label2);font-size:12px;text-align:center;padding:10px 18px 12px;border-top:.5px solid var(--sep);line-height:1.35}
+.cancel{margin-top:8px;background:var(--s2a);border-radius:22px;height:52px;display:grid;place-items:center;font-weight:700;font-size:17px;color:var(--blue-text)}
+/* list page (board 09 style) */
+.pagetitle{position:absolute;top:96px;left:18px;font-size:30px;font-weight:800}
+.pagesub{position:absolute;top:136px;left:18px;right:18px;color:var(--label2);font-size:13px}
+.sort{position:absolute;top:52px;right:16px;background:var(--s2);border-radius:18px;padding:8px 14px;font-weight:600;font-size:13px}
+.list{position:absolute;top:168px;left:12px;right:12px;background:var(--s1);border-radius:16px;overflow:hidden}
+.lrow{position:relative;padding:10px 34px 10px 14px}.lrow+.lrow::before{content:"";position:absolute;top:0;left:14px;right:0;height:.5px;background:var(--sep)}
+.lrow b{display:block;font-size:15px}.lrow .tg{display:flex;gap:5px;align-items:center;margin-top:5px;color:var(--label2);font-size:12px;flex-wrap:wrap}
+.lrow .chev{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--dim);font-size:18px}
+.tag{font-size:10.5px;font-weight:800;border:1px solid rgba(235,235,245,.3);color:var(--label2);border-radius:6px;padding:1px 6px}
+.tag.g{color:var(--green);border-color:rgba(48,209,88,.55)}.tag.o{color:var(--orange);border-color:rgba(255,159,10,.55)}
+.build{background:linear-gradient(90deg,rgba(10,132,255,.16),rgba(10,132,255,0))}
+.build b{color:var(--blue-text)}
+.note{position:absolute;left:24px;right:24px;color:var(--label2);font-size:12px;line-height:1.4}
+.ep2{display:flex;justify-content:space-between;padding:8px 16px;font-size:13.5px;position:relative}.ep2::before{content:"";position:absolute;top:0;left:16px;right:0;height:.5px;background:var(--sep)}
+.ep2 span{color:var(--label2)}
+.primary{margin-top:8px;background:#fff;color:#000;border-radius:22px;height:52px;display:grid;place-items:center;font-weight:700;font-size:17px}
+.build-note{border:1px dashed #3a3b40;border-radius:12px;padding:12px 14px;color:var(--label2);font-size:13px;line-height:1.45;max-width:880px;margin-bottom:16px}
+.build-note b{color:#fff}
+</style>
+</head>
+<body>
+<h1>Season packs and the searching card</h1>
+<p class="lead">MOCKUP, not the app. Owner, 2026-11-12: Naruto Shippūden Season 1 only offered 480p full-season packs, and the searching card looked crowded (the
+Japanese title showed as boxes, two buttons). Board A redraws the card with one Cancel. Boards B–E let you pick the quality first; when no good season pack
+exists the app <b>builds the season from single episodes</b> at that quality.</p>
+
+<section class="board" id="a">
+ <div class="tagline"><span class="mk">MOCKUP</span><span>A · Searching card</span></div>
+ <h2>Finding versions: one card, one Cancel</h2>
+ <p>The title in English (the original title can be in a script the app's font does not have). Each site is a line with a tick, a spinner or "nothing"; the bar
+ follows the sites that answered; one wide Cancel. No Stop: the card closes by itself when the last site answers (owner: "I'd never press Stop").</p>
+ <div class="shots">
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="hero"><div class="logo">NARUTO</div><div class="meta">★ 8.2 · 2007 · Animation</div></div><div class="cta">▶ Play Season 1</div>
+   <div class="eps"><div class="ep"><i></i><div><b>1. Homecoming</b><span>23m · 02/15/2007</span></div></div><div class="ep"><i></i><div><b>2. The Akatsuki Makes Its Move</b><span>23m</span></div></div></div>
+   <div class="dim"></div>
+   <div class="card">
+    <div class="k">Finding versions · Season 1</div>
+    <div class="t">Naruto Shippūden</div>
+    <div class="sites">
+     <div class="site"><span class="d ok">✓</span>Torrentio<span class="n">10 found</span></div>
+     <div class="site"><span class="d ok">✓</span>The Pirate Bay<span class="n">1 found</span></div>
+     <div class="site"><span class="d wait"></span>Knaben<span class="n">asking…</span></div>
+    </div>
+    <div class="thin"><i style="width:66%"></i></div>
+    <div class="cancel-wide">Cancel</div>
+   </div>
+  </div></div><div class="cap"><b>A1 · While searching:</b> 2 of 3 sites answered, 11 found</div></div>
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="hero" style="background:linear-gradient(160deg,#4d5a3a,#1a2016 60%,#000)"><div class="logo" style="color:#e8e2c8">THE MAZE RUNNER</div><div class="meta">2014 · Action · Mystery</div></div><div class="cta">▶ Play</div>
+   <div class="eps"><div class="ep"><i></i><div><b>1. Homecoming</b><span>23m · 02/15/2007</span></div></div></div>
+   <div class="dim"></div>
+   <div class="card">
+    <div class="k">Finding versions</div>
+    <div class="t">The Maze Runner</div>
+    <div class="sites">
+     <div class="site"><span class="d ok">✓</span>Torrentio<span class="n">14 found</span></div>
+     <div class="site"><span class="d ok">✓</span>YTS<span class="n">4 found</span></div>
+     <div class="site"><span class="d no">–</span>Knaben<span class="n">nothing</span></div>
+     <div class="site"><span class="d wait"></span>The Pirate Bay<span class="n">asking…</span></div>
+    </div>
+    <div class="thin"><i style="width:75%"></i></div>
+    <div class="cancel-wide">Cancel</div>
+   </div>
+  </div></div><div class="cap"><b>A2 · A movie, four sites:</b> a site with nothing says so</div></div>
+ </div>
+</section>
+
+<section class="board" id="b">
+ <div class="tagline"><span class="mk">MOCKUP</span><span>B · Season: pick a quality first</span></div>
+ <h2>Download Season 1: the quality you want, and how the app gets it</h2>
+ <p>After the search, the season sheet lists qualities, not packs. Each row says how that quality would come: a real <b>season pack</b>, or <b>built from single
+ episodes</b> ("Build Season" — the app picks the best-seeded copy of every episode at that quality). A quality nobody has is shown dimmed, not hidden.</p>
+ <div class="build-note"><b>Name (recommendation):</b> the option is called <b>Build Season</b> with the line "From single episodes · 26 of 26 found". Short, says what it does, and
+ sits naturally next to "Season pack". The best row carries <b>BEST</b>.</div>
+ <div class="shots">
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="hero"><div class="logo">NARUTO</div></div>
+   <div class="dim"></div>
+   <div class="sheet">
+    <div class="grp">
+     <div class="hd"><b>Naruto Shippūden · Season 1</b><span>Pick a quality · 26 episodes</span></div>
+     <div class="row"><div class="tile" style="background:#0a84ff">1080p</div><div class="tx"><b>1080p<span class="badge b-green">BEST</span></b><span>Build Season · 26 of 26 episodes · 9.8 GB</span></div><div class="go">›</div></div>
+     <div class="row"><div class="tile" style="background:#5e5ce6">720p</div><div class="tx"><b>720p</b><span>Season pack · 1 version · 6.1 GB</span></div><div class="go">›</div></div>
+     <div class="row"><div class="tile" style="background:#636366">480p</div><div class="tx"><b>480p</b><span>Season pack · 2 versions · 400 MB+</span></div><div class="go">›</div></div>
+     <div class="row off"><div class="tile" style="background:#3a3a3c">4K</div><div class="tx"><b>4K</b><span>Not found for this season</span></div></div>
+     <div class="foot">Build Season picks the best-seeded copy of each episode at that quality.</div>
+    </div>
+    <div class="cancel">Cancel</div>
+   </div>
+  </div></div><div class="cap"><b>B1 · The season sheet</b> (Naruto: no 1080p pack, so 1080p is built)</div></div>
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="hero"><div class="logo">LANTERNS</div></div>
+   <div class="dim"></div>
+   <div class="sheet">
+    <div class="grp">
+     <div class="hd"><b>Lanterns · Season 2</b><span>Pick a quality · 8 episodes</span></div>
+     <div class="row"><div class="tile" style="background:#30d158;color:#000">4K</div><div class="tx"><b>4K<span class="badge b-green">BEST</span></b><span>Season pack · 3 versions · 38 GB+</span></div><div class="go">›</div></div>
+     <div class="row"><div class="tile" style="background:#0a84ff">1080p</div><div class="tx"><b>1080p</b><span>Season pack · 5 versions · 9.2 GB+</span></div><div class="go">›</div></div>
+     <div class="row"><div class="tile" style="background:#0a84ff">1080p</div><div class="tx"><b>1080p · Build Season</b><span>8 of 8 episodes · 8.1 GB</span></div><div class="go">›</div></div>
+     <div class="foot">Build Season picks the best-seeded copy of each episode at that quality.</div>
+    </div>
+    <div class="cancel">Cancel</div>
+   </div>
+  </div></div><div class="cap"><b>B2 · When packs exist:</b> packs first; Build Season still offered</div></div>
+ </div>
+</section>
+
+<section class="board" id="c">
+ <div class="tagline"><span class="mk">MOCKUP</span><span>C · Building the season</span></div>
+ <h2>Build Season: the same card as A, counting episodes</h2>
+ <p>Each episode is looked up at the chosen quality (a few at a time). The card counts them; one Cancel. An episode only available lower is taken at the next
+ quality down and marked, never skipped silently.</p>
+ <div class="shots">
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="hero"><div class="logo">NARUTO</div></div><div class="cta">▶ Play Season 1</div>
+   <div class="dim"></div>
+   <div class="card">
+    <div class="k">Building Season 1 · 1080p</div>
+    <div class="t">Naruto Shippūden</div>
+    <div class="sites">
+     <div class="site"><span class="d ok">✓</span>Episodes found<span class="n">12 of 26</span></div>
+     <div class="site"><span class="d wait"></span>Looking for episode 13<span class="n"></span></div>
+    </div>
+    <div class="thin"><i style="width:46%"></i></div>
+    <div class="cancel-wide">Cancel</div>
+   </div>
+  </div></div><div class="cap"><b>C1 · Building:</b> 12 of 26 episodes found</div></div>
+ </div>
+</section>
+
+<section class="board" id="d">
+ <div class="tagline"><span class="mk">MOCKUP</span><span>D · Ready to download</span></div>
+ <h2>What will be downloaded, before anything starts</h2>
+ <p>A short summary sheet: how many episodes, the quality, the total size, and any episode that had to come in a lower quality. Download all queues them to
+ Google Drive in episode order (the existing queue, Cancel All on the Queue page).</p>
+ <div class="shots">
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="hero"><div class="logo">NARUTO</div></div>
+   <div class="dim"></div>
+   <div class="sheet">
+    <div class="grp">
+     <div class="hd"><b>Season 1 is ready to download</b><span>26 episodes · 1080p · about 9.8 GB</span></div>
+     <div class="ep2"><b>1. Homecoming</b><span>1080p · 380 MB</span></div>
+     <div class="ep2"><b>2. The Akatsuki Makes Its Move</b><span>1080p · 372 MB</span></div>
+     <div class="ep2"><b>3. The Results of Training</b><span>1080p · 377 MB</span></div>
+     <div class="ep2"><b>17. Lord Elder Chiyo</b><span style="color:var(--orange)">720p only · 210 MB</span></div>
+     <div class="foot">24 in 1080p · 2 only in 720p (marked). Downloads go to Google Drive in order.</div>
+    </div>
+    <div class="primary">Download All 26</div>
+    <div class="cancel">Cancel</div>
+   </div>
+  </div></div><div class="cap"><b>D1 · Summary:</b> 24 in 1080p, 2 marked 720p</div></div>
+ </div>
+</section>
+
+<section class="board" id="e">
+ <div class="tagline"><span class="mk">MOCKUP</span><span>E · Choose a version (board 09 style)</span></div>
+ <h2>Choose a version in the approved All Links style</h2>
+ <p>Owner: the build's Choose a version page (big header, one card per version) is not the approved look. It becomes the board 09 list: back, large title,
+ one grouped list with outlined tags and chevrons, the Best First menu. For a season it leads with the Build Season row.</p>
+ <div class="shots">
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="back">‹</div><div class="sort">Best First ⌄</div>
+   <div class="pagetitle">Choose a version</div>
+   <div class="pagesub">Naruto Shippūden · Season 1 · 2 season packs</div>
+   <div class="list">
+    <div class="lrow build"><b>Build Season in 1080p</b><div class="tg"><span class="tag g">1080p</span>From single episodes · 26 of 26 · about 9.8 GB</div><span class="chev">›</span></div>
+    <div class="lrow"><b>Blu-ray Remux · Full season</b><div class="tg"><span class="tag">480p</span><span class="tag">DD</span>880 MB · 1 seed · Torrentio</div><span class="chev">›</span></div>
+    <div class="lrow"><b>DVD · Full season</b><div class="tg"><span class="tag">480p</span><span class="tag">MULTI</span>400 MB · 1 seed</div><span class="chev">›</span></div>
+   </div>
+   <div class="note" style="top:430px">Season packs are one download. Build Season downloads each episode separately at the quality you choose.</div>
+  </div></div><div class="cap"><b>E1 · Season:</b> Build Season first, then the packs</div></div>
+  <div class="slot"><div class="bezel"><div class="screen">
+   <div class="status"><span>9:41</span><span>▮▮</span></div>
+   <div class="back">‹</div><div class="sort">Best First ⌄</div>
+   <div class="pagetitle">Choose a version</div>
+   <div class="pagesub">The Maze Runner · 4K · 3 versions</div>
+   <div class="list">
+    <div class="lrow"><b>REMUX UHD BluRay</b><div class="tg"><span class="tag g">4K</span><span class="tag">HDR10</span><span class="tag">HEVC</span>58 GB · 214 seeds</div><span class="chev">›</span></div>
+    <div class="lrow"><b>UHD BluRay x265</b><div class="tg"><span class="tag g">4K</span><span class="tag">HDR10</span><span class="tag">HEVC</span>21 GB · 96 seeds</div><span class="chev">›</span></div>
+    <div class="lrow"><b>WEB-DL AV1</b><div class="tg"><span class="tag g">4K</span><span class="tag o">AV1</span>9.8 GB · 41 seeds</div><span class="chev">›</span></div>
+    <div class="lrow"><b style="color:var(--blue-text)">Show all 18 links</b><span class="chev">›</span></div>
+   </div>
+  </div></div><div class="cap"><b>E2 · A movie:</b> the same list, ending in Show all links</div></div>
+ </div>
+</section>
+</body>
+</html>
