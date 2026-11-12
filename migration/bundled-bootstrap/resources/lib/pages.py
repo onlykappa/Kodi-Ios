@@ -716,8 +716,8 @@ def season_quality_sheet(p):
    p.image(S,y,w,rh,M+'round.png',p.SURFACE2,colour('!'+on),border=32)+
    p.label(S+38,y+26,260,80,'[B]%s[/B]'%P('q.%d.label'%n),'p_h2',p.WHITE,'left','<scroll>false</scroll><visible>!%s</visible>'%off)+
    p.label(S+38,y+26,260,80,'[B]%s[/B]'%P('q.%d.label'%n),'p_h2',p.DIM,'left','<scroll>false</scroll><visible>%s</visible>'%off)+
-   '<control type="group"><visible>%s</visible>'%has('q.%d.rec'%n)+p.image(S+38,y+110,230,48,M+'round.png','2E30D158',border=12)+
-   p.label(S+38,y+110,230,48,'[B]%s[/B]'%P('q.%d.rec'%n),'p_cap',p.GREEN,'center','<scroll>false</scroll>')+'</control>'+
+   '<control type="group"><visible>%s</visible>'%has('q.%d.rec'%n)+p.image(S+38,y+108,272,50,M+'pill_150.png','2E30D158',border=25)+
+   p.label(S+38,y+108,272,50,'[B]%s[/B]'%P('q.%d.rec'%n),'p_cap',p.GREEN,'center','<scroll>false</scroll>')+'</control>'+
    p.label(S+320,y+38,w-320-130,52,P('q.%d.size'%n),'p_foot_b',p.WHITE,'left','<scroll>false</scroll><visible>!%s</visible>'%off)+
    p.label(S+320,y+38,w-320-130,52,P('q.%d.size'%n),'p_foot',p.DIM,'left','<scroll>false</scroll><visible>%s</visible>'%off)+
    p.label(S+320,y+96,w-320-130,48,P('q.%d.each'%n),'p_foot',p.GREY,'left','<scroll>false</scroll><visible>!%s</visible>'%off)+
@@ -731,8 +731,8 @@ def season_quality_sheet(p):
   p.label(S+38,list_y+30,w-76,56,'[B]%s[/B]'%P('check.title'),'p_body',p.WHITE,'left','<scroll>false</scroll>')+
   p.label(S+38,list_y+96,w-76,50,P('check.sub'),'p_foot',p.GREY,'left','<scroll>false</scroll>')+
   p.image(S+38,list_y+176,w-76,12,M+'white.png','33EBEBF5')+
-  '<control type="progress"><left>%d</left><top>%d</top><width>%d</width><height>12</height><texturebg /><midtexture colordiffuse="FF0A84FF">%swhite.png</midtexture>'
-  '<info>Window().Property(check.pct)</info></control>'%(S+38,list_y+176,w-76,M)+
+  # Rig: a progress control does not read a window property; the bar is 20 steps, each shown from its percentage.
+  ''.join(p.image(S+38,list_y+176,(w-76)*k//20,12,M+'white.png','FF0A84FF','<visible>Integer.IsGreaterOrEqual(Window().Property(check.pct),%d)</visible>'%(k*5)) for k in range(1,21))+
   ''.join(p.label(S+38+i*(w-76)//3,list_y+226,(w-76)//3,50,P('check.q.%d'%(i+1)),'p_foot',p.GREY,('left','center','right')[i],'<scroll>false</scroll>') for i in range(3))+
   '</control>')
  off_btn=has('button.off')

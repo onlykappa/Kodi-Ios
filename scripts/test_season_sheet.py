@@ -175,7 +175,7 @@ class QualityWindow(unittest.TestCase):
         ids = {c.get('id') for c in root.iter('control') if c.get('id')}
         self.assertTrue({'9701', '9702', '9703', '9720', '9721'} <= ids)
         self.assertNotIn('9704', ids)                                   # 480p is gone
-        self.assertIn('Window().Property(check.pct)', xml)
+        self.assertIn('Integer.IsGreaterOrEqual(Window().Property(check.pct),35)', xml)
         self.assertIn('<enable>String.IsEmpty(Window().Property(q.1.off))</enable>', xml)   # greyed rows cannot be chosen
         self.assertIn('<enable>String.IsEmpty(Window().Property(button.off))</enable>', xml)
         self.assertIn('circle_line.png', xml)

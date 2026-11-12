@@ -15,8 +15,12 @@ Branch claude/trusting-euler-kgug98, PR #21 (draft). Latest IPA: build-302 (Kodi
 Priority order:
 1. ISSUE-179 FIXED on host (route's request_id now picks the lane; names no longer compared for a lane's own link).
    Owner to retest Build Season on the next IPA and send kodi.log (look for episode_result queued:true).
-2. Build the approved Build Season quality sheet round 3 (DEC-041, season-pack-mockups.html board B3): 4K/1080p/720p,
-   quick 3-episode availability check, missing greyed, RECOMMENDED = highest quality under ~3 GB/episode and 40 GB/season.
+2. DONE (commits 586cc90 + rig fixes): Build Season quality sheet B3 (DEC-041). season_sheet.check_numbers/survey/
+   recommend/checking_props/quality_props, pick_quality(check, wait) opens the sheet, runs the 3-episode check in the
+   lanes, then waits for a tap; season_sources._build reuses the check answers. Desktop Kodi rig: B3·1-4 match the board
+   (tag width and the 20-step check bar fixed after the first rig look). Rig tip: `kodi_rig.py sync` while Kodi runs
+   stopped Kodi; write the one window XML into skin.arctic.fuse.3/portrait instead, or sync before start.
+   Phone proof pending: the owner's next Build Season log ('quality_checked' event).
 3. Owner's AI Upscale measurement log (Settings › Library › Transfer settings › Google Drive tab › AI Upscale test;
    "First 5 minutes" with Kodi on screen and charging). Read 'upscale measurement:' + RESULT lines; decide speed/size.
 4. Then the full AI Upscale feature (DEC-039/040/042): Settings › AI Upscale page (ai-upscale-settings-mockups.html),
