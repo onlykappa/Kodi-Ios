@@ -283,6 +283,15 @@ class SkinTests(unittest.TestCase):
   portrait.listing_cache(fake,None,None,lambda:[],None,wait,lambda:False,lambda t:None)
   self.assertEqual(calls,['check',('wait',portrait.REFRESH_AFTER),'refresh',('wait',portrait.REFRESH_EVERY)])
   self.assertGreaterEqual(portrait.REFRESH_AFTER,15)
+ def test_details_warm_up_runs_after_each_refresh_and_cannot_stop_the_cache(self):
+  """Roadmap 1C.4: after() gets the current lists after a refresh; an error in it is logged and the loop goes on."""
+  calls=[];logs=[]
+  fake=SimpleNamespace(check=lambda *a:(0,0),refresh=lambda *a:([],[]),prune=lambda *a:None)
+  waits=iter([False,False,True])
+  def after(current):calls.append(current);raise RuntimeError('synthetic')
+  portrait.listing_cache(fake,None,None,lambda:[('k','u')],None,lambda s:next(waits),lambda:False,logs.append,after=after)
+  self.assertEqual(calls,[[('k','u')],[('k','u')]])
+  self.assertTrue(any('details warm-up skipped' in line for line in logs))
  def test_service_waits_while_video_plays(self):
   calls=[];busy=iter([True,True,False])
   fake=SimpleNamespace(check=lambda *a:(0,0),refresh=lambda *a:calls.append('refresh') or ([],[]),prune=lambda *a:None)
