@@ -962,6 +962,11 @@ def files(p,read):
       '1080i/'+NOTIFY:notification_dialog('Kodi-iOS player controls: notification','(1920-1100)/2',40,1100,'font_main_bold','font_midi').replace('<left>(1920-1100)/2</left>','<centerleft>50%</centerleft>'),
       '1080i/'+VOLUME:volume_dialog('Kodi-iOS player controls: volume','x',40,700,'font_main_bold').replace('<left>x</left>','<centerleft>50%</centerleft>')}
  out['1080i/'+INFO_WAIT]=info_card()
+ # DEC-039/042 V1: video controls › Picture (picture_osd.py, filled by picture_page.py).
+ import importlib.util as _iu,os as _os
+ _spec=_iu.spec_from_file_location('picture_osd',_os.path.join(_os.path.dirname(_os.path.abspath(__file__)),'picture_osd.py'))
+ _po=_iu.module_from_spec(_spec);_spec.loader.exec_module(_po)
+ out['1080i/'+_po.MENU]=_po.menu()
  slider=slider_quiet(read(SLIDER)) if read(SLIDER) else ''
  if slider:out['1080i/'+SLIDER]=slider
  out={k:v.encode() for k,v in out.items()}

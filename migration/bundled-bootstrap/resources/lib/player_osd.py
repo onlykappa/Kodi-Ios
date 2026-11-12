@@ -20,6 +20,7 @@ MEDIA='special://skin/extras/portrait/'
 BOOT='special://xbmc/addons/service.kodi.ios.bootstrap/'
 CAST='RunScript(service.kodi.ios.bootstrap,cast)'
 SPEED='RunScript(service.kodi.ios.bootstrap,speed)'
+PICTURE='RunScript(service.kodi.ios.bootstrap,picture_page)'   # V1: the Picture menu (picture_page.py)
 # Owner-approved Subtitles / Audio menus (tracks.py) instead of Kodi's settings dialogs.
 TRACKS='RunScript(service.kodi.ios.bootstrap,tracks,%s)'
 NEXT_EPISODE='RunScript(service.kodi.ios.bootstrap,next_episode)'
@@ -99,19 +100,21 @@ def window():
  covers the whole screen during video (Kodi app r18, no safe-area box), so the margins keep the controls clear of the
  rounded corners and the Dynamic Island."""
  left=EDGE;top=110
- back=tap(7101,left+75,top,150,'chevron-left.png','PlayerControl(Stop)','<onright>7121</onright><ondown>7112</ondown>',104)
+ back=tap(7101,left+75,top,150,'chevron-left.png','PlayerControl(Stop)','<onright>7124</onright><ondown>7112</ondown>',104)
  # Build 206 (owner, build 205: "i want a button at the top to watch next episode"): next to back, only for episodes
  # (the top right holds the four icons; a centred button would meet them on the 16:9 layout).
  back+=('<control type="group"><visible>%s</visible>'%EPISODE+
-        text_button(7103,left+170,top-75,420,150,'Next Episode  ›',[NEXT_EPISODE],'<onleft>7101</onleft><onright>7121</onright><ondown>7112</ondown>')+
+        text_button(7103,left+170,top-75,420,150,'Next Episode  ›',[NEXT_EPISODE],'<onleft>7101</onleft><onright>7124</onright><ondown>7112</ondown>')+
         '</control>')
  # Right group, 900 wide: speed, audio, subtitles, AirPlay from left to right, the last 90 in from the edge.
- rw=900;rx=rw-EDGE
+ # DEC-039/042 (video-picture-mockups round 4): Picture (wand) is the fifth icon, left of speed.
+ rw=1080;rx=rw-EDGE
  icons=''.join(tap(id,rx-75-i*180,top,150,icon,action,nav,74 if icon.endswith('airplay.png') else 96) for i,(id,icon,action,nav) in enumerate([
    (7102,MEDIA+'airplay.png',CAST,'<onleft>7123</onleft><ondown>7112</ondown>'),
    (7123,'closed-captioning.png',TRACKS%'subtitles','<onleft>7122</onleft><onright>7102</onright><ondown>7112</ondown>'),
    (7122,'file-waveform.png',TRACKS%'audio','<onleft>7121</onleft><onright>7123</onright><ondown>7112</ondown>'),
-   (7121,'gauge-high.png',SPEED,'<onleft>7101</onleft><onright>7122</onright><ondown>7112</ondown>')]))
+   (7121,'gauge-high.png',SPEED,'<onleft>7124</onleft><onright>7122</onright><ondown>7112</ondown>'),
+   (7124,'wand-magic-sparkles.png',PICTURE,'<onleft>7101</onleft><onright>7121</onright><ondown>7112</ondown>')]))
  head=back+group('right',rw,icons)
  # Centre row in a group 1200 wide centred on the screen; the "10" sits inside the arrows ($NUMBER: a bare 10
  # would be read as a Kodi string id).

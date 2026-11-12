@@ -429,6 +429,11 @@ def upscaled_path(path,params,profile,xbmc=None):
   if not original:return path
   media={'tmdb':params.get('tmdb_id',''),'type':'movie' if params.get('kind')=='movie' else 'tv',
          'show':params.get('show') or params.get('title',''),'drive_id':original}
+  # V1: the Picture menu over this video reads which download plays (picture_menu.MEDIA_PROPERTY).
+  try:
+   import xbmcgui,json as _json
+   xbmcgui.Window(10000).setProperty('KodiIOS.PictureMedia',_json.dumps(dict(media,title=params.get('title',''))))
+  except Exception:pass
   wanted=picture.resolve(picture.load(profile),media)[1]['upscale']
   data=upscale_queue.load(profile)
   copy,label=upscale_queue.choose(data,original,wanted,lambda item_id:True)
