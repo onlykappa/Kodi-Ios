@@ -21,6 +21,8 @@ CARD_LINES = 2    # lines on the building card
 CARD_BASE = 9701          # quality cards 9701..9704 (QUALITIES order)
 BUILD, CLOSE = 9720, 9721
 DOWNLOAD_ALL, READY_CLOSE = 9730, 9731
+MORE_ROW = 9732           # the ready sheet's "N more episodes" row: opens the full list (board F)
+EP_LIST, EP_ALL, EP_BACK, EP_FILTER = 9740, 9741, 9742, 9745   # board F: list, Download All, back link, filters 9745-9747
 CANCEL = 9802             # the card's Cancel (pages.searching_card): stops the work
 HIDE = 9803               # the card's Close: hides the card, the work goes on in the background
 
@@ -78,7 +80,26 @@ def queueing_props(season, quality, title, done, total):
                       100.0 * done / max(1, total))
 
 
-def ready_model(title, season, wanted, picks, names):
+def full_rows(wanted, picks, names, details=None):
+    """Board F (owner, 2026-11-12: "if i press 28 more episodes it should show the list, and tell me any details and
+    stuff like 720p only"): every episode in order, found or not: number, name, size, an orange tag when it was only
+    found lower, the version's details (quality, video, audio, seeds), and 'Left out' for one found nowhere."""
+    details = details or {}
+    rows = []
+    for n in sorted(picks):
+        q, size = picks[n]
+        lower = bool(q) and q != wanted
+        if q:
+            line = (LABELS.get(q, q) + (' only' if lower else '') + (' \u00b7 ' + details[n] if details.get(n) else ''))
+        else:
+            line = 'Not found in any quality yet'
+        rows.append({'no': str(n), 'name': names.get(n) or 'Episode %d' % n, 'size': size_text(size) if q else '',
+                     'low': LABELS.get(q, '') if lower else '', 'detail': line, 'gone': '' if q else 'true',
+                     'kind': 'gone' if not q else ('lower' if lower else 'ok')})
+    return rows
+
+
+def ready_model(title, season, wanted, picks, names, details=None):
     """Board D. picks: {episode: (quality or None, size_gb)}; names: {episode: title}. Episodes not found are left out
     of the download and said so; lower ones are marked."""
     got = sorted(n for n, (q, _) in picks.items() if q)
@@ -102,7 +123,8 @@ def ready_model(title, season, wanted, picks, names):
             'rows': rows, 'more': ('%d more episode%s' % (more, '' if more == 1 else 's')) if more > 0 else '',
             'warn': warn + ' Everything goes to Google Drive in episode order.', 'ok': ok,
             'button': ('Download All %d · %s' % (len(got), size_text(total))) if total else 'Download All %d' % len(got),
-            'episodes': got}
+            'episodes': got, 'all': full_rows(wanted, picks, names, details),
+            'counts': {'all': len(picks), 'lower': len(lower), 'gone': len(missing)}}
 
 
 def ready_props(model):
@@ -159,8 +181,77 @@ def pick_quality(xbmcgui, title, season, episodes):
         del sheet
 
 
+FILTERS = (('all', 'All'), ('lower', 'Lower'), ('gone', 'Not found'))
+
+
+def filter_rows(rows, key):
+    return [r for r in rows if key == 'all' or r['kind'] == key]
+
+
+def episodes_props(model, key):
+    """Window properties for board F: the season, the counts on the three filter buttons, the button."""
+    c = model.get('counts') or {}
+    props = {'title': 'All %d episodes' % c.get('all', 0), 'back': '\u2039 ' + model['title'].replace(' is ready', ''),
+             'sub': model['sub'].split(' \u00b7 ')[0] + ' \u00b7 %s \u00b7 %s' % (model['quality'], model['total']),
+             'button': model['button'], 'filter': key}
+    for k, label in FILTERS:
+        props['f.' + k] = '%s %d' % (label, c.get(k, 0)) if k != 'all' else '%s %d' % (label, c.get('all', 0))
+    lower, gone = c.get('lower', 0), c.get('gone', 0)
+    props['note'] = ' '.join(t for t in (
+        ('%d only exist%s in a lower quality and come in it.' % (lower, 's' if lower == 1 else '')) if lower else '',
+        ('%d %s left out; looked for again later.' % (gone, 'is' if gone == 1 else 'are')) if gone else '') if t)
+    return props
+
+
+def show_episodes(xbmcgui, model):
+    """Board F: every episode. True when Download All was tapped here, False to go back to the ready sheet."""
+    state = {'go': False, 'key': 'all'}
+
+    class Page(xbmcgui.WindowXMLDialog):
+        def fill(self):
+            for k, v in episodes_props(model, state['key']).items():
+                self.setProperty(k, v)
+            lst = self.getControl(EP_LIST)
+            lst.reset()
+            items = []
+            for r in filter_rows(model.get('all') or [], state['key']):
+                li = xbmcgui.ListItem(r['name'])
+                for k in ('no', 'size', 'low', 'detail', 'gone'):
+                    li.setProperty(k, r[k])
+                items.append(li)
+            lst.addItems(items)
+
+        def onInit(self):
+            self.fill()
+            try:
+                self.setFocusId(EP_LIST)
+            except Exception:
+                pass
+
+        def onClick(self, control):
+            if control == EP_ALL:
+                state['go'] = True
+                self.close()
+            elif control == EP_BACK:
+                self.close()
+            elif EP_FILTER <= control < EP_FILTER + len(FILTERS):
+                state['key'] = FILTERS[control - EP_FILTER][0]
+                self.fill()
+
+        def onAction(self, action):
+            if action.getId() in (9, 10, 92, 216, 247, 257, 275, 61467, 61448):
+                self.close()
+
+    page = Page('IOSSeasonEpisodes.xml', _here(), 'Default', '1080i')
+    try:
+        page.doModal()
+        return state['go']
+    finally:
+        del page
+
+
 def confirm_ready(xbmcgui, model):
-    """Board D: True when Download All was tapped."""
+    """Board D: True when Download All was tapped (here or on the full list, board F)."""
     state = {'go': False}
 
     class Sheet(xbmcgui.WindowXMLDialog):
@@ -173,6 +264,11 @@ def confirm_ready(xbmcgui, model):
                 pass
 
         def onClick(self, control):
+            if control == MORE_ROW:
+                if show_episodes(xbmcgui, model):
+                    state['go'] = True
+                    self.close()
+                return
             state['go'] = control == DOWNLOAD_ALL
             if control in (DOWNLOAD_ALL, READY_CLOSE):
                 self.close()

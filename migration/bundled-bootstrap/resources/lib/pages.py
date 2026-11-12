@@ -740,14 +740,62 @@ def season_ready_sheet(p):
    '<control type="group"><visible>%s</visible>'%low+p.image(S+w-330,y+(rh-50)//2,120,50,M+'tag_line.png','FFFF9F0A',border=16)+
    p.label(S+w-330,y,120,rh,P('row.%d.low'%n),'p_cap','FFFF9F0A','center')+'</control>'+
    p.label(S+w-200,y,170,rh,P('row.%d.size'%n),'p_foot',p.GREY,'right')+'</control>')
+ # Board F: the row opens every episode (season_sheet.show_episodes).
  rows+=('<control type="group"><visible>%s</visible>'%has('more')+p.image(S+110,list_y+4*rh,w-110,2,M+'white.png',p.SEP)+
-  p.label(S+110,list_y+4*rh,w-200,rh,P('more'),'p_body',p.ACCENT,'left')+'</control>')
+  p.label(S+110,list_y+4*rh,w-200,rh,P('more'),'p_body',p.ACCENT,'left')+
+  p.icon(S+w-70,list_y+4*rh+(rh-40)//2,40,'chevron-right.png',p.GREY)+
+  '<control type="button" id="9732"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><texturefocus colordiffuse="14FFFFFF">%swhite.png</texturefocus><texturenofocus />'
+  '<onup>9730</onup><ondown>9730</ondown></control>'%(S,list_y+4*rh,w,rh,M)+'</control>')
  warn=(p.label(S+6,warn_y,40,56,'!','p_foot_b','FFFF9F0A','left','<visible>!%s</visible>'%has('ok'))+
   p.icon(S+6,warn_y+12,30,'check.png','FF30D158','<visible>%s</visible>'%has('ok'))+
   '<control type="textbox"><left>%d</left><top>%d</top><width>%d</width><height>156</height><font>p_foot</font><textcolor>%s</textcolor><label>%s</label></control>'%(S+52,warn_y,w-58,p.GREY,P('warn')))
  body=(_header(p,P('title'),P('sub'))+stats+rows+warn+
   _white_button(p,9730,S,btn_y,w,P('button'),'<ondown>9731</ondown>')+_text_button(p,9731,S,btn_y+150,w,'Cancel','<onup>9730</onup>'))
  return _sheet(p,SEASON_READY,'Build Season ready sheet (board D)',9730,h,body)
+
+SEASON_EPISODES='IOSSeasonEpisodes.xml'
+def season_episodes_sheet(p):
+ """IOSSeasonEpisodes.xml (season-pack board F): every episode of the ready sheet. A blue back link (9742), the title
+ and line under it, three filter buttons (9745-9747: All, Lower, Not found; the chosen one filled), a list (9740) of
+ two-line rows (number, name, an orange tag when only found lower or a grey 'Left out', the size; the version's
+ details under it) and Download All (9741). season_sheet.show_episodes fills it."""
+ M=p.MEDIA;S=p.SIDE;W=p.WIDTH;w=W-2*S;rh=150
+ P=lambda k:'$INFO[Window().Property(%s)]'%k;LP=lambda k:'$INFO[ListItem.Property(%s)]'%k
+ lhas=lambda k:'!String.IsEmpty(ListItem.Property(%s))'%k
+ h=p.HEIGHT-120;seg_y=330;list_y=seg_y+130;btn_y=h-140-60;list_h=btn_y-list_y-30
+ back=('<control type="button" id="9742"><left>%d</left><top>60</top><width>420</width><height>100</height><label>%s</label><font>p_btn</font>'
+  '<textcolor>%s</textcolor><focusedcolor>FF64D2FF</focusedcolor><align>left</align><aligny>center</aligny><textoffsetx>0</textoffsetx>'
+  '<texturefocus /><texturenofocus /><ondown>9745</ondown></control>')%(S,P('back'),p.ACCENT)
+ head=(p.label(S,160,w,80,P('title'),'p_h2',p.WHITE,'left','<scroll>false</scroll>')+
+  p.label(S,238,w,56,P('sub'),'p_foot',p.GREY,'left','<scroll>false</scroll>'))
+ seg_w=(w-12)//3
+ seg=p.image(S,seg_y,w,96,M+'round.png',p.SURFACE2,border=24)
+ for n,(key,_) in enumerate((('all',''),('lower',''),('gone',''))):
+  x=S+6+n*seg_w;on='String.IsEqual(Window().Property(filter),%s)'%key
+  seg+=(p.image(x,seg_y+6,seg_w,84,M+'round.png','FF636366','<visible>%s</visible>'%on,border=20)+
+   '<control type="button" id="%d"><left>%d</left><top>%d</top><width>%d</width><height>84</height><label>%s</label><font>p_foot_b</font>'
+   '<textcolor>%s</textcolor><focusedcolor>FFFFFFFF</focusedcolor><align>center</align><aligny>center</aligny>'
+   '<texturefocus colordiffuse="14FFFFFF" border="20">%sround.png</texturefocus><texturenofocus />'
+   '<onleft>%d</onleft><onright>%d</onright><onup>9742</onup><ondown>9740</ondown></control>')%(
+   9745+n,x,seg_y+6,seg_w,P('f.'+key),p.GREY,M,9745+max(0,n-1),9745+min(2,n+1))
+ def row(focused):
+  return ((p.image(0,0,w,rh,M+'white.png','14FFFFFF') if focused else '')+
+   p.image(110,0,w-110,2,M+'white.png',p.SEP)+
+   p.label(20,22,70,60,LP('no'),'p_foot_b',p.GREY,'right')+
+   p.label(110,18,w-110-330,64,'$INFO[ListItem.Label]','p_body',p.WHITE,'left','<scroll>false</scroll><visible>!%s</visible>'%lhas('gone'))+
+   p.label(110,18,w-110-330,64,'$INFO[ListItem.Label]','p_body',p.GREY,'left','<scroll>false</scroll><visible>%s</visible>'%lhas('gone'))+
+   '<control type="group"><visible>%s</visible>'%lhas('low')+p.image(w-320,25,120,50,M+'tag_line.png','FFFF9F0A',border=16)+
+   p.label(w-320,25,120,50,LP('low'),'p_cap','FFFF9F0A','center')+'</control>'+
+   '<control type="group"><visible>%s</visible>'%lhas('gone')+p.image(w-220,25,190,50,M+'tag_line.png','99EBEBF5',border=16)+
+   p.label(w-220,25,190,50,'Left out','p_cap',p.GREY,'center')+'</control>'+
+   p.label(w-200,18,170,64,LP('size'),'p_foot',p.GREY,'right')+
+   p.label(110,82,w-150,52,LP('detail'),'p_cap',p.GREY,'left','<scroll>false</scroll>'))
+ lst=(p.image(S,list_y,w,list_h,M+'round.png',p.SURFACE2,border=32)+
+  '<control type="list" id="9740"><left>%d</left><top>%d</top><width>%d</width><height>%d</height><orientation>vertical</orientation>'
+  '<onup>9745</onup><ondown>9741</ondown><scrolltime tween="cubic" easing="out">300</scrolltime>'
+  '<itemlayout height="%d">%s</itemlayout><focusedlayout height="%d">%s</focusedlayout></control>')%(S,list_y,w,list_h,rh,row(False),rh,row(True))
+ body=back+head+seg+lst+_white_button(p,9741,S,btn_y,w,P('button'),'<onup>9740</onup>')
+ return _sheet(p,SEASON_EPISODES,'Build Season every episode (board F)',9740,h,body)
 
 # Build 192 (quick wins): Kodi's toasts and volume bar as iOS banners instead of Fuse's corner pill. The controls'
 # Info (Custom_1193) is the episode card of board 08 (info_card). Kodi fills 400/401/402 (icon, heading, text) and
@@ -844,7 +892,7 @@ def info_card():
  return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Kodi-iOS player controls: info card (board 08) -->\n'
          '<window type="dialog" id="1193"><zorder>3</zorder><defaultcontrol always="true">9500</defaultcontrol><controls>%s</controls></window>\n')%body
 
-HANDMADE={SEARCHING,SEASON_QUALITY,SEASON_READY,NOTIFY,VOLUME,'DialogConfirm.xml','DialogTextViewer.xml','DialogSettings.xml','AddonBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml',BUSY}
+HANDMADE={SEARCHING,SEASON_QUALITY,SEASON_READY,SEASON_EPISODES,NOTIFY,VOLUME,'DialogConfirm.xml','DialogTextViewer.xml','DialogSettings.xml','AddonBrowser.xml','EventLog.xml','SettingsSystemInfo.xml','FileManager.xml',BUSY}
 
 SLIDER='DialogSlider.xml';TRACK_MENU_OPEN='KodiIOS.TrackMenu'
 def slider_quiet(original):
@@ -879,6 +927,7 @@ def files(p,read):
       p.FOLDER+'/'+BUSY:busy_dialog(p.MARKER,'p_pill'),
       p.FOLDER+'/'+SEARCHING:searching_card(p),   # boards 09 / season A, C
       p.FOLDER+'/'+SEASON_QUALITY:season_quality_sheet(p),p.FOLDER+'/'+SEASON_READY:season_ready_sheet(p),   # Build Season B, D
+      p.FOLDER+'/'+SEASON_EPISODES:season_episodes_sheet(p),   # Build Season F: every episode
       '1080i/'+BUSY:busy_dialog('Kodi-iOS player controls: busy pill','font_main_bold'),
       p.FOLDER+'/'+NOTIFY:notification_dialog(p.MARKER,p.SIDE,150,p.WIDTH-2*p.SIDE,'p_foot_b','p_foot'),
       p.FOLDER+'/'+VOLUME:volume_dialog(p.MARKER,(p.WIDTH-640)//2,150,640,'p_foot_b'),

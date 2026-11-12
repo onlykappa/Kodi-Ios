@@ -907,10 +907,14 @@ def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
                   'packs': bool(usable) if auto['purpose'] in ('packs', 'survey') else False}
         if auto['purpose'] == 'scan':
             # Build Season (board D): the best-seeded copy's size per quality, for the ready sheet's sizes.
-            sizes = {}
+            sizes, details = {}, {}
             for p in sorted(usable, key=lambda p: -p['seeds']):
                 sizes.setdefault(p['quality'], p['size'])
+                # Board F: what the version is (video, audio, seeds), shown per episode in the full list.
+                details.setdefault(p['quality'], u' \u00b7 '.join([t for t in tag_list(p) if t not in ('4K', '1080p', '720p')][:4] +
+                                                          ['%d seeds' % p['seeds']]))
             result['sizes'] = sizes
+            result['details'] = details
         if auto['purpose'] == 'survey':
             # The season sheet's cards: per quality, how many genuine full-season packs and the best one's size/seeds.
             by = {}

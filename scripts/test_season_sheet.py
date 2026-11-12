@@ -101,6 +101,19 @@ class Flow(unittest.TestCase):
         self.assertEqual((out, calls['queued']), ([], []))
 
 
+class EveryEpisode(unittest.TestCase):
+    def test_full_list_tags_lower_and_left_out_with_details(self):
+        # Board F (owner 2026-11-12): "28 more episodes" shows every episode with its details, 720p only and so on.
+        picks = {1: ('1080p', 0.26), 7: ('720p', 0.2), 30: (None, 0)}
+        m = ss.ready_model('Naruto Shippuden', 1, '1080p', picks, {1: 'Homecoming'}, {1: 'HEVC \u00b7 232 seeds', 7: 'H.264 \u00b7 9 seeds'})
+        rows = {r['no']: r for r in m['all']}
+        self.assertEqual((rows['1']['detail'], rows['1']['low'], rows['1']['kind']), ('1080p \u00b7 HEVC \u00b7 232 seeds', '', 'ok'))
+        self.assertEqual((rows['7']['detail'], rows['7']['low'], rows['7']['kind']), ('720p only \u00b7 H.264 \u00b7 9 seeds', '720p', 'lower'))
+        self.assertEqual((rows['30']['gone'], rows['30']['kind'], rows['30']['detail']), ('true', 'gone', 'Not found in any quality yet'))
+        self.assertEqual([r['no'] for r in ss.filter_rows(m['all'], 'lower')], ['7'])
+        props = ss.episodes_props(m, 'all')
+        self.assertEqual((props['title'], props['back'], props['f.lower'], props['f.gone']), ('All 3 episodes', '\u2039 Season 1', 'Lower 1', 'Not found 1'))
+
 if __name__ == '__main__':
     import unittest.mock  # noqa: F401
     unittest.main()

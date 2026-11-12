@@ -251,7 +251,7 @@ def _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names,se
  def lookup(n,purpose,q=None):
   if search:return search(n,purpose,q)
   return request(home,tmdb,season,n,purpose,q,cancel=stop,timeout=EPISODE_SECONDS if purpose=='scan' else 120)
- picks={}
+ picks={};details={}
  try:
   for i,n in enumerate(remaining):
    if stop():return []
@@ -261,9 +261,10 @@ def _build(xbmc,gui,dialog,home,profile,tmdb,title,season,numbers,owned,names,se
     note(xbmc,'scan_deferred',episode=n,error=type(error).__name__);found={}
    got=ss.best_for(found.get('qualities') or [],quality)
    picks[n]=(got,(found.get('sizes') or {}).get(got) if got else None)
+   details[n]=(found.get('details') or {}).get(got,'') if got else ''
   if stop():return []
  finally:card.close()
- model=ss.ready_model(title,season,quality,picks,names)
+ model=ss.ready_model(title,season,quality,picks,names,details)
  note(xbmc,'build_scanned',episodes=len(remaining),quality=quality,found=len(model['episodes']),
       lower=sum(1 for n in model['episodes'] if picks[n][0]!=quality))
  if not model['episodes']:
