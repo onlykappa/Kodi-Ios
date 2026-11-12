@@ -480,13 +480,23 @@ def usable(widget):
  if path.startswith('plugin://') and '?' not in path:return False
  return True
 
+# Owner (2026-11-12, Home screenshot): cards with no picture and a red italic title were TMDb Helper's unreleased titles
+# ("Untitled ..." projects, no poster on TMDb yet). Rows of released titles leave them out (TMDb Helper's own
+# hide_unaired); rows that are about what is coming keep them.
+UPCOMING=('upcoming','airing','calendar','nextup','next_up','coming','soon','unaired','anticipated')
+def released_only(widget):
+ path=str(widget.get('path') or '')
+ text=(path+' '+str(widget.get('label') or '')).lower()
+ if not path.startswith('plugin://plugin.video.themoviedb.helper/') or 'hide_unaired=' in path or any(w in text for w in UPCOMING):return widget
+ return dict(widget,path=path+'&hide_unaired=true')
+
 def load_widgets(profile,lists):
  rows=[]
  for name in lists:
   path=Path(profile)/NODES.format(name)
   try:data=json.loads(path.read_text(encoding='utf-8'))
   except (OSError,ValueError):continue
-  rows+=[w for w in data if isinstance(w,dict) and usable(w)]
+  rows+=[released_only(w) for w in data if isinstance(w,dict) and usable(w)]
  return rows
 
 # Poster Badges (Settings › Customisation › Poster Badges): Fuse's own indicator settings, drawn on our posters and
@@ -534,6 +544,10 @@ def poster_item(focused):
  zoom='<animation effect="zoom" start="100" end="104" time="160" center="auto" tween="cubic" easing="out">Focus</animation>' if focused else ''
  return ('<control type="group"><left>%d</left><top>14</top>%s'%(SIDE,zoom)+
   image(0,0,w,h,MEDIA+'white.png',SURFACE,diffuse=MEDIA+'poster_mask.png')+
+  # Owner (2026-11-12): no poster -> the title's other picture (thumb, then backdrop) under its name, not a blank card.
+  image(0,0,w,h,'$INFO[ListItem.Art(thumb)]',WHITE,'<visible>String.IsEmpty(ListItem.Art(poster))</visible>','>scale',MEDIA+'poster_mask.png',background=True)+
+  image(0,0,w,h,'$INFO[ListItem.Art(fanart)]',WHITE,'<visible>String.IsEmpty(ListItem.Art(poster)) + String.IsEmpty(ListItem.Art(thumb))</visible>','>scale',MEDIA+'poster_mask.png',background=True)+
+  image(0,h-260,w,260,MEDIA+'fade_up.png','E6000000','<visible>String.IsEmpty(ListItem.Art(poster))</visible>',diffuse=MEDIA+'poster_mask.png')+
   label(20,h-170,w-40,150,'$INFO[ListItem.Label]','p_foot_b',WHITE,'left','<aligny>bottom</aligny><wrapmultiline>true</wrapmultiline><visible>String.IsEmpty(ListItem.Art(poster))</visible>')+
   image(0,0,w,h,'$INFO[ListItem.Art(poster)]',WHITE,'','>scale',MEDIA+'poster_mask.png',background=True)+poster_badges(w,h)+'</control>')
 

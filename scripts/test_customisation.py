@@ -261,6 +261,18 @@ class InfoRowsAndGrid(unittest.TestCase):
   g=portrait.grid();ET.fromstring('<a>'+g+'</a>')
   self.assertIn('condition="%s"'%portrait.GRID_LARGE,g);self.assertEqual(g.count('<itemlayout'),2)
 
+class Released(unittest.TestCase):
+ def test_rows_leave_out_unreleased_titles_except_upcoming_rows(self):
+  # Owner (2026-11-12): blank cards with red italic titles were TMDb Helper's unreleased titles.
+  t='plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=movie'
+  self.assertTrue(portrait.released_only({'path':t,'label':'Netflix Original Movies'})['path'].endswith('&hide_unaired=true'))
+  for keep in ({'path':t,'label':'Upcoming Movies'},{'path':t+'&info2=upcoming','label':'x'},{'path':t+'&hide_unaired=false','label':'x'},
+               {'path':'plugin://plugin.video.umbrella/?a=b','label':'x'}):
+   self.assertEqual(portrait.released_only(keep),keep)
+ def test_a_card_without_a_poster_shows_its_other_picture(self):
+  xml=portrait.poster_item(False)
+  self.assertIn('ListItem.Art(thumb)',xml);self.assertIn('ListItem.Art(fanart)',xml)
+
 class Dialogs(unittest.TestCase):
  def test_notification_volume_and_info_card(self):
   pages=portrait.pages
