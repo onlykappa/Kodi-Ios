@@ -119,7 +119,7 @@ class FakeAPI:
  def unlock(self,l):return 'https://x/f','Fall.2022.2160p.mkv',3
 
 class TwoLanes(unittest.TestCase):
- """ISSUE-164: a season's episodes go up to Drive two at a time; a movie is still one upload."""
+ """ISSUE-164 / 1F.4: a season's episodes go up to Drive up to three at a time; a movie is still one upload."""
  def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name
  def tearDown(self):self.tmp.cleanup()
  def season(self,names):
@@ -145,16 +145,25 @@ class TwoLanes(unittest.TestCase):
  def run_job(self,api,drive):
   for _ in range(6):
    if debrid_drive.step(self.p,api,drive) is None:break
- def test_a_season_uploads_two_episodes_at_once(self):
+ def test_a_season_uploads_three_episodes_at_once(self):
+  # Roadmap 1F.4: three lanes when three or more files remain (build-252 log: ~3.3 MB/s per lane on a 115 Mbps line).
   names=['Show.S01E0%d.mkv'%n for n in (1,2,3)]
   debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')
   drive=self.drive();self.run_job(self.season(names),drive)
   job=debrid_drive.load(self.p)['jobs'][0]
-  self.assertEqual(job['status'],'done');self.assertEqual(sorted(self.uploaded),names);self.assertEqual(self.most,2)
+  self.assertEqual(job['status'],'done');self.assertEqual(sorted(self.uploaded),names);self.assertEqual(self.most,3)
   self.assertTrue(all(f['done'] and f['drive_id'] for f in job['files']))
   self.assertEqual(len(drive.folders_made),3)
-  self.assertTrue(any(c.get('parallel')==2 for c in self.shown))      # the pages show both lanes' speed
+  self.assertTrue(any(c.get('parallel')==3 for c in self.shown))      # the pages show all three lanes' speed
   state=debrid_drive.load(self.p);self.assertNotIn('current',state);self.assertNotIn('current_also',state)
+ def test_two_episodes_use_two_lanes_and_five_use_three_at_a_time(self):
+  self.assertEqual([debrid_drive.lanes_for(n) for n in (0,1,2,3,4,10)],[1,1,2,3,3,3])
+  for count,most in ((2,2),(5,3)):
+   self.tearDown();self.setUp()
+   names=['Show.S01E%02d.mkv'%n for n in range(1,count+1)]
+   debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')
+   self.run_job(self.season(names),self.drive(pause=.1))
+   self.assertEqual(debrid_drive.load(self.p)['jobs'][0]['status'],'done');self.assertEqual(sorted(self.uploaded),names);self.assertEqual(self.most,most)
  def test_a_movie_is_still_one_upload(self):
   debrid_drive.queue(self.p,{'id':H,'name':'Fall.2022.2160p'},'movie','Fall (2022)')
   self.run_job(FakeAPI(),self.drive());self.assertEqual(self.most,1)
