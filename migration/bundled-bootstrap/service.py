@@ -150,6 +150,14 @@ def run():
     off=bootstrap.burst_providers(profile/'addon_data/service.kodi.ios.bootstrap/burst-providers-r1',burst.getSetting,burst.setSetting)
     if off:xbmc.log('Kodi iOS setup turned off search providers that never answer: '+', '.join(off),xbmc.LOGINFO)
   except Exception as error:xbmc.log('Kodi iOS Burst providers skipped: '+type(error).__name__,xbmc.LOGWARNING)
+  # Board 07: the long-press menu without TMDb Helper's extra entries (owner, 2026-11-12).
+  try:
+   if xbmc.getCondVisibility('System.HasAddon(plugin.video.themoviedb.helper)'):
+    import bootstrap
+    helper=xbmcaddon.Addon('plugin.video.themoviedb.helper')
+    off=bootstrap.tmdbhelper_context(profile/'addon_data/service.kodi.ios.bootstrap/tmdb-context-r1',helper.getSetting,helper.setSetting)
+    if off:xbmc.log('Kodi iOS setup removed TMDb Helper long-press entries: '+', '.join(off),xbmc.LOGINFO)
+  except Exception as error:xbmc.log('Kodi iOS TMDb Helper menu skipped: '+type(error).__name__,xbmc.LOGWARNING)
   # Once per phone: folders the Deck config expects, phone-useless network discovery off (ISSUE-070).
   try:
    engine=xbmcaddon.Addon('plugin.video.elementum') if xbmc.getCondVisibility('System.HasAddon(plugin.video.elementum)') else None

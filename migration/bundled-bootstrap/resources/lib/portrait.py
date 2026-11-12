@@ -1218,6 +1218,9 @@ def ctx_variables():
  pick=lambda name,mine,theirs:'<variable name="%s"><value condition="%s">%s</value><value>%s</value></variable>'%(name,own,mine,theirs)
  return (pick('Portrait_Ctx_Title','$INFO[ListItem.Label]','$INFO[%s]'%(ITEM%'Title'))+
   pick('Portrait_Ctx_Art','$VAR[Portrait_Card_Art]','$INFO[%s]'%(ITEM%'Art'))+
+  # Board 07 (owner): Kodi's "Information" reads "Details" (string 19033); every other row as Kodi names it.
+  ''.join('<variable name="Portrait_Ctx_Label_%d"><value condition="String.IsEqual(Control.GetLabel(%d),$LOCALIZE[19033])">Details</value>'
+          '<value>$INFO[Control.GetLabel(%d)]</value></variable>'%(i,1001+i,1001+i) for i in range(CTX_ROWS))+
   pick('Portrait_Ctx_Sub','$INFO[ListItem.Property(subtitle)]$INFO[ListItem.Year]$INFO[ListItem.Genre,  ·  ]','$INFO[%s]'%(ITEM%'Sub'))+''.join('<variable name="Portrait_Ctx_Icon_%d">%s<value>%sellipsis.png</value></variable>'%(i,''.join(
   '<value condition="String.Contains(Control.GetLabel(%d),%s)">%s%s</value>'%(1001+i,word,ICONS,name) for word,name in CTX_ICONS),ICONS) for i in range(CTX_ROWS)))
 
@@ -1247,8 +1250,10 @@ def context_menu(original):
   image(0,0,card_w,art_h,'$VAR[Portrait_Ctx_Art]',WHITE,'','>scale',MEDIA+'card_mask.png',background=True)+
   label(4,art_h+18,card_w-8,46,'$VAR[Portrait_Ctx_Sub]','p_foot',GREY,'left','<scroll>false</scroll>')+
   label(4,art_h+62,card_w-8,62,'$VAR[Portrait_Ctx_Title]','p_h3',WHITE,'left','<scroll>false</scroll>')+'</control>')
- template=('<control type="button" id="1000"><width>%d</width><height>%d</height><font>p_body</font><textcolor>FFFFFFFF</textcolor>'
-  '<focusedcolor>FFFFFFFF</focusedcolor><textoffsetx>%d</textoffsetx><textwidth>%d</textwidth><align>left</align><aligny>center</aligny>'
+ # The buttons' own text is not drawn: each row's name is a label over it (Details for Information, red when
+ # destructive), so the buttons only take the taps.
+ template=('<control type="button" id="1000"><width>%d</width><height>%d</height><font>p_body</font><textcolor>00000000</textcolor>'
+  '<focusedcolor>00000000</focusedcolor><textoffsetx>%d</textoffsetx><textwidth>%d</textwidth><align>left</align><aligny>center</aligny>'
   '<texturefocus /><texturenofocus /></control>')%(menu_w,row_h,pad,menu_w-2*pad-100)
  red='[%s]'%' | '.join('String.Contains(Control.GetLabel(%%d),%s)'%w for w in CTX_RED)
  # The menu's background, one per row count (Kodi cannot size an image to the list), and per row its glyph on the
@@ -1263,9 +1268,8 @@ def context_menu(original):
   hl=lambda tex,cond:image(0,y,menu_w,row_h,MEDIA+tex,'1FFFFFFF','<visible>Control.HasFocus(%d) + %s</visible>'%(id,cond),border=64)
   rows+=((hl('menu_round.png',last)+hl('menu_first.png','!'+last)) if i==0 else (hl('menu_last.png',last)+hl('white.png','!'+last)))
   rows+=((image(pad,y,menu_w-2*pad,2,MEDIA+'white.png',SEP,'<visible>%s</visible>'%shown) if i else '')+
-   '<control type="group"><visible>%s + %s + !Control.HasFocus(%d)</visible>'%(shown,bad,id)+
-   image(pad-8,y+8,menu_w-2*pad-74,row_h-16,MEDIA+'white.png','FF2C2C2E')+
-   label(pad,y,menu_w-2*pad-100,row_h,'$INFO[Control.GetLabel(%d)]'%id,'p_body','FFFF453A','left','<scroll>false</scroll>')+'</control>'+
+   label(pad,y,menu_w-2*pad-100,row_h,'$VAR[Portrait_Ctx_Label_%d]'%i,'p_body',WHITE,'left','<scroll>false</scroll><visible>Control.IsVisible(%d) + !%s</visible>'%(id,bad))+
+   label(pad,y,menu_w-2*pad-100,row_h,'$VAR[Portrait_Ctx_Label_%d]'%i,'p_body','FFFF453A','left','<scroll>false</scroll><visible>Control.IsVisible(%d) + %s</visible>'%(id,bad))+
    icon(menu_w-pad-72,y+(row_h-72)//2,72,'$VAR[Portrait_Ctx_Icon_%d]'%i,WHITE,'<visible>%s + !%s</visible>'%(shown,bad))+
    icon(menu_w-pad-72,y+(row_h-72)//2,72,'$VAR[Portrait_Ctx_Icon_%d]'%i,'FFFF453A','<visible>%s + %s</visible>'%(shown,bad)))
  # No art (e.g. a menu button) or a long menu: the menu moves up to where the card would be.

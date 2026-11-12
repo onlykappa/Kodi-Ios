@@ -132,6 +132,19 @@ def burst_providers(marker,get_setting,set_setting):
  marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text('1\n')
  return off
 
+# Board 07 (owner, 2026-11-12): the long-press menu keeps Play, Details, Mark as Watched, Add to favourites, Download
+# and the item's own actions. TMDb Helper's own entries the owner removed, by its settings.
+TMDB_CONTEXT_OFF=('contextmenu_related_lists','contextmenu_sync_trakt','contextmenu_sync_tmdb','contextmenu_refresh_details',
+                  'contextmenu_modify_artwork','contextmenu_make_node')   # Browse lists, Trakt/TMDb user options, Refresh details, Modify artwork, Add node
+def tmdbhelper_context(marker,get_setting,set_setting):
+ """Turns the entries above off once per phone (marker), so one the owner turns back on in TMDb Helper stays."""
+ marker=Path(marker)
+ if marker.exists():return []
+ off=[k for k in TMDB_CONTEXT_OFF if str(get_setting(k)).lower()!='false']
+ for k in off:set_setting(k,'false')
+ marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text('1\n')
+ return off
+
 UPLOAD_CAP_KB=1024
 def elementum_upload_cap(get_setting,set_setting):
  """Build 185 (build-184 log: Drive uploads of a conversion stalled for 120 s at a time): a seeding torrent with no

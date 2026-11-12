@@ -324,6 +324,15 @@ class Scrapers(unittest.TestCase):
   self.assertEqual(settings,{'provider.external.enabled':'true','external_provider.name':'cocoscrapers','external_provider.module':'script.module.cocoscrapers'})
   settings['external_provider.module']='script.module.other'
   self.assertFalse(bootstrap.umbrella_defaults(lambda k:settings.get(k,''),settings.__setitem__));self.assertEqual(settings['external_provider.module'],'script.module.other')
+ def test_tmdbhelper_long_press_entries_off_once(self):
+  # Board 07 (owner): Browse lists, Trakt/TMDb user options, Refresh details, Modify artwork and Add node go; once per phone.
+  with tempfile.TemporaryDirectory() as t:
+   settings={'contextmenu_related_lists':'true','contextmenu_add_to_library':'true'};marker=Path(t)/'m'
+   off=bootstrap.tmdbhelper_context(marker,lambda k:settings.get(k,'true'),settings.__setitem__)
+   self.assertEqual(set(off),set(bootstrap.TMDB_CONTEXT_OFF));self.assertEqual(settings['contextmenu_add_to_library'],'true')
+   self.assertTrue(all(settings[k]=='false' for k in bootstrap.TMDB_CONTEXT_OFF))
+   settings['contextmenu_sync_trakt']='true'   # the owner turns one back on: it stays
+   self.assertEqual(bootstrap.tmdbhelper_context(marker,lambda k:settings.get(k,'true'),settings.__setitem__),[]);self.assertEqual(settings['contextmenu_sync_trakt'],'true')
 class Elementum(unittest.TestCase):
  def test_download_folder_set_once_and_never_over_the_owners_choice(self):
   with tempfile.TemporaryDirectory() as t:
