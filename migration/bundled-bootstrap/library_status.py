@@ -7,7 +7,7 @@ Check now (top right) asks the service to look at Google Drive again; a row open
 service applies on its next pass (prepare_downloads.request)."""
 import os,shutil,sys,threading,time
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
-import library_page,library_rows,prepare_downloads,tool_windows,transfer_history
+import page_wait,library_page,library_rows,prepare_downloads,tool_windows,transfer_history
 p_side=54   # portrait.SIDE: the summary card's left edge
 
 BACK=(9,10,92,110)
@@ -139,7 +139,7 @@ def run(args=()):
    for k,v in props.items():self.setProperty(k,v)
   def loop(self):
    monitor=xbmc.Monitor()
-   while not self.stop.is_set() and not monitor.waitForAbort(2):
+   while not page_wait.idle(self.stop,monitor,2):
     try:
      fresh=self.fresh() if self.fresh else None
      if fresh:self.sheet,self.row=fresh
@@ -169,7 +169,7 @@ def run(args=()):
    threading.Thread(target=self.loop,daemon=True).start()
   def loop(self):
    monitor=xbmc.Monitor()
-   while not self.stop.is_set() and not monitor.waitForAbort(2):
+   while not page_wait.idle(self.stop,monitor,2):
     if self.stop.is_set():break
     try:self.refresh()
     except Exception as error:xbmc.log('Library status: %s'%error,xbmc.LOGWARNING)

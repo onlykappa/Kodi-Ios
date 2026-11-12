@@ -6,6 +6,7 @@ open_airplay    Play on TV › Last time (landscape, over the video), or a tap o
 Each page refreshes while it is open; every choice goes through the module that owns it (prepare_downloads.request for
 the queue), never by writing another part's state. RunScript(service.kodi.ios.bootstrap,tool_pages,<page>) opens one.
 """
+import page_wait
 import os
 import threading
 import time
@@ -90,7 +91,7 @@ def open_queue(profile=None):
 
         def loop(self):
             monitor = xbmc.Monitor()
-            while not self.stop.is_set() and not monitor.waitForAbort(2):
+            while not page_wait.idle(self.stop,monitor,2):
                 try:
                     self.refresh()
                 except Exception as error:
@@ -154,7 +155,7 @@ def open_history(profile=None):
 
         def loop(self):
             monitor=xbmc.Monitor()
-            while not self.stop.is_set() and not monitor.waitForAbort(2):
+            while not page_wait.idle(self.stop,monitor,2):
                 try:self.refresh()
                 except Exception as error:_log('history: %s'%error)
 

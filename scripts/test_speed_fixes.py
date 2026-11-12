@@ -58,4 +58,24 @@ class StartupImports(unittest.TestCase):
   for name in ('activity','signin_server','background','calibration','driveupload','portrait','umbrella_ready'):self.assertIn(name+'.',src)
   self.assertIn("[_Late(n) for n in",src)
 
+import threading,time,re
+import page_wait
+
+class PageLoops(unittest.TestCase):
+ class Quiet:
+  def abortRequested(self):return False
+ def test_idle_wakes_when_the_page_closes(self):
+  stop=threading.Event();threading.Timer(0.05,stop.set).start()
+  begun=time.monotonic();self.assertTrue(page_wait.idle(stop,self.Quiet(),5))
+  self.assertLess(time.monotonic()-begun,1)
+ def test_idle_times_out_and_follows_abort(self):
+  self.assertFalse(page_wait.idle(threading.Event(),self.Quiet(),0.05))
+  class Abort:
+   def abortRequested(self):return True
+  self.assertTrue(page_wait.idle(threading.Event(),Abort(),5))
+ def test_no_page_loop_sleeps_in_waitForAbort_ignoring_its_stop_event(self):
+  base=ROOT/'migration/bundled-bootstrap'
+  for path in list(base.glob('*.py'))+[base/'resources/lib/tool_windows.py']:
+   self.assertNotRegex(path.read_text(),r'self\.stop\.is_set\(\) and not monitor\.waitForAbort',path.name)
+
 if __name__=='__main__':unittest.main()

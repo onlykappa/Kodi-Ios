@@ -2,7 +2,7 @@
 earlier messages. The layout is portrait/IOSNotifications.xml, written by portrait.py; this fills it."""
 import os,sys,threading
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
-import notice_page,notices,prepare_downloads,transfer_artwork,drivelibrary,library_tools,transfer_control
+import page_wait,notice_page,notices,prepare_downloads,transfer_artwork,drivelibrary,library_tools,transfer_control
 
 ICON={'download':('download.png','330A84FF'),'drive':('circle-check.png','3330D158'),'problem':('triangle-exclamation.png','33FF453A'),
       'update':('circle-down.png','330A84FF'),'info':('circle-info.png','33FF9F0A'),'general':('bell.png','338E8E93')}
@@ -195,7 +195,7 @@ def run():
    self.guard.percent(control,value or 0)
   def loop(self):
    monitor=xbmc.Monitor()
-   while not self.stop.is_set() and not monitor.waitForAbort(1):
+   while not page_wait.idle(self.stop,monitor,1):
     if self.stop.is_set():break
     try:self.refresh()
     except Exception as error:_quiet('notifications:76',error)
@@ -204,7 +204,7 @@ def run():
    def get(url):
     with urllib.request.urlopen(url,timeout=8) as response:return response.read(1024*1024)
    monitor=xbmc.Monitor()
-   while not self.stop.is_set() and not monitor.waitForAbort(2):
+   while not page_wait.idle(self.stop,monitor,2):
     try:transfer_artwork.hydrate(profile,list(self.artnames),self.artkey,get,lambda:not self.stop.is_set(),self.attempted)
     except Exception as error:_quiet('notifications:artwork',error)
   def onAction(self,action):
