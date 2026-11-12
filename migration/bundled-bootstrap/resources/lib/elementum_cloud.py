@@ -172,7 +172,7 @@ def route(url,quiet=False,request_id=None):
         except Exception:pass  # logging must never undo a saved download
         if auto is not None and home is not None:
             import json
-            home.setProperty('KodiIOS.AutoPick.Queued',json.dumps({'request_id':auto.get('request_id'),'queued':True}))
+            home.setProperty('KodiIOS.AutoPick.Queued'+(auto.get('_lane') or ''),json.dumps({'request_id':auto.get('request_id'),'queued':True}))
         if auto is None and home is not None and kind in ('episode','season'):
             try:
                 import episode_watch
@@ -246,19 +246,27 @@ def _refused(why):
 def auto_season(window, now=None,choice=None):
     """download.py's automatic season request (deck_picker.AUTO_PICK) while it lasts, else None."""
     import json, time
-    try:
-        raw = window.getProperty('KodiIOS.AutoPick')
-        wanted = json.loads(raw) if raw else None
-        if wanted and float(wanted.get('until', 0)) >= (time.time() if now is None else now):
+    now = time.time() if now is None else now
+    reasons = []
+    # Build Season looks up three episodes at once, one lane each (deck_picker.LANES): the lane whose pick this is.
+    for lane in ('', '.1', '.2'):
+        try:
+            raw = window.getProperty('KodiIOS.AutoPick' + lane)
+            wanted = json.loads(raw) if raw else None
+            if not wanted or float(wanted.get('until', 0)) < now:
+                continue
+            wanted['_lane'] = lane
             if wanted.get('target') and choice is not None:
-                selected=json.loads(window.getProperty('KodiIOS.AutoPick.Result') or '{}')
-                why=refusal(wanted,selected,choice)
+                selected = json.loads(window.getProperty('KodiIOS.AutoPick.Result' + lane) or '{}')
+                why = refusal(wanted, selected, choice)
                 if why:
-                    _refused(why)
-                    return None
+                    reasons.append(why)
+                    continue
             return wanted
-    except Exception:
-        pass
+        except Exception:
+            continue
+    if reasons:
+        _refused(', '.join(reasons))
     return None
 
 

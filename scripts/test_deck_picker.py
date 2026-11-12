@@ -235,4 +235,17 @@ class SeasonBuildPicks(unittest.TestCase):
   self.assertEqual(dp.auto_choose([pack,single],{'quality':'1080p','strict_quality':True})['idx'],1)
   self.assertEqual(dp.auto_choose([pack],{'quality':'1080p','strict_quality':True})['idx'],0)   # still used when alone
 
+class Lanes(unittest.TestCase):
+ def test_each_episode_finds_its_own_lane(self):
+  import json,time as t
+  props={}
+  home=types.SimpleNamespace(getProperty=lambda k:props.get(k,''),setProperty=props.__setitem__)
+  for lane,ep in (('',1),('.1',2),('.2',3)):
+   props[dp.AUTO_PICK+lane]=json.dumps({'request_id':'r%d'%ep,'until':t.time()+60,'purpose':'scan','target':{'tmdb':'31910','season':1,'episode':ep}})
+  exp={'tmdb':'31910','season':1,'episode':3}
+  got=dp.auto_request(home,exp=exp)
+  self.assertEqual((got['request_id'],got['_lane']),('r3','.2'))
+  with mock.patch.object(dp,'_home',return_value=home):dp._auto_result(got,{'request_id':'r3'})
+  self.assertEqual(json.loads(props[dp.AUTO_RESULT+'.2'])['request_id'],'r3');self.assertNotIn(dp.AUTO_RESULT,props)
+
 if __name__=='__main__':unittest.main()

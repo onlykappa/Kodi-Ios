@@ -109,6 +109,25 @@ def _queue(profile, torrent, kind, title='', season='', episode='', now=None, ep
     return job
 
 
+def order_season(profile, show_tmdb, season):
+    """Build Season adds three episodes at once (owner, 2026-11-12: "fix the speed for shows"), so they can land out of
+    order; the season's jobs not started yet go back into episode order, in the same places of the queue."""
+    target=location(profile)
+    with open(str(target)+'.enqueue.lock','a') as guard:
+        fcntl.flock(guard,fcntl.LOCK_EX)
+        state=load(profile)
+        jobs=state.get('jobs',[])
+        mine=[i for i,j in enumerate(jobs) if j.get('status')=='new' and str(j.get('show_tmdb') or '')==str(show_tmdb)
+              and str(j.get('season') or '')==str(season) and str(j.get('episode') or '').isdigit()]
+        ordered=sorted((jobs[i] for i in mine), key=lambda j:int(j['episode']))
+        if [jobs[i] for i in mine]==ordered:
+            return False
+        for i,job in zip(mine,ordered):
+            jobs[i]=job
+        save(profile,state)
+        return True
+
+
 def folders(kind, name, title=''):
     """Drive › Kodi Downloads › Movies, or › TV Shows › <show> (from the file's name, else the show's title)."""
     parts = driveupload.drive_folders(name, '/')

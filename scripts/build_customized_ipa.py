@@ -510,7 +510,7 @@ def _kios_card(payload, total):
         return
     try:   # anything missing (properties, window support, an older skin) leaves the search exactly as it was
         home = xbmcgui.Window(10000)
-        if home.getProperty('KodiIOS.AutoPick'):   # Build Season's own lookups: its building card is up instead
+        if any(home.getProperty('KodiIOS.AutoPick' + lane) for lane in ('', '.1', '.2')):   # Build Season's lookups (three lanes): its card is up instead
             return
         title, context = _kios_card_title(payload)
         _kios_card_state['shown'] = True
