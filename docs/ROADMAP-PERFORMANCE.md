@@ -166,7 +166,7 @@ Evidence: `e8ab5995` and `396d5d67` start-up; 37 logs.
 |---|---|---|---|
 | 1E.1 | Start Elementum's daemon only when Download is chosen (or a torrent is active), not at every launch | Known: daemon, libtorrent listener and ~300 log lines every launch | no Elementum at launch |
 | 1E.2 | Remove unused binary add-ons from the IPA: 20+ PVR clients, ~22 audio decoders, game add-ons | Known: 205 add-ons scanned at launch; app size | − scan time and IPA size |
-| 1E.3 | Trim services: Umbrella's update check, cocoscrapers' undesirables check, embuary's player monitor, Google Drive's export/download/player services and source port | Known: all start at launch | services that do work only on demand |
+| 1E.3 | Trim services: Umbrella's update check, cocoscrapers' undesirables check, embuary's player monitor, Google Drive's export/download/player services and source port | Known: all start at launch | services that do work only on demand — **Partly done: Embuary Helper service off; audit recorded; Umbrella/cocoscrapers not patchable here (speed-reliability-fixes): bootstrap housekeeping switches off script.embuary.helper's service (fanart grabber, widget timer, player monitor); other services audited and kept; Umbrella/cocoscrapers need their source** |
 | 1E.4 | Bootstrap imports 1.74 s: import page builders lazily | Known: "bootstrap entered (imports 1.743s)" | < 0.4 s |
 | 1E.5 | TMDb Helper's Trakt check (1.66 s) after Home settles, not at launch | Known | deferred |
 | 1E.6 | Script windows close without "waiting on thread": daemon worker threads end with the window | Known: each Settings/Notifications/Play on TV close waits on a thread | instant close |
