@@ -193,6 +193,8 @@ Evidence: ISSUE-163/165/166.
 | 1G.4 | Hand the TV the playlist as soon as the first video segment is ready | TV picture < 20 s on a debrid link |
 | 1G.5 | Blank AirPlay captions (ISSUE-147) | captions show on the TV |
 | 1G.6 | Hour-long AirPlay stop (ISSUE-147) | one hour without a stop |
+| 1G.7 | 10-bit H.264 ranked last in the picker (no hardware decoder on Apple devices) — **done** | streams pick versions that play as they are |
+| 1G.8 | Play on TV on a download whose preparation has not finished: offer "Prepare first (about N min)" next to "Play now", move it to the front of the preparation queue, and play it as it is once ready (owner: "if the file is already good then no conversion is needed") | no live conversion of downloads |
 
 ## Phase 2 — Bugs
 
