@@ -9,6 +9,18 @@
   build's kodi_airplay_serve_copy + correlated receiver evidence. No IPA/native release dispatched here.
 - Compiled recommendations suite: 41 checks, 0 failures. Phone/TV acceptance and hour-long/caption tests remain open.
 
+## Update 2026-11-12 (build 290)
+
+- Subtitles: Podnapisi is dead (no DNS anywhere); subtitle_sources uses SubDL / OpenSubtitles with the owner's free
+  keys (Subtitles › More › Subtitle keys, saved only on the phone; keys redacted from the log). **Owner confirmed
+  subtitles work on the phone (build 288/290).** AirPlay captions still to test.
+- Build Season: aired check counts undated episodes (Naruto 2007); plan_season KeyError fixed; picks inside a pack
+  now match Elementum's selection (same_pick) and whole-series packs rank last; Close (keeps working) + red Cancel.
+  Device check of a full season queue pending (build 290).
+- Continue Watching: downloaded copies take the fast path through the app's Drive proxy (was 8.8 s). Device timing pending.
+- Notifications: the Drive library check shows as a card (bell and page agree). DEC-037 white loading circle.
+- Log-lag review by a background agent: pending.
+
 ## HANDOFF 2026-11-12 (later): where things stand after build 280 — read this first
 
 Branch `claude/performance-roadmap` (PR #19, draft, not merged). Last IPA delivered: **build-280** (commit 7d30453).
