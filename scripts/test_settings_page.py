@@ -64,11 +64,15 @@ class SettingsPages(unittest.TestCase):
  def test_every_kodi_category_is_a_row(self):
   root=self.read('Settings.xml')
   for id,action in ((9111,'RunScript(service.kodi.ios.bootstrap,skin_settings_page)'),(9112,'RunScript(service.kodi.ios.bootstrap,section_page,interface)'),(9114,'RunScript(service.kodi.ios.bootstrap,section_page,player)'),
-                    (9115,'RunScript(service.kodi.ios.bootstrap,section_page,media)'),(9121,'RunScript(service.kodi.ios.bootstrap,section_page,pvr)'),(9122,'RunScript(service.kodi.ios.bootstrap,section_page,games)'),
+                    (9115,'RunScript(service.kodi.ios.bootstrap,section_page,media)'),
                     (9131,'RunScript(service.kodi.ios.bootstrap,section_page,system)'),(9132,'RunScript(service.kodi.ios.bootstrap,section_page,services)'),(9133,'RunScript(service.kodi.ios.bootstrap,profiles_page)'),
                     (9141,'ActivateWindow(addonbrowser)'),(9142,'ActivateWindow(filemanager)'),(9143,'ActivateWindow(eventlog)'),
                     (9151,'ActivateWindow(systeminfo)'),(9102,'RunScript(service.kodi.ios.bootstrap,addon_updates)')):
    self.assertEqual(self.clicks(root,id),[action])
+ def test_no_pvr_or_games_rows(self):
+  # Owner (2026-11-12): the app ships without PVR clients and game cores, so Settings has no page for them.
+  root=self.read('Settings.xml')
+  for id in (9121,9122):self.assertFalse([c for c in root.iter('control') if c.get('id')==str(id)])
  def test_profile_card_opens_accounts_script_that_exists(self):
   action=self.clicks(self.read('Settings.xml'),9101)[0]
   self.assertEqual(action,'RunScript(service.kodi.ios.bootstrap,accounts_page)')

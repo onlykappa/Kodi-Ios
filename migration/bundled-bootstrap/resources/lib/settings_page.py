@@ -75,8 +75,8 @@ ROOT=[
   R(9172,'Favourites','RunScript(service.kodi.ios.bootstrap,favourites_page)','star.png',ORANGE),
   R(9173,'Check for updates','RunScript(service.kodi.ios.bootstrap,check_updates)','cloud-arrow-down.png',GREEN),
   R(9174,'iPhone navigation / recovery','RunScript(service.kodi.ios.bootstrap,navigation_menu)','life-ring.png',RED)],
- [R(9121,'PVR & Live TV','RunScript(service.kodi.ios.bootstrap,section_page,pvr)','tv.png',RED),
-  R(9122,'Games','RunScript(service.kodi.ios.bootstrap,section_page,games)','gamepad.png',PINK)],
+ # PVR & Live TV and Games are gone (owner, 2026-11-12): the app ships without the PVR clients and game cores
+ # (build_customized_ipa.prune_unused_addons), so those pages had nothing to set.
  [R(9131,'System','RunScript(service.kodi.ios.bootstrap,section_page,system)','gear.png',SILVER),
   R(9132,'Services','RunScript(service.kodi.ios.bootstrap,section_page,services)','sitemap.png',TEAL),
   R(9133,'Profiles','RunScript(service.kodi.ios.bootstrap,profiles_page)','user.png',BLUE)],
@@ -130,7 +130,7 @@ BADGES=[
   S(9505,'Video Versions','Indicator.MovieVersionBanner')],'Shown on the posters in Home, Movies, TV and the Library.'),
  ('Episodes & TV',[S(9511,'Episodes Left','Indicator.DisableEpisodes',True),
   S(9512,'Also on Shows Not Started','Indicator.EnableUnwatchedCount',False,'!Skin.HasSetting(Indicator.DisableEpisodes)'),
-  S(9513,'Premiere / Finale','Indicator.EpisodeTypeBanner'),S(9514,'Catch-up (Live TV)','Indicator.DisablePVRGuideCatchUp',True)],
+  S(9513,'Premiere / Finale','Indicator.EpisodeTypeBanner')],   # no Live TV: its Catch-up indicator is gone
   'Episodes Left counts the episodes you have not watched yet, on shows you have started.'),
  ('Trakt (TMDb Helper)',[S(9521,'On Your Watchlist','Indicator.TraktWatchlist'),S(9522,'In Your Favourites','Indicator.TraktFavourites')],
   'Shown when you are signed in to Trakt in TMDb Helper.'),

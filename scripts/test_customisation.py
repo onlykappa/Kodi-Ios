@@ -11,7 +11,7 @@ counts=load('customise_counts',BOOT/'customise_counts.py')
 # Fuse 3's own switches (Dialog_DialogCustom.xml): DialogCustom_Settings_Items_Indicators and the overlay pair of
 # DialogCustom_VideoOSD_Items, with whether Fuse shows them on when the setting is absent.
 FUSE={'Indicator.DisableWatched':True,'Indicator.DisableLibrary':True,'Indicator.DisableCollection':True,'Indicator.DisableProgress':True,
-      'Indicator.DisableEpisodes':True,'Indicator.EnableUnwatchedCount':False,'Indicator.DisablePVRGuideCatchUp':True,
+      'Indicator.DisableEpisodes':True,'Indicator.EnableUnwatchedCount':False,
       'Indicator.TraktWatchlist':False,'Indicator.TraktFavourites':False,'Indicator.EpisodeTypeBanner':False,'Indicator.MovieVersionBanner':False,
       'OSD.InfoOverlay.DisableLandscapeOnInfo':True,'OSD.InfoOverlay.DisablePlotRatingsOnInfo':True}
 
@@ -62,7 +62,7 @@ class Pages(unittest.TestCase):
   self.assertEqual([o.text for o in self.control(9531).findall('onclick')],['Skin.SetNumeric(OSD_Timeout)'])
   labels=[l.text for l in self.root.iter('label')];self.assertIn('$INFO[Skin.String(OSD_Timeout),, s]',labels);self.assertIn('Never',labels)
  def test_counts(self):
-  rules=sp.count_rules();self.assertEqual(len(rules['badges']),11);self.assertEqual(len(rules['osd']),2)
+  rules=sp.count_rules();self.assertEqual(len(rules['badges']),10)   # no Live TV Catch-up (owner, 2026-11-12);self.assertEqual(len(rules['osd']),2)
   on={'!Skin.HasSetting(Indicator.DisableWatched)','Skin.HasSetting(Indicator.TraktWatchlist)'}
   self.assertEqual(counts.values(rules,lambda c:c in on),{'custom.badges':'2 on','custom.osd':'0 on','custom.info':'0 on'})
   self.assertEqual(counts.rules(),rules)
