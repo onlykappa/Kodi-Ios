@@ -12,6 +12,7 @@ import sys
 import threading
 import time
 import urllib.request
+import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, 'resources', 'lib'))
@@ -57,6 +58,11 @@ def http_get(url, headers=None):
     # Roadmap 2.13: the owner's DNS refuses the subtitle site; doh_fetch retries through DNS over HTTPS.
     import doh_fetch
     return doh_fetch.get(url, dict({'Accept': 'application/json', 'User-Agent': UA}, **(headers or {})))
+
+
+def redact(text):
+    import re
+    return re.sub(r'(?i)(api[_-]?key=|Api-Key[\'"]?: ?[\'"]?|Bearer )[^&\s\'",)]+', r'\1…', str(text))
 
 
 def http_post(url, body, headers=None):
@@ -107,7 +113,8 @@ def run(mode):
     pid = player_id(xbmc)
     if pid is None:
         return
-    log = lambda m: xbmc.log('Kodi iOS tracks: ' + m, xbmc.LOGINFO)
+    # Owner log 20b1ca76: an error message carried the SubDL key into kodi.log; keys never reach the log.
+    log = lambda m: xbmc.log('Kodi iOS tracks: ' + redact(m), xbmc.LOGINFO)
     lang, lang_name = subtitle_language(xbmc)
     folder = xbmcvfs.translatePath('special://temp/kodiios-subtitles/')
 
@@ -260,7 +267,10 @@ def run(mode):
                 raise ValueError('no subtitle file in the download')
             name, data = got
             os.makedirs(folder, exist_ok=True)
-            path = os.path.join(folder, '%s.%s.%s' % (result['id'], lang, name.rsplit('.', 1)[-1].lower()))
+            # Owner log 20b1ca76: SubDL's id is its download path ('/subtitle/…zip?…'), which made an absolute, missing
+            # path; the file is named by a hash of the id.
+            path = os.path.join(folder, '%s.%s.%s' % (zlib.crc32(str(result['id']).encode('utf-8')) & 0xffffffff, lang,
+                                                      name.rsplit('.', 1)[-1].lower()))
             with open(path, 'wb') as f:
                 f.write(data)
             before = {s.get('index') for s in (rpc(xbmc, 'Player.GetProperties', {'playerid': pid, 'properties': ['subtitles']}) or {}).get('subtitles') or []}

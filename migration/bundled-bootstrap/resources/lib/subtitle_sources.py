@@ -12,7 +12,7 @@ today need a free key, so the app asks, in order:
   order, lower case, or the API redirects) with query or tmdb_id/parent_tmdb_id, season_number, episode_number, year,
   languages; data[].attributes {release, language, hearing_impaired, files[{file_id, file_name}]}; POST /download
   {file_id} answers {link, remaining}; the link is the subtitle file itself.
-- Podnapisi, last, in case it comes back (track_menu.find).
+- Podnapisi is no longer asked (it does not resolve; each search waited 32 s for it, owner log 20b1ca76).
 
 Keys live only on the phone (profile/addon_data/service.kodi.ios.bootstrap/subtitle-keys.json), never in Git. A
 search runs every source that has a key, ranks all results together against the playing file (track_menu.rank) and
@@ -62,7 +62,8 @@ def sources(keys):
         out.append('subdl')
     if keys.get('opensubtitles'):
         out.append('opensubtitles')
-    out.append('podnapisi')
+    # Podnapisi is no longer asked: its name does not resolve anywhere, and each search waited 32 s for it to fail
+    # (owner log 20b1ca76).
     return out
 
 

@@ -51,15 +51,16 @@ class Together(unittest.TestCase):
    calls.append(url)
    if 'subdl' in url:return json.dumps({'status':True,'subtitles':[{'release_name':'Interstellar.2014.1080p.WEB','lang':'english','url':'/s.zip'}]}).encode()
    if 'opensubtitles' in url:return json.dumps({'data':[{'attributes':{'language':'en','release':'Interstellar.2014.2160p.4K.BluRay.x265.10bit.AAC5.1-YTS.MX','files':[{'file_id':9}]}}]}).encode()
-   raise OSError('podnapisi gone')
+   raise OSError('unexpected source')
   logged=[]
   r=ss.find(get,KEYS,'en','Interstellar',2014,filename='Interstellar.2014.2160p.4K.BluRay.x265.10bit.AAC5.1-[YTS.MX].mp4',log=logged.append)
   self.assertEqual([x['source'] for x in r],['opensubtitles','subdl'])   # the closer release first
-  self.assertIn('podnapisi: OSError',logged)
+  self.assertEqual(sorted(logged),['opensubtitles: 1 found','subdl: 1 found'])   # Podnapisi is not asked
  def test_all_failing_raises_and_no_key_uses_podnapisi_only(self):
   def dead(url,headers):raise OSError('down')
-  with self.assertRaises(OSError):ss.find(dead,{k:'' for k in ss.KEY_NAMES},'en','X',2000)
-  self.assertEqual(ss.sources({k:'' for k in ss.KEY_NAMES}),['podnapisi'])
+  with self.assertRaises(OSError):ss.find(dead,dict(KEYS,opensubtitles=''),'en','X',2000)
+  self.assertEqual(ss.sources({k:'' for k in ss.KEY_NAMES}),[])
+  self.assertEqual(ss.find(dead,{k:'' for k in ss.KEY_NAMES},'en','X',2000),[])   # no key: nothing to ask
  def test_opensubtitles_download_uses_the_link(self):
   posts=[]
   def post(url,body,headers):
@@ -79,5 +80,16 @@ class FileNames(unittest.TestCase):
   self.assertEqual(tm.movie_from_release('Interstellar.2014.2160p.4K.BluRay.x265.10bit.AAC5.1-[YTS.MX].mp4'),{'title':'Interstellar','year':2014})
   self.assertEqual(tm.movie_from_release('Blade.Runner.2049.2017.2160p.mkv'),{'title':'Blade Runner 2049','year':2017})
   self.assertIsNone(tm.movie_from_release('Home Alone'))
+
+class NoKeysInTheLog(unittest.TestCase):
+ def test_redact_and_safe_file_name(self):
+  # Owner log 20b1ca76: an error line carried the SubDL key; the file was named after the download path.
+  import importlib.util
+  root=Path(__file__).resolve().parents[1]
+  sp=importlib.util.spec_from_file_location('tracks_page',root/'migration/bundled-bootstrap/tracks.py');t=importlib.util.module_from_spec(sp);sp.loader.exec_module(t)
+  self.assertNotIn('SECRET',t.redact("No such file: '/subtitle/1.zip?api_key=SECRET.en.srt'"))
+  self.assertNotIn('SECRET',t.redact("{'Api-Key': 'SECRET', 'Authorization': 'Bearer SECRET'}"))
+  src=(root/'migration/bundled-bootstrap/tracks.py').read_text()
+  self.assertIn("zlib.crc32(str(result['id'])",src);self.assertIn('redact(m)',src)
 
 if __name__=='__main__':unittest.main()
