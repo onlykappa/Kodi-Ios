@@ -36,7 +36,7 @@ class DeckPicker(unittest.TestCase):
   self.assertIsNone(dp.run('t',['not a torrent line']*10))
   # Kodi-iOS: a short list gets the page too (its links are checked against the title: source_match.py).
   seen=[]
-  with mock.patch.object(dp,'choose_source',lambda title,rows,q,c:seen.append(rows) or 2):self.assertEqual(dp.run('t',ITEMS[:3]),2)
+  with mock.patch.object(dp,'choose_source',lambda title,rows,q,c,*a:seen.append(rows) or 2):self.assertEqual(dp.run('t',ITEMS[:3]),2)
   self.assertEqual(len(seen[0]),3)
 
 class WatchMenuDetails(unittest.TestCase):
@@ -90,14 +90,14 @@ class UmbrellaPage(unittest.TestCase):
   self.assertFalse(any('top pick' in l or 'seeds' in l for l in labels))
   self.assertEqual(sys.modules.get('elementum'),None)  # stand-ins only lived inside load()
  def test_run_returns_what_umbrellas_window_returns(self):
-  deck=types.SimpleNamespace(run=lambda title,labels,expect=None:1)
+  deck=types.SimpleNamespace(run=lambda title,labels,expect=None,mode=None:1)
   with mock.patch.object(up,'share',lambda meta:None):
    action,item=up.run(UMBRELLA,{'title':'Scary Movie'},deck,FakeItem)
    self.assertEqual(action,'play_Item')
    # The uncached torrent is left to Umbrella's own list, so the second playable entry is UMBRELLA[1].
    self.assertEqual(json.loads(item.getProperty('umbrella.source_dict')),[UMBRELLA[1]])
-   self.assertEqual(up.run(UMBRELLA,{},types.SimpleNamespace(run=lambda t,l,expect=None:-1),FakeItem),(None,''))
-   self.assertIsNone(up.run(UMBRELLA,{},types.SimpleNamespace(run=lambda t,l,expect=None:None),FakeItem))
+   self.assertEqual(up.run(UMBRELLA,{},types.SimpleNamespace(run=lambda t,l,expect=None,mode=None:-1),FakeItem),(None,''))
+   self.assertIsNone(up.run(UMBRELLA,{},types.SimpleNamespace(run=lambda t,l,expect=None,mode=None:None),FakeItem))
    self.assertIsNone(up.run([UMBRELLA[2]],{},deck,FakeItem))
  def test_hook_goes_into_umbrellas_window_once(self):
   import tempfile
@@ -177,5 +177,62 @@ class SlowToPrepare(unittest.TestCase):
   self.assertEqual(dp.avoid_request(now=1000,read=lambda:'4k|900'),'4k')
   self.assertIsNone(dp.avoid_request(now=1000+dp.AVOID_FOR+100,read=lambda:'4k|900'))
   self.assertIsNone(dp.avoid_request(now=1000,read=lambda:''))
+
+class TvReady(unittest.TestCase):
+ """Roadmap 1B.1: 10-bit H.264 (Hi10P) is converted for AirPlay; say so on the version row."""
+ def item(self,name,tags=''):return {'name':name,'tags_text':tags,'providers':[],'quality':'1080p','seeds':5,'size':1.0,'icon':'','idx':0}
+ def test_only_ten_bit_h264(self):
+  self.assertTrue(dp.converts_for_tv(self.item('Show.S01E01.1080p.WEB.x264.10bit-GRP')))
+  self.assertTrue(dp.converts_for_tv(self.item('Show S01E01 [1080p Hi10P AVC]')))
+  self.assertFalse(dp.converts_for_tv(self.item('Show.S01E01.1080p.WEB.x264-GRP')))
+  self.assertFalse(dp.converts_for_tv(self.item('Show.S01E01.1080p.WEB.x265.10bit-GRP')))
+ def test_row_badge(self):
+  rows=dp.build_rows([self.item('Show.S01E01.1080p.WEB.x264-GRP'),self.item('Show.S01E01.1080p.x264.10bit-GRP')])
+  self.assertEqual([r['badge'] for r in rows],['BEST MATCH','10-BIT \u00b7 SLOW ON AIRPLAY'])
+
+class AllLinks(unittest.TestCase):
+    def test_sorts_keep_the_hidden_row_last(self):
+        rows=[{'size':8.4,'seeds':188},{'size':58,'seeds':214},{'size':2.6,'seeds':120},{'headline':'Show hidden'}]
+        self.assertEqual(dp.sort_order(rows,u'best'),[0,1,2,3])
+        self.assertEqual(dp.sort_order(rows,u'small'),[2,0,1,3])
+        self.assertEqual(dp.sort_order(rows,u'seeds'),[1,0,2,3])
+    def test_rows_carry_pills_size_and_seeds(self):
+        r=dp.build_rows(dp.parse_all(ITEMS[:1]))[0]
+        self.assertLessEqual(len(r['pills']),4);self.assertIn('size',r);self.assertIn('seeds',r)
+
+
+class NoStutter(unittest.TestCase):
+    def test_ten_bit_h264_goes_after_versions_that_play_as_they_are(self):
+        raw=['1080p (500 / 0) [4.0 GB] WebDL H.264 - Torrentio\nShow.S01.1080p.WEB.10bit.x264-A.mkv\nicon.png',
+             '1080p (50 / 0) [3.0 GB] WebDL H.265 - Torrentio\nShow.S01.1080p.WEB.x265-B.mkv\nicon.png']
+        self.assertTrue(dp.converts_for_tv(dp.parse_all(raw)[0]))
+        try:
+            dp.MODE[0]=u'stream'   # Umbrella: live playback, nothing AirPlay must convert first
+            self.assertEqual([r['idx'] for r in dp.pick(dp.parse_all(raw),top_n=5)],[1,0])
+            dp.MODE[0]=u'download' # Elementum: prepared once on Drive, Elementum's order (best seeded first)
+            self.assertEqual([r['idx'] for r in dp.pick(dp.parse_all(raw),top_n=5)],[0,1])
+        finally:
+            dp.MODE[0]=u'download'
+    def test_dolby_vision_without_hdr10_counts_as_live_conversion(self):
+        dv=dp.parse_all(['2160p (90 / 0) [12 GB] WebDL H.265 - Torrentio\nShow.S01E01.2160p.WEB-DL.DV.HEVC.mkv\nicon.png',
+                         '2160p (90 / 0) [12 GB] WebDL H.265 - Torrentio\nShow.S01E01.2160p.WEB-DL.DV.HDR10.HEVC.mkv\nicon.png'])
+        self.assertEqual([dp.dv_only(i) for i in dv],[True,False])
+
+
+class NothingFoundState(unittest.TestCase):
+ def test_all_links_sets_and_clears_the_empty_state_and_try_again_closes(self):
+  # Board 09: the page's empty group shows on deck.empty and Try Again is id 32512 (portrait.deck_page).
+  code=(ROOT/'migration/deck-picker/deck_picker.py').read_text()
+  self.assertIn("self.setProperty('deck.empty', u'' if self.rows or self.mode != u'all' else",code)
+  self.assertIn('elif controlId == 32512:',code)
+  self.assertIn("SetProperty(deck.retry,true)",(ROOT/'migration/bundled-bootstrap/resources/lib/portrait.py').read_text())
+
+class SeasonBuildPicks(unittest.TestCase):
+ def test_whole_series_pack_comes_after_a_single_episode(self):
+  # Owner log 15e6cbc4: episode 1 was taken from "Naruto Shippuden (001-500) [Complete Series ...]".
+  pack=dp.parse_item('1080p (232 / 0) [262.85 MB] WebDL H.264 - Torrentio\nNaruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio)/Naruto Shippuden Episode 001 Homecoming.mkv\nicon.png',0)
+  single=dp.parse_item('1080p (12 / 0) [400 MB] WebDL H.264 - Torrentio\nNaruto.Shippuden.S01E01.1080p.WEB.x264\nicon.png',1)
+  self.assertEqual(dp.auto_choose([pack,single],{'quality':'1080p','strict_quality':True})['idx'],1)
+  self.assertEqual(dp.auto_choose([pack],{'quality':'1080p','strict_quality':True})['idx'],0)   # still used when alone
 
 if __name__=='__main__':unittest.main()

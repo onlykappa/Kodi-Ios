@@ -61,6 +61,7 @@ class SeasonDownload(unittest.TestCase):
      h=email.message.Message();h['Location']=hops[path];raise urllib.error.HTTPError(url,302,'Found',h,None)
     class R:
      def read(self):return b''
+     def close(self):pass
     return R()
   last=dl.follow('plugin://plugin.video.elementum/show/95350/season/1/download',opener=Opener())
   self.assertEqual(seen[0],'http://127.0.0.1:65220/show/95350/season/1/download')

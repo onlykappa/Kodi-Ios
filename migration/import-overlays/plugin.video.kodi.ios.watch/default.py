@@ -7,6 +7,11 @@ if LIB not in sys.path:sys.path.insert(0,LIB)
 from ios_watch_routes import choices
 
 def run(argv):
+ try:   # roadmap 3.5: one more list run for the one-minute performance line (Home window property counter)
+  import xbmcgui
+  window=xbmcgui.Window(10000);name='KodiIOS.Count.'+('cached' if argv[2].startswith('?action=cached&key=') else 'watch')
+  window.setProperty(name,str(int(window.getProperty(name) or 0)+1))
+ except Exception:pass
  if argv[2].startswith('?action=cached&key='):
   # Hub rows and heroes from their last TMDb Helper result (ios_cache.py): read a file and list it, nothing else.
   import xbmc,xbmcgui,xbmcplugin,xbmcvfs
@@ -36,8 +41,12 @@ def run(argv):
   # Kodi's parent (..) item leads here. It is navigation, not a movie to resolve.
   from ios_library import root_directory
   root_directory(handle);return
+ if params.get('action')=='search':   # board 12: the Search page's All results in MOVIES / TV SHOWS sections
+  from ios_search import directory;directory(handle,params.get('query',''));return
  if params.get('action')=='library':
   from ios_library import directory;directory(handle,params);return
+ if params.get('action')=='library_remove':
+  from ios_remove import run;run(params);return
  if params.get('action')=='library_play':
   from ios_library import play_downloaded;play_downloaded(handle,params);return
  if params.get('action')=='continue':
@@ -85,7 +94,8 @@ def run(argv):
   xbmcplugin.endOfDirectory(handle,succeeded=False);return
  for entry in entries:
   li=xbmcgui.ListItem(label=entry['label']);li.setArt({k:params[k] for k in ['poster','fanart','thumb'] if params.get(k)})
-  li.setInfo('video',{'title':params.get('title',''),'mediatype':params.get('kind','')})
+  tag=li.getVideoInfoTag();tag.setTitle(params.get('title',''))   # roadmap 3.6: ListItem.setInfo is deprecated in Kodi 21 (a log warning per item)
+  if params.get('kind'):tag.setMediaType(params.get('kind'))
   if not entry['folder']:li.setProperty('IsPlayable','true')
   xbmcplugin.addDirectoryItem(handle,entry['url'],li,isFolder=entry['folder'])
  xbmcplugin.setPluginCategory(handle,'Watch options');xbmcplugin.endOfDirectory(handle)

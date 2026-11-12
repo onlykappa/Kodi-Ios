@@ -1,5 +1,5 @@
 """Exercise actual source filtering, strict quality queue receipts, durable retries and pre-transfer visibility."""
-import datetime,importlib.util,io,json,sys,tempfile,types,unittest,urllib.error,urllib.parse
+import datetime,http.server,importlib.util,io,json,sys,tempfile,threading,time,types,unittest,urllib.error,urllib.parse
 from pathlib import Path
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
@@ -101,6 +101,30 @@ class Batch(unittest.TestCase):
   self.cancel=True;self.assertEqual(self.run_batch({2:['1080p']}),[]);self.assertFalse(self.labels)
  def test_no_sources_has_no_unavailable_menu_options(self):
   self.assertEqual(self.run_batch({}),[]);self.assertFalse(self.labels)
+ def test_scan_budget_offers_only_seen_qualities_and_retains_unscanned_episodes(self):
+  clock=[0]
+  def search(n,purpose,q=None):
+   self.calls.append((n,purpose,q))
+   if purpose=='scan':clock[0]+=31;return {'qualities':['1080p']}
+   return {'queued':True}
+  with patch.object(season.time,'monotonic',side_effect=lambda:clock[0]):
+   got=season.run(self.xbmc,self.gui,self.dialog,Home(),self.tmp.name,'123','Sample Show',1,[1,2,3,4],set(),search)
+  self.assertEqual(got,[1,2])
+  self.assertEqual([n for n,p,q in self.calls if p=='scan'],[1,2])
+  planned=watch.load(self.tmp.name)['shows']['123']['planned']
+  self.assertEqual(planned['1:3'],{'quality':'1080p','status':'not_found'})
+  self.assertEqual(planned['1:4'],{'quality':'1080p','status':'not_found'})
+ def test_cancel_during_last_scan_never_opens_quality_or_creates_plan(self):
+  def search(*args):self.cancel=True;return {'qualities':['4k']}
+  self.assertEqual(season.run(self.xbmc,self.gui,self.dialog,Home(),self.tmp.name,'123','Sample Show',1,[1],set(),search),[])
+  self.assertFalse(self.labels);self.assertFalse(watch.load(self.tmp.name)['shows'])
+ def test_cancel_active_queue_cancels_the_remaining_retry_plan(self):
+  def search(n,purpose,q=None):
+   if purpose=='scan':return {'qualities':['1080p']}
+   self.cancel=True;raise season.dl.Canceled('canceled')
+  self.assertEqual(season.run(self.xbmc,self.gui,self.dialog,Home(),self.tmp.name,'123','Sample Show',1,[1,2],set(),search),[])
+  show=watch.load(self.tmp.name)['shows']['123']
+  self.assertFalse(show['planned']);self.assertEqual(show['episodes']['1:1']['status'],'canceled')
  def test_future_undated_and_specials_are_not_scraped(self):
   rows=[{'episode':n,'firstaired':date} for n,date in [(1,'2026-11-09'),(2,'2026-11-10'),(3,'2026-11-11'),(4,''),(0,'2026-11-09')]]
   self.assertEqual(season.aired(rows,datetime.date(2026,11,10)),[1,2])
@@ -210,5 +234,61 @@ class RedirectBoundary(unittest.TestCase):
   def failed(*a,**k):raise OSError('offline')
   with self.assertRaises(OSError):season.request(self.home,'123',1,2,follow=failed)
   self.assertFalse(watch.active_request(self.home))
+
+class InterruptibleHTTP(unittest.TestCase):
+ def setUp(self):
+  self.started=threading.Event();self.release=threading.Event();self.cancel=threading.Event();owner=self
+  class Slow(http.server.BaseHTTPRequestHandler):
+   def log_message(self,*args):pass
+   def do_GET(self):
+    if self.path=='/body':
+     self.send_response(200);self.send_header('Content-Length','100');self.send_header('Connection','close');self.end_headers()
+    owner.started.set();owner.release.wait(4)
+    if self.path!='/body':
+     self.send_response(302);self.send_header('Location','/download?late=1');self.end_headers()
+  self.server=http.server.ThreadingHTTPServer(('127.0.0.1',0),Slow);self.server.daemon_threads=True
+  threading.Thread(target=self.server.serve_forever,daemon=True).start()
+ def tearDown(self):
+  self.release.set();self.server.shutdown();self.server.server_close()
+ def check_canceled(self,path):
+  timer=threading.Thread(target=lambda:(self.started.wait(2),self.cancel.set()),daemon=True);timer.start()
+  routed=[];started=time.monotonic()
+  with self.assertRaises(season.dl.Canceled):
+   season.dl.follow('http://127.0.0.1:%d%s'%(self.server.server_address[1],path),timeout=3,
+    cancel=self.cancel.is_set,engine=lambda:True,route=lambda url:routed.append(url) and False)
+  self.assertLess(time.monotonic()-started,1.5)
+  self.assertEqual(len(routed),1)  # a late /download redirect never reaches the queue
+ def test_cancel_interrupts_headers_and_never_routes_a_late_download(self):self.check_canceled('/headers')
+ def test_cancel_interrupts_response_body_even_with_connection_close(self):self.check_canceled('/body')
+ def test_deadline_interrupts_a_stalled_request(self):
+  started=time.monotonic()
+  with self.assertRaises(TimeoutError):season.dl._interruptible_get('http://127.0.0.1:%d/headers'%self.server.server_address[1],.2,lambda:False)
+  self.assertLess(time.monotonic()-started,1.5)
+
+class AiredEpisodes(unittest.TestCase):
+    """Owner (2026-11-12): Naruto Shippuden S1 (2007) said no aired episodes could be verified."""
+    def test_undated_episodes_count_unless_the_season_is_only_future(self):
+        import datetime
+        from season_sources import aired
+        today=datetime.date(2026,11,12)
+        rows=lambda *dates:[{'episode':n,'firstaired':d,'filetype':'file'} for n,d in enumerate(dates,1)]
+        self.assertEqual(aired(rows('','',''),today),[1,2,3])                       # no dates at all
+        self.assertEqual(aired(rows('2007-02-15','',''),today),[1,2,3])             # some dated, aired
+        self.assertEqual(aired(rows('2026-12-01','',''),today),[])                  # brand-new season
+        self.assertEqual(aired(rows('','2026-12-01',''),today),[1])                 # undated before the next one
+        self.assertEqual(aired(rows('2007-02-15','2027-01-01'),today),[1])          # future one left out
+        self.assertEqual(aired([{'episode':1,'premiered':'2007-02-15'}],today),[1])
+
+class PlanSeason(unittest.TestCase):
+    def test_download_all_plans_even_when_the_show_could_not_be_registered(self):
+        # Owner log 4e7b2fb2 (build 284): KeyError '31910' after Download All, nothing queued.
+        with tempfile.TemporaryDirectory() as profile:
+            watch.plan_season(profile,'31910','',1,[1,2,3],'1080p',now=5)
+            show=watch.load(profile)['shows']['31910']
+            self.assertEqual(sorted(show['planned']),['1:1','1:2','1:3'])
+            watch.record_planned(profile,'31910',1,2,True)
+            self.assertEqual(watch.load(profile)['shows']['31910']['planned']['1:2']['status'],'queued')
+            watch.plan_season(profile,'31910','Naruto Shippuden',1,[4],'1080p',now=6)
+            self.assertEqual(watch.load(profile)['shows']['31910']['title'],'Naruto Shippuden')
 
 if __name__=='__main__':unittest.main()

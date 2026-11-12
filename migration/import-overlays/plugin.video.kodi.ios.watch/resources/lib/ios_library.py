@@ -50,6 +50,54 @@ def local_entries(kind,lib):
   out.append(dict(info,path=path))
  return out
 
+def mark_open(via):
+ """Roadmap 1C.1: the service logs how long this open takes to a playing picture (open_timing.py)."""
+ try:
+  import json,time,xbmcgui
+  xbmcgui.Window(10000).setProperty('KodiIOS.Open',json.dumps({'t':time.time(),'via':via}))
+ except Exception:pass
+
+def mark_resolved():
+ """Roadmap 1C.1: the address has been handed to Kodi (the 'resolve' stage of the open timing line ends here)."""
+ try:
+  import time,xbmcgui
+  xbmcgui.Window(10000).setProperty('KodiIOS.OpenResolved',repr(time.time()))
+ except Exception:pass
+
+def drive_file_id(path):
+ """The Drive file id of a Google Drive add-on play link, or ''."""
+ url=urllib.parse.urlsplit(str(path or ''));query=urllib.parse.parse_qs(url.query)
+ if url.scheme=='plugin' and url.netloc=='plugin.googledrive' and query.get('action')==['play']:return (query.get('item_id') or [''])[0]
+ return ''
+
+def warm_copy(path,xbmcvfs=None,ask=None):
+ """Roadmap 1A.4: a title's page opened, so the app's Drive proxy reads the start and the end (the index) of the
+ file Play will open, before Play is tapped. One title per page, never per row focus. Quiet when it cannot."""
+ try:
+  file_id=drive_file_id(path)
+  if not file_id:return False
+  import xbmcgui
+  port=xbmcgui.Window(10000).getProperty('KodiIOS.DriveProxy')
+  if not port.isdigit():return False
+  if ask is None:
+   boot_path(xbmcvfs);import drive_proxy;ask=drive_proxy.ask_warm
+  return bool(ask(int(port),file_id))
+ except Exception:return False
+
+def movie_warm_target(rows):
+ """The Drive movie most likely to be played next from the Movies list: the first one with a resume point."""
+ for route,_,_,info,folder in rows:
+  if folder or info.get('mediatype')!='movie' or info.get('source')!='drive' or not (info.get('resume') or {}).get('position'):continue
+  found=(urllib.parse.parse_qs(urllib.parse.urlsplit(route).query).get('path') or [''])[0]
+  if drive_file_id(found):return found
+ return ''
+
+def boot_path(xbmcvfs):
+ """The bootstrap add-on's lib on sys.path (drivelibrary), once per reused interpreter."""
+ boot=xbmcvfs.translatePath(BOOT)
+ if boot not in sys.path:sys.path.insert(0,boot)  # reused interpreter: once
+ return boot
+
 def show_key(title):return re.sub(r'[^0-9a-z]+','',str(title).casefold())
 
 def local_rows(kind,show,year,entries,lib,art_cache,key,get,cached_only=False,any_year=False):
@@ -172,6 +220,9 @@ def episode_rows(rows,show,lib,art_cache,key,get,cached_only=True):
   if showart.get('genres'):info['genres']=showart['genres']
   if showart.get('year'):info['year']=showart['year']
   info['tmdb_id']=tmdb or ''
+  # Roadmap 2.2: a file named only by its show ('phony.s01e01…') is listed as 'Episode 1', not as the show.
+  if not ep.get('title') and number[1] and (not label or show_key(label)==show_key(show) or show_key(label)==show_key(info.get('tvshowtitle'))):
+   label='Episode %d'%number[1]
   out.append((path,ep.get('title') or label,art,info,folder))
  return sorted(out,key=lambda r:(int(r[3].get('season') or 0),int(r[3].get('episode') or 0)) if r[3].get('mediatype')=='episode' else (-1,0))
 
@@ -311,6 +362,63 @@ def season_rows(rows,params,lib,art_cache,key):
   out.append((page_url(route),'Specials' if number==0 else 'Season %d'%number,art,info,True))
  return out
 
+def nice_title(text):
+ """'the maze runner' -> 'The Maze Runner' for names taken from files; a name with capitals is left as it is."""
+ text=str(text or '').strip()
+ return ' '.join(w[:1].upper()+w[1:] for w in text.split(' ')) if text and text==text.lower() else text
+
+def playback_details(params,lib,art_cache):
+ """(title, info, art) for a downloaded copy, from the TMDb details the Library already saved (no network).
+ Owner (build 232): an episode played from Library showed its file name ('phony.s01e01.1080p…mp4') as the title,
+ Info had nothing to show and the subtitle search looked for the file name (roadmap B.3-B.5)."""
+ movie=params.get('kind')=='movie';title=params.get('title','');show=params.get('show','')
+ def number(key):
+  try:return int(params.get(key) or 0)
+  except (TypeError,ValueError):return 0
+ season,episode=number('season'),number('episode')
+ info={'mediatype':'movie' if movie else 'episode'};art={}
+ if movie:
+  found=lib.artwork('movie',title,params.get('year',''),'',art_cache,None,cached_only=True) or {}
+  title=found.get('name') or nice_title(title)
+  info.update(title=title,year=params.get('year',''),plot=found.get('plot',''),tmdb_id=found.get('tmdb_id',''))
+  art.update({k:found[k] for k in ('poster','fanart') if found.get(k)})
+  return title,info,art
+ show=show or title
+ found=lib.artwork('tv',show,'',None,art_cache,None,cached_only=True) or {}
+ tmdb=params.get('tmdb_id') or found.get('tmdb_id')
+ details=lib.show_details(tmdb,'',art_cache,None,cached_only=True) if tmdb else {}
+ ep=(lib.season(tmdb,season,'',art_cache,None,cached_only=True) or {}).get(str(episode),{}) if tmdb and season else {}
+ looks_like_file=bool(re.search(r'(?i)\bs\d{1,2}[ ._-]?e\d{1,3}\b|\.(mkv|mp4|m4v|avi)$',title)) or show_key(title)==show_key(show)
+ name=ep.get('title') or (title if title and not looks_like_file else ('Episode %d'%episode if episode else show))
+ show_name=details.get('name') or found.get('name') or nice_title(show)
+ if not ep.get('title') and name==show:name=show_name
+ info.update(title=name,tvshowtitle=show_name,season=season,episode=episode,plot=ep.get('plot') or details.get('plot',''),tmdb_id=tmdb or '')
+ if ep.get('runtime'):info['duration']=int(ep['runtime'])*60
+ if ep.get('aired'):info['premiered']=ep['aired']
+ fan=details.get('fanart') or found.get('fanart','');poster=details.get('poster') or found.get('poster','')
+ art.update({k:v for k,v in {'thumb':ep.get('thumb') or fan,'fanart':fan,'poster':poster,'tvshow.poster':poster,
+                             'tvshow.fanart':fan,'tvshow.clearlogo':details.get('clearlogo','')}.items() if v})
+ return name,info,art
+
+def apply_details(li,info,art):
+ tag=li.getVideoInfoTag();tag.setMediaType(info['mediatype']);tag.setTitle(info.get('title',''))
+ if info.get('plot'):tag.setPlot(info['plot'])
+ if info['mediatype']=='episode':
+  tag.setTvShowTitle(info.get('tvshowtitle',''))
+  if info.get('season'):tag.setSeason(int(info['season']))
+  if info.get('episode'):tag.setEpisode(int(info['episode']))
+  if info.get('premiered'):tag.setPremiered(info['premiered'])
+ elif str(info.get('year') or '').isdigit():tag.setYear(int(info['year']))
+ if info.get('duration'):tag.setDuration(int(info['duration']))
+ if art:li.setArt(art)
+
+def empty_show_row(details):
+ """Roadmap 2.17 (old ISSUE-155): a show folder with no finished episode opened as a blank page. One row says why."""
+ art={k:details[k] for k in ('poster','fanart') if details.get(k)}
+ return (ME+'?'+urllib.parse.urlencode({'action':'library','type':'tv'}),'No finished episodes yet',art,
+         {'mediatype':'video','plot':'Episodes appear here when their copy to Google Drive finishes. '
+          'Progress is in Notifications.','properties':{'KodiIOS.EmptyShow':'true'}},True)
+
 def play_downloaded(handle,params):
  """Resolve a completed copy directly and retain progress in the same history used by Continue Watching."""
  import xbmc,xbmcgui,xbmcplugin,xbmcvfs
@@ -327,10 +435,34 @@ def play_downloaded(handle,params):
  if total and position>=0.92*total:position=0
  if position and params.get('kind')=='movie' and params.get('ask')=='1':
   stamp='%d:%02d:%02d'%(int(position)//3600,int(position)//60%60,int(position)%60)
-  choice=xbmcgui.Dialog().select(params.get('title') or 'Movie',['Continue from '+stamp,'Start from beginning'])
+  # Roadmap 2.11/U.1: the approved sheet, not Kodi's select box (its taps could come back as "nothing picked").
+  choice=None
+  try:
+   import choice_sheet_loader
+   sheet=choice_sheet_loader.load()
+   if sheet is not None:
+    choice=sheet.choose({'heading':params.get('title') or 'Movie','rows':[{'label':'Continue from '+stamp,'detail':'Where you stopped'},
+                         {'label':'Start from beginning','detail':''}]},path=getattr(sheet,'HOME',None))
+  except Exception:choice=None
+  if choice is None:choice=xbmcgui.Dialog().select(params.get('title') or 'Movie',['Continue from '+stamp,'Start from beginning'])
   if choice<0:xbmcplugin.setResolvedUrl(handle,False,xbmcgui.ListItem());return
   if choice==1:position=0
  li=xbmcgui.ListItem(label=params.get('title',''),path=path);li.setProperty('IsPlayable','true')
+ mark_open('library')
+ try:
+  boot_path(xbmcvfs)
+  import drivelibrary as lib
+  name,info,art=playback_details(params,lib,lib.load_json(os.path.join(xbmcvfs.translatePath(STATE),'drive-library-art.json'),{}))
+  li.setLabel(name);apply_details(li,info,art)
+  if drive:
+   import xbmcaddon
+   state=xbmcvfs.translatePath(STATE)
+   ours=xbmcgui.Window(10000).getProperty('KodiIOS.DriveProxy')   # roadmap 1A.1: the app's own Drive proxy
+   fast=lib.direct_url(path,state,ours,ours=True) if ours else None
+   via='app proxy' if fast else 'Drive add-on stream'
+   fast=fast or lib.direct_url(path,state,xbmcaddon.Addon('plugin.googledrive').getSetting('download.service.port'))
+   if fast:li.setPath(fast);xbmc.log('Kodi iOS Library: Drive copy opened through the %s'%via,xbmc.LOGINFO)
+ except Exception as error:xbmc.log('Kodi iOS Library: playback details unavailable (%s)'%type(error).__name__,xbmc.LOGWARNING)
  li.getVideoInfoTag().setResumePoint(position,total)
  if position:li.setProperty('StartOffset',str(position))
  import ios_continue
@@ -343,15 +475,22 @@ def play_downloaded(handle,params):
   try:target.write(text)
   finally:target.close()
  try:
+  # Owner (build 252 screenshot): Continue Watching showed "the maze runner" and "phony" with no picture: the
+  # record kept the file's name and no art. It takes the Library's saved TMDb name, id and art now.
+  try:rec_info,rec_art=info,art
+  except NameError:rec_info,rec_art={},{}
   if params.get('kind')=='movie':
-   ios_continue.record_downloaded_movie(params,path,position,total,read,write)
-  elif str(params.get('tmdb_id','')).isdecimal():
-   player=SimpleNamespace(tmdb_type='tv',tmdb_id=params['tmdb_id'],season=params.get('season','0'),episode=params.get('episode','0'),
-                          details=SimpleNamespace(infolabels={'title':params.get('title',''),'tvshowtitle':params.get('show','')},art={}))
+   ios_continue.record_downloaded_movie(dict(params,title=rec_info.get('title') or params.get('title',''),
+                                             tmdb_id=params.get('tmdb_id') or rec_info.get('tmdb_id','')),path,position,total,read,write,art=rec_art)
+  elif str(params.get('tmdb_id') or rec_info.get('tmdb_id') or '').isdecimal():
+   player=SimpleNamespace(tmdb_type='tv',tmdb_id=params.get('tmdb_id') or rec_info.get('tmdb_id'),season=params.get('season','0'),episode=params.get('episode','0'),
+                          details=SimpleNamespace(infolabels={'title':rec_info.get('title') or params.get('title',''),
+                                                              'tvshowtitle':rec_info.get('tvshowtitle') or params.get('show','')},art=rec_art))
    ios_continue.record(player,read,write,choice='local',preserve_player=True)
   else:
    data=ios_continue.load(read);data.pop('current',None);ios_continue.save(data,write)
  except (OSError,ValueError,RuntimeError):xbmc.log('Kodi iOS Library: playback history could not be updated',xbmc.LOGWARNING)
+ mark_resolved()
  xbmcplugin.setResolvedUrl(handle,True,li)
 
 def directory(handle,params):
@@ -370,8 +509,7 @@ def _directory(handle,params):
  kind='tv' if params.get('type')=='tv' else 'movie';folder=params.get('folder');show=params.get('show','')
  local=params.get('local')=='1';merge=params.get('merge')=='1';episodes=bool(folder or local or merge);year=params.get('year','')
  show_page=kind=='tv' and episodes and bool(show)
- boot=xbmcvfs.translatePath(BOOT)
- if boot not in sys.path:sys.path.insert(0,boot)  # reused interpreter: once
+ boot_path(xbmcvfs)
  import drivelibrary as lib
  state_dir=xbmcvfs.translatePath(STATE)
  def rpc(method,args):
@@ -407,12 +545,15 @@ def _directory(handle,params):
   if params.get('season') is not None:
    rows=[row for row in rows if str(row[3].get('season') or '0')==params['season']]
   props=play_properties(rows)
+  target=play_target(rows)
+  if target:warm_copy(target[0],xbmcvfs)   # roadmap 1A.4
   search=lib.artwork('tv',show,'',key,art_cache,None,cached_only=True)
   details=dict(search,**lib.show_details(search.get('tmdb_id'),key,art_cache,None,cached_only=True))
   props.update({'KodiIOS.ShowPlot':details.get('plot',''),'KodiIOS.ShowYear':str(details.get('year') or year),
                 'KodiIOS.ShowRating':str(details.get('rating') or ''),'KodiIOS.ShowGenres':' / '.join(details.get('genres') or [])})
   if params.get('season') is None:rows=season_rows(rows,params,lib,art_cache,key)
   else:rows=[(play_route(row),row[1],row[2],dict(row[3],properties=play_properties([row])),row[4]) for row in rows]
+  if not rows:rows=[empty_show_row(details)]
  else:
   props={key:'' for key in ('KodiIOS.DownloadedShow','KodiIOS.PlayLabel','KodiIOS.PlayPath','KodiIOS.PlayResume',
                            'KodiIOS.ShowPlot','KodiIOS.ShowYear','KodiIOS.ShowRating','KodiIOS.ShowGenres')}
@@ -438,13 +579,16 @@ def _directory(handle,params):
    finally:history_file.close()
   except (OSError,ValueError,AttributeError):history={}
   rows=movie_resume_rows(rows,rpc,history)
+  warm_copy(movie_warm_target(rows),xbmcvfs)   # roadmap 1A.4: the movie most likely to be resumed
  seen=set()
  for name,value in props.items():xbmcplugin.setProperty(handle,name,value)
  for path,label,art,info,is_folder in rows:
   if path in seen:continue
   seen.add(path)
   li=xbmcgui.ListItem(label=label,offscreen=True);li.setArt({k:v for k,v in art.items() if v})
-  li.addContextMenuItems([('Refresh Library',REFRESH)])
+  # Owner (2026-11-12): a download can be removed from its long press (red Remove; ios_remove asks first).
+  import ios_remove
+  li.addContextMenuItems([('Refresh Library',REFRESH)]+[e for e in (ios_remove.menu_entry(path,label,info),) if e])
   for name,value in info.get('properties',{}).items():li.setProperty(name,value)
   if info.get('source'):li.setLabel2({'local':'On this iPhone','drive':'Google Drive'}.get(info['source'],'iPhone and Google Drive'))
   tag=li.getVideoInfoTag();tag.setMediaType(info.get('mediatype','video'));tag.setTitle(label)

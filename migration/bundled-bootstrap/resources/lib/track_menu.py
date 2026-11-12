@@ -79,6 +79,33 @@ def seconds_text(value, unit='s'):
     return '0.0 s' if abs(v) < 0.05 else ('%+.1f s' % v).replace('-', '−')
 
 
+RELEASE = re.compile(r'(?i)^(.+?)[ ._-]+s(\d{1,2})[ ._-]?e(\d{1,3})\b')
+
+
+def from_release(text):
+    """{'title', 'season', 'episode'} from a release or file name ('phony.s01e01.1080p…'), or None."""
+    m = RELEASE.match(re.sub(r'\[[^\]]*\]', '', str(text or '')).strip())
+    if not m:
+        return None
+    title = re.sub(r'[._]+', ' ', m.group(1)).strip(' -')
+    return {'title': title, 'season': int(m.group(2)), 'episode': int(m.group(3))} if title else None
+
+
+MOVIE_RELEASE = re.compile(r'(?i)^(.+)[ ._(\[-]+((?:19|20)\d{2})(?:[ ._)\]-]|$)')
+
+
+def movie_from_release(text):
+    """{'title', 'year'} from a movie file name ('Interstellar.2014.2160p.4K.BluRay…mp4' -> 'Interstellar', 2014), or
+    None. Owner log 94605e4b (build 280): a copy played without details searched the whole file name with year 0."""
+    name = re.sub(r'\[[^\]]*\]', '', str(text or '')).strip()
+    name = re.sub(r'(?i)\.(mkv|mp4|m4v|avi|mov|ts|webm)$', '', name)
+    m = MOVIE_RELEASE.match(name)
+    if not m:
+        return None
+    title = re.sub(r'[._]+', ' ', m.group(1)).strip(' -(')
+    return {'title': title, 'year': int(m.group(2))} if title else None
+
+
 def search_url(lang, title, year=None, season=None, episode=None):
     q = {'keywords': title, 'language': lang}
     if season and episode:
@@ -129,13 +156,17 @@ def rank(results, filename):
     return sorted(results, key=score, reverse=True)
 
 
-def subtitle_from_zip(blob):
-    """The .srt (or .ass / .ssa / .sub / .vtt) inside Podnapisi's zip: (name, bytes) or None."""
+def subtitle_from_zip(blob, season=None, episode=None):
+    """The .srt (or .ass / .ssa / .sub / .vtt) inside a subtitle zip: (name, bytes) or None. A season pack's zip
+    (SubDL) gives the file of this episode (S01E05, 1x05)."""
     try:
         z = zipfile.ZipFile(io.BytesIO(blob))
     except zipfile.BadZipFile:
         return None
     names = [n for n in z.namelist() if n.lower().endswith(('.srt', '.ass', '.ssa', '.vtt', '.sub'))]
+    if season and episode and len(names) > 1:
+        mark = re.compile(r'(?i)(?:s0*%d[ ._-]?e0*%d|\b0*%dx0*%d)(?!\d)' % (int(season), int(episode), int(season), int(episode)))
+        names = [n for n in names if mark.search(n.rsplit('/', 1)[-1])]
     names.sort(key=lambda n: (not n.lower().endswith('.srt'), len(n)))
     return (names[0].rsplit('/', 1)[-1], z.read(names[0])) if names else None
 
@@ -154,8 +185,10 @@ def fetch(get, result):
 
 
 CTA = {'idle': 'Download and apply', 'search': 'Searching for %s…', 'download': 'Downloading…',
-       'done': 'Downloaded and on', 'none': 'Try again', 'error': 'Try again'}
-NOTE = {'none': 'No %s subtitles found for this video.', 'error': 'The subtitle site did not answer. Check the Wi-Fi and try again.'}
+       'done': 'Downloaded and on', 'none': 'Try again', 'error': 'Try again', 'nokey': 'Try again'}
+NOTE = {'none': 'No %s subtitles found for this video.', 'error': 'The subtitle site did not answer. Check the Wi-Fi and try again.',
+        # 2026-11-12: Podnapisi is gone; SubDL and OpenSubtitles need a free key (subtitle_sources).
+        'nokey': 'Add a free subtitle key: More › Subtitle keys.'}
 
 
 def cta(state, language):
@@ -166,3 +199,100 @@ def cta(state, language):
 def note(state, language):
     text = NOTE.get(state, '')
     return text % language if '%s' in text else text
+
+
+BOOST_STEP = 3    # dB per tap; Kodi's VolAmpUp/Down move 1 dB each
+BOOST_TOP = 18    # Kodi allows 60 dB; past ~18 dB speech distorts on the phone speaker
+
+
+def boost_change(current, up):
+    """(new dB, Kodi actions to send) for one tap on Volume boost - or +. Kodi keeps the gain only inside the player
+    and offers no way to read it, so the menu counts it per video (roadmap B.2)."""
+    new = max(0, min(BOOST_TOP, int(current) + (BOOST_STEP if up else -BOOST_STEP)))
+    n = abs(new - int(current))
+    return new, ['VolAmpUp' if up else 'VolAmpDown'] * n
+
+
+def boost_text(db):
+    return 'Off' if not db else '+%d dB' % db
+
+
+SPEEDS = (0.8, 0.9, 1.0, 1.1, 1.25, 1.5)
+
+
+def speed_rows(current):
+    """Playback speed rows (roadmap B.7: Kodi's select box replaced by the track menu); index is the tempo."""
+    try:
+        now = float(current or 1)
+    except ValueError:
+        now = 1.0
+    if now <= 0:
+        now = 1.0
+    near = min(SPEEDS, key=lambda s: abs(s - now))
+    return [{'label': 'Normal' if s == 1.0 else '%g×' % s, 'tag': '', 'on': s == near, 'index': s} for s in SPEEDS]   # board 02
+
+
+def more_rows(found, always, keys_tag=''):
+    """Subtitles › More as rows (roadmap B.6): Choose another, Add from a file, Use for all videos. The way back is
+    the header's blue link (board 02), not a row."""
+    return [{'label': 'Choose another', 'tag': ('%d FOUND' % found) if found else '', 'on': False, 'index': 'choose'},
+            {'label': 'Add from a file', 'tag': '', 'on': False, 'index': 'file'},
+            {'label': 'Use for all videos', 'tag': 'ON' if always else 'OFF', 'on': bool(always), 'index': 'always'},
+            {'label': 'Subtitle keys', 'tag': keys_tag, 'on': False, 'index': 'keys'}]
+
+
+KEY_ROWS = (('subdl', 'SubDL key'), ('opensubtitles', 'OpenSubtitles key'), ('opensubtitles_user', 'OpenSubtitles username'),
+            ('opensubtitles_password', 'OpenSubtitles password'))
+
+
+def keys_rows(keys):
+    """Subtitles › More › Subtitle keys as rows of the menu (owner, 2026-11-12: Kodi's select box looked wrong):
+    each key, SET or ADD; tapping one opens the keyboard."""
+    return [{'label': label, 'tag': 'SET' if keys.get(k) else 'ADD', 'on': False, 'index': 'key:' + k} for k, label in KEY_ROWS]
+
+
+SUB_EXT = ('.srt', '.ass', '.ssa', '.vtt', '.sub')
+
+
+def subtitle_files(roots, limit=40, depth=3, walk=None, mtime=None):
+    """Subtitle files on the phone (Documents, Inbox, Kodi Downloads...), newest first, at most `limit`."""
+    import os
+    walk = walk or os.walk
+    mtime = mtime or os.path.getmtime
+    found = {}
+    for root in roots:
+        if not root:
+            continue
+        base = root.rstrip(os.sep).count(os.sep)
+        for folder, dirs, files in walk(root):
+            if folder.count(os.sep) - base >= depth:
+                dirs[:] = []
+            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ('Kodi', 'userdata', 'addons')]
+            for f in files:
+                if f.lower().endswith(SUB_EXT):
+                    path = os.path.join(folder, f)
+                    try:
+                        found[path] = mtime(path)
+                    except OSError:
+                        continue
+    return sorted(found, key=lambda p: -found[p])[:limit]
+
+
+def file_rows(paths):
+    """Subtitles › More › Add from a file as rows (owner, 2026-11-12: Kodi's file browser looked wrong): the file
+    and the folder it is in; one plain row when there are none."""
+    import os
+    if not paths:
+        return [{'label': 'No subtitle files on this iPhone', 'tag': '', 'on': False, 'index': 'nofiles'}]
+    return [{'label': os.path.basename(p), 'tag': os.path.basename(os.path.dirname(p)).upper()[:18], 'on': False, 'index': 'sub:%d' % n}
+            for n, p in enumerate(paths)]
+
+
+def result_rows(results):
+    """Found subtitles as rows (the way back is the header's link); index is the result's position."""
+    rows = []
+    for n, r in enumerate(results):
+        rows.append({'label': r['releases'][0] if r['releases'] else 'Subtitle %s' % r['id'],
+                     'tag': 'SDH' if r['impaired'] else '', 'on': False, 'index': n})
+    return rows
+

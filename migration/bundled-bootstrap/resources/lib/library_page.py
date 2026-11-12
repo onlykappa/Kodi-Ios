@@ -16,6 +16,7 @@ SLOTS, SLOT, WORK, NEED, MORE, PREVIOUS = 40, 9400, 9005, 9004, 9050, 9051
 POOLS = (('down', 9310, 6, 231), ('next', 9400, 40, 161), ('kept', 9450, 15, 161), ('ready', 9470, 80, 140))
 SEGMENTS = 9811        # summary bar: ready, working, up next, kept (widths set by the script)
 DOWN_BARS = 9330       # the AllDebrid copy bars, one per 'down' row
+WORK_BAR = 9350        # the 'Working on now' bar (running card, then the still card), DEC-036
 BAR_X, BAR_W, BAR_Y, BAR_H, BAR_GAP = 38, 896, 118, 21, 8     # inside the summary card (units)
 LIST_TOP = 362
 
@@ -31,7 +32,7 @@ def _header(p, u, title, cond, action=''):
 
 
 def _work(p, u):
-    """Board 1/2 'Working on now' card: poster, eyebrow, title, step, ring; then the sparkline and speed (running), or the
+    """Board 1/2 'Working on now' card: poster, eyebrow, title, step, percentage and bar; then the sparkline and speed (running), or the
     model's line (slowed, paused, waiting)."""
     S, w, M, P = p.SIDE, p.WIDTH - 2 * p.SIDE, p.MEDIA, u.P
     running = 'String.IsEqual(Window().Property(work.state),running)'
@@ -41,11 +42,13 @@ def _work(p, u):
         b += p.image(S + 38, 38, 140, 210, M + 'white.png', u.SURF2, diffuse=M + 'poster21.png')
         b += p.image(S + 38, 38, 140, 210, P('work.poster'), p.WHITE, '', '>scale', M + 'poster21.png', background=True)
         b += u.text(p, S + 210, 62, w - 440, 43, 'WORKING ON NOW', 'p_foot_b', u.PURPLE)
-        b += u.text(p, S + 210, 113, w - 440, 54, P('work.title'), 'p_h3')
-        b += u.text(p, S + 210, 175, w - 440, 51, P('work.step'), 'p_sub', p.GREY)
-        b += p.image(S + w - 183, 70, 145, 145, M + 'ring_20.png', u.TRACK)
-        b += p.image(S + w - 183, 70, 145, 145, M + P('work.ring'), P('work.tint'))
-        b += u.text(p, S + w - 183, 70, 145, 145, P('work.percent'), 'p_foot_b', p.WHITE, 'center')
+        b += u.text(p, S + 210, 113, w - 248, 54, P('work.title'), 'p_h3')
+        b += u.text(p, S + 210, 175, w - 248, 51, P('work.step'), 'p_sub', p.GREY)
+        # DEC-036: a thin bar under the step, the percentage at the top right (the only ring is the Home bell's).
+        b += u.text(p, S + w - 228, 62, 190, 43, P('work.percent'), 'p_foot_b', p.WHITE, 'right')
+        b += ('<control type="group"><visible>%s</visible>' % u.has('work.percent') +
+              u.id_bar(p, WORK_BAR + (0 if moving else 1), S + 210, 238, w - 248, 12, P('work.tint'), texture='pill16.png', border=6) +
+              '</control>')
         if moving:
             b += p.image(S + 38, 279, 438, 81, P('work.graph'), p.WHITE, '', '>stretch')
             b += ('<control type="grouplist"><left>%d</left><top>287</top><width>%d</width><height>51</height><orientation>horizontal</orientation>'

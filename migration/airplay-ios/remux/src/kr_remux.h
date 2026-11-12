@@ -17,6 +17,7 @@ enum { KR_IDLE = 0, KR_STARTING = 1, KR_READY = 2, KR_FAILED = -1, KR_NOT_NEEDED
 // KR_COMPAT_SEGMENTED the picture copied but always remuxed (6-s segments, audio apart: a Roku's own player).
 enum { KR_COMPAT_SEGMENTED = 2 };
 enum { KR_COMPAT_ROKU_SAFE = 3 }; // H.264 <=1080p SDR with stereo AAC; one receiver fallback
+enum { KR_COMPAT_ROKU_COPY = 4 }; // preserve compatible original picture; fail instead of transcoding
 // One absolute budget covers opening, inspection and priming; controllers allow a small reporting grace.
 #define KR_STARTUP_SECONDS 100
 // Opens `url`, plans the segments and starts the loopback server. On success returns KR_READY and writes the

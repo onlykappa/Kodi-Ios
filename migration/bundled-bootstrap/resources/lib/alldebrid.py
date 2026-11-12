@@ -156,4 +156,39 @@ def pick(files, kind, season=None, episode=None, episodes=None):
         wanted = {(int(season), int(n)) for n in episodes}
         return sorted([f for f in videos if number(f[0].rsplit('/', 1)[-1]) in wanted], key=lambda f: f[0])
     numbered = [f for f in videos if number(f[0].rsplit('/', 1)[-1])]
-    return sorted(numbered or videos, key=lambda f: f[0])
+    if kind == 'season' and str(season or '').isdigit():
+        # Owner (build 252: "season 1-3 of naruto shippuden ... somehow its downloading everything", queue over 500): a
+        # complete-series pack names episodes by absolute number ("Episode 001 Homecoming.mkv"), nothing matched SxxEyy
+        # and every video in the torrent (500 episodes and the films) was queued for each season. A season copies only
+        # that season: SxxEyy names first, then a "Season NN" / "S01" folder; never the whole pack.
+        s = int(season)
+        by_name = [f for f in numbered if number(f[0].rsplit('/', 1)[-1])[0] == s]
+        if by_name:
+            return sorted(by_name, key=lambda f: f[0])
+        by_folder = [f for f in videos if season_folder(f[0]) == s]
+        if by_folder:
+            return sorted(by_folder, key=lambda f: f[0])
+        if numbered:   # the pack is numbered by season, just not this one
+            return []
+    chosen = sorted(numbered or videos, key=lambda f: f[0])
+    if kind == 'season' and len(chosen) > SEASON_MAX:
+        raise TooMany(len(chosen))
+    return chosen
+
+
+SEASON_MAX = 60   # more video files than any season: a whole-series pack, never queued blindly
+
+
+class TooMany(Exception):
+    def __init__(self, count):
+        Exception.__init__(self, 'This version holds %d videos (a whole series), not one season. Pick a season pack.' % count)
+        self.count = count
+
+
+def season_folder(path):
+    """The season a file's folders name ('Show (001-500)/Season 01 (001-032)/Episode 001.mkv' -> 1), or None."""
+    for part in str(path).split('/')[:-1]:
+        m = re.search(r'(?i)\bseason[ ._-]*0*(\d{1,2})\b', part) or re.search(r'(?i)^S0*(\d{1,2})(?:\b|$)', part.strip())
+        if m:
+            return int(m.group(1))
+    return None

@@ -380,7 +380,7 @@ class StreamFromDrive(unittest.TestCase):
   def open_url(request,timeout):
    seen.append((request.full_url,request.get_header('Authorization'),request.get_header('Range')))
    if 'missing' in request.full_url:raise urllib.error.HTTPError(request.full_url,404,'nf',{},None)
-   a,b=request.get_header('Range')[6:].split('-');a=int(a);b=int(b) if b else len(data)-1
+   a,b=request.get_header('Range')[6:].split('-');a=int(a);b=min(int(b),len(data)-1) if b else len(data)-1
    return Upstream(206,data[a:b+1],{'Content-Length':str(b-a+1),'Content-Range':'bytes %d-%d/%d'%(a,b,len(data))})
   self.stream=drive_stream.DriveStream(lambda:'tok',open_url=open_url)
  def tearDown(self):self.stream.close()
@@ -474,6 +474,6 @@ class StreamFromDrive(unittest.TestCase):
   self.assertIsNone(prep.Queue(tmp.name,Drive(),Native(),stream=self.stream).stream)
  def test_service_creates_the_stream_for_r14(self):
   source=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
-  self.assertIn('stream=drive_stream.DriveStream(drive.token,context=tls_context())',source)
+  self.assertIn('stream=drive_stream.DriveStream(drive.token,context=tls_context(),open_url=native_reader,refresh_token=drive.token)',source)
 
 if __name__=='__main__':unittest.main()

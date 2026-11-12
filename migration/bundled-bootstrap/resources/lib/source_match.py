@@ -372,6 +372,10 @@ def _check_one(name, exp, keys):
     return False, (reasons[0] if reasons else u'wrong title')
 
 
+WHOLE_SERIES = re.compile(r'(?i)complete[ ._-]*series|collection[ ._-]*of[ ._-]*\d{3}|'
+                          r'[(\[ ._-]0*1[ ._]*-[ ._]*\d{3}[)\] ._-]|\ball[ ._-]*\d{3}[ ._-]*episodes')
+
+
 def coverage(name, exp):
     """For a season download (a show, a season, no episode): u'' for a release that holds the season (a pack, a range
     of seasons, a complete series) and u'Episode 3 only' / u'Episodes 1-4 only' for one that holds a few episodes.
@@ -380,6 +384,11 @@ def coverage(name, exp):
     exp = exp or {}
     if exp.get('kind') == 'movie' or exp.get('episode') or exp.get('season') is None:
         return None
+    # Owner (build 252, ISSUE-169): a season search listed files from "Naruto Shippuden (001-500) [Complete Series +
+    # Movies]" and "(Collection of 500)" packs as if they were season packs. A whole-series pack is marked, ranked
+    # after real season packs and never chosen automatically for a season.
+    if WHOLE_SERIES.search(_s(name)):
+        return u'Whole series'
     found, _ = interpretations(name, all_keys(exp), exp.get('kind') == 'anime')
     for info in found:
         if info['seasons'] or info['complete'] or (info['season'] is not None and not info['episodes']):

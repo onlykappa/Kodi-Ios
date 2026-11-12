@@ -2,7 +2,7 @@
 earlier messages. The layout is portrait/IOSNotifications.xml, written by portrait.py; this fills it."""
 import os,sys,threading
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
-import notice_page,notices,prepare_downloads,transfer_artwork,drivelibrary,library_tools,transfer_control
+import page_wait,notice_page,notices,prepare_downloads,transfer_artwork,drivelibrary,library_tools,transfer_control
 
 ICON={'download':('download.png','330A84FF'),'drive':('circle-check.png','3330D158'),'problem':('triangle-exclamation.png','33FF453A'),
       'update':('circle-down.png','330A84FF'),'info':('circle-info.png','33FF9F0A'),'general':('bell.png','338E8E93')}
@@ -168,7 +168,10 @@ def run():
     jobs=(model or {}).get('jobs') or []
     self.downloads=[transfer_card(j) for j in jobs if j['kind']=='down']
     ups=[transfer_card(j) for j in jobs if j['kind'] in ('copy','upload')]
-    conv=work_state.job(model,'conv')
+    # Owner (2026-11-12): the bell showed 1 running with its ring while this page said RUNNING NOW over nothing: the job
+    # was Google Drive's library check ('check'), which the bell counts and this page had no card for. It shows in
+    # the preparing card's place.
+    conv=work_state.job(model,'conv') or work_state.job(model,'check')
     current=transfer_card(conv,prepare_downloads.running_id(prepare_downloads.load(profile))) if conv else {}
     self.ups,self.current=ups,current
     self.setProperty('live','true' if jobs else '')
@@ -195,7 +198,7 @@ def run():
    self.guard.percent(control,value or 0)
   def loop(self):
    monitor=xbmc.Monitor()
-   while not self.stop.is_set() and not monitor.waitForAbort(1):
+   while not page_wait.idle(self.stop,monitor,1):
     if self.stop.is_set():break
     try:self.refresh()
     except Exception as error:_quiet('notifications:76',error)
@@ -204,7 +207,7 @@ def run():
    def get(url):
     with urllib.request.urlopen(url,timeout=8) as response:return response.read(1024*1024)
    monitor=xbmc.Monitor()
-   while not self.stop.is_set() and not monitor.waitForAbort(2):
+   while not page_wait.idle(self.stop,monitor,2):
     try:transfer_artwork.hydrate(profile,list(self.artnames),self.artkey,get,lambda:not self.stop.is_set(),self.attempted)
     except Exception as error:_quiet('notifications:artwork',error)
   def onAction(self,action):
@@ -222,8 +225,9 @@ def run():
    if kind=='down':item=self.downloads[n] if n<len(self.downloads) else None
    elif kind=='up':item=self.ups[0] if getattr(self,'ups',None) else None
    else:item=getattr(self,'current',None) or None
-   if not item:return False
-   rows=transfer_control.menu(kind,item,transfer_control.paused(profile,'up'),transfer_control.paused(profile,'conv'))
+   if not item or item.get('kind')=='check':return False   # the Drive library check has nothing to pause or cancel
+   queued=len(transfer_control.unfinished_copies(profile)) if kind=='up' else 0
+   rows=transfer_control.menu(kind,item,transfer_control.paused(profile,'up'),transfer_control.paused(profile,'conv'),queued)
    pick=xbmcgui.Dialog().contextmenu([label for label,_ in rows])
    if 0<=pick<len(rows):self.act(kind,item,rows[pick][1])
    return True
@@ -240,6 +244,12 @@ def run():
     now=not transfer_control.paused(profile,kind);transfer_control.set_paused(profile,kind,now)
     words={'up':('Uploads paused','Uploads resumed'),'conv':('Converting paused','Converting resumed')}[kind]
     xbmcgui.Dialog().notification('Kodi iOS',words[0] if now else words[1],xbmcgui.NOTIFICATION_INFO,2500)
+   elif action=='cancel_all':
+    n=len(transfer_control.unfinished_copies(profile))
+    if xbmcgui.Dialog().yesno('Cancel all downloads','Stop the copy running now and remove all %d downloads to Google Drive from the queue? '
+                              'Videos already on Google Drive stay.'%n):
+     done=transfer_control.cancel_all_copies(profile)
+     xbmcgui.Dialog().notification('Kodi iOS','%d downloads cancelled'%done,xbmcgui.NOTIFICATION_INFO,3000)
    elif kind=='up':
     if xbmcgui.Dialog().yesno('Cancel download','Stop copying %s from AllDebrid to Google Drive? What has been copied so far is dropped.'%title):
      transfer_control.cancel_copy(profile,item['hash'])
@@ -297,7 +307,7 @@ def _quiet(where,error,_seen=set()):
  if key in _seen:return
  _seen.add(key)
  try:
-  import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
+  import xbmc,diagnostics;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,diagnostics.error_text(error)),xbmc.LOGWARNING)
  except Exception:pass
 
 if __name__=='__main__':run()

@@ -73,17 +73,17 @@ class SearchFieldTests(unittest.TestCase):
   self.queue=[(1,'scary')];self.poll();self.assertEqual(self.props,{})
   self.now=0.2;self.queue=[(1,'scary movie')];self.poll();self.now=0.5;self.poll();self.assertEqual(self.props,{})
   self.now=0.7;self.poll()
-  self.assertEqual(self.props,{'Portrait.Search.Query':'scary movie','Portrait.Search.Path':'plugin://plugin.video.themoviedb.helper/?info=search&tmdb_type=multi&query=scary%20movie'})
+  self.assertEqual(self.props,{'Portrait.Search.Query':'scary movie','Portrait.Search.Path':'plugin://plugin.video.kodi.ios.watch/?action=search&query=scary%20movie'})   # board 12: All is grouped)
   self.now=2;self.poll();self.assertEqual(len(self.props),2)
  def test_search_key_lists_at_once_and_x_clears(self):
   self.queue=[(1|2,'alien & aliens')];self.poll()
-  self.assertEqual(self.props['Portrait.Search.Path'],searchbar.SEARCH%'multi'+'alien%20%26%20aliens')
+  self.assertEqual(self.props['Portrait.Search.Path'],searchbar.GROUPED+'alien%20%26%20aliens')
   self.queue=[(1|4,'')];self.poll();self.assertEqual(self.props,{'Portrait.Search.Query':'','Portrait.Search.Path':''})
  def test_filter_pills_switch_between_movies_and_shows(self):
   kind={'v':''}
   visible=lambda c:c==searchbar.PAGE
   tick,poll,_=searchbar.controller(self.lib,lambda:(1|2,'alien'),visible,lambda:True,self.props.__setitem__,lambda:0,info=lambda l:kind['v'])
-  tick();poll();self.assertIn('tmdb_type=multi',self.props['Portrait.Search.Path'])
+  tick();poll();self.assertIn('kodi.ios.watch/?action=search&query=alien',self.props['Portrait.Search.Path'])
   kind['v']='movie';tick();self.assertIn('tmdb_type=movie&query=alien',self.props['Portrait.Search.Path'])
   kind['v']='tv';tick();self.assertIn('tmdb_type=tv',self.props['Portrait.Search.Path'])
  def test_settings_context_focus_cancel_and_media_restore(self):
@@ -107,11 +107,11 @@ class SearchFieldTests(unittest.TestCase):
   spec=importlib.util.spec_from_file_location('portrait',ROOT/'migration/bundled-bootstrap/resources/lib/portrait.py')
   portrait=importlib.util.module_from_spec(spec);spec.loader.exec_module(portrait)
   root=ET.fromstring(portrait.search_window('<window id="1105"/>'))
-  panels={c.get('id'):c for c in root.iter('control') if c.get('type')=='panel'}
+  panels={c.get('id'):c for c in root.iter('control') if c.get('type') in ('panel','list')}
   # Results grid: three posters a row, filled from the typed search, under the native band.
   results=panels['5200'];self.assertIn('Portrait.Search.Path',results.findtext('content'))
   self.assertGreater(int(results.findtext('top')),portrait.SEARCH_BAND)
-  self.assertEqual(int(results.find('itemlayout').get('width'))*3,1080-2*int(results.findtext('left'))+24)
+  self.assertEqual(results.get('type'),'list');self.assertEqual(int(results.find('itemlayout').get('height')),210)   # board 12: rows, not a poster grid
   # Categories while the field is empty; the old Kodi field only on a phone without the native one.
   self.assertIn('String.IsEmpty(Window(Home).Property(Portrait.Search.Path))',panels['5100'].findtext('visible'))
   button=[c for c in root.iter('control') if c.get('id')=='5101'][0]

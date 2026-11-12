@@ -79,6 +79,15 @@ class ExpiredLink(unittest.TestCase):
    for _ in range(2):
     with self.assertRaises(urllib.error.HTTPError):s._fetch('media',0,99)
    self.assertEqual(len(renewals),1)
+ def test_a_later_expiry_can_renew_again_during_the_same_movie(self):
+  clock=[0.0];expired={OLD};fresh=iter([NEW,'https://media.example/newer.mkv']);renewals=[]
+  def open(req,timeout):return self.expired(req) if req.full_url in expired else self.reply(req)
+  s=remote_media.Foreground(OLD,open_url=open,clock=lambda:clock[0]);self.addCleanup(s.close)
+  s.configure_renewal(RECORD,lambda r:(renewals.append(r),next(fresh))[1])
+  self.assertEqual(s._fetch('media',0,9)[0],DATA[:10])
+  clock[0]=3601;expired.add(NEW)
+  self.assertEqual(s._fetch('media',100,109)[0],DATA[100:110])
+  self.assertEqual(len(renewals),2)
  def test_concurrent_readers_share_one_renewal(self):
   barrier=threading.Barrier(2);renewals=[]
   def open(req,timeout):

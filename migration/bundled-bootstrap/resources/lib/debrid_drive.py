@@ -21,7 +21,12 @@ import driveupload
 import transfer_history
 
 FILE = 'debrid-drive.json'
-LANES = 2   # episodes of one season uploaded at once (ISSUE-164)
+LANES = 3   # most episodes of one season uploaded at once (ISSUE-164; Roadmap 1F.4: 3 since the build-252 log, ~3.3 MB/s per lane)
+
+
+def lanes_for(files_left):
+    """One lane per file still to copy, up to LANES: 3 when three or more remain, 2 for two, 1 for one."""
+    return max(1, min(LANES, files_left))
 TOP = driveupload.TOP
 
 
@@ -110,6 +115,20 @@ def folders(kind, name, title=''):
     if parts[1] == 'Movies' and kind in ('episode', 'season') and title:
         parts = [TOP, 'TV Shows', title]
     return parts
+
+
+def remember_shows(profile, jobs, remember):
+    """Roadmap 2.2: tell the Library which TMDb show each finished episode or season copy belongs to, under the job's
+    title and every Drive folder name its files went to. remember(titles, tmdb_id) -> True when anything changed."""
+    changed = False
+    for job in jobs:
+        if job.get('status') != 'done' or not job.get('show_tmdb') or job.get('kind') == 'movie':
+            continue
+        names = [job.get('title')] + [folders(job['kind'], f.get('drive_name') or os.path.basename(f.get('path') or ''),
+                                              job.get('title'))[-1]
+                                      for f in job.get('files') or [] if f.get('drive_name') or f.get('path')]
+        changed = remember(names, job['show_tmdb']) or changed
+    return changed
 
 
 def kind_of(name):
@@ -225,9 +244,13 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             return 1 if code == alldebrid.READY else 15
         if job['status'] == 'copying':
             if not job['files']:
-                chosen = alldebrid.pick(api.files(job['magnet']), job['kind'], job.get('season'), job.get('episode'), job.get('episodes'))
+                try:
+                    chosen = alldebrid.pick(api.files(job['magnet']), job['kind'], job.get('season'), job.get('episode'), job.get('episodes'))
+                except alldebrid.TooMany as many:
+                    raise alldebrid.Problem(str(many))
                 if not chosen:
-                    raise alldebrid.Problem('This torrent has no video file.')
+                    raise alldebrid.Problem('This version has no video for season %s. Pick a season pack.' % job.get('season')
+                                            if job.get('kind') == 'season' and job.get('season') else 'This torrent has no video file.')
                 job['files'] = [{'path': p, 'size': s, 'link': l, 'session': {}, 'done': False} for p, s, l in chosen]
                 commit()
             # ISSUE-164 (owner: "upload speed is so slow"; build-224 log ~0.3 MB/s on a 0.49 MB/s line): one Drive upload
@@ -241,10 +264,15 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 with guard:
                     plain_commit()
 
+            extra = {}   # lanes beyond the two the pages know ('current', 'current_also'): their numbers only add to the speed
+
             def key_for(slot):
                 with guard:
-                    owner = (state.get('current') or {}).get('slot')
-                    return 'current' if owner in (None, slot) else 'current_also'
+                    first = (state.get('current') or {}).get('slot')
+                    second = (state.get('current_also') or {}).get('slot')
+                    if first in (None, slot):
+                        return 'current'
+                    return 'current_also' if second in (None, slot) else None
 
             def show(slot, fields):
                 with guard:
@@ -252,27 +280,59 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     # rate_own: each lane's speed; rate: what the pages show, both lanes on the shown upload ('current').
                     fields = dict(fields, slot=slot)
                     fields['rate'] = fields.get('rate_own') or 0
-                    state[key] = fields
+                    if key:
+                        state[key] = fields
+                    else:
+                        extra[slot] = fields
                     shown, also = state.get('current'), state.get('current_also')
                     if shown:
                         shown.pop('parallel', None)
                         shown['rate'] = shown.get('rate_own') or 0
-                        if also and clock() - (also.get('updated') or also.get('phase_at') or 0) < 60:
-                            shown['rate'] += also.get('rate_own') or 0
-                            shown['parallel'] = 2
+                        live = [f for f in [also] + list(extra.values())
+                                if f and clock() - (f.get('updated') or f.get('phase_at') or 0) < 60]
+                        if live:
+                            shown['rate'] += sum(f.get('rate_own') or 0 for f in live)
+                            shown['parallel'] = 1 + len(live)
                 commit()
 
             def release(slot):
                 with guard:
+                    extra.pop(slot, None)
                     if (state.get('current') or {}).get('slot') == slot:
                         state.pop('current', None)
                         if state.get('current_also'):
                             state['current'] = state.pop('current_also')
                     elif (state.get('current_also') or {}).get('slot') == slot:
                         state.pop('current_also', None)
+                    if extra and not state.get('current_also') and state.get('current'):
+                        state['current_also'] = extra.pop(next(iter(extra)))   # a third lane moves up into the free place
+                    elif extra and not state.get('current'):
+                        state['current'] = extra.pop(next(iter(extra)))
 
             def copy(entry, slot):
                 url, name, size = api.unlock(entry['link'])
+                original_name=name
+                source_link=[url];source_guard=threading.Lock();renew_after=[0.0]
+                def with_source(action):
+                    attempted=source_link[0]
+                    try:return action(attempted)
+                    except urllib.error.HTTPError as error:
+                        error.close()
+                        if error.code not in (401,403,404,410):raise
+                        with source_guard:
+                            if source_link[0]==attempted:
+                                if clock()<renew_after[0]:raise
+                                renew_after[0]=clock()+60
+                                fresh,fresh_name,fresh_size=api.unlock(entry['link'])
+                                if fresh_name!=original_name or fresh_size!=size:
+                                    raise RuntimeError('The refreshed download is a different file')
+                                source_link[0]=fresh
+                        return action(source_link[0])
+                def open_source(offset):return with_source(lambda source:open_url(source,offset))
+                if callable(getattr(drive,'copy_piece',None)):
+                    def copy_to(target,headers,offset,count,total):
+                        return with_source(lambda source:drive.copy_piece(source,{},target,headers,offset,count,total,20))
+                    open_source.copy_to=copy_to
                 name = os.path.basename(name or entry['path'])
                 size = size or entry['size']
                 parts = folders(job['kind'], name, job.get('title') if job['kind'] != 'movie' else '')
@@ -309,7 +369,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     # Called on the owner thread, never the read-ahead thread. Percent remains confirmed bytes.
                     now=clock()
                     with guard:
-                        current=dict(state.get(key_for(slot)) or {})
+                        current=dict((state.get(key_for(slot)) if key_for(slot) else extra.get(slot)) or {})
                     current.update(name=title,folder=parts[-1],file=name,index=job['files'].index(entry)+1,
                                    count=len(job['files']),sent=sent,total=total,stage='copying',phase=phase,phase_at=now)
                     if phase=='paused_playback':current.update(rate_own=0,eta_s=0)
@@ -322,7 +382,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     with guard:
                         entry['session'] = dict(session)
                     commit()
-                result = drive.upload_stream(lambda offset: open_url(url, offset), size, name, parent, session,
+                result = drive.upload_stream(open_source, size, name, parent, session,
                                              keep, going, progress,activity=activity)
                 if int(result.get('size') or size) != size:
                     raise RuntimeError('Google Drive has a different size for %s' % name)
@@ -342,7 +402,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 finally:
                     release(slot)
 
-            lanes = LANES if len(todo) > 1 else 1
+            lanes = lanes_for(len(todo))
             if lanes == 1:
                 worker(0)
             else:

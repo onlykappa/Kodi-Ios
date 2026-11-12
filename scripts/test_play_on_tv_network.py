@@ -20,13 +20,13 @@ class Window:
  def clearProperty(self,key):self.props.pop(key,None)
 
 class ConnectionTests(unittest.TestCase):
- def exercise(self,profile,received=None,cancel=None,legacy=False,failed=False,startup=0,choosing=0,raise_log=False,error_message=''):
+ def exercise(self,profile,received=None,cancel=None,legacy=False,failed=False,startup=0,choosing=0,raise_log=False,error_message='',roku=False,copy_api=True):
   window=Window();clock=[1000.0];paused=[False];closed=[];messages=[];logs=[];notes=[];plays=[];progress_words=[]
   def wait(seconds):clock[0]+=seconds;return False
   progress=types.SimpleNamespace(create=lambda *a:progress_words.append(a[-1]),update=lambda *a:progress_words.append(a[-1]) if len(a)>1 else None,close=lambda:closed.append('progress'),
                                  iscanceled=lambda:cancel is not None and clock[0]-1000>=cancel)
   player=types.SimpleNamespace(pause=lambda:paused.__setitem__(0,not paused[0]))
-  xbmc=types.SimpleNamespace(LOGINFO=1,log=lambda m,*a:logs.append(m),getCondVisibility=lambda c:paused[0],Monitor=lambda:types.SimpleNamespace(waitForAbort=wait))
+  xbmc=types.SimpleNamespace(LOGINFO=1,log=lambda m,*a:logs.append(m),getCondVisibility=lambda c:paused[0],Monitor=lambda:types.SimpleNamespace(waitForAbort=wait,abortRequested=lambda:False))
   gui=types.SimpleNamespace(Window=lambda n:window,DialogProgress=lambda:progress)
   vfs=types.SimpleNamespace(translatePath=lambda p:profile)
   def native_log(buffer,size):
@@ -35,7 +35,12 @@ class ConnectionTests(unittest.TestCase):
    if not plays:return 0
    if clock[0]-1000>=startup and not getattr(native_log,'prepared',False):lines.append('prepared: source-resolution MP4 byte ranges');native_log.prepared=True
    if received is not None and clock[0]-1000>=received and not getattr(native_log,'tv',False):
-    lines.append('client: AirPlay/1 (Apple TV; fixture)');native_log.tv=True
+    if roku:lines.extend([
+     'source: video codec=hevc profile=2 pixel_format=yuv420p10le bit_depth=10 raw_bit_depth=0 dimensions=3840x2160 level=153',
+     'network: TV receiver peer=192.168.1.20 agent=AirPlay/2.0 MFi_AirPlay_Device (MFiModelGroup/TCL Roku TV)',
+     'compat: converting video stream 0 to H.264 1920x1080'])
+    else:lines.append('client: AirPlay/1 (Apple TV; fixture)')
+    native_log.tv=True
    if failed and clock[0]-1000>=2:lines.append('player: could not open the stream: Code=-1004 "Could not connect to the server"')
    buffer.value='\n'.join(lines).encode();return len(buffer.value)
   def network(buffer,size):
@@ -51,16 +56,31 @@ class ConnectionTests(unittest.TestCase):
                             kodi_airplay_state=lambda:-1 if failed and clock[0]-1000>=2 else int(clock[0]-1000>=startup),
                             kodi_airplay_message=message,kodi_airplay_log=native_log)
   if not legacy:lib.kodi_airplay_network=network
+  if roku and copy_api:lib.kodi_airplay_serve_copy=lambda *a:2
   dialog=types.SimpleNamespace(ok=lambda *a:messages.append(a))
-  with patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':gui,'xbmcvfs':vfs}),patch.object(airplay,'load',return_value=lib),\
+  def get(url,timeout):
+   return b'<apps><app id="782875">Media Assistant</app></apps>' if url.endswith('/apps') else b'<device-info><supports-4k>true</supports-4k></device-info>'
+  with patch.object(controller,'send') as fallback,patch.object(cast,'http_get',side_effect=get),\
+       patch.dict(sys.modules,{'xbmc':xbmc,'xbmcgui':gui,'xbmcvfs':vfs}),patch.object(airplay,'load',return_value=lib),\
        patch.object(airplay,'send_subtitles',return_value=None),patch.object(controller.notices,'note',side_effect=lambda *a:notes.append(a)),\
        patch.object(airplay.time,'time',side_effect=lambda:clock[0]):
    if raise_log:
     with self.assertRaisesRegex(RuntimeError,'fixture log failure'):
      controller.send_airplay(xbmc,dialog,player,'fixture','http://192.0.2.10/file.mp4','Fixture','http://127.0.0.1/file.mp4')
    else:controller.send_airplay(xbmc,dialog,player,'fixture','http://192.0.2.10/file.mp4','Fixture','http://127.0.0.1/file.mp4')
-  return types.SimpleNamespace(elapsed=clock[0]-1000,window=window,paused=paused[0],closed=closed,messages=messages,logs=logs,notes=notes,plays=plays,progress_words=progress_words)
+  return types.SimpleNamespace(elapsed=clock[0]-1000,window=window,paused=paused[0],closed=closed,messages=messages,logs=logs,notes=notes,plays=plays,progress_words=progress_words,fallback=fallback)
 
+ def test_converting_roku_switches_same_tv_to_original_picture_route(self):
+  with tempfile.TemporaryDirectory() as profile:
+   out=self.exercise(profile,received=3,roku=True)
+  out.fallback.assert_called_once()
+  self.assertEqual(out.fallback.call_args.args[4]['host'],'192.168.1.20')
+  self.assertEqual(out.fallback.call_args.kwargs,{'preserve_picture':True,'restore_on_failure':True})
+  self.assertIn('native',out.closed);self.assertLess(out.elapsed,10)
+ def test_old_framework_and_cancel_do_not_switch_routes(self):
+  with tempfile.TemporaryDirectory() as profile:
+   self.exercise(profile,received=3,roku=True,copy_api=False).fallback.assert_not_called()
+   self.exercise(profile,received=3,roku=True,cancel=2).fallback.assert_not_called()
  def test_no_tv_request_stops_at_15_seconds_even_if_the_phone_is_ready(self):
   with tempfile.TemporaryDirectory() as profile:
    out=self.exercise(profile)
@@ -410,7 +430,8 @@ class RokuFeedback(unittest.TestCase):
   self.assertNotIn('pause',json.dumps(v).lower())
  def test_play_on_tv_watches_after_playing(self):
   text=(BOOT/'cast.py').read_text()
-  self.assertIn("if cast.airplay_settle(lib.kodi_airplay_state,lambda s:monitor.waitForAbort(s),network)=='playing':return",text)
+  self.assertIn("settled=cast.airplay_settle(lib.kodi_airplay_state,lambda s:monitor.waitForAbort(s),network)",text)
+  self.assertIn("if settled=='playing':return True",text)
   self.assertIn("if cast.slow_source(lines):outcome='slow_source'",text)
   self.assertIn("props=airplay_flow.problem_view('slow_source',title,busy=busy)",text)
   self.assertLess(text.index("elif outcome=='slow_source'"),text.index(' elif why:'))
@@ -485,6 +506,15 @@ class AnyTv(unittest.TestCase):
   with patch.object(controller.airplay,'load',return_value=lib):
    out=controller.tv_link(xbmc,'lib','http://192.168.1.24:1234/drive','http://127.0.0.1:1234/drive',kind)
   return out,calls
+ def test_copy_only_route_uses_dedicated_api_and_passes_resume_position(self):
+  calls,lib=self.lib(2,'unused')
+  def copy(source,out,size):calls.append(('copy',source));out.value=b'http://192.168.1.24:5000/t/master.m3u8';return 2
+  lib.kodi_airplay_serve_copy=copy;lib.kodi_airplay_start_at=lambda at:calls.append(('start',at))
+  xbmc=types.SimpleNamespace(log=lambda *a:None,executebuiltin=lambda c:None,LOGINFO=1,LOGWARNING=2)
+  with patch.object(airplay,'load',return_value=lib):
+   result=controller.tv_link(xbmc,'lib','http://192.168.1.24/drive','http://127.0.0.1/drive','roku',preserve_picture=True,start=720)
+  self.assertTrue(result[1]);self.assertIn(('start',720.0),calls);self.assertIn(('copy',b'http://127.0.0.1/drive'),calls)
+  self.assertFalse(any(isinstance(c,tuple) and len(c)==2 and isinstance(c[0],bytes) for c in calls))
  def test_roku_gets_the_phones_playlist(self):
   (link,served),calls=self.run_link(2,'http://192.168.1.24:5000/t/prepared.m3u8','roku')
   self.assertEqual((link,served),('http://192.168.1.24:5000/t/prepared.m3u8',True))
@@ -515,7 +545,7 @@ class RokuHandoff(unittest.TestCase):
  def test_failed_preparation_restores_phone_and_never_launches_roku(self):
   for was_paused in (False,True):
    state,events,player,xbmc=self.phone(was_paused)
-   def prepare(*args):
+   def prepare(*args,**kwargs):
     self.assertTrue(state[0]);events.append('buffer');return ('source',None)
    lib=types.SimpleNamespace(kodi_airplay_close=lambda:events.append('close'))
    dialog=types.SimpleNamespace(ok=lambda *a:events.append('problem'))
@@ -526,6 +556,23 @@ class RokuHandoff(unittest.TestCase):
     controller.send(xbmc,dialog,player,'lib',{'kind':'roku','host':'tv','name':'Roku'},'source','Movie',True)
    launch.assert_not_called();self.assertEqual(state[0],was_paused)
    self.assertEqual(events,['buffer','close','problem'] if was_paused else ['pause','buffer','close','resume','problem'])
+ def test_preserve_picture_failure_restores_phone_without_h264_or_airplay_retry(self):
+  state,events,player,xbmc=self.phone(True)
+  lib=types.SimpleNamespace(kodi_airplay_close=lambda:events.append('close'))
+  gui=types.SimpleNamespace(Window=lambda _:Window())
+  ui=types.SimpleNamespace(show=lambda *a:None,canceled=lambda:False,close=lambda:None,ask=lambda *a:'watch')
+  dialog=types.SimpleNamespace(ok=lambda *a:events.append('problem'))
+  with patch.object(controller,'tv_link',return_value=('tv-link',True)) as link,patch.object(airplay,'load',return_value=lib),\
+       patch.object(airplay,'message',return_value=''),patch.object(cast,'roku_model',return_value={'supports-4k':'true'}),\
+       patch.object(cast,'http_post') as launch,patch.object(cast,'roku_play') as old_launch,\
+       patch.object(cast,'receiver_outcome',return_value='failed'),patch.object(controller,'FlowUI',return_value=ui),\
+       patch.object(controller,'send_airplay') as again,patch.object(controller.notices,'note'),\
+       patch.dict(sys.modules,{'xbmcgui':gui}):
+   controller.send(xbmc,dialog,player,'lib',{'kind':'roku','host':'tv','name':'Roku'},'source','Movie',True,
+                   preserve_picture=True,restore_on_failure=True)
+  link.assert_called_once();self.assertTrue(link.call_args.kwargs['preserve_picture'])
+  launch.assert_called_once();self.assertIn('/launch/782875?',launch.call_args.args[0])
+  old_launch.assert_not_called();again.assert_not_called();self.assertFalse(state[0])
  def test_cancel_before_video_returns_to_phone(self):
   state,events,player,xbmc=self.phone()
   lib=types.SimpleNamespace(kodi_airplay_close=lambda:events.append('close'))

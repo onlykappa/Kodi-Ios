@@ -6,6 +6,7 @@ open_airplay    Play on TV › Last time (landscape, over the video), or a tap o
 Each page refreshes while it is open; every choice goes through the module that owns it (prepare_downloads.request for
 the queue), never by writing another part's state. RunScript(service.kodi.ios.bootstrap,tool_pages,<page>) opens one.
 """
+import page_wait
 import os
 import threading
 import time
@@ -52,7 +53,8 @@ def _profile():
 def _log(text):
     try:
         import xbmc
-        xbmc.log('Kodi iOS library tools: %s' % text, xbmc.LOGWARNING)
+        import diagnostics
+        xbmc.log('Kodi iOS library tools: %s' % diagnostics.redact(text, 400), xbmc.LOGWARNING)
     except Exception:
         pass
 
@@ -90,7 +92,7 @@ def open_queue(profile=None):
 
         def loop(self):
             monitor = xbmc.Monitor()
-            while not self.stop.is_set() and not monitor.waitForAbort(2):
+            while not page_wait.idle(self.stop,monitor,2):
                 try:
                     self.refresh()
                 except Exception as error:
@@ -126,6 +128,16 @@ def open_queue(profile=None):
             if control == page.BACK:
                 self.finish()
                 return
+            if control == page.QCANCEL:
+                # Every queued AllDebrid -> Drive copy goes, after one question.
+                import transfer_control, xbmcgui
+                n = len(transfer_control.unfinished_copies(profile))
+                if xbmcgui.Dialog().yesno('Cancel all downloads', 'Stop the copy running now and remove all %d downloads to Google Drive '
+                                          'from the queue? Videos already on Google Drive stay.' % n, nolabel='Keep', yeslabel='Remove All'):
+                    xbmcgui.Dialog().notification('Kodi iOS', '%d downloads cancelled' % transfer_control.cancel_all_copies(profile),
+                                                  xbmcgui.NOTIFICATION_INFO, 3000)
+                self.refresh()
+                return
             if control in (page.QPREV,page.QNEXT):
                 self.offset=max(0,self.offset+(page.QUEUE_SLOTS if control==page.QNEXT else -page.QUEUE_SLOTS));self.refresh();return
             for base, action in ((page.UP, 'up'), (page.DOWN, 'down')):
@@ -154,7 +166,7 @@ def open_history(profile=None):
 
         def loop(self):
             monitor=xbmc.Monitor()
-            while not self.stop.is_set() and not monitor.waitForAbort(2):
+            while not page_wait.idle(self.stop,monitor,2):
                 try:self.refresh()
                 except Exception as error:_log('history: %s'%error)
 

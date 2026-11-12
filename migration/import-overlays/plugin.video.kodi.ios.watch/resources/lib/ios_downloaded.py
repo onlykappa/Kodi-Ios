@@ -142,21 +142,33 @@ def find_downloaded(kind,title,year='',season='',episode='',folder_list=None,nam
              accept=lambda path:any(finished_only(path,root,names) for root in seeding if root))
 
 def completed_copy(kind,title,year='',season='',episode='',cloud=False):
- """Completed phone copy first, then the app's Drive downloads for Continue Watching. A failed check is not a
- confirmed absence: never silently turn a failed lookup into a new Elementum download."""
+ """Completed phone copy first, then the app's Drive downloads. cloud=True (Continue Watching): Drive is checked
+ strictly, fresh when the saved listing misses. cloud='cached' (every other way in, roadmap 2.8: Next Episode and
+ spotlight Play offered a new download of an episode already on Drive): the saved Drive listing only, and a failed
+ Drive check counts as no copy. A failed strict check is not a confirmed absence: never silently turn it into a new
+ Elementum download."""
  failure=None
+ strict=cloud is True
  try:
-  path=find_downloaded(kind,title,year,season,episode,strict=cloud)
+  path=find_downloaded(kind,title,year,season,episode,strict=strict)
   if path:return {'path':path,'source':'local'}
  except Exception as error:failure=error
- if cloud:
-  import sys,xbmc,xbmcvfs
-  if xbmc.getCondVisibility('System.AddonIsEnabled(plugin.googledrive)'):
-   boot=xbmcvfs.translatePath('special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib')
-   if boot not in sys.path:sys.path.insert(0,boot)
-   import drivelibrary
-   state=xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/')
-   path=drivelibrary.completed_copy(kind,title,year,season,episode,state)
+ if cloud=='cached':
+  try:
+   path=_drive_copy(kind,title,year,season,episode,cached_only=True)
    if path:return {'path':path,'source':'drive'}
+  except Exception:pass
+ elif cloud:
+  path=_drive_copy(kind,title,year,season,episode)
+  if path:return {'path':path,'source':'drive'}
  if failure:raise LookupError('Could not check completed phone downloads') from failure
  return None
+
+def _drive_copy(kind,title,year,season,episode,cached_only=False):
+ import sys,xbmc,xbmcvfs
+ if not xbmc.getCondVisibility('System.AddonIsEnabled(plugin.googledrive)'):return None
+ boot=xbmcvfs.translatePath('special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib')
+ if boot not in sys.path:sys.path.insert(0,boot)
+ import drivelibrary
+ state=xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/')
+ return drivelibrary.completed_copy(kind,title,year,season,episode,state,cached_only=cached_only)

@@ -1,4 +1,4 @@
-import importlib.util,json,plistlib,sys,tempfile,unittest,xml.etree.ElementTree as ET
+import importlib.util,json,plistlib,re,sys,tempfile,unittest,xml.etree.ElementTree as ET
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('portrait',ROOT/'migration/bundled-bootstrap/resources/lib/portrait.py')
@@ -135,7 +135,7 @@ class PortraitTests(unittest.TestCase):
   self.assertTrue({'7101','7102','7111','7112','7113','7121','7122','7123','7131','7141','7142','7201'}<=ids)
   clicks=[o.text for o in osd.iter('onclick')]
   for action in ['PlayerControl(Stop)','RunScript(service.kodi.ios.bootstrap,cast)','Seek(-10)','PlayerControl(Play)','Seek(10)',
-                 'RunScript(service.kodi.ios.bootstrap,speed)','RunScript(service.kodi.ios.bootstrap,tracks,audio)','RunScript(service.kodi.ios.bootstrap,tracks,subtitles)','$VAR[Action_OSD_WikiInfo]']:self.assertIn(action,clicks)
+                 'RunScript(service.kodi.ios.bootstrap,speed)','RunScript(service.kodi.ios.bootstrap,tracks,audio)','RunScript(service.kodi.ios.bootstrap,tracks,subtitles)','ActivateWindow(1193)']:self.assertIn(action,clicks)
   self.assertNotIn('volume',files['1080i/VideoOSD.xml'].decode().lower())
   self.assertIn('$NUMBER[10]',files['1080i/VideoOSD.xml'].decode())  # a bare 10 is a Kodi string id
   # r4: Fuse's seek bar is replaced by a window that never shows (the owner wants only the controls' bar); Kodi's
@@ -453,6 +453,33 @@ class ResolutionChoice(unittest.TestCase):
    self.assertIn('aspect="1080:2090"',text);self.assertNotIn('9:19.5',text);self.assertEqual(text.count('folder="portrait"'),2)
    self.assertFalse(portrait.add_resolutions(addon));self.assertEqual(addon.read_text(),text)
   self.assertIn("if add_resolutions(Path(skin)/'addon.xml'):",Path(portrait.__file__).read_text())   # every start
+
+class HeroLoadingFeedback(unittest.TestCase):
+ """Roadmap 1D.4 (owner screenshot, build 229: a loading ring over a spotlight that already showed a title). The hero
+ draws loading feedback only while Container(4000) has no items: the soft placeholder (board 13, no ring, no words).
+ Once the spotlight has a title, nothing on the hero reads the list's IsUpdating state or opens a busy ring."""
+ def hero(self):
+  return ET.fromstring('<w>'+portrait.hero('home','Home')+'</w>')
+ def test_the_only_loading_feedback_is_the_placeholder_for_an_empty_spotlight(self):
+  root=self.hero();text=ET.tostring(root,encoding='unicode')
+  # IsUpdating appears once, as the placeholder's pulse, inside the group shown only while the list is empty.
+  self.assertEqual(text.count('IsUpdating'),1)
+  holders=[g for g in root.iter('control') if g.get('type')=='group' and any('IsUpdating' in (a.get('condition') or '') for a in g.findall('animation'))]
+  self.assertEqual(len(holders),1);self.assertEqual(holders[0].findtext('visible'),'Integer.IsEqual(Container(4000).NumItems,0)')
+  # Play and Info are the opposite group: shown only once there is a title.
+  self.assertIn('<visible>Integer.IsGreater(Container(4000).NumItems,0)</visible>',text)
+ def test_no_busy_ring_or_spinner_belongs_to_the_spotlight_itself(self):
+  text=ET.tostring(self.hero(),encoding='unicode')
+  for forbidden in ('busydialog','DialogBusy','spinner','Window.IsActive(busy','loading.png'):
+   self.assertNotIn(forbidden,text)
+  # The rings that remain are the header's: the refresh arrow (only while a refresh press runs) and the bell.
+  rings=[c for c in self.hero().iter('control') if any(re.search(r'/ring[_0-9]*\.png$',(t.text or '')) for t in c.findall('texture'))]
+  self.assertTrue(rings)
+  for control in rings:
+   condition=control.findtext('visible') or ''
+   self.assertTrue('Refreshing' in condition or 'Notices' in condition,condition)
+ def test_the_rig_board_is_still_the_empty_state_only(self):
+  self.assertIn('FF15161A',portrait.hero('home','Home'))   # the placeholder's dark base, board 13
 
 class BufferingPill(unittest.TestCase):
  """Build 206 (owner, build 205: "have it show like a buffer percentage so i know its working"). The desktop Kodi rig

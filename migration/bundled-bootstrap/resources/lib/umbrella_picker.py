@@ -116,7 +116,8 @@ def run(results,meta,deck=None,make_item=None,sm=None,ask=None):
  share(meta)
  title=(meta or {}).get('tvshowtitle') or (meta or {}).get('title') or ''
  labels=[label(item) for _,item in playable_items]
- choice=deck.run(title,labels,expect=exp) if exp else deck.run(title,labels)
+ # Umbrella is live playback (owner): versions AirPlay can send as they are come first.
+ choice=deck.run(title,labels,expect=exp,mode='stream') if exp else deck.run(title,labels,mode='stream')
  if choice is None:
   return None if verify_list(results,exp,sm,ask) else (None,'')
  if choice<0:return (None,'')

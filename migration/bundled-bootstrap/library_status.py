@@ -7,7 +7,7 @@ Check now (top right) asks the service to look at Google Drive again; a row open
 service applies on its next pass (prepare_downloads.request)."""
 import os,shutil,sys,threading,time
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
-import library_page,library_rows,prepare_downloads,tool_windows,transfer_history
+import page_wait,library_page,library_rows,prepare_downloads,tool_windows,transfer_history
 p_side=54   # portrait.SIDE: the summary card's left edge
 
 BACK=(9,10,92,110)
@@ -139,14 +139,15 @@ def run(args=()):
    for k,v in props.items():self.setProperty(k,v)
   def loop(self):
    monitor=xbmc.Monitor()
-   while not self.stop.is_set() and not monitor.waitForAbort(2):
+   while not page_wait.idle(self.stop,monitor,2):
     try:
      fresh=self.fresh() if self.fresh else None
      if fresh:self.sheet,self.row=fresh
      elif self.fresh:
       self.sheet=dict(self.sheet,live={'state':'stale','line':'Updating…'},status='Updating…',actions=[])
      self.show(self.sheet)
-    except Exception as error:xbmc.log('Library status sheet: %s: %s'%(type(error).__name__,error),xbmc.LOGWARNING)
+    except Exception as error:
+     import diagnostics;xbmc.log('Library status sheet: %s: %s'%(type(error).__name__,diagnostics.error_text(error)),xbmc.LOGWARNING)
   def onAction(self,action):
    if action.getId() in BACK:self.finish()
   def onClick(self,control):
@@ -169,10 +170,10 @@ def run(args=()):
    threading.Thread(target=self.loop,daemon=True).start()
   def loop(self):
    monitor=xbmc.Monitor()
-   while not self.stop.is_set() and not monitor.waitForAbort(2):
+   while not page_wait.idle(self.stop,monitor,2):
     if self.stop.is_set():break
     try:self.refresh()
-    except Exception as error:xbmc.log('Library status: %s'%error,xbmc.LOGWARNING)
+    except Exception as error:import diagnostics;xbmc.log('Library status: %s'%diagnostics.error_text(error),xbmc.LOGWARNING)
   def refresh(self,force=False):
    with self.busy:
     state,view=snapshot(profile,notices.downloads,lambda:notices.uploads(profile))
@@ -201,6 +202,7 @@ def run(args=()):
     self.setProperty('work.metrics',work_state.metrics_line(conv))
     self.setProperty('work.ring',library_rows.ring_name(conv.get('pct')))
     self.setProperty('work.percent','' if conv.get('indeterminate') else '%d%%'%float(conv.get('pct') or 0))
+    for n in (0,1):self.guard.percent(library_page.WORK_BAR+n,0 if conv.get('indeterminate') else float(conv.get('pct') or 0))
     self.setProperty('work.poster',poster(conv))
     graph=''
     if conv:
@@ -240,6 +242,14 @@ def run(args=()):
    else:self.finish()
   def onAction(self,action):
    if action.getId() in BACK:self.go_back()
+  def cancel_all(self):
+   # Every queued AllDebrid -> Drive copy goes, after one question (the heading's Cancel All and the copy's sheet).
+   import transfer_control
+   n=len(transfer_control.unfinished_copies(profile))
+   if dialog.yesno('Cancel all downloads','Stop the copy running now and remove all %d downloads to Google Drive from the queue? '
+                   'Videos already on Google Drive stay.'%n,nolabel='Keep',yeslabel='Remove All'):   # red: the alert marks Remove
+    dialog.notification('Kodi iOS','%d downloads cancelled'%transfer_control.cancel_all_copies(profile),xbmcgui.NOTIFICATION_INFO,3000)
+   self.refresh(force=True)
   def onClick(self,control):
    if control==library_page.BACK:self.go_back()
    elif control==library_page.CHECK:self.check()
@@ -303,6 +313,8 @@ def run(args=()):
    if recovery:self.finish();xbmc.executebuiltin(recovery);return
    if chosen and chosen[1] in ('play','tv'):
     play(chosen_row,chosen[1]=='tv');return
+   if chosen and chosen[1]=='cancel_all':
+    self.cancel_all();return
    if chosen and chosen[1] in ('toggle','cancel'):
     import transfer_control
     kind=live.get('kind')
@@ -348,7 +360,7 @@ def run(args=()):
    info=drivelibrary.parse(row.get('name') or '')
    found=drivelibrary.artwork('tv' if info['season'] else 'movie',info['title'],info['year'],key,cache,get) if key else {}
   except Exception as error:
-   xbmc.log('Library status: TMDb lookup failed: %s'%error,xbmc.LOGWARNING);info,found={},{}
+   import diagnostics;xbmc.log('Library status: TMDb lookup failed: %s'%diagnostics.error_text(error),xbmc.LOGWARNING);info,found={},{}
   tmdb=str((found or {}).get('tmdb_id') or '')
   if not tmdb:
    dialog.ok('Find a version without converting','TMDb did not recognise "%s", so its other versions cannot be looked up.'%row.get('title',''));return

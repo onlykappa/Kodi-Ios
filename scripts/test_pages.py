@@ -137,22 +137,54 @@ class Pages(unittest.TestCase):
   for rel,font in (('portrait/DialogBusy.xml','p_pill'),('1080i/DialogBusy.xml','font_main_bold')):
    xml=(self.skin/rel).read_text(encoding='utf-8');root=ET.fromstring(xml)
    for stock in ('kodi.png','Furniture_Busy','provider_circle','loading-spinner','landscape window'):self.assertNotIn(stock,xml,rel)
-   # No window <visible>: Kodi would open a dialog with one by itself. Nothing to tap or focus.
-   self.assertIsNone(root.find('visible'),rel);self.assertEqual([c for c in root.iter('control') if c.get('type') in ('button','list')],[],rel)
-   pill=root.find('controls/control[@type="group"]')
-   self.assertEqual((pill.findtext('centerleft'),pill.findtext('centertop')),('50%','50%'),rel);self.assertIsNone(pill.find('left'),rel)
-   # Build 192 (owner): a clean spinning circle in the centre, no pill and no "Loading…".
-   self.assertNotIn('pill_glass_124.png',xml);self.assertNotIn('Loading',xml);self.assertIsNone(pill.find('control[@type="label"]'),rel)
-   ring=[c for c in pill.iter('control') if 'ring.png' in (c.findtext('texture') or '')][0]
-   self.assertEqual(ring.find('animation').get('effect'),'rotate')
+   # No window <visible>: Kodi would open a dialog with one by itself. Roadmap 2.18: the only thing to tap is Cancel
+   # (Kodi's Back), in a group that fades in after 2 s.
+   self.assertIsNone(root.find('visible'),rel)
+   taps=[c for c in root.iter('control') if c.get('type') in ('button','list')]
+   self.assertEqual([(c.get('id'),c.findtext('label'),c.findtext('onclick')) for c in taps],[('9850','Cancel','Action(Back)')],rel)
+   # DEC-037 (owner, 2026-11-12): Cancel only on the opening card; any other wait is the white spinning circle.
+   self.assertIn('<visible>!String.IsEmpty(Window(home).Property(IOSOpen.Title))</visible></control>',xml,rel)
+   # Boards 04/05 (DEC-036): the opening card with a sliding bar replaces the ring; the only ring is the bell's.
+   card=root.find('controls/control[@type="group"]')
+   self.assertEqual((card.findtext('centerleft'),card.findtext('centertop')),('50%','50%'),rel);self.assertIsNone(card.find('left'),rel)
+   self.assertEqual(xml.count('ring.png'),1,rel);self.assertIn('IOSOpen.Title',xml);self.assertIn('IOSOpen.Stage',xml);self.assertIn('IOSOpen.Slow',xml)
+   slide=[c for c in card.iter('control') if c.find('animation') is not None and c.find('animation').get('effect')=='slide' and c.find('animation').get('loop')=='true']
+   self.assertTrue(slide,rel)
+   self.assertEqual(slide[0].find('texture').get('colordiffuse'),'FF0A84FF')
    # Kodi's progress 10 stays for Kodi, inside a group that is never drawn.
    hidden=[g for g in root.iter('control') if g.get('type')=='group' and g.findtext('visible')=='false'][0]
    self.assertEqual([c.get('id') for c in hidden.iter('control') if c.get('id')],['10'],rel)
-   shapes.append([(c.get('type'),c.findtext('left'),c.findtext('top'),c.findtext('width'),c.findtext('height')) for c in pill.iter('control')])
+   shapes.append([(c.get('type'),c.findtext('left'),c.findtext('top'),c.findtext('width'),c.findtext('height')) for c in card.iter('control')])
   self.assertEqual(shapes[0],shapes[1])
   self.assertIn('DialogBusy.xml',portrait.OWN_1080I);self.assertIn('DialogBusy.xml',portrait.LOADED_AT_START)
   self.assertIn('Kodi-iOS player controls',(self.skin/'1080i/DialogBusy.xml').read_text(encoding='utf-8'))
  def test_shared_textures(self):
   for name in ('alert.png','sheet_l.png'):self.assertTrue((self.skin/'extras/portrait'/name).read_bytes().startswith(b'\x89PNG'))
+
+class HeroTaps(unittest.TestCase):
+ def test_play_and_info_ignore_taps_while_the_spotlight_slides(self):
+  # Roadmap 2.10 (owner screenshot): the watch question named another title than the one on screen.
+  import portrait
+  xml=portrait.hero('home','Home')
+  for action in ('PlayMedia($ESCINFO[Container(4000).ListItem.FileNameAndPath])','Action(Info)'):
+   onclick=[l for l in xml.split('<onclick') if action in l]
+   self.assertTrue(onclick,action)
+   self.assertTrue(all('!Container(4000).Scrolling' in l for l in onclick),action)
+
+
+class SliderUnderTrackMenu(unittest.TestCase):
+ def test_kodi_offset_slider_hidden_while_the_menu_is_open(self):
+  # Owner (2026-11-12): Timing -/+ showed Kodi's "Subtitle offset" slider over the video above the menu.
+  import pages
+  fuse='<window type="dialog" id="10145"><controls><control type="slider" id="11"/><control type="label" id="10"/></controls></window>'
+  once=pages.slider_quiet(fuse);twice=pages.slider_quiet(once)
+  self.assertEqual(once,twice)
+  root=ET.fromstring(once.split('-->',1)[1])
+  wrap=root.find('controls/control')
+  self.assertEqual(wrap.findtext('visible'),'String.IsEmpty(Window(Home).Property(KodiIOS.TrackMenu))')
+  self.assertEqual(sorted(c.get('id') for c in wrap.findall('control')),['10','11'])
+  self.assertIsNone(root.find('visible'))
+  src=(ROOT/'migration/bundled-bootstrap/tracks.py').read_text()
+  self.assertIn("setProperty('KodiIOS.TrackMenu', 'open')",src);self.assertIn("clearProperty('KodiIOS.TrackMenu')",src)
 
 if __name__=='__main__':unittest.main()

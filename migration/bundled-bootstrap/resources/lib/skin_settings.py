@@ -61,6 +61,28 @@ def parse(xml_text):
     return out
 
 
+EXP = re.compile(r'\$EXP\[([^\]]+)\]', re.I)
+EXPR_DEF = re.compile(r'<expression\s+name="([^"]+)"\s*>(.*?)</expression>', re.S | re.I)
+
+
+def expressions(xml_texts):
+    """{name (lower case): condition} from the skin's <expression> definitions."""
+    out = {}
+    for text in xml_texts:
+        for name, body in EXPR_DEF.findall(text or ''):
+            out[name.lower()] = ' '.join(body.replace('&amp;', '&').split())
+    return out
+
+
+def expand(condition, exprs, depth=0):
+    """Roadmap 2.15 (owner logs: "Error parsing boolean expression $exp[exp_tmdbhelper_isdata]"): Python's
+    getCondVisibility cannot read the skin's $EXP[...] names, so they are expanded here; an unknown one is false."""
+    if depth > 8 or '$' not in condition:
+        return condition
+    return EXP.sub(lambda m: '[%s]' % expand(exprs[m.group(1).lower()], exprs, depth + 1) if m.group(1).lower() in exprs else 'false',
+                   condition)
+
+
 def visible_entries(entries, level, test):
     """Entries shown at settings `level` (1 Standard, 2 Advanced, 3 Expert), where test(condition) -> bool answers
     Kodi's visibility conditions. A group title with nothing under it is dropped."""

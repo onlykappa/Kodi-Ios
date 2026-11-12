@@ -116,9 +116,10 @@ class _Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 class DriveStream(object):
-    def __init__(self, token, context=None, open_url=None, block_size=BLOCK, keep=KEEP, playback=False):
+    def __init__(self, token, context=None, open_url=None, block_size=BLOCK, keep=KEEP, playback=False,refresh_token=None):
         """token() -> a Drive access token (driveupload.Drive.token); open_url(request, timeout) for tests."""
         self.token = token
+        self.refresh_token=refresh_token
         self.open_url = open_url or (lambda request, timeout: urllib.request.urlopen(request, timeout=timeout, context=context))
         self.secret = secrets.token_urlsafe(18)
         self.allowed = set()
@@ -227,9 +228,11 @@ class DriveStream(object):
 
     def _fetch(self, item, start, end):
         """Bytes start..end of a Drive file, read whole, and the file's size; transient failures retried."""
-        request = urllib.request.Request(API + '/' + urllib.parse.quote(item, safe='') + '?alt=media',
-                                         headers={'Authorization': 'Bearer ' + self.token(), 'Range': 'bytes=%d-%d' % (start, end)})
+        renewed=False
         for attempt in range(3):
+            access=self.token()
+            request = urllib.request.Request(API + '/' + urllib.parse.quote(item, safe='') + '?alt=media',
+                                             headers={'Authorization':'Bearer '+access,'Range':'bytes=%d-%d'%(start,end)})
             began = time.monotonic()
             with self.metric_lock:
                 self.metrics['http_requests']+=1
@@ -242,6 +245,8 @@ class DriveStream(object):
                     span = SPAN.match(upstream.headers.get('Content-Range') or '')
                     if status == 206 and span:
                         total = int(span.group(3))
+                        if int(span.group(1))!=start or int(span.group(2))!=min(end,total-1):
+                            raise ConnectionError('Drive returned the wrong byte range')
                     elif status == 200 and start == 0:
                         total = int(upstream.headers.get('Content-Length') or 0)
                     else:
@@ -270,7 +275,10 @@ class DriveStream(object):
                 return b''.join(parts), total
             except urllib.error.HTTPError as error:
                 with self.metric_lock:self.metrics.update(last_status=error.code,http_errors=self.metrics['http_errors']+1)
-                if error.code not in (429, 500, 502, 503, 504) or attempt == 2:
+                error.close()
+                if error.code==401 and self.refresh_token is not None and not renewed and attempt<2:
+                    self.refresh_token(access);renewed=True
+                elif error.code not in (429, 500, 502, 503, 504) or attempt == 2:
                     raise
             except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as error:
                 with self.metric_lock:self.metrics['http_errors']+=1

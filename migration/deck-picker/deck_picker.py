@@ -151,6 +151,15 @@ def slow_to_prepare(item):
     return codec(item) == u'AV1'
 
 
+def converts_for_tv(item):
+    """Roadmap 1B.1 (owner logs, builds 226-229: anime releases in 10-bit H.264 converted for AirPlay at 120-170% of real
+    time, so the TV stalls): Apple TV and AirPlay play 8-bit H.264 and HEVC (10-bit included) as they are, but not
+    10-bit H.264 (Hi10P), which the phone converts while playing. AV1 has its own badge."""
+    b = _blob(_all(item))
+    ten = any(w in b for w in (u' 10BIT ', u' 10 BIT ', u' HI10P ', u' HI10 '))
+    return ten and codec(item) == u'H.264'
+
+
 def avoid_request(now=None, read=None):
     """(quality or '') while a 'without converting' search is wanted, else None."""
     try:
@@ -285,6 +294,21 @@ def dedupe(items):
     return kept
 
 
+MODE = [u'download']   # u'stream' while Umbrella's sources are shown (umbrella_picker), set by run()
+
+
+def dv_only(item):
+    """Dolby Vision with no HDR10 layer named (profile 5 web releases): plays with wrong colours where DV is missing."""
+    b = _blob(_all(item))
+    dv = bool(re.search(r' (DOLBY ?VISION|DOVI|DV) ', b))
+    return dv and not re.search(r' (HDR10\+?|HDR) ', b)
+
+
+def live_conversion(item):
+    """A stream AirPlay could not send as it is: AV1, 10-bit H.264, Dolby Vision only."""
+    return slow_to_prepare(item) or converts_for_tv(item) or dv_only(item)
+
+
 def pick(items, top_n=TOP_N):
     """items: one quality, already in Elementum's order. Returns up to top_n varied links."""
     items = dedupe(items)
@@ -293,6 +317,12 @@ def pick(items, top_n=TOP_N):
     good = [i for i in good if not too_heavy(i)] + [i for i in good if too_heavy(i)]
     # Kodi-iOS: AV1 after the codecs that need no conversion on the phone (stable: Elementum's order otherwise).
     good = [i for i in good if not slow_to_prepare(i)] + [i for i in good if slow_to_prepare(i)]
+    # Kodi-iOS (owner: "only time I'd do live playback is with Umbrella ... if I stream it it should also work without
+    # needing conversion"): for a stream, everything AirPlay would have to convert live goes last: 10-bit H.264 (no
+    # hardware decoder on Apple devices), Dolby Vision without an HDR10 fallback (wrong colours on TVs without DV).
+    # Downloads (Elementum) are prepared once on Drive, so those stay in Elementum's order there.
+    if MODE[0] == u'stream':
+        good = [i for i in good if not live_conversion(i)] + [i for i in good if live_conversion(i)]
     good_ids = set(id(i) for i in good)
     rest = [i for i in items if id(i) not in good_ids]
     ranked = good + rest                                   # dead / bad copies only if nothing better
@@ -347,10 +377,13 @@ def build_rows(shown, total_label=u''):
         if st:
             head = head + DOT + st
         cover = it.get('coverage')
-        rows.append({'headline': head, 'tags': DOT.join(tag_list(it)), 'meta': meta_text(it),
+        tags = tag_list(it)
+        rows.append({'headline': head, 'tags': DOT.join(tags), 'meta': meta_text(it),
+                     # All Links page (board 16): up to four tag pills, AV1 flagged; size and seeds to sort by.
+                     'pills': tags[:4], 'size': it.get('size') or 0, 'seeds': it.get('seeds') or 0,
                      'badge': cover.upper() if cover else u'FULL SEASON' if cover == u'' else
                      u'MAY STUTTER' if too_heavy(it) else u'AV1 \u00b7 SLOW TO PREPARE' if slow_to_prepare(it)
-                     else b.get(n, u''), 'icon': it['icon']})
+                     else u'10-BIT \u00b7 SLOW ON AIRPLAY' if converts_for_tv(it) else b.get(n, u''), 'icon': it['icon']})
     return rows
 
 
@@ -475,6 +508,8 @@ def _window_class():
             self.count_text = kwargs.get('count_text', u'')
             self.poster = kwargs.get('poster', u'')
             self.details = kwargs.get('details') or {}
+            self.mode = kwargs.get('mode', u'')
+            self.sort = 0
             self.retval = -1
 
         def onInit(self):
@@ -485,22 +520,48 @@ def _window_class():
             for key in ('fanart', 'title', 'meta', 'plot'):
                 self.setProperty('deck.' + key, self.details.get(key, u''))
             self.getControl(32501).setLabel(u'Choose a version')
-            listControl = self.getControl(32503)
-            for n, r in enumerate(self.rows):
+            self.setProperty('deck.mode', self.mode)
+            self.fill()
+
+        def list_id(self):
+            return 32504 if self.mode == u'all' else 32503
+
+        def fill(self):
+            self.setProperty('deck.sort', SORTS[self.sort][1])
+            try:
+                listControl = self.getControl(self.list_id())
+            except RuntimeError:   # an older page without the All Links list
+                self.mode = u''
+                listControl = self.getControl(32503)
+            listControl.reset()
+            order = sort_order(self.rows, SORTS[self.sort][0]) if self.mode == u'all' else range(len(self.rows))
+            # Board 09 "nothing found": All Links with no version says so, with Try Again (back to the qualities).
+            self.setProperty('deck.empty', u'' if self.rows or self.mode != u'all' else
+                             u'Nothing playable came back for this title. Try again, or pick another quality.')
+            for n in order:
+                r = self.rows[n]
                 item = xbmcgui.ListItem(r['headline'], r['meta'])
                 item.setProperty('index', str(n))
                 item.setProperty('headline', r['headline'])
                 item.setProperty('tags', r['tags'])
                 item.setProperty('meta', r['meta'])
                 item.setProperty('badge', r['badge'])
+                for k, tag in enumerate(r.get('pills') or [], 1):
+                    item.setProperty('tag%d' % k, tag)
+                    item.setProperty('tag%d.kind' % k, u'av1' if u'AV1' in tag.upper() else u'')
                 listControl.addItem(item)
-            self.setFocusId(32503)
+            self.setFocusId(self.list_id())
 
         def onClick(self, controlId):
             if controlId == 32500:
                 self.close()
-            elif controlId == 32503:
-                self.retval = int(self.getControl(32503).getSelectedItem().getProperty('index'))
+            elif controlId == 32512:   # Try Again on the nothing-found state
+                self.close()
+            elif controlId == 32510:
+                self.sort = (self.sort + 1) % len(SORTS)
+                self.fill()
+            elif controlId in (32503, 32504):
+                self.retval = int(self.getControl(controlId).getSelectedItem().getProperty('index'))
                 self.close()
 
         def onAction(self, action):
@@ -511,11 +572,25 @@ def _window_class():
     return DeckSelect
 
 
-def choose_source(title, rows, quality, count_text):
+SORTS = ((u'best', u'Best First'), (u'small', u'Smallest'), (u'seeds', u'Most Seeds'))
+
+
+def sort_order(rows, how):
+    """Positions of rows for a sort (board 16's menu); rows without a size (the hidden-links row) stay last."""
+    real = [n for n, r in enumerate(rows) if r.get('size')]
+    rest = [n for n, r in enumerate(rows) if not r.get('size')]
+    if how == u'small':
+        real.sort(key=lambda n: rows[n]['size'])
+    elif how == u'seeds':
+        real.sort(key=lambda n: -rows[n].get('seeds', 0))
+    return real + rest
+
+
+def choose_source(title, rows, quality, count_text, mode=u''):
     from elementum.addon import ADDON_PATH
     details = _details_for(title)
     window = _window_class()("DeckSourceSelect.xml", ADDON_PATH, "Default", rows=rows, subject=title,
-                             quality=quality, count_text=count_text, poster=details['poster'], details=details)
+                             quality=quality, count_text=count_text, poster=details['poster'], details=details, mode=mode)
     window.doModal()
     retval = window.retval
     del window
@@ -626,6 +701,10 @@ def automatic_matches(wanted,exp):
     return all(str(exp.get(k) or '')==str(target.get(k) or '') for k in ('tmdb','season','episode'))
 
 
+WHOLE_SERIES = re.compile(r'(?i)complete[ ._-]*series|collection[ ._-]*of[ ._-]*\d{3}|'
+                          r'[(\[ ._-]0*1[ ._]*-[ ._]*\d{3}[)\] ._-]|\ball[ ._-]*\d{3}[ ._-]*episodes')   # source_match.WHOLE_SERIES
+
+
 def auto_choose(kept, want):
     """The version closest to the first pick: its quality (else the nearest lower, then higher), its HDR kind and
     codec, never AV1 when avoidable, seeds, then the size nearest the first pick's. None when nothing has seeds."""
@@ -644,7 +723,10 @@ def auto_choose(kept, want):
         distance = (q - target) * 2 if q >= target else (target - q) * 2 + 1      # lower quality before higher
         tags = tag_list(it)
         hdr = next((t for t in tags if t in HDR_TAGS), u'')
-        return (is_bad(it), it['seeds'] <= 0, distance, hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
+        # Owner log 15e6cbc4: one episode of a season build was taken from a 500-episode "Complete Series" pack (the
+        # most seeds); whole-series packs come last, used only when nothing else has the episode.
+        return (is_bad(it), it['seeds'] <= 0, bool(WHOLE_SERIES.search(_s(it.get('name')))), distance,
+                hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
                 slow_to_prepare(it), too_heavy(it), abs(it['size'] - size) if size else 0, -it['seeds'])
     best = min(dedupe(kept), key=score)
     return None if best['seeds'] <= 0 else best
@@ -746,10 +828,10 @@ def show_hidden(title, hidden):
     return hidden[sel][0]['idx']
 
 
-def show_list(title, entries, hidden, sm, quality_text, count_text):
+def show_list(title, entries, hidden, sm, quality_text, count_text, mode=u''):
     """Our page for a list of verified links (every one of them), plus the hidden row."""
     rows = build_rows(entries) + ([hidden_row(hidden, sm)] if hidden else [])
-    sel = choose_source(title, rows, quality_text, count_text)
+    sel = choose_source(title, rows, quality_text, count_text, mode)
     if sel is None or sel < 0:
         return -1
     if sel < len(entries):
@@ -762,10 +844,11 @@ def show_all(title, items, parsed, kept, hidden, sm):
     """"Show all": Elementum's own list when every link in it is verified, else every verified link here."""
     if not hidden and len(parsed) == len(items):
         return None
-    return show_list(title, kept, hidden, sm, u'All verified links', u'%d link%s' % (len(kept), u'' if len(kept) == 1 else u's'))
+    return show_list(title, kept, hidden, sm, u'All verified links', u'%d version%s' % (len(kept), u'' if len(kept) == 1 else u's'), u'all')
 
 
-def run(title, items, top_n=TOP_N, expect=None):
+def run(title, items, top_n=TOP_N, expect=None, mode=u'download'):
+    MODE[0] = mode
     parsed = parse_all(items)
     if parsed is None:
         auto=auto_request()
@@ -786,7 +869,7 @@ def run(title, items, top_n=TOP_N, expect=None):
     exp = expect if expect is not None else identity(title, sm)
     _CONTEXT['exp'] = exp
     active=auto_request()
-    if active and active.get('purpose') in ('scan','packs') and (not exp or not automatic_matches(active,exp)):
+    if active and active.get('purpose') in ('scan','packs','survey') and (not exp or not automatic_matches(active,exp)):
         import json
         _home().setProperty(AUTO_RESULT,json.dumps({'request_id':active['request_id'],'error':'identity_unavailable'}))
         return -1
@@ -810,15 +893,35 @@ def run(title, items, top_n=TOP_N, expect=None):
         if exp and episode_watch.canceled(_home(),exp):return -1
     except (ImportError,AttributeError):pass
     auto = auto_request()
-    if auto and exp and automatic_matches(auto, exp) and auto.get('purpose') in ('scan', 'packs'):
+    if auto and exp and automatic_matches(auto, exp) and auto.get('purpose') in ('scan', 'packs', 'survey'):
         import json
         usable = [p for p in kept if p['seeds'] > 0 and not is_bad(p)] if sm is not None and exp.get('titles') else []
-        if auto['purpose'] == 'packs':
+        if auto['purpose'] in ('packs', 'survey'):
             usable = [p for p in usable if p.get('coverage') == u'']
-        _home().setProperty(AUTO_RESULT, json.dumps({'request_id': auto['request_id'],
-            'qualities': [q for q in QUALITY_ORDER if any(p['quality'] == q for p in usable)],
-            'packs': bool(usable) if auto['purpose'] == 'packs' else False}))
-        if auto['purpose'] == 'scan' or not usable:
+        # Kodi-iOS season sheet (season-pack-mockups board B): a pack request for one quality shows only that quality.
+        only = (auto.get('profile') or {}).get('quality')
+        if auto['purpose'] == 'packs' and only:
+            usable = [p for p in usable if p['quality'] == only]
+        result = {'request_id': auto['request_id'],
+                  'qualities': [q for q in QUALITY_ORDER if any(p['quality'] == q for p in usable)],
+                  'packs': bool(usable) if auto['purpose'] in ('packs', 'survey') else False}
+        if auto['purpose'] == 'scan':
+            # Build Season (board D): the best-seeded copy's size per quality, for the ready sheet's sizes.
+            sizes = {}
+            for p in sorted(usable, key=lambda p: -p['seeds']):
+                sizes.setdefault(p['quality'], p['size'])
+            result['sizes'] = sizes
+        if auto['purpose'] == 'survey':
+            # The season sheet's cards: per quality, how many genuine full-season packs and the best one's size/seeds.
+            by = {}
+            for p in usable:
+                best = by.get(p['quality'])
+                if best is None or p['seeds'] > best['seeds']:
+                    by[p['quality']] = {'count': (best or {}).get('count', 0), 'size_gb': p['size'], 'seeds': p['seeds']}
+                by[p['quality']]['count'] = by[p['quality']].get('count', 0) + 1
+            result['packs_by_quality'] = by
+        _home().setProperty(AUTO_RESULT, json.dumps(result))
+        if auto['purpose'] in ('scan', 'survey') or not usable:
             return -1
         # A Full season request offers genuine packs only. Cancel never queues a partial episode.
         return show_list(title, usable, [], sm, u'Full season packs', count_label(len(usable), len(usable)))

@@ -1,7 +1,7 @@
 """Owner (build 160): "a movie im downloading goes onto my phone still … if i do a large movie it wont ever download";
 chose AllDebrid straight to Drive. alldebrid (client, pick), driveupload.upload_stream, debrid_drive (queue, step),
 and the wiring in download.py, service.py and notices.py."""
-import io,json,sys,tempfile,unittest
+import io,json,sys,tempfile,unittest,urllib.error
 from pathlib import Path
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1];BOOT=ROOT/'migration/bundled-bootstrap';LIB=BOOT/'resources/lib'
@@ -118,8 +118,27 @@ class FakeAPI:
  def files(self,m):return [('Fall/Fall.2022.2160p.mkv',3,'L')]
  def unlock(self,l):return 'https://x/f','Fall.2022.2160p.mkv',3
 
+class NativeCopies(unittest.TestCase):
+ def test_copy_bytes_bypass_python_reader_and_query_uncertain_ack_before_resuming(self):
+  blob=b'x'*(3*1024*1024);offsets=[]
+  class API(FakeAPI):
+   def unlock(self,link):return 'https://source/f','Fall.2022.2160p.mkv',len(blob)
+  class Drive(FakeDrive):
+   def copy_piece(self,source,source_headers,target,headers,offset,count,total,timeout):
+    offsets.append(offset)
+    result=self.call('PUT',target,blob[offset:offset+count],{'Content-Range':'bytes %d-%d/%d'%(offset,offset+count-1,total)})
+    if len(offsets)==1:raise ConnectionError('response lost after Drive accepted the bytes')
+    return result
+  with tempfile.TemporaryDirectory() as profile:
+   debrid_drive.queue(profile,{'id':H,'name':'Fall'},'movie','Fall');drive=Drive();api=API()
+   debrid_drive.step(profile,api,drive)
+   def forbidden(*args):raise AssertionError('Video bytes passed through Python source reader')
+   debrid_drive.step(profile,api,drive,open_url=forbidden)
+   self.assertEqual(debrid_drive.load(profile)['jobs'][0]['status'],'done');self.assertEqual(drive.data,blob)
+   self.assertEqual(offsets,[0,1024*1024,2*1024*1024])
+
 class TwoLanes(unittest.TestCase):
- """ISSUE-164: a season's episodes go up to Drive two at a time; a movie is still one upload."""
+ """ISSUE-164 / 1F.4: a season's episodes go up to Drive up to three at a time; a movie is still one upload."""
  def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name
  def tearDown(self):self.tmp.cleanup()
  def season(self,names):
@@ -145,16 +164,25 @@ class TwoLanes(unittest.TestCase):
  def run_job(self,api,drive):
   for _ in range(6):
    if debrid_drive.step(self.p,api,drive) is None:break
- def test_a_season_uploads_two_episodes_at_once(self):
+ def test_a_season_uploads_three_episodes_at_once(self):
+  # Roadmap 1F.4: three lanes when three or more files remain (build-252 log: ~3.3 MB/s per lane on a 115 Mbps line).
   names=['Show.S01E0%d.mkv'%n for n in (1,2,3)]
   debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')
   drive=self.drive();self.run_job(self.season(names),drive)
   job=debrid_drive.load(self.p)['jobs'][0]
-  self.assertEqual(job['status'],'done');self.assertEqual(sorted(self.uploaded),names);self.assertEqual(self.most,2)
+  self.assertEqual(job['status'],'done');self.assertEqual(sorted(self.uploaded),names);self.assertEqual(self.most,3)
   self.assertTrue(all(f['done'] and f['drive_id'] for f in job['files']))
   self.assertEqual(len(drive.folders_made),3)
-  self.assertTrue(any(c.get('parallel')==2 for c in self.shown))      # the pages show both lanes' speed
+  self.assertTrue(any(c.get('parallel')==3 for c in self.shown))      # the pages show all three lanes' speed
   state=debrid_drive.load(self.p);self.assertNotIn('current',state);self.assertNotIn('current_also',state)
+ def test_two_episodes_use_two_lanes_and_five_use_three_at_a_time(self):
+  self.assertEqual([debrid_drive.lanes_for(n) for n in (0,1,2,3,4,10)],[1,1,2,3,3,3])
+  for count,most in ((2,2),(5,3)):
+   self.tearDown();self.setUp()
+   names=['Show.S01E%02d.mkv'%n for n in range(1,count+1)]
+   debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')
+   self.run_job(self.season(names),self.drive(pause=.1))
+   self.assertEqual(debrid_drive.load(self.p)['jobs'][0]['status'],'done');self.assertEqual(sorted(self.uploaded),names);self.assertEqual(self.most,most)
  def test_a_movie_is_still_one_upload(self):
   debrid_drive.queue(self.p,{'id':H,'name':'Fall.2022.2160p'},'movie','Fall (2022)')
   self.run_job(FakeAPI(),self.drive());self.assertEqual(self.most,1)
@@ -172,6 +200,20 @@ class TwoLanes(unittest.TestCase):
 class Queue(unittest.TestCase):
  def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name;self.notes=[];self.done=[]
  def tearDown(self):self.tmp.cleanup()
+ def test_expired_source_renews_at_the_same_offset_without_waiting_for_a_job_retry(self):
+  api=FakeAPI();unlocks=[];opens=[]
+  def unlock(link):
+   unlocks.append(link);return 'https://source/'+str(len(unlocks)),'Fall.2022.2160p.mkv',3
+  api.unlock=unlock
+  def open(url,offset):
+   opens.append((url,offset))
+   if url.endswith('/1'):raise urllib.error.HTTPError(url,403,'expired',{},io.BytesIO())
+   return io.BytesIO(b'abc'[offset:])
+  debrid_drive.queue(self.p,{'id':H,'name':'Fall'},'movie','Fall')
+  debrid_drive.step(self.p,api,FakeDrive())
+  drive=FakeDrive();debrid_drive.step(self.p,api,drive,open_url=open)
+  self.assertEqual(drive.data,b'abc');self.assertEqual(opens,[('https://source/1',0),('https://source/2',0)])
+  self.assertEqual(debrid_drive.load(self.p)['jobs'][0]['status'],'done')
  def run_all(self,api,drive):
   for _ in range(10):
    if debrid_drive.step(self.p,api,drive,lambda k,t,x:self.notes.append((k,t)),open_url=lambda u,o:io.BytesIO(b'abc'[o:]),on_done=self.done.append) is None:break
@@ -224,6 +266,59 @@ class Queue(unittest.TestCase):
   self.assertEqual(debrid_drive.folders('episode','Lanterns.S01E01.2160p.mkv','Lanterns'),['Kodi Downloads','TV Shows','Lanterns'])
   self.assertEqual(debrid_drive.folders('season','01 - Pilot.mkv','Lanterns'),['Kodi Downloads','TV Shows','Lanterns'])
   self.assertEqual(debrid_drive.info_hash({'id':H.upper()}),H);self.assertEqual(debrid_drive.info_hash({'id':'nothex'}),'')
+
+class SeriesPack(unittest.TestCase):
+    """Owner (build 252): seasons 1-3 of Naruto Shippuden from a complete-series pack queued all 500 episodes and the
+    films three times."""
+    PACK = 'Naruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio)/'
+    def files(self):
+        out = []
+        for season, first, last in ((1, 1, 32), (2, 33, 53), (3, 54, 71), (4, 72, 88)):
+            for n in range(first, last + 1):
+                out.append((self.PACK + 'Season %02d (%03d-%03d)/Naruto Shippuden Episode %03d.mkv' % (season, first, last, n), 400, 'L%d' % n))
+        out.append((self.PACK + 'Movies/Naruto Shippuden The Movie 02 - Bonds (2008).mkv', 2000, 'M2'))
+        return out
+    def test_a_season_takes_only_its_folder(self):
+        picked = alldebrid.pick(self.files(), 'season', '2')
+        self.assertEqual(len(picked), 21)
+        self.assertTrue(all('/Season 02 (' in p for p, _, _ in picked))
+    def test_sxxeyy_names_win_and_another_season_is_empty(self):
+        files = [('Show.S01/Show.S01E%02d.mkv' % n, 300, str(n)) for n in range(1, 11)]
+        self.assertEqual(len(alldebrid.pick(files, 'season', '1')), 10)
+        self.assertEqual(alldebrid.pick(files, 'season', '3'), [])
+    def test_an_unknowable_series_pack_is_refused_not_queued(self):
+        files = [('Pack/Episode %03d.mkv' % n, 300, str(n)) for n in range(1, 501)]
+        with self.assertRaises(alldebrid.TooMany):
+            alldebrid.pick(files, 'season', '1')
+
+class CancelAll(unittest.TestCase):
+    def test_every_unfinished_copy_is_cancelled_once(self):
+        import transfer_control
+        with tempfile.TemporaryDirectory() as tmp:
+            debrid_drive.save(tmp, {'jobs': [{'hash': 'AA', 'status': 'copying'}, {'hash': 'bb', 'status': 'new'},
+                                             {'hash': 'cc', 'status': 'done'}, {'hash': 'dd', 'status': 'failed'}]})
+            self.assertEqual(transfer_control.unfinished_copies(tmp), ['aa', 'bb'])
+            self.assertEqual(transfer_control.cancel_all_copies(tmp), 2)
+            self.assertEqual(transfer_control.cancelled_copies(tmp), {'aa', 'bb'})
+            self.assertEqual(transfer_control.menu('up', {'source': 'debrid', 'hash': 'aa'}, queued=2)[-2],
+                             ('Cancel all downloads to Drive (2)', 'cancel_all'))
+
+
+class RememberShows(unittest.TestCase):
+    def test_finished_episode_copies_name_their_show(self):
+        seen = []
+        jobs = [{'status': 'done', 'kind': 'episode', 'title': 'Phony', 'show_tmdb': '275139',
+                 'files': [{'drive_name': 'phony.s01e01.1080p.web.h264-x.mkv'}]},
+                {'status': 'copying', 'kind': 'episode', 'title': 'Busy', 'show_tmdb': '1', 'files': []},
+                {'status': 'done', 'kind': 'movie', 'title': 'Film', 'show_tmdb': '2', 'files': []},
+                {'status': 'done', 'kind': 'season', 'title': 'Old', 'files': []}]
+        self.assertTrue(debrid_drive.remember_shows(None, jobs, lambda names, tmdb: seen.append((names, tmdb)) or True))
+        self.assertEqual(len(seen), 1)
+        names, tmdb = seen[0]
+        self.assertEqual(tmdb, '275139')
+        self.assertIn('Phony', names)
+        self.assertEqual(len(names), 2)
+
 
 class Wiring(unittest.TestCase):
  def test_download_uses_the_shared_pre_selection_interceptor(self):

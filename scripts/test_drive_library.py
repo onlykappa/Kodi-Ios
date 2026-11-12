@@ -52,6 +52,26 @@ class DriveLibrary(unittest.TestCase):
   with patch.object(lib,'listing',side_effect=[([], 'D1'),([{'id':'new','title':'Inception','year':'2010','size':100}], 'D1')]) as listing:
    self.assertIn('item_id=new',lib.completed_copy('movie','Inception','2010','','','state'))
    self.assertFalse(listing.call_args_list[0].kwargs['fresh']);self.assertTrue(listing.call_args_list[1].kwargs['fresh'])
+ def test_cached_only_never_asks_drive_again(self):
+  # Roadmap 2.8: Next Episode and spotlight Play check the saved listing only, so a tap never waits on Drive.
+  from unittest.mock import patch
+  with patch.object(lib,'listing',return_value=([],'D1')) as listing:
+   self.assertIsNone(lib.completed_copy('movie','Inception','2010','','','state',cached_only=True))
+   self.assertEqual([c.kwargs['fresh'] for c in listing.call_args_list],[False])
+  with patch.object(lib,'listing',side_effect=[([{'id':'show','title':'phony'}],'D1'),
+                                               ([{'id':'e2','name':'phony.s01e02.1080p.mkv','title':'phony','size':5}],'D1')]):
+   self.assertIn('item_id=e2',lib.completed_copy('episode','Phony','',1,2,'state',cached_only=True))
+ def test_direct_url_skips_the_drive_add_on_step(self):
+  import json,os
+  with tempfile.TemporaryDirectory() as tmp:
+   with open(os.path.join(tmp,'drive-library.json'),'w') as f:
+    json.dump({'movie:':{'entries':[{'id':'F1','name':'Home Alone (1990).mp4'}],'driveid':'D1'}},f)
+   url=lib.play_url('D1','F1')
+   self.assertEqual(lib.direct_url(url,tmp,'63092'),'http://127.0.0.1:63092/download/D1/D1/F1/Home%20Alone%20%281990%29.mp4')
+   self.assertIsNone(lib.direct_url(url,tmp,''))                                  # add-on port unknown
+   self.assertEqual(lib.direct_url(url,tmp,'51000',ours=True),'http://127.0.0.1:51000/drive/F1/Home%20Alone%20%281990%29.mp4')  # app proxy
+   self.assertIsNone(lib.direct_url(lib.play_url('D1','other'),tmp,'63092'))      # not in the saved listing
+   self.assertIsNone(lib.direct_url('/phone/x.mkv',tmp,'63092'))                  # phone copy
  def test_single_file_tv_uploads_appear_and_open_only_the_selected_show(self):
   drive=FakeDrive()
   drive.tree['tv'] += [('loose1','Lanterns.S01E01.2160p.mkv','video/x-matroska'),

@@ -7,7 +7,7 @@ import settings_find
 KODI_SETTINGS='special://xbmc/system/settings/settings.xml'
 # Kodi settings section id -> the window that shows it (the same windows the Settings rows open).
 SECTIONS={'system':'systemsettings','player':'playersettings','media':'mediasettings','interface':'interfacesettings',
-          'services':'servicesettings','pvr':'pvrsettings','games':'gamesettings'}
+          'services':'servicesettings'}   # no PVR & Live TV or Games: not in the app (owner, 2026-11-12)
 HIDDEN_LEVEL=4   # Kodi's internal settings, never shown in its own pages
 
 def page_entries(settings_page):

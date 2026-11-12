@@ -22,13 +22,14 @@ APPS={'elementum':('magnet.png','FF1F6FEB','FF0A84FF'),'burst':('fire-flame-curv
       'addon':('puzzle-piece.png','FFFF9F0A','FFFF9F0A'),'tmdb':('film.png','FF01B4E4','FF64D2FF'),
       'skin':('layer-group.png','FF636366','FFAEAEB2'),'drive':('cloud-arrow-up.png','FF1A9E5C','FF30D158'),
       'files':('copy.png','FF0A84FF','FF0A84FF'),'update':('arrows-rotate.png','FF636366','FFAEAEB2'),
-      'tv':('satellite-dish.png','FF5E5CE6','FF5E5CE6'),'other':('circle-info.png','FF636366','FFAEAEB2')}
+      'tv':('satellite-dish.png','FF5E5CE6','FF5E5CE6'),'startup':('film.png','FF0A84FF','FF0A84FF'),'other':('circle-info.png','FF636366','FFAEAEB2')}
 # Switches in the bootstrap's settings (category Activity): which jobs may show the pill.
 GROUPS={'elementum':'activity_elementum','burst':'activity_burst','umbrella':'activity_umbrella','library':'activity_library',
         'addon':'activity_addons','quiet':'activity_quiet','drive':'activity_elementum','other':''}
 # The Activity sheet groups jobs by kind, in this order (activity_skin.MAX_HEADS covers every kind).
 KINDS=(('Downloading',('elementum',)),('Finding sources',('burst',)),('Uploading to Google Drive',('drive',)),
        ('Getting ready',('umbrella','tmdb')),('Kodi',None))
+STARTUP_TITLE,STARTUP_TEXT='Getting things ready','Preparing your library'   # board 13 (service.slow_start)
 DONE_FOR=4.0                # seconds a finished job stays as a green check
 
 TAG=re.compile(r'\[/?(?:COLOR|B|I|UPPERCASE|LOWERCASE|CAPITALIZE|LIGHT)[^\]]*\]',re.I)
@@ -122,6 +123,9 @@ def classify(heading,text,percent=None):
   job.update(key='tmdb|library',app='tmdb',group='library',title='Adding to your library',sub=t or 'TMDb Helper');return job
  if low.startswith('tmdbhelper'):
   job.update(key='tmdb|'+low,app='tmdb',group='quiet',title='Updating TMDb Helper',sub=t);return job
+ # Board 13: the app's own setup, shown only when the first start is slow (service.slow_start).
+ if low==STARTUP_TITLE.lower():
+  job.update(key='startup',app='startup',group='startup',title=STARTUP_TITLE,sub=t or STARTUP_TEXT,pct=None);return job
  if low.startswith('skin variables') or low.startswith('skin viewtypes') or low.startswith('skin shortcuts'):
   job.update(key='skin',app='skin',group='quiet',title='Setting up views',sub='Arctic Fuse');return job
  return job
@@ -319,11 +323,14 @@ def read_box(xbmc,xbmcgui):
  if not heading and not text:return None
  return heading,text,pct
 
+IDLE_AFTER=20      # quiet looks (10 s) before the loop slows down
+IDLE_INTERVAL=1.5  # Roadmap 1E.7: nothing shown and nothing running: look every 1.5 s, not every 0.5 s
+
 def watch(read,downloads,uploads,setting,playing,publish,report,wait,interval=0.5,clock=time.time,posters=None):
  """The service loop. read() -> (heading, text, pct) or None; downloads()/uploads() -> lists (notices.py);
  setting(id, default) -> bool; playing() -> bool; publish(props); report(problem text) -> None; wait(s) -> True to stop."""
- tracker=Tracker();last={};engine_every=2.0;engine_at=0;dl=[];up=[]
- while not wait(interval):
+ tracker=Tracker();last={};engine_every=2.0;engine_at=0;dl=[];up=[];quiet=0
+ while not wait(IDLE_INTERVAL if quiet>=IDLE_AFTER else interval):
   try:
    now=clock()
    seen=read()
@@ -337,6 +344,7 @@ def watch(read,downloads,uploads,setting,playing,publish,report,wait,interval=0.
     except Exception:up=[]
    tracker.prune(now)
    jobs=tracker.current(dl,up,now)
+   quiet=quiet+1 if not (seen or jobs or dl or up) else 0
    video=playing()
    shown=[j for j in jobs if allowed(j,setting,video)]
    props=properties(shown,len(jobs)-len(shown),art=lambda job:posters.url(job.get('raw','')) if posters else '')

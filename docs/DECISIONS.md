@@ -228,3 +228,47 @@ Later reports add invisible Maze Runner downloads, a blocking subtitle file brow
 about five seconds, and missing AirPlay captions. Owner corrects the initial subtitle report: Download subtitle
 and phone captions work; only Browse freezes. These reports require their own evidence. Do not describe the
 unobserved AirPlay/caption causes as fixed or infer Wi-Fi failure from the queue pause.
+
+## DEC-036 — Progress is a bar everywhere; the ring stays only on the Home bell (2026-11-11)
+
+Owner reviewed the Fuse-windows mockups (PR #20, board 06): "I like the bar … the ring is a little hard to look at
+… I'd like the bar for everything, it seems more trackable than the ring. Only ring can be around the Bell icon on
+the home." This supersedes the "rings" part of DEC-027 (progress rings around the app tile in the pill and the
+sheet). The blue-by-role and Close (✕) parts of DEC-027 stand.
+
+- Progress is a thin bar in the activity pill, the activity sheet rows, the opening card, Umbrella's "getting ready to play" page and
+  the buffering capsule; with no percentage a short segment slides along it. No spinners for work whose progress can
+  be shown.
+- The only ring is around the bell icon on Home.
+- Recorded in docs/design/APPLE-UI-POLICY.md §4.3 and §4.7 and drawn in docs/design/fuse-windows-mockups.html.
+  PR #9's activity code, `portrait.ring()` and the round-4 mockup still draw rings; they change when the activity
+  skin is next touched. No build, merge or release implied.
+
+## PR #19 review decision — preserve 4K on Roku (2026-11-12)
+
+Owner selected "Keep 4K via Media Assistant" for a Roku AirPlay receiver that requires H.264. Prefer the confirmed
+Roku's Media Assistant route for copy-safe HEVC instead of a new H.264 derivative or a silent picture downgrade.
+Verify the actual receiver, 4K support and installed channel. Preserve playback position, cancellation, phone
+recovery and source ownership. A strict copy-only native API must fail rather than re-encode. Unknown evidence
+keeps the existing route. Source fixes and separate commits are authorized; no native release/IPA is requested.
+
+## PR #19 scope and preloading — 2026-11-12
+
+Owner keeps Movies/TV preloading for instant tab switching; do not implement deferred first-tab loading (1D.3).
+Owner now requests remaining items one at a time, starting with 1A.3 only. Commit/push the source repair for
+review; no IPA, native release/pin update or main merge is requested.
+
+## DEC-037 — The white loading circle is back for plain waits (2026-11-12)
+
+Owner, build 280 (Kodi iOS Watch Options showed the "Working…" card with Cancel): "I miss my white loading circle
+instead of working/cancel". Kodi's busy dialog shows the white spinning circle for any wait, with no card and no
+Cancel (Back still leaves). The opening card (boards 04/05) stays only while a video opens, where its stages and
+Cancel help. This narrows DEC-036 for the busy dialog; progress elsewhere stays a bar.
+
+## DEC-038 — Merge PR #19 with the mockup PRs; carry the rest into a fresh PR (2026-11-12)
+
+Owner: "merge all pending prs so we can start fresh today", then chose "Merge now, fresh PR". PR #19 (with the mockup
+PRs #17, #18 and #20 merged into it) goes to main. Carried into the next PR, from main: phone checks (season queue,
+Continue Watching timing, AirPlay captions, Remove); the Kodi r31 and AirPlay r47 native builds and pins (coded, not
+built); boards 11 (options sheet) and 13 (slow-start pill) and the buffering capsule; the log-lag review and faster
+season scanning. No native release or pin change is part of this merge.

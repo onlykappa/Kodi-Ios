@@ -46,4 +46,32 @@ class Feedback(unittest.TestCase):
   self.assertLess(tail.index('elif converting:'),tail.index('cast.MIRRORING'))
   self.assertIn('cast.NOT_STARTED%problem',tail)
 
+class RokuOriginalPicture(unittest.TestCase):
+ def lines(self):
+  return ['source: video codec=hevc profile=2 pixel_format=yuv420p10le bit_depth=10 raw_bit_depth=0 dimensions=3840x2160 level=153',
+          'network: TV receiver peer=192.168.1.20 agent=AirPlay/2.0 MFi_AirPlay_Device (MFiModelGroup/TCL Roku TV)',
+          'compat: converting video stream 0 to H.264 1920x1080']
+ def test_requires_correlated_roku_and_copy_safe_inspected_hevc(self):
+  self.assertEqual(cast.roku_copy_peer(self.lines()),'192.168.1.20')
+  for old,new in [('TCL Roku TV','Apple TV'),('profile=2','profile=4'),('3840x2160','7680x4320'),
+                  ('peer=192.168.1.20','peer=127.0.0.1'),('codec=hevc','codec=h264'),('level=153','level=186')]:
+   with self.subTest(new=new):self.assertIsNone(cast.roku_copy_peer([s.replace(old,new) for s in self.lines()]))
+  self.assertIsNone(cast.roku_copy_peer(self.lines()+['compat: Dolby Vision profile 5 uses RPU-aware SDR conversion']))
+ def test_old_separate_agent_and_peer_logs_do_not_guess_the_destination(self):
+  lines=[self.lines()[0],self.lines()[2],'client: MFi_AirPlay_Device TCL Roku TV','network: first TV request peer=192.168.1.20 after 100 ms']
+  self.assertIsNone(cast.roku_copy_peer(lines))
+ def test_only_queries_the_confirmed_tv_and_requires_installed_assistant(self):
+  asked=[]
+  def get(url,timeout):
+   asked.append(url)
+   return b'<apps><app id="782875">Media Assistant</app></apps>' if url.endswith('/apps') else b'<device-info><supports-4k>true</supports-4k></device-info>'
+  self.assertTrue(cast.roku_copy_available('192.168.1.20',get))
+  self.assertEqual(len(asked),2);self.assertTrue(all(u.startswith('http://192.168.1.20:8060/') for u in asked))
+  self.assertFalse(cast.roku_copy_available('192.168.1.20',lambda *a:b'<device-info><supports-4k>false</supports-4k></device-info>'))
+  self.assertFalse(cast.roku_copy_available('192.168.1.20',lambda *a:b'<apps/>'))
+ def test_opening_and_settle_checks_honor_the_original_picture_switch(self):
+  net=lambda:{'roku_copy':True}
+  self.assertEqual(cast.airplay_outcome(lambda:0,lambda s:False,network=net),'roku_copy')
+  self.assertEqual(cast.airplay_settle(lambda:1,lambda s:False,network=net),'roku_copy')
+
 if __name__=='__main__':unittest.main()

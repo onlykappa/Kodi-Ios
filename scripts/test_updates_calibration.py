@@ -324,6 +324,15 @@ class Scrapers(unittest.TestCase):
   self.assertEqual(settings,{'provider.external.enabled':'true','external_provider.name':'cocoscrapers','external_provider.module':'script.module.cocoscrapers'})
   settings['external_provider.module']='script.module.other'
   self.assertFalse(bootstrap.umbrella_defaults(lambda k:settings.get(k,''),settings.__setitem__));self.assertEqual(settings['external_provider.module'],'script.module.other')
+ def test_tmdbhelper_long_press_entries_off_once(self):
+  # Board 07 (owner): Browse lists, Trakt/TMDb user options, Refresh details, Modify artwork and Add node go; once per phone.
+  with tempfile.TemporaryDirectory() as t:
+   settings={'contextmenu_related_lists':'true','contextmenu_add_to_library':'true'};marker=Path(t)/'m'
+   off=bootstrap.tmdbhelper_context(marker,lambda k:settings.get(k,'true'),settings.__setitem__)
+   self.assertEqual(set(off),set(bootstrap.TMDB_CONTEXT_OFF));self.assertEqual(settings['contextmenu_add_to_library'],'true')
+   self.assertTrue(all(settings[k]=='false' for k in bootstrap.TMDB_CONTEXT_OFF))
+   settings['contextmenu_sync_trakt']='true'   # the owner turns one back on: it stays
+   self.assertEqual(bootstrap.tmdbhelper_context(marker,lambda k:settings.get(k,'true'),settings.__setitem__),[]);self.assertEqual(settings['contextmenu_sync_trakt'],'true')
 class Elementum(unittest.TestCase):
  def test_download_folder_set_once_and_never_over_the_owners_choice(self):
   with tempfile.TemporaryDirectory() as t:
@@ -361,7 +370,7 @@ class Elementum(unittest.TestCase):
    settings={'disable_upnp':'false'};calls=[]
    api=lambda method,params:calls.append((method,params)) or {'result':'OK'}
    done=bootstrap.phone_housekeeping(profile,(lambda k:settings.get(k,''),settings.__setitem__),api)
-   self.assertEqual(sorted(done),['elementum_always_ask','elementum_network','media_folders','tmdbhelper_players','versioncheck','wsdiscovery','zeroconf'])
+   self.assertEqual(sorted(done),['elementum_always_ask','elementum_network','embuary_service','media_folders','tmdbhelper_players','versioncheck','wsdiscovery','zeroconf'])
    # Downloads (and every play) show Elementum's version list and wait for an answer.
    self.assertEqual([settings[k] for k in ('use_cache_selection','smart_episode_choose','autoyes_enabled','silent_stream_start')],['false']*4)
    self.assertTrue((profile/'media/local_media_root_04').is_dir());self.assertFalse((profile/'escape').exists())
@@ -371,4 +380,28 @@ class Elementum(unittest.TestCase):
    # Once: the owner turning UPnP back on is left alone.
    settings['disable_upnp']='false';self.assertEqual(bootstrap.phone_housekeeping(profile,(lambda k:settings.get(k,''),settings.__setitem__),api),[])
    self.assertEqual(settings['disable_upnp'],'false');self.assertEqual(len(calls),3)
+
+ def test_embuary_helper_service_is_switched_off_once_and_keeps_other_settings(self):
+  """Roadmap 1E.3: Embuary Helper's service loop and player monitor feed nothing the portrait skin reads."""
+  import tempfile,xml.etree.ElementTree as ET
+  with tempfile.TemporaryDirectory() as tmp:
+   profile=Path(tmp);path=profile/'addon_data/script.embuary.helper/settings.xml'
+   self.assertTrue(bootstrap.embuary_service_off(profile))
+   root=ET.fromstring(path.read_bytes());self.assertEqual([(s.get('id'),s.text) for s in root.findall('setting')],[('service','false')])
+   path.write_text('<settings version="2"><setting id="service" default="true">true</setting><setting id="blur_radius">8</setting></settings>')
+   self.assertTrue(bootstrap.embuary_service_off(profile))
+   root=ET.fromstring(path.read_bytes())
+   self.assertEqual({s.get('id'):(s.text,s.get('default')) for s in root.findall('setting')},{'service':('false',None),'blur_radius':('8',None)})
+   path.write_text('<other/>')
+   with self.assertRaises(ValueError):bootstrap.embuary_service_off(profile)
+   # Housekeeping does it once; a later owner choice to turn it on is not undone.
+   path.write_text('<settings version="2"/>')
+   api=lambda method,params:{'result':'OK'}
+   self.assertIn('embuary_service',bootstrap.phone_housekeeping(profile,None,api))
+   path.write_text('<settings version="2"><setting id="service">true</setting></settings>')
+   self.assertNotIn('embuary_service',bootstrap.phone_housekeeping(profile,None,api))
+   self.assertEqual(ET.fromstring(path.read_bytes()).find("setting[@id='service']").text,'true')
+   # A damaged settings file never stops housekeeping.
+   other=Path(tmp)/'second';(other/'addon_data/script.embuary.helper').mkdir(parents=True);(other/'addon_data/script.embuary.helper/settings.xml').write_text('<broken')
+   self.assertNotIn('embuary_service',bootstrap.phone_housekeeping(other,None,api))
 if __name__=='__main__':unittest.main()

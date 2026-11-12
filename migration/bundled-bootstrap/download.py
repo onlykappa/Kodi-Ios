@@ -60,7 +60,12 @@ def run():
     dialog.notification('New episodes','Show added to followed episodes.',xbmcgui.NOTIFICATION_INFO,4000)
    return
  if not elementum_engine.running():
-  dialog.ok('Download','Elementum is not running. Gear menu › Retry Elementum engine, then try again.');return
+  # Not started at launch (performance 1E.1): start it now, with the busy ring while it loads.
+  xbmc.executebuiltin('ActivateWindow(busydialognocancel)')
+  try:started=elementum_engine.ensure_here()
+  finally:xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
+  if not started:
+   dialog.ok('Download','Elementum is not running. Gear menu › Retry Elementum engine, then try again.');return
  wait=lambda:xbmc.Monitor().waitForAbort(1)
  def check(k,s='',e=''):
   # Library status › "Find a version without converting" (replace=1): the copy we have is the one being replaced.
@@ -80,6 +85,14 @@ def run():
   # Every entry point shares the post-selection cloud prompt. Do not wait for a local torrent:
   # the /play or /download URI is intercepted before Elementum can add one.
   url=dl.plugin_url(k,tmdb,season,e)
+  # The searching card names what is searched in the app's own words (Burst may only know the original-language
+  # title, e.g. Japanese, which the app's font cannot draw): KODI-IOS-SEARCH-CARD reads these for two minutes.
+  try:
+   import time as _t
+   home=xbmcgui.Window(10000)
+   home.setProperty('IOSSearch.Name',str(title));home.setProperty('IOSSearch.NameAt',str(_t.time()))
+   home.setProperty('IOSSearch.Context','Season %s · Episode %s'%(season,e) if k=='episode' else ('%s'%year if year else ''))
+  except Exception:pass
   if k=='episode':
    import episode_watch
    episode_watch.canceled(xbmcgui.Window(10000),{'tmdb':tmdb,'season':season,'episode':e},clear=True)
@@ -119,13 +132,20 @@ def run():
     rest_of_season(xbmc,xbmcgui,dialog,home,title,season,episodes,set(),lambda n:start('episode',n))
    return
   # Whole season: verify real packs first, otherwise scan aired episodes before offering quality.
-  try:
-   import json
-   answer=json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Files.GetDirectory','params':{
-    'directory':dl.season_path(tmdb,season),'media':'video','properties':['episode','title','firstaired']}})))
-   import season_sources
-   numbers=season_sources.aired(answer.get('result',{}).get('files'))
-  except Exception:numbers=[]
+  numbers=[];names={}
+  import json,season_sources
+  for attempt in (1,2):   # TMDb Helper can time out on its first listing of a long season; once more
+   try:
+    answer=json.loads(xbmc.executeJSONRPC(json.dumps({'jsonrpc':'2.0','id':1,'method':'Files.GetDirectory','params':{
+     'directory':dl.season_path(tmdb,season),'media':'video','properties':['episode','title','firstaired','premiered']}})))
+    files=answer.get('result',{}).get('files') or []
+    numbers=season_sources.aired(files)
+    names={int(f['episode']):f.get('title') or '' for f in files if f.get('episode')}
+    xbmc.log('Kodi iOS download: season %s listing: %d rows, %d aired%s'%(season,len(files),len(numbers),
+             (' (error %s)'%answer['error'].get('message','')) if answer.get('error') else ''),xbmc.LOGINFO)
+   except Exception as error:
+    xbmc.log('Kodi iOS download: season %s listing failed: %s'%(season,type(error).__name__),xbmc.LOGWARNING)
+   if numbers:break
   owned={n for n in numbers if check('episode',season,n)}
   question=dl.season_question(season,len(owned),len(numbers)) if numbers else None
   if question and not dialog.yesno(question[0],question[1],nolabel='Cancel',yeslabel='Download'):return
@@ -134,13 +154,12 @@ def run():
   if numbers and set(numbers)<=owned|season_sources.pending_episodes(profile,tmdb,season,numbers):
    dialog.ok('Download season','Every aired episode is already downloaded or queued.');return
   home=xbmcgui.Window(10000);home.clearProperty(SEASON_PICK)
-  packs=season_sources.request(home,tmdb,season,purpose='packs')
-  if packs.get('packs'):return  # choosing or cancelling a genuine pack completes this interaction
-  if not packs:
-   dialog.ok('Download season','Could not verify the season sources. Try again.');return
   if not numbers:
    dialog.ok('Download season','No aired episodes could be verified for this season. Try refreshing the show.');return
-  season_sources.run(xbmc,xbmcgui,dialog,home,profile,tmdb,title,season,numbers,owned)
+  # Owner (2026-11-12): a season is always built from single episodes at the quality picked, never a ready-made pack
+  # (season-pack-mockups boards B, C, D; season_sources.build).
+  home.setProperty('IOSSeason.Poster',xbmc.getInfoLabel('ListItem.Art(tvshow.poster)') or xbmc.getInfoLabel('ListItem.Art(poster)'))
+  season_sources.build(xbmc,xbmcgui,dialog,home,profile,tmdb,title,season,numbers,owned,names)
   return
  start(kind,episode)
 
@@ -196,7 +215,7 @@ def rest_of_season(xbmc,xbmcgui,dialog,home,title,season,numbers,owned,start_epi
    home.clearProperty(AUTO_RESULT)
    home.setProperty(AUTO_PICK,json.dumps({'profile':pick,'mode':mode,'until':(now or time.time())+AUTO_SECONDS}))
    try:start_episode(n)
-   except Exception as error:xbmc.log('Kodi iOS download: S%sE%s automatic: %s'%(season,n,error),xbmc.LOGWARNING)
+   except Exception as error:import diagnostics;xbmc.log('Kodi iOS download: S%sE%s automatic: %s'%(season,n,diagnostics.error_text(error)),xbmc.LOGWARNING)
    try:result=json.loads(home.getProperty(AUTO_RESULT) or '{}')
    except ValueError:result={}
    results.append((n,result))

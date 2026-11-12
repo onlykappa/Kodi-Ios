@@ -417,6 +417,17 @@ class RoundPosterInTheRing(unittest.TestCase):
   self.assertIn('Window().Property(work.percent)',xml)
   self.assertIn('Window().Property(work.poster)',xml)
 
+class WorkingCardIsABar(unittest.TestCase):
+ """DEC-036: the 'Working on now' card shows a bar the script fills, not a ring (the only ring is the Home bell's)."""
+ def test_bar_not_ring(self):
+  import library_page
+  src=(Path(library_page.__file__)).read_text()
+  start=src.index('def _work(');end=src.index('def _needs(')
+  self.assertNotIn('work.ring',src[start:end]);self.assertNotIn('ring_20.png',src[start:end])
+  self.assertIn('WORK_BAR',src[start:end])
+  script=(Path(library_page.__file__).parents[2]/'library_status.py').read_text()
+  self.assertIn('library_page.WORK_BAR+n',script)
+
 class FindAVersionWithoutConverting(unittest.TestCase):
  def test_sheet_offers_it_for_reencodes_only(self):
   base={'id':'a','title':'Inception (2010)','name':'Inception.2010.2160p.AV1.mkv','size':9*GB,'state':'waiting','sub':'Next · 2160p'}

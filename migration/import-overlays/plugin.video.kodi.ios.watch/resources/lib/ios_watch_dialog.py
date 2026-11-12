@@ -124,7 +124,8 @@ def choose_player(player):
   if copy is not None:rows.insert(0,('Downloaded copy','play',copy));kind_of=(lambda item,old=kind_of:getattr(item,'ios_download_source','local') if item is copy else old(item))
   xbmc.log('Kodi iOS watch: choose source asked; offering %d options'%len(rows),xbmc.LOGINFO)
  # A finished download on the phone plays at once (owner build-132: Home fetched the torrent again).
- try:downloaded=None if choosing(player) else downloaded_item(player,candidates,cloud=resume)
+ # Roadmap 2.8: every way in also finds a Drive copy (saved listing only, no wait), not just Continue Watching.
+ try:downloaded=None if choosing(player) else downloaded_item(player,candidates,cloud=True if resume else 'cached')
  except DownloadLookupError:
   xbmcgui.Dialog().ok('Check downloaded copy','Completed downloads could not be checked. Try again before starting another download.')
   return None
@@ -132,6 +133,9 @@ def choose_player(player):
   player._ios_copy_selected=True
   source=getattr(downloaded,'ios_download_source','local')
   xbmc.log('Kodi iOS watch: playing a completed %s copy; provider selection skipped'%source,xbmc.LOGINFO)
+  try:
+   import ios_library;ios_library.mark_open(source+' copy')
+  except Exception as error:_quiet('ios_watch_dialog:mark',error)
   try:
    from ios_continue import record
    record(player,read,write,choice=source,preserve_player=True)
@@ -180,6 +184,9 @@ def choose_player(player):
  except Exception as error:_quiet('ios_watch_dialog:169',error)
  if item is engine:share_details(player)
  log('playing with %s (%s)'%(kind_of(item),getattr(item,'file','')))
+ try:
+  import ios_library;ios_library.mark_open(kind_of(item))
+ except Exception as error:_quiet('ios_watch_dialog:mark',error)
  return item
 
 SHEET_DETAIL={'elementum':'Saved to Google Drive \u00b7 watch any time','umbrella':'Plays now from your AllDebrid account',
@@ -217,5 +224,96 @@ def _quiet(where,error,_seen=set()):
  if key in _seen:return
  _seen.add(key)
  try:
-  import xbmc;xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,str(error)[:200]),xbmc.LOGWARNING)
+  import re,xbmc;text=re.sub(r'(?i)\b(?:https?|plugin|ftp|smb)://\S+|magnet:\?\S+','[URL redacted]',str(error))[:200];xbmc.log('Kodi iOS %s: %s: %s'%(where,type(error).__name__,text),xbmc.LOGWARNING)
  except Exception:pass
+
+def title_for(tmdb_type,tmdb_id,art_cache):
+ """(title, year) for a TMDb id from the Library's saved art (drive-library-art.json), no network; None if unknown."""
+ kind='tv' if tmdb_type=='tv' else 'movie'
+ for slot,value in (art_cache or {}).items():
+  if not isinstance(value,dict) or str(value.get('tmdb_id') or '')!=str(tmdb_id):continue
+  parts=slot.split(':')
+  if len(parts)>=3 and parts[0]==kind and parts[1]:return parts[1],parts[2]
+ return None
+
+def count_run(name):
+ """Roadmap 3.5: one more list run of TMDb Helper for the one-minute performance line (perf_summary.py)."""
+ try:
+  import xbmcgui
+  window=xbmcgui.Window(10000);key='KodiIOS.Count.'+name
+  window.setProperty(key,str(int(window.getProperty(key) or 0)+1))
+ except Exception:pass
+
+def warm_details(params,details_class=None):
+ """Roadmap 1C.4: TMDb Helper's route info=ios_warm. Builds the details Play will ask for, with the same arguments, so
+ TMDb Helper's own cache answers when Play is tapped. Quiet on any failure; nothing is played or shown."""
+ tmdb_type=params.get('tmdb_type');tmdb_id=str(params.get('tmdb_id') or '')
+ if tmdb_type not in ('movie','tv') or not tmdb_id.isdigit():return False
+ try:
+  if details_class is None:
+   from tmdbhelper.lib.player.dialog.details import PlayerDetails as details_class
+  season,episode=str(params.get('season') or ''),str(params.get('episode') or '')
+  details_class(tmdb_type,tmdb_id,season if season.isdigit() else None,episode if episode.isdigit() else None).details
+  return True
+ except Exception as error:
+  _quiet('ios_watch_dialog:warm',error)
+  return False
+
+def continue_position(kind,tmdb_id,season,episode,read=None):
+ """(position, total) saved for this title in Continue Watching, or (0, 0)."""
+ try:
+  import ios_continue
+  if read is None:
+   import xbmcvfs
+   def read(location):
+    source=xbmcvfs.File(location)
+    try:return source.read()
+    finally:source.close()
+  entry=ios_continue.load(read)['items'].get(ios_continue.key({'kind':kind,'tmdb_id':tmdb_id,'season':season,'episode':episode})) or {}
+  return float(entry.get('position') or 0),float(entry.get('total') or 0)
+ except Exception:
+  return 0,0
+
+def fast_copy(handle,params,read_art=None,find=None,play=None,resume=None):
+ """Roadmap 1C.2 (owner logs: 1.4-2.1 s in TMDb Helper before a downloaded copy played): Next Episode, spotlight
+ Play, show pages and Continue Watching play a copy already on the phone or Drive before TMDb Helper fetches details
+ and builds its players. Only from saved data (art cache, saved Drive listing). Owner log 20b1ca76 (build 284): a
+ downloaded movie from Continue Watching took 8.8 s, 2 s of it in TMDb Helper and 5.8 s through the Google Drive
+ add-on; it now resumes from its saved place through the app's own Drive proxy (ios_library.play_downloaded asks
+ Continue or Start over). Choose source keeps the full path (its choice logic lives there). True when it played."""
+ if params.get('ios_choose')=='1':return False
+ tmdb_type=params.get('tmdb_type');tmdb_id=str(params.get('tmdb_id') or '')
+ if tmdb_type not in ('movie','tv') or not tmdb_id.isdigit():return False
+ season,episode=str(params.get('season') or ''),str(params.get('episode') or '')
+ if tmdb_type=='tv' and not (season.isdigit() and episode.isdigit()):return False
+ try:
+  if read_art is None:
+   import json,os,xbmcvfs
+   path=os.path.join(xbmcvfs.translatePath('special://profile/addon_data/service.kodi.ios.bootstrap/'),'drive-library-art.json')
+   read_art=lambda:json.load(open(path,encoding='utf-8')) if os.path.exists(path) else {}
+  known=title_for(tmdb_type,tmdb_id,read_art())
+  if not known:return False
+  title,year=known
+  kind='movie' if tmdb_type=='movie' else 'episode'
+  if find is None:
+   import ios_downloaded
+   find=lambda *a:ios_downloaded.completed_copy(*a,cloud='cached')
+  copy=find(kind,title,year,season,episode)
+  path=(copy or {}).get('path')
+  if not path:return False
+  values={'path':path,'title':title,'show':'' if kind=='movie' else title,'kind':kind,'year':year,
+          'ask':'1' if kind=='movie' else '0','season':season or '0','episode':episode or '0','tmdb_id':tmdb_id}
+  if params.get('ios_continue')=='1':
+   position,total=(resume or continue_position)(kind,tmdb_id,season,episode)
+   values.update(resume=position,total=total)
+  if play is None:
+   import ios_library
+   play=ios_library.play_downloaded
+  play(handle if handle is not None else -1,values)
+  try:
+   import xbmc;xbmc.log('Kodi iOS watch: fast path played a %s copy of %s (TMDb Helper skipped)'%(copy.get('source'),kind),xbmc.LOGINFO)
+  except ImportError:pass
+  return True
+ except Exception as error:
+  _quiet('ios_watch_dialog:fast_copy',error)
+  return False

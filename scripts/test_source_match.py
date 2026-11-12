@@ -210,7 +210,7 @@ BAD=[entry('Fall.2026.1080p.WEB-DL.DDP5.1',seeds=90),entry('Free.Fall.2014.1080p
 class VersionPage(unittest.TestCase):
  def run_page(self,items,answers,exp=FALL,quality=None):
   seen=[]
-  def source(title,rows,q,count):seen.append({'rows':rows,'quality':q,'count':count});return answers.pop(0)
+  def source(title,rows,q,count,*a):seen.append({'rows':rows,'quality':q,'count':count});return answers.pop(0)
   with mock.patch.object(dp,'choose_source',source),mock.patch.object(dp,'choose_quality',quality or (lambda labels,*a:seen.append({'labels':labels}) or answers.pop(0))),\
        mock.patch.object(dp,'resume_wanted',lambda:None),mock.patch.object(dp,'remember',lambda *a:True),mock.patch.object(sm,'log',lambda m:None):
    return dp.run('Choose a stream Fall (2022)',items,expect=exp),seen
@@ -265,8 +265,17 @@ class BurstHook(unittest.TestCase):
           b'    request_time = time.time()\n\n'
           b"    cookie_sync(payload['silent'])\n"
           b'    provider_results = []\n'
+          b'    p_dialog = xbmcgui.DialogProgressBG()\n'
           b'    for provider, results in PROVIDERS:\n'
           b'        got_results(provider, results)\n'
+          b'    available_providers = 1\n'
+          b'    total = float(available_providers)\n'
+          b'    while available_providers > 0:\n'
+          b'        available_providers -= 1\n'
+          b'        time.sleep(0.25)\n'
+          b"    if not payload['silent']:\n"
+          b'        p_dialog.close()\n'
+          b'    del p_dialog\n'
           b'    filtered_results = apply_filters(provider_results)\n'
           b'    return filtered_results\n\n'
           b'def got_results(provider, results):\n'
@@ -279,9 +288,11 @@ class BurstHook(unittest.TestCase):
    root=Path(tmp);(root/self.b.BURST/'burst').mkdir(parents=True);(root/self.b.BURST/'burst/burst.py').write_bytes(self.fixture())
    receipt=self.b.patch_burst(root);text=(root/self.b.BURST/'burst/burst.py').read_text()
    with self.assertRaises(AssertionError):self.b.patch_burst(root)   # the pinned source only, once
+  self.assertEqual(text.count('# KODI-IOS-SEARCH-CARD'),3)   # board 09: the searching card around Burst's wait
   self.assertEqual(text.count('# KODI-IOS-SOURCE-MATCH'),4);self.assertEqual(receipt[0]['path'],'addons/script.elementum.burst/burst/burst.py')
   notes,dialogs,props=[],[],{}
   xbmcgui=types.ModuleType('xbmcgui');xbmcgui.Dialog=lambda:types.SimpleNamespace(yesno=lambda h,m:dialogs.append(m) or yes)
+  xbmcgui.DialogProgressBG=lambda:types.SimpleNamespace(close=lambda:None)
   xbmcgui.Window=lambda n:types.SimpleNamespace(setProperty=props.__setitem__,getProperty=lambda k:props.get(k,''))
   xbmcvfs=types.ModuleType('xbmcvfs');xbmcvfs.translatePath=lambda p:str(LIB)
   six=types.ModuleType('kodi_six');six.xbmc=types.ModuleType('xbmc');six.xbmcgui=xbmcgui
@@ -315,14 +326,14 @@ class UmbrellaRoute(unittest.TestCase):
   return {'quality':'1080p','name':name,'size':2.0,'info':'HEVC','debrid':'RD','provider':'torrentio','source':source,'seeders':0,'url':'u'}
  def test_identity_from_meta_reaches_the_page(self):
   got={}
-  deck=types.SimpleNamespace(run=lambda title,labels,expect=None:got.update(title=title,expect=expect) or 0)
+  deck=types.SimpleNamespace(run=lambda title,labels,expect=None,mode=None:got.update(title=title,expect=expect,mode=mode) or 0)
   results=[self.item('Fall.2022.1080p'),self.item('Fall.2026.1080p')]
   with mock.patch.object(up,'share',lambda meta:None),mock.patch.object(sm,'enrich',lambda exp:exp):
    action,item=up.run(results,{'title':'Fall','year':'2022'},deck,lambda:types.SimpleNamespace(setProperty=lambda k,v:None),sm=sm)
-  self.assertEqual(action,'play_Item');self.assertEqual(got['expect']['year'],2022)
+  self.assertEqual(action,'play_Item');self.assertEqual(got['expect']['year'],2022);self.assertEqual(got['mode'],'stream')   # Umbrella is live playback
  def test_umbrellas_own_list_keeps_only_this_title(self):
   results=[self.item('Fall.2022.1080p'),self.item('Fall.2026.1080p','TORRENT UNCACHED'),self.item('Fall.2022.720p','TORRENT UNCACHED')]
-  deck=types.SimpleNamespace(run=lambda title,labels,expect=None:None)
+  deck=types.SimpleNamespace(run=lambda title,labels,expect=None,mode=None:None)
   with mock.patch.object(up,'share',lambda meta:None),mock.patch.object(sm,'enrich',lambda exp:exp),mock.patch.object(sm,'log',lambda m:None):
    self.assertIsNone(up.run(results,{'title':'Fall','year':2022},deck,sm=sm))
   self.assertEqual([r['name'] for r in results],['Fall.2022.1080p','Fall.2022.720p'])
@@ -339,7 +350,7 @@ class UmbrellaRoute(unittest.TestCase):
   rows=[]
   results=[self.item('Fall.2026.2160p'),self.item('Fall.2022.1080p'),self.item('Free.Fall.2014.1080p')]
   with mock.patch.object(up,'share',lambda meta:None),mock.patch.object(sm,'enrich',lambda exp:exp),mock.patch.object(sm,'log',lambda m:None),\
-       mock.patch.object(deck,'choose_source',lambda t,r,q,c:rows.append(r) or 0),mock.patch.object(deck,'resume_wanted',lambda:None),mock.patch.object(deck,'remember',lambda *a:True):
+       mock.patch.object(deck,'choose_source',lambda t,r,q,c,*a:rows.append(r) or 0),mock.patch.object(deck,'resume_wanted',lambda:None),mock.patch.object(deck,'remember',lambda *a:True):
    action,item=up.run(results,{'title':'Fall','year':2022},deck,lambda:FakeItem(),sm=sm)
   self.assertEqual(json.loads(item.props['umbrella.source_dict'])[0]['name'],'Fall.2022.1080p')
   self.assertEqual(rows[0][-1]['headline'],'2 hidden (wrong title/year)')
@@ -409,6 +420,13 @@ class SeasonCoverage(unittest.TestCase):
   self.assertEqual(c('Lanterns.S01E01.2160p.HMAX.WEB-DL.DV.HDR.HEVC'),'Episode 1 only')
   self.assertEqual(c('Lanterns.S01E01-E03.1080p'),'Episodes 1-3 only')
   self.assertIsNone(sm.coverage('Lanterns.S01E01.1080p',sm.expected('episode',['Lanterns'],season=1,episode=1)))
+ def test_whole_series_packs_are_not_season_packs(self):
+  # ISSUE-169 (owner, build 252): files from complete-series packs were listed as Naruto Shippuden season 1.
+  exp=sm.expected('season',['Naruto Shippuden'],season=1)
+  for n in ('Naruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio) Season 01 (001-032)/Naruto Shippuden Episode 001 Homecoming.mkv',
+            '[NamikazeSubs] Naruto Shippuuden (Collection of 500) (720p) (x265)','Naruto Shippuden 001-250 1080p AV1 BD Dual Audio'):
+   self.assertEqual(sm.coverage(n,exp),'Whole series',n)
+  self.assertEqual(sm.coverage('Naruto.Shippuden.S01.1080p.BluRay.x265',exp),'')
  def test_the_page_lists_full_seasons_first_and_labels_them(self):
   base=lambda idx,name,size,cover:dict(idx=idx,quality='4k',seeds=90 if idx==0 else 20,peers=0,size=size,tags_text='',name=name,providers=['x'],icon='',multi=False,coverage=cover)
   items=[base(0,'Lanterns.S01E01.2160p.WEB-DL.HEVC',8.4,'Episode 1 only'),base(1,'Lanterns.S01.2160p.WEB-DL.HEVC',40.0,'')]

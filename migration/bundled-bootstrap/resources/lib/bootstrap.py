@@ -121,6 +121,30 @@ def elementum_defaults(downloads,get_setting,set_setting):
  if current and not current.endswith('/Documents/Elementum Downloads'):return None
  Path(downloads).mkdir(parents=True,exist_ok=True);set_setting('download_path',str(downloads).rstrip('/')+'/');return str(downloads)
 
+DEAD_PROVIDERS=('use_1337x','use_bt4g')
+def burst_providers(marker,get_setting,set_setting):
+ """Roadmap B.10: in all ten owner searches (logs to build 232) 1337x and BT4G returned 0 results (their sites block
+ the phone) and each cost ~2.4 s of the search. Turned off once per phone (marker), so turning one back on stays."""
+ marker=Path(marker)
+ if marker.exists():return []
+ off=[k for k in DEAD_PROVIDERS if str(get_setting(k)).lower()!='false']
+ for k in off:set_setting(k,'false')
+ marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text('1\n')
+ return off
+
+# Board 07 (owner, 2026-11-12): the long-press menu keeps Play, Details, Mark as Watched, Add to favourites, Download
+# and the item's own actions. TMDb Helper's own entries the owner removed, by its settings.
+TMDB_CONTEXT_OFF=('contextmenu_related_lists','contextmenu_sync_trakt','contextmenu_sync_tmdb','contextmenu_refresh_details',
+                  'contextmenu_modify_artwork','contextmenu_make_node')   # Browse lists, Trakt/TMDb user options, Refresh details, Modify artwork, Add node
+def tmdbhelper_context(marker,get_setting,set_setting):
+ """Turns the entries above off once per phone (marker), so one the owner turns back on in TMDb Helper stays."""
+ marker=Path(marker)
+ if marker.exists():return []
+ off=[k for k in TMDB_CONTEXT_OFF if str(get_setting(k)).lower()!='false']
+ for k in off:set_setting(k,'false')
+ marker.parent.mkdir(parents=True,exist_ok=True);marker.write_text('1\n')
+ return off
+
 UPLOAD_CAP_KB=1024
 def elementum_upload_cap(get_setting,set_setting):
  """Build 185 (build-184 log: Drive uploads of a conversion stalled for 120 s at a time): a seeding torrent with no
@@ -129,6 +153,22 @@ def elementum_upload_cap(get_setting,set_setting):
  current=str(get_setting('max_upload_rate') or '').strip()
  if current not in ('','0'):return False
  set_setting('max_upload_rate',str(UPLOAD_CAP_KB));return True
+
+def embuary_service_off(profile):
+ """Roadmap 1E.3: set script.embuary.helper's own `service` switch to false in the profile (Kodi reads it at the next
+ start). Other settings in the file are kept. True once the file says false."""
+ path=Path(profile)/'addon_data/script.embuary.helper/settings.xml'
+ if path.exists():
+  root=ET.fromstring(path.read_bytes())
+  if root.tag!='settings':raise ValueError('Unexpected Embuary Helper settings file')
+ else:
+  root=ET.Element('settings',{'version':'2'})
+ node=next((s for s in root.findall('setting') if s.get('id')=='service'),None)
+ if node is None:node=ET.SubElement(root,'setting',{'id':'service'})
+ node.attrib.pop('default',None);node.text='false'
+ path.parent.mkdir(parents=True,exist_ok=True)
+ tmp=path.with_name(path.name+'.tmp');tmp.write_bytes(b'<?xml version="1.0" encoding="utf-8" standalone="yes"?>\n'+ET.tostring(root,encoding='utf-8'));os.replace(tmp,path)
+ return True
 
 def phone_housekeeping(profile,elementum_setting=None,api=None):
  """Once per phone (owner's logs, ISSUE-070): errors Kodi logged at every start, each harmless but each costing time.
@@ -173,6 +213,14 @@ def phone_housekeeping(profile,elementum_setting=None,api=None):
  # Python service at every start (performance pass).
  if 'versioncheck' not in done and api:
   api('Addons.SetAddonEnabled',{'addonid':'service.xbmc.versioncheck','enabled':False});now.append('versioncheck')
+ # Roadmap 1E.3: Embuary Helper's service (a fanart grabber, a widget-refresh timer and a player monitor that asks Kodi
+ # for the audio tracks on every play) feeds properties that no part of the portrait skin or Arctic Fuse reads
+ # (EmbuaryBackground*, EmbuaryWidgetUpdate, VideoPlayer.AudioCodec.N); its own switch turns the loop and monitor off.
+ # Next start; a switch the owner turns back on stays on.
+ if 'embuary_service' not in done:
+  try:
+   if embuary_service_off(profile):now.append('embuary_service')
+  except (OSError,ValueError,ET.ParseError):pass
  if 'zeroconf' not in done and api:
   if 'error' not in api('Settings.SetSettingValue',{'setting':'services.zeroconf','value':False}):now.append('zeroconf')
  # Owner crash report (build 142, cpu_resource_fatal): iOS killed Kodi in the background for 91% CPU over 53 s; 7 of 12

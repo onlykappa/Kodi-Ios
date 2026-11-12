@@ -1,7 +1,7 @@
 import json,tempfile,unittest,xml.etree.ElementTree as ET
 from pathlib import Path
 import zipfile
-from build_customized_ipa import prepare,patch_drive,DRIVE_PATCHES,DRIVE_COMMON,BOOT,ELEMENTUM,BURST,ELEMENTUM_PATCHES,ELEMENTUM_IOS,BURST_PATCHES
+from build_customized_ipa import prune_unused_addons,prepare,patch_drive,DRIVE_PATCHES,DRIVE_COMMON,BOOT,ELEMENTUM,BURST,ELEMENTUM_PATCHES,ELEMENTUM_IOS,BURST_PATCHES
 from test_import_profile import make_bundle
 class EngineGuardTests(unittest.TestCase):
  """The patched Elementum start (ELEMENTUM_IOS) run with stand-ins for Kodi."""
@@ -70,6 +70,57 @@ class BundleTests(unittest.TestCase):
   receipt=patch_drive(self.root/'addons');self.assertEqual(len(receipt),len({n for n,_,_ in DRIVE_PATCHES}))
   for name,_,after in DRIVE_PATCHES:self.assertIn(after,(base/name).read_bytes())
   with self.assertRaises(AssertionError):patch_drive(self.root/'addons')
+ # Roadmap 1E.2
+ def test_unused_binary_addons_are_pruned_and_needed_ones_kept(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t)/'addons'
+   def make(name,requires=()):
+    (root/name).mkdir(parents=True);(root/name/'x.dylib').write_bytes(b'x')
+    imports=''.join('<import addon="%s"%s/>'%(r,' optional="true"' if o else '') for r,o in requires)
+    (root/name/'addon.xml').write_text('<addon id="%s"><requires>%s</requires></addon>'%(name,imports))
+   for name in ('pvr.hts','audiodecoder.openmpt','game.libretro.2048','visualization.goom','screensaver.rsxs.flux','vfs.sftp','audioencoder.lame','imagedecoder.raw','inputstream.rtmp',
+                'kodi.binary.instance.pvr','kodi.binary.global.main','inputstream.adaptive','inputstream.ffmpegdirect','imagedecoder.heif','peripheral.joystick','game.controller.default',
+                'vfs.rar','vfs.libarchive','screensaver.xbmc.builtin.black','screensaver.xbmc.builtin.dim','audioencoder.kodi.builtin.aac','plugin.googledrive','skin.estuary'):make(name)
+   manifest=Path(t)/'addon-manifest.xml'
+   manifest.write_text('<addons><addon>kodi.binary.instance.pvr</addon><addon>screensaver.xbmc.builtin.dim</addon><addon optional="true">pvr.hts</addon></addons>')
+   removed=prune_unused_addons(root,manifest)
+   self.assertEqual(set(removed),{'pvr.hts','audiodecoder.openmpt','game.libretro.2048','visualization.goom','screensaver.rsxs.flux','vfs.sftp','audioencoder.lame','imagedecoder.raw','inputstream.rtmp'})
+   left={d.name for d in root.iterdir()}
+   for keep in ('kodi.binary.instance.pvr','kodi.binary.global.main','inputstream.adaptive','inputstream.ffmpegdirect','imagedecoder.heif','peripheral.joystick','game.controller.default',
+                'vfs.rar','vfs.libarchive','plugin.googledrive','skin.estuary')+('screensaver.xbmc.builtin.black','screensaver.xbmc.builtin.dim','audioencoder.kodi.builtin.aac'):
+    self.assertIn(keep,left)
+   self.assertFalse(left&set(removed))
+ def test_pruning_refuses_an_addon_something_requires(self):
+  with tempfile.TemporaryDirectory() as t:
+   root=Path(t)/'addons'
+   for name,xml in (('pvr.hts','<addon id="pvr.hts"/>'),('plugin.needs','<addon id="plugin.needs"><requires><import addon="pvr.hts"/></requires></addon>')):
+    (root/name).mkdir(parents=True);(root/name/'addon.xml').write_text(xml)
+   with self.assertRaises(AssertionError):prune_unused_addons(root)
+   self.assertTrue((root/'pvr.hts').exists())   # nothing was deleted before the check passed
+   (root/'plugin.needs/addon.xml').write_text('<addon id="plugin.needs"><requires><import addon="pvr.hts" optional="true"/></requires></addon>')
+   self.assertEqual(prune_unused_addons(root),['pvr.hts'])
+   manifest=Path(t)/'m.xml';manifest.write_text('<addons><addon>pvr.demo</addon></addons>')
+   (root/'pvr.demo').mkdir();(root/'pvr.demo/addon.xml').write_text('<addon id="pvr.demo"/>')
+   with self.assertRaises(AssertionError):prune_unused_addons(root,manifest)
+ def test_drive_unused_services_stop_but_existing_exports_and_sources_survive(self):
+  old,new=next((o,n) for name,o,n in DRIVE_PATCHES if name.endswith('service/utils.py'))
+  source=b"class ServiceUtil(object):\n    @staticmethod\n    def run(services):\n"+old+b"        return [s.name for s in services]\n"
+  from types import SimpleNamespace
+  with tempfile.TemporaryDirectory() as root:
+   def names(setting='',export=False):
+    settings={'ios_extra_services':setting,'port_directory_listing':'8587'}
+    ns={'KodiUtils':SimpleNamespace(get_addon_setting=lambda k:settings.get(k,''),translate_path=lambda p:str(Path(root)/p.rsplit('/',1)[-1]))}
+    exec(source.replace(old,new).decode(),ns)
+    services=[SimpleNamespace(name=n,export_manager=SimpleNamespace(get_exports=lambda:{'saved':{}} if export else {})) for n in ('download','source','export','player')]
+    return ns['ServiceUtil'].run(services)
+   self.assertEqual(names(),['download'])
+   self.assertEqual(names('true'),['download','source','export','player'])
+   self.assertEqual(names(export=True),['download','export'])
+   (Path(root)/'sources.xml').write_text('<source>http://127.0.0.1:8587/source/</source>')
+   self.assertEqual(names(),['download','source','player'])
+ @staticmethod
+ def exec_ns(code):
+  ns={};exec(code.decode(),ns);return ns
  def test_packaged_sources_manifest_seed_and_original_preserved(self):
   app,receipt=prepare(self.app,self.bundle,self.sha,self.root/'work');base=app/'AppData/AppHome';xml=ET.parse(base/'system/addon-manifest.xml').getroot()
   self.assertEqual(xml.find("addon[.='fixture.addon']").get('optional'),'true');self.assertIsNone(xml.find("addon[.='"+BOOT+"']").get('optional'))

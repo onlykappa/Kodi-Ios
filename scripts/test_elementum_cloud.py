@@ -58,7 +58,7 @@ class Route(unittest.TestCase):
    self.dialog.select.return_value=mode
    cloud.route(url(uri=magnet(),type='episode',season='1',episode=str(mode+1)))
    self.assertEqual(transfer_control.paused(self.tmp.name,'up'),paused)
-   self.assertEqual(self.dialog.select.call_args.args[0],'Uploads paused')
+   self.assertEqual(self.dialog.select.call_args.args[0],'Uploads are paused')
   self.assertEqual(len(self.jobs()),2)
   self.assertEqual(self.dialog.notification.call_args.args[1],'Queued · uploads paused')
  def test_cancel_paused_download_keeps_pause_and_saves_nothing(self):
@@ -74,7 +74,7 @@ class Route(unittest.TestCase):
   self.assertEqual(len(self.jobs()),2)
   self.assertEqual([bool(j.get('watch_requested')) for j in self.jobs()],[False,True])
   self.assertEqual(self.dialog.select.call_count,2)
-  self.assertEqual(self.dialog.select.call_args.args[1],['Download only','Download and watch after preparation'])
+  self.assertEqual([x.split(' · ')[0] for x in self.dialog.select.call_args.args[1]],['Download only','Download and watch'])
  def test_cancel_never_enqueues_or_starts_a_player(self):
   self.dialog.select.return_value=-1
   self.assertTrue(cloud.route(url(uri=magnet())))
@@ -114,5 +114,16 @@ class Watch(unittest.TestCase):
    debrid_drive.save(p,old)
    state=debrid_drive.load(p);self.assertEqual(len(state['jobs']),2)
    self.assertEqual(state['jobs'][0]['watch_handled'],state['jobs'][0]['watch_requested'])
+
+class PackFileMatch(unittest.TestCase):
+ def test_a_file_inside_a_pack_is_the_same_pick(self):
+  # Owner log 15e6cbc4 (build 288): every episode of a season build was refused, "0 episodes added".
+  import elementum_cloud as ec
+  pack='Naruto Shippuden (001-500) [Complete Series + Movies (1080p)] (Dual Audio)'
+  self.assertTrue(ec.same_pick(pack+' Season 01 (001-032)/Naruto Shippuden Episode 001 Homecoming.mkv',pack))
+  self.assertTrue(ec.same_pick('Naruto.Shippuden.S01E01.1080p','naruto.shippuden.s01e01.1080p'))
+  self.assertFalse(ec.same_pick('Naruto Shippuden S01E02','Naruto Shippuden S01E01'))
+  self.assertFalse(ec.same_pick('Naruto','Naruto Shippuden S01E01'))   # too short to trust
+  self.assertFalse(ec.same_pick('',pack))
 
 if __name__=='__main__':unittest.main()

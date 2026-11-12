@@ -1,0 +1,330 @@
+# Performance and quality progress
+
+## PR #19 review repair checkpoint — 2026-11-12
+
+- Separate source commits: ISSUE-171 real token renewal; ISSUE-172 bounded HEAD; ISSUE-173 bounded season scans +
+  active cancellation; ISSUE-174 Roku Media Assistant fallback preserving compatible 4K HEVC.
+- Owner explicitly chose Media Assistant for Roku receivers that otherwise convert HEVC through AirPlay.
+- Current pins are still Kodi r30 / AirPlay r46. New fallback is capability gated and requires the next native
+  build's kodi_airplay_serve_copy + correlated receiver evidence. No IPA/native release dispatched here.
+- Compiled recommendations suite: 41 checks, 0 failures. Phone/TV acceptance and hour-long/caption tests remain open.
+
+## MERGED 2026-11-12: PR #19 into main (DEC-038) — next work starts from main in a fresh PR
+
+Open items for the next PR, in order:
+1. Phone checks on the latest IPA: Build Season queue (Naruto Shippuden S1), Continue Watching open time ('open timing'
+   line), AirPlay captions with SubDL subtitles, long press › Remove, the hidden Subtitle offset slider.
+2. Native builds: Kodi r31 from migration/ios-portrait/kodi-21.3-portrait.patch (MKV attachments skipped, Home plugin
+   rows kept around playback, Settings "- " prefix, PIN keyboard) and AirPlay r47 (system-networking uploads,
+   resume start, Roku Media Assistant route); then pin and build an IPA.
+3. UI: board 11 options sheet (portrait's Custom_1170 is the More menu: ask the owner), board 13 slow-first-run pill,
+   buffering capsule (Custom_1156 froze Kodi in build 210).
+4. Speed: the background log-lag review's findings; Build Season scans one episode at a time (~5.5 s each).
+5. Rig tip: start the rig inside a long-running background task; started from a one-off shell it gets killed.
+
+## Update 2026-11-12 (build 290)
+
+- Subtitles: Podnapisi is dead (no DNS anywhere); subtitle_sources uses SubDL / OpenSubtitles with the owner's free
+  keys (Subtitles › More › Subtitle keys, saved only on the phone; keys redacted from the log). **Owner confirmed
+  subtitles work on the phone (build 288/290).** AirPlay captions still to test.
+- Build Season: aired check counts undated episodes (Naruto 2007); plan_season KeyError fixed; picks inside a pack
+  now match Elementum's selection (same_pick) and whole-series packs rank last; Close (keeps working) + red Cancel.
+  Device check of a full season queue pending (build 290).
+- Continue Watching: downloaded copies take the fast path through the app's Drive proxy (was 8.8 s). Device timing pending.
+- Notifications: the Drive library check shows as a card (bell and page agree). DEC-037 white loading circle.
+- Log-lag review by a background agent: pending.
+
+## HANDOFF 2026-11-12 (later): where things stand after build 280 — read this first
+
+Branch `claude/performance-roadmap` (PR #19, draft, not merged). Last IPA delivered: **build-280** (commit 7d30453).
+Pushed after it (in build 281): 8490e9f, the white loading circle (DEC-037).
+
+Done since the Build Season handoff below (each pushed):
+- Build Season sheets B/C/D rendered in the desktop Kodi rig and fixed against the mockups (text fits above the
+  button, white main button, full-width "Looking for episode N" line). Rig-checked; phone not yet.
+- Board E is NOT wanted: owner, 2026-11-12, keeps the current Choose a version page (poster header, one card per
+  version, badges such as BEST MATCH / MAY STUTTER). Do not restyle it into the All Links list.
+- Long press › **Remove** (red) on Library downloads (ios_remove.py): asks first; Drive copy to Drive's Trash, phone
+  files and emptied folders deleted, listing and Continue Watching forget it. Host-tested only (no Drive in the rig).
+- Subtitles (owner log 89a98e5b): tracks.py BACK/BACK_LINK clash (TypeError on every key) fixed; doh_fetch asks
+  1.1.1.1, 8.8.8.8, 1.0.0.1 (A then AAAA) and the error names each resolver's answer. Needs a phone log.
+- Library status "Working on now": bar instead of ring (DEC-036). All Links nothing-found state wired (board 09).
+- DEC-037: plain waits show the white spinning circle again (no card, no Cancel); the opening card only while a video
+  opens. Rig-checked.
+- claude/speed-fixes-2 needs no merge: all five commits were imported and reviewed earlier (see the coverage pass
+  below); git only lists them because they were copied, not merged.
+
+Next:
+1. Owner device checks on build 280/281: a subtitle search (read 'Kodi iOS tracks' lines), Remove on the nameless
+   show card, a Build Season download (Naruto Shippuden S1), the white loading circle.
+2. Boards still open from the Fuse windows mockups: 11 (options sheet: portrait's Custom_1170 is the More menu,
+   different content from the mockup; ask the owner) and 13 (slow-first-run pill not wired).
+3. Builds still to make: Kodi r31 (patch changes) and AirPlay r47, then pins (see "Builds still to make" below).
+
+## HANDOFF 2026-11-12 (end of session): Build Season — read this first
+
+Branch: `claude/performance-roadmap` (PR #19; `claude/exciting-hamilton-ol7dke` is the same commits). Last IPA: build-275.
+
+Owner-approved mockups: `docs/design/season-pack-mockups.html` (open in a browser; rendered images must not be committed).
+Approved: board A (searching card, ONE wide Cancel, no Stop, English title), board B round 2 (four quality cards, one
+Build button), board C (building card), board D round 2 (ready sheet: three numbers, episode list, Download All).
+Board B's Pack/Build switch and board E's pack rows are NOT wanted any more: owner, 2026-11-12, "the season builder
+should be used at all times ... the only option is Build Season". Board E's list style for Choose a version (movies,
+episodes) is still wanted but NOT coded yet.
+
+Coded in the last commit, host-tested only (scripts/test_season_sheet.py, 7 cases; deck_picker, source_match, pages,
+customized_ipa pass), NOT yet rendered in the desktop rig and NOT on the phone:
+- resources/lib/season_sheet.py: models + windows (pick_quality = board B, Card = board C, confirm_ready = board D).
+- season_sources.build/_build: always Build Season: quality sheet -> scan every episode (card counts) -> ready sheet ->
+  queue each episode at its picked quality (next quality down when only lower exists; none found = left out).
+- download.py season branch now calls season_sources.build (no more 'packs' request); it passes episode names and sets
+  IOSSeason.Poster; start() sets IOSSearch.Name/NameAt/Context so the searching card shows the English title.
+- pages.py: searching_card rewritten (generic IOSSearch.Kicker/Title/Lines/Line.N.Text|Count|State/Pct, one Cancel 9802),
+  season_quality_sheet (IOSSeasonQuality.xml), season_ready_sheet (IOSSeasonReady.xml).
+- build_customized_ipa.BURST_CARD: card lines per site from provider_results, English title, no Stop; hidden while
+  KodiIOS.AutoPick is set (Build Season's own scans).
+- deck_picker: scan results carry 'sizes' per quality; a 'survey' purpose and a quality filter for 'packs' were added
+  but are unused now (may be removed).
+
+Next steps, in order:
+1. Render B, C, D in the rig (scratch script idea: call season_sheet.pick_quality / Card / confirm_ready with sample
+   data) and compare with the mockups; fix layout (card navigation, text fit, poster).
+2. Watch the import-review build (IPA) and give the owner the release link.
+3. Board E: Choose a version / All Links in the board 09 list style (portrait.deck_page / links_row).
+4. Owner device check: download a season (Naruto Shippuden S1) and a movie; read the log (season_sources events
+   build_scanned / episode_result).
+
+## Current state and handoff (read this first; updated 2026-11-12)
+
+Rule (owner, 2026-11-12): every fix is committed AND pushed to GitHub as soon as it is coded, by every agent, so a
+later agent can see where things stand from the PR alone. Agents push only their own branch; no force-push.
+
+Where everything lives
+- Branch `claude/performance-roadmap`, PR #19 (draft, not merged). Every push builds an IPA (import-review workflow).
+  Owner's last device build: 252. The roadmap is `docs/ROADMAP-PERFORMANCE.md`; issues in `docs/ISSUES.md`
+  (latest ISSUE-169). Nothing is merged or released without the owner asking in the conversation.
+- UI work from the approved mockups (PR #20, `docs/design/fuse-windows-mockups.html` on branch
+  `claude/fuse-window-mockups-v9thgx`): coded on branch `claude/fuse-windows-code-2` (on GitHub; its agent stopped).
+  Done there, not yet reviewed or merged: board 03 alert, 04/05 opening card + buffering bar, 06 bar (DEC-036),
+  09 All Links states, 10 Umbrella page, 12 search. Not done: 07 context menu, 08 Info card, 11 options sheet,
+  13 start-up. Review, rig-check, then merge into `claude/performance-roadmap`.
+  Branch `claude/fuse-windows-code` (an earlier Haiku attempt) is superseded; ignore it.
+- Speed work by the Sonnet speed agent (branch `claude/speed-fixes`) is merged into #19.
+
+Done (code in #19; device checks pending unless the owner said otherwise)
+- Bugs: 26 of 30 (B.1-B.11, 2.1-2.6, 2.8, 2.9, 2.11-2.15, 2.17, 2.18); 2.19 checked as working. Open: 2.10 (needs a
+  screen recording), 2.7 (device check), 2.16 (log noise only).
+- ISSUE-169: season downloads never take a whole-series pack; "Cancel all downloads to Drive" (Notifications long
+  press on the upload card, Library status sheet "Cancel All"); whole-series packs marked WHOLE SERIES.
+- Speed: 1A.2, 1B.1*, 1C.1, 1C.2, 1C.3, 1D.1/1D.2*, 1E.1, 1E.4, 1E.5, 1E.6, 1F.1 (answered: uploads ~3.3 MB/s,
+  Python waits 4 ms), 1G.1, 1G.7 (10-bit H.264 last for streams), 1G.8 (Play on TV on an unprepared download:
+  "Preparing first", front of the queue, no live conversion). Picker modes: Umbrella = stream (AirPlay-ready first:
+  AV1, 10-bit H.264, DV-only last); Elementum = download (best seeded at the chosen quality; AV1 last).
+  * needs Kodi r31 (Kodi patch: MKV attachments skipped, Home plugin rows kept around playback; also the 2.4 "- "
+  prefix and 2.5 PIN keyboard).
+
+Builds still to make (owner approval for the IPA is in the conversation; merging is not)
+1. Kodi r31 from `migration/ios-portrait/kodi-21.3-portrait.patch` (kodi-ios-portrait workflow, then pin in
+   `migration/ios-portrait/source-lock.json`; patch_sha256 there is stale, nothing reads it).
+2. AirPlay r47 (system networking for uploads, resume-point start): candidate from the airplay-remux run on the PR
+   head; pin in `migration/airplay-ios/source-lock.json` + `scripts/test_airplay_remux.py`, then airplay-ios with
+   publish_verified_candidate=true.
+3. IPA via import-review (runs on every push to #19).
+
+Next work (in order)
+1. Review/merge the mockup agent's branch (rig-check each board: scripts/kodi_rig.py, docs/design/KODI-RIG.md).
+2. 1A.1 DONE as the app's own Drive proxy (drive_proxy.py, Python; no framework build): check open timing and seeks
+   in the owner's next log. 1A.3 (keep the MP4 index) can now cache the tail in drive_proxy. A second Sonnet agent
+   works on 1E.7, 1E.3, 1E.2, 1D.3, 1F.4 on branch claude/speed-fixes-2 (local until reviewed).
+3. 1G.2 conversion faster than real time (only AV1 / 10-bit H.264 / unprepared downloads need it now).
+4. 1E.2/1E.3/1E.7 start-up trims, 1F.2-1F.4 uploads to line speed, 1D.3 rows for the visible tab only.
+5. MKV fonts trade-off (1B.1): owner chose faster opens with the plain subtitle font (2026-11-12). Applies to every MKV Kodi opens: Umbrella streams and Elementum; prepared Drive MP4s are unaffected.
+
+## Log (newest last)
+
+Read this first when taking over. The plan is docs/ROADMAP-PERFORMANCE.md. Update this file at every step:
+what was done, where it lives (branch, commit, run), what was verified (and how), what is next.
+Never claim a phone result without the owner's log or screenshot.
+
+## Current state
+
+- PR #16 (claude/trusting-euler-kgug98 → main): owner asked to merge (2026-11-11). Head eb91571. Merge only with green
+  checks (review, host-tests, executable).
+- Build 229 is the owner's current app. Build 230 (pending) = PR #16 merged + AirPlay r47 (kodi_http_send for uploads,
+  EXT-X-START, MKV audio seek, attachments skip) + Kodi r30. Source of truth for what each build holds: docs/PROGRESS.md.
+- Desktop Kodi rig: KODI_RIG_HOME=/root/.cache/kodi-rig-test. Restart with `kodi_rig.py start`; after copying the add-on
+  run kodi_rig.bootstrap_copy (keeps the rig_builtin hook); `sync` regenerates pages; ReloadSkin. A Trakt sign-in prompt
+  appears on Home in the rig only: send Input.Back twice before opening a page. Script windows (sheets) must be closed
+  with Input.Back or an xdotool tap (DISPLAY=:5), not Dialog.Close.
+
+## Steps
+
+| When (UTC) | Step | Result |
+|---|---|---|
+| 2026-11-11 16:30 | Roadmap drafted (phases 0-3) after the 1-10 audit | docs/ROADMAP-PERFORMANCE.md |
+| 2026-11-11 16:30 | Phony individually downloaded episodes added as 2.2 | finding only, not fixed |
+| 2026-11-11 16:40 | 1B.1 version rows badge 10-bit H.264 "SLOW ON AIRPLAY" (deck_picker.converts_for_tv) | local branch phase1-work 6779f62; test_deck_picker TvReady |
+- 1A.1 (code): interpreter_probe.py + service thread logs 'Kodi iOS interpreter wait: median/p95' once a minute while an AllDebrid→Drive copy runs. Test scripts/test_interpreter_probe.py. Needs a device log to read.
+- 2.2 (code): cause found: a single-episode copy goes to Drive folder named from the file ('phony'), and the Library searched TMDb by that name only, so it could land on another show or none, with no episode names, stills or plots. Fix: finished copies record the job's show_tmdb under the title and folder names in drive-library-art.json (drivelibrary.remember_show, debrid_drive.remember_shows, plus a one-time backfill from finished jobs at service start). Episode rows with no TMDb name read 'Episode N', not the show name. Tests in test_library_pages and test_debrid_drive. Needs a device check on Phony.
+
+## Handoff (2026-11-11 ~17:00 UTC)
+- PR #16 head 027f4c3 (CI apt timeout fix); checks were running. Merge #16 when green.
+- Do NOT merge #17 or #18 (owner, 2026-11-11): an agent works on them first. Their open work: 2.3 add-on settings tabs
+  (board 08), 2.4 "- " dash (Kodi patch), 2.5 Kodi PIN/time number pads, 2.6 More/power-menu links to old windows,
+  ISSUE-156 "Find subtitles online" against the real site.
+- This branch (claude/performance-roadmap) = #16 + roadmap docs + 1B.1, 1A.1, 2.2. After #16 merges it shows only these.
+- Then: pin AirPlay r47 from the airplay-remux run on 027f4c3 (framework zip sha256, exports _kodi_http_send, health,
+  startup_budget; source_commit 027f4c3, previous r46), dispatch airplay-ios.yml publish_verified_candidate=true,
+  import-review.yml for build 230, verify, record in PROGRESS/HANDOFF.
+- Next items: 1A.2, 1B.3, 1B.2, 1C.1, 2.1, 2.3-2.6.
+
+## 2026-11-11 investigation (owner: "investigate before we code")
+- Read owner logs e8ab5995 and 396d5d67 (build 229) and the 37 earlier logs. Roadmap rewritten with measured timings,
+  known causes and new items 1A-1G, 2.8-2.17, 3.5-3.6. No code changed for these yet.
+- Biggest finds: Drive playback goes through plugin.googledrive's Python proxy (open 11-13 s, seek 4.2 s); Home rows
+  reload on every tab return and around playback (31 Python runs each); Drive copies ignored outside Continue
+  Watching (ios_watch_dialog cloud=resume) which also breaks Next Episode; subtitle site does not resolve.
+
+## 2026-11-11 build 232 log (eabc204b)
+- ISSUE-168 found and fixed: drive_uploads crashed at start (UnboundLocalError 'airplay'), so build 232 never uploads or
+  copies. Fix in service.py; scripts/test_service_scoping.py catches it. Needs the next build.
+- Roadmap: "Build 232 findings" B.1-B.11 and "UI" U.1-U.14 (Arctic Fuse/Kodi windows that need mockups) added.
+- 2.8 (code): Drive copies found on every way in (Next Episode, spotlight Play, show pages) from the saved Drive listing, no network wait; a failed Drive check there counts as no copy. Continue Watching keeps the strict check. Fixes 2.9 when the episode is on Drive. Tests: test_drive_library (cached_only). Device check pending.
+- B.3/B.4/B.5 (code): Library playback carries title, show, S/E, plot, runtime and art from the saved TMDb details (ios_library.playback_details); never the file name. Subtitle search reads show/S/E from the release name when Kodi has none (track_menu.from_release). Tests: test_library_pages, test_doh_fetch.
+- 2.13 (code): subtitle downloads retry through DNS over HTTPS (1.1.1.1) when the phone's DNS refuses the site (doh_fetch.py); certificate still checked for the site's name. Device check pending.
+- B.2, B.6, B.7/2.12, B.8, 2.14 (code): Volume boost 3 dB a tap with the value in the row and Kodi's slider closed; Subtitles › More and found subtitles as rows in the menu; Playback speed as a track-menu mode; no updates after the menu closes; menu opens on Close then focuses its filled list. Tests: test_track_menu. Rig check pending (layout).
+- B.9 (code): Save to Google Drive / Uploads paused questions use the approved sheet (elementum_cloud.ask), Kodi's box only as fallback. B.11: Elementum-side diagnostics attach to the app session (build named). Tests: test_elementum_cloud, test_auto_season.
+- B.10 (code): 1337x and BT4G (0 results in all 10 owner searches, ~2.4 s each) turned off once per phone (bootstrap.burst_providers); a later choice to turn one on stays. Search-progress display waits for mockup U.9. Test: test_bundled_bootstrap.
+- 2.9 (code): Next Episode stops the video and waits until it has closed before asking for the next one, so the source question is no longer dismissed by the closing player. Test: test_next_episode.
+- 2.15 (code): Skin Settings checks Fuse's conditions with $EXP[...] names expanded from the skin's own <expression> definitions (unknown ones false), so Python no longer logs parse errors. Test: test_skin_settings.
+- 2.17 (code): a show with no finished episode shows one row 'No finished episodes yet' with where to see progress, not a blank page. 2.16 left as log noise (Kodi's remembered view control hidden on some pages). 2.10: no code defect found (Play reads the spotlight item at tap time; no auto-rotation); needs a screen recording to reproduce.
+- 2.11 (code): the Library movie resume question uses the approved sheet (Kodi's box only as fallback); Download/Stream already uses the sheet in build 232 (seen working in log eabc204b: picked 0).
+- 2.4/2.5 (Kodi patch, needs Kodi r31): sub-settings without the '- ' prefix on iOS; number and PIN prompts (ShowAndGetNumber, ShowAndVerifyInput) on the iPhone keyboard, digits kept; time/date/IP pads stay Kodi's. git apply --check passes on Kodi 21.3. Test: test_kodi_patch_ios.
+- 2.6 (code): More › File manager → Transfers (our page); recovery menu Skin settings → our Skin Settings page, Local videos → Library.
+- 2.3 (code, rig-checked: desktop Kodi rig, TMDb Helper settings): add-on settings as board 08: add-on name as title (System.AddonTitle), Cancel / Done, sections in a segmented control (4 wide, more scroll). The '- ' prefix there goes with the Kodi r31 patch (2.4).
+- Rig check (desktop Kodi rig, landscape menus drawn squashed into the portrait rig window): Playback speed opens as a track-menu list with 1x ticked; Audio shows the boost value; tapping + logs 'volume boost +3 dB', the row reads +3 dB and Kodi's slider does not appear. Title widened so 'Playback speed' fits.
+- 2.1 (code, rig-checked: desktop Kodi rig, sample links via umbrella_picker): Show All Links opens the All Links page (board 16): back, sort menu (Best First / Smallest / Most Seeds, re-sorts in place), large title, title · N versions, rows with release title, up to four tag pills (AV1 orange) and size · seeds. The quality page keeps its poster layout. Tests: test_deck_picker (sort, row fields).
+- 2.18 (code, rig-checked as a script window: Kodi blocks add-ons from opening DialogBusy): after 2 s the busy ring gets 'Still working…' and Cancel (Kodi's Back, which stops an add-on resolve) on a dark backing; short loads keep the bare ring. Test: test_pages.
+- 2.19: checked, no change: a tap on a Continue Watching card plays it (the item's own path); the menu in log e8ab5995 came from a long press (keymap longpress = RightClick), which opens the restyled context menu.
+- Status 2026-11-11 evening: of the 30 bugs, 26 fixed in code (B.1-B.11, 2.1-2.6, 2.8, 2.9, 2.11-2.15, 2.17, 2.18), 2.19 checked as working (long press = menu, tap = play). Left: 2.10 (no defect found; needs a screen recording), 2.7 (bold search: device check only), 2.16 (Library focus errors are log noise; changing the declared views risks the show page). Kodi patch changes (2.4, 2.5) need Kodi r31; uploads (B.1) and native uploads need the next IPA with AirPlay r47.
+- 1C.2 (code): TMDb Helper's router calls ios_watch_dialog.fast_copy before building players: a copy already on the phone or Drive (title from the Library's saved art, saved Drive listing) plays through ios_library.play_downloaded with full details; Continue Watching and Choose source keep the full path. Saves the 1.4-2.1 s TMDb details fetch on Next Episode, spotlight Play and show pages. Tests: test_downloaded_play (FastPath), test_import_builder.
+- 1D.1 finding: Home's 31 rows reload after every video because the phone rotates back to portrait and the Kodi patch reloads windows for the new layout (log 396d5d67 09:36:46 'Screen rotated' then 32 rows in 2.0 s). Fix belongs in the Kodi patch (keep Home's list providers across a rotation); next Kodi build.
+- 1A.2 (code): Library playback of a Drive copy hands Kodi the Drive add-on's local stream address directly (port from its settings, file name from the saved listing), skipping its play step (a Drive request, ~1 s). Falls back to the add-on link when unknown. AirPlay/cast read the resolved address either way. Test: test_drive_library. The proxy's own 5-6 s open remains (1A.1 native reader).
+- 1C.3 (code): TMDb Helper gets an empty resources/players folder in the IPA, ending two failed directory reads per play. Test: test_import_builder.
+- ISSUE-169 (code): season downloads never take a whole-series pack; Cancel all downloads to Drive (Notifications long press, Library status sheet). Owner's build-252 log also shows uploads at ~3.3 MB/s and interpreter wait median 4 ms: Python is not the upload limit any more (1F.1 answered).
+- ISSUE-169 follow-up (code): source_match.coverage marks complete-series / 'Collection of 500' / '001-250' packs 'Whole series' (badge WHOLE SERIES), ranked after real season packs and never auto-picked for a season. Test: test_source_match.
+- 10-bit finding: of 56 prepared downloads, 48 are 10-bit HEVC (copy=True: an Apple TV plays them as they are), 5 AV1 (converted), 3 H.264. AirPlay clients in the logs: Apple TV and a Roku TV. Stutter comes from the Roku path, which needs H.264 and converts the picture live on the phone; fix is 1G.2 (conversion faster than real time) plus 1G.7 below.
+- 1C.1 (code): every video open from the Library, the watch menu or a completed copy logs 'Kodi iOS open timing: X s via <route>' once the picture plays (open_timing.py; service polls 0.2 s only while a mark is set). Test: test_open_timing.
+- 1E.1 (code, needs the next IPA): Elementum's engine no longer starts at launch. The patched Elementum service waits until something asks (elementum_engine.ensure: Download, automatic episode download, any Elementum plugin request that is not handled by the cloud route) or until Elementum's download folder holds files (seeding / waiting for Drive); then it starts the engine in the same session. "Retry Elementum engine" unchanged. Expected: ~300 log lines, the libtorrent listener and the Go runtime gone from launch. Verified: test_speed_fixes, test_customized_ipa; device check pending.
+- 1E.4 (code): service.py imports portrait (147 KB), driveupload, activity, signin_server, umbrella_ready, background and calibration on first use (a small _Late proxy; each is first used in a worker thread or later) instead of before "bootstrap entered". Expected: most of the 1.74 s moves off the main start-up path (host: these seven are about 0.1 s of 0.15 s on a laptop; the phone is ~10x slower with no .pyc). Verified: test_speed_fixes, test_bundled_bootstrap, test_episode_watch and every test that reads service.py; phone timing pending.
+- 1E.6 (code): cause found in Kodi's PythonInvoker: a script stays open until every Python thread of its interpreter has ended, daemon threads included (it polls every 100 ms and logs "waiting on thread"). Our page refresh loops slept in monitor.waitForAbort(1-2) and ignored their page closing, so Notifications, Transfers, Accounts, Settings search, Library status and the tool pages waited up to 2 s on close. New page_wait.idle(stop, monitor, seconds) wakes the moment the page sets its stop event; the 9 loops use it. No non-daemon threads exist in our page scripts (checked by AST). TMDb Helper's own script.py waits are its own threads and are not changed. Tests: test_speed_fixes (idle wake/timeout/abort; no loop keeps the old sleep). Device check pending.
+- 1E.5 (code, needs the next TMDb Helper build): patch_helper (build_import_review.py) makes TMDb Helper trust a saved, unexpired Trakt token at once and confirm it with the network in a daemon thread (a rejection clears TraktIsAuth so the next use checks again; an expired or missing token still takes the old blocking path). Expected: the first Trakt-using row/page no longer waits ~1.7 s. Asserts the hook text exists exactly once. Verified: test_speed_fixes (behaviour on stubs), patched the real 6.18.1 token.py in the rig copy and parsed it; phone check pending. Not "after Home settles" literally: the check was lazy inside the first Trakt use, so removing the wait there is the safer equivalent.
+- 1B.1 (Kodi patch, needs Kodi r31 incl. a depends rebuild): kodi-21.3-portrait.patch now adds tools/depends/target/ffmpeg/kodi-ios-mkv-skip-attachments.patch (the AirPlay FFmpeg change: MATROSKA_ID_FILEDATA read as EBML_NONE, so the demuxer seeks past fonts/covers instead of downloading them) and makes the FFmpeg Makefile apply it after unpacking (and depend on it). build-kodi-ios.sh drops a cached "depends built" state once so FFmpeg rebuilds. The Kodi patch applies cleanly (apply --check on the Kodi 21.3 source copy); the embedded FFmpeg patch dry-runs clean with patch(1) against an unpatched matroskadec.c (not the exact 6.0.1 tarball: mirrors.kodi.tv is unreachable here, so the CI depends build is the real proof). Expected: MKV opens drop the 24-30 s attachment read. Side effect: embedded fonts of styled ASS subtitles are no longer loaded by libass (Kodi falls back to its default font; text still shows). Tests: test_kodi_patch_ios.
+- 1D.1/1D.2 (Kodi patch, needs Kodi r31): CORRECTION of the earlier finding: the rotation is not the cause. Kodi's CDirectoryProvider::Announce marks every list provider invalid on Player OnPlay/OnResume/OnStop when its sort is "none" (every plugin row) and on VideoLibrary updates, so all Home plugin rows are fetched again when the video opens and when it closes (log 396d5d67: rows at 09:36:48 came with Home becoming visible after the stop; e8ab5995 09:32:27 rows before any rotation). Home itself is KEEP_IN_MEMORY and is not reloaded by the rotation. The Kodi patch now (iOS only, #if TARGET_DARWIN_EMBEDDED) skips those invalidations for plugin:// rows except the watch add-on's own rows (Continue Watching, Up Next, library), which refresh on stop and library change but not on play; the cached route (action=cached, the TMDb Helper rows) is excluded from refreshing. apply --check passes on Kodi 21.3. Expected: 11-17 row requests while a video opens and the burst after it closes disappear. Tests: test_kodi_patch_ios (hunk asserted). Not covered: the Home-tab tap (1D.1 "31 requests on tab return"), which needs a device log to separate from this.
+- 1A.3 (NOT implemented, plan): the index read is Kodi's FFmpeg (use_mfra_for=pts, kodi-21.3-portrait.patch, DVDDemuxFFmpeg) asking for the last 16 bytes (mfro) and then the mfra box through the Google Drive add-on's local stream server: two ranged Drive requests (0.6-1.9 s) per open, for bytes that never change. Only whatever answers those Range requests can serve them locally, and today that is the third-party Drive add-on's Python proxy (patched in build_customized_ipa.py DRIVE_PATCHES), which 1A.1 replaces with a native range server; a cache in the old proxy would be thrown away, so this waits for 1A.1. Plan: (1) when preparation finishes (prepare_downloads layout_probe = fast_open.inspect, which already reads mfro and mfra to validate them) store the tail (the last `length` bytes named by mfro, a few KB) base64 in the file's Drive-library entry beside its size and modified time (drivelibrary.py; dropped when either changes); (2) the 1A.1 range server answers any Range wholly inside [size-length, size) from that entry with no Drive request (1A.2's direct_url already reads drive-library.json and can pass the entry on); (3) log "index served from cache" and compare the open timing line (1C.1) before and after. Needs a device log of an open to confirm those two requests are the whole 0.6-1.9 s.
+- No-stutter (code): the version picker ranks 10-bit H.264 after every version that plays on the TV as it is (no hardware decoder on Apple devices: live AirPlay conversion runs slower than real time). Downloads were already safe: preparation re-encodes 10-bit H.264 to 8-bit H.264 once on Drive (kr_prepare copy_video). Remaining stutter case: AirPlay of a download before its preparation finished; next: 1G.8 prepare that video first / say so on the Play on TV card. Test: test_deck_picker NoStutter.
+- Stream vs download (code): deck_picker.run(mode=) — Umbrella (umbrella_picker, live playback) uses 'stream': AV1, 10-bit H.264 and Dolby Vision without HDR10 go after versions AirPlay sends as they are. Elementum downloads keep Elementum's best-seeded order at the chosen quality (AV1 still after, slow to prepare); preparation converts anything else once on Drive. Tests: test_deck_picker NoStutter, test_source_match.
+- 1G.8 (code): Play on TV on a Drive download whose preparation is waiting or running and whose picture needs converting (or not probed yet) asks first with the approved sheet: Prepare first (front of the queue, then it plays as it is) or Play now (live conversion, may stutter). Copy-only files (HEVC / 8-bit H.264 that only need repackaging) and ready files go straight on. Test: test_cast_ready.
+
+- 1G.8 change (owner: "it should say prepare first"): no choice; Play on TV on an unprepared download that needs converting queues it first and says 'Preparing first'.
+- ISSUE-170 (code): Continue Watching cards from Library playback get the TMDb name and art; old cards heal when shown.
+- 2.10 (code): spotlight Play and Info ignore a tap while the spotlight is still sliding (!Container(4000).Scrolling), so they act on the title on screen. Tests: test_pages HeroTaps, test_portrait. 2.7 stays a device check; 2.16 stays log noise (changing the declared views risks the show page).
+- 1A.1 (code): Drive copies from the Library stream through the app's own proxy (drive_proxy.py in the bootstrap service): Kodi's Range requests go straight to Drive's media download over kept-alive connections, 256 KB pieces, HEAD answered from a 1-byte read, one retry with a fresh token on 401. Replaces the Google Drive add-on's proxy (4.8-6.2 s opens, 4.2 s seeks: per-request account set-up and metadata). Falls back to the add-on's stream when the proxy is not running. Python-only (owner log: Python reads Drive at up to 35 MB/s); no framework build. Tests: test_drive_proxy (real HTTP: whole file, seek, HEAD, token retry), test_drive_library, test_cast_ready. Device check: 'open timing' lines and seek times in the next log.
+- Fuse windows board 03 (alerts): DialogConfirm is the iOS alert (title, one line, hairline-divided buttons, one/two/three-button layouts, red destructive verb); ids 1/9/10/11/12/20 kept. Rig-checked (OK, Delete, three-button).
+- Fuse windows boards 04/05 (opening card): DialogBusy is a centred card with a sliding bar instead of the ring (stages and slow text from Window(home) IOSOpen.Title/Source/Stage/Slow, which the opener must set; otherwise a small "Working…" card, Cancel 9850 after 2 s). Rig-checked in portrait via a script window; the opener does not set IOSOpen.* yet. Buffering capsule (Custom_1156) not done.
+- Fuse windows board 06 (background progress): Kodi's progress box was already drawn by the activity pill; the pill and the Activity sheet rows now show a thin 4 pt bar (20 % white track, 0A84FF fill, grey paused, green done, sliding segment without a percentage) instead of the ring around the tile (DEC-036); the Home bell ring is untouched. Rig-checked (pill and sheet, 40 % job set through window properties).
+- Fuse windows board 10 (Umbrella getting ready): source_progress.xml uses one 4 pt bar (follows Umbrella's percent once a source is known, slides before), percent only when known, icon-only mode a sliding bar instead of a ring. Rig-checked (source known 62 %, still looking). Routing Umbrella's list through the picker and closing the page before the sheet are not done.
+- Fuse windows board 13 (startup): nothing to change, already in code: Startup.xml goes straight to Home after the first launch and Custom_1198 is never shown. The black launch screen is the existing black_launch_screen; the slow-first-run pill is not wired.
+- Fuse windows board 09 (All Links states): the portrait DeckSourceSelect page gains "Still searching" (deck.status line, sliding bar, Stop 32511 sets deck.stop) and "No versions found" (deck.empty text, Try Again 32512 sets deck.retry); the picker does not set these properties yet. Rig-checked with a script window.
+- Fuse windows board 12 (search results): results panel 5200 is now a list of 210-unit rows (poster, title, year and kind), with "No results for “x”" and a hint; bold matching letters not done (ISSUE-160). Rig-checked (real multi-search rows).
+- Fuse windows board 05 (buffering, part 2): the OSD's "Buffering NN%" gets a thin bar (Player.CacheLevel) under it; Custom_1156 stays disabled (it froze Kodi, build 210). Not rig-checked (needs playing video).
+- Fuse windows boards 07, 08, 11: not built, see the final report (07 and 11 already drawn by portrait with different content than the mockup assumes; 08 needs the Info button rewired).
+
+## PR #19 review repairs — 2026-11-12
+
+Owner asks for fixes committed separately. Source commits use [skip ci] to preserve the current no-IPA scope.
+- ISSUE-171: rejected Drive tokens now really refresh, once across concurrent readers, without bypassing backoff.
+  Host: test_drive_proxy 6 / test_drive_signin 7 pass. iPhone acceptance pending.
+
+- ISSUE-172: size probes read at most one byte, even if Drive ignores Range. HTTP 200 uses its length and drops
+  the unread connection. Host: test_drive_proxy 10 pass, including synthetic 20 GB metadata and transport failure.
+
+- ISSUE-173: discovery is bounded to 60 seconds total / 25 per episode; Cancel interrupts the active HTTP wait.
+  Unscanned episodes retain strict-quality retry eligibility. 92 focused host cases pass (29 season, 14 speed,
+  30 watch, 13 cloud, 6 auto-season), including stalled local HTTP and late-redirect cancellation. No layout change.
+
+- ISSUE-174: verified same-Roku fallback from live HEVC conversion to Media Assistant. Strict native copy-only
+  serving refuses a downgrade, carries the playback position, and restores phone playback on failure. Source
+  only until the new native framework is built/verified/pinned. Compiled host recommendations: 41/41.
+- 1E.7 (code, branch claude/speed-fixes-2): idle Python wake-ups per minute, measured by scripts/test_polling_loops.py with a fake clock. Inventory (thread, interval before -> after): native_ui worker 0.05 s -> 0.5 s unless the Search field is shown or the Python-driven tab bar polls (1200 -> 120/min); activity pill 0.5 s -> 1.5 s after 10 s with no box, no job (120 -> ~53); source_guard 2 s -> 6 s with no torrent (30 -> 10); transfer_history 2 s -> 5 s with nothing running (30 -> 12); background keep-awake 1 s -> 3 s with nothing to keep awake for (60 -> 20). Unchanged on purpose: slowdown 1 s (workers read its cache), work_state 2 s (snapshot goes stale after 6 s), notices 3 s, portrait ticks 0.5 s (focused-item publisher, progress), airplay button 0.5 s, umbrella_ready 1 s idle, open_timing 1 s idle, library_watch 5 s, airplay relay/diagnostics 5 s, diagnostics 60 s, service loops 5-60 s. A transfer or torrent starting is noticed up to 1.5-6 s later by the background loops; nothing visible slows once work exists. Saves ~1150 wake-ups/min idle; not measured on the phone.
+
+## Full speed/reliability coverage pass — 2026-11-12
+
+Latest scope: owner requests **1A.3 only**, one remaining item at a time. ISSUE-176 implements a persistent,
+validated mfra cache in the lean Drive proxy. First playback captures the player's existing bounded tail read;
+later opens serve exact index ranges locally after checking fresh Drive identity. No proactive movie read,
+page warming or seek read-ahead is included. Missing metadata/cache failures preserve ordinary streaming.
+22 new cache/HTTP cases, 10 existing proxy, 22 library and one service-scoping case pass; project check passes.
+Phone opening-time improvement remains unmeasured. No IPA or native pin change.
+Owner separately chose to retain Movies/TV preloading for instant tab switches (1D.3).
+
+Owner expanded the source task to every roadmap speed/reliability item (36 + 6 currently). Do not treat the
+old screenshot's counts as acceptance evidence. Commit and push each repair separately with [skip ci].
+- 1E.7 imported/reviewed: idle polling backoff from speed-fixes-2, active cadence preserved. 49 focused cases pass.
+
+- 1E.2 imported/reviewed: prune unused binary add-ons from staged IPA contents with dependency checks.
+  test_customized_ipa 13 pass with Python 3.11; actual startup timing remains a device measurement.
+
+- 1E.3 Drive service trim imported with additional safeguards: configured exports/source URLs remain supported;
+  unused export/source/player loops stop. 14 packaging tests pass. Other provider/skin services still need audit.
+
+- 1F.4 imported/reviewed: up to three per-file resumable Drive lanes; aggregate speed includes the third lane.
+  71 focused host cases pass. Phone memory/throughput measurement remains pending.
+
+- 3.3: expired links can renew again later in a long movie (cooldown prevents loops); Drive copies renew an expired
+  source reopen immediately at its confirmed offset, checking the same file's name/size. New regressions pass.
+
+- 1F.2/3.2 native candidate: bounded system range reads, absolute request deadlines and owned cancellation buffers;
+  capability-gated into preparation/foreground media. Foundation fault tests now run on macOS before the framework
+  build. Local adapter/prepare/renewal checks pass; Linux loopback throughput benchmark fails on both old and new
+  source, so speed acceptance remains open (ISSUE-175). Full 42-item status: PERFORMANCE-COVERAGE.md.
+
+- 1F.3 native copy candidate: exact source ranges go straight into native resumable PUTs; Python handles only
+  metadata/confirmed progress/renewal. 44 focused cases pass. The macOS Foundation harness now covers a real native
+  copy through a redirect and refusal of wrong source ranges before any upload. New candidate validation required.
+
+- 1A.4 (Coded (host-tested), branch speed-reliability-fixes): Library show/season page (the Play target) and Movies list (first resumable Drive movie) ask the app's Drive proxy to GET /warm/<id>: it reads the first 4 MB and last 1 MB (MP4 index) in the background, keeps two titles for 10 min, answers HEAD and Kodi's first ranged GETs from memory and continues from Drive after the warm bytes. One title per page, not per row focus. Tests: test_drive_proxy Warming (5), test_library_pages WarmOnPageOpen (4). Needs the owner's device log to show first-picture time after OpenFile (target < 1 s).
+
+- 1A.5 (Coded (host-tested), branch speed-reliability-fixes): A seek is a new Range request. The proxy keeps one TLS-connected spare Drive connection ready (taken by the next request, refreshed in the background, dropped after 45 s), streams every response through a read-ahead queue (16 x 256 KB, read1 so the first bytes go out as they arrive), and counts requests, warm hits and seek first-byte seconds (Stats, read by 3.5). Tests: test_drive_proxy ReadAhead (5). This is the Python proxy, not the native reader the roadmap row names (that needs the native build). Needs the owner's log: seek-to-land target < 1.5 s.
+
+- 1B.2 (Kodi patch (needs Kodi r31), branch speed-reliability-fixes): kodi-21.3-portrait.patch, DVDDemuxFFmpeg.cpp: before avformat_find_stream_info a network source (http/https, which includes the app's loopback Drive proxy) gets probesize 3 MB and analyzeduration 3 s (FFmpeg default 5 MB / 5 s), a file on the phone 20 MB / 10 s; DVD and Blu-ray keep Kodi's own values. If the short probe fails or leaves a video stream without codec or picture size, the probe runs once more with FFmpeg's 5 MB / 5 s, so a late-starting stream still plays. Logs 'probe limits N MB / N s (network|local)' at INFO so 1C.1/3.5 logs show it. Checked: git apply --cached --check against pristine Kodi 21.3 passes; test_kodi_patch_ios pins the numbers and the retry. NOT compiled (needs the Kodi r31 build); the saving (1-3 s per open) needs the owner's device log; first thing to read there is the 'probe limits' line next to 'avformat_find_stream_info starting/finished' timestamps.
+
+- 1B.3 (Coded (host-tested), branch speed-reliability-fixes): Code reading of Kodi 21.3 VideoPlayer.cpp: playback starts when the audio/video players have their first data (CACHESTATE_INIT to PLAY), not when the file cache is full, so 'start after a small cache fill' already holds and needed no change. What is tuned is filecache.readfactor, which CFileCache reads when a file opens: cache_tune.py finds the link (the interface owning the address used to reach the internet: en0 Wi-Fi, pdp_ipN cellular, via getifaddrs) and sets 10x on Wi-Fi/unknown and 4x on cellular, so the cache does not take all the radio from Drive uploads and AirPlay conversion. open_timing.watch gains on_open(), called once per new open mark (before Kodi opens the file); the service passes cache_tune.apply. Only the value this code or build 206's tune_cache wrote is replaced; a value the owner picked in Kodi settings is left alone. Logs 'Kodi iOS cache: read factor 4.0x for cellular (was 10.0x)'. Tests: test_cache_tune (8). The 4x and 10x values are untested guesses until a cellular log exists; memory size stays 96 MB. Needs the owner's device log on Wi-Fi and 5G (open time, buffering waits).
+
+- 1B.4 (Coded (host-tested), branch speed-reliability-fixes): Umbrella's source is not in this repository, so the seam is the AllDebrid unlock hook the app already adds (umbrella_recovery.remember sees the resolved link before Umbrella closes its source window and hands the link to Kodi). It now starts link_warm.start(link, size): one background thread, one at a time, reads the first 512 KB and the last 256 KB (the index) with Range requests so DNS, TLS and the debrid server/CDN cache are warm when Kodi's own first requests arrive. Umbrella's resolve is unchanged; failures are swallowed; the link (it carries an account token) is never logged; at most 768 KB of data. Only the AllDebrid unlock is hooked (other debrid services are not patched by this app). Tests: test_link_warm (7), test_umbrella_recovery (14). Whether it saves the expected ~1 s needs the owner's device log: compare 'open timing ... via' for an Umbrella stream before and after.
+
+- 1C.1 (Coded (host-tested), branch speed-reliability-fixes): open_timing.py: besides the total, the 'Kodi iOS open timing' line lists stages: resolve (mark to the address handed to Kodi; the Library route stamps KodiIOS.OpenResolved just before setResolvedUrl), handoff (until Kodi has the item, Player.HasMedia), open (Kodi opening the stream: Drive proxy / network read, MP4 index, probe; until Player.HasVideo), picture (until a frame plays). Example: 'Kodi iOS open timing: 5.8 s via library (resolve 0.3 s, handoff 0.4 s, open 4.2 s, picture 0.9 s)'. Stages not seen are left out; a video that was already playing cannot count as the new open (a flag must be seen off first); a give-up line lists the stages reached. Resolution is the 0.2 s poll. The tap-to-plugin part before the first Python line is outside our code. Tests: test_open_timing (9). Needs the owner's device log to read real numbers.
+
+- 1C.4 (Coded (host-tested; needs the next IPA), branch speed-reliability-fixes): The service (portrait.listing_cache, new after= hook) collects up to 8 titles: the Continue Watching history (newest first) and the first 3 items of each hero copy, and asks TMDb Helper through RunPlugin(...info=ios_warm). The build's TMDb Helper patch (build_import_review.patch_helper, skipped quietly if the anchor in router.py moves) routes that to ios_watch_dialog.warm_details, which builds PlayerDetails(tmdb_type, tmdb_id, season, episode).details, the same call Play makes, so TMDb Helper's own cache answers when Play is tapped. Each title at most once per 12 h (details-warm.json in the service's profile), never while a video plays or outside Fuse, 3 s apart. Tests: test_details_warm (9) incl. the patch on a fixture router and the skip when the anchor moves, test_listing_cache (after hook). Not verified against a real TMDb Helper run: PlayerDetails/ListItemDetails cache keys are read from the 6.18.1 source (the rig copy), and whether Play's translation flag matches (players folder is empty, so it should) needs the device log: compare 'open timing' / Play-menu delay for a hero title before and after.
+
+- 1D.1 (Verified by code reading + pinned (tab return); playback part native staged (Kodi r31); device check pending, branch speed-reliability-fixes): Checked in Kodi 21.3 source (rig copy): (1) CDirectoryProvider::Update fires a fetch only when UpdateURL/Sort/Limit/Browse change, or the state is INVALIDATED (forceRefresh is ignored: 'we never need to force refresh here'); (2) CGUIWindow GUI_MSG_WINDOW_DEINIT calls FreeResources() with immediately=false, and CGUIBaseContainer::FreeResources only resets its provider when immediately is true, so leaving and re-entering Home keeps the providers and items; (3) the only other invalidations are Announce events: Player OnPlay/OnResume/OnStop and library updates, which the r31 patch already stops for plugin rows (watch add-on's non-cached rows still refresh on OnStop). Conclusion: a plain Home-tab return fetches nothing; the '31 requests after tapping Home' in log 396d5d67 09:36:48 came 2 s after a video closed (OnStop), i.e. the playback case. The last way a tab return could reload rows is a row address that changes with the window; test_listing_cache.test_a_rows_address_cannot_change_when_the_home_tab_is_shown_again now pins that every row address and the conditions that choose it read only saved skin settings and add-on state (no Player/Window/Container/Control/ListItem/Network/System.Time...). Device check (owner's log): Home > Library > Home with no video should show no Python row runs; with a video, none at start and only the watch add-on's own rows at stop once Kodi r31 is installed (3.5's summary line reports rows per minute).
+
+- 1D.4 (Already done in 4fc1157 (hero placeholder only while empty); now pinned by tests; device check pending, branch speed-reliability-fixes): Inspected portrait.hero(): the only loading feedback on the spotlight is the soft board-13 placeholder (dark base, two bars, a 900 ms pulse while Container(4000).IsUpdating) inside a group visible only when Container(4000).NumItems is 0; Play and Info show in the opposite group (NumItems > 0); there is no ring, spinner or busy-dialog reference on the hero (the rings in its XML are the header's refresh arrow, shown only while a refresh press runs, and the bell). The ring over a loaded spotlight in the build-229 screenshot was Kodi's busy ring (DialogBusy), already replaced by the opening card and 'Working...' card (boards 04/05, 2.18, DEC-036). No code change was needed. New tests in test_portrait (HeroLoadingFeedback, 3): IsUpdating appears exactly once and only in the empty-state group; no busydialog/DialogBusy/spinner text; every ring texture is tied to Refreshing or Notices. Needs the owner's screenshot/log of Home with a loaded spotlight while a row refresh runs to confirm on the phone.
+
+- 1E.3 (Partly done: Embuary Helper service off; audit recorded; Umbrella/cocoscrapers not patchable here, branch speed-reliability-fixes): Audit of every xbmc.service in the bundled add-ons (addon.xml and service code read in the desktop rig copies). Drive (googledrive/clouddrive.common): export/source/player loops already off by default (fe88828), 'download' kept (stream proxy). Elementum: engine on demand (1E.1). service.xbmc.versioncheck: already disabled by housekeeping. TMDb Helper (resources/service.py ServiceMonitor): kept; it polls every 0.2-2 s only while the skin setting TMDbHelper.Service is on and idles 30 s when off, and its list-item/Trakt features feed Fuse windows; turning it off needs a device check, so unchanged. script.trakt: scrobbler, kept. script.embuary.info: at start NextAired runs only when Kodi's own library holds TV shows (the app's shows come from plugins), then sleeps 100 s at a time: kept. script.embuary.helper: a 0.5 s loop (fanart grabber over the Kodi library, EmbuaryBackground* properties, optional blur, EmbuaryWidgetUpdate every ~5 min) plus a player monitor that asks Kodi for audio tracks and art on every OnPlay/OnAVChange, at the busiest moment of opening a video. Nothing in the portrait skin or in Fuse's XML reads what it sets (grep of the skin: no EmbuaryBackground*, EmbuaryWidgetUpdate, EmbuaryPlayerAudioTracks; the VideoPlayer.AudioCodec uses are Kodi's own labels), and the generated rows' addresses read no window property (test_listing_cache). So bootstrap.phone_housekeeping now writes script.embuary.helper's own setting service=false once ('embuary_service' marker; other settings in the file kept; a later owner choice stays), taking effect at the next start. Tests: test_updates_calibration (embuary_service, 42 total). Not done: Umbrella's update check and cocoscrapers' undesirables check are in add-ons the owner installs on the phone; their source is not in this repository, so no anchored patch can be written or tested here (blocked: needs plugin.video.umbrella and script.module.cocoscrapers service files from the owner's install, then a runtime hook like umbrella_hook). Device check: start-up Python thread count / 'Service: Started' lines in the log, and that Home, hubs and video controls look unchanged.
+
+- 1G.2 (Measurement tool added; no speed change made blind; needs the owner's device log, branch speed-reliability-fixes): Read the native converter (migration/airplay-ios/remux/src, kr_video.c / kr_remux.c): the speed levers that exist are hardware VideoToolbox decode (incl. the r18 HDR pass-through), all-core software decode (thread_count 0) when there is no hardware path, GPU scaling instead of single-threaded swscale, the VideoToolbox H.264 encoder with realtime and prio_speed, and a prefetch pool that makes the next 3 converted segments ahead (PF_DEPTH_VIDEO 3, deeper when a segment costs more than 70 % of its duration). Converted video is one lane (one lock, one decoder), so segments are made one after another; making two at once needs a second decoder and source reader (memory at 4K, battery), a native change that cannot be validated without the phone, so it was not made blind. The remuxer already logs the first three converted segments and every later one slower than 70 % ('compat: segment N converted in MS ms (P% of realtime) via ROUTE, source I/O MS ms'); new scripts/conversion_log.py (tests: test_conversion_log, 5, also pinning that the native line keeps its shape) summarizes a kodi.log from the owner's phone: first-three speeds, every miss with its route and source read time, per-route medians, exit code 1 when a later segment missed. To measure: play a 10-bit H.264 (or AV1) title on AirPlay on the phone for 10+ minutes, send the log, run conversion_log.py: no line after the first three means the 70 % target holds; the route and 'source I/O' of a miss say whether decode, encode or the network read is the limit. Next levers, in order of expected gain once a log names the limit: (1) a second converter lane (two segments in parallel); (2) AVDISCARD_NONREF loop-filter skip on the software decoder only while behind real time (about 10-15 % of H.264 decode time, small quality cost); (3) lower the output size for 4K sources. All need the native framework build and the owner's device log.
+
+- 1G.3 (Coded for Drive copies (host-tested); debrid streams not covered; device check pending, branch speed-reliability-fixes): Play on TV already paused Kodi's player, but a paused video's file cache keeps reading ahead (up to its memory size, at up to 10x the bitrate; CFileCache reads the read factor once, when the file opens, so it cannot be turned down mid-play). For a Drive copy Kodi and the converter both read the file through the app's Drive proxy. cast._send_airplay now sets KodiIOS.AirPlay.Starting (airplay.mark_starting) right after Kodi is paused and clears it on every way out (an error while starting, the TV playing, any other outcome), and the service passes drive_proxy.start(hold=airplay.starting). While the mark is fresh (at most 60 s) a request whose user agent is Kodi's ('Kodi/...') waits before each 256 KB piece (each wait at most 10 s, under Kodi's 20 s low-speed limit), so its read-ahead throttles to a trickle and the proxy's 4 MB queue fills and stops reading Drive; the AirPlay reader (FFmpeg's agent) is never held. Tests: test_drive_proxy HoldWhileAirPlayStarts (3) and StartingMark (2: the property's 60 s freshness; cast marks once and clears three times). Not covered: Umbrella/debrid streams, where Kodi reads the debrid link directly and no app code sits in between (a real fix is a native pause of the file cache, which needs a Kodi patch and the r31 build); and Kodi's read-ahead of a Drive copy during AirPlay is only held in the starting window, not for the whole TV session (Kodi has stopped reading once its cache is full). Whether it speeds the TV picture needs the owner's device log: 'Kodi iOS open timing' is not involved; compare the AirPlay 'startup' seconds in the AirPlay outcome line with and without a Drive copy.
+
+- 1G.5 (Partly done: caption path mapped and a log reader added; cause still needs the owner's device log, branch speed-reliability-fixes): Re-read the whole caption path (cast._send_airplay > airplay.send_subtitles > kodi_airplay_subtitles; kr_remux.c: burn-in for converted video, WebVTT renditions for prepared files, the r44 independent subtitle worker with retryable 503s) against ISSUE-147. Three different things can leave a TV without captions and the logs distinguish them: (1) Kodi had subtitles off when Play on TV started: nothing is burned in and, for converted video, no caption track is offered (the playlist's subtitles are stripped when burning is on, kept when off); (2) converted video: captions are burned into the picture, so the TV's own caption menu shows none, and a failure shows as 'error: subtitles not burned in', 0 subtitle events or 0 frames drawn in the 'compat: segment' lines; (3) prepared file: WebVTT tracks are offered and the TV fetches /subs/N/segM.vtt, which can fail or answer 503 while the worker retries. No defect was found by reading that explains a blank caption when Kodi had a subtitle selected, and no new device log exists, so no fix is claimed. New scripts/caption_log.py (tests: test_caption_log, 8, including a check that the Python and native sources still write every line it reads) prints the last Play on TV's selection, burn state, events and frames drawn, WebVTT cached / failed / 503 counts and one sentence. To close this item: the owner plays a title with a visible English subtitle on the TV, sends the log, runs caption_log.py on it, and says whether the TV showed text; the verdict names which of the three stages failed.
+
+- 1G.6 (Partly done: stop evidence reader added; no hour-long log exists, cause not established, nothing to fix yet, branch speed-reliability-fixes): The service already writes 'Kodi iOS diagnostic {...}' lines for AirPlay: playback_progress every 30 s (native player position, buffer, stop reason, error; network phase; source HTTP counters, last status, read error), playback_ended, and unexpected_stop with the last twelve samples (airplay_diagnostics.py). What was missing is a way to read a long session from them. New scripts/stop_log.py (tests: test_stop_log, 9, including one that feeds it the line the real diagnostics.event writes) prints the session length, the position reached, the last HTTP status and read error, whether errors or retries rose in the last minutes, gaps with no lines (iOS suspension) and one verdict: a 401/403 near 3600 s (a Drive access token lasts an hour) is named as an expiry, a 401/403 at another time as a rejected token or link, failing reads as network or host, a gap of 2 minutes or more before the stop as a suspended phone, and healthy reads as a receiver or player ending. Code reading found the paths that could end a session at exactly one hour already covered: the app's Drive proxy refreshes the token on a 401 (ISSUE-171, test_drive_proxy), debrid links renew mid-play and mid-copy (3.3), and the proxy holds no per-stream token. No hour-long log has been captured (ISSUE-147 asks for kodi.old.log or the log of that hour), so the cause is not established and no fix is made. To close the item: the owner plays one title on the TV for over an hour on a build with the stop evidence, sends the log, and the script's verdict says which of the four it was; then fix that.
+
+- 3.1 (Coded (host-tested); iOS suspension itself is OS-managed; needs the owner's device log, branch speed-reliability-fixes): Logs 9e2568a7 and 5331b718 showed iOS interrupting the silent audio that keeps downloads and uploads alive in the background. The native restart after an interruption lives in KodiAirPlay.framework (source not in this repository), so it is unchanged; the Python side already asked the framework to start the silence on every tick while work waits. New in background.watch: it remembers when the audio was lost (status -2 interrupted or -1 failed) while work waits; after 180 s it adds one Notifications entry (plain words: 'Background work paused / iOS took the audio from Kodi (a call or another app), so downloads and uploads wait. They carry on when you open Kodi.'), once per interruption; when the audio runs again it logs 'silent audio running again after N s', so a log shows how long iOS held it. The notice goes through the existing Notifications list (no layout change; wording follows the policy's plain-words / one-recovery-action rule). Tests: test_background_recovery (8: asks every tick, short interruption only logged and timed, one notice for a long one, failed start counts, a second interruption is told again, no notice without work, a failing notice never stops the keep-alive, service wiring); test_preparation_runtime, test_polling_loops, test_play_on_tv_network unchanged and passing. Not provable here: whether the framework's restart succeeds on a real phone after a call or another app's audio, and how often iOS ends the app regardless (it can at any time); the owner's next background log will show the interrupted / running again lines with seconds.
+
+- 3.4 (Coded and run in the desktop Kodi rig (19 of 19 pages pass); not wired into CI, branch speed-reliability-fixes): New scripts/rig_smoke.py (+ scripts/rig_smoke_sheet.py; tests test_rig_smoke, 13): starts the desktop Kodi rig if needed, syncs this checkout, and for each of 19 pages (Notifications, Accounts, Profiles, Favourites, Settings search, a Settings section, Skin settings, Navigation menu, Activity, Library status, Transfers, Queue, History, AirPlay settings, the watch / resume / quality choice sheets, the show page and the movies page) opens it, waits, takes a screenshot and fails the check when the page's own open line is missing from kodi.log, the log gains a traceback / exception / expression error / missing window (short allow-list with reasons), or the picture is blank (ImageMagick contrast). It writes KODI_RIG_HOME/smoke/report.json and exits 1 on any failure; docs/design/KODI-RIG.md documents it. First full run in this session (desktop Kodi rig, Kodi 21.3 on Xvfb, this checkout): 19 of 19 checks passed. Its first runs also found a rig gap, not a product bug: the Library pages failed with 'No module named drivelibrary' because the rig ran an older release's watch add-on whose paths point at the app bundle (special://xbmc/addons/...); kodi_rig.py now copies this checkout's watch add-on into the rig with those paths pointed at the profile's add-ons (watch_copy), so the rig also runs the current watch code. Two smoke patterns were corrected while running (a normal CScriptRunner debug line and the word 'watch' inside a TMDb Helper row name matched too widely). Not covered and stated in the tool: track menus and video controls (the rig plays no video), a real Umbrella/Elementum flow, layout against the mockups (kodi_rig.py boards), anything on the phone. Not wired into CI: it needs a built Kodi (about 15 minutes) on the runner; run it before asking for an IPA and paste its last line in the PR.
+
+- 3.5 (Coded (host-tested); needs the next IPA and a device log, branch speed-reliability-fixes): New perf_summary.py and a service thread write one kodi.log line a minute, only when there is something to report: list runs in the minute (the watch add-on's, its cached rows, TMDb Helper's: Home-window counters KodiIOS.Count.* bumped by the watch plugin's default.py and by the build's TMDb Helper router patch via ios_watch_dialog.count_run), the videos that reached a picture with their route and stage times (open_timing.take), and the Drive proxy's requests, warm hits (1A.4) and seeks with median and worst time to first byte (drive_proxy Stats via drive_proxy.CURRENT). Example: 'Kodi iOS perf 60 s: rows watch 3 cached 2 tmdb 5 | opens 1 (5.8 s via library, resolve 0.3 s, open 4.2 s, picture 1.0 s) | drive proxy 12 requests, 3 warm, seeks 3 (median 0.4 s, worst 0.9 s)'. Start-up stages already log one line each ('Kodi iOS startup: ...'), so they are not repeated. Tests: test_perf_summary (9). The TMDb Helper counter is skipped quietly if a later TMDb Helper moves the anchor. Needs the next IPA; row counts per minute and seek times then come from the owner's log.
+
+- 3.6 (Partly done: error text redacted everywhere, keymap reload only on change, deprecated setInfo removed; third-party noise (Elementum dump, addStreamInfo) not patched, branch speed-reliability-fixes): (1) Sensitive: 16 places wrote an exception's message to kodi.log raw (an error from a request can carry the link or a token): service.py (3), library_status.py (3), transfers.py, accounts_page.py, notices.py, notifications.py, cast.py, library_watch.py, tool_windows.py, download.py, portrait.py (2) now use the new diagnostics.error_text (redact: links, plugin paths, magnets, bearer values, headers; 200 characters); the watch add-on, which cannot import the bootstrap's diagnostics, redacts links with its own regex. test_log_hygiene scans every xbmc.log call in the bootstrap and overlays and fails on a raw exception message, and checks that the new diagnostic modules (link_warm, details_warm, cache_tune, perf_summary, drive_proxy) write nothing to the log themselves. (2) Duplicate keymap loads: the service asked Kodi to reload the keymaps at every start although Kodi reads them at launch; it now does so only when the touch keymap file changed (navigation.upgrade's keymap_changed), a skin was generated, or Recover ran, and logs 'keymaps unchanged, not reloaded' otherwise. The 'duplicate keymap loads on resume' of the roadmap row is Kodi's own work when the app returns to the foreground and was not reproduced here; the start-up reload was the part the app owned. (3) Deprecated calls: the watch add-on's Watch options list used ListItem.setInfo (Kodi 21 logs a deprecation warning per item); it uses the video info tag now. Not changed: the deprecated addStreamInfo warnings come from add-ons this repository does not own (Elementum, TMDb Helper, the Google Drive add-on) and patching them blind would risk playback; Elementum's start-up configuration dump is printed by its Go engine, whose log level the add-on's own setting does not control; since 1E.1 the engine starts only on demand, so the dump no longer appears at every launch. Tests: test_log_hygiene (8). Device check: a log from the next build should show no setInfo/addStreamInfo lines from the watch add-on, one 'keymaps unchanged' line at start and no tokens in any error line.

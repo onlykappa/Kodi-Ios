@@ -2598,3 +2598,183 @@ Status: CHANGED IN SOURCE; needs AirPlay r47; device untested (the cause is infe
   is used ("uploads use system networking") and each piece says "system networking".
 - Regression: test_native_http (status/headers/body/error mapping; only PUT pieces >= 256 KB go native; wiring),
   test_airplay_exports (export list includes kodi_http_send; the build fails without it).
+
+## ISSUE-168 — Build 232: uploads and AllDebrid copies never start (owner log eabc204b, 2026-11-11)
+
+Status: FIXED IN SOURCE (#19); device untested.
+- Log eabc204b 09:57:06: `Thread-16 (drive_uploads)` raised `UnboundLocalError: cannot access local variable 'airplay'`
+  at `playback_lib=airplay.cached_load(...)`. The owner's download (Maze Runner, 09:58:05) was queued and never copied.
+- Root cause: ISSUE-167's change added `import airplay,native_http` inside `drive_uploads`. Python makes a name local to
+  the whole function when it is imported anywhere in it, so the earlier module-level use of `airplay` (line 277) failed.
+  The thread also runs phone uploads and the AllDebrid → Drive loop, so all transfers stopped.
+- Fix: import only `native_http` there; `airplay` is the module imported at the top of service.py.
+- Regression: scripts/test_service_scoping.py fails on the old code ("drive_uploads: airplay used at line 277, imported at
+  295") and passes on the fix. Host tests do not start the service's threads, which is why CI missed it.
+
+## ISSUE-169 — A season download from a complete-series pack queued the whole series (owner log 10b3eee1, build 252)
+
+Status: FIXED IN SOURCE (#19); device untested.
+- Owner: "My queue is over 500 as I tried to download season 1-3 of Naruto Shippuden and somehow it's downloading
+  everything." Log 13:50-13:56: the season searches kept file results from inside complete-series packs ("Naruto
+  Shippuden (001-500) [Complete Series + Movies] … Season 01 (001-032)/Naruto Shippuden Episode 001 Homecoming.mkv").
+  Drive then received episode 001 onwards and the films (preparation lines 14:57-15:39).
+- Root cause: alldebrid.pick for a season kept only SxxEyy-named files and, when none matched (absolute numbering),
+  fell back to every video in the torrent, once per season job.
+- Fix: a season takes SxxEyy names of that season, else files under a "Season NN" / "S01" folder; a pack numbered for
+  other seasons gives nothing; more than 60 unknowable files is refused with "This version holds N videos (a whole
+  series), not one season. Pick a season pack." Owner request: "Cancel all downloads to Drive" in the upload card's
+  long-press menu (Notifications) and "Cancel All" in the Library status sheet of a copy, with a confirmation.
+- Regression: test_debrid_drive SeriesPack (Naruto layout: season 2 takes its 21 files, films never), CancelAll.
+
+## ISSUE-170 — Continue Watching cards from Library playback had the file's name and no picture (owner, build 252)
+
+Status: FIXED IN SOURCE (#19); device untested.
+- Owner screenshot: "the maze runner" and "phony" (S1, E1) with blank cards. Both were started from Library.
+- Root cause: ios_library.play_downloaded recorded Continue Watching with the row's label (the release name) and no
+  art or TMDb id (record_downloaded_movie took params only; episodes got art={}). The card is drawn from that record.
+- Fix: play_downloaded records the Library's saved TMDb name, id and art (playback_details); drivelibrary keeps TMDb's
+  own name ('name') in its art cache; an all-lower-case file name is capitalised until then. Existing cards heal when
+  drawn (ios_continue.heal: missing art or lower-case name -> saved TMDb name and art, no network).
+- Regression: test_library_pages (heal, nice_title, Phony name).
+
+
+## ISSUE-171 — Drive streaming retries rejected credentials without refreshing (PR #19 review, 2026-11-12)
+
+Status: FIXED IN SOURCE; host tested, device acceptance pending.
+- Root cause: drive_proxy asked token(force) after HTTP 401, but service.py discarded force and token_source only
+  refreshed near expiry. A rejected, unexpired token was therefore sent twice, with no refresh.
+- Fix: wire the real Drive token provider into the proxy; accept the rejected token as a refresh hint. Serialize
+  refreshes and reuse a token another reader already renewed. Refused-refresh and busy-server backoff still apply.
+- Verification: test_drive_proxy (6 cases, actual token_source through local HTTP) and test_drive_signin (7 cases,
+  concurrent rejection, existing expiry, busy/refused recovery). Synthetic accounts only; no live provider claim.
+
+
+## ISSUE-172 — Drive size checks can read an entire movie (PR #19 review, 2026-11-12)
+
+Status: FIXED IN SOURCE; host tested, device acceptance pending.
+- Root cause: HEAD used an unbounded read of the one-byte Range response, including HTTP 200 when Range was
+  ignored. A large movie could therefore be downloaded into Python memory just to learn its size.
+- Fix: validate the partial Content-Range and read at most one byte; use Content-Length without any body read
+  for HTTP 200. Close/discard unread responses instead of reusing their connection. Metadata transport failures
+  now produce HTTP 502 instead of silently terminating the local request.
+- Verification: test_drive_proxy 10 cases pass, including a synthetic 20 GB size, ignored Range, malformed or
+  missing size, and upstream failure. The metadata fixture fails any unbounded read; no media is allocated.
+
+
+## ISSUE-173 — Season quality discovery waits for every slow episode; Cancel waits for HTTP (2026-11-12)
+
+Status: FIXED IN SOURCE; host tested, live provider/iPhone acceptance pending.
+- Cause: sequential 120-second episode searches had no whole-scan budget and only checked Cancel between calls.
+- Fix: source discovery has a 60-second total budget and 25-second individual waits. Offer only qualities actually
+  observed within that budget; unseen episodes join the existing exact-quality retry plan after selection.
+  The shared automatic-picker lane remains serial: parallel requests would overwrite its window properties.
+- Active HTTP header/body waits now run through an interruptible transport. Cancel closes/shuts down the socket,
+  and redirect/queue actions remain on the caller after the cancellation check. Engine startup waits also honor
+  Cancel. Failed/canceled requests retain the existing late-response tombstones; canceled queue work removes
+  unprocessed planned retries. No new UI layout or visible wording.
+- Verification: 29 season/source tests, 14 speed tests, 30 episode-watch tests, 13 cloud-route tests and 6 auto-season
+  tests pass. Real local HTTP fixtures deliberately stall headers/body (including Connection: close): cancellation
+  and timeout return under 1.5 s and never follow a late download redirect. A synthetic clock verifies the total
+  scan budget and strict-quality retries for unscanned episodes.
+- Test repair history: the first test insertion put four existing methods under the wrong fixture; moved them
+  back. Closing a previously leaked HTTP response exposed an old fake with no close(); completed the fixture.
+  All affected suites pass afterward. No real account/media was used.
+
+
+## ISSUE-174 — Copy-safe HEVC still converts live on Roku AirPlay (PR #19 review, 2026-11-12)
+
+Status: SOURCE REPAIR + COMPILED HOST CHECKS PASS; new native AirPlay build and device acceptance pending.
+- Cause: generic preparation's copy_video says whether the original picture can be carried, not whether every
+  receiver route accepts it. A third-party AirPlay receiver can still select the H.264 compatibility rendition
+  of an otherwise ready HEVC movie. Re-running generic preparation cannot fix that receiver-specific mismatch.
+- Owner chose to keep 4K via Media Assistant instead of preparing a separate H.264 copy. When an inspected,
+  supported HEVC source is being converted for a connected Roku, the controller verifies that exact receiver's
+  4K capability and installed Media Assistant, then switches its route. It never guesses from a discovered TV.
+  Peer + User-Agent are correlated in a new native log record; separate old log records cannot activate it.
+- The new kodi_airplay_serve_copy API explicitly forbids picture conversion. Unsupported profiles, oversized
+  pictures and Dolby Vision-only inputs fail closed; a Media Assistant failure restores the phone instead of
+  trying H.264 or looping back to AirPlay. The existing direct Media Assistant and Apple TV paths retain their
+  behavior. No original is replaced or uploaded. TV serving now receives Kodi's current position and primes
+  that position; the existing EXT-X-START behavior requires the new framework too.
+- Host checks: 68 TV/network controller cases, 9 TV/start cases, 29 remux Python cases, 3 export cases, 10 flow
+  cases, 3 preparation-gate cases pass. Compiled native recommendations suite: 41 checks, 0 failures, including
+  4K HEVC copy under an MFi receiver and rejection of unsupported video without conversion. Shell syntax, project
+  and UI-guidance checks pass. Completed an older fake response's close() method exposed by response cleanup.
+- Native iOS/Objective-C compilation and actual TV acceptance are not established by host checks. Current pins
+  remain Kodi r30 / AirPlay r46. The automatic fallback requires the new exported copy-only API and correlated
+  receiver record, so an old framework cannot misinterpret the mode as a request to convert.
+- UI policy/project skill and relevant HIG writing/feedback/loading/media guidance read. Reuse existing Play on TV
+  flow/error card; no layout, style or control added. New error sentence is plain; device visual review pending.
+
+
+## ISSUE-175 — Remaining speed/reliability roadmap coverage (2026-11-12)
+
+Owner requests every speed and reliability item in PR #19. The screenshot's 34 speed rows precede 1G.7/1G.8;
+the current scope is 36 speed + 6 reliability/measurement rows. An implemented source repair is distinct from
+its measured phone target; unknown causes and unmeasured hardware/receiver behavior cannot be marked proved.
+- 1E.7: reviewed and imported 5acee50's idle polling changes. Visible/active work retains fast polling; idle
+  loops back off. 6 fake-clock polling, 36 activity and 7 native UI tests pass. Existing packaging suite initially
+  lacked Python 3.11 on PATH; use the retained Python 3.11 runtime for bytecode tests, rather than alter the app.
+- Integration history: the donor branch's appended progress notes conflicted with the PR's newer notes. Both
+  histories retained; source changes were clean. No native/IPA workflow or main merge authorized here.
+
+- 1E.2: imported/reviewed a334592's staging-only removal of unused binary add-ons. Required imports and mandatory
+  system-manifest entries are checked before deletion, with media/input/archive support retained. Packaging suite
+  passes 13 cases under the matching Python 3.11 bytecode runtime. The donor test context referenced its separate
+  Drive-service change; excluded that unrelated fixture until its own repair. No base installation is modified.
+
+- 1E.3 (Drive portion): imported/reviewed 5804295, then corrected its blanket service filter to preserve configured
+  exports and source/favourite integrations. Unused workers stop; the stream proxy remains. Unknown configuration
+  fails conservatively by keeping its worker. Fourteen packaging tests pass, including saved exports/sources.
+  Umbrella/account update services and the skin's required monitor are not blindly disabled.
+
+- 1F.4: imported/reviewed 99ab30a's bounded three-lane season copying, per-file resumable sessions and truthful
+  aggregate rates. Movies stay single-lane; two remaining episodes use two lanes. Tests: 33 debrid, 9 transfer
+  efficiency and 29 season/source cases pass. More lanes are capacity, not proof of 1.5x speed on the phone.
+
+- 3.3: found two remaining expiry gaps: the foreground bridge allowed only one renewal per movie, and queued
+  copies waited for a full job retry when a resumed source URL expired. Renewals now coalesce with a 60-second
+  cooldown instead of a lifetime limit; copy source reopen renews the selected file at the same offset and checks
+  its name/size before accepting bytes. Original source selection and resumable upload sessions are preserved.
+  New host cases cover a second expiry an hour later and a queued copy recovering without a job delay. This
+  is a concrete recovery repair, not attribution of the owner's earlier hour-long stop.
+
+- 1F.2 / 3.2: native HTTP now owns its upload bytes, bounds response buffering before/while data arrives, and
+  enforces an absolute deadline with task cancellation (the old semaphore waited forever). A new capability
+  gates bounded NSURLSession range reads for preparation and foreground media. Redirects cannot forward private
+  credentials to another origin; ranges and renewed Drive credentials are checked. Old frameworks use Python.
+  Seven native-adapter, 59 preparation, 14 renewal, 29 remux and 3 export cases pass locally. Foundation itself
+  is unavailable on Linux: three real compiled transport/fault cases are added to the macOS candidate workflow.
+- Validation history: the service excerpt fixture needed its new native_reader dependency; completed it. A
+  stale exact-source assertion was updated to the actual constructor. The existing 24 MiB slow-link benchmark
+  exceeds its 3-second wall budget on this execution host (new source 6.68 s; unmodified e6041ae baseline 9.47 s).
+  Its byte-integrity/concurrency assertions pass; no performance acceptance or app regression attribution is
+  inferred. The threshold was not weakened. Real provider speed and Wi-Fi/cellular handoff remain device checks.
+
+- 1F.3: a capability-gated native range-to-PUT piece keeps media bytes out of Python. Native code checks exact
+  source offsets/total, bounds memory, follows safe redirects without forwarding credentials to another origin,
+  and applies one overall deadline. Python retains per-file sessions, confirmed offsets, pause/cancel, source
+  renewal and receipt checks. An uncertain PUT is queried before retrying; no progress is invented.
+  Nine adapter cases and 35 debrid cases pass, including a committed piece whose receipt is lost and a Python
+  reader that fails if any video bytes reach it. Five real Foundation fault/copy cases are queued for macOS.
+- Native candidate 43138216141 at 1de2395: framework compilation and the first three actual Foundation transport
+  tests passed. This validates the bounded transport, not the later copy API or iPhone/TV performance. Linux
+  native host job was still running at this checkpoint. No native release/pin or IPA was made.
+
+## ISSUE-176 — Repeated Drive MP4 fragment-index reads (1A.3, 2026-11-12)
+
+The lean proxy previously forwarded every mfro/mfra range to Drive, including unchanged prepared files on
+repeat opens. Add a private persistent index cache, bound to fresh Drive ID/checksum/size/version/modifiedTime.
+Capture only a complete validated mfra from the player's existing bounded EOF read; no extra movie prefetch.
+Recheck identity before saving. HEAD/front opens validate live identity (immediate HEAD-to-front shares it);
+within a playback, identity expires after five minutes. A changed version/checksum discards the saved index.
+Index bytes are bounded to 2 MiB each, 8 MiB total, 64 entries; cache writes are atomic and optional. Network
+waits do not hold the shared cache lock. Metadata gets one three-second transport attempt, then a 30-second
+failure cooldown; streaming keeps its existing authenticated path. Metadata checks still require connectivity.
+
+Validation: 22 new tests cover exact HTTP 206 ranges, restart reuse without remote index reads, same-size content
+changes, version changes, mid-read changes, malformed/oversized/short/wrong ranges, bounded contexts/eviction,
+disk failure, metadata timeout and fail-open streaming. Existing proxy 10, library 22 and service-scoping one
+also pass. The first malformed-index fixture changed a valid track ID rather than the version byte; corrected
+the fixture offset and retained the negative regression. Project checks pass. Logs contain only safe byte counts.
+Actual iPhone opening-time improvement is unmeasured. No IPA or native binary/pin change.

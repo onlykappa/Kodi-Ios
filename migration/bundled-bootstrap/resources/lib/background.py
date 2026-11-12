@@ -23,9 +23,18 @@ def videos_waiting(root):
    if any(not f.startswith('.') and f.lower().endswith(('.mkv','.mp4','.m4v','.avi','.mov','.webm','.ts')) for f in files):return True
  return False
 
-def watch(keep,why,wait,log=lambda message:None,every=1,status=lambda:0):
- """Tell the framework every few seconds whether Kodi must stay awake; keep(0) when Kodi closes."""
- last=None;last_status=None
+PATIENCE=180   # roadmap 3.1: seconds iOS may hold the silent audio before the owner is told
+
+def watch(keep,why,wait,log=lambda message:None,every=1,status=lambda:0,idle_every=3,notify=None,clock=None,patience=PATIENCE):
+ """Tell the framework every few seconds whether Kodi must stay awake; keep(0) when Kodi closes.
+
+ Roadmap 3.1 (owner logs 9e2568a7, 5331b718: iOS interrupted the silent audio, so downloads and uploads stopped until
+ Kodi came back to the screen): every tick while work waits asks the framework again to start the silence (it restarts
+ after an interruption as soon as iOS allows). When the audio stays interrupted or failed for `patience` seconds with work
+ waiting, notify(title, text) tells the owner once per interruption, and the log says how long it took to recover."""
+ import time
+ clock=clock or time.monotonic
+ last=None;last_status=None;lost_at=None;told=False
  while True:
   try:now=why()
   except Exception:now=''
@@ -40,5 +49,14 @@ def watch(keep,why,wait,log=lambda message:None,every=1,status=lambda:0):
    if observed==-1:log('Kodi iOS background: silent audio failed to start; work may pause until Kodi is foregrounded')
    elif observed==-2:log('Kodi iOS background: audio interrupted by iOS; work will resume when allowed')
    elif observed==2:log('Kodi iOS background: silent audio running for queued work')
-  if wait(every):break
+  if observed in (-1,-2) and now:
+   if lost_at is None:lost_at=clock()
+   if not told and notify and clock()-lost_at>=patience:
+    told=True
+    try:notify('Background work paused','iOS took the audio from Kodi (a call or another app), so downloads and uploads wait. They carry on when you open Kodi.')
+    except Exception:pass
+  elif lost_at is not None and (observed==2 or not now):
+   if observed==2 and now:log('Kodi iOS background: silent audio running again after %d s'%int(clock()-lost_at))
+   lost_at=None;told=False
+  if wait(every if now or observed else idle_every):break   # Roadmap 1E.7: nothing to keep awake for: every 3 s
  if last:keep(0)

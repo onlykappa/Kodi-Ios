@@ -1633,10 +1633,52 @@ diff --git a/xbmc/cores/VideoPlayer/DVDDemuxers/DVDDemuxFFmpeg.cpp b/xbmc/cores/
 +      CLog::Log(LOGINFO, "{} - opening MP4 by its fragment index (use_mfra_for pts)", __FUNCTION__);
 +      av_dict_set(&options, "use_mfra_for", "pts", 0);
 +    }
-
+ 
      if (StringUtils::StartsWith(content, "audio/l16"))
      {
-
+@@ -551,8 +558,42 @@ bool CDVDDemuxFFmpeg::Open(const std::shared_ptr<CDVDInputStream>& pInput, bool
+     if (m_pInput->IsStreamType(DVDSTREAM_TYPE_DVD))
+       av_opt_set_int(m_pFormatContext, "analyzeduration", 500000, 0);
+ 
++    // Kodi iOS r31 (roadmap 1B.2): probe limits follow the connection. FFmpeg's defaults (5 MB, 5 s) are read in full
++    // over Google Drive or a debrid link when a stream is slow to reveal itself; a network source gets 3 MB / 3 s,
++    // a file on the phone 20 MB / 10 s (it costs nothing to look further). If the short probe leaves a video stream
++    // without a picture size, the probe runs once more with FFmpeg's defaults, so a late-starting stream still plays.
++    const CURL probeUrl(strFile);
++    const bool probeRemote = probeUrl.IsProtocol("http") || probeUrl.IsProtocol("https");
++    const bool probeShortened = probeRemote && !isBluray && !m_pInput->IsStreamType(DVDSTREAM_TYPE_DVD);
++    if (!isBluray && !m_pInput->IsStreamType(DVDSTREAM_TYPE_DVD))
++    {
++      const int64_t probeBytes = probeRemote ? 3 * 1024 * 1024 : 20 * 1024 * 1024;
++      const int64_t probeMicros = probeRemote ? 3000000 : 10000000;
++      av_opt_set_int(m_pFormatContext, "probesize", probeBytes, 0);
++      av_opt_set_int(m_pFormatContext, "analyzeduration", probeMicros, 0);
++      CLog::Log(LOGINFO, "{} - probe limits {} MB / {} s ({})", __FUNCTION__, probeBytes / (1024 * 1024),
++                probeMicros / 1000000, probeRemote ? "network" : "local");
++    }
++
+     CLog::Log(LOGDEBUG, "{} - avformat_find_stream_info starting", __FUNCTION__);
+     int iErr = avformat_find_stream_info(m_pFormatContext, NULL);
++    if (probeShortened)
++    {
++      bool incomplete = iErr < 0;
++      for (unsigned int i = 0; i < m_pFormatContext->nb_streams && !incomplete; ++i)
++      {
++        const AVCodecParameters* par = m_pFormatContext->streams[i]->codecpar;
++        incomplete = par->codec_type == AVMEDIA_TYPE_VIDEO &&
++                     (par->codec_id == AV_CODEC_ID_NONE || par->width == 0 || par->height == 0);
++      }
++      if (incomplete)
++      {
++        CLog::Log(LOGINFO, "{} - short probe was not enough, probing again with FFmpeg's limits", __FUNCTION__);
++        av_opt_set_int(m_pFormatContext, "probesize", 5000000, 0);
++        av_opt_set_int(m_pFormatContext, "analyzeduration", 5000000, 0);
++        iErr = avformat_find_stream_info(m_pFormatContext, NULL);
++      }
++    }
+     if (iErr < 0)
+     {
+       CLog::Log(LOGWARNING, "could not find codec parameters for {}", CURL::GetRedacted(strFile));
 diff --git a/xbmc/guilib/GUISliderControl.cpp b/xbmc/guilib/GUISliderControl.cpp
 --- a/xbmc/guilib/GUISliderControl.cpp
 +++ b/xbmc/guilib/GUISliderControl.cpp
@@ -1833,3 +1875,140 @@ index fbf7a22..c9e7c96 100644
  #endif // defined(TARGET_DARWIN_TVOS)
  #endif
  
+diff --git a/xbmc/dialogs/GUIDialogNumeric.cpp b/xbmc/dialogs/GUIDialogNumeric.cpp
+--- a/xbmc/dialogs/GUIDialogNumeric.cpp
++++ b/xbmc/dialogs/GUIDialogNumeric.cpp
+@@ -11,6 +11,7 @@
+ #include "ServiceBroker.h"
+ #include "XBDateTime.h"
+ #include "guilib/GUIComponent.h"
++#include "guilib/GUIKeyboardFactory.h"
+ #include "guilib/GUILabelControl.h"
+ #include "guilib/GUIWindowManager.h"
+ #include "guilib/LocalizeStrings.h"
+@@ -533,6 +534,22 @@
+ 
+ bool CGUIDialogNumeric::ShowAndGetNumber(std::string& strInput, const std::string &strHeading, unsigned int iAutoCloseTimeoutMs /* = 0 */, bool bSetHidden /* = false */)
+ {
++#if defined(TARGET_DARWIN_EMBEDDED)
++  // Kodi-iOS: numbers and PINs are typed on the iPhone's own keyboard, not Kodi's number pad (roadmap 2.5).
++  {
++    std::string typed = strInput;
++    if (!CGUIKeyboardFactory::ShowAndGetInput(typed, CVariant{strHeading}, false, bSetHidden, iAutoCloseTimeoutMs))
++      return false;
++    std::string digits;
++    for (char c : typed)
++      if (c >= '0' && c <= '9')
++        digits += c;
++    if (digits.empty())
++      return false;
++    strInput = digits;
++    return true;
++  }
++#endif
+   // Prompt user for password input
+   CGUIDialogNumeric *pDialog = CServiceBroker::GetGUI()->GetWindowManager().GetWindow<CGUIDialogNumeric>(WINDOW_DIALOG_NUMERIC);
+   pDialog->SetHeading( strHeading );
+@@ -633,12 +650,17 @@
+   if (!bVerifyInput)
+     strInput = strToVerify;
+ 
++#if defined(TARGET_DARWIN_EMBEDDED)
++  // Kodi-iOS: PINs on the iPhone's own keyboard, hidden (roadmap 2.5).
++  if (!CGUIKeyboardFactory::ShowAndGetInput(strInput, CVariant{dlgHeading}, false, true))
++#else
+   pDialog->SetMode(INPUT_PASSWORD, strInput);
+   pDialog->Open();
+ 
+   strInput = pDialog->GetOutputString();
+ 
+   if (!pDialog->IsConfirmed() || pDialog->IsCanceled())
++#endif
+   {
+     // user canceled out
+     strToVerify = "";
+diff --git a/xbmc/settings/dialogs/GUIDialogSettingsBase.cpp b/xbmc/settings/dialogs/GUIDialogSettingsBase.cpp
+--- a/xbmc/settings/dialogs/GUIDialogSettingsBase.cpp
++++ b/xbmc/settings/dialogs/GUIDialogSettingsBase.cpp
+@@ -664,7 +664,12 @@
+     std::string indentation;
+     for (int index = 1; index < parentLevels; index++)
+       indentation.append("  ");
++#if defined(TARGET_DARWIN_EMBEDDED)
++    // Kodi-iOS: sub-settings sit in their group like iOS rows, without the "- " prefix (owner, roadmap 2.4).
++    label = indentation + label;
++#else
+     label = StringUtils::Format(g_localizeStrings.Get(168), indentation, label);
++#endif
+   }
+ 
+   // create the proper controls
+diff --git a/tools/depends/target/ffmpeg/Makefile b/tools/depends/target/ffmpeg/Makefile
+--- a/tools/depends/target/ffmpeg/Makefile
++++ b/tools/depends/target/ffmpeg/Makefile
+@@ -1,6 +1,6 @@
+ -include ../../Makefile.include
+ include FFMPEG-VERSION
+-DEPS = FFMPEG-VERSION Makefile ../../download-files.include
++DEPS = FFMPEG-VERSION Makefile ../../download-files.include kodi-ios-mkv-skip-attachments.patch
+ 
+ BUILD_TYPE = Release
+ ifeq ($(DEBUG_BUILD),yes)
+@@ -42,6 +42,7 @@
+ 	rm -rf $(PLATFORM); mkdir -p $(PLATFORM)
+ 	rm -rf $(PLATFORM); mkdir -p $(PLATFORM)/build
+ 	cd $(PLATFORM); $(ARCHIVE_TOOL) $(ARCHIVE_TOOL_FLAGS) $(TARBALLS_LOCATION)/$(ARCHIVE)
++	cd $(PLATFORM); patch -p1 -i ../kodi-ios-mkv-skip-attachments.patch
+ 	cd $(PLATFORM); cp ../CMakeLists.txt ./
+ 	cd $(PLATFORM)/build; $(CMAKE) $(CMAKE_ARGS) ..
+ 
+diff --git a/tools/depends/target/ffmpeg/kodi-ios-mkv-skip-attachments.patch b/tools/depends/target/ffmpeg/kodi-ios-mkv-skip-attachments.patch
+new file mode 100644
+--- /dev/null
++++ b/tools/depends/target/ffmpeg/kodi-ios-mkv-skip-attachments.patch
+@@ -0,0 +1,23 @@
++diff --git a/libavformat/matroskadec.c b/libavformat/matroskadec.c
++--- a/libavformat/matroskadec.c
+++++ b/libavformat/matroskadec.c
++@@ -651,7 +651,9 @@
++     { MATROSKA_ID_FILEUID,      EBML_UINT, 0, 0, offsetof(MatroskaAttachment, uid) },
++     { MATROSKA_ID_FILENAME,     EBML_UTF8, 0, 0, offsetof(MatroskaAttachment, filename) },
++     { MATROSKA_ID_FILEMIMETYPE, EBML_STR,  0, 0, offsetof(MatroskaAttachment, mime) },
++-    { MATROSKA_ID_FILEDATA,     EBML_BIN,  0, 0, offsetof(MatroskaAttachment, bin) },
+++    /* Kodi iOS: AirPlay never uses attached files (fonts, covers). Skipping the data seeks past it instead of
+++     * downloading it over the network before the first picture (anime releases carry 10-30 MB of fonts). */
+++    { MATROSKA_ID_FILEDATA,     EBML_NONE },
++     { MATROSKA_ID_FILEDESC,     EBML_UTF8, 0, 0, offsetof(MatroskaAttachment, description) },
++     CHILD_OF(matroska_attachments)
++ };
++@@ -3406,7 +3408,7 @@
++     for (j = 0; j < attachments_list->nb_elem; j++) {
++         if (!(attachments[j].filename && attachments[j].mime &&
++               attachments[j].bin.data && attachments[j].bin.size > 0)) {
++-            av_log(matroska->ctx, AV_LOG_ERROR, "incomplete attachment\n");
+++            av_log(matroska->ctx, AV_LOG_DEBUG, "attachment data skipped\n");
++         } else {
++             AVStream *st = avformat_new_stream(s, NULL);
++             if (!st)
+diff --git a/xbmc/guilib/listproviders/DirectoryProvider.cpp b/xbmc/guilib/listproviders/DirectoryProvider.cpp
+--- a/xbmc/guilib/listproviders/DirectoryProvider.cpp
++++ b/xbmc/guilib/listproviders/DirectoryProvider.cpp
+@@ -303,6 +303,18 @@
+          (std::find(m_itemTypes.begin(), m_itemTypes.end(), InfoTagType::AUDIO) == m_itemTypes.end())))
+       return;
+ 
++#if defined(TARGET_DARWIN_EMBEDDED)
++    // Kodi-iOS (performance 1D.1/1D.2): every plugin row of Home (a Python start each, 11-17 of them) was fetched
++    // again whenever a video started, stopped or the library changed, at the busiest moment of opening a video.
++    // Plugin rows keep their items; only the watch add-on's own rows (Continue Watching, Up Next, library) refresh,
++    // and not when playback starts. Its cached route (action=cached) carries the TMDb Helper rows: those stay.
++    if (StringUtils::StartsWithNoCase(m_currentUrl, "plugin://") &&
++        (!StringUtils::StartsWithNoCase(m_currentUrl, "plugin://plugin.video.kodi.ios.watch/") ||
++         m_currentUrl.find("action=cached") != std::string::npos ||
++         ((flag & ANNOUNCEMENT::Player) && message != "OnStop")))
++      return;
++#endif
++
+     if (flag & ANNOUNCEMENT::Player)
+     {
+       if (message == "OnPlay" || message == "OnResume" || message == "OnStop")

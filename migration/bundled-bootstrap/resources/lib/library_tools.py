@@ -82,6 +82,8 @@ def queue_view(view, debrid_jobs=(), now=None):
     import work_state
     estimate=work_state.remaining_text(model)
     return {'now': now_row, 'line': out, 'held': held, 'drive': drive,
+            # Owner (2026-11-12): Cancel All on this page, beside the Drive heading, while several copies wait.
+            'cancel_all': int((model or {}).get('copies_waiting') or 0) > 1,
             'subtitle':'One at a time, top first'+(' · '+estimate if estimate else '')}
 
 
@@ -129,6 +131,7 @@ def queue_properties(q):
         r = q['drive'][n - 1] if n <= len(q['drive']) else {}
         props['drive.%d.title' % n], props['drive.%d.sub' % n] = r.get('title', ''), r.get('sub', '')
         props['drive.%d.tone' % n] = r.get('tone', '')
+    props['cancel_all'] = 'true' if q.get('cancel_all') else ''
     props['empty'] = '' if (q['now'] or q['line'] or q['held'] or q['drive']) else 'Nothing is waiting to be converted.'
     return props
 

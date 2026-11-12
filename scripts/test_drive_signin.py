@@ -3,7 +3,7 @@ The log: the sign-in server's refresh answered 400 from Kodi's start (Google ref
 threads asked again every 5-10 s until the server answered 429. Now a refused sign-in is never asked again until
 the owner signs in (a new refresh token), a busy answer holds every refresh for HOLD_S, the message says to sign in
 again, and diagnostic lines read as sentences."""
-import sys,unittest
+import concurrent.futures,sys,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1];BOOT=ROOT/'migration/bundled-bootstrap';LIB=BOOT/'resources/lib'
 sys.dont_write_bytecode=True;sys.path.insert(0,str(LIB))
@@ -42,6 +42,22 @@ class Refresh(unittest.TestCase):
   self.clock.t+=2;self.assertEqual(self.token(),'new');self.assertEqual(len(self.calls),2)
  def test_status_mapping(self):
   self.assertIsInstance(du.refresh_error(401),du.SignedOut);self.assertIsInstance(du.refresh_error(503),du.RefreshBusy)
+ def test_rejected_unexpired_token_refreshes_only_once_across_readers(self):
+  self.account['a']['access_tokens']['date']=self.clock.t
+  self.answer=[{'access_token':'new','expires_in':3600}]
+  self.assertEqual(self.token(),'old');self.assertEqual(self.calls,[])
+  with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+   self.assertEqual(list(pool.map(self.token,['old']*4)),['new']*4)
+  self.assertEqual(self.calls,['R1'])
+ def test_forced_refresh_respects_busy_and_refused_backoff(self):
+  self.account['a']['access_tokens']['date']=self.clock.t;self.answer=[429,400]
+  for _ in range(2):
+   with self.assertRaises(du.RefreshBusy):self.token('old')
+  self.assertEqual(self.calls,['R1'])
+  self.clock.t+=du.HOLD_S+1
+  for _ in range(2):
+   with self.assertRaises(du.SignedOut):self.token('old')
+  self.assertEqual(self.calls,['R1','R1'])
  def test_both_refreshers_use_it(self):
   for f in (BOOT/'service.py',LIB/'drivelibrary.py'):
    self.assertIn('raise driveupload.refresh_error(status)',f.read_text())

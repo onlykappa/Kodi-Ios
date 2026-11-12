@@ -2,7 +2,7 @@
 Drive › Kodi Downloads › Movies / TV Shows, resuming interrupted uploads, then removes the phone copy once Drive
 reports the same size and checksum. Uses the Google Drive add-on's sign-in, which needs the drive.file permission (the sign-in
 server deployed by .github/workflows/signin-server.yml); drive.file only reaches files this app created."""
-import contextlib,fcntl,hashlib,json,os,re,time,urllib.error,urllib.parse,urllib.request
+import contextlib,fcntl,hashlib,json,os,re,threading,time,urllib.error,urllib.parse,urllib.request
 API='https://www.googleapis.com/drive/v3/files'
 UPLOAD='https://www.googleapis.com/upload/drive/v3/files'
 FOLDER='application/vnd.google-apps.folder'
@@ -221,6 +221,8 @@ class Drive(object):
    location=headers.get('Location') or headers.get('location')
    if status!=200 or not location:raise RuntimeError('Drive upload start: HTTP %s'%status)
    session.clear();session.update(url=location,size=size);save();offset=0
+  if callable(getattr(open_at,'copy_to',None)):
+   return self._native_stream(open_at.copy_to,size,session,offset,save,keep_going,progress,activity)
   import concurrent.futures
   source=[open_at(offset)]
   import slowdown as _slow;reader_gate=_slow.Gate(keep_going=keep_going)
@@ -280,6 +282,40 @@ class Drive(object):
    ahead.shutdown(wait=False)
    try:source[0].close()
    except Exception:pass
+  raise RuntimeError('Drive did not confirm the upload')
+ def _native_stream(self,copy_to,size,session,offset,save,keep_going,progress,activity):
+  """Only offsets and receipts cross Python; each native piece validates the source range before its PUT."""
+  import slowdown
+  gate=slowdown.Gate(keep_going=keep_going);chunks=StreamChunks();chunks.current=chunks.minimum
+  failures=0
+  while offset<size:
+   if not keep_going():raise Stop()
+   count=min(size-offset,chunks.minimum if slowdown.reason() else chunks.current)
+   activity('copying',offset,size);started=time.monotonic();access=self.token()
+   try:
+    status,headers,body=copy_to(session['url'],{'Authorization':'Bearer '+access},offset,count,size)
+    if status==401:
+     self.token(access)
+     status,headers,body=copy_to(session['url'],{'Authorization':'Bearer '+self.token()},offset,count,size)
+   except (ConnectionError,TimeoutError,OSError):
+    # A timed-out PUT may have been accepted: query Drive before sending anything again.
+    status,headers,body=self.call('PUT',session['url'],b'',{'Content-Range':'bytes */%d'%size})
+    chunks.current=max(chunks.minimum,chunks.current//2)
+   elapsed=time.monotonic()-started
+   if status in (200,201):
+    receipt=json.loads(body or b'{}')
+    if not receipt.get('id') or int(receipt.get('size',-1))!=size:raise RuntimeError('Invalid completed upload receipt')
+    progress(size,size);save();return receipt
+   if status!=308:raise RuntimeError('Drive upload: HTTP %s'%status)
+   confirmed=_next_offset(headers)
+   if not 0<=confirmed<=offset+count:raise RuntimeError('Invalid Drive confirmed position')
+   if confirmed<=offset:
+    failures+=1
+    if failures>3:raise ConnectionError('Drive did not advance; upload session retained')
+   else:failures=0
+   chunks.observe(count,elapsed,0)
+   _note('Drive copy native: %.1f MB piece in %.1f s; confirmed %.1f%%'%(count/1048576,elapsed,100.0*confirmed/size))
+   offset=confirmed;save();progress(offset,size);gate.after(elapsed,count,download=True)
   raise RuntimeError('Drive did not confirm the upload')
  def _done(self,path,sessions,save,body):
   sessions.pop(path,None);save()
@@ -492,6 +528,7 @@ class RefreshBusy(RuntimeError):
 REFUSED={}          # refresh token -> when Google refused it: not sent again until the account has a new one
 HOLD={'until':0.0}  # no refresh before this time (after a 429 / 5xx)
 HOLD_S=120
+TOKEN_LOCK=threading.RLock()
 def refresh_error(status):
  """The error for a refresh that did not answer 200 (owner, build 192: a refused sign-in was asked again every 5 s
  by two threads until the sign-in server answered 429)."""
@@ -502,11 +539,16 @@ def token_source(accounts,save_account,refresh,now=time.time):
  """Access token from the Google Drive add-on's first signed-in account, refreshed through the sign-in server.
  A refused refresh token is never sent again (signing in again saves a new one); after a busy answer every thread
  waits HOLD_S before the next refresh."""
- def token():
+ def token(force=False):
+  # A 401 can reject a token before its recorded expiry. A rejected-token string avoids a second refresh when
+  # another reader has already replaced it; existing callers still use token() and the expiry check.
+  with TOKEN_LOCK:return access(force)
+ def access(force):
   account=next(iter(accounts().values()),None)
   if not account:raise RuntimeError('Sign in to Google Drive in Kodi first')
   tokens=account['access_tokens']
-  if now()>tokens.get('date',0)+tokens.get('expires_in',0)-600:
+  rejected=force is True or (isinstance(force,str) and force==tokens.get('access_token'))
+  if rejected or now()>tokens.get('date',0)+tokens.get('expires_in',0)-600:
    old=tokens.get('refresh_token','')
    if old in REFUSED:raise refresh_error(400)
    if now()<HOLD['until']:raise RefreshBusy('Drive sign-in refresh: waiting %d s after the sign-in server was busy'%(HOLD['until']-now()))

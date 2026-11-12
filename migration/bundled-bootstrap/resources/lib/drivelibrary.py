@@ -194,6 +194,27 @@ def play_url(driveid,item_id):
  return 'plugin://plugin.googledrive/?'+urllib.parse.urlencode({'action':'play','content_type':'video','driveid':driveid,
                                                                'item_driveid':driveid,'item_id':item_id})
 
+def direct_url(path,state_dir,port,ours=False):
+ """Roadmap 1A.2 (owner log 396d5d67: 2.2-2.5 s in the watch add-on, then ~1 s in the Google Drive add-on before
+ Kodi started reading): the Drive add-on's play step only asks Drive for the file's name and answers with its local
+ stream address. Build that address from the saved Library listing instead (no Drive request): None when the file,
+ its name or the add-on's port is unknown, so the caller keeps the add-on's play link."""
+ parts=urllib.parse.urlsplit(str(path or ''))
+ q=urllib.parse.parse_qs(parts.query)
+ if parts.scheme!='plugin' or parts.netloc!='plugin.googledrive' or q.get('action')!=['play']:return None
+ item=(q.get('item_id') or [''])[0];driveid=(q.get('driveid') or [''])[0];item_drive=(q.get('item_driveid') or [driveid])[0]
+ if not (item and driveid and str(port or '').isdigit()):return None
+ name=None
+ for slot in (load_json(os.path.join(state_dir,'drive-library.json'),{}) or {}).values():
+  for entry in (slot or {}).get('entries') or []:
+   if isinstance(entry,dict) and entry.get('id')==item and entry.get('name'):name=entry['name'];break
+  if name:break
+ if not name:return None
+ if ours:   # roadmap 1A.1: the app's own Drive proxy (drive_proxy.py)
+  return 'http://127.0.0.1:%d/drive/%s/%s'%(int(port),urllib.parse.quote(item,safe=''),urllib.parse.quote(name))
+ return 'http://127.0.0.1:%d/download/%s/%s/%s/%s'%(int(port),urllib.parse.quote(driveid,safe=''),urllib.parse.quote(item_drive,safe=''),
+                                                    urllib.parse.quote(item,safe=''),urllib.parse.quote(name))
+
 def movies(files):
  """One entry per file in Movies, newest name first not assumed: sorted by title."""
  out=[]
@@ -251,11 +272,26 @@ def artwork(kind,title,year,key,cache,get,cached_only=False):
   if results is None:return {}   # not cached: try again next time
   if results:
    r=results[0]
-   found={'tmdb_id':str(r.get('id') or ''),'plot':r.get('overview') or '','rating':r.get('vote_average') or 0,
+   found={'tmdb_id':str(r.get('id') or ''),'name':r.get('title') or r.get('name') or '','plot':r.get('overview') or '','rating':r.get('vote_average') or 0,
           'poster':IMAGE+'w500'+r['poster_path'] if r.get('poster_path') else '',
           'fanart':IMAGE+'w1280'+r['backdrop_path'] if r.get('backdrop_path') else ''}
  cache[slot]=found
  return found
+
+def remember_show(state_dir,titles,tmdb_id):
+ """Roadmap 2.2 (owner, build 229: "downloading shows individually creates that mess in the library"): a download
+ knows its show's TMDb id, but the Library looked the show up by its folder name (from a release file, e.g. 'phony')
+ and could land on another show, or none. Record the id under every name the show's folder can have; the page fills
+ the poster, plot and episode details from it (show_details, season). Returns True when the cache changed."""
+ tmdb_id=str(tmdb_id or '').strip()
+ if not tmdb_id.isdigit():return False
+ path=os.path.join(state_dir,'drive-library-art.json');cache=load_json(path,{});changed=False
+ for title in {str(t).strip() for t in titles if t and str(t).strip()}:
+  for name in {title,parse(title)['title']}:
+   slot='tv:%s:'%name.lower()
+   if str((cache.get(slot) or {}).get('tmdb_id') or '')!=tmdb_id:cache[slot]={'tmdb_id':tmdb_id};changed=True
+ if changed:save_json(path,cache)
+ return changed
 
 def season(tmdb_id,number,key,cache,get,cached_only=False):
  """{episode number (text): {'title','plot','thumb','runtime','aired'}} for one season of a TMDb show, cached.
@@ -286,7 +322,7 @@ def show_details(tmdb_id,key,cache,get,cached_only=False):
  if not data.get('id'):return {}
  logos=(data.get('images') or {}).get('logos') or []
  logos=sorted((logo for logo in logos if logo.get('file_path')),key=lambda logo:(logo.get('iso_639_1')!='en',-float(logo.get('vote_average') or 0)))
- found={'plot':data.get('overview') or '', 'genres':[g['name'] for g in data.get('genres') or [] if g.get('name')],
+ found={'name':data.get('name') or '','plot':data.get('overview') or '', 'genres':[g['name'] for g in data.get('genres') or [] if g.get('name')],
         'rating':data.get('vote_average') or 0,'year':str(data.get('first_air_date') or '')[:4],
         'clearlogo':IMAGE+'original'+logos[0]['file_path'] if logos else ''}
  if data.get('poster_path'):found['poster']=IMAGE+'w500'+data['poster_path']
@@ -370,23 +406,25 @@ def refresh_stale(state_dir,now=time.time,ttl=LISTING_TTL):
   listing(kind,state_dir,folder or None,now=now,strict=True,fresh=True);done.append(slot)
  return done
 
-def completed_copy(kind,title,year,season,episode,state_dir):
+def completed_copy(kind,title,year,season,episode,state_dir,cached_only=False):
  """Match a kept download by title/year or show/episode, without art lookups or source scraping. Local phone
- matching and this Drive check share the same strict title rule. A Drive error propagates to stop silent redownload."""
+ matching and this Drive check share the same strict title rule. A Drive error propagates to stop silent redownload.
+ cached_only (roadmap 2.8): the saved listings only, no Drive request, for taps that must not wait."""
  from ios_downloaded import has_title,has_episode
+ tries=(False,) if cached_only else (False,True)
  if kind=='movie':
-  for fresh in (False,True):
+  for fresh in tries:
    entries,driveid=listing('movie',state_dir,strict=True,fresh=fresh)
    matches=[e for e in entries if has_title(e.get('title',''),title) and (not year or str(e.get('year'))==str(year)) and int(e.get('size') or 0)>0]
    if matches or not driveid:break
  else:
-  for fresh in (False,True):
+  for fresh in tries:
    shows,driveid=listing('tv',state_dir,strict=True,fresh=fresh)
    shows=[s for s in shows if has_title(s.get('title',''),title)]
    if shows or not driveid:break
   matches=[]
   for show in shows:
-   for fresh in (False,True):
+   for fresh in tries:
     entries,driveid=listing('tv',state_dir,show['id'],strict=True,fresh=fresh)
     found=[e for e in entries if has_episode(e.get('name',''),season,episode) and int(e.get('size') or 0)>0
            and (not show.get('loose') or has_title(e.get('title',''),title))]

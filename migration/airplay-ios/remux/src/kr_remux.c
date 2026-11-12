@@ -1303,6 +1303,7 @@ static void *connection(void *arg) {
             if(!N.first_tv_ms) {
                 N.first_tv_ms=now_ms();
                 log_line("network: first TV request peer=%s after %.0f ms from start",peer_ip,N.first_tv_ms-N.start_ms);
+                log_line("network: TV receiver peer=%s agent=%.159s",peer_ip,agent);
             }
         }
         pthread_mutex_unlock(&N.lock);
@@ -1651,9 +1652,10 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
     // any other file (picture copied, 6-s segments, audio as its own rendition) instead of as-is. Roku's streaming
     // specifications: CMAF HLS with audio and video muxed together is not supported, chunks of 4-6 s (< 10 s VOD)
     // are recommended; the prepared file's fragments carry both and run up to 70 s.
+    const int copy_only=compat==KR_COMPAT_ROKU_COPY;
     const int roku_safe=compat==KR_COMPAT_ROKU_SAFE;
     S.roku_safe=roku_safe;
-    const int segmented = compat == KR_COMPAT_SEGMENTED || roku_safe;
+    const int segmented = compat == KR_COMPAT_SEGMENTED || roku_safe || copy_only;
     if (segmented) {
         compat = roku_safe?1:0;
         log_line("segmented: targeting six-second keyframe-aligned segments, separate audio, picture copied");
@@ -1742,6 +1744,7 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
         log_line("compat: conversion reason=%s",selected<0?"codec cannot be copied":"unsupported profile, bit depth or chroma sampling");
     }
     if (compat) {
+        if(copy_only){set_message("This video cannot keep its original picture on this Roku. Playback on the iPhone is available.");goto done;}
         if (S.vindex < 0) { set_message("AirPlay: this file has no video that can be converted."); goto done; }
         if (!kr_video_available()) { set_message("AirPlay: this build cannot convert video (no H.264 encoder)."); goto done; }
         S.compat = 1;
@@ -1767,7 +1770,7 @@ int kr_remux_start_for(unsigned ticket,const char *url, int lan, int compat, cha
         AVFormatContext *f = gm_stream_format_context(S.gm);
         int v = gm_stream_selected_video(S.gm);
         int burn = S.burn_index >= 0 || S.burn_file[0];
-        S.compat_ok = !S.compat && v >= 0 && S.vindex >= 0 && f &&
+        S.compat_ok = !copy_only && !S.compat && v >= 0 && S.vindex >= 0 && f &&
                       (burn || f->streams[v]->codecpar->codec_id != AV_CODEC_ID_H264 ||
                        f->streams[v]->codecpar->width > 1920 || f->streams[v]->codecpar->height > 1080) &&
                       kr_video_available();

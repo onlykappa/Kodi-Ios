@@ -57,6 +57,48 @@ def patch_helper(files,id):
  n=methods[0];lines=text.splitlines(keepends=True);indent=' '*(n.col_offset+4)
  replacement=lines[n.lineno-1]+indent+'from ios_watch_dialog import choose_player\n'+indent+'selected = choose_player(self)\n'+indent+'return self.set_resolver(selected) if selected else None\n'
  lines[n.lineno-1:n.end_lineno]=[replacement];files[player]=''.join(lines).encode();changes.append('Movie/episode resolver always requests explicit native Kodi watch choice before selecting a backend')
+ # Roadmap 1C.3 (owner logs: "GetDirectory - Error getting .../plugin.video.themoviedb.helper/resources/players/" twice on
+ # every play): the add-on ships without that folder; an empty one (a note file) ends the failed reads.
+ players_note=prefix+'resources/players/README.txt'
+ if not any(name.startswith(prefix+'resources/players/') for name in files):
+  files[players_note]=b'Kodi iOS: players are configured by the Kodi iOS watch add-on; this folder exists so TMDb Helper finds it.\n'
+  changes.append('Empty resources/players folder (no failed directory reads on every play)')
+ # Roadmap 1C.2: a copy already on the phone or Drive plays before TMDb Helper fetches details and builds players.
+ router=prefix+'resources/tmdbhelper/lib/items/router.py'
+ if router in files:
+  text=files[router].decode()
+  old='        play_player(handle=self.handle if self.handle != -1 else None, **self.params)';assert text.count(old)==1
+  files[router]=text.replace(old,'        from ios_watch_dialog import fast_copy\n        if fast_copy(self.handle if self.handle != -1 else None, self.params):\n            return\n'+old).encode()
+  changes.append('A downloaded copy plays before TMDb Helper builds its player list (no 1-2 s details fetch)')
+ # Roadmap 1C.4: the service asks (RunPlugin ... info=ios_warm) for the details of titles on screen, so TMDb Helper has
+ # them cached when Play is tapped. Skipped, not failed, if a later TMDb Helper changes this method.
+ if router in files:
+  text=files[router].decode()
+  old="        if self.params.get('info') == 'play':\n            return self.play_player()\n"
+  if text.count(old)==1:
+   files[router]=text.replace(old,"        if self.params.get('info') == 'ios_warm':\n            from ios_watch_dialog import warm_details\n            return warm_details(self.params)\n"+old).encode()
+   changes.append('Details of titles on screen are fetched in the background (Play needs no network wait)')
+  # Roadmap 3.5: every list TMDb Helper builds is counted for the one-minute performance line.
+  text=files[router].decode()
+  old="        self.get_directory()\n"
+  if text.count(old)==1:
+   files[router]=text.replace(old,"        from ios_watch_dialog import count_run\n        count_run('tmdb')\n"+old).encode()
+   changes.append('TMDb Helper list runs are counted for the one-minute performance line')
+ # Roadmap 1E.5: the first Trakt use after launch waited 1.66 s on a network check of the saved token. A saved token
+ # that has not expired is trusted at once and confirmed in a background thread (a rejection clears TraktIsAuth, so the
+ # next use checks again as before).
+ token=prefix+'resources/tmdbhelper/lib/api/trakt/token.py'
+ if token in files:
+  text=files[token].decode()
+  hook='    @cached_property\n    def winprop_traktisauth(self):\n';call='winprop_traktisauth or self.authorization_check()'
+  assert text.count(hook)==1 and text.count(call)==1
+  method=('    def ios_deferred_check(self):\n        # KODI-IOS: trust an unexpired saved token now, confirm it in the background.\n'
+   '        if not (self.access_token and self.refresh_token and self.has_valid_token):\n            return self.authorization_check()\n'
+   '        stamp = self.expires_in_timestamp\n        self.update_traktisauth_property()\n\n        def confirm():\n'
+   '            if not self.authorization_check():\n                get_property(\'TraktIsAuth\', clear_property=True)\n\n'
+   '        import threading\n        threading.Thread(target=confirm, daemon=True).start()\n        return stamp\n\n')
+  files[token]=text.replace(hook,method+hook).replace(call,'winprop_traktisauth or self.ios_deferred_check()').encode()
+  changes.append('Trakt token check runs in the background when a saved token is still valid (no 1.7 s wait at launch)')
  item=prefix+'resources/tmdbhelper/lib/items/listitem.py';text=files[item].decode();old='        return BuildURL(self.path, **self.params).url';assert text.count(old)==1
  files[item]=text.replace(old,'        from ios_watch_routes import wrap_item\n        return wrap_item(self, BuildURL(self.path, **self.params).url)').encode();changes.append('TV show routes open watch/episode options; original metadata/art/context entries remain')
  return files,changes

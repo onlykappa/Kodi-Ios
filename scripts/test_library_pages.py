@@ -48,6 +48,53 @@ class Pages(unittest.TestCase):
   self.assertEqual(label,'Pilot');self.assertEqual((art['thumb'],art['tvshow.fanart'],art['tvshow.poster']),('still.jpg','fan.jpg','poster.jpg'))
   self.assertEqual((info['plot'],info['duration'],info['premiered'],info['rating']),('It begins.',3360,'2026-08-17',7.5))
   self.assertEqual(out[1][1],'S01E02');self.assertEqual(out[1][2]['thumb'],'fan.jpg')  # no TMDb entry yet: show art
+ def test_single_episode_files_named_by_the_show_read_episode_n(self):
+  # Roadmap 2.2 (owner, build 229): 'phony.s01e01…' and 'Phony.S01E02…' listed as "1. phony", "2. Phony".
+  rows=[('plugin://drive/a','phony',{},{'mediatype':'episode','season':'1','episode':'1','tvshowtitle':'phony','source':'drive'},False),
+        ('plugin://drive/b','Phony',{},{'mediatype':'episode','season':'1','episode':'2','tvshowtitle':'phony','source':'drive'},False)]
+  out=page.episode_rows(rows,'phony',lib,{},'KEY',None)
+  self.assertEqual([r[1] for r in out],['Episode 1','Episode 2'])
+ def test_download_records_its_shows_tmdb_id(self):
+  import tempfile,os
+  with tempfile.TemporaryDirectory() as d:
+   path=os.path.join(d,'drive-library-art.json')
+   lib.save_json(path,{'tv:phony:':{'tmdb_id':'1','poster':'wrong.jpg'},'tv:other:':{'tmdb_id':'5'}})
+   self.assertTrue(lib.remember_show(d,['Phony','phony','Phony (2025)',''],'275139'))
+   cache=lib.load_json(path,{})
+   self.assertEqual(cache['tv:phony:'],{'tmdb_id':'275139'});self.assertEqual(cache['tv:phony (2025):'],{'tmdb_id':'275139'})
+   self.assertEqual(cache['tv:other:'],{'tmdb_id':'5'})
+   self.assertFalse(lib.remember_show(d,['Phony'],'275139'))   # unchanged: no write
+   self.assertFalse(lib.remember_show(d,['Phony'],None))
+ def test_library_play_carries_episode_details_not_the_file_name(self):
+  # Owner (build 232): Library played 'phony.s01e01.1080p.web.h264-cakes[EZTVx.to].mp4' as the title.
+  cache={'tv:phony:':{'tmdb_id':'275139','poster':'p.jpg','fanart':'f.jpg'},
+         'show:275139':{'plot':'Show plot','clearlogo':'logo.png'},
+         'season:275139:1':{'1':{'title':'Pilot','plot':'Sonny awakens.','thumb':'s.jpg','runtime':35,'aired':'2026-10-20'}}}
+  params={'kind':'episode','title':'phony.s01e01.1080p.web.h264-cakes[EZTVx.to].mp4','show':'phony','season':'1','episode':'1','tmdb_id':''}
+  name,info,art=page.playback_details(params,lib,cache)
+  self.assertEqual(name,'Pilot')
+  self.assertEqual((info['tvshowtitle'],info['season'],info['episode'],info['plot'],info['duration']),('Phony',1,1,'Sonny awakens.',2100))  # never the file's lower-case name
+  self.assertEqual((art['thumb'],art['tvshow.clearlogo']),('s.jpg','logo.png'))
+  name,info,_=page.playback_details(dict(params,episode='2'),lib,cache)
+  self.assertEqual((name,info['plot']),('Episode 2','Show plot'))   # no TMDb entry yet: never the file name
+  name,info,art=page.playback_details({'kind':'movie','title':'Home Alone','year':'1990'},lib,{'movie:home alone:1990':{'plot':'Kevin.','poster':'h.jpg'}})
+  self.assertEqual((name,info['plot'],art['poster']),('Home Alone','Kevin.','h.jpg'))
+ def test_show_with_nothing_finished_says_so(self):
+  path,label,art,info,folder=page.empty_show_row({'poster':'p.jpg'})
+  self.assertEqual((label,art['poster'],info['properties']['KodiIOS.EmptyShow']),('No finished episodes yet','p.jpg','true'))
+  self.assertIn('Notifications',info['plot'])
+ def test_continue_watching_cards_heal_from_saved_details(self):
+  # Owner (build 252 screenshot): "the maze runner" and "phony" with no picture on Continue Watching.
+  import ios_continue as cw
+  saved={('movie','the maze runner'):{'name':'The Maze Runner','poster':'m.jpg','fanart':'mf.jpg'},('tv','phony'):{'poster':'p.jpg'}}
+  look=lambda kind,title,year,tmdb:saved.get((kind,title.lower()),{})
+  movie=cw.heal({'kind':'movie','title':'the maze runner','year':'2014'},look)
+  self.assertEqual((movie['title'],movie['art']['poster']),('The Maze Runner','m.jpg'))
+  ep=cw.heal({'kind':'episode','title':'Pilot','tvshowtitle':'phony','season':'1','episode':'1'},look)
+  self.assertEqual((ep['tvshowtitle'],ep['art']['tvshow.poster']),('Phony','p.jpg'))
+  fine={'kind':'movie','title':'Inception','art':{'poster':'i.jpg'}}
+  self.assertIs(cw.heal(fine,lambda *a:self.fail('looked up')),fine)
+  self.assertEqual(page.nice_title('the maze runner'),'The Maze Runner');self.assertEqual(page.nice_title('WALL-E'),'WALL-E')
  def test_season_lookup_parses_and_caches(self):
   answer=json.dumps({'episodes':[{'episode_number':1,'name':'Pilot','overview':'x','still_path':'/s.jpg','runtime':56,'air_date':'2026-08-17'}]}).encode()
   urls=[];cache={}
@@ -91,5 +138,36 @@ class Pages(unittest.TestCase):
   self.assertIn('<width>150</width>',xml);self.assertIn('<width>104</width>',xml);self.assertNotIn('glass_',xml)
   self.assertIn('<left>48</left><top>36</top>',xml)
 
+
+class WarmOnPageOpen(unittest.TestCase):
+ """Roadmap 1A.4: a title's page opening warms the one Drive file Play will open, never every row."""
+ PLAY='plugin://plugin.googledrive/?action=play&content_type=video&driveid=D&item_driveid=D&item_id=FILE1'
+ def fake_home(self,port):
+  import types
+  window=types.SimpleNamespace(getProperty=lambda name:port if name=='KodiIOS.DriveProxy' else '')
+  fake=types.ModuleType('xbmcgui');fake.Window=lambda ident:window
+  self.addCleanup(sys.modules.pop,'xbmcgui',None);sys.modules['xbmcgui']=fake
+ def test_file_id_comes_only_from_a_drive_play_link(self):
+  self.assertEqual(page.drive_file_id(self.PLAY),'FILE1')
+  for other in ('/var/mobile/a.mp4','plugin://plugin.video.other/?action=play&item_id=X','plugin://plugin.googledrive/?action=list&item_id=X',''):
+   self.assertEqual(page.drive_file_id(other),'')
+ def test_a_drive_copy_is_warmed_through_the_running_proxy(self):
+  self.fake_home('4321');asked=[]
+  self.assertTrue(page.warm_copy(self.PLAY,ask=lambda port,file_id:asked.append((port,file_id)) or True))
+  self.assertEqual(asked,[(4321,'FILE1')])
+ def test_nothing_is_asked_without_the_proxy_a_drive_file_or_when_it_fails(self):
+  self.fake_home('');asked=[]
+  self.assertFalse(page.warm_copy(self.PLAY,ask=lambda *a:asked.append(a)))
+  self.fake_home('4321')
+  self.assertFalse(page.warm_copy('/var/mobile/a.mp4',ask=lambda *a:asked.append(a)))
+  def broken(*a):raise OSError('down')
+  self.assertFalse(page.warm_copy(self.PLAY,ask=broken));self.assertEqual(asked,[])
+ def test_the_movies_list_warms_only_the_resumable_drive_movie(self):
+  def movie(file,position,source='drive'):
+   route=page.ME+'?'+page.urllib.parse.urlencode({'action':'library_play','path':'plugin://plugin.googledrive/?action=play&item_id='+file})
+   return (route,file,{},{'mediatype':'movie','source':source,'resume':{'position':position}},False)
+  rows=[movie('A',0),movie('B',30,'local'),movie('C',50),movie('D',70)]
+  self.assertEqual(page.drive_file_id(page.movie_warm_target(rows)),'C')
+  self.assertEqual(page.movie_warm_target([movie('A',0)]),'')
 
 if __name__=='__main__':unittest.main()

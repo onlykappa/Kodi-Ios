@@ -3,7 +3,7 @@
 Elementum searches the sources; selected /download and /play redirects are intercepted by elementum_cloud
 before its local downloader starts. These helpers retain the existing movie/season/episode picker entry points.
 """
-import json,time,urllib.parse,urllib.request
+import http.client,json,socket,threading,time,urllib.parse,urllib.request
 ENGINE='http://127.0.0.1:65220'
 PLUGIN='plugin://plugin.video.elementum'
 
@@ -28,7 +28,47 @@ def plugin_url(kind,tmdb,season=None,episode=None):
 
 PLUGIN_PREFIX='plugin://plugin.video.elementum'
 
-def follow(url,opener=None,hops=6,timeout=600,route=None):
+class Canceled(RuntimeError):
+ """An explicit source search was canceled; never follow a selected-media redirect afterward."""
+
+def _interruptible_get(url,timeout,cancel):
+ """Only the engine HTTP wait runs in a worker. Closing its socket interrupts headers/body waits on Cancel.
+ Redirects and their queue side effects stay in the caller, after its cancellation check."""
+ import urllib.error
+ parts=urllib.parse.urlsplit(url)
+ if parts.scheme not in ('http','https'):raise ValueError('Unsupported engine redirect')
+ connection=(http.client.HTTPSConnection if parts.scheme=='https' else http.client.HTTPConnection)(parts.hostname,parts.port,timeout=timeout)
+ done=threading.Event();stopped=threading.Event();result={};started=time.monotonic()
+ def receive():
+  try:
+   connection.request('GET',urllib.parse.urlunsplit(('', '', parts.path or '/',parts.query,'')))
+   result['socket']=connection.sock
+   if stopped.is_set():raise Canceled('Source search canceled')
+   response=connection.getresponse()
+   try:
+    if response.status>=300:raise urllib.error.HTTPError(url,response.status,response.reason,response.headers,None)
+    while response.read(65536):
+     if stopped.is_set():raise Canceled('Source search canceled')
+   finally:response.close()
+  except Exception as error:result['error']=error
+  finally:connection.close();done.set()
+ thread=threading.Thread(target=receive,daemon=True);thread.start()
+ while not done.wait(.1):
+  aborted=cancel()
+  if aborted or time.monotonic()-started>=timeout:
+   stopped.set()
+   sock=result.get('socket') or connection.sock
+   if sock is not None:
+    try:sock.shutdown(socket.SHUT_RDWR)
+    except OSError:pass
+   connection.close()
+   thread.join(1)
+   if aborted:raise Canceled('Source search canceled')
+   raise TimeoutError('Source search deadline reached')
+ if cancel():raise Canceled('Source search canceled')
+ if 'error' in result:raise result['error']
+
+def follow(url,opener=None,hops=6,timeout=600,route=None,engine=None,cancel=None):
  """Run an Elementum plugin link over its HTTP API, following its redirects. Owner (build-133): a season download
  picked a version, then Elementum answered with a redirect to plugin://.../download (and that to /play?background)
  which Kodi dropped when the link was run with RunPlugin, so no torrent was added. Returns the last URL reached."""
@@ -40,12 +80,24 @@ def follow(url,opener=None,hops=6,timeout=600,route=None):
    import elementum_cloud
    route=elementum_cloud.route
   else:route=lambda url:False
+ interruptible=cancel is not None and opener is None
+ if engine is None and opener is None:
+  import elementum_engine
+  engine=(lambda:elementum_engine.ensure_here(cancel=cancel)) if cancel else elementum_engine.ensure_here
  opener=opener or urllib.request.build_opener(Stop)
  url=url.replace(PLUGIN_PREFIX,ENGINE,1)
  for _ in range(hops):
+  if cancel and cancel():raise Canceled('Source search canceled')
   if route(url):return url
+  if engine is not None:engine();engine=None
+  if cancel and cancel():raise Canceled('Source search canceled')
   try:
-   response=opener.open(url,timeout=timeout);response.read();return url
+   if interruptible:_interruptible_get(url,timeout,cancel)
+   else:
+    response=opener.open(url,timeout=timeout)
+    try:response.read()
+    finally:response.close()
+   return url
   except urllib.error.HTTPError as error:
    location=error.headers.get('Location') if error.code in (301,302,303,307,308) else None
    if not location:raise

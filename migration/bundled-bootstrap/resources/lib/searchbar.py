@@ -8,11 +8,14 @@ PATH='Portrait.Search.Path'    # content of the results grid; '' shows the categ
 QUERY='Portrait.Search.Query'  # what was searched, for the page's labels
 CHANGED,SUBMITTED,CLOSED=1,2,4
 TYPE='Window(Home).Property(Portrait.Search.Type)'  # '' all, movie, tv (the page's filter pills)
-SEARCH='plugin://plugin.video.themoviedb.helper/?info=search&tmdb_type=%s&query='
+SEARCH='plugin://plugin.video.themoviedb.helper/?info=search&tmdb_type=%s&query=%s'
 
+# Board 12: All lists movies and TV shows in two sections (the watch add-on groups TMDb Helper's two searches).
+GROUPED='plugin://plugin.video.kodi.ios.watch/?action=search&query='
 def results_path(query,kind=''):
  query=' '.join(str(query or '').split())
- return SEARCH%(kind if kind in ('movie','tv') else 'multi')+urllib.parse.quote(query) if query else ''
+ if not query:return ''
+ return SEARCH%(kind,urllib.parse.quote(query)) if kind in ('movie','tv') else GROUPED+urllib.parse.quote(query)
 
 def bind(lib):
  """Argument types for the r3 functions; False for an older framework without them."""
@@ -77,4 +80,5 @@ def controller(lib,take,visible,portrait,set_property,clock,delay=0.45,info=lamb
   elif state['typed'] is not None and clock()-state['typed']>=delay:send(state['text'])
  def close():
   if state['shown']:lib.kodi_search_show(0);state['shown']=False
+ poll.needed=lambda:state['shown']   # the 50 ms poll is only for a shown field
  return tick,poll,close

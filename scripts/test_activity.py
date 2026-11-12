@@ -38,6 +38,10 @@ class Wording(unittest.TestCase):
   s=C('Scanning movies using The Movie Database','Inception',-1);self.assertEqual((s['app'],s['title'],s['sub']),('library','Updating library','Inception'))
   self.assertEqual(C('Copy','Inception.mkv',34)['title'],'Copying')
   self.assertEqual(C('Skin Variables','Constructing Viewtypes...',-1)['group'],'quiet')
+  # Board 13: a slow first start shows one pill, never a dialog; it is not a quiet job.
+  st=C(activity.STARTUP_TITLE,activity.STARTUP_TEXT,-1)
+  self.assertEqual((st['app'],st['title'],st['sub'],st['pct']),('startup','Getting things ready','Preparing your library',None))
+  self.assertTrue(activity.allowed(st,lambda key,default:default))
   self.assertEqual(C('TMDbHelper Library','Severance',47)['title'],'Adding to your library')
  def test_unknown_is_kept_without_tags(self):
   j=C('[B]Some Add-on[/B]','[COLOR red]Doing things[/COLOR]',20)
@@ -155,10 +159,10 @@ class ApprovedDesign(unittest.TestCase):
   taps=activity_skin.tap_controls(portrait,'Home.xml');self.assertIn('<width>118</width><height>118</height>',taps.split('id="9792"')[1])
  def test_close_not_done(self):
   xml=activity_skin.sheet(portrait);self.assertNotIn('>Done<',xml);self.assertIn('close_cross.png',xml.split('id="9600"')[0][-900:]+xml.split('id="9600"')[1][:200])   # the shared close button (build 173)
- def test_ring_around_the_tile_in_pill_and_sheet(self):
+ def test_thin_bar_not_a_ring_in_pill_and_sheet(self):
   for root in (self.pill,self.sheet):
    textures=[t.text for t in root.iter('texture')]
-   self.assertTrue(any(t and 'ring_20.png' in t for t in textures));self.assertTrue(any(t and 'tile108.png' in t for t in textures))
+   self.assertFalse(any(t and 'ring_' in t for t in textures));self.assertTrue(any(t and 'tile108.png' in t for t in textures))
   self.assertNotIn('<control type="progress"',activity_skin.sheet(portrait))
  def test_no_two_labels_overlap_unless_never_shown_together(self):
   for root in (self.pill,self.sheet):

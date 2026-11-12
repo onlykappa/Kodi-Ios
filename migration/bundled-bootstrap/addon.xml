@@ -6,7 +6,7 @@
   <menu id="kodi.core.main">
    <item library="download.py">
     <label>Download</label>
-    <visible>System.HasAddon(plugin.video.elementum) + [String.IsEqual(ListItem.DBType,movie) | String.IsEqual(ListItem.DBType,episode) | String.IsEqual(ListItem.DBType,season) | String.IsEqual(ListItem.DBType,tvshow)]</visible>
+    <visible>System.HasAddon(plugin.video.elementum) + [String.IsEqual(ListItem.DBType,movie) | String.IsEqual(ListItem.DBType,episode) | String.IsEqual(ListItem.DBType,season) | String.IsEqual(ListItem.DBType,tvshow)] + !String.Contains(ListItem.FolderPath,plugin.video.kodi.ios.watch/?action=library) + !String.Contains(ListItem.FileNameAndPath,plugin.video.kodi.ios.watch/?action=library)</visible>
    </item>
   </menu>
  </extension>

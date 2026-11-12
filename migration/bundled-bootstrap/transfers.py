@@ -3,7 +3,7 @@ want the graph to show in notifications if i tap on it"). One job at a time (own
 card that was tapped; when that job ends it moves on to the next one still running. Refreshes every 2 s."""
 import os,sys,threading,time
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'resources','lib'))
-import transfer_history as th,transfers_page as tp
+import page_wait,transfer_history as th,transfers_page as tp
 
 BACK=(9,10,92,110)
 GB=1024**3
@@ -176,9 +176,10 @@ def run(args=()):
    self.refresh();threading.Thread(target=self.loop,daemon=True).start()
   def loop(self):
    monitor=xbmc.Monitor()
-   while not self.stop.is_set() and not monitor.waitForAbort(2):
+   while not page_wait.idle(self.stop,monitor,2):
     try:self.refresh()
-    except Exception as error:xbmc.log('Kodi iOS Transfers: %s: %s'%(type(error).__name__,error),xbmc.LOGWARNING)
+    except Exception as error:
+     import diagnostics;xbmc.log('Kodi iOS Transfers: %s: %s'%(type(error).__name__,diagnostics.error_text(error)),xbmc.LOGWARNING)
   def refresh(self):
    with self.lock:
     now=time.time();history=th.load(profile)

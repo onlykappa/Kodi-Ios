@@ -11,7 +11,7 @@ counts=load('customise_counts',BOOT/'customise_counts.py')
 # Fuse 3's own switches (Dialog_DialogCustom.xml): DialogCustom_Settings_Items_Indicators and the overlay pair of
 # DialogCustom_VideoOSD_Items, with whether Fuse shows them on when the setting is absent.
 FUSE={'Indicator.DisableWatched':True,'Indicator.DisableLibrary':True,'Indicator.DisableCollection':True,'Indicator.DisableProgress':True,
-      'Indicator.DisableEpisodes':True,'Indicator.EnableUnwatchedCount':False,'Indicator.DisablePVRGuideCatchUp':True,
+      'Indicator.DisableEpisodes':True,'Indicator.EnableUnwatchedCount':False,
       'Indicator.TraktWatchlist':False,'Indicator.TraktFavourites':False,'Indicator.EpisodeTypeBanner':False,'Indicator.MovieVersionBanner':False,
       'OSD.InfoOverlay.DisableLandscapeOnInfo':True,'OSD.InfoOverlay.DisablePlotRatingsOnInfo':True}
 
@@ -62,7 +62,7 @@ class Pages(unittest.TestCase):
   self.assertEqual([o.text for o in self.control(9531).findall('onclick')],['Skin.SetNumeric(OSD_Timeout)'])
   labels=[l.text for l in self.root.iter('label')];self.assertIn('$INFO[Skin.String(OSD_Timeout),, s]',labels);self.assertIn('Never',labels)
  def test_counts(self):
-  rules=sp.count_rules();self.assertEqual(len(rules['badges']),11);self.assertEqual(len(rules['osd']),2)
+  rules=sp.count_rules();self.assertEqual(len(rules['badges']),10)   # no Live TV Catch-up (owner, 2026-11-12);self.assertEqual(len(rules['osd']),2)
   on={'!Skin.HasSetting(Indicator.DisableWatched)','Skin.HasSetting(Indicator.TraktWatchlist)'}
   self.assertEqual(counts.values(rules,lambda c:c in on),{'custom.badges':'2 on','custom.osd':'0 on','custom.info':'0 on'})
   self.assertEqual(counts.rules(),rules)
@@ -261,14 +261,31 @@ class InfoRowsAndGrid(unittest.TestCase):
   g=portrait.grid();ET.fromstring('<a>'+g+'</a>')
   self.assertIn('condition="%s"'%portrait.GRID_LARGE,g);self.assertEqual(g.count('<itemlayout'),2)
 
+class Released(unittest.TestCase):
+ def test_rows_leave_out_unreleased_titles_except_upcoming_rows(self):
+  # Owner (2026-11-12): blank cards with red italic titles were TMDb Helper's unreleased titles.
+  t='plugin://plugin.video.themoviedb.helper/?info=discover&tmdb_type=movie'
+  self.assertTrue(portrait.released_only({'path':t,'label':'Netflix Original Movies'})['path'].endswith('&hide_unaired=true'))
+  for keep in ({'path':t,'label':'Upcoming Movies'},{'path':t+'&info2=upcoming','label':'x'},{'path':t+'&hide_unaired=false','label':'x'},
+               {'path':'plugin://plugin.video.umbrella/?a=b','label':'x'}):
+   self.assertEqual(portrait.released_only(keep),keep)
+ def test_a_card_without_a_poster_shows_its_other_picture(self):
+  xml=portrait.poster_item(False)
+  self.assertIn('ListItem.Art(thumb)',xml);self.assertIn('ListItem.Art(fanart)',xml)
+
 class Dialogs(unittest.TestCase):
- def test_notification_volume_and_info_wait(self):
+ def test_notification_volume_and_info_card(self):
   pages=portrait.pages
   n=pages.notification_dialog('m',43,150,994,'a','b');ET.fromstring(n.split('\n',2)[2])
   for id in ('400','401','402'):self.assertIn('id="%s"'%id,n)
   v=pages.volume_dialog('m',220,150,640,'a');self.assertIn('id="933"',v);self.assertIn('Player.Muted',v)
-  w=pages.info_wait('<window type="dialog" id="1193"><controls><control type="group"><visible>x</visible><include content="Furniture_Busy" /></control></controls></window>')
-  self.assertIn('ring.png',w);self.assertNotIn('Furniture_Busy',w);self.assertIn('<visible>x</visible>',w)
+  # Board 08: Info is the episode card (window 1193), opened by the controls' Info without closing them.
+  w=pages.info_card();root=ET.fromstring(w.split('\n',2)[2])
+  self.assertEqual(root.get('id'),'1193')
+  for info in ('VideoPlayer.TVShowTitle','VideoPlayer.Season','VideoPlayer.Episode','VideoPlayer.Title','VideoPlayer.Plot','Player.FinishTime','Player.Art(thumb)'):self.assertIn(info,w)
+  self.assertIn('No description for this video yet.',w);self.assertNotIn('Furniture_Busy',w);self.assertNotIn('ring.png',w)
+  self.assertIn('<onclick>Close</onclick>',w)
+  self.assertEqual(portrait.player_osd.INFO,'ActivateWindow(1193)')
   self.assertTrue({pages.NOTIFY,pages.VOLUME,pages.INFO_WAIT}<=portrait.OWN_1080I)
  def test_fuse_overlay_hides_under_our_controls(self):
   osd=portrait.player_osd;src='<window><controls><control type="label" /></controls></window>'

@@ -123,6 +123,33 @@ SEARCH=b'''    def _search(self, driveid=None, item_driveid=None, item_id=None, 
         self.get_provider().configure(self._account_manager, driveid)
         query = query or self._dialog.input('''
 DRIVE_COMMON='script.module.clouddrive.common/'
+DRIVE_SERVICE_FILTER = b"""        if type(services) != list:
+            services = [services]
+        if KodiUtils.get_addon_setting('ios_extra_services') != 'true':
+            # Preserve existing exports and source/favourite integrations; trim only unused workers.
+            def needed(service):
+                if service.name == 'download':
+                    return True
+                try:
+                    if service.name == 'export':
+                        return bool(service.export_manager.get_exports())
+                    ports = ['8585', '8587', str(KodiUtils.get_addon_setting('port_directory_listing'))]
+                    for name in ('sources.xml', 'favourites.xml'):
+                        try:
+                            with open(KodiUtils.translate_path('special://profile/' + name), encoding='utf-8') as saved:
+                                text = saved.read()
+                            if any(':' + port + '/' in text for port in ports if port):
+                                return True
+                        except FileNotFoundError:
+                            pass
+                    return False
+                except Exception:
+                    return True  # unknown configuration must retain the existing integration
+            services = [service for service in services if needed(service)]
+            if not services:
+                return
+"""
+
 DRIVE_PATCHES=[('clouddrive/common/remote/request.py',b'response = urllib.request.urlopen(req)\n',b'response = _open_url(req)\n'),
  ('clouddrive/common/remote/request.py',b'import urllib\n',b'import urllib\n'+TLS),
  # The sign-in screen first calls /ip with no headers, so Python sent its default "Python-urllib" user agent,
@@ -137,6 +164,10 @@ DRIVE_PATCHES=[('clouddrive/common/remote/request.py',b'response = urllib.reques
  ('clouddrive/common/service/upstream.py',b'import urllib.parse\n',b'import urllib.parse\n\nfrom clouddrive.common.remote.request import tls_context\n'),
  ('clouddrive/common/service/upstream.py',b'self._context = ssl.create_default_context()',b'self._context = tls_context()'),
  ('clouddrive/common/ui/addon.py',b"    def _search(self, driveid, item_driveid=None, item_id=None):\n        self.get_provider().configure(self._account_manager, driveid)\n        query = self._dialog.input(",SEARCH),
+ # Roadmap 1E.3: of the add-on's four services only 'download' (the stream proxy) is used here. 'source' (a directory
+ # listing server on port 8585 for "use as a Kodi source"), 'export' (STRM export scheduler, wakes every minute) and
+ # 'player' (subtitles for that source) start only when the add-on's setting ios_extra_services is true.
+ ('clouddrive/common/service/utils.py',b"        if type(services) != list:\n            services = [services]\n",DRIVE_SERVICE_FILTER),
  ('addon.xml',b'<import addon="script.module.pyqrcode"/>',b'<import addon="script.module.pyqrcode"/>\n\t\t<import addon="script.module.certifi"/>')]
 
 def patch_drive(addonroot):
@@ -146,6 +177,30 @@ def patch_drive(addonroot):
   data=path.read_bytes();assert data.count(old)==1,'Unexpected Drive source: '+name
   path.write_bytes(data.replace(old,new))
  return [{'path':'addons/'+DRIVE_COMMON+name,'before_sha256':digest(before),'after_sha256':digest(path.read_bytes())} for name,(path,before) in files.items()]
+
+# Roadmap 1E.2: Kodi's build ships ~200 add-ons; Kodi scans every addon.xml at launch and each binary add-on carries its own
+# dylib (about 230 MB unpacked of 850 MB). This app plays video: it never uses PVR clients, music-tracker audio decoders,
+# game cores, visualisations, screensavers (except Kodi's built-in black/dim), the audio rippers, rare image decoders,
+# RTMP or SFTP. Kept on purpose: kodi.binary.* (API definitions), inputstream.adaptive/ffmpegdirect, imagedecoder.heif,
+# peripheral.joystick, game.controller.* (controller profiles), vfs.rar/libarchive (Elementum packs), metadata.*.
+PRUNE_PREFIXES=('pvr.','audiodecoder.','game.libretro','visualization.','screensaver.','audioencoder.','imagedecoder.mpo','imagedecoder.raw','inputstream.rtmp','vfs.sftp')
+PRUNE_KEEP=('screensaver.xbmc.builtin.black','screensaver.xbmc.builtin.dim','audioencoder.kodi.builtin.aac','audioencoder.kodi.builtin.wma')
+
+def prune_unused_addons(addonroot,manifest=None):
+ """Delete the unused binary add-ons from the staged AppHome/addons. Refuses to remove one that another add-on needs
+ (a non-optional <import>) or that the system manifest enables outright. Returns the removed ids."""
+ addonroot=Path(addonroot)
+ removed=sorted(d.name for d in addonroot.iterdir() if d.is_dir() and d.name.startswith(PRUNE_PREFIXES) and d.name not in PRUNE_KEEP)
+ doomed=set(removed)
+ if manifest:
+  enabled={a.text for a in ET.parse(manifest).getroot().findall('addon') if a.get('optional')!='true'}
+  assert not doomed&enabled,'System manifest needs a pruned add-on: '+', '.join(sorted(doomed&enabled))
+ for d in addonroot.iterdir():
+  if not d.is_dir() or d.name in doomed or not (d/'addon.xml').is_file():continue
+  needed=[i.get('addon') for i in ET.parse(d/'addon.xml').getroot().findall('requires/import') if i.get('optional')!='true' and i.get('addon') in doomed]
+  assert not needed,'%s needs a pruned add-on: %s'%(d.name,', '.join(needed))
+ for name in removed:shutil.rmtree(addonroot/name)
+ return removed
 
 ELEMENTUM='plugin.video.elementum';BURST='script.elementum.burst'
 # The engine cannot run as a separate program on iOS, so the add-on's own library mode loads it in-process
@@ -291,10 +346,54 @@ ELEMENTUM_PATCHES=[('resources/site-packages/elementum/daemon.py',b'def get_elem
 """),
  # The engine thread only starts where Elementum can fork; on iOS it runs in-process (library mode) instead.
  ('resources/site-packages/elementum/service.py',b'    if not ONLY_CLIENT and PLATFORM["fork"]:',b'    if not ONLY_CLIENT and (PLATFORM["fork"] or PLATFORM.get("os") == "ios"):'),
+ # Performance 1E.1: on iOS the engine waits until something asks for it (Download, an automatic episode download,
+ # an Elementum play request: elementum_engine.ensure sets KodiIOS.ElementumEngine on the Home window) or until
+ # the download folder holds files (a torrent still seeding or waiting for Drive). Not started at every launch.
+ ('resources/site-packages/elementum/service.py',b'def run():\n',b'''def kios_engine_thread(monitor):
+    # KODI-IOS-LAZY-ENGINE: start the engine when it is wanted, not at launch.
+    import os
+    import xbmcaddon
+    import xbmcgui
+    try:
+        from xbmcvfs import translatePath
+    except ImportError:
+        translatePath = xbmc.translatePath
+
+    def wanted():
+        if xbmcgui.Window(10000).getProperty("KodiIOS.ElementumEngine") == "1":
+            return True
+        try:
+            folder = translatePath(xbmcaddon.Addon("plugin.video.elementum").getSetting("download_path") or "")
+            return bool(folder) and os.path.isdir(folder) and bool(os.listdir(folder))
+        except Exception:
+            return True
+
+    if PLATFORM.get("os") == "ios":
+        waiter = xbmc.Monitor()
+        log.info("elementum: engine waits until it is needed")
+        while not wanted():
+            if waiter.waitForAbort(0.5):
+                return
+        log.info("elementum: engine wanted, starting it")
+    elementumd_thread(monitor)
+
+
+def run():
+'''),
+ ('resources/site-packages/elementum/service.py',b'threading.Thread(target=elementumd_thread, args=[monitor])',b'threading.Thread(target=kios_engine_thread, args=[monitor])'),
  ('resources/site-packages/elementum/osarch.py',b'    if global_platform:\n',b'    if xbmc.getCondVisibility("System.Platform.IOS"):\n        ret.update(os="ios", arch="arm64", fork=False)\n        return ret\n\n    if global_platform:\n')]
 
 # Inspect initial /play requests AND source-picker redirects before either reaches the local downloader.
-ELEMENTUM_CLOUD=b"""def _kodi_cloud(url):
+ELEMENTUM_CLOUD=b"""def _kodi_engine():
+    # The engine is not started at launch (performance 1E.1): the first request that needs it starts it.
+    import sys
+    from xbmcvfs import translatePath
+    lib=translatePath('special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib')
+    if lib not in sys.path:sys.path.insert(0,lib)
+    import elementum_engine
+    elementum_engine.ensure_here()
+
+def _kodi_cloud(url):
     import sys
     from xbmcvfs import translatePath
     lib=translatePath('special://xbmc/addons/service.kodi.ios.bootstrap/resources/lib')
@@ -304,7 +403,7 @@ ELEMENTUM_CLOUD=b"""def _kodi_cloud(url):
 
 """
 ELEMENTUM_PATCHES += [
- ('resources/site-packages/elementum/navigation.py',b'def _json(url):\n',ELEMENTUM_CLOUD+b'def _json(url):\n    if _kodi_cloud(url):return None\n'),
+ ('resources/site-packages/elementum/navigation.py',b'def _json(url):\n',ELEMENTUM_CLOUD+b'def _json(url):\n    if _kodi_cloud(url):return None\n    _kodi_engine()\n'),
  ('resources/site-packages/elementum/navigation.py',b'        if response.code == 300:\n',b'        if location and _kodi_cloud(location):return None\n        if response.code == 300:\n')]
 
 # Kodi-iOS source check (service.kodi.ios.bootstrap/resources/lib/source_match.py) inside Burst, where every provider's
@@ -383,11 +482,117 @@ def _kios_finish(results, payload):
 
 
 """
-BURST_PATCHES=[('burst/burst.py',b'def search(payload, method="general"):\n',BURST_HELPERS+b'def search(payload, method="general"):\n'),
+# KODI-IOS-SEARCH-CARD r1 (board 09, option A): while the sites answer, the searching card (skin IOSSearching.xml,
+# pages.searching_card) shows the title, how many sites answered and how many versions were found. Stop ends the wait
+# and goes on with what was found; Cancel drops the search. Not for silent (automatic) searches.
+BURST_CARD=b"""_kios_card_state = {}
+_KIOS_KEYS = ['Kicker', 'Title', 'Lines', 'Pct'] + ['Line.%d.%s' % (n, k) for n in range(1, 6) for k in ('Text', 'Count', 'State')]
+
+
+def _kios_card_title(payload):
+    # The title in a script the app's font has: the name download.py set for this search (fresh), else the English one.
+    home = xbmcgui.Window(10000)
+    try:
+        if time.time() - float(home.getProperty('IOSSearch.NameAt') or 0) < 120 and home.getProperty('IOSSearch.Name'):
+            return home.getProperty('IOSSearch.Name'), home.getProperty('IOSSearch.Context')
+    except ValueError:
+        pass
+    titles = payload.get('titles') or {}
+    english = titles.get('en') or ''
+    title = english.title() if english else (payload.get('title') or payload.get('query') or '')
+    season = payload.get('season')
+    return title, ('Season %s' % season) if season else ''
+
+
+def _kios_card(payload, total):
+    _kios_card_state.clear()
+    if payload.get('silent') or not total:
+        return
+    try:   # anything missing (properties, window support, an older skin) leaves the search exactly as it was
+        home = xbmcgui.Window(10000)
+        if home.getProperty('KodiIOS.AutoPick'):   # Build Season's own lookups: its building card is up instead
+            return
+        title, context = _kios_card_title(payload)
+        _kios_card_state['shown'] = True
+        _kios_card_state['total'] = total
+        _kios_card_publish(home, 'Finding versions' + (' \xc2\xb7 ' + context if context else ''), title, 0)
+
+        class Card(xbmcgui.WindowXMLDialog):
+            def onClick(self, control):
+                if control == 9802:
+                    _kios_card_state['stop'] = 9802
+                    self.close()
+                elif control == 9803:   # Close: the card goes, the search goes on
+                    self.close()
+
+            def onAction(self, action):
+                if action.getId() in (9, 10, 92, 216, 247, 257, 275, 61467, 61448):
+                    _kios_card_state['stop'] = 9802
+                    self.close()
+        card = Card('IOSSearching.xml', xbmcaddon.Addon().getAddonInfo('path'), 'Default', '1080i')
+    except Exception as error:
+        log.debug('KODI-IOS searching card unavailable: %s' % error)
+        return
+    _kios_card_state['card'] = card
+    Thread(target=card.doModal).start()
+
+
+def _kios_card_publish(home, kicker, title, answered):
+    # One line per site that answered (its name and how many it found), then one for the sites still asking.
+    counts = {}
+    for r in provider_results:
+        name = re.sub(r'\[/?[A-Za-z]+[^\]]*\]', '', str(r.get('provider') or '')).strip() or 'A site'
+        counts[name] = counts.get(name, 0) + 1
+    lines = [(name, '%d found' % n, 'ok') for name, n in sorted(counts.items(), key=lambda kv: -kv[1])][:4]
+    total = _kios_card_state.get('total') or 0
+    left = int(total - answered)
+    if left > 0:
+        lines.append(('%d site%s still answering' % (left, '' if left == 1 else 's'), '', 'wait'))
+    elif not lines:
+        lines.append(('Nothing found', '', 'none'))
+    values = {'Kicker': kicker, 'Title': title, 'Lines': str(len(lines)), 'Pct': str(int(answered * 100 / total)) if total else '0'}
+    for n in range(1, 6):
+        text, count, state = lines[n - 1] if n <= len(lines) else ('', '', '')
+        values.update({'Line.%d.Text' % n: text, 'Line.%d.Count' % n: count, 'Line.%d.State' % n: state})
+    for key, value in values.items():
+        home.setProperty('IOSSearch.' + key, value)
+    _kios_card_state['kicker'], _kios_card_state['title'] = kicker, title
+
+
+def _kios_card_tick(answered, found, total):
+    if 'card' in _kios_card_state:
+        _kios_card_publish(xbmcgui.Window(10000), _kios_card_state.get('kicker', ''), _kios_card_state.get('title', ''), answered)
+    return bool(_kios_card_state.get('stop'))
+
+
+def _kios_card_done():
+    if not _kios_card_state:   # silent search or no card: nothing to tidy
+        return
+    card = _kios_card_state.pop('card', None)
+    if card is not None:
+        try:
+            card.close()
+        except Exception:
+            pass
+    if _kios_card_state.get('stop') == 9802:   # Cancel: nothing goes back to Elementum
+        del provider_results[:]
+    try:
+        for key in _KIOS_KEYS:
+            xbmcgui.Window(10000).clearProperty('IOSSearch.' + key)
+    except Exception:
+        pass
+    _kios_card_state.clear()
+
+
+"""
+BURST_PATCHES=[('burst/burst.py',b'def search(payload, method="general"):\n',BURST_HELPERS+BURST_CARD+b'def search(payload, method="general"):\n'),
  ('burst/burst.py',b"    request_time = time.time()\n\n    cookie_sync(payload['silent'])\n",b"    request_time = time.time()\n    _kios_start(payload, method)  # KODI-IOS-SOURCE-MATCH\n\n    cookie_sync(payload['silent'])\n"),
  # Before each provider's results are sorted and cut to the best ones, so the other title cannot crowd this one out.
  ('burst/burst.py',b'    definition = get_alias(definition, get_setting("%s_alias" % provider))\n\n    # 0 "Resolution"\n',
   b'    definition = get_alias(definition, get_setting("%s_alias" % provider))\n    results = _kios_prefilter(provider, results)  # KODI-IOS-SOURCE-MATCH\n\n    # 0 "Resolution"\n'),
+ ('burst/burst.py',b'    total = float(available_providers)\n',b'    total = float(available_providers)\n    _kios_card(payload, total)  # KODI-IOS-SEARCH-CARD\n'),
+ ('burst/burst.py',b'        time.sleep(0.25)\n',b'        if _kios_card_tick(total - available_providers, len(provider_results), total):  # KODI-IOS-SEARCH-CARD\n            break\n        time.sleep(0.25)\n'),
+ ('burst/burst.py',b"    if not payload['silent']:\n        p_dialog.close()\n    del p_dialog\n",b"    _kios_card_done()  # KODI-IOS-SEARCH-CARD\n    if not payload['silent']:\n        p_dialog.close()\n    del p_dialog\n"),
  ('burst/burst.py',b'    filtered_results = apply_filters(provider_results)\n',b'    filtered_results = apply_filters(provider_results)\n    filtered_results = _kios_finish(filtered_results, payload)  # KODI-IOS-SOURCE-MATCH\n')]
 
 def patch_burst(addonroot):
@@ -528,6 +733,7 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
   dest=base/name
   assert not dest.exists(),'Unexpected bundled addon collision: '+name
   dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data)
+ pruned=prune_unused_addons(addonroot,system)
  navigation_files=_nav.patch_skin(addonroot/'skin.arctic.fuse.3') if (addonroot/'skin.arctic.fuse.3').is_dir() else []
  drive_files=patch_drive(addonroot) if (addonroot/DRIVE_COMMON).is_dir() else []
  engine=add_elementum(elementum,target,addonroot) if elementum else None
@@ -565,7 +771,7 @@ def prepare(app,bundle,expected,work,elementum=None,portrait_inputs=None):
  for id in order+[BOOT]:
   assert id not in existing,'System manifest collision';ET.SubElement(root,'addon',{} if id==BOOT else {'optional':'true'}).text=id
  ET.indent(root);tree.write(system,encoding='utf-8',xml_declaration=True)
- return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'elementum':engine,'profile_addons':profile_addons,'portrait':portrait,'splash':splash}
+ return target,{'addon_ids':order,'seed_files':entries,'system_manifest':str(system.relative_to(target)),'bootstrap_id':BOOT,'import_sha256':expected,'mutable_skins':mutable,'navigation_patch':{'revision':_nav.REVISION,'files':navigation_files},'drive_patch':{'files':drive_files},'pruned_addons':pruned,'elementum':engine,'profile_addons':profile_addons,'portrait':portrait,'splash':splash}
 
 # Owner crash report (build 142, cpu_resource_fatal): iOS killed Kodi for CPU use, and part of it was Python compiling
 # source (builtin_compile / Py_CompileStringObject under import). The app bundle is read-only, so Python can never save
