@@ -426,3 +426,34 @@ def airplay_properties(check, now):
     for n, (name, detail, tone) in enumerate(check['steps'][:4], 1):
         props['step.%d.name' % n], props['step.%d.detail' % n], props['step.%d.tone' % n] = name, detail, tone
     return props
+
+
+# --- DEC-045 board E: the Queue page (queue_page.py draws it, tool_windows.open_queue fills it) -----------------------
+def queue_page_view(model, line, now=None):
+    """Board E1/E2 from the status model and queue_view's line: {'drive': [...], 'prep': [...]}. Each row:
+    {'title', 'sub', 'pct' ('' when not moving), 'name', 'kind', 'hash', 'id', 'moving', 'movable', 'removable'}."""
+    model = model or {}
+    drive = []
+    for j in model.get('jobs') or []:
+        if j.get('kind') not in ('copy', 'upload', 'down'):
+            continue
+        moving = not j.get('queued') and j.get('state') not in ('queued',)
+        drive.append({'title': j.get('title', ''), 'sub': j.get('line', ''), 'pct': '%d %%' % int(j.get('pct') or 0) if moving else '',
+                      'bar': int(j.get('pct') or 0), 'name': j.get('name', ''), 'kind': j['kind'], 'hash': j.get('hash', ''),
+                      'id': j.get('id', ''), 'moving': moving, 'movable': False,
+                      'removable': bool(j.get('hash')) or j['kind'] == 'down'})
+    for j in model.get('drive_next') or []:
+        drive.append({'title': j.get('title', ''), 'sub': j.get('line', ''), 'pct': '', 'bar': 0, 'name': j.get('name', ''),
+                      'kind': 'copy', 'hash': j.get('hash', ''), 'id': j.get('id', ''), 'moving': False, 'movable': False,
+                      'removable': bool(j.get('hash'))})
+    prep = []
+    for j in model.get('jobs') or []:
+        if j.get('kind') not in ('conv', 'repack'):
+            continue
+        prep.append({'title': j.get('title', ''), 'sub': j.get('line') or j.get('step', ''), 'pct': '%d %%' % int(j.get('pct') or 0),
+                     'bar': int(j.get('pct') or 0), 'name': j.get('name', ''), 'kind': j['kind'], 'hash': '',
+                     'id': j.get('id', ''), 'moving': True, 'movable': False, 'removable': True})
+    for r in line or []:
+        prep.append({'title': r.get('title', ''), 'sub': r.get('sub', ''), 'pct': '', 'bar': 0, 'name': r.get('name', ''),
+                     'kind': 'next', 'hash': '', 'id': r.get('id', ''), 'moving': False, 'movable': True, 'removable': True})
+    return {'drive': drive, 'prep': prep}

@@ -17,6 +17,7 @@ POOLS = (('down', 9310, 6, 231), ('next', 9400, 40, 161), ('kept', 9450, 15, 161
 SEGMENTS = 9811        # summary bar: ready, working, up next, kept (widths set by the script)
 DOWN_BARS = 9330       # the AllDebrid copy bars, one per 'down' row
 WORK_BAR = 9350        # the 'Working on now' bar (running card, then the still card), DEC-036
+LANE, LANE_BARS, LANES = 9360, 9370, 2   # DEC-044 board D: one row per extra preparation lane (F2), under the card
 BAR_X, BAR_W, BAR_Y, BAR_H, BAR_GAP = 38, 896, 118, 21, 8     # inside the summary card (units)
 LIST_TOP = 362
 
@@ -41,7 +42,7 @@ def _work(p, u):
         b = u.card(p, S, 0, w, h) + u.tap(p, WORK if moving else WORK + 100, S, 0, w, h)
         b += p.image(S + 38, 38, 140, 210, M + 'white.png', u.SURF2, diffuse=M + 'poster21.png')
         b += p.image(S + 38, 38, 140, 210, P('work.poster'), p.WHITE, '', '>scale', M + 'poster21.png', background=True)
-        b += u.text(p, S + 210, 62, w - 440, 43, 'WORKING ON NOW', 'p_foot_b', u.PURPLE)
+        b += u.text(p, S + 210, 62, w - 440, 43, P('work.eyebrow'), 'p_foot_b', u.PURPLE)   # 'WORKING ON NOW · 3' with lanes
         b += u.text(p, S + 210, 113, w - 248, 54, P('work.title'), 'p_h3')
         b += u.text(p, S + 210, 175, w - 248, 51, P('work.step'), 'p_sub', p.GREY)
         # DEC-036: a thin bar under the step, the percentage at the top right (the only ring is the Home bell's).
@@ -65,6 +66,21 @@ def _work(p, u):
         return b
     return (u.group(p, 398 + u.GAP, body(398, True), u.has('work.title') + ' + ' + running) +
             u.group(p, 360 + u.GAP, body(360, False), u.has('work.title') + ' + ' + u.neg(running)))
+
+
+def _lanes(p, u):
+    """DEC-044 board D: each extra preparation lane as its own row (the copy rows' card), with its bar and percentage."""
+    S, w, P = p.SIDE, p.WIDTH - 2 * p.SIDE, u.P
+    out = ''
+    for n in range(LANES):
+        k = 'lane.%d.' % n
+        b = u.card(p, S, 0, w, 231) + u.tap(p, LANE + n, S, 0, w, 231)
+        b += u.text(p, S + 38, 38, w - 230, 54, P(k + 'title'), 'p_body')
+        b += u.text(p, S + w - 188, 41, 150, 51, P(k + 'pct'), 'p_pill', u.PURPLE, 'right')
+        b += u.id_bar(p, LANE_BARS + n, S + 38, 113, w - 76, 16, P(k + 'tint'), texture='pill16.png', border=8)
+        b += u.text(p, S + 38, 150, w - 76, 43, P(k + 'sub'), 'p_foot', p.GREY)
+        out += u.group(p, 231 + 21, b, u.has(k + 'title'))
+    return out
 
 
 def _needs(p, u):
@@ -150,7 +166,7 @@ def page(p):
                       u.group(p, u.GAP, '', u.has('%s.0.title' % key)))
     listing = ('<control type="grouplist" id="9300"><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
                '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>' % (LIST_TOP, W) +
-               _needs(p, u) + _work(p, u) + pools['down'] + _summary(p, u) + pools['next'] + pools['ready'] + pools['kept'] +
+               _needs(p, u) + _work(p, u) + _lanes(p, u) + pools['down'] + _summary(p, u) + pools['next'] + pools['ready'] + pools['kept'] +
                u.group(p, 150, u.text(p, S, 30, w, 60, P('empty'), 'p_foot', p.GREY), u.has('empty')) +
                u.group(p, 200, '') + '</control>')
     body = p.backdrop() + p.nav_button(BACK, S, 36, 'chevron-left.png', [('String.IsEqual(Window().Property(filter),all)', 'Close')])

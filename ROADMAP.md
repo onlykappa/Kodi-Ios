@@ -501,3 +501,47 @@ show.
    episode_name() covers new copies only.
 4. Check after the fix: Library status "Working on now", Notifications "Running now" and Activity show the show's
    poster and "Naruto Shippūden · S1 E2" for every lane.
+
+## Reliability roadmap — 2026-11-13 (owner logs 94711fae / b3c5d6eb, build 350)
+
+One PR, one IPA at the end (owner: no builds until asked). Phone proof is the owner's next log.
+
+| Step | What | State |
+|---|---|---|
+| R1 | Network visibility: Wi-Fi / cellular, each pipe's speed, link changes in the minute snapshot | Done (ISSUE-198) |
+| R2 | Bandwidth: copies wake on a new connection; waits capped at 5 min; lanes already follow the measured speed | Done (ISSUE-198); a full priority scheduler (playback > next-to-watch preparation > copies > checks) is next if the R1 numbers show copies starving preparation |
+| R3 | Failed jobs: network trouble never fails a copy; old ones revived; Download problems page (reason, Retry All, Clear) | Done (ISSUE-198) |
+| R4 | Version choice: 10-bit H.264 ranked as needing conversion; Pick Better Versions for queued oversized files | Already in PR #22 (deck_picker converts_for_tv, ISSUE-192) |
+| R5 | Conversions carry on after network trouble (wait 15 s–5 min, resume from the mark) | Done (ISSUE-198) |
+| R6 | Phone proof of build 350's pages (poster, no Refresh card, Watched episodes, Library status long press, Saturation) | Owner |
+| R7 | Keep working when another app takes the audio (owner log a0a4e492: Kodi suspended 581 s): iOS 26 BGContinuedProcessingTask for copies and conversions, with the system progress item; native (a later KodiAirPlay, after r53) + Info.plist BGTaskSchedulerPermittedIdentifiers | Planned (native build, owner approval) |
+| R8 | Mobile data: optional compatibility checks wait for Wi-Fi; check timeouts wait instead of failing | Done (ISSUE-199) |
+| R9 | Fill fast, high-latency lines (owner: 79.7 Mbps up, 469 ms ping, copies 1.4 MB/s): up to 6 lanes, 4 beside a conversion, 2 on mobile data, lane learning restarts on a new connection | Done (ISSUE-200) |
+| R10 | Native copy streams each piece (Drive PUT fed while the AllDebrid read arrives), pieces up to 256 MB | Coded: AirPlay r53 pinned (ISSUE-201) |
+| R11 | A finished conversion says it is uploading (share, MB left, time) instead of "Converting 79%"; movie pieces up to 32 MB | Coded (ISSUE-202) |
+| R12 | Bell page: a card for every running copy, like the pill and Library status | Coded (ISSUE-203) |
+| R13 | No re-copy of a video already finished from another source; problem rows never show a hash | Coded (ISSUE-204) |
+| R14 | Download problems page redesign (summary, groups by what you can do, plain reasons, row actions, empty state) | Coded (ISSUE-205; mockup approved) |
+| R15 | Lane learning forgets old speeds (6 h) so a faster line gets more copies at once | Coded (ISSUE-206) |
+| R16 | Library file manager: grid view on TV Shows too | Coded (ISSUE-207) |
+| R17 | Cancel and Cancel All show at once; the library check asks Drive eight at a time | Coded (ISSUE-208) |
+
+Owner conditions to check on the phone: downloads carry on after switching Wi-Fi / cellular, with the screen off
+(Kodi stays awake while any copy is unfinished), and after Kodi is closed and opened again (resumes from Drive's
+confirmed position). Swiping Kodi away in the app switcher stops work until Kodi is opened (iOS).
+
+## Preparation repair roadmap — 2026-11-13 (owner log a1729c16, build 361) — findings only, not coded
+
+Owner: "i tried to repair Naruto as it says a line cant be converted … the error stopped prepping and then never tried
+again and then naruto isnt showing up in download problems even tho it says there are problems". Details: ISSUE-226.
+
+| Step | What needs to be done | Where | State |
+|---|---|---|---|
+| P1 | **Repair does nothing for a "kept as it is" video.** Repair (episode sheet) and ••• › Repair All Problems send `prepare_downloads.request(…, 'retry')`; `apply_requests` sets `status='waiting'` but leaves `blocked=True`, and every queue filter skips blocked jobs (`next_job`, `waiting`, scheduler `eligible_jobs`). Log: 11:54:25 Repair All, no preparation started, scheduler `queued_jobs 0, reason no_jobs`. Fix: `retry` (and `now`) clear `blocked`, `kept_told`, `repack_failed`, `image_subs_retried`, `hdr_retried`; Repair shows what it did ("Preparing again" / "Can't be prepared: …"). Test: a blocked job retried by request is picked by `next_job`. | prepare_downloads.py `apply_requests` (line ~476) | To do |
+| P2 | **The converter cannot keep DVD picture subtitles (VobSub).** `kr_prepare.c` only saves PGS beside the MP4 (`sidecar_sub`: HDMV_PGS only); a kept-language `dvd_subtitle` makes it refuse ("tracks MP4 cannot preserve"). Naruto Shippuuden S1 E9–E16 (640x480) have English only as a DVD subtitle. Options, best first: (a) keep the DVD subtitle inside the MP4 (FFmpeg's mov muxer stores `dvd_subtitle` as `mp4s`; Kodi shows it, AirPlay ignores it) — check Kodi 21 plays it from MP4 and verify passes; (b) write it beside the MP4 as a one-track `.mks`/`.sup`-like file Kodi loads (check which extension Kodi 21 accepts for an external DVD subtitle); (c) OCR to SRT (heavy, not on the phone). Also allow dropping DVD subtitles in languages that are not kept. Needs a native KodiAirPlay release (after r53), test_remux case with a DVD subtitle, owner approval for the native build. | migration/airplay-ios/remux/src/kr_prepare.c (`sidecar_sub`, the refusal at ~line 895), test_remux.c | To do (native) |
+| P3 | **A second video track also refuses.** Same check refuses any extra video stream that is not an attached picture. Decide per case: drop a duplicate/low-res second angle with a notice, keep the main one. Needs the probe's track list in the failure line (`video={…}`) to see what the files have. | kr_prepare.c | To do (native) |
+| P4 | **Preparation problems are missing from Download problems.** That page lists only AllDebrid → Drive copy problems (`debrid_drive`), while Library status / the show page count preparation problems (`library_files` PROBLEM from failed/blocked jobs). Add a "Preparing for Kodi and AirPlay" group (reason in plain words, Try Again = P1's retry, Keep as it is, Find Another Version) or make the Library status count open the right page. UI change: mockup and owner approval first. | copy_problems.py / copy_problems_page.py, library_files.py | To do (mockup) |
+| P5 | **After P2 ships, retry what was kept.** Like `retry_image_subtitles`: when the converter reports it keeps DVD subtitles (a new capability flag), blocked "tracks MP4 cannot preserve" jobs get one automatic new try, so Naruto S1 E9–E16 prepare without the owner pressing anything. | prepare_downloads.py | To do |
+| P6 | **Tell the owner plainly.** Until P2, the episode sheet and notice say why (DVD subtitles), that it still plays in Kodi, and offer Find Another Version; Repair must not look like it worked when it can't. | library_manager.py, notice_help.py | To do |
+
+Order: P1 (Python, small) → P4 mockup → P2/P3 native release → P5 → P6 wording follows each.

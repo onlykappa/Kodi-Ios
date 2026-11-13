@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Notification detail mockups</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Portrait 402 x 874 pt,
+     tokens from portrait.py / pages.py (§4.3), the style of ai-upscale-settings-mockups.html. -->
+<style>
+:root{--bg:#000;--s1:#1c1c1e;--s2:#2c2c2e;--grey:rgba(235,235,245,.6);--dim:rgba(235,235,245,.3);--sep:rgba(235,235,245,.16);
+ --blue:#0a84ff;--blue-text:#4fa8ff;--green:#30d158;--orange:#ff9f0a;--red:#ff453a;--purple:#bf5af2}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro{max-width:1180px;margin:0 auto 10px}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:880px;margin-bottom:8px}
+.board{max-width:1180px;margin:30px auto 0;padding-top:16px;border-top:1px solid #26272b}
+.board .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+.board h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+.board>p{color:var(--grey);font-size:14px;line-height:1.5;max-width:880px;margin-bottom:16px}
+.shots{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.slot{width:340px}
+.cap{color:var(--grey);font-size:13px;line-height:1.4;margin-top:10px}.cap b{color:#fff}
+.pframe{width:340px;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000;padding:44px 14px 16px;font-size:14px}
+.nb{color:var(--blue-text);font-size:15px;font-weight:600;margin-bottom:4px}
+.ps h3{font-size:30px;font-weight:800;margin-bottom:12px;letter-spacing:-.01em}
+.sh{color:var(--grey);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:14px 6px 6px}
+.grp{background:var(--s1);border-radius:12px;overflow:hidden}
+.pr{position:relative;display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 12px}
+.pr+.pr::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.pr .t{flex:1;min-width:0}.pr .t b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .t span{display:block;color:var(--grey);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .v{color:var(--grey);font-size:14px;white-space:nowrap}
+.go{color:var(--dim);font-size:17px;font-weight:600}
+.ico{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:15px}
+.tile{width:30px;height:44px;border-radius:5px;flex:none}
+.toggle{flex:none;width:46px;height:28px;border-radius:14px;background:#39393d;position:relative}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:#fff}
+.toggle.on{background:var(--green)}.toggle.on::after{left:20px}
+.foot{color:var(--grey);font-size:12px;margin:6px 6px 0;line-height:1.35}
+.thin{height:4px;border-radius:2px;background:rgba(235,235,245,.2);overflow:hidden;margin-top:6px}.thin i{display:block;height:100%;background:var(--blue)}
+.chip{font-size:11px;font-weight:700;border-radius:6px;padding:2px 6px;white-space:nowrap}
+.chip.g{background:rgba(48,209,88,.18);color:var(--green)}.chip.b{background:rgba(10,132,255,.2);color:var(--blue-text)}
+.chip.n{background:rgba(235,235,245,.12);color:var(--grey)}
+.status{background:var(--s1);border-radius:12px;padding:12px;display:flex;gap:12px;align-items:center}
+.status .t b{font-size:15px}.status .t span{color:var(--grey);font-size:12.5px;display:block;margin-top:2px}
+.seg{display:flex;background:var(--s2);border-radius:9px;padding:2px;margin:0 0 8px}
+.seg div{flex:1;text-align:center;padding:6px 0;border-radius:7px;font-size:13px;font-weight:600;color:var(--grey)}.seg div.on{background:#636366;color:#fff}
+.btn{margin-top:12px;height:46px;border-radius:23px;background:#fff;color:#000;display:grid;place-items:center;font-weight:700;font-size:15.5px}
+.red{color:var(--red);text-align:center;font-weight:600;font-size:15px;margin-top:12px}
+.hero{display:flex;gap:12px;align-items:center;margin-bottom:6px}
+.hero i{width:58px;height:84px;border-radius:7px;flex:none}
+.hero b{display:block;font-size:22px;font-weight:800}.hero span{color:var(--grey);font-size:13px}
+.slider{background:var(--s1);border-radius:12px;padding:12px}
+.slider .row{display:flex;justify-content:space-between;align-items:baseline}.slider .row b{font-size:15px}.slider .row span{color:var(--blue-text);font-weight:700}
+.track{position:relative;height:4px;background:rgba(235,235,245,.25);border-radius:2px;margin:16px 6px 8px}
+.track i{position:absolute;left:0;top:0;bottom:0;width:100%;background:var(--blue);border-radius:2px}
+.track em{position:absolute;top:-10px;right:-12px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--grey)}.ticks .on{color:#fff;font-weight:700}
+.sum{background:var(--s1);border-radius:14px;padding:10px;margin-bottom:8px}
+.sum .row{display:flex;gap:6px}.sum .row div{flex:1;background:var(--s2);border-radius:10px;padding:8px 9px}
+.sum .row b{display:block;font-size:18px}.sum .row span{color:var(--grey);font-size:11px}
+.sum p{color:var(--grey);font-size:12px;margin-top:9px;line-height:1.35}
+.seg2{display:flex;background:var(--s1);border-radius:10px;padding:2px;margin:2px 0 4px}
+.seg2 div{flex:1;text-align:center;padding:7px 0;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--grey)}.seg2 div.on{background:#636366;color:#fff}
+.lst{background:var(--s1);border-radius:14px;overflow:hidden}
+.pb2{position:relative;display:flex;gap:11px;align-items:center;padding:9px 10px}
+.pb2+.pb2::before{content:"";position:absolute;top:0;left:58px;right:0;height:1px;background:var(--sep)}
+.post{width:38px;height:56px;border-radius:6px;flex:none;position:relative}
+.post .badge{position:absolute;right:-5px;bottom:-5px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:800;border:2px solid var(--s1)}
+.pb2 .t{flex:1;min-width:0}.pb2 .t b{display:block;font-size:14.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb2 .t span{display:block;color:var(--grey);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb2 .t em{display:block;font-style:normal;font-size:11.5px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.act{flex:none;border-radius:14px;padding:6px 11px;font-size:12.5px;font-weight:700;background:var(--s2);color:var(--blue-text)}
+.btn2{height:46px;border-radius:23px;background:#fff;color:#000;display:grid;place-items:center;font-weight:700;font-size:15px;margin-top:12px}
+.redl{color:var(--red);text-align:center;font-weight:600;font-size:14.5px;margin-top:12px}
+.asheet{position:absolute;left:10px;right:10px;bottom:14px}
+.asheet .box{background:rgba(44,44,46,.98);border-radius:14px;overflow:hidden;margin-bottom:8px}
+.asheet .hd{padding:13px 14px 11px;text-align:center}.asheet .hd b{display:block;font-size:13.5px}.asheet .hd span{display:block;color:var(--grey);font-size:12px;margin-top:3px;line-height:1.35}
+.asheet .o{border-top:1px solid var(--sep);padding:13px;text-align:center;font-size:16px;color:var(--blue-text)}
+.asheet .o.d{color:var(--red)}
+.asheet .c{background:rgba(44,44,46,.98);border-radius:14px;padding:13px;text-align:center;font-size:16px;font-weight:700;color:var(--blue-text)}
+.dimall{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.alert{position:absolute;left:34px;right:34px;top:260px;background:rgba(44,44,46,.98);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.7)}
+.alert .h{padding:16px 14px 12px;text-align:center}.alert .h b{display:block;font-size:16px}.alert .h span{display:block;color:var(--grey);font-size:12.5px;margin-top:4px;line-height:1.35}
+.alert .o{border-top:1px solid var(--sep);padding:11px;text-align:center;font-size:15px;color:var(--blue-text)}
+.alert .o.d{color:var(--red);font-weight:600}.alert .o.c{font-weight:600}
+.empty{text-align:center;margin-top:120px}.empty .ic2{width:64px;height:64px;border-radius:50%;background:rgba(48,209,88,.18);color:var(--green);display:grid;place-items:center;font-size:30px;font-weight:800;margin:0 auto 14px}
+.empty b{display:block;font-size:19px}.empty span{display:block;color:var(--grey);font-size:13px;margin-top:6px;line-height:1.4;padding:0 18px}
+.notes2{max-width:1180px;margin:30px auto 0;color:#b4b4ba;font-size:14px;line-height:1.55}
+.shl{display:flex;justify-content:space-between;align-items:baseline;margin:14px 6px 6px}
+.shl .sh{margin:0}.shl a{color:var(--blue-text);font-size:13px;font-weight:600;text-decoration:none}
+.work{background:var(--s1);border-radius:14px;padding:11px;display:flex;gap:11px;align-items:center}
+.work .post{width:46px;height:66px}
+.work .t{flex:1;min-width:0}.work .t b{display:block;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.work .t span{display:block;color:var(--grey);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.round{flex:none;width:34px;height:34px;border-radius:50%;background:var(--s2);display:grid;place-items:center;font-size:13px;font-weight:800;color:#fff}
+.lane{display:flex;gap:10px;align-items:center;padding:9px 11px}
+.lane+.lane{border-top:1px solid var(--sep)}
+.lane .post{width:30px;height:44px;border-radius:5px}
+.lane .t{flex:1;min-width:0}.lane .t b{display:block;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lane .t span{display:block;color:var(--grey);font-size:11.5px;margin-top:1px}
+.pct{color:var(--grey);font-size:12px;font-weight:600;flex:none}
+.caps{display:flex;gap:8px;margin-top:10px}.caps div{flex:1;height:38px;border-radius:19px;display:grid;place-items:center;font-weight:700;font-size:14px}
+.caps .s{background:var(--s2);color:#fff}.caps .r{background:var(--s2);color:var(--red)}
+.big{background:var(--s1);border-radius:16px;padding:14px}
+.big .top{display:flex;gap:12px}.big .post{width:64px;height:92px;border-radius:8px}
+.big .top b{display:block;font-size:17px;font-weight:800;line-height:1.2}.big .top span{display:block;color:var(--grey);font-size:12.5px;margin-top:4px;line-height:1.35}
+.stats{display:flex;justify-content:space-between;color:var(--grey);font-size:12px;margin-top:6px}
+.stages{margin-top:12px}.stages div{display:flex;gap:8px;align-items:center;font-size:13px;padding:3px 0}
+.stages i{width:16px;height:16px;border-radius:50%;flex:none;display:grid;place-items:center;font-style:normal;font-size:10px;font-weight:800}
+.stages .done i{background:rgba(48,209,88,.18);color:var(--green)}.stages .now i{background:rgba(10,132,255,.25);color:var(--blue-text)}.stages .next{color:var(--grey)}.stages .next i{background:var(--s2)}
+.sheet{position:absolute;left:0;right:0;bottom:0;top:120px;background:var(--s2);border-radius:22px 22px 0 0;padding:8px 14px 16px}
+.grab{width:36px;height:5px;border-radius:3px;background:rgba(235,235,245,.3);margin:0 auto 10px}
+.sheet .hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.sheet .hdr b{font-size:17px}
+.x{width:30px;height:30px;border-radius:50%;background:rgba(118,118,128,.24);display:grid;place-items:center;color:var(--grey);font-weight:800;font-size:13px}
+.minus{flex:none;width:22px;height:22px;border-radius:50%;background:var(--red);color:#fff;display:grid;place-items:center;font-weight:900;font-size:15px;line-height:1}
+.hand{color:var(--grey);font-size:16px;flex:none}
+.nh{display:flex;gap:11px;align-items:center;margin-bottom:12px}
+.nh .ic{width:44px;height:44px;border-radius:11px;display:grid;place-items:center;font-size:19px;font-weight:800;flex:none}
+.nh .t{flex:1;min-width:0}.nh .t b{display:block;font-size:16.5px;font-weight:800;line-height:1.2}.nh .t span{display:block;color:var(--grey);font-size:12px;margin-top:3px}
+.card{background:var(--s1);border-radius:13px;padding:11px 12px;margin-bottom:10px}
+.card .k{color:var(--grey);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+.card p{font-size:13.5px;line-height:1.4}.card p+p{margin-top:6px}
+.ok{display:flex;gap:7px;align-items:flex-start;font-size:13px;line-height:1.35;color:#fff;margin-top:6px}.ok i{font-style:normal;color:var(--green);font-weight:800}
+.acts{background:var(--s1);border-radius:13px;overflow:hidden;margin-bottom:10px}
+.acts .a{position:relative;display:flex;gap:10px;align-items:center;padding:10px 12px}
+.acts .a+.a::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.acts .a b{display:block;font-size:14px;font-weight:600}.acts .a span{display:block;color:var(--grey);font-size:11.5px;margin-top:1px}
+.acts .a .t{flex:1;min-width:0}
+.prim{height:44px;border-radius:22px;background:#fff;color:#000;display:grid;place-items:center;font-weight:700;font-size:15px;margin-bottom:10px}
+.link{color:var(--blue-text);font-size:13.5px;font-weight:600;text-align:center;margin-top:4px}
+.facts{background:var(--s1);border-radius:13px;overflow:hidden;margin-bottom:10px}
+.facts div{position:relative;display:flex;justify-content:space-between;gap:10px;padding:8px 12px;font-size:12.5px}
+.facts div+div::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.facts span{color:var(--grey)}.facts b{font-weight:600;text-align:right}
+.logl{background:var(--s1);border-radius:13px;overflow:hidden}
+.logl div{position:relative;padding:8px 12px;font-size:12px;line-height:1.35}.logl div+div::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.logl small{display:block;color:var(--grey);font-size:11px;margin-bottom:2px}
+.two{display:flex;gap:8px;margin-top:10px}.two div{flex:1;height:38px;border-radius:19px;background:var(--s2);display:grid;place-items:center;font-size:13.5px;font-weight:700}
+.listrow{background:var(--s1);border-radius:13px;display:flex;gap:10px;align-items:center;padding:10px 11px;margin-bottom:8px}
+.listrow .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:15px;font-weight:800;flex:none}
+.listrow .t{flex:1;min-width:0}.listrow b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.listrow span{display:block;color:var(--grey);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fix{flex:none;border-radius:14px;padding:5px 11px;font-size:12.5px;font-weight:700;background:var(--s2);color:var(--blue-text)}
+</style></head><body>
+<div class="intro"><span class="mk">MOCKUP</span><h1>Notification details: what happened and how to fix it</h1>
+<p>Owner (2026-11-13), with three screenshots of today's sheet: "when i press on a error on a notification it should give me the option to go to the page to fix it or just show me the error in a cleaner fashion and what to do to fix it". Today the sheet repeats the raw message twice ("This file has tracks MP4 cannot preserve; original retained"), then shows raw kodi.log lines with JSON; a vague one ("Check the log for more information") has nothing to act on.</p>
+<p>The new sheet has the same frame (approved status sheet with ✕) and three parts in this order: <b>What happened</b> in plain words, <b>What you can do</b> (each fix a button that does it or opens the page that does), and <b>Technical details</b> behind a link. Evidence class: mockup (APPLE-UI-POLICY §9), not a Kodi render.</p></div>
+
+<section class="board"><div class="n">G · A PROBLEM WITH A FIX</div><h2>Plain words, the fixes as buttons, the log out of the way</h2>
+<p>The preparation error from the first screenshot. The title names the video; the reason is translated from the converter's message (a table of known errors, each with its plain words and its fixes); the raw line moves to Technical details.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹</div><h3>Notifications</h3>
+  <div class="dimall"></div><div class="sheet" style="top:96px;background:var(--bg2,#1c1c1e)"><div class="grab"></div><div style="display:flex;justify-content:flex-end;margin:-4px 0 4px"><div class="x">✕</div></div><div class="nh"><div class="ic" style="background:rgba(255,69,58,.18);color:var(--red)">!</div><div class="t"><b>Couldn't prepare Naruto Shippuuden · S1 E16</b><span>Preparing for Kodi and AirPlay · 12 min ago</span></div></div>
+  <div class="card"><div class="k">What happened</div><p>This file has a track an MP4 can't hold (for example a picture subtitle or an unusual audio format), so it couldn't be made ready for AirPlay.</p>
+   <div class="ok"><i>✓</i>Nothing was lost: the original is on Google Drive and plays on this iPhone.</div></div>
+  <div class="k" style="color:var(--grey);font-size:11.5px;font-weight:700;letter-spacing:.04em;margin:2px 6px 6px">WHAT YOU CAN DO</div>
+  <div class="prim">Find Another Version</div>
+  <div class="acts">
+   <div class="a"><div class="t"><b>Keep as it is</b><span>Plays on this iPhone; not tried again</span></div><div class="go">›</div></div>
+   <div class="a"><div class="t"><b>Open in Library status</b><span>See this episode and try again</span></div><div class="go">›</div></div>
+  </div>
+  <div class="link">Technical details ›</div></div>
+ </div></div><div class="cap"><b>G1 · The fixes:</b> "Find Another Version" opens the show's sources with this one marked (Pick Better Versions for one episode). One primary action; the rest are rows.</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹</div><h3>Notifications</h3>
+  <div class="dimall"></div><div class="sheet" style="top:96px;background:var(--bg2,#1c1c1e)"><div class="grab"></div><div style="display:flex;justify-content:flex-end;margin:-4px 0 4px"><div class="x">✕</div></div><div class="nh"><div class="t"><b>Technical details</b><span>Naruto Shippuuden · S1 E16</span></div></div>
+  <div class="facts">
+   <div><span>Step</span><b>Opening the tracks</b></div>
+   <div><span>Video</span><b>1080p H.264 · 2 audio · 1 subtitle</b></div>
+   <div><span>Try</span><b>1 of 3</b></div>
+   <div><span>When</span><b>Today 10:01</b></div>
+   <div><span>Build</span><b>360</b></div>
+  </div>
+  <div class="k" style="color:var(--grey);font-size:11.5px;font-weight:700;letter-spacing:.04em;margin:2px 6px 6px">FROM KODI.LOG</div>
+  <div class="logl">
+   <div><small>10:01:48 · Problem</small>This file has tracks MP4 cannot preserve; original retained</div>
+   <div><small>10:01:48 · Info</small>Opening conversion tracks · audio 2 · subtitles 1</div>
+  </div>
+  <div class="two"><div>Copy Details</div><div>Share Log</div></div></div>
+ </div></div><div class="cap"><b>G2 · Technical details:</b> facts as a table instead of JSON; log lines shortened to their message (the full line still opens on tap). Share Log is Settings' Export logs.</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb" style="display:flex;justify-content:space-between"><span>‹</span><span>Clear All</span></div><h3>Notifications</h3>
+  <div class="sh">Today</div>
+  <div class="listrow"><div class="ic" style="background:rgba(255,69,58,.18);color:var(--red)">!</div><div class="t"><b>Couldn't prepare Naruto · S1 E16</b><span>It has a track an MP4 can't hold</span></div><div class="fix">Fix</div></div>
+  <div class="listrow"><div class="ic" style="background:rgba(255,69,58,.18);color:var(--red)">!</div><div class="t"><b>Setup and repair stopped</b><span>Run it again or share the log</span></div><div class="fix">Fix</div></div>
+  <div class="listrow"><div class="ic" style="background:rgba(48,209,88,.18);color:var(--green)">✓</div><div class="t"><b>Trakt connected</b><span>TMDb Helper · 16 min ago</span></div></div>
+ </div></div><div class="cap"><b>G3 · In the list:</b> a problem with a fix gets a small Fix button that runs its main fix; tapping the row opens the sheet.</div></div>
+</div></section>
+
+<section class="board"><div class="n">H · GOOD NEWS AND VAGUE PROBLEMS</div><h2>Say it in a line when it's fine; never "check the log" with nothing to do</h2>
+<p>The other two screenshots. A success needs no log at all. A problem the app can't name still gets plain words and something to do.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹</div><h3>Notifications</h3>
+  <div class="dimall"></div><div class="sheet" style="top:96px;background:var(--bg2,#1c1c1e)"><div class="grab"></div><div style="display:flex;justify-content:flex-end;margin:-4px 0 4px"><div class="x">✕</div></div><div class="nh"><div class="ic" style="background:rgba(48,209,88,.18);color:var(--green)">✓</div><div class="t"><b>Trakt connected</b><span>TMDb Helper · 16 min ago</span></div></div>
+  <div class="card"><p>TMDb Helper signed in to Trakt (in 2 seconds). Your Trakt lists and "Because you watched" rows can now fill Home.</p></div>
+  <div class="acts"><div class="a"><div class="t"><b>Open Accounts</b><span>See every service you're signed in to</span></div><div class="go">›</div></div></div></div>
+ </div></div><div class="cap"><b>H1 · Good news:</b> one sentence that says what it means for you; no "What happened" box and no log for a success.</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹</div><h3>Notifications</h3>
+  <div class="dimall"></div><div class="sheet" style="top:96px;background:var(--bg2,#1c1c1e)"><div class="grab"></div><div style="display:flex;justify-content:flex-end;margin:-4px 0 4px"><div class="x">✕</div></div><div class="nh"><div class="ic" style="background:rgba(255,69,58,.18);color:var(--red)">!</div><div class="t"><b>Setup and repair stopped</b><span>Kodi iOS setup · 16 min ago</span></div></div>
+  <div class="card"><div class="k">What happened</div><p>The automatic setup that checks add-ons and settings at start-up stopped before it finished, and it didn't say why.</p>
+   <div class="ok"><i>✓</i>Everything that was already set up still works.</div></div>
+  <div class="k" style="color:var(--grey);font-size:11.5px;font-weight:700;letter-spacing:.04em;margin:2px 6px 6px">WHAT YOU CAN DO</div>
+  <div class="prim">Run Setup Again</div>
+  <div class="acts">
+   <div class="a"><div class="t"><b>Share the log</b><span>Send it to whoever helps you with the app</span></div><div class="go">›</div></div>
+   <div class="a"><div class="t"><b>Restart Kodi</b><span>Setup runs again when it opens</span></div><div class="go">›</div></div>
+  </div>
+  <div class="foot" style="text-align:center">Kodi wrote nothing else about this.</div></div>
+ </div></div><div class="cap"><b>H2 · A vague problem:</b> the title says what stopped (not "Kodi iOS Automatic Setup and R…"); when the log has nothing, the sheet says so in one line instead of an empty section.</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹</div><h3>Notifications</h3>
+  <div class="dimall"></div><div class="sheet" style="top:96px;background:var(--bg2,#1c1c1e)"><div class="grab"></div><div style="display:flex;justify-content:flex-end;margin:-4px 0 4px"><div class="x">✕</div></div><div class="nh"><div class="ic" style="background:rgba(255,159,10,.18);color:var(--orange)">!</div><div class="t"><b>Fall 2 Deadpoint is waiting</b><span>Downloading to Google Drive · 2 min ago</span></div></div>
+  <div class="card"><div class="k">What happened</div><p>AllDebrid blocked the sign-in from this network. Copies wait and carry on by themselves once it lets them in.</p></div>
+  <div class="k" style="color:var(--grey);font-size:11.5px;font-weight:700;letter-spacing:.04em;margin:2px 6px 6px">WHAT YOU CAN DO</div>
+  <div class="prim">Open AllDebrid</div>
+  <div class="acts">
+   <div class="a"><div class="t"><b>Retry now</b><span>Try the copy again straight away</span></div><div class="go">›</div></div>
+   <div class="a"><div class="t"><b>Open Download problems</b><span>Everything that stopped, in one place</span></div><div class="go">›</div></div>
+  </div>
+  <div class="link">Technical details ›</div></div>
+ </div></div><div class="cap"><b>H3 · A warning that fixes itself:</b> orange, says it will carry on by itself, and still offers the page that fixes it now.</div></div>
+</div></section>
+
+<div class="notes2"><h3 style="color:#fff;font-size:16px;margin:16px 0 6px">Notes</h3><ul>
+<li style="margin:3px 0 3px 18px">Same frame as today's sheet (IOSNoticeDetail.xml: status sheet, grabber, ✕); grouped rows, the white primary capsule and the facts table use existing helpers (status_ui, settings rows). No new colours or button styles.</li>
+<li style="margin:3px 0 3px 18px">The plain words and fixes come from one table keyed on known errors (preparation, copies, AllDebrid, Drive sign-in, setup, AirPlay); each entry has a title, a sentence, a "nothing was lost" line when true, and up to three fixes that map to existing actions (sources, Keep as it is, Library status, Download problems, Accounts, Export logs, Retry). Unknown errors fall back to H2's shape.</li>
+<li style="margin:3px 0 3px 18px">Raw kodi.log lines and JSON stay one tap away (Technical details); nothing is removed from the log.</li>
+<li style="margin:3px 0 3px 18px">Titles and times are examples.</li>
+</ul></div>
+</body></html>

@@ -146,11 +146,35 @@ def choose_source_action(entry):
  from urllib.parse import quote
  return 'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=choose_source&key=%s)'%quote(key(entry),safe='')
 
+HIDDEN_KEEP=400
+
+def hide_key(entry):
+ """What long press › Remove from Continue Watching remembers a title by: key() for the phone's own titles, the file
+ for Kodi's library items (they have no TMDb id here)."""
+ if entry.get('source')=='library' or not entry.get('tmdb_id') and not entry.get('download_key'):return 'file:'+str(entry.get('file') or '')
+ return key(entry)
+
+def hidden(data,entry):
+ """Owner (2026-11-13): "remove from continue watching ... dont make it erase the progress ... if i watch it again it
+ can show back up". A title is hidden while it has not been played since it was removed."""
+ when=((data or {}).get('hidden') or {}).get(hide_key(entry))
+ return when is not None and float(entry.get('played') or 0)<=float(when)
+
+def hide(read,write,item_key,now=time.time):
+ """Leave the row; the saved position, player and version stay (Resume still works from the title's own page)."""
+ data=load(read);marks=data.setdefault('hidden',{});marks[item_key]=now()
+ if len(marks)>HIDDEN_KEEP:data['hidden']=dict(sorted(marks.items(),key=lambda kv:-kv[1])[:HIDDEN_KEEP])
+ save(data,write);return True
+
+def hide_action(entry):
+ from urllib.parse import quote
+ return 'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=continue_hide&key=%s)'%quote(hide_key(entry),safe='')
+
 def entries(data,kind='all',library=()):
- """Started (position > 0) titles plus library in-progress items, newest first."""
+ """Started (position > 0) titles plus library in-progress items, newest first; removed ones left out until played again."""
  rows=[dict(e,source='phone') for e in data['items'].values() if e.get('position',0)>0 and kind in ('all',e['kind'])]
  rows+=[e for e in library if kind in ('all',e['kind'])]
- return sorted(rows,key=lambda e:-e.get('played',0))
+ return sorted([e for e in rows if not hidden(data,e)],key=lambda e:-e.get('played',0))
 
 def library_items(rpc):
  """Kodi's own in-progress movies and episodes (downloaded media in the library)."""
@@ -230,6 +254,7 @@ def directory(handle,kind):
   li.setProperty('subtitle','S%s, E%s'%(entry['season'],entry['episode']) if episode else entry.get('year',''))
   li.setProperty('IsPlayable','true')
   # Long press: pick the player and version again (a tap reuses last time's).
-  if entry.get('source')=='phone' and entry.get('tmdb_id'):li.addContextMenuItems([('Choose source',choose_source_action(entry))])
+  menu=[('Choose source',choose_source_action(entry))] if entry.get('source')=='phone' and entry.get('tmdb_id') else []
+  li.addContextMenuItems(menu+[('Remove from Continue Watching',hide_action(entry))])
   xbmcplugin.addDirectoryItem(handle,entry.get('file') or play_url(entry),li,isFolder=False)
  xbmcplugin.setContent(handle,'videos');xbmcplugin.setPluginCategory(handle,'Continue Watching');xbmcplugin.endOfDirectory(handle)

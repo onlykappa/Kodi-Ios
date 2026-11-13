@@ -10,6 +10,8 @@ MAX = 36            # poster cells on the page (12 rows of three); further favou
 TITLE = 'Favourites'
 EMPTY = 'No favourites yet'
 FOOT = 'Long-press a poster anywhere and choose Add to Favourites.'
+EMPTY_LINE = 'Hold a poster anywhere and choose Add to Favourites.'   # DEC-045 board F1
+FILTERS = (('all', 'All'), ('movie', 'Movies'), ('tv', 'Shows'))     # DEC-045 board F2
 READ = ['path', 'window', 'windowparameter', 'thumbnail']   # Favourites.GetFavourites properties
 REMOVABLE = ('window', 'media')
 
@@ -45,6 +47,22 @@ def remove_args(fav):
     return args
 
 
+def kind_of(fav):
+    """'movie', 'tv' or '' from the favourite's link (TMDb Helper's tmdb_type / type, Kodi's library paths)."""
+    import re
+    text = ' '.join(str(fav.get(k) or '') for k in ('path', 'windowparameter')).lower()
+    if re.search(r'tmdb_type=movie|[?&]type=movie|videodb://movies|/movies?/|info=details.*movie', text):
+        return 'movie'
+    if re.search(r'tmdb_type=tv|[?&]type=(tv|tvshow|episode)|videodb://tvshows|/tvshows?/|[?&]season=|[?&]episode=', text):
+        return 'tv'
+    return ''
+
+
+def shown(rows, filter_key='all'):
+    """The favourites the filter shows (Movies / Shows; All shows everything)."""
+    return list(rows) if filter_key == 'all' else [r for r in rows if r.get('kind') == filter_key]
+
+
 def entries(favs):
     """[{'title', 'thumb', 'action', 'removable', 'remove'}] for the grid, in Kodi's order. Favourites iOS cannot open
     are left out."""
@@ -54,7 +72,7 @@ def entries(favs):
         if not action:
             continue
         out.append({'title': str(fav.get('title') or ''), 'thumb': str(fav.get('thumbnail') or ''), 'action': action,
-                    'removable': fav.get('type') in REMOVABLE, 'remove': remove_args(fav)})
+                    'removable': fav.get('type') in REMOVABLE, 'remove': remove_args(fav), 'kind': kind_of(fav)})
         if len(out) >= MAX:
             break
     return out

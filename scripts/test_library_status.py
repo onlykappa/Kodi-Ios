@@ -317,7 +317,7 @@ class TapEveryButton(unittest.TestCase):
   self.assertEqual((sheet['action1.label'],sheet['action2.label'],sheet['action3.label']),('Start converting now','Prepare next','Keep as it is'))
   self.assertEqual((sheet['action2.colour'],sheet['action3.colour']),('FFFFFFFF','FFFF453A'))
   self.assertEqual(prep.pending_requests(self.profile),[{'action':'next','id':'w1'}])
-  waiting=[r for r in seen[0] if r[1]=='waiting'];self.assertEqual(waiting[0][0],'w1');self.assertTrue(waiting[0][2].startswith('convert'))
+  waiting=[r for r in seen[0] if r[1]=='waiting'];self.assertEqual(waiting[0][0],'w1');self.assertTrue(waiting[0][2].startswith('prepare'))
   self.assertIn(('note','Prepare next: Fall (2022)'),kodi.notes)
   queue=prep.Queue.__new__(prep.Queue);queue.profile=self.profile;queue.clock=lambda:7000;queue.state=prep.load(self.profile);queue.commit=lambda:None
   self.assertTrue(queue.apply_requests());self.assertEqual(queue.state['jobs']['a']['priority'],7000);self.assertEqual(prep.pending_requests(self.profile),[])
@@ -480,6 +480,31 @@ class ReplacementStopsTheConversion(unittest.TestCase):
 def kodi_of(w):return w._kodi
 def press(code):return lambda w:w.onAction(type('A',(),{'getId':lambda self:code})())
 def focus(n):return lambda w:w.setFocusId(n)
+
+class PreparationLanes(unittest.TestCase):
+ """DEC-044 board D: "Working on now · N", the main card plus a row per extra preparation lane (F2)."""
+ setUp,tearDown,run_page=TapEveryButton.setUp,TapEveryButton.tearDown,TapEveryButton.run_page
+ def test_each_lane_has_its_own_row_and_the_card_counts_them(self):
+  import time as _t
+  state=prep.load(self.profile);now=_t.time()
+  state['lanes']={'2':{'title':'Naruto.Shippuden.S01E06.mkv','running':True,'updated':now+3600,'progress':63,'stage':'Step 3 of 3 · Making it start faster'},
+                  '3':{'title':'Naruto.Shippuden.S01E07.mkv','running':True,'updated':now+3600,'progress':22}}
+  prep.save(self.profile,state)
+  seen={}
+  kodi=self.run_page([(library_page.WINDOW,lambda w:seen.update(dict(w.props))),(library_page.WINDOW,tap(library_page.BACK))])
+  self.assertEqual(seen['work.eyebrow'],'WORKING ON NOW · 3')
+  self.assertEqual((seen['lane.0.pct'],seen['lane.1.pct']),('63%','22%'))
+  self.assertIn('S1 E6',seen['lane.0.title'].replace('S01E06','S1 E6'))
+  self.assertEqual(seen['lane.0.tint'],'FFBF5AF2')
+ def test_without_lanes_the_card_reads_as_before(self):
+  seen={}
+  self.run_page([(library_page.WINDOW,lambda w:seen.update(dict(w.props))),(library_page.WINDOW,tap(library_page.BACK))])
+  self.assertEqual((seen['work.eyebrow'],seen['lane.0.title']),('WORKING ON NOW',''))
+ def test_the_rows_are_drawn(self):
+  xml=library_page.page(portrait)
+  for n in range(library_page.LANES):self.assertIn('id="%d"'%(library_page.LANE+n),xml);self.assertIn('id="%d"'%(library_page.LANE_BARS+n),xml)
+  self.assertIn("Window().Property(work.eyebrow)",xml)
+
 
 class LongPressCancel(unittest.TestCase):
  """Owner (build 328): "holding down on the show that is converting should show a cancel button"; build 347: "holding

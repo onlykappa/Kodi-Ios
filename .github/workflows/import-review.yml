@@ -24,6 +24,7 @@ on:
       - 'scripts/test_drive_upload.py'
       - 'scripts/test_settings_search.py'
       - 'scripts/test_deck_picker.py'
+      - 'scripts/test_auto_season.py'
       - 'scripts/test_source_match.py'
       - 'migration/deck-picker/**'
       - 'scripts/test_startup_sequence.py'
@@ -67,6 +68,7 @@ on:
       - 'scripts/test_drive_upload.py'
       - 'scripts/test_settings_search.py'
       - 'scripts/test_deck_picker.py'
+      - 'scripts/test_auto_season.py'
       - 'scripts/test_source_match.py'
       - 'migration/deck-picker/**'
       - 'scripts/test_startup_sequence.py'
@@ -135,6 +137,7 @@ jobs:
           python3 -B scripts/test_drive_index.py
           python3 -B scripts/test_settings_search.py
           python3 -B scripts/test_deck_picker.py
+          python3 -B scripts/test_auto_season.py
           python3 -B scripts/test_season_sheet.py
           python3 -B scripts/test_picture.py
           python3 -B scripts/test_picture_menu.py
@@ -142,6 +145,9 @@ jobs:
           python3 -B scripts/test_upscale_queue.py
           python3 -B scripts/test_library_files.py
           python3 -B scripts/test_work_state.py
+          python3 -B scripts/test_repack_lanes.py
+          python3 -B scripts/test_debrid_ready.py
+          python3 -B scripts/test_watch_next.py
           python3 -B scripts/test_saturation.py
           python3 -B scripts/test_download_e2e.py
           python3 -B scripts/test_upscale_e2e.py

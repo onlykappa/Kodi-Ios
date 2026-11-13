@@ -24,6 +24,8 @@ class Control(unittest.TestCase):
   tc.clear_cancelled(self.p,'b'*40);self.assertEqual(tc.cancelled_copies(self.p),set())
  def test_cards(self):
   self.assertEqual([tc.card_of(c) for c in (9432,9433,9436,9439,9440,9501)],[('up',0),('conv',0),('down',0),('down',3),None,None])
+  # Owner (build 356): every copy lane has a card on the bell page.
+  self.assertEqual([tc.card_of(c) for c in (9441,9445,9446)],[('up',1),('up',5),None])
  def test_menus(self):
   self.assertEqual([a for _,a in tc.menu('down',{'paused':False})],['toggle','cancel','speed'])
   self.assertEqual(tc.menu('down',{'paused':True})[0][0],'Resume download')

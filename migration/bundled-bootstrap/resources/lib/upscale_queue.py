@@ -4,6 +4,10 @@ Pure decisions over plain dicts, no Kodi or Drive calls, so the queue step, the 
 every rule is host-tested. The state file (upscale-copies.json) holds, per original Drive file id:
   {'label': '4K UHD', 'status': 'waiting'|'running'|'ready'|'failed'|'blocked'|'gone',
    'copy_id': Drive id of the copy when ready, 'size': bytes, 'progress': 0..100, 'error': text, ...}
+DEC-044 (owner: "It wont allow me to cancel anything or open whats being done"): the page asks for Pause, Cancel this
+copy, Remove from Up next, a new order and Cancel All through a small control file (upscale-control.json), which the
+service applies (apply_control) at the start of each pass and checks while a copy is made, so a running copy never
+writes over what the page asked. A cancelled copy ('cancelled') is not made again until its show's size is chosen again.
 """
 import json
 import os
@@ -12,6 +16,7 @@ import time
 import picture
 
 FILE = 'upscale-copies.json'
+CONTROL = 'upscale-control.json'
 RESERVE = 1024 ** 3                       # Drive space kept free beyond the copy's estimated size
 LOW_BATTERY = 0.20                        # below this, no copy is made without a charger (board C wording)
 HOT = ('serious', 'critical')             # iOS thermal states that hold the work
@@ -88,6 +93,8 @@ def plan(prep_state, data, settings, media_for, clock=time.time):
             continue
         if entry and entry.get('status') == 'failed' and entry.get('label') == label:
             continue                                   # retried by its own back-off, not re-added
+        if entry and entry.get('status') == 'cancelled':
+            continue                                   # the owner cancelled it (DEC-044); back only when the size is chosen again
         probe = job.get('probe') or {}
         copies[original] = {'label': label, 'status': 'waiting', 'name': (job.get('source') or {}).get('name', ''),
                             'width': int(probe.get('width') or 0), 'height': int(probe.get('height') or 0),
@@ -130,9 +137,111 @@ def next_job(data, clock=time.time):
     running = [k for k, e in copies.items() if e.get('status') == 'running']
     if running:
         return running[0]
-    due = [(e.get('added', 0), k) for k, e in copies.items()
+    due = [(e.get('order', float('inf')), e.get('added', 0), k) for k, e in copies.items()
            if e.get('status') in ('waiting', 'failed') and e.get('retry_after', 0) <= clock()]
-    return min(due)[1] if due else None
+    return min(due)[2] if due else None
+
+
+def up_next(data, clock=time.time):
+    """Up next in the order they will be made (the running one is not in it): [original id]."""
+    copies = data.get('copies', {})
+    due = [(e.get('order', float('inf')), e.get('added', 0), k) for k, e in copies.items() if e.get('status') in ('waiting', 'failed')]
+    return [k for _, _, k in sorted(due)]
+
+
+def control_path(profile):
+    return os.path.join(os.path.dirname(path(profile)), CONTROL)
+
+
+def control(profile):
+    try:
+        with open(control_path(profile), encoding='utf-8') as handle:
+            found = json.load(handle)
+    except (OSError, ValueError):
+        found = {}
+    found = found if isinstance(found, dict) else {}
+    for key in ('cancel', 'order'):
+        found.setdefault(key, [])
+    found.setdefault('paused', False)
+    return found
+
+
+def _write_control(profile, found):
+    target = control_path(profile)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    with open(target + '.tmp', 'w', encoding='utf-8') as handle:
+        json.dump(found, handle, sort_keys=True)
+    os.replace(target + '.tmp', target)
+
+
+def set_paused(profile, on):
+    found = control(profile)
+    found['paused'] = bool(on)
+    _write_control(profile, found)
+
+
+def paused(profile):
+    return bool(control(profile).get('paused'))
+
+
+def cancel(profile, originals):
+    """Cancel this copy (B1) or Remove from Up next (B2): the copy stops or never starts; the original is not touched."""
+    found = control(profile)
+    found['cancel'] = sorted(set(found['cancel']) | {str(o) for o in originals})
+    _write_control(profile, found)
+
+
+def cancel_all(profile):
+    found = control(profile)
+    found['cancel_all'] = True
+    found['paused'] = False
+    _write_control(profile, found)
+
+
+def reorder(profile, originals):
+    found = control(profile)
+    found['order'] = [str(o) for o in originals]
+    _write_control(profile, found)
+
+
+def cancelling(profile, original):
+    found = control(profile)
+    return bool(found.get('cancel_all')) or str(original) in found['cancel']
+
+
+def apply_control(profile, data, clock=time.time):
+    """The page's requests, applied to the copies (the service, once per pass). Returns True when data changed."""
+    found = control(profile)
+    copies = data.get('copies', {})
+    changed = False
+    gone = set(found['cancel'])
+    if found.get('cancel_all'):
+        gone |= {k for k, e in copies.items() if e.get('status') in ('waiting', 'running', 'failed')}
+    for key in gone:
+        entry = copies.get(key)
+        if entry and entry.get('status') in ('waiting', 'running', 'failed'):
+            entry.update(status='cancelled', cancelled=clock(), progress=0)
+            for field in ('eta', 'note', 'retry_after'):
+                entry.pop(field, None)
+            changed = True
+    if found['order']:
+        for n, key in enumerate(found['order']):
+            if key in copies:
+                copies[key]['order'] = n
+                changed = True
+    if gone or found['order'] or found.get('cancel_all'):
+        found.update(cancel=[], order=[], cancel_all=False)
+        _write_control(profile, found)
+    return changed
+
+
+def revive(data, originals):
+    """The show's size was chosen again: its cancelled copies may be made again (plan() adds them)."""
+    for key in originals:
+        entry = data.get('copies', {}).get(str(key))
+        if entry and entry.get('status') == 'cancelled':
+            del data['copies'][str(key)]
+    return data
 
 
 def failed(entry, error, clock=time.time):

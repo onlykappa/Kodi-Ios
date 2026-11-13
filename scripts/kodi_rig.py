@@ -257,6 +257,11 @@ def sync(_args):
             dst = boot / f.relative_to(BOOT)
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(f, dst)
+    # The page list moves on (copy_problems, upscale_settings, library_manager...): the rig's default.py is this
+    # checkout's plus its own entries, so pages added since setup open in the rig too.
+    default = (BOOT / 'default.py').read_text()
+    assert "'recover')" in default, 'default.py PAGES changed: update kodi_rig.sync'
+    (boot / 'default.py').write_text(default.replace("'recover')", "'rig_builtin','transfers','recover')", 1))
     spec = importlib.util.spec_from_file_location('portrait_sync', BOOT / 'resources/lib/portrait.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

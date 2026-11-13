@@ -136,6 +136,7 @@ def row_menu(row,up_paused=False,queued=0):
 def card_of(control,slots=4):
  """Which transfer card a control id is: ('up',0), ('conv',0), ('down',n) or None."""
  if control==9432:return ('up',0)
+ if 9441<=control<=9445:return ('up',control-9440)   # the 2nd..6th copy cards (notifications_skin.COPY_IDS)
  if control==9433:return ('conv',0)
  if 9436<=control<=9435+slots:return ('down',control-9436)
  return None

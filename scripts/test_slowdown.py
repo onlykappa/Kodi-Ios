@@ -80,7 +80,7 @@ class Workers(Reset):
   self.assertIn('self.gate.after(time.monotonic() - began)',(LIB/'drive_prepare.py').read_text())
   stream=(LIB/'drive_stream.py').read_text()
   self.assertIn('self.gate.after(time.monotonic() - began, sum(len(x) for x in parts), download=True)',stream)
-  self.assertIn('(2 if stream.playback else 1 if slowdown.reason() else READ_AHEAD)',stream)
+  self.assertIn('ahead_count(stream.playback, slowdown.reason(), stream.wide or item in stream.wide_items, len(stream.wide_items))',stream)
   up=(LIB/'driveupload.py').read_text()
   self.assertEqual(up.count('slowdown.Gate(keep_going=keep_going)'),3)   # phone uploads, AllDebrid copies and the native resumable copy (eef4910)
   self.assertIn('gate.after(put_s,len(chunk),download=True)',up)
@@ -99,8 +99,26 @@ class Workers(Reset):
   # The owner's Pause reaches the converter's hold loop (its words: "Paused by you").
   self.assertIn("not transfer_control.paused(profile,'conv')",svc.split('converting=lambda:')[1].split('\n')[0])
   cloud=(LIB/'prepare_cloud.py').read_text()
-  self.assertIn("q.runtime.phase('Paused by you',False,item['name'])",cloud)
+  self.assertIn("runtime.phase('Paused by you',False,item['name'])",cloud)
   self.assertNotIn("phase('Paused while a video plays'",cloud)
+
+class WideReadAhead(unittest.TestCase):
+ """F3 (PR #24): a re-package reads Drive with twice the blocks in flight; playback and slowdowns keep their rules."""
+ def test_ahead_count(self):
+  import drive_stream as ds
+  self.assertEqual(ds.ahead_count(False,'',False),ds.READ_AHEAD)
+  self.assertEqual(ds.ahead_count(False,'',True),ds.READ_AHEAD_WIDE)
+  self.assertGreater(ds.READ_AHEAD_WIDE,ds.READ_AHEAD);self.assertLess(ds.READ_AHEAD_WIDE,ds.KEEP)   # memory stays bounded
+  self.assertEqual(ds.ahead_count(False,'video',True),1)   # a video or AirPlay plays: work slows as before
+  self.assertEqual(ds.ahead_count(True,'',True),2)         # Kodi's own playback stream
+ def test_only_a_repackage_reads_wide(self):
+  src=(LIB/'prepare_downloads.py').read_text()
+  self.assertIn("if self.stream:self.stream.wide=bool(before.get('copy_video'))",src)
+  self.assertIn("if self.stream:self.stream.wide=False",src)
+  cloud=(LIB/'prepare_cloud.py').read_text()   # the path the phone runs (native outputs)
+  self.assertIn("if before.get('copy_video') and hasattr(q.stream,'widen'):q.stream.widen(item['id'])",cloud)
+  self.assertIn("if hasattr(q.stream,'unwide'):q.stream.unwide(item['id'])",cloud)
+
 
 class DownloadCap(unittest.TestCase):
  """Build 206 (owner, build 205: seeking an Umbrella episode "nearly broke the app ... it should use download speeds"):
@@ -134,12 +152,16 @@ class DownloadCap(unittest.TestCase):
   going=[True,False];slept=[]
   g=slowdown.Gate(why=lambda:'video',sleep=slept.append,keep_going=lambda:going.pop(0) if going else False)
   g.after(2.0);self.assertEqual(slept,[1.0])
- def test_the_converter_and_its_reads_hold_while_kodi_plays(self):
-  self.assertIn("hold=lambda:paused() or __import__('slowdown').holding()",(LIB/'prepare_cloud.py').read_text())
-  self.assertIn('preparation.stream.hold=lambda:preparation.paused() or slowdown.holding()',(BOOT/'service.py').read_text())
-  slowdown.configure(lambda:'video');slowdown._state['at']=-10;self.assertTrue(slowdown.holding())
-  slowdown.configure(lambda:'airplay');slowdown._state['at']=-10;self.assertFalse(slowdown.holding())
+ def test_preparation_goes_on_while_kodi_plays_and_waits_while_it_buffers(self):
+  # Owner (2026-11-13): "ready before i watch ... preparing in the background if im watching something else".
+  self.assertIn("hold=lambda:paused() or __import__('slowdown').preparation_holding()",(LIB/'prepare_cloud.py').read_text())
+  self.assertIn('preparation.stream.hold=lambda:preparation.paused() or slowdown.preparation_holding()',(BOOT/'service.py').read_text())
+  for why,prep,others in (('video',False,True),('buffering',True,True),('airplay',False,False),('',False,False)):
+   slowdown.configure(lambda why=why:why);slowdown._state['at']=-10
+   self.assertEqual((slowdown.preparation_holding(),slowdown.holding()),(prep,others),why)   # copies and uploads keep HOLD
   slowdown.configure(lambda:'');slowdown._state['at']=-10
+ def test_the_first_check_runs_when_the_app_opens(self):
+  self.assertIn("force=bool(count) or not getattr(preparation,'checked_at_start',False)",(BOOT/'service.py').read_text())
  def test_full_speed_when_nothing_plays(self):
   g,slept=self.gate(['']);self.assertEqual(g.after(0.08,1024*1024,download=True),0.0);self.assertEqual(slept,[])
  def test_the_service_reports_buffering(self):

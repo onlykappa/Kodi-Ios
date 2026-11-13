@@ -29,7 +29,25 @@ CHUNK = 1024 * 1024
 BLOCK = 8 * 1024 * 1024
 KEEP = 24            # 192 MB (build 181: two video lanes and the audio drift apart; build-176 read 3x the film)
 READ_AHEAD = 4       # blocks fetched ahead in parallel (32 MB on its way while one block is read)
+# F3 (PR #24 roadmap, build-356 log: a re-package read Drive at 3-7 MB/s while copies moved ~15 MB/s): Drive serves each
+# connection at about 1.5 MB/s on that line, so the read rate is about the blocks in flight. A re-package only moves bytes
+# (the picture is copied, nothing is encoded), so it keeps twice as many on their way; still inside KEEP.
+READ_AHEAD_WIDE = 8
 SPAN = re.compile(r'bytes (\d+)-(\d+)/(\d+)')
+
+
+def ahead_count(playback, slowed, wide, lanes=1):
+    """Blocks fetched ahead of the reader: 2 for Kodi's own playback, 1 while a video or AirPlay plays (work slows),
+    READ_AHEAD_WIDE for a re-package at full speed, else READ_AHEAD. F2: with several re-packages reading at once
+    they share the KEEP blocks, so each keeps fewer ahead (8, 8, 6 for 1-3 lanes) and none pushes out another's."""
+    if playback:
+        return 2
+    if slowed:
+        return 1
+    if not wide:
+        return READ_AHEAD
+    lanes = max(1, int(lanes))
+    return max(READ_AHEAD - 1, min(READ_AHEAD_WIDE, (KEEP - 2 * lanes) // lanes))
 
 
 class _Blocks(object):
@@ -132,6 +150,9 @@ class DriveStream(object):
         self.gate = slowdown.Gate()   # build 193: a video or AirPlay playing slows the reads to a share of the line
         self.block_size=block_size;self.playback=playback
         self.ahead_blocks=None   # a fixed read-ahead (remote_media.Foreground); None keeps the rules below
+        self.wide=False          # the local-copy path's re-package (prepare_downloads): READ_AHEAD_WIDE at full speed
+        self.wide_items=set()    # F2/F3: Drive files a re-package lane reads now (prepare_cloud widens them per file)
+        self.external={}         # F1: files read from another server (an AllDebrid link) through the same block cache
         self.blocks = _Blocks(self._fetch,keep,block_size)
         stream = self
 
@@ -211,7 +232,7 @@ class DriveStream(object):
                         # the next READ_AHEAD blocks are fetched at once, in parallel, not one after another.
                         # Not while a video plays (build-181 log: AirPlay starved while a conversion read and uploaded).
                         # Build 193: while a video or AirPlay plays, one block ahead instead of none (it slows, never stops).
-                        for step in range(1, 0 if stream.hold() else (stream.ahead_blocks or (2 if stream.playback else 1 if slowdown.reason() else READ_AHEAD)) + 1):
+                        for step in range(1, 0 if stream.hold() else (stream.ahead_blocks or ahead_count(stream.playback, slowdown.reason(), stream.wide or item in stream.wide_items, len(stream.wide_items))) + 1):
                             stream.blocks.ahead(item, index + step)
                         piece = block[position - index * stream.block_size:end - index * stream.block_size + 1]
                         if not piece:
@@ -229,16 +250,20 @@ class DriveStream(object):
     def _fetch(self, item, start, end):
         """Bytes start..end of a Drive file, read whole, and the file's size; transient failures retried."""
         renewed=False
+        outside=self.external.get(item)   # F1: with_link(action) runs action(link), renewing an expired link once
         for attempt in range(3):
-            access=self.token()
-            request = urllib.request.Request(API + '/' + urllib.parse.quote(item, safe='') + '?alt=media',
+            access='' if outside else self.token()
+            request = None if outside else urllib.request.Request(API + '/' + urllib.parse.quote(item, safe='') + '?alt=media',
                                              headers={'Authorization':'Bearer '+access,'Range':'bytes=%d-%d'%(start,end)})
             began = time.monotonic()
             with self.metric_lock:
                 self.metrics['http_requests']+=1
                 if attempt:self.metrics['http_retries']+=1
             try:
-                upstream = self.open_url(request, 20)
+                if outside:
+                    upstream = outside(lambda link: self.open_url(urllib.request.Request(link, headers={'Range':'bytes=%d-%d'%(start,end)}), 20))
+                else:
+                    upstream = self.open_url(request, 20)
                 try:
                     status = getattr(upstream, 'status', None) or upstream.getcode()
                     with self.metric_lock:self.metrics.update(last_status=status,range_start=start,range_bytes=end-start+1)
@@ -276,7 +301,7 @@ class DriveStream(object):
             except urllib.error.HTTPError as error:
                 with self.metric_lock:self.metrics.update(last_status=error.code,http_errors=self.metrics['http_errors']+1)
                 error.close()
-                if error.code==401 and self.refresh_token is not None and not renewed and attempt<2:
+                if error.code==401 and not outside and self.refresh_token is not None and not renewed and attempt<2:
                     self.refresh_token(access);renewed=True
                 elif error.code not in (429, 500, 502, 503, 504) or attempt == 2:
                     raise
@@ -295,6 +320,18 @@ class DriveStream(object):
         with self.blocks.lock:metrics.update(cache_hits=self.blocks.hits,cache_misses=self.blocks.misses,cache_waits=self.blocks.waits)
         return dict(metrics,read_bytes=self.bytes_read,last_read=self.last_read,read_error=self.last_problem)
 
+    def add_external(self, key, with_link):
+        """F1: serve a file that lives on another server under this key (url(key) reads it). with_link(action) calls
+        action(link) with a working link (debrid_drive renews an expired AllDebrid link there)."""
+        self.external[str(key)] = with_link
+        return self.url(key)
+
+    def widen(self, item_id):
+        self.wide_items.add(item_id)
+
+    def unwide(self, item_id):
+        self.wide_items.discard(item_id)
+
     def url(self, item_id):
         """The loopback link KodiAirPlay reads for one Drive file."""
         self.allowed.add(str(item_id))
@@ -302,6 +339,7 @@ class DriveStream(object):
 
     def forget(self, item_id):
         self.allowed.discard(str(item_id))
+        self.external.pop(str(item_id), None)
         self.blocks.forget(str(item_id))
 
     def close(self):

@@ -203,7 +203,14 @@ class PagesXml(unittest.TestCase):
     def test_favourites_page_has_empty_text_footer_and_edit_only_when_there_are_favourites(self):
         xml = self.xml('IOSFavourites.xml')
         self.assertIn(fr.EMPTY, xml)
-        self.assertIn(fr.FOOT, xml)
+        # DEC-045 board F: the empty state says how to add one (no footer line under the grid), one large title only,
+        # and All / Movies / Shows above the grid (the segmented control, ids 9020+).
+        self.assertIn(fr.EMPTY_LINE, xml)
+        self.assertIn('star.png', xml)
+        self.assertEqual(xml.count('>Favourites<'), 1)
+        for n, (_, label) in enumerate(fr.FILTERS):
+            self.assertIn('id="%d"' % (9020 + n), xml)
+            self.assertIn(label, xml)
         root = self.root('IOSFavourites.xml')
         edit = [c for c in root.iter('control') if c.get('id') == '9010'][0]
         self.assertIn('fav.1.title', edit.findtext('visible'))
@@ -244,6 +251,20 @@ class PagesXml(unittest.TestCase):
     def test_portrait_fingerprint_covers_the_rows_modules(self):
         source = (LIB / 'portrait.py').read_text()
         self.assertIn("'profiles_rows.py','favourites_rows.py'", source)
+
+
+class FavouriteKinds(unittest.TestCase):
+    """DEC-045 board F2: All / Movies / Shows from the favourite's link."""
+    def test_kind_and_filter(self):
+        favs = [{'type': 'media', 'title': 'Inception', 'path': 'plugin://plugin.video.themoviedb.helper/?info=play&tmdb_type=movie&tmdb_id=27205'},
+                {'type': 'window', 'title': 'Phony', 'window': '10025', 'windowparameter': 'plugin://plugin.video.themoviedb.helper/?info=details&tmdb_type=tv&tmdb_id=1'},
+                {'type': 'window', 'title': 'Movies', 'window': '10025', 'windowparameter': 'videodb://movies/titles/'},
+                {'type': 'script', 'title': 'Tool', 'path': 'special://home/addons/x/default.py'}]
+        rows = fr.entries(favs)
+        self.assertEqual([r['kind'] for r in rows], ['movie', 'tv', 'movie', ''])
+        self.assertEqual([r['title'] for r in fr.shown(rows, 'movie')], ['Inception', 'Movies'])
+        self.assertEqual([r['title'] for r in fr.shown(rows, 'tv')], ['Phony'])
+        self.assertEqual(len(fr.shown(rows, 'all')), 4)
 
 
 if __name__ == '__main__':

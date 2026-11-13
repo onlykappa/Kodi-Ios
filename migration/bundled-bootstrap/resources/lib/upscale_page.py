@@ -85,6 +85,22 @@ def library(prep_state, media_for, data):
             g['making'] += 1
         elif state in ('waiting', 'failed'):
             g['waiting'] += 1
+    # Owner screenshot (2026-11-13): "Phony" twice: some episodes matched TMDb ('tv:<id>'), others only by name
+    # ('title:phony'). A name-only group joins the TMDb group of the same show.
+    def same(title):
+        import debrid_drive
+        return debrid_drive.show_match(title)
+    for key in [k for k in groups if k.startswith('title:')]:
+        g = groups[key]
+        home = next((o for k, o in groups.items() if not k.startswith('title:') and o['kind'] == g['kind'] and same(o['title']) == same(g['title'])), None)
+        if home is None:
+            continue
+        for field in ('videos', 'levels'):
+            home[field] += g[field]
+        home.setdefault('items', []).extend(g.get('items') or [])
+        for field in ('ready', 'making', 'waiting', 'kept'):
+            home[field] += g[field]
+        del groups[key]
     out = []
     for g in groups.values():
         g['source'] = short(picture.LABELS[min(g['levels'])]) if g['levels'] and min(g['levels']) >= 0 else ('480p' if g['levels'] else '')
@@ -270,3 +286,149 @@ def remove_copies(settings, data, g):
     data.setdefault('remove', [])
     data['remove'] = sorted(set(data['remove']) | set(ids))
     return settings, data
+
+
+# --- DEC-044 boards A and B: the AI Upscale page (upscale_main_page.py draws it, upscale_settings.py fills it) -------
+def copy_title(entry, key=''):
+    """'Hell House LLC Origins · E1' from the copy's file name; never empty (the rig showed a blank "Making now" row)."""
+    import drivelibrary
+    name = (entry or {}).get('name') or ''
+    info = drivelibrary.parse(name) if name else {}
+    title = drivelibrary.display_title(name) if name else ''
+    if info.get('episode'):
+        show = info.get('title') or title
+        season = int(info.get('season') or 0)
+        title = '%s · %s' % (show, ('S%d E%d' % (season, int(info['episode'])) if season > 1 else 'E%d' % int(info['episode'])))
+    return title or name or key or 'Video'
+
+
+def _minutes(entry):
+    """'about 1 h 10 min' from the copy's length at the speed copies are made (about real time on a charger)."""
+    minutes = int(float(entry.get('duration') or 0) / 60 * 1.6)
+    if minutes <= 0:
+        return ''
+    return 'about %d h %d min' % (minutes // 60, minutes % 60) if minutes >= 60 else 'about %d min' % max(1, minutes)
+
+
+def making(data, paused=False):
+    """Board A1/A3: the Making now card, or None. {'key', 'title', 'line', 'pct', 'grey', 'paused', 'name'}."""
+    import upscale_queue as uq
+    copies = data.get('copies', {})
+    key = next((k for k, e in copies.items() if e.get('status') == 'running'), None)
+    running = key is not None
+    if key is None:
+        order = uq.up_next(data)
+        key = order[0] if order else None
+    if key is None:
+        return None
+    e = copies[key]
+    note = 'Paused by you' if paused else e.get('note') or ''
+    if running and not note:
+        bits = ['To %s' % short(e['label']), '%d %%' % int(e.get('progress') or 0)] + (['%s left' % e['eta']] if e.get('eta') else [])
+        line = ' · '.join(bits)
+    else:
+        line = note or 'Starts when nothing is being prepared'
+    return {'key': key, 'title': copy_title(e, key), 'name': e.get('name') or '', 'line': line,
+            'pct': int(e.get('progress') or 0), 'grey': bool(note) or not running, 'paused': bool(paused), 'running': running}
+
+
+def next_rows(data, skip=None):
+    """Board A1/B2: Up next in order (the card's copy left out): [{'key', 'title', 'line', 'name'}]."""
+    import upscale_queue as uq
+    out = []
+    for key in uq.up_next(data):
+        if key == skip:
+            continue
+        e = data['copies'][key]
+        source = size_name(e.get('width') or 0, e.get('height') or 0) if e.get('height') else ''
+        line = ' · '.join(x for x in (('%s → %s' % (source, short(e['label']))) if source else 'To %s' % short(e['label']),
+                                      _minutes(e)) if x)
+        if e.get('status') == 'failed':
+            line = 'Trying again later'
+        out.append({'key': key, 'title': copy_title(e, key), 'line': line, 'name': e.get('name') or ''})
+    return out
+
+
+def show_rows(settings, groups):
+    """Board A1: one row per show or movie: title, '5 episodes · 0 of 5 ready', the size on the right."""
+    out = []
+    for g in groups:
+        if not g['videos']:
+            continue
+        scope, entry = picture.resolve(settings, g['media'])
+        label = entry['upscale'] if scope != 'default' or entry['upscale'] in picture.LABELS else picture.OFF
+        count = len(g['videos'])
+        what = 'Movie' if g['kind'] == 'movie' else '%d episode%s' % (count, '' if count == 1 else 's')
+        if label in picture.LABELS:
+            state = 'making 1' if g['making'] else '%d of %d ready' % (g['ready'], count)
+        else:
+            state = 'not upscaled'
+        out.append({'key': g['key'], 'title': g['title'], 'sub': '%s · %s' % (what, state),
+                    'value': short(label) if label in picture.LABELS else 'Off', 'name': (g.get('items') or [{}])[0].get('name', '')})
+    return out
+
+
+def space_line(data):
+    ready = [e for e in data.get('copies', {}).values() if e.get('status') == 'ready']
+    if not ready:
+        return 'No copies yet'
+    return '%d cop%s · %s' % (len(ready), 'y' if len(ready) == 1 else 'ies', _gb(sum(int(e.get('size') or 0) for e in ready)))
+
+
+def main_view(settings, data, groups, engine, paused=False):
+    """Everything board A shows, as plain values (upscale_settings.py turns them into window properties)."""
+    # A copy saved without its file name (older builds) takes it from its prepared video, so no row shows an id.
+    names = {str(i['id']): i.get('name') for g in groups for i in (g.get('items') or []) if i.get('name')}
+    for key, e in (data.get('copies') or {}).items():
+        if not e.get('name') and names.get(str(key)):
+            e['name'] = names[str(key)]
+    card = making(data, paused)
+    nexts = next_rows(data, card['key'] if card else None)
+    downloads = settings.get('downloads', {})
+    status = status_row(engine)
+    return {'making': card, 'next': nexts, 'shows': show_rows(settings, groups),
+            'prepare': bool(downloads.get('prepare')), 'size': downloads.get('size') or '4K UHD',
+            'only_charging': bool(downloads.get('only_charging', True)),
+            'engine': {'title': status['label'], 'sub': status.get('sub', ''), 'action': status.get('action', '')},
+            'space': space_line(data), 'can_cancel_all': bool(card or nexts)}
+
+
+def copy_sheet(data, key, paused=False, device=None):
+    """Board B1: the copy's sheet. Stages: AI model ready → making the copy → saving to Google Drive."""
+    e = (data.get('copies') or {}).get(key) or {}
+    device = device or {}
+    bits = []
+    if int(device.get('charging', -1)) == 1:
+        bits.append('On charger')
+    if device.get('thermal') in ('nominal', 'fair'):
+        bits.append('phone cool')
+    elif device.get('thermal'):
+        bits.append('phone warm')
+    pct = int(e.get('progress') or 0)
+    duration = float(e.get('duration') or 0)
+    made = ('%d min of %d made' % (int(duration * pct / 100 / 60), int(duration / 60))) if duration else ''
+    running = e.get('status') == 'running'
+    note = 'Paused by you' if paused else e.get('note') or ''
+    model_ready = int((data.get('engine') or {}).get('model', 0) or 0) == 2
+    est = 0
+    try:
+        import upscale_queue as uq
+        est = uq.estimate_bytes(duration, e.get('label') or '4K UHD', e.get('width') or 1920, e.get('height') or 1080)
+    except Exception:
+        pass
+    info = {}
+    try:
+        import drivelibrary
+        info = drivelibrary.parse(e.get('name') or '')
+    except Exception:
+        pass
+    source = size_name(e.get('width') or 0, e.get('height') or 0) if e.get('height') else ''
+    sub = ' · '.join(x for x in (('Episode %d' % int(info['episode'])) if info.get('episode') else '',
+                                 ('%s → %s' % (source, e.get('label') or '4K UHD')) if source else 'To %s' % (e.get('label') or '4K UHD')) if x)
+    return {'title': copy_title(e, key) if not info.get('episode') else (info.get('title') or copy_title(e, key)),
+            'sub': sub, 'device': ' · '.join(bits) or note, 'pct': pct,
+            'stats': ' · '.join(x for x in ('%d %%' % pct, made) if x), 'left': ('%s left' % e['eta']) if e.get('eta') else (note or ''),
+            'stages': [('done' if model_ready else 'now', 'AI model ready' if model_ready else "Getting Apple's AI model"),
+                       ('now' if running and model_ready else 'done' if e.get('status') == 'ready' else 'next', 'Making the %s copy' % short(e.get('label') or '4K UHD')),
+                       ('next' if e.get('status') != 'ready' else 'done', 'Saving to Google Drive' + (' · %s' % _gb(est) if est else ''))],
+            'pause': 'Resume' if paused else 'Pause', 'grey': bool(note) or not running, 'name': e.get('name') or ''}

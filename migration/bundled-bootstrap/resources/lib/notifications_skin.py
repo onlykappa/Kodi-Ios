@@ -4,6 +4,16 @@ grouped card with tinted tiles."""
 import status_ui as u
 
 BARS = 9470          # running-card bars: prepare 9470, upload 9471, downloads 9472.. (set by notifications.py)
+COPIES = 6           # owner (build 356): the pill said 3 running, this page showed one copy; one card per copy lane
+COPY_IDS = 9441      # the 2nd..6th copy cards: 9441-9445, their bars BARS + 6.. (9476-9480)
+
+
+def cards():
+    """[(property prefix, card id, bar id)] in page order: preparing, every copy, then torrent downloads."""
+    out = [('prepare.', 9433, BARS), ('up.', 9432, BARS + 1)]
+    out += [('up.%d.' % k, COPY_IDS + k - 2, BARS + 4 + k) for k in range(2, COPIES + 1)]
+    out += [('dl.%d.' % k, 9435 + k, BARS + 1 + k) for k in range(1, 5)]
+    return out
 LINK_W = 290   # room for the accent 'Library status' after the Up next line
 TOP = 443            # the list starts with RUNNING NOW (board 5: 225 pt)
 
@@ -45,8 +55,8 @@ def page(p):
     head += u.text(p, S, 160, w, 110, 'Notifications', 'p_large')
     head += segmented(p, p.NOTICE_FILTERS)
     rows = u.group(p, 99, u.text(p, S + 10, 0, w - 20, 62, 'RUNNING NOW', 'p_pill', p.GREY), u.has('live'))
-    for n, (key, ident) in enumerate([('prepare.', 9433), ('up.', 9432)] + [('dl.%d.' % k, 9435 + k) for k in range(1, 5)]):
-        rows += compact(p, key, ident, BARS + n)
+    for key, ident, bar in cards():
+        rows += compact(p, key, ident, bar)
     nxt = (u.tap(p, 9440, S, 0, w, 118).replace('<texturefocus colordiffuse="14FFFFFF">', '<texturefocus colordiffuse="00FFFFFF">', 1) +
            '<control type="grouplist"><left>%d</left><top>0</top><width>%d</width><height>62</height><orientation>horizontal</orientation>'
            '<itemgap>10</itemgap><usecontrolcoords>true</usecontrolcoords>' % (S, w) +
@@ -56,16 +66,25 @@ def page(p):
            '</control>')
     rows += u.group(p, 124, nxt, u.has('next.text'))
     rows += u.group(p, 105, u.text(p, S + 10, 0, w - 20, 62, 'EARLIER', 'p_pill', p.GREY), u.has('has.msg'))
+    # DEC-046 (owner: "ensure text fits and its not just ..."): the title and the line wrap to a second line instead of
+    # ending in "…"; a problem with a fix has a small Fix capsule (ids 9601+) that runs its main fix.
+    H = 236
     for n in range(1, p.NOTICE_ROWS + 1):
         key = 'msg.%d.' % n
-        b = u.row_back(p, key, w, 165) + u.tap(p, 9500 + n, S, 0, w, 165)
+        b = u.row_back(p, key, w, H) + u.tap(p, 9500 + n, S, 0, w - 180, H)
         b += p.image(S + 38, 72, 21, 21, p.MEDIA + 'avatar_s.png', u.BLUE, '<visible>' + u.has(key + 'unread') + '</visible>')
         b += p.image(S + 91, 35, 97, 97, p.MEDIA + 'r27.png', P(key + 'tint'), border=27)
         b += u.glyph(p, S + 115, 59, 48, p.ICONS + P(key + 'icon'), P(key + 'glyph'))
-        b += u.text(p, S + 220, 32, w - 220 - 170, 51, P(key + 'title'), 'p_pill')
+        b += p.textbox(S + 220, 26, w - 220 - 170, 108, P(key + 'title'), 'p_pill', p.WHITE)
         b += u.text(p, S + w - 170, 32, 132, 51, P(key + 'ago'), 'p_foot', p.GREY, 'right')
-        b += u.text(p, S + 220, 89, w - 258, 43, P(key + 'text'), 'p_foot', p.GREY)
-        rows += u.group(p, 165, b, u.has(key + 'title'))
+        b += p.textbox(S + 220, 138, w - 220 - 190, 86, P(key + 'text'), 'p_foot', p.GREY)
+        fix = (p.image(S + w - 172, 108, 140, 76, p.MEDIA + 'r21.png', u.SURF2, border=21) +
+               ('<control type="button" id="%d"><left>%d</left><top>%d</top><width>160</width><height>118</height><label>%s</label>'
+                '<font>p_foot_b</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><align>center</align><aligny>center</aligny>'
+                '<texturefocus colordiffuse="14FFFFFF">%swhite.png</texturefocus><texturenofocus /></control>') % (
+                    9600 + n, S + w - 182, 87, P(key + 'fix'), p.ACCENT, p.ACCENT, p.MEDIA))
+        b += '<control type="group"><visible>%s</visible>%s</control>' % (u.has(key + 'fix'), fix)
+        rows += u.group(p, H, b, u.has(key + 'title'))
     rows += u.group(p, 180, u.text(p, S, 50, w, 80, "You're all caught up", 'p_h3', p.GREY), u.has('empty'))
     rows += u.group(p, 200, '')
     body = head + ('<control type="grouplist" id="9300"><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'

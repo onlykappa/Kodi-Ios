@@ -160,6 +160,18 @@ def converts_for_tv(item):
     return ten and codec(item) == u'H.264'
 
 
+def prep_cost(item):
+    """Roadmap F5 (PR #24): among releases of the same quality, the ones that need no work first. (container, picture):
+    .mp4 / .m4v / .mov is already AirPlay-ready (0), anything else (.mkv, unknown) needs a re-package (1); H.264 and HEVC
+    pictures are copied as they are (0: preparation keeps their packets, build-356 Inception HEVC was copy=True), 10-bit
+    H.264 (Hi10P) and AV1 need a real re-encode (2). Cheap name signals only; it only breaks ties after quality, so it
+    never ranks below the quality the owner chose."""
+    b = _blob(_all(item))
+    ready = any(e in b for e in (u' MP4 ', u' M4V ', u' MOV '))
+    picture = 2 if (slow_to_prepare(item) or converts_for_tv(item)) else 0
+    return (0 if ready else 1, picture)
+
+
 def avoid_request(now=None, read=None):
     """(quality or '') while a 'without converting' search is wanted, else None."""
     try:
@@ -838,7 +850,7 @@ def auto_choose(kept, want):
         # most seeds); whole-series packs come last, used only when nothing else has the episode.
         return (is_bad(it), it['seeds'] <= 0, bool(WHOLE_SERIES.search(_s(it.get('name')))), bool(it.get('multi')), distance,
                 hdr != want.get('hdr', u''), codec(it) != want.get('codec', u''),
-                slow_to_prepare(it), converts_for_tv(it), too_heavy(it), size_fit(it, minutes), seed_bucket(it),
+                slow_to_prepare(it), converts_for_tv(it), too_heavy(it), prep_cost(it), size_fit(it, minutes), seed_bucket(it),
                 SOURCE_RANK.get(source_type(it), 3), abs(it['size'] - size) if size else -size_step(it), -it['seeds'])
     best = min(dedupe(kept), key=score)
     return None if best['seeds'] <= 0 else best

@@ -188,7 +188,7 @@ class Integration(unittest.TestCase):
    prep.request(p,'now','y');self.assertTrue(prep.interrupts(p))        # Start converting now does not
  def test_service_scans_on_boot_and_after_uploads_and_settings_enable_it(self):
   service=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
-  self.assertIn('preparation.scan(can_prepare,force=bool(count))',service);self.assertIn('preparation.process_one(converting)',service)
+  self.assertIn("preparation.scan(can_prepare,force=bool(count) or not getattr(preparation,'checked_at_start',False))",service);self.assertIn('preparation.process_one(converting)',service)
   # A requested check no longer stops the running conversion (build-170 log); only Prepare next / Keep do.
   self.assertIn('converting=lambda:can_prepare() and not prepare_downloads.interrupts(profile)',service)
   self.assertNotIn('not prepare_downloads.check_requested(profile)',service);self.assertIn('if prepare_downloads.check_requested(profile) or prepare_downloads.pending_requests(profile):delay=5',service)
@@ -489,5 +489,24 @@ class EpisodeOrder(unittest.TestCase):
   # The owner's own choices (Start now, ▲) still come first.
   jobs[next(k for k,j in jobs.items() if j['source']['name']=='Naruto - Episode 006.mkv')]['priority']=5
   self.assertEqual(sorted(jobs.items(),key=lambda pair:prep.order_key(*pair))[0][1]['source']['name'],'Naruto - Episode 006.mkv')
+
+class QuickCheck(unittest.TestCase):
+ def test_video_details_are_asked_eight_at_a_time(self):
+  # ISSUE-208 (owner: "the refresh in the library status is super slow"): one Drive request per video, one after another.
+  import threading,time as t
+  lock=threading.Lock();live=[0];most=[0]
+  class D:
+   def call(self,method,url,body=None,headers=None):
+    with lock:live[0]+=1;most[0]=max(most[0],live[0])
+    t.sleep(.05)
+    with lock:live[0]-=1
+    item=url.split('/')[-1].split('?')[0]
+    if item=='bad':return 404,{},b''
+    return 200,{'ETag':'e'},json.dumps({'id':item,'name':item+'.mkv','size':'5','md5Checksum':'m'}).encode()
+  ids=['v%d'%n for n in range(24)]+['bad']
+  began=t.time();got=prep.fetch_metadata(D(),ids)
+  self.assertLess(t.time()-began,0.5);self.assertEqual(most[0],8)
+  self.assertEqual(got['v3']['id'],'v3');self.assertIsInstance(got['bad'],RuntimeError)
+  self.assertEqual(list(got),ids)
 
 if __name__=='__main__':unittest.main()

@@ -149,6 +149,11 @@ class Page(unittest.TestCase):
         props, rows = self.lm.fill(self.data, 'movie', 'size', '', slots=5, view='grid')
         self.assertEqual((props['mov.0.title'], props['mov.0.badge'], props['mov.0.badgec'], props['row.0.title']), ('Fall', 'Ready', 'green', ''))
         self.assertEqual(props['mov.0.sub'], '3.3 GB · 1080p')
+        # Owner (build 356): TV Shows has the grid too: episodes and size under the show, its first chip as the badge.
+        props, rows = self.lm.fill(self.data, 'tv', 'recent', '', slots=5, view='grid')
+        self.assertTrue(props['mov.0.title'] and props['mov.0.sub'].endswith(('GB', 'MB')) and ' ep' in props['mov.0.sub'])
+        self.assertEqual(props['row.0.title'], '')
+        self.assertEqual((props['mov.0.badge'], props['mov.0.badgec']), tuple(rows[0]['chips'][0]) if rows[0]['chips'] else ('', ''))
         props, rows = self.lm.fill(self.data, 'tv', 'recent', 'zzz', slots=5)
         self.assertEqual((rows, props['empty']), ([], 'Nothing matches “zzz”.'))
         props, rows = self.lm.fill({'shows': [], 'movies': [], 'storage': lf.storage([], [])}, 'tv', slots=5)
@@ -249,11 +254,14 @@ class MovieGrid(unittest.TestCase):
             self.assertEqual(lm.load_view(d), 'list')
             lm.save_view(d, 'grid')
             self.assertEqual(lm.load_view(d), 'grid')
+            self.assertEqual(lm.load_view(d, 'tv'), 'list')        # each side keeps its own choice
+            lm.save_view(d, 'grid', 'tv');lm.save_view(d, 'list')
+            self.assertEqual((lm.load_view(d, 'tv'), lm.load_view(d)), ('grid', 'list'))
         xml = page.page(portrait)
         for ident, glyph in ((page.VIEW, 'grid.png'), (page.VIEW + 1, 'list.png')):
             self.assertIn('<control type="button" id="%d">' % ident, xml)
             self.assertIn(glyph, xml)
-        self.assertIn("String.IsEqual(Window().Property(tab),movie) + String.IsEqual(Window().Property(view),grid)", xml)
+        self.assertNotIn("String.IsEqual(Window().Property(tab),movie) + String.IsEqual(Window().Property(view),grid)", xml)   # both sides
 
     def test_converting_badge_says_how_far(self):
         rows = lf.movie_rows([{'id': 'm1', 'title': 'Hell House', 'size': 2 * 1024 ** 3}],

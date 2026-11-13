@@ -57,6 +57,31 @@ class ContinueTests(unittest.TestCase):
  def test_long_press_offers_choose_source(self):
   entry={'kind':'episode','tmdb_id':'2','season':'1','episode':'3'}
   self.assertEqual(module.choose_source_action(entry),'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=choose_source&key=episode%3A2%3A1%3A3)')
+ def test_remove_from_continue_watching_keeps_progress_and_returns_when_played(self):
+  # Owner (2026-11-13): "remove from continue watching ... dont make it erase the continue from progress ... if i watch
+  # it again it can show back up".
+  key=self.record('movie','1',title='Ghost Soldier');module.update(self.read,self.write,52,6000,lambda:self.t)
+  self.record('tv','2','1','3',title='Ep',show='Show');module.update(self.read,self.write,100,2400,lambda:self.t)
+  movie=next(e for e in module.entries(self.data()) if e['kind']=='movie')
+  self.assertEqual(module.hide_action(movie),'RunPlugin(plugin://plugin.video.kodi.ios.watch/?action=continue_hide&key=movie%3A1%3A%3A)')
+  module.hide(self.read,self.write,module.hide_key(movie),lambda:self.t+1)
+  self.assertEqual([e['kind'] for e in module.entries(self.data())],['episode'])          # off the row
+  self.assertEqual(self.data()['items'][key]['position'],52)                               # progress kept
+  self.assertEqual(module.entry_for(self.read,key)['position'],52)
+  module.stopped(self.read,self.write);self.assertEqual([e['kind'] for e in module.entries(self.data())],['episode'])  # still off
+  # Watched again: the chooser records it and the service updates the position: back on the row, newest first.
+  self.t+=100;self.record('movie','1',title='Ghost Soldier');module.update(self.read,self.write,400,6000,lambda:self.t)
+  self.assertEqual([e['kind'] for e in module.entries(self.data())],['movie','episode'])
+ def test_remove_a_library_item(self):
+  lib=[{'kind':'episode','title':'Local','played':100,'position':10,'total':20,'file':'/x.mkv','source':'library'}]
+  self.assertEqual(module.hide_key(lib[0]),'file:/x.mkv')
+  module.hide(self.read,self.write,'file:/x.mkv',lambda:150)
+  self.assertEqual(module.entries(self.data(),'all',lib),[])
+  self.assertEqual(len(module.entries(self.data(),'all',[dict(lib[0],played=200)])),1)   # played again in Kodi
+ def test_every_row_offers_remove_and_the_route_exists(self):
+  root=Path(__file__).resolve().parents[1]/'migration/import-overlays/plugin.video.kodi.ios.watch'
+  self.assertIn("li.addContextMenuItems(menu+[('Remove from Continue Watching',hide_action(entry))])",(root/'resources/lib/ios_continue.py').read_text())
+  self.assertIn("if params.get('action')=='continue_hide':",(root/'default.py').read_text())
  def test_completed_copy_preserves_original_provider_and_version(self):
   player=self.player('movie','1')
   key=module.record(player,self.read,self.write,choice='umbrella')

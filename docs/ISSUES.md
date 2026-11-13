@@ -3181,3 +3181,306 @@ as the wrong title, so episodes 5-6 got 4 GB upscaled copies (4a3ab1f).
   (no card, empty library renders nothing), test_watch_continue (finished Drive episode and phone movie remembered),
   test_library_files WatchedFreeUp (model → Watched episodes group). The whole import-review test list and
   check_project pass. Phone retest pending (the one IPA).
+
+## ISSUE-198 — Network trouble ended copies and conversions for good; no way to tell Wi-Fi from cellular (build 350, owner logs 94711fae / b3c5d6eb) — FIXED on host
+
+- **Seen:** 33 minutes with nothing playing: AllDebrid → Drive pieces fell to 1 MB at ~0.1 MB/s per lane (one Drive PUT
+  of 1 MB took 16 s, 0.06 MB/s); preparation's Drive reads were 0 MB/s for over 5 minutes, then "Source read:
+  Input/output error"; four compatibility checks timed out. The minute snapshot: 65 of 116 copy jobs "failed",
+  8 of 29 preparation jobs failed. The log never said whether the phone was on Wi-Fi or cellular.
+- **Root cause:** every error counted toward a copy's 20 tries (debrid_drive.step) or a conversion's back-off of up to
+  an hour (prepare_cloud), including network trouble that goes away by itself (a dropped or switched connection, the
+  phone asleep, Kodi closed, HTTP 5xx). After a long stretch of it, jobs ended "failed" for good although Drive kept
+  their sessions. A copy waiting out its back-off did not notice a new connection.
+- **Fix:** debrid_drive.network_error() classifies such errors; they wait 15 s, 30 s … up to 5 min (net_wait),
+  never count toward giving up, and carry on from what Drive confirmed (copies) or the last mark (conversions:
+  status 'waiting', net_attempts). revive() puts copies that had failed for network trouble back in line once.
+  kick_on_new_link(): when the connection changes, waiting copies try again at once. Settings › Library › Download
+  problems (copy_problems.py) lists what ended, with its reason, Retry All and Clear. The minute snapshot gains
+  `network`: link (wifi / cellular), copy lanes and MB/s, preparation read MB/s, copies waiting for the network, and
+  link_changed_from.
+- **Retest:** test_debrid_drive NetworkTrouble (what counts; 50 drops never fail a copy and it finishes; revive once;
+  problems / retry / clear; a new connection wakes waiting copies), DownloadProblemsPage, test_drive_prepare (an I/O
+  error waits 15 s and the conversion then finishes), test_diagnostics (network summary). Phone proof: next log.
+- **Already covered (checked):** Kodi stays awake with the screen off while any copy is unfinished (service `why`:
+  debrid_drive.active), including copies waiting for the network; a killed app resumes copies from their saved Drive
+  sessions and conversions from their marks; the picker already ranks 10-bit H.264 as "needs conversion" (PR #22).
+
+## ISSUE-199 — Mobile data, a Wi-Fi switch and other apps: what the app did (build 350, owner log a0a4e492) — partly FIXED on host
+
+Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), opening other apps meanwhile.
+- **Copies:** 0.15–0.43 MB/s on mobile data with pieces stuck at 1–2 MB; after the switch 1.1–1.4 MB/s, pieces back to
+  16 MB, and preparation reads 1–3 MB/s. Two lanes dropped together at 07:12:40 (ConnectionError) and went on. The
+  switch itself was handled; ISSUE-198 (PR #23) also wakes waiting copies on the new connection.
+- **Compatibility checks on mobile data:** 27 timeouts from 06:32 to 07:01, each marked the file failed and tried again
+  60 s later, spending bandwidth on an optional check. **Fixed:** on cellular the checks wait for Wi-Fi
+  (prepare_downloads.cellular_now; "compatibility checks wait for Wi-Fi" logged once); a check that hits network
+  trouble is 'waiting' with the 15 s–5 min back-off, never 'failed'. Retest: test_compatibility_filter
+  (on_mobile_data_checks_wait_for_wifi, a_check_that_times_out_waits_instead_of_failing).
+- **Other apps:** at 06:25:17 iOS took the audio session ("audio interrupted by iOS") and Kodi was suspended for
+  581 s: every copy and read stopped until 06:34:59. Two later interruptions recovered in 5 s and 3 s. The silent-audio
+  method cannot stop another app from taking the audio. **Open (native):** iOS 26's BGContinuedProcessingTask lets
+  user-started long work (our copies and conversions) carry on in the background with a system progress item; needs
+  KodiAirPlay code and Info.plist task identifiers (ROADMAP R7).
+- Harmless: TMDb Helper's missing log_tagger folder (GetDirectory, 15×), audio underflow warnings at start.
+
+## ISSUE-200 — Copies use a fraction of a fast but high-latency Wi-Fi (owner log a0a4e492 + Speedtest, build 350) — partly FIXED on host
+
+- **Seen:** owner: "1.4mb compared to 70 is crazy". Speedtest on that Wi-Fi: 441 Mbps down, 79.7 Mbps up (~10 MB/s), ping
+  469 ms, jitter 216 ms. After the switch the copies ran at 1.1–1.4 MB/s with **two lanes the whole time**; Drive PUTs of
+  4–8 MB took 1.6–17 s (0.5–2.5 MB/s each).
+- **Root cause:** (1) two lanes is the cap beside a conversion (BUSY_LANES = 2), and a conversion ran most of the time;
+  (2) lane learning kept the speeds measured on mobile data after the switch, so more lanes looked useless; (3) the
+  ceiling was 4; (4) each piece reads its range from AllDebrid, then sends it to Drive, then waits for Drive's answer,
+  one after another, and on a 469 ms line each request spends several round trips before data flows, so few serial
+  connections cannot fill the uplink.
+- **Fix:** LANES 6, START_LANES 3, BUSY_LANES 4, CELLULAR_LANES 2 (E16's crawl on mobile data); lane learning starts
+  again when the connection changes. Retest: test_debrid_drive LaneLearning (up to six; a new connection forgets),
+  TwoLanes (four beside a conversion, five files five at once).
+- **Owner follow-up (7:19):** the 469 ms ping was a VPN; without it the same Wi-Fi tests 355 Mbps down, 115 Mbps up,
+  22 ms ping. The lane changes still apply (two lanes beside a conversion was the cap either way); the next log, without
+  the VPN, shows how close six lanes get to ~14 MB/s. If the phone uses a VPN, copies are limited by it.
+- **Open (native, ROADMAP R10):** within a piece, start the Drive PUT while the AllDebrid read is still arriving (one
+  streamed pass instead of read-then-send) and keep the connections open between pieces (no new handshake per piece).
+
+## ISSUE-201 — One copy lane uses well under the line: read-then-send pieces (owner: "drastically speed up downloads") — fixed in code (AirPlay r53 pinned)
+
+- **Cause:** kodi_http_copy read a whole piece from AllDebrid into memory, then sent it to Drive, then waited for
+  Drive's answer: each side idle more than half the time, and pieces capped at 32 MB by the memory they held.
+- **Research:** a server-side relay (Cloudflare Worker / VPS) would skip the phone, but AllDebrid is reported to refuse
+  datacenter IPs and to flag several IPs at once (ElfHosted docs, a Trustpilot report); rclone confirms a plain URL
+  always passes through the copying machine. The phone stays the copier; the known-good pattern is streaming the
+  download straight into Drive's resumable upload (Node.js stream → resumable gists, rclone's chunked Drive upload).
+- **Fix (r53):** each piece streams: the PUT starts at once and reads a 1 MB pipe (CFStreamCreateBoundPair) that the
+  GET fills as bytes arrive (back-pressure: the GET waits when the pipe is full); a short or refused source ends the
+  PUT short and Python asks Drive what it kept (existing path). Pieces up to 256 MB, starting at 32 MB when the
+  framework streams (kodi_http_copy_streams). Redirects: https only, no source credentials to another host.
+- **Pinned:** r53 built by airplay-ios run 43455191676 from 83ebc88; asset digest and downloaded zip both sha256
+  10df323f…02b8; the binary exports kodi_http_copy_streams and kodi_http_copy_max.
+- **Retest:** test_native_http (streams flag, 256 MB limit); the native code compiles in the airplay-ios run (macOS);
+  phone proof: the next log's "Drive copy native" pieces (size, seconds) and the network line (MB/s per lane).
+
+## ISSUE-202 — A finished conversion reads "Converting 79%" for 20 minutes while it uploads (build-350 log) — fixed in code
+
+- **Evidence:** Naruto S1 E2 (CPU re-encode) made 47 of 47 units by 07:19:30; the job then showed "Step 3 of 3 ·
+  Converting" at 79.48% past 07:42, Drive reads stopped, the worker heartbeat stayed fresh, and the conversion's
+  own Drive pieces kept going up every minute ("4.0 MB piece in 14 s, 0.30 MB/s"). Not a hang: the converter was done
+  and the upload backlog drained over a slow line, with no word of it on screen.
+- **Cause:** the "Uploading to Google Drive" wording only showed while the converter was blocked on a full queue;
+  after the last unit nothing said the rest was the upload. Movie pieces were also capped at 8 MB, a Drive round trip
+  for every 0.6 s of a fast line.
+- **Fix:** once every unit is made (stage 3, or n of n), the Sink reports upload_left / upload_total and the line
+  reads "Uploading to Google Drive · N%" with "X MB left to upload" and a time from the upload speed; the bar holds at
+  80 so the Drive check (82) never steps back. Movie pieces start at 1 MB and may grow to 32 MB (still aimed at ten
+  seconds each, so a slow line keeps small pieces).
+- **Retest:** test_drive_prepare (upload share after the last unit; 32 MB limit, 1 MB start; slow-upload test bound
+  is MAIN_CHUNK), test_preparation_runtime (the wording, 300 MB left, ETA from speed).
+- **Regression protection:** those tests in import-review.yml. Phone proof: the next log's preparation after its last
+  unit shows the upload share rising.
+
+## ISSUE-203 — The bell page showed one copy while the pill said "3 running" (owner screenshot, build 356) — fixed in code
+
+- **Evidence:** the activity pill read "3 running · Uploading to Google Drive · 74%"; the bell's Notifications page
+  listed only Inception under RUNNING NOW.
+- **Cause:** the page had one upload card ('up.'), filled from the first copy; Library status and the pill already
+  show one card per copy lane (work_state._copies).
+- **Fix:** six copy cards (notifications_skin.cards(): 'up.', 'up.2.'..'up.6.', ids 9432 and 9441-9445, bars
+  9471 and 9476-9480), each with its own poster, line, bar, tap (the speed graph) and long-press menu (cancels that
+  copy). Same compact card, no new style.
+- **Retest:** test_build193_pages (two copies fill up. and up.2.), test_hold_menu (9441/9445 are copy cards).
+- **Visual check:** pending (desktop Kodi rig, then the owner's iPhone).
+
+## ISSUE-204 — "It's doing Inception again?" and hash-named rows in Download problems (build 356) — fixed in code
+
+- **Evidence:** log 96e194ae: "Inception: back in line (it had stopped for network trouble: write operation timed
+  out)" at start; it then copied at 6 MB/s (77% of 4.4 GB by 08:42). Download problems listed another Inception with a
+  source error and two rows named "45e2c1e0…".
+- **What happened:** ISSUE-198 brings each copy that failed for the network back once. This Inception copy had never
+  finished (0.5% confirmed at start), so copying it was right; but nothing stopped a revive or Retry when another
+  source of the same video had finished.
+- **Fix:** revive() and Retry skip a copy whose title, season and episode match a finished copy; problem rows with no
+  title use the cleaned file name, else "Unnamed download", never the hash.
+- **Retest:** test_debrid_drive (a finished Inception keeps the failed one from coming back or being retried;
+  untitled rows).
+- **Follow-up:** the Download problems page redesign is a mockup awaiting approval
+  (docs/design/download-problems-mockups.html).
+
+## ISSUE-205 — Download problems was a plain select list (owner: "that is ugly!") — fixed in code (approved mockup)
+
+- **Evidence:** owner screenshot (build 356): "Retry All (2)", "Clear All (64)" and 64 rows, two named by hash, every
+  reason cut off.
+- **Fix:** the approved mockup (docs/design/download-problems-mockups.html) as a real page,
+  portrait/IOSDownloadProblems.xml (copy_problems_page.py), filled by copy_problems.py:
+  - a summary (can try again · new source · cancelled) and the segmented filter (All · Retry · Source · Cancelled);
+  - rows grouped by what you can do, each with a poster, the title, what it is, a plain reason in the group's colour
+    and one action (Retry · Find · Restart);
+  - Retry N (white capsule); Clear Cancelled (red, behind an alert) on the Cancelled filter;
+  - tapping a row opens the choice sheet with the whole reason (Find Another Source · Try This Source Again /
+    Restart · Remove From List, which asks first);
+  - the empty state.
+  Find opens the title's TMDb search (movies or shows). Restart clears the old cancel request first. Retry and remove
+  name a copy by its key (hash, season, episode, added), not its place in the list.
+- **Retest:** test_debrid_drive DownloadProblemsPage (groups, plain reasons, colours, row ends, the Cancelled filter, the
+  sheet's choices, one problem retried or removed by key, the page XML).
+- **Visual check:** desktop Kodi rig renders of the All and Cancelled filters match boards A and B; the footnote height
+  was raised after the rig showed its third line clipped. The iPhone check is still pending.
+
+## ISSUE-206 — Copies stayed at 3 lanes on a faster line (build-356 log) — fixed in code
+
+- **Evidence:** log 96e194ae: "network" snapshot copy_lanes 3 throughout at 13-17 MB/s; the owner's speed test:
+  254 Mbps down, 180 Mbps up (about 22 MB/s). Each lane ran 4-7 MB/s ("32.0 MB piece in 5.5 s").
+- **Cause:** lane learning remembered the 4-6 lane speeds measured on the slow VPN line, so 3 always looked best.
+- **Fix:** each measured lane speed has a time; anything older than six hours is forgotten (a new connection already
+  forgets all), so a line that got faster is tried with one more lane while each addition pays off (15 %).
+- **Retest:** test_debrid_drive LaneLearning (old speeds forgotten, 3 → 4 → 5 → back to 4 on +2.5 %).
+
+## ISSUE-207 — The Library file manager offered the grid on Movies only (owner, build 356) — fixed in code
+
+- **Fix:** the list/grid button shows on TV Shows too; the grid shows each show's poster, "N ep · size" and its first
+  state chip as the badge; a tap opens the show (board B). Each side remembers its own choice (library-view.json
+  'movies' and 'tv').
+- **Retest:** test_library_files (TV grid properties, per-side view memory, the button on both sides).
+- **Visual check:** pending (the rig has no Drive library to show).
+
+## ISSUE-208 — Cancelling the download queue and Library status's Refresh were slow (owner, build 356) — fixed in code
+
+- **Owner:** "the refresh in the library status is super slow and deleting the download queue is also slow as hell, it
+  needs to be instant; it seems it only refreshes after I press the refresh".
+- **Causes:**
+  - Cancel and Cancel All write a request at once. The copier applied it only on its next turn: after the running
+    piece and its wait (20 s to 5 min). Until then every page read the copier's saved list, so the copies still showed.
+  - The "copies waiting" count came from the service's last snapshot.
+  - Refresh (the library check) asked Drive for each video's details one after another, hundreds of round trips, and
+    saved the state file after every video.
+- **Fix:**
+  - The pages apply pending cancels to what they show (work_state.pending_cancels), so cancelled copies leave Library
+    status, the bell and the pill at once, and the waiting count is recounted on every read.
+  - The copier's wait wakes within a second when a cancel request is waiting.
+  - A request with no unfinished copy left is forgotten, so the copier never spins on it.
+  - The library check asks for video details eight at a time (prepare_downloads.fetch_metadata) and saves every ten
+    videos.
+- **Retest:** test_work_state InstantCancel (cancelled copies vanish before the copier runs; stale requests
+  forgotten), test_prepare_downloads QuickCheck (eight at a time, order kept, a failed file reported).
+- **Phone check:** pending: Cancel All on a long queue, and a Refresh's time in the next log.
+
+
+## ISSUE-209 — Continue Watching had no way to tidy a title off the row without losing its place (owner request, 2026-11-13) — fixed in code
+- **Seen:** owner screenshot (Ghost Soldier long press: Choose source, Resume from 00:00:52, … Reset resume position): "put a remove from continue watching, dont make it erase the continue from progress … if i watch it again it can show back up".
+- **Cause:** the row (ios_continue.entries) listed every started title; the only ways off it were finishing it or Kodi's Reset resume position, which loses the place.
+- **Fix:** long press › **Remove from Continue Watching** on every row (phone titles and Kodi library items). `ios_continue.hide` records the title in `continue.json`'s `hidden` map (key → time, capped at 400); `entries` leaves a title out while it has not been played since. The saved position, player and version are untouched. Playing it again updates `played`, so it returns, newest first. Route `?action=continue_hide` in default.py, then Container.Refresh (as ios_remove does). Icon: the existing "Remove" glyph in the skin's context menu (CTX_ICONS); no new UI.
+- **Retest:** test_watch_continue (removed row keeps position 52 s and comes back after a new play; a library item by its file; the menu entry and route). Phone: hold a Continue Watching card › Remove; check the Home row refreshes at once (if not, it does on the next Home visit).
+
+## ISSUE-211 — F3: a re-package read Drive at 3–7 MB/s while copies moved ~15 MB/s (PR #24 roadmap, build-356 log 68d43660) — fixed in code
+- **Seen:** `preparation: Drive reads: … (2.93 MB/s)` … `6.80 MB/s` every minute for re-packages (Naruto `index_after_media`, Inception `not_mp4`), copies beside them at ~15 MB/s (roadmap Evidence table).
+- **Cause:** drive_stream already fetched READ_AHEAD = 4 blocks (8 MB each) in parallel, and Drive serves one connection at about 1.5 MB/s on that line, so a read ran at about 4 × 1.5 MB/s. A re-package only moves bytes (picture copied), so its speed is the blocks in flight.
+- **Fix:** `drive_stream.ahead_count(playback, slowed, wide)`: READ_AHEAD_WIDE = 8 blocks when the job is a re-package (`prepare_downloads` sets `stream.wide` from the probe's `copy_video`, cleared at each job start). Playback (2), a video / AirPlay playing (1) and the owner's pause (0) are unchanged; 8 blocks stay inside KEEP (24 blocks, 192 MB). Real conversions keep 4 (CPU-bound).
+- **Retest:** test_slowdown WideReadAhead; test_conversion_speed's read-ahead check updated. Phone: the once-a-minute `Drive reads:` line during a re-package should rise toward the copy speed (needs the owner's log). test_conversion_speed's AV1Speed / QuickFirst failures predate this (native-source text checks; that file is not in the CI list).
+- **Follow-up (same day):** the first commit set `stream.wide` only in `prepare_downloads.process_one`'s local-copy path; the phone runs `prepare_cloud.process_one` (native outputs), so it had no effect there. Now set in prepare_cloud after the probe and cleared at each job start; test_slowdown checks both paths.
+
+## ISSUE-210 — F5: the picker did not prefer files that need no preparation (PR #24 roadmap) — fixed in code
+
+- Seen: owner log 68d43660 (build 356, via the PR #24 roadmap): Naruto Shippuuden S1 E5 (index at the end) and Inception (MKV)
+  were queued for a re-package that reads the whole file back from Drive at 3 to 8 MB/s. Whether an equal-quality MP4 was on
+  offer for them is not in the log.
+- Cause: `deck_picker.auto_choose` ranked by quality, HDR, codec, AV1, size and seeds, never by container, so among releases of
+  the same quality an MKV could win over an MP4 that lands ready to play.
+- Fix: `deck_picker.prep_cost` = (container: .mp4 / .m4v / .mov 0, anything else 1; picture: H.264 and HEVC 0, because
+  preparation keeps their packets, 10-bit H.264 and AV1 2, reusing `slow_to_prepare` / `converts_for_tv`). It sits in the
+  `auto_choose` score after the no-conversion and heavy-file terms and before size fit, seeds and source, so quality and the
+  rule "Episodes without your quality are not downloaded in a lower one" come first; wording unchanged. (A first version
+  ranked HEVC below H.264; that broke test_deck_picker's "seeds still matter" case, and HEVC is not re-encoded, so it was
+  dropped.)
+- Retest: test_auto_season NeedsNoWork (MP4 beats MKV; H.264 = HEVC before Hi10P / AV1; a lower-quality MP4 never beats the
+  chosen-quality MKV); test_deck_picker, test_season_sources, test_season_sheet, test_source_match, test_download_e2e pass.
+  Phone: the next Build Season log should show fewer `repack` preparations when MP4 releases exist.
+
+## ISSUE-212 — Up next called every unread job "Convert", most of them re-packages (PR #24 roadmap ticket, build-356 screenshot) — fixed in code
+- **Seen:** Library status Up next: 25 rows "Convert · 0.2–4.3 GB" while the log showed them to be re-packages (picture copied, only the container / index moved).
+- **Cause:** `job['repack']` is set only when a job is read (`skip_compatible`, at its turn), so every job not yet read fell to "convert".
+- **Fix:** `work_state.next_what(job)`: "faster start" for a known re-package (repack, or a probe with `copy_video`), "convert" only when the probe says the picture is re-encoded, "prepare" while it is not known yet. Used by Up next (work_state._next → Library status, bell) and the Transfers page (transfers.queue_lists). Wording only, no new colours, tokens or helpers (APPLE-UI-POLICY).
+- **Retest:** test_work_state (next_what cases, Up next list), test_repack_label (prepare for an unread job), test_library_status.
+
+## ISSUE-213 — Preparation stopped while a video played; the first check after opening the app came 12.5 min late (owner, build-356 log 7249de4d) — fixed in code
+- **Owner (2026-11-13, F6 answer):** "Id like it all to be ready before i watch, if they are not prepared ensure they are in the queue to be prepared … preparing in the backround if im watching something else or if the app is in the background". Decision: F6 is closed as *no skipping*; every video on Drive that is not ready is queued (as today), nothing waits for Play on TV.
+- **Seen (log 7249de4d, 08:38–09:31):** preparation idle from 08:38:46 (`scheduler … reason no_jobs`) until 08:51:08 while three videos already on Drive waited; the next ones joined within a minute of each copy finishing (09:02–09:11: copies done 23→52, preparation jobs 31→56), so the done → check path works. From 09:06 27 jobs waited behind one Inception re-package reading at 3–7 MB/s (`prep_read_mb_s`), the case F2 / F3 address.
+- **Cause:** (1) the service's first `preparation.scan` was not forced, so a recent `last_scan` from before the app was closed delayed it; (2) build 208 (ISSUE-136) held the converter's upload (`Sink.hold`) and Drive read-ahead (`DriveStream.hold`) the whole time Kodi played, so preparation stalled during every video. ISSUE-137 later showed that freeze was the buffering dialog; background work was ruled out in build 209.
+- **Fix:** the first scan after the service starts is forced (`checked_at_start`). New `slowdown.preparation_holding()` (only while Kodi buffers) for the converter's sink and read-ahead: while a video plays preparation keeps its SHARE (35 %) of the time and the 1 MB/s download cap (Gate), so playback keeps the line; AirPlay unchanged (slowed, never stopped). AllDebrid copies and phone uploads keep `holding()` (unchanged). In the background preparation already runs at BACKGROUND_SHARE of a core (app_state.Pace), the iOS limit.
+- **Retest:** test_slowdown (preparation goes on for 'video', waits for 'buffering'; copies keep HOLD; first check forced), test_prepare_downloads, test_conversion_speed wiring. Phone: watch something with Up next waiting; Library status should keep moving slowly, and seeking must stay smooth (if it is not, that is the regression to report).
+
+## ISSUE-214 — F2: one re-package at a time while 27 waited (PR #24 roadmap, build-356 log 7249de4d) — fixed in code
+- **Seen:** from 09:06 one Inception re-package read Drive at 3–7 MB/s (`prep_read_mb_s`) and uploaded its output over one connection at 5–8 MB/s, while 27 jobs waited (snapshots `waiting: 27`, `eligible_jobs 15`) and copies used ~15 MB/s of a 22 MB/s line.
+- **Cause:** the preparation queue ran one job (`process_one`, one `current` card); a re-package only moves bytes, so one connection each way was the limit, not the phone.
+- **Native check:** kr_prepare.c's per-run state is allocated per call (source, plan, fragment writer); the shared settings (`marks_on`, audio / subtitle languages, keep image subtitles) are fixed configuration; only the AI Upscale box changes per call. New host test `test_preparation_parallel` (test_remux.c) runs three re-packages at once over HTTP and checks each validates and keeps the original packets.
+- **Fix:** `prepare_cloud.process_one(q, keep_going, lane)`: lane None is the main lane (any job, heartbeat, `current` card); lanes '2' and '3' (`prepare_downloads.REPACK_LANES = 2`) take only known re-packages (`known_repack`: `repack` or a probe with `copy_video`, not under audit), claim their job in `q.running_slots` so no two lanes run one job, and write their card to `state['lanes'][N]`. Service: a worker per lane runs only while the main lane is busy, nothing plays (`slowdown.reason()` empty), the owner has not paused converting, no Prepare next / Keep request is pending, and no AI Upscale copy is being made (`q.upscaling`; the upscale step also waits until no lane runs, since it changes converter settings). Drive reads: each re-package lane's file is "wide" (`DriveStream.widen`), read-ahead 8 / 8 / 6 blocks for 1 / 2 / 3 lanes so the 24-block cache is never overrun. Status model: `work_state._lanes` adds a card per lane (kind repack, its own percentage), Up next leaves those titles out.
+- **Retest:** test_repack_lanes (lanes claim distinct jobs, extra lanes never take a real conversion or an unread job, lane cards reach the model and leave Up next, read-ahead fits the cache, service rules), test_drive_prepare, test_slowdown, test_work_state, native test_preparation_parallel (airplay-remux CI). Phone: with several re-packages waiting, the log should show 2–3 `preparation: … opening Drive file` running together and `prep_read_mb_s` above the single-lane 3–7 MB/s.
+- **Not done here:** Library status draws the main lane's card in "Working on now"; extra lanes show in the counts and the model, not as their own cards on that page (a layout change needs an approved mockup, APPLE-UI-POLICY).
+- **Unrelated CI note:** airplay-remux.yml's macOS "Foundation HTTP transport" check fails on PR #23 as well: r53's `kodi_http_copy` refuses a non-https upload target (right for Drive) and the test's local stand-in uploads to http://127.0.0.1, so `test_copy_stays_native_and_preserves_range_after_a_redirect` gets -1 before any redirect. The product path is unaffected. Fixed in the test (2026-11-13): the guard is asserted present in the shipped source and lifted for 127.0.0.1 in the test build only; the stand-in reads a chunked streamed upload; a mismatched source range must send no bytes (the streamed PUT may open first). airplay-remux run 43477344783: the transport step passes.
+
+## ISSUE-215 — F1: every re-packaged file crossed the phone three times (PR #24 roadmap, build-356 log 7249de4d) — fixed in code, device proof pending
+- **Seen:** AllDebrid → phone → Drive (the copy), then Drive → phone → Drive again (the re-package): Naruto S1 E5 `index_after_media`, Inception `not_mp4`, both `copy=True`; 27 jobs in Up next behind them.
+- **Spike result (the roadmap's open question):** no new native work is needed. The converter already writes a fragmented MP4 with its index (mfra) as a stream through `drive_prepare.Sink` (option (a) of the roadmap; this is the format every prepared file already has, and Kodi, the AirPlay bridge and the TV play it today). It only needed to read the AllDebrid link instead of Drive.
+- **Fix:** `DriveStream.add_external(key, with_link)`: the local block proxy serves a file from another server through the same cache and read-ahead (no Drive token on those requests; an expired link is renewed by the copier's `with_source`). New `debrid_ready.copy`: probe the file through the proxy; if the picture is copied (`streamable_video`) and it does not open fast as it is (`fast_open` False), convert it straight into Drive's staging folder, verify it against the source (marker, size, picture, duration, tracks, seeks: the same checks as a preparation), then `drive_prepare.promote` it into the show's folder as `<name>.mp4` with the preparation marker. `debrid_drive.step(ready_copy=…)` offers each fresh file once (not one whose plain copy is already under way; at most READY_TRIES = 3 starts); the service wires it to the preparation queue's converter and stream. At most `debrid_ready.LANES` = 3 at once (the native test runs three).
+- **Fallbacks:** a file that needs a real re-encode, or already opens fast, is copied as before (the fastest path for it). A converter or verification problem → the staged file is discarded and the file is copied plainly (`entry['plain']`), so a download never depends on this path. Network trouble / pause / cancel → raised to the copier as before; the upload carries on from its checkpoint (`resume_store`, slot `f1-…`). Setting **Make downloads ready while they copy** (Transfers, default on; `prepare_while_copying`).
+- **Retest:** test_debrid_ready (ready file in the show's folder with the marker and nothing left in staging; plain copy for re-encodes / fast-opening files / converter errors; unverified output never placed; cancel; three at once; the proxy reads an outside link, renews it, sends no Drive token), test_download_e2e (`test_a_file_made_ready_on_its_way_is_not_copied_again` through the real `step`). Phone: the log should show `AllDebrid: … made ready while it copies`, no `preparation: … opening Drive file` for that episode, and it should play on the TV at once. If anything looks wrong, turn the setting off: the previous path is unchanged.
+- **Not proven:** speed on the phone (the read goes through the Python block proxy and one Drive upload per file, not r53's native streamed copy; expected about the same per lane, with the second trip saved), and resume after the app is closed mid-file.
+
+## ISSUE-216 — F4: copies and preparation split the line with no regard for what is watched next (PR #24 roadmap) — fixed in code
+- **Seen:** build-356 log 7249de4d: copies ~15 MB/s, the preparation beside them 3–7 MB/s, whatever was being prepared; Up next went re-packages first, then by name.
+- **Fix:** `watch_next.py` reads Continue Watching (continue.json, no network): each started episode and the next 3 of its season are "next to watch", matched by show / season / episode whatever the file is called (`debrid_drive.show_match`, so Shippūden = Shippuden = Shippuuden). (1) Preparation order: `prepare_downloads.order_key` puts them right after the owner's own choices (Start now, Prepare next, ▲▼), before all other work. (2) The line: while such a video is being prepared its card carries `watch_next`, and the copier caps itself at `PRIORITY_LANES` = 2 lanes (`debrid_drive.priority_running`) instead of 4, so the preparation gets most of the line; with nothing next-to-watch in preparation the copies keep their lanes. F1 (ISSUE-215) already makes most next episodes ready as they copy.
+- **Retest:** test_watch_next (episode 5 started → 5–8 wanted, any spelling; order after owner choices and before other re-packages; cached reader follows the file; lane cap only for a fresh `watch_next` card), test_repack_label, test_prepare_downloads, test_download_e2e. Phone: needs the `network` snapshot (`copy_lanes`, `prep_read_mb_s`) while a next episode is prepared beside copies.
+
+## ISSUE-217 — "Phony" listed twice on AI Upscale; cancelled seasons named by their hash on Download problems (owner screenshots, 2026-11-13) — fixed in code
+- **Seen:** AI Upscale › Shows and movies: "Phony · 3 ep" and "Phony · 2 ep" as two rows. Download problems › Cancelled by you: "45e2c1e044af006c8fbf…" rows (Season).
+- **Cause:** (1) `upscale_page.library` grouped by `picture.show_key`: episodes with a TMDb id went to `tv:<id>`, the others to `title:phony`. (2) `debrid_drive.problem_title` returned the job's title even when the title (and name) was the torrent hash, which Build Season jobs of builds 317-319 carry.
+- **Fix:** a name-only group joins the TMDb group of the same show (`debrid_drive.show_match`), counts and episodes merged; different shows stay apart. A hash is never a title: the job's files (drive name, name, path) name it, else "Unnamed download".
+- **Retest:** test_upscale_page OneRowPerShow, test_debrid_drive ProblemTitles; test_upscale_e2e, test_library_files, test_library_status pass.
+
+## ISSUE-218 — Download problems: Clear on the "Cancelled by you" heading (DEC-044 board C) — built, rig-checked
+- **Owner:** "I want a clear by the 'cancelled by you' under download problems so i can remove that list" (62 cancelled rows under the two fixable ones; Clear only existed inside the Cancelled filter).
+- **Fix:** copy_problems.model gives the Cancelled heading `headclear='Clear'`; copy_problems_page draws a blue text link on that heading (status_ui.link, 118-unit hit area, ids 9500+slot), and onClick runs the existing Clear with its alert ("Clear N cancelled downloads?"). "Season · 1 episodes" now reads "1 episode".
+- **Retest:** test_debrid_drive DownloadProblemsPage. Desktop Kodi rig render (evidence class: rig): All view with "CANCELLED BY YOU · 2 … Clear", hash-named season shown by its file name (ISSUE-217).
+
+## ISSUE-219 — AI Upscale had no way to pause, cancel or reorder a copy (owner, 2026-11-13; DEC-044 boards A/B) — built, rig-checked
+- **Owner:** "It wont allow me to cancel anything or open whats being done and overall looks poor".
+- **Fix (engine):** upscale_queue gets a control file (upscale-control.json) the page writes and the service applies each pass (`apply_control`): `set_paused`, `cancel` (Cancel this copy / Remove from Up next → status `cancelled`, never re-added by `plan` until `revive` when the show's size is chosen again), `reorder` (an `order` field `next_job` and `up_next` follow), `cancel_all`. upscale_cloud: a paused queue makes nothing; a copy being made holds in place while paused (and stops if a video waits to be prepared, which goes first); Cancel mid-copy stops it and marks it cancelled. Originals are never touched.
+- **Retest:** test_upscale_e2e OwnerControls (pause/resume, remove two from Up next, revive, cancel mid-copy, new order, cancel all).
+- **Fix (page, boards A/B):** new windows drawn by upscale_main_page.py and filled by upscale_settings.py from upscale_page.main_view / copy_sheet / next_rows: IOSUpscale.xml (Making now card with the bar and a round pause/resume, Up next with Edit and up to three rows plus Show all, one row per show, Settings, This iPhone, Space → Free Up Space, red Cancel All Upscaling behind an alert; refreshes every 2 s), IOSUpscaleCopy.xml (the copy's sheet: poster, title, line, bar, stages, Pause/Resume and Cancel Copy behind an alert), IOSUpscaleNext.xml (Up next › Edit: – removes behind an alert, the lines icon opens Move to Top / Up / Down because Kodi cannot drag rows, Remove All, Done). A tap on an Up next row offers Make Next / Remove From Up Next. A copy saved without a file name takes its prepared video's name (the rig showed a blank "Making now" row). Choosing a show's size again revives its cancelled copies.
+- **Rig (evidence class: desktop Kodi rig):** page, sheet and edit list rendered with the rig's sample copies; Edit had opened behind its parent (a full window from a dialog) and is now a dialog. Phone check pending.
+
+## ISSUE-220 — Library status showed one preparation while three ran (F2; DEC-044 board D) — built, rig-checked
+- **Fix:** library_page draws up to two lane rows (ids 9360+, bars 9370+) under the Working on now card, in the copy rows' card style with a purple percentage and bar; the card's eyebrow reads "WORKING ON NOW · N". library_status fills them from the model's lane jobs (work_state._lanes); tap opens the video's details sheet, long press gives the conversion menu (Pause converting / Cancel conversion) for that video.
+- **Retest:** test_library_status PreparationLanes (two lanes → "· 3", 63 % / 22 %, none → as before, ids drawn). Desktop Kodi rig (`kodi_rig.py scenario lanes`, new): card plus two lane rows, each with its own bar. Phone check pending.
+
+## ISSUE-221 — The Queue page still paged with Previous / More and had no posters (DEC-045 board E) — built, rig-checked
+- **Fix:** new IOSQueueList.xml (queue_page.py), filled by tool_windows.open_queue from library_tools.queue_page_view: one scrolling list, "Downloading to Google Drive · N" then "Preparing for Kodi and AirPlay · N" (the main preparation, the extra lanes, then the line), posters, a percentage and bar on what moves. Edit switches the same window to edit mode: red – (stop a copy / keep a video as it is, each behind its alert), the lines icon on movable rows (Move to Top / Up / Down → prepare_downloads requests next / up / down), Done, and the red "Cancel All Downloads to Drive". A tap on a row offers Prepare Next / Keep as It Is (or cancels a copy).
+- **Retest:** test_library_tools (one list with every copy, Edit + moves send down / up / next, the window's ids). Desktop Kodi rig (scenario lanes): list and edit mode rendered.
+
+## ISSUE-222 — Favourites showed its title twice and a plain empty line (DEC-045 board F) — built, rig-checked
+- **Fix:** settings_page.favourites_page: the header keeps the back button and drops its small centred title (the large one stays); the empty state is the star in a yellow-tinted disc, "No favourites yet" and "Hold a poster anywhere and choose Add to Favourites."; with favourites, the segmented All / Movies / Shows (notifications_skin.segmented, ids 9020+) over the same poster grid. favourites_rows.kind_of reads movie / tv from the favourite's link (TMDb Helper's tmdb_type, Kodi's videodb paths); a filter with nothing in it says "No movies in your favourites".
+- **Retest:** test_profiles_favourites (one title, empty line, the filter's ids, kinds and filtering). Desktop Kodi rig: empty state and three favourites with the filter.
+
+## ISSUE-223 — "Video preparation paused" for a video that is kept as it is (owner screenshot, Naruto Shippuuden S1 E16, build 360) — wording fixed; the track not yet identified
+- **Seen:** Notifications: "Video preparation paused · Naruto Shippuuden · S1 E16: This file has tracks MP4 cannot preserve; original retained".
+- **Cause:** kr_prepare refuses to replace a file when that would drop a kept-language picture subtitle it cannot save beside the MP4 (a DVD / VobSub subtitle) or a second video track (by design: never silently discard tracks in an in-place replacement). prepare_cloud already marks the job blocked (one more try through retry_image_subtitles), but the notice said "paused" with the converter's words.
+- **Fix:** the notice is now "Kept as it is · <video> still plays in Kodi as it is; it has DVD picture subtitles or a second video track an MP4 can't keep, so it isn't made ready for AirPlay.", once per video (flag `kept_told`, kept across the retry), and Transfers › History says "kept as it is: …".
+- **Open:** which track S1 E16 has: the log line's `video={…}` (cut off in the screenshot) lists the tracks; with it, dropping a non-kept-language DVD subtitle could be allowed in a later native release.
+- **Retest:** test_drive_prepare test_a_track_mp4_cannot_keep_is_kept_as_it_is_with_plain_words (one notice across two passes, original untouched), test_image_subtitles.
+
+## ISSUE-224 — Preparation stopped while AI Upscale made a copy (owner log 20d8a992, build 360) — fixed in code
+- **Seen:** 09:57 Naruto S1 E15 failed ("tracks MP4 cannot preserve"); 09:58 an AI Upscale copy started (Hell House LLC), then Phony S1 E2 from 10:01 to 10:16 at 0.7 MB/s, while the scheduler counted 23 eligible videos and Library status showed nothing moving. Both copies ended in "Source read: Input/output error". Once upscaling stopped, preparation went through 20+ videos in minutes (23 MB/s reads).
+- **Cause:** service.py started AI Upscale whenever `process_one` returned False, which a failed preparation also does, not only an empty queue.
+- **Fix:** AI Upscale starts only when no video waits to be prepared (`upscale_cloud._prep_waiting`), and a copy being made stops as soon as one does (it starts again later; the owner wants everything prepared before watching). The page shows it waiting.
+- **Also in this log, not a bug:** Naruto Shippuuden S1 E9–E16 (640x480 release) carry their English subtitles as a DVD picture subtitle (`other_image_subtitles: 1`, the only subtitle); the converter will not replace a file and drop it, so they are kept as they are (ISSUE-223 makes the notice say so). A release with text subtitles avoids it.
+- **Retest:** test_upscale_e2e PreparationFirst (a download landing mid-copy stops it; it is made once the queue is empty), test_upscale_e2e, test_upscale_cloud.
+
+## ISSUE-225 — Notification details showed raw errors twice and log lines with JSON; vague problems had nothing to do (owner screenshots; DEC-046 boards G/H) — built, rig-checked
+- **Fix:** notice_help.explain turns a notice into plain parts: a title that names the video, one line for the list, "What happened", a "Nothing was lost" line when true, and up to three fixes mapped to things the app can do (Library page / Library status / Download problems / Accounts / Run Setup Again / Share the log / AI Upscale / Retry the copies / the notice's own action). Known errors: picture-subtitle files, preparation failures, copies (blocked sign-in, busy), setup, Drive sign-in, kept as it is, Trakt, AI Upscale ready; anything else gets plain words and Share the log. IOSNoticeDetail.xml: the plain view (card, white capsule, fix rows, Technical details ›) and, in the same sheet, Technical details (a facts table read from the failure line: step, video, picture subtitles, when; the kodi.log lines; Share Log). Notifications list rows wrap the title and line to two lines (textboxes, owner: "ensure text fits and its not just ...") and problems with a fix get a Fix button (9601+).
+- **Not done from the mockup:** "Copy Details" (Kodi has no clipboard on iOS) and "Restart Kodi" (no reliable restart from a script on iOS); Run Setup Again and Share the log cover them.
+- **Retest:** test_notice_log (the owner's three notices explained, copies and unknown problems, facts from a failure line, rows wrap and get Fix, the sheet's ids), test_notices, test_build193_pages. Desktop Kodi rig: list with Fix buttons and two-line titles, the sheet, Technical details.
+
+## ISSUE-226 — Repair / Repair All did nothing for Naruto, preparation never retried, and Download problems did not list it (owner log a1729c16, build 361) — found, not coded
+- **Seen:** 11:54:21 Repair on a Naruto Shippuuden episode, 11:54:25 show ••• › Repair All Problems; no preparation started afterwards (only library checks: "compatible video kept unchanged" ×20), scheduler `queued_jobs 0, reason no_jobs`. Download problems (11:56:53) showed no Naruto row although the show page counted problems.
+- **Cause 1:** Repair sends the `retry` request; `prepare_downloads.apply_requests` resets status/attempts/error but not `blocked`, and every queue filter skips blocked jobs, so a video kept for "tracks MP4 cannot preserve" stays out of the queue for ever.
+- **Cause 2:** the converter (kr_prepare.c) saves only PGS picture subtitles beside the MP4; Naruto S1 E9–E16's only (English) subtitle is a DVD/VobSub picture subtitle, so it refuses to replace the file.
+- **Cause 3:** Download problems shows only AllDebrid copy problems; preparation problems live in Library status / the show page.
+- **Plan:** ROADMAP "Preparation repair roadmap — 2026-11-13" P1–P6. Not coded (owner: findings only).

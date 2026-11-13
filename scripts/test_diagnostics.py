@@ -79,6 +79,19 @@ class Diagnostics(unittest.TestCase):
   text=path.read_text();self.assertIn('Installed build: 167',text);self.assertIn('kodi-airplay-r17',text)
   self.assertLess(text.index('old launch'),text.index('current launch'));self.assertIn('Current queue summary',text)
   self.assertNotIn('SECRET',text);self.assertIn('NEWSECRET',(log/'kodi.log').read_text(),'original log remains unchanged')
+ def test_network_summary_says_link_lanes_and_speeds(self):
+  # ISSUE-198 (owner logs, build 350): no way to tell Wi-Fi from cellular or which pipe was starved.
+  import tempfile,json as _j
+  from pathlib import Path as _P
+  with tempfile.TemporaryDirectory() as d:
+   folder=_P(d)
+   (folder/'debrid-drive.json').write_text(_j.dumps({'lanes':{'0':{'stage':'copying','rate_own':2*1048576},'1':{'stage':'copying','rate_own':1048576}},
+     'jobs':[{'status':'copying','net_tries':2},{'status':'done','net_tries':1}]}))
+   diag._NET.clear()
+   first=diag.network(folder,{'read_bytes':0},lambda:100,link='wifi')
+   self.assertEqual((first['link'],first['copy_lanes'],first['copy_mb_s'],first['copies_waiting_for_network']),('wifi',2,3.0,1))
+   second=diag.network(folder,{'read_bytes':60*1048576},lambda:160,link='cellular')
+   self.assertEqual((second['prep_read_mb_s'],second['link_changed_from']),(1.0,'wifi'))
  def test_watch_emits_initial_and_periodic_snapshot_with_build(self):
   waits=[]
   diag.watch(self.profile,self.logs.append,lambda seconds:waits.append(seconds) or len(waits)>=2,settings=lambda:dict(background_transfers=True))

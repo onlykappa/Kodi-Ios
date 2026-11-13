@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Download problems mockups</title>
+<!-- MOCKUP (evidence class: mockup, docs/design/APPLE-UI-POLICY.md §9). Not a render of Kodi. Portrait 402 x 874 pt,
+     tokens from portrait.py / pages.py (§4.3), the style of ai-upscale-settings-mockups.html. -->
+<style>
+:root{--bg:#000;--s1:#1c1c1e;--s2:#2c2c2e;--grey:rgba(235,235,245,.6);--dim:rgba(235,235,245,.3);--sep:rgba(235,235,245,.16);
+ --blue:#0a84ff;--blue-text:#4fa8ff;--green:#30d158;--orange:#ff9f0a;--red:#ff453a;--purple:#bf5af2}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a0b;color:#fff;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:32px 16px 64px}
+.intro{max-width:1180px;margin:0 auto 10px}
+.mk{display:inline-block;background:#ffd60a;color:#000;font-size:12px;font-weight:700;border-radius:6px;padding:3px 8px;margin-bottom:10px}
+h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px}
+.intro p{color:#b4b4ba;font-size:15px;line-height:1.5;max-width:880px;margin-bottom:8px}
+.board{max-width:1180px;margin:30px auto 0;padding-top:16px;border-top:1px solid #26272b}
+.board .n{color:var(--blue-text);font-size:13px;font-weight:700;letter-spacing:.06em}
+.board h2{font-size:20px;font-weight:700;margin:2px 0 6px}
+.board>p{color:var(--grey);font-size:14px;line-height:1.5;max-width:880px;margin-bottom:16px}
+.shots{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+.slot{width:340px}
+.cap{color:var(--grey);font-size:13px;line-height:1.4;margin-top:10px}.cap b{color:#fff}
+.pframe{width:340px;aspect-ratio:402/874;border-radius:48px;padding:12px;background:linear-gradient(145deg,#3a3a3e,#151517 40%,#2a2a2d);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 1.5px #4a4a4f}
+.ps{position:relative;width:100%;height:100%;border-radius:38px;overflow:hidden;background:#000;padding:44px 14px 16px;font-size:14px}
+.nb{color:var(--blue-text);font-size:15px;font-weight:600;margin-bottom:4px}
+.ps h3{font-size:30px;font-weight:800;margin-bottom:12px;letter-spacing:-.01em}
+.sh{color:var(--grey);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:14px 6px 6px}
+.grp{background:var(--s1);border-radius:12px;overflow:hidden}
+.pr{position:relative;display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 12px}
+.pr+.pr::before{content:"";position:absolute;top:0;left:12px;right:0;height:1px;background:var(--sep)}
+.pr .t{flex:1;min-width:0}.pr .t b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .t span{display:block;color:var(--grey);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr .v{color:var(--grey);font-size:14px;white-space:nowrap}
+.go{color:var(--dim);font-size:17px;font-weight:600}
+.ico{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:15px}
+.tile{width:30px;height:44px;border-radius:5px;flex:none}
+.toggle{flex:none;width:46px;height:28px;border-radius:14px;background:#39393d;position:relative}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:#fff}
+.toggle.on{background:var(--green)}.toggle.on::after{left:20px}
+.foot{color:var(--grey);font-size:12px;margin:6px 6px 0;line-height:1.35}
+.thin{height:4px;border-radius:2px;background:rgba(235,235,245,.2);overflow:hidden;margin-top:6px}.thin i{display:block;height:100%;background:var(--blue)}
+.chip{font-size:11px;font-weight:700;border-radius:6px;padding:2px 6px;white-space:nowrap}
+.chip.g{background:rgba(48,209,88,.18);color:var(--green)}.chip.b{background:rgba(10,132,255,.2);color:var(--blue-text)}
+.chip.n{background:rgba(235,235,245,.12);color:var(--grey)}
+.status{background:var(--s1);border-radius:12px;padding:12px;display:flex;gap:12px;align-items:center}
+.status .t b{font-size:15px}.status .t span{color:var(--grey);font-size:12.5px;display:block;margin-top:2px}
+.seg{display:flex;background:var(--s2);border-radius:9px;padding:2px;margin:0 0 8px}
+.seg div{flex:1;text-align:center;padding:6px 0;border-radius:7px;font-size:13px;font-weight:600;color:var(--grey)}.seg div.on{background:#636366;color:#fff}
+.btn{margin-top:12px;height:46px;border-radius:23px;background:#fff;color:#000;display:grid;place-items:center;font-weight:700;font-size:15.5px}
+.red{color:var(--red);text-align:center;font-weight:600;font-size:15px;margin-top:12px}
+.hero{display:flex;gap:12px;align-items:center;margin-bottom:6px}
+.hero i{width:58px;height:84px;border-radius:7px;flex:none}
+.hero b{display:block;font-size:22px;font-weight:800}.hero span{color:var(--grey);font-size:13px}
+.slider{background:var(--s1);border-radius:12px;padding:12px}
+.slider .row{display:flex;justify-content:space-between;align-items:baseline}.slider .row b{font-size:15px}.slider .row span{color:var(--blue-text);font-weight:700}
+.track{position:relative;height:4px;background:rgba(235,235,245,.25);border-radius:2px;margin:16px 6px 8px}
+.track i{position:absolute;left:0;top:0;bottom:0;width:100%;background:var(--blue);border-radius:2px}
+.track em{position:absolute;top:-10px;right:-12px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--grey)}.ticks .on{color:#fff;font-weight:700}
+.notes{max-width:1180px;margin:30px auto 0;color:#b4b4ba;font-size:14px;line-height:1.55}.notes h3{color:#fff;font-size:16px;margin:16px 0 6px}.notes li{margin:3px 0 3px 18px}
+</style></head><body>
+<style>
+.sum{background:var(--s1);border-radius:14px;padding:10px;margin-bottom:8px}
+.sum .row{display:flex;gap:6px}.sum .row div{flex:1;background:var(--s2);border-radius:10px;padding:8px 9px}
+.sum .row b{display:block;font-size:18px}.sum .row span{color:var(--grey);font-size:11px}
+.sum p{color:var(--grey);font-size:12px;margin-top:9px;line-height:1.35}
+.seg2{display:flex;background:var(--s1);border-radius:10px;padding:2px;margin:2px 0 4px}
+.seg2 div{flex:1;text-align:center;padding:7px 0;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--grey)}.seg2 div.on{background:#636366;color:#fff}
+.lst{background:var(--s1);border-radius:14px;overflow:hidden}
+.pb2{position:relative;display:flex;gap:11px;align-items:center;padding:9px 10px}
+.pb2+.pb2::before{content:"";position:absolute;top:0;left:58px;right:0;height:1px;background:var(--sep)}
+.post{width:38px;height:56px;border-radius:6px;flex:none;position:relative}
+.post .badge{position:absolute;right:-5px;bottom:-5px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:800;border:2px solid var(--s1)}
+.pb2 .t{flex:1;min-width:0}.pb2 .t b{display:block;font-size:14.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb2 .t span{display:block;color:var(--grey);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb2 .t em{display:block;font-style:normal;font-size:11.5px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.act{flex:none;border-radius:14px;padding:6px 11px;font-size:12.5px;font-weight:700;background:var(--s2);color:var(--blue-text)}
+.btn2{height:46px;border-radius:23px;background:#fff;color:#000;display:grid;place-items:center;font-weight:700;font-size:15px;margin-top:12px}
+.redl{color:var(--red);text-align:center;font-weight:600;font-size:14.5px;margin-top:12px}
+.asheet{position:absolute;left:10px;right:10px;bottom:14px}
+.asheet .box{background:rgba(44,44,46,.98);border-radius:14px;overflow:hidden;margin-bottom:8px}
+.asheet .hd{padding:13px 14px 11px;text-align:center}.asheet .hd b{display:block;font-size:13.5px}.asheet .hd span{display:block;color:var(--grey);font-size:12px;margin-top:3px;line-height:1.35}
+.asheet .o{border-top:1px solid var(--sep);padding:13px;text-align:center;font-size:16px;color:var(--blue-text)}
+.asheet .o.d{color:var(--red)}
+.asheet .c{background:rgba(44,44,46,.98);border-radius:14px;padding:13px;text-align:center;font-size:16px;font-weight:700;color:var(--blue-text)}
+.dimall{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+.alert{position:absolute;left:34px;right:34px;top:260px;background:rgba(44,44,46,.98);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.7)}
+.alert .h{padding:16px 14px 12px;text-align:center}.alert .h b{display:block;font-size:16px}.alert .h span{display:block;color:var(--grey);font-size:12.5px;margin-top:4px;line-height:1.35}
+.alert .o{border-top:1px solid var(--sep);padding:11px;text-align:center;font-size:15px;color:var(--blue-text)}
+.alert .o.d{color:var(--red);font-weight:600}.alert .o.c{font-weight:600}
+.empty{text-align:center;margin-top:120px}.empty .ic2{width:64px;height:64px;border-radius:50%;background:rgba(48,209,88,.18);color:var(--green);display:grid;place-items:center;font-size:30px;font-weight:800;margin:0 auto 14px}
+.empty b{display:block;font-size:19px}.empty span{display:block;color:var(--grey);font-size:13px;margin-top:6px;line-height:1.4;padding:0 18px}
+</style></head><body>
+<div class="intro"><span class="mk">MOCKUP</span><h1>Download problems</h1>
+<p>Owner (build 356): "we need a moc up of a better downloaded problems page as that is ugly!" Today it is a plain select list: "Retry All (2)" and "Clear All (64)" over 64 rows, some named by hash and every reason cut off. This replaces it with a real page in the Settings › Library style, the same page the bell's "Download problems" notice opens.</p>
+<p>Evidence class: mockup (APPLE-UI-POLICY §9), not a Kodi render. Tokens from portrait.py / pages.py; posters are placeholder colour.</p></div>
+
+<section class="board"><div class="n">A · THE PAGE</div><h2>What stopped, why, in plain words, and what to do</h2>
+<p>A summary first: what will try again by itself, what needs a new source, what you cancelled. Rows are grouped by what you can do about them, not by error text. Each row has a poster, the title (never a hash), one short reason and one action. One primary button: Retry. Copies already on Drive from another source are never listed.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Library</div><h3 style="font-size:26px">Download problems</h3>
+  <div class="sum"><div class="row"><div><b style="color:var(--blue-text)">2</b><span>Can try again</span></div><div><b style="color:var(--orange)">1</b><span>Need a new source</span></div><div><b>57</b><span>Cancelled</span></div></div>
+   <p>Network drops wait and carry on by themselves.</p></div>
+  <div class="seg2"><div class="on">All</div><div>Retry</div><div>Source</div><div>Cancelled</div></div>
+  <div class="sh">Can try again</div>
+  <div class="lst">
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#28506e,#0e1c28)"></div><div class="t"><b>Fall 2: Deadpoint</b><span>Movie · 2026</span><em style="color:var(--orange)">AllDebrid was busy</em></div><div class="act">Retry</div></div>
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#7a4b1e,#25160a)"></div><div class="t"><b>Naruto Shippuden · S1 E14</b><span>Episode · 1.1 GB</span><em style="color:var(--orange)">Drive stopped answering</em></div><div class="act">Retry</div></div>
+  </div>
+  <div class="sh">Need a new source</div>
+  <div class="lst">
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#3d2d5c,#120d1d)"></div><div class="t"><b>The Lorax</b><span>Movie · 2012</span><em style="color:var(--red)">This source has no video file</em></div><div class="act">Find</div></div>
+     </div>
+  <div class="btn2">Retry 2</div>
+ </div></div><div class="cap"><b>A · Download problems:</b> opens from Settings › Library and from the bell's notice. Scrolls; Cancelled is below (board B).</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Library</div><h3 style="font-size:26px">Download problems</h3>
+  <div class="seg2"><div>All</div><div>Retry</div><div>Source</div><div class="on">Cancelled</div></div>
+  <div class="sh">Cancelled by you · 57</div>
+  <div class="lst">
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#a5521c,#2c160a)"></div><div class="t"><b>Naruto Shippuden The Movie</b><span>Movie · 2007</span><em style="color:var(--grey)">Cancelled 2 days ago</em></div><div class="act">Restart</div></div>
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#245e57,#0b1d1b)"></div><div class="t"><b>Dragon Ball Super · S1</b><span>Season · 14 episodes</span><em style="color:var(--grey)">Cancelled 2 days ago</em></div><div class="act">Restart</div></div>
+   <div class="pb2"><div class="post" style="background:linear-gradient(160deg,#4a4a4f,#151517)"></div><div class="t"><b>Unnamed download</b><span>No title came with it</span><em style="color:var(--grey)">Cancelled 3 days ago</em></div><div class="act">Restart</div></div>
+  </div>
+  <div class="foot">Cancelled copies stay listed so you can restart them. Clearing removes them from this list only; nothing on Google Drive changes.</div>
+  <div class="redl">Clear Cancelled (57)</div>
+ </div></div><div class="cap"><b>B · Cancelled:</b> the long list lives in its own filter, so it never buries the two that can be fixed. Clear asks first (board C2).</div></div>
+</div></section>
+
+<section class="board"><div class="n">C · A ROW'S ACTIONS</div><h2>Tap a row: the full reason and every choice</h2>
+<p>The row's button does the usual thing; tapping the row opens an action sheet with the whole reason (never cut off) and the other choices. Destructive choices are red and always ask.</p>
+<div class="shots">
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Library</div><h3 style="font-size:26px">Download problems</h3>
+  <div class="lst"><div class="pb2"><div class="post" style="background:linear-gradient(160deg,#3d2d5c,#120d1d)"></div><div class="t"><b>The Lorax</b><span>Movie · 2012</span><em style="color:var(--red)">This source has no video file</em></div><div class="act">Find</div></div></div>
+  <div class="dimall"></div>
+  <div class="asheet"><div class="box"><div class="hd"><b>The Lorax</b><span>AllDebrid opened this torrent but it has no video file in it (only extras or a disc image). Another source usually works.</span></div>
+   <div class="o">Find Another Source</div><div class="o">Try This Source Again</div><div class="o d">Remove From List</div></div>
+   <div class="c">Cancel</div></div>
+ </div></div><div class="cap"><b>C1 · Row actions:</b> "Find Another Source" opens the title's sources with this one marked as failed.</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Library</div><h3 style="font-size:26px">Download problems</h3>
+  <div class="dimall"></div>
+  <div class="alert"><div class="h"><b>Clear 57 cancelled downloads?</b><span>They leave this list. Videos already on Google Drive stay, and AllDebrid keeps its copy.</span></div>
+   <div class="o d">Clear</div><div class="o c">Cancel</div></div>
+ </div></div><div class="cap"><b>C2 · Clear asks first:</b> the same alert style as Free Up Space.</div></div>
+
+ <div class="slot"><div class="pframe"><div class="ps">
+  <div class="nb">‹ Library</div><h3 style="font-size:26px">Download problems</h3>
+  <div class="empty"><div class="ic2">✓</div><b>No download problems</b><span>Every copy is on Google Drive or on its way. Anything that stops shows up here.</span></div>
+ </div></div><div class="cap"><b>D · Empty:</b> says what's empty and what would appear (§6).</div></div>
+</div></section>
+
+<div class="notes"><h3>Notes</h3><ul>
+<li>Kodi skin XML, drawn with the existing helpers: Settings grouped rows and section headers, the Notifications segmented control, poster tiles from transfer_artwork, the white primary capsule and red text action. No new colours, radii or button styles.</li>
+<li>Groups come from debrid_drive.problems(): "Can try again" (network, AllDebrid busy), "Need a new source" (no video, blocked, dead torrent), "Cancelled". Reasons are rewritten in plain words; the raw error stays in kodi.log.</li>
+<li>Titles: the job title, else the cleaned file name, else "Unnamed download" (never a hash). Copies already finished from another source are not listed and are never retried.</li>
+<li>Numbers and names are examples; artwork is placeholder colour.</li>
+</ul></div>
+</body></html>

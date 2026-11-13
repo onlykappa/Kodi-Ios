@@ -79,20 +79,33 @@ def open_queue(profile=None):
     import prepare_downloads
     profile = profile or _profile()
 
+    import queue_page as qp
+    import transfer_artwork
+    import drivelibrary
+    import work_state
+    art = drivelibrary.load_json(transfer_artwork.cache_path(profile), {})
+
+    def poster(name):
+        try:
+            return transfer_artwork.describe(name, art)['poster'] if name else ''
+        except Exception:
+            return ''
+
     class Queue(xbmcgui.WindowXMLDialog):
+        """DEC-045 board E: one scrolling list; Edit turns on – / lines in the same window."""
         def onInit(self):
             import live_window
             self.guard = live_window.Guard(self)   # ISSUE-123: controls only while this page is open
             self.stop = threading.Event()
             self.lock = threading.Lock()
-            self.offset=0
-            self.line = []
+            self.editing = False
+            self.view = {'drive': [], 'prep': []}
             self.refresh()
             threading.Thread(target=self.loop, daemon=True).start()
 
         def loop(self):
             monitor = xbmc.Monitor()
-            while not page_wait.idle(self.stop,monitor,2):
+            while not page_wait.idle(self.stop, monitor, 2):
                 try:
                     self.refresh()
                 except Exception as error:
@@ -101,20 +114,31 @@ def open_queue(profile=None):
         def refresh(self):
             with self.lock:
                 q = queue_snapshot(profile)
-                # The existing page controls also page Drive jobs; none disappear beyond its three row slots.
-                total=max(len(q['line']),((len(q['drive'])+page.DRIVE_SLOTS-1)//page.DRIVE_SLOTS)*page.QUEUE_SLOTS)
-                self.offset=min(self.offset,max(0,(total-1)//page.QUEUE_SLOTS*page.QUEUE_SLOTS))
-                self.line = q['line'][self.offset:self.offset+page.QUEUE_SLOTS]
-                self.setProperty('pages','true' if total>page.QUEUE_SLOTS else '')
-                self.setProperty('page.previous','true' if self.offset else '')
-                self.setProperty('page.more','true' if self.offset+page.QUEUE_SLOTS<total else '')
-                drive_offset=(self.offset//page.QUEUE_SLOTS)*page.DRIVE_SLOTS
-                q=dict(q,line=self.line,drive=q['drive'][drive_offset:drive_offset+page.DRIVE_SLOTS])
-                props = lt.queue_properties(q)
-                for k, v in props.items():
-                    self.setProperty(k, v)
-                # Kodi cannot size a progress bar from a window property; set it only while the page is open.
-                self.guard.percent(page.QBAR, props.get('now.pct') or 0)
+                model = work_state.current(profile)
+                self.view = v = lt.queue_page_view(model, q['line'])
+                props = {'edit.label': 'Done' if self.editing else 'Edit', 'editing': 'true' if self.editing else '',
+                         'drive.head': ('DOWNLOADING TO GOOGLE DRIVE · %d' % len(v['drive'])) if v['drive'] else '',
+                         'prep.head': ('PREPARING FOR KODI AND AIRPLAY · %d' % len(v['prep'])) if v['prep'] else '',
+                         'cancelall': 'true' if any(r['hash'] for r in v['drive']) else '',
+                         'empty': '' if v['drive'] or v['prep'] else 'Nothing is waiting.',
+                         'more': ('and %d more' % (len(v['prep']) - qp.PREP_SLOTS)) if len(v['prep']) > qp.PREP_SLOTS else '',
+                         'foot': ('Tap the lines on the right to move a video. – keeps a video as it is (it still plays on this '
+                                  'iPhone); Library status can prepare it later.') if self.editing and v['prep'] else ''}
+                for group, slots, bars in (('drive', qp.DRIVE_SLOTS, qp.DRIVE_BARS), ('prep', qp.PREP_SLOTS, qp.PREP_BARS)):
+                    rows = v[group][:slots]
+                    for n in range(slots):
+                        r = rows[n] if n < len(rows) else {}
+                        k = '%s.%d.' % (group, n)
+                        props.update({k + 'title': r.get('title', ''), k + 'sub': r.get('sub', ''), k + 'pct': r.get('pct', ''),
+                                      k + 'tint': ('FF0A84FF' if group == 'drive' else 'FFBF5AF2'),
+                                      k + 'removable': 'true' if r.get('removable') else '', k + 'movable': 'true' if r.get('movable') else '',
+                                      k + 'poster': poster(r.get('name') or r.get('title')),
+                                      k + 'pos': ('only' if len(rows) == 1 else 'first' if n == 0 else 'last' if n == len(rows) - 1 else 'mid') if r else ''})
+                        if r.get('pct'):
+                            self.guard.percent(bars + n, r.get('bar') or 0)
+                for key, value in props.items():
+                    if self.getProperty(key) != value:
+                        self.setProperty(key, value)
 
         def onAction(self, action):
             if action.getId() in BACK:
@@ -124,30 +148,71 @@ def open_queue(profile=None):
             self.stop.set()
             self.guard.close()
 
+        def remove(self, group, r):
+            import xbmcgui
+            dialog = xbmcgui.Dialog()
+            if group == 'drive':
+                if r['kind'] == 'down':
+                    if dialog.yesno('Cancel download', 'Stop downloading %s and delete what has downloaded so far?' % r['title'],
+                                    nolabel='Keep', yeslabel='Stop'):
+                        import notices
+                        notices.engine_action('cancel', r['id'])
+                elif r['hash'] and dialog.yesno('Cancel download', 'Stop copying %s from AllDebrid to Google Drive? What has been '
+                                                'copied so far is dropped.' % r['title'], nolabel='Keep', yeslabel='Stop'):
+                    import transfer_control
+                    transfer_control.cancel_copy(profile, r['hash'])
+                return
+            words = ('Stop converting %s? It stays in your library as it is and plays on this iPhone. Library status can '
+                     'convert it later for Play on TV.' if r['moving'] else
+                     '%s is kept as it is: it plays on this iPhone, and Library status can prepare it later.') % r['title']
+            if dialog.yesno('Stop converting' if r['moving'] else 'Keep as it is?', words, nolabel='Cancel',
+                            yeslabel='Stop' if r['moving'] else 'Keep As It Is'):
+                prepare_downloads.request(profile, 'keep', r['id'])
+
         def onClick(self, control):
-            if control == page.BACK:
+            import xbmcgui
+            v = self.view
+            if control == qp.BACK:
                 self.finish()
                 return
-            if control == page.QCANCEL:
-                # Every queued AllDebrid -> Drive copy goes, after one question.
-                import transfer_control, xbmcgui
+            if control == qp.EDIT:
+                self.editing = not self.editing
+            elif control == qp.CANCEL_ALL:
+                import transfer_control
                 n = len(transfer_control.unfinished_copies(profile))
                 if xbmcgui.Dialog().yesno('Cancel all downloads', 'Stop the copy running now and remove all %d downloads to Google Drive '
                                           'from the queue? Videos already on Google Drive stay.' % n, nolabel='Keep', yeslabel='Remove All'):
                     xbmcgui.Dialog().notification('Kodi iOS', '%d downloads cancelled' % transfer_control.cancel_all_copies(profile),
                                                   xbmcgui.NOTIFICATION_INFO, 3000)
-                self.refresh()
-                return
-            if control in (page.QPREV,page.QNEXT):
-                self.offset=max(0,self.offset+(page.QUEUE_SLOTS if control==page.QNEXT else -page.QUEUE_SLOTS));self.refresh();return
-            for base, action in ((page.UP, 'up'), (page.DOWN, 'down')):
-                n = control - base
-                if 1 <= n <= page.QUEUE_SLOTS and n <= len(self.line):
-                    if self.line[n - 1].get(action):
-                        prepare_downloads.request(profile, action, self.line[n - 1]['id'])
-                        self.refresh()
+            elif qp.DRIVE_MINUS <= control < qp.DRIVE_MINUS + qp.DRIVE_SLOTS and control - qp.DRIVE_MINUS < len(v['drive']):
+                self.remove('drive', v['drive'][control - qp.DRIVE_MINUS])
+            elif qp.PREP_MINUS <= control < qp.PREP_MINUS + qp.PREP_SLOTS and control - qp.PREP_MINUS < len(v['prep']):
+                self.remove('prep', v['prep'][control - qp.PREP_MINUS])
+            elif qp.PREP_MOVE <= control < qp.PREP_MOVE + qp.PREP_SLOTS and control - qp.PREP_MOVE < len(v['prep']):
+                r = v['prep'][control - qp.PREP_MOVE]
+                pick = xbmcgui.Dialog().contextmenu(['Move to Top', 'Move Up', 'Move Down'])
+                if pick < 0:
                     return
-    show(Queue, page.QUEUE)
+                prepare_downloads.request(profile, ('next', 'up', 'down')[pick], r['id'])
+            elif qp.PREP_ROW <= control < qp.PREP_ROW + qp.PREP_SLOTS and control - qp.PREP_ROW < len(v['prep']):
+                r = v['prep'][control - qp.PREP_ROW]
+                labels = (['Prepare Next'] if r['movable'] else []) + ['Keep as It Is' if not r['moving'] else 'Stop Converting']
+                pick = xbmcgui.Dialog().contextmenu(labels)
+                if pick < 0:
+                    return
+                if labels[pick] == 'Prepare Next':
+                    prepare_downloads.request(profile, 'next', r['id'])
+                else:
+                    self.remove('prep', r)
+            elif qp.DRIVE_ROW <= control < qp.DRIVE_ROW + qp.DRIVE_SLOTS and control - qp.DRIVE_ROW < len(v['drive']):
+                r = v['drive'][control - qp.DRIVE_ROW]
+                if r['removable']:
+                    self.remove('drive', r)
+                return
+            else:
+                return
+            self.refresh()
+    show(Queue, qp.WINDOW)
 
 
 def open_history(profile=None):

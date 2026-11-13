@@ -5,6 +5,13 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'migration/bundled-bootstrap/resources/lib'))
 import background,preparation_runtime as runtime
 class Runtime(unittest.TestCase):
+ def test_a_finished_conversion_shows_what_is_left_to_upload(self):
+  # ISSUE-202: after the last unit, the line names the upload and its share instead of a frozen "Converting".
+  item={'running':True,'stage':'Step 3 of 3 · Converting','progress':79.5,'eta':'about 5 min'}
+  shown=runtime.current(item,{'known':True,'transfer_phase':'uploading','up_rate':1024*1024,
+                              'upload_left':300*1024*1024,'upload_total':400*1024*1024})
+  self.assertEqual(shown['stage'],'Uploading to Google Drive · 25%')
+  self.assertEqual((shown['detail'],shown['progress'],shown['eta_s']),('300 MB left to upload',79.5,300))
  def test_heartbeat_survives_a_slow_probe_then_expires_after_exit(self):
   with tempfile.TemporaryDirectory() as profile:
    with runtime.Lease(profile,stats=lambda:dict(bytes_read=4096),every=.01) as lease:

@@ -119,7 +119,40 @@ class Build192Causes(unittest.TestCase):
   prep={'jobs':{'a':job('Fall.2.mkv',repack=True,size=16.9*GB),'b':job('Scary.Movie.2026.mkv'),'c':job('Kept.mkv',kept=True),
                 'd':job('Blocked.mkv',blocked=True),'e':job('Done.mkv',status='done')}}
   s=ws.build({'prep':prep},NOW)
-  self.assertEqual([(n['title'],n['what']) for n in s['next']],[('Scary Movie (2026)','convert'),('Fall 2','faster start')])
+  self.assertEqual([(n['title'],n['what']) for n in s['next']],[('Scary Movie (2026)','prepare'),('Fall 2','faster start')])
+ def test_up_next_says_convert_only_when_the_picture_is_re_encoded(self):
+  # PR #24 ticket (build-356 screenshot: re-packages read "Convert · 4.3 GB"): not read yet says prepare.
+  self.assertEqual(ws.next_what({'repack':True}),'faster start')
+  self.assertEqual(ws.next_what({'probe':{'copy_video':True}}),'faster start')
+  self.assertEqual(ws.next_what({'probe':{'copy_video':False}}),'convert')
+  self.assertEqual(ws.next_what({}),'prepare')
+
+class InstantCancel(unittest.TestCase):
+ """ISSUE-208 (owner: "deleting the download queue is also slow as hell, it needs to be instant")."""
+ def test_a_cancel_shows_at_once_before_the_copier_applies_it(self):
+  import debrid_drive,transfer_control
+  with tempfile.TemporaryDirectory() as p:
+   debrid_drive.save(p,{'jobs':[{'hash':'a'*40,'name':'A','title':'Heat','kind':'movie','status':'copying','files':[],'added':1},
+                                {'hash':'b'*40,'name':'B','title':'Fall','kind':'movie','status':'new','files':[],'added':2}],
+                        'current':{'stage':'copying','sent':1,'total':10,'updated':time.time(),'name':'A'}})
+   self.assertEqual(ws.current(p)['copies_waiting'],2)
+   transfer_control.cancel_copy(p,'A'*40)
+   titles=[j['title'] for j in ws.current(p)['jobs']+ws.current(p)['drive_next']]
+   self.assertNotIn('Heat',titles)
+   transfer_control.cancel_copy(p,'b'*40)
+   now=ws.current(p)
+   self.assertFalse([j for j in now['jobs'] if j.get('kind')=='copy']);self.assertFalse(now['drive_next'])
+   self.assertEqual(now['copies_waiting'],0)
+   self.assertEqual([j['status'] for j in debrid_drive.load(p)['jobs']],['copying','new'])   # the copier still applies it
+ def test_the_copier_wakes_on_a_cancel_and_forgets_requests_with_nothing_left(self):
+  src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/service.py').read_text()
+  self.assertIn('while not nap(delay):',src);self.assertIn('if transfer_control.cancelled_copies(profile):return False',src)
+  import debrid_drive
+  forgot=[]
+  with tempfile.TemporaryDirectory() as p:
+   debrid_drive.save(p,{'jobs':[{'hash':'a'*40,'name':'A','title':'Heat','kind':'movie','status':'done','files':[],'added':1}]})
+   debrid_drive.step(p,None,None,cancelled=lambda:{'a'*40,'c'*40},forget=forgot.append)
+  self.assertEqual(sorted(forgot),['a'*40,'c'*40])
 
 class Freshness(unittest.TestCase):
  def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name
@@ -212,8 +245,8 @@ class Workers(unittest.TestCase):
    drive=Flaky();clock=[NOW]
    step=lambda:debrid_drive.step(p,FakeAPI(),drive,open_url=lambda u,o:io.BytesIO(b'abc'[o:]),clock=lambda:clock[0])
    step()                                     # add: copying
-   self.assertEqual(step(),30)                # the piece fails every try this turn: retry in 30 s
-   j=debrid_drive.load(p)['jobs'][0];self.assertEqual((j['tries'],j['retry_at']),(1,NOW+30))
+   self.assertEqual(step(),15)                # the piece fails every try this turn: network trouble, again in 15 s (ISSUE-198)
+   j=debrid_drive.load(p)['jobs'][0];self.assertEqual((j.get('tries',0),j['net_tries'],j['retry_at']),(0,1,NOW+15))
    self.assertEqual(ws.build({'debrid':debrid_drive.load(p)},NOW)['jobs'][0]['line'],'Waiting for the network · trying again in a moment')
    seen=[]
    orig=debrid_drive.save
@@ -221,7 +254,7 @@ class Workers(unittest.TestCase):
    try:step()
    finally:debrid_drive.save=orig
    self.assertTrue(any(c.get('updated')==NOW for c in seen))
-   j=debrid_drive.load(p)['jobs'][0];self.assertEqual(j['status'],'done');self.assertEqual(j.get('tries'),0)
+   j=debrid_drive.load(p)['jobs'][0];self.assertEqual(j['status'],'done');self.assertEqual(j.get('tries',0),0)
 
 class FreshLane(unittest.TestCase):
  def test_the_card_shows_the_lane_that_moved_last(self):

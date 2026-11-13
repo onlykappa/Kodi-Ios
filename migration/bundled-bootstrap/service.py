@@ -434,7 +434,16 @@ def drive_uploads(monitor,home,profile):
     notices.note('info','Downloads resumed','Uploads to Google Drive were paused from an earlier build; they are running again.')
   except Exception as error:xbmc.log('Kodi iOS transfers: pause reset skipped: %s'%diagnostics.error_text(error),xbmc.LOGWARNING)
   quiet=[None]
-  while not monitor.waitForAbort(delay):
+  def nap(seconds):
+   # ISSUE-208: a Cancel or Cancel All wakes the copier within a second instead of after its wait (20-300 s).
+   end=time.time()+seconds
+   while time.time()<end:
+    if monitor.waitForAbort(min(1,max(0.1,end-time.time()))):return True
+    try:
+     if transfer_control.cancelled_copies(profile):return False
+    except Exception:pass
+   return False
+  while not nap(delay):
    delay=20
    try:
     lifted=transfer_control.release_airplay(profile,airplay_busy(),quiet_since=quiet)
@@ -473,7 +482,16 @@ def drive_uploads(monitor,home,profile):
      remember_shows([job])
      driveupload.invalidate_library(str(profile/'addon_data/service.kodi.ios.bootstrap'))
      prepare_downloads.request_check(profile)   # preparation for Kodi and AirPlay picks it up from Drive
-    delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text:notices.add(profile,kind,title,text),
+    def ready_copy(with_link,name,size,parent,going,progress,key):
+     # F1 (PR #24): made ready while it copies, with the preparation queue's converter and Drive stream. None: plain copy.
+     try:q=preparation
+     except NameError:return None
+     addon=xbmcaddon.Addon()
+     if q is None or not addon.getSettingBool('prepare_downloads') or not addon.getSettingBool('prepare_while_copying'):return None
+     import debrid_ready,slowdown
+     return debrid_ready.copy(q,profile,with_link,name,size,parent,going,progress,key,
+                              log=lambda text:xbmc.log('Kodi iOS AllDebrid: '+diagnostics.redact(text),xbmc.LOGINFO),hold=slowdown.holding)
+    delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text:notices.add(profile,kind,title,text),ready_copy=ready_copy,
                             keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up') and not wifi_only_hold(),on_done=done,
                             cancelled=lambda:transfer_control.cancelled_copies(profile),
                             forget=lambda h:transfer_control.clear_cancelled(profile,h),
@@ -567,6 +585,8 @@ def drive_uploads(monitor,home,profile):
     if xbmcaddon.Addon().getSettingBool('prepare_downloads'):
      if preparation is None:
       preparation=preparation_queue()
+      import watch_next
+      prepare_downloads.WATCH_NEXT[0]=watch_next.cached(profile)   # F4: next-to-watch episodes are prepared first
       # Build 191 (owner: "If i press refresh in the library status it doesnt do anything"): a check asked for while a
       # movie converts (hours) runs beside it instead of waiting for the movie to finish.
       def check_beside(q):
@@ -592,6 +612,22 @@ def drive_uploads(monitor,home,profile):
         except driveupload.Stop:pass
         except Exception as error:diagnostics.log_exception(xbmc,'library_check',error)
       threading.Thread(target=check_beside,args=(preparation,),daemon=True).start()
+      # F2 (PR #24 roadmap; build-356 log: 27 jobs waited behind one re-package reading Drive at 3-7 MB/s): known
+      # re-packages run in up to REPACK_LANES extra lanes while the main lane works. They only move bytes (the picture
+      # is copied), so the line, not the phone, is their limit. Never while a video or AirPlay plays (the main lane goes
+      # on slowed), never while the owner paused converting, never beside an AI Upscale copy.
+      def repack_lane(q,lane):
+       while not monitor.waitForAbort(5):
+        try:
+         if not (q.busy and xbmcaddon.Addon().getSettingBool('prepare_downloads') and not transfer_control.paused(profile,'conv')
+                 and not prepare_downloads.interrupts(profile) and not slowdown.reason() and not getattr(q,'upscaling',False)):continue
+         go=lambda:(not monitor.abortRequested() and not transfer_control.paused(profile,'conv') and not slowdown.reason()
+                    and not prepare_downloads.interrupts(profile))
+         while go() and q.process_lane(lane,go):pass
+        except driveupload.Stop:pass
+        except Exception as error:diagnostics.log_exception(xbmc,'preparation_lane',error)
+      for lane in range(2,2+prepare_downloads.REPACK_LANES):
+       threading.Thread(target=repack_lane,args=(preparation,str(lane)),daemon=True).start()
      can_prepare=lambda:idle() and xbmcaddon.Addon().getSettingBool('prepare_downloads')
      import preparation_runtime
      # Consume explicit starts before the saved-pause gate, including requests written by older builds.
@@ -601,7 +637,8 @@ def drive_uploads(monitor,home,profile):
       diagnostics.event(log,'preparation','scheduler',**schedule);last_schedule=schedule
      with preparation_runtime.Lease(profile,stats=preparation.stream.stats if preparation.stream else lambda:{}) as runtime:
       preparation.runtime=runtime
-      preparation.scan(can_prepare,force=bool(count))
+      # Build-356 log 7249de4d: three videos already on Drive waited 12.5 min after the app opened for the first check.
+      preparation.scan(can_prepare,force=bool(count) or not getattr(preparation,'checked_at_start',False));preparation.checked_at_start=True
       # Build 169 made preparation wait for AllDebrid copies; with copies at 6-8 MB/s (build-169 log) both run at once
       # again, so conversion never sits paused behind an hour-long download.
       # A check no longer stops it (build-170 log: each stop restarted Inception from 0%); it runs when this one ends.
@@ -614,7 +651,7 @@ def drive_uploads(monitor,home,profile):
       preparation.paused=lambda:(not monitor.abortRequested() and transfer_control.paused(profile,'conv') and
                                  xbmcaddon.Addon().getSettingBool('prepare_downloads') and not prepare_downloads.interrupts(profile))
       # The upload pieces and the Drive read-ahead wait too while paused by the owner.
-      if preparation.stream:preparation.stream.hold=lambda:preparation.paused() or slowdown.holding()   # build 208: no read-ahead while Kodi plays
+      if preparation.stream:preparation.stream.hold=lambda:preparation.paused() or slowdown.preparation_holding()   # build 208 held while Kodi played; now only while it buffers
       # DEC-039 measurement build: an AI Upscale test asked for in Settings runs here, between conversions, with the
       # queue's own converter and Drive stream (one AI engine at a time). Counted only, nothing uploaded.
       import upscale_measure
@@ -633,12 +670,18 @@ def drive_uploads(monitor,home,profile):
        try:
         delay=2 if preparation.process_one(converting) else 20
         # DEC-039/040/042: AI Upscale copies are made only when nothing waits to be converted (one engine at a time).
-        if delay==20 and not transfer_control.paused(profile,'conv'):
+        # Owner log 20d8a992 (build 360): a failed preparation also returns False, and AI Upscale then ran for 15 min
+        # while 23 videos waited. Upscaling starts only when no video waits to be prepared.
+        import upscale_cloud
+        if delay==20 and not transfer_control.paused(profile,'conv') and not getattr(preparation,'running_slots',None) and not upscale_cloud._prep_waiting(preparation):
          import upscale_cloud,upscale_queue,drivelibrary
          if not getattr(preparation,'upscale_recovered',False):
           data=upscale_queue.load(profile);upscale_queue.save(profile,upscale_queue.recover(data));preparation.upscale_recovered=True
          try:
-          if upscale_cloud.process_one(preparation,converting,media_for=upscale_cloud.media_lookup(profile,drivelibrary.parse)):delay=2
+          preparation.upscaling=True   # F2: no re-package lane starts beside an AI Upscale copy (it changes converter settings)
+          try:
+           if upscale_cloud.process_one(preparation,converting,media_for=upscale_cloud.media_lookup(profile,drivelibrary.parse)):delay=2
+          finally:preparation.upscaling=False
          except Exception as error:
           diagnostics.log_exception(xbmc,'upscale',error)
        finally:preparation.busy=False

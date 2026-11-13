@@ -1,5 +1,37 @@
 # Performance and quality progress
 
+## HANDOFF (2026-11-13, PR #24 roadmap on claude/epic-cannon-i2elgw) — read this first
+
+Branch claude/epic-cannon-i2elgw = PR #23's branch (fa80d3d) plus, one commit each, no IPA built (owner: one IPA when
+the roadmap and the owner's additions are done; they are now done in code):
+- ISSUE-209 Continue Watching › long press › Remove from Continue Watching (progress kept, back when played again).
+- ISSUE-210 F5 picker prefers MP4 / no re-encode at the same quality. ISSUE-212 Up next says prepare / faster start / convert.
+- ISSUE-211 F3 wide Drive read-ahead for re-packages (on the prepare_cloud path the phone runs).
+- ISSUE-213 F6 answer: everything prepared before watching; preparation goes on while a video plays (waits only while it
+  buffers); first library check at app start (build-356 log 7249de4d: 12.5 min late).
+- ISSUE-214 F2 up to three re-packages at once (two extra lanes; native parallel test passes in airplay-remux CI).
+- ISSUE-215 F1 a download that only needs a re-package is made ready while it copies (debrid_ready.py; setting
+  "Make downloads ready while they copy", default on; falls back to the plain copy).
+- ISSUE-216 F4 next-to-watch (Continue Watching + 3) prepared first; copies drop to 2 lanes while one is prepared.
+- airplay-remux transport test fixed (ISSUE-214 note); test_conversion_speed expectations current.
+Next: the owner's go for the one IPA (Run workflow on import-review.yml, branch claude/epic-cannon-i2elgw), then a
+phone log: look for `made ready while it copies`, 2-3 `preparation: … opening Drive file` together, `prep_read_mb_s`,
+`copy_lanes`. Open UI item: extra preparation lanes have no card of their own on Library status (mockup first).
+
+Later the same day (all on this branch, no IPA): approved mockups DEC-044/045/046 built and rig-checked: AI Upscale page
+with pause / cancel / Up next edit (ISSUE-219), Download problems Clear (218), Library status lane rows (220), Queue page
+(221), Favourites (222), notification details with fixes and two-line rows (225). Owner log 20d8a992 (build 360): AI
+Upscale ran while 23 videos waited; it now never starts or keeps going while a video waits (224). Naruto S1 E9-E16 keep
+their DVD picture subtitle, so they are kept as they are, now said plainly (223). Next: the owner's go for the one IPA.
+
+## HANDOFF (2026-11-13, reliability PR) — read this first
+
+PR #22 merged (build-350). Branch claude/trusting-euler-kgug98 restarted from main for the reliability roadmap
+(ROADMAP.md "Reliability roadmap"): ISSUE-198 network-safe copies and conversions, Download problems page, network
+summary in the minute snapshot, waiting copies wake on a new connection. All host tests pass. No IPA built (owner: one
+IPA at the end, on request: Run workflow on import-review.yml). Next: the owner's log from that IPA; if R1 shows copies
+starving preparation, build the priority scheduler (R2).
+
 ## TAKEOVER (2026-11-13, after build 347) — start here
 
 Branch claude/trusting-euler-kgug98, draft PR #22. Owner approved merging PR #22 **only once all gaps are filled and nothing is left out**. Last fix commit: Library status long press / Show Back / graph race (ISSUE-196).

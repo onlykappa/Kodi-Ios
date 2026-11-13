@@ -200,7 +200,7 @@ class Build175Log(unittest.TestCase):
   self.assertIn("preparation.paused=lambda:(not monitor.abortRequested() and transfer_control.paused(profile,'conv') and",svc)
   self.assertNotIn('isPlayingVideo() or transfer_control',svc)
   cloud=(LIB/'prepare_cloud.py').read_text()
-  self.assertIn("drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=lambda:paused() or __import__('slowdown').holding(),",cloud)
+  self.assertIn("drive_prepare.Sink(q.drive,parent,slot,lambda:keep_going() or paused(),on_file,hold=lambda:paused() or __import__('slowdown').preparation_holding(),",cloud)
   self.assertIn('converted_progress,paused,waiting,resume=',cloud)
 
 class AV1Speed(unittest.TestCase):
@@ -212,7 +212,7 @@ class AV1Speed(unittest.TestCase):
   self.assertIn('if(v->offline)av_opt_set_int(c->priv_data,"prio_speed",1,0);',hevc)
  def test_two_lanes_in_order(self):
   c=(ROOT/'migration/airplay-ios/remux/src/kr_prepare.c').read_text()
-  self.assertIn('#define VIDEO_LANES 2',c);self.assertIn('if(kr_video_hw_decode(first->video))g->nlanes=VIDEO_LANES;',c)
+  self.assertIn('#define VIDEO_LANES 2',c);self.assertIn('if(kr_video_hw_decode(first->video) && !kr_video_upscaling(first->video))g->nlanes=VIDEO_LANES;',c)   # r48: one lane while AI Upscale runs
   self.assertIn('int li=(g->segment-g->start)%g->nlanes;generated_lane *l=g->lanes[li];',c)   # r30: lanes may start at a later unit
   self.assertIn('if(r>=0 && l->next_segment!=g->segment)r=-1;',c)
   self.assertIn('for(int segment=l->first;;segment+=l->stride)',c)
@@ -350,7 +350,8 @@ class QuickFirst(unittest.TestCase):
  def test_order(self):
   jobs={'a':{'source':{'name':'Inception.2010.2160p.AV1.mkv'}},'b':{'source':{'name':'Interstellar.2014.2160p.x265.mkv'}},
         'c':{'source':{'name':'Dune.mkv'},'probe':{'copy_video':False}},'d':{'source':{'name':'Fall.mkv'},'probe':{'copy_video':True}}}
-  self.assertEqual([k for k,_ in sorted(jobs.items(),key=lambda p:prep.order_key(*p))],['b','d','a','c'])
+  # Quick ones (copied picture) before slow ones (AV1, re-encode); within each, show / name order (build 319, line_key).
+  self.assertEqual([k for k,_ in sorted(jobs.items(),key=lambda p:prep.order_key(*p))],['d','b','c','a'])
   jobs['a']['priority']=5000   # Start now / Prepare next / ▲ on the AV1 one
   self.assertEqual(sorted(jobs.items(),key=lambda p:prep.order_key(*p))[0][0],'a')
   self.assertIn('candidates.sort(key=lambda pair:prep.order_key(*pair))',(LIB/'prepare_cloud.py').read_text())
@@ -374,8 +375,8 @@ class AirPlayGetsTheLine(unittest.TestCase):
  def test_read_ahead_while_a_video_plays(self):
   # Build 193: one block ahead while a video or AirPlay plays (slowed, never stopped); none only when the owner paused.
   s=(LIB/'drive_stream.py').read_text()
-  self.assertIn('for step in range(1, 0 if stream.hold() else (stream.ahead_blocks or (2 if stream.playback else 1 if slowdown.reason() else READ_AHEAD)) + 1):',s)
-  self.assertIn('if preparation.stream:preparation.stream.hold=lambda:preparation.paused() or slowdown.holding()',(ROOT/'migration/bundled-bootstrap/service.py').read_text())
+  self.assertIn('for step in range(1, 0 if stream.hold() else (stream.ahead_blocks or ahead_count(stream.playback, slowdown.reason(), stream.wide or item in stream.wide_items, len(stream.wide_items))) + 1):',s)
+  self.assertIn('if preparation.stream:preparation.stream.hold=lambda:preparation.paused() or slowdown.preparation_holding()',(ROOT/'migration/bundled-bootstrap/service.py').read_text())
 
 class PreparedAirPlayServer(unittest.TestCase):
  """Build-181 log: every range AVPlayer asked for opened a new connection to Drive (1-6 s each): "Cannot Complete

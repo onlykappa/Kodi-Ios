@@ -208,6 +208,25 @@ def _conversion(prep, runtime, now):
             'held': bool(current.get('paused'))}
 
 
+def _lanes(prep, now):
+    """F2: the extra re-package lanes' cards (prep['lanes'], written by prepare_cloud.process_one(lane=N)), freshest
+    first; a lane that stopped writing for ALIVE seconds is not shown."""
+    out = []
+    for key, current in sorted(((prep or {}).get('lanes') or {}).items()):
+        if not isinstance(current, dict) or not current.get('running') or not current.get('title'):
+            continue
+        if now - float(current.get('updated') or 0) >= ALIVE:
+            continue
+        stage = str(current.get('stage') or '').replace('Step 3 of 3 · ', '').strip()
+        if stage in ('', 'Paused by you', 'Paused while a video plays', 'Stopped', 'Will try again'):
+            stage = STEP['repack']
+        out.append({'kind': 'repack', 'title': _title(current['title']), 'name': current['title'], 'step': stage,
+                    'pct': int(round(float(current.get('progress') or 0))), 'indeterminate': bool(current.get('indeterminate')),
+                    'rate': float(current.get('rate') or 0), 'eta_s': float(current.get('eta_s') or 0), 'tint': PURPLE,
+                    'held': bool(current.get('paused')), 'lane': key})
+    return out
+
+
 def episode_label(name):
     """'S01E03' from a file name (or '1x03'), else the cleaned file name."""
     import re
@@ -309,17 +328,17 @@ def _copy(debrid, now):
                'hash': job.get('hash', ''), 'folder': current.get('folder', ''),'phase_detail':phase in words,'transfer_phase':phase}
         if quiet and phase!='paused_playback':
             out['wait'] = ('Waiting for download' if phase=='reading' else 'Waiting for Google Drive')+' · no answer for %d min' % max(1,int((now-float(updated))//60))
-        if job.get('tries') and retry > now:
+        if (job.get('tries') or job.get('net_tries')) and retry > now:
             out['wait'] = 'Waiting for the network · %s' % retry_text(retry, now)
         if (debrid or {}).get('hold') == 'wifi':
             out['wait'] = 'Waiting for Wi-Fi · copies run on Wi-Fi only (Transfer settings)'
-        out['playback_held']=phase=='paused_playback' and not (job.get('tries') and retry>now)
+        out['playback_held']=phase=='paused_playback' and not ((job.get('tries') or job.get('net_tries')) and retry>now)
         return out
     if current.get('stage') == 'fetching':
         return {'kind': 'copy', 'title': title, 'name': current.get('name', ''), 'step': 'AllDebrid is fetching it',
                 'pct': int(current.get('sent') or 0), 'indeterminate': False, 'rate': 0.0, 'eta_s': 0, 'tint': BLUE,
                 'hash': job.get('hash', '')}
-    if job.get('tries') and retry > now:
+    if (job.get('tries') or job.get('net_tries')) and retry > now:
         return {'kind': 'copy', 'title': title, 'name': job.get('name', ''), 'step': STEP['copy'], 'pct': 0, 'indeterminate': False,
                 'rate': 0.0, 'eta_s': 0, 'tint': BLUE, 'hash': job.get('hash', ''),
                 'wait': 'Waiting for the network · %s' % retry_text(retry, now)}
@@ -330,6 +349,20 @@ def _copy(debrid, now):
     return {'kind':'copy','title':title,'name':job.get('name',''),'step':
             'Waiting for AllDebrid' if job.get('status') in ('new','fetching') else 'Starting transfer to Google Drive',
             'pct':0,'indeterminate':True,'queued':True,'rate':0.0,'eta_s':0,'tint':BLUE,'hash':job.get('hash','')}
+
+
+def next_what(job):
+    """Up next's word for a waiting job (PR #24 roadmap ticket, build-356 screenshot: re-packages read "Convert · 4.3 GB").
+    'faster start' for a known re-package (the picture is copied), 'convert' only when the probe says the picture is
+    re-encoded, 'prepare' while it is not known yet (a job is read when its turn comes)."""
+    if job.get('repack'):
+        return 'faster start'
+    probe = job.get('probe') or {}
+    if probe and probe.get('copy_video') is False:
+        return 'convert'
+    if probe.get('copy_video'):
+        return 'faster start'
+    return 'prepare'
 
 
 def _next(prep, running_name):
@@ -344,7 +377,7 @@ def _next(prep, running_name):
             and (j.get('source') or {}).get('name') not in (running_name, _title(running_name) if running_name else None)]
     jobs.sort(key=lambda pair: order(*pair))
     return [{'id': str((j.get('source') or {}).get('id', '')), 'title': _title((j.get('source') or {}).get('name', '')),
-             'what': 'faster start' if j.get('repack') else 'convert', 'size': int((j.get('source') or {}).get('size') or 0)}
+             'what': next_what(j), 'size': int((j.get('source') or {}).get('size') or 0)}
             for _, j in jobs]
 
 
@@ -378,6 +411,11 @@ def build(inp, now):
     conv = _conversion(inp.get('prep'), inp.get('runtime'), now)
     if conv:
         add(conv, held=conv.pop('held', False) or (paused.get('conv') and conv['kind'] != 'check'))
+    # F2 (PR #24): re-packages running in extra lanes beside the main one, each with its own card and percentage.
+    lane_names = []
+    for lane in _lanes(inp.get('prep'), now):
+        lane_names.append(lane['name'])
+        add(lane, held=lane.pop('held', False) or bool(paused.get('conv')))
     for copy, owner in _copies(inp.get('debrid'), now):
         copy['id']='debrid:%s:%s:%s'%(owner.get('hash',''),owner.get('season',''),owner.get('episode',''))
         playback_held=copy.pop('playback_held',False)
@@ -397,7 +435,8 @@ def build(inp, now):
              'eta_s': float(d.get('eta_s') or 0), 'tint': BLUE, 'id': d.get('id', '')}, held=bool(d.get('paused')))
     needs = list(inp.get('needs') or ())
     waits = [w for w in inp.get('network') or () if float(w.get('until') or 0) > now]
-    nexts = _next(inp.get('prep'), conv['name'] if conv else '')
+    nexts = [n for n in _next(inp.get('prep'), conv['name'] if conv else '')
+             if n['title'] not in {_title(x) for x in lane_names}]
     if paused.get('conv') and not conv and nexts:
         # Paused while nothing converts: the next one waits for the owner, and says so.
         nexts[0]['paused'] = True
@@ -483,6 +522,20 @@ def load(profile, now=None):
     return stale(state, now)
 
 
+def pending_cancels(debrid, leaving, now):
+    """ISSUE-208 (owner: "deleting the download queue is also slow as hell, it needs to be instant"): a Cancel or
+    Cancel All is written at once but the copier applies it on its next turn; the pages show it as done straight away."""
+    leaving = {str(h).lower() for h in leaving or ()}
+    if not leaving:
+        return debrid
+    jobs = [dict(j, status='failed', error='Cancelled', finished=now)
+            if j.get('status') not in ('done', 'failed') and str(j.get('hash', '')).lower() in leaving else j
+            for j in (debrid or {}).get('jobs') or []]
+    out = dict(debrid or {}, jobs=jobs)
+    out.pop('current', None)   # a cancelled copy's card goes; the lanes left show their own cards
+    return out
+
+
 def current(profile, now=None):
     """Refresh durable Drive transfers immediately; retain the service's other jobs and their freshness.
 
@@ -492,9 +545,10 @@ def current(profile, now=None):
     now=time.time() if now is None else now
     state=load(profile,now) or build({},now)
     paused={k:transfer_control.paused(profile,k) for k in transfer_control.KINDS}
-    debrid=debrid_drive.load(profile)
+    debrid=pending_cancels(debrid_drive.load(profile),transfer_control.cancelled_copies(profile),now)
     copies=build({'debrid':debrid,'paused':paused,'slow':state.get('slow',''),'show_names':show_names(profile)},now)
-    state=dict(state,copy_left=copy_bytes_left(debrid))
+    state=dict(state,copy_left=copy_bytes_left(debrid),
+               copies_waiting=sum(1 for j in debrid.get('jobs') or [] if j.get('status') not in ('done','failed')))
     jobs=[j for j in state.get('jobs',[]) if j.get('kind')!='copy']+copies['jobs']
     nexts=state.get('next') or [];drive_next=copies['drive_next'];needs=state.get('needs') or []
     moving=[j for j in jobs if j['state'] in MOVING]

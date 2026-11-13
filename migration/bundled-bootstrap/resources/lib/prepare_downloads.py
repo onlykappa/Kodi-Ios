@@ -17,6 +17,7 @@ PROPERTY='kodiAirPlayProfile'
 CHECKSUM_PROPERTY='kodiAirPlayMD5'
 FILE='airplay-preparation.json'
 RESERVE=256*1024*1024
+REPACK_LANES=2   # F2: extra lanes for known re-packages beside the main lane (3 at once, the roadmap's 2-3)
 # Owner (build 157): "we need to ensure storage is never an issue". Preparation never takes the phone below this, and
 # a video starts only when its whole working set (the Drive file plus the prepared copy) fits above it.
 KEEP_FREE=5*1024**3
@@ -88,6 +89,16 @@ CALLBACK=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_int,ctypes.c_double,ctypes.c_dou
 def location(profile):return Path(profile)/'addon_data/service.kodi.ios.bootstrap'/FILE
 def load(profile):return drivelibrary.load_json(str(location(profile)),{'jobs':{},'sessions':{},'last_scan':0})
 def save(profile,state):drivelibrary.save_json(str(location(profile)),state)
+def cellular_now(queue):
+    """True on mobile data (queue.link() for tests, else cache_tune.link_kind())."""
+    try:
+        link=getattr(queue,'link',None)
+        if link is None:
+            import cache_tune;link=cache_tune.link_kind
+        return link()=='cellular'
+    except Exception:
+        return False
+
 def ready(item):
  props=item.get('appProperties') or {}
  return bool(item.get('md5Checksum')) and props.get(PROPERTY) in (PROFILE,)+OLD_PROFILES and props.get(CHECKSUM_PROPERTY)==item['md5Checksum'].lower()
@@ -115,6 +126,18 @@ def metadata(drive,item_id):
   raise RuntimeError('Drive video is unavailable or incomplete')
  item['_etag']=headers.get('ETag') or headers.get('etag') or ''
  return item
+def fetch_metadata(drive,ids,keep_going=lambda:True,workers=8):
+ """{id: metadata() or the exception} for many Drive files, `workers` requests at a time (ISSUE-208)."""
+ import concurrent.futures
+ out={}
+ if not ids:return out
+ def one(item_id):
+  if not keep_going():return driveupload.Stop('Preparation scan paused')
+  try:return metadata(drive,item_id)
+  except Exception as error:return error
+ with concurrent.futures.ThreadPoolExecutor(max_workers=max(1,min(workers,len(ids)))) as pool:
+  for item_id,got in zip(ids,pool.map(one,ids)):out[item_id]=got
+ return out
 SIDECAR=re.compile(r'^prepared\.mp4\.sub(\d+)\.([a-z]{1,8})(\.forced)?\.sup$')
 def sidecar_names(video_name,files):
  """[(local file, Drive name)] for the .sup files KodiAirPlay r15 wrote beside a prepared MP4: named after the video,
@@ -489,6 +512,10 @@ def line_key(name):
  # An episode number with no season ('Episode 006') counts as season 1, so it sorts among S01Exx.
  return (drivelibrary.show_key(re.sub(r'[\s\-–(]+$','',title).strip()) if title else '',season or (1 if episode else 0),episode,str(name).lower())
 
+WATCH_NEXT=[lambda name:False]   # set by the service (watch_next.cached)
+def watch_next(job):
+ try:return bool(WATCH_NEXT[0]((job.get('source') or {}).get('name','')))
+ except Exception:return False
 def order_key(slot,job):
  """The order videos are prepared in: the owner's choices first (Start now, Prepare next, ▲ ▼), then videos that
  only need repacking before ones that need re-encoding (owner, build 181: "quick movies first", so one AV1 film
@@ -496,7 +523,9 @@ def order_key(slot,job):
  # Build 188 (owner, build-187 log: Interstellar was converted and uploaded overnight, its last check on Drive timed out,
  # and the check then waited behind the next movie's hours of conversion): a movie that only needs checking goes first.
  checked_only=bool((job.get('cloud_output') or {}).get('0'))
- return (-job.get('priority',0),1 if job.get('repack') else 0,0 if checked_only else 1,1 if slow(job) else 0,
+ # F4 (PR #24): after the owner's own choices, what they will watch next (the started episode and the next ones in
+ # Continue Watching, watch_next.py) goes before everything else.
+ return (-job.get('priority',0),0 if watch_next(job) else 1,1 if job.get('repack') else 0,0 if checked_only else 1,1 if slow(job) else 0,
          line_key((job.get('source') or {}).get('name','')),slot)
 
 def queue_order(state,now=None):
@@ -778,9 +807,15 @@ class Queue:
   self.commit()
   listed_all=library_scan.remote_files(self.drive,keep_going)
   found=self.unique(listed_all);seen=set();counts={'videos':len(found),'ready':0,'unreadable':0};entries=[]
+  # ISSUE-208 (owner: "the refresh in the library status is super slow"): each video's details were one Drive request
+  # after another (hundreds of round trips); they are asked eight at a time, in the listing's order.
+  details=fetch_metadata(self.drive,[listed['id'] for listed in found],keep_going)
   for number,listed in enumerate(found):
    if not keep_going():raise driveupload.Stop('Preparation scan paused')
-   try:item=dict(metadata(self.drive,listed['id']),folderName=listed.get('folderName',''))
+   try:
+    got=details.get(listed['id'])
+    if isinstance(got,BaseException) or got is None:raise got or RuntimeError('Drive file check: no answer')
+    item=dict(got,folderName=listed.get('folderName',''))
    except Exception:
     # One file Drive cannot describe right now must not stop the whole library check (owner, build 156: no
     # movies were being converted). Its existing work, if any, is kept for the next check.
@@ -789,7 +824,7 @@ class Queue:
     continue
    if self.runtime and not beside:self.runtime.phase('Checking video %d of %d'%(number+1,len(found)),True)
    status.update(stage='Checking video %d of %d'%(number+1,len(found)),progress=100*(number+1)/max(1,len(found)),updated=self.clock())
-   self.commit()
+   if number%10==9 or number+1==len(found):self.commit()   # ISSUE-208: the state file every ten videos, not every one
    slot=key(item);seen.add(slot)
    recovering=[old for old,job in self.state['jobs'].items() if job['source']['id']==item['id'] and job.get('status')=='committing']
    if recovering:
@@ -809,6 +844,13 @@ class Queue:
     # native instance beside an active conversion or abandon a promotion/owner-kept original.
     if inspection and not old.get('kept') and not old.get('promoted') and self.stream:
      if beside:self.inspection_pending=True
+     elif cellular_now(self):
+      # ISSUE-199 (owner log a0a4e492, build 350, on mobile data): each check of a finished video timed out, was marked
+      # failed and tried again a minute later, 27 times in 30 minutes, spending the little bandwidth there was. The
+      # check is optional: on cellular it waits for Wi-Fi.
+      self.inspection_pending=True
+      if not getattr(self,'told_cellular',False):
+       self.told_cellular=True;self.log('preparation: compatibility checks wait for Wi-Fi (on mobile data)')
      else:
       try:
        old['audit']=True;old.pop('probe',None)
@@ -821,9 +863,14 @@ class Queue:
         if old.get('status')=='done':old.update(status='waiting',retry_after=0,attempts=0)
       except driveupload.Stop:raise
       except Exception as error:
-       import preparation_runtime
+       import preparation_runtime,debrid_drive
        old['inspection_error']=preparation_runtime.problem(error)
-       old.update(status='failed',retry_after=self.clock()+60)
+       if debrid_drive.network_error(error):
+        # ISSUE-199: network trouble is not the video's fault: waiting (not failed), 15 s up to 5 min apart.
+        old['check_net_tries']=old.get('check_net_tries',0)+1
+        old.update(status='waiting',retry_after=self.clock()+debrid_drive.net_wait(old['check_net_tries']))
+       else:
+        old.update(status='failed',retry_after=self.clock()+60)
        self.log('preparation: compatibility check will retry (%s)'%type(error).__name__)
       finally:self.stream.forget(item['id'])
    if old and item['id']!=converting and self.skip_compatible(slot,old,item,old.get('probe')):
@@ -954,6 +1001,12 @@ class Queue:
   marks.append((now,read));marks[:]=[m for m in marks if now-m[0]<=10] or [(now,read)]
   span=marks[-1][0]-marks[0][0]
   return read,((marks[-1][1]-marks[0][1])/span if span>=1 else 0.0)
+ def process_lane(self,lane,keep_going=lambda:True):
+  """F2 (PR #24): one known re-package in an extra lane beside the main one (prepare_cloud.known_repack). False when
+  there is none to take."""
+  if not getattr(self.native,'outputs',False) or not self.stream:return False
+  import prepare_cloud
+  return prepare_cloud.process_one(self,keep_going,lane)
  def process_one(self,keep_going=lambda:True):
   self.apply_requests();self.tidy();self.retry_image_subtitles()
   if getattr(self.native,'hdr',False):
@@ -992,6 +1045,7 @@ class Queue:
   # Always resume the one downloaded working source before allocating space for another movie.
   candidates.sort(key=lambda pair:0 if (self.work/pair[0]).exists() else 1)
   slot,job=candidates[0];folder=self.work/slot;folder.mkdir(exist_ok=True)
+  if self.stream:self.stream.wide=False
   source=folder/'source';output=folder/'prepared.mp4';item=job['source'];last=[0]
   def progress(stage,value):
    if not keep_going():raise driveupload.Stop('Preparation paused during playback')
@@ -1030,6 +1084,8 @@ class Queue:
      if driveupload.checksum(str(source),keep_going,pace=1)!=item['md5Checksum'].lower():
       source.unlink();raise RuntimeError('Source checksum differs; will read it again')
     before=self.native.probe(str(source))
+    # F3: a re-package (picture copied) reads Drive with more blocks in flight; a real conversion keeps the usual few.
+    if self.stream:self.stream.wide=bool(before.get('copy_video'))
     # Kept with the job: the queue and Library status then use the same estimate as this step (work_bytes).
     job['probe']={k:before.get(k) for k in ('copy_video','audio_work_bytes','duration','width','height','codec','bit_depth','pgs_subtitles')}
     if self.skip_compatible(slot,job,item,before):

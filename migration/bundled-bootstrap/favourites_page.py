@@ -34,11 +34,19 @@ def run():
     class Page(xbmcgui.WindowXMLDialog):
         def onInit(self):
             self.editing = False
-            self.rows = read(xbmc)
+            self.filter = 'all'
+            self.all = read(xbmc)
             self.show()
 
         def show(self):
-            for key, value in fr.properties(self.rows).items():
+            # DEC-045 board F2: All / Movies / Shows (the segmented control, ids 9020+); the grid shows the filter's.
+            self.rows = fr.shown(self.all, self.filter)
+            props = fr.properties(self.rows)
+            props['count'] = str(len(self.all))
+            props['chips'] = 'true' if self.all else ''
+            props['filter'] = self.filter
+            props['none'] = ('No %s in your favourites' % ('movies' if self.filter == 'movie' else 'shows')) if self.all and not self.rows else ''
+            for key, value in props.items():
                 self.setProperty(key, value)
             self.setProperty('editing', 'true' if self.editing and self.rows else '')
 
@@ -54,6 +62,9 @@ def run():
                 self.show()
             elif control == DONE:
                 self.editing = False
+                self.show()
+            elif 9020 <= control < 9020 + len(fr.FILTERS):
+                self.filter = fr.FILTERS[control - 9020][0]
                 self.show()
             elif CELL_BASE < control <= CELL_BASE + len(self.rows):
                 entry = self.rows[control - CELL_BASE - 1]
@@ -74,7 +85,8 @@ def run():
                 return
             before = len(self.rows)
             rpc(xbmc, 'Favourites.AddFavourite', entry['remove'])
-            self.rows = read(xbmc)
+            self.all = read(xbmc)
+            self.rows = fr.shown(self.all, self.filter)
             if len(self.rows) >= before:
                 # Kodi toggles a favourite off only when the entry matches; if it did not, say nothing on screen.
                 xbmc.log('Kodi iOS favourites_page: removal did not match a favourite', xbmc.LOGWARNING)
