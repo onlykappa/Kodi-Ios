@@ -1,5 +1,22 @@
 # Performance and quality progress
 
+## HANDOFF (2026-11-13, PR #24 roadmap on claude/epic-cannon-i2elgw) — read this first
+
+Branch claude/epic-cannon-i2elgw = PR #23's branch (claude/trusting-euler-kgug98, fa80d3d) plus, one commit each, no IPA:
+- ISSUE-209 Continue Watching › long press › Remove from Continue Watching (owner request; progress kept, back when played).
+- ISSUE-211 F3: a re-package reads Drive with 8 blocks in flight (drive_stream.ahead_count; READ_AHEAD stays 4 otherwise).
+- ISSUE-210 F5: picker prefers MP4 / no re-encode at the same quality (deck_picker.prep_cost; HEVC costs the same as H.264).
+- ISSUE-212 Up next: "convert" only for a real re-encode, "prepare" until a job is read, "faster start" for re-packages.
+Open from the PR #24 roadmap:
+- F2 (several re-packages at once) and F1 (re-package during the copy) need native work first: kr_prepare.c keeps per-run
+  state in globals (marks_on, up_box_*, audio/subtitle_languages), so two convert_to calls at once are not safe. Stage a
+  KodiAirPlay build (source-lock zero sha, airplay-ios.yml) that moves those into the per-run context, then F2's queue lanes.
+- F4 (priority share copies vs next-to-watch preparation): wants the `network` snapshot numbers from a device log first.
+- F6 needs the owner's answer: may episodes not yet prepared start slower on the TV, or must all be ready before watching?
+- 13-minute gap before preparation: copies already call request_check on done (service.py debrid_loop); log 68d43660 is
+  needed to see why the check found nothing (it was sent to another session).
+Owner rule for this batch: no IPA until the roadmap items and the owner's addition are all done.
+
 ## HANDOFF (2026-11-13, reliability PR) — read this first
 
 PR #22 merged (build-350). Branch claude/trusting-euler-kgug98 restarted from main for the reliability roadmap
