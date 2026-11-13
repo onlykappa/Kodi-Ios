@@ -28,6 +28,17 @@ LANES = 4
 RETRIES_IN_RUN = 2
 
 
+BUSY_LANES = 2
+
+
+def converting():
+    """Whether a conversion (prepare_downloads) is running now; set by step() for this turn."""
+    return bool(CONVERTING[0]())
+
+
+CONVERTING = [lambda: False]
+
+
 def lanes_for(files_left):
     """One lane per file still to copy, up to LANES: 3 when three or more remain, 2 for two, 1 for one."""
     return max(1, min(LANES, files_left))
@@ -290,6 +301,64 @@ def drop_duplicates(state):
     return dropped
 
 
+def show_match(title):
+    """One key for the spellings of a show: 'Naruto Shippūden', 'Naruto Shippuden' and 'Naruto Shippuuden' match."""
+    import re
+    import unicodedata
+    text = unicodedata.normalize('NFKD', str(title or '')).encode('ascii', 'ignore').decode().lower()
+    text = re.sub(r'[^a-z0-9]+', '', re.sub(r'\b(19|20)\d\d\b', '', text))
+    return re.sub(r'(.)\1+', r'\1', text)
+
+
+def drive_episodes(profile):
+    """{(show key, season, episode)} of every episode file the Library has listed on Drive (drive-library.json, no
+    network). Names with only a number ('Naruto Shippuuden - 002') count as season 1."""
+    import drivelibrary
+    import prepare_downloads
+    cache = drivelibrary.load_json(str(location(profile).parent / 'drive-library.json'), {})
+    found = set()
+    for slot, hit in cache.items():
+        if not slot.startswith('tv:') or slot == 'tv:':
+            continue
+        for e in (hit or {}).get('entries') or []:
+            show, season, episode = prepare_downloads.line_key(e.get('name') or '')[:3]
+            if e.get('season') and e.get('episode'):
+                season, episode = int(e['season']), int(e['episode'])
+            name = e.get('show') or title_from_name(e.get('name') or '') or show
+            if episode:
+                found.add((show_match(name), int(season or 1), int(episode)))
+    return found
+
+
+def drop_on_drive(state, on_drive):
+    """Owner (build 325): "Naruto Shippuuden - 002" was on Drive and converting while S1 E2 waited to be copied again.
+    A waiting episode job that has not copied anything leaves the queue when that episode is already on Drive."""
+    dropped = []
+    if not on_drive:
+        return dropped
+    for job in state.get('jobs', []):
+        if job.get('status') in ('done', 'failed') or job.get('kind') != 'episode' or _started(job):
+            continue
+        try:
+            key = (show_match(job.get('title') or title_from_name(job.get('name'))), int(job.get('season') or 0), int(job.get('episode') or 0))
+        except (TypeError, ValueError):
+            continue
+        if key[0] and key[2] and key in on_drive:
+            dropped.append(job)
+    if dropped:
+        state['jobs'] = [j for j in state['jobs'] if all(j is not d for d in dropped)]
+    return dropped
+
+
+def conversion_running(profile, now):
+    try:
+        import prepare_downloads
+        current = prepare_downloads.load(profile).get('current') or {}
+    except Exception:
+        return False
+    return bool(current.get('running')) and now - float(current.get('updated') or 0) < 300
+
+
 def episode_name(job, name):
     """The Drive name of an episode's file: the original when it says its season and episode, else '<show> S01E02 -
     <original>' (owner screenshot, build 314: "Naruto Shippuuden - 002 [1080p].mkv" gave the Library no episode)."""
@@ -477,9 +546,10 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
     # Owner screenshot (build 314): Build Season jobs named after their hash; give them the show's title and move what
     # was already copied into the show's folder.
     renamed = retitle(profile, state, names=show_names(profile), lookup=show_lookup(profile))
-    dropped = drop_duplicates(state)
+    dropped = drop_duplicates(state) + drop_on_drive(state, drive_episodes(profile))
+    CONVERTING[0] = lambda: conversion_running(profile, clock())
     for job_ in dropped:
-        log('%s S%sE%s: already downloading from another version; this one is removed' % (
+        log('%s S%sE%s: already on Drive or downloading from another version; this one is removed' % (
             job_.get('title') or job_['name'], job_.get('season'), job_.get('episode')))
     if dropped:
         save(profile, state)
@@ -721,7 +791,14 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     release(slot)
 
             retried = {}
-            lanes = lanes_for(len(todo))
+            # Owner screenshot (build 325): "Waiting for Google Drive · no answer for 23 min" at 0 % while other copies
+            # moved: the card was a lane of an earlier run (saved in the state), and the new lanes never wrote over it.
+            with guard:
+                state.pop('current', None)
+                state.pop('current_also', None)
+            # Owner log 7698974a (build 325): four copies at ~0.2 MB/s each while a conversion read and wrote Drive on
+            # the same connection; every piece timed out at 20 s and halved. Two lanes while a conversion runs.
+            lanes = min(lanes_for(len(todo)), BUSY_LANES if converting() else LANES)
             if lanes == 1:
                 worker(0)
             else:

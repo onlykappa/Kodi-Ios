@@ -239,7 +239,10 @@ def _copy_next(debrid):
 
 def _copy(debrid, now):
     """The AllDebrid → Drive copy, or None."""
-    current = (debrid or {}).get('current') or {}
+    # Owner (build 325): the card sat at "no answer for 23 min" while other lanes copied; show the lane that moved last.
+    fresh = lambda c: max(float(c.get('updated') or 0), float(c.get('phase_at') or 0))
+    lanes = [c for c in ((debrid or {}).get('current'), (debrid or {}).get('current_also')) if c]
+    current = max(lanes, key=fresh) if lanes else {}
     jobs = [j for j in (debrid or {}).get('jobs') or [] if j.get('status') not in ('done', 'failed')]
     if not jobs:
         return None

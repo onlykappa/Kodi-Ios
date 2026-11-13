@@ -3061,3 +3061,17 @@ Also in the log: four copies at 0.2 MB/s each (8-20 s per 2 MB piece) while a co
 time; the connection was the limit (see ISSUE-186). Not changed. Not fixed: an episode already on Drive under an
 absolute number ("Naruto Shippuuden - 002") can still be queued as S1 E2 by an older job; it needs the Drive listing in
 the queue check.
+
+## ISSUE-190 — Stuck copy card, episodes already on Drive copied again, four slow lanes (build 325, owner screenshots, log 7698974a) — FIXED on host
+
+- Stuck card ("Waiting for Google Drive · no answer for 23 min" at 0 % while other copies moved): the card is the
+  'current' lane saved in the state; a new run's lanes did not always write over a lane of the earlier run. Fix: each run
+  clears the old lane cards before it starts, and the status card shows whichever lane moved last (current or
+  current_also). Tests: test_debrid_drive (old card cleared), test_work_state FreshLane.
+- "Naruto Shippuuden - 002" on Drive and converting while S1 E2 waited to be copied: the queue never looked at Drive.
+  Fix: drive_episodes reads the Library's saved Drive listing (number-only names count as season 1) and drop_on_drive
+  removes a waiting episode job that has not copied anything when the episode is there; show_match makes "Shippūden",
+  "Shippuden" and "Shippuuden" one show. Test: Duplicates.test_an_episode_already_on_drive_leaves_the_queue.
+- Four lanes at ~0.2 MB/s with every piece timing out at 20 s, beside a conversion reading and writing Drive on the
+  same connection: two lanes while a conversion runs (BUSY_LANES). The connection is still the ceiling (the log does
+  not say Wi-Fi or cellular; the owner's screenshot shows 5G).

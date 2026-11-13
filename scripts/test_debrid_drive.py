@@ -184,6 +184,28 @@ class HashNamedJobs(unittest.TestCase):
    self.assertEqual((job['title'],len(debrid_drive.load(p)['jobs'])),('Naruto Shippūden',1))
 
 class Duplicates(unittest.TestCase):
+ def test_an_episode_already_on_drive_leaves_the_queue(self):
+  # Owner screenshot (build 325): "Naruto Shippuuden - 002" on Drive and converting, while S1 E2 waited to be copied.
+  import os
+  with tempfile.TemporaryDirectory() as p:
+   d=os.path.join(p,'addon_data','service.kodi.ios.bootstrap');os.makedirs(d)
+   json.dump({'tv:':{'entries':[{'id':'f1','title':'Naruto Shippuuden'}]},
+              'tv:f1':{'entries':[{'id':'e2','name':'[Sub] Naruto Shippuuden - 002 [1080p].mkv','show':'Naruto Shippuuden','season':'','episode':''}]}},
+             open(os.path.join(d,'drive-library.json'),'w'))
+   on=debrid_drive.drive_episodes(p)
+   self.assertIn((debrid_drive.show_match('Naruto Shippūden'),1,2),on)
+   state={'jobs':[{'hash':'1'*40,'title':'Naruto Shippūden','kind':'episode','season':'1','episode':'2','status':'new','files':[]},
+                  {'hash':'2'*40,'title':'Naruto Shippūden','kind':'episode','season':'1','episode':'3','status':'new','files':[]},
+                  {'hash':'3'*40,'title':'Naruto Shippuden','kind':'episode','season':'1','episode':'2','status':'copying',
+                   'files':[{'path':'x','done':False,'session':{'url':'u'}}]}]}
+   dropped=debrid_drive.drop_on_drive(state,on)
+   self.assertEqual([j['hash'][0] for j in dropped],['1'])                 # a copy already under way finishes
+   self.assertEqual([j['hash'][0] for j in state['jobs']],['2','3'])
+ def test_spellings_of_a_show_match(self):
+  m=debrid_drive.show_match
+  self.assertEqual(m('Naruto Shippūden'),m('Naruto Shippuuden'));self.assertEqual(m('Naruto Shippuden'),m('naruto.shippuden'))
+  self.assertNotEqual(m('Naruto'),m('Naruto Shippuden'))
+
  def test_one_episode_is_queued_once(self):
   # Owner screenshot (build 325): "Naruto Shippuden Episode 006" waited three times, each from another torrent.
   with tempfile.TemporaryDirectory() as p:
@@ -322,6 +344,15 @@ class TwoLanes(unittest.TestCase):
   self.assertEqual(debrid_drive.step(self.p,api,drive),1)   # done in this turn, not "again in 30 s"
   job=debrid_drive.load(self.p)['jobs'][0]
   self.assertEqual(job['status'],'done');self.assertEqual(sorted(self.uploaded),names);self.assertFalse(job.get('tries'))
+ def test_a_new_turn_clears_an_old_card_and_two_lanes_while_converting(self):
+  # Owner screenshot (build 325): "no answer for 23 min" at 0 % from an earlier run's lane; four lanes beside a conversion.
+  names=['Show.S01E0%d.mkv'%n for n in range(1,6)]
+  debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')
+  state=debrid_drive.load(self.p);state['current']={'slot':7,'name':'old','updated':1,'stage':'copying'};debrid_drive.save(self.p,state)
+  with patch.object(debrid_drive,'conversion_running',lambda profile,now:True):
+   self.run_job(self.season(names),self.drive(pause=.1))
+  self.assertEqual(self.most,2)
+  self.assertFalse(any(c.get('name')=='old' for c in self.shown))
  def test_two_episodes_use_two_lanes_and_five_use_three_at_a_time(self):
   self.assertEqual([debrid_drive.lanes_for(n) for n in (0,1,2,3,4,10)],[1,1,2,3,4,4])   # owner log 4beafff6: four at once
   for count,most in ((2,2),(5,4)):

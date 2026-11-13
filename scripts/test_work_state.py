@@ -223,6 +223,15 @@ class Workers(unittest.TestCase):
    self.assertTrue(any(c.get('updated')==NOW for c in seen))
    j=debrid_drive.load(p)['jobs'][0];self.assertEqual(j['status'],'done');self.assertEqual(j.get('tries'),0)
 
+class FreshLane(unittest.TestCase):
+ def test_the_card_shows_the_lane_that_moved_last(self):
+  # Owner screenshot (build 325): "Waiting for Google Drive · no answer for 23 min" while other lanes copied.
+  job={'hash':'a'*40,'title':'Naruto','kind':'season','season':'1','status':'copying','files':[{'path':'S/Naruto.S01E06.mkv'},{'path':'S/Naruto.S01E07.mkv'}]}
+  stale={'stage':'copying','sent':0,'total':100,'updated':NOW-23*60,'file':'Naruto.S01E06.mkv','count':2,'index':1}
+  live={'stage':'copying','sent':50,'total':100,'updated':NOW-5,'file':'Naruto.S01E07.mkv','count':2,'index':2}
+  card=ws._copy({'jobs':[job],'current':stale,'current_also':live},NOW)
+  self.assertEqual(card['pct'],50);self.assertNotIn('wait',card)
+
 class SeasonQueue(unittest.TestCase):
  """Owner (build 205): "i went to download a entire season and it seems only 1 thing is downloading? it should show a
  que of the episodes". The log: one AllDebrid job for the whole Lanterns season pack (8.4 GB)."""
