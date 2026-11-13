@@ -1,7 +1,8 @@
 name: Customized import review bundle
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    # labeled: adding the "build-ipa" label builds the IPA for the PR's current commit.
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - '.github/workflows/import-review.yml'
       - 'scripts/build_import_review.py'
@@ -85,6 +86,9 @@ on:
       - 'migration/import-overlays/**'
       - 'migration/ios/**'
       - 'docs/iphone-import.md'
+  # Owner (2026-11-13): "i just want one new build with everything not 1000". Every push runs the tests and the review
+  # bundle; the IPA (foundation, portrait pieces, Elementum, build, prerelease) is built only when asked for: Run workflow
+  # (workflow_dispatch) on the branch, or the "build-ipa" label on the pull request.
   workflow_dispatch:
 permissions:
   contents: read
@@ -213,16 +217,20 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Acquire isolated official foundation for customized IPA
+        if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'build-ipa')
         run: |
           mkdir -p "$RUNNER_TEMP/customized-foundation"
           curl --fail --location --proto '=https' --proto-redir '=https' --max-time 120 --output "$RUNNER_TEMP/customized-foundation/foundation.deb" https://mirrors.kodi.tv/releases/darwin/ios-arm64/org.xbmc.kodi-ios_21.3_iphoneos-arm64.deb
           printf '%s  %s\n' c80e2e4eded0b3be9f9c8cd19a73e3f3ac7171575dd6f08cfddf14312ca81eb8 "$RUNNER_TEMP/customized-foundation/foundation.deb" | sha256sum --check
           dpkg-deb --extract "$RUNNER_TEMP/customized-foundation/foundation.deb" "$RUNNER_TEMP/customized-foundation/unpacked"
       - name: Acquire pinned portrait pieces (rotation-aware Kodi executable, Liquid Glass tab bar)
+        if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'build-ipa')
         run: python3 -B scripts/ios_portrait.py --fetch "$RUNNER_TEMP/portrait-inputs"
       - name: Acquire pinned Elementum client, iPhoneOS engine framework and kodi-six
+        if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'build-ipa')
         run: python3 -B scripts/fetch_elementum_inputs.py --output "$RUNNER_TEMP/elementum-inputs"
       - name: Build and validate full customized unsigned ARM64 IPA
+        if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'build-ipa')
         env:
           KODI_IOS_PYTHON311: ${{ steps.py311.outputs.python-path }}
         run: |
@@ -231,6 +239,7 @@ jobs:
           python3 -B scripts/build_customized_ipa.py --app "$RUNNER_TEMP/customized-foundation/unpacked/Applications/Kodi.app" --deb "$RUNNER_TEMP/customized-foundation/foundation.deb" --bundle "$RUNNER_TEMP/kodi-import-review/Kodi-iOS-Customized-Import.zip" --expected-sha256 "$bundle_sha" --work "$RUNNER_TEMP/customized-app" --output "$RUNNER_TEMP/customized-ipa" --elementum "$RUNNER_TEMP/elementum-inputs" --portrait-inputs "$RUNNER_TEMP/portrait-inputs"
       # The owner installs the raw .ipa: publish it as a prerelease asset instead of a zipped artifact.
       - name: Publish raw IPA as a prerelease download
+        if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'build-ipa')
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
