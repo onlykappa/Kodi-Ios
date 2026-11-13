@@ -856,6 +856,9 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             save(profile, state)
             transfer_history.failed(profile, 'up', job.get('title') or job['name'], 'cancelled by you', clock())
             forget(job['hash'])
+    # ISSUE-208: a request with no unfinished copy left is forgotten (the service wakes on any request it holds).
+    for gone in drop - {str(j.get('hash', '')).lower() for j in state['jobs'] if j['status'] not in ('done', 'failed')}:
+        forget(gone)
     # Owner screenshot (build 314): Build Season jobs named after their hash; give them the show's title and move what
     # was already copied into the show's folder.
     changed = kick_on_new_link(state, link(), clock)

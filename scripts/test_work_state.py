@@ -121,6 +121,33 @@ class Build192Causes(unittest.TestCase):
   s=ws.build({'prep':prep},NOW)
   self.assertEqual([(n['title'],n['what']) for n in s['next']],[('Scary Movie (2026)','convert'),('Fall 2','faster start')])
 
+class InstantCancel(unittest.TestCase):
+ """ISSUE-208 (owner: "deleting the download queue is also slow as hell, it needs to be instant")."""
+ def test_a_cancel_shows_at_once_before_the_copier_applies_it(self):
+  import debrid_drive,transfer_control
+  with tempfile.TemporaryDirectory() as p:
+   debrid_drive.save(p,{'jobs':[{'hash':'a'*40,'name':'A','title':'Heat','kind':'movie','status':'copying','files':[],'added':1},
+                                {'hash':'b'*40,'name':'B','title':'Fall','kind':'movie','status':'new','files':[],'added':2}],
+                        'current':{'stage':'copying','sent':1,'total':10,'updated':time.time(),'name':'A'}})
+   self.assertEqual(ws.current(p)['copies_waiting'],2)
+   transfer_control.cancel_copy(p,'A'*40)
+   titles=[j['title'] for j in ws.current(p)['jobs']+ws.current(p)['drive_next']]
+   self.assertNotIn('Heat',titles)
+   transfer_control.cancel_copy(p,'b'*40)
+   now=ws.current(p)
+   self.assertFalse([j for j in now['jobs'] if j.get('kind')=='copy']);self.assertFalse(now['drive_next'])
+   self.assertEqual(now['copies_waiting'],0)
+   self.assertEqual([j['status'] for j in debrid_drive.load(p)['jobs']],['copying','new'])   # the copier still applies it
+ def test_the_copier_wakes_on_a_cancel_and_forgets_requests_with_nothing_left(self):
+  src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/service.py').read_text()
+  self.assertIn('while not nap(delay):',src);self.assertIn('if transfer_control.cancelled_copies(profile):return False',src)
+  import debrid_drive
+  forgot=[]
+  with tempfile.TemporaryDirectory() as p:
+   debrid_drive.save(p,{'jobs':[{'hash':'a'*40,'name':'A','title':'Heat','kind':'movie','status':'done','files':[],'added':1}]})
+   debrid_drive.step(p,None,None,cancelled=lambda:{'a'*40,'c'*40},forget=forgot.append)
+  self.assertEqual(sorted(forgot),['a'*40,'c'*40])
+
 class Freshness(unittest.TestCase):
  def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name
  def tearDown(self):self.tmp.cleanup()

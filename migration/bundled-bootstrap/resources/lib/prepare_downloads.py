@@ -125,6 +125,18 @@ def metadata(drive,item_id):
   raise RuntimeError('Drive video is unavailable or incomplete')
  item['_etag']=headers.get('ETag') or headers.get('etag') or ''
  return item
+def fetch_metadata(drive,ids,keep_going=lambda:True,workers=8):
+ """{id: metadata() or the exception} for many Drive files, `workers` requests at a time (ISSUE-208)."""
+ import concurrent.futures
+ out={}
+ if not ids:return out
+ def one(item_id):
+  if not keep_going():return driveupload.Stop('Preparation scan paused')
+  try:return metadata(drive,item_id)
+  except Exception as error:return error
+ with concurrent.futures.ThreadPoolExecutor(max_workers=max(1,min(workers,len(ids)))) as pool:
+  for item_id,got in zip(ids,pool.map(one,ids)):out[item_id]=got
+ return out
 SIDECAR=re.compile(r'^prepared\.mp4\.sub(\d+)\.([a-z]{1,8})(\.forced)?\.sup$')
 def sidecar_names(video_name,files):
  """[(local file, Drive name)] for the .sup files KodiAirPlay r15 wrote beside a prepared MP4: named after the video,
@@ -788,9 +800,15 @@ class Queue:
   self.commit()
   listed_all=library_scan.remote_files(self.drive,keep_going)
   found=self.unique(listed_all);seen=set();counts={'videos':len(found),'ready':0,'unreadable':0};entries=[]
+  # ISSUE-208 (owner: "the refresh in the library status is super slow"): each video's details were one Drive request
+  # after another (hundreds of round trips); they are asked eight at a time, in the listing's order.
+  details=fetch_metadata(self.drive,[listed['id'] for listed in found],keep_going)
   for number,listed in enumerate(found):
    if not keep_going():raise driveupload.Stop('Preparation scan paused')
-   try:item=dict(metadata(self.drive,listed['id']),folderName=listed.get('folderName',''))
+   try:
+    got=details.get(listed['id'])
+    if isinstance(got,BaseException) or got is None:raise got or RuntimeError('Drive file check: no answer')
+    item=dict(got,folderName=listed.get('folderName',''))
    except Exception:
     # One file Drive cannot describe right now must not stop the whole library check (owner, build 156: no
     # movies were being converted). Its existing work, if any, is kept for the next check.
@@ -799,7 +817,7 @@ class Queue:
     continue
    if self.runtime and not beside:self.runtime.phase('Checking video %d of %d'%(number+1,len(found)),True)
    status.update(stage='Checking video %d of %d'%(number+1,len(found)),progress=100*(number+1)/max(1,len(found)),updated=self.clock())
-   self.commit()
+   if number%10==9 or number+1==len(found):self.commit()   # ISSUE-208: the state file every ten videos, not every one
    slot=key(item);seen.add(slot)
    recovering=[old for old,job in self.state['jobs'].items() if job['source']['id']==item['id'] and job.get('status')=='committing']
    if recovering:

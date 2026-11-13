@@ -434,7 +434,16 @@ def drive_uploads(monitor,home,profile):
     notices.note('info','Downloads resumed','Uploads to Google Drive were paused from an earlier build; they are running again.')
   except Exception as error:xbmc.log('Kodi iOS transfers: pause reset skipped: %s'%diagnostics.error_text(error),xbmc.LOGWARNING)
   quiet=[None]
-  while not monitor.waitForAbort(delay):
+  def nap(seconds):
+   # ISSUE-208: a Cancel or Cancel All wakes the copier within a second instead of after its wait (20-300 s).
+   end=time.time()+seconds
+   while time.time()<end:
+    if monitor.waitForAbort(min(1,max(0.1,end-time.time()))):return True
+    try:
+     if transfer_control.cancelled_copies(profile):return False
+    except Exception:pass
+   return False
+  while not nap(delay):
    delay=20
    try:
     lifted=transfer_control.release_airplay(profile,airplay_busy(),quiet_since=quiet)

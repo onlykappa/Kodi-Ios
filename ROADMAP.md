@@ -524,6 +524,7 @@ One PR, one IPA at the end (owner: no builds until asked). Phone proof is the ow
 | R14 | Download problems page redesign (summary, groups by what you can do, plain reasons, row actions, empty state) | Coded (ISSUE-205; mockup approved) |
 | R15 | Lane learning forgets old speeds (6 h) so a faster line gets more copies at once | Coded (ISSUE-206) |
 | R16 | Library file manager: grid view on TV Shows too | Coded (ISSUE-207) |
+| R17 | Cancel and Cancel All show at once; the library check asks Drive eight at a time | Coded (ISSUE-208) |
 
 Owner conditions to check on the phone: downloads carry on after switching Wi-Fi / cellular, with the screen off
 (Kodi stays awake while any copy is unfinished), and after Kodi is closed and opened again (resumes from Drive's

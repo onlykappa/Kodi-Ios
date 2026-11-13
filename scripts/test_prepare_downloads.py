@@ -490,4 +490,23 @@ class EpisodeOrder(unittest.TestCase):
   jobs[next(k for k,j in jobs.items() if j['source']['name']=='Naruto - Episode 006.mkv')]['priority']=5
   self.assertEqual(sorted(jobs.items(),key=lambda pair:prep.order_key(*pair))[0][1]['source']['name'],'Naruto - Episode 006.mkv')
 
+class QuickCheck(unittest.TestCase):
+ def test_video_details_are_asked_eight_at_a_time(self):
+  # ISSUE-208 (owner: "the refresh in the library status is super slow"): one Drive request per video, one after another.
+  import threading,time as t
+  lock=threading.Lock();live=[0];most=[0]
+  class D:
+   def call(self,method,url,body=None,headers=None):
+    with lock:live[0]+=1;most[0]=max(most[0],live[0])
+    t.sleep(.05)
+    with lock:live[0]-=1
+    item=url.split('/')[-1].split('?')[0]
+    if item=='bad':return 404,{},b''
+    return 200,{'ETag':'e'},json.dumps({'id':item,'name':item+'.mkv','size':'5','md5Checksum':'m'}).encode()
+  ids=['v%d'%n for n in range(24)]+['bad']
+  began=t.time();got=prep.fetch_metadata(D(),ids)
+  self.assertLess(t.time()-began,0.5);self.assertEqual(most[0],8)
+  self.assertEqual(got['v3']['id'],'v3');self.assertIsInstance(got['bad'],RuntimeError)
+  self.assertEqual(list(got),ids)
+
 if __name__=='__main__':unittest.main()

@@ -483,6 +483,20 @@ def load(profile, now=None):
     return stale(state, now)
 
 
+def pending_cancels(debrid, leaving, now):
+    """ISSUE-208 (owner: "deleting the download queue is also slow as hell, it needs to be instant"): a Cancel or
+    Cancel All is written at once but the copier applies it on its next turn; the pages show it as done straight away."""
+    leaving = {str(h).lower() for h in leaving or ()}
+    if not leaving:
+        return debrid
+    jobs = [dict(j, status='failed', error='Cancelled', finished=now)
+            if j.get('status') not in ('done', 'failed') and str(j.get('hash', '')).lower() in leaving else j
+            for j in (debrid or {}).get('jobs') or []]
+    out = dict(debrid or {}, jobs=jobs)
+    out.pop('current', None)   # a cancelled copy's card goes; the lanes left show their own cards
+    return out
+
+
 def current(profile, now=None):
     """Refresh durable Drive transfers immediately; retain the service's other jobs and their freshness.
 
@@ -492,9 +506,10 @@ def current(profile, now=None):
     now=time.time() if now is None else now
     state=load(profile,now) or build({},now)
     paused={k:transfer_control.paused(profile,k) for k in transfer_control.KINDS}
-    debrid=debrid_drive.load(profile)
+    debrid=pending_cancels(debrid_drive.load(profile),transfer_control.cancelled_copies(profile),now)
     copies=build({'debrid':debrid,'paused':paused,'slow':state.get('slow',''),'show_names':show_names(profile)},now)
-    state=dict(state,copy_left=copy_bytes_left(debrid))
+    state=dict(state,copy_left=copy_bytes_left(debrid),
+               copies_waiting=sum(1 for j in debrid.get('jobs') or [] if j.get('status') not in ('done','failed')))
     jobs=[j for j in state.get('jobs',[]) if j.get('kind')!='copy']+copies['jobs']
     nexts=state.get('next') or [];drive_next=copies['drive_next'];needs=state.get('needs') or []
     moving=[j for j in jobs if j['state'] in MOVING]

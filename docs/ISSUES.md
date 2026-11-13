@@ -3342,3 +3342,24 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Retest:** test_library_files (TV grid properties, per-side view memory, the button on both sides).
 - **Visual check:** pending (the rig has no Drive library to show).
 
+## ISSUE-208 — Cancelling the download queue and Library status's Refresh were slow (owner, build 356) — fixed in code
+
+- **Owner:** "the refresh in the library status is super slow and deleting the download queue is also slow as hell, it
+  needs to be instant; it seems it only refreshes after I press the refresh".
+- **Causes:**
+  - Cancel and Cancel All write a request at once. The copier applied it only on its next turn: after the running
+    piece and its wait (20 s to 5 min). Until then every page read the copier's saved list, so the copies still showed.
+  - The "copies waiting" count came from the service's last snapshot.
+  - Refresh (the library check) asked Drive for each video's details one after another, hundreds of round trips, and
+    saved the state file after every video.
+- **Fix:**
+  - The pages apply pending cancels to what they show (work_state.pending_cancels), so cancelled copies leave Library
+    status, the bell and the pill at once, and the waiting count is recounted on every read.
+  - The copier's wait wakes within a second when a cancel request is waiting.
+  - A request with no unfinished copy left is forgotten, so the copier never spins on it.
+  - The library check asks for video details eight at a time (prepare_downloads.fetch_metadata) and saves every ten
+    videos.
+- **Retest:** test_work_state InstantCancel (cancelled copies vanish before the copier runs; stale requests
+  forgotten), test_prepare_downloads QuickCheck (eight at a time, order kept, a failed file reported).
+- **Phone check:** pending: Cancel All on a long queue, and a Refresh's time in the next log.
+
