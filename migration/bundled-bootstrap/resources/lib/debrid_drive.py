@@ -1132,7 +1132,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                         attempt_ready = entry['ready_tries'] <= READY_TRIES
                     if attempt_ready:
                         result = ready_copy(with_source, name, size, parent, going, progress,
-                                            '%s:%s' % (hash_, entry.get('path') or name))
+                                            '%s:%s' % (hash_, entry.get('path') or name), quality=owner.get('quality') or '')
                     if result is None:
                         with guard:
                             entry['plain'] = True
@@ -1161,6 +1161,18 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                         except driveupload.Stop:
                             raise
                         except Exception as error:
+                            if getattr(error, 'low_quality', False):
+                                # ISSUE-236: not the quality chosen. That copy ends now (failed, so Download problems lists
+                                # it and the next search leaves the version out); nothing of it is on Drive.
+                                with guard:
+                                    entry[0].update(status='failed', error=str(error), low_quality=True, finished=clock())
+                                log('%s: %s; not copied' % (entry[0].get('title') or entry[0]['name'], error))
+                                notify('problem', 'Not the quality you picked', '%s: %s. Another version will be looked for.' % (
+                                    entry[0].get('title') or entry[0]['name'], str(error).split(': ', 1)[-1]))
+                                commit()
+                                if entry[0] is job:
+                                    return
+                                continue
                             # Owner log 3b94b426 (build 319): a lane whose episode failed once ended there, and one lane
                             # copied the season alone for hours. The episode goes back in line (its Drive session kept)
                             # up to RETRIES_IN_RUN times before it is left for the next turn.
@@ -1229,6 +1241,10 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                     other['finished'] = clock()
                     notify('drive', 'Saved to Google Drive', '%s · straight from AllDebrid, nothing kept on the phone'
                            % (other.get('title') or other['name']))
+            if job.get('low_quality'):   # ISSUE-236: refused before it was copied; it stays failed
+                state.pop('current', None)
+                commit()
+                return 1
             job['status'] = 'done'
             job['finished'] = clock()
             state.pop('current', None)
