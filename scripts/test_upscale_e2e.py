@@ -288,5 +288,30 @@ class OwnerControls(Season):
         self.assertFalse(uq.paused(self.profile))
 
 
+class PreparationFirst(Season):
+    """Owner log 20d8a992 (build 360): AI Upscale ran for 15 min while 23 videos waited to be prepared."""
+    def test_a_waiting_video_stops_the_copy_and_it_carries_on_later(self):
+        g, _ = self.group()
+        picture.save(self.profile, up.set_show(picture.load(self.profile), g, '4K UHD'))
+        self.native.state['charging'] = 1
+        self.native.model = 2
+        waiting = {'source': {'id': 'new', 'name': 'New S01E09.mkv'}, 'status': 'waiting', 'retry_after': 0}
+        original = self.native.convert_to
+
+        def convert(source, sink, keep_going, progress, paused, waiting_, upscale=None):
+            self.q.state['jobs']['new'] = waiting        # a download lands while the copy is made
+            progress(0, 10, 100)
+        self.native.convert_to = convert
+        self.step(free=10 ** 12)
+        self.assertEqual({e['status'] for e in self.copies().values()} - {'waiting'}, set())   # stopped, back in line
+        self.native.convert_to = original
+        self.assertTrue(upscale_cloud._prep_waiting(self.q))
+        service = (Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap/service.py').read_text()
+        self.assertIn("and not upscale_cloud._prep_waiting(preparation):", service)        # and never starts beside one
+        del self.q.state['jobs']['new']
+        self.step(free=10 ** 12)
+        self.assertEqual(len([e for e in self.copies().values() if e['status'] == 'ready']), 1)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -670,7 +670,10 @@ def drive_uploads(monitor,home,profile):
        try:
         delay=2 if preparation.process_one(converting) else 20
         # DEC-039/040/042: AI Upscale copies are made only when nothing waits to be converted (one engine at a time).
-        if delay==20 and not transfer_control.paused(profile,'conv') and not getattr(preparation,'running_slots',None):
+        # Owner log 20d8a992 (build 360): a failed preparation also returns False, and AI Upscale then ran for 15 min
+        # while 23 videos waited. Upscaling starts only when no video waits to be prepared.
+        import upscale_cloud
+        if delay==20 and not transfer_control.paused(profile,'conv') and not getattr(preparation,'running_slots',None) and not upscale_cloud._prep_waiting(preparation):
          import upscale_cloud,upscale_queue,drivelibrary
          if not getattr(preparation,'upscale_recovered',False):
           data=upscale_queue.load(profile);upscale_queue.save(profile,upscale_queue.recover(data));preparation.upscale_recovered=True

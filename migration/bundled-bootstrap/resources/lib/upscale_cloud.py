@@ -44,7 +44,7 @@ def _prep_waiting(q):
     try:
         now = time.time()
         return any(j.get('status') in ('waiting', 'paused') and not j.get('kept') and not j.get('blocked')
-                   and j.get('retry_after', 0) <= now for j in (q.state.get('jobs') or {}).values())
+                   and j.get('retry_after', 0) <= now for j in list((q.state.get('jobs') or {}).values()))
     except Exception:
         return False
 
@@ -175,6 +175,10 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
             raise driveupload.Stop('AI Upscale paused')
         if uq.cancelling(profile, key):
             raise driveupload.Stop('cancelled')
+        # Owner (2026-11-13): everything ready before it is watched. A video waiting to be prepared goes first; this
+        # copy stops and starts again later (owner log 20d8a992: one copy held 23 videos for 15 min).
+        if not uq.paused(profile) and _prep_waiting(q):
+            raise driveupload.Stop('a video waits to be prepared')
         # Pause (DEC-044 board A/B1): the converter holds where it is (going() False, held() True) until Resume, unless a
         # video waits to be prepared, which goes first; this copy then starts again later.
         while uq.paused(profile) and not uq.cancelling(profile, key) and not _prep_waiting(q):
