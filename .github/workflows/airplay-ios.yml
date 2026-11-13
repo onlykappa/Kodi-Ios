@@ -95,6 +95,7 @@ jobs:
               assert b'_kodi_airplay_probe_ex' in binary and b'_kodi_airplay_prepare_hdr' in binary
               assert b'_kodi_background_state' in binary
               assert b'_kodi_airplay_prepare_keep_image_subs' in binary   # r15: picture subtitles kept beside the MP4
+              assert b'_kodi_airplay_prepare_keep_dvd_subs' in binary   # r54: DVD picture subtitles kept inside the MP4
           PY
           tag=$(python3 -c "import json;print(json.load(open('migration/airplay-ios/source-lock.json'))['framework_release']['tag'])")
           sha=$(python3 -c "import json;print(json.load(open('migration/airplay-ios/source-lock.json'))['source_commit'])")

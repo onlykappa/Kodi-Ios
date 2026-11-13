@@ -41,6 +41,12 @@
 // save the .sup files never loses them.
 static int keep_image_subs=0;
 void kodi_airplay_prepare_keep_image_subs(int on) { keep_image_subs=on!=0; }
+// r54 (owner log a1729c16, build 361: Naruto Shippuuden S1 E9-E16, 640x480, whose only English subtitle is a DVD picture
+// subtitle "dvd_subtitle" / VobSub): FFmpeg's MP4 muxer stores it as an `mp4s` track with its palette in the track's
+// extradata, and Kodi reads it back as a DVD subtitle (AirPlay ignores it). With this on, a kept-language DVD subtitle is
+// copied into the MP4 as it is instead of refusing the file. Off (the default), such a file is refused as before.
+static int keep_dvd_subs=0;
+void kodi_airplay_prepare_keep_dvd_subs(int on) { keep_dvd_subs=on!=0; }
 // r25 (owner, build 178: "keep our audio only and original if different"): a comma list of language tags
 // ("en,eng"). With it, an audio track is kept when it is the file's first audio track (the original) or its language
 // tag is in the list; empty (the default) keeps every track. Preparation and verification use the same rule.
@@ -120,6 +126,17 @@ static int copy_video(const AVCodecParameters *p) {
 }
 static int sidecar_sub(const AVCodecParameters *p) {
     return keep_image_subs && p->codec_type==AVMEDIA_TYPE_SUBTITLE && p->codec_id==AV_CODEC_ID_HDMV_PGS_SUBTITLE;
+}
+static int dvdsub(const AVCodecParameters *p) {
+    return keep_dvd_subs && p->codec_type==AVMEDIA_TYPE_SUBTITLE && p->codec_id==AV_CODEC_ID_DVD_SUBTITLE;
+}
+// r54: an extra video track that is no bigger than the main picture (a lower or equal resolution alternate angle or
+// extra) is left out, with a note; a bigger one means the wrong track was picked as the main picture, so the file is
+// refused as before. Attached pictures (cover art) were never counted.
+static int droppable_video(AVFormatContext *f,unsigned i,int vi) {
+    AVCodecParameters *p=f->streams[i]->codecpar,*m=f->streams[vi]->codecpar;
+    if(p->codec_type!=AVMEDIA_TYPE_VIDEO || (int)i==vi || (f->streams[i]->disposition&AV_DISPOSITION_ATTACHED_PIC))return 0;
+    return p->width>0 && p->height>0 && (int64_t)p->width*p->height<=(int64_t)m->width*m->height;
 }
 static int text_sub(enum AVCodecID id) {
     return id==AV_CODEC_ID_MOV_TEXT || id==AV_CODEC_ID_SUBRIP || id==AV_CODEC_ID_ASS ||
@@ -895,10 +912,19 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
     // Never silently discard image subtitles or alternate video tracks during an in-place replacement.
     for(unsigned i=0;i<original->nb_streams;i++) {
         AVCodecParameters *p=original->streams[i]->codecpar;
-        if((p->codec_type==AVMEDIA_TYPE_SUBTITLE && keep_subtitle(original,i) && !text_sub(p->codec_id) && !sidecar_sub(p)) ||
-           (p->codec_type==AVMEDIA_TYPE_VIDEO && i!=(unsigned)vi && !(original->streams[i]->disposition&AV_DISPOSITION_ATTACHED_PIC))) {
-            fail(err,en,"This file has tracks MP4 cannot preserve; original retained",0);goto end;
+        int bad_sub=p->codec_type==AVMEDIA_TYPE_SUBTITLE && keep_subtitle(original,i) && !text_sub(p->codec_id) && !sidecar_sub(p) && !dvdsub(p);
+        int bad_video=p->codec_type==AVMEDIA_TYPE_VIDEO && i!=(unsigned)vi && !(original->streams[i]->disposition&AV_DISPOSITION_ATTACHED_PIC) &&
+                      !droppable_video(original,i,vi);
+        if(bad_video || bad_sub) {
+            // The track that stops it, in the message (the add-on matches on "tracks MP4 cannot preserve"; the owner's log
+            // names it): "...preserve (video track 1: mpeg2video 720x480); original retained".
+            char what[160];snprintf(what,sizeof what,"%s track %u: %s %dx%d",bad_video?"video":"subtitle",i,avcodec_get_name(p->codec_id),p->width,p->height);
+            char msg[256];snprintf(msg,sizeof msg,"This file has tracks MP4 cannot preserve (%s); original retained",what);
+            fail(err,en,msg,0);goto end;
         }
+        if(p->codec_type==AVMEDIA_TYPE_VIDEO && droppable_video(original,i,vi))
+            kr_remux_note("prepare: left out extra video track %u (%s %dx%d); the main picture is track %d (%dx%d)",
+                          i,avcodec_get_name(p->codec_id),p->width,p->height,vi,original->streams[vi]->codecpar->width,original->streams[vi]->codecpar->height);
     }
     if(avformat_alloc_output_context2(&out,NULL,"mp4",partial)<0 || !out)goto end;
     ins[0].f=original;
@@ -950,7 +976,7 @@ static int prepare(const char *input,const char *output,kr_prepare_progress cb,v
             }
         } else {
             ins[0].map[i]=dst->index;if((int)i==vi)video_out=dst->index;
-            if(p->codec_type==AVMEDIA_TYPE_SUBTITLE && p->codec_id!=AV_CODEC_ID_MOV_TEXT) {
+            if(p->codec_type==AVMEDIA_TYPE_SUBTITLE && p->codec_id!=AV_CODEC_ID_MOV_TEXT && !dvdsub(p)) {
                 subtitle *s=&subs[i];const AVCodec *dc=avcodec_find_decoder(p->codec_id),*ec=avcodec_find_encoder(AV_CODEC_ID_MOV_TEXT);
                 if(!dc || !ec){fail(err,en,"Subtitle encoder unavailable",0);goto end;}
                 s->dec=avcodec_alloc_context3(dc);s->enc=avcodec_alloc_context3(ec);if(!s->dec || !s->enc)goto end;
@@ -1124,7 +1150,7 @@ int kodi_airplay_verify(const char *input,const char *output,char *err,int en) {
     for(unsigned i=0;i<original->nb_streams;i++){
         AVCodecParameters *p=original->streams[i]->codecpar;
         if((int)i==vi || (p->codec_type==AVMEDIA_TYPE_AUDIO && keep_audio(original,i)) ||
-           (p->codec_type==AVMEDIA_TYPE_SUBTITLE && text_sub(p->codec_id) && keep_subtitle(original,i)))mapped++;
+           (p->codec_type==AVMEDIA_TYPE_SUBTITLE && (text_sub(p->codec_id) || dvdsub(p)) && keep_subtitle(original,i)))mapped++;
     }
     r=validate(output,original,mapped,err,en);
 end:avformat_close_input(&original);return r;

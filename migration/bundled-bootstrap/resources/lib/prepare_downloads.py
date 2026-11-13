@@ -500,7 +500,7 @@ def resume_requested(profile,requests=None,state=None):
  transfer_control.set_paused(profile,'conv',False)
  return True
 
-FORGIVEN=('blocked','kept_told','repack_failed','image_subs_retried','hdr_retried')
+FORGIVEN=('blocked','kept_told','repack_failed','image_subs_retried','dvd_subs_retried','hdr_retried')
 def forgive(job):
  """ISSUE-226 / P1 (owner log a1729c16: Repair and Repair All did nothing for Naruto): an owner's Try Again or Start now
  clears what kept a video out of the queue ('blocked' skips every queue filter) and the one-time tries and notices, so it
@@ -1038,6 +1038,17 @@ class Queue:
     job.update(blocked=False,status='waiting',attempts=0,retry_after=0,image_subs_retried=True);job.pop('error',None);n+=1
   if n:self.commit()
   return n
+ def retry_dvd_subtitles(self):
+  """ISSUE-226 / P5: with a KodiAirPlay that keeps DVD picture subtitles inside the MP4 (r54, kodi_airplay_prepare_keep_dvd_subs),
+  videos kept as they are for tracks MP4 cannot preserve get one new try by themselves (Naruto Shippuuden S1 E9-E16), like
+  retry_image_subtitles. A second video track or a subtitle it still can't keep stops them again, once."""
+  if not getattr(self.native,'keeps_dvd_subs',False):return 0
+  n=0
+  for job in self.state['jobs'].values():
+   if job.get('blocked') and 'tracks MP4 cannot preserve' in str(job.get('error','')) and not job.get('dvd_subs_retried'):
+    job.update(blocked=False,status='waiting',attempts=0,retry_after=0,dvd_subs_retried=True,kept_told=False);job.pop('error',None);n+=1
+  if n:self.commit()
+  return n
  def read_speed(self,now):
   """(bytes read from Drive so far, bytes per second over the last ~10 s) for the job running now."""
   try:read=int((self.stream.stats() if self.stream else {}).get('read_bytes') or 0)
@@ -1054,7 +1065,7 @@ class Queue:
   import prepare_cloud
   return prepare_cloud.process_one(self,keep_going,lane)
  def process_one(self,keep_going=lambda:True):
-  self.apply_requests();self.tidy();self.retry_image_subtitles()
+  self.apply_requests();self.tidy();self.retry_image_subtitles();self.retry_dvd_subtitles()
   if getattr(self.native,'hdr',False):
    for job in self.state['jobs'].values():
     if job.get('blocked') and 'without changing HDR' in job.get('error','') and not job.get('hdr_retried'):

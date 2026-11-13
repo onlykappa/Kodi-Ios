@@ -182,6 +182,7 @@ jobs:
           python3 -B scripts/test_elementum_cloud.py
           python3 -B scripts/test_speed_fixes.py
           python3 -B scripts/test_drive_prepare.py
+          python3 -B scripts/test_image_subtitles.py
           python3 -B scripts/test_preparation_runtime.py
           python3 -B scripts/test_transfer_artwork.py
           python3 -B scripts/test_diagnostics.py

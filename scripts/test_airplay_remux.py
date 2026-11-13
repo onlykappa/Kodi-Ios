@@ -158,7 +158,8 @@ class AirPlayLog(unittest.TestCase):
   self.assertRegex(lock['previous']['sha256'],r'^[0-9a-f]{64}$')
   self.assertNotEqual(lock['previous']['sha256'],lock['framework_release']['sha256'])
   self.assertIsInstance(lock['verified_run'],int)
-  self.assertIn(str(lock['verified_run']),lock.get('pin_note',''))
+  if 'staged_note' not in lock:   # a staged release (zero sha, built by CI on its branch) is pinned after its run is checked
+   self.assertIn(str(lock['verified_run']),lock.get('pin_note',''))
  def test_r48_upscaler_in_the_framework(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
   for needle in ('kr_upscale.m','kr_upscale_stub.c ]] && continue','_kodi_airplay_prepare_upscale','_kodi_device_state',
