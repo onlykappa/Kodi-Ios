@@ -367,6 +367,14 @@ class NetworkTrouble(unittest.TestCase):
    if debrid_drive.step(self.p,FakeAPI(),Flaky(),clock=lambda:clock['t']) is None:break
   job=debrid_drive.load(self.p)['jobs'][0]
   self.assertEqual(job['status'],'done');self.assertEqual(job.get('tries',0),0)
+ def test_a_new_connection_wakes_waiting_copies(self):
+  # Owner: "ensure downloads work if wifi is switched". A copy waiting out network trouble tries again at once.
+  state={'link':'wifi','jobs':[{'hash':'a'*40,'status':'copying','net_tries':4,'retry_at':500},{'hash':'b'*40,'status':'copying','retry_at':500}]}
+  self.assertIsNone(debrid_drive.kick_on_new_link(state,'wifi',lambda:100))
+  self.assertEqual(state['jobs'][0]['retry_at'],500)
+  self.assertEqual(debrid_drive.kick_on_new_link(state,'cellular',lambda:100),'wifi')
+  self.assertEqual([j['retry_at'] for j in state['jobs']],[0,500])        # only the one waiting for the network
+  self.assertEqual(state['link'],'cellular')
  def test_copies_failed_for_network_trouble_come_back_once_and_problems_list_the_rest(self):
   state={'jobs':[{'hash':'a'*40,'name':'A','title':'Naruto','kind':'episode','season':'1','episode':'2','status':'failed','error':'ConnectionError: lost','files':[{'path':'x','done':False,'session':{'url':'u'}}]},
                  {'hash':'b'*40,'name':'B','title':'Fall','kind':'movie','status':'failed','error':'Problem: This torrent has no video file.'},
@@ -381,6 +389,18 @@ class NetworkTrouble(unittest.TestCase):
   self.assertEqual(debrid_drive.retry_failed(self.p,('source',)),1)
   self.assertEqual(debrid_drive.clear_failed(self.p),1)
   self.assertEqual([j['status'] for j in debrid_drive.load(self.p)['jobs']],['copying','new'])
+
+class DownloadProblemsPage(unittest.TestCase):
+ def test_lines_and_settings_row(self):
+  import importlib.util
+  root=Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap'
+  spec=importlib.util.spec_from_file_location('copy_problems',root/'copy_problems.py');cp=importlib.util.module_from_spec(spec);spec.loader.exec_module(cp)
+  found=[{'title':'Fall','reason':'This torrent has no video file.','kind':'source'},{'title':'Heat','reason':'Cancelled','kind':'cancelled'}]
+  self.assertEqual(cp.rows(found),[('retry','Retry All (1)'),('clear','Clear All (2)'),('item','Fall · Source: This torrent has no video file.'),
+                                    ('item','Heat · Cancelled: Cancelled')])
+  self.assertEqual(cp.rows([]),[])
+  self.assertIn("R(9459,'Download problems','RunScript(service.kodi.ios.bootstrap,copy_problems)'",(root/'resources/lib/settings_page.py').read_text())
+  self.assertIn("'copy_problems'",(root/'default.py').read_text())
 
 class TwoLanes(unittest.TestCase):
  """ISSUE-164 / 1F.4: a season's episodes go up to Drive up to three at a time; a movie is still one upload."""

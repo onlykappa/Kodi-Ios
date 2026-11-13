@@ -131,7 +131,34 @@ def snapshot(profile,clock=time.time):
   if isinstance(runtime.get('updated'),(int,float)):result['worker']['heartbeat_age_s']=max(0,int(clock()-runtime['updated']))
  try:result['storage']={'free_bytes':shutil.disk_usage(profile).free}
  except OSError:pass
+ result['network']=network(folder,runtime,clock)
  return safe(result)
+
+_NET={}
+def network(folder,runtime=None,clock=time.time,link=None):
+ """ISSUE-198 (owner logs, build 350: copies at 0.06 MB/s, Drive reads stopped for minutes, and no way to tell Wi-Fi
+ from cellular): the connection in use and what each pipe moved this minute: copy lanes' speed, preparation reads,
+ copies waiting for the network."""
+ out={}
+ try:
+  if link is None:
+   import cache_tune;link=cache_tune.link_kind()
+  out['link']=link
+ except Exception:out['link']='unknown'
+ debrid=_read(folder/'debrid-drive.json') or {}
+ lanes=list((debrid.get('lanes') or {}).values()) or [debrid.get('current')]
+ lanes=[l for l in lanes if isinstance(l,dict) and l.get('stage')=='copying']
+ out['copy_lanes']=len(lanes)
+ out['copy_mb_s']=round(sum(float(l.get('rate_own') or l.get('rate') or 0) for l in lanes)/1048576.0,2)
+ jobs=[j for j in debrid.get('jobs') or [] if isinstance(j,dict)]
+ out['copies_waiting_for_network']=sum(1 for j in jobs if j.get('net_tries') and j.get('status') not in ('done','failed'))
+ now=clock();read=int((runtime or {}).get('read_bytes') or 0)
+ last=_NET.get('read')
+ if last and now>last[0] and read>=last[1]:out['prep_read_mb_s']=round((read-last[1])/1048576.0/(now-last[0]),2)
+ _NET['read']=(now,read)
+ if _NET.get('link') not in (None,out['link']):out['link_changed_from']=_NET['link']
+ _NET['link']=out['link']
+ return out
 
 def watch(profile,write,wait,settings=lambda:{},every=60):
  """One bounded summary per minute; continues through probing before numeric progress exists."""

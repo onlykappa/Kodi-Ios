@@ -212,8 +212,8 @@ class Workers(unittest.TestCase):
    drive=Flaky();clock=[NOW]
    step=lambda:debrid_drive.step(p,FakeAPI(),drive,open_url=lambda u,o:io.BytesIO(b'abc'[o:]),clock=lambda:clock[0])
    step()                                     # add: copying
-   self.assertEqual(step(),30)                # the piece fails every try this turn: retry in 30 s
-   j=debrid_drive.load(p)['jobs'][0];self.assertEqual((j['tries'],j['retry_at']),(1,NOW+30))
+   self.assertEqual(step(),15)                # the piece fails every try this turn: network trouble, again in 15 s (ISSUE-198)
+   j=debrid_drive.load(p)['jobs'][0];self.assertEqual((j.get('tries',0),j['net_tries'],j['retry_at']),(0,1,NOW+15))
    self.assertEqual(ws.build({'debrid':debrid_drive.load(p)},NOW)['jobs'][0]['line'],'Waiting for the network · trying again in a moment')
    seen=[]
    orig=debrid_drive.save
@@ -221,7 +221,7 @@ class Workers(unittest.TestCase):
    try:step()
    finally:debrid_drive.save=orig
    self.assertTrue(any(c.get('updated')==NOW for c in seen))
-   j=debrid_drive.load(p)['jobs'][0];self.assertEqual(j['status'],'done');self.assertEqual(j.get('tries'),0)
+   j=debrid_drive.load(p)['jobs'][0];self.assertEqual(j['status'],'done');self.assertEqual(j.get('tries',0),0)
 
 class FreshLane(unittest.TestCase):
  def test_the_card_shows_the_lane_that_moved_last(self):

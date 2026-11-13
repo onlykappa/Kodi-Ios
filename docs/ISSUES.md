@@ -3181,3 +3181,27 @@ as the wrong title, so episodes 5-6 got 4 GB upscaled copies (4a3ab1f).
   (no card, empty library renders nothing), test_watch_continue (finished Drive episode and phone movie remembered),
   test_library_files WatchedFreeUp (model → Watched episodes group). The whole import-review test list and
   check_project pass. Phone retest pending (the one IPA).
+
+## ISSUE-198 — Network trouble ended copies and conversions for good; no way to tell Wi-Fi from cellular (build 350, owner logs 94711fae / b3c5d6eb) — FIXED on host
+
+- **Seen:** 33 minutes with nothing playing: AllDebrid → Drive pieces fell to 1 MB at ~0.1 MB/s per lane (one Drive PUT
+  of 1 MB took 16 s, 0.06 MB/s); preparation's Drive reads were 0 MB/s for over 5 minutes, then "Source read:
+  Input/output error"; four compatibility checks timed out. The minute snapshot: 65 of 116 copy jobs "failed",
+  8 of 29 preparation jobs failed. The log never said whether the phone was on Wi-Fi or cellular.
+- **Root cause:** every error counted toward a copy's 20 tries (debrid_drive.step) or a conversion's back-off of up to
+  an hour (prepare_cloud), including network trouble that goes away by itself (a dropped or switched connection, the
+  phone asleep, Kodi closed, HTTP 5xx). After a long stretch of it, jobs ended "failed" for good although Drive kept
+  their sessions. A copy waiting out its back-off did not notice a new connection.
+- **Fix:** debrid_drive.network_error() classifies such errors; they wait 15 s, 30 s … up to 5 min (net_wait),
+  never count toward giving up, and carry on from what Drive confirmed (copies) or the last mark (conversions:
+  status 'waiting', net_attempts). revive() puts copies that had failed for network trouble back in line once.
+  kick_on_new_link(): when the connection changes, waiting copies try again at once. Settings › Library › Download
+  problems (copy_problems.py) lists what ended, with its reason, Retry All and Clear. The minute snapshot gains
+  `network`: link (wifi / cellular), copy lanes and MB/s, preparation read MB/s, copies waiting for the network, and
+  link_changed_from.
+- **Retest:** test_debrid_drive NetworkTrouble (what counts; 50 drops never fail a copy and it finishes; revive once;
+  problems / retry / clear; a new connection wakes waiting copies), DownloadProblemsPage, test_drive_prepare (an I/O
+  error waits 15 s and the conversion then finishes), test_diagnostics (network summary). Phone proof: next log.
+- **Already covered (checked):** Kodi stays awake with the screen off while any copy is unfinished (service `why`:
+  debrid_drive.active), including copies waiting for the network; a killed app resumes copies from their saved Drive
+  sessions and conversions from their marks; the picker already ranks 10-bit H.264 as "needs conversion" (PR #22).

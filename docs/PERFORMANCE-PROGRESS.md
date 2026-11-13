@@ -1,5 +1,13 @@
 # Performance and quality progress
 
+## HANDOFF (2026-11-13, reliability PR) — read this first
+
+PR #22 merged (build-350). Branch claude/trusting-euler-kgug98 restarted from main for the reliability roadmap
+(ROADMAP.md "Reliability roadmap"): ISSUE-198 network-safe copies and conversions, Download problems page, network
+summary in the minute snapshot, waiting copies wake on a new connection. All host tests pass. No IPA built (owner: one
+IPA at the end, on request: Run workflow on import-review.yml). Next: the owner's log from that IPA; if R1 shows copies
+starving preparation, build the priority scheduler (R2).
+
 ## TAKEOVER (2026-11-13, after build 347) — start here
 
 Branch claude/trusting-euler-kgug98, draft PR #22. Owner approved merging PR #22 **only once all gaps are filled and nothing is left out**. Last fix commit: Library status long press / Show Back / graph race (ISSUE-196).

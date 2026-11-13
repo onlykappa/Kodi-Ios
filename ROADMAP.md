@@ -501,3 +501,20 @@ show.
    episode_name() covers new copies only.
 4. Check after the fix: Library status "Working on now", Notifications "Running now" and Activity show the show's
    poster and "Naruto Shippūden · S1 E2" for every lane.
+
+## Reliability roadmap — 2026-11-13 (owner logs 94711fae / b3c5d6eb, build 350)
+
+One PR, one IPA at the end (owner: no builds until asked). Phone proof is the owner's next log.
+
+| Step | What | State |
+|---|---|---|
+| R1 | Network visibility: Wi-Fi / cellular, each pipe's speed, link changes in the minute snapshot | Done (ISSUE-198) |
+| R2 | Bandwidth: copies wake on a new connection; waits capped at 5 min; lanes already follow the measured speed | Done (ISSUE-198); a full priority scheduler (playback > next-to-watch preparation > copies > checks) is next if the R1 numbers show copies starving preparation |
+| R3 | Failed jobs: network trouble never fails a copy; old ones revived; Download problems page (reason, Retry All, Clear) | Done (ISSUE-198) |
+| R4 | Version choice: 10-bit H.264 ranked as needing conversion; Pick Better Versions for queued oversized files | Already in PR #22 (deck_picker converts_for_tv, ISSUE-192) |
+| R5 | Conversions carry on after network trouble (wait 15 s–5 min, resume from the mark) | Done (ISSUE-198) |
+| R6 | Phone proof of build 350's pages (poster, no Refresh card, Watched episodes, Library status long press, Saturation) | Owner |
+
+Owner conditions to check on the phone: downloads carry on after switching Wi-Fi / cellular, with the screen off
+(Kodi stays awake while any copy is unfinished), and after Kodi is closed and opened again (resumes from Drive's
+confirmed position). Swiping Kodi away in the app switcher stops work until Kodi is opened (iOS).

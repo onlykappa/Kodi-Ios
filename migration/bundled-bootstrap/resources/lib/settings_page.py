@@ -115,7 +115,9 @@ LIBRARY=[
  ('Library',[R(9452,'Refresh Library',LIBRARY_REFRESH,'arrows-rotate.png',BLUE),
   R(9453,'Movies','RunScript(service.kodi.ios.bootstrap,library_manager,movie)','film.png',ORANGE),
   R(9454,'TV Shows','RunScript(service.kodi.ios.bootstrap,library_manager,tv)','tv.png',PURPLE),
-  R(9458,'Check Drive for problems','RunScript(service.kodi.ios.bootstrap,library_manager,check)','magnifying-glass.png',ORANGE)],
+  R(9458,'Check Drive for problems','RunScript(service.kodi.ios.bootstrap,library_manager,check)','magnifying-glass.png',ORANGE),
+  # ISSUE-198: copies that ended, with their reason; Retry All / Clear.
+  R(9459,'Download problems','RunScript(service.kodi.ios.bootstrap,copy_problems)','triangle-exclamation.png',RED)],
   'Includes completed downloads on this iPhone and in Google Drive.'),
  ('Kodi and AirPlay',[R(9457,'Library status',LIBRARY_STATUS,'file-waveform.png',PURPLE)],
   'Every movie and show in Google Drive › Kodi Downloads is prepared once, so seeking on Kodi and AirPlay never waits. Check now to see what is ready, waiting or paused.'),

@@ -760,8 +760,31 @@ def companions(state, later, api, clock, log=lambda text: None):
     return out
 
 
+def link_now():
+    try:
+        import cache_tune
+        return cache_tune.link_kind()
+    except Exception:
+        return None
+
+
+def kick_on_new_link(state, link, clock=time.time):
+    """ISSUE-198: Wi-Fi to cellular (or back, or a new Wi-Fi): copies waiting out network trouble try again at once
+    instead of finishing their wait. Returns the previous link when it changed, else None."""
+    before = state.get('link')
+    if link:
+        state['link'] = link
+    if not link or not before or before == link:
+        return None
+    for job in state.get('jobs', []):
+        if job.get('net_tries') and job.get('status') not in ('done', 'failed') and float(job.get('retry_at') or 0) > clock():
+            job['retry_at'] = 0
+    return before
+
+
 def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=default_open, keep_going=lambda: True,
-         clock=time.time, on_done=lambda job: None, cancelled=lambda: set(), forget=lambda info_hash: None, log=lambda text: None):
+         clock=time.time, on_done=lambda job: None, cancelled=lambda: set(), forget=lambda info_hash: None, log=lambda text: None,
+         link=link_now):
     """Move the oldest unfinished job on by one step. Returns seconds until the next step is worth trying
     (None when nothing is queued). cancelled(): info hashes the owner cancelled (long press in Notifications);
     those jobs end as failed with 'Cancelled' and forget(hash) clears each request."""
@@ -776,6 +799,10 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             forget(job['hash'])
     # Owner screenshot (build 314): Build Season jobs named after their hash; give them the show's title and move what
     # was already copied into the show's folder.
+    changed = kick_on_new_link(state, link(), clock)
+    if changed:
+        log('connection changed (%s to %s): waiting copies carry on now' % (changed, state.get('link')))
+        save(profile, state)
     for job_ in revive(state, clock):
         log('%s: back in line (it had stopped for network trouble: %s)' % (job_.get('title') or job_['name'], str(job_.get('error'))[:80]))
         save(profile, state)
