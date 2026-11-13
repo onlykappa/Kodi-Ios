@@ -180,6 +180,8 @@ class LaneLearning(unittest.TestCase):
   quick={}
   debrid_drive.learn_lanes(quick,2,1024,5)                   # a few seconds say nothing
   self.assertEqual(quick,{})
+  src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib/debrid_drive.py').read_text()
+  self.assertIn('if not busy and not converting():',src)       # E19: runs beside a conversion are not learned from
 
 class LateBytes(unittest.TestCase):
  def test_drive_keeping_a_timed_out_pieces_bytes_is_not_an_error(self):

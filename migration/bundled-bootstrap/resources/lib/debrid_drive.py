@@ -954,7 +954,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             # Owner log 7698974a (build 325): four copies at ~0.2 MB/s each while a conversion read and wrote Drive on
             # the same connection; every piece timed out at 20 s and halved. Two lanes while a conversion runs.
             # E16: as many lanes as the link rewards (lane_plan), never more than files, and two beside a conversion.
-            lanes = min(lanes_for(len(todo)), lane_plan(state), BUSY_LANES if converting() else LANES)
+            busy = converting()
+            lanes = min(lanes_for(len(todo)), lane_plan(state), BUSY_LANES if busy else LANES)
             moved = {}
             began = clock()
             try:
@@ -969,8 +970,10 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                         if problem is not None:
                             raise problem
             finally:
-                with guard:
-                    learn_lanes(state, lanes, sum(b - a for a, b in moved.values()), clock() - began)
+                # E19: a run beside a conversion shares the link with it (and is capped), so it says nothing about lanes.
+                if not busy and not converting():
+                    with guard:
+                        learn_lanes(state, lanes, sum(b - a for a, b in moved.values()), clock() - began)
             for other in group[1:]:
                 if all(e['done'] for e in other['files']):
                     other['status'] = 'done'
