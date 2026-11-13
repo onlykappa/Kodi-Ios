@@ -356,3 +356,11 @@ and Cancel Copy behind an alert; Up next › Edit with remove and reorder), boar
 heading in Download problems' All view, behind the existing alert), board D (Library status "Working on now · N": the
 main card plus a compact row per extra preparation lane). Cancel and Remove never touch the original video; Clear only
 empties the list. Owner: no IPA until these are built.
+
+## DEC-045 — Queue page and Favourites mockups approved (2026-11-13)
+
+Owner, on docs/design/queue-favourites-mockups.html: "i approve E and F". Approved scope: board E (Queue: one scrolling
+list with posters, "Downloading to Google Drive" then "Preparing for Kodi and AirPlay", running rows with their bar,
+waiting rows saying why, Edit with – / ≡ remove and reorder, "Cancel All Downloads to Drive" as a red action at the
+bottom) and board F (Favourites: one large title, the empty state, the Library's poster grid with All / Movies / Shows).
+The notification details mockup (G–H) is not yet approved.
