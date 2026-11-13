@@ -346,3 +346,13 @@ problem episode, the ••• menu with Find Missing Episodes and Repair All Pr
 facts, Play, Delete; Repair as the main action for a problem), D (select and delete with the iOS confirmation; Drive
 files to Drive's Trash), E (Movies poster grid), F (Free Up Space). The work is planned in ROADMAP.md "Mockup
 roadmap"; coding starts when the owner says so.
+
+## DEC-044 — AI Upscale page, Download problems Clear and Library status lanes mockups approved (2026-11-13)
+
+Owner, on docs/design/ai-upscale-library-mockups.html: "i approve those moc ups!". Approved scope: board A (AI Upscale
+page: Making now card first with pause/resume and a plain reason when waiting, Up next with Edit, one row per show,
+settings and the iPhone's AI status below, Cancel All Upscaling), board B (the copy's status sheet with stages, Pause
+and Cancel Copy behind an alert; Up next › Edit with remove and reorder), board C (Clear on the "Cancelled by you"
+heading in Download problems' All view, behind the existing alert), board D (Library status "Working on now · N": the
+main card plus a compact row per extra preparation lane). Cancel and Remove never touch the original video; Clear only
+empties the list. Owner: no IPA until these are built.
