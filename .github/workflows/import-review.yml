@@ -92,8 +92,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+# A requested IPA build (Run workflow) has its own group, so a later push's test run never cancels it.
 concurrency:
-  group: kodi-customized-import-review
+  group: kodi-customized-import-review-${{ github.event_name }}
   cancel-in-progress: true
 jobs:
   review:
