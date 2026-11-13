@@ -137,6 +137,31 @@ class NativeCopies(unittest.TestCase):
    self.assertEqual(debrid_drive.load(profile)['jobs'][0]['status'],'done');self.assertEqual(drive.data,blob)
    self.assertEqual(offsets,[0,8*1024*1024,12*1024*1024,16*1024*1024])   # after the lost answer: half-size pieces
 
+class Paced(unittest.TestCase):
+ def test_the_deadline_follows_the_confirmed_speed(self):
+  # Owner log ec3b0956 (build 325): ~0.1 MB/s a lane; 40 % of pieces hit the fixed 20 s and were partly sent again.
+  pace=driveupload.Pace()
+  self.assertEqual(pace.deadline(1024*1024),20.0)                          # nothing measured yet
+  pace.observe(1024*1024,10)                                               # 0.1 MB/s confirmed
+  self.assertAlmostEqual(pace.deadline(1024*1024),30.0)                    # 3 x 10 s
+  self.assertEqual(pace.deadline(64*1024*1024),180.0)                      # never past the framework's cap
+  pace.observe(0,20)                                                       # a stalled piece does not move it
+  self.assertAlmostEqual(pace.deadline(1024*1024),30.0)
+  for _ in range(10):pace.observe(8*1024*1024,1)                           # a fast link: back to the floor
+  self.assertEqual(pace.deadline(1024*1024),20.0)
+ def test_copiers_get_the_deadline(self):
+  blob=b'x'*(3*1024*1024);seen=[]
+  class Drive(FakeDrive):
+   def copy_piece(self,source,source_headers,target,headers,offset,count,total,timeout):
+    seen.append(timeout)
+    return self.call('PUT',target,blob[offset:offset+count],{'Content-Range':'bytes %d-%d/%d'%(offset,offset+count-1,total)})
+  class API(FakeAPI):
+   def unlock(self,link):return 'https://source/f','Fall.2022.2160p.mkv',len(blob)
+  with tempfile.TemporaryDirectory() as profile:
+   debrid_drive.queue(profile,{'id':H,'name':'Fall'},'movie','Fall');drive=Drive();api=API()
+   debrid_drive.step(profile,api,drive);debrid_drive.step(profile,api,drive)
+   self.assertEqual(debrid_drive.load(profile)['jobs'][0]['status'],'done');self.assertEqual(seen[0],20.0)
+
 class LateBytes(unittest.TestCase):
  def test_drive_keeping_a_timed_out_pieces_bytes_is_not_an_error(self):
   # Owner log 3b94b426 (build 319): after a 20 s timeout Drive confirmed more than the next piece sent; the copy failed

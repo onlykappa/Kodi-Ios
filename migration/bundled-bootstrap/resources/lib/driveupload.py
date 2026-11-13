@@ -291,16 +291,17 @@ class Drive(object):
   # Owner log 4beafff6 (build 314): from 1 MB the pieces took the first minute to reach 16 MB; they start at 8 MB (the
   # size every framework takes) and still halve on a timeout.
   chunks.current=min(chunks.limit,8*1024*1024)
-  failures=0
+  failures=0;pace=Pace()
   while offset<size:
    if not keep_going():raise Stop()
    count=min(size-offset,chunks.minimum if slowdown.reason() else chunks.current)
    activity('copying',offset,size);started=time.monotonic();access=self.token()
+   deadline=pace.deadline(count)
    try:
-    status,headers,body=copy_to(session['url'],{'Authorization':'Bearer '+access},offset,count,size)
+    status,headers,body=_copy(copy_to,session['url'],{'Authorization':'Bearer '+access},offset,count,size,deadline)
     if status==401:
      self.token(access)
-     status,headers,body=copy_to(session['url'],{'Authorization':'Bearer '+self.token()},offset,count,size)
+     status,headers,body=_copy(copy_to,session['url'],{'Authorization':'Bearer '+self.token()},offset,count,size,deadline)
    except (ConnectionError,TimeoutError,OSError):
     # A timed-out PUT may have been accepted: query Drive before sending anything again.
     status,headers,body=self.call('PUT',session['url'],b'',{'Content-Range':'bytes */%d'%size})
@@ -322,12 +323,35 @@ class Drive(object):
     if failures>3:raise ConnectionError('Drive did not advance; upload session retained')
    else:failures=0
    chunks.observe(count,elapsed,0)
-   _note('Drive copy native: %.1f MB piece in %.1f s; confirmed %.1f%%'%(count/1048576,elapsed,100.0*confirmed/size))
+   pace.observe(max(0,confirmed-offset),elapsed)
+   _note('Drive copy native: %.1f MB piece in %.1f s (deadline %.0f s); confirmed %.1f%%'%(count/1048576,elapsed,deadline,100.0*confirmed/size))
    offset=confirmed;save();progress(offset,size);gate.after(elapsed,count,download=True)
   raise RuntimeError('Drive did not confirm the upload')
  def _done(self,path,sessions,save,body):
   sessions.pop(path,None);save()
   return json.loads(body or b'{}')
+
+class Pace:
+ """Owner log ec3b0956 (build 325): on a slow link (~0.1 MB/s a lane) 40 % of the pieces ran into the fixed 20 s
+ deadline (the native copier assumed 1 MB/s); Drive kept part of each and the rest was sent again: each lane sent about
+ 150 MB to confirm 80. The deadline now follows the speed Drive actually confirmed (three times the expected time, 20 s
+ to 180 s, the framework's own cap)."""
+ FLOOR,CAP,MARGIN=20.0,180.0,3.0
+ def __init__(self):self.rate=0.0
+ def observe(self,advanced,elapsed):
+  if advanced<=0 or elapsed<=0:return
+  now=advanced/elapsed
+  self.rate=now if not self.rate else 0.6*self.rate+0.4*now
+ def deadline(self,count):
+  if not self.rate:return self.FLOOR
+  return max(self.FLOOR,min(self.CAP,self.MARGIN*count/self.rate))
+
+def _copy(copy_to,url,headers,offset,count,size,deadline):
+ """copy_to with the paced deadline (copiers made before it take the default)."""
+ try:return copy_to(url,headers,offset,count,size,timeout=deadline)
+ except TypeError as error:
+  if 'timeout' not in str(error):raise
+  return copy_to(url,headers,offset,count,size)
 
 def _note(message):
  try:

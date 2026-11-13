@@ -3075,3 +3075,17 @@ the queue check.
 - Four lanes at ~0.2 MB/s with every piece timing out at 20 s, beside a conversion reading and writing Drive on the
   same connection: two lanes while a conversion runs (BUSY_LANES). The connection is still the ceiling (the log does
   not say Wi-Fi or cellular; the owner's screenshot shows 5G).
+
+## ISSUE-191 — Season copies sent their bytes twice on a slow link (owner log ec3b0956, build 325, 24 min) — FIXED on host
+
+What the log shows: four lanes for 24 minutes; each sent 143-203 MB in 104-111 pieces but Drive confirmed only 3-4 %
+of a ~2 GB episode (~60-80 MB). 37-40 pieces per lane (about 40 %) ended at 20.2-21.6 s: the native copier's deadline
+is max(20 s, 1 s per MB), which assumes 1 MB/s, and the lanes got ~0.1 MB/s each (~0.5 MB/s together). A piece cut
+off at its deadline kept only what Drive had confirmed and the rest went again. One ConnectionError was retried in the
+same turn (ISSUE-188 working). The conversion of "Naruto Shippuuden - 002" beside it failed with a Drive read error at
+20:28 and waits for a retry.
+Root cause: a deadline that does not follow the link's real speed.
+Fix: driveupload.Pace measures the speed Drive confirms and gives each piece three times its expected time (20 s floor,
+the framework's 180 s cap); debrid_drive's copier passes it on. The log line now says the deadline. Retest:
+test_debrid_drive Paced. Phone check: "piece in … (deadline N s)" with few pieces at their deadline, and the confirmed %
+rising about as fast as the MB sent.

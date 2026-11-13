@@ -690,8 +690,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                         return action(source_link[0])
                 def open_source(offset):return with_source(lambda source:open_url(source,offset))
                 if callable(getattr(drive,'copy_piece',None)):
-                    def copy_to(target,headers,offset,count,total):
-                        return with_source(lambda source:drive.copy_piece(source,{},target,headers,offset,count,total,20))
+                    def copy_to(target,headers,offset,count,total,timeout=20):
+                        return with_source(lambda source:drive.copy_piece(source,{},target,headers,offset,count,total,timeout))
                     copy_to.max=getattr(drive.copy_piece,'max',8*1024*1024)
                     open_source.copy_to=copy_to
                 name = episode_name(owner, os.path.basename(name or entry['path']))
