@@ -180,6 +180,25 @@ class MakesACopy(unittest.TestCase):
         self.assertIsNone(entry)
 
 
+class RemovesCopies(unittest.TestCase):
+    def test_remove_sends_copies_to_the_bin_and_drops_waiting_ones(self):
+        # V3, board C "Remove the copies…" (after the alert).
+        log = []
+        with tempfile.TemporaryDirectory() as profile, mock.patch.dict(sys.modules, fake_modules(log)):
+            q = queue(profile, Native(state={'charging': 0, 'battery': 0.9, 'thermal': 'nominal'}))
+            data = uq.load(profile)
+            data['copies'] = {'a': {'status': 'ready', 'label': '4K UHD', 'copy_id': 'c-a'}, 'b': {'status': 'waiting', 'label': '4K UHD'}}
+            data['remove'] = ['a', 'b']
+            uq.save(profile, data)
+            off = settings()
+            off['shows'] = {}
+            upscale_cloud.process_one(q, lambda: True, picture.load(profile), lambda job: SHOW, None, clock=lambda: 1000.0)
+            after = uq.load(profile)
+            self.assertIn(('bin', 'c-a'), log)
+            self.assertEqual((after['copies']['a']['status'], after['copies']['b']['status']), ('gone', 'gone'))
+            self.assertNotIn('remove', after)
+
+
 class WhichShow(unittest.TestCase):
     def test_a_queued_download_knows_its_show_and_others_go_by_title(self):
         jobs = {'jobs': [{'show_tmdb': '31910', 'title': 'Naruto Shippuden', 'files': [{'drive_id': 'orig1'}]}]}

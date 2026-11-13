@@ -71,7 +71,14 @@ def library(prep_state, media_for, data):
             continue
         g['videos'].append(original)
         g['levels'].append(picture.level(width, height))
-        state = (data.get('copies', {}).get(original) or {}).get('status')
+        copy = data.get('copies', {}).get(original) or {}
+        state = copy.get('status')
+        name = (job.get('source') or {}).get('name', '')
+        g.setdefault('items', []).append({'id': original, 'name': name, 'season': int(media.get('season') or 0),
+                                          'episode': int(media.get('episode') or 0), 'level': picture.level(width, height),
+                                          'state': state or '', 'label': copy.get('label', ''), 'size': int(copy.get('size') or 0),
+                                          'progress': int(copy.get('progress') or 0), 'eta': copy.get('eta', ''),
+                                          'duration': float(probe.get('duration') or 0), 'width': width, 'height': height})
         if state == 'ready':
             g['ready'] += 1
         elif state == 'running':
@@ -176,3 +183,90 @@ def engine_state(native, width=1920, height=1080, label='4K UHD'):
         return {'upscales': True, 'model': int(native.upscale_model(width, height, label, 0))}
     except Exception:
         return {'upscales': True, 'model': -1}
+
+
+# --- Board C: one show's page (V3; upscale_show_page.py draws it, upscale_settings.py fills it) ----------------------
+CHIPS = {'ready': ('Ready', 'green'), 'running': ('Making', 'blue'), 'waiting': ('Waiting', 'grey'),
+         'failed': ('Waiting', 'grey'), 'blocked': ('Kept', 'grey'), 'gone': ('Off', 'grey'), '': ('Off', 'grey')}
+
+
+def episode_rows(g):
+    """Board C1: one row per video, in episode order: title, grey line (copy size, progress, or what it waits for), chip."""
+    import drivelibrary
+    out = []
+    for item in sorted(g.get('items') or [], key=lambda i: (i['season'], i['episode'], i['name'].lower())):
+        chip, tone = CHIPS.get(item['state'], CHIPS[''])
+        if item['episode']:
+            title = '%d · %s' % (item['episode'], episode_name(item['name']) or 'Episode %d' % item['episode'])
+        else:
+            title = drivelibrary.display_title(item['name']) or item['name']
+        if item['state'] == 'ready':
+            line = '%s copy · %s' % (short(item['label']), _gb(item['size']))
+        elif item['state'] == 'running':
+            line = ' · '.join(x for x in ('%d %%' % item['progress'], item.get('eta') or '') if x)
+        elif item['state'] in ('waiting', 'failed'):
+            line = 'Up next'
+        else:
+            line = size_name(item['width'], item['height'])
+        out.append({'id': item['id'], 'title': title, 'line': line, 'chip': chip, 'tone': tone})
+    return out
+
+
+def episode_name(name):
+    """The episode's own name from a file name ('Naruto Shippuden S01E01 Homecoming.1080p.mkv' -> 'Homecoming'), or ''
+    when the name has none (board C1 rows: "1 · Homecoming")."""
+    import re
+    base = re.sub(r'\.[A-Za-z0-9]{2,4}$', '', str(name or '').rsplit('/', 1)[-1])
+    base = re.sub(r'[._]+', ' ', re.sub(r'\[[^\]]*\]|\([^)]*\)', ' ', base))
+    m = re.search(r'(?i)\bS\d{1,2}\s*E\d{1,4}\b|\bepisode\s*\d{1,4}\b|\s[-–]\s*\d{1,4}\b', base)
+    if not m:
+        return ''
+    tail = base[m.end():]
+    cut = re.search(r'(?i)\b(2160p|1080p|720p|480p|4k|web[ -]?dl|webrip|bluray|bdrip|hdtv|x26[45]|h ?26[45]|hevc|10bit|aac|dual audio)\b', tail)
+    tail = tail[:cut.start()] if cut else tail
+    return re.sub(r'^[\s\-–:]+|[\s\-–:]+$', '', re.sub(r'\s{2,}', ' ', tail))
+
+
+def _gb(size):
+    return '%.1f GB' % (size / 1e9) if size >= 1e9 else '%d MB' % max(1, round(size / 1e6))
+
+
+def show_view(settings, g, best=None):
+    """Board C for one show or movie: {'title', 'sub', 'choices', 'chosen', 'rows', 'primary', 'primary_size',
+    'remove', 'note'}. choices: Off, then only the sizes above its videos (the Picture menu's slider)."""
+    scope, entry = picture.resolve(settings, g['media'])
+    chosen = entry['upscale'] if scope != 'default' or entry['upscale'] in picture.LABELS else picture.OFF
+    choices = show_sizes(g)
+    rows = episode_rows(g)
+    items = g.get('items') or []
+    count = len(items)
+    what = 'Movie' if g['kind'] == 'movie' else '%d episode%s' % (count, '' if count == 1 else 's')
+    sub = ' · '.join(x for x in (what, g.get('source', '')) if x)
+    target = best or (choices[-1] if len(choices) > 1 else picture.OFF)
+    todo = [i for i in items if i['state'] not in ('ready', 'running', 'waiting')]
+    estimate = sum(uq.estimate_bytes(i['duration'], target, i['width'] or 1920, i['height'] or 1080) for i in todo) if target in picture.LABELS else 0
+    primary = ''
+    if chosen not in picture.LABELS and target in picture.LABELS and todo:
+        primary = ('Upscale to %s' % target if g['kind'] == 'movie' else
+                   'Upscale %s %d · about %s' % ('all' if len(todo) == count else 'the other', len(todo), _gb(estimate)))
+    ready = [i for i in items if i['state'] == 'ready']
+    label = ready[0]['label'] if ready else ''
+    remove = 'Remove the %s cop%s…' % (short(label), 'y' if len(ready) == 1 else 'ies') if ready else ''
+    if chosen in picture.LABELS:
+        waiting = sum(1 for i in items if i['state'] in ('waiting', 'failed', 'running'))
+        note = ('%d being made, one at a time%s.' % (waiting, ' while charging' if settings.get('downloads', {}).get('only_charging', True) else '')
+                if waiting else 'Every video has its %s copy.' % short(chosen) if ready and len(ready) == count else '')
+    else:
+        note = 'The original stays for the phone and older TVs.'
+    return {'title': g['title'], 'sub': sub, 'choices': choices, 'chosen': chosen, 'rows': rows, 'primary': primary,
+            'primary_size': target, 'remove': remove, 'note': note}
+
+
+def remove_copies(settings, data, g):
+    """Board C "Remove the copies…" (after the alert): the show goes Off (so nothing is made again) and the service
+    sends each copy to Drive's Trash (upscale_cloud.process_one). Returns (settings, data)."""
+    settings = set_show(settings, g, picture.OFF)
+    ids = [i['id'] for i in g.get('items') or [] if i['state'] in ('ready', 'waiting', 'failed', 'running')]
+    data.setdefault('remove', [])
+    data['remove'] = sorted(set(data['remove']) | set(ids))
+    return settings, data

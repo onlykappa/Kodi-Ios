@@ -78,14 +78,8 @@ def run():
                 settings['downloads']['size'] = choices[pick]
                 picture.save(profile, settings)
             elif action.startswith('show:'):
-                g = next((g for g in self.groups if g['key'] == action[5:]), None)
-                if g is None:
-                    return
-                sizes = up.show_sizes(g)
-                pick = dialog.select('%s · AI Upscale' % g['title'], sizes)
-                if pick < 0:
-                    return
-                picture.save(profile, up.set_show(settings, g, sizes[pick]))
+                # V3 (board C): the show's own page: size, episodes with their state, make the rest, remove the copies.
+                open_show(action[5:])
             elif action == 'model':
                 data = uq.load(profile)
                 data['model_request'] = True
@@ -98,6 +92,83 @@ def run():
                 return
             self.fill(keep=n)
 
+    import upscale_show_page as sp
+
+    class Show(xbmcgui.WindowXMLDialog):
+        def onInit(self):
+            self.draw()
+
+        def group(self):
+            _, _, groups, _ = model(profile)
+            return next((g for g in groups if g['key'] == self.key), None)
+
+        def draw(self):
+            self.g = self.group()
+            if self.g is None:
+                self.close()
+                return
+            settings = picture.load(profile)
+            self.view = up.show_view(settings, self.g)
+            v = self.view
+            props = {'title': v['title'], 'sub': v['sub'], 'chosen': v['chosen'], 'primary': v['primary'], 'remove': v['remove'],
+                     'note': v['note'], 'what': 'movie' if self.g['kind'] == 'movie' else 'show',
+                     'episodes.title': 'EPISODES' if self.g['kind'] != 'movie' else ''}
+            for n in range(sp.SEGS):
+                label = v['choices'][n] if n < len(v['choices']) else ''
+                props['seg.%d' % n] = up.short(label) if label else ''
+                props['seg.%d.tint' % n] = 'FF0A84FF' if label and label == v['chosen'] else 'FF2C2C2E'
+            rows = v['rows'][:sp.SLOTS] if self.g['kind'] != 'movie' else []
+            for n in range(sp.SLOTS):
+                r = rows[n] if n < len(rows) else {}
+                props['ep.%d.title' % n] = r.get('title', '')
+                props['ep.%d.line' % n] = r.get('line', '')
+                props['ep.%d.chip' % n] = r.get('chip', '')
+                props['ep.%d.tone' % n] = r.get('tone', '')
+                props['ep.%d.pos' % n] = ('only' if len(rows) == 1 else 'first' if n == 0 else 'last' if n == len(rows) - 1 else 'mid') if r else ''
+            for key, value in props.items():
+                self.setProperty(key, str(value))
+
+        def onAction(self, action):
+            if action.getId() in BACK:
+                self.close()
+
+        def onClick(self, control):
+            settings = picture.load(profile)
+            if control == sp.BACK:
+                self.close()
+                return
+            if sp.SEG <= control < sp.SEG + sp.SEGS and control - sp.SEG < len(self.view['choices']):
+                picture.save(profile, up.set_show(settings, self.g, self.view['choices'][control - sp.SEG]))
+            elif control == sp.PRIMARY and self.view['primary']:
+                picture.save(profile, up.set_show(settings, self.g, self.view['primary_size']))
+                dialog.notification('AI Upscale', 'Copies are made in the background, one at a time', xbmcgui.NOTIFICATION_INFO, 3000)
+            elif control == sp.REMOVE and self.view['remove']:
+                if not dialog.yesno('Remove the copies?', 'The upscaled copies of %s go to Google Drive\'s Trash, where they stay for '
+                                    '30 days. The originals are not touched, and this show is set to Off.' % self.view['title'],
+                                    nolabel='Cancel', yeslabel='Remove'):
+                    return
+                settings, data = up.remove_copies(settings, uq.load(profile), self.g)
+                picture.save(profile, settings)
+                uq.save(profile, data)
+            else:
+                return
+            self.draw()
+
+    def open_show(key):
+        try:
+            sheet = Show(sp.WINDOW, HERE, 'Default', '1080i')
+        except RuntimeError:
+            import xbmcvfs as _v
+            _v.listdir(os.path.join(_v.translatePath('special://skin/'), 'portrait') + '/')   # a page added while Kodi runs
+            sheet = Show(sp.WINDOW, HERE, 'Default', '1080i')
+        sheet.key = key
+        sheet.doModal()
+        del sheet
+
+    direct = next((a[5:] for a in sys.argv[1:] if a.startswith('show=')), '')
+    if direct:   # RunScript(service.kodi.ios.bootstrap,upscale_settings,show=KEY): straight to one show's page
+        open_show(direct)
+        return
     page = Page('IOSSkinList.xml', HERE, 'Default', '1080i')
     page.doModal()
     del page

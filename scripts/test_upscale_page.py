@@ -62,6 +62,32 @@ class Page(unittest.TestCase):
         s = up.set_show(picture.load('/none'), groups['Rick and Morty'], '1080p')
         self.assertEqual(s['shows']['tv:60625']['upscale'], '1080p')
 
+    def test_one_show_page(self):
+        # V3, board C: the show's size, its episodes with their state, make the rest, remove the copies.
+        import upscale_queue as uq
+        data = {'copies': {'id1': {'status': 'ready', 'label': '4K UHD', 'size': 640e6}, 'id2': {'status': 'running', 'label': '4K UHD',
+                                                                                                    'progress': 42, 'eta': 'about 18 min'}}}
+        media = dict(MEDIA, id1=dict(MEDIA['id1'], season=1, episode=1), id2=dict(MEDIA['id2'], season=1, episode=2))
+        groups = up.library(PREP, lambda j: media[j['prepared_id']], data)
+        g = next(g for g in groups if g['title'] == 'Naruto Shippūden')
+        settings = picture.load('/none')
+        v = up.show_view(settings, g)
+        self.assertEqual((v['chosen'], v['choices']), (picture.OFF, [picture.OFF, '1440p', '4K UHD']))
+        self.assertEqual([(r['chip'], r['line']) for r in v['rows']], [('Ready', '4K copy · 640 MB'), ('Making', '42 % · about 18 min')])
+        self.assertEqual((v['primary'], v['remove']), ('', 'Remove the 4K copy…'))   # every episode already has one
+        self.assertEqual(v['sub'], '2 episodes · 1080p')
+        settings = up.set_show(settings, g, '4K UHD')
+        self.assertEqual(up.show_view(settings, g)['chosen'], '4K UHD')
+        settings, data = up.remove_copies(settings, data, g)
+        self.assertEqual(sorted(data['remove']), ['id1', 'id2'])
+        self.assertEqual(up.show_view(settings, g)['chosen'], picture.OFF)          # Off: nothing is made again
+        fresh = up.library(PREP, lambda j: media[j['prepared_id']], {'copies': {}})
+        g2 = next(g for g in fresh if g['title'] == 'Naruto Shippūden')
+        v2 = up.show_view(picture.load('/none'), g2)
+        self.assertTrue(v2['primary'].startswith('Upscale all 2 · about '), v2['primary'])
+        self.assertEqual(v2['primary_size'], '4K UHD')
+        self.assertEqual(v2['remove'], '')
+
     def test_toggles(self):
         s = up.toggle(picture.load('/none'), 'prepare')
         self.assertTrue(s['downloads']['prepare'])
