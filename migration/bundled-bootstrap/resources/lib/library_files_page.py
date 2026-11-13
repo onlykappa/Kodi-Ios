@@ -12,6 +12,9 @@ LIST = 9300
 CHIP_COLORS = (('green', 'FF30D158'), ('orange', 'FFFF9F0A'), ('blue', 'FF0A84FF'), ('red', 'FFFF453A'), ('purple', 'FFBF5AF2'))
 CHIPS = 3
 TOP = 300
+# L7 (board E): the Movies side is a three-column poster grid; each poster has its size line and one state badge.
+MOVIE, COLS, CELL_GAP = 9400, 3, 32
+POSTER_H_OF_W = 1.5           # 2:3 posters
 
 
 def _tab(p, u, ident, x, w, label, key):
@@ -55,6 +58,50 @@ def _rows(p, u):
     return out
 
 
+def _badge(p, u, k, x, y, w):
+    """Board E: one small state pill on the poster (Ready, AI 4K, 42 %, Problem), coloured by its state."""
+    out = ('<control type="grouplist"><left>%d</left><top>%d</top><width>%d</width><height>62</height>'
+           '<orientation>horizontal</orientation><usecontrolcoords>true</usecontrolcoords>' % (x, y, w))
+    for name, tint in CHIP_COLORS:
+        out += ('<control type="button"><width min="80" max="%d">auto</width><height>62</height><label>%s</label>'
+                '<font>p_foot_b</font><textcolor>%s</textcolor><focusedcolor>%s</focusedcolor><textoffsetx>20</textoffsetx>'
+                '<aligny>center</aligny><texturenofocus border="21" colordiffuse="E61C1C1E">%sr21.png</texturenofocus>'
+                '<texturefocus border="21" colordiffuse="E61C1C1E">%sr21.png</texturefocus><enable>false</enable>'
+                '<disabledcolor>%s</disabledcolor><visible>String.IsEqual(Window().Property(%sbadgec),%s)</visible></control>') % (
+            w, u.P(k + 'badge'), tint, tint, p.MEDIA, p.MEDIA, tint, k, name)
+    return out + '</control>'
+
+
+def cell_size(p):
+    w = p.WIDTH - 2 * p.SIDE
+    cw = (w - (COLS - 1) * CELL_GAP) // COLS
+    return cw, int(cw * POSTER_H_OF_W)
+
+
+def _grid(p, u):
+    """Board E: SLOTS posters in rows of three (pooled cells, filled as mov.N.*); each tap opens board C."""
+    S = p.SIDE
+    cw, ph = cell_size(p)
+    cell_h = ph + 150
+    out = ''
+    for r in range((SLOTS + COLS - 1) // COLS):
+        b = ''
+        for c in range(COLS):
+            n = r * COLS + c
+            if n >= SLOTS:
+                break
+            k, x = 'mov.%d.' % n, S + c * (cw + CELL_GAP)
+            one = (p.image(x, 0, cw, ph, p.MEDIA + 'poster16.png', 'FF2C2C2E') +
+                   p.image(x, 0, cw, ph, u.P(k + 'art'), 'FFFFFFFF', aspect='>scale', diffuse=p.MEDIA + 'poster16.png') +
+                   u.tap(p, MOVIE + n, x, 0, cw, cell_h) +
+                   _badge(p, u, k, x + 16, 16, cw - 32) +
+                   u.text(p, x, ph + 18, cw, 54, u.P(k + 'title'), 'p_foot_b') +
+                   u.text(p, x, ph + 72, cw, 46, u.P(k + 'sub'), 'p_foot', p.GREY))
+            b += '<control type="group"><visible>%s</visible>%s</control>' % (u.has(k + 'title'), one)
+        out += u.group(p, cell_h + 38, b, u.has('mov.%d.title' % (r * COLS)))
+    return out
+
+
 def page(p):
     import status_ui as u
     W, S, w = p.WIDTH, p.SIDE, p.WIDTH - 2 * p.SIDE
@@ -79,7 +126,7 @@ def page(p):
     listing = ('<control type="grouplist" id="%d"><top>%d</top><width>%d</width><bottom>0</bottom><orientation>vertical</orientation>'
                '<itemgap>0</itemgap><usecontrolcoords>true</usecontrolcoords>' % (LIST, 450, W) +
                u.group(p, 236 + 38, store, u.has('store.line')) + u.group(p, 118 + 38, search) +
-               _rows(p, u) +
+               _rows(p, u) + _grid(p, u) +
                u.group(p, 160, u.text(p, S, 30, w, 100, P('empty'), 'p_foot', p.GREY), u.has('empty')) +
                u.group(p, 260, '') + '</control>')
     body += listing

@@ -141,8 +141,9 @@ class Page(unittest.TestCase):
 
     def test_movies_and_search(self):
         props, rows = self.lm.fill(self.data, 'movie', 'size', '', slots=5)
-        self.assertEqual((props['title'], props['row.0.title'], props['row.0.chip0'], props['row.0.chip0c']), ('Movies', 'Fall', 'Ready', 'green'))
-        self.assertEqual(props['row.0.sub'], '2022 · 3.3 GB · 1080p')
+        # L7 (board E): the Movies side is the poster grid (mov.N.*); the show rows stay empty.
+        self.assertEqual((props['title'], props['mov.0.title'], props['mov.0.badge'], props['mov.0.badgec']), ('Movies', 'Fall', 'Ready', 'green'))
+        self.assertEqual((props['mov.0.sub'], props['row.0.title']), ('3.3 GB · 1080p', ''))
         props, rows = self.lm.fill(self.data, 'tv', 'recent', 'zzz', slots=5)
         self.assertEqual((rows, props['empty']), ([], 'Nothing matches “zzz”.'))
         props, rows = self.lm.fill({'shows': [], 'movies': [], 'storage': lf.storage([], [])}, 'tv', slots=5)
@@ -197,6 +198,25 @@ class ItemSheet(Page):
         movie = self.data['movies'][0]
         props, actions = self.lm.fill_item(movie, None, 'movie')
         self.assertEqual((props['title'], props['sub'], props['delete']), ('Fall', 'Movie \u00b7 2022', 'Delete Movie\u2026'))
+
+
+class MovieGrid(unittest.TestCase):
+    """L7 (board E): three posters a row, each a 44 pt tap target with its badge, title and size line."""
+    def test_grid_cells(self):
+        import portrait, library_files_page as page
+        xml = page.page(portrait)
+        cw, ph = page.cell_size(portrait)
+        self.assertEqual((cw, ph), (302, 453))
+        for n in (0, 1, 2, page.SLOTS - 1):
+            self.assertIn('<control type="button" id="%d">' % (page.MOVIE + n), xml)
+        self.assertIn('String.IsEqual(Window().Property(mov.0.badgec),orange)', xml)
+        self.assertGreaterEqual(ph + 150, 118)
+
+    def test_converting_badge_says_how_far(self):
+        rows = lf.movie_rows([{'id': 'm1', 'title': 'Hell House', 'size': 2 * 1024 ** 3}],
+                             {'jobs': {'s': {'source': {'id': 'm1', 'name': 'Hell House'}, 'status': 'waiting'}},
+                              'current': {'running': True, 'title': 'Hell House', 'progress': 42}})
+        self.assertIn(rows[0]['badge'], ('42 %', 'Converting'))
 
 
 class Repair(unittest.TestCase):

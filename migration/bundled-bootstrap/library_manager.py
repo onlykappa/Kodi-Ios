@@ -70,6 +70,20 @@ def fill(data, tab='tv', sort='recent', search='', slots=30):
     for n in range(slots):
         for key in ('title', 'sub', 'art', 'pos') + tuple('chip%d' % c for c in range(3)) + tuple('chip%dc' % c for c in range(3)):
             props['row.%d.%s' % (n, key)] = ''
+        for key in ('title', 'sub', 'art', 'badge', 'badgec'):
+            props['mov.%d.%s' % (n, key)] = ''
+    if tab == 'movie':
+        # L7 (board E): posters in a three-column grid, the size under each title; the badge only says the state.
+        for n, r in enumerate(rows):
+            k = 'mov.%d.' % n
+            props[k + 'title'], props[k + 'art'] = r['title'], r.get('art', '')
+            props[k + 'sub'] = ' · '.join(x for x in (lf.size_text(r['size']), r.get('quality') or '') if x)
+            props[k + 'badge'] = r['badge']
+            props[k + 'badgec'] = {'Ready': 'green', 'Converting': 'orange', 'Problem': 'red', 'Copying': 'blue'}.get(
+                r['badge'], 'orange' if str(r['badge']).endswith('%') else 'purple')
+        props['empty'] = '' if rows else ('Nothing matches “%s”.' % search if search else
+                                          'No downloaded movies yet. Downloads appear here once they are on Google Drive.')
+        return props, rows
     for n, r in enumerate(rows):
         k = 'row.%d.' % n
         props[k + 'title'] = r['title']
@@ -219,6 +233,10 @@ def run():
                 pick = xbmcgui.Dialog().select('Sort by', [label for _, label in SORTS])
                 if pick >= 0:
                     self.sort = SORTS[pick][0]
+            elif page.MOVIE <= control < page.MOVIE + page.SLOTS and control - page.MOVIE < len(self.rows) and self.tab == 'movie':
+                if open_item(self.data, self.rows[control - page.MOVIE], None, 'movie'):
+                    self.close()
+                return
             elif page.ROW <= control < page.ROW + page.SLOTS and control - page.ROW < len(self.rows):
                 row = self.rows[control - page.ROW]
                 if self.tab == 'tv':

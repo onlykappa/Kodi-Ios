@@ -189,6 +189,8 @@ def movie_rows(movies, prep_state, upscale_state=None, watched=(), sort='recent'
     for m in movies:
         state = file_state(m, prep, copies, watched)
         badge = {READY: 'Ready', UNKNOWN: 'Ready', CONVERTING: 'Converting', PROBLEM: 'Problem', COPYING: 'Copying'}[state['state']]
+        if state['state'] == CONVERTING and state.get('progress') is not None:
+            badge = '%d %%' % state['progress']   # board E: "42 %" on a movie still converting
         if state['ai']:
             badge = 'AI ' + (state['ai_label'] or '4K')
         rows.append(dict(state, id=m.get('id'), title=m.get('title') or m.get('name'), year=m.get('year'),

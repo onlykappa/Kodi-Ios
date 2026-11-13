@@ -97,9 +97,22 @@ def _queue(profile, torrent, kind, title='', season='', episode='', now=None, ep
     if not h:
         raise ValueError('torrent without an info-hash')
     for job in state['jobs']:
-        if job['hash'] == h and job.get('season','')==str(season or '') and job.get('episode', '') == str(episode or '') and job['status'] not in ('done', 'failed'):
+        same_torrent = job['hash'] == h
+        # Owner screenshots (build 325): episode 6 waited three times and episode 2 twice, each from another torrent.
+        # An episode already waiting or copying is not queued again from a different version.
+        same_episode = (kind == 'episode' and episode and job.get('kind') == 'episode' and show_tmdb and
+                        str(job.get('show_tmdb') or '') == str(show_tmdb) and job.get('season', '') == str(season or '') and
+                        job.get('episode', '') == str(episode or ''))
+        if (same_episode or (same_torrent and job.get('season','')==str(season or '') and job.get('episode', '') == str(episode or ''))) and job['status'] not in ('done', 'failed'):
             changed=False
             if show_tmdb and not job.get('show_tmdb'):job['show_tmdb']=str(show_tmdb);changed=True
+            # Owner (build 325): jobs queued by older builds kept their hash as the title; a new request names them.
+            if title and not is_hash(title) and is_hash(job.get('title') or job.get('name')):
+                job.setdefault('moved_from', job.get('title') or job['name'])
+                job['title'] = title
+                if is_hash(job.get('name')):
+                    job['name'] = str(torrent.get('name') or title)
+                changed=True
             if watch:job['watch_requested']=time.time();changed=True
             if changed:save(profile,state,enqueue=True)
             return job
@@ -139,9 +152,32 @@ def is_hash(text):
     return bool(re.fullmatch(r'[0-9a-fA-F]{40}|[A-Z2-7]{32}', text))
 
 
-def retitle(profile, state, plans=None):
-    """Jobs named after their info-hash (Build Season before build 315) take the show's title from the season plan
-    (episode_watch, by TMDb id). Returns the jobs changed: [(job, old title)]."""
+EPISODE_MARK = None
+
+
+def title_from_name(name):
+    """The show's name from a release or file name: 'Naruto Shippuden Episode 006 Mission…' -> 'Naruto Shippuden',
+    'Naruto.Shippuuden.-.002.[1080p].mkv' -> 'Naruto Shippuuden', 'Show.S01E04.mkv' -> 'Show'. '' for a hash."""
+    import re
+    import drivelibrary
+    global EPISODE_MARK
+    if EPISODE_MARK is None:
+        EPISODE_MARK = re.compile(r'(?i)(\bS\d{1,2}\s*E\d{1,4}\b|\bepisode\s*\d{1,4}\b|\bep\.?\s*\d{1,4}\b|\bE\d{2,4}\b|\s[-–]\s*\d{1,4}\b|\b\d{1,2}x\d{2,3}\b|\bseason\s*\d)')
+    base = str(name or '').rsplit('/', 1)[-1]
+    if not base or is_hash(base) or is_hash(base.rsplit('.', 1)[0]):
+        return ''
+    text = re.sub(r'\[[^\]]*\]|\([^)]*\)', ' ', re.sub(r'\.(mkv|mp4|avi|m4v|ts|webm)$', '', base, flags=re.I))
+    text = re.sub(r'[._]+', ' ', text)
+    mark = EPISODE_MARK.search(text)
+    title = text[:mark.start()] if mark and mark.start() > 0 else drivelibrary.parse(base)['title']
+    title = re.sub(r'\s{2,}', ' ', re.sub(r'[\s\-–(]+$', '', title)).strip()
+    return '' if not title or is_hash(title) else title
+
+
+def retitle(profile, state, plans=None, names=None, lookup=None):
+    """Jobs named after their info-hash take their show's title. Where from, in order: the season plan (episode_watch,
+    by TMDb id); another job of the same show; the show's name cached by the Library (names: {tmdb id: name}); TMDb
+    itself (lookup(tmdb id) -> name, owner build 325); the release or file name. Returns [(job, old title)]."""
     if plans is None:
         try:
             import episode_watch
@@ -155,11 +191,25 @@ def retitle(profile, state, plans=None):
     for other in state.get('jobs', []):
         if other.get('show_tmdb') and other.get('title') and not is_hash(other.get('title')):
             known.setdefault(str(other['show_tmdb']), other['title'])
+    names = names or {}
     for job in state.get('jobs', []):
         old = job.get('title') or ''
-        if not (is_hash(old) or is_hash(job.get('name'))) or not job.get('show_tmdb'):
+        if not (is_hash(old) or is_hash(job.get('name')) or not old):
             continue
-        title = (plans.get(str(job['show_tmdb'])) or {}).get('title') or known.get(str(job['show_tmdb'])) or ''
+        tmdb = str(job.get('show_tmdb') or '')
+        title = ((plans.get(tmdb) or {}).get('title') or known.get(tmdb) or names.get(tmdb) or '') if tmdb else ''
+        if not title and tmdb and lookup:
+            try:
+                title = lookup(tmdb) or ''
+            except Exception:
+                title = ''
+            if title:
+                known[tmdb] = title
+        if not title:
+            for source in [job.get('name')] + [f.get('path') for f in job.get('files') or []]:
+                title = title_from_name(source)
+                if title:
+                    break
         if not title or title == old:
             continue
         job['title'] = title
@@ -169,6 +219,75 @@ def retitle(profile, state, plans=None):
         job.setdefault('moved_from', old)
         changed.append((job, old))
     return changed
+
+
+def show_names(profile):
+    """{tmdb id: name} the Library has cached (drive-library-art.json 'show:ID'); no network."""
+    try:
+        import work_state
+        return work_state.show_names(profile)
+    except Exception:
+        return {}
+
+
+LOOKED_UP = {}
+
+
+def show_lookup(profile):
+    """tmdb id -> the show's name from TMDb (TMDb Helper's key), cached in drive-library-art.json so the Library and
+    the pages find the name and poster too. None when there is no key."""
+    import drivelibrary
+    try:
+        import xbmcvfs
+        key = drivelibrary.tmdb_key(xbmcvfs.translatePath('special://home/addons/plugin.video.themoviedb.helper'))
+    except Exception:
+        return None
+    if not key:
+        return None
+    path = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap', 'drive-library-art.json')
+
+    def lookup(tmdb_id):
+        if time.time() - LOOKED_UP.get(str(tmdb_id), 0) < 600:   # a failed lookup waits ten minutes
+            return ''
+        LOOKED_UP[str(tmdb_id)] = time.time()
+        cache = drivelibrary.load_json(path, {})
+        found = drivelibrary.show_details(tmdb_id, key, cache, lambda url: urllib.request.urlopen(url, timeout=15).read())
+        if found:
+            drivelibrary.save_json(path, cache)
+        return found.get('name', '')
+    return lookup
+
+
+def _started(job):
+    return any(f.get('done') or (f.get('session') or {}).get('url') for f in job.get('files') or [])
+
+
+def drop_duplicates(state):
+    """Owner (build 325): the same episode waited several times, each from another torrent. Among the jobs not done,
+    one per show, season and episode stays (the one already copying, else the oldest); the others leave the queue if
+    they have not copied anything yet. Returns the jobs removed."""
+    import drivelibrary
+    keep, dropped = {}, []
+    for job in state.get('jobs', []):
+        if job.get('status') in ('done', 'failed') or job.get('kind') != 'episode' or not job.get('episode') or not job.get('season'):
+            continue
+        show = str(job.get('show_tmdb') or '') or drivelibrary.show_key(job.get('title') or '')
+        if not show or is_hash(job.get('title') or ''):
+            continue
+        key = (show, str(int(job['season'])), str(int(job['episode'])))
+        first = keep.get(key)
+        if first is None:
+            keep[key] = job
+            continue
+        loser = job if _started(first) or not _started(job) else first
+        if _started(loser):
+            continue
+        if loser is first:
+            keep[key] = job
+        dropped.append(loser)
+    if dropped:
+        state['jobs'] = [j for j in state['jobs'] if all(j is not d for d in dropped)]
+    return dropped
 
 
 def episode_name(job, name):
@@ -357,7 +476,13 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             forget(job['hash'])
     # Owner screenshot (build 314): Build Season jobs named after their hash; give them the show's title and move what
     # was already copied into the show's folder.
-    renamed = retitle(profile, state)
+    renamed = retitle(profile, state, names=show_names(profile), lookup=show_lookup(profile))
+    dropped = drop_duplicates(state)
+    for job_ in dropped:
+        log('%s S%sE%s: already downloading from another version; this one is removed' % (
+            job_.get('title') or job_['name'], job_.get('season'), job_.get('episode')))
+    if dropped:
+        save(profile, state)
     if renamed:
         for job_, old in renamed:
             log('%s: named after its show (was %s)' % (job_['title'], old[:12]))

@@ -160,6 +160,48 @@ class LateBytes(unittest.TestCase):
    self.assertEqual(calls[2][0],calls[1][0]+calls[1][1]+1024*1024)   # carried on from where Drive was
 
 class HashNamedJobs(unittest.TestCase):
+ def test_names_from_releases_tmdb_and_requeue(self):
+  # Owner screenshots (build 325): "3c90db2e05…" and "ee34425d5595…" cards; "Download · S1 E4" in Up next.
+  t=debrid_drive.title_from_name
+  self.assertEqual(t('Naruto Shippuden Episode 006 Mission to Rescue the Kazekage.mkv'),'Naruto Shippuden')
+  self.assertEqual(t('S/[Sub] Naruto.Shippuuden.-.002.[1080p].mkv'),'Naruto Shippuuden')
+  self.assertEqual(t('Show.S01E04.1080p.mkv'),'Show')
+  self.assertEqual(t('ee34425d5595f37297bc8c94dab3184c02d43daf'),'')
+  h='3c90db2e05'+'a'*30
+  state={'jobs':[{'hash':h,'name':h,'title':h,'kind':'episode','season':'1','episode':'4','show_tmdb':'31910','status':'new','files':[]},
+                 {'hash':'e'*40,'name':'e'*40,'title':'e'*40,'kind':'episode','season':'1','episode':'6','status':'copying',
+                  'files':[{'path':'P/Naruto Shippuden Episode 006 Mission.mkv','done':False,'session':{}}]}]}
+  asked=[]
+  changed=debrid_drive.retitle('/p',state,plans={},lookup=lambda i:asked.append(i) or 'Naruto Shippūden')
+  self.assertEqual([j['title'] for j,_ in changed],['Naruto Shippūden','Naruto Shippuden'])
+  self.assertEqual((asked,state['jobs'][0]['name']),(['31910'],'Naruto Shippūden S01E04'))
+ def test_a_new_request_renames_an_old_hash_job(self):
+  with tempfile.TemporaryDirectory() as p:
+   h='ee34425d55'+'f'*30
+   debrid_drive.queue(p,{'id':h},'episode','',season='1',episode='4',show_tmdb='31910')
+   self.assertEqual(debrid_drive.load(p)['jobs'][0]['title'],'')
+   job=debrid_drive.queue(p,{'id':h,'name':'Naruto Shippūden S01E04'},'episode','Naruto Shippūden',season='1',episode='4',show_tmdb='31910')
+   self.assertEqual((job['title'],len(debrid_drive.load(p)['jobs'])),('Naruto Shippūden',1))
+
+class Duplicates(unittest.TestCase):
+ def test_one_episode_is_queued_once(self):
+  # Owner screenshot (build 325): "Naruto Shippuden Episode 006" waited three times, each from another torrent.
+  with tempfile.TemporaryDirectory() as p:
+   for n in (1,2,3):
+    debrid_drive.queue(p,{'id':('%d'%n)*40,'name':'Naruto Episode 006 v%d'%n},'episode','Naruto',season='1',episode='6',show_tmdb='31910')
+   debrid_drive.queue(p,{'id':'4'*40,'name':'Naruto Episode 007'},'episode','Naruto',season='1',episode='7',show_tmdb='31910')
+   self.assertEqual([j['episode'] for j in debrid_drive.load(p)['jobs']],['6','7'])
+ def test_old_duplicates_leave_the_queue_unless_started(self):
+  started={'path':'a.mkv','done':False,'session':{'url':'https://upload/a'}}
+  state={'jobs':[{'hash':'1'*40,'title':'Naruto','kind':'episode','season':'1','episode':'6','show_tmdb':'9','status':'new','files':[]},
+                 {'hash':'2'*40,'title':'Naruto','kind':'episode','season':'1','episode':'6','show_tmdb':'9','status':'copying','files':[started]},
+                 {'hash':'3'*40,'title':'Naruto','kind':'episode','season':'1','episode':'6','show_tmdb':'9','status':'new','files':[]},
+                 {'hash':'4'*40,'title':'Naruto','kind':'episode','season':'1','episode':'2','show_tmdb':'9','status':'done','files':[]},
+                 {'hash':'5'*40,'title':'Naruto','kind':'episode','season':'1','episode':'2','show_tmdb':'9','status':'new','files':[]}]}
+  dropped=debrid_drive.drop_duplicates(state)
+  self.assertEqual(sorted(j['hash'][0] for j in dropped),['1','3'])        # the one already copying stays
+  self.assertEqual([j['hash'][0] for j in state['jobs']],['2','4','5'])    # a done one never counts as waiting
+
  """Owner screenshot (build 314): Build Season's episodes went into Drive folders named after the torrent hash
  ("3c90db2e052…"), so the Library had no title or poster for them."""
  def test_jobs_take_the_show_title_and_copied_files_move_into_its_folder(self):

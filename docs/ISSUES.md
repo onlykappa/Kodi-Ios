@@ -3040,3 +3040,24 @@ TwoLanes.test_a_lane_whose_episode_fails_once_tries_it_again_in_the_same_turn (b
 Also: a job still named after its info-hash with no saved season plan now takes its show's title from another job of
 the same show (retitle; HashNamedJobs test) — the "ee34425d5595…" card. The slow pieces themselves matched a slow
 connection at that time (Kodi's own playback buffered too), see ISSUE-186.
+
+## ISSUE-189 — Downloads still named after the hash, the same episode queued several times, no posters (build 325, owner screenshots and log 7698974a)
+
+What the screenshots show: Library › TV Shows lists "3c90db2e05217cc29aef549b4…" (1 copying) and
+"ee34425d5595f37297bc8c94…" (31 copying) with no poster; Library status › Up next lists "Naruto Shippuden Episode 006
+Missi…" three times, "Naruto Shippuuden - 002" twice (one already on Drive and converting) and "Download · S1 E4/E8/E9".
+Root cause: (1) these jobs were queued by builds before 315 with the info-hash as their title; queuing the same
+torrent again returned the old job without renaming it, and retitle only knew the season plan or a sibling job, and the
+Library had no cached name for Naruto (its files went into hash-named folders), so the pages fell back to the hash or
+"Download"; (2) the queue was de-duplicated per torrent only, so each Build Season or download from another version
+added the same episode again.
+Fix: retitle also takes the Library's cached name, TMDb's (by the show's TMDb id, cached in drive-library-art.json,
+so posters follow; a failed lookup waits 10 min), or the release / file name (title_from_name); a new request for a
+hash-named job renames it. queue() returns the episode already waiting from another torrent (same show, season,
+episode); drop_duplicates removes not-started duplicates already in the queue (the one copying stays). Retest:
+test_debrid_drive HashNamedJobs, Duplicates. Phone check: the hash cards become "Naruto Shippūden" with a poster; Up next
+lists each episode once.
+Also in the log: four copies at 0.2 MB/s each (8-20 s per 2 MB piece) while a conversion read from Drive at the same
+time; the connection was the limit (see ISSUE-186). Not changed. Not fixed: an episode already on Drive under an
+absolute number ("Naruto Shippuuden - 002") can still be queued as S1 E2 by an older job; it needs the Drive listing in
+the queue check.
