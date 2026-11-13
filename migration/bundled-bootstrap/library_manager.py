@@ -237,7 +237,18 @@ def run():
     import library_item_page as item_page
     import urllib.parse
 
-    def act(action, row, data, show=None, kind='episode'):
+    def repair_rows(rows, data, show, episodes=None):
+        """L5 (board C3): Build Season's automatic pick, no question; the show's own quality first, then any. One
+        script repairs the episodes one after another (the search lane takes one at a time)."""
+        import library_repair
+        tmdb = (data.get('tmdb') or {}).get((show or {}).get('id'), '')
+        if not tmdb or not rows:
+            return False
+        xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,library_repair_page,%s)' % ','.join(
+            library_repair.script_args(tmdb, (show or {}).get('title', ''), rows, library_repair.qualities(episodes or rows)[0])))
+        return True
+
+    def act(action, row, data, show=None, kind='episode', episodes=None):
         """Board C's actions. Returns True when the pages should close (playback started)."""
         import drivelibrary
         if action == 'play' or action == 'tv':
@@ -262,8 +273,10 @@ def run():
             if not tmdb:
                 xbmcgui.Dialog().ok('Repair', 'This show has no TMDb match yet, so its episodes cannot be looked up again.')
                 return False
-            # Until L5's automatic Repair (Build Season's lookup, no question), both open the episode's download step,
-            # which searches it again and lets the owner pick the version.
+            if action == 'repair':
+                repair_rows([row], data, show, episodes)
+                return False
+            # Choose a Version: the episode's download step, which searches it again and lets the owner pick.
             args = ['kind=episode', 'tmdb=%s' % tmdb, 'tvshow.tmdb_id=%s' % tmdb, 'season=%d' % row['season'],
                     'episode=%d' % row['episode'], 'title=%s' % (show or {}).get('title', '')]
             xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,download,%s)' % ','.join(a.replace(',', ' ') for a in args))
@@ -297,11 +310,11 @@ def run():
             if index is None or not self.actions[index]:
                 return
             self.close()
-            self.playing = act(self.actions[index], self.row, self.data, self.show, self.kind)
+            self.playing = act(self.actions[index], self.row, self.data, self.show, self.kind, self.episodes)
 
-    def open_item(data, row, show=None, kind='episode'):
+    def open_item(data, row, show=None, kind='episode', episodes=None):
         sheet = Item(item_page.WINDOW, HERE, 'Default', '1080i')
-        sheet.data, sheet.row, sheet.show, sheet.kind, sheet.playing = data, row, show, kind, False
+        sheet.data, sheet.row, sheet.show, sheet.kind, sheet.playing, sheet.episodes = data, row, show, kind, False, episodes
         sheet.doModal()
         playing = sheet.playing
         del sheet
@@ -345,21 +358,23 @@ def run():
                 xbmc.executebuiltin('RunScript(service.kodi.ios.bootstrap,download,kind=season,tmdb=%s,tvshow.tmdb_id=%s,season=%d,title=%s)' % (
                     tmdb, tmdb, season or 1, self.show['title'].replace(',', ' ')))
             elif what == 'repair_all':
-                for row in [r for r in self.episodes if r.get('repair')]:
-                    act('repair' if not row.get('id') else 'retry', row, self.data, self.show)
+                problems = [r for r in self.episodes if r.get('repair')]
+                for row in [r for r in problems if r.get('id')]:   # a preparation problem: prepared again
+                    act('retry', row, self.data, self.show)
+                repair_rows([r for r in problems if not r.get('id')], self.data, self.show, self.episodes)
 
         def onClick(self, control):
             if show_page.SEASON <= control < show_page.SEASON + show_page.SEASONS and control - show_page.SEASON < len(self.seasons):
                 self.season = self.seasons[control - show_page.SEASON]
                 self.draw()
             elif show_page.EP <= control < show_page.EP + show_page.SLOTS and control - show_page.EP < len(self.episodes):
-                if open_item(self.data, self.episodes[control - show_page.EP], self.show):
+                if open_item(self.data, self.episodes[control - show_page.EP], self.show, episodes=self.episodes):
                     self.close()
             elif control == show_page.MORE:
                 self.more()
             elif show_page.REPAIR <= control < show_page.REPAIR + show_page.SLOTS and control - show_page.REPAIR < len(self.episodes):
                 row = self.episodes[control - show_page.REPAIR]
-                act('repair' if not row.get('id') else 'retry', row, self.data, self.show)
+                act('repair' if not row.get('id') else 'retry', row, self.data, self.show, episodes=self.episodes)
 
     window = Files(page.WINDOW, HERE, 'Default', '1080i')
     window.doModal()

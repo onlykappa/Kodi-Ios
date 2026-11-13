@@ -199,5 +199,40 @@ class ItemSheet(Page):
         self.assertEqual((props['title'], props['sub'], props['delete']), ('Fall', 'Movie \u00b7 2022', 'Delete Movie\u2026'))
 
 
+class Repair(unittest.TestCase):
+    """L5 (board C3): Repair looks the episode up again with Build Season's automatic pick, no version question."""
+    def test_quality_of_the_show_first_then_any(self):
+        import library_repair as lr
+        rows = [{'id': 'a', 'quality': '1080p'}, {'id': 'b', 'quality': '1080p HDR'}, {'id': 'c', 'quality': '720p'}, {'id': None, 'quality': ''}]
+        self.assertEqual(lr.qualities(rows), ['1080p', None])
+        self.assertEqual(lr.qualities([{'id': None}]), [None])
+        self.assertEqual(lr.quality_key('2160p · 14 GB'), '4k')
+
+    def test_repair_queues_and_falls_back(self):
+        import library_repair as lr
+        calls = []
+        def request(home, tmdb, season, episode, purpose, quality, title=''):
+            calls.append((purpose, quality))
+            return {'queued': quality is None}
+        self.assertEqual(lr.repair(request, None, '46260', 'Naruto', 1, 9, ['1080p', None]), ('queued', 'any'))
+        self.assertEqual(calls, [('queue', '1080p'), ('queue', None)])   # automatic pick, never the version menu
+        busy = lambda *a, **k: (_ for _ in ()).throw(RuntimeError('Another episode search is running. Try again when it finishes.'))
+        self.assertEqual(lr.repair(busy, None, '1', 'X', 1, 1, [None])[0], 'none')
+        self.assertEqual(lr.repair(lambda *a, **k: {}, None, '1', 'X', 1, 1, [None]), ('none', 'No version with seeds was found for it.'))
+
+    def test_one_script_for_several_episodes(self):
+        import library_repair as lr
+        args = lr.script_args('46260', 'Naruto, Shippuden', [{'season': 1, 'episode': 9}, {'season': 1, 'episode': 3}], '1080p')
+        self.assertEqual(args, ['tmdb=46260', 'title=Naruto  Shippuden', 'quality=1080p', 'episodes=1:3;1:9'])
+        self.assertEqual(lr.episodes_arg(lr.args(args)['episodes']), [(1, 3), (1, 9)])
+
+    def test_the_pages_use_it(self):
+        root = Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap'
+        manager = (root / 'library_manager.py').read_text()
+        self.assertIn("RunScript(service.kodi.ios.bootstrap,library_repair_page,%s)", manager)
+        self.assertIn("repair_rows([r for r in problems if not r.get('id')], self.data, self.show, self.episodes)", manager)
+        self.assertIn("'library_repair_page'", (root / 'default.py').read_text())
+
+
 if __name__ == '__main__':
     unittest.main()
