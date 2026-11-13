@@ -42,8 +42,8 @@ def run():
  window.setProperty('KodiIOS.Build',updates.installed_build(root))
  # Settings › AI Upscale's row: "On · 4K" or "Off" (the page updates it after each change).
  try:
-  import picture,upscale_page
-  window.setProperty('KodiIOS.UpscaleSummary',upscale_page.summary(picture.load(profile)))
+  import picture,upscale_page,upscale_queue
+  window.setProperty('KodiIOS.UpscaleSummary',upscale_page.summary(picture.load(profile),upscale_queue.load(profile).get('engine')))
  except Exception:pass
  def diagnostic_settings():
   addon=xbmcaddon.Addon()
@@ -655,7 +655,11 @@ def drive_uploads(monitor,home,profile):
      with preparation_runtime.Lease(profile,stats=preparation.stream.stats if preparation.stream else lambda:{}) as runtime:
       preparation.runtime=runtime
       # Build-356 log 7249de4d: three videos already on Drive waited 12.5 min after the app opened for the first check.
-      preparation.scan(can_prepare,force=bool(count) or not getattr(preparation,'checked_at_start',False));preparation.checked_at_start=True
+      # Owner log (build 368): Refresh's inspection of every video held the converter while jobs waited. Waiting jobs go
+      # first; the explicit inspection (its request stays) runs once none is ready to start.
+      if not preparation.inspection_deferred():
+       preparation.scan(can_prepare,force=bool(count) or not getattr(preparation,'checked_at_start',False))
+      preparation.checked_at_start=True
       # Build 169 made preparation wait for AllDebrid copies; with copies at 6-8 MB/s (build-169 log) both run at once
       # again, so conversion never sits paused behind an hour-long download.
       # A check no longer stops it (build-170 log: each stop restarted Inception from 0%); it runs when this one ends.

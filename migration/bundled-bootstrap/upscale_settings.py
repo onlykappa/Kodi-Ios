@@ -73,7 +73,7 @@ def run():
 
         def fill(self):
             self.settings, self.data, self.groups, _ = model(profile)
-            home.setProperty(SUMMARY, up.summary(self.settings))
+            home.setProperty(SUMMARY, up.summary(self.settings, self.data.get('engine')))
             v = up.main_view(self.settings, self.data, self.groups, self.data.get('engine') or {}, uq.paused(profile))
             self.view = v
             props = {}

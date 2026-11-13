@@ -31,6 +31,21 @@ class Page(unittest.TestCase):
         picture.apply(s, 'show', MEDIA['id3'], upscale='1440p')
         self.assertEqual(up.summary(s), 'On · 1440p')
 
+    def test_summary_is_truthful_about_the_engine_and_the_settings(self):
+        """Owner screenshot (2026-11-13): the Settings row said "On · 4K" while AI Upscale was not on."""
+        s = picture.load('/none')
+        s['downloads']['size'] = '4K UHD'   # a size remembered while "Upscale new downloads" is off is not "On"
+        self.assertEqual(up.summary(s, {'upscales': True, 'model': 2}), 'Off')
+        s['downloads']['prepare'] = True
+        self.assertEqual(up.summary(s, {'upscales': True, 'model': 2}), 'On \u00b7 4K')
+        self.assertEqual(up.summary(s, {'upscales': True, 'model': 0}), 'On \u00b7 4K')   # model still to download: it will work
+        self.assertEqual(up.summary(s, {'upscales': False, 'model': -1}), 'Unavailable')   # no AI engine on this iPhone
+        self.assertEqual(up.summary(s, {'upscales': True, 'model': -1}), 'Unavailable')
+        self.assertEqual(up.summary(s, {}), 'On \u00b7 4K')   # before the queue step has run: the settings alone
+        s = picture.load('/none')
+        picture.apply(s, 'show', MEDIA['id3'], upscale='Off')
+        self.assertEqual(up.summary(s, {'upscales': True, 'model': 2}), 'Off')
+
     def test_status_card_states(self):
         self.assertEqual(up.status_row({'upscales': False, 'model': -1})['label'], 'Not available on this iPhone')
         self.assertEqual(up.status_row({'upscales': True, 'model': 2})['label'], 'Ready on this iPhone')

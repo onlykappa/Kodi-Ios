@@ -256,4 +256,35 @@ class Filter(unittest.TestCase):
   self.assertFalse(auto.is_alive());self.assertFalse(refresh.is_alive())
   marker=prep.location(self.tmp.name).parent/prep.RESCAN
   self.assertTrue(json.loads(marker.read_text())['inspect'])
+ def test_waiting_jobs_go_before_a_refresh_that_inspects(self):
+  # Owner log (build 368): Refresh probed every video one at a time and the Naruto jobs waited behind it.
+  self.q.link=lambda:'wifi'
+  self.assertFalse(self.q.inspection_deferred())                       # no check asked for
+  prep.request_check(self.tmp.name)
+  self.assertFalse(self.q.inspection_deferred())                       # a plain listing is never deferred
+  prep.request_check(self.tmp.name,inspect=True)
+  self.assertTrue(self.q.inspection_deferred())                        # a job waits: it goes first
+  self.q.state['jobs'][self.slot]['retry_after']=10**12                # nothing ready to start (backing off)
+  self.assertFalse(self.q.inspection_deferred())
+  self.q.state['jobs'][self.slot].update(retry_after=0,blocked=True)
+  self.assertFalse(self.q.inspection_deferred())
+  self.q.state['jobs'][self.slot].update(blocked=False);self.q.link=lambda:'cellular'
+  self.assertFalse(self.q.inspection_deferred())                       # on mobile data the scan skips inspecting by itself
+  self.assertTrue(prep.check_requested(self.tmp.name))                 # and the request itself is never dropped
+ def test_service_runs_the_check_only_when_no_job_waits_first(self):
+  svc=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
+  self.assertIn("if not preparation.inspection_deferred():",svc)
+ def test_a_restarted_refresh_does_not_read_the_same_videos_again(self):
+  calls=[];self.native.probe=lambda url:(calls.append(url),dict(self.probe))[1]
+  self.q.link=lambda:'wifi'
+  marker=prep.location(self.tmp.name).parent/prep.RESCAN
+  prep.request_check(self.tmp.name,inspect=True);request=marker.read_text()
+  self.refresh();self.assertEqual(len(calls),1)
+  marker.write_text(request)                                           # the same request again (stopped, then restarted)
+  self.refresh();self.assertEqual(len(calls),1)                        # same request, same file: its stored probe is used
+  import time;time.sleep(.02);prep.request_check(self.tmp.name,inspect=True)
+  self.refresh();self.assertEqual(len(calls),2)                        # a new Refresh still reads the actual file
+  marker.write_text(json.dumps({'inspect':True,'time':time.time()+5}))
+  self.drive.files['source']['version']='2';self.item=prep.metadata(self.drive,'source')
+  self.refresh();self.assertEqual(len(calls),3)                        # and a changed file is read again
 if __name__=='__main__':unittest.main()

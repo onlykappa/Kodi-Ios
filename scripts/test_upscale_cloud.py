@@ -160,6 +160,28 @@ class MakesACopy(unittest.TestCase):
         self.assertEqual((entry['status'], entry['progress']), ('waiting', 0))
         self.assertIn('closed', log)
 
+    def test_a_dropped_source_read_waits_for_the_network_and_is_not_a_failure(self):
+        """Owner log (2026-11-13): "Source read: Input/output error" after 2 minutes ended the copy with a long back-off."""
+        done, entry, _, log = self.run_one(Native(fail=RuntimeError('Source read: Input/output error')))
+        self.assertFalse(done)
+        self.assertEqual((entry['status'], entry['progress'], entry['note']), ('waiting', 0, 'Waiting for the network'))
+        self.assertEqual((entry['net_attempts'], entry['retry_after']), (1, 1015.0))   # 15 s, not the failure back-off
+        self.assertNotIn('error', entry)
+        self.assertNotIn('attempts', entry)
+        self.assertIn('closed', log)
+        self.assertEqual(uq.next_job({'copies': {'orig1': entry}}, clock=lambda: 1000.0), None)
+        self.assertEqual(uq.next_job({'copies': {'orig1': entry}}, clock=lambda: 1016.0), 'orig1')
+        again = dict(entry, net_attempts=3)
+        self.assertEqual(__import__('debrid_drive').net_wait(again['net_attempts']), 60)
+
+    def test_a_permanent_failure_still_fails(self):
+        done, entry, _, _ = self.run_one(Native(fail=RuntimeError('The video is HDR')))
+        self.assertTrue(done)
+        self.assertEqual(entry['status'], 'blocked')
+        done, entry, _, _ = self.run_one(Native(fail=RuntimeError('The converter said no')))
+        self.assertEqual((entry['status'], entry['attempts']), ('failed', 1))
+        self.assertNotIn('net_attempts', entry)
+
     def test_only_4x_models_block_a_1080p_copy_instead_of_closing_kodi(self):
         native = Native()
         native.support = {'os26': 1, 'image': {'supported': 1, 'fits': 1, 'scale': 4}, 'video': {'supported': 1, 'fits': 0, 'scale': 0}}

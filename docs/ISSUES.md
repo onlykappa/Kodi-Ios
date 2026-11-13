@@ -3501,3 +3501,27 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Retest:** test_library_files `RepairShowsAtOnce`.
 - **Not fixed (found in the same log):** the AI Upscale copy failed with "Source read: Input/output error" after 2 minutes; and a Library status Refresh (an inspecting check) probes every video one at a time and holds the worker (ISSUE-208 made only the metadata requests parallel).
 
+## ISSUE-228 — Hold on the AI Upscale copy closed the page; Cancel All Upscaling did nothing (owner, build 368) — fixed in code
+
+- **Owner:** "if I hold down on a movie that is currently downloading it closes out the setting; I want the option to cancel instead of only pausing. And cancel all upscaling isn't working."
+- **Causes:** a long press is a right click, which Kodi turns into "previous menu" (the page's Back); and Cancel All wrote a request that only the upscale pass applied, a pass that waits behind every preparation, while the pages never showed it and the Up next pages consumed requests the copy being made still had to see.
+- **Fix:** a long press on the copy being made opens Pause / Resume, Cancel This Copy and Cancel All Upscaling (an Up next row: Make Next / Remove); pages show a pending cancel at once (`upscale_queue.preview`) and never consume it (`apply_control(keep=True)`); the service applies requests within seconds (`upscale_control` thread, except while a copy is being made, which sees them itself).
+- **Retest:** test_upscale_cancel (new, in import-review.yml). Device check pending.
+
+## ISSUE-229 — r54 wrote a prepared MP4 with the DVD subtitle and then rejected it: 30 failed conversions (owner log 5f05cd99, build 368) — fixed in code (AirPlay r55 staged)
+
+- **Seen:** Naruto Shippuuden S1 E1, 3, 4, 7, 8, 9, 17-20: 30 attempts, each a full read and write on Google Drive, every one ending "Prepared video did not preserve resolution/HDR; original retained" at "Verifying the Drive file and seek index". The picture was fine (640x480, 8-bit, copied); the real cause was `kr_prepare_ready`, which accepted only text subtitles, so a prepared MP4 holding a DVD subtitle was "not ready". None finished in 39 minutes.
+- **Missed:** the converter host test (workflow "AirPlay MKV remuxer", job host-tests) failed on exactly this on every commit of PR #26 (4 checks: the kept DVD subtitle, its palette, verification) and I read only the framework build, so r54 was pinned as checked. Both jobs are now read before pinning.
+- **Fix:** `kr_prepare_ready` accepts `dvd_subtitle`; the test also asserts a prepared MP4 with a kept DVD subtitle counts as ready. r55 staged; pinned after host-tests and the framework build pass.
+
+## ISSUE-230 — Verification failures retried as full conversions; preparation ran on mobile data; Refresh held the converter; AI Upscale read errors failed the copy; small items (owner log 5f05cd99)
+
+- **Final check:** a failed final verification (picture / ready / HDR mismatch, checksum) now stops after ONE attempt: `VerifyFailed` blocks the job, clears the staging files, notifies once and names the failed check ("The prepared file is not marked ready…", "The prepared picture is WxH, the original is WxH", "HDR changed…"). A re-package that plays shows as Ready; others stay in Download problems; Repair clears it. Network errors in the final check still retry. (Errors from the C-level `native.verify` still retry as before.)
+- **Mobile data:** preparation does not start new videos on mobile data (Start now overrides); a running one stops cleanly and resumes from its mark when Wi-Fi returns; Library status says "Waiting for Wi-Fi · videos are prepared on Wi-Fi only".
+- **Refresh:** an inspecting check no longer runs while a video is ready to prepare; the waiting videos go first, the request stays and the check runs when the queue is idle; a video inspected during the same request is not re-read after a stop or restart (a new Refresh still re-reads every file).
+- **AI Upscale read errors:** a network-class error (including "Source read: Input/output error") leaves the copy waiting with "Waiting for the network" and a 15 s to 5 min back-off instead of failing it; permanent failures still fail. It restarts from the start (no resume mark yet).
+- **Upload piece size:** the first main-track piece of a prepared file starts at the size the last good one reached (per link kind), not at 1 MB; a failure or slow piece forgets it.
+- **Settings root "AI Upscale · On · 4K" when off:** the summary says On only when something is really set (Upscale new downloads on, or a show/default size), and "Unavailable" when the device has no AI engine; the root and the page pass the engine state.
+- **"Control 9110 in window 13002 has been asked to focus, but it can't":** the AI Upscale show page's default control was its size segments, which show only after the page fills them; its default is now Back (the window id could not be mapped from the source, so this is the best match; pending a log check).
+- **Retest:** test_drive_prepare (FinalCheck, MobileData, LearnedPieceSize), test_compatibility_filter, test_work_state, test_upscale_cloud, test_upscale_page. Device checks pending.
+

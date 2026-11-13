@@ -381,6 +381,9 @@ def _next(prep, running_name):
             for _, j in jobs]
 
 
+WIFI_PREP_WAIT = 'Waiting for Wi-Fi · videos are prepared on Wi-Fi only'
+
+
 def build(inp, now):
     """The snapshot every page and the bell show. inp: {'prep': queue state, 'runtime': heartbeat or {}, 'debrid': AllDebrid
     state, 'phone': [notices.uploads phone entries], 'torrents': [notices.downloads entries], 'paused': {'conv', 'up'},
@@ -441,12 +444,17 @@ def build(inp, now):
         # Paused while nothing converts: the next one waits for the owner, and says so.
         nexts[0]['paused'] = True
     moving = [j for j in jobs if j['state'] in MOVING]
+    # Owner log (build 368): preparation does not start on mobile data (prepare_cloud sets prep['wifi_hold']); say so, as
+    # the copies do ('wifi' hold), while videos wait and nothing moves.
+    wifi_wait = bool((inp.get('prep') or {}).get('wifi_hold')) and bool(nexts) and not moving
     if needs:
         mode = NEEDS
     elif moving:
         mode = SLOWED if all(j['state'] == SLOWED for j in moving) else RUNNING
     elif any(j['state'] == PAUSED for j in jobs) or (paused.get('conv') and nexts):
         mode = PAUSED
+    elif wifi_wait:
+        mode = NETWORK
     elif waits or any(j['state'] == NETWORK for j in jobs):
         mode = NETWORK
     elif nexts or any(j['state']==QUEUED for j in jobs):
@@ -454,7 +462,9 @@ def build(inp, now):
     else:
         mode = IDLE
     wait_text = ''
-    if waits:
+    if wifi_wait and not needs:
+        wait_text = WIFI_PREP_WAIT
+    elif waits:
         w = min(waits, key=lambda x: x['until'])
         wait_text = '%s · %s' % (w.get('why') or 'Waiting for the network', retry_text(w['until'], now))
     lead = (moving or jobs or [None])[0]

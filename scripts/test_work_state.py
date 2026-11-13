@@ -315,6 +315,17 @@ class WifiOnly(unittest.TestCase):
   self.assertIn('id="copy_wifi_only"',(root/'resources/settings.xml').read_text())
   self.assertIn("and not wifi_only_hold(),on_done=done,",(root/'service.py').read_text())
 
+class WifiHoldsPreparation(unittest.TestCase):
+ def test_videos_wait_for_wifi_and_the_status_says_so(self):
+  # Owner log (build 368): preparation read and wrote a whole movie on mobile data. prepare_cloud sets prep['wifi_hold'].
+  prep={'jobs':{'a':job('Naruto.S01E01.mkv')},'wifi_hold':True}
+  snap=ws.build({'prep':prep},NOW)
+  self.assertEqual(snap['mode'],ws.NETWORK);self.assertIn('Waiting for Wi-Fi',snap['wait']);self.assertIn('Waiting for Wi-Fi',snap['headline'])
+  self.assertEqual(len(snap['next']),1)
+  self.assertNotIn('Waiting for Wi-Fi',ws.build({'prep':dict(prep,wifi_hold=False)},NOW)['wait'])
+  running=dict(prep,current=conv()['current'])
+  self.assertNotIn('Waiting for Wi-Fi',ws.build({'prep':running},NOW)['wait'])   # something moves: no hold shown
+
 class TimeLeft(unittest.TestCase):
  def test_every_copy_left_counts_over_all_lanes(self):
   # E17: "about 16 min to go" with 31 episodes waiting; "84 h" from a starved conversion rate.

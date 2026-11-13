@@ -248,10 +248,28 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
         q.log('upscale: %s — stopped; it starts again later' % title)
         return False
     except Exception as error:
+        if _network_trouble(error):
+            # ISSUE-198 / owner log (2026-11-13, "Source read: Input/output error" after 2 minutes on a Drive file streamed
+            # through the loopback proxy): the network is not the video's fault. Wait 15 s up to 5 min, then start again
+            # (the converter's resume mark is not used for AI Upscale yet, so it restarts from the beginning); it never
+            # counts as a failure and never enters the long back-off.
+            import debrid_drive
+            entry['net_attempts'] = entry.get('net_attempts', 0) + 1
+            wait = debrid_drive.net_wait(entry['net_attempts'])
+            entry['status'] = 'waiting'
+            entry['progress'] = 0
+            entry['retry_after'] = clock() + wait
+            entry['note'] = 'Waiting for the network'
+            entry.pop('eta', None)
+            entry.pop('error', None)
+            uq.save(profile, data)
+            q.log('upscale: %s — network trouble (%s); trying again in %d s' % (title, str(error)[:100], wait))
+            return False
         uq.failed(entry, error, clock)
         uq.save(profile, data)
         q.log('upscale: %s — failed: %s' % (title, str(error)[:200]))
         return True
+    entry.pop('net_attempts', None)
     old = entry.get('previous_copy')
     entry.update(status='ready', copy_id=main['id'], size=int(main.get('size') or 0), progress=100,
                  finished=clock(), took=round(clock() - began))
@@ -304,6 +322,16 @@ def media_lookup(profile, parse=None):
         return {'type': kind, 'show': info.get('title') or '', 'drive_id': ids[0] or ids[1],
                 'season': info.get('season') or '', 'episode': info.get('episode') or ''}
     return media_for
+
+
+def _network_trouble(error):
+    """True for trouble that goes away by itself (a dropped read, a timeout, a 5xx), never for a final answer (HDR, wrong
+    size, no engine) or a wrong-size copy."""
+    import debrid_drive
+    text = str(error)
+    if any(word in text for word in ('HDR', 'already this size', 'not available on this device', 'needs iOS 26', 'The copy is ')):
+        return False
+    return bool(debrid_drive.network_error(error))
 
 
 def _eta(seconds):

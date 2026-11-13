@@ -83,7 +83,7 @@ def page(p):
                u.group(p, 260, '') + '</control>')
     body += listing
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<!-- Settings > AI Upscale > one show (V3, DEC-042 board C), drawn by upscale_show_page.py -->\n'
-            '<window type="dialog"><defaultcontrol always="true">%d</defaultcontrol><controls>%s</controls></window>' % (SEG, body))
+            '<window type="dialog"><defaultcontrol always="true">%d</defaultcontrol><controls>%s</controls></window>' % (BACK, body))   # ISSUE-230: the segments show only once the page has filled them, so Kodi could not focus 9110 ("asked to focus, but it can't")
 
 
 def files(p):

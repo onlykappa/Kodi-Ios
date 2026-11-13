@@ -506,7 +506,7 @@ def resume_requested(profile,requests=None,state=None):
  transfer_control.set_paused(profile,'conv',False)
  return True
 
-FORGIVEN=('blocked','kept_told','repack_failed','image_subs_retried','dvd_subs_retried','hdr_retried')
+FORGIVEN=('blocked','kept_told','repack_failed','verify_failed','verify_told','image_subs_retried','dvd_subs_retried','hdr_retried')
 def forgive(job):
  """ISSUE-226 / P1 (owner log a1729c16: Repair and Repair All did nothing for Naruto): an owner's Try Again or Start now
  clears what kept a video out of the queue ('blocked' skips every queue filter) and the one-time tries and notices, so it
@@ -826,6 +826,18 @@ class Queue:
   for output in (job.pop('cloud_output',None) or {}).values():
    if not output.get('moved') and output['id'] not in pending:pending.append(output['id'])
   job.pop('cloud_replace',None)
+ def inspection_deferred(self):
+  """Owner log (build 368): Refresh in Library status inspects every video one after another and the converter waits for
+  it (17+ checks while the Naruto jobs waited). So a check that asks for inspection waits while a video is ready to be
+  prepared: the jobs go first, the inspection runs when none is waiting (the request stays). Not on mobile data (the
+  check skips inspection there by itself) and not for an owner's Start now, which interrupts anyway."""
+  try:
+   if not json.loads((location(self.profile).parent/'airplay-preparation-rescan').read_text()).get('inspect'):return False
+  except (OSError,ValueError,AttributeError):return False
+  if cellular_now(self):return False
+  with self.lock:
+   return any(job.get('status') not in ('done','superseded') and not job.get('blocked') and not job.get('kept')
+              and job.get('retry_after',0)<=self.clock() for job in self.state['jobs'].values())
  def scan(self,keep_going=lambda:True,force=False,beside=False):
   """beside: a check while a movie converts (build 191). Its progress goes to state['checking'], not the converting
   card, and the movie being converted (and its source file) is never dropped or replaced."""
@@ -850,8 +862,8 @@ class Queue:
   with check_request(self.profile):
    try:requested_text=requested.read_text()
    except OSError:requested_text=''
-  try:inspection=bool(json.loads(requested_text).get('inspect'))
-  except (ValueError,AttributeError):inspection=False
+  try:request=json.loads(requested_text);inspection=bool(request.get('inspect'));asked_at=float(request.get('time') or 0)
+  except (ValueError,AttributeError,TypeError):inspection=False;asked_at=0.0
   self.inspection_pending=False
   status={'title':'Movies and shows','stage':'Checking downloaded videos','progress':0,'queued':0,'running':True,'updated':self.clock()}
   converting=running_id(self.state) if beside else ''
@@ -903,13 +915,18 @@ class Queue:
       self.inspection_pending=True
       if not getattr(self,'told_cellular',False):
        self.told_cellular=True;self.log('preparation: compatibility checks wait for Wi-Fi (on mobile data)')
+     elif old.get('probe') and not old.get('inspection_error') and old.get('probe_for')==list(identity(item)) and asked_at and old.get('probe_at',0)>=asked_at:
+      # Owner log (build 368): a Refresh that was stopped, deferred or restarted read the same videos again, 17+ in a row,
+      # while 27 videos waited. The same Drive file (id, checksum, size, version) already inspected FOR THIS request keeps
+      # its probe. A new Refresh still re-reads every file (the owner's rule, test_compatibility_filter).
+      pass
      else:
       try:
        old['audit']=True;old.pop('probe',None)
        status.update(stage='Checking compatibility and faster opening · '+drivelibrary.display_title(item['name']),updated=self.clock());self.commit()
        if self.runtime:self.runtime.phase('Checking compatibility',False,item['name'])
        probe=self.inspect_source(item,keep_going)
-       old['probe']=probe;old.pop('inspection_error',None);self.commit()
+       old['probe']=probe;old['probe_for']=list(identity(item));old['probe_at']=time.time();old.pop('inspection_error',None);self.commit()
        if not streamable_video(probe):
         old.pop('stream_only',None);old.pop('repack',None)
         if old.get('status')=='done':old.update(status='waiting',retry_after=0,attempts=0)

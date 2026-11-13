@@ -182,6 +182,7 @@ class BackgroundUpload(unittest.TestCase):
   sink.made_all=True;stats=sink.stats()
   self.assertEqual((stats['transfer_phase'],stats['upload_left'],stats['upload_total']),('uploading',300*1024*1024,400*1024*1024))
  def test_movie_pieces_may_grow_to_32_mb_and_start_at_1_mb(self):
+  dp.learn_piece(0)   # nothing learned from an earlier file
   sink=dp.Sink(Drive(),'staging','p',lambda:True)
   t={'offset':0,'buffer':bytearray(),'track':0,'url':'u','md5':None}
   sink.closed=True
@@ -350,6 +351,91 @@ class Queue(unittest.TestCase):
   self.assertEqual(self.d.files['source']['data'],b'original');self.assertEqual(self.n.calls,1)
 
 
+class FinalCheck(unittest.TestCase):
+ """Owner log (build 368): 30 failed preparations for Naruto Shippuuden, each one a full read and write on Drive."""
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
+  self.d=Drive();self.n=Native();self.q=prep.Queue(self.tmp.name,self.d,self.n,stream=Stream())
+  self.q.state['jobs']={'slot':{'source':prep.metadata(self.d,'source'),'status':'waiting'}}
+  self.notes=[];self.q.notify=lambda kind,title,text:self.notes.append((kind,title,text))
+  self.open=patch('prepare_cloud.urllib.request.urlopen',side_effect=lambda req,timeout:self.d.open_at(req.full_url.split('/')[-2],int(req.headers['Range'][6:-1])))
+  self.open.start();self.addCleanup(self.open.stop)
+ def job(self):return self.q.state['jobs']['slot']
+ def test_a_wrong_picture_stops_after_one_conversion_and_says_which_check(self):
+  self.n.probe=lambda path:dict(ready='temp-' in path,width=1920 if 'temp-' in path else 3840,height=1080 if 'temp-' in path else 2160,hdr=True,duration=1300)
+  self.assertFalse(self.q.process_one())
+  job=self.job();self.assertTrue(job['blocked']);self.assertTrue(job['verify_failed']);self.assertNotIn('repack_failed',job)
+  self.assertIn('The prepared picture is 1920x1080, the original is 3840x2160',job['error']);self.assertIn('original retained',job['error'])
+  self.assertNotIn('did not preserve',job['error'])
+  self.assertFalse(self.q.process_one());self.assertFalse(self.q.process_one());self.assertEqual(self.n.calls,1)   # not made again
+  self.assertEqual(len(self.notes),1);self.assertEqual(self.notes[0][:2],('info','Kept as it is'))
+  self.assertEqual(self.d.files['source']['data'],b'original');self.assertNotIn('temp-1',self.d.files)
+  self.assertEqual([p['name'] for p in prep.preparation_problems(self.q.state)],['Film.2160p.mkv'])   # Download problems lists it
+ def test_not_ready_and_hdr_changes_have_their_own_words(self):
+  import prepare_cloud
+  before=dict(width=3840,height=2160,hdr=True)
+  self.assertIn('not marked ready',prepare_cloud.verify_problem(before,dict(before,ready=False)))
+  self.assertIn('HDR changed',prepare_cloud.verify_problem(before,dict(before,ready=True,hdr=False)))
+  self.assertEqual(prepare_cloud.verify_problem(before,dict(before,ready=True)),'')
+ def test_a_repack_that_plays_reads_as_ready_and_repair_clears_it(self):
+  import library_files
+  self.n.probe=lambda path:dict(ready=False,width=3840,height=2160,hdr=True,duration=1300)
+  self.job()['repack']=True
+  self.assertFalse(self.q.process_one());job=self.job()
+  self.assertTrue(job['blocked'] and job['repack_failed'] and job['verify_failed'])
+  self.assertEqual(library_files.file_state({'id':'source'},{'source':job},{})['state'],library_files.READY)
+  self.assertEqual(prep.preparation_problems(self.q.state),[])
+  prep.request(self.tmp.name,'retry','source');self.assertTrue(self.q.apply_requests())
+  for name in ('blocked','verify_failed','verify_told','repack_failed'):self.assertNotIn(name,self.job())
+  self.n.probe=lambda path:dict(ready='temp-' in path,width=3840,height=2160,hdr=True,duration=1300)
+  with patch.object(prep.phone_space,'free',return_value=0):self.assertTrue(self.q.process_one())
+ def test_a_checksum_mismatch_stops_too(self):
+  real=prep.metadata
+  def lying(drive,key):
+   got=real(drive,key)
+   if key.startswith('temp-'):got['md5Checksum']='0'*32
+   return got
+  with patch.object(prep,'metadata',lying):self.assertFalse(self.q.process_one())
+  self.assertTrue(self.job()['blocked']);self.assertIn('checksum differs; original retained',self.job()['error'])
+ def test_network_trouble_in_the_final_check_still_waits_and_retries(self):
+  self.n.probe=lambda path:(_ for _ in ()).throw(RuntimeError('Source read: Input/output error'))
+  self.assertFalse(self.q.process_one());job=self.job()
+  self.assertFalse(job.get('blocked'));self.assertEqual((job['status'],job.get('attempts',0)),('waiting',0))
+
+class MobileData(unittest.TestCase):
+ """Owner log (build 368): the phone was on mobile data 13:31-13:40 while preparation read and wrote a whole movie."""
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
+  self.d=Drive();self.n=Native();self.q=prep.Queue(self.tmp.name,self.d,self.n,stream=Stream())
+  self.q.state['jobs']={'slot':{'source':prep.metadata(self.d,'source'),'status':'waiting'}}
+  self.link='cellular';self.q.link=lambda:self.link
+  self.open=patch('prepare_cloud.urllib.request.urlopen',side_effect=lambda req,timeout:self.d.open_at(req.full_url.split('/')[-2],int(req.headers['Range'][6:-1])))
+  self.open.start();self.addCleanup(self.open.stop)
+ def test_nothing_starts_on_mobile_data_and_it_starts_on_wifi(self):
+  self.assertFalse(self.q.process_one());self.assertEqual(self.n.calls,0);self.assertTrue(self.q.state['wifi_hold'])
+  self.link='wifi'
+  with patch.object(prep.phone_space,'free',return_value=0):self.assertTrue(self.q.process_one())
+  self.assertEqual(self.n.calls,1);self.assertNotIn('wifi_hold',self.q.state)
+ def test_start_now_overrides_mobile_data(self):
+  prep.request(self.tmp.name,'now','source');self.q.apply_requests()
+  with patch.object(prep.phone_space,'free',return_value=0):self.assertTrue(self.q.process_one())
+  self.assertEqual(self.n.calls,1)
+ def test_a_running_job_stops_cleanly_when_the_phone_goes_to_mobile_data(self):
+  self.link='wifi';seen=[]
+  def convert(source,sink,keep,progress,*a,**k):
+   self.n.calls+=1;self.link='cellular'
+   if not keep():raise driveupload.Stop('stopped')
+   seen.append('kept going')
+  self.n.convert_to=convert
+  self.assertFalse(self.q.process_one());job=self.q.state['jobs']['slot']
+  self.assertEqual((seen,job['status'],job['retry_after'],job.get('attempts',0)),([],'paused',0,0))
+  self.assertFalse(self.q.process_one());self.assertEqual(self.n.calls,1);self.assertTrue(self.q.state['wifi_hold'])
+ def test_the_status_says_waiting_for_wifi(self):
+  import work_state as ws
+  snap=ws.build({'prep':dict(self.q.state,wifi_hold=True)},1000.0)
+  self.assertIn('Waiting for Wi-Fi',snap['wait']);self.assertEqual(snap['mode'],ws.NETWORK);self.assertIn('Waiting for Wi-Fi',snap['headline'])
+  self.assertNotIn('Waiting for Wi-Fi',ws.build({'prep':self.q.state},1000.0)['wait'])
+
 class PartialAcknowledgements(unittest.TestCase):
  """Owner (build 169 log): Interstellar failed after two hours: "Preparation upload did not acknowledge its byte range"."""
  def test_partial_keep_and_hiccup_carry_on(self):
@@ -367,5 +453,49 @@ class PartialAcknowledgements(unittest.TestCase):
   t=dict(url='u',offset=0,buffer=bytearray(b'a'*1000),md5=None,name='x',chunk=1000)
   sink._send(t,1000,final=False,sleep=lambda s:None)
   self.assertEqual((t['offset'],len(t['buffer']),d.got),(1000,0,b'a'*1000))
+
+class LearnedPieceSize(unittest.TestCase):
+ """Owner log (2026-11-13): every file started again at 1 MB; the last good piece size now carries to the next file."""
+ def run_file(self,drive,pieces,sink=None,clock=None):
+  sink=sink or dp.Sink(drive,'p','x',lambda:True)
+  t=dict(url='u',offset=0,buffer=bytearray(),md5=None,name='x',chunk=1,track=0)
+  for n in range(pieces):
+   t['buffer'].extend(b'a'*(40*1024*1024));sink._send(t,len(t['buffer']),final=False,sleep=lambda s:None)
+  return t
+ def test_next_file_starts_where_the_last_one_ended_and_a_failure_forgets_it(self):
+  class D:
+   def __init__(s,fail=False):s.got=0;s.sizes=[];s.fail=fail
+   def call(s,method,url,body=b'',headers=None):
+    if headers['Content-Range'].startswith('bytes */'):return 308,{'Range':'bytes=0-%d'%(s.got-1)} if s.got else {},b''
+    if s.fail:s.fail=False;return 503,{},b''
+    s.sizes.append(len(body));s.got+=len(body);return 308,{'Range':'bytes=0-%d'%(s.got-1)},b''
+  with patch.object(dp,'_link_kind',lambda:'wifi'):
+   dp.learn_piece(0)
+   first=D();self.run_file(first,1)
+   self.assertEqual(first.sizes[0],1024*1024)               # nothing learned yet: starts at 1 MB
+   dp.learn_piece(16*1024*1024)
+   second=D();self.run_file(second,1)
+   self.assertEqual(second.sizes[0],16*1024*1024)           # learned size carries over
+   dp.learn_piece(64*1024*1024*1024)
+   third=D();self.run_file(third,1)
+   self.assertEqual(third.sizes[0],dp.MAIN_CHUNK)           # never above the cap
+   dp.learn_piece(512*1024)
+   fourth=D();self.run_file(fourth,1)
+   self.assertEqual(fourth.sizes[0],1024*1024)              # never below 1 MB
+   dp.learn_piece(16*1024*1024)
+   failing=D(fail=True)
+   with self.assertRaises(RuntimeError):
+    sink=dp.Sink(failing,'p','x',lambda:True);t=dict(url='u',offset=0,buffer=bytearray(b'a'*(40*1024*1024)),md5=None,name='x',chunk=1,track=0)
+    sink._send_parts(t,len(t['buffer']),False,attempts=1,sleep=lambda s:None)
+   self.assertEqual(dp.learned_piece(dp.MAIN_CHUNK),0)      # a failed piece forgets it
+  dp.learn_piece(0)
+ def test_a_change_of_link_forgets_it_and_sidecars_do_not_use_it(self):
+  kind={'now':'wifi'}
+  with patch.object(dp,'_link_kind',lambda:kind['now']):
+   dp.learn_piece(16*1024*1024)
+   self.assertEqual(dp.learned_piece(dp.MAIN_CHUNK),16*1024*1024)
+   kind['now']='cellular'
+   self.assertEqual(dp.learned_piece(dp.MAIN_CHUNK),0)
+  dp.learn_piece(0)
 
 if __name__=='__main__':unittest.main()
