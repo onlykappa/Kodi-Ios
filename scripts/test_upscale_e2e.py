@@ -223,5 +223,70 @@ class Season(unittest.TestCase):
         self.assertEqual(self.native.converts, [])
 
 
+class OwnerControls(Season):
+    """DEC-044 (owner: "It wont allow me to cancel anything"): Pause, Cancel this copy, Remove from Up next, a new order
+    and Cancel All, asked from the page and applied by the service; the originals are never touched."""
+    def ready_to_make(self):
+        g, _ = self.group()
+        picture.save(self.profile, up.set_show(picture.load(self.profile), g, '4K UHD'))
+        self.native.state['charging'] = 1
+        self.native.model = 2
+
+    def test_pause_holds_and_resume_carries_on(self):
+        self.ready_to_make()
+        uq.set_paused(self.profile, True)
+        self.step(free=10 ** 12, n=3)
+        self.assertEqual(self.native.converts, [])
+        uq.set_paused(self.profile, False)
+        self.step(free=10 ** 12)
+        self.assertEqual(len(self.native.converts), 1)
+
+    def test_cancel_one_and_remove_from_up_next_are_not_made_again(self):
+        self.ready_to_make()
+        self.step(free=10 ** 12)                        # plans all six, makes the first
+        order = uq.up_next(uq.load(self.profile))
+        uq.cancel(self.profile, order[:2])              # Remove two from Up next
+        self.step(free=10 ** 12, n=8)
+        c = self.copies()
+        self.assertEqual({k for k, e in c.items() if e['status'] == 'cancelled'}, set(order[:2]))
+        self.assertEqual(len([e for e in c.values() if e['status'] == 'ready']), 4)
+        self.assertEqual(self.drive.trash, [])          # nothing of the originals touched
+        # Choosing the show's size again brings them back.
+        g, _ = self.group()
+        uq.save(self.profile, uq.revive(uq.load(self.profile), order[:2]))
+        self.step(free=10 ** 12, n=3)
+        self.assertEqual({e['status'] for e in self.copies().values()}, {'ready'})
+
+    def test_cancelling_the_copy_being_made_stops_it(self):
+        self.ready_to_make()
+        self.step(free=10 ** 12)
+        running = []
+        original = self.native.convert_to
+
+        def convert(source, sink, keep_going, progress, paused, waiting, upscale=None):
+            running.append(source)
+            uq.cancel(self.profile, [source.rsplit('/', 1)[-1]])      # the owner taps Cancel Copy mid-way
+            progress(0, 10, 100)
+        self.native.convert_to = convert
+        self.step(free=10 ** 12)
+        key = running[0].rsplit('/', 1)[-1]
+        self.assertEqual(self.copies()[key]['status'], 'cancelled')
+        self.native.convert_to = original
+
+    def test_new_order_and_cancel_all(self):
+        self.ready_to_make()
+        self.step(free=10 ** 12)
+        order = uq.up_next(uq.load(self.profile))
+        uq.reorder(self.profile, list(reversed(order)))
+        self.step(free=10 ** 12)
+        self.assertEqual(self.native.converts[-1][0], 'http://drive/' + order[-1])   # the last one went first
+        uq.cancel_all(self.profile)
+        self.step(free=10 ** 12, n=4)
+        c = self.copies()
+        self.assertEqual(len([e for e in c.values() if e['status'] == 'ready']), 2)
+        self.assertEqual(len([e for e in c.values() if e['status'] == 'cancelled']), 4)
+        self.assertFalse(uq.paused(self.profile))
+
+
 if __name__ == '__main__':
     unittest.main()

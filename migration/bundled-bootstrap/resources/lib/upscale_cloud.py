@@ -39,6 +39,16 @@ def _status_text(entry, why):
     return entry
 
 
+def _prep_waiting(q):
+    """A video waits to be prepared (it goes before an AI Upscale copy)."""
+    try:
+        now = time.time()
+        return any(j.get('status') in ('waiting', 'paused') and not j.get('kept') and not j.get('blocked')
+                   and j.get('retry_after', 0) <= now for j in (q.state.get('jobs') or {}).values())
+    except Exception:
+        return False
+
+
 def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_bytes=None, clock=time.time):
     """Plans and makes at most one copy. Returns True when it did work (a copy made, or a step that changed state)."""
     import drive_prepare
@@ -74,6 +84,11 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
     if removing:
         uq.save(profile, data)
         q.log('upscale: %d copies removed (Settings › AI Upscale)' % len(removing))
+    # DEC-044: Pause, Cancel this copy, Remove from Up next, the new order and Cancel All from the page.
+    if uq.apply_control(profile, data, clock):
+        uq.save(profile, data)
+    if uq.paused(profile):
+        return False
     added = uq.plan(q.state, data, settings, media_for, clock)
     if added:
         q.log('upscale: %d copy%s to make (%s)' % (len(added), '' if len(added) == 1 else ' copies',
@@ -158,6 +173,18 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
     def progress(stage, n, t):
         if not keep_going():
             raise driveupload.Stop('AI Upscale paused')
+        if uq.cancelling(profile, key):
+            raise driveupload.Stop('cancelled')
+        # Pause (DEC-044 board A/B1): the converter holds where it is (going() False, held() True) until Resume, unless a
+        # video waits to be prepared, which goes first; this copy then starts again later.
+        while uq.paused(profile) and not uq.cancelling(profile, key) and not _prep_waiting(q):
+            entry['note'] = 'Paused by you'
+            time.sleep(1)
+            if not keep_going():
+                raise driveupload.Stop('AI Upscale paused')
+        if uq.paused(profile) and not uq.cancelling(profile, key):
+            raise driveupload.Stop('AI Upscale paused')   # a video waits to be prepared: it goes first
+        entry.pop('note', None)
         if stage in (0, 2) and t:
             pct = int(100 * min(1.0, float(n) / t))
             if pct > entry.get('progress', 0):
@@ -205,6 +232,11 @@ def process_one(q, keep_going, settings=None, media_for=lambda job: {}, free_byt
         name = uq.copy_name(entry.get('name') or title, label)
         move(q.drive, main['id'], parent, staging, name)
     except driveupload.Stop:
+        if uq.cancelling(profile, key):
+            uq.apply_control(profile, data, clock)       # DEC-044: cancelled by the owner; not made again
+            uq.save(profile, data)
+            q.log('upscale: %s — cancelled' % title)
+            return True
         entry['status'] = 'waiting'
         entry['progress'] = 0
         entry.pop('eta', None)
