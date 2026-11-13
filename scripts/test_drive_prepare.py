@@ -298,8 +298,10 @@ class Queue(unittest.TestCase):
   self.n.bad=True;self.assertFalse(self.q.process_one())
   self.assertEqual(self.d.files['source']['data'],b'original');self.assertFalse(prep.ready(self.d.meta('source')))
  def test_invalid_completed_temp_is_regenerated_on_retry(self):
+  # ISSUE-238: a failed final check stops the video after one conversion; Repair (retry) makes it again.
   self.n.bad=True;self.assertFalse(self.q.process_one());self.n.bad=False
-  self.q.state['jobs']['slot']['retry_after']=0
+  self.assertTrue(self.q.state['jobs']['slot']['blocked']);self.assertFalse(self.q.process_one());self.assertEqual(self.n.calls,1)
+  prep.request(self.tmp.name,'retry','source');self.assertTrue(self.q.apply_requests())
   self.assertTrue(self.q.process_one());self.assertEqual(self.n.calls,2)
 
  def test_transient_verification_failure_reuses_valid_completed_temp(self):
@@ -399,6 +401,19 @@ class FinalCheck(unittest.TestCase):
   self.assertTrue(self.job()['blocked']);self.assertIn('checksum differs; original retained',self.job()['error'])
  def test_network_trouble_in_the_final_check_still_waits_and_retries(self):
   self.n.probe=lambda path:(_ for _ in ()).throw(RuntimeError('Source read: Input/output error'))
+  self.assertFalse(self.q.process_one());job=self.job()
+  self.assertFalse(job.get('blocked'));self.assertEqual((job['status'],job.get('attempts',0)),('waiting',0))
+
+ def test_the_converters_own_check_failing_stops_after_one_too(self):
+  # ISSUE-238: native.verify (duration, tracks, seeks) failing repeated whole conversions; it stops after one now.
+  self.n.verify=lambda source,target:(_ for _ in ()).throw(RuntimeError('Prepared video duration differs from the source'))
+  self.assertFalse(self.q.process_one());job=self.job()
+  self.assertTrue(job['blocked'] and job['verify_failed']);self.assertIn('duration differs',job['error'])
+  self.assertFalse(self.q.process_one());self.assertEqual(self.n.calls,1)
+  self.assertNotIn('temp-1',self.d.files)
+ def test_the_converters_check_during_network_trouble_waits(self):
+  self.n.verify=lambda source,target:(_ for _ in ()).throw(RuntimeError('Prepared Drive file validation failed'))
+  self.q.stream.stats=lambda:{'read_error':'Connection reset by peer'}
   self.assertFalse(self.q.process_one());job=self.job()
   self.assertFalse(job.get('blocked'));self.assertEqual((job['status'],job.get('attempts',0)),('waiting',0))
 

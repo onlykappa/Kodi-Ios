@@ -23,6 +23,16 @@ class VerifyFailed(RuntimeError):
     stops after one failure. Network trouble is never this: it keeps its own waits."""
 
 
+def native_verify_problem(q, error):
+    """The error to raise for a failed native.verify: VerifyFailed for a real mismatch; the original error (network
+    trouble: waits and carries on) when the network or the Drive stream had a read problem."""
+    import debrid_drive
+    try:read_trouble=bool((q.stream.stats() if q.stream and hasattr(q.stream,'stats') else {}).get('read_error'))
+    except Exception:read_trouble=False
+    if debrid_drive.network_error(error) or read_trouble:return error
+    return VerifyFailed(str(error) or 'Prepared Drive file validation failed')
+
+
 def on_cellular(q, every=5.0):
     """prepare_downloads.cellular_now, looked up at most every few seconds (the converter asks keep_going many times a
     second). A queue with its own link() (tests) is asked every time."""
@@ -324,7 +334,11 @@ def _run(q, keep_going, lane, runtime, set_card, drop_card, card, candidates, sl
                 before=job.get('probe') or q.native.probe(source)
                 reason = verify_problem(before, after)
                 if reason:raise VerifyFailed(reason)
-                q.native.verify(source,target)  # duration, all tracks, middle/end index seeks over HTTP
+                try:q.native.verify(source,target)  # duration, all tracks, middle/end index seeks over HTTP
+                except RuntimeError as error:
+                    # ISSUE-238 (handoff, ISSUE-230 open item): the converter's own check failing is a bad file, and making
+                    # it again ends the same way; it stops after this one. Network trouble during the check is not.
+                    raise native_verify_problem(q,error)
             except driveupload.Stop:raise
             except Exception as error:
                 # Network interruptions can retry a valid completed object; invalid output must be regenerated.
