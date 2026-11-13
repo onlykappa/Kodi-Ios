@@ -33,6 +33,13 @@ int main(int argc,char **argv) {
     }
 }
 '''
+  # r53 (ISSUE-201) made kodi_http_copy refuse any upload target that is not https (Drive always is). This stand-in
+  # is plain http on loopback, so the copy tests got -1 before a byte moved (airplay-remux runs 162-165). The guard is
+  # checked to be in the shipped source, and lifted for 127.0.0.1 in this test build only.
+  guard='![to.scheme isEqualToString:@"https"])return -1;'
+  assert source[start:end].count(guard)==1,'kodi_http_copy must refuse a non-https upload target'
+  source=source[:start]+source[start:end].replace(guard,'!([to.scheme isEqualToString:@"https"] || [to.host isEqualToString:@"127.0.0.1"]))return -1;')+source[end:]
+  end=source.index('__attribute__((visibility("default"))) void kodi_airplay_play(',start)
   path=cls.root/'transport.m';path.write_text('#import <Foundation/Foundation.h>\n#import <dispatch/dispatch.h>\n#include <math.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n'+source[start:end]+main)
   cls.binary=cls.root/'transport'
   subprocess.run(['xcrun','--sdk','macosx','clang','-fobjc-arc','-fblocks','-O1',str(path),'-framework','Foundation','-o',str(cls.binary)],check=True)
@@ -43,7 +50,13 @@ int main(int argc,char **argv) {
   class Handler(http.server.BaseHTTPRequestHandler):
    def log_message(self,*args):pass
    def do_PUT(self):
-    body=self.rfile.read(int(self.headers.get('Content-Length','0')))
+    if 'chunked' in (self.headers.get('Transfer-Encoding') or '').lower():   # a streamed upload body (r53)
+     body=b''
+     while True:
+      n=int(self.rfile.readline().split(b';')[0].strip() or b'0',16)
+      if not n:self.rfile.readline();break
+      body+=self.rfile.read(n);self.rfile.readline()
+    else:body=self.rfile.read(int(self.headers.get('Content-Length','0')))
     owner.uploads.append((body,self.headers.get('Content-Range')))
     if self.path=='/copy':
      answer=b'{"id":"saved","size":"16"}'
