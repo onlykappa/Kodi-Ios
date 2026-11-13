@@ -152,3 +152,57 @@ def items_from_rows(rows, upscale=None, title=None):
         out.append({'id': str(r['id']), 'title': name, 'line': ' · '.join(b for b in bits if b), 'size': size, 'ai': ai,
                     'name': r.get('file') or r.get('name') or ''})
     return out
+
+
+def drive_problems(cache):
+    """'Check Drive for problems' (owner, 2026-11-13): what older builds left on Drive, from the saved Library listing
+    (drive-library.json, no network), as select-list items with the reason in their grey line:
+    - an episode that is really a pack's film ("Naruto Shippūden S01E01 - The Movie.mkv": 'movie' in the name, or more
+      than 6x its show's median episode size);
+    - the same episode twice in one show (the smaller copy is offered);
+    - an empty show folder named after a torrent's info-hash.
+    Nothing is removed here; board D's alert comes first."""
+    import re
+    import statistics
+    import drivelibrary
+    import prepare_downloads
+    from debrid_drive import is_hash
+    out = []
+    shows = {str(e.get('id')): e for e in (cache.get('tv:') or {}).get('entries') or []}
+    for slot, hit in cache.items():
+        if not slot.startswith('tv:') or slot == 'tv:' or not isinstance(hit, dict):
+            continue
+        folder = slot[3:]
+        entries = [e for e in hit.get('entries') or [] if e.get('id')]
+        show = shows.get(folder, {})
+        name = show.get('title') or show.get('name') or ''
+        if not entries:
+            if is_hash(name):
+                out.append({'id': folder, 'title': 'Empty folder %s…' % name[:12], 'line': 'Named after a download, nothing in it',
+                            'size': 0, 'ai': None, 'kind': 'folder'})
+            continue
+        sizes = [int(e.get('size') or 0) for e in entries if int(e.get('size') or 0) > 0]
+        median = statistics.median(sizes) if len(sizes) >= 3 else 0
+        seen = {}
+        for e in entries:
+            size = int(e.get('size') or 0)
+            label = e.get('name') or ''
+            if re.search(r'(?i)\bmovie\b|\bthe[ ._-]movie\b|\bfilm\b', label) or (median and size > 6 * median):
+                out.append({'id': str(e['id']), 'title': drivelibrary.display_title(label) or label,
+                            'line': '%s · looks like a film, not an episode' % lf.size_text(size), 'size': size, 'ai': None})
+                continue
+            show_key, season, episode = prepare_downloads.line_key(label)[:3]
+            if e.get('season') and e.get('episode'):
+                season, episode = int(e['season']), int(e['episode'])
+            if not episode:
+                continue
+            other = seen.get((season, episode))
+            if other is None:
+                seen[(season, episode)] = e
+                continue
+            smaller, kept = (e, other) if size <= int(other.get('size') or 0) else (other, e)
+            seen[(season, episode)] = kept
+            out.append({'id': str(smaller['id']), 'title': drivelibrary.display_title(smaller.get('name') or '') or smaller.get('name'),
+                        'line': '%s · S%d E%d is here twice' % (lf.size_text(int(smaller.get('size') or 0)), season, episode),
+                        'size': int(smaller.get('size') or 0), 'ai': None})
+    return out

@@ -601,6 +601,18 @@ def run():
                 row = self.episodes[control - show_page.REPAIR]
                 act('repair' if not row.get('id') else 'retry', row, self.data, self.show, episodes=self.episodes)
 
+    if 'check' in sys.argv[1:]:
+        # Settings › Library › Check Drive for problems: what older builds left, ticked, behind board D's alert.
+        import library_delete as ld
+        import drivelibrary
+        state_dir = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap')
+        found = ld.drive_problems(drivelibrary.load_json(os.path.join(state_dir, 'drive-library.json'), {}))
+        if not found:
+            xbmcgui.Dialog().ok('Check Drive for problems', 'Nothing to fix: no films saved as episodes, no episode twice, no empty '
+                                'download folders. (This reads the Library\'s last look at Drive; Refresh Library first for the latest.)')
+            return
+        open_select(found, 'Problems on Drive', 'file', picked=[i['id'] for i in found])
+        return
     window = Files(page.WINDOW, HERE, 'Default', '1080i')
     window.doModal()
     del window

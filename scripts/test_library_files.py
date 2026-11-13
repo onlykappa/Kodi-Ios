@@ -324,6 +324,36 @@ class FreeUpSpace(unittest.TestCase):
         self.assertIn('elif control == page.STORE:', root.read_text())
 
 
+class DriveProblems(unittest.TestCase):
+    """E14: what older builds left on Drive (a film saved as an episode, an episode twice, an empty hash folder)."""
+    def test_finds_the_three_kinds(self):
+        import library_delete as ld
+        M = 1024 ** 2
+        h = '3c90db2e05217cc29aef549b4' + '0' * 15
+        cache = {'tv:': {'entries': [{'id': 'show1', 'title': 'Naruto Shippūden'}, {'id': 'hash1', 'title': h}, {'id': 'show2', 'title': 'Lanterns'}]},
+                 'tv:show1': {'entries': [
+                     {'id': 'a', 'name': 'Naruto Shippūden S01E01 - The Movie.mkv', 'size': 4400 * M},
+                     {'id': 'b', 'name': 'Naruto Shippūden S01E02 - Episode 002.mkv', 'size': 260 * M},
+                     {'id': 'c', 'name': '[Sub] Naruto Shippuuden - 002 [1080p].mkv', 'size': 945 * M},
+                     {'id': 'd', 'name': 'Naruto Shippūden S01E03 - Episode 003.mkv', 'size': 281 * M},
+                     {'id': 'e', 'name': 'Naruto Shippūden S01E04 - Episode 004.mkv', 'size': 251 * M}]},
+                 'tv:hash1': {'entries': []},
+                 'tv:show2': {'entries': [{'id': 'l1', 'name': 'Lanterns S01E01.mkv', 'size': 7700 * M},
+                                          {'id': 'l2', 'name': 'Lanterns S01E02.mkv', 'size': 7400 * M}]}}
+        found = {i['id']: i['line'] for i in ld.drive_problems(cache)}
+        self.assertEqual(sorted(found), ['a', 'b', 'hash1'])
+        self.assertIn('looks like a film', found['a'])
+        self.assertIn('S1 E2 is here twice', found['b'])            # the smaller copy is offered; the 945 MB one stays
+        self.assertEqual(found['hash1'], 'Named after a download, nothing in it')
+        self.assertEqual(ld.drive_problems({}), [])
+
+    def test_settings_row(self):
+        root = Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap'
+        self.assertIn("R(9458,'Check Drive for problems','RunScript(service.kodi.ios.bootstrap,library_manager,check)'",
+                      (root / 'resources/lib/settings_page.py').read_text())
+        self.assertIn("if 'check' in sys.argv[1:]:", (root / 'library_manager.py').read_text())
+
+
 class Repair(unittest.TestCase):
     """L5 (board C3): Repair looks the episode up again with Build Season's automatic pick, no version question."""
     def test_quality_of_the_show_first_then_any(self):

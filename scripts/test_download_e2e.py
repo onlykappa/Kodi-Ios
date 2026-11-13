@@ -369,6 +369,24 @@ class SeasonDownload(unittest.TestCase):
         self.assertNotEqual(job['status'], 'failed')                          # waits, never a wrong file
         self.assertEqual(self.on_drive().get(blob('P/Naruto Shippuden Episode 001.mkv', PIECE), []), [])
 
+    def test_a_movie_with_samples_and_extras(self):
+        # E13: one film in Kodi Downloads/Movies, never its sample or extras, through the same slow link.
+        debrid_drive.location(self.profile).write_text(json.dumps({'jobs': []}))
+        h = 'f1' * 20
+        self.debrid.add_torrent(h, [('Fall.2022.1080p.BluRay.x264/Fall.2022.1080p.BluRay.x264.mkv', 9 * PIECE),
+                                    ('Fall.2022.1080p.BluRay.x264/Sample/fall.sample.mkv', PIECE),
+                                    ('Fall.2022.1080p.BluRay.x264/Extras/Making Of.mkv', 4 * PIECE),
+                                    ('Fall.2022.1080p.BluRay.x264/Fall.2022.nfo', 10)])
+        debrid_drive.queue(self.profile, {'id': h, 'name': 'Fall.2022.1080p.BluRay.x264'}, 'movie', 'Fall (2022)')
+        self.run_queue()
+        job = debrid_drive.load(self.profile)['jobs'][0]
+        self.assertEqual(job['status'], 'done')
+        film = blob('Fall.2022.1080p.BluRay.x264/Fall.2022.1080p.BluRay.x264.mkv', 9 * PIECE)
+        paths = self.on_drive().get(film, [])
+        self.assertEqual(len(paths), 1)
+        self.assertTrue(paths[0].startswith('Kodi Downloads/Movies/'), paths)
+        self.assertFalse([p for ps in self.on_drive().values() for p in ps if 'sample' in p.lower() or 'Making Of' in p])
+
     def test_up_next_goes_episode_by_episode(self):
         snap = work_state.build({'debrid': debrid_drive.load(self.profile), 'prep': {}, 'show_names': {TMDB: SHOW}}, self.clock[0])
         numbers = [int(re.search(r'E(\d+)', j['title']).group(1)) for j in snap.get('jobs', []) if re.search(r'E(\d+)', j['title'])]
