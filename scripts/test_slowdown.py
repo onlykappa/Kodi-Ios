@@ -80,7 +80,7 @@ class Workers(Reset):
   self.assertIn('self.gate.after(time.monotonic() - began)',(LIB/'drive_prepare.py').read_text())
   stream=(LIB/'drive_stream.py').read_text()
   self.assertIn('self.gate.after(time.monotonic() - began, sum(len(x) for x in parts), download=True)',stream)
-  self.assertIn('ahead_count(stream.playback, slowdown.reason(), stream.wide)',stream)
+  self.assertIn('ahead_count(stream.playback, slowdown.reason(), stream.wide or item in stream.wide_items, len(stream.wide_items))',stream)
   up=(LIB/'driveupload.py').read_text()
   self.assertEqual(up.count('slowdown.Gate(keep_going=keep_going)'),3)   # phone uploads, AllDebrid copies and the native resumable copy (eef4910)
   self.assertIn('gate.after(put_s,len(chunk),download=True)',up)
@@ -99,7 +99,7 @@ class Workers(Reset):
   # The owner's Pause reaches the converter's hold loop (its words: "Paused by you").
   self.assertIn("not transfer_control.paused(profile,'conv')",svc.split('converting=lambda:')[1].split('\n')[0])
   cloud=(LIB/'prepare_cloud.py').read_text()
-  self.assertIn("q.runtime.phase('Paused by you',False,item['name'])",cloud)
+  self.assertIn("runtime.phase('Paused by you',False,item['name'])",cloud)
   self.assertNotIn("phase('Paused while a video plays'",cloud)
 
 class WideReadAhead(unittest.TestCase):
@@ -116,8 +116,8 @@ class WideReadAhead(unittest.TestCase):
   self.assertIn("if self.stream:self.stream.wide=bool(before.get('copy_video'))",src)
   self.assertIn("if self.stream:self.stream.wide=False",src)
   cloud=(LIB/'prepare_cloud.py').read_text()   # the path the phone runs (native outputs)
-  self.assertIn("if q.stream:q.stream.wide=bool(before.get('copy_video'))",cloud)
-  self.assertIn("if q.stream:q.stream.wide=False",cloud)
+  self.assertIn("if before.get('copy_video') and hasattr(q.stream,'widen'):q.stream.widen(item['id'])",cloud)
+  self.assertIn("if hasattr(q.stream,'unwide'):q.stream.unwide(item['id'])",cloud)
 
 
 class DownloadCap(unittest.TestCase):

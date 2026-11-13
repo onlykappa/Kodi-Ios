@@ -17,6 +17,7 @@ PROPERTY='kodiAirPlayProfile'
 CHECKSUM_PROPERTY='kodiAirPlayMD5'
 FILE='airplay-preparation.json'
 RESERVE=256*1024*1024
+REPACK_LANES=2   # F2: extra lanes for known re-packages beside the main lane (3 at once, the roadmap's 2-3)
 # Owner (build 157): "we need to ensure storage is never an issue". Preparation never takes the phone below this, and
 # a video starts only when its whole working set (the Drive file plus the prepared copy) fits above it.
 KEEP_FREE=5*1024**3
@@ -994,6 +995,12 @@ class Queue:
   marks.append((now,read));marks[:]=[m for m in marks if now-m[0]<=10] or [(now,read)]
   span=marks[-1][0]-marks[0][0]
   return read,((marks[-1][1]-marks[0][1])/span if span>=1 else 0.0)
+ def process_lane(self,lane,keep_going=lambda:True):
+  """F2 (PR #24): one known re-package in an extra lane beside the main one (prepare_cloud.known_repack). False when
+  there is none to take."""
+  if not getattr(self.native,'outputs',False) or not self.stream:return False
+  import prepare_cloud
+  return prepare_cloud.process_one(self,keep_going,lane)
  def process_one(self,keep_going=lambda:True):
   self.apply_requests();self.tidy();self.retry_image_subtitles()
   if getattr(self.native,'hdr',False):

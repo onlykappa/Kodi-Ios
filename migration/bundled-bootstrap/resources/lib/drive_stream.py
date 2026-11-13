@@ -36,14 +36,18 @@ READ_AHEAD_WIDE = 8
 SPAN = re.compile(r'bytes (\d+)-(\d+)/(\d+)')
 
 
-def ahead_count(playback, slowed, wide):
+def ahead_count(playback, slowed, wide, lanes=1):
     """Blocks fetched ahead of the reader: 2 for Kodi's own playback, 1 while a video or AirPlay plays (work slows),
-    READ_AHEAD_WIDE for a re-package at full speed, else READ_AHEAD."""
+    READ_AHEAD_WIDE for a re-package at full speed, else READ_AHEAD. F2: with several re-packages reading at once
+    they share the KEEP blocks, so each keeps fewer ahead (8, 8, 6 for 1-3 lanes) and none pushes out another's."""
     if playback:
         return 2
     if slowed:
         return 1
-    return READ_AHEAD_WIDE if wide else READ_AHEAD
+    if not wide:
+        return READ_AHEAD
+    lanes = max(1, int(lanes))
+    return max(READ_AHEAD - 1, min(READ_AHEAD_WIDE, (KEEP - 2 * lanes) // lanes))
 
 
 class _Blocks(object):
@@ -146,7 +150,8 @@ class DriveStream(object):
         self.gate = slowdown.Gate()   # build 193: a video or AirPlay playing slows the reads to a share of the line
         self.block_size=block_size;self.playback=playback
         self.ahead_blocks=None   # a fixed read-ahead (remote_media.Foreground); None keeps the rules below
-        self.wide=False          # a re-package reads now (prepare_downloads sets it): READ_AHEAD_WIDE at full speed
+        self.wide=False          # the local-copy path's re-package (prepare_downloads): READ_AHEAD_WIDE at full speed
+        self.wide_items=set()    # F2/F3: Drive files a re-package lane reads now (prepare_cloud widens them per file)
         self.blocks = _Blocks(self._fetch,keep,block_size)
         stream = self
 
@@ -226,7 +231,7 @@ class DriveStream(object):
                         # the next READ_AHEAD blocks are fetched at once, in parallel, not one after another.
                         # Not while a video plays (build-181 log: AirPlay starved while a conversion read and uploaded).
                         # Build 193: while a video or AirPlay plays, one block ahead instead of none (it slows, never stops).
-                        for step in range(1, 0 if stream.hold() else (stream.ahead_blocks or ahead_count(stream.playback, slowdown.reason(), stream.wide)) + 1):
+                        for step in range(1, 0 if stream.hold() else (stream.ahead_blocks or ahead_count(stream.playback, slowdown.reason(), stream.wide or item in stream.wide_items, len(stream.wide_items))) + 1):
                             stream.blocks.ahead(item, index + step)
                         piece = block[position - index * stream.block_size:end - index * stream.block_size + 1]
                         if not piece:
@@ -309,6 +314,12 @@ class DriveStream(object):
         with self.metric_lock:metrics=dict(self.metrics)
         with self.blocks.lock:metrics.update(cache_hits=self.blocks.hits,cache_misses=self.blocks.misses,cache_waits=self.blocks.waits)
         return dict(metrics,read_bytes=self.bytes_read,last_read=self.last_read,read_error=self.last_problem)
+
+    def widen(self, item_id):
+        self.wide_items.add(item_id)
+
+    def unwide(self, item_id):
+        self.wide_items.discard(item_id)
 
     def url(self, item_id):
         """The loopback link KodiAirPlay reads for one Drive file."""

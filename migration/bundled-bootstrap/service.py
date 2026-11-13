@@ -601,6 +601,22 @@ def drive_uploads(monitor,home,profile):
         except driveupload.Stop:pass
         except Exception as error:diagnostics.log_exception(xbmc,'library_check',error)
       threading.Thread(target=check_beside,args=(preparation,),daemon=True).start()
+      # F2 (PR #24 roadmap; build-356 log: 27 jobs waited behind one re-package reading Drive at 3-7 MB/s): known
+      # re-packages run in up to REPACK_LANES extra lanes while the main lane works. They only move bytes (the picture
+      # is copied), so the line, not the phone, is their limit. Never while a video or AirPlay plays (the main lane goes
+      # on slowed), never while the owner paused converting, never beside an AI Upscale copy.
+      def repack_lane(q,lane):
+       while not monitor.waitForAbort(5):
+        try:
+         if not (q.busy and xbmcaddon.Addon().getSettingBool('prepare_downloads') and not transfer_control.paused(profile,'conv')
+                 and not prepare_downloads.interrupts(profile) and not slowdown.reason() and not getattr(q,'upscaling',False)):continue
+         go=lambda:(not monitor.abortRequested() and not transfer_control.paused(profile,'conv') and not slowdown.reason()
+                    and not prepare_downloads.interrupts(profile))
+         while go() and q.process_lane(lane,go):pass
+        except driveupload.Stop:pass
+        except Exception as error:diagnostics.log_exception(xbmc,'preparation_lane',error)
+      for lane in range(2,2+prepare_downloads.REPACK_LANES):
+       threading.Thread(target=repack_lane,args=(preparation,str(lane)),daemon=True).start()
      can_prepare=lambda:idle() and xbmcaddon.Addon().getSettingBool('prepare_downloads')
      import preparation_runtime
      # Consume explicit starts before the saved-pause gate, including requests written by older builds.
@@ -643,12 +659,15 @@ def drive_uploads(monitor,home,profile):
        try:
         delay=2 if preparation.process_one(converting) else 20
         # DEC-039/040/042: AI Upscale copies are made only when nothing waits to be converted (one engine at a time).
-        if delay==20 and not transfer_control.paused(profile,'conv'):
+        if delay==20 and not transfer_control.paused(profile,'conv') and not getattr(preparation,'running_slots',None):
          import upscale_cloud,upscale_queue,drivelibrary
          if not getattr(preparation,'upscale_recovered',False):
           data=upscale_queue.load(profile);upscale_queue.save(profile,upscale_queue.recover(data));preparation.upscale_recovered=True
          try:
-          if upscale_cloud.process_one(preparation,converting,media_for=upscale_cloud.media_lookup(profile,drivelibrary.parse)):delay=2
+          preparation.upscaling=True   # F2: no re-package lane starts beside an AI Upscale copy (it changes converter settings)
+          try:
+           if upscale_cloud.process_one(preparation,converting,media_for=upscale_cloud.media_lookup(profile,drivelibrary.parse)):delay=2
+          finally:preparation.upscaling=False
          except Exception as error:
           diagnostics.log_exception(xbmc,'upscale',error)
        finally:preparation.busy=False

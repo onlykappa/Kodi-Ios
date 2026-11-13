@@ -208,6 +208,25 @@ def _conversion(prep, runtime, now):
             'held': bool(current.get('paused'))}
 
 
+def _lanes(prep, now):
+    """F2: the extra re-package lanes' cards (prep['lanes'], written by prepare_cloud.process_one(lane=N)), freshest
+    first; a lane that stopped writing for ALIVE seconds is not shown."""
+    out = []
+    for key, current in sorted(((prep or {}).get('lanes') or {}).items()):
+        if not isinstance(current, dict) or not current.get('running') or not current.get('title'):
+            continue
+        if now - float(current.get('updated') or 0) >= ALIVE:
+            continue
+        stage = str(current.get('stage') or '').replace('Step 3 of 3 · ', '').strip()
+        if stage in ('', 'Paused by you', 'Paused while a video plays', 'Stopped', 'Will try again'):
+            stage = STEP['repack']
+        out.append({'kind': 'repack', 'title': _title(current['title']), 'name': current['title'], 'step': stage,
+                    'pct': int(round(float(current.get('progress') or 0))), 'indeterminate': bool(current.get('indeterminate')),
+                    'rate': float(current.get('rate') or 0), 'eta_s': float(current.get('eta_s') or 0), 'tint': PURPLE,
+                    'held': bool(current.get('paused')), 'lane': key})
+    return out
+
+
 def episode_label(name):
     """'S01E03' from a file name (or '1x03'), else the cleaned file name."""
     import re
@@ -392,6 +411,11 @@ def build(inp, now):
     conv = _conversion(inp.get('prep'), inp.get('runtime'), now)
     if conv:
         add(conv, held=conv.pop('held', False) or (paused.get('conv') and conv['kind'] != 'check'))
+    # F2 (PR #24): re-packages running in extra lanes beside the main one, each with its own card and percentage.
+    lane_names = []
+    for lane in _lanes(inp.get('prep'), now):
+        lane_names.append(lane['name'])
+        add(lane, held=lane.pop('held', False) or bool(paused.get('conv')))
     for copy, owner in _copies(inp.get('debrid'), now):
         copy['id']='debrid:%s:%s:%s'%(owner.get('hash',''),owner.get('season',''),owner.get('episode',''))
         playback_held=copy.pop('playback_held',False)
@@ -411,7 +435,8 @@ def build(inp, now):
              'eta_s': float(d.get('eta_s') or 0), 'tint': BLUE, 'id': d.get('id', '')}, held=bool(d.get('paused')))
     needs = list(inp.get('needs') or ())
     waits = [w for w in inp.get('network') or () if float(w.get('until') or 0) > now]
-    nexts = _next(inp.get('prep'), conv['name'] if conv else '')
+    nexts = [n for n in _next(inp.get('prep'), conv['name'] if conv else '')
+             if n['title'] not in {_title(x) for x in lane_names}]
     if paused.get('conv') and not conv and nexts:
         # Paused while nothing converts: the next one waits for the owner, and says so.
         nexts[0]['paused'] = True
