@@ -120,3 +120,61 @@ class OneRowPerShow(unittest.TestCase):
         media = {'a': {'type': 'tv', 'show': 'Phony', 'tmdb': '1'}, 'b': {'type': 'tv', 'show': 'Lanterns', 'tmdb': ''}}
         groups = up.library({'jobs': jobs}, lambda job: media[job['prepared_id']], {'copies': {}})
         self.assertEqual(sorted(g['key'] for g in groups), ['title:lanterns', 'tv:1'])
+
+
+class MainPage(unittest.TestCase):
+    """DEC-044 board A/B: the AI Upscale page model (upscale_main_page draws it)."""
+    def data(self):
+        copies = {'a': {'label': '4K UHD', 'status': 'running', 'name': 'Hell House LLC Origins S01E01.mkv', 'progress': 12,
+                        'eta': '1 h 40 min', 'width': 1920, 'height': 1080, 'duration': 2640, 'added': 1},
+                  'b': {'label': '4K UHD', 'status': 'waiting', 'name': 'Hell House LLC Origins S01E02.mkv', 'width': 1920,
+                        'height': 1080, 'duration': 2640, 'added': 2},
+                  'c': {'label': '4K UHD', 'status': 'waiting', 'name': 'Phony S01E01.mkv', 'width': 1920, 'height': 1080,
+                        'duration': 1500, 'added': 3},
+                  'd': {'label': '4K UHD', 'status': 'cancelled', 'name': 'Phony S01E02.mkv', 'added': 4},
+                  'e': {'label': '4K UHD', 'status': 'ready', 'name': 'Lanterns S01E01.mkv', 'size': 3 * 10 ** 9, 'copy_id': 'x'}}
+        return {'copies': copies, 'engine': {'upscales': True, 'model': 2}}
+
+    def test_the_card_up_next_and_space(self):
+        settings = picture.defaults() if hasattr(picture, 'defaults') else {'downloads': {}, 'shows': {}, 'default': {'upscale': picture.OFF}}
+        v = up.main_view(settings, self.data(), [], {'upscales': True, 'model': 2})
+        self.assertEqual((v['making']['title'], v['making']['line'], v['making']['grey']),
+                         ('Hell House LLC Origins · E1', 'To 4K · 12 % · 1 h 40 min left', False))
+        self.assertEqual([r['title'] for r in v['next']], ['Hell House LLC Origins · E2', 'Phony · E1'])   # not the cancelled one
+        self.assertEqual(v['next'][0]['line'], '1080p → 4K · about 1 h 10 min')
+        self.assertEqual(v['space'], '1 copy · 3.0 GB')
+        self.assertTrue(v['can_cancel_all'])
+        self.assertEqual(v['engine']['title'], 'Ready on this iPhone')
+
+    def test_paused_and_waiting_say_why_and_never_show_a_blank_title(self):
+        data = self.data()
+        v = up.making(data, paused=True)
+        self.assertEqual((v['line'], v['grey'], v['paused']), ('Paused by you', True, True))
+        data['copies']['a'].update(status='waiting', note='Waiting for a charger')
+        v = up.making(data)
+        self.assertEqual((v['key'], v['line'], v['grey']), ('a', 'Waiting for a charger', True))
+        self.assertEqual(up.copy_title({'name': ''}, 'abc'), 'abc')              # the rig's blank "Making now" row
+
+    def test_the_copy_sheet(self):
+        s = up.copy_sheet(self.data(), 'a', device={'charging': 1, 'thermal': 'nominal'})
+        self.assertEqual((s['sub'], s['device'], s['pause']), ('Episode 1 · 1080p → 4K UHD', 'On charger · phone cool', 'Pause'))
+        self.assertEqual([st for st, _ in s['stages']], ['done', 'now', 'next'])
+        self.assertTrue(s['stages'][2][1].startswith('Saving to Google Drive · '))
+        self.assertEqual(up.copy_sheet(self.data(), 'a', paused=True)['pause'], 'Resume')
+
+    def test_the_windows_are_drawn(self):
+        import portrait
+        import upscale_main_page as mp
+        page = mp.page(portrait)
+        for ident in (mp.BACK, mp.MAKING, mp.MAKING_PAUSE, mp.EDIT, mp.NEXT + 2, mp.SHOW_ALL, mp.SHOW + mp.SHOW_SLOTS - 1, mp.NEW,
+                      mp.SIZE, mp.CHARGE, mp.ENGINE, mp.SPACE, mp.CANCEL_ALL):
+            self.assertIn('id="%d"' % ident, page)
+        self.assertIn('Cancel All Upscaling', page)
+        sheet = mp.sheet(portrait)
+        for ident in (mp.SHEET_CLOSE, mp.SHEET_PAUSE, mp.SHEET_CANCEL):
+            self.assertIn('id="%d"' % ident, sheet)
+        edit = mp.edit(portrait)
+        for ident in (mp.DONE, mp.REMOVE_ALL, mp.REMOVE, mp.MOVE + mp.EDIT_SLOTS - 1):
+            self.assertIn('id="%d"' % ident, edit)
+        files = portrait.portrait_files.__code__.co_names
+        self.assertIn('upscale_main_page', (Path(portrait.__file__)).read_text())

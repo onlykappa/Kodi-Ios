@@ -633,6 +633,10 @@ def run():
                 row = self.episodes[control - show_page.REPAIR]
                 act('repair' if not row.get('id') else 'retry', row, self.data, self.show, episodes=self.episodes)
 
+    if 'freeup' in sys.argv[1:]:
+        # Settings › AI Upscale › AI copies on Google Drive (DEC-044 board A2): straight to Free Up Space.
+        open_freeup(model(profile))
+        return
     if 'check' in sys.argv[1:]:
         # Settings › Library › Check Drive for problems: what older builds left, ticked, behind board D's alert.
         import library_delete as ld
