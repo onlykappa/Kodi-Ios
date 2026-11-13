@@ -187,10 +187,16 @@ def finished_keys(state):
 
 def problem_title(job):
     """Owner screenshot (build 356): rows read "45e2c1e0…" when a copy had no title; its file name says what it is."""
+    # Owner screenshot (2026-11-13): cancelled seasons still read "45e2c1e044af006c8fbf…": the job's title and name
+    # were the hash itself. A hash is never a title; the files, then the season's show, name it.
     title = job.get('title') or ''
+    if is_hash(title):
+        title = ''
     if not title:
         files = job.get('files') or []
-        name = job.get('name') or (files[0].get('name') if files and isinstance(files[0], dict) else '') or ''
+        first = files[0] if files and isinstance(files[0], dict) else {}
+        candidates = [job.get('name'), first.get('drive_name'), first.get('name'), first.get('path')]
+        name = next((str(c) for c in candidates if c and not is_hash(str(c).rsplit('/', 1)[-1])), '')
         title = name.rsplit('/', 1)[-1]
         if title:
             try:

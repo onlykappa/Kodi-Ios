@@ -96,3 +96,27 @@ class Page(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class OneRowPerShow(unittest.TestCase):
+    """Owner screenshot (2026-11-13): "Phony" was listed twice: some episodes matched TMDb, others only by name."""
+    def test_a_name_only_group_joins_the_tmdb_group(self):
+        jobs = {}
+        for n in range(1, 6):
+            jobs['p%d' % n] = {'status': 'done', 'prepared_id': 'p%d' % n, 'source': {'id': 'p%d' % n, 'name': 'Phony S01E%02d.mkv' % n},
+                               'probe': {'width': 1920, 'height': 1080, 'hdr': False, 'duration': 1400}}
+        def media_for(job):
+            n = int(job['source']['name'].split('E')[-1][:2])
+            return {'type': 'tv', 'show': 'Phony', 'tmdb': '250000' if n <= 3 else '', 'season': 1, 'episode': n}
+        groups = up.library({'jobs': jobs}, media_for, {'copies': {}})
+        self.assertEqual([(g['key'], len(g['videos'])) for g in groups], [('tv:250000', 5)])
+        self.assertEqual(sorted(i['episode'] for i in groups[0]['items']), [1, 2, 3, 4, 5])
+
+    def test_different_shows_stay_apart(self):
+        jobs = {'a': {'status': 'done', 'prepared_id': 'a', 'source': {'id': 'a', 'name': 'Phony S01E01.mkv'},
+                      'probe': {'width': 1920, 'height': 1080, 'hdr': False}},
+                'b': {'status': 'done', 'prepared_id': 'b', 'source': {'id': 'b', 'name': 'Lanterns S01E01.mkv'},
+                      'probe': {'width': 1920, 'height': 1080, 'hdr': False}}}
+        media = {'a': {'type': 'tv', 'show': 'Phony', 'tmdb': '1'}, 'b': {'type': 'tv', 'show': 'Lanterns', 'tmdb': ''}}
+        groups = up.library({'jobs': jobs}, lambda job: media[job['prepared_id']], {'copies': {}})
+        self.assertEqual(sorted(g['key'] for g in groups), ['title:lanterns', 'tv:1'])

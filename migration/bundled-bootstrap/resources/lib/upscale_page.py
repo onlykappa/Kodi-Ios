@@ -85,6 +85,22 @@ def library(prep_state, media_for, data):
             g['making'] += 1
         elif state in ('waiting', 'failed'):
             g['waiting'] += 1
+    # Owner screenshot (2026-11-13): "Phony" twice: some episodes matched TMDb ('tv:<id>'), others only by name
+    # ('title:phony'). A name-only group joins the TMDb group of the same show.
+    def same(title):
+        import debrid_drive
+        return debrid_drive.show_match(title)
+    for key in [k for k in groups if k.startswith('title:')]:
+        g = groups[key]
+        home = next((o for k, o in groups.items() if not k.startswith('title:') and o['kind'] == g['kind'] and same(o['title']) == same(g['title'])), None)
+        if home is None:
+            continue
+        for field in ('videos', 'levels'):
+            home[field] += g[field]
+        home.setdefault('items', []).extend(g.get('items') or [])
+        for field in ('ready', 'making', 'waiting', 'kept'):
+            home[field] += g[field]
+        del groups[key]
     out = []
     for g in groups.values():
         g['source'] = short(picture.LABELS[min(g['levels'])]) if g['levels'] and min(g['levels']) >= 0 else ('480p' if g['levels'] else '')

@@ -759,4 +759,15 @@ class OneAtATimeOnTheConnection(unittest.TestCase):
   src=(LIB/'driveupload.py').read_text()
   self.assertIn("MB/s from the source), sent in %.1f s (%.2f MB/s to Google Drive)",src)
 
+class ProblemTitles(unittest.TestCase):
+    """Owner screenshot (2026-11-13): cancelled seasons read "45e2c1e044af006c8fbf…"."""
+    def test_a_hash_is_never_the_title(self):
+        h = '45e2c1e044af006c8fbf0123456789abcdef0123'
+        self.assertEqual(debrid_drive.problem_title({'hash': h, 'title': h, 'name': h, 'kind': 'season',
+                                                     'files': [{'path': 'Naruto Shippuden (001-032)/Naruto Shippuden Episode 006.mkv'}]}),
+                         'Naruto Shippuden Episode 006')
+        self.assertEqual(debrid_drive.problem_title({'hash': h, 'title': h, 'name': h, 'kind': 'season', 'files': []}), 'Unnamed download')
+        self.assertEqual(debrid_drive.problem_title({'title': 'Naruto Shippuden', 'name': h}), 'Naruto Shippuden')
+
+
 if __name__=='__main__':unittest.main()
