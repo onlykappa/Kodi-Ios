@@ -7,6 +7,7 @@ fill() is pure so host tests can check every property the page reads.
 import json
 import os
 import sys
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, 'resources', 'lib'))
@@ -33,7 +34,10 @@ def model(profile):
     shows, tv_drive = cached(state_dir, 'tv:')
     movies, movie_drive = cached(state_dir, 'movie:')
     episodes = {s['id']: cached(state_dir, 'tv:%s' % s['id'])[0] for s in shows}
-    prep, debrid, ups = prepare_downloads.load(profile), debrid_drive.load(profile), upscale_queue.load(profile)
+    # ISSUE-227: what the owner just asked for (Repair, Try Again, Keep) shows at once, as on Library status; the service
+    # applies it at its next pass.
+    prep = prepare_downloads.apply_to(prepare_downloads.load(profile), prepare_downloads.pending_requests(profile), time.time())
+    debrid, ups = debrid_drive.load(profile), upscale_queue.load(profile)
     art = drivelibrary.load_json(os.path.join(state_dir, 'drive-library-art.json'), {})
     poster = lambda kind, e: (drivelibrary.artwork(kind, e.get('title') or '', e.get('year'), None, art, None, cached_only=True) or {}).get('poster', '')
     # ISSUE-197: what was watched to the end (Continue Watching keeps it: Drive file ids and phone paths).

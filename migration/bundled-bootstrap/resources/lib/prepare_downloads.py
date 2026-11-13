@@ -489,6 +489,12 @@ def pending_requests(profile):
  except (OSError,ValueError):return []
  return pending if isinstance(pending,list) else []
 
+WAKES=('retry','now','next','prepare')
+def wakes_work(profile):
+ """ISSUE-227: an owner's Repair / Try Again / Start now / Prepare next is waiting to be applied. AI Upscale copies (optional,
+ minutes long) stop for it instead of making Repair wait behind them (owner log 0b5ecceb: Repair taps applied 1-2 min late)."""
+ return any(r.get('action') in WAKES for r in pending_requests(profile))
+
 def resume_requested(profile,requests=None,state=None):
  """An explicit valid Start now resumes conversion; queued work alone never overrides the owner's Pause."""
  requests=pending_requests(profile) if requests is None else requests

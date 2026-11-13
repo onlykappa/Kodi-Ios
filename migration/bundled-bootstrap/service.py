@@ -685,7 +685,8 @@ def drive_uploads(monitor,home,profile):
          try:
           preparation.upscaling=True   # F2: no re-package lane starts beside an AI Upscale copy (it changes converter settings)
           try:
-           if upscale_cloud.process_one(preparation,converting,media_for=upscale_cloud.media_lookup(profile,drivelibrary.parse)):delay=2
+           # ISSUE-227: an owner's Repair / Try Again stops it (its copy starts again later) so the repair is applied at once.
+           if upscale_cloud.process_one(preparation,lambda:converting() and not prepare_downloads.wakes_work(profile),media_for=upscale_cloud.media_lookup(profile,drivelibrary.parse)):delay=2
           finally:preparation.upscaling=False
          except Exception as error:
           diagnostics.log_exception(xbmc,'upscale',error)

@@ -184,6 +184,27 @@ class RepairSaysWhy(unittest.TestCase):
         self.assertIn('prepare_downloads.cannot_prepare(r.get(\'problem\'), caps)', src)   # Repair All: one message, the rest retried
 
 
+class RepairShowsAtOnce(unittest.TestCase):
+    def test_a_repair_tap_shows_on_the_episode_page_and_stops_an_upscale(self):
+        # ISSUE-227 (owner log 0b5ecceb: "my taps did nothing for repair, it was super slow"): the worker was making an AI
+        # Upscale copy for 2 minutes, so the Repair request waited, and the episode page ignored a pending request.
+        import tempfile
+        import prepare_downloads as prep
+        err = 'This file has tracks MP4 cannot preserve; original retained'
+        state = {'jobs': {'a': {'source': {'id': 'a', 'name': 'Naruto.S01E09.mkv'}, 'status': 'waiting', 'blocked': True, 'error': err}}}
+        item = {'id': 'a', 'name': 'Naruto.S01E09.mkv'}
+        self.assertEqual(lf.file_state(item, prep.apply_to(state, [], 1)['jobs'], {})['state'], lf.PROBLEM)
+        shown = prep.apply_to(state, [{'action': 'retry', 'id': 'a'}], 1)
+        self.assertEqual(lf.file_state(item, shown['jobs'], {})['state'], lf.CONVERTING)     # the tap shows at once
+        with tempfile.TemporaryDirectory() as d:
+            self.assertFalse(prep.wakes_work(d))
+            prep.request(d, 'up', 'a');self.assertFalse(prep.wakes_work(d))                    # moving in the queue does not stop an upscale
+            prep.request(d, 'retry', 'a');self.assertTrue(prep.wakes_work(d))
+        root = Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap'
+        self.assertIn('converting() and not prepare_downloads.wakes_work(profile)', (root / 'service.py').read_text())
+        self.assertIn('prepare_downloads.apply_to(prepare_downloads.load(profile), prepare_downloads.pending_requests(profile)', (root / 'library_manager.py').read_text())
+
+
 class WatchedFreeUp(unittest.TestCase):
     def test_model_reads_watched_and_free_up_offers_them(self):
         # ISSUE-197 (owner, build 347): Free Up Space › Watched episodes was never filled.
