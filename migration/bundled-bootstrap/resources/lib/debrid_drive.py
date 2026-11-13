@@ -71,6 +71,34 @@ def offset_lookup(profile):
 
 
 BUSY_LANES = 2
+START_LANES = 2
+GAIN = 1.15   # one more lane is kept only when it copies at least 15 % more in total
+
+
+def lane_plan(state):
+    """E16 (owner logs 7698974a / ec3b0956: four lanes on a ~0.4 MB/s link each crawled and timed out): how many lanes
+    the next run uses. Starts at START_LANES; tries one more while the last addition paid off (GAIN); otherwise the
+    count that copied fastest. state['lane_speeds']: {lanes: bytes per second, smoothed}."""
+    speeds = {int(k): float(v) for k, v in (state.get('lane_speeds') or {}).items()}
+    now = int(state.get('lanes_now') or START_LANES)
+    if not speeds or now not in speeds:
+        return max(1, min(LANES, now))
+    below = speeds.get(now - 1)
+    if now < LANES and (now + 1) not in speeds and (below is None or speeds[now] >= GAIN * below):
+        return now + 1
+    best = max(speeds.values())
+    return min(n for n, rate in speeds.items() if rate * GAIN >= best)   # the fewest lanes within 15 % of the best
+
+
+def learn_lanes(state, lanes, sent, seconds):
+    """Record what a run with this many lanes copied (runs under a minute or a few MB say nothing)."""
+    if seconds < 60 or sent < 8 * 1024 * 1024:
+        return
+    speeds = state.setdefault('lane_speeds', {})
+    rate = sent / float(seconds)
+    old = speeds.get(str(lanes))
+    speeds[str(lanes)] = rate if old is None else 0.5 * float(old) + 0.5 * rate
+    state['lanes_now'] = lanes
 
 
 def converting():
@@ -829,6 +857,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 def progress(sent, total):
                     # Owner (build 170): the speed and the time left, measured over the last ~20 s.
                     now = clock()
+                    with guard:   # E16: this run's confirmed bytes, for the lane count of the next run
+                        moved.setdefault(id(entry), [sent, sent])[1] = sent
                     marks.append((now, sent))
                     # Build 207 (build-206 log: pieces 20-30 s apart): the window always keeps the piece before, or a
                     # slow copy read 0 MB/s on every page between pieces (no graph, Peak and Average 0.0).
@@ -923,17 +953,24 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 state.pop('lanes', None)
             # Owner log 7698974a (build 325): four copies at ~0.2 MB/s each while a conversion read and wrote Drive on
             # the same connection; every piece timed out at 20 s and halved. Two lanes while a conversion runs.
-            lanes = min(lanes_for(len(todo)), BUSY_LANES if converting() else LANES)
-            if lanes == 1:
-                worker(0)
-            else:
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=lanes) as pool:
-                    running = [pool.submit(worker, slot) for slot in range(lanes)]
-                    problems = [f.exception() for f in running]
-                for problem in problems:
-                    if problem is not None:
-                        raise problem
+            # E16: as many lanes as the link rewards (lane_plan), never more than files, and two beside a conversion.
+            lanes = min(lanes_for(len(todo)), lane_plan(state), BUSY_LANES if converting() else LANES)
+            moved = {}
+            began = clock()
+            try:
+                if lanes == 1:
+                    worker(0)
+                else:
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=lanes) as pool:
+                        running = [pool.submit(worker, slot) for slot in range(lanes)]
+                        problems = [f.exception() for f in running]
+                    for problem in problems:
+                        if problem is not None:
+                            raise problem
+            finally:
+                with guard:
+                    learn_lanes(state, lanes, sum(b - a for a, b in moved.values()), clock() - began)
             for other in group[1:]:
                 if all(e['done'] for e in other['files']):
                     other['status'] = 'done'

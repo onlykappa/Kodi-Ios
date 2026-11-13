@@ -162,6 +162,25 @@ class Paced(unittest.TestCase):
    debrid_drive.step(profile,api,drive);debrid_drive.step(profile,api,drive)
    self.assertEqual(debrid_drive.load(profile)['jobs'][0]['status'],'done');self.assertEqual(seen[0],20.0)
 
+class LaneLearning(unittest.TestCase):
+ def test_lanes_follow_what_the_link_gives(self):
+  # E16: start at two; one more while it pays (15 %); else the fastest count measured.
+  st={}
+  self.assertEqual(debrid_drive.lane_plan(st),2)
+  debrid_drive.learn_lanes(st,2,300*1024**2,600)            # 0.5 MB/s with two
+  self.assertEqual(debrid_drive.lane_plan(st),3)              # try three
+  debrid_drive.learn_lanes(st,3,330*1024**2,600)            # +10 %: not worth it
+  self.assertEqual(debrid_drive.lane_plan(st),2)
+  fast={}
+  debrid_drive.learn_lanes(fast,2,1200*1024**2,600)
+  debrid_drive.learn_lanes(fast,3,1700*1024**2,600)         # +42 %
+  self.assertEqual(debrid_drive.lane_plan(fast),4)
+  debrid_drive.learn_lanes(fast,4,2400*1024**2,600)
+  self.assertEqual(debrid_drive.lane_plan(fast),4)            # never more than LANES
+  quick={}
+  debrid_drive.learn_lanes(quick,2,1024,5)                   # a few seconds say nothing
+  self.assertEqual(quick,{})
+
 class LateBytes(unittest.TestCase):
  def test_drive_keeping_a_timed_out_pieces_bytes_is_not_an_error(self):
   # Owner log 3b94b426 (build 319): after a 20 s timeout Drive confirmed more than the next piece sent; the copy failed
@@ -317,8 +336,11 @@ class Duplicates(unittest.TestCase):
 
 class TwoLanes(unittest.TestCase):
  """ISSUE-164 / 1F.4: a season's episodes go up to Drive up to three at a time; a movie is still one upload."""
- def setUp(self):self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name
- def tearDown(self):self.tmp.cleanup()
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name
+  # These check the lanes' mechanics at full width; how many the link earns is LaneLearning's.
+  self.plan=patch.object(debrid_drive,'lane_plan',lambda state:debrid_drive.LANES);self.plan.start()
+ def tearDown(self):self.plan.stop();self.tmp.cleanup()
  def season(self,names):
   class Pack(FakeAPI):
    def files(self,m):return [('S/%s'%n,3,n) for n in names]
