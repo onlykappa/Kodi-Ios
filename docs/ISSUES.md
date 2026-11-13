@@ -3305,3 +3305,40 @@ Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), open
 - **Follow-up:** the Download problems page redesign is a mockup awaiting approval
   (docs/design/download-problems-mockups.html).
 
+## ISSUE-205 — Download problems was a plain select list (owner: "that is ugly!") — fixed in code (approved mockup)
+
+- **Evidence:** owner screenshot (build 356): "Retry All (2)", "Clear All (64)" and 64 rows, two named by hash, every
+  reason cut off.
+- **Fix:** the approved mockup (docs/design/download-problems-mockups.html) as a real page,
+  portrait/IOSDownloadProblems.xml (copy_problems_page.py), filled by copy_problems.py:
+  - a summary (can try again · new source · cancelled) and the segmented filter (All · Retry · Source · Cancelled);
+  - rows grouped by what you can do, each with a poster, the title, what it is, a plain reason in the group's colour
+    and one action (Retry · Find · Restart);
+  - Retry N (white capsule); Clear Cancelled (red, behind an alert) on the Cancelled filter;
+  - tapping a row opens the choice sheet with the whole reason (Find Another Source · Try This Source Again /
+    Restart · Remove From List, which asks first);
+  - the empty state.
+  Find opens the title's TMDb search (movies or shows). Restart clears the old cancel request first. Retry and remove
+  name a copy by its key (hash, season, episode, added), not its place in the list.
+- **Retest:** test_debrid_drive DownloadProblemsPage (groups, plain reasons, colours, row ends, the Cancelled filter, the
+  sheet's choices, one problem retried or removed by key, the page XML).
+- **Visual check:** desktop Kodi rig renders of the All and Cancelled filters match boards A and B; the footnote height
+  was raised after the rig showed its third line clipped. The iPhone check is still pending.
+
+## ISSUE-206 — Copies stayed at 3 lanes on a faster line (build-356 log) — fixed in code
+
+- **Evidence:** log 96e194ae: "network" snapshot copy_lanes 3 throughout at 13-17 MB/s; the owner's speed test:
+  254 Mbps down, 180 Mbps up (about 22 MB/s). Each lane ran 4-7 MB/s ("32.0 MB piece in 5.5 s").
+- **Cause:** lane learning remembered the 4-6 lane speeds measured on the slow VPN line, so 3 always looked best.
+- **Fix:** each measured lane speed has a time; anything older than six hours is forgotten (a new connection already
+  forgets all), so a line that got faster is tried with one more lane while each addition pays off (15 %).
+- **Retest:** test_debrid_drive LaneLearning (old speeds forgotten, 3 → 4 → 5 → back to 4 on +2.5 %).
+
+## ISSUE-207 — The Library file manager offered the grid on Movies only (owner, build 356) — fixed in code
+
+- **Fix:** the list/grid button shows on TV Shows too; the grid shows each show's poster, "N ep · size" and its first
+  state chip as the badge; a tap opens the show (board B). Each side remembers its own choice (library-view.json
+  'movies' and 'tv').
+- **Retest:** test_library_files (TV grid properties, per-side view memory, the button on both sides).
+- **Visual check:** pending (the rig has no Drive library to show).
+

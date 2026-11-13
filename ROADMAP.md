@@ -521,7 +521,9 @@ One PR, one IPA at the end (owner: no builds until asked). Phone proof is the ow
 | R11 | A finished conversion says it is uploading (share, MB left, time) instead of "Converting 79%"; movie pieces up to 32 MB | Coded (ISSUE-202) |
 | R12 | Bell page: a card for every running copy, like the pill and Library status | Coded (ISSUE-203) |
 | R13 | No re-copy of a video already finished from another source; problem rows never show a hash | Coded (ISSUE-204) |
-| R14 | Download problems page redesign (summary, groups by what you can do, plain reasons, row actions, empty state) | Mockup: docs/design/download-problems-mockups.html, awaiting owner approval |
+| R14 | Download problems page redesign (summary, groups by what you can do, plain reasons, row actions, empty state) | Coded (ISSUE-205; mockup approved) |
+| R15 | Lane learning forgets old speeds (6 h) so a faster line gets more copies at once | Coded (ISSUE-206) |
+| R16 | Library file manager: grid view on TV Shows too | Coded (ISSUE-207) |
 
 Owner conditions to check on the phone: downloads carry on after switching Wi-Fi / cellular, with the screen off
 (Kodi stays awake while any copy is unfinished), and after Kodi is closed and opened again (resumes from Drive's

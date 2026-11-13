@@ -79,17 +79,23 @@ def fill(data, tab='tv', sort='recent', search='', slots=30, view='list'):
             props['row.%d.%s' % (n, key)] = ''
         for key in ('title', 'sub', 'art', 'badge', 'badgec'):
             props['mov.%d.%s' % (n, key)] = ''
-    if tab == 'movie' and view == 'grid':
+    if view == 'grid':
         # L7 (board E): posters in a three-column grid, the size under each title; the badge only says the state.
+        # Owner (build 356): TV Shows too: the episode count and size under the show, its first chip as the badge.
         for n, r in enumerate(rows):
             k = 'mov.%d.' % n
             props[k + 'title'], props[k + 'art'] = r['title'], r.get('art', '')
+            if tab == 'tv':
+                props[k + 'sub'] = ' · '.join(x for x in ('%d ep' % r['episodes'], lf.size_text(r['size'])) if x)
+                first = (r.get('chips') or [('', '')])[0]
+                props[k + 'badge'], props[k + 'badgec'] = first[0], first[1] if first[0] else ''
+                continue
             props[k + 'sub'] = ' · '.join(x for x in (lf.size_text(r['size']), r.get('quality') or '') if x)
             props[k + 'badge'] = r['badge']
             props[k + 'badgec'] = {'Ready': 'green', 'Converting': 'orange', 'Problem': 'red', 'Copying': 'blue'}.get(
                 r['badge'], 'orange' if str(r['badge']).endswith('%') else 'purple')
         props['empty'] = '' if rows else ('Nothing matches “%s”.' % search if search else
-                                          'No downloaded movies yet. Downloads appear here once they are on Google Drive.')
+                                          'No downloaded %s yet. Downloads appear here once they are on Google Drive.' % ('shows' if tab == 'tv' else 'movies'))
         return props, rows
     for n, r in enumerate(rows):
         k = 'row.%d.' % n
@@ -116,23 +122,30 @@ def fill(data, tab='tv', sort='recent', search='', slots=30, view='list'):
 VIEW_FILE = 'library-view.json'
 
 
-def load_view(state_dir):
-    """The Movies view the owner chose last: 'list' (the default, owner's choice) or 'grid'."""
+def _views(state_dir):
     import json
     try:
         with open(os.path.join(state_dir, VIEW_FILE), encoding='utf-8') as f:
-            view = json.load(f).get('movies')
-    except (OSError, ValueError, AttributeError):
-        view = None
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def load_view(state_dir, tab='movie'):
+    """The view the owner chose last for a side ('movie' or 'tv'): 'list' (the default, owner's choice) or 'grid'."""
+    view = _views(state_dir).get('movies' if tab == 'movie' else 'tv')
     return view if view in ('list', 'grid') else 'list'
 
 
-def save_view(state_dir, view):
+def save_view(state_dir, view, tab='movie'):
     import json
+    data = _views(state_dir)
+    data['movies' if tab == 'movie' else 'tv'] = view
     try:
         os.makedirs(state_dir, exist_ok=True)
         with open(os.path.join(state_dir, VIEW_FILE), 'w', encoding='utf-8') as f:
-            json.dump({'movies': view}, f)
+            json.dump(data, f)
     except OSError:
         pass
 
@@ -238,7 +251,7 @@ def run():
             self.tab = 'movie' if 'movie' in sys.argv[1:] else 'tv'
             self.sort, self.search, self.rows = 'recent', '', []
             self.state_dir = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap')
-            self.view = load_view(self.state_dir)
+            self.view = load_view(self.state_dir, self.tab)
             try:
                 self.data = model(profile)
             except Exception as error:
@@ -257,12 +270,12 @@ def run():
 
         def onClick(self, control):
             if control == page.TAB_SHOWS:
-                self.tab = 'tv'
+                self.tab = 'tv';self.view = load_view(self.state_dir, self.tab)
             elif control == page.TAB_MOVIES:
-                self.tab = 'movie'
+                self.tab = 'movie';self.view = load_view(self.state_dir, self.tab)
             elif control in (page.VIEW, page.VIEW + 1):
                 self.view = 'list' if self.view == 'grid' else 'grid'
-                save_view(self.state_dir, self.view)
+                save_view(self.state_dir, self.view, self.tab)
                 self.setFocusId(page.VIEW + (1 if self.view == 'grid' else 0))
             elif control == page.STORE:
                 if open_freeup(self.data):
@@ -273,8 +286,14 @@ def run():
                 pick = xbmcgui.Dialog().select('Sort by', [label for _, label in SORTS])
                 if pick >= 0:
                     self.sort = SORTS[pick][0]
-            elif page.MOVIE <= control < page.MOVIE + page.SLOTS and control - page.MOVIE < len(self.rows) and self.tab == 'movie' and self.view == 'grid':
-                if open_item(self.data, self.rows[control - page.MOVIE], None, 'movie'):
+            elif page.MOVIE <= control < page.MOVIE + page.SLOTS and control - page.MOVIE < len(self.rows) and self.view == 'grid':
+                row = self.rows[control - page.MOVIE]
+                if self.tab == 'tv':
+                    show = Show(show_page.WINDOW, HERE, 'Default', '1080i')
+                    show.data, show.show = self.data, row
+                    show.doModal()
+                    del show
+                elif open_item(self.data, row, None, 'movie'):
                     self.close()
                 return
             elif page.ROW <= control < page.ROW + page.SLOTS and control - page.ROW < len(self.rows):

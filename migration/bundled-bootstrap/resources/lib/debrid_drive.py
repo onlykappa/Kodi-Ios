@@ -78,11 +78,19 @@ CELLULAR_LANES = 2  # mobile data: E16's crawl (four lanes at ~0.2 MB/s each tim
 GAIN = 1.15   # one more lane is kept only when it copies at least 15 % more in total
 
 
-def lane_plan(state):
+LANE_MEMORY = 6 * 3600   # ISSUE-206: what a lane count copied this long ago says nothing about the line now
+
+
+def lane_plan(state, now=None):
     """E16 (owner logs 7698974a / ec3b0956: four lanes on a ~0.4 MB/s link each crawled and timed out): how many lanes
     the next run uses. Starts at START_LANES; tries one more while the last addition paid off (GAIN); otherwise the
-    count that copied fastest. state['lane_speeds']: {lanes: bytes per second, smoothed}."""
-    speeds = {int(k): float(v) for k, v in (state.get('lane_speeds') or {}).items()}
+    count that copied fastest. state['lane_speeds']: {lanes: bytes per second, smoothed}.
+    ISSUE-206 (build-356 log: 3 lanes at 13-17 MB/s on a 22 MB/s uplink, never trying 4): speeds older than
+    LANE_MEMORY (or with no time, from before) are forgotten, so a line that got faster is tried with more lanes again."""
+    now = time.time() if now is None else now
+    seen = state.get('lane_seen') or {}
+    speeds = {int(k): float(v) for k, v in (state.get('lane_speeds') or {}).items()
+              if now - float(seen.get(str(k)) or 0) < LANE_MEMORY}
     now = int(state.get('lanes_now') or START_LANES)
     if not speeds or now not in speeds:
         return max(1, min(LANES, now))
@@ -93,10 +101,11 @@ def lane_plan(state):
     return min(n for n, rate in speeds.items() if rate * GAIN >= best)   # the fewest lanes within 15 % of the best
 
 
-def learn_lanes(state, lanes, sent, seconds):
+def learn_lanes(state, lanes, sent, seconds, now=None):
     """Record what a run with this many lanes copied (runs under a minute or a few MB say nothing)."""
     if seconds < 60 or sent < 8 * 1024 * 1024:
         return
+    state.setdefault('lane_seen', {})[str(lanes)] = time.time() if now is None else now
     speeds = state.setdefault('lane_speeds', {})
     rate = sent / float(seconds)
     old = speeds.get(str(lanes))
@@ -190,6 +199,11 @@ def problem_title(job):
     return title or 'Unnamed download'
 
 
+def problem_key(job):
+    """Which copy a problem row is, steady while the service saves the list (indexes can move)."""
+    return '%s:%s:%s:%s' % (job.get('hash', ''), job.get('season', ''), job.get('episode', ''), job.get('added', 0))
+
+
 def problems(state):
     """The copies that ended: [{'title', 'reason', 'kind' ('network', 'source', 'cancelled'), 'hash', 'index'}]."""
     out = []
@@ -201,15 +215,21 @@ def problems(state):
         title = problem_title(job)
         if job.get('kind') == 'episode' and job.get('season') and job.get('episode'):
             title = '%s · S%s E%s' % (title, job['season'], job['episode'])
-        out.append({'title': title, 'reason': error.split(': ', 1)[-1][:120], 'kind': kind, 'hash': job.get('hash'), 'index': n})
+        out.append({'title': title, 'reason': error.split(': ', 1)[-1][:120], 'kind': kind, 'hash': job.get('hash'), 'index': n,
+                    'error': error.split(': ', 1)[-1] if error.split(': ', 1)[0].isidentifier() else error,
+                    'job_kind': job.get('kind') or '', 'name': job.get('name') or '', 'finished': job.get('finished') or 0,
+                    'season': job.get('season') or '', 'episode': job.get('episode') or '', 'count': len(job.get('files') or []),
+                    'key': problem_key(job)})
     return out
 
 
-def retry_failed(profile, kinds=('network', 'source')):
-    """Settings › Library › Download problems › Retry: those copies go back in line. Returns how many."""
+def retry_failed(profile, kinds=('network', 'source'), only=None):
+    """Settings › Library › Download problems › Retry: those copies go back in line (only: the problems' keys, from
+    problems()). Returns how many."""
     state = load(profile)
     have = finished_keys(state)
-    picked = {p['index'] for p in problems(state) if p['kind'] in kinds and same_video(state['jobs'][p['index']]) not in have}
+    picked = {p['index'] for p in problems(state) if p['kind'] in kinds and same_video(state['jobs'][p['index']]) not in have
+              and (only is None or p['key'] in only)}
     for n in picked:
         job = state['jobs'][n]
         job.update(status='copying' if job.get('files') else 'new', tries=0, net_tries=0, retry_at=0)
@@ -220,11 +240,14 @@ def retry_failed(profile, kinds=('network', 'source')):
     return len(picked)
 
 
-def clear_failed(profile):
-    """Clear: copies that ended leave the list (the AllDebrid request stays at AllDebrid). Returns how many."""
+def clear_failed(profile, kinds=None, only=None):
+    """Clear: copies that ended leave the list (the AllDebrid request stays at AllDebrid); kinds limits it to some
+    problem kinds, only to some problems' keys. Returns how many."""
     state = load(profile)
-    keep = [j for j in state.get('jobs', []) if j.get('status') != 'failed']
-    cleared = [j for j in state.get('jobs', []) if j.get('status') == 'failed']
+    picked = {p['index'] for p in problems(state) if (kinds is None or p['kind'] in kinds) and (only is None or p['key'] in only)}
+    jobs = state.get('jobs', [])
+    keep = [j for n, j in enumerate(jobs) if n not in picked]
+    cleared = [j for n, j in enumerate(jobs) if n in picked]
     if cleared:
         state['jobs'] = keep
         removed = state.setdefault('removed', [])   # save() must not merge them back from the file
@@ -810,6 +833,7 @@ def kick_on_new_link(state, link, clock=time.time):
         return None
     # ISSUE-200: what a lane count copied on mobile data says nothing about the new Wi-Fi (and back): learn again.
     state.pop('lane_speeds', None)
+    state.pop('lane_seen', None)
     state.pop('lanes_now', None)
     for job in state.get('jobs', []):
         if job.get('net_tries') and job.get('status') not in ('done', 'failed') and float(job.get('retry_at') or 0) > clock():
@@ -1118,7 +1142,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             # E16: as many lanes as the link rewards (lane_plan), never more than files, and two beside a conversion.
             busy = converting()
             cap = CELLULAR_LANES if state.get('link') == 'cellular' else (BUSY_LANES if busy else LANES)
-            lanes = min(lanes_for(len(todo)), lane_plan(state), cap)
+            lanes = min(lanes_for(len(todo)), lane_plan(state, clock()), cap)
             moved = {}
             began = clock()
             try:
@@ -1136,7 +1160,7 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
                 # E19: a run beside a conversion shares the link with it (and is capped), so it says nothing about lanes.
                 if not busy and not converting():
                     with guard:
-                        learn_lanes(state, lanes, sum(b - a for a, b in moved.values()), clock() - began)
+                        learn_lanes(state, lanes, sum(b - a for a, b in moved.values()), clock() - began, clock())
             for other in group[1:]:
                 if all(e['done'] for e in other['files']):
                     other['status'] = 'done'

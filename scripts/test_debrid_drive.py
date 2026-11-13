@@ -188,6 +188,17 @@ class LaneLearning(unittest.TestCase):
   self.assertEqual(quick,{})
   src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/resources/lib/debrid_drive.py').read_text()
   self.assertIn('if not busy and not converting():',src)       # E19: runs beside a conversion are not learned from
+ def test_old_lane_speeds_are_forgotten_so_a_faster_line_gets_more_lanes(self):
+  # ISSUE-206 (build-356 log: 3 lanes at 13-17 MB/s on a 22 MB/s uplink, never 4): the slow 4-6 lane numbers from the
+  # VPN days kept it at 3. Speeds older than six hours (or with no time) are forgotten.
+  st={'lane_speeds':{'3':0.3*1024**2,'4':0.25*1024**2,'5':0.2*1024**2},'lanes_now':3}
+  debrid_drive.learn_lanes(st,3,16*1024**2*600,600,now=10**6)
+  self.assertEqual(debrid_drive.lane_plan(st,now=10**6+60),4)   # 4/5 had no time: tried again
+  debrid_drive.learn_lanes(st,4,20*1024**2*600,600,now=10**6+700)
+  self.assertEqual(debrid_drive.lane_plan(st,now=10**6+800),5)  # +25 %: one more
+  debrid_drive.learn_lanes(st,5,20.5*1024**2*600,600,now=10**6+1400)
+  self.assertEqual(debrid_drive.lane_plan(st,now=10**6+1500),4) # +2.5 %: the fewest lanes near the best
+  self.assertEqual(debrid_drive.lane_plan(st,now=10**6+7*3600),5)   # all forgotten after six hours: measure again from the last count
 
 class LateBytes(unittest.TestCase):
  def test_drive_keeping_a_timed_out_pieces_bytes_is_not_an_error(self):
@@ -410,23 +421,60 @@ class NetworkTrouble(unittest.TestCase):
   self.assertEqual(debrid_drive.retry_failed(self.p),2)                                   # not the finished Inception
 
 class DownloadProblemsPage(unittest.TestCase):
- def test_lines_and_settings_row(self):
+ def load(self):
   import importlib.util
   root=Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap'
   spec=importlib.util.spec_from_file_location('copy_problems',root/'copy_problems.py');cp=importlib.util.module_from_spec(spec);spec.loader.exec_module(cp)
-  found=[{'title':'Fall','reason':'This torrent has no video file.','kind':'source'},{'title':'Heat','reason':'Cancelled','kind':'cancelled'}]
-  self.assertEqual(cp.rows(found),[('retry','Retry All (1)'),('clear','Clear All (2)'),('item','Fall · Source: This torrent has no video file.'),
-                                    ('item','Heat · Cancelled: Cancelled')])
-  self.assertEqual(cp.rows([]),[])
+  return root,cp
+ def test_the_approved_page_groups_problems_by_what_can_be_done(self):
+  # ISSUE-205 (owner: "a better download problems page as that is ugly"; approved mockup boards A and B).
+  root,cp=self.load()
+  found=[{'title':'Fall 2: Deadpoint','reason':"an answer this app cannot read",'error':'AllDebrid gave an answer this app cannot read (HTTP 503)','kind':'source','job_kind':'movie','key':'f'},
+         {'title':'The Lorax','reason':'This torrent has no video file.','error':'This torrent has no video file.','kind':'source','job_kind':'movie','key':'l'},
+         {'title':'Naruto · S1 E14','reason':'lost','error':'lost','kind':'network','job_kind':'episode','key':'n'},
+         {'title':'Heat','reason':'Cancelled','error':'Cancelled','kind':'cancelled','job_kind':'movie','finished':1000-3*86400,'key':'h'}]
+  props,entries=cp.model(found,'all',now=1000,slots=10)
+  self.assertEqual((props['sum.retry'],props['sum.source'],props['sum.cancelled'],props['retry.label']),('2','1','1','Retry 2'))
+  self.assertEqual(props['row.0.head'],'CAN TRY AGAIN · 2')
+  self.assertEqual((props['row.1.title'],props['row.1.why'],props['row.1.whyc'],props['row.1.act'],props['row.1.pos']),
+                   ('Fall 2: Deadpoint','AllDebrid was busy','orange','Retry','first'))
+  self.assertEqual((props['row.2.why'],props['row.2.pos'],props['row.2.sub']),('The connection dropped','last','Episode'))
+  self.assertEqual((props['row.3.head'],props['row.4.why'],props['row.4.act'],props['row.4.pos']),('NEED A NEW SOURCE · 1','This source has no video file','Find','only'))
+  self.assertEqual((props['row.6.why'],props['row.6.act'],props['row.6.whyc']),('Cancelled 3 days ago','Restart','grey'))
+  self.assertEqual(props['clear.label'],'')                                       # Clear lives on the Cancelled filter
+  props,entries=cp.model(found,'cancelled',now=1000,slots=10)
+  self.assertEqual((props['row.0.head'],props['row.1.title'],props['clear.label'],props['retry.label']),('CANCELLED BY YOU · 1','Heat','Clear Cancelled (1)',''))
+  props,_=cp.model([],'all')
+  self.assertEqual((props['empty'],props['sum.any']),('true',''))
+  props,_=cp.model(found*5,'all',slots=6)
+  self.assertTrue(props['more'].startswith('And '))
+  spec,actions=cp.sheet(dict(found[1],why='This source has no video file',group='source'))
+  self.assertEqual(actions,['find','retry','remove']);self.assertEqual(spec['heading'],'The Lorax')
+  self.assertEqual(cp.sheet(dict(found[3],why='Cancelled',group='cancelled'))[1],['retry','remove'])
   self.assertIn("R(9459,'Download problems','RunScript(service.kodi.ios.bootstrap,copy_problems)'",(root/'resources/lib/settings_page.py').read_text())
   self.assertIn("'copy_problems'",(root/'default.py').read_text())
+ def test_retry_and_remove_one_problem_by_its_key(self):
+  with tempfile.TemporaryDirectory() as p:
+   state={'jobs':[{'hash':'a'*40,'title':'A','kind':'movie','status':'failed','error':'Problem: x','added':1},
+                  {'hash':'b'*40,'title':'B','kind':'movie','status':'failed','error':'Cancelled','added':2}]}
+   debrid_drive.save(p,state)
+   keys=[x['key'] for x in debrid_drive.problems(debrid_drive.load(p))]
+   self.assertEqual(debrid_drive.retry_failed(p,('cancelled',),only={keys[1]}),1)
+   self.assertEqual(debrid_drive.clear_failed(p,only={keys[0]}),1)
+   self.assertEqual([(j['title'],j['status']) for j in debrid_drive.load(p)['jobs']],[('B','new')])
+ def test_the_page_is_drawn(self):
+  import portrait,copy_problems_page as page
+  xml=page.page(portrait)
+  for ident in (page.BACK,page.RETRY,page.CLEAR,page.ROW,page.ACT+page.SLOTS-1,page.FILTER0+3):
+   self.assertIn('id="%d"'%ident,xml)
+  self.assertIn('No download problems',xml);self.assertIn(page.WINDOW,portrait.__dict__.get('copy_problems_page').WINDOW)
 
 class TwoLanes(unittest.TestCase):
  """ISSUE-164 / 1F.4: a season's episodes go up to Drive up to three at a time; a movie is still one upload."""
  def setUp(self):
   self.tmp=tempfile.TemporaryDirectory();self.p=self.tmp.name
   # These check the lanes' mechanics at full width; how many the link earns is LaneLearning's.
-  self.plan=patch.object(debrid_drive,'lane_plan',lambda state:debrid_drive.LANES);self.plan.start()
+  self.plan=patch.object(debrid_drive,'lane_plan',lambda state,now=None:debrid_drive.LANES);self.plan.start()
  def tearDown(self):self.plan.stop();self.tmp.cleanup()
  def season(self,names):
   class Pack(FakeAPI):

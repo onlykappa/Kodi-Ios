@@ -13,7 +13,7 @@ LIST = 9300
 CHIP_COLORS = (('green', 'FF30D158'), ('orange', 'FFFF9F0A'), ('blue', 'FF0A84FF'), ('red', 'FFFF453A'), ('purple', 'FFBF5AF2'))
 CHIPS = 3
 TOP = 300
-# L7 (board E): the Movies side is a three-column poster grid; each poster has its size line and one state badge.
+# L7 (board E): a three-column poster grid (Movies, and TV Shows since build 356); each poster has its size line and one state badge.
 MOVIE, COLS, CELL_GAP = 9400, 3, 32
 POSTER_H_OF_W = 1.5           # 2:3 posters
 
@@ -111,11 +111,11 @@ def page(p):
     body += u.text(p, S, 150, w - 160, 110, P('title'), 'p_large')
     # Owner (L7 review): "i like the list version … make it so i can change the view at anytime". On the Movies side a
     # button beside the title switches list / grid (the glyph shows the view it switches to); the choice is kept.
-    movies = 'String.IsEqual(Window().Property(tab),movie)'
+    # Owner (build 356): the grid was only offered on Movies; TV Shows has it too (each side keeps its own choice).
     body += p.nav_button(VIEW, W - S - 108, 152, 'grid.png', [('true', 'noop')],
-                         visible=movies + ' + !String.IsEqual(Window().Property(view),grid)')
+                         visible='!String.IsEqual(Window().Property(view),grid)')
     body += p.nav_button(VIEW + 1, W - S - 108, 152, 'list.png', [('true', 'noop')],
-                         visible=movies + ' + String.IsEqual(Window().Property(view),grid)')
+                         visible='String.IsEqual(Window().Property(view),grid)')
     # Board A: the switch.
     switch = (u.card(p, 0, 0, w, 96, u.SURF2) + _tab(p, u, TAB_SHOWS, 6, w // 2 - 12, 'TV Shows', 'tv') +
               _tab(p, u, TAB_MOVIES, w // 2 + 6, w // 2 - 12, 'Movies', 'movie'))

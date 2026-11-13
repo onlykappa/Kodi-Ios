@@ -26,6 +26,8 @@ _spec=_iu.spec_from_file_location('library_page',os.path.join(os.path.dirname(os
 library_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_page)
 _spec=_iu.spec_from_file_location('library_files_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_files_page.py'))
 library_files_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_files_page)
+_spec=_iu.spec_from_file_location('copy_problems_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'copy_problems_page.py'))
+copy_problems_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(copy_problems_page)
 _spec=_iu.spec_from_file_location('library_show_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_show_page.py'))
 library_show_page=_iu.module_from_spec(_spec);_spec.loader.exec_module(library_show_page)
 _spec=_iu.spec_from_file_location('library_item_page',os.path.join(os.path.dirname(os.path.abspath(__file__)),'library_item_page.py'))
@@ -1574,6 +1576,7 @@ def portrait_files(skin,profile):
  files.update(library_page.files(ns))
  # Library › TV Shows / Movies, the file manager (DEC-043 board A, library_files_page.py).
  files.update(library_files_page.files(ns))
+ files.update(copy_problems_page.files(ns))   # Settings › Library › Download problems (approved mockup)
  files.update(library_show_page.files(ns))   # board B, one show (L3)
  files.update(library_item_page.files(ns))   # board C, one episode or movie (L4)
  files.update(upscale_show_page.files(ns))   # Settings › AI Upscale › one show (V3, DEC-042 board C)
@@ -1686,7 +1689,7 @@ def fingerprint(skin,profile):
  """What the portrait folder is made from: this code (with player_osd and settings_page), Fuse's landscape files (except the two written here), its
  addon.xml and the owner's widget lists. Sizes and change times, so a start reads no file contents."""
  skin=Path(skin);h=hashlib.sha256(REVISION.encode())
- for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(library_files_page.__file__),Path(library_show_page.__file__),Path(library_item_page.__file__),Path(upscale_show_page.__file__),Path(library_select_page.__file__),Path(library_freeup_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py')):h.update(code.read_bytes())
+ for code in (Path(__file__),Path(player_osd.__file__),Path(settings_page.__file__),*(Path(__file__).with_name(n) for n in ('profiles_rows.py','favourites_rows.py','choice_sheet.py')),Path(pages.__file__),Path(ios_tabs.__file__),Path(notice_page.__file__),Path(library_page.__file__),Path(library_files_page.__file__),Path(copy_problems_page.__file__),Path(library_show_page.__file__),Path(library_item_page.__file__),Path(upscale_show_page.__file__),Path(library_select_page.__file__),Path(library_freeup_page.__file__),Path(transfers_page.__file__),Path(library_tools_page.__file__),Path(activity_skin.__file__),Path(rows_page.__file__),Path(__file__).with_name('status_ui.py'),Path(__file__).with_name('notifications_skin.py'),Path(__file__).with_name('airplay_flow.py')):h.update(code.read_bytes())
  def stamp(path):
   try:st=path.stat();h.update(('%s:%d:%d;'%(path.name,st.st_size,st.st_mtime_ns)).encode())
   except OSError:h.update(('%s:-;'%path.name).encode())
