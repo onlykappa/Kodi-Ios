@@ -18,6 +18,12 @@ Next: the owner's go for the one IPA (Run workflow on import-review.yml, branch 
 phone log: look for `made ready while it copies`, 2-3 `preparation: … opening Drive file` together, `prep_read_mb_s`,
 `copy_lanes`. Open UI item: extra preparation lanes have no card of their own on Library status (mockup first).
 
+Later the same day (all on this branch, no IPA): approved mockups DEC-044/045/046 built and rig-checked: AI Upscale page
+with pause / cancel / Up next edit (ISSUE-219), Download problems Clear (218), Library status lane rows (220), Queue page
+(221), Favourites (222), notification details with fixes and two-line rows (225). Owner log 20d8a992 (build 360): AI
+Upscale ran while 23 videos waited; it now never starts or keeps going while a video waits (224). Naruto S1 E9-E16 keep
+their DVD picture subtitle, so they are kept as they are, now said plainly (223). Next: the owner's go for the one IPA.
+
 ## HANDOFF (2026-11-13, reliability PR) — read this first
 
 PR #22 merged (build-350). Branch claude/trusting-euler-kgug98 restarted from main for the reliability roadmap
