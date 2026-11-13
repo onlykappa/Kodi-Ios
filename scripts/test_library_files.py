@@ -238,6 +238,56 @@ class MovieGrid(unittest.TestCase):
         self.assertIn(rows[0]['badge'], ('42 %', 'Converting'))
 
 
+class SelectAndDelete(unittest.TestCase):
+    """L6 (board D): tick several, see the space, one alert, Drive's Trash; AI copies only when asked."""
+    def test_items_totals_and_words(self):
+        import library_delete as ld
+        rows = [{'id': 'e1', 'season': 1, 'episode': 1, 'name': 'Homecoming', 'size': 262 * 1024 ** 2, 'watched': True},
+                {'id': 'e2', 'season': 1, 'episode': 2, 'name': 'The Akatsuki', 'size': 945 * 1024 ** 2},
+                {'id': None, 'season': 1, 'episode': 9, 'name': 'Not added'}]
+        ups = {'copies': {'e2': {'status': 'ready', 'copy_id': 'c2', 'size': int(2.4 * 1024 ** 3)}}}
+        items = ld.items_from_rows(rows, ups, title=lambda r: '%d · %s' % (r['episode'], r['name']))
+        self.assertEqual([i['id'] for i in items], ['e1', 'e2'])                 # only files on Drive
+        self.assertEqual(items[0]['line'], '262 MB · watched')
+        self.assertEqual(items[1]['line'], '945 MB + AI copy 2.4 GB')
+        self.assertEqual(ld.totals(items, {'e1', 'e2'}), (2, (262 + 945) * 1024 ** 2))
+        self.assertEqual(ld.bar_label(*ld.totals(items, {'e1', 'e2'})), 'Delete 2 · 1.2 GB')
+        self.assertEqual(ld.ai_bytes(items, {'e2'}), int(2.4 * 1024 ** 3))
+        self.assertEqual(ld.alert(3)[0], 'Delete 3 episodes?')
+        self.assertIn("Google Drive's Trash", ld.alert(3)[1])
+        self.assertEqual(ld.bar_label(0, 0), '')
+
+    def test_delete_trashes_and_drops_them_from_the_listing(self):
+        import json, os, tempfile, library_delete as ld
+        items = [{'id': 'e1', 'title': 'one', 'size': 1, 'ai': None}, {'id': 'e2', 'title': 'two', 'size': 1, 'ai': {'copy_id': 'c2', 'size': 5}},
+                 {'id': 'e3', 'title': 'three', 'size': 1, 'ai': None}]
+        trashed = []
+        def trash(i):
+            if i == 'e3':
+                raise RuntimeError('HTTP 500')
+            trashed.append(i)
+        with tempfile.TemporaryDirectory() as d:
+            json.dump({'tv:f1': {'entries': [{'id': 'e1'}, {'id': 'e2'}, {'id': 'e3'}, {'id': 'e4'}]}}, open(os.path.join(d, 'drive-library.json'), 'w'))
+            ups = {'copies': {'e2': {'status': 'ready', 'copy_id': 'c2'}}}
+            removed, failed = ld.delete(items, {'e1', 'e2', 'e3'}, False, trash, d, ups)
+            self.assertEqual((removed, failed, trashed), (['e1', 'e2'], ['three'], ['e1', 'e2']))   # no AI copy unless asked
+            left = [e['id'] for e in json.load(open(os.path.join(d, 'drive-library.json')))['tv:f1']['entries']]
+            self.assertEqual(left, ['e3', 'e4'])
+            self.assertEqual(ups['copies']['e2']['status'], 'ready')
+            trashed.clear()
+            ld.delete(items, {'e2'}, True, trash, d, ups)
+            self.assertEqual(trashed, ['e2', 'c2'])
+            self.assertEqual(ups['copies']['e2']['status'], 'gone')
+
+    def test_page_has_checkboxes_and_the_red_bar(self):
+        import portrait, library_select_page as sp
+        xml = sp.page(portrait)
+        for needle in ('circle-check.png', 'id="%d"' % sp.DELETE, 'id="%d"' % sp.ALL, 'id="%d"' % sp.DONE, 'FFFF453A'):
+            self.assertIn(needle, xml)
+        root = Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap/library_manager.py'
+        self.assertIn('elif control == show_page.SELECT:', root.read_text())
+
+
 class Repair(unittest.TestCase):
     """L5 (board C3): Repair looks the episode up again with Build Season's automatic pick, no version question."""
     def test_quality_of_the_show_first_then_any(self):

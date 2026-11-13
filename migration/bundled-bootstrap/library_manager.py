@@ -368,6 +368,96 @@ def run():
         del sheet
         return playing
 
+    import library_select_page as select_page
+
+    class Select(xbmcgui.WindowXMLDialog):
+        """Board D: tick several, see the space, delete to Drive's Trash after one alert."""
+        def onInit(self):
+            self.draw()
+
+        def draw(self):
+            import library_delete as ld
+            count, size = ld.totals(self.items, self.picked)
+            props = {'title': '%d selected' % count if count else self.heading,
+                     'all.label': 'Select None' if self.items and count == len(self.items) else 'Select All',
+                     'watched.label': 'Watched (%d)' % len(self.watched) if self.watched else '',
+                     'delete.label': ld.bar_label(count, size)}
+            shown = self.items[:select_page.SLOTS]
+            for n in range(select_page.SLOTS):
+                it = shown[n] if n < len(shown) else {}
+                props['it.%d.title' % n] = it.get('title', '')
+                props['it.%d.line' % n] = it.get('line', '')
+                props['it.%d.on' % n] = 'true' if it and it['id'] in self.picked else ''
+                props['it.%d.pos' % n] = POS(n, len(shown)) if it else ''
+            for key, value in props.items():
+                self.setProperty(key, str(value))
+
+        def onAction(self, action):
+            if action.getId() in (9, 10, 92, 110):
+                self.close()
+
+        def onClick(self, control):
+            import library_delete as ld
+            if control == select_page.DONE:
+                self.close()
+                return
+            if control == select_page.ALL:
+                self.picked = set() if len(self.picked) == len(self.items) else {i['id'] for i in self.items}
+            elif control == select_page.WATCHED:
+                self.picked = set(self.watched)
+            elif select_page.ROW <= control < select_page.ROW + select_page.SLOTS and control - select_page.ROW < len(self.items):
+                ident = self.items[control - select_page.ROW]['id']
+                self.picked ^= {ident}
+            elif control == select_page.DELETE and self.picked:
+                if self.delete():
+                    self.close()
+                    return
+            self.draw()
+
+        def delete(self):
+            import library_delete as ld
+            import drivelibrary
+            count, _ = ld.totals(self.items, self.picked)
+            heading, text, yes = ld.alert(count, self.noun)
+            dialog = xbmcgui.Dialog()
+            if not dialog.yesno(heading, text, nolabel='Cancel', yeslabel=yes):
+                return False
+            extra = ld.ai_bytes(self.items, self.picked)
+            with_ai = bool(extra) and dialog.yesno('AI Upscale copies', 'Also delete their AI copies (%s)?' % lf.size_text(extra),
+                                                   nolabel='Keep Them', yeslabel='Delete Them')
+            drive, _ = drivelibrary.client()
+            if not drive:
+                dialog.ok('Delete', 'Sign in to Google Drive first (Settings › Google Drive).')
+                return False
+            import upscale_queue
+            ups = upscale_queue.load(profile)
+            state_dir = os.path.join(str(profile), 'addon_data', 'service.kodi.ios.bootstrap')
+            removed, failed = ld.delete(self.items, self.picked, with_ai, lambda i: drivelibrary.trash(drive, i), state_dir, ups,
+                                        log=lambda t: xbmc.log(t, xbmc.LOGWARNING))
+            upscale_queue.save(profile, ups)
+            self.removed = removed
+            if failed:
+                dialog.ok('Could not delete everything', '%d could not be moved to the Trash: %s. Try again in a moment.' % (
+                    len(failed), ', '.join(failed[:3])))
+            else:
+                dialog.notification('Deleted', '%d moved to Google Drive\'s Trash' % len(removed), xbmcgui.NOTIFICATION_INFO, 3000)
+            return True
+
+    def open_select(items, heading, noun='episode', picked=(), watched=()):
+        """Board D (and Free Up Space's Review): returns the ids deleted."""
+        try:
+            sheet = Select(select_page.WINDOW, HERE, 'Default', '1080i')
+        except RuntimeError:
+            import xbmcvfs as _v
+            _v.listdir(os.path.join(_v.translatePath('special://skin/'), 'portrait') + '/')
+            sheet = Select(select_page.WINDOW, HERE, 'Default', '1080i')
+        sheet.items, sheet.heading, sheet.noun = items, heading, noun
+        sheet.picked, sheet.watched, sheet.removed = set(picked), set(watched), []
+        sheet.doModal()
+        removed = sheet.removed
+        del sheet
+        return removed
+
     def more_entries(rows, repick=0):
         """Board B round 2's ••• menu: Find Missing Episodes always; Repair All Problems only when there is one; Pick
         Better Versions when episodes wait with a version not started yet (owner, build 328)."""
@@ -436,6 +526,20 @@ def run():
             elif show_page.EP <= control < show_page.EP + show_page.SLOTS and control - show_page.EP < len(self.episodes):
                 if open_item(self.data, self.episodes[control - show_page.EP], self.show, episodes=self.episodes):
                     self.close()
+            elif control == show_page.SELECT:
+                # Board D: every episode of the show on Drive, ticked one by one (or Select All / Watched).
+                import library_delete as ld
+                rows = lf.episode_rows(self.show, self.data.get('episodes', {}).get(self.show['id']) or [], self.data.get('prep'),
+                                       self.data.get('debrid'), self.data.get('upscale'))
+                items = ld.items_from_rows(rows, self.data.get('upscale'),
+                                           title=lambda r: ' · '.join(x for x in ('S%d E%d' % (r['season'], r['episode']),
+                                                                                    r['name'] if r['name'] and r['name'].casefold() != self.show['title'].casefold() else '') if x))
+                if not items:
+                    xbmcgui.Dialog().notification('Select', 'Nothing of this show is on Google Drive yet', xbmcgui.NOTIFICATION_INFO, 3000)
+                    return
+                if open_select(items, self.show['title'], 'episode', watched=[i['id'] for i in items if 'watched' in i['line']]):
+                    self.data = model(profile)
+                    self.draw()
             elif control == show_page.MORE:
                 self.more()
             elif show_page.REPAIR <= control < show_page.REPAIR + show_page.SLOTS and control - show_page.REPAIR < len(self.episodes):
