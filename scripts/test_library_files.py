@@ -155,6 +155,30 @@ class Page(unittest.TestCase):
         self.assertIn('No downloaded shows yet', props['empty'])
 
 
+class WatchedFreeUp(unittest.TestCase):
+    def test_model_reads_watched_and_free_up_offers_them(self):
+        # ISSUE-197 (owner, build 347): Free Up Space › Watched episodes was never filled.
+        import importlib.util, json, os, tempfile
+        root = Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap'
+        spec = importlib.util.spec_from_file_location('library_manager_w', root / 'library_manager.py')
+        lm = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(lm)
+        import library_delete as ld
+        with tempfile.TemporaryDirectory() as profile:
+            state = os.path.join(profile, 'addon_data', 'service.kodi.ios.bootstrap')
+            os.makedirs(state)
+            with open(os.path.join(state, 'drive-library.json'), 'w') as f:
+                json.dump({'tv:': {'entries': [NARUTO], 'driveid': 'd'}, 'tv:f-naruto': {'entries': [ep(1), ep(2)], 'driveid': 'd'}}, f)
+            cont = os.path.join(profile, 'addon_data', 'plugin.video.kodi.ios.watch')
+            os.makedirs(cont)
+            with open(os.path.join(cont, 'continue.json'), 'w') as f:
+                json.dump({'items': {}, 'watched': {'e1': 5}}, f)
+            data = lm.model(profile)
+        self.assertEqual(data['watched'], {'e1'})
+        groups = {g['key']: g for g in ld.free_up_groups(data['shows'], data['episodes'], data['movies'], data['upscale'], data['watched'])}
+        self.assertEqual([i['id'] for i in groups['watched']['items']], ['e1'])
+
+
 class ShowPage(Page):
     """library_manager.fill_show: board B for one show."""
     def test_board_b(self):

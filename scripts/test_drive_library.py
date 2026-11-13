@@ -34,6 +34,23 @@ class FakeDrive:
   return 200,{},json.dumps({'files':items}).encode()
 
 class DriveLibrary(unittest.TestCase):
+ def test_a_show_known_by_its_tmdb_id_gets_its_poster(self):
+  # ISSUE-197 (owner, build 347): Downloaded TV Shows › Naruto Shippūden had no poster; remember_show had cached
+  # {'tmdb_id'} only, and artwork() returned that without a poster.
+  import json as _j,tempfile as _t,os as _o
+  with _t.TemporaryDirectory() as d:
+   lib.remember_show(d,['Naruto Shippūden'],31910)
+   cache=lib.load_json(_o.path.join(d,'drive-library-art.json'),{})
+   asked=[]
+   def get(url):
+    asked.append(url);return _j.dumps({'id':31910,'name':'Naruto Shippūden','poster_path':'/p.jpg','backdrop_path':'/b.jpg','overview':'Ninja'})
+   self.assertEqual(lib.artwork('tv','Naruto Shippūden','','KEY',dict(cache),None,cached_only=True).get('poster',''),'')   # nothing fetched yet
+   art=lib.artwork('tv','Naruto Shippūden','','KEY',cache,get)
+   self.assertTrue(art['poster'].endswith('/p.jpg'));self.assertEqual(art['tmdb_id'],'31910');self.assertIn('/tv/31910',asked[0])
+   again=lib.artwork('tv','Naruto Shippūden','','KEY',cache,None,cached_only=True)
+   self.assertTrue(again['poster'].endswith('/p.jpg'))                                      # cached for the next listing
+   plain=lib.artwork('tv','Naruto Shippuden','','KEY',cache,get)                             # the folder without the macron
+   self.assertTrue(plain['poster'].endswith('/p.jpg'))
  def test_completed_copy_finds_movie_or_exact_episode_without_metadata_search(self):
   drive=FakeDrive()
   from unittest.mock import patch

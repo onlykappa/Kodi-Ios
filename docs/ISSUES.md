@@ -3161,3 +3161,23 @@ as the wrong title, so episodes 5-6 got 4 GB upscaled copies (4a3ab1f).
 - **Fix:** library_status.onAction reads 10/101/117 on a card (Working on now, Downloading and Up next transfer rows) as a long press with a 1.5 s debounce, else Back. `transfer_control.row_menu` gives copy/upload/Elementum menus (Pause/Resume uploads, Cancel this download, Cancel all…); `held` flag carried in library_rows.with_model. Show Back closes. Select/FreeUp ignore 10 on a row. GraphCache only removes its own stale folders or foreign ones untouched for 60 s; write retried once; graph failure no longer stops the row redraw.
 - **Retest:** test_library_status LongPressCancel (fake Kodi: one menu per press, page stays open, cancel copy / pause uploads / Elementum resume, 10 off a card still Back), test_library_files ShowBack, test_build193_pages plot cache. Phone retest pending.
 - **Still open (owner, same session):** (a) Downloaded TV Shows: Naruto Shippuden card has no poster; (b) remove the "Refresh Library" card from Downloaded TV Shows / Movies (ios_library.py ~line 641, the `if not show_page:` refresh item) since the page has a refresh button; (c) Free Up Space "Watched episodes" not wired (library_manager.model passes no watched set; library_delete.free_up_groups takes `watched`).
+
+## ISSUE-197 — Downloaded TV Shows: Naruto with no poster; a "Refresh Library" card; Free Up Space › Watched never filled (build 347, owner) — FIXED on host
+
+- **Seen:** owner (same session as ISSUE-196): the Naruto Shippūden card in Downloaded TV Shows had no poster; the
+  grid ended with a "Refresh Library" card although the page has a refresh button; Free Up Space never offered
+  Watched episodes.
+- **Root cause:** (1) drivelibrary.remember_show records a downloaded show by TMDb id alone (`{'tmdb_id'}`) under its
+  names; artwork() returned that cache hit as is, so the poster was empty and the show was never looked up. A folder
+  named without the macron ("Naruto Shippuden") also missed the recorded "Shippūden" slot. (2) ios_library.directory
+  always added the refresh item. (3) Nothing kept what was watched: Continue Watching drops a title once it is
+  finished, and library_manager.model passed no watched set to the rows or to free_up_groups.
+- **Fix:** artwork() fills poster, fanart and plot from show_details(tmdb_id) for such hits (cached or fetched) and
+  caches the result; remember_show also records accent-free names. The refresh card is gone (the header button and the
+  long-press Refresh Library stay). ios_continue.stopped() remembers each finished title's Drive file id / phone path
+  (data['watched'], newest 2000); library_manager.model reads it and passes it to show, episode and movie rows and to
+  free_up_groups.
+- **Retest:** test_drive_library (tmdb-id-only hit gets its poster, cached, plain spelling too), test_library_refresh
+  (no card, empty library renders nothing), test_watch_continue (finished Drive episode and phone movie remembered),
+  test_library_files WatchedFreeUp (model → Watched episodes group). The whole import-review test list and
+  check_project pass. Phone retest pending (the one IPA).

@@ -24,6 +24,17 @@ class ContinueTests(unittest.TestCase):
   self.record('movie','1');self.assertEqual(module.entries(self.data()),[])
   module.update(self.read,self.write,5900,6000);module.stopped(self.read,self.write)
   self.assertEqual(self.data()['items'],{})
+ def test_a_finished_drive_episode_is_remembered_as_watched(self):
+  # ISSUE-197: Free Up Space › Watched episodes needs what was watched; a finished title leaves Continue Watching.
+  data={'current':'k','items':{'k':{'kind':'episode','tmdb_id':'31910','position':1390,'total':1400,
+        'path':'plugin://plugin.video.kodi.ios.watch/?action=library_play&path=plugin%3A%2F%2Fplugin.googledrive%2F%3Faction%3Dplay%26item_id%3De7'},
+        'n':{'kind':'movie','tmdb_id':'1','position':10,'total':100,'download_path':'/phone/Kodi Downloads/Movies/Heat.mkv'}}}
+  self.files[module.STORE]=json.dumps(data)
+  module.stopped(self.read,self.write,lambda:5)
+  self.assertEqual(module.watched_set(self.data()),{'e7'})
+  d=self.data();d['current']='n';d['items']['n']['position']=99;self.files[module.STORE]=json.dumps(d)
+  module.stopped(self.read,self.write,lambda:6)
+  self.assertEqual(module.watched_set(self.data()),{'e7','/phone/Kodi Downloads/Movies/Heat.mkv'})
  def test_unfinished_stays_after_stop(self):
   self.record('movie','1');module.update(self.read,self.write,3000,6000);module.stopped(self.read,self.write)
   self.assertEqual(len(module.entries(self.data())),1)

@@ -4,6 +4,7 @@ Fills the page from what is saved on the phone only (the Drive listing the servi
 AllDebrid copies, AI copies, the artwork cache), so it opens at once with no network wait. The model is library_files;
 fill() is pure so host tests can check every property the page reads.
 """
+import json
 import os
 import sys
 
@@ -35,16 +36,22 @@ def model(profile):
     prep, debrid, ups = prepare_downloads.load(profile), debrid_drive.load(profile), upscale_queue.load(profile)
     art = drivelibrary.load_json(os.path.join(state_dir, 'drive-library-art.json'), {})
     poster = lambda kind, e: (drivelibrary.artwork(kind, e.get('title') or '', e.get('year'), None, art, None, cached_only=True) or {}).get('poster', '')
-    show_rows = lf.show_rows(shows, episodes, prep, debrid, ups)
+    # ISSUE-197: what was watched to the end (Continue Watching keeps it: Drive file ids and phone paths).
+    try:
+        with open(os.path.join(str(profile), 'addon_data', 'plugin.video.kodi.ios.watch', 'continue.json'), encoding='utf-8') as f:
+            watched = set((json.load(f) or {}).get('watched') or {})
+    except (OSError, ValueError, AttributeError):
+        watched = set()
+    show_rows = lf.show_rows(shows, episodes, prep, debrid, ups, watched)
     for row, show in zip(show_rows, shows):
         row['art'] = poster('tv', show)
-    movie_rows = lf.movie_rows(movies, prep, ups)
+    movie_rows = lf.movie_rows(movies, prep, ups, watched)
     for row, movie in zip(movie_rows, movies):
         row['art'] = poster('movie', movie)
     fanart = {s['id']: (drivelibrary.artwork('tv', s.get('title') or '', s.get('year'), None, art, None, cached_only=True) or {}).get('fanart', '')
               for s in shows}
     return {'shows': show_rows, 'movies': movie_rows, 'storage': lf.storage(show_rows, movie_rows, ups),
-            'episodes': episodes, 'prep': prep, 'debrid': debrid, 'upscale': ups, 'fanart': fanart,
+            'episodes': episodes, 'prep': prep, 'debrid': debrid, 'upscale': ups, 'fanart': fanart, 'watched': watched,
             'driveid': tv_drive or movie_drive,
             'tmdb': {s['id']: (drivelibrary.artwork('tv', s.get('title') or '', s.get('year'), None, art, None, cached_only=True) or {}).get('tmdb_id', '')
                      for s in shows}}
@@ -133,7 +140,7 @@ def save_view(state_dir, view):
 def fill_show(data, show, season=None, slots=60, seasons_max=8):
     """Board B: {property: value} for one show and the season shown (default: its first), and the episode rows."""
     rows = lf.episode_rows(show, data.get('episodes', {}).get(show['id']) or [], data.get('prep'), data.get('debrid'),
-                           data.get('upscale'))
+                           data.get('upscale'), data.get('watched') or ())
     seasons = sorted({r['season'] for r in rows}) or [0]
     season = season if season in seasons else seasons[0]
     shown = [r for r in rows if r['season'] == season]
@@ -471,7 +478,8 @@ def run():
 
         def draw(self):
             import library_delete as ld
-            self.groups = ld.free_up_groups(self.data['shows'], self.data.get('episodes', {}), self.data['movies'], self.data.get('upscale'))
+            self.groups = ld.free_up_groups(self.data['shows'], self.data.get('episodes', {}), self.data['movies'], self.data.get('upscale'),
+                                            self.data.get('watched') or ())
             store = self.data['storage']
             props = {'store.line': '%s on Google Drive' % (lf.size_text(store['total']) or '0 MB'),
                      'store.sub': ' · '.join(x for x in ('Shows %s' % (lf.size_text(store['shows']) or '0 MB'),
@@ -590,7 +598,7 @@ def run():
                 # Board D: every episode of the show on Drive, ticked one by one (or Select All / Watched).
                 import library_delete as ld
                 rows = lf.episode_rows(self.show, self.data.get('episodes', {}).get(self.show['id']) or [], self.data.get('prep'),
-                                       self.data.get('debrid'), self.data.get('upscale'))
+                                       self.data.get('debrid'), self.data.get('upscale'), self.data.get('watched') or ())
                 items = ld.items_from_rows(rows, self.data.get('upscale'),
                                            title=lambda r: ' · '.join(x for x in ('S%d E%d' % (r['season'], r['episode']),
                                                                                     r['name'] if r['name'] and r['name'].casefold() != self.show['title'].casefold() else '') if x))

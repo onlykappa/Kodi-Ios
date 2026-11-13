@@ -638,12 +638,8 @@ def _directory(handle,params):
   if resume.get('position') and not info.get('resume_prompt'):tag.setResumePoint(resume['position'],resume.get('total',0))
   if not is_folder:li.setProperty('IsPlayable','true')
   xbmcplugin.addDirectoryItem(handle,path,li,isFolder=is_folder)
- # Always offer refresh, including an empty Library; Kodi ignores this non-media action in playlists.
- if not show_page:
-  refresh=xbmcgui.ListItem(label='Refresh Library',offscreen=True)
-  refresh.setArt({'icon':'DefaultFolder.png'});refresh.setProperty('IsPlayable','false')
-  clean={k:v for k,v in params.items() if k in ('type','folder','show','year','local','loose','merge','season')}
-  xbmcplugin.addDirectoryItem(handle,page_url(dict(clean,fresh='1')),refresh,isFolder=True)
+ # ISSUE-197 (owner, build 347): no "Refresh Library" card among the shows and movies: the page's header has a refresh
+ # button and the long-press menu keeps Refresh Library.
  content='seasons' if show_page and params.get('season') is None else ('episodes' if episodes else ('movies' if kind=='movie' else 'tvshows'))
  xbmcplugin.setContent(handle,content)
  xbmcplugin.setPluginCategory(handle,show or ('Downloaded Movies' if kind=='movie' else 'Downloaded TV Shows'))

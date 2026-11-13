@@ -263,7 +263,17 @@ def tmdb_key(helper_path):
 def artwork(kind,title,year,key,cache,get,cached_only=False):
  """{'poster','fanart','tmdb_id','plot'} for a title (kind 'movie' or 'tv'); cache is a dict kept between calls."""
  slot='%s:%s:%s'%(kind,title.lower(),year)
- if slot in cache:return cache[slot]
+ if slot in cache:
+  hit=cache[slot]
+  # ISSUE-197 (owner, build 347: Naruto Shippūden card with no poster): remember_show records a downloaded show by its
+  # TMDb id alone ({'tmdb_id'}), so this hit had no poster and the show was never looked up. Fill it from the id.
+  if kind!='movie' and isinstance(hit,dict) and hit.get('tmdb_id') and not hit.get('poster'):
+   details=show_details(hit['tmdb_id'],key,cache,get,cached_only=cached_only)
+   if details.get('poster') or details.get('fanart'):
+    hit=dict(hit,poster=details.get('poster',''),fanart=details.get('fanart',''),plot=hit.get('plot') or details.get('plot',''),
+             name=hit.get('name') or details.get('name',''),rating=hit.get('rating') or details.get('rating',0))
+    cache[slot]=hit
+  return hit
  if cached_only or not key or not title:return {}
  found={}
  if key and title:
@@ -290,7 +300,10 @@ def remember_show(state_dir,titles,tmdb_id):
  if not tmdb_id.isdigit():return False
  path=os.path.join(state_dir,'drive-library-art.json');cache=load_json(path,{});changed=False
  for title in {str(t).strip() for t in titles if t and str(t).strip()}:
-  for name in {title,parse(title)['title']}:
+  # 'Naruto Shippūden' and 'Naruto Shippuden' (a folder made without the macron) are the same show (ISSUE-197).
+  import unicodedata
+  plain=lambda t:''.join(c for c in unicodedata.normalize('NFKD',t) if not unicodedata.combining(c))
+  for name in {title,parse(title)['title'],plain(title),plain(parse(title)['title'])}:
    slot='tv:%s:'%name.lower()
    if str((cache.get(slot) or {}).get('tmdb_id') or '')!=tmdb_id:cache[slot]={'tmdb_id':tmdb_id};changed=True
  if changed:save_json(path,cache)

@@ -122,7 +122,7 @@ class ActualDirectory(unittest.TestCase):
   for enabled in (False,True):
    with self.subTest(drive_enabled=enabled):
     listing=self.render(['/phone/Kodi Downloads/Movies/Heat.1995.mkv'],drive_enabled=enabled)
-    self.assertEqual([li.label for path,li,folder in self.items],['Heat','Refresh Library'])
+    self.assertEqual([li.label for path,li,folder in self.items],['Heat'])   # ISSUE-197: no Refresh Library card
     self.assertEqual(parse_qs(urlsplit(self.items[0][0]).query)['path'],['/phone/Kodi Downloads/Movies/Heat.1995.mkv']);self.assertFalse(self.items[0][2])
     self.items[0][1].setProperty.assert_called_with('IsPlayable','true')
     self.items[0][1].getVideoInfoTag.return_value.setYear.assert_called_once_with(1995)
@@ -135,13 +135,11 @@ class ActualDirectory(unittest.TestCase):
   self.render(['/phone/Kodi Downloads/Movies/Heat.1995.mkv'],drive_enabled=True,drive_failure=True)
   self.assertEqual(self.items[0][1].label,'Heat');self.dialog.notification.assert_called_once()
   self.assertFalse(any('private URL' in text for text in self.logs));self.plugin.endOfDirectory.assert_called_once_with(7,cacheToDisc=False)
- def test_empty_library_still_renders_a_working_nonplayable_refresh(self):
+ def test_empty_library_renders_no_refresh_card(self):
+  # ISSUE-197 (owner, build 347): the card is gone; the header's refresh button and the long-press menu refresh.
   self.render()
-  self.assertEqual(len(self.items),1);path,li,folder=self.items[0]
-  self.assertEqual(li.label,'Refresh Library');self.assertTrue(folder)
-  li.setProperty.assert_called_once_with('IsPlayable','false')
-  self.assertEqual(parse_qs(urlsplit(path).query),{'action':['library'],'type':['movie'],'fresh':['1']})
-  self.plugin.setContent.assert_called_once_with(7,'movies')
+  self.assertEqual(self.items,[])
+  self.plugin.setContent.assert_called_once_with(7,'movies');self.plugin.endOfDirectory.assert_called_once_with(7,cacheToDisc=False)
  def test_local_tv_episode_renders_resume_safe_exact_path_and_zero_season(self):
   file='/phone/Kodi Downloads/TV Shows/Lanterns/Season 0/S00E02.mkv'
   self.render([file],params={'action':'library','type':'tv','local':'1','show':'Lanterns','fresh':'1','season':'0'})

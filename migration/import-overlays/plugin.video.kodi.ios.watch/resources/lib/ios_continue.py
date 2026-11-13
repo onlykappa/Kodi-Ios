@@ -88,11 +88,35 @@ def update(read,write,position,total,now=time.time):
  entry.update(position=round(position),total=round(total),played=now());save(data,write)
  return entry
 
-def stopped(read,write):
- """Playback ended: a finished title leaves the row."""
+WATCHED_KEEP=2000
+
+def watched_keys(entry):
+ """What a finished title is known by in the Library: its Drive file id (item_id= in its play path) and its phone
+ path. ISSUE-197: Free Up Space › Watched episodes had no watched set."""
+ import urllib.parse
+ out=[]
+ for value in (entry.get('download_path'),entry.get('path'),entry.get('file')):
+  value=str(value or '')
+  if not value:continue
+  query=urllib.parse.parse_qs(urllib.parse.urlsplit(value).query)
+  for inner in query.get('path',[]):
+   out+=[i for i in urllib.parse.parse_qs(urllib.parse.urlsplit(inner).query).get('item_id',[])]
+  out+=query.get('item_id',[])
+  if value.startswith('/'):out.append(value)
+ return [k for k in dict.fromkeys(out) if k]
+
+def stopped(read,write,now=time.time):
+ """Playback ended: a finished title leaves the row and is remembered as watched (data['watched'], key -> time)."""
  data=load(read);current=data.pop('current',None);entry=data['items'].get(current)
- if entry and entry.get('total') and entry['position']>=FINISHED*entry['total']:del data['items'][current]
+ if entry and entry.get('total') and entry['position']>=FINISHED*entry['total']:
+  del data['items'][current]
+  watched=data.setdefault('watched',{})
+  for k in watched_keys(entry):watched[k]=now()
+  if len(watched)>WATCHED_KEEP:data['watched']=dict(sorted(watched.items(),key=lambda kv:-kv[1])[:WATCHED_KEEP])
  save(data,write);return entry
+
+def watched_set(data):
+ return set((data or {}).get('watched') or {})
 
 # TMDb Helper hands unknown parameters on untouched; the watch menu (running inside its resolver) sees this one in
 # sys.argv and plays the player and version picked last time instead of asking.

@@ -3,6 +3,8 @@
 ## TAKEOVER (2026-11-13, after build 347) — start here
 
 Branch claude/trusting-euler-kgug98, draft PR #22. Owner approved merging PR #22 **only once all gaps are filled and nothing is left out**. Last fix commit: Library status long press / Show Back / graph race (ISSUE-196).
+DONE 2026-11-13 (ISSUE-197): items 1-3 below fixed on host, the full CI test list and check_project pass; next is the one
+IPA (workflow_dispatch) and the merge.
 To do, in order:
 1. Downloaded TV Shows: Naruto Shippuden card has no poster (check drivelibrary.artwork for the show title with the macron / "Shippuden" spelling and the art cache).
 2. Remove the "Refresh Library" card from Downloaded TV Shows and Movies (plugin.video.kodi.ios.watch/resources/lib/ios_library.py, the `if not show_page:` block near the end of the listing); update its tests.
