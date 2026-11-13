@@ -987,6 +987,19 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
     return 5
 
 
+def hold(profile, reason):
+    """Why copies wait outside the queue's own rules ('wifi': Copy only on Wi-Fi while on cellular), or '' to go on.
+    Kept in the state for the pages (work_state shows "Waiting for Wi-Fi")."""
+    state = load(profile)
+    if (state.get('hold') or '') == (reason or ''):
+        return
+    if reason:
+        state['hold'] = reason
+    else:
+        state.pop('hold', None)
+    save(profile, state)
+
+
 def uploads(profile, now=None):
     """The copies in progress, one per lane, for the Uploading card, the activity pill and Library status (as
     notices.uploads); a lane quiet for ten minutes is left out."""

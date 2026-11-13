@@ -311,6 +311,8 @@ def _copy(debrid, now):
             out['wait'] = ('Waiting for download' if phase=='reading' else 'Waiting for Google Drive')+' · no answer for %d min' % max(1,int((now-float(updated))//60))
         if job.get('tries') and retry > now:
             out['wait'] = 'Waiting for the network · %s' % retry_text(retry, now)
+        if (debrid or {}).get('hold') == 'wifi':
+            out['wait'] = 'Waiting for Wi-Fi · copies run on Wi-Fi only (Transfer settings)'
         out['playback_held']=phase=='paused_playback' and not (job.get('tries') and retry>now)
         return out
     if current.get('stage') == 'fetching':
@@ -321,6 +323,10 @@ def _copy(debrid, now):
         return {'kind': 'copy', 'title': title, 'name': job.get('name', ''), 'step': STEP['copy'], 'pct': 0, 'indeterminate': False,
                 'rate': 0.0, 'eta_s': 0, 'tint': BLUE, 'hash': job.get('hash', ''),
                 'wait': 'Waiting for the network · %s' % retry_text(retry, now)}
+    if (debrid or {}).get('hold') == 'wifi':
+        return {'kind': 'copy', 'title': title, 'name': job.get('name', ''), 'step': STEP['copy'], 'pct': 0, 'indeterminate': False,
+                'rate': 0.0, 'eta_s': 0, 'tint': BLUE, 'hash': job.get('hash', ''),
+                'wait': 'Waiting for Wi-Fi · copies run on Wi-Fi only (Transfer settings)'}
     return {'kind':'copy','title':title,'name':job.get('name',''),'step':
             'Waiting for AllDebrid' if job.get('status') in ('new','fetching') else 'Starting transfer to Google Drive',
             'pct':0,'indeterminate':True,'queued':True,'rate':0.0,'eta_s':0,'tint':BLUE,'hash':job.get('hash','')}

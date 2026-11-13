@@ -398,6 +398,16 @@ def drive_uploads(monitor,home,profile):
  state=str(profile/'addon_data/service.kodi.ios.bootstrap/drive-uploads.json')
  # Downloads through AllDebrid go straight to Drive (debrid_drive): its own loop, so a long copy never holds up the
  # phone-to-Drive uploads or preparation below, and it runs during playback too (network only, no phone storage).
+ link_seen=[0.0,'other']
+ def wifi_only_hold():
+  """E15: True while 'Copy downloads to Google Drive only on Wi-Fi' is on and the phone is on cellular (checked at most
+  every 15 s; an unknown link never holds)."""
+  try:
+   if not xbmcaddon.Addon().getSettingBool('copy_wifi_only'):return False
+   import cache_tune
+   if time.time()-link_seen[0]>15:link_seen[:]=[time.time(),cache_tune.link_kind()]
+   return link_seen[1]=='cellular'
+  except Exception:return False
  def debrid_loop():
   import alldebrid,debrid_drive,prepare_downloads,transfer_control
   delay=10
@@ -448,13 +458,17 @@ def drive_uploads(monitor,home,profile):
      xbmc.executebuiltin('PlayMedia(%s)'%drivelibrary.play_url(driveid,item_id))
    except Exception as error:xbmc.log('Kodi iOS watch after preparation: %s'%type(error).__name__,xbmc.LOGWARNING);diagnostics.log_exception(xbmc,'service',error)
    if not debrid_drive.active(profile) or not accounts.get_accounts():continue
+   # E15: Copy only on Wi-Fi (Transfer settings): on cellular the copies wait, the card says so.
+   if wifi_only_hold():
+    debrid_drive.hold(profile,'wifi');delay=60;continue
+   debrid_drive.hold(profile,'')
    try:
     def done(job):
      remember_shows([job])
      driveupload.invalidate_library(str(profile/'addon_data/service.kodi.ios.bootstrap'))
      prepare_downloads.request_check(profile)   # preparation for Kodi and AirPlay picks it up from Drive
     delay=debrid_drive.step(profile,alldebrid.AllDebrid(token),drive,lambda kind,title,text:notices.add(profile,kind,title,text),
-                            keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up'),on_done=done,
+                            keep_going=lambda:not monitor.abortRequested() and not transfer_control.paused(profile,'up') and not wifi_only_hold(),on_done=done,
                             cancelled=lambda:transfer_control.cancelled_copies(profile),
                             forget=lambda h:transfer_control.clear_cancelled(profile,h),
                             log=lambda text:xbmc.log('Kodi iOS AllDebrid: '+text,xbmc.LOGWARNING)) or 20

@@ -265,6 +265,23 @@ class FourLanes(unittest.TestCase):
   src=(Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap/library_status.py').read_text()
   self.assertIn("if seen.get(key)==value:return",src);self.assertIn("self.bar(library_page.DOWN_BARS+n,r.get('pct') or 0)",src)
 
+class WifiOnly(unittest.TestCase):
+ def test_copies_wait_for_wifi_and_the_card_says_so(self):
+  # E15: Copy downloads to Google Drive only on Wi-Fi; on cellular the copies wait.
+  import debrid_drive,tempfile
+  with tempfile.TemporaryDirectory() as p:
+   debrid_drive.queue(p,{'id':'a'*40,'name':'Fall'},'movie','Fall (2022)')
+   debrid_drive.hold(p,'wifi')
+   snap=ws.build({'debrid':debrid_drive.load(p)},NOW)
+   copy=[j for j in snap['jobs'] if j['kind']=='copy'][0]
+   self.assertIn('Waiting for Wi-Fi',copy['line']+copy.get('why',''))
+   debrid_drive.hold(p,'')
+   self.assertNotIn('hold',debrid_drive.load(p))
+   self.assertEqual(len(debrid_drive.load(p)['jobs']),1)               # the queue is untouched
+  root=Path(__file__).resolve().parents[1]/'migration/bundled-bootstrap'
+  self.assertIn('id="copy_wifi_only"',(root/'resources/settings.xml').read_text())
+  self.assertIn("and not wifi_only_hold(),on_done=done,",(root/'service.py').read_text())
+
 class SeasonQueue(unittest.TestCase):
  """Owner (build 205): "i went to download a entire season and it seems only 1 thing is downloading? it should show a
  que of the episodes". The log: one AllDebrid job for the whole Lanterns season pack (8.4 GB)."""
