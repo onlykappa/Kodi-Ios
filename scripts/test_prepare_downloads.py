@@ -476,4 +476,18 @@ class StreamFromDrive(unittest.TestCase):
   source=(ROOT/'migration/bundled-bootstrap/service.py').read_text()
   self.assertIn('stream=drive_stream.DriveStream(drive.token,context=tls_context(),open_url=native_reader,refresh_token=drive.token)',source)
 
+class EpisodeOrder(unittest.TestCase):
+ def test_the_line_goes_episode_by_episode(self):
+  # Owner (build 319, Library status): "it should start with one and then onward not 006"; the job key is a hash.
+  names=['Naruto - Episode 006.mkv','Naruto E004 720p.mkv','Naruto S01E02.mkv','[Sub] Naruto - 010 [1080p].mkv',
+         'Naruto - Episode 001.mkv','Naruto - 003.mkv','Naruto S02E01.mkv']
+  self.assertEqual(sorted(names,key=prep.line_key),['Naruto - Episode 001.mkv','Naruto S01E02.mkv','Naruto - 003.mkv',
+   'Naruto E004 720p.mkv','Naruto - Episode 006.mkv','[Sub] Naruto - 010 [1080p].mkv','Naruto S02E01.mkv'])
+  jobs={hashlib.sha256(n.encode()).hexdigest()[:32]:{'source':{'id':str(i),'name':n,'size':1},'status':'waiting'} for i,n in enumerate(names)}
+  picked=[j['source']['name'] for _,j in sorted(jobs.items(),key=lambda pair:prep.order_key(*pair))]
+  self.assertEqual(picked[:3],['Naruto - Episode 001.mkv','Naruto S01E02.mkv','Naruto - 003.mkv'])
+  # The owner's own choices (Start now, ▲) still come first.
+  jobs[next(k for k,j in jobs.items() if j['source']['name']=='Naruto - Episode 006.mkv')]['priority']=5
+  self.assertEqual(sorted(jobs.items(),key=lambda pair:prep.order_key(*pair))[0][1]['source']['name'],'Naruto - Episode 006.mkv')
+
 if __name__=='__main__':unittest.main()

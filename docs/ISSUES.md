@@ -3012,3 +3012,14 @@ cure for a 28 Mbit/s file on a ~5 Mbit/s link.
 Background in the same log: no queued work was left waiting with the app in the background, so r51's retry did not need
 to fire (the "running again after 5494 s" line follows 2 h of foreground playback, where the silence is not used). The
 Drive copy held while the movie played and buffered (by design: the video goes first) and resumed at 18:45.
+
+## ISSUE-187 — Library status "Up next" out of order: E006, 002, 006, S1 E6, E4… (build 319, owner screenshot) — FIXED on host
+
+Root cause: within the same priority the queue (prepare_downloads.order_key and library_view) broke ties by the job
+key, which is a SHA-256 of the file's identity, so episodes came out in a random but stable order.
+Fix: prepare_downloads.line_key sorts by show, season, episode (from SxxEyy, "Episode 006", "E004" or " - 002"; an
+episode with no season counts as season 1), before the job key; the owner's own choices (Start now, ▲ ▼) still go
+first. Retest: test_prepare_downloads EpisodeOrder. Also: test_work_state had a stale needle after the debrid_drive
+rename (job → owner) and was not in the CI list; fixed and added to import-review.yml.
+Not fixed here: the same episode can appear twice (two releases of episode 6 from different sources); that is the
+source matching, to look at with the next log.

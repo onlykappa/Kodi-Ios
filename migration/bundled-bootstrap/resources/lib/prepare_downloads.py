@@ -473,6 +473,22 @@ def slow(job):
  if 'copy_video' in probe:return not probe['copy_video']
  return bool(SLOW.search(str((job.get('source') or {}).get('name',''))))
 
+EPISODE_ONLY=re.compile(r'(?i)(?:\bepisode\s*|\bep\.?\s*|\bE|\s[-–]\s*)(\d{1,4})\b')
+def line_key(name):
+ """Owner (build 319, Library status: "it should start with one and then onward not 006"): within the same priority
+ the line goes show by show, season by season, episode by episode (the job key is a hash, so it used to look random).
+ 'Naruto - Episode 006', 'Naruto E004', 'Naruto - 002' and 'Naruto.S01E06' all sort as Naruto, then by number."""
+ found=drivelibrary.parse(name);title=found['title'];season=int(found['season'] or 0);episode=int(found['episode'] or 0)
+ if not episode:
+  base=re.sub(r'\[[^\]]*\]','',re.sub(r'[._]+',' ',str(name)))
+  m=EPISODE_ONLY.search(base)
+  if m:
+   episode=int(m.group(1));title=base[:m.start()]
+   s=re.search(r'(?i)\bS(?:eason)?\s*(\d{1,2})\b',title)
+   if s:season=int(s.group(1));title=title[:s.start()]
+ # An episode number with no season ('Episode 006') counts as season 1, so it sorts among S01Exx.
+ return (drivelibrary.show_key(re.sub(r'[\s\-–(]+$','',title).strip()) if title else '',season or (1 if episode else 0),episode,str(name).lower())
+
 def order_key(slot,job):
  """The order videos are prepared in: the owner's choices first (Start now, Prepare next, ▲ ▼), then videos that
  only need repacking before ones that need re-encoding (owner, build 181: "quick movies first", so one AV1 film
@@ -480,7 +496,8 @@ def order_key(slot,job):
  # Build 188 (owner, build-187 log: Interstellar was converted and uploaded overnight, its last check on Drive timed out,
  # and the check then waited behind the next movie's hours of conversion): a movie that only needs checking goes first.
  checked_only=bool((job.get('cloud_output') or {}).get('0'))
- return (-job.get('priority',0),1 if job.get('repack') else 0,0 if checked_only else 1,1 if slow(job) else 0,slot)
+ return (-job.get('priority',0),1 if job.get('repack') else 0,0 if checked_only else 1,1 if slow(job) else 0,
+         line_key((job.get('source') or {}).get('name','')),slot)
 
 def queue_order(state,now=None):
  """The ids of the videos waiting in line, in the order they will be prepared (Library status › Waiting, the Queue)."""
@@ -554,7 +571,7 @@ def library_view(state,downloads=(),uploads=(),free=None,working=0,now=time.time
     sub='Needs %.0f GB free · %.0f GB free now'%(job['space']/1024**3,(free or 0)/1024**3)));continue
   order.append(dict(base,state='waiting',priority=(job or {}).get('priority',0),slow=slow(job or {'source':{'name':e['name']}})))
  # The order prepare_cloud picks in: highest priority first, then by job key (not the order Drive listed them).
- order.sort(key=lambda r:(-r['priority'],1 if r['slow'] else 0,slots.get(r['id'],'')))
+ order.sort(key=lambda r:(-r['priority'],1 if r['slow'] else 0,line_key(r['name']),slots.get(r['id'],'')))
  for n,r in enumerate(order,1):r['sub']='%s · %s'%('Next' if n==1 else '%s in line'%ordinal(n),quality_text(r['name'],r['size']))
  rows['waiting']=order+rows['waiting']
  todo=len(rows['preparing'])+len(rows['waiting']);total=len(rows['ready'])+todo+len(rows['kept'])

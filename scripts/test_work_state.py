@@ -247,7 +247,7 @@ class SeasonQueue(unittest.TestCase):
   self.assertEqual(ws.episode_label('Show.S1E7.mkv'),'S01E07');self.assertEqual(ws.episode_label('folder/show 2x05.mp4'),'S02E05')
  def test_debrid_drive_records_which_file(self):
   text=(LIB/'debrid_drive.py').read_text()
-  self.assertIn("'file': name, 'index': job['files'].index(entry) + 1, 'count': len(job['files'])",text)
+  self.assertIn("'file': name, 'index': owner['files'].index(entry) + 1, 'count': len(owner['files'])",text)
 
 
 class NoTorrentIds(unittest.TestCase):
