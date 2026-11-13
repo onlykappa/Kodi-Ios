@@ -87,6 +87,23 @@ class Filter(unittest.TestCase):
   self.assertEqual(self.native.calls,0);self.assertEqual(self.drive.files['source'],original)
   self.assertFalse(any(method in ('PUT','POST','PATCH') for method,*_ in self.drive.calls))
   self.assertFalse(self.q.process_one());self.assertFalse(prep.check_requested(self.tmp.name))
+ def test_on_mobile_data_checks_wait_for_wifi(self):
+  # ISSUE-199 (owner log a0a4e492, build 350): on mobile data every check timed out and retried each minute.
+  self.drive.files['source']['name']='Lanterns.S01E06.2160p.mkv';calls=[]
+  self.native.probe=lambda url:(calls.append(url),dict(self.probe))[1]
+  self.q.link=lambda:'cellular'
+  prep.request_check(self.tmp.name,inspect=True);self.refresh()
+  self.assertEqual(calls,[]);self.assertTrue(self.q.inspection_pending)
+  self.q.link=lambda:'wifi'
+  prep.request_check(self.tmp.name,inspect=True);self.refresh()
+  self.assertEqual(len(calls),1)
+ def test_a_check_that_times_out_waits_instead_of_failing(self):
+  self.drive.files['source']['name']='Lanterns.S01E06.2160p.mkv'
+  def slow(url):raise TimeoutError('timed out')
+  self.native.probe=slow;self.q.link=lambda:'wifi'
+  prep.request_check(self.tmp.name,inspect=True);self.refresh()
+  job=next(iter(self.q.state['jobs'].values()))
+  self.assertEqual((job['status'],job['check_net_tries']),('waiting',1))
  def test_every_manual_refresh_rechecks_the_actual_file_even_after_restart(self):
   prep.request_check(self.tmp.name,inspect=True);self.refresh()
   self.q=prep.Queue(self.tmp.name,self.drive,self.native,stream=Stream())
@@ -221,7 +238,8 @@ class Filter(unittest.TestCase):
   self.q.layout_probe=lambda *args:(_ for _ in ()).throw(TimeoutError())
   prep.request_check(self.tmp.name,inspect=True);self.refresh()
   job=self.q.state['jobs'][self.slot]
-  self.assertNotIn('probe',job);self.assertTrue(job['audit']);self.assertEqual(job['status'],'failed')
+  # ISSUE-199: a timeout is network trouble: waiting (tried again later), never the stale result.
+  self.assertNotIn('probe',job);self.assertTrue(job['audit']);self.assertEqual(job['status'],'waiting')
  def test_concurrent_automatic_check_cannot_overwrite_a_manual_refresh(self):
   entered=threading.Event();continue_auto=threading.Event();manual_done=threading.Event();exists=Path.exists
   def delayed_exists(path):

@@ -3205,3 +3205,40 @@ as the wrong title, so episodes 5-6 got 4 GB upscaled copies (4a3ab1f).
 - **Already covered (checked):** Kodi stays awake with the screen off while any copy is unfinished (service `why`:
   debrid_drive.active), including copies waiting for the network; a killed app resumes copies from their saved Drive
   sessions and conversions from their marks; the picker already ranks 10-bit H.264 as "needs conversion" (PR #22).
+
+## ISSUE-199 — Mobile data, a Wi-Fi switch and other apps: what the app did (build 350, owner log a0a4e492) — partly FIXED on host
+
+Owner test 06:16–07:15: mobile data, then a better Wi-Fi source (~07:05), opening other apps meanwhile.
+- **Copies:** 0.15–0.43 MB/s on mobile data with pieces stuck at 1–2 MB; after the switch 1.1–1.4 MB/s, pieces back to
+  16 MB, and preparation reads 1–3 MB/s. Two lanes dropped together at 07:12:40 (ConnectionError) and went on. The
+  switch itself was handled; ISSUE-198 (PR #23) also wakes waiting copies on the new connection.
+- **Compatibility checks on mobile data:** 27 timeouts from 06:32 to 07:01, each marked the file failed and tried again
+  60 s later, spending bandwidth on an optional check. **Fixed:** on cellular the checks wait for Wi-Fi
+  (prepare_downloads.cellular_now; "compatibility checks wait for Wi-Fi" logged once); a check that hits network
+  trouble is 'waiting' with the 15 s–5 min back-off, never 'failed'. Retest: test_compatibility_filter
+  (on_mobile_data_checks_wait_for_wifi, a_check_that_times_out_waits_instead_of_failing).
+- **Other apps:** at 06:25:17 iOS took the audio session ("audio interrupted by iOS") and Kodi was suspended for
+  581 s: every copy and read stopped until 06:34:59. Two later interruptions recovered in 5 s and 3 s. The silent-audio
+  method cannot stop another app from taking the audio. **Open (native):** iOS 26's BGContinuedProcessingTask lets
+  user-started long work (our copies and conversions) carry on in the background with a system progress item; needs
+  KodiAirPlay code and Info.plist task identifiers (ROADMAP R7).
+- Harmless: TMDb Helper's missing log_tagger folder (GetDirectory, 15×), audio underflow warnings at start.
+
+## ISSUE-200 — Copies use a fraction of a fast but high-latency Wi-Fi (owner log a0a4e492 + Speedtest, build 350) — partly FIXED on host
+
+- **Seen:** owner: "1.4mb compared to 70 is crazy". Speedtest on that Wi-Fi: 441 Mbps down, 79.7 Mbps up (~10 MB/s), ping
+  469 ms, jitter 216 ms. After the switch the copies ran at 1.1–1.4 MB/s with **two lanes the whole time**; Drive PUTs of
+  4–8 MB took 1.6–17 s (0.5–2.5 MB/s each).
+- **Root cause:** (1) two lanes is the cap beside a conversion (BUSY_LANES = 2), and a conversion ran most of the time;
+  (2) lane learning kept the speeds measured on mobile data after the switch, so more lanes looked useless; (3) the
+  ceiling was 4; (4) each piece reads its range from AllDebrid, then sends it to Drive, then waits for Drive's answer,
+  one after another, and on a 469 ms line each request spends several round trips before data flows, so few serial
+  connections cannot fill the uplink.
+- **Fix:** LANES 6, START_LANES 3, BUSY_LANES 4, CELLULAR_LANES 2 (E16's crawl on mobile data); lane learning starts
+  again when the connection changes. Retest: test_debrid_drive LaneLearning (up to six; a new connection forgets),
+  TwoLanes (four beside a conversion, five files five at once).
+- **Owner follow-up (7:19):** the 469 ms ping was a VPN; without it the same Wi-Fi tests 355 Mbps down, 115 Mbps up,
+  22 ms ping. The lane changes still apply (two lanes beside a conversion was the cap either way); the next log, without
+  the VPN, shows how close six lanes get to ~14 MB/s. If the phone uses a VPN, copies are limited by it.
+- **Open (native, ROADMAP R10):** within a piece, start the Drive PUT while the AllDebrid read is still arriving (one
+  streamed pass instead of read-then-send) and keep the connections open between pieces (no new handshake per piece).

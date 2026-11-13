@@ -23,7 +23,9 @@ import transfer_history
 FILE = 'debrid-drive.json'
 # Most files copied at once (ISSUE-164; Roadmap 1F.4). Owner log 4beafff6 (build 314, a 101 Mbps upload): three copies
 # ran at ~2.4 MB/s each, 7.2 MB/s together, each held by its own connection; a fourth adds a quarter more.
-LANES = 4
+# ISSUE-200 (owner log a0a4e492 + Speedtest, build 350: 79.7 Mbps up but 469 ms ping; copies 1.4 MB/s with two lanes):
+# on a high-latency line one connection waits through round trips before data flows, so filling it takes more of them.
+LANES = 6
 # A file whose copy failed goes back in line this many times in the same turn before it waits for the next one.
 RETRIES_IN_RUN = 2
 
@@ -70,8 +72,9 @@ def offset_lookup(profile):
     return lookup
 
 
-BUSY_LANES = 2
-START_LANES = 2
+BUSY_LANES = 4      # beside a conversion (was 2: on the owner's Wi-Fi the conversion used a fraction of the line)
+START_LANES = 3
+CELLULAR_LANES = 2  # mobile data: E16's crawl (four lanes at ~0.2 MB/s each timed out)
 GAIN = 1.15   # one more lane is kept only when it copies at least 15 % more in total
 
 
@@ -776,6 +779,9 @@ def kick_on_new_link(state, link, clock=time.time):
         state['link'] = link
     if not link or not before or before == link:
         return None
+    # ISSUE-200: what a lane count copied on mobile data says nothing about the new Wi-Fi (and back): learn again.
+    state.pop('lane_speeds', None)
+    state.pop('lanes_now', None)
     for job in state.get('jobs', []):
         if job.get('net_tries') and job.get('status') not in ('done', 'failed') and float(job.get('retry_at') or 0) > clock():
             job['retry_at'] = 0
@@ -1081,7 +1087,8 @@ def step(profile, api, drive, notify=lambda kind, title, text: None, open_url=de
             # the same connection; every piece timed out at 20 s and halved. Two lanes while a conversion runs.
             # E16: as many lanes as the link rewards (lane_plan), never more than files, and two beside a conversion.
             busy = converting()
-            lanes = min(lanes_for(len(todo)), lane_plan(state), BUSY_LANES if busy else LANES)
+            cap = CELLULAR_LANES if state.get('link') == 'cellular' else (BUSY_LANES if busy else LANES)
+            lanes = min(lanes_for(len(todo)), lane_plan(state), cap)
             moved = {}
             began = clock()
             try:

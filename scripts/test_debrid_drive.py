@@ -164,9 +164,9 @@ class Paced(unittest.TestCase):
 
 class LaneLearning(unittest.TestCase):
  def test_lanes_follow_what_the_link_gives(self):
-  # E16: start at two; one more while it pays (15 %); else the fastest count measured.
+  # E16: start at three (ISSUE-200); one more while it pays (15 %); else the fastest count measured.
   st={}
-  self.assertEqual(debrid_drive.lane_plan(st),2)
+  self.assertEqual(debrid_drive.lane_plan(st),3)
   debrid_drive.learn_lanes(st,2,300*1024**2,600)            # 0.5 MB/s with two
   self.assertEqual(debrid_drive.lane_plan(st),3)              # try three
   debrid_drive.learn_lanes(st,3,330*1024**2,600)            # +10 %: not worth it
@@ -176,7 +176,13 @@ class LaneLearning(unittest.TestCase):
   debrid_drive.learn_lanes(fast,3,1700*1024**2,600)         # +42 %
   self.assertEqual(debrid_drive.lane_plan(fast),4)
   debrid_drive.learn_lanes(fast,4,2400*1024**2,600)
-  self.assertEqual(debrid_drive.lane_plan(fast),4)            # never more than LANES
+  self.assertEqual(debrid_drive.lane_plan(fast),5)            # still paying: one more
+  for n,mb in ((5,3000),(6,3600)):debrid_drive.learn_lanes(fast,n,mb*1024**2,600)
+  self.assertEqual(debrid_drive.lane_plan(fast),6)            # never more than LANES (6, ISSUE-200)
+  # ISSUE-200: a new connection forgets what the old one rewarded.
+  moved={'link':'cellular','lane_speeds':{'2':1.0},'lanes_now':2,'jobs':[]}
+  debrid_drive.kick_on_new_link(moved,'wifi',lambda:0)
+  self.assertNotIn('lane_speeds',moved);self.assertEqual(debrid_drive.lane_plan(moved),3)
   quick={}
   debrid_drive.learn_lanes(quick,2,1024,5)                   # a few seconds say nothing
   self.assertEqual(quick,{})
@@ -496,11 +502,11 @@ class TwoLanes(unittest.TestCase):
   state=debrid_drive.load(self.p);state['current']={'slot':7,'name':'old','updated':1,'stage':'copying'};debrid_drive.save(self.p,state)
   with patch.object(debrid_drive,'conversion_running',lambda profile,now:True):
    self.run_job(self.season(names),self.drive(pause=.1))
-  self.assertEqual(self.most,2)
+  self.assertEqual(self.most,debrid_drive.BUSY_LANES)   # beside a conversion: four (ISSUE-200; was two)
   self.assertFalse(any(c.get('name')=='old' for c in self.shown))
  def test_two_episodes_use_two_lanes_and_five_use_three_at_a_time(self):
-  self.assertEqual([debrid_drive.lanes_for(n) for n in (0,1,2,3,4,10)],[1,1,2,3,4,4])   # owner log 4beafff6: four at once
-  for count,most in ((2,2),(5,4)):
+  self.assertEqual([debrid_drive.lanes_for(n) for n in (0,1,2,3,4,10)],[1,1,2,3,4,6])   # ISSUE-200: up to six
+  for count,most in ((2,2),(5,5)):
    self.tearDown();self.setUp()
    names=['Show.S01E%02d.mkv'%n for n in range(1,count+1)]
    debrid_drive.queue(self.p,{'id':H,'name':'Show.S01'},'season','Show',season='1')

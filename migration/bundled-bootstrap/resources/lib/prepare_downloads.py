@@ -88,6 +88,16 @@ CALLBACK=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_int,ctypes.c_double,ctypes.c_dou
 def location(profile):return Path(profile)/'addon_data/service.kodi.ios.bootstrap'/FILE
 def load(profile):return drivelibrary.load_json(str(location(profile)),{'jobs':{},'sessions':{},'last_scan':0})
 def save(profile,state):drivelibrary.save_json(str(location(profile)),state)
+def cellular_now(queue):
+    """True on mobile data (queue.link() for tests, else cache_tune.link_kind())."""
+    try:
+        link=getattr(queue,'link',None)
+        if link is None:
+            import cache_tune;link=cache_tune.link_kind
+        return link()=='cellular'
+    except Exception:
+        return False
+
 def ready(item):
  props=item.get('appProperties') or {}
  return bool(item.get('md5Checksum')) and props.get(PROPERTY) in (PROFILE,)+OLD_PROFILES and props.get(CHECKSUM_PROPERTY)==item['md5Checksum'].lower()
@@ -809,6 +819,13 @@ class Queue:
     # native instance beside an active conversion or abandon a promotion/owner-kept original.
     if inspection and not old.get('kept') and not old.get('promoted') and self.stream:
      if beside:self.inspection_pending=True
+     elif cellular_now(self):
+      # ISSUE-199 (owner log a0a4e492, build 350, on mobile data): each check of a finished video timed out, was marked
+      # failed and tried again a minute later, 27 times in 30 minutes, spending the little bandwidth there was. The
+      # check is optional: on cellular it waits for Wi-Fi.
+      self.inspection_pending=True
+      if not getattr(self,'told_cellular',False):
+       self.told_cellular=True;self.log('preparation: compatibility checks wait for Wi-Fi (on mobile data)')
      else:
       try:
        old['audit']=True;old.pop('probe',None)
@@ -821,9 +838,14 @@ class Queue:
         if old.get('status')=='done':old.update(status='waiting',retry_after=0,attempts=0)
       except driveupload.Stop:raise
       except Exception as error:
-       import preparation_runtime
+       import preparation_runtime,debrid_drive
        old['inspection_error']=preparation_runtime.problem(error)
-       old.update(status='failed',retry_after=self.clock()+60)
+       if debrid_drive.network_error(error):
+        # ISSUE-199: network trouble is not the video's fault: waiting (not failed), 15 s up to 5 min apart.
+        old['check_net_tries']=old.get('check_net_tries',0)+1
+        old.update(status='waiting',retry_after=self.clock()+debrid_drive.net_wait(old['check_net_tries']))
+       else:
+        old.update(status='failed',retry_after=self.clock()+60)
        self.log('preparation: compatibility check will retry (%s)'%type(error).__name__)
       finally:self.stream.forget(item['id'])
    if old and item['id']!=converting and self.skip_compatible(slot,old,item,old.get('probe')):
