@@ -239,6 +239,14 @@ def fill_item(row, show=None, kind='episode'):
     return props, actions
 
 
+def repair_words(rows, why):
+    """P6: what Repair says when trying again can't help: what stops it, that it still plays, and what to do."""
+    many = len(rows) > 1
+    return ('%s can\'t be made ready for AirPlay yet: %s.\n%s still play%s in Kodi as %s.\nFind Another Version (the show\'s '
+            '\u2022\u2022\u2022 \u203a Pick Better Versions) gets one that needs nothing.') % (
+        '%d videos' % len(rows) if many else 'This video', why, 'They' if many else 'It', '' if many else 's', 'they are' if many else 'it is')
+
+
 def run():
     import xbmc
     import xbmcgui
@@ -342,6 +350,12 @@ def run():
             return True
         if action == 'retry':
             import prepare_downloads
+            # ISSUE-226 / P6: a video the converter can't keep the tracks of is not tried again for nothing; say why.
+            why = prepare_downloads.cannot_prepare(row.get('problem'), prepare_downloads.capabilities(profile))
+            if why:
+                if xbmcgui.Dialog().yesno('Can\'t be prepared yet', repair_words([row], why), nolabel='OK', yeslabel='Find Another Version'):
+                    act('choose', row, data, show, kind, episodes)
+                return False
             prepare_downloads.request(profile, 'retry', row.get('job_id') or row['id'])
             xbmcgui.Dialog().notification('Repair', 'Preparing it again', xbmcgui.NOTIFICATION_INFO, 3000)
             return False
@@ -599,8 +613,13 @@ def run():
                     ['cancel=%s' % ';'.join(hashes)]))
             elif what == 'repair_all':
                 problems = [r for r in self.episodes if r.get('repair')]
-                for row in [r for r in problems if r.get('id')]:   # a preparation problem: prepared again
+                import prepare_downloads
+                caps = prepare_downloads.capabilities(profile)
+                stuck = [r for r in problems if r.get('id') and prepare_downloads.cannot_prepare(r.get('problem'), caps)]
+                for row in [r for r in problems if r.get('id') and r not in stuck]:   # a preparation problem: prepared again
                     act('retry', row, self.data, self.show)
+                if stuck:   # one message for all of them, not one per episode (ISSUE-226 / P6)
+                    xbmcgui.Dialog().ok('Can\'t be prepared yet', repair_words(stuck, prepare_downloads.cannot_prepare(stuck[0].get('problem'), caps)))
                 repair_rows([r for r in problems if not r.get('id')], self.data, self.show, self.episodes)
 
         def onClick(self, control):

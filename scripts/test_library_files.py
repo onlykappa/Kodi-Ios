@@ -160,6 +160,30 @@ class Page(unittest.TestCase):
         self.assertIn('No downloaded shows yet', props['empty'])
 
 
+class RepairSaysWhy(unittest.TestCase):
+    def test_a_video_the_converter_cannot_keep_the_tracks_of_is_explained_not_retried(self):
+        # ISSUE-226 / P6 (owner log a1729c16): Repair must not look like it worked when it can't.
+        import tempfile
+        import prepare_downloads as prep
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap'))
+        import library_manager as lm
+        err = 'This file has tracks MP4 cannot preserve; original retained'
+        self.assertIn('DVD picture subtitles', prep.cannot_prepare(err, {}))
+        self.assertEqual(prep.cannot_prepare(err, {'dvd_subs': True}), '')          # a converter that keeps them: a retry is worth it
+        self.assertEqual(prep.cannot_prepare('Drive file check: HTTP 500', {}), '')
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(prep.capabilities(d), {})
+            prep.save_capabilities(d, dvd_subs=False)
+            self.assertEqual(prep.capabilities(d), {'dvd_subs': False})
+        one = lm.repair_words([{}], 'it has DVD picture subtitles')
+        self.assertIn('This video can\'t be made ready for AirPlay yet', one)
+        self.assertIn('still plays in Kodi', one);self.assertIn('Find Another Version', one)
+        many = lm.repair_words([{}] * 8, 'x')
+        self.assertIn('8 videos', many);self.assertIn('They still play in Kodi', many)
+        src = (Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap/library_manager.py').read_text()
+        self.assertIn('prepare_downloads.cannot_prepare(r.get(\'problem\'), caps)', src)   # Repair All: one message, the rest retried
+
+
 class WatchedFreeUp(unittest.TestCase):
     def test_model_reads_watched_and_free_up_offers_them(self):
         # ISSUE-197 (owner, build 347): Free Up Space › Watched episodes was never filled.

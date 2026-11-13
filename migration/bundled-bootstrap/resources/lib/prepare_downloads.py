@@ -86,6 +86,21 @@ def space_reason(probe):
 WRITE=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_int,ctypes.c_char_p,ctypes.POINTER(ctypes.c_ubyte),ctypes.c_int,ctypes.c_void_p)
 CALLBACK=ctypes.CFUNCTYPE(ctypes.c_int,ctypes.c_int,ctypes.c_double,ctypes.c_double,ctypes.c_void_p)
 
+CAPABILITIES='preparation-capabilities.json'
+def save_capabilities(profile,**flags):
+ """What the converter can do (the service knows; the Library pages run in another interpreter and read this file)."""
+ try:drivelibrary.save_json(str(location(profile).parent/CAPABILITIES),{k:bool(v) for k,v in flags.items()})
+ except OSError:pass
+def capabilities(profile):
+ data=drivelibrary.load_json(str(location(profile).parent/CAPABILITIES),{})
+ return data if isinstance(data,dict) else {}
+KEPT_TRACKS='tracks MP4 cannot preserve'
+def cannot_prepare(problem,supported=None):
+ """ISSUE-226 / P6: why a video can't be prepared, when trying again can't change it: a DVD picture subtitle or a second
+ video track an MP4 can't keep, until the converter keeps them. '' when a retry is worth it."""
+ if KEPT_TRACKS in str(problem or '') and not (supported or {}).get('dvd_subs'):
+  return "it has DVD picture subtitles or a second video track an MP4 can't keep"
+ return ''
 def location(profile):return Path(profile)/'addon_data/service.kodi.ios.bootstrap'/FILE
 def load(profile):return drivelibrary.load_json(str(location(profile)),{'jobs':{},'sessions':{},'last_scan':0})
 def save(profile,state):drivelibrary.save_json(str(location(profile)),state)
@@ -225,6 +240,11 @@ class Native:
   if self.keeps_image_subs:
    lib.kodi_airplay_prepare_keep_image_subs.argtypes=[ctypes.c_int];lib.kodi_airplay_prepare_keep_image_subs.restype=None
    lib.kodi_airplay_prepare_keep_image_subs(1)
+  # ISSUE-226 / P2: a KodiAirPlay after r53 that keeps DVD picture subtitles in the MP4 exports this; until then it is False.
+  self.keeps_dvd_subs=hasattr(lib,'kodi_airplay_prepare_keep_dvd_subs')
+  if self.keeps_dvd_subs:
+   lib.kodi_airplay_prepare_keep_dvd_subs.argtypes=[ctypes.c_int];lib.kodi_airplay_prepare_keep_dvd_subs.restype=None
+   lib.kodi_airplay_prepare_keep_dvd_subs(1)
  def set_subtitle_languages(self,codes):
   """Keep subtitles in these language tags (and untagged ones); '' keeps every subtitle (owner, build 180)."""
   self.subtitle_languages=str(codes or '')
