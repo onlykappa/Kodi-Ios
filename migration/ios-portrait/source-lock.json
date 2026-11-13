@@ -6,20 +6,19 @@
   "build_tag": "kodi-ios-portrait-r32",
   "note": "Only the main executable is taken from this build; every other file comes from the hash-pinned official 21.3 package.",
   "executable_release": {
+    "tag": "kodi-ios-portrait-r32",
+    "asset": "Kodi-portrait-executable.zip",
+    "sha256": "8ebf5aa4027573d3fc02be8952af014d88e1e45d494b993c02e233d995a3fe57",
+    "archive_sha256": "7565cddcb792a4aa8cd79a100f7ab96b6705b3065b2deb1a884609c2733c2169"
+  },
+  "build_note": "r32 run 43362838057 (manual build of 61510d7, Saturation: SetVideoSaturation built-in and the GLES YUV-to-RGB matrix): release zip and executable digests checked after download (arm64 Mach-O, the built-in present). r31 kept as previous; device acceptance pending.",
+  "previous_executable_release": {
     "tag": "kodi-ios-portrait-r31",
     "asset": "Kodi-portrait-executable.zip",
     "sha256": "a3f8626281731a1c11e2a01df22261632a8944b8da40f10f5db9a77e83264d3c",
     "archive_sha256": "8bb096ab6e73cc21128da6eb79d732546a0f3abba4ee8e374766d562d356e179"
   },
-  "build_note": "r31 run 43256323634 (pull request build of 8affdb8): release zip and executable digests checked after download (arm64 Mach-O). r30 kept as previous; device acceptance pending.",
-  "previous_executable_release": {
-    "tag": "kodi-ios-portrait-r30",
-    "asset": "Kodi-portrait-executable.zip",
-    "sha256": "636264da7f89bc61ceac79d31518818e31fa41d6c89386716d1c3b04e4254871",
-    "archive_sha256": "c64f69f06b4216e57c8dabd5747ac814e47af6700ab1d5176b64b77775bddf6a"
-  },
-  "verified_run": 43256323634,
-  "source_commit": "8affdb81cb0e2b4f6158ee7200a27fa0b175dda8",
-  "patch_sha256": "9aabed41268d269c80bc5ed62e9455c4dd2d1597a4d20de8fe5bc96befb8fc93",
-  "staged_patch_note": "r32 staged (DEC-039 V2, owner 2026-11-13): r31 plus Saturation from the Picture menu (SetVideoSaturation(n) built-in, a luma-preserving saturation folded into the GLES YUV-to-RGB matrix). Built by a manual kodi-ios-portrait run on PR #22 (the owner asked for no IPA until the build-325 bugs are in); executable_release moves to r32 once its digests are checked."
+  "verified_run": 43362838057,
+  "source_commit": "61510d7781025b4c3dc633c571ae9310dbaac0fa",
+  "patch_sha256": "9aabed41268d269c80bc5ed62e9455c4dd2d1597a4d20de8fe5bc96befb8fc93"
 }
