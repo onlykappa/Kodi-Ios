@@ -7,6 +7,7 @@ fills it from library_files.py. Kodi skin XML, portrait units (2.687 per pt); ex
 WINDOW = 'IOSLibraryFiles.xml'
 BACK, TAB_SHOWS, TAB_MOVIES, SEARCH, SORT, VIEW = 9001, 9101, 9102, 9103, 9104, 9105
 STORE_BAR = 9120
+STORE = 9121           # L8: the storage card opens Free Up Space (board F)
 ROW, SLOTS, ROW_H = 9200, 30, 236
 LIST = 9300
 CHIP_COLORS = (('green', 'FF30D158'), ('orange', 'FFFF9F0A'), ('blue', 'FF0A84FF'), ('red', 'FFFF453A'), ('purple', 'FFBF5AF2'))
@@ -120,7 +121,8 @@ def page(p):
               _tab(p, u, TAB_MOVIES, w // 2 + 6, w // 2 - 12, 'Movies', 'movie'))
     body += '<control type="group"><left>%d</left><top>%d</top>%s</control>' % (S, 300, switch)
     # The storage card: the line, one bar (library of quota, or shows/movies/AI split by the script), the legend.
-    store = (u.card(p, S, 0, w, 236) + u.text(p, S + 38, 34, w - 76, 56, P('store.line'), 'p_body') +
+    store = (u.card(p, S, 0, w, 236) + u.tap(p, STORE, S, 0, w, 236) + u.text(p, S + 38, 34, w - 76, 56, P('store.line'), 'p_body') +
+             u.glyph(p, S + w - 70, 40, 36, 'chevron-right.png', p.DIM) +
              u.id_bar(p, STORE_BAR, S + 38, 112, w - 76, 21, u.BLUE, texture='pill21.png', border=10) +
              u.text(p, S + 38, 158, w - 76, 46, P('store.legend'), 'p_foot', p.GREY))
     # Search (a tap opens the keyboard) and sort (Recent / Name / Size).

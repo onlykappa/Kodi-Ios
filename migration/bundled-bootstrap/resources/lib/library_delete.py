@@ -68,12 +68,68 @@ def delete(items, picked, with_ai, trash, state_dir, upscale=None, log=lambda te
             hit['entries'] = [e for e in hit['entries'] if str(e.get('id')) not in gone]
     drivelibrary.save_json(path, cache)
     if upscale is not None:
-        for original in removed:
-            entry = upscale.get('copies', {}).get(original)
+        copies_of = {str(i['id']): str(i['original']) for i in items if i.get('original')}
+        for ident in removed:
+            if ident in copies_of:   # an AI copy itself (Free Up Space › AI Upscale copies): the original stays
+                entry = upscale.get('copies', {}).get(copies_of[ident])
+                if entry:
+                    entry.update(status='gone', copy_id=None)
+                continue
+            entry = upscale.get('copies', {}).get(ident)
             if entry:
                 entry['status'] = 'gone' if with_ai or not entry.get('copy_id') else entry['status']
                 entry['original_gone'] = True
     return removed, failed
+
+
+def ai_items(upscale, names=None):
+    """Free Up Space › AI Upscale copies: each ready copy as an item of its own (the original stays)."""
+    out = []
+    for original, e in sorted((upscale or {}).get('copies', {}).items(), key=lambda kv: -int(kv[1].get('size') or 0)):
+        if e.get('status') != 'ready' or not e.get('copy_id'):
+            continue
+        name = (names or {}).get(original) or e.get('name') or original
+        out.append({'id': str(e['copy_id']), 'original': str(original), 'title': '%s · %s copy' % (_title(name), e.get('label', 'AI')),
+                    'line': lf.size_text(int(e.get('size') or 0)) + ' · the original stays', 'size': int(e.get('size') or 0), 'ai': None})
+    return out
+
+
+def _title(name):
+    try:
+        import drivelibrary
+        return drivelibrary.display_title(name) or name
+    except Exception:
+        return name
+
+
+def free_up_groups(shows, episodes_by_show, movies, upscale, watched=()):
+    """Board F: the suggestions, biggest first, each with the items its Review opens (all ticked):
+    [{'key', 'title', 'sub', 'bytes', 'items', 'noun'}]; empty groups are left out."""
+    groups = []
+    ai = ai_items(upscale)
+    if ai:
+        size = sum(i['size'] for i in ai)
+        groups.append({'key': 'ai', 'title': 'AI Upscale copies', 'sub': '%s · the originals stay' % lf.size_text(size),
+                       'bytes': size, 'items': ai, 'noun': 'copy'})
+    big = sorted([m for m in movies if m.get('id')], key=lambda r: -int(r.get('size') or 0))[:5]
+    if big:
+        items = items_from_rows(big, upscale)
+        size = sum(i['size'] for i in items)
+        names = ' · '.join('%s %s' % (m.get('title'), lf.size_text(int(m.get('size') or 0))) for m in big[:2])
+        more = len(big) - 2
+        groups.append({'key': 'largest', 'title': 'Largest movies', 'sub': names + (' · %d more' % more if more > 0 else ''),
+                       'bytes': size, 'items': items, 'noun': 'movie'})
+    seen = []
+    for show in shows:
+        for f in episodes_by_show.get(show['id']) or []:
+            if str(f.get('id')) in watched:
+                seen.append(dict(f, title='%s · %s' % (show['title'], _title(f.get('name', '')))))
+    if seen:
+        items = items_from_rows(seen, upscale)
+        size = sum(i['size'] for i in items)
+        groups.append({'key': 'watched', 'title': 'Watched episodes', 'sub': '%d episodes · %s' % (len(items), lf.size_text(size)),
+                       'bytes': size, 'items': items, 'noun': 'episode'})
+    return sorted(groups, key=lambda g: -g['bytes'])
 
 
 def items_from_rows(rows, upscale=None, title=None):

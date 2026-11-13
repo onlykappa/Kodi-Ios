@@ -288,6 +288,42 @@ class SelectAndDelete(unittest.TestCase):
         self.assertIn('elif control == show_page.SELECT:', root.read_text())
 
 
+class FreeUpSpace(unittest.TestCase):
+    """L8 (board F): suggestions biggest first; Review opens board D already ticked; an AI copy goes alone."""
+    def test_groups(self):
+        import library_delete as ld
+        G = 1024 ** 3
+        movies = [{'id': 'm%d' % n, 'title': 'Film %d' % n, 'size': n * G} for n in range(1, 8)]
+        ups = {'copies': {'e1': {'status': 'ready', 'copy_id': 'c1', 'size': 3 * G, 'label': '4K UHD', 'name': 'Show S01E01.mkv'},
+                          'e2': {'status': 'waiting', 'label': '4K UHD'}}}
+        groups = ld.free_up_groups([], {}, movies, ups)
+        self.assertEqual([g['key'] for g in groups], ['largest', 'ai'])               # 25 GB of films, 3 GB of copies
+        self.assertEqual([i['id'] for i in groups[0]['items']], ['m7', 'm6', 'm5', 'm4', 'm3'])
+        self.assertEqual(groups[0]['sub'], 'Film 7 7.0 GB · Film 6 6.0 GB · 3 more')
+        ai = groups[1]['items'][0]
+        self.assertEqual((ai['id'], ai['original']), ('c1', 'e1'))
+        self.assertIn('the original stays', ai['line'])
+        self.assertEqual(ld.free_up_groups([], {}, [], {}), [])
+
+    def test_deleting_an_ai_copy_keeps_the_original(self):
+        import json, os, tempfile, library_delete as ld
+        ups = {'copies': {'e1': {'status': 'ready', 'copy_id': 'c1', 'size': 5, 'label': '4K UHD'}}}
+        items = ld.ai_items(ups)
+        trashed = []
+        with tempfile.TemporaryDirectory() as d:
+            json.dump({}, open(os.path.join(d, 'drive-library.json'), 'w'))
+            ld.delete(items, {'c1'}, False, trashed.append, d, ups)
+        self.assertEqual(trashed, ['c1'])
+        self.assertEqual((ups['copies']['e1']['status'], ups['copies']['e1']['copy_id']), ('gone', None))
+
+    def test_the_storage_card_opens_it(self):
+        import portrait, library_files_page as a, library_freeup_page as f
+        self.assertIn('id="%d"' % a.STORE, a.page(portrait))
+        self.assertIn('Review', f.page(portrait))
+        root = Path(__file__).resolve().parents[1] / 'migration/bundled-bootstrap/library_manager.py'
+        self.assertIn('elif control == page.STORE:', root.read_text())
+
+
 class Repair(unittest.TestCase):
     """L5 (board C3): Repair looks the episode up again with Build Season's automatic pick, no version question."""
     def test_quality_of_the_show_first_then_any(self):

@@ -257,6 +257,9 @@ def run():
                 self.view = 'list' if self.view == 'grid' else 'grid'
                 save_view(self.state_dir, self.view)
                 self.setFocusId(page.VIEW + (1 if self.view == 'grid' else 0))
+            elif control == page.STORE:
+                if open_freeup(self.data):
+                    self.data = model(profile)
             elif control == page.SEARCH:
                 self.search = xbmcgui.Dialog().input('Search downloads', self.search) or ''
             elif control == page.SORT:
@@ -457,6 +460,58 @@ def run():
         removed = sheet.removed
         del sheet
         return removed
+
+    import library_freeup_page as freeup_page
+
+    class FreeUp(xbmcgui.WindowXMLDialog):
+        """Board F: suggestions, biggest first; Review opens board D already ticked."""
+        def onInit(self):
+            self.draw()
+
+        def draw(self):
+            import library_delete as ld
+            self.groups = ld.free_up_groups(self.data['shows'], self.data.get('episodes', {}), self.data['movies'], self.data.get('upscale'))
+            store = self.data['storage']
+            props = {'store.line': '%s on Google Drive' % (lf.size_text(store['total']) or '0 MB'),
+                     'store.sub': ' · '.join(x for x in ('Shows %s' % (lf.size_text(store['shows']) or '0 MB'),
+                                                         'Movies %s' % (lf.size_text(store['movies']) or '0 MB'),
+                                                         'AI copies %s' % lf.size_text(store['ai']) if store['ai'] else '') if x),
+                     'empty': '' if self.groups else 'Nothing to suggest right now.'}
+            for n in range(freeup_page.SLOTS):
+                g = self.groups[n] if n < len(self.groups) else {}
+                props['g.%d.title' % n] = g.get('title', '')
+                props['g.%d.sub' % n] = g.get('sub', '')
+                props['g.%d.pos' % n] = POS(n, len(self.groups)) if g else ''
+            for key, value in props.items():
+                self.setProperty(key, str(value))
+
+        def onAction(self, action):
+            if action.getId() in (9, 10, 92, 110):
+                self.close()
+
+        def onClick(self, control):
+            if control == freeup_page.BACK:
+                self.close()
+            elif freeup_page.ROW <= control < freeup_page.ROW + freeup_page.SLOTS and control - freeup_page.ROW < len(self.groups):
+                g = self.groups[control - freeup_page.ROW]
+                if open_select(g['items'], g['title'], g['noun'], picked=[i['id'] for i in g['items']]):
+                    self.changed = True
+                    self.data = model(profile)
+                    self.draw()
+
+    def open_freeup(data):
+        """Board F. Returns True when something was deleted (the caller reloads)."""
+        try:
+            sheet = FreeUp(freeup_page.WINDOW, HERE, 'Default', '1080i')
+        except RuntimeError:
+            import xbmcvfs as _v
+            _v.listdir(os.path.join(_v.translatePath('special://skin/'), 'portrait') + '/')
+            sheet = FreeUp(freeup_page.WINDOW, HERE, 'Default', '1080i')
+        sheet.data, sheet.changed = data, False
+        sheet.doModal()
+        changed = sheet.changed
+        del sheet
+        return changed
 
     def more_entries(rows, repick=0):
         """Board B round 2's ••• menu: Find Missing Episodes always; Repair All Problems only when there is one; Pick
