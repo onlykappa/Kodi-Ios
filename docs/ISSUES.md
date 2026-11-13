@@ -2985,3 +2985,30 @@ BackgroundRetry (fails on r50's code). Phone check on the next IPA: lock the pho
 in another app, stop it; the log should show "silent audio running again after N s" within ~10-30 s, not an hour.
 Also seen (not fixed yet): episode 006's preparation restarted from the beginning at 13:38 after 20 min of work while
 throttled; and piece sizes recover slowly after timeouts. Both to recheck once the audio no longer drops.
+
+## ISSUE-186 — AirPlay of an Umbrella stream: long start, then broken sound (owner log 3b94b426, build 319) — FIXED on host, r52 staged
+
+What the log shows (The Lorax via Umbrella, 1920x1040 H.264, 27.8 Mbit/s): the stream reached the phone at about
+0.6 MB/s, under a fifth of what the movie needs (3.5 MB/s). Video segment 0 (11.6 MB) took 18 s, segment 1 took 39 s.
+Kodi's own playback of the same link buffered again and again afterwards ("Waiting while the video buffers" 10 times),
+and the AllDebrid → Drive copy ran at 1 MB per 6-20 s, so the connection itself was slow at the time.
+The TV (Apple TV, external playback on) asked for video segment 1 all along ("No response for media file in 6s"),
+took audio segments meanwhile, and after 30 s the r6 "sound only" check took that for a TV that cannot decode the
+picture: "the TV takes audio segments but no video ones (avc1.640029)", then "restarting in compat mode". An H.264
+movie was re-encoded to H.264 on the phone from the same slow source: another 80 s with "presentation 0x0", the
+picture lost and the sound out of step. The second try (16:28) took 18 s just to open the source and 36 s for the first
+segment, and the owner gave up.
+
+Root cause (the part we can fix): the sound-only check counted segments served, not requests still waiting, so a
+slow source looked like a codec refusal. The slow source itself (Umbrella's host / Wi-Fi at that moment) is outside
+the app.
+
+Fix (KodiAirPlay r52, staged): kr_remux_video_waiting() counts video requests still being made; while the TV waits
+for one, the player logs "the TV is waiting for a video segment the source has not delivered yet (slow source, not the
+codec)" and never restarts in compat mode. Retest: test_airplay_remux SlowSource; test_play_on_tv_network updated.
+Phone check on the next IPA: the same kind of stream should either play (late) or stay on the waiting line, never
+"restarting in compat mode" for an avc1 movie. A faster source (a Drive copy, or a smaller Umbrella result) is the real
+cure for a 28 Mbit/s file on a ~5 Mbit/s link.
+Background in the same log: no queued work was left waiting with the app in the background, so r51's retry did not need
+to fire (the "running again after 5494 s" line follows 2 h of foreground playback, where the silence is not used). The
+Drive copy held while the movie played and buffered (by design: the video goes first) and resumed at 18:45.

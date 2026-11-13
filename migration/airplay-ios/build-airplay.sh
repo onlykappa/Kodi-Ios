@@ -67,6 +67,7 @@
 # iOS 26 SDK (Xcode 26); the classes are weak-linked, so older iOS reports "not available" and runs as before.
 # r51: the background silent audio is tried again every 10 s while work waits after iOS interrupted it (iOS often never
 # says the interruption ended; build-317 log: 62 min of throttled copies).
+# r52: no compat restart while the TV still waits for a video segment (a slow source, not a codec; build-319 log).
 # Usage: build-airplay.sh OUT_DIR   (REMUX_FFMPEG=DIR reuses an iOS build of build-remux-ffmpeg.sh, REMUX_LIBASS=DIR
 # one of build-libass.sh ios)
 set -euo pipefail
@@ -544,7 +545,7 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
             // r36: a prepared movie may restart once in compat mode too, but only when the TV takes the sound only (below);
             // the older segment-based triggers stay off for it (it has no segments).
             const BOOL preparedLink = [link hasSuffix:@"/prepared.mp4"] || [link hasSuffix:@"/prepared.m3u8"];   // r38: HLS over the prepared file
-            __block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO, everExternal = NO;
+            __block BOOL warned = NO, compatTried = kr_remux_compat() != 0, restarting = NO, everExternal = NO, slowNoted = NO;
             __block double resumeAt = -1;
             // r7: once per stream: restart with the picture converted to H.264 at the same position. NO when it cannot
             // (already tried, or no source to restart).
@@ -661,7 +662,13 @@ static void presentPlayer(NSString *link, NSString *name, BOOL converted, unsign
                                external, kr_remux_served(1), kr_remux_served(0));
                 // r6: an AirPlay TV that cannot decode the video (many TVs' built-in AirPlay: no HEVC) takes the audio
                 // segments and never a video one, plays the sound with a music note, and Apple's player looks fine.
-                if (!warned && external && externalTicks >= 30 && player.timeControlStatus == AVPlayerTimeControlStatusPlaying &&
+                // r52 (owner's build-319 log: an Umbrella stream gave ~0.6 MB/s for a 3.5 MB/s movie; video segment 1 took 39 s,
+                // the TV had asked for it all along, and this check restarted an H.264 movie in compat mode: a longer wait and
+                // broken sound). A TV still waiting for a video segment is waiting on the source, not refusing the codec.
+                if (!warned && external && externalTicks >= 30 && kr_remux_video_waiting() > 0) {
+                    if (!slowNoted) playerNote(@"the TV is waiting for a video segment the source has not delivered yet (slow source, not the codec)");
+                    slowNoted = YES;
+                } else if (!warned && external && externalTicks >= 30 && player.timeControlStatus == AVPlayerTimeControlStatusPlaying &&
                     kr_remux_served(0) > audio0 && kr_remux_served(1) == video0) {
                     warned = YES;
                     const char *codec = kr_remux_video_codec();

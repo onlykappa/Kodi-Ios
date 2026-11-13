@@ -63,6 +63,8 @@ int kr_remux_served(int video);
 // r8: the same, counting only receivers other than the phone's own player (User-Agent not AppleCoreMedia on an
 // iPhone/iPad): what the TV took. 0 video segments while the TV played: it never got a picture.
 int kr_remux_served_external(int video);
+// r52: video segment requests in progress (the TV asked, the segment is not made yet: a slow source, not a codec).
+int kr_remux_video_waiting(void);
 // r6: the running session's video CODECS value ("avc1.640028", "hvc1.2.4.L120.90"), "" when none.
 const char *kr_remux_video_codec(void);
 // The port of the running server, 0 when none (tests).

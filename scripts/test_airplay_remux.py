@@ -183,6 +183,18 @@ class BackgroundRetry(unittest.TestCase):
   self.assertNotIn('if(keepInterrupted){atomic_store(&keepState,-2);return;}',keep)
   self.assertIn('keepInterruptedAt=NSProcessInfo.processInfo.systemUptime',build)
 
+class SlowSource(unittest.TestCase):
+ def test_r52_a_slow_source_is_not_taken_for_sound_only(self):
+  # Owner log 3b94b426 (build 319, Umbrella stream): video segment 1 took 39 s; the TV had asked for it all along, and
+  # the sound-only check restarted an H.264 movie in compat mode (a long wait, then broken sound).
+  build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()
+  src=ROOT/'migration/airplay-ios/remux/src'
+  self.assertIn('int kr_remux_video_waiting(void);',(src/'kr_remux.h').read_text())
+  self.assertIn('int kr_remux_video_waiting(void) { return atomic_load(&demand[R_VCOPY]) + atomic_load(&demand[R_VCOMPAT]); }',(src/'kr_remux.c').read_text())
+  guard=build.index('externalTicks >= 30 && kr_remux_video_waiting() > 0')
+  self.assertLess(guard,build.index('playerNote(@"the TV takes audio segments but no video ones'))
+  self.assertIn('} else if (!warned && external && externalTicks >= 30 && player.timeControlStatus',build)
+
 class PictureBridge(unittest.TestCase):
  def test_compat_restart_once_in_the_framework(self):
   build=(ROOT/'migration/airplay-ios/build-airplay.sh').read_text()

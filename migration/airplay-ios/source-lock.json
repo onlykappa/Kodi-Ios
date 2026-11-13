@@ -1,15 +1,16 @@
 {
   "framework_release": {
+    "tag": "kodi-airplay-r52",
+    "asset": "KodiAirPlay.framework.zip",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "previous": {
     "tag": "kodi-airplay-r51",
     "asset": "KodiAirPlay.framework.zip",
     "sha256": "55f6d2f6b77dc1b922c2f29375accc54bf80116c7e0c515dc3dc3a6e10b453ab"
   },
-  "previous": {
-    "tag": "kodi-airplay-r50",
-    "asset": "KodiAirPlay.framework.zip",
-    "sha256": "3fc7e903de0c0dc500aafb7f84764308e5920f66549a621461038d550d1d1769"
-  },
   "source_commit": "e56c7afbcdef66081b2b8a0495b1a5a0b2a8a805",
   "verified_run": 43320420111,
-  "pin_note": "r51 (background silent audio retried after an iOS interruption, ISSUE-185) pinned from airplay-ios run 43320420111: release zip downloaded, sha256 matches the release notes; arm64 Mach-O."
+  "pin_note": "r51 (background silent audio retried after an iOS interruption, ISSUE-185) pinned from airplay-ios run 43320420111: release zip downloaded, sha256 matches the release notes; arm64 Mach-O.",
+  "staged_note": "r52 staged (a slow source is no longer taken for a TV that cannot decode the picture: no compat restart while a video segment is still being made; owner log 3b94b426, build 319): built and published by airplay-ios on this PR; sha256, source_commit and verified_run are pinned from that run."
 }
